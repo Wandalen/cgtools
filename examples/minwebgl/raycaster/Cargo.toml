@@ -9,11 +9,9 @@ edition = "2021"
 # mingl = { workspace = true, features = [ "camera_orbit_controls", "diagnostics" ] }
 
 minwebgl = { workspace = true }
-tobj = { workspace = true, default-features = false, features = ["async"] }
-[dependencies.web-sys]
-workspace = true
-features = [
+tobj = { workspace = true, default-features = false, features = ['async'] }
+web-sys = { workspace = true, features = [
   'KeyboardEvent',
   'WebGlTexture',
   'HtmlImageElement',
-]
+] }
