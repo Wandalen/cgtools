@@ -100,7 +100,7 @@ version = "~0.1.0"
 path = "module/alias/ndarray_tools"
 
 [workspace.dependencies.mdmath_core]
-version = "~0.1.0"
+version = "~0.2.0"
 path = "module/math/mdmath_core"
 
 # = external dependencies
