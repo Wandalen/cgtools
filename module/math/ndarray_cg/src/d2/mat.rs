@@ -43,6 +43,20 @@ mod private
     const IS_ROW_MAJOR: bool;
     /// True for ordinary coordinates
     const IS_ORDINARY: bool;
+
+    /// Coordinate type of the matrix( homogenous or not)
+    #[ inline( always ) ]
+    fn coords_str() -> &'static str
+    {
+      if Self::IS_ORDINARY
+      {
+        "ordinary"
+      }
+      else 
+      {
+        "homogenous"
+      }
+    }
   }
 
   // =
