@@ -1,0 +1,23 @@
+[package]
+name = "ndarray_tools"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
+license = "MIT"
+repository = "https://github.com/Wandalen/cg_tools"
+readme = "readme.md"
+description = "Math for computer graphics based on `ndarray`. The approach used in ndarray for computer graphics math is highly flexible and performant, even though there are many specialized crates focused on game development and computer graphics."
+keywords = ["math", "cg"]
+
+[lints]
+workspace = true
+
+# xxx : introduce features
+# xxx : introduce features: enabled, default, full
+
+[dependencies]
+mod_interface = { workspace = true }
+ndarray_cg = { workspace = true }
+
+[dev-dependencies]
+test_tools = { workspace = true }

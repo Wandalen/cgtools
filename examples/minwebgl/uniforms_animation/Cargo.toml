@@ -1,0 +1,9 @@
+[package]
+name = "minwebgl_uniforms_animation"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
+license = "MIT"
+
+[dependencies]
+minwebgl = { workspace = true }

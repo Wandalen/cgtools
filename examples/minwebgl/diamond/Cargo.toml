@@ -1,0 +1,21 @@
+[package]
+name = "minwebgl_diamond"
+version = "0.1.0"
+edition = "2021"
+authors = [ 
+  "Kostiantyn Mysnyk <wandalen@obox.systems>",
+  "Avramenko Yevhenii <yevhenii.av@obox.systems>" 
+]
+
+[dependencies]
+
+minwebgl = { workspace = true, features = [ "future" ] }
+glam = "0.29.0"
+gltf = { version = "1.4.1", features = [ "import" ] }
+image = "0.25.2"
+
+[dependencies.web-sys]
+workspace = true
+features = [
+  'WebGlTexture'
+]

@@ -1,0 +1,9 @@
+[package]
+name = "minwebgl_uniforms_ubo"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
+license = "MIT"
+
+[dependencies]
+minwebgl = { workspace = true }

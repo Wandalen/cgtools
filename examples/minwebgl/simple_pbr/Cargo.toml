@@ -1,0 +1,11 @@
+[package]
+name = "minwebgl_simple_pbr"
+version = "0.1.0"
+edition = "2021"
+authors = [ 
+  "Kostiantyn Mysnyk <wandalen@obox.systems>",
+  "Avramenko Yevhenii <yevhenii.av@obox.systems>" 
+]
+
+[dependencies]
+minwebgl = { workspace = true }

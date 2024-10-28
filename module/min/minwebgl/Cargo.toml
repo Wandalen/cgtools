@@ -1,0 +1,90 @@
+[package]
+name = "minwebgl"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
+license = "MIT"
+repository = "https://github.com/Wandalen/cg_tools"
+description = "Minimal set of tools for concise WebGL programming"
+readme = "readme.md"
+keywords = [ "webgl" ]
+
+[lints]
+workspace = true
+
+[features]
+
+enabled = [
+  "dep:mingl",
+  "dep:bytemuck",
+  "dep:browser_log",
+  "dep:wasm-bindgen-futures",
+  "dep:wasm-bindgen",
+  "dep:js-sys",
+  "dep:web-sys",
+]
+default = [
+  "enabled",
+  "constants",
+  "diagnostics",
+  "file",
+  "future",
+]
+full = [
+  "default",
+]
+
+constants = [] # reflect contants
+model = [] # Model information
+
+# diagnostics
+diagnostics = [
+  "mingl/diagnostics",
+  "model"
+]
+
+file = [] # enable files handling
+future = [] # enable futures
+
+ndarray = [ "mingl/ndarray" ]
+
+[dependencies]
+
+# = internal
+
+mingl = { workspace = true, optional = true }
+
+# = external
+
+bytemuck = { workspace = true, optional = true, features = [ "derive" ] } # xxx : replace
+# anyhow = "1.0.48"
+# slice-of-array = "0.3.1"
+# log = { workspace = true }
+browser_log = { workspace = true, optional = true }
+
+tobj =  { workspace = true, optional = true }
+
+wasm-bindgen-futures = { workspace = true, optional = true }
+wasm-bindgen = { workspace = true, optional = true }
+js-sys = { workspace = true, optional = true }
+web-sys = { workspace = true, optional = true, features = [
+  'HtmlCanvasElement',
+  'Window',
+  'Document',
+  'HtmlCollection',
+  'CssStyleDeclaration',
+  'HtmlElement',
+  'ConsoleInstance',
+  'console',
+  'WebGl2RenderingContext',
+  'WebGlProgram',
+  'WebGlShader',
+  'WebGlBuffer',
+  'WebGlVertexArrayObject',
+  'WebGlUniformLocation',
+  'RequestInit',
+  'RequestMode',
+  'Request',
+  'Response',
+  'Location'
+]}

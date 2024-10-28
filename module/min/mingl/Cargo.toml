@@ -1,0 +1,52 @@
+[package]
+name = "mingl"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
+license = "MIT"
+repository = "https://github.com/Wandalen/cg_tools"
+description = "Agnostic set of tools for abstract rendering backend."
+readme = "readme.md"
+keywords = [ "webgl" ]
+
+[lints]
+workspace = true
+
+[features]
+
+enabled = []
+default = [
+  "enabled",
+  "ndarray",
+]
+full = [
+  "default",
+]
+
+ndarray = [ "dep:ndarray" ]
+camera_orbit_controls = []
+model = [
+  "dep:tobj"
+]
+diagnostics = [
+  "model"
+]
+
+[dependencies]
+
+ndarray = { workspace = true, optional = true }
+bytemuck = { workspace = true, features = [ "derive" ] } # xxx : replace
+# anyhow = "1.0.48"
+# slice-of-array = "0.3.1"
+cgmath = "0.18.0"
+glam = "0.29.0"
+tobj = { workspace = true, optional = true }
+
+
+error_tools = { workspace = true }
+mod_interface = { workspace = true }
+derive_tools = { workspace = true }
+former = { workspace = true }
+
+[dev-dependencies]
+test_tools = { workspace = true }

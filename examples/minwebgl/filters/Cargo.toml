@@ -1,0 +1,23 @@
+[package]
+name = "filters"
+version = "0.1.0"
+edition = "2021"
+authors = [
+  "Kostiantyn Mysnyk <wandalen@obox.systems>",
+  "Oleksandr Zaharevskyi <oleksandr.z@obox.systems>",
+]
+
+[dependencies]
+serde = { version = "1.0.210", features = ['derive'] }
+serde-wasm-bindgen = "0.6.5"
+minwebgl = { workspace = true }
+web-sys = { workspace = true, features = [
+  'HtmlImageElement',
+  'HtmlButtonElement',
+  'WebGlFramebuffer',
+  'WebGlTexture',
+  'Location',
+] }
+
+[lints]
+workspace = true

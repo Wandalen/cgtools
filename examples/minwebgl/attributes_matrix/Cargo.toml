@@ -1,0 +1,9 @@
+[package]
+name = "minwebgl_attributes_matrix"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
+license = "MIT"
+
+[dependencies]
+minwebgl = { workspace = true, features = [ "ndarray" ] }

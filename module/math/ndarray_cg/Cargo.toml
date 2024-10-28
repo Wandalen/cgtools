@@ -1,0 +1,47 @@
+[package]
+name = "ndarray_cg"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
+license = "MIT"
+repository = "https://github.com/Wandalen/cg_tools"
+readme = "readme.md"
+description = "Math for computer graphics based on `ndarray`. The approach used in ndarray for computer graphics math is highly flexible and performant, even though there are many specialized crates focused on game development and computer graphics."
+keywords = ["math", "cg"]
+
+[lints]
+workspace = true
+
+# [lints.rust]
+# # Encourages documentation for public items.
+# missing_docs = "warn" # qqq : uncomment please
+# # Suggests implementing Debug for public types.
+# missing_debug_implementations = "warn" # qqq : uncomment please
+
+[features]
+
+enabled = [
+  "dep:ndarray",
+  "dep:num-traits",
+  "dep:bytemuck",
+  "dep:mod_interface",
+  "dep:mdmath_core",
+  "dep:derive_tools",
+]
+default = [
+  "enabled",
+]
+full = [
+  "default",
+]
+
+[dependencies]
+ndarray = { workspace = true, optional = true }
+num-traits = { workspace = true, optional = true }
+bytemuck = { workspace = true, optional = true }
+mod_interface = { workspace = true, optional = true }
+derive_tools = { workspace = true, optional = true }
+mdmath_core = { workspace = true, optional = true, features = [ "index", "float", "inner_product", "approx", "general" ] }
+
+[dev-dependencies]
+test_tools = { workspace = true }

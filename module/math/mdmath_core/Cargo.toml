@@ -1,0 +1,53 @@
+[package]
+name = "mdmath_core"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
+license = "MIT"
+repository = "https://github.com/Wandalen/cg_tools"
+readme = "readme.md"
+description = "Multidimensional math, fundamental functionality and types."
+keywords = [ "math" ]
+
+[lints]
+workspace = true
+
+# [lints.rust]
+# # Encourages documentation for public items.
+# missing_docs = "warn" # qqq : uncomment please
+# # Suggests implementing Debug for public types.
+# missing_debug_implementations = "warn" # qqq : uncomment please
+
+[features]
+
+enabled = [
+  "dep:mod_interface",
+  "dep:clone_dyn_types",
+]
+default = [
+  "enabled",
+]
+full = [
+  "default",
+  "index",
+  "nd",
+  "inner_product",
+  "general",
+]
+
+index = [ "dep:ndarray" ]
+nd = [ "dep:ndarray" ]
+float = [ "nd", "dep:num-traits" ]
+approx = [ "float", "dep:approx" ]
+inner_product = [ "float" ]
+general = []
+
+[dependencies]
+mod_interface = { workspace = true, optional = true }
+clone_dyn_types = { workspace = true, optional = true }
+ndarray = { workspace = true, optional = true, features = [] }
+approx = { workspace = true, optional = true, features = [] }
+num-traits = { workspace = true, optional = true, features = [] }
+
+[dev-dependencies]
+test_tools = { workspace = true }
