@@ -6,14 +6,13 @@ edition = "2021"
 [dependencies]
 
 # glam = "0.29.0"
-tobj = { workspace = true, default-features = false, features = ["async"] }
 # mingl = { workspace = true, features = [ "camera_orbit_controls", "diagnostics" ] }
 
 minwebgl = { workspace = true }
+tobj = { workspace = true, default-features = false, features = ["async"] }
 [dependencies.web-sys]
 workspace = true
 features = [
-
   'KeyboardEvent',
   'WebGlTexture',
   'HtmlImageElement',
