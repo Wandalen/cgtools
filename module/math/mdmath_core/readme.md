@@ -1,24 +1,80 @@
 # mdmath_core
 
-This crate provides fundamental math functionality and types.
+Fundamental functionality and types, representation slices and tuples as vectors.
 
-To use it within workspace, simply add it to the `Cargo.toml`
+## Implemented Features
+
+- Vector:
+  - Operations:
+    - Dot product of two vectors.
+    - Magnitude of the vector.
+    - Normalizing the vector.
+    - Projection on another vector.
+    - Angle beetween two vectors.
+    - Orthogonal checking between two vectors.
+    - Dimension offset of the vector.
+  - Mut/Unmut ref from slice and tuple.
+  - Mut/Unmut iterators.
+
+## Installation
+
+Add to your example `[dependencies]` in `Cargo.toml` configuration file:
 ```toml
-mdmath_core = { workspace = true, features = { "full" } }
+mdmath_core = { workspace = true }
 ```
 
-### Example
-```Rust
-use mdmath_core::vector;
-use mdmath_core::vector::inner_product::*;
+## Examples
 
-// You can do vector math with anything that implements VectorIterMut/VectorIter
-// Will return [ 5.0, 7.0, 9.0 ]
-let result = sum( &[ 1.0, 2.0, 3,0], &[ 4.0, 5.0, 6.0 ] );
-// Will return 5.0
-let result = mag( &( 3.0, 4.0 ) );
-// Will return [ 0.0, 0.0, 1.0 ]
-let result = cross( &[ 1.0, 0.0, 0.0 ], &[ 0.0, 1.0, 0.0 ] );
-// Will return true
-let result = is_orthogonal( &( 1.0, 0.0, 0.0 ), &( 0.0, 1.0, 0.0 ) );
+### Dot product of two vectors
+
+```rust
+  let vec_a = [ 1.0, 2.0, 3.0 ];
+  let vec_b = [ 4.0, 5.0, 6.0 ];
+  let result = mdmath_core::vector::dot( &vec_a, &vec_b );
+  assert_eq!( result, 32.0 );
+```
+
+### Magnitude of the vector
+
+```rust
+  let vec_a = [ 1.0, 2.0, 3.0 ];
+  let result = mdmath_core::vector::mag2( &vec_a );
+  assert_ulps_eq!( result, 14.0 );
+```
+
+### Normalizing the vector
+
+```rust
+  let vec_a = [ 3.0, 4.0 ];
+  let mut result = vec_a.clone();
+  mdmath_core::vector::normalize( &mut result, &vec_a );
+  let expected = [ 0.6, 0.8 ];
+  assert_eq!( result, expected );
+```
+
+### Projection on another vector
+
+```rust
+  let mut vec_a = [ 1.0, 2.0, 3.0 ];
+  let vec_b = [ 4.0, 5.0, 6.0 ];
+  mdmath_core::vector::project_on( &mut vec_a, &vec_b );
+  let expected = [ 1.6623376623376624, 2.077922077922078, 2.4935064935064934 ];
+  assert_eq!( vec_a, expected );
+```
+
+### Angle beetween two vectors
+
+```rust
+  let vec_a = [ 1.0, 0.0 ];
+  let vec_b = [ 0.0, 1.0 ];
+  let result = mdmath_core::vector::angle( &vec_a, &vec_b );
+  assert_ulps_eq!( result, std::f32::consts::FRAC_PI_2 );
+```
+
+### Orthogonal checking between two vectors
+
+```rust
+  let vec_a = [ 1.0, 0.0 ];
+  let vec_b = [ 0.0, 1.0 ];
+  assert!( mdmath_core::vector::is_orthogonal( &vec_a, &vec_b ), "Orthogonal test failed for orthogonal vectors" );
 ```
