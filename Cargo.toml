@@ -82,7 +82,7 @@ path = "module/min/minwebgl"
 # = helpers
 
 [workspace.dependencies.browser_log]
-version = "~0.2.0"
+version = "~0.3.0"
 path = "module/helper/browser_log"
 
 [workspace.dependencies.browser_tools]
