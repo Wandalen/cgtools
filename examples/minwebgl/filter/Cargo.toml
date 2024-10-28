@@ -1,0 +1,13 @@
+[package]
+name = "filter"
+version = "0.1.0"
+edition = "2021"
+authors = [
+  "Kostiantyn Mysnyk <wandalen@obox.systems>",
+  "Oleksandr Zaharevskyi <oleksandr.z@obox.systems>",
+]
+
+[dependencies]
+minwebgl = { workspace = true }
+tobj = { workspace = true, default-features = false, features = ['async'] }
+web-sys = { workspace = true, features = ['WebGlTexture', 'HtmlImageElement'] }
