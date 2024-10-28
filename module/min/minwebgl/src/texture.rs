@@ -1,6 +1,6 @@
 mod private
 {
-  pub use super::d2 as d2; 
+  //pub use super::d2 as d2; 
 }
 
 pub mod d2;
