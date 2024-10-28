@@ -6,6 +6,8 @@ out vec4 frag_color;
 
 uniform sampler2D u_image;
 uniform vec2 u_texel_size;
+uniform vec2 u_cursor_pos;
+uniform float u_radius;
 
 vec3 apply_3x3_kernel( float kernel[ 9 ] )
 {
@@ -36,5 +38,14 @@ void main()
      0.0,  1.0, 2.0
   );
 
-  frag_color = vec4( apply_3x3_kernel( EMBOSS_KERNEL ), 1.0 );
+  vec2 fragcoord = gl_FragCoord.xy;
+  vec4 pixel = texture( u_image, v_tex_coord );
+  if ( distance( fragcoord, u_cursor_pos ) <= u_radius )
+  {
+    frag_color = vec4( apply_3x3_kernel( EMBOSS_KERNEL ), pixel.a );
+  }
+  else
+  {
+    frag_color = pixel;
+  }
 }

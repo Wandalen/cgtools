@@ -10,4 +10,9 @@ authors = [
 [dependencies]
 minwebgl = { workspace = true }
 tobj = { workspace = true, default-features = false, features = ['async'] }
-web-sys = { workspace = true, features = ['WebGlTexture', 'HtmlImageElement'] }
+web-sys = { workspace = true, features = [
+  'WebGlTexture',
+  'HtmlImageElement',
+  'DomRect',
+  'MouseEvent',
+] }
