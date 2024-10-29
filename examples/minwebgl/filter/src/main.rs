@@ -17,7 +17,7 @@ fn main()
 
 fn run()
 {
-  let image_path = "img.png";
+  let image_path = "unnamed.png";
   let gl = gl::context::retrieve_or_make().expect( "Can't retrieve GL context" );
 
   let load = move | img : &HtmlImageElement |
