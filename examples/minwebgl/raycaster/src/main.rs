@@ -43,8 +43,8 @@ fn run()
 
   let controls = Controls::setup();
   let rotation_velocity     = 2.5;
-  let move_velocity         = 70.0;
-  let mut player_pos        = [ -80.0, 30.0 ];
+  let move_velocity         = 1.0;
+  let mut player_pos        = [ 2.0, 2.0 ];
   let mut angle             = 0.0;
   let mut last_time         = 0.0;
 
@@ -55,6 +55,7 @@ fn run()
     last_time = time;
 
     angle += rotation_velocity * delta_time * controls.borrow().as_vec()[ 1 ];
+
     // wrap angle between 0 and 2PI
     if angle < 0.0
     {
@@ -68,13 +69,15 @@ fn run()
     // direction where player is facing
     let dir = direction( angle );
 
+    // update player position
     player_pos[ 0 ] += move_velocity * dir[ 0 ] * delta_time * controls.borrow().as_vec()[ 0 ];
-    player_pos[ 1 ] += move_velocity * dir[ 1 ] * delta_time * controls.borrow().as_vec()[ 0 ];
+    player_pos[ 1 ] += move_velocity * -dir[ 1 ] * delta_time * controls.borrow().as_vec()[ 0 ];
 
-
-
+    gl.clear( GL::COLOR_BUFFER_BIT );
 
     gl.use_program( Some( &point_shader ) );
+
+    // draw map
     for ( i, item ) in MAP.iter().enumerate()
     {
       let col = ( i % MAP_SIDE_LEN ) as f32;
@@ -82,15 +85,15 @@ fn run()
 
       let color = if *item == 1
       {
-        [ 0.0, 0.0, 0.0 ]
+        [ 1.0, 1.0, 1.0 ]
       }
       else
       {
-        [ 1.0, 1.0, 1.0 ]
+        [ 0.0, 0.0, 0.0 ]
       };
 
-      let posx = ( -512.0 + CELL_SIZE * ( row + 0.5 ) ) / 1024.0;
-      let posy = ( 256.0 - CELL_SIZE * ( col + 0.5 ) ) / 512.0;
+      let posx = ( -512.0 + CELL_SIZE * ( col + 0.5 ) ) / 512.0;
+      let posy = ( 256.0 - CELL_SIZE * ( row + 0.5 ) ) / 256.0;
 
       gl.vertex_attrib2fv_with_f32_array( 0, &[ posx, posy ] );
       gl.vertex_attrib1f( 1, CELL_SIZE - 1.0 );
@@ -98,26 +101,28 @@ fn run()
       gl.draw_arrays( GL::POINTS, 0, 1 );
     }
 
+    // draw player
+    let posx = player_pos[ 0 ] / MAP_SIDE_LEN as f32 - 1.0;
+    let posy = 1.0 - player_pos[ 1 ] / MAP_SIDE_LEN as f32 * 2.0;
+    gl.vertex_attrib2fv_with_f32_array( 0, &[ posx, posy ] );
+    gl.vertex_attrib1f( 1, 8.0 );
+    gl.vertex_attrib3f( 2, 1.0, 0.5, 0.0 );
+    gl.draw_arrays( GL::POINTS, 0, 1 );
 
-
-
-    // let line_start = world2screen( &player_pos );
-    // let line_end = world2screen( &[ player_pos[ 0 ] + dir[ 0 ] * 20.0, player_pos[ 1 ] + dir[ 1 ] * 20.0 ] );
-
-    gl.clear( GL::COLOR_BUFFER_BIT );
-
-    // gl.use_program( Some( &point_shader ) );
-    // draw_map( &gl );
-    // draw_player( &gl, &world2screen( &player_pos ) );
-
-    // gl.use_program( Some( &line_shader ) );
-    // gl.vertex_attrib2fv_with_f32_array( 0, &line_start );
-    // gl.vertex_attrib2fv_with_f32_array( 1, &line_end );
-    // gl.vertex_attrib3f( 2, 1.0, 0.5, 0.0 );
-    // gl.draw_arrays( GL::LINES, 0, 2 );
+    // draw direction line
+    let player_pos = [ posx, posy ];
+    // determine start and end of line in screen space
+    let line_start = player_pos;
+    let line_end = [ player_pos[ 0 ] + dir[ 0 ] * 0.2, player_pos[ 1 ] + dir[ 1 ] * 0.4 ];
+    gl.use_program( Some( &line_shader ) );
+    gl.vertex_attrib2fv_with_f32_array( 0, &line_start );
+    gl.vertex_attrib2fv_with_f32_array( 1, &line_end );
+    gl.vertex_attrib3f( 2, 1.0, 0.5, 0.0 );
+    gl.draw_arrays( GL::LINES, 0, 2 );
 
     true
   };
+
   gl::exec_loop::run( loop_ );
 }
 
