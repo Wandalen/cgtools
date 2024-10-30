@@ -4,7 +4,7 @@ out vec2 v_texcoord;
 
 void main()
 {
-  const vec2 VERTECES[] = vec2[]
+  const vec2 VERTICES[] = vec2[]
   (
     vec2( -1.0, -1.0 ),
     vec2(  3.0, -1.0 ),
@@ -18,6 +18,6 @@ void main()
   );
 
   int index = gl_VertexID;
-  gl_Position = vec4( VERTECES[ index ], 0.0, 1.0 );
+  gl_Position = vec4( VERTICES[ index ], 0.0, 1.0 );
   v_texcoord = TEX_COORDS[ index ];
 }
