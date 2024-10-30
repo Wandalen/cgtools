@@ -8,11 +8,9 @@ glam = "0.29.0"
 futures = "0.3.31"
 rand = "0.8.5"
 getrandom = { version = "0.2.15", features = ['js'] }
-bytemuck = { workspace = true }
 minwebgl = { workspace = true, features = ['future'] }
 tobj = { workspace = true, features = ['async'] }
 mingl = { workspace = true, features = ['free_camera'] }
-wasm-bindgen-futures = { workspace = true }
 [dependencies.web-sys]
 features = [
   'HtmlImageElement',
