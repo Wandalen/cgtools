@@ -41,4 +41,6 @@ mod private {}
   #[ cfg( feature = "ndarray" ) ]
   layer nd;
 
+  #[ cfg( feature = "free_camera" ) ]
+  layer free_camera;
 }
