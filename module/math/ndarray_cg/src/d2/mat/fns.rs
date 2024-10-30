@@ -8,6 +8,7 @@ mod private
   where
     E : MatEl,
     E : fmt::Debug,
+    Self : IndexingRef< Scalar = E >
   {
     fn fmt( &self, f : &mut fmt::Formatter<'_> ) -> fmt::Result
     {
@@ -15,19 +16,22 @@ mod private
       write!
       (
         f,
-        "Mat {{ order : {} }}\n",
+        "Mat {{ order : {} | Coordinate : {} }}\n",
         Descriptor::order_str(),
+        Descriptor::coords_str()
       )?;
+
+      
       for row in 0..ROWS
       {
         write!( f, "  [ " )?;
-        for col in 0..COLS
+        for ( i, col ) in self.lane_iter( 0, row ).enumerate()
         {
-          if col > 0
+          if i > 0
           {
             write!( f, ", " )?;
           }
-          write!( f, "{:?}", raw_slice[ row * COLS + col ] )?;
+          write!( f, "{:?}", col )?;
         }
         write!( f, " ],\n" )?;
       }

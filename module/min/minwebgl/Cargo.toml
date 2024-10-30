@@ -1,6 +1,6 @@
 [package]
 name = "minwebgl"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
 license = "MIT"
@@ -35,7 +35,10 @@ full = [
 ]
 
 constants = [] # reflect contants
-model = [] # Model information
+model = [ 
+  "mingl/model",
+  "tobj/async"
+] # Model information
 
 # diagnostics
 diagnostics = [
@@ -86,5 +89,7 @@ web-sys = { workspace = true, optional = true, features = [
   'RequestMode',
   'Request',
   'Response',
-  'Location'
+  'Location',
+  'HtmlImageElement',
+  'WebGlTexture'
 ]}
