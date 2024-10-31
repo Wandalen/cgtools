@@ -4,10 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-
-# glam = "0.29.0"
-# mingl = { workspace = true, features = [ "camera_orbit_controls", "diagnostics" ] }
-
 minwebgl = { workspace = true }
 tobj = { workspace = true, default-features = false, features = ['async'] }
 web-sys = { workspace = true, features = [
