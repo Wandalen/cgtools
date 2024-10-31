@@ -11,8 +11,9 @@ fn main()
   run();
 }
 
-const PI2 : f32 = consts::PI * 2.;
+// size of the tile
 const CELL_SIZE : f32 = 64.;
+const PI2 : f32 = consts::PI * 2.;
 
 const MAP_SIDE : usize = 8;
 const MAP : [ u8; MAP_SIDE * MAP_SIDE ] =
@@ -49,7 +50,8 @@ fn run()
   let fov = 60.;
   let mut last_time = 0.;
 
-  gl.clear( GL::COLOR_BUFFER_BIT );
+  let map = map_vao( &gl );
+  let mut rays = Vec::with_capacity( ray_count );
 
   let loop_ = move | time |
   {
@@ -60,8 +62,10 @@ fn run()
     angle += rotation_velocity * delta_time * controls.borrow().as_vec()[ 1 ];
     angle = wrap_angle( angle );
 
+    // 1.0 is forward, -1.0 is backward
     let move_dir = controls.borrow().as_vec()[ 0 ];
 
+    // restrict movement depending on how close is an obstacle
     let move_dir = match move_dir
     {
       1.0 =>
@@ -73,7 +77,7 @@ fn run()
       {
         let angle = wrap_angle( consts::PI + angle );
         let RayCollision { len, .. } = cast_ray( &player_pos, angle );
-        if len > 0.2 { -1.0 } else { 0.0 }
+        if len > 0.1 { -1.0 } else { 0.0 }
       }
       _ => 0.0
     };
@@ -82,71 +86,61 @@ fn run()
     player_pos[ 0 ] += move_velocity * dir[ 0 ] * delta_time * move_dir;
     player_pos[ 1 ] += move_velocity * dir[ 1 ] * delta_time * move_dir;
 
+    // transform player pos to screen space
+    let posx = player_pos[ 0 ] / MAP_SIDE as f32 - 1.;
+    let posy = 1. - player_pos[ 1 ] / MAP_SIDE as f32 * 2.;
+    let player_pos_screen_space = [ posx, posy ];
+
+    // do raycasting
+    rays.clear();
+    for i in 0..ray_count
+    {
+      let ray_angle = angle + ( i as f32 * fov / ( ray_count - 1 ) as f32 ).to_radians() - ( fov / 2. ).to_radians();
+      let ray_angle = wrap_angle( ray_angle );
+      let RayCollision { pos, len } = cast_ray( &player_pos, ray_angle );
+
+      // adjust len to remove fish-eye effect
+      let len = len * ( ray_angle - angle ).cos();
+      let line_start = player_pos_screen_space;
+      let line_end =
+      [
+        pos[ 0 ] / MAP_SIDE as f32 - 1.,
+        1. - pos[ 1 ] / MAP_SIDE as f32 * 2.
+      ];
+      rays.push( ( line_start, line_end, len ) );
+    }
+
     gl.clear( GL::COLOR_BUFFER_BIT );
 
     gl.use_program( Some( &point_shader ) );
 
     // draw map
-    for ( i, item ) in MAP.iter().enumerate()
-    {
-      let col = ( i % MAP_SIDE ) as f32;
-      let row = ( i / MAP_SIDE ) as f32;
-
-      let color = if *item == 1
-      {
-        [ 1., 1., 1. ]
-      }
-      else
-      {
-        [ 0., 0., 0. ]
-      };
-
-      let posx = ( -512. + CELL_SIZE * ( col + 0.5 ) ) / 512.;
-      let posy = ( 256. - CELL_SIZE * ( row + 0.5 ) ) / 256.;
-
-      gl.vertex_attrib2fv_with_f32_array( 0, &[ posx, posy ] );
-      gl.vertex_attrib1f( 1, CELL_SIZE - 1. );
-      gl.vertex_attrib3fv_with_f32_array( 2, &color );
-      gl.draw_arrays( GL::POINTS, 0, 1 );
-    }
+    gl.bind_vertex_array( Some( &map ) );
+    gl.vertex_attrib1f( 1, CELL_SIZE - 1. );
+    gl.draw_arrays( GL::POINTS, 0 , MAP.len() as i32 );
+    gl.bind_vertex_array( None );
 
     // draw player
-    // transform player pos to screen space
-    let posx = player_pos[ 0 ] / MAP_SIDE as f32 - 1.;
-    let posy = 1. - player_pos[ 1 ] / MAP_SIDE as f32 * 2.;
-    let player_pos_screen_space = [ posx, posy ];
     gl.vertex_attrib2fv_with_f32_array( 0, &player_pos_screen_space );
     gl.vertex_attrib1f( 1, 8. );
     gl.vertex_attrib3f( 2, 1., 0.5, 0. );
     gl.draw_arrays( GL::POINTS, 0, 1 );
 
-    for i in 0..ray_count
+    for ( i, ( start, end, len ) ) in rays.iter().enumerate()
     {
-      let ray_angle = angle + ( i as f32 * fov / ( ray_count - 1 ) as f32 ).to_radians() - ( fov / 2. ).to_radians();
-      let ray_angle = wrap_angle( ray_angle );
-      let RayCollision { pos, len, .. } = cast_ray( &player_pos, ray_angle );
-      let len = len * ( ray_angle - angle ).cos();
-      let end = pos;
-      let line_start = player_pos_screen_space;
-      let line_end =
-      [
-        end[ 0 ] / MAP_SIDE as f32 - 1.,
-        1. - end[ 1 ] / MAP_SIDE as f32 * 2.
-      ];
-
+      // draw rays on map
       gl.use_program( Some( &line_shader ) );
-      gl.vertex_attrib2fv_with_f32_array( 0, &line_start );
-      gl.vertex_attrib2fv_with_f32_array( 1, &line_end );
+      gl.vertex_attrib2fv_with_f32_array( 0, start );
+      gl.vertex_attrib2fv_with_f32_array( 1, end );
       gl.vertex_attrib3f( 2, 0.75, 0.75, 0. );
       gl.draw_arrays( GL::LINES, 0, 2 );
 
-      let color = [ 0.8, 0.7, 0.6 ];
-
+      // draw geometry
       gl.use_program( Some( &slice_shader ) );
       gl.vertex_attrib1f( 0, 1. / len );
       gl.vertex_attrib1f( 1, 1. / ray_count as f32 );
       gl.vertex_attrib1f( 2, i as f32 );
-      gl.vertex_attrib3fv_with_f32_array( 3, &color );
+      gl.vertex_attrib3fv_with_f32_array( 3, &[ 0.8, 0.7, 0.6 ] );
       gl.draw_arrays( GL::TRIANGLE_STRIP, 0, 4 );
     }
 
@@ -156,28 +150,59 @@ fn run()
   gl::exec_loop::run( loop_ );
 }
 
-
-// wrap angle between 0 and 2PI
-fn wrap_angle( val : f32 ) -> f32
+fn map_vao( gl : &GL ) -> gl::WebGlVertexArrayObject
 {
-  match val < 0.0
+  let mut data = Vec::new();
+  for ( i, item ) in MAP.iter().enumerate()
   {
-    true => PI2 + val % PI2,
-    false => val % PI2
+    let col = ( i % MAP_SIDE ) as f32;
+    let row = ( i / MAP_SIDE ) as f32;
+
+    let color = if *item == 1
+    {
+      [ 1., 1., 1. ]
+    }
+    else
+    {
+      [ 0., 0., 0. ]
+    };
+
+    // screen-space coordinates
+    let posx = ( -512. + CELL_SIZE * ( col + 0.5 ) ) / 512.;
+    let posy = ( 256. - CELL_SIZE * ( row + 0.5 ) ) / 256.;
+
+    data.push( posx );
+    data.push( posy );
+    data.push( color[ 0 ] );
+    data.push( color[ 1 ] );
+    data.push( color[ 2 ] );
   }
+
+  let buf = gl::buffer::create( gl ).unwrap();
+  gl::upload( gl, &buf, data.as_slice(), GL::STATIC_DRAW );
+
+  let vao = gl::vao::create( gl ).unwrap();
+  gl.bind_vertex_array( Some( &vao ) );
+
+  gl::BufferDescriptor::new::< [ f32; 2 ] >()
+  .offset( 0 )
+  .stride( 5 )
+  .attribute_pointer( gl, 0, &buf )
+  .unwrap();
+  gl::BufferDescriptor::new::< [ f32; 3 ] >()
+  .offset( 2 )
+  .stride( 5 )
+  .attribute_pointer( gl, 2, &buf )
+  .unwrap();
+
+  gl.bind_vertex_array( None );
+
+  vao
 }
 
-fn direction( angle : f32 ) -> [ f32; 2 ]
-{
-  [
-    angle.cos(),
-    -angle.sin(),
-  ]
-}
-
+// algorithm explanation - https://www.youtube.com/watch?v=NbSee-XM7WA&t=1574s&ab_channel=javidx9
 fn cast_ray( start : &[ f32; 2 ], angle : f32 ) -> RayCollision
 {
-  // positive y direction goes down the map, so y component is actually inverted
   let direction = direction( angle );
 
   // length of the vector if step along x and y axes respectively by 1 unit
@@ -193,6 +218,7 @@ fn cast_ray( start : &[ f32; 2 ], angle : f32 ) -> RayCollision
   {
     ( 1.0 - start[ 0 ].fract() ) * length_x
   };
+
   let mut accum_y = if direction[ 1 ] < 0.0
   {
     start[ 1 ].fract() * length_y
@@ -209,34 +235,31 @@ fn cast_ray( start : &[ f32; 2 ], angle : f32 ) -> RayCollision
 
   loop
   {
-    let ( intersect_pos, len ) = match accum_x < accum_y
+    let ( intersect_pos, len ) = if accum_x < accum_y
     {
-      true =>
-      {
-        let intersect_pos =
-        [
-          start[ 0 ] + direction[ 0 ] * accum_x,
-          start[ 1 ] + direction[ 1 ] * accum_x
-        ];
-        let len = accum_x;
-        accum_x += length_x;
-        col += step_x;
+      let intersect_pos =
+      [
+        start[ 0 ] + direction[ 0 ] * accum_x,
+        start[ 1 ] + direction[ 1 ] * accum_x
+      ];
+      let len = accum_x;
+      accum_x += length_x;
+      col += step_x;
 
-        ( intersect_pos, len )
-      }
-      false =>
-      {
-        let intersect_pos =
-        [
-          start[ 0 ] + direction[ 0 ] * accum_y,
-          start[ 1 ] + direction[ 1 ] * accum_y
-        ];
-        let len = accum_y;
-        accum_y += length_y;
-        row += step_y;
+      ( intersect_pos, len )
+    }
+    else
+    {
+      let intersect_pos =
+      [
+        start[ 0 ] + direction[ 0 ] * accum_y,
+        start[ 1 ] + direction[ 1 ] * accum_y
+      ];
+      let len = accum_y;
+      accum_y += length_y;
+      row += step_y;
 
-        ( intersect_pos, len )
-      }
+      ( intersect_pos, len )
     };
 
     // dont go out of bounds
@@ -244,7 +267,7 @@ fn cast_ray( start : &[ f32; 2 ], angle : f32 ) -> RayCollision
     || row as usize >= MAP_SIDE
     || col as usize >= MAP_SIDE
     {
-      break RayCollision { len, pos: intersect_pos, _tile_index: None };
+      break RayCollision { len, pos: intersect_pos };
     }
 
     // map check
@@ -254,8 +277,30 @@ fn cast_ray( start : &[ f32; 2 ], angle : f32 ) -> RayCollision
 
     if MAP[ index ] == 1
     {
-      break RayCollision { len, pos: intersect_pos, _tile_index: Some( index ) };
+      break RayCollision { len, pos: intersect_pos };
     }
+  }
+}
+
+fn direction( angle : f32 ) -> [ f32; 2 ]
+{
+  // here's y component is inverted because y axis positive direction is downwards on the map
+  [
+    angle.cos(),
+    -angle.sin(),
+  ]
+}
+
+// wrap angle between 0 and 2PI
+fn wrap_angle( val : f32 ) -> f32
+{
+  if val < 0.0
+  {
+    PI2 + val % PI2
+  }
+  else
+  {
+    val % PI2
   }
 }
 
@@ -263,5 +308,4 @@ struct RayCollision
 {
   len : f32,
   pos : [ f32; 2 ],
-  _tile_index : Option< usize >,
 }
