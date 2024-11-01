@@ -31,7 +31,6 @@ model = [
 diagnostics = [
   "model"
 ]
-free_camera = []
 
 [dependencies]
 
