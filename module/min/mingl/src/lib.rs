@@ -40,4 +40,5 @@ mod private {}
   /// Multi-dimensional math.
   #[ cfg( feature = "ndarray" ) ]
   layer nd;
+
 }
