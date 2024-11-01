@@ -42,9 +42,13 @@ async fn run() -> Result< (), gl::WebglError >
   gl.enable( GL::DEPTH_TEST );
   gl.enable( GL::CULL_FACE );
 
+  // shader for drawing instanced objects
   let instanced_shader = programs::instanced::Instanced::new( &gl );
+  // shader for drawing a single objects
   let single_shader = programs::single::Single::new( &gl );
+  // shader for drawing outline
   let outline_shader = programs::outline::Outline::new( &gl );
+  // shader for rasterizing the whole screen
   let rasterize_shader = programs::rasterize::Rasterize::new( &gl );
 
   let mut framebuffer : Framebuffer< 2 > = Framebuffer::new( &gl ).unwrap();
