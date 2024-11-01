@@ -1,0 +1,8 @@
+[package]
+name = "raycaster"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+minwebgl = { workspace = true }
+web-sys = { workspace = true, features = ['KeyboardEvent'] }
