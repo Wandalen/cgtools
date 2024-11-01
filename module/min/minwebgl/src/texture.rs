@@ -7,7 +7,7 @@ pub mod d2;
 
 crate::mod_interface!
 {
-  exposed use 
+  own use 
   {
     d2
   };

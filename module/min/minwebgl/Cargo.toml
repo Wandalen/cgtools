@@ -27,27 +27,28 @@ default = [
   "enabled",
   "constants",
   "diagnostics",
-  "file",
+  "minweb",
   "future",
+  "file",
+  "log"
 ]
 full = [
   "default",
 ]
 
 constants = [] # reflect contants
-model = [ 
-  "mingl/model",
-  "tobj/async"
-] # Model information
 
 # diagnostics
 diagnostics = [
   "mingl/diagnostics",
-  "model"
+  "objModel"
 ]
 
-file = [] # enable files handling
-future = [] # enable futures
+minweb = [ "mingl/web" ] # common web utils
+file = [ "mingl/webFile" ] # enable files handling
+future = [ "mingl/webFuture" ] # enable futures
+objModel = [ "mingl/webObjModel" ] # enable futures
+log = [ "mingl/webLog" ]
 
 ndarray = [ "mingl/ndarray" ]
 

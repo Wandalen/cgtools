@@ -34,11 +34,15 @@ mod private {}
   #[ cfg( feature = "diagnostics" ) ]
   layer diagnostics;
 
-  #[ cfg( feature = "model" ) ]
+  /// Utilities related to different models
   layer model;
 
   /// Multi-dimensional math.
   #[ cfg( feature = "ndarray" ) ]
   layer nd;
+
+  /// Web related stuff
+  #[ cfg( feature = "web" ) ]
+  layer web;
 
 }

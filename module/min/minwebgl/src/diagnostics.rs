@@ -5,5 +5,5 @@ mod private
 
 crate::mod_interface!
 {
-  reuse crate::model;
+  own use crate::model::obj;
 }
