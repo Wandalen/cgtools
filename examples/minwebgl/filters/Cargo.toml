@@ -18,6 +18,3 @@ web-sys = { workspace = true, features = [
   'WebGlTexture',
   'Location',
 ] }
-
-[lints]
-workspace = true
