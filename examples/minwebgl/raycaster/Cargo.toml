@@ -5,9 +5,4 @@ edition = "2021"
 
 [dependencies]
 minwebgl = { workspace = true }
-tobj = { workspace = true, default-features = false, features = ['async'] }
-web-sys = { workspace = true, features = [
-  'KeyboardEvent',
-  'WebGlTexture',
-  'HtmlImageElement',
-] }
+web-sys = { workspace = true, features = ['KeyboardEvent'] }
