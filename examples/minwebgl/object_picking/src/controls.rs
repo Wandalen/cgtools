@@ -1,5 +1,5 @@
 use std::{ cell::RefCell, rc::Rc };
-use mingl::free_camera;
+// use mingl::free_camera;
 use web_sys::wasm_bindgen::prelude::*;
 use minwebgl as gl;
 
@@ -93,7 +93,7 @@ impl CursorControls
   pub fn setup
   (
     this : &Rc< RefCell< Self > >,
-    camera : &Rc< RefCell< free_camera::FreeCamera > >,
+    // camera : &Rc< RefCell< free_camera::FreeCamera > >,
     click_pos : &Rc< RefCell< [ i32; 2 ] > >
   )
   {
@@ -141,7 +141,7 @@ impl CursorControls
     (
       {
         let this = this.clone();
-        let camera = camera.clone();
+        // let camera = camera.clone();
         let is_pointer_locked = is_pointer_locked.clone();
         let width = canvas.width() as f32;
 
@@ -152,8 +152,8 @@ impl CursorControls
             let sensitivity = this.borrow().sensitivity;
             let delta_x = event.movement_x() as f32 / width * sensitivity;
             let delta_y = event.movement_y() as f32 / width * sensitivity;
-            camera.borrow_mut().rotate( &[ 0.0, -delta_x, 0.0 ] );
-            camera.borrow_mut().rotate_local( &[ -delta_y, 0.0, 0.0 ] );
+            // camera.borrow_mut().rotate( &[ 0.0, -delta_x, 0.0 ] );
+            // camera.borrow_mut().rotate_local( &[ -delta_y, 0.0, 0.0 ] );
           }
         }
       }

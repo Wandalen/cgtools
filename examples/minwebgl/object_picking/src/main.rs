@@ -5,7 +5,7 @@ mod programs;
 use framebuffer::*;
 use minwebgl as gl;
 use gl::GL;
-use mingl::free_camera;
+// use mingl::free_camera;
 use rand::Rng as _;
 use std::
 {
@@ -127,8 +127,8 @@ async fn run() -> Result< (), gl::WebglError >
   let aspect_ratio = gl.drawing_buffer_width() as f32 / gl.drawing_buffer_height() as f32;
   let projection = glam::Mat4::perspective_rh( 45.0_f32.to_radians(), aspect_ratio, 0.1, 1000.0 );
 
-  let camera = free_camera::FreeCamera::new();
-  let camera = Rc::new( RefCell::new( camera ) );
+  // let camera = free_camera::FreeCamera::new();
+  // let camera = Rc::new( RefCell::new( camera ) );
 
   let button_controls = controls::ButtonControls::default();
   let button_controls = Rc::new( RefCell::new( button_controls ) );
@@ -137,7 +137,7 @@ async fn run() -> Result< (), gl::WebglError >
   let cursor_controls = controls::CursorControls { sensitivity : 2.0 };
   let cursor_controls = Rc::new( RefCell::new( cursor_controls ) );
   let click_pos = Rc::new( RefCell::new( [ 0; 2 ] ) );
-  controls::CursorControls::setup( &cursor_controls, &camera, &click_pos );
+  // controls::CursorControls::setup( &cursor_controls, &camera, &click_pos );
 
   let mut last_time = 0.0;
   let camera_velocity = 30.0;
@@ -155,17 +155,17 @@ async fn run() -> Result< (), gl::WebglError >
     camera_acceleration += camera_velocity * 1.5 * delta_time;
     camera_acceleration *= button_controls.borrow().accelerate();
     let acceleration = ( camera_acceleration + camera_velocity ) * button_controls.borrow().accelerate();
-    camera.borrow_mut().move_local( &( direction * ( camera_velocity + acceleration ) * delta_time ).to_array() );
+    // camera.borrow_mut().move_local( &( direction * ( camera_velocity + acceleration ) * delta_time ).to_array() );
 
     gl.use_program( Some( &instanced_shader.program ) );
-    let projection_view = projection * glam::Mat4::from_cols_array( &camera.borrow().view() );
-    gl::uniform::matrix_upload
-    (
-      &gl,
-      instanced_shader.projection_view_location.clone(),
-      projection_view.to_cols_array().as_slice(),
-      true
-    ).unwrap();
+    // let projection_view = projection * glam::Mat4::from_cols_array( &camera.borrow().view() );
+    // gl::uniform::matrix_upload
+    // (
+    //   &gl,
+    //   instanced_shader.projection_view_location.clone(),
+    //   projection_view.to_cols_array().as_slice(),
+    //   true
+    // ).unwrap();
     framebuffer.bind( &gl );
 
     gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, [ 1.0, 1.0, 1.0, 1.0 ].as_slice() );
@@ -202,13 +202,13 @@ async fn run() -> Result< (), gl::WebglError >
       let model : glam::Mat4 = model.into();
 
       gl.use_program( Some( &outline_shader.program ) );
-      gl::uniform::matrix_upload
-      (
-        &gl,
-        outline_shader.mvp_location.clone(),
-        ( projection_view * model ).to_cols_array().as_slice(),
-        true
-      ).unwrap();
+      // gl::uniform::matrix_upload
+      // (
+      //   &gl,
+      //   outline_shader.mvp_location.clone(),
+      //   ( projection_view * model ).to_cols_array().as_slice(),
+      //   true
+      // ).unwrap();
 
       gl.disable( GL::DEPTH_TEST );
       framebuffer.bind_nth( 0, &gl );
@@ -222,13 +222,13 @@ async fn run() -> Result< (), gl::WebglError >
         model.to_cols_array().as_slice(),
         true
       ).unwrap();
-      gl::uniform::matrix_upload
-      (
-        &gl,
-        single_shader.projection_view.clone(),
-        projection_view.to_cols_array().as_slice(),
-        true
-      ).unwrap();
+      // gl::uniform::matrix_upload
+      // (
+      //   &gl,
+      //   single_shader.projection_view.clone(),
+      //   projection_view.to_cols_array().as_slice(),
+      //   true
+      // ).unwrap();
       gl::uniform::matrix_upload
       (
         &gl,
