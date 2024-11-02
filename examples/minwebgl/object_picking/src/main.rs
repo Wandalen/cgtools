@@ -1,22 +1,16 @@
-mod controls;
 mod framebuffer;
-mod programs;
+mod shaders;
 
 use minwebgl as gl;
 use gl::GL;
 use framebuffer::*;
 use rand::Rng as _;
-use std::
-{
-  cell::RefCell,
-  f32,
-  ops::RangeInclusive,
-  rc::Rc
-};
 use web_sys::
 {
   wasm_bindgen::prelude::*,
   HtmlImageElement,
+  MouseEvent,
+  WebGlRenderbuffer,
   WebGlTexture
 };
 
@@ -41,21 +35,6 @@ async fn run() -> Result< (), gl::WebglError >
   gl.enable( GL::DEPTH_TEST );
   gl.enable( GL::CULL_FACE );
 
-  let mut framebuffer : Framebuffer< 2 > = Framebuffer::new( &gl ).unwrap();
-  let color_texture = texture2d( &gl, GL::RGBA8, width, height );
-  let id_texture = texture2d( &gl, GL::R32I, width, height );
-  let renderbuffer = depth_buffer( &gl, width, height );
-  framebuffer.attach_texture( 0, color_texture, &gl );
-  framebuffer.attach_texture( 1, id_texture, &gl );
-  framebuffer.attach_renderbuffer( renderbuffer, GL::DEPTH_ATTACHMENT, &gl );
-
-  // shader for drawing a single object
-  let object_shader = programs::single::Single::new( &gl );
-  // shader for drawing outline
-  let outline_shader = programs::outline::Outline::new( &gl );
-  // shader for rasterizing the whole screen
-  let rasterize_shader = programs::rasterize::Rasterize::new( &gl );
-
   let obj = gl::file::load( "cat/Cat.obj" ).await.unwrap();
   let ( models, materials ) = gl::obj::load_model_from_slice( &obj, "cat", &tobj::GPU_LOAD_OPTIONS )
   .await
@@ -63,28 +42,44 @@ async fn run() -> Result< (), gl::WebglError >
   let materials = materials.expect( "Can't load materials" );
   let meshes : Box< [ _ ] > = load_meshes( &models, &materials, &gl ).await.into();
 
-  let object_count = 50;
-  let objects = create_objects( object_count );
+  // create framebuffer for id texture
+  let mut framebuffer = Framebuffer::new( &gl ).unwrap();
+  let id_texture = texture2d( &gl, GL::R32I, width, height );
+  let depthbuffer = depthbuffer( &gl, width, height );
+  framebuffer.attach_texture( id_texture, &gl );
+  framebuffer.renderbuffer( depthbuffer, RenderbufferAttachment::Depth, &gl );
 
-  let aspect_ratio = gl.drawing_buffer_width() as f32 / gl.drawing_buffer_height() as f32;
+  // shader for drawing a single object
+  let object_shader = shaders::ObjectShader::new( &gl );
+  // shader for drawing object's id into texture
+  let id_shader = shaders::IdShader::new( &gl );
+  // shader for drawing outline
+  let outline_shader = shaders::OutlineShader::new( &gl );
+
+  let objects = create_objects();
+
+  let aspect_ratio = width as f32 / height as f32;
   let projection = glam::Mat4::perspective_rh( 45.0_f32.to_radians(), aspect_ratio, 0.1, 1000.0 );
 
+  // draw ids into texture
+  gl.use_program( Some( &id_shader.program ) );
 
-  // let cursor_controls = controls::CursorControls { sensitivity : 2.0 };
-  // let cursor_controls = Rc::new( RefCell::new( cursor_controls ) );
-  let click_pos = Rc::new( RefCell::new( [ 0; 2 ] ) );
-
-  let mut selected = -1;
-  let id = web_sys::js_sys::Int32Array::new_with_length( 1 );
-
-  framebuffer.bind_all( &gl );
-
-  gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, [ 1.0, 1.0, 1.0, 1.0 ].as_slice() );
-  gl.clear_bufferiv_with_i32_array( gl::COLOR, 1, [ -1, -1, -1, -1 ].as_slice() );
+  framebuffer.bind_drawbuffers( &gl );
+  gl.clear_bufferiv_with_i32_array( gl::COLOR, 0, [ -1, -1, -1, -1 ].as_slice() );
   gl.clear( GL::DEPTH_BUFFER_BIT );
 
-  gl.use_program( Some( &object_shader.program ) );
+  for object in &objects
+  {
+    let mvp = projection * object.transform;
+    gl::uniform::matrix_upload( &gl, id_shader.mvp.clone(), mvp.to_cols_array().as_slice(), true ).unwrap();
+    gl::uniform::upload( &gl, id_shader.id.clone(), &object.id ).unwrap();
+    draw_meshes( &meshes, &gl );
+  }
 
+  gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+
+  // set projection to object shader once
+  gl.use_program( Some( &object_shader.program ) );
   gl::uniform::matrix_upload
   (
     &gl,
@@ -113,21 +108,47 @@ async fn run() -> Result< (), gl::WebglError >
       nmat.to_cols_array().as_slice(),
       true
     ).unwrap();
-    gl::uniform::upload
-    (
-      &gl,
-      object_shader.id.clone(),
-      &object.id
-    ).unwrap();
 
     draw_meshes( meshes.as_ref(), &gl );
   }
 
-  let pos = [ 0, 0 ];
+  let id = web_sys::js_sys::Int32Array::new_with_length( 1 );
 
-  if pos != [ -1; 2 ]
+  let draw_closure = move | e : MouseEvent |
   {
-    gl.read_buffer( GL::COLOR_ATTACHMENT1 );
+    // draw all the objects
+    for object in &objects
+    {
+      let model = object.transform;
+      let nmat = model.matrix3.inverse().transpose();
+      let model : glam::Mat4 = model.into();
+
+      gl::uniform::matrix_upload
+      (
+        &gl,
+        object_shader.model.clone(),
+        model.to_cols_array().as_slice(),
+        true
+      ).unwrap();
+      gl::uniform::matrix_upload
+      (
+        &gl,
+        object_shader.norm_mat.clone(),
+        nmat.to_cols_array().as_slice(),
+        true
+      ).unwrap();
+
+      draw_meshes( meshes.as_ref(), &gl );
+    }
+
+    // click position
+    let x = e.client_x();
+    let y = height - e.client_y();
+    let pos = [ x, y ];
+
+    // read id of selected object from texture
+    framebuffer.bind( &gl );
+    gl.read_buffer( GL::COLOR_ATTACHMENT0 );
     gl.read_pixels_with_array_buffer_view_and_dst_offset
     (
       pos[ 0 ],
@@ -139,76 +160,57 @@ async fn run() -> Result< (), gl::WebglError >
       &id,
       0
     ).unwrap();
+    gl.bind_framebuffer( GL::FRAMEBUFFER, None );
 
-    selected = id.to_vec()[ 0 ];
-    gl::info!( "{selected}" );
-  }
+    let selected = id.to_vec()[ 0 ];
 
-  // if selected != -1
-  // {
-  //   let model = objects[ selected as usize ].transform;
-  //   let nmat = model.matrix3.inverse().transpose();
-  //   let model : glam::Mat4 = model.into();
+    // draw the object if it is selected
+    if selected != -1
+    {
+      let transform = objects[ selected as usize ].transform;
+      let nmat = transform.matrix3.inverse().transpose();
+      let model : glam::Mat4 = transform.into();
 
-  //   gl.use_program( Some( &outline_shader.program ) );
-  //   // gl::uniform::matrix_upload
-  //   // (
-  //   //   &gl,
-  //   //   outline_shader.mvp_location.clone(),
-  //   //   ( projection_view * model ).to_cols_array().as_slice(),
-  //   //   true
-  //   // ).unwrap();
+      // draw outline
+      gl.use_program( Some( &outline_shader.program ) );
+      gl::uniform::matrix_upload
+      (
+        &gl,
+        outline_shader.mvp.clone(),
+        ( projection * model ).to_cols_array().as_slice(),
+        true
+      ).unwrap();
 
-  //   gl.disable( GL::DEPTH_TEST );
-  //   framebuffer.bind_nth( 0, &gl );
-  //   draw_meshes( meshes.as_ref(), &gl );
+      gl.disable( GL::DEPTH_TEST );
+      draw_meshes( meshes.as_ref(), &gl );
 
-  //   gl.use_program( Some( &object_shader.program ) );
-  //   gl::uniform::matrix_upload
-  //   (
-  //     &gl,
-  //     object_shader.model.clone(),
-  //     model.to_cols_array().as_slice(),
-  //     true
-  //   ).unwrap();
-  //   // gl::uniform::matrix_upload
-  //   // (
-  //   //   &gl,
-  //   //   single_shader.projection_view.clone(),
-  //   //   projection_view.to_cols_array().as_slice(),
-  //   //   true
-  //   // ).unwrap();
-  //   gl::uniform::matrix_upload
-  //   (
-  //     &gl,
-  //     object_shader.norm_mat.clone(),
-  //     nmat.to_cols_array().as_slice(),
-  //     true
-  //   ).unwrap();
+      // draw object
+      gl.use_program( Some( &object_shader.program ) );
+      gl::uniform::matrix_upload
+      (
+        &gl,
+        object_shader.model.clone(),
+        model.to_cols_array().as_slice(),
+        true
+      ).unwrap();
+      gl::uniform::matrix_upload
+      (
+        &gl,
+        object_shader.norm_mat.clone(),
+        nmat.to_cols_array().as_slice(),
+        true
+      ).unwrap();
 
-  //   gl.enable( GL::DEPTH_TEST );
-  //   gl.clear( GL::DEPTH_BUFFER_BIT );
-  //   draw_meshes( meshes.as_ref(), &gl );
-  // }
-
-  gl.use_program( Some( &rasterize_shader.program ) );
-
-  gl.bind_framebuffer( GL::FRAMEBUFFER, None );
-  gl.bind_texture( GL::TEXTURE_2D, framebuffer.get_color_attachment( 0 ) );
-  gl.draw_arrays( GL::TRIANGLES, 0, 3 );
-
+      gl.enable( GL::DEPTH_TEST );
+      gl.clear( GL::DEPTH_BUFFER_BIT );
+      draw_meshes( meshes.as_ref(), &gl );
+    }
+  };
+  let closure = Closure::< dyn Fn( _ ) >::new( Box::new( draw_closure ) );
+  canvas.set_onclick( Some( closure.as_ref().unchecked_ref() ) );
+  closure.forget();
 
   Ok( () )
-}
-
-fn draw_meshes_instanced( meshes : &[ Mesh ], instance_count : i32, gl : &GL )
-{
-  for mesh in meshes.iter()
-  {
-    gl.bind_vertex_array( Some( &mesh.vao ) );
-    gl.bind_texture( GL::TEXTURE_2D, mesh.diffuse_texture.as_ref() );
-    gl.draw_elements_instanced_with_i32( GL::TRIANGLES, mesh.index_count, GL::UNSIGNED_INT, 0, instance_count );
-  }
 }
 
 fn draw_meshes( meshes : &[ Mesh ], gl : &GL )
@@ -304,32 +306,59 @@ async fn load_image( src : &str ) -> Option< HtmlImageElement >
   }
 }
 
-fn create_objects( count : i32 ) -> Vec< Object >
+fn create_objects() -> Vec< Object >
 {
-  ( 0..count )
+  let transforms =
+  [
+    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3( -200.0,  100.0, -400.0 ) ),
+    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3( -100.0,  100.0, -400.0 ) ),
+    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3(    0.0,  100.0, -400.0 ) ),
+    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3(  100.0,  100.0, -400.0 ) ),
+    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3(  200.0,  100.0, -400.0 ) ),
+    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3( -200.0,    0.0, -400.0 ) ),
+    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3( -100.0,    0.0, -400.0 ) ),
+    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3(    0.0,    0.0, -400.0 ) ),
+    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3(  100.0,    0.0, -400.0 ) ),
+    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3(  200.0,    0.0, -400.0 ) ),
+    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3( -200.0, -100.0, -400.0 ) ),
+    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3( -100.0, -100.0, -400.0 ) ),
+    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3(    0.0, -100.0, -400.0 ) ),
+    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3(  100.0, -100.0, -400.0 ) ),
+    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3(  200.0, -100.0, -400.0 ) ),
+  ];
+
+  transforms
   .into_iter()
-  .map( | i | Object { transform : random_transform(), id : i } )
+  .enumerate()
+  .map( | ( i, t ) | Object { transform : t, id : i as i32 } )
   .collect()
 }
 
-fn random_transform() -> glam::Affine3A
+fn random_rotation() -> glam::Quat
 {
-  let pos_x = rand::thread_rng().gen_range( -50.0..=50.0 );
-  let pos_y = rand::thread_rng().gen_range( -50.0..=50.0 );
-  let pos_z = rand::thread_rng().gen_range( -100.0..=-50.0 );
-
   let rot_x = rand::thread_rng().gen_range( 0.0..std::f32::consts::PI * 2.0 );
   let rot_y = rand::thread_rng().gen_range( 0.0..std::f32::consts::PI * 2.0 );
   let rot_z = rand::thread_rng().gen_range( 0.0..std::f32::consts::PI * 2.0 );
 
-  let scale = rand::thread_rng().gen_range( 0.2..=0.8 );
+  glam::Quat::from_euler( glam::EulerRot::XYZ, rot_x, rot_y, rot_z )
+}
 
-  glam::Affine3A::from_scale_rotation_translation
-  (
-    glam::vec3( scale, scale, scale ),
-    glam::Quat::from_euler( glam::EulerRot::XYZ, rot_x, rot_y, rot_z ),
-    glam::vec3( pos_x, pos_y, pos_z ),
-  )
+fn texture2d( gl : &GL, internal_format : u32, width : i32, height : i32 ) -> Option< WebGlTexture >
+{
+  let texture = gl.create_texture();
+  gl.bind_texture( GL::TEXTURE_2D, texture.as_ref() );
+  gl.tex_storage_2d( GL::TEXTURE_2D, 1, internal_format, width, height );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::LINEAR as i32 );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::LINEAR as i32 );
+  texture
+}
+
+fn depthbuffer( gl : &GL, width : i32, height : i32 ) -> Option< WebGlRenderbuffer >
+{
+  let renderbuffer = gl.create_renderbuffer();
+  gl.bind_renderbuffer( GL::RENDERBUFFER, renderbuffer.as_ref() );
+  gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH_COMPONENT16, width, height );
+  renderbuffer
 }
 
 struct Object

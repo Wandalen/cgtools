@@ -9,22 +9,17 @@ use web_sys::
   WebGlTexture
 };
 
-pub struct Framebuffer< const COLOR_ATTACHMENTS : usize >
+pub struct Framebuffer
 {
   framebuffer : Option< WebGlFramebuffer >,
-  color_attachments : [ Option< WebGlTexture >; COLOR_ATTACHMENTS ],
+  attachments : Vec< Option< Attachment > >,
   renderbuffer : Option< WebGlRenderbuffer >
 }
 
-impl< const COLOR_ATTACHMENTS : usize > Framebuffer< COLOR_ATTACHMENTS >
+impl Framebuffer
 {
   pub fn new( gl : &GL ) -> Option< Self >
   {
-    let max = gl.get_parameter( GL::MAX_DRAW_BUFFERS ).unwrap().as_f64().unwrap() as usize;
-    if COLOR_ATTACHMENTS > max
-    {
-      return None;
-    }
     let framebuffer = gl.create_framebuffer();
 
     Some
@@ -32,81 +27,100 @@ impl< const COLOR_ATTACHMENTS : usize > Framebuffer< COLOR_ATTACHMENTS >
       Self
       {
         framebuffer,
-        color_attachments: [ const { None }; COLOR_ATTACHMENTS ],
+        attachments: vec![],
         renderbuffer: None,
       }
     )
   }
 
-  pub fn get_color_attachment( &self, index : usize ) -> Option< &WebGlTexture >
+  pub fn get_attachment( &self, index : usize ) -> Option< &Attachment >
   {
-    self.color_attachments[ index ].as_ref()
+    self.attachments[ index ].as_ref()
   }
 
-  pub fn attach_texture( &mut self, index : usize, tex : Option< WebGlTexture >, gl : &GL )
+  pub fn get_renderbuffer( &self ) -> Option< &WebGlRenderbuffer >
+  {
+    self.renderbuffer.as_ref()
+  }
+
+  pub fn attach_texture( &mut self, tex : Option< WebGlTexture >, gl : &GL )
   {
     gl.bind_framebuffer( GL::FRAMEBUFFER, self.framebuffer.as_ref() );
     gl.framebuffer_texture_2d
     (
       GL::FRAMEBUFFER,
-      GL::COLOR_ATTACHMENT0 + index as u32,
+      GL::COLOR_ATTACHMENT0 + self.attachments.len() as u32,
       GL::TEXTURE_2D,
       tex.as_ref(),
       0
     );
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );
-    self.color_attachments[ index ] = tex;
+    self.attachments.push( tex.map_or( None, | t | Some( Attachment::Texture( t ) ) ) );
   }
 
-  /// `attachment` is either `GL::DEPTH_ATTACHMENT`, `GL::STENCIL_ATTACHMENT` or `GL::DEPTH_STENCIL_ATTACHMENT`
-  pub fn attach_renderbuffer( &mut self, renderbuffer : Option< WebGlRenderbuffer >, attachment : u32, gl : &GL )
+  pub fn attach_renderbuffer( &mut self, rbuf : Option< WebGlRenderbuffer >, gl : &GL )
   {
     gl.bind_framebuffer( GL::FRAMEBUFFER, self.framebuffer.as_ref() );
-    gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, attachment, GL::RENDERBUFFER, renderbuffer.as_ref() );
+    gl.framebuffer_renderbuffer
+    (
+      GL::FRAMEBUFFER,
+      GL::COLOR_ATTACHMENT0 + self.attachments.len() as u32,
+      GL::RENDERBUFFER,
+      rbuf.as_ref(),
+    );
+    gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+    self.attachments.push( rbuf.map_or( None, | r | Some( Attachment::Renderbuffer( r ) ) ) );
+  }
+
+  pub fn renderbuffer( &mut self, renderbuffer : Option< WebGlRenderbuffer >, attachment : RenderbufferAttachment, gl : &GL )
+  {
+    gl.bind_framebuffer( GL::FRAMEBUFFER, self.framebuffer.as_ref() );
+    gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, attachment as u32, GL::RENDERBUFFER, renderbuffer.as_ref() );
+    gl.bind_framebuffer( GL::FRAMEBUFFER, None );
     self.renderbuffer = renderbuffer;
   }
 
-  /// binds all the draw buffers
-  pub fn bind_all( &self, gl : &GL )
+  pub fn bind( &self, gl : &GL )
   {
     gl.bind_framebuffer( GL::FRAMEBUFFER, self.framebuffer.as_ref() );
-    let mut draw_buffers = [ gl::NONE; COLOR_ATTACHMENTS ];
-    for ( i, attachment ) in self.color_attachments.iter().enumerate()
-    {
-      if attachment.is_some()
-      {
-        draw_buffers[ i ] = GL::COLOR_ATTACHMENT0 + i as u32;
-      }
-    }
-    let iter = draw_buffers.into_iter().map( | item | JsValue::from_f64( item as f64 ) );
+  }
+
+  /// binds framebuffer with all the draw buffers
+  pub fn bind_drawbuffers( &self, gl : &GL )
+  {
+    let iter = self.attachments
+    .iter()
+    .enumerate()
+    .map( | ( i, item ) | if item.is_some() { GL::COLOR_ATTACHMENT0 + i as u32 } else { GL::NONE } )
+    .map( | item | JsValue::from_f64( item as f64 ) );
+
+    gl.bind_framebuffer( GL::FRAMEBUFFER, self.framebuffer.as_ref() );
     gl.draw_buffers( &js_sys::Array::from_iter( iter ).into() );
   }
 
-  /// binds specific draw buffer
-  pub fn bind_nth( &self, n : usize, gl : &GL )
+  // binds framebuffer with a specific draw buffer
+  pub fn bind_drawbuffer( &self, n : usize, gl : &GL )
   {
-    gl.bind_framebuffer( GL::FRAMEBUFFER, self.framebuffer.as_ref() );
-    let mut draw_buffers = [ gl::NONE; COLOR_ATTACHMENTS ];
-    draw_buffers[ n ] = self.color_attachments[ n ].as_ref().map_or( GL::NONE, | _ | GL::COLOR_ATTACHMENT0 + n as u32, );
+    let mut draw_buffers = vec![ gl::NONE; self.attachments.len() ];
+    draw_buffers[ n ] = self.attachments[ n ].as_ref().map_or( GL::NONE, | _ | GL::COLOR_ATTACHMENT0 + n as u32 );
     let iter = draw_buffers.into_iter().map( | item | JsValue::from_f64( item as f64 ) );
+
+    gl.bind_framebuffer( GL::FRAMEBUFFER, self.framebuffer.as_ref() );
     gl.draw_buffers( &js_sys::Array::from_iter( iter ).into() );
   }
 }
 
-pub fn texture2d( gl : &GL, internal_format : u32, width : i32, height : i32 ) -> Option< WebGlTexture >
+pub enum Attachment
 {
-  let texture = gl.create_texture();
-  gl.bind_texture( GL::TEXTURE_2D, texture.as_ref() );
-  gl.tex_storage_2d( GL::TEXTURE_2D, 1, internal_format, width, height );
-  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::LINEAR as i32 );
-  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::LINEAR as i32 );
-  texture
+  Texture( WebGlTexture ),
+  Renderbuffer( WebGlRenderbuffer ),
 }
 
-pub fn depth_buffer( gl : &GL, width : i32, height : i32 ) -> Option< WebGlRenderbuffer >
+#[ repr( u32 ) ]
+#[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
+pub enum RenderbufferAttachment
 {
-  let renderbuffer = gl.create_renderbuffer();
-  gl.bind_renderbuffer( GL::RENDERBUFFER, renderbuffer.as_ref() );
-  gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH_COMPONENT16, width, height );
-  renderbuffer
+  Depth = GL::DEPTH_ATTACHMENT,
+  Stencil = GL::STENCIL_ATTACHMENT,
+  DepthStencil = GL::DEPTH_STENCIL_ATTACHMENT,
 }
