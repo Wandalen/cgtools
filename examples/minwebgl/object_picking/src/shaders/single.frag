@@ -2,11 +2,13 @@
 
 precision mediump float;
 
-layout( location=0 ) out vec4 frag_color;
+layout( location = 0 ) out vec4 frag_color;
+layout( location = 1 ) out int id;
 
 in vec3 v_normal;
 in vec3 v_frag_pos;
 in vec2 v_texcoord;
+flat in int v_id;
 
 uniform sampler2D u_diffuse;
 
@@ -28,4 +30,5 @@ void main()
   vec4 light = vec4( LIGHT_COLOR * ( directional + point + AMBIENT ), 1.0 );
 
   frag_color = texture( u_diffuse, v_texcoord ) * light;
+  id = v_id;
 }

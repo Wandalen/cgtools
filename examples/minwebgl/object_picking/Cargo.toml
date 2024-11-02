@@ -10,7 +10,6 @@ rand = "0.8.5"
 getrandom = { version = "0.2.15", features = ['js'] }
 minwebgl = { workspace = true, features = ['future'] }
 tobj = { workspace = true, features = ['async'] }
-# mingl = { workspace = true, features = ['free_camera'] }
 [dependencies.web-sys]
 features = [
   'HtmlImageElement',
@@ -20,7 +19,4 @@ features = [
   'KeyboardEvent',
   'MouseEvent',
 ]
-workspace = true
-
-[lints]
 workspace = true

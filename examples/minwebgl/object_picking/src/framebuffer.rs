@@ -66,7 +66,8 @@ impl< const COLOR_ATTACHMENTS : usize > Framebuffer< COLOR_ATTACHMENTS >
     self.renderbuffer = renderbuffer;
   }
 
-  pub fn bind( &self, gl : &GL )
+  /// binds all the draw buffers
+  pub fn bind_all( &self, gl : &GL )
   {
     gl.bind_framebuffer( GL::FRAMEBUFFER, self.framebuffer.as_ref() );
     let mut draw_buffers = [ gl::NONE; COLOR_ATTACHMENTS ];
@@ -81,6 +82,7 @@ impl< const COLOR_ATTACHMENTS : usize > Framebuffer< COLOR_ATTACHMENTS >
     gl.draw_buffers( &js_sys::Array::from_iter( iter ).into() );
   }
 
+  /// binds specific draw buffer
   pub fn bind_nth( &self, n : usize, gl : &GL )
   {
     gl.bind_framebuffer( GL::FRAMEBUFFER, self.framebuffer.as_ref() );
@@ -96,15 +98,15 @@ pub fn texture2d( gl : &GL, internal_format : u32, width : i32, height : i32 ) -
   let texture = gl.create_texture();
   gl.bind_texture( GL::TEXTURE_2D, texture.as_ref() );
   gl.tex_storage_2d( GL::TEXTURE_2D, 1, internal_format, width, height );
-  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32 );
-  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::NEAREST as i32 );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::LINEAR as i32 );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::LINEAR as i32 );
   texture
 }
 
-pub fn depth_stencil_buffer( gl : &GL, width : i32, height : i32 ) -> Option< WebGlRenderbuffer >
+pub fn depth_buffer( gl : &GL, width : i32, height : i32 ) -> Option< WebGlRenderbuffer >
 {
   let renderbuffer = gl.create_renderbuffer();
   gl.bind_renderbuffer( GL::RENDERBUFFER, renderbuffer.as_ref() );
-  gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH24_STENCIL8, width, height );
+  gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH_COMPONENT16, width, height );
   renderbuffer
 }
