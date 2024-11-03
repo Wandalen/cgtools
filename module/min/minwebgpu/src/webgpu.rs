@@ -21,6 +21,8 @@ mod private
   pub use web_sys::GpuStorageTextureAccess;
   pub use web_sys::GpuVertexFormat;
   pub use web_sys::GpuVertexStepMode;
+  pub use web_sys::GpuLoadOp;
+  pub use web_sys::GpuStoreOp;
 }
 
 crate::mod_interface!

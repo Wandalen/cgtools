@@ -35,4 +35,7 @@ mod_interface!
   layer state;
   layer shader;
   layer binding_type;
+  layer render_pipeline;
+  layer render_pass;
+  layer queue;
 }

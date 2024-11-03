@@ -1,5 +1,5 @@
 [package]
-name = "minwebgpu_deffered_rendering"
+name = "minwebgpu__"
 version = "0.1.0"
 edition = "2021"
 authors = [ 
@@ -8,14 +8,10 @@ authors = [
 ]
 license = "MIT"
 
-[dependencies]
-tobj =  { workspace = true }
 
 [dependencies.minwebgpu]
 workspace = true
 features = [
-    'future',
-    'file',
-    'objModel'
+    'future'
 ]
 

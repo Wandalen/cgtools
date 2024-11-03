@@ -21,7 +21,7 @@ mod private
     }
 
     /// Sets the `multisampled` property to `true`
-    pub fn multisample( mut self ) -> Self
+    pub fn multisampled( mut self ) -> Self
     {
       self.multisampled = Some( true );
       self

@@ -18,22 +18,6 @@ mod private
     unclipped_depth : Option< bool >
   }
 
-  impl From< PrimitiveState > for web_sys::GpuPrimitiveState
-  {
-    fn from( value: PrimitiveState ) -> Self 
-    {
-      let state = web_sys::GpuPrimitiveState::new();
-
-      if let Some( v ) = value.cull_mode { state.set_cull_mode( v ); }
-      if let Some( v ) = value.front_face { state.set_front_face( v ); }
-      if let Some( v ) = value.topology { state.set_topology( v ); }
-      if let Some( v ) = value.strip_index_format { state.set_strip_index_format( v ); }
-      if let Some( v ) = value.unclipped_depth { state.set_unclipped_depth( v ); }
-
-      state
-    }
-  }
-
   impl  PrimitiveState 
   {
     pub fn new() -> Self
@@ -99,6 +83,22 @@ mod private
     {
       self.topology = Some( web_sys::GpuPrimitiveTopology::TriangleStrip );
       self
+    }
+  }
+
+  impl From< PrimitiveState > for web_sys::GpuPrimitiveState
+  {
+    fn from( value: PrimitiveState ) -> Self 
+    {
+      let state = web_sys::GpuPrimitiveState::new();
+
+      if let Some( v ) = value.cull_mode { state.set_cull_mode( v ); }
+      if let Some( v ) = value.front_face { state.set_front_face( v ); }
+      if let Some( v ) = value.topology { state.set_topology( v ); }
+      if let Some( v ) = value.strip_index_format { state.set_strip_index_format( v ); }
+      if let Some( v ) = value.unclipped_depth { state.set_unclipped_depth( v ); }
+
+      state
     }
   }
 }

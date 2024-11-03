@@ -12,7 +12,7 @@ fn create_textures
 {
   // We create textures for every property we need to calculate lighting in the final pass: position, albedo and normal.
   // We don't need samplers as we can just use textureLoad with position.xy in the fragment to sample needed pixel.
-  let tex_desc = gl::TextureDescriptor::new()
+  let tex_desc = gl::texture::desc()
   .size( size )
   // Sets the usage flag to `RENDER_ATTACHMENT`
   .render_attachment()
@@ -20,26 +20,16 @@ fn create_textures
   .texture_binding()
   .format( gl::GpuTextureFormat::Rgba16float );
 
-  let position_tex = gl::texture::create
-  ( 
-    &device, 
-    &tex_desc
-  )?;
-
+  let position_tex = gl::texture::create( &device, &tex_desc )?;
   let albedo_tex = gl::texture::create
   ( 
     &device, 
-    gl::TextureDescriptor::new()
+    gl::texture::desc()
     .size( size )
     .render_attachment()
     .texture_binding()
   )?;
-
-  let normal_tex = gl::texture::create
-  ( 
-    &device, 
-    &tex_desc
-  )?;
+  let normal_tex = gl::texture::create(  &device, &tex_desc)?;
 
   Ok( [ position_tex, albedo_tex, normal_tex ] )
 }
@@ -87,8 +77,11 @@ async fn run() -> Result< (), gl::WebGPUError >
   let width = canvas.width();
   let height = canvas.height();
   
+  let gbuffer_shader = gl::ShaderModule::new( include_str!( "../shaders/gbuffer.wgsl" ) ).create( &device );
   let [ pos_t, albedo_t, normal_t ] = create_textures( &device, [ width, height, 1 ] )?;
   let [ pos_desc, albedo_desc, normal_desc ] = create_vertex_descriptors();
+
+
 
   let model = gl::file::load( "bunny.obj" ).await.expect( "Failed to fetch the model" );
   let ( models, _ ) = gl::model::obj::load_model_from_slice( &model, "", &tobj::GPU_LOAD_OPTIONS ).await.unwrap();
@@ -108,7 +101,16 @@ async fn run() -> Result< (), gl::WebGPUError >
     .entry_from_ty( gl::binding_type::texture() )
   )?;
 
-  let pipeline_layout = gl::PipelineLayout::new().bind_group( bind_group_layout );
+  let pipeline_layout = gl::PipelineLayout::new().bind_group( bind_group_layout ).create( &device );
+  let render_pipeline = gl::render_pipeline::create
+  ( 
+    &device, 
+    gl::render_pipeline::desc( gl::VertexState::new( &gbuffer_shader ))
+    .layout( &pipeline_layout )
+    .fragment( gl::FragmentState::new( &gbuffer_shader ) )
+    .primitive( gl::PrimitiveState::new().cull_back() )
+    .depth_stencil( gl::DepthStencilState::new() )
+  );
 
   Ok(())
 }

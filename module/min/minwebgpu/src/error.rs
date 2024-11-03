@@ -12,6 +12,10 @@ mod private
     CanvasError( #[ from ] CanvasError ),
     #[ error( "Device error :: {0}" ) ]
     DeviceError( #[ from ] DeviceError ),
+    #[ error( "Device error :: {0}" ) ]
+    ContexError( #[ from ] ContextError ),
+    #[ error( "Device error :: {0}" ) ]
+    TextureErrorError( #[ from ] TextureError ),
   }
 
 
@@ -20,6 +24,20 @@ mod private
   {
     #[ error( "Failed to configure a canvas: {0}" )]
     ConfigurationError( String )
+  }
+
+  #[ derive( Debug, error::typed::Error ) ]
+  pub enum ContextError
+  {
+    #[ error( "Failed to get current texture: {0}" )]
+    FailedToGetCurrentTextureError( String )
+  }
+
+  #[ derive( Debug, error::typed::Error ) ]
+  pub enum TextureError
+  {
+    #[ error( "Failed to create view for the texture: {0}" )]
+    FailedToCreateView( String )
   }
 
   #[ derive( Debug, error::typed::Error ) ]
@@ -47,7 +65,9 @@ crate::mod_interface!
   orphan use
   {
     CanvasError,
-    DeviceError
+    DeviceError,
+    ContextError,
+    TextureError
   };
 }
 

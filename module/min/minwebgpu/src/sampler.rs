@@ -3,6 +3,11 @@ mod private
 {
   use crate::*;
 
+  pub fn desc< 'a >() -> SamplerDescriptor< 'a >
+  {
+    SamplerDescriptor::new()
+  }
+
   pub fn create< T : Into< web_sys::GpuSamplerDescriptor > >
   ( 
     device : &web_sys::GpuDevice, 
@@ -18,6 +23,7 @@ crate::mod_interface!
 {
   own use
   {
-    create
+    create,
+    desc
   };
 }

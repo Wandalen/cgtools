@@ -71,24 +71,6 @@ mod private
       self.entries.push( entry.into() );
       self
     }
-
-    pub fn finish( mut self ) -> web_sys::GpuBindGroupLayoutDescriptor
-    {
-      let mut binding : u32 = 0;
-      for entry in self.entries.iter_mut()
-      {
-        if self.auto_bindings 
-        { 
-          entry.set_binding( binding ); 
-          binding += 1;
-        }
-
-        entry.set_visibility( entry.get_visibility() | self.visibility );
-      }
-
-      let layout = web_sys::GpuBindGroupLayoutDescriptor::new( &self.entries.into() );
-      layout
-    } 
   }
 
   impl From< BindGroupLayoutDescriptor > for web_sys::GpuBindGroupLayoutDescriptor 

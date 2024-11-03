@@ -3,6 +3,7 @@ mod private
 {
   
   use crate::*;
+
   pub struct RenderPipelineDescriptor< 'a >
   {
     vertex : web_sys::GpuVertexState,
@@ -80,23 +81,6 @@ mod private
       self.multisample = Some( state.into() );
       self
     }
-
-    pub fn create( self, device : &web_sys::GpuDevice ) -> Result< web_sys::GpuRenderPipeline, WebGPUError >
-    {
-      let pipeline = device.create_render_pipeline( &self.into() )
-      .map_err( | e | DeviceError::FailedToCreateRenderPipeline( format!( "{:?}", e ) ))?;
-      
-      Ok( pipeline )
-    }
-
-    pub async fn create_async( self, device : &web_sys::GpuDevice ) -> Result< web_sys::GpuRenderPipeline, WebGPUError >
-    {
-      let pipeline = JsFuture::from( device.create_render_pipeline_async( &self.into() ) ).await
-      .map_err( | e | DeviceError::FailedToCreateRenderPipeline( format!( "{:?}", e ) ))?;
-
-      let pipeline = web_sys::GpuRenderPipeline::from( pipeline );
-      Ok( pipeline )
-    }
   }
 
   impl From< RenderPipelineDescriptor< '_ > > for web_sys::GpuRenderPipelineDescriptor 
@@ -124,8 +108,6 @@ mod private
       desc
     }    
   }
-
-
 }
 
 crate::mod_interface!

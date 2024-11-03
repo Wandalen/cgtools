@@ -6,7 +6,8 @@ mod private
 
 crate::mod_interface!
 {
-  layer texture;
   layer sampler;
+  layer texture;
   layer render_pipeline;
+  layer render_pass;
 }

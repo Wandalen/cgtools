@@ -38,24 +38,41 @@ mod private
     Ok( gl ) 
   }
 
-  pub fn configure( device : &web_sys::GpuDevice, context : &GL ) -> Result< (), error::CanvasError >
+  pub fn configure( device : &web_sys::GpuDevice, context : &GL, format : GpuTextureFormat ) -> Result< (), WebGPUError >
   {
-    let navigator = navigator();
-    let format = navigator.gpu().get_preferred_canvas_format();
-
     let configuration = web_sys::GpuCanvasConfiguration::new( device, format );
 
     context.configure( &configuration ).map_err( | e | error::CanvasError::ConfigurationError( format!( "{:?}", e ) ) )?;
     Ok( () )
   }
+
+  pub fn preferred_format() -> GpuTextureFormat
+  {
+    let navigator = navigator();
+    let format = navigator.gpu().get_preferred_canvas_format();
+    format
+  }
+
+  pub fn current_texture( context : &GL ) -> Result< web_sys::GpuTexture, WebGPUError >
+  {
+    let format = context.get_current_texture()
+    .map_err( | e | error::ContextError::FailedToGetCurrentTextureError( format!( "{:?}", e ) ) )?;
+
+    Ok( format )
+  }
 }
 
 crate::mod_interface!
 {
-    orphan use 
-    {
-        request_adapter,
-        request_device
-    };
+  own use 
+  {
+    request_adapter,
+    request_device,
+    from_canvas,
+    navigator,
+    preferred_format,
+    configure,
+    current_texture
+  };
 
 }

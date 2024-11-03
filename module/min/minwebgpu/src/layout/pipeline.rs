@@ -32,6 +32,11 @@ mod private
       self.bind_group_layouts.push( bind_group.into() );
       self
     }
+
+    pub fn create( self, device : &web_sys::GpuDevice ) -> web_sys::GpuPipelineLayout
+    {
+      device.create_pipeline_layout( &self.into() )
+    }
   }
 
   impl From< PipelineLayout< '_ > > for web_sys::GpuPipelineLayoutDescriptor 

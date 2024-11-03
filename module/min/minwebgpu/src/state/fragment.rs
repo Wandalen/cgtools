@@ -5,14 +5,14 @@ mod private
 
   pub struct FragmentState< 'a >
   {
-    module : web_sys::GpuShaderModule,
+    module : &'a web_sys::GpuShaderModule,
     entry_point : Option< &'a str >,
     targets : Vec< ColorTargetState >
   }
 
   impl< 'a > FragmentState< 'a > 
   {
-    pub fn new( module : web_sys::GpuShaderModule ) -> Self
+    pub fn new( module :  &'a web_sys::GpuShaderModule ) -> Self
     {
       let entry_point = None;
       let targets = Vec::with_capacity( 1 );

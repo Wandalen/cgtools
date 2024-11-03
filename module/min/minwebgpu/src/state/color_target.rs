@@ -42,6 +42,12 @@ mod private
       }
     }
 
+    pub fn format( mut self, format : GpuTextureFormat ) -> Self
+    {
+      self.format = format;
+      self
+    }
+
     pub fn blend( mut self, blend : BlendState ) -> Self
     {
       self.blend = Some( blend );

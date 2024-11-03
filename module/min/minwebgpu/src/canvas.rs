@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  // use crate::*;
+  use crate::*;
 
 }
 
