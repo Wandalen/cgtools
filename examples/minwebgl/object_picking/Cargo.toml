@@ -16,7 +16,6 @@ features = [
   'WebGlTexture',
   'WebGlFramebuffer',
   'WebGlRenderbuffer',
-  'KeyboardEvent',
   'MouseEvent',
 ]
 workspace = true
