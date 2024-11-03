@@ -43,11 +43,11 @@ async fn run() -> Result< (), gl::WebglError >
   let meshes : Box< [ _ ] > = load_meshes( &models, &materials, &gl ).await.into();
 
   // create framebuffer for id texture
-  let mut framebuffer = Framebuffer::new( &gl ).unwrap();
-  let id_texture = texture2d( &gl, GL::R32I, width, height );
-  let depthbuffer = depthbuffer( &gl, width, height );
-  framebuffer.attach_texture( id_texture, &gl );
-  framebuffer.renderbuffer( depthbuffer, RenderbufferAttachment::Depth, &gl );
+  let mut framebuffer = Framebuffer::new( &gl )?;
+  let id_texture = texture2d( &gl, GL::R32I, width, height ).unwrap();
+  let depthbuffer = depthbuffer( &gl, width, height ).unwrap();
+  framebuffer.attach( Attachment::Texture( id_texture ), GL::COLOR_ATTACHMENT0, &gl );
+  framebuffer.set_depthbuffer( Attachment::Renderbuffer( depthbuffer ), DepthAttachment::Depth, &gl );
 
   // shader for drawing a single object
   let object_shader = shaders::ObjectShader::new( &gl );
@@ -64,7 +64,7 @@ async fn run() -> Result< (), gl::WebglError >
   // draw ids into texture
   gl.use_program( Some( &id_shader.program ) );
 
-  framebuffer.bind_drawbuffers( &gl );
+  framebuffer.bind( &gl );
   gl.clear_bufferiv_with_i32_array( gl::COLOR, 0, [ -1, -1, -1, -1 ].as_slice() );
   gl.clear( GL::DEPTH_BUFFER_BIT );
 
@@ -348,8 +348,8 @@ fn texture2d( gl : &GL, internal_format : u32, width : i32, height : i32 ) -> Op
   let texture = gl.create_texture();
   gl.bind_texture( GL::TEXTURE_2D, texture.as_ref() );
   gl.tex_storage_2d( GL::TEXTURE_2D, 1, internal_format, width, height );
-  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::LINEAR as i32 );
-  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::LINEAR as i32 );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32 );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::NEAREST as i32 );
   texture
 }
 
