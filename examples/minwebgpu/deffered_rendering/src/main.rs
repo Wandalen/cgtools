@@ -107,7 +107,13 @@ async fn run() -> Result< (), gl::WebGPUError >
     &device, 
     gl::render_pipeline::desc( gl::VertexState::new( &gbuffer_shader ))
     .layout( &pipeline_layout )
-    .fragment( gl::FragmentState::new( &gbuffer_shader ) )
+    .fragment
+    ( 
+      gl::FragmentState::new( &gbuffer_shader ) 
+      .target( gl::ColorTargetState::new() )
+      .target( gl::ColorTargetState::new().format( gl::GpuTextureFormat::Rgba16float ) )
+      .target( gl::ColorTargetState::new().format( gl::GpuTextureFormat::Rgba16float ) )
+    )
     .primitive( gl::PrimitiveState::new().cull_back() )
     .depth_stencil( gl::DepthStencilState::new() )
   );
