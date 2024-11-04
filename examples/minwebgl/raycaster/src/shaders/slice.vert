@@ -1,7 +1,7 @@
 #version 300 es
 
-layout( location = 0 ) in float scale_y;
-layout( location = 1 ) in float scale_x;
+layout( location = 0 ) in float inv_distance;
+layout( location = 1 ) in float x_scale;
 layout( location = 2 ) in float horizontal_offset;
 layout( location = 3 ) in vec3 color;
 
@@ -18,11 +18,12 @@ void main()
   );
 
   vec2 position = VERTICES[ gl_VertexID ];
-  position.y *= scale_y;
-  position.x *= scale_x;
-  position.x += scale_x * horizontal_offset;
+  position.y *= inv_distance;
+  position.x *= x_scale;
+  position.x += x_scale * horizontal_offset;
   position.x = 1.0 - position.x;
-  v_color = color;
+  // multiply by distance to add some depth to image
+  v_color = color * clamp( inv_distance, 0.2, 0.9 );
 
   gl_Position = vec4( position, 0.0, 1.0 );
 }
