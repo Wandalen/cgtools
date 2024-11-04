@@ -1,7 +1,6 @@
 //! Just draw a large point in the middle of the screen.
 
-use minwebgpu::{self as gl, JsFuture};
-use minwebgpu::JsCast;
+use minwebgpu as gl;
 
 fn create_textures
 (
@@ -12,24 +11,18 @@ fn create_textures
 {
   // We create textures for every property we need to calculate lighting in the final pass: position, albedo and normal.
   // We don't need samplers as we can just use textureLoad with position.xy in the fragment to sample needed pixel.
-  let tex_desc = gl::texture::desc()
+  let color_tex_desc = gl::texture::desc()
   .size( size )
   // Sets the usage flag to `RENDER_ATTACHMENT`
   .render_attachment()
   // Sets the usage flag to `TEXTURE_BINDING`
-  .texture_binding()
-  .format( gl::GpuTextureFormat::Rgba16float );
+  .texture_binding();
 
-  let position_tex = gl::texture::create( &device, &tex_desc )?;
-  let albedo_tex = gl::texture::create
-  ( 
-    &device, 
-    gl::texture::desc()
-    .size( size )
-    .render_attachment()
-    .texture_binding()
-  )?;
-  let normal_tex = gl::texture::create(  &device, &tex_desc)?;
+  let vector_tex_desc = color_tex_desc.clone().format( gl::GpuTextureFormat::Rgba16float );
+
+  let position_tex = gl::texture::create( &device, &vector_tex_desc )?;
+  let albedo_tex = gl::texture::create( &device, color_tex_desc )?;
+  let normal_tex = gl::texture::create( &device, &vector_tex_desc )?;
 
   Ok( [ position_tex, albedo_tex, normal_tex ] )
 }

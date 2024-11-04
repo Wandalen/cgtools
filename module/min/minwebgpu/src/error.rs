@@ -15,7 +15,7 @@ mod private
     #[ error( "Device error :: {0}" ) ]
     ContexError( #[ from ] ContextError ),
     #[ error( "Device error :: {0}" ) ]
-    TextureErrorError( #[ from ] TextureError ),
+    TextureError( #[ from ] TextureError ),
   }
 
 
