@@ -9,6 +9,8 @@ out vec3 v_color;
 
 void main()
 {
+  // these are vertices of a quad meant to be
+  // rendered with GL::TRIANGLE_STRIP call
   const vec2 VERTICES[] = vec2[]
   (
     vec2( 0.0, -1.0 ), vec2( 1.0, -1.0 ),

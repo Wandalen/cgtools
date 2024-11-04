@@ -12,12 +12,14 @@ pub struct Controls
 
 impl Controls
 {
-  pub fn as_vec( &self ) -> [ f32; 2 ]
+  pub fn move_direction( &self ) -> f32
   {
-    [
-      self.forward as i32 as f32 - self.backward as i32 as f32,
-      self.left as i32 as f32 - self.right as i32 as f32,
-    ]
+    self.forward as i32 as f32 - self.backward as i32 as f32
+  }
+
+  pub fn rotation_direction( &self ) -> f32
+  {
+    self.left as i32 as f32 - self.right as i32 as f32
   }
 
   pub fn setup() -> Rc< RefCell< Self > >

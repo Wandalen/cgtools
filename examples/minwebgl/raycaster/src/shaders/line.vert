@@ -8,6 +8,8 @@ out vec3 v_color;
 
 void main()
 {
+  // draws a line with provided start and and
+  // as default attribute values
   v_color = color;
   if ( gl_VertexID == 0 )
   {

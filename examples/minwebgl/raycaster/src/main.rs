@@ -11,15 +11,22 @@ fn main()
   run();
 }
 
-// size of the tile
+// screen width
+const WIDTH : f32 = 1024.0;
+// screen height
+const HEIGHT : f32 = 512.0;
+// size of a tile
 const CELL_SIZE : f32 = 64.;
+
 const PI2 : f32 = consts::PI * 2.;
 
 const MAP_SIDE : usize = 8;
+// 1 means wall, 0 means empty
 const MAP : [ u8; MAP_SIDE * MAP_SIDE ] =
 [
-  1, 1, 1, 1, 1, 1, 1, 1,
-  1, 0, 0, 0, 0, 0, 0, 1,
+  // x positive →
+  1, 1, 1, 1, 1, 1, 1, 1, // y positive
+  1, 0, 0, 0, 0, 0, 0, 1, // ↓
   1, 1, 0, 0, 0, 0, 0, 1,
   1, 0, 0, 0, 0, 1, 0, 1,
   1, 0, 1, 0, 0, 1, 0, 1,
@@ -37,8 +44,11 @@ fn run()
   let line          = include_str!( "shaders/line.vert" );
   let slice         = include_str!( "shaders/slice.vert" );
   let fragment      = include_str!( "shaders/main.frag" );
+  // shader for drawing points
   let point_shader  = gl::ProgramFromSources::new( point, fragment ).compile_and_link( &gl ).unwrap();
+  // shader for drawing lines
   let line_shader   = gl::ProgramFromSources::new( line, fragment ).compile_and_link( &gl ).unwrap();
+  // shader for drawing vertical slices, that are basically scaled quads
   let slice_shader  = gl::ProgramFromSources::new( slice, fragment ).compile_and_link( &gl ).unwrap();
 
   let controls = Controls::setup();
@@ -46,11 +56,14 @@ fn run()
   let move_velocity = 1.3;
   let mut player_pos = [ 3., 3. ];
   let mut angle = 0.;
+  // amount of rays casted
+  // should be even
   let ray_count = 120;
+  // field of view
   let fov = 60.;
   let mut last_time = 0.;
 
-  let map = map_vao( &gl );
+  let map_vao = map_vao( &gl );
   let mut rays = Vec::with_capacity( ray_count );
 
   let loop_ = move | time |
@@ -59,22 +72,31 @@ fn run()
     let delta_time = time - last_time;
     last_time = time;
 
-    angle += rotation_velocity * delta_time * controls.borrow().as_vec()[ 1 ];
+    // rotate based on pressed keys
+    // if left key pressed then rotation is clockwise
+    // if right - then counter-clockwise
+    // if none is pressed then rotation is 0
+    angle += rotation_velocity * delta_time * controls.borrow().rotation_direction();
     angle = wrap_angle( angle );
 
-    // 1.0 is forward, -1.0 is backward
-    let move_dir = controls.borrow().as_vec()[ 0 ];
+    // 1 is forward, -1 is backward
+    let move_dir = controls.borrow().move_direction();
 
+    // assure that player doesn't go beyond walls
     // restrict movement depending on how close is an obstacle
+    // for both forward movement and backward movement
     let move_dir = match move_dir
     {
       1.0 =>
       {
+        // throw ray forward and check distance to an obstacle
         let RayCollision { len, .. } = cast_ray( &player_pos, angle );
+        // if an obstacle it too close then the movement is 0
         if len > 0.1 { 1.0 } else { 0.0 }
       }
       -1.0 =>
       {
+        // thow ray backward and check distance to an obstacle
         let angle = wrap_angle( consts::PI + angle );
         let RayCollision { len, .. } = cast_ray( &player_pos, angle );
         if len > 0.1 { -1.0 } else { 0.0 }
@@ -82,12 +104,20 @@ fn run()
       _ => 0.0
     };
 
+    // this is the direction vector where the player is facing
     let dir = direction( angle );
     player_pos[ 0 ] += move_velocity * dir[ 0 ] * delta_time * move_dir;
     player_pos[ 1 ] += move_velocity * dir[ 1 ] * delta_time * move_dir;
 
-    // transform player pos to screen space
+    // calculate player position in screen space
+    // player position is constrained by the map
+    // which is 8x8 tiles so palyer position is somewhere
+    // inside this grid. we normalize player position
+    // with map size len which is 8 and then move x coordinate
+    // to left so it is on the left half of the screen
     let posx = player_pos[ 0 ] / MAP_SIDE as f32 - 1.;
+    // y coodinate should be flipped because map's y positive
+    // direction is downwards
     let posy = 1. - player_pos[ 1 ] / MAP_SIDE as f32 * 2.;
     let player_pos_screen_space = [ posx, posy ];
 
@@ -95,13 +125,22 @@ fn run()
     rays.clear();
     for i in 0..ray_count
     {
-      let ray_angle = angle + ( i as f32 * fov / ( ray_count - 1 ) as f32 ).to_radians() - ( fov / 2. ).to_radians();
+      // this calculates a ray angle for every ray in field of view
+
+      // step by which ray angle is increased
+      let step = fov / ( ray_count - 1 ) as f32;
+      // angle for current ray
+      let ray_angle = ( i as f32 * step ).to_radians();
+      // adjust ray angle to player angle and shift by half of the field of view
+      let ray_angle = angle + ray_angle - ( fov / 2. ).to_radians();
       let ray_angle = wrap_angle( ray_angle );
       let RayCollision { pos, len } = cast_ray( &player_pos, ray_angle );
 
       // adjust len to remove fish-eye effect
       let len = len * ( ray_angle - angle ).cos();
       let line_start = player_pos_screen_space;
+      // same as player position, this is converted to
+      // screen space and shifted to left half of the screen
       let line_end =
       [
         pos[ 0 ] / MAP_SIDE as f32 - 1.,
@@ -114,13 +153,14 @@ fn run()
 
     gl.use_program( Some( &point_shader ) );
 
-    // draw map
-    gl.bind_vertex_array( Some( &map ) );
+    // draw the map
+    gl.bind_vertex_array( Some( &map_vao ) );
     gl.vertex_attrib1f( 1, CELL_SIZE - 1. );
-    gl.draw_arrays( GL::POINTS, 0 , MAP.len() as i32 );
+    gl.draw_arrays( GL::POINTS, 0, MAP.len() as i32 );
     gl.bind_vertex_array( None );
 
-    // draw player
+    // draw player on the map
+    // just draws a point of some color
     gl.vertex_attrib2fv_with_f32_array( 0, &player_pos_screen_space );
     gl.vertex_attrib1f( 1, 8. );
     gl.vertex_attrib3f( 2, 1., 0.5, 0. );
@@ -128,7 +168,8 @@ fn run()
 
     for ( i, ( start, end, len ) ) in rays.iter().enumerate()
     {
-      // draw rays on map
+      // draw rays on the map
+      // just draws a line of some color
       gl.use_program( Some( &line_shader ) );
       gl.vertex_attrib2fv_with_f32_array( 0, start );
       gl.vertex_attrib2fv_with_f32_array( 1, end );
@@ -137,10 +178,17 @@ fn run()
 
       // draw geometry
       gl.use_program( Some( &slice_shader ) );
+      // every ray corresponds to a vertical slice
+      // on the screen, so every slice is scaled by
+      // the ray length
       gl.vertex_attrib1f( 0, 1. / len );
+      // amount of rays determines slice width
       gl.vertex_attrib1f( 1, 1. / ray_count as f32 );
+      // index determines horizontal position of the slice
       gl.vertex_attrib1f( 2, i as f32 );
+      // slice's color
       gl.vertex_attrib3fv_with_f32_array( 3, &[ 0.8, 0.7, 0.6 ] );
+      // slice is just a quad
       gl.draw_arrays( GL::TRIANGLE_STRIP, 0, 4 );
     }
 
@@ -152,6 +200,8 @@ fn run()
 
 fn map_vao( gl : &GL ) -> gl::WebGlVertexArrayObject
 {
+  // bakes tile data into vao to draw entire map
+  // with one draw call
   let mut data = Vec::new();
   for ( i, item ) in MAP.iter().enumerate()
   {
@@ -167,9 +217,10 @@ fn map_vao( gl : &GL ) -> gl::WebGlVertexArrayObject
       [ 0., 0., 0. ]
     };
 
-    // screen-space coordinates
-    let posx = ( -512. + CELL_SIZE * ( col + 0.5 ) ) / 512.;
-    let posy = ( 256. - CELL_SIZE * ( row + 0.5 ) ) / 256.;
+    // screen-space coordinates of a tile
+    // shifted to the left part of the screen
+    let posx = ( -WIDTH / 2. + CELL_SIZE * ( col + 0.5 ) ) / ( WIDTH / 2. );
+    let posy = ( HEIGHT / 2. - CELL_SIZE * ( row + 0.5 ) ) / ( HEIGHT / 2. );
 
     data.push( posx );
     data.push( posy );
@@ -267,7 +318,7 @@ fn cast_ray( start : &[ f32; 2 ], angle : f32 ) -> RayCollision
     || row as usize >= MAP_SIDE
     || col as usize >= MAP_SIDE
     {
-      break RayCollision { len, pos: intersect_pos };
+      break RayCollision { len, pos : intersect_pos };
     }
 
     // map check
@@ -277,7 +328,7 @@ fn cast_ray( start : &[ f32; 2 ], angle : f32 ) -> RayCollision
 
     if MAP[ index ] == 1
     {
-      break RayCollision { len, pos: intersect_pos };
+      break RayCollision { len, pos : intersect_pos };
     }
   }
 }
