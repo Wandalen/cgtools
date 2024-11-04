@@ -176,6 +176,13 @@ async fn run() -> Result< (), gl::WebglError >
       let nmat = transform.matrix3.inverse().transpose();
       let model : glam::Mat4 = transform.into();
 
+      // this is not the optimal way to draw an outline
+      // but it is done so for simplicity
+
+      // basically just draw an extruded version of object
+      // with some solid color and then overdraw the actual
+      // object above it
+
       // draw outline
       gl.use_program( Some( &outline_shader.program ) );
       gl::uniform::matrix_upload
