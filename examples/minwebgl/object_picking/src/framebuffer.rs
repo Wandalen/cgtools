@@ -10,7 +10,6 @@ use web_sys::
   WebGlTexture
 };
 
-#[ derive( Clone ) ]
 pub enum Attachment
 {
   Texture( WebGlTexture ),
