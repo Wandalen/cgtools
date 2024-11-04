@@ -11,11 +11,11 @@ fn main()
   run();
 }
 
-// screen width
+// screen width in pixels
 const WIDTH : f32 = 1024.0;
-// screen height
+// screen height in pixels
 const HEIGHT : f32 = 512.0;
-// size of a tile
+// size of a tile in pixels
 const CELL_SIZE : f32 = 64.;
 
 const PI2 : f32 = consts::PI * 2.;
@@ -55,7 +55,7 @@ fn run()
   let rotation_velocity = 2.5;
   let move_velocity = 1.3;
   let mut player_pos = [ 3., 3. ];
-  let mut angle = 0.;
+  let mut angle = 0.2;
   // amount of rays casted
   // should be even
   let ray_count = 120;
