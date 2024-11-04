@@ -10,6 +10,7 @@ async fn run() -> Result< (), gl::WebGPUError >
   let context = gl::context::from_canvas( &canvas )?;
   let adapter = gl::context::request_adapter().await;
   let device = gl::context::request_device( &adapter ).await;
+  let queue = device.queue();
   let presentation_format = gl::context::preferred_format();
   gl::context::configure( &device, &context, presentation_format )?;
   
@@ -45,7 +46,7 @@ async fn run() -> Result< (), gl::WebGPUError >
   render_pass.draw( 3 );
   render_pass.end();
 
-  gl::queue::submit( &device, command_encoder.finish() );
+  gl::queue::submit( &queue, command_encoder.finish() );
   
   Ok(())
 }

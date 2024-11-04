@@ -6,7 +6,7 @@ mod private
   pub struct RenderPassDescriptor< 'a >
   {
     color_attachments : Vec< web_sys::GpuRenderPassColorAttachment >,
-    /// Optional
+    /// Defaults to `None`
     depth_stencil_attachment : Option< web_sys::GpuRenderPassDepthStencilAttachment >,
     /// Defaults to `None`
     label : Option< &'a str >,
