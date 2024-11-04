@@ -73,8 +73,8 @@ fn run()
     last_time = time;
 
     // rotate based on pressed keys
-    // if left key pressed then rotation is clockwise
-    // if right - then counter-clockwise
+    // if left key pressed then rotation is counter-clockwise
+    // if right - then clockwise
     // if none is pressed then rotation is 0
     angle += rotation_velocity * delta_time * controls.borrow().rotation_direction();
     angle = wrap_angle( angle );
