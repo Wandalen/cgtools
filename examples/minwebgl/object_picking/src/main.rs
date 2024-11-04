@@ -64,10 +64,12 @@ async fn run() -> Result< (), gl::WebglError >
   // draw ids into texture
   gl.use_program( Some( &id_shader.program ) );
 
+  // clear id texture with -1 value
   framebuffer.bind( &gl );
   gl.clear_bufferiv_with_i32_array( gl::COLOR, 0, [ -1, -1, -1, -1 ].as_slice() );
   gl.clear( GL::DEPTH_BUFFER_BIT );
 
+  // draw objects' ids into texture
   for object in &objects
   {
     let mvp = projection * object.transform;
@@ -78,7 +80,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   gl.bind_framebuffer( GL::FRAMEBUFFER, None );
 
-  // set projection to object shader once
+  // set projection to object shader at once
   gl.use_program( Some( &object_shader.program ) );
   gl::uniform::matrix_upload
   (
@@ -88,6 +90,7 @@ async fn run() -> Result< (), gl::WebglError >
     true
   ).unwrap();
 
+  // draw all the objects
   for object in &objects
   {
     let model = object.transform;
@@ -116,6 +119,8 @@ async fn run() -> Result< (), gl::WebglError >
 
   let draw_closure = move | e : MouseEvent |
   {
+    // redraw scene on every click
+
     // draw all the objects
     for object in &objects
     {
@@ -164,7 +169,7 @@ async fn run() -> Result< (), gl::WebglError >
 
     let selected = id.to_vec()[ 0 ];
 
-    // draw the object if it is selected
+    // draw an object if it is selected
     if selected != -1
     {
       let transform = objects[ selected as usize ].transform;

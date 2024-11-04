@@ -14,6 +14,7 @@ out vec2 v_texcoord;
 
 void main()
 {
+  // shader for rendering an object's geometry
   v_normal = u_norm_mat * a_normal;
   v_frag_worldpos = ( u_model * vec4( a_position, 1.0 ) ).xyz;
   v_texcoord = a_texcoord;

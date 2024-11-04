@@ -11,6 +11,7 @@ layout( location = 0 ) out vec4 frag_color;
 
 void main()
 {
+  // shader for rendering an object fix a hardcoded lighting
   const float AMBIENT = 0.4;
   const vec3 DIRECTIONAL_LIGHT = vec3( -1.0, -1.0, -1.0 );
   const vec3 POINT_LIGHT_POSITION = vec3( 0.0, 0.0, 0.0 );

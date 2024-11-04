@@ -58,7 +58,6 @@ impl Framebuffer
 {
   pub fn new( gl : &GL ) -> Result< Self, WebglError >
   {
-
     let framebuffer = match gl.create_framebuffer()
     {
         Some( f ) => f,
