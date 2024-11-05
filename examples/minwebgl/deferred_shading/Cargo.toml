@@ -1,0 +1,19 @@
+[package]
+name = "deferred_shading"
+version = "0.1.0"
+edition = "2021"
+authors = [
+  "Kostiantyn Mysnyk <wandalen@obox.systems>",
+  "Oleksandr Zaharevskyi <oleksandr.z@obox.systems>",
+]
+
+[dependencies]
+glam = "0.29.1"
+minwebgl = { workspace = true }
+tobj = { workspace = true }
+web-sys = { workspace = true, features = [
+  'HtmlImageElement',
+  'WebGlFramebuffer',
+  'WebGlRenderbuffer',
+  'WebGlTexture',
+] }
