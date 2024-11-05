@@ -58,14 +58,7 @@ pub fn upload( gl : &GL, img : &web_sys::HtmlImageElement, sprites_in_row : u32,
   let sprite_height_f64 = sprite_height as f64;
   for i in 0..amount
   {
-    let row =
-    {
-      match ( sprites_in_row, sprites_in_col )
-      {
-        ( 1.0, _ ) | ( _, 1.0 ) => ( i as f64 / sprites_in_row ).floor(),
-        _ => ( i as f64 / sprites_in_row ).floor(),
-      }
-    } * sprite_width_f64;
+    let row = ( i as f64 / sprites_in_row ).floor() * sprite_width_f64;
     let col =
     {
       match ( sprites_in_row, sprites_in_col )
