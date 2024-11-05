@@ -40,9 +40,9 @@ mod private
     }
 
     /// Return a righthanded view matrix of the current camera state
-    pub fn view( &self ) -> [ f32 ; 16 ]
+    pub fn view( &self ) -> ndarray_cg::Mat4< f32 >
     {
-      *cgmath::Matrix4::look_at_rh( self.eye.into(), self.center.into(), self.up.into() ).as_ref()
+      ndarray_cg::mat3x3h::loot_at_rh( self.eye, self.center, self.up )
     }
 
     pub fn set_size( &mut self, size : [ f32; 2 ] )
@@ -59,16 +59,17 @@ mod private
       mut screen_d :  [ f32; 2 ]
     )
     {
+      use ndarray_cg::vector::*;
       screen_d[ 0 ] /= self.rotation_speed_scale;
       screen_d[ 1 ] /= self.rotation_speed_scale;
 
       //Convert to cgmath Vectors
-      let center = cgmath::Vector3::from( self.center );
-      let mut up_prev = cgmath::Vector3::from( self.up );
-      let mut eye_prev = cgmath::Vector3::from( self.eye );
+      // let center = cgmath::Vector3::from( self.center );
+      // let mut up_prev = cgmath::Vector3::from( self.up );
+      // let mut eye_prev = cgmath::Vector3::from( self.eye );
 
-      let dir = ( center - eye_prev ).normalize();
-      let x = dir.cross( up_prev ).normalize();
+      let dir = normalized( &sub( &self.center, &self.eye ) );
+      let x = normalized( &cross( &dir, &self.up ) );
 
       // We rotate aroung the y axis based on the movement in x direction.
       // And we rotate aroung the axix perpendicular to the current up and direction vectors 

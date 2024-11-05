@@ -42,7 +42,7 @@ cgmath = "0.18.0"
 glam = "0.29.0"
 tobj = { workspace = true, optional = true }
 
-
+ndarray_cg = { workspace = true }
 error_tools = { workspace = true }
 mod_interface = { workspace = true }
 derive_tools = { workspace = true }
