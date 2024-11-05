@@ -4,7 +4,7 @@ type GL = web_sys::WebGl2RenderingContext;
 
 /// Creates a 2D texture from HtmlImageElement.
 /// Get pixel data from the HtmlImageElement using the 2d context of temporary canvas and load it into the texture array element by element.
-pub fn upload( gl : &GL, img : &web_sys::HtmlImageElement, sprite_width : u32, sprite_height : u32, amount : u32 ) -> Result< web_sys::WebGlTexture, WebglError >
+pub fn upload( gl : &GL, img : &web_sys::HtmlImageElement, sprites_in_row : u32, sprites_in_col : u32, sprite_width : u32, sprite_height : u32, amount : u32 ) -> Result< web_sys::WebGlTexture, WebglError >
 {
   let texture = gl.create_texture().ok_or( WebglError::FailedToAllocateResource( "Sprite texture" ) )?;
   gl.bind_texture( GL::TEXTURE_2D_ARRAY, Some( &texture ) );
@@ -52,13 +52,28 @@ pub fn upload( gl : &GL, img : &web_sys::HtmlImageElement, sprite_width : u32, s
   gl.pixel_storei( GL::UNPACK_ROW_LENGTH, img_width as i32 );
   gl.pixel_storei( GL::UNPACK_IMAGE_HEIGHT, img_height as i32 );
 
-  let sprites_in_row = (amount as f64).sqrt();
+  let sprites_in_row = sprites_in_row as f64;
+  let sprites_in_col = sprites_in_col as f64;
   let sprite_width_f64 = sprite_width as f64;
   let sprite_height_f64 = sprite_height as f64;
   for i in 0..amount
   {
-    let row = ( i as f64 / sprites_in_row ).floor() * sprite_width_f64;
-    let col = ( i as f64 % sprites_in_row ) * sprite_height_f64;
+    let row =
+    {
+      match ( sprites_in_row, sprites_in_col )
+      {
+        ( 1.0, _ ) | ( _, 1.0 ) => ( i as f64 / sprites_in_row ).floor(),
+        _ => ( i as f64 / sprites_in_row ).floor(),
+      }
+    } * sprite_width_f64;
+    let col =
+    {
+      match ( sprites_in_row, sprites_in_col )
+      {
+        ( 1.0, _ ) | ( _, 1.0 ) => ( i as f64 / sprites_in_col ).floor(),
+        _ => i as f64 % sprites_in_col,
+      }
+    } * sprite_height_f64;
 
     gl.pixel_storei( GL::UNPACK_SKIP_PIXELS, col as i32 );
     gl.pixel_storei( GL::UNPACK_SKIP_ROWS, row as i32 );

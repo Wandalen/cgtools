@@ -17,9 +17,12 @@ async fn run() -> Result< (), gl::WebglError >
   gl.use_program( Some( &program ) );
 
   let path = "static/rock.png";
+  let sprties_in_row = 8;
+  let sprites_in_col = 8;
   let sprite_width = 128;
   let sprite_height = 128;
   let amount = 64;
+  let frame_rate = 24.0;
 
   let document = gl::web_sys::window().unwrap().document().unwrap();
   let img_element = document.create_element( "img" )
@@ -48,7 +51,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   wasm_bindgen_futures::JsFuture::from( load_promise ).await.unwrap();
 
-  gl::texture::sprite::upload( &gl, &img_element, sprite_width, sprite_height, amount )?;
+  gl::texture::sprite::upload( &gl, &img_element, sprties_in_row, sprites_in_col, sprite_width, sprite_height, amount )?;
 
   let data : [ f32; 24 ] =
   [//x      y      t_x   t_y
@@ -87,7 +90,7 @@ async fn run() -> Result< (), gl::WebglError >
       gl.vertex_attrib1f( depth_attribute_position, frame % amount );
       gl.draw_arrays( gl::GL::TRIANGLES, 0, 6 );
 
-      step += 15.0;
+      step += frame_rate;
 
       true
     }
