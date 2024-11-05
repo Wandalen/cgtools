@@ -71,6 +71,8 @@ impl Attachment
 pub struct Framebuffer
 {
   framebuffer : WebGlFramebuffer,
+  textures : [ Option< WebGlTexture >; 16 ],
+  renderbuffers : [ Option< WebGlRenderbuffer >; 16 ],
   attachments : HashMap< ColorAttachment, Attachment >,
   depthbuffer : Option< ( DepthAttachment, Attachment ) >,
 }
@@ -258,10 +260,16 @@ impl FramebufferBuilder
       return Err( minwebgl::WebglError::FailedToAllocateResource( "Framebuffer is incomplete" ) )
     }
 
+    let mut textures = [ const { None }; 16 ];
+    let mut renderbuffers = [ const { None }; 16 ];
+
+
     Ok
     (
       Framebuffer
       {
+        textures : [ const { None }; 16 ],
+        renderbuffers : [ const { None }; 16 ],
         framebuffer,
         attachments: self.attachments,
         depthbuffer: self.depthbuffer,
