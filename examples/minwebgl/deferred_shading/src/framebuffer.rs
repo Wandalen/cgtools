@@ -1,9 +1,14 @@
-use std::collections::HashMap;
 use minwebgl as gl;
 use gl::GL;
-use web_sys::{ WebGlFramebuffer, WebGlRenderbuffer, WebGlTexture };
-use web_sys::wasm_bindgen::prelude::*;
-use web_sys::js_sys;
+use web_sys::
+{
+  WebGlFramebuffer,
+  WebGlRenderbuffer,
+  WebGlTexture,
+  wasm_bindgen::prelude::*,
+  js_sys,
+};
+use std::collections::HashMap;
 
 #[ repr( u32 ) ]
 #[ derive( Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord ) ]
@@ -72,19 +77,20 @@ pub struct Framebuffer
 
 impl Framebuffer
 {
-  pub fn get_attachment( &self, attachment : ColorAttachment ) -> Option< &Attachment >
+  pub fn attachment( &self, index : ColorAttachment ) -> Option< &Attachment >
   {
-    self.attachments.get( &attachment )
+    self.attachments.get( &index )
   }
 
-  pub fn get_depthbuffer( &self ) -> Option< &Attachment >
+  pub fn depthbuffer( &self ) -> Option< &Attachment >
   {
     self.depthbuffer.as_ref().map( | ( _, a ) | a )
   }
 
+  /// binds all of attachments for drawing
   pub fn bind_draw( &self, gl : &GL )
   {
-    // form an array of attachments in their respective positions
+    // forms an array of attachments in their respective positions
     // for example if framebuffer has attachment0 and attachment2
     // then the array would be [ GL::ColorAttachment0, GL::NONE, GL::ColorAttachment2 ]
     // this is how WebGl wants it to be
@@ -99,22 +105,24 @@ impl Framebuffer
       drawbuffers.push( attachment );
       start = attachment + 1;
     }
+    gl::info!( "{drawbuffers:?}" );
     let iter = drawbuffers.into_iter().map( | v | JsValue::from_f64( v as f64 ) );
 
     gl.bind_framebuffer( GL::DRAW_FRAMEBUFFER, Some( &self.framebuffer ) );
     gl.draw_buffers( &js_sys::Array::from_iter( iter ).into() );
   }
 
-  pub fn bind_draw_nth( &self, attachment : ColorAttachment, gl : &GL ) -> Result< (), String >
+  /// binds specific attachments for drawing
+  pub fn bind_draw_nth( &self, index : ColorAttachment, gl : &GL ) -> Result< (), String >
   {
-    if !self.attachments.contains_key( &attachment )
+    if !self.attachments.contains_key( &index )
     {
-      return Err( format!( "Framebuffer does not has {:?}", attachment as u32 ) );
+      return Err( format!( "Framebuffer does not has {:?}", index as u32 ) );
     }
 
-    let iter = ( 0..( attachment as u32 ) )
+    let iter = ( 0..( index as u32 ) )
     .map( | _ | GL::NONE )
-    .chain( [ attachment as u32 ].into_iter() )
+    .chain( [ index as u32 ].into_iter() )
     .map( | v | JsValue::from_f64( v as f64 ) );
 
     gl.bind_framebuffer( GL::DRAW_FRAMEBUFFER, Some( &self.framebuffer ) );
@@ -122,18 +130,20 @@ impl Framebuffer
     Ok( () )
   }
 
-  pub fn bind_read( &self, attachment : ColorAttachment, gl : &GL ) -> Result< (), String >
+  /// binds specific attachment for reading
+  pub fn bind_read( &self, index : ColorAttachment, gl : &GL ) -> Result< (), String >
   {
-    if !self.attachments.contains_key( &attachment )
+    if !self.attachments.contains_key( &index )
     {
-      return Err( format!( "Framebuffer does not has {:?}", attachment as u32 ) );
+      return Err( format!( "Framebuffer does not has {:?}", index as u32 ) );
     }
 
     gl.bind_framebuffer( GL::READ_FRAMEBUFFER, Some( &self.framebuffer ) );
-    gl.read_buffer( attachment as u32 );
+    gl.read_buffer( index as u32 );
     Ok( () )
   }
 
+  /// binds depth buffer for reading
   pub fn bind_read_depth( &self, gl : &GL ) -> Result< (), String >
   {
     if self.depthbuffer.is_none()
@@ -163,7 +173,7 @@ impl FramebufferBuilder
     }
   }
 
-  pub fn attach( mut self, index : ColorAttachment, attachment : Attachment ) -> Self
+  pub fn attachment( mut self, index : ColorAttachment, attachment : Attachment ) -> Self
   {
     _ = self.attachments.insert( index, attachment );
     self
@@ -241,12 +251,12 @@ impl FramebufferBuilder
     }
 
     let status = gl.check_framebuffer_status( GL::FRAMEBUFFER );
+    gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+
     if status != GL::FRAMEBUFFER_COMPLETE
     {
       return Err( minwebgl::WebglError::FailedToAllocateResource( "Framebuffer is incomplete" ) )
     }
-
-    gl.bind_framebuffer( GL::FRAMEBUFFER, None );
 
     Ok
     (
