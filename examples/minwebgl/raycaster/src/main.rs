@@ -58,7 +58,7 @@ fn run()
   let mut angle = 0.2;
   // amount of rays casted
   // should be even
-  let ray_count = 120;
+  let ray_count = 40;
   // field of view
   let fov = 60.;
   let mut last_time = 0.;
