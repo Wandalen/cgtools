@@ -17,5 +17,6 @@ features = [
   'WebGlFramebuffer',
   'WebGlRenderbuffer',
   'MouseEvent',
+  'DomRect',
 ]
 workspace = true
