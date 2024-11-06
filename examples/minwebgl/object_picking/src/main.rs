@@ -36,7 +36,7 @@ async fn run() -> Result< (), gl::WebglError >
   gl.enable( GL::CULL_FACE );
 
   let obj = gl::file::load( "cat/Cat.obj" ).await.unwrap();
-  let ( models, materials ) = gl::obj::load_model_from_slice( &obj, "cat", &tobj::GPU_LOAD_OPTIONS )
+  let ( models, materials ) = gl::model::load_model_from_slice( &obj, "cat", &tobj::GPU_LOAD_OPTIONS )
   .await
   .expect( "Can't read model" );
   let materials = materials.expect( "Can't load materials" );
@@ -48,7 +48,6 @@ async fn run() -> Result< (), gl::WebglError >
   let depthbuffer = depthbuffer( &gl, width, height ).unwrap();
   framebuffer.attach( Attachment::Texture( id_texture ), GL::COLOR_ATTACHMENT0, &gl );
   framebuffer.set_depthbuffer( Attachment::Renderbuffer( depthbuffer ), DepthAttachment::Depth, &gl );
-
   // shader for drawing a single object
   let object_shader = shaders::ObjectShader::new( &gl );
   // shader for drawing object's id into texture
@@ -91,29 +90,7 @@ async fn run() -> Result< (), gl::WebglError >
   ).unwrap();
 
   // draw all the objects
-  for object in &objects
-  {
-    let model = object.transform;
-    let nmat = model.matrix3.inverse().transpose();
-    let model : glam::Mat4 = model.into();
-
-    gl::uniform::matrix_upload
-    (
-      &gl,
-      object_shader.model.clone(),
-      model.to_cols_array().as_slice(),
-      true
-    ).unwrap();
-    gl::uniform::matrix_upload
-    (
-      &gl,
-      object_shader.norm_mat.clone(),
-      nmat.to_cols_array().as_slice(),
-      true
-    ).unwrap();
-
-    draw_meshes( meshes.as_ref(), &gl );
-  }
+  draw_objects(&objects, &gl, &object_shader, &meshes);
 
   let id = web_sys::js_sys::Int32Array::new_with_length( 1 );
 
@@ -122,29 +99,7 @@ async fn run() -> Result< (), gl::WebglError >
     // redraw scene on every click
 
     // draw all the objects
-    for object in &objects
-    {
-      let model = object.transform;
-      let nmat = model.matrix3.inverse().transpose();
-      let model : glam::Mat4 = model.into();
-
-      gl::uniform::matrix_upload
-      (
-        &gl,
-        object_shader.model.clone(),
-        model.to_cols_array().as_slice(),
-        true
-      ).unwrap();
-      gl::uniform::matrix_upload
-      (
-        &gl,
-        object_shader.norm_mat.clone(),
-        nmat.to_cols_array().as_slice(),
-        true
-      ).unwrap();
-
-      draw_meshes( meshes.as_ref(), &gl );
-    }
+    draw_objects(&objects, &gl, &object_shader, &meshes);
 
     // click position
     let x = e.client_x();
@@ -222,7 +177,45 @@ async fn run() -> Result< (), gl::WebglError >
   canvas.set_onclick( Some( closure.as_ref().unchecked_ref() ) );
   closure.forget();
 
+  let cnv = canvas.clone();
+  let win = window.clone();
+  let cl = move ||
+  {
+    gl::info!( "{} {}", win.inner_width().unwrap().as_f64().unwrap(), win.inner_height().unwrap().as_f64().unwrap() );
+  };
+  let closure = Closure::< dyn Fn() >::new( Box::new( cl ) );
+  window.set_onresize( Some( closure.as_ref().unchecked_ref() ) );
+  closure.forget();
+
+
   Ok( () )
+}
+
+fn draw_objects( objects : &[ Object ], gl : &GL, object_shader : &shaders::ObjectShader, meshes : &[ Mesh ] )
+{
+  for object in objects
+  {
+    let model = object.transform;
+    let nmat = model.matrix3.inverse().transpose();
+    let model : glam::Mat4 = model.into();
+
+    gl::uniform::matrix_upload
+    (
+      gl,
+      object_shader.model.clone(),
+      model.to_cols_array().as_slice(),
+      true
+    ).unwrap();
+    gl::uniform::matrix_upload
+    (
+      gl,
+      object_shader.norm_mat.clone(),
+      nmat.to_cols_array().as_slice(),
+      true
+    ).unwrap();
+
+    draw_meshes( meshes.as_ref(), gl );
+  }
 }
 
 fn draw_meshes( meshes : &[ Mesh ], gl : &GL )
@@ -322,27 +315,27 @@ fn create_objects() -> Vec< Object >
 {
   let transforms =
   [
-    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3( -200.0,  100.0, -400.0 ) ),
-    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3( -100.0,  100.0, -400.0 ) ),
-    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3(    0.0,  100.0, -400.0 ) ),
-    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3(  100.0,  100.0, -400.0 ) ),
-    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3(  200.0,  100.0, -400.0 ) ),
-    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3( -200.0,    0.0, -400.0 ) ),
-    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3( -100.0,    0.0, -400.0 ) ),
-    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3(    0.0,    0.0, -400.0 ) ),
-    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3(  100.0,    0.0, -400.0 ) ),
-    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3(  200.0,    0.0, -400.0 ) ),
-    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3( -200.0, -100.0, -400.0 ) ),
-    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3( -100.0, -100.0, -400.0 ) ),
-    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3(    0.0, -100.0, -400.0 ) ),
-    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3(  100.0, -100.0, -400.0 ) ),
-    glam::Affine3A::from_rotation_translation( random_rotation() , glam::vec3(  200.0, -100.0, -400.0 ) ),
+    ( random_rotation(), glam::vec3( -200.0,  100.0, -400.0 ) ),
+    ( random_rotation(), glam::vec3( -100.0,  100.0, -400.0 ) ),
+    ( random_rotation(), glam::vec3(    0.0,  100.0, -400.0 ) ),
+    ( random_rotation(), glam::vec3(  100.0,  100.0, -400.0 ) ),
+    ( random_rotation(), glam::vec3(  200.0,  100.0, -400.0 ) ),
+    ( random_rotation(), glam::vec3( -200.0,    0.0, -400.0 ) ),
+    ( random_rotation(), glam::vec3( -100.0,    0.0, -400.0 ) ),
+    ( random_rotation(), glam::vec3(    0.0,    0.0, -400.0 ) ),
+    ( random_rotation(), glam::vec3(  100.0,    0.0, -400.0 ) ),
+    ( random_rotation(), glam::vec3(  200.0,    0.0, -400.0 ) ),
+    ( random_rotation(), glam::vec3( -200.0, -100.0, -400.0 ) ),
+    ( random_rotation(), glam::vec3( -100.0, -100.0, -400.0 ) ),
+    ( random_rotation(), glam::vec3(    0.0, -100.0, -400.0 ) ),
+    ( random_rotation(), glam::vec3(  100.0, -100.0, -400.0 ) ),
+    ( random_rotation(), glam::vec3(  200.0, -100.0, -400.0 ) ),
   ];
 
   transforms
   .into_iter()
   .enumerate()
-  .map( | ( i, t ) | Object { transform : t, id : i as i32 } )
+  .map( | ( i, ( r, t ) ) | Object { transform : glam::Affine3A::from_rotation_translation( r, t ), id : i as i32 } )
   .collect()
 }
 
