@@ -9,6 +9,10 @@ The purpose of each shader should be described, including its purpose, any cavea
 
 Each module should have documentation that includes a description, its purpose, any caveats, and relevant links.
 
+### Implicit Things, Caveats, and Non-Obvious Technical Decisions
+
+Implicit things, caveats, and non-obvious technical decisions should be explained in the codebase.
+
 ### Readme of Examples
 
 The readme for each example should include:
