@@ -1,7 +1,8 @@
 /// Internal namespace.
 mod private
 {
-  use wasm_bindgen::JsCast;
+  use wasm_bindgen::{ prelude::Closure, JsCast };
+  use web_sys::HtmlImageElement;
   use crate::web::*;
 
   // qqq : implement typed errors
@@ -32,11 +33,26 @@ mod private
     Ok( data )
   }
 
+  pub fn load_image_with_callback( path : &str, on_load_callback : impl Fn( &HtmlImageElement ) + 'static )
+  {
+    let window = web_sys::window().expect( "Should have a window" );
+    let origin = window.location().origin().expect( "Should have an origin" );
+    let url = format!( "{origin}/static/{path}" );
+
+    let document = window.document().expect( "Should have a document" );
+    let image = document.create_element( "img" ).unwrap().dyn_into::< HtmlImageElement >().unwrap();
+    let img = image.clone();
+    let on_load_callback : Closure< dyn Fn() > = Closure::new( move || on_load_callback( &img ) );
+    image.set_onload( Some( on_load_callback.as_ref().unchecked_ref() ) );
+    on_load_callback.forget();
+    image.set_src( &url );
+  }
 }
 
 crate::mod_interface!
 {
 
   own use load;
+  own use load_image_with_callback;
 
 }

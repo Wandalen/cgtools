@@ -262,19 +262,19 @@ async fn load_meshes( models : &[ tobj::Model ], materials : &[ tobj::Material ]
     gl::BufferDescriptor::new::< [ f32; 3 ] >()
     .stride( 0 )
     .offset( 0 )
-    .attribute_pointer( gl, 0, &position_buffer)
+    .attribute_pointer( gl, 0, &position_buffer )
     .unwrap();
 
     gl::BufferDescriptor::new::< [ f32; 3 ] >()
     .stride( 0 )
     .offset( 0 )
-    .attribute_pointer( gl, 1, &normal_buffer)
+    .attribute_pointer( gl, 1, &normal_buffer )
     .unwrap();
 
     gl::BufferDescriptor::new::< [ f32; 2 ] >()
     .stride( 0 )
     .offset( 0 )
-    .attribute_pointer( gl, 2, &texcoord_buffer)
+    .attribute_pointer( gl, 2, &texcoord_buffer )
     .unwrap();
 
     let texture = if let Some( name ) = &material.diffuse_texture
