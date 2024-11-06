@@ -16,6 +16,7 @@ async fn run() -> Result< (), gl::WebglError >
   let program = gl::ProgramFromSources::new( vert_shader, frag_shader ).compile_and_link( &gl )?;
   gl.use_program( Some( &program ) );
 
+  // Settings for `rock.png` sprite sheets
   let path = "static/rock.png";
   let sprties_in_row = 8;
   let sprites_in_col = 8;
