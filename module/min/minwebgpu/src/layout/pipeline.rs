@@ -26,10 +26,10 @@ mod private
     pub fn bind_group
     ( 
       mut self, 
-      bind_group : impl Into< web_sys::GpuBindGroupLayout > 
+      bind_group : &web_sys::GpuBindGroupLayout
     ) -> Self
     {
-      self.bind_group_layouts.push( bind_group.into() );
+      self.bind_group_layouts.push( bind_group.clone() );
       self
     }
 

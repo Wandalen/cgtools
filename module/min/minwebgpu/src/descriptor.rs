@@ -10,4 +10,5 @@ crate::mod_interface!
   layer texture;
   layer render_pipeline;
   layer render_pass;
+  layer bind_group;
 }

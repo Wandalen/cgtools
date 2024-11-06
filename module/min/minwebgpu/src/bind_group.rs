@@ -1,0 +1,30 @@
+/// Internal namespace.
+mod private
+{
+  use crate::*;
+
+  pub fn desc< 'a >( layout : &'a web_sys::GpuBindGroupLayout ) -> BindGroupDescriptor< 'a >
+  {
+    BindGroupDescriptor::new( layout )
+  }
+
+  pub fn create
+  ( 
+    device : &web_sys::GpuDevice, 
+    descriptor : impl Into< web_sys::GpuBindGroupDescriptor >
+  ) -> web_sys::GpuBindGroup
+  {
+    device.create_bind_group( &descriptor.into() )
+  }
+}
+
+crate::mod_interface!
+{
+
+  own use
+  {
+    desc,
+    create
+  };
+
+}

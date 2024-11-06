@@ -38,4 +38,6 @@ mod_interface!
   layer render_pipeline;
   layer render_pass;
   layer queue;
+  layer bind_group;
+  layer bind_group_entry;
 }

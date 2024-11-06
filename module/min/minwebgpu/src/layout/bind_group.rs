@@ -4,6 +4,7 @@ mod private
 
   use crate::*;
 
+  #[ derive( Clone ) ]
   pub struct  BindGroupLayoutDescriptor
   {
     /// Auto compute `binding` value of the entries. Defaults to `false`
@@ -71,6 +72,14 @@ mod private
       self.entries.push( entry.into() );
       self
     }
+  }
+
+  impl From< &BindGroupLayoutDescriptor > for web_sys::GpuBindGroupLayoutDescriptor 
+  {
+    fn from( value: &BindGroupLayoutDescriptor ) -> Self 
+    {
+      value.clone().into()
+    }    
   }
 
   impl From< BindGroupLayoutDescriptor > for web_sys::GpuBindGroupLayoutDescriptor 

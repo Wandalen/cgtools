@@ -71,8 +71,14 @@ async fn run() -> Result< (), gl::WebGPUError >
   let height = canvas.height();
   
   let gbuffer_shader = gl::ShaderModule::new( include_str!( "../shaders/gbuffer.wgsl" ) ).create( &device );
-  let [ pos_t, albedo_t, normal_t ] = create_textures( &device, [ width, height, 1 ] )?;
+  let [ pos_tex, albedo_tex, normal_tex ] = create_textures( &device, [ width, height, 1 ] )?;
   let [ pos_desc, albedo_desc, normal_desc ] = create_vertex_descriptors();
+  let ( pos_view, albedo_view, normal_view ) = 
+  ( 
+    pos_tex.create_view().unwrap(), 
+    albedo_tex.create_view().unwrap(),
+    normal_tex.create_view().unwrap() 
+  );
 
 
 
@@ -81,7 +87,7 @@ async fn run() -> Result< (), gl::WebGPUError >
   let model = models.first().unwrap();
   let mesh = &model.mesh;
 
-  let bind_group_layout = gl::layout::bind_group::create
+  let gbuffer_bind_group_layout = gl::layout::bind_group::create
   ( 
     &device, 
     // Sets the visibility `FRAGMENT` to all entries
@@ -89,12 +95,12 @@ async fn run() -> Result< (), gl::WebGPUError >
     gl::layout::bind_group::desc()
     .fragment()
     .auto_bindings()
-    .entry_from_ty( gl::binding_type::texture() )
-    .entry_from_ty( gl::binding_type::texture() )
-    .entry_from_ty( gl::binding_type::texture() )
+    .entry_from_ty( gl::binding_type::texture().sample_unfilterable_float() )
+    .entry_from_ty( gl::binding_type::texture().sample_unfilterable_float() )
+    .entry_from_ty( gl::binding_type::texture().sample_unfilterable_float()  )
   )?;
 
-  let pipeline_layout = gl::PipelineLayout::new().bind_group( bind_group_layout ).create( &device );
+  let pipeline_layout = gl::PipelineLayout::new().bind_group( &gbuffer_bind_group_layout ).create( &device );
   let render_pipeline = gl::render_pipeline::create
   ( 
     &device, 
@@ -109,6 +115,16 @@ async fn run() -> Result< (), gl::WebGPUError >
     )
     .primitive( gl::PrimitiveState::new().cull_back() )
     .depth_stencil( gl::DepthStencilState::new() )
+  );
+
+  let gbuffer_bind_group = gl::bind_group::create
+  (
+    &device, 
+    gl::bind_group::desc( &gbuffer_bind_group_layout )
+    .auto_bindings()
+    .entry_from_resource( &albedo_view )
+    .entry_from_resource( &pos_view )
+    .entry_from_resource( &normal_view )
   );
 
   Ok(())
