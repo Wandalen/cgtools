@@ -1,0 +1,8 @@
+[package]
+name = "minwebgl_video_as_texture"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+minwebgl = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
