@@ -1,6 +1,8 @@
 mod framebuffer;
 mod shaders;
 
+use std::{cell::RefCell, rc::Rc};
+
 use minwebgl as gl;
 use gl::GL;
 use framebuffer::*;
@@ -40,7 +42,7 @@ async fn run() -> Result< (), gl::WebglError >
   .await
   .expect( "Can't read model" );
   let materials = materials.expect( "Can't load materials" );
-  let meshes : Box< [ _ ] > = load_meshes( &models, &materials, &gl ).await.into();
+  let meshes : Rc< [ _ ] > = load_meshes( &models, &materials, &gl ).await.into();
 
   // create framebuffer for id texture
   let mut framebuffer = Framebuffer::new( &gl )?;
@@ -48,14 +50,15 @@ async fn run() -> Result< (), gl::WebglError >
   let depthbuffer = depthbuffer( &gl, width, height ).unwrap();
   framebuffer.attach( Attachment::Texture( id_texture ), GL::COLOR_ATTACHMENT0, &gl );
   framebuffer.set_depthbuffer( Attachment::Renderbuffer( depthbuffer ), DepthAttachment::Depth, &gl );
+ 
   // shader for drawing a single object
-  let object_shader = shaders::ObjectShader::new( &gl );
+  let object_shader = Rc::new( shaders::ObjectShader::new( &gl ) );
   // shader for drawing object's id into texture
-  let id_shader = shaders::IdShader::new( &gl );
+  let id_shader = Rc::new( shaders::IdShader::new( &gl ) );
   // shader for drawing outline
-  let outline_shader = shaders::OutlineShader::new( &gl );
+  let outline_shader = Rc::new( shaders::OutlineShader::new( &gl ) );
 
-  let objects = create_objects();
+  let objects : Rc< [ Object ] > = create_objects().into();
 
   let aspect_ratio = width as f32 / height as f32;
   let projection = glam::Mat4::perspective_rh( 45.0_f32.to_radians(), aspect_ratio, 0.1, 1000.0 );
@@ -69,7 +72,7 @@ async fn run() -> Result< (), gl::WebglError >
   gl.clear( GL::DEPTH_BUFFER_BIT );
 
   // draw objects' ids into texture
-  for object in &objects
+  for object in objects.as_ref()
   {
     let mvp = projection * object.transform;
     gl::uniform::matrix_upload( &gl, id_shader.mvp.clone(), mvp.to_cols_array().as_slice(), true ).unwrap();
@@ -90,87 +93,55 @@ async fn run() -> Result< (), gl::WebglError >
   ).unwrap();
 
   // draw all the objects
-  draw_objects(&objects, &gl, &object_shader, &meshes);
+  draw_objects( &objects, &gl, &object_shader, &meshes );
 
   let id = web_sys::js_sys::Int32Array::new_with_length( 1 );
+  let selected = Rc::new( RefCell::new( -1 ) );
 
-  let draw_closure = move | e : MouseEvent |
+  let draw_closure =
   {
-    // redraw scene on every click
+    let meshes = meshes.clone();
+    let gl = gl.clone();
+    let selected = selected.clone();
+    let objects = objects.clone();
+    let object_shader = object_shader.clone();
+    let outline_shader = outline_shader.clone();
 
-    // draw all the objects
-    draw_objects(&objects, &gl, &object_shader, &meshes);
-
-    // click position
-    let x = e.client_x();
-    let y = height - e.client_y();
-    let pos = [ x, y ];
-
-    // read id of selected object from texture
-    framebuffer.bind( &gl );
-    gl.read_buffer( GL::COLOR_ATTACHMENT0 );
-    gl.read_pixels_with_array_buffer_view_and_dst_offset
-    (
-      pos[ 0 ],
-      pos[ 1 ],
-      1,
-      1,
-      GL::RED_INTEGER,
-      GL::INT,
-      &id,
-      0
-    ).unwrap();
-    gl.bind_framebuffer( GL::FRAMEBUFFER, None );
-
-    let selected = id.to_vec()[ 0 ];
-
-    // draw an object if it is selected
-    if selected != -1
+    move | e : MouseEvent |
     {
-      let transform = objects[ selected as usize ].transform;
-      let nmat = transform.matrix3.inverse().transpose();
-      let model : glam::Mat4 = transform.into();
-
-      // this is not the optimal way to draw an outline
-      // but it is done so for simplicity
-
-      // basically just draw an extruded version of object
-      // with some solid color and then overdraw the actual
-      // object above it
-
-      // draw outline
-      gl.use_program( Some( &outline_shader.program ) );
-      gl::uniform::matrix_upload
+      // redraw scene on every click
+  
+      // draw all the objects
+      draw_objects( &objects, &gl, &object_shader, &meshes );
+  
+      // click position
+      let x = e.client_x();
+      let y = height - e.client_y();
+      let pos = [ x, y ];
+  
+      // read id of selected object from texture
+      framebuffer.bind( &gl );
+      gl.read_buffer( GL::COLOR_ATTACHMENT0 );
+      gl.read_pixels_with_array_buffer_view_and_dst_offset
       (
-        &gl,
-        outline_shader.mvp.clone(),
-        ( projection * model ).to_cols_array().as_slice(),
-        true
+        pos[ 0 ],
+        pos[ 1 ],
+        1,
+        1,
+        GL::RED_INTEGER,
+        GL::INT,
+        &id,
+        0
       ).unwrap();
-
-      gl.disable( GL::DEPTH_TEST );
-      draw_meshes( meshes.as_ref(), &gl );
-
-      // draw object
-      gl.use_program( Some( &object_shader.program ) );
-      gl::uniform::matrix_upload
-      (
-        &gl,
-        object_shader.model.clone(),
-        model.to_cols_array().as_slice(),
-        true
-      ).unwrap();
-      gl::uniform::matrix_upload
-      (
-        &gl,
-        object_shader.norm_mat.clone(),
-        nmat.to_cols_array().as_slice(),
-        true
-      ).unwrap();
-
-      gl.enable( GL::DEPTH_TEST );
-      gl.clear( GL::DEPTH_BUFFER_BIT );
-      draw_meshes( meshes.as_ref(), &gl );
+      gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+  
+      *selected.borrow_mut() = id.to_vec()[ 0 ];
+  
+      // draw an object if it is selected
+      if *selected.borrow() != -1
+      {
+        draw_outline( &objects, &object_shader, &outline_shader, &meshes, *selected.borrow(), &projection, &gl );
+      }
     }
   };
   let closure = Closure::< dyn Fn( _ ) >::new( Box::new( draw_closure ) );
@@ -179,25 +150,89 @@ async fn run() -> Result< (), gl::WebglError >
 
   let cnv = canvas.clone();
   let win = window.clone();
-  let cl = move ||
+  let objects = objects.clone();
+  let closure = move ||
   {
-    gl::info!( "{} {}", win.inner_width().unwrap().as_f64().unwrap(), win.inner_height().unwrap().as_f64().unwrap() );
+    let width = win.inner_width().unwrap().as_f64().unwrap();
+    let height = win.inner_height().unwrap().as_f64().unwrap();
+    draw_objects(&objects, &gl, &object_shader, &meshes);
+    if *selected.borrow() != -1
+    {
+      draw_outline( &objects, &object_shader, &outline_shader, &meshes, *selected.borrow(), &projection, &gl );
+    }
+    gl::info!( "{width} {height}" );
   };
-  let closure = Closure::< dyn Fn() >::new( Box::new( cl ) );
+  let closure = Closure::< dyn Fn() >::new( Box::new( closure ) );
   window.set_onresize( Some( closure.as_ref().unchecked_ref() ) );
   closure.forget();
 
-
   Ok( () )
+}
+
+fn draw_outline
+( 
+  objects : &[ Object ], 
+  object_shader : &shaders::ObjectShader,
+  outline_shader : &shaders::OutlineShader, 
+  meshes : &[ Mesh ], 
+  selected : i32, 
+  projection : &glam::Mat4, 
+  gl : &GL, 
+)
+{
+  let transform = objects[ selected as usize ].transform;
+  let nmat = transform.matrix3.inverse().transpose();
+  let model : glam::Mat4 = transform.into();
+
+  // this is not the optimal way to draw an outline
+  // but it is done so for simplicity
+
+  // basically just draw an extruded version of object
+  // with some solid color and then overdraw the actual
+  // object above it
+
+  // draw outline
+  gl.use_program( Some( &outline_shader.program ) );
+  gl::uniform::matrix_upload
+    (
+      &gl,
+      outline_shader.mvp.clone(),
+      ( *projection * model ).to_cols_array().as_slice(),
+      true
+    ).unwrap();
+
+  gl.disable( GL::DEPTH_TEST );
+  draw_meshes( meshes.as_ref(), &gl );
+
+  // draw object
+  gl.use_program( Some( &object_shader.program ) );
+  gl::uniform::matrix_upload
+    (
+      &gl,
+      object_shader.model.clone(),
+      model.to_cols_array().as_slice(),
+      true
+    ).unwrap();
+  gl::uniform::matrix_upload
+    (
+      &gl,
+      object_shader.norm_mat.clone(),
+      nmat.to_cols_array().as_slice(),
+      true
+    ).unwrap();
+
+  gl.enable( GL::DEPTH_TEST );
+  gl.clear( GL::DEPTH_BUFFER_BIT );
+  draw_meshes( meshes.as_ref(), &gl );
 }
 
 fn draw_objects( objects : &[ Object ], gl : &GL, object_shader : &shaders::ObjectShader, meshes : &[ Mesh ] )
 {
   for object in objects
   {
-    let model = object.transform;
-    let nmat = model.matrix3.inverse().transpose();
-    let model : glam::Mat4 = model.into();
+    let transform = object.transform;
+    let nmat = transform.matrix3.inverse().transpose();
+    let model : glam::Mat4 = transform.into();
 
     gl::uniform::matrix_upload
     (
