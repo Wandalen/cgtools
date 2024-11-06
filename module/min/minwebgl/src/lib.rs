@@ -41,21 +41,6 @@ mod_interface!
   /// Loop-related.
   layer exec_loop;
 
-  /// Useful information about your objects
-  #[ cfg( feature = "diagnostics" ) ]
-  layer diagnostics;
-
-  #[ cfg( feature = "model" ) ]
-  layer model;
-
-  /// File processing.
-  #[ cfg( all( feature = "file", feature = "future" ) ) ]
-  layer file;
-
-  /// File processing.
-  #[ cfg( feature = "future" ) ]
-  layer future;
-
   /// Vertex indices.
   layer index;
 
@@ -82,5 +67,21 @@ mod_interface!
   layer webgl;
   /// Texture related functions
   layer texture;
+
+  /// Useful information about your objects
+  #[ cfg( feature = "diagnostics" ) ]
+  layer diagnostics;
+
+  /// Utils related to different models
+  #[ cfg( all( feature = "future", feature = "file" ) ) ]
+  layer model;
+
+  /// File processing.
+  #[ cfg( all( feature = "future", feature = "file" ) ) ]
+  layer file;
+
+  /// Future processing.
+  #[ cfg( feature = "future" ) ]
+  layer future;
 
 }
