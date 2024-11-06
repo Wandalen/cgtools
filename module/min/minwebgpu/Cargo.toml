@@ -1,0 +1,138 @@
+[package]
+name = "minwebgpu"
+version = "0.1.0"
+edition = "2021"
+authors = [ 
+  "Kostiantyn Mysnyk <wandalen@obox.systems>",
+  "Avramenko Yevhenii <yevhenii.av@obox.systems>" 
+]
+
+
+[lints]
+workspace = true
+
+[features]
+
+enabled = [
+  "dep:mingl",
+  "dep:bytemuck",
+  "dep:browser_log",
+  "dep:wasm-bindgen-futures",
+  "dep:wasm-bindgen",
+  "dep:js-sys",
+  "dep:web-sys",
+]
+
+default = [
+  "enabled",
+  "minweb"
+]
+
+full = [
+  "default",
+]
+
+
+minweb = [ "mingl/web" ] # common web utils
+file = [ "mingl/webFile" ] # enable files handling
+future = [ "mingl/webFuture" ] # enable futures
+objModel = [ "mingl/webObjModel" ] # enable futures
+log = [ "mingl/webLog" ]
+ndarray = [ "mingl/ndarray" ]
+
+[dependencies]
+
+mingl = { workspace = true, optional = true }
+
+bytemuck = { workspace = true, optional = true, features = [ "derive" ] }
+browser_log = { workspace = true, optional = true }
+
+error_tools = { workspace = true }
+mod_interface = { workspace = true }
+derive_tools = { workspace = true }
+former = { workspace = true }
+
+wasm-bindgen-futures = { workspace = true, optional = true }
+wasm-bindgen = { workspace = true, optional = true }
+js-sys = { workspace = true, optional = true }
+web-sys = { workspace = true, optional = true, features = [
+  'Navigator',
+  'Gpu',
+  'GpuCanvasContext',
+  'GpuCanvasConfiguration',
+  'GpuTextureFormat',
+  'GpuAdapter',
+  'GpuDevice',
+  'GpuQueue',
+
+  'GpuTexture',
+  'GpuTextureDescriptor',
+  'GpuTextureDimension',
+  'GpuTextureFormat',
+
+  'GpuSampler',
+  'GpuSamplerDescriptor',
+  'GpuFilterMode',
+  'GpuAddressMode',
+  'GpuCompareFunction',
+  'GpuMipmapFilterMode',
+
+  'GpuVertexBufferLayout',
+  'GpuVertexStepMode',
+  'GpuVertexAttribute',
+  'GpuVertexFormat',
+
+  'GpuBindGroupLayout',
+  'GpuBindGroupLayoutDescriptor',
+  'GpuBindGroupLayoutEntry',
+  'GpuBufferBindingLayout',
+  'GpuBufferBindingType',
+  'GpuSamplerBindingLayout',
+  'GpuSamplerBindingType',
+  'GpuTextureBindingLayout',
+  'GpuTextureSampleType',
+  'GpuTextureViewDimension',
+  'GpuStorageTextureBindingLayout',
+  'GpuStorageTextureAccess',
+  'GpuExternalTextureBindingLayout',
+
+  'GpuRenderPipeline',
+  'GpuPipelineLayout',
+  'GpuPipelineLayoutDescriptor',
+  'GpuShaderModule',
+  'GpuShaderModuleDescriptor',
+  'GpuVertexState',
+  'GpuBlendState',
+  'GpuBlendComponent',
+  'GpuBlendFactor',
+  'GpuBlendOperation',
+  'GpuColorTargetState',
+  'GpuFragmentState',
+
+  'GpuPrimitiveState',
+  'GpuCullMode',
+  'GpuFrontFace',
+  'GpuPrimitiveTopology',
+  'GpuIndexFormat',
+  'GpuDepthStencilState',
+  'GpuStencilFaceState',
+  'GpuStencilOperation',
+  'GpuMultisampleState',
+
+  'GpuRenderPipelineDescriptor',
+  'GpuRenderPassDescriptor',
+  'GpuRenderPassDepthStencilAttachment',
+  'GpuRenderPassColorAttachment',
+  'GpuLoadOp',
+  'GpuStoreOp',
+  'GpuTextureView',
+  'GpuTextureViewDescriptor',
+
+  'GpuCommandEncoder',
+  'GpuCommandBuffer',
+  'GpuRenderPassEncoder',
+
+  'gpu_texture_usage',
+  'gpu_shader_stage',
+  'gpu_color_write',
+]}
