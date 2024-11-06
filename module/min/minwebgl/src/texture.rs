@@ -8,7 +8,7 @@ pub mod sprite;
 
 crate::mod_interface!
 {
-  exposed use 
+  own use 
   {
     d2,
     sprite

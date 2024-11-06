@@ -1,0 +1,21 @@
+[package]
+name = "minwebgpu_deffered_rendering"
+version = "0.1.0"
+edition = "2021"
+authors = [ 
+  "Kostiantyn Mysnyk <wandalen@obox.systems>",
+  "Avramenko Yevhenii <yevhenii.av@obox.systems>" 
+]
+license = "MIT"
+
+[dependencies]
+tobj =  { workspace = true }
+
+[dependencies.minwebgpu]
+workspace = true
+features = [
+    'future',
+    'file',
+    'objModel'
+]
+
