@@ -5,7 +5,6 @@ use minwebgl as gl;
 use gl::GL;
 use framebuffer::*;
 use rand::Rng as _;
-use std::{ cell::RefCell, rc::Rc };
 use web_sys::
 {
   wasm_bindgen::prelude::*,
@@ -23,9 +22,8 @@ fn main()
 
 async fn run() -> Result< (), gl::WebglError >
 {
-  let window = web_sys::window().unwrap();
-  let width = window.inner_width().unwrap().as_f64().unwrap() as i32 - 10;
-  let height = window.inner_height().unwrap().as_f64().unwrap() as i32 - 10;
+  let width =  1280;
+  let height = 720;
 
   let canvas = gl::canvas::retrieve().unwrap();
   canvas.set_width( width as u32 );
@@ -41,7 +39,7 @@ async fn run() -> Result< (), gl::WebglError >
   .await
   .expect( "Can't read model" );
   let materials = materials.expect( "Can't load materials" );
-  let meshes : Rc< [ _ ] > = load_meshes( &models, &materials, &gl ).await.into();
+  let meshes : Box< [ _ ] > = load_meshes( &models, &materials, &gl ).await.into();
 
   // create framebuffer for id texture
   let mut framebuffer = Framebuffer::new( &gl )?;
@@ -51,17 +49,16 @@ async fn run() -> Result< (), gl::WebglError >
   framebuffer.set_depthbuffer( Attachment::Renderbuffer( depthbuffer ), DepthAttachment::Depth, &gl );
 
   // shader for drawing a single object
-  let object_shader = Rc::new( shaders::ObjectShader::new( &gl ) );
+  let object_shader = shaders::ObjectShader::new( &gl );
   // shader for drawing object's id into texture
-  let id_shader = Rc::new( shaders::IdShader::new( &gl ) );
+  let id_shader = shaders::IdShader::new( &gl );
   // shader for drawing outline
-  let outline_shader = Rc::new( shaders::OutlineShader::new( &gl ) );
+  let outline_shader = shaders::OutlineShader::new( &gl );
 
-  let objects : Rc< [ Object ] > = create_objects().into();
+  let objects : Box< [ _ ] > = create_objects().into();
 
   let aspect_ratio = width as f32 / height as f32;
   let projection = glam::Mat4::perspective_rh( 45.0_f32.to_radians(), aspect_ratio, 0.1, 1000.0 );
-  let projection = Rc::new( RefCell::new( projection ) );
 
   // draw ids into texture
   gl.use_program( Some( &id_shader.program ) );
@@ -74,7 +71,7 @@ async fn run() -> Result< (), gl::WebglError >
   // draw objects' ids into texture
   for object in objects.as_ref()
   {
-    let mvp = *projection.borrow() * object.transform;
+    let mvp = projection * object.transform;
     gl::uniform::matrix_upload( &gl, id_shader.mvp.clone(), mvp.to_cols_array().as_slice(), true ).unwrap();
     gl::uniform::upload( &gl, id_shader.id.clone(), &object.id ).unwrap();
     draw_meshes( &meshes, &gl );
@@ -88,7 +85,7 @@ async fn run() -> Result< (), gl::WebglError >
   (
     &gl,
     object_shader.projection_view.clone(),
-    projection.borrow().to_cols_array().as_slice(),
+    projection.to_cols_array().as_slice(),
     true
   ).unwrap();
 
@@ -96,38 +93,24 @@ async fn run() -> Result< (), gl::WebglError >
   draw_objects( &objects, &gl, &object_shader, &meshes );
 
   let id = web_sys::js_sys::Int32Array::new_with_length( 1 );
-  let selected = Rc::new( RefCell::new( -1 ) );
-
+  let mut selected = -1;
   let draw_closure =
   {
-    let meshes = meshes.clone();
-    let gl = gl.clone();
-    let selected = selected.clone();
-    let objects = objects.clone();
-    let object_shader = object_shader.clone();
-    let outline_shader = outline_shader.clone();
-    let projection = projection.clone();
     let canvas = canvas.clone();
 
     move | e : MouseEvent |
     {
-      // redraw scene on every click
-
-      // draw all the objects
-      draw_objects( &objects, &gl, &object_shader, &meshes );
-
-      // click position
-      let scroll_x = window.scroll_x().unwrap() as i32;
-      let scroll_y = window.scroll_y().unwrap() as i32;
-      gl::info!( "{scroll_x} {scroll_y}" );
+      // calculate click position
       let rect = canvas.get_bounding_client_rect();
       let canvas_x = rect.left() as i32;
       let canvas_y = rect.top() as i32;
-      let x = e.client_x() + scroll_x - canvas_x;
-      let y = e.client_y() - canvas_y - scroll_y;
-      let y = canvas.height() as i32 - y;
-      // let x = e.client_x();
-      // let y = height - e.client_y();
+      let x = e.client_x();
+      let y = e.client_y();
+
+      let x = x - canvas_x;
+      let y = y - canvas_y;
+      let y = height - y;
+
       let pos = [ x, y ];
 
       // read id of selected object from texture
@@ -146,55 +129,20 @@ async fn run() -> Result< (), gl::WebglError >
       ).unwrap();
       gl.bind_framebuffer( GL::FRAMEBUFFER, None );
 
-      *selected.borrow_mut() = id.to_vec()[ 0 ];
+      let id = id.to_vec()[ 0 ];
 
       // draw an object if it is selected
-      if *selected.borrow() != -1
+      if id != selected
       {
-        draw_outline( &objects, &object_shader, &outline_shader, &meshes, *selected.borrow(), &projection.borrow(), &gl );
+        selected = id;
+        draw_objects( &objects, &gl, &object_shader, &meshes );
+        draw_outline( &objects, &object_shader, &outline_shader, &meshes, selected, projection, &gl );
       }
     }
   };
-  let closure = Closure::< dyn Fn( _ ) >::new( Box::new( draw_closure ) );
+  let closure = Closure::< dyn FnMut( _ ) >::new( Box::new( draw_closure ) );
   canvas.set_onclick( Some( closure.as_ref().unchecked_ref() ) );
   closure.forget();
-
-  // let cnv = canvas.clone();
-  // let win = window.clone();
-  // let objects = objects.clone();
-  // let projection = projection.clone();
-
-  // let closure = move ||
-  // {
-    // let width = win.inner_width().unwrap().as_f64().unwrap() as u32;
-    // let height = win.inner_height().unwrap().as_f64().unwrap() as u32;
-    // canvas.set_width( width );
-    // canvas.set_width( height );
-    // let aspect = width as f32 / height as f32;
-    // let p = glam::Mat4::perspective_rh( 45.0_f32.to_radians(), aspect, 0.1, 1000. );
-    // *projection.borrow_mut() = p;
-
-  //   gl.use_program( Some( &object_shader.program ) );
-  //   gl::uniform::matrix_upload
-  //   (
-  //     &gl,
-  //     object_shader.projection_view.clone(),
-  //     projection.borrow().to_cols_array().as_slice(),
-  //     true
-  //   ).unwrap();
-
-  //   gl.viewport( 0, 0, width as i32, height as i32 );
-
-  //   draw_objects( &objects, &gl, &object_shader, &meshes );
-  //   if *selected.borrow() != -1
-  //   {
-  //     // draw_outline( &objects, &object_shader, &outline_shader, &meshes, *selected.borrow(), &projection.borrow(), &gl );
-  //   }
-  //   gl::info!( "{width} {height}" );
-  // };
-  // let closure = Closure::< dyn Fn() >::new( Box::new( closure ) );
-  // window.set_onresize( Some( closure.as_ref().unchecked_ref() ) );
-  // closure.forget();
 
   Ok( () )
 }
@@ -206,7 +154,7 @@ fn draw_outline
   outline_shader : &shaders::OutlineShader,
   meshes : &[ Mesh ],
   selected : i32,
-  projection : &glam::Mat4,
+  projection : glam::Mat4,
   gl : &GL,
 )
 {
@@ -227,7 +175,7 @@ fn draw_outline
     (
       &gl,
       outline_shader.mvp.clone(),
-      ( *projection * model ).to_cols_array().as_slice(),
+      ( projection * model ).to_cols_array().as_slice(),
       true
     ).unwrap();
 
