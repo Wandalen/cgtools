@@ -19,7 +19,7 @@ Next step its just serve it:
 trunk serve --release
 ```
 
-If you need change on your own video:
+## How to change on your own video
 1. Put your video in assets folder of the example.
 2. Change variables in main.rs:
 ```rust
