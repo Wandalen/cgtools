@@ -79,6 +79,18 @@ pub struct Framebuffer
 
 impl Framebuffer
 {
+  pub fn t_attachment( &self, index : ColorAttachment ) -> Option< &WebGlTexture >
+  {
+    let index = index as usize - ColorAttachment::N0 as usize;
+    self.textures[ index ].as_ref()
+  }
+
+  pub fn r_attachment( &self, index : ColorAttachment ) -> Option< &WebGlRenderbuffer >
+  {
+    let index = index as usize - ColorAttachment::N0 as usize;
+    self.renderbuffers[ index ].as_ref()
+  }
+
   pub fn attachment( &self, index : ColorAttachment ) -> Option< &Attachment >
   {
     self.attachments.get( &index )
@@ -109,6 +121,12 @@ impl Framebuffer
     }
     gl::info!( "{drawbuffers:?}" );
     let iter = drawbuffers.into_iter().map( | v | JsValue::from_f64( v as f64 ) );
+
+    let iter = self.textures.iter()
+    .zip( self.renderbuffers.iter() )
+    .enumerate()
+    .map( | ( i, ( t, r ) ) | if t.is_some() || r.is_some() { GL::COLOR_ATTACHMENT0 + i as u32 } else { GL::NONE } )
+    .map( | v | JsValue::from_f64( v as f64 ) );
 
     gl.bind_framebuffer( GL::DRAW_FRAMEBUFFER, Some( &self.framebuffer ) );
     gl.draw_buffers( &js_sys::Array::from_iter( iter ).into() );
@@ -196,6 +214,9 @@ impl FramebufferBuilder
     };
     gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &framebuffer ) );
 
+    let mut textures = [ const { None }; 16 ];
+    let mut renderbuffers = [ const { None }; 16 ];
+
     for ( index, attachment ) in self.attachments.iter()
     {
       match attachment
@@ -210,6 +231,8 @@ impl FramebufferBuilder
             Some( texture ),
             0
           );
+          let index = *index as usize - ColorAttachment::N0 as usize;
+          textures[ index ] = Some( texture.clone() );
         }
         Attachment::Renderbuffer( renderbuffer ) =>
         {
@@ -220,6 +243,8 @@ impl FramebufferBuilder
             GL::RENDERBUFFER,
             Some( renderbuffer ),
           );
+          let index = *index as usize - ColorAttachment::N0 as usize;
+          renderbuffers[ index ] = Some( renderbuffer.clone() );
         }
       }
     }
@@ -260,16 +285,12 @@ impl FramebufferBuilder
       return Err( minwebgl::WebglError::FailedToAllocateResource( "Framebuffer is incomplete" ) )
     }
 
-    let mut textures = [ const { None }; 16 ];
-    let mut renderbuffers = [ const { None }; 16 ];
-
-
     Ok
     (
       Framebuffer
       {
-        textures : [ const { None }; 16 ],
-        renderbuffers : [ const { None }; 16 ],
+        textures,
+        renderbuffers,
         framebuffer,
         attachments: self.attachments,
         depthbuffer: self.depthbuffer,
