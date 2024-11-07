@@ -131,14 +131,11 @@ async fn run() -> Result< (), gl::WebglError >
       let id = id.to_vec()[ 0 ];
 
       // redraw if selected different object
-      if id != selected
+      if id != selected && id != -1
       {
         selected = id;
         draw_objects( &objects, &object_shader, &meshes, &gl );
-        if selected != -1
-        {
-          draw_outline( &objects, &object_shader, &outline_shader, &meshes, selected, projection, &gl );
-        }
+        draw_outline( &objects, &object_shader, &outline_shader, &meshes, selected, projection, &gl );
       }
     }
   };

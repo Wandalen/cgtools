@@ -78,9 +78,16 @@ impl Framebuffer
 
   pub fn bind( &self, gl : &GL )
   {
+    // To bind framebuffer with several attachments
+    // you need to provide an array where each attachment is
+    // in its respective place
+    // For example if framebuffer has attachment0 and attachment2
+    // then the array should be [ GL::COLOR_ATTACHMENT0, GL::NONE, GL::COLOR_ATTACHMENT2 ]
+    // this is how WebGl wants it to be
+
+    // This forms such an array -----------
     let mut attachments = self.attachments.keys().collect::< Box< _ > >();
     attachments.sort();
-
     let mut drawbuffers = vec![];
     let mut start = GL::COLOR_ATTACHMENT0;
     for attachment in attachments
@@ -89,8 +96,9 @@ impl Framebuffer
       drawbuffers.push( *attachment );
       start = *attachment + 1;
     }
-    let iter = drawbuffers.iter().map( | item | JsValue::from_f64( *item as f64 ) );
+    // ------------------------------------
 
+    let iter = drawbuffers.iter().map( | item | JsValue::from_f64( *item as f64 ) );
     gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &self.framebuffer ) );
     gl.draw_buffers( &js_sys::Array::from_iter( iter ).into() );
   }
