@@ -7,6 +7,7 @@ use framebuffer::*;
 use rand::Rng as _;
 use web_sys::
 {
+  js_sys,
   wasm_bindgen::prelude::*,
   HtmlImageElement,
   MouseEvent,
@@ -16,6 +17,7 @@ use web_sys::
 
 fn main()
 {
+
   gl::browser::setup( Default::default() );
   gl::spawn_local( async { gl::info!( "{:?}", run().await ) } );
 }
@@ -131,7 +133,7 @@ async fn run() -> Result< (), gl::WebglError >
 
       let id = id.to_vec()[ 0 ];
 
-      // draw an object if it is selected
+      // redraw if selected different object
       if id != selected
       {
         selected = id;
@@ -279,19 +281,16 @@ async fn load_meshes( models : &[ tobj::Model ], materials : &[ tobj::Material ]
 
     let texture = if let Some( name ) = &material.diffuse_texture
     {
-      load_image( &format!( "static/cat/{}", name ) ).await.map_or
-      (
-        None,
-        | img |
-        {
-          let texture = gl::texture::d2::upload( gl, &img );
-          gl.generate_mipmap( GL::TEXTURE_2D );
-          gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::LINEAR_MIPMAP_LINEAR as i32 );
-          gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::LINEAR as i32 );
-          img.remove();
-          texture
-        }
-      )
+      let img = gl::dom::image::load( &format!( "static/cat/{}", name ) ).await.unwrap();
+
+      let texture = gl::texture::d2::upload( gl, &img );
+      gl.generate_mipmap( GL::TEXTURE_2D );
+      gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::LINEAR_MIPMAP_LINEAR as i32 );
+      gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::LINEAR as i32 );
+
+      img.remove();
+
+      texture
     }
     else
     {
@@ -302,26 +301,6 @@ async fn load_meshes( models : &[ tobj::Model ], materials : &[ tobj::Material ]
   }
 
   meshes
-}
-
-async fn load_image( src : &str ) -> Option< HtmlImageElement >
-{
-  let doc = web_sys::window().unwrap().document().unwrap();
-  let img = doc.create_element( "img" ).unwrap().dyn_into::< HtmlImageElement >().unwrap();
-  let ( sender, receiver ) = futures::channel::oneshot::channel();
-  let onload_closure = Closure::once( move || sender.send( () ).unwrap() );
-  img.set_onload( Some( onload_closure.as_ref().unchecked_ref() ) );
-  onload_closure.forget();
-  img.set_src( src );
-
-  if let Err( _ ) = receiver.await
-  {
-    None
-  }
-  else
-  {
-    Some( img )
-  }
 }
 
 fn create_objects() -> Vec< Object >

@@ -32,11 +32,12 @@ mod private
 
 crate::mod_interface!
 {
+  layer image;
 
   own use
   {
+    image,
     JsCast,
     Error,
   };
-
 }
