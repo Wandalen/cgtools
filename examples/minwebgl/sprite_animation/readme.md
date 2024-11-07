@@ -5,7 +5,7 @@ A sprite animation of rock example, which loads a sprite sheet (an image with ma
 ![](./showcase.gif)
 
 ## How is it useful
-- Fast sprite loading one by one.
+- Fast sprite loading one by one (texture array).
 - Get element of sprite by it's depth index.
 
 ## How to run
