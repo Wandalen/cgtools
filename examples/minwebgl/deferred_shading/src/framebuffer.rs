@@ -131,13 +131,13 @@ impl Framebuffer
   /// Binds specific color attachment for drawing
   pub fn bind_draw_nth( &self, index : ColorAttachment, gl : &GL ) -> Result< (), String >
   {
-    let index = index as usize - ColorAttachment::N0 as usize;
-    if !self.attachments[ index ].is_none()
+    let idx = index as usize - ColorAttachment::N0 as usize;
+    if !self.attachments[ idx ].is_none()
     {
-      return Err( format!( "Framebuffer does not has ColorAttachment{:?}", index as u32 ) );
+      return Err( format!( "Framebuffer does not has ColorAttachment{:?}", idx as u32 ) );
     }
 
-    let iter = ( 0..( index as u32 ) )
+    let iter = ( 0..idx )
     .map( | _ | GL::NONE )
     .chain( [ index as u32 ].into_iter() )
     .map( | v | JsValue::from_f64( v as f64 ) );
@@ -150,10 +150,10 @@ impl Framebuffer
   /// Binds specific color attachment for reading
   pub fn bind_read( &self, index : ColorAttachment, gl : &GL ) -> Result< (), String >
   {
-    let index = index as usize - ColorAttachment::N0 as usize;
-    if !self.attachments[ index ].is_none()
+    let idx = index as usize - ColorAttachment::N0 as usize;
+    if !self.attachments[ idx ].is_none()
     {
-      return Err( format!( "Framebuffer does not has ColorAttachment{:?}", index as u32 ) );
+      return Err( format!( "Framebuffer does not has ColorAttachment{:?}", idx as u32 ) );
     }
 
     gl.bind_framebuffer( GL::READ_FRAMEBUFFER, Some( &self.framebuffer ) );
