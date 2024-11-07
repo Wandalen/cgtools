@@ -1,4 +1,4 @@
-use minwebgl as gl;
+use minwebgl::{self as gl, web_sys};
 use gl::JsCast;
 
 fn main()
@@ -25,59 +25,8 @@ async fn run() -> Result< (), gl::WebglError >
   let amount = 64;
   let frame_rate = 24.0;
 
-  let document = gl::web_sys::window().unwrap().document().unwrap();
-  let img_element = document.create_element( "img" )
-  .unwrap()
-  .dyn_into::< gl::web_sys::HtmlImageElement >()
-  .unwrap();
-  img_element.style().set_property( "display", "none" ).unwrap();
-
-  let load_promise = gl::js_sys::Promise::new
-  (
-    &mut | resolve, _ |
-    {
-      let onload = gl::wasm_bindgen::closure::Closure::once_into_js
-      (
-        move ||
-        {
-          resolve.call0( &gl::JsValue::NULL ).unwrap();
-        }
-      );
-      
-      img_element.set_onload( Some( onload.as_ref().unchecked_ref() ) );
-    }
-  );
-
-  img_element.set_src( path );
-
-  wasm_bindgen_futures::JsFuture::from( load_promise ).await.unwrap();
-
-  gl::texture::sprite::upload( &gl, &img_element, sprties_in_row, sprites_in_col, sprite_width, sprite_height, amount )?;
-
-  let data : [ f32; 24 ] =
-  [//x      y      t_x   t_y
-    -0.25, -0.50,  0.0,  1.0,
-     0.25,  0.50,  1.0,  0.0,
-    -0.25,  0.50,  0.0,  0.0,
-    -0.25, -0.50,  0.0,  1.0,
-     0.25, -0.50,  1.0,  1.0,
-     0.25,  0.50,  1.0,  0.0,
-  ];
-
-  let position_attribute_position = 0;
-  let tex_coord_attribute_position = 1;
-  let depth_attribute_position = 2;
-
-  let data_buffer = gl::buffer::create( &gl )?;
-  gl::buffer::upload( &gl, &data_buffer, &data, gl::GL::STATIC_DRAW );
-  gl::BufferDescriptor::new::< [ f32; 2 ] >()
-  .stride( 4 )
-  .offset( 0 )
-  .attribute_pointer( &gl, position_attribute_position, &data_buffer )?;
-  gl::BufferDescriptor::new::< [ f32; 2 ] >()
-  .stride( 4 )
-  .offset( 2 )
-  .attribute_pointer( &gl, tex_coord_attribute_position, &data_buffer )?;
+  let img_element = load_img( path ).await.expect( "Failed to load image" );
+  gl::texture::d2::upload_sprite( &gl, &img_element, sprties_in_row, sprites_in_col, sprite_width, sprite_height, amount )?;
 
   let update_and_draw =
   {
@@ -88,8 +37,8 @@ async fn run() -> Result< (), gl::WebglError >
     {
       let frame = ( step / amount ).floor();
 
-      gl.vertex_attrib1f( depth_attribute_position, frame % amount );
-      gl.draw_arrays( gl::GL::TRIANGLES, 0, 6 );
+      gl.vertex_attrib1f( 0, frame % amount );
+      gl.draw_arrays( gl::GL::TRIANGLE_STRIP, 0, 4 );
 
       step += frame_rate;
 
@@ -100,4 +49,39 @@ async fn run() -> Result< (), gl::WebglError >
   gl::exec_loop::run( update_and_draw );
 
   Ok( () )
+}
+
+async fn load_img( path : &str ) -> Result< web_sys::HtmlImageElement, gl::wasm_bindgen::JsValue >
+{
+  let document = gl::web_sys::window().unwrap().document().unwrap();
+  let img_element = document.create_element( "img" )?
+  .dyn_into::< gl::web_sys::HtmlImageElement >()?;
+  img_element.style().set_property( "display", "none" )?;
+
+  // Creates a new Promise instance that will execute when the image is loaded.
+  let load_promise = gl::js_sys::Promise::new
+  (
+    &mut | resolve, _ |
+    {
+      // Create a Closure that will be called when the image is loaded.
+      let onload = gl::wasm_bindgen::closure::Closure::once_into_js
+      (
+        move ||
+        {
+          // When the onload event is triggered, call the resolve function to complete the Promise.
+          resolve.call0( &gl::JsValue::NULL ).unwrap();
+        }
+      );
+
+      // The onload callback calls resolve to complete the Promise.
+      img_element.set_onload( Some( onload.as_ref().unchecked_ref() ) );
+    }
+  );
+
+  img_element.set_src( path );
+
+  // Waits for the Promise created earlier to complete when the image is loaded.
+  gl::JsFuture::from( load_promise ).await?;
+
+  Ok( img_element )
 }

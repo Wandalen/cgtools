@@ -5,5 +5,4 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
-minwebgl = { workspace = true }
-wasm-bindgen-futures = { workspace = true }
+minwebgl = { workspace = true, features = [ "future" ] }
