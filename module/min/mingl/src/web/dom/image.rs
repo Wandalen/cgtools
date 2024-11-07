@@ -6,24 +6,23 @@ mod private
   use wasm_bindgen::prelude::*;
 
   /// Creates new `HtmlImageElement` and waits asynchronously until it is loaded.
-  /// Unfortunately there's no error message provided by JS API on error occurrence
+  /// Unfortunately JS API doesn't provide any error message on error occurrence
   /// so in this case returns just `None`.
-  /// Assume that `src` will be adjusted to "origin/static/`src`".
   pub async fn load( src : &str ) -> Option< HtmlImageElement >
   {
     let image = HtmlImageElement::new().ok()?;
 
-    // here's js promises are used to get
+    // here js promise is used to get
     // either successful or unsuccessful result of image loading.
     // promise then converted into future and awaited until it's done
     let promise = js_sys::Promise::new
     (
       &mut | resolve, reject |
       {
-        let on_load = Closure::< dyn Fn() >::new( move || _ = resolve.call1( &JsValue::NULL, &JsValue::NULL ).unwrap() );
+        let on_load = Closure::< dyn Fn() >::new( move || _ = resolve.call0( &JsValue::NULL ).unwrap() );
         image.set_onload( Some( on_load.as_ref().unchecked_ref() ) );
 
-        let on_error = Closure::< dyn Fn() >::new( move || _ = reject.call1( &JsValue::NULL, &JsValue::NULL ).unwrap() );
+        let on_error = Closure::< dyn Fn() >::new( move || _ = reject.call0( &JsValue::NULL ).unwrap() );
         image.set_onerror( Some( on_error.as_ref().unchecked_ref() ) );
 
         on_load.forget();
@@ -33,7 +32,7 @@ mod private
 
     let window = web_sys::window().expect( "Should have a window" );
     let origin = window.location().origin().expect( "Should have an origin" );
-    let src = format!( "{origin}/static/{src}" );
+    let src = format!( "{origin}/{src}" );
     image.set_src( &src );
 
     let res = JsFuture::from( promise ).await;

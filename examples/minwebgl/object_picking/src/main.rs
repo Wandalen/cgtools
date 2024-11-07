@@ -281,7 +281,7 @@ async fn load_meshes( models : &[ tobj::Model ], materials : &[ tobj::Material ]
 
     let texture = if let Some( name ) = &material.diffuse_texture
     {
-      let img = gl::dom::image::load( &format!( "cat/{}", name ) ).await.unwrap();
+      let img = gl::dom::image::load( &format!( "static/cat/{}", name ) ).await.unwrap();
 
       let texture = gl::texture::d2::upload( gl, &img );
       gl.generate_mipmap( GL::TEXTURE_2D );
