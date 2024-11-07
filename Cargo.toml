@@ -8,6 +8,7 @@ members = [
   "module/helper/*",
   "module/math/*",
   "examples/minwebgl/*",
+  "examples/minwebgpu/*"
 ]
 
 # Source :: https://github.com/obox-systems/conventions/blob/master/code_style.md#lints-and-warnings
@@ -78,6 +79,10 @@ path = "module/min/mingl"
 [workspace.dependencies.minwebgl]
 version = "~0.2.0"
 path = "module/min/minwebgl"
+
+[workspace.dependencies.minwebgpu]
+version = "~0.1.0"
+path = "module/min/minwebgpu"
 
 # = helpers
 
