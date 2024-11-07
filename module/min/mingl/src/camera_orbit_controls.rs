@@ -1,17 +1,18 @@
 mod private
 {
   use crate::*;
-  use cgmath::InnerSpace;
+  use ndarray_cg::vector::*;
+  use ndarray_cg::d2;
 
   /// Provides camera controls independent of the API backend
   pub struct CameraOrbitControls
   {
     /// Position of the camera
-    pub eye : [ f32; 3 ],
+    pub eye : Vec3< f32 >,
     /// Orientation of camera
-    pub up : [ f32; 3 ],
+    pub up : Vec3< f32 >,
     /// Look at point, which is also the center of the sphere of rotation
-    pub center : [ f32; 3 ],
+    pub center : Vec3< f32 >,
     /// Size of the drawing window
     pub window_size : [ f32; 2 ],
     /// Scales the speed of rotation
@@ -26,23 +27,23 @@ mod private
   {
     pub fn eye( &self ) -> [ f32; 3 ]
     {
-      self.eye
+      self.eye.to_array()
     }
 
     pub fn up( &self ) -> [ f32; 3 ]
     {
-      self.up
+      self.up.to_array()
     }
 
     pub fn center( &self ) -> [ f32 ; 3 ]
     {
-      self.center
+      self.center.to_array()
     }
 
     /// Return a righthanded view matrix of the current camera state
-    pub fn view( &self ) -> ndarray_cg::Mat4< f32 >
+    pub fn view( &self ) -> [ f32; 16 ]
     {
-      ndarray_cg::mat3x3h::loot_at_rh( self.eye, self.center, self.up )
+      ndarray_cg::mat3x3h::loot_at_rh( self.eye, self.center, self.up ).to_array()
     }
 
     pub fn set_size( &mut self, size : [ f32; 2 ] )
@@ -59,35 +60,29 @@ mod private
       mut screen_d :  [ f32; 2 ]
     )
     {
-      use ndarray_cg::vector::*;
       screen_d[ 0 ] /= self.rotation_speed_scale;
       screen_d[ 1 ] /= self.rotation_speed_scale;
 
-      //Convert to cgmath Vectors
-      // let center = cgmath::Vector3::from( self.center );
-      // let mut up_prev = cgmath::Vector3::from( self.up );
-      // let mut eye_prev = cgmath::Vector3::from( self.eye );
-
-      let dir = normalized( &sub( &self.center, &self.eye ) );
-      let x = normalized( &cross( &dir, &self.up ) );
+      let dir = ( self.center - self.eye ).normalize();
+      let x = dir.cross( self.up ).normalize();
 
       // We rotate aroung the y axis based on the movement in x direction.
       // And we rotate aroung the axix perpendicular to the current up and direction vectors 
       // based on the movement in y direction
-      let rot_y = cgmath::Matrix3::from_angle_y( cgmath::Rad( -screen_d[ 0 ] ) );
-      let rot_x = cgmath::Matrix3::from_axis_angle( x, cgmath::Rad( -screen_d[ 1 ] ) );
+      let rot_y = d2::mat3x3::from_angle_y( -screen_d[ 0 ] );
+      let rot_x = d2::mat3x3::from_axis_angle( x, -screen_d[ 1 ] );
       // Combine two rotations
       let rot = rot_y * rot_x;
 
       // We need the center to be at the origin before we can apply rotation
-      eye_prev -= center;
-      eye_prev = rot * eye_prev;
-      eye_prev += center;
+      let mut eye_new = self.eye - self.center;
+      eye_new *= rot;
+      eye_new += self.center;
 
-      up_prev = rot * up_prev;
+      let up_new = rot * self.up;
 
-      self.eye = eye_prev.into();  
-      self.up = up_prev.normalize().into();
+      self.eye = eye_new;  
+      self.up = up_new;
 
     }
 
@@ -101,19 +96,19 @@ mod private
     )
     {
       // Convert to cgmath Vectors
-      let up = cgmath::Vector3::from( self.up );
-      let mut center_prev = cgmath::Vector3::from( self.center );
-      let mut eye_prev = cgmath::Vector3::from( self.eye );
+      // let up = cgmath::Vector3::from( self.up );
+      // let mut center_prev = cgmath::Vector3::from( self.center );
+      // let mut eye_prev = cgmath::Vector3::from( self.eye );
 
       // Here we get the x and y direction vectors based on camera's orientation and direction.
       // Both vectors line in the plane that the dir vector is perpendicular to.
-      let dir = center_prev - eye_prev;
+      let dir = self.center - self.eye;
       let dir_norm = dir.normalize();
-      let x = dir_norm.cross( up ).normalize();
+      let x = dir_norm.cross( self.up ).normalize();
       let y = x.cross( dir_norm ).normalize();
 
       // Find the vertical distance to the edge of frustum from center
-      let y_center =  ( self.fov / 2.0 ).tan() * dir.magnitude();
+      let y_center =  ( self.fov / 2.0 ).tan() * dir.mag();
       // Find the ration between half of screen height and the frustum height
       let k = 2.0 * y_center / self.window_size[ 1 ];
 
@@ -121,11 +116,11 @@ mod private
       let mut offset = y * screen_d[ 1 ] - x * screen_d[ 0 ];
       offset *= k;
 
-      center_prev += offset;
-      eye_prev += offset;
+      let center_new = self.center + offset;
+      let eye_new = self.eye + offset;
 
-      self.center = center_prev.into();
-      self.eye = eye_prev.into();
+      self.center = center_new;
+      self.eye = eye_new;
     }
 
     /// Zooms in/out camera in the view direction
@@ -139,19 +134,19 @@ mod private
       delta_y /= self.zoom_speed_scale;
 
       //Convert to cgmath Vectors
-      let center = cgmath::Vector3::from( self.center );
-      let mut eye_prev = cgmath::Vector3::from( self.eye );
+      // let center = cgmath::Vector3::from( self.center );
+      // let mut eye_prev = cgmath::Vector3::from( self.eye );
 
       // If scroll is up (-) then zoom in
       // If scroll is down (+) then zoom out
       let k = if delta_y < 0.0 { 1.0 + delta_y.abs() } else { 1.0 - delta_y.abs() };
 
       // We need the center to be at the origin before we can apply zoom
-      eye_prev -= center;
-      eye_prev /= k;
-      eye_prev += center;
+      let mut eye_new = self.eye - self.center;
+      eye_new /= k;
+      eye_new += self.center;
 
-      self.eye = eye_prev.into();
+      self.eye = eye_new;
     }
   }
 
@@ -159,9 +154,9 @@ mod private
       fn default() -> Self {
           CameraOrbitControls
           {
-            eye : [ 1.0, 0.0, 0.0 ],
-            up : [ 0.0, 1.0, 0.0 ],
-            center : [ 0.0, 0.0, 0.0 ],
+            eye : Vec3::from( [ 1.0, 0.0, 0.0 ] ),
+            up : Vec3::from( [ 0.0, 1.0, 0.0 ] ),
+            center : Vec3::from( [ 0.0, 0.0, 0.0 ] ),
             window_size : [ 1000.0, 1000.0 ],
             rotation_speed_scale : 500.0,
             zoom_speed_scale : 1000.0,

@@ -16,6 +16,7 @@ use gl::
   GL,
 };
 use web_sys::wasm_bindgen::prelude::Closure;
+use mingl::nd;
 
 mod mesh;
 mod camera_controls;
@@ -31,9 +32,9 @@ async fn run() -> Result< (), gl::WebglError >
   let height = canvas.height() as f32;
 
   // Camera setup
-  let eye = glam::Vec3::new( 0.0, 20.0, 20.0 );
-  let up = glam::Vec3::Y;
-  let center = glam::Vec3::ZERO;
+  let eye = nd::ndarray_cg::Vec3::from( [ 0.0, 20.0, 20.0 ] );
+  let up = nd::ndarray_cg::Vec3::from( [ 0.0, 1.0, 0.0 ] );
+  let center = nd::ndarray_cg::Vec3::from( [ 0.0, 0.0, 0.0 ] );
 
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
@@ -47,9 +48,9 @@ async fn run() -> Result< (), gl::WebglError >
 
   let camera = CameraOrbitControls
   {
-    eye : eye.to_array(),
-    up : up.to_array(),
-    center : center.to_array(),
+    eye : eye,
+    up : up,
+    center : center,
     window_size : [ width, height ],
     fov,
     ..Default::default()

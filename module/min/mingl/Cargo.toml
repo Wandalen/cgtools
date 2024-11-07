@@ -53,8 +53,8 @@ ndarray = { workspace = true, optional = true }
 bytemuck = { workspace = true, features = [ "derive" ] } # xxx : replace
 # anyhow = "1.0.48"
 # slice-of-array = "0.3.1"
-cgmath = "0.18.0"
 glam = "0.29.0"
+cgmath = "0.18.0"
 tobj = { workspace = true, optional = true }
 browser_log = { workspace = true, optional = true }
 

@@ -250,6 +250,7 @@ mod private
 
   }
 
+
   pub type Mat2< E > = Mat< 2, 2, E, DescriptorOrderColumnMajor >;
   pub type Mat3< E > = Mat< 3, 3, E, DescriptorOrderColumnMajor >;
   pub type Mat4< E > = Mat< 4, 4, E, DescriptorOrderColumnMajor >;

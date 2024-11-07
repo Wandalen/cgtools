@@ -9,10 +9,10 @@ authors = [
 
 [dependencies]
 
-minwebgl = { workspace = true, features = [ "future" ] }
+minwebgl = { workspace = true, features = [ "future", "ndarray", "diagnostics" ] }
 glam = "0.29.0"
-tobj =  { workspace = true, default-features = false, features = [ "async" ] }
-mingl = { workspace = true, features = [ "camera_orbit_controls", "diagnostics" ] }
+tobj =  { workspace = true }
+mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 
 [dependencies.web-sys]
 workspace = true
