@@ -18,7 +18,7 @@ async fn run() -> Result< (), gl::WebglError >
   _ = gl.get_extension( "EXT_color_buffer_float" ).unwrap().unwrap();
 
   let file = gl::file::load( "lowpoly_tree.obj" ).await.unwrap();
-  let ( models, _ ) = gl::obj::load_model_from_slice( &file, "", &tobj::GPU_LOAD_OPTIONS )
+  let ( models, _ ) = gl::model::load_model_from_slice( &file, "", &tobj::GPU_LOAD_OPTIONS )
   .await
   .unwrap();
 

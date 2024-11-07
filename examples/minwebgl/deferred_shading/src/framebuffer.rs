@@ -75,7 +75,7 @@ impl Attachment
 pub struct Framebuffer
 {
   framebuffer : WebGlFramebuffer,
-  attachments : [ Option< Attachment >; MAX_COLOR_ATTACHMENTS ],
+  color_attachments : [ Option< Attachment >; MAX_COLOR_ATTACHMENTS ],
   depth_attachment : Option< ( DepthAttachment, Attachment ) >,
 }
 
@@ -84,7 +84,7 @@ impl Framebuffer
   pub fn attachment( &self, index : ColorAttachment ) -> Option< &Attachment >
   {
     let index = index as usize - ColorAttachment::N0 as usize;
-    match self.attachments.get( index ).as_ref()
+    match self.color_attachments.get( index ).as_ref()
     {
       Some( attachment ) => attachment.as_ref(),
       None => None,
@@ -105,9 +105,9 @@ impl Framebuffer
     // this is how WebGl wants it to be
 
     // find index of last non-None value
-    let last = self.attachments.iter().rposition( | v | v.is_some() ).unwrap_or( 0 );
+    let last = self.color_attachments.iter().rposition( | v | v.is_some() ).unwrap_or( 0 );
 
-    let iter = self.attachments[ 0..=last ]
+    let iter = self.color_attachments[ ..=last ]
     .iter()
     .enumerate()
     .map
@@ -128,30 +128,34 @@ impl Framebuffer
     gl.draw_buffers( &js_sys::Array::from_iter( iter ) );
   }
 
-  /// Binds specific color attachment for drawing
-  pub fn bind_draw_nth( &self, index : ColorAttachment, gl : &GL ) -> Result< (), String >
+  /// Binds specific color attachments for reading. Returns `Error` if some of indices are not
+  /// actualy attached to framebuffer
+  pub fn bind_draw_nths( &self, indices : &[ ColorAttachment ], gl : &GL ) -> Result< (), String >
   {
-    let idx = index as usize - ColorAttachment::N0 as usize;
-    if !self.attachments[ idx ].is_none()
+    let mut drawbuffers = [ GL::NONE; MAX_COLOR_ATTACHMENTS ];
+    for index in indices
     {
-      return Err( format!( "Framebuffer does not has ColorAttachment{:?}", idx as u32 ) );
+      let idx = *index as usize - ColorAttachment::N0 as usize;
+      if self.color_attachments[ idx ].is_none()
+      {
+        return Err( format!( "Framebuffer does not has ColorAttachment{:?}", idx as u32 ) );
+      }
+      drawbuffers[ idx ] = *index as u32;
     }
-
-    let iter = ( 0..idx )
-    .map( | _ | GL::NONE )
-    .chain( [ index as u32 ].into_iter() )
-    .map( | v | JsValue::from_f64( v as f64 ) );
+    let last = drawbuffers.iter().rposition( | v | *v != GL::NONE ).unwrap_or( 0 );
+    let iter = drawbuffers[ ..=last ].iter().map( | v | JsValue::from_f64( *v as f64 ) );
 
     gl.bind_framebuffer( GL::DRAW_FRAMEBUFFER, Some( &self.framebuffer ) );
     gl.draw_buffers( &js_sys::Array::from_iter( iter ).into() );
     Ok( () )
   }
 
-  /// Binds specific color attachment for reading
+  /// Binds specific color attachment for reading. Returns `Error` if index is not
+  /// actualy attached to framebuffer
   pub fn bind_read( &self, index : ColorAttachment, gl : &GL ) -> Result< (), String >
   {
     let idx = index as usize - ColorAttachment::N0 as usize;
-    if !self.attachments[ idx ].is_none()
+    if !self.color_attachments[ idx ].is_none()
     {
       return Err( format!( "Framebuffer does not has ColorAttachment{:?}", idx as u32 ) );
     }
@@ -161,7 +165,7 @@ impl Framebuffer
     Ok( () )
   }
 
-  /// Binds depth attachment for reading
+  /// Binds depth attachment for reading. Returns `Error` if there is no depth attachment
   pub fn bind_read_depth_attachment( &self, gl : &GL ) -> Result< (), String >
   {
     if self.depth_attachment.is_none()
@@ -182,7 +186,7 @@ impl Index< ColorAttachment > for Framebuffer
     fn index( &self, index: ColorAttachment ) -> &Self::Output
     {
       let index = index as usize - ColorAttachment::N0 as usize;
-      self.attachments[ index ].as_ref().unwrap()
+      self.color_attachments[ index ].as_ref().unwrap()
     }
 }
 
@@ -298,7 +302,7 @@ impl FramebufferBuilder
       Framebuffer
       {
         framebuffer,
-        attachments : self.attachments,
+        color_attachments : self.attachments,
         depth_attachment: self.depthbuffer,
       }
     )
