@@ -53,6 +53,24 @@ pub fn upload_no_flip( gl : &GL, img : &web_sys::HtmlImageElement ) -> Option< w
   texture
 }
 
+// Update the video texture for each frame
+pub fn update_video( gl : &GL, texture : &web_sys::WebGlTexture, video_element : &web_sys::HtmlVideoElement )
+{
+  gl.bind_texture( GL::TEXTURE_2D, Some( texture ) );
+  gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_html_video_element
+  (
+    GL::TEXTURE_2D,
+    0,
+    GL::RGBA as i32,
+    video_element.width() as i32,
+    video_element.height() as i32,
+    0,
+    GL::RGBA,
+    GL::UNSIGNED_BYTE,
+    &video_element
+  ).expect( "Failed to upload data to texture" );
+}
+
 /// Set the default parameters for the texture
 /// Sets MAG and MIN filters to LINEAR
 /// Set wrap mode for S, R, T dimensions to REPEAT
