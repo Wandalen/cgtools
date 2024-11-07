@@ -7,9 +7,7 @@ use framebuffer::*;
 use rand::Rng as _;
 use web_sys::
 {
-  js_sys,
   wasm_bindgen::prelude::*,
-  HtmlImageElement,
   MouseEvent,
   WebGlRenderbuffer,
   WebGlTexture
@@ -17,7 +15,6 @@ use web_sys::
 
 fn main()
 {
-
   gl::browser::setup( Default::default() );
   gl::spawn_local( async { gl::info!( "{:?}", run().await ) } );
 }
@@ -92,7 +89,7 @@ async fn run() -> Result< (), gl::WebglError >
   ).unwrap();
 
   // draw all the objects
-  draw_objects( &objects, &gl, &object_shader, &meshes );
+  draw_objects( &objects, &object_shader, &meshes, &gl );
 
   let id = web_sys::js_sys::Int32Array::new_with_length( 1 );
   let mut selected = -1;
@@ -137,8 +134,11 @@ async fn run() -> Result< (), gl::WebglError >
       if id != selected
       {
         selected = id;
-        draw_objects( &objects, &gl, &object_shader, &meshes );
-        draw_outline( &objects, &object_shader, &outline_shader, &meshes, selected, projection, &gl );
+        draw_objects( &objects, &object_shader, &meshes, &gl );
+        if selected != -1
+        {
+          draw_outline( &objects, &object_shader, &outline_shader, &meshes, selected, projection, &gl );
+        }
       }
     }
   };
@@ -206,7 +206,7 @@ fn draw_outline
   draw_meshes( meshes.as_ref(), &gl );
 }
 
-fn draw_objects( objects : &[ Object ], gl : &GL, object_shader : &shaders::ObjectShader, meshes : &[ Mesh ] )
+fn draw_objects( objects : &[ Object ], object_shader : &shaders::ObjectShader, meshes : &[ Mesh ], gl : &GL )
 {
   for object in objects
   {
