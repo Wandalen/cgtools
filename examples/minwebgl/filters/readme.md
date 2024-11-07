@@ -2,6 +2,8 @@
 
 This example demonstrates work of different image filters implemented in WebGl2.
 
+![](showcase.gif)
+
 ### How it is useful
 
 This demo shows how to implement different filters alongside different techniques such as
@@ -25,7 +27,3 @@ let image_path = "static/your_image.format";
 
 You can select filter in the list on the left side and adjust its parameters in the small
 window in the top right corner if they are present.
-
----
-
-![](showcase.png)
