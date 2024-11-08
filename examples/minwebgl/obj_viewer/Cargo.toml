@@ -10,7 +10,6 @@ authors = [
 [dependencies]
 
 minwebgl = { workspace = true, features = [ "future", "ndarray", "diagnostics" ] }
-glam = "0.29.0"
 tobj =  { workspace = true }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 

@@ -11,7 +11,8 @@ use crate::*;
     E : MatEl + nd::NdFloat,
     Mat< ROWS, COLS, E, Descriptor > : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
   {
-    fn mul_assign( &mut self, rhs: Mat< ROWS, COLS, E, Descriptor > ) {
+    fn mul_assign( &mut self, rhs: Mat< ROWS, COLS, E, Descriptor > ) 
+    {
       *self = rhs * *self;
     }
   }
@@ -22,7 +23,8 @@ use crate::*;
   {
     type Output = Self;
 
-    fn mul( self, rhs: E ) -> Self::Output {
+    fn mul( self, rhs: E ) -> Self::Output 
+    {
       mul_scalar( &self, rhs )
     }
   }
@@ -31,8 +33,29 @@ use crate::*;
   where
     E : MatEl + nd::NdFloat
   {
-    fn mul_assign( &mut self, rhs: E ) {
+    fn mul_assign( &mut self, rhs: E ) 
+    {
       *self = *self * rhs;
+    }
+  }
+
+  impl< const LEN : usize > Mul< Vector< f32, LEN > > for f32
+  {
+    type Output = Vector< f32, LEN >;
+
+    fn mul( self, rhs: Vector< f32, LEN > ) -> Self::Output 
+    {
+      mul_scalar( &rhs, self )
+    }
+  }
+
+  impl< const LEN : usize > Mul< Vector< f64, LEN > > for f64
+  {
+    type Output = Vector< f64, LEN >;
+
+    fn mul( self, rhs: Vector< f64, LEN > ) -> Self::Output 
+    {
+      mul_scalar( &rhs, self )
     }
   }
 }

@@ -1,9 +1,9 @@
 mod private
 {
   use crate::*;
-  use vector::arithmetics::inner_product::*;
+  //use vector::arithmetics::inner_product::*;
 
-  impl< E : MatEl + NdFloat > Vector< E, 3 >
+  impl< E : MatEl + NdFloat > Vector< E, 4 >
   {
     #[ inline ]
     pub fn x( &self ) -> E
@@ -23,9 +23,10 @@ mod private
       self.0[ 2 ]
     }
 
-    pub fn cross( self, rhs : Self ) -> Self
+    #[ inline ]
+    pub fn w( &self ) -> E
     {
-      cross( &self, &rhs )
+      self.0[ 2 ]
     }
   }
 }

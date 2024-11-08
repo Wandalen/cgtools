@@ -1,20 +1,19 @@
 mod private
 {
   use crate::*;
-  use ndarray_cg::vector::*;
-  use ndarray_cg::d2;
+  use ndarray_cg::*;
 
   /// Provides camera controls independent of the API backend
   pub struct CameraOrbitControls
   {
     /// Position of the camera
-    pub eye : Vec3< f32 >,
+    pub eye : F32x3,
     /// Orientation of camera
-    pub up : Vec3< f32 >,
+    pub up : F32x3,
     /// Look at point, which is also the center of the sphere of rotation
-    pub center : Vec3< f32 >,
+    pub center : F32x3,
     /// Size of the drawing window
-    pub window_size : [ f32; 2 ],
+    pub window_size : F32x2,
     /// Scales the speed of rotation
     pub rotation_speed_scale : f32,
     /// Scales the speed of zoom
@@ -25,30 +24,30 @@ mod private
 
   impl CameraOrbitControls 
   {
-    pub fn eye( &self ) -> [ f32; 3 ]
+    pub fn eye( &self ) -> F32x3
     {
-      self.eye.to_array()
+      self.eye
     }
 
-    pub fn up( &self ) -> [ f32; 3 ]
+    pub fn up( &self ) -> F32x3
     {
-      self.up.to_array()
+      self.up
     }
 
-    pub fn center( &self ) -> [ f32 ; 3 ]
+    pub fn center( &self ) -> F32x3
     {
-      self.center.to_array()
+      self.center
     }
 
     /// Return a righthanded view matrix of the current camera state
-    pub fn view( &self ) -> [ f32; 16 ]
+    pub fn view( &self ) -> ndarray_cg::Mat4< f32 >
     {
-      ndarray_cg::mat3x3h::loot_at_rh( self.eye, self.center, self.up ).to_array()
+      ndarray_cg::mat3x3h::loot_at_rh( self.eye, self.center, self.up )
     }
 
     pub fn set_size( &mut self, size : [ f32; 2 ] )
     {
-      self.window_size = size;
+      self.window_size = F32x2::from( size );
     }
 
     /// Makes rotation around the sphere with center at self.center and radius equal to length of ( self.center - self.eye ).
@@ -69,8 +68,8 @@ mod private
       // We rotate aroung the y axis based on the movement in x direction.
       // And we rotate aroung the axix perpendicular to the current up and direction vectors 
       // based on the movement in y direction
-      let rot_y = d2::mat3x3::from_angle_y( -screen_d[ 0 ] );
-      let rot_x = d2::mat3x3::from_axis_angle( x, -screen_d[ 1 ] );
+      let rot_y = ndarray_cg::mat3x3::from_angle_y( -screen_d[ 0 ] );
+      let rot_x = ndarray_cg::mat3x3::from_axis_angle( x, -screen_d[ 1 ] );
       // Combine two rotations
       let rot = rot_y * rot_x;
 
@@ -110,7 +109,7 @@ mod private
       // Find the vertical distance to the edge of frustum from center
       let y_center =  ( self.fov / 2.0 ).tan() * dir.mag();
       // Find the ration between half of screen height and the frustum height
-      let k = 2.0 * y_center / self.window_size[ 1 ];
+      let k = 2.0 * y_center / self.window_size.y();
 
       // Scale the movement in screen spcae to the appropriate movement in worldspace
       let mut offset = y * screen_d[ 1 ] - x * screen_d[ 0 ];
@@ -154,10 +153,10 @@ mod private
       fn default() -> Self {
           CameraOrbitControls
           {
-            eye : Vec3::from( [ 1.0, 0.0, 0.0 ] ),
-            up : Vec3::from( [ 0.0, 1.0, 0.0 ] ),
-            center : Vec3::from( [ 0.0, 0.0, 0.0 ] ),
-            window_size : [ 1000.0, 1000.0 ],
+            eye : F32x3::from( [ 1.0, 0.0, 0.0 ] ),
+            up : F32x3::from( [ 0.0, 1.0, 0.0 ] ),
+            center : F32x3::from( [ 0.0, 0.0, 0.0 ] ),
+            window_size : F32x2::from( [ 1000.0, 1000.0 ] ),
             rotation_speed_scale : 500.0,
             zoom_speed_scale : 1000.0,
             fov : 70f32.to_radians()

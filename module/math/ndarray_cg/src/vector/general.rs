@@ -1,7 +1,6 @@
 mod private
 {
   use crate::*;
-  use ndarray::NdFloat;
 
   impl< E, const N : usize > Collection for Vector< E, N >
   where 

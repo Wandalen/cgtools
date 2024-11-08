@@ -9,7 +9,8 @@ mod private
   {
     type Output = Self;
     
-    fn div(self, rhs: E) -> Self::Output {
+    fn div(self, rhs: E) -> Self::Output 
+    {
       div_scalar( &self, rhs )
     }
   }
@@ -18,7 +19,8 @@ mod private
   where
     E : MatEl + NdFloat
   {
-    fn div_assign( &mut self, rhs: E ) {
+    fn div_assign( &mut self, rhs: E ) 
+    {
         *self = *self / rhs;
     }
   }
