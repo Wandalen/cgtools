@@ -25,10 +25,19 @@ crate::mod_interface!
   layer mat2x2h;
   orphan use super::mat2x2h;
 
+  /// 3D entities with 3 along both dimensions.
+  /// Useful for 3D graphics
+  layer mat3x3;
+  orphan use super::mat3x3;
+
   /// 3D entities with 3+homogenous coordinate along both dimensions.
   /// Useful for 3D graphics.
   layer mat3x3h;
   orphan use super::mat3x3h;
+
+  /// General functions for 4x4 matrices
+  layer mat4x4;
+  orphan use super::mat4x4;
 
   /// Rotation.
   layer rotation;

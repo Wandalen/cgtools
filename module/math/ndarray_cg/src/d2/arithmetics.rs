@@ -12,6 +12,6 @@ crate::mod_interface!
   orphan use
   {
     add::add,
-    mul::mul,
+    mul::mul
   };
 }
