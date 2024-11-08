@@ -18,13 +18,14 @@ layout ( std140 ) uniform Lights
 
 out vec4 frag_color;
 
-void main( )
+void main()
 {
-  const vec3 COLOR = vec3( 0.8 );
+  const vec3 COLOR = vec3(0.24, 0.6, 0.15);
+  const vec3 AMBIENT = vec3( 0.2 );
 
   vec3 position = texture( positions, v_texcoord ).xyz;
   vec3 normal = texture( normals, v_texcoord ).xyz;
-  vec3 illumination = vec3( 0.0 );
+  vec3 illumination = COLOR * AMBIENT * length( normal );
 
   for ( int i = 0; i < lights.length(); i++ )
   {

@@ -15,7 +15,7 @@ use std::ops::Index;
 const MAX_COLOR_ATTACHMENTS : usize = 16;
 
 #[ repr( u32 ) ]
-#[ derive( Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord ) ]
+#[ derive( Debug, Clone, Copy, PartialEq, Eq, Hash ) ]
 pub enum ColorAttachment
 {
   N0 = GL::COLOR_ATTACHMENT0,
@@ -96,7 +96,7 @@ impl Framebuffer
     self.depth_attachment.as_ref().map( | ( _, a ) | a )
   }
 
-  /// Binds all of color attachments for drawing
+  /// Binds all of color attachments and framebuffer for drawing
   pub fn bind_draw( &self, gl : &GL )
   {
     // forms an array of attachments in their respective positions
@@ -128,8 +128,8 @@ impl Framebuffer
     gl.draw_buffers( &js_sys::Array::from_iter( iter ) );
   }
 
-  /// Binds specific color attachments for reading. Returns `Error` if some of indices are not
-  /// actualy attached to framebuffer
+  /// Binds specific color attachments and famebuffer for drawing.
+  /// Returns `Error` if some of indices are not actualy attached to framebuffer
   pub fn bind_draw_nths( &self, indices : &[ ColorAttachment ], gl : &GL ) -> Result< (), String >
   {
     let mut drawbuffers = [ GL::NONE; MAX_COLOR_ATTACHMENTS ];
@@ -150,8 +150,8 @@ impl Framebuffer
     Ok( () )
   }
 
-  /// Binds specific color attachment for reading. Returns `Error` if index is not
-  /// actualy attached to framebuffer
+  /// Binds specific color attachment and framebuffer for reading.
+  /// Returns `Error` if index is not actualy attached to framebuffer
   pub fn bind_read( &self, index : ColorAttachment, gl : &GL ) -> Result< (), String >
   {
     let idx = index as usize - ColorAttachment::N0 as usize;
@@ -165,7 +165,8 @@ impl Framebuffer
     Ok( () )
   }
 
-  /// Binds depth attachment for reading. Returns `Error` if there is no depth attachment
+  /// Binds depth attachment and framebuffer for reading.
+  /// Returns `Error` if there is no depth attachment
   pub fn bind_read_depth_attachment( &self, gl : &GL ) -> Result< (), String >
   {
     if self.depth_attachment.is_none()
@@ -181,13 +182,13 @@ impl Framebuffer
 
 impl Index< ColorAttachment > for Framebuffer
 {
-    type Output = Attachment;
+  type Output = Attachment;
 
-    fn index( &self, index: ColorAttachment ) -> &Self::Output
-    {
-      let index = index as usize - ColorAttachment::N0 as usize;
-      self.color_attachments[ index ].as_ref().unwrap()
-    }
+  fn index( &self, index: ColorAttachment ) -> &Self::Output
+  {
+    let index = index as usize - ColorAttachment::N0 as usize;
+    self.color_attachments[ index ].as_ref().unwrap()
+  }
 }
 
 pub struct FramebufferBuilder

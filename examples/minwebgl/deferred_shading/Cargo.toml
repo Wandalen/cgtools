@@ -8,9 +8,10 @@ authors = [
 ]
 
 [dependencies]
-glam = "0.29.1"
-minwebgl = { workspace = true }
+glam = { version = "0.29.1", features = ['bytemuck'] }
 tobj = { workspace = true }
+bytemuck = { workspace = true }
+minwebgl = { workspace = true }
 web-sys = { workspace = true, features = [
   'HtmlImageElement',
   'WebGlFramebuffer',

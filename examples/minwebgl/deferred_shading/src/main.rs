@@ -1,7 +1,7 @@
 mod framebuffer;
 
+use bytemuck::NoUninit;
 use minwebgl as gl;
-use gl::AsBytes as _;
 use gl::GL;
 use framebuffer::*;
 use web_sys::WebGlVertexArrayObject;
@@ -31,7 +31,12 @@ async fn run() -> Result< (), gl::WebglError >
   let aspect_ratio = width as f32 / height as f32;
 
   let projection = glam::Mat4::perspective_rh( 45.0_f32.to_radians(), aspect_ratio, 0.1, 1000. );
-  let model = glam::Mat4::from_translation( glam::vec3( 0., -10., -50. ) );
+  let model = glam::Mat4::from_scale_rotation_translation
+  (
+    glam::vec3( 0.03, 0.03, 0.03 ),
+    Default::default(),
+    glam::vec3( 0., -1., -2.5 )
+  );
 
   let vert = include_str!( "shaders/main.vert" );
   let frag = include_str!( "shaders/main.frag" );
@@ -59,7 +64,14 @@ async fn run() -> Result< (), gl::WebglError >
 
   let lights = create_lights();
   let lights_ubo = gl::buffer::create( &gl ).unwrap();
-  gl::ubo::upload( &gl, &lights_ubo, BINDING_POINT, lights.as_bytes(), GL::STATIC_DRAW );
+  gl::ubo::upload
+  (
+    &gl,
+    &lights_ubo,
+    BINDING_POINT,
+    bytemuck::cast_slice::< _, u8 >( &lights ),
+    GL::STATIC_DRAW
+  );
 
   let positionbuffer = gl.create_texture().unwrap();
   gl.active_texture( GL::TEXTURE0 );
@@ -91,6 +103,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let draw_loop = move | t |
   {
+    // update lighting ubo
     gl.use_program( Some( &deferred_shader ) );
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );
     gl.draw_arrays( GL::TRIANGLES, 0, 3 );
@@ -147,17 +160,48 @@ fn draw_meshes( meshes : &[ ( WebGlVertexArrayObject, i32 ) ], gl : &GL )
   }
 }
 
-// buffer
-fn create_lights() -> Box< [ f32 ] >
+const LIGHT_NUM : usize = 50;
+
+#[ repr( C ) ]
+#[ derive( Clone, Copy, NoUninit, Default ) ]
+struct PointLight
 {
-  let mut ret = vec![];
-  for i in 0..50
+  position : glam::Vec4,
+  color : glam::Vec4,
+}
+
+fn create_lights() -> [ PointLight; LIGHT_NUM ]
+{
+  let mut ret = [ Default::default(); LIGHT_NUM ];
+  for i in 0..LIGHT_NUM
   {
-    let position = glam::vec4( 0., 0., -i as f32, 0. );
+    let z = -( ( i / 5 ) as f32 );
+    let x = ( -2. + ( i % 5 ) as f32 ) * 2.;
+    let position = glam::vec4( x, 20., z, 0. );
     let color = glam::vec4( 1., 1., 1., 0. );
 
-    ret.extend_from_slice( &position.to_array() );
-    ret.extend_from_slice( &color.to_array() );
+    ret[ i ] = PointLight { position, color };
   }
-  ret.into()
+  ret
+}
+
+fn create_objects()
+{
+  let mut objects = vec![];
+  let num = 100;
+  for i in 0..num
+  {
+    let z = -( ( i / 5 ) as f32 ) - 2.5;
+    let x = ( -2. + ( i % 5 ) as f32 ) * 2.;
+    let position = glam::vec3( x, -0.1, z );
+
+    let model = glam::Mat4::from_scale_rotation_translation
+    (
+      glam::vec3( 0.03, 0.03, 0.03 ),
+      Default::default(),
+      position
+    );
+    objects.push( model );
+
+  }
 }
