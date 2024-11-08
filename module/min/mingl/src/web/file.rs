@@ -32,11 +32,68 @@ mod private
     Ok( data )
   }
 
+  pub async fn load_media< T, F >( file_name : &str, init_element : F ) -> Result< T, JsValue >
+  where
+    T : JsCast + AsRef< web_sys::HtmlElement >,
+    F : FnOnce( &web_sys::Document ) -> Result< T, JsValue >,
+  {
+    let window = web_sys::window().unwrap();
+    let document = window.document().unwrap();
+    let origin = window.location().origin().unwrap();
+    let url = format!( "{}/static/{}", origin, file_name );
+
+    let element = init_element( &document )?;
+
+    let load_promise = js_sys::Promise::new
+    (
+      &mut | resolve, reject |
+      {
+        let on_event = wasm_bindgen::prelude::Closure::once_into_js
+        (
+          move ||
+          {
+            resolve.call0( &JsValue::NULL ).unwrap();
+          }
+        );
+
+        let on_error = wasm_bindgen::prelude::Closure::once_into_js
+        (
+          move ||
+          {
+            reject.call1( &JsValue::NULL, &JsValue::from( "Failed to load media" ) ).unwrap();
+          }
+        );
+
+        if let Some( image_element ) = element.dyn_ref::< web_sys::HtmlImageElement >()
+        {
+          image_element.set_src( &url );
+
+          image_element.set_onload( Some( on_event.as_ref().unchecked_ref() ) );
+          image_element.set_onerror( Some( on_error.as_ref().unchecked_ref() ) );
+        }
+
+        if let Some( video_element ) = element.dyn_ref::< web_sys::HtmlVideoElement >()
+        {
+          video_element.set_src( &url );
+          let _ = video_element.play().unwrap();
+
+          video_element.set_oncanplay( Some( on_event.as_ref().unchecked_ref() ) );
+          video_element.set_onerror( Some( on_error.as_ref().unchecked_ref() ) );
+        }
+      }
+    );
+
+    JsFuture::from( load_promise ).await?;
+
+    Ok( element )
+  }
+
 }
 
 crate::mod_interface!
 {
 
   own use load;
+  own use load_media;
 
 }
