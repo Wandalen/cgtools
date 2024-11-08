@@ -72,8 +72,7 @@ mod private
           image_element.set_onload( Some( on_event.as_ref().unchecked_ref() ) );
           image_element.set_onerror( Some( on_error.as_ref().unchecked_ref() ) );
         }
-
-        if let Some( video_element ) = element.dyn_ref::< web_sys::HtmlVideoElement >()
+        else if let Some( video_element ) = element.dyn_ref::< web_sys::HtmlVideoElement >()
         {
           video_element.set_src( &url );
           let _ = video_element.play().unwrap();
