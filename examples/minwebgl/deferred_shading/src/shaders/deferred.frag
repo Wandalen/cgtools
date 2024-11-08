@@ -3,31 +3,37 @@ precision mediump float;
 
 struct PointLight
 {
-  highp vec3 position;
-  highp vec3 color;
+  highp vec4 position;
+  highp vec4 color;
 };
 
 in vec2 v_texcoord;
 
 uniform sampler2D positions;
 uniform sampler2D normals;
-layout( std140 ) uniform Lights
+layout ( std140 ) uniform Lights
 {
   PointLight lights[ 50 ];
 };
 
 out vec4 frag_color;
 
-void main()
+void main( )
 {
-  vec3 color = vec3( 1.0, 1.0, 0.0 );
-  for ( int i = 0; i < 50; i++ )
+  const vec3 COLOR = vec3( 0.8 );
+
+  vec3 position = texture( positions, v_texcoord ).xyz;
+  vec3 normal = texture( normals, v_texcoord ).xyz;
+  vec3 illumination = vec3( 0.0 );
+
+  for ( int i = 0; i < lights.length(); i++ )
   {
     PointLight light = lights[ i ];
-
+    vec3 offset = light.position.xyz - position;
+    vec3 direction = normalize( offset );
+    float attenuation = 1.0 / length( offset );
+    illumination += COLOR * light.color.rgb * max( dot( normal, direction ), 0.0 ) * attenuation;
   }
-  vec3 normal = texture( normals, v_texcoord ).xyz;
-  vec3 direction = vec3( 0.0, 0.0, -1.0 );
-  float color = dot( normal, -direction );
-  frag_color = vec4( color * vec3( 1.0 ), 1.0 );
+
+  frag_color = vec4( illumination, 1.0 );
 }
