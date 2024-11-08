@@ -17,7 +17,7 @@ async fn run() -> Result< (), gl::WebglError >
   gl.enable( GL::CULL_FACE );
   _ = gl.get_extension( "EXT_color_buffer_float" ).unwrap().unwrap();
 
-  let file = gl::file::load( "lowpoly_tree.obj" ).await.unwrap();
+  let file = gl::file::load( "Cat.obj" ).await.unwrap();
   let ( models, _ ) = gl::model::load_model_from_slice( &file, "", &tobj::GPU_LOAD_OPTIONS )
   .await
   .unwrap();
