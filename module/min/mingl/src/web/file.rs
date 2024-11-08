@@ -32,6 +32,7 @@ mod private
     Ok( data )
   }
 
+  // Load file media from static and return as HtmlVideoElement or HtmlImageElement
   pub async fn load_media< T, F >( file_name : &str, init_element : F ) -> Result< T, JsValue >
   where
     T : JsCast + AsRef< web_sys::HtmlElement >,

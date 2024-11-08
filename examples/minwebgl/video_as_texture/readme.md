@@ -26,14 +26,6 @@ trunk serve --release
 let path = "static/your_video.mp4";
 let video_width = 640;  // video width parameter
 let video_height = 480; // video height parameter
-//...
-let data : [ f32; 16 ] = // these vertices coords for rectange on the middle of canvas
-[//x     y     t_x   t_y
-  -0.3,  0.5,  0.0,  0.0,
-   0.3,  0.5,  1.0,  0.0,
-  -0.3, -0.5,  0.0,  1.0,
-   0.3, -0.5,  1.0,  1.0,
-];
 ```
 4. Run it:
 ```bash

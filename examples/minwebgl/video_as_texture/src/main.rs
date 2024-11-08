@@ -15,13 +15,13 @@ async fn run() -> Result< (), gl::WebglError >
   let program = gl::ProgramFromSources::new( vertex_shader_src, fragment_shader_src ).compile_and_link( &gl )?;
   gl.use_program( Some( &program ) );
 
-  let path = "static/simon's_cat.mp4";
+  let file_name = "simon's_cat.mp4";
   let video_width = 640;
   let video_height = 480;
 
   let video_element = gl::file::load_media
   (
-    "simon's_cat.mp4",
+    file_name,
     | doc |
     {
       let video_element = doc.create_element( "video" )?
