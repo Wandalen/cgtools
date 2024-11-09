@@ -268,6 +268,106 @@ mod private
     sub_mut( &mut r, b );
     r
   }
+
+  #[ inline ]
+  pub fn mul_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
+  where
+    R : VectorIterMut< E, N >,
+    E : NdFloat,
+  {
+    let iter = r.vector_iter_mut();
+    for r in iter
+    {
+      *r *= a;
+    }
+  }
+
+  #[ inline ]
+  pub fn mul_scalar< E, R, const N : usize >( a : &R, b : E ) -> R
+  where
+    R : VectorIterMut< E, N >  + Clone,
+    E : NdFloat,
+  {
+    let mut r = a.clone();
+    mul_scalar_mut( &mut r, b );
+    r
+  }
+
+  #[ inline ]
+  pub fn div_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
+  where
+    R : VectorIterMut< E, N >,
+    E : NdFloat,
+  {
+    let iter = r.vector_iter_mut();
+    for r in iter
+    {
+      *r /= a;
+    }
+  }
+
+  #[ inline ]
+  pub fn div_scalar< E, R, const N : usize >( a : &R, b : E ) -> R
+  where
+    R : VectorIterMut< E, N >  + Clone,
+    E : NdFloat,
+  {
+    let mut r = a.clone();
+    div_scalar_mut( &mut r, b );
+    r
+  }
+
+  #[ inline ]
+  pub fn min_mut< E, R, A, const N : usize >( r : &mut R, a : &A )
+  where
+    R : VectorIterMut< E, N >,
+    A : VectorIter< E, N >,
+    E : NdFloat,
+  {
+    let iter = r.vector_iter_mut().zip( a.vector_iter() );
+    for ( r, a ) in iter
+    {
+      *r = ( *r ).min( *a );
+    }
+  }
+
+  #[ inline ]
+  pub fn min< E, A, B, const N : usize >( a : &A, b : &B ) -> A
+  where
+    A : VectorIterMut< E, N > + Clone,
+    B : VectorIter< E, N >,
+    E : NdFloat,
+  {
+    let mut r = a.clone();
+    min_mut( &mut r, b );
+    r
+  }
+
+  #[ inline ]
+  pub fn max_mut< E, R, A, const N : usize >( r : &mut R, a : &A )
+  where
+    R : VectorIterMut< E, N >,
+    A : VectorIter< E, N >,
+    E : NdFloat,
+  {
+    let iter = r.vector_iter_mut().zip( a.vector_iter() );
+    for ( r, a ) in iter
+    {
+      *r = ( *r ).max( *a );
+    }
+  }
+
+  #[ inline ]
+  pub fn max< E, A, B, const N : usize >( a : &A, b : &B ) -> A
+  where
+    A : VectorIterMut< E, N > + Clone,
+    B : VectorIter< E, N >,
+    E : NdFloat,
+  {
+    let mut r = a.clone();
+    max_mut( &mut r, b );
+    r
+  }
 }
 
 crate::mod_interface!
@@ -290,6 +390,14 @@ crate::mod_interface!
     sum,
     sum_mut,
     sub,
-    sub_mut
+    sub_mut,
+    mul_scalar,
+    mul_scalar_mut,
+    div_scalar,
+    div_scalar_mut,
+    min,
+    min_mut,
+    max,
+    max_mut
   };
 }
