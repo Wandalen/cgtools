@@ -1,6 +1,6 @@
 //! Just draw a large point in the middle of the screen.
 
-use minwebgpu as gl;
+use minwebgpu::{self as gl, AsWeb};
 
 fn create_textures
 (
@@ -13,15 +13,19 @@ fn create_textures
   // We don't need samplers as we can just use textureLoad with position.xy in the fragment to sample needed pixel.
   let color_tex_desc = gl::texture::desc()
   .size( size )
-  // Sets the usage flag to `RENDER_ATTACHMENT`
-  .render_attachment()
-  // Sets the usage flag to `TEXTURE_BINDING`
-  .texture_binding();
+  .render_attachment() // Sets the usage flag to `RENDER_ATTACHMENT`
+  .texture_binding() // Sets the usage flag to `TEXTURE_BINDING`
+  .to_web();
 
-  let vector_tex_desc = color_tex_desc.clone().format( gl::GpuTextureFormat::Rgba16float );
+  let vector_tex_desc = gl::texture::desc()
+  .size( size )
+  .render_attachment()
+  .texture_binding()
+  .format( gl::GpuTextureFormat::Rgba16float )
+  .to_web();
 
   let position_tex = gl::texture::create( &device, &vector_tex_desc )?;
-  let albedo_tex = gl::texture::create( &device, color_tex_desc )?;
+  let albedo_tex = gl::texture::create( &device, &color_tex_desc )?;
   let normal_tex = gl::texture::create( &device, &vector_tex_desc )?;
 
   Ok( [ position_tex, albedo_tex, normal_tex ] )
@@ -92,19 +96,21 @@ async fn run() -> Result< (), gl::WebGPUError >
     &device, 
     // Sets the visibility `FRAGMENT` to all entries
     // And auto computes binding value for each entry
-    gl::layout::bind_group::desc()
+    &gl::layout::bind_group::desc()
     .fragment()
     .auto_bindings()
     .entry_from_ty( gl::binding_type::texture().sample_unfilterable_float() )
     .entry_from_ty( gl::binding_type::texture().sample_unfilterable_float() )
-    .entry_from_ty( gl::binding_type::texture().sample_unfilterable_float()  )
+    .entry_from_ty( gl::binding_type::texture().sample_unfilterable_float() )
+    .to_web()
   )?;
 
-  let pipeline_layout = gl::PipelineLayout::new().bind_group( &gbuffer_bind_group_layout ).create( &device );
+  // Create pipeline layout for the gbuffer render pipeline
+  let pipeline_layout = gl::layout::pipeline::desc().bind_group( &gbuffer_bind_group_layout ).create( &device );
   let render_pipeline = gl::render_pipeline::create
   ( 
     &device, 
-    gl::render_pipeline::desc( gl::VertexState::new( &gbuffer_shader ))
+    &gl::render_pipeline::desc( gl::VertexState::new( &gbuffer_shader ))
     .layout( &pipeline_layout )
     .fragment
     ( 
@@ -115,16 +121,18 @@ async fn run() -> Result< (), gl::WebGPUError >
     )
     .primitive( gl::PrimitiveState::new().cull_back() )
     .depth_stencil( gl::DepthStencilState::new() )
+    .to_web()
   );
 
   let gbuffer_bind_group = gl::bind_group::create
   (
     &device, 
-    gl::bind_group::desc( &gbuffer_bind_group_layout )
+    &gl::bind_group::desc( &gbuffer_bind_group_layout )
     .auto_bindings()
     .entry_from_resource( &albedo_view )
     .entry_from_resource( &pos_view )
     .entry_from_resource( &normal_view )
+    .to_web()
   );
 
   Ok(())

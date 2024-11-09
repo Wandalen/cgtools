@@ -40,4 +40,5 @@ mod_interface!
   layer queue;
   layer bind_group;
   layer bind_group_entry;
+  layer transform;
 }

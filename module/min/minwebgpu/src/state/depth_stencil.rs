@@ -2,6 +2,8 @@
 mod private
 {
   use crate::*;
+
+  #[ derive( Clone ) ]
   pub struct DepthStencilState
   {
     /// Defaults to `Depth24plus`

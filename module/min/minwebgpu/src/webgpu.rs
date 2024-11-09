@@ -23,6 +23,8 @@ mod private
   pub use web_sys::GpuVertexStepMode;
   pub use web_sys::GpuLoadOp;
   pub use web_sys::GpuStoreOp;
+  pub use web_sys::GpuCullMode;
+  pub use web_sys::GpuFrontFace;
 }
 
 crate::mod_interface!

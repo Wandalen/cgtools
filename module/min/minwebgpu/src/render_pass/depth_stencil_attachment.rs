@@ -3,6 +3,7 @@ mod private
 {
   use crate::*;
 
+  #[ derive( Clone ) ]
   pub struct DepthStencilAttachment< 'a >
   {
     view : &'a web_sys::GpuTextureView,

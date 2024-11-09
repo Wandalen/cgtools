@@ -3,12 +3,15 @@ mod private
 {
   use crate::*;
 
+  #[ derive( Clone ) ]
   pub struct VertexBufferLayout
-  {
+  { 
+    /// Needs to be supplied by the user
     array_stride : f64,
+    /// Needs to be supplied by the user
+    attributes : Vec< web_sys::GpuVertexAttribute >,
     /// Defaults to `Vertex`
     step_mode : GpuVertexStepMode,
-    attributes : Vec< web_sys::GpuVertexAttribute >,
     /// Defaults to `false`
     compute_offsets : bool,
   }

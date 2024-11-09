@@ -3,6 +3,7 @@ mod private
 {
   use crate::*;
 
+  #[ derive( Clone ) ]
   pub struct VertexState< 'a >
   {
     module : &'a web_sys::GpuShaderModule,

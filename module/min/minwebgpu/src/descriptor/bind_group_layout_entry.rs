@@ -3,6 +3,7 @@ mod private
 {
   use crate::*;
 
+  #[ derive( Clone ) ]
   pub struct BindGroupLayoutEntry
   {
     binding : u32,
@@ -65,14 +66,6 @@ mod private
   impl From< BindGroupLayoutEntry > for web_sys::GpuBindGroupLayoutEntry
   {
     fn from( value: BindGroupLayoutEntry ) -> Self 
-    {
-      ( &value ).into()
-    }
-  }
-
-  impl From< &BindGroupLayoutEntry > for web_sys::GpuBindGroupLayoutEntry
-  {
-    fn from( value:& BindGroupLayoutEntry ) -> Self 
     {
       let layout = web_sys::GpuBindGroupLayoutEntry::new( value.binding, value.visibility );
 

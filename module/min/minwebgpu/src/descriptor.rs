@@ -11,4 +11,7 @@ crate::mod_interface!
   layer render_pipeline;
   layer render_pass;
   layer bind_group;
+  layer pipeline_layout;
+  layer bind_group_layout;
+  layer bind_group_layout_entry;
 }

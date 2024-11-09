@@ -160,32 +160,6 @@ mod private
       desc
     }    
   }
-
-  impl From< &TextureDescriptor< '_ > > for web_sys::GpuTextureDescriptor 
-  {
-    fn from( value: &TextureDescriptor< '_ > ) -> Self 
-    {
-      let desc = web_sys::GpuTextureDescriptor::new
-      (
-        value.format, 
-        &Vec::from( value.size ).into(), 
-        value.usage
-      );
-
-      if let Some( v ) = value.mip_level { desc.set_mip_level_count( v ); }
-      if let Some( v ) = value.sample_count { desc.set_sample_count( v ); }
-      if let Some( v ) = value.dimension { desc.set_dimension( v ); }
-      if let Some( v ) = value.label { desc.set_label( v ); }
-
-      if value.view_formats.len() > 0
-      {
-        let view_formats : Vec< u32 > = value.view_formats.iter().copied().map( | f | f as u32 ).collect();
-        desc.set_view_formats( &view_formats.into() );
-      }
-
-      desc
-    }    
-  }
 }
 
 crate::mod_interface!

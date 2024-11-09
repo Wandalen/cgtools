@@ -3,17 +3,17 @@ mod private
 {
   use crate::*;
 
-  #[ derive( Default ) ]
+  #[ derive( Default, Clone ) ]
   pub struct PrimitiveState
   {
     /// Defaults to `None`
-    cull_mode : Option< web_sys::GpuCullMode >,
+    cull_mode : Option< GpuCullMode >,
     /// Default to `CCW`
-    front_face : Option< web_sys::GpuFrontFace >,
+    front_face : Option< GpuFrontFace >,
     /// Defaults to `TriangleList `
-    topology : Option< web_sys::GpuPrimitiveTopology >,
+    topology : Option< GpuPrimitiveTopology >,
     /// Should be specified for strip primitive topology
-    strip_index_format : Option< web_sys::GpuIndexFormat >,
+    strip_index_format : Option< GpuIndexFormat >,
     /// If omitted, defaults to false.
     unclipped_depth : Option< bool >
   }
@@ -27,19 +27,19 @@ mod private
 
     pub fn cull_front( mut self ) -> Self
     {
-      self.cull_mode = Some( web_sys::GpuCullMode::Front );
+      self.cull_mode = Some( GpuCullMode::Front );
       self
     }
 
     pub fn cull_back( mut self ) -> Self
     {
-      self.cull_mode = Some( web_sys::GpuCullMode::Back );
+      self.cull_mode = Some( GpuCullMode::Back );
       self
     }
 
     pub fn cw( mut self ) -> Self
     {
-      self.front_face = Some( web_sys::GpuFrontFace::Cw );
+      self.front_face = Some( GpuFrontFace::Cw );
       self
     }
 
@@ -49,7 +49,7 @@ mod private
       self
     }
 
-    pub fn topology( mut self, topology : web_sys::GpuPrimitiveTopology ) -> Self
+    pub fn topology( mut self, topology : GpuPrimitiveTopology ) -> Self
     {
       self.topology = Some( topology );
       self
@@ -57,31 +57,31 @@ mod private
 
     pub fn points( mut self ) -> Self
     {
-      self.topology = Some( web_sys::GpuPrimitiveTopology::PointList );
+      self.topology = Some( GpuPrimitiveTopology::PointList );
       self
     }
 
     pub fn lines( mut self ) -> Self
     {
-      self.topology = Some( web_sys::GpuPrimitiveTopology::LineList );
+      self.topology = Some( GpuPrimitiveTopology::LineList );
       self
     }
 
     pub fn triangles( mut self ) -> Self
     {
-      self.topology = Some( web_sys::GpuPrimitiveTopology::TriangleList );
+      self.topology = Some( GpuPrimitiveTopology::TriangleList );
       self
     }
 
     pub fn line_strip( mut self ) -> Self
     {
-      self.topology = Some( web_sys::GpuPrimitiveTopology::LineStrip );
+      self.topology = Some( GpuPrimitiveTopology::LineStrip );
       self
     }
 
     pub fn triangle_strip( mut self ) -> Self
     {
-      self.topology = Some( web_sys::GpuPrimitiveTopology::TriangleStrip );
+      self.topology = Some( GpuPrimitiveTopology::TriangleStrip );
       self
     }
   }

@@ -51,14 +51,11 @@ mod private
       let entry = BindGroupEntry::new( resource );
       self.entry( entry )
     }
-  }
 
-  impl From< &BindGroupDescriptor< '_ > > for web_sys::GpuBindGroupDescriptor 
-  {
-    fn from( value: &BindGroupDescriptor< '_ > ) -> Self {
-      let value = value.clone();
-      value.into()
-    }    
+    pub fn create( self, device : &web_sys::GpuDevice ) -> web_sys::GpuBindGroup
+    {
+      device.create_bind_group( &self.into() )
+    }
   }
 
   impl From< BindGroupDescriptor< '_ > > for web_sys::GpuBindGroupDescriptor 
