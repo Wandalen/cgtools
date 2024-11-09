@@ -32,7 +32,7 @@ mod private
     Ok( data )
   }
 
-  pub async fn load_media< T, F >( file_name : &str, init_element : F ) -> Result< T, JsValue >
+  pub async fn load_media< T, F >( path : &str, init_element : F ) -> Result< T, JsValue >
   where
     T : JsCast + AsRef< web_sys::HtmlElement >,
     F : FnOnce( &web_sys::Document ) -> Result< T, JsValue >,
@@ -40,7 +40,7 @@ mod private
     let window = web_sys::window().unwrap();
     let document = window.document().unwrap();
     let origin = window.location().origin().unwrap();
-    let url = format!( "{}/static/{}", origin, file_name );
+    let url = format!( "{}/{}", origin, path );
 
     let element = init_element( &document )?;
 
@@ -71,8 +71,7 @@ mod private
           image_element.set_onload( Some( on_event.as_ref().unchecked_ref() ) );
           image_element.set_onerror( Some( on_error.as_ref().unchecked_ref() ) );
         }
-
-        if let Some( video_element ) = element.dyn_ref::< web_sys::HtmlVideoElement >()
+        else if let Some( video_element ) = element.dyn_ref::< web_sys::HtmlVideoElement >()
         {
           video_element.set_src( &url );
           let _ = video_element.play().unwrap();

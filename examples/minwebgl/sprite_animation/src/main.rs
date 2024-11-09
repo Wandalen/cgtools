@@ -17,7 +17,7 @@ async fn run() -> Result< (), gl::WebglError >
   gl.use_program( Some( &program ) );
 
   // Settings for `rock.png` sprite sheets
-  let file_name = "rock.png";
+  let path = "static/rock.png";
   let sprties_in_row = 8;
   let sprites_in_col = 8;
   let sprite_width = 128;
@@ -27,7 +27,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let img_element = gl::file::load_media
   (
-    file_name,
+    path,
     | doc |
     {
       let img_element = doc.create_element( "img" )?
