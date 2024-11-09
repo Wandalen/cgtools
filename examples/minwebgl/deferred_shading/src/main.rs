@@ -4,6 +4,7 @@ use bytemuck::NoUninit;
 use minwebgl::{self as gl, JsCast};
 use gl::GL;
 use framebuffer::*;
+use rand::Rng as _;
 use web_sys::{HtmlCanvasElement, WebGlVertexArrayObject};
 
 fn main()
@@ -32,10 +33,9 @@ async fn run() -> Result< (), gl::WebglError >
   .unwrap();
 
   let meshes = load_meshes( &models, &gl )?;
-  let transforms = create_objects( 50 );
+  let transforms = create_transforms( 100 );
 
   let aspect_ratio = width as f32 / height as f32;
-
   let projection = glam::Mat4::perspective_rh( 45.0_f32.to_radians(), aspect_ratio, 0.1, 1000. );
 
   let vert = include_str!( "shaders/main.vert" );
@@ -59,7 +59,7 @@ async fn run() -> Result< (), gl::WebglError >
   const BINDING_POINT : u32 = 0;
   gl.uniform_block_binding( &deferred_shader, lights_index, BINDING_POINT );
 
-  let mut lights = create_lights::< 50 >();
+  let mut lights = create_lights( 50 );
   let lights_ubo = gl::buffer::create( &gl ).unwrap();
   gl::ubo::upload
   (
@@ -70,20 +70,8 @@ async fn run() -> Result< (), gl::WebglError >
     GL::STATIC_DRAW
   );
 
-  let positionbuffer = gl.create_texture().unwrap();
-  gl.active_texture( GL::TEXTURE0 );
-  gl.bind_texture( GL::TEXTURE_2D, Some( &positionbuffer ) );
-  gl.tex_storage_2d( GL::TEXTURE_2D, 1, GL::RGBA16F, width, height );
-  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32 );
-  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::NEAREST as i32 );
-
-  let normalbuffer = gl.create_texture().unwrap();
-  gl.active_texture( GL::TEXTURE1 );
-  gl.bind_texture( GL::TEXTURE_2D, Some( &normalbuffer ) );
-  gl.tex_storage_2d( GL::TEXTURE_2D, 1, GL::RGBA16F, width, height );
-  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32 );
-  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::NEAREST as i32 );
-
+  let positionbuffer = create_tex( &gl, GL::RGBA16F, width, height );
+  let normalbuffer = create_tex( &gl, GL::RGBA16F, width, height );
   let depthbuffer = gl.create_renderbuffer().unwrap();
   gl.bind_renderbuffer( GL::RENDERBUFFER, Some( &depthbuffer ) );
   gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH_COMPONENT16, width, height );
@@ -94,6 +82,7 @@ async fn run() -> Result< (), gl::WebglError >
   .depth_attachment( DepthAttachment::Depth, Attachment::Renderbuffer( depthbuffer ) )
   .build( &gl )?;
 
+  // draw data into framebuffer
   gl.use_program( Some( &object_shader ) );
   framebuffer.bind_draw( &gl );
 
@@ -119,21 +108,18 @@ async fn run() -> Result< (), gl::WebglError >
   gl.use_program( Some( &deferred_shader ) );
   gl.bind_framebuffer( GL::FRAMEBUFFER, None );
   gl.bind_buffer( GL::UNIFORM_BUFFER, Some( &lights_ubo ) );
+  gl.active_texture( GL::TEXTURE0 );
+  gl.bind_texture( GL::TEXTURE_2D, Some( framebuffer[ ColorAttachment::N0 ].unwrap_texture() ) );
+  gl.active_texture( GL::TEXTURE1 );
+  gl.bind_texture( GL::TEXTURE_2D, Some( framebuffer[ ColorAttachment::N1 ].unwrap_texture() ) );
 
-  let mut offset = 0.0;
-
-  gl::info!( "{:?}", lights.map( | v | v.position ) );
   let draw_loop = move | t |
   {
-    // update lighting ubo
     let time = ( t / 1000. ) as f32;
-    gl::info!( "{time}" );
-
-    let offset = ( 0.5 * time ) % 10.;
-
+    let mut lights = lights.clone();
     for light in &mut lights
     {
-      light.position.z = -offset;
+      light.position.z += 80. + -time % 8. * 20.;
     }
     gl.buffer_sub_data_with_f64_and_u8_array( GL::UNIFORM_BUFFER, 0.0, bytemuck::cast_slice( &lights ) );
     gl.draw_arrays( GL::TRIANGLES, 0, 3 );
@@ -144,6 +130,16 @@ async fn run() -> Result< (), gl::WebglError >
   gl::exec_loop::run( draw_loop );
 
   Ok( () )
+}
+
+fn create_tex( gl : &GL, format : u32, width : i32, height : i32 ) -> web_sys::WebGlTexture
+{
+  let tex = gl.create_texture().unwrap();
+  gl.bind_texture( GL::TEXTURE_2D, Some( &tex ) );
+  gl.tex_storage_2d( GL::TEXTURE_2D, 1, format, width, height );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32 );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::NEAREST as i32 );
+  tex
 }
 
 fn load_meshes( models: &[ tobj::Model ], gl: &GL )
@@ -198,30 +194,35 @@ struct PointLight
   color : glam::Vec4,
 }
 
-fn create_lights< const NUM : usize  >() -> [ PointLight; NUM ]
+fn create_lights( num : usize ) -> Vec< PointLight >
 {
-  let mut ret = [ Default::default(); NUM ];
-  for i in 0..NUM
+  let mut lights = vec![];
+  for i in 0..num
   {
-    let z = -( ( i / 5 ) as f32 ) * 2.;
-    let x = ( -2. + ( i % 5 ) as f32 ) * 1.3;
+    let z = ( i / 5 + 2 ) as f32 * -4.;
+    let x = ( -2. + ( i % 5 ) as f32 ) * 2.;
     let position = glam::vec4( x, 2., z, 0. );
-    let r = i as f32 / NUM as f32;
-    let g = 1.0 - i as f32 / NUM as f32;
-    let b = ( i as f32 / NUM as f32 ).powi( 2 );
-    let color = glam::vec4( r, g, b, 0. );
 
-    ret[ i ] = PointLight { position, color };
+    let mut rgb =
+    [
+      rand::random::< bool >() as i32 as f32,
+      rand::random::< bool >() as i32 as f32,
+      rand::random::< bool >() as i32 as f32,
+    ];
+    let color = glam::Vec4::from( ( glam::Vec3::from_array( rgb ), 0.0 ) );
+
+    lights.push( PointLight { position, color } );
   }
-  ret
+
+  lights
 }
 
-fn create_objects( num : usize ) -> Vec< glam::Mat4 >
+fn create_transforms( num : usize ) -> Vec< glam::Mat4 >
 {
   let mut objects = vec![];
   for i in 0..num
   {
-    let z = -( ( i / 5 + 2 ) as f32 ) * 2.;
+    let z = ( i / 5 + 2 ) as f32 * -2.;
     let x = ( -2. + ( i % 5 ) as f32 ) * 1.3;
     let position = glam::vec3( x, -1.5, z );
 

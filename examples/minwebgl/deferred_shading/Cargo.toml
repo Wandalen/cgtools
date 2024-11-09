@@ -8,6 +8,8 @@ authors = [
 ]
 
 [dependencies]
+rand = "0.8.5"
+getrandom = { version = "0.2.15", features = ['js'] }
 glam = { version = "0.29.1", features = ['bytemuck'] }
 tobj = { workspace = true }
 # ndarray_cg = { workspace = true, features = ['enabled'] }

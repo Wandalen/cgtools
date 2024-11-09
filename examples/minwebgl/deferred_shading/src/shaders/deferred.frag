@@ -21,12 +21,11 @@ out vec4 frag_color;
 
 void main()
 {
-  const vec3 COLOR = vec3( 0.2, 0.6, 0.2 );
-  const vec3 AMBIENT = vec3( 0.2 );
+  const vec3 COLOR = vec3( 1.0 );
 
   vec3 position = texture( positions, v_texcoord ).xyz;
   vec3 normal = texture( normals, v_texcoord ).xyz;
-  vec3 illumination = COLOR * AMBIENT * length( normal );
+  vec3 illumination = vec3( 0.0 );
 
   for ( int i = 0; i < lights.length(); i++ )
   {
