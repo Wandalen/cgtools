@@ -10,6 +10,7 @@ authors = [
 [dependencies]
 glam = { version = "0.29.1", features = ['bytemuck'] }
 tobj = { workspace = true }
+# ndarray_cg = { workspace = true, features = ['enabled'] }
 bytemuck = { workspace = true }
 minwebgl = { workspace = true }
 web-sys = { workspace = true, features = [

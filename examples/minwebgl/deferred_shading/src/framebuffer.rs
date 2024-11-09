@@ -106,7 +106,7 @@ impl Framebuffer
 
     // find index of last non-None value
     let last = self.color_attachments.iter().rposition( | v | v.is_some() ).unwrap_or( 0 );
-
+    // create iterator with actual values
     let iter = self.color_attachments[ ..=last ]
     .iter()
     .enumerate()
@@ -146,7 +146,7 @@ impl Framebuffer
     let iter = drawbuffers[ ..=last ].iter().map( | v | JsValue::from_f64( *v as f64 ) );
 
     gl.bind_framebuffer( GL::DRAW_FRAMEBUFFER, Some( &self.framebuffer ) );
-    gl.draw_buffers( &js_sys::Array::from_iter( iter ).into() );
+    gl.draw_buffers( &js_sys::Array::from_iter( iter ) );
     Ok( () )
   }
 
@@ -187,7 +187,9 @@ impl Index< ColorAttachment > for Framebuffer
   fn index( &self, index: ColorAttachment ) -> &Self::Output
   {
     let index = index as usize - ColorAttachment::N0 as usize;
-    self.color_attachments[ index ].as_ref().unwrap()
+    self.color_attachments[ index ]
+    .as_ref()
+    .expect( &format!( "Framebuffer does not has ColorAttachment{:?}", index as u32 ) )
   }
 }
 
@@ -208,14 +210,14 @@ impl FramebufferBuilder
     }
   }
 
-  pub fn attachment( mut self, index : ColorAttachment, attachment : Attachment ) -> Self
+  pub fn color_attachment( mut self, index : ColorAttachment, attachment : Attachment ) -> Self
   {
     let index = index as usize - ColorAttachment::N0 as usize;
     self.attachments[ index ] = Some( attachment );
     self
   }
 
-  pub fn depthbuffer( mut self, r#type : DepthAttachment, attachment : Attachment ) -> Self
+  pub fn depth_attachment( mut self, r#type : DepthAttachment, attachment : Attachment ) -> Self
   {
     self.depthbuffer = Some( ( r#type, attachment ) );
     self
