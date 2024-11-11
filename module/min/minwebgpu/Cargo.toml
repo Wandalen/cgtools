@@ -38,7 +38,7 @@ file = [ "mingl/webFile" ] # enable files handling
 future = [ "mingl/webFuture" ] # enable futures
 objModel = [ "mingl/webObjModel" ] # enable futures
 log = [ "mingl/webLog" ]
-ndarray = [ "mingl/ndarray" ]
+math = [ "mingl/math" ]
 
 [dependencies]
 
