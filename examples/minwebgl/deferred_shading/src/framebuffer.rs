@@ -107,7 +107,7 @@ impl Framebuffer
     // find index of last non-None value
     let last = self.color_attachments.iter().rposition( | v | v.is_some() ).unwrap_or( 0 );
     // create iterator with actual values
-    let iter = self.color_attachments[ ..=last ]
+    let iter = self.color_attachments[ ..= last ]
     .iter()
     .enumerate()
     .map
@@ -309,5 +309,138 @@ impl FramebufferBuilder
         depth_attachment: self.depthbuffer,
       }
     )
+  }
+}
+
+#[ repr( u32 ) ]
+#[ derive( Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord ) ]
+enum At
+{
+  N0 = GL::COLOR_ATTACHMENT0,
+  N1,
+  N2,
+  N3,
+  N4,
+  N5,
+  N6,
+  N7,
+  N8,
+  N9,
+  N10,
+  N11,
+  N12,
+  N13,
+  N14,
+  N15,
+  Depth = GL::DEPTH_ATTACHMENT,
+  Stencil = GL::STENCIL_ATTACHMENT,
+  DepthStencil = GL::DEPTH_STENCIL_ATTACHMENT,
+}
+
+struct Frmbuffer
+{
+  attachments : u16,
+  framebuffer : WebGlFramebuffer,
+}
+
+impl Frmbuffer
+{
+  pub fn texture_2d( &mut self, index : At, texture : Option< &WebGlTexture >, level : i32, gl : &GL )
+  {
+    gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &self.framebuffer ) );
+    gl.framebuffer_texture_2d( GL::FRAMEBUFFER, index as u32, GL::TEXTURE_2D, texture, level );
+    gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+
+    self.update_bitmask( index, texture.is_some() );
+  }
+
+  pub fn texture_layer( &mut self, index : At, texture : Option< &WebGlTexture >, level : i32, layer : i32, gl : &GL )
+  {
+    gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &self.framebuffer ) );
+    gl.framebuffer_texture_layer( GL::FRAMEBUFFER, index as u32, texture, level, layer );
+    gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+
+    self.update_bitmask( index, texture.is_some() );
+  }
+
+  pub fn renderbuffer( &mut self, index : At, renderbuffer : Option< &WebGlRenderbuffer >, gl : &GL )
+  {
+    gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &self.framebuffer ) );
+    gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, index as u32, GL::RENDERBUFFER, renderbuffer );
+    gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+
+    self.update_bitmask( index, renderbuffer.is_some() );
+  }
+
+  fn update_bitmask( &mut self, index: At, has_value: bool )
+  {
+    let shift = index as u32 - At::N0 as u32;
+    let val = if has_value { 1 << shift } else { !( 1 << shift ) };
+
+    if index >= At::N0 && index <= At::N15
+    {
+      if has_value { self.attachments |= val  } else { self.attachments &= val }
+    }
+  }
+
+  pub fn bind_draw( &self, gl : &GL )
+  {
+    let mut drawbuffers = [ GL::NONE; MAX_COLOR_ATTACHMENTS ];
+    for ( i, item ) in drawbuffers.iter_mut().enumerate()
+    {
+      let c = GL::COLOR_ATTACHMENT0 + i as u32;
+      let a = ( self.attachments & ( 1 << i ) ) as u32;
+    }
+    // // forms an array of attachments in their respective positions
+    // // for example if framebuffer has attachment0 and attachment2
+    // // then the array would be [ GL::ColorAttachment0, GL::NONE, GL::ColorAttachment2 ]
+    // // this is how WebGl wants it to be
+
+    // // find index of last non-None value
+    // let last = self.color_attachments.iter().rposition( | v | v.is_some() ).unwrap_or( 0 );
+    // // create iterator with actual values
+    // let iter = self.color_attachments[ ..= last ]
+    // .iter()
+    // .enumerate()
+    // .map
+    // (
+    //   | ( i, a ) |
+    //   if a.is_some()
+    //   {
+    //     GL::COLOR_ATTACHMENT0 + i as u32
+    //   }
+    //   else
+    //   {
+    //     GL::NONE
+    //   }
+    // )
+    // .map( | v | JsValue::from_f64( v as f64 ) );
+
+    // gl.bind_framebuffer( GL::DRAW_FRAMEBUFFER, Some( &self.framebuffer ) );
+    // gl.draw_buffers( &js_sys::Array::from_iter( iter ) );
+  }
+}
+
+struct PreserveFramebuffer
+{
+  // attachmets : [ Opti ]
+}
+
+impl PreserveFramebuffer
+{
+  pub fn texture_2d( &mut self, index : u32, texture : Option< &WebGlTexture >, level : i32 ) {}
+
+  pub fn texture_layer( &mut self, index : u32, texture : Option< &WebGlTexture >, level : i32, layer : i32 ) {}
+
+  pub fn renderbuffer( &mut self, index : u32, renderbuffer : Option< &WebGlRenderbuffer > ) {}
+
+  pub fn get_texture_at_index( &self, index : u32 ) -> Option< &WebGlRenderbuffer >
+  {
+    todo!()
+  }
+
+  pub fn get_renderbuffer_at_index( &self, index : u32 ) -> Option< &WebGlRenderbuffer >
+  {
+    todo!()
   }
 }

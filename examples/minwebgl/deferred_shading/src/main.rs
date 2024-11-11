@@ -1,11 +1,16 @@
 mod framebuffer;
 
-use bytemuck::NoUninit;
-use minwebgl::{self as gl, JsCast};
-use gl::GL;
+use minwebgl as gl;
+use gl::{ GL, JsCast as _ };
 use framebuffer::*;
-use rand::Rng as _;
-use web_sys::{HtmlCanvasElement, WebGlVertexArrayObject};
+use bytemuck::NoUninit;
+use ndarray_cg::d2::Mat4;
+use web_sys::
+{
+  HtmlCanvasElement,
+  WebGlTexture,
+  WebGlVertexArrayObject
+};
 
 fn main()
 {
@@ -36,7 +41,7 @@ async fn run() -> Result< (), gl::WebglError >
   let transforms = create_transforms( 100 );
 
   let aspect_ratio = width as f32 / height as f32;
-  let projection = glam::Mat4::perspective_rh( 45.0_f32.to_radians(), aspect_ratio, 0.1, 1000. );
+  let projection = ndarray_cg::mat3x3h::perspective_rh_gl( 45.0_f32.to_radians(), aspect_ratio, 0.1, 1000. );
 
   let vert = include_str!( "shaders/main.vert" );
   let frag = include_str!( "shaders/main.frag" );
@@ -59,7 +64,7 @@ async fn run() -> Result< (), gl::WebglError >
   const BINDING_POINT : u32 = 0;
   gl.uniform_block_binding( &deferred_shader, lights_index, BINDING_POINT );
 
-  let mut lights = create_lights( 50 );
+  let lights = create_lights( 100 );
   let lights_ubo = gl::buffer::create( &gl ).unwrap();
   gl::ubo::upload
   (
@@ -76,15 +81,33 @@ async fn run() -> Result< (), gl::WebglError >
   gl.bind_renderbuffer( GL::RENDERBUFFER, Some( &depthbuffer ) );
   gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH_COMPONENT16, width, height );
 
-  let framebuffer = FramebufferBuilder::new()
-  .color_attachment( ColorAttachment::N0, Attachment::Texture( positionbuffer ) )
-  .color_attachment( ColorAttachment::N1, Attachment::Texture( normalbuffer ) )
-  .depth_attachment( DepthAttachment::Depth, Attachment::Renderbuffer( depthbuffer ) )
-  .build( &gl )?;
+  let framebuffer = gl.create_framebuffer();
+  gl.bind_framebuffer( GL::DRAW_FRAMEBUFFER, framebuffer.as_ref() );
+  // gl.framebuffer_
+  // gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, Some( &positionbuffer ), 0 );
+  // gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, Some( &normalbuffer ), 0 );
+  // gl.framebuffer_texture_layer(target, attachment, texture, level, layer);
+  gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::RENDERBUFFER, Some( &depthbuffer ) );
+
+  // let framebuffer = FramebufferBuilder::new()
+  // .color_attachment( ColorAttachment::N0, Attachment::Texture( positionbuffer ) )
+  // .color_attachment( ColorAttachment::N1, Attachment::Texture( normalbuffer ) )
+  // .depth_attachment( DepthAttachment::Depth, Attachment::Renderbuffer( depthbuffer ) )
+  // .build( &gl )?;
 
   // draw data into framebuffer
   gl.use_program( Some( &object_shader ) );
-  framebuffer.bind_draw( &gl );
+  gl.draw_buffers
+  (
+    &web_sys::js_sys::Array::from_iter
+    (
+      [
+        gl::JsValue::from_f64( GL::COLOR_ATTACHMENT0 as f64 ),
+        gl::JsValue::from_f64( GL::COLOR_ATTACHMENT1 as f64 )
+      ].into_iter()
+    )
+  );
+  // framebuffer.bind_draw( &gl );
 
   for transform in transforms
   {
@@ -92,14 +115,14 @@ async fn run() -> Result< (), gl::WebglError >
     (
       &gl,
       mvp_location.clone(),
-      ( projection * transform ).to_cols_array().as_slice(),
+      ( projection * transform ).raw_slice(),
       true
     ).unwrap();
     gl::uniform::matrix_upload
     (
       &gl,
       model_location.clone(),
-      transform.to_cols_array().as_slice(),
+      transform.raw_slice(),
       true
     ).unwrap();
     draw_meshes( &meshes, &gl );
@@ -109,9 +132,11 @@ async fn run() -> Result< (), gl::WebglError >
   gl.bind_framebuffer( GL::FRAMEBUFFER, None );
   gl.bind_buffer( GL::UNIFORM_BUFFER, Some( &lights_ubo ) );
   gl.active_texture( GL::TEXTURE0 );
-  gl.bind_texture( GL::TEXTURE_2D, Some( framebuffer[ ColorAttachment::N0 ].unwrap_texture() ) );
+  // gl.bind_texture( GL::TEXTURE_2D, Some( framebuffer[ ColorAttachment::N0 ].unwrap_texture() ) );
+  gl.bind_texture( GL::TEXTURE_2D, Some( &positionbuffer ) );
   gl.active_texture( GL::TEXTURE1 );
-  gl.bind_texture( GL::TEXTURE_2D, Some( framebuffer[ ColorAttachment::N1 ].unwrap_texture() ) );
+  // gl.bind_texture( GL::TEXTURE_2D, Some( framebuffer[ ColorAttachment::N1 ].unwrap_texture() ) );
+  gl.bind_texture( GL::TEXTURE_2D, Some( &normalbuffer ) );
 
   let draw_loop = move | t |
   {
@@ -119,9 +144,9 @@ async fn run() -> Result< (), gl::WebglError >
     let mut lights = lights.clone();
     for light in &mut lights
     {
-      light.position.z += 80. + -time % 8. * 20.;
+      light.position[ 2 ] += 80. + -time % 8. * 20.;
     }
-    gl.buffer_sub_data_with_f64_and_u8_array( GL::UNIFORM_BUFFER, 0.0, bytemuck::cast_slice( &lights ) );
+    gl.buffer_sub_data_with_f64_and_u8_array( GL::UNIFORM_BUFFER, 0., bytemuck::cast_slice( &lights ) );
     gl.draw_arrays( GL::TRIANGLES, 0, 3 );
 
     true
@@ -132,7 +157,7 @@ async fn run() -> Result< (), gl::WebglError >
   Ok( () )
 }
 
-fn create_tex( gl : &GL, format : u32, width : i32, height : i32 ) -> web_sys::WebGlTexture
+fn create_tex( gl : &GL, format : u32, width : i32, height : i32 ) -> WebGlTexture
 {
   let tex = gl.create_texture().unwrap();
   gl.bind_texture( GL::TEXTURE_2D, Some( &tex ) );
@@ -187,11 +212,11 @@ fn draw_meshes( meshes : &[ ( WebGlVertexArrayObject, i32 ) ], gl : &GL )
 }
 
 #[ repr( C ) ]
-#[ derive( Debug, Clone, Copy, NoUninit, Default ) ]
+#[ derive( Clone, Copy, NoUninit ) ]
 struct PointLight
 {
-  position : glam::Vec4,
-  color : glam::Vec4,
+  position : [ f32; 4 ],
+  color : [ f32; 4 ],
 }
 
 fn create_lights( num : usize ) -> Vec< PointLight >
@@ -201,15 +226,15 @@ fn create_lights( num : usize ) -> Vec< PointLight >
   {
     let z = ( i / 5 + 2 ) as f32 * -4.;
     let x = ( -2. + ( i % 5 ) as f32 ) * 2.;
-    let position = glam::vec4( x, 2., z, 0. );
+    let position = [ x, 1., z, 0. ];
 
-    let mut rgb =
+    let color =
     [
       rand::random::< bool >() as i32 as f32,
       rand::random::< bool >() as i32 as f32,
       rand::random::< bool >() as i32 as f32,
+      0.,
     ];
-    let color = glam::Vec4::from( ( glam::Vec3::from_array( rgb ), 0.0 ) );
 
     lights.push( PointLight { position, color } );
   }
@@ -217,21 +242,35 @@ fn create_lights( num : usize ) -> Vec< PointLight >
   lights
 }
 
-fn create_transforms( num : usize ) -> Vec< glam::Mat4 >
+fn create_transforms( num : usize ) -> Vec< Mat4< f32 > >
 {
   let mut objects = vec![];
-  for i in 0..num
+  for i in 0 .. num
   {
     let z = ( i / 5 + 2 ) as f32 * -2.;
     let x = ( -2. + ( i % 5 ) as f32 ) * 1.3;
-    let position = glam::vec3( x, -1.5, z );
 
-    let model = glam::Mat4::from_scale_rotation_translation
+    let translation = Mat4::from_row_major
     (
-      glam::vec3( 0.03, 0.03, 0.03 ),
-      glam::Quat::IDENTITY,
-      position
+      [
+        1., 0., 0.,  x,
+        0., 1., 0., -1.5,
+        0., 0., 1.,  z,
+        0., 0., 0.,  1.,
+      ]
     );
+    let scale = Mat4::from_row_major
+    (
+      [
+        0.03, 0.,   0.,   0.,
+        0.,   0.03, 0.,   0.,
+        0.,   0.,   0.03, 0.,
+        0.,   0.,   0.,   1.,
+      ]
+    );
+
+    let model = translation * scale;
+
     objects.push( model );
   }
 
