@@ -64,7 +64,7 @@ fn run() -> Result< (), gl::WebglError >
 
   let projection_matrix_location = gl.get_uniform_location( &program, "projection_matrix" );
   let angle_location = gl.get_uniform_location( &program, "angle" );
-  gl::uniform::matrix_upload( &gl, projection_matrix_location, &projection_matrix.to_array()[ .. ], true ).unwrap();
+  gl::uniform::matrix_upload( &gl, projection_matrix_location, projection_matrix.raw_slice(), true ).unwrap();
 
   gl.enable( gl::DEPTH_TEST );
 
