@@ -1,7 +1,7 @@
 //! Just draw a large point in the middle of the screen.
 
 use minwebgl as gl;
-use gl::{ GL, nd, nd::array, DebugLog };
+use gl::{ GL, math::nd, math::nd::array, DebugLog };
 use std::
 {
   cell::RefCell,

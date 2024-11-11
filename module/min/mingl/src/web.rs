@@ -28,7 +28,7 @@ crate::mod_interface!
   layer file;
 
   /// Web utilities related to different models 
-  #[ cfg( all( feature = "webFuture", feature = "webFile" ) ) ]
+  #[ cfg( all( feature = "math", feature = "webFuture", feature = "webFile" ) ) ]
   layer model;
 
   #[ cfg( feature = "webLog"  ) ]

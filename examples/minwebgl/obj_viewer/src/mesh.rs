@@ -6,7 +6,6 @@ use std::
 
 use minwebgl as gl;
 use gl::GL;
-use gl::nd::ndarray_cg;
 
 use crate::material::GLMaterial;
 
@@ -76,7 +75,7 @@ impl GLMesh
     Ok( mesh_gl )
   }
 
-  pub fn set_perpsective( &self, gl : &GL, perspective_matrix : &ndarray_cg::Mat4< f32 > )
+  pub fn set_perpsective( &self, gl : &GL, perspective_matrix : &gl::math::Mat4< f32 > )
   {
     gl.use_program( Some( &self.material.program ) );
 
