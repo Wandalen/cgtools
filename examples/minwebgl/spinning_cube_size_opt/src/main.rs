@@ -54,7 +54,7 @@ fn run() -> Result< (), gl::WebglError >
   let fov_y : f32 = 45.0;
   let near_z = 0.1;
   let far_z = 100.0;
-  let projection_matrix = gl::nd::ndarray_cg::mat3x3h::perspective_rh_gl
+  let projection_matrix = gl::math::mat3x3h::perspective_rh_gl
   (
     fov_y.to_radians(),
     aspect_ratio,
