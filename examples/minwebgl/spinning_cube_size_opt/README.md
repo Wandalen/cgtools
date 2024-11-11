@@ -17,7 +17,7 @@ Results:
 ### wasm-opt
 Added line of code to *index.html*:
 ```html
-<link data-trunk rel="rust" />
+<link data-trunk rel="rust" data-wasm-opt="s" />
 ```
 When we build the example with *trunk* (in release mode), it uses *wasm-opt* with *s*-level optimization.
 
