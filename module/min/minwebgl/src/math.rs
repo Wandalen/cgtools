@@ -8,6 +8,6 @@ mod private
 crate::mod_interface!
 {
 
-  reuse ::mingl::nd;
+  reuse ::mingl::math;
 
 }

@@ -15,7 +15,6 @@ use gl::
   GL,
 };
 use web_sys::wasm_bindgen::prelude::Closure;
-use mingl::nd::ndarray_cg;
 
 mod mesh;
 mod camera_controls;
@@ -31,13 +30,13 @@ async fn run() -> Result< (), gl::WebglError >
   let height = canvas.height() as f32;
 
   // Camera setup
-  let eye = ndarray_cg::F32x3::from( [ 0.0, 20.0, 20.0 ] );
-  let up = ndarray_cg::F32x3::from( [ 0.0, 1.0, 0.0 ] );
-  let center = ndarray_cg::F32x3::from( [ 0.0, 0.0, 0.0 ] );
+  let eye = gl::math::F32x3::from( [ 0.0, 20.0, 20.0 ] );
+  let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
+  let center = gl::math::F32x3::from( [ 0.0, 0.0, 0.0 ] );
 
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
-  let perspective_matrix = ndarray_cg::mat3x3h::perspective_rh_gl
+  let perspective_matrix = gl::math::mat3x3h::perspective_rh_gl
   (
     fov,  
     aspect_ratio, 
