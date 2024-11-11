@@ -1,4 +1,4 @@
-use minwebgl::{self as gl, web_sys, JsCast};
+use minwebgl as gl;
 
 fn main()
 {
