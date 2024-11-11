@@ -19,22 +19,8 @@ async fn run() -> Result< (), gl::WebglError >
   let video_width = 640;
   let video_height = 480;
 
-  let video_element = gl::file::load_media
-  (
-    path,
-    | doc |
-    {
-      let video_element = doc.create_element( "video" )?
-      .dyn_into::< web_sys::HtmlVideoElement >()?;
-      video_element.set_width( video_width );
-      video_element.set_height( video_height );
-      video_element.set_muted( true );
-      video_element.set_loop( true );
-      Ok( video_element )
-    }
-  )
-  .await
-  .expect( "Failed to load video" );
+  let video_element = gl::dom::create_video_element( path, video_width, video_height )
+  .expect( "Failed to create video element" );
   let texture = gl.create_texture().expect( "Failed to create texture" );
   gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
   gl::texture::d2::default_parameters( &gl );

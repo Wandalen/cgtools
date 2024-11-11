@@ -28,6 +28,28 @@ mod private
 
   }
 
+  // Create HtmlVideoElement and set source of video resource
+  pub fn create_video_element( path : &str, video_width : u32, video_height : u32 ) -> Result< web_sys::HtmlVideoElement, JsValue >
+  {
+    let window = web_sys::window().unwrap();
+    let document = window.document().unwrap();
+    let origin = window.location().origin().unwrap();
+    let url = format!( "{}/{}", origin, path );
+
+    let video_element = document
+    .create_element( "video" )?
+    .dyn_into::< web_sys::HtmlVideoElement >()?;
+
+    video_element.set_src( &url );
+    video_element.set_width( video_width );
+    video_element.set_height( video_height );
+    video_element.set_loop( true );
+    video_element.set_muted( true );
+    let _ = video_element.play()?;
+
+    Ok( video_element )
+  }
+
 }
 
 crate::mod_interface!
@@ -38,5 +60,6 @@ crate::mod_interface!
     JsCast,
     Error,
   };
+  own use create_video_element;
 
 }
