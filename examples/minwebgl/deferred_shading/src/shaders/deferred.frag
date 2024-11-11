@@ -12,7 +12,7 @@ in vec2 v_texcoord;
 
 uniform sampler2D positions;
 uniform sampler2D normals;
-layout ( std140 ) uniform Lights
+layout( std140 ) uniform Lights
 {
   PointLight lights[ NUM_LIGHTS ];
 };
