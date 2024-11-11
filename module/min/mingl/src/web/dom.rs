@@ -29,7 +29,7 @@ mod private
   }
 
   // Create HtmlVideoElement and set source of video resource
-  pub fn create_video_element( path : &str, video_width : u32, video_height : u32 ) -> Result< web_sys::HtmlVideoElement, JsValue >
+  pub fn create_video_element( path : &str, video_width : u32, video_height : u32 ) -> Result< web_sys::HtmlVideoElement, wasm_bindgen::JsValue >
   {
     let window = web_sys::window().unwrap();
     let document = window.document().unwrap();
