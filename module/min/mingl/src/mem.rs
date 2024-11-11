@@ -30,11 +30,11 @@ mod private
 
   }
 
-  #[ cfg( feature = "ndarray" ) ]
-  impl< A, D > AsBytes for nd::Array< A, D >
+  #[ cfg( feature = "math" ) ]
+  impl< A, D > AsBytes for math::nd::Array< A, D >
   where
     A : Pod,
-    D : nd::Dimension,
+    D : math::nd::Dimension,
   {
 
     #[ inline ]
@@ -46,7 +46,7 @@ mod private
     #[ inline ]
     fn byte_size( &self ) -> usize
     {
-      nd::Array::< A, D >::len( self ) * std::mem::size_of::< A >() / std::mem::size_of::< u8 >()
+      math::nd::Array::< A, D >::len( self ) * std::mem::size_of::< A >() / std::mem::size_of::< u8 >()
     }
 
     #[ inline ]

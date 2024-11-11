@@ -7,6 +7,5 @@ mod private
 
 crate::mod_interface!
 {
-  own use ::ndarray::*;
-  own use ::ndarray_cg;
+  reuse ::ndarray_cg;
 }

@@ -1,6 +1,10 @@
 //! Just draw a large point in the middle of the screen.
 
-use minwebgpu::{self as gl, canvas, nd::ndarray_cg, queue, AsWeb};
+use minwebgpu::
+{
+  self as gl, 
+  AsWeb
+};
 use uniform::{UniformRaw, UniformState};
 
 mod uniform;
@@ -194,16 +198,16 @@ async fn run() -> Result< (), gl::WebGPUError >
     .to_web()
   );
 
-  let eye = ndarray_cg::F32x3::from( [ 20.0, 30.0, 0.0 ] );
-  let center = ndarray_cg::F32x3::ZERO;
-  let up = ndarray_cg::F32x3::Y;
+  let eye = gl::math::F32x3::from( [ 20.0, 30.0, 0.0 ] );
+  let center = gl::math::F32x3::ZERO;
+  let up = gl::math::F32x3::Y;
 
   let fovy = 70f32.to_radians();
   let aspect = width as f32 / height as f32;
   let z_near = 0.1;
   let z_far = 1000.0;
 
-  let projection_matrix = ndarray_cg::mat3x3h::perspective_rh( fovy, aspect, z_near, z_far );
+  let projection_matrix = gl::math::mat3x3h::perspective_rh( fovy, aspect, z_near, z_far );
 
   // Define the update and draw logic
   let update_and_draw =
@@ -213,10 +217,10 @@ async fn run() -> Result< (), gl::WebGPUError >
     {      
       let canvas_texture = gl::context::current_texture( &context ).unwrap();
       let canvas_view = gl::texture::view( &canvas_texture ).unwrap();
-      let rot = ndarray_cg::mat3x3::from_angle_y( t as f32 / 1000.0 );
+      let rot = gl::math::mat3x3::from_angle_y( t as f32 / 1000.0 );
       let eye = rot * eye;
 
-      let view_matrix = ndarray_cg::mat3x3h::loot_at_rh( eye, center, up );
+      let view_matrix = gl::math::mat3x3h::loot_at_rh( eye, center, up );
       let uniform_raw = UniformRaw
       {
         view_matrix : view_matrix.to_array(),

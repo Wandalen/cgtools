@@ -1,5 +1,5 @@
 use minwebgpu::{self as gl, WebGPUError};
-use gl::{ web_sys, nd::ndarray_cg };
+use gl::web_sys;
 
 #[ repr( C ) ]
 #[ derive( Clone, Copy, bytemuck::NoUninit, Default ) ]
@@ -14,9 +14,9 @@ pub struct UniformRaw
 
 pub struct Uniform
 {
-  view_matrix : ndarray_cg::Mat4< f32 >,
-  projection_matrix : ndarray_cg::Mat4< f32 >,
-  camera_pos : ndarray_cg::F32x3
+  view_matrix : gl::math::Mat4< f32 >,
+  projection_matrix : gl::math::Mat4< f32 >,
+  camera_pos : gl::math::F32x3
 }
 
 pub struct UniformState

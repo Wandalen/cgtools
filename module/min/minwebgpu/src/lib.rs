@@ -43,7 +43,7 @@ mod_interface!
   layer transform;
   layer buffer;
   layer mem;
-  #[ cfg( feature = "ndarray" ) ]
-  layer nd;
   layer log;
+  #[ cfg( feature = "math" ) ]
+  layer math;
 }
