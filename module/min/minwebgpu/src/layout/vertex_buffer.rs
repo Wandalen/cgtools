@@ -6,8 +6,8 @@ mod private
   #[ derive( Clone ) ]
   pub struct VertexBufferLayout
   { 
-    /// Needs to be supplied by the user
-    array_stride : f64,
+    /// Needs to be supplied by the user. If not specified, will be computed automatically
+    array_stride : Option< f64 >,
     /// Needs to be supplied by the user
     attributes : Vec< web_sys::GpuVertexAttribute >,
     /// Defaults to `Vertex`
@@ -20,7 +20,7 @@ mod private
   {
     pub fn new() -> Self
     {
-      let array_stride = 0.0;
+      let array_stride = None;
       let step_mode = GpuVertexStepMode::Vertex;
       let attributes = Vec::new();
       let compute_offsets = false;
@@ -35,16 +35,16 @@ mod private
     }
 
     /// Computes the array stride from the given type
-    pub fn stride< T : Sized >( mut self ) -> Self
+    pub fn stride< T >( mut self ) -> Self
     {
-      self.array_stride = std::mem::size_of::< T >() as f64;
+      self.array_stride = Some( std::mem::size_of::< T >() as f64 );
       self
     }
 
     /// Sets the array stride from the given value
-    pub fn stride_from_val( mut self, stride : f64 ) -> Self
+    pub fn stride_from_value( mut self, stride : f64 ) -> Self
     {
-      self.array_stride = stride;
+      self.array_stride = Some( stride );
       self
     }
 
@@ -80,19 +80,27 @@ mod private
   impl From< VertexBufferLayout > for web_sys::GpuVertexBufferLayout 
   {
     fn from( mut value: VertexBufferLayout ) -> Self {
-      if value.compute_offsets 
+      let mut offset : f64 = 0.0;
+      for a in value.attributes.iter_mut()
       {
-        let mut offset : f64 = 0.0;
-        for a in value.attributes.iter_mut()
+        let a_offset = a.get_offset();
+        offset = offset.max( a_offset );
+
+        if value.compute_offsets 
         {
           a.set_offset( offset );
-          offset += layout::vertex_attribute::format_to_size( a.get_format() ) as f64;
         }
+
+        let size = layout::vertex_attribute::format_to_size( a.get_format() ) as f64;
+        offset += size;
       }
+
+      if value.array_stride.is_none() { value.array_stride = Some( offset ); }
+
       
       let layout = web_sys::GpuVertexBufferLayout::new
       ( 
-        value.array_stride, 
+        value.array_stride.unwrap(), 
         &value.attributes.into()
       );
 

@@ -10,12 +10,14 @@ license = "MIT"
 
 [dependencies]
 tobj =  { workspace = true }
+bytemuck = { workspace = true }
 
 [dependencies.minwebgpu]
 workspace = true
 features = [
-    'future',
-    'file',
-    'objModel'
+  'future',
+  'file',
+  'objModel',
+  'ndarray'
 ]
 

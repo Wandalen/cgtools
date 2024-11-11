@@ -10,7 +10,7 @@ mod private
 
   pub fn create( device : &web_sys::GpuDevice, desc : &web_sys::GpuBindGroupDescriptor ) -> web_sys::GpuBindGroup
   {
-      device.create_bind_group( desc )
+    device.create_bind_group( desc )
   }
 }
 

@@ -46,7 +46,7 @@ mod private
       self
     }
 
-    pub fn entry_from_resource< T : BindingResource>( self, resource : &T ) -> Self
+    pub fn entry_from_resource< T : BindingResource >( self, resource : &T ) -> Self
     {
       let entry = BindGroupEntry::new( resource );
       self.entry( entry )
@@ -54,7 +54,7 @@ mod private
 
     pub fn create( self, device : &web_sys::GpuDevice ) -> web_sys::GpuBindGroup
     {
-      device.create_bind_group( &self.into() )
+      bind_group::create( device, &self.into() )
     }
   }
 

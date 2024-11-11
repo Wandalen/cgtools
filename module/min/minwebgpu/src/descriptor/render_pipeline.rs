@@ -85,19 +85,12 @@ mod private
 
     pub fn create( self, device : &web_sys::GpuDevice ) -> Result< web_sys::GpuRenderPipeline, WebGPUError >
     {
-      let pipeline = device.create_render_pipeline( &self.into() )
-      .map_err( | e | DeviceError::FailedToCreateRenderPipeline( format!( "{:?}", e ) ))?;
-      
-      Ok( pipeline )
+      render_pipeline::create( device, &self.into() )
     }
 
     pub async fn create_async( self, device : &web_sys::GpuDevice ) -> Result< web_sys::GpuRenderPipeline, WebGPUError >
     {
-      let pipeline = JsFuture::from( device.create_render_pipeline_async( &self.into() ) ).await
-      .map_err( | e | DeviceError::FailedToCreateRenderPipeline( format!( "{:?}", e ) ))?;
-  
-      let pipeline = web_sys::GpuRenderPipeline::from( pipeline );
-      Ok( pipeline )
+      render_pipeline::create_async( device, &self.into() ).await
     }
   }
 

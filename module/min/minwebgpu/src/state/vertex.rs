@@ -32,15 +32,9 @@ mod private
       self
     }
 
-    pub fn buffer( mut self, buffer : web_sys::GpuVertexBufferLayout ) -> Self
+    pub fn buffer( mut self, buffer : &web_sys::GpuVertexBufferLayout ) -> Self
     {
-      self.buffers.push( buffer );
-      self
-    }
-
-    pub fn buffers( mut self, buffers : &[ web_sys::GpuVertexBufferLayout ] ) -> Self
-    {
-      self.buffers.extend_from_slice( buffers );
+      self.buffers.push( buffer.clone() );
       self
     }
   }

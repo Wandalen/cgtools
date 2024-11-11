@@ -27,6 +27,12 @@ mod private
       }
     }
 
+    /// Sets the `visibility` to `All`
+    pub fn all( self ) -> Self
+    {
+      self.fragment().compute().vertex()
+    }
+
     /// Sets the visibility of the entry to VERTEX
     pub fn vertex( mut self ) -> Self
     {

@@ -133,6 +133,16 @@ mod private
       self.usage |= web_sys::gpu_texture_usage::TEXTURE_BINDING;
       self
     } 
+
+    pub fn create
+    ( 
+      self,
+      device : &web_sys::GpuDevice
+    ) -> Result< web_sys::GpuTexture, WebGPUError >
+    {
+
+      texture::create( device, &self.into() )
+    }
   }
 
   impl From< TextureDescriptor< '_ > > for web_sys::GpuTextureDescriptor 

@@ -1,13 +1,19 @@
 /// Internal namespace.
 mod private
 {
+  pub const COPY_BUFFER_ALIGNMENT: u64 = 4;
+
   pub use web_sys::GpuCanvasContext as GL;
+  pub use web_sys::gpu_color_write as ColorWrite;
+  pub use web_sys::gpu_buffer_usage as BufferUsage;
+  pub use web_sys::gpu_shader_stage as ShaderStage;
+  pub use web_sys::gpu_texture_usage as TextureUsage;
+
   pub use web_sys::GpuIndexFormat;
   pub use web_sys::GpuStencilOperation;
   pub use web_sys::GpuTextureFormat;
   pub use web_sys::GpuCompareFunction;
   pub use web_sys::GpuPrimitiveTopology;
-  pub use web_sys::gpu_color_write as GpuColorWrite;
   pub use web_sys::GpuBlendFactor;
   pub use web_sys::GpuBlendOperation;
   pub use web_sys::GpuTextureDimension;

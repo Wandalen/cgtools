@@ -6,7 +6,9 @@ mod private
   pub struct BufferBinding< 'a >
   {
     buffer : &'a web_sys::GpuBuffer,
+    /// Defaults to `0.0`
     offset : Option< f64 >,
+    /// Defaults to the size of the buffer, if offset is omitted aswell
     size : Option< f64 >
   }
 

@@ -25,6 +25,12 @@ mod private
       Self::default()
     }
 
+    pub fn cull_none( mut self ) -> Self
+    {
+      self.cull_mode = Some( GpuCullMode::None );
+      self
+    }
+
     pub fn cull_front( mut self ) -> Self
     {
       self.cull_mode = Some( GpuCullMode::Front );

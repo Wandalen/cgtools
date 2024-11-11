@@ -34,6 +34,7 @@ mod private
   impl_to_web!( BindGroupLayoutEntry, GpuBindGroupLayoutEntry );
   impl_to_web!( BindGroupLayoutDescriptor, GpuBindGroupLayoutDescriptor );
   impl_to_web!( PipelineLayoutDescriptor< '_ >, GpuPipelineLayoutDescriptor );
+  impl_to_web!( BufferDescriptor< '_ >, GpuBufferDescriptor );
 
   // Bind group entry
   impl_to_web!( BindGroupEntry, GpuBindGroupEntry );

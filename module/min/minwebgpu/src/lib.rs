@@ -41,4 +41,9 @@ mod_interface!
   layer bind_group;
   layer bind_group_entry;
   layer transform;
+  layer buffer;
+  layer mem;
+  #[ cfg( feature = "ndarray" ) ]
+  layer nd;
+  layer log;
 }

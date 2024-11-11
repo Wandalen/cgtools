@@ -37,6 +37,12 @@ mod private
       self
     }
 
+    /// Sets the `visibility` to `All`
+    pub fn all( mut self ) -> Self
+    {
+      self.fragment().compute().vertex()
+    }
+
     /// Add `FRAGMENT` stage to the `visibility`
     pub fn fragment( mut self ) -> Self
     {
@@ -75,9 +81,7 @@ mod private
 
     pub fn create( self, device : &web_sys::GpuDevice ) -> Result< web_sys::GpuBindGroupLayout, WebGPUError >
     {
-      let layout = device.create_bind_group_layout( &self.into() )
-      .map_err( | e | DeviceError::FailedToCreateBindGroupLayout( format!( "{:?}", e ) ) )?;
-      Ok( layout ) 
+      layout::bind_group::create( device, &self.into() )
     } 
   }
 
