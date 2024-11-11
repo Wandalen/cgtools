@@ -1,5 +1,11 @@
-# WASM build size optimization
-A little optimization for decrease builded wasm file.
+# Spinning cube and WASM build size optimization
+A spinning cube with little optimization for decrease builded wasm file.
+
+## Showcase
+![](./spinning_cube.gif)
+
+## How is it useful
+Decrease builded wasm file.
 
 Results:
 - WASM size before optimization: 90.4 KB
@@ -38,6 +44,3 @@ The *lol_alloc* reducing the total amount of allocated memory used by the applic
 ```bash
 trunk build --release
 ```
-
-# Spinning cube
-![](./spinning_cube.gif)
