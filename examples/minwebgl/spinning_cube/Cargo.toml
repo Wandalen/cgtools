@@ -1,5 +1,5 @@
 [package]
-name = "minwebgl_spinning_cube_low_size"
+name = "minwebgl_spinning_cube"
 version = "0.1.0"
 edition = "2021"
 authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
