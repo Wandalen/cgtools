@@ -9,7 +9,7 @@ authors = [
 
 [dependencies]
 
-minwebgl = { workspace = true, features = [ "future", "ndarray", "diagnostics" ] }
+minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
 tobj =  { workspace = true }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 

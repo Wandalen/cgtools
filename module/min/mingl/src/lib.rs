@@ -28,18 +28,19 @@ mod private {}
   layer mem;
 
   // Camera with controls
-  #[ cfg( feature = "camera_orbit_controls" ) ]
+  #[ cfg( all( feature = "math", feature = "camera_orbit_controls" ) ) ]
   layer camera_orbit_controls;
 
-  #[ cfg( feature = "diagnostics" ) ]
+  #[ cfg( all( feature = "math", feature = "diagnostics" ) ) ]
   layer diagnostics;
 
   /// Utilities related to different models
+  #[ cfg( feature = "math" ) ]
   layer model;
 
   /// Multi-dimensional math.
-  #[ cfg( feature = "ndarray" ) ]
-  layer nd;
+  #[ cfg( feature = "math" ) ]
+  layer math;
 
   /// Web related stuff
   #[ cfg( feature = "web" ) ]

@@ -4,7 +4,7 @@ use super::*;
 #[ test ]
 fn basic()
 {
-  use the_module::nd;
+  use the_module::math::nd;
 
   let trans_data : nd::Array< _, _ > = nd::array!
   [
