@@ -3,9 +3,8 @@ A little optimization for decrease builded wasm file.
 
 Results:
 - WASM size before optimization: 90.4 KB
-- wee_alloc stage: 84.3 KB
-- wasm-opt stage: 50.3 KB
-- WASM size after optimization: 50.3 KB
+- wasm-opt stage: 56.1 KB
+- WASM size after optimization: 56.1 KB
 
 ## How it works
 ### wasm-opt

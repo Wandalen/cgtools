@@ -7,4 +7,3 @@ license = "MIT"
 
 [dependencies]
 minwebgl = { workspace = true, features = [ "ndarray" ] }
-wee_alloc = "0.4.5"

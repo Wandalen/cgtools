@@ -2,9 +2,6 @@
 
 use minwebgl as gl;
 
-#[global_allocator]
-static ALLOC : wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
 static VERTICES : [ f32; 24 ] =
 [
     // Front face
