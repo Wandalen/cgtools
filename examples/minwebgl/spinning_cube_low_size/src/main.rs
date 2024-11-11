@@ -53,7 +53,7 @@ fn run() -> Result< (), gl::WebglError >
   let fov_y : f32 = 45.0;
   let near_z = 0.1;
   let far_z = 100.0;
-  let projection_matrix = glam::Mat4::perspective_rh_gl
+  let projection_matrix = gl::nd::ndarray_cg::mat3x3h::perspective_rh_gl
   (
     fov_y.to_radians(),
     aspect_ratio,
@@ -63,7 +63,7 @@ fn run() -> Result< (), gl::WebglError >
 
   let projection_matrix_location = gl.get_uniform_location( &program, "projection_matrix" );
   let angle_location = gl.get_uniform_location( &program, "angle" );
-  gl::uniform::matrix_upload( &gl, projection_matrix_location, &projection_matrix.to_cols_array()[ .. ], true ).unwrap();
+  gl::uniform::matrix_upload( &gl, projection_matrix_location, &projection_matrix.to_array()[ .. ], true ).unwrap();
 
   gl.enable( gl::DEPTH_TEST );
 
