@@ -55,8 +55,29 @@ pub fn upload_no_flip( gl : &GL, img : &web_sys::HtmlImageElement ) -> Option< w
 
 /// Creates a 2D texture from HtmlImageElement.
 /// Get pixel data from the HtmlImageElement using the 2d context of temporary canvas and load it into the texture array element by element.
-pub fn upload_sprite( gl : &GL, img : &web_sys::HtmlImageElement, sprites_in_row : u32, sprites_in_col : u32, sprite_width : u32, sprite_height : u32, amount : u32 ) -> Result< web_sys::WebGlTexture, WebglError >
+pub async fn upload_sprite( gl : &GL, img : &web_sys::HtmlImageElement, sprites_in_row : u32, sprites_in_col : u32, sprite_width : u32, sprite_height : u32, amount : u32 ) -> Result< web_sys::WebGlTexture, WebglError >
 {
+  let load_promise = js_sys::Promise::new
+  (
+    &mut | resolve, reject |
+    {
+      let on_load = wasm_bindgen::prelude::Closure::once_into_js
+      (
+        move || { resolve.call0( &JsValue::NULL ).unwrap() }
+      );
+
+      let on_error = wasm_bindgen::prelude::Closure::once_into_js
+      (
+        move || { reject.call1( &JsValue::NULL, &JsValue::from_str( "Failed to load image" ) ).unwrap() }
+      );
+
+      img.set_onload( Some( on_load.as_ref().unchecked_ref() ) );
+      img.set_onerror( Some( on_error.as_ref().unchecked_ref() ) );
+    }
+  );
+
+  JsFuture::from( load_promise ).await.unwrap();
+
   let texture = gl.create_texture().ok_or( WebglError::FailedToAllocateResource( "Sprite texture" ) )?;
   gl.bind_texture( GL::TEXTURE_2D_ARRAY, Some( &texture ) );
 

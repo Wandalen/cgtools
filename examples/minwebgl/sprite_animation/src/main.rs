@@ -1,5 +1,4 @@
-use minwebgl::{self as gl, web_sys};
-use gl::JsCast;
+use minwebgl as gl;
 
 fn main()
 {
@@ -25,20 +24,9 @@ async fn run() -> Result< (), gl::WebglError >
   let amount = 64;
   let frame_rate = 24.0;
 
-  let img_element = gl::file::load_media
-  (
-    path,
-    | doc |
-    {
-      let img_element = doc.create_element( "img" )?
-      .dyn_into::< web_sys::HtmlImageElement >()?;
-
-      Ok( img_element )
-    }
-  )
-  .await
-  .expect( "Failed to load image" );
-  gl::texture::d2::upload_sprite( &gl, &img_element, sprties_in_row, sprites_in_col, sprite_width, sprite_height, amount )?;
+  let img_element = gl::dom::create_image_element( path )
+  .expect( "Failed to create image element" );
+  gl::texture::d2::upload_sprite( &gl, &img_element, sprties_in_row, sprites_in_col, sprite_width, sprite_height, amount ).await?;
 
   let update_and_draw =
   {

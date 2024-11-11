@@ -28,6 +28,23 @@ mod private
 
   }
 
+  // Create HtmlImageElement
+  pub fn create_image_element( path : &str ) -> Result< web_sys::HtmlImageElement, wasm_bindgen::JsValue >
+  {
+    let window = web_sys::window().unwrap();
+    let document = window.document().unwrap();
+    let origin = window.location().origin().unwrap();
+    let url = format!( "{}/{}", origin, path );
+
+    let image_element = document
+    .create_element( "img" )?
+    .dyn_into::< web_sys::HtmlImageElement >()?;
+
+    image_element.set_src( &url );
+
+    Ok( image_element )
+  }
+
 }
 
 crate::mod_interface!
@@ -38,5 +55,6 @@ crate::mod_interface!
     JsCast,
     Error,
   };
+  own use create_image_element;
 
 }
