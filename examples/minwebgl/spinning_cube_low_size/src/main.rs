@@ -1,6 +1,10 @@
 //! Just draw a large point in the middle of the screen.
 
 use minwebgl as gl;
+use lol_alloc::{ LockedAllocator, FreeListAllocator };
+
+#[global_allocator]
+static ALLOCATOR : LockedAllocator< FreeListAllocator > = LockedAllocator::new( FreeListAllocator::new() );
 
 static VERTICES : [ f32; 24 ] =
 [
