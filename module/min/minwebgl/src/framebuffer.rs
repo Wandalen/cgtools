@@ -162,6 +162,7 @@ mod private
     pub fn bind_all_drawbuffers( &self, gl : &GL )
     {
       // forms an array of attachments in their respective positions
+      // for binding them as draw buffers
       // for example if framebuffer has attachment0 and attachment2
       // then the array should be [ GL::ColorAttachment0, GL::NONE, GL::ColorAttachment2 ]
       // this is how WebGl wants it to be
