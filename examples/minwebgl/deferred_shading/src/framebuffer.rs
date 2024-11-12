@@ -314,7 +314,31 @@ impl FramebufferBuilder
 
 #[ repr( u32 ) ]
 #[ derive( Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord ) ]
-enum At
+enum AttachmentType
+{
+  Color( Color ),
+  Depth,
+  Stencil,
+  DepthStencil,
+}
+
+impl AttachmentType
+{
+  pub fn as_u32( &self ) -> u32
+  {
+    match self
+    {
+      AttachmentType::Color( color ) => *color as u32,
+      AttachmentType::Depth => GL::DEPTH_ATTACHMENT,
+      AttachmentType::Stencil => GL::STENCIL_ATTACHMENT,
+      AttachmentType::DepthStencil => GL::DEPTH_STENCIL_ATTACHMENT,
+    }
+  }
+}
+
+#[ repr( u32 ) ]
+#[ derive( Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord ) ]
+enum Color
 {
   N0 = GL::COLOR_ATTACHMENT0,
   N1,
@@ -332,98 +356,105 @@ enum At
   N13,
   N14,
   N15,
-  Depth = GL::DEPTH_ATTACHMENT,
-  Stencil = GL::STENCIL_ATTACHMENT,
-  DepthStencil = GL::DEPTH_STENCIL_ATTACHMENT,
 }
 
 struct Frmbuffer
 {
+  // bit mask of current color attachments
   attachments : u16,
   framebuffer : WebGlFramebuffer,
 }
 
 impl Frmbuffer
 {
-  pub fn texture_2d( &mut self, index : At, texture : Option< &WebGlTexture >, level : i32, gl : &GL )
+  pub fn texture_2d( &mut self, attachment : AttachmentType, texture : Option< &WebGlTexture >, level : i32, gl : &GL )
   {
     gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &self.framebuffer ) );
-    gl.framebuffer_texture_2d( GL::FRAMEBUFFER, index as u32, GL::TEXTURE_2D, texture, level );
+    gl.framebuffer_texture_2d( GL::FRAMEBUFFER, attachment.as_u32(), GL::TEXTURE_2D, texture, level );
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );
 
-    self.update_bitmask( index, texture.is_some() );
+    self.update_bitmask( attachment, texture.is_some() );
   }
 
-  pub fn texture_layer( &mut self, index : At, texture : Option< &WebGlTexture >, level : i32, layer : i32, gl : &GL )
+  pub fn texture_layer( &mut self, attachment : AttachmentType, texture : Option< &WebGlTexture >, level : i32, layer : i32, gl : &GL )
   {
     gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &self.framebuffer ) );
-    gl.framebuffer_texture_layer( GL::FRAMEBUFFER, index as u32, texture, level, layer );
+    gl.framebuffer_texture_layer( GL::FRAMEBUFFER, attachment.as_u32(), texture, level, layer );
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );
 
-    self.update_bitmask( index, texture.is_some() );
+    self.update_bitmask( attachment, texture.is_some() );
   }
 
-  pub fn renderbuffer( &mut self, index : At, renderbuffer : Option< &WebGlRenderbuffer >, gl : &GL )
+  pub fn renderbuffer( &mut self, index : AttachmentType, renderbuffer : Option< &WebGlRenderbuffer >, gl : &GL )
   {
     gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &self.framebuffer ) );
-    gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, index as u32, GL::RENDERBUFFER, renderbuffer );
+    gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, index.as_u32(), GL::RENDERBUFFER, renderbuffer );
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );
 
     self.update_bitmask( index, renderbuffer.is_some() );
   }
 
-  fn update_bitmask( &mut self, index: At, has_value: bool )
+  fn update_bitmask( &mut self, attachment: AttachmentType, value: bool )
   {
-    let shift = index as u32 - At::N0 as u32;
-    let val = if has_value { 1 << shift } else { !( 1 << shift ) };
-
-    if index >= At::N0 && index <= At::N15
+    if let AttachmentType::Color( color ) = attachment
     {
-      if has_value { self.attachments |= val  } else { self.attachments &= val }
+      let shift = color as u32 - Color::N0 as u32;
+      let val = if value { 1 << shift } else { !( 1 << shift ) };
+      if value { self.attachments |= val  } else { self.attachments &= val }
     }
   }
 
   pub fn bind_draw( &self, gl : &GL )
   {
+    // forms an array of attachments in their respective positions
+    // for example if framebuffer has attachment0 and attachment2
+    // then the array would be [ GL::ColorAttachment0, GL::NONE, GL::ColorAttachment2 ]
+    // this is how WebGl wants it to be
     let mut drawbuffers = [ GL::NONE; MAX_COLOR_ATTACHMENTS ];
     for ( i, item ) in drawbuffers.iter_mut().enumerate()
     {
-      let c = GL::COLOR_ATTACHMENT0 + i as u32;
-      let a = ( self.attachments & ( 1 << i ) ) as u32;
+      let attachment = GL::COLOR_ATTACHMENT0 + i as u32;
+      let bit = ( self.attachments & ( 1 << i ) ) as u32;
+      *item = attachment * bit;
     }
-    // // forms an array of attachments in their respective positions
-    // // for example if framebuffer has attachment0 and attachment2
-    // // then the array would be [ GL::ColorAttachment0, GL::NONE, GL::ColorAttachment2 ]
-    // // this is how WebGl wants it to be
 
-    // // find index of last non-None value
-    // let last = self.color_attachments.iter().rposition( | v | v.is_some() ).unwrap_or( 0 );
-    // // create iterator with actual values
-    // let iter = self.color_attachments[ ..= last ]
-    // .iter()
-    // .enumerate()
-    // .map
-    // (
-    //   | ( i, a ) |
-    //   if a.is_some()
-    //   {
-    //     GL::COLOR_ATTACHMENT0 + i as u32
-    //   }
-    //   else
-    //   {
-    //     GL::NONE
-    //   }
-    // )
-    // .map( | v | JsValue::from_f64( v as f64 ) );
+    // find index of last non-NONE value
+    let last = drawbuffers.iter().rposition( | v | *v != GL::NONE ).unwrap_or( 0 );
+    let iter = drawbuffers[ ..= last ].iter().map( | v | JsValue::from_f64( *v as f64 ) );
 
-    // gl.bind_framebuffer( GL::DRAW_FRAMEBUFFER, Some( &self.framebuffer ) );
-    // gl.draw_buffers( &js_sys::Array::from_iter( iter ) );
+    gl.bind_framebuffer( GL::DRAW_FRAMEBUFFER, Some( &self.framebuffer ) );
+    gl.draw_buffers( &js_sys::Array::from_iter( iter ) );
+  }
+
+  /// Binds specific color attachments and famebuffer for drawing.
+  /// Returns `Error` if some of indices are not actualy attached to framebuffer
+  pub fn bind_draw_nths( &self, attachments : &[ Color ], gl : &GL ) -> Result< (), String >
+  {
+    let mut drawbuffers = [ GL::NONE; MAX_COLOR_ATTACHMENTS ];
+    for attachment in attachments
+    {
+      let index = *attachment as usize - Color::N0 as usize;
+      let bit = ( self.attachments & ( 1 << index ) ) as u32;
+
+      if bit == 0
+      {
+        return Err( format!( "Framebuffer does not has ColorAttachment{:?}", *attachment as u32 ) );
+      }
+
+      drawbuffers[ index ] = *attachment as u32;
+    }
+    let last = drawbuffers.iter().rposition( | v | *v != GL::NONE ).unwrap_or( 0 );
+    let iter = drawbuffers[ ..= last ].iter().map( | v | JsValue::from_f64( *v as f64 ) );
+
+    gl.bind_framebuffer( GL::DRAW_FRAMEBUFFER, Some( &self.framebuffer ) );
+    gl.draw_buffers( &js_sys::Array::from_iter( iter ) );
+    Ok( () )
   }
 }
 
 struct PreserveFramebuffer
 {
-  // attachmets : [ Opti ]
+  attachmets : [ Attachment; MAX_COLOR_ATTACHMENTS ],
 }
 
 impl PreserveFramebuffer
