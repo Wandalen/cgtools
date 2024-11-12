@@ -8,6 +8,7 @@ use minwebgpu::
 use uniform::{UniformRaw, UniformState};
 
 mod uniform;
+mod light;
 
 fn create_textures
 (
