@@ -77,37 +77,19 @@ async fn run() -> Result< (), gl::WebglError >
 
   let positionbuffer = create_tex( &gl, GL::RGBA16F, width, height );
   let normalbuffer = create_tex( &gl, GL::RGBA16F, width, height );
-  let depthbuffer = gl.create_renderbuffer().unwrap();
-  gl.bind_renderbuffer( GL::RENDERBUFFER, Some( &depthbuffer ) );
+  let depthbuffer = gl.create_renderbuffer();
+  gl.bind_renderbuffer( GL::RENDERBUFFER, depthbuffer.as_ref() );
   gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH_COMPONENT16, width, height );
 
-  let framebuffer = gl.create_framebuffer();
-  gl.bind_framebuffer( GL::DRAW_FRAMEBUFFER, framebuffer.as_ref() );
-  // gl.framebuffer_
-  // gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, Some( &positionbuffer ), 0 );
-  // gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, Some( &normalbuffer ), 0 );
-  // gl.framebuffer_texture_layer(target, attachment, texture, level, layer);
-  gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::RENDERBUFFER, Some( &depthbuffer ) );
-
-  // let framebuffer = FramebufferBuilder::new()
-  // .color_attachment( ColorAttachment::N0, Attachment::Texture( positionbuffer ) )
-  // .color_attachment( ColorAttachment::N1, Attachment::Texture( normalbuffer ) )
-  // .depth_attachment( DepthAttachment::Depth, Attachment::Renderbuffer( depthbuffer ) )
-  // .build( &gl )?;
+  let mut framebuffer = Framebuffer::new( &gl )?;
+  framebuffer.texture_2d( AttachmentType::Color( Color::N0 ), positionbuffer.as_ref(), 0, &gl );
+  framebuffer.texture_2d( AttachmentType::Color( Color::N1 ), normalbuffer.as_ref(), 0, &gl );
+  framebuffer.renderbuffer( AttachmentType::Depth, depthbuffer.as_ref(), &gl );
 
   // draw data into framebuffer
   gl.use_program( Some( &object_shader ) );
-  gl.draw_buffers
-  (
-    &web_sys::js_sys::Array::from_iter
-    (
-      [
-        gl::JsValue::from_f64( GL::COLOR_ATTACHMENT0 as f64 ),
-        gl::JsValue::from_f64( GL::COLOR_ATTACHMENT1 as f64 )
-      ].into_iter()
-    )
-  );
-  // framebuffer.bind_draw( &gl );
+  framebuffer.bind_all_drawbuffers( &gl );
+
 
   for transform in transforms
   {
@@ -131,12 +113,12 @@ async fn run() -> Result< (), gl::WebglError >
   gl.use_program( Some( &deferred_shader ) );
   gl.bind_framebuffer( GL::FRAMEBUFFER, None );
   gl.bind_buffer( GL::UNIFORM_BUFFER, Some( &lights_ubo ) );
+
   gl.active_texture( GL::TEXTURE0 );
-  // gl.bind_texture( GL::TEXTURE_2D, Some( framebuffer[ ColorAttachment::N0 ].unwrap_texture() ) );
-  gl.bind_texture( GL::TEXTURE_2D, Some( &positionbuffer ) );
+  gl.bind_texture( GL::TEXTURE_2D, positionbuffer.as_ref() );
+
   gl.active_texture( GL::TEXTURE1 );
-  // gl.bind_texture( GL::TEXTURE_2D, Some( framebuffer[ ColorAttachment::N1 ].unwrap_texture() ) );
-  gl.bind_texture( GL::TEXTURE_2D, Some( &normalbuffer ) );
+  gl.bind_texture( GL::TEXTURE_2D, normalbuffer.as_ref() );
 
   let draw_loop = move | t |
   {
@@ -157,10 +139,10 @@ async fn run() -> Result< (), gl::WebglError >
   Ok( () )
 }
 
-fn create_tex( gl : &GL, format : u32, width : i32, height : i32 ) -> WebGlTexture
+fn create_tex( gl : &GL, format : u32, width : i32, height : i32 ) -> Option< WebGlTexture >
 {
-  let tex = gl.create_texture().unwrap();
-  gl.bind_texture( GL::TEXTURE_2D, Some( &tex ) );
+  let tex = gl.create_texture();
+  gl.bind_texture( GL::TEXTURE_2D, tex.as_ref() );
   gl.tex_storage_2d( GL::TEXTURE_2D, 1, format, width, height );
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32 );
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::NEAREST as i32 );
