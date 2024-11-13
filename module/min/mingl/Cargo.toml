@@ -79,7 +79,8 @@ web-sys = { workspace = true, optional = true, features = [
   'Request',
   'Response',
   'Location',
-  'DomTokenList'
+  'DomTokenList',
+  'HtmlVideoElement'
 ]}
 
 [dev-dependencies]

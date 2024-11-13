@@ -92,5 +92,7 @@ web-sys = { workspace = true, optional = true, features = [
   'Response',
   'Location',
   'HtmlImageElement',
-  'WebGlTexture'
+  'WebGlTexture',
+  'CanvasRenderingContext2d',
+  'ImageData'
 ]}
