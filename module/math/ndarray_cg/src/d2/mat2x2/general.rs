@@ -4,7 +4,7 @@ impl< E > Mat2< E >
 where 
 E : MatEl + nd::NdFloat
 {
-  /// Returns the determinant of the matrix
+  /// Computes the determinant of the matrix
   pub fn determinant( &self ) -> E
   {
     let a = *self.scalar_ref( Ix2( 0, 0 ) );
@@ -15,6 +15,8 @@ E : MatEl + nd::NdFloat
     a * d - b * c
   }    
 
+  /// Computes the inverse of the matrix.
+  /// If the determinant is zero - return `None`
   pub fn inverse( &self ) -> Option< Self >
   {
     let det = self.determinant();

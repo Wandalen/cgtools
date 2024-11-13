@@ -40,11 +40,14 @@ fn cofactor< E : MatEl + nd::NdFloat >
 impl< E > Mat4< E > 
 where E : MatEl + nd::NdFloat
 {
+  /// Converts the matrix to an array
   pub fn to_array( &self ) -> [ E; 16 ]
   {
     self.raw_slice().try_into().unwrap()
   }
 
+
+  /// Computes the determinant of the matrix
   pub fn determinant( &self ) -> E
   {
     let _a11 = *self.scalar_ref( Ix2( 0, 0 ) );
@@ -66,6 +69,8 @@ where E : MatEl + nd::NdFloat
     _a11 * _det11 - _a12 * _det12 + _a13 * _det13 - _a14 * _det14
   }
 
+  /// Computes the inverse of the matrix.
+  /// If the determinant is zero - return `None`
   pub fn inverse( &self ) -> Option< Self >
   {
     let det = self.determinant();

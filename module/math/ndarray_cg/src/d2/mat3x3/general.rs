@@ -4,6 +4,7 @@ impl< E > Mat3< E >
 where 
 E : MatEl + nd::NdFloat
 {
+  /// Construct a matrix from columns
   pub fn from_cols
   ( 
     x : Vector< E, 3 >,
@@ -23,7 +24,7 @@ E : MatEl + nd::NdFloat
     ])
   }
 
-  /// Returns the determinant of the matrix
+  /// Computes the determinant of the matrix
   pub fn determinant( &self ) -> E
   {
     let a = *self.scalar_ref( Ix2( 0, 0 ) );
@@ -46,6 +47,8 @@ E : MatEl + nd::NdFloat
     ( a * f * h )
   }    
 
+  /// Computes the inverse of the matrix.
+  /// If the determinant is zero - return `None`
   pub fn inverse( &self ) -> Option< Self >
   {
     let det = self.determinant();
