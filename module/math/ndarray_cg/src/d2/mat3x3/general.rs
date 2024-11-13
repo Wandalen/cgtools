@@ -1,8 +1,13 @@
 use crate::*;
 
-impl< E > Mat3< E > 
+impl< E, Descriptor > Mat< 3, 3, E, Descriptor > 
 where 
-E : MatEl + nd::NdFloat
+E : MatEl + nd::NdFloat,
+Descriptor : mat::Descriptor,
+Self : ScalarMut< Scalar = E, Index = Ix2 >,
+Self : RawSliceMut< Scalar = E >,
+Self : ConstLayout< Index = Ix2 >,
+Self : IndexingMut< Scalar = E, Index = Ix2 >
 {
   /// Construct a matrix from columns
   pub fn from_cols

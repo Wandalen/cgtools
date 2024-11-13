@@ -1,8 +1,12 @@
 use crate::*;
 
-impl< E > Mat2< E > 
+impl< E, Descriptor > Mat< 2, 2, E, Descriptor > 
 where 
-E : MatEl + nd::NdFloat
+E : MatEl + nd::NdFloat,
+Descriptor : mat::Descriptor,
+Self : ScalarMut< Scalar = E, Index = Ix2 >,
+Self : RawSliceMut< Scalar = E >,
+Self : ConstLayout< Index = Ix2 >
 {
   /// Computes the determinant of the matrix
   pub fn determinant( &self ) -> E

@@ -2,13 +2,20 @@ use ndarray::Dimension;
 
 use crate::*;
 
-fn minor< E : MatEl + nd::NdFloat >
+fn minor
+< 
+  E : MatEl + nd::NdFloat, 
+  Descriptor : mat::Descriptor 
+>
 ( 
-  from : &Mat4< E >, 
-  to : &mut Mat3< E >, 
+  from : &Mat< 4, 4, E, Descriptor >, 
+  to : &mut Mat< 3, 3, E, Descriptor >, 
   i : usize, 
   j : usize 
 )
+where 
+Mat< 4, 4, E, Descriptor > : RawSliceMut< Scalar = E > + IndexingRef< Scalar = E, Index = Ix2 >,
+Mat< 3, 3, E, Descriptor > : RawSliceMut< Scalar = E >
 {
   for( id, ( _, v ) ) in from
   .iter_indexed_msfirst()
@@ -24,21 +31,34 @@ fn minor< E : MatEl + nd::NdFloat >
   }
 }
 
-fn cofactor< E : MatEl + nd::NdFloat >
+fn cofactor
+< 
+  E : MatEl + nd::NdFloat, 
+  Descriptor : mat::Descriptor 
+>
 ( 
-  from : &Mat4< E >, 
-  to : &mut Mat3< E >, 
+  from : &Mat< 4, 4, E, Descriptor >, 
+  to : &mut Mat< 3, 3, E, Descriptor >,  
   i : usize, 
   j : usize 
 ) -> E
+where 
+Mat< 4, 4, E, Descriptor > : RawSliceMut< Scalar = E > + IndexingRef< Scalar = E, Index = Ix2 >,
+Mat< 3, 3, E, Descriptor > : RawSliceMut< Scalar = E >
 {
   let k = E::from( ( -1i32 ).pow( ( i + j ) as u32 ) ).unwrap();
   minor( from, to, i, j );
   k * to.determinant()
 }
 
-impl< E > Mat4< E > 
-where E : MatEl + nd::NdFloat
+impl< E, Descriptor > Mat< 4, 4, E, Descriptor > 
+where 
+E : MatEl + nd::NdFloat,
+Descriptor : mat::Descriptor,
+Self : ScalarMut< Scalar = E, Index = Ix2 >,
+Self : RawSliceMut< Scalar = E >,
+Self : ConstLayout< Index = Ix2 >,
+Self : IndexingMut< Scalar = E, Index = Ix2 >
 {
   /// Converts the matrix to an array
   pub fn to_array( &self ) -> [ E; 16 ]
