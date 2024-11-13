@@ -111,7 +111,7 @@ clean :
 #
 
 # Default build
-build: build-wasm optimize-wasm update-js-filename replace-shader
+build: build-wasm optimize-wasm
 
 # 1. Build wasm with Trunk
 build-wasm:
@@ -125,21 +125,6 @@ optimize-wasm:
 		$(WASM_OPT) -Os -o $$file $$file; \
 		$(WASM_STRIP) $$file; \
 	done
-
-# 3. Updating js filenames of generated files in index.html
-update-js-filename:
-	@for js_file in $(wildcard $(DIST_DIR)/*.js); do \
-		echo "Correcting JS filename in index.html: $$js_file"; \
-		filename=$$(basename $$js_file); \
-		sed -i -e "s/dynamic_javascript_filename.js/$$filename/g" $(INDEX_HTML); \
-	done
-
-# 4. Replacing default shader code in index.html
-replace-shader: $(SHADER_FILE)
-	@echo "Reading shader code from $(SHADER_FILE)..."
-	@shader_text=$$(sed ':a;N;$$!ba;s/\n/\\\\n\\\\\\n/g;s/\//\\\//g' < $<); \
-	echo "Replacing default shader code in index.html..."; \
-	sed -i -e "s/default_shader_code_text/$$shader_text/g" $(INDEX_HTML)
 
 # Removing generated files (if needed)
 clean-dist:
@@ -172,7 +157,7 @@ check-env:
 # Command list
 .PHONY: deps-install trunk-install binaryen-install wabt-install \
   check-env \
-  build build-wasm optimize-wasm update-js-filename replace-shader clean-dist \
+  build build-wasm optimize-wasm clean-dist \
   audit \
   lint \
   check \

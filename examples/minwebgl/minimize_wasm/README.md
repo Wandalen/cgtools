@@ -1,24 +1,58 @@
-# Compilation config part for minimize wasm size
+# WASM build size optimization
 
-Should be in main workspace file
+A little optimization for decrease builded wasm file.
 
-```toml
-[profile.release]
-lto = true
-opt-level = 'z'
-strip = true  # Automatically strip symbols from the binary.
-codegen-units = 1
-#panic = "abort"  # Commented out because it increases size
+Results:
+
+- WASM size before optimization: 123.5 KB
+- wee_alloc stage: 117.3 KB
+- wasm-opt stage: 79,6 KB
+- wasm-strip stage: 79,4 KB
+- WASM size after optimization: 79.4 KB
+
+## How it works
+
+### wasm-opt
+
+Added line of code to _index.html_:
+
+```html
+<link data-trunk rel="rust" data-wasm-opt="s" />
 ```
 
-# Size of `simple_pbr` optimization results:
+When we build the example with _trunk_ (in release mode), it uses _wasm-opt_ with _s_-level optimization.
 
-Debug size: 304659  
-Release before any size optimizations: 84592
+Size optimization levels of _wasm-opt_:
 
-Release with optimization: 49170  
-Command `wasm-strip <file.wasm>`: 49026  
-Command `wasm-opt -Os -o <output.wasm> <input.wasm>`: 47289  
-Command `wasm-opt -Oz -o <output.wasm> <input.wasm>`: 47292
+- S-level: base size opt.
+- Z-level: most aggressively, but at further potential speed costs.
 
-File `run.sh` compiles and packs wasm file, splits and fixes javascript code in `index.html` to make it load splited parts, join and use as single wasm file
+Shrink methods of _wasm-opt_:
+
+- removing redurant code
+- reducing size of instructions
+- minimizing the number of sections and metadata
+
+### wasm-strip
+
+### wee_alloc
+
+_wee_alloc_ crate is used - an allocator for WASM that reduces the binary size.
+Set _wee_alloc_ as global allocator instead of _std::alloc_ as the latter is for general purpose.
+
+```rust
+#[global_allocator]
+static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+```
+
+The _wee_alloc_ reducing the total amount of allocated memory used by the application and minimizing the use of redundant functions that may not be needed in Wasm environments.
+
+## Building
+
+```bash
+make build
+```
+
+# Spinning triangle
+
+![](./spinning_triangle.gif)
