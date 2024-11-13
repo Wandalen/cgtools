@@ -1,12 +1,11 @@
-mod framebuffer;
 mod shaders;
 
 use minwebgl as gl;
-use gl::GL;
-use framebuffer::*;
+use gl::{ GL, JsFuture };
 use rand::Rng as _;
 use web_sys::
 {
+  js_sys,
   wasm_bindgen::prelude::*,
   MouseEvent,
   WebGlRenderbuffer,
@@ -41,11 +40,12 @@ async fn run() -> Result< (), gl::WebglError >
   let meshes : Box< [ _ ] > = load_meshes( &models, &materials, &gl ).await.into();
 
   // create framebuffer for id texture
-  let mut framebuffer = Framebuffer::new( &gl )?;
-  let id_texture = texture2d( &gl, GL::R32I, width, height ).unwrap();
-  let depthbuffer = depthbuffer( &gl, width, height ).unwrap();
-  framebuffer.attach( Attachment::Texture( id_texture ), GL::COLOR_ATTACHMENT0, &gl );
-  framebuffer.set_depthbuffer( Attachment::Renderbuffer( depthbuffer ), DepthAttachment::Depth, &gl );
+  let id_texture = empty_texture2d( &gl, GL::R32I, width, height );
+  let depthbuffer = depthbuffer( &gl, width, height );
+  let framebuffer = gl.create_framebuffer();
+  gl.bind_framebuffer( GL::FRAMEBUFFER, framebuffer.as_ref() );
+  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, id_texture.as_ref(), 0 );
+  gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::RENDERBUFFER, depthbuffer.as_ref() );
 
   // shader for drawing a single object
   let object_shader = shaders::ObjectShader::new( &gl );
@@ -63,7 +63,7 @@ async fn run() -> Result< (), gl::WebglError >
   gl.use_program( Some( &id_shader.program ) );
 
   // clear id texture with -1 value
-  framebuffer.bind( &gl );
+  gl.bind_framebuffer( GL::FRAMEBUFFER, framebuffer.as_ref() );
   gl.clear_bufferiv_with_i32_array( gl::COLOR, 0, [ -1, -1, -1, -1 ].as_slice() );
   gl.clear( GL::DEPTH_BUFFER_BIT );
 
@@ -113,7 +113,7 @@ async fn run() -> Result< (), gl::WebglError >
       let pos = [ x, y ];
 
       // read id of selected object from texture
-      framebuffer.bind( &gl );
+      gl.bind_framebuffer( GL::FRAMEBUFFER, framebuffer.as_ref() );
       gl.read_buffer( GL::COLOR_ATTACHMENT0 );
       gl.read_pixels_with_array_buffer_view_and_dst_offset
       (
@@ -278,14 +278,34 @@ async fn load_meshes( models : &[ tobj::Model ], materials : &[ tobj::Material ]
 
     let texture = if let Some( name ) = &material.diffuse_texture
     {
-      let img = gl::dom::image::load( &format!( "static/cat/{}", name ) ).await.unwrap();
+      let img = gl::dom::create_image_element( &format!( "static/cat/{}", name ) ).unwrap();
+      // tried to do texture uploading in on_load callback
+      // but i had visual artifacts on the texture
+      // like, some black spots for some reason
+      // so i decided to await for image to load and that worked
+      let load_promise = js_sys::Promise::new
+      (
+        &mut | resolve, reject |
+        {
+          let on_load = Closure::once_into_js
+          (
+            move || { resolve.call0( &JsValue::NULL ).unwrap() }
+          );
+
+          let on_error = Closure::once_into_js
+          (
+            move || { reject.call0( &JsValue::NULL ).unwrap() }
+          );
+
+          img.set_onload( Some( on_load.as_ref().unchecked_ref() ) );
+          img.set_onerror( Some( on_error.as_ref().unchecked_ref() ) );
+        }
+      );
+      JsFuture::from( load_promise ).await.unwrap();
 
       let texture = gl::texture::d2::upload( gl, &img );
       gl.generate_mipmap( GL::TEXTURE_2D );
       gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::LINEAR_MIPMAP_LINEAR as i32 );
-      gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::LINEAR as i32 );
-
-      img.remove();
 
       texture
     }
@@ -330,14 +350,14 @@ fn create_objects() -> Vec< Object >
 
 fn random_rotation() -> glam::Quat
 {
-  let rot_x = rand::thread_rng().gen_range( 0.0..std::f32::consts::PI * 2.0 );
-  let rot_y = rand::thread_rng().gen_range( 0.0..std::f32::consts::PI * 2.0 );
-  let rot_z = rand::thread_rng().gen_range( 0.0..std::f32::consts::PI * 2.0 );
+  let rot_x = rand::thread_rng().gen_range( 0.0 .. std::f32::consts::PI * 2.0 );
+  let rot_y = rand::thread_rng().gen_range( 0.0 .. std::f32::consts::PI * 2.0 );
+  let rot_z = rand::thread_rng().gen_range( 0.0 .. std::f32::consts::PI * 2.0 );
 
   glam::Quat::from_euler( glam::EulerRot::XYZ, rot_x, rot_y, rot_z )
 }
 
-fn texture2d( gl : &GL, internal_format : u32, width : i32, height : i32 ) -> Option< WebGlTexture >
+fn empty_texture2d( gl : &GL, internal_format : u32, width : i32, height : i32 ) -> Option< WebGlTexture >
 {
   let texture = gl.create_texture();
   gl.bind_texture( GL::TEXTURE_2D, texture.as_ref() );
