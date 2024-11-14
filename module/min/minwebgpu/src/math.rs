@@ -7,5 +7,7 @@ mod private
 
 crate::mod_interface!
 {
-   own use ::ndarray::*;
+
+  reuse ::mingl::math;
+
 }

@@ -3,3 +3,8 @@ name = "minwebgl_minimize_wasm"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
+
+[dependencies]
+minwebgl = "0.2"
+cgmath = "0.18.0"
+wee_alloc = "0.4"
