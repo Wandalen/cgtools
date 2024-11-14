@@ -1,10 +1,10 @@
 use crate::*;
 use mdmath_core::vector::inner_product::*;
 
-pub fn from_angle_y< E >( angle : f32 ) -> Mat3< E >
+pub fn from_angle_y< E >( angle : f32 ) -> Mat3< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl + nd::NdFloat,
-  Mat3< E > : RawSliceMut< Scalar = E >
+  Mat3< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >
 {
   let s = E::from( angle.sin() ).unwrap();
   let c = E::from( angle.cos() ).unwrap();
@@ -18,11 +18,11 @@ where
   )
 }
 
-pub fn from_axis_angle< E, Vec3 >( axis : Vec3, angle : f32 ) -> Mat3< E >
+pub fn from_axis_angle< E, Vec3 >( axis : Vec3, angle : f32 ) -> Mat3< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl + nd::NdFloat,
   Vec3 : VectorIter< E, 3 >,
-  Mat3< E > : RawSliceMut< Scalar = E >
+  Mat3< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >
 {
   let s = E::from( angle.sin() ).unwrap();
   let c = E::from( angle.cos() ).unwrap();

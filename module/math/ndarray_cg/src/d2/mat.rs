@@ -251,9 +251,9 @@ mod private
   }
 
 
-  pub type Mat2< E > = Mat< 2, 2, E, DescriptorOrderColumnMajor >;
-  pub type Mat3< E > = Mat< 3, 3, E, DescriptorOrderColumnMajor >;
-  pub type Mat4< E > = Mat< 4, 4, E, DescriptorOrderColumnMajor >;
+  pub type Mat2< E, Descriptor > = Mat< 2, 2, E, Descriptor >;
+  pub type Mat3< E, Descriptor > = Mat< 3, 3, E, Descriptor >;
+  pub type Mat4< E, Descriptor > = Mat< 4, 4, E, Descriptor >;
 
   pub type F32x2x2 = Mat< 2, 2, f32, DescriptorOrderColumnMajor >;
   pub type F32x3x3 = Mat< 3, 3, f32, DescriptorOrderColumnMajor >;

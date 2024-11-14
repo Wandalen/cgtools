@@ -1,13 +1,13 @@
 use crate::*;
 
-impl< E, Descriptor > Mat< 3, 3, E, Descriptor > 
+impl< E, Descriptor > Mat3< E, Descriptor > 
 where 
 E : MatEl + nd::NdFloat,
 Descriptor : mat::Descriptor,
-Self : ScalarMut< Scalar = E, Index = Ix2 >,
-Self : RawSliceMut< Scalar = E >,
-Self : ConstLayout< Index = Ix2 >,
-Self : IndexingMut< Scalar = E, Index = Ix2 >
+Self : RawSliceMut< Scalar = E > +
+       ScalarMut< Scalar = E, Index = Ix2 > + 
+       ConstLayout< Index = Ix2 > + 
+       IndexingMut< Scalar = E, Index = Ix2 >
 {
   /// Construct a matrix from columns
   pub fn from_cols
@@ -59,9 +59,12 @@ Self : IndexingMut< Scalar = E, Index = Ix2 >
     let det = self.determinant();
 
     if det == E::zero() { return None; }
-    let x = Vector::< E, 3 >::try_from( &self.raw_slice()[ 0..3 ] ).unwrap();
-    let y = Vector::< E, 3 >::try_from( &self.raw_slice()[ 3..6 ] ).unwrap();
-    let z = Vector::< E, 3 >::try_from( &self.raw_slice()[ 6..9 ] ).unwrap();
+
+    let mut iter = self.iter_msfirst();
+
+    let x = Vector::< E, 3 >::from( [ *iter.next().unwrap(), *iter.next().unwrap(), *iter.next().unwrap() ] );
+    let y = Vector::< E, 3 >::from( [ *iter.next().unwrap(), *iter.next().unwrap(), *iter.next().unwrap() ] );
+    let z = Vector::< E, 3 >::from( [ *iter.next().unwrap(), *iter.next().unwrap(), *iter.next().unwrap() ] );
 
     let a = y.cross( z );
     let b = z.cross( x );

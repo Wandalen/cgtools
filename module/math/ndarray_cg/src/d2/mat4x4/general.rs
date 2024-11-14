@@ -8,17 +8,17 @@ fn minor
   Descriptor : mat::Descriptor 
 >
 ( 
-  from : &Mat< 4, 4, E, Descriptor >, 
-  to : &mut Mat< 3, 3, E, Descriptor >, 
+  from : &Mat4< E, Descriptor >, 
+  to : &mut Mat3< E, Descriptor >, 
   i : usize, 
   j : usize 
 )
 where 
-Mat< 4, 4, E, Descriptor > : RawSliceMut< Scalar = E > + IndexingRef< Scalar = E, Index = Ix2 >,
-Mat< 3, 3, E, Descriptor > : RawSliceMut< Scalar = E >
+Mat4< E, Descriptor > : RawSliceMut< Scalar = E > + IndexingRef< Scalar = E, Index = Ix2 >,
+Mat3< E, Descriptor > : RawSliceMut< Scalar = E >
 {
   for( id, ( _, v ) ) in from
-  .iter_indexed_msfirst()
+  .iter_indexed_unstable()
   .filter( 
     | ( id, _ ) |
     { 
@@ -37,14 +37,20 @@ fn cofactor
   Descriptor : mat::Descriptor 
 >
 ( 
-  from : &Mat< 4, 4, E, Descriptor >, 
-  to : &mut Mat< 3, 3, E, Descriptor >,  
+  from : &Mat4< E, Descriptor >, 
+  to : &mut Mat3< E, Descriptor >,  
   i : usize, 
   j : usize 
 ) -> E
 where 
-Mat< 4, 4, E, Descriptor > : RawSliceMut< Scalar = E > + IndexingRef< Scalar = E, Index = Ix2 >,
-Mat< 3, 3, E, Descriptor > : RawSliceMut< Scalar = E >
+Mat4< E, Descriptor > : 
+  RawSliceMut< Scalar = E > + 
+  IndexingRef< Scalar = E, Index = Ix2 >,
+Mat3< E, Descriptor > : 
+  RawSliceMut< Scalar = E > + 
+  ScalarRef< Scalar = E, Index = Ix2 > + 
+  ConstLayout< Index = Ix2 > + 
+  IndexingMut< Scalar = E, Index = Ix2 >
 {
   let k = E::from( ( -1i32 ).pow( ( i + j ) as u32 ) ).unwrap();
   minor( from, to, i, j );
@@ -55,10 +61,10 @@ impl< E, Descriptor > Mat< 4, 4, E, Descriptor >
 where 
 E : MatEl + nd::NdFloat,
 Descriptor : mat::Descriptor,
-Self : ScalarMut< Scalar = E, Index = Ix2 >,
-Self : RawSliceMut< Scalar = E >,
-Self : ConstLayout< Index = Ix2 >,
-Self : IndexingMut< Scalar = E, Index = Ix2 >
+Self : ScalarMut< Scalar = E, Index = Ix2 > +
+       RawSliceMut< Scalar = E > + 
+       ConstLayout< Index = Ix2 > + 
+       IndexingMut< Scalar = E, Index = Ix2 >
 {
   /// Converts the matrix to an array
   pub fn to_array( &self ) -> [ E; 16 ]
@@ -69,13 +75,19 @@ Self : IndexingMut< Scalar = E, Index = Ix2 >
 
   /// Computes the determinant of the matrix
   pub fn determinant( &self ) -> E
+  where 
+    Mat< 3, 3, E, Descriptor > : 
+      RawSliceMut< Scalar = E > +
+      ScalarMut< Scalar = E, Index = Ix2 > + 
+      ConstLayout< Index = Ix2 > + 
+      IndexingMut< Scalar = E, Index = Ix2 >
   {
     let _a11 = *self.scalar_ref( Ix2( 0, 0 ) );
     let _a12 = *self.scalar_ref( Ix2( 0, 1 ) );
     let _a13 = *self.scalar_ref( Ix2( 0, 2 ) );
     let _a14 = *self.scalar_ref( Ix2( 0, 3 ) );
 
-    let mut m = Mat3::default();
+    let mut m = Mat3::< E, Descriptor >::default();
 
     minor( self, &mut m, 0, 0 );
     let _det11 = m.determinant();
@@ -92,6 +104,12 @@ Self : IndexingMut< Scalar = E, Index = Ix2 >
   /// Computes the inverse of the matrix.
   /// If the determinant is zero - return `None`
   pub fn inverse( &self ) -> Option< Self >
+  where 
+    Mat< 3, 3, E, Descriptor > : 
+      RawSliceMut< Scalar = E > +
+      ScalarMut< Scalar = E, Index = Ix2 > + 
+      ConstLayout< Index = Ix2 > + 
+      IndexingMut< Scalar = E, Index = Ix2 >
   {
     let det = self.determinant();
 
