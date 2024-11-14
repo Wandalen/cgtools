@@ -1,11 +1,12 @@
 //! Just draw a large point in the middle of the screen.
 
+use light::LightState;
 use minwebgpu::
 {
   self as gl, 
   AsWeb
 };
-use uniform::{UniformRaw, UniformState};
+use uniform::{Uniform, UniformState};
 
 mod uniform;
 mod light;
@@ -121,8 +122,30 @@ async fn run() -> Result< (), gl::WebGPUError >
   let uv_buffer = gl::BufferInitDescriptor::new( &mesh.texcoords, gl::BufferUsage::VERTEX ).create( &device )?;
   let index_buffer = gl::BufferInitDescriptor::new( &mesh.indices, gl::BufferUsage::INDEX ).create( &device )?;
 
-  let uniform_state = UniformState::new( &device )?;
+  // Setup uniform bindgroup
+  let mut uniform_state = UniformState::new( &device )?;
+  let light_state = LightState::new( &device )?;
 
+  let uniform_bind_group_layout = gl::BindGroupLayoutDescriptor::new()
+  .fragment()
+  .auto_bindings()
+  .entry
+  ( 
+    gl::BindGroupLayoutEntry::new()
+    .vertex()
+    .ty( gl::binding_type::buffer() ) 
+  )
+  .entry_from_ty( gl::binding_type::buffer().storage_readonly() )
+  .create( &device )?;
+
+  let uniform_bind_group = gl::BindGroupDescriptor::new( &uniform_bind_group_layout )
+  .auto_bindings()
+  .entry_from_resource( &gl::BufferBinding::new( &uniform_state.buffer ) )
+  .entry_from_resource( &gl::BufferBinding::new( &light_state.buffer ))
+  .create( &device );
+  ///////////////////
+
+  // Setup gbufferr related state
   let gbuffer_bind_group_layout = gl::layout::bind_group::create
   ( 
     &device, 
@@ -140,7 +163,7 @@ async fn run() -> Result< (), gl::WebGPUError >
 
   // Create pipeline layout for the gbuffer render pipeline
   let gbuffer_pipeline_layout = gl::layout::pipeline::desc()
-  .bind_group( &uniform_state.bind_group_layout )
+  .bind_group( &uniform_bind_group_layout )
   .create( &device );
 
   let gbuffer_render_pipeline = gl::render_pipeline::create
@@ -166,9 +189,22 @@ async fn run() -> Result< (), gl::WebGPUError >
     .to_web()
   )?;
 
+  let gbuffer_bind_group = gl::bind_group::create
+  (
+    &device, 
+    &gl::bind_group::desc( &gbuffer_bind_group_layout )
+    .auto_bindings()
+    .entry_from_resource( &albedo_view )
+    .entry_from_resource( &pos_view )
+    .entry_from_resource( &normal_view )
+    .entry_from_resource( &depth_view )
+    .to_web()
+  );
+  ////////////////
+
   // Create pipeline layout for the main render pipeline
   let render_pipeline_layout = gl::layout::pipeline::desc()
-  .bind_group( &uniform_state.bind_group_layout )
+  .bind_group( &uniform_bind_group_layout )
   .bind_group( &gbuffer_bind_group_layout )
   .create( &device );
 
@@ -186,20 +222,8 @@ async fn run() -> Result< (), gl::WebGPUError >
     .to_web()
   )?;
 
-
-  let gbuffer_bind_group = gl::bind_group::create
-  (
-    &device, 
-    &gl::bind_group::desc( &gbuffer_bind_group_layout )
-    .auto_bindings()
-    .entry_from_resource( &albedo_view )
-    .entry_from_resource( &pos_view )
-    .entry_from_resource( &normal_view )
-    .entry_from_resource( &depth_view )
-    .to_web()
-  );
-
-  let eye = gl::math::F32x3::from( [ 20.0, 30.0, 0.0 ] );
+  // Define camera related parameters
+  let eye = gl::math::F32x3::from( [ 200.0, 200.0, 0.0 ] );
   let center = gl::math::F32x3::ZERO;
   let up = gl::math::F32x3::Y;
 
@@ -222,15 +246,15 @@ async fn run() -> Result< (), gl::WebGPUError >
       let eye = rot * eye;
 
       let view_matrix = gl::math::mat3x3h::loot_at_rh( eye, center, up );
-      let uniform_raw = UniformRaw
+      uniform_state.uniform = Uniform
       {
-        view_matrix : view_matrix.to_array(),
-        projection_matrix : projection_matrix.to_array(),
-        camera_pos : eye.to_array(),
-        ..Default::default()
+        view_matrix,
+        projection_matrix,
+        camera_pos : eye,
+        time : t as f32
       };
 
-      uniform_state.update( &queue, uniform_raw ).unwrap();
+      uniform_state.update( &queue ).unwrap();
 
       let encoder = device.create_command_encoder();
       // Gbuffer pass
@@ -246,7 +270,7 @@ async fn run() -> Result< (), gl::WebGPUError >
         ).unwrap();
 
         render_pass.set_pipeline( &gbuffer_render_pipeline );
-        render_pass.set_bind_group( 0, Some( &uniform_state.bind_group ) );
+        render_pass.set_bind_group( 0, Some( &uniform_bind_group ) );
         render_pass.set_vertex_buffer( 0, Some( &pos_buffer ) );
         render_pass.set_vertex_buffer( 1, Some( &normal_buffer ) );
         render_pass.set_vertex_buffer( 2, Some( &uv_buffer ) );
@@ -265,7 +289,7 @@ async fn run() -> Result< (), gl::WebGPUError >
         ).unwrap();
 
         render_pass.set_pipeline( &render_pipeline );
-        render_pass.set_bind_group( 0, Some( &uniform_state.bind_group ) );
+        render_pass.set_bind_group( 0, Some( &uniform_bind_group ) );
         render_pass.set_bind_group( 1, Some( &gbuffer_bind_group ) );
         render_pass.draw( 4 );
         render_pass.end();

@@ -38,7 +38,7 @@ mod private
     }
 
     /// Sets the `visibility` to `All`
-    pub fn all( mut self ) -> Self
+    pub fn all( self ) -> Self
     {
       self.fragment().compute().vertex()
     }

@@ -22,6 +22,7 @@ crate::mod_interface!
 {
   own use
   {
-    desc
+    desc,
+    create
   };
 }

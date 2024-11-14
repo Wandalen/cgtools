@@ -19,7 +19,8 @@ struct Uniforms
 {
   view_matrix : mat4x4< f32 >,
   projection_matrix : mat4x4< f32 >,
-  camera_pos : vec3f
+  camera_pos : vec3f,
+  time : f32
 }
 
 @group( 0 ) @binding( 0 ) var< uniform > uniforms : Uniforms;
@@ -29,10 +30,10 @@ fn vs_main( input : VSInput ) -> VSOutput
 {
   var output : VSOutput;
   output.position = input.position;
-  output.albedo = vec4( 1.0, 0.0, 0.0, 1.0 );
+  output.albedo = vec4( 1.0, 1.0, 1.0, 1.0 );
   output.normal = input.normal;
   output.uv = input.uv;
-  output.clip_pos = uniforms.projection_matrix * uniforms.view_matrix * vec4f( input.position * 10.0, 1.0 );
+  output.clip_pos = uniforms.projection_matrix * uniforms.view_matrix * vec4f( ( input.position - vec3f( -0.2, 0.0, 0.1 ) ) * 100.0, 1.0 );
   return output;
 }
 

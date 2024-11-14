@@ -2,10 +2,21 @@ struct Uniforms
 {
   view_matrix : mat4x4< f32 >,
   projection_matrix : mat4x4< f32 >,
-  camera_pos : vec3f
+  camera_pos : vec3f,
+  time : f32
+}
+
+struct Light
+{
+  color : vec3f,
+  phase : f32,
+  velocity : vec3f,
+  power : f32
 }
 
 @group( 0 ) @binding( 0 ) var< uniform > uniforms : Uniforms;
+@group( 0 ) @binding( 1 ) var< storage > lights : array< Light >;
+
 @group( 1 ) @binding( 0 ) var albedo_texture : texture_2d< f32 >;
 @group( 1 ) @binding( 1 ) var pos_texture : texture_2d< f32 >;
 @group( 1 ) @binding( 2 ) var normal_texture : texture_2d< f32 >;
@@ -41,20 +52,31 @@ fn fs_main( @builtin( position ) coords : vec4f ) -> @location( 0 ) vec4f
 
   let albedo = textureLoad( albedo_texture, uv, 0 ).rgb;
   let position = textureLoad( pos_texture, uv, 0 ).rgb;
-  let normal = textureLoad( normal_texture, uv, 0 ).rgb;
+  let normal = normalize( textureLoad( normal_texture, uv, 0 ).rgb );
 
   let view_dir = normalize( uniforms.camera_pos - position );
-  let light_dir = normalize( vec3f( 1.0 ) );
-  let light_color = vec3f( 1.0 );
+  var color = vec3f( 0.0 );
+  for( var i : u32 = 0; i < arrayLength( &lights ); i += u32( 1 ) )
+  {
+    let light = lights[ i ];
+    // Animate light's position
+    let light_pos = abs( sin( light.phase + uniforms.time / 2000.0 ) ) * light.velocity;
 
-  let NdotL = saturate( dot( normal, light_dir ) ) + 0.00001;
-  let half = normalize( view_dir + light_dir );
-  let phong_value = pow( saturate( dot( half, normal ) ), 64.0 );
+    // Discard light if its radius is smaller than the distance to the shading point
+    let dist = length( light_pos - position );
+    if dist > 13.0 { continue; }
 
-  let ambient_light = vec3f( 1.0 );
-  let ambient_scale = 0.1;
+    let light_dir = normalize( light_pos - position );
+    // Taken from here https://learnopengl.com/Lighting/Light-casters
+    let attenuation = 1.0 / ( 1.0 + 0.35 * dist + 0.44 * dist * dist );
 
-  let color = ambient_light * ambient_scale + ( albedo + light_color * phong_value / NdotL ) * NdotL;
+    let NdotL = saturate( dot( normal, light_dir ) );
+    let half = normalize( view_dir + light_dir );
+    let phong_value = pow( saturate( dot( half, normal ) ), 64.0 );
+
+    // Bling-Phong model
+    color += ( albedo * NdotL + phong_value ) * light.color * light.power * attenuation; 
+  }
 
   return vec4f( color, 1.0 );
 }

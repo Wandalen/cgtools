@@ -8,14 +8,14 @@ mod private
     queue.submit( &Vec::from( [ buffer ] ).into() );
   }
 
-  pub fn write_buffer< T : mem::NoUninit >
+  pub fn write_buffer< T : mem::Pod >
   ( 
     queue : &web_sys::GpuQueue,
     buffer : &web_sys::GpuBuffer, 
-    data : T 
+    data : &[ T ] 
   ) -> Result< (), WebGPUError >
   {
-    queue.write_buffer_with_f64_and_u8_slice( buffer, 0.0, mem::cast_slice( &[ data ] ) )
+    queue.write_buffer_with_f64_and_u8_slice( buffer, 0.0, mem::cast_slice( data ) )
     .map_err( | e | BufferError::FailedWriteToBuffer( format!( "{:?}", e ) ))?;
 
     Ok( () )

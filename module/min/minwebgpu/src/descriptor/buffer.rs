@@ -39,7 +39,7 @@ mod private
     }
 
     /// Set size from the provided variable, i.e. use std::mem::size_of_val
-    pub fn size_from_var< T >( mut self, var : &T ) -> Self
+    pub fn size_from_var< T : ?Sized >( mut self, var : &T ) -> Self
     {
       self.size = std::mem::size_of_val( var ) as f64;
       self

@@ -2,63 +2,66 @@ use minwebgpu::{self as gl, WebGPUError};
 use gl::web_sys;
 
 #[ repr( C ) ]
-#[ derive( Clone, Copy, bytemuck::NoUninit, Default ) ]
+#[ derive( Clone, Copy, gl::mem::Pod, gl::mem::Zeroable ) ]
 pub struct UniformRaw
 {
   pub view_matrix : [ f32; 16 ],
   pub projection_matrix : [ f32; 16 ],
   pub camera_pos : [ f32; 3 ],
-  pub _padding : [ f32; 1 ]
+  pub time : f32
 }
 
-
+#[ derive( Default ) ]
 pub struct Uniform
 {
-  view_matrix : gl::math::Mat4< f32 >,
-  projection_matrix : gl::math::Mat4< f32 >,
-  camera_pos : gl::math::F32x3
+  pub view_matrix : gl::math::Mat4< f32 >,
+  pub projection_matrix : gl::math::Mat4< f32 >,
+  pub camera_pos : gl::math::F32x3,
+  pub time : f32
+}
+
+impl Uniform 
+{
+  pub fn as_raw( &self ) -> UniformRaw
+  {
+    UniformRaw
+    {
+      view_matrix : self.view_matrix.to_array(),
+      projection_matrix : self.projection_matrix.to_array(),
+      camera_pos : self.camera_pos.to_array(),
+      time : self.time
+    }
+  }   
 }
 
 pub struct UniformState
 {
-  pub buffer : web_sys::GpuBuffer,
-  pub bind_group : web_sys::GpuBindGroup,
-  pub bind_group_layout : web_sys::GpuBindGroupLayout
+  pub uniform  : Uniform,
+  pub buffer : web_sys::GpuBuffer
 }
 
 impl UniformState 
 {
   pub fn new( device: &web_sys::GpuDevice ) -> Result< Self, WebGPUError >
   {
+    let uniform = Uniform::default();
     let buffer = gl::BufferDescriptor::new( gl::BufferUsage::UNIFORM | gl::BufferUsage::COPY_DST )
     .size::< UniformRaw >()
     .create( device )?;
-
-    let bind_group_layout = gl::BindGroupLayoutDescriptor::new()
-    .all()
-    .auto_bindings()
-    .entry_from_ty( gl::binding_type::buffer() )
-    .create( device )?;
-
-    let bind_group = gl::BindGroupDescriptor::new( &bind_group_layout )
-    .auto_bindings()
-    .entry_from_resource( &gl::BufferBinding::new( &buffer ) )
-    .create( device );
 
     Ok
     (
       UniformState
       {
-        buffer,
-        bind_group,
-        bind_group_layout
+        uniform,
+        buffer
       }
     )
   } 
 
-  pub fn update( &self, queue : &web_sys::GpuQueue,  raw : UniformRaw ) -> Result< (), WebGPUError >
+  pub fn update( &self, queue : &web_sys::GpuQueue ) -> Result< (), WebGPUError >
   {
-    gl::queue::write_buffer( queue, &self.buffer, raw )?;
+    gl::queue::write_buffer( queue, &self.buffer, &[ self.uniform.as_raw() ] )?;
     Ok( () )
   }   
 }

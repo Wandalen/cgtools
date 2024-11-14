@@ -11,6 +11,8 @@ license = "MIT"
 [dependencies]
 tobj =  { workspace = true }
 bytemuck = { workspace = true }
+rand = "0.8.5"
+getrandom = { version = "0.2", features = ["js"] }
 
 [dependencies.minwebgpu]
 workspace = true
