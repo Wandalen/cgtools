@@ -2,7 +2,6 @@ mod private
 {
   use crate::*;
   use crate as gl;
-  use std::collections::HashMap;
   use web_sys::
   {
     WebGlFramebuffer,
@@ -33,6 +32,14 @@ mod private
     N13,
     N14,
     N15,
+  }
+
+  impl Into< u32 > for ColorAttachment
+  {
+    fn into( self ) -> u32
+    {
+      self as u32
+    }
   }
 
   #[ derive( Default, Clone, Copy ) ]
