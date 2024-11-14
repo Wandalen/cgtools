@@ -75,7 +75,8 @@ mod private
       self.attachments = [ GL::NONE; MAX_COLOR_ATTACHMENTS ];
     }
 
-    pub fn as_drawbuffers() -> js_sys::Array
+    /// Converts to an array intended to be passed into gl.draw_buffers
+    pub fn as_drawbuffers( &self ) -> js_sys::Array
     {
       let last = self.attachments.iter().rposition( | item | *item != GL::NONE ).map_or( 0, | pos | pos + 1 );
       js_sys::Array::from_iter( self.attachments[ .. last ].iter().map( | item | JsValue::from_f64( *item as f64 ) ) )
