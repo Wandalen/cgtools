@@ -16,7 +16,10 @@ crate::mod_interface!
     perspective_rh,
     perspective_rh_gl,
     loot_to_rh,
-    loot_at_rh
+    loot_at_rh,
+    rot,
+    scale,
+    translate,
   };
 
 }

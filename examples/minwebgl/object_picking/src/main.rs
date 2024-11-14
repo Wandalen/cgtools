@@ -2,6 +2,7 @@ mod shaders;
 
 use minwebgl as gl;
 use gl::{ GL, JsFuture };
+use ndarray_cg::{ d2, vector };
 use rand::Rng as _;
 use web_sys::
 {
@@ -57,7 +58,7 @@ async fn run() -> Result< (), gl::WebglError >
   let objects : Box< [ _ ] > = create_objects().into();
 
   let aspect_ratio = width as f32 / height as f32;
-  let projection = glam::Mat4::perspective_rh( 45.0_f32.to_radians(), aspect_ratio, 0.1, 1000.0 );
+  let projection = d2::mat3x3h::perspective_rh_gl( 45.0_f32.to_radians(), aspect_ratio, 0.1, 1000.0 );
 
   // draw ids into texture
   gl.use_program( Some( &id_shader.program ) );
@@ -71,7 +72,7 @@ async fn run() -> Result< (), gl::WebglError >
   for object in objects.as_ref()
   {
     let mvp = projection * object.transform;
-    gl::uniform::matrix_upload( &gl, id_shader.mvp.clone(), mvp.to_cols_array().as_slice(), true ).unwrap();
+    gl::uniform::matrix_upload( &gl, id_shader.mvp.clone(), mvp.raw_slice(), true ).unwrap();
     gl::uniform::upload( &gl, id_shader.id.clone(), &object.id ).unwrap();
     draw_meshes( &meshes, &gl );
   }
@@ -84,7 +85,7 @@ async fn run() -> Result< (), gl::WebglError >
   (
     &gl,
     object_shader.projection_view.clone(),
-    projection.to_cols_array().as_slice(),
+    projection.raw_slice(),
     true
   ).unwrap();
 
@@ -153,13 +154,11 @@ fn draw_outline
   outline_shader : &shaders::OutlineShader,
   meshes : &[ Mesh ],
   selected : i32,
-  projection : glam::Mat4,
+  projection : d2::Mat4< f32 >,
   gl : &GL,
 )
 {
   let transform = objects[ selected as usize ].transform;
-  let nmat = transform.matrix3.inverse().transpose();
-  let model : glam::Mat4 = transform.into();
 
   // this is not the optimal way to draw an outline
   // but it is done so for simplicity
@@ -171,12 +170,12 @@ fn draw_outline
   // draw outline
   gl.use_program( Some( &outline_shader.program ) );
   gl::uniform::matrix_upload
-    (
-      &gl,
-      outline_shader.mvp.clone(),
-      ( projection * model ).to_cols_array().as_slice(),
-      true
-    ).unwrap();
+  (
+    &gl,
+    outline_shader.mvp.clone(),
+    ( projection * transform ).raw_slice(),
+    true
+  ).unwrap();
 
   gl.disable( GL::DEPTH_TEST );
   draw_meshes( meshes.as_ref(), &gl );
@@ -184,19 +183,12 @@ fn draw_outline
   // draw object
   gl.use_program( Some( &object_shader.program ) );
   gl::uniform::matrix_upload
-    (
-      &gl,
-      object_shader.model.clone(),
-      model.to_cols_array().as_slice(),
-      true
-    ).unwrap();
-  gl::uniform::matrix_upload
-    (
-      &gl,
-      object_shader.norm_mat.clone(),
-      nmat.to_cols_array().as_slice(),
-      true
-    ).unwrap();
+  (
+    &gl,
+    object_shader.model.clone(),
+    transform.raw_slice(),
+    true
+  ).unwrap();
 
   gl.enable( GL::DEPTH_TEST );
   gl.clear( GL::DEPTH_BUFFER_BIT );
@@ -207,22 +199,11 @@ fn draw_objects( objects : &[ Object ], object_shader : &shaders::ObjectShader, 
 {
   for object in objects
   {
-    let transform = object.transform;
-    let nmat = transform.matrix3.inverse().transpose();
-    let model : glam::Mat4 = transform.into();
-
     gl::uniform::matrix_upload
     (
       gl,
       object_shader.model.clone(),
-      model.to_cols_array().as_slice(),
-      true
-    ).unwrap();
-    gl::uniform::matrix_upload
-    (
-      gl,
-      object_shader.norm_mat.clone(),
-      nmat.to_cols_array().as_slice(),
+      object.transform.raw_slice(),
       true
     ).unwrap();
 
@@ -324,37 +305,36 @@ fn create_objects() -> Vec< Object >
 {
   let transforms =
   [
-    ( random_rotation(), glam::vec3( -200.0,  100.0, -400.0 ) ),
-    ( random_rotation(), glam::vec3( -100.0,  100.0, -400.0 ) ),
-    ( random_rotation(), glam::vec3(    0.0,  100.0, -400.0 ) ),
-    ( random_rotation(), glam::vec3(  100.0,  100.0, -400.0 ) ),
-    ( random_rotation(), glam::vec3(  200.0,  100.0, -400.0 ) ),
-    ( random_rotation(), glam::vec3( -200.0,    0.0, -400.0 ) ),
-    ( random_rotation(), glam::vec3( -100.0,    0.0, -400.0 ) ),
-    ( random_rotation(), glam::vec3(    0.0,    0.0, -400.0 ) ),
-    ( random_rotation(), glam::vec3(  100.0,    0.0, -400.0 ) ),
-    ( random_rotation(), glam::vec3(  200.0,    0.0, -400.0 ) ),
-    ( random_rotation(), glam::vec3( -200.0, -100.0, -400.0 ) ),
-    ( random_rotation(), glam::vec3( -100.0, -100.0, -400.0 ) ),
-    ( random_rotation(), glam::vec3(    0.0, -100.0, -400.0 ) ),
-    ( random_rotation(), glam::vec3(  100.0, -100.0, -400.0 ) ),
-    ( random_rotation(), glam::vec3(  200.0, -100.0, -400.0 ) ),
+    ( random_rotation(), vector::F32x3::new( -200.,  100., -400. ) ),
+    ( random_rotation(), vector::F32x3::new( -100.,  100., -400. ) ),
+    ( random_rotation(), vector::F32x3::new(    0.,  100., -400. ) ),
+    ( random_rotation(), vector::F32x3::new(  100.,  100., -400. ) ),
+    ( random_rotation(), vector::F32x3::new(  200.,  100., -400. ) ),
+    ( random_rotation(), vector::F32x3::new( -200.,    0., -400. ) ),
+    ( random_rotation(), vector::F32x3::new( -100.,    0., -400. ) ),
+    ( random_rotation(), vector::F32x3::new(    0.,    0., -400. ) ),
+    ( random_rotation(), vector::F32x3::new(  100.,    0., -400. ) ),
+    ( random_rotation(), vector::F32x3::new(  200.,    0., -400. ) ),
+    ( random_rotation(), vector::F32x3::new( -200., -100., -400. ) ),
+    ( random_rotation(), vector::F32x3::new( -100., -100., -400. ) ),
+    ( random_rotation(), vector::F32x3::new(    0., -100., -400. ) ),
+    ( random_rotation(), vector::F32x3::new(  100., -100., -400. ) ),
+    ( random_rotation(), vector::F32x3::new(  200., -100., -400. ) ),
   ];
 
   transforms
   .into_iter()
   .enumerate()
-  .map( | ( i, ( r, t ) ) | Object { transform : glam::Affine3A::from_rotation_translation( r, t ), id : i as i32 } )
+  .map( | ( i, ( r, t ) ) | Object { transform : d2::mat3x3h::translate( t ) * r, id : i as i32 } )
   .collect()
 }
 
-fn random_rotation() -> glam::Quat
+fn random_rotation() -> ndarray_cg::Mat4< f32 >
 {
-  let rot_x = rand::thread_rng().gen_range( 0.0 .. std::f32::consts::PI * 2.0 );
-  let rot_y = rand::thread_rng().gen_range( 0.0 .. std::f32::consts::PI * 2.0 );
-  let rot_z = rand::thread_rng().gen_range( 0.0 .. std::f32::consts::PI * 2.0 );
-
-  glam::Quat::from_euler( glam::EulerRot::XYZ, rot_x, rot_y, rot_z )
+  let rot_x = rand::thread_rng().gen_range( 0. .. std::f32::consts::PI * 2. );
+  let rot_y = rand::thread_rng().gen_range( 0. .. std::f32::consts::PI * 2. );
+  let rot_z = rand::thread_rng().gen_range( 0. .. std::f32::consts::PI * 2. );
+  d2::mat3x3h::rot( rot_x, rot_y, rot_z )
 }
 
 fn empty_texture2d( gl : &GL, internal_format : u32, width : i32, height : i32 ) -> Option< WebGlTexture >
@@ -377,7 +357,7 @@ fn depthbuffer( gl : &GL, width : i32, height : i32 ) -> Option< WebGlRenderbuff
 
 struct Object
 {
-  transform : glam::Affine3A,
+  transform : ndarray_cg::Mat4< f32 >,
   id : i32,
 }
 
