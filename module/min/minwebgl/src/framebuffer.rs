@@ -69,6 +69,11 @@ mod private
       let index = attachment as usize - ColorAttachment::N0 as usize;
       self.attachments[ index ] = GL::NONE;
     }
+
+    pub fn clear( &mut self )
+    {
+      self.attachments = [ GL::NONE; MAX_COLOR_ATTACHMENTS ];
+    }
   }
 
   impl Into< js_sys::Array > for Attachments
