@@ -7,7 +7,7 @@ license = "MIT"
 
 [dependencies]
 minwebgl = { workspace = true }
-glam = "0.29.0"
+ndarray_cg = { workspace = true }
 photon-rs = { git = "https://github.com/silvia-odwyer/photon.git" }
 web-sys = { workspace = true, features = [
   'Document', 

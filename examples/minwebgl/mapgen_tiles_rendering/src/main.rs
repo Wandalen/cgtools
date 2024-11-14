@@ -1,27 +1,7 @@
-/*
-
-let window = web_sys::window().expect( "Should have a window" );
-  let document = window.document().expect( "Should have a document" );
-  let Some(canvas) = document.get_element_by_id("canvas_buffer") else {
-    return;
-  };
-  let Ok(canvas) = canvas.dyn_into::< web_sys::HtmlCanvasElement >() else {
-    return;
-  };
-  let Ok(ctx) = canvas.get_context("2d").unwrap()
-    .unwrap().dyn_into::< web_sys::CanvasRenderingContext2d >() else {
-    return;
-  };
-
-  let on_load_callback: Box< dyn Fn( &web_sys::HtmlImageElement ) > = Box::new(|img : &web_sys::HtmlImageElement|{
-    web_sys::Url::revoke_object_url(&img.src());
-  });
-
-*/
-
 //! Just draw a large point in the middle of the screen.
 
 use minwebgl as gl;
+use ndarray_cg::mat::DescriptorOrderRowMajor;
 use photon_rs::PhotonImage;
 use web_sys::{js_sys, wasm_bindgen::prelude::*, HtmlCanvasElement};
 use gl::{ GL };
@@ -142,30 +122,28 @@ fn prepare_vertex_attributes(){
   gl.bind_vertex_array( Some( &vao ) );
 }
 
-fn create_mvp() -> glam::Mat4{
+fn create_mvp() -> ndarray_cg::Mat<4,4, f32, DescriptorOrderRowMajor>{
   let gl = gl::context::retrieve_or_make().unwrap();
 
   let width = gl.drawing_buffer_width() as f32;
   let height = gl.drawing_buffer_height() as f32;
   let aspect_ratio = width / height;
-  let perspective_matrix = glam::Mat4::perspective_rh_gl(
+
+  let perspective_matrix = ndarray_cg::d2::mat3x3h::perspective_rh_gl(
      70.0f32.to_radians(),  
      aspect_ratio, 
      0.1, 
      1000.0
   );
 
-  let model_matrix = glam::Mat4::from_scale_rotation_translation(
-    glam::Vec3::ONE / 1.5, 
-    glam::Quat::from_rotation_z( 0.0 ), 
-    glam::Vec3::ZERO
-  );
+  let translate = ndarray_cg::mat3x3h::translate( [ 0.0, 0.0, 0.0 ] );
+  let scale = ndarray_cg::mat3x3h::scale( [ 2.0/3.0, 2.0/3.0, 2.0/3.0 ] );
 
-  let eye = glam::Vec3::Z;
-  let up = glam::Vec3::Y;
-  let view_matrix = glam::Mat4::look_at_rh( eye, glam::Vec3::ZERO, up );
+  let eye = vec![0.0, 0.0, 1.0];
+  let up = vec![0.0, 1.0, 0.0];
+  let view_matrix = ndarray_cg::d2::mat3x3h::loot_at_rh( eye, vec![0.0, 0.0, 0.0], up );
   
-  let mvp = perspective_matrix * view_matrix * model_matrix;
+  let mvp = perspective_matrix * view_matrix * translate * scale;
   mvp
 }
 
@@ -208,7 +186,7 @@ fn prepare_texture_array( id: &str, layers: i32, texture_id: u32 ) -> Option<web
   texture_array
 }
 
-fn prepare_texture1u( data: &[u8], size: glam::IVec2, texture_id: u32 ) -> Option<web_sys::WebGlTexture>{
+fn prepare_texture1u( data: &[u8], size: (i32, i32), texture_id: u32 ) -> Option<web_sys::WebGlTexture>{
   let gl = gl::context::retrieve_or_make().unwrap();
 
   let texture = gl.create_texture();
@@ -219,8 +197,8 @@ fn prepare_texture1u( data: &[u8], size: glam::IVec2, texture_id: u32 ) -> Optio
     GL::TEXTURE_2D,
     0,
     GL::R8UI as i32,
-    size.x,
-    size.y,
+    size.0,
+    size.1,
     0,
     GL::RED_INTEGER,
     GL::UNSIGNED_BYTE,
@@ -279,7 +257,7 @@ fn update(){
 
   let mvp = create_mvp();
   let mvp_location = gl.get_uniform_location( &program, "mvp" );
-  gl::uniform::matrix_upload( &gl, mvp_location, &mvp.to_cols_array()[ .. ], true ).unwrap();
+  gl::uniform::matrix_upload( &gl, mvp_location, &mvp[ .. ], false ).unwrap();
 
   prepare_vertex_attributes();
   let tiles_texture = prepare_texture_array("tileset.png", 6, GL::TEXTURE0) else {
@@ -305,7 +283,7 @@ fn update(){
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
   ];
 
-  let size = glam::IVec2::new(16, 16);
+  let size = (16, 16);
   let map_texture = prepare_texture1u(&data, size.clone(), GL::TEXTURE1) else{
     return;
   };
@@ -316,7 +294,7 @@ fn update(){
   gl.uniform1i(tiles_location.as_ref(), 0);
   gl.uniform1i(map_location.as_ref(), 1);
 
-  let texel_size = [ 1.0 / size.x as f32, 1.0 / size.y as f32 ];
+  let texel_size = [ 1.0 / size.0 as f32, 1.0 / size.1 as f32 ];
   let texel_size_location = gl.get_uniform_location( &program, "texel_size" );
   gl::uniform::upload( &gl, texel_size_location, texel_size.as_slice() );
 
