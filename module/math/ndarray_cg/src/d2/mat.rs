@@ -251,9 +251,17 @@ mod private
   }
 
 
-  pub type Mat2< E > = Mat< 2, 2, E, DescriptorOrderColumnMajor >;
-  pub type Mat3< E > = Mat< 3, 3, E, DescriptorOrderColumnMajor >;
-  pub type Mat4< E > = Mat< 4, 4, E, DescriptorOrderColumnMajor >;
+  pub type Mat2< E, Descriptor > = Mat< 2, 2, E, Descriptor >;
+  pub type Mat3< E, Descriptor > = Mat< 3, 3, E, Descriptor >;
+  pub type Mat4< E, Descriptor > = Mat< 4, 4, E, Descriptor >;
+
+  pub type F32x2x2 = Mat< 2, 2, f32, DescriptorOrderColumnMajor >;
+  pub type F32x3x3 = Mat< 3, 3, f32, DescriptorOrderColumnMajor >;
+  pub type F32x4x4 = Mat< 4, 4, f32, DescriptorOrderColumnMajor >;
+
+  pub type F64x2x2 = Mat< 2, 2, f64, DescriptorOrderColumnMajor >;
+  pub type F64x3x3 = Mat< 3, 3, f64, DescriptorOrderColumnMajor >;
+  pub type F64x4x4 = Mat< 4, 4, f64, DescriptorOrderColumnMajor >;
 }
 
 mod access_common;
@@ -287,7 +295,13 @@ crate::mod_interface!
     Mat,
     Mat2,
     Mat3,
-    Mat4
+    Mat4,
+    F32x2x2,
+    F32x3x3,
+    F32x4x4,
+    F64x2x2,
+    F64x3x3,
+    F64x4x4
   };
 
 }

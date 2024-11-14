@@ -24,10 +24,10 @@ pub fn perspective_rh_gl< E >
   z_near : E,
   z_far : E
 )
-->  Mat4< E >
+->  Mat4< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl + nd::NdFloat,
-  Mat4< E > : RawSliceMut< Scalar = E >,
+  Mat4< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >,
 {
   let two = E::from( 2.0 ).unwrap();
   let f = E::one() / ( fovy / two ).tan();
@@ -58,10 +58,10 @@ pub fn perspective_rh< E >
   z_near : E,
   z_far : E
 )
-->  Mat4< E >
+->  Mat4< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl + nd::NdFloat,
-  Mat4< E > : RawSliceMut< Scalar = E >,
+  Mat4< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >,
 {
   let two = E::from( 2.0 ).unwrap();
   let f = E::one() / ( fovy / two ).tan();
@@ -94,11 +94,11 @@ pub fn loot_to_rh< E, Vec3 >
   dir : Vec3,
   up : Vec3
 )
-->  Mat4< E >
+->  Mat4< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl + nd::NdFloat,
   Vec3 : VectorIterMut< E, 3 > + VectorRef< E, 3 > + Clone,
-  Mat4< E > : RawSliceMut< Scalar = E >,
+  Mat4< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >,
 {
   let z = normalized( &dir );
   let x = normalized( &cross( &z, &up ) );
@@ -135,11 +135,11 @@ pub fn loot_at_rh< E, Vec3 >
   center : Vec3,
   up : Vec3
 )
-->  Mat4< E >
+->  Mat4< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl + nd::NdFloat,
   Vec3 : VectorIterMut< E, 3 > + VectorRef< E, 3 > + Clone,
-  Mat4< E > : RawSliceMut< Scalar = E >,
+  Mat4< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >,
 {
   let dir = sub( &center, &eye );
   loot_to_rh( eye, dir, up )

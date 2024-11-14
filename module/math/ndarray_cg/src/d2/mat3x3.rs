@@ -4,6 +4,7 @@ mod private
 }
 
 mod transformation;
+mod general;
 
 crate::mod_interface!
 {
