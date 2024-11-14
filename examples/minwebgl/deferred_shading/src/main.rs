@@ -1,12 +1,10 @@
-mod framebuffer;
-
-use minwebgl as gl;
+use minwebgl::{self as gl, JsValue};
 use gl::{ GL, JsCast as _ };
-use framebuffer::*;
 use bytemuck::NoUninit;
 use ndarray_cg::d2::Mat4;
 use web_sys::
 {
+  js_sys::Array,
   HtmlCanvasElement,
   WebGlTexture,
   WebGlVertexArrayObject
@@ -81,15 +79,17 @@ async fn run() -> Result< (), gl::WebglError >
   gl.bind_renderbuffer( GL::RENDERBUFFER, depthbuffer.as_ref() );
   gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH_COMPONENT16, width, height );
 
-  let mut framebuffer = Framebuffer::new( &gl )?;
-  framebuffer.texture_2d( AttachmentType::Color( Color::N0 ), positionbuffer.as_ref(), 0, &gl );
-  framebuffer.texture_2d( AttachmentType::Color( Color::N1 ), normalbuffer.as_ref(), 0, &gl );
-  framebuffer.renderbuffer( AttachmentType::Depth, depthbuffer.as_ref(), &gl );
+  let framebuffer = gl.create_framebuffer();
+  gl.bind_framebuffer( GL::FRAMEBUFFER, framebuffer.as_ref() );
+  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, positionbuffer.as_ref(), 0 );
+  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, normalbuffer.as_ref(), 0 );
+  gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::RENDERBUFFER, depthbuffer.as_ref() );
 
   // draw data into framebuffer
   gl.use_program( Some( &object_shader ) );
-  framebuffer.bind_all_drawbuffers( &gl );
 
+  let col = [ JsValue::from_f64( GL::COLOR_ATTACHMENT0 as f64 ), JsValue::from_f64( GL::COLOR_ATTACHMENT1 as f64 ) ];
+  gl.draw_buffers( &Array::from_iter( col.iter() ) );
 
   for transform in transforms
   {
@@ -128,7 +128,7 @@ async fn run() -> Result< (), gl::WebglError >
     {
       light.position[ 2 ] += 80. + -time % 8. * 20.;
     }
-    gl.buffer_sub_data_with_f64_and_u8_array( GL::UNIFORM_BUFFER, 0., bytemuck::cast_slice( &lights ) );
+    // gl.buffer_sub_data_with_f64_and_u8_array( GL::UNIFORM_BUFFER, 0., bytemuck::cast_slice( &lights ) );
     gl.draw_arrays( GL::TRIANGLES, 0, 3 );
 
     true
@@ -208,6 +208,9 @@ fn create_lights( num : usize ) -> Vec< PointLight >
   {
     let z = ( i / 5 + 2 ) as f32 * -4.;
     let x = ( -2. + ( i % 5 ) as f32 ) * 2.;
+    let angle = ( 360. / num as f32 ) * i as f32;
+    let z = angle.to_radians().sin() * 30.;
+    let x = angle.to_radians().cos() * 30.;
     let position = [ x, 1., z, 0. ];
 
     let color =
