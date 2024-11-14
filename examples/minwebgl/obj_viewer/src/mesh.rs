@@ -75,7 +75,7 @@ impl GLMesh
     Ok( mesh_gl )
   }
 
-  pub fn set_perpsective( &self, gl : &GL, perspective_matrix : &gl::math::Mat4< f32 > )
+  pub fn set_perpsective( &self, gl : &GL, perspective_matrix : &gl::math::F32x4x4 )
   {
     gl.use_program( Some( &self.material.program ) );
 

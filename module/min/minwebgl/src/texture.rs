@@ -9,6 +9,6 @@ crate::mod_interface!
 {
   own use 
   {
-    d2
+    d2,
   };
 }
