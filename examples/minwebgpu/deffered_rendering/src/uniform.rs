@@ -14,8 +14,8 @@ pub struct UniformRaw
 #[ derive( Default ) ]
 pub struct Uniform
 {
-  pub view_matrix : gl::math::Mat4< f32 >,
-  pub projection_matrix : gl::math::Mat4< f32 >,
+  pub view_matrix : gl::math::F32x4x4,
+  pub projection_matrix : gl::math::F32x4x4,
   pub camera_pos : gl::math::F32x3,
   pub time : f32
 }
