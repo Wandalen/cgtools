@@ -7,6 +7,7 @@ mod private
 
 // mod rotation;
 mod transformation;
+mod general;
 
 crate::mod_interface!
 {
