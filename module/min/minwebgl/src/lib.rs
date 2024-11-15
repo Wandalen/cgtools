@@ -67,8 +67,8 @@ mod_interface!
   layer webgl;
   /// Texture related functions
   layer texture;
-  /// Framebuffer object
-  layer framebuffer;
+  /// Color Attachment structure
+  layer color_attachments;
 
   /// Useful information about your objects
   #[ cfg( feature = "diagnostics" ) ]

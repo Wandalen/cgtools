@@ -34,14 +34,16 @@ mod private
     N15,
   }
 
-  impl Into< u32 > for ColorAttachment
+  impl From< ColorAttachment > for u32
   {
-    fn into( self ) -> u32
+    fn from( value: ColorAttachment ) -> Self
     {
-      self as u32
+      value as u32
     }
   }
 
+  /// A struct for storing and converting Color Attachments
+  /// into proper array for `gl.draw_arrays` function
   #[ derive( Default, Clone, Copy ) ]
   pub struct Attachments
   {
@@ -63,6 +65,7 @@ mod private
         let index = *attachment as usize - ColorAttachment::N0 as usize;
         this.attachments[ index ] =  *attachment as u32;
       }
+      this
     }
 
     pub fn insert( &mut self, attachment : ColorAttachment )
@@ -86,7 +89,10 @@ mod private
     pub fn as_drawbuffers( &self ) -> js_sys::Array
     {
       let last = self.attachments.iter().rposition( | item | *item != GL::NONE ).map_or( 0, | pos | pos + 1 );
-      js_sys::Array::from_iter( self.attachments[ .. last ].iter().map( | item | JsValue::from_f64( *item as f64 ) ) )
+      js_sys::Array::from_iter
+      (
+        self.attachments[ .. last ].iter().map( | item | JsValue::from_f64( *item as f64 ) )
+      )
     }
   }
 }
