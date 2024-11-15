@@ -61,6 +61,29 @@ mod private
       <[ E ]>::iter_mut( &mut self.0 )
     }
   }
+
+  impl< E, const N : usize > TryFrom< &[ E ] > for Vector< E, N >
+  where 
+    E : MatEl
+  {
+    type Error = &'static str;
+    fn try_from( value: &[ E ] ) -> Result<Self, Self::Error> 
+    {
+      if value.len() != N { return Err( "Slice length does not equal vector's length" ); }
+      Ok( Self( value.try_into().unwrap() ) )
+    }
+  }
+
+  // impl< E, Slice, const N : usize > From< Slice > for Vector< E, N >
+  // where 
+  //   E : MatEl,
+  //   Slice : VectorRef
+  // {
+  //   fn from( value: Slice ) -> Self 
+  //   {
+  //     Self( *value.vector_ref() )
+  //   }
+  // }
 }
 
 crate::mod_interface!
