@@ -1,7 +1,7 @@
-use minwebgl::{self as gl, JsValue};
-use gl::{ GL, JsCast as _ };
+use minwebgl as gl;
+use gl::{ GL, JsCast as _, JsValue };
 use bytemuck::NoUninit;
-use ndarray_cg::d2::Mat4;
+use ndarray_cg::mat::DescriptorOrderColumnMajor;
 use web_sys::
 {
   js_sys::Array,
@@ -9,6 +9,8 @@ use web_sys::
   WebGlTexture,
   WebGlVertexArrayObject
 };
+
+type Mat4 = ndarray_cg::d2::Mat4< f32, DescriptorOrderColumnMajor >;
 
 fn main()
 {
@@ -123,11 +125,11 @@ async fn run() -> Result< (), gl::WebglError >
   let draw_loop = move | t |
   {
     let time = ( t / 1000. ) as f32;
-    let mut lights = lights.clone();
-    for light in &mut lights
-    {
-      light.position[ 2 ] += 80. + -time % 8. * 20.;
-    }
+    // let mut lights = lights.clone();
+    // for light in &mut lights
+    // {
+    //   light.position[ 2 ] += 80. + -time % 8. * 20.;
+    // }
     // gl.buffer_sub_data_with_f64_and_u8_array( GL::UNIFORM_BUFFER, 0., bytemuck::cast_slice( &lights ) );
     gl.draw_arrays( GL::TRIANGLES, 0, 3 );
 
@@ -206,11 +208,13 @@ fn create_lights( num : usize ) -> Vec< PointLight >
   let mut lights = vec![];
   for i in 0..num
   {
-    let z = ( i / 5 + 2 ) as f32 * -4.;
-    let x = ( -2. + ( i % 5 ) as f32 ) * 2.;
-    let angle = ( 360. / num as f32 ) * i as f32;
-    let z = angle.to_radians().sin() * 30.;
-    let x = angle.to_radians().cos() * 30.;
+    // let z = ( i / 5 + 2 ) as f32 * -4.;
+    // let x = ( -2. + ( i % 5 ) as f32 ) * 2.;
+    // let angle = ( 360. / num as f32 ) * i as f32;
+    // let z = angle.to_radians().sin();
+    // let x = angle.to_radians().cos();
+    let z = -23.;
+    let x = 0.;
     let position = [ x, 1., z, 0. ];
 
     let color =
@@ -227,7 +231,7 @@ fn create_lights( num : usize ) -> Vec< PointLight >
   lights
 }
 
-fn create_transforms( num : usize ) -> Vec< Mat4< f32 > >
+fn create_transforms( num : usize ) -> Vec< Mat4 >
 {
   let mut objects = vec![];
   for i in 0 .. num

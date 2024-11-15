@@ -1,5 +1,5 @@
 #version 300 es
-#define NUM_LIGHTS 50
+#define NUM_LIGHTS 1
 precision mediump float;
 
 struct PointLight
