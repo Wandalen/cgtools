@@ -2,7 +2,12 @@ mod shaders;
 
 use minwebgl as gl;
 use gl::{ GL, JsFuture };
-use ndarray_cg::{ d2, vector };
+use ndarray_cg::
+{
+  d2,
+  mat::DescriptorOrderColumnMajor,
+  vector
+};
 use rand::Rng as _;
 use web_sys::
 {
@@ -154,7 +159,7 @@ fn draw_outline
   outline_shader : &shaders::OutlineShader,
   meshes : &[ Mesh ],
   selected : i32,
-  projection : d2::Mat4< f32 >,
+  projection : d2::Mat4< f32, DescriptorOrderColumnMajor >,
   gl : &GL,
 )
 {
@@ -329,7 +334,7 @@ fn create_objects() -> Vec< Object >
   .collect()
 }
 
-fn random_rotation() -> ndarray_cg::Mat4< f32 >
+fn random_rotation() -> ndarray_cg::Mat4< f32, DescriptorOrderColumnMajor >
 {
   let rot_x = rand::thread_rng().gen_range( 0. .. std::f32::consts::PI * 2. );
   let rot_y = rand::thread_rng().gen_range( 0. .. std::f32::consts::PI * 2. );
@@ -357,7 +362,7 @@ fn depthbuffer( gl : &GL, width : i32, height : i32 ) -> Option< WebGlRenderbuff
 
 struct Object
 {
-  transform : ndarray_cg::Mat4< f32 >,
+  transform : ndarray_cg::Mat4< f32, DescriptorOrderColumnMajor >,
   id : i32,
 }
 

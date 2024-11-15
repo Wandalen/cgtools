@@ -155,10 +155,10 @@ where
 /// # Returns
 /// - 4x4 rotation matrix.
 #[ inline ]
-pub fn rot< E > ( x : E, y : E, z : E ) -> Mat4< E >
+pub fn rot< E > ( x : E, y : E, z : E ) -> Mat4< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl + nd::NdFloat,
-  Mat4< E > : RawSliceMut< Scalar = E >,
+  Mat4< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >,
 {
   // https://en.wikipedia.org/wiki/Rotation_matrix
   let e11 = y.cos() * z.cos();
@@ -192,11 +192,11 @@ where
 /// # Returns
 /// - A 4x4 translation matrix.
 #[ inline ]
-pub fn translate< E, Translation >( translation : Translation ) -> Mat4< E >
+pub fn translate< E, Translation >( translation : Translation ) -> Mat4< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl + nd::NdFloat,
   Translation : VectorIter< E, 3 >,
-  Mat4< E > : RawSliceMut< Scalar = E >
+  Mat4< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >
 {
   let mut iter = translation.vector_iter();
   let tx = *iter.next().unwrap();
@@ -222,11 +222,11 @@ where
 /// # Returns
 /// - A 4x4 scaling matrix.
 #[ inline ]
-pub fn scale< E, Scaling >( scaling : Scaling ) -> Mat4< E >
+pub fn scale< E, Scaling >( scaling : Scaling ) -> Mat4< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl + nd::NdFloat,
   Scaling : VectorIter< E, 3 > + Collection< Scalar = E >,
-  Mat4< E > :  RawSliceMut< Scalar = E >
+  Mat4< E, mat::DescriptorOrderColumnMajor > :  RawSliceMut< Scalar = E >
 {
   let mut iter = scaling.vector_iter();
   let sx = *iter.next().unwrap();
