@@ -1,5 +1,5 @@
 #version 300 es
-#define NUM_LIGHTS 1
+#define NUM_LIGHTS 50
 precision mediump float;
 
 struct PointLight
@@ -17,7 +17,7 @@ layout( std140 ) uniform Lights
   PointLight lights[ NUM_LIGHTS ];
 };
 
-out vec4 frag_color;
+layout( location = 0 ) out vec4 frag_color;
 
 void main()
 {
@@ -33,7 +33,7 @@ void main()
     vec3 offset = light.position.xyz - position;
     vec3 direction = normalize( offset );
     float len = length( offset );
-    float attenuation = 1.0 / ( len * len );
+    float attenuation = 1.0 / ( len * len + 0.001 );
     illumination += COLOR * light.color.rgb * max( dot( normal, direction ), 0.0 ) * attenuation;
   }
 

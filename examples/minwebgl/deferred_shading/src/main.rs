@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use minwebgl as gl;
 use gl::{ GL, JsCast as _, JsValue };
 use bytemuck::NoUninit;
@@ -38,7 +40,37 @@ async fn run() -> Result< (), gl::WebglError >
   .unwrap();
 
   let meshes = load_meshes( &models, &gl )?;
-  let transforms = create_transforms( 100 );
+
+  let file = gl::file::load( "plane.obj" ).await.unwrap();
+  let ( models, _ ) = gl::model::load_model_from_slice( &file, "", &tobj::GPU_LOAD_OPTIONS )
+  .await
+  .unwrap();
+  let plane_mesh = &load_meshes( &models, &gl )?[ 0 ];
+  let x = -2. + ( i % 5 ) as f32;
+  let y = -0.7;
+  let z = -3. - ( i / 5 ) as f32;
+
+  let translation = Mat4::from_row_major
+  (
+    [
+      1., 0., 0.,  x,
+      0., 1., 0.,  y,
+      0., 0., 1.,  z,
+      0., 0., 0.,  1.,
+    ]
+  );
+  let scale = 0.01;
+  let scale = Mat4::from_row_major
+  (
+    [
+      scale, 0.,    0.,    0.,
+      0.,    scale, 0.,    0.,
+      0.,    0.,    scale, 0.,
+      0.,    0.,    0.,    1.,
+    ]
+  );
+
+  let transforms = create_transforms( 50 );
 
   let aspect_ratio = width as f32 / height as f32;
   let projection = ndarray_cg::mat3x3h::perspective_rh_gl( 45.0_f32.to_radians(), aspect_ratio, 0.1, 1000. );
@@ -64,7 +96,7 @@ async fn run() -> Result< (), gl::WebglError >
   const BINDING_POINT : u32 = 0;
   gl.uniform_block_binding( &deferred_shader, lights_index, BINDING_POINT );
 
-  let lights = create_lights( 100 );
+  let lights = create_lights( 50 );
   let lights_ubo = gl::buffer::create( &gl ).unwrap();
   gl::ubo::upload
   (
@@ -90,8 +122,8 @@ async fn run() -> Result< (), gl::WebglError >
   // draw data into framebuffer
   gl.use_program( Some( &object_shader ) );
 
-  let col = [ JsValue::from_f64( GL::COLOR_ATTACHMENT0 as f64 ), JsValue::from_f64( GL::COLOR_ATTACHMENT1 as f64 ) ];
-  gl.draw_buffers( &Array::from_iter( col.iter() ) );
+  let colors = [ JsValue::from_f64( GL::COLOR_ATTACHMENT0 as f64 ), JsValue::from_f64( GL::COLOR_ATTACHMENT1 as f64 ) ];
+  gl.draw_buffers( &Array::from_iter( colors.iter() ) );
 
   for transform in transforms
   {
@@ -114,7 +146,6 @@ async fn run() -> Result< (), gl::WebglError >
 
   gl.use_program( Some( &deferred_shader ) );
   gl.bind_framebuffer( GL::FRAMEBUFFER, None );
-  gl.bind_buffer( GL::UNIFORM_BUFFER, Some( &lights_ubo ) );
 
   gl.active_texture( GL::TEXTURE0 );
   gl.bind_texture( GL::TEXTURE_2D, positionbuffer.as_ref() );
@@ -206,16 +237,18 @@ struct PointLight
 fn create_lights( num : usize ) -> Vec< PointLight >
 {
   let mut lights = vec![];
-  for i in 0..num
+  for i in 0 .. num
   {
     // let z = ( i / 5 + 2 ) as f32 * -4.;
     // let x = ( -2. + ( i % 5 ) as f32 ) * 2.;
     // let angle = ( 360. / num as f32 ) * i as f32;
     // let z = angle.to_radians().sin();
     // let x = angle.to_radians().cos();
-    let z = -23.;
-    let x = 0.;
-    let position = [ x, 1., z, 0. ];
+
+    let x = ( -2. + ( i % 5 ) as f32 ) * 1.1;
+    let y =  2.;
+    let z = ( -3. - ( i / 5 ) as f32 ) * 1.1;
+    let position = [ x, y, z, 0. ];
 
     let color =
     [
@@ -224,6 +257,13 @@ fn create_lights( num : usize ) -> Vec< PointLight >
       rand::random::< bool >() as i32 as f32,
       0.,
     ];
+    // let color =
+    // [
+    //   1.,
+    //   1.,
+    //   1.,
+    //   0.,
+    // ];
 
     lights.push( PointLight { position, color } );
   }
@@ -236,32 +276,39 @@ fn create_transforms( num : usize ) -> Vec< Mat4 >
   let mut objects = vec![];
   for i in 0 .. num
   {
-    let z = ( i / 5 + 2 ) as f32 * -2.;
-    let x = ( -2. + ( i % 5 ) as f32 ) * 1.3;
+    let x = -2. + ( i % 5 ) as f32;
+    let y = -0.7;
+    let z = -3. - ( i / 5 ) as f32;
 
     let translation = Mat4::from_row_major
     (
       [
         1., 0., 0.,  x,
-        0., 1., 0., -1.5,
+        0., 1., 0.,  y,
         0., 0., 1.,  z,
         0., 0., 0.,  1.,
       ]
     );
+    let scale = 0.01;
     let scale = Mat4::from_row_major
     (
       [
-        0.03, 0.,   0.,   0.,
-        0.,   0.03, 0.,   0.,
-        0.,   0.,   0.03, 0.,
-        0.,   0.,   0.,   1.,
+        scale, 0.,    0.,    0.,
+        0.,    scale, 0.,    0.,
+        0.,    0.,    scale, 0.,
+        0.,    0.,    0.,    1.,
       ]
     );
 
     let model = translation * scale;
-
     objects.push( model );
   }
 
   objects
+}
+
+struct Obj
+{
+  transform : Mat4,
+  mesh : Rc< [ ( WebGlVertexArrayObject, i32 ) ] >
 }
