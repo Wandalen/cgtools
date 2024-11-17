@@ -1,4 +1,7 @@
 #version 300 es
+// This is shader for drawing mesh
+// without texturing
+// It outputs fragment's normal and world position for lighting calculation
 
 layout( location = 0 ) in vec3 position;
 layout( location = 1 ) in vec3 normal;

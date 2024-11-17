@@ -1,4 +1,7 @@
 #version 300 es
+// This shader is for outputting
+// positions and normals for later use in deferred shader
+
 precision mediump float;
 
 in vec3 v_normal;

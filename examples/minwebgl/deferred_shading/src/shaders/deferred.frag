@@ -1,4 +1,7 @@
 #version 300 es
+// This shader is for deferred lighting
+// It calculates lighting of 50 point lights
+
 #define NUM_LIGHTS 50
 precision mediump float;
 
@@ -22,10 +25,17 @@ layout( location = 0 ) out vec4 frag_color;
 void main()
 {
   const vec3 COLOR = vec3( 1.0 );
+  const vec3 AMBIENT = vec3( 0.1 );
 
-  vec3 position = texture( positions, v_texcoord ).xyz;
+  vec4 position4 = texture( positions, v_texcoord );
+  if ( position4.a == 0.0 )
+  {
+    discard;
+  }
+
+  vec3 position = position4.xyz;
   vec3 normal = texture( normals, v_texcoord ).xyz;
-  vec3 illumination = vec3( 0.0 );
+  vec3 illumination = COLOR * AMBIENT;
 
   for ( int i = 0; i < lights.length(); i++ )
   {
@@ -34,6 +44,7 @@ void main()
     vec3 direction = normalize( offset );
     float len = length( offset );
     float attenuation = 1.0 / ( len * len + 0.001 );
+
     illumination += COLOR * light.color.rgb * max( dot( normal, direction ), 0.0 ) * attenuation;
   }
 

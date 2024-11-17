@@ -1,9 +1,8 @@
-use std::rc::Rc;
-
 use minwebgl as gl;
 use gl::{ GL, JsCast as _, JsValue };
 use bytemuck::NoUninit;
 use ndarray_cg::mat::DescriptorOrderColumnMajor;
+use core::f32;
 use web_sys::
 {
   js_sys::Array,
@@ -24,6 +23,7 @@ async fn run() -> Result< (), gl::WebglError >
 {
   let gl = gl::context::retrieve_or_make().expect( "Failed to retrieve WebGl context" );
   gl.enable( GL::DEPTH_TEST );
+  gl.clear_color( 0., 0., 0., 1. );
   gl.enable( GL::CULL_FACE );
   _ = gl.get_extension( "EXT_color_buffer_float" ).unwrap().unwrap();
 
@@ -39,38 +39,25 @@ async fn run() -> Result< (), gl::WebglError >
   .await
   .unwrap();
 
-  let meshes = load_meshes( &models, &gl )?;
+  let tree_mesh = load_meshes( &models, &gl )?;
 
   let file = gl::file::load( "plane.obj" ).await.unwrap();
   let ( models, _ ) = gl::model::load_model_from_slice( &file, "", &tobj::GPU_LOAD_OPTIONS )
   .await
   .unwrap();
-  let plane_mesh = &load_meshes( &models, &gl )?[ 0 ];
-  let x = -2. + ( i % 5 ) as f32;
-  let y = -0.7;
-  let z = -3. - ( i / 5 ) as f32;
-
-  let translation = Mat4::from_row_major
+  let plane_mesh = load_meshes( &models, &gl )?;
+  let plane_transform = Mat4::from_row_major
   (
     [
-      1., 0., 0.,  x,
-      0., 1., 0.,  y,
-      0., 0., 1.,  z,
-      0., 0., 0.,  1.,
-    ]
-  );
-  let scale = 0.01;
-  let scale = Mat4::from_row_major
-  (
-    [
-      scale, 0.,    0.,    0.,
-      0.,    scale, 0.,    0.,
-      0.,    0.,    scale, 0.,
-      0.,    0.,    0.,    1.,
+      10., 0., 0.,   0.,
+      0.,  1., 0.,  -0.705,
+      0.,  0., 10., -11.,
+      0.,  0., 0.,   1.,
     ]
   );
 
-  let transforms = create_transforms( 50 );
+  // gl::info!( "{:?}", plane_transform );
+  let transforms = create_transforms( 100 );
 
   let aspect_ratio = width as f32 / height as f32;
   let projection = ndarray_cg::mat3x3h::perspective_rh_gl( 45.0_f32.to_radians(), aspect_ratio, 0.1, 1000. );
@@ -93,10 +80,11 @@ async fn run() -> Result< (), gl::WebglError >
   gl::uniform::upload( &gl, positions_location, &0 ).unwrap();
   gl::uniform::upload( &gl, normals_location, &1 ).unwrap();
 
+  // set lighting ubo
   const BINDING_POINT : u32 = 0;
   gl.uniform_block_binding( &deferred_shader, lights_index, BINDING_POINT );
 
-  let lights = create_lights( 50 );
+  let mut lights = create_lights( 100 );
   let lights_ubo = gl::buffer::create( &gl ).unwrap();
   gl::ubo::upload
   (
@@ -104,11 +92,11 @@ async fn run() -> Result< (), gl::WebglError >
     &lights_ubo,
     BINDING_POINT,
     bytemuck::cast_slice::< _, u8 >( &lights ),
-    GL::STATIC_DRAW
+    GL::DYNAMIC_DRAW
   );
 
-  let positionbuffer = create_tex( &gl, GL::RGBA16F, width, height );
-  let normalbuffer = create_tex( &gl, GL::RGBA16F, width, height );
+  let positionbuffer = tex_storage( &gl, GL::RGBA16F, width, height );
+  let normalbuffer = tex_storage( &gl, GL::RGBA16F, width, height );
   let depthbuffer = gl.create_renderbuffer();
   gl.bind_renderbuffer( GL::RENDERBUFFER, depthbuffer.as_ref() );
   gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH_COMPONENT16, width, height );
@@ -125,6 +113,7 @@ async fn run() -> Result< (), gl::WebglError >
   let colors = [ JsValue::from_f64( GL::COLOR_ATTACHMENT0 as f64 ), JsValue::from_f64( GL::COLOR_ATTACHMENT1 as f64 ) ];
   gl.draw_buffers( &Array::from_iter( colors.iter() ) );
 
+  // draw trees
   for transform in transforms
   {
     gl::uniform::matrix_upload
@@ -141,8 +130,26 @@ async fn run() -> Result< (), gl::WebglError >
       transform.raw_slice(),
       true
     ).unwrap();
-    draw_meshes( &meshes, &gl );
+    draw_meshes( &tree_mesh, &gl );
   }
+
+  // draw plane
+  gl::uniform::matrix_upload
+  (
+    &gl,
+    mvp_location.clone(),
+    ( projection * plane_transform ).raw_slice(),
+    true
+  ).unwrap();
+  gl::uniform::matrix_upload
+  (
+    &gl,
+    model_location.clone(),
+    plane_transform.raw_slice(),
+    true
+  ).unwrap();
+  draw_meshes( &plane_mesh, &gl );
+
 
   gl.use_program( Some( &deferred_shader ) );
   gl.bind_framebuffer( GL::FRAMEBUFFER, None );
@@ -153,15 +160,39 @@ async fn run() -> Result< (), gl::WebglError >
   gl.active_texture( GL::TEXTURE1 );
   gl.bind_texture( GL::TEXTURE_2D, normalbuffer.as_ref() );
 
+  let mut dir = 1.;
+  let mut radius = 3.;
+  let mut last_time = 0.;
   let draw_loop = move | t |
   {
     let time = ( t / 1000. ) as f32;
-    // let mut lights = lights.clone();
-    // for light in &mut lights
-    // {
-    //   light.position[ 2 ] += 80. + -time % 8. * 20.;
-    // }
-    // gl.buffer_sub_data_with_f64_and_u8_array( GL::UNIFORM_BUFFER, 0., bytemuck::cast_slice( &lights ) );
+    let delta_time = time - last_time;
+    last_time = time;
+
+    if radius > 10.
+    {
+      dir = -1.;
+    }
+    if radius < 3.
+    {
+      dir = 1.;
+    }
+    radius += delta_time * dir * 2.;
+
+    const PI2 : f32 = f32::consts::PI * 2.;
+    let angle = time * f32::consts::FRAC_PI_2;
+    let len = lights.len() as f32;
+    for ( i, light ) in lights.iter_mut().enumerate()
+    {
+      let angle_offset = PI2 / len * i as f32;
+      let x = ( angle + angle_offset ).sin() * radius;
+      let z = -9. + ( angle + angle_offset ).cos() * radius;
+      light.position[ 0 ] = x;
+      light.position[ 2 ] = z;
+    }
+    gl.buffer_sub_data_with_f64_and_u8_array( GL::UNIFORM_BUFFER, 0., bytemuck::cast_slice( &lights ) );
+
+    gl.clear( GL::COLOR_BUFFER_BIT );
     gl.draw_arrays( GL::TRIANGLES, 0, 3 );
 
     true
@@ -172,7 +203,7 @@ async fn run() -> Result< (), gl::WebglError >
   Ok( () )
 }
 
-fn create_tex( gl : &GL, format : u32, width : i32, height : i32 ) -> Option< WebGlTexture >
+fn tex_storage( gl : &GL, format : u32, width : i32, height : i32 ) -> Option< WebGlTexture >
 {
   let tex = gl.create_texture();
   gl.bind_texture( GL::TEXTURE_2D, tex.as_ref() );
@@ -226,89 +257,55 @@ fn draw_meshes( meshes : &[ ( WebGlVertexArrayObject, i32 ) ], gl : &GL )
   }
 }
 
+fn create_lights( num : usize ) -> Box< [ PointLight ] >
+{
+  ( 0 .. num ).map
+  (
+    | _ |
+    {
+      let position = [ 0., 1., 0., 0. ];
+
+      let color =
+      [
+        rand::random::< bool >() as i32 as f32,
+        rand::random::< bool >() as i32 as f32,
+        rand::random::< bool >() as i32 as f32,
+        0.,
+      ];
+
+      PointLight { position, color }
+    }
+  ).collect()
+}
+
+fn create_transforms( num : usize ) -> Box< [ Mat4 ] >
+{
+  ( 0 .. num ).map
+  (
+    | i |
+    {
+      let x = -4.5 + ( i % 10 ) as f32;
+      let y = -0.7;
+      let z = -3. - ( i / 10 ) as f32;
+      let scale = 0.015;
+
+      Mat4::from_row_major
+      (
+        [
+          scale, 0.,    0.,    x,
+          0.,    scale, 0.,    y,
+          0.,    0.,    scale, z,
+          0.,    0.,    0.,    1.,
+        ]
+      )
+    }
+  ).collect()
+}
+
 #[ repr( C ) ]
 #[ derive( Clone, Copy, NoUninit ) ]
 struct PointLight
 {
   position : [ f32; 4 ],
   color : [ f32; 4 ],
-}
-
-fn create_lights( num : usize ) -> Vec< PointLight >
-{
-  let mut lights = vec![];
-  for i in 0 .. num
-  {
-    // let z = ( i / 5 + 2 ) as f32 * -4.;
-    // let x = ( -2. + ( i % 5 ) as f32 ) * 2.;
-    // let angle = ( 360. / num as f32 ) * i as f32;
-    // let z = angle.to_radians().sin();
-    // let x = angle.to_radians().cos();
-
-    let x = ( -2. + ( i % 5 ) as f32 ) * 1.1;
-    let y =  2.;
-    let z = ( -3. - ( i / 5 ) as f32 ) * 1.1;
-    let position = [ x, y, z, 0. ];
-
-    let color =
-    [
-      rand::random::< bool >() as i32 as f32,
-      rand::random::< bool >() as i32 as f32,
-      rand::random::< bool >() as i32 as f32,
-      0.,
-    ];
-    // let color =
-    // [
-    //   1.,
-    //   1.,
-    //   1.,
-    //   0.,
-    // ];
-
-    lights.push( PointLight { position, color } );
-  }
-
-  lights
-}
-
-fn create_transforms( num : usize ) -> Vec< Mat4 >
-{
-  let mut objects = vec![];
-  for i in 0 .. num
-  {
-    let x = -2. + ( i % 5 ) as f32;
-    let y = -0.7;
-    let z = -3. - ( i / 5 ) as f32;
-
-    let translation = Mat4::from_row_major
-    (
-      [
-        1., 0., 0.,  x,
-        0., 1., 0.,  y,
-        0., 0., 1.,  z,
-        0., 0., 0.,  1.,
-      ]
-    );
-    let scale = 0.01;
-    let scale = Mat4::from_row_major
-    (
-      [
-        scale, 0.,    0.,    0.,
-        0.,    scale, 0.,    0.,
-        0.,    0.,    scale, 0.,
-        0.,    0.,    0.,    1.,
-      ]
-    );
-
-    let model = translation * scale;
-    objects.push( model );
-  }
-
-  objects
-}
-
-struct Obj
-{
-  transform : Mat4,
-  mesh : Rc< [ ( WebGlVertexArrayObject, i32 ) ] >
 }
