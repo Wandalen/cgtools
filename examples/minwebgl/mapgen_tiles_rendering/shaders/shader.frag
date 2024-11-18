@@ -11,7 +11,7 @@ uniform sampler2DArray tiles_sampler;
 uniform vec2 texel_size;
 
 void main(){
-  vec2 tile_coords = fract(v_uv / texel_size);
-  uint tile_id = texture( map_sampler, v_uv ).r;
-  color = texture(tiles_sampler, vec3(tile_coords, tile_id));
+    vec2 tile_coords = fract(v_uv / texel_size);
+    uint tile_id = texture( map_sampler, v_uv ).r;
+    color = texture(tiles_sampler, vec3(tile_coords, tile_id));
 }

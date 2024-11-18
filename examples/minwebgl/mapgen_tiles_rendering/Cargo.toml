@@ -8,7 +8,6 @@ license = "MIT"
 [dependencies]
 minwebgl = { workspace = true }
 ndarray_cg = { workspace = true }
-photon-rs = { git = "https://github.com/silvia-odwyer/photon.git" }
 web-sys = { workspace = true, features = [
   'Document', 
   'Element', 

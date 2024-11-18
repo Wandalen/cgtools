@@ -9,6 +9,6 @@ uniform mat4x4 mvp;
 
 void main()
 {
-  v_uv = uv;
-  gl_Position = mvp * position;
+    v_uv = uv;
+    gl_Position = mvp * position;
 }
