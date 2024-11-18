@@ -23,8 +23,8 @@ async fn run() -> Result< (), gl::WebglError >
 {
   let gl = gl::context::retrieve_or_make().expect( "Failed to retrieve WebGl context" );
   gl.enable( GL::DEPTH_TEST );
-  gl.clear_color( 0., 0., 0., 1. );
   gl.enable( GL::CULL_FACE );
+  gl.clear_color( 0., 0., 0., 1. );
   _ = gl.get_extension( "EXT_color_buffer_float" ).unwrap().unwrap();
 
   let width = 1280;
@@ -38,7 +38,6 @@ async fn run() -> Result< (), gl::WebglError >
   let ( models, _ ) = gl::model::load_model_from_slice( &file, "", &tobj::GPU_LOAD_OPTIONS )
   .await
   .unwrap();
-
   let tree_mesh = load_meshes( &models, &gl )?;
 
   let file = gl::file::load( "plane.obj" ).await.unwrap();
@@ -46,6 +45,7 @@ async fn run() -> Result< (), gl::WebglError >
   .await
   .unwrap();
   let plane_mesh = load_meshes( &models, &gl )?;
+
   let plane_transform = Mat4::from_row_major
   (
     [
@@ -56,7 +56,7 @@ async fn run() -> Result< (), gl::WebglError >
     ]
   );
 
-  // gl::info!( "{:?}", plane_transform );
+  // trees transforms
   let transforms = create_transforms( 100 );
 
   let aspect_ratio = width as f32 / height as f32;
@@ -84,7 +84,7 @@ async fn run() -> Result< (), gl::WebglError >
   const BINDING_POINT : u32 = 0;
   gl.uniform_block_binding( &deferred_shader, lights_index, BINDING_POINT );
 
-  let mut lights = create_lights( 100 );
+  let mut lights = create_lights( 50 );
   let lights_ubo = gl::buffer::create( &gl ).unwrap();
   gl::ubo::upload
   (
@@ -99,7 +99,7 @@ async fn run() -> Result< (), gl::WebglError >
   let normalbuffer = tex_storage( &gl, GL::RGBA16F, width, height );
   let depthbuffer = gl.create_renderbuffer();
   gl.bind_renderbuffer( GL::RENDERBUFFER, depthbuffer.as_ref() );
-  gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH_COMPONENT16, width, height );
+  gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH_COMPONENT24, width, height );
 
   let framebuffer = gl.create_framebuffer();
   gl.bind_framebuffer( GL::FRAMEBUFFER, framebuffer.as_ref() );
