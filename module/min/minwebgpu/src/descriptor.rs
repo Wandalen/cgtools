@@ -16,4 +16,5 @@ crate::mod_interface!
   layer bind_group_layout_entry;
   layer buffer_init;
   layer buffer;
+  layer compute_pipeline;
 }

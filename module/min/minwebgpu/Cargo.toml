@@ -144,6 +144,11 @@ web-sys = { workspace = true, optional = true, features = [
   'GpuBuffer',
   'GpuBufferDescriptor',
 
+  'GpuProgrammableStage',
+  'GpuComputePipelineDescriptor',
+  'GpuComputePipeline',
+  'GpuComputePassEncoder',
+
   'gpu_texture_usage',
   'gpu_shader_stage',
   'gpu_color_write',

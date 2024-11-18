@@ -1,7 +1,7 @@
 use minwebgpu::{self as gl, web_sys, WebGPUError};
 use rand::Rng;
 
-pub const NUM_LIGHTS : usize = 200;
+pub const NUM_LIGHTS : usize = 150;
 
 #[ repr( C ) ]
 #[derive( Default, Clone, Copy, gl::mem::Pod, gl::mem::Zeroable ) ]
@@ -17,8 +17,8 @@ pub struct Light
 {
   pub color : gl::F32x3,
   pub power : f32,
-  pub direction : f32,
-  pub position : gl::F32x3
+  pub position : gl::F32x3,
+  pub direction : f32
 }
 
 impl Light 
@@ -38,7 +38,6 @@ impl Light
 
 pub struct LightState
 {
-  pub lights : Vec< Light >,
   pub buffer : gl::web_sys::GpuBuffer
 }
 
@@ -46,36 +45,23 @@ impl LightState
 {
   pub fn new( device : &web_sys::GpuDevice ) -> Result< Self, WebGPUError >
   {
-    let lights = gen();
+    let lights = generate_lights();
     let lights_raw = lights.iter().map( | l | l.as_raw() ).collect::< Vec< LightRaw> >();
+
     let buffer = gl::BufferInitDescriptor::new
     (
        &lights_raw, 
-       gl::BufferUsage::STORAGE | gl::BufferUsage::VERTEX | gl::BufferUsage::COPY_DST
+       gl::BufferUsage::STORAGE | gl::BufferUsage::VERTEX
     ).create( device )?;
+
     Ok
     ( 
       LightState
       {
-        lights,
         buffer
       }
     )
   }  
-
-  pub fn update( &mut self, queue : &web_sys::GpuQueue, time : f32, delta : f32 ) -> Result< (), WebGPUError >
-  {
-    // for l in self.lights.iter_mut()
-    // {
-    //   let rot = gl::math::mat3x3::from_angle_y( l.direction * delta * 20.0 / ( l.position.mag() + 0.00001 ) );
-    //   l.position = rot * l.position;
-    // }
-
-    // let lights_raw = self.lights.iter().map( | l | l.as_raw() ).collect::< Vec< LightRaw > >();
-    // gl::queue::write_buffer( queue, &self.buffer, lights_raw.as_slice() )?;
-
-    Ok( () )
-  }
 }
 
 pub struct LightVisualizationState
@@ -102,13 +88,6 @@ impl LightVisualizationState
       gl::layout::VertexAttribute::new()
       .location( 1 )
       .format( gl::GpuVertexFormat::Float32x3 )
-    )
-    .attribute
-    ( 
-      gl::layout::VertexAttribute::new()
-      .location( 2 )
-      .offset::< [ f32; 7 ] >()
-      .format( gl::GpuVertexFormat::Float32 )
     )
     .into()
   }
@@ -141,7 +120,7 @@ impl LightVisualizationState
   }  
 }
 
-fn gen() -> Vec< Light >
+fn generate_lights() -> Vec< Light >
 {
   let mut rng = rand::thread_rng();
   
@@ -152,8 +131,14 @@ fn gen() -> Vec< Light >
     let color = gl::F32x3::from( [ rng.gen(), rng.gen(), rng.gen() ] );
     let direction = if rng.gen::< f32 >() < 0.5 { -1.0 } else { 1.0 };
 
-    let mut position = gl::F32x3::from( [ rng.gen(), 0.0, rng.gen() ] ) * 2.0 - gl::F32x3::from( [ 1.0, 0.0, 1.0 ] ) ;
-    position *= 40.0;
+    let mut position = gl::F32x3::from
+    ([ 
+      rng.gen::< f32 >() * 2.0, 
+      rng.gen::< f32 >(), 
+      rng.gen::< f32 >() * 2.0 
+    ]) - gl::F32x3::from( [ 1.0, 0.0, 1.0 ] ) ;
+
+    position = position * gl::F32x3::from( [ 40.0, 5.0, 40.0 ] );
 
     let light = Light
     {

@@ -13,7 +13,8 @@ struct Uniforms
   view_matrix : mat4x4< f32 >,
   projection_matrix : mat4x4< f32 >,
   camera_pos : vec3f,
-  time : f32
+  time : f32,
+  elapsed_time : f32
 }
 
 @group( 0 ) @binding( 0 ) var< uniform > uniforms : Uniforms;

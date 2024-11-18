@@ -3,7 +3,8 @@ struct VSInput
 {
   @location( 0 ) position : vec3f,
   @location( 1 ) normal : vec3f,
-  @location( 2 ) uv : vec2f
+  @location( 2 ) uv : vec2f,
+  @location( 5 ) offset : vec3f
 }
 
 struct VSOutput
@@ -20,7 +21,8 @@ struct Uniforms
   view_matrix : mat4x4< f32 >,
   projection_matrix : mat4x4< f32 >,
   camera_pos : vec3f,
-  time : f32
+  time : f32,
+  elapsed_time : f32
 }
 
 @group( 0 ) @binding( 0 ) var< uniform > uniforms : Uniforms;
@@ -28,12 +30,14 @@ struct Uniforms
 @vertex
 fn vs_main( input : VSInput ) -> VSOutput
 {
+  let ws_position = input.position * 5.0 + input.offset;
+
   var output : VSOutput;
-  output.position = input.position;
+  output.position = ws_position;
   output.albedo = vec4( 1.0, 1.0, 1.0, 1.0 );
   output.normal = input.normal;
   output.uv = input.uv;
-  output.clip_pos = uniforms.projection_matrix * uniforms.view_matrix * vec4f( ( input.position ) * 15.0, 1.0 );
+  output.clip_pos = uniforms.projection_matrix * uniforms.view_matrix * vec4f( ws_position, 1.0 );
   return output;
 }
 

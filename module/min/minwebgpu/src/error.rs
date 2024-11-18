@@ -58,6 +58,8 @@ mod private
     FailedToCreateBindGroupLayout( String ),
     #[ error( "Failed to create RenderPipeline: {0}" )]
     FailedToCreateRenderPipeline( String ),
+    #[ error( "Failed to create ComputePipeline: {0}" )]
+    FailedToCreateComputePipeline( String ),
     #[ error( "Failed to create Texture: {0}" )]
     FailedToCreateTexture( String ),
     #[ error( "Failed to create Buffer: {0}" )]

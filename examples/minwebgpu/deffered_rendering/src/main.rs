@@ -6,10 +6,12 @@ use minwebgpu::
   self as gl, 
   AsWeb
 };
+use model::{ModelState, NUM_MODELS};
 use uniform::{Uniform, UniformState};
 
 mod uniform;
 mod light;
+mod model;
 
 fn create_textures
 (
@@ -40,37 +42,6 @@ fn create_textures
   Ok( [ position_tex, albedo_tex, normal_tex ] )
 }
 
-fn create_vertex_descriptors() -> [ gl::web_sys::GpuVertexBufferLayout; 3 ]
-{
-  // Step mode defaults to `Vertex`
-  // Vertex Attribute offset defaults to 0.0
-  // Vertex Attribute format defaults to Float32x3
-  // If stride is not specified, it is computed from the attributes
-  let pos_buffer_layout = gl::VertexBufferLayout::new()
-  .attribute
-  (
-    gl::VertexAttribute::new()
-    .location( 0 )
-  );
-
-  let normal_buffer_layout = gl::VertexBufferLayout::new()
-  .attribute
-  (
-    gl::VertexAttribute::new()
-    .location( 1 )
-  );
-
-  let uv_buffer_layout = gl::VertexBufferLayout::new()
-  .attribute
-  (
-    gl::VertexAttribute::new()
-    .location( 2 )
-    .format( gl::GpuVertexFormat::Float32x2 )
-  );
-
-  [ pos_buffer_layout.into(), normal_buffer_layout.into(), uv_buffer_layout.into() ]
-}
-
 async fn run() -> Result< (), gl::WebGPUError >
 {
   gl::browser::setup( Default::default() );
@@ -87,11 +58,13 @@ async fn run() -> Result< (), gl::WebGPUError >
   let width = canvas.width();
   let height = canvas.height();
   
+  let light_update_shader = gl::ShaderModule::new( include_str!( "../shaders/light_update.wgsl" ) ).create( &device );
   let big_plane_shader = gl::ShaderModule::new( include_str!( "../shaders/big_plane.wgsl" ) ).create( &device );
   let gbuffer_shader = gl::ShaderModule::new( include_str!( "../shaders/gbuffer.wgsl" ) ).create( &device );
   let render_shader = gl::ShaderModule::new( include_str!( "../shaders/render.wgsl" ) ).create( &device );
 
-  let [ pos_vertex_desc, normal_vertex_desc, uv_vertex_desc ] = create_vertex_descriptors();
+  let [ pos_vertex_layout, normal_vertex_layout, uv_vertex_layout ] = ModelState::vertex_layout();
+  let model_instance_layout = ModelState::instance_layout(); 
   let [ pos_tex, albedo_tex, normal_tex ] = create_textures( &device, [ width, height, 1 ] )?;
   let depth_texture = gl::texture::create
   (
@@ -112,23 +85,14 @@ async fn run() -> Result< (), gl::WebGPUError >
     normal_tex.create_view().unwrap() 
   );
 
-  // Load models, create buffer and initialize buffer with the data
-  let model = gl::file::load( "bunny.obj" ).await.expect( "Failed to fetch the model" );
-  let ( models, _ ) = gl::model::obj::load_model_from_slice( &model, "", &tobj::GPU_LOAD_OPTIONS ).await.unwrap();
-
-  let model = &models[ 0 ];
-  let mesh = &model.mesh;
-
-  let pos_buffer = gl::BufferInitDescriptor::new( &mesh.positions, gl::BufferUsage::VERTEX ).create( &device )?;
-  let normal_buffer = gl::BufferInitDescriptor::new( &mesh.normals, gl::BufferUsage::VERTEX ).create( &device )?;
-  let uv_buffer = gl::BufferInitDescriptor::new( &mesh.texcoords, gl::BufferUsage::VERTEX ).create( &device )?;
-  let index_buffer = gl::BufferInitDescriptor::new( &mesh.indices, gl::BufferUsage::INDEX ).create( &device )?;
-
-  // Setup uniform bindgroup
+  // Create needed state
+  let model_state = ModelState::new( &device ).await?;
   let mut uniform_state = UniformState::new( &device )?;
-  let mut light_state = LightState::new( &device )?;
+  let light_state = LightState::new( &device )?;
   let light_vis_state = LightVisualizationState::new( &device, presentation_format )?;
 
+  // First entry - uniform paramters like view_matrix, time
+  // Second entry - array of lights
   let uniform_bind_group_layout = gl::BindGroupLayoutDescriptor::new()
   .fragment()
   .auto_bindings()
@@ -175,15 +139,17 @@ async fn run() -> Result< (), gl::WebGPUError >
   .target( gl::ColorTargetState::new().format( gl::GpuTextureFormat::Rgba16float ) )
   .to_web();
 
+  // Pipeline that will render to the gbuffer textures.
   let gbuffer_render_pipeline = gl::render_pipeline::create
   ( 
     &device, 
     &gl::render_pipeline::desc
     ( 
       gl::VertexState::new( &gbuffer_shader )
-      .buffer( &pos_vertex_desc )
-      .buffer( &normal_vertex_desc )
-      .buffer( &uv_vertex_desc )
+      .buffer( &pos_vertex_layout )
+      .buffer( &normal_vertex_layout )
+      .buffer( &uv_vertex_layout )
+      .buffer( &model_instance_layout )
     )
     .layout( &gbuffer_pipeline_layout )
     .fragment( fragment_state.clone() )
@@ -192,6 +158,8 @@ async fn run() -> Result< (), gl::WebGPUError >
     .to_web()
   )?;
 
+  // Pipeline that will render a plane.
+  // We reuse the fragment state from gbuffer pipeline because they are the same.
   let big_plane_render_pipeline = gl::render_pipeline::create
   ( 
     &device, 
@@ -216,7 +184,8 @@ async fn run() -> Result< (), gl::WebGPUError >
   );
   ////////////////
 
-  // Create pipeline layout for the main render pipeline
+  // The main render pipeline. It will do the lighting calculations based on
+  // gbuffer texture we filled in gbuffer pipeline
   let render_pipeline_layout = gl::layout::pipeline::desc()
   .bind_group( &uniform_bind_group_layout )
   .bind_group( &gbuffer_bind_group_layout )
@@ -235,6 +204,26 @@ async fn run() -> Result< (), gl::WebGPUError >
     .primitive( gl::PrimitiveState::new().triangle_strip() )
     .to_web()
   )?;
+
+  // We create a compute pipeline to update lights
+  // Sicne there is only one `compute` function in the shader,
+  // the entry point will default to that function
+  let light_compute_pipeline = gl::compute_pipeline::desc
+  ( 
+    gl::ProgrammableStage::new( &light_update_shader ) 
+  )
+  .create( &device );
+
+  // We create bindgroup from `auto` layout of our pipeline 
+  let light_update_bind_group = gl::bind_group::desc
+  ( 
+    &light_compute_pipeline.get_bind_group_layout( 0 ) 
+  )
+  .auto_bindings()
+  .entry_from_resource( &gl::BufferBinding::new( &uniform_state.buffer ) )
+  .entry_from_resource( &gl::BufferBinding::new( &light_state.buffer ) )
+  .create( &device );
+
 
   // Light visualization
   let light_vis_bind_group = gl::bind_group::desc
@@ -260,11 +249,10 @@ async fn run() -> Result< (), gl::WebGPUError >
   // Define the update and draw logic
   let update_and_draw =
   {
-    let index_len = mesh.indices.len() as u32;
     let mut prev_time = 0.0;
     move | t : f64 |
     {  
-      let delta = ( ( t - prev_time ) / 1000.0 ) as f32;
+      let elapsed_time = ( ( t - prev_time ) / 1000.0 ) as f32;
       prev_time = t; 
       let t = ( t / 1000.0 ) as f32;
 
@@ -279,11 +267,11 @@ async fn run() -> Result< (), gl::WebGPUError >
         view_matrix,
         projection_matrix,
         camera_pos : eye,
-        time : t
+        time : t,
+        elapsed_time : elapsed_time
       };
 
       uniform_state.update( &queue ).unwrap();
-      light_state.update( &queue, t, delta ).unwrap();
 
       let encoder = device.create_command_encoder();
       // Gbuffer pass
@@ -298,20 +286,23 @@ async fn run() -> Result< (), gl::WebGPUError >
           .into()
         ).unwrap();
 
-        // render_pass.set_pipeline( &gbuffer_render_pipeline );
+        // Draw model
+        render_pass.set_pipeline( &gbuffer_render_pipeline );
         render_pass.set_bind_group( 0, Some( &uniform_bind_group ) );
-        // render_pass.set_vertex_buffer( 0, Some( &pos_buffer ) );
-        // render_pass.set_vertex_buffer( 1, Some( &normal_buffer ) );
-        // render_pass.set_vertex_buffer( 2, Some( &uv_buffer ) );
-        // render_pass.set_index_buffer( &index_buffer, gl::GpuIndexFormat::Uint32 );
-        // render_pass.draw_indexed( index_len );
+        render_pass.set_vertex_buffer( 0, Some( &model_state.pos_buffer ) );
+        render_pass.set_vertex_buffer( 1, Some( &model_state.normal_buffer ) );
+        render_pass.set_vertex_buffer( 2, Some( &model_state.uv_buffer ) );
+        render_pass.set_vertex_buffer( 3, Some( &model_state.instance_buffer ) );
+        render_pass.set_index_buffer( &model_state.index_buffer, gl::GpuIndexFormat::Uint32 );
+        render_pass.draw_indexed_with_instance_count( model_state.index_length, NUM_MODELS as u32 );
 
+        // Draw big plane
         render_pass.set_pipeline( &big_plane_render_pipeline );
         render_pass.draw( 6 );
         render_pass.end();
       }
 
-      // Render pass
+      // Main render pass
       {
         let render_pass = encoder.begin_render_pass
         ( 
@@ -344,16 +335,25 @@ async fn run() -> Result< (), gl::WebGPUError >
           ( 
             gl::DepthStencilAttachment::new( &depth_view ) 
             .depth_load_op( gl::GpuLoadOp::Load )
-            .depth_store_op( gl::GpuStoreOp::Discard )
           )
           .into()
         ).unwrap();
 
         render_pass.set_pipeline( &light_vis_state.render_pipeline );
         render_pass.set_bind_group( 0, Some( &light_vis_bind_group ) );
-        render_pass.set_vertex_buffer( 0, Some( &light_state.buffer) );
+        render_pass.set_vertex_buffer( 0, Some( &light_state.buffer ) );
         render_pass.draw_with_instance_count( 14, NUM_LIGHTS as u32 );
         render_pass.end();
+      }
+
+      // Update light positions
+      {
+        let compute_pass = encoder.begin_compute_pass();
+
+        compute_pass.set_pipeline( &light_compute_pipeline );
+        compute_pass.set_bind_group( 0, Some( &light_update_bind_group ) );
+        compute_pass.dispatch_workgroups( NUM_LIGHTS.div_ceil( 64 ) as u32 );
+        compute_pass.end();
       }
 
       gl::queue::submit( &device.queue(), encoder.finish() );

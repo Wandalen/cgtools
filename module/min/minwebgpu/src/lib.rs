@@ -46,4 +46,5 @@ mod_interface!
   layer log;
   #[ cfg( feature = "math" ) ]
   layer math;
+  layer compute_pipeline;
 }

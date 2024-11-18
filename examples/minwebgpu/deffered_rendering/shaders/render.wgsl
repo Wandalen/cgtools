@@ -3,7 +3,8 @@ struct Uniforms
   view_matrix : mat4x4< f32 >,
   projection_matrix : mat4x4< f32 >,
   camera_pos : vec3f,
-  time : f32
+  time : f32,
+  elapsed_time : f32
 }
 
 struct Light
@@ -15,7 +16,7 @@ struct Light
 }
 
 @group( 0 ) @binding( 0 ) var< uniform > uniforms : Uniforms;
-@group( 0 ) @binding( 1 ) var< storage > lights : array< Light >;
+@group( 0 ) @binding( 1 ) var< storage, read > lights : array< Light >;
 
 @group( 1 ) @binding( 0 ) var albedo_texture : texture_2d< f32 >;
 @group( 1 ) @binding( 1 ) var pos_texture : texture_2d< f32 >;
@@ -41,14 +42,6 @@ struct FSOutput
   @location( 1 ) position : vec4f,
   @location( 2 ) normal : vec4f
 }
-
-fn rot( angle : f32 ) -> mat2x2< f32 >
-{
-  let s = sin( angle );
-  let c = cos( angle );
-  return mat2x2< f32 >( c, s, -s, c);
-}
-
 @fragment
 fn fs_main( @builtin( position ) coords : vec4f ) -> @location( 0 ) vec4f
 {
@@ -67,17 +60,11 @@ fn fs_main( @builtin( position ) coords : vec4f ) -> @location( 0 ) vec4f
   {
     let light = lights[ i ];
 
-    // Update position
-    let rot = rot( uniforms.time * 20.0 * light.direction / max( length( light.position), 0.000001 ) );
-    let rot_pos = rot * light.position.xz;
-    let light_pos = vec3f( rot_pos.x, light.position.y, rot_pos.y );
-
-
-    let dist = length( light_pos - position );
-    let radius = 10.0;
+    let dist = length( light.position - position );
+    let radius = 15.0;
     let norm_dist = dist / radius;
 
-    let light_dir = normalize( light_pos - position );
+    let light_dir = normalize( light.position - position );
     let attenuation = exp( -norm_dist * 5.0 );
 
     let NdotL = saturate( dot( normal, light_dir ) );
