@@ -1,6 +1,6 @@
 //! Just draw a large point in the middle of the screen.
 
-use light::LightState;
+use light::{LightState, LightVisualizationState, NUM_LIGHTS};
 use minwebgpu::
 {
   self as gl, 
@@ -74,8 +74,8 @@ fn create_vertex_descriptors() -> [ gl::web_sys::GpuVertexBufferLayout; 3 ]
 async fn run() -> Result< (), gl::WebGPUError >
 {
   gl::browser::setup( Default::default() );
-  //let canvas = gl::canvas::retrieve_or_make()?;
-  let canvas = gl::canvas::make()?;
+  let canvas = gl::canvas::retrieve_or_make()?;
+  //let canvas = gl::canvas::make()?;
   let context = gl::context::from_canvas( &canvas )?;
   let adapter = gl::context::request_adapter().await;
   let device = gl::context::request_device( &adapter ).await;
@@ -87,6 +87,7 @@ async fn run() -> Result< (), gl::WebGPUError >
   let width = canvas.width();
   let height = canvas.height();
   
+  let big_plane_shader = gl::ShaderModule::new( include_str!( "../shaders/big_plane.wgsl" ) ).create( &device );
   let gbuffer_shader = gl::ShaderModule::new( include_str!( "../shaders/gbuffer.wgsl" ) ).create( &device );
   let render_shader = gl::ShaderModule::new( include_str!( "../shaders/render.wgsl" ) ).create( &device );
 
@@ -114,7 +115,8 @@ async fn run() -> Result< (), gl::WebGPUError >
   // Load models, create buffer and initialize buffer with the data
   let model = gl::file::load( "bunny.obj" ).await.expect( "Failed to fetch the model" );
   let ( models, _ ) = gl::model::obj::load_model_from_slice( &model, "", &tobj::GPU_LOAD_OPTIONS ).await.unwrap();
-  let model = models.first().unwrap();
+
+  let model = &models[ 0 ];
   let mesh = &model.mesh;
 
   let pos_buffer = gl::BufferInitDescriptor::new( &mesh.positions, gl::BufferUsage::VERTEX ).create( &device )?;
@@ -124,7 +126,8 @@ async fn run() -> Result< (), gl::WebGPUError >
 
   // Setup uniform bindgroup
   let mut uniform_state = UniformState::new( &device )?;
-  let light_state = LightState::new( &device )?;
+  let mut light_state = LightState::new( &device )?;
+  let light_vis_state = LightVisualizationState::new( &device, presentation_format )?;
 
   let uniform_bind_group_layout = gl::BindGroupLayoutDescriptor::new()
   .fragment()
@@ -145,7 +148,7 @@ async fn run() -> Result< (), gl::WebGPUError >
   .create( &device );
   ///////////////////
 
-  // Setup gbufferr related state
+  // Setup gbuffer related state
   let gbuffer_bind_group_layout = gl::layout::bind_group::create
   ( 
     &device, 
@@ -166,6 +169,12 @@ async fn run() -> Result< (), gl::WebGPUError >
   .bind_group( &uniform_bind_group_layout )
   .create( &device );
 
+  let fragment_state = gl::FragmentState::new( &gbuffer_shader ) 
+  .target( gl::ColorTargetState::new() )
+  .target( gl::ColorTargetState::new().format( gl::GpuTextureFormat::Rgba16float ) )
+  .target( gl::ColorTargetState::new().format( gl::GpuTextureFormat::Rgba16float ) )
+  .to_web();
+
   let gbuffer_render_pipeline = gl::render_pipeline::create
   ( 
     &device, 
@@ -177,14 +186,19 @@ async fn run() -> Result< (), gl::WebGPUError >
       .buffer( &uv_vertex_desc )
     )
     .layout( &gbuffer_pipeline_layout )
-    .fragment
-    ( 
-      gl::FragmentState::new( &gbuffer_shader ) 
-      .target( gl::ColorTargetState::new() )
-      .target( gl::ColorTargetState::new().format( gl::GpuTextureFormat::Rgba16float ) )
-      .target( gl::ColorTargetState::new().format( gl::GpuTextureFormat::Rgba16float ) )
-    )
-    .primitive( gl::PrimitiveState::new().cull_none() )
+    .fragment( fragment_state.clone() )
+    .primitive( gl::PrimitiveState::new().cull_back() )
+    .depth_stencil( gl::DepthStencilState::new() )
+    .to_web()
+  )?;
+
+  let big_plane_render_pipeline = gl::render_pipeline::create
+  ( 
+    &device, 
+    &gl::render_pipeline::desc( gl::VertexState::new( &big_plane_shader ) )
+    .layout( &gbuffer_pipeline_layout )
+    .fragment( fragment_state.clone() )
+    .primitive( gl::PrimitiveState::new() )
     .depth_stencil( gl::DepthStencilState::new() )
     .to_web()
   )?;
@@ -222,8 +236,17 @@ async fn run() -> Result< (), gl::WebGPUError >
     .to_web()
   )?;
 
+  // Light visualization
+  let light_vis_bind_group = gl::bind_group::desc
+  ( 
+    &light_vis_state.render_pipeline.get_bind_group_layout( 0 ) 
+  )
+  .auto_bindings()
+  .entry_from_resource( &gl::BufferBinding::new( &uniform_state.buffer ) )
+  .create( &device );
+
   // Define camera related parameters
-  let eye = gl::math::F32x3::from( [ 200.0, 200.0, 0.0 ] );
+  let eye = gl::math::F32x3::from( [ 70.0, 50.0, 0.0 ] );
   let center = gl::math::F32x3::ZERO;
   let up = gl::math::F32x3::Y;
 
@@ -238,12 +261,17 @@ async fn run() -> Result< (), gl::WebGPUError >
   let update_and_draw =
   {
     let index_len = mesh.indices.len() as u32;
+    let mut prev_time = 0.0;
     move | t : f64 |
-    {      
+    {  
+      let delta = ( ( t - prev_time ) / 1000.0 ) as f32;
+      prev_time = t; 
+      let t = ( t / 1000.0 ) as f32;
+
       let canvas_texture = gl::context::current_texture( &context ).unwrap();
       let canvas_view = gl::texture::view( &canvas_texture ).unwrap();
-      let rot = gl::math::mat3x3::from_angle_y( t as f32 / 1000.0 );
-      let eye = rot * eye;
+      // let rot = gl::math::mat3x3::from_angle_y( t );
+      // let eye = rot * eye;
 
       let view_matrix = gl::math::mat3x3h::loot_at_rh( eye, center, up );
       uniform_state.uniform = Uniform
@@ -251,10 +279,11 @@ async fn run() -> Result< (), gl::WebGPUError >
         view_matrix,
         projection_matrix,
         camera_pos : eye,
-        time : t as f32
+        time : t
       };
 
       uniform_state.update( &queue ).unwrap();
+      light_state.update( &queue, t, delta ).unwrap();
 
       let encoder = device.create_command_encoder();
       // Gbuffer pass
@@ -269,22 +298,28 @@ async fn run() -> Result< (), gl::WebGPUError >
           .into()
         ).unwrap();
 
-        render_pass.set_pipeline( &gbuffer_render_pipeline );
+        // render_pass.set_pipeline( &gbuffer_render_pipeline );
         render_pass.set_bind_group( 0, Some( &uniform_bind_group ) );
-        render_pass.set_vertex_buffer( 0, Some( &pos_buffer ) );
-        render_pass.set_vertex_buffer( 1, Some( &normal_buffer ) );
-        render_pass.set_vertex_buffer( 2, Some( &uv_buffer ) );
-        render_pass.set_index_buffer( &index_buffer, gl::GpuIndexFormat::Uint32 );
-        render_pass.draw_indexed( index_len );
+        // render_pass.set_vertex_buffer( 0, Some( &pos_buffer ) );
+        // render_pass.set_vertex_buffer( 1, Some( &normal_buffer ) );
+        // render_pass.set_vertex_buffer( 2, Some( &uv_buffer ) );
+        // render_pass.set_index_buffer( &index_buffer, gl::GpuIndexFormat::Uint32 );
+        // render_pass.draw_indexed( index_len );
+
+        render_pass.set_pipeline( &big_plane_render_pipeline );
+        render_pass.draw( 6 );
         render_pass.end();
       }
 
-      // Final render pass
+      // Render pass
       {
         let render_pass = encoder.begin_render_pass
         ( 
           &gl::RenderPassDescriptor::new()
-          .color_attachment( gl::ColorAttachment::new( &canvas_view )) 
+          .color_attachment
+          ( 
+            gl::ColorAttachment::new( &canvas_view )
+          ) 
           .into()
         ).unwrap();
 
@@ -292,6 +327,32 @@ async fn run() -> Result< (), gl::WebGPUError >
         render_pass.set_bind_group( 0, Some( &uniform_bind_group ) );
         render_pass.set_bind_group( 1, Some( &gbuffer_bind_group ) );
         render_pass.draw( 4 );
+        render_pass.end();
+      }
+
+      // Visualize light
+      {
+        let render_pass = encoder.begin_render_pass
+        ( 
+          &gl::RenderPassDescriptor::new()
+          .color_attachment
+          ( 
+            gl::ColorAttachment::new( &canvas_view )
+            .load_op( gl::GpuLoadOp::Load ) 
+          ) 
+          .depth_stencil_attachment
+          ( 
+            gl::DepthStencilAttachment::new( &depth_view ) 
+            .depth_load_op( gl::GpuLoadOp::Load )
+            .depth_store_op( gl::GpuStoreOp::Discard )
+          )
+          .into()
+        ).unwrap();
+
+        render_pass.set_pipeline( &light_vis_state.render_pipeline );
+        render_pass.set_bind_group( 0, Some( &light_vis_bind_group ) );
+        render_pass.set_vertex_buffer( 0, Some( &light_state.buffer) );
+        render_pass.draw_with_instance_count( 14, NUM_LIGHTS as u32 );
         render_pass.end();
       }
 

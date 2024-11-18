@@ -23,6 +23,18 @@ mod private
   {
     // Round up the size to be aligned with `COPY_BUFFER_ALIGNMENT`
     let unpadded_size = init_desc.data.byte_size() as u64;
+
+    if unpadded_size == 0
+    {
+      let desc = web_sys::GpuBufferDescriptor::new( 0.0, init_desc.usage );
+      if let Some( v ) = init_desc.label { desc.set_label( v ); }
+
+      let buffer = device.create_buffer( &desc )
+      .map_err( | e | DeviceError::FailedToCreateBuffer( format!( "{:?}", e ) ) )?;
+
+      return Ok( buffer );
+    }
+
     let align_mask = COPY_BUFFER_ALIGNMENT - 1;
     let padded_size = ( ( unpadded_size + align_mask ) & !align_mask ).max( COPY_BUFFER_ALIGNMENT );
 

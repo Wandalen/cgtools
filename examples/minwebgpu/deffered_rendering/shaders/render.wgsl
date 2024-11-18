@@ -9,9 +9,9 @@ struct Uniforms
 struct Light
 {
   color : vec3f,
-  phase : f32,
-  velocity : vec3f,
-  power : f32
+  power : f32,
+  position : vec3f,
+  direction : f32
 }
 
 @group( 0 ) @binding( 0 ) var< uniform > uniforms : Uniforms;
@@ -42,6 +42,13 @@ struct FSOutput
   @location( 2 ) normal : vec4f
 }
 
+fn rot( angle : f32 ) -> mat2x2< f32 >
+{
+  let s = sin( angle );
+  let c = cos( angle );
+  return mat2x2< f32 >( c, s, -s, c);
+}
+
 @fragment
 fn fs_main( @builtin( position ) coords : vec4f ) -> @location( 0 ) vec4f
 {
@@ -59,16 +66,19 @@ fn fs_main( @builtin( position ) coords : vec4f ) -> @location( 0 ) vec4f
   for( var i : u32 = 0; i < arrayLength( &lights ); i += u32( 1 ) )
   {
     let light = lights[ i ];
-    // Animate light's position
-    let light_pos = abs( sin( light.phase + uniforms.time / 2000.0 ) ) * light.velocity;
 
-    // Discard light if its radius is smaller than the distance to the shading point
+    // Update position
+    let rot = rot( uniforms.time * 20.0 * light.direction / max( length( light.position), 0.000001 ) );
+    let rot_pos = rot * light.position.xz;
+    let light_pos = vec3f( rot_pos.x, light.position.y, rot_pos.y );
+
+
     let dist = length( light_pos - position );
-    if dist > 13.0 { continue; }
+    let radius = 10.0;
+    let norm_dist = dist / radius;
 
     let light_dir = normalize( light_pos - position );
-    // Taken from here https://learnopengl.com/Lighting/Light-casters
-    let attenuation = 1.0 / ( 1.0 + 0.35 * dist + 0.44 * dist * dist );
+    let attenuation = exp( -norm_dist * 5.0 );
 
     let NdotL = saturate( dot( normal, light_dir ) );
     let half = normalize( view_dir + light_dir );

@@ -33,7 +33,7 @@ fn vs_main( input : VSInput ) -> VSOutput
   output.albedo = vec4( 1.0, 1.0, 1.0, 1.0 );
   output.normal = input.normal;
   output.uv = input.uv;
-  output.clip_pos = uniforms.projection_matrix * uniforms.view_matrix * vec4f( ( input.position - vec3f( -0.2, 0.0, 0.1 ) ) * 100.0, 1.0 );
+  output.clip_pos = uniforms.projection_matrix * uniforms.view_matrix * vec4f( ( input.position ) * 15.0, 1.0 );
   return output;
 }
 
