@@ -1,0 +1,355 @@
+/*
+
+let window = web_sys::window().expect( "Should have a window" );
+  let document = window.document().expect( "Should have a document" );
+  let Some(canvas) = document.get_element_by_id("canvas_buffer") else {
+    return;
+  };
+  let Ok(canvas) = canvas.dyn_into::< web_sys::HtmlCanvasElement >() else {
+    return;
+  };
+  let Ok(ctx) = canvas.get_context("2d").unwrap()
+    .unwrap().dyn_into::< web_sys::CanvasRenderingContext2d >() else {
+    return;
+  };
+
+  let on_load_callback: Box< dyn Fn( &web_sys::HtmlImageElement ) > = Box::new(|img : &web_sys::HtmlImageElement|{
+    web_sys::Url::revoke_object_url(&img.src());
+  });
+
+*/
+
+//! Just draw a large point in the middle of the screen.
+
+//mod wfc;
+
+use minwebgl as gl;
+use photon_rs::PhotonImage;
+use web_sys::{js_sys, wasm_bindgen::prelude::*, HtmlCanvasElement};
+use gl::{ GL };
+use std::sync::Mutex;
+//use wfc::{generate, Relations};
+
+fn set_resize_callback(){
+  let on_resize_callback = 
+  move | canvas : &web_sys::HtmlCanvasElement |
+  {
+    let gl = gl::context::retrieve_or_make().expect( "Should have a context" );
+    let window = web_sys::window().expect( "Should have a window" );
+    let inner_width = window.inner_width().unwrap().as_f64().unwrap() as u32;
+    let inner_height= window.inner_height().unwrap().as_f64().unwrap() as u32;
+    canvas.set_width( inner_width );
+    canvas.set_height( inner_height );
+    gl.viewport( 0, 0, inner_width as i32, inner_height as i32 );
+    update();
+  };
+
+  let gl = gl::context::retrieve_or_make().expect( "Should have a context" );
+  let on_resize_callback: Box< dyn Fn( &web_sys::HtmlCanvasElement ) > = Box::new(on_resize_callback);
+  let canvas = gl.canvas().expect( "Canvas should exist" ).dyn_into::< web_sys::HtmlCanvasElement >().unwrap();
+  on_resize_callback(&canvas);
+  let on_resize_callback : Closure< dyn Fn() > = Closure::new( move || on_resize_callback( &canvas ) );
+  let window = web_sys::window().expect( "Should have a window" );
+  window.set_onresize( Some( on_resize_callback.as_ref().unchecked_ref() ) );
+  on_resize_callback.forget();
+}
+
+fn set_load_callback(){
+  let load = move | _img : &web_sys::HtmlImageElement | {
+    update();
+  };
+
+  let _ = load_image( "tileset.png", Box::new( load ) );
+}
+
+fn create_canvas(id: &str) -> HtmlCanvasElement{
+  let window = web_sys::window().expect( "Should have a window" );
+  let document = window.document().expect( "Should have a document" );
+  let canvas = document.create_element( "canvas" ).unwrap().dyn_into::< web_sys::HtmlCanvasElement >().unwrap();
+  let body = document.body().unwrap();
+  let _ = body.append_child(&canvas);
+  canvas.set_id(id);
+  let _ = canvas.style().set_property("visibility", "hidden");
+  let _ = canvas.style().set_property("position", "absolute");
+  let _ = canvas.style().set_property("top", "0");
+  canvas.set_width( 1000 );
+  canvas.set_height( 800 );
+  canvas
+}
+
+fn load_image( path : &str, on_load_callback : Box< dyn Fn( &web_sys::HtmlImageElement ) > ) -> web_sys::HtmlImageElement
+{
+  let window = web_sys::window().expect( "Should have a window" );
+  let document = window.document().expect( "Should have a document" );
+  let image = document.create_element( "img" ).unwrap().dyn_into::< web_sys::HtmlImageElement >().unwrap();
+  let body = document.body().unwrap();
+  let _ = body.append_child(&image);
+  image.set_id(&format!("{path}"));
+  let _ = image.style().set_property("visibility", "hidden");
+  let _ = image.style().set_property("position", "absolute");
+  let _ = image.style().set_property("top", "0");
+  let _ = image.style().set_property("width", "10px");
+  let _ = image.style().set_property("height", "10px");
+  image.set_cross_origin(Some("anonymous"));
+  let img = image.clone();
+  let on_load_callback : Closure< dyn Fn() > = Closure::new( move || on_load_callback( &img ) );
+  image.set_onload( Some( on_load_callback.as_ref().unchecked_ref() ) );
+  on_load_callback.forget();
+  let origin = window.location().origin().expect( "Should have an origin" );
+  let url = format!( "{origin}/static/{path}" );
+  image.set_src( &url );
+  image
+}
+
+fn init(){
+  gl::browser::setup( Default::default() );
+
+  let window = web_sys::window().expect( "Should have a window" );
+  let document = window.document().expect( "Should have a document" );
+  let body_style = document.body().unwrap().style();
+  let _ = body_style.set_property("margin", "0");
+  //create_canvas("canvas_buffer");
+
+  set_resize_callback();
+  set_load_callback();
+}
+
+fn prepare_vertex_attributes(){
+  let gl = gl::context::retrieve_or_make().unwrap();
+
+  let position_data :  [ f32 ; 12 ] = [
+    -1., -1., -1., 1., 1., 1.,
+    -1., -1., 1., -1., 1., 1.,
+  ];
+
+  let uv_data: [f32; 12] = [
+    0., 1., 0., 0., 1., 0.,
+    0., 1., 1., 1., 1., 0.,
+  ];
+
+  let position_slot = 0;
+  let position_buffer = gl::buffer::create( &gl ).unwrap();
+  gl::buffer::upload( &gl, &position_buffer, &position_data, GL::STATIC_DRAW );
+
+  let uv_slot = 1;
+  let uv_buffer = gl::buffer::create( &gl ).unwrap();
+  gl::buffer::upload( &gl, &uv_buffer, &uv_data, GL::STATIC_DRAW );
+
+  let vao = gl::vao::create( &gl ).unwrap();
+  gl.bind_vertex_array( Some( &vao ) );
+  gl::BufferDescriptor::new::< [ f32 ; 2 ] >().stride( 2 ).offset( 0 )
+  .attribute_pointer( &gl, position_slot, &position_buffer ).unwrap();
+  gl::BufferDescriptor::new::< [ f32 ; 2 ] >().stride( 2 ).offset( 0 )
+  .attribute_pointer( &gl, uv_slot, &uv_buffer ).unwrap();
+  gl.bind_vertex_array( None );
+  gl.bind_vertex_array( Some( &vao ) );
+}
+
+fn create_mvp() -> glam::Mat4{
+  let gl = gl::context::retrieve_or_make().unwrap();
+
+  let width = gl.drawing_buffer_width() as f32;
+  let height = gl.drawing_buffer_height() as f32;
+  let aspect_ratio = width / height;
+  let perspective_matrix = glam::Mat4::perspective_rh_gl(
+     70.0f32.to_radians(),  
+     aspect_ratio, 
+     0.1, 
+     1000.0
+  );
+
+  let model_matrix = glam::Mat4::from_scale_rotation_translation(
+    glam::Vec3::ONE / 2.0, 
+    glam::Quat::from_rotation_z( 0.0 ), 
+    glam::Vec3::ZERO
+  );
+
+  let eye = glam::Vec3::Z;
+  let up = glam::Vec3::Y;
+  let view_matrix = glam::Mat4::look_at_rh( eye, glam::Vec3::ZERO, up );
+  
+  let mvp = perspective_matrix * view_matrix * model_matrix;
+  mvp
+}
+
+fn prepare_texture_array( id: &str, layers: i32, texture_id: u32 ) -> Option<web_sys::WebGlTexture>{
+  let gl = gl::context::retrieve_or_make().unwrap();
+
+  let window = web_sys::window().expect( "Should have a window" );
+  let document = window.document().expect( "Should have a document" );
+  let Some(img) = document.get_element_by_id(id) else {
+    return None;
+  };
+  let img = img.dyn_into::< web_sys::HtmlImageElement >().unwrap();
+  
+  let width = img.natural_width();
+  let height = img.natural_height() / layers as u32;
+
+  let texture_array = gl.create_texture();
+  gl.active_texture(texture_id);
+  gl.bind_texture( GL::TEXTURE_2D_ARRAY, texture_array.as_ref() );
+  
+  let _ = gl.tex_image_3d_with_html_image_element(
+    GL::TEXTURE_2D_ARRAY,
+    0,
+    GL::RGBA as i32,
+    width as i32,
+    height as i32,
+    layers,
+    0,
+    GL::RGBA,
+    GL::UNSIGNED_BYTE,
+    &img
+  );
+
+  gl.tex_parameteri( GL::TEXTURE_2D_ARRAY, GL::TEXTURE_MIN_FILTER, GL::LINEAR as i32 );
+  gl.tex_parameteri( GL::TEXTURE_2D_ARRAY, GL::TEXTURE_MAG_FILTER, GL::LINEAR as i32 );
+
+  gl.tex_parameteri( GL::TEXTURE_2D_ARRAY, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE as i32 );
+  gl.tex_parameteri( GL::TEXTURE_2D_ARRAY, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
+  gl.generate_mipmap(GL::TEXTURE_2D_ARRAY);
+  texture_array
+}
+
+fn prepare_texture1u( data: &[u8], size: glam::IVec2, texture_id: u32 ) -> Option<web_sys::WebGlTexture>{
+  let gl = gl::context::retrieve_or_make().unwrap();
+
+  let texture = gl.create_texture();
+  gl.active_texture(texture_id);
+  gl.bind_texture( GL::TEXTURE_2D, texture.as_ref() );  
+  gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
+  (
+    GL::TEXTURE_2D,
+    0,
+    GL::R8UI as i32,
+    size.x,
+    size.y,
+    0,
+    GL::RED_INTEGER,
+    GL::UNSIGNED_BYTE,
+    Some(data),
+  ).expect( "Can't load an image" );
+  gl.pixel_storei(GL::UNPACK_ALIGNMENT, 1);
+
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32 );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::NEAREST as i32 );
+
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE as i32 );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
+
+  //gl.generate_mipmap(GL::TEXTURE_2D);
+  texture
+}
+
+fn prepare_texture( id: &str, texture_id: u32 ) -> Option<web_sys::WebGlTexture>{
+  let gl = gl::context::retrieve_or_make().unwrap();
+
+  let window = web_sys::window().expect( "Should have a window" );
+  let document = window.document().expect( "Should have a document" );
+  let Some(img) = document.get_element_by_id(id) else {
+    return None;
+  };
+  let Ok(img) = img.dyn_into::< web_sys::HtmlImageElement >() else {
+    return None;
+  };
+
+  let texture = gl.create_texture();
+  gl.active_texture(texture_id);
+  gl.bind_texture( GL::TEXTURE_2D, texture.as_ref() );
+  
+  gl.tex_image_2d_with_u32_and_u32_and_html_image_element
+  (
+    GL::TEXTURE_2D,
+    0,
+    GL::RGBA as i32,
+    GL::RGBA,
+    GL::UNSIGNED_BYTE,
+    &img,
+  ).expect( "Can't load an image" );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE as i32 );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
+  //gl.generate_mipmap(GL::TEXTURE_2D);
+  texture
+}
+
+static MAP: Mutex<Option<Vec<Vec<usize>>>> = Mutex::new(None);
+
+fn update(){
+  let gl = gl::context::retrieve_or_make().unwrap();
+
+  let vertex_shader_src = include_str!( "../shaders/shader.vert" );
+  let fragment_shader_src = include_str!( "../shaders/shader.frag" );
+  let program = gl::ProgramFromSources::new( vertex_shader_src, fragment_shader_src ).compile_and_link( &gl ).unwrap();
+  gl.use_program( Some( &program ) );
+
+  let mvp = create_mvp();
+  let mvp_location = gl.get_uniform_location( &program, "mvp" );
+  gl::uniform::matrix_upload( &gl, mvp_location, &mvp.to_cols_array()[ .. ], true ).unwrap();
+
+  prepare_vertex_attributes();
+  let tiles_texture = prepare_texture_array("tileset.png", 6, GL::TEXTURE0) else {
+    return;
+  };
+
+  let data: Vec<u8> = vec![
+    0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,
+    0,0,0,0,0,0,0,0,1,1,0,0,1,2,1,0,
+    0,0,0,0,0,0,0,1,2,2,1,0,1,2,2,1,
+    0,0,0,0,0,0,1,2,2,2,2,1,0,1,1,0,
+    0,0,1,1,1,1,2,2,3,3,2,2,1,0,0,0,
+    0,1,2,2,1,1,2,3,4,4,3,3,2,1,0,0,
+    1,2,3,3,2,2,2,3,4,4,4,3,2,1,0,0,
+    1,2,3,3,3,3,3,4,4,4,4,3,2,1,0,0,
+    1,2,3,4,4,4,4,4,5,5,4,3,3,2,1,0,
+    1,2,3,4,4,4,4,5,5,5,4,4,3,2,1,0,
+    1,2,3,3,4,4,1,1,5,5,4,4,3,2,1,0,
+    0,1,2,3,3,1,1,4,4,4,4,3,2,1,1,0,
+    0,0,1,2,1,1,3,3,3,3,3,3,2,1,0,0,
+    0,0,0,1,1,2,2,2,2,2,2,2,1,0,0,0,
+    0,0,0,0,0,1,1,1,1,1,1,1,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  ];
+  let size = glam::IVec2::new(16, 16);
+
+  /*let map = *MAP.lock().unwrap();
+  if map.is_empty() || map[0].is_empty(){
+    panic!("Map is empty");
+  }
+  let size = glam::IVec2::new(map[0].len(), map.len());
+  let data = map.iter().flatten().collect::<Vec<u8>>();*/
+
+  let map_texture = prepare_texture1u(&data, size.clone(), GL::TEXTURE1) else{
+    return;
+  };
+
+  let tiles_location = gl.get_uniform_location( &program, "tiles_sampler" );
+  let map_location = gl.get_uniform_location( &program, "map_sampler" );
+  
+  gl.uniform1i(tiles_location.as_ref(), 0);
+  gl.uniform1i(map_location.as_ref(), 1);
+
+  let texel_size = [ 1.0 / size.x as f32, 1.0 / size.y as f32 ];
+  let texel_size_location = gl.get_uniform_location( &program, "texel_size" );
+  gl::uniform::upload( &gl, texel_size_location, texel_size.as_slice() );
+
+  gl.draw_arrays( GL::TRIANGLES, 0, 3*2);
+  gl.bind_vertex_array( None );
+}
+
+/*fn generate_map(){
+  let size = (16, 16);
+  let relations = ;
+  let Ok(map) = generate(size, relations, 0.05) else{
+    return;
+  };
+}*/
+
+fn run() { 
+  init();
+  //generate_map();
+  update();
+}
+
+fn main(){
+  run()
+}
