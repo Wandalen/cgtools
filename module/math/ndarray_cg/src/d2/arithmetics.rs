@@ -6,6 +6,7 @@ mod private
 
 mod add;
 mod mul;
+mod div;
 
 crate::mod_interface!
 {
@@ -13,5 +14,7 @@ crate::mod_interface!
   {
     add::add,
     mul::mul,
+    mul::mul_mat_vec,
+    div::div_scalar
   };
 }

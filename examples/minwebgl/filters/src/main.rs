@@ -29,7 +29,7 @@ fn main()
 
 fn run() -> Result< (), gl::WebglError >
 {
-  let image_path = "static/image.png";
+  let image_path = "static/unnamed.png";
   let gl = gl::context::retrieve_or_make().expect( "Can't retrieve GL context" );
   let filter_renderer = Renderer::new( &gl, None );
   let filter_renderer = Rc::new( RefCell::new( filter_renderer ) );

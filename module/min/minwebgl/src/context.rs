@@ -51,6 +51,21 @@ mod private
     Ok( gl )
   }
 
+  /// Create a 2d context from a canvas.
+  pub fn from_canvas_2d( canvas : &HtmlCanvasElement ) -> Result< web_sys::CanvasRenderingContext2d, Error >
+  {
+    let context = canvas
+    .get_context( "2d" )
+    .map_err( |_| Error::ContextRetrievingError( "Failed to get 2d context" ) )?
+    .ok_or( Error::ContextRetrievingError( "No 2d context" ) )?;
+
+    let context_2d : web_sys::CanvasRenderingContext2d = context
+    .dyn_into()
+    .map_err( |_| Error::ContextRetrievingError( "Failed to cast to CanvasRenderingContext2d" ) )?;
+
+    Ok( context_2d )
+  }
+
   /// Retrieve WebGL2 context from a canvas or create a new canvas and retrives from it the context.
   ///
   /// Trying to find a canvas with id "canvas",
@@ -80,6 +95,7 @@ crate::mod_interface!
     Error,
     from_canvas,
     retrieve_or_make,
+    from_canvas_2d,
   };
 
 }

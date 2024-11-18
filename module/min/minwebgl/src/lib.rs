@@ -49,8 +49,8 @@ mod_interface!
   /// Memory-related entities.
   layer mem;
   /// Multi-dimensional math.
-  #[ cfg( feature = "ndarray" ) ]
-  layer nd;
+  #[ cfg( feature = "math" ) ]
+  layer math;
   /// Panic-related.
   layer panic;
   /// Program-related entities and functionality.
