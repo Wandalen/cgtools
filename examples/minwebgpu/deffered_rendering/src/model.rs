@@ -123,8 +123,6 @@ impl ModelState
 
 fn generate_instances() -> Vec< Instance >
 {
-  let mut rng = rand::thread_rng();
-  
   let mut instances = Vec::new();
 
   let spacing = 20.0;
