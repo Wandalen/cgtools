@@ -53,7 +53,19 @@ pub fn upload_no_flip( gl : &GL, img : &web_sys::HtmlImageElement ) -> Option< w
   texture
 }
 
-// Update the video texture for each frame
+/// Update the video texture for each frame in render loop
+/// # Parameters
+/// - `gl`: Reference to the WebGL rendering context
+/// - `texture`: The WebGL texture to update
+/// - `video_element`: The HTML video element to source the texture from
+/// 
+/// # Behavior
+/// - Binds the texture to the current WebGL context
+/// - Uploads the current video frame to the texture
+/// 
+/// # When it useful
+/// - Playing video as a texture
+/// - Updating video every frame
 pub fn update_video( gl : &GL, texture : &web_sys::WebGlTexture, video_element : &web_sys::HtmlVideoElement )
 {
   gl.bind_texture( GL::TEXTURE_2D, Some( texture ) );
@@ -73,6 +85,28 @@ pub fn update_video( gl : &GL, texture : &web_sys::WebGlTexture, video_element :
 
 /// Creates a 2D texture from HtmlImageElement.
 /// Get pixel data from the HtmlImageElement using the 2d context of temporary canvas and load it into the texture array element by element.
+///
+/// # Parameters
+/// - `gl`: Reference to the WebGL rendering context
+/// - `img`: The HTML image element containing the sprite sheet
+/// - `sprites_in_row`: Number of sprites in each row of the sheet
+/// - `sprites_in_col`: Number of sprites in each column of the sheet
+/// - `sprite_width`: Width of each individual sprite
+/// - `sprite_height`: Height of each individual sprite
+/// - `amount`: Total number of sprites to upload
+/// 
+/// # Returns
+/// A `Result` containing the created WebGL texture or a `WebglError`
+/// 
+/// # Behavior
+/// - Creates a WebGL texture array
+/// - Loads image data using a temporary canvas
+/// - Splits sprite sheet into individual sprite textures
+/// - Configures texture parameters and mipmapping
+/// 
+/// # When it useful
+/// - Loading sprites
+/// - Working with texture arrays
 pub async fn upload_sprite( gl : &GL, img : &web_sys::HtmlImageElement, sprites_in_row : u32, sprites_in_col : u32, sprite_width : u32, sprite_height : u32, amount : u32 ) -> Result< web_sys::WebGlTexture, WebglError >
 {
   let load_promise = js_sys::Promise::new

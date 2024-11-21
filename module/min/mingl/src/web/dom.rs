@@ -28,7 +28,24 @@ mod private
 
   }
 
-  // Create HtmlVideoElement and set source of video resource
+  /// Create HtmlVideoElement configure and set source of video resource
+  /// 
+  /// # Parameters
+  /// - `path`: Path to the video resource
+  /// - `video_width`: Desired width of the video element
+  /// - `video_height`: Desired height of the video element
+  /// 
+  /// # Returns
+  /// A `Result` containing the created `HtmlVideoElement` or a `JsValue` error
+  /// 
+  /// # Behavior
+  /// - Creates video element from document
+  /// - Sets video source using full URL (including origin)
+  /// - Configures video to loop and mute
+  /// - Automatically starts video playback
+  /// 
+  /// # When it useful
+  /// - Create an video element for the natural and cheapest video upload on the web
   pub fn create_video_element( path : &str, video_width : u32, video_height : u32 ) -> Result< web_sys::HtmlVideoElement, wasm_bindgen::JsValue >
   {
     let window = web_sys::window().unwrap();
@@ -50,7 +67,20 @@ mod private
     Ok( video_element )
   }
 
-  // Create HtmlImageElement
+  /// Create HtmlImageElement and set source of image resource
+  /// 
+  /// # Parameters
+  /// - `path`: Path to the image resource
+  /// 
+  /// # Returns
+  /// A `Result` containing the created `HtmlImageElement` or a `JsValue` error
+  /// 
+  /// # Behavior
+  /// - Creates image element from document
+  /// - Sets image source using full URL (including origin)
+  /// 
+  /// # When it useful
+  /// - Create an image element for the natural and cheapest image upload on the web
   pub fn create_image_element( path : &str ) -> Result< web_sys::HtmlImageElement, wasm_bindgen::JsValue >
   {
     let window = web_sys::window().unwrap();
