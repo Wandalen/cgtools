@@ -6,4 +6,4 @@ authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
 license = "MIT"
 
 [dependencies]
-minwebgl = { workspace = true, features = [ "ndarray" ] }
+minwebgl = { workspace = true, features = [ "math" ] }

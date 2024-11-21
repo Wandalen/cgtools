@@ -8,10 +8,10 @@ use crate::*;
 /// # Returns
 /// - A 3x3 rotation matrix.
 #[ inline ]
-pub fn rot< E >( angle_radians : E ) -> Mat3< E >
+pub fn rot< E >( angle_radians : E ) -> Mat3< E, mat::DescriptorOrderColumnMajor>
 where
   E : MatEl + nd::NdFloat,
-  Mat3< E > :  RawSliceMut< Scalar = E >
+  Mat3< E, mat::DescriptorOrderColumnMajor> :  RawSliceMut< Scalar = E >
 {
   let cos_theta = angle_radians.cos();
   let sin_theta = angle_radians.sin();
@@ -31,11 +31,11 @@ where
 /// # Returns
 /// - A 3x3 translation matrix.
 #[ inline ]
-pub fn translate< E, Translation >( translation : Translation ) -> Mat3< E >
+pub fn translate< E, Translation >( translation : Translation ) -> Mat3< E, mat::DescriptorOrderColumnMajor>
 where
   E : MatEl + nd::NdFloat,
   Translation : VectorIter< E, 2 >,
-  Mat3< E > :  RawSliceMut< Scalar = E >
+  Mat3< E, mat::DescriptorOrderColumnMajor> :  RawSliceMut< Scalar = E >
 {
   let mut iter = translation.vector_iter();
   let tx = *iter.next().unwrap();
@@ -56,11 +56,11 @@ where
 /// # Returns
 /// - A 3x3 scaling matrix.
 #[ inline ]
-pub fn scale< E, Scaling >( scaling : Scaling ) -> Mat3< E >
+pub fn scale< E, Scaling >( scaling : Scaling ) -> Mat3< E, mat::DescriptorOrderColumnMajor>
 where
   E : MatEl + nd::NdFloat,
   Scaling : VectorIter< E, 2 > + Collection< Scalar = E >,
-  Mat3< E > :  RawSliceMut< Scalar = E >
+  Mat3< E, mat::DescriptorOrderColumnMajor> :  RawSliceMut< Scalar = E >
 {
   let mut iter = scaling.vector_iter();
   let sx = *iter.next().unwrap();
@@ -81,11 +81,11 @@ where
 /// # Returns
 /// - A 3x3 shearing matrix.
 #[ inline ]
-pub fn shear< E, Shearing >( shearing : Shearing ) -> Mat3< E >
+pub fn shear< E, Shearing >( shearing : Shearing ) -> Mat3< E, mat::DescriptorOrderColumnMajor>
 where
   E : MatEl + nd::NdFloat,
   Shearing : VectorIter< E, 2 >,
-  Mat3< E > :  RawSliceMut< Scalar = E >
+  Mat3< E, mat::DescriptorOrderColumnMajor> :  RawSliceMut< Scalar = E >
 {
   let mut iter = shearing.vector_iter();
   let shx = *iter.next().unwrap();
@@ -103,10 +103,10 @@ where
 /// # Returns
 /// - A 3x3 reflection matrix.
 #[ inline ]
-pub fn reflect_x< E >() -> Mat3< E >
+pub fn reflect_x< E >() -> Mat3< E, mat::DescriptorOrderColumnMajor>
 where
   E : MatEl + nd::NdFloat,
-  Mat3< E > :  RawSliceMut< Scalar = E >
+  Mat3< E, mat::DescriptorOrderColumnMajor> :  RawSliceMut< Scalar = E >
 {
   Mat3::from_row_major
   ([
@@ -121,10 +121,10 @@ where
 /// # Returns
 /// - A 3x3 reflection matrix.
 #[ inline ]
-pub fn reflect_y< E >() -> Mat3< E >
+pub fn reflect_y< E >() -> Mat3< E, mat::DescriptorOrderColumnMajor>
 where
   E : MatEl + nd::NdFloat,
-  Mat3< E > :  RawSliceMut< Scalar = E >
+  Mat3< E, mat::DescriptorOrderColumnMajor> :  RawSliceMut< Scalar = E >
 {
   Mat3::from_row_major
   ([
@@ -143,11 +143,11 @@ where
 /// # Returns
 /// - A 3x3 rotation matrix.
 #[ inline ]
-pub fn rot_around_point< E, Point >( angle_radians : E, p : Point ) -> Mat3< E >
+pub fn rot_around_point< E, Point >( angle_radians : E, p : Point ) -> Mat3< E, mat::DescriptorOrderColumnMajor>
 where
   E : MatEl + nd::NdFloat,
   Point : VectorIter< E, 2 > + Collection< Scalar = E >,
-  Mat3< E > :  RawSliceMut< Scalar = E >
+  Mat3< E, mat::DescriptorOrderColumnMajor> :  RawSliceMut< Scalar = E >
 {
   let mut iter = p.vector_iter();
   let px = *iter.next().unwrap();
@@ -171,12 +171,12 @@ where
 /// # Returns
 /// - A 3x3 scaling matrix.
 #[ inline ]
-pub fn scale_relative_to_point< E, Scaling, Point >( scaling : Scaling, p : Point ) -> Mat3< E >
+pub fn scale_relative_to_point< E, Scaling, Point >( scaling : Scaling, p : Point ) -> Mat3< E, mat::DescriptorOrderColumnMajor>
 where
   E : MatEl + nd::NdFloat,
   Scaling : VectorIter< E, 2 >,
   Point : VectorIter< E, 2 >,
-  Mat3< E > :  RawSliceMut< Scalar = E >
+  Mat3< E, mat::DescriptorOrderColumnMajor> :  RawSliceMut< Scalar = E >
 {
   let mut s_iter = scaling.vector_iter();
   let sx = *s_iter.next().unwrap();

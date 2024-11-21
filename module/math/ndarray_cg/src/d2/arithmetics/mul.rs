@@ -37,7 +37,36 @@ where
       .fold( E::zero(), | sum, val | sum + val );
     }
   }
+}
 
+/// Multiplies vector by a matrix.
+pub fn mul_mat_vec< E, A, B, R, const ROWS : usize >( r : &mut R, a : &A, b : &B )
+where
+  E : nd::NdFloat,
+  R : VectorIterMut< E, ROWS >,
+  A : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
+  B : VectorIter< E, ROWS >,
+{
+  let adim = a.dim();
+
+  // Check if dimensions are compatible for multiplication
+  #[ cfg( debug_assertions ) ]
+  if adim[ 1 ] != ROWS 
+  {
+    panic!
+    (
+      "Incompatible dimensions for matrix-vector multiplication : a : {:?}, b : {:?}, r : {:?}",
+      adim, ROWS, ROWS
+    );
+  }
+
+  for ( row, e ) in r.vector_iter_mut().enumerate()
+  {
+    *e = a.lane_iter( 0, row )
+    .zip( b.vector_iter() )
+    .map( | ( a_val, b_val ) | *a_val * *b_val )
+    .fold( E::zero(), | sum, val | sum + val );
+  }
 }
 
 impl< E, const ROWS : usize, const COLS : usize, const COLS2 : usize, Descriptor > Mul< Mat< COLS, COLS2, E, Descriptor > >
@@ -78,6 +107,46 @@ where
   {
     let mut result = Self::Output::default();
     mul( &mut result, self, rhs );
+    result
+  }
+}
+
+//
+// Vector
+//
+
+impl< E, const ROWS : usize, const COLS : usize, Descriptor > Mul< Vector< E, COLS > >
+for Mat< ROWS, COLS, E, Descriptor >
+where
+  Descriptor : mat::Descriptor,
+  E : MatEl + nd::NdFloat,
+  Mat< ROWS, COLS, E, Descriptor > : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
+{
+  type Output = Vector< E, COLS >;
+
+  #[ inline ]
+  fn mul( self, rhs : Vector< E, COLS > ) -> Self::Output
+  {
+    let mut result = Self::Output::default();
+    mul_mat_vec( &mut result, &self, &rhs );
+    result
+  }
+}
+
+impl< E, const ROWS : usize, const COLS : usize, Descriptor > Mul< &Vector< E, COLS > >
+for &Mat< ROWS, COLS, E, Descriptor >
+where
+  Descriptor : mat::Descriptor,
+  E : MatEl + nd::NdFloat,
+  Mat< ROWS, COLS, E, Descriptor > : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
+{
+  type Output = Vector< E, COLS >;
+
+  #[ inline ]
+  fn mul( self, rhs : &Vector< E, COLS > ) -> Self::Output
+  {
+    let mut result = Self::Output::default();
+    mul_mat_vec( &mut result, self, rhs );
     result
   }
 }
