@@ -3,6 +3,7 @@ mod private
 {
   use crate::*;
 
+  #[ derive( Clone ) ]
   pub struct FragmentState< 'a >
   {
     module : &'a web_sys::GpuShaderModule,

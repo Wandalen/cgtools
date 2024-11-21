@@ -14,4 +14,5 @@ crate::mod_interface!
   layer depth_stencil;
   layer stencil_face;
   layer multisample;
+  layer programmable_stage;
 }

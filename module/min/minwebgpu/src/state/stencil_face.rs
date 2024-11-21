@@ -3,7 +3,7 @@ mod private
 {
   use crate::*;
 
-  #[ derive( Default ) ]
+  #[ derive( Default, Clone ) ]
   pub struct StencilFaceState
   {
     /// Defaults to `Always`

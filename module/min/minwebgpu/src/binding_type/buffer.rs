@@ -3,7 +3,7 @@ mod private
 {
   use crate::*;
 
-  #[ derive( Default ) ]
+  #[ derive( Default, Clone ) ]
   pub struct BufferBindingLayout
   {
     /// Defaults to `uniform`
@@ -66,14 +66,6 @@ mod private
   impl From< BufferBindingLayout > for web_sys::GpuBufferBindingLayout
   {
     fn from( value: BufferBindingLayout ) -> Self 
-    {
-      ( &value ).into()
-    }
-  }
-
-  impl From< &BufferBindingLayout > for web_sys::GpuBufferBindingLayout
-  {
-    fn from( value: &BufferBindingLayout ) -> Self 
     {
       let layout = web_sys::GpuBufferBindingLayout::new();
 

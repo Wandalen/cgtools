@@ -1,9 +1,11 @@
 mod private
 {
   use mdmath_core::vector::mul_scalar;
+  use mdmath_core::vector::mul;
 
-use crate::*;
+  use crate::*;
 
+  // Vector * Matrix
   impl< E, const ROWS : usize, const COLS : usize, Descriptor > MulAssign< Mat< ROWS, COLS, E, Descriptor > >
   for  Vector< E, COLS >
   where
@@ -17,6 +19,20 @@ use crate::*;
     }
   }
 
+  // Vector * Vector
+  impl< E, const LEN : usize > Mul for Vector< E, LEN >
+  where
+    E : MatEl + nd::NdFloat
+  {
+    type Output = Self;
+
+    fn mul( self, rhs: Self ) -> Self::Output 
+    {
+      mul( &self, &rhs )
+    }
+  }
+  
+  // Vector * Scalar
   impl< E, const LEN : usize > Mul< E > for Vector< E, LEN >
   where
     E : MatEl + nd::NdFloat
@@ -29,6 +45,7 @@ use crate::*;
     }
   }
 
+  // Vector *= Scalar
   impl< E, const LEN : usize > MulAssign< E > for Vector< E, LEN >
   where
     E : MatEl + nd::NdFloat
@@ -39,6 +56,7 @@ use crate::*;
     }
   }
 
+  // Scalar * Vector
   impl< const LEN : usize > Mul< Vector< f32, LEN > > for f32
   {
     type Output = Vector< f32, LEN >;
@@ -49,6 +67,7 @@ use crate::*;
     }
   }
 
+  // Scalar * Vector
   impl< const LEN : usize > Mul< Vector< f64, LEN > > for f64
   {
     type Output = Vector< f64, LEN >;

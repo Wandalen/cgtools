@@ -3,6 +3,7 @@ mod private
 {
   use crate::*;
 
+  #[ derive( Clone ) ]
   pub struct RenderPassDescriptor< 'a >
   {
     color_attachments : Vec< web_sys::GpuRenderPassColorAttachment >,

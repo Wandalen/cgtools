@@ -12,10 +12,12 @@ mod private
     CanvasError( #[ from ] CanvasError ),
     #[ error( "Device error :: {0}" ) ]
     DeviceError( #[ from ] DeviceError ),
-    #[ error( "Device error :: {0}" ) ]
+    #[ error( "Context error :: {0}" ) ]
     ContexError( #[ from ] ContextError ),
-    #[ error( "Device error :: {0}" ) ]
+    #[ error( "Texture error :: {0}" ) ]
     TextureError( #[ from ] TextureError ),
+    #[ error( "Buffer error :: {0}" ) ]
+    BufferError( #[ from ] BufferError ),
   }
 
 
@@ -41,14 +43,27 @@ mod private
   }
 
   #[ derive( Debug, error::typed::Error ) ]
+  pub enum BufferError
+  {
+    #[ error( "Failed to get mapped range: {0}" )]
+    FailedToGetMappedRange( String ),
+    #[ error( "Failed to write to the buffer: {0}" )]
+    FailedWriteToBuffer( String ),
+  }
+
+  #[ derive( Debug, error::typed::Error ) ]
   pub enum DeviceError
   {
     #[ error( "Failed to create BindGroupLayout: {0}" )]
     FailedToCreateBindGroupLayout( String ),
     #[ error( "Failed to create RenderPipeline: {0}" )]
     FailedToCreateRenderPipeline( String ),
+    #[ error( "Failed to create ComputePipeline: {0}" )]
+    FailedToCreateComputePipeline( String ),
     #[ error( "Failed to create Texture: {0}" )]
-    FailedToCreateTexture( String )
+    FailedToCreateTexture( String ),
+    #[ error( "Failed to create Buffer: {0}" )]
+    FailedToCreateBuffer( String )
   }
 
 }
@@ -67,7 +82,8 @@ crate::mod_interface!
     CanvasError,
     DeviceError,
     ContextError,
-    TextureError
+    TextureError,
+    BufferError
   };
 }
 

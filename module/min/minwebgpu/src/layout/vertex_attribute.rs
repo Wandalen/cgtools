@@ -3,6 +3,7 @@ mod private
 {
   use crate::*;
 
+  #[ derive( Clone ) ]
   pub struct VertexAttribute
   {
     /// Offset of the attribute. Default: 0.0

@@ -4,6 +4,7 @@ mod private
   use crate::*;
   use binding_type::*;
 
+  #[ derive( Clone ) ]
   pub enum BindingType
   {
     Buffer( web_sys::GpuBufferBindingLayout ),
@@ -14,45 +15,35 @@ mod private
     Other
   }
 
-  impl From< BufferBindingLayout > for BindingType 
+  macro_rules! impl_into_binding_ty
   {
-    fn from( value: BufferBindingLayout ) -> Self 
+    ( $s_name:ty, $t_name:ident ) => 
     {
-        BindingType::Buffer( value.into() )
-    }   
+      impl From< $s_name > for BindingType
+      {
+        fn from( value: $s_name ) -> Self 
+        {
+            BindingType::$t_name( value.into() )
+        }   
+      }
+    };
   }
 
-  impl From< SamplerBindingLayout > for BindingType 
-  {
-    fn from( value: SamplerBindingLayout ) -> Self 
-    {
-        BindingType::Sampler( value.into() )
-    }   
-  }
+  impl_into_binding_ty!( BufferBindingLayout, Buffer );
+  impl_into_binding_ty!( web_sys::GpuBufferBindingLayout, Buffer );
 
-  impl From< TextureBindingLayout > for BindingType 
-  {
-    fn from( value: TextureBindingLayout ) -> Self 
-    {
-        BindingType::Texture( value.into() )
-    }   
-  }
+  impl_into_binding_ty!( SamplerBindingLayout, Sampler );
+  impl_into_binding_ty!( web_sys::GpuSamplerBindingLayout, Sampler );
 
-  impl From< StorageTextureBindingLayout > for BindingType 
-  {
-    fn from( value: StorageTextureBindingLayout ) -> Self 
-    {
-        BindingType::StorageTexture( value.into() )
-    }   
-  }
+  impl_into_binding_ty!( TextureBindingLayout, Texture );
+  impl_into_binding_ty!( web_sys::GpuTextureBindingLayout, Texture );
 
-  impl From< ExternalTextureBindingLayout > for BindingType 
-  {
-    fn from( value: ExternalTextureBindingLayout ) -> Self 
-    {
-        BindingType::ExternalTexture( value.into() )
-    }   
-  }
+  impl_into_binding_ty!( StorageTextureBindingLayout, StorageTexture );
+  impl_into_binding_ty!( web_sys::GpuStorageTextureBindingLayout, StorageTexture );
+
+  impl_into_binding_ty!( ExternalTextureBindingLayout, ExternalTexture );
+  impl_into_binding_ty!( web_sys::GpuExternalTextureBindingLayout, ExternalTexture );
+
 
   pub fn buffer() -> BufferBindingLayout
   {

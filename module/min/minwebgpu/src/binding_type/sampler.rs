@@ -3,7 +3,7 @@ mod private
 {
   use crate::*;
 
-  #[ derive( Default ) ]
+  #[ derive( Default, Clone ) ]
   pub struct SamplerBindingLayout
   {
     /// Defaults to `Filtering`
@@ -49,14 +49,6 @@ mod private
   impl From< SamplerBindingLayout > for web_sys::GpuSamplerBindingLayout
   {
     fn from( value: SamplerBindingLayout ) -> Self 
-    {
-      ( &value ).into()
-    }
-  }
-
-  impl From< &SamplerBindingLayout > for web_sys::GpuSamplerBindingLayout
-  {
-    fn from( value: &SamplerBindingLayout ) -> Self 
     {
       let layout = web_sys::GpuSamplerBindingLayout::new();
 

@@ -3,7 +3,7 @@ mod private
 {
   use crate::*;
 
-  #[ derive( Default ) ]
+  #[ derive( Default, Clone ) ]
   pub struct SamplerDescriptor< 'a >
   {
     ///Defaults to `None`
@@ -224,14 +224,6 @@ mod private
   impl From< SamplerDescriptor< '_ > > for web_sys::GpuSamplerDescriptor 
   {
     fn from( value: SamplerDescriptor< '_ > ) -> Self 
-    {
-      ( &value ).into()
-    }
-  }
-
-  impl From< &SamplerDescriptor< '_ > > for web_sys::GpuSamplerDescriptor 
-  {
-    fn from( value: &SamplerDescriptor< '_ > ) -> Self 
     {
       let descriptor = web_sys::GpuSamplerDescriptor::new();
 
