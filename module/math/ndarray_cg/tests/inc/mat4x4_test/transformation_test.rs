@@ -1,5 +1,5 @@
-use mat3x3h::{rot, scale, translation};
 use ndarray_cg::*;
+use mat3x3h::{rot, scale, translation};
 
 #[ test ]
 fn test_translation()
