@@ -192,7 +192,7 @@ where
 /// # Returns
 /// - A 4x4 translation matrix.
 #[ inline ]
-pub fn translate< E, Translation >( translation : Translation ) -> Mat4< E, mat::DescriptorOrderColumnMajor >
+pub fn translation< E, Translation >( translation : Translation ) -> Mat4< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl + nd::NdFloat,
   Translation : VectorIter< E, 3 >,

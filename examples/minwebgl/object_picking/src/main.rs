@@ -330,7 +330,7 @@ fn create_objects() -> Vec< Object >
   transforms
   .into_iter()
   .enumerate()
-  .map( | ( i, ( r, t ) ) | Object { transform : d2::mat3x3h::translate( t ) * r, id : i as i32 } )
+  .map( | ( i, ( r, t ) ) | Object { transform : d2::mat3x3h::translation( t ) * r, id : i as i32 } )
   .collect()
 }
 

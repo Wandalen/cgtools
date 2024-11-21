@@ -19,7 +19,7 @@ crate::mod_interface!
     loot_at_rh,
     rot,
     scale,
-    translate,
+    translation,
   };
 
 }
