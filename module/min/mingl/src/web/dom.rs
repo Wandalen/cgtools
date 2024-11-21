@@ -45,7 +45,7 @@ mod private
   /// - Automatically starts video playback
   /// 
   /// # When it useful
-  /// - Create an video element for the natural and cheapest video upload on the web
+  /// - Create an video element for the natural and cheapest video upload to the web
   pub fn create_video_element( path : &str, video_width : u32, video_height : u32 ) -> Result< web_sys::HtmlVideoElement, wasm_bindgen::JsValue >
   {
     let window = web_sys::window().unwrap();
@@ -80,7 +80,7 @@ mod private
   /// - Sets image source using full URL (including origin)
   /// 
   /// # When it useful
-  /// - Create an image element for the natural and cheapest image upload on the web
+  /// - Create an image element for the natural and cheapest image upload to the web
   pub fn create_image_element( path : &str ) -> Result< web_sys::HtmlImageElement, wasm_bindgen::JsValue >
   {
     let window = web_sys::window().unwrap();
