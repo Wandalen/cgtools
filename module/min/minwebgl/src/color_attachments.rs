@@ -1,13 +1,7 @@
 mod private
 {
-  use crate::*;
   use crate as gl;
-  use web_sys::
-  {
-    WebGlFramebuffer,
-    WebGlRenderbuffer,
-    WebGlTexture
-  };
+  use gl::GL;
 
   // Maximum amount of ColorAttachments supported by WebGl2
   const MAX_COLOR_ATTACHMENTS : usize = 16;
@@ -34,71 +28,25 @@ mod private
     N15,
   }
 
-  impl From< ColorAttachment > for u32
+  pub fn drawbuffers( gl : &GL, attachments : &[ ColorAttachment ] )
   {
-    fn from( value: ColorAttachment ) -> Self
+    let mut buffers = [ 0; MAX_COLOR_ATTACHMENTS ];
+    for attachment in attachments
     {
-      value as u32
+      let index = *attachment as usize - ColorAttachment::N0 as usize;
+      buffers[ index ] =  *attachment as u32;
     }
-  }
-
-  /// A struct for storing and converting Color Attachments
-  /// into proper array for `gl.draw_arrays` function
-  #[ derive( Default, Clone, Copy ) ]
-  pub struct Attachments
-  {
-    attachments : [ u32; MAX_COLOR_ATTACHMENTS ],
-  }
-
-  impl Attachments
-  {
-    pub fn new() -> Self
-    {
-      Self { attachments: [ GL::NONE; MAX_COLOR_ATTACHMENTS ] }
-    }
-
-    pub fn from_slice( attachments : &[ ColorAttachment ] ) -> Self
-    {
-      let mut this = Self::new();
-      for attachment in attachments
-      {
-        let index = *attachment as usize - ColorAttachment::N0 as usize;
-        this.attachments[ index ] =  *attachment as u32;
-      }
-      this
-    }
-
-    pub fn insert( &mut self, attachment : ColorAttachment )
-    {
-      let index = attachment as usize - ColorAttachment::N0 as usize;
-      self.attachments[ index ] = attachment as u32;
-    }
-
-    pub fn remove( &mut self, attachment : ColorAttachment )
-    {
-      let index = attachment as usize - ColorAttachment::N0 as usize;
-      self.attachments[ index ] = GL::NONE;
-    }
-
-    pub fn clear( &mut self )
-    {
-      self.attachments = [ GL::NONE; MAX_COLOR_ATTACHMENTS ];
-    }
-
-    /// Converts to an array intended to be passed into gl.draw_buffers
-    pub fn as_drawbuffers( &self ) -> js_sys::Array
-    {
-      let last = self.attachments.iter().rposition( | item | *item != GL::NONE ).map_or( 0, | pos | pos + 1 );
-      js_sys::Array::from_iter
-      (
-        self.attachments[ .. last ].iter().map( | item | JsValue::from_f64( *item as f64 ) )
-      )
-    }
+    let last = buffers.iter().rposition( | item | *item != GL::NONE ).map_or( 0, | pos | pos + 1 );
+    let array = js_sys::Array::from_iter
+    (
+      buffers[ .. last ].iter().map( | item | JsValue::from_f64( *item as f64 ) )
+    );
+    gl.draw_buffers( &buffers );
   }
 }
 
 crate::mod_interface!
 {
+  own use drawbuffers;
   own use ColorAttachment;
-  own use Attachments;
 }
