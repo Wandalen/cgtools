@@ -64,6 +64,8 @@ fn fs_main( @builtin( position ) coords : vec4f ) -> @location( 0 ) vec4f
     let radius = 15.0;
     let norm_dist = dist / radius;
 
+    if norm_dist > 1.0 { continue; }
+
     let light_dir = normalize( light.position - position );
     let attenuation = exp( -norm_dist * 5.0 );
 

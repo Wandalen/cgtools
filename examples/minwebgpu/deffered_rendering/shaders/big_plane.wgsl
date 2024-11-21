@@ -32,7 +32,7 @@ fn vs_main( @builtin( vertex_index) id : u32 ) -> VSOutput
     vec2f(  1.0,  1.0 ),
   );
 
-  let position = vec3f( positions[ id ], 0.0 ) * 100.0 - vec3f( 0.0, 0.0, 5.0 );
+  let position = vec3f( positions[ id ], 0.0 ) * 50.0 - vec3f( 0.0, 0.0, 5.0 );
   let pos = position.xzy;
 
   var output : VSOutput;
