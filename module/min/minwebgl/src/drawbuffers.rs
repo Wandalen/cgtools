@@ -2,6 +2,7 @@ mod private
 {
   use crate as gl;
   use gl::GL;
+  use wasm_bindgen::JsValue;
 
   // Maximum amount of ColorAttachments supported by WebGl2
   const MAX_COLOR_ATTACHMENTS : usize = 16;
@@ -28,6 +29,8 @@ mod private
     N15,
   }
 
+  /// This is just a wrapper over `gl.draw_buffers`. Provide attachments
+  /// you want to draw into and it will the rest
   pub fn drawbuffers( gl : &GL, attachments : &[ ColorAttachment ] )
   {
     let mut buffers = [ 0; MAX_COLOR_ATTACHMENTS ];
@@ -36,12 +39,12 @@ mod private
       let index = *attachment as usize - ColorAttachment::N0 as usize;
       buffers[ index ] =  *attachment as u32;
     }
-    let last = buffers.iter().rposition( | item | *item != GL::NONE ).map_or( 0, | pos | pos + 1 );
+    let last = buffers.iter().rposition( | item | *item != GL::NONE ).unwrap_or( 0 );
     let array = js_sys::Array::from_iter
     (
-      buffers[ .. last ].iter().map( | item | JsValue::from_f64( *item as f64 ) )
+      buffers[ ..= last ].iter().map( | item | JsValue::from_f64( *item as f64 ) )
     );
-    gl.draw_buffers( &buffers );
+    gl.draw_buffers( &array );
   }
 }
 
