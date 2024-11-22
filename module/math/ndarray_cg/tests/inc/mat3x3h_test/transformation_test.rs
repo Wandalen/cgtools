@@ -6,7 +6,7 @@ fn test_translation()
 {
   let vec = Vector( [ 0.0_f32, 0.0, 0.0, 1.0 ] );
   let translation = translation( [ 1.0_f32, 2.0, 3.0 ] );
-  let res = translation.mul(vec);
+  let res = translation * vec;
 
   assert_eq!( res.x(), 1.0 );
   assert_eq!( res.y(), 2.0 );
@@ -14,24 +14,29 @@ fn test_translation()
 }
 
 #[ test ]
-fn test_rotation_rotation()
+fn test_rotation()
 {
   let x = Vector( [ 1.0_f32, 0.0, 0.0, 1.0 ] );
   let y = Vector( [ 0.0_f32, 1.0, 0.0, 1.0 ] );
   let z = Vector( [ 0.0_f32, 0.0, 1.0, 1.0 ] );
+  
   let angle = std::f32::consts::FRAC_PI_2;
-  let rotation = rot( 0.0, angle, 0.0 );
-  let rot_x = rotation * x;
-  let rot_y = rotation * y;
-  let rot_z = rotation * z;
+  
+  let rotation_x = rot( angle, 0.0, 0.0 );
+  let rotation_y = rot( 0.0, angle, 0.0 );
+  let rotation_z = rot( 0.0, 0.0, angle );
+  
+  let rotated_x = rotation_z * x;
+  let rotated_y = rotation_x * y;
+  let rotated_z = rotation_y * z;
 
-  assert_eq!( rot_x.z(), -1.0 );
-  assert_eq!( rot_y.y(),  1.0 );
-  assert_eq!( rot_z.x(),  1.0 );
+  assert_eq!( rotated_x.y(), 1.0 );
+  assert_eq!( rotated_y.z(), 1.0 );
+  assert_eq!( rotated_z.x(), 1.0 );
 }
 
 #[ test ]
-fn test_rotation_scale()
+fn test_scale()
 {
   let vec = Vector( [ 1.0_f32, 1.0, 1.0, 1.0 ] );
   let scale = scale( [ 0.1, 0.2, 0.3 ] );
