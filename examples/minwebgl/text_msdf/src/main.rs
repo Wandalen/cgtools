@@ -64,22 +64,22 @@ fn run() -> Result< (), gl::WebglError >
   .attribute_pointer( &gl, 2, &buffer )?;
 
 
-  let eye = glam::Vec3::Z * 5.0;
-  let up = glam::Vec3::Y;
-  let dir = glam::Vec3::NEG_Z;
+  let eye = gl::F32x3::Z * 5.0;
+  let up = gl::F32x3::Y;
+  let dir = gl::F32x3::NEG_Z;
 
   let fov = 70.0f32.to_radians();
   let aspect = width / height;
   let near = 0.1;
   let far = 1000.0;
 
-  let projection_matrix = glam::Mat4::perspective_rh_gl( fov, aspect, near, far );
+  let projection_matrix = gl::math::mat3x3h::perspective_rh_gl( fov, aspect, near, far );
 
   gl::uniform::matrix_upload
   ( 
     &gl, 
     projection_matrix_location, 
-    &projection_matrix.to_cols_array()[ .. ], 
+    &projection_matrix.to_array()[ .. ], 
     true 
   )?;
 
@@ -132,13 +132,13 @@ fn run() -> Result< (), gl::WebglError >
     let instances = fortmatted_text.chars.len() as i32;
     move | t : f64 |
     {
-      let view_matrix = glam::Mat4::look_to_rh( eye, dir, up );
+      let view_matrix = gl::math::mat3x3h::look_to_rh( eye, dir, up );
 
       gl::uniform::matrix_upload
       ( 
         &gl, 
         view_matrix_location.clone(), 
-        &view_matrix.to_cols_array()[ .. ], 
+        &view_matrix.to_array()[ .. ], 
         true 
       ).unwrap();
 

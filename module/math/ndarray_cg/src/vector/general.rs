@@ -74,16 +74,17 @@ mod private
     }
   }
 
-  // impl< E, Slice, const N : usize > From< Slice > for Vector< E, N >
-  // where 
-  //   E : MatEl,
-  //   Slice : VectorRef
-  // {
-  //   fn from( value: Slice ) -> Self 
-  //   {
-  //     Self( *value.vector_ref() )
-  //   }
-  // }
+  impl< E, const N : usize >  Vector< E, N >
+  where 
+    E : MatEl
+  {
+    /// Creates a vector from a single value : [ v ; N ]
+    #[inline(always)]
+    pub const fn splat( v : E ) -> Self
+    {
+      Vector::< E, N >( [ v; N ] )
+    }
+  }
 }
 
 crate::mod_interface!
