@@ -2,144 +2,130 @@
 precision mediump float;
 #pragma vscode_glsllint_stage : frag
 
-const float PI = 3.1415926;
-
-uniform vec2 u_resolution;
-uniform float u_metallic;
-uniform float u_roughness;
-uniform vec3 u_base_color;
-uniform float u_reflectance;
-uniform float u_time;
-
 in vec2 vUv;
+in vec3 vPos;
+
+uniform sampler2D glyphs; 
+uniform float time;
+
 out vec4 frag_color;
 
-float circleSDF( vec2 pos, float r ) 
+float sample_glyph( vec2 uv )
 {
-  return length( pos ) - r;
+  vec3 l = vec3( 1.0 ) - texture( glyphs, uv ).xyz;
+  return max( min( l.x, l.y ), min( max( l.x, l.y ), l.z ) );
 }
 
-// Schlick ver.
-vec3 freshel( vec3 viewDir, vec3 halfway ) 
+float screenPxRange()
 {
-  vec3 f0 = vec3( 0.16 * u_reflectance * u_reflectance );
-  f0 = mix( f0, u_base_color, u_metallic );
+  const float pxRange = 4.0;
 
-  return f0 + ( 1.0 - f0 ) * pow( ( 1.0 - dot( viewDir, halfway ) ), 5.0 );
+  vec2 unitRange = vec2( pxRange ) / vec2( textureSize( glyphs, 0 ) );
+  vec2 screenTexSize = vec2( 1.0 ) / fwidth( vUv );
+  return max( dot( unitRange, screenTexSize ), 1.0 );
 }
 
-// Normal distribution function
-float NDF( vec3 normal, vec3 halfway ) 
+vec3 pallete( float k )
 {
-  float alpha = u_roughness * u_roughness;
-  float alpha2 = alpha * alpha;
-  float denom = PI * pow( pow( dot( normal, halfway ), 2.0 ) * ( alpha2 - 1.0 ) + 1.0, 2.0 );
+  // vec3 offset = vec3( 0.500, 0.500, 0.500 );
+  // vec3 amp = vec3( 0.500, 0.500, 0.500 );
+  // vec3 freq = vec3( 1.000, 1.000, 1.000 );
+  // vec3 phase = vec3( 0.000, 0.333, 0.667 );
 
-  return alpha2 / denom;
+  vec3 offset = vec3( 0.500, 0.500, 0.500 );
+  vec3 amp = vec3( 0.500, 0.500, 0.500 );
+  vec3 freq = vec3( 0.800, 0.800, 0.500 );
+  vec3 phase = vec3( 0.000, 0.200, 0.500 );
+
+  return offset + amp * cos( 2.0 * 3.1415926 * ( freq * k + phase ) );
 }
 
-float germ_schlick_ggx( vec3 normal, vec3 v ) 
+mat3x3 orthBase( vec3 val )
 {
-  float alpha = u_roughness * u_roughness;
-  float k = alpha / 2.0;
-  float NoV = dot( normal, v );
-  float denom = NoV * ( 1.0 - k ) + k;
+  vec3 z = normalize( val );
+  vec3 up = z.y < 0.999 ? vec3( 0.0, 1.0, 0.0 ) : vec3( 0.0, 0.0, 1.0 );
+  vec3 x = normalize( cross( up, z ) );
+  vec3 y = normalize( cross( z, x ) );
 
-  return max( NoV, 0.001 ) / denom;
+  return mat3( x, y, z ); 
 }
 
-// Geometry term, Smith ver.
-float Germ( vec3 lightDir, vec3 viewDir, vec3 normal ) 
+vec3 cycleNoise( vec3 p, vec3 seed, float persistence, float lacunarity )
 {
-  return germ_schlick_ggx( normal, lightDir ) * germ_schlick_ggx( normal, viewDir );
+  vec4 sum = vec4( 0.0 );
+  mat3 rot = orthBase( seed );
+  for( int i = 0; i < 5; i++ )
+  {
+    p *= rot;
+    p += sin( p.xyz );
+
+    sum += vec4( cross( cos( p ), sin( p.yzx ) ), 1.0 );
+    sum /= persistence;
+    p *= lacunarity;
+  }
+
+  return sum.xyz / sum.w;
 }
 
-vec3 BRDF( vec3 lightDir, vec3 viewDir, vec3 normal ) 
+vec3 gradient( vec3 p, vec3 seed, float persistence, float lacunarity )
 {
-  vec3 halfway = normalize( lightDir + viewDir );
+  const vec2 e = vec2( 0.0001, 0.0 );
+  vec3 dx = cycleNoise( p + e.xyy, seed, persistence, lacunarity ) - cycleNoise( p - e.xyy, seed, persistence, lacunarity );
+  vec3 dy = cycleNoise( p + e.yxy, seed, persistence, lacunarity ) - cycleNoise( p - e.yxy, seed, persistence, lacunarity );
+  vec3 dz = cycleNoise( p + e.yyx, seed, persistence, lacunarity ) - cycleNoise( p - e.yyx, seed, persistence, lacunarity );
 
-  vec3 F = freshel( viewDir, halfway );
-  float D = NDF( normal, halfway );
-  float G = Germ( lightDir, viewDir, normal );
-
-  float denom = 4.0 * max( dot( normal, lightDir ) * dot( normal, viewDir ), 0.001 );
-
-  vec3 specular = F * D * G / denom;
-
-  vec3 diffuse = u_base_color;
-  diffuse *= vec3( 1.0 ) - F; // Amount of transmitted light
-  diffuse *= 1.0 - u_metallic;// Metals do not have diffuse light
-  diffuse /= PI;
-  
-  return diffuse + specular;
+  return vec3( dx.x, dy.x, dz.x );
 }
 
-mat2x2 rot( float angle ) 
+mat3x3 rotZ( float angle )
 {
   float s = sin( angle );
   float c = cos( angle );
-  return mat2x2( c, s, -s, c );
+
+  return mat3
+  (
+    c,   s,   0.0,
+    -s,  c,   0.0,
+    0.0, 0.0, 1.0
+  );
 }
+
 
 void main()
 {
-  //Translate Uv coordinates to pixel coordinates centered at the center of the scareen
-  vec2 pixelCoords = ( vUv - 0.5 ) * u_resolution;
 
-  float circleRadius = 350.0;
-  float circle = circleSDF( pixelCoords, circleRadius );
+  float glyph = sample_glyph( vUv );
 
-  vec2 xy = pixelCoords;
+  float screenPxDistance = screenPxRange() * ( glyph - 0.5 );
 
-  // This is needed to smoothout the edges of the sphere
-  if( circle > 0.0 ) 
-  {
-    xy = circleRadius * normalize( xy );
-  }
+  float edgeWidth = 2.0;
+  float alpha = smoothstep( -edgeWidth, edgeWidth, screenPxDistance );
 
-  float r = length( xy );
-  float z = sqrt( max( circleRadius * circleRadius - r * r, 0.0 ) ); 
+  if( alpha < 0.001 ) { discard; }
 
-  vec3 position = vec3( xy, z );
-  vec3 viewDir = normalize( vec3( 0.0, 0.0, 1.0 ) );
-  vec3 lightDir[ 3 ] = vec3[]
-  ( 
-    normalize( vec3( 10.0, 1.0, 1.0 ) ),
-    normalize( vec3( 1.0, 0.0, 0.0 ) ),
-    normalize( vec3( 1.0, 0.0, -1.0 ) )
-  );
+  vec3 noisePos = vec3( gl_FragCoord.xy / 100.0, time );
+  vec3 seed = vec3( 1.0, -2.0, 3.0);
+  float persistence = 0.5;
+  float lacunarity = 2.0;
 
-  vec3 lightColor[ 3 ] = vec3[]
-  ( 
-    vec3( 1.0, 0.0, 0.0 ),
-    vec3( 0.0, 1.0, 0.0 ),
-    vec3( 0.0, 0.0, 1.0 )
-  );
+  vec3 noise = normalize( cycleNoise( noisePos, seed, persistence, lacunarity ) );
+  noise = smoothstep( vec3( -1.0 ), vec3( 1.0 ), noise );
 
-  vec3 normal = normalize( position );
+  vec3 normal = vec3( 0.0, 0.0, 1.0 );
+  vec3 grad = gradient( noisePos, seed, persistence, lacunarity ) * 50.0;
+  normal -= grad;
 
-  vec3 color = vec3( 0.0 );
-  for( int i = 0; i < 3; i++ ) 
-  {
-    float time = u_time / 1000.0;
 
-    // Animate lights
-    if( i == 0 ) { lightDir[ i ].xy *= rot( time ) * lightDir[ i ].xy; }
-    else if( i == 1 ) { lightDir[ i ].xz = rot( time ) * lightDir[ i ].xz; }
-    else if( i == 2 ) { lightDir[ i ].yz = rot( time ) * lightDir[ i ].yz; }
+  vec3 lightDir = rotZ( time ) * normalize( vec3( 1.0, 0.0, 1.0 ) );
+  vec3 cameraPos = vec3( 0.0, 0.0, 1.0 );
+  vec3 viewDir = cameraPos - vPos;
 
-    // Amount of light recieved
-    float irradiance = max( dot( normal, lightDir[ i ] ), 0.0 ) * 4.0;
+  vec3 H = normalize( lightDir + viewDir );
+  float VdotN = clamp( dot( lightDir, normal ), 0.0, 1.0 );
+  float HdotN = clamp( dot( H, normal ), 0.0, 1.0 );
+  float phongValue = pow( HdotN, 64.0 );
 
-    // Resulting color value for the current light
-    color += BRDF( lightDir[ i ], viewDir, normal ) * vec3( irradiance ) * lightColor[ i ];
-  }
+  vec3 color = vec3( pallete( noise.x ) ) * VdotN + vec3( 0.7 ) * phongValue;
 
-  //Smooth out the edges of the sphere
-  color = mix( color, vec3( 0.0 ), smoothstep( 0.0, 2.0, circle ) );
-
-  //Gamma correction
-  color = pow( color, vec3( 1.0 / 2.2 ) );
-
-  frag_color = vec4(  color, 1.0  );
+  frag_color = vec4( color, alpha * noise.y );
 }

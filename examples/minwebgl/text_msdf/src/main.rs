@@ -2,15 +2,18 @@
 //!
 //! This program demonstrates how to render a triangle in the middle of the screen using WebGL in Rust. It utilizes shaders with Uniform Block Objects (UBOs) to manage uniforms efficiently.
 
-use minwebgl as gl;
+use minwebgl::{self as gl, wasm_bindgen::prelude::Closure, JsCast};
 use gl::{ GL };
-
 mod text;
+mod json;
+
 
 fn run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
-  let gl = gl::context::retrieve_or_make()?;
+
+  let canvas = gl::canvas::retrieve_or_make()?;
+  let gl = gl::context::from_canvas( &canvas )?;
 
   // Vertex and fragment shader source code
   let vertex_shader_src = include_str!( "../shaders/shader.vert" );
@@ -18,33 +21,131 @@ fn run() -> Result< (), gl::WebglError >
   let program = gl::ProgramFromSources::new( vertex_shader_src, fragment_shader_src ).compile_and_link( &gl )?;
   gl.use_program( Some( &program ) );
 
-  let width = gl.drawing_buffer_width() as f32;
-  let height = gl.drawing_buffer_height() as f32;
+  let width = canvas.width() as f32;
+  let height = canvas.height() as f32;
 
-  let resolution_loc = gl.get_uniform_location( &program, "u_resolution" );
-  let metallic_loc = gl.get_uniform_location( &program, "u_metallic" );
-  let roughness_loc = gl.get_uniform_location( &program, "u_roughness" );
-  let reflactance_loc = gl.get_uniform_location( &program, "u_reflectance" );
-  let base_color_loc = gl.get_uniform_location( &program, "u_base_color" );
-  let time_loc = gl.get_uniform_location( &program, "u_time" );
+  let text = "Cgtools";
+  let font_str = include_str!( "../assets/font/Alike-Regular.json" );
+  let font = json::MSDFFontJSON::parse_font( font_str );
+  let fortmatted_text = font.format( text );
+  let buffer = gl::buffer::create( &gl )?;
 
-  gl.uniform1f( metallic_loc.as_ref(), 0.0 );
-  gl.uniform1f( roughness_loc.as_ref(), 0.5 ); // 0.027 - minimum value;
-  gl.uniform1f( reflactance_loc.as_ref(), 2.0 );
-  // gl.uniform3f( base_color_loc.as_ref(), 0.562, 0.565, 0.578 ); // iron
-  // gl.uniform3f( base_color_loc.as_ref(), 1.022, 0.782, 0.344 ); // gold
-  gl.uniform3f( base_color_loc.as_ref(), 0.673, 0.637, 0.585 ); // platinum
+  let view_matrix_location = gl.get_uniform_location( &program, "viewMatrix" );
+  let projection_matrix_location = gl.get_uniform_location( &program, "projectionMatrix" );
+  let tex_size_location = gl.get_uniform_location( &program, "texSize" );
+  let time_location = gl.get_uniform_location( &program, "time" );
+  let center_offset_location = gl.get_uniform_location( &program, "boundingBox" );
+
+  gl::buffer::upload( &gl, &buffer, &fortmatted_text.chars, gl::STATIC_DRAW );
+
+  let vao = gl::vao::create( &gl )?;
+  gl.bind_vertex_array( Some( &vao ) );
+
+  let char_data_stride  = std::mem::size_of::< text::CharData >() as i32 / 4;
+  // offset
+  gl::BufferDescriptor::new::< [ f32 ; 4 ] >()
+  .stride( char_data_stride )
+  .offset( 0 )
+  .divisor( 1 )
+  .attribute_pointer( &gl, 0, &buffer )?;
+
+  // uv_info
+  gl::BufferDescriptor::new::< [ f32 ; 4 ] >()
+  .stride( char_data_stride )
+  .offset( 4 )
+  .divisor( 1 )
+  .attribute_pointer( &gl, 1, &buffer )?;
+
+  // size
+  gl::BufferDescriptor::new::< [ f32 ; 2 ] >()
+  .stride( char_data_stride )
+  .offset( 8 )
+  .divisor( 1 )
+  .attribute_pointer( &gl, 2, &buffer )?;
 
 
+  let eye = glam::Vec3::Z * 5.0;
+  let up = glam::Vec3::Y;
+  let dir = glam::Vec3::NEG_Z;
+
+  let fov = 70.0f32.to_radians();
+  let aspect = width / height;
+  let near = 0.1;
+  let far = 1000.0;
+
+  let projection_matrix = glam::Mat4::perspective_rh_gl( fov, aspect, near, far );
+
+  gl::uniform::matrix_upload
+  ( 
+    &gl, 
+    projection_matrix_location, 
+    &projection_matrix.to_cols_array()[ .. ], 
+    true 
+  )?;
+
+  gl::uniform::upload( &gl, tex_size_location, &font.scale[ .. ] )?;
+  gl::uniform::upload( &gl, center_offset_location, &fortmatted_text.bounding_box.to_array()[ .. ] )?;
+
+  let img = gl::dom::create_image_element( "static/font/Alike-Regular.png" ).unwrap();
+  img.style().set_property( "display", "none" ).unwrap();
+  
+  let texture = gl.create_texture();
+  let load_texture : Closure< dyn Fn() > = Closure::new
+  ( 
+    {
+      let texture = texture.clone();
+      let gl = gl.clone();
+      let img = img.clone();
+      move || 
+      {
+        gl.bind_texture( GL::TEXTURE_2D, texture.as_ref() );
+        gl.tex_image_2d_with_u32_and_u32_and_html_image_element
+        (
+          GL::TEXTURE_2D,
+          0,
+          GL::RGBA as i32,
+          GL::RGBA,
+          GL::UNSIGNED_BYTE,
+          &img
+        ).expect( "Failed to upload data to texture" );
+        gl.pixel_storei( GL::UNPACK_FLIP_Y_WEBGL, 0 );
+        gl::texture::d2::default_parameters( &gl );
+
+        img.remove();
+      }
+    }
+  );
+
+  img.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
+  load_texture.forget();
+
+  gl.enable( gl::DEPTH_TEST );
+  gl.enable( gl::BLEND );
+
+  gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA );
+  gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
+  gl.clear_depth( 1.0 );
+      
   // Define the update and draw logic
   let update_and_draw =
   {
+    let instances = fortmatted_text.chars.len() as i32;
     move | t : f64 |
     {
-      gl.uniform1f( time_loc.as_ref(), t as f32 );
-      gl.uniform2f( resolution_loc.as_ref(), width, height );
-      // Draw points
-      gl.draw_arrays( GL::TRIANGLE_STRIP, 0, 4 );
+      let view_matrix = glam::Mat4::look_to_rh( eye, dir, up );
+
+      gl::uniform::matrix_upload
+      ( 
+        &gl, 
+        view_matrix_location.clone(), 
+        &view_matrix.to_cols_array()[ .. ], 
+        true 
+      ).unwrap();
+
+      gl.uniform1f( time_location.as_ref(), ( t / 1000.0 ) as f32 );
+
+      gl.clear( gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT );
+      gl.draw_arrays_instanced( gl::TRIANGLE_STRIP, 0, 4, instances );
       true
     }
   };
