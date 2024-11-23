@@ -1,0 +1,26 @@
+[package]
+name = "wave_function_collapse"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
+license = "MIT"
+
+[dependencies]
+minwebgl = { workspace = true }
+serde = "1.0"
+serde_json = "1.0"
+glam = "0.29"
+rayon = "1.10"
+getrandom = { version = "0.2", features = ["js"] }
+rand = { version = "0.8.5", features = ["small_rng"] }
+photon-rs = { git = "https://github.com/silvia-odwyer/photon.git" }
+web-sys = { workspace = true, features = [
+  'Document', 
+  'Element', 
+  'HtmlCanvasElement', 
+  'Window',
+  'WebGlTexture',
+  'CanvasRenderingContext2d',
+  'HtmlImageElement',
+  'DomRect',
+] }
