@@ -36,7 +36,10 @@ impl MSDFFont
     let mut cursor_pos = gl::F32x2::ZERO;
     let tex_size = gl::F32x2::from( self.scale );
 
+    // Bounding box information
+    // Lower left corner
     let mut llc = gl::F32x2::MAX;
+    // Right upper corner
     let mut ruc = gl::F32x2::MIN;
 
     for i in 0..text.len() 
@@ -46,22 +49,25 @@ impl MSDFFont
 
       let mut xadnvace = info.xadvance;
 
+      // Newline are not supported
       match c
       {
         // Space
         32 =>
         {
+          // Advance the cursor position without adding a character
           cursor_pos += gl::F32x2::new( xadnvace, 0.0 );
           continue;
         },
         _ =>
         {
           let size = gl::F32x2::new( info.width, info.height );
-
           let uv = gl::F32x2::new( info.x, info.y ) / tex_size;
           let uv_extent = size / tex_size;
           let l_offset = gl::F32x2::new( info.xoffset, -info.yoffset );
 
+          // If there is another character afterwards,
+          // adjuct the `advance` offset based on the value in the kerning map
           if i + 1 < text.len()
           {
             if let Some( dst_map ) = self.kernings.get( &c )

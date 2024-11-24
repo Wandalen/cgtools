@@ -114,7 +114,8 @@ async fn run() -> Result< (), gl::WebglError >
         let img = img_element.clone();
         move || 
         {
-          let texture = gl::texture::d2::upload( &gl, &img );
+          let texture = gl.create_texture();
+          gl::texture::d2::upload( &gl, texture.as_ref(), &img );
 
           if texture.is_some()
           {

@@ -40,9 +40,13 @@ void main()
   vec2 centerOffset = -boundingBox.xy - ( boundingBox.zw - boundingBox.xy ) / 2.0;
 
   vec2 w_pos = points[ gl_VertexID ] * size;
-  w_pos += centerOffset;
+  // Adjust local offset for the letter
   w_pos += letter_offset;
+  // Adjust global offset( in the string ) for the letter
   w_pos += string_offset;
+  // Move the string to the center
+  w_pos += centerOffset;
+  // Scale the text
   w_pos *= scale;
 
   vUv = uv + vec2( gl_VertexID % 2, 1 - gl_VertexID / 2 ) * uv_extent;

@@ -2,11 +2,11 @@
 //!
 //! This program demonstrates how to render a triangle in the middle of the screen using WebGL in Rust. It utilizes shaders with Uniform Block Objects (UBOs) to manage uniforms efficiently.
 
-use minwebgl::{self as gl, wasm_bindgen::prelude::Closure, JsCast};
+use minwebgl::{ self as gl, wasm_bindgen::prelude::Closure, JsCast };
 use gl::{ GL };
+
 mod text;
 mod json;
-
 
 fn run() -> Result< (), gl::WebglError >
 {
@@ -26,7 +26,9 @@ fn run() -> Result< (), gl::WebglError >
 
   let text = "Cgtools";
   let font_str = include_str!( "../assets/font/Alike-Regular.json" );
+  // Parse font from the provided file
   let font = json::MSDFFontJSON::parse_font( font_str );
+  // Create render data from the text based on the font
   let fortmatted_text = font.format( text );
   let buffer = gl::buffer::create( &gl )?;
 
@@ -34,7 +36,7 @@ fn run() -> Result< (), gl::WebglError >
   let projection_matrix_location = gl.get_uniform_location( &program, "projectionMatrix" );
   let tex_size_location = gl.get_uniform_location( &program, "texSize" );
   let time_location = gl.get_uniform_location( &program, "time" );
-  let center_offset_location = gl.get_uniform_location( &program, "boundingBox" );
+  let bounding_box_location = gl.get_uniform_location( &program, "boundingBox" );
 
   gl::buffer::upload( &gl, &buffer, &fortmatted_text.chars, gl::STATIC_DRAW );
 
@@ -84,8 +86,9 @@ fn run() -> Result< (), gl::WebglError >
   )?;
 
   gl::uniform::upload( &gl, tex_size_location, &font.scale[ .. ] )?;
-  gl::uniform::upload( &gl, center_offset_location, &fortmatted_text.bounding_box.to_array()[ .. ] )?;
+  gl::uniform::upload( &gl, bounding_box_location, &fortmatted_text.bounding_box.to_array()[ .. ] )?;
 
+  // Load an image and upload it to the texture when it's loaded
   let img = gl::dom::create_image_element( "static/font/Alike-Regular.png" ).unwrap();
   img.style().set_property( "display", "none" ).unwrap();
   
@@ -98,19 +101,8 @@ fn run() -> Result< (), gl::WebglError >
       let img = img.clone();
       move || 
       {
-        gl.bind_texture( GL::TEXTURE_2D, texture.as_ref() );
-        gl.tex_image_2d_with_u32_and_u32_and_html_image_element
-        (
-          GL::TEXTURE_2D,
-          0,
-          GL::RGBA as i32,
-          GL::RGBA,
-          GL::UNSIGNED_BYTE,
-          &img
-        ).expect( "Failed to upload data to texture" );
-        gl.pixel_storei( GL::UNPACK_FLIP_Y_WEBGL, 0 );
+        gl::texture::d2::upload_no_flip( &gl, texture.as_ref(), &img );
         gl::texture::d2::default_parameters( &gl );
-
         img.remove();
       }
     }

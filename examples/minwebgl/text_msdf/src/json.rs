@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use serde::{ Deserialize, Serialize };
-use minwebgl as gl;
 use crate::text::MSDFFont;
 
 
@@ -59,12 +58,13 @@ pub struct MSDFFontJSON
 
 impl MSDFFontJSON 
 {
-  pub fn parse_font( font: &str) -> MSDFFont
+  pub fn parse_font( font: &str ) -> MSDFFont
   {
     let res : Self = serde_json::from_str( font ).unwrap();
 
     let mut char_map = HashMap::new();
     
+    // Build a map from available letters
     for c in res.chars
     {
       char_map.insert( c.id,  c );
@@ -72,6 +72,7 @@ impl MSDFFontJSON
 
     let mut kerning_map : HashMap< u8, HashMap< u8, f32 > > = HashMap::new();
 
+    // If present, build a map of offsets between possible pair of letters 
     for k in res.kernings.iter()
     {
       if let Some( map ) = kerning_map.get_mut( &k.first )

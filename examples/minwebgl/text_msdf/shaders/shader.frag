@@ -25,13 +25,9 @@ float screenPxRange()
   return max( dot( unitRange, screenTexSize ), 1.0 );
 }
 
+// 1d texture in 0.0 to 1.0 range
 vec3 pallete( float k )
 {
-  // vec3 offset = vec3( 0.500, 0.500, 0.500 );
-  // vec3 amp = vec3( 0.500, 0.500, 0.500 );
-  // vec3 freq = vec3( 1.000, 1.000, 1.000 );
-  // vec3 phase = vec3( 0.000, 0.333, 0.667 );
-
   vec3 offset = vec3( 0.500, 0.500, 0.500 );
   vec3 amp = vec3( 0.500, 0.500, 0.500 );
   vec3 freq = vec3( 0.800, 0.800, 0.500 );
@@ -40,6 +36,7 @@ vec3 pallete( float k )
   return offset + amp * cos( 2.0 * 3.1415926 * ( freq * k + phase ) );
 }
 
+// Build the rotation matrix from the provided vector
 mat3x3 orthBase( vec3 val )
 {
   vec3 z = normalize( val );
@@ -93,14 +90,14 @@ mat3x3 rotZ( float angle )
 
 void main()
 {
-
+  // Get the signed distance from the texture
   float glyph = sample_glyph( vUv );
-
   float screenPxDistance = screenPxRange() * ( glyph - 0.5 );
 
+  // Smooth the edges of the letters
   float edgeWidth = 2.0;
   float alpha = smoothstep( -edgeWidth, edgeWidth, screenPxDistance );
-
+  
   if( alpha < 0.001 ) { discard; }
 
   vec3 noisePos = vec3( gl_FragCoord.xy / 100.0, time );
@@ -111,11 +108,12 @@ void main()
   vec3 noise = normalize( cycleNoise( noisePos, seed, persistence, lacunarity ) );
   noise = smoothstep( vec3( -1.0 ), vec3( 1.0 ), noise );
 
+  // Calculate the gradient and offset the normal 
   vec3 normal = vec3( 0.0, 0.0, 1.0 );
   vec3 grad = gradient( noisePos, seed, persistence, lacunarity ) * 50.0;
   normal -= grad;
 
-
+  // Bling-Phong lighting model
   vec3 lightDir = rotZ( time ) * normalize( vec3( 1.0, 0.0, 1.0 ) );
   vec3 cameraPos = vec3( 0.0, 0.0, 1.0 );
   vec3 viewDir = cameraPos - vPos;
