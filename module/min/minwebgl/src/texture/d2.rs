@@ -2,6 +2,33 @@ use crate::*;
 
 type GL = web_sys::WebGl2RenderingContext;
 
+/// Uploads an image from HtmlImageElement to a 2D texture.
+/// Image format and internal format are assumed to be RGBA unsigned bytes.
+/// Flips the texture in Y direction.
+/// 
+/// Using HtmlImageElement is recommended, as it is the most natural 
+/// and the least expensive way to parse images on the web.
+pub fn upload
+(
+  gl : &GL, 
+  texture : Option< &web_sys::WebGlTexture >,
+  img : &web_sys::HtmlImageElement 
+)
+{
+  gl.bind_texture( GL::TEXTURE_2D, texture );
+  gl.pixel_storei( GL::UNPACK_FLIP_Y_WEBGL, 1 );
+  gl.tex_image_2d_with_u32_and_u32_and_html_image_element
+  (
+    GL::TEXTURE_2D,
+    0,
+    GL::RGBA as i32,
+    GL::RGBA,
+    GL::UNSIGNED_BYTE,
+    &img
+  ).expect( "Failed to upload data to texture" );
+  gl.pixel_storei( GL::UNPACK_FLIP_Y_WEBGL, 0 );
+}
+
 /// Creates a 2D texture from HtmlImageElement.
 /// Image format and internal format are assumed to be RGBA unsigned bytes.
 /// Flips the texture in Y direction.
@@ -9,7 +36,7 @@ type GL = web_sys::WebGl2RenderingContext;
 /// 
 /// Using HtmlImageElement is recommended, as it is the most natural 
 /// and the least expensive way to parse images on the web.
-pub fn upload( gl : &GL, img : &web_sys::HtmlImageElement ) -> Option< web_sys::WebGlTexture >
+pub fn create_and_upload( gl : &GL, img : &web_sys::HtmlImageElement ) -> Option< web_sys::WebGlTexture >
 {
   let texture = gl.create_texture();
 
@@ -31,11 +58,35 @@ pub fn upload( gl : &GL, img : &web_sys::HtmlImageElement ) -> Option< web_sys::
   texture
 }
 
+/// Uploads an image from HtmlImageElement to a 2D texture.
+/// Image format and internal format are assumed to be RGBA unsigned bytes.
+/// Does not flip the texture in Y direction.
+/// Returns created texture.
+pub fn upload_no_flip
+( 
+  gl : &GL, 
+  texture : Option< &web_sys::WebGlTexture >,
+  img : &web_sys::HtmlImageElement 
+)
+{
+  gl.bind_texture( GL::TEXTURE_2D, texture );
+  gl.pixel_storei( GL::UNPACK_FLIP_Y_WEBGL, 0 );
+  gl.tex_image_2d_with_u32_and_u32_and_html_image_element
+  (
+    GL::TEXTURE_2D,
+    0,
+    GL::RGBA as i32,
+    GL::RGBA,
+    GL::UNSIGNED_BYTE,
+    &img
+  ).expect( "Failed to upload data to texture" );
+}
+
 /// Creates a 2D texture from HtmlImageElement.
 /// Image format and internal format are assumed to be RGBA unsigned bytes.
 /// Does not flip the texture in Y direction.
 /// Returns created texture.
-pub fn upload_no_flip( gl : &GL, img : &web_sys::HtmlImageElement ) -> Option< web_sys::WebGlTexture >
+pub fn create_and_upload_no_flip( gl : &GL, img : &web_sys::HtmlImageElement ) -> Option< web_sys::WebGlTexture >
 {
   let texture = gl.create_texture();
   gl.bind_texture( GL::TEXTURE_2D, texture.as_ref() );
