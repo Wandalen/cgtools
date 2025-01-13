@@ -8,8 +8,8 @@ mod private
   #[ derive( Debug ) ]
   pub struct BoundingBox
   {
-    pub min : glam::Vec3,
-    pub max : glam::Vec3
+    pub min : ndarray_cg::F32x3,
+    pub max : ndarray_cg::F32x3
   }
 
   impl Default for BoundingBox 
@@ -18,8 +18,8 @@ mod private
     {
       BoundingBox
       {
-        min : glam::Vec3::MAX,
-        max : glam::Vec3::MIN
+        min : ndarray_cg::F32x3::MAX,
+        max : ndarray_cg::F32x3::MIN
       }
     }
   }
@@ -38,7 +38,7 @@ mod private
         let y = positions[ i * 3 + 1 ];
         let z = positions[ i * 3 + 2 ];
 
-        let p = glam::Vec3::new( x, y, z );
+        let p = ndarray_cg::F32x3::new( x, y, z );
 
         bounding_box.min = p.min( bounding_box.min );
         bounding_box.max = p.max( bounding_box.max );
@@ -51,8 +51,8 @@ mod private
   #[ derive( Debug ) ]
   pub struct BoundingSphere
   {
-    pub center : glam::Vec3,
-    pub radius :  f32 
+    pub center : ndarray_cg::F32x3,
+    pub radius : f32 
   }
 
   impl Default for BoundingSphere 
@@ -61,7 +61,7 @@ mod private
     {
       BoundingSphere
       {
-        center : glam::Vec3::ZERO,
+        center : ndarray_cg::F32x3::ZERO,
         radius : 0.0
       }
     }
@@ -82,9 +82,9 @@ mod private
         let x = positions[ i * 3 + 0 ];
         let y = positions[ i * 3 + 1 ];
         let z = positions[ i * 3 + 2 ];
-        let p = glam::Vec3::new( x, y, z);
+        let p = ndarray_cg::F32x3::new( x, y, z );
 
-        bs.radius = bs.center.distance_squared( p ).max( bs.radius );
+        bs.radius = bs.center.distance_squared( &p ).max( bs.radius );
       }
 
       bs.radius = bs.radius.sqrt();
