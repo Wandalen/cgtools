@@ -2,6 +2,8 @@
 
 This example shows how create own tile renderer using `WebGl2`. Goal of this example is render tilemap on quad.
 
+![showcase](./resources/showcase.png)
+
 ### How it is useful
 
 The example shows:
@@ -64,7 +66,3 @@ const DATA: [u8; 16] = [
   2,3,4,5
 ];
 ```
-
----
-
-![showcase](./resources/showcase.png)

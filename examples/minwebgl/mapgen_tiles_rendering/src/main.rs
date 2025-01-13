@@ -2,10 +2,11 @@
 
 use gl::GL;
 use minwebgl as gl;
-use ndarray_cg::mat::DescriptorOrderColumnMajor;
+use ndarray_cg::{mat::DescriptorOrderColumnMajor, F32x4x4};
 use web_sys::wasm_bindgen::prelude::*;
 
 const LAYERS: i32 = 6;
+// Tile map raw data for texture with integer color channels
 const DATA: [u8; 256] = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 
     0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 2, 1, 0,
@@ -57,7 +58,6 @@ fn set_load_callback() {
     };
 
     let _ = load_image("tileset.png", Box::new(load));
-    let _ = load_image("map.png", Box::new(load));
 }
 
 fn load_image(
@@ -150,21 +150,19 @@ fn create_mvp() -> ndarray_cg::Mat<4, 4, f32, DescriptorOrderColumnMajor> {
         ndarray_cg::d2::mat3x3h::perspective_rh_gl(70.0f32.to_radians(), aspect_ratio, 0.1, 1000.0);
 
     let t = (0.0, 0.0, 0.0);
-    let translate = ndarray_cg::Mat::< 4, 4, _, DescriptorOrderColumnMajor >::_fill(0.0).raw_set
-    ([
-      1.0, 0.0, 0.0, t.0,
-      0.0, 1.0, 0.0, t.1,
-      0.0, 0.0, 1.0, t.2,
-      0.0, 0.0, 0.0, 1.0,
+    let translate = F32x4x4::from_column_major([
+        1.0, 0.0, 0.0, t.0,
+        0.0, 1.0, 0.0, t.1,
+        0.0, 0.0, 1.0, t.2,
+        0.0, 0.0, 0.0, 1.0,
     ]);
 
     let s = (2.0 / 3.0, 2.0 / 3.0, 2.0 / 3.0);
-    let scale = ndarray_cg::Mat::< 4, 4, _, DescriptorOrderColumnMajor >::_fill(0.0).raw_set
-    ([
-      s.0, 0.0, 0.0, 0.0,
-      0.0, s.1, 0.0, 0.0,
-      0.0, 0.0, s.2, 0.0,
-      0.0, 0.0, 0.0, 1.0,
+    let scale = F32x4x4::from_column_major([
+        s.0, 0.0, 0.0, 0.0,
+        0.0, s.1, 0.0, 0.0,
+        0.0, 0.0, s.2, 0.0,
+        0.0, 0.0, 0.0, 1.0,
     ]);
 
     let eye = [0.0, 0.0, 1.0];
@@ -184,9 +182,12 @@ fn prepare_texture_array(id: &str, layers: i32, texture_id: u32) -> Option<web_s
     let img = img.dyn_into::<web_sys::HtmlImageElement>().unwrap();
 
     let width = img.natural_width();
+    // Texture array is image with height: 1 tile height * tile count
     let height = img.natural_height() / layers as u32;
 
     let texture_array = gl.create_texture();
+    // Don't forget to activate the texture before binding and 
+    // setting texture data and parameters
     gl.active_texture(texture_id);
     gl.bind_texture(GL::TEXTURE_2D_ARRAY, texture_array.as_ref());
 
@@ -196,7 +197,7 @@ fn prepare_texture_array(id: &str, layers: i32, texture_id: u32) -> Option<web_s
         GL::RGBA as i32,
         width as i32,
         height as i32,
-        layers,
+            layers, 
         0,
         GL::RGBA,
         GL::UNSIGNED_BYTE,
@@ -241,6 +242,8 @@ fn prepare_texture1u(
     gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
         GL::TEXTURE_2D,
         0,
+        // Texture from raw data must have format with integer channels 
+        // Data range here is 0..255
         GL::R8UI as i32,
         size.0,
         size.1,
@@ -269,11 +272,10 @@ fn update() {
         .unwrap();
     gl.use_program(Some(&program));
 
-    let mut mvp = create_mvp();
+    let mvp = create_mvp();
     let mvp_location = gl.get_uniform_location(&program, "mvp");
-    let matrix_size = mvp.cols() * mvp.rows();
-    let v = unsafe { Vec::from_raw_parts(mvp.as_mut_ptr(), matrix_size, matrix_size) };
-    let _ = gl::uniform::matrix_upload(&gl, mvp_location, v.as_slice(), false).unwrap();
+    
+    let _ = gl::uniform::matrix_upload(&gl, mvp_location, mvp.raw_slice(), false).unwrap();
 
     prepare_vertex_attributes();
     prepare_texture_array("tileset.png", LAYERS, GL::TEXTURE0);
@@ -284,6 +286,7 @@ fn update() {
     let tiles_location = gl.get_uniform_location(&program, "tiles_sampler");
     let map_location = gl.get_uniform_location(&program, "map_sampler");
 
+    // When more than 1 texture is used. You need set binding slot for every texture.
     gl.uniform1i(tiles_location.as_ref(), 0);
     gl.uniform1i(map_location.as_ref(), 1);
 
