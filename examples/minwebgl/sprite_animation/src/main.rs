@@ -17,6 +17,8 @@ async fn run() -> Result< (), gl::WebglError >
 
   // Settings for `rock.png` sprite sheets
   let path = "static/rock.png";
+
+  // qqq : these should be fields of a structure
   let sprties_in_row = 8;
   let sprites_in_col = 8;
   let sprite_width = 128;
