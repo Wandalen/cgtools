@@ -4,6 +4,7 @@ use gl::GL;
 use minwebgl as gl;
 use ndarray_cg::{mat::DescriptorOrderColumnMajor, F32x4x4};
 use web_sys::wasm_bindgen::prelude::*;
+use minwebgl::dom::create_image_element;
 
 const LAYERS: i32 = 6;
 // Tile map raw data for texture with integer color channels
@@ -63,7 +64,8 @@ fn set_load_callback() {
 fn load_image(
     path: &str,
     on_load_callback: Box<dyn Fn(&web_sys::HtmlImageElement)>,
-) -> web_sys::HtmlImageElement {
+) -> Result<web_sys::HtmlImageElement, minwebgl::JsValue> {
+    let image = create_image_element( "tileset.png" )?;
     let window = web_sys::window().expect("Should have a window");
     let document = window.document().expect("Should have a document");
     let image = document
@@ -74,11 +76,6 @@ fn load_image(
     let body = document.body().unwrap();
     let _ = body.append_child(&image);
     image.set_id(&format!("{path}"));
-    let _ = image.style().set_property("visibility", "hidden");
-    let _ = image.style().set_property("position", "absolute");
-    let _ = image.style().set_property("top", "0");
-    let _ = image.style().set_property("width", "10px");
-    let _ = image.style().set_property("height", "10px");
     image.set_cross_origin(Some("anonymous"));
     let img = image.clone();
     let on_load_callback: Closure<dyn Fn()> = Closure::new(move || on_load_callback(&img));
@@ -87,7 +84,7 @@ fn load_image(
     let origin = window.location().origin().expect("Should have an origin");
     let url = format!("{origin}/static/{path}");
     image.set_src(&url);
-    image
+    Ok(image)
 }
 
 fn init() {
