@@ -19,7 +19,7 @@ async fn run() -> Result< (), gl::WebGPUError >
   let render_pipeline = gl::render_pipeline::create
   (
     &device, 
-    gl::render_pipeline::desc( gl::VertexState::new( &shader ) )
+    &gl::render_pipeline::desc( gl::VertexState::new( &shader ) )
     .fragment
     ( 
       gl::FragmentState::new( &shader ) 
@@ -29,6 +29,7 @@ async fn run() -> Result< (), gl::WebGPUError >
         .format( presentation_format ) 
       )
     )
+    .into()
   )?;
 
   let canvas_texture = gl::context::current_texture( &context )?;
