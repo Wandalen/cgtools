@@ -76,6 +76,11 @@ fn load_image(
     let body = document.body().unwrap();
     let _ = body.append_child(&image);
     image.set_id(&format!("{path}"));
+    let _ = image.style().set_property("visibility", "hidden");
+    let _ = image.style().set_property("position", "absolute");
+    let _ = image.style().set_property("top", "0");
+    let _ = image.style().set_property("width", "10px");
+    let _ = image.style().set_property("height", "10px");
     image.set_cross_origin(Some("anonymous"));
     let img = image.clone();
     let on_load_callback: Closure<dyn Fn()> = Closure::new(move || on_load_callback(&img));
