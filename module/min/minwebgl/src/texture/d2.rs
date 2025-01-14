@@ -2,6 +2,31 @@ use crate::*;
 
 type GL = web_sys::WebGl2RenderingContext;
 
+/// Represents a sprite sheet containing multiple sprites arranged in rows and columns.
+/// 
+/// A sprite sheet is commonly used in 2D game development to manage and optimize
+/// rendering of animations or multiple images by storing them in a single texture.
+pub struct SpriteSheet
+{
+  /// Image element of sprite sheet
+  pub image_element : web_sys::HtmlImageElement,
+
+  /// Number of sprites in each row of the sheet
+  pub sprites_in_row : u32,
+
+  /// Number of sprites in each column of the sheet
+  pub sprites_in_col : u32,
+
+  /// Width of each individual sprite
+  pub sprite_width : u32,
+
+  /// Height of each individual sprite
+  pub sprite_height : u32,
+
+  /// Total number of sprites to upload
+  pub amount : u32,
+}
+
 /// Creates a 2D texture from HtmlImageElement.
 /// Image format and internal format are assumed to be RGBA unsigned bytes.
 /// Flips the texture in Y direction.
@@ -89,11 +114,6 @@ pub fn update_video( gl : &GL, texture : &web_sys::WebGlTexture, video_element :
 /// # Parameters
 /// - `gl`: Reference to the WebGL rendering context
 /// - `img`: The HTML image element containing the sprite sheet
-/// - `sprites_in_row`: Number of sprites in each row of the sheet
-/// - `sprites_in_col`: Number of sprites in each column of the sheet
-/// - `sprite_width`: Width of each individual sprite
-/// - `sprite_height`: Height of each individual sprite
-/// - `amount`: Total number of sprites to upload
 /// 
 /// # Returns
 /// A `Result` containing the created WebGL texture or a `WebglError`
@@ -107,7 +127,7 @@ pub fn update_video( gl : &GL, texture : &web_sys::WebGlTexture, video_element :
 /// # When it useful
 /// - Loading sprites
 /// - Working with texture arrays
-pub async fn upload_sprite( gl : &GL, img : &web_sys::HtmlImageElement, sprites_in_row : u32, sprites_in_col : u32, sprite_width : u32, sprite_height : u32, amount : u32 ) -> Result< web_sys::WebGlTexture, WebglError >
+pub async fn upload_sprite( gl : &GL, sprite_sheet : &SpriteSheet ) -> Result< web_sys::WebGlTexture, WebglError >
 {
   let load_promise = js_sys::Promise::new
   (
@@ -123,8 +143,8 @@ pub async fn upload_sprite( gl : &GL, img : &web_sys::HtmlImageElement, sprites_
         move || { reject.call1( &JsValue::NULL, &JsValue::from_str( "Failed to load image" ) ).unwrap() }
       );
 
-      img.set_onload( Some( on_load.as_ref().unchecked_ref() ) );
-      img.set_onerror( Some( on_error.as_ref().unchecked_ref() ) );
+      sprite_sheet.image_element.set_onload( Some( on_load.as_ref().unchecked_ref() ) );
+      sprite_sheet.image_element.set_onerror( Some( on_error.as_ref().unchecked_ref() ) );
     }
   );
 
@@ -133,7 +153,7 @@ pub async fn upload_sprite( gl : &GL, img : &web_sys::HtmlImageElement, sprites_
   let texture = gl.create_texture().ok_or( WebglError::FailedToAllocateResource( "Sprite texture" ) )?;
   gl.bind_texture( GL::TEXTURE_2D_ARRAY, Some( &texture ) );
 
-  let ( img_width, img_height ) = ( img.width(), img.height() );
+  let ( img_width, img_height ) = ( sprite_sheet.image_element.width(), sprite_sheet.image_element.height() );
 
   let image_data =
   {
@@ -149,7 +169,7 @@ pub async fn upload_sprite( gl : &GL, img : &web_sys::HtmlImageElement, sprites_
     let ctx = context::from_canvas_2d( &tmp_canvas )?;
 
     // Draw image to temp canvas.
-    ctx.draw_image_with_html_image_element( img, 0.0, 0.0 ).unwrap();
+    ctx.draw_image_with_html_image_element( &sprite_sheet.image_element, 0.0, 0.0 ).unwrap();
 
     // Get pixel array of the image.
     let data = ctx.get_image_data( 0.0, 0.0, img_width as f64, img_height as f64 ).unwrap().data().to_vec();
@@ -165,9 +185,9 @@ pub async fn upload_sprite( gl : &GL, img : &web_sys::HtmlImageElement, sprites_
     GL::TEXTURE_2D_ARRAY,
     8,
     GL::RGBA8,
-    sprite_width as i32,
-    sprite_height as i32,
-    amount as i32
+    sprite_sheet.sprite_width as i32,
+    sprite_sheet.sprite_height as i32,
+    sprite_sheet.amount as i32
   );
 
   // Create a Pixel Buffer Object (PBO) and copy the image data into it.
@@ -184,11 +204,11 @@ pub async fn upload_sprite( gl : &GL, img : &web_sys::HtmlImageElement, sprites_
   gl.pixel_storei( GL::UNPACK_ROW_LENGTH, img_width as i32 );
   gl.pixel_storei( GL::UNPACK_IMAGE_HEIGHT, img_height as i32 );
 
-  let sprites_in_row = sprites_in_row as f64;
-  let sprites_in_col = sprites_in_col as f64;
-  let sprite_width_f64 = sprite_width as f64;
-  let sprite_height_f64 = sprite_height as f64;
-  for i in 0..amount
+  let sprites_in_row = sprite_sheet.sprites_in_row as f64;
+  let sprites_in_col = sprite_sheet.sprites_in_col as f64;
+  let sprite_width_f64 = sprite_sheet.sprite_width as f64;
+  let sprite_height_f64 = sprite_sheet.sprite_height as f64;
+  for i in 0..sprite_sheet.amount
   {
     // Calculate the row and column coordinates for the current sprite based on the total number of sprites and their size.
     let row = ( i as f64 / sprites_in_row ).floor() * sprite_width_f64;
@@ -212,8 +232,8 @@ pub async fn upload_sprite( gl : &GL, img : &web_sys::HtmlImageElement, sprites_
       0,
       0,
       i as i32,
-      sprite_width as i32,
-      sprite_height as i32,
+      sprite_sheet.sprite_width as i32,
+      sprite_sheet.sprite_height as i32,
       1,
       GL::RGBA,
       GL::UNSIGNED_BYTE,
