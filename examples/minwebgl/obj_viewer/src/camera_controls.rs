@@ -2,10 +2,6 @@ use std::sync::{ Arc, Mutex };
 
 use mingl::CameraOrbitControls;
 use minwebgl::{ self as gl, JsCast };
-use gl::
-{
-  GL,
-};
 use web_sys::
 {
   wasm_bindgen::prelude::Closure, 
