@@ -3,6 +3,7 @@ mod private
 {
   use crate::*;
 
+  #[ derive( Clone ) ]
   pub struct BindGroupLayoutEntry
   {
     binding : u32,
@@ -24,6 +25,12 @@ mod private
         visibility,
         ty
       }
+    }
+
+    /// Sets the `visibility` to `All`
+    pub fn all( self ) -> Self
+    {
+      self.fragment().compute().vertex()
     }
 
     /// Sets the visibility of the entry to VERTEX
@@ -65,14 +72,6 @@ mod private
   impl From< BindGroupLayoutEntry > for web_sys::GpuBindGroupLayoutEntry
   {
     fn from( value: BindGroupLayoutEntry ) -> Self 
-    {
-      ( &value ).into()
-    }
-  }
-
-  impl From< &BindGroupLayoutEntry > for web_sys::GpuBindGroupLayoutEntry
-  {
-    fn from( value:& BindGroupLayoutEntry ) -> Self 
     {
       let layout = web_sys::GpuBindGroupLayoutEntry::new( value.binding, value.visibility );
 

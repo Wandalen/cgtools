@@ -3,7 +3,7 @@ mod private
 {
   use crate::*;
 
-  #[ derive( Default ) ]
+  #[ derive( Default, Clone ) ]
   pub struct MultiSampleState
   {
     /// Defaults to `false`
@@ -42,7 +42,7 @@ mod private
 
   impl From< MultiSampleState > for web_sys::GpuMultisampleState 
   {
-    fn from (value: MultiSampleState ) -> Self 
+    fn from ( value: MultiSampleState ) -> Self 
     {
       let state = web_sys::GpuMultisampleState::new();
 
