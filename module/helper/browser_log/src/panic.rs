@@ -115,7 +115,7 @@ mod private
       fn stack( error : &Error ) -> String;
     }
 
-    pub fn hook_impl( info : &panic::PanicInfo< '_ >, config : &Config )
+    pub fn hook_impl( info : &panic::PanicHookInfo< '_ >, config : &Config )
     {
       use std::fmt::Write;
 
