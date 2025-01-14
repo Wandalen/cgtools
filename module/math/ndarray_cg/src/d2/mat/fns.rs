@@ -12,7 +12,7 @@ mod private
   {
     fn fmt( &self, f : &mut fmt::Formatter<'_> ) -> fmt::Result
     {
-      let raw_slice = self.raw_slice();
+      let _raw_slice = self.raw_slice();
       write!
       (
         f,

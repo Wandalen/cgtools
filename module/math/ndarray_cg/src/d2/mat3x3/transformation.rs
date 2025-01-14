@@ -1,5 +1,5 @@
 use crate::*;
-use mdmath_core::vector::inner_product::*;
+//use mdmath_core::vector::inner_product::*;
 
 pub fn from_angle_y< E >( angle : f32 ) -> Mat3< E, mat::DescriptorOrderColumnMajor >
 where
