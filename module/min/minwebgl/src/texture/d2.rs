@@ -8,9 +8,6 @@ type GL = web_sys::WebGl2RenderingContext;
 /// rendering of animations or multiple images by storing them in a single texture.
 pub struct SpriteSheet
 {
-  /// Image element of sprite sheet
-  pub image_element : web_sys::HtmlImageElement,
-
   /// Number of sprites in each row of the sheet
   pub sprites_in_row : u32,
 
@@ -127,7 +124,7 @@ pub fn update_video( gl : &GL, texture : &web_sys::WebGlTexture, video_element :
 /// # When it useful
 /// - Loading sprites
 /// - Working with texture arrays
-pub async fn upload_sprite( gl : &GL, sprite_sheet : &SpriteSheet ) -> Result< web_sys::WebGlTexture, WebglError >
+pub async fn upload_sprite( gl : &GL, image_element : &web_sys::HtmlImageElement, sprite_sheet : &SpriteSheet ) -> Result< web_sys::WebGlTexture, WebglError >
 {
   let load_promise = js_sys::Promise::new
   (
@@ -143,8 +140,8 @@ pub async fn upload_sprite( gl : &GL, sprite_sheet : &SpriteSheet ) -> Result< w
         move || { reject.call1( &JsValue::NULL, &JsValue::from_str( "Failed to load image" ) ).unwrap() }
       );
 
-      sprite_sheet.image_element.set_onload( Some( on_load.as_ref().unchecked_ref() ) );
-      sprite_sheet.image_element.set_onerror( Some( on_error.as_ref().unchecked_ref() ) );
+      image_element.set_onload( Some( on_load.as_ref().unchecked_ref() ) );
+      image_element.set_onerror( Some( on_error.as_ref().unchecked_ref() ) );
     }
   );
 
@@ -153,7 +150,7 @@ pub async fn upload_sprite( gl : &GL, sprite_sheet : &SpriteSheet ) -> Result< w
   let texture = gl.create_texture().ok_or( WebglError::FailedToAllocateResource( "Sprite texture" ) )?;
   gl.bind_texture( GL::TEXTURE_2D_ARRAY, Some( &texture ) );
 
-  let ( img_width, img_height ) = ( sprite_sheet.image_element.width(), sprite_sheet.image_element.height() );
+  let ( img_width, img_height ) = ( image_element.width(), image_element.height() );
 
   let image_data =
   {
@@ -169,7 +166,7 @@ pub async fn upload_sprite( gl : &GL, sprite_sheet : &SpriteSheet ) -> Result< w
     let ctx = context::from_canvas_2d( &tmp_canvas )?;
 
     // Draw image to temp canvas.
-    ctx.draw_image_with_html_image_element( &sprite_sheet.image_element, 0.0, 0.0 ).unwrap();
+    ctx.draw_image_with_html_image_element( image_element, 0.0, 0.0 ).unwrap();
 
     // Get pixel array of the image.
     let data = ctx.get_image_data( 0.0, 0.0, img_width as f64, img_height as f64 ).unwrap().data().to_vec();
