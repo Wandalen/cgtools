@@ -9,7 +9,7 @@ members = [
   "module/math/*",
   "examples/minwebgl/*",
   "examples/minwebgpu/*"
-]
+, "module/vectorizer"]
 
 # Source :: https://github.com/obox-systems/conventions/blob/master/code_style.md#lints-and-warnings
 [workspace.lints.rust]
@@ -94,6 +94,11 @@ path = "module/helper/browser_log"
 version = "~0.2.0"
 path = "module/alias/browser_tools"
 
+# = vectorizer
+[workspace.dependencies.vectorizer]
+version = "~0.1.0"
+path = "module/vectorizer"
+
 # = math
 
 [workspace.dependencies.ndarray_cg]
@@ -170,3 +175,21 @@ version = "0.4.43"
 version = "4.0.2"
 default-features = false
 # features = [ "async" ]
+
+[workspace.dependencies.visioncortex]
+git  = "https://github.com/obox-systems/visioncortex.git"
+
+[workspace.dependencies.palette]
+version = "0.7.6"
+
+[workspace.dependencies.fastrand]
+version = "1.8"
+
+[workspace.dependencies.serde]
+version = "1.0.214"
+
+[workspace.dependencies.serde_with]
+version = "3.11.0"
+
+[workspace.dependencies.thiserror]
+version = "2.0.4"

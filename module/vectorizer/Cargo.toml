@@ -1,0 +1,33 @@
+[package]
+name = "vectorizer"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = [ 
+    "Avramenko Yevhenii <yevhenii.av@obox.systems>",
+    "Kostiantyn Mysnyk <wandalen@obox.systems>"
+]
+description = "Utilities to vectorize raster images"
+
+[lints]
+workspace = true
+
+[features]
+enabled = []
+default = [
+  "enabled",
+]
+
+[dependencies]
+mod_interface = { workspace = true }
+visioncortex = { workspace = true }
+palette = { workspace = true }
+fastrand = { workspace = true }
+error_tools = { workspace = true }
+derive_tools = { workspace = true }
+serde = { workspace = true }
+serde_with = { workspace = true }
+thiserror = { workspace = true }
+
+
+
