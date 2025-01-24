@@ -13,4 +13,6 @@ mod private {}
 
   layer common;
   layer error;
+  layer layers;
+  layer svg;
 }
