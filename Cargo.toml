@@ -7,6 +7,7 @@ members = [
   "module/min/*",
   "module/helper/*",
   "module/math/*",
+  "module/embroidery_tools",
   "examples/minwebgl/*",
   "examples/minwebgpu/*"
 ]
@@ -170,3 +171,15 @@ version = "0.4.43"
 version = "4.0.2"
 default-features = false
 # features = [ "async" ]
+
+[workspace.dependencies.byteorder]
+version = "1.5.0"
+
+[workspace.dependencies.itertools]
+version = "0.13.0"
+
+[workspace.dependencies.thiserror]
+version = "2.0.4"
+
+[workspace.dependencies.rand]
+version = "0.8.5"
