@@ -3,7 +3,6 @@
 use std::
 {
   collections::{ HashMap, HashSet }, 
-  io::{ BufReader, Cursor }, 
   sync::{ Arc, Mutex }
 };
 
@@ -11,10 +10,6 @@ use material::{ GLMaterial, TextureType };
 use mesh::GLMesh;
 use mingl::CameraOrbitControls;
 use minwebgl::{ self as gl, JsCast };
-use gl::
-{
-  GL,
-};
 use web_sys::wasm_bindgen::prelude::Closure;
 
 mod mesh;
@@ -31,13 +26,13 @@ async fn run() -> Result< (), gl::WebglError >
   let height = canvas.height() as f32;
 
   // Camera setup
-  let eye = glam::Vec3::new( 0.0, 20.0, 20.0 );
-  let up = glam::Vec3::Y;
-  let center = glam::Vec3::ZERO;
+  let eye = gl::math::F32x3::from( [ 0.0, 20.0, 20.0 ] );
+  let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
+  let center = gl::math::F32x3::from( [ 0.0, 0.0, 0.0 ] );
 
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
-  let perspective_matrix = glam::Mat4::perspective_rh_gl
+  let perspective_matrix = gl::math::mat3x3h::perspective_rh_gl
   (
     fov,  
     aspect_ratio, 
@@ -47,10 +42,10 @@ async fn run() -> Result< (), gl::WebglError >
 
   let camera = CameraOrbitControls
   {
-    eye : eye.to_array(),
-    up : up.to_array(),
-    center : center.to_array(),
-    window_size : [ width, height ],
+    eye : eye,
+    up : up,
+    center : center,
+    window_size : [ width, height ].into(),
     fov,
     ..Default::default()
   };
@@ -182,8 +177,8 @@ async fn run() -> Result< (), gl::WebglError >
     {
       let _time = t as f32 / 1000.0;
 
-      let view_matrix = camera.lock().unwrap().view();
-      let eye = camera.lock().unwrap().eye();
+      let view_matrix = camera.lock().unwrap().view().to_array();
+      let eye = camera.lock().unwrap().eye().to_array();
 
       for m in gl_meshes_opaque.iter()
       {

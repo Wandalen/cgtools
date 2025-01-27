@@ -75,7 +75,7 @@ impl GLMesh
     Ok( mesh_gl )
   }
 
-  pub fn set_perpsective( &self, gl : &GL, perspective_matrix : &glam::Mat4 )
+  pub fn set_perpsective( &self, gl : &GL, perspective_matrix : &gl::math::F32x4x4 )
   {
     gl.use_program( Some( &self.material.program ) );
 
@@ -83,7 +83,7 @@ impl GLMesh
     ( 
       &gl, 
       gl.get_uniform_location( &self.material.program, "projectionMatrix" ), 
-      &perspective_matrix.to_cols_array()[ .. ], 
+      perspective_matrix.to_array().as_slice(), 
       true 
     ).unwrap();
   }

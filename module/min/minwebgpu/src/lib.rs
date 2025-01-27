@@ -38,4 +38,13 @@ mod_interface!
   layer render_pipeline;
   layer render_pass;
   layer queue;
+  layer bind_group;
+  layer bind_group_entry;
+  layer transform;
+  layer buffer;
+  layer mem;
+  layer log;
+  #[ cfg( feature = "math" ) ]
+  layer math;
+  layer compute_pipeline;
 }

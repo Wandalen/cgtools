@@ -51,7 +51,7 @@ mod private
   /// [`std::panic::set_hook`](https://doc.rust-lang.org/nightly/std/panic/fn.set_hook.html).
   /// It logs panic messages to `console.error` in WebAssembly environments.
   /// For non-WASM targets, it outputs the panic to standard error.
-  pub fn hook( info : &panic::PanicInfo< '_ >, config : &Config )
+  pub fn hook( info : &panic::PanicHookInfo< '_ >, config : &Config )
   {
     hook_impl( info, config );
   }
@@ -115,7 +115,7 @@ mod private
       fn stack( error : &Error ) -> String;
     }
 
-    pub fn hook_impl( info : &panic::PanicInfo< '_ >, config : &Config )
+    pub fn hook_impl( info : &panic::PanicHookInfo< '_ >, config : &Config )
     {
       use std::fmt::Write;
 
@@ -154,7 +154,7 @@ mod private
     use super::*;
     use std::io::{ self, Write };
 
-    pub fn hook_impl( info : &panic::PanicInfo< '_ >, _config : &Config )
+    pub fn hook_impl( info : &panic::PanicHookInfo< '_ >, _config : &Config )
     {
       let _ = writeln!( io::stderr(), "{}", info );
     }

@@ -17,13 +17,13 @@ workspace = true
 enabled = []
 default = [
   "enabled",
-  "ndarray",
+  "math",
 ]
 full = [
   "default",
 ]
 
-ndarray = [ "dep:ndarray" ]
+math = [ "dep:ndarray_cg" ]
 camera_orbit_controls = []
 
 diagnostics = [
@@ -49,16 +49,13 @@ webLog = [ "dep:browser_log" ]
 
 [dependencies]
 
-ndarray = { workspace = true, optional = true }
 bytemuck = { workspace = true, features = [ "derive" ] } # xxx : replace
 # anyhow = "1.0.48"
 # slice-of-array = "0.3.1"
-cgmath = "0.18.0"
-glam = "0.29.0"
 tobj = { workspace = true, optional = true }
 browser_log = { workspace = true, optional = true }
 
-
+ndarray_cg = { workspace = true, optional = true }
 error_tools = { workspace = true }
 mod_interface = { workspace = true }
 derive_tools = { workspace = true }
@@ -79,7 +76,9 @@ web-sys = { workspace = true, optional = true, features = [
   'Request',
   'Response',
   'Location',
-  'DomTokenList'
+  'DomTokenList',
+  'HtmlVideoElement',
+  'HtmlImageElement'
 ]}
 
 [dev-dependencies]
