@@ -1,10 +1,20 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
+use rand::rngs::SmallRng;
+use rand::SeedableRng;
+use rand::prelude::SliceRandom;
 use rayon::prelude::*;
-use fastrand::*;
+use serde::{Serialize, Deserialize};
+use std::sync::Arc;
+use std::ops::Range;
+use rand::Rng;
+use web_sys::console;
+use minwebgl::JsValue;
 
+/// Used for evaluating neighbour tiles coords 
+/// and for indexing posible neighbour tiles in [`Relations`]
 #[derive(
-    Debug, Clone, Copy, Serialize, DeserializeDebug, 
+    Debug, Clone, Copy, Serialize, Deserialize, 
     Eq, PartialEq, Ord, PartialOrd, Hash
 )]
 #[serde(untagged)]
@@ -24,6 +34,8 @@ enum Direction{
 }
 
 impl Direction{
+    /// Maps [`Direction`] into dimention and [`Point`] 
+    /// position relatively to current [`Point`] 
     fn difference(&self) -> (usize, isize){
         match self{
             Direction::W => (0, -1),
@@ -36,83 +48,70 @@ impl Direction{
     }
 }
 
+/// Store set of possible tile states that can be adjacent
+/// to current tile. 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 enum Relation{
-    Isotropic(HashSet<usize>),
-    Anisotropic(HashMap<Direction, HashSet<usize>>)
+    /// For [`Direction`] independed states. Will be applyed 
+    /// for every [`Direction`] in propagate state 
+    Isotropic(HashSet<u8>),
+    /// For [`Direction`] depended states. Will be applyed for 
+    /// certain [`Direction`] in propagate state 
+    Anisotropic(HashMap<Direction, HashSet<u8>>)
 }
 
-impl Relation{
-    fn get_variants(&self, direction: Direction) -> Some(Vec<usize>){
-        match self{
-            Relation::Isotropic(neighbours) => Some(neighbours),
-            Relation::Anisotropic(neighbours) => neighbours.get(&direction)
-        }
-    }
-}
-
+/// Store list of posible neighbour tiles 
+/// states for each state of current tile  
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
 pub struct Relations(Vec<Relation>);
 
 impl Relations{
-    fn get_all_anisotropic(&self) -> Vec<(usize, Relation)>{
-        self.0.iter().enumerate()
-            .filter(|(_, r)| if let Relation::Anisotropic(_) = r {
-                true
+    /// Returns all [`Relation::Isotropic`] variants from [`Relations`] list
+    fn get_all_isotropic(&self) -> Vec<(u8, Relation)>{
+        self.0.iter().cloned().enumerate()
+            .filter_map(|(i, r)| if let Relation::Isotropic(_) = r {
+                Some((i as u8, r.clone()))
             }else{
-                false
+                None
             })
             .collect::<Vec<_>>()
-    }
-
-    fn get_all_isotropic(&self) -> Vec<(usize, Relation)>{
-        self.0.iter().enumerate()
-            .filter(|(_, r)| if let Relation::Isotropic(_) = r {
-                true
-            }else{
-                false
-            })
-            .collect::<Vec<_>>()
-    }
-
-    fn try_transform_to_anisotropic(&mut self){
-        let anisotropic = self.get_all_anisotropic();
-        let isotropic = self.get_all_isotropic();
-        if anisotropic.is_empty(){
-            return;
-        }
-        let mut directions = HashSet::<Direction>::new();
-        for (_, r) in anisotropic{
-            let Relation::Anisotropic(map) = r else{
-                unreachable!()
-            };
-            directions = directions.intersection(map.keys().collect::<HashSet<_>>())
-                .collect::<HashSet<_>>();
-        }
-        for (i, r) in isotropic{
-            let Relation::Isotropic(variants) = r else{
-                unreachable!()
-            };
-            let mut map = HashMap::new();
-            for d in directions{
-                map.insert(d, variants);
-            }
-            self.0[i] = Relation::Anisotropic(map);
-        }
-        directions
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
-struct Point(isize, isize);
+/// Coordinates of 2d tiles
+#[derive(Hash, Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
+struct Point{
+    x: isize,
+    y: isize
+}
 
+impl Point{
+    fn new(x: isize, y: isize) -> Self{
+        Self{
+            x, 
+            y
+        }
+    }
+}
+
+/// General state for wave function collapse algorithm
+/// 
+/// Made with builder pattern. User must set with methods 
+/// size, front, relations fields and then call calculate method 
+/// that returns map [`Vec<Vec<u8>>`]. Wfc calculate limited size 
+/// patterns map. 
 struct Wfc{
-    edges: HashMap<Direction, Vec<usize>>,
-    map: Vec<Vec<Vec<usize>>>,
+    /// Stores neighbour tiles from other chunk maps
+    edges: HashMap<Direction, Vec<u8>>,
+    /// Map that contains current superposition of variants for each tile
+    map: Vec<Vec<Vec<u8>>>,
+    /// Current front from which the collapse and propagate steps of 
+    /// the algorithm will occur. Contains tile coords ([`Point`]).
     front: Vec<Point>,
-    relations: Relations
+    /// Store list of posible neighbour tiles 
+    /// states for each state of current tile  
+    relations: Relations,
 }
 
 impl Wfc{
@@ -125,250 +124,275 @@ impl Wfc{
         }
     }
 
-    fn size(self, size: (usize, usize)) -> Self{
+    fn size(mut self, size: (usize, usize)) -> Self{
         self.map = vec![vec![vec![];size.0];size.1];
+        self
     }
 
-    fn edges(self, edges: HashMap<Direction, Vec<usize>>) -> Self{
+    fn edges(mut self, edges: HashMap<Direction, Vec<u8>>) -> Self{
         self.edges = edges;
+        self
     }
 
-    fn front(self, front: Vec<(Point, usize)>) -> Self{
-        self.front = front;
-    }
-
-    fn relations(self, mut relations: Relations) -> Self{
-        relations.try_transform_to_anisotropic();
-        self.relations = relations; 
-    }
-
-    fn get_edges(&self) -> HashMap<Direction, Vec<usize>>{
-        let mut edges = HashMap::new();
-        let height = self.map.len();
-        let width = self.map[0].len();
-        let last_h = height - 1;
-        let last_w = width - 1;
-        for edge in self.edges.keys(){
-            let (dim, diff) = edge.difference(); 
-            let line = match (dim, diff){
-                (0, -1) => (0..width).map(|i| self.map[0][i][0]),
-                (1, -1) => (0..height).map(|i| self.map[i][0][0]),
-                (0, 1) => (0..width).map(|i| self.map[last_h][i][0]),
-                (1, 1) => (0..height).map(|i| self.map[i][last_w][0]),
-                _ => unreachable!()
-            }.collect::<Vec<_>>();
-            edges.insert(edge, line);
+    fn set_points(mut self, points_to_set: Vec<(Point, u8)>) -> Self{
+        for (p, value) in points_to_set{
+            self.map[p.y as usize][p.x as usize] = vec![value];
         }
         self
     }
 
-    fn calculate_variants(&self, points: Vec<Point>) -> Vec<(Point, Vec<usize>)>{
+    fn front(mut self, front: Vec<Point>) -> Self{
+        self.front = front;
+        self
+    }
+
+    fn relations(mut self, relations: Relations) -> Self{
+        self.relations = relations; 
+        
+        let all_variants = (0..(self.relations.0.len() as u8)).collect::<Vec<_>>();
+        if !self.map.is_empty() && !self.map[0].is_empty(){
+            self.map = vec![vec![all_variants;self.map[0].len()]; self.map.len()];
+        }
+        self
+    }
+
+    /// Propagate each tile from list points and return new variants list for each tile
+    fn calculate_variants(&self, points: Vec<Point>) -> Vec<(Point, Vec<u8>)>{
         let relations = self.relations.clone();
         let directions = self.edges.keys().cloned().collect::<Vec<_>>();
-        let map = Arc::new(self.map);
-        points.into_par_iter().map_init(
-        || (map, directions, relations).clone(),
-        |(map, directions, relations), p|{
+        let mut map = self.map.clone();
+        points.into_iter().map(|p|{
             let new_variants = propagate_cell(&map, &directions, &relations, p);
+            map[p.y as usize][p.x as usize] = new_variants.clone();
             (p, new_variants)
         }).collect()
     }
 
-    fn get_with_min_entrophy(&self, points: Vec<Point>) -> Vec<Point>{
-        let map = Arc::new(self.map);
-        let iter = points.into_par_iter().map_init(|| map.clone(),
+    /// Calculate minimal entropy for tile set in points ([`Vec<Point>`]).
+    /// Then returns tile coordinates only with minimal entropy
+    fn get_with_min_entrophy(&self, points: &Vec<Point>) -> Vec<Point>{
+        let map = Arc::new(self.map.clone());
+        let iter = points.clone().into_par_iter().map_init(|| map.clone(),
         |m, p|{
-            (p, m[p.1][p.0].len())
-        }).filter(|m, (p, v)| v > 1);
-        let min_entropy = iter.map(|m, (_, v)| v).min().unwrap();
-        iter.filter(|m, (p, v)| v <= min_entropy)
-            .map(|m, (p, _)| p).collect::<Vec<_>>()
+            (p, m[p.y as usize][p.x as usize].len())
+        }).filter(|(_, v)| *v > 1);
+        let min_entropy = iter.clone().map(|(_, v)| v)
+            .min().unwrap_or(self.relations.0.len());
+        iter.filter(|(_, v)| *v <= min_entropy)
+            .map(|(p, _)| p).collect::<Vec<_>>()
     }
 
+    /// Returns points that still have many tile variants (>1)
+    fn get_unsolved(&self, points: Vec<Point>) -> Vec<Point>{
+        let map = Arc::new(self.map.clone());
+        points.into_par_iter().map_init(|| map.clone(),
+        |m, p|{
+            (p, m[p.y as usize][p.x as usize].len())
+        }).filter(|(_, v)| *v > 1)
+        .map(|(p, _)| p)
+        .collect::<Vec<_>>()
+    }
+
+    /// For each tile coordinates with minimal entropy in front 
+    /// choose any posible variant and write result back to map
     fn collapse(&mut self){
-        let front = self.front;
-        let map = Arc::new(self.map);
-        let collapsed = front.into_par_iter().map_init(|| (map.clone(), SmallRng::from_rng(rand::thread_rng())),
-         |(m, r), p|{
-            (p, m[p.1][p.0].choose(&mut r))
+        let front = self.front.clone();
+        let map = Arc::new(self.map.clone());
+        let mut r = SmallRng::from_rng(rand::thread_rng()).unwrap();
+        let invalid_value = self.relations.0.len() as u8;
+        let with_min_entrophy= self.get_with_min_entrophy(&front);
+        let collapsed = with_min_entrophy.into_iter().map(|p|{
+            (p, map[p.y as usize][p.x as usize].choose(&mut r).unwrap_or(&invalid_value))
         }).collect::<Vec<_>>();
         for (p, v) in collapsed{
-            self.map[p.1][p.0] = vec![v];
+            self.map[p.y as usize][p.x as usize] = vec![*v];
         }
     }
 
+    /// Set new front and update front tiles variants 
     fn propagate(&mut self){
         if self.map.is_empty() || self.map[0].is_empty(){
             return;
         }
-        let front = self.front;
-        let mut diffs = vec![];
-        for edge in self.edges.keys(){
-            diff.push(edge.difference());
-        }
-        // 1. Calculate new front. 
-        let mut new_front = get_neighbours(front);
-        new_front = get_with_min_entrophy(new_front);
-        // 2. Find neighbours of new front.
-        let new_front_surroundings = get_neighbours_map(new_front);
-        // 3. Get their variants.
-        // 4. Get interseption of neighbour variants.
-        let new_variants = self.calculate_variants(new_front_surroundings);
-        // 5. Set result as tile variants.
+        let front = self.front.clone();
+        let directions = self.edges.keys().cloned().collect::<Vec<_>>();
+        let diffs = directions.into_iter()
+            .map(|d|d.difference()).collect::<Vec<_>>();
+        // 1. Split current front on solved and unsolved parts
+        let unsolved_front = self.get_unsolved(front.clone());
+        let solved_front = front.iter().collect::<HashSet<_>>()
+            .difference(&unsolved_front.iter().collect::<HashSet<_>>())
+            .cloned().cloned().collect::<Vec<_>>();
+        // 2. Calculate new front from solved tiles neighbours
+        let mut new_front = get_neighbours(solved_front, diffs.clone());
+        // 3. Filter new front tiles outside map
+        new_front = new_front.into_iter()
+            .filter(|p| p.x >= 0 && p.y >= 0 
+                && p.x < self.map[0].len() as isize && p.y < self.map.len() as isize)
+            .collect::<Vec<_>>();
+        // 4. Filter unsolved tiles in new front 
+        new_front = self.get_unsolved(new_front);
+        // 5. Add old unsolved tiles to new front
+        new_front.extend(unsolved_front);
+        // 6. Update variants for tiles in new front
+        let new_variants = self.calculate_variants(new_front.clone());
+        // 7. Set new tiles variants in map.
         for (p, variants) in new_variants{
-            self.map[p.1][p.0] = variants;
+            self.map[p.y as usize][p.x as usize] = variants;
         }
         self.front = new_front;
     }
 
-    fn calculate(&mut self) -> Result<Vec<Vec<usize>>, &str>{
+    /// Do repeatedly cycle collapse-propagate while front isn't empty.
+    /// When the cycle ended check and handle errors for each tile and 
+    /// then returns [`Vec<Vec<u8>>`]
+    fn calculate(&mut self) -> Result<Vec<Vec<u8>>, String>{
         while !self.front.is_empty(){
             self.collapse();
             self.propagate();
         }
-        let is_not_completed = self.map.into_par_iter()
-            .any(|row| {
-                row.iter().any(|v| v.len() > 1)
+            
+        let all_variants = (0..(self.relations.0.len() as u8)).collect::<Vec<_>>();
+        self.map.par_iter_mut()
+            .for_each(|row| {
+                row.iter_mut().for_each(|v|{
+                    let mut rng = SmallRng::from_rng(rand::thread_rng()).unwrap();
+                    if v.is_empty(){
+                        *v = vec![*all_variants.choose(&mut rng).unwrap()]
+                    }else{
+                        *v = vec![*v.choose(&mut rng).unwrap()]
+                    }
+                })
             });
-        if is_not_completed{
-            return Err("Map is not complete even when front is empty");
-        }
-        Ok(self.map.into_par_iter().map(|row|{
-            row.iter().flatten().collect()
+        
+        Ok(self.map.clone().into_par_iter().map(|row|{
+            row.into_iter().flatten().collect()
         }).collect())
     }
 }
 
+/// Print front shape on map with 'x'. If show_collapsed true display also collapsed tiles with '#' 
+fn print_front(map: &Vec<Vec<Vec<u8>>>, front: &Vec<Point>, show_collapsed: bool){
+    let mut front_map = vec![vec![' '; map[0].len()]; map.len()];
+    for p in front{
+        front_map[p.y as usize][p.x as usize] = 'x';
+    }
+    if show_collapsed{
+        for (i, row) in map.iter().enumerate(){
+            for (j, variants) in row.iter().enumerate(){
+                if variants.len() <= 1{
+                    front_map[i][j] = '#';
+                }
+            }
+        }
+    }
+
+    let mut map_string = "\n".to_string();
+    for row in front_map{
+      for value in row{
+        map_string.push(value);
+      }
+      map_string += "\n";
+    }
+    console::log_1(&JsValue::from(format!("{map_string}")));
+}
+
+/// Print map with variants count for each tile
+fn print_variants_count(map: &Vec<Vec<Vec<u8>>>){
+    let mut map_string = "\n".to_string();
+    for row in map{
+      for value in row{
+        map_string += &value.len().to_string();
+      }
+      map_string += "\n";
+    }
+    console::log_1(&JsValue::from(format!("{map_string}")));
+}
+
+/// Calculates current tile variants relatively to neighbour tiles
+/// and regardless of [`Relation`] type
 fn propagate_cell(
-    map: &Arc<Vec<Vec<Vec<usize>>>>, 
+    map: &Vec<Vec<Vec<u8>>>, 
     directions: &Vec<Direction>,
     relations: &Relations,
     point: Point
-) -> Vec<usize>{
-    if relations.get_all_anisotropic().is_empty(){
-        calculate_isotropic_variants(map, directions, relations, point)
-    }else{
-        calculate_anisotropic_variants(map, directions, relations, point)
-    }
+) -> Vec<u8>{
+    calculate_isotropic_variants(map, directions, relations, point)
 }
 
+/// Returns neighbour tile variants
 fn get_neighbour_variants(
-    map: &Arc<Vec<Vec<Vec<usize>>>>,
+    map: &Vec<Vec<Vec<u8>>>,
     point: Point,
     diff: (usize, isize)
-) -> Vec<usize>{
+) -> Vec<u8>{
     let (dim, diff) = diff;
+    let h = map.len();
+    let w = map[0].len();
+    let empty = Vec::<u8>::new();
     match (dim, diff){
-        (0, -1) => map[point.1][point.0 - 1],
-        (1, -1) => map[point.1 - 1][point.0],
-        (0, 1) => map[point.1][point.0 + 1],
-        (1, 1) => map[point.1 + 1][point.0],
+        (0, -1) => {
+            if point.x == 0{
+                &empty
+            }else{
+                &map[point.y as usize][(point.x as usize - 1) % w]
+            }
+        },
+        (1, -1) => {
+            if point.y == 0{
+                &empty
+            }else{
+                &map[(point.y as usize - 1) % h][point.x as usize]
+            }
+        },
+        (0, 1) => &map[point.y as usize][(point.x as usize + 1) % w],
+        (1, 1) => &map[(point.y as usize + 1) % h][point.x as usize],
         _ => unreachable!()
-    }.collect::<Vec<_>>()
+    }.clone()
 }
 
+/// Calculates current tile variants relatively to neighbour tiles
+/// and only for [`Relation::Isotropic`]. [`Relation::Anisotropic`] 
+/// isn't yet implemented
 fn calculate_isotropic_variants(
-    map: &Arc<Vec<Vec<Vec<usize>>>>, 
+    map: &Vec<Vec<Vec<u8>>>, 
     directions: &Vec<Direction>,
     relations: &Relations,
     point: Point
-) -> Vec<usize>{
+) -> Vec<u8>{
     let isotropic = relations.get_all_isotropic();
     if isotropic.is_empty(){
+        let actual_variants = map[point.y as usize][point.x as usize].clone();
         return actual_variants;
     }
 
     // Get ruled neighbour variants for every possible variant of current 
     // point and intersect with current point variants
 
-    let mut neighbours_variants = directions.iter().map(|d|{
-        (d, get_neighbour_variants(map, point, d.difference()).into_iter().collect::<HashSet<_>>())
-    }).collect::<HashMap<_, _>>();
-
-    let mut all_variants = HashSet::<usize>::from(map[point.1][point.0].iter());
-    let old_variants = all_variants;
-    for d in directions{
-        let mut neighbour_variants = neighbours_variants.get_mut(d).unwrap();
-        for i in old_variants{
-            if !all_variants.contains(&i){
-                continue;
+    let new_variants = map[point.y as usize][point.x as usize].iter().cloned().collect::<HashSet::<_>>();
+    new_variants.into_iter().filter(|i|{
+        let Relation::Isotropic(ref limited_variants) = relations.0[*i as usize] else{
+            unreachable!();
+        };
+        !directions.iter().any(|d|{
+            let set = get_neighbour_variants(map, point, d.difference())
+                .into_iter().collect::<HashSet<_>>();
+            if set.is_empty(){
+                return false;
             }
-            let Relation::Isotropic(limited_variants) = relations.0[i] else{
-                unreachable!();
-            };
-            neighbour_variants = neighbour_variants.intersection(limited_variants).collect::<HashSet<_>>();
-        }
-    }
-    for (_, variants) in neighbours_variants{
-        all_variants = all_variants.intersection(&variants).collect::<HashSet<_>>();
-    }
-
-    all_variants.iter().collect::<Vec<_>>()
-}
-
-fn calculate_anisotropic_variants(
-    map: &Arc<Vec<Vec<Vec<usize>>>>, 
-    directions: &Vec<Direction>,
-    relations: &Relations,
-    point: Point
-) -> Vec<usize>{
-    let anisotropic = relations.get_all_anisotropic();
-    if anisotropic.is_empty(){
-        return actual_variants;
-    }
-
-    // Get ruled neighbour variants for every possible variant of current 
-    // point and intersect with current point variants by every direction
-
-    let mut neighbours_variants = directions.iter().map(|d|{
-        (d, get_neighbour_variants(map, point, d.difference()).into_iter().collect::<HashSet<_>>())
-    }).collect::<HashMap<_, _>>();
-
-    let mut all_variants = HashSet::<usize>::from(map[point.1][point.0].iter());
-    let old_variants = all_variants;
-    for d in directions{
-        let mut neighbour_variants = neighbours_variants.get_mut(d).unwrap();
-        for i in old_variants{
-            if !all_variants.contains(&i){
-                continue;
-            }
-            let Relation::Anisotropic(limited_variants) = relations.0[i] else{
-                unreachable!();
-            };
-            if let Some(variants) = limited_variants.get(d){
-                neighbour_variants = neighbour_variants.intersection(variants)
-                    .collect::<HashSet<_>>();
-            }
-        }
-    }
-    for (_, variants) in neighbours_variants{
-        all_variants = all_variants.intersection(&variants).collect::<HashSet<_>>();
-    }
-    
-    all_variants.iter().collect::<Vec<_>>()
-}
-
-fn get_neighbours_map(points: Vec<Point>) -> Vec<(Point, Vec<Point>)>{
-    points.into_par_iter().map(|p|{
-        let mut points = vec![];
-        for (dim, diff) in diffs{
-            points.push(match dim{
-                0 => Point(p.0 + diff, p.1),
-                1 => Point(p.0, p.1 + diff),
-                _ => unreachable!()
-            });
-        }
-        (p, points)
+            set.intersection(&limited_variants).next().is_none()
+        })
     }).collect::<Vec<_>>()
 }
 
-fn get_neighbours(points: Vec<Point>) -> Vec<Point>{
-    points.into_par_iter().map(|(x,y): Point|{
+/// Returns neighbour list for input tiles coordinates (Vec<Point>)
+fn get_neighbours(points: Vec<Point>, diffs: Vec<(usize, isize)>) -> Vec<Point>{
+    points.into_par_iter().map(|p|{
         let mut points = vec![];
-        for (dim, diff) in diffs{
+        for (dim, diff) in &diffs{
             points.push(match dim{
-                0 => Point(x + diff, y),
-                1 => Point(x, y + diff),
+                0 => Point::new(p.x, p.y + diff),
+                1 => Point::new(p.x + diff, p.y),
                 _ => unreachable!()
             });
         }
@@ -377,7 +401,8 @@ fn get_neighbours(points: Vec<Point>) -> Vec<Point>{
     .into_iter().collect::<Vec<_>>()
 }
 
-fn default_edges() -> HashMap<Direction, Vec<usize>>{
+/// Return default tiles set for each side of current map 
+fn default_edges() -> HashMap<Direction, Vec<u8>>{
     let mut edges = HashMap::new();
     let directions = [
         Direction::N,
@@ -391,31 +416,51 @@ fn default_edges() -> HashMap<Direction, Vec<usize>>{
     edges
 }
 
-fn choose_multiple<T>(range: Range<T>, count: usize) -> Vec<T>{
+/// Calculates many random values from range
+fn choose_multiple<T>(range: Range<T>, count: usize) -> Vec<T> 
+where
+    T: Clone + std::marker::Send + std::cmp::PartialOrd 
+        + rand::distributions::uniform::SampleUniform + std::marker::Sync
+{
     (0..count)
         .into_par_iter()
-        .map_init(|| SmallRng::from_rng(rand::thread_rng()), |r, _| {
-            r.gen_range(range)
+        .map_init(|| SmallRng::from_rng(rand::thread_rng()).unwrap(), |r, _| {
+            r.gen_range(range.clone())
         }).collect::<Vec<T>>()
 }
 
+/// Creates random strating front for [`Wfc`].
+/// 
+/// Arguments:
+/// * density - front size in percent from map area 
+/// * size - map width and height,
+/// * sample_size - all tiles variants count
+/// 
+fn create_new_front(density: f32, size: (usize, usize), sample_size: u8) -> Result<(Vec<Point>, Vec<u8>), String>{
+    if 0.0 > density && density < 1.0{
+        return Err("density outside [0;1] range".to_string());
+    }
+    let random_count = ((size.0 * size.1) as f32 * density).floor() as usize;
+    let x = choose_multiple::<isize>(0..(size.0 as isize), random_count);
+    let y = choose_multiple::<isize>(0..(size.1 as isize), random_count);
+    let v = choose_multiple::<u8>(0..sample_size, random_count);
+    let front = x.into_iter().zip(y.into_iter())
+        .map(|(x, y)| Point::new(x, y)).collect::<Vec<_>>();
+    Ok((front, v))
+}
+
+/// Generate map with one function call
 pub fn generate(
     size: (usize, usize), 
     relations: Relations, 
     density: f32
-) -> Result<Vec<Vec<usize>>, &str>{
-    if 0 > density && density < 1{
-        return "density outside [0;1] range";
-    }
-    let random_count = ((size.0 * size.1) as f32 * density).floor();
-    let x = choose_multiple::<usize>(0..size.0, random_count);
-    let y = choose_multiple::<usize>(0..size.1, random_count);
-    let v = choose_multiple::<usize>(0..relations.0.len(), random_count);
-    let front = x.iter().zip(y.iter())
-        .map(|(x, y)| Point(x, y)).collect()
-        .iter().zip(v.iter()).collect();
-    Wfc::new().size(size)
+) -> Result<Vec<Vec<u8>>, String>{
+    let (front, v) = create_new_front(density, size, relations.0.len() as u8)?;
+    let points_to_set = front.iter().cloned().zip(v.into_iter()).collect::<Vec<(Point, u8)>>();
+    Wfc::new()
+        .size(size)
         .edges(default_edges())
+        .set_points(points_to_set)
         .front(front)
         .relations(relations)
         .calculate()
