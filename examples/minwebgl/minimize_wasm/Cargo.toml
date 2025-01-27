@@ -5,6 +5,6 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
-minwebgl = "0.2"
+# minwebgl = { }
 cgmath = "0.18.0"
 wee_alloc = "0.4"
