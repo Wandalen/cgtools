@@ -68,11 +68,6 @@ fn load_image(
     let image = create_image_element( "tileset.png" )?;
     let window = web_sys::window().expect("Should have a window");
     let document = window.document().expect("Should have a document");
-    let image = document
-        .create_element("img")
-        .unwrap()
-        .dyn_into::<web_sys::HtmlImageElement>()
-        .unwrap();
     let body = document.body().unwrap();
     let _ = body.append_child(&image);
     image.set_id(&format!("{path}"));
