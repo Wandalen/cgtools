@@ -20,7 +20,9 @@
 
 mod private
 {
-  use crate::*;
+  use crate::{ commands::InputOutput, svg::SvgFile, * };
+  use std::io::Write;
+  use actions::{ Error, Result };
   use std::collections::HashMap;
   use fastrand::Rng;
   use palette::{ color_difference::EuclideanDistance, IntoColor, Lab, Srgb };
@@ -178,6 +180,44 @@ mod private
     let lab_c2 : Lab = c2.into_color();
     lab_c1.distance_squared( lab_c2 )
   }
+
+  /// Read image from the disk
+  pub fn read_image( io : &InputOutput ) -> Result< image::DynamicImage >
+  {
+    let img = image::open( &io.input ).
+    map_err( | e | Error::ImageError( e ) )?;
+
+    Ok( img )
+  }
+
+  /// Writes an SVG file to the specified output path.
+  ///
+  /// This function takes an SVG file and writes it to the specified output path on disk.
+  ///
+  /// # Arguments
+  /// * `io` - A reference to the `InputOutput` struct containing the input/output paths.
+  /// * `svg` - A reference to the `SvgFile` that will be written to disk.
+  ///
+  /// # Returns
+  /// * `Result<()>` - An empty result if the operation is successful, or an error if the writing fails.
+  ///
+  /// # Errors
+  /// This function will return an error if the file writing operation fails.
+  pub fn write_svg( io : &InputOutput, svg : &SvgFile ) -> Result< () >
+  {
+    let mut output_path = 
+    match io.output 
+    {
+      Some( ref o ) => o.clone(),
+      None =>  io.input.clone()
+    };
+    output_path.set_extension( "svg" );
+    let mut out = std::fs::File::create( output_path )
+    .map_err( | e | Error::IOError( e ) )?;
+
+    write!( &mut out, "{}", svg ).unwrap();
+    Ok( () )
+  }
 }
 
 
@@ -190,6 +230,8 @@ crate::mod_interface!
     color_exists_in_image,
     should_key_image,
     background_color,
-    euclid_difference
+    euclid_difference,
+    read_image,
+    write_svg
   };
 }

@@ -23,11 +23,13 @@ mod_interface = { workspace = true }
 visioncortex = { workspace = true }
 palette = { workspace = true }
 fastrand = { workspace = true }
-error_tools = { workspace = true }
-derive_tools = { workspace = true }
-serde = { workspace = true }
+error_tools = { workspace = true, features = [ "full" ] }
+derive_tools = { workspace = true, features = [ "enabled", "full" ] }
+serde = { workspace = true, features = [ "serde_derive" ] }
 serde_with = { workspace = true }
 thiserror = { workspace = true }
-
+clap = { workspace = true }
+image = { workspace = true }
+tokio = { workspace = true, features = [ "full" ] }
 
 

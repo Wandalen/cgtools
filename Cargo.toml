@@ -8,8 +8,8 @@ members = [
   "module/helper/*",
   "module/math/*",
   "examples/minwebgl/*",
-  "examples/minwebgpu/*"
-, "module/vectorizer"]
+  "examples/minwebgpu/*", 
+  "module/vectorizer"]
 
 # Source :: https://github.com/obox-systems/conventions/blob/master/code_style.md#lints-and-warnings
 [workspace.lints.rust]
@@ -193,3 +193,13 @@ version = "3.11.0"
 
 [workspace.dependencies.thiserror]
 version = "2.0.4"
+
+[workspace.dependencies.clap]
+version = "4.5.21"
+features = ["derive"]
+
+[workspace.dependencies.image]
+version = "0.25.5"
+
+[workspace.dependencies.tokio]
+version = "1.41.0"

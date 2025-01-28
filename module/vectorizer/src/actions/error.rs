@@ -36,6 +36,13 @@ mod private
       #[ serde_as( as = "DisplayFromStr" ) ]
       std::io::Error
     ),
+    /// Error returned by `image` crate
+    #[ error( "Image crate api returned an error:\n{0}" ) ]
+    ImageError
+    (
+      #[ serde_as( as = "DisplayFromStr" ) ]
+      image::ImageError
+    ),
     /// Error on no colors available for keying
     #[ error( "Unable to find unused color in the image to use as key" ) ]
     KeyColorError

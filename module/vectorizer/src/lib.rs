@@ -11,8 +11,7 @@ mod private {}
   own use ::palette;
   own use ::fastrand;
 
-  layer common;
-  layer error;
-  layer layers;
   layer svg;
+  layer actions;
+  layer commands;
 }

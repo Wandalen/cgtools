@@ -5,9 +5,11 @@
 mod private
 {
   use crate::*;  
+  pub use actions::{ Error, Result };
+  use actions::common::{ euclid_difference, background_color, read_image, write_svg };
+  use commands::raster::vectorize::layers::CLIArgs;
   use std::collections::{ HashMap, HashSet };
-  use layers::config::{ Config, ColorDifference };
-  pub use crate::{ Error, Result };
+  use commands::raster::vectorize::layers::{ Config, ColorDifference };
   use palette::
   { 
     color_difference::{ HyAb, ImprovedCiede2000 }, IntoColor, Lab, Lch, LinSrgb, Srgb
@@ -88,16 +90,29 @@ mod private
   ///
   /// # Errors
   /// This function will return an error if the image reading, conversion, or SVG writing fails.
-  pub async fn action( img : &visioncortex::ColorImage, config : &Config ) -> Result< ( SvgFile, Report ) >
+  pub async fn action( args : CLIArgs ) -> Result< Report >
   {
     let start_work_time = std::time::Instant::now();
 
+    let img = read_image( &args.io )?;
+    let img = img.into_rgba8();
+    let ( width, height ) = ( img.width() as usize, img.height() as usize );
+    let img = visioncortex::ColorImage
+    {
+      pixels : img.into_vec(),
+      width,
+      height
+    };
+
     let mut report : Report = Default::default();
-    let svg = convert_to_vector( img, &config, &mut report )?;
+    let svg = convert_to_vector( &img, &args.config, &mut report )?;
+
+    // Save on disk
+    write_svg( &args.io, &svg )?;
 
     report.work_time = start_work_time.elapsed().as_secs_f32();
 
-    Ok( ( svg, report ) )
+    Ok( report )
   }
 
   /// Converts a raster image into an SVG file using the provided configuration.
@@ -172,11 +187,12 @@ mod private
 
       let mut lcc : Lch = lab_c.into_color();
 
-      // lcc.chroma = 128.0;
-      // lcc.l = 50.0;
-
-
-      lab_c = lcc.into_color();
+      if config.only_chroma
+      {
+        lcc.chroma = 128.0;
+        lcc.l = 50.0;
+        lab_c = lcc.into_color();
+      }
 
       // Find the color with the smallest distance
       let ( id, lc ) = layers.iter().enumerate().min_by( | ( _, &a ), ( _, &b ) |
@@ -189,26 +205,14 @@ mod private
           let mut lca : Lch = lab_a.into_color();
           let mut lcb : Lch = lab_b.into_color();
 
-          // lca.chroma = 128.0;
-          // lca.l = 50.0;
+          lca.chroma = 128.0;
+          lca.l = 50.0;
 
-          // lcb.chroma = 128.0;
-          // lcb.l = 50.0;
+          lcb.chroma = 128.0;
+          lcb.l = 50.0;
 
-          // lca.chroma = lcc.chroma;
-          // lca.l = lcc.l;
-          // lcb.chroma = lcc.chroma;
-          // lcb.l = lcc.l;
-
-          // lab_a = lca.into_color();
-          // lab_b = lcb.into_color();
-          
-          let d_a = ( lca.hue.into_degrees() - lcc.hue.into_degrees() ).abs();
-          let d_b = ( lcb.hue.into_degrees() - lcc.hue.into_degrees() ).abs();
-          return d_a.partial_cmp( &d_b ).unwrap();
-
-          // lab_a.l = lab_c.l;
-          // lab_b.l = lab_c.l;
+          lab_a = lca.into_color();
+          lab_b = lcb.into_color();
         }
 
         let d_a = color_difference( lab_a, lab_c, config );
@@ -246,7 +250,7 @@ mod private
     report.image_size_out = [ width, height ];
     let mut svg = SvgFile::new( width, height, Some( 2 ) );
     let mut big_cluster_map = visioncortex::MonoImageBig::new_w_h( width, height );
-    let mut all_clusters = Vec::new();
+    let mut all_clusters = vec![ visioncortex::clusters::ClusterPack::default() ];
     let mut cluster_index_offset = 1;
 
     for ( i, l ) in layers.into_iter().enumerate()
@@ -307,7 +311,7 @@ mod private
         .into_iter()
         .filter( | ( cluster, _ ) |
         {
-          *cluster != id as u32 + 1 && *cluster != 0
+          *cluster != id as u32
         })
         .collect();
 
@@ -321,9 +325,9 @@ mod private
           }
 
           let mut drain = std::mem::take( &mut all_clusters[ id ].cluster.points );
-          all_clusters[ to as usize - 1 ].cluster.points.append( &mut drain );
+          all_clusters[ to as usize ].cluster.points.append( &mut drain );
           let rect = all_clusters[ id ].cluster.rect;
-          all_clusters[ to as usize - 1 ].cluster.rect.merge( rect );
+          all_clusters[ to as usize ].cluster.rect.merge( rect );
         }
       }
     }
@@ -573,13 +577,14 @@ mod private
       ColorDifference::Hybrid => c1.hybrid_distance( c2 ),
       ColorDifference::Ciede => c1.improved_difference( c2 )
     }
-  }
+  } 
 }
+
 
 crate::mod_interface!
 {
-  orphan use 
-  { 
+  own use
+  {
     action,
     convert_to_vector,
     Result,
