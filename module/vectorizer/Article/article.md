@@ -704,6 +704,11 @@ stage_2_color_mapping( image, layers )
     return color_map
 ```
 
+<p align="center">
+<img src="assets/layers_stage2_color_mapping.png" width="800px">
+</p>
+
+
 ### 3.4 Stage 3: Clusterization
 For each layer we now need to convert the image into a binary format, 
 leaving only pixel's whose color maps into the current layer( from the resutl of the previous stage ).
@@ -803,6 +808,17 @@ stage_3_clusterization( image, layers, color_map )
             Merge current cluster into `to` cluster
 
     return all_clusters
+```
+
+<p align="center">
+<img src="assets/layers_stage3_clusterization.png" width="800px">
+</p>
+
+### 3.4 Stage 4: Tracing
+Each cluster now has to be traced into a path. The only difference from [Stage 4: Cluster tracing](#23-stage-4-cluster-tracing), is the addition of a `grow` step - if specified by the user, each layer will be grown in size using a circular brush by the amount of pixels specified. This is an easy way to hide holes in the vector image from a faulti tracing result.
+
+```c++
+
 ```
 
 

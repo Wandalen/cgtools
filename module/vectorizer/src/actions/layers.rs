@@ -7,7 +7,8 @@ mod private
   use crate::*;  
   pub use actions::{ Error, Result };
   use actions::common::{ euclid_difference, background_color, read_image, write_svg };
-  use commands::raster::vectorize::layers::CLIArgs;
+  use clap::Id;
+use commands::raster::vectorize::layers::CLIArgs;
   use std::collections::{ HashMap, HashSet };
   use commands::raster::vectorize::layers::{ Config, ColorDifference };
   use palette::
@@ -269,84 +270,92 @@ mod private
       let mut clusters = img.to_clusters_big( false, &mut big_cluster_map, cluster_index_offset, vis_l );
       cluster_index_offset += clusters.clusters.len() as u32;
       all_clusters.append( &mut clusters.clusters );
-   }
+    }
 
 
-  if !config.retain_speckle_detail
-  {
-    // Merge small clusters into big oness
-    for id in 0..all_clusters.len()
+    if !config.retain_speckle_detail
     {
-      if all_clusters[ id ].cluster.size() < min_cluster_area
+      let mut merged = true;
+
+      while merged
       {
-        let mut neighbours = HashMap::new();
-        for point in all_clusters[ id ].cluster.points.iter()
+        merged = false;
+        // Merge small clusters into big oness
+        for id in 0..all_clusters.len()
         {
-          if point.y > 0 
-          { 
-            let up =  big_cluster_map.get_pixel( point.x as usize, point.y as usize - 1 );
-            neighbours.entry( up ).and_modify( | v | *v += 1 ).or_insert( 1 );
-          }
-
-          if point.y  < height as i32 - 1 
-          { 
-            let down =  big_cluster_map.get_pixel( point.x as usize, point.y as usize + 1 );
-            neighbours.entry( down ).and_modify( | v | *v += 1 ).or_insert( 1 );
-          }
-
-          if point.x > 0
+          let size = all_clusters[ id ].cluster.size();
+          if size != 0 && size < min_cluster_area
           {
-            let left =  big_cluster_map.get_pixel( point.x as usize - 1, point.y as usize );
-            neighbours.entry( left ).and_modify( | v | *v += 1 ).or_insert( 1 );
+            merged = true;
+            let mut neighbours = HashMap::new();
+            for point in all_clusters[ id ].cluster.points.iter()
+            {
+              if point.y > 0 
+              { 
+                let up =  big_cluster_map.get_pixel( point.x as usize, point.y as usize - 1 );
+                neighbours.entry( up ).and_modify( | v | *v += 1 ).or_insert( 1 );
+              }
+
+              if point.y  < height as i32 - 1 
+              { 
+                let down =  big_cluster_map.get_pixel( point.x as usize, point.y as usize + 1 );
+                neighbours.entry( down ).and_modify( | v | *v += 1 ).or_insert( 1 );
+              }
+
+              if point.x > 0
+              {
+                let left =  big_cluster_map.get_pixel( point.x as usize - 1, point.y as usize );
+                neighbours.entry( left ).and_modify( | v | *v += 1 ).or_insert( 1 );
+              }
+
+              if point.x < width as i32 - 1 
+              {
+                let right =  big_cluster_map.get_pixel( point.x as usize + 1, point.y as usize );
+                neighbours.entry( right ).and_modify( | v | *v += 1 ).or_insert( 1 );
+              }
+            }
+
+            let mut neighbours_stats : Vec< ( u32, u32 ) > = neighbours
+            .into_iter()
+            .filter( | ( cluster, _ ) |
+            {
+              *cluster != id as u32
+            })
+            .collect();
+
+            neighbours_stats.sort_by_key( | ( _, count ) | *count );
+
+            if let Some( ( to , _ ) ) = neighbours_stats.last().copied()
+            {
+              for point in all_clusters[ id ].cluster.points.iter()
+              {
+                big_cluster_map.set_pixel( point.x as usize, point.y as usize, to );
+              }
+
+              let mut drain = std::mem::take( &mut all_clusters[ id ].cluster.points );
+              all_clusters[ to as usize ].cluster.points.append( &mut drain );
+              let rect = all_clusters[ id ].cluster.rect;
+              all_clusters[ to as usize ].cluster.rect.merge( rect );
+            }
           }
-
-          if point.x < width as i32 - 1 
-          {
-            let right =  big_cluster_map.get_pixel( point.x as usize + 1, point.y as usize );
-            neighbours.entry( right ).and_modify( | v | *v += 1 ).or_insert( 1 );
-          }
-        }
-
-        let mut neighbours_stats : Vec< ( u32, u32 ) > = neighbours
-        .into_iter()
-        .filter( | ( cluster, _ ) |
-        {
-          *cluster != id as u32
-        })
-        .collect();
-
-        neighbours_stats.sort_by_key( | ( _, count ) | *count );
-
-        if let Some( ( to , _ ) ) = neighbours_stats.last().copied()
-        {
-          for point in all_clusters[ id ].cluster.points.iter()
-          {
-            big_cluster_map.set_pixel( point.x as usize, point.y as usize, to );
-          }
-
-          let mut drain = std::mem::take( &mut all_clusters[ id ].cluster.points );
-          all_clusters[ to as usize ].cluster.points.append( &mut drain );
-          let rect = all_clusters[ id ].cluster.rect;
-          all_clusters[ to as usize ].cluster.rect.merge( rect );
         }
       }
     }
-  }
-
-   if config.grow > 0
+  
+    
+    if config.grow > 0
     {
-      let mut grown_clusters = Vec::with_capacity( all_clusters.len() );
+      let mut grown_clusters = Vec::new();
+      let mut not_grown_clusters = Vec::new();
 
       // Grow clusters that are bigger than the min_cluster_area
-      for pack in all_clusters.iter()
+      for ( i, pack ) in all_clusters.iter().enumerate()
       {
-        if pack.cluster.size() >= min_cluster_area
+        let size = pack.cluster.size();
+        if size >= min_cluster_area && size >= min_grow_cluster_area
         {
           let mut img = pack.cluster.to_binary_image();
-          if pack.cluster.size() > min_grow_cluster_area
-          {
-            img = img.stroke( grow_size );
-          }
+          img = img.stroke( grow_size );
           let mut new_clusters = img.to_clusters( false );
 
           for c in new_clusters.clusters.iter_mut()
@@ -355,6 +364,10 @@ mod private
           }
 
           grown_clusters.push( ( new_clusters, pack.color ) );
+        }
+        else 
+        {
+          not_grown_clusters.push( i );
         }
       }
 
@@ -365,16 +378,19 @@ mod private
         {
           if cluster.size() >= min_cluster_area 
           {
-            let path = cluster.to_compound_path
-            (
-              config.mode.into(), 
-              config.corner_threshold.to_radians(), 
-              config.segment_length, 
-              10, 
-              config.splice_threshold.to_radians()
-            );
+            let path = trace( &cluster, &config );
             svg.add_path( path, *color );
           }
+        }
+      }
+
+      for id in not_grown_clusters
+      {
+        let pack = &all_clusters[ id ];
+        if pack.cluster.size() >= min_cluster_area 
+        {
+          let path = trace( &pack.cluster, &config );
+          svg.add_path( path, pack.color );
         }
       }
     }
@@ -385,20 +401,30 @@ mod private
       {
         if pack.cluster.size() >= min_cluster_area 
         {
-          let path = pack.cluster.to_compound_path
-          (
-            config.mode.into(), 
-            config.corner_threshold.to_radians(), 
-            config.segment_length, 
-            10, 
-            config.splice_threshold.to_radians()
-          );
+          let path = trace( &pack.cluster, &config );
           svg.add_path( path, pack.color );
         }
       }
     }
 
     Ok( svg )
+  }
+
+  /// A shortcut to convert a cluster into a path
+  pub fn trace
+  ( 
+    cluster : &visioncortex::clusters::Cluster, 
+    config : &Config 
+  ) -> visioncortex::CompoundPath
+  {
+    cluster.to_compound_path
+    (
+      config.mode.into(), 
+      config.corner_threshold.to_radians(), 
+      config.segment_length, 
+      10, 
+      config.splice_threshold.to_radians()
+    )
   }
 
   /// `colors_stats` is an array of `( color_sum, color_count )`.
