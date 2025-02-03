@@ -7,13 +7,12 @@ mod private
   use crate::*;  
   pub use actions::{ Error, Result };
   use actions::common::{ euclid_difference, background_color, read_image, write_svg };
-  use clap::Id;
-use commands::raster::vectorize::layers::CLIArgs;
+  use commands::raster::vectorize::layers::CLIArgs;
   use std::collections::{ HashMap, HashSet };
   use commands::raster::vectorize::layers::{ Config, ColorDifference };
   use palette::
   { 
-    color_difference::{ HyAb, ImprovedCiede2000 }, IntoColor, Lab, Lch, LinSrgb, Srgb
+    color_difference::{ EuclideanDistance, HyAb, ImprovedCiede2000 }, white_point::A, IntoColor, Lab, Lch, LinSrgb, Srgb
   };
   use crate::svg::SvgFile;
 
@@ -275,6 +274,65 @@ use commands::raster::vectorize::layers::CLIArgs;
 
     if !config.retain_speckle_detail
     {
+      all_clusters.sort_unstable_by_key( | p | p.cluster.size() );
+
+      // for right in ( 0..all_clusters.len() ).rev()
+      // {
+      //   if all_clusters[ right ].cluster.size() < min_cluster_area { break; }
+
+      //   let mut neighbours = HashSet::new();
+
+      //   for point in all_clusters[ right ].cluster.points.iter()
+      //   {
+      //     if point.y > 0 
+      //     { 
+      //       let up =  big_cluster_map.get_pixel( point.x as usize, point.y as usize - 1 );
+      //       neighbours.insert( up );
+      //     }
+
+      //     if point.y  < height as i32 - 1 
+      //     { 
+      //       let down =  big_cluster_map.get_pixel( point.x as usize, point.y as usize + 1 );
+      //       neighbours.insert( down );
+      //     }
+
+
+      //     if point.x > 0
+      //     {
+      //       let left =  big_cluster_map.get_pixel( point.x as usize - 1, point.y as usize );
+      //       neighbours.insert( left );
+      //     }
+
+      //     if point.x < width as i32 - 1 
+      //     {
+      //       let right =  big_cluster_map.get_pixel( point.x as usize + 1, point.y as usize );
+      //       neighbours.insert( right );
+      //     }
+      //   }
+
+      //   let neighbours_stats : Vec< u32 > = neighbours
+      //   .into_iter()
+      //   .filter( | cluster |
+      //   {
+      //     *cluster != right as u32
+      //   })
+      //   .collect();
+
+      //   for neighbour in neighbours_stats
+      //   {
+      //     let neighbour = neighbour as usize;
+      //     for point in all_clusters[ neighbour ].cluster.points.iter()
+      //     {
+      //       big_cluster_map.set_pixel( point.x as usize, point.y as usize, right as u32 );
+      //     }
+
+      //     let mut drain = std::mem::take( &mut all_clusters[ neighbour ].cluster.points );
+      //     all_clusters[ right ].cluster.points.append( &mut drain );
+      //     let rect = all_clusters[ neighbour ].cluster.rect;
+      //     all_clusters[ right ].cluster.rect.merge( rect );
+      //   }
+      // }
+
       let mut merged = true;
 
       while merged
@@ -323,20 +381,99 @@ use commands::raster::vectorize::layers::CLIArgs;
             })
             .collect();
 
-            neighbours_stats.sort_by_key( | ( _, count ) | *count );
+            println!(" Cluster: {}; Size: {}; Neightboiurs: {}", id, all_clusters[ id ].cluster.size(), neighbours_stats.len() );
 
-            if let Some( ( to , _ ) ) = neighbours_stats.last().copied()
             {
-              for point in all_clusters[ id ].cluster.points.iter()
-              {
-                big_cluster_map.set_pixel( point.x as usize, point.y as usize, to );
-              }
+              let col = all_clusters[ id ].color;
+              let srg_cur = Srgb::from( [ col.r, col.g, col.b ] ).into_linear::< f32 >();
+              let lab_cur : Lab = srg_cur.into_color();
 
-              let mut drain = std::mem::take( &mut all_clusters[ id ].cluster.points );
-              all_clusters[ to as usize ].cluster.points.append( &mut drain );
-              let rect = all_clusters[ id ].cluster.rect;
-              all_clusters[ to as usize ].cluster.rect.merge( rect );
+              if let Some( ( closest, _ ) ) = neighbours_stats.iter().min_by( | ( a, _ ), ( b, _ ) |
+              {
+                let a = all_clusters[ *a as usize ].color;
+                let b = all_clusters[ *b as usize ].color;
+
+                let a = Srgb::from( [ a.r, a.g, a.b ] ).into_linear::< f32 >();
+                let b = Srgb::from( [ b.r, b.g, b.b ] ).into_linear::< f32 >();
+
+                let mut lab_a : Lab = a.into_color();
+                let mut lab_b : Lab = b.into_color();
+
+                let d_a = lab_cur.distance_squared( lab_a );
+                let d_b = lab_cur.distance_squared( lab_b );
+                
+                d_a.partial_cmp( &d_b ).unwrap()
+              })
+              {
+                for point in all_clusters[ id ].cluster.points.iter()
+                {
+                  big_cluster_map.set_pixel( point.x as usize, point.y as usize, *closest );
+                }
+
+                let mut drain = std::mem::take( &mut all_clusters[ id ].cluster.points );
+                all_clusters[ *closest as usize ].cluster.points.append( &mut drain );
+                let rect = all_clusters[ id ].cluster.rect;
+                all_clusters[ *closest as usize ].cluster.rect.merge( rect );
+              }
+              else 
+              {
+                std::mem::take( &mut all_clusters[ id ].cluster.points );   
+              }
             }
+
+            // neighbours_stats.sort_by_key( | ( _, count ) | *count );
+            // neighbours_stats.sort_by_key( | ( cl, count ) | {
+
+            // });
+    
+            // If the are more than two neighbours, check for pixel coverage and the size of each neighbour.
+            // These is needed to perform more consistent merges. 
+            // if len >= 2
+            // {
+            //   let to = {
+            //     let ( first, count1 ) = neighbours_stats[ len - 1 ];
+            //     let ( second, count2 ) = neighbours_stats[ len - 2 ];
+            //     let pack1 = &all_clusters[ first as usize ];
+            //     let pack2 = &all_clusters[ second as usize ];
+
+            //     if count1.abs_diff( count2 ) as f32 <= total_n as f32 * 0.3
+            //     {
+            //       let p = &all_clusters[ id ];
+            //       // let dif1 = pack1.cluster.size() as u32;
+            //       // let dif2 = pack2.cluster.size() as u32;
+            //       let dif1 = visioncortex::color_clusters::color_diff( p.color, pack1.color );
+            //       let dif2 = visioncortex::color_clusters::color_diff( p.color, pack2.color );
+            //       if dif1 < dif2 { first } else { second }
+            //     }
+            //     else 
+            //     {
+            //       if count1 > count2 { first } else { second }
+            //     }
+            //   };
+
+            //   for point in all_clusters[ id ].cluster.points.iter()
+            //   {
+            //     big_cluster_map.set_pixel( point.x as usize, point.y as usize, to );
+            //   }
+
+            //   let mut drain = std::mem::take( &mut all_clusters[ id ].cluster.points );
+            //   all_clusters[ to as usize ].cluster.points.append( &mut drain );
+            //   let rect = all_clusters[ id ].cluster.rect;
+            //   all_clusters[ to as usize ].cluster.rect.merge( rect );
+            // }
+            // else 
+            // if let Some( ( to , _ ) ) = neighbours_stats.first().copied()
+            // {
+            //   for point in all_clusters[ id ].cluster.points.iter()
+            //   {
+            //     big_cluster_map.set_pixel( point.x as usize, point.y as usize, to );
+            //   }
+
+            //   let mut drain = std::mem::take( &mut all_clusters[ id ].cluster.points );
+            //   all_clusters[ to as usize ].cluster.points.append( &mut drain );
+            //   let rect = all_clusters[ id ].cluster.rect;
+            //   all_clusters[ to as usize ].cluster.rect.merge( rect );
+            // }
           }
         }
       }
@@ -346,13 +483,13 @@ use commands::raster::vectorize::layers::CLIArgs;
     if config.grow > 0
     {
       let mut grown_clusters = Vec::new();
-      let mut not_grown_clusters = Vec::new();
+      let mut non_grown_clusters = Vec::new();
 
       // Grow clusters that are bigger than the min_cluster_area
       for ( i, pack ) in all_clusters.iter().enumerate()
       {
         let size = pack.cluster.size();
-        if size >= min_cluster_area && size >= min_grow_cluster_area
+        if size >= min_grow_cluster_area
         {
           let mut img = pack.cluster.to_binary_image();
           img = img.stroke( grow_size );
@@ -367,7 +504,7 @@ use commands::raster::vectorize::layers::CLIArgs;
         }
         else 
         {
-          not_grown_clusters.push( i );
+          non_grown_clusters.push( i );
         }
       }
 
@@ -384,7 +521,7 @@ use commands::raster::vectorize::layers::CLIArgs;
         }
       }
 
-      for id in not_grown_clusters
+      for id in non_grown_clusters
       {
         let pack = &all_clusters[ id ];
         if pack.cluster.size() >= min_cluster_area 

@@ -763,7 +763,7 @@ stage_3_clusterization( image, layers, color_map )
         // Move the offset by the amount of new clusters
         cluster_index_offset += clusters.length()
         // Add clusters to the global list of clusters
-        all_clusters.add( clusters )
+        all_clusters.add( { clusters, color } )
 
         // Update the layer count
         id += 1
@@ -815,14 +815,96 @@ stage_3_clusterization( image, layers, color_map )
 </p>
 
 ### 3.4 Stage 4: Tracing
-Each cluster now has to be traced into a path. The only difference from [Stage 4: Cluster tracing](#23-stage-4-cluster-tracing), is the addition of a `grow` step - if specified by the user, each layer will be grown in size using a circular brush by the amount of pixels specified. This is an easy way to hide holes in the vector image from a faulti tracing result.
+Each cluster now has to be traced into a path. The only difference from [Stage 4: Cluster tracing](#23-stage-4-cluster-tracing), is the addition of a `grow` step - if specified by the user, each layer will be grown in size using a circular brush by the amount of pixels specified. This is an easy way to hide holes in the vector image from a faulty tracing result.
 
 ```c++
 
+stage_4_tracing( clusters )
+    // The radius of a circular brush for growing
+    grow_size = a user specified value
+    // Minimun cluster size allowed
+    min_cluster_area = a user specified value
+    // Minimun cluster size for a cluster to be grown
+    min_grow_cluster_area = a user specified value
+
+    // Store tracing result of each cluster
+    paths = an empty list
+
+    if grow is specified
+        // A list to store clusters that have been grown
+        grown_clusters = an empty list
+        // A list to store clusters that have not been grown
+        non_grown_clusters = an empty list
+
+        for each ( cluster, color ) in clusters
+            size = the size of the current cluster
+            rect = bounding rectangle of the cluster
+            if size >= min_grow_cluster_area
+                // Convert cluster into a binary image
+                image = cluster.to_binary_image()
+                // Using a circular brush, increase in size the contents of the image
+                grown_image = image.stroke( grow_size )
+                // Convert the image into clusters
+                new_clusters = grown_image.to_clusters()
+
+                // Since clusters have coordinates in the image's local space,
+                // they need to be shifted by the original's cluster position,
+                // described as his bounding rectangle
+                for each cluster in cluster
+                    cluster.offset( rect.left, rect.top )
+
+                grown_clusters.add( { new_clusters, color } )
+            else
+                non_grown_clusters.add( { cluster, color } )
+
+        for each ( cluster, color ) in grown_clusters and non_grown_clusters
+            // Convert the cluster into a path.
+            path = cluster.trace()
+            // Color the path with the cluster's color
+            path.color = color
+            // Store it in a list
+            paths.add( path )
+    else
+        for each ( cluster, color ) in clusters
+            // Convert the cluster into a path.
+            path = cluster.trace()
+            // Color the path with the cluster's color
+            path.color = color
+            // Store it in a list
+            paths.add( path )
+
+    return paths
 ```
 
+<p align="center">
+<img src="assets/layers_stage4_tracing.png" width="800px">
+</p>
+
+## 4. Comparison
+
+<!-- <p float="left">
+  <img src="assets/comparison/flowers.png" width="500px"/>
+  <img src="assets/comparison/clusters_flowers.jpg" width="500px"/>
+  <img src="assets/comparison/layers_flowers.jpg" width="500px"/>
+</p> -->
+
+Image  | Clusters | Layers
+:-----:|:--------:|:------:
+<img src="assets/comparison/flowers.png" width="500px">|<img src="assets/comparison/clusters_flowers.jpg" width="500px">|<img src="assets/comparison/layers_flowers.jpg" width="500px">
+<img src="assets/comparison/girl.png" width="500px">|<img src="assets/comparison/clusters_girl.jpg" width="500px">|<img src="assets/comparison/layers_girl.jpg" width="500px">
+<img src="assets/comparison/kos_input.png" width="500px">|<img src="assets/comparison/clusters_kos_input.jpg" width="500px">|<img src="assets/comparison/layers_kos_input.jpg" width="500px">
+<img src="assets/comparison/many_flowers.jpg" width="500px">| <img src="assets/comparison/clusters_many_flowers.jpg" width="500px">|<img src="assets/comparison/layers_many_flowers.jpg" width="500px">
+<img src="assets/comparison/mother.jpg" width="500px">|<img src="assets/comparison/clusters_mother.jpg" width="500px">|<img src="assets/comparison/layers_mother.jpg" width="500px">
+<img src="assets/comparison/mountains.jpg" width="500px">|<img src="assets/comparison/clusters_mountains.jpg" width="500px">|<img src="assets/comparison/layers_mountains.jpg" width="500px">
+<img src="assets/comparison/squirrel.png" width="500px">|<img src="assets/comparison/clusters_squirrel.jpg" width="500px">|<img src="assets/comparison/layers_squirrel.jpg" width="500px">
+<img src="assets/comparison/stars.jpg" width="500px">|<img src="assets/comparison/clusters_stars.jpg" width="500px">|<img src="assets/comparison/layers_stars.jpg" width="500px">
+<img src="assets/comparison/swamp.jpg" width="500px">|<img src="assets/comparison/clusters_swamp.jpg" width="500px">|<img src="assets/comparison/layers_swamp.jpg" width="500px">
+<img src="assets/comparison/wolf.png" width="500px">|<img src="assets/comparison/clusters_wolf.jpg" width="500px">|<img src="assets/comparison/layers_wolf.jpg" width="500px">
 
 
+Useful links:
+- [A Survey of Smooth Vector Graphics]
+- [Multivariable Curve Interpolation]
 
 [Vtracer]: https://github.com/visioncortex/vtracer
 [Visioncortex]: https://github.com/visioncortex/visioncortex
@@ -834,3 +916,5 @@ Each cluster now has to be traced into a path. The only difference from [Stage 4
 [pallete crate]: https://docs.rs/palette/latest/palette/
 [CIEDE2000]: https://hajim.rochester.edu/ece/sites/gsharma/ciede2000/ciede2000noteCRNA.pdf
 [HyAB]: http://markfairchild.org/PDFs/PAP40.pdf
+[A Survey of Smooth Vector Graphics]: https://ieeexplore.ieee.org/abstract/document/9942350
+[Multivariable Curve Interpolation]: https://dl.acm.org/doi/10.1145/321217.321225

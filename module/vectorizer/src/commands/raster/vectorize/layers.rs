@@ -115,7 +115,7 @@ mod private
     #[ arg( long, default_value = "false", verbatim_doc_comment ) ]
     pub retain_speckle_detail : bool,
     /// Specifies the minimun size of a cluster to be grown when `--grow` option is used
-    #[ arg( long, default_value = "0", verbatim_doc_comment ) ]
+    #[ arg( long, default_value = "4", verbatim_doc_comment ) ]
     pub min_grow_speckle : usize,
   }
 
@@ -163,7 +163,7 @@ mod private
         only_chroma : false,
         background_similarity : 10.0,
         retain_speckle_detail : false,
-        min_grow_speckle : 0
+        min_grow_speckle : 4
       }
     }   
   }
