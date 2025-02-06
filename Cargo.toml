@@ -9,8 +9,8 @@ members = [
   "module/math/*",
   "module/embroidery_tools",
   "examples/minwebgl/*",
-  "examples/minwebgpu/*"
-]
+  "examples/minwebgpu/*", 
+  "module/vectorizer"]
 
 # Source :: https://github.com/obox-systems/conventions/blob/master/code_style.md#lints-and-warnings
 [workspace.lints.rust]
@@ -95,6 +95,11 @@ path = "module/helper/browser_log"
 version = "~0.2.0"
 path = "module/alias/browser_tools"
 
+# = vectorizer
+[workspace.dependencies.vectorizer]
+version = "~0.1.0"
+path = "module/vectorizer"
+
 # = math
 
 [workspace.dependencies.ndarray_cg]
@@ -172,6 +177,21 @@ version = "4.0.2"
 default-features = false
 # features = [ "async" ]
 
+[workspace.dependencies.visioncortex]
+git  = "https://github.com/obox-systems/visioncortex.git"
+
+
+[workspace.dependencies.palette]
+version = "0.7.6"
+
+[workspace.dependencies.fastrand]
+version = "1.8"
+
+[workspace.dependencies.serde]
+version = "1.0.214"
+
+[workspace.dependencies.serde_with]
+version = "3.11.0"
 [workspace.dependencies.byteorder]
 version = "1.5.0"
 
@@ -181,5 +201,14 @@ version = "0.13.0"
 [workspace.dependencies.thiserror]
 version = "2.0.4"
 
+[workspace.dependencies.clap]
+version = "4.5.21"
+features = ["derive"]
+
+[workspace.dependencies.image]
+version = "0.25.5"
+
+[workspace.dependencies.tokio]
+version = "1.41.0"
 [workspace.dependencies.rand]
 version = "0.8.5"
