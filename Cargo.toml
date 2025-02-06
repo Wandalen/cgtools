@@ -180,6 +180,7 @@ default-features = false
 [workspace.dependencies.visioncortex]
 git  = "https://github.com/obox-systems/visioncortex.git"
 
+
 [workspace.dependencies.palette]
 version = "0.7.6"
 

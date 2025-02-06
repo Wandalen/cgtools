@@ -10,6 +10,7 @@ mod private
   use commands::raster::vectorize::layers::CLIArgs;
   use std::collections::{ HashMap, HashSet };
   use commands::raster::vectorize::layers::{ Config, ColorDifference };
+  use visioncortex::clusters::Cluster;
   use palette::
   { 
     color_difference::{ EuclideanDistance, HyAb, ImprovedCiede2000 }, white_point::A, IntoColor, Lab, Lch, LinSrgb, Srgb
@@ -18,6 +19,14 @@ mod private
 
 
   const LAYER_CUTOFF_THRESHOLD : f32 = 0.90;
+  
+  /// Structure that bundles a cluster with a useful information about the cluster
+  #[ derive( Default ) ]
+  pub struct ClusterPack
+  {
+    pub cluster : Cluster,
+    pub color : LinSrgb
+  }
 
   /// Represents a report for the raster to vector conversion using the layer method.
   ///
@@ -250,14 +259,11 @@ mod private
     report.image_size_out = [ width, height ];
     let mut svg = SvgFile::new( width, height, Some( 2 ) );
     let mut big_cluster_map = visioncortex::MonoImageBig::new_w_h( width, height );
-    let mut all_clusters = vec![ visioncortex::clusters::ClusterPack::default() ];
+    let mut all_clusters = vec![ ClusterPack::default() ];
     let mut cluster_index_offset = 1;
 
     for ( i, l ) in layers.into_iter().enumerate()
     {
-      let vis_l = Srgb::from_linear( l.into_color() );
-      let vis_l = visioncortex::Color::new( vis_l.red, vis_l.green, vis_l.blue );
-
       // For the current layer, use all pixels, whose color is the most similiar to the color of the layer
       let img = img.to_binary_image( | c | 
       { 
@@ -266,73 +272,18 @@ mod private
         i as i32 == id
       });
 
-      let mut clusters = img.to_clusters_big( false, &mut big_cluster_map, cluster_index_offset, vis_l );
+      let mut clusters = img.to_clusters_big( false, &mut big_cluster_map, cluster_index_offset );
       cluster_index_offset += clusters.clusters.len() as u32;
-      all_clusters.append( &mut clusters.clusters );
+      let mut clusters : Vec< ClusterPack > = clusters
+      .into_iter()
+      .map( | c | ClusterPack{ cluster : c, color : l } )
+      .collect();
+      all_clusters.append( &mut clusters );
     }
 
 
     if !config.retain_speckle_detail
     {
-      all_clusters.sort_unstable_by_key( | p | p.cluster.size() );
-
-      // for right in ( 0..all_clusters.len() ).rev()
-      // {
-      //   if all_clusters[ right ].cluster.size() < min_cluster_area { break; }
-
-      //   let mut neighbours = HashSet::new();
-
-      //   for point in all_clusters[ right ].cluster.points.iter()
-      //   {
-      //     if point.y > 0 
-      //     { 
-      //       let up =  big_cluster_map.get_pixel( point.x as usize, point.y as usize - 1 );
-      //       neighbours.insert( up );
-      //     }
-
-      //     if point.y  < height as i32 - 1 
-      //     { 
-      //       let down =  big_cluster_map.get_pixel( point.x as usize, point.y as usize + 1 );
-      //       neighbours.insert( down );
-      //     }
-
-
-      //     if point.x > 0
-      //     {
-      //       let left =  big_cluster_map.get_pixel( point.x as usize - 1, point.y as usize );
-      //       neighbours.insert( left );
-      //     }
-
-      //     if point.x < width as i32 - 1 
-      //     {
-      //       let right =  big_cluster_map.get_pixel( point.x as usize + 1, point.y as usize );
-      //       neighbours.insert( right );
-      //     }
-      //   }
-
-      //   let neighbours_stats : Vec< u32 > = neighbours
-      //   .into_iter()
-      //   .filter( | cluster |
-      //   {
-      //     *cluster != right as u32
-      //   })
-      //   .collect();
-
-      //   for neighbour in neighbours_stats
-      //   {
-      //     let neighbour = neighbour as usize;
-      //     for point in all_clusters[ neighbour ].cluster.points.iter()
-      //     {
-      //       big_cluster_map.set_pixel( point.x as usize, point.y as usize, right as u32 );
-      //     }
-
-      //     let mut drain = std::mem::take( &mut all_clusters[ neighbour ].cluster.points );
-      //     all_clusters[ right ].cluster.points.append( &mut drain );
-      //     let rect = all_clusters[ neighbour ].cluster.rect;
-      //     all_clusters[ right ].cluster.rect.merge( rect );
-      //   }
-      // }
-
       let mut merged = true;
 
       while merged
@@ -381,29 +332,34 @@ mod private
             })
             .collect();
 
-            println!(" Cluster: {}; Size: {}; Neightboiurs: {}", id, all_clusters[ id ].cluster.size(), neighbours_stats.len() );
-
+          
             {
               let col = all_clusters[ id ].color;
-              let srg_cur = Srgb::from( [ col.r, col.g, col.b ] ).into_linear::< f32 >();
-              let lab_cur : Lab = srg_cur.into_color();
+              let lab_cur : Lab = col.into_color();
 
-              if let Some( ( closest, _ ) ) = neighbours_stats.iter().min_by( | ( a, _ ), ( b, _ ) |
+              neighbours_stats.sort_by( | a, b | 
               {
-                let a = all_clusters[ *a as usize ].color;
-                let b = all_clusters[ *b as usize ].color;
+                // if a.1.abs_diff( b.1 ) > 100 //a.1 == b.1
+                // {
+                //   let a = all_clusters[ a.0 as usize ].color;
+                //   let b = all_clusters[ b.0 as usize ].color;
 
-                let a = Srgb::from( [ a.r, a.g, a.b ] ).into_linear::< f32 >();
-                let b = Srgb::from( [ b.r, b.g, b.b ] ).into_linear::< f32 >();
+                //   let lab_a : Lab = a.into_color();
+                //   let lab_b : Lab = b.into_color();
 
-                let mut lab_a : Lab = a.into_color();
-                let mut lab_b : Lab = b.into_color();
+                //   let d_a = lab_cur.improved_difference( lab_a );
+                //   let d_b = lab_cur.improved_difference( lab_b );
+                  
+                //   d_a.partial_cmp( &d_b ).unwrap()
+                // } 
+                // else 
+                {
+                  a.1.cmp( &b.1 )    
+                }
 
-                let d_a = lab_cur.distance_squared( lab_a );
-                let d_b = lab_cur.distance_squared( lab_b );
-                
-                d_a.partial_cmp( &d_b ).unwrap()
-              })
+              });
+
+              if let Some( ( closest, _ ) ) = neighbours_stats.last()
               {
                 for point in all_clusters[ id ].cluster.points.iter()
                 {
@@ -420,48 +376,7 @@ mod private
                 std::mem::take( &mut all_clusters[ id ].cluster.points );   
               }
             }
-
-            // neighbours_stats.sort_by_key( | ( _, count ) | *count );
-            // neighbours_stats.sort_by_key( | ( cl, count ) | {
-
-            // });
-    
-            // If the are more than two neighbours, check for pixel coverage and the size of each neighbour.
-            // These is needed to perform more consistent merges. 
-            // if len >= 2
-            // {
-            //   let to = {
-            //     let ( first, count1 ) = neighbours_stats[ len - 1 ];
-            //     let ( second, count2 ) = neighbours_stats[ len - 2 ];
-            //     let pack1 = &all_clusters[ first as usize ];
-            //     let pack2 = &all_clusters[ second as usize ];
-
-            //     if count1.abs_diff( count2 ) as f32 <= total_n as f32 * 0.3
-            //     {
-            //       let p = &all_clusters[ id ];
-            //       // let dif1 = pack1.cluster.size() as u32;
-            //       // let dif2 = pack2.cluster.size() as u32;
-            //       let dif1 = visioncortex::color_clusters::color_diff( p.color, pack1.color );
-            //       let dif2 = visioncortex::color_clusters::color_diff( p.color, pack2.color );
-            //       if dif1 < dif2 { first } else { second }
-            //     }
-            //     else 
-            //     {
-            //       if count1 > count2 { first } else { second }
-            //     }
-            //   };
-
-            //   for point in all_clusters[ id ].cluster.points.iter()
-            //   {
-            //     big_cluster_map.set_pixel( point.x as usize, point.y as usize, to );
-            //   }
-
-            //   let mut drain = std::mem::take( &mut all_clusters[ id ].cluster.points );
-            //   all_clusters[ to as usize ].cluster.points.append( &mut drain );
-            //   let rect = all_clusters[ id ].cluster.rect;
-            //   all_clusters[ to as usize ].cluster.rect.merge( rect );
-            // }
-            // else 
+ 
             // if let Some( ( to , _ ) ) = neighbours_stats.first().copied()
             // {
             //   for point in all_clusters[ id ].cluster.points.iter()
@@ -516,7 +431,7 @@ mod private
           if cluster.size() >= min_cluster_area 
           {
             let path = trace( &cluster, &config );
-            svg.add_path( path, *color );
+            svg.add_path( path, linear_to_vision( *color ) );
           }
         }
       }
@@ -527,7 +442,7 @@ mod private
         if pack.cluster.size() >= min_cluster_area 
         {
           let path = trace( &pack.cluster, &config );
-          svg.add_path( path, pack.color );
+          svg.add_path( path, linear_to_vision( pack.color ) );
         }
       }
     }
@@ -539,7 +454,7 @@ mod private
         if pack.cluster.size() >= min_cluster_area 
         {
           let path = trace( &pack.cluster, &config );
-          svg.add_path( path, pack.color );
+          svg.add_path( path, linear_to_vision( pack.color ) );
         }
       }
     }
@@ -554,7 +469,7 @@ mod private
     config : &Config 
   ) -> visioncortex::CompoundPath
   {
-    cluster.to_compound_path
+    cluster.to_compound_path_mine
     (
       config.mode.into(), 
       config.corner_threshold.to_radians(), 
@@ -562,6 +477,14 @@ mod private
       10, 
       config.splice_threshold.to_radians()
     )
+  }
+
+  /// Converts color from linear color space into Srgb inside the visioncrotex::Color structure
+  pub fn linear_to_vision( color : LinSrgb ) -> visioncortex::Color
+  {
+    let vis_l = Srgb::from_linear( color.into_color() );
+    let vis_l = visioncortex::Color::new( vis_l.red, vis_l.green, vis_l.blue );
+    vis_l
   }
 
   /// `colors_stats` is an array of `( color_sum, color_count )`.
