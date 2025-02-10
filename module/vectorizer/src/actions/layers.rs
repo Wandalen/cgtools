@@ -13,7 +13,7 @@ mod private
   use visioncortex::clusters::Cluster;
   use palette::
   { 
-    color_difference::{ EuclideanDistance, HyAb, ImprovedCiede2000 }, white_point::A, IntoColor, Lab, Lch, LinSrgb, Srgb
+    color_difference::{ HyAb, ImprovedCiede2000 }, IntoColor, Lab, Lch, LinSrgb, Srgb
   };
   use crate::svg::SvgFile;
 
@@ -272,7 +272,7 @@ mod private
         i as i32 == id
       });
 
-      let mut clusters = img.to_clusters_big( false, &mut big_cluster_map, cluster_index_offset );
+      let clusters = img.to_clusters_big( false, &mut big_cluster_map, cluster_index_offset );
       cluster_index_offset += clusters.clusters.len() as u32;
       let mut clusters : Vec< ClusterPack > = clusters
       .into_iter()
@@ -333,48 +333,55 @@ mod private
             .collect();
 
           
+            if !neighbours_stats.is_empty()
             {
+              let bound_pixels = neighbours_stats
+              .iter()
+              .fold( 0, | acc, n | acc + n.1 ) as f32;
+
               let col = all_clusters[ id ].color;
               let lab_cur : Lab = col.into_color();
 
               neighbours_stats.sort_by( | a, b | 
               {
-                // if a.1.abs_diff( b.1 ) > 100 //a.1 == b.1
-                // {
-                //   let a = all_clusters[ a.0 as usize ].color;
-                //   let b = all_clusters[ b.0 as usize ].color;
+                if ( a.1 as f32 / bound_pixels ) > 0.4 &&
+                   ( b.1 as f32 / bound_pixels ) > 0.4
+                {
+                  let a = all_clusters[ a.0 as usize ].color;
+                  let b = all_clusters[ b.0 as usize ].color;
 
-                //   let lab_a : Lab = a.into_color();
-                //   let lab_b : Lab = b.into_color();
+                  let lab_a : Lab = a.into_color();
+                  let lab_b : Lab = b.into_color();
 
-                //   let d_a = lab_cur.improved_difference( lab_a );
-                //   let d_b = lab_cur.improved_difference( lab_b );
+                  let d_a = color_difference( lab_cur, lab_a, config );
+                  let d_b = color_difference( lab_cur, lab_b, config );
                   
-                //   d_a.partial_cmp( &d_b ).unwrap()
-                // } 
-                // else 
+                  d_a.partial_cmp( &d_b ).unwrap()
+                } 
+                else 
                 {
                   a.1.cmp( &b.1 )    
                 }
 
               });
 
-              if let Some( ( closest, _ ) ) = neighbours_stats.last()
+              let ( closest, _ ) = neighbours_stats.last().unwrap();
+              
+              for point in all_clusters[ id ].cluster.points.iter()
               {
-                for point in all_clusters[ id ].cluster.points.iter()
-                {
-                  big_cluster_map.set_pixel( point.x as usize, point.y as usize, *closest );
-                }
+                big_cluster_map.set_pixel( point.x as usize, point.y as usize, *closest );
+              }
 
-                let mut drain = std::mem::take( &mut all_clusters[ id ].cluster.points );
-                all_clusters[ *closest as usize ].cluster.points.append( &mut drain );
-                let rect = all_clusters[ id ].cluster.rect;
-                all_clusters[ *closest as usize ].cluster.rect.merge( rect );
-              }
-              else 
-              {
-                std::mem::take( &mut all_clusters[ id ].cluster.points );   
-              }
+              let mut drain = std::mem::take( &mut all_clusters[ id ].cluster.points );
+              all_clusters[ *closest as usize ].cluster.points.append( &mut drain );
+              let rect = all_clusters[ id ].cluster.rect;
+              all_clusters[ *closest as usize ].cluster.rect.merge( rect );
+              
+       
+            }
+            else 
+            {
+              std::mem::take( &mut all_clusters[ id ].cluster.points );   
             }
  
             // if let Some( ( to , _ ) ) = neighbours_stats.first().copied()
