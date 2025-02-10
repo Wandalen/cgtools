@@ -383,19 +383,6 @@ mod private
             {
               std::mem::take( &mut all_clusters[ id ].cluster.points );   
             }
- 
-            // if let Some( ( to , _ ) ) = neighbours_stats.first().copied()
-            // {
-            //   for point in all_clusters[ id ].cluster.points.iter()
-            //   {
-            //     big_cluster_map.set_pixel( point.x as usize, point.y as usize, to );
-            //   }
-
-            //   let mut drain = std::mem::take( &mut all_clusters[ id ].cluster.points );
-            //   all_clusters[ to as usize ].cluster.points.append( &mut drain );
-            //   let rect = all_clusters[ id ].cluster.rect;
-            //   all_clusters[ to as usize ].cluster.rect.merge( rect );
-            // }
           }
         }
       }
