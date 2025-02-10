@@ -22,7 +22,6 @@ async fn run() -> Result< (), gl::WebglError >
   let sprite_sheet = gl::texture::d2::SpriteSheet
   {
     sprites_in_row: 8,
-    sprites_in_col: 8,
     sprite_width: 128,
     sprite_height: 128,
     amount: 64,

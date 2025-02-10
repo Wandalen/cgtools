@@ -11,9 +11,6 @@ pub struct SpriteSheet
   /// Number of sprites in each row of the sheet
   pub sprites_in_row : u32,
 
-  /// Number of sprites in each column of the sheet
-  pub sprites_in_col : u32,
-
   /// Width of each individual sprite
   pub sprite_width : u32,
 
@@ -201,22 +198,11 @@ pub async fn upload_sprite( gl : &GL, image_element : &web_sys::HtmlImageElement
   gl.pixel_storei( GL::UNPACK_ROW_LENGTH, img_width as i32 );
   gl.pixel_storei( GL::UNPACK_IMAGE_HEIGHT, img_height as i32 );
 
-  let sprites_in_row = sprite_sheet.sprites_in_row as f64;
-  let sprites_in_col = sprite_sheet.sprites_in_col as f64;
-  let sprite_width_f64 = sprite_sheet.sprite_width as f64;
-  let sprite_height_f64 = sprite_sheet.sprite_height as f64;
   for i in 0..sprite_sheet.amount
   {
     // Calculate the row and column coordinates for the current sprite based on the total number of sprites and their size.
-    let row = ( i as f64 / sprites_in_row ).floor() * sprite_width_f64;
-    let col =
-    {
-      match ( sprites_in_row, sprites_in_col )
-      {
-        ( 1.0, _ ) | ( _, 1.0 ) => ( i as f64 / sprites_in_col ).floor(),
-        _ => i as f64 % sprites_in_col,
-      }
-    } * sprite_height_f64;
+    let col = i % sprite_sheet.sprites_in_row * sprite_sheet.sprite_width;
+    let row = i / sprite_sheet.sprites_in_row * sprite_sheet.sprite_height;
 
     // Set the correct position of the sprite in the PBO.
     gl.pixel_storei( GL::UNPACK_SKIP_PIXELS, col as i32 );
