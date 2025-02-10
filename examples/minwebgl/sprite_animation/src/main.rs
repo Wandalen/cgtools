@@ -17,23 +17,23 @@ async fn run() -> Result< (), gl::WebglError >
 
   // Settings for `rock.png` sprite sheets
   let path = "static/rock.png";
-
-  // qqq : these should be fields of a structure
-  let sprties_in_row = 8;
-  let sprites_in_col = 8;
-  let sprite_width = 128;
-  let sprite_height = 128;
-  let amount = 64;
-  let frame_rate = 24.0;
-
-  let img_element = gl::dom::create_image_element( path )
+  let image_element = gl::dom::create_image_element( path )
   .expect( "Failed to create image element" );
-  gl::texture::d2::upload_sprite( &gl, &img_element, sprties_in_row, sprites_in_col, sprite_width, sprite_height, amount ).await?;
+  let sprite_sheet = gl::texture::d2::SpriteSheet
+  {
+    sprites_in_row: 8,
+    sprite_width: 128,
+    sprite_height: 128,
+    amount: 64,
+  };
+
+  gl::texture::d2::upload_sprite( &gl, &image_element, &sprite_sheet ).await?;
 
   let update_and_draw =
   {
     let mut step = 0.0;
-    let amount = amount as f32 - 1.0;
+    let frame_rate = 24.0;
+    let amount = sprite_sheet.amount as f32 - 1.0;
 
     move | _ |
     {
