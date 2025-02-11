@@ -6,3 +6,4 @@ Use [trunk](https://github.com/thedodd/trunk) to run examples
 $ cd minwebgl/simple_pbr
 $ trunk serve --release
 ```
+
