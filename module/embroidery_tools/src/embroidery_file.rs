@@ -13,13 +13,13 @@ mod private
   #[ derive( Debug, Clone ) ]
   pub struct EmbroideryFile
   {
-    metadata : Metadata,
-    threads : Vec< Thread >,
+    pub metadata : Metadata,
+    pub threads : Vec< Thread >,
     // stores stitches with absolute coordinates
-    stitches : Vec< Stitch >,
+    pub stitches : Vec< Stitch >,
     // coordinates of last stitch instruction
-    prev_x : i32,
-    prev_y : i32,
+    pub prev_x : i32,
+    pub prev_y : i32,
   }
 
   impl EmbroideryFile
