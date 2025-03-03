@@ -296,6 +296,10 @@ stage_2_merging( cluster_areas, clusters, cluster_indices )
             // Boolean value, specifying whether to include the current cluster in the result or not before merging
             deepen = color_difference( target, current_cluster ) < gradient_step and current_cluster is within the size limit
 
+            // Add current cluster to the final output
+            if deepen
+                clusters_output.add( current_cluster )
+
             // Boolean value, specifying if the current cluster shoud be treated as a hole when merging
             hollow = neighbours.length() < min_neighbours_amount
 
@@ -318,7 +322,7 @@ stage_2_merging( cluster_areas, clusters, cluster_indices )
 ```
 
 <p align="center">
-<img src="assets/stage_2_example.png" width="800px">
+<img src="assets/stage_2_example.jpg" width="800px">
 </p>
 
 <p align="center">
