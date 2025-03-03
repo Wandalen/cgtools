@@ -2,7 +2,7 @@
 
 This example shows how create own tile renderer using `WebGl2`. Goal of this example is render tilemap on quad.
 
-![showcase](./resources/showcase.png)
+![showcase]( ./resources/showcase.png )
 
 ### How it is useful
 
@@ -25,7 +25,7 @@ Important part of resource preparation is texture binding. Remember use this cod
 
 ``` rust
   let texture = gl.create_texture();
-  gl.active_texture(texture_id);
+  gl.active_texture( texture_id );
   gl.bind_texture( GL::TEXTURE_2D, texture.as_ref() ); 
 ```
 
@@ -33,7 +33,7 @@ And this code for binding uniform texture location to certain slot:
 
 ``` rust
   let texture_location = gl.get_uniform_location( &program, "texture" );
-  gl.uniform1i(texture_location.as_ref(), 0);
+  gl.uniform1i( texture_location.as_ref(), 0 );
 ```
 
 Fragment shader do all magic for placing each tile on its place: 
@@ -43,7 +43,7 @@ Fragment shader do all magic for placing each tile on its place:
 
 ### Running
 
-Make sure you have installed all the necessary [dependencies](../../../module/min/minwebgl/readme.md)
+Make sure you have installed all the necessary [dependencies]( ../../../module/min/minwebgl/readme.md )
 In order to run the example navigate to example's directory and run next command:
 ``` bash
 trunk serve
@@ -51,7 +51,7 @@ trunk serve
 If you want to load own tile set image, upload it into `resources` folder as `tileset.png` and set tile count in const LAYERS. 
 
 ``` rust
-const LAYERS: i32 = 6;
+const LAYERS : i32 = 6;
 ```
 
 Tileset image must store tile textures from up to down order, all textures must have equal size without align.
@@ -59,7 +59,8 @@ Tileset image must store tile textures from up to down order, all textures must 
 If you want make own tile maps, change `DATA` const. Tile map must be square (with equal height and width). Tile map consist of tile ids. Tile id is texture position in tile set from up to down.
 
 ``` rust
-const DATA: [u8; 16] = [
+const DATA : [ u8; 16 ] = 
+[
   0,0,1,2,
   0,1,2,3,
   1,2,3,4,
