@@ -13,7 +13,7 @@ The example shows:
 - how use implemented algorithm for generating tile map.
 - how convert raw tile map data to texture. 
 
-Rendering details description can be found in [mapgen_tiles_rendering](../mapgen_tiles_rendering/README.md) example
+Rendering details description can be found in [ mapgen_tiles_rendering ]( ../mapgen_tiles_rendering/README.md ) example
 
 ### How it works
 
@@ -27,7 +27,7 @@ Example include such noteworthy steps:
 
 ### Running
 
-Make sure you have installed all the necessary [dependencies](../../../module/min/minwebgl/readme.md)
+Make sure you have installed all the necessary [ dependencies ]( ../../../module/min/minwebgl/readme.md )
 In order to run the example navigate to example's directory and run next command:
 ``` bash
 trunk serve
@@ -35,7 +35,7 @@ trunk serve
 If you want to load own tile set image, upload it into `resources` folder as `tileset.png` and set tile count in const LAYERS. 
 
 ``` rust
-const LAYERS: i32 = 6;
+const LAYERS : i32 = 6;
 ```
 
 Tileset image must store tile textures from up to down order, all textures must have equal size without align.
@@ -43,20 +43,20 @@ Tileset image must store tile textures from up to down order, all textures must 
 You can change tile map size with SIZE const. If width don't be equal height than tiles will be rectangles not squares stretched along quad. 
 
 ``` rust
-const SIZE: (usize, usize) = (32, 32);
+const SIZE : ( usize, usize ) = ( 32, 32 );
 ```
 
 If you want set own adjacent relations between tiles, you can change RELATIONS const. List depends from tile variants count. Each items id in RELATIONS equals to tile id. Each item contains list of possible adjacent tiles for current tile id. Changing RELATIONS, LAYERS, SIZE, `tileset.png` texture may create new patterns. 
 
 ``` rust
-const RELATIONS: &str = "
+const RELATIONS : &str = "
   [
-    [0, 1],
-    [1, 2],
-    [2, 3],
-    [3, 4],
-    [4, 5],
-    [5]
+    [ 0, 1 ],
+    [ 1, 2 ],
+    [ 2, 3 ],
+    [ 3, 4 ],
+    [ 4, 5 ],
+    [ 5 ]
   ]
 ";
 ```

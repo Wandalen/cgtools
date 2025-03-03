@@ -4,92 +4,88 @@ mod wfc;
 
 use gl::GL;
 use minwebgl as gl;
-use ndarray_cg::{mat::DescriptorOrderColumnMajor, F32x4x4};
+use ndarray_cg::{ mat::DescriptorOrderColumnMajor, F32x4x4 };
 use web_sys::wasm_bindgen::prelude::*;
 use minwebgl::dom::create_image_element;
-use wfc::{generate, Relations};
+use wfc::{ generate, Relations };
 use std::sync::Mutex;
 use web_sys::console;
 
 /// Tile variants count
-const LAYERS: i32 = 6;
+const LAYERS : i32 = 6;
 
 /// Tile map size. More than 256x256 is very slow
-const SIZE: (usize, usize) = (32, 32);
+const SIZE : ( usize, usize ) = ( 32, 32 );
 
 /// Desciption what neighbours can have current tile
-const RELATIONS: &str = "
+const RELATIONS : &str = "
   [
-    [0, 1],
-    [1, 2],
-    [2, 3],
-    [3, 4],
-    [4, 5],
-    [5]
+    [ 0, 1 ],
+    [ 1, 2 ],
+    [ 2, 3 ],
+    [ 3, 4 ],
+    [ 4, 5 ],
+    [ 5 ]
   ]
 ";
 
 /// Storage for generated tile map
-static MAP: Mutex<Option<Vec<Vec<u8>>>> = Mutex::new(None);
+static MAP : Mutex< Option< Vec< Vec< u8 > > > > = Mutex::new( None );
 
-fn set_resize_callback() {
-    let on_resize_callback = move |canvas: &web_sys::HtmlCanvasElement| {
-        let gl = gl::context::retrieve_or_make().expect("Should have a context");
-        let window = web_sys::window().expect("Should have a window");
-        let inner_width = window.inner_width().unwrap().as_f64().unwrap() as u32;
-        let inner_height = window.inner_height().unwrap().as_f64().unwrap() as u32;
-        canvas.set_width(inner_width);
-        canvas.set_height(inner_height);
-        gl.viewport(0, 0, inner_width as i32, inner_height as i32);
+fn set_load_callback() 
+{
+    let load = move | _img : &web_sys::HtmlImageElement | 
+    {
         update();
     };
 
-    let gl = gl::context::retrieve_or_make().expect("Should have a context");
-    let on_resize_callback: Box<dyn Fn(&web_sys::HtmlCanvasElement)> = Box::new(on_resize_callback);
-    let canvas = gl
-        .canvas()
-        .expect("Canvas should exist")
-        .dyn_into::<web_sys::HtmlCanvasElement>()
-        .unwrap();
-    on_resize_callback(&canvas);
-    let on_resize_callback: Closure<dyn Fn()> = Closure::new(move || on_resize_callback(&canvas));
-    let window = web_sys::window().expect("Should have a window");
-    window.set_onresize(Some(on_resize_callback.as_ref().unchecked_ref()));
-    on_resize_callback.forget();
+    let _ = load_image( "tileset.png", Box::new( load ) );
 }
 
-fn set_load_callback() {
-    let load = move |_img: &web_sys::HtmlImageElement| {
-        update();
-    };
-
-    let _ = load_image("tileset.png", Box::new(load));
-}
-
-fn load_image(
-    path: &str,
-    on_load_callback: Box<dyn Fn(&web_sys::HtmlImageElement)>,
-) -> Result<web_sys::HtmlImageElement, minwebgl::JsValue> {
+fn load_image
+(
+    path : &str,
+    on_load_callback : Box< dyn Fn( &web_sys::HtmlImageElement ) >,
+) -> Result< web_sys::HtmlImageElement, minwebgl::JsValue > 
+{
     let image = create_image_element( "tileset.png" )?;
-    let window = web_sys::window().expect("Should have a window");
-    let document = window.document().expect("Should have a document");
-    let body = document.body().unwrap();
-    let _ = body.append_child(&image);
-    image.set_id(&format!("{path}"));
-    let _ = image.style().set_property("visibility", "hidden");
-    let _ = image.style().set_property("position", "absolute");
-    let _ = image.style().set_property("top", "0");
-    let _ = image.style().set_property("width", "10px");
-    let _ = image.style().set_property("height", "10px");
-    image.set_cross_origin(Some("anonymous"));
+    let window = web_sys::window()
+    .expect( "Should have a window" );
+    let document = window.document()
+    .expect( "Should have a document" );
+    let body = document.body()
+    .unwrap();
+    let _ = body.append_child( &image );
+    image.set_id( &format!( "{path}" ) );
+    let _ = image.style()
+    .set_property( "visibility", "hidden" );
+    let _ = image.style()
+    .set_property( "position", "absolute" );
+    let _ = image.style()
+    .set_property( "top", "0" );
+    let _ = image.style()
+    .set_property( "width", "10px" );
+    let _ = image.style()
+    .set_property( "height", "10px" );
+    image.set_cross_origin( Some( "anonymous" ) );
     let img = image.clone();
-    let on_load_callback: Closure<dyn Fn()> = Closure::new(move || on_load_callback(&img));
-    image.set_onload(Some(on_load_callback.as_ref().unchecked_ref()));
+    let on_load_callback : Closure< dyn Fn() > = Closure::new( move || on_load_callback( &img ) );
+    image.set_onload
+    ( 
+        Some
+        ( 
+            on_load_callback
+            .as_ref()
+            .unchecked_ref() 
+        ) 
+    );
     on_load_callback.forget();
-    let origin = window.location().origin().expect("Should have an origin");
-    let url = format!("{origin}/static/{path}");
-    image.set_src(&url);
-    Ok(image)
+    let origin = window.location()
+    .origin()
+    .expect( "Should have an origin" );
+    let url = format!( "{origin}/static/{path}" );
+    image.set_src( &url );
+    Ok( image )
 }
 
 fn init() {
@@ -100,7 +96,6 @@ fn init() {
     let body_style = document.body().unwrap().style();
     let _ = body_style.set_property("margin", "0");
 
-    set_resize_callback();
     set_load_callback();
 }
 
