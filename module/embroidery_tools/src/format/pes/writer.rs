@@ -1,7 +1,7 @@
-//! 
+//!
 //! # PES format writer.
 //! Original implementation refers to https://github.com/EmbroidePy/pyembroidery/blob/main/pyembroidery/PesWriter.py
-//! 
+//!
 
 mod private
 {
@@ -11,8 +11,52 @@ mod private
   use format::{ pec, pes::PESVersion };
   use thread::*;
   use stitch_instruction::*;
-  use std::io::{ Seek, SeekFrom, Write };
+  use std::{fs::File, io::{ Seek, SeekFrom, Write }, process::Command};
   use byteorder::{ WriteBytesExt as _, LE };
+
+  pub fn write_path(emb : &EmbroideryFile, path: &str) -> Result< (), EmbroideryError > {
+    let src = crate::WRITE_SRC;
+    // Example data
+    let threads: Vec<SerThread> = emb.threads.clone().into_iter().map(|thread| thread.into()).collect();
+    let metadata_bytes = serde_json::to_vec(& threads).expect("Failed to serialize threads");
+    let metadata_size = metadata_bytes.len() as u32;
+
+    let mut unique_convertion_path = path.to_string();
+    unique_convertion_path.push_str("CONVERTION_PURPOSES");
+    unique_convertion_path.push_str(&rand::random::<u32>().to_string());
+    let mut file = File::create(&unique_convertion_path).unwrap();
+
+    // Write the number of rows (array size)
+    file.write_all(&u32::to_le_bytes(threads.len() as u32))?;
+
+    // Write the array data (3 * i32 per row)
+    for Stitch{ x, y, instruction } in &emb.stitches
+    {
+      file.write_all(&i32::to_le_bytes(*x))?;
+      file.write_all(&i32::to_le_bytes(*y))?;
+      file.write_all(&i32::to_le_bytes(*instruction as i32))?;
+    }
+
+    // Write the metadata size
+    file.write_all(&u32::to_le_bytes(metadata_size))?;
+
+    // Write the metadata JSON bytes
+    file.write_all(&metadata_bytes)?;
+    drop(file);
+
+
+    _ = Command::new("python3")
+        .arg("-c")
+        .arg(src)
+        .arg(&unique_convertion_path)
+        .arg(path)
+        // .stdout(Stdio::piped())
+        // .stderr(Stdio::piped())
+        .output()?;
+
+    std::fs::remove_file(unique_convertion_path)?;
+    Ok(())
+  }
 
   /// Writes PES format into `writer`
   pub fn write< W >( emb : &mut EmbroideryFile, writer : &mut W, version : PESVersion )
@@ -22,7 +66,7 @@ mod private
   {
     emb.fix_color_count();
     emb.interpolate_stop_as_duplicate_color();
-    
+
     match version
     {
       PESVersion::V1 => write_version1( emb, writer ),
@@ -83,7 +127,7 @@ mod private
     writer.write_u16::< LE >( 0x01 )?; // scale to fit
     writer.write_u16::< LE >( 0x01 )?; // 0 = 100x100, 1 = 130x180 hoop
     writer.write_u16::< LE >( distinct_block_objects )?;
-    
+
     Ok( () )
   }
 
@@ -158,7 +202,7 @@ mod private
     write_pes_string8( writer, emb.get_metadata().get_text( "author" ).unwrap_or_default() )?;
     write_pes_string8( writer, emb.get_metadata().get_text( "keywords" ).unwrap_or_default() )?;
     write_pes_string8( writer, emb.get_metadata().get_text( "comments" ).unwrap_or_default() )?;
-    
+
     writer.write_u16::< LE >( 0 )?;    // OptimizeHoopChange = False
     writer.write_u16::< LE >( 0 )?;    // Design Page Is Custom = False
     writer.write_u16::< LE >( 0x64 )?; // Hoop Width
@@ -166,7 +210,7 @@ mod private
     writer.write_u16::< LE >( 0 )?;    // Use Existing Design Area = False
     writer.write_u16::< LE >( 0xC8 )?; // designWidth
     writer.write_u16::< LE >( 0xC8 )?; // designHeight
-    
+
     writer.write_u16::< LE >( 0x64 )?; // designPageSectionWidth
     writer.write_u16::< LE >( 0x64 )?; // designPageSectionHeight
     writer.write_u16::< LE >( 0x64 )?; // p6 # 100
@@ -189,7 +233,7 @@ mod private
     writer.write_u16::< LE >( 0 )?;    // number of ProgrammableFillPatterns
     writer.write_u16::< LE >( 0 )?;    // number of MotifPatterns
     writer.write_u16::< LE >( 0 )?;    // feather pattern count
-    
+
     let thread_count = emb.threads().len() as u16;
     writer.write_u16::< LE >( thread_count )?; // number of colors
     for thread in emb.threads()
@@ -247,7 +291,7 @@ mod private
     let placeholder = write_pes_sewseg_header( writer, left, top, right, bottom )?;
     writer.write_u16::< LE >( 0xFFFF )?;
     writer.write_u16::< LE >( 0x0000 )?; // FFFF0000 means more blocks exist
-    
+
     write_pes_string16( writer, "CSewSeg" )?;
     let ( sections, colorlog ) = write_pes_embsewseg_segments( emb, writer, threads, left, bottom, cx, cy )?;
 
@@ -273,7 +317,7 @@ mod private
     let height = bottom - top;
     let hoop_height = 1800;
     let hoop_width = 1300;
-    
+
     writer.write_u16::< LE >( 0 )?;
     writer.write_u16::< LE >( 0 )?;
     writer.write_u16::< LE >( 0 )?;
@@ -282,7 +326,7 @@ mod private
     writer.write_u16::< LE >( 0 )?;
     writer.write_u16::< LE >( 0 )?;
     writer.write_u16::< LE >( 0 )?;
-    
+
     let mut trans_x : f32 = 350.0;
     let mut trans_y : f32 = 100.0 + height as f32;
     trans_x += hoop_width as f32 / 2.0;
@@ -302,9 +346,9 @@ mod private
     writer.write_u16::< LE >( 0 )?;
     writer.write_u16::< LE >( width as u16 )?;
     writer.write_u16::< LE >( height as u16 )?;
-    
+
     writer.write_all( b"\x00\x00\x00\x00\x00\x00\x00\x00" )?;
-    
+
     let placeholder_needs_section_data = writer.stream_position()?;
     writer.write_u16::< LE >( 0 )?; // placeholder
 
@@ -368,7 +412,7 @@ mod private
       writer.write_u16::< LE >( log.0 )?;
       writer.write_u16::< LE >( log.1 as u16 )?;
     }
-    
+
     return Ok( ( section, colorlog ) );
   }
 
@@ -544,7 +588,7 @@ mod private
         let mut writer = Cursor::new( &mut memory );
         write( &mut emb, &mut writer, pes::PESVersion::V6 ).unwrap();
       }
-      
+
       // 361 is index where PES section ends and PEC section starts
       // specifically in this file
       let left = &memory[ ..361 ];
@@ -557,4 +601,5 @@ mod private
 crate::mod_interface!
 {
   orphan use write;
+  orphan use write_path;
 }
