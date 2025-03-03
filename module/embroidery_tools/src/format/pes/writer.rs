@@ -11,54 +11,61 @@ mod private
   use format::{ pec, pes::PESVersion };
   use thread::*;
   use stitch_instruction::*;
-  use std::{fs::File, io::{ Seek, SeekFrom, Write }, process::{Command, Stdio}};
+  use std::{ fs::File, io::{ Seek, SeekFrom, Write }, process::{ Command, Stdio } };
   use byteorder::{ WriteBytesExt as _, LE };
 
-  pub fn write_path(emb : &EmbroideryFile, path: &str) -> Result< (), EmbroideryError > {
+  pub fn write_path( emb : &EmbroideryFile, path: &str ) -> Result< (), EmbroideryError >
+  {
     let src = crate::WRITE_SRC;
-    // Example data
-    let threads: Vec<SerThread> = emb.threads.clone().into_iter().map(|thread| thread.into()).collect();
-    let metadata_bytes = serde_json::to_vec(& threads).expect("Failed to serialize threads");
 
-    // std::fs::write("rust.json", serde_json::to_string(& threads).expect("Failed to serialize threads")).unwrap();
-
-    let metadata_size = metadata_bytes.len() as u32;
+    let threads : Vec< SerThread > = emb.threads.clone().into_iter().map( | thread | thread.into() ).collect();
 
     let mut unique_convertion_path = path.to_string();
-    unique_convertion_path.push_str(&rand::random::<u32>().to_string());
-    unique_convertion_path.push_str("CONVERTION_PURPOSES");
-    let mut file = File::create(&unique_convertion_path).unwrap();
+    unique_convertion_path.push_str( &rand::random::<u32>().to_string() );
+    unique_convertion_path.push_str( "CONVERTION_PURPOSES" );
+    let mut file = File::create( &unique_convertion_path ).unwrap();
 
     // Write the number of rows (array size)
-    file.write_all(&u32::to_le_bytes(threads.len() as u32))?;
+    file.write_all( &u32::to_le_bytes( emb.stitches.len() as u32 ) )?;
 
     // Write the array data (3 * i32 per row)
-    for Stitch{ x, y, instruction } in &emb.stitches
+    for Stitch { x, y, instruction } in &emb.stitches
     {
-      file.write_all(&i32::to_le_bytes(*x))?;
-      file.write_all(&i32::to_le_bytes(*y))?;
-      file.write_all(&i32::to_le_bytes(*instruction as i32))?;
+      file.write_all( &i32::to_le_bytes( *x ) )?;
+      file.write_all( &i32::to_le_bytes( *y ) )?;
+      file.write_all( &i32::to_le_bytes( *instruction as i32 ) )?;
     }
 
+    let metadata_bytes = serde_json::to_vec( &threads ).expect( "Failed to serialize threads" );
+    let metadata_size = metadata_bytes.len() as u32;
     // Write the metadata size
-    file.write_all(&u32::to_le_bytes(metadata_size))?;
-
+    file.write_all( &u32::to_le_bytes( metadata_size ) )?;
     // Write the metadata JSON bytes
-    file.write_all(&metadata_bytes)?;
-    drop(file);
+    file.write_all( &metadata_bytes )?;
 
+    file.flush()?;
+    drop( file );
 
-    let output = Command::new("py")
-        .arg("-c")
-        .arg(src)
-        .arg(&unique_convertion_path)
-        .arg(path)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()?;
-    println!("{}", String::from_utf8_lossy(&output.stderr));
-    std::fs::remove_file(unique_convertion_path)?;
-    Ok(())
+    let binary = if cfg!( windows )
+    {
+      "py"
+    }
+    else
+    {
+      "python3"
+    };
+    let _ = Command::new( binary )
+      .arg( "-c" )
+      .arg( src )
+      .arg( &unique_convertion_path )
+      .arg( path )
+      .stdout( Stdio::piped() )
+      .stderr( Stdio::piped() )
+      .output()?;
+
+    std::fs::remove_file( unique_convertion_path )?;
+    
+    Ok( () )
   }
 
   /// Writes PES format into `writer`
