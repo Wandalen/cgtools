@@ -6,8 +6,10 @@ use mod_interface::mod_interface;
 
 mod private {}
 
-mod_interface!
-{
+pub const READ_SRC: &str = include_str!("../read.py");
+pub const WRITE_SRC: &str = include_str!("../write.py");
+
+mod_interface! {
   layer embroidery_file;
   layer stitch_instruction;
   layer format;

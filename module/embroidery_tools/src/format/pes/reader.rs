@@ -1,18 +1,75 @@
-//! 
+//!
 //! # PES format reader.
 //! Original implementation refers to https://github.com/EmbroidePy/pyembroidery/blob/main/pyembroidery/PesReader.py
-//! 
+//!
 
 mod private
 {
-  use crate::*;
+  use crate::{stitch_instruction::{Instruction, Stitch}, thread::SerThread, *};
   use embroidery_file::EmbroideryFile;
   use error::EmbroideryError;
   use format::pec;
   use thread::{ Color, Thread };
-  use std::{ io, path::Path };
+  use std::{ fs::File, io, path::Path, process::Command };
   use io::{ BufReader, Read, Seek, SeekFrom, Cursor };
   use byteorder::{ ReadBytesExt as _, LE };
+
+  pub fn read_bytes(data: &[u8], filename: &str) -> Result< EmbroideryFile, EmbroideryError > {
+    let src = crate::READ_SRC;
+    let mut unique_convertion_path = filename.to_string();
+    unique_convertion_path.push_str("CONVERTION_PURPOSES");
+    unique_convertion_path.push_str(&rand::random::<u32>().to_string());
+    let mut unique_data_path = filename.to_string();
+    unique_data_path.push_str("TRANSFER_PURPOSES");
+    unique_data_path.push_str(&rand::random::<u32>().to_string());
+
+    std::fs::write(&unique_data_path, data)?;
+    _ = Command::new("python3")
+        .arg("-c")
+        .arg(src)
+        .arg(&unique_data_path)
+        .arg(&unique_convertion_path)
+        // .stdout(Stdio::piped())
+        // .stderr(Stdio::piped())
+        .output()?;
+
+    let mut file = File::open(&unique_convertion_path)?;
+
+    let mut size_buffer = [0u8; 4];
+    file.read_exact(&mut size_buffer)?;
+    let num_rows = u32::from_le_bytes(size_buffer) as usize;
+
+    let mut stitches = Vec::new();
+    for _ in 0..num_rows {
+        let mut row_buffer = [0u8; 12]; // 3 * i32 (each i32 = 4 bytes)
+        file.read_exact(&mut row_buffer)?;
+
+        let x = i32::from_le_bytes(row_buffer[0..4].try_into().unwrap());
+        let y = i32::from_le_bytes(row_buffer[4..8].try_into().unwrap());
+        let instruction = Instruction::from(i32::from_le_bytes(row_buffer[8..12].try_into().unwrap()));
+
+        stitches.push( Stitch { x, y, instruction });
+    }
+
+    file.read_exact(&mut size_buffer)?;
+    let metadata_size = u32::from_le_bytes(size_buffer) as usize;
+
+    // Read metadata JSON
+    let mut metadata_bytes = vec![0u8; metadata_size];
+    file.read_exact(&mut metadata_bytes)?;
+
+    // Convert metadata bytes to JSON string
+    // let metadata_str = str::from_utf8(&metadata_bytes).expect("Invalid UTF-8 metadata");
+    let metadata: Vec<SerThread> = serde_json::from_slice(&metadata_bytes).expect("Invalid JSON");
+    let threads: Vec<Thread> =  metadata.into_iter().map(|item| item.into()).collect();
+    let mut res = EmbroideryFile::new();
+    res.threads = threads;
+    res.stitches = stitches;
+
+    std::fs::remove_file(unique_convertion_path)?;
+    std::fs::remove_file(unique_data_path)?;
+    Ok(res)
+  }
 
   /// Reads PES file at `path`
   pub fn read_file< P >( path : P ) -> Result< EmbroideryFile, EmbroideryError >
@@ -37,11 +94,11 @@ mod private
     R : Read + Seek
   {
     let mut emb = EmbroideryFile::new();
-    
+
     // Header string
     let mut pes_string = [ 0_u8; 8 ];
     reader.read_exact( &mut pes_string )?;
-    
+
     if pes_string == "#PEC0001".as_bytes()
     {
       pec::read_content( &mut emb, reader, &[] )?;
@@ -50,7 +107,7 @@ mod private
     // Position where PEC section starts
     let pec_block_position = reader.read_u32::< LE >()?;
     let mut threads = vec![];
-    
+
     if pes_string == "#PES0001".as_bytes()
     {
       emb.get_mut_metadata().insert_text( "version", "1".into() );
@@ -161,11 +218,11 @@ mod private
     thread.description = read_pes_string( reader )?.map_or( "Unknown".into(), | v | v.into() );
     thread.brand = read_pes_string( reader )?.map_or( Default::default(), | v | v.into() );
     thread.chart = read_pes_string( reader )?.map_or( Default::default(), | v | v.into() );
-    
+
     Ok( thread )
   }
 
-  /// Reads PES string. First byte is lenght of a string, then its content 
+  /// Reads PES string. First byte is lenght of a string, then its content
   fn read_pes_string< R >( reader : &mut R ) -> Result< Option< String >, EmbroideryError >
   where
     R : Read
@@ -207,7 +264,7 @@ mod private
 
       let color = Color { r : 123, g : 234, b : 125 };
       let thread = Thread
-      { 
+      {
         color,
         description : "A very good thread".into(),
         catalog_number : "197".into(),
@@ -232,7 +289,7 @@ mod private
       let author = metadata.get_text( "author" ).unwrap();
       let keywords = metadata.get_text( "keywords" ).unwrap();
       let comments = metadata.get_text( "comments" ).unwrap();
-      
+
       assert_eq!( category, "Fantasy" );
       assert_eq!( author, "George R.R. Martin" );
       assert_eq!( keywords, "Dragons, mediavel, story, adventure" );
@@ -252,4 +309,5 @@ crate::mod_interface!
   orphan use read_file;
   orphan use read_memory;
   orphan use read;
+  orphan use read_bytes;
 }
