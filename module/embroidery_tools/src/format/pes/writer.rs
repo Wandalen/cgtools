@@ -11,7 +11,7 @@ mod private
   use format::{ pec, pes::PESVersion };
   use thread::*;
   use stitch_instruction::*;
-  use std::{fs::File, io::{ Seek, SeekFrom, Write }, process::Command};
+  use std::{fs::File, io::{ Seek, SeekFrom, Write }, process::{Command, Stdio}};
   use byteorder::{ WriteBytesExt as _, LE };
 
   pub fn write_path(emb : &EmbroideryFile, path: &str) -> Result< (), EmbroideryError > {
@@ -19,11 +19,14 @@ mod private
     // Example data
     let threads: Vec<SerThread> = emb.threads.clone().into_iter().map(|thread| thread.into()).collect();
     let metadata_bytes = serde_json::to_vec(& threads).expect("Failed to serialize threads");
+
+    // std::fs::write("rust.json", serde_json::to_string(& threads).expect("Failed to serialize threads")).unwrap();
+
     let metadata_size = metadata_bytes.len() as u32;
 
     let mut unique_convertion_path = path.to_string();
-    unique_convertion_path.push_str("CONVERTION_PURPOSES");
     unique_convertion_path.push_str(&rand::random::<u32>().to_string());
+    unique_convertion_path.push_str("CONVERTION_PURPOSES");
     let mut file = File::create(&unique_convertion_path).unwrap();
 
     // Write the number of rows (array size)
@@ -45,15 +48,15 @@ mod private
     drop(file);
 
 
-    _ = Command::new("python3")
+    let output = Command::new("py")
         .arg("-c")
         .arg(src)
         .arg(&unique_convertion_path)
         .arg(path)
-        // .stdout(Stdio::piped())
-        // .stderr(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .output()?;
-
+    println!("{}", String::from_utf8_lossy(&output.stderr));
     std::fs::remove_file(unique_convertion_path)?;
     Ok(())
   }

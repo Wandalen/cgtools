@@ -16,15 +16,17 @@ mod private
 
   pub fn read_bytes(data: &[u8], filename: &str) -> Result< EmbroideryFile, EmbroideryError > {
     let src = crate::READ_SRC;
+
     let mut unique_convertion_path = filename.to_string();
     unique_convertion_path.push_str("CONVERTION_PURPOSES");
     unique_convertion_path.push_str(&rand::random::<u32>().to_string());
-    let mut unique_data_path = filename.to_string();
-    unique_data_path.push_str("TRANSFER_PURPOSES");
-    unique_data_path.push_str(&rand::random::<u32>().to_string());
 
+    let mut unique_data_path = filename.to_string();
+    unique_data_path.push_str(&rand::random::<u32>().to_string());
+    unique_data_path.push_str("TRANSFER_PURPOSES.pes");
     std::fs::write(&unique_data_path, data)?;
-    _ = Command::new("python3")
+
+    _ = Command::new("py")
         .arg("-c")
         .arg(src)
         .arg(&unique_data_path)
