@@ -5,7 +5,7 @@
 
 mod private
 {
-  use crate::{stitch_instruction::{Instruction, Stitch}, thread::SerThread, *};
+  use crate::{ stitch_instruction::{ Instruction, Stitch }, thread::SerThread, * };
   use embroidery_file::EmbroideryFile;
   use error::EmbroideryError;
   use format::pec;
@@ -14,62 +14,70 @@ mod private
   use io::{ BufReader, Read, Seek, SeekFrom, Cursor };
   use byteorder::{ ReadBytesExt as _, LE };
 
-  pub fn read_bytes(data: &[u8], filename: &str) -> Result< EmbroideryFile, EmbroideryError > {
+  pub fn read_bytes( data: &[ u8 ], filename: &str ) -> Result< EmbroideryFile, EmbroideryError >
+  {
     let src = crate::READ_SRC;
 
     let mut unique_convertion_path = filename.to_string();
-    unique_convertion_path.push_str("CONVERTION_PURPOSES");
-    unique_convertion_path.push_str(&rand::random::<u32>().to_string());
+    unique_convertion_path.push_str( &rand::random::< u32 >().to_string() );
+    unique_convertion_path.push_str( "CONVERTION_PURPOSES" );
 
     let mut unique_data_path = filename.to_string();
-    unique_data_path.push_str(&rand::random::<u32>().to_string());
-    unique_data_path.push_str("TRANSFER_PURPOSES.pes");
-    std::fs::write(&unique_data_path, data)?;
+    unique_data_path.push_str( &rand::random::< u32 >().to_string() );
+    unique_data_path.push_str( "TRANSFER_PURPOSES.pes" );
+    std::fs::write( &unique_data_path, data )?;
 
-    _ = Command::new("py")
-        .arg("-c")
-        .arg(src)
-        .arg(&unique_data_path)
-        .arg(&unique_convertion_path)
-        // .stdout(Stdio::piped())
-        // .stderr(Stdio::piped())
-        .output()?;
+    let binary = if cfg!( windows )
+    {
+      "py"
+    }
+    else
+    {
+      "python3"
+    };
+    _ = Command::new( binary )
+      .arg( "-c" )
+      .arg( src )
+      .arg( &unique_data_path )
+      .arg( &unique_convertion_path )
+      .output()?;
 
-    let mut file = File::open(&unique_convertion_path)?;
+    let mut file = File::open( &unique_convertion_path )?;
 
-    let mut size_buffer = [0u8; 4];
-    file.read_exact(&mut size_buffer)?;
-    let num_rows = u32::from_le_bytes(size_buffer) as usize;
+    let mut size_buffer = [ 0u8; 4 ];
+    file.read_exact( &mut size_buffer )?;
+    let num_rows = u32::from_le_bytes( size_buffer ) as usize;
 
-    let mut stitches = Vec::new();
-    for _ in 0..num_rows {
-        let mut row_buffer = [0u8; 12]; // 3 * i32 (each i32 = 4 bytes)
-        file.read_exact(&mut row_buffer)?;
+    let mut stitches = Vec::with_capacity( num_rows );
+    for _ in 0..num_rows
+    {
+      let mut row_buffer = [ 0u8; 12 ]; // 3 * i32 (each i32 = 4 bytes)
+      file.read_exact( &mut row_buffer )?;
 
-        let x = i32::from_le_bytes(row_buffer[0..4].try_into().unwrap());
-        let y = i32::from_le_bytes(row_buffer[4..8].try_into().unwrap());
-        let instruction = Instruction::from(i32::from_le_bytes(row_buffer[8..12].try_into().unwrap()));
+      let x = i32::from_le_bytes( row_buffer[ 0..4 ].try_into().unwrap() );
+      let y = i32::from_le_bytes( row_buffer[ 4..8 ].try_into().unwrap() );
+      let instruction = Instruction::from( i32::from_le_bytes( row_buffer[ 8..12 ].try_into().unwrap() ) );
 
-        stitches.push( Stitch { x, y, instruction });
+      stitches.push( Stitch { x, y, instruction } );
     }
 
-    file.read_exact(&mut size_buffer)?;
-    let metadata_size = u32::from_le_bytes(size_buffer) as usize;
+    file.read_exact( &mut size_buffer )?;
+    let metadata_size = u32::from_le_bytes( size_buffer ) as usize;
 
     // Read metadata JSON
-    let mut metadata_bytes = vec![0u8; metadata_size];
-    file.read_exact(&mut metadata_bytes)?;
+    let mut metadata_bytes = vec![ 0u8; metadata_size ];
+    file.read_exact( &mut metadata_bytes )?;
 
     // Convert metadata bytes to JSON string
-    // let metadata_str = str::from_utf8(&metadata_bytes).expect("Invalid UTF-8 metadata");
-    let metadata: Vec<SerThread> = serde_json::from_slice(&metadata_bytes).expect("Invalid JSON");
-    let threads: Vec<Thread> =  metadata.into_iter().map(|item| item.into()).collect();
+    let metadata : Vec< SerThread > = serde_json::from_slice( &metadata_bytes ).expect( "Invalid JSON" );
+    let threads : Vec< Thread > =  metadata.into_iter().map( | item | item.into() ).collect();
     let mut res = EmbroideryFile::new();
     res.threads = threads;
     res.stitches = stitches;
 
-    std::fs::remove_file(unique_convertion_path)?;
-    std::fs::remove_file(unique_data_path)?;
+    std::fs::remove_file( unique_convertion_path )?;
+    std::fs::remove_file( unique_data_path )?;
+
     Ok(res)
   }
 

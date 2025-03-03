@@ -33,7 +33,8 @@ def main(input, output):
 
         # Read the metadata JSON bytes
         threads_bytes = f.read(threads_size)
-        thread_dicts = json.loads(threads_bytes.decode("utf-8"))
+        str = threads_bytes.decode("utf-8")
+        thread_dicts = json.loads(str)
 
     threads = list(map(dict_to_thread, thread_dicts))
 
