@@ -5,8 +5,8 @@ fn main() {
     let mut emb = embroidery_tools::format::pes::read_bytes(&bytes, "without.pes").unwrap();
     emb.threads[0] = Thread {
         color: Color {
-            r: 34,
-            g: 29,
+            r: 222,
+            g: 0,
             b: 228,
         },
         ..Default::default()

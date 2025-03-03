@@ -37,6 +37,7 @@ mod private
     }
 
     let metadata_bytes = serde_json::to_vec( &threads ).expect( "Failed to serialize threads" );
+
     let metadata_size = metadata_bytes.len() as u32;
     // Write the metadata size
     file.write_all( &u32::to_le_bytes( metadata_size ) )?;
@@ -64,7 +65,7 @@ mod private
       .output()?;
 
     std::fs::remove_file( unique_convertion_path )?;
-    
+
     Ok( () )
   }
 

@@ -37,7 +37,6 @@ def main(input, output):
         thread_dicts = json.loads(str)
 
     threads = list(map(dict_to_thread, thread_dicts))
-
     pattern = pyembroidery.EmbPattern()
     pattern.stitches = stitches
     pattern.threadlist = threads
