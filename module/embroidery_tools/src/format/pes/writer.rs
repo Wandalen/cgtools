@@ -11,17 +11,24 @@ mod private
   use format::{ pec, pes::PESVersion };
   use thread::*;
   use stitch_instruction::*;
-  use std::{ fs::File, io::{ Seek, SeekFrom, Write }, process::{ Command, Stdio } };
+  use std::{ fs::{ self, File }, io::{ Seek, SeekFrom, Write }, process::Command };
   use byteorder::{ WriteBytesExt as _, LE };
 
-  pub fn write_path( emb : &EmbroideryFile, path: &str ) -> Result< (), EmbroideryError >
+  pub fn write_path( emb : &EmbroideryFile, path : &str ) -> Result< (), EmbroideryError >
   {
+    let flatten_path = | path: &str, replacement: &str |
+    {
+      let path = std::path::Path::new( path );
+      let flattened = path
+        .to_string_lossy()
+        .replace( [ '/', '\\', ':' ], replacement );
+      flattened
+    };
+
     let src = crate::WRITE_SRC;
 
-    let threads : Vec< SerThread > = emb.threads.clone().into_iter().map( | thread | thread.into() ).collect();
-
-    let mut unique_convertion_path = path.to_string();
-    unique_convertion_path.push_str( &rand::random::<u32>().to_string() );
+    let mut unique_convertion_path = flatten_path(path, "_"); //path.to_string();
+    unique_convertion_path.push_str( &rand::random::< u32 >().to_string() );
     unique_convertion_path.push_str( "CONVERTION_PURPOSES" );
     let mut file = File::create( &unique_convertion_path ).unwrap();
 
@@ -36,16 +43,17 @@ mod private
       file.write_all( &i32::to_le_bytes( *instruction as i32 ) )?;
     }
 
-    let metadata_bytes = serde_json::to_vec( &threads ).expect( "Failed to serialize threads" );
+    let threads : Vec< SerdeThread > = emb.threads.clone().into_iter().map( | thread | thread.into() ).collect();
+    let thread_bytes = serde_json::to_vec( &threads ).expect( "Failed to serialize threads" );
+    let thread_size = thread_bytes.len() as u32;
 
-    let metadata_size = metadata_bytes.len() as u32;
     // Write the metadata size
-    file.write_all( &u32::to_le_bytes( metadata_size ) )?;
+    file.write_all( &u32::to_le_bytes( thread_size ) )?;
     // Write the metadata JSON bytes
-    file.write_all( &metadata_bytes )?;
+    file.write_all( &thread_bytes )?;
 
     file.flush()?;
-    drop( file );
+    // drop( file );
 
     let binary = if cfg!( windows )
     {
@@ -55,16 +63,14 @@ mod private
     {
       "python3"
     };
-    let _ = Command::new( binary )
+    _ = Command::new( binary )
       .arg( "-c" )
       .arg( src )
       .arg( &unique_convertion_path )
       .arg( path )
-      .stdout( Stdio::piped() )
-      .stderr( Stdio::piped() )
       .output()?;
 
-    std::fs::remove_file( unique_convertion_path )?;
+    fs::remove_file( unique_convertion_path )?;
 
     Ok( () )
   }

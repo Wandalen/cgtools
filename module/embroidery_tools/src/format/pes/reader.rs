@@ -1,31 +1,40 @@
 //!
 //! # PES format reader.
-//! Original implementation refers to https://github.com/EmbroidePy/pyembroidery/blob/main/pyembroidery/PesReader.py
+//! Original implementation refers to <https://github.com/EmbroidePy/pyembroidery/blob/main/pyembroidery/PesReader.py>
 //!
 
 mod private
 {
-  use crate::{ stitch_instruction::{ Instruction, Stitch }, thread::SerThread, * };
+  use crate::{ stitch_instruction::{ Instruction, Stitch }, thread::SerdeThread, * };
   use embroidery_file::EmbroideryFile;
   use error::EmbroideryError;
   use format::pec;
   use thread::{ Color, Thread };
-  use std::{ fs::File, io, path::Path, process::Command };
+  use std::{ fs::{ self, File }, io, path::Path, process::Command };
   use io::{ BufReader, Read, Seek, SeekFrom, Cursor };
   use byteorder::{ ReadBytesExt as _, LE };
 
-  pub fn read_bytes( data: &[ u8 ], filename: &str ) -> Result< EmbroideryFile, EmbroideryError >
+  
+  pub fn read_path( path : &str ) -> Result< EmbroideryFile, EmbroideryError >
   {
+    let flatten_path = | path: &str, replacement: &str |
+    {
+      let path = std::path::Path::new( path );
+      let flattened = path
+        .to_string_lossy()
+        .replace( [ '/', '\\', ':' ], replacement );
+      flattened
+    };
     let src = crate::READ_SRC;
 
-    let mut unique_convertion_path = filename.to_string();
+    let mut unique_convertion_path = flatten_path( path, "_" );// path.to_string();
     unique_convertion_path.push_str( &rand::random::< u32 >().to_string() );
     unique_convertion_path.push_str( "CONVERTION_PURPOSES" );
 
-    let mut unique_data_path = filename.to_string();
-    unique_data_path.push_str( &rand::random::< u32 >().to_string() );
-    unique_data_path.push_str( "TRANSFER_PURPOSES.pes" );
-    std::fs::write( &unique_data_path, data )?;
+    // let mut unique_data_path = filename.to_string();
+    // unique_data_path.push_str( &rand::random::< u32 >().to_string() );
+    // unique_data_path.push_str( "TRANSFER_PURPOSES.pes" );
+    // fs::write( &unique_data_path, data )?;
 
     let binary = if cfg!( windows )
     {
@@ -38,7 +47,7 @@ mod private
     _ = Command::new( binary )
       .arg( "-c" )
       .arg( src )
-      .arg( &unique_data_path )
+      .arg( path )
       .arg( &unique_convertion_path )
       .output()?;
 
@@ -69,14 +78,14 @@ mod private
     file.read_exact( &mut metadata_bytes )?;
 
     // Convert metadata bytes to JSON string
-    let metadata : Vec< SerThread > = serde_json::from_slice( &metadata_bytes ).expect( "Invalid JSON" );
+    let metadata : Vec< SerdeThread > = serde_json::from_slice( &metadata_bytes ).expect( "Invalid JSON" );
     let threads : Vec< Thread > =  metadata.into_iter().map( | item | item.into() ).collect();
     let mut res = EmbroideryFile::new();
     res.threads = threads;
     res.stitches = stitches;
 
-    std::fs::remove_file( unique_convertion_path )?;
-    std::fs::remove_file( unique_data_path )?;
+    fs::remove_file( unique_convertion_path )?;
+    // fs::remove_file( unique_data_path )?;
 
     Ok(res)
   }
@@ -86,7 +95,7 @@ mod private
   where
     P : AsRef< Path >
   {
-    let file = std::fs::File::open( path )?;
+    let file = fs::File::open( path )?;
     let mut reader = BufReader::new( file );
     read( &mut reader )
   }
@@ -319,5 +328,5 @@ crate::mod_interface!
   orphan use read_file;
   orphan use read_memory;
   orphan use read;
-  orphan use read_bytes;
+  orphan use read_path;
 }
