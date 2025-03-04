@@ -14,10 +14,9 @@ mod private
   use io::{ BufReader, Read, Seek, SeekFrom, Cursor };
   use byteorder::{ ReadBytesExt as _, LE };
 
-  
   pub fn read_path( path : &str ) -> Result< EmbroideryFile, EmbroideryError >
   {
-    let flatten_path = | path: &str, replacement: &str |
+    let flatten_path = | path : &str, replacement : &str |
     {
       let path = std::path::Path::new( path );
       let flattened = path
@@ -30,11 +29,6 @@ mod private
     let mut unique_convertion_path = flatten_path( path, "_" );// path.to_string();
     unique_convertion_path.push_str( &rand::random::< u32 >().to_string() );
     unique_convertion_path.push_str( "CONVERTION_PURPOSES" );
-
-    // let mut unique_data_path = filename.to_string();
-    // unique_data_path.push_str( &rand::random::< u32 >().to_string() );
-    // unique_data_path.push_str( "TRANSFER_PURPOSES.pes" );
-    // fs::write( &unique_data_path, data )?;
 
     let binary = if cfg!( windows )
     {
@@ -85,7 +79,6 @@ mod private
     res.stitches = stitches;
 
     fs::remove_file( unique_convertion_path )?;
-    // fs::remove_file( unique_data_path )?;
 
     Ok(res)
   }
