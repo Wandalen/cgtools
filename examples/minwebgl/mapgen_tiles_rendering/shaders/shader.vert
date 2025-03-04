@@ -12,6 +12,6 @@ uniform mat4x4 mvp;
 // here, interpolated between vertices then sended as input of fragment shader.
 void main()
 {
-    v_uv = uv;
-    gl_Position = mvp * position;
+  v_uv = uv;
+  gl_Position = mvp * position;
 }
