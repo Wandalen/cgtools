@@ -16,7 +16,7 @@ mod private
 
   pub fn write_path( emb : &EmbroideryFile, path : &str ) -> Result< (), EmbroideryError >
   {
-    let flatten_path = | path: &str, replacement: &str |
+    let flatten_path = | path : &str, replacement : &str |
     {
       let path = std::path::Path::new( path );
       let flattened = path
