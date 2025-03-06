@@ -1,0 +1,22 @@
+[package]
+name = "deferred_shading"
+version = "0.1.0"
+edition = "2021"
+authors = [
+  "Kostiantyn Mysnyk <wandalen@obox.systems>",
+  "Oleksandr Zaharevskyi <oleksandr.z@obox.systems>",
+]
+
+[dependencies]
+rand = "0.8.5"
+getrandom = { version = "0.2.15", features = ['js'] }
+tobj = { workspace = true }
+ndarray_cg = { workspace = true }
+bytemuck = { workspace = true }
+minwebgl = { workspace = true }
+web-sys = { workspace = true, features = [
+  'HtmlImageElement',
+  'WebGlFramebuffer',
+  'WebGlRenderbuffer',
+  'WebGlTexture',
+] }
