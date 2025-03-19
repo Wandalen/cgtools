@@ -55,9 +55,11 @@ impl Hex< FlatTop >
   }
 }
 
-struct Coordinate
+struct AxialCoordinate
 {
-
+  s : i32,
+  q : i32,
+  r : i32,
 }
 
 struct HexGrid
