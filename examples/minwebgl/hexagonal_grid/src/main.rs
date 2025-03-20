@@ -57,12 +57,13 @@ impl Hex< FlatTop >
 
 struct AxialCoordinate
 {
-  s : i32,
   q : i32,
   r : i32,
 }
 
-struct HexGrid
+struct HexGrid< T >
 {
-
+  data : Vec< Vec< AxialCoordinate > >,
+  size : f32,
+  r#type : PhantomData< T >,
 }
