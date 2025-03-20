@@ -1,32 +1,58 @@
 use minwebgl as gl;
+use gl::{ WebGlProgram, WebGlUniformLocation, WebGlVertexArrayObject, GL };
 
-fn main()
+fn main() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
-  let gl = gl::context::retrieve_or_make().expect( "Can't retrieve GL context" );
+  let gl = gl::context::retrieve_or_make()?;
 
-  let positions = hex_positions();
-  let position_buffer = gl::buffer::create( &gl ).unwrap();
-  gl::buffer::upload( &gl, &position_buffer, positions.as_slice(), gl::STATIC_DRAW );
+  let ortho = cgmath::ortho( -10.0f32, 10.0, -8.0, 8.0, 0.0, 1.0 );
 
-  let vao = gl::vao::create( &gl ).unwrap();
-  gl.bind_vertex_array( Some( &vao ) );
-  gl::BufferDescriptor::new::< [ f32; 2 ] >().stride( 0 ).offset( 0 ).attribute_pointer( &gl, 0, &position_buffer ).unwrap();
-
-  let vert = include_str!( "shaders/main.vert" );
-  let frag = include_str!( "shaders/main.frag" );
-  let program = gl::ProgramFromSources::new( vert, frag ).compile_and_link( &gl ).unwrap();
-  gl.use_program( Some( &program ) );
-
-  let mvp = cgmath::ortho( -10.0f32, 10.0, -8.0, 8.0, 0.0, 1.0 ) * cgmath::Matrix4::from_angle_z( cgmath::Deg( 30.0 ) );
-  let mvp : &[ f32; 16 ] = mvp.as_ref();
-  let mvp_location = gl.get_uniform_location( &program, "MVP" ).unwrap();
-  gl::uniform::matrix_upload( &gl, Some(mvp_location), mvp.as_slice(), true ).unwrap();
+  let geometry = hex_geometry( &gl )?;
+  let hex_shader = HexShader::new( &gl )?;
 
   gl.clear_color( 0.9, 0.9, 0.9, 1.0 );
   gl.clear( gl::COLOR_BUFFER_BIT );
 
-  gl.draw_arrays( gl::LINES, 0, positions.len() as i32 );
+  let size = 0.5;
+  let spacing = 3.0f32.sqrt() * size;
+  let total_width = ( 9.0 + 0.5 ) * spacing;
+  let total_height = 9.0 * ( 1.5 * size );
+
+  for y in 0..10
+  {
+    for x in 0..10
+    {
+      let odd_r = spacing / 2.0 * ( y & 1 ) as f32;
+      let x = x as f32;
+      let x = odd_r + x * spacing;
+      let y = -y as f32;
+      let y = y * 1.5 * size;
+
+      let position = cgmath::vec3( x - total_width * 0.5, y + total_height * 0.5, 0.0 );
+      let translation = cgmath::Matrix4::from_translation( position );
+      let rotation = cgmath::Matrix4::from_angle_z( cgmath::Deg( 30.0 ) );
+      let scale = cgmath::Matrix4::from_scale( size );
+      let mvp = ortho * translation * rotation * scale;
+      let mvp : &[ f32; 16 ] = mvp.as_ref();
+      hex_shader.draw_hex( &geometry, mvp )?;
+    }
+  }
+
+  Ok( () )
+}
+
+fn hex_geometry( gl : &GL ) -> Result< Geometry, gl::WebglError >
+{
+  let positions = hex_positions();
+  let position_buffer = gl::buffer::create( &gl )?;
+  gl::buffer::upload( &gl, &position_buffer, positions.as_slice(), gl::STATIC_DRAW );
+
+  let vao = gl::vao::create( &gl )?;
+  gl.bind_vertex_array( Some( &vao ) );
+  gl::BufferDescriptor::new::< [ f32; 2 ] >().stride( 0 ).offset( 0 ).attribute_pointer( &gl, 0, &position_buffer )?;
+
+  Ok( Geometry { vao, count : positions.len() as i32 } )
 }
 
 fn hex_positions() -> Vec< f32 >
@@ -64,6 +90,50 @@ fn hex_points() -> [ ( f32, f32 ); 6 ]
   }
 
   points
+}
+
+pub struct Geometry
+{
+  pub vao : WebGlVertexArrayObject,
+  pub count : i32
+}
+
+pub struct HexShader
+{
+  program : WebGlProgram,
+  mvp_location : WebGlUniformLocation,
+  gl : GL,
+}
+
+impl HexShader
+{
+  pub fn new( gl : &GL ) -> Result< Self, gl::WebglError >
+  {
+    let vert = include_str!( "shaders/main.vert" );
+    let frag = include_str!( "shaders/main.frag" );
+    let program = gl::ProgramFromSources::new( vert, frag ).compile_and_link( &gl )?;
+    let mvp_location = gl.get_uniform_location( &program, "MVP" ).unwrap();
+
+    Ok
+    (
+      HexShader
+      {
+        program,
+        mvp_location,
+        gl : gl.clone()
+      }
+    )
+  }
+
+  pub fn draw_hex( &self, geometry : &Geometry, mvp : &[ f32 ] ) -> Result< (), gl::WebglError >
+  {
+    self.gl.bind_vertex_array( Some( &geometry.vao ) );
+    self.gl.use_program( Some( &self.program ) );
+    gl::uniform::matrix_upload( &self.gl, Some( self.mvp_location.clone() ), mvp, true )?;
+    self.gl.draw_arrays( gl::LINES, 0, geometry.count );
+
+    Ok( () )
+  }
 }
 
 struct AxialCoordinate
