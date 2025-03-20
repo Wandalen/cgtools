@@ -1,58 +1,48 @@
-use std::marker::PhantomData;
+// use std::marker::PhantomData;
 use minwebgl as gl;
 
 fn main()
 {
   gl::browser::setup( Default::default() );
+  let gl = gl::context::retrieve_or_make().expect( "Can't retrieve GL context" );
+
+  let hex_point = hex_points();
+  let mut positions = vec![];
+  for w in hex_point.windows( 2 )
+  {
+    let point1 = w[ 0 ];
+    let point2 = w[ 1 ];
+    positions.push( point1.0 );
+    positions.push( point1.1 );
+    positions.push( point2.0 );
+    positions.push( point2.1 );
+  }
+
+  let position_buffer = gl::buffer::create( &gl ).unwrap();
+  gl::buffer::upload( &gl, &position_buffer, positions.as_slice(), gl::STATIC_DRAW );
+
+  let vao = gl::vao::create( &gl ).unwrap();
+  gl.bind_vertex_array( Some( &vao ) );
+  gl::BufferDescriptor::new::< [ f32; 2 ] >().stride( 0 ).offset( 0 ).attribute_pointer( &gl, 0, &position_buffer ).unwrap();
+
+  let vert = include_str!( "shaders/main.vert" );
+  let frag = include_str!( "shaders/main.frag" );
+  let program = gl::ProgramFromSources::new(vert, frag).compile_and_link( &gl ).unwrap();
+  gl.use_program( Some( &program ));
+  gl.draw_arrays( gl::LINES, 0, positions.len() as i32 );
 }
 
-pub struct PointyTop;
-
-pub struct FlatTop;
-
-pub struct Hex< T >
+fn hex_points() -> [ ( f32, f32 ); 6 ]
 {
-  r#type: PhantomData< T >,
-  size: f32,
-}
-
-impl< T > Hex< T >
-{
-  pub fn new( size: f32 ) -> Self
+  let mut points : [ ( f32, f32 ); 6 ] = Default::default();
+  for i in 0..6
   {
-    Self { r#type : PhantomData, size }
+    let angle = 60 * i;
+    let angle = ( angle as f32 ).to_radians();
+    points[ i ] = ( angle.cos(), angle.sin() )
   }
 
-  pub fn size( &self ) -> f32
-  {
-    self.size
-  }
-}
-
-impl Hex< PointyTop >
-{
-  pub fn width( &self ) -> f32
-  {
-    3.0f32.sqrt() * self.size
-  }
-
-  pub fn height( &self ) -> f32
-  {
-    2.0 * self.size
-  }
-}
-
-impl Hex< FlatTop >
-{
-  pub fn width( &self ) -> f32
-  {
-    2.0 * self.size
-  }
-
-  pub fn height( &self ) -> f32
-  {
-    3.0f32.sqrt() * self.size
-  }
+  points
 }
 
 struct AxialCoordinate
@@ -61,9 +51,23 @@ struct AxialCoordinate
   r : i32,
 }
 
-struct HexGrid< T >
+enum TopType
 {
-  data : Vec< Vec< AxialCoordinate > >,
+  PointyTop,
+  FlatTop,
+}
+
+enum LayoutType
+{
+  OddShift,
+  EvenShift,
+}
+
+struct HexGrid
+{
   size : f32,
-  r#type : PhantomData< T >,
+  top_type : TopType,
+  layout_type : LayoutType,
+  len : usize,
+  count : usize,
 }
