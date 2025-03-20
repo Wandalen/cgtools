@@ -18,10 +18,10 @@ fn main()
   let program = gl::ProgramFromSources::new( vert, frag ).compile_and_link( &gl ).unwrap();
   gl.use_program( Some( &program ) );
 
-  let ortho = cgmath::ortho( -10.0f32, 10.0, -8.0, 8.0, 0.0, 1.0 );
-  let ortho : &[ f32; 16 ] = ortho.as_ref();
+  let mvp = cgmath::ortho( -10.0f32, 10.0, -8.0, 8.0, 0.0, 1.0 ) * cgmath::Matrix4::from_angle_z( cgmath::Deg( 30.0 ) );
+  let mvp : &[ f32; 16 ] = mvp.as_ref();
   let mvp_location = gl.get_uniform_location( &program, "MVP" ).unwrap();
-  gl::uniform::matrix_upload( &gl, Some(mvp_location), ortho.as_slice(), true ).unwrap();
+  gl::uniform::matrix_upload( &gl, Some(mvp_location), mvp.as_slice(), true ).unwrap();
 
   gl.clear_color( 0.9, 0.9, 0.9, 1.0 );
   gl.clear( gl::COLOR_BUFFER_BIT );
