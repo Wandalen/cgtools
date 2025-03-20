@@ -136,29 +136,59 @@ impl HexShader
   }
 }
 
-struct AxialCoordinate
+pub struct AxialCoordinate
 {
-  q : i32,
-  r : i32,
+  pub q : i32,
+  pub r : i32,
 }
 
-enum TopType
+pub enum TopType
 {
   PointyTop,
   FlatTop,
 }
 
-enum LayoutType
+pub enum LayoutType
 {
   OddShift,
   EvenShift,
 }
 
-struct HexGrid
+pub struct HexGrid< T >
 {
+  data : Vec< Vec< Option< T > > >,
   size : f32,
   top_type : TopType,
   layout_type : LayoutType,
-  len : usize,
-  count : usize,
+}
+
+impl< T > HexGrid< T >
+{
+  pub fn new( len : usize, count : usize, top_type : TopType, layout_type : LayoutType, size : f32 ) -> Self
+  {
+    let mut data = vec![];
+    for _ in 0..count
+    {
+      let mut v = vec![];
+      for _ in 0..len
+      {
+        v.push( None );
+      }
+
+      data.push( v );
+    }
+
+    Self
+    {
+      data,
+      size,
+      top_type,
+      layout_type,
+    }
+  }
+
+  pub fn insert( &mut self )
+  {
+    todo!()
+  }
 }
