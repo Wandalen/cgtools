@@ -1,6 +1,7 @@
 mod drawing;
 
 use minwebgl as gl;
+use gl::math::d2::mat2x2h;
 use drawing::{ hex_geometry, LineShader };
 use rustc_hash::FxHashMap;
 use std::{ collections::hash_map::Iter, marker::PhantomData };
@@ -10,13 +11,14 @@ fn main() -> Result< (), gl::WebglError >
   gl::browser::setup( Default::default() );
   let gl = gl::context::retrieve_or_make()?;
 
-  let ortho = cgmath::ortho( -10.0f32, 10.0, -8.0, 8.0, 0.0, 1.0 );
-
   let geometry = hex_geometry( &gl )?;
   let hex_shader = LineShader::new( &gl )?;
 
   gl.clear_color( 0.9, 0.9, 0.9, 1.0 );
   gl.clear( gl::COLOR_BUFFER_BIT );
+
+  let aspect = 800.0 / 1000.0;
+  let projection = mat2x2h::scale( [ aspect * 0.2, 1.0 * 0.2 ] );
 
   let size = 0.5;
   let spacing = 3.0f32.sqrt() * size;
@@ -33,13 +35,12 @@ fn main() -> Result< (), gl::WebglError >
       let y = -y as f32;
       let y = y * 1.5 * size;
 
-      let position = cgmath::vec3( x - total_width * 0.5, y + total_height * 0.5, 0.0 );
-      let translation = cgmath::Matrix4::from_translation( position );
-      let rotation = cgmath::Matrix4::from_angle_z( cgmath::Deg( 30.0 ) );
-      let scale = cgmath::Matrix4::from_scale( size );
-      let mvp = ortho * translation * rotation * scale;
-      let mvp : &[ f32; 16 ] = mvp.as_ref();
-      hex_shader.draw( &gl, &geometry, mvp, [ 0.1, 0.1, 0.1, 1.0 ] )?;
+      let translation = mat2x2h::translate( [ x - total_width * 0.5, y + total_height * 0.5 ] );
+      let rotation = mat2x2h::rot( 30.0f32.to_radians() );
+      let scale = mat2x2h::scale( [ size, size ] );
+      let mvp = projection * translation * rotation * scale;
+
+      hex_shader.draw( &gl, &geometry, mvp.raw_slice(), [ 0.1, 0.1, 0.1, 1.0 ] )?;
     }
   }
 

@@ -2,10 +2,11 @@
 
 layout( location = 0 ) in vec2 point;
 
-uniform mat4 MVP;
+uniform mat3 MVP;
 
 void main()
 {
-  vec4 position = MVP * vec4( point, 0.0, 1.0 );
-  gl_Position = position;
+  vec3 pos3 = MVP * vec3( point, 1.0 );
+  vec4 pos4 = vec4( pos3.x, pos3.y, 0.0, 1.0 );
+  gl_Position = pos4;
 }
