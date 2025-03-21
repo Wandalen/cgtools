@@ -1,7 +1,7 @@
 mod drawing;
 
 use minwebgl as gl;
-use gl::math::d2::mat2x2h;
+use gl::{ math::d2::mat2x2h, JsCast, canvas::HtmlCanvasElement };
 use drawing::{ hex_geometry, LineShader };
 use rustc_hash::FxHashMap;
 use std::{ collections::hash_map::Iter, marker::PhantomData };
@@ -10,15 +10,18 @@ fn main() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
   let gl = gl::context::retrieve_or_make()?;
+  let canvas = gl.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
+  let width = canvas.width() as f32;
+  let height = canvas.height() as f32;
 
   let geometry = hex_geometry( &gl )?;
-  let hex_shader = LineShader::new( &gl )?;
+  let line_shader = LineShader::new( &gl )?;
 
   gl.clear_color( 0.9, 0.9, 0.9, 1.0 );
   gl.clear( gl::COLOR_BUFFER_BIT );
 
-  let aspect = 800.0 / 1000.0;
-  let projection = mat2x2h::scale( [ aspect * 0.2, 1.0 * 0.2 ] );
+  let aspect = height / width;
+  let total_scale = mat2x2h::scale( [ aspect * 0.2, 1.0 * 0.2 ] );
 
   let size = 0.5;
   let spacing = 3.0f32.sqrt() * size;
@@ -38,9 +41,9 @@ fn main() -> Result< (), gl::WebglError >
       let translation = mat2x2h::translate( [ x - total_width * 0.5, y + total_height * 0.5 ] );
       let rotation = mat2x2h::rot( 30.0f32.to_radians() );
       let scale = mat2x2h::scale( [ size, size ] );
-      let mvp = projection * translation * rotation * scale;
+      let mvp = total_scale * translation * rotation * scale;
 
-      hex_shader.draw( &gl, &geometry, mvp.raw_slice(), [ 0.1, 0.1, 0.1, 1.0 ] )?;
+      line_shader.draw( &gl, &geometry, mvp.raw_slice(), [ 0.1, 0.1, 0.1, 1.0 ] )?;
     }
   }
 
