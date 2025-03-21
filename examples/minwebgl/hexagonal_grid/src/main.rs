@@ -9,7 +9,7 @@ fn main() -> Result< (), gl::WebglError >
   let ortho = cgmath::ortho( -10.0f32, 10.0, -8.0, 8.0, 0.0, 1.0 );
 
   let geometry = hex_geometry( &gl )?;
-  let hex_shader = HexShader::new( &gl )?;
+  let hex_shader = LineShader::new( &gl )?;
 
   gl.clear_color( 0.9, 0.9, 0.9, 1.0 );
   gl.clear( gl::COLOR_BUFFER_BIT );
@@ -35,7 +35,7 @@ fn main() -> Result< (), gl::WebglError >
       let scale = cgmath::Matrix4::from_scale( size );
       let mvp = ortho * translation * rotation * scale;
       let mvp : &[ f32; 16 ] = mvp.as_ref();
-      hex_shader.draw_hex( &geometry, mvp )?;
+      hex_shader.draw( &gl, &geometry, mvp, [ 0.1, 0.1, 0.1, 1.0 ] )?;
     }
   }
 
@@ -98,14 +98,14 @@ pub struct Geometry
   pub count : i32
 }
 
-pub struct HexShader
+pub struct LineShader
 {
   program : WebGlProgram,
   mvp_location : WebGlUniformLocation,
-  gl : GL,
+  color_location : WebGlUniformLocation,
 }
 
-impl HexShader
+impl LineShader
 {
   pub fn new( gl : &GL ) -> Result< Self, gl::WebglError >
   {
@@ -113,82 +113,119 @@ impl HexShader
     let frag = include_str!( "shaders/main.frag" );
     let program = gl::ProgramFromSources::new( vert, frag ).compile_and_link( &gl )?;
     let mvp_location = gl.get_uniform_location( &program, "MVP" ).unwrap();
+    let color_location = gl.get_uniform_location( &program, "color" ).unwrap();
 
     Ok
     (
-      HexShader
+      LineShader
       {
         program,
         mvp_location,
-        gl : gl.clone()
+        color_location,
       }
     )
   }
 
-  pub fn draw_hex( &self, geometry : &Geometry, mvp : &[ f32 ] ) -> Result< (), gl::WebglError >
+  pub fn draw( &self, gl : &GL, geometry : &Geometry, mvp : &[ f32 ], color : [ f32; 4 ] ) -> Result< (), gl::WebglError >
   {
-    self.gl.bind_vertex_array( Some( &geometry.vao ) );
-    self.gl.use_program( Some( &self.program ) );
-    gl::uniform::matrix_upload( &self.gl, Some( self.mvp_location.clone() ), mvp, true )?;
-    self.gl.draw_arrays( gl::LINES, 0, geometry.count );
+    gl.bind_vertex_array( Some( &geometry.vao ) );
+    gl.use_program( Some( &self.program ) );
+    gl::uniform::matrix_upload( gl, Some( self.mvp_location.clone() ), mvp, true )?;
+    gl::uniform::upload( gl, Some( self.color_location.clone() ), color.as_slice() )?;
+    gl.draw_arrays( gl::LINES, 0, geometry.count );
 
     Ok( () )
   }
 }
 
-pub struct AxialCoordinate
+#[ derive( Debug, Clone, Copy, Hash, PartialEq, Eq ) ]
+pub struct Axial
 {
   pub q : i32,
   pub r : i32,
 }
 
-pub enum TopType
+impl From< Offset > for Axial
 {
-  PointyTop,
-  FlatTop,
-}
-
-pub enum LayoutType
-{
-  OddShift,
-  EvenShift,
-}
-
-pub struct HexGrid< T >
-{
-  data : Vec< Vec< Option< T > > >,
-  size : f32,
-  top_type : TopType,
-  layout_type : LayoutType,
-}
-
-impl< T > HexGrid< T >
-{
-  pub fn new( len : usize, count : usize, top_type : TopType, layout_type : LayoutType, size : f32 ) -> Self
+  fn from( value: Offset ) -> Self
   {
-    let mut data = vec![];
-    for _ in 0..count
+    let ( q, r ) = match value.layout
     {
-      let mut v = vec![];
-      for _ in 0..len
+      Layout::HorizontalOddShift =>
       {
-        v.push( None );
-      }
-
-      data.push( v );
-    }
+        let q = value.column - ( value.row - value.row & 1 ) / 2;
+        let r = value.row;
+        ( q, r )
+      },
+      Layout::HorizontalEvenShift =>
+      {
+        let q = value.column - ( value.row + value.row & 1 ) / 2;
+        let r = value.row;
+        ( q, r )
+      },
+      Layout::VerticalOddShift =>
+      {
+        let q = value.column;
+        let r = value.row - ( value.column - value.column & 1 ) / 2;
+        ( q, r )
+      },
+      Layout::VerticalEvenShift =>
+      {
+        let q = value.column;
+        let r = value.row - ( value.column + value.column & 1 ) / 2;
+        ( q, r )
+      },
+    };
 
     Self
     {
-      data,
-      size,
-      top_type,
-      layout_type,
+      q,
+      r,
     }
   }
+}
 
-  pub fn insert( &mut self )
+pub struct Offset
+{
+  pub row : i32,
+  pub column : i32,
+  pub layout : Layout,
+}
+
+pub enum Layout
+{
+  HorizontalOddShift,
+  HorizontalEvenShift,
+  VerticalOddShift,
+  VerticalEvenShift,
+}
+
+pub struct GridMap< T >
+{
+  data : rustc_hash::FxHashMap< Axial, T >
+}
+
+impl< T > GridMap< T >
+{
+  pub fn new() -> Self
   {
-    todo!()
+    Self { data : Default::default() }
+  }
+
+  pub fn insert< C : Into< Axial > >( &mut self, coord : C, val : T ) -> Option< T >
+  {
+    let axial : Axial = coord.into();
+    self.data.insert( axial, val )
+  }
+
+  pub fn remove< C : Into< Axial > >( &mut self, coord : C ) -> Option< T >
+  {
+    let axial : Axial = coord.into();
+    self.data.remove( &axial )
+  }
+
+  pub fn iter( &self ) -> std::collections::hash_map::Iter< Axial, T >
+  {
+    self.data.iter()
   }
 }

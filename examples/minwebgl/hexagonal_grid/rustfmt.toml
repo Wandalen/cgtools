@@ -1,0 +1,9 @@
+edition = "2024"
+
+max_width = 120
+hard_tabs = false
+tab_spaces = 2
+
+# control_brace_style = "AlwaysNextLine"
+# brace_style = "AlwaysNextLine"
+# fn_single_line = false
