@@ -1,5 +1,9 @@
+mod drawing;
+
 use minwebgl as gl;
-use gl::{ WebGlProgram, WebGlUniformLocation, WebGlVertexArrayObject, GL };
+use drawing::{ hex_geometry, LineShader };
+use rustc_hash::FxHashMap;
+use std::{ collections::hash_map::Iter, marker::PhantomData };
 
 fn main() -> Result< (), gl::WebglError >
 {
@@ -42,99 +46,89 @@ fn main() -> Result< (), gl::WebglError >
   Ok( () )
 }
 
-fn hex_geometry( gl : &GL ) -> Result< Geometry, gl::WebglError >
+#[ derive( Debug, Clone, Copy ) ]
+pub struct Horizontal;
+
+#[ derive( Debug, Clone, Copy ) ]
+pub struct Vertical;
+
+#[ derive( Debug, Clone, Copy ) ]
+pub struct OddShifted;
+
+#[ derive( Debug, Clone, Copy ) ]
+pub struct EvenShifted;
+
+#[ derive( Debug, Clone, Copy, Hash, PartialEq, Eq ) ]
+pub struct Offset< Layout, Shift >
 {
-  let positions = hex_positions();
-  let position_buffer = gl::buffer::create( &gl )?;
-  gl::buffer::upload( &gl, &position_buffer, positions.as_slice(), gl::STATIC_DRAW );
-
-  let vao = gl::vao::create( &gl )?;
-  gl.bind_vertex_array( Some( &vao ) );
-  gl::BufferDescriptor::new::< [ f32; 2 ] >().stride( 0 ).offset( 0 ).attribute_pointer( &gl, 0, &position_buffer )?;
-
-  Ok( Geometry { vao, count : positions.len() as i32 } )
+  pub row : i32,
+  pub column : i32,
+  pub layout : PhantomData< Layout >,
+  pub shift : PhantomData< Shift >,
 }
 
-fn hex_positions() -> Vec< f32 >
+impl< Layout, Shift > Offset< Layout, Shift >
 {
-  let hex_point = hex_points();
-  let mut positions = vec![];
-  for w in hex_point.windows( 2 )
+  pub fn new( row : i32, column : i32, _ : Layout, _ : Shift ) -> Self
   {
-    let point1 = w[ 0 ];
-    let point2 = w[ 1 ];
-    positions.push( point1.0 );
-    positions.push( point1.1 );
-    positions.push( point2.0 );
-    positions.push( point2.1 );
-  }
-  // connect last and first points into a line
-  let last_point = hex_point.last().unwrap();
-  let first_point = hex_point.first().unwrap();
-  positions.push( last_point.0 );
-  positions.push( last_point.1 );
-  positions.push( first_point.0 );
-  positions.push( first_point.1 );
-
-  positions
-}
-
-fn hex_points() -> [ ( f32, f32 ); 6 ]
-{
-  let mut points : [ ( f32, f32 ); 6 ] = Default::default();
-  for i in 0..6
-  {
-    let angle = 60 * i;
-    let angle = ( angle as f32 ).to_radians();
-    points[ i ] = ( angle.cos(), angle.sin() )
+    Self
+    {
+      row,
+      column,
+      layout : PhantomData,
+      shift : PhantomData,
+    }
   }
 
-  points
-}
-
-pub struct Geometry
-{
-  pub vao : WebGlVertexArrayObject,
-  pub count : i32
-}
-
-pub struct LineShader
-{
-  program : WebGlProgram,
-  mvp_location : WebGlUniformLocation,
-  color_location : WebGlUniformLocation,
-}
-
-impl LineShader
-{
-  pub fn new( gl : &GL ) -> Result< Self, gl::WebglError >
+  pub fn from_coords( row : i32, column : i32 ) -> Self
   {
-    let vert = include_str!( "shaders/main.vert" );
-    let frag = include_str!( "shaders/main.frag" );
-    let program = gl::ProgramFromSources::new( vert, frag ).compile_and_link( &gl )?;
-    let mvp_location = gl.get_uniform_location( &program, "MVP" ).unwrap();
-    let color_location = gl.get_uniform_location( &program, "color" ).unwrap();
-
-    Ok
-    (
-      LineShader
-      {
-        program,
-        mvp_location,
-        color_location,
-      }
-    )
+    Self
+    {
+      row,
+      column,
+      layout : PhantomData,
+      shift : PhantomData,
+    }
   }
+}
 
-  pub fn draw( &self, gl : &GL, geometry : &Geometry, mvp : &[ f32 ], color : [ f32; 4 ] ) -> Result< (), gl::WebglError >
+impl From< Axial > for Offset< Horizontal, OddShifted >
+{
+  fn from( value : Axial ) -> Self
   {
-    gl.bind_vertex_array( Some( &geometry.vao ) );
-    gl.use_program( Some( &self.program ) );
-    gl::uniform::matrix_upload( gl, Some( self.mvp_location.clone() ), mvp, true )?;
-    gl::uniform::upload( gl, Some( self.color_location.clone() ), color.as_slice() )?;
-    gl.draw_arrays( gl::LINES, 0, geometry.count );
+    let col = value.q + ( value.r - value.r & 1 ) / 2;
+    let row = value.r;
+    Self::from_coords( row, col )
+  }
+}
 
-    Ok( () )
+impl From< Axial > for Offset< Horizontal, EvenShifted >
+{
+  fn from( value : Axial ) -> Self
+  {
+    let col = value.q + ( value.r + value.r & 1 ) / 2;
+    let row = value.r;
+    Self::from_coords( row, col )
+  }
+}
+
+impl From< Axial > for Offset< Vertical, OddShifted >
+{
+  fn from( value : Axial ) -> Self
+  {
+    let col = value.q;
+    let row = value.r + ( value.q - value.q & 1 ) / 2;
+    Self::from_coords( row, col )
+  }
+}
+
+impl From< Axial > for Offset< Vertical, EvenShifted >
+{
+  fn from( value : Axial ) -> Self
+  {
+    let col = value.q;
+    let row = value.r + ( value.q + value.q & 1 ) / 2;
+    Self::from_coords( row, col )
   }
 }
 
@@ -145,64 +139,49 @@ pub struct Axial
   pub r : i32,
 }
 
-impl From< Offset > for Axial
+impl From< Offset< Horizontal, OddShifted > > for Axial
 {
-  fn from( value: Offset ) -> Self
+  fn from( value : Offset< Horizontal, OddShifted > ) -> Self
   {
-    let ( q, r ) = match value.layout
-    {
-      Layout::HorizontalOddShift =>
-      {
-        let q = value.column - ( value.row - value.row & 1 ) / 2;
-        let r = value.row;
-        ( q, r )
-      },
-      Layout::HorizontalEvenShift =>
-      {
-        let q = value.column - ( value.row + value.row & 1 ) / 2;
-        let r = value.row;
-        ( q, r )
-      },
-      Layout::VerticalOddShift =>
-      {
-        let q = value.column;
-        let r = value.row - ( value.column - value.column & 1 ) / 2;
-        ( q, r )
-      },
-      Layout::VerticalEvenShift =>
-      {
-        let q = value.column;
-        let r = value.row - ( value.column + value.column & 1 ) / 2;
-        ( q, r )
-      },
-    };
-
-    Self
-    {
-      q,
-      r,
-    }
+    let q = value.column - ( value.row - value.row & 1 ) / 2;
+    let r = value.row;
+    Self { q, r }
   }
 }
 
-pub struct Offset
+impl From< Offset< Horizontal, EvenShifted > > for Axial
 {
-  pub row : i32,
-  pub column : i32,
-  pub layout : Layout,
+  fn from( value : Offset< Horizontal, EvenShifted > ) -> Self
+  {
+    let q = value.column - ( value.row + value.row & 1 ) / 2;
+    let r = value.row;
+    Self { q, r }
+  }
 }
 
-pub enum Layout
+impl From< Offset< Vertical, OddShifted > > for Axial
 {
-  HorizontalOddShift,
-  HorizontalEvenShift,
-  VerticalOddShift,
-  VerticalEvenShift,
+  fn from( value : Offset< Vertical, OddShifted > ) -> Self
+  {
+    let q = value.column;
+    let r = value.row - ( value.column - value.column & 1 ) / 2;
+    Self { q, r }
+  }
+}
+
+impl From< Offset< Vertical, EvenShifted > > for Axial
+{
+  fn from( value : Offset< Vertical, EvenShifted > ) -> Self
+  {
+    let q = value.column;
+    let r = value.row - ( value.column + value.column & 1 ) / 2;
+    Self { q, r }
+  }
 }
 
 pub struct GridMap< T >
 {
-  data : rustc_hash::FxHashMap< Axial, T >
+  data : FxHashMap< Axial, T >
 }
 
 impl< T > GridMap< T >
@@ -214,17 +193,15 @@ impl< T > GridMap< T >
 
   pub fn insert< C : Into< Axial > >( &mut self, coord : C, val : T ) -> Option< T >
   {
-    let axial : Axial = coord.into();
-    self.data.insert( axial, val )
+    self.data.insert( coord.into(), val )
   }
 
   pub fn remove< C : Into< Axial > >( &mut self, coord : C ) -> Option< T >
   {
-    let axial : Axial = coord.into();
-    self.data.remove( &axial )
+    self.data.remove( &coord.into() )
   }
 
-  pub fn iter( &self ) -> std::collections::hash_map::Iter< Axial, T >
+  pub fn iter( &self ) -> Iter< Axial, T >
   {
     self.data.iter()
   }
