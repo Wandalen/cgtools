@@ -28,13 +28,12 @@ fn main() -> Result< (), gl::WebglError >
   gl.viewport( 0, 0, width as i32, height as i32 );
   gl.clear_color( 0.9, 0.9, 0.9, 1.0 );
   gl.clear( gl::COLOR_BUFFER_BIT );
-  let geometry = hex_render::hex_lines_geometry( &gl )?;
-  let line_shader = HexShader::new( &gl )?;
+  let line_geometry = hex_render::hex_lines_geometry( &gl )?;
+  let hex_shader = HexShader::new( &gl )?;
 
   let aspect = height as f32 / width as f32;
   let scaling = [ aspect * 0.2, 1.0 * 0.2 ];
   let total_scale = mat2x2h::scale( scaling );
-  // let inverse_total_scale = total_scale.inverse().unwrap();
 
   let rows = 7;
   let columns = 10;
@@ -61,13 +60,15 @@ fn main() -> Result< (), gl::WebglError >
     move | e : MouseEvent |
     {
       let rect = canvas.get_bounding_client_rect();
-      let canvas_x = rect.left() as i32;
-      let canvas_y = rect.top() as i32;
+      let canvas_x = rect.left();
+      let canvas_y = rect.top();
 
       let half_width = ( width as f64 / dpr / 2.0 ) as f32;
       let half_height = ( height as f64 / dpr / 2.0 ) as f32;
-      let x = ( e.client_x() - canvas_x ) as f32;
-      let y = ( e.client_y() - canvas_y ) as f32;
+      let x = ( e.client_x() as f64 - canvas_x ) as f32;
+      let y = ( e.client_y() as f64 - canvas_y ) as f32;
+      // normalize then
+      // multiply by inverse scaling
       let x = ( x - half_width ) / half_width * ( 1.0 / scaling[ 0 ] );
       let y = -( y - half_height ) / half_height * ( 1.0 / scaling[ 1 ] );
 
@@ -88,16 +89,16 @@ fn main() -> Result< (), gl::WebglError >
         let rotation = mat2x2h::rot( 30.0f32.to_radians() );
         let scale = mat2x2h::scale( [ size, size ] );
         let mvp = total_scale * translation * rotation * scale;
-        line_shader.draw( &gl, gl::LINES, &geometry, mvp.raw_slice(), [ 0.1, 0.1, 0.1, 1.0 ] ).unwrap();
+        hex_shader.draw( &gl, gl::LINES, &line_geometry, mvp.raw_slice(), [ 0.1, 0.1, 0.1, 1.0 ] ).unwrap();
       }
 
       // render closest hex with different color
-      let position = hex_map.get( &closest.unwrap() ).unwrap();
+      let position = hex_map.get( closest.unwrap() ).unwrap();
       let translation = mat2x2h::translate( position );
       let rotation = mat2x2h::rot( 30.0f32.to_radians() );
       let scale = mat2x2h::scale( [ size, size ] );
       let mvp = total_scale * translation * rotation * scale;
-      line_shader.draw( &gl, gl::LINES, &geometry, mvp.raw_slice(), [ 0.3, 0.75, 0.3, 1.0 ] ).unwrap();
+      hex_shader.draw( &gl, gl::LINES, &line_geometry, mvp.raw_slice(), [ 0.3, 0.75, 0.3, 1.0 ] ).unwrap();
     }
   };
   let mouse_move = Closure::< dyn Fn( _ ) >::new( Box::new( mouse_move ) );
@@ -112,41 +113,41 @@ pub struct HorizontalOddShifted;
 
 impl HorizontalOddShifted
 {
-  pub fn horizontal_spacing() -> f32
+  pub fn horizontal_spacing( size : f32 ) -> f32
   {
-    todo!()
+    3.0f32.sqrt() * size
   }
 
-  pub fn vertical_spacing() -> f32
+  pub fn vertical_spacing( size : f32 ) -> f32
   {
-    todo!()
+    1.5 * size
   }
 
   pub fn total_distances( rows : i32, columns : i32, size : f32 ) -> ( f32, f32 )
   {
-    // horizontal distance between neighbor hexes
-    let spacing = 3.0f32.sqrt() * size;
+    let horizontal_spacing = Self::horizontal_spacing( size );
+    let vertical_spacing = Self::vertical_spacing( size );
 
     let rows = ( rows - 1 ) as f32;
     let columns = ( columns - 1 ) as f32;
-    let total_width = ( columns + 0.5 ) * spacing;
-    let total_height = rows * ( 1.5 * size );
+    let total_width = ( columns + 0.5 ) * horizontal_spacing;
+    let total_height = rows * vertical_spacing;
 
     ( total_width, total_height )
   }
 
   pub fn position( row : i32, column : i32, size : f32 ) -> ( f32, f32 )
   {
-    // horizontal distance between neighbor hexes
-    let spacing = 3.0f32.sqrt() * size;
+    let horizontal_spacing = Self::horizontal_spacing( size );
+    let vertical_spacing = Self::vertical_spacing( size );
 
-    let shift = spacing / 2.0 * ( row & 1 ) as f32;
+    let shift = horizontal_spacing / 2.0 * ( row & 1 ) as f32;
 
     let column = column as f32;
-    let x = shift + column * spacing;
+    let x = shift + column * horizontal_spacing;
 
     let row = -row as f32;
-    let y = row * 1.5 * size;
+    let y = row * vertical_spacing;
 
     ( x, y )
   }
