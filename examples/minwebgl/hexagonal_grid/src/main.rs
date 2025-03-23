@@ -2,33 +2,46 @@ mod hex_render;
 
 use minwebgl as gl;
 use gl::{ math::d2::mat2x2h, JsCast, canvas::HtmlCanvasElement };
+use std::marker::PhantomData;
+use web_sys::{ wasm_bindgen::prelude::Closure, MouseEvent };
 use hex_render::LineShader;
 use rustc_hash::FxHashMap;
-use std::{ collections::hash_map::Iter, marker::PhantomData };
 
 fn main() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
   let gl = gl::context::retrieve_or_make()?;
-  let canvas = gl.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
-  let width = canvas.width() as f32;
-  let height = canvas.height() as f32;
 
+  let canvas = gl.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
+
+  let width = 1000;
+  let height = 800;
+  canvas.set_width( width );
+  canvas.set_height( height );
+
+  let dpr = web_sys::window().unwrap().device_pixel_ratio();
+  let css_width = format!( "{}px", width as f64 / dpr );
+  let css_height = format!( "{}px", height as f64 / dpr );
+  canvas.style().set_property("width", &css_width).unwrap();
+  canvas.style().set_property("height", &css_height).unwrap();
+
+  gl.viewport( 0, 0, width as i32, height as i32 );
+  gl.clear_color( 0.9, 0.9, 0.9, 1.0 );
+  gl.clear( gl::COLOR_BUFFER_BIT );
   let geometry = hex_render::hex_lines_geometry( &gl )?;
   let line_shader = LineShader::new( &gl )?;
 
-  gl.clear_color( 0.9, 0.9, 0.9, 1.0 );
-  gl.clear( gl::COLOR_BUFFER_BIT );
-
-  let aspect = height / width;
-  let total_scale = mat2x2h::scale( [ aspect * 0.2, 1.0 * 0.2 ] );
+  let aspect = height as f32 / width as f32;
+  let scaling = [ aspect * 0.2, 1.0 * 0.2 ];
+  let total_scale = mat2x2h::scale( scaling );
+  // let inverse_total_scale = total_scale.inverse().unwrap();
 
   let rows = 7;
   let columns = 10;
   let size = 0.5;
 
   let ( total_width, total_height ) = HorizontalOddShifted::total_distances( rows, columns, size );
-  let mut hex_map = HexMap::new();
+  let mut hex_map = HexMap::default();
 
   for row in 0..rows
   {
@@ -37,18 +50,59 @@ fn main() -> Result< (), gl::WebglError >
       let coord = Offset::< HorizontalOddShifted >::new( row, column );
       let ( x, y ) = HorizontalOddShifted::position( row, column, size );
       let position = [ x - total_width * 0.5, y + total_height * 0.5 ];
-      hex_map.insert( coord, position );
+      hex_map.insert( coord.into(), position );
     }
   }
 
-  for ( _, position ) in hex_map.iter()
+  let mouse_move =
   {
-    let translation = mat2x2h::translate( position );
-    let rotation = mat2x2h::rot( 30.0f32.to_radians() );
-    let scale = mat2x2h::scale( [ size, size ] );
-    let mvp = total_scale * translation * rotation * scale;
-    line_shader.draw( &gl, gl::LINES, &geometry, mvp.raw_slice(), [ 0.1, 0.1, 0.1, 1.0 ] )?;
-  }
+    let gl = gl.clone();
+    let canvas = canvas.clone();
+    move | e : MouseEvent |
+    {
+      let rect = canvas.get_bounding_client_rect();
+      let canvas_x = rect.left() as i32;
+      let canvas_y = rect.top() as i32;
+
+      let half_width = ( width as f64 / dpr / 2.0 ) as f32;
+      let half_height = ( height as f64 / dpr / 2.0 ) as f32;
+      let x = ( e.client_x() - canvas_x ) as f32;
+      let y = ( e.client_y() - canvas_y ) as f32;
+      let x = ( x - half_width ) / half_width * ( 1.0 / scaling[ 0 ] );
+      let y = -( y - half_height ) / half_height * ( 1.0 / scaling[ 1 ] );
+
+      gl.clear( gl::COLOR_BUFFER_BIT );
+
+      let mut distance = f32::INFINITY;
+      let mut closest = None;
+      for ( coord, position ) in hex_map.iter()
+      {
+        let squared_distance = ( position[ 0 ] - x ).powi( 2 ) + ( position[ 1 ] - y ).powi( 2 );
+        if squared_distance < distance
+        {
+          distance = squared_distance;
+          closest = Some( coord );
+        }
+
+        let translation = mat2x2h::translate( position );
+        let rotation = mat2x2h::rot( 30.0f32.to_radians() );
+        let scale = mat2x2h::scale( [ size, size ] );
+        let mvp = total_scale * translation * rotation * scale;
+        line_shader.draw( &gl, gl::LINES, &geometry, mvp.raw_slice(), [ 0.1, 0.1, 0.1, 1.0 ] ).unwrap();
+      }
+
+      // render closest hex with different color
+      let position = hex_map.get( &closest.unwrap() ).unwrap();
+      let translation = mat2x2h::translate( position );
+      let rotation = mat2x2h::rot( 30.0f32.to_radians() );
+      let scale = mat2x2h::scale( [ size, size ] );
+      let mvp = total_scale * translation * rotation * scale;
+      line_shader.draw( &gl, gl::LINES, &geometry, mvp.raw_slice(), [ 0.3, 0.75, 0.3, 1.0 ] ).unwrap();
+    }
+  };
+  let mouse_move = Closure::< dyn Fn( _ ) >::new( Box::new( mouse_move ) );
+  canvas.set_onmousemove( Some( mouse_move.as_ref().unchecked_ref() ) );
+  mouse_move.forget();
 
   Ok( () )
 }
@@ -205,30 +259,4 @@ impl From< Offset< VerticalEvenShifted > > for Axial
   }
 }
 
-pub struct HexMap< T >
-{
-  data : FxHashMap< Axial, T >
-}
-
-impl< T > HexMap< T >
-{
-  pub fn new() -> Self
-  {
-    Self { data : Default::default() }
-  }
-
-  pub fn insert< C : Into< Axial > >( &mut self, coord : C, val : T ) -> Option< T >
-  {
-    self.data.insert( coord.into(), val )
-  }
-
-  pub fn remove< C : Into< Axial > >( &mut self, coord : C ) -> Option< T >
-  {
-    self.data.remove( &coord.into() )
-  }
-
-  pub fn iter( &self ) -> Iter< Axial, T >
-  {
-    self.data.iter()
-  }
-}
+pub type HexMap< T > = FxHashMap< Axial, T >;
