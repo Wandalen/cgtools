@@ -4,7 +4,7 @@ use minwebgl as gl;
 use gl::{ math::d2::mat2x2h, JsCast, canvas::HtmlCanvasElement };
 use std::marker::PhantomData;
 use web_sys::{ wasm_bindgen::prelude::Closure, MouseEvent };
-use hex_render::LineShader;
+use hex_render::HexShader;
 use rustc_hash::FxHashMap;
 
 fn main() -> Result< (), gl::WebglError >
@@ -29,7 +29,7 @@ fn main() -> Result< (), gl::WebglError >
   gl.clear_color( 0.9, 0.9, 0.9, 1.0 );
   gl.clear( gl::COLOR_BUFFER_BIT );
   let geometry = hex_render::hex_lines_geometry( &gl )?;
-  let line_shader = LineShader::new( &gl )?;
+  let line_shader = HexShader::new( &gl )?;
 
   let aspect = height as f32 / width as f32;
   let scaling = [ aspect * 0.2, 1.0 * 0.2 ];
@@ -112,6 +112,16 @@ pub struct HorizontalOddShifted;
 
 impl HorizontalOddShifted
 {
+  pub fn horizontal_spacing() -> f32
+  {
+    todo!()
+  }
+
+  pub fn vertical_spacing() -> f32
+  {
+    todo!()
+  }
+
   pub fn total_distances( rows : i32, columns : i32, size : f32 ) -> ( f32, f32 )
   {
     // horizontal distance between neighbor hexes

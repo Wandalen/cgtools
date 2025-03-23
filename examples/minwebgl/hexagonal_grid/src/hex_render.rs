@@ -57,14 +57,14 @@ pub struct Geometry
   pub count : i32
 }
 
-pub struct LineShader
+pub struct HexShader
 {
   program : WebGlProgram,
   mvp_location : WebGlUniformLocation,
   color_location : WebGlUniformLocation,
 }
 
-impl LineShader
+impl HexShader
 {
   pub fn new( gl : &GL ) -> Result< Self, gl::WebglError >
   {
@@ -76,7 +76,7 @@ impl LineShader
 
     Ok
     (
-      LineShader
+      HexShader
       {
         program,
         mvp_location,
