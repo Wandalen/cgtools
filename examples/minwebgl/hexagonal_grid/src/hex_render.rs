@@ -1,9 +1,9 @@
 use minwebgl as gl;
 use gl::{ WebGlProgram, WebGlUniformLocation, WebGlVertexArrayObject, GL };
 
-pub fn hex_geometry( gl : &GL ) -> Result< Geometry, gl::WebglError >
+pub fn hex_lines_geometry( gl : &GL ) -> Result< Geometry, gl::WebglError >
 {
-  let positions = hex_positions();
+  let positions = hex_lines();
   let position_buffer = gl::buffer::create( &gl )?;
   gl::buffer::upload( &gl, &position_buffer, positions.as_slice(), gl::STATIC_DRAW );
 
@@ -14,7 +14,7 @@ pub fn hex_geometry( gl : &GL ) -> Result< Geometry, gl::WebglError >
   Ok( Geometry { vao, count : positions.len() as i32 } )
 }
 
-pub fn hex_positions() -> Vec< f32 >
+pub fn hex_lines() -> Vec< f32 >
 {
   let hex_point = hex_points();
   let mut positions = vec![];
@@ -85,13 +85,22 @@ impl LineShader
     )
   }
 
-  pub fn draw( &self, gl : &GL, geometry : &Geometry, mvp : &[ f32 ], color : [ f32; 4 ] ) -> Result< (), gl::WebglError >
+  pub fn draw
+  (
+    &self,
+    gl : &GL,
+    mode : u32,
+    geometry : &Geometry,
+    mvp : &[ f32 ],
+    color : [ f32; 4 ]
+  )
+  -> Result< (), gl::WebglError >
   {
     gl.bind_vertex_array( Some( &geometry.vao ) );
     gl.use_program( Some( &self.program ) );
     gl::uniform::matrix_upload( gl, Some( self.mvp_location.clone() ), mvp, true )?;
     gl::uniform::upload( gl, Some( self.color_location.clone() ), color.as_slice() )?;
-    gl.draw_arrays( gl::LINES, 0, geometry.count );
+    gl.draw_arrays( mode, 0, geometry.count );
 
     Ok( () )
   }

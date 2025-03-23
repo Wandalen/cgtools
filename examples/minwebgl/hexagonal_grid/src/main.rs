@@ -1,8 +1,8 @@
-mod drawing;
+mod hex_render;
 
 use minwebgl as gl;
 use gl::{ math::d2::mat2x2h, JsCast, canvas::HtmlCanvasElement };
-use drawing::{ hex_geometry, LineShader };
+use hex_render::LineShader;
 use rustc_hash::FxHashMap;
 use std::{ collections::hash_map::Iter, marker::PhantomData };
 
@@ -14,7 +14,7 @@ fn main() -> Result< (), gl::WebglError >
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
 
-  let geometry = hex_geometry( &gl )?;
+  let geometry = hex_render::hex_lines_geometry( &gl )?;
   let line_shader = LineShader::new( &gl )?;
 
   gl.clear_color( 0.9, 0.9, 0.9, 1.0 );
@@ -23,116 +23,138 @@ fn main() -> Result< (), gl::WebglError >
   let aspect = height / width;
   let total_scale = mat2x2h::scale( [ aspect * 0.2, 1.0 * 0.2 ] );
 
+  let rows = 7;
+  let columns = 10;
   let size = 0.5;
-  let spacing = 3.0f32.sqrt() * size;
-  let total_width = ( 9.0 + 0.5 ) * spacing;
-  let total_height = 9.0 * ( 1.5 * size );
 
-  for y in 0..10
+  let ( total_width, total_height ) = HorizontalOddShifted::total_distances( rows, columns, size );
+  let mut hex_map = HexMap::new();
+
+  for row in 0..rows
   {
-    for x in 0..10
+    for column in 0..columns
     {
-      let odd_r = spacing / 2.0 * ( y & 1 ) as f32;
-      let x = x as f32;
-      let x = odd_r + x * spacing;
-      let y = -y as f32;
-      let y = y * 1.5 * size;
-
-      let translation = mat2x2h::translate( [ x - total_width * 0.5, y + total_height * 0.5 ] );
-      let rotation = mat2x2h::rot( 30.0f32.to_radians() );
-      let scale = mat2x2h::scale( [ size, size ] );
-      let mvp = total_scale * translation * rotation * scale;
-
-      line_shader.draw( &gl, &geometry, mvp.raw_slice(), [ 0.1, 0.1, 0.1, 1.0 ] )?;
+      let coord = Offset::< HorizontalOddShifted >::new( row, column );
+      let ( x, y ) = HorizontalOddShifted::position( row, column, size );
+      let position = [ x - total_width * 0.5, y + total_height * 0.5 ];
+      hex_map.insert( coord, position );
     }
+  }
+
+  for ( _, position ) in hex_map.iter()
+  {
+    let translation = mat2x2h::translate( position );
+    let rotation = mat2x2h::rot( 30.0f32.to_radians() );
+    let scale = mat2x2h::scale( [ size, size ] );
+    let mvp = total_scale * translation * rotation * scale;
+    line_shader.draw( &gl, gl::LINES, &geometry, mvp.raw_slice(), [ 0.1, 0.1, 0.1, 1.0 ] )?;
   }
 
   Ok( () )
 }
 
 #[ derive( Debug, Clone, Copy ) ]
-pub struct Horizontal;
+pub struct HorizontalOddShifted;
+
+impl HorizontalOddShifted
+{
+  pub fn total_distances( rows : i32, columns : i32, size : f32 ) -> ( f32, f32 )
+  {
+    // horizontal distance between neighbor hexes
+    let spacing = 3.0f32.sqrt() * size;
+
+    let rows = ( rows - 1 ) as f32;
+    let columns = ( columns - 1 ) as f32;
+    let total_width = ( columns + 0.5 ) * spacing;
+    let total_height = rows * ( 1.5 * size );
+
+    ( total_width, total_height )
+  }
+
+  pub fn position( row : i32, column : i32, size : f32 ) -> ( f32, f32 )
+  {
+    // horizontal distance between neighbor hexes
+    let spacing = 3.0f32.sqrt() * size;
+
+    let shift = spacing / 2.0 * ( row & 1 ) as f32;
+
+    let column = column as f32;
+    let x = shift + column * spacing;
+
+    let row = -row as f32;
+    let y = row * 1.5 * size;
+
+    ( x, y )
+  }
+}
 
 #[ derive( Debug, Clone, Copy ) ]
-pub struct Vertical;
+pub struct HorizontalEvenShifted;
 
 #[ derive( Debug, Clone, Copy ) ]
-pub struct OddShifted;
+pub struct VerticalOddShifted;
 
 #[ derive( Debug, Clone, Copy ) ]
-pub struct EvenShifted;
+pub struct VerticalEvenShifted;
 
 #[ derive( Debug, Clone, Copy, Hash, PartialEq, Eq ) ]
-pub struct Offset< Layout, Shift >
+pub struct Offset< Layout >
 {
   pub row : i32,
   pub column : i32,
   pub layout : PhantomData< Layout >,
-  pub shift : PhantomData< Shift >,
 }
 
-impl< Layout, Shift > Offset< Layout, Shift >
+impl< Layout > Offset< Layout >
 {
-  pub fn new( row : i32, column : i32, _ : Layout, _ : Shift ) -> Self
+  pub fn new( row : i32, column : i32 ) -> Self
   {
     Self
     {
       row,
       column,
       layout : PhantomData,
-      shift : PhantomData,
-    }
-  }
-
-  pub fn from_coords( row : i32, column : i32 ) -> Self
-  {
-    Self
-    {
-      row,
-      column,
-      layout : PhantomData,
-      shift : PhantomData,
     }
   }
 }
 
-impl From< Axial > for Offset< Horizontal, OddShifted >
+impl From< Axial > for Offset< HorizontalOddShifted >
 {
   fn from( value : Axial ) -> Self
   {
     let col = value.q + ( value.r - value.r & 1 ) / 2;
     let row = value.r;
-    Self::from_coords( row, col )
+    Self::new( row, col )
   }
 }
 
-impl From< Axial > for Offset< Horizontal, EvenShifted >
+impl From< Axial > for Offset< HorizontalEvenShifted >
 {
   fn from( value : Axial ) -> Self
   {
     let col = value.q + ( value.r + value.r & 1 ) / 2;
     let row = value.r;
-    Self::from_coords( row, col )
+    Self::new( row, col )
   }
 }
 
-impl From< Axial > for Offset< Vertical, OddShifted >
+impl From< Axial > for Offset< VerticalOddShifted >
 {
   fn from( value : Axial ) -> Self
   {
     let col = value.q;
     let row = value.r + ( value.q - value.q & 1 ) / 2;
-    Self::from_coords( row, col )
+    Self::new( row, col )
   }
 }
 
-impl From< Axial > for Offset< Vertical, EvenShifted >
+impl From< Axial > for Offset< VerticalEvenShifted >
 {
   fn from( value : Axial ) -> Self
   {
     let col = value.q;
     let row = value.r + ( value.q + value.q & 1 ) / 2;
-    Self::from_coords( row, col )
+    Self::new( row, col )
   }
 }
 
@@ -143,9 +165,9 @@ pub struct Axial
   pub r : i32,
 }
 
-impl From< Offset< Horizontal, OddShifted > > for Axial
+impl From< Offset< HorizontalOddShifted > > for Axial
 {
-  fn from( value : Offset< Horizontal, OddShifted > ) -> Self
+  fn from( value : Offset< HorizontalOddShifted > ) -> Self
   {
     let q = value.column - ( value.row - value.row & 1 ) / 2;
     let r = value.row;
@@ -153,9 +175,9 @@ impl From< Offset< Horizontal, OddShifted > > for Axial
   }
 }
 
-impl From< Offset< Horizontal, EvenShifted > > for Axial
+impl From< Offset< HorizontalEvenShifted > > for Axial
 {
-  fn from( value : Offset< Horizontal, EvenShifted > ) -> Self
+  fn from( value : Offset< HorizontalEvenShifted > ) -> Self
   {
     let q = value.column - ( value.row + value.row & 1 ) / 2;
     let r = value.row;
@@ -163,9 +185,9 @@ impl From< Offset< Horizontal, EvenShifted > > for Axial
   }
 }
 
-impl From< Offset< Vertical, OddShifted > > for Axial
+impl From< Offset< VerticalOddShifted > > for Axial
 {
-  fn from( value : Offset< Vertical, OddShifted > ) -> Self
+  fn from( value : Offset< VerticalOddShifted > ) -> Self
   {
     let q = value.column;
     let r = value.row - ( value.column - value.column & 1 ) / 2;
@@ -173,9 +195,9 @@ impl From< Offset< Vertical, OddShifted > > for Axial
   }
 }
 
-impl From< Offset< Vertical, EvenShifted > > for Axial
+impl From< Offset< VerticalEvenShifted > > for Axial
 {
-  fn from( value : Offset< Vertical, EvenShifted > ) -> Self
+  fn from( value : Offset< VerticalEvenShifted > ) -> Self
   {
     let q = value.column;
     let r = value.row - ( value.column + value.column & 1 ) / 2;
@@ -183,12 +205,12 @@ impl From< Offset< Vertical, EvenShifted > > for Axial
   }
 }
 
-pub struct GridMap< T >
+pub struct HexMap< T >
 {
   data : FxHashMap< Axial, T >
 }
 
-impl< T > GridMap< T >
+impl< T > HexMap< T >
 {
   pub fn new() -> Self
   {
