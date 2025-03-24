@@ -108,21 +108,47 @@ fn main() -> Result< (), gl::WebglError >
   Ok( () )
 }
 
-#[ derive( Debug, Clone, Copy ) ]
+/// Represents a horizontal hexagonal grid layout with odd-row shifting.
+/// This layout has "spiky tops" and alternates the horizontal position of hexes
+/// in odd rows to create a staggered effect.
 pub struct HorizontalOddShifted;
 
 impl HorizontalOddShifted
 {
+  /// Calculates the horizontal spacing between hexagons in the grid.
+  ///
+  /// # Parameters
+  /// - `size`: The size of the hexagon.
+  ///
+  /// # Returns
+  /// The horizontal spacing between hexagons.
   pub fn horizontal_spacing( size : f32 ) -> f32
   {
     3.0f32.sqrt() * size
   }
 
+  /// Calculates the vertical spacing between hexagons in the grid.
+  ///
+  /// # Parameters
+  /// - `size`: The size of the hexagon.
+  ///
+  /// # Returns
+  /// The vertical spacing between hexagons.
   pub fn vertical_spacing( size : f32 ) -> f32
   {
     1.5 * size
   }
 
+  /// Calculates the total width and height of the grid based on the number of rows,
+  /// columns, and the size of the hexagons.
+  ///
+  /// # Parameters
+  /// - `rows`: The number of rows in the grid.
+  /// - `columns`: The number of columns in the grid.
+  /// - `size`: The size of the hexagon.
+  ///
+  /// # Returns
+  /// A tuple containing the total width and height of the grid.
   pub fn total_distances( rows : i32, columns : i32, size : f32 ) -> ( f32, f32 )
   {
     let horizontal_spacing = Self::horizontal_spacing( size );
@@ -136,6 +162,15 @@ impl HorizontalOddShifted
     ( total_width, total_height )
   }
 
+  /// Calculates the position of a hexagon in the grid based on its row, column, and size.
+  ///
+  /// # Parameters
+  /// - `row`: The row index of the hexagon.
+  /// - `column`: The column index of the hexagon.
+  /// - `size`: The size of the hexagon.
+  ///
+  /// # Returns
+  /// A tuple containing the x and y coordinates of the hexagon's position.
   pub fn position( row : i32, column : i32, size : f32 ) -> ( f32, f32 )
   {
     let horizontal_spacing = Self::horizontal_spacing( size );
@@ -153,25 +188,50 @@ impl HorizontalOddShifted
   }
 }
 
-#[ derive( Debug, Clone, Copy ) ]
+/// Represents a horizontal hexagonal grid layout with even-row shifting.
+/// Similar to `HorizontalOddShifted`, but the horizontal position of hexes
+/// is staggered in even rows instead of odd rows.
 pub struct HorizontalEvenShifted;
 
-#[ derive( Debug, Clone, Copy ) ]
+/// Represents a vertical hexagonal grid layout with odd-column shifting.
+/// This layout has "flat tops" and alternates the vertical position of hexes
+/// in odd columns to create a staggered effect.
 pub struct VerticalOddShifted;
 
-#[ derive( Debug, Clone, Copy ) ]
+/// Represents a vertical hexagonal grid layout with even-column shifting.
+/// Similar to `VerticalOddShifted`, but the vertical position of hexes
+/// is staggered in even columns instead of odd columns.
 pub struct VerticalEvenShifted;
 
+/// Represents an offset coordinate in a hexagonal grid.
+/// The `Offset` structure is parameterized by a layout type, which determines
+/// the specific hexagonal grid layout (e.g., `HorizontalOddShifted`).
+///
+/// # Fields
+/// - `row`: The row index of the hex.
+/// - `column`: The column index of the hex.
+/// - `layout`: A marker for the layout type.
 #[ derive( Debug, Clone, Copy, Hash, PartialEq, Eq ) ]
 pub struct Offset< Layout >
 {
-  pub row : i32,
-  pub column : i32,
-  pub layout : PhantomData< Layout >,
+  /// The row index of the hexagon in the grid.
+  pub row: i32,
+  /// The column index of the hexagon in the grid.
+  pub column: i32,
+  /// A marker for the layout type of the hexagonal grid.
+  pub layout: PhantomData<Layout>,
 }
 
 impl< Layout > Offset< Layout >
 {
+  /// Creates a new `Offset` coordinate with the specified row and column.
+  ///
+  /// # Parameters
+  /// - `row`: The row index of the hexagon.
+  /// - `column`: The column index of the hexagon.
+  ///
+  /// # Returns
+  /// A new `Offset` instance.
   pub fn new( row : i32, column : i32 ) -> Self
   {
     Self
@@ -223,11 +283,36 @@ impl From< Axial > for Offset< VerticalEvenShifted >
   }
 }
 
+/// Represents an axial coordinate in a hexagonal grid.
+/// Axial coordinates use two axes (`q` and `r`) to uniquely identify
+/// hexes in a grid.
+///
+/// # Fields
+/// - `q`: The "column" coordinate in the axial system.
+/// - `r`: The "row" coordinate in the axial system.
 #[ derive( Debug, Clone, Copy, Hash, PartialEq, Eq ) ]
 pub struct Axial
 {
-  pub q : i32,
-  pub r : i32,
+  /// The "column" coordinate in the axial coordinate system.
+  pub q: i32,
+  /// The "row" coordinate in the axial coordinate system.
+  pub r: i32,
+}
+
+impl Axial
+{
+  /// Creates a new `Axial` coordinate with the specified `q` and `r` values.
+  ///
+  /// # Parameters
+  /// - `q`: The "column" coordinate in the axial system.
+  /// - `r`: The "row" coordinate in the axial system.
+  ///
+  /// # Returns
+  /// A new `Axial` instance.
+  pub fn new( q : i32, r : i32 ) -> Self
+  {
+    Self { q, r }
+  }
 }
 
 impl From< Offset< HorizontalOddShifted > > for Axial
@@ -270,4 +355,9 @@ impl From< Offset< VerticalEvenShifted > > for Axial
   }
 }
 
+/// A type alias for a hash map that associates axial coordinates with values.
+/// This is commonly used to store data for hexagonal grids.
+///
+/// # Type Parameters
+/// - `T`: The type of the values stored in the map.
 pub type HexMap< T > = FxHashMap< Axial, T >;
