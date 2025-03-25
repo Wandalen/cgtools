@@ -1,16 +1,3 @@
-use crate::layout::*;
-
-use std::marker::PhantomData;
-// use derive_tools::New;
-use rustc_hash::FxHashMap;
-
-/// A type alias for a hash map that associates axial coordinates with values.
-/// This is commonly used to store data for hexagonal grids.
-///
-/// # Type Parameters
-/// - `T`: The type of the values stored in the map.
-pub type HexMap< T > = FxHashMap< Axial, T >;
-
 /// Represents an axial coordinate in a hexagonal grid.
 /// Axial coordinates use two axes (`q` and `r`) to uniquely identify
 /// hexes in a grid.
@@ -41,124 +28,108 @@ impl Axial
   {
     Self { q, r }
   }
-}
 
-/// Represents an offset coordinate in a hexagonal grid.
-/// The `Offset` structure is parameterized by a layout type, which determines
-/// the specific hexagonal grid layout (e.g., `HorizontalOddShifted`).
-///
-/// # Fields
-/// - `row`: The row index of the hex.
-/// - `column`: The column index of the hex.
-/// - `layout`: A marker for the layout type.
-#[ derive( Debug, Clone, Copy, Hash, PartialEq, Eq ) ]
-pub struct Offset< Layout >
-{
-  /// The row index of the hexagon in the grid.
-  pub row : i32,
-  /// The column index of the hexagon in the grid.
-  pub column : i32,
-  /// A marker for the layout type of the hexagonal grid.
-  pub layout : PhantomData< Layout >,
-}
-
-impl< Layout > Offset< Layout >
-{
-  /// Creates a new `Offset` coordinate with the specified row and column.
+  /// Converts pixel coordinates to axial coordinates in a pointy-topped hexagonal grid.
   ///
   /// # Parameters
-  /// - `row`: The row index of the hexagon.
-  /// - `column`: The column index of the hexagon.
+  /// - `x`: The x-coordinate in pixels.
+  /// - `y`: The y-coordinate in pixels.
+  /// - `hex_size`: The size of the hexagons in the grid.
   ///
   /// # Returns
-  /// A new `Offset` instance.
-  pub fn new( row : i32, column : i32 ) -> Self
+  /// An `Axial` coordinate representing the hexagon at the given pixel position.
+  pub fn from_2d_to_pointy( x : f32, y : f32, hex_size : f32 ) -> Self
   {
-    Self
-    {
-      row,
-      column,
-      layout : PhantomData,
-    }
+    // implementation is taken from https://www.redblobgames.com/grids/hexagons/#pixel-to-hex
+    let q = ( 3.0f32.sqrt() / 3.0 * x - 1.0 / 3.0 * y ) / hex_size;
+    let r = (                           2.0 / 3.0 * y ) / hex_size;
+    let ( q, r ) = axial_round( q, r );
+    Axial { q, r }
+  }
+
+  /// Converts pixel coordinates to axial coordinates in a flat-topped hexagonal grid.
+  ///
+  /// # Parameters
+  /// - `x`: The x-coordinate in pixels.
+  /// - `y`: The y-coordinate in pixels.
+  /// - `hex_size`: The size of the hexagons in the grid (outer circle radius).
+  ///
+  /// # Returns
+  /// An `Axial` coordinate representing the hexagon at the given pixel position.
+  pub fn from_2d_to_flat( x : f32, y : f32, hex_size : f32 ) -> Self
+  {
+    // implementation is taken from https://www.redblobgames.com/grids/hexagons/#pixel-to-hex
+    let q = ( 2.0 / 3.0 * x                            ) / hex_size;
+    let r = ( -1.0 / 3.0 * x + 3.0f32.sqrt() / 3.0 * y ) / hex_size;
+    let ( q, r ) = axial_round( q, r );
+    Axial { q, r }
+  }
+
+  /// Converts axial coordinates to pixel coordinates in a pointy-topped hexagonal grid.
+  ///
+  /// # Parameters
+  /// - `hex_size`: The size of the hexagons in the grid.
+  ///
+  /// # Returns
+  /// A tuple containing the x and y pixel coordinates of the hexagon.
+  pub fn pointy_to_2d( &self, hex_size : f32 ) -> ( f32, f32 )
+  {
+    // implementation is taken from https://www.redblobgames.com/grids/hexagons/#hex-to-pixel
+    let q = self.q as f32;
+    let r = self.r as f32;
+    let x = hex_size * ( 3.0f32.sqrt() * q + 3.0f32.sqrt() / 2.0 * r );
+    let y = hex_size * (                               3.0 / 2.0 * r );
+    ( x, y )
+  }
+
+  /// Converts axial coordinates to pixel coordinates in a flat-topped hexagonal grid.
+  ///
+  /// # Parameters
+  /// - `hex_size`: The size of the hexagons in the grid.
+  ///
+  /// # Returns
+  /// A tuple containing the x and y pixel coordinates of the hexagon.
+  pub fn flat_to_2d( &self, hex_size : f32 ) -> ( f32, f32 )
+  {
+    // implementation is taken from https://www.redblobgames.com/grids/hexagons/#hex-to-pixel
+    let q = self.q as f32;
+    let r = self.r as f32;
+    let x = hex_size * (           3.0 / 2.0 * q                     );
+    let y = hex_size * ( 3.0f32.sqrt() / 2.0 * q + 3.0f32.sqrt() * r );
+    ( x, y )
   }
 }
 
-impl From< Axial > for Offset< PointyOddShifted >
+/// Rounds the given floating-point axial coordinates to the nearest integer axial coordinates.
+/// This function is used to convert floating-point axial coordinates to integer axial coordinates.
+///
+/// # Parameters
+/// - `q`: The floating-point q-coordinate.
+/// - `r`: The floating-point r-coordinate.
+///
+/// # Returns
+/// A tuple containing the rounded integer q and r coordinates.
+fn axial_round( q: f32, r: f32 ) -> ( i32, i32 )
 {
-  fn from( value : Axial ) -> Self
-  {
-    let col = value.q + ( value.r - value.r & 1 ) / 2;
-    let row = value.r;
-    Self::new( row, col )
-  }
-}
+  // implementation is taken from https://www.redblobgames.com/grids/hexagons/#rounding
+  let s = -q - r;
 
-impl From< Axial > for Offset< PointyEvenShifted >
-{
-  fn from( value : Axial ) -> Self
-  {
-    let col = value.q + ( value.r + value.r & 1 ) / 2;
-    let row = value.r;
-    Self::new( row, col )
-  }
-}
+  let mut rq = q.round();
+  let mut rr = r.round();
+  let rs = s.round();
 
-impl From< Axial > for Offset< FlatOddShifted >
-{
-  fn from( value : Axial ) -> Self
-  {
-    let col = value.q;
-    let row = value.r + ( value.q - value.q & 1 ) / 2;
-    Self::new( row, col )
-  }
-}
+  let q_diff = ( rq - q ).abs();
+  let r_diff = ( rr - r ).abs();
+  let s_diff = ( rs - s ).abs();
 
-impl From< Axial > for Offset< FlatEvenShifted >
-{
-  fn from( value : Axial ) -> Self
+  if q_diff > r_diff && q_diff > s_diff
   {
-    let col = value.q;
-    let row = value.r + ( value.q + value.q & 1 ) / 2;
-    Self::new( row, col )
+    rq = -rr - rs;
   }
-}
+  else if r_diff > s_diff
+  {
+    rr = -rq - rs;
+  }
 
-impl From< Offset< PointyOddShifted > > for Axial
-{
-  fn from( value : Offset< PointyOddShifted > ) -> Self
-  {
-    let q = value.column - ( value.row - value.row & 1 ) / 2;
-    let r = value.row;
-    Self { q, r }
-  }
-}
-
-impl From< Offset< PointyEvenShifted > > for Axial
-{
-  fn from( value : Offset< PointyEvenShifted > ) -> Self
-  {
-    let q = value.column - ( value.row + value.row & 1 ) / 2;
-    let r = value.row;
-    Self { q, r }
-  }
-}
-
-impl From< Offset< FlatOddShifted > > for Axial
-{
-  fn from( value : Offset< FlatOddShifted > ) -> Self
-  {
-    let q = value.column;
-    let r = value.row - ( value.column - value.column & 1 ) / 2;
-    Self { q, r }
-  }
-}
-
-impl From< Offset< FlatEvenShifted > > for Axial
-{
-  fn from( value : Offset< FlatEvenShifted > ) -> Self
-  {
-    let q = value.column;
-    let r = value.row - ( value.column + value.column & 1 ) / 2;
-    Self { q, r }
-  }
+  ( rq as i32, rr as i32 )
 }
