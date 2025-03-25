@@ -1,5 +1,47 @@
-use std::marker::PhantomData;
 use crate::layout::*;
+
+use std::marker::PhantomData;
+// use derive_tools::New;
+use rustc_hash::FxHashMap;
+
+/// A type alias for a hash map that associates axial coordinates with values.
+/// This is commonly used to store data for hexagonal grids.
+///
+/// # Type Parameters
+/// - `T`: The type of the values stored in the map.
+pub type HexMap< T > = FxHashMap< Axial, T >;
+
+/// Represents an axial coordinate in a hexagonal grid.
+/// Axial coordinates use two axes (`q` and `r`) to uniquely identify
+/// hexes in a grid.
+///
+/// # Fields
+/// - `q`: The "column" coordinate in the axial system.
+/// - `r`: The "row" coordinate in the axial system.
+#[ derive( Debug, Clone, Copy, Hash, PartialEq, Eq ) ]
+pub struct Axial
+{
+  /// The "column" coordinate in the axial coordinate system.
+  pub q : i32,
+  /// The "row" coordinate in the axial coordinate system.
+  pub r : i32,
+}
+
+impl Axial
+{
+  /// Creates a new `Axial` coordinate with the specified `q` and `r` values.
+  ///
+  /// # Parameters
+  /// - `q`: The "column" coordinate in the axial system.
+  /// - `r`: The "row" coordinate in the axial system.
+  ///
+  /// # Returns
+  /// A new `Axial` instance.
+  pub fn new( q : i32, r : i32 ) -> Self
+  {
+    Self { q, r }
+  }
+}
 
 /// Represents an offset coordinate in a hexagonal grid.
 /// The `Offset` structure is parameterized by a layout type, which determines
@@ -78,38 +120,6 @@ impl From< Axial > for Offset< FlatEvenShifted >
     let col = value.q;
     let row = value.r + ( value.q + value.q & 1 ) / 2;
     Self::new( row, col )
-  }
-}
-
-/// Represents an axial coordinate in a hexagonal grid.
-/// Axial coordinates use two axes (`q` and `r`) to uniquely identify
-/// hexes in a grid.
-///
-/// # Fields
-/// - `q`: The "column" coordinate in the axial system.
-/// - `r`: The "row" coordinate in the axial system.
-#[ derive( Debug, Clone, Copy, Hash, PartialEq, Eq ) ]
-pub struct Axial
-{
-  /// The "column" coordinate in the axial coordinate system.
-  pub q: i32,
-  /// The "row" coordinate in the axial coordinate system.
-  pub r: i32,
-}
-
-impl Axial
-{
-  /// Creates a new `Axial` coordinate with the specified `q` and `r` values.
-  ///
-  /// # Parameters
-  /// - `q`: The "column" coordinate in the axial system.
-  /// - `r`: The "row" coordinate in the axial system.
-  ///
-  /// # Returns
-  /// A new `Axial` instance.
-  pub fn new( q : i32, r : i32 ) -> Self
-  {
-    Self { q, r }
   }
 }
 

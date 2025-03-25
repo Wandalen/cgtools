@@ -65,7 +65,6 @@ pub fn hex_points() -> [ ( f32, f32 ); 6 ]
     let angle = ( angle as f32 ).to_radians();
     points[ i ] = ( angle.cos(), angle.sin() )
   }
-
   points
 }
 
