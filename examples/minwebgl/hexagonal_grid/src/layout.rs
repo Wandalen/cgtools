@@ -50,6 +50,7 @@ pub trait HexLayout
 }
 
 /// A layout where the hexagons have pointy tops.
+#[ derive( Copy, Clone ) ]
 pub struct Pointy;
 
 impl HexLayout for Pointy
@@ -82,6 +83,7 @@ impl HexLayout for Pointy
 }
 
 /// A layout where the hexagons have flat tops.
+#[ derive( Copy, Clone ) ]
 pub struct Flat;
 
 impl HexLayout for Flat
@@ -121,4 +123,58 @@ fn pointy_layout_spacings( size : f32 ) -> ( f32, f32 )
 fn flat_layout_spacings( size : f32 ) -> ( f32, f32 )
 {
   ( 1.5 * size, 3.0f32.sqrt() * size )
+}
+
+pub struct OddShifted
+{
+  rows : i32,
+  columns : i32,
+  current_row : i32,
+  current_column : i32,
+  offset : i32,
+}
+
+impl OddShifted
+{
+  pub fn new( rows : i32, columns : i32 ) -> Self
+  {
+    Self
+    {
+      rows,
+      columns,
+      current_row : 0,
+      current_column : 0,
+      offset : 0,
+    }
+  }
+}
+
+impl Iterator for OddShifted
+{
+  type Item = Axial;
+
+  fn next( &mut self ) -> Option< Self::Item >
+  {
+    if self.current_row >= self.rows
+    {
+      return None;
+    }
+
+    let coord = Axial::new( self.current_column - self.offset, self.current_row );
+
+    self.current_column += 1;
+
+    if self.current_column == self.columns
+    {
+      self.current_column = 0;
+      self.current_row += 1;
+
+      if self.current_row % 2 == 0
+      {
+        self.offset += 1;
+      }
+    }
+
+    Some( coord )
+  }
 }
