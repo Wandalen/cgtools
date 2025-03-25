@@ -1,6 +1,16 @@
 use minwebgl as gl;
 use gl::{ WebGlProgram, WebGlUniformLocation, WebGlVertexArrayObject, GL };
 
+/// Generates the geometry for a hexagon's outline as a series of lines.
+///
+/// # Parameters
+/// - `gl`: The WebGL context.
+///
+/// # Returns
+/// A `Geometry` instance containing the hexagon's vertex array object (VAO) and vertex count.
+///
+/// # Errors
+/// Returns a `WebglError` if there is an issue creating or uploading the geometry data.
 pub fn hex_lines_geometry( gl : &GL ) -> Result< Geometry, gl::WebglError >
 {
   let positions = hex_lines();
@@ -14,6 +24,10 @@ pub fn hex_lines_geometry( gl : &GL ) -> Result< Geometry, gl::WebglError >
   Ok( Geometry { vao, count : positions.len() as i32 } )
 }
 
+/// Generates the vertex positions for the lines that form a hexagon's outline.
+///
+/// # Returns
+/// A `Vec<f32>` containing the x and y coordinates of the hexagon's outline as pairs of points.
 pub fn hex_lines() -> Vec< f32 >
 {
   let hex_point = hex_points();
@@ -38,6 +52,10 @@ pub fn hex_lines() -> Vec< f32 >
   positions
 }
 
+/// Generates the six corner points of a flat top hexagon.
+///
+/// # Returns
+/// An array of six `(f32, f32)` tuples representing the x and y coordinates of the hexagon's corners.
 pub fn hex_points() -> [ ( f32, f32 ); 6 ]
 {
   let mut points : [ ( f32, f32 ); 6 ] = Default::default();
@@ -51,12 +69,16 @@ pub fn hex_points() -> [ ( f32, f32 ); 6 ]
   points
 }
 
+/// Represents the vertices geometry, including its vertex array object (VAO)
+/// and the number of vertices.
 pub struct Geometry
 {
   pub vao : WebGlVertexArrayObject,
   pub count : i32
 }
 
+/// A shader program used for rendering hexagons.
+/// This shader handles the transformation matrix (MVP) and the color of the hexagons.
 pub struct HexShader
 {
   program : WebGlProgram,
