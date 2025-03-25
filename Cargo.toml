@@ -9,7 +9,8 @@ members = [
   "module/math/*",
   "module/embroidery_tools",
   "examples/minwebgl/*",
-  "examples/minwebgpu/*", 
+  "examples/minwebgpu/*",
+  "examples/math/*",
   "module/vectorizer"]
 
 # Source :: https://github.com/obox-systems/conventions/blob/master/code_style.md#lints-and-warnings
@@ -111,7 +112,7 @@ version = "~0.1.0"
 path = "module/alias/ndarray_tools"
 
 [workspace.dependencies.mdmath_core]
-version = "~0.2.0"
+version = "~0.3.0"
 path = "module/math/mdmath_core"
 
 # = external dependencies

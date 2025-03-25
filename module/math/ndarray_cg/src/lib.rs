@@ -48,4 +48,6 @@ crate::mod_interface!
   layer vector;
   own use super::vector;
 
+  prelude use ::ndarray::prelude::*;
+
 }
