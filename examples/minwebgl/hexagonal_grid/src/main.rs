@@ -3,12 +3,11 @@ mod layout;
 mod coordinates;
 
 use layout::*;
-use coordinates::*;
+// use coordinates::*;
 use minwebgl as gl;
 use gl::{ math::d2::mat2x2h, JsCast, canvas::HtmlCanvasElement };
 use web_sys::{ wasm_bindgen::prelude::Closure, MouseEvent };
 use hex_render::HexShader;
-use rustc_hash::FxHashMap;
 
 fn main() -> Result< (), gl::WebglError >
 {
@@ -117,10 +116,3 @@ fn draw_hexes< Layout : HexLayout >() -> Result< (), minwebgl::WebglError >
 
   Ok( () )
 }
-
-/// A type alias for a hash map that associates axial coordinates with values.
-/// This is commonly used to store data for hexagonal grids.
-///
-/// # Type Parameters
-/// - `T`: The type of the values stored in the map.
-pub type HexMap< T > = FxHashMap< Axial, T >;
