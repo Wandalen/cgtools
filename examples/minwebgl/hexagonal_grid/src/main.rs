@@ -2,8 +2,8 @@ mod hex_render;
 mod layout;
 mod coordinates;
 mod grid;
+mod hex_mesh;
 
-use coordinates::Axial;
 use layout::*;
 use minwebgl as gl;
 use gl::{ math::d2::mat2x2h, JsCast, canvas::HtmlCanvasElement };
@@ -36,18 +36,20 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   gl.viewport( 0, 0, width as i32, height as i32 );
   gl.clear_color( 0.9, 0.9, 0.9, 1.0 );
 
-  let triangle_geometry = hex_render::geometry2d( &gl, &hex_render::hex_triangle_fan_mesh() )?;
-  let line_geometry = hex_render::geometry2d( &gl, &hex_render::hex_line_loop_mesh() )?;
   let hex_shader = HexShader::new( &gl )?;
+  let layout = Pointy;
+  let triangle_geometry = hex_render::geometry2d( &gl, &hex_mesh::hex_triangle_mesh( &layout ) )?;
+  let line_geometry = hex_render::geometry2d( &gl, &hex_mesh::hex_line_loop_mesh( &layout ) )?;
 
   let aspect = height as f32 / width as f32;
   let scaling = [ aspect * 0.2, 1.0 * 0.2 ];
   let total_scale = mat2x2h::scale( scaling );
 
-  let rows = 3;
-  let columns = 3;
+  let rows = 5;
+  let columns = 5;
   let size = 0.5;
-  let layout = Pointy;
+  let horizontal_offset = ( ( columns - 1 ) as f32 + 0.5 ) * layout.horizontal_spacing( size ) / 2.0;
+  let vertical_offset = ( rows - 1 ) as f32 * layout.vertical_spacing( size ) / 2.0;
 
   let mouse_move =
   {
@@ -64,32 +66,33 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       let x = ( e.client_x() as f64 - canvas_x ) as f32;
       let y = ( e.client_y() as f64 - canvas_y ) as f32;
       // normalize then multiply by inverse scaling
-      let x = ( x - half_width ) / half_width * ( 1.0 / scaling[ 0 ] );
-      let y = ( y - half_height ) / half_height * ( 1.0 / scaling[ 1 ] );
+      let x = ( x - half_width ) / half_width * ( 1.0 / scaling[ 0 ] ) + horizontal_offset;
+      let y = ( y - half_height ) / half_height * ( 1.0 / scaling[ 1 ] ) + vertical_offset;
 
       gl.clear( gl::COLOR_BUFFER_BIT );
-      // let coord = layout.hex_coordinates( x, y, size );
-      // let ( x, y ) = layout.hex_position( coord, size );
-      // let translation = mat2x2h::translate( [ x, -y ] );
-      // let rotation = mat2x2h::rot( layout.orientation_angle() );
-      // let scale = mat2x2h::scale( [ size, size ] );
-      // let mvp = total_scale * translation * rotation * scale;
-      // hex_shader.draw( &gl, gl::LINE_LOOP, &line_geometry, mvp.raw_slice(), [ 0.3, 0.75, 0.3, 1.0 ] ).unwrap();
+      let coord = layout.hex_coordinates( x, y, size );
+      let ( x, y ) = layout.hex_2d_position( coord, size );
+      let translation = mat2x2h::translate( [ x - horizontal_offset, -y + vertical_offset ] );
+      let scale = mat2x2h::scale( [ size, size ] );
+      let mvp = total_scale * translation * scale;
+      hex_shader.draw( &gl, gl::LINE_LOOP, &line_geometry, mvp.raw_slice(), [ 0.3, 0.3, 0.3, 1.0 ] ).unwrap();
 
-      for row in -rows..=rows
+      for coord in OddShifted::new( rows, columns )
       {
-        for column in -columns..=columns
-        {
-          let coord = Axial::new( column, 0 );
-          let ( x, y ) = layout.hex_2d_position( coord, size );
+        let ( x, y ) = layout.hex_2d_position( coord, size );
 
-          let position = [ x, -y ];
-          let translation = mat2x2h::translate( position );
-          let rotation = mat2x2h::rot( layout.orientation_angle() );
-          let scale = mat2x2h::scale( [ size, size ] );
-          let mvp = total_scale * translation * rotation * scale;
-          hex_shader.draw( &gl, gl::LINE_LOOP, &line_geometry, mvp.raw_slice(), [ 0.3, 0.75, 0.3, 1.0 ] ).unwrap();
-        }
+        let position = [ x - horizontal_offset, -y + vertical_offset ];
+        let translation = mat2x2h::translate( position );
+        let scale = mat2x2h::scale( [ size - 0.05, size - 0.05 ] );
+        let mvp = total_scale * translation * scale;
+        hex_shader.draw
+        (
+          &gl,
+          gl::TRIANGLE_FAN,
+          &triangle_geometry,
+          mvp.raw_slice(),
+          [ 0.3, 0.75, 0.3, 1.0 ]
+        ).unwrap();
       }
     }
   };
