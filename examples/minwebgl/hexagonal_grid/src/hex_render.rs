@@ -11,52 +11,67 @@ use gl::{ WebGlProgram, WebGlUniformLocation, WebGlVertexArrayObject, GL };
 ///
 /// # Errors
 /// Returns a `WebglError` if there is an issue creating or uploading the geometry data.
-pub fn hex_lines_geometry( gl : &GL ) -> Result< Geometry, gl::WebglError >
+pub fn geometry2d( gl : &GL, positions : &[ f32 ] ) -> Result< Geometry, gl::WebglError >
 {
-  let positions = hex_lines();
   let position_buffer = gl::buffer::create( &gl )?;
-  gl::buffer::upload( &gl, &position_buffer, positions.as_slice(), gl::STATIC_DRAW );
+  gl::buffer::upload( &gl, &position_buffer, positions, gl::STATIC_DRAW );
 
   let vao = gl::vao::create( &gl )?;
   gl.bind_vertex_array( Some( &vao ) );
   gl::BufferDescriptor::new::< [ f32; 2 ] >().stride( 0 ).offset( 0 ).attribute_pointer( &gl, 0, &position_buffer )?;
 
-  Ok( Geometry { vao, count : positions.len() as i32 } )
+  Ok( Geometry { vao, count : positions.len() as i32 / 2 } )
 }
 
-/// Generates the vertex positions for the lines that form a hexagon's outline.
+/// Generates line mesh geometry in the manner of LINE LOOP for a hexagon.
+/// The hexagon is flat top and has an outer circle radius of 1.
 ///
 /// # Returns
-/// A `Vec<f32>` containing the x and y coordinates of the hexagon's outline as pairs of points.
-pub fn hex_lines() -> Vec< f32 >
+/// A `Vec<f32>` containing the x and y coordinates of the hexagon's outline.
+pub fn hex_line_loop_mesh() -> Vec< f32 >
 {
-  let hex_point = hex_points();
+  let points = vertices_points();
   let mut positions = vec![];
-  for w in hex_point.windows( 2 )
+  for point in points
   {
-    let point1 = w[ 0 ];
-    let point2 = w[ 1 ];
-    positions.push( point1.0 );
-    positions.push( point1.1 );
-    positions.push( point2.0 );
-    positions.push( point2.1 );
+    positions.push( point.0 );
+    positions.push( point.1 );
   }
-  // connect last and first points into a line
-  let last_point = hex_point.last().unwrap();
-  let first_point = hex_point.first().unwrap();
-  positions.push( last_point.0 );
-  positions.push( last_point.1 );
-  positions.push( first_point.0 );
-  positions.push( first_point.1 );
 
   positions
 }
 
-/// Generates the six corner points of a flat top hexagon.
+/// Generates triangle mesh geometry in the manner of TRIANGLE FAN for a hexagon.
+/// The hexagon is flat top and has an outer circle radius of 1.
+/// # Returns
+/// A `Vec<f32>` containing the x and y coordinates of the triangles.
+pub fn hex_triangle_fan_mesh() -> Vec< f32 >
+{
+  let points = vertices_points();
+  let mut positions = vec![];
+
+  let hex_center = ( 0.0, 0.0 );
+  positions.push( hex_center.0 );
+  positions.push( hex_center.1 );
+
+  for point in points
+  {
+    positions.push( point.0 );
+    positions.push( point.1 );
+  }
+
+  let point = points.first().unwrap();
+  positions.push( point.0 );
+  positions.push( point.1 );
+
+  positions
+}
+
+/// Generates the six corner points of a flat top hexagon, with outer circle radius of 1.
 ///
 /// # Returns
 /// An array of six `(f32, f32)` tuples representing the x and y coordinates of the hexagon's corners.
-pub fn hex_points() -> [ ( f32, f32 ); 6 ]
+pub fn vertices_points() -> [ ( f32, f32 ); 6 ]
 {
   let mut points : [ ( f32, f32 ); 6 ] = Default::default();
   for i in 0..6
