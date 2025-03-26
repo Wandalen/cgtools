@@ -36,12 +36,12 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   gl.viewport( 0, 0, width as i32, height as i32 );
   gl.clear_color( 0.9, 0.9, 0.9, 1.0 );
 
-  let layout = Pointy;
-  let shift_type = ShiftType::Even;
+  let layout = Flat;
+  let shift_type = ShiftType::Odd;
   let rows = 6;
   let columns = 6;
   let size = 1.0;
-  let ( center_x, center_y ) = layout::grid_center( Shifted::new( rows, columns, shift_type ), &layout, size );
+  let ( center_x, center_y ) = layout::grid_center( Shifted::< Flat >::new( rows, columns, shift_type ), &layout, size );
 
   let hex_shader = HexShader::new( &gl )?;
   let triangle_geometry = hex_render::geometry2d( &gl, &hex_mesh::hex_triangle_fan_mesh( &layout ) )?;
@@ -50,6 +50,8 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let aspect = height as f32 / width as f32;
   let scaling = [ aspect * 0.2, 1.0 * 0.2 ];
   let total_scale = mat2x2h::scale( scaling );
+
+  let mut selected_hex = None;
 
   let mouse_move =
   {
@@ -69,9 +71,23 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       let x = ( x - half_width ) / half_width * ( 1.0 / scaling[ 0 ] ) + center_x;
       let y = ( y - half_height ) / half_height * ( 1.0 / scaling[ 1 ] ) + center_y;
 
+      let coord = layout.hex_coordinates( x, y, size );
+
+      if selected_hex.is_some_and( | hex | hex == coord )
+      {
+        return;
+      }
+      selected_hex = Some( coord );
+
       gl.clear( gl::COLOR_BUFFER_BIT );
 
-      for coord in Shifted::new( rows, columns, shift_type )
+      let ( x, y ) = layout.hex_2d_position( coord, size );
+      let translation = mat2x2h::translate( [ x - center_x, -y + center_y ] );
+      let scale = mat2x2h::scale( [ size, size ] );
+      let mvp = total_scale * translation * scale;
+      hex_shader.draw( &gl, gl::LINE_LOOP, &line_geometry, mvp.raw_slice(), [ 0.3, 0.3, 0.3, 1.0 ] ).unwrap();
+
+      for coord in Shifted::< Flat >::new( rows, columns, shift_type )
       {
         let ( x, y ) = layout.hex_2d_position( coord, size );
 
@@ -88,17 +104,9 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
           [ 0.3, 0.75, 0.3, 1.0 ]
         ).unwrap();
       }
-
-      let coord = layout.hex_coordinates( x, y, size );
-      let ( x, y ) = layout.hex_2d_position( coord, size );
-      let translation = mat2x2h::translate( [ x - center_x, -y + center_y ] );
-      let scale = mat2x2h::scale( [ size, size ] );
-      let mvp = total_scale * translation * scale;
-      hex_shader.draw( &gl, gl::LINE_LOOP, &line_geometry, mvp.raw_slice(), [ 0.3, 0.3, 0.3, 1.0 ] ).unwrap();
-
     }
   };
-  let mouse_move = Closure::< dyn Fn( _ ) >::new( Box::new( mouse_move ) );
+  let mouse_move = Closure::< dyn FnMut( _ ) >::new( Box::new( mouse_move ) );
   canvas.set_onmousemove( Some( mouse_move.as_ref().unchecked_ref() ) );
   mouse_move.forget();
 
