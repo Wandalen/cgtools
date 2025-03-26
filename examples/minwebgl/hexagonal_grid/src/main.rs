@@ -15,7 +15,7 @@ fn main() -> Result< (), gl::WebglError >
   draw_hexes()
 }
 
-fn draw_hexes() -> Result< (), minwebgl::WebglError >
+fn draw_hexes(  ) -> Result< (), minwebgl::WebglError >
 {
   gl::browser::setup( Default::default() );
   let gl = gl::context::retrieve_or_make()?;
@@ -36,12 +36,12 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   gl.viewport( 0, 0, width as i32, height as i32 );
   gl.clear_color( 0.9, 0.9, 0.9, 1.0 );
 
-  let layout = Flat;
-  let shift_type = ShiftType::Odd;
-  let rows = 6;
+  let layout = Pointy;
+  let shift_type = ShiftType::Even;
+  let rows = 3;
   let columns = 6;
   let size = 1.0;
-  let ( center_x, center_y ) = layout::grid_center( Shifted::< Flat >::new( rows, columns, shift_type ), &layout, size );
+  let ( center_x, center_y ) = layout::grid_center( ShiftedRectangleIter::new( rows, columns, shift_type, layout ), &layout, size );
 
   let hex_shader = HexShader::new( &gl )?;
   let triangle_geometry = hex_render::geometry2d( &gl, &hex_mesh::hex_triangle_fan_mesh( &layout ) )?;
@@ -87,7 +87,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       let mvp = total_scale * translation * scale;
       hex_shader.draw( &gl, gl::LINE_LOOP, &line_geometry, mvp.raw_slice(), [ 0.3, 0.3, 0.3, 1.0 ] ).unwrap();
 
-      for coord in Shifted::< Flat >::new( rows, columns, shift_type )
+      for coord in ShiftedRectangleIter::new( rows, columns, shift_type, layout )
       {
         let ( x, y ) = layout.hex_2d_position( coord, size );
 

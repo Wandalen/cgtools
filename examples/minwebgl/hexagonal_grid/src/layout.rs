@@ -1,8 +1,7 @@
 use crate::*;
 use coordinates::Axial;
-use std::marker::PhantomData;
 
-/// A trait that defines the hexagonal grid layout.
+/// A trait that defines geometric properties of the hexagonal grid layout.
 pub trait HexLayout
 {
   /// Converts 2d coordinates to closest hex center axial coordinates in a hexagonal grid.
@@ -127,6 +126,8 @@ fn flat_layout_spacings( size : f32 ) -> ( f32, f32 )
   ( 1.5 * size, 3.0f32.sqrt() * size )
 }
 
+/// An enum that represents the type of shift in a shifted rectangle.
+/// The shift can be either odd or even and determines which column or row will be shifted.
 #[ derive( Debug, Copy, Clone, PartialEq, Eq ) ]
 pub enum ShiftType
 {
@@ -134,8 +135,9 @@ pub enum ShiftType
   Even = 1,
 }
 
+/// A struct that holds the data needed to iterate over a shifted rectangle.
 #[ derive( Debug ) ]
-pub struct Shifted< T >
+struct ShiftedRectangleIterData
 {
   rows : i32,
   columns : i32,
@@ -143,12 +145,11 @@ pub struct Shifted< T >
   current_column : i32,
   offset : i32,
   shift_type : ShiftType,
-  layout : PhantomData< T >
 }
 
-impl< T > Shifted< T >
+impl ShiftedRectangleIterData
 {
-  pub fn new( rows : i32, columns : i32, shift_type : ShiftType ) -> Self
+  fn new( rows : i32, columns : i32, shift_type : ShiftType ) -> Self
   {
     Self
     {
@@ -158,34 +159,67 @@ impl< T > Shifted< T >
       current_column : 0,
       offset : 0,
       shift_type,
-      layout : PhantomData
     }
   }
 }
 
-impl Iterator for Shifted< Pointy >
+/// An iterator that generates axial coordinates for a shifted rectangle.
+#[ derive( Debug ) ]
+pub struct ShiftedRectangleIter< Layout >
+{
+  layout : Layout,
+  data : ShiftedRectangleIterData,
+}
+
+impl< Layout > ShiftedRectangleIter< Layout >
+{
+  pub fn new( rows : i32, columns : i32, shift_type : ShiftType, layout : Layout ) -> Self
+  {
+    Self
+    {
+      layout,
+      data : ShiftedRectangleIterData::new( rows, columns, shift_type ),
+    }
+  }
+}
+
+impl< Layout : ShiftedRectangle > Iterator for ShiftedRectangleIter< Layout >
 {
   type Item = Axial;
 
   fn next( &mut self ) -> Option< Self::Item >
   {
-    if self.current_row >= self.rows
+    self.layout.next( &mut self.data )
+  }
+}
+
+trait ShiftedRectangle
+{
+  /// Calculates the next axial coordinate in a shifted rectangle minding the layout.
+  fn next( &self, shifted : &mut ShiftedRectangleIterData ) -> Option< Axial >;
+}
+
+impl ShiftedRectangle for Pointy
+{
+  fn next( &self, shifted : &mut ShiftedRectangleIterData ) -> Option< Axial >
+  {
+    if shifted.current_row >= shifted.rows
     {
       return None;
     }
 
-    let coord = Axial::new( self.current_column - self.offset, self.current_row );
+    let coord = Axial::new( shifted.current_column - shifted.offset, shifted.current_row );
 
-    self.current_column += 1;
+    shifted.current_column += 1;
 
-    if self.current_column == self.columns
+    if shifted.current_column == shifted.columns
     {
-      self.current_column = 0;
-      self.current_row += 1;
+      shifted.current_column = 0;
+      shifted.current_row += 1;
 
-      if self.current_row & 1 == self.shift_type as i32
+      if shifted.current_row & 1 == shifted.shift_type as i32
       {
-        self.offset += 1;
+        shifted.offset += 1;
       }
     }
 
@@ -193,29 +227,27 @@ impl Iterator for Shifted< Pointy >
   }
 }
 
-impl Iterator for Shifted< Flat >
+impl ShiftedRectangle for Flat
 {
-  type Item = Axial;
-
-  fn next( &mut self ) -> Option< Self::Item >
+  fn next( &self, shifted : &mut ShiftedRectangleIterData ) -> Option< Axial >
   {
-    if self.current_column >= self.columns
+     if shifted.current_column >= shifted.columns
     {
       return None;
     }
 
-    let coord = Axial::new( self.current_column, self.current_row - self.offset );
+    let coord = Axial::new( shifted.current_column, shifted.current_row - shifted.offset );
 
-    self.current_row += 1;
+    shifted.current_row += 1;
 
-    if self.current_row == self.rows
+    if shifted.current_row == shifted.rows
     {
-      self.current_row = 0;
-      self.current_column += 1;
+      shifted.current_row = 0;
+      shifted.current_column += 1;
 
-      if self.current_column & 1 == self.shift_type as i32
+      if shifted.current_column & 1 == shifted.shift_type as i32
       {
-        self.offset += 1;
+        shifted.offset += 1;
       }
     }
 
