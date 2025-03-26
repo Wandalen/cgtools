@@ -69,50 +69,50 @@ impl ShiftedRectangleIter
     }
   }
 
-  fn next_pointy( shifted : &mut ShiftedRectangleIterData ) -> Option< Axial >
+  fn next_pointy( data : &mut ShiftedRectangleIterData ) -> Option< Axial >
   {
-    if shifted.current_row >= shifted.rows
+    if data.current_row >= data.rows
     {
       return None;
     }
 
-    let coord = Axial::new( shifted.current_column - shifted.offset, shifted.current_row );
+    let coord = Axial::new( data.current_column - data.offset, data.current_row );
 
-    shifted.current_column += 1;
+    data.current_column += 1;
 
-    if shifted.current_column == shifted.columns
+    if data.current_column == data.columns
     {
-      shifted.current_column = 0;
-      shifted.current_row += 1;
+      data.current_column = 0;
+      data.current_row += 1;
 
-      if shifted.current_row & 1 == shifted.shift_type as i32
+      if data.current_row & 1 == data.shift_type as i32
       {
-        shifted.offset += 1;
+        data.offset += 1;
       }
     }
 
     Some( coord )
   }
 
-  fn next_flat( shifted : &mut ShiftedRectangleIterData ) -> Option< Axial >
+  fn next_flat( data : &mut ShiftedRectangleIterData ) -> Option< Axial >
   {
-    if shifted.current_column >= shifted.columns
+    if data.current_column >= data.columns
     {
       return None;
     }
 
-    let coord = Axial::new( shifted.current_column, shifted.current_row - shifted.offset );
+    let coord = Axial::new( data.current_column, data.current_row - data.offset );
 
-    shifted.current_row += 1;
+    data.current_row += 1;
 
-    if shifted.current_row == shifted.rows
+    if data.current_row == data.rows
     {
-      shifted.current_row = 0;
-      shifted.current_column += 1;
+      data.current_row = 0;
+      data.current_column += 1;
 
-      if shifted.current_column & 1 == shifted.shift_type as i32
+      if data.current_column & 1 == data.shift_type as i32
       {
-        shifted.offset += 1;
+        data.offset += 1;
       }
     }
 
