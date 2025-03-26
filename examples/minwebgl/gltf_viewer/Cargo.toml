@@ -1,0 +1,25 @@
+[package]
+name = "minwebgl_gltf_viewer"
+version = "0.1.0"
+edition = "2021"
+authors = [ 
+  "Kostiantyn Mysnyk <wandalen@obox.systems>",
+  "Avramenko Yevhenii <yevhenii.av@obox.systems>" 
+]
+
+[dependencies]
+
+minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
+mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
+gltf = { workspace = true, features = [ "import" ] }
+
+
+[dependencies.web-sys]
+workspace = true
+features = [
+  'MouseEvent',
+  'PointerEvent',
+  'WheelEvent',
+  'WebGlTexture',
+  'HtmlImageElement'
+]
