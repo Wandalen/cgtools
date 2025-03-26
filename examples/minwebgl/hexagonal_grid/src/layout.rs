@@ -34,7 +34,7 @@ pub struct HexLayout
 
 impl HexLayout
 {
-  /// Converts 2d coordinates to closest hex center axial coordinates in a hexagonal grid.
+  /// Calculates axial coordinates of a closest hexagon in a grid
   ///
   /// # Parameters
   /// - `x`: The x-coordinate in cartesian space.
