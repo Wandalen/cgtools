@@ -1,4 +1,4 @@
-use crate::layout::HexLayout;
+use crate::{coordinates::Axial, layout::HexLayout};
 
 /// Generates line mesh geometry in the manner of LINE LOOP for a hexagon.
 /// The hexagon is flat top and has an outer circle radius of 1.
@@ -7,7 +7,7 @@ use crate::layout::HexLayout;
 /// A `Vec<f32>` containing the x and y coordinates of the hexagon's outline.
 pub fn hex_line_loop_mesh( layout : &impl HexLayout ) -> Vec< f32 >
 {
-  let points = vertices_points( layout);
+  let points = hex_vertices( layout);
   let mut positions = vec![];
   for point in points
   {
@@ -24,7 +24,7 @@ pub fn hex_line_loop_mesh( layout : &impl HexLayout ) -> Vec< f32 >
 /// A `Vec<f32>` containing the x and y coordinates of the triangles.
 pub fn hex_triangle_fan_mesh( layout : &impl HexLayout ) -> Vec< f32 >
 {
-  let points = vertices_points( layout );
+  let points = hex_vertices( layout );
   let mut positions = vec![];
 
   let hex_center = ( 0.0, 0.0 );
@@ -44,9 +44,29 @@ pub fn hex_triangle_fan_mesh( layout : &impl HexLayout ) -> Vec< f32 >
   positions
 }
 
+pub fn grid_triangle_mesh< C, L >( coords : C, layout : &L, hex_size : f32 ) -> Vec< f32 >
+where
+  C : Iterator< Item = Axial >,
+  L : HexLayout
+{
+  let mut points = vec![];
+  for coord in coords
+  {
+    let ( x, y ) =  layout.hex_2d_position( coord, hex_size );
+    let y = -y;
+    let mesh = hex_triangle_mesh( layout );
+    for point in mesh.chunks( 2 )
+    {
+      points.push( x + point[ 0 ] );
+      points.push( y + point[ 1 ] );
+    }
+  }
+  points
+}
+
 pub fn hex_triangle_mesh( layout : &impl HexLayout ) -> Vec< f32 >
 {
-  let points = vertices_points( layout );
+  let points = hex_vertices( layout );
   let mut positions = vec![];
 
   let hex_center = ( 0.0, 0.0 );
@@ -81,7 +101,7 @@ pub fn hex_triangle_mesh( layout : &impl HexLayout ) -> Vec< f32 >
 ///
 /// # Returns
 /// An array of six `(f32, f32)` tuples representing the x and y coordinates of the hexagon's corners.
-pub fn vertices_points( layout : &impl HexLayout ) -> [ ( f32, f32 ); 6 ]
+pub fn hex_vertices( layout : &impl HexLayout ) -> [ ( f32, f32 ); 6 ]
 {
   let mut points : [ ( f32, f32 ); 6 ] = Default::default();
   for i in 0..6
