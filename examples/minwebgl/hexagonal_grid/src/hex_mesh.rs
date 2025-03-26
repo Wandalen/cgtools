@@ -1,3 +1,5 @@
+use minwebgl::{math::Vector, F32x4x4};
+
 use crate::{coordinates::Axial, layout::HexLayout};
 
 /// Generates line mesh geometry in the manner of LINE LOOP for a hexagon.
@@ -44,7 +46,7 @@ pub fn hex_triangle_fan_mesh( layout : &impl HexLayout ) -> Vec< f32 >
   positions
 }
 
-pub fn grid_triangle_mesh< C, L >( coords : C, layout : &L, hex_size : f32 ) -> Vec< f32 >
+pub fn grid_triangle_mesh< C, L >( coords : C, layout : &L, hex_size : f32, transform : F32x4x4 ) -> Vec< f32 >
 where
   C : Iterator< Item = Axial >,
   L : HexLayout
@@ -52,13 +54,15 @@ where
   let mut points = vec![];
   for coord in coords
   {
-    let ( x, y ) =  layout.hex_2d_position( coord, hex_size );
+    let ( x, y ) = layout.hex_2d_position( coord, hex_size );
     let y = -y;
     let mesh = hex_triangle_mesh( layout );
     for point in mesh.chunks( 2 )
     {
-      points.push( x + point[ 0 ] );
-      points.push( y + point[ 1 ] );
+      let pos = Vector( [ point[ 0 ], point[ 1 ], 0.0, 1.0 ] );
+      let pos = transform * pos;
+      points.push( x + pos.x() * hex_size );
+      points.push( y + pos.y() * hex_size );
     }
   }
   points
