@@ -47,7 +47,16 @@ pub fn hex_triangle_fan_mesh( layout : &impl HexLayout ) -> Vec< f32 >
   positions
 }
 
-pub fn grid_triangle_mesh< C, L >( coords : C, layout : &L, hex_size : f32, transform : F32x4x4 ) -> Vec< f32 >
+/// Generates a triangle mesh for a grid of hexagons.
+///
+/// # Parameters
+/// - `coords`: An iterator of `Axial` coordinates.
+/// - `layout`: The layout of the hexagons.
+/// - `transform`: A 4x4 matrix to transform the hexagons.
+///
+/// # Returns
+/// A `Vec<f32>` containing the x and y coordinates of the triangles.
+pub fn grid_triangle_mesh< C, L >( coords : C, layout : &L, transform : F32x4x4 ) -> Vec< f32 >
 where
   C : Iterator< Item = Axial >,
   L : HexLayout
@@ -62,13 +71,14 @@ where
     {
       let pos = Vector( [ point[ 0 ], point[ 1 ], 0.0, 1.0 ] );
       let pos = transform * pos;
-      points.push( x + pos.x() * hex_size );
-      points.push( y + pos.y() * hex_size );
+      points.push( x + pos.x() * layout.size() );
+      points.push( y + pos.y() * layout.size() );
     }
   }
   points
 }
 
+/// Generates a line mesh for a grid of hexagon.
 pub fn hex_triangle_mesh( layout : &impl HexLayout ) -> Vec< f32 >
 {
   let points = hex_vertices( layout );
@@ -102,7 +112,7 @@ pub fn hex_triangle_mesh( layout : &impl HexLayout ) -> Vec< f32 >
   positions
 }
 
-/// Generates the six corner points of a flat top hexagon, with outer circle radius of 1.
+/// Generates the six corner points of a hexagon, with outer circle radius is 1.
 ///
 /// # Returns
 /// An array of six `(f32, f32)` tuples representing the x and y coordinates of the hexagon's corners.

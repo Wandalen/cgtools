@@ -38,9 +38,9 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
   let size = 1.0;
   let layout = Pointy( size );
-  let shift_type = ShiftType::Even;
+  let shift_type = ShiftType::Odd;
   let rows = 3;
-  let columns = 6;
+  let columns = 3;
   let ( center_x, center_y ) = layout::grid_center
   (
     ShiftedRectangleIter::new( rows, columns, shift_type, layout ),

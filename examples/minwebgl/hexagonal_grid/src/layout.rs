@@ -38,7 +38,7 @@ pub trait HexLayout
   ///
   /// # Returns
   /// The horizontal spacing between hexagons.
-  fn horizontal_spacing( &self, size : f32 ) -> f32;
+  fn horizontal_spacing( &self ) -> f32;
 
   /// Calculates the vertical distance between neighbor hexagons in the grid.
   ///
@@ -47,7 +47,11 @@ pub trait HexLayout
   ///
   /// # Returns
   /// The vertical spacing between hexagons.
-  fn vertical_spacing( &self, size : f32 ) -> f32;
+  fn vertical_spacing( &self ) -> f32;
+
+  /// Returns the size of the hexagons in the grid.
+  /// Size is considered as the distance from the center to a vertex.
+  fn size( &self ) -> f32;
 }
 
 /// A layout where the hexagons have pointy tops.
@@ -72,14 +76,19 @@ impl HexLayout for Pointy
     30.0f32.to_radians()
   }
 
-  fn horizontal_spacing( &self, size : f32 ) -> f32
+  fn horizontal_spacing( &self ) -> f32
   {
-    pointy_layout_spacings( size ).0
+    pointy_layout_spacings( self.0 ).0
   }
 
-  fn vertical_spacing( &self, size : f32 ) -> f32
+  fn vertical_spacing( &self ) -> f32
   {
-    pointy_layout_spacings( size ).1
+    pointy_layout_spacings( self.0 ).1
+  }
+
+  fn size( &self ) -> f32
+  {
+    self.0
   }
 }
 
@@ -105,22 +114,29 @@ impl HexLayout for Flat
     0.0f32.to_radians()
   }
 
-  fn horizontal_spacing( &self, size : f32 ) -> f32
+  fn horizontal_spacing( &self ) -> f32
   {
-    flat_layout_spacings( size ).0
+    flat_layout_spacings( self.0 ).0
   }
 
-  fn vertical_spacing( &self, size : f32 ) -> f32
+  fn vertical_spacing( &self ) -> f32
   {
-    flat_layout_spacings( size ).1
+    flat_layout_spacings( self.0 ).1
+  }
+
+  fn size( &self ) -> f32
+  {
+    self.0
   }
 }
 
+/// Calculates the horizontal and vertical spacings between neighbor hexagons in a pointy layout.
 fn pointy_layout_spacings( size : f32 ) -> ( f32, f32 )
 {
   ( 3.0f32.sqrt() * size , 1.5 * size )
 }
 
+/// Calculates the horizontal and vertical spacings between neighbor hexagons in a flat layout.
 fn flat_layout_spacings( size : f32 ) -> ( f32, f32 )
 {
   ( 1.5 * size, 3.0f32.sqrt() * size )
@@ -173,6 +189,16 @@ pub struct ShiftedRectangleIter< Layout >
 
 impl< Layout > ShiftedRectangleIter< Layout >
 {
+  /// Creates a new `ShiftedRectangleIter`.
+  ///
+  /// # Parameters
+  /// - `rows`: The number of rows in the rectangle.
+  /// - `columns`: The number of columns in the rectangle.
+  /// - `shift_type`: The type of shift in the rectangle.
+  /// - `layout`: The layout of the hexagons.
+  ///
+  /// # Returns
+  /// A new `ShiftedRectangleIter`.
   pub fn new( rows : i32, columns : i32, shift_type : ShiftType, layout : Layout ) -> Self
   {
     Self
@@ -195,7 +221,7 @@ impl< Layout : ShiftedRectangle > Iterator for ShiftedRectangleIter< Layout >
 
 trait ShiftedRectangle
 {
-  /// Calculates the next axial coordinate in a shifted rectangle minding the layout.
+  /// Calculates the next axial coordinate in a shifted rectangle.
   fn next( &self, shifted : &mut ShiftedRectangleIterData ) -> Option< Axial >;
 }
 
