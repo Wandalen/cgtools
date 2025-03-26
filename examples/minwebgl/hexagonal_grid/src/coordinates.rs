@@ -1,6 +1,7 @@
 /// Represents an axial coordinate in a hexagonal grid.
 /// Axial coordinates use two axes (`q` and `r`) to uniquely identify
 /// hexes in a grid.
+/// more info: https://www.redblobgames.com/grids/hexagons/#coordinates-axial
 ///
 /// # Fields
 /// - `q`: The "column" coordinate in the axial system.

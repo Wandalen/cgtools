@@ -15,7 +15,7 @@ fn main() -> Result< (), gl::WebglError >
   draw_hexes()
 }
 
-fn draw_hexes(  ) -> Result< (), minwebgl::WebglError >
+fn draw_hexes() -> Result< (), minwebgl::WebglError >
 {
   gl::browser::setup( Default::default() );
   let gl = gl::context::retrieve_or_make()?;
@@ -36,12 +36,16 @@ fn draw_hexes(  ) -> Result< (), minwebgl::WebglError >
   gl.viewport( 0, 0, width as i32, height as i32 );
   gl.clear_color( 0.9, 0.9, 0.9, 1.0 );
 
-  let layout = Pointy;
+  let size = 1.0;
+  let layout = Pointy( size);
   let shift_type = ShiftType::Even;
   let rows = 3;
   let columns = 6;
-  let size = 1.0;
-  let ( center_x, center_y ) = layout::grid_center( ShiftedRectangleIter::new( rows, columns, shift_type, layout ), &layout, size );
+  let ( center_x, center_y ) = layout::grid_center
+  (
+    ShiftedRectangleIter::new( rows, columns, shift_type, layout ),
+    &layout
+  );
 
   let hex_shader = HexShader::new( &gl )?;
   let triangle_geometry = hex_render::geometry2d( &gl, &hex_mesh::hex_triangle_fan_mesh( &layout ) )?;
@@ -71,7 +75,7 @@ fn draw_hexes(  ) -> Result< (), minwebgl::WebglError >
       let x = ( x - half_width ) / half_width * ( 1.0 / scaling[ 0 ] ) + center_x;
       let y = ( y - half_height ) / half_height * ( 1.0 / scaling[ 1 ] ) + center_y;
 
-      let coord = layout.hex_coordinates( x, y, size );
+      let coord = layout.hex_coordinates( x, y );
 
       if selected_hex.is_some_and( | hex | hex == coord )
       {
@@ -81,7 +85,7 @@ fn draw_hexes(  ) -> Result< (), minwebgl::WebglError >
 
       gl.clear( gl::COLOR_BUFFER_BIT );
 
-      let ( x, y ) = layout.hex_2d_position( coord, size );
+      let ( x, y ) = layout.hex_2d_position( coord );
       let translation = mat2x2h::translate( [ x - center_x, -y + center_y ] );
       let scale = mat2x2h::scale( [ size, size ] );
       let mvp = total_scale * translation * scale;
@@ -89,7 +93,7 @@ fn draw_hexes(  ) -> Result< (), minwebgl::WebglError >
 
       for coord in ShiftedRectangleIter::new( rows, columns, shift_type, layout )
       {
-        let ( x, y ) = layout.hex_2d_position( coord, size );
+        let ( x, y ) = layout.hex_2d_position( coord );
 
         let position = [ x - center_x, -y + center_y ];
         let translation = mat2x2h::translate( position );

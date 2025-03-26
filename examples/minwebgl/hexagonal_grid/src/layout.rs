@@ -13,7 +13,7 @@ pub trait HexLayout
   ///
   /// # Returns
   /// An `Axial` coordinate representing the hexagon at the given pixel position.
-  fn hex_coordinates( &self, x : f32, y : f32, hex_size : f32 ) -> Axial;
+  fn hex_coordinates( &self, x : f32, y : f32 ) -> Axial;
 
   /// Calculates the 2d position of a hexagon center based on its axial coordinates.
   ///
@@ -23,7 +23,7 @@ pub trait HexLayout
   ///
   /// # Returns
   /// A tuple containing the x and y coordinates of the hexagon center.
-  fn hex_2d_position( &self, coord : Axial, hex_size : f32 ) -> ( f32, f32 );
+  fn hex_2d_position( &self, coord : Axial ) -> ( f32, f32 );
 
   /// Determines the orientation of the hexagons (e.g., "pointy-topped" or "flat-topped").
   ///
@@ -52,18 +52,18 @@ pub trait HexLayout
 
 /// A layout where the hexagons have pointy tops.
 #[ derive( Copy, Clone ) ]
-pub struct Pointy;
+pub struct Pointy( pub f32 );
 
 impl HexLayout for Pointy
 {
-  fn hex_coordinates( &self, x : f32, y : f32, hex_size : f32 ) -> Axial
+  fn hex_coordinates( &self, x : f32, y : f32 ) -> Axial
   {
-    Axial::from_2d_to_pointy( x, y, hex_size )
+    Axial::from_2d_to_pointy( x, y, self.0 )
   }
 
-  fn hex_2d_position( &self, coord : Axial, hex_size : f32 ) -> ( f32, f32 )
+  fn hex_2d_position( &self, coord : Axial ) -> ( f32, f32 )
   {
-    let ( x, y ) = coord.pointy_to_2d( hex_size );
+    let ( x, y ) = coord.pointy_to_2d( self.0 );
     ( x, y )
   }
 
@@ -85,18 +85,18 @@ impl HexLayout for Pointy
 
 /// A layout where the hexagons have flat tops.
 #[ derive( Copy, Clone ) ]
-pub struct Flat;
+pub struct Flat( pub f32 );
 
 impl HexLayout for Flat
 {
-  fn hex_coordinates( &self, x : f32, y : f32, hex_size : f32 ) -> Axial
+  fn hex_coordinates( &self, x : f32, y : f32 ) -> Axial
   {
-    Axial::from_2d_to_flat( x, y, hex_size )
+    Axial::from_2d_to_flat( x, y, self.0 )
   }
 
-  fn hex_2d_position( &self, coord : Axial, hex_size : f32 ) -> ( f32, f32 )
+  fn hex_2d_position( &self, coord : Axial ) -> ( f32, f32 )
   {
-    let ( x, y ) = coord.flat_to_2d( hex_size );
+    let ( x, y ) = coord.flat_to_2d( self.0 );
     ( x, y )
   }
 
@@ -264,7 +264,7 @@ impl ShiftedRectangle for Flat
 ///
 /// # Returns
 /// A tuple containing the x and y coordinates of the center of the grid.
-pub fn grid_center< C, L >( coords : C, layout : &L, hex_size : f32 ) -> ( f32, f32 )
+pub fn grid_center< C, L >( coords : C, layout : &L ) -> ( f32, f32 )
 where
   C : Iterator< Item = Axial >,
   L : HexLayout
@@ -274,9 +274,9 @@ where
   let mut min_y = f32::INFINITY;
   let mut max_y = f32::NEG_INFINITY;
 
-  for coor in coords
+  for coord in coords
   {
-    let ( x, y ) = layout.hex_2d_position( coor, hex_size );
+    let ( x, y ) = layout.hex_2d_position( coord );
     min_x = min_x.min( x );
     max_x = max_x.max( x );
     min_y = min_y.min( y );
