@@ -1,0 +1,11 @@
+[package]
+name = "math_trivial"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
+license = "MIT"
+
+[dependencies]
+
+# mdmath_core = { workspace = true }
+ndarray_cg = { workspace = true }

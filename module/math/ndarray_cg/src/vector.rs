@@ -25,8 +25,6 @@ mod private
     }
   }
 
-
-
   pub trait VectorSpace< const SIZE : usize >
   where
     Self : Collection + Indexable + VectorIter< < Self as Collection >::Scalar, SIZE >,
