@@ -1,218 +1,118 @@
-/// A trait that defines the layout and positioning of hexagons in a hexagonal grid.
-///
-/// This trait provides methods and constants to calculate the spacing, dimensions,
-/// and positions of hexagons in various grid layouts. It is implemented by specific
-/// layout types, such as `PointyOddShifted`, `PointyEvenShifted`, `FlatOddShifted`,
-/// and `FlatEvenShifted`.
+use crate::*;
+use coordinates::Axial;
+
+/// A trait that defines geometric properties of the hexagonal grid layout.
 pub trait HexLayout
 {
-  /// The rotation angle of the hexagons in the grid, in radians.
-  /// This determines the orientation of the hexagons (e.g., "pointy-topped" or "flat-topped").
-  const ROTATION_ANGLE : f32;
+  /// Converts 2d coordinates to closest hex center axial coordinates in a hexagonal grid.
+  ///
+  /// # Parameters
+  /// - `x`: The x-coordinate in cartesian space.
+  /// - `y`: The y-coordinate in cartesian space.
+  /// - `hex_size`: The size of the hexagons in the grid.
+  ///
+  /// # Returns
+  /// An `Axial` coordinate representing the hexagon at the given pixel position.
+  fn hex_coordinates( &self, x : f32, y : f32 ) -> Axial;
 
-  /// Calculates the horizontal spacing between hexagons in the grid.
+  /// Calculates the 2d position of a hexagon center based on its axial coordinates.
+  ///
+  /// # Parameters
+  /// - `coord`: The axial coordinates of the hexagon.
+  /// - `hex_size`: The size of the hexagons in the grid.
+  ///
+  /// # Returns
+  /// A tuple containing the x and y coordinates of the hexagon center.
+  fn hex_2d_position( &self, coord : Axial ) -> ( f32, f32 );
+
+  /// Determines the orientation of the hexagons (e.g., "pointy-topped" or "flat-topped").
+  ///
+  /// # Returns
+  /// The rotation angle in radians.
+  fn orientation_angle( &self ) -> f32;
+
+  /// Calculates the horizontal distance between neighbor hexagons in the grid.
   ///
   /// # Parameters
   /// - `size`: The size of the hexagon.
   ///
   /// # Returns
   /// The horizontal spacing between hexagons.
-  fn horizontal_spacing( size : f32 ) -> f32;
+  fn horizontal_spacing( &self, size : f32 ) -> f32;
 
-  /// Calculates the vertical spacing between hexagons in the grid.
+  /// Calculates the vertical distance between neighbor hexagons in the grid.
   ///
   /// # Parameters
   /// - `size`: The size of the hexagon.
   ///
   /// # Returns
   /// The vertical spacing between hexagons.
-  fn vertical_spacing( size : f32 ) -> f32;
-
-  /// Calculates the total width and height of the grid based on the number of rows,
-  /// columns, and the size of the hexagons.
-  ///
-  /// # Parameters
-  /// - `rows`: The number of rows in the grid.
-  /// - `columns`: The number of columns in the grid.
-  /// - `size`: The size of the hexagon.
-  ///
-  /// # Returns
-  /// A tuple containing the total width and height of the grid.
-  fn total_distances( rows : i32, columns : i32, size : f32 ) -> ( f32, f32 );
-
-  /// Calculates the position of a hexagon in the grid based on its row, column, and size.
-  ///
-  /// # Parameters
-  /// - `row`: The row index of the hexagon.
-  /// - `column`: The column index of the hexagon.
-  /// - `size`: The size of the hexagon.
-  ///
-  /// # Returns
-  /// A tuple containing the x and y coordinates of the hexagon's position.
-  fn position( row : i32, column : i32, size : f32 ) -> ( f32, f32 );
+  fn vertical_spacing( &self, size : f32 ) -> f32;
 }
 
-/// Represents a horizontal hexagonal grid layout with odd-row shifting.
-/// This layout has "spiky tops" and alternates the horizontal position of hexes
-/// in odd rows to create a staggered effect.
-pub struct PointyOddShifted;
+/// A layout where the hexagons have pointy tops.
+#[ derive( Copy, Clone ) ]
+pub struct Pointy( pub f32 );
 
-impl HexLayout for PointyOddShifted
+impl HexLayout for Pointy
 {
-  const ROTATION_ANGLE : f32 = 30.0f32.to_radians();
+  fn hex_coordinates( &self, x : f32, y : f32 ) -> Axial
+  {
+    Axial::from_2d_to_pointy( x, y, self.0 )
+  }
 
-  fn horizontal_spacing( size : f32 ) -> f32
+  fn hex_2d_position( &self, coord : Axial ) -> ( f32, f32 )
+  {
+    let ( x, y ) = coord.pointy_to_2d( self.0 );
+    ( x, y )
+  }
+
+  fn orientation_angle( &self ) -> f32
+  {
+    30.0f32.to_radians()
+  }
+
+  fn horizontal_spacing( &self, size : f32 ) -> f32
   {
     pointy_layout_spacings( size ).0
   }
 
-  fn vertical_spacing( size : f32 ) -> f32
+  fn vertical_spacing( &self, size : f32 ) -> f32
   {
     pointy_layout_spacings( size ).1
   }
-
-  fn total_distances( rows : i32, columns : i32, size : f32 ) -> ( f32, f32 )
-  {
-    pointy_layout_distances( rows, columns, size )
-  }
-
-  fn position( row : i32, column : i32, size : f32 ) -> ( f32, f32 )
-  {
-    let horizontal_spacing = Self::horizontal_spacing( size );
-    let vertical_spacing = Self::vertical_spacing( size );
-
-    let shift = horizontal_spacing / 2.0 * ( row & 1 ) as f32;
-
-    let column = column as f32;
-    let x = shift + column * horizontal_spacing;
-
-    let row = -row as f32;
-    let y = row * vertical_spacing;
-
-    ( x, y )
-  }
 }
 
-/// Represents a horizontal hexagonal grid layout with even-row shifting.
-/// Similar to `HorizontalOddShifted`, but the horizontal position of hexes
-/// is staggered in even rows instead of odd rows.
-pub struct PointyEvenShifted;
+/// A layout where the hexagons have flat tops.
+#[ derive( Copy, Clone ) ]
+pub struct Flat( pub f32 );
 
-impl HexLayout for PointyEvenShifted
+impl HexLayout for Flat
 {
-  const ROTATION_ANGLE : f32 = 30.0f32.to_radians();
-
-  fn horizontal_spacing( size : f32 ) -> f32
+  fn hex_coordinates( &self, x : f32, y : f32 ) -> Axial
   {
-    pointy_layout_spacings( size ).0
+    Axial::from_2d_to_flat( x, y, self.0 )
   }
 
-  fn vertical_spacing( size : f32 ) -> f32
+  fn hex_2d_position( &self, coord : Axial ) -> ( f32, f32 )
   {
-    pointy_layout_spacings( size ).1
-  }
-
-  fn total_distances( rows : i32, columns : i32, size : f32 ) -> ( f32, f32 )
-  {
-    pointy_layout_distances( rows, columns, size )
-  }
-
-  fn position( row : i32, column : i32, size : f32 ) -> ( f32, f32 )
-  {
-    let horizontal_spacing = Self::horizontal_spacing( size );
-    let vertical_spacing = Self::vertical_spacing( size );
-
-    let shift = horizontal_spacing / 2.0 * ( row & 1 ^ 1 ) as f32;
-
-    let column = column as f32;
-    let x = shift + column * horizontal_spacing;
-
-    let row = -row as f32;
-    let y = row * vertical_spacing;
-
+    let ( x, y ) = coord.flat_to_2d( self.0 );
     ( x, y )
   }
-}
 
-/// Represents a vertical hexagonal grid layout with odd-column shifting.
-/// This layout has "flat tops" and alternates the vertical position of hexes
-/// in odd columns to create a staggered effect.
-pub struct FlatOddShifted;
+  fn orientation_angle( &self ) -> f32
+  {
+    0.0f32.to_radians()
+  }
 
-impl HexLayout for FlatOddShifted
-{
-  const ROTATION_ANGLE : f32 = 0.0;
-
-  fn horizontal_spacing( size : f32 ) -> f32
+  fn horizontal_spacing( &self, size : f32 ) -> f32
   {
     flat_layout_spacings( size ).0
   }
 
-  fn vertical_spacing( size : f32 ) -> f32
+  fn vertical_spacing( &self, size : f32 ) -> f32
   {
     flat_layout_spacings( size ).1
-  }
-
-  fn total_distances( rows : i32, columns : i32, size : f32 ) -> ( f32, f32 )
-  {
-    flat_layout_distances( rows, columns, size )
-  }
-
-  fn position( row : i32, column : i32, size : f32 ) -> ( f32, f32 )
-  {
-    let horizontal_spacing = Self::horizontal_spacing( size );
-    let vertical_spacing = Self::vertical_spacing( size );
-
-    let shift = -vertical_spacing / 2.0 * ( column & 1 ) as f32;
-
-    let column = column as f32;
-    let x = column * horizontal_spacing;
-
-    let row = -row as f32;
-    let y = shift + row * vertical_spacing;
-
-    ( x, y )
-  }
-}
-
-/// Represents a vertical hexagonal grid layout with even-column shifting.
-/// Similar to `VerticalOddShifted`, but the vertical position of hexes
-/// is staggered in even columns instead of odd columns.
-pub struct FlatEvenShifted;
-
-impl HexLayout for FlatEvenShifted
-{
-  const ROTATION_ANGLE : f32 = 0.0;
-
-  fn horizontal_spacing( size : f32 ) -> f32
-  {
-    flat_layout_spacings( size ).0
-  }
-
-  fn vertical_spacing( size : f32 ) -> f32
-  {
-    flat_layout_spacings( size ).1
-  }
-
-  fn total_distances( rows : i32, columns : i32, size : f32 ) -> ( f32, f32 )
-  {
-    flat_layout_distances( rows, columns, size )
-  }
-
-  fn position( row : i32, column : i32, size : f32 ) -> ( f32, f32 )
-  {
-    let horizontal_spacing = Self::horizontal_spacing( size );
-    let vertical_spacing = Self::vertical_spacing( size );
-
-    let shift = -vertical_spacing / 2.0 * ( column & 1 ^ 1 ) as f32;
-
-    let column = column as f32;
-    let x = column * horizontal_spacing;
-
-    let row = -row as f32;
-    let y = shift + row * vertical_spacing;
-
-    ( x, y )
   }
 }
 
@@ -221,31 +121,167 @@ fn pointy_layout_spacings( size : f32 ) -> ( f32, f32 )
   ( 3.0f32.sqrt() * size , 1.5 * size )
 }
 
-fn pointy_layout_distances( rows : i32, columns : i32, size : f32 ) -> ( f32, f32 )
-{
-  let ( horizontal_spacing, vertical_spacing ) = pointy_layout_spacings( size );
-
-  let rows = ( rows - 1 ) as f32;
-  let columns = ( columns - 1 ) as f32;
-  let total_width = ( columns + 0.5 ) * horizontal_spacing;
-  let total_height = rows * vertical_spacing;
-
-  ( total_width, total_height )
-}
-
 fn flat_layout_spacings( size : f32 ) -> ( f32, f32 )
 {
   ( 1.5 * size, 3.0f32.sqrt() * size )
 }
 
-fn flat_layout_distances( rows : i32, columns : i32, size : f32 ) -> ( f32, f32 )
+/// An enum that represents the type of shift in a shifted rectangle.
+/// The shift can be either odd or even and determines which column or row will be shifted.
+#[ derive( Debug, Copy, Clone, PartialEq, Eq ) ]
+pub enum ShiftType
 {
-  let ( horizontal_spacing, vertical_spacing ) = flat_layout_spacings( size );
+  Odd = 0,
+  Even = 1,
+}
 
-  let rows = ( rows - 1 ) as f32;
-  let columns = ( columns - 1 ) as f32;
-  let total_width = columns * horizontal_spacing;
-  let total_height = ( rows + 0.5 ) * vertical_spacing;
+/// A struct that holds the data needed to iterate over a shifted rectangle.
+#[ derive( Debug ) ]
+struct ShiftedRectangleIterData
+{
+  rows : i32,
+  columns : i32,
+  current_row : i32,
+  current_column : i32,
+  offset : i32,
+  shift_type : ShiftType,
+}
 
-  ( total_width, total_height )
+impl ShiftedRectangleIterData
+{
+  fn new( rows : i32, columns : i32, shift_type : ShiftType ) -> Self
+  {
+    Self
+    {
+      rows,
+      columns,
+      current_row : 0,
+      current_column : 0,
+      offset : 0,
+      shift_type,
+    }
+  }
+}
+
+/// An iterator that generates axial coordinates for a shifted rectangle.
+#[ derive( Debug ) ]
+pub struct ShiftedRectangleIter< Layout >
+{
+  layout : Layout,
+  data : ShiftedRectangleIterData,
+}
+
+impl< Layout > ShiftedRectangleIter< Layout >
+{
+  pub fn new( rows : i32, columns : i32, shift_type : ShiftType, layout : Layout ) -> Self
+  {
+    Self
+    {
+      layout,
+      data : ShiftedRectangleIterData::new( rows, columns, shift_type ),
+    }
+  }
+}
+
+impl< Layout : ShiftedRectangle > Iterator for ShiftedRectangleIter< Layout >
+{
+  type Item = Axial;
+
+  fn next( &mut self ) -> Option< Self::Item >
+  {
+    self.layout.next( &mut self.data )
+  }
+}
+
+trait ShiftedRectangle
+{
+  /// Calculates the next axial coordinate in a shifted rectangle minding the layout.
+  fn next( &self, shifted : &mut ShiftedRectangleIterData ) -> Option< Axial >;
+}
+
+impl ShiftedRectangle for Pointy
+{
+  fn next( &self, shifted : &mut ShiftedRectangleIterData ) -> Option< Axial >
+  {
+    if shifted.current_row >= shifted.rows
+    {
+      return None;
+    }
+
+    let coord = Axial::new( shifted.current_column - shifted.offset, shifted.current_row );
+
+    shifted.current_column += 1;
+
+    if shifted.current_column == shifted.columns
+    {
+      shifted.current_column = 0;
+      shifted.current_row += 1;
+
+      if shifted.current_row & 1 == shifted.shift_type as i32
+      {
+        shifted.offset += 1;
+      }
+    }
+
+    Some( coord )
+  }
+}
+
+impl ShiftedRectangle for Flat
+{
+  fn next( &self, shifted : &mut ShiftedRectangleIterData ) -> Option< Axial >
+  {
+     if shifted.current_column >= shifted.columns
+    {
+      return None;
+    }
+
+    let coord = Axial::new( shifted.current_column, shifted.current_row - shifted.offset );
+
+    shifted.current_row += 1;
+
+    if shifted.current_row == shifted.rows
+    {
+      shifted.current_row = 0;
+      shifted.current_column += 1;
+
+      if shifted.current_column & 1 == shifted.shift_type as i32
+      {
+        shifted.offset += 1;
+      }
+    }
+
+    Some( coord )
+  }
+}
+
+/// Calculates a point that lies right in the center of a grid of hexagons.
+///
+/// # Parameters
+/// - `coords`: An iterator over the axial coordinates of the hexagons.
+/// - `layout`: The layout of the hexagons.
+/// - `hex_size`: The size of the hexagons in the grid.
+///
+/// # Returns
+/// A tuple containing the x and y coordinates of the center of the grid.
+pub fn grid_center< C, L >( coords : C, layout : &L ) -> ( f32, f32 )
+where
+  C : Iterator< Item = Axial >,
+  L : HexLayout
+{
+  let mut min_x = f32::INFINITY;
+  let mut max_x = f32::NEG_INFINITY;
+  let mut min_y = f32::INFINITY;
+  let mut max_y = f32::NEG_INFINITY;
+
+  for coord in coords
+  {
+    let ( x, y ) = layout.hex_2d_position( coord );
+    min_x = min_x.min( x );
+    max_x = max_x.max( x );
+    min_y = min_y.min( y );
+    max_y = max_y.max( y );
+  }
+
+  ( min_x + ( max_x - min_x ) / 2.0, min_y + ( max_y - min_y ) / 2.0 )
 }
