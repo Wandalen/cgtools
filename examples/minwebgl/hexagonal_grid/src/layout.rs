@@ -1,4 +1,6 @@
-use crate::coordinates::Axial;
+use crate::*;
+use coordinates::Axial;
+use std::marker::PhantomData;
 
 /// A trait that defines the hexagonal grid layout.
 pub trait HexLayout
@@ -133,7 +135,7 @@ pub enum ShiftType
 }
 
 #[ derive( Debug ) ]
-pub struct Shifted
+pub struct Shifted< T >
 {
   rows : i32,
   columns : i32,
@@ -141,9 +143,10 @@ pub struct Shifted
   current_column : i32,
   offset : i32,
   shift_type : ShiftType,
+  layout : PhantomData< T >
 }
 
-impl Shifted
+impl< T > Shifted< T >
 {
   pub fn new( rows : i32, columns : i32, shift_type : ShiftType ) -> Self
   {
@@ -154,12 +157,13 @@ impl Shifted
       current_row : 0,
       current_column : 0,
       offset : 0,
-      shift_type
+      shift_type,
+      layout : PhantomData
     }
   }
 }
 
-impl Iterator for Shifted
+impl Iterator for Shifted< Pointy >
 {
   type Item = Axial;
 
@@ -180,6 +184,36 @@ impl Iterator for Shifted
       self.current_row += 1;
 
       if self.current_row & 1 == self.shift_type as i32
+      {
+        self.offset += 1;
+      }
+    }
+
+    Some( coord )
+  }
+}
+
+impl Iterator for Shifted< Flat >
+{
+  type Item = Axial;
+
+  fn next( &mut self ) -> Option< Self::Item >
+  {
+    if self.current_column >= self.columns
+    {
+      return None;
+    }
+
+    let coord = Axial::new( self.current_column, self.current_row - self.offset );
+
+    self.current_row += 1;
+
+    if self.current_row == self.rows
+    {
+      self.current_row = 0;
+      self.current_column += 1;
+
+      if self.current_column & 1 == self.shift_type as i32
       {
         self.offset += 1;
       }
