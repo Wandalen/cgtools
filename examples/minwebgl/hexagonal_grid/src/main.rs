@@ -1,8 +1,8 @@
-mod hex_webgl_render;
+mod webgl_render;
 mod layout;
 mod coordinates;
 mod grid;
-mod hex_mesh;
+mod mesh;
 mod patterns;
 
 use layout::*;
@@ -10,7 +10,7 @@ use patterns::*;
 use minwebgl as gl;
 use gl::{ math::d2::mat2x2h, JsCast, canvas::HtmlCanvasElement };
 use web_sys::{ wasm_bindgen::prelude::Closure, MouseEvent };
-use hex_webgl_render::HexShader;
+use webgl_render::HexShader;
 
 fn main() -> Result< (), gl::WebglError >
 {
@@ -50,8 +50,8 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   );
 
   let hex_shader = HexShader::new( &gl )?;
-  let triangle_geometry = hex_webgl_render::geometry2d( &gl, &hex_mesh::hex_triangle_fan_mesh( &layout ) )?;
-  let line_geometry = hex_webgl_render::geometry2d( &gl, &hex_mesh::hex_line_loop_mesh( &layout ) )?;
+  let triangle_geometry = webgl_render::geometry2d( &gl, &mesh::hex_triangle_fan_mesh( &layout ) )?;
+  let line_geometry = webgl_render::geometry2d( &gl, &mesh::hex_line_loop_mesh( &layout ) )?;
 
   let aspect = height as f32 / width as f32;
   let scaling = [ aspect * 0.2, 1.0 * 0.2 ];

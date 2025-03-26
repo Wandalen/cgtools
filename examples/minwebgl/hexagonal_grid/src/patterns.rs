@@ -96,7 +96,7 @@ impl ShiftedRectangleIter
 
   fn next_flat( shifted : &mut ShiftedRectangleIterData ) -> Option< Axial >
   {
-      if shifted.current_column >= shifted.columns
+    if shifted.current_column >= shifted.columns
     {
       return None;
     }

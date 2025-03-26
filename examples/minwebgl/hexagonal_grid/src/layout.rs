@@ -1,6 +1,7 @@
 use crate::*;
 use coordinates::Axial;
 
+/// An enum that represents the orientation of the hexagons (e.g., "pointy-topped" or "flat-topped").
 #[ derive( Debug, Copy, Clone ) ]
 pub enum Orientation
 {
@@ -10,10 +11,7 @@ pub enum Orientation
 
 impl Orientation
 {
-  /// Determines the orientation of the hexagons (e.g., "pointy-topped" or "flat-topped").
-  ///
-  /// # Returns
-  /// The rotation angle in radians.
+  /// Orientation angle of the hexagons in radians.
   pub fn orientation_angle( &self ) -> f32
   {
     match self
@@ -28,7 +26,9 @@ impl Orientation
 #[ derive( Debug, Copy, Clone ) ]
 pub struct HexLayout
 {
+  /// The orientation of the hexagons in the grid.
   pub orientation : Orientation,
+  /// Size of a hexagon, the distance from the center to a corner.
   pub size : f32,
 }
 
@@ -105,11 +105,12 @@ fn flat_layout_spacings( size : f32 ) -> ( f32, f32 )
 /// # Parameters
 /// - `coords`: An iterator over the axial coordinates of the hexagons.
 /// - `layout`: The layout of the hexagons.
-/// - `hex_size`: The size of the hexagons in the grid.
 ///
 /// # Returns
 /// A tuple containing the x and y coordinates of the center of the grid.
-pub fn grid_center< C : Iterator< Item = Axial > >( coords : C, layout : &HexLayout ) -> ( f32, f32 )
+pub fn grid_center< C >( coords : C, layout : &HexLayout ) -> ( f32, f32 )
+where
+  C : Iterator< Item = Axial >
 {
   let mut min_x = f32::INFINITY;
   let mut max_x = f32::NEG_INFINITY;

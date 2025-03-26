@@ -61,8 +61,8 @@ impl< T, Layout > HexArray< T, Layout >
   /// - `layout`: The layout of the hexagons in the grid.
   pub fn new( rows : i32, columns : i32, offset: Axial, layout : Layout ) -> Self
   {
-    let rows : usize = ( rows + offset.r ).try_into().unwrap();
-    let columns : usize = ( columns + offset.q ).try_into().unwrap();
+    let rows : usize = ( rows ).try_into().unwrap();
+    let columns : usize = ( columns ).try_into().unwrap();
     Self { data : Array2::from_shape_fn( ( rows , columns ), | _ | None ), layout, offset }
   }
 
@@ -76,11 +76,27 @@ impl< T, Layout > HexArray< T, Layout >
     std::mem::replace( &mut self.data[ ( i, j ) ], Some( value ) )
   }
 
+  pub fn remove( &mut self, coord : Axial ) -> Option< T >
+  {
+    let coord = Axial::new( self.offset.q + coord.q, self.offset.r + coord.r );
+    let i : usize = coord.r.try_into().unwrap();
+    let j : usize = coord.q.try_into().unwrap();
+    std::mem::take( &mut self.data[ ( i, j ) ] )
+  }
+
   pub fn get( &self, coord : Axial ) -> Option< &T >
   {
     let coord = Axial::new( self.offset.q + coord.q, self.offset.r + coord.r );
     let i : usize = coord.r.try_into().ok()?;
     let j : usize = coord.q.try_into().ok()?;
     self.data.get( ( i, j ) ).and_then( | x | x.as_ref() )
+  }
+
+  pub fn get_mut( &mut self, coord : Axial ) -> Option< &mut T >
+  {
+    let coord = Axial::new( self.offset.q + coord.q, self.offset.r + coord.r );
+    let i : usize = coord.r.try_into().ok()?;
+    let j : usize = coord.q.try_into().ok()?;
+    self.data.get_mut( ( i, j ) ).and_then( | x | x.as_mut() )
   }
 }

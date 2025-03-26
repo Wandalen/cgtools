@@ -3,8 +3,7 @@ use coordinates::Axial;
 use layout::HexLayout;
 use minwebgl::{ math::Vector, F32x4x4 };
 
-/// Generates line mesh geometry in the manner of LINE LOOP for a hexagon.
-/// The hexagon is flat top and has an outer circle radius of 1.
+/// Generates line mesh in the manner of LINE LOOP for a hexagon.
 ///
 /// # Returns
 /// A `Vec<f32>` containing the x and y coordinates of the hexagon's outline.
@@ -21,8 +20,8 @@ pub fn hex_line_loop_mesh( layout : &HexLayout ) -> Vec< f32 >
   positions
 }
 
-/// Generates triangle mesh geometry in the manner of TRIANGLE FAN for a hexagon.
-/// The hexagon is flat top and has an outer circle radius of 1.
+/// Generates triangle mesh in the manner of TRIANGLE FAN for a hexagon.
+///
 /// # Returns
 /// A `Vec<f32>` containing the x and y coordinates of the triangles.
 pub fn hex_triangle_fan_mesh( layout : &HexLayout ) -> Vec< f32 >
@@ -70,14 +69,17 @@ where
     {
       let pos = Vector( [ point[ 0 ], point[ 1 ], 0.0, 1.0 ] );
       let pos = transform * pos;
-      points.push( x + pos.x() * layout.size );
-      points.push( y + pos.y() * layout.size );
+      points.push( x + pos.x() );
+      points.push( y + pos.y() );
     }
   }
   points
 }
 
-/// Generates a line mesh for a grid of hexagon.
+/// Generates a triangular mesh of a hexagon.
+///
+/// # Returns
+/// A `Vec<f32>` containing the x and y coordinates of the triangles.
 pub fn hex_triangle_mesh( layout : &HexLayout ) -> Vec< f32 >
 {
   let points = hex_vertices( layout );
@@ -111,7 +113,7 @@ pub fn hex_triangle_mesh( layout : &HexLayout ) -> Vec< f32 >
   positions
 }
 
-/// Generates the six corner points of a hexagon, with outer circle radius is 1.
+/// Generates the six corner points of a hexagon.
 ///
 /// # Returns
 /// An array of six `(f32, f32)` tuples representing the x and y coordinates of the hexagon's corners.
@@ -122,7 +124,7 @@ pub fn hex_vertices( layout : &HexLayout ) -> [ ( f32, f32 ); 6 ]
   {
     let angle = 60 * i;
     let angle = ( angle as f32 ).to_radians() + layout.orientation.orientation_angle();
-    points[ i ] = ( angle.cos(), angle.sin() )
+    points[ i ] = ( angle.cos() * layout.size, angle.sin() * layout.size );
   }
   points
 }
