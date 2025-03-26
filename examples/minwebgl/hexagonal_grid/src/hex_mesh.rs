@@ -55,7 +55,7 @@ where
   let mut points = vec![];
   for coord in coords
   {
-    let ( x, y ) = layout.hex_2d_position( coord, hex_size );
+    let ( x, y ) = layout.hex_2d_position( coord );
     let y = -y;
     let mesh = hex_triangle_mesh( layout );
     for point in mesh.chunks( 2 )
