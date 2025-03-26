@@ -3,8 +3,10 @@ mod layout;
 mod coordinates;
 mod grid;
 mod hex_mesh;
+mod patterns;
 
 use layout::*;
+use patterns::*;
 use minwebgl as gl;
 use gl::{ math::d2::mat2x2h, JsCast, canvas::HtmlCanvasElement };
 use web_sys::{ wasm_bindgen::prelude::Closure, MouseEvent };
@@ -37,7 +39,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   gl.clear_color( 0.9, 0.9, 0.9, 1.0 );
 
   let size = 1.0;
-  let layout = Pointy( size );
+  let layout = HexLayout { orientation : Orientation::Flat, size };
   let shift_type = ShiftType::Odd;
   let rows = 3;
   let columns = 3;
@@ -75,22 +77,25 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       let x = ( x - half_width ) / half_width * ( 1.0 / scaling[ 0 ] ) + center_x;
       let y = ( y - half_height ) / half_height * ( 1.0 / scaling[ 1 ] ) + center_y;
 
-      let coord = layout.hex_coordinates( x, y );
+      let cursor_coord = layout.hex_coordinates( x, y );
 
-      if selected_hex.is_some_and( | hex | hex == coord )
+      if selected_hex.is_some_and( | hex | hex == cursor_coord )
       {
         return;
       }
-      selected_hex = Some( coord );
+
+      selected_hex = Some( cursor_coord );
 
       gl.clear( gl::COLOR_BUFFER_BIT );
 
-      let ( x, y ) = layout.hex_2d_position( coord );
+      // draw outline
+      let ( x, y ) = layout.hex_2d_position( cursor_coord );
       let translation = mat2x2h::translate( [ x - center_x, -y + center_y ] );
       let scale = mat2x2h::scale( [ size, size ] );
       let mvp = total_scale * translation * scale;
       hex_shader.draw( &gl, gl::LINE_LOOP, &line_geometry, mvp.raw_slice(), [ 0.3, 0.3, 0.3, 1.0 ] ).unwrap();
 
+      // draw hexes
       for coord in ShiftedRectangleIter::new( rows, columns, shift_type, layout )
       {
         let ( x, y ) = layout.hex_2d_position( coord );

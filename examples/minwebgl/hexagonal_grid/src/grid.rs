@@ -9,22 +9,22 @@ use crate::{ coordinates::Axial, layout::HexLayout };
 /// - `T`: The type of the values stored in the map.
 pub type HexMap< T > = FxHashMap< Axial, T >;
 
-pub struct HexGrid< T, Layout >
+pub struct HexGrid< T >
 {
   map : HexMap< T >,
-  layout : Layout,
+  layout : HexLayout,
 }
 
-impl< T, Layout > HexGrid< T, Layout >
+impl< T > HexGrid< T >
 {
-  pub fn new( map : HexMap< T >, size : f32, layout : Layout ) -> Self
+  pub fn new( map : HexMap< T >, size : f32, layout : HexLayout ) -> Self
   {
     Self { map, layout }
   }
 
-  pub fn layout( &self ) -> &Layout
+  pub fn layout( &self ) -> HexLayout
   {
-    &self.layout
+    self.layout
   }
 
   pub fn map( &self ) -> &HexMap< T >
