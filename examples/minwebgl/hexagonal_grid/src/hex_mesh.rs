@@ -1,6 +1,7 @@
-use minwebgl::{math::Vector, F32x4x4};
-
-use crate::{coordinates::Axial, layout::HexLayout};
+use crate::*;
+use coordinates::Axial;
+use layout::HexLayout;
+use minwebgl::{ math::Vector, F32x4x4 };
 
 /// Generates line mesh geometry in the manner of LINE LOOP for a hexagon.
 /// The hexagon is flat top and has an outer circle radius of 1.

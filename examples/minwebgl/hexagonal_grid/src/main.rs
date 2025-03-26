@@ -37,14 +37,14 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   gl.clear_color( 0.9, 0.9, 0.9, 1.0 );
 
   let layout = Pointy;
-  let rows = 5;
-  let columns = 5;
-  let size = 0.5;
-  let horizontal_offset = ( ( columns - 1 ) as f32 + 0.5 ) * layout.horizontal_spacing( size ) / 2.0;
-  let vertical_offset = ( rows - 1 ) as f32 * layout.vertical_spacing( size ) / 2.0;
+  let shift_type = ShiftType::Even;
+  let rows = 6;
+  let columns = 6;
+  let size = 1.0;
+  let ( center_x, center_y ) = layout::grid_center( Shifted::new( rows, columns, shift_type ), &layout, size );
 
   let hex_shader = HexShader::new( &gl )?;
-  let triangle_geometry = hex_render::geometry2d( &gl, &hex_mesh::hex_triangle_mesh( &layout ) )?;
+  let triangle_geometry = hex_render::geometry2d( &gl, &hex_mesh::hex_triangle_fan_mesh( &layout ) )?;
   let line_geometry = hex_render::geometry2d( &gl, &hex_mesh::hex_line_loop_mesh( &layout ) )?;
 
   let aspect = height as f32 / width as f32;
@@ -66,23 +66,16 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       let x = ( e.client_x() as f64 - canvas_x ) as f32;
       let y = ( e.client_y() as f64 - canvas_y ) as f32;
       // normalize then multiply by inverse scaling
-      let x = ( x - half_width ) / half_width * ( 1.0 / scaling[ 0 ] ) + horizontal_offset;
-      let y = ( y - half_height ) / half_height * ( 1.0 / scaling[ 1 ] ) + vertical_offset;
+      let x = ( x - half_width ) / half_width * ( 1.0 / scaling[ 0 ] ) + center_x;
+      let y = ( y - half_height ) / half_height * ( 1.0 / scaling[ 1 ] ) + center_y;
 
       gl.clear( gl::COLOR_BUFFER_BIT );
 
-      let coord = layout.hex_coordinates( x, y, size );
-      let ( x, y ) = layout.hex_2d_position( coord, size );
-      let translation = mat2x2h::translate( [ x - horizontal_offset, -y + vertical_offset ] );
-      let scale = mat2x2h::scale( [ size, size ] );
-      let mvp = total_scale * translation * scale;
-      hex_shader.draw( &gl, gl::LINE_LOOP, &line_geometry, mvp.raw_slice(), [ 0.3, 0.3, 0.3, 1.0 ] ).unwrap();
-
-      for coord in OddShifted::new( rows, columns )
+      for coord in Shifted::new( rows, columns, shift_type )
       {
         let ( x, y ) = layout.hex_2d_position( coord, size );
 
-        let position = [ x - horizontal_offset, -y + vertical_offset ];
+        let position = [ x - center_x, -y + center_y ];
         let translation = mat2x2h::translate( position );
         let scale = mat2x2h::scale( [ size - 0.05, size - 0.05 ] );
         let mvp = total_scale * translation * scale;
@@ -95,6 +88,14 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
           [ 0.3, 0.75, 0.3, 1.0 ]
         ).unwrap();
       }
+
+      let coord = layout.hex_coordinates( x, y, size );
+      let ( x, y ) = layout.hex_2d_position( coord, size );
+      let translation = mat2x2h::translate( [ x - center_x, -y + center_y ] );
+      let scale = mat2x2h::scale( [ size, size ] );
+      let mvp = total_scale * translation * scale;
+      hex_shader.draw( &gl, gl::LINE_LOOP, &line_geometry, mvp.raw_slice(), [ 0.3, 0.3, 0.3, 1.0 ] ).unwrap();
+
     }
   };
   let mouse_move = Closure::< dyn Fn( _ ) >::new( Box::new( mouse_move ) );

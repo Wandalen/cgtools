@@ -125,18 +125,27 @@ fn flat_layout_spacings( size : f32 ) -> ( f32, f32 )
   ( 1.5 * size, 3.0f32.sqrt() * size )
 }
 
-pub struct OddShifted
+#[ derive( Debug, Copy, Clone, PartialEq, Eq ) ]
+pub enum ShiftType
+{
+  Odd = 0,
+  Even = 1,
+}
+
+#[ derive( Debug ) ]
+pub struct Shifted
 {
   rows : i32,
   columns : i32,
   current_row : i32,
   current_column : i32,
   offset : i32,
+  shift_type : ShiftType,
 }
 
-impl OddShifted
+impl Shifted
 {
-  pub fn new( rows : i32, columns : i32 ) -> Self
+  pub fn new( rows : i32, columns : i32, shift_type : ShiftType ) -> Self
   {
     Self
     {
@@ -145,11 +154,12 @@ impl OddShifted
       current_row : 0,
       current_column : 0,
       offset : 0,
+      shift_type
     }
   }
 }
 
-impl Iterator for OddShifted
+impl Iterator for Shifted
 {
   type Item = Axial;
 
@@ -169,7 +179,7 @@ impl Iterator for OddShifted
       self.current_column = 0;
       self.current_row += 1;
 
-      if self.current_row % 2 == 0
+      if self.current_row & 1 == self.shift_type as i32
       {
         self.offset += 1;
       }
@@ -177,4 +187,35 @@ impl Iterator for OddShifted
 
     Some( coord )
   }
+}
+
+/// Calculates a point that lies right in the center of a grid of hexagons.
+///
+/// # Parameters
+/// - `coords`: An iterator over the axial coordinates of the hexagons.
+/// - `layout`: The layout of the hexagons.
+/// - `hex_size`: The size of the hexagons in the grid.
+///
+/// # Returns
+/// A tuple containing the x and y coordinates of the center of the grid.
+pub fn grid_center< C, L >( coords : C, layout : &L, hex_size : f32 ) -> ( f32, f32 )
+where
+  C : Iterator< Item = Axial >,
+  L : HexLayout
+{
+  let mut min_x = f32::INFINITY;
+  let mut max_x = f32::NEG_INFINITY;
+  let mut min_y = f32::INFINITY;
+  let mut max_y = f32::NEG_INFINITY;
+
+  for coor in coords
+  {
+    let ( x, y ) = layout.hex_2d_position( coor, hex_size );
+    min_x = min_x.min( x );
+    max_x = max_x.max( x );
+    min_y = min_y.min( y );
+    max_y = max_y.max( y );
+  }
+
+  ( min_x + ( max_x - min_x ) / 2.0, min_y + ( max_y - min_y ) / 2.0 )
 }
