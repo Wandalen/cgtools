@@ -1,21 +1,16 @@
-use std::{hash::Hash, marker::PhantomData};
+use std::{ hash::Hash, marker::PhantomData };
 
 /// Axial coordinates use two axes (`q` and `r`) to uniquely identify
 /// hexes in a grid.
 /// more info: https://www.redblobgames.com/grids/hexagons/#coordinates-axial
-#[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
 pub struct Axial;
 
-#[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
 pub struct OffsetOddR;
 
-#[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
 pub struct OffsetEvenR;
 
-#[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
 pub struct OffsetOddQ;
 
-#[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
 pub struct OffsetEvenQ;
 
 /// Represents a coordinate in a hexagonal grid.
