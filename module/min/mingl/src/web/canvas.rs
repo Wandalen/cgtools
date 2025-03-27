@@ -120,7 +120,7 @@ mod private
     canvas.set_height( height );
   }
 
-  /// Sets canvas width and height in CSS style as width / dpr and height / dpr.
+  /// Sets canvas width and height in CSS style as width / dpr and height / dpr. This removes scaling of operating system.
   /// If you resize the canvas after calling this funciton, don't forget to update CSS width and height.
   pub fn remove_dpr_scaling( canvas: &HtmlCanvasElement )
   {

@@ -35,7 +35,7 @@ pub struct Coordinate< Type >
 
 impl< Type > Hash for Coordinate< Type >
 {
-  fn hash< H: std::hash::Hasher >( &self, state: &mut H )
+  fn hash< H : std::hash::Hasher >( &self, state : &mut H )
   {
     self.q.hash( state );
     self.r.hash( state );
@@ -272,7 +272,7 @@ impl< T > std::ops::Add for Coordinate< T >
 {
   type Output = Self;
 
-  fn add( self, rhs: Self ) -> Self::Output
+  fn add( self, rhs : Self ) -> Self::Output
   {
     Self::new( self.q + rhs.q, self.r + rhs.r )
   }
@@ -282,7 +282,7 @@ impl< T > std::ops::Sub for Coordinate< T >
 {
   type Output = Self;
 
-  fn sub( self, rhs: Self ) -> Self::Output
+  fn sub( self, rhs : Self ) -> Self::Output
   {
     Self::new( self.q - rhs.q, self.r - rhs.r )
   }
