@@ -4,6 +4,7 @@ mod private
   
   use crate::*;
 
+  #[ derive( Clone ) ]
   pub struct RenderPipelineDescriptor< 'a >
   {
     vertex : web_sys::GpuVertexState,
@@ -80,6 +81,16 @@ mod private
     {
       self.multisample = Some( state.into() );
       self
+    }
+
+    pub fn create( self, device : &web_sys::GpuDevice ) -> Result< web_sys::GpuRenderPipeline, WebGPUError >
+    {
+      render_pipeline::create( device, &self.into() )
+    }
+
+    pub async fn create_async( self, device : &web_sys::GpuDevice ) -> Result< web_sys::GpuRenderPipeline, WebGPUError >
+    {
+      render_pipeline::create_async( device, &self.into() ).await
     }
   }
 

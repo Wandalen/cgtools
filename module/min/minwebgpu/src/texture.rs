@@ -8,13 +8,13 @@ mod private
     TextureDescriptor::new()
   }
 
-  pub fn create< T : Into< web_sys::GpuTextureDescriptor > >
+  pub fn create
   ( 
     device : &web_sys::GpuDevice, 
-    descriptor : T 
+    descriptor : &web_sys::GpuTextureDescriptor 
   ) -> Result< web_sys::GpuTexture, WebGPUError >
   {
-    let texture = device.create_texture( &descriptor.into() )
+    let texture = device.create_texture( descriptor )
     .map_err( | e | DeviceError::FailedToCreateTexture( format!( "{:?}", e ) ) )?;
 
     Ok( texture )

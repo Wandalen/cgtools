@@ -25,7 +25,6 @@ If you need change on your own sprite sheet:
 ```rust
 let path = "static/your_sprite_sheet.png";
 let sprties_in_row = 8; // amount of elements in each row.
-let sprites_in_col = 8; // amount of elements in each col.
 let sprite_width = 128; // width of element of sprite sheet.
 let sprite_height = 128; // height of element of sprite sheet.
 let amount = 64; // count of all elements in sprite sheet.

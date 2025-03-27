@@ -44,6 +44,10 @@ fn run()
   let line          = include_str!( "shaders/line.vert" );
   let slice         = include_str!( "shaders/slice.vert" );
   let fragment      = include_str!( "shaders/main.frag" );
+
+  // qqq : purpose of each shader? what is drawn by what?
+  // qqq : more documentatiion overall please
+
   // shader for drawing points
   let point_shader  = gl::ProgramFromSources::new( point, fragment ).compile_and_link( &gl ).unwrap();
   // shader for drawing lines

@@ -3,7 +3,7 @@ mod private
 {
   use crate::*;
 
-  #[ derive( Default ) ]
+  #[ derive( Default, Clone ) ]
   pub struct TextureBindingLayout
   {
     /// Defaults to `false`
@@ -122,14 +122,6 @@ mod private
   impl From< TextureBindingLayout > for web_sys::GpuTextureBindingLayout
   {
     fn from( value: TextureBindingLayout ) -> Self 
-    {
-      ( &value ).into()
-    }
-  }
-
-  impl From< &TextureBindingLayout > for web_sys::GpuTextureBindingLayout
-  {
-    fn from( value: &TextureBindingLayout ) -> Self 
     {
       let layout = web_sys::GpuTextureBindingLayout::new();
 

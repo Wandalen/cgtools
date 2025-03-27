@@ -10,10 +10,6 @@ use material::{ GLMaterial, TextureType };
 use mesh::GLMesh;
 use mingl::CameraOrbitControls;
 use minwebgl::{ self as gl, JsCast };
-use gl::
-{
-  GL,
-};
 use web_sys::wasm_bindgen::prelude::Closure;
 
 mod mesh;
