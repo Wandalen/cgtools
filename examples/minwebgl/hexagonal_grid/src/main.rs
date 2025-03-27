@@ -24,11 +24,13 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
   let canvas = gl.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
 
+  // qqq : redundant probably
   let width = 1000;
   let height = 800;
   canvas.set_width( width );
   canvas.set_height( height );
 
+  // qqq : redundant probably
   // remove affection of system scaling on canvas size
   let dpr = web_sys::window().unwrap().device_pixel_ratio();
   let css_width = format!( "{}px", width as f64 / dpr );

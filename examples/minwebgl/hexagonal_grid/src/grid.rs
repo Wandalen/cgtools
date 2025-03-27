@@ -1,6 +1,8 @@
+use crate::*;
 use minwebgl::math::Array2;
 use rustc_hash::FxHashMap;
-use crate::{ coordinates::Axial, layout::HexLayout };
+use coordinates::Axial;
+use layout::HexLayout;
 
 /// A type alias for a hash map that associates axial coordinates with values.
 /// This is commonly used to store data for hexagonal grids.
