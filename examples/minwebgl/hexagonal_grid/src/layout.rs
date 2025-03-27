@@ -1,4 +1,4 @@
-use crate::*;
+use crate::{coordinates::Pixel, *};
 use coordinates::Axial;
 
 /// An enum that represents the orientation of the hexagons (e.g., "pointy-topped" or "flat-topped").
@@ -35,32 +35,31 @@ pub struct HexLayout
 impl HexLayout
 {
   // qqq : is it pixels?
-  /// Calculates axial coordinates of a closest hexagon in a grid
+  /// Calculates axial coordinates of a hexagon that contains the given pixel position.
   ///
   /// # Parameters
-  /// - `x`: The x-coordinate in cartesian space.
-  /// - `y`: The y-coordinate in cartesian space.
+  /// - `pixel`: The pixel coordinates.
   ///
   /// # Returns
-  /// An `Axial` coordinate representing the hexagon at the given pixel position.
+  /// An `Axial` coordinate representing the hexagon.
   // qqq : use new type for each coordinate system
-  pub fn hex_coordinates( &self, x : f32, y : f32 ) -> Axial
+  pub fn hex_axial_coord( &self, pixel : Pixel ) -> Axial
   {
     match self.orientation
     {
-      Orientation::Pointy => Axial::from_2d_to_pointy( x, y, self.size ),
-      Orientation::Flat => Axial::from_2d_to_flat( x, y, self.size ),
+      Orientation::Pointy => Axial::from_2d_to_pointy( pixel, self.size ),
+      Orientation::Flat => Axial::from_2d_to_flat( pixel, self.size ),
     }
   }
 
-  /// Calculates the 2d position of a hexagon center based on its axial coordinates.
+  /// Calculates the 2d pixel position of a hexagon center based on its axial coordinates.
   ///
   /// # Parameters
   /// - `coord`: The axial coordinates of the hexagon.
   ///
   /// # Returns
-  /// A tuple containing the x and y coordinates of the hexagon center.
-  pub fn hex_2d_position( &self, coord : Axial ) -> ( f32, f32 )
+  /// A `Pixel` containing the x and y coordinates of the hexagon center.
+  pub fn hex_pixel_coord( &self, coord : Axial ) -> Pixel
   {
     match self.orientation
     {
@@ -121,7 +120,7 @@ where
 
   for coord in coords
   {
-    let ( x, y ) = layout.hex_2d_position( coord );
+    let Pixel { x, y } = layout.hex_pixel_coord( coord );
     min_x = min_x.min( x );
     max_x = max_x.max( x );
     min_y = min_y.min( y );

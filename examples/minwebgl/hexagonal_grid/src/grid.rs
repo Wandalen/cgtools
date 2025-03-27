@@ -70,6 +70,9 @@ impl< T, Layout > HexArray< T, Layout >
 
   /// Insets a value at the given axial coordinates.
   /// Returns the previous value at the coordinates if there was one.
+  ///
+  /// # Panics
+  /// Panics if the coordinates are out of bounds.
   pub fn insert( &mut self, coord : Axial, value : T ) -> Option< T >
   {
     let coord = Axial::new( self.offset.q + coord.q, self.offset.r + coord.r );
@@ -78,6 +81,11 @@ impl< T, Layout > HexArray< T, Layout >
     std::mem::replace( &mut self.data[ ( i, j ) ], Some( value ) )
   }
 
+  /// Removes a value at the given axial coordinates.
+  /// Returns the value if there was one.
+  ///
+  /// # Panics
+  /// Panics if the coordinates are out of bounds.
   pub fn remove( &mut self, coord : Axial ) -> Option< T >
   {
     let coord = Axial::new( self.offset.q + coord.q, self.offset.r + coord.r );
@@ -86,6 +94,7 @@ impl< T, Layout > HexArray< T, Layout >
     std::mem::take( &mut self.data[ ( i, j ) ] )
   }
 
+  /// Returns a reference to the value at the given axial coordinates.
   pub fn get( &self, coord : Axial ) -> Option< &T >
   {
     let coord = Axial::new( self.offset.q + coord.q, self.offset.r + coord.r );
@@ -94,6 +103,7 @@ impl< T, Layout > HexArray< T, Layout >
     self.data.get( ( i, j ) ).and_then( | x | x.as_ref() )
   }
 
+  /// Returns a mutable reference to the value at the given axial coordinates.
   pub fn get_mut( &mut self, coord : Axial ) -> Option< &mut T >
   {
     let coord = Axial::new( self.offset.q + coord.q, self.offset.r + coord.r );

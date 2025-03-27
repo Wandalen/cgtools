@@ -40,7 +40,7 @@ impl Axial
   /// # Returns
   /// An `Axial` coordinate representing the hexagon at the given pixel position.
   // qqq : use new type for each coordinate system
-  pub fn from_2d_to_pointy( x : f32, y : f32, hex_size : f32 ) -> Self
+  pub fn from_2d_to_pointy( Pixel { x, y } : Pixel, hex_size : f32 ) -> Self
   {
     // implementation is taken from https://www.redblobgames.com/grids/hexagons/#pixel-to-hex
     let q = ( 3.0f32.sqrt() / 3.0 * x - 1.0 / 3.0 * y ) / hex_size;
@@ -58,7 +58,7 @@ impl Axial
   ///
   /// # Returns
   /// An `Axial` coordinate representing the hexagon at the given pixel position.
-  pub fn from_2d_to_flat( x : f32, y : f32, hex_size : f32 ) -> Self
+  pub fn from_2d_to_flat( Pixel { x, y } : Pixel, hex_size : f32 ) -> Self
   {
     // implementation is taken from https://www.redblobgames.com/grids/hexagons/#pixel-to-hex
     let q = ( 2.0 / 3.0 * x                            ) / hex_size;
@@ -74,14 +74,14 @@ impl Axial
   ///
   /// # Returns
   /// A tuple containing the x and y pixel coordinates of the hexagon.
-  pub fn pointy_to_2d( &self, hex_size : f32 ) -> ( f32, f32 )
+  pub fn pointy_to_2d( &self, hex_size : f32 ) -> Pixel
   {
     // implementation is taken from https://www.redblobgames.com/grids/hexagons/#hex-to-pixel
     let q = self.q as f32;
     let r = self.r as f32;
     let x = hex_size * ( 3.0f32.sqrt() * q + 3.0f32.sqrt() / 2.0 * r );
     let y = hex_size * (                               3.0 / 2.0 * r );
-    ( x, y )
+    ( x, y ).into()
   }
 
   /// Converts axial coordinates to pixel coordinates in a flat-topped hexagonal grid.
@@ -91,14 +91,14 @@ impl Axial
   ///
   /// # Returns
   /// A tuple containing the x and y pixel coordinates of the hexagon.
-  pub fn flat_to_2d( &self, hex_size : f32 ) -> ( f32, f32 )
+  pub fn flat_to_2d( &self, hex_size : f32 ) -> Pixel
   {
     // implementation is taken from https://www.redblobgames.com/grids/hexagons/#hex-to-pixel
     let q = self.q as f32;
     let r = self.r as f32;
     let x = hex_size * (           3.0 / 2.0 * q                     );
     let y = hex_size * ( 3.0f32.sqrt() / 2.0 * q + 3.0f32.sqrt() * r );
-    ( x, y )
+    ( x, y ).into()
   }
 }
 
@@ -134,4 +134,74 @@ fn axial_round( q: f32, r: f32 ) -> ( i32, i32 )
   }
 
   ( rq as i32, rr as i32 )
+}
+
+impl std::ops::Add for Axial
+{
+  type Output = Self;
+
+  fn add( self, rhs: Self ) -> Self::Output
+  {
+    Self::new( self.q + rhs.q, self.r + rhs.r )
+  }
+}
+
+impl std::ops::Sub for Axial
+{
+  type Output = Self;
+
+  fn sub( self, rhs: Self ) -> Self::Output
+  {
+    Self::new( self.q - rhs.q, self.r - rhs.r )
+  }
+}
+
+impl< T : Into< i32 > > From< ( T, T ) > for Axial
+{
+  fn from( ( q, r ) : ( T, T ) ) -> Self
+  {
+    Self { q : q.into(), r : r.into() }
+  }
+}
+
+impl< T : Into< i32 > > From< [ T; 2 ] > for Axial
+{
+  fn from( [ q, r ] : [ T; 2 ] ) -> Self
+  {
+    Self { q : q.into(), r : r.into() }
+  }
+}
+
+/// Represents a pixel coordinate in a 2D space.
+/// Assumes that Y-axis points down.
+#[ derive( Debug, Clone, Copy, PartialEq ) ]
+pub struct Pixel
+{
+  pub x : f32,
+  pub y : f32,
+}
+
+impl Pixel
+{
+  /// Creates a new `Pixel` coordinate with the specified `x` and `y` values.
+  pub fn new( x : f32, y : f32 ) -> Self
+  {
+    Self { x, y }
+  }
+}
+
+impl< T : Into< f32 > > From< ( T, T ) > for Pixel
+{
+  fn from( ( x, y ) : ( T, T ) ) -> Self
+  {
+    Self { x : x.into(), y : y.into() }
+  }
+}
+
+impl< T : Into< f32 > > From< [ T; 2 ] > for Pixel
+{
+  fn from( [ x, y ] : [ T; 2 ] ) -> Self
+  {
+    Self { x : x.into(), y : y.into() }
+  }
 }
