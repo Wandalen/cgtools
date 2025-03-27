@@ -5,12 +5,16 @@ use std::{ hash::Hash, marker::PhantomData };
 /// more info: https://www.redblobgames.com/grids/hexagons/#coordinates-axial
 pub struct Axial;
 
+/// Offset coordinates in a horizontal "odd-r" manner.
 pub struct OffsetOddR;
 
+/// Offset coordinates in a horizontal "even-r" manner.
 pub struct OffsetEvenR;
 
+/// Offset coordinates in a vertical "odd-q" manner.
 pub struct OffsetOddQ;
 
+/// Offset coordinates in a vertical "even-q" manner.
 pub struct OffsetEvenQ;
 
 /// Represents a coordinate in a hexagonal grid.
