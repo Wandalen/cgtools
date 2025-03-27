@@ -67,6 +67,8 @@ mod_interface!
   layer webgl;
   /// Texture related functions
   layer texture;
+  /// Drawbuffers function
+  layer drawbuffers;
 
   /// Useful information about your objects
   #[ cfg( feature = "diagnostics" ) ]
