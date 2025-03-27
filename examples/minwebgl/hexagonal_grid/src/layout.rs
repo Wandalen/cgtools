@@ -34,6 +34,7 @@ pub struct HexLayout
 
 impl HexLayout
 {
+  // qqq : is it pixels?
   /// Calculates axial coordinates of a closest hexagon in a grid
   ///
   /// # Parameters
@@ -42,6 +43,7 @@ impl HexLayout
   ///
   /// # Returns
   /// An `Axial` coordinate representing the hexagon at the given pixel position.
+  // qqq : use new type for each coordinate system
   pub fn hex_coordinates( &self, x : f32, y : f32 ) -> Axial
   {
     match self.orientation

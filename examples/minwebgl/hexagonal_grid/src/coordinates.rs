@@ -39,6 +39,7 @@ impl Axial
   ///
   /// # Returns
   /// An `Axial` coordinate representing the hexagon at the given pixel position.
+  // qqq : use new type for each coordinate system
   pub fn from_2d_to_pointy( x : f32, y : f32, hex_size : f32 ) -> Self
   {
     // implementation is taken from https://www.redblobgames.com/grids/hexagons/#pixel-to-hex
