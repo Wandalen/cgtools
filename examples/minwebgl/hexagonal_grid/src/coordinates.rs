@@ -21,9 +21,9 @@ pub struct OffsetEvenQ;
 #[ derive( Debug ) ]
 pub struct Coordinate< Type >
 {
-  /// The "column" coordinate in the axial coordinate system.
+  /// The "column" coordinate in the coordinate system.
   pub q : i32,
-  /// The "row" coordinate in the axial coordinate system.
+  /// The "row" coordinate in the coordinate system.
   pub r : i32,
   r#type : PhantomData< Type >
 }
@@ -148,16 +148,6 @@ impl From< Coordinate< OffsetEvenQ > > for Coordinate< Axial >
 
 impl Coordinate< Axial >
 {
-  // Creates a new `Axial` coordinate with the specified `q` and `r` values.
-  //
-  // # Parameters
-  // - `q`: The "column" coordinate in the axial system.
-  // - `r`: The "row" coordinate in the axial system.
-  //
-  // # Returns
-  // A new `Axial` instance.
-
-
   /// Converts pixel coordinates to axial coordinates in a pointy-topped hexagonal grid.
   ///
   /// # Parameters
