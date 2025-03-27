@@ -120,6 +120,18 @@ mod private
     canvas.set_height( height );
   }
 
+  /// Sets canvas width and height in CSS style as width / dpr and height / dpr.
+  /// If you resize the canvas after calling this funciton, don't forget to update CSS width and height.
+  pub fn remove_dpr_scaling( canvas: &HtmlCanvasElement )
+  {
+    let width = canvas.width();
+    let height = canvas.height();
+    let dpr = web_sys::window().expect( "Should have a window" ).device_pixel_ratio();
+    let css_width = format!( "{}px", width as f64 / dpr );
+    let css_height = format!( "{}px", height as f64 / dpr );
+    canvas.style().set_property( "width", &css_width ).unwrap();
+    canvas.style().set_property( "height", &css_height ).unwrap();
+  }
 }
 
 crate::mod_interface!
@@ -132,6 +144,7 @@ crate::mod_interface!
     retrieve,
     make,
     retrieve_or_make,
+    remove_dpr_scaling
   };
 
 }

@@ -78,6 +78,21 @@ mod private
     from_canvas( &canvas )
   }
 
+  /// Does the same as `retrieve_or_make`, but also removes affection of system scaling on canvas size.
+  /// This functoin adjusts width and height of the canvas in CSS style.
+  ///
+  /// # Caution
+  /// Since canvas size is reduced in CSS you should be careful when dealing with coodinates on the canvas.
+  /// For example its right bottom corner coordinates won't be its (width; height),
+  /// but its ( width / dpr; height / dpr ).
+  /// Also when resizing width and height of the canvas you should multiply them by device pixel ratio,
+  /// you should also update CSS width and height.
+  pub fn retrieve_or_make_reduced_dpr() -> Result< GL, Error >
+  {
+    let canvas = canvas::retrieve_or_make()?;
+    canvas::remove_dpr_scaling( &canvas );
+    from_canvas( &canvas )
+  }
 }
 
 crate::mod_interface!
@@ -96,6 +111,7 @@ crate::mod_interface!
     from_canvas,
     retrieve_or_make,
     from_canvas_2d,
+    retrieve_or_make_reduced_dpr
   };
 
 }

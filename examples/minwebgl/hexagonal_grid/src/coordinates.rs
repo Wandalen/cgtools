@@ -1,34 +1,167 @@
-/// Represents an axial coordinate in a hexagonal grid.
+use std::{hash::Hash, marker::PhantomData};
+
 /// Axial coordinates use two axes (`q` and `r`) to uniquely identify
 /// hexes in a grid.
 /// more info: https://www.redblobgames.com/grids/hexagons/#coordinates-axial
+#[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
+pub struct Axial;
+
+#[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
+pub struct OffsetOddR;
+
+#[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
+pub struct OffsetEvenR;
+
+#[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
+pub struct OffsetOddQ;
+
+#[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
+pub struct OffsetEvenQ;
+
+/// Represents a coordinate in a hexagonal grid.
 ///
 /// # Fields
-/// - `q`: The "column" coordinate in the axial system.
-/// - `r`: The "row" coordinate in the axial system.
-#[ derive( Debug, Clone, Copy, Hash, PartialEq, Eq ) ]
-pub struct Axial
+/// - `q`: The "column" coordinate.
+/// - `r`: The "row" coordinate.
+#[ derive( Debug ) ]
+pub struct Coordinate< Type >
 {
   /// The "column" coordinate in the axial coordinate system.
   pub q : i32,
   /// The "row" coordinate in the axial coordinate system.
   pub r : i32,
+  r#type : PhantomData< Type >
 }
 
-impl Axial
+impl< Type > Hash for Coordinate< Type >
 {
-  /// Creates a new `Axial` coordinate with the specified `q` and `r` values.
-  ///
-  /// # Parameters
-  /// - `q`: The "column" coordinate in the axial system.
-  /// - `r`: The "row" coordinate in the axial system.
-  ///
-  /// # Returns
-  /// A new `Axial` instance.
+  fn hash< H: std::hash::Hasher >( &self, state: &mut H )
+  {
+    self.q.hash( state );
+    self.r.hash( state );
+    self.r#type.hash( state );
+  }
+}
+
+impl< Type > PartialEq for Coordinate< Type >
+{
+  fn eq( &self, other : &Self ) -> bool
+  {
+    self.q == other.q && self.r == other.r
+  }
+}
+
+impl< Type > Eq for Coordinate< Type > {}
+
+impl< Type > Clone for Coordinate< Type >
+{
+  fn clone( &self ) -> Self
+  {
+    Self { q : self.q, r : self.r, r#type : PhantomData }
+  }
+}
+
+impl< Type > Copy for Coordinate< Type > {}
+
+impl< Type > Coordinate< Type >
+{
   pub fn new( q : i32, r : i32 ) -> Self
   {
-    Self { q, r }
+    Self { q, r, r#type : PhantomData }
   }
+}
+
+impl From< Coordinate< Axial > > for Coordinate< OffsetOddR >
+{
+  fn from( value : Coordinate< Axial > ) -> Self
+  {
+    let col = value.q + ( value.r - ( value.r & 1 ) ) / 2;
+    let row = value.r;
+    Self::new( col, row )
+  }
+}
+
+impl From< Coordinate< Axial > > for Coordinate< OffsetEvenR >
+{
+  fn from( value : Coordinate< Axial > ) -> Self
+  {
+    let col = value.q + ( value.r + ( value.r & 1 ) ) / 2;
+    let row = value.r;
+    Self::new( col, row )
+  }
+}
+
+impl From< Coordinate< Axial > > for Coordinate< OffsetOddQ >
+{
+  fn from( value : Coordinate< Axial > ) -> Self
+  {
+    let col = value.q;
+    let row = value.r + ( value.q - ( value.q & 1 ) ) / 2;
+    Self::new( col, row )
+  }
+}
+
+impl From< Coordinate< Axial > > for Coordinate< OffsetEvenQ >
+{
+  fn from( value : Coordinate< Axial > ) -> Self
+  {
+    let col = value.q;
+    let row = value.r + ( value.q + ( value.q & 1 ) ) / 2;
+    Self::new( col, row )
+  }
+}
+
+impl From< Coordinate< OffsetOddR > > for Coordinate< Axial >
+{
+  fn from( value : Coordinate< OffsetOddR > ) -> Self
+  {
+    let q = value.q - ( value.r - ( value.r & 1 ) ) / 2;
+    let r = value.r;
+    Self::new( q, r )
+  }
+}
+
+impl From< Coordinate< OffsetEvenR > > for Coordinate< Axial >
+{
+  fn from( value : Coordinate< OffsetEvenR > ) -> Self
+  {
+    let q = value.q - ( value.r + ( value.r & 1 ) ) / 2;
+    let r = value.r;
+    Self::new( q, r )
+  }
+}
+
+impl From< Coordinate< OffsetOddQ > > for Coordinate< Axial >
+{
+  fn from( value : Coordinate< OffsetOddQ > ) -> Self
+  {
+    let q = value.q;
+    let r = value.r - ( value.q - ( value.q & 1 ) ) / 2;
+    Self::new( q, r )
+  }
+}
+
+impl From< Coordinate< OffsetEvenQ > > for Coordinate< Axial >
+{
+  fn from( value : Coordinate< OffsetEvenQ > ) -> Self
+  {
+    let q = value.q;
+    let r = value.r - ( value.q + ( value.q & 1 ) ) / 2;
+    Self::new( q, r )
+  }
+}
+
+impl Coordinate< Axial >
+{
+  // Creates a new `Axial` coordinate with the specified `q` and `r` values.
+  //
+  // # Parameters
+  // - `q`: The "column" coordinate in the axial system.
+  // - `r`: The "row" coordinate in the axial system.
+  //
+  // # Returns
+  // A new `Axial` instance.
+
 
   /// Converts pixel coordinates to axial coordinates in a pointy-topped hexagonal grid.
   ///
@@ -39,14 +172,13 @@ impl Axial
   ///
   /// # Returns
   /// An `Axial` coordinate representing the hexagon at the given pixel position.
-  // qqq : use new type for each coordinate system
-  pub fn from_2d_to_pointy( Pixel { x, y } : Pixel, hex_size : f32 ) -> Self
+  pub fn from_pixel_to_pointy( Pixel { x, y } : Pixel, hex_size : f32 ) -> Self
   {
     // implementation is taken from https://www.redblobgames.com/grids/hexagons/#pixel-to-hex
     let q = ( 3.0f32.sqrt() / 3.0 * x - 1.0 / 3.0 * y ) / hex_size;
     let r = (                           2.0 / 3.0 * y ) / hex_size;
     let ( q, r ) = axial_round( q, r );
-    Axial { q, r }
+    Self::new( q, r )
   }
 
   /// Converts pixel coordinates to axial coordinates in a flat-topped hexagonal grid.
@@ -58,13 +190,13 @@ impl Axial
   ///
   /// # Returns
   /// An `Axial` coordinate representing the hexagon at the given pixel position.
-  pub fn from_2d_to_flat( Pixel { x, y } : Pixel, hex_size : f32 ) -> Self
+  pub fn from_pixel_to_flat( Pixel { x, y } : Pixel, hex_size : f32 ) -> Self
   {
     // implementation is taken from https://www.redblobgames.com/grids/hexagons/#pixel-to-hex
     let q = ( 2.0 / 3.0 * x                            ) / hex_size;
     let r = ( -1.0 / 3.0 * x + 3.0f32.sqrt() / 3.0 * y ) / hex_size;
     let ( q, r ) = axial_round( q, r );
-    Axial { q, r }
+    Self::new( q, r )
   }
 
   /// Converts axial coordinates to pixel coordinates in a pointy-topped hexagonal grid.
@@ -74,7 +206,7 @@ impl Axial
   ///
   /// # Returns
   /// A tuple containing the x and y pixel coordinates of the hexagon.
-  pub fn pointy_to_2d( &self, hex_size : f32 ) -> Pixel
+  pub fn pointy_to_pixel( &self, hex_size : f32 ) -> Pixel
   {
     // implementation is taken from https://www.redblobgames.com/grids/hexagons/#hex-to-pixel
     let q = self.q as f32;
@@ -91,7 +223,7 @@ impl Axial
   ///
   /// # Returns
   /// A tuple containing the x and y pixel coordinates of the hexagon.
-  pub fn flat_to_2d( &self, hex_size : f32 ) -> Pixel
+  pub fn flat_to_pixel( &self, hex_size : f32 ) -> Pixel
   {
     // implementation is taken from https://www.redblobgames.com/grids/hexagons/#hex-to-pixel
     let q = self.q as f32;
@@ -111,7 +243,7 @@ impl Axial
 ///
 /// # Returns
 /// A tuple containing the rounded integer q and r coordinates.
-fn axial_round( q: f32, r: f32 ) -> ( i32, i32 )
+fn axial_round( q : f32, r : f32 ) -> ( i32, i32 )
 {
   // implementation is taken from https://www.redblobgames.com/grids/hexagons/#rounding
   let s = -q - r;
@@ -136,7 +268,7 @@ fn axial_round( q: f32, r: f32 ) -> ( i32, i32 )
   ( rq as i32, rr as i32 )
 }
 
-impl std::ops::Add for Axial
+impl< T > std::ops::Add for Coordinate< T >
 {
   type Output = Self;
 
@@ -146,7 +278,7 @@ impl std::ops::Add for Axial
   }
 }
 
-impl std::ops::Sub for Axial
+impl< T > std::ops::Sub for Coordinate< T >
 {
   type Output = Self;
 
@@ -156,19 +288,19 @@ impl std::ops::Sub for Axial
   }
 }
 
-impl< T : Into< i32 > > From< ( T, T ) > for Axial
+impl< T, F : Into< i32 > > From< ( F, F ) > for Coordinate< T >
 {
-  fn from( ( q, r ) : ( T, T ) ) -> Self
+  fn from( ( q, r ) : ( F, F ) ) -> Self
   {
-    Self { q : q.into(), r : r.into() }
+    Self::new( q.into(), r.into() )
   }
 }
 
-impl< T : Into< i32 > > From< [ T; 2 ] > for Axial
+impl< T, F : Into< i32 > > From< [ F; 2 ] > for Coordinate< T >
 {
-  fn from( [ q, r ] : [ T; 2 ] ) -> Self
+  fn from( [ q, r ] : [ F; 2 ] ) -> Self
   {
-    Self { q : q.into(), r : r.into() }
+    Self::new( q.into(), r.into() )
   }
 }
 
@@ -190,17 +322,17 @@ impl Pixel
   }
 }
 
-impl< T : Into< f32 > > From< ( T, T ) > for Pixel
+impl< F : Into< f32 > > From< ( F, F ) > for Pixel
 {
-  fn from( ( x, y ) : ( T, T ) ) -> Self
+  fn from( ( x, y ) : ( F, F ) ) -> Self
   {
     Self { x : x.into(), y : y.into() }
   }
 }
 
-impl< T : Into< f32 > > From< [ T; 2 ] > for Pixel
+impl< F : Into< f32 > > From< [ F; 2 ] > for Pixel
 {
-  fn from( [ x, y ] : [ T; 2 ] ) -> Self
+  fn from( [ x, y ] : [ F; 2 ] ) -> Self
   {
     Self { x : x.into(), y : y.into() }
   }
