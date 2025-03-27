@@ -1,5 +1,12 @@
 precision mediump float;
 
+#define PI 3.141592653589793
+#define PI2 6.283185307179586
+#define PI_HALF 1.5707963267948966
+#define RECIPROCAL_PI 0.3183098861837907
+#define RECIPROCAL_PI2 0.15915494309189535
+#define EPSILON 1e-6
+
 struct PhysicalMaterial {
   vec3 diffuseColor;
   float roughness;
