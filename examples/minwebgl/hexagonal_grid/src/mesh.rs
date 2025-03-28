@@ -1,5 +1,5 @@
 use crate::*;
-use coordinates::Axial;
+use coordinates::*;
 use layout::HexLayout;
 use minwebgl::{ math::Vector, F32x4x4 };
 
@@ -55,14 +55,15 @@ pub fn hex_triangle_fan_mesh( layout : &HexLayout ) -> Vec< f32 >
 ///
 /// # Returns
 /// A `Vec<f32>` containing the x and y coordinates of the triangles.
-pub fn grid_triangle_mesh< C >( coords : C, layout : &HexLayout, transform : F32x4x4 ) -> Vec< f32 >
+pub fn grid_triangle_mesh< I, C >( coords : I, layout : &HexLayout, transform : F32x4x4 ) -> Vec< f32 >
 where
-  C : Iterator< Item = Axial >,
+  I : Iterator< Item = C >,
+  C : Into< Coordinate< Axial > >
 {
   let mut points = vec![];
   for coord in coords
   {
-    let ( x, y ) = layout.hex_2d_position( coord );
+    let Pixel { x, y } = layout.pixel_coord( coord );
     let y = -y;
     let mesh = hex_triangle_mesh( layout );
     for point in mesh.chunks( 2 )

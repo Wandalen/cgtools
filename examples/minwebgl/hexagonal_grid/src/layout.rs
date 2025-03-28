@@ -1,5 +1,5 @@
 use crate::*;
-use coordinates::Axial;
+use coordinates::*;
 
 /// An enum that represents the orientation of the hexagons (e.g., "pointy-topped" or "flat-topped").
 #[ derive( Debug, Copy, Clone ) ]
@@ -34,38 +34,39 @@ pub struct HexLayout
 
 impl HexLayout
 {
-  // qqq : is it pixels?
-  /// Calculates axial coordinates of a closest hexagon in a grid
+  /// Calculates coordinates of a hexagon that contains the given pixel position.
   ///
   /// # Parameters
-  /// - `x`: The x-coordinate in cartesian space.
-  /// - `y`: The y-coordinate in cartesian space.
+  /// - `pixel`: The pixel coordinates.
   ///
   /// # Returns
-  /// An `Axial` coordinate representing the hexagon at the given pixel position.
-  // qqq : use new type for each coordinate system
-  pub fn hex_coordinates( &self, x : f32, y : f32 ) -> Axial
+  /// A coordinate representing the hexagon.
+  pub fn hex_coord< C >( &self, pixel : Pixel ) -> C
+  where
+    C : From< Coordinate< Axial > >
   {
     match self.orientation
     {
-      Orientation::Pointy => Axial::from_2d_to_pointy( x, y, self.size ),
-      Orientation::Flat => Axial::from_2d_to_flat( x, y, self.size ),
+      Orientation::Pointy => Coordinate::from_pixel_to_pointy( pixel, self.size ).into(),
+      Orientation::Flat => Coordinate::from_pixel_to_flat( pixel, self.size ).into(),
     }
   }
 
-  /// Calculates the 2d position of a hexagon center based on its axial coordinates.
+  /// Calculates the 2d pixel position of a hexagon center based on its coordinates.
   ///
   /// # Parameters
-  /// - `coord`: The axial coordinates of the hexagon.
+  /// - `coord`: The coordinates of the hexagon.
   ///
   /// # Returns
-  /// A tuple containing the x and y coordinates of the hexagon center.
-  pub fn hex_2d_position( &self, coord : Axial ) -> ( f32, f32 )
+  /// A `Pixel` containing the x and y coordinates of the hexagon center.
+  pub fn pixel_coord< C >( &self, coord : C ) -> Pixel
+  where
+    C : Into< Coordinate< Axial > >
   {
     match self.orientation
     {
-      Orientation::Pointy => coord.pointy_to_2d( self.size ),
-      Orientation::Flat => coord.flat_to_2d( self.size ),
+      Orientation::Pointy => coord.into().pointy_to_pixel( self.size ),
+      Orientation::Flat => coord.into().flat_to_pixel( self.size ),
     }
   }
 
@@ -88,6 +89,37 @@ impl HexLayout
       Orientation::Flat => flat_layout_spacings( self.size ).1,
     }
   }
+
+  /// Calculates a point that lies right in the center of a grid of hexagons.
+  ///
+  /// # Parameters
+  /// - `coords`: An iterator over the coordinates of the hexagons.
+  /// - `layout`: The layout of the hexagons.
+  ///
+  /// # Returns
+  /// A tuple containing the x and y coordinates of the center of the grid.
+  pub fn grid_center< I, C >( &self, coords : I ) -> ( f32, f32 )
+  where
+    I : Iterator< Item = C >,
+    C : Into< Coordinate< Axial > >
+  {
+    // TODO: split this function into bounds_calculation and center_calculation based on bounds
+    let mut min_x = f32::INFINITY;
+    let mut max_x = f32::NEG_INFINITY;
+    let mut min_y = f32::INFINITY;
+    let mut max_y = f32::NEG_INFINITY;
+
+    for coord in coords
+    {
+      let Pixel { x, y } = self.pixel_coord( coord );
+      min_x = min_x.min( x );
+      max_x = max_x.max( x );
+      min_y = min_y.min( y );
+      max_y = max_y.max( y );
+    }
+
+    ( min_x + ( max_x - min_x ) / 2.0, min_y + ( max_y - min_y ) / 2.0 )
+  }
 }
 
 /// Calculates the horizontal and vertical spacings between neighbor hexagons in a pointy layout.
@@ -100,33 +132,4 @@ fn pointy_layout_spacings( size : f32 ) -> ( f32, f32 )
 fn flat_layout_spacings( size : f32 ) -> ( f32, f32 )
 {
   ( 1.5 * size, 3.0f32.sqrt() * size )
-}
-
-/// Calculates a point that lies right in the center of a grid of hexagons.
-///
-/// # Parameters
-/// - `coords`: An iterator over the axial coordinates of the hexagons.
-/// - `layout`: The layout of the hexagons.
-///
-/// # Returns
-/// A tuple containing the x and y coordinates of the center of the grid.
-pub fn grid_center< C >( coords : C, layout : &HexLayout ) -> ( f32, f32 )
-where
-  C : Iterator< Item = Axial >
-{
-  let mut min_x = f32::INFINITY;
-  let mut max_x = f32::NEG_INFINITY;
-  let mut min_y = f32::INFINITY;
-  let mut max_y = f32::NEG_INFINITY;
-
-  for coord in coords
-  {
-    let ( x, y ) = layout.hex_2d_position( coord );
-    min_x = min_x.min( x );
-    max_x = max_x.max( x );
-    min_y = min_y.min( y );
-    max_y = max_y.max( y );
-  }
-
-  ( min_x + ( max_x - min_x ) / 2.0, min_y + ( max_y - min_y ) / 2.0 )
 }

@@ -1,6 +1,6 @@
 use crate::*;
 use layout::*;
-use coordinates::Axial;
+use coordinates::*;
 
 /// An enum that represents the type of shift in a shifted rectangle.
 /// The shift can be either odd or even and determines which column or row will be shifted.
@@ -69,14 +69,14 @@ impl ShiftedRectangleIter
     }
   }
 
-  fn next_pointy( data : &mut ShiftedRectangleIterData ) -> Option< Axial >
+  fn next_pointy( data : &mut ShiftedRectangleIterData ) -> Option< Coordinate< Axial > >
   {
     if data.current_row >= data.rows
     {
       return None;
     }
 
-    let coord = Axial::new( data.current_column - data.offset, data.current_row );
+    let coord = Coordinate::new( data.current_column - data.offset, data.current_row );
 
     data.current_column += 1;
 
@@ -94,14 +94,14 @@ impl ShiftedRectangleIter
     Some( coord )
   }
 
-  fn next_flat( data : &mut ShiftedRectangleIterData ) -> Option< Axial >
+  fn next_flat( data : &mut ShiftedRectangleIterData ) -> Option< Coordinate< Axial > >
   {
     if data.current_column >= data.columns
     {
       return None;
     }
 
-    let coord = Axial::new( data.current_column, data.current_row - data.offset );
+    let coord = Coordinate::new( data.current_column, data.current_row - data.offset );
 
     data.current_row += 1;
 
@@ -122,7 +122,7 @@ impl ShiftedRectangleIter
 
 impl Iterator for ShiftedRectangleIter
 {
-  type Item = Axial;
+  type Item = Coordinate< Axial >;
 
   fn next( &mut self ) -> Option< Self::Item >
   {

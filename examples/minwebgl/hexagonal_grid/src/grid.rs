@@ -1,25 +1,25 @@
 use crate::*;
 use minwebgl::math::Array2;
 use rustc_hash::FxHashMap;
-use coordinates::Axial;
+use coordinates::Coordinate;
 use layout::HexLayout;
 
-/// A type alias for a hash map that associates axial coordinates with values.
+/// A type alias for a hash map that associates coordinates with values.
 /// This is commonly used to store data for hexagonal grids.
 ///
 /// # Type Parameters
 /// - `T`: The type of the values stored in the map.
-pub type HexMap< T > = FxHashMap< Axial, T >;
+pub type HexMap< C, T > = FxHashMap< Coordinate< C >, T >;
 
-pub struct HexGrid< T >
+pub struct HexGrid< C, T >
 {
-  map : HexMap< T >,
+  map : HexMap< C, T >,
   layout : HexLayout,
 }
 
-impl< T > HexGrid< T >
+impl< C, T > HexGrid< C, T >
 {
-  pub fn new( map : HexMap< T >, size : f32, layout : HexLayout ) -> Self
+  pub fn new( map : HexMap< C, T >, layout : HexLayout ) -> Self
   {
     Self { map, layout }
   }
@@ -29,27 +29,27 @@ impl< T > HexGrid< T >
     self.layout
   }
 
-  pub fn map( &self ) -> &HexMap< T >
+  pub fn map( &self ) -> &HexMap< C, T >
   {
     &self.map
   }
 
-  pub fn map_mut( &mut self ) -> &mut HexMap< T >
+  pub fn map_mut( &mut self ) -> &mut HexMap< C, T >
   {
     &mut self.map
   }
 }
 
-pub struct HexArray< T, Layout >
+pub struct HexArray< C, T >
 {
   data : Array2< Option< T > >,
-  layout : Layout,
+  layout : HexLayout,
   /// The offset is added to the coordinates when indexing the array,
   /// it is needed to make negative coordinates usable.
-  offset : Axial,
+  offset : Coordinate< C >,
 }
 
-impl< T, Layout > HexArray< T, Layout >
+impl< C, T > HexArray< C, T >
 {
   /// Creates a new hexagonal grid with the given number of rows and columns.
   ///
@@ -61,44 +61,59 @@ impl< T, Layout > HexArray< T, Layout >
   /// For example if you want Axial( -1, -4 ) to be valid, set offset to Axial( 1, 4 ).
   /// All negative coordinates up to ( -1, -4 ) will be valid.
   /// - `layout`: The layout of the hexagons in the grid.
-  pub fn new( rows : i32, columns : i32, offset: Axial, layout : Layout ) -> Self
+  pub fn new( rows : i32, columns : i32, offset : Coordinate< C >, layout : HexLayout ) -> Self
   {
     let rows : usize = ( rows ).try_into().unwrap();
     let columns : usize = ( columns ).try_into().unwrap();
     Self { data : Array2::from_shape_fn( ( rows , columns ), | _ | None ), layout, offset }
   }
 
-  /// Insets a value at the given axial coordinates.
+  /// Insets a value at the given coordinates.
   /// Returns the previous value at the coordinates if there was one.
-  pub fn insert( &mut self, coord : Axial, value : T ) -> Option< T >
+  ///
+  /// # Panics
+  /// Panics if the coordinates are out of bounds.
+  pub fn insert( &mut self, coord : Coordinate< C >, value : T ) -> Option< T >
   {
-    let coord = Axial::new( self.offset.q + coord.q, self.offset.r + coord.r );
+    let coord = self.offset + coord;
     let i : usize = coord.r.try_into().unwrap();
     let j : usize = coord.q.try_into().unwrap();
     std::mem::replace( &mut self.data[ ( i, j ) ], Some( value ) )
   }
 
-  pub fn remove( &mut self, coord : Axial ) -> Option< T >
+  /// Removes a value at the given coordinates.
+  /// Returns the value if there was one.
+  ///
+  /// # Panics
+  /// Panics if the coordinates are out of bounds.
+  pub fn remove( &mut self, coord : Coordinate< C > ) -> Option< T >
   {
-    let coord = Axial::new( self.offset.q + coord.q, self.offset.r + coord.r );
+    let coord = self.offset + coord;
     let i : usize = coord.r.try_into().unwrap();
     let j : usize = coord.q.try_into().unwrap();
     std::mem::take( &mut self.data[ ( i, j ) ] )
   }
 
-  pub fn get( &self, coord : Axial ) -> Option< &T >
+  /// Returns a reference to the value at the given coordinates.
+  pub fn get( &self, coord : Coordinate< C > ) -> Option< &T >
   {
-    let coord = Axial::new( self.offset.q + coord.q, self.offset.r + coord.r );
+    let coord = self.offset + coord;
     let i : usize = coord.r.try_into().ok()?;
     let j : usize = coord.q.try_into().ok()?;
     self.data.get( ( i, j ) ).and_then( | x | x.as_ref() )
   }
 
-  pub fn get_mut( &mut self, coord : Axial ) -> Option< &mut T >
+  /// Returns a mutable reference to the value at the given coordinates.
+  pub fn get_mut( &mut self, coord : Coordinate< C > ) -> Option< &mut T >
   {
-    let coord = Axial::new( self.offset.q + coord.q, self.offset.r + coord.r );
+    let coord = self.offset + coord;
     let i : usize = coord.r.try_into().ok()?;
     let j : usize = coord.q.try_into().ok()?;
     self.data.get_mut( ( i, j ) ).and_then( | x | x.as_mut() )
+  }
+
+  pub fn layout( &self ) -> HexLayout
+  {
+    self.layout
   }
 }

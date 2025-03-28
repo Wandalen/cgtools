@@ -1,12 +1,13 @@
-mod webgl_render;
-mod layout;
-mod coordinates;
-mod grid;
-mod mesh;
-mod patterns;
+pub mod webgl_render;
+pub mod layout;
+pub mod coordinates;
+pub mod grid;
+pub mod mesh;
+pub mod patterns;
 
 use layout::*;
 use patterns::*;
+use coordinates::*;
 use minwebgl as gl;
 use gl::{ math::d2::mat2x2h, JsCast, canvas::HtmlCanvasElement };
 use web_sys::{ wasm_bindgen::prelude::Closure, MouseEvent };
@@ -20,25 +21,13 @@ fn main() -> Result< (), gl::WebglError >
 fn draw_hexes() -> Result< (), minwebgl::WebglError >
 {
   gl::browser::setup( Default::default() );
-  let gl = gl::context::retrieve_or_make()?;
+  let gl = gl::context::retrieve_or_make_reduced_dpr()?;
 
   let canvas = gl.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
-
-  // qqq : redundant probably
-  let width = 1000;
-  let height = 800;
-  canvas.set_width( width );
-  canvas.set_height( height );
-
-  // qqq : redundant probably
-  // remove affection of system scaling on canvas size
+  let width = canvas.width();
+  let height = canvas.height();
   let dpr = web_sys::window().unwrap().device_pixel_ratio();
-  let css_width = format!( "{}px", width as f64 / dpr );
-  let css_height = format!( "{}px", height as f64 / dpr );
-  canvas.style().set_property( "width", &css_width ).unwrap();
-  canvas.style().set_property( "height", &css_height ).unwrap();
 
-  gl.viewport( 0, 0, width as i32, height as i32 );
   gl.clear_color( 0.9, 0.9, 0.9, 1.0 );
 
   // size of a hexagon (from center to vertex)
@@ -52,11 +41,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let columns = 5;
   // determine the center of the grid
   // to shift it to the center of the canvas
-  let ( center_x, center_y ) = layout::grid_center
-  (
-    ShiftedRectangleIter::new( rows, columns, shift_type, layout ),
-    &layout
-  );
+  let ( center_x, center_y ) = layout.grid_center( ShiftedRectangleIter::new( rows, columns, shift_type, layout ) );
 
   let hex_shader = HexShader::new( &gl )?;
   // triangular fan mesh for of a hexagon
@@ -91,7 +76,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       let x = ( x - half_width ) / half_width * ( 1.0 / scaling[ 0 ] ) + center_x;
       let y = ( y - half_height ) / half_height * ( 1.0 / scaling[ 1 ] ) + center_y;
 
-      let cursor_coord = layout.hex_coordinates( x, y );
+      let cursor_coord : Coordinate< Axial > = layout.hex_coord( ( x, y ).into() );
 
       // rerender only if the selected hexagon has changed
       if selected_hex.is_some_and( | hex | hex == cursor_coord )
@@ -105,7 +90,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
       // draw outline
       // hexagon center in world coords
-      let ( x, y ) = layout.hex_2d_position( cursor_coord );
+      let Pixel { x, y } = layout.pixel_coord( cursor_coord );
       // offset by center of the grid
       let translation = mat2x2h::translate( [ x - center_x, -y + center_y ] );
       // let scale = mat2x2h::scale( [ size, size ] );
@@ -116,7 +101,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       for coord in ShiftedRectangleIter::new( rows, columns, shift_type, layout )
       {
         // hexagon center in world coords
-        let ( x, y ) = layout.hex_2d_position( coord );
+        let Pixel { x, y } = layout.pixel_coord( coord );
 
         let position = [ x - center_x, -y + center_y ];
         let translation = mat2x2h::translate( position );
