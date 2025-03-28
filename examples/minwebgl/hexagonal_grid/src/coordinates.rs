@@ -5,17 +5,30 @@ use std::{ hash::Hash, marker::PhantomData };
 /// more info: https://www.redblobgames.com/grids/hexagons/#coordinates-axial
 pub struct Axial;
 
+/// Offset coordinate system comes in 4 forms:
+/// - Pointy-topped odd parity
+/// - Pointy-topped even parity
+/// - Flat-topped odd parity
+/// - Flat-topped even parity
+/// more info: https://www.redblobgames.com/grids/hexagons/#coordinates-offset
 pub struct Offset;
 
+/// Doubled variant of Offset coordinates.
+/// Instead of alternation, the doubled coordinates double either the horizontal or vertical step size.
+/// https://www.redblobgames.com/grids/hexagons/#coordinates-doubled
 pub struct Doubled;
 
+/// Orientation of the hexagons when the top is flat.
 pub struct FlatTopped;
 
+/// Orientation of the hexagons when the top is pointed.
 pub struct PointyTopped;
 
-pub struct EvenParity;
-
+/// Parity of the hexagons where odd rows/columns are shoved
 pub struct OddParity;
+
+/// Parity of the hexagons where even rows/columns are shoved
+pub struct EvenParity;
 
 /// Represents a coordinate in a hexagonal grid.
 ///
