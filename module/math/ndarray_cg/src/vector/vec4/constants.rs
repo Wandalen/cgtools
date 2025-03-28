@@ -14,7 +14,19 @@ mod private
     pub const Z : Self = Self::new( 0.0, 0.0, 1.0, 0.0 );
 
     /// Unit `w` vector
-    pub const W : Self = Self::new( 0.0, 0.0, 0.0, 1.0);
+    pub const W : Self = Self::new( 0.0, 0.0, 0.0, 1.0 );
+
+    /// Minus unit `x` vector
+    pub const NEG_X : Self = Self::new( -1.0, 0.0, 0.0, 0.0 );
+
+    /// Minus unit `y` vector
+    pub const NEG_Y : Self = Self::new( 0.0, -1.0, 0.0, 0.0 );
+    
+    /// Minus unit `z` vector
+    pub const NEG_Z : Self = Self::new( 0.0, 0.0, -1.0, 0.0 );
+
+    /// Minus unit `w` vector
+    pub const NEG_W : Self = Self::new( 0.0, 0.0, 0.0, -1.0) ;
 
     /// All elements are `f32::MIN`
     pub const MIN : Self = Self::splat( f32::MIN );
@@ -31,13 +43,6 @@ mod private
     {
         Vector::< f32, 4 >( [ x, y, z, w ] )
     } 
-
-    /// Creates a vector from a single value : [ v ; N ]
-    #[inline(always)]
-    pub const fn splat( v : f32 ) -> Self
-    {
-        Vector::< f32, 4 >( [ v; 4 ] )
-    }
   }
   
 }
