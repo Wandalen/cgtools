@@ -154,6 +154,46 @@ impl From< Coordinate< Offset, FlatTopped, EvenParity > > for Coordinate< Axial,
   }
 }
 
+impl< Parity > From< Coordinate< Doubled, FlatTopped, Parity > > for Coordinate< Axial, FlatTopped, Parity >
+{
+  fn from( value : Coordinate< Doubled, FlatTopped, Parity > ) -> Self
+  {
+    let q = value.q;
+    let r = ( value.r - value.q ) / 2;
+    Self::new( q, r )
+  }
+}
+
+impl< Parity > From< Coordinate< Doubled, PointyTopped, Parity > > for Coordinate< Axial, PointyTopped, Parity >
+{
+  fn from( value : Coordinate< Doubled, PointyTopped, Parity > ) -> Self
+  {
+    let q = ( value.q - value.r ) / 2;
+    let r = value.r;
+    Self::new( q, r )
+  }
+}
+
+impl< Parity > From< Coordinate< Axial, FlatTopped, Parity > > for Coordinate< Doubled, FlatTopped, Parity >
+{
+  fn from( value : Coordinate< Axial, FlatTopped, Parity > ) -> Self
+  {
+    let q = value.q;
+    let r = 2 * value.r + value.q;
+    Self::new( q, r )
+  }
+}
+
+impl< Parity > From< Coordinate< Axial, PointyTopped, Parity > > for Coordinate< Doubled, PointyTopped, Parity >
+{
+  fn from( value : Coordinate< Axial, PointyTopped, Parity > ) -> Self
+  {
+    let q = 2 * value.q + value.r;
+    let r = value.r;
+    Self::new( q, r )
+  }
+}
+
 impl< Orientation, Parity > Coordinate< Axial, Orientation, Parity >
 {
   /// Converts pixel coordinates to axial coordinates in a pointy-topped hexagonal grid.
