@@ -41,14 +41,14 @@ impl HexLayout
   ///
   /// # Returns
   /// A coordinate representing the hexagon.
-  pub fn hex_coord< C >( &self, pixel : Pixel ) -> C
+  pub fn hex_coord< C, Orientation, Parity >( &self, pixel : Pixel ) -> C
   where
-    C : From< Coordinate< Axial > >
+    C : From< Coordinate< Axial, Orientation, Parity > >
   {
     match self.orientation
     {
-      Orientation::Pointy => Coordinate::from_pixel_to_pointy( pixel, self.size ).into(),
-      Orientation::Flat => Coordinate::from_pixel_to_flat( pixel, self.size ).into(),
+      self::Orientation::Pointy => Coordinate::< Axial, Orientation, Parity >::from_pixel_to_pointy( pixel, self.size ).into(),
+      self::Orientation::Flat => Coordinate::< Axial, Orientation, Parity >::from_pixel_to_flat( pixel, self.size ).into(),
     }
   }
 
@@ -59,14 +59,14 @@ impl HexLayout
   ///
   /// # Returns
   /// A `Pixel` containing the x and y coordinates of the hexagon center.
-  pub fn pixel_coord< C >( &self, coord : C ) -> Pixel
+  pub fn pixel_coord< C, Orientation, Parity >( &self, coord : C ) -> Pixel
   where
-    C : Into< Coordinate< Axial > >
+    C : Into< Coordinate< Axial, Orientation, Parity > >
   {
     match self.orientation
     {
-      Orientation::Pointy => coord.into().pointy_to_pixel( self.size ),
-      Orientation::Flat => coord.into().flat_to_pixel( self.size ),
+      self::Orientation::Pointy => coord.into().pointy_to_pixel( self.size ),
+      self::Orientation::Flat => coord.into().flat_to_pixel( self.size ),
     }
   }
 
@@ -98,10 +98,10 @@ impl HexLayout
   ///
   /// # Returns
   /// A tuple containing the x and y coordinates of the center of the grid.
-  pub fn grid_center< I, C >( &self, coords : I ) -> ( f32, f32 )
+  pub fn grid_center< I, C, Orientation, Parity >( &self, coords : I ) -> ( f32, f32 )
   where
     I : Iterator< Item = C >,
-    C : Into< Coordinate< Axial > >
+    C : Into< Coordinate< Axial, Orientation, Parity > >
   {
     // TODO: split this function into bounds_calculation and center_calculation based on bounds
     let mut min_x = f32::INFINITY;
