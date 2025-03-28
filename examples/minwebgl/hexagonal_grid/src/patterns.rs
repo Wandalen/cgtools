@@ -5,7 +5,7 @@ use coordinates::*;
 /// An enum that represents the type of shift in a shifted rectangle.
 /// The shift can be either odd or even and determines which column or row will be shifted.
 #[ derive( Debug, Copy, Clone, PartialEq, Eq ) ]
-pub enum ShiftType
+pub enum Parity
 {
   Odd = 0,
   Even = 1,
@@ -20,12 +20,12 @@ struct ShiftedRectangleIterData
   current_row : i32,
   current_column : i32,
   offset : i32,
-  shift_type : ShiftType,
+  shift_type : Parity,
 }
 
 impl ShiftedRectangleIterData
 {
-  fn new( rows : i32, columns : i32, shift_type : ShiftType ) -> Self
+  fn new( rows : i32, columns : i32, shift_type : Parity ) -> Self
   {
     Self
     {
@@ -60,7 +60,7 @@ impl ShiftedRectangleIter
   ///
   /// # Returns
   /// A new `ShiftedRectangleIter`.
-  pub fn new( rows : i32, columns : i32, shift_type : ShiftType, layout : HexLayout ) -> Self
+  pub fn new( rows : i32, columns : i32, shift_type : Parity, layout : HexLayout ) -> Self
   {
     Self
     {

@@ -35,7 +35,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   // orientation of the hexagons
   let layout = HexLayout { orientation : Orientation::Pointy, size };
   // how to shift the hexagons to form a rectangle
-  let shift_type = ShiftType::Odd;
+  let shift_type = Parity::Odd;
   // grid size
   let rows = 3;
   let columns = 5;
@@ -97,6 +97,8 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       let mvp = total_scale * translation;
       hex_shader.draw( &gl, gl::LINE_LOOP, &line_geometry, mvp.raw_slice(), [ 0.3, 0.3, 0.3, 1.0 ] ).unwrap();
 
+
+      // qqq : too many draw calls!
       // draw hexes
       for coord in ShiftedRectangleIter::new( rows, columns, shift_type, layout )
       {

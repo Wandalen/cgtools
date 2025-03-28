@@ -209,6 +209,9 @@ impl< Parity > From< Coordinate< Axial, PointyTopped, Parity > > for Coordinate<
 
 impl< Orientation, Parity > Coordinate< Axial, Orientation, Parity >
 {
+
+  // qqq : xxx : all 4 methods depends on Orientation! so remove and keep 2 and implement better trait for 2 specified structs
+
   /// Converts pixel coordinates to axial coordinates in a pointy-topped hexagonal grid.
   ///
   /// # Parameters
@@ -370,6 +373,7 @@ impl< F : Into< i32 >, System, Orientation, Parity > From< [ F; 2 ] > for Coordi
   }
 }
 
+// qqq : implement all applicable math_core traits for the newtype
 /// Represents a pixel coordinate in a 2D space.
 /// Assumes that Y-axis points down.
 #[ derive( Debug, Clone, Copy, PartialEq ) ]

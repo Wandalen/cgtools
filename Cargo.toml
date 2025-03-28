@@ -7,11 +7,10 @@ members = [
   "module/min/*",
   "module/helper/*",
   "module/math/*",
-  "module/embroidery_tools",
   "examples/minwebgl/*",
   "examples/minwebgpu/*",
-  "examples/math/*",
-  "module/vectorizer"]
+  "examples/math/*"
+]
 
 # Source :: https://github.com/obox-systems/conventions/blob/master/code_style.md#lints-and-warnings
 [workspace.lints.rust]
