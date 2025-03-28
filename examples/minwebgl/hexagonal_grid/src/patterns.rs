@@ -69,7 +69,7 @@ impl ShiftedRectangleIter
     }
   }
 
-  fn next_pointy( data : &mut ShiftedRectangleIterData ) -> Option< Coordinate< Axial > >
+  fn next_pointy( data : &mut ShiftedRectangleIterData ) -> Option< Coordinate< Axial, (), () > >
   {
     if data.current_row >= data.rows
     {
@@ -94,7 +94,7 @@ impl ShiftedRectangleIter
     Some( coord )
   }
 
-  fn next_flat( data : &mut ShiftedRectangleIterData ) -> Option< Coordinate< Axial > >
+  fn next_flat( data : &mut ShiftedRectangleIterData ) -> Option< Coordinate< Axial, (), () > >
   {
     if data.current_column >= data.columns
     {
@@ -122,7 +122,7 @@ impl ShiftedRectangleIter
 
 impl Iterator for ShiftedRectangleIter
 {
-  type Item = Coordinate< Axial >;
+  type Item = Coordinate< Axial, (), () >;
 
   fn next( &mut self ) -> Option< Self::Item >
   {

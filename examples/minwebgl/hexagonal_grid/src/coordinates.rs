@@ -5,17 +5,30 @@ use std::{ hash::Hash, marker::PhantomData };
 /// more info: https://www.redblobgames.com/grids/hexagons/#coordinates-axial
 pub struct Axial;
 
-/// Offset coordinates in a horizontal "odd-r" manner.
-pub struct OffsetOddR;
+/// Offset coordinate system comes in 4 forms:
+/// - Pointy-topped odd parity
+/// - Pointy-topped even parity
+/// - Flat-topped odd parity
+/// - Flat-topped even parity
+/// more info: https://www.redblobgames.com/grids/hexagons/#coordinates-offset
+pub struct Offset;
 
-/// Offset coordinates in a horizontal "even-r" manner.
-pub struct OffsetEvenR;
+/// Doubled variant of Offset coordinates.
+/// Instead of alternation, the doubled coordinates double either the horizontal or vertical step size.
+/// https://www.redblobgames.com/grids/hexagons/#coordinates-doubled
+pub struct Doubled;
 
-/// Offset coordinates in a vertical "odd-q" manner.
-pub struct OffsetOddQ;
+/// Orientation of the hexagons when the top is flat.
+pub struct FlatTopped;
 
-/// Offset coordinates in a vertical "even-q" manner.
-pub struct OffsetEvenQ;
+/// Orientation of the hexagons when the top is pointed.
+pub struct PointyTopped;
+
+/// Parity of the hexagons where odd rows/columns are shoved
+pub struct OddParity;
+
+/// Parity of the hexagons where even rows/columns are shoved
+pub struct EvenParity;
 
 /// Represents a coordinate in a hexagonal grid.
 ///
@@ -23,26 +36,30 @@ pub struct OffsetEvenQ;
 /// - `q`: The "column" coordinate.
 /// - `r`: The "row" coordinate.
 #[ derive( Debug ) ]
-pub struct Coordinate< Type >
+pub struct Coordinate< System, Orientation, Parity >
 {
   /// The "column" coordinate in the coordinate system.
   pub q : i32,
   /// The "row" coordinate in the coordinate system.
   pub r : i32,
-  r#type : PhantomData< Type >
+  system : PhantomData< System >,
+  orientation : PhantomData< Orientation >,
+  parity : PhantomData< Parity >,
 }
 
-impl< Type > Hash for Coordinate< Type >
+impl< System, Orientation, Parity > Hash for Coordinate< System, Orientation, Parity >
 {
   fn hash< H : std::hash::Hasher >( &self, state : &mut H )
   {
     self.q.hash( state );
     self.r.hash( state );
-    self.r#type.hash( state );
+    self.system.hash( state );
+    self.orientation.hash( state );
+    self.parity.hash( state );
   }
 }
 
-impl< Type > PartialEq for Coordinate< Type >
+impl< System, Orientation, Parity > PartialEq for Coordinate< System, Orientation, Parity >
 {
   fn eq( &self, other : &Self ) -> bool
   {
@@ -50,29 +67,29 @@ impl< Type > PartialEq for Coordinate< Type >
   }
 }
 
-impl< Type > Eq for Coordinate< Type > {}
+impl< System, Orientation, Parity > Eq for Coordinate< System, Orientation, Parity > {}
 
-impl< Type > Clone for Coordinate< Type >
+impl< System, Orientation, Parity > Clone for Coordinate< System, Orientation, Parity >
 {
   fn clone( &self ) -> Self
   {
-    Self { q : self.q, r : self.r, r#type : PhantomData }
+    Self { q : self.q, r : self.r, system : PhantomData, orientation : PhantomData, parity : PhantomData }
   }
 }
 
-impl< Type > Copy for Coordinate< Type > {}
+impl< System, Orientation, Parity > Copy for Coordinate< System, Orientation, Parity > {}
 
-impl< Type > Coordinate< Type >
+impl< System, Orientation, Parity > Coordinate< System, Orientation, Parity >
 {
   pub fn new( q : i32, r : i32 ) -> Self
   {
-    Self { q, r, r#type : PhantomData }
+    Self { q, r, system : PhantomData, orientation : PhantomData, parity : PhantomData }
   }
 }
 
-impl From< Coordinate< Axial > > for Coordinate< OffsetOddR >
+impl From< Coordinate< Axial, PointyTopped, OddParity > > for Coordinate< Offset, PointyTopped, OddParity >
 {
-  fn from( value : Coordinate< Axial > ) -> Self
+  fn from( value : Coordinate< Axial, PointyTopped, OddParity > ) -> Self
   {
     let col = value.q + ( value.r - ( value.r & 1 ) ) / 2;
     let row = value.r;
@@ -80,9 +97,9 @@ impl From< Coordinate< Axial > > for Coordinate< OffsetOddR >
   }
 }
 
-impl From< Coordinate< Axial > > for Coordinate< OffsetEvenR >
+impl From< Coordinate< Axial, PointyTopped, EvenParity > > for Coordinate< Offset, PointyTopped, EvenParity >
 {
-  fn from( value : Coordinate< Axial > ) -> Self
+  fn from( value : Coordinate< Axial, PointyTopped, EvenParity > ) -> Self
   {
     let col = value.q + ( value.r + ( value.r & 1 ) ) / 2;
     let row = value.r;
@@ -90,9 +107,9 @@ impl From< Coordinate< Axial > > for Coordinate< OffsetEvenR >
   }
 }
 
-impl From< Coordinate< Axial > > for Coordinate< OffsetOddQ >
+impl From< Coordinate< Axial, FlatTopped, OddParity > > for Coordinate< Offset, FlatTopped, OddParity >
 {
-  fn from( value : Coordinate< Axial > ) -> Self
+  fn from( value : Coordinate< Axial, FlatTopped, OddParity > ) -> Self
   {
     let col = value.q;
     let row = value.r + ( value.q - ( value.q & 1 ) ) / 2;
@@ -100,9 +117,9 @@ impl From< Coordinate< Axial > > for Coordinate< OffsetOddQ >
   }
 }
 
-impl From< Coordinate< Axial > > for Coordinate< OffsetEvenQ >
+impl From< Coordinate< Axial, FlatTopped, EvenParity > > for Coordinate< Offset, FlatTopped, EvenParity >
 {
-  fn from( value : Coordinate< Axial > ) -> Self
+  fn from( value : Coordinate< Axial, FlatTopped, EvenParity > ) -> Self
   {
     let col = value.q;
     let row = value.r + ( value.q + ( value.q & 1 ) ) / 2;
@@ -110,9 +127,9 @@ impl From< Coordinate< Axial > > for Coordinate< OffsetEvenQ >
   }
 }
 
-impl From< Coordinate< OffsetOddR > > for Coordinate< Axial >
+impl From< Coordinate< Offset, PointyTopped, OddParity > > for Coordinate< Axial, PointyTopped, OddParity >
 {
-  fn from( value : Coordinate< OffsetOddR > ) -> Self
+  fn from( value : Coordinate< Offset, PointyTopped, OddParity > ) -> Self
   {
     let q = value.q - ( value.r - ( value.r & 1 ) ) / 2;
     let r = value.r;
@@ -120,9 +137,9 @@ impl From< Coordinate< OffsetOddR > > for Coordinate< Axial >
   }
 }
 
-impl From< Coordinate< OffsetEvenR > > for Coordinate< Axial >
+impl From< Coordinate< Offset, PointyTopped, EvenParity > > for Coordinate< Axial, PointyTopped, EvenParity >
 {
-  fn from( value : Coordinate< OffsetEvenR > ) -> Self
+  fn from( value : Coordinate< Offset, PointyTopped, EvenParity > ) -> Self
   {
     let q = value.q - ( value.r + ( value.r & 1 ) ) / 2;
     let r = value.r;
@@ -130,9 +147,9 @@ impl From< Coordinate< OffsetEvenR > > for Coordinate< Axial >
   }
 }
 
-impl From< Coordinate< OffsetOddQ > > for Coordinate< Axial >
+impl From< Coordinate< Offset, FlatTopped, OddParity > > for Coordinate< Axial, FlatTopped, OddParity >
 {
-  fn from( value : Coordinate< OffsetOddQ > ) -> Self
+  fn from( value : Coordinate< Offset, FlatTopped, OddParity > ) -> Self
   {
     let q = value.q;
     let r = value.r - ( value.q - ( value.q & 1 ) ) / 2;
@@ -140,9 +157,9 @@ impl From< Coordinate< OffsetOddQ > > for Coordinate< Axial >
   }
 }
 
-impl From< Coordinate< OffsetEvenQ > > for Coordinate< Axial >
+impl From< Coordinate< Offset, FlatTopped, EvenParity > > for Coordinate< Axial, FlatTopped, EvenParity >
 {
-  fn from( value : Coordinate< OffsetEvenQ > ) -> Self
+  fn from( value : Coordinate< Offset, FlatTopped, EvenParity > ) -> Self
   {
     let q = value.q;
     let r = value.r - ( value.q + ( value.q & 1 ) ) / 2;
@@ -150,7 +167,47 @@ impl From< Coordinate< OffsetEvenQ > > for Coordinate< Axial >
   }
 }
 
-impl Coordinate< Axial >
+impl< Parity > From< Coordinate< Doubled, FlatTopped, Parity > > for Coordinate< Axial, FlatTopped, Parity >
+{
+  fn from( value : Coordinate< Doubled, FlatTopped, Parity > ) -> Self
+  {
+    let q = value.q;
+    let r = ( value.r - value.q ) / 2;
+    Self::new( q, r )
+  }
+}
+
+impl< Parity > From< Coordinate< Doubled, PointyTopped, Parity > > for Coordinate< Axial, PointyTopped, Parity >
+{
+  fn from( value : Coordinate< Doubled, PointyTopped, Parity > ) -> Self
+  {
+    let q = ( value.q - value.r ) / 2;
+    let r = value.r;
+    Self::new( q, r )
+  }
+}
+
+impl< Parity > From< Coordinate< Axial, FlatTopped, Parity > > for Coordinate< Doubled, FlatTopped, Parity >
+{
+  fn from( value : Coordinate< Axial, FlatTopped, Parity > ) -> Self
+  {
+    let q = value.q;
+    let r = 2 * value.r + value.q;
+    Self::new( q, r )
+  }
+}
+
+impl< Parity > From< Coordinate< Axial, PointyTopped, Parity > > for Coordinate< Doubled, PointyTopped, Parity >
+{
+  fn from( value : Coordinate< Axial, PointyTopped, Parity > ) -> Self
+  {
+    let q = 2 * value.q + value.r;
+    let r = value.r;
+    Self::new( q, r )
+  }
+}
+
+impl< Orientation, Parity > Coordinate< Axial, Orientation, Parity >
 {
   /// Converts pixel coordinates to axial coordinates in a pointy-topped hexagonal grid.
   ///
@@ -257,7 +314,7 @@ fn axial_round( q : f32, r : f32 ) -> ( i32, i32 )
   ( rq as i32, rr as i32 )
 }
 
-impl< T > std::ops::Add for Coordinate< T >
+impl< Orientation, Parity > std::ops::Add for Coordinate< Axial, Orientation, Parity >
 {
   type Output = Self;
 
@@ -267,7 +324,7 @@ impl< T > std::ops::Add for Coordinate< T >
   }
 }
 
-impl< T > std::ops::Sub for Coordinate< T >
+impl< Orientation, Parity > std::ops::Sub for Coordinate< Axial, Orientation, Parity >
 {
   type Output = Self;
 
@@ -277,7 +334,27 @@ impl< T > std::ops::Sub for Coordinate< T >
   }
 }
 
-impl< T, F : Into< i32 > > From< ( F, F ) > for Coordinate< T >
+impl< Orientation, Parity > std::ops::Mul< i32 > for Coordinate< Axial, Orientation, Parity >
+{
+  type Output = Self;
+
+  fn mul( self, rhs : i32 ) -> Self::Output
+  {
+    Self::new( self.q * rhs, self.r * rhs )
+  }
+}
+
+impl< Orientation, Parity > std::ops::Div< i32 > for Coordinate< Axial, Orientation, Parity >
+{
+  type Output = Self;
+
+  fn div( self, rhs : i32 ) -> Self::Output
+  {
+    Self::new( self.q / rhs, self.r / rhs )
+  }
+}
+
+impl< F : Into< i32 >, System, Orientation, Parity > From< ( F, F ) > for Coordinate< System, Orientation, Parity >
 {
   fn from( ( q, r ) : ( F, F ) ) -> Self
   {
@@ -285,7 +362,7 @@ impl< T, F : Into< i32 > > From< ( F, F ) > for Coordinate< T >
   }
 }
 
-impl< T, F : Into< i32 > > From< [ F; 2 ] > for Coordinate< T >
+impl< F : Into< i32 >, System, Orientation, Parity > From< [ F; 2 ] > for Coordinate< System, Orientation, Parity >
 {
   fn from( [ q, r ] : [ F; 2 ] ) -> Self
   {

@@ -9,17 +9,17 @@ use layout::HexLayout;
 ///
 /// # Type Parameters
 /// - `T`: The type of the values stored in the map.
-pub type HexMap< C, T > = FxHashMap< Coordinate< C >, T >;
+pub type HexMap< System, Orientation, Parity, T > = FxHashMap< Coordinate< System, Orientation, Parity >, T >;
 
-pub struct HexGrid< C, T >
+pub struct HexGrid< System, Orientation, Parity, T >
 {
-  map : HexMap< C, T >,
+  map : HexMap< System, Orientation, Parity, T >,
   layout : HexLayout,
 }
 
-impl< C, T > HexGrid< C, T >
+impl< System, Orientation, Parity, T > HexGrid< System, Orientation, Parity, T >
 {
-  pub fn new( map : HexMap< C, T >, layout : HexLayout ) -> Self
+  pub fn new( map : HexMap< System, Orientation, Parity, T >, layout : HexLayout ) -> Self
   {
     Self { map, layout }
   }
@@ -29,27 +29,27 @@ impl< C, T > HexGrid< C, T >
     self.layout
   }
 
-  pub fn map( &self ) -> &HexMap< C, T >
+  pub fn map( &self ) -> &HexMap< System, Orientation, Parity, T >
   {
     &self.map
   }
 
-  pub fn map_mut( &mut self ) -> &mut HexMap< C, T >
+  pub fn map_mut( &mut self ) -> &mut HexMap< System, Orientation, Parity, T >
   {
     &mut self.map
   }
 }
 
-pub struct HexArray< C, T >
+pub struct HexArray< System, Orientation, Parity, T >
 {
   data : Array2< Option< T > >,
   layout : HexLayout,
   /// The offset is added to the coordinates when indexing the array,
   /// it is needed to make negative coordinates usable.
-  offset : Coordinate< C >,
+  offset : Coordinate< System, Orientation, Parity >,
 }
 
-impl< C, T > HexArray< C, T >
+impl< System, Orientation, Parity, T > HexArray< System, Orientation, Parity, T >
 {
   /// Creates a new hexagonal grid with the given number of rows and columns.
   ///
@@ -61,7 +61,7 @@ impl< C, T > HexArray< C, T >
   /// For example if you want Axial( -1, -4 ) to be valid, set offset to Axial( 1, 4 ).
   /// All negative coordinates up to ( -1, -4 ) will be valid.
   /// - `layout`: The layout of the hexagons in the grid.
-  pub fn new( rows : i32, columns : i32, offset : Coordinate< C >, layout : HexLayout ) -> Self
+  pub fn new( rows : i32, columns : i32, offset : Coordinate< System, Orientation, Parity >, layout : HexLayout ) -> Self
   {
     let rows : usize = ( rows ).try_into().unwrap();
     let columns : usize = ( columns ).try_into().unwrap();
@@ -73,9 +73,9 @@ impl< C, T > HexArray< C, T >
   ///
   /// # Panics
   /// Panics if the coordinates are out of bounds.
-  pub fn insert( &mut self, coord : Coordinate< C >, value : T ) -> Option< T >
+  pub fn insert( &mut self, coord : Coordinate< System, Orientation, Parity >, value : T ) -> Option< T >
   {
-    let coord = self.offset + coord;
+    let coord = Coordinate::< System, Orientation, Parity >::new( self.offset.q + coord.q, self.offset.r + coord.r );
     let i : usize = coord.r.try_into().unwrap();
     let j : usize = coord.q.try_into().unwrap();
     std::mem::replace( &mut self.data[ ( i, j ) ], Some( value ) )
@@ -86,27 +86,29 @@ impl< C, T > HexArray< C, T >
   ///
   /// # Panics
   /// Panics if the coordinates are out of bounds.
-  pub fn remove( &mut self, coord : Coordinate< C > ) -> Option< T >
+  pub fn remove( &mut self, coord : Coordinate< System, Orientation, Parity > ) -> Option< T >
   {
-    let coord = self.offset + coord;
+    // todo!();
+    let coord = Coordinate::< System, Orientation, Parity >::new( self.offset.q + coord.q, self.offset.r + coord.r );
     let i : usize = coord.r.try_into().unwrap();
     let j : usize = coord.q.try_into().unwrap();
     std::mem::take( &mut self.data[ ( i, j ) ] )
   }
 
   /// Returns a reference to the value at the given coordinates.
-  pub fn get( &self, coord : Coordinate< C > ) -> Option< &T >
+  pub fn get( &self, coord : Coordinate< System, Orientation, Parity > ) -> Option< &T >
   {
-    let coord = self.offset + coord;
+    // todo!();
+    let coord = Coordinate::< System, Orientation, Parity >::new( self.offset.q + coord.q, self.offset.r + coord.r );
     let i : usize = coord.r.try_into().ok()?;
     let j : usize = coord.q.try_into().ok()?;
     self.data.get( ( i, j ) ).and_then( | x | x.as_ref() )
   }
 
   /// Returns a mutable reference to the value at the given coordinates.
-  pub fn get_mut( &mut self, coord : Coordinate< C > ) -> Option< &mut T >
+  pub fn get_mut( &mut self, coord : Coordinate< System, Orientation, Parity > ) -> Option< &mut T >
   {
-    let coord = self.offset + coord;
+    let coord = Coordinate::< System, Orientation, Parity >::new( self.offset.q + coord.q, self.offset.r + coord.r );
     let i : usize = coord.r.try_into().ok()?;
     let j : usize = coord.q.try_into().ok()?;
     self.data.get_mut( ( i, j ) ).and_then( | x | x.as_mut() )

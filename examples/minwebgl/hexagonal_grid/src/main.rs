@@ -76,7 +76,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       let x = ( x - half_width ) / half_width * ( 1.0 / scaling[ 0 ] ) + center_x;
       let y = ( y - half_height ) / half_height * ( 1.0 / scaling[ 1 ] ) + center_y;
 
-      let cursor_coord : Coordinate< Axial > = layout.hex_coord( ( x, y ).into() );
+      let cursor_coord : Coordinate< Axial, (), () > = layout.hex_coord( ( x, y ).into() );
 
       // rerender only if the selected hexagon has changed
       if selected_hex.is_some_and( | hex | hex == cursor_coord )
