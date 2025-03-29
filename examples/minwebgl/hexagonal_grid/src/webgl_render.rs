@@ -17,7 +17,7 @@ impl HexShader
     let vert = include_str!( "shaders/main.vert" );
     let frag = include_str!( "shaders/main.frag" );
     let program = gl::ProgramFromSources::new( vert, frag ).compile_and_link( &gl )?;
-    let mvp_location = gl.get_uniform_location( &program, "MVP" ).unwrap();
+    let mvp_location = gl.get_uniform_location( &program, "mvp" ).unwrap();
     let color_location = gl.get_uniform_location( &program, "color" ).unwrap();
 
     Ok

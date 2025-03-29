@@ -54,6 +54,7 @@ pub fn hex_triangle_fan_mesh( layout : &HexLayout ) -> Vec< f32 >
 ///
 /// # Returns
 /// A `Vec<f32>` containing the x and y coordinates of the triangles.
+// qqq : use it in example instead drawing each heaxgon individually
 pub fn grid_triangle_mesh< I, C, Orientation, Parity >( coords : I, layout : &HexLayout, transform : F32x4x4 ) -> Vec< f32 >
 where
   I : Iterator< Item = C >,

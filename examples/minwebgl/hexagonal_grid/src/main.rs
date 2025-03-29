@@ -1,10 +1,13 @@
 pub mod webgl_render;
 
-use tiles_tools::layout::*;
-use tiles_tools::coordinates::*;
-use tiles_tools::grid::*;
-use tiles_tools::mesh::{hex_line_loop_mesh, hex_triangle_fan_mesh};
-use tiles_tools::patterns::{Parity, ShiftedRectangleIter};
+use tiles_tools::
+{
+  layout::{ Orientation, HexLayout },
+  coordinates::{ Pixel, Coordinate, Axial },
+  mesh::{ hex_line_loop_mesh, hex_triangle_fan_mesh },
+  patterns::{ Parity, ShiftedRectangleIter },
+};
+
 use minwebgl as gl;
 use gl::{ math::d2::mat2x2h, JsCast, canvas::HtmlCanvasElement };
 use web_sys::{ wasm_bindgen::prelude::Closure, MouseEvent };
@@ -19,8 +22,10 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 {
   gl::browser::setup( Default::default() );
   let gl = gl::context::retrieve_or_make_reduced_dpr()?;
+  // qqq : Instead of this function, please introduce the function `retrieve_or_make_with(o)` where `o` is a structure containing options and a builder for them.
 
   let canvas = gl.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
+  // qqq : use vector or tuple
   let width = canvas.width();
   let height = canvas.height();
   let dpr = web_sys::window().unwrap().device_pixel_ratio();
@@ -38,6 +43,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let columns = 5;
   // determine the center of the grid
   // to shift it to the center of the canvas
+  // qqq : use vector or tuple
   let ( center_x, center_y ) = layout.grid_center( ShiftedRectangleIter::new( rows, columns, shift_type, layout ) );
 
   let hex_shader = HexShader::new( &gl )?;
@@ -75,6 +81,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
       let cursor_coord : Coordinate< Axial, (), () > = layout.hex_coord( ( x, y ).into() );
 
+      // qqq : currently it's borken and don't draw grid until mouse move
       // rerender only if the selected hexagon has changed
       if selected_hex.is_some_and( | hex | hex == cursor_coord )
       {
@@ -93,7 +100,6 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       // let scale = mat2x2h::scale( [ size, size ] );
       let mvp = total_scale * translation;
       hex_shader.draw( &gl, gl::LINE_LOOP, &line_geometry, mvp.raw_slice(), [ 0.3, 0.3, 0.3, 1.0 ] ).unwrap();
-
 
       // qqq : too many draw calls!
       // draw hexes
@@ -115,6 +121,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
           [ 0.3, 0.75, 0.3, 1.0 ]
         ).unwrap();
       }
+
     }
   };
   let mouse_move = Closure::< dyn FnMut( _ ) >::new( Box::new( mouse_move ) );
