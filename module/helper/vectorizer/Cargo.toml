@@ -8,6 +8,8 @@ authors = [
   "Avramenko Yevhenii <yevhenii.av@obox.systems>"
 ]
 description = "Utilities to vectorize raster images"
+exclude = [ "article" ]
+
 
 [lints]
 workspace = true
@@ -31,5 +33,4 @@ thiserror = { workspace = true }
 clap = { workspace = true }
 image = { workspace = true }
 tokio = { workspace = true, features = [ "full" ] }
-
 
