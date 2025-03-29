@@ -45,6 +45,20 @@ module_name_repetitions = "allow"
 # Permits absolute paths in code.
 absolute_paths = "allow"
 
+# = helpers
+
+[workspace.dependencies.tiles_tools]
+version = "0.1.0"
+path = "module/helper/tiles_tools"
+
+[workspace.dependencies.browser_log]
+version = "~0.3.0"
+path = "module/helper/browser_log"
+
+[workspace.dependencies.browser_tools]
+version = "~0.2.0"
+path = "module/alias/browser_tools"
+
 # = draw
 
 [workspace.dependencies.draw_lang]
@@ -84,16 +98,6 @@ path = "module/min/minwebgl"
 [workspace.dependencies.minwebgpu]
 version = "~0.1.0"
 path = "module/min/minwebgpu"
-
-# = helpers
-
-[workspace.dependencies.browser_log]
-version = "~0.3.0"
-path = "module/helper/browser_log"
-
-[workspace.dependencies.browser_tools]
-version = "~0.2.0"
-path = "module/alias/browser_tools"
 
 # = vectorizer
 [workspace.dependencies.vectorizer]

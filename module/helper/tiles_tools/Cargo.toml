@@ -1,0 +1,11 @@
+[package]
+name = "tiles_tools"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rustc-hash = "1.1.0"
+ndarray_cg = { workspace = true }
+
+[lints]
+workspace = true

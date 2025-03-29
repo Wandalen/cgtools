@@ -1,8 +1,8 @@
 use crate::*;
-use minwebgl::math::Array2;
 use rustc_hash::FxHashMap;
 use coordinates::Coordinate;
 use layout::HexLayout;
+use ndarray_cg::Array2;
 
 /// A type alias for a hash map that associates coordinates with values.
 /// This is commonly used to store data for hexagonal grids.

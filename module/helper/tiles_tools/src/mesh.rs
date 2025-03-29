@@ -1,7 +1,6 @@
-use crate::*;
-use coordinates::*;
-use layout::HexLayout;
-use minwebgl::{ math::Vector, F32x4x4 };
+use crate::coordinates::*;
+use crate::layout::HexLayout;
+use ndarray_cg::{ F32x4x4, Vector };
 
 /// Generates line mesh in the manner of LINE LOOP for a hexagon.
 ///

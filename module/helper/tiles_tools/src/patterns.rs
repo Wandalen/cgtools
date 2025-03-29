@@ -1,6 +1,5 @@
-use crate::*;
-use layout::*;
-use coordinates::*;
+use crate::layout::*;
+use crate::coordinates::*;
 
 /// An enum that represents the type of shift in a shifted rectangle.
 /// The shift can be either odd or even and determines which column or row will be shifted.

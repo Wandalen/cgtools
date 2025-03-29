@@ -1,13 +1,10 @@
 pub mod webgl_render;
-pub mod layout;
-pub mod coordinates;
-pub mod grid;
-pub mod mesh;
-pub mod patterns;
 
-use layout::*;
-use patterns::*;
-use coordinates::*;
+use tiles_tools::layout::*;
+use tiles_tools::coordinates::*;
+use tiles_tools::grid::*;
+use tiles_tools::mesh::{hex_line_loop_mesh, hex_triangle_fan_mesh};
+use tiles_tools::patterns::{Parity, ShiftedRectangleIter};
 use minwebgl as gl;
 use gl::{ math::d2::mat2x2h, JsCast, canvas::HtmlCanvasElement };
 use web_sys::{ wasm_bindgen::prelude::Closure, MouseEvent };
@@ -45,9 +42,9 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
   let hex_shader = HexShader::new( &gl )?;
   // triangular fan mesh for of a hexagon
-  let triangle_geometry = webgl_render::geometry2d( &gl, &mesh::hex_triangle_fan_mesh( &layout ) )?;
+  let triangle_geometry = webgl_render::geometry2d( &gl, &hex_triangle_fan_mesh( &layout ) )?;
   // line loop mesh for the outline of a hexagon
-  let line_geometry = webgl_render::geometry2d( &gl, &mesh::hex_line_loop_mesh( &layout ) )?;
+  let line_geometry = webgl_render::geometry2d( &gl, &hex_line_loop_mesh( &layout ) )?;
 
   let aspect = height as f32 / width as f32;
   let scaling = [ aspect * 0.2, 1.0 * 0.2 ];
