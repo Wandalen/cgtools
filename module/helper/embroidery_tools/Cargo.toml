@@ -2,6 +2,17 @@
 name = "embroidery_tools"
 version = "0.1.0"
 edition = "2021"
+authors = ["Kostiantyn Mysnyk <wandalen@obox.systems>"]
+license = "MIT"
+repository = "https://github.com/Wandalen/cgtools"
+description = "Tools for handling embroidery patterns and operations."
+keywords = ["embroidery", "patterns", "tools"]
+
+[lints]
+workspace = true
+
+[features]
+default = []
 
 [dependencies]
 mod_interface = { workspace = true }
@@ -10,5 +21,5 @@ itertools = { workspace = true }
 thiserror = { workspace = true }
 rand = { workspace = true }
 
-[lints]
-workspace = true
+[dev-dependencies]
+test_tools = { workspace = true }
