@@ -1,5 +1,9 @@
-use crate::layout::*;
-use crate::coordinates::*;
+use crate::*;
+use ndarray_cg::VectorRef;
+use layout::{ HexLayout, Orientation };
+use coordinates::{ Coordinate, Axial };
+// use crate::layout::*;
+// use crate::coordinates::*;
 
 /// An enum that represents the type of shift in a shifted rectangle.
 /// The shift can be either odd or even and determines which column or row will be shifted.
@@ -52,19 +56,18 @@ impl ShiftedRectangleIter
   /// Creates a new `ShiftedRectangleIter`.
   ///
   /// # Parameters
-  /// - `rows`: The number of rows in the rectangle.
-  /// - `columns`: The number of columns in the rectangle.
+  /// - `size`: The number of rows in the rectangle and yhe number of columns in the rectangle.
   /// - `shift_type`: The type of shift in the rectangle.
   /// - `layout`: The layout of the hexagons.
   ///
   /// # Returns
   /// A new `ShiftedRectangleIter`.
-  pub fn new( rows : i32, columns : i32, shift_type : Parity, layout : HexLayout ) -> Self
+  pub fn new< V2 : VectorRef< i32, 2 > >( size : V2, shift_type : Parity, layout : HexLayout ) -> Self
   {
     Self
     {
       layout,
-      data : ShiftedRectangleIterData::new( rows, columns, shift_type ),
+      data : ShiftedRectangleIterData::new( size.vector_ref()[ 0 ], size.vector_ref()[ 1 ], shift_type ),
     }
   }
 

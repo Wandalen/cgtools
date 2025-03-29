@@ -1,6 +1,9 @@
 use minwebgl as gl;
 use gl::{ WebGlProgram, WebGlUniformLocation, WebGlVertexArrayObject, GL };
 
+// qqq : is it possible to rid off this file and replace it by more general code?
+// before changes discuss please
+
 /// A shader program used for rendering hexagons.
 /// This shader handles the transformation matrix (MVP) and the color of the hexagons.
 pub struct HexShader

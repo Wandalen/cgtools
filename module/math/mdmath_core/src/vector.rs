@@ -134,7 +134,7 @@ mod private
   {
     fn vector_ref( &self ) -> &[ E; N ]
     {
-      <T as VectorRef< E, N > >::vector_ref( self )
+      < T as VectorRef< E, N > >::vector_ref( self )
     }
   }
 
