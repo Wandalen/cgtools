@@ -7,8 +7,8 @@ impl IntoVectorDataType for u32
     VectorDataType
     {
       scalar : DataType::U32,
-      len : 1,
-      element_len : 1,
+      natoms : 1,
+      nelements : 1,
     }
   }
 }
@@ -20,8 +20,8 @@ impl< const N : usize > IntoVectorDataType for [ u32 ; N ]
     VectorDataType
     {
       scalar : DataType::U32,
-      len : N as _,
-      element_len : 1,
+      natoms : N as _,
+      nelements : 1,
     }
   }
 }
@@ -33,8 +33,8 @@ impl< const N : usize, const N2 : usize > IntoVectorDataType for [ [ u32 ; N2 ] 
     VectorDataType
     {
       scalar : DataType::U32,
-      len : ( N * N2 ) as i32,
-      element_len : N2 as _,
+      natoms : ( N * N2 ) as i32,
+      nelements : N2 as _,
     }
   }
 }

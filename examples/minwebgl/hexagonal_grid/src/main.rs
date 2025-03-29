@@ -1,4 +1,4 @@
-pub mod webgl_render;
+// pub mod webgl_render;
 
 use tiles_tools::
 {
@@ -11,16 +11,19 @@ use tiles_tools::
 use minwebgl as gl;
 use gl::
 {
+  GL,
   math::d2::mat2x2h,
+  Program,
   JsCast,
   canvas::HtmlCanvasElement,
+  geometry,
   // web::log::info,
   // qqq : this import does not work, but not clear why
   // make it working please
 };
 
 use web_sys::{ wasm_bindgen::prelude::Closure, MouseEvent };
-use webgl_render::HexShader;
+// use webgl_render::HexShader;
 
 fn main() -> Result< (), gl::WebglError >
 {
@@ -47,6 +50,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
   context.clear_color( 0.9, 0.9, 0.9, 1.0 );
 
+  // qqq : collect all parameters into a single block of code
   // qqq : what are units? not clear
   // size of a hexagon (from center to vertex)
   let size = 0.1;
@@ -67,11 +71,15 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   // qqq : use vector or tuple
   let ( center_x, center_y ) = layout.grid_center( ShiftedRectangleIter::new( grid_size, shift_type, layout ) );
 
-  let hex_shader = HexShader::new( &context )?;
+  // let hex_shader = HexShader::new( &context )?;
+  let vert = include_str!( "shaders/main.vert" );
+  let frag = include_str!( "shaders/main.frag" );
+  let hex_shader = Program::new( context.clone(), vert, frag )?;
+  hex_shader.activate();
   // triangular fan mesh for of a hexagon
-  let triangle_geometry = webgl_render::geometry2d( &context, &hex_triangle_fan_mesh( &layout ) )?;
+  let triangle_geometry = geometry::Positions::new( context.clone(), &hex_triangle_fan_mesh( &layout ), 2 )?;
   // line loop mesh for the outline of a hexagon
-  let line_geometry = webgl_render::geometry2d( &context, &hex_line_loop_mesh( &layout ) )?;
+  let line_geometry = geometry::Positions::new( context.clone(), &hex_line_loop_mesh( &layout ), 2 )?;
 
   let aspect = height as f32 / width as f32;
   let scale = 1.0;
@@ -123,7 +131,6 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       let translation = mat2x2h::translate( [ x - center_x, -y + center_y ] );
       // let scale = mat2x2h::scale( [ size, size ] );
       let mvp = scale_m * translation;
-      hex_shader.draw( &context, gl::LINE_LOOP, &line_geometry, mvp.raw_slice(), [ 0.3, 0.3, 0.3, 1.0 ] ).unwrap();
 
       // qqq : too many draw calls!
       // draw hexes
@@ -136,15 +143,29 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
         let translation = mat2x2h::translate( position );
         let scale = mat2x2h::scale( [ 0.95, 0.95 ] );
         let mvp = scale_m * translation * scale;
-        hex_shader.draw
-        (
-          &context,
-          gl::TRIANGLE_FAN, // qqq : avoid using fan, it's too specific mesh primitive type
-          &triangle_geometry,
-          mvp.raw_slice(),
-          [ 0.3, 0.75, 0.3, 1.0 ], // qqq : parametrize
-        ).unwrap();
+        hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
+        hex_shader.uniform_upload( "u_color", &[ 0.3, 0.3, 0.3, 1.0 ] );
+        triangle_geometry.activate();
+        context.draw_arrays( GL::TRIANGLE_FAN, 0, triangle_geometry.nvertices );
+        // gl::log::info!( "triangle_geometry.nvertices : {}", triangle_geometry.nvertices );
+        // context.draw_arrays( GL::TRIANGLE_FAN, 0, 6 );
+        // qqq : avoid using fan, it's too specific mesh primitive type
+        // hex_shader.draw
+        // (
+        //   &context,
+        //   gl::TRIANGLE_FAN,
+        //   &triangle_geometry,
+        //   mvp.raw_slice(),
+        //   [ 0.3, 0.75, 0.3, 1.0 ], // qqq : parametrize
+        // ).unwrap();
       }
+
+      hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
+      hex_shader.uniform_upload( "u_color", &[ 0.1, 0.9, 0.1, 1.0 ] );
+      line_geometry.activate();
+      context.draw_arrays( GL::LINE_LOOP, 0, line_geometry.nvertices );
+      // hex_shader.draw( gl::LINE_LOOP, &line_geometry ).unwrap();
+      // hex_shader.draw( &context, gl::LINE_LOOP, &line_geometry, mvp.raw_slice(), [ 0.3, 0.3, 0.3, 1.0 ] ).unwrap();
 
     }
   };

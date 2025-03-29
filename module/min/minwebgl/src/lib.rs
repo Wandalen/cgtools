@@ -72,6 +72,8 @@ mod_interface!
   layer texture;
   /// Drawbuffers function
   layer drawbuffers;
+  /// Simple geometry
+  layer geometry;
 
   /// Useful information about your objects
   #[ cfg( feature = "diagnostics" ) ]
