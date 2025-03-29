@@ -11,12 +11,15 @@ use wfc::{ generate, Relations };
 use std::sync::Mutex;
 use web_sys::console;
 
+// qqq : why const?
 /// Tile variants count
 const LAYERS : i32 = 6;
 
+// qqq : why const?
 /// Tile map size. More than 256x256 is very slow
 const SIZE : ( usize, usize ) = ( 32, 32 );
 
+// qqq : not enough explanations. give examples also
 /// Desciption what neighbours can have current tile
 const RELATIONS : &str = "
   [
@@ -31,7 +34,9 @@ const RELATIONS : &str = "
 
 /// Storage for generated tile map
 static MAP : Mutex< Option< Vec< Vec< u8 > > > > = Mutex::new( None );
+// qqq : remove static!
 
+// qqq : remove function. it's too short
 fn set_load_callback()
 {
   let load = move | _img : &web_sys::HtmlImageElement |
@@ -42,6 +47,7 @@ fn set_load_callback()
   let _ = load_image( "tileset.png", Box::new( load ) );
 }
 
+// qqq : what for so complicated function?
 fn load_image
 (
   path : &str,
@@ -58,8 +64,6 @@ fn load_image
   .unwrap();
   let _ = body.append_child( &image );
   image.set_id( &format!( "{path}" ) );
-
-  // qqq : remove most of this code. use mingwebgl
 
   let _ = image.style()
   .set_property( "visibility", "hidden" );
@@ -108,6 +112,7 @@ fn init()
   set_load_callback();
 }
 
+// qqq : it should return vao
 fn prepare_vertex_attributes()
 {
   let gl = gl::context::retrieve_or_make()
@@ -149,7 +154,8 @@ fn prepare_vertex_attributes()
   .attribute_pointer( &gl, uv_slot, &uv_buffer )
   .unwrap();
   gl.bind_vertex_array( None );
-  gl.bind_vertex_array( Some( &vao ) );
+
+  gl.bind_vertex_array( Some( &vao ) ); // qqq : ?
 }
 
 fn create_mvp() -> ndarray_cg::Mat< 4, 4, f32, DescriptorOrderColumnMajor >
@@ -168,6 +174,7 @@ fn create_mvp() -> ndarray_cg::Mat< 4, 4, f32, DescriptorOrderColumnMajor >
     1000.0
   );
 
+  // qqq : use helpers
   let t = ( 0.0, 0.0, 0.0 );
   let translate = F32x4x4::from_column_major
   (
@@ -198,6 +205,7 @@ fn create_mvp() -> ndarray_cg::Mat< 4, 4, f32, DescriptorOrderColumnMajor >
   perspective_matrix * view_matrix * translate * scale
 }
 
+// qqq : why is it needed? remove if not needed. if needed explain in documentation. add documentation
 fn prepare_texture_array( id : &str, layers : i32, texture_id : u32 ) -> Option< web_sys::WebGlTexture >
 {
   let gl = gl::context::retrieve_or_make()
@@ -264,6 +272,7 @@ fn prepare_texture_array( id : &str, layers : i32, texture_id : u32 ) -> Option<
   texture_array
 }
 
+// qqq : why is it needed? remove if not needed. if needed explain in documentation. add documentation
 fn prepare_texture1u
 (
   data: &[ u8 ],
@@ -301,8 +310,10 @@ fn prepare_texture1u
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
 }
 
+// qqq : add documentation
 fn update()
 {
+  // qqq : bad idea to call retrieve_or_make on each frame
   let gl = gl::context::retrieve_or_make()
   .unwrap();
 
