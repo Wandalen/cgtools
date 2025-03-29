@@ -107,7 +107,7 @@ path = "module/vectorizer"
 # = math
 
 [workspace.dependencies.ndarray_cg]
-version = "~0.2.0"
+version = "~0.3.0"
 path = "module/math/ndarray_cg"
 
 [workspace.dependencies.ndarray_tools]
