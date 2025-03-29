@@ -1,16 +1,14 @@
 mod private
 {
-
 }
-
 
 crate::mod_interface!
 {
+
   own use ::wasm_bindgen;
   own use ::web_sys;
   own use ::js_sys;
   own use ::wasm_bindgen::JsValue;
-
 
   /// Main loop.
   layer exec_loop;
@@ -20,17 +18,18 @@ crate::mod_interface!
   layer dom;
 
   /// Utils for handling rust's futures
-  #[ cfg( feature = "webFuture"  ) ]
+  #[ cfg( feature = "web_future"  ) ]
   layer future;
 
   /// File processing.
-  #[ cfg( all( feature = "webFuture", feature = "webFile" ) ) ]
+  #[ cfg( all( feature = "web_future", feature = "web_file" ) ) ]
   layer file;
 
-  /// Web utilities related to different models 
-  #[ cfg( all( feature = "math", feature = "webFuture", feature = "webFile" ) ) ]
+  /// Web utilities related to different models
+  #[ cfg( all( feature = "math", feature = "web_future", feature = "web_file" ) ) ]
   layer model;
 
-  #[ cfg( feature = "webLog"  ) ]
+  #[ cfg( feature = "web_log"  ) ]
   layer log;
+
 }

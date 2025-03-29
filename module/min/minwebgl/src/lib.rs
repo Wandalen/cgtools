@@ -48,11 +48,14 @@ mod_interface!
   layer log;
   /// Memory-related entities.
   layer mem;
-  /// Multi-dimensional math.
-  #[ cfg( feature = "math" ) ]
-  layer math;
+
   /// Panic-related.
   layer panic;
+
+  #[ cfg( feature = "web" ) ]
+  /// Web-related.
+  layer web;
+
   /// Program-related entities and functionality.
   layer program;
   /// Program-related entities and functionality.
@@ -85,5 +88,9 @@ mod_interface!
   /// Future processing.
   #[ cfg( feature = "future" ) ]
   layer future;
+
+  /// Multi-dimensional math.
+  #[ cfg( feature = "math" ) ]
+  layer math;
 
 }
