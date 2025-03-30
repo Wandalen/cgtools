@@ -2,13 +2,10 @@ pub mod webgl_render;
 
 use tiles_tools::
 {
-  layout::{ Orientation, HexLayout },
-  coordinates::{ Pixel, Coordinate, Axial },
-  mesh::{ hex_line_loop_mesh, hex_triangle_fan_mesh },
-  patterns::{ Parity, ShiftedRectangleIter },
+  coordinates::{ Axial, Coordinate, Pixel }, layout::{ HexLayout, Orientation }, mesh::{ grid_triangle_mesh, hex_line_loop_mesh, hex_triangle_fan_mesh }, patterns::{ Parity, ShiftedRectangleIter }
 };
 
-use minwebgl as gl;
+use minwebgl::{self as gl, F32x4};
 use gl::
 {
   math::d2::mat2x2h,
@@ -66,10 +63,15 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   // to shift it to the center of the canvas
   // qqq : use vector or tuple
   let ( center_x, center_y ) = layout.grid_center( ShiftedRectangleIter::new( grid_size, shift_type, layout ) );
-
+  
   let hex_shader = HexShader::new( &context )?;
-  // triangular fan mesh for of a hexagon
-  let triangle_geometry = webgl_render::geometry2d( &context, &hex_triangle_fan_mesh( &layout ) )?;
+  let grid_mesh = webgl_render::geometry2d
+  (
+    &context, 
+    &grid_triangle_mesh( ShiftedRectangleIter::new( grid_size, shift_type, layout ), 
+    &layout,
+    None )
+  )?;
   // line loop mesh for the outline of a hexagon
   let line_geometry = webgl_render::geometry2d( &context, &hex_line_loop_mesh( &layout ) )?;
 
@@ -127,25 +129,16 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
       // qqq : too many draw calls!
       // draw hexes
-      for coord in ShiftedRectangleIter::new( grid_size, shift_type, layout )
-      {
-        // hexagon center in world coords
-        let Pixel { x, y } = layout.pixel_coord( coord );
-
-        let position = [ x - center_x, -y + center_y ];
-        let translation = mat2x2h::translate( position );
-        let scale = mat2x2h::scale( [ 0.95, 0.95 ] );
-        let mvp = scale_m * translation * scale;
-        hex_shader.draw
-        (
-          &context,
-          gl::TRIANGLE_FAN, // qqq : avoid using fan, it's too specific mesh primitive type
-          &triangle_geometry,
-          mvp.raw_slice(),
-          [ 0.3, 0.75, 0.3, 1.0 ], // qqq : parametrize
-        ).unwrap();
-      }
-
+      let translation = mat2x2h::translate( [ center_x, center_y ] );
+      let mvp = scale_m * translation;
+      hex_shader.draw
+      (
+        &context,
+        gl::TRIANGLES, // qqq : avoid using fan, it's too specific mesh primitive type
+        &grid_mesh,
+        mvp.raw_slice(),
+        [ 0.3, 0.75, 0.3, 1.0 ], // qqq : parametrize
+      ).unwrap();
     }
   };
   let mouse_move = Closure::< dyn FnMut( _ ) >::new( Box::new( mouse_move ) );

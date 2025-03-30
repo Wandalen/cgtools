@@ -55,7 +55,8 @@ pub fn hex_triangle_fan_mesh( layout : &HexLayout ) -> Vec< f32 >
 /// # Returns
 /// A `Vec<f32>` containing the x and y coordinates of the triangles.
 // qqq : use it in example instead drawing each heaxgon individually
-pub fn grid_triangle_mesh< I, C, Orientation, Parity >( coords : I, layout : &HexLayout, transform : F32x4x4 ) -> Vec< f32 >
+// okay
+pub fn grid_triangle_mesh< I, C, Orientation, Parity >( coords : I, layout : &HexLayout, transform : Option< F32x4x4 > ) -> Vec< f32 >
 where
   I : Iterator< Item = C >,
   C : Into< Coordinate< Axial, Orientation, Parity > >
@@ -68,8 +69,11 @@ where
     let mesh = hex_triangle_mesh( layout );
     for point in mesh.chunks( 2 )
     {
-      let pos = Vector( [ point[ 0 ], point[ 1 ], 0.0, 1.0 ] );
-      let pos = transform * pos;
+      let mut pos = Vector( [ point[ 0 ], point[ 1 ], 0.0, 1.0 ] );
+      if let Some( transform ) = transform
+      {
+        pos = transform * pos;
+      }
       points.push( x + pos.x() );
       points.push( y + pos.y() );
     }

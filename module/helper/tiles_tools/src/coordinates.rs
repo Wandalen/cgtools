@@ -1,5 +1,7 @@
 use std::{ hash::Hash, marker::PhantomData };
 
+use ndarray_cg::AsIx2;
+
 /// Axial coordinates use two axes (`q` and `r`) to uniquely identify
 /// hexes in a grid.
 /// more info: https://www.redblobgames.com/grids/hexagons/#coordinates-axial
@@ -404,6 +406,15 @@ impl< F : Into< f32 > > From< [ F; 2 ] > for Pixel
 {
   fn from( [ x, y ] : [ F; 2 ] ) -> Self
   {
+
     Self { x : x.into(), y : y.into() }
+  }
+}
+
+impl AsIx2 for Pixel
+{
+  fn as_ix2( self ) -> ndarray_cg::Ix2
+  {
+    ndarray_cg::Ix2( self.x, self.y )
   }
 }
