@@ -21,5 +21,8 @@ features = [
   'PointerEvent',
   'WheelEvent',
   'WebGlTexture',
-  'HtmlImageElement'
+  'HtmlImageElement',
+  'Blob',
+  'BlobPropertyBag',
+  'Url'
 ]
