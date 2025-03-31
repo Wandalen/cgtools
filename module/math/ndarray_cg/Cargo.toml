@@ -41,7 +41,7 @@ num-traits = { workspace = true, optional = true }
 bytemuck = { workspace = true, optional = true }
 mod_interface = { workspace = true, optional = true }
 derive_tools = { workspace = true, optional = true }
-mdmath_core = { workspace = true, optional = true, features = [ "index", "float", "inner_product", "approx", "general" ] }
+mdmath_core = { workspace = true, optional = true, features = [ "index", "float", "arithmetics", "approx", "general" ] }
 
 [dev-dependencies]
 test_tools = { workspace = true }
