@@ -397,7 +397,7 @@ impl Wfc
 }
 
 /// Print front shape on map with 'x'. If show_collapsed true display also collapsed tiles with '#' 
-fn print_front( map : &Vec< Vec< Vec< u8 > > >, front : &Vec< Point >, show_collapsed : bool )
+fn _print_front( map : &Vec< Vec< Vec< u8 > > >, front : &Vec< Point >, show_collapsed : bool )
 {
   let mut front_map = vec![ vec![ ' '; map[ 0 ].len() ]; map.len() ];
   for p in front
@@ -431,7 +431,7 @@ fn print_front( map : &Vec< Vec< Vec< u8 > > >, front : &Vec< Point >, show_coll
 }
 
 /// Print map with variants count for each tile
-fn print_variants_count( map : &Vec< Vec< Vec< u8 > > > )
+fn _print_variants_count( map : &Vec< Vec< Vec< u8 > > > )
 {
   let mut map_string = "\n".to_string();
   for row in map
@@ -619,12 +619,12 @@ where
   .map_init(
     || 
     {
-      SmallRng::from_rng( rand::thread_rng() ).unwrap(), 
-      | r, _ | 
-      {
-        r.gen_range( range.clone() )
-      }   
-    }
+      SmallRng::from_rng( rand::thread_rng() ).unwrap()
+    },
+    | r, _ | 
+    {
+      r.gen_range( range.clone() )
+    }   
   )
   .collect::< Vec< T > >()    
 }

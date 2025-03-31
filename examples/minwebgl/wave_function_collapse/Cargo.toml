@@ -13,8 +13,7 @@ rayon = "1.10"
 getrandom = { version = "0.2", features = [ "js" ] }
 rand = { version = "0.8.5", features = [ "small_rng" ] }
 ndarray_cg = { workspace = true }
-web-sys = { workspace = true, features = 
-  [
+web-sys = { workspace = true, features = [
     'Document', 
     'Element', 
     'HtmlCanvasElement', 
@@ -22,6 +21,4 @@ web-sys = { workspace = true, features =
     'WebGlTexture',
     'CanvasRenderingContext2d',
     'HtmlImageElement',
-    'DomRect',
-  ] 
-}
+    'DomRect' ] }
