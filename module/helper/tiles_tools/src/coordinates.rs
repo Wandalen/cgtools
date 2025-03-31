@@ -1,6 +1,5 @@
-use std::{ hash::Hash, marker::PhantomData };
-
-use ndarray_cg::Collection;
+use std::{ hash::Hash, marker::PhantomData, ops::{ Index, IndexMut } };
+use ndarray_cg::{ Collection, MatEl, NdFloat, Vector };
 
 pub trait CoordinateSystem {}
 
@@ -274,7 +273,7 @@ pub trait CoordinateConversion
 
 impl< Parity : ParityType > CoordinateConversion for Coordinate< Axial, PointyTopped, Parity >
 {
-  fn from_pixel( Pixel { x, y } : Pixel, hex_size : f32 ) -> Self
+  fn from_pixel( Pixel { data : [ x, y ] } : Pixel, hex_size : f32 ) -> Self
   {
     // implementation is taken from https://www.redblobgames.com/grids/hexagons/#pixel-to-hex
     let q = ( 3.0f32.sqrt() / 3.0 * x - 1.0 / 3.0 * y ) / hex_size;
@@ -297,7 +296,7 @@ impl< Parity : ParityType > CoordinateConversion for Coordinate< Axial, PointyTo
 
 impl< Parity : ParityType > CoordinateConversion for Coordinate< Axial, FlatTopped, Parity >
 {
-  fn from_pixel( Pixel { x, y } : Pixel, hex_size : f32 ) -> Self
+  fn from_pixel( Pixel { data : [ x, y ] } : Pixel, hex_size : f32 ) -> Self
   {
     // implementation is taken from https://www.redblobgames.com/grids/hexagons/#pixel-to-hex
     let q = ( 2.0 / 3.0 * x                            ) / hex_size;
@@ -379,8 +378,7 @@ impl< F : Into< i32 >, System : CoordinateSystem, Orientation : OrientationType,
 #[ derive( Debug, Clone, Copy, PartialEq ) ]
 pub struct Pixel
 {
-  pub x : f32,
-  pub y : f32,
+  pub data : [ f32; 2 ],
 }
 
 impl Pixel
@@ -388,7 +386,7 @@ impl Pixel
   /// Creates a new `Pixel` coordinate with the specified `x` and `y` values.
   pub fn new( x : f32, y : f32 ) -> Self
   {
-    Self { x, y }
+    Self { data : [ x.into(), y.into() ] }
   }
 }
 
@@ -396,7 +394,7 @@ impl< F : Into< f32 > > From< ( F, F ) > for Pixel
 {
   fn from( ( x, y ) : ( F, F ) ) -> Self
   {
-    Self { x : x.into(), y : y.into() }
+    Self { data : [ x.into(), y.into() ] }
   }
 }
 
@@ -405,7 +403,7 @@ impl< F : Into< f32 > > From< [ F; 2 ] > for Pixel
   fn from( [ x, y ] : [ F; 2 ] ) -> Self
   {
 
-    Self { x : x.into(), y : y.into() }
+    Self { data : [ x.into(), y.into() ] }
   }
 }
 
@@ -422,8 +420,11 @@ impl ndarray_cg::Add for Pixel
   {
     Self
     {
-      x : self.x + rhs.x,
-      y : self.y + rhs.y,
+      data :
+      [
+        self.data[ 0 ] + rhs.data[ 0 ], 
+        self.data[ 1 ] + rhs.data[ 1 ]
+      ]
     }
   }
 }
@@ -436,8 +437,47 @@ impl ndarray_cg::Sub for Pixel
   {
     Self
     {
-      x : self.x - rhs.x,
-      y : self.y - rhs.y,
+      data :
+      [
+        self.data[ 0 ] - rhs.data[ 0 ], 
+        self.data[ 1 ] - rhs.data[ 1 ]
+      ]
     }
   }
 }
+
+impl< E : Into< f32 > + MatEl + NdFloat > From< Vector< E, 2 > > for Pixel
+{
+  fn from( value: Vector< E, 2 > ) -> Self
+  {
+    Self { data : [ value.x().into(), value.y().into() ] }
+  }
+}
+
+impl Index< usize > for Pixel
+{
+  type Output = f32;
+
+  fn index( &self, index: usize ) -> &Self::Output
+  {
+    &self.data[ index ]
+  }
+}
+
+impl IndexMut< usize > for Pixel
+{
+  fn index_mut(&mut self, index: usize) -> &mut Self::Output
+  {
+    &mut self.data[ index ]    
+  }
+}
+
+// impl Indexable for Pixel
+// {
+//   type Index = Ix1;
+
+//   fn dim( &self ) -> Self::Index
+//   {
+//     Ix1( 0 )
+//   }
+// }

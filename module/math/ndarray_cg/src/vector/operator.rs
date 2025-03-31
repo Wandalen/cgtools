@@ -136,6 +136,25 @@ mod private
     }
   }
 
+  impl< E, const LEN : usize > std::ops::Div for Vector< E, LEN >
+  where
+    E : MatEl + nd::NdFloat + DivAssign,
+  {
+    type Output = Self;
+  
+    fn div( mut self, rhs : Self ) -> Self::Output
+    {
+      self.iter_mut().zip( rhs.iter() ).for_each
+      ( 
+        | ( lhs, rhs ) |
+        {
+          *lhs /= *rhs;
+        }
+      );
+      self
+    }
+  }
+
   // --- New implementations for Index, Deref and IntoIterator ---
 
   use std::ops::{ Index, IndexMut, Deref, DerefMut };

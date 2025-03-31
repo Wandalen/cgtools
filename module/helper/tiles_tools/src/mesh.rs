@@ -64,7 +64,7 @@ where
   let mut points = vec![];
   for coord in coords
   {
-    let Pixel { x, y } = layout.pixel_coord( coord );
+    let Pixel { data : [ x, y ] } = layout.pixel_coord( coord );
     let y = -y;
     let mesh = hex_triangle_mesh( layout );
     for point in mesh.chunks( 2 )

@@ -1,10 +1,11 @@
 // pub mod webgl_render;
 
+use mingl::F32x2;
 use tiles_tools::
 {
   coordinates::*, 
   layout::{ HexLayout, Orientation }, 
-  mesh::{ grid_triangle_mesh, hex_line_loop_mesh },
+  mesh::{ grid_triangle_mesh, hex_line_loop_mesh, hex_triangle_fan_mesh },
   patterns::{ Parity, ShiftedRectangleIter }
 };
 
@@ -22,7 +23,6 @@ use gl::
   // make it working please
 };
 use web_sys::{ wasm_bindgen::prelude::Closure, MouseEvent };
-// use webgl_render::HexShader;
 
 fn main() -> Result< (), gl::WebglError >
 {
@@ -39,11 +39,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let canvas = context.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
 
   // qqq : use vector or tuple
-<<<<<<< HEAD
-  let width_height = ( canvas.width(), canvas.height() );
-=======
-  let canvas_size : U32x2 = ( canvas.width(), canvas.height() ).into();
->>>>>>> master
+  let canvas_size : U32x2 = [ canvas.width(), canvas.height() ].into();
 
   // qqq : explain why does it required
   // used to scale cursor coordinates to properly map on the resized canvas
@@ -58,12 +54,10 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   // just size in world space, it may be any units
   // size of a hexagon (from center to vertex)
   let size = 0.1;
-
   // how to shift the hexagons to form a rectangle
   let shift_type = Parity::Even;
   // orientation of hex can be either pointing upword or flat upword
   let orientation = Orientation::Pointy;
-
   // orientation of the hexagons
   let layout = HexLayout { orientation, size };
   // grid size
@@ -73,20 +67,19 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   // determine the center of the grid
   // to shift it to the center of the canvas
   // qqq : use vector or tuple
-<<<<<<< HEAD
-  let center = layout.grid_center( ShiftedRectangleIter::new( grid_size, shift_type, layout ) );
+  // let center = layout.grid_center( ShiftedRectangleIter::new( grid_size, shift_type, layout ) );
   
-  let hex_shader = HexShader::new( &context )?;
-  let grid_mesh = webgl_render::geometry2d
-  (
-    &context, 
-    &grid_triangle_mesh( ShiftedRectangleIter::new( grid_size, shift_type, layout ), 
-    &layout,
-    None )
-  )?;
-=======
+  // let hex_shader = HexShader::new( &context )?;
+  // let grid_mesh = webgl_render::geometry2d
+  // (
+  //   &context, 
+  //   &grid_triangle_mesh( ShiftedRectangleIter::new( grid_size, shift_type, layout ), 
+  //   &layout,
+  //   None )
+  // )?;
+
   // let ( center_x, center_y ) = layout.grid_center( ShiftedRectangleIter::new( grid_size, shift_type, layout ) );
-  let grid_center : F64x2 = layout.grid_center( ShiftedRectangleIter::new( grid_size, shift_type, layout ) ).into();
+  let grid_center : F32x2 = layout.grid_center( ShiftedRectangleIter::new( grid_size, shift_type, layout ) ).into();
 
   // let hex_shader = HexShader::new( &context )?;
   let vert = include_str!( "shaders/main.vert" );
@@ -95,29 +88,28 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   hex_shader.activate();
   // triangular fan mesh for of a hexagon
   let triangle_geometry = geometry::Positions::new( context.clone(), &hex_triangle_fan_mesh( &layout ), 2 )?;
->>>>>>> master
+
   // line loop mesh for the outline of a hexagon
   let line_geometry = geometry::Positions::new( context.clone(), &hex_line_loop_mesh( &layout ), 2 )?;
 
-<<<<<<< HEAD
-  let aspect = width_height.1 as f32 / width_height.0 as f32;
-=======
+  // let aspect = width_height.1 as f32 / width_height.0 as f32;
+
   let aspect = canvas_size[ 1 ] as f32 / canvas_size[ 0 ] as f32;
->>>>>>> master
+
   let scale = 1.0;
   let aspect_scale = [ aspect * scale, 1.0 * scale ];
   let scale_m = mat2x2h::scale( aspect_scale );
 
-  let translation = mat2x2h::translate( [ -center.0, center.1 ] );
+  let translation = mat2x2h::translate( [ -grid_center.x(), grid_center.y() ] );
   let mvp = scale_m * translation;
-  hex_shader.draw
-  (
-    &context,
-    gl::TRIANGLES, // qqq : avoid using fan, it's too specific mesh primitive type
-    &grid_mesh,
-    mvp.raw_slice(),
-    [ 0.3, 0.75, 0.3, 1.0 ].as_slice(), // qqq : parametrize
-  ).unwrap();
+  // hex_shader.draw
+  // (
+  //   &context,
+  //   gl::TRIANGLES, // qqq : avoid using fan, it's too specific mesh primitive type
+  //   &grid_mesh,
+  //   mvp.raw_slice(),
+  //   [ 0.3, 0.75, 0.3, 1.0 ].as_slice(), // qqq : parametrize
+  // ).unwrap();
 
   let mut selected_hex = None;
 
@@ -135,24 +127,24 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       // transform mouse coordinates from pixels to world coordinates
       // where the center of the canvas is ( 0.0, 0.0 )
       // qqq : use vector
-<<<<<<< HEAD
-      let half_width = ( 0.5 * width_height.0 as f64 / dpr ) as f32;
-      let half_height = ( 0.5 * width_height.1 as f64 / dpr ) as f32;
-      let x = ( e.client_x() as f64 - canvas_x ) as f32;
-      let y = ( e.client_y() as f64 - canvas_y ) as f32;
+
+      let half_width = ( 0.5 * canvas_size[ 0 ] as f64 / dpr ) as f32;
+      let half_height = ( 0.5 * canvas_size[ 1 ] as f64 / dpr ) as f32;
+      // let x = ( e.client_x() as f64 - canvas_x ) as f32;
+      // let y = ( e.client_y() as f64 - canvas_y ) as f32;
       // normalize then multiply by inverse aspect_scale
       // and offset by center of the grid
-      let x = ( x - half_width ) / half_width * ( 1.0 / aspect_scale[ 0 ] ) + center.0;
-      let y = ( y - half_height ) / half_height * ( 1.0 / aspect_scale[ 1 ] ) + center.1;
+      // let x = ( x - half_width ) / half_width * ( 1.0 / aspect_scale[ 0 ] ) + center.0;
+      // let y = ( y - half_height ) / half_height * ( 1.0 / aspect_scale[ 1 ] ) + center.1;
 
       // qqq : put bounds on arguments so that it was not possible to pass () as parameter value
-      let cursor_coord : Coordinate< Axial, PointyTopped, OddParity > = layout.hex_coord( ( x, y ).into() );
-=======
-      let canvas_half_size : F64x2 = 0.5 * canvas_size.into() / dpr;
+      // let cursor_coord : Coordinate< Axial, PointyTopped, OddParity > = layout.hex_coord( ( x, y ).into() );
+      let canvas_size : F64x2 = [ canvas_size[ 0 ] as f64, canvas_size[ 1 ] as f64 ].into();
+      let canvas_half_size : F64x2 = 0.5 * canvas_size / dpr;
       // let half_width = ( 0.5 * width as f64 / dpr ) as f32;
       // let half_height = ( 0.5 * height as f64 / dpr ) as f32;
 
-      let mouse_pos = F64x2::new( e.client_x(), e.client_y() ) - canvas_pos;
+      let mouse_pos = F64x2::new( e.client_x() as f64, e.client_y() as f64 ) - canvas_pos;
       // let x = ( e.client_x() as f64 - canvas_x ) as f32;
       // let y = ( e.client_y() as f64 - canvas_y ) as f32;
       // qqq : buy why you do that? name all coordinates
@@ -160,11 +152,12 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       // and offset by center of the grid
       // let x = ( x - half_width ) / half_width * ( 1.0 / aspect_scale[ 0 ] ) + center_x;
       // let y = ( y - half_height ) / half_height * ( 1.0 / aspect_scale[ 1 ] ) + center_y;
-      let mouse_pos_nameme = grid_center + ( mouse_pos - canvas_half_size ) / ( canvas_half_size * aspect_scale );
+      let aspect_scale : F64x2 =  [ aspect_scale[ 0 ], aspect_scale[ 1 ] ].into(); 
+      let mouse_pos: F32x2 = ( ( mouse_pos - canvas_half_size ) / canvas_half_size / aspect_scale ).into() + grid_center.into();
 
       // qqq : put bounds on parameters so that it was not possible to pass () as parameter value
-      let cursor_coord : Coordinate< Axial, (), () > = layout.hex_coord( mouse_pos_nameme );
->>>>>>> master
+      let cursor_coord : Coordinate< Axial, PointyTopped, OddParity > = layout.hex_coord( mouse_pos.into() );
+
 
       // qqq : currently it's borken and don't draw grid until mouse move
       // fixed
@@ -180,27 +173,27 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
       // qqq : too many draw calls!
       // draw hexes
-      let translation = mat2x2h::translate( [ -center.0, center.1 ] );
-      let mvp = scale_m * translation;
-      hex_shader.draw
-      (
-        &context,
-        gl::TRIANGLES, // qqq : avoid using fan, it's too specific mesh primitive type
-        &grid_mesh,
-        mvp.raw_slice(),
-        [ 0.3, 0.75, 0.3, 1.0 ].as_slice(), // qqq : parametrize
-      ).unwrap();
+      // let translation = mat2x2h::translate( [ -center.0, center.1 ] );
+      // let mvp = scale_m * translation;
+      // hex_shader.draw
+      // (
+      //   &context,
+      //   gl::TRIANGLES, // qqq : avoid using fan, it's too specific mesh primitive type
+      //   &grid_mesh,
+      //   mvp.raw_slice(),
+      //   [ 0.3, 0.75, 0.3, 1.0 ].as_slice(), // qqq : parametrize
+      // ).unwrap();
 
       // draw outline
       // hexagon center in world coords
       let pixel_coord = layout.pixel_coord( cursor_coord );
       // offset by center of the grid
-<<<<<<< HEAD
-      let translation = mat2x2h::translate( [ x - center.0, -y + center.1 ] );
+
+      // let translation = mat2x2h::translate( [ x - grid_center.x(), -y + grid_center.y() ] );
       // let scale = mat2x2h::scale( [ size, size ] );
-      let mvp = scale_m * translation;
-      hex_shader.draw( &context, gl::LINE_LOOP, &line_geometry, mvp.raw_slice(), [ 0.3, 0.3, 0.3, 1.0 ].as_slice() ).unwrap();
-=======
+      // let mvp = scale_m * translation;
+      // hex_shader.draw( &context, gl::LINE_LOOP, &line_geometry, mvp.raw_slice(), [ 0.3, 0.3, 0.3, 1.0 ].as_slice() ).unwrap();
+
       let translation = mat2x2h::translate( [ pixel_coord[ 0 ] - grid_center[ 0 ], -pixel_coord[ 1 ] + grid_center[ 1 ] ] );
       // let scale = mat2x2h::scale( [ size, size ] );
       let mvp = scale_m * translation;
@@ -232,7 +225,6 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
         //   [ 0.3, 0.75, 0.3, 1.0 ], // qqq : parametrize
         // ).unwrap();
       }
->>>>>>> master
 
       hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
       hex_shader.uniform_upload( "u_color", &[ 0.1, 0.9, 0.1, 1.0 ] );

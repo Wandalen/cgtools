@@ -89,7 +89,7 @@ impl HexLayout
   ///
   /// # Returns
   /// A tuple containing the x and y coordinates of the center of the grid.
-  pub fn grid_center< I, C >( &self, coords : I ) -> ( f32, f32 )
+  pub fn grid_center< I, C >( &self, coords : I ) -> [ f32; 2 ]
   where
     I : Iterator< Item = C >,
     C : CoordinateConversion
@@ -102,14 +102,14 @@ impl HexLayout
 
     for coord in coords
     {
-      let Pixel { x, y } = self.pixel_coord::<  >( coord );
+      let Pixel { data : [ x, y ] } = self.pixel_coord::<  >( coord );
       min_x = min_x.min( x );
       max_x = max_x.max( x );
       min_y = min_y.min( y );
       max_y = max_y.max( y );
     }
 
-    ( min_x + ( max_x - min_x ) / 2.0, min_y + ( max_y - min_y ) / 2.0 )
+    [ min_x + ( max_x - min_x ) / 2.0, min_y + ( max_y - min_y ) / 2.0]
   }
 }
 
