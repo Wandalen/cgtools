@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 rustc-hash = "2.1.1"
-minwebgl = { workspace = true, features = [ "math", "web" ] }
+minwebgl = { workspace = true, features = [ "math", "web", "log" ] }
 web-sys = { workspace = true, features = [ "DomRect", "MouseEvent" ] }
 derive_tools = { workspace = true }
 tiles_tools = { workspace = true }

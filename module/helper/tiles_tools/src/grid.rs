@@ -1,4 +1,4 @@
-use crate::*;
+use crate::{coordinates::{CoordinateSystem, OrientationType, ParityType}, *};
 use rustc_hash::FxHashMap;
 use coordinates::Coordinate;
 use layout::HexLayout;
@@ -11,13 +11,13 @@ use ndarray_cg::Array2;
 /// - `T`: The type of the values stored in the map.
 pub type HexMap< System, Orientation, Parity, T > = FxHashMap< Coordinate< System, Orientation, Parity >, T >;
 
-pub struct HexGrid< System, Orientation, Parity, T >
+pub struct HexGrid< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityType, T >
 {
   map : HexMap< System, Orientation, Parity, T >,
   layout : HexLayout,
 }
 
-impl< System, Orientation, Parity, T > HexGrid< System, Orientation, Parity, T >
+impl< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityType, T > HexGrid< System, Orientation, Parity, T >
 {
   pub fn new( map : HexMap< System, Orientation, Parity, T >, layout : HexLayout ) -> Self
   {
@@ -40,7 +40,7 @@ impl< System, Orientation, Parity, T > HexGrid< System, Orientation, Parity, T >
   }
 }
 
-pub struct HexArray< System, Orientation, Parity, T >
+pub struct HexArray< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityType, T >
 {
   data : Array2< Option< T > >,
   layout : HexLayout,
@@ -49,7 +49,7 @@ pub struct HexArray< System, Orientation, Parity, T >
   offset : Coordinate< System, Orientation, Parity >,
 }
 
-impl< System, Orientation, Parity, T > HexArray< System, Orientation, Parity, T >
+impl< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityType, T > HexArray< System, Orientation, Parity, T >
 {
   /// Creates a new hexagonal grid with the given number of rows and columns.
   ///

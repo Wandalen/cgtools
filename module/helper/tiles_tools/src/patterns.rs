@@ -1,4 +1,4 @@
-use crate::*;
+use crate::{coordinates::{OddParity, PointyTopped}, *};
 use ndarray_cg::VectorRef;
 use layout::{ HexLayout, Orientation };
 use coordinates::{ Coordinate, Axial };
@@ -71,7 +71,7 @@ impl ShiftedRectangleIter
     }
   }
 
-  fn next_pointy( data : &mut ShiftedRectangleIterData ) -> Option< Coordinate< Axial, (), () > >
+  fn next_pointy( data : &mut ShiftedRectangleIterData ) -> Option< Coordinate< Axial, PointyTopped, OddParity > >
   {
     if data.current_row >= data.rows
     {
@@ -96,7 +96,7 @@ impl ShiftedRectangleIter
     Some( coord )
   }
 
-  fn next_flat( data : &mut ShiftedRectangleIterData ) -> Option< Coordinate< Axial, (), () > >
+  fn next_flat( data : &mut ShiftedRectangleIterData ) -> Option< Coordinate< Axial, PointyTopped, OddParity > >
   {
     if data.current_column >= data.columns
     {
@@ -124,7 +124,7 @@ impl ShiftedRectangleIter
 
 impl Iterator for ShiftedRectangleIter
 {
-  type Item = Coordinate< Axial, (), () >;
+  type Item = Coordinate< Axial, PointyTopped, OddParity >;
 
   fn next( &mut self ) -> Option< Self::Item >
   {
