@@ -2,23 +2,55 @@ mod private
 {
   use crate::*;
 
+  // qqq : xxx : document please
+
+  impl< E, const N : usize > Vector< E, N >
+  where
+    E : MatEl,
+  {
+
+    /// Creates a vector from a single value : [ v ; N ]
+    #[ inline( always ) ]
+    pub const fn splat( v : E ) -> Self
+    {
+        Vector::< E, N >( [ v; N ] )
+    }
+
+    pub fn to_array( &self ) -> [ E; N ]
+    {
+      self.0
+    }
+
+  }
+
+  impl< E, const N : usize > Default for Vector< E, N >
+  where
+    E : MatEl + Default,
+  {
+    #[ inline( always ) ]
+    fn default() -> Self
+    {
+      Vector( [ E::default() ; N ] )
+    }
+  }
+
   impl< E, const N : usize > Collection for Vector< E, N >
-  where 
-    E : MatEl
+  where
+    E : MatEl,
   {
     type Scalar = E;
   }
 
   impl< E, const N : usize > ConstLength for Vector< E, N >
-  where 
-    E : MatEl
+  where
+    E : MatEl,
   {
     const LEN : usize = N;
   }
 
   impl< E, const N : usize > VectorRef< E, N > for Vector< E, N >
-  where 
-    E : MatEl
+  where
+    E : MatEl,
   {
     #[ inline( always ) ]
     fn vector_ref( &self ) -> &[ E ; N ]
@@ -28,8 +60,8 @@ mod private
   }
 
   impl< E, const N : usize > VectorMut< E, N > for Vector< E, N >
-  where 
-    E : MatEl
+  where
+    E : MatEl,
   {
     #[ inline( always ) ]
     fn vector_mut( &mut self ) -> &mut [ E ; N ]
@@ -39,8 +71,8 @@ mod private
   }
 
   impl< E, const N : usize > VectorIter< E, N > for Vector< E, N >
-  where 
-    E : MatEl
+  where
+    E : MatEl,
   {
     fn vector_iter< 'a >( &'a self ) -> impl VectorIteratorRef< 'a, &'a E >
     where
@@ -51,8 +83,8 @@ mod private
   }
 
   impl< E, const N : usize > VectorIterMut< E, N > for Vector< E, N >
-  where 
-    E : MatEl
+  where
+    E : MatEl,
   {
     fn vector_iter_mut< 'a >( &'a mut self ) -> impl VectorIterator< 'a, &'a mut E >
     where
@@ -63,30 +95,124 @@ mod private
   }
 
   impl< E, const N : usize > TryFrom< &[ E ] > for Vector< E, N >
-  where 
-    E : MatEl
+  where
+    E : MatEl,
   {
     type Error = &'static str;
-    fn try_from( value: &[ E ] ) -> Result<Self, Self::Error> 
+    // qqq : xxx : use typed error
+    fn try_from( value : &[ E ] ) -> Result< Self, Self::Error >
     {
-      if value.len() != N { return Err( "Slice length does not equal vector's length" ); }
+      if value.len() != N
+      {
+        return Err( "Slice length does not equal vector's length" );
+      }
       Ok( Self( value.try_into().unwrap() ) )
     }
   }
 
-  // impl< E, Slice, const N : usize > From< Slice > for Vector< E, N >
-  // where 
+  impl< E : MatEl, const N : usize > From< [ E; N ] > for Vector< E, N >
+  {
+    fn from( value: [ E; N ] ) -> Self
+    {
+      Vector( value )
+    }
+  }
+
+  impl< E : MatEl, const N : usize > From< Vector< E, N > > for [ E; N ]
+  {
+    fn from( value: Vector< E, N > ) -> Self
+    {
+      value.0
+    }
+  }
+
+  impl< E, const N : usize > From< E > for Vector< E, N >
+  where
+    E : MatEl
+  {
+    fn from ( value: E ) -> Self
+    {
+      Self::from( [ value; N ] )
+    }
+  }
+
+  // xxx : enable and test cover
+  pub trait IntoVector< E, const N : usize >
+  where
+    E : MatEl,
+  {
+    fn into_vector( self ) -> Vector< E, N >;
+  }
+
+  // xxx : enable and test cover
+  pub trait AsVector< E, const N : usize >
+  where
+    E : MatEl,
+  {
+    fn as_vector( &self ) -> Vector< E, N >;
+  }
+
+  // xxx : enable and test cover
+  pub trait FromVector< Dst, E, const N : usize >
+  where
+    E : MatEl,
+    // Self : Vector< E, N >,
+  {
+    fn from_vector( self ) -> Dst;
+  }
+
+  // xxx : enable?
+  // impl< E, Src, const N : usize > From< Src > for Vector< E, N >
+  // where
   //   E : MatEl,
-  //   Slice : VectorRef
+  //   Src : VectorIter< E, N >
   // {
-  //   fn from( value: Slice ) -> Self 
+  //   fn from( value: Src ) -> Self
   //   {
-  //     Self( *value.vector_ref() )
+  //     Self::default()
+  //     // Self( *value.vector_ref() )
   //   }
   // }
+
+  pub trait VectorSpace< const SIZE : usize >
+  where
+    Self : Collection + Indexable + VectorIter< < Self as Collection >::Scalar, SIZE >,
+  {
+  }
+
+  impl< T, const SIZE : usize > VectorSpace< SIZE > for T
+  where
+    Self : Collection + Indexable + VectorIter< < Self as Collection >::Scalar, SIZE >,
+  {
+  }
+
+  pub trait VectorSpaceMut< const SIZE : usize >
+  where
+    Self : VectorSpace< SIZE > + VectorIterMut< < Self as Collection >::Scalar, SIZE >,
+  {
+  }
+
+  impl< T, const SIZE : usize > VectorSpaceMut< SIZE > for T
+  where
+    Self : VectorSpace< SIZE > + VectorIterMut< < Self as Collection >::Scalar, SIZE >,
+  {
+  }
+
 }
 
 crate::mod_interface!
 {
- 
+
+  exposed use
+  {
+
+    IntoVector,
+    AsVector,
+    FromVector,
+
+    VectorSpace,
+    VectorSpaceMut,
+
+  };
+
 }

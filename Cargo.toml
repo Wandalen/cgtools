@@ -38,7 +38,7 @@ std_instead_of_core = "warn"
 std_instead_of_alloc = "warn"
 # Allows functions called only once.
 single_call_fn = "allow"
-# Permits #[inline(always)] usage.
+# Permits #[ inline( always ) ] usage.
 inline_always = "allow"
 # Allows repeated module names.
 module_name_repetitions = "allow"
@@ -141,17 +141,17 @@ version = "~0.23.0"
 # = third-party dependencies
 
 [workspace.dependencies.log]
-version = "0.4.14"
+version = "0.4.27"
 
 [workspace.dependencies.wasm-bindgen]
-version = "0.2.93"
+version = "0.2.100"
 
 [workspace.dependencies.js-sys]
-version = "0.3.70"
+version = "0.3.77"
 features = []
 
 [workspace.dependencies.web-sys]
-version = "0.3.70"
+version = "0.3.77"
 features = []
 
 [workspace.dependencies.bytemuck]

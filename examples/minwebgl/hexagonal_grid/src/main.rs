@@ -12,7 +12,7 @@ use minwebgl as gl;
 use gl::
 {
   GL,
-  math::d2::mat2x2h,
+  math::{ d2::mat2x2h, U32x2, F64x2 },
   Program,
   JsCast,
   canvas::HtmlCanvasElement,
@@ -40,8 +40,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let canvas = context.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
 
   // qqq : use vector or tuple
-  let width = canvas.width();
-  let height = canvas.height();
+  let canvas_size : U32x2 = ( canvas.width(), canvas.height() ).into();
 
   // qqq : explain why does it required
   let dpr = web_sys::window().unwrap().device_pixel_ratio();
@@ -69,7 +68,8 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   // determine the center of the grid
   // to shift it to the center of the canvas
   // qqq : use vector or tuple
-  let ( center_x, center_y ) = layout.grid_center( ShiftedRectangleIter::new( grid_size, shift_type, layout ) );
+  // let ( center_x, center_y ) = layout.grid_center( ShiftedRectangleIter::new( grid_size, shift_type, layout ) );
+  let grid_center : F64x2 = layout.grid_center( ShiftedRectangleIter::new( grid_size, shift_type, layout ) ).into();
 
   // let hex_shader = HexShader::new( &context )?;
   let vert = include_str!( "shaders/main.vert" );
@@ -81,7 +81,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   // line loop mesh for the outline of a hexagon
   let line_geometry = geometry::Positions::new( context.clone(), &hex_line_loop_mesh( &layout ), 2 )?;
 
-  let aspect = height as f32 / width as f32;
+  let aspect = canvas_size[ 1 ] as f32 / canvas_size[ 0 ] as f32;
   let scale = 1.0;
   let aspect_scale = [ aspect * scale, 1.0 * scale ];
   let scale_m = mat2x2h::scale( aspect_scale );
@@ -95,23 +95,29 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
     move | e : MouseEvent |
     {
       let rect = canvas.get_bounding_client_rect();
-      let canvas_x = rect.left();
-      let canvas_y = rect.top();
+      let canvas_pos : F64x2 = F64x2::new( rect.left(), rect.top() ).try_into().unwrap();
+      // let canvas_x = rect.left();
+      // let canvas_y = rect.top();
 
       // transform mouse coordinates from pixels to world coordinates
       // where the center of the canvas is ( 0.0, 0.0 )
       // qqq : use vector
-      let half_width = ( 0.5 * width as f64 / dpr ) as f32;
-      let half_height = ( 0.5 * height as f64 / dpr ) as f32;
-      let x = ( e.client_x() as f64 - canvas_x ) as f32;
-      let y = ( e.client_y() as f64 - canvas_y ) as f32;
+      let canvas_half_size : F64x2 = 0.5 * canvas_size.into() / dpr;
+      // let half_width = ( 0.5 * width as f64 / dpr ) as f32;
+      // let half_height = ( 0.5 * height as f64 / dpr ) as f32;
+
+      let mouse_pos = F64x2::new( e.client_x(), e.client_y() ) - canvas_pos;
+      // let x = ( e.client_x() as f64 - canvas_x ) as f32;
+      // let y = ( e.client_y() as f64 - canvas_y ) as f32;
+      // qqq : buy why you do that? name all coordinates
       // normalize then multiply by inverse aspect_scale
       // and offset by center of the grid
-      let x = ( x - half_width ) / half_width * ( 1.0 / aspect_scale[ 0 ] ) + center_x;
-      let y = ( y - half_height ) / half_height * ( 1.0 / aspect_scale[ 1 ] ) + center_y;
+      // let x = ( x - half_width ) / half_width * ( 1.0 / aspect_scale[ 0 ] ) + center_x;
+      // let y = ( y - half_height ) / half_height * ( 1.0 / aspect_scale[ 1 ] ) + center_y;
+      let mouse_pos_nameme = grid_center + ( mouse_pos - canvas_half_size ) / ( canvas_half_size * aspect_scale );
 
-      // qqq : put bounds on arguments so that it was not possible to pass () as parameter value
-      let cursor_coord : Coordinate< Axial, (), () > = layout.hex_coord( ( x, y ).into() );
+      // qqq : put bounds on parameters so that it was not possible to pass () as parameter value
+      let cursor_coord : Coordinate< Axial, (), () > = layout.hex_coord( mouse_pos_nameme );
 
       // qqq : currently it's borken and don't draw grid until mouse move
       // rerender only if the selected hexagon has changed
@@ -126,9 +132,9 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
       // draw outline
       // hexagon center in world coords
-      let Pixel { x, y } = layout.pixel_coord( cursor_coord );
+      let pixel_coord = layout.pixel_coord( cursor_coord );
       // offset by center of the grid
-      let translation = mat2x2h::translate( [ x - center_x, -y + center_y ] );
+      let translation = mat2x2h::translate( [ pixel_coord[ 0 ] - grid_center[ 0 ], -pixel_coord[ 1 ] + grid_center[ 1 ] ] );
       // let scale = mat2x2h::scale( [ size, size ] );
       let mvp = scale_m * translation;
 
@@ -137,9 +143,9 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       for coord in ShiftedRectangleIter::new( grid_size, shift_type, layout )
       {
         // hexagon center in world coords
-        let Pixel { x, y } = layout.pixel_coord( coord );
+        let pixel_coord = layout.pixel_coord( coord );
 
-        let position = [ x - center_x, -y + center_y ];
+        let position = [ pixel_coord[ 0 ] - grid_center[ 0 ], -pixel_coord[ 1 ] + grid_center[ 1 ] ];
         let translation = mat2x2h::translate( position );
         let scale = mat2x2h::scale( [ 0.95, 0.95 ] );
         let mvp = scale_m * translation * scale;

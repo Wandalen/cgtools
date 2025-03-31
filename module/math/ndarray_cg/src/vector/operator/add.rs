@@ -1,7 +1,8 @@
 mod private
 {
   use crate::*;
-  use vector::arithmetics::inner_product::*;
+  // use vector::arithmetics::inner_product::*;
+  use vector::{ sum };
 
   impl< E, const LEN : usize > Add for Vector< E, LEN >
   where
@@ -9,7 +10,7 @@ mod private
   {
     type Output = Self;
 
-    fn add( self, rhs: Self ) -> Self::Output
+    fn add( self, rhs : Self ) -> Self::Output
     {
         sum( &self, &rhs )
     }
@@ -21,7 +22,7 @@ mod private
   {
     type Output = Vector< E, LEN >;
 
-    fn add( self, rhs: Self ) -> Self::Output {
+    fn add( self, rhs : Self ) -> Self::Output {
       sum( self, rhs )
     }
   }
@@ -30,7 +31,7 @@ mod private
   where
   E : MatEl + NdFloat
   {
-    fn add_assign( &mut self, rhs: Self )
+    fn add_assign( &mut self, rhs : Self )
     {
         *self = *self + rhs;
     }

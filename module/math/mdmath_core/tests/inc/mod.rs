@@ -2,7 +2,7 @@
 use super::*;
 
 mod assumptions;
-#[ cfg( feature = "inner_product" ) ]
-mod inner_product_test;
+#[ cfg( feature = "arithmetics" ) ]
+mod arithmetics;
 mod plain_test;
 mod vector_test;

@@ -264,8 +264,8 @@ crate::mod_interface!
 {
 
   /// Inner product and everithing caused by that.
-  #[ cfg( feature = "inner_product" ) ]
-  layer inner_product;
+  #[ cfg( feature = "arithmetics" ) ]
+  layer arithmetics;
 
   /// Float functions for a vector.
   #[ cfg( feature = "float" ) ]
