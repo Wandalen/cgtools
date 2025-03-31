@@ -152,8 +152,9 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       // and offset by center of the grid
       // let x = ( x - half_width ) / half_width * ( 1.0 / aspect_scale[ 0 ] ) + center_x;
       // let y = ( y - half_height ) / half_height * ( 1.0 / aspect_scale[ 1 ] ) + center_y;
-      let aspect_scale : F64x2 =  [ aspect_scale[ 0 ], aspect_scale[ 1 ] ].into(); 
-      let mouse_pos: F32x2 = ( ( mouse_pos - canvas_half_size ) / canvas_half_size / aspect_scale ).into() + grid_center.into();
+      let aspect_scale : F64x2 =  [ aspect_scale[ 0 ].into(), aspect_scale[ 1 ].into() ].into(); 
+      let grid_center : F64x2 = [ grid_center[ 0 ].into(), grid_center[ 1 ].into() ].into(); 
+      let mouse_pos: F64x2 = ( ( mouse_pos - canvas_half_size ) / canvas_half_size / aspect_scale ) + grid_center;
 
       // qqq : put bounds on parameters so that it was not possible to pass () as parameter value
       let cursor_coord : Coordinate< Axial, PointyTopped, OddParity > = layout.hex_coord( mouse_pos.into() );

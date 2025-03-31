@@ -407,6 +407,18 @@ impl< F : Into< f32 > > From< [ F; 2 ] > for Pixel
   }
 }
 
+impl< E : MatEl + Into< f32 > > From< Vector< E, 2 > > for Pixel
+{
+  fn from( value : Vector< E, 2 >) -> Self
+  {
+    Self
+    {
+      data : [ value.0[ 0 ].into(), value.0[ 1 ].into() ]
+    }
+  }
+}
+
+
 impl Collection for Pixel
 {
   type Scalar = f32;
