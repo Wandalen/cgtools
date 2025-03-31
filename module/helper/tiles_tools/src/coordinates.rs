@@ -1,5 +1,7 @@
 use std::{ hash::Hash, marker::PhantomData };
 
+use ndarray_cg::Collection;
+
 pub trait CoordinateSystem {}
 
 pub trait OrientationType {}
@@ -404,5 +406,38 @@ impl< F : Into< f32 > > From< [ F; 2 ] > for Pixel
   {
 
     Self { x : x.into(), y : y.into() }
+  }
+}
+
+impl Collection for Pixel
+{
+  type Scalar = f32;
+}
+
+impl ndarray_cg::Add for Pixel
+{
+  type Output = Self;
+
+  fn add(self, rhs: Self) -> Self::Output
+  {
+    Self
+    {
+      x : self.x + rhs.x,
+      y : self.y + rhs.y,
+    }
+  }
+}
+
+impl ndarray_cg::Sub for Pixel
+{
+  type Output = Self;
+
+  fn sub(self, rhs: Self) -> Self::Output
+  {
+    Self
+    {
+      x : self.x - rhs.x,
+      y : self.y - rhs.y,
+    }
   }
 }

@@ -29,7 +29,7 @@ fn main() -> Result< (), gl::WebglError >
 fn draw_hexes() -> Result< (), minwebgl::WebglError >
 {
   gl::browser::setup( Default::default() );
-  let context = gl::context::retrieve_or_make_reduced_dpr()?;
+  let context = gl::context::retrieve_or_make_with( gl::context::ReducedDprBuilder )?;
   // qqq : Instead of this function, please introduce the function `retrieve_or_make_with( o )` where `o` is a structure containing options and a builder for them.
   // qqq : add to structure Options other relevant options of retreiving context
 
@@ -54,7 +54,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   // how to shift the hexagons to form a rectangle
   let shift_type = Parity::Even;
   // orientation of hex can be either pointing upword or flat upword
-  let orientation = Orientation::Flat;
+  let orientation = Orientation::Pointy;
 
   // orientation of the hexagons
   let layout = HexLayout { orientation, size };
@@ -83,7 +83,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let aspect_scale = [ aspect * scale, 1.0 * scale ];
   let scale_m = mat2x2h::scale( aspect_scale );
 
-  let translation = mat2x2h::translate( [ center.0, center.1 ] );
+  let translation = mat2x2h::translate( [ -center.0, center.1 ] );
   let mvp = scale_m * translation;
   hex_shader.draw
   (
@@ -91,7 +91,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
     gl::TRIANGLES, // qqq : avoid using fan, it's too specific mesh primitive type
     &grid_mesh,
     mvp.raw_slice(),
-    [ 0.3, 0.75, 0.3, 1.0 ], // qqq : parametrize
+    [ 0.3, 0.75, 0.3, 1.0 ].as_slice(), // qqq : parametrize
   ).unwrap();
 
   let mut selected_hex = None;
@@ -122,6 +122,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       let cursor_coord : Coordinate< Axial, PointyTopped, OddParity > = layout.hex_coord( ( x, y ).into() );
 
       // qqq : currently it's borken and don't draw grid until mouse move
+      // fixed
       // rerender only if the selected hexagon has changed
       if selected_hex.is_some_and( | hex | hex == cursor_coord )
       {
@@ -134,7 +135,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
       // qqq : too many draw calls!
       // draw hexes
-      let translation = mat2x2h::translate( [ center.0, center.1 ] );
+      let translation = mat2x2h::translate( [ -center.0, center.1 ] );
       let mvp = scale_m * translation;
       hex_shader.draw
       (
@@ -142,7 +143,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
         gl::TRIANGLES, // qqq : avoid using fan, it's too specific mesh primitive type
         &grid_mesh,
         mvp.raw_slice(),
-        [ 0.3, 0.75, 0.3, 1.0 ], // qqq : parametrize
+        [ 0.3, 0.75, 0.3, 1.0 ].as_slice(), // qqq : parametrize
       ).unwrap();
 
       // draw outline
@@ -152,7 +153,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       let translation = mat2x2h::translate( [ x - center.0, -y + center.1 ] );
       // let scale = mat2x2h::scale( [ size, size ] );
       let mvp = scale_m * translation;
-      hex_shader.draw( &context, gl::LINE_LOOP, &line_geometry, mvp.raw_slice(), [ 0.3, 0.3, 0.3, 1.0 ] ).unwrap();
+      hex_shader.draw( &context, gl::LINE_LOOP, &line_geometry, mvp.raw_slice(), [ 0.3, 0.3, 0.3, 1.0 ].as_slice() ).unwrap();
 
     }
   };

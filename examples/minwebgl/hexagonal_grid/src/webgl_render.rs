@@ -1,8 +1,9 @@
 use minwebgl as gl;
-use gl::{ WebGlProgram, WebGlUniformLocation, WebGlVertexArrayObject, GL };
+use gl::{ WebGlProgram, WebGlUniformLocation, WebGlVertexArrayObject, GL, UniformUpload };
 
 // qqq : is it possible to rid off this file and replace it by more general code?
 // before changes discuss please
+// aaa: i don't know
 
 /// A shader program used for rendering hexagons.
 /// This shader handles the transformation matrix (MVP) and the color of the hexagons.
@@ -34,21 +35,23 @@ impl HexShader
     )
   }
 
-  pub fn draw
+  pub fn draw< D >
   (
     &self,
     gl : &GL,
     mode : u32,
     geometry : &Geometry,
     mvp : &[ f32 ],
-    color : [ f32; 4 ]
+    color : &D
   )
   -> Result< (), gl::WebglError >
+  where 
+    D : UniformUpload + ?Sized,
   {
     gl.bind_vertex_array( Some( &geometry.vao ) );
     gl.use_program( Some( &self.program ) );
     gl::uniform::matrix_upload( gl, Some( self.mvp_location.clone() ), mvp, true )?;
-    gl::uniform::upload( gl, Some( self.color_location.clone() ), color.as_slice() )?;
+    gl::uniform::upload( gl, Some( self.color_location.clone() ), color )?;
     gl.draw_arrays( mode, 0, geometry.count );
 
     Ok( () )
