@@ -1,5 +1,5 @@
-use crate::{coordinates::{OddParity, PointyTopped}, *};
-use ndarray_cg::VectorRef;
+use crate::*;
+use ndarray_cg::ArrayRef;
 use layout::{ HexLayout, Orientation };
 use coordinates::{ Coordinate, Axial };
 // use crate::layout::*;
@@ -62,12 +62,12 @@ impl ShiftedRectangleIter
   ///
   /// # Returns
   /// A new `ShiftedRectangleIter`.
-  pub fn new< V2 : VectorRef< i32, 2 > >( size : V2, shift_type : Parity, layout : HexLayout ) -> Self
+  pub fn new< V2 : ArrayRef< i32, 2 > >( size : V2, shift_type : Parity, layout : HexLayout ) -> Self
   {
     Self
     {
       layout,
-      data : ShiftedRectangleIterData::new( size.vector_ref()[ 0 ], size.vector_ref()[ 1 ], shift_type ),
+      data : ShiftedRectangleIterData::new( size.array_ref()[ 0 ], size.array_ref()[ 1 ], shift_type ),
     }
   }
 

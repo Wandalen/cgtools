@@ -13,7 +13,7 @@ use minwebgl as gl;
 use gl::
 {
   GL,
-  math::{ d2::mat2x2h, U32x2, F64x2 },
+  math::{ d2::mat2x2h, U32x2, F32x2, IntoVector },
   Program,
   JsCast,
   canvas::HtmlCanvasElement,
@@ -39,7 +39,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let canvas = context.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
 
   // qqq : use vector or tuple
-  let canvas_size : U32x2 = [ canvas.width(), canvas.height() ].into();
+  let canvas_size : U32x2 = ( canvas.width(), canvas.height() ).into_vector();
 
   // qqq : explain why does it required
   // used to scale cursor coordinates to properly map on the resized canvas
@@ -97,7 +97,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let aspect = canvas_size[ 1 ] as f32 / canvas_size[ 0 ] as f32;
 
   let scale = 1.0;
-  let aspect_scale = [ aspect * scale, 1.0 * scale ];
+  let aspect_scale : [ f32 ; 2 ] = [ aspect * scale, 1.0 * scale ].into();
   let scale_m = mat2x2h::scale( aspect_scale );
 
   let translation = mat2x2h::translate( [ -grid_center.x(), grid_center.y() ] );
@@ -120,33 +120,20 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
     move | e : MouseEvent |
     {
       let rect = canvas.get_bounding_client_rect();
-      let canvas_pos : F64x2 = F64x2::new( rect.left(), rect.top() ).try_into().unwrap();
+      let canvas_pos : F32x2 = F32x2::new( rect.left(), rect.top() ).try_into().unwrap();
       // let canvas_x = rect.left();
       // let canvas_y = rect.top();
 
       // transform mouse coordinates from pixels to world coordinates
       // where the center of the canvas is ( 0.0, 0.0 )
       // qqq : use vector
+      let canvas_half_size : F32x2 = 0.5 * canvas_size.into() / dpr;
+      // let half_width = ( 0.5 * width as f32 / dpr ) as f32;
+      // let half_height = ( 0.5 * height as f32 / dpr ) as f32;
 
-      let half_width = ( 0.5 * canvas_size[ 0 ] as f64 / dpr ) as f32;
-      let half_height = ( 0.5 * canvas_size[ 1 ] as f64 / dpr ) as f32;
-      // let x = ( e.client_x() as f64 - canvas_x ) as f32;
-      // let y = ( e.client_y() as f64 - canvas_y ) as f32;
-      // normalize then multiply by inverse aspect_scale
-      // and offset by center of the grid
-      // let x = ( x - half_width ) / half_width * ( 1.0 / aspect_scale[ 0 ] ) + center.0;
-      // let y = ( y - half_height ) / half_height * ( 1.0 / aspect_scale[ 1 ] ) + center.1;
-
-      // qqq : put bounds on arguments so that it was not possible to pass () as parameter value
-      // let cursor_coord : Coordinate< Axial, PointyTopped, OddParity > = layout.hex_coord( ( x, y ).into() );
-      let canvas_size : F64x2 = [ canvas_size[ 0 ] as f64, canvas_size[ 1 ] as f64 ].into();
-      let canvas_half_size : F64x2 = 0.5 * canvas_size / dpr;
-      // let half_width = ( 0.5 * width as f64 / dpr ) as f32;
-      // let half_height = ( 0.5 * height as f64 / dpr ) as f32;
-
-      let mouse_pos = F64x2::new( e.client_x() as f64, e.client_y() as f64 ) - canvas_pos;
-      // let x = ( e.client_x() as f64 - canvas_x ) as f32;
-      // let y = ( e.client_y() as f64 - canvas_y ) as f32;
+      let mouse_pos = F32x2::new( e.client_x().into(), e.client_y().into() ) - canvas_pos;
+      // let x = ( e.client_x() as f32 - canvas_x ) as f32;
+      // let y = ( e.client_y() as f32 - canvas_y ) as f32;
       // qqq : buy why you do that? name all coordinates
       // normalize then multiply by inverse aspect_scale
       // and offset by center of the grid

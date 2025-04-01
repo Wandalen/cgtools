@@ -113,35 +113,140 @@ mod private
   {
   }
 
-  // =
+  // = IntoArray
+
+  /// The `IntoArray` trait is used to convert a collection into a fixed-size array.
+  ///
+  /// This trait provides two methods:
+  ///  - `into_array`, which consumes the collection and returns a fixed-size array `[E; N]`.
+  ///  - `as_array`, which borrows the collection (without consuming it) and returns a new fixed-size array
+  ///    `[E; N]` by cloning the collection.
+  ///
+  /// This can be useful when a collection needs to be represented as an array with a known, fixed size.
+  ///
+  /// # Type Parameters
+  ///
+  /// - `E`: The type of the elements in the resulting array.
+  /// - `N`: The fixed number of elements in the array.
+  ///
+  /// # Examples
+  ///
+  /// Basic usage with consumption:
+  ///
+  /// ```
+  /// struct MyCollection;
+  ///
+  /// impl IntoArray< i32, 3 > for MyCollection
+  /// {
+  ///   fn into_array( self ) -> [ i32; 3 ]
+  ///   {
+  ///     [ 1, 2, 3 ]
+  ///   }
+  /// }
+  ///
+  /// let coll = MyCollection;
+  /// let array = coll.into_array();
+  /// assert_eq!( array, [ 1, 2, 3 ] );
+  /// ```
+  ///
+  /// Basic usage without consumption:
+  ///
+  /// ```
+  /// struct MyCollection;
+  ///
+  /// impl IntoArray< i32, 3 > for MyCollection
+  /// {
+  ///   fn into_array( self ) -> [ i32; 3 ]
+  ///   {
+  ///     [ 1, 2, 3 ]
+  ///   }
+  /// }
+  ///
+  /// let coll = MyCollection;
+  /// let array = coll.as_array();
+  /// assert_eq!( array, [ 1, 2, 3 ] );
+  /// ```
+  pub trait IntoArray< E, const N : usize >
+  {
+    /// Consumes the collection and returns a fixed-size array.
+    ///
+    /// # Returns
+    ///
+    /// - `[E; N]`: The fixed-size array produced from the collection.
+    fn into_array( self ) -> [ E; N ];
+
+    /// Returns a fixed-size array without consuming the collection.
+    ///
+    /// This method clones the collection and then converts it into an array using the `into_array` method.
+    ///
+    /// # Constraints
+    ///
+    /// The collection must implement [`Clone`].
+    ///
+    /// # Returns
+    ///
+    /// - `[E; N]`: The fixed-size array produced from a clone of the collection.
+    #[ inline ]
+    fn as_array( &self ) -> [ E; N ]
+    where
+      Self : Clone,
+    {
+      self.clone().into_array()
+    }
+  }
+
+  impl< T, E, const N : usize > IntoArray< E, N > for &T
+  where
+    T : IntoArray< E, N > + Clone,
+  {
+    #[ inline ]
+    fn into_array( self ) -> [ E; N ]
+    {
+      < T as IntoArray< E, N > >::into_array( ( *self ).clone() )
+    }
+  }
+
+  impl< T, E, const N : usize > IntoArray< E, N > for &mut T
+  where
+    T : IntoArray< E, N > + Clone,
+  {
+    #[ inline ]
+    fn into_array( self ) -> [ E; N ]
+    {
+      < T as IntoArray< E, N > >::into_array( ( *self ).clone() )
+    }
+  }
+
+  // = ArrayRef / ArrayMut
 
   /// A trait for accessing a reference to a fixed-size array from a collection.
   ///
   /// This trait requires the collection to implement `Collection`.
-  pub trait VectorRef< E, const N : usize >
+  pub trait ArrayRef< E, const N : usize >
   {
     /// Returns a reference to a fixed-size array from the collection.
     ///
     /// # Returns
     /// - `&[ E ; N ]`: A reference to the fixed-size array.
-    fn vector_ref( &self ) -> &[ E ; N ];
+    fn array_ref( &self ) -> &[ E ; N ];
   }
 
-  /// Implementation of `VectorRef` for references to collections.
-  impl< T, E, const N : usize > VectorRef< E, N > for &T
+  /// Implementation of `ArrayRef` for references to collections.
+  impl< T, E, const N : usize > ArrayRef< E, N > for &T
   where
-    T : VectorRef< E, N >,
+    T : ArrayRef< E, N >,
   {
-    fn vector_ref( &self ) -> &[ E; N ]
+    #[ inline ]
+    fn array_ref( &self ) -> &[ E; N ]
     {
-      < T as VectorRef< E, N > >::vector_ref( self )
+      < T as ArrayRef< E, N > >::array_ref( self )
     }
   }
 
   /// A trait for accessing a mutable reference to a fixed-size array from a collection.
   ///
   /// This trait requires the collection to implement `Collection`.
-  pub trait VectorMut< E, const N : usize >
+  pub trait ArrayMut< E, const N : usize >
   {
     /// Returns a mutable reference to a fixed-size array from the collection.
     ///
@@ -150,14 +255,15 @@ mod private
     fn vector_mut( &mut self ) -> &mut [ E ; N ];
   }
 
-  /// Implementation of `VectorMut` for mutable references to collections.
-  impl< T, E, const N : usize > VectorMut< E, N > for &mut T
+  /// Implementation of `ArrayMut` for mutable references to collections.
+  impl< T, E, const N : usize > ArrayMut< E, N > for &mut T
   where
-    T : VectorMut< E, N >,
+    T : ArrayMut< E, N >,
   {
+    #[ inline ]
     fn vector_mut( &mut self ) -> &mut [ E; N ]
     {
-      <T as VectorMut< E, N > >::vector_mut( self )
+      <T as ArrayMut< E, N > >::vector_mut( self )
     }
   }
 
@@ -201,7 +307,7 @@ mod private
       E : 'a;
   }
 
-  /// Implementation of `VectorRef` for references to collections.
+  /// Implementation of `ArrayRef` for references to collections.
   impl< T, E, const N : usize > VectorIter< E, N > for &T
   where
     T : VectorIter< E, N >,
@@ -213,7 +319,7 @@ mod private
     }
   }
 
-  /// Implementation of `VectorRef` for references to collections.
+  /// Implementation of `ArrayRef` for references to collections.
   impl< T, E, const N : usize > VectorIter< E, N > for &mut T
   where
     T : VectorIter< E, N >,
@@ -235,7 +341,7 @@ mod private
       E : 'a;
   }
 
-  /// Implementation of `VectorRef` for references to collections.
+  /// Implementation of `ArrayRef` for references to collections.
   impl< T, E, const N : usize > VectorIterMut< E, N > for &mut T
   where
     T : VectorIterMut< E, N > + VectorIter< E, N >,
@@ -277,8 +383,9 @@ crate::mod_interface!
     ConstLength,
     VectorWithLength,
     VectorWithLengthMut,
-    VectorRef,
-    VectorMut,
+    IntoArray,
+    ArrayRef,
+    ArrayMut,
     VectorIterator,
     VectorIteratorRef,
     VectorIter,

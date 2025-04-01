@@ -10,16 +10,16 @@ fn test_const_length_tuple1()
 #[ test ]
 fn test_vector_ref_tuple1()
 {
-  use the_module::VectorRef;
+  use the_module::ArrayRef;
   let tuple : (i32,) = (42,);
-  let vector_ref : &[i32; 1] = tuple.vector_ref();
-  assert_eq!( vector_ref, &[42] );
+  let array_ref : &[i32; 1] = tuple.array_ref();
+  assert_eq!( array_ref, &[42] );
 }
 
 #[ test ]
 fn test_vector_mut_tuple1()
 {
-  use the_module::VectorMut;
+  use the_module::ArrayMut;
   let mut tuple : (i32,) = (42,);
   {
     let vector_mut : &mut [i32; 1] = tuple.vector_mut();

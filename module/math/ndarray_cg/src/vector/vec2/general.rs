@@ -30,7 +30,7 @@ mod private
   }
 
   // qqq : xxx : enable please
-  // impl< E > IntoVector< E, 2 > for T
+  // impl< E, T > IntoVector< E, 2 > for T
   // where
   //   E : MatEl,
   //   T : VectorWithLength< 2 >
@@ -43,25 +43,25 @@ mod private
 
   // tuple
 
-  impl< E > IntoVector< E, 2 > for ( E, E )
-  where
-    E : MatEl
-  {
-    fn into_vector( self ) -> Vector< E, 2 >
-    {
-      Vector::< E, 2 >( [ self.0, self.1 ] )
-    }
-  }
+  // impl< E > IntoVector< E, 2 > for ( E, E )
+  // where
+  //   E : MatEl
+  // {
+  //   fn into_vector( self ) -> Vector< E, 2 >
+  //   {
+  //     Vector::< E, 2 >( [ self.0, self.1 ] )
+  //   }
+  // }
 
-  impl< E > AsVector< E, 2 > for ( E, E )
-  where
-    E : MatEl
-  {
-    fn as_vector( &self ) -> Vector< E, 2 >
-    {
-      Vector::< E, 2 >( [ self.0, self.1 ] )
-    }
-  }
+  // impl< E > AsVector< E, 2 > for ( E, E )
+  // where
+  //   E : MatEl
+  // {
+  //   fn as_vector( &self ) -> Vector< E, 2 >
+  //   {
+  //     Vector::< E, 2 >( [ self.0, self.1 ] )
+  //   }
+  // }
 
   impl< E > FromVector< ( E, E ), E, 2 > for Vector< E, 2 >
   where
@@ -75,25 +75,27 @@ mod private
 
   // array
 
-  impl< E > IntoVector< E, 2 > for [ E ; 2 ]
-  where
-    E : MatEl
-  {
-    fn into_vector( self ) -> Vector< E, 2 >
-    {
-      Vector::< E, 2 >( self )
-    }
-  }
+//   impl< E > IntoVector< E, 2 > for [ E ; 2 ]
+//   where
+//     E : MatEl
+//   {
+//
+//     fn into_vector( self ) -> Vector< E, 2 >
+//     {
+//       Vector::< E, 2 >( self )
+//     }
+//
+//   }
 
-  impl< E > AsVector< E, 2 > for [ E ; 2 ]
-  where
-    E : MatEl
-  {
-    fn as_vector( &self ) -> Vector< E, 2 >
-    {
-      Vector::< E, 2 >( [ self[ 0 ], self[ 1 ] ] )
-    }
-  }
+  // impl< E > AsVector< E, 2 > for [ E ; 2 ]
+  // where
+  //   E : MatEl
+  // {
+  //   fn as_vector( &self ) -> Vector< E, 2 >
+  //   {
+  //     Vector::< E, 2 >( [ self[ 0 ], self[ 1 ] ] )
+  //   }
+  // }
 
   impl< E > FromVector< [ E ; 2 ], E, 2 > for Vector< E, 2 >
   where

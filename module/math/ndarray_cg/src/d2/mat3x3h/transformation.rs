@@ -97,16 +97,16 @@ pub fn loot_to_rh< E, Vec3 >
 ->  Mat4< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl + nd::NdFloat,
-  Vec3 : VectorIterMut< E, 3 > + VectorRef< E, 3 > + Clone,
+  Vec3 : VectorIterMut< E, 3 > + ArrayRef< E, 3 > + Clone,
   Mat4< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >,
 {
   let z = normalized( &dir );
   let x = normalized( &cross( &z, &up ) );
   let y = cross( &x, &z );
 
-  let x = x.vector_ref();
-  let y = y.vector_ref();
-  let z = z.vector_ref();
+  let x = x.array_ref();
+  let y = y.array_ref();
+  let z = z.array_ref();
 
   let dot_x = dot( &eye, x );
   let dot_y = dot( &eye, y );
@@ -138,7 +138,7 @@ pub fn loot_at_rh< E, Vec3 >
 ->  Mat4< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl + nd::NdFloat,
-  Vec3 : VectorIterMut< E, 3 > + VectorRef< E, 3 > + Clone,
+  Vec3 : VectorIterMut< E, 3 > + ArrayRef< E, 3 > + Clone,
   Mat4< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >,
 {
   let dir = sub( &center, &eye );
