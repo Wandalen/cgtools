@@ -10,7 +10,16 @@ impl< E, const N : usize > ConstLength for [ E ; N ]
   const LEN : usize = N;
 }
 
-impl< E, const N : usize > VectorRef< E, N > for [ E ; N ]
+impl< E, const N : usize > IntoArray< E, N > for [ E ; N ]
+{
+  #[ inline ]
+  fn into_array( self ) -> [ E ; N ]
+  {
+    self
+  }
+}
+
+impl< E, const N : usize > ArrayRef< E, N > for [ E ; N ]
 {
   #[ inline( always ) ]
   fn vector_ref( &self ) -> &[ E ; N ]
@@ -19,7 +28,7 @@ impl< E, const N : usize > VectorRef< E, N > for [ E ; N ]
   }
 }
 
-impl< E, const N : usize > VectorMut< E, N > for [ E ; N ]
+impl< E, const N : usize > ArrayMut< E, N > for [ E ; N ]
 {
   #[ inline( always ) ]
   fn vector_mut( &mut self ) -> &mut [ E ; N ]

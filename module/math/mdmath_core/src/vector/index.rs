@@ -12,7 +12,16 @@ impl ConstLength for Ix0
   const LEN : usize = 0;
 }
 
-impl VectorRef< usize, 0 > for Ix0
+impl IntoArray< usize, 0 > for Ix0
+{
+  #[ inline ]
+  fn into_array( self ) -> [ usize ; 0 ]
+  {
+    []
+  }
+}
+
+impl ArrayRef< usize, 0 > for Ix0
 {
   #[ inline( always ) ]
   fn vector_ref( &self ) -> &[ usize ; 0 ]
@@ -21,7 +30,7 @@ impl VectorRef< usize, 0 > for Ix0
   }
 }
 
-impl VectorMut< usize, 0 > for Ix0
+impl ArrayMut< usize, 0 > for Ix0
 {
   #[ inline( always ) ]
   fn vector_mut( &mut self ) -> &mut [ usize ; 0 ]
@@ -42,7 +51,16 @@ impl ConstLength for Ix1
   const LEN : usize = 1;
 }
 
-impl VectorRef< usize, 1 > for Ix1
+impl IntoArray< usize, 1 > for Ix1
+{
+  #[ inline ]
+  fn into_array( self ) -> [ usize ; 1 ]
+  {
+    [ self[ 0 ] ]
+  }
+}
+
+impl ArrayRef< usize, 1 > for Ix1
 {
   #[ inline( always ) ]
   fn vector_ref( &self ) -> &[ usize ; 1 ]
@@ -74,7 +92,7 @@ impl VectorRef< usize, 1 > for Ix1
   }
 }
 
-impl VectorMut< usize, 1 > for Ix1
+impl ArrayMut< usize, 1 > for Ix1
 {
   #[ inline( always ) ]
   fn vector_mut( &mut self ) -> &mut [ usize ; 1 ]
@@ -121,7 +139,16 @@ impl ConstLength for Ix2
   const LEN : usize = 2;
 }
 
-impl VectorRef< usize, 2 > for Ix2
+impl IntoArray< usize, 2 > for Ix2
+{
+  #[ inline ]
+  fn into_array( self ) -> [ usize ; 2 ]
+  {
+    [ self[ 0 ], self[ 1 ] ]
+  }
+}
+
+impl ArrayRef< usize, 2 > for Ix2
 {
   #[ inline( always ) ]
   fn vector_ref( &self ) -> &[ usize ; 2 ]
@@ -153,7 +180,7 @@ impl VectorRef< usize, 2 > for Ix2
   }
 }
 
-impl VectorMut< usize, 2 > for Ix2
+impl ArrayMut< usize, 2 > for Ix2
 {
   #[ inline( always ) ]
   fn vector_mut( &mut self ) -> &mut [ usize ; 2 ]
@@ -200,7 +227,16 @@ impl ConstLength for Ix3
   const LEN : usize = 3;
 }
 
-impl VectorRef< usize, 3 > for Ix3
+impl IntoArray< usize, 3 > for Ix3
+{
+  #[ inline ]
+  fn into_array( self ) -> [ usize ; 3 ]
+  {
+    [ self[ 0 ], self[ 1 ], self[ 2 ] ]
+  }
+}
+
+impl ArrayRef< usize, 3 > for Ix3
 {
   #[ inline( always ) ]
   fn vector_ref( &self ) -> &[ usize ; 3 ]
@@ -232,7 +268,7 @@ impl VectorRef< usize, 3 > for Ix3
   }
 }
 
-impl VectorMut< usize, 3 > for Ix3
+impl ArrayMut< usize, 3 > for Ix3
 {
   #[ inline( always ) ]
   fn vector_mut( &mut self ) -> &mut [ usize ; 3 ]
@@ -266,3 +302,5 @@ impl VectorMut< usize, 3 > for Ix3
     result
   }
 }
+
+// qqq : implement for 4 please

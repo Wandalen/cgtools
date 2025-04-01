@@ -3,7 +3,7 @@ use super::*;
 #[ test ]
 fn test_vector_ref_slice()
 {
-  use the_module::VectorRef;
+  use the_module::ArrayRef;
   let slice : &[ i32 ] = &[];
   let vector_ref : &[ i32; 0 ] = slice.vector_ref();
   assert_eq!( vector_ref, &[] as &[ i32; 0 ] );
@@ -20,7 +20,7 @@ fn test_vector_ref_slice()
 #[ test ]
 fn test_vector_mut_slice()
 {
-  use the_module::VectorMut;
+  use the_module::ArrayMut;
   let slice : &mut [ i32 ] = &mut [];
   {
     let vector_mut : &mut [ i32; 0 ] = slice.vector_mut();

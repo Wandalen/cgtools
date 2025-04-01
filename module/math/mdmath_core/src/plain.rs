@@ -31,7 +31,7 @@ mod private
     /// A scalar value representing the flat offset.
     fn offset< V2 >( &self, md_index : &V2 ) -> Self::Scalar
     where
-      V2 : VectorRef< Self::Scalar, N > + Collection< Scalar = Self::Scalar > + fmt::Debug + ?Sized;
+      V2 : ArrayRef< Self::Scalar, N > + Collection< Scalar = Self::Scalar > + fmt::Debug + ?Sized;
   }
 
   /// Implementation of `DimOffset` for arrays of any dimension.
@@ -42,12 +42,12 @@ mod private
   where
     Self : Collection< Scalar = E > + fmt::Debug,
     E : Mul< E, Output = E > + Add< E, Output = E > + PartialOrd + Copy + Default + From< u8 >,
-    V : VectorRef< E, N > + Collection< Scalar = E > + fmt::Debug + ?Sized,
+    V : ArrayRef< E, N > + Collection< Scalar = E > + fmt::Debug + ?Sized,
   {
     #[ inline ]
     fn offset< V2 >( &self, md_index : &V2 ) -> Self::Scalar
     where
-      V2 : VectorRef< E, N > + Collection< Scalar = Self::Scalar > + fmt::Debug + ?Sized,
+      V2 : ArrayRef< E, N > + Collection< Scalar = Self::Scalar > + fmt::Debug + ?Sized,
     {
       let mut offset = E::default();
       let mut stride = E::from( 1 ); // Start with a stride of 1

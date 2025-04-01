@@ -97,7 +97,7 @@ pub fn loot_to_rh< E, Vec3 >
 ->  Mat4< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl + nd::NdFloat,
-  Vec3 : VectorIterMut< E, 3 > + VectorRef< E, 3 > + Clone,
+  Vec3 : VectorIterMut< E, 3 > + ArrayRef< E, 3 > + Clone,
   Mat4< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >,
 {
   let z = normalized( &dir );
@@ -138,7 +138,7 @@ pub fn loot_at_rh< E, Vec3 >
 ->  Mat4< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl + nd::NdFloat,
-  Vec3 : VectorIterMut< E, 3 > + VectorRef< E, 3 > + Clone,
+  Vec3 : VectorIterMut< E, 3 > + ArrayRef< E, 3 > + Clone,
   Mat4< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >,
 {
   let dir = sub( &center, &eye );

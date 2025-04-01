@@ -48,7 +48,7 @@ mod private
     const LEN : usize = N;
   }
 
-  impl< E, const N : usize > VectorRef< E, N > for Vector< E, N >
+  impl< E, const N : usize > ArrayRef< E, N > for Vector< E, N >
   where
     E : MatEl,
   {
@@ -59,7 +59,7 @@ mod private
     }
   }
 
-  impl< E, const N : usize > VectorMut< E, N > for Vector< E, N >
+  impl< E, const N : usize > ArrayMut< E, N > for Vector< E, N >
   where
     E : MatEl,
   {
@@ -142,15 +142,32 @@ mod private
     E : MatEl,
   {
     fn into_vector( self ) -> Vector< E, N >;
+    fn as_vector( &self ) -> Vector< E, N >
+    where
+      Self : Clone,
+    {
+      self.clone().into_vector()
+    }
   }
 
-  // xxx : enable and test cover
-  pub trait AsVector< E, const N : usize >
+  impl< T, E, const N : usize > IntoVector< E, N > for T
   where
     E : MatEl,
+    T : IntoArray< E, N >,
   {
-    fn as_vector( &self ) -> Vector< E, N >;
+    fn into_vector( self ) -> Vector< E, N >
+    {
+      Vector::< E, N >( self.into_array() )
+    }
   }
+
+  // // xxx : enable and test cover
+  // pub trait AsVector< E, const N : usize >
+  // where
+  //   E : MatEl,
+  // {
+  //   fn as_vector( &self ) -> Vector< E, N >;
+  // }
 
   // xxx : enable and test cover
   pub trait FromVector< Dst, E, const N : usize >
@@ -207,7 +224,7 @@ crate::mod_interface!
   {
 
     IntoVector,
-    AsVector,
+    // AsVector,
     FromVector,
 
     VectorSpace,

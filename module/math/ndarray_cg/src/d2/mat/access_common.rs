@@ -81,7 +81,7 @@ where
   Self : RawSliceMut< Scalar = E >,
 {
   /// Creates a matrix assuming the input to be in row major order
-  pub fn from_row_major< const N : usize >( scalars: impl VectorRef< E, N > ) -> Self {
+  pub fn from_row_major< const N : usize >( scalars: impl ArrayRef< E, N > ) -> Self {
     debug_assert_eq!( N, ROWS*COLS, "Matrix size should be equal to the size of the input" );
 
     let result = Self::default();
@@ -89,7 +89,7 @@ where
   }
 
   /// Creates a matrix assuming the input to be in column major order
-  pub fn from_column_major< const N : usize >( scalars: impl VectorRef< E, N > ) -> Self {
+  pub fn from_column_major< const N : usize >( scalars: impl ArrayRef< E, N > ) -> Self {
     debug_assert_eq!( N, ROWS*COLS, "Matrix size should be equal to the size of the input" );
 
     let result = Self::default();

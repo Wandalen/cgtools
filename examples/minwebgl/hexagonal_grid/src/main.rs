@@ -40,7 +40,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let canvas = context.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
 
   // qqq : use vector or tuple
-  let canvas_size : U32x2 = ( canvas.width(), canvas.height() ).into();
+  let canvas_size : U32x2 = ( canvas.width(), canvas.height() ).into_vector();
 
   // qqq : explain why does it required
   let dpr = web_sys::window().unwrap().device_pixel_ratio();

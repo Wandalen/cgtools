@@ -15,7 +15,16 @@ impl ConstLength for ()
   const LEN : usize = 0;
 }
 
-impl VectorRef< usize, 0 > for ()
+impl< E > IntoArray< E, 0 > for ()
+{
+  #[ inline ]
+  fn into_array( self ) -> [ E ; 0 ]
+  {
+    []
+  }
+}
+
+impl ArrayRef< usize, 0 > for ()
 {
   #[ inline( always ) ]
   fn vector_ref( &self ) -> &[ usize ; 0 ]
@@ -26,7 +35,7 @@ impl VectorRef< usize, 0 > for ()
   }
 }
 
-impl VectorMut< usize, 0 > for ()
+impl ArrayMut< usize, 0 > for ()
 {
   #[ inline( always ) ]
   fn vector_mut( &mut self ) -> &mut [ usize ; 0 ]

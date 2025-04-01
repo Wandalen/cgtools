@@ -10,7 +10,7 @@ fn test_const_length_tuple0()
 #[ test ]
 fn test_vector_ref_tuple0()
 {
-  use the_module::VectorRef;
+  use the_module::ArrayRef;
   let tuple : () = ();
   let vector_ref : &[ usize; 0 ] = tuple.vector_ref();
   assert_eq!( vector_ref, &[] as &[usize; 0] );
@@ -19,7 +19,7 @@ fn test_vector_ref_tuple0()
 #[ test ]
 fn test_vector_mut_tuple0()
 {
-  use the_module::VectorMut;
+  use the_module::ArrayMut;
   let mut tuple : () = ();
   {
     let vector_mut : &mut [ usize; 0 ] = tuple.vector_mut();

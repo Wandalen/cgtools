@@ -168,7 +168,7 @@ version = "0.5.1"
 version = "0.2.19"
 
 [workspace.dependencies.wasm-bindgen-futures]
-version = "0.4.43"
+version = "0.4.50"
 
 # [workspace.dependencies.generic-array]
 # version = "1.1.0"
@@ -196,12 +196,14 @@ version = "1.0.214"
 
 [workspace.dependencies.serde_with]
 version = "3.11.0"
+
 [workspace.dependencies.byteorder]
 version = "1.5.0"
 
 [workspace.dependencies.itertools]
 version = "0.13.0"
 
+# qqq : use error_tools instead
 [workspace.dependencies.thiserror]
 version = "2.0.4"
 
@@ -214,5 +216,6 @@ version = "0.25.5"
 
 [workspace.dependencies.tokio]
 version = "1.41.0"
+
 [workspace.dependencies.rand]
 version = "0.8.5"
