@@ -12,8 +12,8 @@ fn test_vector_ref_tuple0()
 {
   use the_module::ArrayRef;
   let tuple : () = ();
-  let vector_ref : &[ usize; 0 ] = tuple.vector_ref();
-  assert_eq!( vector_ref, &[] as &[usize; 0] );
+  let array_ref : &[ usize; 0 ] = tuple.array_ref();
+  assert_eq!( array_ref, &[] as &[usize; 0] );
 }
 
 #[ test ]

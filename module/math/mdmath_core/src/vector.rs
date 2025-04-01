@@ -228,7 +228,7 @@ mod private
     ///
     /// # Returns
     /// - `&[ E ; N ]`: A reference to the fixed-size array.
-    fn vector_ref( &self ) -> &[ E ; N ];
+    fn array_ref( &self ) -> &[ E ; N ];
   }
 
   /// Implementation of `ArrayRef` for references to collections.
@@ -237,9 +237,9 @@ mod private
     T : ArrayRef< E, N >,
   {
     #[ inline ]
-    fn vector_ref( &self ) -> &[ E; N ]
+    fn array_ref( &self ) -> &[ E; N ]
     {
-      < T as ArrayRef< E, N > >::vector_ref( self )
+      < T as ArrayRef< E, N > >::array_ref( self )
     }
   }
 

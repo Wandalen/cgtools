@@ -12,8 +12,8 @@ fn test_vector_ref_tuple1()
 {
   use the_module::ArrayRef;
   let tuple : (i32,) = (42,);
-  let vector_ref : &[i32; 1] = tuple.vector_ref();
-  assert_eq!( vector_ref, &[42] );
+  let array_ref : &[i32; 1] = tuple.array_ref();
+  assert_eq!( array_ref, &[42] );
 }
 
 #[ test ]

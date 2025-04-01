@@ -12,7 +12,7 @@ use minwebgl as gl;
 use gl::
 {
   GL,
-  math::{ d2::mat2x2h, U32x2, F64x2 },
+  math::{ d2::mat2x2h, U32x2, F32x2, IntoVector },
   Program,
   JsCast,
   canvas::HtmlCanvasElement,
@@ -69,7 +69,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   // to shift it to the center of the canvas
   // qqq : use vector or tuple
   // let ( center_x, center_y ) = layout.grid_center( ShiftedRectangleIter::new( grid_size, shift_type, layout ) );
-  let grid_center : F64x2 = layout.grid_center( ShiftedRectangleIter::new( grid_size, shift_type, layout ) ).into();
+  let grid_center : F32x2 = layout.grid_center( ShiftedRectangleIter::new( grid_size, shift_type, layout ) ).into();
 
   // let hex_shader = HexShader::new( &context )?;
   let vert = include_str!( "shaders/main.vert" );
@@ -83,7 +83,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
   let aspect = canvas_size[ 1 ] as f32 / canvas_size[ 0 ] as f32;
   let scale = 1.0;
-  let aspect_scale = [ aspect * scale, 1.0 * scale ];
+  let aspect_scale : [ f32 ; 2 ] = [ aspect * scale, 1.0 * scale ].into();
   let scale_m = mat2x2h::scale( aspect_scale );
 
   let mut selected_hex = None;
@@ -95,20 +95,20 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
     move | e : MouseEvent |
     {
       let rect = canvas.get_bounding_client_rect();
-      let canvas_pos : F64x2 = F64x2::new( rect.left(), rect.top() ).try_into().unwrap();
+      let canvas_pos : F32x2 = F32x2::new( rect.left(), rect.top() ).try_into().unwrap();
       // let canvas_x = rect.left();
       // let canvas_y = rect.top();
 
       // transform mouse coordinates from pixels to world coordinates
       // where the center of the canvas is ( 0.0, 0.0 )
       // qqq : use vector
-      let canvas_half_size : F64x2 = 0.5 * canvas_size.into() / dpr;
-      // let half_width = ( 0.5 * width as f64 / dpr ) as f32;
-      // let half_height = ( 0.5 * height as f64 / dpr ) as f32;
+      let canvas_half_size : F32x2 = 0.5 * canvas_size.into() / dpr;
+      // let half_width = ( 0.5 * width as f32 / dpr ) as f32;
+      // let half_height = ( 0.5 * height as f32 / dpr ) as f32;
 
-      let mouse_pos = F64x2::new( e.client_x(), e.client_y() ) - canvas_pos;
-      // let x = ( e.client_x() as f64 - canvas_x ) as f32;
-      // let y = ( e.client_y() as f64 - canvas_y ) as f32;
+      let mouse_pos = F32x2::new( e.client_x().into(), e.client_y().into() ) - canvas_pos;
+      // let x = ( e.client_x() as f32 - canvas_x ) as f32;
+      // let y = ( e.client_y() as f32 - canvas_y ) as f32;
       // qqq : buy why you do that? name all coordinates
       // normalize then multiply by inverse aspect_scale
       // and offset by center of the grid

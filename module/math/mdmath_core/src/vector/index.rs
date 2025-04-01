@@ -24,7 +24,7 @@ impl IntoArray< usize, 0 > for Ix0
 impl ArrayRef< usize, 0 > for Ix0
 {
   #[ inline( always ) ]
-  fn vector_ref( &self ) -> &[ usize ; 0 ]
+  fn array_ref( &self ) -> &[ usize ; 0 ]
   {
     &[]
   }
@@ -63,7 +63,7 @@ impl IntoArray< usize, 1 > for Ix1
 impl ArrayRef< usize, 1 > for Ix1
 {
   #[ inline( always ) ]
-  fn vector_ref( &self ) -> &[ usize ; 1 ]
+  fn array_ref( &self ) -> &[ usize ; 1 ]
   {
     use std::mem::{ align_of_val, size_of_val, transmute };
 
@@ -151,7 +151,7 @@ impl IntoArray< usize, 2 > for Ix2
 impl ArrayRef< usize, 2 > for Ix2
 {
   #[ inline( always ) ]
-  fn vector_ref( &self ) -> &[ usize ; 2 ]
+  fn array_ref( &self ) -> &[ usize ; 2 ]
   {
     use std::mem::{ align_of_val, size_of_val, transmute };
 
@@ -239,7 +239,7 @@ impl IntoArray< usize, 3 > for Ix3
 impl ArrayRef< usize, 3 > for Ix3
 {
   #[ inline( always ) ]
-  fn vector_ref( &self ) -> &[ usize ; 3 ]
+  fn array_ref( &self ) -> &[ usize ; 3 ]
   {
     use std::mem::{ align_of_val, size_of_val, transmute };
 

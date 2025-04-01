@@ -22,7 +22,7 @@ impl< E, const N : usize > IntoArray< E, N > for [ E ; N ]
 impl< E, const N : usize > ArrayRef< E, N > for [ E ; N ]
 {
   #[ inline( always ) ]
-  fn vector_ref( &self ) -> &[ E ; N ]
+  fn array_ref( &self ) -> &[ E ; N ]
   {
     self
   }

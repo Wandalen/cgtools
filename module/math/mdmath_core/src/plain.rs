@@ -56,11 +56,11 @@ mod private
         let dim_index = N - 1 - i; // Use components in reverse order
         debug_assert!
         (
-          md_index.vector_ref()[ dim_index ] < self.vector_ref()[ dim_index ],
+          md_index.array_ref()[ dim_index ] < self.array_ref()[ dim_index ],
           "md_index : {md_index:?} | md_size : {self:?}"
         );
-        offset = offset + stride * md_index.vector_ref()[ dim_index ];
-        stride = stride * self.vector_ref()[ dim_index ];
+        offset = offset + stride * md_index.array_ref()[ dim_index ];
+        stride = stride * self.array_ref()[ dim_index ];
       }
       offset
     }

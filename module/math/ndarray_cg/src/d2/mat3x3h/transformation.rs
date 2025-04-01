@@ -104,9 +104,9 @@ where
   let x = normalized( &cross( &z, &up ) );
   let y = cross( &x, &z );
 
-  let x = x.vector_ref();
-  let y = y.vector_ref();
-  let z = z.vector_ref();
+  let x = x.array_ref();
+  let y = y.array_ref();
+  let z = z.array_ref();
 
   let dot_x = dot( &eye, x );
   let dot_y = dot( &eye, y );

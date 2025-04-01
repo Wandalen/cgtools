@@ -53,7 +53,7 @@ mod private
     E : MatEl,
   {
     #[ inline( always ) ]
-    fn vector_ref( &self ) -> &[ E ; N ]
+    fn array_ref( &self ) -> &[ E ; N ]
     {
       &self.0
     }
@@ -187,7 +187,7 @@ mod private
   //   fn from( value: Src ) -> Self
   //   {
   //     Self::default()
-  //     // Self( *value.vector_ref() )
+  //     // Self( *value.array_ref() )
   //   }
   // }
 

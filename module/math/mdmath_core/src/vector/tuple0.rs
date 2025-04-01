@@ -27,7 +27,7 @@ impl< E > IntoArray< E, 0 > for ()
 impl ArrayRef< usize, 0 > for ()
 {
   #[ inline( always ) ]
-  fn vector_ref( &self ) -> &[ usize ; 0 ]
+  fn array_ref( &self ) -> &[ usize ; 0 ]
   {
     // Return an empty array of usize. This is safe because an empty array
     // of any type has the same memory representation.

@@ -23,7 +23,7 @@ where
 impl< E, const N : usize > ArrayRef< E, N > for [ E ]
 {
   #[ inline( always ) ]
-  fn vector_ref( &self ) -> &[ E ; N ]
+  fn array_ref( &self ) -> &[ E ; N ]
   {
     assert!( self.len() >= N, "Slice must have at least {} element", N );
     // SAFETY: This is safe if the slice has at least 1 element.

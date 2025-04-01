@@ -24,7 +24,7 @@ impl< E > IntoArray< E, 4 > for ( E, E, E, E )
 impl< E > ArrayRef< E, 4 > for ( E, E, E, E )
 {
   #[ inline( always ) ]
-  fn vector_ref( &self ) -> &[ E ; 4 ]
+  fn array_ref( &self ) -> &[ E ; 4 ]
   {
     use std::mem::{ align_of_val, size_of_val, transmute };
 

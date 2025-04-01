@@ -85,7 +85,7 @@ where
     debug_assert_eq!( N, ROWS*COLS, "Matrix size should be equal to the size of the input" );
 
     let result = Self::default();
-    result.with_row_major( scalars.vector_ref() )
+    result.with_row_major( scalars.array_ref() )
   }
 
   /// Creates a matrix assuming the input to be in column major order
@@ -93,6 +93,6 @@ where
     debug_assert_eq!( N, ROWS*COLS, "Matrix size should be equal to the size of the input" );
 
     let result = Self::default();
-    result.with_column_major( scalars.vector_ref() )
+    result.with_column_major( scalars.array_ref() )
   }
 }

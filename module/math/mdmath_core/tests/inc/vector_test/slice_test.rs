@@ -5,16 +5,16 @@ fn test_vector_ref_slice()
 {
   use the_module::ArrayRef;
   let slice : &[ i32 ] = &[];
-  let vector_ref : &[ i32; 0 ] = slice.vector_ref();
-  assert_eq!( vector_ref, &[] as &[ i32; 0 ] );
+  let array_ref : &[ i32; 0 ] = slice.array_ref();
+  assert_eq!( array_ref, &[] as &[ i32; 0 ] );
 
   let slice : &[ i32 ] = &[ 42 ];
-  let vector_ref : &[ i32; 1 ] = slice.vector_ref();
-  assert_eq!( vector_ref, &[ 42 ] );
+  let array_ref : &[ i32; 1 ] = slice.array_ref();
+  assert_eq!( array_ref, &[ 42 ] );
 
   let slice : &[ i32 ] = &[ 1, 2, 3 ];
-  let vector_ref : &[ i32; 3 ] = slice.vector_ref();
-  assert_eq!( vector_ref, &[ 1, 2, 3 ] );
+  let array_ref : &[ i32; 3 ] = slice.array_ref();
+  assert_eq!( array_ref, &[ 1, 2, 3 ] );
 }
 
 #[ test ]
