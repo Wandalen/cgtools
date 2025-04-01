@@ -434,7 +434,7 @@ impl ndarray_cg::Add for Pixel
     {
       data :
       [
-        self.data[ 0 ] + rhs.data[ 0 ], 
+        self.data[ 0 ] + rhs.data[ 0 ],
         self.data[ 1 ] + rhs.data[ 1 ]
       ]
     }
@@ -451,20 +451,12 @@ impl ndarray_cg::Sub for Pixel
     {
       data :
       [
-        self.data[ 0 ] - rhs.data[ 0 ], 
+        self.data[ 0 ] - rhs.data[ 0 ],
         self.data[ 1 ] - rhs.data[ 1 ]
       ]
     }
   }
 }
-
-// impl< E : Into< f32 > + MatEl > From< Vector< E, 2 > > for Pixel
-// {
-//   fn from( value: Vector< E, 2 > ) -> Self
-//   {
-//     Self { data : [ value.x().into(), value.y().into() ] }
-//   }
-// }
 
 impl Index< usize > for Pixel
 {
@@ -480,16 +472,6 @@ impl IndexMut< usize > for Pixel
 {
   fn index_mut(&mut self, index: usize) -> &mut Self::Output
   {
-    &mut self.data[ index ]    
+    &mut self.data[ index ]
   }
 }
-
-// impl Indexable for Pixel
-// {
-//   type Index = Ix1;
-
-//   fn dim( &self ) -> Self::Index
-//   {
-//     Ix1( 0 )
-//   }
-// }

@@ -102,6 +102,8 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       let half_size : F32x2 = canvas_size / 2.0;
       let cursor_pos = F32x2::new( e.client_x() as f32, e.client_y() as f32 );
       let cursor_pos = ( ( cursor_pos - canvas_pos ) - half_size ) / half_size / aspect_scale + grid_center;
+      // qqq : put bounds on parameters so that it was not possible to pass () as parameter value
+      // aaa : done
       let selected_hex_coord : Coordinate< Axial, PointyTopped, OddParity > = layout.hex_coord( cursor_pos.into() );
 
       if selected_hex.is_some_and( | hex_coord | hex_coord == selected_hex_coord )
@@ -112,15 +114,17 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
       context.clear( gl::COLOR_BUFFER_BIT );
 
+      // draw grid
       hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
       hex_shader.uniform_upload( "u_color", &[ 0.1, 0.1, 0.1, 1.0 ] );
       grid_geometry.activate();
       context.draw_arrays( gl::TRIANGLES, 0, grid_geometry.nvertices );
 
-      let selected_hex_pos : F32x2 = layout.pixel_coord( selected_hex_coord ).data.into();
+      let selected_hex_pos = layout.pixel_coord( selected_hex_coord );
       let translation = mat2x2h::translate( [ selected_hex_pos[ 0 ] - grid_center[ 0 ], -selected_hex_pos[ 1 ] + grid_center[ 1 ] ] );
       let mvp = scale_m * translation;
 
+      // draw outline
       hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
       hex_shader.uniform_upload( "u_color", &[ 0.1, 0.9, 0.1, 1.0 ] );
       outline_geometry.activate();
@@ -146,12 +150,8 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       // let grid_center : F64x2 = [ grid_center[ 0 ].into(), grid_center[ 1 ].into() ].into();
       // let mouse_pos: F64x2 = ( ( mouse_pos - canvas_half_size ) / canvas_half_size / aspect_scale ) + grid_center;
 
-      // qqq : put bounds on parameters so that it was not possible to pass () as parameter value
-
-
       // qqq : currently it's borken and don't draw grid until mouse move
-      // fixed
-      // rerender only if the selected hexagon has changed
+      // aaa : fixed
 
       // qqq : too many draw calls!
       // draw hexes
