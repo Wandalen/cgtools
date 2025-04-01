@@ -1,5 +1,5 @@
 use std::{ hash::Hash, marker::PhantomData, ops::{ Index, IndexMut } };
-use ndarray_cg::{ Collection, MatEl, NdFloat, Vector };
+use ndarray_cg::{ Collection, MatEl, Vector };
 
 pub trait CoordinateSystem {}
 
@@ -458,13 +458,13 @@ impl ndarray_cg::Sub for Pixel
   }
 }
 
-impl< E : Into< f32 > + MatEl + NdFloat > From< Vector< E, 2 > > for Pixel
-{
-  fn from( value: Vector< E, 2 > ) -> Self
-  {
-    Self { data : [ value.x().into(), value.y().into() ] }
-  }
-}
+// impl< E : Into< f32 > + MatEl > From< Vector< E, 2 > > for Pixel
+// {
+//   fn from( value: Vector< E, 2 > ) -> Self
+//   {
+//     Self { data : [ value.x().into(), value.y().into() ] }
+//   }
+// }
 
 impl Index< usize > for Pixel
 {

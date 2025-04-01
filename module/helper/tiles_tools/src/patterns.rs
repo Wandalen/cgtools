@@ -1,7 +1,8 @@
 use crate::*;
-use ndarray_cg::ArrayRef;
+// use ndarray_cg::ArrayRef;
 use layout::{ HexLayout, Orientation };
-use coordinates::{ Coordinate, Axial };
+use coordinates::*;
+// use ndarray_cg::Ve;
 // use crate::layout::*;
 // use crate::coordinates::*;
 
@@ -62,7 +63,7 @@ impl ShiftedRectangleIter
   ///
   /// # Returns
   /// A new `ShiftedRectangleIter`.
-  pub fn new< V2 : ArrayRef< i32, 2 > >( size : V2, shift_type : Parity, layout : HexLayout ) -> Self
+  pub fn new< V2 : ndarray_cg::ArrayRef< i32, 2 > >( size : V2, shift_type : Parity, layout : HexLayout ) -> Self
   {
     Self
     {
