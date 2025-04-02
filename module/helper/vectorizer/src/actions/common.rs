@@ -235,3 +235,72 @@ crate::mod_interface!
     write_svg
   };
 }
+
+#[ cfg( test ) ]
+mod tests
+{
+
+  use super::background_color;
+
+  #[ test ]
+  fn test_background_color()
+  { 
+    let width = 10;
+    let height = 10;
+
+    let mut img = visioncortex::ColorImage::new_w_h( width, height );
+    
+    for x in 0..width
+    {
+      for y in 0..height
+      {
+        if x > 0 && x < width - 1 && y > 0 && y < height - 1
+        {
+          img.set_pixel( x, y, &visioncortex::Color::new( 255, 255, 255 ) );
+        }
+        else 
+        {
+          img.set_pixel( x, y, &visioncortex::Color::new( 0, 255, 0 ) );    
+        }
+      }
+    }
+    
+    let c = background_color( &img, 0xFF );
+
+    assert!( c.is_some() );
+    assert_eq!( [ 0, 255, 0 ] , c.unwrap() );
+  }
+
+  #[ test ]
+  fn test_background_color2()
+  { 
+    let width = 10;
+    let height = 10;
+
+    let mut img = visioncortex::ColorImage::new_w_h( width, height );
+    
+    for x in 0..width
+    {
+      for y in 0..height
+      {
+        if x > 0 && x < width - 1 && y > 0 && y < height - 1
+        {
+          img.set_pixel( x, y, &visioncortex::Color::new( 255, 255, 255 ) );
+        }
+        else if x < width / 2 + 1
+        {
+          img.set_pixel( x, y, &visioncortex::Color::new( 0, 255, 0 ) );    
+        }
+        else 
+        {
+          img.set_pixel( x, y, &visioncortex::Color::new( 0, 0, 255 ) );
+        }
+      }
+    }
+    
+    let c = background_color( &img, 0xFF );
+    
+    assert!( c.is_some() );
+    assert_eq!( [ 0, 255, 0 ] , c.unwrap() );
+  }
+}
