@@ -7,11 +7,10 @@ members = [
   "module/min/*",
   "module/helper/*",
   "module/math/*",
-  "module/embroidery_tools",
   "examples/minwebgl/*",
   "examples/minwebgpu/*",
-  "examples/math/*",
-  "module/vectorizer"]
+  "examples/math/*"
+]
 
 # Source :: https://github.com/obox-systems/conventions/blob/master/code_style.md#lints-and-warnings
 [workspace.lints.rust]
@@ -39,12 +38,26 @@ std_instead_of_core = "warn"
 std_instead_of_alloc = "warn"
 # Allows functions called only once.
 single_call_fn = "allow"
-# Permits #[inline(always)] usage.
+# Permits #[ inline( always ) ] usage.
 inline_always = "allow"
 # Allows repeated module names.
 module_name_repetitions = "allow"
 # Permits absolute paths in code.
 absolute_paths = "allow"
+
+# = helpers
+
+[workspace.dependencies.tiles_tools]
+version = "0.1.0"
+path = "module/helper/tiles_tools"
+
+[workspace.dependencies.browser_log]
+version = "~0.3.0"
+path = "module/helper/browser_log"
+
+[workspace.dependencies.browser_tools]
+version = "~0.2.0"
+path = "module/alias/browser_tools"
 
 # = draw
 
@@ -86,16 +99,6 @@ path = "module/min/minwebgl"
 version = "~0.1.0"
 path = "module/min/minwebgpu"
 
-# = helpers
-
-[workspace.dependencies.browser_log]
-version = "~0.3.0"
-path = "module/helper/browser_log"
-
-[workspace.dependencies.browser_tools]
-version = "~0.2.0"
-path = "module/alias/browser_tools"
-
 # = vectorizer
 [workspace.dependencies.vectorizer]
 version = "~0.1.0"
@@ -104,7 +107,7 @@ path = "module/vectorizer"
 # = math
 
 [workspace.dependencies.ndarray_cg]
-version = "~0.2.0"
+version = "~0.3.0"
 path = "module/math/ndarray_cg"
 
 [workspace.dependencies.ndarray_tools]
@@ -138,17 +141,17 @@ version = "~0.23.0"
 # = third-party dependencies
 
 [workspace.dependencies.log]
-version = "0.4.14"
+version = "0.4.27"
 
 [workspace.dependencies.wasm-bindgen]
-version = "0.2.93"
+version = "0.2.100"
 
 [workspace.dependencies.js-sys]
-version = "0.3.70"
+version = "0.3.77"
 features = []
 
 [workspace.dependencies.web-sys]
-version = "0.3.70"
+version = "0.3.77"
 features = []
 
 [workspace.dependencies.bytemuck]
@@ -165,7 +168,7 @@ version = "0.5.1"
 version = "0.2.19"
 
 [workspace.dependencies.wasm-bindgen-futures]
-version = "0.4.43"
+version = "0.4.50"
 
 # [workspace.dependencies.generic-array]
 # version = "1.1.0"
@@ -180,7 +183,7 @@ default-features = false
 
 [workspace.dependencies.visioncortex]
 git  = "https://github.com/obox-systems/visioncortex.git"
-
+version = "0.8.8"
 
 [workspace.dependencies.palette]
 version = "0.7.6"
@@ -193,12 +196,14 @@ version = "1.0.214"
 
 [workspace.dependencies.serde_with]
 version = "3.11.0"
+
 [workspace.dependencies.byteorder]
 version = "1.5.0"
 
 [workspace.dependencies.itertools]
 version = "0.13.0"
 
+# qqq : use error_tools instead
 [workspace.dependencies.thiserror]
 version = "2.0.4"
 

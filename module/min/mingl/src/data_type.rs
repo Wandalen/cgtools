@@ -18,50 +18,69 @@ mod private
   }
 
   /// Represents a data type with a specified size.
+  ///
+  /// Atom represent undivisible part of vector.
+  /// While element could have subelements.
+  ///
+  /// Code below illustrate of what each field means
+  /// ```rust, ignore
+  /// impl< const N : usize, const N2 : usize > IntoVectorDataType for [ [ u32 ; N2 ] ; N ]
+  /// {
+  ///   fn into_vector_data_type() -> VectorDataType
+  ///   {
+  ///     VectorDataType
+  ///     {
+  ///       scalar : DataType::U32,
+  ///       natoms : ( N * N2 ) as i32,
+  ///       nelements : N2 as _,
+  ///     }
+  ///   }
+  /// }
+  /// ```
   #[ derive( Clone, Copy, Debug, PartialEq, Hash, Eq ) ]
   pub struct VectorDataType
   {
     pub scalar : DataType,
-    pub len : i32,
-    pub element_len : i32,
+    pub natoms : i32,
+    pub nelements : i32,
     // xxx : usize?
   }
 
   impl VectorDataType
   {
     /// Creates a new `VectorDataType` with the given data type and size.
-    pub fn new( scalar : DataType, len : i32, element_len : i32 ) -> Self
+    pub fn new( scalar : DataType, natoms : i32, nelements : i32 ) -> Self
     {
-      VectorDataType { scalar, len, element_len }
+      VectorDataType { scalar, natoms, nelements }
     }
 
     /// Returns the total byte size of the data type.
     pub fn byte_size( &self ) -> i32
     {
-      self.scalar.byte_size() * self.len
+      self.scalar.byte_size() * self.natoms
     }
 
     /// Length in number of scalars of the data type.
-    /// For flat structures it's equal to number of elements( components ).
-    /// For multidimensional structures it's not equal to number of elements( components ).
+    /// For flat structures it's equal to number of atoms( components ).
+    /// For multidimensional structures it's not equal to number of atoms( components ).
     // xxx : usize?
-    pub fn len( &self ) -> i32
+    pub fn natoms( &self ) -> i32
     {
-      self.len
+      self.natoms
     }
 
     // /// Length of an element( component ). For flat strcuture it'
-    // pub fn element_len( &self ) -> i32
+    // pub fn nelements( &self ) -> i32
     // {
-    //   self.len / self.element_len
+    //   self.natoms / self.nelements
     // }
 
     /// Length of an element. For flat strcutures it's always 1.
     /// For matrices it's number of scalars a row has.
     // xxx : qqq : verify
-    pub fn element_len( &self ) -> i32
+    pub fn nelements( &self ) -> i32
     {
-      self.element_len
+      self.nelements
     }
 
     /// Returns the underlying data type.

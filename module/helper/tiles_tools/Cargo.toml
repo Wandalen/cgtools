@@ -1,0 +1,22 @@
+[package]
+name = "tiles_tools"
+version = "0.1.0"
+edition = "2024"
+authors = ["Kostiantyn Mysnyk <wandalen@obox.systems>"]
+license = "MIT"
+repository = "https://github.com/Wandalen/cgtools"
+description = "A library for organizing tiles into grids."
+keywords = ["hexagonal", "grid", "tools"]
+
+[lints]
+workspace = true
+
+[features]
+default = []
+
+[dependencies]
+rustc-hash = "1.1.0"
+ndarray_cg = { workspace = true }
+
+[dev-dependencies]
+test_tools = { workspace = true }

@@ -127,17 +127,17 @@ mod private
       let sz = self.vector.scalar.byte_size();
       gl.bind_buffer( GL::ARRAY_BUFFER, Some( gl_buffer ) );
 
-      if self.vector.element_len() > 1
+      if self.vector.nelements() > 1
       {
 
-        let slots = ( self.vector.len() / self.vector.element_len() ) as u32;
+        let slots = ( self.vector.natoms() / self.vector.nelements() ) as u32;
         for i in 0 .. slots
         {
-          let element_offset = ( i as i32 ) * sz * self.vector.element_len();
+          let element_offset = ( i as i32 ) * sz * self.vector.nelements();
           gl.vertex_attrib_pointer_with_i32
           (
             slot + i,
-            self.vector.element_len(),
+            self.vector.nelements(),
             *Const::try_from( self.vector.scalar )?, // data type
             false, // normalization
             self.stride * sz,
@@ -155,7 +155,7 @@ mod private
         gl.vertex_attrib_pointer_with_i32
         (
           slot,
-          self.vector.len(),
+          self.vector.natoms(),
           *Const::try_from( self.vector.scalar )?, // data type
           false, // normalization
           self.stride * sz,

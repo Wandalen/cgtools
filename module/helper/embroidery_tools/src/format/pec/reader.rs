@@ -385,7 +385,7 @@ mod private
     #[ test ]
     fn test_read_stitches()
     {
-      let emb = read_file( "../../assets/read_sample.pec" ).unwrap();
+      let emb = read_file( "test_files/read_sample.pec" ).unwrap();
       let stitches = emb.stitches();
 
       // these instructions should match instructions when reading with pyembroidery
@@ -413,7 +413,7 @@ mod private
     #[ test ]
     fn test_read_threads()
     {
-      let emb = read_file( "../../assets/read_sample.pec" ).unwrap();
+      let emb = read_file( "test_files/read_sample.pec" ).unwrap();
       let threads = emb.threads();
       let default_palette = pec::pec_threads();
       

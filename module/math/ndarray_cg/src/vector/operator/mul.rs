@@ -13,7 +13,7 @@ mod private
     E : MatEl + nd::NdFloat,
     Mat< ROWS, COLS, E, Descriptor > : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
   {
-    fn mul_assign( &mut self, rhs: Mat< ROWS, COLS, E, Descriptor > ) 
+    fn mul_assign( &mut self, rhs : Mat< ROWS, COLS, E, Descriptor > )
     {
       *self = rhs * *self;
     }
@@ -26,12 +26,12 @@ mod private
   {
     type Output = Self;
 
-    fn mul( self, rhs: Self ) -> Self::Output 
+    fn mul( self, rhs : Self ) -> Self::Output
     {
       mul( &self, &rhs )
     }
   }
-  
+
   // Vector * Scalar
   impl< E, const LEN : usize > Mul< E > for Vector< E, LEN >
   where
@@ -39,7 +39,7 @@ mod private
   {
     type Output = Self;
 
-    fn mul( self, rhs: E ) -> Self::Output 
+    fn mul( self, rhs : E ) -> Self::Output
     {
       mul_scalar( &self, rhs )
     }
@@ -50,7 +50,7 @@ mod private
   where
     E : MatEl + nd::NdFloat
   {
-    fn mul_assign( &mut self, rhs: E ) 
+    fn mul_assign( &mut self, rhs : E )
     {
       *self = *self * rhs;
     }
@@ -61,7 +61,7 @@ mod private
   {
     type Output = Vector< f32, LEN >;
 
-    fn mul( self, rhs: Vector< f32, LEN > ) -> Self::Output 
+    fn mul( self, rhs : Vector< f32, LEN > ) -> Self::Output
     {
       mul_scalar( &rhs, self )
     }
@@ -72,7 +72,7 @@ mod private
   {
     type Output = Vector< f64, LEN >;
 
-    fn mul( self, rhs: Vector< f64, LEN > ) -> Self::Output 
+    fn mul( self, rhs : Vector< f64, LEN > ) -> Self::Output
     {
       mul_scalar( &rhs, self )
     }
@@ -81,5 +81,5 @@ mod private
 
 crate::mod_interface!
 {
-  
+
 }

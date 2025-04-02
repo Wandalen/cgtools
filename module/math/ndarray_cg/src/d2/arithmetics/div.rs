@@ -48,7 +48,7 @@ where
   Self : Indexable< Index = Ix2 > + ScalarMut< Scalar = E >
 {
   #[ inline ]
-  fn div_assign( &mut self, rhs: E ) {
+  fn div_assign( &mut self, rhs : E ) {
     div_scalar( self, rhs );
   }
 }
