@@ -28,22 +28,22 @@ fn main() -> Result< (), gl::WebglError >
 
 fn draw_hexes() -> Result< (), minwebgl::WebglError >
 {
-  // qqq : Instead of this function, please introduce the function
+  // aaa : Instead of this function, please introduce the function
   // `retrieve_or_make_with( o )` where `o` is a structure containing options and a builder for them.
-  // qqq : add to structure Options other relevant options of retreiving context
+  // aaa : add to structure Options other relevant options of retreiving context
   gl::browser::setup( Default::default() );
-  let context = gl::context::retrieve_or_make_with( gl::context::ReducedDprBuilder )?;
+  let context = gl::context::retrieve_or_make_with( gl::context::ContexOptions::new().reduce_dpr( true ) )?;
   let canvas = context.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
-  // qqq : explain why does it required
+  // aaa : explain why does it required
   // used to scale canvas true size to css size
   let dpr = web_sys::window().unwrap().device_pixel_ratio() as f32;
-  // qqq : use vector or tuple
+  // aaa : use vector or tuple
   let canvas_size = ( canvas.width() as f32, canvas.height() as f32 ).into_vector() / dpr;
   // gl::log::info!( "dpr : {:#?}", dpr );
   // gl::web::log::info!( "dpr : {:#?}", dpr );
 
-  // qqq : collect all parameters into a single block of code
-  // qqq : what are units? not clear
+  // aaa : collect all parameters into a single block of code
+  // aaa : what are units? not clear
   // just abstract size in world space, it may be any units
   // size of a hexagon ( from center to vertex )
   let size = 0.1;
@@ -57,8 +57,12 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let grid_size = [ 9, 11 ];
   // determine the center of the grid
   // to shift it to the center of the canvas
-  // qqq : use vector or tuple
+  // aaa : use vector or tuple
   let grid_center : F32x2 = layout.grid_center( ShiftedRectangleIter::new( grid_size, shift_type, layout ) ).into();
+  let aspect = canvas_size[ 1 ] / canvas_size[ 0 ];
+  let scale = 1.0;
+  let aspect_scale : F32x2 = [ aspect * scale, scale ].into();
+  let scale_m = mat2x2h::scale( aspect_scale.0 );
 
   let vert = include_str!( "shaders/main.vert" );
   let frag = include_str!( "shaders/main.frag" );
@@ -73,11 +77,6 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   )?;
   // line loop mesh for the outline of a hexagon
   let outline_geometry = geometry::Positions::new( context.clone(), &hex_line_loop_mesh( &layout ), 2 )?;
-
-  let aspect = canvas_size[ 1 ] / canvas_size[ 0 ];
-  let scale = 1.0;
-  let aspect_scale : F32x2 = [ aspect * scale, scale ].into();
-  let scale_m = mat2x2h::scale( aspect_scale.0 );
 
   let translation = mat2x2h::translate( [ -grid_center.x(), grid_center.y() ] );
   let mvp = scale_m * translation;
@@ -101,9 +100,9 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       let canvas_pos = F32x2::new( rect.left() as f32, rect.top() as f32 );
       let half_size : F32x2 = canvas_size / 2.0;
       let cursor_pos = F32x2::new( e.client_x() as f32, e.client_y() as f32 );
+      // normalize coodinates to [ -1 : 1 ], then apply inverse ascpect scale and offset to grid center
       let cursor_pos = ( ( cursor_pos - canvas_pos ) - half_size ) / half_size / aspect_scale + grid_center;
-      // qqq : put bounds on parameters so that it was not possible to pass () as parameter value
-      // aaa : done
+      // aaa : put bounds on parameters so that it was not possible to pass () as parameter value
       let selected_hex_coord : Coordinate< Axial, PointyTopped, OddParity > = layout.hex_coord( cursor_pos.into() );
 
       if selected_hex.is_some_and( | hex_coord | hex_coord == selected_hex_coord )
@@ -133,7 +132,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       // gl::info!( "{:#?}", cursor_pos );
       // transform mouse coordinates from pixels to world coordinates
       // where the center of the canvas is ( 0.0, 0.0 )
-      // qqq : use vector
+      // aaa : use vector
       // let canvas_half_size : F32x2 = 0.5 * canvas_size.into() / dpr;
       // let half_width = ( 0.5 * width as f32 / dpr ) as f32;
       // let half_height = ( 0.5 * height as f32 / dpr ) as f32;
@@ -141,7 +140,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       // let mouse_pos = F32x2::new( e.client_x().into(), e.client_y().into() ) - canvas_pos;
       // let x = ( e.client_x() as f32 - canvas_x ) as f32;
       // let y = ( e.client_y() as f32 - canvas_y ) as f32;
-      // qqq : buy why you do that? name all coordinates
+      // aaa : buy why you do that? name all coordinates
       // normalize then multiply by inverse aspect_scale
       // and offset by center of the grid
       // let x = ( x - half_width ) / half_width * ( 1.0 / aspect_scale[ 0 ] ) + center_x;
@@ -150,20 +149,19 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       // let grid_center : F64x2 = [ grid_center[ 0 ].into(), grid_center[ 1 ].into() ].into();
       // let mouse_pos: F64x2 = ( ( mouse_pos - canvas_half_size ) / canvas_half_size / aspect_scale ) + grid_center;
 
-      // qqq : currently it's borken and don't draw grid until mouse move
-      // aaa : fixed
+      // aaa : currently it's borken and don't draw grid until mouse move
 
-      // qqq : too many draw calls!
+      // aaa : too many draw calls!
       // draw hexes
       // let translation = mat2x2h::translate( [ -center.0, center.1 ] );
       // let mvp = scale_m * translation;
       // hex_shader.draw
       // (
       //   &context,
-      //   gl::TRIANGLES, // qqq : avoid using fan, it's too specific mesh primitive type
+      //   gl::TRIANGLES, // aaa : avoid using fan, it's too specific mesh primitive type
       //   &grid_mesh,
       //   mvp.raw_slice(),
-      //   [ 0.3, 0.75, 0.3, 1.0 ].as_slice(), // qqq : parametrize
+      //   [ 0.3, 0.75, 0.3, 1.0 ].as_slice(), // aaa : parametrize
       // ).unwrap();
 
       // draw outline
@@ -180,7 +178,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       // let scale = mat2x2h::scale( [ size, size ] );
       // let mvp = scale_m * translation;
 
-      // qqq : too many draw calls!
+      // aaa : too many draw calls!
       // draw hexes
       // for coord in ShiftedRectangleIter::new( grid_size, shift_type, layout )
       // {
@@ -199,14 +197,14 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
         // gl::log::info!( "triangle_geometry.nvertices : {}", triangle_geometry.nvertices );
         // context.draw_arrays( GL::TRIANGLE_FAN, 0, 6 );
-        // qqq : avoid using fan, it's too specific mesh primitive type
+        // aaa : avoid using fan, it's too specific mesh primitive type
         // hex_shader.draw
         // (
         //   &context,
         //   gl::TRIANGLE_FAN,
         //   &triangle_geometry,
         //   mvp.raw_slice(),
-        //   [ 0.3, 0.75, 0.3, 1.0 ], // qqq : parametrize
+        //   [ 0.3, 0.75, 0.3, 1.0 ], // aaa : parametrize
         // ).unwrap();
       // }
       // hex_shader.draw( gl::LINE_LOOP, &line_geometry ).unwrap();

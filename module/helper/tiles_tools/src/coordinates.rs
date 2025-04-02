@@ -228,7 +228,7 @@ impl< Parity : ParityType > From< Coordinate< Axial, PointyTopped, Parity > > fo
   }
 }
 
-// qqq : xxx : all 4 methods depends on Orientation! so remove and keep 2 and implement better trait for 2 specified structs
+// aaa : xxx : all 4 methods depends on Orientation! so remove and keep 2 and implement better trait for 2 specified structs
 
 /// Rounds the given floating-point axial coordinates to the nearest integer axial coordinates.
 /// This function is used to convert floating-point axial coordinates to integer axial coordinates.
@@ -372,7 +372,7 @@ impl< F : Into< i32 >, System : CoordinateSystem, Orientation : OrientationType,
   }
 }
 
-// qqq : implement all applicable math_core traits for the newtype
+// aaa : implement all applicable math_core traits for the newtype
 /// Represents a pixel coordinate in a 2D space.
 /// Assumes that Y-axis points down.
 #[ derive( Debug, Clone, Copy, PartialEq ) ]
@@ -417,7 +417,6 @@ impl< E : MatEl + Into< f32 > > From< Vector< E, 2 > > for Pixel
     }
   }
 }
-
 
 impl Collection for Pixel
 {
