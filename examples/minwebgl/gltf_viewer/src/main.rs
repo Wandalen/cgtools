@@ -5,6 +5,7 @@ use std::
   cell::RefCell, collections::{ HashMap, HashSet }, rc::Rc 
 };
 
+use buffer::Buffer;
 use gltf::Gltf;
 use material::Material;
 // use material::{ GLMaterial, TextureType };
@@ -14,13 +15,15 @@ use minwebgl::{ self as gl, JsCast };
 use texture::Texture;
 use web_sys::wasm_bindgen::prelude::Closure;
 
-// mod mesh;
+mod mesh;
 mod camera_controls;
 mod material;
 //mod scene;
 //mod node;
 mod texture;
 mod sampler;
+mod primitive;
+mod buffer;
 
 async fn run() -> Result< (), gl::WebglError >
 {
@@ -170,6 +173,21 @@ async fn run() -> Result< (), gl::WebglError >
   }
 
   gl::info!( "Images: {}", images.borrow().len() );
+
+  // Upload buffer to the GPU
+  let mut gl_buffers = HashMap::new();
+  // The target option may not be set for the attributes/indices buffers
+  // This scenario should be checked
+  for ( i, view ) in gltf_file.views().enumerate()
+  {
+    if view.target().is_some()
+    {
+      let buffer = Buffer::new( &gl, &view, &buffers )?;
+      gl_buffers.insert( i, buffer );
+    }
+  }
+
+  gl::info!( "GL Buffers: {}", gl_buffers.len() );
 
   // Create textures
   let mut textures = Vec::new();
