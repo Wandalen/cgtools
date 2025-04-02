@@ -28,22 +28,16 @@ fn main() -> Result< (), gl::WebglError >
 
 fn draw_hexes() -> Result< (), minwebgl::WebglError >
 {
-  // aaa : Instead of this function, please introduce the function
-  // `retrieve_or_make_with( o )` where `o` is a structure containing options and a builder for them.
-  // aaa : add to structure Options other relevant options of retreiving context
   gl::browser::setup( Default::default() );
-  let context = gl::context::retrieve_or_make_with( gl::context::ContexOptions::new().reduce_dpr( true ) )?;
+  let o = gl::context::ContexOptions::new().reduce_dpr( true );
+  let context = gl::context::retrieve_or_make_with( o )?;
   let canvas = context.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
-  // aaa : explain why does it required
   // used to scale canvas true size to css size
   let dpr = web_sys::window().unwrap().device_pixel_ratio() as f32;
-  // aaa : use vector or tuple
   let canvas_size = ( canvas.width() as f32, canvas.height() as f32 ).into_vector() / dpr;
   // gl::log::info!( "dpr : {:#?}", dpr );
   // gl::web::log::info!( "dpr : {:#?}", dpr );
 
-  // aaa : collect all parameters into a single block of code
-  // aaa : what are units? not clear
   // just abstract size in world space, it may be any units
   // size of a hexagon ( from center to vertex )
   let size = 0.1;
@@ -55,9 +49,9 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let layout = HexLayout { orientation, size };
   // grid size
   let grid_size = [ 9, 11 ];
+
   // determine the center of the grid
   // to shift it to the center of the canvas
-  // aaa : use vector or tuple
   let grid_center : F32x2 = layout.grid_center( ShiftedRectangleIter::new( grid_size, shift_type, layout ) ).into();
   let aspect = canvas_size[ 1 ] / canvas_size[ 0 ];
   let scale = 1.0;
@@ -102,7 +96,6 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       let cursor_pos = F32x2::new( e.client_x() as f32, e.client_y() as f32 );
       // normalize coodinates to [ -1 : 1 ], then apply inverse ascpect scale and offset to grid center
       let cursor_pos = ( ( cursor_pos - canvas_pos ) - half_size ) / half_size / aspect_scale + grid_center;
-      // aaa : put bounds on parameters so that it was not possible to pass () as parameter value
       let selected_hex_coord : Coordinate< Axial, PointyTopped, OddParity > = layout.hex_coord( cursor_pos.into() );
 
       if selected_hex.is_some_and( | hex_coord | hex_coord == selected_hex_coord )
@@ -127,91 +120,11 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
       hex_shader.uniform_upload( "u_color", &[ 0.1, 0.9, 0.1, 1.0 ] );
       outline_geometry.activate();
-      context.draw_arrays( GL::LINE_LOOP, 0, outline_geometry.nvertices );
-
-      // gl::info!( "{:#?}", cursor_pos );
-      // transform mouse coordinates from pixels to world coordinates
-      // where the center of the canvas is ( 0.0, 0.0 )
-      // aaa : use vector
-      // let canvas_half_size : F32x2 = 0.5 * canvas_size.into() / dpr;
-      // let half_width = ( 0.5 * width as f32 / dpr ) as f32;
-      // let half_height = ( 0.5 * height as f32 / dpr ) as f32;
-
-      // let mouse_pos = F32x2::new( e.client_x().into(), e.client_y().into() ) - canvas_pos;
-      // let x = ( e.client_x() as f32 - canvas_x ) as f32;
-      // let y = ( e.client_y() as f32 - canvas_y ) as f32;
-      // aaa : buy why you do that? name all coordinates
-      // normalize then multiply by inverse aspect_scale
-      // and offset by center of the grid
-      // let x = ( x - half_width ) / half_width * ( 1.0 / aspect_scale[ 0 ] ) + center_x;
-      // let y = ( y - half_height ) / half_height * ( 1.0 / aspect_scale[ 1 ] ) + center_y;
-      // let aspect_scale : F64x2 =  [ aspect_scale[ 0 ].into(), aspect_scale[ 1 ].into() ].into();
-      // let grid_center : F64x2 = [ grid_center[ 0 ].into(), grid_center[ 1 ].into() ].into();
-      // let mouse_pos: F64x2 = ( ( mouse_pos - canvas_half_size ) / canvas_half_size / aspect_scale ) + grid_center;
-
-      // aaa : currently it's borken and don't draw grid until mouse move
-
-      // aaa : too many draw calls!
-      // draw hexes
-      // let translation = mat2x2h::translate( [ -center.0, center.1 ] );
-      // let mvp = scale_m * translation;
-      // hex_shader.draw
-      // (
-      //   &context,
-      //   gl::TRIANGLES, // aaa : avoid using fan, it's too specific mesh primitive type
-      //   &grid_mesh,
-      //   mvp.raw_slice(),
-      //   [ 0.3, 0.75, 0.3, 1.0 ].as_slice(), // aaa : parametrize
-      // ).unwrap();
-
-      // draw outline
-      // hexagon center in world coords
-      // let pixel_coord = layout.pixel_coord( cursor_coord );
-      // offset by center of the grid
-
-      // let translation = mat2x2h::translate( [ x - grid_center.x(), -y + grid_center.y() ] );
-      // let scale = mat2x2h::scale( [ size, size ] );
-      // let mvp = scale_m * translation;
-      // hex_shader.draw( &context, gl::LINE_LOOP, &line_geometry, mvp.raw_slice(), [ 0.3, 0.3, 0.3, 1.0 ].as_slice() ).unwrap();
-
-      // let translation = mat2x2h::translate( [ pixel_coord[ 0 ] - grid_center[ 0 ], -pixel_coord[ 1 ] + grid_center[ 1 ] ] );
-      // let scale = mat2x2h::scale( [ size, size ] );
-      // let mvp = scale_m * translation;
-
-      // aaa : too many draw calls!
-      // draw hexes
-      // for coord in ShiftedRectangleIter::new( grid_size, shift_type, layout )
-      // {
-        // hexagon center in world coords
-        // let pixel_coord = layout.pixel_coord( coord );
-
-        // let position = [ pixel_coord[ 0 ] - grid_center[ 0 ], -pixel_coord[ 1 ] + grid_center[ 1 ] ];
-        // let translation = mat2x2h::translate( position );
-        // let scale = mat2x2h::scale( [ 0.95, 0.95 ] );
-        // let mvp = scale_m * translation * scale;
-        // hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
-        // hex_shader.uniform_upload( "u_color", &[ 0.3, 0.3, 0.3, 1.0 ] );
-        // triangle_geometry.activate();
-        // context.draw_arrays( GL::TRIANGLE_FAN, 0, triangle_geometry.nvertices );
-
-
-        // gl::log::info!( "triangle_geometry.nvertices : {}", triangle_geometry.nvertices );
-        // context.draw_arrays( GL::TRIANGLE_FAN, 0, 6 );
-        // aaa : avoid using fan, it's too specific mesh primitive type
-        // hex_shader.draw
-        // (
-        //   &context,
-        //   gl::TRIANGLE_FAN,
-        //   &triangle_geometry,
-        //   mvp.raw_slice(),
-        //   [ 0.3, 0.75, 0.3, 1.0 ], // aaa : parametrize
-        // ).unwrap();
-      // }
-      // hex_shader.draw( gl::LINE_LOOP, &line_geometry ).unwrap();
-      // hex_shader.draw( &context, gl::LINE_LOOP, &line_geometry, mvp.raw_slice(), [ 0.3, 0.3, 0.3, 1.0 ] ).unwrap();
+      context.draw_arrays( GL::LINE_LOOP, 0, outline_geometry.nvertices ); // qqq : don't use loop geometry, it has limmited suport among backends
 
     }
   };
+
   let mouse_move = Closure::< dyn FnMut( _ ) >::new( Box::new( mouse_move ) );
   canvas.set_onmousemove( Some( mouse_move.as_ref().unchecked_ref() ) );
   mouse_move.forget();
