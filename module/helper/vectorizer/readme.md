@@ -99,8 +99,8 @@ Options:
 
 Image  | Clusters | Layers
 :-----:|:--------:|:------:
-<img src="Article/assets/comparison/kos_input.png" width="500px">|<img src="Article/assets/comparison/clusters_kos_input.jpg" width="500px">|<img src="Article/assets/comparison/layers_kos_input.jpg" width="500px">
-<img src="Article/assets/comparison/stars.jpg" width="500px">|<img src="Article/assets/comparison/clusters_stars.jpg" width="500px">|<img src="Article/assets/comparison/layers_stars.jpg" width="500px">
-<img src="Article/assets/comparison/wolf.png" width="500px">|<img src="Article/assets/comparison/clusters_wolf.jpg" width="500px">|<img src="Article/assets/comparison/layers_wolf.jpg" width="500px">
+<img src="article/assets/comparison/kos_input.png" width="500px">|<img src="article/assets/comparison/clusters_kos_input.jpg" width="500px">|<img src="article/assets/comparison/layers_kos_input.jpg" width="500px">
+<img src="article/assets/comparison/stars.jpg" width="500px">|<img src="article/assets/comparison/clusters_stars.jpg" width="500px">|<img src="article/assets/comparison/layers_stars.jpg" width="500px">
+<img src="article/assets/comparison/wolf.png" width="500px">|<img src="article/assets/comparison/clusters_wolf.jpg" width="500px">|<img src="article/assets/comparison/layers_wolf.jpg" width="500px">
 
 [Vtracer]: https://github.com/visioncortex/vtracer
