@@ -3,8 +3,18 @@ mod private
   use crate::*;
   //use vector::arithmetics::inner_product::*;
 
-  impl< E : MatEl + NdFloat > Vector< E, 4 >
+  impl< E > Vector< E, 4 >
+  where
+    E : MatEl + NdFloat,
   {
+
+    /// Create a new vector
+    #[ inline( always ) ]
+    pub const fn new( x : E, y : E, z : E, w : E ) -> Self
+    {
+      Self( [ x, y, z, w ] )
+    }
+
     #[ inline ]
     pub fn x( &self ) -> E
     {
@@ -29,9 +39,9 @@ mod private
       self.0[ 2 ]
     }
   }
+
 }
 
 crate::mod_interface!
 {
-  
 }

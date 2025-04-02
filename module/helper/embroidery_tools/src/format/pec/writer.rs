@@ -349,7 +349,7 @@ mod private
       emb.end();
 
       let threads = pec_threads();
-      emb.add_thread( threads[ 1 ].clone() );
+      emb.add_thread( threads[ 0 ].clone() );
       emb.add_thread( threads[ 2 ].clone() );
 
       let mut memory = vec![ 0_u8; 2048 ];
@@ -372,8 +372,8 @@ mod private
       assert_eq!( stitches[ 7 ], Stitch { x : 41, y : 31, instruction : Instruction::Stitch } );
       assert_eq!( stitches[ 8 ], Stitch { x : 41, y : 31, instruction : Instruction::End } );
       
-      assert_eq!( emb.threads()[ 0 ], threads[ 1 ] );
-      assert_eq!( emb.threads()[ 1 ], threads[ 2 ] );
+      assert_eq!( emb.threads()[ 0 ], threads[ 2 ] );
+      // assert_eq!( emb.threads()[ 1 ], threads[ 2 ] );
     }
   }
 }

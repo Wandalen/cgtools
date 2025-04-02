@@ -1,11 +1,15 @@
 use crate::*;
-use layout::*;
-use coordinates::Axial;
+// use ndarray_cg::ArrayRef;
+use layout::{ HexLayout, Orientation };
+use coordinates::*;
+// use ndarray_cg::Ve;
+// use crate::layout::*;
+// use crate::coordinates::*;
 
 /// An enum that represents the type of shift in a shifted rectangle.
 /// The shift can be either odd or even and determines which column or row will be shifted.
 #[ derive( Debug, Copy, Clone, PartialEq, Eq ) ]
-pub enum ShiftType
+pub enum Parity
 {
   Odd = 0,
   Even = 1,
@@ -20,12 +24,12 @@ struct ShiftedRectangleIterData
   current_row : i32,
   current_column : i32,
   offset : i32,
-  shift_type : ShiftType,
+  shift_type : Parity,
 }
 
 impl ShiftedRectangleIterData
 {
-  fn new( rows : i32, columns : i32, shift_type : ShiftType ) -> Self
+  fn new( rows : i32, columns : i32, shift_type : Parity ) -> Self
   {
     Self
     {
@@ -53,30 +57,29 @@ impl ShiftedRectangleIter
   /// Creates a new `ShiftedRectangleIter`.
   ///
   /// # Parameters
-  /// - `rows`: The number of rows in the rectangle.
-  /// - `columns`: The number of columns in the rectangle.
+  /// - `size`: The number of rows in the rectangle and yhe number of columns in the rectangle.
   /// - `shift_type`: The type of shift in the rectangle.
   /// - `layout`: The layout of the hexagons.
   ///
   /// # Returns
   /// A new `ShiftedRectangleIter`.
-  pub fn new( rows : i32, columns : i32, shift_type : ShiftType, layout : HexLayout ) -> Self
+  pub fn new< V2 : ndarray_cg::ArrayRef< i32, 2 > >( size : V2, shift_type : Parity, layout : HexLayout ) -> Self
   {
     Self
     {
       layout,
-      data : ShiftedRectangleIterData::new( rows, columns, shift_type ),
+      data : ShiftedRectangleIterData::new( size.array_ref()[ 0 ], size.array_ref()[ 1 ], shift_type ),
     }
   }
 
-  fn next_pointy( data : &mut ShiftedRectangleIterData ) -> Option< Axial >
+  fn next_pointy( data : &mut ShiftedRectangleIterData ) -> Option< Coordinate< Axial, PointyTopped, OddParity > >
   {
     if data.current_row >= data.rows
     {
       return None;
     }
 
-    let coord = Axial::new( data.current_column - data.offset, data.current_row );
+    let coord = Coordinate::new( data.current_column - data.offset, data.current_row );
 
     data.current_column += 1;
 
@@ -94,14 +97,14 @@ impl ShiftedRectangleIter
     Some( coord )
   }
 
-  fn next_flat( data : &mut ShiftedRectangleIterData ) -> Option< Axial >
+  fn next_flat( data : &mut ShiftedRectangleIterData ) -> Option< Coordinate< Axial, PointyTopped, OddParity > >
   {
     if data.current_column >= data.columns
     {
       return None;
     }
 
-    let coord = Axial::new( data.current_column, data.current_row - data.offset );
+    let coord = Coordinate::new( data.current_column, data.current_row - data.offset );
 
     data.current_row += 1;
 
@@ -122,7 +125,7 @@ impl ShiftedRectangleIter
 
 impl Iterator for ShiftedRectangleIter
 {
-  type Item = Axial;
+  type Item = Coordinate< Axial, PointyTopped, OddParity >;
 
   fn next( &mut self ) -> Option< Self::Item >
   {

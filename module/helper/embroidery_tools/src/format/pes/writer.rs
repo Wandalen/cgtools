@@ -487,7 +487,7 @@ mod private
     #[ test ]
     fn test_version1()
     {
-      let sample = std::fs::read( "../../assets/pes_test_v1.pes" ).unwrap();
+      let sample = std::fs::read( "test_files/pes_test_v1.pes" ).unwrap();
       let mut emb = EmbroideryFile::new();
       emb.stitch( 0, 0 );
       emb.stitch( -40, -30 );
@@ -521,7 +521,7 @@ mod private
     #[ test ]
     fn test_version6()
     {
-      let sample = std::fs::read( "../../assets/pes_test_v6.pes" ).unwrap();
+      let sample = std::fs::read( "test_files/pes_test_v6.pes" ).unwrap();
       let mut emb = EmbroideryFile::new();
       emb.stitch( 0, 0 );
       emb.stitch( -40, -30 );
