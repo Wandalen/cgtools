@@ -13,12 +13,27 @@ mod private
     #[ inline( always ) ]
     pub const fn splat( v : E ) -> Self
     {
-        Vector::< E, N >( [ v; N ] )
+        Vector::< E, N >( [ v ; N ] )
     }
 
-    pub fn to_array( &self ) -> [ E; N ]
+    pub fn to_array( &self ) -> [ E ; N ]
     {
       self.0
+    }
+
+    pub fn from_array( src : [ E ; N ] ) -> Self
+    {
+      Self( src )
+    }
+
+    pub fn from_slice( src : &[ E ] ) -> Self
+    {
+      assert_eq!( src.len(), N );
+      Self
+      (
+        < [ E; N ] as core::convert::TryFrom< &[ E ] > >::try_from( src )
+        .expect( &format!( "Slice length does not match array length : {} <> {}", src.len(), N ) )
+      )
     }
 
   }
@@ -161,34 +176,13 @@ mod private
     }
   }
 
-  // // xxx : enable and test cover
-  // pub trait AsVector< E, const N : usize >
+  // // xxx : enable and test cover, maybe
+  // pub trait FromVector< Dst, E, const N : usize >
   // where
   //   E : MatEl,
+  //   // Self : Vector< E, N >,
   // {
-  //   fn as_vector( &self ) -> Vector< E, N >;
-  // }
-
-  // xxx : enable and test cover
-  pub trait FromVector< Dst, E, const N : usize >
-  where
-    E : MatEl,
-    // Self : Vector< E, N >,
-  {
-    fn from_vector( self ) -> Dst;
-  }
-
-  // xxx : enable?
-  // impl< E, Src, const N : usize > From< Src > for Vector< E, N >
-  // where
-  //   E : MatEl,
-  //   Src : VectorIter< E, N >
-  // {
-  //   fn from( value: Src ) -> Self
-  //   {
-  //     Self::default()
-  //     // Self( *value.array_ref() )
-  //   }
+  //   fn from_vector( self ) -> Dst;
   // }
 
   pub trait VectorSpace< const SIZE : usize >
@@ -225,7 +219,7 @@ crate::mod_interface!
 
     IntoVector,
     // AsVector,
-    FromVector,
+    // FromVector,
 
     VectorSpace,
     VectorSpaceMut,
