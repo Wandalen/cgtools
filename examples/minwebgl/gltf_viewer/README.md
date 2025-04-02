@@ -1,28 +1,27 @@
-### General viewer for models in obj format
-To load a model, put it in the "assets" folder, and then in the main function supply the following information:
-```Rust
-let mtl_path = "lost-empire";
-let texture_path = "lost-empire";
-let obl_path = "lost-empire/lost_empire.obj";
-```
-Then you can run `trunk serve --realese` in the directory to start the server. Be sure to use `--release` flag, as it may take up to a minute to load and parse some the larger models in debug mode.
+### GLTF viewer
 
-The viewere is far from perfect. It is meant to generalize all models and display them using a simple PBR if possible. Not all models can be loaded and not all material properties are supported.  
-If you experience problems with viewing your model, you can try using `diagnosic` module to determine the problem.
 
-### Useful links
-- [PBR in opengl]
-- [Normal mapping]
-- [Intro to PBR]
-- [Microfacet BRDF]
-- [An Introduction to Physically Based Rendering]
-- [Physically Based Rendering for Artists]
+### Links
 
-[PBR in opengl]:  https://learnopengl.com/PBR/Theory
-[Normal mapping]:  https://learnopengl.com/Advanced-Lighting/Normal-Mapping
-[Intro to PBR]: https://www.youtube.com/watch?v=gya7x9H3mV0&list=PLeb33PCuqDdesjTOgWXXAF4-gjknPPhBm&index=7
-[Microfacet BRDF]: https://simonstechblog.blogspot.com/2011/12/microfacet-brdf.html
-[Physically Based Rendering for Artists]: https://www.youtube.com/watch?v=LNwMJeWFr0U
-[An Introduction to Physically Based Rendering]: https://typhomnt.github.io/teaching/ray_tracing/pbr_intro/
+#### PBR
+- [Real Shading in Unreal Engine 4]
+- [Background: Physics and Math of Shading]
+- [Moving Frostbite to Physically Based Rendering 2.0]
+- [Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs]
+- [Importance Sampling techniques for GGX with Smith Masking-Shadowing: Part 1]
+- [Importance Sampling techniques for GGX with Smith Masking-Shadowing: Part 2]
 
-![Object viewer example](./showcase.jpg)
+#### Normal mapping
+- [Normals and the Inverse Transpose, Part 1: Grassmann Algebra]
+- [Normals and the Inverse Transpose, Part 2: Dual Spaces]
+- [Normal Mapping Without Precomputed Tangents]
+
+[Real Shading in Unreal Engine 4]: https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
+[Background: Physics and Math of Shading]: https://blog.selfshadow.com/publications/s2013-shading-course/hoffman/s2013_pbs_physics_math_notes.pdf
+[Moving Frostbite to Physically Based Rendering 2.0]: https://web.archive.org/web/20160702002225/http://www.frostbite.com/wp-content/uploads/2014/11/course_notes_moving_frostbite_to_pbr_v2.pdf
+[Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs]: https://inria.hal.science/hal-00942452v1/document
+[Importance Sampling techniques for GGX with Smith Masking-Shadowing: Part 1]: https://schuttejoe.github.io/post/ggximportancesamplingpart1/
+[Importance Sampling techniques for GGX with Smith Masking-Shadowing: Part 2]: https://schuttejoe.github.io/post/ggximportancesamplingpart2/
+[Normals and the Inverse Transpose, Part 1: Grassmann Algebra]: https://www.reedbeta.com/blog/normals-inverse-transpose-part-1/
+[Normals and the Inverse Transpose, Part 2: Dual Spaces]: https://www.reedbeta.com/blog/normals-inverse-transpose-part-2/
+[Normal Mapping Without Precomputed Tangents]: http://www.thetenthplanet.de/archives/1180
