@@ -141,12 +141,9 @@ vec3 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
 }
 
 #ifdef USE_NORMAL_TEXTURE
+  // http://www.thetenthplanet.de/archives/1180
   mat3 getTBN( vec3 surf_normal )
   {
-    vec3 normalSample = texture( normal_texture, vNormalUv ) * 2.0 - 1.0;
-    normalSample = normalize( normalSample );
-    normalSample.xy *= vec2( normalScale );
-
     vec3 dE1 = dFdx( vWorldPos );
     vec3 dE2 = dFdy( vWorldPos );
     vec2 dUv1 = dFdx( vNormalUv );
@@ -161,7 +158,7 @@ vec3 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
     float det = max( dot( T, T ), dot( B, B ) );
 		float scale = ( det == 0.0 ) ? 0.0 : inversesqrt( det );
 
-		return mat3( T * scale, B * scale, N );
+		return mat3( T * scale, B * scale, surf_normal );
   }
 #endif
 
@@ -171,8 +168,12 @@ void main()
 
   vec3 normal = normalize( vNormal );
   #ifdef USE_NORMAL_TEXTURE
-    normal = normalMapping
-    ( normal );
+    vec3 normalSample = texture( normal_texture, vNormalUv ) * 2.0 - 1.0;
+    normalSample = normalize( normalSample );
+    normalSample.xy *= vec2( normalScale );
+
+    normal = getTBN( normal ) * normalSample;
+    normal = normalize( normal );
   #endif
 
   #ifdef USE_EMISSION
