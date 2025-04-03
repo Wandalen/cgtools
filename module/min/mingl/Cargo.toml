@@ -27,9 +27,9 @@ math = [ "dep:ndarray_cg" ]
 camera_orbit_controls = []
 
 diagnostics = [
-  "objModel"
+  "model_obj"
 ]
-objModel = [
+model_obj = [
   "dep:tobj"
 ]
 
@@ -41,11 +41,11 @@ web = [
   "dep:web-sys",
 ]
 # enable file handling on the web
-webFile = []
+web_file = []
 # enable futures on the web
-webFuture = []
-webObjModel = [ "objModel", "webLog", "tobj/async" ]
-webLog = [ "dep:browser_log" ]
+web_future = []
+web_model_obj = [ "model_obj", "web_log", "tobj/async" ]
+web_log = [ "dep:browser_log" ]
 
 [dependencies]
 
