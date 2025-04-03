@@ -5,9 +5,6 @@ edition = "2021"
 authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
 license = "MIT"
 
-[lib]
-crate-type = ["cdylib"]
-
 [dependencies]
 wasm-bindgen = "0.2"
 js-sys = "0.3"
