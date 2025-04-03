@@ -341,6 +341,115 @@ impl Wfc
     self.front = new_front;
   }
 
+  /// Set variant for cells that has conflict. Conflict 
+  /// means that cell doesn't have variants 
+  fn correct_conflicts( &mut self )
+  {
+    let mut conflicted_cell_coords = vec![];
+    let mut i = 0;
+    for row in &self.map
+    {
+      let mut j = 0; 
+      for cell in row
+      {
+        if cell.is_empty()
+        {
+          conflicted_cell_coords.push( Point::new( i, j ) );
+        }
+        j += 1;
+      }
+      i += 1;
+    }
+
+    let directions = self.edges
+    .keys()
+    .cloned()
+    .collect::< Vec< _ > >();
+    let diffs = directions.into_iter()
+    .map( | d | d.difference() )
+    .collect::< Vec< _ > >();
+
+    let conflict_neighbours = conflicted_cell_coords.into_par_iter()
+    .map
+    ( 
+      | p |
+      {
+        let mut points = vec![];
+        for ( dim, diff ) in &diffs
+        {
+          points.push
+          (
+            match dim
+            {
+              0 => Point::new( p.x, p.y + diff ),
+              1 => Point::new( p.x + diff, p.y ),
+              _ => unreachable!()
+            }
+          );
+        }
+
+        points = points
+        .into_iter()
+        .filter( 
+          | p |
+          {
+            if self.map
+            .get( p.x as usize )
+            .is_none()
+            {
+              return false;
+            }
+
+            self.map[ p.x as usize ]
+            .get( p.y as usize )
+            .is_some()
+          }
+        )
+        .collect::< Vec< _ > >();
+
+        ( p, points )
+      }
+    )
+    .collect::< HashSet< _ > >()
+    .into_iter()
+    .collect::< Vec< _ > >();
+
+    let missing_variant = self.relations.0.len() as u8;
+
+    for ( point, neighbours ) in conflict_neighbours
+    {
+      let mut posible_variants= vec![];
+      for n in neighbours
+      {
+        if self.map[ n.x as usize ][ n.y as usize ].len() == 1
+        {
+          posible_variants.push( self.map[ n.x as usize ][ n.y as usize ][ 0 ] );
+        }
+      }
+
+      if !posible_variants.is_empty()
+      {
+        let min = posible_variants
+        .iter()
+        .min()
+        .cloned()
+        .unwrap();
+
+        let max = posible_variants
+        .iter()
+        .max()
+        .cloned()
+        .unwrap();
+
+        let variant = min + ( ( ( max - min ) as f32 / 2.0 ).ceil() as u8 );
+
+        if variant != missing_variant {
+          self.map[ point.x as usize ][ point.y as usize ] = vec![ variant ];
+        }
+      }
+    }
+  }
+
   /// Do repeatedly cycle collapse-propagate while front isn't empty.
   /// When the cycle ended check and handle errors for each tile and 
   /// then returns [ `Vec< Vec< u8 > >` ]
@@ -350,6 +459,7 @@ impl Wfc
     {
       self.collapse();
       self.propagate();
+      self.correct_conflicts();
     }
         
     let all_variants = ( 0..( self.relations.0.len() as u8 ) ).collect::< Vec< _ > >();
