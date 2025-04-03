@@ -58,7 +58,11 @@ impl ParityType for EvenParity {}
 /// - `q`: The "column" coordinate.
 /// - `r`: The "row" coordinate.
 #[ derive( Debug ) ]
-pub struct Coordinate< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityType >
+pub struct Coordinate< System, Orientation, Parity >
+where
+  System : CoordinateSystem,
+  Orientation : OrientationType,
+  Parity : ParityType
 {
   /// The "column" coordinate in the coordinate system.
   pub q : i32,
@@ -69,8 +73,11 @@ pub struct Coordinate< System : CoordinateSystem, Orientation : OrientationType,
   parity : PhantomData< Parity >,
 }
 
-impl< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityType > Hash
-for Coordinate< System, Orientation, Parity >
+impl< System, Orientation, Parity > Hash for Coordinate< System, Orientation, Parity >
+where
+  System : CoordinateSystem,
+  Orientation : OrientationType,
+  Parity : ParityType
 {
   fn hash< H : std::hash::Hasher >( &self, state : &mut H )
   {
@@ -82,8 +89,11 @@ for Coordinate< System, Orientation, Parity >
   }
 }
 
-impl< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityType > PartialEq
-for Coordinate< System, Orientation, Parity >
+impl< System, Orientation, Parity> PartialEq for Coordinate< System, Orientation, Parity >
+where
+  System : CoordinateSystem,
+  Orientation : OrientationType,
+  Parity : ParityType
 {
   fn eq( &self, other : &Self ) -> bool
   {
@@ -91,11 +101,18 @@ for Coordinate< System, Orientation, Parity >
   }
 }
 
-impl< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityType > Eq
-for Coordinate< System, Orientation, Parity > {}
+impl< System, Orientation, Parity > Eq for Coordinate< System, Orientation, Parity >
+where
+  System : CoordinateSystem,
+  Orientation : OrientationType,
+  Parity : ParityType
+{}
 
-impl< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityType > Clone
-for Coordinate< System, Orientation, Parity >
+impl< System, Orientation, Parity > Clone for Coordinate< System, Orientation, Parity >
+where
+  System : CoordinateSystem,
+  Orientation : OrientationType,
+  Parity : ParityType
 {
   fn clone( &self ) -> Self
   {
@@ -103,10 +120,18 @@ for Coordinate< System, Orientation, Parity >
   }
 }
 
-impl< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityType > Copy
-for Coordinate< System, Orientation, Parity > {}
+impl< System, Orientation, Parity > Copy for Coordinate< System, Orientation, Parity >
+where
+  System : CoordinateSystem,
+  Orientation : OrientationType,
+  Parity : ParityType
+{}
 
-impl< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityType > Coordinate< System, Orientation, Parity >
+impl< System, Orientation, Parity > Coordinate< System, Orientation, Parity >
+where
+  System : CoordinateSystem,
+  Orientation : OrientationType,
+  Parity : ParityType
 {
   pub fn new( q : i32, r : i32 ) -> Self
   {
@@ -289,7 +314,9 @@ pub trait CoordinateConversion
   fn to_pixel( self, hex_size : f32 ) -> Pixel;
 }
 
-impl< Parity : ParityType > CoordinateConversion for Coordinate< Axial, PointyTopped, Parity >
+impl< Parity > CoordinateConversion for Coordinate< Axial, PointyTopped, Parity >
+where
+  Parity : ParityType
 {
   fn from_pixel( Pixel { data : [ x, y ] } : Pixel, hex_size : f32 ) -> Self
   {
@@ -312,7 +339,9 @@ impl< Parity : ParityType > CoordinateConversion for Coordinate< Axial, PointyTo
   }
 }
 
-impl< Parity : ParityType > CoordinateConversion for Coordinate< Axial, FlatTopped, Parity >
+impl< Parity > CoordinateConversion for Coordinate< Axial, FlatTopped, Parity >
+where
+  Parity : ParityType
 {
   fn from_pixel( Pixel { data : [ x, y ] } : Pixel, hex_size : f32 ) -> Self
   {
@@ -334,7 +363,10 @@ impl< Parity : ParityType > CoordinateConversion for Coordinate< Axial, FlatTopp
   }
 }
 
-impl< Orientation : OrientationType, Parity : ParityType > std::ops::Add for Coordinate< Axial, Orientation, Parity >
+impl< Orientation, Parity > std::ops::Add for Coordinate< Axial, Orientation, Parity >
+where
+  Orientation : OrientationType,
+  Parity : ParityType
 {
   type Output = Self;
 
@@ -344,7 +376,10 @@ impl< Orientation : OrientationType, Parity : ParityType > std::ops::Add for Coo
   }
 }
 
-impl< Orientation : OrientationType, Parity : ParityType > std::ops::Sub for Coordinate< Axial, Orientation, Parity >
+impl< Orientation, Parity > std::ops::Sub for Coordinate< Axial, Orientation, Parity >
+where
+  Orientation : OrientationType,
+  Parity : ParityType
 {
   type Output = Self;
 
@@ -354,7 +389,10 @@ impl< Orientation : OrientationType, Parity : ParityType > std::ops::Sub for Coo
   }
 }
 
-impl< Orientation : OrientationType, Parity : ParityType > std::ops::Mul< i32 > for Coordinate< Axial, Orientation, Parity >
+impl< Orientation, Parity > std::ops::Mul< i32 > for Coordinate< Axial, Orientation, Parity >
+where
+  Orientation : OrientationType,
+  Parity : ParityType
 {
   type Output = Self;
 
@@ -364,7 +402,10 @@ impl< Orientation : OrientationType, Parity : ParityType > std::ops::Mul< i32 > 
   }
 }
 
-impl< Orientation : OrientationType, Parity : ParityType > std::ops::Div< i32 > for Coordinate< Axial, Orientation, Parity >
+impl< Orientation, Parity > std::ops::Div< i32 > for Coordinate< Axial, Orientation, Parity >
+where
+  Orientation : OrientationType,
+  Parity : ParityType
 {
   type Output = Self;
 
@@ -374,7 +415,11 @@ impl< Orientation : OrientationType, Parity : ParityType > std::ops::Div< i32 > 
   }
 }
 
-impl< F : Into< i32 >, System : CoordinateSystem, Orientation : OrientationType, Parity : ParityType > From< ( F, F ) > for Coordinate< System, Orientation, Parity >
+impl< F : Into< i32 >, System, Orientation, Parity > From< ( F, F ) > for Coordinate< System, Orientation, Parity >
+where
+  System : CoordinateSystem,
+  Orientation : OrientationType,
+  Parity : ParityType
 {
   fn from( ( q, r ) : ( F, F ) ) -> Self
   {
@@ -382,7 +427,11 @@ impl< F : Into< i32 >, System : CoordinateSystem, Orientation : OrientationType,
   }
 }
 
-impl< F : Into< i32 >, System : CoordinateSystem, Orientation : OrientationType, Parity : ParityType > From< [ F; 2 ] > for Coordinate< System, Orientation, Parity >
+impl< F : Into< i32 >, System, Orientation, Parity > From< [ F; 2 ] > for Coordinate< System, Orientation, Parity >
+where
+  System : CoordinateSystem,
+  Orientation : OrientationType,
+  Parity : ParityType
 {
   fn from( [ q, r ] : [ F; 2 ] ) -> Self
   {
@@ -408,7 +457,9 @@ impl Pixel
   }
 }
 
-impl< F : Into< f32 > > From< ( F, F ) > for Pixel
+impl< F > From< ( F, F ) > for Pixel
+where
+  F : Into< f32 >
 {
   fn from( ( x, y ) : ( F, F ) ) -> Self
   {
@@ -416,7 +467,9 @@ impl< F : Into< f32 > > From< ( F, F ) > for Pixel
   }
 }
 
-impl< F : Into< f32 > > From< [ F; 2 ] > for Pixel
+impl< F > From< [ F; 2 ] > for Pixel
+where
+  F : Into< f32 >
 {
   fn from( [ x, y ] : [ F; 2 ] ) -> Self
   {
@@ -425,7 +478,9 @@ impl< F : Into< f32 > > From< [ F; 2 ] > for Pixel
   }
 }
 
-impl< E : MatEl + Into< f32 > > From< Vector< E, 2 > > for Pixel
+impl< E > From< Vector< E, 2 > > for Pixel
+where
+  E : MatEl + Into< f32 >
 {
   fn from( value : Vector< E, 2 >) -> Self
   {
