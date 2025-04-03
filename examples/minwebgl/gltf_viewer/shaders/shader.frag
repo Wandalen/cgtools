@@ -142,12 +142,12 @@ vec3 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
 
 #ifdef USE_NORMAL_TEXTURE
   // http://www.thetenthplanet.de/archives/1180
-  mat3 getTBN( vec3 surf_normal )
+  mat3 getTBN( vec3 surf_normal, vec3 pos, vec2 uv )
   {
-    vec3 dE1 = dFdx( vWorldPos );
-    vec3 dE2 = dFdy( vWorldPos );
-    vec2 dUv1 = dFdx( vNormalUv );
-    vec2 dUv2 = dFdy( vNormalUv );
+    vec3 dE1 = dFdx( pos );
+    vec3 dE2 = dFdy( pos );
+    vec2 dUv1 = dFdx( uv );
+    vec2 dUv2 = dFdy( uv );
 
     vec3 q1perp = cross( dE2, surf_normal );
 		vec3 q0perp = cross( surf_normal, dE1 );
@@ -172,8 +172,8 @@ void main()
     normalSample = normalize( normalSample );
     normalSample.xy *= vec2( normalScale );
 
-    normal = getTBN( normal ) * normalSample;
-    normal = normalize( normal );
+    normal = getTBN( normal, vWorldPos, vNormalUv ) * normalSample;
+    //normal = normalize( normal );
   #endif
 
   #ifdef USE_EMISSION
