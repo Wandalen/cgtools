@@ -1,4 +1,4 @@
-use std::{ hash::Hash, marker::PhantomData, ops::{ Index, IndexMut } };
+use std::{ hash::Hash, marker::PhantomData, ops::{ Deref, Index, IndexMut } };
 use ndarray_cg::{ Collection, MatEl, Vector };
 
 pub trait CoordinateSystem {}
@@ -325,7 +325,6 @@ where
     let r = (                           2.0 / 3.0 * y ) / hex_size;
     let ( q, r ) = axial_round( q, r );
     Self::new( q, r )
-    // todo!()
   }
 
   fn to_pixel( self, hex_size : f32 ) -> Pixel

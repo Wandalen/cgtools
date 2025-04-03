@@ -2,6 +2,16 @@ use crate::coordinates::*;
 use crate::layout::HexLayout;
 use ndarray_cg::{ F32x4x4, Vector };
 
+/// Generates a line mesh for a grid of hexagons.
+///
+/// # Parameters
+/// - `coords`: An iterator of `Axial` coordinates.
+/// - `layout`: The layout of the hexagons.
+/// - `transform`: A 4x4 matrix to transform the hexagons.
+///
+/// # Returns
+/// A `Vec<f32>` containing the x and y coordinates of the triangles.
+// aaa : use it in example instead drawing each heaxgon individually
 pub fn grid_line_mesh< I, C >
 (
   coords : I,
@@ -40,6 +50,17 @@ where
   grid_mesh( coords, layout, transform, hex_triangle_mesh )
 }
 
+/// Generates a mesh for a grid of hexagons.
+///
+/// # Parameters
+/// - `coords`: An iterator of `Axial` coordinates.
+/// - `layout`: The layout of the hexagons.
+/// - `transform`: A 4x4 matrix to transform the hexagons.
+/// - `mesh`: A function that return mesh of a hexagon
+///
+/// # Returns
+/// A `Vec<f32>` containing the x and y coordinates of the triangles.
+// aaa : use it in example instead drawing each heaxgon individually
 pub fn grid_mesh< I, C, F >
 (
   coords : I,
@@ -103,15 +124,15 @@ pub fn hex_line_mesh( layout : &HexLayout ) -> Vec< f32 >
   {
     if let [ point1, point2 ] = window
     {
-      positions.push(point1.0);
-      positions.push(point1.1);
-      positions.push(point2.0);
-      positions.push(point2.1);
+      positions.push( point1.0 );
+      positions.push( point1.1 );
+      positions.push( point2.0 );
+      positions.push( point2.1 );
     }
   }
 
   let last = points.last().unwrap();
-  let first = points.last().unwrap();
+  let first = points.first().unwrap();
   positions.push( last.0 );
   positions.push( last.1 );
   positions.push( first.0 );
