@@ -13,7 +13,7 @@ use web_sys::console;
 
 // qqq : why const?
 /// Tile variants count
-const LAYERS : i32 = 6;
+const LAYERS : i32 = 7;
 
 // qqq : why const?
 /// Tile map size. More than 256x256 is very slow
