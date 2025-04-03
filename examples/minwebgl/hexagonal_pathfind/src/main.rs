@@ -150,9 +150,67 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
     }
   };
 
-  let mouse_move = Closure::< dyn FnMut( _ ) >::new( Box::new( mouse_move ) );
+  let mouse_move = Closure::< dyn Fn( _ ) >::new( Box::new( mouse_move ) );
   canvas.set_onmousemove( Some( mouse_move.as_ref().unchecked_ref() ) );
   mouse_move.forget();
+
+  let mouse_click =
+  {
+    let context = context.clone();
+    let canvas = canvas.clone();
+    move | e : MouseEvent |
+    {
+
+      let rect = canvas.get_bounding_client_rect();
+      let canvas_pos = F32x2::new( rect.left() as f32, rect.top() as f32 );
+      let half_size : F32x2 = canvas_size / 2.0;
+      let cursor_pos = F32x2::new( e.client_x() as f32, e.client_y() as f32 );
+      // normalize coodinates to [ -1 : 1 ], then apply inverse ascpect scale and offset to grid center
+      let cursor_pos = ( ( cursor_pos - canvas_pos ) - half_size ) / half_size / aspect_scale + grid_center;
+      let selected_hex_coord : Coordinate< Axial, PointyTopped, OddParity > = layout.hex_coord( cursor_pos.into() );
+
+      // context.clear( gl::COLOR_BUFFER_BIT );
+
+      // hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
+      // hex_shader.uniform_upload( "u_color", &[ 0.7, 0.7, 0.7, 1.0 ] );
+      // filling_geometry.activate();
+      // context.draw_arrays( gl::TRIANGLES, 0, filling_geometry.nvertices );
+
+      // for ( coord, obstacle ) in map.map()
+      // {
+      //   if *obstacle
+      //   {
+      //     let hex_pos = layout.pixel_coord( *coord );
+      //     let translation = mat2x2h::translate( [ hex_pos[ 0 ] - grid_center[ 0 ], -hex_pos[ 1 ] + grid_center[ 1 ] ] );
+      //     let selected_mvp = scale_m * translation;
+
+      //     hex_shader.uniform_matrix_upload( "u_mvp", selected_mvp.raw_slice(), true );
+      //     hex_shader.uniform_upload( "u_color", &[ 0.7, 0.5, 0.5, 1.0 ] );
+      //     context.draw_arrays( gl::TRIANGLES, 0, hex_geometry.nvertices );
+      //   }
+      // }
+
+      // if map.map().keys().any( | k | *k == selected_hex_coord )
+      // {
+      //   let selected_hex_pos = layout.pixel_coord( selected_hex_coord );
+      //   let translation = mat2x2h::translate( [ selected_hex_pos[ 0 ] - grid_center[ 0 ], -selected_hex_pos[ 1 ] + grid_center[ 1 ] ] );
+      //   let selected_mvp = scale_m * translation;
+
+      //   hex_shader.uniform_matrix_upload( "u_mvp", selected_mvp.raw_slice(), true );
+      //   hex_shader.uniform_upload( "u_color", &[ 0.5, 0.7, 0.5, 1.0 ] );
+      //   context.draw_arrays( gl::TRIANGLES, 0, hex_geometry.nvertices );
+      // }
+
+      // hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
+      // hex_shader.uniform_upload( "u_color", &[ 0.1, 0.1, 0.1, 1.0 ] );
+      // outline_geometry.activate();
+      // context.draw_arrays( gl::LINES, 0, outline_geometry.nvertices );
+    }
+  };
+
+  let mouse_click = Closure::< dyn Fn( _ ) >::new( Box::new( mouse_click ) );
+  canvas.set_onmousedown( Some( mouse_click.as_ref().unchecked_ref() ) );
+  mouse_click.forget();
 
   Ok( () )
 }
