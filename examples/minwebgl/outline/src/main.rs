@@ -404,9 +404,6 @@ fn load_gltf_resources( gl : &GlowContext ) -> Result< GltfModel, AppError >
         let location = match semantic
         {
           gltf::Semantic::Positions => 0,
-          // Add other attributes if needed by shaders
-          // gltf::Semantic::Normals => 1,
-          // gltf::Semantic::TexCoords(0) => 2,
           _ =>
           {
             log( &format!( "    Skipping unused attribute: {:?}", semantic ) );

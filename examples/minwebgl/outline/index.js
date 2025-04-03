@@ -14,8 +14,8 @@ async function run()
 
 		function renderLoop( timestamp ) 
 		{
-				app.render( timestamp );
-				requestAnimationFrame( renderLoop );
+			app.render( timestamp );
+			requestAnimationFrame( renderLoop );
 		}
 
 		requestAnimationFrame( renderLoop );
