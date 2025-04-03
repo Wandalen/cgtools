@@ -8,22 +8,23 @@ use std::
 use buffer::Buffer;
 use gltf::Gltf;
 use material::Material;
-// use material::{ GLMaterial, TextureType };
-// use mesh::GLMesh;
+use mesh::Mesh;
 use mingl::CameraOrbitControls;
 use minwebgl::{ self as gl, JsCast };
+use node::Node;
+use scene::Scene;
 use texture::Texture;
 use web_sys::wasm_bindgen::prelude::Closure;
 
 mod mesh;
 mod camera_controls;
 mod material;
-//mod scene;
-//mod node;
+mod scene;
 mod texture;
 mod sampler;
 mod primitive;
 mod buffer;
+mod node;
 
 async fn run() -> Result< (), gl::WebglError >
 {
@@ -199,13 +200,27 @@ async fn run() -> Result< (), gl::WebglError >
 
   // Create materials
   let mut materials = Vec::new();
-  for gltf_m in gltf_file.materials()
+  for gltf_mat in gltf_file.materials()
   {
-    let m = Material::new( gltf_m, &textures );
+    let m = Material::new( gltf_mat, &textures );
     materials.push( m );
   }
 
   gl::log::info!( "{:?}", gltf_file.materials().len() );
+
+  let mut meshes = Vec::new();
+  for gltf_mesh in gltf_file.meshes()
+  {
+    let m = Mesh::new( &gl, &gltf_mesh, &gl_buffers )?;
+    meshes.push( m );
+  }
+
+  let mut scenes = Vec::new();
+  for gltf_scene in gltf_file.scenes()
+  {
+    let scene = Scene::new( &gltf_scene );
+    scenes.push( scene );
+  }
 
   gl.enable( gl::DEPTH_TEST );
   gl.enable( gl::BLEND );
