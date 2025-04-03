@@ -63,7 +63,9 @@ impl ShiftedRectangleIter
   ///
   /// # Returns
   /// A new `ShiftedRectangleIter`.
-  pub fn new< V2 : ndarray_cg::ArrayRef< i32, 2 > >( size : V2, shift_type : Parity, layout : HexLayout ) -> Self
+  pub fn new< V2 >( size : V2, shift_type : Parity, layout : HexLayout ) -> Self
+  where
+    V2 : ndarray_cg::ArrayRef< i32, 2 >
   {
     Self
     {
