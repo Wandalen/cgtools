@@ -1,0 +1,45 @@
+[package]
+name = "outline"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+glow = "0.12"
+console_error_panic_hook = "0.1.7"
+gltf = "1.4" 
+nalgebra-glm = "0.18"
+serde_json = "1.0"
+serde-wasm-bindgen = "0.4"
+
+[dependencies.web-sys]
+version = "0.3"
+features = [
+	'Document',
+	'Window',
+	'HtmlCanvasElement',
+	'WebGl2RenderingContext',
+	'WebGlUniformLocation',
+	'WebGlActiveInfo',
+	'WebGlBuffer',
+	'WebGlVertexArrayObject',
+	'WebGlSync',
+	'console',
+	'Performance',
+	'HtmlImageElement',
+	'ImageBitmap',
+	'Blob',
+	'Url',
+	'WebGlTexture', 
+	'WebGlFramebuffer', 
+]
+
+[profile.release]
+lto = true
+opt-level = 's'
