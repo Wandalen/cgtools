@@ -1,4 +1,4 @@
-use std::{ hash::Hash, marker::PhantomData, ops::{ Deref, Index, IndexMut } };
+use std::{ hash::Hash, marker::PhantomData, ops::{ Index, IndexMut } };
 use ndarray_cg::{ Collection, MatEl, Vector };
 
 pub trait CoordinateSystem {}
@@ -10,6 +10,7 @@ pub trait ParityType {}
 /// Axial coordinates use two axes (`q` and `r`) to uniquely identify
 /// hexes in a grid.
 /// more info: https://www.redblobgames.com/grids/hexagons/#coordinates-axial
+#[ derive( Debug ) ]
 pub struct Axial;
 
 impl CoordinateSystem for Axial {}
@@ -20,6 +21,7 @@ impl CoordinateSystem for Axial {}
 /// - Flat-topped odd parity
 /// - Flat-topped even parity
 /// more info: https://www.redblobgames.com/grids/hexagons/#coordinates-offset
+#[ derive( Debug ) ]
 pub struct Offset;
 
 impl CoordinateSystem for Offset {}
@@ -27,31 +29,36 @@ impl CoordinateSystem for Offset {}
 /// Doubled variant of Offset coordinates.
 /// Instead of alternation, the doubled coordinates double either the horizontal or vertical step size.
 /// https://www.redblobgames.com/grids/hexagons/#coordinates-doubled
+#[ derive( Debug ) ]
 pub struct Doubled;
 
 impl CoordinateSystem for Doubled {}
 
 /// Orientation of the hexagons when the top is flat.
+#[ derive( Debug ) ]
 pub struct FlatTopped;
 
 impl OrientationType for FlatTopped {}
 
 /// Orientation of the hexagons when the top is pointed.
+#[ derive( Debug ) ]
 pub struct PointyTopped;
 
 impl OrientationType for PointyTopped {}
 
 /// Parity of the hexagons where odd rows/columns are shoved
+#[ derive( Debug ) ]
 pub struct OddParity;
 
 impl ParityType for OddParity {}
 
 /// Parity of the hexagons where even rows/columns are shoved
+#[ derive( Debug ) ]
 pub struct EvenParity;
 
 impl ParityType for EvenParity {}
 
-// qqq : use where whenever possible
+// aaa : use where whenever possible
 /// Represents a coordinate in a hexagonal grid.
 ///
 /// # Fields
