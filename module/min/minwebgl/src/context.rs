@@ -88,9 +88,11 @@ mod private
   /// # Errors
   /// - Returns an error if the canvas cannot be found, created, or if the WebGL2 context cannot
   ///   be retrieved.
+  // qqq : use o instead of long name in such cases
   pub fn retrieve_or_make_with( builder : ContexOptions ) -> Result< GL, Error >
   {
     let canvas = canvas::retrieve_or_make()?;
+    // qqq : no, opposite retrieve_or_make is shortcut for retrieve_or_make_with
     if builder.reduce_dpr
     {
       canvas::remove_dpr_scaling( &canvas );

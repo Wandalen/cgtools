@@ -6,8 +6,8 @@ use tiles_tools::
   patterns::{ Parity, ShiftedRectangleIter }
 };
 
-use minwebgl as gl;
-use gl::
+use minwebgl as min;
+use min::
 {
   GL,
   math::{ d2::mat2x2h, F32x2, IntoVector },
@@ -21,22 +21,22 @@ use gl::
 };
 use web_sys::{ wasm_bindgen::prelude::Closure, MouseEvent };
 
-fn main() -> Result< (), gl::WebglError >
+fn main() -> Result< (), min::WebglError >
 {
   draw_hexes()
 }
 
 fn draw_hexes() -> Result< (), minwebgl::WebglError >
 {
-  gl::browser::setup( Default::default() );
-  let o = gl::context::ContexOptions::new().reduce_dpr( true );
-  let context = gl::context::retrieve_or_make_with( o )?;
+  min::browser::setup( Default::default() );
+  let o = min::context::ContexOptions::new().reduce_dpr( true );
+  let context = min::context::retrieve_or_make_with( o )?;
   let canvas = context.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
   // used to scale canvas true size to css size
   let dpr = web_sys::window().unwrap().device_pixel_ratio() as f32;
   let canvas_size = ( canvas.width() as f32, canvas.height() as f32 ).into_vector() / dpr;
-  // gl::log::info!( "dpr : {:#?}", dpr );
-  // gl::web::log::info!( "dpr : {:#?}", dpr );
+  // min::log::info!( "dpr : {:#?}", dpr );
+  // min::web::log::info!( "dpr : {:#?}", dpr );
 
   // just abstract size in world space, it may be any units
   // size of a hexagon ( from center to vertex )
@@ -83,11 +83,11 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let mvp = scale_m * translation;
 
   context.clear_color( 0.9, 0.9, 0.9, 1.0 );
-  context.clear( gl::COLOR_BUFFER_BIT );
+  context.clear( min::COLOR_BUFFER_BIT );
   hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
   hex_shader.uniform_upload( "u_color", &[ 0.1, 0.1, 0.1, 1.0 ] );
   grid_geometry.activate();
-  context.draw_arrays( gl::TRIANGLES, 0, grid_geometry.nvertices );
+  context.draw_arrays( min::TRIANGLES, 0, grid_geometry.nvertices );
 
   let mut selected_hex = None;
 
@@ -113,13 +113,13 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       }
       selected_hex = Some( selected_hex_coord );
 
-      context.clear( gl::COLOR_BUFFER_BIT );
+      context.clear( min::COLOR_BUFFER_BIT );
 
       // draw grid
       hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
       hex_shader.uniform_upload( "u_color", &[ 0.1, 0.1, 0.1, 1.0 ] );
       grid_geometry.activate();
-      context.draw_arrays( gl::TRIANGLES, 0, grid_geometry.nvertices );
+      context.draw_arrays( min::TRIANGLES, 0, grid_geometry.nvertices );
 
       let selected_hex_pos = layout.pixel_coord( selected_hex_coord );
       let translation = mat2x2h::translate( [ selected_hex_pos[ 0 ] - grid_center[ 0 ], -selected_hex_pos[ 1 ] + grid_center[ 1 ] ] );
