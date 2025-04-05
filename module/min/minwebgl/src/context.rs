@@ -78,6 +78,7 @@ mod private
     from_canvas( &canvas )
   }
 
+  // qqq : explain difference between similar functions
   /// Retrieves a WebGL2 context from an existing canvas or creates a new canvas if none is found,
   /// applying the specified `ContexOptions`.
   ///
