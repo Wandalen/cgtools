@@ -103,6 +103,8 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       let cursor_pos = F32x2::new( e.client_x() as f32, e.client_y() as f32 );
       // normalize coodinates to [ -1 : 1 ], then apply inverse ascpect scale and offset to grid center
       let cursor_pos = ( ( cursor_pos - canvas_pos ) - half_size ) / half_size / aspect_scale + grid_center; // qqq : don't use double devission it's confusing and difficult to read. use canonical represenation
+      // qqq : add commented out code to see it in log.
+      // qqq : where is center? in the middle? what are boundaries -1, +1? explain all that instead of duplicating what is avaliable from code
       let selected_hex_coord : Coordinate< Axial, PointyTopped, OddParity > = layout.hex_coord( cursor_pos.into() );
 
       if selected_hex.is_some_and( | hex_coord | hex_coord == selected_hex_coord )
