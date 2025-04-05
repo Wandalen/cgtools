@@ -2,7 +2,7 @@ use tiles_tools::
 {
   coordinates::*,
   layout::{ HexLayout, Orientation },
-  mesh::{ grid_triangle_mesh, hex_line_loop_mesh },
+  mesh::{ grid_triangle_mesh, hex_line_loop_mesh }, // qqq : don't import from namespace individualt items use full names for such cases `mesh::grid_triangle` remove postfix _mesh
   patterns::{ Parity, ShiftedRectangleIter }
 };
 
@@ -42,17 +42,19 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   // size of a hexagon ( from center to vertex )
   let size = 0.1;
   // how to shift the hexagons to form a rectangle
-  let shift_type = Parity::Odd;
+  let shift_type = Parity::Odd; // qqq : why sift type is not part of layout? it probably should be
   // orientation of hex can be either pointing upword or flat upword
   let orientation = Orientation::Pointy;
   // orientation of the hexagons
-  let layout = HexLayout { orientation, size };
+  let layout = HexLayout { orientation, size }; // qqq : size of what specifically? not clear
   // grid size
   let grid_size = [ 9, 11 ];
 
   // determine the center of the grid
   // to shift it to the center of the canvas
-  let grid_center : F32x2 = layout.grid_center( ShiftedRectangleIter::new( grid_size, shift_type, layout ) ).into();
+  // qqq : what about type Grid combinging layout and grid size. also grid probably can have offset of orign?
+  let grid_center : F32x2 = layout.grid_center( ShiftedRectangleIter::new( grid_size, shift_type, layout ) ).into(); // qqq : iterating all tiles several times is not efficient. is it possible to avoid it?
+  // qqq : why shift_type is not part of layout? o.O
   let aspect = canvas_size[ 1 ] / canvas_size[ 0 ];
   let scale = 1.0;
   let aspect_scale : F32x2 = [ aspect * scale, scale ].into();
@@ -66,11 +68,16 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let grid_geometry = geometry::Positions::new
   (
     context.clone(),
-    &grid_triangle_mesh( ShiftedRectangleIter::new( grid_size, shift_type, layout ), &layout, None ),
-    2
+    &grid_triangle_mesh( ShiftedRectangleIter::new( grid_size, shift_type, layout ), &layout, None ), // qqq : iterating all tiles several times is not efficient. is it possible to avoid it?
+    2,
   )?;
   // line loop mesh for the outline of a hexagon
-  let outline_geometry = geometry::Positions::new( context.clone(), &hex_line_loop_mesh( &layout ), 2 )?;
+  let outline_geometry = geometry::Positions::new
+  (
+    context.clone(),
+    &hex_line_loop_mesh( &layout ),
+    2,
+  )?;
 
   let translation = mat2x2h::translate( [ -grid_center.x(), grid_center.y() ] );
   let mvp = scale_m * translation;
@@ -95,7 +102,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       let half_size : F32x2 = canvas_size / 2.0;
       let cursor_pos = F32x2::new( e.client_x() as f32, e.client_y() as f32 );
       // normalize coodinates to [ -1 : 1 ], then apply inverse ascpect scale and offset to grid center
-      let cursor_pos = ( ( cursor_pos - canvas_pos ) - half_size ) / half_size / aspect_scale + grid_center;
+      let cursor_pos = ( ( cursor_pos - canvas_pos ) - half_size ) / half_size / aspect_scale + grid_center; // qqq : don't use double devission it's confusing and difficult to read. use canonical represenation
       let selected_hex_coord : Coordinate< Axial, PointyTopped, OddParity > = layout.hex_coord( cursor_pos.into() );
 
       if selected_hex.is_some_and( | hex_coord | hex_coord == selected_hex_coord )
@@ -122,6 +129,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       outline_geometry.activate();
       context.draw_arrays( GL::LINE_LOOP, 0, outline_geometry.nvertices ); // aaa : don't use loop geometry, it has limmited suport among backends
                                                                            // i added default lines mesh generation support, but for this webgl rendering i think line loop is okay
+                                                                           // qqq : let's use linestrip
     }
   };
 

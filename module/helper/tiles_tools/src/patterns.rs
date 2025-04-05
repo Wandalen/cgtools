@@ -1,3 +1,5 @@
+// qqq : documentation for this and all files. what is purpose if the file? not sure name is hinting
+
 use crate::*;
 // use ndarray_cg::ArrayRef;
 use layout::{ HexLayout, Orientation };
@@ -74,6 +76,7 @@ impl ShiftedRectangleIter
     }
   }
 
+  //
   fn next_pointy( data : &mut ShiftedRectangleIterData ) -> Option< Coordinate< Axial, PointyTopped, OddParity > >
   {
     if data.current_row >= data.rows
@@ -131,6 +134,7 @@ impl Iterator for ShiftedRectangleIter
 
   fn next( &mut self ) -> Option< Self::Item >
   {
+    // qqq : is it possible to do this match compile time? using traits for example. introduce parameter for that
     match self.layout.orientation
     {
       Orientation::Pointy => Self::next_pointy( &mut self.data ),

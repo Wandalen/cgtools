@@ -58,7 +58,6 @@ pub struct EvenParity;
 
 impl ParityType for EvenParity {}
 
-// aaa : use where whenever possible
 /// Represents a coordinate in a hexagonal grid.
 ///
 /// # Fields
@@ -445,7 +444,7 @@ where
   }
 }
 
-// aaa : implement all applicable math_core traits for the newtype
+// qqq : move into a separate file
 /// Represents a pixel coordinate in a 2D space.
 /// Assumes that Y-axis points down.
 #[ derive( Debug, Clone, Copy, PartialEq ) ]

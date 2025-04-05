@@ -2,6 +2,11 @@ use crate::coordinates::*;
 use crate::layout::HexLayout;
 use ndarray_cg::{ F32x4x4, Vector };
 
+// qqq : use geometry instead of mesh. rename also file
+// qqq : if geometry is generated description must have information about what kind of primitive it's based on
+// qqq : no fans or loops
+// qqq : description should be much more descriptive and preferably visual
+
 /// Generates a line mesh for a grid of hexagons.
 ///
 /// # Parameters
@@ -35,7 +40,6 @@ where
 ///
 /// # Returns
 /// A `Vec<f32>` containing the x and y coordinates of the triangles.
-// aaa : use it in example instead drawing each heaxgon individually
 pub fn grid_triangle_mesh< I, C >
 (
   coords : I,
@@ -50,6 +54,7 @@ where
   grid_mesh( coords, layout, transform, hex_triangle_mesh )
 }
 
+// qqq : not clear what does it do
 /// Generates a mesh for a grid of hexagons.
 ///
 /// # Parameters
@@ -60,13 +65,12 @@ where
 ///
 /// # Returns
 /// A `Vec<f32>` containing the x and y coordinates of the triangles.
-// aaa : use it in example instead drawing each heaxgon individually
 pub fn grid_mesh< I, C, F >
 (
   coords : I,
   layout : &HexLayout,
-  transform : Option< F32x4x4 >,
-  mesh : F
+  transform : Option< F32x4x4 >, // qqq : here and in all such places, make presence/absence of transform a parameter to make compile time this diffirentation instead of doing it multiple times in a loop.
+  mesh : F, // qqq : use verb for name nad use such verb to help understand what is it. mesh confuses
 )
 -> Vec< f32 >
 where
@@ -79,7 +83,7 @@ where
   {
     let Pixel { data : [ x, y ] } = layout.pixel_coord( coord );
     let y = -y;
-    let mesh = mesh( layout );
+    let mesh = mesh( layout ); // qqq : I thought grid_mesh generate mesh? confusing names
     for point in mesh.chunks( 2 )
     {
       let mut pos = Vector( [ point[ 0 ], point[ 1 ], 0.0, 1.0 ] );
@@ -99,6 +103,7 @@ where
 ///
 /// # Returns
 /// A `Vec<f32>` containing the x and y coordinates of the hexagon's outline.
+// qqq : no loop geometries. use strip geometry intead
 pub fn hex_line_loop_mesh( layout : &HexLayout ) -> Vec< f32 >
 {
   let points = hex_vertices( layout );
@@ -141,6 +146,7 @@ pub fn hex_line_mesh( layout : &HexLayout ) -> Vec< f32 >
   positions
 }
 
+// qqq : how does it look. not enough description to understand
 /// Generates a triangular mesh of a hexagon.
 ///
 /// # Returns
@@ -182,6 +188,7 @@ pub fn hex_triangle_mesh( layout : &HexLayout ) -> Vec< f32 >
 ///
 /// # Returns
 /// A `Vec<f32>` containing the x and y coordinates of the triangles.
+// qqq : no fans, use triangle strip
 pub fn hex_triangle_fan_mesh( layout : &HexLayout ) -> Vec< f32 >
 {
   let points = hex_vertices( layout );
