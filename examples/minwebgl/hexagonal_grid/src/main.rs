@@ -120,8 +120,8 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
       hex_shader.uniform_upload( "u_color", &[ 0.1, 0.9, 0.1, 1.0 ] );
       outline_geometry.activate();
-      context.draw_arrays( GL::LINE_LOOP, 0, outline_geometry.nvertices ); // qqq : don't use loop geometry, it has limmited suport among backends
-
+      context.draw_arrays( GL::LINE_LOOP, 0, outline_geometry.nvertices ); // aaa : don't use loop geometry, it has limmited suport among backends
+                                                                           // i added default lines mesh generation support, but for this webgl rendering i think line loop is okay
     }
   };
 

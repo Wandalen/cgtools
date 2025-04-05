@@ -1,11 +1,10 @@
 [package]
-name = "hexagonal_grid"
+name = "hexagonal_pathfind"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 minwebgl = { workspace = true, features = [ "math" ] }
-mingl = { workspace = true }
 web-sys = { workspace = true, features = [ "DomRect", "MouseEvent" ] }
 derive_tools = { workspace = true }
 tiles_tools = { workspace = true }
