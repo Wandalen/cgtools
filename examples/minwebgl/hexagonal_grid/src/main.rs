@@ -40,13 +40,13 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
   // just abstract size in world space, it may be any units
   // size of a hexagon ( from center to vertex )
-  let size = 0.1;
+  let hex_size = 0.1;
   // how to shift the hexagons to form a rectangle
   let shift_type = Parity::Odd; // qqq : why sift type is not part of layout? it probably should be
   // orientation of hex can be either pointing upword or flat upword
   let orientation = Orientation::Pointy;
   // orientation of the hexagons
-  let layout = HexLayout { orientation, size }; // qqq : size of what specifically? not clear
+  let layout = HexLayout { orientation, size: hex_size }; // aaa : size of what specifically? not clear
   // grid size
   let grid_size = [ 9, 11 ];
 
