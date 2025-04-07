@@ -22,7 +22,7 @@ impl CoordinateSystem for Axial {}
 /// - Flat-topped even parity
 /// more info: https://www.redblobgames.com/grids/hexagons/#coordinates-offset
 #[ derive( Debug ) ]
-pub struct Offset;
+pub struct Offset; // qqq : move parameter Parity here
 
 impl CoordinateSystem for Offset {}
 

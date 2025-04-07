@@ -48,7 +48,7 @@ impl ShiftedRectangleIterData
 /// An iterator that generates axial coordinates in a shifted rectangle pattern.
 /// Shifted rectangle is a rectangle where every other row or column is shifted.
 #[ derive( Debug ) ]
-pub struct ShiftedRectangleIter
+pub struct ShiftedRectangleIter // qqq : parameter?
 {
   layout : HexLayout,
   data : ShiftedRectangleIterData,

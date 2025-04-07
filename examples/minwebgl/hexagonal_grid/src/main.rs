@@ -49,6 +49,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let layout = HexLayout { orientation, size }; // qqq : size of what specifically? not clear
   // grid size
   let grid_size = [ 9, 11 ];
+  // let grid_region = [ I32x2, I32x2 ]; // qqq : maybe region?
 
   // determine the center of the grid
   // to shift it to the center of the canvas
@@ -103,7 +104,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       let cursor_pos = F32x2::new( e.client_x() as f32, e.client_y() as f32 );
       // normalize coodinates to [ -1 : 1 ], then apply inverse ascpect scale and offset to grid center
       let cursor_pos = ( ( cursor_pos - canvas_pos ) - half_size ) / half_size / aspect_scale + grid_center; // qqq : don't use double devission it's confusing and difficult to read. use canonical represenation
-      // qqq : add commented out code to see it in log.
+      // qqq : add commented out code to see mouse position in log.
       // qqq : where is center? in the middle? what are boundaries -1, +1? explain all that instead of duplicating what is avaliable from code
       let selected_hex_coord : Coordinate< Axial, PointyTopped, OddParity > = layout.hex_coord( cursor_pos.into() );
 
@@ -131,7 +132,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       outline_geometry.activate();
       context.draw_arrays( GL::LINE_LOOP, 0, outline_geometry.nvertices ); // aaa : don't use loop geometry, it has limmited suport among backends
                                                                            // i added default lines mesh generation support, but for this webgl rendering i think line loop is okay
-                                                                           // qqq : let's use linestrip
+                                                                           // qqq : let's use linestrip. rid of loops
     }
   };
 
