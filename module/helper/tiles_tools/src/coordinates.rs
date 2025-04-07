@@ -1,3 +1,6 @@
+pub mod hexagonal;
+pub mod pixel;
+
 use std::{ hash::Hash, marker::PhantomData, ops::{ Index, IndexMut } };
 use ndarray_cg::{ Collection, MatEl, Vector };
 

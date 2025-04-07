@@ -1,5 +1,7 @@
 use crate::coordinates::{ CoordinateConversion, Pixel };
 
+/// RECTANGULAR LAYOUT
+
 /// An enum that represents the orientation of the hexagons (e.g., "pointy-topped" or "flat-topped").
 #[ derive( Debug, Copy, Clone ) ]
 pub enum Orientation
