@@ -1,6 +1,60 @@
+use std::marker::PhantomData;
+
+use ndarray_cg::I32x2;
 use crate::coordinates::{ CoordinateConversion, Pixel };
 
 /// RECTANGULAR LAYOUT
+
+pub struct RectangularGrid< Parity, Orientation >
+{
+  /// TOP LEFT CORNER, BOTTOM RIGHT CORNER
+  pub bounds : [ I32x2; 2 ],
+  pub hex_size : f32,
+  parity : PhantomData< Parity >,
+  orientation : PhantomData< Orientation >,
+}
+
+impl< Parity, Orientation > RectangularGrid< Parity, Orientation >
+{
+  /// Creates a new `RectLayout` instance with the specified bounds.
+  ///
+  /// # Parameters
+  /// - `bounds`: The bounds of the layout.
+  ///
+  /// # Returns
+  /// A new `RectLayout` instance.
+  pub fn new( hex_size : f32, bounds : [ I32x2; 2 ] ) -> Self
+  {
+    Self
+    {
+      hex_size,
+      bounds,
+      parity: PhantomData,
+      orientation: PhantomData,
+    }
+  }
+}
+
+impl< Parity, Orientation > RectangularGrid< Parity, Orientation >
+{
+  /// Creates a new `RectLayout` instance with the specified bounds.
+  ///
+  /// # Parameters
+  /// - `bounds`: The bounds of the layout.
+  ///
+  /// # Returns
+  /// A new `RectLayout` instance.
+  pub fn new( hex_size : f32, bounds : [ I32x2; 2 ] ) -> Self
+  {
+    Self
+    {
+      hex_size,
+      bounds,
+      parity: PhantomData,
+      orientation: PhantomData,
+    }
+  }
+}
 
 /// An enum that represents the orientation of the hexagons (e.g., "pointy-topped" or "flat-topped").
 #[ derive( Debug, Copy, Clone ) ]

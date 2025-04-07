@@ -250,7 +250,7 @@ impl PixelConversion for Coordinate< Axial, Flat >
   fn from_pixel( Pixel { data : [ x, y ] } : Pixel, hex_size : f32 ) -> Self
   {
     // implementation is taken from https://www.redblobgames.com/grids/hexagons/#pixel-to-hex
-    let q = ( 2.0 / 3.0 * x                            ) / hex_size;
+    let q = (  2.0 / 3.0 * x                           ) / hex_size;
     let r = ( -1.0 / 3.0 * x + 3.0f32.sqrt() / 3.0 * y ) / hex_size;
     let ( q, r ) = axial_round( q, r );
     Self::new( q, r )
