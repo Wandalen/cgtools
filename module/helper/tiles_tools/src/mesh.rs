@@ -40,7 +40,7 @@ where
 ///
 /// # Returns
 /// A `Vec<f32>` containing the x and y coordinates of the triangles.
-pub fn grid_triangle_mesh< I, C >
+pub fn grid_triangle< I, C >
 (
   coords : I,
   layout : &HexLayout,
@@ -104,7 +104,7 @@ where
 /// # Returns
 /// A `Vec<f32>` containing the x and y coordinates of the hexagon's outline.
 // qqq : no loop geometries. use strip geometry intead
-pub fn hex_line_loop_mesh( layout : &HexLayout ) -> Vec< f32 >
+pub fn hex_line_loop( layout : &HexLayout ) -> Vec< f32 >
 {
   let points = hex_vertices( layout );
   let mut positions = vec![];

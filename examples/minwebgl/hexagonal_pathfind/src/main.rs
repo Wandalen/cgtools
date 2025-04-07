@@ -66,7 +66,7 @@ fn run() -> Result< (), minwebgl::WebglError >
     &outline_mesh,
     2
   )?;
-  let filling_mesh = mesh::grid_triangle_mesh( map.map().keys().map( | v | *v ), &layout, None );
+  let filling_mesh = mesh::grid_triangle( map.map().keys().map( | v | *v ), &layout, None );
   let filling_geometry = geometry::Positions::new
   (
     context.clone(),
@@ -113,8 +113,9 @@ fn run() -> Result< (), minwebgl::WebglError >
       let cursor_pos = ( ( cursor_pos - canvas_pos ) - half_size ) / half_size / aspect_scale + grid_center;
       let selected_hex_coord : Coordinate< Axial, PointyTopped, OddParity > = layout.hex_coord( cursor_pos.into() );
 
-      let path = find_path( Coordinate::new( 0, 0 ), selected_hex_coord, | coord | { map.borrow().map().get( &coord ).copied().unwrap_or_default() } );
-      gl::info!( "{path:?}" );
+      // let path = find_path( Coordinate::new( 0, 0 ), selected_hex_coord, | coord | { map.borrow().map().get( &coord ).copied().unwrap_or_default() } );
+      // gl::info!( "{path:?}" );
+
       context.clear( gl::COLOR_BUFFER_BIT );
 
       // draw the grid
@@ -280,7 +281,7 @@ where
     for ( dq, dr ) in &directions
     {
       // Create neighbor coordinate
-      let (q, r) = ( current.q, current.r );
+      let ( q, r ) = ( current.q, current.r );
       let neighbor = Coordinate::new( q + dq, r + dr );
 
       // Skip if not accessible

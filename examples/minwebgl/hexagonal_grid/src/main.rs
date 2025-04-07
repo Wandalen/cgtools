@@ -1,9 +1,9 @@
 use tiles_tools::
 {
   coordinates::*,
-  layout::{ HexLayout, Orientation },
-  mesh::{ grid_triangle_mesh, hex_line_loop_mesh }, // qqq : don't import from namespace individualt items use full names for such cases `mesh::grid_triangle` remove postfix _mesh
-  patterns::{ Parity, ShiftedRectangleIter }
+  layout::*,
+  // aaa : don't import from namespace individualt items use full names for such cases `mesh::grid_triangle` remove postfix _mesh
+  patterns::*
 };
 
 use minwebgl as min;
@@ -53,6 +53,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   // determine the center of the grid
   // to shift it to the center of the canvas
   // qqq : what about type Grid combinging layout and grid size. also grid probably can have offset of orign?
+  //// RectangularLayout
   let grid_center : F32x2 = layout.grid_center( ShiftedRectangleIter::new( grid_size, shift_type, layout ) ).into(); // qqq : iterating all tiles several times is not efficient. is it possible to avoid it?
   // qqq : why shift_type is not part of layout? o.O
   let aspect = canvas_size[ 1 ] / canvas_size[ 0 ];
@@ -68,14 +69,14 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let grid_geometry = geometry::Positions::new
   (
     context.clone(),
-    &grid_triangle_mesh( ShiftedRectangleIter::new( grid_size, shift_type, layout ), &layout, None ), // qqq : iterating all tiles several times is not efficient. is it possible to avoid it?
+    &tiles_tools::mesh::grid_triangle( ShiftedRectangleIter::new( grid_size, shift_type, layout ), &layout, None ), // qqq : iterating all tiles several times is not efficient. is it possible to avoid it?
     2,
   )?;
   // line loop mesh for the outline of a hexagon
   let outline_geometry = geometry::Positions::new
   (
     context.clone(),
-    &hex_line_loop_mesh( &layout ),
+    &tiles_tools::mesh::hex_line_loop( &layout ),
     2,
   )?;
 
