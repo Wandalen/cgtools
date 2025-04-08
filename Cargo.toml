@@ -139,7 +139,7 @@ version = "~0.10.0"
 version = "~0.23.0"
 
 [workspace.dependencies.asbytes]
-version = "0.1.0"
+version = "0.2.0"
 
 # = third-party dependencies
 
