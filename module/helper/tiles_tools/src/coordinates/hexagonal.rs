@@ -1,4 +1,4 @@
-use std::{ marker::PhantomData, hash::Hash };
+use std::{ fmt::Debug, hash::Hash, marker::PhantomData };
 use super::pixel::Pixel;
 
 pub trait PixelConversion
@@ -28,6 +28,19 @@ pub struct Coordinate< System, Orientation >
   pub r : i32,
   system : PhantomData< System >,
   orientation : PhantomData< Orientation >,
+}
+
+impl< System, Orientation > Debug for Coordinate< System, Orientation >
+{
+  fn fmt( &self, f : &mut std::fmt::Formatter< '_ > ) -> std::fmt::Result
+  {
+    f.debug_struct( "Coordinate" )
+    .field( "q", &self.q )
+    .field( "r", &self.r )
+    .field( "system", &self.system )
+    .field( "orientation", &self.orientation )
+    .finish()
+  }
 }
 
 impl< System, Orientation > Clone for Coordinate< System, Orientation >
@@ -76,7 +89,7 @@ impl< System, Orientation > Coordinate< System, Orientation >
   }
 }
 
-impl< Orientation > Coordinate< Offset< Odd >, Orientation >
+impl< Orientation, Parity > Coordinate< Offset< Parity >, Orientation >
 {
   /// Create a new coordinate
   pub const fn new( q : i32, r : i32 ) -> Self
@@ -85,14 +98,14 @@ impl< Orientation > Coordinate< Offset< Odd >, Orientation >
   }
 }
 
-impl< Orientation > Coordinate< Offset< Even >, Orientation >
-{
-  /// Create a new coordinate
-  pub const fn new( q : i32, r : i32 ) -> Self
-  {
-    Self::new_uncheked( q, r )
-  }
-}
+// impl< Orientation > Coordinate< Offset< Even >, Orientation >
+// {
+//   /// Create a new coordinate
+//   pub const fn new( q : i32, r : i32 ) -> Self
+//   {
+//     Self::new_uncheked( q, r )
+//   }
+// }
 
 impl< Orientation > Coordinate< Axial, Orientation >
 {
