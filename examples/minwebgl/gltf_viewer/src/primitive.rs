@@ -3,7 +3,7 @@ use minwebgl as gl;
 
 use crate::buffer::Buffer;
 
-const VERTEX_SHADER : &'static str = include_str!( "../shaders/shader.vert" );
+const VERTEX_SHADER : &'static str = include_str!( "../shaders/main.vert" );
 
 pub struct Primitive
 {
@@ -13,8 +13,7 @@ pub struct Primitive
   index_offset : u32,
   draw_mode : u32,
   vao : gl::WebGlVertexArrayObject,
-  vertex_shader : String,
-  program : gl::WebGlProgram
+  material_id : Option< usize >
 }
 
 impl Primitive
@@ -28,6 +27,7 @@ impl Primitive
   {
     let mut index_count = 0;
     let draw_mode = p.mode().as_gl_enum();
+    let material_id = p.material().index();
 
     let vao = gl::vao::create( gl )?;
     gl.bind_vertex_array( Some( &vao ) );
@@ -62,18 +62,18 @@ impl Primitive
         },
         gltf::Semantic::Normals => 1,
         gltf::Semantic::TexCoords( i ) => {
-          if i > 1 { panic!( "Only 2 types of texture coordinates are supported") }
+          assert!( i < 2, "Only 2 types of texture coordinates are supported" );
           2 + i
         },
         gltf::Semantic::Colors( i ) => {
-          if i > 1 { panic!( "Only 2 types of color coordinates are supported") }
+          assert!( i < 2, "Only 2 types of color coordinates are supported" );
           4 + i
         },
         a => { gl::warn!( "Unsupported attribute: {:?}", a ); continue; }
       };
 
       let size = acc.dimensions().multiplicity();
-      if size > 4 { panic!( "Attribute size bigger than 4 is not supported" ); }
+      assert!( size < 5, "Only 2 types of color coordinates are supported" );
 
       let type_ = acc.data_type().as_gl_enum();
       let stride = view.stride().unwrap_or( 0 );
@@ -88,15 +88,6 @@ impl Primitive
         acc.offset() as i32 
       );
     }
-
-    let vertex_shader = VERTEX_SHADER.to_string();
-
-    let frag = include_str!( "../shaders/test/shader.frag" );
-    let vert = include_str!( "../shaders/test/shader.vert" );
-
-    let program = gl::ProgramFromSources::new( vert, frag ).compile_and_link( &gl )?;
-    gl.use_program( Some( &program ) );
-
     Ok
     (
       Self 
@@ -104,18 +95,16 @@ impl Primitive
         index_count,
         draw_mode,
         vao,
-        vertex_shader,
-        program,
         vertex_count,
         index_type,
-        index_offset
+        index_offset,
+        material_id
       }
     )
   }
 
-  pub fn render( &self, gl : &gl::WebGl2RenderingContext )
+  pub fn apply( &self, gl : &gl::WebGl2RenderingContext )
   {
-    gl.use_program( Some( &self.program ) );
     gl.bind_vertex_array( Some( &self.vao ) );
     if self.index_count == 0
     {

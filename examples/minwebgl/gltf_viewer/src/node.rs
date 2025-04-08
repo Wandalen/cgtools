@@ -22,7 +22,7 @@ impl Default for Object3D
 pub struct Node
 {
   id : usize,
-  children : Vec< Node >,
+  children : Vec< Rc< RefCell< Node > > >,
   object : Object3D,
   matrix : gl::F32x4x4,
   world_matrix : gl::F32x4x4,
@@ -46,13 +46,6 @@ impl Node
     {
       Object3D::Camera( node.camera().unwrap().index() )
     };
-
-    // Childrens of the node
-    result.children = Vec::new();
-    for cn in node.children()
-    {
-      result.children.push( Node::new( &cn ) );
-    }
 
     match node.transform()
     {
@@ -86,16 +79,29 @@ impl Node
 
     for child in self.children.iter_mut()
     {
-      child.update_world_matrix( self.world_matrix );
+      child.borrow_mut().update_world_matrix( self.world_matrix );
     }
   }
 
-  pub fn render( &self, gl : &gl::WebGl2RenderingContext, meshes : &[ Mesh ] )
+  pub fn add_child( &mut self, child : Rc< RefCell< Node > > )
   {
-    match self.object
+    self.children.push( child );
+  }
+
+  pub fn add_children( &mut self, gltf_node : &gltf::Node, nodes : &[ Rc< RefCell< Node > > ] )
+  {
+    for c in gltf_node.children()
     {
-      Object3D::Camera( id ) => { gl::info!( "Trying to render a camera" ) },
-      Object3D::Mesh( id ) => { meshes[ id ].render( gl ); }
+      self.add_child( nodes[ c.index() ].clone() );
     }
   }
+
+  // pub fn render( &self, gl : &gl::WebGl2RenderingContext, meshes : &[ Mesh ] )
+  // {
+  //   match self.object
+  //   {
+  //     Object3D::Camera( id ) => { gl::info!( "Trying to render a camera" ) },
+  //     Object3D::Mesh( id ) => { meshes[ id ].render( gl ); }
+  //   }
+  // }
 }

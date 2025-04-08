@@ -16,26 +16,6 @@ in vec3 vNormal;
 out frag_color;
 out emissive_color;
 
-struct PhysicalMaterial {
-  vec3 diffuseColor;
-  float roughness;
-  vec3 specularColor;
-  float dispersion;
-};
-
-struct IncidentLight {
-  vec3 color;
-  vec3 direction;
-  bool visible;
-};
-
-struct ReflectedLight {
-  vec3 directDiffuse;
-  vec3 directSpecular;
-  vec3 indirectDiffuse;
-  vec3 indirectSpecular;
-};
-
 
 #ifdef USE_PBR
   uniform float metallicFactor; // Default: 1
@@ -44,33 +24,39 @@ struct ReflectedLight {
   #ifdef USE_MR_TEXTURE
     // Roughness is sampled from the G channel
     // Metalness is sampled from the B channel
+    // vMRUv
     uniform sampler2D metallicRoughnessTexture;
   #endif
   #ifdef USE_BASE_COLOR_TEXTURE
+    // vBaseColorUv
     uniform sampler2D baseColorTexture;
   #endif
 #endif
 
 #ifdef USE_NORMAL_TEXTURE
+  // vNormalUv
   uniform sampler2D normalTexture;
   // Scales the normal in X and Y directions
   // ( <sample normalTexture> * 2.0 - 1.0 ) * vec3( normalScale, normalScale, 1.0 )
   uniform float normalScale; // Default: 1
-  #define vNormalUv {NORMAL_UV}
 #endif
 
 #ifdef USE_OCCLUSION_TEXTURE
+  // vOcclusionUv
   uniform sampler2D occlusionTexture;
   // 1.0 + occlusionStrength * ( <sample occlusionTexture> - 1.0 )
   uniform float occlusionStrength; // Default: 1
 #endif
 
-#ifdef USE_EMISSION
-  #ifdef USE_EMISSION_TEXTURE
-    uniform sampler2D emissiveTexture;
-  #endif
+
+#ifdef USE_EMISSION_TEXTURE
+  // vEmissionUv
+  uniform sampler2D emissiveTexture;
   uniform float emissiveFactor;
 #endif
+
+uniform vec3 cameraPos;
+
 
 
 float pow2( const in float x ) 
@@ -176,6 +162,17 @@ void main()
     //normal = normalize( normal );
   #endif
 
+  vec3 viewDir = normalize( cameraPos - vWorldPos );
+  vec3 lightDirs[] = vec3[]
+  (
+    vec3( 1.0, 0.0, 0.0 ),
+    vec3( 0.0, 1.0, 0.0 ),
+    vec3( 0.0, 0.0, 1.0 ),
+    vec3( -1.0, 0.0, 0.0 ),
+    vec3( 0.0, -1.0, 0.0 ),
+    vec3( 0.0, 0.0, -1.0 )
+  );
+
   #ifdef USE_EMISSION
     emissive_color = vec4( 1.0 );
     emissive_color.xyz *= emissiveFactor;
@@ -183,6 +180,11 @@ void main()
       emissive_color.xyz *= texture( emissiveTexture, {EMISSION_UV} )
     #endif
   #endif
+
+  vec3 color = vec3( 0.0 );
+
+  // Gamma correciton
+  color = pow( color, vec3( 1.0 / 2.2 ) );
   
   frag_color = vec4( color, alpha );
 }

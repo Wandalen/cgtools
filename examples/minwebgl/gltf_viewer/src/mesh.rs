@@ -35,11 +35,11 @@ impl Mesh
     )
   }
 
-  pub fn render( &self, gl : &gl::WebGl2RenderingContext )
+  pub fn apply( &self, gl : &gl::WebGl2RenderingContext )
   {
     for p in self.primitives.iter()
     {
-      p.render( gl );
+      p.apply( gl );
     }
   }
 }

@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
 use minwebgl as gl;
 
@@ -6,17 +6,19 @@ use crate::node::Node;
 
 pub struct Scene
 { 
-  children : Vec< Node >,
+  children : Vec< Rc< RefCell< Node > > >,
 }
 
 impl Scene
 {
-  pub fn new( scene : &gltf::Scene ) -> Self
+  pub fn new( scene : &gltf::Scene, nodes : &[ Rc< RefCell< Node > > ] ) -> Self
   {
     let mut children = Vec::new();
-    for node in scene.nodes()
+    for gltf_node in scene.nodes()
     {
-      children.push( Node::new( &node ) );
+      let node = nodes[ gltf_node.index() ].clone();
+      node.borrow_mut().add_children( &gltf_node, nodes );
+      children.push( node );
     }
 
     Self
@@ -35,12 +37,7 @@ impl Scene
 
     for child in self.children.iter_mut()
     { 
-      child.update_world_matrix( identity );
+      child.borrow_mut().update_world_matrix( identity );
     }
-  }
-
-  pub fn render( &self )
-  {
-
   }
 }

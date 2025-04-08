@@ -25,6 +25,7 @@ mod sampler;
 mod primitive;
 mod buffer;
 mod node;
+mod renderer;
 
 async fn run() -> Result< (), gl::WebglError >
 {
@@ -206,7 +207,7 @@ async fn run() -> Result< (), gl::WebglError >
     materials.push( m );
   }
 
-  gl::log::info!( "{:?}", gltf_file.materials().len() );
+  gl::log::info!( "Materials: {}",materials.len() );
 
   let mut meshes = Vec::new();
   for gltf_mesh in gltf_file.meshes()
@@ -215,10 +216,19 @@ async fn run() -> Result< (), gl::WebglError >
     meshes.push( m );
   }
 
+  gl::log::info!( "Meshes: {}",meshes.len() );
+
+  let mut nodes = Vec::new();
+  for gltf_node in gltf_file.nodes()
+  {
+    let node = Rc::new( RefCell::new( Node::new( &gltf_node ) ) );
+    nodes.push( node );
+  }
+
   let mut scenes = Vec::new();
   for gltf_scene in gltf_file.scenes()
   {
-    let scene = Scene::new( &gltf_scene );
+    let scene = Scene::new( &gltf_scene, &nodes );
     scenes.push( scene );
   }
 
