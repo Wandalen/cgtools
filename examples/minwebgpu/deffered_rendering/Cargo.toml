@@ -10,9 +10,9 @@ license = "MIT"
 
 [dependencies]
 tobj =  { workspace = true }
-bytemuck = { workspace = true }
-rand = "0.8.5"
-getrandom = { version = "0.2", features = ["js"] }
+# bytemuck = { workspace = true }
+rand = "0.8.5" # qqq : use workspace dependencies only
+getrandom = { version = "0.2", features = [ "js" ] } # qqq : use workspace dependencies only
 
 [dependencies.minwebgpu]
 workspace = true
@@ -22,4 +22,3 @@ features = [
   'model_obj',
   'math'
 ]
-
