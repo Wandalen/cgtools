@@ -98,15 +98,6 @@ impl< Orientation, Parity > Coordinate< Offset< Parity >, Orientation >
   }
 }
 
-// impl< Orientation > Coordinate< Offset< Even >, Orientation >
-// {
-//   /// Create a new coordinate
-//   pub const fn new( q : i32, r : i32 ) -> Self
-//   {
-//     Self::new_uncheked( q, r )
-//   }
-// }
-
 impl< Orientation > Coordinate< Axial, Orientation >
 {
   /// Create a new coordinate

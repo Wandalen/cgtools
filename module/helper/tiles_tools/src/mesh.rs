@@ -1,4 +1,5 @@
-use crate::coordinates::{self, pixel::Pixel};
+use crate::coordinates;
+use coordinates::pixel::Pixel;
 use coordinates::hexagonal::PixelConversion;
 use ndarray_cg::{ F32x2, F32x4x4, IntoVector as _, Vector };
 
