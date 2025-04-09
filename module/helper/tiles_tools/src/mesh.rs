@@ -227,7 +227,7 @@ where
 
     for point in mesh.chunks( 2 )
     {
-      let pos = transform * Vector( [ point[ 0 ], point[ 1 ], 0.0, 1.0 ] );
+      let pos = transform * Vector( [ hex_size * point[ 0 ], hex_size * point[ 1 ], 0.0, 1.0 ] );
       points.push( x + pos.x() );
       points.push( y + pos.y() );
     }
@@ -267,7 +267,7 @@ pub fn hexagon_vertices() -> [ F32x2; 6 ]
   let mut points : [  F32x2; 6 ] = Default::default();
   for i in 0..6
   {
-    let angle = ( 60 * i ) as f32;
+    let angle = ( ( 60 * i ) as f32 ).to_radians();
     points[ i ] = ( angle.cos(), angle.sin() ).into_vector();
   }
   points

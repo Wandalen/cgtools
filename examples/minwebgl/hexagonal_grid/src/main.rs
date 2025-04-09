@@ -5,7 +5,7 @@ use tiles_tools::
   mesh
 };
 
-use minwebgl as min;
+use minwebgl::{self as min, F32x4x4};
 use min::
 {
   math::{ F32x2, IntoVector, Mat, mat2x2h },
@@ -35,23 +35,23 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let dpr = web_sys::window().unwrap().device_pixel_ratio() as f32;
   let canvas_size = ( canvas.width() as f32, canvas.height() as f32 ).into_vector() / dpr;
 
-  let hex_size = 1.0;
-  let rect = RectangularGrid::< Odd, Pointy >::new( hex_size, [ [ 0, 0 ].into(), [ 9, 11 ].into() ].into() );
+  let hex_size = 0.1;
+  let rect = RectangularGrid::< Odd, Flat >::new( hex_size, [ [ 0, 0 ].into(), [ 8, 8 ].into() ].into() );
   let center = rect.center();
   min::info!( "center: {center:?}" );
 
   let mesh = mesh::from_iter
   (
-    rect.coordinates().map( | c | { Into::<  Coordinate< Axial, Pointy > >::into( c ) } ),
+    rect.coordinates().map( | c | { Into::<  Coordinate< Axial, Flat > >::into( c ) } ),
     hex_size,
     mesh::hexagon_triangles,
     Mat::from_column_major
     (
       [
-        1.0, 0.0, 0.0, 0.0,
-        0.0, 1.0, 0.0, 0.0,
-        0.0, 0.0, 1.0, 0.0,
-        0.0, 0.0, 0.0, 1.0,
+        0.95, 0.0, 0.0, 0.0,
+        0.0, 0.95, 0.0, 0.0,
+        0.0, 0.0, 0.95, 0.0,
+        0.0, 0.0, 0.0, 0.95,
       ]
     )
   );
@@ -73,8 +73,16 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
     2,
   )?;
 
+  // let grid_geometry = geometry::Positions::new
+  // (
+  //   context.clone(),
+  //   &mesh::hexagon_triangles(), // aaa : iterating all tiles several times is not efficient. is it possible to avoid it?
+  //   2,
+  // )?;
+
   let translation = mat2x2h::translate( [ -center.x(), center.y() ] );
   let mvp = scale_m * translation;
+  // let mvp = scale_m;
 
   context.clear_color( 0.9, 0.9, 0.9, 1.0 );
   context.clear( min::COLOR_BUFFER_BIT );
