@@ -11,16 +11,40 @@ use wfc::{ generate, Relations };
 use std::sync::Mutex;
 use web_sys::console;
 
-// qqq : why const?
-/// Tile variants count
-const LAYERS : i32 = 7;
+/// Tile map size. Length of square map side (a x a). 
+/// More than 256x256 is very slow.
+/// This example can generate only static size square maps
+const SIZE : usize = 32;
 
-// qqq : why const?
-/// Tile map size. More than 256x256 is very slow
-const SIZE : ( usize, usize ) = ( 32, 32 );
-
-// qqq : not enough explanations. give examples also
-/// Desciption what neighbours can have current tile
+/// Desciption what neighbours can have current tile.
+/// You can imagine this relations array in such way:
+/// 
+/// `
+///   [
+///     0: [ 0, 1 ], // <tile_type>: [ <posible_neighbour_tile_types>... ]  
+///     1: [ 1, 2 ],
+///     2: [ 2, 3 ],
+///     3: [ 3, 4 ],
+///     4: [ 4, 5 ],
+///     5: [ 5 ]
+///   ]
+/// `
+/// 
+/// Then relations array used by WFC algorithm for choosing neighbours of every map cell.
+/// 
+/// If tile type 0 has posible_neighbours 0, 1 then this is valid generation:
+/// `
+///   *, 1, *,
+///   1, *0*, 0, // *0* has neighbours 1, 1, 0, 0 and this is valid case 
+///   *, 0, *,   
+/// `
+/// 
+/// And this is invalid generation that case WFC have to avoid: 
+/// `
+///   *, 2, *,
+///   3, *0*, 1, // *0*  has neighbours 3, 2, which isn't valid, 
+///   *, 0, *,   // because 0 has such available neighbours array: [ 0, 1 ]
+/// `
 const RELATIONS : &str = "
   [
     [ 0, 1 ],
@@ -33,21 +57,9 @@ const RELATIONS : &str = "
 ";
 
 /// Storage for generated tile map
-static MAP : Mutex< Option< Vec< Vec< u8 > > > > = Mutex::new( None );
-// qqq : remove static!
+const MAP : Mutex< Option< Vec< Vec< u8 > > > > = Mutex::new( None );
 
-// qqq : remove function. it's too short
-fn set_load_callback()
-{
-  let load = move | _img : &web_sys::HtmlImageElement |
-  {
-    update();
-  };
-
-  let _ = load_image( "tileset.png", Box::new( load ) );
-}
-
-// qqq : what for so complicated function?
+/// Set load callback for image with [`path`] location and hide it from UI
 fn load_image
 (
   path : &str,
@@ -65,16 +77,12 @@ fn load_image
   let _ = body.append_child( &image );
   image.set_id( &format!( "{path}" ) );
 
-  let _ = image.style()
-  .set_property( "visibility", "hidden" );
-  let _ = image.style()
-  .set_property( "position", "absolute" );
-  let _ = image.style()
-  .set_property( "top", "0" );
-  let _ = image.style()
-  .set_property( "width", "10px" );
-  let _ = image.style()
-  .set_property( "height", "10px" );
+  let style = image.style();
+  let _ = style.set_property( "visibility", "hidden" );
+  let _ = style.set_property( "position", "absolute" );
+  let _ = style.set_property( "top", "0" );
+  let _ = style.set_property( "width", "10px" );
+  let _ = style.set_property( "height", "10px" );
   image.set_cross_origin( Some( "anonymous" ) );
   let img = image.clone();
   let on_load_callback : Closure< dyn Fn() > = Closure::new( move || on_load_callback( &img ) );
@@ -109,11 +117,15 @@ fn init()
   .style();
   let _ = body_style.set_property( "margin", "0" );
 
-  set_load_callback();
+  let load = move | _img : &web_sys::HtmlImageElement |
+  {
+    render_tile_map();
+  };
+
+  let _ = load_image( "tileset.png", Box::new( load ) );
 }
 
-// qqq : it should return vao
-fn prepare_vertex_attributes()
+fn prepare_vertex_attributes() -> WebGlVertexArrayObject
 {
   let gl = gl::context::retrieve_or_make()
   .unwrap();
@@ -155,7 +167,7 @@ fn prepare_vertex_attributes()
   .unwrap();
   gl.bind_vertex_array( None );
 
-  gl.bind_vertex_array( Some( &vao ) ); // qqq : ?
+  vao
 }
 
 fn create_mvp() -> ndarray_cg::Mat< 4, 4, f32, DescriptorOrderColumnMajor >
@@ -175,6 +187,7 @@ fn create_mvp() -> ndarray_cg::Mat< 4, 4, f32, DescriptorOrderColumnMajor >
   );
 
   // qqq : use helpers
+  // aaa : for now ndarray_cg crate don't have analog for creating 3x3 transformations, it has only 2x2 
   let t = ( 0.0, 0.0, 0.0 );
   let translate = F32x4x4::from_column_major
   (
@@ -205,8 +218,9 @@ fn create_mvp() -> ndarray_cg::Mat< 4, 4, f32, DescriptorOrderColumnMajor >
   perspective_matrix * view_matrix * translate * scale
 }
 
-// qqq : why is it needed? remove if not needed. if needed explain in documentation. add documentation
-fn prepare_texture_array( id : &str, layers : i32, texture_id : u32 ) -> Option< web_sys::WebGlTexture >
+/// Binds RGBA texture from image [`id`] to slot [`texture_id`]. 
+/// Used for binding tile set to shader.
+fn prepare_texture_array( id : &str, texture_id : u32 ) -> Option< web_sys::WebGlTexture >
 {
   let gl = gl::context::retrieve_or_make()
   .unwrap();
@@ -220,6 +234,7 @@ fn prepare_texture_array( id : &str, layers : i32, texture_id : u32 ) -> Option<
   .unwrap();
 
   let width = img.natural_width();
+  let layers = img.natural_height() / width;
   // Texture array is image with height: 1 tile height * tile count
   let height = img.natural_height() / layers as u32;
 
@@ -272,7 +287,8 @@ fn prepare_texture_array( id : &str, layers : i32, texture_id : u32 ) -> Option<
   texture_array
 }
 
-// qqq : why is it needed? remove if not needed. if needed explain in documentation. add documentation
+/// Binds R8UI texture [`data`] with [`size`] to slot [`texture_id`]. 
+/// Used for binding tile map to shader.
 fn prepare_texture1u
 (
   data: &[ u8 ],
@@ -310,11 +326,12 @@ fn prepare_texture1u
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
 }
 
-// qqq : add documentation
-fn update()
+/// Used for rendering tile map. Called only once when images are loaded.
+/// This function prepare shaders, buffer data, bind textures, buffers to 
+/// current GL context and then draws binded buffers
+fn render_tile_map()
 {
-  // qqq : bad idea to call retrieve_or_make on each frame
-  let gl = gl::context::retrieve_or_make()
+  let gl = gl::context::reretrieve_or_make()
   .unwrap();
 
   let vertex_shader_src = include_str!( "../shaders/shader.vert" );
@@ -330,8 +347,9 @@ fn update()
   gl::uniform::matrix_upload( &gl, mvp_location, mvp.raw_slice(), false )
   .unwrap();
 
-  prepare_vertex_attributes();
-  prepare_texture_array( "tileset.png", LAYERS, GL::TEXTURE0 );
+  let vao = prepare_vertex_attributes();
+  gl.bind_vertex_array( Some( &vao ) );
+  prepare_texture_array( "tileset.png", GL::TEXTURE0 );
 
   let Some( ref map ) = *MAP.lock().unwrap()
   else
@@ -372,7 +390,7 @@ fn generate_map() -> Result< (), String >
     Ok( relations ) => relations,
     Err( err ) => return Err( format!( "{err}" ) )
   };
-  let map = generate( SIZE, relations, 0.01 )?;
+  let map = generate( ( SIZE, SIZE ), relations, 0.01 )?;
   *MAP.lock().unwrap() = Some( map );
   Ok( () )
 }
@@ -384,7 +402,7 @@ fn run()
     console::log_1( &JsValue::from( format!( "{err}" ) ) );
   };
   init();
-  update();
+  render_tile_map();
 }
 
 fn main()
