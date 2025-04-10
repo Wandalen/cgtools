@@ -15,8 +15,9 @@ use min::
   geometry,
   GL,
   // web::log::info,
-  // qqq : this import does not work, but not clear why
+  // aaa : this import does not work, but not clear why
   // make it working please
+  // it just does not work 😕
 };
 use web_sys::{ wasm_bindgen::prelude::Closure, MouseEvent };
 
@@ -37,7 +38,10 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
   // abstract world-space size
   let hex_size = 0.1;
-  let rect = RectangularGrid::< Even, Pointy >::new( hex_size, [ [ 0, 0 ].into(), [ 9, 8 ].into() ].into() );
+  let bounds = [ Coordinate::< Offset< _ >, _ >::new( 0, 0 ), Coordinate::< Offset< _ >, _ >::new( 9, 8 ) ];
+  // aaa : why shift_type is not part of layout? o.O
+  // aaa : what about type Grid combinging layout and grid size. also grid probably can have offset of orign?
+  let rect = RectangularGrid::< Even, Pointy >::new( hex_size, bounds );
   let grid_center = rect.center();
 
   let mesh = mesh::from_iter
@@ -81,27 +85,6 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   grid_geometry.activate();
   context.draw_arrays( GL::TRIANGLES, 0, grid_geometry.nvertices );
 
-  // how to shift the hexagons to form a rectangle
-  // let shift_type = Parity::Odd; // aaa : why sift type is not part of layout? it probably should be
-  // let layout = HexLayout { orientation, size: hex_size }; // aaa : size of what specifically? not clear
-  // grid size
-  // let grid_region = [ I32x2, I32x2 ]; // aaa : maybe region?
-
-  // // determine the center of the grid
-  // // to shift it to the center of the canvas
-  // // qqq : what about type Grid combinging layout and grid size. also grid probably can have offset of orign?
-  // //// RectangularLayout
-  // let grid_center : F32x2 = layout.grid_center( ShiftedRectangleIter::new( grid_size, shift_type, layout ) ).into(); // qqq : iterating all tiles several times is not efficient. is it possible to avoid it?
-  // // qqq : why shift_type is not part of layout? o.O
-
-  // // line loop mesh for the outline of a hexagon
-  // let outline_geometry = geometry::Positions::new
-  // (
-  //   context.clone(),
-  //   &tiles_tools::mesh::hex_line_loop( &layout ),
-  //   2,
-  // )?;
-
   let mut selected_hex = None;
 
   let mouse_move =
@@ -114,20 +97,21 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       let canvas_pos = F32x2::new( rect.left() as f32, rect.top() as f32 );
       let half_size : F32x2 = canvas_size / 2.0;
       let cursor_pos = F32x2::new( e.client_x() as f32, e.client_y() as f32 );
-      // normalize coodinates to [ -1 : 1 ], then apply inverse ascpect scale and offset to grid center
+      // aaa : where is center? in the middle? what are boundaries -1, +1? explain all that instead of duplicating what is avaliable from code
+      // normalize coodinates to NDC [ -1 : 1 ], then apply inverse ascpect scale and offset to grid center
       // this transforms cursor position to the world space
       // then offset it by center of the grid, so that if cursor is in the center of the canvas, it will be in the center of the grid
-      let cursor_pos = ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) + grid_center; // qqq : don't use double devission it's confusing and difficult to read. use canonical represenation
+      let cursor_pos = ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) + grid_center; // aaa : don't use double devission it's confusing and difficult to read. use canonical represenation
 
-      // qqq : add commented out code to see mouse position in log.
-      // qqq : where is center? in the middle? what are boundaries -1, +1? explain all that instead of duplicating what is avaliable from code
       let selected_hex_coord = Coordinate::< Axial, Pointy >::from_pixel( cursor_pos.into(), hex_size );
 
       if selected_hex.is_some_and( | hex_coord | hex_coord == selected_hex_coord )
       {
         return;
       }
-      min::info!( "selected hex: {selected_hex_coord:?}" );
+      // aaa : add commented out code to see mouse position in log.
+      // min::info!( "selected hex: {selected_hex_coord:?}" );
+
       selected_hex = Some( selected_hex_coord );
 
       context.clear( min::COLOR_BUFFER_BIT );

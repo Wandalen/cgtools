@@ -1,4 +1,6 @@
 use std::{ fmt::Debug, hash::Hash, marker::PhantomData };
+use ndarray_cg::I32x2;
+
 use super::pixel::Pixel;
 
 pub trait PixelConversion
@@ -71,6 +73,14 @@ impl< System, Orientation > Hash for Coordinate< System, Orientation >
     self.r.hash( state );
     self.system.hash( state );
     self.orientation.hash( state );
+  }
+}
+
+impl< System, Orientation > Into< I32x2 > for Coordinate< System, Orientation >
+{
+  fn into( self ) -> I32x2
+  {
+    I32x2::from_array( [ self.q, self.r ] )
   }
 }
 
@@ -268,6 +278,30 @@ impl PixelConversion for Coordinate< Axial, Flat >
     let x = hex_size * (           3.0 / 2.0 * q                     );
     let y = hex_size * ( 3.0f32.sqrt() / 2.0 * q + 3.0f32.sqrt() * r );
     ( x, y ).into()
+  }
+}
+
+impl From< Pixel > for Coordinate< Axial, Pointy >
+{
+  fn from( Pixel { data : [ x, y ] } : Pixel ) -> Self
+  {
+    // implementation is taken from https://www.redblobgames.com/grids/hexagons/#pixel-to-hex
+    let q = 3.0f32.sqrt() / 3.0 * x - 1.0 / 3.0 * y;
+    let r =                           2.0 / 3.0 * y;
+    let ( q, r ) = axial_round( q, r );
+    Self::new( q, r )
+  }
+}
+
+impl From< Pixel > for Coordinate< Axial, Flat >
+{
+  fn from( Pixel { data : [ x, y ] } : Pixel ) -> Self
+  {
+    // implementation is taken from https://www.redblobgames.com/grids/hexagons/#pixel-to-hex
+    let q =  2.0 / 3.0 * x;
+    let r = -1.0 / 3.0 * x + 3.0f32.sqrt() / 3.0 * y;
+    let ( q, r ) = axial_round( q, r );
+    Self::new( q, r )
   }
 }
 

@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 /// RECTANGULAR LAYOUT
 pub struct RectangularGrid< Parity, Orientation >
 {
-  /// TOP LEFT CORNER, BOTTOM RIGHT CORNER
+  /// Inclusive maximum and minimum coordinates of the grid.
   pub bounds : [ Coordinate< Offset< Parity >, Orientation >; 2 ],
   pub hex_size : f32,
 }
@@ -16,6 +16,7 @@ impl< Parity, Orientation > RectangularGrid< Parity, Orientation >
   /// Creates a new `RectLayout` instance with the specified bounds.
   ///
   /// # Parameters
+  /// - `hex_size`: The size of the hexagons in grid.
   /// - `bounds`: The bounds of the layout. Minimal and maximal inclusive offset coordinates.
   ///
   /// # Returns
@@ -30,8 +31,22 @@ impl< Parity, Orientation > RectangularGrid< Parity, Orientation >
     {
       hex_size,
       bounds,
-      // parity : PhantomData,
-      // orientation : PhantomData,
+    }
+  }
+
+  pub fn coordinates( &self ) -> impl Iterator< Item = Coordinate< Offset< Parity >, Orientation > >
+  {
+    let min = self.bounds[ 0 ];
+    let max = self.bounds[ 1 ];
+    let current = min;
+
+    RectangularGridIterator::< Parity, Orientation >
+    {
+      current : current.into(),
+      max : max.into(),
+      min : min.into(),
+      parity : PhantomData,
+      orientation : PhantomData,
     }
   }
 }
@@ -56,7 +71,6 @@ where
       min1[ 0 ]
     };
     let min_y = min1[ 1 ];
-
 
     let max1 = Into::< Coordinate< Axial, Pointy > >::into( max ).to_pixel( self.hex_size );
     let max_x = if max.r - 1 >= min.r
@@ -91,11 +105,10 @@ where
   {
     let [ min, max ] = self.bounds;
 
-    let min1 = Coordinate::< Offset< Parity >, Flat >::new( min[ 0 ], min[ 1 ] );
-    let min1 = Into::< Coordinate< Axial, Flat > >::into( min1 ).to_pixel( self.hex_size );
-    let min_y = if min[ 0 ] + 1 <= max[ 0 ]
+    let min1 = Into::< Coordinate< Axial, Flat > >::into( min ).to_pixel( self.hex_size );
+    let min_y = if min.r + 1 <= max.r
     {
-      let min2 = Coordinate::< Offset< Parity >, Flat >::new( min[ 0 ] + 1, min[ 1 ] );
+      let min2 = Coordinate::< Offset< Parity >, Flat >::new( min.q + 1, min.r );
       let min2 = Into::< Coordinate< Axial, Flat > >::into( min2 ).to_pixel( self.hex_size );
       min1[ 1 ].min( min2[ 1 ] )
     }
@@ -105,11 +118,10 @@ where
     };
     let min_x = min1[ 0 ];
 
-    let max1 = Coordinate::< Offset< Parity >, Flat >::new( max[ 0 ], max[ 1 ] );
-    let max1 = Into::< Coordinate< Axial, Flat > >::into( max1 ).to_pixel( self.hex_size );
-    let max_y = if max[ 0 ] - 1 >= min[ 0 ]
+    let max1 = Into::< Coordinate< Axial, Flat > >::into( max ).to_pixel( self.hex_size );
+    let max_y = if max.r - 1 >= min.r
     {
-      let max2 = Coordinate::< Offset< Parity >, Flat >::new( max[ 0 ] - 1, max[ 1 ] );
+      let max2 = Coordinate::< Offset< Parity >, Flat >::new( max.q - 1, max.r );
       let max2 = Into::< Coordinate< Axial, Flat > >::into( max2 ).to_pixel( self.hex_size );
       max1[ 1 ].max( max2[ 1 ] )
     }
@@ -128,25 +140,6 @@ where
     // let height = SQRT_THREE * self.hex_size;
     // let height = height_count as f32 * height + height / 2.0 * ( height_count > 1 ) as i32 as f32;
     // F32x2::new( width / 2.0, height / 2.0 )
-  }
-}
-
-impl< Parity, Orientation > RectangularGrid< Parity, Orientation >
-{
-  pub fn coordinates( &self ) -> impl Iterator< Item = Coordinate< Offset< Parity >, Orientation > >
-  {
-    let min = self.bounds[ 0 ];
-    let max = self.bounds[ 1 ];
-    let current = min;
-
-    RectangularGridIterator::< Parity, Orientation >
-    {
-      current,
-      max,
-      min,
-      parity : PhantomData,
-      orientation : PhantomData,
-    }
   }
 }
 
