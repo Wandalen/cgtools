@@ -1,7 +1,7 @@
 use crate::coordinates;
 use coordinates::pixel::Pixel;
 use coordinates::hexagonal::PixelConversion;
-use ndarray_cg::{ F32x2, F32x4x4, IntoVector as _, Vector };
+use ndarray_cg::{ F32x2, F32x3x3, IntoVector as _, Vector };
 
 // // qqq : use geometry instead of mesh. rename also file
 // // qqq : if geometry is generated description must have information about what kind of primitive it's based on
@@ -212,7 +212,7 @@ use ndarray_cg::{ F32x2, F32x4x4, IntoVector as _, Vector };
 //   positions
 // }
 
-pub fn from_iter< I, C, F >( iter : I, hex_size : f32, mesh_producer : F, transform : F32x4x4 ) -> Vec< f32 >
+pub fn from_iter< I, C, F >( iter : I, hex_size : f32, mesh_producer : F, transform : F32x3x3 ) -> Vec< f32 >
 where
   I : Iterator< Item = C >,
   C : PixelConversion,
@@ -227,7 +227,7 @@ where
 
     for point in mesh.chunks( 2 )
     {
-      let pos = transform * Vector( [ hex_size * point[ 0 ], hex_size * point[ 1 ], 0.0, 1.0 ] );
+      let pos = transform * Vector( [ point[ 0 ], point[ 1 ], 1.0 ] );
       points.push( x + pos.x() );
       points.push( y + pos.y() );
     }
@@ -235,10 +235,7 @@ where
   points
 }
 
-///
-///
-///
-pub fn hexagon_triangles() -> Vec< f32 >
+pub fn hexagon_triangles( hex_size : f32 ) -> Vec< f32 >
 {
   let points = hexagon_vertices();
   let mut positions = vec![];
@@ -250,13 +247,36 @@ pub fn hexagon_triangles() -> Vec< f32 >
     let point1 = w[ 0 ];
     let point2 = w[ 1 ];
 
-    positions.push( first[ 0 ] );
-    positions.push( first[ 1 ] );
-    positions.push( point1[ 0 ] );
-    positions.push( point1[ 1 ] );
-    positions.push( point2[ 0 ] );
-    positions.push( point2[ 1 ] );
+    positions.push( hex_size * first[ 0 ] );
+    positions.push( hex_size * first[ 1 ] );
+    positions.push( hex_size * point1[ 0 ] );
+    positions.push( hex_size * point1[ 1 ] );
+    positions.push( hex_size * point2[ 0 ] );
+    positions.push( hex_size * point2[ 1 ] );
   }
+
+  positions
+}
+
+pub fn hexagon_lines( hex_size : f32 ) -> Vec< f32 >
+{
+  let points = hexagon_vertices();
+  let mut positions = vec![];
+  for w in points.windows( 2 )
+  {
+    let point1 = w[ 0 ];
+    let point2 = w[ 1 ];
+
+    positions.push( hex_size * point1[ 0 ] );
+    positions.push( hex_size * point1[ 1 ] );
+    positions.push( hex_size * point2[ 0 ] );
+    positions.push( hex_size * point2[ 1 ] );
+  }
+
+  positions.push( hex_size * points.last().unwrap()[ 0 ] );
+  positions.push( hex_size * points.last().unwrap()[ 1 ] );
+  positions.push( hex_size * points.first().unwrap()[ 0 ] );
+  positions.push( hex_size * points.first().unwrap()[ 1 ] );
 
   positions
 }
@@ -264,7 +284,7 @@ pub fn hexagon_triangles() -> Vec< f32 >
 /// Generates the six corner points of a hexagon.
 pub fn hexagon_vertices() -> [ F32x2; 6 ]
 {
-  let mut points : [  F32x2; 6 ] = Default::default();
+  let mut points : [ F32x2; 6 ] = Default::default();
   for i in 0..6
   {
     let angle = ( ( 60 * i ) as f32 ).to_radians();

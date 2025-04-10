@@ -1,5 +1,5 @@
 use crate::coordinates::hexagonal;
-use hexagonal::{ Coordinate, Flat, Offset, Pointy };
+use hexagonal::{ Coordinate, Flat, Offset, Pointy, Axial, PixelConversion };
 use ndarray_cg::{ F32x2, I32x2 };
 use std::marker::PhantomData;
 
@@ -38,33 +38,101 @@ impl< Parity, Orientation > RectangularGrid< Parity, Orientation >
   }
 }
 
-const SQRT_THREE : f32 = 1.73205080757;
+// const SQRT_THREE : f32 = 1.73205080757;
 
 impl< Parity > RectangularGrid< Parity, Pointy >
+where
+  Coordinate< Offset< Parity >, Pointy > : Into< Coordinate< Axial, Pointy > >,
 {
-  pub const fn center( &self ) -> F32x2
+  pub fn center( &self ) -> F32x2
   {
-    let width_count = self.bounds[ 1 ].0[ 0 ] - self.bounds[ 0 ].0[ 0 ] + 1;
-    let width = SQRT_THREE * self.hex_size;
-    let width = width_count as f32 * width + width / 2.0 * ( width_count > 1 ) as i32 as f32;
-    let height_count = self.bounds[ 1 ].0[ 1 ] - self.bounds[ 0 ].0[ 1 ] + 1;
-    let height = self.hex_size * 2.0;
-    let height = height + 0.75 * height * ( height_count - 1 ) as f32;
-    F32x2::new( width / 2.0, height / 2.0 )
+    let [ min, max ] = self.bounds;
+
+    let min1 = Coordinate::< Offset< Parity >, Pointy >::new( min[ 0 ], min[ 1 ] );
+    let min1 = Into::< Coordinate< Axial, Pointy > >::into( min1 ).to_pixel( self.hex_size );
+    let min_x = if min[ 1 ] + 1 <= max[ 1 ]
+    {
+      let min2 = Coordinate::< Offset< Parity >, Pointy >::new( min[ 0 ], min[ 1 ] + 1 );
+      let min2 = Into::< Coordinate< Axial, Pointy > >::into( min2 ).to_pixel( self.hex_size );
+      min1[ 0 ].min( min2[ 0 ] )
+    }
+    else
+    {
+      min1[ 0 ]
+    };
+    let min_y = min1[ 1 ];
+
+    let max1 = Coordinate::< Offset< Parity >, Pointy >::new( max[ 0 ], max[ 1 ] );
+    let max1 = Into::< Coordinate< Axial, Pointy > >::into( max1 ).to_pixel( self.hex_size );
+    let max_x = if max[ 1 ] - 1 >= min[ 1 ]
+    {
+      let max2 = Coordinate::< Offset< Parity >, Pointy >::new( max[ 0 ], max[ 1 ] - 1 );
+      let max2 = Into::< Coordinate< Axial, Pointy > >::into( max2 ).to_pixel( self.hex_size );
+      max1[ 0 ].max( max2[ 0 ] )
+    }
+    else
+    {
+      max1[ 0 ]
+    };
+    let max_y = max1[ 1 ];
+
+    F32x2::new( ( min_x + max_x ) / 2.0, ( min_y + max_y ) / 2.0 )
+
+    // let width_count = self.bounds[ 1 ][ 0 ] - self.bounds[ 0 ][ 0 ] + 1;
+    // let width = SQRT_THREE * self.hex_size;
+    // let width = width_count as f32 * width + width / 2.0 * ( width_count > 1 ) as i32 as f32;
+    // let height_count = self.bounds[ 1 ][ 1 ] - self.bounds[ 0 ][ 1 ] + 1;
+    // let height = self.hex_size * 2.0;
+    // let height = height + 0.75 * height * ( height_count - 1 ) as f32;
+    // F32x2::new( width / 2.0, height / 2.0 )
   }
 }
 
 impl< Parity > RectangularGrid< Parity, Flat >
+where
+  Coordinate< Offset< Parity >, Flat > : Into< Coordinate< Axial, Flat > >,
 {
-  pub const fn center( &self ) -> F32x2
+  pub fn center( &self ) -> F32x2
   {
-    let width_count = self.bounds[ 1 ].0[ 0 ] - self.bounds[ 0 ].0[ 0 ] + 1;
-    let width = self.hex_size * 2.0;
-    let width = width + 0.75 * width * ( width_count - 1 ) as f32;
-    let height_count = self.bounds[ 1 ].0[ 1 ] - self.bounds[ 0 ].0[ 1 ] + 1;
-    let height = SQRT_THREE * self.hex_size;
-    let height = height_count as f32 * height + height / 2.0 * ( height_count > 1 ) as i32 as f32;
-    F32x2::new( width / 2.0, height / 2.0 )
+    let [ min, max ] = self.bounds;
+
+    let min1 = Coordinate::< Offset< Parity >, Flat >::new( min[ 0 ], min[ 1 ] );
+    let min1 = Into::< Coordinate< Axial, Flat > >::into( min1 ).to_pixel( self.hex_size );
+    let min_y = if min[ 0 ] + 1 <= max[ 0 ]
+    {
+      let min2 = Coordinate::< Offset< Parity >, Flat >::new( min[ 0 ] + 1, min[ 1 ] );
+      let min2 = Into::< Coordinate< Axial, Flat > >::into( min2 ).to_pixel( self.hex_size );
+      min1[ 1 ].min( min2[ 1 ] )
+    }
+    else
+    {
+      min1[ 1 ]
+    };
+    let min_x = min1[ 0 ];
+
+    let max1 = Coordinate::< Offset< Parity >, Flat >::new( max[ 0 ], max[ 1 ] );
+    let max1 = Into::< Coordinate< Axial, Flat > >::into( max1 ).to_pixel( self.hex_size );
+    let max_y = if max[ 0 ] - 1 >= min[ 0 ]
+    {
+      let max2 = Coordinate::< Offset< Parity >, Flat >::new( max[ 0 ] - 1, max[ 1 ] );
+      let max2 = Into::< Coordinate< Axial, Flat > >::into( max2 ).to_pixel( self.hex_size );
+      max1[ 1 ].max( max2[ 1 ] )
+    }
+    else
+    {
+      max1[ 1 ]
+    };
+    let max_x = max1[ 0 ];
+
+    F32x2::new( ( min_x + max_x ) / 2.0, ( min_y + max_y ) / 2.0 )
+
+    // let width_count = self.bounds[ 1 ].0[ 0 ] - self.bounds[ 0 ].0[ 0 ] + 1;
+    // let width = self.hex_size * 2.0;
+    // let width = width + 0.75 * width * ( width_count - 1 ) as f32;
+    // let height_count = self.bounds[ 1 ].0[ 1 ] - self.bounds[ 0 ].0[ 1 ] + 1;
+    // let height = SQRT_THREE * self.hex_size;
+    // let height = height_count as f32 * height + height / 2.0 * ( height_count > 1 ) as i32 as f32;
+    // F32x2::new( width / 2.0, height / 2.0 )
   }
 }
 
