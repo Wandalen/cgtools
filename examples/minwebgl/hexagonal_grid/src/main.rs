@@ -35,6 +35,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let dpr = web_sys::window().unwrap().device_pixel_ratio() as f32;
   let canvas_size = ( canvas.width() as f32, canvas.height() as f32 ).into_vector() / dpr;
 
+  // abstract world-space size
   let hex_size = 0.1;
   let rect = RectangularGrid::< Even, Pointy >::new( hex_size, [ [ 0, 0 ].into(), [ 9, 8 ].into() ].into() );
   let grid_center = rect.center();
@@ -80,18 +81,11 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   grid_geometry.activate();
   context.draw_arrays( GL::TRIANGLES, 0, grid_geometry.nvertices );
 
-  // // just abstract size in world space, it may be any units
-  // // size of a hexagon ( from center to vertex )
-  // let hex_size = 0.1;
-  // // how to shift the hexagons to form a rectangle
-  // let shift_type = Parity::Odd; // qqq : why sift type is not part of layout? it probably should be
-  // // orientation of hex can be either pointing upword or flat upword
-  // let orientation = Orientation::Pointy;
-  // // orientation of the hexagons
+  // how to shift the hexagons to form a rectangle
+  // let shift_type = Parity::Odd; // aaa : why sift type is not part of layout? it probably should be
   // let layout = HexLayout { orientation, size: hex_size }; // aaa : size of what specifically? not clear
-  // // grid size
-  // let grid_size = [ 9, 11 ];
-  // // let grid_region = [ I32x2, I32x2 ]; // qqq : maybe region?
+  // grid size
+  // let grid_region = [ I32x2, I32x2 ]; // aaa : maybe region?
 
   // // determine the center of the grid
   // // to shift it to the center of the canvas
