@@ -83,18 +83,18 @@ mod private
   /// applying the specified `ContexOptions`.
   ///
   /// # Arguments
-  /// - `builder`: A `ContexOptions` instance to configure the behavior of the canvas, such as
+  /// - `o`: A `ContexOptions` instance to configure the behavior of the canvas, such as
   ///   reducing device pixel ratio scaling.
   ///
   /// # Errors
   /// - Returns an error if the canvas cannot be found, created, or if the WebGL2 context cannot
   ///   be retrieved.
-  // qqq : use o instead of long name in such cases
-  pub fn retrieve_or_make_with( builder : ContexOptions ) -> Result< GL, Error >
+  // aaa : use o instead of long name in such cases
+  pub fn retrieve_or_make_with( o : ContexOptions ) -> Result< GL, Error >
   {
     let canvas = canvas::retrieve_or_make()?;
     // qqq : no, opposite retrieve_or_make is shortcut for retrieve_or_make_with
-    if builder.reduce_dpr
+    if o.reduce_dpr
     {
       canvas::remove_dpr_scaling( &canvas );
     }

@@ -21,7 +21,7 @@ pub struct Light
   pub direction : f32
 }
 
-impl Light 
+impl Light
 {
   pub fn as_raw( &self ) -> LightRaw
   {
@@ -33,7 +33,7 @@ impl Light
       direction : self.direction,
       ..Default::default()
     }
-  }    
+  }
 }
 
 pub struct LightState
@@ -41,7 +41,7 @@ pub struct LightState
   pub buffer : gl::web_sys::GpuBuffer
 }
 
-impl LightState 
+impl LightState
 {
   pub fn new( device : &web_sys::GpuDevice ) -> Result< Self, WebGPUError >
   {
@@ -50,18 +50,18 @@ impl LightState
 
     let buffer = gl::BufferInitDescriptor::new
     (
-       &lights_raw, 
+       &lights_raw,
        gl::BufferUsage::STORAGE | gl::BufferUsage::VERTEX
     ).create( device )?;
 
     Ok
-    ( 
+    (
       LightState
       {
         buffer
       }
     )
-  }  
+  }
 }
 
 pub struct LightVisualizationState
@@ -69,7 +69,7 @@ pub struct LightVisualizationState
   pub render_pipeline : web_sys::GpuRenderPipeline
 }
 
-impl LightVisualizationState 
+impl LightVisualizationState
 {
   pub fn vertex_layout() -> web_sys::GpuVertexBufferLayout
   {
@@ -77,14 +77,14 @@ impl LightVisualizationState
     .instance()
     .stride::< LightRaw >()
     .attribute
-    ( 
+    (
       gl::layout::VertexAttribute::new()
       .location( 0 )
       .offset::< [ f32; 4 ] >()
       .format( gl::GpuVertexFormat::Float32x3 )
     )
     .attribute
-    ( 
+    (
       gl::layout::VertexAttribute::new()
       .location( 1 )
       .format( gl::GpuVertexFormat::Float32x3 )
@@ -102,7 +102,7 @@ impl LightVisualizationState
       .buffer( &Self::vertex_layout() )
     )
     .fragment
-    ( 
+    (
       gl::FragmentState::new( &shader_module )
       .target( gl::ColorTargetState::new().format( format ) )
     )
@@ -111,19 +111,19 @@ impl LightVisualizationState
     .create( device )?;
 
     Ok
-    ( 
+    (
       LightVisualizationState
       {
         render_pipeline
       }
     )
-  }  
+  }
 }
 
 fn generate_lights() -> Vec< Light >
 {
   let mut rng = rand::thread_rng();
-  
+
   let mut lights = Vec::new();
   for _i in 0..NUM_LIGHTS
   {
@@ -132,10 +132,10 @@ fn generate_lights() -> Vec< Light >
     let direction = if rng.gen::< f32 >() < 0.5 { -1.0 } else { 1.0 };
 
     let mut position = gl::F32x3::from
-    ([ 
-      rng.gen::< f32 >() * 2.0, 
-      rng.gen::< f32 >(), 
-      rng.gen::< f32 >() * 2.0 
+    ([
+      rng.gen::< f32 >() * 2.0,
+      rng.gen::< f32 >(),
+      rng.gen::< f32 >() * 2.0
     ]) - gl::F32x3::from( [ 1.0, 0.0, 1.0 ] ) ;
 
     position = position * gl::F32x3::from( [ 40.0, 5.0, 40.0 ] );

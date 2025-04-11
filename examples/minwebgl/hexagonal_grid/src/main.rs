@@ -1,23 +1,22 @@
 use tiles_tools::
 {
-  coordinates::*,
-  layout::{ HexLayout, Orientation },
-  mesh::{ grid_triangle_mesh, hex_line_loop_mesh }, // qqq : don't import from namespace individualt items use full names for such cases `mesh::grid_triangle` remove postfix _mesh
-  patterns::{ Parity, ShiftedRectangleIter }
+  coordinates::{ hexagonal::*, pixel::Pixel },
+  layout::*,
+  geometry
 };
 
 use minwebgl as min;
 use min::
 {
-  GL,
-  math::{ d2::mat2x2h, F32x2, IntoVector },
+  math::{ F32x2, IntoVector, mat2x2h },
   Program,
   JsCast,
   canvas::HtmlCanvasElement,
-  geometry,
+  GL,
   // web::log::info,
-  // qqq : this import does not work, but not clear why
+  // aaa : this import does not work, but not clear why
   // make it working please
+  // it just does not work 😕
 };
 use web_sys::{ wasm_bindgen::prelude::Closure, MouseEvent };
 
@@ -35,29 +34,25 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   // used to scale canvas true size to css size
   let dpr = web_sys::window().unwrap().device_pixel_ratio() as f32;
   let canvas_size = ( canvas.width() as f32, canvas.height() as f32 ).into_vector() / dpr;
-  // min::log::info!( "dpr : {:#?}", dpr );
-  // min::web::log::info!( "dpr : {:#?}", dpr );
 
-  // just abstract size in world space, it may be any units
-  // size of a hexagon ( from center to vertex )
-  let size = 0.1;
-  // how to shift the hexagons to form a rectangle
-  let shift_type = Parity::Odd; // qqq : why sift type is not part of layout? it probably should be
-  // orientation of hex can be either pointing upword or flat upword
-  let orientation = Orientation::Pointy;
-  // orientation of the hexagons
-  let layout = HexLayout { orientation, size }; // qqq : size of what specifically? not clear
-  // grid size
-  let grid_size = [ 9, 11 ];
-  // let grid_region = [ I32x2, I32x2 ]; // qqq : maybe region?
+  // inclusize grid bounds
+  let region = [ Coordinate::< Offset< Odd >, Pointy >::new( 0, 0 ), Coordinate::< Offset< _ >, _ >::new( 7, 5 ) ];
+  // aaa : why shift_type is not part of layout? o.O
+  // aaa : what about type Grid combinging layout and grid size. also grid probably can have offset of orign?
+  let rect = RectangularGrid::new( region );
+  let grid_center = rect.center();
 
-  // determine the center of the grid
-  // to shift it to the center of the canvas
-  // qqq : what about type Grid combinging layout and grid size. also grid probably can have offset of orign?
-  let grid_center : F32x2 = layout.grid_center( ShiftedRectangleIter::new( grid_size, shift_type, layout ) ).into(); // qqq : iterating all tiles several times is not efficient. is it possible to avoid it?
-  // qqq : why shift_type is not part of layout? o.O
+  min::info!( "grid center: {grid_center:?}" );
+
+  let grid_mesh = geometry::from_iter
+  (
+    rect.coordinates().map( | c | { Into::< Coordinate< Axial, Pointy > >::into( c ) } ),
+    || geometry::hexagon_triangles(),
+    mat2x2h::rot( 30.0f32.to_radians() ) * mat2x2h::scale( [ 0.9, 0.9 ] )
+  );
+
   let aspect = canvas_size[ 1 ] / canvas_size[ 0 ];
-  let scale = 1.0;
+  let scale = 0.12;
   let aspect_scale : F32x2 = [ aspect * scale, scale ].into();
   let scale_m = mat2x2h::scale( aspect_scale.0 );
 
@@ -66,17 +61,16 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let hex_shader = Program::new( context.clone(), vert, frag )?;
   hex_shader.activate();
 
-  let grid_geometry = geometry::Positions::new
+  let grid_geometry = min::geometry::Positions::new
   (
     context.clone(),
-    &grid_triangle_mesh( ShiftedRectangleIter::new( grid_size, shift_type, layout ), &layout, None ), // qqq : iterating all tiles several times is not efficient. is it possible to avoid it?
+    &grid_mesh, // aaa : iterating all tiles several times is not efficient. is it possible to avoid it?
     2,
   )?;
-  // line loop mesh for the outline of a hexagon
-  let outline_geometry = geometry::Positions::new
+  let outline_geometry = min::geometry::Positions::new
   (
     context.clone(),
-    &hex_line_loop_mesh( &layout ),
+    &geometry::hexagon_lines(),
     2,
   )?;
 
@@ -86,9 +80,9 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   context.clear_color( 0.9, 0.9, 0.9, 1.0 );
   context.clear( min::COLOR_BUFFER_BIT );
   hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
-  hex_shader.uniform_upload( "u_color", &[ 0.1, 0.1, 0.1, 1.0 ] );
+  hex_shader.uniform_upload( "u_color", &[ 0.7, 0.7, 0.7, 1.0 ] );
   grid_geometry.activate();
-  context.draw_arrays( min::TRIANGLES, 0, grid_geometry.nvertices );
+  context.draw_arrays( GL::TRIANGLES, 0, grid_geometry.nvertices );
 
   let mut selected_hex = None;
 
@@ -102,37 +96,42 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       let canvas_pos = F32x2::new( rect.left() as f32, rect.top() as f32 );
       let half_size : F32x2 = canvas_size / 2.0;
       let cursor_pos = F32x2::new( e.client_x() as f32, e.client_y() as f32 );
-      // normalize coodinates to [ -1 : 1 ], then apply inverse ascpect scale and offset to grid center
-      let cursor_pos = ( ( cursor_pos - canvas_pos ) - half_size ) / half_size / aspect_scale + grid_center; // qqq : don't use double devission it's confusing and difficult to read. use canonical represenation
-      // qqq : add commented out code to see mouse position in log.
-      // qqq : where is center? in the middle? what are boundaries -1, +1? explain all that instead of duplicating what is avaliable from code
-      let selected_hex_coord : Coordinate< Axial, PointyTopped, OddParity > = layout.hex_coord( cursor_pos.into() );
+      // aaa : where is center? in the middle? what are boundaries -1, +1? explain all that instead of duplicating what is avaliable from code
+      // normalize coodinates to NDC [ -1 : 1 ], then apply inverse ascpect scale and offset to grid center
+      // this transforms cursor position to the world space
+      // then offset it by center of the grid, so that if cursor is in the center of the canvas, it will be in the center of the grid
+      let cursor_pos : Pixel = ( ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) + grid_center ).into(); // aaa : don't use double devission it's confusing and difficult to read. use canonical represenation
+
+      let selected_hex_coord : Coordinate::< Axial, Pointy > = cursor_pos.into();
 
       if selected_hex.is_some_and( | hex_coord | hex_coord == selected_hex_coord )
       {
         return;
       }
+      // aaa : add commented out code to see mouse position in log.
+      // min::info!( "selected hex: {selected_hex_coord:?}" );
+
       selected_hex = Some( selected_hex_coord );
 
       context.clear( min::COLOR_BUFFER_BIT );
 
       // draw grid
       hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
-      hex_shader.uniform_upload( "u_color", &[ 0.1, 0.1, 0.1, 1.0 ] );
+      hex_shader.uniform_upload( "u_color", &[ 0.7, 0.7, 0.7, 1.0 ] );
       grid_geometry.activate();
       context.draw_arrays( min::TRIANGLES, 0, grid_geometry.nvertices );
 
-      let selected_hex_pos = layout.pixel_coord( selected_hex_coord );
+      let selected_hex_pos : Pixel = selected_hex_coord.into();
       let translation = mat2x2h::translate( [ selected_hex_pos[ 0 ] - grid_center[ 0 ], -selected_hex_pos[ 1 ] + grid_center[ 1 ] ] );
-      let mvp = scale_m * translation;
+      let mvp = scale_m * translation * mat2x2h::rot( 30.0f32.to_radians() );
 
       // draw outline
       hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
-      hex_shader.uniform_upload( "u_color", &[ 0.1, 0.9, 0.1, 1.0 ] );
+      hex_shader.uniform_upload( "u_color", &[ 0.1, 0.1, 0.1, 1.0 ] );
       outline_geometry.activate();
-      context.draw_arrays( GL::LINE_LOOP, 0, outline_geometry.nvertices ); // aaa : don't use loop geometry, it has limmited suport among backends
-                                                                           // i added default lines mesh generation support, but for this webgl rendering i think line loop is okay
-                                                                           // qqq : let's use linestrip. rid of loops
+      context.draw_arrays( GL::LINES, 0, outline_geometry.nvertices ); // aaa : don't use loop geometry, it has limmited suport among backends
+                                                                       // i added default lines mesh generation support, but for this webgl rendering i think line loop is okay
+                                                                       // aaa : let's use linestrip. rid of loops
     }
   };
 
