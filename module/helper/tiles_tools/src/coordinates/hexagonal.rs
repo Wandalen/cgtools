@@ -1,14 +1,6 @@
 use std::{ fmt::Debug, hash::Hash, marker::PhantomData };
 use ndarray_cg::I32x2;
-
 use super::pixel::Pixel;
-
-pub trait PixelConversion
-{
-  fn from_pixel( pixel : Pixel, hex_size : f32 ) -> Self;
-
-  fn to_pixel( self, hex_size : f32 ) -> Pixel;
-}
 
 pub struct Axial;
 
@@ -234,50 +226,6 @@ impl< Orientation > std::ops::Div< i32 > for Coordinate< Axial, Orientation >
   fn div( self, rhs : i32 ) -> Self::Output
   {
     Self::new( self.q / rhs, self.r / rhs )
-  }
-}
-
-impl PixelConversion for Coordinate< Axial, Pointy >
-{
-  fn from_pixel( Pixel { data : [ x, y ] } : Pixel, hex_size : f32 ) -> Self
-  {
-    // implementation is taken from https://www.redblobgames.com/grids/hexagons/#pixel-to-hex
-    let q = ( 3.0f32.sqrt() / 3.0 * x - 1.0 / 3.0 * y ) / hex_size;
-    let r = (                           2.0 / 3.0 * y ) / hex_size;
-    let ( q, r ) = axial_round( q, r );
-    Self::new( q, r )
-  }
-
-  fn to_pixel( self, hex_size : f32 ) -> Pixel
-  {
-    // implementation is taken from https://www.redblobgames.com/grids/hexagons/#hex-to-pixel
-    let q = self.q as f32;
-    let r = self.r as f32;
-    let x = hex_size * ( 3.0f32.sqrt() * q + 3.0f32.sqrt() / 2.0 * r );
-    let y = hex_size * (                               3.0 / 2.0 * r );
-    ( x, y ).into()
-  }
-}
-
-impl PixelConversion for Coordinate< Axial, Flat >
-{
-  fn from_pixel( Pixel { data : [ x, y ] } : Pixel, hex_size : f32 ) -> Self
-  {
-    // implementation is taken from https://www.redblobgames.com/grids/hexagons/#pixel-to-hex
-    let q = (  2.0 / 3.0 * x                           ) / hex_size;
-    let r = ( -1.0 / 3.0 * x + 3.0f32.sqrt() / 3.0 * y ) / hex_size;
-    let ( q, r ) = axial_round( q, r );
-    Self::new( q, r )
-  }
-
-  fn to_pixel( self, hex_size : f32 ) -> Pixel
-  {
-    // implementation is taken from https://www.redblobgames.com/grids/hexagons/#hex-to-pixel
-    let q = self.q as f32;
-    let r = self.r as f32;
-    let x = hex_size * (           3.0 / 2.0 * q                     );
-    let y = hex_size * ( 3.0f32.sqrt() / 2.0 * q + 3.0f32.sqrt() * r );
-    ( x, y ).into()
   }
 }
 

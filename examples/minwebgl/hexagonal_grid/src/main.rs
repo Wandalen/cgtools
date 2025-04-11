@@ -1,8 +1,8 @@
 use tiles_tools::
 {
-  coordinates::{hexagonal::*, pixel::Pixel},
+  coordinates::{ hexagonal::*, pixel::Pixel },
   layout::*,
-  mesh
+  geometry
 };
 
 use minwebgl as min;
@@ -12,7 +12,6 @@ use min::
   Program,
   JsCast,
   canvas::HtmlCanvasElement,
-  geometry,
   GL,
   // web::log::info,
   // aaa : this import does not work, but not clear why
@@ -36,25 +35,24 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let dpr = web_sys::window().unwrap().device_pixel_ratio() as f32;
   let canvas_size = ( canvas.width() as f32, canvas.height() as f32 ).into_vector() / dpr;
 
-  // abstract world-space size
-  // let hex_size = 1.0;
-  let bounds = [ Coordinate::< Offset< _ >, _ >::new( 0, 0 ), Coordinate::< Offset< _ >, _ >::new( 3, 3 ) ];
+  // inclusize grid bounds
+  let region = [ Coordinate::< Offset< Odd >, Pointy >::new( 0, 0 ), Coordinate::< Offset< _ >, _ >::new( 7, 5 ) ];
   // aaa : why shift_type is not part of layout? o.O
   // aaa : what about type Grid combinging layout and grid size. also grid probably can have offset of orign?
-  let rect = RectangularGrid::< Even, Pointy >::new( bounds );
+  let rect = RectangularGrid::new( region );
   let grid_center = rect.center();
 
   min::info!( "grid center: {grid_center:?}" );
 
-  let mesh = mesh::from_iter
+  let grid_mesh = geometry::from_iter
   (
     rect.coordinates().map( | c | { Into::< Coordinate< Axial, Pointy > >::into( c ) } ),
-    || mesh::hexagon_triangles(),
+    || geometry::hexagon_triangles(),
     mat2x2h::rot( 30.0f32.to_radians() ) * mat2x2h::scale( [ 0.9, 0.9 ] )
   );
 
   let aspect = canvas_size[ 1 ] / canvas_size[ 0 ];
-  let scale = 0.1;
+  let scale = 0.12;
   let aspect_scale : F32x2 = [ aspect * scale, scale ].into();
   let scale_m = mat2x2h::scale( aspect_scale.0 );
 
@@ -63,16 +61,16 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let hex_shader = Program::new( context.clone(), vert, frag )?;
   hex_shader.activate();
 
-  let grid_geometry = geometry::Positions::new
+  let grid_geometry = min::geometry::Positions::new
   (
     context.clone(),
-    &mesh, // aaa : iterating all tiles several times is not efficient. is it possible to avoid it?
+    &grid_mesh, // aaa : iterating all tiles several times is not efficient. is it possible to avoid it?
     2,
   )?;
-  let outline_geometry = geometry::Positions::new
+  let outline_geometry = min::geometry::Positions::new
   (
     context.clone(),
-    &mesh::hexagon_lines(),
+    &geometry::hexagon_lines(),
     2,
   )?;
 
