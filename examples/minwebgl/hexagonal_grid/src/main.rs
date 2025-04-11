@@ -1,6 +1,6 @@
 use tiles_tools::
 {
-  coordinates::hexagonal::*,
+  coordinates::{hexagonal::*, pixel::Pixel},
   layout::*,
   mesh
 };
@@ -37,23 +37,24 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let canvas_size = ( canvas.width() as f32, canvas.height() as f32 ).into_vector() / dpr;
 
   // abstract world-space size
-  let hex_size = 0.1;
-  let bounds = [ Coordinate::< Offset< _ >, _ >::new( 0, 0 ), Coordinate::< Offset< _ >, _ >::new( 9, 8 ) ];
+  // let hex_size = 1.0;
+  let bounds = [ Coordinate::< Offset< _ >, _ >::new( 0, 0 ), Coordinate::< Offset< _ >, _ >::new( 3, 3 ) ];
   // aaa : why shift_type is not part of layout? o.O
   // aaa : what about type Grid combinging layout and grid size. also grid probably can have offset of orign?
-  let rect = RectangularGrid::< Even, Pointy >::new( hex_size, bounds );
+  let rect = RectangularGrid::< Even, Pointy >::new( bounds );
   let grid_center = rect.center();
+
+  min::info!( "grid center: {grid_center:?}" );
 
   let mesh = mesh::from_iter
   (
     rect.coordinates().map( | c | { Into::< Coordinate< Axial, Pointy > >::into( c ) } ),
-    hex_size,
-    || mesh::hexagon_triangles( hex_size ),
+    || mesh::hexagon_triangles(),
     mat2x2h::rot( 30.0f32.to_radians() ) * mat2x2h::scale( [ 0.9, 0.9 ] )
   );
 
   let aspect = canvas_size[ 1 ] / canvas_size[ 0 ];
-  let scale = 1.0;
+  let scale = 0.1;
   let aspect_scale : F32x2 = [ aspect * scale, scale ].into();
   let scale_m = mat2x2h::scale( aspect_scale.0 );
 
@@ -71,7 +72,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let outline_geometry = geometry::Positions::new
   (
     context.clone(),
-    &mesh::hexagon_lines( hex_size ),
+    &mesh::hexagon_lines(),
     2,
   )?;
 
@@ -101,9 +102,9 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       // normalize coodinates to NDC [ -1 : 1 ], then apply inverse ascpect scale and offset to grid center
       // this transforms cursor position to the world space
       // then offset it by center of the grid, so that if cursor is in the center of the canvas, it will be in the center of the grid
-      let cursor_pos = ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) + grid_center; // aaa : don't use double devission it's confusing and difficult to read. use canonical represenation
+      let cursor_pos : Pixel = ( ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) + grid_center ).into(); // aaa : don't use double devission it's confusing and difficult to read. use canonical represenation
 
-      let selected_hex_coord = Coordinate::< Axial, Pointy >::from_pixel( cursor_pos.into(), hex_size );
+      let selected_hex_coord : Coordinate::< Axial, Pointy > = cursor_pos.into();
 
       if selected_hex.is_some_and( | hex_coord | hex_coord == selected_hex_coord )
       {
@@ -122,7 +123,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       grid_geometry.activate();
       context.draw_arrays( min::TRIANGLES, 0, grid_geometry.nvertices );
 
-      let selected_hex_pos = selected_hex_coord.to_pixel( hex_size );
+      let selected_hex_pos : Pixel = selected_hex_coord.into();
       let translation = mat2x2h::translate( [ selected_hex_pos[ 0 ] - grid_center[ 0 ], -selected_hex_pos[ 1 ] + grid_center[ 1 ] ] );
       let mvp = scale_m * translation * mat2x2h::rot( 30.0f32.to_radians() );
 

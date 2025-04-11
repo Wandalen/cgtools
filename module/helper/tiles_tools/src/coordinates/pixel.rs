@@ -1,3 +1,5 @@
+use super::hexagonal::*;
+
 // aaa : move into a separate file
 /// Represents a pixel coordinate in a 2D space.
 /// Assumes that Y-axis points down.
@@ -34,6 +36,30 @@ where
   {
 
     Self { data : [ x.into(), y.into() ] }
+  }
+}
+
+impl From< Coordinate< Axial, Pointy > > for Pixel
+{
+  fn from( value : Coordinate< Axial, Pointy > ) -> Self
+  {
+    let q = value.q as f32;
+    let r = value.r as f32;
+    let x = 3.0f32.sqrt() * q + 3.0f32.sqrt() / 2.0 * r;
+    let y =                               3.0 / 2.0 * r;
+    ( x, y ).into()
+  }
+}
+
+impl From< Coordinate< Axial, Flat > > for Pixel
+{
+  fn from( value : Coordinate< Axial, Flat > ) -> Self
+  {
+    let q = value.q as f32;
+    let r = value.r as f32;
+    let x =           3.0 / 2.0 * q                    ;
+    let y = 3.0f32.sqrt() / 2.0 * q + 3.0f32.sqrt() * r;
+    ( x, y ).into()
   }
 }
 

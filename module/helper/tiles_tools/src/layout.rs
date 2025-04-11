@@ -1,4 +1,4 @@
-use crate::coordinates::hexagonal;
+use crate::coordinates::{hexagonal, pixel::Pixel};
 use hexagonal::{ Coordinate, Flat, Offset, Pointy, Axial, PixelConversion };
 use ndarray_cg::{ F32x2, I32x2 };
 use std::marker::PhantomData;
@@ -8,7 +8,7 @@ pub struct RectangularGrid< Parity, Orientation >
 {
   /// Inclusive maximum and minimum coordinates of the grid.
   pub bounds : [ Coordinate< Offset< Parity >, Orientation >; 2 ],
-  pub hex_size : f32,
+  // pub hex_size : f32,
 }
 
 impl< Parity, Orientation > RectangularGrid< Parity, Orientation >
@@ -21,15 +21,15 @@ impl< Parity, Orientation > RectangularGrid< Parity, Orientation >
   ///
   /// # Returns
   /// A new `RectLayout` instance.
-  pub const fn new( hex_size : f32, bounds : [ Coordinate< Offset< Parity >, Orientation >; 2 ] ) -> Self
+  pub const fn new( bounds : [ Coordinate< Offset< Parity >, Orientation >; 2 ] ) -> Self
   {
     assert!( bounds[ 0 ].q <= bounds[ 1 ].q, "Incorrect bounds" );
     assert!( bounds[ 0 ].r <= bounds[ 1 ].r, "Incorrect bounds" );
-    assert!( hex_size > 0.0, "Hex size must be positive" );
+    // assert!( hex_size > 0.0, "Hex size must be positive" );
 
     Self
     {
-      hex_size,
+      // hex_size,
       bounds,
     }
   }
@@ -60,10 +60,12 @@ where
     let [ min, max ] = self.bounds;
 
     let min1 = Into::< Coordinate< Axial, Pointy > >::into( min ).to_pixel( self.hex_size );
+    let min1 : crate::coordinates::pixel::Pixel = Into::< Coordinate< Axial, Pointy > >::into( min ).into();
     let min_x = if min.r + 1 <= max.r
     {
       let min2 = Coordinate::< Offset< Parity >, Pointy >::new( min.q, min.r + 1 );
-      let min2 = Into::< Coordinate< Axial, Pointy > >::into( min2 ).to_pixel( self.hex_size );
+      let min2 : crate::coordinates::pixel::Pixel = Into::< Coordinate< Axial, Pointy > >::into( min2 ).into();
+      // let min2 = Into::< Coordinate< Axial, Pointy > >::into( min2 ).to_pixel( self.hex_size );
       min1[ 0 ].min( min2[ 0 ] )
     }
     else
@@ -73,10 +75,12 @@ where
     let min_y = min1[ 1 ];
 
     let max1 = Into::< Coordinate< Axial, Pointy > >::into( max ).to_pixel( self.hex_size );
+    let max1 : Pixel = Into::< Coordinate< Axial, Pointy > >::into( max ).into();
     let max_x = if max.r - 1 >= min.r
     {
       let max2 = Coordinate::< Offset< Parity >, Pointy >::new( max.q, max.r - 1 );
-      let max2 = Into::< Coordinate< Axial, Pointy > >::into( max2 ).to_pixel( self.hex_size );
+      let max2 : Pixel = Into::< Coordinate< Axial, Pointy > >::into( max2 ).into();
+      // let max2 = Into::< Coordinate< Axial, Pointy > >::into( max2 ).to_pixel( self.hex_size );
       max1[ 0 ].max( max2[ 0 ] )
     }
     else

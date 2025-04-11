@@ -212,17 +212,17 @@ use ndarray_cg::{ F32x2, F32x3x3, IntoVector as _, Vector };
 //   positions
 // }
 
-pub fn from_iter< I, C, F >( iter : I, hex_size : f32, mesh_producer : F, transform : F32x3x3 ) -> Vec< f32 >
+pub fn from_iter< I, C, F >( iter : I, mesh_producer : F, transform : F32x3x3 ) -> Vec< f32 >
 where
   I : Iterator< Item = C >,
-  C : PixelConversion,
+  C : Into< Pixel >,
   F : Fn() -> Vec< f32 >
 {
   let mesh = mesh_producer(); // aaa : I thought grid_mesh generate mesh? confusing names
   let mut points = vec![];
   for coord in iter
   {
-    let Pixel { data : [ x, y ] } = coord.to_pixel( hex_size );
+    let Pixel { data : [ x, y ] } = coord.into();
     let y = -y;
 
     for point in mesh.chunks( 2 )
@@ -235,7 +235,7 @@ where
   points
 }
 
-pub fn hexagon_triangles( hex_size : f32 ) -> Vec< f32 >
+pub fn hexagon_triangles() -> Vec< f32 >
 {
   let points = hexagon_vertices();
   let mut positions = vec![];
@@ -247,18 +247,18 @@ pub fn hexagon_triangles( hex_size : f32 ) -> Vec< f32 >
     let point1 = w[ 0 ];
     let point2 = w[ 1 ];
 
-    positions.push( hex_size * first[ 0 ] );
-    positions.push( hex_size * first[ 1 ] );
-    positions.push( hex_size * point1[ 0 ] );
-    positions.push( hex_size * point1[ 1 ] );
-    positions.push( hex_size * point2[ 0 ] );
-    positions.push( hex_size * point2[ 1 ] );
+    positions.push( first[ 0 ] );
+    positions.push( first[ 1 ] );
+    positions.push( point1[ 0 ] );
+    positions.push( point1[ 1 ] );
+    positions.push( point2[ 0 ] );
+    positions.push( point2[ 1 ] );
   }
 
   positions
 }
 
-pub fn hexagon_lines( hex_size : f32 ) -> Vec< f32 >
+pub fn hexagon_lines() -> Vec< f32 >
 {
   let points = hexagon_vertices();
   let mut positions = vec![];
@@ -267,16 +267,16 @@ pub fn hexagon_lines( hex_size : f32 ) -> Vec< f32 >
     let point1 = w[ 0 ];
     let point2 = w[ 1 ];
 
-    positions.push( hex_size * point1[ 0 ] );
-    positions.push( hex_size * point1[ 1 ] );
-    positions.push( hex_size * point2[ 0 ] );
-    positions.push( hex_size * point2[ 1 ] );
+    positions.push( point1[ 0 ] );
+    positions.push( point1[ 1 ] );
+    positions.push( point2[ 0 ] );
+    positions.push( point2[ 1 ] );
   }
 
-  positions.push( hex_size * points.last().unwrap()[ 0 ] );
-  positions.push( hex_size * points.last().unwrap()[ 1 ] );
-  positions.push( hex_size * points.first().unwrap()[ 0 ] );
-  positions.push( hex_size * points.first().unwrap()[ 1 ] );
+  positions.push( points.last().unwrap()[ 0 ] );
+  positions.push( points.last().unwrap()[ 1 ] );
+  positions.push( points.first().unwrap()[ 0 ] );
+  positions.push( points.first().unwrap()[ 1 ] );
 
   positions
 }
