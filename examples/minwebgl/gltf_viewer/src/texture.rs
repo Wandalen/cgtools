@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use minwebgl::{ self as gl };
 use gl::GL;
 
@@ -5,7 +7,7 @@ use crate::sampler::Sampler;
 
 pub struct Texture
 {
-  source : gl::web_sys::WebGlTexture,
+  source : Option< gl::web_sys::WebGlTexture >,
   sampler : Sampler
 }
 
@@ -13,7 +15,7 @@ impl Texture
 {
   pub fn new
   ( 
-    images : &[ gl::web_sys::WebGlTexture ], 
+    images : &[ Option< gl::web_sys::WebGlTexture > ], 
     t : gltf::Texture, 
   ) -> Self
   {
@@ -35,6 +37,6 @@ impl Texture
 
   pub fn bind( &self, gl : &gl::WebGl2RenderingContext )
   {
-    gl.bind_texture( gl::TEXTURE_2D, Some( &self.source ) );
+    gl.bind_texture( gl::TEXTURE_2D, self.source.as_ref() );
   }
 }

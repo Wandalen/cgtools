@@ -14,6 +14,13 @@ mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 gltf = { workspace = true, features = [ "import" ] }
 glam = "0.30.1"
 
+[dependencies.uuid]
+version = "1.16.0"
+# Lets you generate random UUIDs
+features = [
+  "v4",
+  "js"
+]
 
 [dependencies.web-sys]
 workspace = true

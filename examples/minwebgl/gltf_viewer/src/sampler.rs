@@ -1,5 +1,4 @@
 use minwebgl::{ self as gl };
-use gl::GL;
 
 pub struct Sampler
 {
@@ -31,15 +30,15 @@ impl Sampler
   {
     if let Some( mag ) = self.magnification
     {
-      gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, mag as i32 );
+      gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, mag as i32 );
     }
 
     if let Some( min ) = self.minification
     {
-      gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, min as i32 );
+      gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, min as i32 );
     }
 
-    gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, self.wrapping_s as i32 );
-    gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, self.wrapping_t as i32 );
+    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, self.wrapping_s as i32 );
+    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, self.wrapping_t as i32 );
   }
 }

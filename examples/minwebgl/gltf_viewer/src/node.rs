@@ -2,12 +2,12 @@ use std::{cell::RefCell, rc::Rc};
 
 use minwebgl::{ self as gl };
 
-use crate::mesh::Mesh;
+use crate::{mesh::Mesh, program::ProgramInfo};
 
 pub enum Object3D
 {
   Mesh( usize ),
-  Camera( usize ),
+  Other
 }
 
 impl Default for Object3D 
@@ -21,9 +21,8 @@ impl Default for Object3D
 #[ derive( Default ) ]
 pub struct Node
 {
-  id : usize,
   children : Vec< Rc< RefCell< Node > > >,
-  object : Object3D,
+  pub object : Object3D,
   matrix : gl::F32x4x4,
   world_matrix : gl::F32x4x4,
   scale : gl::F32x3,
@@ -44,7 +43,7 @@ impl Node
     }
     else
     {
-      Object3D::Camera( node.camera().unwrap().index() )
+      Object3D::Other
     };
 
     match node.transform()
@@ -90,18 +89,36 @@ impl Node
 
   pub fn add_children( &mut self, gltf_node : &gltf::Node, nodes : &[ Rc< RefCell< Node > > ] )
   {
+    //let mut text = String::new();
+    //text.push_str( &format!( "Node: {}\n", gltf_node.index()) );
     for c in gltf_node.children()
     {
-      self.add_child( nodes[ c.index() ].clone() );
+      //text.push_str( &format!( "\tChild: {}\n", c.index()) );
+      let node = nodes[ c.index() ].clone();
+      node.borrow_mut().add_children( &c, nodes );
+      self.add_child( node );
     }
+
+   // gl::info!( "NODE INFO:\n{}", text );
+
+    
   }
 
-  // pub fn render( &self, gl : &gl::WebGl2RenderingContext, meshes : &[ Mesh ] )
-  // {
-  //   match self.object
-  //   {
-  //     Object3D::Camera( id ) => { gl::info!( "Trying to render a camera" ) },
-  //     Object3D::Mesh( id ) => { meshes[ id ].render( gl ); }
-  //   }
-  // }
+  pub fn apply
+  ( 
+    &self, 
+    gl : &gl::WebGl2RenderingContext,
+    program_info : &ProgramInfo 
+  )
+  {
+    let locations = program_info.get_locations();
+
+    gl::uniform::matrix_upload
+    ( 
+      &gl, 
+      locations.get( "worldMatrix" ).unwrap().clone(),
+      self.world_matrix.to_array().as_slice(), 
+      true 
+    ).unwrap();
+  }
 }

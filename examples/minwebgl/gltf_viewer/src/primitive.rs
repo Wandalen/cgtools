@@ -3,10 +3,10 @@ use minwebgl as gl;
 
 use crate::buffer::Buffer;
 
-const VERTEX_SHADER : &'static str = include_str!( "../shaders/main.vert" );
-
 pub struct Primitive
 {
+  pub id : uuid::Uuid,
+  vs_defines : String,
   index_count : u32,
   vertex_count : u32,
   index_type : u32,
@@ -25,6 +25,8 @@ impl Primitive
     buffers : &HashMap< usize, Buffer >
   ) -> Result< Self, gl::WebglError >
   {
+    let mut vs_defines = String::new();
+    let id = uuid::Uuid::new_v4();
     let mut index_count = 0;
     let draw_mode = p.mode().as_gl_enum();
     let material_id = p.material().index();
@@ -49,11 +51,12 @@ impl Primitive
     let mut vertex_count = 0;
     for ( sem, acc ) in p.attributes()
     { 
-      let view = acc.view().expect( "Sparse accessors are not supported" );
-      // The buffer must be the ARRAY_BUFFER, so binding like this should be ok
-      let buffer = buffers.get( &view.index() ).expect( "Attribute buffer not found" );
-      buffer.bind( gl );
-
+      if acc.sparse().is_some()
+      {
+        gl::log::info!( "Sparce accessors are not supported yet" );
+        continue;
+      }
+      
       let slot = match sem 
       {
         gltf::Semantic::Positions => { 
@@ -62,18 +65,23 @@ impl Primitive
         },
         gltf::Semantic::Normals => 1,
         gltf::Semantic::TexCoords( i ) => {
-          assert!( i < 2, "Only 2 types of texture coordinates are supported" );
+          assert!( i < 5, "Only 5 types of texture coordinates are supported" );
           2 + i
         },
         gltf::Semantic::Colors( i ) => {
           assert!( i < 2, "Only 2 types of color coordinates are supported" );
-          4 + i
+          7 + i
         },
         a => { gl::warn!( "Unsupported attribute: {:?}", a ); continue; }
       };
 
+      let view = acc.view().expect( "Sparse accessors are not supported" );
+      // The buffer must be the ARRAY_BUFFER, so binding like this should be ok
+      let buffer = buffers.get( &view.index() ).expect( "Attribute buffer not found" );
+      buffer.bind( gl );
+
       let size = acc.dimensions().multiplicity();
-      assert!( size < 5, "Only 2 types of color coordinates are supported" );
+      assert!( size <= 4, "Vertex attribute has more than 4 elements" );
 
       let type_ = acc.data_type().as_gl_enum();
       let stride = view.stride().unwrap_or( 0 );
@@ -87,11 +95,16 @@ impl Primitive
         stride as i32, 
         acc.offset() as i32 
       );
+
+      //gl.vertex_attrib_divisor( slot, 1 );
+      gl.enable_vertex_attrib_array( slot );
     }
     Ok
     (
       Self 
       { 
+        id,
+        vs_defines,
         index_count,
         draw_mode,
         vao,
@@ -103,9 +116,23 @@ impl Primitive
     )
   }
 
+  pub fn get_vertex_defines( &self ) -> &str
+  {
+    &self.vs_defines    
+  }
+
+  pub fn get_material_id( &self ) -> Option< usize >
+  {
+    self.material_id
+  }
+
   pub fn apply( &self, gl : &gl::WebGl2RenderingContext )
   {
     gl.bind_vertex_array( Some( &self.vao ) );
+  }
+
+  pub fn draw( &self, gl : &gl::WebGl2RenderingContext )
+  {
     if self.index_count == 0
     {
       gl.draw_arrays( self.draw_mode, 0, self.vertex_count as i32 );

@@ -1,14 +1,13 @@
-use std::collections::HashSet;
-
 use minwebgl as gl;
 use gl::GL;
 
-use crate::texture::Texture;
+use crate::{program::ProgramInfo, texture::Texture};
 
 
 #[ derive( Clone ) ]
 pub struct Material< 'a >
 {
+  pub id : uuid::Uuid,
   fs_defines : String,
   base_color_factor : gl::F32x4,
   base_color_texture : Option< &'a Texture >,
@@ -28,22 +27,22 @@ pub struct Material< 'a >
 
 impl< 'a > Material< 'a > 
 {
-  pub async fn new< 'b >
+  pub fn new< 'b >
   ( 
     m : gltf::Material< 'b >,
     textures : &'a [ Texture ]
   ) -> Self
   {
-
+    let id = uuid::Uuid::new_v4();
     let mut fs_defines = String::new();
-    fs_defines.push_str( "#define USE_PBR" );
+    fs_defines.push_str( "#define USE_PBR\n" );
 
     let mut add_texture = | t_info : Option< gltf::texture::Info< 'b > >, texture_define, uv_define |
     {
       if let Some( info ) = t_info
       {
-        fs_defines.push_str( &format!( "#define {}", texture_define ) );
-        fs_defines.push_str( &format!( "#define {}_{}", uv_define, info.tex_coord() ) );
+        fs_defines.push_str( &format!( "#define {}\n", texture_define ) );
+        fs_defines.push_str( &format!( "#define {} vUv_{}\n", uv_define, info.tex_coord() ) );
         Some( &textures[ info.texture().index() ] )
       }
       else 
@@ -63,8 +62,8 @@ impl< 'a > Material< 'a >
     let mut normal_scale = 1.0;
     let normal_texture =  if let Some( info ) = m.normal_texture()
     {
-      fs_defines.push_str( &format!( "#define {}", "USE_NORMAL_TEXTURE" ) );
-      fs_defines.push_str( &format!( "#define {}_{}", "vNormalUv", info.tex_coord() ) );
+      fs_defines.push_str( &format!( "#define {}\n", "USE_NORMAL_TEXTURE" ) );
+      fs_defines.push_str( &format!( "#define {} vUv_{}\n", "vNormalUv", info.tex_coord() ) );
       normal_scale = info.scale();
       Some( &textures[ info.texture().index() ] )
     }
@@ -75,8 +74,8 @@ impl< 'a > Material< 'a >
     let mut occlusion_strength = 1.0;
     let occlusion_texture =  if let Some( info ) = m.occlusion_texture()
     {
-      fs_defines.push_str( &format!( "#define {}", "USE_OCCLUSION_TEXTURE" ) );
-      fs_defines.push_str( &format!( "#define {}_{}", "vOcclusionUv", info.tex_coord() ) );
+      fs_defines.push_str( &format!( "#define {}\n", "USE_OCCLUSION_TEXTURE" ) );
+      fs_defines.push_str( &format!( "#define {} vUv_{}\n", "vOcclusionUv", info.tex_coord() ) );
       occlusion_strength = info.strength();
       Some( &textures[ info.texture().index() ] )
     }
@@ -91,6 +90,7 @@ impl< 'a > Material< 'a >
 
     return Self
     {
+      id,
       fs_defines,
       base_color_factor,
       base_color_texture,
@@ -109,33 +109,79 @@ impl< 'a > Material< 'a >
     };
   }
 
-  pub fn apply( &self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Result< (), gl::WebglError >
+  pub fn apply
+  ( 
+    &self, 
+    gl : &gl::WebGl2RenderingContext, 
+    program_info : &ProgramInfo
+  ) -> Result< (), gl::WebglError >
   {
+    let locations = program_info.get_locations();
+
     // Assign a texture unit for each type of texture
-    gl.uniform1i( gl.get_uniform_location( &program, "metallicRoughnessTexture" ).as_ref() , 0 );
-    gl.uniform1i( gl.get_uniform_location( &program, "baseColorTexture" ).as_ref() , 1 );
-    gl.uniform1i( gl.get_uniform_location( &program, "normalTexture" ).as_ref() , 2 );
-    gl.uniform1i( gl.get_uniform_location( &program, "occlusionTexture" ).as_ref() , 3 );
-    gl.uniform1i( gl.get_uniform_location( &program, "emissiveTexture" ).as_ref() , 4 );
+    gl.uniform1i( locations.get( "metallicRoughnessTexture" ).unwrap().clone().as_ref() , 0 );
+    gl.uniform1i( locations.get( "baseColorTexture" ).unwrap().clone().as_ref() , 1 );
+    gl.uniform1i( locations.get( "normalTexture" ).unwrap().clone().as_ref() , 2 );
+    gl.uniform1i( locations.get( "occlusionTexture" ).unwrap().clone().as_ref() , 3 );
+    gl.uniform1i( locations.get( "emissiveTexture" ).unwrap().clone().as_ref() , 4 );
 
-    gl::uniform::upload( gl, gl.get_uniform_location( program, "baseColorFactor" ), &self.base_color_factor.to_array() )?;
-    gl::uniform::upload( gl, gl.get_uniform_location( program, "metallicFactor" ), &self.metallic_factor )?;
-    gl::uniform::upload( gl, gl.get_uniform_location( program, "roughnessFactor" ), &self.roughness_factor )?;
-    gl::uniform::upload( gl, gl.get_uniform_location( program, "normalScale" ), &self.normal_scale )?;
-    gl::uniform::upload( gl, gl.get_uniform_location( program, "occlusionStrength" ), &self.occlusion_strength )?;
+    gl::uniform::upload( gl, locations.get( "baseColorFactor" ).unwrap().clone(), &self.base_color_factor.to_array() )?;
+    gl::uniform::upload( gl, locations.get( "metallicFactor" ).unwrap().clone(), &self.metallic_factor )?;
+    gl::uniform::upload( gl, locations.get( "roughnessFactor" ).unwrap().clone(), &self.roughness_factor )?;
+    gl::uniform::upload( gl, locations.get( "normalScale" ).unwrap().clone(), &self.normal_scale )?;
+    gl::uniform::upload( gl, locations.get( "occlusionStrength" ).unwrap().clone(), &self.occlusion_strength )?;
 
-    gl.active_texture( gl::TEXTURE0 + 0 );
-    if let Some( t ) = self.metallic_roughness_texture { t.apply( gl ); }
-    gl.active_texture( gl::TEXTURE0 + 1 );
-    if let Some( t ) = self.base_color_texture { t.apply( gl ); }
-    gl.active_texture( gl::TEXTURE0 + 2 );
-    if let Some( t ) = self.normal_texture { t.apply( gl ); }
-    gl.active_texture( gl::TEXTURE0 + 3 );
-    if let Some( t ) = self.occlusion_texture { t.apply( gl ); }
-    gl.active_texture( gl::TEXTURE0 + 4 );
-    if let Some( t ) = self.emissive_texture { t.apply( gl ); }
+    self.apply_textures( gl );
 
     Ok( () )
+  }
+
+  pub fn apply_textures( &self, gl : &gl::WebGl2RenderingContext )
+  {
+    if let Some( t ) = self.metallic_roughness_texture { t.apply( gl ); }
+    if let Some( t ) = self.base_color_texture { t.apply( gl ); }
+    if let Some( t ) = self.normal_texture { t.apply( gl ); }
+    if let Some( t ) = self.occlusion_texture { t.apply( gl ); }
+    if let Some( t ) = self.emissive_texture { t.apply( gl ); }
+  }
+
+  pub fn bind_textures( &self, gl : &gl::WebGl2RenderingContext )
+  {
+   
+    if let Some( t ) = self.metallic_roughness_texture 
+    {  
+      gl.active_texture( gl::TEXTURE0 + 0 ); 
+      t.bind( gl ); 
+    }
+
+    if let Some( t ) = self.base_color_texture 
+    { 
+      gl.active_texture( gl::TEXTURE0 + 1 );
+      t.bind( gl ); 
+    }
+
+    if let Some( t ) = self.normal_texture 
+    { 
+      gl.active_texture( gl::TEXTURE0 + 2 );
+      t.bind( gl ); 
+    }
+
+    if let Some( t ) = self.occlusion_texture
+    { 
+      gl.active_texture( gl::TEXTURE0 + 3 );
+      t.bind( gl ); 
+    }
+
+    if let Some( t ) = self.emissive_texture
+    { 
+      gl.active_texture( gl::TEXTURE0 + 4 );
+      t.bind( gl ); 
+    }
+  }
+
+  pub fn get_fragment_defines( &self ) -> &str
+  {
+    &self.fs_defines
   }
 }
 
@@ -143,6 +189,7 @@ impl< 'a > Default for Material< 'a >
 {
   fn default() -> Self 
   {
+    let id = uuid::Uuid::default();
     let fs_defines = String::new();
 
     let base_color_factor = gl::F32x4::from( [ 1.0, 1.0, 1.0, 1.0 ] );
@@ -166,6 +213,7 @@ impl< 'a > Default for Material< 'a >
 
     return Self
     {
+      id,
       fs_defines,
       base_color_factor,
       base_color_texture,

@@ -6,12 +6,13 @@ use std::
 };
 
 use buffer::Buffer;
+use camera::Camera;
 use gltf::Gltf;
 use material::Material;
 use mesh::Mesh;
-use mingl::CameraOrbitControls;
 use minwebgl::{ self as gl, JsCast };
-use node::Node;
+use node::{Node, Object3D};
+use renderer::Renderer;
 use scene::Scene;
 use texture::Texture;
 use web_sys::wasm_bindgen::prelude::Closure;
@@ -26,6 +27,8 @@ mod primitive;
 mod buffer;
 mod node;
 mod renderer;
+mod camera;
+mod program;
 
 async fn run() -> Result< (), gl::WebglError >
 {
@@ -38,42 +41,24 @@ async fn run() -> Result< (), gl::WebglError >
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
 
-  let frag = include_str!( "../shaders/test/shader.frag" );
-  let vert = include_str!( "../shaders/test/shader.vert" );
-
-  let program = gl::ProgramFromSources::new( vert, frag ).compile_and_link( &gl )?;
-  gl.use_program( Some( &program ) );
-
   // Camera setup
-  let eye = gl::math::F32x3::from( [ 0.0, 20.0, 20.0 ] );
+  let mut eye = gl::math::F32x3::from( [ 0.0, 20.0, 20.0 ] );
+  eye /= 500.0;
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
   let center = gl::math::F32x3::from( [ 0.0, 0.0, 0.0 ] );
 
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
-  let projection_matrix = gl::math::mat3x3h::perspective_rh_gl
-  (
-    fov,  
-    aspect_ratio, 
-    0.1, 
-    10000.0
-  );
+  let near = 0.001;
+  let far = 100.0;
 
-  let camera = CameraOrbitControls
-  {
-    eye : eye,
-    up : up,
-    center : center,
-    window_size : [ width, height ].into(),
-    fov,
-    rotation_speed_scale : 200.0,
-    ..Default::default()
-  };
-  let camera = Rc::new( RefCell::new( camera ) );
+  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
+  camera.set_window_size( [ width, height ].into() );
 
-  camera_controls::setup_controls( &canvas, &camera );
+  camera_controls::setup_controls( &canvas, &camera.get_controls() );
 
   let gltf_file_path = "dodge-challenger/gltf";
+  //let gltf_file_path = "Neon/gltf";
 
   let gltf_slice= gl::file::load( &format!( "{}/scene.gltf", gltf_file_path ) ).await.expect( "Failed to load gltf file" );
   let mut gltf_file = Gltf::from_slice( &gltf_slice ).unwrap();
@@ -84,6 +69,7 @@ async fn run() -> Result< (), gl::WebglError >
   if let Some( blob ) = gltf_file.blob.as_mut()
   {
     let blob = std::mem::take( blob );
+    gl::log::info!( "The gltf binary payload is present: {}", blob.len() );
     buffers.push( blob.as_slice().into() );
   }
 
@@ -93,8 +79,17 @@ async fn run() -> Result< (), gl::WebglError >
     {
       gltf::buffer::Source::Uri( uri ) =>
       {
-        let buffer = gl::file::load( &format!( "{}/{}", gltf_file_path, uri ) ).await
+        let path = format!( "{}/{}", gltf_file_path, uri );
+        let buffer = gl::file::load( &path ).await
         .expect( "Failed to load a buffer" );
+
+        gl::log::info!
+        (
+          "Buffer path: {}\n
+          \tBuffer length: {}", 
+          path,
+          buffer.len()
+        );
 
         buffers.push( buffer.as_slice().into() );
       },
@@ -110,29 +105,41 @@ async fn run() -> Result< (), gl::WebglError >
   // Creates an <img> html elements, and sets its src property to 'src' parameter
   // When the image is loaded, createa a texture and adds it to the 'images' array
   let upload_texture = | src : Rc< String > | {
+    let texture = gl.create_texture();
+    images.borrow_mut().push( texture.clone() );
+
     let img_element = document.create_element( "img" ).unwrap().dyn_into::< gl::web_sys::HtmlImageElement >().unwrap();
     img_element.style().set_property( "display", "none" ).unwrap();
     let load_texture : Closure< dyn Fn() > = Closure::new
     ( 
       {
-        let images = images.clone();
+        //let images = images.clone();
         let gl = gl.clone();
         let img = img_element.clone();
         let src = src.clone();
         move || 
         {
-          let texture = gl::texture::d2::upload( &gl, &img );
+          gl.bind_texture( gl::TEXTURE_2D, texture.as_ref() );
+          //gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 1 );
+          gl.tex_image_2d_with_u32_and_u32_and_html_image_element
+          (
+            gl::TEXTURE_2D,
+            0,
+            gl::RGBA as i32,
+            gl::RGBA,
+            gl::UNSIGNED_BYTE,
+            &img
+          ).expect( "Failed to upload data to texture" );
+          //gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 0 );
 
-          if texture.is_some()
-          {
-            images.borrow_mut().push( texture.unwrap() );
-          }
+          gl.generate_mipmap( gl::TEXTURE_2D );
 
-          match gl::web_sys::Url::revoke_object_url( &src )
-          {
-            Ok( _ ) => { gl::info!( "Remove object url: {}", &src ) },
-            Err( _ ) => { gl::info!( "Not an object url: {}", &src ) }
-          }
+          //match 
+          gl::web_sys::Url::revoke_object_url( &src ).unwrap();
+          // {
+          //   Ok( _ ) => { gl::info!( "Remove object url: {}", &src ) },
+          //   Err( _ ) => { gl::info!( "Not an object url: {}", &src ) }
+          // }
 
           img.remove();
         }
@@ -153,7 +160,7 @@ async fn run() -> Result< (), gl::WebglError >
     {
       gltf::image::Source::Uri { uri, mime_type: _ } => 
       {
-        upload_texture( Rc::new( format!( "{}/{}", gltf_file_path, uri ) ) );
+        upload_texture( Rc::new( format!( "static/{}/{}", gltf_file_path, uri ) ) );
       },
       gltf::image::Source::View { view, mime_type } => 
       {
@@ -198,6 +205,7 @@ async fn run() -> Result< (), gl::WebglError >
     let t = Texture::new( &images.borrow(), gltf_t );
     textures.push( t );
   }
+  let textures : &'static Vec< Texture > = Box::leak( Box::new( textures ) );
 
   // Create materials
   let mut materials = Vec::new();
@@ -222,8 +230,16 @@ async fn run() -> Result< (), gl::WebglError >
   for gltf_node in gltf_file.nodes()
   {
     let node = Rc::new( RefCell::new( Node::new( &gltf_node ) ) );
+
+    if let Object3D::Mesh( id ) = node.borrow().object
+    {
+      meshes[ id ].set_parent( node.clone() );
+    }
+    
     nodes.push( node );
   }
+
+  gl::log::info!( "Nodes: {}", nodes.len() );
 
   let mut scenes = Vec::new();
   for gltf_scene in gltf_file.scenes()
@@ -232,6 +248,11 @@ async fn run() -> Result< (), gl::WebglError >
     scenes.push( scene );
   }
 
+  gl::log::info!( "Scenes: {}", scenes.len() );
+
+  let mut renderer = Renderer::new( nodes, materials, meshes );
+  renderer.compile( &gl )?;
+
   gl.enable( gl::DEPTH_TEST );
   gl.enable( gl::BLEND );
 
@@ -239,6 +260,7 @@ async fn run() -> Result< (), gl::WebglError >
   gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
   gl.clear_depth( 1.0 );
 
+  scenes[ 0 ].update_world_matrix();
   // Define the update and draw logic
   let update_and_draw =
   {
@@ -246,33 +268,9 @@ async fn run() -> Result< (), gl::WebglError >
     {
       let _time = t as f32 / 1000.0;
 
-      let view_matrix = camera.borrow().view().to_array();
-      let eye = camera.borrow().eye().to_array();
+      renderer.render( &gl, &mut scenes[ 0 ], &camera )
+      .expect( "Failed to render" );
 
-      gl::uniform::upload
-      (
-        &gl, 
-        gl.get_uniform_location( &program, "cameraPosition" ), 
-        &eye[ .. ]
-      ).unwrap();
-
-      gl::uniform::matrix_upload
-      ( 
-        &gl, 
-        gl.get_uniform_location( &program, "viewMatrix" ), 
-        &view_matrix[ .. ], 
-        true 
-      ).unwrap();
-
-      gl::uniform::matrix_upload
-      ( 
-        &gl, 
-        gl.get_uniform_location( &program, "projectionMatrix" ), 
-        projection_matrix.to_array().as_slice(), 
-        true 
-      ).unwrap();
-
-      gl.draw_arrays( gl::TRIANGLE_STRIP, 0, 4 );
       true
     }
   };

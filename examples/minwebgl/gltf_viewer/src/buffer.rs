@@ -45,7 +45,7 @@ impl Buffer
 
   pub fn bind( &self, gl : &gl::WebGl2RenderingContext )
   {
-    gl.bind_buffer( self.target, Some( &self.buffer ) );
+    gl.bind_buffer( self.target, self.as_option() );
   }
 
   pub fn as_option( &self ) -> Option< &gl::WebGlBuffer >

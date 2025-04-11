@@ -7,15 +7,34 @@ precision mediump float;
 #define RECIPROCAL_PI2 0.15915494309189535
 #define EPSILON 1e-6
 
+in vec2 vUv_0;
 in vec2 vUv_1;
 in vec2 vUv_2;
+in vec2 vUv_3;
+in vec2 vUv_4;
 in vec3 vWorldPos;
 in vec3 vViewPos;
 in vec3 vNormal;
 
-out frag_color;
-out emissive_color;
+layout( location = 0 ) out vec4 frag_color;
+//layout( location = 1 ) out vec4 emissive_color;
 
+uniform vec3 cameraPosition;
+
+struct PhysicalMaterial
+{
+  vec3 diffuseColor;
+  float metallness;
+  float roughness;
+  vec3 specularColor;
+  float occlusionFactor;
+};
+
+struct ReflectedLight
+{
+  vec3 directDiffuse;
+  vec3 directSpecula;
+};
 
 #ifdef USE_PBR
   uniform float metallicFactor; // Default: 1
@@ -55,8 +74,6 @@ out emissive_color;
   uniform float emissiveFactor;
 #endif
 
-uniform vec3 cameraPos;
-
 
 
 float pow2( const in float x ) 
@@ -78,6 +95,38 @@ float pow4( const in float x )
 {
   float x2 = x*x;
   return x2*x2;
+}
+
+vec4 SrgbToLinear( const in vec4 color )
+{
+  vec3 more = pow( color.rgb * 0.9478672986 + vec3( 0.0521327014 ), vec3( 2.4 ) );
+  vec3 less = color.rgb * 0.0773993808;
+
+  return vec4( mix( more, less, vec3( lessThanEqual( color.rgb, vec3( 0.04045 ) ) ) ), color.a );
+}
+
+vec4 LinearToSrgb( const in vec4 color )
+{
+  vec3 more = pow( color.rgb, vec3( 0.41666 ) ) * 1.055 - vec3( 0.055 );
+  vec3 less = color.rgb * 12.92;
+
+  return vec4( mix( more, less, vec3( lessThanEqual( color.rgb, vec3( 0.0031308 ) ) ) ), color.a );
+}
+
+vec3 SrgbToLinear( const in vec3 color )
+{
+  vec3 more = pow( color * 0.9478672986 + vec3( 0.0521327014 ), vec3( 2.4 ) );
+  vec3 less = color * 0.0773993808;
+
+  return mix( more, less, vec3( lessThanEqual( color, vec3( 0.04045 ) ) ) );
+}
+
+vec3 LinearToSrgb( const in vec3 color )
+{
+  vec3 more = pow( color, vec3( 0.41666 ) ) * 1.055 - vec3( 0.055 );
+  vec3 less = color * 12.92;
+
+  return mix( more, less, vec3( lessThanEqual( color, vec3( 0.0031308 ) ) ) );
 }
 
 // Schilck's version of Fresnel equation, with Spherical Gaussian approximation for the power
@@ -105,7 +154,7 @@ float D_GGX( const in float alpha, const in float dotNH )
   return 0.3183098861837907 * a2 / pow2( denom );
 }
 
-vec3 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 normal, const in PhysicalMaterial material ) {
+vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 normal, const in PhysicalMaterial material ) {
   vec3 f0 = material.specularColor;
 
   float roughness = material.roughness;
@@ -120,10 +169,10 @@ vec3 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
   // Fresnel
   vec3 F = F_Schlick( f0, dotVH );
   // Geometry function
-  float V = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
+  float G = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
   // Normal distribution function
   float D = D_GGX( alpha, dotNH );
-  return F * ( V * D );
+  return vec4( F, G * D ) ;
 }
 
 #ifdef USE_NORMAL_TEXTURE
@@ -150,19 +199,59 @@ vec3 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
 
 void main()
 {
-  vec3 lightDir = vec3( 1.0 );
+  PhysicalMaterial material = PhysicalMaterial
+  (
+    vec3( 1.0 ),
+    1.0,
+    1.0,
+    vec3( 1.0 ),
+    1.0
+  );
+  
+  float alpha = 1.0;
+  #ifdef USE_PBR
+    #ifdef USE_BASE_COLOR_TEXTURE
+      vec4 baseColor = baseColorFactor * SrgbToLinear( texture( baseColorTexture, vBaseColorUv ) );
+      material.diffuseColor =  baseColor.rgb;
+      alpha = baseColor.a;
+    #else
+      material.diffuseColor = baseColorFactor.xyz;
+      alpha = baseColorFactor.w;
+    #endif
+    #ifdef USE_MR_TEXTURE
+      vec4 mr_sample = texture( metallicRoughnessTexture, vMRUv );
+      material.metallness = metallicFactor * mr_sample.b;
+      material.roughness = roughnessFactor * mr_sample.g;
+    #else
+    material.metallness = metallicFactor;
+    material.roughness = roughnessFactor;
+    #endif
+  #else
+    material.metallness = 0.0;
+    material.roughness = 1.0;
+  #endif
+
+  material.specularColor = mix( vec3( 0.04 ), material.diffuseColor, material.metallness );
 
   vec3 normal = normalize( vNormal );
   #ifdef USE_NORMAL_TEXTURE
-    vec3 normalSample = texture( normal_texture, vNormalUv ) * 2.0 - 1.0;
-    normalSample = normalize( normalSample );
+    vec3 normalSample = texture( normalTexture, vNormalUv ).xyz * 2.0 - 1.0;
     normalSample.xy *= vec2( normalScale );
-
     normal = getTBN( normal, vWorldPos, vNormalUv ) * normalSample;
-    //normal = normalize( normal );
+    normal = normalize( normal );
   #endif
 
-  vec3 viewDir = normalize( cameraPos - vWorldPos );
+  // Works only with indirect light
+  #ifdef USE_OCCLUSION_TEXTURE
+    float occlusion = texture( occlusionTexture, vOcclusionUv ).r;
+    material.occlusionFactor = 1.0 + occlusionStrength * ( occlusion - 1.0 );
+  #else
+    material.occlusionFactor = 1.0;
+  #endif
+
+
+  vec3 color = vec3( 0.0 );
+  vec3 viewDir = normalize( cameraPosition - vWorldPos );
   vec3 lightDirs[] = vec3[]
   (
     vec3( 1.0, 0.0, 0.0 ),
@@ -173,18 +262,33 @@ void main()
     vec3( 0.0, 0.0, -1.0 )
   );
 
-  #ifdef USE_EMISSION
-    emissive_color = vec4( 1.0 );
-    emissive_color.xyz *= emissiveFactor;
-    #ifdef USE_EMISSION_TEXTURE
-      emissive_color.xyz *= texture( emissiveTexture, {EMISSION_UV} )
-    #endif
-  #endif
+  const vec3 lightColor = vec3( 1.0 );
+  vec3 ambientColor = 0.1 * material.diffuseColor * material.occlusionFactor;
+  for( int i = 0; i < 6; i++ )
+  {
+    vec4 brdf = BRDF_GGX( lightDirs[ i ], viewDir, normal, material );
+    vec3 F = brdf.xyz;
+    float DG = brdf.w;
+    float dotNL = clamp( dot( normal, lightDirs[ i ] ), 0.0, 1.0 );
+    float dotVN = clamp( dot( viewDir, normal ), 0.0, 1.0 );
 
-  vec3 color = vec3( 0.0 );
+    vec3 light_diffuse = ( vec3( 1.0 ) - F ) * material.diffuseColor * RECIPROCAL_PI;
+    vec3 light_specular = F * DG ;// max( 4.0 * dotVN * dotNL, 0.0001 );
+    color += ( light_diffuse + light_specular ) * lightColor * dotNL;
+  }
+  color += ambientColor;
 
-  // Gamma correciton
-  color = pow( color, vec3( 1.0 / 2.2 ) );
+  // #ifdef USE_EMISSION
+  //   emissive_color = vec4( 1.0 );
+  //   emissive_color.xyz *= emissiveFactor;
+  //   #ifdef USE_EMISSION_TEXTURE
+  //     emissive_color.xyz *= texture( emissiveTexture, {EMISSION_UV} )
+  //   #endif
+  // #endif
+
+  color = LinearToSrgb( color );
+
   
-  frag_color = vec4( color, alpha );
+  frag_color = vec4( color * alpha, alpha );
+  //frag_color = vec4( 1.0 );
 }
