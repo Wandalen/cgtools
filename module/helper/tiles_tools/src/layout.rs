@@ -42,8 +42,7 @@ impl< Parity, Orientation > RectangularGrid< Parity, Orientation >
       current : current.into(),
       max : max.into(),
       min : min.into(),
-      parity : PhantomData,
-      orientation : PhantomData,
+      _marker : PhantomData,
     }
   }
 }
@@ -145,8 +144,7 @@ struct RectangularGridIterator< Parity, Orientation >
   current : I32x2,
   max : I32x2,
   min : I32x2,
-  parity : PhantomData< Parity >,
-  orientation : PhantomData< Orientation >,
+  _marker : PhantomData< Coordinate< Offset< Parity >, Orientation > >,
 }
 
 impl< Parity, Orientation > Iterator for RectangularGridIterator< Parity, Orientation >
