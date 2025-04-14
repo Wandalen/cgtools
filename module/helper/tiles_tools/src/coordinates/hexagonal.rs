@@ -76,6 +76,14 @@ impl< System, Orientation > Into< I32x2 > for Coordinate< System, Orientation >
   }
 }
 
+impl< System, Orientation > Into< ( i32, i32 ) > for Coordinate< System, Orientation >
+{
+  fn into( self ) -> ( i32, i32 )
+  {
+    ( self.q, self.r )
+  }
+}
+
 impl< System, Orientation > Coordinate< System, Orientation >
 {
   /// Create a new coordinate
@@ -189,6 +197,14 @@ impl From< Coordinate< Offset< Even >, Flat > > for Coordinate< Axial, Flat >
   }
 }
 
+impl< Orientation > From< ( i32, i32 ) > for Coordinate< Axial, Orientation >
+{
+  fn from( ( q, r ) : ( i32, i32 ) ) -> Self
+  {
+    Self::new( q, r )
+  }
+}
+
 impl< Orientation > std::ops::Add for Coordinate< Axial, Orientation >
 {
   type Output = Self;
@@ -226,6 +242,19 @@ impl< Orientation > std::ops::Div< i32 > for Coordinate< Axial, Orientation >
   fn div( self, rhs : i32 ) -> Self::Output
   {
     Self::new( self.q / rhs, self.r / rhs )
+  }
+}
+
+impl< Orientation > Coordinate< Axial, Orientation >
+{
+  pub fn distance( &self, Self { q, r, .. } : Self ) -> i32
+  {
+    let s = -self.q - self.r;
+    let other_s = -q - r;
+    let q = self.q - q;
+    let r = self.r - r;
+    let s = s - other_s;
+    ( q.abs() + r.abs() + s.abs() ) / 2
   }
 }
 

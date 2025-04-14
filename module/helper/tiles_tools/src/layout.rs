@@ -5,6 +5,7 @@ use ndarray_cg::{ F32x2, I32x2 };
 use std::marker::PhantomData;
 
 /// RECTANGULAR LAYOUT
+#[ derive( Debug, Clone, Copy ) ]
 pub struct RectangularGrid< Parity, Orientation >
 {
   /// Inclusive maximum and minimum coordinates of the grid.
@@ -51,6 +52,7 @@ impl< Parity > RectangularGrid< Parity, Pointy >
 where
   Coordinate< Offset< Parity >, Pointy > : Into< Coordinate< Axial, Pointy > >,
 {
+  /// Position of a point right in the center of the whole grid.
   pub fn center( &self ) -> F32x2
   {
     let [ min, max ] = self.bounds;
@@ -97,6 +99,7 @@ impl< Parity > RectangularGrid< Parity, Flat >
 where
   Coordinate< Offset< Parity >, Flat > : Into< Coordinate< Axial, Flat > >,
 {
+  /// Position of a point right in the center of the whole grid.
   pub fn center( &self ) -> F32x2
   {
     let [ min, max ] = self.bounds;

@@ -1,3 +1,5 @@
+mod pathfind;
+
 use tiles_tools::
 {
   coordinates::{ hexagonal::*, pixel::Pixel },
@@ -40,6 +42,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   // aaa : why shift_type is not part of layout? o.O
   // aaa : what about type Grid combinging layout and grid size. also grid probably can have offset of orign?
   let rect = RectangularGrid::new( region );
+  pathfind::run( &rect );
   let grid_center = rect.center();
 
   min::info!( "grid center: {grid_center:?}" );
