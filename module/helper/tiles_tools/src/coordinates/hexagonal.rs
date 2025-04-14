@@ -20,8 +20,7 @@ pub struct Coordinate< System, Orientation >
   pub q : i32,
   /// Row index
   pub r : i32,
-  system : PhantomData< System >,
-  orientation : PhantomData< Orientation >,
+  pub _marker : PhantomData< ( System, Orientation ) >,
 }
 
 impl< System, Orientation > Debug for Coordinate< System, Orientation >
@@ -31,8 +30,7 @@ impl< System, Orientation > Debug for Coordinate< System, Orientation >
     f.debug_struct( "Coordinate" )
     .field( "q", &self.q )
     .field( "r", &self.r )
-    .field( "system", &self.system )
-    .field( "orientation", &self.orientation )
+    .field( "system", &self._marker )
     .finish()
   }
 }
@@ -63,8 +61,7 @@ impl< System, Orientation > Hash for Coordinate< System, Orientation >
   {
     self.q.hash( state );
     self.r.hash( state );
-    self.system.hash( state );
-    self.orientation.hash( state );
+    self._marker.hash( state );
   }
 }
 
@@ -93,8 +90,7 @@ impl< System, Orientation > Coordinate< System, Orientation >
     {
       q,
       r,
-      system : PhantomData,
-      orientation : PhantomData,
+      _marker : PhantomData,
     }
   }
 }
