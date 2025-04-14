@@ -42,7 +42,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   // aaa : why shift_type is not part of layout? o.O
   // aaa : what about type Grid combinging layout and grid size. also grid probably can have offset of orign?
   let rect = RectangularGrid::new( region );
-  pathfind::run( &rect );
+
   let grid_center = rect.center();
 
   min::info!( "grid center: {grid_center:?}" );
@@ -89,7 +89,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
   let mut selected_hex = None;
 
-  let mouse_move =
+  let demo1 =
   {
     let context = context.clone();
     let canvas = canvas.clone();
@@ -138,9 +138,13 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
     }
   };
 
-  let mouse_move = Closure::< dyn FnMut( _ ) >::new( Box::new( mouse_move ) );
+  let mouse_move = Closure::< dyn FnMut( _ ) >::new( Box::new( demo1 ) );
   canvas.set_onmousemove( Some( mouse_move.as_ref().unchecked_ref() ) );
   mouse_move.forget();
+
+
+  // canvas.set_onmousedown( todo!() );
+  // canvas.set_onmousemove( todo!() );
 
   Ok( () )
 }

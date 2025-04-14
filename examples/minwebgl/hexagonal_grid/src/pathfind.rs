@@ -1,14 +1,18 @@
-use minwebgl as min;
-use std::collections::HashMap;
-use tiles_tools::{ coordinates::hexagonal::*, layout::RectangularGrid };
+use tiles_tools::coordinates::hexagonal::*;
 
-pub fn run( rect : &RectangularGrid<Odd, Pointy> )
+pub fn find_path< F, System, Orientation >
+(
+  start : Coordinate< System, Orientation >,
+  goal : Coordinate< System, Orientation >,
+  is_accessible : F
+) -> Option< ( Vec< Coordinate< System, Orientation > >, i32 ) >
+where
+  F : Fn( Coordinate< Axial, Orientation > ) -> bool,
+  Coordinate< System, Orientation > : Into< Coordinate< Axial, Orientation > > + From< Coordinate< Axial, Orientation > >,
 {
-  let mut map : HashMap< Coordinate< Axial, _ >, _ > = HashMap::from_iter( rect.coordinates().map( | c | ( c.into(), true ) ) );
-  map.entry( Coordinate::< Axial, Pointy >::new( 1, 0 ) ).and_modify( | v | *v = false );
-
-  let start = Coordinate::< Axial, Pointy >::new( 0, 0 );
-
+  // TODO:
+  // try to abstact neighbor getting process,
+  // maybe use trait?
   let directions =
   [
     (  1,  0 ),
@@ -19,25 +23,30 @@ pub fn run( rect : &RectangularGrid<Odd, Pointy> )
     (  0,  1 ),
   ];
 
-  let goal = Coordinate::< Axial, Pointy >::new( 2, 3 );
-
-  let path = pathfinding::prelude::astar
+  pathfinding::prelude::astar
   (
-    &start.into(),
-    | &( x, y ) |
+    &start,
+    | &coord |
     {
       directions
       .iter()
-      .map( move | ( q, r ) | ( x + q, y + r ).into() )
-      .filter( | c | map.get( &c ).copied().unwrap_or_default() )
-      .map( | c | ( ( c.q, c.r ), 1 ) )
+      .map
+      (
+        move | &offset |
+        {
+          let coord : Coordinate::< Axial, Orientation > = coord.into();
+          coord + ( offset ).into()
+        }
+      )
+      .filter( | coord | is_accessible( *coord ) )
+      .map( | coord | ( coord.into(), 1 ) )
     },
-    | &( x, y ) |
+    | &coord |
     {
-      let c = Coordinate::< Axial, Pointy >::new( x, y );
-      goal.distance( c )
+      let coord : Coordinate::< Axial, Orientation > = coord.into();
+      let goal : Coordinate::< Axial, Orientation > = goal.into();
+      goal.distance( coord )
     },
-    | &p | p == goal.into()
-  );
-  min::info!( "{path:?}" );
+    | &p | p == goal
+  )
 }
