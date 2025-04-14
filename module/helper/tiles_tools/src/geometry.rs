@@ -3,9 +3,9 @@ use coordinates::pixel::Pixel;
 use ndarray_cg::{ F32x2, F32x3x3, IntoVector as _, Vector };
 
 // aaa : use geometry instead of mesh. rename also file
-// qqq : if geometry is generated description must have information about what kind of primitive it's based on
+// aaa : if geometry is generated description must have information about what kind of primitive it's based on
 // aaa : no fans or loops
-// qqq : description should be much more descriptive and preferably visual
+// aaa : description should be much more descriptive and preferably visual
 
 /// Generates a 2d mesh from an iterator of coordinates and a `mesh_producer`.
 /// Converts each coordinate to 2d position and places the mesh at that position, additionaly applying `transform`.
@@ -120,6 +120,22 @@ pub fn hexagon_lines() -> Vec< f32 >
 /// Generates the six corner points of a hexagon.
 /// Outputs a list of 2d point of a hexagon of a unit radius.
 /// Center is at (0, 0). Distance from center to each vertex is 1.0.
+///
+///
+///       *                    *
+///
+///
+///
+///
+///
+/// *            (0; 0)              *(1; 0)
+///
+///
+///
+///
+///
+///      *                      *
+///
 pub fn hexagon_vertices() -> [ F32x2; 6 ]
 {
   let mut points : [ F32x2; 6 ] = Default::default();

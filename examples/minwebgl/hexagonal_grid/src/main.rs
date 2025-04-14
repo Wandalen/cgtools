@@ -46,7 +46,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
   let grid_mesh = geometry::from_iter
   (
-    rect.coordinates().map( | c | { Into::< Coordinate< Axial, Pointy > >::into( c ) } ),
+    rect.coordinates().map( | c | Into::< Coordinate< Axial, _ > >::into( c ) ),
     || geometry::hexagon_triangles(),
     mat2x2h::rot( 30.0f32.to_radians() ) * mat2x2h::scale( [ 0.9, 0.9 ] )
   );
@@ -78,7 +78,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let mvp = scale_m * translation;
 
   context.clear_color( 0.9, 0.9, 0.9, 1.0 );
-  context.clear( min::COLOR_BUFFER_BIT );
+  context.clear( GL::COLOR_BUFFER_BIT );
   hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
   hex_shader.uniform_upload( "u_color", &[ 0.7, 0.7, 0.7, 1.0 ] );
   grid_geometry.activate();
