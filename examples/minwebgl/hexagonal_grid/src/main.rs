@@ -119,7 +119,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
       hex_shader.uniform_upload( "u_color", &[ 0.7, 0.7, 0.7, 1.0 ] );
       grid_geometry.activate();
-      context.draw_arrays( min::TRIANGLES, 0, grid_geometry.nvertices );
+      context.draw_arrays( GL::TRIANGLES, 0, grid_geometry.nvertices );
 
       let selected_hex_pos : Pixel = selected_hex_coord.into();
       let translation = mat2x2h::translate( [ selected_hex_pos[ 0 ] - grid_center[ 0 ], -selected_hex_pos[ 1 ] + grid_center[ 1 ] ] );
