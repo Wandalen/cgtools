@@ -1,5 +1,6 @@
 mod pathfind;
 
+
 use tiles_tools::
 {
   coordinates::{ hexagonal::*, pixel::Pixel },
@@ -21,6 +22,7 @@ use min::
   // it just does not work 😕
 };
 use web_sys::{ wasm_bindgen::prelude::Closure, MouseEvent };
+use std::{ cell::RefCell, collections::HashMap, rc::Rc };
 
 fn main() -> Result< (), min::WebglError >
 {
@@ -38,7 +40,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let canvas_size = ( canvas.width() as f32, canvas.height() as f32 ).into_vector() / dpr;
 
   // inclusize grid bounds
-  let region = [ Coordinate::< Offset< Odd >, Pointy >::new( 0, 0 ), Coordinate::< Offset< _ >, _ >::new( 7, 5 ) ];
+  let region = [ Coordinate::< Offset< Odd >, Pointy >::new( 0, 0 ), Coordinate::< Offset< _ >, _ >::new( 8, 8 ) ];
   // aaa : why shift_type is not part of layout? o.O
   // aaa : what about type Grid combinging layout and grid size. also grid probably can have offset of orign?
   let rect = RectangularGrid::new( region );
@@ -61,21 +63,31 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
   let vert = include_str!( "shaders/main.vert" );
   let frag = include_str!( "shaders/main.frag" );
-  let hex_shader = Program::new( context.clone(), vert, frag )?;
+  let hex_shader = Rc::new( Program::new( context.clone(), vert, frag )? );
   hex_shader.activate();
 
-  let grid_geometry = min::geometry::Positions::new
+  let grid_geometry = Rc::new
   (
-    context.clone(),
-    &grid_mesh, // aaa : iterating all tiles several times is not efficient. is it possible to avoid it?
-    2,
-  )?;
+    min::geometry::Positions::new
+    (
+      context.clone(),
+      &grid_mesh, // aaa : iterating all tiles several times is not efficient. is it possible to avoid it?
+      2,
+    )?
+  );
   let outline_geometry = min::geometry::Positions::new
   (
     context.clone(),
     &geometry::hexagon_lines(),
     2,
   )?;
+  let hexagon_geometry = min::geometry::Positions::new
+  (
+    context.clone(),
+    &geometry::hexagon_triangles(),
+    2,
+  )?;
+
 
   let translation = mat2x2h::translate( [ -grid_center.x(), grid_center.y() ] );
   let mvp = scale_m * translation;
@@ -87,12 +99,20 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   grid_geometry.activate();
   context.draw_arrays( GL::TRIANGLES, 0, grid_geometry.nvertices );
 
+
+
+  ////// GRID DEMO //////
+
+
+
   let mut selected_hex = None;
 
   let demo1 =
   {
     let context = context.clone();
     let canvas = canvas.clone();
+    let grid_geometry = grid_geometry.clone();
+    let hex_shader = hex_shader.clone();
     move | e : MouseEvent |
     {
       let rect = canvas.get_bounding_client_rect();
@@ -137,14 +157,110 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
                                                                        // aaa : let's use linestrip. rid of loops
     }
   };
-
   let mouse_move = Closure::< dyn FnMut( _ ) >::new( Box::new( demo1 ) );
   canvas.set_onmousemove( Some( mouse_move.as_ref().unchecked_ref() ) );
   mouse_move.forget();
 
+  let map = Rc::new
+  (
+    RefCell::new
+    (
+      HashMap::< Coordinate< Axial, Pointy >, bool >::from_iter( rect.coordinates().map( | c | ( c.into(), true ) ) )
+    )
+  );
+  let demo2 =
+  {
+    let canvas = canvas.clone();
+    let map = map.clone();
+    // let context = context.clone();
+    move | e : MouseEvent |
+    {
+      let rect = canvas.get_bounding_client_rect();
+      let canvas_pos = F32x2::new( rect.left() as f32, rect.top() as f32 );
+      let half_size : F32x2 = canvas_size / 2.0;
+      let cursor_pos = F32x2::new( e.client_x() as f32, e.client_y() as f32 );
+      let cursor_pos : Pixel = ( ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) + grid_center ).into();
+      let selected_hex_coord : Coordinate::< Axial, Pointy > = cursor_pos.into();
+      let mut map = map.borrow_mut();
+      if map.contains_key( &selected_hex_coord )
+      {
+        map.entry( selected_hex_coord ).and_modify( | v | *v = !*v );
+      }
+    }
+  };
+  let mouse_down = Closure::< dyn FnMut( _ ) >::new( Box::new( demo2 ) );
+  canvas.set_onmousedown( Some( mouse_down.as_ref().unchecked_ref() ) );
+  mouse_down.forget();
 
-  // canvas.set_onmousedown( todo!() );
-  // canvas.set_onmousemove( todo!() );
+
+ ////// PATHFIND DEMO //////
+
+
+  let mut selected_hex = None;
+  let demo2 =
+  {
+    let canvas = canvas.clone();
+    let context = context.clone();
+    let map = map.clone();
+    move | e : MouseEvent |
+    {
+      let rect = canvas.get_bounding_client_rect();
+      let canvas_pos = F32x2::new( rect.left() as f32, rect.top() as f32 );
+      let half_size : F32x2 = canvas_size / 2.0;
+      let cursor_pos = F32x2::new( e.client_x() as f32, e.client_y() as f32 );
+      let cursor_pos : Pixel = ( ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) + grid_center ).into();
+      let selected_hex_coord : Coordinate::< Axial, Pointy > = cursor_pos.into();
+
+      if selected_hex.is_some_and( | hex_coord | hex_coord == selected_hex_coord )
+      {
+        return;
+      }
+
+      selected_hex = Some( selected_hex_coord );
+
+      context.clear( min::COLOR_BUFFER_BIT );
+
+      // draw grid
+      hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
+      hex_shader.uniform_upload( "u_color", &[ 0.7, 0.7, 0.7, 1.0 ] );
+      grid_geometry.activate();
+      context.draw_arrays( GL::TRIANGLES, 0, grid_geometry.nvertices );
+
+      for ( &coord, _ ) in map.borrow().iter().filter( | ( _, v ) | !**v )
+      {
+        let hex_pos : Pixel = coord.into();
+        let translation = mat2x2h::translate( [ hex_pos[ 0 ] - grid_center[ 0 ], -hex_pos[ 1 ] + grid_center[ 1 ] ] );
+        let mvp = scale_m * translation * mat2x2h::rot( 30.0f32.to_radians() ); // * mat2x2h::scale( [ 0.9, 0.9 ] );
+
+        hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
+        hex_shader.uniform_upload( "u_color", &[ 0.1, 0.1, 0.1, 1.0 ] );
+        hexagon_geometry.activate();
+        context.draw_arrays( GL::TRIANGLES, 0, hexagon_geometry.nvertices );
+      }
+
+      let start = Coordinate::< Axial, _ >::new( 2, 4 );
+      let goal = selected_hex_coord;
+
+      let path = pathfind::find_path( start, goal, | coord | map.borrow().get( &coord ).copied().unwrap_or_default() );
+      if let Some( ( path, _ ) ) = path
+      {
+        for coord in path
+        {
+          let hex_pos : Pixel = coord.into();
+          let translation = mat2x2h::translate( [ hex_pos[ 0 ] - grid_center[ 0 ], -hex_pos[ 1 ] + grid_center[ 1 ] ] );
+          let mvp = scale_m * translation * mat2x2h::rot( 30.0f32.to_radians() ); //* mat2x2h::scale( [ 0.9, 0.9 ] );
+
+          hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
+          hex_shader.uniform_upload( "u_color", &[ 0.1, 0.6, 0.1, 1.0 ] );
+          hexagon_geometry.activate();
+          context.draw_arrays( GL::TRIANGLES, 0, hexagon_geometry.nvertices );
+        }
+      }
+    }
+  };
+  let mouse_move = Closure::< dyn FnMut( _ ) >::new( Box::new( demo2 ) );
+  canvas.set_onmousemove( Some( mouse_move.as_ref().unchecked_ref() ) );
+  mouse_move.forget();
 
   Ok( () )
 }
