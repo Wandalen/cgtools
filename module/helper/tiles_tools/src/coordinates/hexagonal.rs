@@ -84,7 +84,7 @@ impl< System, Orientation > Into< ( i32, i32 ) > for Coordinate< System, Orienta
 impl< System, Orientation > Coordinate< System, Orientation >
 {
   /// Create a new coordinate
-  const fn new_uncheked( q : i32, r : i32 ) -> Self
+  pub( crate ) const fn new_uncheked( q : i32, r : i32 ) -> Self
   {
     Self
     {

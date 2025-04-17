@@ -1,6 +1,5 @@
 mod pathfind;
 
-
 use tiles_tools::
 {
   coordinates::{ hexagonal::*, pixel::Pixel },
@@ -57,7 +56,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   );
 
   let aspect = canvas_size[ 1 ] / canvas_size[ 0 ];
-  let scale = 0.12;
+  let scale = 0.07;
   let aspect_scale : F32x2 = [ aspect * scale, scale ].into();
   let scale_m = mat2x2h::scale( aspect_scale.0 );
 
@@ -81,12 +80,12 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
     &geometry::hexagon_lines(),
     2,
   )?;
-  let hexagon_geometry = min::geometry::Positions::new
+  let hexagon_geometry = Rc::new(min::geometry::Positions::new
   (
     context.clone(),
     &geometry::hexagon_triangles(),
     2,
-  )?;
+  )?);
 
 
   let translation = mat2x2h::translate( [ -grid_center.x(), grid_center.y() ] );
@@ -100,9 +99,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   context.draw_arrays( GL::TRIANGLES, 0, grid_geometry.nvertices );
 
 
-
   ////// GRID DEMO //////
-
 
 
   let mut selected_hex = None;
@@ -136,7 +133,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
       selected_hex = Some( selected_hex_coord );
 
-      context.clear( min::COLOR_BUFFER_BIT );
+      context.clear( GL::COLOR_BUFFER_BIT );
 
       // draw grid
       hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
@@ -172,7 +169,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   {
     let canvas = canvas.clone();
     let map = map.clone();
-    // let context = context.clone();
+
     move | e : MouseEvent |
     {
       let rect = canvas.get_bounding_client_rect();
@@ -193,7 +190,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   mouse_down.forget();
 
 
- ////// PATHFIND DEMO //////
+  ////// PATHFIND DEMO //////
 
 
   let mut selected_hex = None;
@@ -201,6 +198,8 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   {
     let canvas = canvas.clone();
     let context = context.clone();
+    let hex_shader = hex_shader.clone();
+    let hexagon_geometry = hexagon_geometry.clone();
     let map = map.clone();
     move | e : MouseEvent |
     {
@@ -218,7 +217,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
       selected_hex = Some( selected_hex_coord );
 
-      context.clear( min::COLOR_BUFFER_BIT );
+      context.clear( GL::COLOR_BUFFER_BIT );
 
       // draw grid
       hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
@@ -259,6 +258,81 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
     }
   };
   let mouse_move = Closure::< dyn FnMut( _ ) >::new( Box::new( demo2 ) );
+  canvas.set_onmousemove( Some( mouse_move.as_ref().unchecked_ref() ) );
+  mouse_move.forget();
+
+  let current_color = [ 0.0, 0.0, 0.0 ];
+  let mut painting_canvas = tiles_tools::collection::HexArray::< Offset< Odd >, Pointy, [ f32; 3 ] >::new
+  (
+    [ 41, 41 ].into(),
+    [ 20, 20 ].into(),
+    || [ 1.0, 1.0, 1.0 ]
+  );
+
+  let is_mouse_down = Rc::new( RefCell::new( false ) );
+
+  let mouse_down =
+  {
+    let is_mouse_down = is_mouse_down.clone();
+    move | event : MouseEvent |
+    {
+      if event.button() == 0 { *( is_mouse_down.borrow_mut() ) = true; }
+    }
+  };
+  let mouse_down = Closure::< dyn FnMut( _ ) >::new( Box::new( mouse_down ) );
+
+  let mouse_up =
+  {
+    let is_mouse_down = is_mouse_down.clone();
+    move | event : MouseEvent |
+    {
+      if event.button() == 0 { *( is_mouse_down.borrow_mut() ) = false; }
+    }
+  };
+  let mouse_up = Closure::< dyn FnMut( _ ) >::new( Box::new( mouse_up ) );
+
+  canvas.set_onmousedown( Some( mouse_down.as_ref().unchecked_ref() ) );
+  canvas.set_onmouseup( Some( mouse_up.as_ref().unchecked_ref() ) );
+  mouse_down.forget();
+  mouse_up.forget();
+
+  let paint =
+  {
+    let canvas = canvas.clone();
+    let is_mouse_down = is_mouse_down.clone();
+    let context = context.clone();
+    let hexagon_geometry = hexagon_geometry.clone();
+    let hex_shader = hex_shader.clone();
+    move | event : MouseEvent |
+    {
+      // min::info!( "{}", *( is_mouse_down.borrow() ) );
+      if *( is_mouse_down.borrow() )
+      {
+        let rect = canvas.get_bounding_client_rect();
+        let canvas_pos = F32x2::new( rect.left() as f32, rect.top() as f32 );
+        let half_size : F32x2 = canvas_size / 2.0;
+        let cursor_pos = F32x2::new( event.client_x() as f32, event.client_y() as f32 );
+        let cursor_pos : Pixel = ( ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) ).into();
+        let selected_hex_coord : Coordinate::< Axial, Pointy > = cursor_pos.into();
+
+        painting_canvas[ selected_hex_coord ] = current_color;
+        context.clear( GL::COLOR_BUFFER_BIT );
+        for ( coord, &[ r, g, b ] ) in painting_canvas.indexed_iter()
+        {
+          let axial : Coordinate< Axial, _ > = coord.into();
+          let hex_pos : Pixel = axial.into();
+          let translation = mat2x2h::translate( [ hex_pos[ 0 ], -hex_pos[ 1 ] ] );
+          let mvp = scale_m * translation * mat2x2h::rot( 30.0f32.to_radians() );
+
+          hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
+          hex_shader.uniform_upload( "u_color", &[ r, g, b, 1.0 ] );
+          hexagon_geometry.activate();
+          context.draw_arrays( GL::TRIANGLES, 0, hexagon_geometry.nvertices );
+        }
+      }
+    }
+  };
+  let mouse_move = Closure::< dyn FnMut( _ ) >::new( Box::new( paint ) );
   canvas.set_onmousemove( Some( mouse_move.as_ref().unchecked_ref() ) );
   mouse_move.forget();
 
