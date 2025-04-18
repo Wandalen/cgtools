@@ -240,7 +240,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       let start = Coordinate::< Axial, _ >::new( 2, 4 );
       let goal = selected_hex_coord;
 
-      let path = pathfind::find_path( start, goal, | coord | map.borrow().get( &coord ).copied().unwrap_or_default() );
+      let path = pathfind::find_path( &start, &goal, | coord | map.borrow().get( &coord ).copied().unwrap_or_default() );
       if let Some( ( path, _ ) ) = path
       {
         for coord in path
@@ -305,7 +305,6 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
     let hex_shader = hex_shader.clone();
     move | event : MouseEvent |
     {
-      // min::info!( "{}", *( is_mouse_down.borrow() ) );
       if *( is_mouse_down.borrow() )
       {
         let rect = canvas.get_bounding_client_rect();
@@ -316,7 +315,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
         let selected_hex_coord : Coordinate::< Axial, Pointy > = cursor_pos.into();
 
         painting_canvas[ selected_hex_coord ] = current_color;
-        context.clear( GL::COLOR_BUFFER_BIT );
+        // context.clear( GL::COLOR_BUFFER_BIT );
         for ( coord, &[ r, g, b ] ) in painting_canvas.indexed_iter()
         {
           let axial : Coordinate< Axial, _ > = coord.into();

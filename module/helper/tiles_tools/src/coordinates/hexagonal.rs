@@ -1,6 +1,6 @@
 use std::{ fmt::Debug, hash::Hash, marker::PhantomData };
 use ndarray_cg::I32x2;
-use super::pixel::Pixel;
+use crate::coordinates::{ pixel::Pixel, Distance, Neigbors };
 
 pub struct Axial;
 
@@ -110,6 +110,16 @@ impl< Orientation > Coordinate< Axial, Orientation >
   pub const fn new( q : i32, r : i32 ) -> Self
   {
     Self::new_uncheked( q, r )
+  }
+
+  pub fn distance( &self, Self { q, r, .. } : Self ) -> i32
+  {
+    let s = -self.q - self.r;
+    let other_s = -q - r;
+    let q = self.q - q;
+    let r = self.r - r;
+    let s = s - other_s;
+    ( q.abs() + r.abs() + s.abs() ) / 2
   }
 }
 
@@ -241,19 +251,6 @@ impl< Orientation > std::ops::Div< i32 > for Coordinate< Axial, Orientation >
   }
 }
 
-impl< Orientation > Coordinate< Axial, Orientation >
-{
-  pub fn distance( &self, Self { q, r, .. } : Self ) -> i32
-  {
-    let s = -self.q - self.r;
-    let other_s = -q - r;
-    let q = self.q - q;
-    let r = self.r - r;
-    let s = s - other_s;
-    ( q.abs() + r.abs() + s.abs() ) / 2
-  }
-}
-
 impl From< Pixel > for Coordinate< Axial, Pointy >
 {
   fn from( Pixel { data : [ x, y ] } : Pixel ) -> Self
@@ -310,4 +307,33 @@ fn axial_round( q : f32, r : f32 ) -> ( i32, i32 )
   }
 
   ( rq as i32, rr as i32 )
+}
+
+impl< Orientation > Distance for Coordinate< Axial, Orientation >
+{
+  fn distance( &self, Self { q, r, .. } : &Self ) -> i32
+  {
+    let s = -self.q - self.r;
+    let other_s = -q - r;
+    let q = self.q - q;
+    let r = self.r - r;
+    let s = s - other_s;
+    ( q.abs() + r.abs() + s.abs() ) / 2
+    // self.distance( *other )
+  }
+}
+
+impl< Orientation > Neigbors for Coordinate< Axial, Orientation >
+{
+  fn neighbors( &self ) -> Vec< Self >
+  {
+    [
+      *self + (  1,  0 ).into(),
+      *self + (  1, -1 ).into(),
+      *self + (  0, -1 ).into(),
+      *self + ( -1,  0 ).into(),
+      *self + ( -1,  1 ).into(),
+      *self + (  0,  1 ).into(),
+    ].into()
+  }
 }

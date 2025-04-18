@@ -1,52 +1,26 @@
-use tiles_tools::coordinates::hexagonal::*;
+use std::hash::Hash;
+use tiles_tools::coordinates::{ Distance, Neigbors };
 
-pub fn find_path< F, System, Orientation >
+pub fn find_path< C, F >
 (
-  start : Coordinate< System, Orientation >,
-  goal : Coordinate< System, Orientation >,
+  start : &C,
+  goal : &C,
   is_accessible : F
-) -> Option< ( Vec< Coordinate< System, Orientation > >, i32 ) >
+)
+-> Option< ( Vec< C >, i32 ) >
 where
-  F : Fn( Coordinate< Axial, Orientation > ) -> bool,
-  Coordinate< System, Orientation > : Into< Coordinate< Axial, Orientation > > + From< Coordinate< Axial, Orientation > >,
+  C : Distance + Neigbors + Eq + Clone + Hash,
+  F : Fn( &C ) -> bool,
 {
-  // TODO:
-  // try to abstact neighbor getting process,
-  // maybe use trait?
-  let directions =
-  [
-    (  1,  0 ),
-    (  1, -1 ),
-    (  0, -1 ),
-    ( -1,  0 ),
-    ( -1,  1 ),
-    (  0,  1 ),
-  ];
-
   pathfinding::prelude::astar
   (
-    &start,
-    | &coord |
-    {
-      directions
-      .iter()
-      .map
-      (
-        move | &offset |
-        {
-          let coord : Coordinate::< Axial, Orientation > = coord.into();
-          coord + ( offset ).into()
-        }
-      )
-      .filter( | coord | is_accessible( *coord ) )
-      .map( | coord | ( coord.into(), 1 ) )
-    },
-    | &coord |
-    {
-      let coord : Coordinate::< Axial, Orientation > = coord.into();
-      let goal : Coordinate::< Axial, Orientation > = goal.into();
-      goal.distance( coord )
-    },
-    | &p | p == goal
+    start,
+    | coord | coord.neighbors()
+                   .iter()
+                   .filter( | coord | is_accessible( coord ) )
+                   .map( | coord | ( coord.clone(), 1 ) )
+                   .collect::< Vec< _ > >(),
+    | coord | goal.distance( coord ),
+    | p | *p == *goal
   )
 }
