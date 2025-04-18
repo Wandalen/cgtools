@@ -45,7 +45,7 @@ pub struct Input
 
 impl Input
 {
-  pub fn new() -> Self
+  pub fn new( poll : bool ) -> Self
   {
     let events = Events
     {
@@ -90,7 +90,11 @@ impl Input
           ctrl,
           shift,
         };
-        input.borrow_mut().events.push( event );
+
+        if poll
+        {
+          input.borrow_mut().events.push( event );
+        }
       }
     };
 
@@ -121,7 +125,11 @@ impl Input
           ctrl,
           shift,
         };
-        input.borrow_mut().events.push( event );
+
+        if poll
+        {
+          input.borrow_mut().events.push( event );
+        }
       }
     };
 
