@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 pathfinding = "4.14.0"
 minwebgl = { workspace = true, features = [ "math" ] }
-web-sys = { workspace = true, features = [ "DomRect", "MouseEvent" ] }
+web-sys = { workspace = true, features = [ "DomRect", "MouseEvent", "KeyboardEvent" ] }
 derive_tools = { workspace = true }
 tiles_tools = { workspace = true }
+strum = { version = "0.27.1", features = ["derive"] }
