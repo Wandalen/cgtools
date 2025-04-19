@@ -1,153 +1,179 @@
 use minwebgl as min;
-use min::JsCast as _;
-use strum::EnumCount;
-use std::{ cell::RefCell, rc::Rc, str::FromStr };
+use min::{ JsCast as _, I32x2 };
 use web_sys::{ wasm_bindgen::prelude::Closure, KeyboardEvent, MouseEvent };
+use std::{ cell::RefCell, rc::Rc, str::FromStr };
+use strum::EnumCount;
 
-#[ derive( Clone, Copy, Debug, PartialEq, Eq ) ]
-pub enum Type
-{
-  Keyboard( KeyboardCode ),
-  Mouse( MouseButton ),
-  Wheel,
-}
-
-#[ derive( Clone, Copy, Debug, PartialEq, Eq ) ]
+#[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
 pub enum Action
 {
   Press,
   Release,
 }
 
-#[ derive( Clone, Copy, Debug, PartialEq, Eq ) ]
-pub struct Event
+#[ derive( Debug, Clone, Copy, PartialEq ) ]
+pub enum EventInfo
 {
-  r#type : Type,
-  action : Action,
-  alt : bool,
-  ctrl : bool,
-  shift : bool,
+  KeyboardButton( KeyboardCode, Action ),
+  MouseButton( MouseButton, Action ),
+  MouseMovement( I32x2 ),
+  Wheel,
 }
 
-pub struct Events
+#[ derive( Debug, Clone, Copy, PartialEq ) ]
+pub struct Event
+{
+  pub event_info : EventInfo,
+  pub alt : bool,
+  pub ctrl : bool,
+  pub shift : bool,
+}
+
+#[ derive( Debug, Clone ) ]
+pub struct InputInner
 {
   events : Vec< Event >,
   keyboard_state : [ bool; KeyboardCode::COUNT ],
   mouse_state : [ bool; MouseButton::COUNT - 1 ],
+  last_mouse_position : I32x2,
 }
 
+#[ derive( Debug, Clone ) ]
 pub struct Input
 {
-  events : Rc< RefCell< Events > >,
-  mouse_closure : Closure< dyn Fn( MouseEvent ) >,
-  keyboard_closure : Closure< dyn Fn( KeyboardEvent ) >,
+  inner : Rc< RefCell< InputInner > >,
+  mousebutton_closure : Rc< Closure< dyn Fn( MouseEvent ) > >,
+  mousemove_closure : Rc< Closure< dyn Fn( MouseEvent ) > >,
+  keyboard_closure : Rc< Closure< dyn Fn( KeyboardEvent ) > >,
 }
 
 impl Input
 {
   pub fn new( poll : bool ) -> Self
   {
-    let events = Events
+    let inner = InputInner
     {
       events : Vec::new(),
       keyboard_state : [ false; KeyboardCode::COUNT ],
       mouse_state : [ false; MouseButton::COUNT - 1 ],
+      last_mouse_position : I32x2::from_array( [ 0, 0 ] ),
     };
 
-    let events = Rc::new( RefCell::new( events ) );
+    let inner = Rc::new( RefCell::new( inner ) );
     let window = web_sys::window().unwrap();
 
-    let mouse_closure =
+    let mousebutton_closure =
     {
-      let input = events.clone();
+      let inner = inner.clone();
       move | event : MouseEvent |
       {
         let button = MouseButton::from_button( event.button() );
-        let r#type = Type::Mouse( button );
+        let action = if event.type_() == "mousedown"
+        {
+          if let Some( index ) = button.as_index()
+          {
+            inner.borrow_mut().mouse_state[ index ] = true;
+          }
+          Action::Press
+        }
+        else
+        {
+          if let Some( index ) = button.as_index()
+          {
+            inner.borrow_mut().mouse_state[ index ] = false;
+          }
+          Action::Release
+        };
+
+        let event_info = EventInfo::MouseButton( button, action );
         let alt = event.alt_key();
         let ctrl = event.ctrl_key();
         let shift = event.shift_key();
-        let event = Event
-        {
-          r#type,
-          action : if event.type_() == "mousedown"
-          {
-            if let Some( index ) = button.as_index()
-            {
-              input.borrow_mut().mouse_state[ index ] = true;
-            }
-            Action::Press
-          }
-          else
-          {
-            if let Some( index ) = button.as_index()
-            {
-              input.borrow_mut().mouse_state[ index ] = false;
-            }
-            Action::Release
-          },
-          alt,
-          ctrl,
-          shift,
-        };
+
+        let event = Event { event_info, alt, ctrl, shift };
 
         if poll
         {
-          input.borrow_mut().events.push( event );
+          inner.borrow_mut().events.push( event );
+        }
+      }
+    };
+
+    let mousemove_closure =
+    {
+      let inner = inner.clone();
+      move | event : MouseEvent |
+      {
+        let position = I32x2::from_array( [ event.client_x(), event.client_y() ] );
+        let delta =
+        [
+          position[ 0 ] - inner.borrow().last_mouse_position[ 0 ],
+          position[ 1 ] - inner.borrow().last_mouse_position[ 1 ]
+        ].into();
+        inner.borrow_mut().last_mouse_position = position;
+
+        let event_info = EventInfo::MouseMovement( delta );
+        let alt = event.alt_key();
+        let ctrl = event.ctrl_key();
+        let shift = event.shift_key();
+
+        let event = Event { event_info, alt, ctrl, shift };
+
+        if poll
+        {
+          inner.borrow_mut().events.push( event );
         }
       }
     };
 
     let keyboard_closure =
     {
-      let input = events.clone();
+      let inner = inner.clone();
       move | event : KeyboardEvent |
       {
         let code = KeyboardCode::from_code( &event.code() );
-        let r#type = Type::Keyboard( code );
+        let action = if event.type_() == "keydown"
+        {
+          inner.borrow_mut().keyboard_state[ code as usize ] = true;
+          Action::Press
+        }
+        else
+        {
+          inner.borrow_mut().keyboard_state[ code as usize ] = false;
+          Action::Release
+        };
+
+        let event_info = EventInfo::KeyboardButton( code, action );
         let alt = event.alt_key();
         let ctrl = event.ctrl_key();
         let shift = event.shift_key();
-        let event = Event
-        {
-          r#type,
-          action : if event.type_() == "keydown"
-          {
-            input.borrow_mut().keyboard_state[ code as usize ] = true;
-            Action::Press
-          }
-          else
-          {
-            input.borrow_mut().keyboard_state[ code as usize ] = false;
-            Action::Release
-          },
-          alt,
-          ctrl,
-          shift,
-        };
+
+        let event = Event { event_info, alt, ctrl, shift };
 
         if poll
         {
-          input.borrow_mut().events.push( event );
+          inner.borrow_mut().events.push( event );
         }
       }
     };
 
-    let mouse_closure = Closure::< dyn Fn( _ ) >::new( Box::new( mouse_closure ) );
+    let mousebutton_closure = Closure::< dyn Fn( _ ) >::new( Box::new( mousebutton_closure ) );
+    let mousemove_closure = Closure::< dyn Fn( _ ) >::new( Box::new( mousemove_closure ) );
     let keyboard_closure = Closure::< dyn Fn( _ ) >::new( Box::new( keyboard_closure ) );
 
     let input = Input
     {
-      events,
-      mouse_closure,
-      keyboard_closure,
+      inner,
+      mousebutton_closure : Rc::new( mousebutton_closure ),
+      mousemove_closure : Rc::new( mousemove_closure ),
+      keyboard_closure : Rc::new( keyboard_closure ),
     };
 
-    window.add_event_listener_with_callback( "keydown", input.keyboard_closure.as_ref().unchecked_ref() ).unwrap();
-    window.add_event_listener_with_callback( "keyup", input.keyboard_closure.as_ref().unchecked_ref() ).unwrap();
-    window.add_event_listener_with_callback( "mousedown", input.mouse_closure.as_ref().unchecked_ref() ).unwrap();
-    window.add_event_listener_with_callback( "mouseup", input.mouse_closure.as_ref().unchecked_ref() ).unwrap();
-    // window.add_event_listener_with_callback( "mousemove", todo!() ).unwrap();
+    window.add_event_listener_with_callback( "keydown", ( *input.keyboard_closure ).as_ref().unchecked_ref() ).unwrap();
+    window.add_event_listener_with_callback( "keyup", ( *input.keyboard_closure ).as_ref().unchecked_ref() ).unwrap();
+    window.add_event_listener_with_callback( "mousedown", ( *input.mousebutton_closure ).as_ref().unchecked_ref() ).unwrap();
+    window.add_event_listener_with_callback( "mouseup", ( *input.mousebutton_closure ).as_ref().unchecked_ref() ).unwrap();
+    window.add_event_listener_with_callback( "mousemove", ( *input.mousemove_closure ).as_ref().unchecked_ref() ).unwrap();
     // window.add_event_listener_with_callback( "wheel", todo!() ).unwrap();
 
     input
@@ -155,9 +181,22 @@ impl Input
 
   pub fn poll( &self ) -> Vec< Event >
   {
-    let mut events = self.events.borrow_mut();
+    let mut events = self.inner.borrow_mut();
     let events = std::mem::take( &mut events.events );
     events
+  }
+}
+
+impl Drop for Input
+{
+  fn drop( &mut self )
+  {
+    let window = web_sys::window().unwrap();
+    window.remove_event_listener_with_callback( "keydown", ( *self.keyboard_closure ).as_ref().unchecked_ref() ).unwrap();
+    window.remove_event_listener_with_callback( "keyup", ( *self.keyboard_closure ).as_ref().unchecked_ref() ).unwrap();
+    window.remove_event_listener_with_callback( "mousedown", ( *self.mousebutton_closure ).as_ref().unchecked_ref() ).unwrap();
+    window.remove_event_listener_with_callback( "mouseup", ( *self.mousebutton_closure ).as_ref().unchecked_ref() ).unwrap();
+    window.remove_event_listener_with_callback( "mousemove", ( *self.mousemove_closure ).as_ref().unchecked_ref() ).unwrap();
   }
 }
 
