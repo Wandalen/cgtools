@@ -1,7 +1,7 @@
 use minwebgl as min;
 use min::{ JsCast as _, I32x2 };
 use web_sys::{ wasm_bindgen::prelude::Closure, KeyboardEvent, MouseEvent };
-use std::{ cell::RefCell, rc::Rc, str::FromStr };
+use std::{ cell::{ Ref, RefCell }, rc::Rc, str::FromStr };
 use strum::EnumCount;
 
 #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
@@ -35,7 +35,37 @@ pub struct InputInner
   events : Vec< Event >,
   keyboard_state : [ bool; KeyboardCode::COUNT ],
   mouse_state : [ bool; MouseButton::COUNT - 1 ],
-  last_mouse_position : I32x2,
+  mouse_position : I32x2,
+}
+
+impl InputInner
+{
+  pub fn events( &self ) -> &[ Event ]
+  {
+    &self.events
+  }
+
+  pub fn mouse_position( &self ) -> I32x2
+  {
+    self.mouse_position
+  }
+
+  pub fn is_button_down( &self, button : MouseButton ) -> Option< bool >
+  {
+    if let Some( index ) = button.as_index()
+    {
+      Some( self.mouse_state[ index ] )
+    }
+    else
+    {
+      None
+    }
+  }
+
+  pub fn is_key_down( &self, key : KeyboardCode ) -> bool
+  {
+    self.keyboard_state[ key as usize ]
+  }
 }
 
 #[ derive( Clone ) ]
@@ -45,7 +75,9 @@ pub struct Input
   mousebutton_closure : Rc< Closure< dyn Fn( MouseEvent ) > >,
   mousemove_closure : Rc< Closure< dyn Fn( MouseEvent ) > >,
   keyboard_closure : Rc< Closure< dyn Fn( KeyboardEvent ) > >,
-  callbacks : Rc < Vec< Box< dyn Fn( &InputInner, Event ) > > >,
+  // TODO: Separate callbacks for different event types
+  callbacks : Rc < RefCell < Vec< Box< dyn Fn( &InputInner, Event ) > > > >,
+  callbacks_mut : Rc < RefCell < Vec< Box< dyn FnMut( &InputInner, Event ) > > > >,
 }
 
 impl Input
@@ -57,15 +89,19 @@ impl Input
       events : Vec::new(),
       keyboard_state : [ false; KeyboardCode::COUNT ],
       mouse_state : [ false; MouseButton::COUNT - 1 ],
-      last_mouse_position : I32x2::from_array( [ 0, 0 ] ),
+      mouse_position : I32x2::from_array( [ 0, 0 ] ),
     };
 
     let inner = Rc::new( RefCell::new( inner ) );
-    let window = web_sys::window().unwrap();
+    let document = web_sys::window().unwrap().document().unwrap();
+
+    let callbacks = Rc::new( RefCell::new( Vec::< Box< dyn Fn( &InputInner, Event ) > >::new() ) );
+    let callbacks_mut = Rc::new( RefCell::new( Vec::< Box< dyn FnMut( &InputInner, Event ) > >::new() ) );
 
     let mousebutton_closure =
     {
       let inner = inner.clone();
+      let callbacks = callbacks.clone();
       move | event : MouseEvent |
       {
         let button = MouseButton::from_button( event.button() );
@@ -97,21 +133,27 @@ impl Input
         {
           inner.borrow_mut().events.push( event );
         }
+
+        for callback in callbacks.borrow().iter()
+        {
+          callback( &inner.borrow(), event );
+        }
       }
     };
 
     let mousemove_closure =
     {
       let inner = inner.clone();
+      let callbacks = callbacks.clone();
       move | event : MouseEvent |
       {
         let position = I32x2::from_array( [ event.client_x(), event.client_y() ] );
         let delta =
         [
-          position[ 0 ] - inner.borrow().last_mouse_position[ 0 ],
-          position[ 1 ] - inner.borrow().last_mouse_position[ 1 ]
+          position[ 0 ] - inner.borrow().mouse_position[ 0 ],
+          position[ 1 ] - inner.borrow().mouse_position[ 1 ]
         ].into();
-        inner.borrow_mut().last_mouse_position = position;
+        inner.borrow_mut().mouse_position = position;
 
         let event_info = EventInfo::MouseMovement( delta );
         let alt = event.alt_key();
@@ -124,12 +166,18 @@ impl Input
         {
           inner.borrow_mut().events.push( event );
         }
+
+        for callback in callbacks.borrow().iter()
+        {
+          callback( &inner.borrow(), event );
+        }
       }
     };
 
     let keyboard_closure =
     {
       let inner = inner.clone();
+      let callbacks = callbacks.clone();
       move | event : KeyboardEvent |
       {
         let code = KeyboardCode::from_code( &event.code() );
@@ -155,6 +203,11 @@ impl Input
         {
           inner.borrow_mut().events.push( event );
         }
+
+        for callback in callbacks.borrow().iter()
+        {
+          callback( &inner.borrow(), event );
+        }
       }
     };
 
@@ -168,46 +221,38 @@ impl Input
       mousebutton_closure : Rc::new( mousebutton_closure ),
       mousemove_closure : Rc::new( mousemove_closure ),
       keyboard_closure : Rc::new( keyboard_closure ),
-      callbacks : Rc::new( Vec::new() ),
+      callbacks,
+      callbacks_mut,
     };
 
-    window.add_event_listener_with_callback( "keydown",   ( *input.keyboard_closure ).as_ref().unchecked_ref() ).unwrap();
-    window.add_event_listener_with_callback( "keyup",     ( *input.keyboard_closure ).as_ref().unchecked_ref() ).unwrap();
-    window.add_event_listener_with_callback( "mousedown", ( *input.mousebutton_closure ).as_ref().unchecked_ref() ).unwrap();
-    window.add_event_listener_with_callback( "mouseup",   ( *input.mousebutton_closure ).as_ref().unchecked_ref() ).unwrap();
-    window.add_event_listener_with_callback( "mousemove", ( *input.mousemove_closure ).as_ref().unchecked_ref() ).unwrap();
+    document.add_event_listener_with_callback( "keydown",   ( *input.keyboard_closure ).as_ref().unchecked_ref() ).unwrap();
+    document.add_event_listener_with_callback( "keyup",     ( *input.keyboard_closure ).as_ref().unchecked_ref() ).unwrap();
+    document.add_event_listener_with_callback( "mousedown", ( *input.mousebutton_closure ).as_ref().unchecked_ref() ).unwrap();
+    document.add_event_listener_with_callback( "mouseup",   ( *input.mousebutton_closure ).as_ref().unchecked_ref() ).unwrap();
+    document.add_event_listener_with_callback( "mousemove", ( *input.mousemove_closure ).as_ref().unchecked_ref() ).unwrap();
     // window.add_event_listener_with_callback( "wheel", todo!() ).unwrap();
 
     input
   }
 
-  pub fn poll( &self ) -> Vec< Event >
+  pub fn inner( &self ) -> Ref< InputInner >
   {
-    let mut events = self.inner.borrow_mut();
-    let events = std::mem::take( &mut events.events );
-    events
+    self.inner.borrow()
   }
 
-  pub fn mouse_position( &self ) -> I32x2
+  pub fn clear_events( &mut self )
   {
-    self.inner.borrow().last_mouse_position
+    self.inner.borrow_mut().events.clear();
   }
 
-  pub fn is_button_down( &self, button : MouseButton ) -> Option< bool >
+  pub fn add_callback( &mut self, callback : Box< dyn Fn( &InputInner, Event ) > )
   {
-    if let Some( index ) = button.as_index()
-    {
-      Some( self.inner.borrow().mouse_state[ index ] )
-    }
-    else
-    {
-      None
-    }
+    self.callbacks.borrow_mut().push( callback );
   }
 
-  pub fn is_key_down( &self, key : KeyboardCode ) -> bool
+  pub fn add_callback_mut( &mut self, callback : Box< dyn FnMut( &InputInner, Event ) > )
   {
-    self.inner.borrow().keyboard_state[ key as usize ]
+    self.callbacks_mut.borrow_mut().push( callback );
   }
 }
 
@@ -793,6 +838,7 @@ pub enum MouseButton
   Secondary,   // Right button (2)
   Back,        // Back button (3)
   Forward,     // Forward button (4)
+  // TODO: Remove this variant
   Unknown( i16 ), // For any other values
 }
 
