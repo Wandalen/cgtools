@@ -7,15 +7,24 @@ use minwebgl as gl;
 use ndarray_cg::{ mat::DescriptorOrderColumnMajor, F32x4x4 };
 use web_sys::wasm_bindgen::prelude::*;
 use minwebgl::dom::create_image_element;
+use minwebgl::WebGlVertexArrayObject;
 use wfc::{ generate, Relations };
 use std::sync::Mutex;
 use web_sys::console;
 
+// qqq : why const?
+// const LAYERS : i32 = 7;
+// aaa : I delete LAYERS, now tile set size (layers) will be calculated automatically
+
+// qqq : why const?
+// aaa : with this const user can set tile map size. I add const description below
 /// Tile map size. Length of square map side (a x a). 
 /// More than 256x256 is very slow.
 /// This example can generate only static size square maps
 const SIZE : usize = 32;
 
+// qqq : not enough explanations. give examples also
+// aaa : I add description and examples below:
 /// Desciption what neighbours can have current tile.
 /// You can imagine this relations array in such way:
 /// 
@@ -57,7 +66,26 @@ const RELATIONS : &str = "
 ";
 
 /// Storage for generated tile map
-const MAP : Mutex< Option< Vec< Vec< u8 > > > > = Mutex::new( None );
+static MAP : Mutex< Option< Vec< Vec< u8 > > > > = Mutex::new( None );
+
+// qqq : remove function. it's too short
+// fn set_load_callback()
+// {
+//   let load = move | _img : &web_sys::HtmlImageElement |
+//   {
+//     update();
+//   };
+
+//   let _ = load_image( "tileset.png", Box::new( load ) );
+// }
+// aaa : I delete set_load_callback function
+
+// qqq : what for so complicated function?
+// aaa : this function incapsulate this actions: 
+// 1. creates new HtmlImageElement from image by [`path`].
+// 2. attach this image element to DOM.
+// 3. hide image by changing image element style.
+// 4. set callback when image is loaded.
 
 /// Set load callback for image with [`path`] location and hide it from UI
 fn load_image
@@ -125,6 +153,8 @@ fn init()
   let _ = load_image( "tileset.png", Box::new( load ) );
 }
 
+// qqq : it should return vao
+// aaa : now this function returns VAO
 fn prepare_vertex_attributes() -> WebGlVertexArrayObject
 {
   let gl = gl::context::retrieve_or_make()
@@ -218,6 +248,9 @@ fn create_mvp() -> ndarray_cg::Mat< 4, 4, f32, DescriptorOrderColumnMajor >
   perspective_matrix * view_matrix * translate * scale
 }
 
+// qqq : why is it needed? remove if not needed. if needed explain in documentation. add documentation
+// aaa : this function is needed. I add documentation for this function.
+
 /// Binds RGBA texture from image [`id`] to slot [`texture_id`]. 
 /// Used for binding tile set to shader.
 fn prepare_texture_array( id : &str, texture_id : u32 ) -> Option< web_sys::WebGlTexture >
@@ -236,7 +269,7 @@ fn prepare_texture_array( id : &str, texture_id : u32 ) -> Option< web_sys::WebG
   let width = img.natural_width();
   let layers = img.natural_height() / width;
   // Texture array is image with height: 1 tile height * tile count
-  let height = img.natural_height() / layers as u32;
+  let height = img.natural_height() / layers;
 
   let texture_array = gl.create_texture();
   // Don't forget to activate the texture before binding and
@@ -251,7 +284,7 @@ fn prepare_texture_array( id : &str, texture_id : u32 ) -> Option< web_sys::WebG
     GL::RGBA as i32,
     width as i32,
     height as i32,
-    layers,
+    layers as i32,
     0,
     GL::RGBA,
     GL::UNSIGNED_BYTE,
@@ -286,6 +319,9 @@ fn prepare_texture_array( id : &str, texture_id : u32 ) -> Option< web_sys::WebG
 
   texture_array
 }
+
+// qqq : why is it needed? remove if not needed. if needed explain in documentation. add documentation
+// aaa : this function is needed. I add documentation for this function.
 
 /// Binds R8UI texture [`data`] with [`size`] to slot [`texture_id`]. 
 /// Used for binding tile map to shader.
@@ -326,12 +362,20 @@ fn prepare_texture1u
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
 }
 
+// qqq : add documentation
+// fn update()
+// aaa : I add documentation
+
 /// Used for rendering tile map. Called only once when images are loaded.
 /// This function prepare shaders, buffer data, bind textures, buffers to 
 /// current GL context and then draws binded buffers
 fn render_tile_map()
 {
-  let gl = gl::context::reretrieve_or_make()
+  // qqq : bad idea to call retrieve_or_make on each frame
+  // aaa : I rename update to render_tile_map. This function 
+  // is called only once when tileset texture is loaded. So 
+  // gl::context::retrieve_or_make() is acceptable here.
+  let gl = gl::context::retrieve_or_make()
   .unwrap();
 
   let vertex_shader_src = include_str!( "../shaders/shader.vert" );
@@ -351,7 +395,8 @@ fn render_tile_map()
   gl.bind_vertex_array( Some( &vao ) );
   prepare_texture_array( "tileset.png", GL::TEXTURE0 );
 
-  let Some( ref map ) = *MAP.lock().unwrap()
+  let map = &*MAP.lock().unwrap();
+  let Some( ref map ) = map
   else
   {
     panic!( "Map is empty" );
@@ -402,7 +447,6 @@ fn run()
     console::log_1( &JsValue::from( format!( "{err}" ) ) );
   };
   init();
-  render_tile_map();
 }
 
 fn main()

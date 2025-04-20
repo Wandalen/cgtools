@@ -1,3 +1,9 @@
+// qqq : lack of documentation
+// aaa : I add more description for used tile system
+
+// qqq : what tiles systems is used here?
+// aaa : I describe tile system below
+
 /// This file can be used for generating tile maps with WFC algorithm.
 ///
 /// Result tile map consist of tiles that can be user defined by 
@@ -86,6 +92,9 @@ impl Direction
     }
   }
 }
+
+// qqq : not enough explanations
+// aaa : I add description for every tiles [`Relation`] enum variant.
 
 /// Store set of possible tile states that can be adjacent
 /// to current tile.
