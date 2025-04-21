@@ -63,16 +63,10 @@ impl InputData
     self.mouse_position
   }
 
-  pub fn is_button_down( &self, button : MouseButton ) -> Option< bool >
+  pub fn is_button_down( &self, button : MouseButton ) -> bool
   {
-    if let Some( index ) = button.as_index()
-    {
-      Some( self.mouse_state[ index ] )
-    }
-    else
-    {
-      None
-    }
+    let index = button as usize;
+    self.mouse_state[ index ]
   }
 
   pub fn is_key_down( &self, key : KeyboardCode ) -> bool
@@ -93,14 +87,14 @@ pub struct Input
   input_data : Rc< RefCell< InputData > >,
   mousebutton_closure : Rc< Closure< dyn Fn( MouseEvent ) > >,
   mousemove_closure : Rc< Closure< dyn Fn( MouseEvent ) > >,
-  keyboard_closure : Rc< Closure< dyn Fn( KeyboardEvent ) > >,
+  keyboardbutton_closure : Rc< Closure< dyn Fn( KeyboardEvent ) > >,
   // TODO: Separate callbacks for different event types
   callbacks : Rc< RefCell< [ Vec< Callback >; EventFlags::FLAGS.len() ] > >,
 }
 
 impl Input
 {
-  pub fn new( poll : bool ) -> Self
+  pub fn new( collect_events : bool ) -> Self
   {
     let input_data = InputData
     {
@@ -118,7 +112,7 @@ impl Input
     {
       let input_data = input_data.clone();
       let callbacks = callbacks.clone();
-      if poll
+      if collect_events
       {
         Box::new
         (
@@ -145,7 +139,7 @@ impl Input
     {
       let input_data = input_data.clone();
       let callbacks = callbacks.clone();
-      if poll
+      if collect_events
       {
         Box::new
         (
@@ -168,11 +162,11 @@ impl Input
       }
     };
 
-    let keyboard_closure : Box< dyn Fn( KeyboardEvent ) > =
+    let keyboardbutton_closure : Box< dyn Fn( KeyboardEvent ) > =
     {
       let input_data = input_data.clone();
       let callbacks = callbacks.clone();
-      if poll
+      if collect_events
       {
         Box::new
         (
@@ -197,26 +191,26 @@ impl Input
 
     let mousebutton_closure = Closure::< dyn Fn( _ ) >::new( mousebutton_closure );
     let mousemove_closure = Closure::< dyn Fn( _ ) >::new( mousemove_closure );
-    let keyboard_closure = Closure::< dyn Fn( _ ) >::new( keyboard_closure );
+    let keyboardbutton_closure = Closure::< dyn Fn( _ ) >::new( keyboardbutton_closure );
 
     let input = Input
     {
       input_data,
       mousebutton_closure : Rc::new( mousebutton_closure ),
       mousemove_closure : Rc::new( mousemove_closure ),
-      keyboard_closure : Rc::new( keyboard_closure ),
+      keyboardbutton_closure : Rc::new( keyboardbutton_closure ),
       callbacks,
     };
 
     document.add_event_listener_with_callback
     (
       "keydown",
-      ( *input.keyboard_closure ).as_ref().unchecked_ref()
+      ( *input.keyboardbutton_closure ).as_ref().unchecked_ref()
     ).unwrap();
     document.add_event_listener_with_callback
     (
       "keyup",
-      ( *input.keyboard_closure ).as_ref().unchecked_ref()
+      ( *input.keyboardbutton_closure ).as_ref().unchecked_ref()
     ).unwrap();
     document.add_event_listener_with_callback
     (
@@ -261,7 +255,6 @@ impl Input
         self.callbacks.borrow_mut()[ index ].push( callback.clone() );
       }
     }
-
   }
 
   fn mousebutton_callback
@@ -275,18 +268,12 @@ impl Input
     let button = MouseButton::from_button( event.button() );
     let action = if event.type_() == "mousedown"
     {
-      if let Some( index ) = button.as_index()
-      {
-        input_data.mouse_state[ index ] = true;
-      }
+      input_data.mouse_state[ button as usize ] = true;
       Action::Press
     }
     else
     {
-      if let Some( index ) = button.as_index()
-      {
-        input_data.mouse_state[ index ] = false;
-      }
+      input_data.mouse_state[ button as usize ] = false;
       Action::Release
     };
 
@@ -380,11 +367,12 @@ impl Drop for Input
   fn drop( &mut self )
   {
     let window = web_sys::window().unwrap();
-    _ = window.remove_event_listener_with_callback( "keydown",   ( *self.keyboard_closure ).as_ref().unchecked_ref() );
-    _ = window.remove_event_listener_with_callback( "keyup",     ( *self.keyboard_closure ).as_ref().unchecked_ref() );
+    _ = window.remove_event_listener_with_callback( "keydown",   ( *self.keyboardbutton_closure ).as_ref().unchecked_ref() );
+    _ = window.remove_event_listener_with_callback( "keyup",     ( *self.keyboardbutton_closure ).as_ref().unchecked_ref() );
     _ = window.remove_event_listener_with_callback( "mousedown", ( *self.mousebutton_closure ).as_ref().unchecked_ref() );
     _ = window.remove_event_listener_with_callback( "mouseup",   ( *self.mousebutton_closure ).as_ref().unchecked_ref() );
     _ = window.remove_event_listener_with_callback( "mousemove", ( *self.mousemove_closure ).as_ref().unchecked_ref() );
+    // _ = window.remove_event_listener_with_callback( "mousemove", ( *self.mousemove_closure ).as_ref().unchecked_ref() );
   }
 }
 
@@ -957,8 +945,7 @@ pub enum MouseButton
   Secondary,   // Right button (2)
   Back,        // Back button (3)
   Forward,     // Forward button (4)
-  // TODO: Remove this variant
-  Unknown( i16 ), // For any other values
+  Unknown, // For any other values
 }
 
 impl MouseButton
@@ -973,14 +960,14 @@ impl MouseButton
       2 => MouseButton::Secondary,
       3 => MouseButton::Back,
       4 => MouseButton::Forward,
-      other => MouseButton::Unknown( other ),
+      _ => MouseButton::Unknown,
     }
   }
 
   /// Convert a string representation to the corresponding MouseButton enum variant
   pub fn from_name( name : &str ) -> Self
   {
-    MouseButton::from_str( name ).unwrap_or( MouseButton::Unknown( -1 ) )
+    MouseButton::from_str( name ).unwrap_or( MouseButton::Unknown )
   }
 
   /// Get the numeric button value for this MouseButton
@@ -993,7 +980,7 @@ impl MouseButton
       MouseButton::Secondary => 2,
       MouseButton::Back => 3,
       MouseButton::Forward => 4,
-      MouseButton::Unknown( val ) => *val,
+      MouseButton::Unknown => 5,
     }
   }
 
@@ -1007,7 +994,7 @@ impl MouseButton
       MouseButton::Secondary => "Right",
       MouseButton::Back => "Back",
       MouseButton::Forward => "Forward",
-      MouseButton::Unknown( _ ) => "Unknown",
+      MouseButton::Unknown => "Unknown",
     }
   }
 
@@ -1021,7 +1008,7 @@ impl MouseButton
       MouseButton::Secondary => "Secondary",
       MouseButton::Back => "Back",
       MouseButton::Forward => "Forward",
-      MouseButton::Unknown( _ ) => "Unknown",
+      MouseButton::Unknown => "Unknown",
     }
   }
 
@@ -1047,19 +1034,6 @@ impl MouseButton
   pub fn is_navigation( &self ) -> bool
   {
     matches!( self, MouseButton::Back | MouseButton::Forward )
-  }
-
-  pub fn as_index( &self ) -> Option< usize >
-  {
-    match self
-    {
-      MouseButton::Main => Some( self.button_value() as usize ),
-      MouseButton::Auxiliary => Some( self.button_value() as usize ),
-      MouseButton::Secondary => Some( self.button_value() as usize ),
-      MouseButton::Back => Some( self.button_value() as usize ),
-      MouseButton::Forward => Some( self.button_value() as usize ),
-      MouseButton::Unknown( _ ) => None,
-    }
   }
 }
 
