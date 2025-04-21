@@ -320,35 +320,35 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       .unwrap()
       .dyn_into()
       .unwrap();
-    move | input, event |
-    {
-      let is_mouse_down = input.is_button_down( MouseButton::Main );
-      // min::info!( "{}", color_picker.value() );
-      if ( is_mouse_down && matches!( event.event_type, EventType::MouseMovement( _ ) ) )
-      || matches!( event.event_type, EventType::MouseButton( MouseButton::Main, Action::Press ) )
+      move | input, event |
       {
-        let rect = canvas.get_bounding_client_rect();
-        let canvas_pos = F32x2::new( rect.left() as f32, rect.top() as f32 );
-        let half_size : F32x2 = canvas_size / 2.0;
-        let cursor_pos = F32x2::new( input.mouse_position()[ 0 ] as f32, input.mouse_position()[ 1 ] as f32 );
-        let cursor_pos : Pixel = ( ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) ).into();
-        let selected_hex_coord : Coordinate::< Axial, Pointy > = cursor_pos.into();
-
-        painting_canvas[ selected_hex_coord ] = current_color;
-        // context.clear( GL::COLOR_BUFFER_BIT );
-        for ( coord, &[ r, g, b ] ) in painting_canvas.indexed_iter()
+        let is_mouse_down = input.is_button_down( MouseButton::Main );
+        // min::info!( "{}", color_picker.value() );
+        if ( is_mouse_down && matches!( event.event_type, EventType::MouseMovement( _ ) ) )
+        || matches!( event.event_type, EventType::MouseButton( MouseButton::Main, Action::Press ) )
         {
-          let axial : Coordinate< Axial, _ > = coord.into();
-          let hex_pos : Pixel = axial.into();
-          let translation = mat2x2h::translate( [ hex_pos[ 0 ], -hex_pos[ 1 ] ] );
-          let mvp = scale_m * translation * mat2x2h::rot( 30.0f32.to_radians() );
+          let rect = canvas.get_bounding_client_rect();
+          let canvas_pos = F32x2::new( rect.left() as f32, rect.top() as f32 );
+          let half_size : F32x2 = canvas_size / 2.0;
+          let cursor_pos = F32x2::new( input.mouse_position()[ 0 ] as f32, input.mouse_position()[ 1 ] as f32 );
+          let cursor_pos : Pixel = ( ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) ).into();
+          let selected_hex_coord : Coordinate::< Axial, Pointy > = cursor_pos.into();
 
-          hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
-          hex_shader.uniform_upload( "u_color", &[ r, g, b, 1.0 ] );
-          hexagon_geometry.activate();
-          context.draw_arrays( GL::TRIANGLES, 0, hexagon_geometry.nvertices );
+          painting_canvas[ selected_hex_coord ] = current_color;
+          // context.clear( GL::COLOR_BUFFER_BIT );
+          for ( coord, &[ r, g, b ] ) in painting_canvas.indexed_iter()
+          {
+            let axial : Coordinate< Axial, _ > = coord.into();
+            let hex_pos : Pixel = axial.into();
+            let translation = mat2x2h::translate( [ hex_pos[ 0 ], -hex_pos[ 1 ] ] );
+            let mvp = scale_m * translation * mat2x2h::rot( 30.0f32.to_radians() );
+
+            hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
+            hex_shader.uniform_upload( "u_color", &[ r, g, b, 1.0 ] );
+            hexagon_geometry.activate();
+            context.draw_arrays( GL::TRIANGLES, 0, hexagon_geometry.nvertices );
+          }
         }
-      }
       }
     },
     EventFlags::MouseMovement | EventFlags::MouseButton,
