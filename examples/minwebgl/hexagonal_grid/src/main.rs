@@ -304,21 +304,21 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   // mouse_up.forget();
 
   let input = Box::new( input::Input::new( false ) );
-  input.add_callback_mut
-  (
-    {
-      // let canvas = canvas.clone();
-      // // let is_mouse_down = is_mouse_down.clone();
-      // let context = context.clone();
-      // let hexagon_geometry = hexagon_geometry.clone();
-      // let hex_shader = hex_shader.clone();
-      move | input, event |
-      {
-        min::info!( "event: {event:?}" );
-        min::info!( "event: {:?}", input.is_button_down( MouseButton::Main ) );
-      }
-    }
-  );
+  // input.add_callback_mut
+  // (
+  //   {
+  //     // let canvas = canvas.clone();
+  //     // // let is_mouse_down = is_mouse_down.clone();
+  //     // let context = context.clone();
+  //     // let hexagon_geometry = hexagon_geometry.clone();
+  //     // let hex_shader = hex_shader.clone();
+  //     move | input, event |
+  //     {
+  //       min::info!( "event: {event:?}" );
+  //       min::info!( "event: {:?}", input.is_button_down( MouseButton::Main ) );
+  //     }
+  //   }
+  // );
   _ = Box::leak( input );
   // let paint =
   // {
