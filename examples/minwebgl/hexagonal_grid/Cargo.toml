@@ -10,3 +10,4 @@ web-sys = { workspace = true, features = [ "DomRect", "MouseEvent", "KeyboardEve
 derive_tools = { workspace = true }
 tiles_tools = { workspace = true }
 strum = { version = "0.27.1", features = ["derive"] }
+bitflags = "2.9.0"
