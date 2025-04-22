@@ -6,6 +6,10 @@ authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
 license = "MIT"
 
 [dependencies]
+image = { version = "0.24.9", features = ["rayon"] }
+wfc = "0.10"
+wfc_image = { version = "0.12", features = ["parallel"] }
+RustyXML = "0.3.0"
 minwebgl = { workspace = true }
 serde = { version = "1.0", features = [ "derive" ] }
 serde_json = "1.0"
@@ -24,5 +28,12 @@ features = [
   'WebGlTexture',
   'CanvasRenderingContext2d',
   'HtmlImageElement',
-  'DomRect'
+  'HtmlButtonElement',
+  'DomRect',
+  'HtmlInputElement', 
+  'Event',
+  'InputEvent',
+  'File',
+  'FileList',
+  'FileReader',
 ]

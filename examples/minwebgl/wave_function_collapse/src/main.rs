@@ -1,16 +1,16 @@
 //! Render tile map on quad.
 
-mod wfc;
-
 use gl::GL;
+use image::{ DynamicImage, ImageBuffer, Luma };
 use minwebgl as gl;
 use ndarray_cg::{ mat::DescriptorOrderColumnMajor, F32x4x4 };
 use web_sys::wasm_bindgen::prelude::*;
 use minwebgl::dom::create_image_element;
 use minwebgl::WebGlVertexArrayObject;
-use wfc::{ generate, Relations };
 use std::sync::Mutex;
-use web_sys::console;
+use web_sys::{ HtmlInputElement, HtmlButtonElement, FileReader, Event };
+use wfc::*;
+use wfc_image::{ generate_image, wrap::*, retry::* };
 
 // qqq : why const?
 // const LAYERS : i32 = 7;
@@ -21,52 +21,15 @@ use web_sys::console;
 /// Tile map size. Length of square map side (a x a). 
 /// More than 256x256 is very slow.
 /// This example can generate only static size square maps
-const SIZE : usize = 32;
+const SIZE : usize = 40;
 
-// qqq : not enough explanations. give examples also
-// aaa : I add description and examples below:
-/// Desciption what neighbours can have current tile.
-/// You can imagine this relations array in such way:
-/// 
-/// `
-///   [
-///     0: [ 0, 1 ], // <tile_type>: [ <posible_neighbour_tile_types>... ]  
-///     1: [ 1, 2 ],
-///     2: [ 2, 3 ],
-///     3: [ 3, 4 ],
-///     4: [ 4, 5 ],
-///     5: [ 5 ]
-///   ]
-/// `
-/// 
-/// Then relations array used by WFC algorithm for choosing neighbours of every map cell.
-/// 
-/// If tile type 0 has posible_neighbours 0, 1 then this is valid generation:
-/// `
-///   *, 1, *,
-///   1, *0*, 0, // *0* has neighbours 1, 1, 0, 0 and this is valid case 
-///   *, 0, *,   
-/// `
-/// 
-/// And this is invalid generation that case WFC have to avoid: 
-/// `
-///   *, 2, *,
-///   3, *0*, 1, // *0*  has neighbours 3, 2, which isn't valid, 
-///   *, 0, *,   // because 0 has such available neighbours array: [ 0, 1 ]
-/// `
-const RELATIONS : &str = "
-  [
-    [ 0, 1 ],
-    [ 1, 2 ],
-    [ 2, 3 ],
-    [ 3, 4 ],
-    [ 4, 5 ],
-    [ 5 ]
-  ]
-";
+const PATTERN_SIZE : u32 = 3;
 
 /// Storage for generated tile map
 static MAP : Mutex< Option< Vec< Vec< u8 > > > > = Mutex::new( None );
+
+/// Reference for generating tilemap 
+static TILEMAP_PATTERN : Mutex< Option< DynamicImage > > = Mutex::new( None );
 
 // qqq : remove function. it's too short
 // fn set_load_callback()
@@ -132,9 +95,114 @@ fn load_image
   Ok( image )
 }
 
+fn on_input_change
+(
+  event : Event
+)
+{
+  let input = event.target()
+  .and_then( | target | target.dyn_into::< HtmlInputElement >().ok() );
+
+  let input = input.unwrap();
+  let file_list = input.files().unwrap();
+  let file = file_list.get( 0 ).unwrap();
+  
+  let reader = FileReader::new().unwrap();
+  let onload_callback = Closure::<dyn FnMut(_)>::new
+  (
+    move | _event : Event | 
+    {
+      let reader = _event.target()
+      .and_then(| target | target.dyn_into::< FileReader >().ok() );
+
+      if let Some( reader ) = reader 
+      {
+        match reader.result() 
+        {
+          Ok( js_val ) => 
+          {
+            if let Some( tmx_content ) = js_val.as_string() 
+            {
+              set_pattern( tmx_content );
+              let _ = generate_map();
+              let _ = render_tile_map();
+            }
+          },
+          _ => ()
+        }
+      }
+    }
+  );
+
+  reader.set_onload( Some( onload_callback.as_ref().unchecked_ref() ) );
+  onload_callback.forget();
+
+  let _ = reader.read_as_text(&file);
+}
+
+pub fn input_tilemap_init() -> Result< (), JsValue > 
+{
+  let window = web_sys::window().unwrap();
+  let document = window.document().unwrap();
+
+  let file_input = document.get_element_by_id( "file-input" )
+  .unwrap()
+  .dyn_into::< HtmlInputElement >()
+  .unwrap();
+
+  let file_input_style = file_input.style();
+  let _ = file_input_style.set_property( "position", "absolute" );
+  let _ = file_input_style.set_property( "top", "15px" );
+  let _ = file_input_style.set_property( "left", "15px" );
+
+  let on_change_callback = Closure::< dyn FnMut( _ ) >::new( on_input_change );
+
+  file_input.add_event_listener_with_callback("change", on_change_callback.as_ref().unchecked_ref())?;
+  on_change_callback.forget();
+
+  Ok(())
+}
+
+fn handle_button_click( _event : Event ) 
+{
+  let _ = generate_map();
+  let _ = render_tile_map();
+}
+
+fn button_generate_setup() -> Result< (), JsValue > 
+{
+  let window = web_sys::window().unwrap();
+  let document = window.document().unwrap();
+
+  let button_element = document.get_element_by_id( "generate" )
+  .unwrap()
+  .dyn_into::< HtmlButtonElement >()
+  .unwrap();
+
+  let button_style = button_element.style();
+  let _ = button_style.set_property( "position", "absolute" );
+  let _ = button_style.set_property( "top", "50px" );
+  let _ = button_style.set_property( "left", "15px" );
+
+  let button_callback = Closure::< dyn FnMut( _ ) >::new( handle_button_click );
+
+  let _ = button_element.add_event_listener_with_callback
+  (
+    "click",
+    button_callback.as_ref().unchecked_ref()
+  );
+
+  button_callback.forget();
+
+  Ok( () )
+}
+
 fn init()
 {
   gl::browser::setup( Default::default() );
+
+  let _ = input_tilemap_init();
+  let _ = button_generate_setup();
 
   let window = web_sys::window()
   .expect( "Should have a window" );
@@ -144,11 +212,11 @@ fn init()
   .unwrap()
   .style();
   let _ = body_style.set_property( "margin", "0" );
+  let _ = body_style.set_property( "padding", "0" );
+  let _ = body_style.set_property( "overflow", "hidden" );
+  let _ = body_style.set_property( "height", "100%" );
 
-  let load = move | _img : &web_sys::HtmlImageElement |
-  {
-    render_tile_map();
-  };
+  let load = move | _img : &web_sys::HtmlImageElement | {  };
 
   let _ = load_image( "tileset.png", Box::new( load ) );
 }
@@ -218,7 +286,7 @@ fn create_mvp() -> ndarray_cg::Mat< 4, 4, f32, DescriptorOrderColumnMajor >
 
   // qqq : use helpers
   // aaa : for now ndarray_cg crate don't have analog for creating 3x3 transformations, it has only 2x2 
-  let t = ( 0.0, 0.0, 0.0 );
+  let t = ( 0.0, 0.075, 0.0 );
   let translate = F32x4x4::from_column_major
   (
     [
@@ -229,7 +297,7 @@ fn create_mvp() -> ndarray_cg::Mat< 4, 4, f32, DescriptorOrderColumnMajor >
     ]
   );
 
-  let s = ( 2.0 / 3.0, 2.0 / 3.0, 2.0 / 3.0 );
+  let s = ( 1.95 / 3.0, 1.95 / 3.0, 1.95 / 3.0 );
   let scale = F32x4x4::from_column_major
   (
     [
@@ -428,24 +496,66 @@ fn render_tile_map()
   gl.bind_vertex_array( None );
 }
 
-fn generate_map() -> Result< (), String >
+/// Parse and set reference for generating tilemap from tmx file content 
+fn set_pattern( tmx_content: String )
 {
-  let relations: Relations = match serde_json::from_str( RELATIONS )
-  {
-    Ok( relations ) => relations,
-    Err( err ) => return Err( format!( "{err}" ) )
-  };
-  let map = generate( ( SIZE, SIZE ), relations, 0.01 )?;
+  let elem : xml::Element = tmx_content.parse().unwrap();
+
+  let layer = elem.get_child( "layer", None ).unwrap();
+  let width = layer.attributes.get( &( "width".to_string(), None ) )
+  .clone()
+  .unwrap()
+  .parse::< u32 >()
+  .unwrap();
+  let height = layer.attributes.get( &( "height".to_string(), None ) )
+  .clone()
+  .unwrap()
+  .parse::< u32 >()
+  .unwrap();
+  let data = layer.get_children( "data", None )
+  .filter(|ch| ch.attributes.get( &( "encoding".to_string(), None ) ) == Some( &"csv".to_string() ) )
+  .next()
+  .unwrap();
+  
+  let pattern_raw = data.content_str().split( "," )
+  .map( | tile | tile.trim().parse::< u8 >().unwrap().saturating_sub( 1 ) )
+  .collect::< Vec< _ > >();
+
+  let pattern_buf : ImageBuffer< Luma< u8 >, Vec< u8 > > = 
+  ImageBuffer::from_vec( width, height, pattern_raw )
+  .unwrap();
+  let pattern_img = DynamicImage::ImageLuma8( pattern_buf );
+
+  *TILEMAP_PATTERN.lock().unwrap() = Some( pattern_img );
+}
+
+fn generate_map( ) -> Result< (), String >
+{
+  let pattern_img = TILEMAP_PATTERN.lock().unwrap().clone().unwrap();
+
+  let map_img = generate_image
+  (
+    &pattern_img,
+    std::num::NonZero::new( PATTERN_SIZE ).unwrap(),
+    Size::try_new( SIZE as u32, SIZE as u32 ).unwrap(),
+    &wfc::orientation::ALL,
+    WrapXY,
+    ForbidNothing,
+    NumTimes( 1 )
+  )
+  .unwrap();
+
+  let map_raw : Vec<u8> = map_img.to_luma8().into_raw();
+  let map = map_raw.chunks( SIZE as usize )
+  .map( | row | row.to_vec() )
+  .collect::< Vec< Vec< _ > > >();
+
   *MAP.lock().unwrap() = Some( map );
   Ok( () )
 }
 
 fn run()
 {
-  if let Err( err ) = generate_map()
-  {
-    console::log_1( &JsValue::from( format!( "{err}" ) ) );
-  };
   init();
 }
 
