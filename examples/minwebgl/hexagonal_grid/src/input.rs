@@ -1,6 +1,6 @@
 use minwebgl as min;
 use min::{ JsCast as _, I32x2 };
-use web_sys::{ wasm_bindgen::prelude::Closure, KeyboardEvent, MouseEvent };
+use web_sys::{ wasm_bindgen::prelude::Closure, EventTarget, KeyboardEvent, MouseEvent };
 use std::{ cell::{ Ref, RefCell }, rc::Rc, str::FromStr };
 use bitflags::{ bitflags, Flags as _ };
 use strum::EnumCount;
@@ -47,7 +47,7 @@ pub struct InputData
 {
   events : Vec< Event >,
   keyboard_state : [ bool; KeyboardCode::COUNT ],
-  mouse_state : [ bool; MouseButton::COUNT - 1 ],
+  mouse_state : [ bool; MouseButton::COUNT ],
   mouse_position : I32x2,
 }
 
@@ -81,6 +81,8 @@ pub struct Callback
   callback : Rc< RefCell< dyn FnMut( &InputData, Event ) > >,
 }
 
+type Callbacks = [ Vec< Callback >; EventFlags::FLAGS.len() ];
+
 #[ derive( Clone ) ]
 pub struct Input
 {
@@ -88,19 +90,19 @@ pub struct Input
   mousebutton_closure : Rc< Closure< dyn Fn( MouseEvent ) > >,
   mousemove_closure : Rc< Closure< dyn Fn( MouseEvent ) > >,
   keyboardbutton_closure : Rc< Closure< dyn Fn( KeyboardEvent ) > >,
-  // TODO: Separate callbacks for different event types
-  callbacks : Rc< RefCell< [ Vec< Callback >; EventFlags::FLAGS.len() ] > >,
+  callbacks : Rc< RefCell< Callbacks > >,
+  mouse_event_target : Option< EventTarget >,
 }
 
 impl Input
 {
-  pub fn new( collect_events : bool ) -> Self
+  pub fn new( collect_events : bool, mouse_event_target : Option< EventTarget > ) -> Self
   {
     let input_data = InputData
     {
       events : Vec::new(),
       keyboard_state : [ false; KeyboardCode::COUNT ],
-      mouse_state : [ false; MouseButton::COUNT - 1 ],
+      mouse_state : [ false; MouseButton::COUNT ],
       mouse_position : I32x2::from_array( [ 0, 0 ] ),
     };
 
@@ -200,6 +202,7 @@ impl Input
       mousemove_closure : Rc::new( mousemove_closure ),
       keyboardbutton_closure : Rc::new( keyboardbutton_closure ),
       callbacks,
+      mouse_event_target,
     };
 
     document.add_event_listener_with_callback
@@ -212,17 +215,20 @@ impl Input
       "keyup",
       ( *input.keyboardbutton_closure ).as_ref().unchecked_ref()
     ).unwrap();
-    document.add_event_listener_with_callback
+
+    let document = document.dyn_into().unwrap();
+    let mouse_event_target = input.mouse_event_target.as_ref().unwrap_or( &document );
+    mouse_event_target.add_event_listener_with_callback
     (
       "mousedown",
       ( *input.mousebutton_closure ).as_ref().unchecked_ref()
     ).unwrap();
-    document.add_event_listener_with_callback
+    mouse_event_target.add_event_listener_with_callback
     (
       "mouseup",
       ( *input.mousebutton_closure ).as_ref().unchecked_ref()
     ).unwrap();
-    document.add_event_listener_with_callback
+    mouse_event_target.add_event_listener_with_callback
     (
       "mousemove",
       ( *input.mousemove_closure ).as_ref().unchecked_ref()
@@ -260,7 +266,7 @@ impl Input
   fn mousebutton_callback
   (
     input_data : &mut InputData,
-    callbacks : &[ Vec< Callback >; 4 ],
+    callbacks : &Callbacks,
     event : MouseEvent
   )
   -> Event
@@ -296,7 +302,7 @@ impl Input
   fn mousemove_callback
   (
     input_data : &mut InputData,
-    callbacks : &[ Vec< Callback >; 4 ],
+    callbacks : &Callbacks,
     event : MouseEvent
   )
   -> Event
@@ -328,7 +334,7 @@ impl Input
   fn keyboardbutton_callback
   (
     input_data : &mut InputData,
-    callbacks : &[ Vec< Callback >; 4 ],
+    callbacks : &Callbacks,
     event : KeyboardEvent
   )
   -> Event
@@ -366,12 +372,15 @@ impl Drop for Input
 {
   fn drop( &mut self )
   {
-    let window = web_sys::window().unwrap();
-    _ = window.remove_event_listener_with_callback( "keydown",   ( *self.keyboardbutton_closure ).as_ref().unchecked_ref() );
-    _ = window.remove_event_listener_with_callback( "keyup",     ( *self.keyboardbutton_closure ).as_ref().unchecked_ref() );
-    _ = window.remove_event_listener_with_callback( "mousedown", ( *self.mousebutton_closure ).as_ref().unchecked_ref() );
-    _ = window.remove_event_listener_with_callback( "mouseup",   ( *self.mousebutton_closure ).as_ref().unchecked_ref() );
-    _ = window.remove_event_listener_with_callback( "mousemove", ( *self.mousemove_closure ).as_ref().unchecked_ref() );
+    let document = web_sys::window().unwrap().document().unwrap();
+    _ = document.remove_event_listener_with_callback( "keydown",   ( *self.keyboardbutton_closure ).as_ref().unchecked_ref() );
+    _ = document.remove_event_listener_with_callback( "keyup",     ( *self.keyboardbutton_closure ).as_ref().unchecked_ref() );
+
+    let document = document.dyn_into().unwrap();
+    let mouse_event_target = self.mouse_event_target.as_ref().unwrap_or( &document );
+    _ = mouse_event_target.remove_event_listener_with_callback( "mousedown", ( *self.mousebutton_closure ).as_ref().unchecked_ref() );
+    _ = mouse_event_target.remove_event_listener_with_callback( "mouseup",   ( *self.mousebutton_closure ).as_ref().unchecked_ref() );
+    _ = mouse_event_target.remove_event_listener_with_callback( "mousemove", ( *self.mousemove_closure ).as_ref().unchecked_ref() );
     // _ = window.remove_event_listener_with_callback( "mousemove", ( *self.mousemove_closure ).as_ref().unchecked_ref() );
   }
 }
