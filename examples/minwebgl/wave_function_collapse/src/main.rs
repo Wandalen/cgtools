@@ -21,7 +21,7 @@ use wfc_image::{ generate_image, wrap::*, retry::* };
 /// Tile map size. Length of square map side (a x a). 
 /// More than 256x256 is very slow.
 /// This example can generate only static size square maps
-const SIZE : usize = 40;
+const SIZE : usize = 32;
 
 const PATTERN_SIZE : u32 = 3;
 
@@ -439,6 +439,16 @@ fn prepare_texture1u
 /// current GL context and then draws binded buffers
 fn render_tile_map()
 {
+  let Some( ref map ) = *MAP.lock().unwrap()
+  else
+  {
+    return;
+  };
+  if map.is_empty() || map[ 0 ].is_empty()
+  {
+    return;
+  }
+
   // qqq : bad idea to call retrieve_or_make on each frame
   // aaa : I rename update to render_tile_map. This function 
   // is called only once when tileset texture is loaded. So 
@@ -463,16 +473,6 @@ fn render_tile_map()
   gl.bind_vertex_array( Some( &vao ) );
   prepare_texture_array( "tileset.png", GL::TEXTURE0 );
 
-  let map = &*MAP.lock().unwrap();
-  let Some( ref map ) = map
-  else
-  {
-    panic!( "Map is empty" );
-  };
-  if map.is_empty() || map[ 0 ].is_empty()
-  {
-    panic!("Map is empty");
-  }
   let size = ( map[ 0 ].len() as i32, map.len() as i32 );
   let data = map.iter()
   .cloned()
@@ -531,7 +531,11 @@ fn set_pattern( tmx_content: String )
 
 fn generate_map( ) -> Result< (), String >
 {
-  let pattern_img = TILEMAP_PATTERN.lock().unwrap().clone().unwrap();
+  let Some( pattern_img ) = TILEMAP_PATTERN.lock().unwrap().clone()
+  else 
+  {
+    return Ok( () );
+  };
 
   let map_img = generate_image
   (
