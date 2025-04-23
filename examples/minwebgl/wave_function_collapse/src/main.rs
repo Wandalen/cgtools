@@ -1,4 +1,13 @@
-//! Render tile map on quad.
+//! Generate with wfc-image and render tile map on quad.
+//! 
+//! The wfc-image implements the Wave Function Collapse (WFC) 
+//! algorithm to generate new images based on a sample input image; it works 
+//! by analyzing the input to learn the local patterns (like tiles or 
+//! overlapping blocks) and the rules of which patterns can appear next 
+//! to which, then applies these learned constraints to probabilistically 
+//! "collapse" possibilities on a grid until a consistent, novel image is 
+//! generated that shares the structural and textural characteristics of 
+//! the source.
 
 use gl::GL;
 use image::{ DynamicImage, ImageBuffer, Luma };
@@ -21,7 +30,7 @@ use wfc_image::{ generate_image, wrap::*, retry::* };
 /// Tile map size. Length of square map side (a x a). 
 /// More than 256x256 is very slow.
 /// This example can generate only static size square maps
-const SIZE : usize = 32;
+const SIZE : usize = 50;
 
 const PATTERN_SIZE : u32 = 3;
 
@@ -137,7 +146,7 @@ fn on_input_change
   reader.set_onload( Some( onload_callback.as_ref().unchecked_ref() ) );
   onload_callback.forget();
 
-  let _ = reader.read_as_text(&file);
+  let _ = reader.read_as_text( &file );
 }
 
 pub fn input_tilemap_init() -> Result< (), JsValue > 
@@ -157,10 +166,10 @@ pub fn input_tilemap_init() -> Result< (), JsValue >
 
   let on_change_callback = Closure::< dyn FnMut( _ ) >::new( on_input_change );
 
-  file_input.add_event_listener_with_callback("change", on_change_callback.as_ref().unchecked_ref())?;
+  file_input.add_event_listener_with_callback( "change", on_change_callback.as_ref().unchecked_ref() )?;
   on_change_callback.forget();
 
-  Ok(())
+  Ok( () )
 }
 
 fn handle_button_click( _event : Event ) 
