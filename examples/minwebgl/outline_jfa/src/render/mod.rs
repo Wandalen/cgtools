@@ -2,7 +2,7 @@ mod shaders;
 mod camera;
 
 pub struct Renderer{    
-    
+    viewport: Viewport,
 }
 
 impl Reader{

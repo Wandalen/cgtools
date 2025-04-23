@@ -1,7 +1,0 @@
-struct Camera{
-    
-}
-
-impl Camera{
-    
-}

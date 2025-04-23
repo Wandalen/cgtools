@@ -1,6 +1,8 @@
 mod render;
 mod model;
+mod input;
 
+use js_sys::wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{
@@ -26,19 +28,12 @@ impl App{
             renderer: Renderer::new()
         };
 
-
-        
         Ok(app)
     }
 
     // --- Main Loop Tick ---
     #[wasm_bindgen]
-    pub fn tick(&mut self, timestamp: f64){
-
-    }
-
-    #[wasm_bindgen]
-    pub fn resize(&mut self, width: i32, height: i32){
+    pub fn tick(&mut self, input: JsValue){
 
     }
 }
