@@ -37,10 +37,12 @@ mod private
   }
 
   /// Create a WebGL2 context from a canvas.
-  pub fn from_canvas( canvas: &HtmlCanvasElement ) -> Result< GL, Error >
+  pub fn from_canvas( canvas: &HtmlCanvasElement, o : ContexOptions ) -> Result< GL, Error >
   {
+    let context_options = js_sys::Object::new();
+    js_sys::Reflect::set( &context_options, &"preserveDrawingBuffer".into(), &o.preserve_drawing_buffer.into() ).unwrap();
     let context = canvas
-    .get_context( "webgl2" )
+    .get_context_with_context_options( "webgl2", &context_options )
     .map_err( |_| Error::ContextRetrievingError( "Failed to get webgl2 context" ) )?
     .ok_or( Error::ContextRetrievingError( "No webgl2 context" ) )?;
 
@@ -74,8 +76,9 @@ mod private
   /// Retrtuve from canvas WebGL2 context.
   pub fn retrieve_or_make() -> Result< GL, Error >
   {
-    let canvas = canvas::retrieve_or_make()?;
-    from_canvas( &canvas )
+    retrieve_or_make_with( Default::default() )
+    // let canvas = canvas::retrieve_or_make()?;
+    // from_canvas( &canvas )
   }
 
   // qqq : explain difference between similar functions
@@ -93,34 +96,46 @@ mod private
   pub fn retrieve_or_make_with( o : ContexOptions ) -> Result< GL, Error >
   {
     let canvas = canvas::retrieve_or_make()?;
-    // qqq : no, opposite retrieve_or_make is shortcut for retrieve_or_make_with
+    // aaa : no, opposite retrieve_or_make is shortcut for retrieve_or_make_with
     if o.reduce_dpr
     {
       canvas::remove_dpr_scaling( &canvas );
     }
-    from_canvas( &canvas )
+    from_canvas( &canvas, o )
   }
 
   /// `ContexOptions` is a configuration struct used to customize the behavior of canvas creation
   /// and WebGL2 context retrieval. It allows for optional adjustments, such as reducing the canvas
   /// scaling based on the device's pixel ratio.
+  #[ derive( Debug, Clone, Copy, Default ) ]
   pub struct ContexOptions
   {
-    reduce_dpr : bool
+    /// If set to true, the canvas will be scaled down by the device's pixel ratio, which can help
+    /// in achieving consistent rendering across devices with different pixel densities.
+    pub reduce_dpr : bool,
+    /// If set to true, the drawing buffer will be preserved, allowing for the contents of the
+    /// canvas to be retained after rendering. This can be useful for certain applications where
+    /// you want to keep the rendered content visible even after the next frame is drawn.
+    /// Note that this may have performance implications.
+    pub preserve_drawing_buffer : bool,
   }
 
   impl ContexOptions
   {
     pub fn new() -> Self
     {
-      Self { reduce_dpr : false }
+      Self::default()
     }
 
-    /// Customizes the canvas by setting its width and height in CSS style as divided by device's pixel ratio. This can be useful in scenarios
-    /// where you want to ensure consistent rendering behavior across devices with different pixel densities.
     pub fn reduce_dpr( mut self, val : bool ) -> Self
     {
       self.reduce_dpr = val;
+      self
+    }
+
+    pub fn preserve_drawing_buffer( mut self, val : bool ) -> Self
+    {
+      self.preserve_drawing_buffer = val;
       self
     }
   }

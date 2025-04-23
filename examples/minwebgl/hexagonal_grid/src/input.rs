@@ -263,6 +263,14 @@ impl Input
     }
   }
 
+  pub fn clear_callbacks( &mut self )
+  {
+    for callbacks in &mut self.callbacks.borrow_mut()[ .. ]
+    {
+      callbacks.clear();
+    }
+  }
+
   fn mousebutton_callback
   (
     input_data : &mut InputData,
