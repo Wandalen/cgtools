@@ -1,0 +1,33 @@
+[package]
+name = "outline_jfa"
+version = "0.1.0"
+edition = "2021"
+authors = [ 
+    "Kostiantyn Mysnyk <wandalen@obox.systems>",
+    "Bilan Vadym <vadym.b@obox.systems>"
+]
+
+[dependencies]
+web-sys = { version = "0.3", features = [
+    'Document',
+    'Window',
+    'HtmlCanvasElement',
+    'WebGl2RenderingContext',
+    'WebGlUniformLocation',
+    'WebGlActiveInfo',
+    'WebGlBuffer',
+    'WebGlVertexArrayObject',
+    'WebGlSync',
+    'console',
+    'Performance',
+    'HtmlImageElement',
+    'ImageBitmap',
+    'Blob',
+    'Url',
+    'WebGlTexture', 
+    'WebGlFramebuffer', 
+]}
+js-sys = "0.3"
+glow = "0.12"
+gltf = "1.4" 
+nalgebra-glm = "0.18"
