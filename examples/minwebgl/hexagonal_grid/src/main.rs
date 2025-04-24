@@ -41,7 +41,7 @@ fn main() -> Result< (), min::WebglError >
 fn draw_hexes() -> Result< (), minwebgl::WebglError >
 {
   min::browser::setup( Default::default() );
-  let o = min::context::ContexOptions::new().reduce_dpr( true ).preserve_drawing_buffer( true );
+  let o = min::context::ContexOptions::default().reduce_dpr( true ).preserve_drawing_buffer( true );
   let context = min::context::retrieve_or_make_with( o )?;
   let canvas = context.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
   // used to scale canvas true size to css size
