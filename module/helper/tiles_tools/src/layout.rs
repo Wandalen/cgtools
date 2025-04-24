@@ -5,12 +5,25 @@ use ndarray_cg::{ F32x2, I32x2 };
 use std::marker::PhantomData;
 
 /// RECTANGULAR LAYOUT
-#[ derive( Debug, Clone, Copy ) ]
+#[ derive( Debug ) ]
 pub struct RectangularGrid< Parity, Orientation >
 {
   /// Inclusive maximum and minimum coordinates of the grid.
   pub bounds : [ Coordinate< Offset< Parity >, Orientation >; 2 ],
 }
+
+impl< Parity, Orientation > Clone for RectangularGrid< Parity, Orientation >
+{
+  fn clone( &self ) -> Self
+  {
+    Self
+    {
+      bounds : self.bounds,
+    }
+  }
+}
+
+impl< Parity, Orientation > Copy for RectangularGrid< Parity, Orientation > {}
 
 impl< Parity, Orientation > RectangularGrid< Parity, Orientation >
 {

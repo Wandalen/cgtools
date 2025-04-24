@@ -191,9 +191,9 @@ impl Input
       }
     };
 
-    let mousebutton_closure = Closure::< dyn Fn( _ ) >::new( mousebutton_closure );
-    let mousemove_closure = Closure::< dyn Fn( _ ) >::new( mousemove_closure );
-    let keyboardbutton_closure = Closure::< dyn Fn( _ ) >::new( keyboardbutton_closure );
+    let mousebutton_closure = Closure::< dyn Fn( _ ) >::wrap( mousebutton_closure );
+    let mousemove_closure = Closure::< dyn Fn( _ ) >::wrap( mousemove_closure );
+    let keyboardbutton_closure = Closure::< dyn Fn( _ ) >::wrap( keyboardbutton_closure );
 
     let input = Input
     {

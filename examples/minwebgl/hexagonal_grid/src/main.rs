@@ -30,7 +30,7 @@ use min::
   // make it working please
   // it just does not work 😕
 };
-use web_sys::HtmlInputElement;
+use web_sys::{ wasm_bindgen::prelude::Closure, HtmlButtonElement, HtmlInputElement };
 use std::{ collections::HashMap, rc::Rc };
 
 fn main() -> Result< (), min::WebglError >
@@ -41,7 +41,10 @@ fn main() -> Result< (), min::WebglError >
 fn draw_hexes() -> Result< (), minwebgl::WebglError >
 {
   min::browser::setup( Default::default() );
-  let o = min::context::ContexOptions::default().reduce_dpr( true ).preserve_drawing_buffer( true );
+  let o = min::context::ContexOptions::default()
+  .reduce_dpr( true )
+  .preserve_drawing_buffer( true )
+  .power_preference( minwebgl::context::PowerPreference::HighPerformance );
   let context = min::context::retrieve_or_make_with( o )?;
   let canvas = context.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
   // used to scale canvas true size to css size
@@ -56,7 +59,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
   let grid_center = rect.center();
 
-  min::info!( "grid center: {grid_center:?}" );
+  // min::info!( "grid center: {grid_center:?}" );
 
   let grid_mesh = geometry::from_iter
   (
@@ -176,88 +179,95 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
   ////// PATHFIND DEMO //////
 
+  let document = web_sys::window().unwrap().document().unwrap();
 
-  input.add_callback
-  (
+  let pathfind_button : HtmlButtonElement = document
+  .get_element_by_id( "pathfinding" )
+  .unwrap()
+  .dyn_into()
+  .unwrap();
+
+  let painting_button : HtmlButtonElement = document
+  .get_element_by_id( "painting" )
+  .unwrap()
+  .dyn_into()
+  .unwrap();
+
+  let closure =
+  {
+    let mut input = input.clone();
+
+    let canvas = canvas.clone();
+    let context = context.clone();
+    let hex_shader = hex_shader.clone();
+    let grid_geometry = grid_geometry.clone();
+    let hexagon_geometry = hexagon_geometry.clone();
+
+    move ||
     {
-      let mut obstacles = HashMap::< Coordinate< Axial, Pointy >, bool >::from_iter
-      (
-        rect.coordinates().map( | c | ( c.into(), true ) )
-      );
-      let mut start = Coordinate::< Axial, _ >::new( 2, 4 );
-      // let mut selected_hex = None;
+      input.clear_callbacks();
+
       let canvas = canvas.clone();
-      move | input, event |
+      let context = context.clone();
+      let hex_shader = hex_shader.clone();
+      let grid_geometry = grid_geometry.clone();
+      let hexagon_geometry = hexagon_geometry.clone();
+
+      let closure =
       {
-        let Event { event_type, .. } = event;
-
-        let rect = canvas.get_bounding_client_rect();
-        let canvas_pos = F32x2::new( rect.left() as f32, rect.top() as f32 );
-        let half_size : F32x2 = canvas_size / 2.0;
-
-        let [ x, y ] = input.mouse_position().0;
-        let cursor_pos = F32x2::new( x as f32, y as f32 );
-        let cursor_pos : Pixel =
+        let mut start = Coordinate::< Axial, _ >::new( 2, 4 );
+        let mut obstacles = HashMap::< Coordinate< Axial, Pointy >, bool >::from_iter
         (
-          ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) + grid_center
-        ).into();
-        let selected_hex_coord : Coordinate::< Axial, Pointy > = cursor_pos.into();
-
-        if let EventType::MouseButton( button, Action::Press ) = event_type
-        {
-          if matches!( button, MouseButton::Main )
-          && obstacles.contains_key( &selected_hex_coord )
-          {
-            obstacles.entry( selected_hex_coord ).and_modify( | v | *v = !*v );
-          }
-          if matches!( button, MouseButton::Auxiliary )
-          && obstacles.get( &selected_hex_coord ).copied().unwrap_or_default()
-          {
-            start = selected_hex_coord;
-          }
-        }
-
-        // if selected_hex.is_some_and( | hex_coord | hex_coord == selected_hex_coord )
-        // {
-        //   return;
-        // }
-
-        // selected_hex = Some( selected_hex_coord );
-
-        context.clear( GL::COLOR_BUFFER_BIT );
-
-        // draw grid
-        hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
-        hex_shader.uniform_upload( "u_color", &[ 0.7, 0.7, 0.7, 1.0 ] );
-        grid_geometry.activate();
-        context.draw_arrays( GL::TRIANGLES, 0, grid_geometry.nvertices );
-
-        for ( &coord, _ ) in obstacles.iter().filter( | ( _, v ) | !**v )
-        {
-          let hex_pos : Pixel = coord.into();
-          let translation = mat2x2h::translate
-          (
-            [ hex_pos[ 0 ] - grid_center[ 0 ], -hex_pos[ 1 ] + grid_center[ 1 ] ]
-          );
-          let mvp = scale_m * translation * mat2x2h::rot( 30.0f32.to_radians() ); // * mat2x2h::scale( [ 0.9, 0.9 ] );
-
-          hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
-          hex_shader.uniform_upload( "u_color", &[ 0.1, 0.1, 0.1, 1.0 ] );
-          hexagon_geometry.activate();
-          context.draw_arrays( GL::TRIANGLES, 0, hexagon_geometry.nvertices );
-        }
-
-        let goal = selected_hex_coord;
-
-        let path = pathfind::find_path
-        (
-          &start,
-          &goal,
-          | coord | obstacles.get( &coord ).copied().unwrap_or_default()
+          rect.coordinates().map( | c | ( c.into(), true ) )
         );
-        if let Some( ( path, _ ) ) = path
+        // let mut selected_hex = None;
+
+        move | input : &input::InputData, event |
         {
-          for coord in path
+          let Event { event_type, .. } = event;
+
+          let rect = canvas.get_bounding_client_rect();
+          let canvas_pos = F32x2::new( rect.left() as f32, rect.top() as f32 );
+          let half_size : F32x2 = canvas_size / 2.0;
+
+          let [ x, y ] = input.mouse_position().0;
+          let cursor_pos = F32x2::new( x as f32, y as f32 );
+          let cursor_pos : Pixel =
+          (
+            ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) + grid_center
+          ).into();
+          let selected_hex_coord : Coordinate::< Axial, Pointy > = cursor_pos.into();
+
+          if let EventType::MouseButton( button, Action::Press ) = event_type
+          {
+            if matches!( button, MouseButton::Main )
+            && obstacles.contains_key( &selected_hex_coord )
+            {
+              obstacles.entry( selected_hex_coord ).and_modify( | v | *v = !*v );
+            }
+            if matches!( button, MouseButton::Auxiliary )
+            && obstacles.get( &selected_hex_coord ).copied().unwrap_or_default()
+            {
+              start = selected_hex_coord;
+            }
+          }
+
+          // if selected_hex.is_some_and( | hex_coord | hex_coord == selected_hex_coord )
+          // {
+          //   return;
+          // }
+
+          // selected_hex = Some( selected_hex_coord );
+
+          context.clear( GL::COLOR_BUFFER_BIT );
+
+          // draw grid
+          hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
+          hex_shader.uniform_upload( "u_color", &[ 0.7, 0.7, 0.7, 1.0 ] );
+          grid_geometry.activate();
+          context.draw_arrays( GL::TRIANGLES, 0, grid_geometry.nvertices );
+
+          for ( &coord, _ ) in obstacles.iter().filter( | ( _, v ) | !**v )
           {
             let hex_pos : Pixel = coord.into();
             let translation = mat2x2h::translate
@@ -267,78 +277,133 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
             let mvp = scale_m * translation * mat2x2h::rot( 30.0f32.to_radians() ); // * mat2x2h::scale( [ 0.9, 0.9 ] );
 
             hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
-            hex_shader.uniform_upload( "u_color", &[ 0.1, 0.6, 0.1, 1.0 ] );
+            hex_shader.uniform_upload( "u_color", &[ 0.1, 0.1, 0.1, 1.0 ] );
             hexagon_geometry.activate();
             context.draw_arrays( GL::TRIANGLES, 0, hexagon_geometry.nvertices );
           }
+
+          let goal = selected_hex_coord;
+
+          let path = pathfind::find_path
+          (
+            &start,
+            &goal,
+            | coord | obstacles.get( &coord ).copied().unwrap_or_default()
+          );
+
+          if let Some( ( path, _ ) ) = path
+          {
+            for coord in path
+            {
+              let hex_pos : Pixel = coord.into();
+              let translation = mat2x2h::translate
+              (
+                [ hex_pos[ 0 ] - grid_center[ 0 ], -hex_pos[ 1 ] + grid_center[ 1 ] ]
+              );
+              let mvp = scale_m * translation * mat2x2h::rot( 30.0f32.to_radians() ); // * mat2x2h::scale( [ 0.9, 0.9 ] );
+
+              hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
+              hex_shader.uniform_upload( "u_color", &[ 0.1, 0.6, 0.1, 1.0 ] );
+              hexagon_geometry.activate();
+              context.draw_arrays( GL::TRIANGLES, 0, hexagon_geometry.nvertices );
+            }
+          }
         }
-      }
-    },
-    EventFlags::MouseMovement | EventFlags::MouseButton,
-  );
+      };
 
+      input.add_callback
+      (
+        closure,
+        EventFlags::MouseMovement | EventFlags::MouseButton,
+      );
+    }
+  };
 
-  ////// PAINTING DEMO //////
+  let onclick = Closure::< dyn FnMut() >::new( closure );
+  pathfind_button.set_onclick( Some( onclick.as_ref().unchecked_ref() ) );
+  onclick.forget();
 
+  let closure =
+  {
+    let mut input = input.clone();
 
-  let mut painting_canvas = HexArray::< Offset< Odd >, Pointy, [ f32; 3 ] >::new
-  (
-    [ 23, 23 ].into(),
-    [ 11, 11 ].into(),
-    || [ 1.0, 1.0, 1.0 ]
-  );
+    move ||
+    {
+      input.clear_callbacks();
+      context.clear( GL::COLOR_BUFFER_BIT );
 
-  // input.add_callback
-  // (
-  //   {
-  //     let canvas = canvas.clone();
-  //     let context = context.clone();
-  //     let hexagon_geometry = hexagon_geometry.clone();
-  //     let hex_shader = hex_shader.clone();
-  //     let color_picker : HtmlInputElement = web_sys::window()
-  //     .unwrap()
-  //     .document()
-  //     .unwrap()
-  //     .get_element_by_id( "color-picker" )
-  //     .unwrap()
-  //     .dyn_into()
-  //     .unwrap();
-  //     move | input, _ |
-  //     {
-  //       let is_mouse_down = input.is_button_down( MouseButton::Main );
+      let canvas = canvas.clone();
+      let context = context.clone();
+      let hex_shader = hex_shader.clone();
+      let hexagon_geometry = hexagon_geometry.clone();
 
-  //       if is_mouse_down
-  //       {
-  //         let rect = canvas.get_bounding_client_rect();
-  //         let canvas_pos = F32x2::new( rect.left() as f32, rect.top() as f32 );
-  //         let half_size : F32x2 = canvas_size / 2.0;
-  //         let cursor_pos = F32x2::new( input.mouse_position()[ 0 ] as f32, input.mouse_position()[ 1 ] as f32 );
-  //         let cursor_pos : Pixel = ( ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) ).into();
-  //         let selected_hex_coord : Coordinate::< Axial, Pointy > = cursor_pos.into();
+      let closure =
+      {
+        let mut painting_canvas = HexArray::< Offset< Odd >, Pointy, [ f32; 3 ] >::new
+        (
+          [ 23, 23 ].into(),
+          [ 11, 11 ].into(),
+          || [ 1.0, 1.0, 1.0 ]
+        );
 
-  //         let color = color_picker.value();
-  //         let r = u8::from_str_radix( &color[ 1..3 ], 16 ).unwrap() as f32 / 255.0;
-  //         let g = u8::from_str_radix( &color[ 3..5 ], 16 ).unwrap() as f32 / 255.0;
-  //         let b = u8::from_str_radix( &color[ 5..7 ], 16 ).unwrap() as f32 / 255.0;
-  //         let color = [ r, g, b ];
+        {
+          let canvas = canvas.clone();
+          let context = context.clone();
+          let hexagon_geometry = hexagon_geometry.clone();
+          let hex_shader = hex_shader.clone();
+          let color_picker : HtmlInputElement = document
+          .get_element_by_id( "color-picker" )
+          .unwrap()
+          .dyn_into()
+          .unwrap();
+          move | input : &input::InputData, _ |
+          {
+            let is_mouse_down = input.is_button_down( MouseButton::Main );
 
-  //         if painting_canvas[ selected_hex_coord ] == color { return; }
+            if is_mouse_down
+            {
+              let rect = canvas.get_bounding_client_rect();
+              let canvas_pos = F32x2::new( rect.left() as f32, rect.top() as f32 );
+              let half_size : F32x2 = canvas_size / 2.0;
+              let cursor_pos = F32x2::new( input.mouse_position()[ 0 ] as f32, input.mouse_position()[ 1 ] as f32 );
+              let cursor_pos : Pixel = ( ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) ).into();
+              let selected_hex_coord : Coordinate::< Axial, Pointy > = cursor_pos.into();
 
-  //         painting_canvas[ selected_hex_coord ] = color;
+              let color = color_picker.value();
+              let r = u8::from_str_radix( &color[ 1..3 ], 16 ).unwrap() as f32 / 255.0;
+              let g = u8::from_str_radix( &color[ 3..5 ], 16 ).unwrap() as f32 / 255.0;
+              let b = u8::from_str_radix( &color[ 5..7 ], 16 ).unwrap() as f32 / 255.0;
+              let color = [ r, g, b ];
 
-  //         let axial : Coordinate< Axial, _ > = selected_hex_coord.into();
-  //         let hex_pos : Pixel = axial.into();
-  //         let translation = mat2x2h::translate( [ hex_pos[ 0 ], -hex_pos[ 1 ] ] );
-  //         let mvp = scale_m * translation * mat2x2h::rot( 30.0f32.to_radians() );
-  //         hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
-  //         hex_shader.uniform_upload( "u_color", &[ r, g, b, 1.0 ] );
-  //         hexagon_geometry.activate();
-  //         context.draw_arrays( GL::TRIANGLES, 0, hexagon_geometry.nvertices );
-  //       }
-  //     }
-  //   },
-  //   EventFlags::MouseMovement | EventFlags::MouseButton,
-  // );
+              if painting_canvas[ selected_hex_coord ] == color { return; }
+
+              painting_canvas[ selected_hex_coord ] = color;
+
+              let axial : Coordinate< Axial, _ > = selected_hex_coord.into();
+              let hex_pos : Pixel = axial.into();
+              let translation = mat2x2h::translate( [ hex_pos[ 0 ], -hex_pos[ 1 ] ] );
+              let mvp = scale_m * translation * mat2x2h::rot( 30.0f32.to_radians() );
+              hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
+              hex_shader.uniform_upload( "u_color", &[ r, g, b, 1.0 ] );
+              hexagon_geometry.activate();
+              context.draw_arrays( GL::TRIANGLES, 0, hexagon_geometry.nvertices );
+            }
+          }
+        }
+      };
+
+      input.add_callback
+      (
+        closure,
+        EventFlags::MouseMovement | EventFlags::MouseButton,
+      );
+    }
+  };
+
+  let onclick = web_sys::wasm_bindgen::prelude::Closure::< dyn FnMut() >::new( closure );
+  painting_button.set_onclick( Some( onclick.as_ref().unchecked_ref() ) );
+  onclick.forget();
+
   _ = Box::leak( input );
 
   Ok( () )
