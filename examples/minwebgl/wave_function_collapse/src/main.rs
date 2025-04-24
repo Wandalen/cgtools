@@ -20,6 +20,7 @@ use std::sync::Mutex;
 use web_sys::{ HtmlInputElement, HtmlButtonElement, FileReader, Event };
 use wfc::*;
 use wfc_image::{ generate_image, wrap::*, retry::* };
+use yawfc::overlapping::overlapping;
 
 // qqq : why const?
 // const LAYERS : i32 = 7;
@@ -133,7 +134,7 @@ fn on_input_change
             if let Some( tmx_content ) = js_val.as_string() 
             {
               set_pattern( tmx_content );
-              let _ = generate_map();
+              let _ = generate_map_wfc_image();
               let _ = render_tile_map();
             }
           },
@@ -172,28 +173,28 @@ pub fn input_tilemap_init() -> Result< (), JsValue >
   Ok( () )
 }
 
-fn handle_button_click( _event : Event ) 
-{
-  let _ = generate_map();
-  let _ = render_tile_map();
-}
-
-fn button_generate_setup() -> Result< (), JsValue > 
+fn button_generate_setup( id: &str, top: u32, generate_map_fn: fn() -> () ) -> Result< (), JsValue > 
 {
   let window = web_sys::window().unwrap();
   let document = window.document().unwrap();
 
-  let button_element = document.get_element_by_id( "generate" )
+  let button_element = document.get_element_by_id( id )
   .unwrap()
   .dyn_into::< HtmlButtonElement >()
   .unwrap();
 
   let button_style = button_element.style();
   let _ = button_style.set_property( "position", "absolute" );
-  let _ = button_style.set_property( "top", "50px" );
+  let _ = button_style.set_property( "top", format!("{}px", top).as_str() );
   let _ = button_style.set_property( "left", "15px" );
 
-  let button_callback = Closure::< dyn FnMut( _ ) >::new( handle_button_click );
+  let button_callback = Closure::< dyn FnMut( _ ) >::new( 
+    move | _e : Event |
+    {
+      let _ = generate_map_fn();
+      let _ = render_tile_map();
+    } 
+  );
 
   let _ = button_element.add_event_listener_with_callback
   (
@@ -211,7 +212,8 @@ fn init()
   gl::browser::setup( Default::default() );
 
   let _ = input_tilemap_init();
-  let _ = button_generate_setup();
+  let _ = button_generate_setup("generate-wfc-image", 50, generate_map_wfc_image );
+  //let _ = button_generate_setup("generate-yawfc", 85, generate_map_yawfc );
 
   let window = web_sys::window()
   .expect( "Should have a window" );
@@ -538,15 +540,15 @@ fn set_pattern( tmx_content: String )
   *TILEMAP_PATTERN.lock().unwrap() = Some( pattern_img );
 }
 
-fn generate_map( ) -> Result< (), String >
+fn generate_map_wfc_image()
 {
   let Some( pattern_img ) = TILEMAP_PATTERN.lock().unwrap().clone()
   else 
   {
-    return Ok( () );
+    return;
   };
 
-  let map_img = generate_image
+  let Ok( map_img ) = generate_image
   (
     &pattern_img,
     std::num::NonZero::new( PATTERN_SIZE ).unwrap(),
@@ -556,7 +558,10 @@ fn generate_map( ) -> Result< (), String >
     ForbidNothing,
     NumTimes( 1 )
   )
-  .unwrap();
+  else
+  {
+    return;
+  };
 
   let map_raw : Vec<u8> = map_img.to_luma8().into_raw();
   let map = map_raw.chunks( SIZE as usize )
@@ -564,7 +569,54 @@ fn generate_map( ) -> Result< (), String >
   .collect::< Vec< Vec< _ > > >();
 
   *MAP.lock().unwrap() = Some( map );
-  Ok( () )
+}
+
+fn generate_map_yawfc()
+{
+  let Some( pattern_img ) = TILEMAP_PATTERN.lock().unwrap().clone()
+  else 
+  {
+    return;
+  };
+
+  let pattern_raw = pattern_img.as_bytes()
+  .to_vec()
+  .chunks( pattern_img.width() as usize )
+  .map( | v | v.to_vec() )
+  .collect::< Vec< Vec< _ > > >();
+
+  let mut wave = overlapping(
+    pattern_raw, 
+    SIZE, 
+    SIZE, 
+    false, 
+    false, 
+    rand::random::< u64 >()
+  );
+  for _ in 0..( pattern_img.width() as u64 * pattern_img.height() as u64 ){ 
+    if wave.is_contradiction(){
+      break;
+    }
+    wave.step();
+  }
+
+  let map = wave.wave.into_iter()
+  .map
+  (
+    | v | 
+    {
+      v.into_iter()
+      .map( | v | v.iter().position( | i | *i ).unwrap_or( 0 ) as u8 )
+      .collect::< Vec< _ > >()
+    }
+  )
+  .collect::< Vec< Vec< _ > > >();
+
+  let map = map.into_iter()
+  .map( | v | v.into_iter().collect::< Vec< _ > >() )
+  .collect::< Vec< Vec< _ > > >();
+
+  *MAP.lock().unwrap() = Some( map );
 }
 
 fn run()
