@@ -158,7 +158,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
       input.clear_callbacks();
 
-      let closure = move | input : &input::InputData, _ |
+      let closure = move | input : &input::InputState, _ |
       {
         let rect = canvas.get_bounding_client_rect();
         let canvas_pos = F32x2::new( rect.left() as f32, rect.top() as f32 );
@@ -245,7 +245,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       );
       // let mut selected_hex = None;
 
-      let closure = move | input : &input::InputData, event |
+      let closure = move | input : &input::InputState, event |
       {
         let Event { event_type, .. } = event;
 
@@ -265,6 +265,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
         {
           if button == MouseButton::Main
           && obstacles.contains_key( &selected_hex_coord )
+          && selected_hex_coord != start
           {
             obstacles.entry( selected_hex_coord ).and_modify( | v | *v = !*v );
           }
@@ -347,7 +348,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   onclick.forget();
 
 
-  /////// PAINTING DEMO //////
+  ////// PAINTING DEMO //////
 
   let closure =
   {
@@ -377,7 +378,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       .dyn_into()
       .unwrap();
 
-      let closure = move | input : &input::InputData, _ |
+      let closure = move | input : &input::InputState, _ |
       {
         let is_mouse_down = input.is_button_down( MouseButton::Main );
 

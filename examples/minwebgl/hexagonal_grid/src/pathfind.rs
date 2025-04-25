@@ -7,7 +7,7 @@ pub fn find_path< C, F >
   goal : &C,
   is_accessible : F
 )
--> Option< ( Vec< C >, i32 ) >
+-> Option< ( Vec< C >, u32 ) >
 where
   C : Distance + Neigbors + Eq + Clone + Hash,
   F : Fn( &C ) -> bool,

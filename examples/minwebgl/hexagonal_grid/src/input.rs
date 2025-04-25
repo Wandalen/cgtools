@@ -4,6 +4,8 @@ use web_sys::{ wasm_bindgen::prelude::Closure, EventTarget, KeyboardEvent, Mouse
 use std::{ cell::{ Ref, RefCell }, rc::Rc, str::FromStr };
 use bitflags::{ bitflags, Flags as _ };
 use strum::EnumCount;
+// use min::derive::EnumCount;
+// use derive_tools::dependency::strum;
 
 bitflags!
 {
@@ -43,7 +45,7 @@ pub struct Event
 }
 
 #[ derive( Debug, Clone ) ]
-pub struct InputData
+pub struct InputState
 {
   events : Vec< Event >,
   keyboard_state : [ bool; KeyboardCode::COUNT ],
@@ -51,7 +53,7 @@ pub struct InputData
   mouse_position : I32x2,
 }
 
-impl InputData
+impl InputState
 {
   pub fn events( &self ) -> &[ Event ]
   {
@@ -75,20 +77,14 @@ impl InputData
   }
 }
 
-// #[ derive( Clone ) ]
-// pub struct Callback
-// {
-//   callback : Rc< RefCell< dyn FnMut( &InputData, Event ) > >,
-// }
-
-type Callback = Rc< RefCell< dyn FnMut( &InputData, Event ) > >;
+type Callback = Rc< RefCell< dyn FnMut( &InputState, Event ) > >;
 
 type Callbacks = [ Vec< Callback >; EventFlags::FLAGS.len() ];
 
 #[ derive( Clone ) ]
 pub struct Input
 {
-  input_data : Rc< RefCell< InputData > >,
+  input_state : Rc< RefCell< InputState > >,
   mousebutton_closure : Rc< Closure< dyn Fn( MouseEvent ) > >,
   mousemove_closure : Rc< Closure< dyn Fn( MouseEvent ) > >,
   keyboardbutton_closure : Rc< Closure< dyn Fn( KeyboardEvent ) > >,
@@ -100,7 +96,7 @@ impl Input
 {
   pub fn new( collect_events : bool, mouse_event_target : Option< EventTarget > ) -> Self
   {
-    let input_data = InputData
+    let input_state = InputState
     {
       events : Vec::new(),
       keyboard_state : [ false; KeyboardCode::COUNT ],
@@ -108,13 +104,13 @@ impl Input
       mouse_position : I32x2::from_array( [ 0, 0 ] ),
     };
 
-    let input_data = Rc::new( RefCell::new( input_data ) );
+    let input_state = Rc::new( RefCell::new( input_state ) );
     let document = web_sys::window().unwrap().document().unwrap();
     let callbacks = Rc::new( RefCell::new( [ Vec::new(), Vec::new(), Vec::new(), Vec::new() ] ) );
 
     let mousebutton_closure : Box< dyn Fn( MouseEvent ) > =
     {
-      let input_data = input_data.clone();
+      let input_state = input_state.clone();
       let callbacks = callbacks.clone();
       if collect_events
       {
@@ -122,8 +118,8 @@ impl Input
         (
           move | event : MouseEvent |
           {
-            let event = Self::mousebutton_callback( &mut input_data.borrow_mut(), &callbacks.borrow(), event );
-            input_data.borrow_mut().events.push( event );
+            let event = Self::mousebutton_callback( &mut input_state.borrow_mut(), &callbacks.borrow(), event );
+            input_state.borrow_mut().events.push( event );
           }
         )
       }
@@ -133,7 +129,7 @@ impl Input
         (
           move | event : MouseEvent |
           {
-            _ = Self::mousebutton_callback( &mut input_data.borrow_mut(), &callbacks.borrow(), event );
+            _ = Self::mousebutton_callback( &mut input_state.borrow_mut(), &callbacks.borrow(), event );
           }
         )
       }
@@ -141,7 +137,7 @@ impl Input
 
     let mousemove_closure : Box< dyn Fn( MouseEvent ) > =
     {
-      let input_data = input_data.clone();
+      let input_state = input_state.clone();
       let callbacks = callbacks.clone();
       if collect_events
       {
@@ -149,8 +145,8 @@ impl Input
         (
           move | event : MouseEvent |
           {
-            let event = Self::mousemove_callback( &mut input_data.borrow_mut(), &callbacks.borrow(), event );
-            input_data.borrow_mut().events.push( event );
+            let event = Self::mousemove_callback( &mut input_state.borrow_mut(), &callbacks.borrow(), event );
+            input_state.borrow_mut().events.push( event );
           }
         )
       }
@@ -160,7 +156,7 @@ impl Input
         (
           move | event : MouseEvent |
           {
-            _ = Self::mousemove_callback( &mut input_data.borrow_mut(), &callbacks.borrow(), event );
+            _ = Self::mousemove_callback( &mut input_state.borrow_mut(), &callbacks.borrow(), event );
           }
         )
       }
@@ -168,7 +164,7 @@ impl Input
 
     let keyboardbutton_closure : Box< dyn Fn( KeyboardEvent ) > =
     {
-      let input_data = input_data.clone();
+      let input_state = input_state.clone();
       let callbacks = callbacks.clone();
       if collect_events
       {
@@ -176,8 +172,8 @@ impl Input
         (
           move | event : KeyboardEvent |
           {
-            let event = Self::keyboardbutton_callback( &mut input_data.borrow_mut(), &callbacks.borrow(), event );
-            input_data.borrow_mut().events.push( event );
+            let event = Self::keyboardbutton_callback( &mut input_state.borrow_mut(), &callbacks.borrow(), event );
+            input_state.borrow_mut().events.push( event );
           }
         )
       }
@@ -187,7 +183,7 @@ impl Input
         (
           move | event : KeyboardEvent |
           {
-            _ = Self::keyboardbutton_callback( &mut input_data.borrow_mut(), &callbacks.borrow(), event );
+            _ = Self::keyboardbutton_callback( &mut input_state.borrow_mut(), &callbacks.borrow(), event );
           }
         )
       }
@@ -199,7 +195,7 @@ impl Input
 
     let input = Input
     {
-      input_data,
+      input_state,
       mousebutton_closure : Rc::new( mousebutton_closure ),
       mousemove_closure : Rc::new( mousemove_closure ),
       keyboardbutton_closure : Rc::new( keyboardbutton_closure ),
@@ -240,19 +236,19 @@ impl Input
     input
   }
 
-  pub fn input_data( &self ) -> Ref< InputData >
+  pub fn input_state( &self ) -> Ref< InputState >
   {
-    self.input_data.borrow()
+    self.input_state.borrow()
   }
 
   pub fn clear_events( &mut self )
   {
-    self.input_data.borrow_mut().events.clear();
+    self.input_state.borrow_mut().events.clear();
   }
 
   pub fn add_callback< F >( &self, callback : F, flags : EventFlags )
   where
-    F : FnMut( &InputData, Event ) + 'static
+    F : FnMut( &InputState, Event ) + 'static
   {
     let callback = Rc::new( RefCell::new( callback ) );
     for flag in EventFlags::FLAGS
@@ -275,7 +271,7 @@ impl Input
 
   fn mousebutton_callback
   (
-    input_data : &mut InputData,
+    input_state : &mut InputState,
     callbacks : &Callbacks,
     event : MouseEvent
   )
@@ -284,12 +280,12 @@ impl Input
     let button = MouseButton::from_button( event.button() );
     let action = if event.type_() == "mousedown"
     {
-      input_data.mouse_state[ button as usize ] = true;
+      input_state.mouse_state[ button as usize ] = true;
       Action::Press
     }
     else
     {
-      input_data.mouse_state[ button as usize ] = false;
+      input_state.mouse_state[ button as usize ] = false;
       Action::Release
     };
 
@@ -303,7 +299,7 @@ impl Input
     let index = EventFlags::MouseButton.bits().trailing_zeros() as usize;
     for callback in &callbacks[ index ]
     {
-      ( callback.borrow_mut() )( input_data, event );
+      ( callback.borrow_mut() )( input_state, event );
     }
 
     event
@@ -311,7 +307,7 @@ impl Input
 
   fn mousemove_callback
   (
-    input_data : &mut InputData,
+    input_state : &mut InputState,
     callbacks : &Callbacks,
     event : MouseEvent
   )
@@ -320,10 +316,10 @@ impl Input
     let position = I32x2::from_array( [ event.client_x(), event.client_y() ] );
     let delta =
     [
-      position[ 0 ] - input_data.mouse_position[ 0 ],
-      position[ 1 ] - input_data.mouse_position[ 1 ]
+      position[ 0 ] - input_state.mouse_position[ 0 ],
+      position[ 1 ] - input_state.mouse_position[ 1 ]
     ].into();
-    input_data.mouse_position = position;
+    input_state.mouse_position = position;
 
     let event_type = EventType::MouseMovement( delta );
     let alt = event.alt_key();
@@ -335,7 +331,7 @@ impl Input
     let index = EventFlags::MouseMovement.bits().trailing_zeros() as usize;
     for callback in &callbacks[ index ]
     {
-      ( callback.borrow_mut() )( &input_data, event );
+      ( callback.borrow_mut() )( &input_state, event );
     }
 
     event
@@ -343,7 +339,7 @@ impl Input
 
   fn keyboardbutton_callback
   (
-    input_data : &mut InputData,
+    input_state : &mut InputState,
     callbacks : &Callbacks,
     event : KeyboardEvent
   )
@@ -352,12 +348,12 @@ impl Input
     let code = KeyboardCode::from_code( &event.code() );
     let action = if event.type_() == "keydown"
     {
-      input_data.keyboard_state[ code as usize ] = true;
+      input_state.keyboard_state[ code as usize ] = true;
       Action::Press
     }
     else
     {
-      input_data.keyboard_state[ code as usize ] = false;
+      input_state.keyboard_state[ code as usize ] = false;
       Action::Release
     };
 
@@ -371,7 +367,7 @@ impl Input
     let index = EventFlags::KeyboardButton.bits().trailing_zeros() as usize;
     for callback in &callbacks[ index ]
     {
-      ( callback.borrow_mut() )( &input_data, event );
+      ( callback.borrow_mut() )( &input_state, event );
     }
 
     event

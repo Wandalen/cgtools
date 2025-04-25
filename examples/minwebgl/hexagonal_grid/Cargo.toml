@@ -4,10 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-pathfinding = "4.14.0"
 minwebgl = { workspace = true, features = [ "math" ] }
 web-sys = { workspace = true, features = [ "DomRect", "MouseEvent", "KeyboardEvent", "HtmlInputElement", "HtmlButtonElement" ] }
-derive_tools = { workspace = true }
 tiles_tools = { workspace = true }
-strum = { version = "0.27.1", features = ["derive"] }
+pathfinding = "4.14.0"
 bitflags = "2.9.0"
+strum = { version = "0.27.1", features = [ "derive" ] }
+# derive_tools = { workspace = true, features = [ "full" ] }

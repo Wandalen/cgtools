@@ -311,15 +311,14 @@ fn axial_round( q : f32, r : f32 ) -> ( i32, i32 )
 
 impl< Orientation > Distance for Coordinate< Axial, Orientation >
 {
-  fn distance( &self, Self { q, r, .. } : &Self ) -> i32
+  fn distance( &self, Self { q, r, .. } : &Self ) -> u32
   {
-    let s = -self.q - self.r;
-    let other_s = -q - r;
-    let q = self.q - q;
-    let r = self.r - r;
+    let s = -self.q as i64 - self.r as i64;
+    let other_s = -q as i64 - *r as i64;
+    let q = self.q as i64 - *q as i64;
+    let r = self.r as i64 - *r as i64;
     let s = s - other_s;
-    ( q.abs() + r.abs() + s.abs() ) / 2
-    // self.distance( *other )
+    ( q.abs() as u32 + r.abs() as u32 + s.abs() as u32 ) / 2
   }
 }
 
