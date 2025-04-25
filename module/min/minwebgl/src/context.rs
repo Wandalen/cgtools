@@ -96,7 +96,7 @@ mod private
   {
     let canvas = canvas::retrieve_or_make()?;
     // aaa : no, opposite retrieve_or_make is shortcut for retrieve_or_make_with
-    if o.reduce_dpr
+    if o.remove_dpr_scaling
     {
       canvas::remove_dpr_scaling( &canvas );
     }
@@ -133,7 +133,7 @@ mod private
   {
     /// If set to true, the canvas will be scaled down by the device's pixel ratio, which can help
     /// in achieving consistent rendering across devices with different pixel densities.
-    pub reduce_dpr : bool,
+    pub remove_dpr_scaling : bool,
     /// If set to true, the drawing buffer will be preserved, allowing for the contents of the
     /// canvas to be retained after rendering. This can be useful for certain applications where
     /// you want to keep the rendered content visible even after the next frame is drawn.
@@ -176,9 +176,9 @@ mod private
 
   impl ContexOptions
   {
-    pub fn reduce_dpr( mut self, val : bool ) -> Self
+    pub fn remove_dpr_scaling( mut self, val : bool ) -> Self
     {
-      self.reduce_dpr = val;
+      self.remove_dpr_scaling = val;
       self
     }
 
@@ -243,7 +243,7 @@ mod private
     {
       Self
       {
-        reduce_dpr : false,
+        remove_dpr_scaling : false,
         preserve_drawing_buffer : false,
         alpha : true,
         antialias : true,

@@ -75,11 +75,13 @@ impl InputData
   }
 }
 
-#[ derive( Clone ) ]
-pub struct Callback
-{
-  callback : Rc< RefCell< dyn FnMut( &InputData, Event ) > >,
-}
+// #[ derive( Clone ) ]
+// pub struct Callback
+// {
+//   callback : Rc< RefCell< dyn FnMut( &InputData, Event ) > >,
+// }
+
+type Callback = Rc< RefCell< dyn FnMut( &InputData, Event ) > >;
 
 type Callbacks = [ Vec< Callback >; EventFlags::FLAGS.len() ];
 
@@ -252,7 +254,7 @@ impl Input
   where
     F : FnMut( &InputData, Event ) + 'static
   {
-    let callback = Callback { callback : Rc::new( RefCell::new( callback ) ) };
+    let callback = Rc::new( RefCell::new( callback ) );
     for flag in EventFlags::FLAGS
     {
       if flags.contains( *flag.value() )
@@ -299,7 +301,7 @@ impl Input
     let event = Event { event_type, alt, ctrl, shift };
 
     let index = EventFlags::MouseButton.bits().trailing_zeros() as usize;
-    for Callback { callback } in &callbacks[ index ]
+    for callback in &callbacks[ index ]
     {
       ( callback.borrow_mut() )( input_data, event );
     }
@@ -331,7 +333,7 @@ impl Input
     let event = Event { event_type, alt, ctrl, shift };
 
     let index = EventFlags::MouseMovement.bits().trailing_zeros() as usize;
-    for Callback { callback } in &callbacks[ index ]
+    for callback in &callbacks[ index ]
     {
       ( callback.borrow_mut() )( &input_data, event );
     }
@@ -367,7 +369,7 @@ impl Input
     let event = Event { event_type, alt, ctrl, shift };
 
     let index = EventFlags::KeyboardButton.bits().trailing_zeros() as usize;
-    for Callback { callback } in &callbacks[ index ]
+    for callback in &callbacks[ index ]
     {
       ( callback.borrow_mut() )( &input_data, event );
     }
