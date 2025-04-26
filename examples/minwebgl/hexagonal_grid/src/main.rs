@@ -31,7 +31,7 @@ use min::
   // it just does not work 😕
 };
 use web_sys::{ wasm_bindgen::prelude::Closure, HtmlButtonElement, HtmlInputElement };
-use std::{ collections::HashMap, rc::Rc };
+use std::{ cell::RefCell, collections::HashMap, rc::Rc };
 
 fn main() -> Result< (), min::WebglError >
 {
@@ -107,7 +107,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let translation = mat2x2h::translate( [ -grid_center.x(), grid_center.y() ] );
   let mvp = scale_m * translation;
 
-  let input = Box::new( input::Input::new( false, Some( canvas.clone().dyn_into().unwrap() ) ) );
+  let input = Rc::new( RefCell::new( input::Input::new( false, Some( canvas.clone().dyn_into().unwrap() ) ) ) );
 
   let document = web_sys::window().unwrap().document().unwrap();
 
@@ -134,7 +134,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
   let closure =
   {
-    let mut input = input.clone();
+    let input = input.clone();
 
     let context = context.clone();
     let canvas = canvas.clone();
@@ -156,7 +156,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       grid_geometry.activate();
       context.draw_arrays( GL::TRIANGLES, 0, grid_geometry.nvertices );
 
-      input.clear_callbacks();
+      input.borrow_mut().clear_callbacks();
 
       let closure = move | input : &input::InputState, _ |
       {
@@ -205,7 +205,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
                                                                           // aaa : let's use linestrip. rid of loops
       };
 
-      input.add_callback( closure, EventFlags::MouseMovement );
+      input.borrow_mut().add_callback( closure, EventFlags::MouseMovement );
     }
   };
 
@@ -218,7 +218,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
   let closure =
   {
-    let mut input = input.clone();
+    let input = input.clone();
 
     let canvas = canvas.clone();
     let context = context.clone();
@@ -228,7 +228,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
     move ||
     {
-      input.clear_callbacks();
+      input.borrow_mut().clear_callbacks();
 
       context.clear( GL::COLOR_BUFFER_BIT );
 
@@ -335,7 +335,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
         }
       };
 
-      input.add_callback
+      input.borrow_mut().add_callback
       (
         closure,
         EventFlags::MouseMovement | EventFlags::MouseButton,
@@ -352,11 +352,11 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
   let closure =
   {
-    let mut input = input.clone();
+    let input = input.clone();
 
     move ||
     {
-      input.clear_callbacks();
+      input.borrow_mut().clear_callbacks();
 
       context.clear( GL::COLOR_BUFFER_BIT );
 
@@ -413,7 +413,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
         }
       };
 
-      input.add_callback
+      input.borrow_mut().add_callback
       (
         closure,
         EventFlags::MouseMovement | EventFlags::MouseButton,
@@ -424,8 +424,6 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let onclick = Closure::< dyn FnMut() >::new( closure );
   painting_button.set_onclick( Some( onclick.as_ref().unchecked_ref() ) );
   onclick.forget();
-
-  _ = Box::leak( input );
 
   Ok( () )
 }
