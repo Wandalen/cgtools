@@ -1,5 +1,42 @@
 ### GLTF viewer
 
+Some description
+
+### Features
+#### GLTf parsing
+✅ Buffers  
+✅ Images   
+✅ Camera      
+✅ Scene  
+✅ Material  
+✅ Mesh  
+❌ Sparse accessors  
+❌ Animations  
+❌ Skins and bones  
+❌ Morph targets
+#### Basic shader
+🔄 PBR  
+&emsp;✅ Base color texture  
+&emsp;✅ Metallic texture  
+&emsp;✅ Roughness texture  
+&emsp;🔄 IBL  
+✅ Normal texture   
+✅ Occlusion texture  
+❌ Emission texture  
+❌ Skinning  
+❌ HDR and tonemapping
+#### Rendering
+❌ Multisampling  
+✅ Support for multiple scenes  
+❌ Support for multiple cameras  
+#### Extensions
+❌ None are supported
+#### UI
+❌ Switching between scenes  
+❌ Switching between cameras   
+❌ Changing the tonemapping method and value  
+❌ GPU Stats  
+
 
 ### Links
 
