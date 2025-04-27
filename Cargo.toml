@@ -138,6 +138,9 @@ version = "~0.10.0"
 [workspace.dependencies.clone_dyn_types]
 version = "~0.23.0"
 
+[workspace.dependencies.asbytes]
+version = "0.2.0"
+
 # = third-party dependencies
 
 [workspace.dependencies.log]
@@ -154,9 +157,9 @@ features = []
 version = "0.3.77"
 features = []
 
-[workspace.dependencies.bytemuck]
-version = "1.18.0"
-features = [ "derive" ]
+# [workspace.dependencies.bytemuck]
+# version = "1.18.0"
+# features = [ "derive" ]
 
 [workspace.dependencies.ndarray]
 version = "0.16.1"

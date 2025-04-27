@@ -14,7 +14,9 @@ workspace = true
 
 [features]
 
-enabled = []
+enabled = [
+  "dep:asbytes",
+]
 default = [
   "enabled",
   "math",
@@ -49,7 +51,8 @@ web_log = [ "dep:browser_log" ]
 
 [dependencies]
 
-bytemuck = { workspace = true, features = [ "derive" ] } # xxx : replace
+asbytes = { workspace = true, optional = true }
+# bytemuck = { workspace = true, features = [ "derive" ] } # xxx : replace
 # anyhow = "1.0.48"
 # slice-of-array = "0.3.1"
 tobj = { workspace = true, optional = true }

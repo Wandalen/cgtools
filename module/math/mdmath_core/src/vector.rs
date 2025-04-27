@@ -383,7 +383,7 @@ crate::mod_interface!
     ConstLength,
     VectorWithLength,
     VectorWithLengthMut,
-    IntoArray,
+    IntoArray, // qqq : xxx : cover by test
     ArrayRef,
     ArrayMut,
     VectorIterator,

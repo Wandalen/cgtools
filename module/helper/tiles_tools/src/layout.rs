@@ -28,7 +28,7 @@ pub struct HexLayout
   /// The orientation of the hexagons in the grid.
   pub orientation : Orientation,
   /// Size of a hexagon, the distance from the center to a corner.
-  pub size : f32,
+  pub size : f32, // qqq : naming is not descriptive enough
 }
 
 impl HexLayout

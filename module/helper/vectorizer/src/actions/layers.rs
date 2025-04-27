@@ -672,3 +672,104 @@ crate::mod_interface!
     Report
   };
 }
+
+#[ cfg( test ) ]
+mod tests
+{
+  use crate::commands::raster::vectorize::layers::Config;
+  use palette::{ IntoColor, LinSrgb, Lab };
+  use super::{ private::{ color_difference, reduce_colors }, Report };
+
+  fn get_dif( c1 : LinSrgb, c2 : LinSrgb, config : &Config ) -> f32
+  {
+    let l1 : Lab = c1.into_color();
+    let l2 : Lab = c2.into_color();
+
+    color_difference( l1, l2, config )
+  }
+
+  #[ test ]
+  fn test_reduce_colors()
+  {
+    let mut config = Config::default();
+    config.similarity = Some( 15.0 );
+
+    let mut report = Report::default();
+
+    let mut colors_stats = Vec::new();
+    colors_stats.push( ( LinSrgb::new( 0.1, 0.1, 0.1 ), 1.0 ) );
+    colors_stats.push( ( LinSrgb::new( 0.5, 0.1, 0.1 ), 1.0 ) );
+    colors_stats.push( ( LinSrgb::new( 0.5, 1.0, 0.1 ), 1.0 ) );
+
+    println!( "Dif c1 | c2: {}", get_dif( colors_stats[ 0 ].0 / colors_stats[ 0 ].1, colors_stats[ 1 ].0 / colors_stats[ 1 ].1, &config ) );
+    println!( "Dif c2 | c3: {}", get_dif( colors_stats[ 1 ].0 / colors_stats[ 1 ].1, colors_stats[ 2 ].0 / colors_stats[ 2 ].1, &config ) );
+    println!( "Dif c3 | c1: {}", get_dif( colors_stats[ 2 ].0 / colors_stats[ 2 ].1, colors_stats[ 0 ].0 / colors_stats[ 0 ].1, &config ) );
+
+    let mut result = reduce_colors( colors_stats, &config, &mut report );
+    result.sort_unstable_by( | k1, k2 | k2.1.partial_cmp( &k1.1 ).unwrap() );
+
+    let mut answer = Vec::new();
+    answer.push( ( LinSrgb::new( 0.6, 0.2, 0.2 ), 2.0 ) );
+    answer.push( ( LinSrgb::new( 0.5, 1.0, 0.1 ), 1.0 ) );
+
+    assert!( result.len() == 2 );
+    assert_eq!( answer[ 0 ], result[ 0 ] );
+    assert_eq!( answer[ 1 ], result[ 1 ] );
+  }
+
+  #[ test ]
+  fn test_reduce_colors2()
+  {
+    let mut config = Config::default();
+    config.similarity = Some( 6.0 );
+
+    let mut report = Report::default();
+
+    let mut colors_stats = Vec::new();
+    colors_stats.push( ( LinSrgb::new( 0.5, 0.0, 0.0 ), 1.0 ) );
+    colors_stats.push( ( LinSrgb::new( 0.6, 0.0, 0.0 ), 1.0 ) );
+    colors_stats.push( ( LinSrgb::new( 0.7, 0.0, 0.0 ), 1.0 ) );
+
+    println!( "Dif c1 | c2: {}", get_dif( colors_stats[ 0 ].0, colors_stats[ 1 ].0, &config ) );
+    println!( "Dif c2 | c3: {}", get_dif( colors_stats[ 1 ].0, colors_stats[ 2 ].0, &config ) );
+    println!( "Dif c3 | c1: {}", get_dif( colors_stats[ 2 ].0, colors_stats[ 0 ].0, &config ) );
+
+    let mut result = reduce_colors( colors_stats, &config, &mut report );
+    result.sort_unstable_by( | k1, k2 | k2.1.partial_cmp( &k1.1 ).unwrap() );
+
+    let mut answer = Vec::new();
+    answer.push( ( LinSrgb::new( 1.8, 0.0, 0.0 ), 3.0 ) );
+
+    assert!( result.len() == 1 );
+    assert_eq!( answer[ 0 ], result[ 0 ] );
+  }
+
+  #[ test ]
+  fn test_reduce_colors3()
+  {
+    let mut config = Config::default();
+    config.similarity = Some( 15.0 );
+
+    let mut report = Report::default();
+
+    let mut colors_stats = Vec::new();
+    colors_stats.push( ( LinSrgb::new( 0.1, 0.2, 0.3 ), 1.0 ) );
+    colors_stats.push( ( LinSrgb::new( 5.0, 0.0, 5.0 ), 10.0 ) );
+    colors_stats.push( ( LinSrgb::new( 1.0, 0.0, 1.0 ), 5.0 ) );
+
+    println!( "Dif c1 | c2: {}", get_dif( colors_stats[ 0 ].0, colors_stats[ 1 ].0, &config ) );
+    println!( "Dif c2 | c3: {}", get_dif( colors_stats[ 1 ].0, colors_stats[ 2 ].0, &config ) );
+    println!( "Dif c3 | c1: {}", get_dif( colors_stats[ 2 ].0, colors_stats[ 0 ].0, &config ) );
+
+    let mut result = reduce_colors( colors_stats, &config, &mut report );
+    result.sort_unstable_by( | k1, k2 | k2.1.partial_cmp( &k1.1 ).unwrap() );
+
+    let mut answer = Vec::new();
+    answer.push( ( LinSrgb::new( 6.0, 0.0, 6.0 ), 15.0 ) );
+    answer.push( ( LinSrgb::new( 0.1, 0.2, 0.3 ), 1.0 ) );
+
+    assert!( result.len() == 2 );
+    assert_eq!( answer[ 0 ], result[ 0 ] );
+    assert_eq!( answer[ 1 ], result[ 1 ] );
+  }
+}

@@ -23,7 +23,7 @@ workspace = true
 enabled = [
   "dep:ndarray",
   "dep:num-traits",
-  "dep:bytemuck",
+  "dep:asbytes",
   "dep:mod_interface",
   "dep:mdmath_core",
   "dep:derive_tools",
@@ -38,7 +38,8 @@ full = [
 [dependencies]
 ndarray = { workspace = true, optional = true }
 num-traits = { workspace = true, optional = true }
-bytemuck = { workspace = true, optional = true }
+# bytemuck = { workspace = true, optional = true }
+asbytes = { workspace = true, optional = true }
 mod_interface = { workspace = true, optional = true }
 derive_tools = { workspace = true, optional = true }
 mdmath_core = { workspace = true, optional = true, features = [ "index", "float", "arithmetics", "approx", "general" ] }

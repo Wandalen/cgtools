@@ -1,3 +1,5 @@
+// qqq : documentation for this and all files. what is purpose if the file? not sure name is hinting
+
 use crate::*;
 // use ndarray_cg::ArrayRef;
 use layout::{ HexLayout, Orientation };
@@ -46,7 +48,7 @@ impl ShiftedRectangleIterData
 /// An iterator that generates axial coordinates in a shifted rectangle pattern.
 /// Shifted rectangle is a rectangle where every other row or column is shifted.
 #[ derive( Debug ) ]
-pub struct ShiftedRectangleIter
+pub struct ShiftedRectangleIter // qqq : parameter?
 {
   layout : HexLayout,
   data : ShiftedRectangleIterData,
@@ -63,7 +65,9 @@ impl ShiftedRectangleIter
   ///
   /// # Returns
   /// A new `ShiftedRectangleIter`.
-  pub fn new< V2 : ndarray_cg::ArrayRef< i32, 2 > >( size : V2, shift_type : Parity, layout : HexLayout ) -> Self
+  pub fn new< V2 >( size : V2, shift_type : Parity, layout : HexLayout ) -> Self
+  where
+    V2 : ndarray_cg::ArrayRef< i32, 2 >
   {
     Self
     {
@@ -72,6 +76,7 @@ impl ShiftedRectangleIter
     }
   }
 
+  //
   fn next_pointy( data : &mut ShiftedRectangleIterData ) -> Option< Coordinate< Axial, PointyTopped, OddParity > >
   {
     if data.current_row >= data.rows
@@ -129,6 +134,7 @@ impl Iterator for ShiftedRectangleIter
 
   fn next( &mut self ) -> Option< Self::Item >
   {
+    // qqq : is it possible to do this match compile time? using traits for example. introduce parameter for that
     match self.layout.orientation
     {
       Orientation::Pointy => Self::next_pointy( &mut self.data ),

@@ -20,17 +20,18 @@ mod private
   }
 
   // xxx : qqq : enable
-  //   impl< E, const LEN: usize > Neg for &Vector<E, LEN>
-  //   where
-  //     E: MatEl + nd::NdFloat,
-  //   {
-  //     type Output = Vector<E, LEN>;
-  //
-  //     #[inline]
-  //     fn neg(self) -> Self::Output {
-  //       Self::Output(self.0.map(|v| -v))
-  //     }
-  //   }
+  impl< E, const LEN : usize > Neg for &Vector< E, LEN >
+  where
+    E: MatEl + nd::NdFloat,
+  {
+    type Output = Vector< E, LEN >;
+
+    #[inline]
+    fn neg( self ) -> Self::Output
+    {
+      Vector::< E, LEN >::from_array( self.0.map( | v | -v ) )
+    }
+  }
 
   #[ inline ]
   fn rem_vector< E, const LEN : usize >( a : &Vector< E, LEN >, b : &Vector< E, LEN > ) -> Vector< E, LEN >
@@ -141,11 +142,11 @@ mod private
     E : MatEl + nd::NdFloat + DivAssign,
   {
     type Output = Self;
-  
+
     fn div( mut self, rhs : Self ) -> Self::Output
     {
       self.iter_mut().zip( rhs.iter() ).for_each
-      ( 
+      (
         | ( lhs, rhs ) |
         {
           *lhs /= *rhs;

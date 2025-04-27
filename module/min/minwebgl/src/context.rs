@@ -77,60 +77,51 @@ mod private
     let canvas = canvas::retrieve_or_make()?;
     from_canvas( &canvas )
   }
-  
-  /// Retrieve a WebGL2 context from an existing canvas or create a new canvas, configure it using a custom builder, 
-  /// and retrieve the WebGL2 context from it.
-  ///
-  /// This function attempts to find a canvas element with an ID of "canvas". If it fails, it looks for a canvas 
-  /// element with a class of "canvas". If no such canvas is found, it creates a new canvas element, adds it to 
-  /// the document body, and stretches it to fill the entire screen. After obtaining the canvas, the provided 
-  /// `ContexBuilder` implementation is used to configure the canvas before retrieving the WebGL2 context.
-  ///
-  /// # Type Parameters
-  /// - `O`: A type that implements the `ContexBuilder` trait, used to configure the canvas before retrieving the context.
+
+  // qqq : explain difference between similar functions
+  /// Retrieves a WebGL2 context from an existing canvas or creates a new canvas if none is found,
+  /// applying the specified `ContexOptions`.
   ///
   /// # Arguments
-  /// - `builder`: An instance of a type that implements the `ContexBuilder` trait, used to apply custom configurations 
-  ///   to the canvas.
-  ///
-  /// # Returns
-  /// - `Result<GL, Error>`: Returns a `GL` (WebGL2RenderingContext) on success, or an `Error` if the operation fails.
+  /// - `builder`: A `ContexOptions` instance to configure the behavior of the canvas, such as
+  ///   reducing device pixel ratio scaling.
   ///
   /// # Errors
-  /// - Returns an error if the canvas cannot be found or created.
-  /// - Returns an error if the WebGL2 context cannot be retrieved or cast to the appropriate type.
-  pub fn retrieve_or_make_with< O : ContexBuilder >( builder : O ) -> Result< GL, Error >
+  /// - Returns an error if the canvas cannot be found, created, or if the WebGL2 context cannot
+  ///   be retrieved.
+  // qqq : use o instead of long name in such cases
+  pub fn retrieve_or_make_with( builder : ContexOptions ) -> Result< GL, Error >
   {
     let canvas = canvas::retrieve_or_make()?;
-    builder.build( &canvas );
+    // qqq : no, opposite retrieve_or_make is shortcut for retrieve_or_make_with
+    if builder.reduce_dpr
+    {
+      canvas::remove_dpr_scaling( &canvas );
+    }
     from_canvas( &canvas )
   }
 
-  /// A trait for customizing the configuration of an HTML canvas element before retrieving a WebGL2 context.
-  ///
-  /// Types implementing this trait can define custom behavior for modifying the canvas element, such as adjusting
-  /// its properties or applying specific configurations. This is useful when creating or retrieving a WebGL2 context
-  /// with specific requirements.
-  ///
-  /// # Required Methods
-  /// - `build`: This method is called to apply custom configurations to the provided canvas element.
-  pub trait ContexBuilder
+  /// `ContexOptions` is a configuration struct used to customize the behavior of canvas creation
+  /// and WebGL2 context retrieval. It allows for optional adjustments, such as reducing the canvas
+  /// scaling based on the device's pixel ratio.
+  pub struct ContexOptions
   {
-    fn build( &self, canvas : &HtmlCanvasElement );
+    reduce_dpr : bool
   }
 
-  /// A builder that removes device pixel ratio (DPR) scaling from an HTML canvas element.
-  ///
-  /// The `ReducedDprBuilder` is an implementation of the `ContexBuilder` trait. It customizes the canvas
-  /// by removing the scaling applied due to the device's pixel ratio. This can be useful in scenarios
-  /// where you want to ensure consistent rendering behavior across devices with different pixel densities.
-  pub struct ReducedDprBuilder;
-
-  impl ContexBuilder for ReducedDprBuilder
+  impl ContexOptions
   {
-    fn build( &self, canvas : &HtmlCanvasElement )
+    pub fn new() -> Self
     {
-      canvas::remove_dpr_scaling( &canvas );
+      Self { reduce_dpr : false }
+    }
+
+    /// Customizes the canvas by setting its width and height in CSS style as divided by device's pixel ratio. This can be useful in scenarios
+    /// where you want to ensure consistent rendering behavior across devices with different pixel densities.
+    pub fn reduce_dpr( mut self, val : bool ) -> Self
+    {
+      self.reduce_dpr = val;
+      self
     }
   }
 }
@@ -152,8 +143,7 @@ crate::mod_interface!
     retrieve_or_make,
     from_canvas_2d,
     retrieve_or_make_with,
-    ContexBuilder,
-    ReducedDprBuilder,
+    ContexOptions,
   };
 
 }

@@ -10,6 +10,7 @@ pub trait ParityType {}
 /// Axial coordinates use two axes (`q` and `r`) to uniquely identify
 /// hexes in a grid.
 /// more info: https://www.redblobgames.com/grids/hexagons/#coordinates-axial
+#[ derive( Debug ) ]
 pub struct Axial;
 
 impl CoordinateSystem for Axial {}
@@ -20,33 +21,39 @@ impl CoordinateSystem for Axial {}
 /// - Flat-topped odd parity
 /// - Flat-topped even parity
 /// more info: https://www.redblobgames.com/grids/hexagons/#coordinates-offset
-pub struct Offset;
+#[ derive( Debug ) ]
+pub struct Offset; // qqq : move parameter Parity here
 
 impl CoordinateSystem for Offset {}
 
 /// Doubled variant of Offset coordinates.
 /// Instead of alternation, the doubled coordinates double either the horizontal or vertical step size.
 /// https://www.redblobgames.com/grids/hexagons/#coordinates-doubled
+#[ derive( Debug ) ]
 pub struct Doubled;
 
 impl CoordinateSystem for Doubled {}
 
 /// Orientation of the hexagons when the top is flat.
+#[ derive( Debug ) ]
 pub struct FlatTopped;
 
 impl OrientationType for FlatTopped {}
 
 /// Orientation of the hexagons when the top is pointed.
+#[ derive( Debug ) ]
 pub struct PointyTopped;
 
 impl OrientationType for PointyTopped {}
 
 /// Parity of the hexagons where odd rows/columns are shoved
+#[ derive( Debug ) ]
 pub struct OddParity;
 
 impl ParityType for OddParity {}
 
 /// Parity of the hexagons where even rows/columns are shoved
+#[ derive( Debug ) ]
 pub struct EvenParity;
 
 impl ParityType for EvenParity {}
@@ -57,7 +64,11 @@ impl ParityType for EvenParity {}
 /// - `q`: The "column" coordinate.
 /// - `r`: The "row" coordinate.
 #[ derive( Debug ) ]
-pub struct Coordinate< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityType >
+pub struct Coordinate< System, Orientation, Parity >
+where
+  System : CoordinateSystem,
+  Orientation : OrientationType,
+  Parity : ParityType
 {
   /// The "column" coordinate in the coordinate system.
   pub q : i32,
@@ -68,7 +79,11 @@ pub struct Coordinate< System : CoordinateSystem, Orientation : OrientationType,
   parity : PhantomData< Parity >,
 }
 
-impl< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityType > Hash for Coordinate< System, Orientation, Parity >
+impl< System, Orientation, Parity > Hash for Coordinate< System, Orientation, Parity >
+where
+  System : CoordinateSystem,
+  Orientation : OrientationType,
+  Parity : ParityType
 {
   fn hash< H : std::hash::Hasher >( &self, state : &mut H )
   {
@@ -80,7 +95,11 @@ impl< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityT
   }
 }
 
-impl< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityType > PartialEq for Coordinate< System, Orientation, Parity >
+impl< System, Orientation, Parity> PartialEq for Coordinate< System, Orientation, Parity >
+where
+  System : CoordinateSystem,
+  Orientation : OrientationType,
+  Parity : ParityType
 {
   fn eq( &self, other : &Self ) -> bool
   {
@@ -88,9 +107,18 @@ impl< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityT
   }
 }
 
-impl< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityType > Eq for Coordinate< System, Orientation, Parity > {}
+impl< System, Orientation, Parity > Eq for Coordinate< System, Orientation, Parity >
+where
+  System : CoordinateSystem,
+  Orientation : OrientationType,
+  Parity : ParityType
+{}
 
-impl< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityType > Clone for Coordinate< System, Orientation, Parity >
+impl< System, Orientation, Parity > Clone for Coordinate< System, Orientation, Parity >
+where
+  System : CoordinateSystem,
+  Orientation : OrientationType,
+  Parity : ParityType
 {
   fn clone( &self ) -> Self
   {
@@ -98,9 +126,18 @@ impl< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityT
   }
 }
 
-impl< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityType > Copy for Coordinate< System, Orientation, Parity > {}
+impl< System, Orientation, Parity > Copy for Coordinate< System, Orientation, Parity >
+where
+  System : CoordinateSystem,
+  Orientation : OrientationType,
+  Parity : ParityType
+{}
 
-impl< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityType > Coordinate< System, Orientation, Parity >
+impl< System, Orientation, Parity > Coordinate< System, Orientation, Parity >
+where
+  System : CoordinateSystem,
+  Orientation : OrientationType,
+  Parity : ParityType
 {
   pub fn new( q : i32, r : i32 ) -> Self
   {
@@ -108,7 +145,8 @@ impl< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityT
   }
 }
 
-impl From< Coordinate< Axial, PointyTopped, OddParity > > for Coordinate< Offset, PointyTopped, OddParity >
+impl From< Coordinate< Axial, PointyTopped, OddParity > >
+for Coordinate< Offset, PointyTopped, OddParity >
 {
   fn from( value : Coordinate< Axial, PointyTopped, OddParity > ) -> Self
   {
@@ -118,7 +156,8 @@ impl From< Coordinate< Axial, PointyTopped, OddParity > > for Coordinate< Offset
   }
 }
 
-impl From< Coordinate< Axial, PointyTopped, EvenParity > > for Coordinate< Offset, PointyTopped, EvenParity >
+impl From< Coordinate< Axial, PointyTopped, EvenParity > >
+for Coordinate< Offset, PointyTopped, EvenParity >
 {
   fn from( value : Coordinate< Axial, PointyTopped, EvenParity > ) -> Self
   {
@@ -128,7 +167,8 @@ impl From< Coordinate< Axial, PointyTopped, EvenParity > > for Coordinate< Offse
   }
 }
 
-impl From< Coordinate< Axial, FlatTopped, OddParity > > for Coordinate< Offset, FlatTopped, OddParity >
+impl From< Coordinate< Axial, FlatTopped, OddParity > >
+for Coordinate< Offset, FlatTopped, OddParity >
 {
   fn from( value : Coordinate< Axial, FlatTopped, OddParity > ) -> Self
   {
@@ -138,7 +178,8 @@ impl From< Coordinate< Axial, FlatTopped, OddParity > > for Coordinate< Offset, 
   }
 }
 
-impl From< Coordinate< Axial, FlatTopped, EvenParity > > for Coordinate< Offset, FlatTopped, EvenParity >
+impl From< Coordinate< Axial, FlatTopped, EvenParity > >
+for Coordinate< Offset, FlatTopped, EvenParity >
 {
   fn from( value : Coordinate< Axial, FlatTopped, EvenParity > ) -> Self
   {
@@ -148,7 +189,8 @@ impl From< Coordinate< Axial, FlatTopped, EvenParity > > for Coordinate< Offset,
   }
 }
 
-impl From< Coordinate< Offset, PointyTopped, OddParity > > for Coordinate< Axial, PointyTopped, OddParity >
+impl From< Coordinate< Offset, PointyTopped, OddParity > >
+for Coordinate< Axial, PointyTopped, OddParity >
 {
   fn from( value : Coordinate< Offset, PointyTopped, OddParity > ) -> Self
   {
@@ -158,7 +200,8 @@ impl From< Coordinate< Offset, PointyTopped, OddParity > > for Coordinate< Axial
   }
 }
 
-impl From< Coordinate< Offset, PointyTopped, EvenParity > > for Coordinate< Axial, PointyTopped, EvenParity >
+impl From< Coordinate< Offset, PointyTopped, EvenParity > >
+for Coordinate< Axial, PointyTopped, EvenParity >
 {
   fn from( value : Coordinate< Offset, PointyTopped, EvenParity > ) -> Self
   {
@@ -168,7 +211,8 @@ impl From< Coordinate< Offset, PointyTopped, EvenParity > > for Coordinate< Axia
   }
 }
 
-impl From< Coordinate< Offset, FlatTopped, OddParity > > for Coordinate< Axial, FlatTopped, OddParity >
+impl From< Coordinate< Offset, FlatTopped, OddParity > >
+for Coordinate< Axial, FlatTopped, OddParity >
 {
   fn from( value : Coordinate< Offset, FlatTopped, OddParity > ) -> Self
   {
@@ -178,7 +222,8 @@ impl From< Coordinate< Offset, FlatTopped, OddParity > > for Coordinate< Axial, 
   }
 }
 
-impl From< Coordinate< Offset, FlatTopped, EvenParity > > for Coordinate< Axial, FlatTopped, EvenParity >
+impl From< Coordinate< Offset, FlatTopped, EvenParity > >
+for Coordinate< Axial, FlatTopped, EvenParity >
 {
   fn from( value : Coordinate< Offset, FlatTopped, EvenParity > ) -> Self
   {
@@ -188,7 +233,8 @@ impl From< Coordinate< Offset, FlatTopped, EvenParity > > for Coordinate< Axial,
   }
 }
 
-impl< Parity : ParityType > From< Coordinate< Doubled, FlatTopped, Parity > > for Coordinate< Axial, FlatTopped, Parity >
+impl< Parity : ParityType > From< Coordinate< Doubled, FlatTopped, Parity > >
+for Coordinate< Axial, FlatTopped, Parity >
 {
   fn from( value : Coordinate< Doubled, FlatTopped, Parity > ) -> Self
   {
@@ -198,7 +244,8 @@ impl< Parity : ParityType > From< Coordinate< Doubled, FlatTopped, Parity > > fo
   }
 }
 
-impl< Parity : ParityType > From< Coordinate< Doubled, PointyTopped, Parity > > for Coordinate< Axial, PointyTopped, Parity >
+impl< Parity : ParityType > From< Coordinate< Doubled, PointyTopped, Parity > >
+for Coordinate< Axial, PointyTopped, Parity >
 {
   fn from( value : Coordinate< Doubled, PointyTopped, Parity > ) -> Self
   {
@@ -208,7 +255,8 @@ impl< Parity : ParityType > From< Coordinate< Doubled, PointyTopped, Parity > > 
   }
 }
 
-impl< Parity : ParityType > From< Coordinate< Axial, FlatTopped, Parity > > for Coordinate< Doubled, FlatTopped, Parity >
+impl< Parity : ParityType > From< Coordinate< Axial, FlatTopped, Parity > >
+for Coordinate< Doubled, FlatTopped, Parity >
 {
   fn from( value : Coordinate< Axial, FlatTopped, Parity > ) -> Self
   {
@@ -218,7 +266,8 @@ impl< Parity : ParityType > From< Coordinate< Axial, FlatTopped, Parity > > for 
   }
 }
 
-impl< Parity : ParityType > From< Coordinate< Axial, PointyTopped, Parity > > for Coordinate< Doubled, PointyTopped, Parity >
+impl< Parity : ParityType > From< Coordinate< Axial, PointyTopped, Parity > >
+for Coordinate< Doubled, PointyTopped, Parity >
 {
   fn from( value : Coordinate< Axial, PointyTopped, Parity > ) -> Self
   {
@@ -228,7 +277,7 @@ impl< Parity : ParityType > From< Coordinate< Axial, PointyTopped, Parity > > fo
   }
 }
 
-// qqq : xxx : all 4 methods depends on Orientation! so remove and keep 2 and implement better trait for 2 specified structs
+// aaa : xxx : all 4 methods depends on Orientation! so remove and keep 2 and implement better trait for 2 specified structs
 
 /// Rounds the given floating-point axial coordinates to the nearest integer axial coordinates.
 /// This function is used to convert floating-point axial coordinates to integer axial coordinates.
@@ -271,7 +320,9 @@ pub trait CoordinateConversion
   fn to_pixel( self, hex_size : f32 ) -> Pixel;
 }
 
-impl< Parity : ParityType > CoordinateConversion for Coordinate< Axial, PointyTopped, Parity >
+impl< Parity > CoordinateConversion for Coordinate< Axial, PointyTopped, Parity >
+where
+  Parity : ParityType
 {
   fn from_pixel( Pixel { data : [ x, y ] } : Pixel, hex_size : f32 ) -> Self
   {
@@ -280,7 +331,6 @@ impl< Parity : ParityType > CoordinateConversion for Coordinate< Axial, PointyTo
     let r = (                           2.0 / 3.0 * y ) / hex_size;
     let ( q, r ) = axial_round( q, r );
     Self::new( q, r )
-    // todo!()
   }
 
   fn to_pixel( self, hex_size : f32 ) -> Pixel
@@ -294,7 +344,9 @@ impl< Parity : ParityType > CoordinateConversion for Coordinate< Axial, PointyTo
   }
 }
 
-impl< Parity : ParityType > CoordinateConversion for Coordinate< Axial, FlatTopped, Parity >
+impl< Parity > CoordinateConversion for Coordinate< Axial, FlatTopped, Parity >
+where
+  Parity : ParityType
 {
   fn from_pixel( Pixel { data : [ x, y ] } : Pixel, hex_size : f32 ) -> Self
   {
@@ -316,7 +368,10 @@ impl< Parity : ParityType > CoordinateConversion for Coordinate< Axial, FlatTopp
   }
 }
 
-impl< Orientation : OrientationType, Parity : ParityType > std::ops::Add for Coordinate< Axial, Orientation, Parity >
+impl< Orientation, Parity > std::ops::Add for Coordinate< Axial, Orientation, Parity >
+where
+  Orientation : OrientationType,
+  Parity : ParityType
 {
   type Output = Self;
 
@@ -326,7 +381,10 @@ impl< Orientation : OrientationType, Parity : ParityType > std::ops::Add for Coo
   }
 }
 
-impl< Orientation : OrientationType, Parity : ParityType > std::ops::Sub for Coordinate< Axial, Orientation, Parity >
+impl< Orientation, Parity > std::ops::Sub for Coordinate< Axial, Orientation, Parity >
+where
+  Orientation : OrientationType,
+  Parity : ParityType
 {
   type Output = Self;
 
@@ -336,7 +394,10 @@ impl< Orientation : OrientationType, Parity : ParityType > std::ops::Sub for Coo
   }
 }
 
-impl< Orientation : OrientationType, Parity : ParityType > std::ops::Mul< i32 > for Coordinate< Axial, Orientation, Parity >
+impl< Orientation, Parity > std::ops::Mul< i32 > for Coordinate< Axial, Orientation, Parity >
+where
+  Orientation : OrientationType,
+  Parity : ParityType
 {
   type Output = Self;
 
@@ -346,7 +407,10 @@ impl< Orientation : OrientationType, Parity : ParityType > std::ops::Mul< i32 > 
   }
 }
 
-impl< Orientation : OrientationType, Parity : ParityType > std::ops::Div< i32 > for Coordinate< Axial, Orientation, Parity >
+impl< Orientation, Parity > std::ops::Div< i32 > for Coordinate< Axial, Orientation, Parity >
+where
+  Orientation : OrientationType,
+  Parity : ParityType
 {
   type Output = Self;
 
@@ -356,7 +420,11 @@ impl< Orientation : OrientationType, Parity : ParityType > std::ops::Div< i32 > 
   }
 }
 
-impl< F : Into< i32 >, System : CoordinateSystem, Orientation : OrientationType, Parity : ParityType > From< ( F, F ) > for Coordinate< System, Orientation, Parity >
+impl< F : Into< i32 >, System, Orientation, Parity > From< ( F, F ) > for Coordinate< System, Orientation, Parity >
+where
+  System : CoordinateSystem,
+  Orientation : OrientationType,
+  Parity : ParityType
 {
   fn from( ( q, r ) : ( F, F ) ) -> Self
   {
@@ -364,7 +432,11 @@ impl< F : Into< i32 >, System : CoordinateSystem, Orientation : OrientationType,
   }
 }
 
-impl< F : Into< i32 >, System : CoordinateSystem, Orientation : OrientationType, Parity : ParityType > From< [ F; 2 ] > for Coordinate< System, Orientation, Parity >
+impl< F : Into< i32 >, System, Orientation, Parity > From< [ F; 2 ] > for Coordinate< System, Orientation, Parity >
+where
+  System : CoordinateSystem,
+  Orientation : OrientationType,
+  Parity : ParityType
 {
   fn from( [ q, r ] : [ F; 2 ] ) -> Self
   {
@@ -372,7 +444,7 @@ impl< F : Into< i32 >, System : CoordinateSystem, Orientation : OrientationType,
   }
 }
 
-// qqq : implement all applicable math_core traits for the newtype
+// qqq : move into a separate file
 /// Represents a pixel coordinate in a 2D space.
 /// Assumes that Y-axis points down.
 #[ derive( Debug, Clone, Copy, PartialEq ) ]
@@ -390,7 +462,9 @@ impl Pixel
   }
 }
 
-impl< F : Into< f32 > > From< ( F, F ) > for Pixel
+impl< F > From< ( F, F ) > for Pixel
+where
+  F : Into< f32 >
 {
   fn from( ( x, y ) : ( F, F ) ) -> Self
   {
@@ -398,7 +472,9 @@ impl< F : Into< f32 > > From< ( F, F ) > for Pixel
   }
 }
 
-impl< F : Into< f32 > > From< [ F; 2 ] > for Pixel
+impl< F > From< [ F; 2 ] > for Pixel
+where
+  F : Into< f32 >
 {
   fn from( [ x, y ] : [ F; 2 ] ) -> Self
   {
@@ -407,7 +483,9 @@ impl< F : Into< f32 > > From< [ F; 2 ] > for Pixel
   }
 }
 
-impl< E : MatEl + Into< f32 > > From< Vector< E, 2 > > for Pixel
+impl< E > From< Vector< E, 2 > > for Pixel
+where
+  E : MatEl + Into< f32 >
 {
   fn from( value : Vector< E, 2 >) -> Self
   {
@@ -417,7 +495,6 @@ impl< E : MatEl + Into< f32 > > From< Vector< E, 2 > > for Pixel
     }
   }
 }
-
 
 impl Collection for Pixel
 {

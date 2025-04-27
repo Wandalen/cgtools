@@ -1,6 +1,6 @@
-use crate::{coordinates::{CoordinateSystem, OrientationType, ParityType}, *};
+use crate::*;
+use coordinates::*;
 use rustc_hash::FxHashMap;
-use coordinates::Coordinate;
 use layout::HexLayout;
 use ndarray_cg::Array2;
 
@@ -11,13 +11,21 @@ use ndarray_cg::Array2;
 /// - `T`: The type of the values stored in the map.
 pub type HexMap< System, Orientation, Parity, T > = FxHashMap< Coordinate< System, Orientation, Parity >, T >;
 
-pub struct HexGrid< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityType, T >
+pub struct HexGrid< System, Orientation, Parity, T >
+where
+  System : CoordinateSystem,
+  Orientation : OrientationType,
+  Parity : ParityType
 {
   map : HexMap< System, Orientation, Parity, T >,
   layout : HexLayout,
 }
 
-impl< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityType, T > HexGrid< System, Orientation, Parity, T >
+impl< System, Orientation, Parity, T > HexGrid< System, Orientation, Parity, T >
+where
+  System : CoordinateSystem,
+  Orientation : OrientationType,
+  Parity : ParityType
 {
   pub fn new( map : HexMap< System, Orientation, Parity, T >, layout : HexLayout ) -> Self
   {
@@ -40,7 +48,11 @@ impl< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityT
   }
 }
 
-pub struct HexArray< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityType, T >
+pub struct HexArray< System, Orientation, Parity, T >
+where
+  System : CoordinateSystem,
+  Orientation : OrientationType,
+  Parity : ParityType
 {
   data : Array2< Option< T > >,
   layout : HexLayout,
@@ -49,7 +61,11 @@ pub struct HexArray< System : CoordinateSystem, Orientation : OrientationType, P
   offset : Coordinate< System, Orientation, Parity >,
 }
 
-impl< System : CoordinateSystem, Orientation : OrientationType, Parity : ParityType, T > HexArray< System, Orientation, Parity, T >
+impl< System, Orientation, Parity, T > HexArray< System, Orientation, Parity, T >
+where
+  System : CoordinateSystem,
+  Orientation : OrientationType,
+  Parity : ParityType
 {
   /// Creates a new hexagonal grid with the given number of rows and columns.
   ///
