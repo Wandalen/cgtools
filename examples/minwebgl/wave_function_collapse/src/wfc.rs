@@ -1,5 +1,40 @@
 // qqq : lack of documentation
+// aaa : I add more description for used tile system
+
 // qqq : what tiles systems is used here?
+// aaa : I describe tile system below
+
+/// This file can be used for generating tile maps with WFC algorithm.
+///
+/// Result tile map consist of tiles that can be user defined by 
+/// `Relations` structure for each tile type and tile set texture 
+/// that stores vertically textures of each tile type. Tiles type 
+/// are represented by unsigned 8-bit integers ( `u8` ). How tile 
+/// types can be adjacent to each other are defined by the `Relations` 
+/// struct. `Relations` holds a list ( `Vec` ) of `Relation` enums. 
+/// The index of each `Relation` in the `Relations` list corresponds 
+/// to certain tile type ( `u8` ) it describes.
+///
+/// Each `Relation` specifies which other tile types can be neighbors to the
+/// current tile type. There are two kinds of `Relation`:
+///
+/// 1.  `Relation::Isotropic( HashSet< u8 > )`:
+///     - Defines a single set of allowed neighbor tile types.
+///     - This set applies to neighbors in *all* directions ( West, East, North, South, Up, Down ).
+///     - Example: If tile type 0 has `Isotropic( { 1, 2 } )`, then tiles of type 1 or 2
+///       can be placed adjacent to tile 0 in any direction.
+///
+/// 2.  `Relation::Anisotropic( HashMap< Direction, HashSet< u8 > > )`:
+///     - Defines *different* sets of allowed neighbor tile types for *specific* directions.
+///     - The `HashMap` uses the `Direction` enum ( W, E, N, S, U, D ) as keys and
+///       a `HashSet<u8>` of allowed tile types for that direction as values.
+///     - Example: If tile type 3 has `Anisotropic( { Direction::N: { 4, 5 }, Direction::S: { 6 } } )`
+///       then tiles 4 or 5 can be neighbors to the North of tile 3, and only tile 6
+///       can be a neighbor to the South. FOR NOW ISN'T USED.
+///
+/// The `Direction` enum ( `W`, `E`, `N`, `S`, `U`, `D` ) is used both for defining
+/// anisotropic relationships and for calculating the coordinates of neighboring cells
+/// during the WFC propagation step.
 
 use std::collections::{ HashMap, HashSet };
 use std::hash::Hash;
@@ -15,7 +50,7 @@ use web_sys::console;
 use minwebgl::JsValue;
 
 /// Used for evaluating neighbour tiles coords
-/// and for indexing posible neighbour tiles in [`Relations`]
+/// and for indexing posible neighbour tiles in [ `Relations` ]
 #[
   derive
   (
@@ -59,6 +94,8 @@ impl Direction
 }
 
 // qqq : not enough explanations
+// aaa : I add description for every tiles [`Relation`] enum variant.
+
 /// Store set of possible tile states that can be adjacent
 /// to current tile.
 #[ derive( Debug, Clone, Serialize, Deserialize ) ]
@@ -67,9 +104,44 @@ enum Relation
 {
   /// For [ `Direction` ] independed states. Will be applyed
   /// for every [ `Direction` ] in propagate state
+  /// For example:
+  /// If tile type 0 has posible neighbours [0, 1], then this is valid neighborhood of tile *0*:
+  /// `
+  ///   *, 1, *,
+  ///   1, *0*, 0, // 0, 1 can be neighbours of *0* from left, right, top, down side  
+  ///   *, 0, *,   
+  /// ` 
   Isotropic( HashSet< u8 > ),
   /// For [ `Direction` ] depended states. Will be applyed for
   /// certain [ `Direction` ] in propagate state
+  /// For example:
+  /// If tile type 0 has posible neighbours:
+  /// `
+  ///   [
+  ///     (Direction::W, [0,1]),
+  ///     (Direction::E, [2,3]),
+  ///     (Direction::N, [4,5]),
+  ///     (Direction::S, [5]),
+  ///   ]
+  /// `
+  /// Then this is valid neighborhood of tile *0*:
+  /// `
+  ///   *, 4, *,
+  ///   1, *0*, 2,
+  ///   *, 5, *,   
+  /// ` 
+  /// Explanation:
+  /// - 1 stands in west ([`Direction::W`]) side from *0*, which is correct. 
+  ///   Because west side neighbour of *0* can be [0,1].
+  /// - 2 stands in east ([`Direction::E`]) side from *0*, which is correct. 
+  ///   Because east side neighbour of *0* can be [2,3].
+  /// - 4 stands in north ([`Direction::N`]) side from *0*, which is correct. 
+  ///   Because north side neighbour of *0* can be [4,5].
+  /// - 5 stands in south ([`Direction::S`]) side from *0*, which is correct. 
+  ///   Because south side neighbour of *0* can be [5].
+  /// 
+  /// West side neighbourhood ([0,1]) doesn't be applyed to east side of *0*, 
+  /// when Anisotropic is choosen
   Anisotropic( HashMap< Direction, HashSet< u8 > > )
 }
 
