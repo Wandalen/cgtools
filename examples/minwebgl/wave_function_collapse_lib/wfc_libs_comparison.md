@@ -149,42 +149,27 @@ Other libraries doesn't have complete, usable API or they are draft crates.
 
 ### Features
 
+Table 1. Features support comparison for WFC libraries.
+
+| feature \ lib      | wfc-image | wfc-rs    | wfc-tiled              | fastwfc   | yawfc     |
+|--------------------|-----------|-----------|------------------------|-----------|-----------|
+| import             | image     | image     | CSV                    | image     | image     |
+| export             | image     | image     | CSV, TMX(Tiled), image | image     | image     |
+| consistent results | ✅       | ✅        | ✅                    | ✅        | ❌        |
+| WASM support       | ✅       | ❌        | ✅                    | ❌        | ✅        |
+| pattern size       | ✅       | ❌        | ✅                    | ✅        | ❌        |
+| rotation           | ✅       | ✅        | ✅                    | ❌        | ✅        |
+| flipping           | ✅       | ✅        | ✅                    | ✅        | ✅        |
+| forbidden patterns | ✅       | ❌        | ✅                    | ❌        | ❌        |
+| generate attempts  | ✅       | ✅        | ✅                    | ✅        | ❌        |
+| generation seed    | ✅       | ✅        | ✅                    | ❌        | ✅        |
+| docs               | ✅       | ⚠️        | ✅                    | ❌        | ❌        |
+| examples           | ✅       | ✅        | ✅                    | ❌        | ✅        |
+| is wrapper         | ❌       | ✅        | ❌                    | ✅        | ❌        |
+| animate generation | ✅       | ❌        | ❌                    | ❌        | ❌        |
+
+### Work principles
+
 | feature \ lib | wfc-image | wfc-rs    | wfc-tiled | fastwfc   | yawfc     |
 |---------------|-----------|-----------|-----------|-----------|-----------|
-| import |  |  |  |  |  |
-| export |  |  |  |  |  |
-| consistent results |  |  |  |  |  |
-| platforms |  |  |  |  |  |
-| pattern size |  |  |  |  |  |
-| rotation |  |  |  |  |  |
-| flipping |  |  |  |  |  |
-| forbidden patterns |  |  |  |  |  |
-| generate attempts |  |  |  |  |  |
-| generation seed |  |  |  |  |  |
-| docs |  |  |  |  |  |
-| examples |  |  |  |  |  |
-| CLI |  |  |  |  |  |
-| is wrapper | no | yes | no | yes | no |
-| animation | has | without | without | without | without |
-
-### Speed
-
-For comparison will be used: `wfc-image`, `wfc-rs`, `fastwfc`.
-
-Table 2. Generation time (s) for different tile map size
-
-| size \ lib | wfc-image | wfc-rs   | fastwfc |
-|------------|-----------|----------|---------|
-| 5x5        |  |  |  |
-| 20x20      |  |  |  |
-| 50x50      |  |  |  |
-| 100x100    |  |  |  |
-| 200x200    |  |  |  |
-
-Table 3. Generation time (s) for tile map size 50x50 for different pattern size
-
-| size \ lib | wfc-image | wfc-rs   | fastwfc |
-|------------|-----------|----------|---------|
-| 5x5        |  |  |  |
-| 10x10      |  |  |  |
-| 20x20      |  |  |  |
+| constraint |  |  |  |  |  |
