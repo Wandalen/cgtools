@@ -40,23 +40,23 @@ mod private
     }
   }
 
-  // impl< E, Vec2 > From< ( Vec2, Vec2 ) > for Vector< E, 4 > 
-  // where
-  // Vec2 : VectorIter< E, 2 >,
-  // E : MatEl
-  // {
-  //   fn from( value: ( Vec2, Vec2 ) ) -> Self 
-  //   {
-  //     let mut iter1 = value.0.vector_iter();
-  //     let mut iter2 = value.1.vector_iter();
-  //     let x = *iter1.next().unwrap();
-  //     let y = *iter1.next().unwrap();
-  //     let z = *iter2.next().unwrap();
-  //     let w = *iter2.next().unwrap();
+  impl< E, Vec2 > From< ( Vec2, Vec2 ) > for Vector< E, 4 > 
+  where
+  Vec2 : VectorIter< E, 2 >,
+  E : MatEl
+  {
+    fn from( value: ( Vec2, Vec2 ) ) -> Self 
+    {
+      let mut iter1 = value.0.vector_iter();
+      let mut iter2 = value.1.vector_iter();
+      let x = *iter1.next().unwrap();
+      let y = *iter1.next().unwrap();
+      let z = *iter2.next().unwrap();
+      let w = *iter2.next().unwrap();
 
-  //     Self( [ x, y, z, w ] )
-  //   }
-  // }
+      Self( [ x, y, z, w ] )
+    }
+  }
 }
 
 crate::mod_interface!
