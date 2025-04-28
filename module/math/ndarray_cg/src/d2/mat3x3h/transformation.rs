@@ -88,8 +88,8 @@ where
 ///
 /// Similiar functions:
 /// look_at_rh - returns the same matrix, but takes camera's view center, instead of direction
-pub fn loot_to_rh< E, Vec3 >
-(
+pub fn look_to_rh< E, Vec3 >
+(  
   eye : Vec3,
   dir : Vec3,
   up : Vec3
@@ -129,8 +129,8 @@ where
 ///
 /// Similiar functions:
 /// look_to_rh - returns the same matrix, but takes camera's view direction
-pub fn loot_at_rh< E, Vec3 >
-(
+pub fn look_at_rh< E, Vec3 >
+(  
   eye : Vec3,
   center : Vec3,
   up : Vec3
@@ -142,5 +142,5 @@ where
   Mat4< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >,
 {
   let dir = sub( &center, &eye );
-  loot_to_rh( eye, dir, up )
+  look_to_rh( eye, dir, up )
 }
