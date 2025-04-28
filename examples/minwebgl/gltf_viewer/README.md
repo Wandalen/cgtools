@@ -10,6 +10,7 @@ Some description
 ✅ Scene  
 ✅ Material  
 ✅ Mesh  
+❌ Tangents
 ❌ Sparse accessors  
 ❌ Animations  
 ❌ Skins and bones  

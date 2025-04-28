@@ -160,8 +160,7 @@ float D_GGX( const in float alpha, const in float dotNH )
 vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 normal, const in PhysicalMaterial material ) {
   vec3 f0 = material.specularColor;
 
-  float roughness = material.roughness;
-  float alpha = pow2( roughness );
+  float alpha = pow2( material.roughness );
   vec3 halfDir = normalize( lightDir + viewDir );
 
   float dotNL = clamp( dot( normal, lightDir ), 0.0, 1.0 );
@@ -180,7 +179,7 @@ vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
 
 vec3 sampleEnvIrradiance( const in vec3 N, const in vec3 V, const in float roughness, const in vec3 specularColor )
 {
-  float dotNV = saturate( dot( N, V ) );
+  float dotNV = clamp( dot( N, V ), 0.0, 1.0 );
   vec3 R = reflect( V, N );
 
   vec3 diffuseColor = textureCube( irradianceTexture, N ).xyz;
@@ -284,14 +283,21 @@ void main()
   float dotVN = clamp( dot( viewDir, normal ), 0.0, 1.0 );
   for( int i = 0; i < 6; i++ )
   {
-    vec4 brdf = BRDF_GGX( lightDirs[ i ], viewDir, normal, material );
-    vec3 F = brdf.xyz;
-    float DG = brdf.w;
     float dotNL = clamp( dot( normal, lightDirs[ i ] ), 0.0, 1.0 );
 
-    vec3 light_diffuse = ( vec3( 1.0 ) - F ) * material.diffuseColor * RECIPROCAL_PI;
-    vec3 light_specular = F * DG ;// max( 4.0 * dotVN * dotNL, 0.0001 );
-    color += ( light_diffuse + light_specular ) * lightColor * dotNL;
+    if( dotNL > 0.0 )
+    {
+      vec4 brdf = BRDF_GGX( lightDirs[ i ], viewDir, normal, material );
+      vec3 F = brdf.xyz;
+      float DG = brdf.w;
+
+      vec3 light_diffuse = ( vec3( 1.0 ) - F ) * material.diffuseColor * RECIPROCAL_PI;
+      //vec3 light_diffuse = vec3( 0.0 );
+      vec3 light_specular = F * DG ;// max( 4.0 * dotVN * dotNL, 0.0001 );
+
+      color += ( light_diffuse + light_specular ) * lightColor * dotNL;
+      //color += vec3( dotNL );
+    }
   }
   color += ambientColor;
 
@@ -307,5 +313,6 @@ void main()
 
   
   frag_color = vec4( color * alpha, alpha );
+  //frag_color = vec4( normal, alpha );
   //frag_color = vec4( 1.0 );
 }
