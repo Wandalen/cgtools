@@ -180,7 +180,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
           return;
         }
         // aaa : add commented out code to see mouse position in log.
-        // min::info!( "selected hex: {selected_hex_coord:?}" );
+        // min::info!( "mouse pos: {cursor_pos:?}" );
 
         selected_hex = Some( selected_hex_coord );
 
@@ -243,7 +243,6 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
       (
         rect.coordinates().map( | c | ( c.into(), true ) )
       );
-      // let mut selected_hex = None;
 
       let closure = move | input : &input::InputState, event |
       {
@@ -275,12 +274,6 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
             start = selected_hex_coord;
           }
         }
-
-        // if selected_hex.is_some_and( | hex_coord | hex_coord == selected_hex_coord )
-        // {
-        //   return;
-        // }
-        // selected_hex = Some( selected_hex_coord );
 
         context.clear( GL::COLOR_BUFFER_BIT );
 

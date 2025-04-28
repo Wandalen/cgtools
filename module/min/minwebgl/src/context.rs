@@ -76,11 +76,9 @@ mod private
   pub fn retrieve_or_make() -> Result< GL, Error >
   {
     retrieve_or_make_with( Default::default() )
-    // let canvas = canvas::retrieve_or_make()?;
-    // from_canvas( &canvas )
   }
 
-  // qqq : explain difference between similar functions
+  // aaa : explain difference between similar functions
   /// Retrieves a WebGL2 context from an existing canvas or creates a new canvas if none is found,
   /// applying the specified `ContexOptions`.
   ///
@@ -126,8 +124,7 @@ mod private
   }
 
   /// `ContexOptions` is a configuration struct used to customize the behavior of canvas creation
-  /// and WebGL2 context retrieval. It allows for optional adjustments, such as reducing the canvas
-  /// scaling based on the device's pixel ratio.
+  /// and WebGL2 context retrieval.
   #[ derive( Debug, Clone ) ]
   pub struct ContexOptions
   {
