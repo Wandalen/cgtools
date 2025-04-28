@@ -81,13 +81,33 @@ static MAP : Mutex< Option< Vec< Vec< u8 > > > > = Mutex::new( None );
 // aaa : I delete set_load_callback function
 
 // qqq : what for so complicated function?
-// aaa : this function incapsulate this actions: 
-// 1. creates new HtmlImageElement from image by [`path`].
-// 2. attach this image element to DOM.
-// 3. hide image by changing image element style.
-// 4. set callback when image is loaded.
+// aaa : 
 
-/// Set load callback for image with [`path`] location and hide it from UI
+/// Set load callback for image with [`path`] location and hide it from UI. 
+///
+/// This function creates an HTML `< img >` element, appends it to the
+/// document's body (initially hidden and positioned off-screen),
+/// sets its ID, cross-origin, load callback, `src` attributes, 
+/// to trigger the browser's loading process.
+///
+/// # Arguments
+///
+/// * `path`: The path relative to the `/static/` directory, used to construct 
+///   the image URL and set the element's ID.
+/// * `on_load_callback`: A closure that will be invoked with a reference to 
+///   the loaded `HtmlImageElement` when the browser's `load` event fires for the image.
+///
+/// # Returns
+///
+/// Returns `Ok( web_sys::HtmlImageElement )` containing the created image element if 
+/// successful, or `Err( minwebgl::JsValue )`.
+///
+/// # Side effects
+///
+/// * An `< img >` element is created and appended to the document's `<body>`.
+/// * The element's ID, styles ( `visibility : hidden`, `position : absolute`, etc. ), `crossorigin`, `onload` callback, and `src` attributes are set.
+/// * The browser starts loading the image asynchronously.
+///
 fn load_image
 (
   path : &str,
