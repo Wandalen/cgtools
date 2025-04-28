@@ -147,9 +147,31 @@ Other libraries doesn't have complete, usable API or they are draft crates.
 
 ## Libraries comparison
 
+### Features
+
+| feature \ lib | wfc-image | wfc-rs    | wfc-tiled | fastwfc   | yawfc     |
+|---------------|-----------|-----------|-----------|-----------|-----------|
+| import |  |  |  |  |  |
+| export |  |  |  |  |  |
+| consistent results |  |  |  |  |  |
+| platforms |  |  |  |  |  |
+| pattern size |  |  |  |  |  |
+| rotation |  |  |  |  |  |
+| flipping |  |  |  |  |  |
+| forbidden patterns |  |  |  |  |  |
+| generate attempts |  |  |  |  |  |
+| generation seed |  |  |  |  |  |
+| docs |  |  |  |  |  |
+| examples |  |  |  |  |  |
+| CLI |  |  |  |  |  |
+| is wrapper | no | yes | no | yes | no |
+| animation | has | without | without | without | without |
+
+### Speed
+
 For comparison will be used: `wfc-image`, `wfc-rs`, `fastwfc`.
 
-Table 1. Generation time (s) for different tile map size
+Table 2. Generation time (s) for different tile map size
 
 | size \ lib | wfc-image | wfc-rs   | fastwfc |
 |------------|-----------|----------|---------|
@@ -159,7 +181,7 @@ Table 1. Generation time (s) for different tile map size
 | 100x100    |  |  |  |
 | 200x200    |  |  |  |
 
-Table 2. Generation time (s) for tile map size 50x50 for different pattern size
+Table 3. Generation time (s) for tile map size 50x50 for different pattern size
 
 | size \ lib | wfc-image | wfc-rs   | fastwfc |
 |------------|-----------|----------|---------|
