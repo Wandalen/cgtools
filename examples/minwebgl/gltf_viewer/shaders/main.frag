@@ -40,6 +40,9 @@ struct ReflectedLight
   uniform float metallicFactor; // Default: 1
   uniform float roughnessFactor; // Default: 1
   uniform vec4 baseColorFactor; // Default: [1, 1, 1, 1]
+  uniform samplerCube irradianceTexture;
+  uniform samplerCube prefilterEnvMap;
+  uniform sampler2D integrateBRDF;
   #ifdef USE_MR_TEXTURE
     // Roughness is sampled from the G channel
     // Metalness is sampled from the B channel
@@ -175,6 +178,19 @@ vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
   return vec4( F, G * D ) ;
 }
 
+vec3 sampleEnvIrradiance( const in vec3 N, const in vec3 V, const in float roughness, const in vec3 specularColor )
+{
+  float dotNV = saturate( dot( N, V ) );
+  vec3 R = reflect( V, N );
+
+  vec3 diffuseColor = textureCube( irradianceTexture, N ).xyz;
+  vec3 prefilterColor = textureCube( prefilterEnvMap, R ).xyz;
+  vec2 envBrdf = texture2D( integrateBRDF, vec2( dotNV, roughness ) );
+
+  vec3 color = diffuseColor + prefilterColor * ( specularColor * envBrdf.x + envBrdf.y );
+  return color;
+}
+
 #ifdef USE_NORMAL_TEXTURE
   // http://www.thetenthplanet.de/archives/1180
   mat3 getTBN( vec3 surf_normal, vec3 pos, vec2 uv )
@@ -264,13 +280,14 @@ void main()
 
   const vec3 lightColor = vec3( 1.0 );
   vec3 ambientColor = 0.1 * material.diffuseColor * material.occlusionFactor;
+
+  float dotVN = clamp( dot( viewDir, normal ), 0.0, 1.0 );
   for( int i = 0; i < 6; i++ )
   {
     vec4 brdf = BRDF_GGX( lightDirs[ i ], viewDir, normal, material );
     vec3 F = brdf.xyz;
     float DG = brdf.w;
     float dotNL = clamp( dot( normal, lightDirs[ i ] ), 0.0, 1.0 );
-    float dotVN = clamp( dot( viewDir, normal ), 0.0, 1.0 );
 
     vec3 light_diffuse = ( vec3( 1.0 ) - F ) * material.diffuseColor * RECIPROCAL_PI;
     vec3 light_specular = F * DG ;// max( 4.0 * dotVN * dotNL, 0.0001 );
