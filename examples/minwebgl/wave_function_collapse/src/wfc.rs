@@ -9,30 +9,30 @@
 /// Result tile map consist of tiles that can be user defined by 
 /// `Relations` structure for each tile type and tile set texture 
 /// that stores vertically textures of each tile type. Tiles type 
-/// are represented by unsigned 8-bit integers (`u8`). How tile 
+/// are represented by unsigned 8-bit integers ( `u8` ). How tile 
 /// types can be adjacent to each other are defined by the `Relations` 
-/// struct. `Relations` holds a list (`Vec`) of `Relation` enums. 
+/// struct. `Relations` holds a list ( `Vec` ) of `Relation` enums. 
 /// The index of each `Relation` in the `Relations` list corresponds 
-/// to certain tile type (`u8`) it describes.
+/// to certain tile type ( `u8` ) it describes.
 ///
 /// Each `Relation` specifies which other tile types can be neighbors to the
 /// current tile type. There are two kinds of `Relation`:
 ///
-/// 1.  `Relation::Isotropic(HashSet<u8>)`:
+/// 1.  `Relation::Isotropic( HashSet< u8 > )`:
 ///     - Defines a single set of allowed neighbor tile types.
-///     - This set applies to neighbors in *all* directions (West, East, North, South, Up, Down).
-///     - Example: If tile type 0 has `Isotropic({1, 2})`, then tiles of type 1 or 2
+///     - This set applies to neighbors in *all* directions ( West, East, North, South, Up, Down ).
+///     - Example: If tile type 0 has `Isotropic( { 1, 2 } )`, then tiles of type 1 or 2
 ///       can be placed adjacent to tile 0 in any direction.
 ///
-/// 2.  `Relation::Anisotropic(HashMap<Direction, HashSet<u8>>)`:
+/// 2.  `Relation::Anisotropic( HashMap< Direction, HashSet< u8 > > )`:
 ///     - Defines *different* sets of allowed neighbor tile types for *specific* directions.
-///     - The `HashMap` uses the `Direction` enum (W, E, N, S, U, D) as keys and
+///     - The `HashMap` uses the `Direction` enum ( W, E, N, S, U, D ) as keys and
 ///       a `HashSet<u8>` of allowed tile types for that direction as values.
-///     - Example: If tile type 3 has `Anisotropic({Direction::N: {4, 5}, Direction::S: {6}})`
+///     - Example: If tile type 3 has `Anisotropic( { Direction::N: { 4, 5 }, Direction::S: { 6 } } )`
 ///       then tiles 4 or 5 can be neighbors to the North of tile 3, and only tile 6
 ///       can be a neighbor to the South. FOR NOW ISN'T USED.
 ///
-/// The `Direction` enum (`W`, `E`, `N`, `S`, `U`, `D`) is used both for defining
+/// The `Direction` enum ( `W`, `E`, `N`, `S`, `U`, `D` ) is used both for defining
 /// anisotropic relationships and for calculating the coordinates of neighboring cells
 /// during the WFC propagation step.
 
@@ -50,7 +50,7 @@ use web_sys::console;
 use minwebgl::JsValue;
 
 /// Used for evaluating neighbour tiles coords
-/// and for indexing posible neighbour tiles in [`Relations`]
+/// and for indexing posible neighbour tiles in [ `Relations` ]
 #[
   derive
   (
