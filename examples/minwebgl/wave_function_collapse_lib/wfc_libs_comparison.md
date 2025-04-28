@@ -125,7 +125,7 @@ As the underlying library only works on two dimensions, multiple layers are not 
 
 - yawfc is library.
 
-- Accepts as input a matrix [[`Vec<Vec<T>>`]] from which unique features will be separated.
+- Accepts as input a matrix `Vec<Vec<T>>` from which unique features will be separated.
 
 - For now pattern size of unique features is 3x3.
 
