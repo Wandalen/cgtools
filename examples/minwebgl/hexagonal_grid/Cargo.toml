@@ -4,12 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-
-rustc-hash = "2.1.1"
 minwebgl = { workspace = true, features = [ "math" ] }
+mingl = { workspace = true }
 web-sys = { workspace = true, features = [ "DomRect", "MouseEvent" ] }
-
-# error_tools = { workspace = true }
-# mod_interface = { workspace = true }
 derive_tools = { workspace = true }
-# former = { workspace = true }
+tiles_tools = { workspace = true }

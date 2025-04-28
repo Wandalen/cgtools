@@ -1,138 +1,141 @@
-mod webgl_render;
-mod layout;
-mod coordinates;
-mod grid;
-mod mesh;
-mod patterns;
+use tiles_tools::
+{
+  coordinates::*,
+  layout::{ HexLayout, Orientation },
+  mesh::{ grid_triangle_mesh, hex_line_loop_mesh }, // qqq : don't import from namespace individualt items use full names for such cases `mesh::grid_triangle` remove postfix _mesh
+  patterns::{ Parity, ShiftedRectangleIter }
+};
 
-use layout::*;
-use patterns::*;
-use minwebgl as gl;
-use gl::{ math::d2::mat2x2h, JsCast, canvas::HtmlCanvasElement };
+use minwebgl as min;
+use min::
+{
+  GL,
+  math::{ d2::mat2x2h, F32x2, IntoVector },
+  Program,
+  JsCast,
+  canvas::HtmlCanvasElement,
+  geometry,
+  // web::log::info,
+  // qqq : this import does not work, but not clear why
+  // make it working please
+};
 use web_sys::{ wasm_bindgen::prelude::Closure, MouseEvent };
-use webgl_render::HexShader;
 
-fn main() -> Result< (), gl::WebglError >
+fn main() -> Result< (), min::WebglError >
 {
   draw_hexes()
 }
 
 fn draw_hexes() -> Result< (), minwebgl::WebglError >
 {
-  gl::browser::setup( Default::default() );
-  let gl = gl::context::retrieve_or_make()?;
+  min::browser::setup( Default::default() );
+  let o = min::context::ContexOptions::new().reduce_dpr( true );
+  let context = min::context::retrieve_or_make_with( o )?;
+  let canvas = context.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
+  // used to scale canvas true size to css size
+  let dpr = web_sys::window().unwrap().device_pixel_ratio() as f32;
+  let canvas_size = ( canvas.width() as f32, canvas.height() as f32 ).into_vector() / dpr;
+  // min::log::info!( "dpr : {:#?}", dpr );
+  // min::web::log::info!( "dpr : {:#?}", dpr );
 
-  let canvas = gl.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
-
-  // qqq : redundant probably
-  let width = 1000;
-  let height = 800;
-  canvas.set_width( width );
-  canvas.set_height( height );
-
-  // qqq : redundant probably
-  // remove affection of system scaling on canvas size
-  let dpr = web_sys::window().unwrap().device_pixel_ratio();
-  let css_width = format!( "{}px", width as f64 / dpr );
-  let css_height = format!( "{}px", height as f64 / dpr );
-  canvas.style().set_property( "width", &css_width ).unwrap();
-  canvas.style().set_property( "height", &css_height ).unwrap();
-
-  gl.viewport( 0, 0, width as i32, height as i32 );
-  gl.clear_color( 0.9, 0.9, 0.9, 1.0 );
-
-  // size of a hexagon (from center to vertex)
-  let size = 0.9;
-  // orientation of the hexagons
-  let layout = HexLayout { orientation : Orientation::Pointy, size };
+  // just abstract size in world space, it may be any units
+  // size of a hexagon ( from center to vertex )
+  let size = 0.1;
   // how to shift the hexagons to form a rectangle
-  let shift_type = ShiftType::Odd;
+  let shift_type = Parity::Odd; // qqq : why sift type is not part of layout? it probably should be
+  // orientation of hex can be either pointing upword or flat upword
+  let orientation = Orientation::Pointy;
+  // orientation of the hexagons
+  let layout = HexLayout { orientation, size }; // qqq : size of what specifically? not clear
   // grid size
-  let rows = 3;
-  let columns = 5;
+  let grid_size = [ 9, 11 ];
+  // let grid_region = [ I32x2, I32x2 ]; // qqq : maybe region?
+
   // determine the center of the grid
   // to shift it to the center of the canvas
-  let ( center_x, center_y ) = layout::grid_center
+  // qqq : what about type Grid combinging layout and grid size. also grid probably can have offset of orign?
+  let grid_center : F32x2 = layout.grid_center( ShiftedRectangleIter::new( grid_size, shift_type, layout ) ).into(); // qqq : iterating all tiles several times is not efficient. is it possible to avoid it?
+  // qqq : why shift_type is not part of layout? o.O
+  let aspect = canvas_size[ 1 ] / canvas_size[ 0 ];
+  let scale = 1.0;
+  let aspect_scale : F32x2 = [ aspect * scale, scale ].into();
+  let scale_m = mat2x2h::scale( aspect_scale.0 );
+
+  let vert = include_str!( "shaders/main.vert" );
+  let frag = include_str!( "shaders/main.frag" );
+  let hex_shader = Program::new( context.clone(), vert, frag )?;
+  hex_shader.activate();
+
+  let grid_geometry = geometry::Positions::new
   (
-    ShiftedRectangleIter::new( rows, columns, shift_type, layout ),
-    &layout
-  );
-
-  let hex_shader = HexShader::new( &gl )?;
-  // triangular fan mesh for of a hexagon
-  let triangle_geometry = webgl_render::geometry2d( &gl, &mesh::hex_triangle_fan_mesh( &layout ) )?;
+    context.clone(),
+    &grid_triangle_mesh( ShiftedRectangleIter::new( grid_size, shift_type, layout ), &layout, None ), // qqq : iterating all tiles several times is not efficient. is it possible to avoid it?
+    2,
+  )?;
   // line loop mesh for the outline of a hexagon
-  let line_geometry = webgl_render::geometry2d( &gl, &mesh::hex_line_loop_mesh( &layout ) )?;
+  let outline_geometry = geometry::Positions::new
+  (
+    context.clone(),
+    &hex_line_loop_mesh( &layout ),
+    2,
+  )?;
 
-  let aspect = height as f32 / width as f32;
-  let scaling = [ aspect * 0.2, 1.0 * 0.2 ];
-  let total_scale = mat2x2h::scale( scaling );
+  let translation = mat2x2h::translate( [ -grid_center.x(), grid_center.y() ] );
+  let mvp = scale_m * translation;
+
+  context.clear_color( 0.9, 0.9, 0.9, 1.0 );
+  context.clear( min::COLOR_BUFFER_BIT );
+  hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
+  hex_shader.uniform_upload( "u_color", &[ 0.1, 0.1, 0.1, 1.0 ] );
+  grid_geometry.activate();
+  context.draw_arrays( min::TRIANGLES, 0, grid_geometry.nvertices );
 
   let mut selected_hex = None;
 
   let mouse_move =
   {
-    let gl = gl.clone();
+    let context = context.clone();
     let canvas = canvas.clone();
     move | e : MouseEvent |
     {
       let rect = canvas.get_bounding_client_rect();
-      let canvas_x = rect.left();
-      let canvas_y = rect.top();
+      let canvas_pos = F32x2::new( rect.left() as f32, rect.top() as f32 );
+      let half_size : F32x2 = canvas_size / 2.0;
+      let cursor_pos = F32x2::new( e.client_x() as f32, e.client_y() as f32 );
+      // normalize coodinates to [ -1 : 1 ], then apply inverse ascpect scale and offset to grid center
+      let cursor_pos = ( ( cursor_pos - canvas_pos ) - half_size ) / half_size / aspect_scale + grid_center; // qqq : don't use double devission it's confusing and difficult to read. use canonical represenation
+      // qqq : add commented out code to see mouse position in log.
+      // qqq : where is center? in the middle? what are boundaries -1, +1? explain all that instead of duplicating what is avaliable from code
+      let selected_hex_coord : Coordinate< Axial, PointyTopped, OddParity > = layout.hex_coord( cursor_pos.into() );
 
-      // transform mouse coordinates from pixels to world coordinates
-      // where the center of the canvas is ( 0.0, 0.0 )
-      let half_width = ( width as f64 / dpr / 2.0 ) as f32;
-      let half_height = ( height as f64 / dpr / 2.0 ) as f32;
-      let x = ( e.client_x() as f64 - canvas_x ) as f32;
-      let y = ( e.client_y() as f64 - canvas_y ) as f32;
-      // normalize then multiply by inverse scaling
-      // and offset by center of the grid
-      let x = ( x - half_width ) / half_width * ( 1.0 / scaling[ 0 ] ) + center_x;
-      let y = ( y - half_height ) / half_height * ( 1.0 / scaling[ 1 ] ) + center_y;
-
-      let cursor_coord = layout.hex_coordinates( x, y );
-
-      // rerender only if the selected hexagon has changed
-      if selected_hex.is_some_and( | hex | hex == cursor_coord )
+      if selected_hex.is_some_and( | hex_coord | hex_coord == selected_hex_coord )
       {
         return;
       }
+      selected_hex = Some( selected_hex_coord );
 
-      selected_hex = Some( cursor_coord );
+      context.clear( min::COLOR_BUFFER_BIT );
 
-      gl.clear( gl::COLOR_BUFFER_BIT );
+      // draw grid
+      hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
+      hex_shader.uniform_upload( "u_color", &[ 0.1, 0.1, 0.1, 1.0 ] );
+      grid_geometry.activate();
+      context.draw_arrays( min::TRIANGLES, 0, grid_geometry.nvertices );
+
+      let selected_hex_pos = layout.pixel_coord( selected_hex_coord );
+      let translation = mat2x2h::translate( [ selected_hex_pos[ 0 ] - grid_center[ 0 ], -selected_hex_pos[ 1 ] + grid_center[ 1 ] ] );
+      let mvp = scale_m * translation;
 
       // draw outline
-      // hexagon center in world coords
-      let ( x, y ) = layout.hex_2d_position( cursor_coord );
-      // offset by center of the grid
-      let translation = mat2x2h::translate( [ x - center_x, -y + center_y ] );
-      // let scale = mat2x2h::scale( [ size, size ] );
-      let mvp = total_scale * translation;
-      hex_shader.draw( &gl, gl::LINE_LOOP, &line_geometry, mvp.raw_slice(), [ 0.3, 0.3, 0.3, 1.0 ] ).unwrap();
-
-      // draw hexes
-      for coord in ShiftedRectangleIter::new( rows, columns, shift_type, layout )
-      {
-        // hexagon center in world coords
-        let ( x, y ) = layout.hex_2d_position( coord );
-
-        let position = [ x - center_x, -y + center_y ];
-        let translation = mat2x2h::translate( position );
-        let scale = mat2x2h::scale( [ 0.95, 0.95 ] );
-        let mvp = total_scale * translation * scale;
-        hex_shader.draw
-        (
-          &gl,
-          gl::TRIANGLE_FAN,
-          &triangle_geometry,
-          mvp.raw_slice(),
-          [ 0.3, 0.75, 0.3, 1.0 ]
-        ).unwrap();
-      }
+      hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
+      hex_shader.uniform_upload( "u_color", &[ 0.1, 0.9, 0.1, 1.0 ] );
+      outline_geometry.activate();
+      context.draw_arrays( GL::LINE_LOOP, 0, outline_geometry.nvertices ); // aaa : don't use loop geometry, it has limmited suport among backends
+                                                                           // i added default lines mesh generation support, but for this webgl rendering i think line loop is okay
+                                                                           // qqq : let's use linestrip. rid of loops
     }
   };
+
   let mouse_move = Closure::< dyn FnMut( _ ) >::new( Box::new( mouse_move ) );
   canvas.set_onmousemove( Some( mouse_move.as_ref().unchecked_ref() ) );
   mouse_move.forget();

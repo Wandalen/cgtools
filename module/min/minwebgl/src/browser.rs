@@ -7,6 +7,7 @@ mod private
 crate::mod_interface!
 {
 
+  // xxx : investigate
   reuse ::browser_log;
   exposed use ::wasm_bindgen::
   {

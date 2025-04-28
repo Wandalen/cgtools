@@ -100,18 +100,19 @@ mod private
     // extern crate wasm_bindgen;
     use wasm_bindgen::prelude::*;
 
+    #[ allow( wasm_c_abi ) ]
     #[ wasm_bindgen ]
     extern
     {
       type Error;
 
-      #[ wasm_bindgen( js_namespace = console ) ]
-      fn error( msg: String );
+      #[wasm_bindgen( js_namespace = console )]
+      fn error( msg : String );
 
-      #[ wasm_bindgen( constructor ) ]
+      #[wasm_bindgen( constructor )]
       fn new() -> Error;
 
-      #[ wasm_bindgen( structural, method, getter ) ]
+      #[wasm_bindgen( structural, method, getter )]
       fn stack( error : &Error ) -> String;
     }
 

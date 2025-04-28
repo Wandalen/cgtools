@@ -1,6 +1,6 @@
 [package]
 name = "ndarray_cg"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
 license = "MIT"
@@ -23,7 +23,7 @@ workspace = true
 enabled = [
   "dep:ndarray",
   "dep:num-traits",
-  "dep:bytemuck",
+  "dep:asbytes",
   "dep:mod_interface",
   "dep:mdmath_core",
   "dep:derive_tools",
@@ -38,10 +38,11 @@ full = [
 [dependencies]
 ndarray = { workspace = true, optional = true }
 num-traits = { workspace = true, optional = true }
-bytemuck = { workspace = true, optional = true }
+# bytemuck = { workspace = true, optional = true }
+asbytes = { workspace = true, optional = true }
 mod_interface = { workspace = true, optional = true }
 derive_tools = { workspace = true, optional = true }
-mdmath_core = { workspace = true, optional = true, features = [ "index", "float", "inner_product", "approx", "general" ] }
+mdmath_core = { workspace = true, optional = true, features = [ "index", "float", "arithmetics", "approx", "general" ] }
 
 [dev-dependencies]
 test_tools = { workspace = true }
