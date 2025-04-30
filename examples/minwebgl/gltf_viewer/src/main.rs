@@ -29,6 +29,7 @@ mod node;
 mod renderer;
 mod camera;
 mod program;
+mod renderers;
 
 async fn run() -> Result< (), gl::WebglError >
 {
