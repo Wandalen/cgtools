@@ -47,10 +47,10 @@ pub struct Renderer
 
 impl Renderer
 {
-  pub fn new(
+  pub fn new( 
     webgl_context : GL,
     viewport : Viewport,
-  ) -> Result< Self, String >
+   ) -> Result< Self, String >
   {
     let context = glow::Context::from_webgl2_context( webgl_context );
     let mut programs = HashMap::new();
@@ -61,17 +61,18 @@ impl Renderer
 
     let mut renderer = Self {
       viewport,
-      camera : Camera::context,
+      camera : todo!(),
+      context : webgl_context,
       programs,
     };
 
     Ok( renderer )
   }
 
-  pub fn update(
+  pub fn update( 
     &mut self,
     input_state : InputState,
-  ) -> Result< (), String >
+   ) -> Result< (), String >
   {
     if let Some( timestamp ) = input_state.timestamp
     {
@@ -104,10 +105,6 @@ impl Renderer
     let outline = self.programs.get( "outline" ).unwrap();
 
     outline.load( &self.context );
-
-    unsafe {
-      self.context.use_program( None );
-    }
   }
 
   pub fn cleanup( &mut self )
@@ -127,10 +124,10 @@ pub struct Viewport
 
 impl Viewport
 {
-  pub fn new(
+  pub fn new( 
     width : u32,
     height : u32,
-  ) -> Self
+   ) -> Self
   {
     Self {
       width,
@@ -146,14 +143,14 @@ fn object( gl : &glow::Context ) -> Result< Program, String >
   program.create_shader( gl, ShaderType::Vertex, OBJECT_VS );
   program.create_shader( gl, ShaderType::Fragment, OBJECT_FS );
 
-  program.add_parameter(
+  program.add_parameter( 
     gl,
-    Parameter::new(
+    Parameter::new( 
       "mvp",
       ParameterType::Uniform,
       Value::Matrix4x4( Mat4x4::default() ),
-    ),
-  );
+     ),
+   );
 
   link_program( gl, &program );
 
@@ -196,10 +193,10 @@ fn outline( gl : &glow::Context ) -> Result< Program, String >
   Ok( program )
 }
 
-fn link_program(
+fn link_program( 
   gl : &glow::Context,
   program : &Program,
-) -> Result< (), String >
+ ) -> Result< (), String >
 {
   unsafe {
     gl.link_program( program.program() );
