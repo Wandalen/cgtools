@@ -1,0 +1,40 @@
+[package]
+name = "wave_function_collapse_lib"
+version = "0.1.0"
+edition = "2021"
+authors = [ 
+  "Kostiantyn Mysnyk <wandalen@obox.systems>",
+  "Bilan Vadym <vadym.b@obox.systems>"
+]
+license = "MIT"
+
+[dependencies]
+image = { version = "0.24.9", features = ["rayon"] }
+wfc = "0.10"
+wfc_image = { version = "0.12", features = ["parallel"] }
+yawfc = "0.1.0"
+RustyXML = "0.3.0"
+minwebgl = { workspace = true }
+getrandom = { version = "0.2", features = [ "js" ] }
+rand = { workspace = true }
+ndarray_cg = { workspace = true }
+
+[dependencies.web-sys]
+workspace = true
+features = [
+  'Document',
+  'Element',
+  'HtmlCanvasElement',
+  'Window',
+  'WebGlTexture',
+  'CanvasRenderingContext2d',
+  'HtmlImageElement',
+  'HtmlButtonElement',
+  'DomRect',
+  'HtmlInputElement', 
+  'Event',
+  'InputEvent',
+  'File',
+  'FileList',
+  'FileReader',
+]
