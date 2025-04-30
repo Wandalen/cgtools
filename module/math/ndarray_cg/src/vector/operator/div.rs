@@ -2,7 +2,7 @@ mod private
 {
   use crate::*;
   // use vector::arithmetics::inner_product::*;
-  use vector::{ div_scalar };
+  use vector::{ div_scalar, div_mut };
 
   impl< E, const LEN : usize > Div< E > for Vector< E, LEN >
   where
@@ -23,6 +23,16 @@ mod private
     fn div_assign( &mut self, rhs : E )
     {
         *self = *self / rhs;
+    }
+  }
+
+  impl< E, const LEN : usize > DivAssign for Vector< E, LEN >  
+  where
+    E : MatEl + NdFloat
+  {
+    fn div_assign( &mut self, rhs: Self ) 
+    {
+      div_mut( self, &rhs );
     }
   }
 

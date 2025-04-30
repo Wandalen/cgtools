@@ -13,7 +13,7 @@ mod private
     #[ inline( always ) ]
     pub const fn splat( v : E ) -> Self
     {
-        Vector::< E, N >( [ v ; N ] )
+      Vector::< E, N >( [ v ; N ] )
     }
 
     pub fn to_array( &self ) -> [ E ; N ]
@@ -124,7 +124,7 @@ mod private
       Ok( Self( value.try_into().unwrap() ) )
     }
   }
-
+  
   impl< E : MatEl, const N : usize > From< [ E; N ] > for Vector< E, N >
   {
     fn from( value: [ E; N ] ) -> Self
@@ -141,15 +141,15 @@ mod private
     }
   }
 
-  impl< E, const N : usize > From< E > for Vector< E, N >
-  where
-    E : MatEl
-  {
-    fn from ( value: E ) -> Self
-    {
-      Self::from( [ value; N ] )
-    }
-  }
+  // impl< E, const N : usize > From< E > for Vector< E, N >
+  // where
+  //   E : MatEl
+  // {
+  //   fn from ( value: E ) -> Self
+  //   {
+  //     Self::from( [ value; N ] )
+  //   }
+  // }
 
   // xxx : enable and test cover
   pub trait IntoVector< E, const N : usize >
