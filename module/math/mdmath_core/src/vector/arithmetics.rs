@@ -368,6 +368,32 @@ mod private
   }
 
   #[ inline ]
+  pub fn div_mut< E, R, A, const N : usize >( r : &mut R, a : &A )
+  where
+    R : VectorIterMut< E, N >,
+    A : VectorIter< E, N >,
+    E : NdFloat,
+  {
+    let iter = r.vector_iter_mut().zip( a.vector_iter() );
+    for ( r, a ) in iter
+    {
+      *r /= *a;
+    }
+  }
+
+  #[ inline ]
+  pub fn div< E, A, B, const N : usize >( a : &A, b : &B ) -> A
+  where
+    A : VectorIterMut< E, N > + Clone,
+    B : VectorIter< E, N >,
+    E : NdFloat,
+  {
+    let mut r = a.clone();
+    div_mut( &mut r, b );
+    r
+  }
+
+  #[ inline ]
   pub fn div_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
   where
     R : VectorIterMut< E, N >,
@@ -475,6 +501,8 @@ crate::mod_interface!
     min_mut,
     max,
     max_mut,
+    div,
+    div_mut,
     sub_scalar,
     sub_scalar_mut,
     sum_scalar,

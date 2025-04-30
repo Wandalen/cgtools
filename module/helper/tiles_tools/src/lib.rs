@@ -1,5 +1,5 @@
 pub mod coordinates;
-pub mod grid;
+pub mod collection;
 pub mod layout;
-pub mod mesh;
-pub mod patterns;
+pub mod geometry;
+// pub mod patterns;
