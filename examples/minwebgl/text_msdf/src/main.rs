@@ -13,7 +13,7 @@ fn run() -> Result< (), gl::WebglError >
   gl::browser::setup( Default::default() );
 
   let canvas = gl::canvas::retrieve_or_make()?;
-  let gl = gl::context::from_canvas( &canvas )?;
+  let gl = gl::context::from_canvas_with( &canvas )?;
 
   // Vertex and fragment shader source code
   let vertex_shader_src = include_str!( "../shaders/shader.vert" );
@@ -78,11 +78,11 @@ fn run() -> Result< (), gl::WebglError >
   let projection_matrix = gl::math::mat3x3h::perspective_rh_gl( fov, aspect, near, far );
 
   gl::uniform::matrix_upload
-  ( 
-    &gl, 
-    projection_matrix_location, 
-    &projection_matrix.to_array()[ .. ], 
-    true 
+  (
+    &gl,
+    projection_matrix_location,
+    &projection_matrix.to_array()[ .. ],
+    true
   )?;
 
   gl::uniform::upload( &gl, tex_size_location, &font.scale[ .. ] )?;
@@ -91,15 +91,15 @@ fn run() -> Result< (), gl::WebglError >
   // Load an image and upload it to the texture when it's loaded
   let img = gl::dom::create_image_element( "static/font/Alike-Regular.png" ).unwrap();
   img.style().set_property( "display", "none" ).unwrap();
-  
+
   let texture = gl.create_texture();
   let load_texture : Closure< dyn Fn() > = Closure::new
-  ( 
+  (
     {
       let texture = texture.clone();
       let gl = gl.clone();
       let img = img.clone();
-      move || 
+      move ||
       {
         gl::texture::d2::upload_no_flip( &gl, texture.as_ref(), &img );
         gl::texture::d2::default_parameters( &gl );
@@ -117,7 +117,7 @@ fn run() -> Result< (), gl::WebglError >
   gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA );
   gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
   gl.clear_depth( 1.0 );
-      
+
   // Define the update and draw logic
   let update_and_draw =
   {
@@ -127,11 +127,11 @@ fn run() -> Result< (), gl::WebglError >
       let view_matrix = gl::math::mat3x3h::look_to_rh( eye, dir, up );
 
       gl::uniform::matrix_upload
-      ( 
-        &gl, 
-        view_matrix_location.clone(), 
-        &view_matrix.to_array()[ .. ], 
-        true 
+      (
+        &gl,
+        view_matrix_location.clone(),
+        &view_matrix.to_array()[ .. ],
+        true
       ).unwrap();
 
       gl.uniform1f( time_location.as_ref(), ( t / 1000.0 ) as f32 );

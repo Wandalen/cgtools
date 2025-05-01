@@ -4,10 +4,15 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-minwebgl = { workspace = true, features = [ "math" ] }
-web-sys = { workspace = true, features = [ "DomRect", "MouseEvent", "KeyboardEvent", "HtmlInputElement", "HtmlButtonElement" ] }
+minwebgl = { workspace = true, features = ["math"] }
+web-sys = { workspace = true, features = [
+  "DomRect",
+  "MouseEvent",
+  "KeyboardEvent",
+  "HtmlInputElement",
+  "HtmlButtonElement",
+] }
 tiles_tools = { workspace = true }
 pathfinding = "4.14.0"
 bitflags = "2.9.0"
-strum = { version = "0.27.1", features = [ "derive" ] }
-# derive_tools = { workspace = true, features = [ "full" ] }
+strum = { version = "0.27.1", features = ["derive"] }
