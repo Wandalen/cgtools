@@ -28,7 +28,16 @@ pub async fn load( gl : &gl::WebGl2RenderingContext, path : &str ) -> IBL
   load_cube( "specular_1_2", 2, specular_1_texture.as_ref() ).await;
   load_cube( "specular_1_3", 3, specular_1_texture.as_ref() ).await;
   load_cube( "specular_1_4", 4, specular_1_texture.as_ref() ).await;
+  load_cube( "specular_1_5", 5, specular_1_texture.as_ref() ).await;
+  load_cube( "specular_1_6", 6, specular_1_texture.as_ref() ).await;
+  load_cube( "specular_1_7", 7, specular_1_texture.as_ref() ).await;
+  load_cube( "specular_1_8", 8, specular_1_texture.as_ref() ).await;
+  load_cube( "specular_1_9", 9, specular_1_texture.as_ref() ).await;
   load_d2( "specular_2", 0, specular_2_texture.as_ref() ).await;
+
+  gl.bind_texture( gl::TEXTURE_CUBE_MAP, specular_1_texture.as_ref() );
+  gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
+  gl.bind_texture( gl::TEXTURE_CUBE_MAP, None );
 
   // gl.bind_texture( gl::TEXTURE_CUBE_MAP, specular_1_texture.as_ref() );
   // gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_NEAREST as i32 );

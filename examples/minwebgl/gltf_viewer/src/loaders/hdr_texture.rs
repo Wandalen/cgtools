@@ -9,10 +9,10 @@ pub async fn load_to_mip_cube
 )
 {
   let image = gl::file::load( path ).await.unwrap();
-
-  let mut decoder = zune_hdr::HdrDecoder::new( &image );
+  let image = std::io::Cursor::new( image );
+  let mut decoder = zune_hdr::HdrDecoder::new( image );
   let data = decoder.decode().expect( &format!( "Failed to decode {}", path ) );
-  let ( width, height ) = decoder.get_dimensions().unwrap();
+  let ( width, height ) = decoder.dimensions().unwrap();
 
   let image_slice = | i : usize |
   {
@@ -68,10 +68,10 @@ pub async fn load_to_mip_d2
 )
 {
   let image = gl::file::load( path ).await.unwrap();
-
-  let mut decoder = zune_hdr::HdrDecoder::new( &image );
+  let image = std::io::Cursor::new( image );
+  let mut decoder = zune_hdr::HdrDecoder::new( image );
   let data = decoder.decode().expect( &format!( "Failed to decode {}", path ) );
-  let ( width, height ) = decoder.get_dimensions().unwrap();
+  let ( width, height ) = decoder.dimensions().unwrap();
 
   let image_data : gl::js_sys::Object = gl::js_sys::Float32Array::from( data.as_slice() ).into();
 

@@ -260,6 +260,7 @@ async fn run() -> Result< (), gl::WebglError >
   gl.enable( gl::BLEND );
 
   gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA );
+
   gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
   gl.clear_depth( 1.0 );
 

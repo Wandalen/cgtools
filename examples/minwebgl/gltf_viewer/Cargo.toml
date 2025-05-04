@@ -13,7 +13,7 @@ minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
 glam = "0.30.1"
-zune-hdr = "0.4.0"
+zune-hdr = { git = "https://github.com/etemesi254/zune-image" }
 
 bytemuck = "1.23.0"
 

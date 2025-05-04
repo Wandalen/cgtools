@@ -194,21 +194,22 @@ vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
     vec3 color = vec3( 0.0 );
     float dotNV = clamp( dot( N, V ), 0.0, 1.0 );
 
-    vec3 Fs =  material.specularFactor * F_Schlick( material.specularColor, dotNV );
-   // vec3 Fd = vec3( 1.0 ) - Fs;
-    float Fd = 1.0 - max_value( Fs );
-    //Fd *= 1.0 - material.metallness;
-    vec3 R = reflect( -V, N );
+    const float MAX_LOD = 9.0;
+    {
+      vec3 Fs = material.specularFactor * F_Schlick( material.specularColor, dotNV );
+      float Fd = 1.0 - max_value( Fs );
+      vec3 R = reflect( -V, N );
 
-    vec3 diffuse = texture( irradianceTexture, N ).xyz * pow( 2.0, EXPOSURE );
-    vec3 prefilter = texture( prefilterEnvMap, R, material.roughness * 4.0 ).xyz * pow( 2.0, EXPOSURE );
-    vec2 envBrdf = texture( integrateBRDF, vec2( dotNV, material.roughness ) ).xy;
+      vec3 diffuse = texture( irradianceTexture, N ).xyz * pow( 2.0, EXPOSURE );
+      vec3 prefilter = texture( prefilterEnvMap, R, material.roughness * MAX_LOD ).xyz * pow( 2.0, EXPOSURE );
+      vec2 envBrdf = texture( integrateBRDF, vec2( dotNV, material.roughness ) ).xy;
 
-    vec3 diffuseBRDF = Fd * diffuse * material.diffuseColor;
-    vec3 specularBRDF = prefilter * ( Fs * envBrdf.x + envBrdf.y );
-    color = diffuseBRDF  + specularBRDF;
+      vec3 diffuseBRDF = diffuse * material.diffuseColor;
+      vec3 specularBRDF = prefilter * ( material.specularColor * envBrdf.x + envBrdf.y );
+      color = Fd * diffuseBRDF + specularBRDF;
+    }
 
-    return color * material.occlusionFactor;
+    return color;
   }
 #endif
 
@@ -258,16 +259,8 @@ vec3 aces_tone_map( vec3 hdr )
 
 void main()
 {
-  PhysicalMaterial material = PhysicalMaterial
-  (
-    vec3( 1.0 ),
-    1.0,
-    1.0,
-    vec3( 1.0 ),
-    1.0,
-    1.0
-  );
-  
+  PhysicalMaterial material;
+
   float alpha = 1.0;
   #ifdef USE_PBR
     material.metallness = metallicFactor;
@@ -291,27 +284,22 @@ void main()
     material.roughness = 1.0;
   #endif
 
-  vec3 specularColor = vec3( 0.04 );
-  // Specular part
+  //Specular part
   #ifdef USE_KHR_materials_specular
     material.specularColor = specularColorFactor;
     material.specularFactor = specularFactor;
     #ifdef USE_SPECULAR_COLOR_TEXTURE
-     material.specularColor *= texture( specularColorTexture, vSpecularColorUv ).rgb;
+      material.specularColor *= texture( specularColorTexture, vSpecularColorUv ).rgb;
     #endif
     #ifdef USE_SPECULAR_TEXTURE
       material.specularFactor *= texture( specularTexture, vSpecularUv ).a;
     #endif
+   material.specularColor = mix( material.specularColor, material.diffuseColor, material.metallness );
   #else
     material.specularColor = mix( vec3( 0.04 ), material.diffuseColor, material.metallness );
     material.specularFactor = 1.0;
   #endif
-  // frag_color = vec4( specularColor, 1.0 );
-  // frag_color = vec4( vec3( material.metallness ), 1.0 );
-  // return;
-  //material.specularColor = mix( specularColor, material.diffuseColor, material.metallness );
  
-
   vec3 normal = normalize( vNormal );
   #ifdef USE_NORMAL_TEXTURE
     vec3 normalSample = texture( normalTexture, vNormalUv ).xyz * 2.0 - 1.0;
@@ -331,28 +319,40 @@ void main()
 
   vec3 color = vec3( 0.0 );
   vec3 viewDir = normalize( cameraPosition - vWorldPos );
-  vec3 lightDirs[] = vec3[]
+  // vec3 lightDirs[] = vec3[]
+  // (
+  //   vec3( 1.0, 0.0, 0.0 ),
+  //   vec3( 0.0, 1.0, 0.0 ),
+  //   vec3( 0.0, 0.0, 1.0 ),
+  //   vec3( -1.0, 0.0, 0.0 ),
+  //   vec3( 0.0, -1.0, 0.0 ),
+  //   vec3( 0.0, 0.0, -1.0 )
+  // );
+
+   vec3 lightDirs[] = vec3[]
   (
-    vec3( 1.0, 0.0, 0.0 ),
-    vec3( 0.0, 1.0, 0.0 ),
-    vec3( 0.0, 0.0, 1.0 ),
-    vec3( -1.0, 0.0, 0.0 ),
-    vec3( 0.0, -1.0, 0.0 ),
-    vec3( 0.0, 0.0, -1.0 )
+    vec3( 1.0, 1.0, 1.0 ),
+    vec3( -1.0, 1.0, 1.0 ),
+    vec3( 1.0, -1.0, 1.0 ),
+    vec3( -1.0, -1.0, 1.0 ),
+    vec3( 1.0, 1.0, -1.0 ),
+    vec3( 1.0, -1.0, -1.0 ),
+    vec3( -1.0, 1.0, -1.0 ),
+    vec3( -1.0, -1.0, -1.0 )
   );
 
   const vec3 lightColor = vec3( 1.0 );
   float dotVN = clamp( dot( viewDir, normal ), 0.0, 1.0 );
-  for( int i = 0; i < 3; i++ )
+  for( int i = 0; i < 2; i++ )
   {
-    float dotNL = clamp( dot( normal, lightDirs[ i ] ), 0.0, 1.0 );
+    vec3 lightDir = normalize( lightDirs[ i ] );
+    float dotNL = clamp( dot( normal, lightDir ), 0.0, 1.0 );
 
     if( dotNL > 0.0 )
     {
-      vec4 brdf = BRDF_GGX( lightDirs[ i ], viewDir, normal, material );
-      vec3 Fs = brdf.xyz;
-      vec3 Fd = vec3( 1.0 ) - Fs;
-      Fd *= 1.0 - material.metallness;
+      vec4 brdf = BRDF_GGX( lightDir, viewDir, normal, material );
+      vec3 Fs = material.specularFactor * brdf.xyz;
+      float Fd = 1.0 - max_value( Fs );
       float DG = brdf.w;
 
       vec3 light_diffuse = Fd * material.diffuseColor * RECIPROCAL_PI;
@@ -361,9 +361,10 @@ void main()
       color += ( light_diffuse + light_specular ) * lightColor * dotNL;
     }
   }
+
   // Ambient color
   #ifdef USE_PBR
-    //color += sampleEnvIrradiance( normal, viewDir, material );
+    color += sampleEnvIrradiance( normal, viewDir, material ) * material.occlusionFactor;
   #else
     color += 0.1 * material.diffuseColor * material.occlusionFactor;
   #endif
