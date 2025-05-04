@@ -35,12 +35,20 @@ impl ProgramInfo
     add_location( "normalTexture" );
     add_location( "occlusionTexture" );
     add_location( "emissiveTexture" );
+    add_location( "specularTexture" );
+    add_location( "specularColorTexture" );
+    //// IBL
+    add_location( "irradianceTexture" );
+    add_location( "prefilterEnvMap" );
+    add_location( "integrateBRDF" );
     //// Scalers
     add_location( "baseColorFactor" );
     add_location( "metallicFactor" );
     add_location( "roughnessFactor" );
     add_location( "normalScale" );
     add_location( "occlusionStrength" );
+    add_location( "specularFactor" );
+    add_location( "specularColorFactor" );
 
     Self
     {

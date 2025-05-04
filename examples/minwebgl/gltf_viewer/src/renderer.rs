@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use mingl::CameraOrbitControls;
 use minwebgl as gl;
 
-use crate::{camera::Camera, material::Material, mesh::Mesh, node::{Node, Object3D}, program::ProgramInfo, scene::Scene, texture::Texture};
+use crate::{camera::Camera, ibl::IBL, loaders, material::Material, mesh::Mesh, node::{Node, Object3D}, program::ProgramInfo, scene::Scene, texture::Texture};
 
 const MAIN_VERTEX_SHADER : &'static str = include_str!( "../shaders/main.vert" );
 const MAIN_FRAGMENT_SHADER : &'static str = include_str!( "../shaders/main.frag" );
@@ -15,7 +15,8 @@ pub struct Renderer< 'a >
   materials : Vec< Material< 'a > >,
   meshes : Vec< Mesh >,
   programs : HashMap< uuid::Uuid, ProgramInfo >,
-  default_material : Material< 'a >
+  default_material : Material< 'a >,
+  ibl : IBL
 }
 
 impl< 'a > Renderer< 'a > 
@@ -29,6 +30,7 @@ impl< 'a > Renderer< 'a >
   {
     let programs = HashMap::new();
     let default_material = Material::default();
+    let ibl = Default::default();
 
     Self
     {
@@ -36,9 +38,15 @@ impl< 'a > Renderer< 'a >
       materials,
       meshes,
       programs,
-      default_material
+      default_material,
+      ibl
     }
   } 
+
+  pub async fn load_ibl( &mut self, gl : &gl::WebGl2RenderingContext, path : &str )
+  {
+    self.ibl = loaders::ibl::load( gl, path ).await;
+  }
 
   pub fn compile( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
   {
@@ -53,11 +61,9 @@ impl< 'a > Renderer< 'a >
       let program_info = ProgramInfo::new( gl, program );
       program_info.apply( gl );
 
+      m.configure( gl, &program_info );
       m.apply( gl, &program_info )?;
-
-      // let locations = program_info.get_locations();
-      // gl::info!( "BaseTexture loc: {:?}", locations.get( "baseColorTexture" ).unwrap() );
-      // gl::info!( "NormalTexture loc: {:?}", locations.get( "normalTexture" ).unwrap() );
+      self.ibl.bind( gl );
 
       self.programs.insert( m.id, program_info );
 

@@ -29,13 +29,14 @@ mod node;
 mod renderer;
 mod camera;
 mod program;
-mod renderers;
+mod loaders;
+mod ibl;
 
 async fn run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
   let canvas = gl::canvas::make()?;
-  let gl = gl::context::from_canvas( &canvas )?;
+  let gl = gl::context::from_canvas( &canvas, Default::default() )?;
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();
 
@@ -252,6 +253,7 @@ async fn run() -> Result< (), gl::WebglError >
   gl::log::info!( "Scenes: {}", scenes.len() );
 
   let mut renderer = Renderer::new( nodes, materials, meshes );
+  renderer.load_ibl( &gl, "envMap" ).await;
   renderer.compile( &gl )?;
 
   gl.enable( gl::DEPTH_TEST );

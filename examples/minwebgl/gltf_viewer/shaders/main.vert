@@ -39,7 +39,6 @@ const vec2 uvss[] = vec2[]
 
 void main()
 {
-  vNormal = normal;
   vUv_0 = uv_0;
   vUv_1 = uv_1;
   vUv_2 = uv_2;
@@ -47,6 +46,7 @@ void main()
   vUv_4 = uv_4;
   vColor_0 = color_0;
   vColor_1 = color_1;
+  vNormal = normalize( mat3x3( worldMatrix ) * normal );
 
   vec4 worldPos = worldMatrix * vec4( position, 1.0 );
   vec4 viewPos = viewMatrix * worldPos;
