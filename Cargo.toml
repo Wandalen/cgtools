@@ -47,6 +47,10 @@ absolute_paths = "allow"
 
 # = helpers
 
+[workspace.dependencies.browser_input]
+version = "0.1.0"
+path = "module/helper/browser_input"
+
 [workspace.dependencies.tiles_tools]
 version = "0.1.0"
 path = "module/helper/tiles_tools"

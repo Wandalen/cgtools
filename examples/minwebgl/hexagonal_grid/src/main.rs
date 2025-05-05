@@ -1,7 +1,6 @@
 pub mod pathfind;
-pub mod input;
 
-use input::Input;
+use browser_input::{ mouse, Input };
 use tiles_tools::
 {
   collection::HexArray,
@@ -70,8 +69,8 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let aspect_scale : F32x2 = [ aspect * scale, scale ].into();
   let scale_m = mat2x2h::scale( aspect_scale.0 );
 
-  let vert = include_str!( "shaders/main.vert" );
-  let frag = include_str!( "shaders/main.frag" );
+  let vert = include_str!( "../shaders/main.vert" );
+  let frag = include_str!( "../shaders/main.frag" );
   let hex_shader = Rc::new( Program::new( context.clone(), vert, frag )? );
   hex_shader.activate();
 
@@ -192,24 +191,57 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
     (
       ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) + grid_center
     ).into(); // aaa : don't use double devission it's confusing and difficult to read. use canonical represenation
-
+    // hexagon which cursor points to
     let selected_hex_coord : Coordinate::< Axial, Pointy > = cursor_pos.into();
 
     match *demo_number.borrow()
     {
       0 =>
       {
-        // context.clear( GL::COLOR_BUFFER_BIT );
-        grid_demo( &context, grid_center, scale_m, &hex_shader, &grid_geometry, &outline_geometry, mvp, selected_hex_coord );
+        grid_demo
+        (
+          &context,
+          grid_center,
+          scale_m,
+          &hex_shader,
+          &grid_geometry,
+          &outline_geometry,
+          mvp,
+          selected_hex_coord
+        );
       }
       1 =>
       {
-        // context.clear( GL::COLOR_BUFFER_BIT );
-        pathfind_demo( &context, &input, grid_center, scale_m, &hex_shader, &grid_geometry, &hexagon_geometry, mvp, &mut start, &mut obstacles, selected_hex_coord );
+        pathfind_demo
+        (
+          &context,
+          &input,
+          grid_center,
+          scale_m,
+          &hex_shader,
+          &grid_geometry,
+          &hexagon_geometry,
+          mvp,
+          &mut start,
+          &mut obstacles,
+          selected_hex_coord
+        );
       }
       _ =>
       {
-        painting_demo(&context, &canvas, canvas_size, &input, aspect_scale, scale_m, &hex_shader, &hexagon_geometry, &mut painting_canvas, &color_picker );
+        painting_demo
+        (
+          &context,
+          &canvas,
+          canvas_size,
+          &input,
+          aspect_scale,
+          scale_m,
+          &hex_shader,
+          &hexagon_geometry,
+          &mut painting_canvas,
+          &color_picker
+        );
       }
     }
 
@@ -237,10 +269,11 @@ fn painting_demo
   color_picker : &HtmlInputElement
 )
 {
-  let is_mouse_down = input.is_button_down( input::mouse::MouseButton::Main );
+  let is_mouse_down = input.is_button_down( mouse::MouseButton::Main );
 
   if is_mouse_down
   {
+    // calculate pixel coordinates
     let rect = canvas.get_bounding_client_rect();
     let canvas_pos = F32x2::new( rect.left() as f32, rect.top() as f32 );
     let half_size : F32x2 = canvas_size / 2.0;
@@ -253,8 +286,10 @@ fn painting_demo
     (
       ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale )
     ).into();
+    // calculate hex coordinates
     let selected_hex_coord : Coordinate::< Axial, Pointy > = cursor_pos.into();
 
+    // get color
     let color = color_picker.value();
     let r = u8::from_str_radix( &color[ 1..3 ], 16 ).unwrap() as f32 / 255.0;
     let g = u8::from_str_radix( &color[ 3..5 ], 16 ).unwrap() as f32 / 255.0;
@@ -290,17 +325,18 @@ fn pathfind_demo
   selected_hex_coord : Coordinate< Axial, Pointy >
 )
 {
-  for input::Event { event_type, .. } in input.event_queue().as_slice()
+  // update obstacles and start position
+  for browser_input::Event { event_type, .. } in input.event_queue().as_slice()
   {
-    if let input::EventType::MouseButton( button, input::Action::Press ) = event_type
+    if let browser_input::EventType::MouseButton( button, browser_input::Action::Press ) = event_type
     {
-      if *button == input::mouse::MouseButton::Main
+      if *button == mouse::MouseButton::Main
       && obstacles.contains_key( &selected_hex_coord )
       && selected_hex_coord != *start
       {
         obstacles.entry( selected_hex_coord ).and_modify( | v | *v = !*v );
       }
-      if *button == input::mouse::MouseButton::Auxiliary
+      if *button == mouse::MouseButton::Auxiliary
       && obstacles.get( &selected_hex_coord ).copied().unwrap_or_default()
       {
         *start = selected_hex_coord;
@@ -320,9 +356,9 @@ fn pathfind_demo
     {
       let hex_pos : Pixel = coord.into();
       let translation = mat2x2h::translate
-      (
-        [ hex_pos[ 0 ] - grid_center[ 0 ], -hex_pos[ 1 ] + grid_center[ 1 ] ]
-      );
+      ([
+        hex_pos[ 0 ] - grid_center[ 0 ], -hex_pos[ 1 ] + grid_center[ 1 ]
+      ]);
       let mvp = scale_m * translation * mat2x2h::rot( 30.0f32.to_radians() ); // * mat2x2h::scale( [ 0.9, 0.9 ] );
 
       hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
@@ -343,13 +379,14 @@ fn pathfind_demo
     if let Some( ( path, _ ) ) = path
     {
       // draw path
+      let mut translation;
       for coord in path
       {
-        let hex_pos : Pixel = coord.into();
-        let translation = mat2x2h::translate
-        (
-          [ hex_pos[ 0 ] - grid_center[ 0 ], -hex_pos[ 1 ] + grid_center[ 1 ] ]
-        );
+        let pos : Pixel = coord.into();
+        translation = mat2x2h::translate
+        ([
+          pos[ 0 ] - grid_center[ 0 ], -pos[ 1 ] + grid_center[ 1 ]
+        ]);
         let mvp = scale_m * translation * mat2x2h::rot( 30.0f32.to_radians() ); // * mat2x2h::scale( [ 0.9, 0.9 ] );
 
         hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
@@ -383,10 +420,10 @@ fn grid_demo
 
   let selected_hex_pos : Pixel = selected_hex_coord.into();
   let translation = mat2x2h::translate
-  (
-    [ selected_hex_pos[ 0 ] - grid_center[ 0 ],
-    -selected_hex_pos[ 1 ] + grid_center[ 1 ] ]
-  );
+  ([
+    selected_hex_pos[ 0 ] - grid_center[ 0 ],
+    -selected_hex_pos[ 1 ] + grid_center[ 1 ]
+  ]);
   let mvp = scale_m * translation * mat2x2h::rot( 30.0f32.to_radians() );
 
   // draw outline

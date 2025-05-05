@@ -1,13 +1,10 @@
-pub mod keyboard;
-pub mod mouse;
-
 use minwebgl as min;
 use min::{ JsCast as _, I32x2 };
-use keyboard::KeyboardKey;
-use mouse::MouseButton;
-use strum::EnumCount;
 use web_sys::{ wasm_bindgen::prelude::Closure, EventTarget, KeyboardEvent, MouseEvent };
 use std::{ cell::{ Ref, RefCell }, rc::Rc };
+use strum::EnumCount as _;
+use crate::keyboard::KeyboardKey;
+use crate::mouse::MouseButton;
 
 #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
 pub enum Action
@@ -16,13 +13,14 @@ pub enum Action
   Release,
 }
 
+#[ non_exhaustive ]
 #[ derive( Debug, Clone, Copy, PartialEq ) ]
 pub enum EventType
 {
   KeyboardKey( KeyboardKey, Action ),
   MouseButton( MouseButton, Action ),
   MouseMovement( I32x2 ),
-  Wheel,
+  // Wheel, // not supported yet
 }
 
 #[ derive( Debug, Clone, Copy, PartialEq ) ]
@@ -35,7 +33,7 @@ pub struct Event
 }
 
 #[ derive( Debug ) ]
-pub struct State
+struct State
 {
   keyboard_keys : [ bool; KeyboardKey::COUNT ],
   mouse_buttons : [ bool; MouseButton::COUNT ],
@@ -71,6 +69,9 @@ impl Input
 {
   pub fn new( mouse_event_target : Option< EventTarget > ) -> Self
   {
+    // TODO:
+    // pointer events instead of mouse events
+    // customization of pointer coordinates eg client, screen, page, etc
     let event_queue = Rc::new( RefCell::new( Vec::< Event >::new() ) );
 
     let mousebutton_callback =
@@ -175,7 +176,7 @@ impl Input
     input
   }
 
-  pub fn event_queue( &self ) -> Ref< Vec< Event > >
+  pub fn event_queue( &self ) -> Ref< '_, Vec< Event > >
   {
     self.event_queue.borrow()
   }
@@ -215,7 +216,7 @@ impl Input
           self.state.mouse_buttons[ *mouse_button as usize ] = *action == Action::Press
         }
         EventType::MouseMovement( position ) => self.state.pointer_position = *position,
-        EventType::Wheel => todo!(),
+        // EventType::Wheel => todo!(),
       }
     }
   }
