@@ -140,8 +140,8 @@ fn object( gl : &glow::Context ) -> Result< Program, String >
 {
   let mut program = Program::new( gl, "object" )?;
 
-  program.create_shader( gl, ShaderType::Vertex, OBJECT_VS );
-  program.create_shader( gl, ShaderType::Fragment, OBJECT_FS );
+  program.create_shader( gl, ShaderType::Vertex, OBJECT_VS )?;
+  program.create_shader( gl, ShaderType::Fragment, OBJECT_FS )?;
 
   program.add_parameter( 
     gl,
@@ -152,7 +152,7 @@ fn object( gl : &glow::Context ) -> Result< Program, String >
      ),
    );
 
-  link_program( gl, &program );
+  program.link( gl )?;
 
   Ok( program )
 }
@@ -161,10 +161,10 @@ fn jfa_init( gl : &glow::Context ) -> Result< Program, String >
 {
   let mut program = Program::new( gl, "jfa_init" )?;
 
-  program.create_shader( gl, ShaderType::Vertex, FULLSCREEN_VS );
-  program.create_shader( gl, ShaderType::Fragment, JFA_INIT_FS );
+  program.create_shader( gl, ShaderType::Vertex, FULLSCREEN_VS )?;
+  program.create_shader( gl, ShaderType::Fragment, JFA_INIT_FS )?;
 
-  link_program( gl, &program );
+  program.link( gl )?;
 
   Ok( program )
 }
@@ -173,10 +173,10 @@ fn jfa_step( gl : &glow::Context ) -> Result< Program, String >
 {
   let mut program = Program::new( gl, "jfa_step" )?;
 
-  program.create_shader( gl, ShaderType::Vertex, FULLSCREEN_VS );
-  program.create_shader( gl, ShaderType::Fragment, JFA_STEP_FS );
+  program.create_shader( gl, ShaderType::Vertex, FULLSCREEN_VS )?;
+  program.create_shader( gl, ShaderType::Fragment, JFA_STEP_FS )?;
 
-  link_program( gl, &program );
+  program.link( gl )?;
 
   Ok( program )
 }
@@ -185,30 +185,10 @@ fn outline( gl : &glow::Context ) -> Result< Program, String >
 {
   let mut program = Program::new( gl, "outline" )?;
 
-  program.create_shader( gl, ShaderType::Vertex, FULLSCREEN_VS );
-  program.create_shader( gl, ShaderType::Fragment, OUTLINE_FS );
+  program.create_shader( gl, ShaderType::Vertex, FULLSCREEN_VS )?;
+  program.create_shader( gl, ShaderType::Fragment, OUTLINE_FS )?;
 
-  link_program( gl, &program );
+  program.link( gl )?;
 
   Ok( program )
-}
-
-fn link_program( 
-  gl : &glow::Context,
-  program : &Program,
- ) -> Result< (), String >
-{
-  unsafe {
-    gl.link_program( program.program() );
-
-    if !gl.get_program_link_status( program.program() )
-    {
-      let log = gl.get_program_info_log( program.program() );
-      program.cleanup();
-      return Err( log );
-    }
-  }
-
-  program.init_cleanup();
-  Ok( () )
 }
