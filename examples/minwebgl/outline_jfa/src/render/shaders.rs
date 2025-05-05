@@ -4,7 +4,10 @@ use std::{
   path::Display,
 };
 
-use glow::HasContext;
+use glow::{
+  Context,
+  HasContext,
+};
 
 #[ derive( Clone ) ]
 pub enum ShaderType
@@ -47,6 +50,7 @@ pub struct Program
   id : glow::NativeProgram,
   parameters : HashMap< String, Parameter >,
   shaders : HashMap< ShaderType, glow::Shader >,
+  linked : bool,
 }
 
 impl Program
@@ -56,13 +60,14 @@ impl Program
     name : &str,
    ) -> Result< Self, String >
   {
-    let id = gl.create_program().unwrap();
+    let id = unsafe { gl.create_program() }.unwrap();
 
     Ok( Self {
       name : name.to_string(),
       id,
       parameters : HashMap::new(),
       shaders : HashMap::new(),
+      linked : false,
     } )
   }
 
@@ -78,18 +83,20 @@ impl Program
       return Err( format!( "{} shader already binded to this program", r#type ) );
     }
 
-    let shader = gl.create_shader( r#type::into() )?;
-    gl.shader_source( shader, source );
-    gl.compile_shader( shader );
+    unsafe {
+      let shader = gl.create_shader( r#type::into() )?;
+      gl.shader_source( shader, source );
+      gl.compile_shader( shader );
 
-    if !gl.get_shader_compile_status( shader )
-    {
-      let log = gl.get_shader_info_log( shader );
-      gl.delete_shader( shader );
-      return Err( log );
+      if !gl.get_shader_compile_status( shader )
+      {
+        let log = gl.get_shader_info_log( shader );
+        gl.delete_shader( shader );
+        return Err( log );
+      }
+
+      self.shaders.insert( r#type, shader );
     }
-
-    self.shaders.insert( r#type, shader );
 
     Ok( () )
   }
@@ -106,6 +113,30 @@ impl Program
         "Parameter `{}` already binded to program `{}`",
         parameter.name, self.name
        ) );
+    }
+
+    if let ParameterType::Input = parameter.r#type
+    {
+      if self.linked
+      {
+        return Err( format!( 
+          "Can't add parameter `{}`, because program `{}` is linked",
+          parameter.name, self.name
+         ) );
+      }
+
+      let Some( location ) = parameter.location
+      else
+      {
+        return Err( format!( 
+          "Parameter `{}` doesn't have location in program `{}`",
+          parameter.name, self.name
+         ) );
+      };
+
+      unsafe {
+        gl.bind_attrib_location( self.id, location, parameter.name.as_str() );
+      }
     }
 
     self.parameters.insert( parameter.name, parameter );
@@ -147,7 +178,7 @@ impl Program
    ) -> Result< (), String >
   {
     let err = Err( format!( 
-      "Parameter `{}` with type `{}` has wrong value type (    `{}`    ) in program `{}`",
+      "Parameter `{}` with type `{}` has wrong value type (`{}`) in program `{}`",
       parameter.name, parameter.name, parameter.value, self.name
      ) );
 
@@ -160,41 +191,23 @@ impl Program
        ) );
     };
 
-    let set_location = || {
-      if parameter.location.is_none()
-      {
-        let Some( location ) = gl.get_uniform_location( self.id, self.name )
-        else
-        {
-          return Err( format!( 
-            "Can't get location for parameter `{}` in program `{}`",
-            parameter.name, self.name
-           ) );
-        };
-        parameter.location = Some( location );
-      }
-      Ok( () )
-    };
-
     match parameter.r#type
     {
       ParameterType::Uniform =>
       {
-        set_location()?;
+        self.set_location( gl, parameter.name )?;
         let set_value = parameter.get_set_function();
         set_value( gl, self.location.unwrap(), parameter.value.clone() );
       }
       ParameterType::Texture =>
       {
-        set_location()?;
+        self.set_location( gl, parameter.name )?;
         let Value::Texture( texture ) = &parameter.value
         else
         {
           return err;
         };
-        gl.active_texture( texture.slot_code() );
-        gl.bind_texture( texture.r#type(), Some( texture.id() ) );
-        gl.uniform_1_i32( parameter.location, texture.slot() );
+        texture.load( gl, parameter.location )?;
       }
       ParameterType::Framebuffer =>
       {
@@ -203,9 +216,19 @@ impl Program
         {
           return err;
         };
-        gl.bind_framebuffer( GL::FRAMEBUFFER, Some( framebuffer.id() ) );
-        let ( width, height ) = framebuffer.color.size;
-        gl.viewport( 0, 0, width, height );
+        unsafe {
+          gl.bind_framebuffer( GL::FRAMEBUFFER, Some( framebuffer.id() ) );
+          let ( width, height ) = framebuffer.color.size;
+          gl.viewport( 0, 0, width, height );
+        }
+      }
+      ParameterType::Input =>
+      {
+        let Value::Input( inputs ) = &parameter.value
+        else
+        {
+          return err;
+        };
       }
       _ =>
       {
@@ -246,19 +269,37 @@ impl Program
     }
   }
 
-  pub fn init_cleanup( &self )
+  pub fn link( 
+    &mut self,
+    gl : &glow::Context,
+   ) -> Result< (), String >
   {
-    for ( _, shader ) in self.shaders
-    {
-      gl.detach_shader( self.id, shader );
-      gl.delete_shader( shader );
+    unsafe {
+      gl.link_program( program.id );
+
+      if !gl.get_program_link_status( self.id )
+      {
+        let log = gl.get_program_info_log( self.id );
+        self.cleanup();
+        return Err( log );
+      }
+
+      for ( _, shader ) in self.shaders
+      {
+        gl.detach_shader( self.id, shader );
+        gl.delete_shader( shader );
+      }
     }
+
+    self.linked = true;
+
+    Ok( () )
   }
 
   pub fn cleanup( &mut self )
   {
     let err = Err( format!( 
-      "Parameter `{}` with type `{}` has wrong value type (`{}`) in program `{}`",
+      "Parameter `{}` with type `{}` has wrong value type ( `{}` ) in program `{}`",
       parameter.name, parameter.name, parameter.value, self.name
      ) );
 
@@ -301,6 +342,45 @@ impl Program
   pub fn id( &self ) -> glow::Program
   {
     self.id
+  }
+
+  fn set_location( 
+    &mut self,
+    gl : &Context,
+    parameter_name : String,
+   ) -> Result< (), String >
+  {
+    if !self.linked
+    {
+      return Err( format!( 
+        "Can't set location for parameter `{}`, because program `{}` isn't yet linked",
+        parameter.name, self.name
+       ) );
+    }
+
+    let Some( parameter ) = self.parameters.get_mut( parameter_name.as_str() )
+    else
+    {
+      return Err( format!( 
+        "Parameter `{}` already binded to program `{}`",
+        parameter_name, self.name
+       ) );
+    };
+
+    if parameter.location.is_none()
+    {
+      let location = unsafe { gl.get_uniform_location( self.id, parameter_name.as_str() ) };
+      let Some( location ) = location
+      else
+      {
+        return Err( format!( 
+          "Can't get location for parameter `{}` in program `{}`",
+          parameter_name, self.name
+         ) );
+      };
+      parameter.set_location( gl, location )?;
+    }
+    Ok( () )
   }
 }
 
@@ -370,10 +450,7 @@ impl Framebuffer
         };
         gl.bind_framebuffer( GL::FRAMEBUFFER, None );
         gl.delete_framebuffer( fb );
-        Err( format!( 
-          "Status: {} (`{}`)",
-          status_str, status
-         ) )
+        Err( format!( "Status: {} ( `{}` )", status_str, status ) )
       }
       else
       {
@@ -421,7 +498,10 @@ impl Texture
     {
       return Err( "Slot can't be bigger than 31".to_string() );
     }
-    let Ok( id ) = gl.create_texture()
+
+    let id = unsafe { gl.create_texture() };
+
+    let Ok( id ) = id
     else
     {
       return Err( "Can't create texture".to_string() );
@@ -439,8 +519,6 @@ impl Texture
       data : None,
     };
 
-    texture.set_data( None );
-
     Ok( texture )
   }
 
@@ -456,23 +534,39 @@ impl Texture
 
     self.data = data;
 
-    match self.r#type
-    {
-      TextureType::Texture2D =>
+    Ok( () )
+  }
+
+  fn load( 
+    &self,
+    gl : &Context,
+    location : u32,
+   ) -> Result< (), String >
+  {
+    unsafe {
+      gl.active_texture( self.slot_code() );
+      gl.bind_texture( self.r#type, Some( self.id ) );
+
+      match self.r#type
       {
-        gl.bind_texture( GL::TEXTURE_2D, Some( self.id ) );
-        gl.tex_image_2d( 
-          GL::TEXTURE_2D,
-          0,
-          self.internal_format as i32,
-          self.size.0,
-          self.size.1,
-          0,
-          self.format,
-          self.pixel_type,
-          self.data,
-         );
+        TextureType::Texture2D =>
+        {
+          gl.bind_texture( GL::TEXTURE_2D, Some( self.id ) );
+          gl.tex_image_2d( 
+            GL::TEXTURE_2D,
+            0,
+            self.internal_format as i32,
+            self.size.0,
+            self.size.1,
+            0,
+            self.format,
+            self.pixel_type,
+            self.data,
+           );
+        }
       }
+
+      gl.uniform_1_i32( location, self.slot );
     }
 
     Ok( () )
@@ -587,9 +681,25 @@ impl Parameter
           _ => return err,
         }
       }
+      ParameterType::Framebuffer => todo!(),
     };
 
     Ok( function )
+  }
+
+  fn set_location( 
+    &mut self,
+    gl : &Context,
+    location : u32,
+   ) -> Result< (), String >
+  {
+    if parameter.location.is_some()
+    {
+      return Err( format!( "Parameter `{}` has already location", self.name, ) );
+    }
+
+    self.location = Some( location );
+    Ok( () )
   }
 }
 
@@ -614,6 +724,7 @@ impl std::fmt::Display for Value
       Self::U32( _ ) => "u32",
       Self::Matrix4x4( matrix ) => todo!(),
       Self::Texture( texture ) => todo!(),
+      Self::Framebuffer( framebuffer ) => todo!(),
     };
     write!( &mut self, "{value_type}" )
   }
