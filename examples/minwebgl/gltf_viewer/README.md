@@ -2,7 +2,7 @@
 
 Some description
 
-### Features
+### Basic Features
 #### GLTf parsing
 ✅ Buffers  
 ✅ Images   
@@ -10,28 +10,31 @@ Some description
 ✅ Scene  
 ✅ Material  
 ✅ Mesh  
-❌ Tangents
+❌ Tangents  
 ❌ Sparse accessors  
 ❌ Animations  
 ❌ Skins and bones  
-❌ Morph targets
-#### Basic shader
-🔄 PBR  
+❌ Morph target
+#### Shader
+✅ PBR  
 &emsp;✅ Base color texture  
 &emsp;✅ Metallic texture  
 &emsp;✅ Roughness texture  
-&emsp;🔄 IBL  
+&emsp;✅ IBL  
 ✅ Normal texture   
 ✅ Occlusion texture  
 ❌ Emission texture  
-❌ Skinning  
-❌ HDR and tonemapping
+❌ Bones transformations  
+✅ HDR and tonemapping
 #### Rendering
 ❌ Multisampling  
 ✅ Support for multiple scenes  
 ❌ Support for multiple cameras  
+
+### Extra Features
 #### Extensions
-❌ None are supported
+✅ KHR_materials_specular  
+❌ The rest
 #### UI
 ❌ Switching between scenes  
 ❌ Switching between cameras   
