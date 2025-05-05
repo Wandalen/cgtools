@@ -285,20 +285,23 @@ void main()
   #endif
 
   //Specular part
+  // https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_specular/README.md
+  // 0.04 - reflectance of the Glass
+  material.specularColor = vec3( 0.04 );
   #ifdef USE_KHR_materials_specular
-    material.specularColor = specularColorFactor;
-    material.specularFactor = specularFactor;
+    material.specularColor *= specularColorFactor;
+    material.specularFactor *= specularFactor;
     #ifdef USE_SPECULAR_COLOR_TEXTURE
-      material.specularColor *= texture( specularColorTexture, vSpecularColorUv ).rgb;
+      material.specularColor *= SrgbToLinear( texture( specularColorTexture, vSpecularColorUv ).rgb );
     #endif
     #ifdef USE_SPECULAR_TEXTURE
       material.specularFactor *= texture( specularTexture, vSpecularUv ).a;
     #endif
-   material.specularColor = mix( material.specularColor, material.diffuseColor, material.metallness );
+    material.specularColor = min( material.specularColor, vec3( 1.0 ) );
   #else
-    material.specularColor = mix( vec3( 0.04 ), material.diffuseColor, material.metallness );
     material.specularFactor = 1.0;
   #endif
+  material.specularColor = mix( material.specularColor, material.diffuseColor, material.metallness );
  
   vec3 normal = normalize( vNormal );
   #ifdef USE_NORMAL_TEXTURE
@@ -343,7 +346,7 @@ void main()
 
   const vec3 lightColor = vec3( 1.0 );
   float dotVN = clamp( dot( viewDir, normal ), 0.0, 1.0 );
-  for( int i = 0; i < 8; i++ )
+  for( int i = 0; i < 0; i++ )
   {
     vec3 lightDir = normalize( lightDirs[ i ] );
     float dotNL = clamp( dot( normal, lightDir ), 0.0, 1.0 );
@@ -356,7 +359,7 @@ void main()
       float DG = brdf.w;
 
       vec3 light_diffuse = Fd * material.diffuseColor * RECIPROCAL_PI;
-      vec3 light_specular = Fs * DG ;// max( 4.0 * dotVN * dotNL, 0.0001 );
+      vec3 light_specular = Fs * DG;// / max( 4.0 * dotVN * dotNL, 0.0001 );
 
       color += ( light_diffuse + light_specular ) * lightColor * dotNL;
     }

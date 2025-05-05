@@ -45,24 +45,23 @@ async fn run() -> Result< (), gl::WebglError >
 
   // Camera setup
   let mut eye = gl::math::F32x3::from( [ 0.0, 20.0, 20.0 ] );
-  //eye /= 500.0;
-  eye *= 10.0;
+  eye /= 500.0;
+  //eye *= 10.0;
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
   let center = gl::math::F32x3::from( [ 0.0, 0.0, 0.0 ] );
 
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
-  let near = 0.01;
-  let far = 1000.0;
+  let near = 0.001;
+  let far = 100.0;
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
   camera.set_window_size( [ width, height ].into() );
 
   camera_controls::setup_controls( &canvas, &camera.get_controls() );
 
-  //let gltf_file_path = "dodge-challenger/gltf";
-  let gltf_file_path = "rusty-car/gltf";
-  //let gltf_file_path = "Neon/gltf";
+  let gltf_file_path = "dodge-challenger/gltf";
+  //let gltf_file_path = "rusty-car/gltf";
 
   let gltf_slice= gl::file::load( &format!( "{}/scene.gltf", gltf_file_path ) ).await.expect( "Failed to load gltf file" );
   let mut gltf_file = Gltf::from_slice( &gltf_slice ).unwrap();
