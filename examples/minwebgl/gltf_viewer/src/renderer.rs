@@ -1,9 +1,17 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
-
-use mingl::CameraOrbitControls;
+use std::{ cell::RefCell, collections::HashMap, rc::Rc };
 use minwebgl as gl;
 
-use crate::{camera::Camera, ibl::IBL, loaders, material::Material, mesh::Mesh, node::{Node, Object3D}, program::ProgramInfo, scene::Scene, texture::Texture};
+use crate::
+{ 
+  camera::Camera, 
+  ibl::IBL, 
+  loaders, 
+  material::Material, 
+  mesh::Mesh, 
+  node::Node, 
+  program::ProgramInfo, 
+  scene::Scene
+};
 
 const MAIN_VERTEX_SHADER : &'static str = include_str!( "../shaders/main.vert" );
 const MAIN_FRAGMENT_SHADER : &'static str = include_str!( "../shaders/main.frag" );

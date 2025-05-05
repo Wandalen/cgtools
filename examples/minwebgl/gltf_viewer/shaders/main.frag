@@ -343,7 +343,7 @@ void main()
 
   const vec3 lightColor = vec3( 1.0 );
   float dotVN = clamp( dot( viewDir, normal ), 0.0, 1.0 );
-  for( int i = 0; i < 2; i++ )
+  for( int i = 0; i < 8; i++ )
   {
     vec3 lightDir = normalize( lightDirs[ i ] );
     float dotNL = clamp( dot( normal, lightDir ), 0.0, 1.0 );

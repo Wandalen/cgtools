@@ -1,5 +1,9 @@
 use minwebgl as gl;
 
+// Struct that holds three precomputed textures to use in IBL calculations
+// Accroding to:
+// https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
+// https://learnopengl.com/PBR/IBL/Diffuse-irradiance
 #[ derive( Default ) ]
 pub struct IBL
 {
