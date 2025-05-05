@@ -46,7 +46,6 @@ async fn run() -> Result< (), gl::WebglError >
   // Camera setup
   let mut eye = gl::math::F32x3::from( [ 0.0, 20.0, 20.0 ] );
   eye /= 500.0;
-  //eye *= 10.0;
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
   let center = gl::math::F32x3::from( [ 0.0, 0.0, 0.0 ] );
 
@@ -61,7 +60,6 @@ async fn run() -> Result< (), gl::WebglError >
   camera_controls::setup_controls( &canvas, &camera.get_controls() );
 
   let gltf_file_path = "dodge-challenger/gltf";
-  //let gltf_file_path = "rusty-car/gltf";
 
   let gltf_slice= gl::file::load( &format!( "{}/scene.gltf", gltf_file_path ) ).await.expect( "Failed to load gltf file" );
   let mut gltf_file = Gltf::from_slice( &gltf_slice ).unwrap();

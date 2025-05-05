@@ -186,7 +186,7 @@ vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
   return vec4( F, G * D ) ;
 }
 
-#define EXPOSURE 0.0
+#define EXPOSURE 1.0
 
 #ifdef USE_PBR
   vec3 sampleEnvIrradiance( const in vec3 N, const in vec3 V, const in PhysicalMaterial material )
