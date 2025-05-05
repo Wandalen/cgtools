@@ -1,16 +1,18 @@
 use std::hash::Hash;
-use tiles_tools::coordinates::{ Distance, Neigbors };
+use crate::coordinates::{ Distance, Neigbors };
 
-pub fn find_path< C, F >
+pub fn astar< C, Fa, Fc >
 (
   start : &C,
   goal : &C,
-  is_accessible : F
+  mut is_accessible : Fa,
+  mut cost : Fc
 )
 -> Option< ( Vec< C >, u32 ) >
 where
   C : Distance + Neigbors + Eq + Clone + Hash,
-  F : Fn( &C ) -> bool,
+  Fa : FnMut( &C ) -> bool,
+  Fc : FnMut( &C ) -> u32
 {
   pathfinding::prelude::astar
   (
@@ -18,7 +20,7 @@ where
     | coord | coord.neighbors()
                    .iter()
                    .filter( | coord | is_accessible( coord ) )
-                   .map( | coord | ( coord.clone(), 1 ) )
+                   .map( | coord | ( coord.clone(), cost( coord ) ) )
                    .collect::< Vec< _ > >(),
     | coord | goal.distance( coord ),
     | p | *p == *goal

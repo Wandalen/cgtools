@@ -70,11 +70,11 @@ where
   {
     let [ min, max ] = self.bounds;
 
-    let min1 : crate::coordinates::pixel::Pixel = Into::< Coordinate< Axial, Pointy > >::into( min ).into();
+    let min1 : Pixel = Into::< Coordinate< Axial, Pointy > >::into( min ).into();
     let min_x = if min.r + 1 <= max.r
     {
       let min2 = Coordinate::< Offset< Parity >, Pointy >::new( min.q, min.r + 1 );
-      let min2 : crate::coordinates::pixel::Pixel = Into::< Coordinate< Axial, Pointy > >::into( min2 ).into();
+      let min2 : Pixel = Into::< Coordinate< Axial, Pointy > >::into( min2 ).into();
       min1[ 0 ].min( min2[ 0 ] )
     }
     else

@@ -1,5 +1,3 @@
-pub mod pathfind;
-
 use browser_input::{ mouse, Input };
 use tiles_tools::
 {
@@ -369,11 +367,12 @@ fn pathfind_demo
 
     let goal = selected_hex_coord;
 
-    let path = pathfind::find_path
+    let path = tiles_tools::pathfind::astar
     (
       start,
       &goal,
-      | coord | obstacles.get( &coord ).copied().unwrap_or_default()
+      | coord | obstacles.get( &coord ).copied().unwrap_or_default(),
+      | _ | 1
     );
 
     if let Some( ( path, _ ) ) = path
