@@ -66,7 +66,7 @@ where
   Coordinate< Offset< Parity >, Pointy > : Into< Coordinate< Axial, Pointy > >,
 {
   /// Position of a point right in the center of the whole grid.
-  pub fn center( &self ) -> F32x2
+  pub fn center( &self ) -> Pixel
   {
     let [ min, max ] = self.bounds;
 
@@ -96,7 +96,7 @@ where
     };
     let max_y = max1[ 1 ];
 
-    F32x2::new( ( min_x + max_x ) / 2.0, ( min_y + max_y ) / 2.0 )
+    Pixel::new( ( min_x + max_x ) / 2.0, ( min_y + max_y ) / 2.0 )
 
     // let width_count = self.bounds[ 1 ][ 0 ] - self.bounds[ 0 ][ 0 ] + 1;
     // let width = SQRT_THREE * self.hex_size;

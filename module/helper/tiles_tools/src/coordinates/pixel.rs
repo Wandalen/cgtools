@@ -76,6 +76,14 @@ where
   }
 }
 
+impl Into< ndarray_cg::F32x2 > for Pixel
+{
+  fn into( self ) -> ndarray_cg::F32x2
+  {
+    self.data.into()
+  }
+}
+
 impl ndarray_cg::Collection for Pixel
 {
   type Scalar = f32;

@@ -33,11 +33,10 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   min::browser::setup( Default::default() );
   let o = min::context::ContexOptions::default()
   .remove_dpr_scaling( true )
-  .preserve_drawing_buffer( true )
-  .power_preference( minwebgl::context::PowerPreference::HighPerformance );
+  .preserve_drawing_buffer( true );
   let context = min::context::retrieve_or_make_with( o )?;
   let canvas = context.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
-  // // used to scale canvas true size to css size
+  // used to scale canvas true size to css size
   let dpr = web_sys::window().unwrap().device_pixel_ratio() as f32;
   let canvas_size = ( canvas.width() as f32, canvas.height() as f32 ).into_vector() / dpr;
 
@@ -52,7 +51,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   // aaa : why shift_type is not part of layout? o.O
   // aaa : what about type Grid combinging layout and grid size. also grid probably can have offset of orign?
   let rect = RectangularGrid::new( region );
-  // coordinates of a point in the center of grid bounds
+  // coordinates of a point in the center of grid
   let grid_center = rect.center();
 
   let grid_mesh = geometry::from_iter
@@ -91,11 +90,12 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
     2,
   )?;
 
-  let translation = mat2x2h::translate( [ -grid_center.x(), grid_center.y() ] );
+  let translation = mat2x2h::translate( [ -grid_center[ 0 ], grid_center[ 1 ] ] );
   let mvp = scale_m * translation;
 
   let document = web_sys::window().unwrap().document().unwrap();
 
+  // used to swith between demos
   let demo_number = Rc::new( RefCell::new( 0 ) );
 
   let grid_button : HtmlButtonElement = document
@@ -161,11 +161,14 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   .dyn_into()
   .unwrap();
 
+  // for pathfind demo
   let mut start = Coordinate::< Axial, Pointy >::new( 2, 4 );
   let mut obstacles = HashMap::< Coordinate< Axial, Pointy >, bool >::from_iter
   (
     rect.coordinates().map( | c | ( c.into(), true ) )
   );
+
+  // for painting demo
   let mut painting_canvas = HexArray::< Offset< Odd >, Pointy, [ f32; 3 ] >::new
   (
     [ 23, 23 ].into(),
@@ -187,7 +190,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
     // then offset it by center of the grid, so that if cursor is in the center of the canvas, it will be in the center of the grid
     let cursor_pos : Pixel =
     (
-      ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) + grid_center
+      ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) + grid_center.into()
     ).into(); // aaa : don't use double devission it's confusing and difficult to read. use canonical represenation
     // hexagon which cursor points to
     let selected_hex_coord : Coordinate::< Axial, Pointy > = cursor_pos.into();
@@ -312,7 +315,7 @@ fn pathfind_demo
 (
   context : &GL,
   input : &Input,
-  grid_center : F32x2,
+  grid_center : Pixel,
   scale_m : min::F32x3x3,
   hex_shader : &Program,
   grid_geometry : &min::geometry::Positions,
@@ -400,7 +403,7 @@ fn pathfind_demo
 fn grid_demo
 (
   context : &GL,
-  grid_center : F32x2,
+  grid_center : Pixel,
   scale_m : min::F32x3x3,
   hex_shader : &Program,
   grid_geometry : &min::geometry::Positions,
