@@ -4,10 +4,17 @@ use std::{
   path::Display,
 };
 
-use glow::{
-  Context,
-  HasContext,
+use minwebgl::{
+  web_sys::{
+    WebGlFramebuffer,
+    WebGlProgram,
+    WebGlShader,
+    WebGlTexture,
+    WebGlUniformLocation
+  },
+  GL,
 };
+use ndarray_cg::mat::DescriptorOrderColumnMajor;
 
 #[ derive( Clone ) ]
 pub enum ShaderType
@@ -33,7 +40,7 @@ impl std::fmt::Display for ShaderType
   fn fmt( 
     &self,
     f : &mut std::fmt::Formatter< '_ >,
-   ) -> std::fmt::Result
+  ) -> std::fmt::Result
   {
     let shader_type = match self
     {
@@ -47,96 +54,122 @@ impl std::fmt::Display for ShaderType
 pub struct Program
 {
   name : String,
-  id : glow::NativeProgram,
+  id : WebGlProgram,
   parameters : HashMap< String, Parameter >,
-  shaders : HashMap< ShaderType, glow::Shader >,
+  shaders : HashMap< ShaderType, WebGlShader >,
   linked : bool,
 }
 
 impl Program
 {
   pub fn new( 
-    gl : &Context,
+    gl : &GL,
     name : &str,
-   ) -> Result< Self, String >
+  ) -> Result< Self, String >
   {
-    let id = unsafe { gl.create_program() }.unwrap();
+    let Some( id ) = gl.create_program()
+    else
+    {
+      return Err( format!( "Can't create program `{}`", name ) );
+    };
 
-    Ok( Self {
-      name : name.to_string(),
-      id,
-      parameters : HashMap::new(),
-      shaders : HashMap::new(),
-      linked : false,
-    } )
+    Ok( 
+      Self {
+        name : name.to_string(),
+        id,
+        parameters : HashMap::new(),
+        shaders : HashMap::new(),
+        linked : false,
+      } 
+    )
   }
 
   pub fn create_shader( 
     &mut self,
-    gl : &Context,
+    gl : &GL,
     r#type : ShaderType,
     source : &str,
-   ) -> Result< (), String >
+  ) -> Result< (), String >
   {
     if self.shaders.contains_key( r#type )
     {
-      return Err( format!( "{} shader already binded to this program", r#type ) );
+      return Err( 
+        format!( 
+          "{} shader already binded to program `{}`",
+          r#type, 
+          self.name
+        ) 
+      );
     }
 
-    unsafe {
-      let shader = gl.create_shader( r#type::into() )?;
-      gl.shader_source( shader, source );
-      gl.compile_shader( shader );
+    let Some( shader ) = gl.create_shader( r#type::into() )
+    else
+    {
+      return Err( 
+        format!( 
+          "Can't create {} shader for program `{}`",
+          r#type, 
+          self.name
+        ) 
+      );
+    };
+    gl.shader_source( &shader, source );
+    gl.compile_shader( &shader );
 
-      if !gl.get_shader_compile_status( shader )
-      {
-        let log = gl.get_shader_info_log( shader );
-        gl.delete_shader( shader );
-        return Err( log );
-      }
-
-      self.shaders.insert( r#type, shader );
+    if let Some( log ) = gl.get_shader_info_log( &shader )
+    {
+      gl.delete_shader( shader );
+      return Err( log );
     }
+
+    self.shaders.insert( r#type, shader );
 
     Ok( () )
   }
 
   pub fn add_parameter( 
     &mut self,
-    gl : &Context,
+    gl : &GL,
     parameter : Parameter,
-   ) -> Result< (), String >
+  ) -> Result< (), String >
   {
     if self.parameters.contains_key( &parameter.name )
     {
-      return Err( format!( 
-        "Parameter `{}` already binded to program `{}`",
-        parameter.name, self.name
-       ) );
+      return Err( 
+        format!( 
+          "Parameter `{}` already binded to program `{}`",
+          parameter.name, 
+          self.name
+        ) 
+      );
     }
 
     if let ParameterType::Input = parameter.r#type
     {
       if self.linked
       {
-        return Err( format!( 
-          "Can't add parameter `{}`, because program `{}` is linked",
-          parameter.name, self.name
-         ) );
+        return Err( 
+          format!( 
+            "Can't add parameter `{}`, because program `{}` is linked",
+            parameter.name, 
+            self.name
+          ) 
+        );
       }
 
       let Some( location ) = parameter.location
       else
       {
-        return Err( format!( 
-          "Parameter `{}` doesn't have location in program `{}`",
-          parameter.name, self.name
-         ) );
+        return Err( 
+          format!( 
+            "Parameter `{}` doesn't have location in program `{}`",
+            parameter.name, 
+            self.name
+          ) 
+        );
       };
 
-      unsafe {
-        gl.bind_attrib_location( self.id, location, parameter.name.as_str() );
-      }
+      gl.bind_attrib_location( &self.id, location, parameter.name.as_str() );
     }
 
     self.parameters.insert( parameter.name, parameter );
@@ -146,26 +179,33 @@ impl Program
 
   pub fn set_parameter( 
     &self,
-    gl : &Context,
+    gl : &GL,
     key : &str,
     value : Value,
-   ) -> Result< (), String >
+  ) -> Result< (), String >
   {
     let Some( parameter ) = self.parameters.get_mut( key )
     else
     {
-      return Err( format!( 
-        "Parameter `{}` doesn't exists in program `{}`",
-        parameter.name, self.name
-       ) );
+      return Err( 
+        format!( 
+          "Parameter `{}` doesn't exists in program `{}`",
+          parameter.name, 
+          self.name
+        ) 
+      );
     };
 
     if discriminant( &parameter.value ) != discriminant( &value )
     {
-      return Err( format!( 
-        "Parameter `{}` has value type `{}`, not `{}`",
-        parameter.name, parameter.value, value
-       ) );
+      return Err( 
+        format!( 
+          "Parameter `{}` has value type `{}`, not `{}`",
+          parameter.name, 
+          parameter.value, 
+          value
+        ) 
+      );
     }
     parameter.value = value;
     Ok( () )
@@ -173,22 +213,30 @@ impl Program
 
   pub fn load_parameter( 
     &self,
-    gl : &Context,
+    gl : &GL,
     key : &str,
-   ) -> Result< (), String >
+  ) -> Result< (), String >
   {
-    let err = Err( format!( 
-      "Parameter `{}` with type `{}` has wrong value type (`{}`) in program `{}`",
-      parameter.name, parameter.name, parameter.value, self.name
-     ) );
+    let err = Err( 
+      format!( 
+        "Parameter `{}` with type `{}` has wrong value type ( `{}` ) in program `{}`",
+        parameter.name, 
+        parameter.name, 
+        parameter.value, 
+        self.name
+      ) 
+    );
 
     let Some( parameter ) = self.parameters.get_mut( key )
     else
     {
-      return Err( format!( 
-        "Parameter `{}` doesn't exists in program `{}`",
-        parameter.name, self.name
-       ) );
+      return Err( 
+        format!( 
+          "Parameter `{}` doesn't exists in program `{}`",
+          parameter.name, 
+          self.name
+        ) 
+      );
     };
 
     match parameter.r#type
@@ -216,15 +264,14 @@ impl Program
         {
           return err;
         };
-        unsafe {
-          gl.bind_framebuffer( GL::FRAMEBUFFER, Some( framebuffer.id() ) );
-          let ( width, height ) = framebuffer.color.size;
-          gl.viewport( 0, 0, width, height );
-        }
+
+        gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &framebuffer.id() ) );
+        let ( width, height ) = framebuffer.color.size;
+        gl.viewport( 0, 0, width, height );
       }
       ParameterType::Input =>
       {
-        let Value::Input( inputs ) = &parameter.value
+        let Value::Input( input ) = &parameter.value
         else
         {
           return err;
@@ -232,10 +279,13 @@ impl Program
       }
       _ =>
       {
-        return Err( format!( 
-          "Can't load parameter `{}` with type `{}`",
-          parameter.name, parameter.r#type
-         ) )
+        return Err( 
+          format!( 
+            "Can't load parameter `{}` with type `{}`",
+            parameter.name, 
+            parameter.r#type
+          ) 
+        )
       }
     }
 
@@ -244,12 +294,10 @@ impl Program
 
   pub fn load( 
     &self,
-    gl : &glow::Context,
-   ) -> Result< (), String >
+    gl : &GL,
+  ) -> Result< (), String >
   {
-    unsafe {
-      gl.use_program( Some( self.id() ) );
-    }
+    gl.use_program( Some( &self.id() ) );
 
     for parameter in self.parameters.keys()
     {
@@ -261,34 +309,29 @@ impl Program
 
   pub fn unload( 
     &self,
-    gl : &glow::Context,
-   )
+    gl : &GL,
+  )
   {
-    unsafe {
-      gl.use_program( None );
-    }
+    gl.use_program( None );
   }
 
   pub fn link( 
     &mut self,
-    gl : &glow::Context,
-   ) -> Result< (), String >
+    gl : &GL,
+  ) -> Result< (), String >
   {
-    unsafe {
-      gl.link_program( program.id );
+    gl.link_program( &program.id );
 
-      if !gl.get_program_link_status( self.id )
-      {
-        let log = gl.get_program_info_log( self.id );
-        self.cleanup();
-        return Err( log );
-      }
+    if let Some( log ) = gl.get_program_info_log( &self.id )
+    {
+      self.cleanup( gl );
+      return Err( log );
+    }
 
-      for ( _, shader ) in self.shaders
-      {
-        gl.detach_shader( self.id, shader );
-        gl.delete_shader( shader );
-      }
+    for ( _, shader ) in self.shaders
+    {
+      gl.detach_shader( &self.id, &shader );
+      gl.delete_shader( Some( &shader ) );
     }
 
     self.linked = true;
@@ -296,19 +339,27 @@ impl Program
     Ok( () )
   }
 
-  pub fn cleanup( &mut self )
+  pub fn cleanup( 
+    &mut self,
+    gl : &GL,
+  )
   {
-    let err = Err( format!( 
-      "Parameter `{}` with type `{}` has wrong value type ( `{}` ) in program `{}`",
-      parameter.name, parameter.name, parameter.value, self.name
-     ) );
+    let err = Err( 
+      format!( 
+        "Parameter `{}` with type `{}` has wrong value type (  `{}`  ) in program `{}`",
+        parameter.name, 
+        parameter.name, 
+        parameter.value, 
+        self.name
+      ) 
+    );
 
     for ( _, shader ) in self.shaders
     {
-      gl.detach_shader( self.id, shader );
-      gl.delete_shader( shader );
+      gl.detach_shader( &self.id, &shader );
+      gl.delete_shader( Some( &shader ) );
     }
-    gl.delete_program( self.id );
+    gl.delete_program( Some( &self.id ) );
 
     for ( _, parameter ) in self.parameters
     {
@@ -323,7 +374,7 @@ impl Program
           {
             return err;
           };
-          gl.delete_texture( texture.id() );
+          gl.delete_texture( &texture.id() );
         }
         ParameterType::Framebuffer =>
         {
@@ -332,51 +383,59 @@ impl Program
           {
             return err;
           };
-          gl.delete_framebuffer( framebuffer.id() );
+          gl.delete_framebuffer( Some( &framebuffer.id() ) );
         }
         _ => (),
       }
     }
   }
 
-  pub fn id( &self ) -> glow::Program
+  pub fn id( &self ) -> WebGlProgram
   {
-    self.id
+    self.id.clone()
   }
 
   fn set_location( 
     &mut self,
-    gl : &Context,
+    gl : &GL,
     parameter_name : String,
-   ) -> Result< (), String >
+  ) -> Result< (), String >
   {
     if !self.linked
     {
-      return Err( format!( 
-        "Can't set location for parameter `{}`, because program `{}` isn't yet linked",
-        parameter.name, self.name
-       ) );
+      return Err( 
+        format!( 
+          "Can't set location for parameter `{}`, because program `{}` isn't yet linked",
+          parameter.name, 
+          self.name
+        ) 
+      );
     }
 
     let Some( parameter ) = self.parameters.get_mut( parameter_name.as_str() )
     else
     {
-      return Err( format!( 
-        "Parameter `{}` already binded to program `{}`",
-        parameter_name, self.name
-       ) );
+      return Err( 
+        format!( 
+          "Parameter `{}` already binded to program `{}`",
+          parameter_name, self.name
+        ) 
+      );
     };
 
     if parameter.location.is_none()
     {
-      let location = unsafe { gl.get_uniform_location( self.id, parameter_name.as_str() ) };
+      let location = gl.get_uniform_location( &self.id, parameter_name.as_str() );
       let Some( location ) = location
       else
       {
-        return Err( format!( 
-          "Can't get location for parameter `{}` in program `{}`",
-          parameter_name, self.name
-         ) );
+        return Err( 
+          format!( 
+            "Can't get location for parameter `{}` in program `{}`",
+            parameter_name, 
+            self.name
+          ) 
+        );
       };
       parameter.set_location( gl, location )?;
     }
@@ -386,7 +445,7 @@ impl Program
 
 struct Framebuffer
 {
-  id : glow::NativeFramebuffer,
+  id : WebGlFramebuffer,
   color : Texture,
   depth : Option< Texture >,
 }
@@ -394,73 +453,74 @@ struct Framebuffer
 impl Framebuffer
 {
   fn new( 
-    gl : &Context,
+    gl : &GL,
     color : Texture,
     depth : Option< Texture >,
-   ) -> Result< (), String >
+  ) -> Result< (), String >
   {
-    unsafe {
-      let id = gl.create_framebuffer()
-      else
-      {
-        return Err( "Can't create framebuffer".to_string() );
-      };
-      gl.bind_framebuffer( GL::FRAMEBUFFER, Some( id ) );
+    let Some( id ) = gl.create_framebuffer()
+    else
+    {
+      return Err( "Can't create framebuffer".to_string() );
+    };
+    gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &id ) );
 
-      if color.r#type() != TextureType::Texture2D
+    if color.r#type() != TextureType::Texture2D
+    {
+      return Err( format!( "Color texture has wrong type: {}", color.r#type() ) );
+    }
+
+    gl.framebuffer_texture_2d( 
+      GL::FRAMEBUFFER,
+      GL::COLOR_ATTACHMENT0,
+      GL::TEXTURE_2D,
+      Some( &color.id() ),
+      0,
+    );
+
+    if let Some( depth ) = depth
+    {
+      if depth.r#type() != TextureType::Texture2D
       {
-        return Err( format!( "Color texture has wrong type: {}", color.r#type() ) );
+        return Err( format!( "Depth texture has wrong type: {}", depth.r#type() ) );
       }
 
       gl.framebuffer_texture_2d( 
         GL::FRAMEBUFFER,
-        GL::COLOR_ATTACHMENT0,
+        GL::DEPTH_ATTACHMENT,
         GL::TEXTURE_2D,
-        Some( color.id() ),
+        Some( &depth.id() ),
         0,
-       );
+      );
+    }
 
-      if let Some( depth ) = depth
+    let status = gl.check_framebuffer_status( GL::FRAMEBUFFER );
+    if status != GL::FRAMEBUFFER_COMPLETE
+    {
+      let status_str = match status
       {
-        if depth.r#type() != TextureType::Texture2D
+        GL::FRAMEBUFFER_UNSUPPORTED => "UNSUPPORTED",
+        GL::FRAMEBUFFER_INCOMPLETE_ATTACHMENT => "INCOMPLETE_ATTACHMENT",
+        GL::FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT => "INCOMPLETE_MISSING_ATTACHMENT",
+        GL::FRAMEBUFFER_INCOMPLETE_MULTISAMPLE => "INCOMPLETE_MULTISAMPLE",
+        GL::FRAMEBUFFER_INCOMPLETE_DIMENSIONS => "INCOMPLETE_DIMENSIONS",
+        _ => "Unknown",
+      };
+      gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+      gl.delete_framebuffer( Some( &id ) );
+      Err( format!( "Status: {} (`{}`)", status_str, status ) )
+    }
+    else
+    {
+      gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+      Ok( 
+        Self 
         {
-          return Err( format!( "Depth texture has wrong type: {}", depth.r#type() ) );
-        }
-
-        gl.framebuffer_texture_2d( 
-          GL::FRAMEBUFFER,
-          GL::DEPTH_ATTACHMENT,
-          GL::TEXTURE_2D,
-          Some( depth.id() ),
-          0,
-         );
-      }
-
-      let status = gl.check_framebuffer_status( GL::FRAMEBUFFER );
-      if status != GL::FRAMEBUFFER_COMPLETE
-      {
-        let status_str = match status
-        {
-          GL::FRAMEBUFFER_UNSUPPORTED => "UNSUPPORTED",
-          GL::FRAMEBUFFER_INCOMPLETE_ATTACHMENT => "INCOMPLETE_ATTACHMENT",
-          GL::FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT => "INCOMPLETE_MISSING_ATTACHMENT",
-          GL::FRAMEBUFFER_INCOMPLETE_MULTISAMPLE => "INCOMPLETE_MULTISAMPLE",
-          GL::FRAMEBUFFER_INCOMPLETE_DIMENSIONS => "INCOMPLETE_DIMENSIONS",
-          _ => "Unknown",
-        };
-        gl.bind_framebuffer( GL::FRAMEBUFFER, None );
-        gl.delete_framebuffer( fb );
-        Err( format!( "Status: {} ( `{}` )", status_str, status ) )
-      }
-      else
-      {
-        gl.bind_framebuffer( GL::FRAMEBUFFER, None );
-        Ok( Self {
           id,
           color,
           depth,
-        } )
-      }
+        } 
+      )
     }
   }
 }
@@ -473,7 +533,7 @@ enum TextureType
 struct Texture
 {
   r#type : TextureType,
-  id : glow::NativeTexture,
+  id : WebGlTexture,
   slot : u32,
   size : ( usize, usize ),
   internal_format : u32,
@@ -486,22 +546,20 @@ struct Texture
 impl Texture
 {
   fn new( 
-    gl : &Context,
+    gl : &GL,
     slot : u32,
     size : ( usize, usize ),
     internal_format : u32,
     format : u32,
     pixel_type : u32,
-   ) -> Result< Self, String >
+  ) -> Result< Self, String >
   {
     if slot  > 31
     {
       return Err( "Slot can't be bigger than 31".to_string() );
     }
 
-    let id = unsafe { gl.create_texture() };
-
-    let Ok( id ) = id
+    let Some( id ) = id
     else
     {
       return Err( "Can't create texture".to_string() );
@@ -525,7 +583,7 @@ impl Texture
   fn set_data( 
     &mut self,
     data : Option< Vec< u8 > >,
-   ) -> Result< (), String >
+  ) -> Result< (), String >
   {
     if todo!()
     {
@@ -539,35 +597,33 @@ impl Texture
 
   fn load( 
     &self,
-    gl : &Context,
-    location : u32,
-   ) -> Result< (), String >
+    gl : &GL,
+    location : &WebGlUniformLocation,
+  ) -> Result< (), String >
   {
-    unsafe {
-      gl.active_texture( self.slot_code() );
-      gl.bind_texture( self.r#type, Some( self.id ) );
+    gl.active_texture( self.slot_code() );
+    gl.bind_texture( self.r#type, Some( &self.id ) );
 
-      match self.r#type
+    match self.r#type
+    {
+      TextureType::Texture2D =>
       {
-        TextureType::Texture2D =>
-        {
-          gl.bind_texture( GL::TEXTURE_2D, Some( self.id ) );
-          gl.tex_image_2d( 
-            GL::TEXTURE_2D,
-            0,
-            self.internal_format as i32,
-            self.size.0,
-            self.size.1,
-            0,
-            self.format,
-            self.pixel_type,
-            self.data,
-           );
-        }
+        gl.bind_texture( GL::TEXTURE_2D, Some( &self.id ) );
+        gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array( 
+          GL::TEXTURE_2D,
+          0,
+          self.internal_format as i32,
+          self.size.0,
+          self.size.1,
+          0,
+          self.format,
+          self.pixel_type,
+          self.data.as_ref(),
+        );
       }
-
-      gl.uniform_1_i32( location, self.slot );
     }
+
+    gl.uniform1i( Some( location ), self.slot );
 
     Ok( () )
   }
@@ -613,7 +669,7 @@ impl std::fmt::Display for ParameterType
   fn fmt( 
     &self,
     f : &mut std::fmt::Formatter< '_ >,
-   ) -> std::fmt::Result
+  ) -> std::fmt::Result
   {
     let parameter_type = match self
     {
@@ -640,7 +696,7 @@ impl Parameter
     name : &str,
     r#type : ParameterType,
     value : Value,
-   ) -> Self
+  ) -> Self
   {
     Self {
       name : name.to_string(),
@@ -650,12 +706,16 @@ impl Parameter
     }
   }
 
-  fn get_set_function( &self ) -> Result< fn( &Context, u32, Value ) -> Result< (), String >, String >
+  fn get_set_function( &self ) -> Result< fn( &GL, u32, Value ) -> Result< (), String >, String >
   {
-    let err = Err( format!( 
-      "Parameter `{}` with type `{}` doesn't have set function for value of type `{}`",
-      self.name, self.r#type, self.value
-     ) );
+    let err = Err( 
+      format!( 
+        "Parameter `{}` with type `{}` doesn't have set function for value of type `{}`",
+        self.name, 
+        self.r#type, 
+        self.value
+      ) 
+    );
     let function = match self.r#type
     {
       ParameterType::Input =>
@@ -689,13 +749,13 @@ impl Parameter
 
   fn set_location( 
     &mut self,
-    gl : &Context,
+    gl : &GL,
     location : u32,
-   ) -> Result< (), String >
+  ) -> Result< (), String >
   {
     if parameter.location.is_some()
     {
-      return Err( format!( "Parameter `{}` has already location", self.name, ) );
+      return Err( format!( "Parameter `{}` has already location", self.name ) );
     }
 
     self.location = Some( location );
@@ -707,7 +767,7 @@ impl Parameter
 pub enum Value
 {
   U32( u32 ),
-  Matrix4x4( nalgebra_glm::Mat4x4 ),
+  Matrix4x4( ndarray_cg::Mat4< f32, DescriptorOrderRowMajor > ),
   Texture( Texture ),
   Framebuffer( Framebuffer ),
 }
@@ -717,7 +777,7 @@ impl std::fmt::Display for Value
   fn fmt( 
     &self,
     f : &mut std::fmt::Formatter< '_ >,
-   ) -> std::fmt::Result
+  ) -> std::fmt::Result
   {
     let value_type = match self
     {
@@ -733,20 +793,22 @@ impl std::fmt::Display for Value
 mod set_functions
 {
   pub fn set_uniform_scalar( 
-    gl : &Context,
+    gl : &GL,
     location : u32,
     value : Value,
-   ) -> Result< (), String >
+  ) -> Result< (), String >
   {
     match value
     {
-      Value::U32( v ) => gl.uniform_1_u32( location, v ),
+      Value::U32( v ) => gl.uniform1u( location, v ),
       _ =>
       {
-        Err( format!( 
-          "set_uniform_scalar doesn't support value of type `{}`",
-          v
-         ) )
+        Err( 
+          format!( 
+            "set_uniform_scalar doesn't support value of type `{}`",
+            v
+          ) 
+        )
       }
     };
 
@@ -754,20 +816,22 @@ mod set_functions
   }
 
   pub fn set_uniform_vec( 
-    gl : &Context,
+    gl : &GL,
     location : u32,
     value : Value,
-   ) -> Result< (), String >
+  ) -> Result< (), String >
   {
     match value
     {
-      Value::U32( v ) => gl.uniform_1_u32( location, v ),
+      Value::U32( v ) => gl.uniform1u( location, v ),
       _ =>
       {
-        Err( format!( 
-          "set_uniform_vec doesn't support value of type `{}`",
-          v
-         ) )
+        Err( 
+          format!( 
+            "set_uniform_vec doesn't support value of type `{}`",
+            v
+          ) 
+        )
       }
     };
 
@@ -775,20 +839,22 @@ mod set_functions
   }
 
   pub fn set_uniform_matrix( 
-    gl : &Context,
+    gl : &GL,
     location : u32,
     value : Value,
-   ) -> Result< (), String >
+  ) -> Result< (), String >
   {
     match value
     {
-      Value::U32( v ) => gl.uniform_1_u32( location, v ),
+      Value::U32( v ) => gl.uniform1u( location, v ),
       _ =>
       {
-        Err( format!( 
-          "set_uniform_matrix doesn't support value of type `{}`",
-          v
-         ) )
+        Err( 
+          format!( 
+            "set_uniform_matrix doesn't support value of type `{}`",
+            v
+          ) 
+        )
       }
     };
 

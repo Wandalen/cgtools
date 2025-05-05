@@ -3,18 +3,19 @@ mod shaders;
 
 use crate::input::InputState;
 
-use glow::HasContext;
-use nalgebra_glm::Mat4x4;
+use minwebgl::{
+  web_sys::{
+    HtmlCanvasElement,
+    WebGlUniformLocation,
+  }, 
+  Mat4, 
+  GL
+};
+use ndarray_cg::mat::DescriptorOrderRowMajor;
 use shaders::*;
 use std::{
   collections::HashMap,
   sync::LazyLock,
-};
-
-use web_sys::{
-  HtmlCanvasElement,
-  WebGl2RenderingContext as GL,
-  WebGlUniformLocation,
 };
 
 // Pass 1: 3D Object Rendering
@@ -34,25 +35,24 @@ const JFA_STEP_FS : &str = include_str!( "./shaders/jfa_step.frag" );
 // Pass 4: Final Outline Composite Fragment Shader
 const OUTLINE_FS : &str = include_str!( "./shaders/outline.frag" );
 
-static PROGRAM_INIT_FNS : LazyLock< Vec< fn( &glow::Context ) -> Result< Program, String > > > =
+static PROGRAM_INIT_FNS : LazyLock< Vec< fn( &GL ) -> Result< Program, String > > > =
   LazyLock::new( || vec![ object, jfa_init, jfa_step, outline ] );
 
 pub struct Renderer
 {
   viewport : Viewport,
   camera : Camera,
-  context : glow::Context,
+  context : GL,
   programs : HashMap< String, Program >,
 }
 
 impl Renderer
 {
   pub fn new( 
-    webgl_context : GL,
+    context : GL,
     viewport : Viewport,
-   ) -> Result< Self, String >
+  ) -> Result< Self, String >
   {
-    let context = glow::Context::from_webgl2_context( webgl_context );
     let mut programs = HashMap::new();
     for ( name, program_init_fn ) in &*PROGRAM_INIT_FNS
     {
@@ -62,7 +62,7 @@ impl Renderer
     let mut renderer = Self {
       viewport,
       camera : todo!(),
-      context : webgl_context,
+      context,
       programs,
     };
 
@@ -111,7 +111,7 @@ impl Renderer
   {
     for ( _, program ) in self.programs.iter_mut()
     {
-      program.cleanup();
+      program.cleanup( &self.context );
     }
   }
 }
@@ -136,7 +136,7 @@ impl Viewport
   }
 }
 
-fn object( gl : &glow::Context ) -> Result< Program, String >
+fn object( gl : &GL ) -> Result< Program, String >
 {
   let mut program = Program::new( gl, "object" )?;
 
@@ -146,18 +146,27 @@ fn object( gl : &glow::Context ) -> Result< Program, String >
   program.add_parameter( 
     gl,
     Parameter::new( 
-      "mvp",
-      ParameterType::Uniform,
-      Value::Matrix4x4( Mat4x4::default() ),
+      "a_pos",
+      ParameterType::Input,
+      Value::Matrix4x4( Mat4::<f32, DescriptorOrderRowMajor>::default() ),
      ),
-   );
+  );
 
   program.link( gl )?;
+
+  program.add_parameter( 
+    gl,
+    Parameter::new( 
+      "mvp",
+      ParameterType::Uniform,
+      Value::Matrix4x4( Mat4::<f32, DescriptorOrderRowMajor>::default() ),
+     ),
+  );
 
   Ok( program )
 }
 
-fn jfa_init( gl : &glow::Context ) -> Result< Program, String >
+fn jfa_init( gl : &GL ) -> Result< Program, String >
 {
   let mut program = Program::new( gl, "jfa_init" )?;
 
@@ -169,7 +178,7 @@ fn jfa_init( gl : &glow::Context ) -> Result< Program, String >
   Ok( program )
 }
 
-fn jfa_step( gl : &glow::Context ) -> Result< Program, String >
+fn jfa_step( gl : &GL ) -> Result< Program, String >
 {
   let mut program = Program::new( gl, "jfa_step" )?;
 
@@ -181,7 +190,7 @@ fn jfa_step( gl : &glow::Context ) -> Result< Program, String >
   Ok( program )
 }
 
-fn outline( gl : &glow::Context ) -> Result< Program, String >
+fn outline( gl : &GL ) -> Result< Program, String >
 {
   let mut program = Program::new( gl, "outline" )?;
 

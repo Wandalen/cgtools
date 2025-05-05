@@ -8,7 +8,14 @@ authors = [
 ]
 
 [dependencies]
-web-sys = { version = "0.3", features = [
+minwebgl = { workspace = true }
+ndarray_cg = { workspace = true }
+js-sys = "0.3"
+gltf = "1.4" 
+
+[dependencies.web-sys]
+workspace = true
+features = [
     'Document',
     'Window',
     'HtmlCanvasElement',
@@ -26,8 +33,4 @@ web-sys = { version = "0.3", features = [
     'Url',
     'WebGlTexture', 
     'WebGlFramebuffer', 
-]}
-js-sys = "0.3"
-glow = "0.12"
-gltf = "1.4" 
-nalgebra-glm = "0.18"
+]
