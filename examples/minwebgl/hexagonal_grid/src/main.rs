@@ -144,11 +144,13 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let closure =
   {
     let demo_number = demo_number.clone();
+    let context = context.clone();
     Closure::< dyn Fn() >::new
     (
       move ||
       {
         *demo_number.borrow_mut() = 2;
+        context.clear( GL::COLOR_BUFFER_BIT );
       }
     )
   };
@@ -168,7 +170,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
     rect.coordinates().map( | c | ( c.into(), true ) )
   );
 
-  // for painting demo
+  // array to store painted hexagons
   let mut painting_canvas = HexArray::< Offset< Odd >, Pointy, [ f32; 3 ] >::new
   (
     [ 23, 23 ].into(),
@@ -188,6 +190,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
     // normalize coodinates to NDC [ -1 : 1 ], then apply inverse ascpect scale and offset to grid center
     // this transforms cursor position to the world space
     // then offset it by center of the grid, so that if cursor is in the center of the canvas, it will be in the center of the grid
+    // the position is based on `rect`
     let cursor_pos : Pixel =
     (
       ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) + grid_center.into()
@@ -256,6 +259,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   Ok( () )
 }
 
+// function responsible for painting on grid
 fn painting_demo
 (
   context : &GL,
@@ -271,51 +275,57 @@ fn painting_demo
 )
 {
   let is_mouse_down = input.is_button_down( mouse::MouseButton::Main );
-
-  if is_mouse_down
+  // not painting anything if the mouse is not pressed
+  if !is_mouse_down
   {
-    // calculate pixel coordinates
-    let rect = canvas.get_bounding_client_rect();
-    let canvas_pos = F32x2::new( rect.left() as f32, rect.top() as f32 );
-    let half_size : F32x2 = canvas_size / 2.0;
-    let cursor_pos = F32x2::new
-    (
-      input.pointer_position()[ 0 ] as f32,
-      input.pointer_position()[ 1 ] as f32
-    );
-    let cursor_pos : Pixel =
-    (
-      ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale )
-    ).into();
-    // calculate hex coordinates
-    let selected_hex_coord : Coordinate::< Axial, Pointy > = cursor_pos.into();
-
-    // get color
-    let color = color_picker.value();
-    let r = u8::from_str_radix( &color[ 1..3 ], 16 ).unwrap() as f32 / 255.0;
-    let g = u8::from_str_radix( &color[ 3..5 ], 16 ).unwrap() as f32 / 255.0;
-    let b = u8::from_str_radix( &color[ 5..7 ], 16 ).unwrap() as f32 / 255.0;
-    let color = [ r, g, b ];
-
-    painting_canvas[ selected_hex_coord ] = color;
-
-    // draw painted hexagon
-    let axial : Coordinate< Axial, _ > = selected_hex_coord.into();
-    let hex_pos : Pixel = axial.into();
-    let translation = mat2x2h::translate( [ hex_pos[ 0 ], -hex_pos[ 1 ] ] );
-    let mvp = scale_m * translation * mat2x2h::rot( 30.0f32.to_radians() );
-    hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
-    hex_shader.uniform_upload( "u_color", &[ r, g, b, 1.0 ] );
-    hexagon_geometry.activate();
-    context.draw_arrays( GL::TRIANGLES, 0, hexagon_geometry.nvertices );
+    return;
   }
+
+  // calculate pixel coordinates
+  let rect = canvas.get_bounding_client_rect();
+  let canvas_pos = F32x2::new( rect.left() as f32, rect.top() as f32 );
+  let half_size : F32x2 = canvas_size / 2.0;
+  let cursor_pos = F32x2::new
+  (
+    input.pointer_position()[ 0 ] as f32,
+    input.pointer_position()[ 1 ] as f32
+  );
+  let pos : Pixel =
+  (
+    ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale )
+  ).into();
+  // calculate hex coordinates
+  let selected_hex_coord : Coordinate::< Axial, Pointy > = pos.into();
+
+  // get color
+  let color = color_picker.value();
+  let r = u8::from_str_radix( &color[ 1..3 ], 16 ).unwrap() as f32 / 255.0;
+  let g = u8::from_str_radix( &color[ 3..5 ], 16 ).unwrap() as f32 / 255.0;
+  let b = u8::from_str_radix( &color[ 5..7 ], 16 ).unwrap() as f32 / 255.0;
+  let color = [ r, g, b ];
+
+  painting_canvas[ selected_hex_coord ] = color;
+
+  // draw painted hexagon
+  let axial : Coordinate< Axial, _ > = selected_hex_coord.into();
+  let pos : Pixel = axial.into();
+  // inverse y so it points up
+  let translation = mat2x2h::translate( [ pos.x(), -pos.y() ] );
+  let rot = mat2x2h::rot( 30.0f32.to_radians() );
+  let mvp = scale_m * translation;
+  hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
+  hex_shader.uniform_matrix_upload( "u_rotation", rot.raw_slice(), true );
+  hex_shader.uniform_upload( "u_color", &[ r, g, b, 1.0 ] );
+  hexagon_geometry.activate();
+  context.draw_arrays( GL::TRIANGLES, 0, hexagon_geometry.nvertices );
 }
 
+// function responsible for demonstrating pathfind in grid
 fn pathfind_demo
 (
   context : &GL,
   input : &Input,
-  grid_center : Pixel,
+  mut grid_center : Pixel,
   scale_m : min::F32x3x3,
   hex_shader : &Program,
   grid_geometry : &min::geometry::Positions,
@@ -343,67 +353,92 @@ fn pathfind_demo
         *start = selected_hex_coord;
       }
     }
-
-    context.clear( GL::COLOR_BUFFER_BIT );
-
-    // draw grid
-    hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
-    hex_shader.uniform_upload( "u_color", &[ 0.7, 0.7, 0.7, 1.0 ] );
-    grid_geometry.activate();
-    context.draw_arrays( GL::TRIANGLES, 0, grid_geometry.nvertices );
-
-    // draw obstacles
-    for ( &coord, _ ) in obstacles.iter().filter( | ( _, v ) | !**v )
-    {
-      let hex_pos : Pixel = coord.into();
-      let translation = mat2x2h::translate
-      ([
-        hex_pos[ 0 ] - grid_center[ 0 ], -hex_pos[ 1 ] + grid_center[ 1 ]
-      ]);
-      let mvp = scale_m * translation * mat2x2h::rot( 30.0f32.to_radians() ); // * mat2x2h::scale( [ 0.9, 0.9 ] );
-
-      hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
-      hex_shader.uniform_upload( "u_color", &[ 0.1, 0.1, 0.1, 1.0 ] );
-      hexagon_geometry.activate();
-      context.draw_arrays( GL::TRIANGLES, 0, hexagon_geometry.nvertices );
-    }
-
-    let goal = selected_hex_coord;
-
-    let path = tiles_tools::pathfind::astar
-    (
-      start,
-      &goal,
-      | coord | obstacles.get( &coord ).copied().unwrap_or_default(),
-      | _ | 1
-    );
-
-    if let Some( ( path, _ ) ) = path
-    {
-      // draw path
-      let mut translation;
-      for coord in path
-      {
-        let pos : Pixel = coord.into();
-        translation = mat2x2h::translate
-        ([
-          pos[ 0 ] - grid_center[ 0 ], -pos[ 1 ] + grid_center[ 1 ]
-        ]);
-        let mvp = scale_m * translation * mat2x2h::rot( 30.0f32.to_radians() ); // * mat2x2h::scale( [ 0.9, 0.9 ] );
-
-        hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
-        hex_shader.uniform_upload( "u_color", &[ 0.1, 0.6, 0.1, 1.0 ] );
-        hexagon_geometry.activate();
-        context.draw_arrays( GL::TRIANGLES, 0, hexagon_geometry.nvertices );
-      }
-    }
   }
+
+  context.clear( GL::COLOR_BUFFER_BIT );
+
+  let identity = min::math::d2::mat2x2h::scale( [ 1.0, 1.0 ] );
+  // draw background grid
+  hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
+  // no need for rotation as it was rotated when generated
+  hex_shader.uniform_matrix_upload( "u_rotation", identity.raw_slice(), true );
+  hex_shader.uniform_upload( "u_color", &[ 0.7, 0.7, 0.7, 1.0 ] );
+  grid_geometry.activate();
+  context.draw_arrays( GL::TRIANGLES, 0, grid_geometry.nvertices );
+
+  // rotation to make hexagons pointy
+  let rot = mat2x2h::rot( 30.0f32.to_radians() );
+  // invert y so it points upward
+  grid_center[ 1 ] = -grid_center[ 1 ];
+
+
+  // draw obstacles
+  let offsets = obstacles
+  .iter()
+  .filter( | ( _, v ) | !**v )
+  .map( | ( coord, _ ) |
+  {
+    let mut pos : Pixel = ( *coord ).into();
+    pos[ 1 ] = -pos[ 1 ];
+    ( pos - grid_center ).data
+  })
+  .flatten()
+  .collect::< Vec< _ > >();
+  let count = ( offsets.len() / 2 ) as i32;
+
+  hexagon_geometry.activate();
+
+  let offsets_buffer = min::buffer::create( &context ).unwrap();
+  min::buffer::upload( &context, &offsets_buffer, offsets.as_slice(), GL::DYNAMIC_DRAW );
+  min::BufferDescriptor::new::< [ f32; 2 ] >()
+  .offset( 0 )
+  .stride( 0 )
+  .divisor( 1 )
+  .attribute_pointer( &context, 1, &offsets_buffer ).unwrap();
+
+  let mvp = scale_m;
+  hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
+  hex_shader.uniform_matrix_upload( "u_rotation", rot.raw_slice(), true );
+  hex_shader.uniform_upload( "u_color", &[ 0.1, 0.1, 0.1, 1.0 ] );
+  context.draw_arrays_instanced( GL::TRIANGLES, 0, hexagon_geometry.nvertices, count );
+
+  let goal = selected_hex_coord;
+
+  let path = tiles_tools::pathfind::astar
+  (
+    start,
+    &goal,
+    | coord | obstacles.get( &coord ).copied().unwrap_or_default(),
+    | _ | 1
+  );
+
+  let Some( ( path, _ ) ) = path else
+  {
+    return;
+  };
+
+  let offsets = path.iter().map( | coord |
+  {
+    let mut pos : Pixel = ( *coord ).into();
+    pos[ 1 ] = -pos[ 1 ];
+    ( pos - grid_center ).data
+  })
+  .flatten()
+  .collect::< Vec< _ > >();
+  let count = ( offsets.len() / 2 ) as i32;
+  min::buffer::upload( &context, &offsets_buffer, offsets.as_slice(), GL::DYNAMIC_DRAW );
+
+  hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
+  hex_shader.uniform_matrix_upload( "u_rotation", rot.raw_slice(), true );
+  hex_shader.uniform_upload( "u_color", &[ 0.1, 0.6, 0.1, 1.0 ] );
+  context.draw_arrays_instanced( GL::TRIANGLES, 0, hexagon_geometry.nvertices, count );
 }
 
+// function responsible for demonstrating grid
 fn grid_demo
 (
   context : &GL,
-  grid_center : Pixel,
+  mut grid_center : Pixel,
   scale_m : min::F32x3x3,
   hex_shader : &Program,
   grid_geometry : &min::geometry::Positions,
@@ -417,19 +452,24 @@ fn grid_demo
   // draw grid
   hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
   hex_shader.uniform_upload( "u_color", &[ 0.7, 0.7, 0.7, 1.0 ] );
+  let identity = min::math::d2::mat2x2h::scale( [ 1.0, 1.0 ] );
+  hex_shader.uniform_matrix_upload( "u_rotation", identity.raw_slice(), true );
   grid_geometry.activate();
   context.draw_arrays( GL::TRIANGLES, 0, grid_geometry.nvertices );
 
-  let selected_hex_pos : Pixel = selected_hex_coord.into();
-  let translation = mat2x2h::translate
-  ([
-    selected_hex_pos[ 0 ] - grid_center[ 0 ],
-    -selected_hex_pos[ 1 ] + grid_center[ 1 ]
-  ]);
-  let mvp = scale_m * translation * mat2x2h::rot( 30.0f32.to_radians() );
+  // invert y so it points upward
+  grid_center[ 1 ] = -grid_center[ 1 ];
+
+  let mut selected_hex_pos : Pixel = selected_hex_coord.into();
+  selected_hex_pos[ 1 ] = -selected_hex_pos[ 1 ];
+
+  let translation = mat2x2h::translate( ( selected_hex_pos - grid_center ).data );
+  // rotate hexagon by 30 deg so it is pointy
+  let mvp = scale_m * translation;
 
   // draw outline
   hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
+  hex_shader.uniform_matrix_upload( "u_rotation", mat2x2h::rot( 30.0f32.to_radians() ).raw_slice(), true );
   hex_shader.uniform_upload( "u_color", &[ 0.1, 0.1, 0.1, 1.0 ] );
   outline_geometry.activate();
   context.draw_arrays( GL::LINES, 0, outline_geometry.nvertices );

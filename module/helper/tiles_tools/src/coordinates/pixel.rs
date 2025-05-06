@@ -16,6 +16,16 @@ impl Pixel
   {
     Self { data : [ x.into(), y.into() ] }
   }
+
+  pub fn x( &self ) -> f32
+  {
+    self[ 0 ]
+  }
+
+  pub fn y( &self ) -> f32
+  {
+    self[ 1 ]
+  }
 }
 
 impl< F > From< ( F, F ) > for Pixel
