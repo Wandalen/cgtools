@@ -1,6 +1,11 @@
 ### GLTF viewer
 
-Some description
+### Nuances
+- Webgl does not allow to sample mip levels, unless all availble mip levels are filled with an image.
+- As of writing, the newest version of zune-hdr crate on crates.io has a bug, when trying to load and hdr image with
+width less than 8, so the github version is used instead
+- In BRDF equation the denominator `4.0 * dotVN * dotNL` when very small causes flickering at the edges of a model. Forcing it to be bigger than zero does not help.
+This could be due to webgl's limitations and how it handles such division. The denominator is removed for now.
 
 ### Basic Features
 #### GLTf parsing
@@ -10,7 +15,7 @@ Some description
 ✅ Scene  
 ✅ Material  
 ✅ Mesh  
-❌ Tangents  
+✅ Tangents  
 ❌ Sparse accessors  
 ❌ Animations  
 ❌ Skins and bones  
