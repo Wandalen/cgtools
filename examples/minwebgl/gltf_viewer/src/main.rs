@@ -229,12 +229,6 @@ async fn run() -> Result< (), gl::WebglError >
   for gltf_node in gltf_file.nodes()
   {
     let node = Rc::new( RefCell::new( Node::new( &gltf_node ) ) );
-
-    if let Object3D::Mesh( id ) = node.borrow().object
-    {
-      meshes[ id ].set_parent( node.clone() );
-    }
-    
     nodes.push( node );
   }
 

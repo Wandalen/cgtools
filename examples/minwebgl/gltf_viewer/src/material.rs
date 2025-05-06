@@ -30,7 +30,7 @@ pub struct Material< 'a >
   specular_color_factor : gl::F32x3,
   specular_color_texture : Option< &'a Texture >,
 
-  alpha_mode : gltf::material::AlphaMode,
+  pub alpha_mode : gltf::material::AlphaMode,
   alpha_cutoff : Option< f32 >,
   double_sided : bool
 }

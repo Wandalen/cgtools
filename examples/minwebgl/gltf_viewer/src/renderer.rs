@@ -8,9 +8,10 @@ use crate::
   loaders, 
   material::Material, 
   mesh::Mesh, 
-  node::Node, 
+  node::{self, Node}, 
   program::ProgramInfo, 
-  scene::Scene
+  scene::Scene,
+  primitive::Primitive
 };
 
 const MAIN_VERTEX_SHADER : &'static str = include_str!( "../shaders/main.vert" );
@@ -37,7 +38,8 @@ pub struct Renderer< 'a >
   /// Default material according to the Kronos gltf specification
   default_material : Material< 'a >,
   /// A struct that holds three textures needed for Image Based Lightning
-  ibl : IBL
+  ibl : IBL,
+  transparent_nodes : Vec< ( Rc< RefCell< Node > >, Rc< Primitive > ) >
 }
 
 impl< 'a > Renderer< 'a > 
@@ -56,6 +58,7 @@ impl< 'a > Renderer< 'a >
       additional_programs.push( HashMap::new() );
     }
     let ibl = Default::default();
+    let transparent_nodes = Vec::new();
 
     Self
     {
@@ -64,7 +67,8 @@ impl< 'a > Renderer< 'a >
       programs,
       default_material,
       additional_programs,
-      ibl
+      ibl,
+      transparent_nodes
     }
   } 
 
@@ -75,7 +79,7 @@ impl< 'a > Renderer< 'a >
 
   pub fn compile( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
   {
-    gl::console::time_with_label( "Compile" );
+    gl::console::time_with_label( "Total compile" );
     let create_program = | vs : &str, fs : &str, m : &Material | -> Result< ProgramInfo, gl::WebglError >
     {
       let program = gl::ProgramFromSources::new( vs, fs ).compile_and_link( &gl )?;
@@ -143,49 +147,108 @@ impl< 'a > Renderer< 'a >
 
     let program_info = create_program( &vs_shader_default, &fs_shader_default, &self.default_material )?;
     self.programs.push( program_info );
-    gl::console::time_end_with_label( "Compile" );
+    gl::console::time_end_with_label( "Total compile" );
 
     Ok( () )
   }
 
   pub fn render
   ( 
-    &self, 
+    &mut self, 
     gl : &gl::WebGl2RenderingContext,
     scene : &mut Scene, 
     camera : &Camera 
   ) -> Result< (), gl::WebglError >
   {
-    scene.update_world_matrix();
+    //scene.update_world_matrix();
+    
+    self.transparent_nodes.clear();
 
-    for mesh in self.meshes.iter()
+    let mut draw_node = 
+    | 
+      node : Rc< RefCell< Node > >
+    |
     {
-      for primitive in mesh.primitives.iter()
+      if let node::Object3D::Mesh( id ) = node.borrow().object
       {
-        let ( material, m_id ) = if let Some( id ) = primitive.get_material_id() 
+        for primitive in self.meshes[ id ].primitives.iter()
         {
-          ( &self.materials[ id ], id )
+          let ( material, mat_id ) = if let Some( mat_id ) = primitive.get_material_id() 
+          {
+            ( &self.materials[ mat_id ], mat_id )
+          }
+          else
+          {
+            ( &self.default_material, self.materials.len() )
+          };
+
+          match material.alpha_mode
+          {
+            gltf::material::AlphaMode::Blend =>
+            {
+              self.transparent_nodes.push( ( node.clone(), primitive.clone() ) );
+              continue;
+            },
+            _ => {}
+          }
+
+          let mut program_info = &self.programs[ mat_id ];
+          let ap = &self.additional_programs[ mat_id ];
+          // If there exists another program with the same material and the vertex_defines
+      // of the primitve, use it
+          if let Some( p_id ) = ap.get( primitive.vs_defines.as_str() )
+          {
+            program_info = &self.programs[ *p_id ]
+          }
+
+          program_info.apply( gl );
+
+          camera.apply( gl, program_info );
+          node.borrow().apply( gl, program_info );
+          primitive.apply( gl );
+          material.bind_textures( gl );
+          primitive.draw( gl );
         }
-        else
-        {
-          ( &self.default_material, self.materials.len() )
-        };
+      } 
+    };
 
-        let mut program_info = &self.programs[ m_id ];
-        let ap = &self.additional_programs[ m_id ];
-        if let Some( p_id ) = ap.get( primitive.vs_defines.as_str() )
-        {
-          program_info = &self.programs[ *p_id ]
-        }
+    scene.traverse( &mut draw_node );
 
-        program_info.apply( gl );
+    self.transparent_nodes.sort_by( | a, b | 
+    {
+      let dist1 = camera.get_eye().distance_squared( &a.1.center() );
+      let dist2 = camera.get_eye().distance_squared( &b.1.center() );
 
-        camera.apply( gl, program_info );
-        mesh.parent_node.borrow().apply( gl, program_info );
-        primitive.apply( gl );
-        material.bind_textures( gl );
-        primitive.draw( gl );
+      dist1.partial_cmp( &dist2 ).unwrap()
+    });
+
+    for ( node, primitive ) in self.transparent_nodes.iter()
+    {
+      let ( material, mat_id ) = if let Some( mat_id ) = primitive.get_material_id() 
+      {
+        ( &self.materials[ mat_id ], mat_id )
       }
+      else
+      {
+        ( &self.default_material, self.materials.len() )
+      };
+
+      let mut program_info = &self.programs[ mat_id ];
+      let ap = &self.additional_programs[ mat_id ];
+      // If there exists another program with the same material and the vertex_defines
+      // of the primitve, use it
+      if let Some( p_id ) = ap.get( primitive.vs_defines.as_str() )
+      {
+        program_info = &self.programs[ *p_id ]
+      }
+
+      program_info.apply( gl );
+
+      camera.apply( gl, program_info );
+      node.borrow().apply( gl, program_info );
+      primitive.apply( gl );
+      material.bind_textures( gl );
+      primitive.draw( gl );
     }
 
     Ok( () )
