@@ -143,12 +143,22 @@ fn object( gl : &GL ) -> Result< Program, String >
   program.create_shader( gl, ShaderType::Vertex, OBJECT_VS )?;
   program.create_shader( gl, ShaderType::Fragment, OBJECT_FS )?;
 
+  let quad_vertices: [f32; 12] = [ -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0 ];
+  let data = unsafe{
+    core::slice::from_raw_parts( quad_vertices.as_ptr() as *const u8, quad_vertices.len() * core::mem::size_of::<f32>(), );
+  };
+
   program.add_parameter( 
     gl,
     Parameter::new( 
-      "a_pos",
+      "0",
       ParameterType::Input,
-      Value::Matrix4x4( Mat4::<f32, DescriptorOrderRowMajor>::default() ),
+      Value::AttribArray( 
+        vec![
+          AttribData::new( "a_pos", 3, GL::FLOAT )          
+        ], 
+        data 
+      ),
     ),
   );
 
@@ -173,7 +183,46 @@ fn jfa_init( gl : &GL ) -> Result< Program, String >
   program.create_shader( gl, ShaderType::Vertex, FULLSCREEN_VS )?;
   program.create_shader( gl, ShaderType::Fragment, JFA_INIT_FS )?;
 
+  let quad_vertices: [f32; 12] = [ -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0 ];
+  let data = unsafe{
+    core::slice::from_raw_parts( quad_vertices.as_ptr() as *const u8, quad_vertices.len() * core::mem::size_of::<f32>(), );
+  };
+
+  program.add_parameter( 
+    gl,
+    Parameter::new( 
+      "0",
+      ParameterType::Input,
+      Value::AttribArray( 
+        vec![
+          AttribData::new( "a_pos", 3, GL::FLOAT )          
+        ], 
+        data 
+      ),
+    ),
+  );
+
   program.link( gl )?;
+
+  program.add_parameter( 
+    gl,
+    Parameter::new( 
+      "0",
+      ParameterType::Input,
+      Value::Texture( 
+        Texture::new()
+      )
+    ),
+  );
+
+  program.add_parameter( 
+    gl,
+    Parameter::new( 
+      "u_resolution",
+      ParameterType::Uniform,
+      Value::Vec2( ndarray_cg::U32x2::from_slice( &[ 1920, 1080 ] ) )
+    ),
+  );
 
   Ok( program )
 }
@@ -184,6 +233,25 @@ fn jfa_step( gl : &GL ) -> Result< Program, String >
 
   program.create_shader( gl, ShaderType::Vertex, FULLSCREEN_VS )?;
   program.create_shader( gl, ShaderType::Fragment, JFA_STEP_FS )?;
+
+  let quad_vertices: [f32; 12] = [ -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0 ];
+  let data = unsafe{
+    core::slice::from_raw_parts( quad_vertices.as_ptr() as *const u8, quad_vertices.len() * core::mem::size_of::<f32>(), );
+  };
+
+  program.add_parameter( 
+    gl,
+    Parameter::new( 
+      "0",
+      ParameterType::Input,
+      Value::AttribArray( 
+        vec![
+          AttribData::new( "a_pos", 3, GL::FLOAT )          
+        ], 
+        data 
+      ),
+    ),
+  );
 
   program.link( gl )?;
 
@@ -196,6 +264,25 @@ fn outline( gl : &GL ) -> Result< Program, String >
 
   program.create_shader( gl, ShaderType::Vertex, FULLSCREEN_VS )?;
   program.create_shader( gl, ShaderType::Fragment, OUTLINE_FS )?;
+
+  let quad_vertices: [f32; 12] = [ -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0 ];
+  let data = unsafe{
+    core::slice::from_raw_parts( quad_vertices.as_ptr() as *const u8, quad_vertices.len() * core::mem::size_of::<f32>(), );
+  };
+
+  program.add_parameter( 
+    gl,
+    Parameter::new( 
+      "0",
+      ParameterType::Input,
+      Value::AttribArray( 
+        vec![
+          AttribData::new( "a_pos", 3, GL::FLOAT )          
+        ], 
+        data 
+      ),
+    ),
+  );
 
   program.link( gl )?;
 

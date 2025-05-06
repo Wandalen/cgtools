@@ -637,7 +637,7 @@ enum TextureType
   Texture2D,
 }
 
-struct Texture
+pub struct Texture
 {
   r#type : TextureType,
   id : WebGlTexture,
@@ -652,7 +652,7 @@ struct Texture
 
 impl Texture
 {
-  fn new( 
+  pub fn new( 
     gl : &GL,
     slot : u32,
     size : ( usize, usize ),
@@ -872,7 +872,7 @@ impl Parameter
 }
 
 #[ derive( Clone ) ]
-struct AttribData
+pub struct AttribData
 {
   name : String,
   size : usize,
@@ -881,15 +881,15 @@ struct AttribData
 
 impl AttribData 
 {
-  fn new(   
-    name : String,
+  pub fn new(   
+    name : &str,
     size : usize,
     r#type : u32, 
   ) -> Self 
   {
     Self
     {
-      name,
+      name : name.to_string(),
       size,
       r#type,
     }
