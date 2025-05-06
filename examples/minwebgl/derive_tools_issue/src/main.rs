@@ -1,6 +1,6 @@
 use derive_tools::prelude::*;
 use derive_tools::*;
-// use derive_tools::dependency::strum;
+use derive_tools::dependency::strum;
 // use strum::EnumCount;
 // use derive_tools::EnumCount;
 
