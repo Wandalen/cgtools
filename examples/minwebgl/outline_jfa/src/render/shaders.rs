@@ -2,6 +2,8 @@ use std::{
   collections::HashMap,
   mem::discriminant,
   path::Display,
+  cell::RefCell,
+  rc::Rc
 };
 
 use minwebgl::{
@@ -283,12 +285,12 @@ impl Program
       ParameterType::Texture =>
       {
         self.set_location( gl, parameter.name )?;
-        let Value::Texture( texture ) = &parameter.value
+        let Value::Texture( texture ) = parameter.value
         else
         {
           return err;
         };
-        texture.load( gl, parameter.location )?;
+        &texture.borrow().load( gl, parameter.location )?;
       }
       ParameterType::Framebuffer =>
       {
@@ -446,12 +448,12 @@ impl Program
         {}
         ParameterType::Texture =>
         {
-          let Value::Texture( texture ) = &parameter.value
+          let Value::Texture( texture ) = parameter.value
           else
           {
             return err;
           };
-          gl.delete_texture( &texture.id() );
+          gl.delete_texture( &texture.borrow().id() );
         }
         ParameterType::Framebuffer =>
         {
@@ -550,19 +552,42 @@ impl Program
   }
 }
 
-struct Framebuffer
+impl Program
+{
+  pub fn add_uniform( &mut self, gl : &GL, name : &self, value : Value ) -> Result<(), String>
+  {
+    self.add_parameter( gl, Parameter::new( name, ParameterType::Uniform, value ) )
+  }
+
+  pub fn add_input( &mut self, gl : &GL, name : &self, value : Value ) -> Result<(), String>
+  {
+    self.add_parameter( gl, Parameter::new( name, ParameterType::Input, value ) )
+  }
+
+  pub fn add_texture( &mut self, gl : &GL, name : &self, texture : Rc< RefCell< Texture > > ) -> Result<(), String>
+  {
+    self.add_parameter( gl, Parameter::new( name, ParameterType::Texture, Value::Texture( texture ) ) )
+  }
+
+  pub fn add_framebuffer( &mut self, gl : &GL, name : &self, fb : Framebuffer ) -> Result<(), String>
+  {
+    self.add_parameter( gl, Parameter::new( name, ParameterType::Framebuffer, Value::Framebuffer( fb ) ) )
+  }
+}
+
+pub struct Framebuffer
 {
   id : WebGlFramebuffer,
-  color : Texture,
-  depth : Option< Texture >,
+  color : WebGlTexture,
+  depth : Option< WebGlTexture >,
 }
 
 impl Framebuffer
 {
-  fn new( 
+  pub fn new( 
     gl : &GL,
-    color : Texture,
-    depth : Option< Texture >,
+    color : WebGlTexture,
+    depth : Option< WebGlTexture >,
   ) -> Result< (), String >
   {
     let Some( id ) = gl.create_framebuffer()
@@ -572,31 +597,21 @@ impl Framebuffer
     };
     gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &id ) );
 
-    if color.r#type() != TextureType::Texture2D
-    {
-      return Err( format!( "Color texture has wrong type: {}", color.r#type() ) );
-    }
-
     gl.framebuffer_texture_2d( 
       GL::FRAMEBUFFER,
       GL::COLOR_ATTACHMENT0,
       GL::TEXTURE_2D,
-      Some( &color.id() ),
+      Some( &color ),
       0,
     );
 
     if let Some( depth ) = depth
     {
-      if depth.r#type() != TextureType::Texture2D
-      {
-        return Err( format!( "Depth texture has wrong type: {}", depth.r#type() ) );
-      }
-
       gl.framebuffer_texture_2d( 
         GL::FRAMEBUFFER,
         GL::DEPTH_ATTACHMENT,
         GL::TEXTURE_2D,
-        Some( &depth.id() ),
+        Some( &depth ),
         0,
       );
     }
@@ -740,7 +755,7 @@ impl Texture
     self.r#type
   }
 
-  fn id( &self ) -> u32
+  pub fn id( &self ) -> u32
   {
     self.id
   }
@@ -901,7 +916,7 @@ pub enum Value
 {
   U32( u32 ),
   Matrix4x4( ndarray_cg::Mat4< f32, DescriptorOrderRowMajor > ),
-  Texture( Texture ),
+  Texture( Rc< RefCell< Texture > > ),
   Framebuffer( Framebuffer ),
   AttribArray( Vec< AttribData >, Vec< u8 > )
 }
