@@ -149,7 +149,7 @@ fn object( gl : &GL ) -> Result< Program, String >
       "a_pos",
       ParameterType::Input,
       Value::Matrix4x4( Mat4::<f32, DescriptorOrderRowMajor>::default() ),
-     ),
+    ),
   );
 
   program.link( gl )?;
@@ -160,7 +160,7 @@ fn object( gl : &GL ) -> Result< Program, String >
       "mvp",
       ParameterType::Uniform,
       Value::Matrix4x4( Mat4::<f32, DescriptorOrderRowMajor>::default() ),
-     ),
+    ),
   );
 
   Ok( program )

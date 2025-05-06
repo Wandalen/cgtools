@@ -15,6 +15,7 @@ use minwebgl::{
   GL,
 };
 use ndarray_cg::mat::DescriptorOrderColumnMajor;
+use web_sys::{WebGlBuffer, WebGlVertexArrayObject};
 
 #[ derive( Clone ) ]
 pub enum ShaderType
@@ -58,6 +59,8 @@ pub struct Program
   parameters : HashMap< String, Parameter >,
   shaders : HashMap< ShaderType, WebGlShader >,
   linked : bool,
+  vbo : WebGlBuffer,
+  vao : WebGlVertexArrayObject
 }
 
 impl Program
@@ -73,6 +76,18 @@ impl Program
       return Err( format!( "Can't create program `{}`", name ) );
     };
 
+    let Some( vbo ) = gl.create_buffer()
+    else
+    {
+      return Err( format!( "Can't create vertex buffer for program `{}`", name ) );
+    };
+
+    let Some( vao ) = gl.create_vertex_array()
+    else
+    {
+      return Err( format!( "Can't create vertex array buffer for program `{}`", name ) );
+    };
+
     Ok( 
       Self {
         name : name.to_string(),
@@ -80,6 +95,8 @@ impl Program
         parameters : HashMap::new(),
         shaders : HashMap::new(),
         linked : false,
+        vbo,
+        vao
       } 
     )
   }
@@ -169,7 +186,23 @@ impl Program
         );
       };
 
-      gl.bind_attrib_location( &self.id, location, parameter.name.as_str() );
+      let Value::AttribArray( ads, _ ) = parameter.value
+      else
+      {
+        return Err( 
+          format!( 
+            "Parameter `{}` isn`t attribute array, because it has invalid type (`{}`) in program `{}`",
+            parameter.name,
+            parameter.r#type,
+            self.name
+          ) 
+        );
+      };
+
+      for ( location, ad ) in ads.into_iter().enumerate()
+      {
+        gl.bind_attrib_location( &self.id, location, ad.name.as_str() );
+      }
     }
 
     self.parameters.insert( parameter.name, parameter );
@@ -269,14 +302,7 @@ impl Program
         let ( width, height ) = framebuffer.color.size;
         gl.viewport( 0, 0, width, height );
       }
-      ParameterType::Input =>
-      {
-        let Value::Input( input ) = &parameter.value
-        else
-        {
-          return err;
-        };
-      }
+      ParameterType::Input => self.load_input( gl, parameter.name.as_str() )?,
       _ =>
       {
         return Err( 
@@ -292,11 +318,60 @@ impl Program
     Ok( () )
   }
 
+  fn load_input( &self, gl : &GL, name : &str ) -> Result< (), String >
+  {
+    let err = Err( 
+      format!( 
+        "Can't load attrib array `{}` in program `{}`",
+        name,
+        self.name 
+      ) 
+    );
+    
+    let Some( parameter ) = self.parameters.get( name )
+    else
+    {
+      return err;
+    };
+
+    let Value::AttribArray( ads, data ) = parameter.value
+    else
+    {
+      return err;
+    };
+
+    let mut stride = 0;
+    for ad in ads{
+      stride += ad.size;
+    }
+ 
+    gl.bind_vertex_array( Some( &self.vao ) );
+    gl.bind_buffer( GL::ARRAY_BUFFER, Some( &self.vbo ) );
+    gl.buffer_data_with_u8_array( GL::ARRAY_BUFFER, &data, GL::STATIC_DRAW );
+    let mut offset = 0;
+    for ( location, ad ) in ads.into_iter().enumerate(){
+      gl.enable_vertex_attrib_array( location );
+      gl.vertex_attrib_pointer_with_i32( 
+        location,
+        ad.size,
+        ad.r#type,
+        false,
+        stride,
+        offset
+      );
+      offset += ad.size;
+    }
+
+    Ok( () )
+  }
+
   pub fn load( 
     &self,
     gl : &GL,
   ) -> Result< (), String >
   {
+    self.unload( gl );
+
     gl.use_program( Some( &self.id() ) );
 
     for parameter in self.parameters.keys()
@@ -312,6 +387,8 @@ impl Program
     gl : &GL,
   )
   {
+    gl.bind_vertex_array( None );
+    gl.bind_buffer(GL::ARRAY_BUFFER, None );
     gl.use_program( None );
   }
 
@@ -439,6 +516,36 @@ impl Program
       };
       parameter.set_location( gl, location )?;
     }
+    Ok( () )
+  }
+
+  fn add_parameters(
+    &mut self, 
+    gl : &GL,
+    r#type : ParameterType, 
+    parameters : HashMap< String, Value >,
+  ) -> Result<(), String>
+  {
+    for ( name, value ) in parameters
+    {
+      let parameter = Parameter::new( &name, r#type, value );
+      self.add_parameter( gl, parameter )?;
+    }
+
+    Ok( () )
+  }
+
+  fn set_parameters(
+    &mut self, 
+    gl : &GL, 
+    parameters : HashMap< String, Value >,
+  ) -> Result<(), String>
+  {
+    for ( name, value ) in parameters
+    {
+      self.set_parameter( gl, &name, value )?;
+    }
+
     Ok( () )
   }
 }
@@ -656,6 +763,7 @@ impl Texture
   }
 }
 
+#[ derive( Copy, Clone ) ]
 pub enum ParameterType
 {
   Input,
@@ -764,12 +872,38 @@ impl Parameter
 }
 
 #[ derive( Clone ) ]
+struct AttribData
+{
+  name : String,
+  size : usize,
+  r#type : u32,
+}
+
+impl AttribData 
+{
+  fn new(   
+    name : String,
+    size : usize,
+    r#type : u32, 
+  ) -> Self 
+  {
+    Self
+    {
+      name,
+      size,
+      r#type,
+    }
+  }
+}
+
+#[ derive( Clone ) ]
 pub enum Value
 {
   U32( u32 ),
   Matrix4x4( ndarray_cg::Mat4< f32, DescriptorOrderRowMajor > ),
   Texture( Texture ),
   Framebuffer( Framebuffer ),
+  AttribArray( Vec< AttribData >, Vec< u8 > )
 }
 
 impl std::fmt::Display for Value
@@ -781,10 +915,11 @@ impl std::fmt::Display for Value
   {
     let value_type = match self
     {
-      Self::U32( _ ) => "u32",
-      Self::Matrix4x4( matrix ) => todo!(),
-      Self::Texture( texture ) => todo!(),
-      Self::Framebuffer( framebuffer ) => todo!(),
+        Self::U32( _ ) => "u32",
+        Self::Matrix4x4( matrix ) => todo!(),
+        Self::Texture( texture ) => todo!(),
+        Self::Framebuffer( framebuffer ) => todo!(),
+        Self::AttribArray( attrib_datas, items ) => todo!(),
     };
     write!( &mut self, "{value_type}" )
   }
