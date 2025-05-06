@@ -13,9 +13,12 @@ use minwebgl::{
 };
 use ndarray_cg::mat::DescriptorOrderRowMajor;
 use shaders::*;
+use web_sys::WebGlTexture;
 use std::{
   collections::HashMap,
   sync::LazyLock,
+  cell::RefCell,
+  rc::Rc
 };
 
 // Pass 1: 3D Object Rendering
@@ -35,15 +38,16 @@ const JFA_STEP_FS : &str = include_str!( "./shaders/jfa_step.frag" );
 // Pass 4: Final Outline Composite Fragment Shader
 const OUTLINE_FS : &str = include_str!( "./shaders/outline.frag" );
 
-static PROGRAM_INIT_FNS : LazyLock< Vec< fn( &GL ) -> Result< Program, String > > > =
+static PROGRAM_INIT_FNS : LazyLock< Vec< fn( &mut Renderer ) -> Result< (), String > > > =
   LazyLock::new( || vec![ object, jfa_init, jfa_step, outline ] );
 
 pub struct Renderer
 {
   viewport : Viewport,
   camera : Camera,
-  context : GL,
+  context : Rc< RefCell< GL > >,
   programs : HashMap< String, Program >,
+  textures : HashMap< String, Rc< RefCell< Texture > > >
 }
 
 impl Renderer
@@ -53,18 +57,18 @@ impl Renderer
     viewport : Viewport,
   ) -> Result< Self, String >
   {
-    let mut programs = HashMap::new();
-    for ( name, program_init_fn ) in &*PROGRAM_INIT_FNS
-    {
-      programs.insert( name.clone(), program_init_fn( &context )? );
-    }
-
     let mut renderer = Self {
       viewport,
       camera : todo!(),
-      context,
-      programs,
+      context: Rc::new( RefCell::new( context ) ),
+      programs : HashMap::new(),
+      textures : HashMap::new()
     };
+    
+    for program_init_fn in &*PROGRAM_INIT_FNS
+    {
+      program_init_fn( &mut renderer )?;
+    }
 
     Ok( renderer )
   }
@@ -136,7 +140,7 @@ impl Viewport
   }
 }
 
-fn object( gl : &GL ) -> Result< Program, String >
+fn object( renderer : &mut Renderer ) -> Result< (), String >
 {
   let mut program = Program::new( gl, "object" )?;
 
@@ -148,37 +152,40 @@ fn object( gl : &GL ) -> Result< Program, String >
     core::slice::from_raw_parts( quad_vertices.as_ptr() as *const u8, quad_vertices.len() * core::mem::size_of::<f32>(), );
   };
 
-  program.add_parameter( 
-    gl,
-    Parameter::new( 
-      "0",
-      ParameterType::Input,
-      Value::AttribArray( 
-        vec![
-          AttribData::new( "a_pos", 3, GL::FLOAT )          
-        ], 
-        data 
-      ),
-    ),
-  );
+  let v = renderer.viewport;
+  let object_fb_color = Texture::new( gl, 0, ( v.width, v.height ), GL::RGBA8, GL::RGBA, GL::UNSIGNED_BYTE )?;
+  let object_fb_depth = Texture::new( gl, 1, ( v.width, v.height ), GL::DEPTH_COMPONENT24, GL::DEPTH_COMPONENT, GL::UNSIGNED_INT )?;
+  let attrib_datas = vec![
+    AttribData::new( "a_pos", 3, GL::FLOAT )          
+  ];
+  let mvp = Mat4::< f32, DescriptorOrderRowMajor >::default();
+  let object_fb = Framebuffer::new( gl, object_fb_color.id(), Some( object_fb_depth.id() ) );
+
+  program.add_input( gl, "0", Value::AttribArray( attrib_datas, data ) );
 
   program.link( gl )?;
 
-  program.add_parameter( 
-    gl,
-    Parameter::new( 
-      "mvp",
-      ParameterType::Uniform,
-      Value::Matrix4x4( Mat4::<f32, DescriptorOrderRowMajor>::default() ),
-    ),
-  );
+  program.add_uniform( gl, "mvp", Value::Matrix4x4( mvp ) );
+  program.add_framebuffer( gl, "object_fb", object_fb );
 
-  Ok( program )
+  let object_fb_color = Rc::new( RefCell::new( object_fb_color ) );
+  program.add_texture( gl, "object_fb_color", object_fb_color );
+  renderer.textures.insert( "object_fb_color".to_string(), object_fb_color );
+
+  let object_fb_depth = Rc::new( RefCell::new( object_fb_depth ) );
+  program.add_texture( gl, "object_fb_depth", object_fb_depth );
+  renderer.textures.insert( "object_fb_depth".to_string(), object_fb_depth );
+
+  renderer.programs.insert( program_name.to_string(), program );
+
+  Ok( () )
 }
 
-fn jfa_init( gl : &GL ) -> Result< Program, String >
+fn jfa_init( renderer : &mut Renderer ) -> Result< (), String >
 {
-  let mut program = Program::new( gl, "jfa_init" )?;
+  let program_name = "jfa_init" ;
+
+  let mut program = Program::new( gl, program_name )?;
 
   program.create_shader( gl, ShaderType::Vertex, FULLSCREEN_VS )?;
   program.create_shader( gl, ShaderType::Fragment, JFA_INIT_FS )?;
@@ -188,46 +195,39 @@ fn jfa_init( gl : &GL ) -> Result< Program, String >
     core::slice::from_raw_parts( quad_vertices.as_ptr() as *const u8, quad_vertices.len() * core::mem::size_of::<f32>(), );
   };
 
-  program.add_parameter( 
+  program.add_input( 
     gl,
-    Parameter::new( 
-      "0",
-      ParameterType::Input,
-      Value::AttribArray( 
-        vec![
-          AttribData::new( "a_pos", 3, GL::FLOAT )          
-        ], 
-        data 
-      ),
+    "0",
+    Value::AttribArray( 
+      vec![
+        AttribData::new( "a_pos", 3, GL::FLOAT )          
+      ], 
+      data 
     ),
   );
 
   program.link( gl )?;
 
-  program.add_parameter( 
+  program.add_texture( 
     gl,
-    Parameter::new( 
-      "0",
-      ParameterType::Input,
-      Value::Texture( 
-        Texture::new()
-      )
-    ),
+    "u_object_texture",
+    Texture::new(
+
+    )
   );
 
-  program.add_parameter( 
+  program.add_uniform( 
     gl,
-    Parameter::new( 
-      "u_resolution",
-      ParameterType::Uniform,
-      Value::Vec2( ndarray_cg::U32x2::from_slice( &[ 1920, 1080 ] ) )
-    ),
+    "u_resolution",
+    Value::Vec2( ndarray_cg::U32x2::from_slice( &[ 1920, 1080 ] ) )
   );
 
-  Ok( program )
+  renderer.programs.insert( program_name.to_string(), program );
+
+  Ok( () )
 }
 
-fn jfa_step( gl : &GL ) -> Result< Program, String >
+fn jfa_step( renderer : &mut Renderer ) -> Result< (), String >
 {
   let mut program = Program::new( gl, "jfa_step" )?;
 
@@ -239,26 +239,25 @@ fn jfa_step( gl : &GL ) -> Result< Program, String >
     core::slice::from_raw_parts( quad_vertices.as_ptr() as *const u8, quad_vertices.len() * core::mem::size_of::<f32>(), );
   };
 
-  program.add_parameter( 
+  program.add_input( 
     gl,
-    Parameter::new( 
-      "0",
-      ParameterType::Input,
-      Value::AttribArray( 
-        vec![
-          AttribData::new( "a_pos", 3, GL::FLOAT )          
-        ], 
-        data 
-      ),
+    "0",
+    Value::AttribArray( 
+      vec![
+        AttribData::new( "a_pos", 3, GL::FLOAT )          
+      ], 
+      data 
     ),
   );
 
   program.link( gl )?;
 
-  Ok( program )
+  renderer.programs.insert( program_name.to_string(), program );
+
+  Ok( () )
 }
 
-fn outline( gl : &GL ) -> Result< Program, String >
+fn outline( renderer : &mut Renderer ) -> Result< (), String >
 {
   let mut program = Program::new( gl, "outline" )?;
 
@@ -270,21 +269,20 @@ fn outline( gl : &GL ) -> Result< Program, String >
     core::slice::from_raw_parts( quad_vertices.as_ptr() as *const u8, quad_vertices.len() * core::mem::size_of::<f32>(), );
   };
 
-  program.add_parameter( 
+  program.add_input( 
     gl,
-    Parameter::new( 
-      "0",
-      ParameterType::Input,
-      Value::AttribArray( 
-        vec![
-          AttribData::new( "a_pos", 3, GL::FLOAT )          
-        ], 
-        data 
-      ),
+    "0",
+    Value::AttribArray( 
+      vec![
+        AttribData::new( "a_pos", 3, GL::FLOAT )          
+      ], 
+      data 
     ),
   );
 
   program.link( gl )?;
 
-  Ok( program )
+  renderer.programs.insert( program_name.to_string(), program );
+
+  Ok( () )
 }
