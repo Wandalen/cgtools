@@ -7,6 +7,9 @@ layout( location = 5 ) in vec2 uv_3;
 layout( location = 6 ) in vec2 uv_4;
 layout( location = 7 ) in vec4 color_0;
 layout( location = 8 ) in vec4 color_1;
+#ifdef USE_TANGENTS 
+  layout( location = 9 ) in vec4 tangent;
+#endif
 
 uniform mat4x4 worldMatrix;
 uniform mat4x4 viewMatrix;
@@ -21,21 +24,9 @@ out vec2 vUv_3;
 out vec2 vUv_4;
 out vec4 vColor_0;
 out vec4 vColor_1;
-
-const vec3 poss[] = vec3[]
-(
-  vec3( 0.5, 0.0, 0.0 ),
-  vec3( 0.5, 0.5, 0.0 ),
-  vec3( 0.0, 0.5, 0.0 )
-);
-
-
-const vec2 uvss[] = vec2[]
-(
-  vec2( 0.0, 0.0 ),
-  vec2( 1.0, 1.0 ),
-  vec2( 0.0, 1.0 )
-);
+#ifdef USE_TANGENTS
+  out vec4 vTangent;
+#endif
 
 void main()
 {
@@ -46,6 +37,9 @@ void main()
   vUv_4 = uv_4;
   vColor_0 = color_0;
   vColor_1 = color_1;
+  #ifdef USE_TANGENTS
+    vTangent = tangent;
+  #endif
   vNormal = normalize( mat3x3( worldMatrix ) * normal );
 
   vec4 worldPos = worldMatrix * vec4( position, 1.0 );
@@ -54,6 +48,4 @@ void main()
   vWorldPos = worldPos.xyz;
 
   gl_Position = projectionMatrix * viewPos;
-
-  //gl_Position = vec4( poss[ gl_VertexID % 3 ], 1.0 );
 }

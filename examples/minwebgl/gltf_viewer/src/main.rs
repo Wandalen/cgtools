@@ -1,8 +1,6 @@
-//! Just draw a large point in the middle of the screen.
-
 use std::
 {
-  cell::RefCell, collections::{ HashMap, HashSet }, rc::Rc 
+  cell::RefCell, collections::HashMap, rc::Rc 
 };
 
 use buffer::Buffer;
@@ -11,7 +9,7 @@ use gltf::Gltf;
 use material::Material;
 use mesh::Mesh;
 use minwebgl::{ self as gl, JsCast };
-use node::{Node, Object3D};
+use node::{ Node, Object3D };
 use renderer::Renderer;
 use scene::Scene;
 use texture::Texture;
@@ -251,7 +249,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   gl::log::info!( "Scenes: {}", scenes.len() );
 
-  let mut renderer = Renderer::new( nodes, materials, meshes );
+  let mut renderer = Renderer::new( materials, meshes );
   renderer.load_ibl( &gl, "envMap" ).await;
   renderer.compile( &gl )?;
 

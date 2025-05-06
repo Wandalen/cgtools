@@ -12,6 +12,9 @@ in vec2 vUv_1;
 in vec2 vUv_2;
 in vec2 vUv_3;
 in vec2 vUv_4;
+#ifdef USE_TANGENTS 
+  in vec4 vTangent;
+#endif
 in vec3 vWorldPos;
 in vec3 vViewPos;
 in vec3 vNormal;
@@ -307,7 +310,16 @@ void main()
   #ifdef USE_NORMAL_TEXTURE
     vec3 normalSample = texture( normalTexture, vNormalUv ).xyz * 2.0 - 1.0;
     normalSample.xy *= vec2( normalScale );
-    normal = getTBN( normal, vWorldPos, vNormalUv ) * normalSample;
+
+    #ifdef USE_TANGENTS
+    {
+      vec3 bitangent = cross( normal, vTangent.xyz ) * vTangent.w;
+      mat3x3 TBN = mat3x3( vTangent.xyz, bitangent, normal );
+      normal = TBN * normalSample;
+    }
+    #else
+      normal = getTBN( normal, vWorldPos, vNormalUv ) * normalSample;
+    #endif
     normal = normalize( normal );
   #endif
 

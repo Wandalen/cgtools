@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use minwebgl as gl;
 
-
 pub struct ProgramInfo
 {
   program : gl::WebGlProgram,
@@ -55,7 +54,7 @@ impl ProgramInfo
       program,
       locations
     }
-  }
+  } 
 
   pub fn get_program( &self ) -> &gl::WebGlProgram
   {
