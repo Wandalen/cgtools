@@ -4,9 +4,9 @@ use minwebgl as gl;
 use gl::{ GL, JsFuture };
 use ndarray_cg::
 {
-  d2,
+  d2::{ self, mat3x3h },
   mat::DescriptorOrderColumnMajor,
-  vector
+  vector::F32x3,
 };
 use rand::Rng as _;
 use web_sys::
@@ -33,7 +33,7 @@ async fn run() -> Result< (), gl::WebglError >
   canvas.set_width( width as u32 );
   canvas.set_height( height as u32 );
 
-  let gl = gl::context::from_canvas( &canvas ).unwrap();
+  let gl = gl::context::from_canvas( &canvas, Default::default() ).unwrap();
   gl.viewport( 0, 0, width, height );
   gl.enable( GL::DEPTH_TEST );
   gl.enable( GL::CULL_FACE );
@@ -63,7 +63,7 @@ async fn run() -> Result< (), gl::WebglError >
   let objects : Box< [ _ ] > = create_objects().into();
 
   let aspect_ratio = width as f32 / height as f32;
-  let projection = d2::mat3x3h::perspective_rh_gl( 45.0_f32.to_radians(), aspect_ratio, 0.1, 1000.0 );
+  let projection = mat3x3h::perspective_rh_gl( 45.0_f32.to_radians(), aspect_ratio, 0.1, 1000.0 );
 
   // draw ids into texture
   gl.use_program( Some( &id_shader.program ) );
@@ -288,8 +288,8 @@ async fn load_meshes( models : &[ tobj::Model ], materials : &[ tobj::Material ]
         }
       );
       JsFuture::from( load_promise ).await.unwrap();
-
-      let texture = gl::texture::d2::upload( gl, &img );
+      let texture = gl.create_texture();
+      gl::texture::d2::upload( gl, texture.as_ref(), &img );
       gl.generate_mipmap( GL::TEXTURE_2D );
       gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::LINEAR_MIPMAP_LINEAR as i32 );
 
@@ -300,7 +300,7 @@ async fn load_meshes( models : &[ tobj::Model ], materials : &[ tobj::Material ]
       None
     };
 
-    meshes.push( Mesh { vao, index_count : model.mesh.indices.len() as i32, diffuse_texture: texture } );
+    meshes.push( Mesh { vao, index_count : model.mesh.indices.len() as i32, diffuse_texture : texture } );
   }
 
   meshes
@@ -310,27 +310,27 @@ fn create_objects() -> Vec< Object >
 {
   let transforms =
   [
-    ( random_rotation(), vector::F32x3::new( -200.,  100., -400. ) ),
-    ( random_rotation(), vector::F32x3::new( -100.,  100., -400. ) ),
-    ( random_rotation(), vector::F32x3::new(    0.,  100., -400. ) ),
-    ( random_rotation(), vector::F32x3::new(  100.,  100., -400. ) ),
-    ( random_rotation(), vector::F32x3::new(  200.,  100., -400. ) ),
-    ( random_rotation(), vector::F32x3::new( -200.,    0., -400. ) ),
-    ( random_rotation(), vector::F32x3::new( -100.,    0., -400. ) ),
-    ( random_rotation(), vector::F32x3::new(    0.,    0., -400. ) ),
-    ( random_rotation(), vector::F32x3::new(  100.,    0., -400. ) ),
-    ( random_rotation(), vector::F32x3::new(  200.,    0., -400. ) ),
-    ( random_rotation(), vector::F32x3::new( -200., -100., -400. ) ),
-    ( random_rotation(), vector::F32x3::new( -100., -100., -400. ) ),
-    ( random_rotation(), vector::F32x3::new(    0., -100., -400. ) ),
-    ( random_rotation(), vector::F32x3::new(  100., -100., -400. ) ),
-    ( random_rotation(), vector::F32x3::new(  200., -100., -400. ) ),
+    ( random_rotation(), F32x3::new( -200.,  100., -400. ) ),
+    ( random_rotation(), F32x3::new( -100.,  100., -400. ) ),
+    ( random_rotation(), F32x3::new(    0.,  100., -400. ) ),
+    ( random_rotation(), F32x3::new(  100.,  100., -400. ) ),
+    ( random_rotation(), F32x3::new(  200.,  100., -400. ) ),
+    ( random_rotation(), F32x3::new( -200.,    0., -400. ) ),
+    ( random_rotation(), F32x3::new( -100.,    0., -400. ) ),
+    ( random_rotation(), F32x3::new(    0.,    0., -400. ) ),
+    ( random_rotation(), F32x3::new(  100.,    0., -400. ) ),
+    ( random_rotation(), F32x3::new(  200.,    0., -400. ) ),
+    ( random_rotation(), F32x3::new( -200., -100., -400. ) ),
+    ( random_rotation(), F32x3::new( -100., -100., -400. ) ),
+    ( random_rotation(), F32x3::new(    0., -100., -400. ) ),
+    ( random_rotation(), F32x3::new(  100., -100., -400. ) ),
+    ( random_rotation(), F32x3::new(  200., -100., -400. ) ),
   ];
 
   transforms
   .into_iter()
   .enumerate()
-  .map( | ( i, ( r, t ) ) | Object { transform : d2::mat3x3h::translation( t ) * r, id : i as i32 } )
+  .map( | ( i, ( r, t ) ) | Object { transform : mat3x3h::translation( t ) * r, id : i as i32 } )
   .collect()
 }
 
@@ -339,7 +339,7 @@ fn random_rotation() -> ndarray_cg::Mat4< f32, DescriptorOrderColumnMajor >
   let rot_x = rand::thread_rng().gen_range( 0. .. std::f32::consts::PI * 2. );
   let rot_y = rand::thread_rng().gen_range( 0. .. std::f32::consts::PI * 2. );
   let rot_z = rand::thread_rng().gen_range( 0. .. std::f32::consts::PI * 2. );
-  d2::mat3x3h::rot( rot_x, rot_y, rot_z )
+  mat3x3h::rot( rot_x, rot_y, rot_z )
 }
 
 fn empty_texture2d( gl : &GL, internal_format : u32, width : i32, height : i32 ) -> Option< WebGlTexture >
