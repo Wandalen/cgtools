@@ -4,13 +4,10 @@ mod shaders;
 use crate::input::InputState;
 
 use minwebgl::{
-  texture, 
-  web_sys::{
+  texture, web_sys::{
     HtmlCanvasElement,
     WebGlUniformLocation,
-  }, 
-  Mat4, 
-  GL
+  }, Mat4, COLOR_ATTACHMENT0, GL
 };
 use ndarray_cg::mat::DescriptorOrderRowMajor;
 use shaders::*;
@@ -171,7 +168,7 @@ impl Renderer
     program.add_texture( texture )
   } 
 
-  fn create_framebuffer( &self, name : &str, color : &str, depth : Option< &str > ) -> Result< Framebuffer, String > 
+  fn create_framebuffer( &self, name : &str, color_attachment : u32, color : &str, depth : Option< &str > ) -> Result< Framebuffer, String > 
   {
     let Some( color ) = self.get_texture( color ) 
     else
@@ -193,7 +190,7 @@ impl Renderer
     }
 
     let gl = renderer.context.borrow();
-    Framebuffer::new( &gl, name, color_id, depth_id )
+    Framebuffer::new( &gl, name, color_attachment, color_id, depth_id )
   }
 }
 
@@ -271,7 +268,7 @@ fn object( renderer : &mut Renderer ) -> Result< (), String >
   let program = renderer.get_mut_program( program_name ).unwrap();
 
   let mvp = Mat4::< f32, DescriptorOrderRowMajor >::default();
-  let object_fb = renderer.create_framebuffer( "object_fb", "object_fb_color", Some( "object_fb_depth" ) )?;
+  let object_fb = renderer.create_framebuffer( "object_fb", 0, "object_fb_color", Some( "object_fb_depth" ) )?;
   
   program.add_uniform( "mvp", Value::Matrix4x4( mvp ) )?;
   program.add_framebuffer( object_fb )?;
@@ -312,7 +309,7 @@ fn jfa_init( renderer : &mut Renderer ) -> Result< (), String >
 
   let program = renderer.get_mut_program( program_name ).unwrap();
 
-  let jfa_init_fb = renderer.create_framebuffer( "jfa_init_fb", "jfa_init_fb_color", Some( "jfa_init_fb_depth" ) )?;
+  let jfa_init_fb = renderer.create_framebuffer( "jfa_init_fb", 0, "jfa_init_fb_color", Some( "jfa_init_fb_depth" ) )?;
   
   program.add_framebuffer( jfa_init_fb )?;
   program.add_uniform( 
@@ -355,7 +352,7 @@ fn jfa_step( renderer : &mut Renderer ) -> Result< (), String >
 
   let program = renderer.get_mut_program( program_name ).unwrap();
 
-  let jfa_step_fb = renderer.create_framebuffer( "jfa_step_fb", "jfa_step_fb_color", Some( "jfa_step_fb_depth" ) )?;
+  let jfa_step_fb = renderer.create_framebuffer( "jfa_step_fb", 0, "jfa_step_fb_color", Some( "jfa_step_fb_depth" ) )?;
   
   let v = renderer.viewport;
   program.add_framebuffer( jfa_step_fb )?;
@@ -394,8 +391,39 @@ fn outline( renderer : &mut Renderer ) -> Result< (), String >
   )?;
 
   program.link()?;
+  renderer.add_program( program )?;
 
-  renderer.programs.insert( program_name.to_string(), program );
+  for texture in [ "jfa_init_fb_color", "jfa_step_fb_color", "jfa_step_fb_depth" ]
+  {
+    renderer.add_texture_to_program( program_name, texture )?;
+  }
+
+  let program = renderer.get_mut_program( program_name ).unwrap();
+
+  program.add_uniform( 
+    "u_resolution",
+    Value::Vec2( ndarray_cg::U32x2::from_slice( &[ v.width, v.height ] ) )
+  );
+
+  program.add_uniform( 
+    "u_outline_thickness",
+    Value::F32( todo!() )
+  );
+
+  program.add_uniform( 
+    "u_outline_color",
+    Value::Vec4( todo!() )
+  );
+
+  program.add_uniform( 
+    "u_object_color",
+    Value::Vec4( todo!() )
+  );
+
+  program.add_uniform( 
+    "u_background_color",
+    Value::Vec4( todo!() )
+  );
 
   Ok( () )
 }
