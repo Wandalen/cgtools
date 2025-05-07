@@ -258,16 +258,6 @@ impl Program
   {
     let gl = self.context.borrow();
 
-    let err = Err( 
-      format!( 
-        "Parameter `{}` with type `{}` has wrong value type ( `{}` ) in program `{}`",
-        parameter.name, 
-        parameter.name, 
-        parameter.value, 
-        self.name
-      ) 
-    );
-
     let Some( parameter ) = self.parameters.get_mut( key )
     else
     {
@@ -280,49 +270,19 @@ impl Program
       );
     };
 
-    match parameter.r#type
-    {
-      ParameterType::Uniform =>
+    match parameter.r#type{
+      ParameterType::Uniform | ParameterType::Texture | ParameterType::Framebuffer => 
       {
-        self.set_location( parameter.name )?;
-        let set_value = parameter.get_set_function();
-        set_value( &gl, self.location.unwrap(), parameter.value.clone() );
-      }
-      ParameterType::Texture =>
-      {
-        self.set_location( parameter.name )?;
-        let Value::Texture( texture ) = parameter.value
-        else
-        {
-          return err;
-        };
-        texture.borrow().load( &gl, parameter.location )?;
-      }
-      ParameterType::Framebuffer =>
-      {
-        let Value::Framebuffer( framebuffer ) = &parameter.value
-        else
-        {
-          return err;
-        };
-
-        gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &framebuffer.id() ) );
-        let ( width, height ) = framebuffer.color.size;
-        gl.viewport( 0, 0, width, height );
-      }
+        match parameter.r#type{
+          ParameterType::Uniform | ParameterType::Texture => self.set_location( parameter.name )?,
+          _ => ()
+        }
+        
+        parameter.load( &gl )?;
+      },
       ParameterType::Input => self.load_input( parameter.name.as_str() )?,
-      _ =>
-      {
-        return Err( 
-          format!( 
-            "Can't load parameter `{}` with type `{}`",
-            parameter.name, 
-            parameter.r#type
-          ) 
-        )
-      }
     }
-
+    
     Ok( () )
   }
 
@@ -594,6 +554,7 @@ pub struct Framebuffer
 {
   name : String,
   id : WebGlFramebuffer,
+  color_attachment : u32,
   color : WebGlTexture,
   depth : Option< WebGlTexture >,
 }
@@ -603,6 +564,7 @@ impl Framebuffer
   pub fn new( 
     gl : &GL,
     name : &str,
+    color_attachment: u32,
     color : WebGlTexture,
     depth : Option< WebGlTexture >,
   ) -> Result< Self, String >
@@ -616,7 +578,7 @@ impl Framebuffer
 
     gl.framebuffer_texture_2d( 
       GL::FRAMEBUFFER,
-      GL::COLOR_ATTACHMENT0,
+      GL::COLOR_ATTACHMENT0 + color_attachment,
       GL::TEXTURE_2D,
       Some( &color ),
       0,
@@ -657,6 +619,7 @@ impl Framebuffer
         {
           name : name.to_string(),
           id,
+          color_attachment,
           color,
           depth,
         } 
@@ -860,42 +823,59 @@ impl Parameter
     }
   }
 
-  fn get_set_function( &self ) -> Result< fn( &GL, u32, Value ) -> Result< (), String >, String >
+  fn load( &self, gl : &GL ) -> Result< (), String >
+  {
+    let load = self.get_load_function()?;
+    load( &gl, &self )?;
+
+    Ok( () )
+  }
+
+  fn get_load_function( &self ) -> Result< fn( &GL, &Parameter ) -> Result< (), String >, String >
   {
     let err = Err( 
       format!( 
-        "Parameter `{}` with type `{}` doesn't have set function for value of type `{}`",
+        "Parameter `{}` with type `{}` doesn't have load function for value of type `{}`",
         self.name, 
         self.r#type, 
         self.value
       ) 
     );
+
     let function = match self.r#type
     {
       ParameterType::Input =>
       {
-        match self.value
-        {
-          _ => return err,
-        }
-      }
+        return err
+      },
       ParameterType::Uniform =>
       {
         match self.value
         {
-          Value::U32( _ ) => set_functions::set_uniform_scalar,
-          Value::Matrix4x4( _ ) => set_functions::set_uniform_matrix,
+          Value::I32( _ ) | Value::U32( _ ) | Value::F32( _ ) => load_functions::load_uniform_scalar,
+          Value::IVec2( _ ) | Value::UVec2( _ ) | Value::Vec2( _ ) |
+          Value::IVec3( _ ) | Value::UVec3( _ ) | Value::Vec3( _ ) |
+          Value::IVec4( _ ) | Value::UVec4( _ ) | Value::Vec4( _ ) => load_functions::load_uniform_vec,
+          Value::Matrix2x2( _ ) | Value::Matrix3x3( _ ) | Value::Matrix4x4( _ ) => load_functions::load_uniform_matrix,
           _ => return err,
         }
-      }
+      },
       ParameterType::Texture =>
       {
         match self.value
         {
+          Value::Texture( _ ) => load_functions::load_texture,
+          _ => return err,
+        }
+      },
+      ParameterType::Framebuffer => 
+      {
+        match self.value
+        {
+          Value::Framebuffer( _ ) => load_functions::load_framebuffer,
           _ => return err,
         }
       }
-      ParameterType::Framebuffer => todo!(),
     };
 
     Ok( function )
@@ -945,7 +925,20 @@ impl AttribData
 #[ derive( Clone ) ]
 pub enum Value
 {
+  I32( i32 ),
   U32( u32 ),
+  F32( f32 ),
+  IVec2( ndarray_cg::I32x2 ),
+  UVec2( ndarray_cg::U32x2 ),
+  Vec2( ndarray_cg::F32x2 ),
+  IVec3( ndarray_cg::I32x3 ),
+  UVec3( ndarray_cg::U32x3 ),
+  Vec3( ndarray_cg::F32x3 ),
+  IVec4( ndarray_cg::I32x4 ),
+  UVec4( ndarray_cg::U32x4 ),
+  Vec4( ndarray_cg::F32x4 ),
+  Matrix2x2( ndarray_cg::Mat2< f32, DescriptorOrderRowMajor > ),
+  Matrix3x3( ndarray_cg::Mat3< f32, DescriptorOrderRowMajor > ),
   Matrix4x4( ndarray_cg::Mat4< f32, DescriptorOrderRowMajor > ),
   Texture( Rc< RefCell< Texture > > ),
   Framebuffer( Framebuffer ),
@@ -961,32 +954,49 @@ impl std::fmt::Display for Value
   {
     let value_type = match self
     {
-        Self::U32( _ ) => "u32",
-        Self::Matrix4x4( matrix ) => todo!(),
-        Self::Texture( texture ) => todo!(),
-        Self::Framebuffer( framebuffer ) => todo!(),
-        Self::AttribArray( attrib_datas, items ) => todo!(),
+      Self::I32( _ ) => "i32",
+      Self::U32( _ ) => "u32",
+      Self::F32( _ ) => "f32",
+      Self::IVec2( _ ) => "ivec2",
+      Self::UVec2( _ ) => "uvec2",
+      Self::Vec2( _ ) => "vec2",
+      Self::IVec3( _ ) => "ivec3",
+      Self::UVec3( _ ) => "uvec3",
+      Self::Vec3( _ ) => "vec3",
+      Self::IVec4( _ ) => "ivec4",
+      Self::UVec4( _ ) => "uvec4",
+      Self::Vec4( _ ) => "vec4",
+      Self::Matrix2x2( _ ) => "mat2x2",
+      Self::Matrix3x3( _ ) => "mat3x3",
+      Self::Matrix4x4( _ ) => "mat4x4",
+      Self::Texture( _ ) => "texture",
+      Self::Framebuffer( _ ) => "framebuffer",
+      Self::AttribArray( .. ) => "attrib_array"
     };
     write!( &mut self, "{value_type}" )
   }
 }
 
-mod set_functions
+mod load_functions
 {
-  pub fn set_uniform_scalar( 
+  use ndarray_cg::mat::DescriptorOrderRowMajor;
+  use super::Parameter;
+
+  pub fn load_uniform_scalar( 
     gl : &GL,
-    location : u32,
-    value : Value,
+    parameter : Parameter
   ) -> Result< (), String >
   {
     match value
     {
-      Value::U32( v ) => gl.uniform1u( location, v ),
+      Value::I32( v ) => minwebgl::uniform::upload( gl, parameter.location, &ndarray_cg::I32x1( v ) ),
+      Value::U32( v ) => minwebgl::uniform::upload( gl, parameter.location, &ndarray_cg::U32x1( v ) ),
+      Value::F32( v ) => minwebgl::uniform::upload( gl, parameter.location, &ndarray_cg::F32x1( v ) ),
       _ =>
       {
         Err( 
           format!( 
-            "set_uniform_scalar doesn't support value of type `{}`",
+            "load_uniform_scalar doesn't support value of type `{}`",
             v
           ) 
         )
@@ -996,20 +1006,30 @@ mod set_functions
     Ok( () )
   }
 
-  pub fn set_uniform_vec( 
+  pub fn load_uniform_vec( 
     gl : &GL,
-    location : u32,
-    value : Value,
+    parameter : Parameter
   ) -> Result< (), String >
   {
     match value
     {
-      Value::U32( v ) => gl.uniform1u( location, v ),
+      // Value::IVec2( v ) => gl.uniform2i( parameter.location, v.0[ 0 ], v.0[ 1 ] ), 
+      // Value::UVec2( v ) => gl.uniform2u( parameter.location, v.0[ 0 ], v.0[ 1 ] ),
+      // Value::Vec2( v ) => gl.uniform2f( parameter.location, v.0[ 0 ], v.0[ 1 ] ),
+      // Value::IVec3( v ) => gl.uniform3i( parameter.location, v.0[ 0 ], v.0[ 1 ], v.0[ 2 ] ),
+      // Value::UVec3( v ) => gl.uniform3u( parameter.location, v.0[ 0 ], v.0[ 1 ], v.0[ 2 ] ),
+      // Value::Vec3( v )  => gl.uniform3f( parameter.location, v.0[ 0 ], v.0[ 1 ], v.0[ 2 ] ),
+      // Value::IVec4( v ) => gl.uniform4i( parameter.location, v.0[ 0 ], v.0[ 1 ], v.0[ 2 ], v.0[ 3 ] ),
+      // Value::UVec4( v ) => gl.uniform4u( parameter.location, v.0[ 0 ], v.0[ 1 ], v.0[ 2 ], v.0[ 3 ] ),
+      // Value::Vec4( v ) => gl.uniform4f( parameter.location, v.0[ 0 ], v.0[ 1 ], v.0[ 2 ], v.0[ 3 ] ),
+      Value::IVec2( v ) | Value::UVec2( v ) | Value::Vec2( v ) |
+      Value::IVec3( v ) | Value::UVec3( v ) | Value::Vec3( v ) |
+      Value::IVec4( v ) | Value::UVec4( v ) | Value::Vec4( v ) => minwebgl::uniform::upload( gl, parameter.location, &v ),
       _ =>
       {
         Err( 
           format!( 
-            "set_uniform_vec doesn't support value of type `{}`",
+            "load_uniform_vec doesn't support value of type `{}`",
             v
           ) 
         )
@@ -1019,20 +1039,70 @@ mod set_functions
     Ok( () )
   }
 
-  pub fn set_uniform_matrix( 
+  pub fn load_uniform_matrix( 
     gl : &GL,
-    location : u32,
-    value : Value,
+    parameter : Parameter
   ) -> Result< (), String >
   {
-    match value
+    let data = match value
     {
-      Value::U32( v ) => gl.uniform1u( location, v ),
+      Value::Matrix2x2( v ) => minwebgl::uniform::matrix_upload( gl, parameter.location, &v.to_cols_array()[ .. ], true ),
+      Value::Matrix3x3( v ) => minwebgl::uniform::matrix_upload( gl, parameter.location, &v.to_cols_array()[ .. ], true ),
+      Value::Matrix4x4( v ) => minwebgl::uniform::matrix_upload( gl, parameter.location, &v.to_cols_array()[ .. ], true ),
       _ =>
       {
         Err( 
           format!( 
-            "set_uniform_matrix doesn't support value of type `{}`",
+            "load_uniform_matrix doesn't support value of type `{}`",
+            v
+          ) 
+        )
+      }
+    };
+
+    Ok( () )
+  }
+
+  pub fn load_texture( 
+    gl : &GL,
+    parameter : Parameter
+  ) -> Result< (), String >
+  {
+    match parameter.value
+    {
+      Value::Texture( texture ) => texture.borrow().load( &gl, parameter.location )?,
+      _ =>
+      {
+        Err( 
+          format!( 
+            "load_texture doesn't support value of type `{}`",
+            v
+          ) 
+        )
+      }
+    };
+
+    Ok( () )
+  }
+
+  pub fn load_framebuffer( 
+    gl : &GL,
+    parameter : Parameter
+  ) -> Result< (), String >
+  {
+    match value
+    {
+      Value::Framebuffer( v ) => 
+      {
+        gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &framebuffer.id() ) );
+        let ( width, height ) = framebuffer.color.size;
+        gl.viewport( 0, 0, width, height );
+      },
+      _ =>
+      {
+        Err( 
+          format!( 
+            "load_framebuffer doesn't support value of type `{}`",
             v
           ) 
         )
