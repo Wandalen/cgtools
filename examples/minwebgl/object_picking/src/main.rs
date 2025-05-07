@@ -4,10 +4,11 @@ use minwebgl as gl;
 use gl::{ GL, JsFuture };
 use ndarray_cg::
 {
-  d2::{ self, mat3x3h },
+  d2,
   mat::DescriptorOrderColumnMajor,
   vector::F32x3,
 };
+use d2::mat3x3h;
 use rand::Rng as _;
 use web_sys::
 {
