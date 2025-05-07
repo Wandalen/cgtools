@@ -1,0 +1,35 @@
+[package]
+name = "outline"
+version = "0.1.0"
+edition = "2021"
+authors = [ 
+    "Kostiantyn Mysnyk <wandalen@obox.systems>",
+    "Bilan Vadym <vadym.b@obox.systems>"
+]
+
+[dependencies]
+minwebgl = { workspace = true }
+ndarray_cg = { workspace = true }
+js-sys = "0.3"
+gltf = "1.4" 
+
+[dependencies.web-sys]
+workspace = true
+features = [
+    'Document',
+    'Window',
+    'HtmlCanvasElement',
+    'WebGl2RenderingContext',
+    'WebGlUniformLocation',
+    'WebGlActiveInfo',
+    'WebGlBuffer',
+    'WebGlVertexArrayObject',
+    'WebGlSync',
+    'console',
+    'Performance',
+    'HtmlImageElement',
+    'ImageBitmap',
+    'Url',
+    'WebGlTexture', 
+    'WebGlFramebuffer', 
+]
