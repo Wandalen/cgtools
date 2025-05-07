@@ -4,6 +4,7 @@ mod shaders;
 use crate::input::InputState;
 
 use minwebgl::{
+  texture, 
   web_sys::{
     HtmlCanvasElement,
     WebGlUniformLocation,
@@ -39,7 +40,7 @@ const JFA_STEP_FS : &str = include_str!( "./shaders/jfa_step.frag" );
 const OUTLINE_FS : &str = include_str!( "./shaders/outline.frag" );
 
 static PROGRAM_INIT_FNS : LazyLock< Vec< fn( &mut Renderer ) -> Result< (), String > > > =
-  LazyLock::new( || vec![ object, jfa_init, jfa_step, outline ] );
+  LazyLock::new( || vec![ init_textures, object, jfa_init, jfa_step, outline ] );
 
 pub struct Renderer
 {
@@ -86,7 +87,7 @@ impl Renderer
       {
         return Err( format!( "Can't find program `{}`", program_name ) );
       };
-      object.set_parameter( &self.context, "time", Value::U32( timestamp ) )?;
+      object.set_parameter( "time", Value::U32( timestamp ) )?;
     }
 
     Ok( () )
@@ -96,27 +97,103 @@ impl Renderer
   {
     let object = self.programs.get( "object" ).unwrap();
 
-    object.load( &self.context );
+    object.load();
 
     let jfa_init = self.programs.get( "jfa_init" ).unwrap();
 
-    jfa_init.load( &self.context );
+    jfa_init.load();
 
     let jfa_step = self.programs.get( "jfa_step" ).unwrap();
 
-    jfa_step.load( &self.context );
+    jfa_step.load();
 
     let outline = self.programs.get( "outline" ).unwrap();
 
-    outline.load( &self.context );
+    outline.load();
   }
 
   pub fn cleanup( &mut self )
   {
     for ( _, program ) in self.programs.iter_mut()
     {
-      program.cleanup( &self.context );
+      program.cleanup();
     }
+  }
+
+  fn get_mut_program( &mut self, program_name : &str ) -> Option< &mut Program >
+  {
+    self.programs.get_mut( program_name )
+  }
+
+  fn add_program( &mut self, program: Program ) -> Result< (), String >
+  {
+    if self.programs.contains_key( program.name().as_str() )
+    {
+      return Err( format!( "Program with name `{}` already exists", program.name() ) );
+    };
+    self.programs.insert( program_name.to_string(), program );
+    
+    Ok( () )
+  }
+
+  fn add_texture( &mut self, texture : Texture ) -> Result< (), String > 
+  {
+    let name = texture.name();
+    if self.textures.contains_key( name.as_str() )
+    {
+      return Err( format!( "Texture with name `{}` already exists", name ) );
+    };
+    let texture = Rc::new( RefCell::new( texture ) );
+    self.textures.insert( name, texture );
+
+    Ok( () )
+  }
+
+  fn get_texture( &mut self, texture_name : &str ) -> Some( Rc< RefCell< Texture > > )
+  {
+    self.textures.get( texture_name )
+  }
+
+  fn add_texture_to_program( &mut self, program_name : &str, texture_name : &str ) -> Result< (), String > 
+  {
+    let Some( program ) = self.programs.get_mut( program_name )
+    else
+    {
+      return Err( format!( "Can't find program `{}`", program_name ) );
+    };
+
+    let Some( texture ) = self.textures.get( texture_name )
+    else
+    {
+      return Err( format!( "Can't find program `{}`", texture_name ) );
+    };
+
+    program.add_texture( texture )
+  } 
+
+  fn create_framebuffer( &self, name : &str, color : &str, depth : Option< &str > ) -> Result< Framebuffer, String > 
+  {
+    let Some( color ) = self.get_texture( color ) 
+    else
+    {
+      return Err( format!( "Can't find texture `{}`", color ) );
+    };
+    let color_id = color.borrow().id();
+
+    let mut depth_id = None;
+
+    if let Some( depth ) = depth
+    {
+      let Some( d ) = self.get_texture( depth ) 
+      else
+      {
+        return Err( format!( "Can't find texture `{}`", depth ) );
+      };
+      depth_id = Some( d.borrow().id() );
+    }
+
+    let gl = renderer.context.borrow();
+    Framebuffer::new( &gl, name, color_id, depth_id )
   }
 }
 
@@ -140,55 +217,77 @@ impl Viewport
   }
 }
 
+fn init_textures( renderer : &mut Renderer ) -> Result< (), String >
+{
+  let gl = renderer.context.borrow();
+  let v = renderer.viewport;
+
+  let textures = 
+  [
+    Texture::new( &gl, "object_fb_color", 0, ( v.width, v.height ), GL::RGBA8, GL::RGBA, GL::UNSIGNED_BYTE )?,
+    Texture::new( &gl, "object_fb_depth", 1, ( v.width, v.height ), GL::DEPTH_COMPONENT24, GL::DEPTH_COMPONENT, GL::UNSIGNED_INT )?,
+    Texture::new( &gl, "jfa_init_fb_color", 2, ( v.width, v.height ), GL::RGBA8, GL::RGBA, GL::UNSIGNED_BYTE )?,
+    Texture::new( &gl, "jfa_init_fb_depth", 3, ( v.width, v.height ), GL::DEPTH_COMPONENT24, GL::DEPTH_COMPONENT, GL::UNSIGNED_INT )?,
+    Texture::new( &gl, "jfa_step_fb_color", 4, ( v.width, v.height ), GL::RGBA8, GL::RGBA, GL::UNSIGNED_BYTE )?,
+    Texture::new( &gl, "jfa_step_fb_depth", 5, ( v.width, v.height ), GL::DEPTH_COMPONENT24, GL::DEPTH_COMPONENT, GL::UNSIGNED_INT )?,
+  ];
+
+  for texture in textures 
+  {
+    renderer.add_texture( texture )?;
+  }
+
+  Ok( () )
+}
+
 fn object( renderer : &mut Renderer ) -> Result< (), String >
 {
-  let mut program = Program::new( gl, "object" )?;
+  let program_name = "object";
 
-  program.create_shader( gl, ShaderType::Vertex, OBJECT_VS )?;
-  program.create_shader( gl, ShaderType::Fragment, OBJECT_FS )?;
+  let mut program = Program::new( &renderer.context, program_name )?;
+
+  program.create_shader( ShaderType::Vertex, OBJECT_VS )?;
+  program.create_shader( ShaderType::Fragment, OBJECT_FS )?;
 
   let quad_vertices: [f32; 12] = [ -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0 ];
   let data = unsafe{
     core::slice::from_raw_parts( quad_vertices.as_ptr() as *const u8, quad_vertices.len() * core::mem::size_of::<f32>(), );
   };
 
-  let v = renderer.viewport;
-  let object_fb_color = Texture::new( gl, 0, ( v.width, v.height ), GL::RGBA8, GL::RGBA, GL::UNSIGNED_BYTE )?;
-  let object_fb_depth = Texture::new( gl, 1, ( v.width, v.height ), GL::DEPTH_COMPONENT24, GL::DEPTH_COMPONENT, GL::UNSIGNED_INT )?;
-  let attrib_datas = vec![
-    AttribData::new( "a_pos", 3, GL::FLOAT )          
-  ];
+  program.add_input( 
+    "0",  
+    vec![
+      AttribData::new( "a_pos", 3, GL::FLOAT )          
+    ], 
+    data 
+  )?;
+
+  program.link()?;
+  renderer.add_program( program )?;
+
+  renderer.add_texture_to_program( program_name, "object_fb_color" )?;
+  renderer.add_texture_to_program( program_name, "object_fb_depth" )?;
+
+  let program = renderer.get_mut_program( program_name ).unwrap();
+
   let mvp = Mat4::< f32, DescriptorOrderRowMajor >::default();
-  let object_fb = Framebuffer::new( gl, object_fb_color.id(), Some( object_fb_depth.id() ) );
-
-  program.add_input( gl, "0", Value::AttribArray( attrib_datas, data ) );
-
-  program.link( gl )?;
-
-  program.add_uniform( gl, "mvp", Value::Matrix4x4( mvp ) );
-  program.add_framebuffer( gl, "object_fb", object_fb );
-
-  let object_fb_color = Rc::new( RefCell::new( object_fb_color ) );
-  program.add_texture( gl, "object_fb_color", object_fb_color );
-  renderer.textures.insert( "object_fb_color".to_string(), object_fb_color );
-
-  let object_fb_depth = Rc::new( RefCell::new( object_fb_depth ) );
-  program.add_texture( gl, "object_fb_depth", object_fb_depth );
-  renderer.textures.insert( "object_fb_depth".to_string(), object_fb_depth );
-
-  renderer.programs.insert( program_name.to_string(), program );
+  let object_fb = renderer.create_framebuffer( "object_fb", "object_fb_color", Some( "object_fb_depth" ) )?;
+  
+  program.add_uniform( "mvp", Value::Matrix4x4( mvp ) )?;
+  program.add_framebuffer( object_fb )?;
 
   Ok( () )
 }
 
 fn jfa_init( renderer : &mut Renderer ) -> Result< (), String >
 {
-  let program_name = "jfa_init" ;
+  let program_name = "jfa_init";
 
-  let mut program = Program::new( gl, program_name )?;
+  let mut program = Program::new( &renderer.context, program_name )?;
+  let gl = renderer.context.borrow();
 
-  program.create_shader( gl, ShaderType::Vertex, FULLSCREEN_VS )?;
-  program.create_shader( gl, ShaderType::Fragment, JFA_INIT_FS )?;
+  program.create_shader( ShaderType::Vertex, FULLSCREEN_VS )?;
+  program.create_shader( ShaderType::Fragment, JFA_INIT_FS )?;
 
   let quad_vertices: [f32; 12] = [ -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0 ];
   let data = unsafe{
@@ -196,43 +295,42 @@ fn jfa_init( renderer : &mut Renderer ) -> Result< (), String >
   };
 
   program.add_input( 
-    gl,
-    "0",
-    Value::AttribArray( 
-      vec![
-        AttribData::new( "a_pos", 3, GL::FLOAT )          
-      ], 
-      data 
-    ),
-  );
+    "0",  
+    vec![
+      AttribData::new( "a_pos", 3, GL::FLOAT )          
+    ], 
+    data 
+  )?;
 
-  program.link( gl )?;
+  program.link()?;
+  renderer.add_program( program )?;
 
-  program.add_texture( 
-    gl,
-    "u_object_texture",
-    Texture::new(
+  for texture in [ "object_fb_color", "jfa_init_fb_color", "jfa_init_fb_depth" ]
+  {
+    renderer.add_texture_to_program( program_name, texture )?;
+  } 
 
-    )
-  );
+  let program = renderer.get_mut_program( program_name ).unwrap();
 
+  let jfa_init_fb = renderer.create_framebuffer( "jfa_init_fb", "jfa_init_fb_color", Some( "jfa_init_fb_depth" ) )?;
+  
+  program.add_framebuffer( jfa_init_fb )?;
   program.add_uniform( 
-    gl,
     "u_resolution",
-    Value::Vec2( ndarray_cg::U32x2::from_slice( &[ 1920, 1080 ] ) )
+    Value::Vec2( ndarray_cg::U32x2::from_slice( &[ v.width, v.height ] ) )
   );
-
-  renderer.programs.insert( program_name.to_string(), program );
 
   Ok( () )
 }
 
 fn jfa_step( renderer : &mut Renderer ) -> Result< (), String >
 {
-  let mut program = Program::new( gl, "jfa_step" )?;
+  let program_name = "jfa_step";
 
-  program.create_shader( gl, ShaderType::Vertex, FULLSCREEN_VS )?;
-  program.create_shader( gl, ShaderType::Fragment, JFA_STEP_FS )?;
+  let mut program = Program::new( &renderer.context, program_name )?;
+
+  program.create_shader( ShaderType::Vertex, FULLSCREEN_VS )?;
+  program.create_shader( ShaderType::Fragment, JFA_STEP_FS )?;
 
   let quad_vertices: [f32; 12] = [ -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0 ];
   let data = unsafe{
@@ -240,29 +338,47 @@ fn jfa_step( renderer : &mut Renderer ) -> Result< (), String >
   };
 
   program.add_input( 
-    gl,
-    "0",
-    Value::AttribArray( 
-      vec![
-        AttribData::new( "a_pos", 3, GL::FLOAT )          
-      ], 
-      data 
-    ),
+    "0",  
+    vec![
+      AttribData::new( "a_pos", 3, GL::FLOAT )          
+    ], 
+    data 
+  )?;
+
+  program.link()?;
+  renderer.add_program( program )?;
+
+  for texture in [ "jfa_init_fb_color", "jfa_step_fb_color", "jfa_step_fb_depth" ]
+  {
+    renderer.add_texture_to_program( program_name, texture )?;
+  } 
+
+  let program = renderer.get_mut_program( program_name ).unwrap();
+
+  let jfa_step_fb = renderer.create_framebuffer( "jfa_step_fb", "jfa_step_fb_color", Some( "jfa_step_fb_depth" ) )?;
+  
+  let v = renderer.viewport;
+  program.add_framebuffer( jfa_step_fb )?;
+  program.add_uniform( 
+    "u_resolution",
+    Value::Vec2( ndarray_cg::U32x2::from_slice( &[ v.width, v.height ] ) )
   );
-
-  program.link( gl )?;
-
-  renderer.programs.insert( program_name.to_string(), program );
+  program.add_uniform( 
+    "u_step_size",
+    Value::F32( todo!() )
+  );
 
   Ok( () )
 }
 
 fn outline( renderer : &mut Renderer ) -> Result< (), String >
 {
-  let mut program = Program::new( gl, "outline" )?;
+  let program_name = "outline";
 
-  program.create_shader( gl, ShaderType::Vertex, FULLSCREEN_VS )?;
-  program.create_shader( gl, ShaderType::Fragment, OUTLINE_FS )?;
+  let mut program = Program::new( &renderer.context, program_name )?;
+
+  program.create_shader( ShaderType::Vertex, FULLSCREEN_VS )?;
+  program.create_shader( ShaderType::Fragment, OUTLINE_FS )?;
 
   let quad_vertices: [f32; 12] = [ -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0 ];
   let data = unsafe{
@@ -270,17 +386,14 @@ fn outline( renderer : &mut Renderer ) -> Result< (), String >
   };
 
   program.add_input( 
-    gl,
-    "0",
-    Value::AttribArray( 
-      vec![
-        AttribData::new( "a_pos", 3, GL::FLOAT )          
-      ], 
-      data 
-    ),
-  );
+    "0",  
+    vec![
+      AttribData::new( "a_pos", 3, GL::FLOAT )          
+    ], 
+    data 
+  )?;
 
-  program.link( gl )?;
+  program.link()?;
 
   renderer.programs.insert( program_name.to_string(), program );
 
