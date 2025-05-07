@@ -9,58 +9,49 @@ mod private
   #[ derive( Clone, Copy, PartialEq, PartialOrd, Hash, Debug ) ]
   pub struct Vector< E, const LEN : usize >( pub [ E; LEN ] )
   where E : MatEl;
+
+  pub type F32x1 = Vector< f32, 1 >;
   pub type F32x2 = Vector< f32, 2 >;
   pub type F32x3 = Vector< f32, 3 >;
   pub type F32x4 = Vector< f32, 4 >;
+  pub type F64x1 = Vector< f64, 1 >;
   pub type F64x2 = Vector< f64, 2 >;
   pub type F64x3 = Vector< f64, 3 >;
   pub type F64x4 = Vector< f64, 4 >;
 
-  impl< E : MatEl, const LEN : usize > Default for Vector< E, LEN >
-  {
-    #[ inline( always ) ]
-    fn default() -> Self
-    {
-      Vector( [ E::default() ; LEN ] )
-    }
-  }
+  pub type I32x1 = Vector< i32, 1 >;
+  pub type I32x2 = Vector< i32, 2 >;
+  pub type I32x3 = Vector< i32, 3 >;
+  pub type I32x4 = Vector< i32, 4 >;
+  pub type I64x1 = Vector< i64, 1 >;
+  pub type I64x2 = Vector< i64, 2 >;
+  pub type I64x3 = Vector< i64, 3 >;
+  pub type I64x4 = Vector< i64, 4 >;
 
-
-
-  pub trait VectorSpace< const SIZE : usize >
-  where
-    Self : Collection + Indexable + VectorIter< < Self as Collection >::Scalar, SIZE >,
-  {
-  }
-
-  impl< T, const SIZE : usize > VectorSpace< SIZE > for T
-  where
-    Self : Collection + Indexable + VectorIter< < Self as Collection >::Scalar, SIZE >,
-  {
-  }
-
-  pub trait VectorSpaceMut< const SIZE : usize >
-  where
-    Self : VectorSpace< SIZE > + VectorIterMut< < Self as Collection >::Scalar, SIZE >,
-  {
-  }
-
-  impl< T, const SIZE : usize > VectorSpaceMut< SIZE > for T
-  where
-    Self : VectorSpace< SIZE > + VectorIterMut< < Self as Collection >::Scalar, SIZE >,
-  {
-  }
+  pub type U32x1 = Vector< u32, 1 >;
+  pub type U32x2 = Vector< u32, 2 >;
+  pub type U32x3 = Vector< u32, 3 >;
+  pub type U32x4 = Vector< u32, 4 >;
+  pub type U64x1 = Vector< u64, 1 >;
+  pub type U64x2 = Vector< u64, 2 >;
+  pub type U64x3 = Vector< u64, 3 >;
+  pub type U64x4 = Vector< u64, 4 >;
 
 }
 
 crate::mod_interface!
 {
+
   /// General trait implementation for the vector type
   layer general;
   /// General arithmetics for the vector type
   layer arithmetics;
-  /// Conversions from `Array` type to `Vector`
-  layer array;
+
+  /// Overloading of operators, like index, sub, div, etc.
+  layer operator;
+
+  // /// Conversions from `Array` type to `Vector`
+  // layer array;
   /// Functionality related to 2D vectors
   layer vec2;
   /// Functionality related to 3D vectors
@@ -72,15 +63,36 @@ crate::mod_interface!
 
   exposed use
   {
-    VectorSpace,
-    VectorSpaceMut,
+
     Vector,
+
+    F32x1,
     F32x2,
     F32x3,
     F32x4,
+    F64x1,
     F64x2,
     F64x3,
-    F64x4
+    F64x4,
+
+    I32x1,
+    I32x2,
+    I32x3,
+    I32x4,
+    I64x1,
+    I64x2,
+    I64x3,
+    I64x4,
+
+    U32x1,
+    U32x2,
+    U32x3,
+    U32x4,
+    U64x1,
+    U64x2,
+    U64x3,
+    U64x4,
+
   };
 
 }

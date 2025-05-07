@@ -5,10 +5,25 @@ impl< E > Collection for [ E ]
   type Scalar = E;
 }
 
-impl< E, const N : usize > VectorRef< E, N > for [ E ]
+// Converted implementation using unwrap_or_else with panic! to avoid the Debug requirement
+impl< E, const N : usize > IntoArray< E, N > for &[ E ]
+where
+  [ E ; N ] : for< 'a > TryFrom< &'a [ E ] >
+{
+  #[ inline ]
+  fn into_array( self ) -> [ E ; N ]
+  {
+    self.try_into().unwrap_or_else
+    (
+      | _ | panic!( "Slice length does not match array length : {} != {}", self.len(), N )
+    )
+  }
+}
+
+impl< E, const N : usize > ArrayRef< E, N > for [ E ]
 {
   #[ inline( always ) ]
-  fn vector_ref( &self ) -> &[ E ; N ]
+  fn array_ref( &self ) -> &[ E ; N ]
   {
     assert!( self.len() >= N, "Slice must have at least {} element", N );
     // SAFETY: This is safe if the slice has at least 1 element.
@@ -17,7 +32,7 @@ impl< E, const N : usize > VectorRef< E, N > for [ E ]
   }
 }
 
-impl< E, const N : usize > VectorMut< E, N > for [ E ]
+impl< E, const N : usize > ArrayMut< E, N > for [ E ]
 {
   #[ inline( always ) ]
   fn vector_mut( &mut self ) -> &mut [ E ; N ]

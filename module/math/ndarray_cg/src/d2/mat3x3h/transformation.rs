@@ -1,5 +1,5 @@
 use crate::*;
-use mdmath_core::vector::inner_product::*;
+use mdmath_core::vector::arithmetics::*;
 
 // #[ derive( Copy, Clone, Debug, PartialEq, Default ) ]
 // pub struct Decomposed< E, Vec, Rot, const N : usize >
@@ -88,7 +88,7 @@ where
 ///
 /// Similiar functions:
 /// look_at_rh - returns the same matrix, but takes camera's view center, instead of direction
-pub fn loot_to_rh< E, Vec3 >
+pub fn look_to_rh< E, Vec3 >
 (
   eye : Vec3,
   dir : Vec3,
@@ -97,16 +97,16 @@ pub fn loot_to_rh< E, Vec3 >
 ->  Mat4< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl + nd::NdFloat,
-  Vec3 : VectorIterMut< E, 3 > + VectorRef< E, 3 > + Clone,
+  Vec3 : VectorIterMut< E, 3 > + ArrayRef< E, 3 > + Clone,
   Mat4< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >,
 {
   let z = normalized( &dir );
   let x = normalized( &cross( &z, &up ) );
   let y = cross( &x, &z );
 
-  let x = x.vector_ref();
-  let y = y.vector_ref();
-  let z = z.vector_ref();
+  let x = x.array_ref();
+  let y = y.array_ref();
+  let z = z.array_ref();
 
   let dot_x = dot( &eye, x );
   let dot_y = dot( &eye, y );
@@ -129,7 +129,7 @@ where
 ///
 /// Similiar functions:
 /// look_to_rh - returns the same matrix, but takes camera's view direction
-pub fn loot_at_rh< E, Vec3 >
+pub fn look_at_rh< E, Vec3 >
 (
   eye : Vec3,
   center : Vec3,
@@ -138,11 +138,11 @@ pub fn loot_at_rh< E, Vec3 >
 ->  Mat4< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl + nd::NdFloat,
-  Vec3 : VectorIterMut< E, 3 > + VectorRef< E, 3 > + Clone,
+  Vec3 : VectorIterMut< E, 3 > + ArrayRef< E, 3 > + Clone,
   Mat4< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >,
 {
   let dir = sub( &center, &eye );
-  loot_to_rh( eye, dir, up )
+  look_to_rh( eye, dir, up )
 }
 
 /// Creates rotation matrix from consequtive rotation around X, Y and Z axes

@@ -8,26 +8,26 @@ static ALLOCATOR : lol_alloc::LeakingPageAllocator = lol_alloc::LeakingPageAlloc
 
 static VERTICES : [ f32; 24 ] =
 [
-    // Front face
-   -1.0, -1.0,  1.0, // Left bottom (0)
-    1.0, -1.0,  1.0, // Right bottom (1)
-    1.0,  1.0,  1.0, // Right top (2)
-   -1.0,  1.0,  1.0, // Left top (3)
-    // Back face
-   -1.0, -1.0, -1.0, // Left bottom (4)
-    1.0, -1.0, -1.0, // Right bottom (5)
-    1.0,  1.0, -1.0, // Right top (6)
-   -1.0,  1.0, -1.0, // Left top (7)
+  // Front face
+  -1.0, -1.0,  1.0, // Left bottom (0)
+  1.0, -1.0,  1.0, // Right bottom (1)
+  1.0,  1.0,  1.0, // Right top (2)
+  -1.0,  1.0,  1.0, // Left top (3)
+  // Back face
+  -1.0, -1.0, -1.0, // Left bottom (4)
+  1.0, -1.0, -1.0, // Right bottom (5)
+  1.0,  1.0, -1.0, // Right top (6)
+  -1.0,  1.0, -1.0, // Left top (7)
 ];
 
 static INDICES : [ u16; 24 ] =
 [
-    // Front face
-    0, 1,  1, 2,  2, 3,  3, 0,
-    // Back face
-    4, 7,  7, 6,  6, 5,  5, 4,
-    // Connecting lines
-    0, 4,  1, 5,  2, 6,  3, 7,
+  // Front face
+  0, 1,  1, 2,  2, 3,  3, 0,
+  // Back face
+  4, 7,  7, 6,  6, 5,  5, 4,
+  // Connecting lines
+  0, 4,  1, 5,  2, 6,  3, 7,
 ];
 
 fn run() -> Result< (), gl::WebglError >
@@ -70,14 +70,13 @@ fn run() -> Result< (), gl::WebglError >
 
   let update_and_draw =
   {
-    let mut angle : f64 = 0.0;
+    // let mut angle : f64 = 0.0;
     let vertices_amount = ( VERTICES.len() / 3 ) as i32;
     let indices_len = INDICES.len() as i32;
 
-    move | mut t : f64 |
+    move | t : f64 |
     {
-      t *= 0.001;
-      angle = t;
+      let angle = t * 0.001;
 
       gl::uniform::upload( &gl, angle_location.clone(), &( angle as f32 ) ).unwrap();
 

@@ -2,7 +2,7 @@
 
 use std::
 {
-  collections::{ HashMap, HashSet }, 
+  collections::{ HashMap, HashSet },
   sync::{ Arc, Mutex }
 };
 
@@ -10,10 +10,6 @@ use material::{ GLMaterial, TextureType };
 use mesh::GLMesh;
 use mingl::CameraOrbitControls;
 use minwebgl::{ self as gl, JsCast };
-use gl::
-{
-  GL,
-};
 use web_sys::wasm_bindgen::prelude::Closure;
 
 mod mesh;
@@ -24,7 +20,7 @@ async fn run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
   let canvas = gl::canvas::make()?;
-  let gl = gl::context::from_canvas( &canvas )?;
+  let gl = gl::context::from_canvas( &canvas, Default::default() )?;
 
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
@@ -38,9 +34,9 @@ async fn run() -> Result< (), gl::WebglError >
   let fov = 70.0f32.to_radians();
   let perspective_matrix = gl::math::mat3x3h::perspective_rh_gl
   (
-    fov,  
-    aspect_ratio, 
-    0.1, 
+    fov,
+    aspect_ratio,
+    0.1,
     10000.0
   );
 
@@ -100,21 +96,22 @@ async fn run() -> Result< (), gl::WebglError >
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();
   for ( name, t_type ) in texture_names.into_iter()
-  {  
+  {
     let path = format!( "static/{}/{}", texture_path, name );
     gl::info!( "{}", path );
 
     let img_element = document.create_element( "img" ).unwrap().dyn_into::< gl::web_sys::HtmlImageElement >().unwrap();
     img_element.style().set_property( "display", "none" ).unwrap();
     let load_texture : Closure< dyn Fn() > = Closure::new
-    ( 
+    (
       {
         let textures = textures.clone();
         let gl = gl.clone();
         let img = img_element.clone();
-        move || 
+        move ||
         {
-          let texture = gl::texture::d2::upload( &gl, &img );
+          let texture = gl.create_texture();
+          gl::texture::d2::upload( &gl, texture.as_ref(), &img );
 
           if texture.is_some()
           {
@@ -153,12 +150,12 @@ async fn run() -> Result< (), gl::WebglError >
 
     match gl_mesh.material().mtl
     {
-      Some( ref mtl ) 
+      Some( ref mtl )
       if  mtl.dissolve.is_some() || mtl.dissolve_texture.is_some() =>
       {
         gl_meshes_transparent.push( gl_mesh );
       },
-      _ => 
+      _ =>
       {
         gl_meshes_opaque.push( gl_mesh );
       }
