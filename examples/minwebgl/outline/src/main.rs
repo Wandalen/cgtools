@@ -11,7 +11,8 @@ use web_sys::WebGlTexture;
 
 fn create_texture( 
   gl : &gl::WebGl2RenderingContext,
-  size : ( u32, u32 ),
+  slot : u32,
+  size : ( i32, i32 ),
   internal_format : i32,
   format : i32,
   pixel_type : i32,
@@ -50,7 +51,7 @@ fn upload_texture(
 
 fn create_framebuffer(
   gl : &gl::WebGl2RenderingContext,
-  size : ( u32, u32 ),
+  size : ( i32, i32 ),
   color_attachment : u32
 ) -> Option< ( WebGlFramebuffer, WebGlTexture ) >
 {
@@ -97,12 +98,16 @@ async fn run() -> Result< (), gl::WebglError >
 
   // - jfa init program 
   let jfa_init_u_resolution = gl.get_uniform_location( &jfa_init_program, "u_resolution" );
+  let u_object_texture = gl.get_uniform_location( &jfa_init_program, "u_object_texture" );
 
   // - jfa step program 
   let jfa_step_u_resolution = gl.get_uniform_location( &jfa_step_program, "u_resolution" );
   let u_step_size = gl.get_uniform_location( &jfa_step_program, "u_step_size" );
+  let u_jfa_init_texture = gl.get_uniform_location( &jfa_step_program, "u_jfa_texture" );
 
   // - outline program 
+  let outline_u_object_texture = gl.get_uniform_location( &outline_program, "u_object_texture" );
+  let u_jfa_step_texture = gl.get_uniform_location( &outline_program, "u_jfa_texture" );
   let outline_u_resolution = gl.get_uniform_location( &outline_program, "u_resolution" );
   let u_outline_thickness = gl.get_uniform_location( &outline_program, "u_outline_thickness" );
   let u_oultine_color = gl.get_uniform_location( &outline_program, "u_oultine_color" );
@@ -110,12 +115,7 @@ async fn run() -> Result< (), gl::WebglError >
   let u_background_color = gl.get_uniform_location( &outline_program, "u_background_color" );
 
   // Other
-  let viewport = ( 1920, 1080 );
-
-  // Buffers
-  let index_buffer = gl::buffer::create( &gl )?;
-  let pos_buffer =  gl::buffer::create( &gl )?;
-  let vao = gl::vao::create( &gl )?;
+  let viewport = ( gl.drawing_buffer_width(), gl.drawing_buffer_height() );
 
   // Textures
 
@@ -124,14 +124,23 @@ async fn run() -> Result< (), gl::WebglError >
   let ( jfa_init_fb, jfa_init_fb_color ) = create_framebuffer( &gl, viewport, 0 ).unwrap();
   let ( jfa_step_fb, jfa_step_fb_color ) = create_framebuffer( &gl, viewport, 0 ).unwrap();
 
-  gl.use_program( Some( &object_program ) );
+  // Buffers
+  let pos_buffer =  gl::buffer::create( &gl )?;
+  let index_buffer = gl::buffer::create( &gl )?;
+  let vao = gl::vao::create( &gl )?;
 
-  gl::buffer::upload( &gl, &pos_buffer, &positions, GL::STATIC_DRAW );
+  // Model
   gl.bind_vertex_array( Some( &vao ) );
   gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).attribute_pointer( &gl, 0, &pos_buffer )?;
+
+  gl::buffer::upload( &gl, &pos_buffer, &positions, GL::STATIC_DRAW );
   gl::index::upload( &gl, &index_buffer, &indices, GL::STATIC_DRAW );
 
-  gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &object_fb ) );
+  //let u_model = ;
+
+  // Render passes
+
+  gl.use_program( Some( &object_program ) );
 
   let u_projection = gl::math::mat3x3h::perspective_rh_gl
   (
@@ -141,24 +150,40 @@ async fn run() -> Result< (), gl::WebglError >
     far
   );
   let u_view = ndarray_cg::d2::mat3x3h::loot_at_rh( eye, center, up );
-  //let u_model = ;
 
+  gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &object_fb ) );
   gl::uniform::upload_matrix( &gl, u_projection.clone(), &u_projection.to_cols_array()[ .. ] ).unwrap();
   gl::uniform::upload_matrix( &gl, u_view.clone(), &u_view.to_cols_array()[ .. ] ).unwrap();
   gl::uniform::upload_matrix( &gl, u_model.clone(), &u_model.to_cols_array()[ .. ] ).unwrap();
 
   gl.use_program( Some( &jfa_init_program ) );
   
-  
-  
+  gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &jfa_init_fb ) );
+  gl::uniform::upload( &gl, jfa_init_u_resolution.clone(), &ndarray_cg::F32x2::from_array( [ viewport.0, viewport.1 ] ) ).unwrap();
+  upload_texture( &object_fb_color, &u_object_texture, 0 );
+
   gl.use_program( Some( &jfa_step_program ) );
   
-  
-  
+  gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &jfa_step_fb ) );
+  gl::uniform::upload( &gl, jfa_step_u_resolution.clone(), &ndarray_cg::F32x2::from_array( [ viewport.0, viewport.1 ] ) ).unwrap();
+  upload_texture( &jfa_init_fb_color, &u_jfa_init_texture, 0 );
+
   gl.use_program( Some( &outline_program ) );
 
+  let outline_thickness = [ 5.0 ]; 
+  let outline_color = [ 1.0, 1.0, 1.0, 1.0 ]; 
+  let object_color = [ 0.5, 0.5, 0.5, 1.0 ]; 
+  let background_color = [ 0.0, 0.0, 0.0, 1.0 ];
 
-  
+  gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+  gl::uniform::upload( &gl, outline_u_resolution.clone(), &ndarray_cg::F32x2::from_array( [ viewport.0, viewport.1 ] ) ).unwrap();
+  gl::uniform::upload( &gl, u_outline_thickness.clone(), &ndarray_cg::F32x1::from_array( outline_thickness ) ).unwrap();
+  gl::uniform::upload( &gl, u_outline_color.clone(), &ndarray_cg::F32x4::from_array( outline_color ) ).unwrap();
+  gl::uniform::upload( &gl, u_object_color.clone(), &ndarray_cg::F32x4::from_array( object_color ) ).unwrap();
+  gl::uniform::upload( &gl, u_background_color.clone(), &ndarray_cg::F32x4::from_array( background_color ) ).unwrap();
+  upload_texture( &object_fb_color, &outline_u_object_texture, 0 );
+  upload_texture( &jfa_step_fb_color, &u_jfa_step_texture, 1 );
+
   // Define the update and draw logic
   let update_and_draw =
   {
