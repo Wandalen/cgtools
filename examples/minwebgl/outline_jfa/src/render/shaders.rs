@@ -56,6 +56,7 @@ impl std::fmt::Display for ShaderType
 
 pub struct Program
 {
+  context : Rc< RefCell< GL > >,
   name : String,
   id : WebGlProgram,
   parameters : HashMap< String, Parameter >,
@@ -68,23 +69,23 @@ pub struct Program
 impl Program
 {
   pub fn new( 
-    gl : &GL,
+    gl : &Rc< RefCell< GL > >,
     name : &str,
   ) -> Result< Self, String >
   {
-    let Some( id ) = gl.create_program()
+    let Some( id ) = gl.borrow().create_program()
     else
     {
       return Err( format!( "Can't create program `{}`", name ) );
     };
 
-    let Some( vbo ) = gl.create_buffer()
+    let Some( vbo ) = gl.borrow().create_buffer()
     else
     {
       return Err( format!( "Can't create vertex buffer for program `{}`", name ) );
     };
 
-    let Some( vao ) = gl.create_vertex_array()
+    let Some( vao ) = gl.borrow().create_vertex_array()
     else
     {
       return Err( format!( "Can't create vertex array buffer for program `{}`", name ) );
@@ -92,6 +93,7 @@ impl Program
 
     Ok( 
       Self {
+        context : gl.clone(),
         name : name.to_string(),
         id,
         parameters : HashMap::new(),
@@ -105,11 +107,12 @@ impl Program
 
   pub fn create_shader( 
     &mut self,
-    gl : &GL,
     r#type : ShaderType,
     source : &str,
   ) -> Result< (), String >
   {
+    let gl = self.context.borrow();
+
     if self.shaders.contains_key( r#type )
     {
       return Err( 
@@ -148,10 +151,11 @@ impl Program
 
   pub fn add_parameter( 
     &mut self,
-    gl : &GL,
     parameter : Parameter,
   ) -> Result< (), String >
   {
+    let gl = self.context.borrow();
+
     if self.parameters.contains_key( &parameter.name )
     {
       return Err( 
@@ -214,11 +218,12 @@ impl Program
 
   pub fn set_parameter( 
     &self,
-    gl : &GL,
     key : &str,
     value : Value,
   ) -> Result< (), String >
   {
+    let gl = self.context.borrow();
+
     let Some( parameter ) = self.parameters.get_mut( key )
     else
     {
@@ -248,10 +253,11 @@ impl Program
 
   pub fn load_parameter( 
     &self,
-    gl : &GL,
     key : &str,
   ) -> Result< (), String >
   {
+    let gl = self.context.borrow();
+
     let err = Err( 
       format!( 
         "Parameter `{}` with type `{}` has wrong value type ( `{}` ) in program `{}`",
@@ -278,19 +284,19 @@ impl Program
     {
       ParameterType::Uniform =>
       {
-        self.set_location( gl, parameter.name )?;
+        self.set_location( parameter.name )?;
         let set_value = parameter.get_set_function();
-        set_value( gl, self.location.unwrap(), parameter.value.clone() );
+        set_value( &gl, self.location.unwrap(), parameter.value.clone() );
       }
       ParameterType::Texture =>
       {
-        self.set_location( gl, parameter.name )?;
+        self.set_location( parameter.name )?;
         let Value::Texture( texture ) = parameter.value
         else
         {
           return err;
         };
-        &texture.borrow().load( gl, parameter.location )?;
+        texture.borrow().load( &gl, parameter.location )?;
       }
       ParameterType::Framebuffer =>
       {
@@ -304,7 +310,7 @@ impl Program
         let ( width, height ) = framebuffer.color.size;
         gl.viewport( 0, 0, width, height );
       }
-      ParameterType::Input => self.load_input( gl, parameter.name.as_str() )?,
+      ParameterType::Input => self.load_input( parameter.name.as_str() )?,
       _ =>
       {
         return Err( 
@@ -320,8 +326,10 @@ impl Program
     Ok( () )
   }
 
-  fn load_input( &self, gl : &GL, name : &str ) -> Result< (), String >
+  fn load_input( &self, name : &str ) -> Result< (), String >
   {
+    let gl = self.context.borrow();
+
     let err = Err( 
       format!( 
         "Can't load attrib array `{}` in program `{}`",
@@ -369,16 +377,17 @@ impl Program
 
   pub fn load( 
     &self,
-    gl : &GL,
   ) -> Result< (), String >
   {
-    self.unload( gl );
+    let gl = self.context.borrow();
+
+    self.unload();
 
     gl.use_program( Some( &self.id() ) );
 
     for parameter in self.parameters.keys()
     {
-      self.load_parameter( gl, &parameter )?;
+      self.load_parameter( &parameter )?;
     }
 
     Ok( () )
@@ -386,9 +395,9 @@ impl Program
 
   pub fn unload( 
     &self,
-    gl : &GL,
   )
   {
+    let gl = self.context.borrow();
     gl.bind_vertex_array( None );
     gl.bind_buffer(GL::ARRAY_BUFFER, None );
     gl.use_program( None );
@@ -396,14 +405,14 @@ impl Program
 
   pub fn link( 
     &mut self,
-    gl : &GL,
   ) -> Result< (), String >
   {
+    let gl = self.context.borrow();
     gl.link_program( &program.id );
 
     if let Some( log ) = gl.get_program_info_log( &self.id )
     {
-      self.cleanup( gl );
+      self.cleanup();
       return Err( log );
     }
 
@@ -420,9 +429,9 @@ impl Program
 
   pub fn cleanup( 
     &mut self,
-    gl : &GL,
   )
   {
+    let gl = self.context.borrow();
     let err = Err( 
       format!( 
         "Parameter `{}` with type `{}` has wrong value type (  `{}`  ) in program `{}`",
@@ -453,7 +462,7 @@ impl Program
           {
             return err;
           };
-          gl.delete_texture( &texture.borrow().id() );
+          gl.delete_texture( texture.borrow().id() );
         }
         ParameterType::Framebuffer =>
         {
@@ -476,10 +485,10 @@ impl Program
 
   fn set_location( 
     &mut self,
-    gl : &GL,
     parameter_name : String,
   ) -> Result< (), String >
   {
+    let gl = self.context.borrow();
     if !self.linked
     {
       return Err( 
@@ -516,22 +525,22 @@ impl Program
           ) 
         );
       };
-      parameter.set_location( gl, location )?;
+      parameter.set_location( &gl, location )?;
     }
     Ok( () )
   }
 
   fn add_parameters(
     &mut self, 
-    gl : &GL,
     r#type : ParameterType, 
     parameters : HashMap< String, Value >,
   ) -> Result<(), String>
   {
+    let gl = self.context.borrow();
     for ( name, value ) in parameters
     {
       let parameter = Parameter::new( &name, r#type, value );
-      self.add_parameter( gl, parameter )?;
+      self.add_parameter( parameter )?;
     }
 
     Ok( () )
@@ -539,44 +548,51 @@ impl Program
 
   fn set_parameters(
     &mut self, 
-    gl : &GL, 
     parameters : HashMap< String, Value >,
   ) -> Result<(), String>
   {
     for ( name, value ) in parameters
     {
-      self.set_parameter( gl, &name, value )?;
+      self.set_parameter( &name, value )?;
     }
 
     Ok( () )
+  }
+
+  pub fn name( &self ) -> String 
+  { 
+    self.name.clone()
   }
 }
 
 impl Program
 {
-  pub fn add_uniform( &mut self, gl : &GL, name : &self, value : Value ) -> Result<(), String>
+  pub fn add_uniform( &mut self, name : &self, value : Value ) -> Result<(), String>
   {
-    self.add_parameter( gl, Parameter::new( name, ParameterType::Uniform, value ) )
+    self.add_parameter( Parameter::new( name, ParameterType::Uniform, value ) )
   }
 
-  pub fn add_input( &mut self, gl : &GL, name : &self, value : Value ) -> Result<(), String>
+  pub fn add_input( &mut self, name : &self, attrib_datas : Vec< AttribData >, data : Vec< u8 > ) -> Result<(), String>
   {
-    self.add_parameter( gl, Parameter::new( name, ParameterType::Input, value ) )
+    self.add_parameter( Parameter::new( name, ParameterType::Input, Value::AttribArray( attrib_datas, data ) ) )
   }
 
-  pub fn add_texture( &mut self, gl : &GL, name : &self, texture : Rc< RefCell< Texture > > ) -> Result<(), String>
+  pub fn add_texture( &mut self, texture : &Rc< RefCell< Texture > > ) -> Result<(), String>
   {
-    self.add_parameter( gl, Parameter::new( name, ParameterType::Texture, Value::Texture( texture ) ) )
+    let name = texture.borrow().name();
+    self.add_parameter( Parameter::new( name.as_str(), ParameterType::Texture, Value::Texture( texture.clone() ) ) )
   }
 
-  pub fn add_framebuffer( &mut self, gl : &GL, name : &self, fb : Framebuffer ) -> Result<(), String>
+  pub fn add_framebuffer( &mut self, fb : Framebuffer ) -> Result<(), String>
   {
-    self.add_parameter( gl, Parameter::new( name, ParameterType::Framebuffer, Value::Framebuffer( fb ) ) )
+    let name = fb.name();
+    self.add_parameter( Parameter::new( name.as_str(), ParameterType::Framebuffer, Value::Framebuffer( fb ) ) )
   }
 }
 
 pub struct Framebuffer
 {
+  name : String,
   id : WebGlFramebuffer,
   color : WebGlTexture,
   depth : Option< WebGlTexture >,
@@ -586,9 +602,10 @@ impl Framebuffer
 {
   pub fn new( 
     gl : &GL,
+    name : &str,
     color : WebGlTexture,
     depth : Option< WebGlTexture >,
-  ) -> Result< (), String >
+  ) -> Result< Self, String >
   {
     let Some( id ) = gl.create_framebuffer()
     else
@@ -638,12 +655,18 @@ impl Framebuffer
       Ok( 
         Self 
         {
+          name : name.to_string(),
           id,
           color,
           depth,
         } 
       )
     }
+  }
+
+  pub fn name( &self ) -> String 
+  { 
+    self.name.clone()
   }
 }
 
@@ -654,6 +677,7 @@ enum TextureType
 
 pub struct Texture
 {
+  name : String,
   r#type : TextureType,
   id : WebGlTexture,
   slot : u32,
@@ -669,6 +693,7 @@ impl Texture
 {
   pub fn new( 
     gl : &GL,
+    name : &str,
     slot : u32,
     size : ( usize, usize ),
     internal_format : u32,
@@ -688,6 +713,7 @@ impl Texture
     };
 
     let mut texture = Self {
+      name : name.to_string(),
       r#type : TextureType::Texture2D,
       id,
       slot,
@@ -775,6 +801,11 @@ impl Texture
     {
       unreachable!()
     }
+  }
+
+  pub fn name( &self ) -> String 
+  { 
+    self.name.clone()
   }
 }
 
