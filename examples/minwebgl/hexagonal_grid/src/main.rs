@@ -50,21 +50,25 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   ];
   // aaa : why shift_type is not part of layout? o.O
   // aaa : what about type Grid combinging layout and grid size. also grid probably can have offset of orign?
-  let rect = RectangularGrid::new( region );
+  let grid = RectangularGrid::new( region );
   // coordinates of a point in the center of grid
-  let grid_center = rect.center();
-
-  let grid_mesh = geometry::from_iter
-  (
-    rect.coordinates().map( | c | Into::< Coordinate< Axial, _ > >::into( c ) ),
-    || geometry::hexagon_triangles(),
-    mat2x2h::rot( 30.0f32.to_radians() ) * mat2x2h::scale( [ 0.9, 0.9 ] )
-  );
-
+  let grid_center = grid.center();
+  min::info!( "{:?}", grid_center );
   let aspect = canvas_size[ 1 ] / canvas_size[ 0 ];
   let scale = 0.1;
   let aspect_scale : F32x2 = [ aspect * scale, scale ].into();
   let scale_m = mat2x2h::scale( aspect_scale.0 );
+
+  let grid_mesh = geometry::from_iter
+  (
+    grid.coordinates().map( | c | Into::< Coordinate< Axial, _ > >::into( c ) ),
+    geometry::hexagon_triangles,
+    // x is inverted because grid goes right and down, so to put it to center we need to offset it to left (neg x)
+    // and up (pos y)
+    mat2x2h::translate( [ -grid_center.x(), grid_center.y() ] )
+    * mat2x2h::rot( 30.0f32.to_radians() )
+    * mat2x2h::scale( [ 0.9, 0.9 ] )
+  );
 
   let vert = include_str!( "../shaders/main.vert" );
   let frag = include_str!( "../shaders/main.frag" );
@@ -89,9 +93,6 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
     &geometry::hexagon_triangles(),
     2,
   )?;
-
-  let translation = mat2x2h::translate( [ -grid_center[ 0 ], grid_center[ 1 ] ] );
-  let mvp = scale_m * translation;
 
   let document = web_sys::window().unwrap().document().unwrap();
 
@@ -167,7 +168,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let mut start = Coordinate::< Axial, Pointy >::new( 2, 4 );
   let mut obstacles = HashMap::< Coordinate< Axial, Pointy >, bool >::from_iter
   (
-    rect.coordinates().map( | c | ( c.into(), true ) )
+    grid.coordinates().map( | c | ( c.into(), true ) )
   );
 
   // array to store painted hexagons
@@ -184,13 +185,12 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
 
     let rect = canvas.get_bounding_client_rect();
     let canvas_pos = F32x2::new( rect.left() as f32, rect.top() as f32 );
-    let half_size : F32x2 = canvas_size / 2.0;
+    let half_size = canvas_size / 2.0;
     let cursor_pos = F32x2::new( input.pointer_position()[ 0 ] as f32, input.pointer_position()[ 1 ] as f32 );
     // aaa : where is center? in the middle? what are boundaries -1, +1? explain all that instead of duplicating what is avaliable from code
-    // normalize coodinates to NDC [ -1 : 1 ], then apply inverse ascpect scale and offset to grid center
-    // this transforms cursor position to the world space
+    // normalize coodinates to NDC [ -1 : 1 ], then apply inverse ascpect scale
+    // this transforms cursor position to world space
     // then offset it by center of the grid, so that if cursor is in the center of the canvas, it will be in the center of the grid
-    // the position is based on `rect`
     let cursor_pos : Pixel =
     (
       ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) + grid_center.into()
@@ -210,7 +210,6 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
           &hex_shader,
           &grid_geometry,
           &outline_geometry,
-          mvp,
           selected_hex_coord
         );
       }
@@ -225,7 +224,6 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
           &hex_shader,
           &grid_geometry,
           &hexagon_geometry,
-          mvp,
           &mut start,
           &mut obstacles,
           selected_hex_coord
@@ -296,7 +294,7 @@ fn painting_demo
   ).into();
   // calculate hex coordinates
   let selected_hex_coord : Coordinate::< Axial, Pointy > = pos.into();
-
+  min::info!("{selected_hex_coord:?}");
   // get color
   let color = color_picker.value();
   let r = u8::from_str_radix( &color[ 1..3 ], 16 ).unwrap() as f32 / 255.0;
@@ -316,7 +314,12 @@ fn painting_demo
   hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
   hex_shader.uniform_matrix_upload( "u_rotation", rot.raw_slice(), true );
   hex_shader.uniform_upload( "u_color", &[ r, g, b, 1.0 ] );
+
   hexagon_geometry.activate();
+  // disable attribute used for instancing
+  context.disable_vertex_attrib_array( 1 );
+  context.vertex_attrib2f( 1, 0.0, 0.0 );
+
   context.draw_arrays( GL::TRIANGLES, 0, hexagon_geometry.nvertices );
 }
 
@@ -330,7 +333,6 @@ fn pathfind_demo
   hex_shader : &Program,
   grid_geometry : &min::geometry::Positions,
   hexagon_geometry : &min::geometry::Positions,
-  mvp : min::F32x3x3,
   start : &mut Coordinate< Axial, Pointy >,
   obstacles : &mut HashMap< Coordinate< Axial, Pointy >, bool >,
   selected_hex_coord : Coordinate< Axial, Pointy >
@@ -359,8 +361,8 @@ fn pathfind_demo
 
   let identity = min::math::d2::mat2x2h::scale( [ 1.0, 1.0 ] );
   // draw background grid
-  hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
-  // no need for rotation as it was rotated when generated
+  hex_shader.uniform_matrix_upload( "u_mvp", scale_m.raw_slice(), true );
+  // no need for rotation here
   hex_shader.uniform_matrix_upload( "u_rotation", identity.raw_slice(), true );
   hex_shader.uniform_upload( "u_color", &[ 0.7, 0.7, 0.7, 1.0 ] );
   grid_geometry.activate();
@@ -371,7 +373,6 @@ fn pathfind_demo
   // invert y so it points upward
   grid_center[ 1 ] = -grid_center[ 1 ];
 
-
   // draw obstacles
   let offsets = obstacles
   .iter()
@@ -379,6 +380,7 @@ fn pathfind_demo
   .map( | ( coord, _ ) |
   {
     let mut pos : Pixel = ( *coord ).into();
+    // y points down
     pos[ 1 ] = -pos[ 1 ];
     ( pos - grid_center ).data
   })
@@ -387,7 +389,6 @@ fn pathfind_demo
   let count = ( offsets.len() / 2 ) as i32;
 
   hexagon_geometry.activate();
-
   let offsets_buffer = min::buffer::create( &context ).unwrap();
   min::buffer::upload( &context, &offsets_buffer, offsets.as_slice(), GL::DYNAMIC_DRAW );
   min::BufferDescriptor::new::< [ f32; 2 ] >()
@@ -396,8 +397,7 @@ fn pathfind_demo
   .divisor( 1 )
   .attribute_pointer( &context, 1, &offsets_buffer ).unwrap();
 
-  let mvp = scale_m;
-  hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
+  hex_shader.uniform_matrix_upload( "u_mvp", scale_m.raw_slice(), true );
   hex_shader.uniform_matrix_upload( "u_rotation", rot.raw_slice(), true );
   hex_shader.uniform_upload( "u_color", &[ 0.1, 0.1, 0.1, 1.0 ] );
   context.draw_arrays_instanced( GL::TRIANGLES, 0, hexagon_geometry.nvertices, count );
@@ -428,7 +428,7 @@ fn pathfind_demo
   let count = ( offsets.len() / 2 ) as i32;
   min::buffer::upload( &context, &offsets_buffer, offsets.as_slice(), GL::DYNAMIC_DRAW );
 
-  hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
+  hex_shader.uniform_matrix_upload( "u_mvp", scale_m.raw_slice(), true );
   hex_shader.uniform_matrix_upload( "u_rotation", rot.raw_slice(), true );
   hex_shader.uniform_upload( "u_color", &[ 0.1, 0.6, 0.1, 1.0 ] );
   context.draw_arrays_instanced( GL::TRIANGLES, 0, hexagon_geometry.nvertices, count );
@@ -443,24 +443,25 @@ fn grid_demo
   hex_shader : &Program,
   grid_geometry : &min::geometry::Positions,
   outline_geometry : &min::geometry::Positions,
-  mvp : minwebgl::F32x3x3,
   selected_hex_coord : Coordinate< Axial, Pointy >
 )
 {
   context.clear( GL::COLOR_BUFFER_BIT );
 
-  // draw grid
-  hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
-  hex_shader.uniform_upload( "u_color", &[ 0.7, 0.7, 0.7, 1.0 ] );
   let identity = min::math::d2::mat2x2h::scale( [ 1.0, 1.0 ] );
+  // draw grid
+  hex_shader.uniform_matrix_upload( "u_mvp", scale_m.raw_slice(), true );
+  hex_shader.uniform_upload( "u_color", &[ 0.7, 0.7, 0.7, 1.0 ] );
+  // for grid mesh no rotation is needed since it is already rotated
   hex_shader.uniform_matrix_upload( "u_rotation", identity.raw_slice(), true );
   grid_geometry.activate();
   context.draw_arrays( GL::TRIANGLES, 0, grid_geometry.nvertices );
 
-  // invert y so it points upward
+  // make y negative because it actualy points down
   grid_center[ 1 ] = -grid_center[ 1 ];
 
   let mut selected_hex_pos : Pixel = selected_hex_coord.into();
+  // same thing here
   selected_hex_pos[ 1 ] = -selected_hex_pos[ 1 ];
 
   let translation = mat2x2h::translate( ( selected_hex_pos - grid_center ).data );

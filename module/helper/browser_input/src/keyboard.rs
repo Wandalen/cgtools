@@ -117,7 +117,7 @@ impl KeyboardKey
   }
 
   /// Get the string representation of this KeyboardCode
-  pub fn as_str( &self ) -> &'static str
+  pub const fn as_str( &self ) -> &'static str
   {
     match self
     {

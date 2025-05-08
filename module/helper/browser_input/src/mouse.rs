@@ -26,7 +26,7 @@ pub enum MouseButton
 impl MouseButton
 {
   /// Convert a numeric button value to the corresponding MouseButton enum variant
-  pub fn from_button( button : i16 ) -> Self
+  pub const fn from_button( button : i16 ) -> Self
   {
     match button
     {
@@ -60,7 +60,7 @@ impl MouseButton
   }
 
   /// Get a user-friendly name for this MouseButton
-  pub fn name( &self ) -> &'static str
+  pub const fn name( &self ) -> &'static str
   {
     match self
     {
@@ -88,25 +88,25 @@ impl MouseButton
   }
 
   /// Check if this is the main (usually left) button
-  pub fn is_main( &self ) -> bool
+  pub const fn is_main( &self ) -> bool
   {
     matches!( self, MouseButton::Main )
   }
 
   /// Check if this is the secondary (usually right) button
-  pub fn is_secondary( &self ) -> bool
+  pub const fn is_secondary( &self ) -> bool
   {
     matches!( self, MouseButton::Secondary )
   }
 
   /// Check if this is the auxiliary (usually middle/wheel) button
-  pub fn is_auxiliary( &self ) -> bool
+  pub const fn is_auxiliary( &self ) -> bool
   {
     matches!( self, MouseButton::Auxiliary )
   }
 
   /// Check if this is a navigation button (Back/Forward)
-  pub fn is_navigation( &self ) -> bool
+  pub const fn is_navigation( &self ) -> bool
   {
     matches!( self, MouseButton::Back | MouseButton::Forward )
   }
