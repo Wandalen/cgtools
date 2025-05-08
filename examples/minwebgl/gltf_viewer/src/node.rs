@@ -23,7 +23,9 @@ pub struct Node
 {
   pub children : Vec< Rc< RefCell< Node > > >,
   pub object : Object3D,
+  // Local matrix of the node
   matrix : gl::F32x4x4,
+  // Global matrix of the node( including all of its parents )
   world_matrix : gl::F32x4x4,
   scale : gl::F32x3,
   translation : gl::F32x3,
