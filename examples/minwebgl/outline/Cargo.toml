@@ -8,7 +8,9 @@ authors = [
 ]
 
 [dependencies]
-minwebgl = { workspace = true }
+#browser_input = { git = "https://https://github.com/Wandalen/cgtools.git", rev = "72cfcb191ecd05c657726692634cbed829b6136c" }
+minwebgl = { workspace = true, features = [ "future" ] }
+glam = "0.29.0"
 ndarray_cg = { workspace = true }
 js-sys = "0.3"
 gltf = "1.4" 
