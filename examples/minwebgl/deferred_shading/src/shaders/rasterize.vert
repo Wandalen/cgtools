@@ -1,8 +1,8 @@
 #version 300 es
-// This shader draws a large triangle to rasterize whole screen
 
 out vec2 v_texcoord;
 
+// This shader draws a large triangle to rasterize whole screen
 void main()
 {
   const vec2 VERTICES[] = vec2[]
