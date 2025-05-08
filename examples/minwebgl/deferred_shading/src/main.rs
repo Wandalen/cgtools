@@ -1,7 +1,5 @@
 use minwebgl as gl;
-use gl::{ GL, JsCast as _, JsValue };
-use bytemuck::NoUninit;
-use ndarray_cg::mat::DescriptorOrderColumnMajor;
+use gl::{ GL, JsCast as _, JsValue, F32x4x4 };
 use core::f32;
 use web_sys::
 {
@@ -10,8 +8,6 @@ use web_sys::
   WebGlTexture,
   WebGlVertexArrayObject
 };
-
-type Mat4 = ndarray_cg::d2::Mat4< f32, DescriptorOrderColumnMajor >;
 
 fn main()
 {
@@ -46,7 +42,7 @@ async fn run() -> Result< (), gl::WebglError >
   .unwrap();
   let plane_mesh = load_meshes( &models, &gl )?;
 
-  let plane_transform = Mat4::from_row_major
+  let plane_transform = F32x4x4::from_row_major
   (
     [
       10., 0., 0.,   0.,
@@ -91,7 +87,7 @@ async fn run() -> Result< (), gl::WebglError >
     &gl,
     &lights_ubo,
     BINDING_POINT,
-    bytemuck::cast_slice::< _, u8 >( &lights ),
+    &lights,
     GL::DYNAMIC_DRAW
   );
 
@@ -190,7 +186,7 @@ async fn run() -> Result< (), gl::WebglError >
       light.position[ 0 ] = x;
       light.position[ 2 ] = z;
     }
-    gl.buffer_sub_data_with_f64_and_u8_array( GL::UNIFORM_BUFFER, 0., bytemuck::cast_slice( &lights ) );
+    gl.buffer_sub_data_with_f64_and_u8_array( GL::UNIFORM_BUFFER, 0., gl::mem::bytes_of( &lights ) );
 
     gl.clear( GL::COLOR_BUFFER_BIT );
     gl.draw_arrays( GL::TRIANGLES, 0, 3 );
@@ -278,7 +274,7 @@ fn create_lights( num : usize ) -> Box< [ PointLight ] >
   ).collect()
 }
 
-fn create_transforms( num : usize ) -> Box< [ Mat4 ] >
+fn create_transforms( num : usize ) -> Box< [ F32x4x4 ] >
 {
   ( 0 .. num ).map
   (
@@ -289,7 +285,7 @@ fn create_transforms( num : usize ) -> Box< [ Mat4 ] >
       let z = -3. - ( i / 10 ) as f32;
       let scale = 0.015;
 
-      Mat4::from_row_major
+      F32x4x4::from_row_major
       (
         [
           scale, 0.,    0.,    x,
@@ -302,8 +298,11 @@ fn create_transforms( num : usize ) -> Box< [ Mat4 ] >
   ).collect()
 }
 
+// use asbytes::dependency::bytemuck;
+// use asbytes::AsBytes;
+
 #[ repr( C ) ]
-#[ derive( Clone, Copy, NoUninit ) ]
+#[ derive( Clone, Copy, asbytes::Pod, asbytes::Zeroable ) ]
 struct PointLight
 {
   position : [ f32; 4 ],

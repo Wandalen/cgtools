@@ -12,8 +12,8 @@ rand = "0.8.5"
 getrandom = { version = "0.2.15", features = ['js'] }
 tobj = { workspace = true }
 ndarray_cg = { workspace = true }
-bytemuck = { workspace = true }
-minwebgl = { workspace = true }
+asbytes = { workspace = true, features = ["derive"] }
+minwebgl = { workspace = true, features = ["math"] }
 web-sys = { workspace = true, features = [
   'HtmlImageElement',
   'WebGlFramebuffer',
