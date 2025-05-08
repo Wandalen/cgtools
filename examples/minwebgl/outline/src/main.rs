@@ -1,21 +1,25 @@
 //! Implementation of JFA outline
 
-use gltf::json::extensions::texture;
 use minwebgl as gl;
 use gl::
 {
   GL,
-  JsValue
+  web_sys::{
+    WebGlTexture, 
+    WebGlFramebuffer,
+    WebGlUniformLocation
+  }
 };
-use web_sys::WebGlTexture;
+use ndarray_cg::Mat;
+use ndarray_cg::mat::DescriptorOrderColumnMajor;
 
 fn create_texture( 
   gl : &gl::WebGl2RenderingContext,
   slot : u32,
   size : ( i32, i32 ),
   internal_format : i32,
-  format : i32,
-  pixel_type : i32,
+  format : u32,
+  pixel_type : u32,
   data : Option< &[ u8 ] >
 ) -> Option< WebGlTexture >
 {
@@ -40,13 +44,15 @@ fn create_texture(
 }
 
 fn upload_texture(
-  texture : WebGlTexture,
+  gl : &gl::WebGl2RenderingContext,
+  texture : &WebGlTexture,
   location : &WebGlUniformLocation,
   slot : u32,
 )
 {
+  gl.active_texture( 33_984u32 + slot );
   gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) );
-  gl.uniform1i( Some( location ), slot );
+  gl.uniform1i( Some( location ), slot as i32 );
 }
 
 fn create_framebuffer(
@@ -64,10 +70,20 @@ fn create_framebuffer(
 
   let framebuffer = gl.create_framebuffer()?;
   gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &framebuffer ) );
-  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0 + color_attachment, GL::TEXTURE_2D, Some( &texture ), 0 );
-  gl.bind_framebuffer( gl::FRAMEBUFFER, None );
-  gl.bind_framebuffer( gl::FRAMEBUFFER, None );
+  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0 + color_attachment, GL::TEXTURE_2D, Some( &color ), 0 );
+  gl.bind_framebuffer( gl::FRAMEBUFFER, None ); 
+
   Some( ( framebuffer, color ) ) 
+}
+
+fn upload_framebuffer(
+  gl : &gl::WebGl2RenderingContext,
+  framebuffer : &WebGlFramebuffer,
+  size : ( i32, i32 )
+)
+{
+  gl.bind_framebuffer( GL::FRAMEBUFFER, Some( framebuffer ) );
+  gl.viewport( 0, 0, size.0, size.1 );
 }
 
 async fn run() -> Result< (), gl::WebglError >
@@ -76,12 +92,12 @@ async fn run() -> Result< (), gl::WebglError >
   let gl = gl::context::retrieve_or_make()?;
 
   // Vertex and fragment shaders
-  let object_vs_src = include_str!( "../shaders/object.vert" );
-  let object_fs_src = include_str!( "../shaders/object.frag" );
-  let fullscreen_vs_src = include_str!( "../shaders/fullscreen.vert" );
-  let jfa_init_fs_src = include_str!( "../shaders/jfa_init.frag" );
-  let jfa_step_fs_src = include_str!( "../shaders/jfa_step.frag" );
-  let outline_fs_src = include_str!( "../shaders/outline.frag" );
+  let object_vs_src = include_str!( "../resources/shaders/object.vert" );
+  let object_fs_src = include_str!( "../resources/shaders/object.frag" );
+  let fullscreen_vs_src = include_str!( "../resources/shaders/fullscreen.vert" );
+  let jfa_init_fs_src = include_str!( "../resources/shaders/jfa_init.frag" );
+  let jfa_step_fs_src = include_str!( "../resources/shaders/jfa_step.frag" );
+  let outline_fs_src = include_str!( "../resources/shaders/outline.frag" );
 
   // Programs
   let object_program = gl::ProgramFromSources::new( object_vs_src, object_fs_src ).compile_and_link( &gl )?;
@@ -91,38 +107,39 @@ async fn run() -> Result< (), gl::WebglError >
 
   // Locations
   // - object program
-  let u_projection = gl.get_uniform_location( &object_program, "u_projection" );
-  let u_view = gl.get_uniform_location( &object_program, "u_view" );
-  let u_model = gl.get_uniform_location( &object_program, "u_model" );
-  let u_model = gl.get_uniform_location( &object_program, "u_model" );
+  let u_projection_loc = gl.get_uniform_location( &object_program, "u_projection" ).unwrap();
+  let u_view_loc = gl.get_uniform_location( &object_program, "u_view" ).unwrap();
+  let u_model_loc = gl.get_uniform_location( &object_program, "u_model" ).unwrap();
 
   // - jfa init program 
-  let jfa_init_u_resolution = gl.get_uniform_location( &jfa_init_program, "u_resolution" );
-  let u_object_texture = gl.get_uniform_location( &jfa_init_program, "u_object_texture" );
+  let jfa_init_u_resolution = gl.get_uniform_location( &jfa_init_program, "u_resolution" ).unwrap();
+  let u_object_texture = gl.get_uniform_location( &jfa_init_program, "u_object_texture" ).unwrap();
 
   // - jfa step program 
-  let jfa_step_u_resolution = gl.get_uniform_location( &jfa_step_program, "u_resolution" );
-  let u_step_size = gl.get_uniform_location( &jfa_step_program, "u_step_size" );
-  let u_jfa_init_texture = gl.get_uniform_location( &jfa_step_program, "u_jfa_texture" );
+  let jfa_step_u_resolution = gl.get_uniform_location( &jfa_step_program, "u_resolution" ).unwrap();
+  let u_step_size = gl.get_uniform_location( &jfa_step_program, "u_step_size" ).unwrap();
+  let u_jfa_init_texture = gl.get_uniform_location( &jfa_step_program, "u_jfa_texture" ).unwrap();
 
   // - outline program 
-  let outline_u_object_texture = gl.get_uniform_location( &outline_program, "u_object_texture" );
-  let u_jfa_step_texture = gl.get_uniform_location( &outline_program, "u_jfa_texture" );
-  let outline_u_resolution = gl.get_uniform_location( &outline_program, "u_resolution" );
-  let u_outline_thickness = gl.get_uniform_location( &outline_program, "u_outline_thickness" );
-  let u_oultine_color = gl.get_uniform_location( &outline_program, "u_oultine_color" );
-  let u_object_color = gl.get_uniform_location( &outline_program, "u_object_color" );
-  let u_background_color = gl.get_uniform_location( &outline_program, "u_background_color" );
+  let outline_u_object_texture = gl.get_uniform_location( &outline_program, "u_object_texture" ).unwrap();
+  let u_jfa_step_texture = gl.get_uniform_location( &outline_program, "u_jfa_texture" ).unwrap();
+  let outline_u_resolution = gl.get_uniform_location( &outline_program, "u_resolution" ).unwrap();
+  let u_outline_thickness = gl.get_uniform_location( &outline_program, "u_outline_thickness" ).unwrap();
+  let u_outline_color = gl.get_uniform_location( &outline_program, "u_outline_color" ).unwrap();
+  let u_object_color = gl.get_uniform_location( &outline_program, "u_object_color" ).unwrap();
+  let u_background_color = gl.get_uniform_location( &outline_program, "u_background_color" ).unwrap();
 
   // Other
   let viewport = ( gl.drawing_buffer_width(), gl.drawing_buffer_height() );
+  let num_passes = ( viewport.0.max( viewport.1 ) as f32 ).log2().ceil() as i32;
 
   // Textures
 
   // Framebuffers
   let ( object_fb, object_fb_color ) = create_framebuffer( &gl, viewport, 0 ).unwrap();
   let ( jfa_init_fb, jfa_init_fb_color ) = create_framebuffer( &gl, viewport, 0 ).unwrap();
-  let ( jfa_step_fb, jfa_step_fb_color ) = create_framebuffer( &gl, viewport, 0 ).unwrap();
+  let ( jfa_step_fb_0, jfa_step_fb_color_0 ) = create_framebuffer( &gl, viewport, 0 ).unwrap();
+  let ( jfa_step_fb_1, jfa_step_fb_color_1 ) = create_framebuffer( &gl, viewport, 0 ).unwrap();
 
   // Buffers
   let pos_buffer =  gl::buffer::create( &gl )?;
@@ -130,65 +147,148 @@ async fn run() -> Result< (), gl::WebglError >
   let vao = gl::vao::create( &gl )?;
 
   // Model
-  gl.bind_vertex_array( Some( &vao ) );
-  gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).attribute_pointer( &gl, 0, &pos_buffer )?;
+  let obj_buffer = gl::file::load( "model.glb" ).await.expect( "Failed to load the model" );
+  let ( document, buffers, _ ) = gltf::import_slice( &obj_buffer[ .. ] ).expect( "Failed to parse the glb file" );
+
+  let positions : Vec< [ f32; 3 ] >;
+  let indices : Vec< u32 >;
+
+  {
+    let mesh = document.meshes().next().expect( "No meshes were found" );
+    let primitive = mesh.primitives().next().expect( "No primitives were found" );
+    let reader = primitive.reader( | buffer | Some( &buffers[ buffer.index() ] ) );
+
+    let pos_iter = reader.read_positions().expect( "Failed to read positions" );
+    positions = pos_iter.collect();
+
+    let index_iter = reader.read_indices().expect( "Failed to read indices" );
+    indices = index_iter.into_u32().collect();
+  }
 
   gl::buffer::upload( &gl, &pos_buffer, &positions, GL::STATIC_DRAW );
   gl::index::upload( &gl, &index_buffer, &indices, GL::STATIC_DRAW );
 
-  //let u_model = ;
+  gl.bind_vertex_array( Some( &vao ) );
+  gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).attribute_pointer( &gl, 0, &pos_buffer )?;
+
+  // Camera setup
+
+  let eye = ndarray_cg::F32x3::from_array( [  0.0, 3.0, 10.0 ] );
+  let up = ndarray_cg::F32x3::Y;
+
+  let aspect_ratio = viewport.0 as f32 / viewport.1 as f32;
+  let u_projection = ndarray_cg::mat3x3h::perspective_rh_gl
+  (
+    70.0f32.to_radians(),  
+    aspect_ratio, 
+    0.1, 
+    1000.0
+  );
+  let u_model = glam::Mat4::from_scale_rotation_translation
+  (
+    glam::Vec3::ONE, 
+    glam::Quat::from_rotation_y( 0.0 ), 
+    glam::Vec3::ZERO
+  );
+  let u_model : Mat< 4, 4, f32, DescriptorOrderColumnMajor > = ndarray_cg::Mat4::from_column_major( u_model.to_cols_array() );
 
   // Render passes
 
-  gl.use_program( Some( &object_program ) );
+  let object_pass = | t : f64 | 
+  {
+    gl.use_program( Some( &object_program ) );
 
-  let u_projection = gl::math::mat3x3h::perspective_rh_gl
-  (
-    fov,  
-    aspect_ratio, 
-    near, 
-    far
-  );
-  let u_view = ndarray_cg::d2::mat3x3h::loot_at_rh( eye, center, up );
+    let rotation = ndarray_cg::mat3x3::from_angle_y( t as f32 / 1000.0 );
+    let eye = rotation * eye;
 
-  gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &object_fb ) );
-  gl::uniform::upload_matrix( &gl, u_projection.clone(), &u_projection.to_cols_array()[ .. ] ).unwrap();
-  gl::uniform::upload_matrix( &gl, u_view.clone(), &u_view.to_cols_array()[ .. ] ).unwrap();
-  gl::uniform::upload_matrix( &gl, u_model.clone(), &u_model.to_cols_array()[ .. ] ).unwrap();
-
-  gl.use_program( Some( &jfa_init_program ) );
+    let u_view = ndarray_cg::d2::mat3x3h::look_at_rh( eye, ndarray_cg::F32x3::from_array( [ 0.0; 3 ] ), up );
   
-  gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &jfa_init_fb ) );
-  gl::uniform::upload( &gl, jfa_init_u_resolution.clone(), &ndarray_cg::F32x2::from_array( [ viewport.0, viewport.1 ] ) ).unwrap();
-  upload_texture( &object_fb_color, &u_object_texture, 0 );
+    upload_framebuffer( &gl, &object_fb, viewport );
+    gl::uniform::matrix_upload( &gl, Some( u_projection_loc.clone() ), &u_projection.to_array()[ .. ], true ).unwrap();
+    gl::uniform::matrix_upload( &gl, Some( u_view_loc.clone() ), &u_view.to_array()[ .. ], true ).unwrap();
+    gl::uniform::matrix_upload( &gl, Some( u_model_loc.clone() ), &u_model.to_array()[ .. ], true ).unwrap();
+  };
 
-  gl.use_program( Some( &jfa_step_program ) );
+  let jfa_init_pass = ||
+  {
+    gl.use_program( Some( &jfa_init_program ) );
   
-  gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &jfa_step_fb ) );
-  gl::uniform::upload( &gl, jfa_step_u_resolution.clone(), &ndarray_cg::F32x2::from_array( [ viewport.0, viewport.1 ] ) ).unwrap();
-  upload_texture( &jfa_init_fb_color, &u_jfa_init_texture, 0 );
+    upload_framebuffer( &gl, &jfa_init_fb, viewport );
+    gl::uniform::upload( &gl, Some( jfa_init_u_resolution.clone() ), &[ viewport.0 as f32, viewport.1 as f32 ] ).unwrap();
+    upload_texture( &gl, &object_fb_color, &u_object_texture, 0 );
+  };
 
-  gl.use_program( Some( &outline_program ) );
+  let jfa_step_pass = | i : i32, step_size : f32 |
+  {
+    gl.use_program( Some( &jfa_step_program ) );
+  
+    if i == 0
+    {
+      upload_framebuffer( &gl, &jfa_step_fb_0, viewport );
+      upload_texture( &gl, &jfa_init_fb_color, &u_jfa_init_texture, 0 );
+    }
+    else if i % 2 == 0
+    {
+      upload_framebuffer( &gl, &jfa_step_fb_0, viewport );
+      upload_texture( &gl, &jfa_step_fb_color_1, &u_jfa_init_texture, 0 );
+    }
+    else
+    {
+      upload_framebuffer( &gl, &jfa_step_fb_1, viewport );
+      upload_texture( &gl, &jfa_step_fb_color_0, &u_jfa_init_texture, 0 );
+    } 
 
-  let outline_thickness = [ 5.0 ]; 
-  let outline_color = [ 1.0, 1.0, 1.0, 1.0 ]; 
-  let object_color = [ 0.5, 0.5, 0.5, 1.0 ]; 
-  let background_color = [ 0.0, 0.0, 0.0, 1.0 ];
+    gl::uniform::upload( &gl, Some( jfa_step_u_resolution.clone() ), &[ viewport.0 as f32, viewport.1 as f32 ] ).unwrap();
+    gl::uniform::upload( &gl, Some( u_step_size.clone() ), &step_size ).unwrap();
+  };
 
-  gl.bind_framebuffer( GL::FRAMEBUFFER, None );
-  gl::uniform::upload( &gl, outline_u_resolution.clone(), &ndarray_cg::F32x2::from_array( [ viewport.0, viewport.1 ] ) ).unwrap();
-  gl::uniform::upload( &gl, u_outline_thickness.clone(), &ndarray_cg::F32x1::from_array( outline_thickness ) ).unwrap();
-  gl::uniform::upload( &gl, u_outline_color.clone(), &ndarray_cg::F32x4::from_array( outline_color ) ).unwrap();
-  gl::uniform::upload( &gl, u_object_color.clone(), &ndarray_cg::F32x4::from_array( object_color ) ).unwrap();
-  gl::uniform::upload( &gl, u_background_color.clone(), &ndarray_cg::F32x4::from_array( background_color ) ).unwrap();
-  upload_texture( &object_fb_color, &outline_u_object_texture, 0 );
-  upload_texture( &jfa_step_fb_color, &u_jfa_step_texture, 1 );
+  let outline_pass = | num_passes : i32 |
+  {
+    gl.use_program( Some( &outline_program ) );
+
+    let outline_thickness = [ 5.0 ]; 
+    let outline_color = [ 1.0, 1.0, 1.0, 1.0 ]; 
+    let object_color = [ 0.5, 0.5, 0.5, 1.0 ]; 
+    let background_color = [ 0.0, 0.0, 0.0, 1.0 ];
+  
+    gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+    gl::uniform::upload( &gl, Some( outline_u_resolution.clone() ), &[ viewport.0 as f32, viewport.1 as f32 ] ).unwrap();
+    gl::uniform::upload( &gl, Some( u_outline_thickness.clone() ), &outline_thickness ).unwrap();
+    gl::uniform::upload( &gl, Some( u_outline_color.clone() ), &outline_color ).unwrap();
+    gl::uniform::upload( &gl, Some( u_object_color.clone() ), &object_color ).unwrap();
+    gl::uniform::upload( &gl, Some( u_background_color.clone() ), &background_color ).unwrap();
+    upload_texture( &gl, &object_fb_color, &outline_u_object_texture, 0 );
+    if num_passes % 2 == 0
+    {
+      upload_texture( &gl, &jfa_step_fb_color_0, &u_jfa_step_texture, 1 );
+    }
+    else
+    {
+      upload_texture( &gl, &jfa_step_fb_color_1, &u_jfa_step_texture, 1 );
+    }
+  };
 
   // Define the update and draw logic
   let update_and_draw =
   {
     move | t : f64 |
     {
+      object_pass( t );
+      gl.draw_elements_with_i32( gl::TRIANGLES, indices.len() as i32, gl::UNSIGNED_INT, 0 );
+
+      jfa_init_pass();
+      gl.draw_elements_with_i32( gl::TRIANGLES, indices.len() as i32, gl::UNSIGNED_INT, 0 );
+
+      for i in 0..num_passes
+      {
+        let step_size = ( ( viewport.0.max( viewport.1 ) as f32 ) / 2.0f32.powi( i + 1 ) ).max( 1.0 );
+        jfa_step_pass( i, step_size );
+        gl.draw_elements_with_i32( gl::TRIANGLES, indices.len() as i32, gl::UNSIGNED_INT, 0 );
+      }
+      
+      outline_pass( num_passes );
+      gl.draw_elements_with_i32( gl::TRIANGLES, indices.len() as i32, gl::UNSIGNED_INT, 0 );
+      
       true
     }
   };
