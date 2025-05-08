@@ -1,6 +1,6 @@
 [package]
 name = "mdmath_core"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
 license = "MIT"
@@ -31,7 +31,7 @@ full = [
   "default",
   "index",
   "nd",
-  "inner_product",
+  "arithmetics",
   "general",
 ]
 
@@ -39,7 +39,7 @@ index = [ "dep:ndarray" ]
 nd = [ "dep:ndarray" ]
 float = [ "nd", "dep:num-traits" ]
 approx = [ "float", "dep:approx" ]
-inner_product = [ "float" ]
+arithmetics = [ "float" ]
 general = []
 
 [dependencies]

@@ -15,8 +15,7 @@ pub enum TextureType
   Specular,
   Normal,
   Shininess,
-  Dissolve,
-  Other 
+  Dissolve
 }
 
 #[ derive( Clone ) ]

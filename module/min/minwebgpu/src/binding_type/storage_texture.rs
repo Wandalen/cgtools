@@ -3,6 +3,7 @@ mod private
 {
   use crate::*;
 
+  #[ derive( Clone ) ]
   pub struct StorageTextureBindingLayout
   {
     /// Defaults to `Rgba8unormSrgb`
@@ -109,14 +110,6 @@ mod private
   impl From< StorageTextureBindingLayout > for web_sys::GpuStorageTextureBindingLayout
   {
     fn from( value: StorageTextureBindingLayout ) -> Self 
-    {
-      ( &value ).into()
-    }
-  }
-
-  impl From< &StorageTextureBindingLayout > for web_sys::GpuStorageTextureBindingLayout
-  {
-    fn from( value: &StorageTextureBindingLayout ) -> Self 
     {
       let layout = web_sys::GpuStorageTextureBindingLayout::new( value.format );
 

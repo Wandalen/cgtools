@@ -1,10 +1,20 @@
 mod private
 {
   use crate::*;
-  use vector::arithmetics::inner_product::*;
+  use vector::{ cross };
 
-  impl< E : MatEl + NdFloat > Vector< E, 3 >
+  impl< E > Vector< E, 3 >
+  where
+    E : MatEl + NdFloat,
   {
+
+    /// Create a new vector
+    #[ inline( always ) ]
+    pub const fn new( x : E, y : E, z : E ) -> Self
+    {
+      Self( [ x, y, z ] )
+    }
+
     #[ inline ]
     pub fn x( &self ) -> E
     {
@@ -28,9 +38,9 @@ mod private
       cross( &self, &rhs )
     }
   }
+
 }
 
 crate::mod_interface!
 {
-  
 }

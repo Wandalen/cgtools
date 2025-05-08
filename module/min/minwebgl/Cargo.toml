@@ -16,7 +16,8 @@ workspace = true
 
 enabled = [
   "dep:mingl",
-  "dep:bytemuck",
+  # "dep:bytemuck",
+  "dep:asbytes",
   "dep:browser_log",
   "dep:wasm-bindgen-futures",
   "dep:wasm-bindgen",
@@ -27,7 +28,7 @@ default = [
   "enabled",
   "constants",
   "diagnostics",
-  "minweb",
+  "web",
   "future",
   "file",
   "log"
@@ -41,14 +42,14 @@ constants = [] # reflect contants
 # diagnostics
 diagnostics = [
   "mingl/diagnostics",
-  "objModel"
+  "model_obj"
 ]
 
-minweb = [ "mingl/web" ] # common web utils
-file = [ "mingl/webFile" ] # enable files handling
-future = [ "mingl/webFuture" ] # enable futures
-objModel = [ "mingl/webObjModel" ] # enable futures
-log = [ "mingl/webLog" ]
+web = [ "mingl/web", "mingl/web_log" ] # common web utils
+file = [ "mingl/web_file" ] # enable files handling
+future = [ "mingl/web_future" ] # enable futures
+model_obj = [ "mingl/web_model_obj" ] # enable futures
+log = [ "mingl/web_log" ]
 
 math = [ "mingl/math" ]
 
@@ -60,7 +61,8 @@ mingl = { workspace = true, optional = true }
 
 # = external
 
-bytemuck = { workspace = true, optional = true, features = [ "derive" ] } # xxx : replace
+asbytes = { workspace = true, optional = true }
+# bytemuck = { workspace = true, optional = true, features = [ "derive" ] } # xxx : replace
 # anyhow = "1.0.48"
 # slice-of-array = "0.3.1"
 # log = { workspace = true }
@@ -93,6 +95,7 @@ web-sys = { workspace = true, optional = true, features = [
   'Location',
   'HtmlImageElement',
   'WebGlTexture',
+  'HtmlVideoElement',
   'CanvasRenderingContext2d',
-  'ImageData'
+  'ImageData',
 ]}
