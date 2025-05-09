@@ -18,6 +18,17 @@ use ndarray_cg::Mat;
 use ndarray_cg::mat::DescriptorOrderColumnMajor;
 use std::collections::HashMap;
 
+const QUAD_POSITIONS_2D : [ f32; 12 ] =
+[
+  -1.0, -1.0,
+   1.0, -1.0,
+  -1.0,  1.0,
+
+  -1.0,  1.0,
+   1.0, -1.0,
+   1.0,  1.0,
+];
+
 fn create_texture( 
   gl : &gl::WebGl2RenderingContext,
   slot : u32,
@@ -97,6 +108,77 @@ fn s( s: &str ) -> String
   s.to_string()
 }
 
+fn collect_mesh_data
+(
+  node : &gltf::Node,
+  buffers : &[ gltf::buffer::Data ],
+  parent_transform : ndarray_cg::Mat4< f32, DescriptorOrderColumnMajor >,
+  positions : &mut Vec< [ f32; 3 ] >, 
+  indices : &mut Vec< u32 >,         
+  vertex_offset : &mut u32 
+)
+{
+  let transform = node.transform().matrix();
+  let mut transform_raw : [ f32; 16 ] = [ 0.0; 16 ];
+  for ( i, r ) in transform_raw.chunks_mut( 4 ).enumerate()
+  {
+    r[ 0 ] = transform[ i ][ 0 ];
+    r[ 1 ] = transform[ i ][ 1 ];
+    r[ 2 ] = transform[ i ][ 2 ];
+    r[ 3 ] = transform[ i ][ 3 ];
+  }
+
+  let local_transform : ndarray_cg::Mat4< f32, DescriptorOrderColumnMajor > = ndarray_cg::Mat4::from_column_major( &transform_raw ); 
+
+  let current_transform = parent_transform * local_transform;
+
+  if let Some( mesh ) = node.mesh()
+  {
+    for primitive in mesh.primitives()
+    {
+      let reader = primitive.reader( | buffer | Some( &buffers[ buffer.index() ] ) );
+
+      if let Some( positions_iter ) = reader.read_positions()
+      {
+        let mut current_primitive_positions : Vec< [ f32; 3 ] > = Vec::new();
+        
+        for p in positions_iter
+        {
+          let pos_vec = ndarray_cg::F32x4::from_array( [ p[ 0 ], p[ 1 ], p[ 2 ], 1.0 ] );
+          let tp = current_transform * pos_vec; 
+          current_primitive_positions.push( [ tp[ 0 ], tp[ 1 ], tp[ 2 ] ].into() ); 
+        }
+
+        let num_current_vertices = current_primitive_positions.len();
+
+        positions.extend( current_primitive_positions ); 
+
+        if let Some( indices_iter ) = reader.read_indices()
+        {
+          for index in indices_iter.into_u32()
+          {
+             indices.push( index + *vertex_offset ); 
+          }
+        }
+
+        *vertex_offset += num_current_vertices as u32;
+      }
+    }
+  }
+
+  for child in node.children()
+  {
+    collect_mesh_data( 
+      &child, 
+      buffers, 
+      current_transform, 
+      positions, 
+      indices,  
+      vertex_offset 
+    );
+  }
+}
+
 struct Camera
 {
   eye : ndarray_cg::F32x3,
@@ -129,7 +211,7 @@ impl Renderer
     let viewport = ( gl.drawing_buffer_width(), gl.drawing_buffer_height() );
   
     // Camera setup
-    let eye = ndarray_cg::F32x3::from_array( [  0.0, 3.0, 10.0 ] );
+    let eye = ndarray_cg::F32x3::from_array( [  0.0, 1.4, 2.5 ] );
     let up = ndarray_cg::F32x3::Y;
   
     let aspect_ratio = viewport.0 as f32 / viewport.1 as f32;
@@ -214,27 +296,37 @@ impl Renderer
     let index_buffer = gl::buffer::create( gl ).unwrap();
     let vao = gl::vao::create( gl ).unwrap();
 
+    let quad_pos_buffer = gl::buffer::create( gl ).unwrap();
+    let quad_vao = gl::vao::create( gl ).unwrap();
+
     renderer.buffers.insert( s( "pos_buffer" ), pos_buffer.clone() );
     renderer.buffers.insert( s( "index_buffer" ), index_buffer.clone() );
     renderer.vaos.insert( s( "vao" ), vao.clone() );
+
+    renderer.buffers.insert( s( "quad_pos_buffer" ), quad_pos_buffer.clone() );
+    renderer.vaos.insert( s( "quad_vao" ), quad_vao.clone() );
   
     // Model
     let obj_buffer = gl::file::load( "model.glb" ).await.expect( "Failed to load the model" );
     let ( document, buffers, _ ) = gltf::import_slice( &obj_buffer[ .. ] ).expect( "Failed to parse the glb file" );
   
-    let positions : Vec< [ f32; 3 ] >;
-    let indices : Vec< u32 >;
+    let mut positions : Vec< [ f32; 3 ] > = vec![];
+    let mut indices : Vec< u32 > = vec![];
   
     {
-      let mesh = document.meshes().next().expect( "No meshes were found" );
-      let primitive = mesh.primitives().next().expect( "No primitives were found" );
-      let reader = primitive.reader( | buffer | Some( &buffers[ buffer.index() ] ) );
-  
-      let pos_iter = reader.read_positions().expect( "Failed to read positions" );
-      positions = pos_iter.collect();
-  
-      let index_iter = reader.read_indices().expect( "Failed to read indices" );
-      indices = index_iter.into_u32().collect();
+      let scene = document.default_scene().unwrap();
+      let mut vertex_offset : u32 = 0;
+      for node in scene.nodes()
+      {
+         collect_mesh_data( 
+           &document.nodes().nth( node.index() ).expect("Node not found"),
+           &buffers, 
+           u_model, 
+           &mut positions, 
+           &mut indices,   
+           &mut vertex_offset 
+         );
+      }
       renderer.draw_count = indices.len() as i32;
     }
   
@@ -243,6 +335,17 @@ impl Renderer
   
     gl.bind_vertex_array( Some( &vao ) );
     gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).attribute_pointer( &gl, 0, &pos_buffer ).unwrap();
+    gl.bind_buffer( GL::ELEMENT_ARRAY_BUFFER, Some( &index_buffer ) );
+    gl.bind_vertex_array( None );
+
+    gl::buffer::upload( &gl, &quad_pos_buffer, &QUAD_POSITIONS_2D, GL::STATIC_DRAW );
+    gl.bind_vertex_array( Some( &quad_vao ) );
+    gl::BufferDescriptor::new::< [ f32; 2 ] >().stride( 2 ).offset( 0 ).attribute_pointer( &gl, 0, &quad_pos_buffer ).unwrap();
+    gl.enable_vertex_attrib_array( 0 );
+
+    gl.bind_vertex_array( None );
+    gl.bind_buffer( GL::ARRAY_BUFFER, None );
+    gl.bind_buffer( GL::ELEMENT_ARRAY_BUFFER, None );
 
     renderer
   }
@@ -251,21 +354,33 @@ impl Renderer
   {
     let gl = &self.gl;
 
+    let vao = self.vaos.get( "vao" ).unwrap();
+    let quad_vao = self.vaos.get( "quad_vao" ).unwrap();
+
+    gl.bind_vertex_array( Some( vao ) );
     self.object_pass( t );
     gl.draw_elements_with_i32( gl::TRIANGLES, self.draw_count, gl::UNSIGNED_INT, 0 );
+    gl.bind_vertex_array( None );
 
+    gl.bind_vertex_array( Some( quad_vao ) );
     self.jfa_init_pass();
-    gl.draw_elements_with_i32( gl::TRIANGLES, self.draw_count, gl::UNSIGNED_INT, 0 );
+    gl.draw_arrays( GL::TRIANGLES, 0, 6 );
+    gl.bind_vertex_array( None );
 
     let num_passes = ( self.viewport.0.max( self.viewport.1 ) as f32 ).log2().ceil() as i32;
     for i in 0..num_passes
     {
-      self.jfa_step_pass( i );
-      gl.draw_elements_with_i32( gl::TRIANGLES, self.draw_count, gl::UNSIGNED_INT, 0 );
+      gl.bind_vertex_array( Some( quad_vao ) );
+      let last = false; //i == ( num_passes - 1 );
+      self.jfa_step_pass( i, last );        
+      gl.draw_arrays( GL::TRIANGLES, 0, 6 );
+      gl.bind_vertex_array( None );
     }
     
-    self.outline_pass( num_passes );
-    gl.draw_elements_with_i32( gl::TRIANGLES, self.draw_count, gl::UNSIGNED_INT, 0 );
+    gl.bind_vertex_array( Some( quad_vao ) );
+    self.outline_pass( t, num_passes );
+    gl.draw_arrays( GL::TRIANGLES, 0, 6 );
+    gl.bind_vertex_array( None );
   }
 
   fn object_pass( &self, t : f64 )
@@ -281,12 +396,19 @@ impl Renderer
 
     gl.use_program( Some( object_program ) );
 
-    let rotation = ndarray_cg::mat3x3::from_angle_y( t as f32 / 1000.0 );
+    let rotation = ndarray_cg::mat3x3::from_axis_angle( ndarray_cg::F32x3::Y, t as f32 / 1000.0 );
     let eye = rotation * self.camera.eye;
+    let center = ndarray_cg::F32x3::from_array( [ 0.0, 0.3, 0.0 ] );
 
-    let u_view = ndarray_cg::d2::mat3x3h::look_at_rh( eye, ndarray_cg::F32x3::from_array( [ 0.0; 3 ] ), self.camera.up );
+    let u_view = ndarray_cg::d2::mat3x3h::look_at_rh( eye, center, self.camera.up );
   
     upload_framebuffer( gl, object_fb, self.viewport );
+
+    gl.clear_color( 0.0, 0.0, 0.0, 0.0 );
+    gl.clear_depth( 1.0 );             
+    gl.clear( GL::COLOR_BUFFER_BIT | GL::DEPTH_BUFFER_BIT );
+    gl.enable( GL::DEPTH_TEST );
+
     gl::uniform::matrix_upload( gl, Some( u_projection_loc.clone() ), &self.camera.projection.to_array()[ .. ], true ).unwrap();
     gl::uniform::matrix_upload( gl, Some( u_view_loc.clone() ), &u_view.to_array()[ .. ], true ).unwrap();
     gl::uniform::matrix_upload( gl, Some( u_model_loc.clone() ), &self.camera.model.to_array()[ .. ], true ).unwrap();
@@ -297,20 +419,18 @@ impl Renderer
     let gl = &self.gl;
 
     let jfa_init_program = self.programs.get( "jfa_init" ).unwrap();
-    let jfa_init_fb = self.framebuffers.get( "object_fb" ).unwrap();
+    let jfa_init_fb = self.framebuffers.get( "jfa_init_fb" ).unwrap();
     let object_fb_color = self.textures.get( "object_fb_color" ).unwrap();
 
-    let u_resolution = gl.get_uniform_location( jfa_init_program, "u_resolution" ).unwrap();
     let u_object_texture = gl.get_uniform_location( jfa_init_program, "u_object_texture" ).unwrap();
 
     gl.use_program( Some( jfa_init_program ) );
   
     upload_framebuffer( gl, jfa_init_fb, self.viewport );
-    gl::uniform::upload( gl, Some( u_resolution.clone() ), &[ self.viewport.0 as f32, self.viewport.1 as f32 ] ).unwrap();
     upload_texture( gl, object_fb_color, &u_object_texture, 0 );
   }
 
-  fn jfa_step_pass( &self, i : i32 )
+  fn jfa_step_pass( &self, i : i32, last : bool )
   {
     let gl = &self.gl;
 
@@ -343,12 +463,19 @@ impl Renderer
       upload_texture( gl, jfa_step_fb_color_0, &u_jfa_init_texture, 0 );
     } 
 
+    if last
+    {
+      gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+      gl.clear_color( 0.0, 0.0, 0.0, 0.0 );
+      gl.clear( GL::COLOR_BUFFER_BIT );
+    }
+
     gl::uniform::upload( gl, Some( u_resolution.clone() ), &[ self.viewport.0 as f32, self.viewport.1 as f32 ] ).unwrap();
     let step_size = ( ( self.viewport.0.max( self.viewport.1 ) as f32 ) / 2.0f32.powi( i + 1 ) ).max( 1.0 );
     gl::uniform::upload( gl, Some( u_step_size.clone() ), &step_size ).unwrap();
   }
 
-  fn outline_pass( &self, num_passes : i32 )
+  fn outline_pass( &self, t : f64, num_passes : i32 )
   {
     let gl = &self.gl;
 
@@ -367,12 +494,16 @@ impl Renderer
 
     gl.use_program( Some( outline_program ) );
 
-    let outline_thickness = [ 5.0 ]; 
+    let outline_thickness = [ 15.0 * ( t / 1000.0 ).sin() as f32  ]; 
     let outline_color = [ 1.0, 1.0, 1.0, 1.0 ]; 
     let object_color = [ 0.5, 0.5, 0.5, 1.0 ]; 
     let background_color = [ 0.0, 0.0, 0.0, 1.0 ];
   
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+
+    gl.clear_color( background_color[ 0 ], background_color[ 1 ], background_color[ 2 ], background_color[ 3 ] );
+    gl.clear( GL::COLOR_BUFFER_BIT );
+
     gl::uniform::upload( gl, Some( u_resolution.clone() ), &[ self.viewport.0 as f32, self.viewport.1 as f32 ] ).unwrap();
     gl::uniform::upload( gl, Some( u_outline_thickness.clone() ), &outline_thickness ).unwrap();
     gl::uniform::upload( gl, Some( u_outline_color.clone() ), &outline_color ).unwrap();
