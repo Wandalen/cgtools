@@ -3,7 +3,6 @@ precision highp float; // Need high precision for coordinates
 in vec2 v_tex_coord;
 out vec4 FragColor; // Outputting vec4 for RGBA32F texture
 uniform sampler2D u_object_texture; // Input: Rendered 3D object silhouette
-uniform vec2 u_resolution;
 
 void main() {
     // Check if the object is present (we rendered it white)

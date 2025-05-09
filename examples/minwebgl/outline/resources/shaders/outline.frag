@@ -36,8 +36,8 @@ void main() {
             if (dist < u_outline_thickness) {
                 FragColor = u_outline_color;
             } else {
-                 // Pixel is background, outside the outline
-                 FragColor = u_background_color;
+                // Pixel is background, outside the outline
+                FragColor = u_background_color;
             }
         } else {
              // Pixel is far background (JFA didn't find a nearby seed)
