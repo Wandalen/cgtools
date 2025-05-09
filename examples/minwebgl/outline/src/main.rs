@@ -4,7 +4,8 @@ use minwebgl as gl;
 use gl::
 {
   GL,
-  web_sys::{
+  web_sys::
+  {
     WebGl2RenderingContext,
     WebGlProgram,
     WebGlUniformLocation,
@@ -14,20 +15,8 @@ use gl::
     WebGlFramebuffer
   }
 };
-use ndarray_cg::Mat;
 use ndarray_cg::mat::DescriptorOrderColumnMajor;
 use std::collections::HashMap;
-
-const QUAD_POSITIONS_2D : [ f32; 12 ] =
-[
-  -1.0, -1.0,
-   1.0, -1.0,
-  -1.0,  1.0,
-
-  -1.0,  1.0,
-   1.0, -1.0,
-   1.0,  1.0,
-];
 
 fn create_texture( 
   gl : &gl::WebGl2RenderingContext,
@@ -42,7 +31,7 @@ fn create_texture(
   let Some( texture ) = gl.create_texture() else {
     return None;   
   };
-  gl.active_texture( 33_984u32 + slot );
+  gl.active_texture( slot );
   gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) );
   gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array( 
     GL::TEXTURE_2D,
@@ -67,9 +56,9 @@ fn upload_texture(
   slot : u32,
 )
 {
-  gl.active_texture( 33_984u32 + slot );
+  gl.active_texture( slot );
   gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) );
-  gl.uniform1i( Some( location ), slot as i32 );
+  gl.uniform1i( Some( location ), ( slot - GL::TEXTURE0 ) as i32 );
 }
 
 fn create_framebuffer(
@@ -101,11 +90,6 @@ fn upload_framebuffer(
 {
   gl.bind_framebuffer( GL::FRAMEBUFFER, Some( framebuffer ) );
   gl.viewport( 0, 0, size.0, size.1 );
-}
-
-fn s( s: &str ) -> String
-{
-  s.to_string()
 }
 
 fn collect_mesh_data
@@ -183,8 +167,8 @@ struct Camera
 {
   eye : ndarray_cg::F32x3,
   up : ndarray_cg::F32x3,
-  projection : Mat< 4, 4, f32, DescriptorOrderColumnMajor >,
-  model : Mat< 4, 4, f32, DescriptorOrderColumnMajor >
+  projection : ndarray_cg::Mat4< f32, DescriptorOrderColumnMajor >,
+  model : ndarray_cg::Mat4< f32, DescriptorOrderColumnMajor >
 }
 
 struct Renderer
@@ -228,7 +212,7 @@ impl Renderer
       glam::Quat::from_rotation_y( 0.0 ), 
       glam::Vec3::ZERO
     );
-    let u_model : Mat< 4, 4, f32, DescriptorOrderColumnMajor > = ndarray_cg::Mat4::from_column_major( u_model.to_cols_array() );
+    let u_model : ndarray_cg::Mat4< f32, DescriptorOrderColumnMajor > = ndarray_cg::Mat4::from_column_major( u_model.to_cols_array() );
 
     let camera = Camera{
       eye,
@@ -268,10 +252,10 @@ impl Renderer
     let jfa_step_program = gl::ProgramFromSources::new( fullscreen_vs_src, jfa_step_fs_src ).compile_and_link( gl ).unwrap();
     let outline_program = gl::ProgramFromSources::new( fullscreen_vs_src, outline_fs_src ).compile_and_link( gl ).unwrap();
   
-    renderer.programs.insert( s( "object" ), object_program );
-    renderer.programs.insert( s( "jfa_init" ), jfa_init_program );
-    renderer.programs.insert( s( "jfa_step" ), jfa_step_program );
-    renderer.programs.insert( s( "outline" ), outline_program );
+    renderer.programs.insert( "object".to_string(), object_program );
+    renderer.programs.insert( "jfa_init".to_string(), jfa_init_program );
+    renderer.programs.insert( "jfa_step".to_string(), jfa_step_program );
+    renderer.programs.insert( "outline".to_string(), outline_program );
   
     // Textures
   
@@ -281,30 +265,24 @@ impl Renderer
     let ( jfa_step_fb_0, jfa_step_fb_color_0 ) = create_framebuffer( gl, viewport, 0 ).unwrap();
     let ( jfa_step_fb_1, jfa_step_fb_color_1 ) = create_framebuffer( gl, viewport, 0 ).unwrap();
 
-    renderer.textures.insert( s( "object_fb_color" ), object_fb_color );
-    renderer.textures.insert( s( "jfa_init_fb_color" ), jfa_init_fb_color );
-    renderer.textures.insert( s( "jfa_step_fb_color_0" ), jfa_step_fb_color_0 );
-    renderer.textures.insert( s( "jfa_step_fb_color_1" ), jfa_step_fb_color_1 );
+    renderer.textures.insert( "object_fb_color".to_string(), object_fb_color );
+    renderer.textures.insert( "jfa_init_fb_color".to_string(), jfa_init_fb_color );
+    renderer.textures.insert( "jfa_step_fb_color_0".to_string(), jfa_step_fb_color_0 );
+    renderer.textures.insert( "jfa_step_fb_color_1".to_string(), jfa_step_fb_color_1 );
 
-    renderer.framebuffers.insert( s( "object_fb" ), object_fb );
-    renderer.framebuffers.insert( s( "jfa_init_fb" ), jfa_init_fb );
-    renderer.framebuffers.insert( s( "jfa_step_fb_0" ), jfa_step_fb_0 );
-    renderer.framebuffers.insert( s( "jfa_step_fb_1" ), jfa_step_fb_1 );
+    renderer.framebuffers.insert( "object_fb".to_string(), object_fb );
+    renderer.framebuffers.insert( "jfa_init_fb".to_string(), jfa_init_fb );
+    renderer.framebuffers.insert( "jfa_step_fb_0".to_string(), jfa_step_fb_0 );
+    renderer.framebuffers.insert( "jfa_step_fb_1".to_string(), jfa_step_fb_1 );
   
     // Buffers
     let pos_buffer =  gl::buffer::create( gl ).unwrap();
     let index_buffer = gl::buffer::create( gl ).unwrap();
     let vao = gl::vao::create( gl ).unwrap();
 
-    let quad_pos_buffer = gl::buffer::create( gl ).unwrap();
-    let quad_vao = gl::vao::create( gl ).unwrap();
-
-    renderer.buffers.insert( s( "pos_buffer" ), pos_buffer.clone() );
-    renderer.buffers.insert( s( "index_buffer" ), index_buffer.clone() );
-    renderer.vaos.insert( s( "vao" ), vao.clone() );
-
-    renderer.buffers.insert( s( "quad_pos_buffer" ), quad_pos_buffer.clone() );
-    renderer.vaos.insert( s( "quad_vao" ), quad_vao.clone() );
+    renderer.buffers.insert( "pos_buffer".to_string(), pos_buffer.clone() );
+    renderer.buffers.insert( "index_buffer".to_string(), index_buffer.clone() );
+    renderer.vaos.insert( "vao".to_string(), vao.clone() );
   
     // Model
     let obj_buffer = gl::file::load( "model.glb" ).await.expect( "Failed to load the model" );
@@ -338,11 +316,6 @@ impl Renderer
     gl.bind_buffer( GL::ELEMENT_ARRAY_BUFFER, Some( &index_buffer ) );
     gl.bind_vertex_array( None );
 
-    gl::buffer::upload( &gl, &quad_pos_buffer, &QUAD_POSITIONS_2D, GL::STATIC_DRAW );
-    gl.bind_vertex_array( Some( &quad_vao ) );
-    gl::BufferDescriptor::new::< [ f32; 2 ] >().stride( 2 ).offset( 0 ).attribute_pointer( &gl, 0, &quad_pos_buffer ).unwrap();
-    gl.enable_vertex_attrib_array( 0 );
-
     gl.bind_vertex_array( None );
     gl.bind_buffer( GL::ARRAY_BUFFER, None );
     gl.bind_buffer( GL::ELEMENT_ARRAY_BUFFER, None );
@@ -352,35 +325,17 @@ impl Renderer
 
   fn render( &self, t : f64 )
   {
-    let gl = &self.gl;
-
-    let vao = self.vaos.get( "vao" ).unwrap();
-    let quad_vao = self.vaos.get( "quad_vao" ).unwrap();
-
-    gl.bind_vertex_array( Some( vao ) );
     self.object_pass( t );
-    gl.draw_elements_with_i32( gl::TRIANGLES, self.draw_count, gl::UNSIGNED_INT, 0 );
-    gl.bind_vertex_array( None );
-
-    gl.bind_vertex_array( Some( quad_vao ) );
     self.jfa_init_pass();
-    gl.draw_arrays( GL::TRIANGLES, 0, 6 );
-    gl.bind_vertex_array( None );
 
     let num_passes = ( self.viewport.0.max( self.viewport.1 ) as f32 ).log2().ceil() as i32;
     for i in 0..num_passes
     {
-      gl.bind_vertex_array( Some( quad_vao ) );
       let last = false; //i == ( num_passes - 1 );
       self.jfa_step_pass( i, last );        
-      gl.draw_arrays( GL::TRIANGLES, 0, 6 );
-      gl.bind_vertex_array( None );
     }
     
-    gl.bind_vertex_array( Some( quad_vao ) );
     self.outline_pass( t, num_passes );
-    gl.draw_arrays( GL::TRIANGLES, 0, 6 );
-    gl.bind_vertex_array( None );
   }
 
   fn object_pass( &self, t : f64 )
@@ -389,6 +344,7 @@ impl Renderer
 
     let object_program = self.programs.get( "object" ).unwrap();
     let object_fb = self.framebuffers.get( "object_fb" ).unwrap();
+    let vao = self.vaos.get( "vao" ).unwrap();
 
     let u_projection_loc = gl.get_uniform_location( object_program, "u_projection" ).unwrap();
     let u_view_loc = gl.get_uniform_location( object_program, "u_view" ).unwrap();
@@ -412,6 +368,10 @@ impl Renderer
     gl::uniform::matrix_upload( gl, Some( u_projection_loc.clone() ), &self.camera.projection.to_array()[ .. ], true ).unwrap();
     gl::uniform::matrix_upload( gl, Some( u_view_loc.clone() ), &u_view.to_array()[ .. ], true ).unwrap();
     gl::uniform::matrix_upload( gl, Some( u_model_loc.clone() ), &self.camera.model.to_array()[ .. ], true ).unwrap();
+  
+    gl.bind_vertex_array( Some( vao ) );
+    gl.draw_elements_with_i32( gl::TRIANGLES, self.draw_count, gl::UNSIGNED_INT, 0 );
+    gl.bind_vertex_array( None );
   }
 
   fn jfa_init_pass( &self )
@@ -427,7 +387,10 @@ impl Renderer
     gl.use_program( Some( jfa_init_program ) );
   
     upload_framebuffer( gl, jfa_init_fb, self.viewport );
-    upload_texture( gl, object_fb_color, &u_object_texture, 0 );
+    upload_texture( gl, object_fb_color, &u_object_texture, GL::TEXTURE0 );
+
+    gl.draw_arrays( GL::TRIANGLES, 0, 6 );
+    gl.bind_vertex_array( None );
   }
 
   fn jfa_step_pass( &self, i : i32, last : bool )
@@ -450,17 +413,17 @@ impl Renderer
     if i == 0
     {
       upload_framebuffer( gl, jfa_step_fb_0, self.viewport );
-      upload_texture( gl, jfa_init_fb_color, &u_jfa_init_texture, 0 );
+      upload_texture( gl, jfa_init_fb_color, &u_jfa_init_texture, GL::TEXTURE0 );
     }
     else if i % 2 == 0
     {
       upload_framebuffer( gl, jfa_step_fb_0, self.viewport );
-      upload_texture( gl, &jfa_step_fb_color_1, &u_jfa_init_texture, 0 );
+      upload_texture( gl, &jfa_step_fb_color_1, &u_jfa_init_texture, GL::TEXTURE0 );
     }
     else
     {
       upload_framebuffer( gl, jfa_step_fb_1, self.viewport );
-      upload_texture( gl, jfa_step_fb_color_0, &u_jfa_init_texture, 0 );
+      upload_texture( gl, jfa_step_fb_color_0, &u_jfa_init_texture, GL::TEXTURE0 );
     } 
 
     if last
@@ -473,6 +436,9 @@ impl Renderer
     gl::uniform::upload( gl, Some( u_resolution.clone() ), &[ self.viewport.0 as f32, self.viewport.1 as f32 ] ).unwrap();
     let step_size = ( ( self.viewport.0.max( self.viewport.1 ) as f32 ) / 2.0f32.powi( i + 1 ) ).max( 1.0 );
     gl::uniform::upload( gl, Some( u_step_size.clone() ), &step_size ).unwrap();
+
+    gl.draw_arrays( GL::TRIANGLES, 0, 6 );
+    gl.bind_vertex_array( None );
   }
 
   fn outline_pass( &self, t : f64, num_passes : i32 )
@@ -509,15 +475,18 @@ impl Renderer
     gl::uniform::upload( gl, Some( u_outline_color.clone() ), &outline_color ).unwrap();
     gl::uniform::upload( gl, Some( u_object_color.clone() ), &object_color ).unwrap();
     gl::uniform::upload( gl, Some( u_background_color.clone() ), &background_color ).unwrap();
-    upload_texture( gl, object_fb_color, &outline_u_object_texture, 0 );
+    upload_texture( gl, object_fb_color, &outline_u_object_texture, GL::TEXTURE0 );
     if num_passes % 2 == 0
     {
-      upload_texture( gl, jfa_step_fb_color_0, &u_jfa_step_texture, 1 );
+      upload_texture( gl, jfa_step_fb_color_0, &u_jfa_step_texture, GL::TEXTURE1 );
     }
     else
     {
-      upload_texture( gl, jfa_step_fb_color_1, &u_jfa_step_texture, 1 );
+      upload_texture( gl, jfa_step_fb_color_1, &u_jfa_step_texture, GL::TEXTURE1 );
     }
+
+    gl.draw_arrays( GL::TRIANGLES, 0, 6 );
+    gl.bind_vertex_array( None );
   }
 }
 

@@ -12,7 +12,6 @@ authors = [
 minwebgl = { workspace = true, features = [ "future" ] }
 glam = "0.29.0"
 ndarray_cg = { workspace = true }
-js-sys = "0.3"
 gltf = "1.4" 
 
 [dependencies.web-sys]
