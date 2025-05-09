@@ -1,9 +1,8 @@
 use minwebgl as gl;
-use gl::{ GL, JsCast as _, JsValue, F32x4x4, BufferDescriptor, WebglError };
+use gl::{ math::d2::mat3x3h, BufferDescriptor, F32x4x4, JsCast as _, WebglError, GL };
 use web_sys::
 {
   HtmlCanvasElement,
-  WebGlTexture,
   WebGlVertexArrayObject
 };
 
@@ -16,7 +15,7 @@ fn main()
 async fn run() -> Result< (), gl::WebglError >
 {
   let gl = gl::context::retrieve_or_make().expect( "Failed to retrieve WebGl context" );
-  _ = gl.get_extension( "EXT_color_buffer_float" ).unwrap().unwrap();
+  // _ = gl.get_extension( "EXT_color_buffer_float" ).unwrap().unwrap();
   let width = 1280;
   let height = 720;
   let canvas = gl.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
@@ -24,13 +23,13 @@ async fn run() -> Result< (), gl::WebglError >
   canvas.set_height( height as u32 );
   gl.viewport( 0, 0, width, height );
 
-  let vert = include_str!( "../shaders/screen_rasterize.vert" );
+  let vert = include_str!( "../shaders/light_volume.vert" );
   let frag = include_str!( "../shaders/deferred.frag" );
   let program = gl::shader::Program::new( gl.clone(), vert, frag )?;
   program.activate();
 
-  let cube_vertices =
-  [
+  let cube_vertices : &[ f32 ] =
+  &[
     // Front face
     -1.0, -1.0,  1.0,
      1.0, -1.0,  1.0,
@@ -41,51 +40,40 @@ async fn run() -> Result< (), gl::WebglError >
      1.0, -1.0, -1.0,
      1.0,  1.0, -1.0,
     -1.0,  1.0, -1.0,
+  ];
+  let cube_indices : &[ u32 ] =
+  &[
+    // Front face
+    0, 1, 2, 0, 2, 3,
+    // Back face
+    4, 6, 5, 4, 7, 6,
     // Top face
-    -1.0,  1.0, -1.0,
-     1.0,  1.0, -1.0,
-     1.0,  1.0,  1.0,
-    -1.0,  1.0,  1.0,
+    3, 2, 6, 3, 6, 7,
     // Bottom face
-    -1.0, -1.0, -1.0,
-     1.0, -1.0, -1.0,
-     1.0, -1.0,  1.0,
-    -1.0, -1.0,  1.0,
+    0, 5, 1, 0, 4, 5,
     // Right face
-     1.0, -1.0, -1.0,
-     1.0,  1.0, -1.0,
-     1.0,  1.0,  1.0,
-     1.0, -1.0,  1.0,
+    1, 5, 6, 1, 6, 2,
     // Left face
-    -1.0, -1.0, -1.0,
-    -1.0,  1.0, -1.0,
-    -1.0,  1.0,  1.0,
-    -1.0, -1.0,  1.0,
+    0, 3, 7, 0, 7, 4
   ];
-  let cube_indices =
-  [
-    0,  1,  2,   0,  2,  3,    // Front face
-    4,  5,  6,   4,  6,  7,    // Back face
-    8,  9,  10,  8,  10, 11,   // Top face
-    12, 13, 14,  12, 14, 15,   // Bottom face
-    16, 17, 18,  16, 18, 19,   // Right face
-    20, 21, 22,  20, 22, 23,   // Left face
-  ];
-  let geom = gl::geometry::Positions::new( gl.clone(), &cube_vertices, 3 )?;
 
-  // let plane_mesh =
-  // [
-  //   [ -1.0, -1.0, 0.0 ],
-  //   [  1.0,  1.0, 0.0 ],
-  //   [ -1.0,  1.0, 0.0 ],
-  //   [ -1.0, -1.0, 0.0 ],
-  //   [  1.0, -1.0, 0.0 ],
-  //   [  1.0,  1.0, 0.0 ],
-  // ].into_iter().flatten().collect::< Vec< f32 > >();
+  let position_buffer = gl::buffer::create( &gl )?;
+  gl::buffer::upload( &gl, &position_buffer, cube_vertices, GL::STATIC_DRAW );
+  let index_buffer = gl::buffer::create( &gl )?;
+  gl::index::upload( &gl, &index_buffer, cube_indices, GL::STATIC_DRAW );
+
+  let vertex_attribute = AttributePointer::new( &gl, BufferDescriptor::new::< [ f32; 3 ] >(), position_buffer, 0 );
+  let light_volume = Geometry::with_elements( &gl, vertex_attribute, index_buffer, cube_indices.len() as i32 )?;
+  light_volume.activate();
+
+  let projection = mat3x3h::perspective_rh_gl( 45.0f32.to_radians(), width as f32 / height as f32, 0.1, 100.0 );
 
   let update = move | _ |
   {
-    gl.draw_arrays( GL::TRIANGLES, 0, 3 );
+    program.uniform_matrix_upload( "u_mvp", projection.raw_slice(), true );
+    gl.vertex_attrib3f( 1, 0.0, 0.0, -10.0 );
+    gl.draw_elements_with_i32( GL::TRIANGLES, light_volume.element_count, GL::UNSIGNED_INT, 0 );
+
     true
   };
   gl::exec_loop::run( update );
@@ -117,8 +105,8 @@ impl AttributePointer
 pub struct Geometry
 {
   gl : GL,
-  vao : gl::WebGlVertexArrayObject,
-  element_count : u32,
+  vao : WebGlVertexArrayObject,
+  element_count : i32,
   vertex_count : i32,
 }
 
@@ -152,14 +140,12 @@ impl Geometry
   (
     gl : &GL,
     vertex_attribute : AttributePointer,
-    vertex_count : i32,
     element_buffer : gl::WebGlBuffer,
-    element_count : u32
+    element_count : i32
   )
   -> Result< Self, WebglError >
   {
-    let mut this = Self::with_vertices( gl, vertex_attribute, vertex_count )?;
-    this.vertex_count = 0;
+    let mut this = Self::with_vertices( gl, vertex_attribute, 0 )?;
     this.element_count = element_count;
     gl.bind_buffer( GL::ELEMENT_ARRAY_BUFFER, Some( &element_buffer ) );
     Ok( this )
@@ -168,5 +154,22 @@ impl Geometry
   pub fn activate( &self )
   {
     self.gl.bind_vertex_array( Some( &self.vao ) );
+  }
+
+  pub fn add_attribute( &self, attribute : AttributePointer ) -> Result< (), WebglError >
+  {
+    self.activate();
+    attribute.enable()?;
+    Ok( () )
+  }
+
+  pub fn vertex_count( &self ) -> i32
+  {
+    self.vertex_count
+  }
+
+  pub fn element_count( &self ) -> i32
+  {
+    self.element_count
   }
 }
