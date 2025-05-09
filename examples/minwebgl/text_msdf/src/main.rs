@@ -13,7 +13,7 @@ fn run() -> Result< (), gl::WebglError >
   gl::browser::setup( Default::default() );
 
   let canvas = gl::canvas::retrieve_or_make()?;
-  let gl = gl::context::from_canvas_with( &canvas )?;
+  let gl = gl::context::from_canvas( &canvas )?;
 
   // Vertex and fragment shader source code
   let vertex_shader_src = include_str!( "../shaders/shader.vert" );
