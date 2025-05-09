@@ -2,14 +2,16 @@
 
 layout( location = 0 ) in vec2 position;
 layout( location = 1 ) in vec2 translation;
-uniform mat3 u_mvp;
-uniform mat3 u_rotation;
+uniform vec2 u_zoom;
+uniform vec2 u_rotation;
 
 void main()
 {
-  vec3 pos = u_rotation * vec3( position, 1.0 );
-  pos.xy += translation;
-  pos = u_mvp * pos;
-  vec4 pos4 = vec4( pos.xy, 0.0, 1.0 );
-  gl_Position = pos4;
+  mat2 rot = mat2
+  (
+    u_rotation.x, -u_rotation.y,
+    u_rotation.y, u_rotation.x
+  );
+  vec2 pos = u_zoom * ( rot * position + translation );
+  gl_Position = vec4( pos.xy, 0.0, 1.0 );
 }

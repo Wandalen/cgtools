@@ -57,7 +57,6 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let aspect = canvas_size[ 1 ] / canvas_size[ 0 ];
   let scale = 0.1;
   let aspect_scale : F32x2 = [ aspect * scale, scale ].into();
-  let scale_m = mat2x2h::scale( aspect_scale.0 );
 
   let grid_mesh = geometry::from_iter
   (
@@ -206,7 +205,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
         (
           &context,
           grid_center,
-          scale_m,
+          aspect_scale,
           &hex_shader,
           &grid_geometry,
           &outline_geometry,
@@ -220,7 +219,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
           &context,
           &input,
           grid_center,
-          scale_m,
+          aspect_scale,
           &hex_shader,
           &grid_geometry,
           &hexagon_geometry,
@@ -238,7 +237,6 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
           canvas_size,
           &input,
           aspect_scale,
-          scale_m,
           &hex_shader,
           &hexagon_geometry,
           &mut painting_canvas,
@@ -264,8 +262,7 @@ fn painting_demo
   canvas : &HtmlCanvasElement,
   canvas_size :F32x2,
   input : &Input,
-  aspect_scale : F32x2,
-  scale_m : min::F32x3x3,
+  scale : F32x2,
   hex_shader : &Program,
   hexagon_geometry : &min::geometry::Positions,
   painting_canvas : &mut HexArray< Offset< Odd >, Pointy, [ f32; 3 ] >,
@@ -290,11 +287,10 @@ fn painting_demo
   );
   let pos : Pixel =
   (
-    ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale )
+    ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * scale )
   ).into();
   // calculate hex coordinates
   let selected_hex_coord : Coordinate::< Axial, Pointy > = pos.into();
-  min::info!("{selected_hex_coord:?}");
   // get color
   let color = color_picker.value();
   let r = u8::from_str_radix( &color[ 1..3 ], 16 ).unwrap() as f32 / 255.0;
@@ -307,18 +303,18 @@ fn painting_demo
   // draw painted hexagon
   let axial : Coordinate< Axial, _ > = selected_hex_coord.into();
   let pos : Pixel = axial.into();
+  let angle = 30.0f32.to_radians();
+
   // inverse y so it points up
-  let translation = mat2x2h::translate( [ pos.x(), -pos.y() ] );
-  let rot = mat2x2h::rot( 30.0f32.to_radians() );
-  let mvp = scale_m * translation;
-  hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
-  hex_shader.uniform_matrix_upload( "u_rotation", rot.raw_slice(), true );
+  context.vertex_attrib2f( 1, pos.x(), -pos.y() );
+  hex_shader.uniform_upload( "u_zoom", scale.as_slice() );
+  hex_shader.uniform_upload( "u_rotation", [ angle.cos(), angle.sin() ].as_slice() );
   hex_shader.uniform_upload( "u_color", &[ r, g, b, 1.0 ] );
 
   hexagon_geometry.activate();
   // disable attribute used for instancing
+  context.vertex_attrib2f( 1, pos.x(), -pos.y() );
   context.disable_vertex_attrib_array( 1 );
-  context.vertex_attrib2f( 1, 0.0, 0.0 );
 
   context.draw_arrays( GL::TRIANGLES, 0, hexagon_geometry.nvertices );
 }
@@ -329,7 +325,7 @@ fn pathfind_demo
   context : &GL,
   input : &Input,
   mut grid_center : Pixel,
-  scale_m : min::F32x3x3,
+  scale : min::F32x2,
   hex_shader : &Program,
   grid_geometry : &min::geometry::Positions,
   hexagon_geometry : &min::geometry::Positions,
@@ -359,17 +355,17 @@ fn pathfind_demo
 
   context.clear( GL::COLOR_BUFFER_BIT );
 
-  let identity = min::math::d2::mat2x2h::scale( [ 1.0, 1.0 ] );
   // draw background grid
-  hex_shader.uniform_matrix_upload( "u_mvp", scale_m.raw_slice(), true );
+  context.vertex_attrib2f( 1, 0.0, 0.0 );
+  hex_shader.uniform_upload( "u_zoom", scale.as_slice() );
   // no need for rotation here
-  hex_shader.uniform_matrix_upload( "u_rotation", identity.raw_slice(), true );
+  hex_shader.uniform_upload( "u_rotation", [ 1.0, 0.0 ].as_slice() );
   hex_shader.uniform_upload( "u_color", &[ 0.7, 0.7, 0.7, 1.0 ] );
   grid_geometry.activate();
   context.draw_arrays( GL::TRIANGLES, 0, grid_geometry.nvertices );
 
   // rotation to make hexagons pointy
-  let rot = mat2x2h::rot( 30.0f32.to_radians() );
+  let angle : f32 = 30.0f32.to_radians();
   // invert y so it points upward
   grid_center[ 1 ] = -grid_center[ 1 ];
 
@@ -397,8 +393,8 @@ fn pathfind_demo
   .divisor( 1 )
   .attribute_pointer( &context, 1, &offsets_buffer ).unwrap();
 
-  hex_shader.uniform_matrix_upload( "u_mvp", scale_m.raw_slice(), true );
-  hex_shader.uniform_matrix_upload( "u_rotation", rot.raw_slice(), true );
+  hex_shader.uniform_upload( "u_zoom", scale.as_slice() );
+  hex_shader.uniform_upload( "u_rotation", [ angle.cos(), angle.sin() ].as_slice() );
   hex_shader.uniform_upload( "u_color", &[ 0.1, 0.1, 0.1, 1.0 ] );
   context.draw_arrays_instanced( GL::TRIANGLES, 0, hexagon_geometry.nvertices, count );
 
@@ -428,8 +424,8 @@ fn pathfind_demo
   let count = ( offsets.len() / 2 ) as i32;
   min::buffer::upload( &context, &offsets_buffer, offsets.as_slice(), GL::DYNAMIC_DRAW );
 
-  hex_shader.uniform_matrix_upload( "u_mvp", scale_m.raw_slice(), true );
-  hex_shader.uniform_matrix_upload( "u_rotation", rot.raw_slice(), true );
+  hex_shader.uniform_upload( "u_mvp", scale.as_slice() );
+  hex_shader.uniform_upload( "u_rotation", [ angle.cos(), angle.sin() ].as_slice() );
   hex_shader.uniform_upload( "u_color", &[ 0.1, 0.6, 0.1, 1.0 ] );
   context.draw_arrays_instanced( GL::TRIANGLES, 0, hexagon_geometry.nvertices, count );
 }
@@ -439,7 +435,7 @@ fn grid_demo
 (
   context : &GL,
   mut grid_center : Pixel,
-  scale_m : min::F32x3x3,
+  scale : min::F32x2,
   hex_shader : &Program,
   grid_geometry : &min::geometry::Positions,
   outline_geometry : &min::geometry::Positions,
@@ -448,12 +444,11 @@ fn grid_demo
 {
   context.clear( GL::COLOR_BUFFER_BIT );
 
-  let identity = min::math::d2::mat2x2h::scale( [ 1.0, 1.0 ] );
   // draw grid
-  hex_shader.uniform_matrix_upload( "u_mvp", scale_m.raw_slice(), true );
+  context.vertex_attrib2f( 1, 0.0, 0.0 );
+  hex_shader.uniform_upload( "u_zoom", scale.as_slice() );
   hex_shader.uniform_upload( "u_color", &[ 0.7, 0.7, 0.7, 1.0 ] );
-  // for grid mesh no rotation is needed since it is already rotated
-  hex_shader.uniform_matrix_upload( "u_rotation", identity.raw_slice(), true );
+  hex_shader.uniform_upload( "u_rotation", [ 1.0, 0.0 ].as_slice() );
   grid_geometry.activate();
   context.draw_arrays( GL::TRIANGLES, 0, grid_geometry.nvertices );
 
@@ -464,13 +459,13 @@ fn grid_demo
   // same thing here
   selected_hex_pos[ 1 ] = -selected_hex_pos[ 1 ];
 
-  let translation = mat2x2h::translate( ( selected_hex_pos - grid_center ).data );
-  // rotate hexagon by 30 deg so it is pointy
-  let mvp = scale_m * translation;
-
   // draw outline
-  hex_shader.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
-  hex_shader.uniform_matrix_upload( "u_rotation", mat2x2h::rot( 30.0f32.to_radians() ).raw_slice(), true );
+  let translation = selected_hex_pos - grid_center;
+  // rotate hexagon by 30 deg so it is pointy
+  let angle = 30.0f32.to_radians();
+  context.vertex_attrib2f( 1, translation.x(), translation.y() );
+  hex_shader.uniform_upload( "u_zoom", scale.as_slice() );
+  hex_shader.uniform_upload( "u_rotation", [ angle.cos(), angle.sin() ].as_slice() );
   hex_shader.uniform_upload( "u_color", &[ 0.1, 0.1, 0.1, 1.0 ] );
   outline_geometry.activate();
   context.draw_arrays( GL::LINES, 0, outline_geometry.nvertices );
