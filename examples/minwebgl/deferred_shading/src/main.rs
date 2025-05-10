@@ -1,13 +1,14 @@
 use minwebgl as gl;
 use gl::
 {
+  drawbuffers::ColorAttachment,
   math::d2::mat3x3h,
   BufferDescriptor,
   JsCast as _,
-  GL,
-  WebglError,
-  WebGlVertexArrayObject,
   WebGlBuffer,
+  WebGlVertexArrayObject,
+  WebglError,
+  GL
 };
 use web_sys::{ HtmlCanvasElement, WebGlTexture };
 
@@ -73,8 +74,8 @@ async fn run() -> Result< (), gl::WebglError >
   let index_buffer = gl::buffer::create( &gl )?;
   gl::index::upload( &gl, &index_buffer, cube_indices, GL::STATIC_DRAW );
   let vertex_attribute = AttributePointer::new( &gl, BufferDescriptor::new::< [ f32; 3 ] >(), position_buffer, 0 );
-  let light_volume = Geometry::with_elements( &gl, vertex_attribute, index_buffer, cube_indices.len() as i32 )?;
-  light_volume.activate();
+  let cube = Geometry::with_elements( &gl, vertex_attribute, index_buffer, cube_indices.len() as i32 )?;
+  cube.activate();
 
   // gbuffer
   let depthbuffer = gl.create_renderbuffer();
@@ -87,15 +88,18 @@ async fn run() -> Result< (), gl::WebglError >
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, position_buffer.as_ref(), 0 );
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, normal_buffer.as_ref(), 0 );
   gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::RENDERBUFFER, depthbuffer.as_ref() );
-  gl::drawbuffers::drawbuffers( &gl, &[ gl::drawbuffers::ColorAttachment::N0, gl::drawbuffers::ColorAttachment::N1 ] );
+  gl::drawbuffers::drawbuffers( &gl, &[ ColorAttachment::N0, ColorAttachment::N1 ] );
 
+  let object_transform = mat3x3h::translation( [ 0.0f32, 0.0, -3.0 ] ) * mat3x3h::scale( [ 10.0f32, 10.0, 1.0 ] );
   let projection = mat3x3h::perspective_rh_gl( 45.0f32.to_radians(), width as f32 / height as f32, 0.1, 100.0 );
 
   let update = move | _ |
   {
-    // light_volume_shader.uniform_matrix_upload( "u_mvp", projection.raw_slice(), true );
-    // gl.vertex_attrib3f( 1, 0.0, 0.0, -10.0 );
-    // gl.draw_elements_with_i32( GL::TRIANGLES, light_volume.element_count, GL::UNSIGNED_INT, 0 );
+    object_shader.activate();
+    object_shader.uniform_matrix_upload( "u_model", object_transform.raw_slice(), true );
+    object_shader.uniform_matrix_upload( "u_mvp", ( projection * object_transform ).raw_slice(), true );
+    gl.vertex_attrib3f( 1, 0.0, 0.0, 1.0 );
+    gl.draw_elements_with_i32( GL::TRIANGLES, cube.element_count, GL::UNSIGNED_INT, 0 );
 
     true
   };

@@ -8,6 +8,8 @@ authors = [
 ]
 
 [dependencies]
+rand = { workspace = true }
+getrandom = { workspace = true, features = ["wasm_js"] }
 minwebgl = { workspace = true, features = ["math"] }
 web-sys = { workspace = true, features = [
   "HtmlImageElement",
