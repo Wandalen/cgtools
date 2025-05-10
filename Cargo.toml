@@ -17,7 +17,7 @@ members = [
 # Enforces idiomatic Rust 2018 practices.
 rust_2018_idioms = "deny"
 # Prevents use of unstable features.
-future_incompatible = "deny"
+future_incompatible = "warn"
 # # Encourages documentation for public items.
 # missing_docs = "warn" # qqq : uncomment please
 # # Suggests implementing Debug for public types.
@@ -189,7 +189,7 @@ version = "0.4.50"
 [workspace.dependencies.tobj]
 version = "4.0.2"
 default-features = false
-# features = [ "async" ]
+features = [ "async" ]
 
 [workspace.dependencies.visioncortex]
 git  = "https://github.com/obox-systems/visioncortex.git"

@@ -163,6 +163,7 @@ mod private
   )
   -> tobj::LoadResult
   {
+    #[allow(deprecated)]
     tobj::load_obj_buf_async
     (
       &mut obj_buffer,

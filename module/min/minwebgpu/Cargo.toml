@@ -49,7 +49,7 @@ math = [ "mingl/math" ]
 
 mingl = { workspace = true, optional = true }
 
-# bytemuck = { workspace = true, optional = true, features = [ "derive" ] }
+bytemuck = { workspace = true, optional = true, features = [ "derive" ] }
 asbytes = { workspace = true, optional = true }
 
 browser_log = { workspace = true, optional = true }

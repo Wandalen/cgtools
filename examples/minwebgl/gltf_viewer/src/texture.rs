@@ -1,7 +1,4 @@
-use std::rc::Rc;
-
 use minwebgl::{ self as gl };
-use gl::GL;
 
 use crate::sampler::Sampler;
 
@@ -14,9 +11,9 @@ pub struct Texture
 impl Texture
 {
   pub fn new
-  ( 
-    images : &[ Option< gl::web_sys::WebGlTexture > ], 
-    t : gltf::Texture, 
+  (
+    images : &[ Option< gl::web_sys::WebGlTexture > ],
+    t : gltf::Texture,
   ) -> Self
   {
     let source = images[ t.source().index() ].clone();

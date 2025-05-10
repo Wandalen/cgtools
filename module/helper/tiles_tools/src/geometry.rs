@@ -37,21 +37,21 @@ where
 /// Center is at (0, 0). Distance from center to each vertex is 1.0.
 /// The hexagon is divided into 4 triangles.
 ///
-///       ______________________
-///      / ____                 \
-///     /       ____             \
-///    /             ____         \
-///   /                   ____     \
-///  /                         ____ \
-/// /________________________________\
-/// \                          ____  /
-///  \                    ____      /
-///   \              ____          /
-///    \        ____              /
-///     \  ____                  /
-///      \______________________/
-///
-///
+/*
+      ______________________
+     / ____                 \
+    /       ____             \
+   /             ____         \
+  /                   ____     \
+ /                         ____ \
+/________________________________\
+\                          ____  /
+ \                    ____      /
+  \              ____          /
+   \        ____              /
+    \  ____                  /
+     \______________________/
+*/
 pub fn hexagon_triangles() -> Vec< f32 >
 {
   let points = hexagon_vertices();
@@ -79,21 +79,21 @@ pub fn hexagon_triangles() -> Vec< f32 >
 /// Center is at (0, 0). Distance from center to each vertex is 1.0.
 /// The hexagon is formed of into 6 lines.
 ///
-///       ______________________
-///      /                      \
-///     /                        \
-///    /                          \
-///   /                            \
-///  /                              \
-/// /                                \
-/// \                                /
-///  \                              /
-///   \                            /
-///    \                          /
-///     \                        /
-///      \______________________/
-///
-///
+/*
+      ______________________
+     /                      \
+    /                        \
+   /                          \
+  /                            \
+ /                              \
+/                                \
+\                                /
+ \                              /
+  \                            /
+   \                          /
+    \                        /
+     \______________________/
+*/
 pub fn hexagon_lines() -> Vec< f32 >
 {
   let points = hexagon_vertices();
@@ -122,20 +122,17 @@ pub fn hexagon_lines() -> Vec< f32 >
 /// Center is at (0, 0). Distance from center to each vertex is 1.0.
 ///
 ///
-///       *                    *
-///
-///
-///
-///
-///
-/// *            (0; 0)              *(1; 0)
-///
-///
-///
-///
-///
-///      *                      *
-///
+/*
+      *                    *
+
+
+*            (0; 0)              *(1; 0)
+
+
+
+
+     *                      *
+*/
 pub fn hexagon_vertices() -> [ F32x2; 6 ]
 {
   let mut points : [ F32x2; 6 ] = Default::default();

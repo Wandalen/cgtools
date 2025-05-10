@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use minwebgl::{ self as gl };
 
-use crate::{mesh::Mesh, program::ProgramInfo};
+use crate::{program::ProgramInfo};
 
 pub enum Object3D
 {
@@ -10,12 +10,12 @@ pub enum Object3D
   Other
 }
 
-impl Default for Object3D 
+impl Default for Object3D
 {
-  fn default() -> Self 
+  fn default() -> Self
   {
-    Self::Mesh( 0 )    
-  }    
+    Self::Mesh( 0 )
+  }
 }
 
 #[ derive( Default ) ]
@@ -32,7 +32,7 @@ pub struct Node
   rotation : glam::Quat
 }
 
-impl Node 
+impl Node
 {
   pub fn new( node : &gltf::Node ) -> Self
   {
@@ -74,7 +74,7 @@ impl Node
     result
   }
 
-  pub fn update_world_matrix( &mut self, parent_mat : gl::F32x4x4 ) 
+  pub fn update_world_matrix( &mut self, parent_mat : gl::F32x4x4 )
   {
     self.world_matrix = parent_mat * self.matrix;
 
@@ -100,20 +100,20 @@ impl Node
   }
 
   pub fn apply
-  ( 
-    &self, 
+  (
+    &self,
     gl : &gl::WebGl2RenderingContext,
-    program_info : &ProgramInfo 
+    program_info : &ProgramInfo
   )
   {
     let locations = program_info.get_locations();
 
     gl::uniform::matrix_upload
-    ( 
-      &gl, 
+    (
+      &gl,
       locations.get( "worldMatrix" ).unwrap().clone(),
-      self.world_matrix.to_array().as_slice(), 
-      true 
+      self.world_matrix.to_array().as_slice(),
+      true
     ).unwrap();
   }
 
