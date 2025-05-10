@@ -10,7 +10,7 @@ web-sys = { workspace = true, features = [
   "KeyboardEvent",
   "HtmlInputElement",
 ] }
-strum = { version = "0.27.1", features = ["derive"] }
+strum = { workspace = true, features = ["derive"] }
 
 [lints]
 workspace = true

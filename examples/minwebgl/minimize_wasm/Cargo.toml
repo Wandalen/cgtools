@@ -5,6 +5,6 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
-minwebgl = "0.2"
-cgmath = "0.18.0"
-wee_alloc = "0.4"
+minwebgl = { workspace = true }
+cgmath = { workspace = true } # xxx : qqq : remove such dependencies
+wee_alloc = { workspace = true }

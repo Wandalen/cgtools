@@ -7,4 +7,4 @@ license = "MIT"
 
 [dependencies]
 minwebgl = { workspace = true, features = [ "math" ] }
-lol_alloc = "0.4.1"
+lol_alloc = { workspace = true }
