@@ -1,6 +1,6 @@
 use std::
 {
-  cell::RefCell, collections::{ HashMap, HashSet }, rc::Rc
+  cell::RefCell, collections::HashMap, rc::Rc
 };
 
 use buffer::Buffer;
@@ -9,7 +9,7 @@ use gltf::Gltf;
 use material::Material;
 use mesh::Mesh;
 use minwebgl::{ self as gl, JsCast };
-use node::{ Node, Object3D };
+use node::Node;
 use renderer::Renderer;
 use scene::Scene;
 use texture::Texture;
@@ -34,7 +34,7 @@ async fn run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
   let canvas = gl::canvas::make()?;
-  let gl = gl::context::from_canvas( &canvas, Default::default() )?;
+  let gl = gl::context::from_canvas( &canvas )?;
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();
 

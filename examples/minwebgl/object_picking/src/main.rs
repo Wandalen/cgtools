@@ -34,7 +34,7 @@ async fn run() -> Result< (), gl::WebglError >
   canvas.set_width( width as u32 );
   canvas.set_height( height as u32 );
 
-  let gl = gl::context::from_canvas( &canvas, Default::default() ).unwrap();
+  let gl = gl::context::from_canvas( &canvas ).unwrap();
   gl.viewport( 0, 0, width, height );
   gl.enable( GL::DEPTH_TEST );
   gl.enable( GL::CULL_FACE );

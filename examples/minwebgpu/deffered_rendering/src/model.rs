@@ -3,7 +3,6 @@ use minwebgpu::
   self as gl,
   web_sys
 };
-
 pub const NUM_MODELS : usize = 9;
 
 #[ repr( C ) ]
@@ -18,7 +17,7 @@ pub struct Instance
   position : gl::F32x3
 }
 
-impl Instance 
+impl Instance
 {
   pub fn as_raw( &self ) -> InstanceRaw
   {
@@ -27,7 +26,7 @@ impl Instance
       position : self.position.to_array(),
       ..Default::default()
     }
-  }   
+  }
 }
 
 pub struct ModelState
@@ -40,7 +39,7 @@ pub struct ModelState
   pub instance_buffer : web_sys::GpuBuffer
 }
 
-impl ModelState 
+impl ModelState
 {
   pub async fn new( device : &web_sys::GpuDevice ) -> Result< ModelState, gl::WebGPUError >
   {
@@ -105,7 +104,7 @@ impl ModelState
     );
 
     [ pos_buffer_layout.into(), normal_buffer_layout.into(), uv_buffer_layout.into() ]
-  }  
+  }
 
   pub fn instance_layout() -> web_sys::GpuVertexBufferLayout
   {
@@ -118,7 +117,7 @@ impl ModelState
     );
 
     buffer_layout.into()
-  } 
+  }
 }
 
 fn generate_instances() -> Vec< Instance >
@@ -138,12 +137,12 @@ fn generate_instances() -> Vec< Instance >
     for c in 0..cols
     {
       let position = start_pos + gl::F32x3::from( [ ( r as f32 ) * spacing, 0.0, ( c as f32 ) * spacing ] );
-  
+
       let instance = Instance
       {
         position,
       };
-  
+
       instances.push( instance );
     }
   }
