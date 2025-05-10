@@ -34,7 +34,7 @@ async fn run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
   let canvas = gl::canvas::make()?;
-  let gl = gl::context::from_canvas( &canvas, Default::default() )?;
+  let gl = gl::context::from_canvas( &canvas )?;
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();
 

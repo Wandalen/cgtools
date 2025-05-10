@@ -42,7 +42,7 @@ mod private
   }
 
   /// Describes the attributes of a WebGL buffer.
-  #[ derive( Debug ) ]
+  #[ derive( Debug, Clone, Copy ) ]
   pub struct BufferDescriptor
   {
     /// The vector data type.

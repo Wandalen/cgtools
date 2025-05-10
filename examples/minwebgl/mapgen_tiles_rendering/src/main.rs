@@ -8,29 +8,29 @@ use minwebgl::dom::create_image_element;
 
 const LAYERS : i32 = 6;
 // Tile map raw data for texture with integer color channels
-const DATA : [ u8; 256 ] = 
+const DATA : [ u8; 256 ] =
 [
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 2, 1, 0,
-  0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 1, 0, 1, 2, 2, 1, 
+  0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 1, 0, 1, 2, 2, 1,
   0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 1, 0, 1, 1, 0,
-  0, 0, 1, 1, 1, 1, 2, 2, 3, 3, 2, 2, 1, 0, 0, 0, 
+  0, 0, 1, 1, 1, 1, 2, 2, 3, 3, 2, 2, 1, 0, 0, 0,
   0, 1, 2, 2, 1, 1, 2, 3, 4, 4, 3, 3, 2, 1, 0, 0,
-  1, 2, 3, 3, 2, 2, 2, 3, 4, 4, 4, 3, 2, 1, 0, 0, 
+  1, 2, 3, 3, 2, 2, 2, 3, 4, 4, 4, 3, 2, 1, 0, 0,
   1, 2, 3, 3, 3, 3, 3, 4, 4, 4, 4, 3, 2, 1, 0, 0,
-  1, 2, 3, 4, 4, 4, 4, 4, 5, 5, 4, 3, 3, 2, 1, 0, 
+  1, 2, 3, 4, 4, 4, 4, 4, 5, 5, 4, 3, 3, 2, 1, 0,
   1, 2, 3, 4, 4, 4, 4, 5, 5, 5, 4, 4, 3, 2, 1, 0,
-  1, 2, 3, 3, 4, 4, 1, 1, 5, 5, 4, 4, 3, 2, 1, 0, 
+  1, 2, 3, 3, 4, 4, 1, 1, 5, 5, 4, 4, 3, 2, 1, 0,
   0, 1, 2, 3, 3, 1, 1, 4, 4, 4, 4, 3, 2, 1, 1, 0,
-  0, 0, 1, 2, 1, 1, 3, 3, 3, 3, 3, 3, 2, 1, 0, 0, 
+  0, 0, 1, 2, 1, 1, 3, 3, 3, 3, 3, 3, 2, 1, 0, 0,
   0, 0, 0, 1, 1, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0,
-  0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 
+  0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
 
-fn set_load_callback() 
+fn set_load_callback()
 {
-  let load = move | _img: &web_sys::HtmlImageElement | 
+  let load = move | _img: &web_sys::HtmlImageElement |
   {
     update();
   };
@@ -42,7 +42,7 @@ fn load_image
 (
   path : &str,
   on_load_callback : Box< dyn Fn( &web_sys::HtmlImageElement ) >,
-) -> Result< web_sys::HtmlImageElement, minwebgl::JsValue > 
+) -> Result< web_sys::HtmlImageElement, minwebgl::JsValue >
 {
   let image = create_image_element( "tileset.png" )?;
   let window = web_sys::window()
@@ -69,13 +69,13 @@ fn load_image
   let img = image.clone();
   let on_load_callback: Closure< dyn Fn() > = Closure::new( move || on_load_callback( &img ) );
   image.set_onload
-  ( 
+  (
     Some
-    ( 
+    (
       on_load_callback
       .as_ref()
-      .unchecked_ref() 
-    ) 
+      .unchecked_ref()
+    )
   );
   on_load_callback.forget();
   let origin = window
@@ -87,7 +87,7 @@ fn load_image
   Ok( image )
 }
 
-fn init() 
+fn init()
 {
   gl::browser::setup( Default::default() );
 
@@ -104,20 +104,20 @@ fn init()
   set_load_callback();
 }
 
-fn prepare_vertex_attributes() 
+fn prepare_vertex_attributes()
 {
   let gl = gl::context::retrieve_or_make()
   .unwrap();
 
-  let position_data: [ f32; 12 ] = 
+  let position_data: [ f32; 12 ] =
   [
-    -1., -1., -1., 1., 1., 1., 
+    -1., -1., -1., 1., 1., 1.,
     -1., -1., 1., -1., 1., 1.
   ];
 
-  let uv_data: [ f32; 12 ] = 
+  let uv_data: [ f32; 12 ] =
   [
-    0., 1., 0., 0., 1., 0., 
+    0., 1., 0., 0., 1., 0.,
     0., 1., 1., 1., 1., 0.
   ];
 
@@ -148,7 +148,7 @@ fn prepare_vertex_attributes()
   gl.bind_vertex_array( Some( &vao ) );
 }
 
-fn create_mvp() -> ndarray_cg::Mat< 4, 4, f32, DescriptorOrderColumnMajor > 
+fn create_mvp() -> ndarray_cg::Mat< 4, 4, f32, DescriptorOrderColumnMajor >
 {
   let gl = gl::context::retrieve_or_make()
   .unwrap();
@@ -158,11 +158,11 @@ fn create_mvp() -> ndarray_cg::Mat< 4, 4, f32, DescriptorOrderColumnMajor >
   let aspect_ratio = width / height;
 
   let perspective_matrix = ndarray_cg::d2::mat3x3h::perspective_rh_gl
-  ( 
-    70.0f32.to_radians(), 
-    aspect_ratio, 
-    0.1, 
-    1000.0 
+  (
+    70.0f32.to_radians(),
+    aspect_ratio,
+    0.1,
+    1000.0
   );
 
   let t = ( 0.0, 0.0, 0.0 );
@@ -188,12 +188,12 @@ fn create_mvp() -> ndarray_cg::Mat< 4, 4, f32, DescriptorOrderColumnMajor >
   let eye = [ 0.0, 0.0, 1.0 ];
   let up = [ 0.0, 1.0, 0.0 ];
   let center = [ 0., 0., 0. ];
-  let view_matrix = ndarray_cg::d2::mat3x3h::loot_at_rh( eye, center, up );
+  let view_matrix = ndarray_cg::d2::mat3x3h::look_at_rh( eye, center, up );
 
   perspective_matrix * view_matrix * translate * scale
 }
 
-fn prepare_texture_array( id: &str, layers: i32, texture_id: u32 ) -> Option< web_sys::WebGlTexture > 
+fn prepare_texture_array( id: &str, layers: i32, texture_id: u32 ) -> Option< web_sys::WebGlTexture >
 {
   let gl = gl::context::retrieve_or_make()
   .unwrap();
@@ -211,7 +211,7 @@ fn prepare_texture_array( id: &str, layers: i32, texture_id: u32 ) -> Option< we
   let height = img.natural_height() / layers as u32;
 
   let texture_array = gl.create_texture();
-  // Don't forget to activate the texture before binding and 
+  // Don't forget to activate the texture before binding and
   // setting texture data and parameters
   gl.active_texture( texture_id );
   gl.bind_texture( GL::TEXTURE_2D_ARRAY, texture_array.as_ref() );
@@ -223,7 +223,7 @@ fn prepare_texture_array( id: &str, layers: i32, texture_id: u32 ) -> Option< we
     GL::RGBA as i32,
     width as i32,
     height as i32,
-    layers, 
+    layers,
     0,
     GL::RGBA,
     GL::UNSIGNED_BYTE,
@@ -276,7 +276,7 @@ fn prepare_texture1u
   (
     GL::TEXTURE_2D,
     0,
-    // Texture from raw data must have format with integer channels 
+    // Texture from raw data must have format with integer channels
     // Data range here is 0..255
     GL::R8UI as i32,
     size.0,
@@ -296,7 +296,7 @@ fn prepare_texture1u
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
 }
 
-fn update() 
+fn update()
 {
   let gl = gl::context::retrieve_or_make()
   .unwrap();
@@ -310,7 +310,7 @@ fn update()
 
   let mvp = create_mvp();
   let mvp_location = gl.get_uniform_location( &program, "mvp" );
-  
+
   let _ = gl::uniform::matrix_upload( &gl, mvp_location, mvp.raw_slice(), false )
   .unwrap();
 
@@ -335,13 +335,13 @@ fn update()
   gl.bind_vertex_array( None );
 }
 
-fn run() 
+fn run()
 {
   init();
   update();
 }
 
-fn main() 
+fn main()
 {
   run()
 }
