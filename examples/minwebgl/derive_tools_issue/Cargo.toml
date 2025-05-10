@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 derive_tools = { workspace = true, features = ["derive_strum"] }
+strum = { workspace = true }
 
 [lints]
 workspace = true
