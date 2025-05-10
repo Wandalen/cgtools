@@ -19,6 +19,9 @@ enabled = []
 default = [
   "enabled",
 ]
+full = [
+  "default",
+]
 
 [dependencies]
 mod_interface = { workspace = true }
@@ -30,7 +33,6 @@ derive_tools = { workspace = true, features = [ "enabled", "full" ] }
 serde = { workspace = true, features = [ "serde_derive" ] }
 serde_with = { workspace = true }
 thiserror = { workspace = true }
-clap = { workspace = true }
+clap = { workspace = true, features = ["derive"] } # Added features = ["derive"]
 image = { workspace = true }
 tokio = { workspace = true, features = [ "full" ] }
-

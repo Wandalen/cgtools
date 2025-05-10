@@ -58,15 +58,6 @@ This document lists task comments found in the codebase, formatted for creating 
 
 ---
 
-## Issue: Replace bytemuck dependency in mingl
-
-*   **Location:** `module/min/mingl/Cargo.toml`, Line 55
-*   **Original Comment:** `# bytemuck = { workspace = true, features = [ "derive" ] } # xxx : replace`
-*   **Context/Elaboration:** This task comment suggests that the `bytemuck` dependency should be replaced with an alternative.
-*   **Action Needed:** Identify a suitable replacement for the `bytemuck` dependency and update the `mingl/Cargo.toml` and any relevant code accordingly.
-
----
-
 ## Issue: Consider usize for VectorDataType natoms in mingl
 
 *   **Location:** `module/min/mingl/src/data_type.rs`, Line 46

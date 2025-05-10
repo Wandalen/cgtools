@@ -73,7 +73,7 @@ tobj =  { workspace = true, optional = true }
 wasm-bindgen-futures = { workspace = true, optional = true }
 wasm-bindgen = { workspace = true, optional = true }
 js-sys = { workspace = true, optional = true }
-web-sys = { workspace = true, optional = true, features = [
+web-sys = { workspace = true, optional = true, features = [ # Added features back
   'HtmlCanvasElement',
   'Window',
   'Document',

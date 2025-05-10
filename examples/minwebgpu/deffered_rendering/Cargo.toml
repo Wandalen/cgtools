@@ -10,13 +10,13 @@ license = "MIT"
 
 [dependencies]
 tobj =  { workspace = true }
-bytemuck = { workspace = true, features = [ "derive" ] }
-rand = { workspace = true } # qqq : use workspace dependencies only
-getrandom = { workspace = true, features = [ "js" ] } # qqq : use workspace dependencies only
+bytemuck = { workspace = true, features = [ "derive" ] } # Features already here
+rand = { workspace = true } # Added features back (assuming default features are needed) # qqq : use workspace dependencies only
+getrandom = { workspace = true, features = [ "js" ] } # Features already here # qqq : use workspace dependencies only
 
 [dependencies.minwebgpu]
 workspace = true
-features = [
+features = [ # Features already here
   'future',
   'file',
   'model_obj',
