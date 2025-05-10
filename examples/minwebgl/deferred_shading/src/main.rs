@@ -1,10 +1,15 @@
 use minwebgl as gl;
-use gl::{ math::d2::mat3x3h, BufferDescriptor, F32x4x4, JsCast as _, WebglError, GL };
-use web_sys::
+use gl::
 {
-  HtmlCanvasElement,
-  WebGlVertexArrayObject
+  math::d2::mat3x3h,
+  BufferDescriptor,
+  JsCast as _,
+  GL,
+  WebglError,
+  WebGlVertexArrayObject,
+  WebGlBuffer,
 };
+use web_sys::{ HtmlCanvasElement, WebGlTexture };
 
 fn main()
 {
@@ -15,7 +20,9 @@ fn main()
 async fn run() -> Result< (), gl::WebglError >
 {
   let gl = gl::context::retrieve_or_make().expect( "Failed to retrieve WebGl context" );
-  // _ = gl.get_extension( "EXT_color_buffer_float" ).unwrap().unwrap();
+  let res = gl.get_extension( "EXT_color_buffer_float" ).unwrap().unwrap();
+  gl::info!( "{}", res.to_string() );
+
   let width = 1280;
   let height = 720;
   let canvas = gl.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
@@ -23,11 +30,13 @@ async fn run() -> Result< (), gl::WebglError >
   canvas.set_height( height as u32 );
   gl.viewport( 0, 0, width, height );
 
+  // shaders
   let vert = include_str!( "../shaders/light_volume.vert" );
   let frag = include_str!( "../shaders/deferred.frag" );
-  let program = gl::shader::Program::new( gl.clone(), vert, frag )?;
-  program.activate();
+  let light_volume_shader = gl::shader::Program::new( gl.clone(), vert, frag )?;
+  light_volume_shader.activate();
 
+  // cube geometry
   let cube_vertices : &[ f32 ] =
   &[
     // Front face
@@ -56,21 +65,32 @@ async fn run() -> Result< (), gl::WebglError >
     // Left face
     0, 3, 7, 0, 7, 4
   ];
-
   let position_buffer = gl::buffer::create( &gl )?;
   gl::buffer::upload( &gl, &position_buffer, cube_vertices, GL::STATIC_DRAW );
   let index_buffer = gl::buffer::create( &gl )?;
   gl::index::upload( &gl, &index_buffer, cube_indices, GL::STATIC_DRAW );
-
   let vertex_attribute = AttributePointer::new( &gl, BufferDescriptor::new::< [ f32; 3 ] >(), position_buffer, 0 );
   let light_volume = Geometry::with_elements( &gl, vertex_attribute, index_buffer, cube_indices.len() as i32 )?;
   light_volume.activate();
+
+  // gbuffer
+  let depthbuffer = gl.create_renderbuffer();
+  gl.bind_renderbuffer( GL::RENDERBUFFER, depthbuffer.as_ref() );
+  gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH_COMPONENT24, width, height );
+  let position_buffer = tex_storage_2d( &gl, GL::RGBA16F, width, height );
+  let normal_buffer = tex_storage_2d( &gl, GL::RGBA16F, width, height );
+  let gbuffer = gl.create_framebuffer();
+  gl.bind_framebuffer( GL::FRAMEBUFFER, gbuffer.as_ref() );
+  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, position_buffer.as_ref(), 0 );
+  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, normal_buffer.as_ref(), 0 );
+  gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::RENDERBUFFER, depthbuffer.as_ref() );
+  gl::drawbuffers::drawbuffers( &gl, &[ gl::drawbuffers::ColorAttachment::N0, gl::drawbuffers::ColorAttachment::N1 ] );
 
   let projection = mat3x3h::perspective_rh_gl( 45.0f32.to_radians(), width as f32 / height as f32, 0.1, 100.0 );
 
   let update = move | _ |
   {
-    program.uniform_matrix_upload( "u_mvp", projection.raw_slice(), true );
+    light_volume_shader.uniform_matrix_upload( "u_mvp", projection.raw_slice(), true );
     gl.vertex_attrib3f( 1, 0.0, 0.0, -10.0 );
     gl.draw_elements_with_i32( GL::TRIANGLES, light_volume.element_count, GL::UNSIGNED_INT, 0 );
 
@@ -91,7 +111,7 @@ pub struct AttributePointer
 
 impl AttributePointer
 {
-  pub fn new( gl : &GL, descriptor : BufferDescriptor, buffer : gl::WebGlBuffer, slot : u32 ) -> Self
+  pub fn new( gl : &GL, descriptor : BufferDescriptor, buffer : WebGlBuffer, slot : u32 ) -> Self
   {
     Self { gl : gl.clone(), descriptor, buffer, slot }
   }
@@ -172,4 +192,14 @@ impl Geometry
   {
     self.element_count
   }
+}
+
+fn tex_storage_2d( gl : &GL, format : u32, width : i32, height : i32 ) -> Option< WebGlTexture >
+{
+  let tex = gl.create_texture()?;
+  gl.bind_texture( GL::TEXTURE_2D, Some( &tex ) );
+  gl.tex_storage_2d( GL::TEXTURE_2D, 1, format, width, height );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32 );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::NEAREST as i32 );
+  Some( tex )
 }
