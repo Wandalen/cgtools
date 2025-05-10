@@ -49,7 +49,7 @@ math = [ "mingl/math" ]
 
 mingl = { workspace = true, optional = true }
 
-bytemuck = { workspace = true, optional = true, features = [ "derive" ] }
+bytemuck = { workspace = true, optional = true, features = [ "derive" ] } # Added features back
 asbytes = { workspace = true, optional = true }
 
 browser_log = { workspace = true, optional = true }
@@ -62,7 +62,7 @@ former = { workspace = true }
 wasm-bindgen-futures = { workspace = true, optional = true }
 wasm-bindgen = { workspace = true, optional = true }
 js-sys = { workspace = true, optional = true }
-web-sys = { workspace = true, optional = true, features = [
+web-sys = { workspace = true, optional = true, features = [ # Added features back
   'Navigator',
   'Gpu',
   'GpuCanvasContext',

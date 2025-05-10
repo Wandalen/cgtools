@@ -149,9 +149,8 @@ version = "0.5.1"
 
 [workspace.dependencies.bytemuck]
 version = "1.23.0"
-features = [ "derive" ]
 
-[workspace.dependencies.byteorder] # Added missing byteorder dependency
+[workspace.dependencies.byteorder]
 version = "1.5.0"
 
 [workspace.dependencies.cgmath]
@@ -159,21 +158,18 @@ version = "0.18.0"
 
 [workspace.dependencies.clap]
 version = "4.5.21"
-features = ["derive"]
 
 [workspace.dependencies.fastrand]
 version = "1.8"
 
 [workspace.dependencies.getrandom]
 version = "0.2.15"
-features = ["js"]
 
 [workspace.dependencies.glam]
 version = "0.30.1"
 
 [workspace.dependencies.gltf]
 version = "1.4.1"
-features = [ "import", "KHR_materials_specular" ]
 
 [workspace.dependencies.image]
 version = "0.25.5"
@@ -183,7 +179,6 @@ version = "0.13.0"
 
 [workspace.dependencies.js-sys]
 version = "0.3.77"
-features = []
 
 [workspace.dependencies.lol_alloc]
 version = "0.4.1"
@@ -214,7 +209,6 @@ version = "1.10"
 
 [workspace.dependencies.serde]
 version = "1.0.215"
-features = ["derive"]
 
 [workspace.dependencies.serde-wasm-bindgen]
 version = "0.6.5"
@@ -227,7 +221,6 @@ version = "3.11.0"
 
 [workspace.dependencies.strum]
 version = "0.27.1"
-features = ["derive"]
 
 [workspace.dependencies.thiserror]
 version = "2.0.4" # qqq : use error_tools instead
@@ -239,6 +232,9 @@ features = [ "async" ]
 
 [workspace.dependencies.tokio]
 version = "1.41.0"
+
+[workspace.dependencies.uuid]
+version = "1.16.0"
 
 [workspace.dependencies.visioncortex]
 git  = "https://github.com/obox-systems/visioncortex.git"
@@ -252,10 +248,13 @@ version = "0.4.50"
 
 [workspace.dependencies.web-sys]
 version = "0.3.77"
-features = []
 
 [workspace.dependencies.wee_alloc]
 version = "0.4"
+
+[workspace.dependencies.zune-hdr]
+git  = "https://github.com/etemesi254/zune-image.git"
+version = "0.5.0-rc0"
 
 # [workspace.dependencies.generic-array]
 # version = "1.1.0"

@@ -4,13 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rand = { workspace = true }
-getrandom = { workspace = true, features = ['js'] }
+rand = { workspace = true } # Features already here
+getrandom = { workspace = true, features = ['js'] } # Features already here
 ndarray_cg = { workspace = true }
-minwebgl = { workspace = true, features = ['future'] }
-tobj = { workspace = true, features = ['async'] }
+minwebgl = { workspace = true, features = ['future'] } # Features already here
+tobj = { workspace = true, features = ['async'] } # Features already here
 [dependencies.web-sys]
-features = [
+features = [ # Features already here
   'HtmlImageElement',
   'WebGlTexture',
   'WebGlFramebuffer',

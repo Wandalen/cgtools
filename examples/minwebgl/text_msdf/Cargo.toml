@@ -8,16 +8,16 @@ authors = [
 ]
 
 [dependencies]
-minwebgl = { workspace = true, features = [ "future", "file", "math" ] }
-serde = { workspace = true, features = [ "derive" ] }
-serde_json = { workspace = true }
+minwebgl = { workspace = true, features = [ "future", "file", "math" ] } # Features already here
+serde = { workspace = true, features = [ "derive" ] } # Features already here
+serde_json = { workspace = true } # Added features back (assuming default features are needed)
 
 [dependencies.bytemuck]
 workspace = true
-features = [ "derive" ]
+features = [ "derive" ] # Features already here
 
 [dependencies.web-sys]
 workspace = true
-features = [
+features = [ # Features already here
   'KeyboardEvent',
 ]

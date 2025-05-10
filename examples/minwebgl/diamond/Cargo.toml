@@ -11,8 +11,8 @@ authors = [
 
 minwebgl = { workspace = true, features = [ "future" ] }
 glam = { workspace = true }
-gltf = { workspace = true, features = [ "import" ] }
-image = { workspace = true }
+gltf = { workspace = true, features = [ "import" ] } # Added features back
+image = { workspace = true } # Added features back (assuming default features are needed)
 
 [dependencies.web-sys]
 workspace = true

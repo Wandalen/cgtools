@@ -7,16 +7,16 @@ license = "MIT"
 
 [dependencies]
 minwebgl = { workspace = true }
-serde = { workspace = true, features = [ "derive" ] }
-serde_json = { workspace = true }
-rayon = { workspace = true }
-getrandom = { workspace = true, features = [ "js" ] }
-rand = { workspace = true, features = [ "small_rng" ] }
+serde = { workspace = true, features = [ "derive" ] } # Features already here
+serde_json = { workspace = true } # Added features back (assuming default features are needed)
+rayon = { workspace = true } # Added features back (assuming default features are needed)
+getrandom = { workspace = true, features = [ "js" ] } # Features already here
+rand = { workspace = true, features = [ "small_rng" ] } # Features already here
 ndarray_cg = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true
-features = [
+features = [ # Features already here
   'Document',
   'Element',
   'HtmlCanvasElement',

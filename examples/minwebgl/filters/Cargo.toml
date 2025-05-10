@@ -8,10 +8,10 @@ authors = [
 ]
 
 [dependencies]
-serde = { workspace = true, features = ['derive'] }
+serde = { workspace = true, features = ['derive'] } # Features already here
 serde-wasm-bindgen = { workspace = true }
 minwebgl = { workspace = true }
-web-sys = { workspace = true, features = [
+web-sys = { workspace = true, features = [ # Features already here
   'HtmlImageElement',
   'HtmlButtonElement',
   'WebGlFramebuffer',
