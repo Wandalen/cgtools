@@ -2,18 +2,18 @@
 name = "minwebgl_text_msdf"
 version = "0.1.0"
 edition = "2021"
-authors = [ 
+authors = [
   "Kostiantyn Mysnyk <wandalen@obox.systems>",
-  "Avramenko Yevhenii <yevhenii.av@obox.systems>" 
+  "Avramenko Yevhenii <yevhenii.av@obox.systems>"
 ]
 
 [dependencies]
 minwebgl = { workspace = true, features = [ "future", "file", "math" ] }
-serde = { version = "1.0.215", features = [ "derive" ] }
-serde_json = "1.0.133"
+serde = { workspace = true, features = [ "derive" ] }
+serde_json = { workspace = true }
 
 [dependencies.bytemuck]
-version = "1.18.0"
+workspace = true
 features = [ "derive" ]
 
 [dependencies.web-sys]
