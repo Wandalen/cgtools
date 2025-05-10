@@ -36,9 +36,19 @@ mod private
 
   }
 
-  /// Create a WebGL2 context from a canvas.
-  pub fn from_canvas( canvas: &HtmlCanvasElement, o : ContexOptions ) -> Result< GL, Error >
+  pub fn from_canvas( canvas : &HtmlCanvasElement ) -> Result< GL, Error >
   {
+    from_canvas_with( canvas, ContexOptions::default() )
+  }
+
+  /// Create a WebGL2 context from a canvas.
+  pub fn from_canvas_with( canvas: &HtmlCanvasElement, o : ContexOptions ) -> Result< GL, Error >
+  {
+    if o.remove_dpr_scaling
+    {
+      canvas::remove_dpr_scaling( &canvas );
+    }
+
     let context_options : js_sys::Object = o.into();
     let context = canvas
     .get_context_with_context_options( "webgl2", &context_options )
@@ -94,11 +104,7 @@ mod private
   {
     let canvas = canvas::retrieve_or_make()?;
     // aaa : no, opposite retrieve_or_make is shortcut for retrieve_or_make_with
-    if o.remove_dpr_scaling
-    {
-      canvas::remove_dpr_scaling( &canvas );
-    }
-    from_canvas( &canvas, o )
+    from_canvas_with( &canvas, o )
   }
 
   #[ derive( Debug, Clone, Copy, Default ) ]
@@ -288,6 +294,7 @@ crate::mod_interface!
   {
     Error,
     from_canvas,
+    from_canvas_with,
     retrieve_or_make,
     from_canvas_2d,
     retrieve_or_make_with,

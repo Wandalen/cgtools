@@ -1,8 +1,6 @@
-//! Just draw a large point in the middle of the screen.
-
 use std::
 {
-  cell::RefCell, collections::{ HashMap, HashSet }, rc::Rc 
+  cell::RefCell, collections::{ HashMap, HashSet }, rc::Rc
 };
 
 use buffer::Buffer;
@@ -11,7 +9,7 @@ use gltf::Gltf;
 use material::Material;
 use mesh::Mesh;
 use minwebgl::{ self as gl, JsCast };
-use node::{Node, Object3D};
+use node::{ Node, Object3D };
 use renderer::Renderer;
 use scene::Scene;
 use texture::Texture;
@@ -29,12 +27,14 @@ mod node;
 mod renderer;
 mod camera;
 mod program;
+mod loaders;
+mod ibl;
 
 async fn run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
   let canvas = gl::canvas::make()?;
-  let gl = gl::context::from_canvas( &canvas )?;
+  let gl = gl::context::from_canvas( &canvas, Default::default() )?;
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();
 
@@ -58,7 +58,6 @@ async fn run() -> Result< (), gl::WebglError >
   camera_controls::setup_controls( &canvas, &camera.get_controls() );
 
   let gltf_file_path = "dodge-challenger/gltf";
-  //let gltf_file_path = "Neon/gltf";
 
   let gltf_slice= gl::file::load( &format!( "{}/scene.gltf", gltf_file_path ) ).await.expect( "Failed to load gltf file" );
   let mut gltf_file = Gltf::from_slice( &gltf_slice ).unwrap();
@@ -86,7 +85,7 @@ async fn run() -> Result< (), gl::WebglError >
         gl::log::info!
         (
           "Buffer path: {}\n
-          \tBuffer length: {}", 
+          \tBuffer length: {}",
           path,
           buffer.len()
         );
@@ -99,7 +98,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   gl::info!( "Bufffers: {}", buffers.len() );
 
-  // Upload images 
+  // Upload images
   let images = Rc::new( RefCell::new( Vec::new() ) );
 
   // Creates an <img> html elements, and sets its src property to 'src' parameter
@@ -111,13 +110,13 @@ async fn run() -> Result< (), gl::WebglError >
     let img_element = document.create_element( "img" ).unwrap().dyn_into::< gl::web_sys::HtmlImageElement >().unwrap();
     img_element.style().set_property( "display", "none" ).unwrap();
     let load_texture : Closure< dyn Fn() > = Closure::new
-    ( 
+    (
       {
         //let images = images.clone();
         let gl = gl.clone();
         let img = img_element.clone();
         let src = src.clone();
-        move || 
+        move ||
         {
           gl.bind_texture( gl::TEXTURE_2D, texture.as_ref() );
           //gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 1 );
@@ -134,7 +133,7 @@ async fn run() -> Result< (), gl::WebglError >
 
           gl.generate_mipmap( gl::TEXTURE_2D );
 
-          //match 
+          //match
           gl::web_sys::Url::revoke_object_url( &src ).unwrap();
           // {
           //   Ok( _ ) => { gl::info!( "Remove object url: {}", &src ) },
@@ -156,13 +155,13 @@ async fn run() -> Result< (), gl::WebglError >
   // then load an image from the url
   for gltf_image in gltf_file.images()
   {
-    match  gltf_image.source() 
+    match  gltf_image.source()
     {
-      gltf::image::Source::Uri { uri, mime_type: _ } => 
+      gltf::image::Source::Uri { uri, mime_type: _ } =>
       {
         upload_texture( Rc::new( format!( "static/{}/{}", gltf_file_path, uri ) ) );
       },
-      gltf::image::Source::View { view, mime_type } => 
+      gltf::image::Source::View { view, mime_type } =>
       {
         let buffer = buffers[ view.buffer().index() ].clone();
         let blob = {
@@ -175,7 +174,7 @@ async fn run() -> Result< (), gl::WebglError >
           gl::web_sys::Blob::new_with_u8_array_sequence_and_options( &( blob_parts.into() ), &options )
         }.expect( "Failed to create a Blob" );
 
-        let url = gl::web_sys::Url::create_object_url_with_blob( &blob ).expect( "Failed to create object url" );  
+        let url = gl::web_sys::Url::create_object_url_with_blob( &blob ).expect( "Failed to create object url" );
         upload_texture( Rc::new( url ) );
       }
     }
@@ -231,11 +230,11 @@ async fn run() -> Result< (), gl::WebglError >
   {
     let node = Rc::new( RefCell::new( Node::new( &gltf_node ) ) );
 
-    if let Object3D::Mesh( id ) = node.borrow().object
-    {
-      meshes[ id ].set_parent( node.clone() );
-    }
-    
+//     if let Object3D::Mesh( id ) = node.borrow().object
+//     {
+//       meshes[ id ].set_parent( node.clone() );
+//     }
+
     nodes.push( node );
   }
 
@@ -250,13 +249,15 @@ async fn run() -> Result< (), gl::WebglError >
 
   gl::log::info!( "Scenes: {}", scenes.len() );
 
-  let mut renderer = Renderer::new( nodes, materials, meshes );
+  let mut renderer = Renderer::new( materials, meshes );
+  renderer.load_ibl( &gl, "envMap" ).await;
   renderer.compile( &gl )?;
 
   gl.enable( gl::DEPTH_TEST );
   gl.enable( gl::BLEND );
 
   gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA );
+
   gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
   gl.clear_depth( 1.0 );
 

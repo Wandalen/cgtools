@@ -47,6 +47,10 @@ absolute_paths = "allow"
 
 # = helpers
 
+[workspace.dependencies.browser_input]
+version = "0.1.0"
+path = "module/helper/browser_input"
+
 [workspace.dependencies.tiles_tools]
 version = "0.1.0"
 path = "module/helper/tiles_tools"
@@ -157,9 +161,9 @@ features = []
 version = "0.3.77"
 features = []
 
-# [workspace.dependencies.bytemuck]
-# version = "1.18.0"
-# features = [ "derive" ]
+[workspace.dependencies.bytemuck]
+version = "1.23.0"
+features = [ "derive" ]
 
 [workspace.dependencies.ndarray]
 version = "0.16.1"

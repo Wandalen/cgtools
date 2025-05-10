@@ -21,9 +21,11 @@ impl Default for Object3D
 #[ derive( Default ) ]
 pub struct Node
 {
-  children : Vec< Rc< RefCell< Node > > >,
+  pub children : Vec< Rc< RefCell< Node > > >,
   pub object : Object3D,
+  // Local matrix of the node
   matrix : gl::F32x4x4,
+  // Global matrix of the node( including all of its parents )
   world_matrix : gl::F32x4x4,
   scale : gl::F32x3,
   translation : gl::F32x3,
@@ -89,19 +91,12 @@ impl Node
 
   pub fn add_children( &mut self, gltf_node : &gltf::Node, nodes : &[ Rc< RefCell< Node > > ] )
   {
-    //let mut text = String::new();
-    //text.push_str( &format!( "Node: {}\n", gltf_node.index()) );
     for c in gltf_node.children()
     {
-      //text.push_str( &format!( "\tChild: {}\n", c.index()) );
       let node = nodes[ c.index() ].clone();
       node.borrow_mut().add_children( &c, nodes );
       self.add_child( node );
     }
-
-   // gl::info!( "NODE INFO:\n{}", text );
-
-    
   }
 
   pub fn apply
@@ -120,5 +115,15 @@ impl Node
       self.world_matrix.to_array().as_slice(), 
       true 
     ).unwrap();
+  }
+
+  pub fn traverse< F >( &self, callback : &mut F )
+  where F : FnMut( Rc< RefCell< Node > > )
+  {
+    for node in self.children.iter()
+    {
+      ( *callback )( node.clone() );
+      node.borrow().traverse( callback );
+    }
   }
 }
