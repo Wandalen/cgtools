@@ -8,16 +8,10 @@ authors = [
 ]
 
 [dependencies]
-rand = "0.8.5"
-getrandom = { version = "0.2.15", features = ['js'] }
-tobj = { workspace = true }
-ndarray_cg = { workspace = true }
-asbytes = { workspace = true, features = ["derive"] }
 minwebgl = { workspace = true, features = ["math"] }
 web-sys = { workspace = true, features = [
-  'HtmlImageElement',
-  'WebGlFramebuffer',
-  'WebGlRenderbuffer',
-  'WebGlTexture',
+  "HtmlImageElement",
+  "WebGlFramebuffer",
+  "WebGlRenderbuffer",
+  "WebGlTexture",
 ] }
-bytemuck = "1.23.0"

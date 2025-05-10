@@ -224,8 +224,13 @@ version = "0.25.5"
 [workspace.dependencies.tokio]
 version = "1.41.0"
 
-[workspace.dependencies.rand]
-version = "0.8.5"
-
 [workspace.dependencies.gltf]
 version = "1.4.1"
+
+[workspace.dependencies.rand]
+version = "0.9.1"
+
+[workspace.dependencies.getrandom]
+# Needs this flag: RUSTFLAGS='--cfg getrandom_backend="wasm_js"'
+version = "0.3.3"
+features = ["wasm_js"]

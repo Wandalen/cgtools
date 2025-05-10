@@ -34,7 +34,10 @@ async fn run() -> Result< (), gl::WebglError >
   let vert = include_str!( "../shaders/light_volume.vert" );
   let frag = include_str!( "../shaders/deferred.frag" );
   let light_volume_shader = gl::shader::Program::new( gl.clone(), vert, frag )?;
-  light_volume_shader.activate();
+
+  let vert = include_str!( "../shaders/main.vert" );
+  let frag = include_str!( "../shaders/gbuffer.frag" );
+  let object_shader = gl::shader::Program::new( gl.clone(), vert, frag )?;
 
   // cube geometry
   let cube_vertices : &[ f32 ] =
@@ -90,9 +93,9 @@ async fn run() -> Result< (), gl::WebglError >
 
   let update = move | _ |
   {
-    light_volume_shader.uniform_matrix_upload( "u_mvp", projection.raw_slice(), true );
-    gl.vertex_attrib3f( 1, 0.0, 0.0, -10.0 );
-    gl.draw_elements_with_i32( GL::TRIANGLES, light_volume.element_count, GL::UNSIGNED_INT, 0 );
+    // light_volume_shader.uniform_matrix_upload( "u_mvp", projection.raw_slice(), true );
+    // gl.vertex_attrib3f( 1, 0.0, 0.0, -10.0 );
+    // gl.draw_elements_with_i32( GL::TRIANGLES, light_volume.element_count, GL::UNSIGNED_INT, 0 );
 
     true
   };
