@@ -1,0 +1,10 @@
+[package]
+name = "derive_tools_issue"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+derive_tools = { workspace = true, features = ["derive_strum"] }
+
+[lints]
+workspace = true

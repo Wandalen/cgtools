@@ -20,7 +20,7 @@ async fn run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
   let canvas = gl::canvas::make()?;
-  let gl = gl::context::from_canvas( &canvas, Default::default() )?;
+  let gl = gl::context::from_canvas( &canvas )?;
 
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
