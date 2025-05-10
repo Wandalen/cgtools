@@ -3,17 +3,49 @@ use minwebgl as gl;
 
 use crate::buffer::Buffer;
 
+pub struct BoundingBox
+{
+  min : gl::F32x3,
+  max : gl::F32x3
+}
+
+impl BoundingBox 
+{
+  pub fn new< T : Into< gl::F32x3 > >( min : T, max : T ) -> Self
+  {
+    Self
+    {
+      min : min.into(),
+      max : max.into()
+    }
+  }
+
+  pub fn center( &self ) -> gl::F32x3
+  {
+    ( self.max + self.min ) / 2.0
+  }    
+}
+
+impl From< gltf::mesh::BoundingBox > for BoundingBox 
+{
+  fn from( value : gltf::mesh::BoundingBox ) -> Self 
+  {
+    Self::new( value.min, value.max )
+  }    
+}
+
 pub struct Primitive
 {
   pub id : uuid::Uuid,
-  vs_defines : String,
+  pub vs_defines : String,
   index_count : u32,
   vertex_count : u32,
   index_type : u32,
   index_offset : u32,
   draw_mode : u32,
   vao : gl::WebGlVertexArrayObject,
-  material_id : Option< usize >
+  material_id : Option< usize >,
+  bounding_box : BoundingBox
 }
 
 impl Primitive
@@ -64,13 +96,20 @@ impl Primitive
           0 
         },
         gltf::Semantic::Normals => 1,
-        gltf::Semantic::TexCoords( i ) => {
+        gltf::Semantic::TexCoords( i ) => 
+        {
           assert!( i < 5, "Only 5 types of texture coordinates are supported" );
           2 + i
         },
-        gltf::Semantic::Colors( i ) => {
+        gltf::Semantic::Colors( i ) => 
+        {
           assert!( i < 2, "Only 2 types of color coordinates are supported" );
           7 + i
+        },
+        gltf::Semantic::Tangents => 
+        {
+          vs_defines.push_str( "#define USE_TANGENTS\n" );
+          9
         },
         a => { gl::warn!( "Unsupported attribute: {:?}", a ); continue; }
       };
@@ -99,6 +138,8 @@ impl Primitive
       //gl.vertex_attrib_divisor( slot, 1 );
       gl.enable_vertex_attrib_array( slot );
     }
+
+    let bounding_box = p.bounding_box().into();
     Ok
     (
       Self 
@@ -111,7 +152,8 @@ impl Primitive
         vertex_count,
         index_type,
         index_offset,
-        material_id
+        material_id,
+        bounding_box
       }
     )
   }
@@ -141,5 +183,15 @@ impl Primitive
     {
       gl.draw_elements_with_i32( self.draw_mode, self.index_count as i32, self.index_type, self.index_offset as i32 );
     }
+  }
+
+  pub fn set_material_id( &mut self, id : usize )
+  {
+    self.material_id = Some( id );
+  }
+
+  pub fn center( &self ) -> gl::F32x3
+  {
+    self.bounding_box.center()
   }
 }

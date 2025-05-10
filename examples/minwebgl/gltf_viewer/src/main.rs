@@ -1,5 +1,3 @@
-//! Just draw a large point in the middle of the screen.
-
 use std::
 {
   cell::RefCell, collections::{ HashMap, HashSet }, rc::Rc
@@ -11,7 +9,7 @@ use gltf::Gltf;
 use material::Material;
 use mesh::Mesh;
 use minwebgl::{ self as gl, JsCast };
-use node::{Node, Object3D};
+use node::{ Node, Object3D };
 use renderer::Renderer;
 use scene::Scene;
 use texture::Texture;
@@ -29,12 +27,14 @@ mod node;
 mod renderer;
 mod camera;
 mod program;
+mod loaders;
+mod ibl;
 
 async fn run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
   let canvas = gl::canvas::make()?;
-  let gl = gl::context::from_canvas( &canvas )?;
+  let gl = gl::context::from_canvas( &canvas, Default::default() )?;
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();
 
@@ -58,7 +58,6 @@ async fn run() -> Result< (), gl::WebglError >
   camera_controls::setup_controls( &canvas, &camera.get_controls() );
 
   let gltf_file_path = "dodge-challenger/gltf";
-  //let gltf_file_path = "Neon/gltf";
 
   let gltf_slice= gl::file::load( &format!( "{}/scene.gltf", gltf_file_path ) ).await.expect( "Failed to load gltf file" );
   let mut gltf_file = Gltf::from_slice( &gltf_slice ).unwrap();
@@ -231,10 +230,10 @@ async fn run() -> Result< (), gl::WebglError >
   {
     let node = Rc::new( RefCell::new( Node::new( &gltf_node ) ) );
 
-    if let Object3D::Mesh( id ) = node.borrow().object
-    {
-      meshes[ id ].set_parent( node.clone() );
-    }
+//     if let Object3D::Mesh( id ) = node.borrow().object
+//     {
+//       meshes[ id ].set_parent( node.clone() );
+//     }
 
     nodes.push( node );
   }
@@ -250,13 +249,15 @@ async fn run() -> Result< (), gl::WebglError >
 
   gl::log::info!( "Scenes: {}", scenes.len() );
 
-  let mut renderer = Renderer::new( nodes, materials, meshes );
+  let mut renderer = Renderer::new( materials, meshes );
+  renderer.load_ibl( &gl, "envMap" ).await;
   renderer.compile( &gl )?;
 
   gl.enable( gl::DEPTH_TEST );
   gl.enable( gl::BLEND );
 
   gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA );
+
   gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
   gl.clear_depth( 1.0 );
 

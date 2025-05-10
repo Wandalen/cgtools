@@ -6,8 +6,7 @@ use crate::{buffer::Buffer, node::Node, primitive::Primitive};
 
 pub struct Mesh
 {
-  pub primitives : Vec< Primitive >,
-  pub parent_node : Rc< RefCell< Node > >
+  pub primitives : Vec< Rc< Primitive > >,
 }
 
 impl Mesh 
@@ -19,11 +18,10 @@ impl Mesh
     buffers : &HashMap< usize, Buffer >
   ) -> Result< Self, gl::WebglError >
   {
-    let parent_node = Rc::default();
     let mut primitives = Vec::new();
     for p in mesh.primitives()
     {
-      let primitive = Primitive::new( gl, &p, buffers )?;
+      let primitive = Rc::new( Primitive::new( gl, &p, buffers )? );
       primitives.push( primitive );
     }
 
@@ -31,15 +29,9 @@ impl Mesh
     ( 
       Self
       {
-        primitives,
-        parent_node
+        primitives
       }
     )
-  }
-
-  pub fn set_parent( &mut self, node : Rc< RefCell< Node > > )
-  {
-    self.parent_node = node;
   }
 
   pub fn apply( &self, gl : &gl::WebGl2RenderingContext )
