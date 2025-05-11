@@ -6,6 +6,7 @@ use minwebgl as gl;
 use crate::program::ProgramInfo;
 
 
+#[allow(dead_code)]
 pub struct Camera
 {
   controls : Rc< RefCell< CameraOrbitControls > >,
@@ -16,7 +17,7 @@ pub struct Camera
   projection_matrix : gl::F32x4x4,
 }
 
-impl Camera 
+impl Camera
 {
   pub fn new
   (
@@ -31,9 +32,9 @@ impl Camera
   {
     let projection_matrix = gl::math::mat3x3h::perspective_rh_gl
     (
-      fov,  
-      aspect_ratio, 
-      near, 
+      fov,
+      aspect_ratio,
+      near,
       far
     );
 
@@ -61,10 +62,10 @@ impl Camera
   }
 
   pub fn apply
-  ( 
-    &self, 
-    gl : &gl::WebGl2RenderingContext, 
-    program_info : &ProgramInfo  
+  (
+    &self,
+    gl : &gl::WebGl2RenderingContext,
+    program_info : &ProgramInfo
   )
   {
     let locations = program_info.get_locations();
@@ -75,25 +76,25 @@ impl Camera
 
     gl::uniform::upload
     (
-      &gl, 
+      &gl,
       locations.get( "cameraPosition" ).unwrap().clone(),
       &eye[ .. ]
     ).unwrap();
 
     gl::uniform::matrix_upload
-    ( 
-      &gl, 
+    (
+      &gl,
       locations.get( "viewMatrix" ).unwrap().clone(),
-      &view_matrix[ .. ], 
-      true 
+      &view_matrix[ .. ],
+      true
     ).unwrap();
 
     gl::uniform::matrix_upload
-    ( 
-      &gl, 
+    (
+      &gl,
       locations.get( "projectionMatrix" ).unwrap().clone(),
-      projection_matrix.to_array().as_slice(), 
-      true 
+      projection_matrix.to_array().as_slice(),
+      true
     ).unwrap();
   }
 

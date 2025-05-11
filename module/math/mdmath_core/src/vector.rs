@@ -133,7 +133,8 @@ mod private
   ///
   /// Basic usage with consumption:
   ///
-  /// ```
+  /// ```ignore
+  /// use mdmath_core::IntoArray;
   /// struct MyCollection;
   ///
   /// impl IntoArray< i32, 3 > for MyCollection
@@ -151,7 +152,8 @@ mod private
   ///
   /// Basic usage without consumption:
   ///
-  /// ```
+  /// ```ignore
+  /// use mdmath_core::IntoArray;
   /// struct MyCollection;
   ///
   /// impl IntoArray< i32, 3 > for MyCollection

@@ -66,15 +66,15 @@ where
   Coordinate< Offset< Parity >, Pointy > : Into< Coordinate< Axial, Pointy > >,
 {
   /// Position of a point right in the center of the whole grid.
-  pub fn center( &self ) -> F32x2
+  pub fn center( &self ) -> Pixel
   {
     let [ min, max ] = self.bounds;
 
-    let min1 : crate::coordinates::pixel::Pixel = Into::< Coordinate< Axial, Pointy > >::into( min ).into();
+    let min1 : Pixel = Into::< Coordinate< Axial, Pointy > >::into( min ).into();
     let min_x = if min.r + 1 <= max.r
     {
       let min2 = Coordinate::< Offset< Parity >, Pointy >::new( min.q, min.r + 1 );
-      let min2 : crate::coordinates::pixel::Pixel = Into::< Coordinate< Axial, Pointy > >::into( min2 ).into();
+      let min2 : Pixel = Into::< Coordinate< Axial, Pointy > >::into( min2 ).into();
       min1[ 0 ].min( min2[ 0 ] )
     }
     else
@@ -96,7 +96,7 @@ where
     };
     let max_y = max1[ 1 ];
 
-    F32x2::new( ( min_x + max_x ) / 2.0, ( min_y + max_y ) / 2.0 )
+    Pixel::new( ( min_x + max_x ) / 2.0, ( min_y + max_y ) / 2.0 )
 
     // let width_count = self.bounds[ 1 ][ 0 ] - self.bounds[ 0 ][ 0 ] + 1;
     // let width = SQRT_THREE * self.hex_size;

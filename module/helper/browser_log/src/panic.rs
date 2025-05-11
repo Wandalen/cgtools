@@ -93,6 +93,7 @@ mod private
   }
 
   #[ cfg( target_arch = "wasm32" ) ]
+  #[ allow( wasm_c_abi ) ]
   mod imp
   {
     use super::*;
@@ -100,7 +101,6 @@ mod private
     // extern crate wasm_bindgen;
     use wasm_bindgen::prelude::*;
 
-    #[ allow( wasm_c_abi ) ]
     #[ wasm_bindgen ]
     extern
     {

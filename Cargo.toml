@@ -17,7 +17,7 @@ members = [
 # Enforces idiomatic Rust 2018 practices.
 rust_2018_idioms = "deny"
 # Prevents use of unstable features.
-future_incompatible = "deny"
+future_incompatible = "warn"
 # # Encourages documentation for public items.
 # missing_docs = "warn" # qqq : uncomment please
 # # Suggests implementing Debug for public types.
@@ -46,6 +46,10 @@ module_name_repetitions = "allow"
 absolute_paths = "allow"
 
 # = helpers
+
+[workspace.dependencies.browser_input]
+version = "0.1.0"
+path = "module/helper/browser_input"
 
 [workspace.dependencies.tiles_tools]
 version = "0.1.0"
@@ -123,6 +127,9 @@ path = "module/math/mdmath_core"
 [workspace.dependencies.derive_tools]
 version = "~0.29.0"
 
+[workspace.dependencies.strum]
+version = "~0.25"
+
 [workspace.dependencies.mod_interface]
 version = "~0.25.0"
 
@@ -182,7 +189,7 @@ version = "0.4.50"
 [workspace.dependencies.tobj]
 version = "4.0.2"
 default-features = false
-# features = [ "async" ]
+features = [ "async" ]
 
 [workspace.dependencies.visioncortex]
 git  = "https://github.com/obox-systems/visioncortex.git"

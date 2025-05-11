@@ -1,8 +1,9 @@
 use minwebgl as gl;
 
+#[allow(unused_variables)]
 pub async fn load_to_mip_cube
 (
-  gl : &gl::WebGl2RenderingContext, 
+  gl : &gl::WebGl2RenderingContext,
   texture : Option< &gl::web_sys::WebGlTexture >,
   mip_level : u32,
   path : &str
@@ -59,9 +60,10 @@ pub async fn load_to_mip_cube
   gl.bind_texture( gl::TEXTURE_CUBE_MAP, None );
 }
 
+#[allow(unused_variables)]
 pub async fn load_to_mip_d2
 (
-  gl : &gl::WebGl2RenderingContext, 
+  gl : &gl::WebGl2RenderingContext,
   texture : Option< &gl::web_sys::WebGlTexture >,
   mip_level : u32,
   path : &str

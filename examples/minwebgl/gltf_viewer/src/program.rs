@@ -54,12 +54,12 @@ impl ProgramInfo
       program,
       locations
     }
-  } 
+  }
 
-  pub fn get_program( &self ) -> &gl::WebGlProgram
-  {
-    &self.program
-  } 
+  // pub fn get_program( &self ) -> &gl::WebGlProgram
+  // {
+  //   &self.program
+  // }
 
   pub fn get_locations( &self ) -> &HashMap< String, Option< gl::WebGlUniformLocation > >
   {
