@@ -29,6 +29,7 @@ mod camera;
 mod program;
 mod loaders;
 mod ibl;
+mod post_processing;
 
 async fn run() -> Result< (), gl::WebglError >
 {
@@ -37,6 +38,8 @@ async fn run() -> Result< (), gl::WebglError >
   let gl = gl::context::from_canvas( &canvas, Default::default() )?;
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();
+
+  let _ = gl.get_extension( "EXT_color_buffer_float" ).expect( "Failed to enable EXT_color_buffer_float extension" );
 
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
