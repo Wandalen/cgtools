@@ -17,5 +17,5 @@ void main()
 {
   // Convert quad pos ( -1..1 ) to tex coord ( 0..1 )
   v_tex_coord = TEXCOORDS[ gl_VertexID ] * 0.5 + 0.5; 
-  gl_Position = vec4( v_tex_coord, 0.0, 1.0 );
+  gl_Position = vec4( TEXCOORDS[ gl_VertexID ], 0.0, 1.0 );
 }
