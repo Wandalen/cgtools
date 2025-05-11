@@ -71,8 +71,8 @@ fn create_framebuffer(
   gl.bind_texture( GL::TEXTURE_2D, Some( &color ) );
   gl.tex_storage_2d( GL::TEXTURE_2D, 1, gl::RGBA8, size.0, size.1 );
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::LINEAR as i32 );
-  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE as i32 );
-  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::REPEAT as i32 );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::REPEAT as i32 );
 
   let framebuffer = gl.create_framebuffer()?;
   gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &framebuffer ) );
@@ -331,7 +331,7 @@ impl Renderer
     let num_passes = ( self.viewport.0.max( self.viewport.1 ) as f32 ).log2().ceil() as i32;
     for i in 0..num_passes
     {
-      let last = false; //i == ( num_passes - 1 );
+      let last = false; // Use here i == ( num_passes - 1 ) if you want see JFA step result 
       self.jfa_step_pass( i, last );        
     }
     
@@ -434,8 +434,16 @@ impl Renderer
     }
 
     gl::uniform::upload( gl, Some( u_resolution.clone() ), &[ self.viewport.0 as f32, self.viewport.1 as f32 ] ).unwrap();
-    let step_size = ( ( self.viewport.0.max( self.viewport.1 ) as f32 ) / 2.0f32.powi( i + 1 ) ).max( 1.0 );
-    gl::uniform::upload( gl, Some( u_step_size.clone() ), &step_size ).unwrap();
+
+    let s = | c : i32 |
+    {
+      ( ( c as f32 ) / 2.0f32.powi( i + 1 ) ).max( 1.0 )
+    };
+
+    let max = self.viewport.0.max( self.viewport.1 );
+    let step_size = ( s( max ), s( max ) );
+    
+    gl::uniform::upload( gl, Some( u_step_size.clone() ), &[ step_size.0, step_size.1 ] ).unwrap();
 
     gl.draw_arrays( GL::TRIANGLES, 0, 6 );
     gl.bind_vertex_array( None );
@@ -460,7 +468,7 @@ impl Renderer
 
     gl.use_program( Some( outline_program ) );
 
-    let outline_thickness = [ 15.0 * ( t / 1000.0 ).sin() as f32  ]; 
+    let outline_thickness = [ ( 70.0 * ( t / 3000.0 ).sin().abs() ) as f32 + 8.0 ]; 
     let outline_color = [ 1.0, 1.0, 1.0, 1.0 ]; 
     let object_color = [ 0.5, 0.5, 0.5, 1.0 ]; 
     let background_color = [ 0.0, 0.0, 0.0, 1.0 ];
