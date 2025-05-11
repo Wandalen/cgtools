@@ -8,7 +8,7 @@ void main()
 {
   // Check if the object is present ( we rendered it white )
   float object_present = texture( u_object_texture, v_tex_coord ).r;
-  if ( object_present > 0.1 ) // If pixel is part of the object
+  if ( object_present > 0.0 ) // If pixel is part of the object
   { 
     // Store normalized texture coordinates of this object pixel
     FragColor = vec4( v_tex_coord, 0.0, 1.0 );
