@@ -12,6 +12,7 @@
 /.vscode
 /_*
 /.
+/.roo
 
 .env
 _key

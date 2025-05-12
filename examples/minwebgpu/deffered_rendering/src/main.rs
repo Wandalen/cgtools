@@ -3,7 +3,7 @@
 use light::{LightState, LightVisualizationState, NUM_LIGHTS};
 use minwebgpu::
 {
-  self as gl, 
+  self as gl,
   AsWeb
 };
 use model::{ModelState, NUM_MODELS};
@@ -17,7 +17,7 @@ fn create_textures
 (
   device : &gl::web_sys::GpuDevice,
   size : [ u32; 3 ]
-) 
+)
 -> Result< [ gl::web_sys::GpuTexture; 3], gl::WebGPUError >
 {
   // We create textures for every property we need to calculate lighting in the final pass: position, albedo and normal.
@@ -57,18 +57,18 @@ async fn run() -> Result< (), gl::WebGPUError >
 
   let width = canvas.width();
   let height = canvas.height();
-  
+
   let light_update_shader = gl::ShaderModule::new( include_str!( "../shaders/light_update.wgsl" ) ).create( &device );
   let big_plane_shader = gl::ShaderModule::new( include_str!( "../shaders/big_plane.wgsl" ) ).create( &device );
   let gbuffer_shader = gl::ShaderModule::new( include_str!( "../shaders/gbuffer.wgsl" ) ).create( &device );
   let render_shader = gl::ShaderModule::new( include_str!( "../shaders/render.wgsl" ) ).create( &device );
 
   let [ pos_vertex_layout, normal_vertex_layout, uv_vertex_layout ] = ModelState::vertex_layout();
-  let model_instance_layout = ModelState::instance_layout(); 
+  let model_instance_layout = ModelState::instance_layout();
   let [ pos_tex, albedo_tex, normal_tex ] = create_textures( &device, [ width, height, 1 ] )?;
   let depth_texture = gl::texture::create
   (
-    &device, 
+    &device,
     &gl::texture::desc()
     .size( [ width, height, 1 ] )
     .render_attachment()
@@ -78,11 +78,11 @@ async fn run() -> Result< (), gl::WebGPUError >
   )?;
 
   let depth_view = depth_texture.create_view().unwrap();
-  let ( pos_view, albedo_view, normal_view ) = 
-  ( 
-    pos_tex.create_view().unwrap(), 
+  let ( pos_view, albedo_view, normal_view ) =
+  (
+    pos_tex.create_view().unwrap(),
     albedo_tex.create_view().unwrap(),
-    normal_tex.create_view().unwrap() 
+    normal_tex.create_view().unwrap()
   );
 
   // Create needed state
@@ -97,10 +97,10 @@ async fn run() -> Result< (), gl::WebGPUError >
   .fragment()
   .auto_bindings()
   .entry
-  ( 
+  (
     gl::BindGroupLayoutEntry::new()
     .vertex()
-    .ty( gl::binding_type::buffer() ) 
+    .ty( gl::binding_type::buffer() )
   )
   .entry_from_ty( gl::binding_type::buffer().storage_readonly() )
   .create( &device )?;
@@ -114,8 +114,8 @@ async fn run() -> Result< (), gl::WebGPUError >
 
   // Setup gbuffer related state
   let gbuffer_bind_group_layout = gl::layout::bind_group::create
-  ( 
-    &device, 
+  (
+    &device,
     // Sets the visibility `FRAGMENT` to all entries
     // And auto computes binding value for each entry
     &gl::layout::bind_group::desc()
@@ -133,7 +133,7 @@ async fn run() -> Result< (), gl::WebGPUError >
   .bind_group( &uniform_bind_group_layout )
   .create( &device );
 
-  let fragment_state = gl::FragmentState::new( &gbuffer_shader ) 
+  let fragment_state = gl::FragmentState::new( &gbuffer_shader )
   .target( gl::ColorTargetState::new() )
   .target( gl::ColorTargetState::new().format( gl::GpuTextureFormat::Rgba16float ) )
   .target( gl::ColorTargetState::new().format( gl::GpuTextureFormat::Rgba16float ) )
@@ -141,10 +141,10 @@ async fn run() -> Result< (), gl::WebGPUError >
 
   // Pipeline that will render to the gbuffer textures.
   let gbuffer_render_pipeline = gl::render_pipeline::create
-  ( 
-    &device, 
+  (
+    &device,
     &gl::render_pipeline::desc
-    ( 
+    (
       gl::VertexState::new( &gbuffer_shader )
       .buffer( &pos_vertex_layout )
       .buffer( &normal_vertex_layout )
@@ -161,8 +161,8 @@ async fn run() -> Result< (), gl::WebGPUError >
   // Pipeline that will render a plane.
   // We reuse the fragment state from gbuffer pipeline because they are the same.
   let big_plane_render_pipeline = gl::render_pipeline::create
-  ( 
-    &device, 
+  (
+    &device,
     &gl::render_pipeline::desc( gl::VertexState::new( &big_plane_shader ) )
     .layout( &gbuffer_pipeline_layout )
     .fragment( fragment_state.clone() )
@@ -173,7 +173,7 @@ async fn run() -> Result< (), gl::WebGPUError >
 
   let gbuffer_bind_group = gl::bind_group::create
   (
-    &device, 
+    &device,
     &gl::bind_group::desc( &gbuffer_bind_group_layout )
     .auto_bindings()
     .entry_from_resource( &albedo_view )
@@ -192,13 +192,13 @@ async fn run() -> Result< (), gl::WebGPUError >
   .create( &device );
 
   let render_pipeline = gl::render_pipeline::create
-  ( 
-    &device, 
+  (
+    &device,
     &gl::render_pipeline::desc( gl::VertexState::new( &render_shader ) )
     .layout( &render_pipeline_layout )
     .fragment
-    ( 
-      gl::FragmentState::new( &render_shader ) 
+    (
+      gl::FragmentState::new( &render_shader )
       .target( gl::ColorTargetState::new().format( presentation_format ) )
     )
     .primitive( gl::PrimitiveState::new().triangle_strip() )
@@ -209,15 +209,15 @@ async fn run() -> Result< (), gl::WebGPUError >
   // Sicne there is only one `compute` function in the shader,
   // the entry point will default to that function
   let light_compute_pipeline = gl::compute_pipeline::desc
-  ( 
-    gl::ProgrammableStage::new( &light_update_shader ) 
+  (
+    gl::ProgrammableStage::new( &light_update_shader )
   )
   .create( &device );
 
-  // We create bindgroup from `auto` layout of our pipeline 
+  // We create bindgroup from `auto` layout of our pipeline
   let light_update_bind_group = gl::bind_group::desc
-  ( 
-    &light_compute_pipeline.get_bind_group_layout( 0 ) 
+  (
+    &light_compute_pipeline.get_bind_group_layout( 0 )
   )
   .auto_bindings()
   .entry_from_resource( &gl::BufferBinding::new( &uniform_state.buffer ) )
@@ -227,8 +227,8 @@ async fn run() -> Result< (), gl::WebGPUError >
 
   // Light visualization
   let light_vis_bind_group = gl::bind_group::desc
-  ( 
-    &light_vis_state.render_pipeline.get_bind_group_layout( 0 ) 
+  (
+    &light_vis_state.render_pipeline.get_bind_group_layout( 0 )
   )
   .auto_bindings()
   .entry_from_resource( &gl::BufferBinding::new( &uniform_state.buffer ) )
@@ -251,9 +251,9 @@ async fn run() -> Result< (), gl::WebGPUError >
   {
     let mut prev_time = 0.0;
     move | t : f64 |
-    {  
+    {
       let elapsed_time = ( ( t - prev_time ) / 1000.0 ) as f32;
-      prev_time = t; 
+      prev_time = t;
       let t = ( t / 1000.0 ) as f32;
 
       let canvas_texture = gl::context::current_texture( &context ).unwrap();
@@ -261,7 +261,7 @@ async fn run() -> Result< (), gl::WebGPUError >
       // let rot = gl::math::mat3x3::from_angle_y( t );
       // let eye = rot * eye;
 
-      let view_matrix = gl::math::mat3x3h::loot_at_rh( eye, center, up );
+      let view_matrix = gl::math::mat3x3h::look_at_rh( eye, center, up );
       uniform_state.uniform = Uniform
       {
         view_matrix,
@@ -277,11 +277,11 @@ async fn run() -> Result< (), gl::WebGPUError >
       // Gbuffer pass
       {
         let render_pass = encoder.begin_render_pass
-        ( 
+        (
           &gl::RenderPassDescriptor::new()
-          .color_attachment( gl::ColorAttachment::new( &albedo_view )) 
-          .color_attachment( gl::ColorAttachment::new( &pos_view )) 
-          .color_attachment( gl::ColorAttachment::new( &normal_view )) 
+          .color_attachment( gl::ColorAttachment::new( &albedo_view ))
+          .color_attachment( gl::ColorAttachment::new( &pos_view ))
+          .color_attachment( gl::ColorAttachment::new( &normal_view ))
           .depth_stencil_attachment( gl::DepthStencilAttachment::new( &depth_view ) )
           .into()
         ).unwrap();
@@ -305,12 +305,12 @@ async fn run() -> Result< (), gl::WebGPUError >
       // Main render pass
       {
         let render_pass = encoder.begin_render_pass
-        ( 
+        (
           &gl::RenderPassDescriptor::new()
           .color_attachment
-          ( 
+          (
             gl::ColorAttachment::new( &canvas_view )
-          ) 
+          )
           .into()
         ).unwrap();
 
@@ -324,16 +324,16 @@ async fn run() -> Result< (), gl::WebGPUError >
       // Visualize light
       {
         let render_pass = encoder.begin_render_pass
-        ( 
+        (
           &gl::RenderPassDescriptor::new()
           .color_attachment
-          ( 
+          (
             gl::ColorAttachment::new( &canvas_view )
-            .load_op( gl::GpuLoadOp::Load ) 
-          ) 
+            .load_op( gl::GpuLoadOp::Load )
+          )
           .depth_stencil_attachment
-          ( 
-            gl::DepthStencilAttachment::new( &depth_view ) 
+          (
+            gl::DepthStencilAttachment::new( &depth_view )
             .depth_load_op( gl::GpuLoadOp::Load )
           )
           .into()

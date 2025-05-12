@@ -6,7 +6,7 @@ use crate::node::Node;
 
 pub struct Scene
 { 
-  children : Vec< Rc< RefCell< Node > > >,
+  pub children : Vec< Rc< RefCell< Node > > >,
 }
 
 impl Scene
@@ -27,6 +27,16 @@ impl Scene
     }
   }
 
+  pub fn traverse< F >( &self, callback : &mut F )
+  where F : FnMut( Rc< RefCell< Node > > )
+  {
+    for node in self.children.iter()
+    {
+      ( *callback )( node.clone() );
+      node.borrow().traverse( callback );
+    }
+  }
+
   pub fn update_world_matrix( &mut self )
   {
     let mut identity = gl::F32x4x4::default();
@@ -36,7 +46,7 @@ impl Scene
     *identity.scalar_mut( gl::Ix2( 3, 3 ) ) = 1.0;
 
     for child in self.children.iter_mut()
-    { 
+    {
       child.borrow_mut().update_world_matrix( identity );
     }
   }
