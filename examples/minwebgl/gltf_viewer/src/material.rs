@@ -1,13 +1,10 @@
 use minwebgl as gl;
-use gl::GL;
-
 use crate::{program::ProgramInfo, texture::Texture};
 
 
 #[ derive( Clone ) ]
 pub struct Material< 'a >
 {
-  pub id : uuid::Uuid,
   fs_defines : String,
 
   base_color_factor : gl::F32x4,
@@ -22,7 +19,6 @@ pub struct Material< 'a >
   occlusion_strength : f32,
   occlusion_texture : Option< &'a Texture >,
 
-  emissive_factor : gl::F32x3,
   emissive_texture : Option< &'a Texture >,
 
   specular_factor : f32,
@@ -31,20 +27,17 @@ pub struct Material< 'a >
   specular_color_texture : Option< &'a Texture >,
 
   pub alpha_mode : gltf::material::AlphaMode,
-  alpha_cutoff : Option< f32 >,
-  double_sided : bool
 }
 
-impl< 'a > Material< 'a > 
+impl< 'a > Material< 'a >
 {
   pub fn new< 'b >
-  ( 
+  (
     m : gltf::Material< 'b >,
     textures : &'a [ Texture ]
   ) -> Self
   {
-  
-    let id = uuid::Uuid::new_v4();
+
     let mut fs_defines = String::new();
     fs_defines.push_str( "#define USE_PBR\n" );
 
@@ -56,7 +49,7 @@ impl< 'a > Material< 'a >
         fs_defines.push_str( &format!( "#define {} vUv_{}\n", uv_define, info.tex_coord() ) );
         Some( &textures[ info.texture().index() ] )
       }
-      else 
+      else
       {
         None
       }
@@ -71,14 +64,13 @@ impl< 'a > Material< 'a >
     let metallic_roughness_texture = add_texture( &mut fs_defines, pbr.metallic_roughness_texture(), "USE_MR_TEXTURE", "vMRUv" );
 
     // Emissive texture
-    let emissive_factor = gl::F32x3::from( m.emissive_factor() );
     let emissive_texture =  add_texture( &mut fs_defines, m.emissive_texture(), "USE_EMISSION_TEXTURE", "vEmissionUv" );
 
     // KHR_materials_specular
     let mut specular_factor = 1.0;
     let mut specular_texture = None;
     let mut specular_color_factor = gl::F32x3::splat( 1.0 );
-    let mut specular_color_texture = None; 
+    let mut specular_color_texture = None;
     if let Some( s ) = m.specular()
     {
       fs_defines.push_str( "#define USE_KHR_materials_specular\n" );
@@ -116,13 +108,10 @@ impl< 'a > Material< 'a >
 
 
     let alpha_mode = m.alpha_mode();
-    let alpha_cutoff = m.alpha_cutoff();
-    let double_sided = m.double_sided();
 
 
     return Self
     {
-      id,
       fs_defines,
       base_color_factor,
       base_color_texture,
@@ -133,22 +122,19 @@ impl< 'a > Material< 'a >
       normal_texture,
       occlusion_strength,
       occlusion_texture,
-      emissive_factor,
       emissive_texture,
       specular_factor,
       specular_color_factor,
       specular_color_texture,
       specular_texture,
       alpha_mode,
-      alpha_cutoff,
-      double_sided
     };
   }
 
   pub fn configure
-  ( 
-    &self, 
-    gl : &gl::WebGl2RenderingContext, 
+  (
+    &self,
+    gl : &gl::WebGl2RenderingContext,
     program_info : &ProgramInfo
   )
   {
@@ -169,9 +155,9 @@ impl< 'a > Material< 'a >
   }
 
   pub fn apply
-  ( 
-    &self, 
-    gl : &gl::WebGl2RenderingContext, 
+  (
+    &self,
+    gl : &gl::WebGl2RenderingContext,
     program_info : &ProgramInfo
   ) -> Result< (), gl::WebglError >
   {
@@ -205,10 +191,10 @@ impl< 'a > Material< 'a >
   {
     let bind = | texture : Option< &Texture >, i |
     {
-      if let Some( t ) = texture 
-      {  
-        gl.active_texture( gl::TEXTURE0 + i ); 
-        t.bind( gl ); 
+      if let Some( t ) = texture
+      {
+        gl.active_texture( gl::TEXTURE0 + i );
+        t.bind( gl );
       }
     };
 
@@ -229,9 +215,8 @@ impl< 'a > Material< 'a >
 
 impl< 'a > Default for Material< 'a >
 {
-  fn default() -> Self 
+  fn default() -> Self
   {
-    let id = uuid::Uuid::default();
     let fs_defines = String::new();
 
     let base_color_factor = gl::F32x4::from( [ 1.0, 1.0, 1.0, 1.0 ] );
@@ -246,21 +231,17 @@ impl< 'a > Default for Material< 'a >
     let occlusion_strength = 1.0;
     let occlusion_texture = None;
 
-    let emissive_factor = gl::F32x3::from( [ 0.0, 0.0, 0.0 ] );
     let emissive_texture = None;
 
     let specular_factor = 1.0;
     let specular_texture = None;
     let specular_color_factor = gl::F32x3::splat( 1.0 );
-    let specular_color_texture = None; 
+    let specular_color_texture = None;
 
     let alpha_mode = gltf::material::AlphaMode::Opaque;
-    let alpha_cutoff = Some( 0.5 );
-    let double_sided = false;
 
     return Self
     {
-      id,
       fs_defines,
       base_color_factor,
       base_color_texture,
@@ -271,15 +252,12 @@ impl< 'a > Default for Material< 'a >
       normal_texture,
       occlusion_strength,
       occlusion_texture,
-      emissive_factor,
       emissive_texture,
-      specular_color_factor,
-      specular_color_texture,
       specular_factor,
       specular_texture,
+      specular_color_factor,
+      specular_color_texture,
       alpha_mode,
-      alpha_cutoff,
-      double_sided
-    };    
+    };
   }
 }

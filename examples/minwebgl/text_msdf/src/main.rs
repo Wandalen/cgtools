@@ -3,7 +3,6 @@
 //! This program demonstrates how to render a triangle in the middle of the screen using WebGL in Rust. It utilizes shaders with Uniform Block Objects (UBOs) to manage uniforms efficiently.
 
 use minwebgl::{ self as gl, wasm_bindgen::prelude::Closure, JsCast };
-use gl::{ GL };
 
 mod text;
 mod json;

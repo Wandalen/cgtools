@@ -37,6 +37,7 @@ mdmath_core = { workspace = true }
 ### Magnitude of the vector
 
 ```rust
+use approx::assert_ulps_eq;
   let vec_a = [ 1.0, 2.0, 3.0 ];
   let result = mdmath_core::vector::mag2( &vec_a );
   assert_ulps_eq!( result, 14.0 );
@@ -65,6 +66,7 @@ mdmath_core = { workspace = true }
 ### Angle beetween two vectors
 
 ```rust
+use approx::assert_ulps_eq;
   let vec_a = [ 1.0, 0.0 ];
   let vec_b = [ 0.0, 1.0 ];
   let result = mdmath_core::vector::angle( &vec_a, &vec_b );

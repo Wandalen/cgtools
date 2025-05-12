@@ -1,18 +1,18 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{collections::HashMap, rc::Rc};
 
 use minwebgl as gl;
 
-use crate::{buffer::Buffer, node::Node, primitive::Primitive};
+use crate::{buffer::Buffer, primitive::Primitive};
 
 pub struct Mesh
 {
   pub primitives : Vec< Rc< Primitive > >,
 }
 
-impl Mesh 
+impl Mesh
 {
   pub fn new
-  ( 
+  (
     gl : &gl::WebGl2RenderingContext,
     mesh : &gltf::Mesh,
     buffers : &HashMap< usize, Buffer >
@@ -26,7 +26,7 @@ impl Mesh
     }
 
     Ok
-    ( 
+    (
       Self
       {
         primitives
@@ -34,11 +34,11 @@ impl Mesh
     )
   }
 
-  pub fn apply( &self, gl : &gl::WebGl2RenderingContext )
-  {
-    for p in self.primitives.iter()
-    {
-      p.apply( gl );
-    }
-  }
+  // pub fn apply( &self, gl : &gl::WebGl2RenderingContext )
+  // {
+  //   for p in self.primitives.iter()
+  //   {
+  //     p.apply( gl );
+  //   }
+  // }
 }
