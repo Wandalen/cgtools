@@ -11,7 +11,7 @@ out vec3 v_normal;
 
 void main()
 {
-  v_position = vec3( u_model * vec4( position, 1.0 ) );
+  v_position = ( u_model * vec4( position, 1.0 ) ).xyz;
   v_normal = normal;
   gl_Position = u_mvp * vec4( position, 1.0 );
 }
