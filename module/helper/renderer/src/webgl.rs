@@ -285,7 +285,7 @@ crate::mod_interface!
 
   // layer camera_controls;
 
-  //layer material;
+  layer material;
 
   // layer scene;
 
