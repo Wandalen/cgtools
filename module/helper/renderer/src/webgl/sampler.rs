@@ -58,37 +58,9 @@ mod private
 
   impl Sampler 
   {
-    pub fn from_gltf( s : &gltf::texture::Sampler ) -> Self
+    pub fn new() -> Self
     {
-      let mag_filter = if let Some( f ) = s.mag_filter()
-      {
-        MagFilterMode::from_gl( f.as_gl_enum() )
-      }
-      else
-      {
-        Default::default()
-      };
-
-      let min_filter = if let Some( f ) = s.min_filter()
-      {
-        MinFilterMode::from_gl( f.as_gl_enum() )
-      }
-      else
-      {
-        Default::default()
-      };
-
-      let wrap_s = WrappingMode::from_gl( s.wrap_s().as_gl_enum() );
-      let wrap_t = WrappingMode::from_gl( s.wrap_t().as_gl_enum() );
-
-      Self
-      {
-        mag_filter,
-        min_filter,
-        wrap_s,
-        wrap_t,
-        ..Default::default()
-      }
+      Self::default()
     }
 
     pub fn apply( &self, gl : &gl::WebGl2RenderingContext, target : u32 )

@@ -12,15 +12,9 @@ mod private
 
   impl Texture
   {
-    pub fn from_gltf( t : &gltf::Texture ) -> Self
+    pub fn new() -> Self
     {
-      let sampler = Sampler::from_gltf( &t.sampler() );
-
-      Self
-      {
-        sampler,
-        ..Default::default()
-      }
+      Self::default()
     }
 
     pub fn apply( &self, gl : &gl::WebGl2RenderingContext )

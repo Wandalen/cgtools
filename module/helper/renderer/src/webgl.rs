@@ -287,7 +287,7 @@ crate::mod_interface!
 
   layer material;
 
-  // layer scene;
+  layer scene;
 
   layer texture;
 
@@ -309,6 +309,6 @@ crate::mod_interface!
   
   // layer loaders;
 
-  // layer ibl;
+  layer ibl;
 }
 

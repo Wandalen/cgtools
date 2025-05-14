@@ -63,6 +63,11 @@ mod private
       &self.locations
     }
 
+    pub fn get_locations_mut( &mut self ) ->  &mut HashMap< String, Option< gl::WebGlUniformLocation > >
+    {
+      &mut self.locations
+    }
+
     pub fn apply( &self, gl : &gl::WebGl2RenderingContext )
     {
       gl.use_program( Some( &self.program ) );
