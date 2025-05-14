@@ -24,12 +24,12 @@ mod private
     pub children : Vec< Rc< RefCell< Node > > >,
     pub object : Object3D,
     // Local matrix of the node
-    matrix : gl::F32x4x4,
+    pub matrix : gl::F32x4x4,
     // Global matrix of the node( including all of its parents )
-    world_matrix : gl::F32x4x4,
-    scale : gl::F32x3,
-    translation : gl::F32x3,
-    rotation : glam::Quat,
+    pub world_matrix : gl::F32x4x4,
+    pub scale : gl::F32x3,
+    pub translation : gl::F32x3,
+    pub rotation : glam::Quat,
     needs_local_matrix_update : bool
   }
 
@@ -105,17 +105,7 @@ mod private
       self.children.push( child );
     }
 
-    pub fn add_children( &mut self, gltf_node : &gltf::Node, nodes : &[ Rc< RefCell< Node > > ] )
-    {
-      for c in gltf_node.children()
-      {
-        let node = nodes[ c.index() ].clone();
-        node.borrow_mut().add_children( &c, nodes );
-        self.add_child( node );
-      }
-    }
-
-    pub fn apply
+    pub fn upload
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
@@ -131,14 +121,16 @@ mod private
       ).unwrap();
     }
 
-    pub fn traverse< F >( &self, callback : &mut F )
-    where F : FnMut( Rc< RefCell< Node > > )
+    pub fn traverse< F >( &self, callback : &mut F ) -> Result< (), gl::WebglError >
+    where F : FnMut( Rc< RefCell< Node > > ) -> Result< (), gl::WebglError >
     {
       for node in self.children.iter()
       {
-        ( *callback )( node.clone() );
-        node.borrow().traverse( callback );
+        ( *callback )( node.clone() )?;
+        node.borrow().traverse( callback )?;
       }
+
+      Ok( () )
     }
   }
 }
@@ -147,6 +139,7 @@ crate::mod_interface!
 {
   orphan use
   {
-    Node
+    Node,
+    Object3D
   };
 }

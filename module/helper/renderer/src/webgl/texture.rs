@@ -1,8 +1,10 @@
 mod private
 {
+  use mingl::Former;
   use minwebgl::{ self as gl };
   use crate::webgl::Sampler;
 
+  #[ derive( Former ) ]
   pub struct Texture
   {
     pub target : u32,
@@ -17,10 +19,10 @@ mod private
       Self::default()
     }
 
-    pub fn apply( &self, gl : &gl::WebGl2RenderingContext )
+    pub fn upload( &self, gl : &gl::WebGl2RenderingContext )
     {
       self.bind( gl );
-      self.sampler.apply( gl, self.target );
+      self.sampler.upload( gl, self.target );
     }
 
     pub fn bind( &self, gl : &gl::WebGl2RenderingContext )

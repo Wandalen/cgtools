@@ -23,13 +23,13 @@ mod private
     
     pub fn bind( &self, gl : &gl::WebGl2RenderingContext, base_active_texture : u32 )
     {
-      gl.active_texture( base_active_texture + 0 );
+      gl.active_texture( gl::TEXTURE0 + base_active_texture );
       gl.bind_texture( gl::TEXTURE_CUBE_MAP, self.diffuse_texture.as_ref() );
 
-      gl.active_texture( base_active_texture + 1 );
+      gl.active_texture( gl::TEXTURE0 + base_active_texture + 1 );
       gl.bind_texture( gl::TEXTURE_CUBE_MAP, self.specular_1_texture.as_ref() );
 
-      gl.active_texture( base_active_texture + 2 );
+      gl.active_texture( gl::TEXTURE0 + base_active_texture + 2 );
       gl.bind_texture( gl::TEXTURE_2D, self.specular_2_texture.as_ref() );
     }    
   }

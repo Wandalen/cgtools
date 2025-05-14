@@ -12,15 +12,15 @@ mod private
 
   impl Primitive
   {
-    pub fn apply
+    pub fn upload
     ( 
       &self,
       gl : &gl::WebGl2RenderingContext,
       locations : &HashMap< String, Option< gl::WebGlUniformLocation > > 
     ) -> Result< (), gl::WebglError >
     {
-      self.material.borrow().apply( gl, locations )?;
-      self.geometry.borrow().apply( gl )?;
+      self.material.borrow().upload( gl, locations )?;
+      self.geometry.borrow().upload( gl )?;
 
       Ok( () )
     }

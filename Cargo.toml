@@ -63,9 +63,9 @@ path = "module/helper/browser_log"
 version = "~0.2.0"
 path = "module/alias/browser_tools"
 
-[workspace.dependencies.renderer_webgl]
-version = "~0.2.0"
-path = "module/helper/renderer/webgl"
+[workspace.dependencies.renderer]
+version = "0.1.0"
+path = "module/helper/renderer"
 
 # = draw
 

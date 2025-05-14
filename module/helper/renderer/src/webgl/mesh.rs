@@ -3,6 +3,7 @@ mod private
   use std::{ cell::RefCell, rc::Rc };
   use crate::webgl::Primitive;
 
+  #[ derive( Default ) ]
   pub struct Mesh
   {
     pub primitives : Vec< Rc< RefCell< Primitive > > >,
@@ -12,12 +13,7 @@ mod private
   {
     pub fn new() -> Self
     {
-      let primitives = Vec::new();
-
-      Self
-      {
-        primitives
-      }
+      Self::default()
     }
 
     pub fn add_primitive( &mut self, primitive : Rc< RefCell< Primitive > > )

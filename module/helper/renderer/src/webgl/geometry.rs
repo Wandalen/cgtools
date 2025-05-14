@@ -31,7 +31,6 @@ use minwebgl as gl;
   pub struct AttributeInfo
   {
     pub slot : u32,
-    pub draw_mode : u32,
     pub buffer : gl::WebGlBuffer,
     pub descriptor : gl::BufferDescriptor,
     pub bounding_box : BoundingBox
@@ -39,7 +38,7 @@ use minwebgl as gl;
 
   impl AttributeInfo 
   {
-    pub fn apply( &self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
+    pub fn upload( &self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
       self.descriptor.attribute_pointer( gl, self.slot, &self.buffer )?;
 
@@ -57,11 +56,12 @@ use minwebgl as gl;
 
   pub struct Geometry
   {
+    pub defines : String,
     pub vao : gl::WebGlVertexArrayObject,
     pub draw_mode : u32,
     pub vertex_count : u32,
-    pub index_info : Option< IndexInfo >,
-    pub attributes : HashMap< String, AttributeInfo >
+    index_info : Option< IndexInfo >,
+    attributes : HashMap< String, AttributeInfo >
   }
 
   impl Geometry 
@@ -73,11 +73,13 @@ use minwebgl as gl;
       let draw_mode = gl::TRIANGLES;
       let vertex_count = 0;
       let index_info = None;
+      let defines = String::new();
 
       Ok
       (
         Self
         {
+          defines,
           vao,
           draw_mode,
           vertex_count,
@@ -87,18 +89,54 @@ use minwebgl as gl;
       )
     }
 
-    pub fn add_attribute< Name : Into< String > >( &mut self, name : Name, info : AttributeInfo )
+    pub fn add_attribute< Name : Into< String > >
+    ( 
+      &mut self, 
+      gl : &gl::WebGl2RenderingContext,
+      name : Name, 
+      info : AttributeInfo, 
+      as_define : bool 
+    ) -> Result< (), gl::WebglError >
     {
-      self.attributes.insert( name.into(), info );
+      let name = name.into();
+      if !self.attributes.contains_key( name.as_str() )
+      {
+        if as_define
+        {
+          self.defines.push_str( &format!( "#define USE_{}\n", name.to_uppercase() ) );
+        }
+        self.bind( gl );
+        info.upload( gl )?;
+        self.attributes.insert( name, info );
+      }
+      else 
+      {
+        panic!( "An attribute {} already exists", name );
+      }
+
+      Ok( () ) 
     }
 
-    pub fn apply( &self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
+    pub fn add_index
+    ( 
+      &mut self, 
+      gl : &gl::WebGl2RenderingContext,
+      info : IndexInfo,
+    ) -> Result< (), gl::WebglError >
+    {
+      self.bind( gl );
+      gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, Some( &info.buffer ) );
+      self.index_info = Some( info );
+      Ok( () ) 
+    }
+
+    pub fn upload( &self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
       self.bind( gl );
 
       for info in self.attributes.values()
       {
-        info.apply( gl )?;
+        info.upload( gl )?;
       }
 
       if let Some( info ) = self.index_info.as_ref()
@@ -109,21 +147,9 @@ use minwebgl as gl;
       Ok( () )
     }
 
-    pub fn get_defines( &self ) -> String
+    pub fn get_defines( &self ) -> &str
     {
-      let mut defines = String::new();
-
-      let mut add_define = | name, define |
-      {
-        if self.attributes.contains_key( name )
-        {
-          defines.push_str( &format!( "#define {}\n", define ) );
-        }
-      };
-
-      add_define( "tangents", "USE_TANGENTS" );
-
-      defines
+      &self.defines
     }
 
     pub fn center( &self ) -> gl::F32x3
@@ -159,6 +185,7 @@ crate::mod_interface!
   {
     BoundingBox,
     AttributeInfo,
+    IndexInfo,
     Geometry
   };
 }

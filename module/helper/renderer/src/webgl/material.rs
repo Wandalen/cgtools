@@ -1,6 +1,7 @@
 mod private
 {
-  use minwebgl as gl;
+  use mingl::Former;
+use minwebgl as gl;
   use crate::webgl::Texture;
   use std:: { cell::RefCell, collections::HashMap, rc::Rc };
 
@@ -22,9 +23,9 @@ mod private
 
   impl TextureInfo 
   {
-    pub fn apply( &self, gl : &gl::WebGl2RenderingContext )
+    pub fn upload( &self, gl : &gl::WebGl2RenderingContext )
     {
-      self.texture.borrow().apply( gl );
+      self.texture.borrow().upload( gl );
     }
 
     pub fn bind( &self, gl : &gl::WebGl2RenderingContext )
@@ -33,11 +34,11 @@ mod private
     }
   }
 
-  #[ derive( Clone ) ]
+  #[ derive( Clone, Former ) ]
   pub struct Material
   {
     pub id : uuid::Uuid,
-    pub base_color_factor : Option< gl::F32x4 >,
+    pub base_color_factor : gl::F32x4,
     pub base_color_texture : Option< TextureInfo >,
     pub metallic_factor : Option< f32 >,
     pub roughness_factor : Option< f32 >,
@@ -71,9 +72,11 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      locations : &HashMap< String, Option< gl::WebGlUniformLocation > >
+      locations : &HashMap< String, Option< gl::WebGlUniformLocation > >,
+      ibl_base_location : u32,
     )
     {
+      let ibl_base_location = ibl_base_location as i32;
       // Assign a texture unit for each type of texture
       gl.uniform1i( locations.get( "metallicRoughnessTexture" ).unwrap().clone().as_ref() , 0 );
       gl.uniform1i( locations.get( "baseColorTexture" ).unwrap().clone().as_ref() , 1 );
@@ -83,12 +86,12 @@ mod private
       gl.uniform1i( locations.get( "specularTexture" ).unwrap().clone().as_ref() , 5 );
       gl.uniform1i( locations.get( "specularColorTexture" ).unwrap().clone().as_ref() , 6 );
 
-      gl.uniform1i( locations.get( "irradianceTexture" ).unwrap().clone().as_ref() , 10 );
-      gl.uniform1i( locations.get( "prefilterEnvMap" ).unwrap().clone().as_ref() , 11 );
-      gl.uniform1i( locations.get( "integrateBRDF" ).unwrap().clone().as_ref() , 12 );
+      gl.uniform1i( locations.get( "irradianceTexture" ).unwrap().clone().as_ref() , ibl_base_location );
+      gl.uniform1i( locations.get( "prefilterEnvMap" ).unwrap().clone().as_ref() , ibl_base_location + 1 );
+      gl.uniform1i( locations.get( "integrateBRDF" ).unwrap().clone().as_ref() , ibl_base_location + 2 );
     }
 
-    pub fn apply
+    pub fn upload
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
@@ -118,7 +121,7 @@ mod private
       upload( "normalScale", self.normal_scale )?;
       upload( "occlusionStrength", self.occlusion_strength )?;
       upload( "specularFactor", self.occlusion_strength )?;
-      upload_array( "baseColorFactor", self.base_color_factor.as_ref().map( | v | v.as_slice() ) )?;
+      gl::uniform::upload( gl, locations.get( "baseColorFactor" ).unwrap().clone(), self.base_color_factor.as_slice() )?;
       upload_array( "specularColorFactor", self.specular_color_factor.as_ref().map( | v | v.as_slice() ) )?;
 
       self.apply_textures( gl );
@@ -128,13 +131,13 @@ mod private
 
     pub fn apply_textures( &self, gl : &gl::WebGl2RenderingContext )
     {
-      if let Some( ref t ) = self.metallic_roughness_texture { t.apply( gl ); }
-      if let Some( ref t ) = self.base_color_texture { t.apply( gl ); }
-      if let Some( ref t ) = self.normal_texture { t.apply( gl ); }
-      if let Some( ref t ) = self.occlusion_texture { t.apply( gl ); }
-      if let Some( ref t ) = self.emissive_texture { t.apply( gl ); }
-      if let Some( ref t ) = self.specular_texture { t.apply( gl ); }
-      if let Some( ref t ) = self.specular_color_texture { t.apply( gl ); }
+      if let Some( ref t ) = self.metallic_roughness_texture { t.upload( gl ); }
+      if let Some( ref t ) = self.base_color_texture { t.upload( gl ); }
+      if let Some( ref t ) = self.normal_texture { t.upload( gl ); }
+      if let Some( ref t ) = self.occlusion_texture { t.upload( gl ); }
+      if let Some( ref t ) = self.emissive_texture { t.upload( gl ); }
+      if let Some( ref t ) = self.specular_texture { t.upload( gl ); }
+      if let Some( ref t ) = self.specular_color_texture { t.upload( gl ); }
     }
 
     pub fn bind( &self, gl : &gl::WebGl2RenderingContext )
@@ -160,8 +163,7 @@ mod private
     /// #define directives to be inserted into the shader
     pub fn get_fragment_defines( &self ) -> String
     {
-      let use_pbr = self.base_color_factor.is_some()
-      | self.metallic_factor.is_some()
+      let use_pbr = self.metallic_factor.is_some()
       | self.roughness_factor.is_some()
       | self.metallic_roughness_texture.is_some()
       | self.base_color_texture.is_some();
@@ -250,8 +252,8 @@ mod private
     fn default() -> Self
     {
       let id = uuid::Uuid::new_v4();
+      let base_color_factor = gl::F32x4::from( [ 1.0, 1.0, 1.0, 1.0 ] );
 
-      let base_color_factor = Some( gl::F32x4::from( [ 1.0, 1.0, 1.0, 1.0 ] ) );
       let base_color_texture = Default::default();
       let metallic_factor = Default::default();
       let roughness_factor = Default::default();

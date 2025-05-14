@@ -17,14 +17,21 @@ mod private
       Self::default()
     }
 
-    pub fn traverse< F >( &self, callback : &mut F )
-    where F : FnMut( Rc< RefCell< Node > > )
+    pub fn add( &mut self, node : Rc< RefCell< Node > > )
+    {
+      self.children.push( node );
+    }
+
+    pub fn traverse< F >( &self, callback : &mut F ) -> Result< (), gl::WebglError >
+    where F : FnMut( Rc< RefCell< Node > > ) -> Result< (), gl::WebglError >
     {
       for node in self.children.iter()
       {
-        ( *callback )( node.clone() );
-        node.borrow().traverse( callback );
+        ( *callback )( node.clone() )?;
+        node.borrow().traverse( callback )?;
       }
+
+      Ok( () )
     }
 
     pub fn update_world_matrix( &mut self )

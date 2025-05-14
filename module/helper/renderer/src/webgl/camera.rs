@@ -60,7 +60,7 @@ mod private
       }
     }
 
-    pub fn apply
+    pub fn upload
     (
       &self,
       gl : &gl::WebGl2RenderingContext,

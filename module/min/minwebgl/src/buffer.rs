@@ -81,9 +81,9 @@ mod private
       }
     }
 
-    pub fn normalized( mut self ) -> Self
+    pub fn normalized( mut self, normalized : bool ) -> Self
     {
-      self.normalized = true;
+      self.normalized = normalized;
       self
     }
 

@@ -68,7 +68,7 @@ mod private
       &mut self.locations
     }
 
-    pub fn apply( &self, gl : &gl::WebGl2RenderingContext )
+    pub fn bind( &self, gl : &gl::WebGl2RenderingContext )
     {
       gl.use_program( Some( &self.program ) );
     }

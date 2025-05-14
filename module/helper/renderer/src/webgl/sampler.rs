@@ -1,5 +1,6 @@
 mod private
 {
+  use mingl::Former;
   use minwebgl::{ self as gl };
 
   #[ derive( Default, Clone, Copy ) ]
@@ -45,15 +46,15 @@ mod private
     Never
   }
 
-  #[ derive( Default, Clone, Copy ) ]
+  #[ derive( Default, Clone, Copy, Former ) ]
   pub struct Sampler
   {
-    pub mag_filter : MagFilterMode,
-    pub min_filter : MinFilterMode,
-    pub wrap_s : WrappingMode,
-    pub wrap_t : WrappingMode,
-    pub wrap_r : WrappingMode,
-    pub compare_func : CompareFunction
+    pub mag_filter : Option< MagFilterMode >,
+    pub min_filter : Option< MinFilterMode >,
+    pub wrap_s : Option< WrappingMode >,
+    pub wrap_t : Option< WrappingMode >,
+    pub wrap_r : Option< WrappingMode >,
+    pub compare_func : Option< CompareFunction >
   }
 
   impl Sampler 
@@ -63,16 +64,34 @@ mod private
       Self::default()
     }
 
-    pub fn apply( &self, gl : &gl::WebGl2RenderingContext, target : u32 )
+    pub fn upload( &self, gl : &gl::WebGl2RenderingContext, target : u32 )
     {
-      gl.tex_parameteri( target, gl::TEXTURE_MAG_FILTER, self.mag_filter.to_gl() as i32 );
-      gl.tex_parameteri( target, gl::TEXTURE_MIN_FILTER, self.min_filter.to_gl() as i32 );
+      if let Some( value ) =  self.mag_filter
+      {
+        gl.tex_parameteri( target, gl::TEXTURE_MAG_FILTER, value.to_gl() as i32 );
+      }
+      if let Some( value ) =  self.min_filter
+      {
+        gl.tex_parameteri( target, gl::TEXTURE_MIN_FILTER, value.to_gl() as i32 );
+      }
 
-      gl.tex_parameteri( target, gl::TEXTURE_WRAP_S, self.wrap_s.to_gl() as i32 );
-      gl.tex_parameteri( target, gl::TEXTURE_WRAP_T, self.wrap_t.to_gl() as i32 );
-      gl.tex_parameteri( target, gl::TEXTURE_WRAP_R, self.wrap_r.to_gl() as i32 );
+      if let Some( value ) =  self.wrap_s
+      {
+        gl.tex_parameteri( target, gl::TEXTURE_WRAP_S, value.to_gl() as i32 );
+      }
+      if let Some( value ) =  self.wrap_t
+      {
+        gl.tex_parameteri( target, gl::TEXTURE_WRAP_T, value.to_gl() as i32 );
+      }
+      if let Some( value ) =  self.wrap_r
+      {
+        gl.tex_parameteri( target, gl::TEXTURE_WRAP_R, value.to_gl() as i32 );
+      }
 
-      gl.tex_parameteri( target, gl::TEXTURE_COMPARE_FUNC, self.compare_func.to_gl() as i32 );
+      if let Some( value ) =  self.compare_func
+      {
+        gl.tex_parameteri( target, gl::TEXTURE_COMPARE_FUNC, value.to_gl() as i32 );
+      }
     }
   }
 
