@@ -281,7 +281,7 @@ mod private
 crate::mod_interface!
 {
 
-  // layer mesh;
+  layer mesh;
 
   // layer camera_controls;
 
@@ -299,7 +299,7 @@ crate::mod_interface!
 
   // layer buffer;
 
-  // layer node;
+  layer node;
 
   // layer renderer;
 

@@ -1,44 +1,36 @@
-use std::{collections::HashMap, rc::Rc};
-
-use minwebgl as gl;
-
-use crate::{buffer::Buffer, primitive::Primitive};
-
-pub struct Mesh
+mod private
 {
-  pub primitives : Vec< Rc< Primitive > >,
-}
+  use std::{ cell::RefCell, rc::Rc };
+  use crate::webgl::Primitive;
 
-impl Mesh
-{
-  pub fn new
-  (
-    gl : &gl::WebGl2RenderingContext,
-    mesh : &gltf::Mesh,
-    buffers : &HashMap< usize, Buffer >
-  ) -> Result< Self, gl::WebglError >
+  pub struct Mesh
   {
-    let mut primitives = Vec::new();
-    for p in mesh.primitives()
-    {
-      let primitive = Rc::new( Primitive::new( gl, &p, buffers )? );
-      primitives.push( primitive );
-    }
+    pub primitives : Vec< Rc< RefCell< Primitive > > >,
+  }
 
-    Ok
-    (
+  impl Mesh
+  {
+    pub fn new() -> Self
+    {
+      let primitives = Vec::new();
+
       Self
       {
         primitives
       }
-    )
-  }
+    }
 
-  // pub fn apply( &self, gl : &gl::WebGl2RenderingContext )
-  // {
-  //   for p in self.primitives.iter()
-  //   {
-  //     p.apply( gl );
-  //   }
-  // }
+    pub fn add_primitive( &mut self, primitive : Rc< RefCell< Primitive > > )
+    {
+      self.primitives.push( primitive );
+    }
+  }
+}
+
+crate::mod_interface!
+{
+  orphan use
+  {
+    Mesh
+  };
 }

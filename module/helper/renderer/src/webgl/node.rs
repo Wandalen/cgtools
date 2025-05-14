@@ -1,129 +1,152 @@
-use std::{cell::RefCell, rc::Rc};
-
-use minwebgl::{ self as gl };
-
-use crate::{program::ProgramInfo};
-
-pub enum Object3D
+mod private
 {
-  Mesh( usize ),
-  Other
-}
+  use std::{ cell::RefCell, collections::HashMap, rc::Rc };
+  use minwebgl::{ self as gl };
+  use crate::webgl::Mesh;
 
-impl Default for Object3D
-{
-  fn default() -> Self
+  pub enum Object3D
   {
-    Self::Mesh( 0 )
+    Mesh( Rc< RefCell< Mesh > > ),
+    Other
   }
-}
 
-#[ derive( Default ) ]
-pub struct Node
-{
-  pub children : Vec< Rc< RefCell< Node > > >,
-  pub object : Object3D,
-  // Local matrix of the node
-  matrix : gl::F32x4x4,
-  // Global matrix of the node( including all of its parents )
-  world_matrix : gl::F32x4x4,
-  scale : gl::F32x3,
-  translation : gl::F32x3,
-  rotation : glam::Quat
-}
-
-impl Node
-{
-  pub fn new( node : &gltf::Node ) -> Self
+  impl Default for Object3D
   {
-    let mut result = Self::default();
-
-    // An object this node referes to
-    result.object = if let Some( mesh ) = node.mesh()
+    fn default() -> Self
     {
-      Object3D::Mesh( mesh.index() )
+      Self::Other
     }
-    else
+  }
+
+  #[ derive( Default ) ]
+  pub struct Node
+  {
+    pub children : Vec< Rc< RefCell< Node > > >,
+    pub object : Object3D,
+    // Local matrix of the node
+    matrix : gl::F32x4x4,
+    // Global matrix of the node( including all of its parents )
+    world_matrix : gl::F32x4x4,
+    scale : gl::F32x3,
+    translation : gl::F32x3,
+    rotation : glam::Quat,
+    needs_local_matrix_update : bool
+  }
+
+  impl Node
+  {
+    pub fn new() -> Self
     {
-      Object3D::Other
-    };
+      Self::default()
+    }
 
-    match node.transform()
+    pub fn set_scale( &mut self, scale : impl Into< gl::F32x3 > )
     {
-      gltf::scene::Transform::Matrix { matrix } =>
-      {
-        result.matrix = gl::F32x4x4::from_column_major( glam::Mat4::from_cols_array_2d( &matrix ).to_cols_array() );
-        let mat = glam::Mat4::from_cols_array_2d( &matrix );
-        let ( s, r, t ) = mat.to_scale_rotation_translation();
+      self.scale = scale.into();
+      self.needs_local_matrix_update = true;
+    }
 
-        result.scale = s.to_array().into();
-        result.translation = t.to_array().into();
-        result.rotation = r;
-      },
-      gltf::scene::Transform::Decomposed { translation, rotation, scale } =>
-      {
-        result.scale = scale.into();
-        result.translation = translation.into();
-        result.rotation = glam::Quat::from_array( rotation );
+    pub fn get_scale( &self ) -> gl::F32x3
+    {
+      self.scale
+    }
 
-        let mat = glam::Mat4::from_scale_rotation_translation( scale.into(), glam::Quat::from_array( rotation ), translation.into() );
-        result.matrix = gl::F32x4x4::from_column_major( mat.to_cols_array() );
+    pub fn set_translation( &mut self, translation : impl Into< gl::F32x3 > )
+    {
+      self.translation = translation.into();
+      self.needs_local_matrix_update = true;
+    }
+
+    pub fn get_translation( &self ) -> gl::F32x3
+    {
+      self.translation
+    }
+
+    pub fn set_rotation( &mut self, rotation : glam::Quat )
+    {
+      self.rotation = rotation;
+      self.needs_local_matrix_update = true;
+    }
+
+    pub fn get_rotation( &self ) -> glam::Quat
+    {
+      self.rotation
+    }
+
+    pub fn update_local_matrix( &mut self )
+    {
+      let mat = glam::Mat4::from_scale_rotation_translation
+      ( 
+        self.scale.to_array().into(), 
+        self.rotation, 
+        self.translation.to_array().into() 
+      );
+      self.matrix = gl::F32x4x4::from_column_major( mat.to_cols_array() );
+      self.needs_local_matrix_update = false;
+    }
+
+    pub fn update_world_matrix( &mut self, parent_mat : gl::F32x4x4 )
+    {
+      if self.needs_local_matrix_update
+      {
+        self.update_local_matrix();
+      }
+
+      self.world_matrix = parent_mat * self.matrix;
+
+      for child in self.children.iter_mut()
+      {
+        child.borrow_mut().update_world_matrix( self.world_matrix );
       }
     }
 
-    result
-  }
-
-  pub fn update_world_matrix( &mut self, parent_mat : gl::F32x4x4 )
-  {
-    self.world_matrix = parent_mat * self.matrix;
-
-    for child in self.children.iter_mut()
+    pub fn add_child( &mut self, child : Rc< RefCell< Node > > )
     {
-      child.borrow_mut().update_world_matrix( self.world_matrix );
+      self.children.push( child );
     }
-  }
 
-  pub fn add_child( &mut self, child : Rc< RefCell< Node > > )
-  {
-    self.children.push( child );
-  }
-
-  pub fn add_children( &mut self, gltf_node : &gltf::Node, nodes : &[ Rc< RefCell< Node > > ] )
-  {
-    for c in gltf_node.children()
+    pub fn add_children( &mut self, gltf_node : &gltf::Node, nodes : &[ Rc< RefCell< Node > > ] )
     {
-      let node = nodes[ c.index() ].clone();
-      node.borrow_mut().add_children( &c, nodes );
-      self.add_child( node );
+      for c in gltf_node.children()
+      {
+        let node = nodes[ c.index() ].clone();
+        node.borrow_mut().add_children( &c, nodes );
+        self.add_child( node );
+      }
     }
-  }
 
-  pub fn apply
-  (
-    &self,
-    gl : &gl::WebGl2RenderingContext,
-    program_info : &ProgramInfo
-  )
-  {
-    let locations = program_info.get_locations();
-
-    gl::uniform::matrix_upload
+    pub fn apply
     (
-      &gl,
-      locations.get( "worldMatrix" ).unwrap().clone(),
-      self.world_matrix.to_array().as_slice(),
-      true
-    ).unwrap();
-  }
-
-  pub fn traverse< F >( &self, callback : &mut F )
-  where F : FnMut( Rc< RefCell< Node > > )
-  {
-    for node in self.children.iter()
+      &self,
+      gl : &gl::WebGl2RenderingContext,
+      locations : &HashMap< String, Option< gl::WebGlUniformLocation > >
+    )
     {
-      ( *callback )( node.clone() );
-      node.borrow().traverse( callback );
+      gl::uniform::matrix_upload
+      (
+        &gl,
+        locations.get( "worldMatrix" ).unwrap().clone(),
+        self.world_matrix.to_array().as_slice(),
+        true
+      ).unwrap();
+    }
+
+    pub fn traverse< F >( &self, callback : &mut F )
+    where F : FnMut( Rc< RefCell< Node > > )
+    {
+      for node in self.children.iter()
+      {
+        ( *callback )( node.clone() );
+        node.borrow().traverse( callback );
+      }
     }
   }
+}
+
+crate::mod_interface!
+{
+  orphan use
+  {
+    Node
+  };
 }
