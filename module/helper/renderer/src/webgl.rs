@@ -293,7 +293,9 @@ crate::mod_interface!
 
   layer sampler;
 
-  // layer primitive;
+  layer geometry;
+
+  layer primitive;
 
   // layer buffer;
 
@@ -301,7 +303,7 @@ crate::mod_interface!
 
   // layer renderer;
 
-  // layer camera;
+  layer camera;
 
   layer program;
   

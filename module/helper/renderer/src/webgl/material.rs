@@ -2,7 +2,7 @@ mod private
 {
   use minwebgl as gl;
   use crate::webgl::Texture;
-  use std::collections::HashMap;
+  use std:: { cell::RefCell, collections::HashMap, rc::Rc };
 
   #[ derive( Default, Clone, Copy, PartialEq, Eq ) ]
   pub enum AlphaMode
@@ -14,140 +14,54 @@ mod private
   }
 
   #[ derive( Default, Clone ) ]
-  pub struct TextureInfo< 'a >
+  pub struct TextureInfo
   {
-    pub texture : Option< &'a Texture >,
+    pub texture : Rc< RefCell< Texture > >,
     pub uv_position : u32
   }
 
+  impl TextureInfo 
+  {
+    pub fn apply( &self, gl : &gl::WebGl2RenderingContext )
+    {
+      self.texture.borrow().apply( gl );
+    }
+
+    pub fn bind( &self, gl : &gl::WebGl2RenderingContext )
+    {
+      self.texture.borrow().bind( gl );
+    }
+  }
+
   #[ derive( Clone ) ]
-  pub struct Material< 'a >
+  pub struct Material
   {
     pub id : uuid::Uuid,
     pub base_color_factor : Option< gl::F32x4 >,
-    pub base_color_texture : TextureInfo< 'a >,
+    pub base_color_texture : Option< TextureInfo >,
     pub metallic_factor : Option< f32 >,
     pub roughness_factor : Option< f32 >,
-    pub metallic_roughness_texture : TextureInfo< 'a >,
+    pub metallic_roughness_texture : Option< TextureInfo >,
 
     pub normal_scale : Option< f32 >,
-    pub normal_texture : TextureInfo< 'a >,
+    pub normal_texture : Option< TextureInfo >,
 
     pub occlusion_strength : Option< f32 >,
-    pub occlusion_texture : TextureInfo< 'a >,
+    pub occlusion_texture : Option< TextureInfo >,
 
-    pub emissive_texture : TextureInfo< 'a >,
+    pub emissive_texture : Option< TextureInfo >,
 
     pub specular_factor : Option< f32 >,
-    pub specular_texture : TextureInfo< 'a >,
+    pub specular_texture : Option< TextureInfo >,
     pub specular_color_factor : Option< gl::F32x3 >,
-    pub specular_color_texture : TextureInfo< 'a >,
+    pub specular_color_texture : Option< TextureInfo >,
 
     pub alpha_cutoff : Option< f32 >,
     pub alpha_mode : AlphaMode
   }
 
-  impl< 'a > Material< 'a >
+  impl Material
   {
-  //   pub fn from_gltf< 'b >
-  //   (
-  //     m : gltf::Material< 'b >,
-  //     textures : &'a [ Texture ]
-  //   ) -> Self
-  //   {
-
-  //     let mut fs_defines = String::new();
-  //     fs_defines.push_str( "#define USE_PBR\n" );
-
-  //     let add_texture = | fs_defines : &mut String, t_info : Option< gltf::texture::Info< 'b > >, texture_define, uv_define |
-  //     {
-  //       if let Some( info ) = t_info
-  //       {
-  //         fs_defines.push_str( &format!( "#define {}\n", texture_define ) );
-  //         fs_defines.push_str( &format!( "#define {} vUv_{}\n", uv_define, info.tex_coord() ) );
-  //         Some( &textures[ info.texture().index() ] )
-  //       }
-  //       else
-  //       {
-  //         None
-  //       }
-  //     };
-
-  //     // PBR material
-  //     let pbr = m.pbr_metallic_roughness();
-  //     let base_color_factor = gl::F32x4::from( pbr.base_color_factor() );
-  //     let base_color_texture = add_texture( &mut fs_defines, pbr.base_color_texture(), "USE_BASE_COLOR_TEXTURE", "vBaseColorUv" );
-  //     let metallic_factor = pbr.metallic_factor();
-  //     let roughness_factor = pbr.roughness_factor();
-  //     let metallic_roughness_texture = add_texture( &mut fs_defines, pbr.metallic_roughness_texture(), "USE_MR_TEXTURE", "vMRUv" );
-
-  //     // Emissive texture
-  //     let emissive_texture =  add_texture( &mut fs_defines, m.emissive_texture(), "USE_EMISSION_TEXTURE", "vEmissionUv" );
-
-  //     // KHR_materials_specular
-  //     let mut specular_factor = 1.0;
-  //     let mut specular_texture = None;
-  //     let mut specular_color_factor = gl::F32x3::splat( 1.0 );
-  //     let mut specular_color_texture = None;
-  //     if let Some( s ) = m.specular()
-  //     {
-  //       fs_defines.push_str( "#define USE_KHR_materials_specular\n" );
-  //       specular_factor = s.specular_factor();
-  //       specular_color_factor = gl::F32x3::from( s.specular_color_factor() );
-  //       specular_texture = add_texture( &mut fs_defines, s.specular_texture(), "USE_SPECULAR_TEXTURE", "vSpecularUv" );
-  //       specular_color_texture = add_texture( &mut fs_defines, s.specular_color_texture(), "USE_SPECULAR_COLOR_TEXTURE", "vSpecularColorUv" );
-  //     }
-
-  //     // Normal texture
-  //     let mut normal_scale = 1.0;
-  //     let normal_texture =  if let Some( info ) = m.normal_texture()
-  //     {
-  //       fs_defines.push_str( &format!( "#define {}\n", "USE_NORMAL_TEXTURE" ) );
-  //       fs_defines.push_str( &format!( "#define {} vUv_{}\n", "vNormalUv", info.tex_coord() ) );
-  //       normal_scale = info.scale();
-  //       Some( &textures[ info.texture().index() ] )
-  //     }
-  //     else
-  //     {
-  //       None
-  //     };
-  //     let mut occlusion_strength = 1.0;
-  //     let occlusion_texture =  if let Some( info ) = m.occlusion_texture()
-  //     {
-  //       fs_defines.push_str( &format!( "#define {}\n", "USE_OCCLUSION_TEXTURE" ) );
-  //       fs_defines.push_str( &format!( "#define {} vUv_{}\n", "vOcclusionUv", info.tex_coord() ) );
-  //       occlusion_strength = info.strength();
-  //       Some( &textures[ info.texture().index() ] )
-  //     }
-  //     else
-  //     {
-  //       None
-  //     };
-
-
-  //     let alpha_mode = m.alpha_mode();
-
-
-  //     return Self
-  //     {
-  //       fs_defines,
-  //       base_color_factor,
-  //       base_color_texture,
-  //       metallic_factor,
-  //       roughness_factor,
-  //       metallic_roughness_texture,
-  //       normal_scale,
-  //       normal_texture,
-  //       occlusion_strength,
-  //       occlusion_texture,
-  //       emissive_texture,
-  //       specular_factor,
-  //       specular_color_factor,
-  //       specular_color_texture,
-  //       specular_texture,
-  //       alpha_mode,
-  //     };
-  //   }
     pub fn get_id( &self ) -> uuid::Uuid
     {
       self.id
@@ -214,33 +128,33 @@ mod private
 
     pub fn apply_textures( &self, gl : &gl::WebGl2RenderingContext )
     {
-      if let Some( t ) = self.metallic_roughness_texture.texture { t.apply( gl ); }
-      if let Some( t ) = self.base_color_texture.texture { t.apply( gl ); }
-      if let Some( t ) = self.normal_texture.texture { t.apply( gl ); }
-      if let Some( t ) = self.occlusion_texture.texture { t.apply( gl ); }
-      if let Some( t ) = self.emissive_texture.texture { t.apply( gl ); }
-      if let Some( t ) = self.specular_texture.texture { t.apply( gl ); }
-      if let Some( t ) = self.specular_color_texture.texture { t.apply( gl ); }
+      if let Some( ref t ) = self.metallic_roughness_texture { t.apply( gl ); }
+      if let Some( ref t ) = self.base_color_texture { t.apply( gl ); }
+      if let Some( ref t ) = self.normal_texture { t.apply( gl ); }
+      if let Some( ref t ) = self.occlusion_texture { t.apply( gl ); }
+      if let Some( ref t ) = self.emissive_texture { t.apply( gl ); }
+      if let Some( ref t ) = self.specular_texture { t.apply( gl ); }
+      if let Some( ref t ) = self.specular_color_texture { t.apply( gl ); }
     }
 
-    pub fn bind_textures( &self, gl : &gl::WebGl2RenderingContext )
+    pub fn bind( &self, gl : &gl::WebGl2RenderingContext )
     {
-      let bind = | texture : Option< &Texture >, i |
+      let bind = | texture : &Option< TextureInfo >, i |
       {
-        if let Some( t ) = texture
+        if let Some( ref t ) = texture
         {
           gl.active_texture( gl::TEXTURE0 + i );
           t.bind( gl );
         }
       };
 
-      bind( self.metallic_roughness_texture.texture, 0 );
-      bind( self.base_color_texture.texture, 1 );
-      bind( self.normal_texture.texture, 2 );
-      bind( self.occlusion_texture.texture, 3 );
-      bind( self.emissive_texture.texture, 4 );
-      bind( self.specular_texture.texture, 5 );
-      bind( self.specular_color_texture.texture, 6 );
+      bind( &self.metallic_roughness_texture, 0 );
+      bind( &self.base_color_texture, 1 );
+      bind( &self.normal_texture, 2 );
+      bind( &self.occlusion_texture, 3 );
+      bind( &self.emissive_texture, 4 );
+      bind( &self.specular_texture, 5 );
+      bind( &self.specular_color_texture, 6 );
     }
 
     /// #define directives to be inserted into the shader
@@ -249,50 +163,50 @@ mod private
       let use_pbr = self.base_color_factor.is_some()
       | self.metallic_factor.is_some()
       | self.roughness_factor.is_some()
-      | self.metallic_roughness_texture.texture.is_some()
-      | self.base_color_texture.texture.is_some();
+      | self.metallic_roughness_texture.is_some()
+      | self.base_color_texture.is_some();
 
-      let use_base_color_texture = self.base_color_texture.texture.is_some();
-      let use_metallic_roughness_texture = self.metallic_roughness_texture.texture.is_some();
+      let use_base_color_texture = self.base_color_texture.is_some();
+      let use_metallic_roughness_texture = self.metallic_roughness_texture.is_some();
 
-      let use_emission_texture = self.emissive_texture.texture.is_some();
+      let use_emission_texture = self.emissive_texture.is_some();
 
       let use_khr_materials_specular = self.specular_factor.is_some()
       | self.specular_color_factor.is_some()
-      | self.specular_texture.texture.is_some()
-      | self.specular_color_texture.texture.is_some();
+      | self.specular_texture.is_some()
+      | self.specular_color_texture.is_some();
 
-      let use_specular_texture = self.specular_texture.texture.is_some();
-      let use_specular_color_texture = self.specular_color_texture.texture.is_some();
+      let use_specular_texture = self.specular_texture.is_some();
+      let use_specular_color_texture = self.specular_color_texture.is_some();
 
-      let use_normal_texture = self.normal_texture.texture.is_some();
-      let use_occlusion_texture = self.occlusion_texture.texture.is_some();
+      let use_normal_texture = self.normal_texture.is_some();
+      let use_occlusion_texture = self.occlusion_texture.is_some();
       let use_alpha_cutoff = self.alpha_cutoff.is_some() && self.alpha_mode == AlphaMode::Mask;
 
       let mut defines = String::new();
-      let add_texture = | defines : &mut String, name : &str, uv_name : &str, info : &TextureInfo |
+      let add_texture = | defines : &mut String, name : &str, uv_name : &str, info : Option< &TextureInfo > |
       {
         defines.push_str( &format!( "#define {}\n", name ) );
-        defines.push_str( &format!( "#define {} vUv_{}\n", uv_name, info.uv_position ) );
+        defines.push_str( &format!( "#define {} vUv_{}\n", uv_name, info.unwrap().uv_position ) );
       };
 
       if use_pbr { defines.push_str( "#define USE_PBR\n" ); }
       // Base color texture related
       if use_base_color_texture 
       { 
-        add_texture( &mut defines, "USE_BASE_COLOR_TEXTURE", "vBaseColorUv", &self.base_color_texture ); 
+        add_texture( &mut defines, "USE_BASE_COLOR_TEXTURE", "vBaseColorUv", self.base_color_texture.as_ref() ); 
       }
 
       // Metallic roughness texture related
       if use_metallic_roughness_texture 
       { 
-        add_texture( &mut defines, "USE_MR_TEXTURE", "vMRUv", &self.metallic_roughness_texture ); 
+        add_texture( &mut defines, "USE_MR_TEXTURE", "vMRUv", self.metallic_roughness_texture.as_ref() ); 
       }
 
       // Emission texture related
       if use_emission_texture 
       { 
-        add_texture( &mut defines, "USE_EMISSION_TEXTURE", "vEmissionUv", &self.emissive_texture ); 
+        add_texture( &mut defines, "USE_EMISSION_TEXTURE", "vEmissionUv", self.emissive_texture.as_ref() ); 
       }
 
       // KHR_Materials_Specular extension related
@@ -301,25 +215,25 @@ mod private
         defines.push_str( "#define USE_KHR_materials_specular\n" );
         if use_specular_texture 
         {
-          add_texture( &mut defines, "USE_SPECULAR_TEXTURE", "vSpecularUv", &self.specular_texture ); 
+          add_texture( &mut defines, "USE_SPECULAR_TEXTURE", "vSpecularUv", self.specular_texture.as_ref() ); 
         }
 
         if use_specular_color_texture 
         {
-          add_texture( &mut defines, "USE_SPECULAR_COLOR_TEXTURE", "vSpecularColorUv", &self.specular_color_texture ); 
+          add_texture( &mut defines, "USE_SPECULAR_COLOR_TEXTURE", "vSpecularColorUv", self.specular_color_texture.as_ref() ); 
         }
       }
 
       // Normal texture related
       if use_normal_texture 
       { 
-        add_texture( &mut defines, "USE_NORMAL_TEXTURE", "vNormalUv", &self.normal_texture ); 
+        add_texture( &mut defines, "USE_NORMAL_TEXTURE", "vNormalUv", self.normal_texture.as_ref() ); 
       }
 
       // Occlusion texture related
       if use_occlusion_texture 
       { 
-        add_texture( &mut defines, "USE_OCCLUSION_TEXTURE", "vOcclusionUv", &self.occlusion_texture ); 
+        add_texture( &mut defines, "USE_OCCLUSION_TEXTURE", "vOcclusionUv", self.occlusion_texture.as_ref() ); 
       }
 
       if use_alpha_cutoff
@@ -331,7 +245,7 @@ mod private
     }
   }
 
-  impl< 'a > Default for Material< 'a >
+  impl Default for Material
   {
     fn default() -> Self
     {
