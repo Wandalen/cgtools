@@ -41,7 +41,7 @@ async fn run() -> Result< (), gl::WebglError >
   camera_controls::setup_controls( &canvas, &camera.get_controls() );
 
   let gltf_path = "dodge-challenger/gltf";
-  let mut scenes = loaders::gltf::load( &document, gltf_path, &gl ).await?;
+  let mut scenes = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
 
   let mut renderer = Renderer::new();
   renderer.set_ibl( loaders::ibl::load( &gl, "envMap" ).await );

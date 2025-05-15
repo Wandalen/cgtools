@@ -33,5 +33,7 @@ crate::mod_interface!
   // layer loaders;
 
   layer ibl;
+
+  layer loaders;
 }
 
