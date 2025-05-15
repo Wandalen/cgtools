@@ -300,10 +300,10 @@ pub async fn load
     };
 
     let descriptor = gl::BufferDescriptor::new::< [ f32; 1 ] >()
-    .offset( acc.offset() as i32 )
+    .offset( acc.offset() as i32 / data_type.byte_size() )
     .normalized( acc.normalized() )
-    .stride( acc.view().unwrap().stride().unwrap_or( 0 ) as i32 )
-    .vector( gl::VectorDataType::new( data_type, acc.dimensions().multiplicity() as i32, 1) );
+    .stride( acc.view().unwrap().stride().unwrap_or( 0 ) as i32 / data_type.byte_size() )
+    .vector( gl::VectorDataType::new( data_type, acc.dimensions().multiplicity() as i32, 1 ) );
 
     AttributeInfo
     {
@@ -333,7 +333,7 @@ pub async fn load
         offset : acc.offset() as u32,
         data_type : acc.data_type().as_gl_enum()
       };
-      geometry.add_index( gl, info );
+      geometry.add_index( gl, info )?;
     }
 
     // Attributes

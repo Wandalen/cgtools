@@ -90,9 +90,9 @@ mod private
               let locations = program_info.get_locations();
               program_info.bind( gl );
               const IBL_BASE_ACTIVE_TEXTURE : u32 = 10;
-              self.ibl.bind( gl, IBL_BASE_ACTIVE_TEXTURE );
               material.configure( gl, locations, IBL_BASE_ACTIVE_TEXTURE );
               material.upload( gl, locations )?;
+              self.ibl.bind( gl, IBL_BASE_ACTIVE_TEXTURE );
 
               self.programs.insert( program_id.clone(), program_info );
               self.programs.get( &program_id ).unwrap()
