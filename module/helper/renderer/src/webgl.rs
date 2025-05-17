@@ -9,7 +9,6 @@ crate::mod_interface!
 
   layer mesh;
 
-
   layer material;
 
   layer scene;
@@ -29,8 +28,6 @@ crate::mod_interface!
   layer camera;
 
   layer program;
-  
-  // layer loaders;
 
   layer ibl;
 
