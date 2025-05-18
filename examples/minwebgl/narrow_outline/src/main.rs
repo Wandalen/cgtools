@@ -1,4 +1,4 @@
-use minwebgl as gl;
+use minwebgl::{self as gl, JsValue};
 use gl::
 {
   GL,
@@ -14,7 +14,19 @@ use gl::
   }
 };
 use ndarray_cg::mat::DescriptorOrderColumnMajor;
+use rand::Rng;
 use std::collections::HashMap;
+use bevy::prelude::
+{
+  Mesh,
+  Torus,
+  Cone,
+  Cylinder,
+  Sphere,
+  Cuboid,
+  Capsule3d
+};
+use bevy::render::mesh::VertexAttributeValues;
 
 /// Creates a WebGL2 texture.
 ///
@@ -239,32 +251,6 @@ fn gltf_data
   }
 }
 
-/*
-let mut transform_raw : [ f32; 16 ] = [ 0.0; 16 ];
-for ( i, r ) in transform_raw.chunks_mut( 4 ).enumerate()
-{
-  let row= transform.row( i ).as_ref();
-  for j in 0..4
-  {
-    r[ j ] = row[ j ];
-  }
-}
-
-let local_transform : ndarray_cg::Mat4< f32, DescriptorOrderColumnMajor > = ndarray_cg::Mat4::from_column_major( &transform_raw );
-*/
-
-use bevy::prelude::
-{
-  Mesh,
-  Torus,
-  Cone,
-  Cylinder,
-  Sphere,
-  Cuboid,
-  Capsule3d,
-  Meshable
-};
-
 fn primitives_data
 (
   positions : &mut Vec< [ f32; 3 ] >,
@@ -272,22 +258,37 @@ fn primitives_data
   vertex_offset : &mut u32
 )
 {
-  let meshes : Vec< &dyn Meshable > = 
+  let meshes : Vec< Mesh > = 
+  vec![
+    Cone::default().into(),
+    Torus::default().into(),
+    Cylinder::default().into(),
+    Sphere::default().into(),
+    Cuboid::default().into(),
+    Capsule3d::default().into()
+  ];
+
+  let ranges = 
   [
-    &Cone::default(),
-    &Torus::default(),
-    &Cylinder::default(),
-    &Sphere::default(),
-    &Cuboid::default(),
-    &Capsule3d::default(),
+    ( 0..3, -3.0..3.0 ),
+    ( 3..6, 0.0..360.0 ),
+    ( 6..9, 0.75..1.0 )
   ];
 
   let transforms : Vec< [ f32; 9 ]  > = ( 0..( meshes.len() ) )
   .into_iter()
-  .for_each( 
+  .map( 
     | _ | 
     {
       let mut t = [ 0.0; 9 ]; 
+
+      for ( indices, values ) in &ranges
+      {
+        for i in indices.clone()
+        {
+          t[ i ] = rand::thread_rng().gen_range( values.clone() );
+        }
+      }
 
       t
     }
@@ -298,30 +299,62 @@ fn primitives_data
 
   for ( p, t ) in primitives
   {
-    let transform = bevy::prelude::Transform::IDENTITY
-    .with_translation( glam::Vec3::new( t[ 0 ], t[ 1 ], t[ 2 ] ) )
-    .with_rotation( bevy::math::quat( t[ 3 ], t[ 4 ], t[ 5 ], 1.0 ) )
-    .with_scale( glam::Vec3::new( t[ 6 ], t[ 7 ], t[ 8 ] ) );
+    let mut transform = bevy::prelude::Transform::IDENTITY
+    .with_rotation( bevy::prelude::Quat::from_euler( bevy::prelude::EulerRot::XYZ, t[ 3 ], t[ 4 ], t[ 5 ] ) )
+    .with_scale( glam::Vec3::new( t[ 6 ], t[ 7 ], t[ 8 ] ) )
+    .compute_matrix();
 
-    let mut mesh = p.mesh().build();
-    mesh.transform_by( transform );
-    let Some( VertexAttributeValues::Float32x3( primitive_positions ) ) = p.attribute( Mesh::ATTRIBUTE_POSITION );
+    let mut transform_raw : [ f32; 16 ] = [ 0.0; 16 ];
+    for ( i, r ) in transform_raw.chunks_mut( 4 ).enumerate()
+    {
+      let row = transform.row( i );
+      for j in 0..4
+      {
+        r[ j ] = row[ j ];
+      }
+    }
+
+    transform_raw[ 12 ] = t[ 0 ];
+    transform_raw[ 13 ] = t[ 1 ];
+    transform_raw[ 14 ] = t[ 2 ];
+
+    let local_transform : ndarray_cg::Mat4< f32, DescriptorOrderColumnMajor > = ndarray_cg::Mat4::from_column_major( &transform_raw );
+
+    let mesh = p;
+    let Some( VertexAttributeValues::Float32x3( primitive_positions ) ) = p.attribute( Mesh::ATTRIBUTE_POSITION )
+    else 
+    {
+      return;
+    };
     let vertices_count = mesh.count_vertices();
 
     // Add transformed positions to the global list
+    let primitive_positions = primitive_positions
+    .iter()
+    .map( 
+      | p | 
+      {
+        local_transform * 
+        ndarray_cg::F32x4::from_array( 
+          [ p[ 0 ], p[ 1 ], p[ 2 ], 1.0 ] 
+        ) 
+      }
+    )
+    .map( | p | [ p[ 0 ], p[ 1 ], p[ 2 ] ] )
+    .collect::< Vec< _ > >();
     positions.extend( primitive_positions );
 
     // Read and adjust indices
     if let Some( primitive_indices ) = mesh.indices()
     {
-      for index in primitive_indices
+      for index in primitive_indices.iter()
       {
           // Add the current vertex offset to each index
-          indices.push( index + *vertex_offset );
+          indices.push( index as u32 + *vertex_offset );
       }
     }
 
-    *vertex_offset += vertices_count;
+    *vertex_offset += vertices_count as u32;
   }
 }
 
@@ -362,7 +395,7 @@ impl Renderer
     let viewport = ( gl.drawing_buffer_width(), gl.drawing_buffer_height() );
 
     // Camera setup (initial position, up vector, projection matrix, initial model matrix)
-    let eye = ndarray_cg::F32x3::from_array( [  0.0, 1.4, 2.5 ] );
+    let eye = ndarray_cg::F32x3::from_array( [  0.0, 1.4, 2.5 ] ) * 1.5;
     let up = ndarray_cg::F32x3::Y;
 
     let aspect_ratio = viewport.0 as f32 / viewport.1 as f32;
@@ -470,17 +503,25 @@ impl Renderer
       let mut vertex_offset : u32 = 0; // Counter for correct index offsetting
       for node in scene.nodes()
       {
-         // Recursively collect mesh data from the scene graph
-         gltf_data
-         (
-           &document.nodes().nth( node.index() ).expect( "Node not found" ), 
-           &buffers, // GLTF buffer data
-           u_model, // Initial model transform ( applied to the root node's children )
-           &mut positions, 
-           &mut indices,  
-           &mut vertex_offset // Output counter for vertex offset
-         );
+        // Recursively collect mesh data from the scene graph
+        gltf_data
+        (
+          &document.nodes().nth( node.index() ).expect( "Node not found" ), 
+          &buffers, // GLTF buffer data
+          u_model, // Initial model transform ( applied to the root node's children )
+          &mut positions, 
+          &mut indices,  
+          &mut vertex_offset // Output counter for vertex offset
+        );
       }
+      
+      primitives_data
+      (
+        &mut positions, 
+        &mut indices,  
+        &mut vertex_offset
+      );
+
       renderer.draw_count = indices.len() as i32; // Store the total number of indices to draw
     }
 
