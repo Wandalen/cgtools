@@ -5,69 +5,109 @@ use minwebgl as gl;
   use crate::webgl::Texture;
   use std:: { cell::RefCell, collections::HashMap, rc::Rc };
 
+  /// Represents the alpha blending mode of the material.
   #[ derive( Default, Clone, Copy, PartialEq, Eq ) ]
   pub enum AlphaMode
   {
+    /// The material is fully opaque.
     #[ default ]
     Opaque,
+    /// The material uses a mask based on an alpha cutoff value.
     Mask,
+    /// The material uses standard alpha blending.
     Blend
   }
 
+  /// Stores information about a texture used by the material, including the texture itself and its UV coordinates.
+  /// 
+  /// You may have several attibutes for the UV coordinates in the shader:
+  /// `
+  /// layout( location = 0 ) in vec2 uv_0;
+  /// layout( location = 1 ) in vec2 uv_1;
+  /// `
+  /// uv_position will defines which UV to use
   #[ derive( Default, Clone ) ]
   pub struct TextureInfo
   {
+    /// The texture object.
     pub texture : Rc< RefCell< Texture > >,
+    /// The UV coordinate set index to use for this texture.
     pub uv_position : u32
   }
 
   impl TextureInfo 
   {
+    /// Uploads the texture data to the GPU.
     pub fn upload( &self, gl : &gl::WebGl2RenderingContext )
     {
       self.texture.borrow().upload( gl );
     }
 
+    /// Binds the texture to a texture unit.
     pub fn bind( &self, gl : &gl::WebGl2RenderingContext )
     {
       self.texture.borrow().bind( gl );
     }
   }
 
+  /// Represents the visual properties of a surface.
   #[ derive( Clone, Former ) ]
   pub struct Material
   {
+    /// A unique identifier for the material.
     pub id : uuid::Uuid,
+    /// The base color factor, multiplied with the base color texture. Defaults to white (1, 1, 1, 1).
     pub base_color_factor : gl::F32x4,
+    /// Optional texture providing the base color.
     pub base_color_texture : Option< TextureInfo >,
+    /// Optional scaling factor for the metallic component.
     pub metallic_factor : Option< f32 >,
+    /// Optional scaling factor for the roughness component.
     pub roughness_factor : Option< f32 >,
+    /// Optional texture providing the metallic and roughness values. Metalness is sampled from the B channel and roughness from the G channel.
     pub metallic_roughness_texture : Option< TextureInfo >,
 
+    /// Optional scaling factor applied to each normal vector of the normal texture.
     pub normal_scale : Option< f32 >,
+    /// Optional texture containing normal vectors.
     pub normal_texture : Option< TextureInfo >,
 
+    /// Optional scalar multiplier applied to the AO values sampled from the occlusion texture.
     pub occlusion_strength : Option< f32 >,
+    /// Optional texture providing ambient occlusion values.
     pub occlusion_texture : Option< TextureInfo >,
 
+    /// Optional texture providing the emission color of the material.
     pub emissive_texture : Option< TextureInfo >,
 
+    /// Optional scaling factor for the specular intensity. (KHR_materials_specular extension)
     pub specular_factor : Option< f32 >,
+    /// Optional texture providing the specular intensity. (KHR_materials_specular extension)
     pub specular_texture : Option< TextureInfo >,
+    /// Optional color factor for the specular highlight. (KHR_materials_specular extension)
     pub specular_color_factor : Option< gl::F32x3 >,
+    /// Optional texture providing the specular color. (KHR_materials_specular extension)
     pub specular_color_texture : Option< TextureInfo >,
 
+    /// Optional alpha cutoff value for mask mode. Fragments with alpha below this value are discarded.
     pub alpha_cutoff : Option< f32 >,
+    /// The alpha blending mode for the material. Defaults to `Opaque`.
     pub alpha_mode : AlphaMode
   }
 
   impl Material
   {
+    /// Returns the unique identifier of the material.
     pub fn get_id( &self ) -> uuid::Uuid
     {
       self.id
     }
 
+    /// Configures the position of the uniform texture samplers in the shader program.
+    ///
+    /// * `gl`: The `WebGl2RenderingContext`.
+    /// * `locations`: A hash map of uniform locations.
+    /// * `ibl_base_location`: The starting texture unit index for Image-Based Lighting (IBL) textures.
     pub fn configure
     (
       &self,
@@ -91,6 +131,10 @@ use minwebgl as gl;
       gl.uniform1i( locations.get( "integrateBRDF" ).unwrap().clone().as_ref() , ibl_base_location + 2 );
     }
 
+    /// Uploads the material properties to the GPU as uniforms.
+    ///
+    /// * `gl`: The `WebGl2RenderingContext`.
+    /// * `locations`: A hash map of uniform locations in the shader program.
     pub fn upload
     (
       &self,
@@ -124,12 +168,13 @@ use minwebgl as gl;
       gl::uniform::upload( gl, locations.get( "baseColorFactor" ).unwrap().clone(), self.base_color_factor.as_slice() )?;
       upload_array( "specularColorFactor", self.specular_color_factor.as_ref().map( | v | v.as_slice() ) )?;
 
-      self.apply_textures( gl );
+      self.upload_textures( gl );
 
       Ok( () )
     }
 
-    pub fn apply_textures( &self, gl : &gl::WebGl2RenderingContext )
+    /// Uploads the texture data of all used textures to the GPU.
+    pub fn upload_textures( &self, gl : &gl::WebGl2RenderingContext )
     {
       if let Some( ref t ) = self.metallic_roughness_texture { t.upload( gl ); }
       if let Some( ref t ) = self.base_color_texture { t.upload( gl ); }
@@ -140,6 +185,9 @@ use minwebgl as gl;
       if let Some( ref t ) = self.specular_color_texture { t.upload( gl ); }
     }
 
+    /// Binds all used textures to their respective texture units.
+    ///
+    /// * `gl`: The `WebGl2RenderingContext`.
     pub fn bind( &self, gl : &gl::WebGl2RenderingContext )
     {
       let bind = | texture : &Option< TextureInfo >, i |
@@ -160,8 +208,8 @@ use minwebgl as gl;
       bind( &self.specular_color_texture, 6 );
     }
 
-    /// #define directives to be inserted into the shader
-    pub fn get_fragment_defines( &self ) -> String
+    /// Generates `#define` directives to be inserted into the fragment shader based on the material's properties.
+    pub fn get_defines( &self ) -> String
     {
       let use_pbr = self.metallic_factor.is_some()
       | self.roughness_factor.is_some()

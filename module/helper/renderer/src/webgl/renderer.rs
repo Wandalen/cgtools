@@ -83,7 +83,7 @@ mod private
               let program = gl::ProgramFromSources::new
               ( 
                 &format!( "#version 300 es\n{}\n{}", vs_defines, MAIN_VERTEX_SHADER ), 
-                &format!( "#version 300 es\n{}\n{}\n{}", vs_defines, material.get_fragment_defines(), MAIN_FRAGMENT_SHADER ) 
+                &format!( "#version 300 es\n{}\n{}\n{}", vs_defines, material.get_defines(), MAIN_FRAGMENT_SHADER ) 
               ).compile_and_link( gl )?;
               let program_info = ProgramInfo::new( gl , program );
 
