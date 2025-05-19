@@ -1,6 +1,7 @@
 use minwebgl as gl;
 use gl::
 {
+  F32x2,
   math::d2::mat3x3h,
   BufferDescriptor,
   JsCast as _,
@@ -93,10 +94,8 @@ fn run() -> Result< (), gl::WebglError >
   let cube = Geometry::with_elements( &gl, position_attribute, index_buffer, CUBE_INDICES.len() as i32 )?;
   cube.activate();
 
-  let object_transform = mat3x3h::translation( [ 0.0f32, 0.0, -30.0 ] ) * mat3x3h::scale( [ 100.0, 100.0, 1.0 ] );
-  let projection = mat3x3h::perspective_rh_gl( 45.0f32.to_radians(), width as f32 / height as f32, 0.1, 100.0 );
-  let light_radius = 3.0;
-  let light_position = [ 0.0, 0.0, -27.0 ];
+  let projection = mat3x3h::perspective_rh_gl( 45.0f32.to_radians(), width as f32 / height as f32, 0.1, 500.0 );
+  let object_transform = mat3x3h::translation( [ 0.0f32, 0.0, -120.0 ] ) * mat3x3h::scale( [ 300.0, 300.0, 1.0 ] );
 
   // gbuffer
   let gbuffer = gl.create_framebuffer();
@@ -124,6 +123,22 @@ fn run() -> Result< (), gl::WebglError >
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, color_buffer.as_ref(), 0 );
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, None, 0 );
 
+  let light_radius = 3.0;
+  let rows = 15;
+  let columns = 20;
+  let light_instances = rows * columns;
+  let light_positions = light_positions( columns, rows, light_radius, -118.0 );
+  let light_position_buffer = gl::buffer::create( &gl )?;
+  gl::buffer::upload( &gl, &light_position_buffer, light_positions.as_slice(), GL::DYNAMIC_DRAW );
+  let position_attribute = AttributePointer::new
+  (
+    &gl,
+    BufferDescriptor::new::< [ f32; 3 ] >().divisor( 1 ),
+    light_position_buffer,
+    1
+  );
+  cube.add_attribute( position_attribute )?;
+
   gl.depth_mask( false );
 
   let update = move | _ |
@@ -138,18 +153,22 @@ fn run() -> Result< (), gl::WebglError >
 
     stencil_shader.activate();
     stencil_shader.uniform_matrix_upload( "u_mvp", projection.raw_slice(), true );
-    gl.vertex_attrib3fv_with_f32_array( 1, &light_position );
+    // gl.vertex_attrib3fv_with_f32_array( 1, &light_position );
     gl.vertex_attrib1f( 2, light_radius );
 
     // draw front faces that pass depth test and increment fragments
     gl.cull_face( GL::BACK );
     gl.stencil_op( GL::KEEP, GL::KEEP, GL::INCR );
-    gl.draw_elements_with_i32( GL::TRIANGLES, cube.element_count, GL::UNSIGNED_INT, 0 );
+    gl.draw_elements_instanced_with_i32( GL::TRIANGLES, cube.element_count, GL::UNSIGNED_INT, 0, light_instances );
+    // gl.draw_elements_with_i32( GL::TRIANGLES, cube.element_count, GL::UNSIGNED_INT, 0 );
 
     // draw back faces that pass depth test and decrement fragment
     gl.cull_face( GL::FRONT );
     gl.stencil_op( GL::KEEP, GL::KEEP, GL::DECR );
-    gl.draw_elements_with_i32( GL::TRIANGLES, cube.element_count, GL::UNSIGNED_INT, 0 );
+    gl.draw_elements_instanced_with_i32( GL::TRIANGLES, cube.element_count, GL::UNSIGNED_INT, 0, light_instances );
+    // gl.draw_elements_with_i32( GL::TRIANGLES, cube.element_count, GL::UNSIGNED_INT, 0 );
+
+    // now only fragments that are inside lightvolumes have non-zero stencil value
 
     // do the deffered shading againts pixels that passed the stencil test
     gl::drawbuffers::drawbuffers( &gl, &[ GL::COLOR_ATTACHMENT0 ] );
@@ -168,9 +187,10 @@ fn run() -> Result< (), gl::WebglError >
     light_shader.uniform_upload( "u_screen_size", [ width as f32, height as f32 ].as_slice() );
     light_shader.uniform_upload( "u_positions", &0 );
     light_shader.uniform_upload( "u_normals", &1 );
-    gl.vertex_attrib3fv_with_f32_array( 1, &light_position );
+    // gl.vertex_attrib3fv_with_f32_array( 1, &light_position );
     gl.vertex_attrib1f( 2, light_radius );
-    gl.draw_elements_with_i32( GL::TRIANGLES, cube.element_count, GL::UNSIGNED_INT, 0 );
+    gl.draw_elements_instanced_with_i32( GL::TRIANGLES, cube.element_count, GL::UNSIGNED_INT, 0, light_instances );
+    // gl.draw_elements_with_i32( GL::TRIANGLES, cube.element_count, GL::UNSIGNED_INT, 0 );
 
     // show on screen
     gl.disable( GL::DEPTH_TEST );
@@ -186,6 +206,31 @@ fn run() -> Result< (), gl::WebglError >
   gl::exec_loop::run( update );
 
   Ok( () )
+}
+
+fn light_positions( cols : i32, rows : i32, padding : f32, z : f32 ) -> Vec< f32 >
+{
+  let spacing = padding * 2.0;
+  let width = spacing * ( cols - 1 ) as f32;
+  let height = spacing * ( rows - 1 ) as f32;
+  let x = -width / 2.0;
+  let mut y = -height / 2.0;
+  let mut ret = vec![];
+
+  for _ in 0..rows
+  {
+    let mut x = x;
+    for _ in 0..cols
+    {
+      ret.push( x );
+      ret.push( y );
+      ret.push( z );
+      x += spacing;
+    }
+    y += spacing;
+  }
+
+  ret
 }
 
 pub struct AttributePointer

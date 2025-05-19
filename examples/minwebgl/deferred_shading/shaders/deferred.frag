@@ -14,10 +14,12 @@ layout( location = 0 ) out vec4 frag_color;
 float calculate_attenuation( vec3 light_pos, vec3 frag_pos, float light_radius )
 {
   float distance = length( light_pos - frag_pos );
-  float attenuation = clamp( ( 1.0 - pow( distance / light_radius, 4.0 ) ), 0.0, 1.0 );
+  float attenuation = clamp( ( 1.0 - pow( distance / light_radius, 2.0 ) ), 0.0, 1.0 );
   return attenuation * attenuation;
 }
 
+//exp( -norm_dist * 5.0 )
+// norm_dist = dist / radius
 void main()
 {
   vec3 albedo = vec3( 0.3, 0.27, 0.2 );
@@ -35,7 +37,9 @@ void main()
   float specular = pow( max( dot( normal, halfway_dir ), 0.1 ), 10.0 );
 
   float attenuation = calculate_attenuation( v_light_position, frag_pos, v_light_radius );
+  // float distance = length( v_light_position - frag_pos );
+  // float attenuation = 1.0 / ( distance * distance + 0.001 );
   vec3 color = vec3( specular + diffuse ) * albedo * attenuation;
-
+  // += because many light sources can affect single fragment
   frag_color = vec4( pow( color, vec3( 1.0 / 2.2 ) ), 1.0 );
 }
