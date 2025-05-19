@@ -1,39 +1,14 @@
 mod private
 {
   use std::collections::HashMap;
-
-use minwebgl as gl;
-
-  #[ derive( Default, Clone, Copy ) ]
-  pub struct BoundingBox
-  {
-    pub min : gl::F32x3,
-    pub max : gl::F32x3
-  }
-
-  impl BoundingBox
-  {
-    pub fn new< T : Into< gl::F32x3 > >( min : T, max : T ) -> Self
-    {
-      Self
-      {
-        min : min.into(),
-        max : max.into()
-      }
-    }
-
-    pub fn center( &self ) -> gl::F32x3
-    {
-      ( self.max + self.min ) / 2.0
-    }
-  }
+  use minwebgl as gl;
 
   pub struct AttributeInfo
   {
     pub slot : u32,
     pub buffer : gl::WebGlBuffer,
     pub descriptor : gl::BufferDescriptor,
-    pub bounding_box : BoundingBox
+    pub bounding_box : gl::geometry::BoundingBox
   }
 
   impl AttributeInfo 
@@ -183,7 +158,6 @@ crate::mod_interface!
 {
   orphan use
   {
-    BoundingBox,
     AttributeInfo,
     IndexInfo,
     Geometry

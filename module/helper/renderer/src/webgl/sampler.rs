@@ -3,67 +3,103 @@ mod private
   use mingl::Former;
   use minwebgl::{ self as gl };
 
+  /// Defines how texture coordinates outside the range [0, 1] should be handled.
   #[ derive( Default, Clone, Copy ) ]
   pub enum WrappingMode
   {
+    /// Repeats the texture image.
     #[ default ]
     Repeat,
+    /// Clamps the texture coordinates to the edge of the texture image.
     ClampToEdge,
+    /// Repeats the texture image, mirroring it at each integer boundary.
     MirroredRepeat
   }
 
+  /// Defines how the color of a texel is determined when it is magnified (stretched).
   #[ derive( Default, Clone, Copy ) ]
   pub enum MagFilterMode
   {
+    /// Returns the weighted average of the four nearest texels.
     #[ default ]
     Linear,
+    /// Returns the value of the nearest texel.
     Nearest
   }
 
+  /// Defines how the color of a texel is determined when it is minified (shrunk).
   #[ derive( Default, Clone, Copy ) ]
   pub enum MinFilterMode
   {
+    /// Returns the weighted average of the four nearest texels.
     Linear,
+    /// Returns the value of the nearest texel.
     Nearest,
+    /// Selects the mipmap that most closely matches the size of the pixel being textured
+    /// and uses the nearest texel in that mipmap.
     NearestMipmapNearest,
-    #[ default ]
+    /// Selects the mipmap that most closely matches the size of the pixel being textured
+    /// and uses the weighted average of the two nearest texels in that mipmap.
+    #[default]
     NearestMipmapLinear,
+    /// Selects the two mipmaps that most closely match the size of the pixel being textured
+    /// and uses the nearest texel from each.
     LinearMipmapNearest,
-    LinearMipMapLinear
+    /// Selects the two mipmaps that most closely match the size of the pixel being textured
+    /// and uses the weighted average of the four nearest texels from each.
+    LinearMipMapLinear,
   }
 
+  /// Defines the comparison function used for depth textures.
   #[ derive( Default, Clone, Copy ) ]
   pub enum CompareFunction
   {
-    #[ default ]
+    /// Passes if the source sample is less than or equal to the stored sample.
+    #[default]
     Lequal,
+    /// Passes if the source sample is greater than or equal to the stored sample.
     Gequal,
+    /// Passes if the source sample is less than the stored sample.
     Less,
+    /// Passes if the source sample is greater than the stored sample.
     Greater,
+    /// Passes if the source sample is equal to the stored sample.
     Equal,
+    /// Passes if the source sample is not equal to the stored sample.
     Notequal,
+    /// Always passes.
     Always,
-    Never
+    /// Never passes.
+    Never,
   }
 
+  /// Represents the sampler state for a texture.
   #[ derive( Default, Clone, Copy, Former ) ]
   pub struct Sampler
   {
-    pub mag_filter : Option< MagFilterMode >,
-    pub min_filter : Option< MinFilterMode >,
-    pub wrap_s : Option< WrappingMode >,
-    pub wrap_t : Option< WrappingMode >,
-    pub wrap_r : Option< WrappingMode >,
-    pub compare_func : Option< CompareFunction >
+   /// The magnification filter mode.
+    pub mag_filter: Option< MagFilterMode >,
+    /// The minification filter mode.
+    pub min_filter: Option< MinFilterMode >,
+    /// The texture wrapping mode for the S coordinate.
+    pub wrap_s: Option< WrappingMode >,
+    /// The texture wrapping mode for the T coordinate.
+    pub wrap_t: Option< WrappingMode >,
+    /// The texture wrapping mode for the R coordinate (for 3D textures).
+    pub wrap_r: Option< WrappingMode >,
+    /// The comparison function used for depth textures.
+    pub compare_func: Option< CompareFunction >,
   }
 
   impl Sampler 
   {
+    /// Creates a new `Sampler` with default values.
     pub fn new() -> Self
     {
       Self::default()
     }
 
+    /// Uploads the sampler settings to the WebGL context.
     pub fn upload( &self, gl : &gl::WebGl2RenderingContext, target : u32 )
     {
       if let Some( value ) =  self.mag_filter
@@ -95,9 +131,18 @@ mod private
     }
   }
 
-  impl WrappingMode
+  pub trait ToFromGlEnum
   {
-    pub fn to_gl( &self ) -> u32
+    /// Converts the `Self` to its corresponding WebGL enum value.
+    fn to_gl( &self ) -> u32;
+
+    /// Converts a WebGL enum value to `Self`.
+    fn from_gl( value : u32 ) -> Self; 
+  }
+
+  impl ToFromGlEnum for WrappingMode
+  {
+    fn to_gl( &self ) -> u32
     {
       match self
       {
@@ -107,7 +152,7 @@ mod private
       }
     }
 
-    pub fn from_gl( value : u32 ) -> Self
+    fn from_gl( value : u32 ) -> Self
     {
       match value
       {
@@ -119,9 +164,9 @@ mod private
     }
   }
 
-  impl MagFilterMode
+  impl ToFromGlEnum for  MagFilterMode
   {
-    pub fn to_gl( &self ) -> u32
+    fn to_gl( &self ) -> u32
     {
       match self
       {
@@ -130,7 +175,7 @@ mod private
       }
     }
 
-    pub fn from_gl( value : u32 ) -> Self
+    fn from_gl( value : u32 ) -> Self
     {
       match value
       {
@@ -141,9 +186,9 @@ mod private
     }
   }
 
-  impl MinFilterMode
+  impl ToFromGlEnum for  MinFilterMode
   {
-    pub fn to_gl( &self ) -> u32
+    fn to_gl( &self ) -> u32
     {
       match self
       {
@@ -156,7 +201,7 @@ mod private
       }
     }
 
-    pub fn from_gl( value : u32 ) -> Self
+    fn from_gl( value : u32 ) -> Self
     {
       match value
       {
@@ -171,9 +216,9 @@ mod private
     }
   }
 
-  impl CompareFunction
+  impl ToFromGlEnum for  CompareFunction
   {
-    pub fn to_gl( &self ) -> u32
+    fn to_gl( &self ) -> u32
     {
       match self
       {
@@ -188,7 +233,7 @@ mod private
       }
     }
 
-    pub fn from_gl( value : u32 ) -> Self
+    fn from_gl( value : u32 ) -> Self
     {
       match value
       {
@@ -210,6 +255,7 @@ crate::mod_interface!
 {
   orphan use
   {
+    ToFromGlEnum,
     MagFilterMode,
     MinFilterMode,
     WrappingMode,

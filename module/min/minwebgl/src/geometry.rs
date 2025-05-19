@@ -87,6 +87,7 @@ mod private
 
 crate::mod_interface!
 {
+  reuse ::mingl::geometry;
 
   own use
   {

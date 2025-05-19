@@ -1,12 +1,12 @@
 mod private
 {
   use std::{ cell::RefCell, rc::Rc };
-  use minwebgl::{ self as gl, JsCast };
+  use minwebgl::{ self as gl, JsCast, geometry::BoundingBox };
   use crate::webgl::
   {
+    ToFromGlEnum,
     AlphaMode, 
     AttributeInfo, 
-    BoundingBox, 
     Geometry, 
     IndexInfo,
     MagFilterMode, 
