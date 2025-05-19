@@ -10,18 +10,10 @@ authors = [
 [dependencies]
 #browser_input = { git = "https://https://github.com/Wandalen/cgtools.git", rev = "72cfcb191ecd05c657726692634cbed829b6136c" }
 minwebgl = { workspace = true, features = [ "future" ] }
-glam = "0.29.0"
 ndarray_cg = { workspace = true }
 gltf = "1.4" 
 rand = "0.8.5"
 getrandom = { version = "0.2", features = [ "js" ] }
-
-[dependencies.bevy]
-version = "^0.16.0"
-default-features = false
-features = [
-  "bevy_render"
-] 
 
 [dependencies.web-sys]
 workspace = true

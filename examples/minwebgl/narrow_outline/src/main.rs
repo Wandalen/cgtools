@@ -1,4 +1,4 @@
-use minwebgl::{self as gl, JsValue};
+use minwebgl::{self as gl, F32x4x4, JsValue};
 use gl::
 {
   GL,
@@ -13,7 +13,13 @@ use gl::
     WebGlFramebuffer
   }
 };
-use ndarray_cg::mat::DescriptorOrderColumnMajor;
+use ndarray_cg::
+{
+  Mat4,
+  F32x4x4,
+  F32x4,
+  F32x3
+};
 use rand::Rng;
 use std::collections::HashMap;
 use bevy::prelude::
@@ -173,7 +179,7 @@ fn gltf_data
 (
   node : &gltf::Node,
   buffers : &[ gltf::buffer::Data ],
-  parent_transform : ndarray_cg::Mat4< f32, DescriptorOrderColumnMajor >,
+  parent_transform : F32x4x4,
   positions : &mut Vec< [ f32; 3 ] >,
   indices : &mut Vec< u32 >,
   vertex_offset : &mut u32
@@ -190,7 +196,7 @@ fn gltf_data
     r[ 3 ] = transform[ i ][ 3 ];
   }
 
-  let local_transform : ndarray_cg::Mat4< f32, DescriptorOrderColumnMajor > = ndarray_cg::Mat4::from_column_major( &transform_raw );
+  let local_transform : F32x4x4 = Mat4::from_column_major( &transform_raw );
 
   // Combine parent transform with local transform
   let current_transform = parent_transform * local_transform;
@@ -209,7 +215,7 @@ fn gltf_data
 
         for p in positions_iter
         {
-          let pos_vec = ndarray_cg::F32x4::from_array( [ p[ 0 ], p[ 1 ], p[ 2 ], 1.0 ] );
+          let pos_vec = F32x4::from_array( [ p[ 0 ], p[ 1 ], p[ 2 ], 1.0 ] );
           // Apply combined transform to vertex position
           let tp = current_transform * pos_vec;
           current_primitive_positions.push( [ tp[ 0 ], tp[ 1 ], tp[ 2 ] ].into() );
@@ -251,6 +257,7 @@ fn gltf_data
   }
 }
 
+/*
 fn primitives_data
 (
   positions : &mut Vec< [ f32; 3 ] >,
@@ -318,7 +325,7 @@ fn primitives_data
     transform_raw[ 13 ] = t[ 1 ];
     transform_raw[ 14 ] = t[ 2 ];
 
-    let local_transform : ndarray_cg::Mat4< f32, DescriptorOrderColumnMajor > = ndarray_cg::Mat4::from_column_major( &transform_raw );
+    let local_transform : F32x4x4 = Mat4::from_column_major( &transform_raw );
 
     let mesh = p;
     let Some( VertexAttributeValues::Float32x3( primitive_positions ) ) = p.attribute( Mesh::ATTRIBUTE_POSITION )
@@ -335,7 +342,7 @@ fn primitives_data
       | p | 
       {
         local_transform * 
-        ndarray_cg::F32x4::from_array( 
+        F32x4::from_array( 
           [ p[ 0 ], p[ 1 ], p[ 2 ], 1.0 ] 
         ) 
       }
@@ -357,14 +364,15 @@ fn primitives_data
     *vertex_offset += vertices_count as u32;
   }
 }
+*/
 
 /// Represents the camera's view and projection settings.
 struct Camera
 {
-  eye : ndarray_cg::F32x3,
-  up : ndarray_cg::F32x3,
-  projection : ndarray_cg::Mat4< f32, DescriptorOrderColumnMajor >,
-  model : ndarray_cg::Mat4< f32, DescriptorOrderColumnMajor >
+  eye : F32x3,
+  up : F32x3,
+  projection : F32x4x4,
+  model : F32x4x4
 }
 
 /// Manages WebGL resources and rendering passes.
@@ -395,8 +403,8 @@ impl Renderer
     let viewport = ( gl.drawing_buffer_width(), gl.drawing_buffer_height() );
 
     // Camera setup (initial position, up vector, projection matrix, initial model matrix)
-    let eye = ndarray_cg::F32x3::from_array( [  0.0, 1.4, 2.5 ] ) * 1.5;
-    let up = ndarray_cg::F32x3::Y;
+    let eye = F32x3::from_array( [  0.0, 1.4, 2.5 ] ) * 1.5;
+    let up = F32x3::Y;
 
     let aspect_ratio = viewport.0 as f32 / viewport.1 as f32;
     let u_projection = ndarray_cg::mat3x3h::perspective_rh_gl
@@ -406,13 +414,8 @@ impl Renderer
       0.1, 
       1000.0
     );
-    let u_model = glam::Mat4::from_scale_rotation_translation
-    (
-      glam::Vec3::ONE,
-      glam::Quat::from_rotation_y( 0.0 ),
-      glam::Vec3::ZERO
-    );
-    let u_model : ndarray_cg::Mat4< f32, DescriptorOrderColumnMajor > = ndarray_cg::Mat4::from_column_major( u_model.to_cols_array() );
+    let u_model = Mat4::IDENTITY;
+    let u_model : F32x4x4 = Mat4::from_column_major( u_model.to_cols_array() );
 
     let camera = Camera{
       eye,
@@ -590,9 +593,9 @@ impl Renderer
 
     gl.use_program( Some( object_program ) );
 
-    let rotation = ndarray_cg::mat3x3::from_axis_angle( ndarray_cg::F32x3::Y, t as f32 / 1000.0 ); 
+    let rotation = ndarray_cg::mat3x3::from_axis_angle( F32x3::Y, t as f32 / 1000.0 ); 
     let eye = rotation * self.camera.eye;
-    let center = ndarray_cg::F32x3::from_array( [ 0.0, 0.3, 0.0 ] );
+    let center = F32x3::from_array( [ 0.0, 0.3, 0.0 ] );
 
     let u_view = ndarray_cg::d2::mat3x3h::look_at_rh( eye, center, self.camera.up );
 
