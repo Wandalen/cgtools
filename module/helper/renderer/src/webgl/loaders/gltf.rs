@@ -75,7 +75,7 @@ mod private
     let images = Rc::new( RefCell::new( Vec::new() ) );
 
     // Creates an <img> html elements, and sets its src property to 'src' parameter
-    // When the image is loaded, createa a texture and adds it to the 'images' array
+    // When the image is loaded, creates a texture and adds it to the 'images' array
     let upload_texture = | src : Rc< String > | {
       let texture = gl.create_texture().expect( "Failed to create a texture" );
       images.borrow_mut().push( texture.clone() );
@@ -221,7 +221,7 @@ mod private
     }
 
     // Create materials
-    let make_texture_info = | info : Option< gltf::texture::Info > |
+    let make_texture_info = | info : Option< gltf::texture::Info< '_ > > |
     {
       info.map( | v |
       {
@@ -288,7 +288,7 @@ mod private
     materials.push( Rc::new( RefCell::new( Material::default() ) ) );
 
     gl::log::info!( "Materials: {}",materials.len() );
-    let make_attibute_info = | acc : &gltf::Accessor, slot |
+    let make_attibute_info = | acc : &gltf::Accessor< '_ >, slot |
     {
       let data_type = match acc.data_type()
       {

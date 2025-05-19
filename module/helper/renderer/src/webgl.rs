@@ -7,6 +7,8 @@ crate::mod_interface!
 {
   own use ::uuid;
 
+  layer post_processing;
+
   layer mesh;
 
   layer material;
