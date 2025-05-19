@@ -4,8 +4,8 @@ layout( location = 0 ) in vec3 a_position;
 layout( location = 1 ) in vec3 a_translation;
 layout( location = 2 ) in float a_scale;
 
-flat out vec3 v_light_position;
-flat out float v_light_radius;
+flat out mediump vec3 v_light_position;
+flat out mediump float v_light_radius;
 
 uniform mat4 u_mvp;
 

@@ -1,7 +1,7 @@
 use minwebgl as gl;
 use gl::
 {
-  F32x2,
+  // F32x2,
   math::d2::mat3x3h,
   BufferDescriptor,
   JsCast as _,
@@ -16,7 +16,6 @@ fn main()
 {
   gl::browser::setup( Default::default() );
   gl::info!( "{:?}", run() );
-  // gl::spawn_local( async {  } );
 }
 
 // cube geometry
@@ -67,7 +66,7 @@ fn run() -> Result< (), gl::WebglError >
   gl.enable( GL::CULL_FACE );
   gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
   gl.clear_stencil( 0 );
-  gl.stencil_mask( 0x1 );
+  // gl.stencil_mask( 0x1 );
 
   // shaders
   let vert = include_str!( "../shaders/light_volume.vert" );
@@ -75,8 +74,8 @@ fn run() -> Result< (), gl::WebglError >
   let light_shader = gl::shader::Program::new( gl.clone(), vert, frag )?;
 
   // let vert = include_str!( "../shaders/light_volume.vert" );
-  let frag = include_str!( "../shaders/empty.frag" );
-  let stencil_shader = gl::shader::Program::new( gl.clone(), vert, frag )?;
+  // let frag = include_str!( "../shaders/empty.frag" );
+  // let stencil_shader = gl::shader::Program::new( gl.clone(), vert, frag )?;
 
   let vert = include_str!( "../shaders/main.vert" );
   let frag = include_str!( "../shaders/gbuffer.frag" );
@@ -95,7 +94,7 @@ fn run() -> Result< (), gl::WebglError >
   cube.activate();
 
   let projection = mat3x3h::perspective_rh_gl( 45.0f32.to_radians(), width as f32 / height as f32, 0.1, 500.0 );
-  let object_transform = mat3x3h::translation( [ 0.0f32, 0.0, -120.0 ] ) * mat3x3h::scale( [ 300.0, 300.0, 1.0 ] );
+  let object_transform = mat3x3h::translation( [ 0.0f32, 0.0, -120.0 ] ) * mat3x3h::scale( [ 100.0, 100.0, 1.0 ] );
 
   // gbuffer
   let gbuffer = gl.create_framebuffer();
@@ -103,11 +102,11 @@ fn run() -> Result< (), gl::WebglError >
   let normal_buffer = tex_storage_2d( &gl, GL::RGBA16F, width, height );
   let depthbuffer = gl.create_renderbuffer();
   gl.bind_renderbuffer( GL::RENDERBUFFER, depthbuffer.as_ref() );
-  gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH24_STENCIL8, width, height );
+  gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH_COMPONENT24, width, height );
   gl.bind_framebuffer( GL::FRAMEBUFFER, gbuffer.as_ref() );
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, position_buffer.as_ref(), 0 );
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, normal_buffer.as_ref(), 0 );
-  gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, GL::DEPTH_STENCIL_ATTACHMENT, GL::RENDERBUFFER, depthbuffer.as_ref() );
+  gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::RENDERBUFFER, depthbuffer.as_ref() );
 
   // draw gbuffer geometry for once, because it is static
   gl::drawbuffers::drawbuffers( &gl, &[ GL::COLOR_ATTACHMENT0, GL::COLOR_ATTACHMENT1 ] );
@@ -123,11 +122,12 @@ fn run() -> Result< (), gl::WebglError >
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, color_buffer.as_ref(), 0 );
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, None, 0 );
 
-  let light_radius = 3.0;
-  let rows = 15;
-  let columns = 20;
+  let light_radius = 6.0;
+  let rows = 8;
+  let columns = 14;
   let light_instances = rows * columns;
   let light_positions = light_positions( columns, rows, light_radius, -118.0 );
+
   let light_position_buffer = gl::buffer::create( &gl )?;
   gl::buffer::upload( &gl, &light_position_buffer, light_positions.as_slice(), GL::DYNAMIC_DRAW );
   let position_attribute = AttributePointer::new
@@ -144,38 +144,16 @@ fn run() -> Result< (), gl::WebglError >
   let update = move | _ |
   {
     gl.bind_framebuffer( GL::FRAMEBUFFER, offscreen_buffer.as_ref() );
+
+
     gl.enable( GL::DEPTH_TEST );
-    gl.enable( GL::STENCIL_TEST );
-    gl.clear( GL::STENCIL_BUFFER_BIT );
-    gl.stencil_func( GL::ALWAYS, 0, 0xFF );
-    // dont output any values now except stencil values
-    gl::drawbuffers::drawbuffers( &gl, &[] );
-
-    stencil_shader.activate();
-    stencil_shader.uniform_matrix_upload( "u_mvp", projection.raw_slice(), true );
-    // gl.vertex_attrib3fv_with_f32_array( 1, &light_position );
-    gl.vertex_attrib1f( 2, light_radius );
-
-    // draw front faces that pass depth test and increment fragments
-    gl.cull_face( GL::BACK );
-    gl.stencil_op( GL::KEEP, GL::KEEP, GL::INCR );
-    gl.draw_elements_instanced_with_i32( GL::TRIANGLES, cube.element_count, GL::UNSIGNED_INT, 0, light_instances );
-    // gl.draw_elements_with_i32( GL::TRIANGLES, cube.element_count, GL::UNSIGNED_INT, 0 );
-
-    // draw back faces that pass depth test and decrement fragment
+    gl.depth_func( GL::GEQUAL );
     gl.cull_face( GL::FRONT );
-    gl.stencil_op( GL::KEEP, GL::KEEP, GL::DECR );
-    gl.draw_elements_instanced_with_i32( GL::TRIANGLES, cube.element_count, GL::UNSIGNED_INT, 0, light_instances );
-    // gl.draw_elements_with_i32( GL::TRIANGLES, cube.element_count, GL::UNSIGNED_INT, 0 );
+    gl.enable( gl::BLEND );
+    gl.blend_func( gl::ONE, gl::ONE );
 
-    // now only fragments that are inside lightvolumes have non-zero stencil value
-
-    // do the deffered shading againts pixels that passed the stencil test
     gl::drawbuffers::drawbuffers( &gl, &[ GL::COLOR_ATTACHMENT0 ] );
-    gl.cull_face( GL::BACK );
     gl.clear( gl::COLOR_BUFFER_BIT );
-    gl.stencil_func( GL::EQUAL, 1, 0xFF );
-    gl.stencil_op( GL::KEEP, GL::KEEP, GL::KEEP );
 
     gl.active_texture( GL::TEXTURE0 );
     gl.bind_texture( GL::TEXTURE_2D, position_buffer.as_ref() );
@@ -187,15 +165,15 @@ fn run() -> Result< (), gl::WebglError >
     light_shader.uniform_upload( "u_screen_size", [ width as f32, height as f32 ].as_slice() );
     light_shader.uniform_upload( "u_positions", &0 );
     light_shader.uniform_upload( "u_normals", &1 );
-    // gl.vertex_attrib3fv_with_f32_array( 1, &light_position );
     gl.vertex_attrib1f( 2, light_radius );
     gl.draw_elements_instanced_with_i32( GL::TRIANGLES, cube.element_count, GL::UNSIGNED_INT, 0, light_instances );
-    // gl.draw_elements_with_i32( GL::TRIANGLES, cube.element_count, GL::UNSIGNED_INT, 0 );
 
     // show on screen
     gl.disable( GL::DEPTH_TEST );
-    gl.disable( GL::STENCIL_TEST );
+    gl.cull_face( GL::BACK );
+    gl.disable( gl::BLEND );
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+    gl.clear( GL::COLOR_BUFFER_BIT );
     gl.active_texture( GL::TEXTURE0 );
     gl.bind_texture( GL::TEXTURE_2D, color_buffer.as_ref() );
     screen_shader.activate();
