@@ -27,7 +27,7 @@ mod private
     /// A map of compiled WebGL programs, keyed by a combination of the material ID and vertex shader defines.
     programs : HashMap< String, ProgramInfo >,
     /// Holds the precomputed textures used for Image-Based Lighting.
-    ibl : IBL,
+    ibl : Option< IBL >,
     /// A list of nodes with transparent primitives, sorted by distance to the camera for correct rendering order.
     transparent_nodes : Vec< ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > > ) >
   }
@@ -45,7 +45,7 @@ mod private
     /// * `ibl`: The `IBL` struct containing the diffuse and specular environment maps and the BRDF integration texture.
     pub fn set_ibl( &mut self, ibl : IBL )
     {
-      self.ibl = ibl;
+      self.ibl = Some( ibl );
     }
 
     /// Renders the scene using the provided camera.
@@ -93,11 +93,25 @@ mod private
             }
             else
             {
+              let ibl_define = if self.ibl.is_some()
+              {
+                "#define USE_IBL\n"
+              }
+              else
+              {
+                ""
+              };
               // Compile and link a new WebGL program from the vertex and fragment shaders with the appropriate defines.
               let program = gl::ProgramFromSources::new
               ( 
                 &format!( "#version 300 es\n{}\n{}", vs_defines, MAIN_VERTEX_SHADER ), 
-                &format!( "#version 300 es\n{}\n{}\n{}", vs_defines, material.get_defines(), MAIN_FRAGMENT_SHADER ) 
+                &format!
+                ( 
+                  "#version 300 es\n{}\n{}\n{}\n{}", 
+                  vs_defines, 
+                  ibl_define,
+                  material.get_defines(),
+                  MAIN_FRAGMENT_SHADER ) 
               ).compile_and_link( gl )?;
               let program_info = ProgramInfo::new( gl , program );
 
@@ -107,7 +121,10 @@ mod private
               const IBL_BASE_ACTIVE_TEXTURE : u32 = 10;
               material.configure( gl, locations, IBL_BASE_ACTIVE_TEXTURE );
               material.upload( gl, locations )?;
-              self.ibl.bind( gl, IBL_BASE_ACTIVE_TEXTURE );
+              if let Some( ref ibl ) = self.ibl 
+              {
+                ibl.bind( gl, IBL_BASE_ACTIVE_TEXTURE );
+              }
 
               // Store the new program info in the cache.
               self.programs.insert( program_id.clone(), program_info );
