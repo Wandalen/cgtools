@@ -61,7 +61,7 @@ use minwebgl as gl;
     pub draw_mode : u32,
     pub vertex_count : u32,
     index_info : Option< IndexInfo >,
-    attributes : HashMap< String, AttributeInfo >
+    attributes : HashMap< Box< str >, AttributeInfo >
   }
 
   impl Geometry 
@@ -89,7 +89,7 @@ use minwebgl as gl;
       )
     }
 
-    pub fn add_attribute< Name : Into< String > >
+    pub fn add_attribute< Name : Into< Box< str > > >
     ( 
       &mut self, 
       gl : &gl::WebGl2RenderingContext,
@@ -99,7 +99,7 @@ use minwebgl as gl;
     ) -> Result< (), gl::WebglError >
     {
       let name = name.into();
-      if !self.attributes.contains_key( name.as_str() )
+      if !self.attributes.contains_key( &name )
       {
         if as_define
         {

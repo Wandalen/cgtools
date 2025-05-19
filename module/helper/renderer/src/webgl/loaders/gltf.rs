@@ -367,7 +367,7 @@ mod private
             geometry.add_attribute
             ( 
               gl,
-              &format!( "texture_coordinates_{}", 2 + i ), 
+              format!( "texture_coordinates_{}", 2 + i ), 
               make_attibute_info( &acc, 2 + i ), 
               false 
             )?;
@@ -378,7 +378,7 @@ mod private
             geometry.add_attribute
             ( 
               gl,
-              &format!( "colors_{}", 7 + i ), 
+              format!( "colors_{}", 7 + i ), 
               make_attibute_info( &acc, 7 + i ), 
               false 
             )?;
