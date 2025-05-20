@@ -1,7 +1,8 @@
+use std::f32;
 use minwebgl as gl;
 use gl::
 {
-  // F32x2,
+  AsBytes,
   math::d2::mat3x3h,
   BufferDescriptor,
   JsCast as _,
@@ -10,6 +11,7 @@ use gl::
   WebglError,
   GL
 };
+use rand::Rng;
 use web_sys::{ HtmlCanvasElement, WebGlTexture };
 
 fn main()
@@ -65,17 +67,11 @@ fn run() -> Result< (), gl::WebglError >
   gl.enable( GL::DEPTH_TEST );
   gl.enable( GL::CULL_FACE );
   gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
-  gl.clear_stencil( 0 );
-  // gl.stencil_mask( 0x1 );
 
   // shaders
   let vert = include_str!( "../shaders/light_volume.vert" );
   let frag = include_str!( "../shaders/deferred.frag" );
   let light_shader = gl::shader::Program::new( gl.clone(), vert, frag )?;
-
-  // let vert = include_str!( "../shaders/light_volume.vert" );
-  // let frag = include_str!( "../shaders/empty.frag" );
-  // let stencil_shader = gl::shader::Program::new( gl.clone(), vert, frag )?;
 
   let vert = include_str!( "../shaders/main.vert" );
   let frag = include_str!( "../shaders/gbuffer.frag" );
@@ -85,6 +81,7 @@ fn run() -> Result< (), gl::WebglError >
   let frag = include_str!( "../shaders/screen_texture.frag" );
   let screen_shader = gl::shader::Program::new( gl.clone(), vert, frag )?;
 
+  // cube geometry
   let position_buffer = gl::buffer::create( &gl )?;
   gl::buffer::upload( &gl, &position_buffer, CUBE_VERTICES, GL::STATIC_DRAW );
   let index_buffer = gl::buffer::create( &gl )?;
@@ -94,7 +91,7 @@ fn run() -> Result< (), gl::WebglError >
   cube.activate();
 
   let projection = mat3x3h::perspective_rh_gl( 45.0f32.to_radians(), width as f32 / height as f32, 0.1, 500.0 );
-  let object_transform = mat3x3h::translation( [ 0.0f32, 0.0, -120.0 ] ) * mat3x3h::scale( [ 100.0, 100.0, 1.0 ] );
+  let wall_transform = mat3x3h::translation( [ 0.0f32, 0.0, -120.0 ] ) * mat3x3h::scale( [ 100.0, 100.0, 1.0 ] );
 
   // gbuffer
   let gbuffer = gl.create_framebuffer();
@@ -108,52 +105,98 @@ fn run() -> Result< (), gl::WebglError >
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, normal_buffer.as_ref(), 0 );
   gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::RENDERBUFFER, depthbuffer.as_ref() );
 
-  // draw gbuffer geometry for once, because it is static
+  // draw big wall into gbuffer once, because it is static
   gl::drawbuffers::drawbuffers( &gl, &[ GL::COLOR_ATTACHMENT0, GL::COLOR_ATTACHMENT1 ] );
   object_shader.activate();
-  object_shader.uniform_matrix_upload( "u_model", object_transform.raw_slice(), true );
-  object_shader.uniform_matrix_upload( "u_mvp", ( projection * object_transform ).raw_slice(), true );
+  object_shader.uniform_matrix_upload( "u_model", wall_transform.raw_slice(), true );
+  object_shader.uniform_matrix_upload( "u_mvp", ( projection * wall_transform ).raw_slice(), true );
   gl.vertex_attrib3f( 1, 0.0, 0.0, 1.0 );
   gl.draw_elements_with_i32( GL::TRIANGLES, cube.element_count, GL::UNSIGNED_INT, 0 );
 
   // use same framebuffer object for offscreen rendering
   let offscreen_buffer = gbuffer;
   let color_buffer = tex_storage_2d( &gl, GL::RGBA8, width, height );
+  // attach color buffer to framebuffer
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, color_buffer.as_ref(), 0 );
+  // remove normal buffer from framebuffer
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, None, 0 );
 
-  let light_radius = 6.0;
-  let rows = 8;
-  let columns = 14;
+  let light_radius = 3.0;
+  // grid of light sources
+  let rows = 16;
+  let columns = 28;
+  // lights z position
+  let z = -116.5;
   let light_instances = rows * columns;
-  let light_positions = light_positions( columns, rows, light_radius, -118.0 );
+  // random z offset for each light source
+  let offsets = ( 0..light_instances )
+  .map( | _ | rand::random::< f32 >() * f32::consts::PI * 2.0 )
+  .collect::< Vec< _ > >();
+  let light_colors = ( 0..light_instances )
+  .map( | _ | random_rgb_color() )
+  .collect::< Vec< _ > >();
+  let light_radiuses = ( 0..light_instances )
+  .map( | _ | light_radius + rand::random_range( -1.0..=1.0 ) )
+  .collect::< Vec< _ > >();
+  // positions of lights sources for instanced rendering
+  let mut light_positions = generate_light_positions( columns, rows, light_radius, z );
 
   let light_position_buffer = gl::buffer::create( &gl )?;
   gl::buffer::upload( &gl, &light_position_buffer, light_positions.as_slice(), GL::DYNAMIC_DRAW );
-  let position_attribute = AttributePointer::new
+  let translation_attribute = AttributePointer::new
   (
     &gl,
     BufferDescriptor::new::< [ f32; 3 ] >().divisor( 1 ),
-    light_position_buffer,
+    light_position_buffer.clone(),
     1
   );
-  cube.add_attribute( position_attribute )?;
 
+  let light_radius_buffer = gl::buffer::create( &gl )?;
+  gl::buffer::upload( &gl, &light_radius_buffer, light_radiuses.as_slice(), GL::STATIC_DRAW );
+  let radius_attribute = AttributePointer::new
+  (
+    &gl,
+    BufferDescriptor::new::< f32 >().divisor( 1 ),
+    light_radius_buffer,
+    2
+  );
+
+  // colors of lights sources for instanced rendering
+  let light_color_buffer = gl::buffer::create( &gl )?;
+  gl::buffer::upload( &gl, &light_color_buffer, light_colors.as_slice(), GL::STATIC_DRAW );
+  let color_attribute = AttributePointer::new
+  (
+    &gl,
+    BufferDescriptor::new::< [ f32; 3 ] >().divisor( 1 ),
+    light_color_buffer,
+    3
+  );
+
+  cube.add_attribute( translation_attribute )?;
+  cube.add_attribute( radius_attribute )?;
+  cube.add_attribute( color_attribute )?;
+
+  // doesn't need to write to depth buffer anymore
   gl.depth_mask( false );
 
-  let update = move | _ |
+  let update = move | t |
   {
+    let t = ( t / 1000.0 ) as f32;
+    update_light_positions( &mut light_positions, t, &offsets, z, 2.0 );
+    gl.bind_buffer( GL::ARRAY_BUFFER, Some( &light_position_buffer ) );
+    gl.buffer_sub_data_with_i32_and_u8_array( GL::ARRAY_BUFFER, 0, light_positions.as_bytes() );
+
     gl.bind_framebuffer( GL::FRAMEBUFFER, offscreen_buffer.as_ref() );
-
-
-    gl.enable( GL::DEPTH_TEST );
-    gl.depth_func( GL::GEQUAL );
-    gl.cull_face( GL::FRONT );
-    gl.enable( gl::BLEND );
-    gl.blend_func( gl::ONE, gl::ONE );
-
     gl::drawbuffers::drawbuffers( &gl, &[ GL::COLOR_ATTACHMENT0 ] );
     gl.clear( gl::COLOR_BUFFER_BIT );
+
+    gl.enable( GL::DEPTH_TEST );
+    // inverse depth testing to discard fragments out of back bound of light volume
+    gl.depth_func( GL::GEQUAL );
+    gl.cull_face( GL::FRONT );
+    // blending is needed when fragment is affected by several lights
+    gl.enable( gl::BLEND );
+    gl.blend_func( gl::ONE, gl::ONE );
 
     gl.active_texture( GL::TEXTURE0 );
     gl.bind_texture( GL::TEXTURE_2D, position_buffer.as_ref() );
@@ -165,15 +208,15 @@ fn run() -> Result< (), gl::WebglError >
     light_shader.uniform_upload( "u_screen_size", [ width as f32, height as f32 ].as_slice() );
     light_shader.uniform_upload( "u_positions", &0 );
     light_shader.uniform_upload( "u_normals", &1 );
-    gl.vertex_attrib1f( 2, light_radius );
+    // gl.vertex_attrib1f( 2, light_radius );
     gl.draw_elements_instanced_with_i32( GL::TRIANGLES, cube.element_count, GL::UNSIGNED_INT, 0, light_instances );
 
     // show on screen
+    gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+    gl.disable( gl::BLEND );
     gl.disable( GL::DEPTH_TEST );
     gl.cull_face( GL::BACK );
     gl.disable( gl::BLEND );
-    gl.bind_framebuffer( GL::FRAMEBUFFER, None );
-    gl.clear( GL::COLOR_BUFFER_BIT );
     gl.active_texture( GL::TEXTURE0 );
     gl.bind_texture( GL::TEXTURE_2D, color_buffer.as_ref() );
     screen_shader.activate();
@@ -186,8 +229,39 @@ fn run() -> Result< (), gl::WebglError >
   Ok( () )
 }
 
-fn light_positions( cols : i32, rows : i32, padding : f32, z : f32 ) -> Vec< f32 >
+fn random_rgb_color() -> [ f32; 3 ]
 {
+  let mut rng = rand::rng();
+
+  let mut r = if rng.random_bool( 0.5 ) { 1.0 } else { 0.0 };
+  let mut g = if rng.random_bool( 0.5 ) { 1.0 } else { 0.0 };
+  let mut b = if rng.random_bool( 0.5 ) { 1.0 } else { 0.0 };
+
+  if r == 0.0 && g == 0.0 && b == 0.0
+  {
+    match rng.random_range(0..3)
+    {
+      0 => r = 1.0,
+      1 => g = 1.0,
+      2 => b = 1.0,
+      _ => {},
+    }
+  }
+
+  [ r, g, b ]
+}
+
+fn update_light_positions( positions : &mut[ f32 ], time : f32, offsets : &[ f32 ], z : f32, amplitude : f32 )
+{
+  positions.chunks_exact_mut( 3 ).zip( offsets ).for_each
+  (
+    | ( position, offset ) | position[ 2 ] = z + ( time * f32::consts::PI * 0.3 + offset ).sin() * amplitude
+  );
+}
+
+fn generate_light_positions( cols : i32, rows : i32, padding : f32, z : f32 ) -> Vec< f32 >
+{
+  // generate grid of light
   let spacing = padding * 2.0;
   let width = spacing * ( cols - 1 ) as f32;
   let height = spacing * ( rows - 1 ) as f32;
@@ -309,7 +383,6 @@ fn tex_storage_2d( gl : &GL, format : u32, width : i32, height : i32 ) -> Option
   let tex = gl.create_texture()?;
   gl.bind_texture( GL::TEXTURE_2D, Some( &tex ) );
   gl.tex_storage_2d( GL::TEXTURE_2D, 1, format, width, height );
-  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32 );
-  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::NEAREST as i32 );
+  gl::texture::d2::filter_nearest( gl );
   Some( tex )
 }
