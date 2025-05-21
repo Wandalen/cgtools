@@ -239,6 +239,8 @@ version = "1.4.1"
 
 [workspace.dependencies.csgrs]
 version = "0.17.4"
+default-features = false
+features = [ "f64", "delaunay" ]
 
 [workspace.dependencies.parry3d]
 version = "0.21.0"

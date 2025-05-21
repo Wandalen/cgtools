@@ -1,5 +1,4 @@
-use csgrs::float_types::parry3d::na::Transform;
-use minwebgl::{self as gl, F32x4x4, JsValue};
+use minwebgl::{ self as gl };
 use gl::
 {
   GL,
@@ -20,15 +19,15 @@ use ndarray_cg::
   {
     translation,
     rot,
-    scale
   },
   Mat4,
   F32x4x4,
   F32x4,
   F32x3
 };
+use csgrs::CSG;
 use rand::Rng;
-use std::{collections::HashMap, primitive};
+use std::collections::HashMap;
 
 /// Creates a WebGL2 texture.
 ///
@@ -278,7 +277,7 @@ pub fn primitives_data_csgrs
       // Translate the circle away from the origin to define the major radius.
       // The `rotate_extrude` revolves around the Y-axis.
       circle_2d
-      .translate_vector( Vector3::new( major_radius, 0.0, 0.0 ) )
+      .translate_vector( [ major_radius, 0.0, 0.0 ].into() )
       .rotate_extrude( 360.0, revolve_segments )
     },
     {
@@ -299,15 +298,14 @@ pub fn primitives_data_csgrs
     {
       // Capsule3d is constructed by unioning a cylinder with two hemispheres (spheres).
       let radius = 0.5;
-      let height = 2.0;
+      let height = 1.0;
       let segments = 32;
       let stacks = 16;
 
       let cylinder = CSG::cylinder( radius, height, segments, None );
       let top_sphere = CSG::sphere( radius, segments, stacks, None )
-      .translate_vector( Vector3::new( 0.0, height / 2.0, 0.0 ) );
-      let bottom_sphere = CSG::sphere(radius, segments, stacks, None)
-      .translate_vector( Vector3::new( 0.0, -height / 2.0, 0.0 ) );
+      .translate_vector( [ 0.0, 0.0, height ].into() );
+      let bottom_sphere = CSG::sphere( radius, segments, stacks, None );
 
       cylinder.union( &top_sphere )
       .union( &bottom_sphere )
@@ -320,14 +318,17 @@ pub fn primitives_data_csgrs
   // t[6-8]: scale (x, y, z)
   let ranges =
   [
-    (0..3, -3.0..3.0),
     (3..6, 0.0..360.0),
-    (6..9, 0.75..1.0),
+    (6..9, 0.35..0.6),
   ];
+
+  let mut position = F32x4::new( 2.0, 0.0, 1.0, 1.0 );
 
   // Generate random transformation parameters for each mesh.
   let mut rng = rand::thread_rng();
-  let primitives = ( 0..meshes.len() )
+  let count = meshes.len();
+  let rot_matrix = rot(  0.0, ( 360.0 / count as f32 ).to_radians(), 0.0 );
+  let primitives = ( 0..count )
   .into_iter()
   .map(
     | i |
@@ -336,39 +337,47 @@ pub fn primitives_data_csgrs
 
       for ( indices, values) in &ranges
       {
-        for i in indices_range.clone()
+        for i in indices.clone()
         {
           t[i] = rng.gen_range( values.clone() );
         }
       }
-      ( meshes[ i ], t )
+
+      position = rot_matrix * position;
+
+      for j in 0..3
+      {
+        t[ j ] = position.0[ j ];
+      }
+
+      ( meshes[ i ].clone(), t )
     }
   )
   .collect::< Vec<( CSG< () >, [f32; 9] ) > >();
 
   for ( p, t ) in primitives
   {
-    let transform = translation( F32x3::new( t[ 0 ], t[ 1 ], t[ 2 ] ) ) *
-    rot( t[ 3 ].to_radians(), t[ 4 ].to_radians(), t[ 5 ].to_radians() ) *
-    scale( F32x3::new( t[ 6 ], t[ 7 ], t[ 8 ] ) );
+    let p = p.scale( t[ 6 ] as f64, t[ 7 ] as f64, t[ 8 ] as f64 )
+    .rotate( t[ 3 ] as f64, t[ 4 ] as f64, t[ 5 ] as f64 )
+    .translate( t[ 0 ] as f64, t[ 1 ] as f64, t[ 2 ] as f64 );
 
-    let mesh = p.to_trimesh().as_trimesh().unwrap();
+    let mesh = p.to_trimesh();
+    let mesh = mesh.as_trimesh().unwrap();
 
-    let primitive_positions = mesh.positions
+    let primitive_positions = mesh.vertices()
     .iter()
-    .flatten()
-    .iter()
-    .map( | i | i + *vertex_offset )
+    .map( | p | [ p.coords.x as f32, p.coords.y as f32, p.coords.z as f32 ] )
     .collect::< Vec< _ > >();
     positions.extend( primitive_positions );
 
-    let primitive_indices = mesh.indices
+    let primitive_indices = mesh.indices()
     .iter()
+    .flatten()
     .map( | i | i + *vertex_offset )
     .collect::< Vec< _ > >();
     indices.extend( primitive_indices );
     
-    let vertices_count = mesh.positions.len();
+    let vertices_count = mesh.vertices().len();
     *vertex_offset += vertices_count as u32;
   }
 }
@@ -421,8 +430,8 @@ impl Renderer
       0.1, 
       1000.0
     );
-    let u_model = Mat4::IDENTITY;
-    let u_model : F32x4x4 = Mat4::from_column_major( u_model.to_cols_array() );
+    
+    let u_model : F32x4x4 = translation( F32x3::default() );
 
     let camera = Camera{
       eye,
@@ -525,7 +534,7 @@ impl Renderer
         );
       }
       
-      primitives_data
+      primitives_data_csgrs
       (
         &mut positions, 
         &mut indices,  
