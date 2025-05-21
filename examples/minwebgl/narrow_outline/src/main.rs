@@ -10,7 +10,7 @@ use gl::
     WebGlBuffer,
     WebGlTexture,
     WebGlVertexArrayObject,
-    WebGlFramebuffer
+    WebGlFramebuffer, 
   }
 };
 use ndarray_cg::
@@ -23,11 +23,16 @@ use ndarray_cg::
   Mat4,
   F32x4x4,
   F32x4,
-  F32x3
+  F32x3,
+  F32x2
 };
 use csgrs::CSG;
 use rand::Rng;
 use std::collections::HashMap;
+
+mod camera;
+
+use camera::*;
 
 /// Creates a WebGL2 texture.
 ///
@@ -382,15 +387,6 @@ pub fn primitives_data_csgrs
   }
 }
 
-/// Represents the camera's view and projection settings.
-struct Camera
-{
-  eye : F32x3,
-  up : F32x3,
-  projection : F32x4x4,
-  model : F32x4x4
-}
-
 /// Manages WebGL resources and rendering passes.
 struct Renderer
 {
@@ -402,6 +398,7 @@ struct Renderer
   framebuffers : HashMap< String, WebGlFramebuffer >,
   viewport : ( i32, i32 ),
   camera : Camera,
+  model_matrix : F32x4x4,
   draw_count : i32 // Number of indices to draw for the object
 }
 
@@ -412,7 +409,8 @@ impl Renderer
   async fn new() -> Self
   {
     gl::browser::setup( Default::default() );
-    let gl = gl::context::retrieve_or_make().unwrap();
+    let canvas = gl::canvas::make().unwrap();
+    let gl = gl::context::from_canvas( &canvas ).unwrap();
 
     // --- Initialization ---
 
@@ -423,22 +421,23 @@ impl Renderer
     let up = F32x3::Y;
 
     let aspect_ratio = viewport.0 as f32 / viewport.1 as f32;
-    let u_projection = ndarray_cg::mat3x3h::perspective_rh_gl
-    (
-      70.0f32.to_radians(), 
-      aspect_ratio, 
-      0.1, 
-      1000.0
-    );
+    let fov =  70.0f32.to_radians();
+    let near = 0.1;
+    let far = 1000.0;
     
-    let u_model : F32x4x4 = translation( F32x3::default() );
+    let model_matrix : F32x4x4 = translation( F32x3::default() );
 
-    let camera = Camera{
+    let mut camera = Camera::new(
       eye,
       up,
-      projection : u_projection,
-      model : u_model // Note: The actual object model transformation is handled in gltf_data and animated view in object_pass
-    };
+      F32x3::new( 0.0, 0.4, 0.0 ),
+      aspect_ratio,
+      fov,
+      near,
+      far
+    );
+    camera.set_window_size( F32x2::new(viewport.0 as f32, viewport.1 as f32 ) );
+    setup_controls( &canvas, &camera.get_controls() );
 
     // Create and store renderer instance
     let mut renderer = Self
@@ -451,6 +450,7 @@ impl Renderer
       framebuffers : HashMap::new(),
       viewport,
       camera,
+      model_matrix,
       draw_count : 0
     };
 
@@ -527,7 +527,7 @@ impl Renderer
         (
           &document.nodes().nth( node.index() ).expect( "Node not found" ), 
           &buffers, // GLTF buffer data
-          u_model, // Initial model transform ( applied to the root node's children )
+          model_matrix, // Initial model transform ( applied to the root node's children )
           &mut positions, 
           &mut indices,  
           &mut vertex_offset // Output counter for vertex offset
@@ -609,12 +609,6 @@ impl Renderer
 
     gl.use_program( Some( object_program ) );
 
-    let rotation = ndarray_cg::mat3x3::from_axis_angle( F32x3::Y, t as f32 / 1000.0 ); 
-    let eye = rotation * self.camera.eye;
-    let center = F32x3::from_array( [ 0.0, 0.3, 0.0 ] );
-
-    let u_view = ndarray_cg::d2::mat3x3h::look_at_rh( eye, center, self.camera.up );
-
     upload_framebuffer( gl, object_fb, self.viewport );
 
     gl.clear_color( 0.0, 0.0, 0.0, 0.0 ); 
@@ -622,9 +616,8 @@ impl Renderer
     gl.clear( GL::COLOR_BUFFER_BIT | GL::DEPTH_BUFFER_BIT );
     gl.enable( GL::DEPTH_TEST );
 
-    gl::uniform::matrix_upload( gl, Some( u_projection_loc.clone() ), &self.camera.projection.to_array()[ .. ], true ).unwrap();
-    gl::uniform::matrix_upload( gl, Some( u_view_loc.clone() ), &u_view.to_array()[ .. ], true ).unwrap();
-    gl::uniform::matrix_upload( gl, Some( u_model_loc.clone() ), &self.camera.model.to_array()[ .. ], true ).unwrap();
+    self.camera.apply( &self.gl, &u_view_loc, &u_projection_loc );
+    gl::uniform::matrix_upload( gl, Some( u_model_loc.clone() ), &self.model_matrix.to_array()[ .. ], true ).unwrap();
 
     gl.bind_vertex_array( Some( vao ) );
     gl.draw_elements_with_i32( gl::TRIANGLES, self.draw_count, gl::UNSIGNED_INT, 0 );
