@@ -11,9 +11,11 @@ authors = [
 #browser_input = { git = "https://https://github.com/Wandalen/cgtools.git", rev = "72cfcb191ecd05c657726692634cbed829b6136c" }
 minwebgl = { workspace = true, features = [ "future" ] }
 ndarray_cg = { workspace = true }
-gltf = "1.4" 
-rand = "0.8.5"
-getrandom = { version = "0.2", features = [ "js" ] }
+gltf = { workspace = true }
+rand = { workspace = true }
+getrandom = { workspace = true }
+csgrs = { workspace = true }
+parry3d = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true

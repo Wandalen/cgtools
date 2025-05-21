@@ -1,3 +1,4 @@
+use csgrs::float_types::parry3d::na::Transform;
 use minwebgl::{self as gl, F32x4x4, JsValue};
 use gl::
 {
@@ -15,24 +16,19 @@ use gl::
 };
 use ndarray_cg::
 {
+  mat3x3h::
+  {
+    translation,
+    rot,
+    scale
+  },
   Mat4,
   F32x4x4,
   F32x4,
   F32x3
 };
 use rand::Rng;
-use std::collections::HashMap;
-use bevy::prelude::
-{
-  Mesh,
-  Torus,
-  Cone,
-  Cylinder,
-  Sphere,
-  Cuboid,
-  Capsule3d
-};
-use bevy::render::mesh::VertexAttributeValues;
+use std::{collections::HashMap, primitive};
 
 /// Creates a WebGL2 texture.
 ///
@@ -257,114 +253,125 @@ fn gltf_data
   }
 }
 
-/*
-fn primitives_data
+pub fn primitives_data_csgrs
 (
-  positions : &mut Vec< [ f32; 3 ] >,
-  indices : &mut Vec< u32 >,
-  vertex_offset : &mut u32
+    positions: &mut Vec<[f32; 3]>,
+    indices: &mut Vec<u32>,
+    vertex_offset: &mut u32,
 )
 {
-  let meshes : Vec< Mesh > = 
-  vec![
-    Cone::default().into(),
-    Torus::default().into(),
-    Cylinder::default().into(),
-    Sphere::default().into(),
-    Cuboid::default().into(),
-    Capsule3d::default().into()
-  ];
-
-  let ranges = 
-  [
-    ( 0..3, -3.0..3.0 ),
-    ( 3..6, 0.0..360.0 ),
-    ( 6..9, 0.75..1.0 )
-  ];
-
-  let transforms : Vec< [ f32; 9 ]  > = ( 0..( meshes.len() ) )
-  .into_iter()
-  .map( 
-    | _ | 
+  let meshes: Vec< CSG< () > > = vec![
     {
-      let mut t = [ 0.0; 9 ]; 
+      // Cone is constructed using frustum with one radius near zero.
+      // Parameters: radius1, radius2, height, segments
+      CSG::frustum( 1.0, 0.001, 2.0, 32, None )
+    },
+    {
+      // Torus is constructed by revolving a 2D circle.
+      // A circle with minor_radius is translated by major_radius along X, then revolved.
+      let minor_radius = 0.5;
+      let major_radius = 1.5;
+      let segments = 32; // Segments for the circle cross-section
+      let revolve_segments = 64; // Segments for the revolution
 
-      for ( indices, values ) in &ranges
+      let circle_2d = CSG::circle( minor_radius, segments, None );
+      // Translate the circle away from the origin to define the major radius.
+      // The `rotate_extrude` revolves around the Y-axis.
+      circle_2d
+      .translate_vector( Vector3::new( major_radius, 0.0, 0.0 ) )
+      .rotate_extrude( 360.0, revolve_segments )
+    },
+    {
+      // Direct cylinder primitive.
+      // Parameters: radius, height, segments
+      CSG::cylinder( 1.0, 2.0, 32, None )
+    },
+    {
+      // Direct sphere primitive.
+      // Parameters: radius, segments, stacks
+      CSG::sphere( 1.0, 32, 16, None )
+    },
+    {
+      // Direct cube/cuboid primitive.
+      // Parameters: width, length, height
+      CSG::cube( 1.0, 1.0, 1.0, None )
+    },
+    {
+      // Capsule3d is constructed by unioning a cylinder with two hemispheres (spheres).
+      let radius = 0.5;
+      let height = 2.0;
+      let segments = 32;
+      let stacks = 16;
+
+      let cylinder = CSG::cylinder( radius, height, segments, None );
+      let top_sphere = CSG::sphere( radius, segments, stacks, None )
+      .translate_vector( Vector3::new( 0.0, height / 2.0, 0.0 ) );
+      let bottom_sphere = CSG::sphere(radius, segments, stacks, None)
+      .translate_vector( Vector3::new( 0.0, -height / 2.0, 0.0 ) );
+
+      cylinder.union( &top_sphere )
+      .union( &bottom_sphere )
+    }
+  ];
+
+  // Define ranges for random transformation parameters.
+  // t[0-2]: translation (x, y, z)
+  // t[3-5]: rotation (Euler XYZ, in degrees)
+  // t[6-8]: scale (x, y, z)
+  let ranges =
+  [
+    (0..3, -3.0..3.0),
+    (3..6, 0.0..360.0),
+    (6..9, 0.75..1.0),
+  ];
+
+  // Generate random transformation parameters for each mesh.
+  let mut rng = rand::thread_rng();
+  let primitives = ( 0..meshes.len() )
+  .into_iter()
+  .map(
+    | i |
+    {
+      let mut t = [ 0.0; 9 ];
+
+      for ( indices, values) in &ranges
       {
-        for i in indices.clone()
+        for i in indices_range.clone()
         {
-          t[ i ] = rand::thread_rng().gen_range( values.clone() );
+          t[i] = rng.gen_range( values.clone() );
         }
       }
-
-      t
+      ( meshes[ i ], t )
     }
   )
-  .collect::< Vec< _ > >();
-
-  let primitives = meshes.iter().zip( transforms.iter() );
+  .collect::< Vec<( CSG< () >, [f32; 9] ) > >();
 
   for ( p, t ) in primitives
   {
-    let mut transform = bevy::prelude::Transform::IDENTITY
-    .with_rotation( bevy::prelude::Quat::from_euler( bevy::prelude::EulerRot::XYZ, t[ 3 ], t[ 4 ], t[ 5 ] ) )
-    .with_scale( glam::Vec3::new( t[ 6 ], t[ 7 ], t[ 8 ] ) )
-    .compute_matrix();
+    let transform = translation( F32x3::new( t[ 0 ], t[ 1 ], t[ 2 ] ) ) *
+    rot( t[ 3 ].to_radians(), t[ 4 ].to_radians(), t[ 5 ].to_radians() ) *
+    scale( F32x3::new( t[ 6 ], t[ 7 ], t[ 8 ] ) );
 
-    let mut transform_raw : [ f32; 16 ] = [ 0.0; 16 ];
-    for ( i, r ) in transform_raw.chunks_mut( 4 ).enumerate()
-    {
-      let row = transform.row( i );
-      for j in 0..4
-      {
-        r[ j ] = row[ j ];
-      }
-    }
+    let mesh = p.to_trimesh().as_trimesh().unwrap();
 
-    transform_raw[ 12 ] = t[ 0 ];
-    transform_raw[ 13 ] = t[ 1 ];
-    transform_raw[ 14 ] = t[ 2 ];
-
-    let local_transform : F32x4x4 = Mat4::from_column_major( &transform_raw );
-
-    let mesh = p;
-    let Some( VertexAttributeValues::Float32x3( primitive_positions ) ) = p.attribute( Mesh::ATTRIBUTE_POSITION )
-    else 
-    {
-      return;
-    };
-    let vertices_count = mesh.count_vertices();
-
-    // Add transformed positions to the global list
-    let primitive_positions = primitive_positions
+    let primitive_positions = mesh.positions
     .iter()
-    .map( 
-      | p | 
-      {
-        local_transform * 
-        F32x4::from_array( 
-          [ p[ 0 ], p[ 1 ], p[ 2 ], 1.0 ] 
-        ) 
-      }
-    )
-    .map( | p | [ p[ 0 ], p[ 1 ], p[ 2 ] ] )
+    .flatten()
+    .iter()
+    .map( | i | i + *vertex_offset )
     .collect::< Vec< _ > >();
     positions.extend( primitive_positions );
 
-    // Read and adjust indices
-    if let Some( primitive_indices ) = mesh.indices()
-    {
-      for index in primitive_indices.iter()
-      {
-          // Add the current vertex offset to each index
-          indices.push( index as u32 + *vertex_offset );
-      }
-    }
-
+    let primitive_indices = mesh.indices
+    .iter()
+    .map( | i | i + *vertex_offset )
+    .collect::< Vec< _ > >();
+    indices.extend( primitive_indices );
+    
+    let vertices_count = mesh.positions.len();
     *vertex_offset += vertices_count as u32;
   }
 }
-*/
 
 /// Represents the camera's view and projection settings.
 struct Camera

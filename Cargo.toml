@@ -230,5 +230,15 @@ version = "1.41.0"
 [workspace.dependencies.rand]
 version = "0.8.5"
 
+[workspace.dependencies.getrandom]
+version = "0.2"
+features = [ "js" ]
+
 [workspace.dependencies.gltf]
 version = "1.4.1"
+
+[workspace.dependencies.csgrs]
+version = "0.17.4"
+
+[workspace.dependencies.parry3d]
+version = "0.21.0"
