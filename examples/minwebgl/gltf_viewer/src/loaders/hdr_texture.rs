@@ -50,12 +50,8 @@ pub async fn load_to_mip_cube
   }
   gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 0 );
 
-  gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as i32);
-  gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32 );
-  gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_R, gl::CLAMP_TO_EDGE as i32 );
-
-  gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32 );
-  gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+  gl::texture::d2::wrap_clamp( gl );
+  gl::texture::d2::filter_linear( gl );
 
   gl.bind_texture( gl::TEXTURE_CUBE_MAP, None );
 }
@@ -94,12 +90,8 @@ pub async fn load_to_mip_d2
   ).expect( "Failed to allocate memory for a cube texture" );
   gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 0 );
 
-  gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as i32);
-  gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32 );
-  gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_WRAP_R, gl::CLAMP_TO_EDGE as i32 );
-
-  gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32 );
-  gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+  gl::texture::d2::wrap_clamp( gl );
+  gl::texture::d2::filter_linear( gl );
 
   gl.bind_texture( gl::TEXTURE_2D, None );
 }

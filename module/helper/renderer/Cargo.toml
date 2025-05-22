@@ -1,5 +1,5 @@
 [package]
-name = "minwebgl_gltf_viewer"
+name = "renderer"
 version = "0.1.0"
 edition = "2021"
 authors = [ 
@@ -7,13 +7,23 @@ authors = [
   "Avramenko Yevhenii <yevhenii.av@obox.systems>" 
 ]
 
+[lints]
+workspace = true
+
+[features]
+webgl = []
+
 [dependencies]
 
+mod_interface = { workspace = true }
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
-renderer = { workspace = true }
-zune-hdr = { workspace = true }
+glam = "0.30.1"
+
+asbytes = { workspace = true }
+former = { workspace = true }
+uuid = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true
