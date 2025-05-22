@@ -63,6 +63,10 @@ path = "module/helper/browser_log"
 version = "~0.2.0"
 path = "module/alias/browser_tools"
 
+[workspace.dependencies.renderer]
+version = "0.1.0"
+path = "module/helper/renderer"
+
 # = draw
 
 [workspace.dependencies.draw_lang]
@@ -229,6 +233,13 @@ version = "1.41.0"
 
 [workspace.dependencies.gltf]
 version = "1.4.1"
+
+[workspace.dependencies.zune-hdr]
+git = "https://github.com/etemesi254/zune-image"
+
+[workspace.dependencies.uuid]
+version = "1.16.0"
+features = [ "v4", "js" ]
 
 [workspace.dependencies.rand]
 version = "0.9.1"

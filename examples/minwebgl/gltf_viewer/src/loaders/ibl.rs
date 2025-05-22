@@ -1,5 +1,5 @@
 use minwebgl as gl;
-use crate::ibl::IBL;
+use renderer::webgl::IBL;
 use super::hdr_texture;
 
 pub async fn load( gl : &gl::WebGl2RenderingContext, path : &str ) -> IBL
@@ -37,10 +37,10 @@ pub async fn load( gl : &gl::WebGl2RenderingContext, path : &str ) -> IBL
   gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
   gl.bind_texture( gl::TEXTURE_CUBE_MAP, None );
 
-  IBL::new
-  (
+  IBL
+  {
     diffuse_texture,
     specular_1_texture,
     specular_2_texture
-  )
+  }
 }
