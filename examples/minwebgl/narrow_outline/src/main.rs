@@ -333,8 +333,8 @@ pub fn primitives_data_csgrs
   // t[6-8]: scale (x, y, z)
   let ranges =
   [
-    (3..6, 0.0..360.0),
-    (6..9, 0.35..0.6),
+    ( 3..6, 0.0..360.0 ),
+    ( 6..9, 0.35..0.6 ),
   ];
 
   let mut position = F32x4::new( 2.0, 0.0, 1.0, 1.0 );
