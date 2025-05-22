@@ -2,6 +2,7 @@
 
 precision mediump float;
 
+// per instance data
 flat in vec3 v_light_position;
 flat in float v_light_radius;
 flat in vec3 v_light_color;
