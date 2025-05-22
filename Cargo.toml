@@ -231,9 +231,6 @@ version = "0.25.5"
 [workspace.dependencies.tokio]
 version = "1.41.0"
 
-[workspace.dependencies.rand]
-version = "0.8.5"
-
 [workspace.dependencies.gltf]
 version = "1.4.1"
 
@@ -243,3 +240,16 @@ git = "https://github.com/etemesi254/zune-image"
 [workspace.dependencies.uuid]
 version = "1.16.0"
 features = [ "v4", "js" ]
+
+[workspace.dependencies.rand]
+version = "0.9.1"
+
+# Needs flag: RUSTFLAGS='--cfg getrandom_backend="wasm_js"'
+[workspace.dependencies.getrandom]
+version = "0.3.3"
+
+[workspace.dependencies.rustc-hash]
+version = "2.1.1"
+
+[workspace.dependencies.pathfinding]
+version = "4.14.0"
