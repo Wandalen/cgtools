@@ -200,7 +200,17 @@ mod private
       );
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );
 
-    
+      self.copy_material.bind( gl );
+      gl.bind_texture( gl::TEXTURE_2D, self.horizontal_targets[ 0 ].as_ref() );
+      gl.framebuffer_texture_2d
+      ( 
+        gl::FRAMEBUFFER, 
+        gl::COLOR_ATTACHMENT0, 
+        gl::TEXTURE_2D, 
+        input_texture, 
+        0
+      );
+      gl.draw_arrays( gl::TRIANGLES, 0, 3 );
 
       Ok( None )
     }

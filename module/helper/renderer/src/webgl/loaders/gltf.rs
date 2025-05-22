@@ -24,12 +24,23 @@ mod private
   };
   use web_sys::wasm_bindgen::prelude::Closure;
 
+  pub struct GLTF
+  {
+    pub scenes : Vec< Rc< RefCell< Scene > > >,
+    pub nodes : Vec< Rc< RefCell< Node > > >,
+    pub gl_buffers : Vec< gl::WebGlBuffer >,
+    pub images : Rc< RefCell< Vec< gl::web_sys::WebGlTexture > > >,
+    pub textures : Vec< Rc< RefCell< Texture > > >,
+    pub materials : Vec< Rc< RefCell< Material > > >,
+    pub meshes : Vec< Rc< RefCell< Mesh > > >
+  }
+
   pub async fn load
   ( 
     document : &gl::web_sys::Document,
     gltf_path : &str, 
     gl : &gl::WebGl2RenderingContext 
-  ) -> Result< Vec< Scene >, gl::WebglError >
+  ) -> Result< GLTF, gl::WebglError >
   {
     let gltf_slice= gl::file::load( &format!( "{}/scene.gltf", gltf_path ) )
     .await.expect( "Failed to load gltf file" );
@@ -232,6 +243,7 @@ mod private
         }
       })
     };
+
     let mut materials = Vec::new();
     for gltf_m in gltf_file.materials()
     {
@@ -472,10 +484,22 @@ mod private
       {
         scene.add( nodes[ gltf_node.index() ].clone() );
       }
-      scenes.push( scene );
+      scenes.push(  Rc::new( RefCell::new( scene ) ) );
     }
 
-    Ok( scenes )
+    Ok
+    (
+      GLTF
+      {
+        scenes,
+        nodes,
+        gl_buffers,
+        images,
+        textures,
+        materials,
+        meshes
+      }
+    )
   }
 }
 

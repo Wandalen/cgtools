@@ -63,7 +63,12 @@ mod private
     ) -> Result< (), gl::WebglError >
     {
       //scene.update_world_matrix();
-      
+
+      gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA );
+      gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
+      gl.clear_depth( 1.0 );
+      gl.clear( gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT );
+
       // Clear the list of transparent nodes before each render.
       self.transparent_nodes.clear();
 
