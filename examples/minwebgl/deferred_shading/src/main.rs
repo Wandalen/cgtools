@@ -136,7 +136,7 @@ fn run() -> Result< (), gl::WebglError >
   .map( | _ | random_rgb_color() )
   .collect::< Vec< _ > >();
   let light_radiuses = ( 0..light_instances )
-  .map( | _ | light_radius + rand::random_range( -1.0..=1.0 ) )
+  .map( | _ | light_radius + rand::random_range( -1.0..=2.0 ) )
   .collect::< Vec< _ > >();
   // positions of lights sources for instanced rendering
   let mut light_positions = generate_light_positions( columns, rows, light_radius, z );
