@@ -27,11 +27,11 @@ void main()
   float linear_depth = - view.z;
 
   float pix[ 9 ];
-  for( int y=0; y<3; y ++ ) 
+  for( int y = 0; y < 3; y++ ) 
   {
-    for( int x=0; x<3; x ++ ) 
+    for( int x = 0; x < 3; x++ ) 
     {
-      pix[y*3+x] = texture(
+      pix[ y * 3 + x ] = texture(
         u_color_texture, 
         v_tex_coord + vec2( float( x - 1 ), float( y - 1 ) ) * u_outline_thickness / u_resolution
       ).r;
@@ -62,7 +62,7 @@ void main()
   
   outline = clamp( outline, 0.0, 1.0 );
   
-  if ( texture(u_color_texture, v_tex_coord).x > 0.1 )
+  if ( texture( u_color_texture, v_tex_coord ).x > 0.1 )
   {
     FragColor = u_object_color; 
   }
