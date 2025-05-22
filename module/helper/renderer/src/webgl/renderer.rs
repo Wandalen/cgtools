@@ -12,7 +12,8 @@ mod private
     ProgramInfo, 
     Scene,
     Primitive,
-    AlphaMode
+    AlphaMode,
+    program
   };
 
   /// The source code for the main vertex shader.
@@ -25,7 +26,7 @@ mod private
   pub struct Renderer
   {
     /// A map of compiled WebGL programs, keyed by a combination of the material ID and vertex shader defines.
-    programs : HashMap< String, ProgramInfo >,
+    programs : HashMap< String, ProgramInfo< program::PBRShader > >,
     /// Holds the precomputed textures used for Image-Based Lighting.
     ibl : Option< IBL >,
     /// A list of nodes with transparent primitives, sorted by distance to the camera for correct rendering order.
@@ -113,7 +114,7 @@ mod private
                   material.get_defines(),
                   MAIN_FRAGMENT_SHADER ) 
               ).compile_and_link( gl )?;
-              let program_info = ProgramInfo::new( gl , program );
+              let program_info = ProgramInfo::< program::PBRShader >::new( gl , program );
 
               // Configure and upload material properties and IBL textures for the new program.
               let locations = program_info.get_locations();
