@@ -135,8 +135,8 @@ fn run() -> Result< (), gl::WebglError >
   let light_colors = ( 0..light_instances )
   .map( | _ | random_rgb_color() )
   .collect::< Vec< _ > >();
-  let light_radiuses = ( 0..light_instances )
-  .map( | _ | light_radius + rand::random_range( -1.0..=2.0 ) )
+  let light_radii = ( 0..light_instances )
+  .map( | _ | light_radius + rand::random_range( -1.0..=3.0 ) )
   .collect::< Vec< _ > >();
   // positions of lights sources for instanced rendering
   let mut light_positions = generate_light_positions( columns, rows, light_radius, z );
@@ -152,7 +152,7 @@ fn run() -> Result< (), gl::WebglError >
   );
 
   let light_radius_buffer = gl::buffer::create( &gl )?;
-  gl::buffer::upload( &gl, &light_radius_buffer, light_radiuses.as_slice(), GL::STATIC_DRAW );
+  gl::buffer::upload( &gl, &light_radius_buffer, light_radii.as_slice(), GL::STATIC_DRAW );
   let radius_attribute = AttributePointer::new
   (
     &gl,
@@ -208,12 +208,10 @@ fn run() -> Result< (), gl::WebglError >
     light_shader.uniform_upload( "u_screen_size", [ width as f32, height as f32 ].as_slice() );
     light_shader.uniform_upload( "u_positions", &0 );
     light_shader.uniform_upload( "u_normals", &1 );
-    // gl.vertex_attrib1f( 2, light_radius );
     gl.draw_elements_instanced_with_i32( GL::TRIANGLES, cube.element_count, GL::UNSIGNED_INT, 0, light_instances );
 
     // show on screen
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );
-    gl.disable( gl::BLEND );
     gl.disable( GL::DEPTH_TEST );
     gl.cull_face( GL::BACK );
     gl.disable( gl::BLEND );
