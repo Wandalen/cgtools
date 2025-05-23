@@ -20,7 +20,7 @@ in vec3 vViewPos;
 in vec3 vNormal;
 
 layout( location = 0 ) out vec4 frag_color;
-//layout( location = 1 ) out vec4 emissive_color;
+layout( location = 1 ) out vec4 emissive_color;
 
 uniform vec3 cameraPosition;
 
@@ -147,6 +147,12 @@ vec3 LinearToSrgb( const in vec3 color )
   return mix( more, less, vec3( lessThanEqual( color, vec3( 0.0031308 ) ) ) );
 }
 
+float luminance( const in vec3 rgb ) 
+{
+  const vec3 weights = vec3( 0.2126, 0.7152, 0.0722 );
+  return dot( weights, rgb );
+}
+
 // Schilck's version of Fresnel equation, with Spherical Gaussian approximation for the power
 // https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
 vec3 F_Schlick( const in vec3 f0, const in vec3 f90, const in float dotVH ) 
@@ -241,27 +247,29 @@ vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
   }
 #endif
 
-vec3 aces_tone_map( vec3 hdr )
-{
-  mat3x3 m1 = mat3x3
-  (
-    0.59719, 0.07600, 0.02840,
-    0.35458, 0.90834, 0.13383,
-    0.04823, 0.01566, 0.83777
-  );
-  mat3x3 m2 = mat3x3
-  (
-    1.60475, -0.10208, -0.00327,
-    -0.53108,  1.10813, -0.07276,
-    -0.07367, -0.00605,  1.07602
-  );
+#ifdef RENDER_TO_SCREEN
+  vec3 aces_tone_map( vec3 hdr )
+  {
+    mat3x3 m1 = mat3x3
+    (
+      0.59719, 0.07600, 0.02840,
+      0.35458, 0.90834, 0.13383,
+      0.04823, 0.01566, 0.83777
+    );
+    mat3x3 m2 = mat3x3
+    (
+      1.60475, -0.10208, -0.00327,
+      -0.53108,  1.10813, -0.07276,
+      -0.07367, -0.00605,  1.07602
+    );
 
-  vec3 v = m1 * hdr;
-  vec3 a = v * ( v + 0.0245786 ) - 0.000090537;
-  vec3 b = v * ( 0.983729 * v + 0.4329510 ) + 0.238081;
+    vec3 v = m1 * hdr;
+    vec3 a = v * ( v + 0.0245786 ) - 0.000090537;
+    vec3 b = v * ( 0.983729 * v + 0.4329510 ) + 0.238081;
 
-  return clamp( m2 * ( a / b ), vec3( 0.0 ), vec3( 1.0 ) );
-}
+    return clamp( m2 * ( a / b ), vec3( 0.0 ), vec3( 1.0 ) );
+  }
+#endif
 
 void main()
 {
@@ -391,16 +399,23 @@ void main()
     color += 0.1 * material.diffuseColor * material.occlusionFactor;
   #endif
 
-  // #ifdef USE_EMISSION
-  //   emissive_color = vec4( 1.0 );
-  //   emissive_color.xyz *= emissiveFactor;
-  //   #ifdef USE_EMISSION_TEXTURE
-  //     emissive_color.xyz *= texture( emissiveTexture, {EMISSION_UV} )
-  //   #endif
-  // #endif
+  #if defined( USE_EMISSION ) && !defined( RENDER_TO_SCREEN )
+    {
+      float v = luminance( color );
+      float lum_alpha = smoothstep( 1.0, 1.5, v );
+      emissive_color = vec4( mix( vec3( 0.0 ), color, lum_alpha ), 1.0 );
+    }
+    // emissive_color = vec4( 1.0 );
+    // emissive_color.xyz *= emissiveFactor;
+    // #ifdef USE_EMISSION_TEXTURE
+    //   emissive_color.xyz *= texture( emissiveTexture, {EMISSION_UV} )
+    // #endif
+  #endif
 
-  color = aces_tone_map( color );
-  color = LinearToSrgb( color );
+  #ifdef RENDER_TO_SCREEN
+    color = aces_tone_map( color );
+    color = LinearToSrgb( color );
+  #endif
 
   frag_color = vec4( color * alpha, alpha );
 }
