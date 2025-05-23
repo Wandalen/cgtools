@@ -50,8 +50,8 @@ pub async fn load_to_mip_cube
   }
   gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 0 );
 
-  gl::texture::d2::wrap_clamp( gl );
-  gl::texture::d2::filter_linear( gl );
+  gl::texture::cube::wrap_clamp( gl );
+  gl::texture::cube::filter_linear( gl );
 
   gl.bind_texture( gl::TEXTURE_CUBE_MAP, None );
 }

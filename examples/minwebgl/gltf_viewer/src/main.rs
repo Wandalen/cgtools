@@ -41,7 +41,8 @@ async fn run() -> Result< (), gl::WebglError >
   camera_controls::setup_controls( &canvas, &camera.get_controls() );
 
   let gltf_path = "dodge-challenger/gltf";
-  let mut scenes = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
+  let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
+  let scenes = gltf.scenes;
 
   let mut renderer = Renderer::new();
   renderer.set_ibl( loaders::ibl::load( &gl, "envMap" ).await );
@@ -54,7 +55,7 @@ async fn run() -> Result< (), gl::WebglError >
   gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
   gl.clear_depth( 1.0 );
 
-  scenes[ 0 ].update_world_matrix();
+  scenes[ 0 ].borrow_mut().update_world_matrix();
   // Define the update and draw logic
   let update_and_draw =
   {
@@ -62,7 +63,7 @@ async fn run() -> Result< (), gl::WebglError >
     {
       let _time = t as f32 / 1000.0;
 
-      renderer.render( &gl, &mut scenes[ 0 ], &camera )
+      renderer.render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
       .expect( "Failed to render" );
 
       true

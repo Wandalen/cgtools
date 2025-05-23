@@ -61,6 +61,8 @@ This could be due to webgl's limitations and how it handles such division. The d
 - [Sampling Microfacet BRDF]
 - [Notes on importance sampling]
 - [Article - Physically Based Rendering - Cook–Torrance]
+- [Vulkan-glTF-PBR]
+- 
 
 #### Normal mapping
 - [Normals and the Inverse Transpose, Part 1: Grassmann Algebra]
@@ -88,3 +90,5 @@ This could be due to webgl's limitations and how it handles such division. The d
 [Normal Mapping Without Precomputed Tangents]: http://www.thetenthplanet.de/archives/1180
 
 [KHR_materials_specular]:  https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_specular/README.md
+[Vulkan-glTF-PBR]: https://github.com/SaschaWillems/Vulkan-glTF-PBR/blob/master/data/shaders/genbrdflut.frag
+[Image Based Lighting with Multiple Scattering]: https://bruop.github.io/ibl/

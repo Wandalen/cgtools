@@ -20,7 +20,7 @@ in vec3 vViewPos;
 in vec3 vNormal;
 
 layout( location = 0 ) out vec4 frag_color;
-//layout( location = 1 ) out vec4 emissive_color;
+layout( location = 1 ) out vec4 emissive_color;
 
 uniform vec3 cameraPosition;
 
@@ -29,7 +29,8 @@ struct PhysicalMaterial
   vec3 diffuseColor;
   float metallness;
   float roughness;
-  vec3 specularColor;
+  vec3 f0;
+  vec3 f90;
   float occlusionFactor;
   float specularFactor;
 };
@@ -38,9 +39,11 @@ struct PhysicalMaterial
   uniform float metallicFactor; // Default: 1
   uniform float roughnessFactor; // Default: 1
   uniform vec4 baseColorFactor; // Default: [1, 1, 1, 1]
-  uniform samplerCube irradianceTexture;
-  uniform samplerCube prefilterEnvMap;
-  uniform sampler2D integrateBRDF;
+  #ifdef USE_IBL
+    uniform samplerCube irradianceTexture;
+    uniform samplerCube prefilterEnvMap;
+    uniform sampler2D integrateBRDF;
+  #endif
   #ifdef USE_KHR_materials_specular
     uniform float specularFactor;
     uniform vec3 specularColorFactor;
@@ -144,12 +147,18 @@ vec3 LinearToSrgb( const in vec3 color )
   return mix( more, less, vec3( lessThanEqual( color, vec3( 0.0031308 ) ) ) );
 }
 
+float luminance( const in vec3 rgb ) 
+{
+  const vec3 weights = vec3( 0.2126, 0.7152, 0.0722 );
+  return dot( weights, rgb );
+}
+
 // Schilck's version of Fresnel equation, with Spherical Gaussian approximation for the power
 // https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
-vec3 F_Schlick( const in vec3 f0, const in float dotVH ) 
+vec3 F_Schlick( const in vec3 f0, const in vec3 f90, const in float dotVH ) 
 {
   float fresnel = exp2( ( - 5.55473 * dotVH - 6.98316 ) * dotVH );
-  return f0 + ( vec3( 1.0 ) - f0 ) * fresnel;
+  return f0 + ( f90 - f0 ) * fresnel;
 }
 
 // https://web.archive.org/web/20160702002225/http://www.frostbite.com/wp-content/uploads/2014/11/course_notes_moving_frostbite_to_pbr_v2.pdf
@@ -169,9 +178,8 @@ float D_GGX( const in float alpha, const in float dotNH )
   return 0.3183098861837907 * a2 / pow2( denom );
 }
 
-vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 normal, const in PhysicalMaterial material ) {
-  vec3 f0 = material.specularColor;
-
+vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 normal, const in PhysicalMaterial material ) 
+{
   float alpha = pow2( material.roughness );
   vec3 halfDir = normalize( lightDir + viewDir );
 
@@ -181,7 +189,7 @@ vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
   float dotVH = clamp( dot( viewDir, halfDir ), 0.0, 1.0 );
 
   // Fresnel
-  vec3 F = F_Schlick( f0, dotVH );
+  vec3 F = F_Schlick( material.f0, material.f90, dotVH );
   // Geometry function
   float G = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
   // Normal distribution function
@@ -191,7 +199,7 @@ vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
 
 #define EXPOSURE 1.0
 
-#ifdef USE_PBR
+#ifdef USE_IBL
   vec3 sampleEnvIrradiance( const in vec3 N, const in vec3 V, const in PhysicalMaterial material )
   {
     vec3 color = vec3( 0.0 );
@@ -199,8 +207,9 @@ vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
 
     const float MAX_LOD = 9.0;
     {
-      vec3 Fs = material.specularFactor * F_Schlick( material.specularColor, dotNV );
+      vec3 Fs = F_Schlick( material.f0, material.f90, dotNV );
       float Fd = 1.0 - max_value( Fs );
+      Fd *= 1.0 - material.metallness;
       vec3 R = reflect( -V, N );
 
       vec3 diffuse = texture( irradianceTexture, N ).xyz * pow( 2.0, EXPOSURE );
@@ -208,7 +217,7 @@ vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
       vec2 envBrdf = texture( integrateBRDF, vec2( dotNV, material.roughness ) ).xy;
 
       vec3 diffuseBRDF = diffuse * material.diffuseColor;
-      vec3 specularBRDF = prefilter * ( material.specularColor * envBrdf.x + envBrdf.y );
+      vec3 specularBRDF = prefilter * ( material.f0 * envBrdf.x + envBrdf.y );
       color = Fd * diffuseBRDF + specularBRDF;
     }
 
@@ -216,7 +225,7 @@ vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
   }
 #endif
 
-#ifdef USE_NORMAL_TEXTURE
+#ifndef USE_TANGENTS
   // http://www.thetenthplanet.de/archives/1180
   mat3 getTBN( vec3 surf_normal, vec3 pos, vec2 uv )
   {
@@ -238,27 +247,29 @@ vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
   }
 #endif
 
-vec3 aces_tone_map( vec3 hdr )
-{
-  mat3x3 m1 = mat3x3
-  (
-    0.59719, 0.07600, 0.02840,
-    0.35458, 0.90834, 0.13383,
-    0.04823, 0.01566, 0.83777
-  );
-  mat3x3 m2 = mat3x3
-  (
-    1.60475, -0.10208, -0.00327,
-    -0.53108,  1.10813, -0.07276,
-    -0.07367, -0.00605,  1.07602
-  );
+#ifdef RENDER_TO_SCREEN
+  vec3 aces_tone_map( vec3 hdr )
+  {
+    mat3x3 m1 = mat3x3
+    (
+      0.59719, 0.07600, 0.02840,
+      0.35458, 0.90834, 0.13383,
+      0.04823, 0.01566, 0.83777
+    );
+    mat3x3 m2 = mat3x3
+    (
+      1.60475, -0.10208, -0.00327,
+      -0.53108,  1.10813, -0.07276,
+      -0.07367, -0.00605,  1.07602
+    );
 
-  vec3 v = m1 * hdr;
-  vec3 a = v * ( v + 0.0245786 ) - 0.000090537;
-  vec3 b = v * ( 0.983729 * v + 0.4329510 ) + 0.238081;
+    vec3 v = m1 * hdr;
+    vec3 a = v * ( v + 0.0245786 ) - 0.000090537;
+    vec3 b = v * ( 0.983729 * v + 0.4329510 ) + 0.238081;
 
-  return clamp( m2 * ( a / b ), vec3( 0.0 ), vec3( 1.0 ) );
-}
+    return clamp( m2 * ( a / b ), vec3( 0.0 ), vec3( 1.0 ) );
+  }
+#endif
 
 void main()
 {
@@ -280,7 +291,6 @@ void main()
       vec4 mr_sample = texture( metallicRoughnessTexture, vMRUv );
       material.metallness *= mr_sample.b;
       material.roughness *= mr_sample.g;
-    #else
     #endif
   #else
     material.metallness = 0.0;
@@ -290,21 +300,21 @@ void main()
   //Specular part
   // https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_specular/README.md
   // 0.04 - reflectance of the Glass
-  material.specularColor = vec3( 0.04 );
+  material.f0 = vec3( 0.04 );
+  material.f90 = vec3( 1.0 );
+  material.specularFactor = 1.0;
   #ifdef USE_KHR_materials_specular
-    material.specularColor *= specularColorFactor;
     material.specularFactor *= specularFactor;
+    material.f0 *= specularColorFactor;
     #ifdef USE_SPECULAR_COLOR_TEXTURE
-      material.specularColor *= SrgbToLinear( texture( specularColorTexture, vSpecularColorUv ).rgb );
+      material.f0 *= SrgbToLinear( texture( specularColorTexture, vSpecularColorUv ).rgb );
     #endif
     #ifdef USE_SPECULAR_TEXTURE
       material.specularFactor *= texture( specularTexture, vSpecularUv ).a;
     #endif
-    material.specularColor = min( material.specularColor, vec3( 1.0 ) );
-  #else
-    material.specularFactor = 1.0;
+    material.f0 = min( material.f0 * material.specularFactor, vec3( 1.0 ) );
   #endif
-  material.specularColor = mix( material.specularColor, material.diffuseColor, material.metallness );
+  material.f0 = mix( material.f0, material.diffuseColor, material.metallness );
  
   vec3 normal = normalize( vNormal );
   #ifdef USE_NORMAL_TEXTURE
@@ -344,7 +354,7 @@ void main()
   //   vec3( 0.0, 0.0, -1.0 )
   // );
 
-   vec3 lightDirs[] = vec3[]
+  vec3 lightDirs[] = vec3[]
   (
     vec3( 1.0, 1.0, 1.0 ),
     vec3( -1.0, 1.0, 1.0 ),
@@ -356,46 +366,56 @@ void main()
     vec3( -1.0, -1.0, -1.0 )
   );
 
+  const float lightIntensity = 3.0;
   const vec3 lightColor = vec3( 1.0 );
   float dotVN = clamp( dot( viewDir, normal ), 0.0, 1.0 );
-  for( int i = 0; i < 0; i++ )
-  {
-    vec3 lightDir = normalize( lightDirs[ i ] );
-    float dotNL = clamp( dot( normal, lightDir ), 0.0, 1.0 );
 
-    if( dotNL > 0.0 )
+  #if defined( USE_PBR ) && !defined( USE_IBL )
+    for( int i = 0; i < 8; i++ )
     {
-      vec4 brdf = BRDF_GGX( lightDir, viewDir, normal, material );
-      vec3 Fs = material.specularFactor * brdf.xyz;
-      float Fd = 1.0 - max_value( Fs );
-      float DG = brdf.w;
+      vec3 lightDir = normalize( lightDirs[ i ] );
+      float dotNL = clamp( dot( normal, lightDir ), 0.0, 1.0 );
 
-      vec3 light_diffuse = Fd * material.diffuseColor * RECIPROCAL_PI;
-      vec3 light_specular = Fs * DG;// / max( 4.0 * dotVN * dotNL, 0.0001 );
+      if( dotNL > 0.0 )
+      {
+        vec4 brdf = BRDF_GGX( lightDir, viewDir, normal, material );
+        vec3 Fs = brdf.xyz;
+        float Fd = 1.0 - max_value( Fs );
+        Fd *= 1.0 - material.metallness;
+        float DG = brdf.w;
 
-      color += ( light_diffuse + light_specular ) * lightColor * dotNL;
+        vec3 light_diffuse = Fd * material.diffuseColor * RECIPROCAL_PI;
+        vec3 light_specular = Fs * DG;// / max( 4.0 * dotVN * dotNL, 0.0001 );
+
+        color += ( light_diffuse + light_specular ) * lightColor * lightIntensity * dotNL;
+      }
     }
-  }
+  #endif
 
   // Ambient color
-  #ifdef USE_PBR
+  #if defined( USE_PBR ) && defined( USE_IBL )
     color += sampleEnvIrradiance( normal, viewDir, material ) * material.occlusionFactor;
-  #else
+  #elif defined( USE_PBR )
     color += 0.1 * material.diffuseColor * material.occlusionFactor;
   #endif
 
-  // #ifdef USE_EMISSION
-  //   emissive_color = vec4( 1.0 );
-  //   emissive_color.xyz *= emissiveFactor;
-  //   #ifdef USE_EMISSION_TEXTURE
-  //     emissive_color.xyz *= texture( emissiveTexture, {EMISSION_UV} )
-  //   #endif
-  // #endif
+  #if defined( USE_EMISSION ) && !defined( RENDER_TO_SCREEN )
+    {
+      float v = luminance( color );
+      float lum_alpha = smoothstep( 1.0, 1.5, v );
+      emissive_color = vec4( mix( vec3( 0.0 ), color, lum_alpha ), 1.0 );
+    }
+    // emissive_color = vec4( 1.0 );
+    // emissive_color.xyz *= emissiveFactor;
+    // #ifdef USE_EMISSION_TEXTURE
+    //   emissive_color.xyz *= texture( emissiveTexture, {EMISSION_UV} )
+    // #endif
+  #endif
 
-  color = aces_tone_map( color );
-  color = LinearToSrgb( color );
+  #ifdef RENDER_TO_SCREEN
+    color = aces_tone_map( color );
+    color = LinearToSrgb( color );
+  #endif
 
   frag_color = vec4( color * alpha, alpha );
-  //frag_color = vec4( normal, alpha );
-  //frag_color = vec4( 1.0 );
 }
