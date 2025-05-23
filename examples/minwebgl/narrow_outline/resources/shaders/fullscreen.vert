@@ -1,7 +1,5 @@
 #version 300 es
 
-precision highp float;
-
 out vec2 v_tex_coord;
 
 void main()
