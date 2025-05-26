@@ -7,6 +7,9 @@ authors = [
     "Bilan Vadym <vadym.b@obox.systems>"
 ]
 
+[lints]
+workspace = true
+
 [dependencies]
 minwebgl = { workspace = true, features = [ "future" ] }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ] }

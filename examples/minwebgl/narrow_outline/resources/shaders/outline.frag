@@ -9,8 +9,9 @@ out vec4 FragColor;
 const float DETAILS = 256.0;
 
 // G-Buffer textures
-uniform sampler2D u_depth_texture;
 uniform sampler2D u_color_texture;
+uniform sampler2D u_depth_texture;
+uniform sampler2D u_norm_texture;
 
 // Projection matrix for converting view-space coordinates to clip-space.
 uniform mat4 u_projection;
@@ -75,10 +76,13 @@ void main()
   if ( texture( u_color_texture, v_tex_coord ).x > 0.1 )
   {
     FragColor = u_object_color;
+    float l = length( texture( u_norm_texture, v_tex_coord ).xyz );
+    FragColor = vec4( vec3( l ), 1.0 );
   }
   else if ( outline < 0.5 )
   {
     FragColor = u_outline_color;
+    //FragColor = texture( u_norm_texture, v_tex_coord - vec2( 1, 1 ) );
   }
   else
   {
