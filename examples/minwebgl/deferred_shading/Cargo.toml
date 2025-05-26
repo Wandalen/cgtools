@@ -7,6 +7,9 @@ authors = [
   "Oleksandr Zaharevskyi <oleksandr.z@obox.systems>",
 ]
 
+[lints]
+workspace = true
+
 [dependencies]
 rand = { workspace = true }
 getrandom = { workspace = true, features = ["wasm_js"] }
