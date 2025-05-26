@@ -144,7 +144,7 @@ version = "~2.9.0"
 version = "0.17.0"
 
 [workspace.dependencies.test_tools]
-version = "~0.10.0"
+version = "~0.14.0"
 
 [workspace.dependencies.clone_dyn_types]
 version = "~0.23.0"
@@ -231,11 +231,16 @@ version = "0.25.5"
 [workspace.dependencies.tokio]
 version = "1.41.0"
 
-[workspace.dependencies.rand]
-version = "0.8.5"
-
 [workspace.dependencies.gltf]
 version = "1.4.1"
+
+[workspace.dependencies.csgrs]
+version = "0.17.4"
+default-features = false
+features = [ "f64", "delaunay" ]
+
+[workspace.dependencies.parry3d]
+version = "0.21.0"
 
 [workspace.dependencies.zune-hdr]
 git = "https://github.com/etemesi254/zune-image"
@@ -243,3 +248,17 @@ git = "https://github.com/etemesi254/zune-image"
 [workspace.dependencies.uuid]
 version = "1.16.0"
 features = [ "v4", "js" ]
+
+[workspace.dependencies.rand]
+version = "0.9.1"
+
+# Needs flag: RUSTFLAGS='--cfg getrandom_backend="wasm_js"'
+[workspace.dependencies.getrandom]
+version = "0.3.3"
+features = [ "js" ]
+
+[workspace.dependencies.rustc-hash]
+version = "2.1.1"
+
+[workspace.dependencies.pathfinding]
+version = "4.14.0"
