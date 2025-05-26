@@ -13,8 +13,11 @@ mod loaders;
 async fn run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
+  let options = gl::context::ContexOptions::default().antialias( false );
+
   let canvas = gl::canvas::make()?;
-  let gl = gl::context::from_canvas( &canvas )?;
+  //let gl = gl::context::from_canvas( &canvas )?;
+  let gl = gl::context::from_canvas_with( &canvas, options )?;
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();
 
@@ -44,7 +47,7 @@ async fn run() -> Result< (), gl::WebglError >
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
   let scenes = gltf.scenes;
 
-  let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height() );
+  let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 );
   renderer.set_use_emission( true );
   renderer.set_ibl( loaders::ibl::load( &gl, "envMap" ).await );
 

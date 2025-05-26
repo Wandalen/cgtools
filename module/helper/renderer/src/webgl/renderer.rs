@@ -18,23 +18,60 @@ mod private
 
   pub struct FramebufferContext
   {
-    pub framebuffer : Option< gl::web_sys::WebGlFramebuffer >,
-    pub renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
+    pub texture_width : u32,
+    pub texture_height : u32,
+    pub multisample_framebuffer : Option< gl::web_sys::WebGlFramebuffer >,
+    pub resolved_framebuffer : Option< gl::web_sys::WebGlFramebuffer >,
+    pub depth_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
+    pub multisample_main_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
+    pub multisample_emission_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
     pub main_texture : Option< gl::web_sys::WebGlTexture >,
     pub emission_texture : Option< gl::web_sys::WebGlTexture >
   }
 
   impl FramebufferContext 
   {
-    pub fn new( gl : &gl::WebGl2RenderingContext, width : u32, height : u32 ) -> Self
+    pub fn new( gl : &gl::WebGl2RenderingContext, width : u32, height : u32, samples : i32 ) -> Self
     {
-      let framebuffer = gl.create_framebuffer();
-      gl.bind_framebuffer( gl::FRAMEBUFFER, framebuffer.as_ref() );
+      // Stores multisampled texture
+      let multisample_framebuffer = gl.create_framebuffer();
+      // Stores resolved texture from multisampled one
+      let resolved_framebuffer = gl.create_framebuffer();
 
-      let renderbuffer = gl.create_renderbuffer();
-      gl.bind_renderbuffer( gl::RENDERBUFFER, renderbuffer.as_ref() );
-      gl.renderbuffer_storage( gl::RENDERBUFFER, gl::DEPTH24_STENCIL8, width as i32, height as i32 );
-      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::DEPTH_STENCIL_ATTACHMENT, gl::RENDERBUFFER, renderbuffer.as_ref() );
+      let depth_renderbuffer = gl.create_renderbuffer();
+      gl.bind_renderbuffer( gl::RENDERBUFFER, depth_renderbuffer.as_ref() );
+      //gl.renderbuffer_storage( gl::RENDERBUFFER, gl::DEPTH24_STENCIL8, width as i32, height as i32 );
+      gl.renderbuffer_storage_multisample
+      (
+        gl::RENDERBUFFER, 
+        samples, 
+        gl::DEPTH24_STENCIL8, 
+        width as i32, 
+        height as i32
+      );
+
+      let multisample_main_renderbuffer = gl.create_renderbuffer();
+      gl.bind_renderbuffer( gl::RENDERBUFFER, multisample_main_renderbuffer.as_ref() );
+      gl.renderbuffer_storage_multisample
+      (
+        gl::RENDERBUFFER, 
+        samples, 
+        gl::RGBA16F, 
+        width as i32, 
+        height as i32
+      );
+
+      let multisample_emission_renderbuffer = gl.create_renderbuffer();
+      gl.bind_renderbuffer( gl::RENDERBUFFER, multisample_emission_renderbuffer.as_ref() );
+      gl.renderbuffer_storage_multisample
+      (
+        gl::RENDERBUFFER, 
+        samples, 
+        gl::RGBA16F, 
+        width as i32, 
+        height as i32
+      );
+      
 
       // Create textures
       let main_texture = gl.create_texture();
@@ -48,17 +85,33 @@ mod private
       gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width  as i32, height  as i32 );
       gl::texture::d2::filter_linear( &gl );
 
+      gl.bind_framebuffer( gl::FRAMEBUFFER, multisample_framebuffer.as_ref() );
+      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::DEPTH_STENCIL_ATTACHMENT, gl::RENDERBUFFER, depth_renderbuffer.as_ref() );
+      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, multisample_main_renderbuffer.as_ref() );
+      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::RENDERBUFFER, multisample_emission_renderbuffer.as_ref() );
+      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1 ] );
+
+      gl.bind_framebuffer( gl::FRAMEBUFFER, resolved_framebuffer.as_ref() );
       gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, main_texture.as_ref(), 0 );
       gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, emission_texture.as_ref(), 0 );
+      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1 ] );
 
       gl.bind_texture( gl::TEXTURE_2D, None );
       gl.bind_renderbuffer( gl::RENDERBUFFER, None );
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
 
+      let texture_width = width;
+      let texture_height = height;
+
       Self
       {
-        framebuffer,
-        renderbuffer,
+        texture_height,
+        texture_width,
+        resolved_framebuffer,
+        multisample_framebuffer,
+        depth_renderbuffer,
+        multisample_emission_renderbuffer,
+        multisample_main_renderbuffer,
         main_texture,
         emission_texture
       }
@@ -66,27 +119,70 @@ mod private
 
     pub fn enable_emission_texture( &self, gl : &gl::WebGl2RenderingContext )
     {
-      gl.bind_framebuffer( gl::FRAMEBUFFER, self.framebuffer.as_ref() );
+      gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
       gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1 ] );
+
+      gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
+      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1 ] );
+
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
     }
 
     pub fn disable_emission_texture( &self, gl : &gl::WebGl2RenderingContext )
     {
-      gl.bind_framebuffer( gl::FRAMEBUFFER, self.framebuffer.as_ref() );
+      gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
       gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0 ] );
+
+      gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
+      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0 ] );
+
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
     }
 
-    pub fn bind( &self, gl : &gl::WebGl2RenderingContext )
+    pub fn resolve( &self, gl : &gl::WebGl2RenderingContext )
     {
-      gl.bind_framebuffer( gl::FRAMEBUFFER, self.framebuffer.as_ref() );
+      self.bind_multisample( gl );
+      self.bind_resolved( gl );
+      gl.bind_framebuffer( gl::READ_FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
+      gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
+      gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ 0.0, 0.0, 0.0, 1.0 ] );
+      gl.blit_framebuffer
+      (
+        0, 0, self.texture_width as i32, self.texture_height as i32, 
+        0, 0, self.texture_width as i32, self.texture_height as i32, 
+        gl::COLOR_BUFFER_BIT, gl::LINEAR
+      );
+      gl.bind_framebuffer( gl::READ_FRAMEBUFFER, None );
+      gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, None );
+      self.unbind_multisample( gl );
+      self.unbind_resolved( gl );
+    }
+
+    pub fn bind_multisample( &self, gl : &gl::WebGl2RenderingContext )
+    {
+      gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
+      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, self.multisample_main_renderbuffer.as_ref() );
+      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::RENDERBUFFER, self.multisample_emission_renderbuffer.as_ref() );
+    }
+
+    pub fn bind_resolved( &self, gl : &gl::WebGl2RenderingContext )
+    {
+      gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
       gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, self.main_texture.as_ref(), 0 );
       gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, self.emission_texture.as_ref(), 0 );
     }
 
-    pub fn unbind( &self, gl : &gl::WebGl2RenderingContext )
+    pub fn unbind_multisample( &self, gl : &gl::WebGl2RenderingContext )
     {
+      gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
+      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, None );
+      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::RENDERBUFFER, None );
+      gl.bind_framebuffer( gl::FRAMEBUFFER, None );
+    }
+
+    pub fn unbind_resolved( &self, gl : &gl::WebGl2RenderingContext )
+    {
+       gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
       gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, None, 0 );
       gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, None, 0 );
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
@@ -115,9 +211,9 @@ mod private
   impl Renderer 
   {
     /// Creates a new `Renderer` instance with default settings.
-    pub fn new( gl : &gl::WebGl2RenderingContext, width : u32, height : u32 ) -> Self
+    pub fn new( gl : &gl::WebGl2RenderingContext, width : u32, height : u32, samples : i32 ) -> Self
     {
-      let framebuffer_ctx = FramebufferContext::new( gl, width, height );
+      let framebuffer_ctx = FramebufferContext::new( gl, width, height, samples );
       let use_emission = false;
       let programs = HashMap::new();
       let ibl = None;
@@ -180,7 +276,7 @@ mod private
         self.framebuffer_ctx.disable_emission_texture( gl );    
       }
 
-      self.framebuffer_ctx.bind( gl );
+      self.framebuffer_ctx.bind_multisample( gl );
       gl.clear( gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT );
 
       // Clear the list of transparent nodes before each render.
@@ -322,7 +418,8 @@ mod private
       }
 
       //gl.bind_framebuffer( gl::FRAMEBUFFER, None );
-      self.framebuffer_ctx.unbind( gl );
+      self.framebuffer_ctx.unbind_multisample( gl );
+      self.framebuffer_ctx.resolve( gl );
 
       Ok( () )
     }
