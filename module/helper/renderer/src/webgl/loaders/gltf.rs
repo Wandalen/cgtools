@@ -5,21 +5,21 @@ mod private
   use crate::webgl::
   {
     ToFromGlEnum,
-    AlphaMode, 
-    AttributeInfo, 
-    Geometry, 
+    AlphaMode,
+    AttributeInfo,
+    Geometry,
     IndexInfo,
-    MagFilterMode, 
-    Material, 
-    Mesh, 
-    MinFilterMode, 
-    Node, 
-    Object3D, 
-    Primitive, 
-    Sampler, 
-    Scene, 
-    Texture, 
-    TextureInfo, 
+    MagFilterMode,
+    Material,
+    Mesh,
+    MinFilterMode,
+    Node,
+    Object3D,
+    Primitive,
+    Sampler,
+    Scene,
+    Texture,
+    TextureInfo,
     WrappingMode
   };
   use web_sys::wasm_bindgen::prelude::Closure;
@@ -36,10 +36,10 @@ mod private
   }
 
   pub async fn load
-  ( 
+  (
     document : &gl::web_sys::Document,
-    gltf_path : &str, 
-    gl : &gl::WebGl2RenderingContext 
+    gltf_path : &str,
+    gl : &gl::WebGl2RenderingContext
   ) -> Result< GLTF, gl::WebglError >
   {
     let gltf_slice= gl::file::load( &format!( "{}/scene.gltf", gltf_path ) )
@@ -179,7 +179,7 @@ mod private
         match target
         {
           gltf::buffer::Target::ArrayBuffer => gl::ARRAY_BUFFER ,
-          gltf::buffer::Target::ElementArrayBuffer => gl::ELEMENT_ARRAY_BUFFER    
+          gltf::buffer::Target::ElementArrayBuffer => gl::ELEMENT_ARRAY_BUFFER
         }
       }
       else
@@ -189,9 +189,9 @@ mod private
 
       gl.bind_buffer( target, Some( &buffer ) );
       gl.buffer_data_with_js_u8_array_and_src_offset_and_length
-      ( 
-        target, 
-        &buffers[ view.buffer().index() ], 
+      (
+        target,
+        &buffers[ view.buffer().index() ],
         gl::STATIC_DRAW,
         view.offset() as u32,
         view.length() as u32
@@ -293,7 +293,7 @@ mod private
           texture : textures[ o.texture().index() ].clone()
         });
       }
-      
+
       materials.push( Rc::new( RefCell::new( material ) ) );
     }
 
@@ -357,10 +357,10 @@ mod private
           gl::log::info!( "Sparce accessors are not supported yet" );
           continue;
         }
-        
+
         match sem
         {
-          gltf::Semantic::Positions => 
+          gltf::Semantic::Positions =>
           {
             geometry.vertex_count = acc.count() as u32;
             let gltf_box = gltf_primitive.bounding_box();
@@ -369,40 +369,40 @@ mod private
             attr_info.bounding_box = BoundingBox::new( gltf_box.min, gltf_box.max );
             geometry.add_attribute( gl, "positions", attr_info, false )?;
           },
-          gltf::Semantic::Normals => 
-          { 
+          gltf::Semantic::Normals =>
+          {
             geometry.add_attribute( gl, "normals", make_attibute_info( &acc, 1 ), false )?;
           },
           gltf::Semantic::TexCoords( i ) =>
           {
             assert!( i < 5, "Only 5 types of texture coordinates are supported" );
             geometry.add_attribute
-            ( 
+            (
               gl,
-              format!( "texture_coordinates_{}", 2 + i ), 
-              make_attibute_info( &acc, 2 + i ), 
-              false 
+              format!( "texture_coordinates_{}", 2 + i ),
+              make_attibute_info( &acc, 2 + i ),
+              false
             )?;
           },
           gltf::Semantic::Colors( i ) =>
           {
             assert!( i < 2, "Only 2 types of color coordinates are supported" );
             geometry.add_attribute
-            ( 
+            (
               gl,
-              format!( "colors_{}", 7 + i ), 
-              make_attibute_info( &acc, 7 + i ), 
-              false 
+              format!( "colors_{}", 7 + i ),
+              make_attibute_info( &acc, 7 + i ),
+              false
             )?;
           },
           gltf::Semantic::Tangents =>
           {
             geometry.add_attribute
-            ( 
+            (
               gl,
-              "tangents", 
-              make_attibute_info( &acc, 9 ), 
-              true 
+              "tangents",
+              make_attibute_info( &acc, 9 ),
+              true
             )?;
           },
           a => { gl::warn!( "Unsupported attribute: {:?}", a ); continue; }
@@ -433,9 +433,9 @@ mod private
       {
         Object3D::Mesh( meshes[ mesh.index() ].clone() )
       }
-      else 
+      else
       {
-        Object3D::Other    
+        Object3D::Other
       };
 
       match gltf_node.transform()
@@ -460,7 +460,7 @@ mod private
           node.matrix = gl::F32x4x4::from_column_major( mat.to_cols_array() );
         }
       }
-      
+
       nodes.push( Rc::new( RefCell::new( node ) ) );
     }
 

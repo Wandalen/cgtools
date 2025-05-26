@@ -18,7 +18,6 @@ fn main()
 {
   gl::browser::setup( Default::default() );
   gl::spawn_local( async move { gl::info!( "{:?}", run().await ) } );
-  // gl::info!( "{:?}", run() );
 }
 
 // cube geometry
@@ -58,6 +57,9 @@ async fn run() -> Result< (), gl::WebglError >
   let res = gl.get_extension( "EXT_color_buffer_float" ).unwrap().unwrap();
   gl::info!( "{}", res.to_string() );
 
+  let meshes = load_glb( &gl ).await.unwrap();
+  gl::info!( "{}", meshes.len() );
+
   let width = 1280;
   let height = 720;
   let canvas = gl.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
@@ -89,10 +91,11 @@ async fn run() -> Result< (), gl::WebglError >
   gl::index::upload( &gl, &index_buffer, CUBE_INDICES, GL::STATIC_DRAW );
   let position_attribute = AttributePointer::new( &gl, BufferDescriptor::new::< [ f32; 3 ] >(), position_buffer, 0 );
   let cube = Geometry::with_elements( &gl, position_attribute, index_buffer, CUBE_INDICES.len() as i32 )?;
-  cube.activate();
+  // cube.activate();
 
   let projection = mat3x3h::perspective_rh_gl( 45.0f32.to_radians(), width as f32 / height as f32, 0.1, 500.0 );
-  let wall_transform = mat3x3h::translation( [ 0.0f32, 0.0, -120.0 ] ) * mat3x3h::scale( [ 100.0, 100.0, 1.0 ] );
+  // let wall_transform = mat3x3h::translation( [ 0.0f32, 0.0, -120.0 ] ) * mat3x3h::scale( [ 100.0, 100.0, 1.0 ] );
+  let wall_transform = mat3x3h::translation( [ 0.0f32, 0.0, -220.0 ] ) * mat3x3h::scale( [ 1.0, 1.0, 1.0 ] );
 
   // gbuffer
   let gbuffer = gl.create_framebuffer();
@@ -111,8 +114,12 @@ async fn run() -> Result< (), gl::WebglError >
   object_shader.activate();
   object_shader.uniform_matrix_upload( "u_model", wall_transform.raw_slice(), true );
   object_shader.uniform_matrix_upload( "u_mvp", ( projection * wall_transform ).raw_slice(), true );
-  gl.vertex_attrib3f( 1, 0.0, 0.0, 1.0 );
-  gl.draw_elements_with_i32( GL::TRIANGLES, cube.element_count, GL::UNSIGNED_INT, 0 );
+  for mesh in meshes
+  {
+    mesh.0.activate();
+    gl.draw_elements_with_i32( GL::TRIANGLES, mesh.0.element_count, GL::UNSIGNED_INT, 0 );
+  }
+  // gl.vertex_attrib3f( 1, 0.0, 0.0, 1.0 );
 
   // use same framebuffer object for offscreen rendering
   let offscreen_buffer = gbuffer;
@@ -122,12 +129,12 @@ async fn run() -> Result< (), gl::WebglError >
   // remove normal buffer from framebuffer
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, None, 0 );
 
-  let light_radius = 3.0;
+  let light_radius = 20.0;
   // grid of light sources
-  let rows = 16;
-  let columns = 28;
+  let rows = 1;
+  let columns = 1;
   // lights z position
-  let z = -116.5;
+  let z = 0.0;
   let light_instances = rows * columns;
   // random z offset for each light source
   let offsets = ( 0..light_instances )
@@ -226,6 +233,80 @@ async fn run() -> Result< (), gl::WebglError >
   gl::exec_loop::run( update );
 
   Ok( () )
+}
+
+async fn load_glb( gl : &GL ) -> Result< Vec< ( Geometry, Option< WebGlTexture > ) >, gl::WebglError >
+{
+  let glb = gl::file::load( "sponza.glb" ).await.unwrap();
+  let ( document, buffers, images ) = gltf::import_slice( &glb ).unwrap();
+  let mut primitives = vec![];
+
+  for mesh in document.meshes()
+  {
+    for primitive in mesh.primitives()
+    {
+      let reader = primitive.reader( | buffer | Some( &buffers[ buffer.index() ] ) );
+
+      let Some( positions ) = reader.read_positions() else { continue; };
+      let Some( normals ) = reader.read_normals() else { continue; };
+      let Some( tex_coords ) = reader.read_tex_coords( 0 ) else { continue; };
+      let Some( indices ) = reader.read_indices() else { continue; };
+      let Some( material ) = primitive.material().pbr_metallic_roughness().base_color_texture()
+      else { continue; };
+
+      let positions : Vec< [ f32; 3 ] > = positions.collect();
+      let position_buffer = gl::buffer::create( gl )?;
+      gl::buffer::upload( gl, &position_buffer, &positions, GL::STATIC_DRAW );
+      let position_attribute = AttributePointer::new( &gl, BufferDescriptor::new::< [ f32; 3 ] >(), position_buffer, 0 );
+
+      let normals : Vec< [ f32; 3 ] > = normals.collect();
+      let normal_buffer = gl::buffer::create( gl )?;
+      gl::buffer::upload( gl, &normal_buffer, &normals, GL::STATIC_DRAW );
+      let normal_attribute = AttributePointer::new( &gl, BufferDescriptor::new::< [ f32; 3 ] >(), normal_buffer, 1 );
+
+      let tex_coords : Vec< [ f32; 2 ] > = tex_coords.into_f32().collect();
+      let tex_coord_buffer = gl::buffer::create( gl )?;
+      gl::buffer::upload( gl, &tex_coord_buffer, &tex_coords, GL::STATIC_DRAW );
+      let tex_coord_attribute = AttributePointer::new( &gl, BufferDescriptor::new::< [ f32; 2 ] >(), tex_coord_buffer, 2 );
+
+      let indices : Vec< u32 > = indices.into_u32().collect();
+      let index_buffer = gl::buffer::create( gl )?;
+      gl::index::upload( gl, &index_buffer, &indices, GL::STATIC_DRAW );
+
+      let geometry = Geometry::with_elements( gl, position_attribute, index_buffer, indices.len() as i32 )?;
+      geometry.add_attribute( normal_attribute )?;
+      geometry.add_attribute( tex_coord_attribute )?;
+
+      let texture = material.texture();
+      let source = texture.source();
+      let image = &images[ source.index() ];
+      let base_color_tex = gl.create_texture();
+      let format = match image.format
+      {
+        gltf::image::Format::R8G8B8 => GL::RGB,
+        gltf::image::Format::R8G8B8A8 => GL::RGBA,
+        _ => continue,
+      };
+      gl.bind_texture( GL::TEXTURE_2D , base_color_tex.as_ref() );
+      gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_u8_array_and_src_offset
+      (
+        GL::TEXTURE_2D,
+        0,
+        format as i32,
+        image.width as i32,
+        image.height as i32,
+        0,
+        format,
+        GL::UNSIGNED_BYTE,
+        &image.pixels,
+        0
+      ).unwrap();
+
+      primitives.push( ( geometry, base_color_tex ) );
+    }
+  }
+
+  Ok( primitives )
 }
 
 fn random_rgb_color() -> [ f32; 3 ]

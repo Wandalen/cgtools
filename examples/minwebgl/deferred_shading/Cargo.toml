@@ -11,6 +11,7 @@ authors = [
 workspace = true
 
 [dependencies]
+gltf = { workspace = true }
 rand = { workspace = true }
 getrandom = { workspace = true, features = ["wasm_js"] }
 minwebgl = { workspace = true, features = ["math"] }
