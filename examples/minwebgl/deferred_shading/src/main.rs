@@ -17,7 +17,8 @@ use web_sys::{ HtmlCanvasElement, WebGlTexture };
 fn main()
 {
   gl::browser::setup( Default::default() );
-  gl::info!( "{:?}", run() );
+  gl::spawn_local( async move { gl::info!( "{:?}", run().await ) } );
+  // gl::info!( "{:?}", run() );
 }
 
 // cube geometry
@@ -51,7 +52,7 @@ static CUBE_INDICES : &[ u32 ] =
   0, 3, 7, 0, 7, 4
 ];
 
-fn run() -> Result< (), gl::WebglError >
+async fn run() -> Result< (), gl::WebglError >
 {
   let gl = gl::context::retrieve_or_make().expect( "Failed to retrieve WebGl context" );
   let res = gl.get_extension( "EXT_color_buffer_float" ).unwrap().unwrap();
