@@ -104,11 +104,6 @@ mod private
       gl.uniform1i( locations.get( "blurTexture2" ).unwrap().clone().as_ref() , 2 );
       gl.uniform1i( locations.get( "blurTexture3" ).unwrap().clone().as_ref() , 3 );
       gl.uniform1i( locations.get( "blurTexture4" ).unwrap().clone().as_ref() , 4 );
-      for i in 0..MIPS
-      {
-        gl.active_texture( gl::TEXTURE0 + i as u32 );
-        gl.bind_texture( gl::TEXTURE_2D, vertical_targets[ i ].as_ref() );
-      }
 
       let fs_shader = include_str!( "../shaders/copy.frag" );
 
@@ -131,20 +126,27 @@ mod private
 
   impl Pass for UnrealBloomPass
   {
+    fn renders_to_input( &self ) -> bool 
+    {
+      false
+    }
+
     fn render
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      input_texture : Option< gl::web_sys::WebGlTexture >
+      input_texture : Option< gl::web_sys::WebGlTexture >,
+      output_texture : Option< minwebgl::web_sys::WebGlTexture >
     ) -> Result< Option< gl::web_sys::WebGlTexture >, gl::WebglError >
     {
       let mut blur_input = input_texture.as_ref();
-
       for i in 0..MIPS
       {
         let mat = &self.blur_materials[ i ];
         mat.bind( gl );
         let locations = mat.get_locations();
+
+        gl.active_texture( gl::TEXTURE0 );
 
         // Horizontal blue
         gl::uniform::upload( gl, locations.get( "blurDir" ).unwrap().clone(), gl::F32x2::X.as_slice() )?;
@@ -178,6 +180,11 @@ mod private
 
       let locations = self.composite_material.get_locations();
       self.composite_material.bind( gl );
+      for i in 0..MIPS
+      {
+        gl.active_texture( gl::TEXTURE0 + i as u32 );
+        gl.bind_texture( gl::TEXTURE_2D, self.vertical_targets[ i ].as_ref() );
+      }
       gl::uniform::upload( gl, locations.get( "bloomStrength" ).unwrap().clone(), &1.5 )?;
       gl::uniform::upload( gl, locations.get( "bloomRadius" ).unwrap().clone(), &0.4 )?;
       gl.framebuffer_texture_2d
@@ -192,18 +199,30 @@ mod private
 
       self.copy_material.bind( gl );
       gl.blend_func( gl::ONE, gl::ONE );
+      gl.active_texture( gl::TEXTURE0 );
       gl.bind_texture( gl::TEXTURE_2D, self.horizontal_targets[ 0 ].as_ref() );
       gl.framebuffer_texture_2d
       ( 
         gl::FRAMEBUFFER, 
         gl::COLOR_ATTACHMENT0, 
         gl::TEXTURE_2D, 
-        input_texture.as_ref(), 
+        output_texture.as_ref(), 
         0
       );
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );
 
-      Ok( input_texture )
+      // Unbind the attachment
+      gl.bind_texture( gl::TEXTURE_2D, None );
+      gl.framebuffer_texture_2d
+      (
+        gl::FRAMEBUFFER, 
+        gl::COLOR_ATTACHMENT0, 
+        gl::TEXTURE_2D, 
+        None, 
+        0
+      );
+
+      Ok( output_texture )
     }
   }
 

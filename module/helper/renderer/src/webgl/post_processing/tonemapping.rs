@@ -38,11 +38,17 @@ mod private
 
   impl< T > Pass for ToneMappingPass< T >
   {
+    fn renders_to_input( &self ) -> bool 
+    {
+      false
+    }
+    
     fn render
     (
       &self,
       gl : &minwebgl::WebGl2RenderingContext,
-      input_texture : Option< minwebgl::web_sys::WebGlTexture >
+      input_texture : Option< minwebgl::web_sys::WebGlTexture >,
+      output_texture : Option< minwebgl::web_sys::WebGlTexture >
     ) -> Result< Option< minwebgl::web_sys::WebGlTexture >, minwebgl::WebglError > 
     {
       gl.disable( gl::DEPTH_TEST );
@@ -56,14 +62,25 @@ mod private
         gl::FRAMEBUFFER, 
         gl::COLOR_ATTACHMENT0, 
         gl::TEXTURE_2D, 
-        self.output_texture.as_ref(), 
+        output_texture.as_ref(), 
         0
       );
 
       gl.clear( gl::COLOR_BUFFER_BIT );
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );
 
-      Ok( self.output_texture.clone() )
+      // Unbind the attachment
+      gl.bind_texture( gl::TEXTURE_2D, None );
+      gl.framebuffer_texture_2d
+      (
+        gl::FRAMEBUFFER, 
+        gl::COLOR_ATTACHMENT0, 
+        gl::TEXTURE_2D, 
+        None, 
+        0
+      );
+
+      Ok( output_texture.clone() )
     }
   }
 

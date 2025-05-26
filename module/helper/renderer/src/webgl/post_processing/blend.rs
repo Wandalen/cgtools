@@ -42,11 +42,18 @@ mod private
 
   impl Pass for BlendPass 
   {
+    fn renders_to_input( &self ) -> bool 
+    {
+      true
+    }
+
+    /// Belnds the `self.blend_texture` with the `output_texture`, setting the `output_texture` as destination
     fn render
     (
         &self,
         gl : &minwebgl::WebGl2RenderingContext,
-        input_texture : Option< minwebgl::web_sys::WebGlTexture >
+        _input_texture : Option< minwebgl::web_sys::WebGlTexture >,
+        output_texture : Option< minwebgl::web_sys::WebGlTexture >
     ) -> Result< Option< minwebgl::web_sys::WebGlTexture >, minwebgl::WebglError > 
     {
       gl.disable( gl::DEPTH_TEST );
@@ -55,20 +62,32 @@ mod private
       gl.blend_func( self.src_factor, self.dst_factor );
 
       self.material.bind( gl );
+      gl.active_texture( gl::TEXTURE0 );
       gl.bind_texture( gl::TEXTURE_2D, self.blend_texture.as_ref() );
       gl.framebuffer_texture_2d
       (
         gl::FRAMEBUFFER, 
         gl::COLOR_ATTACHMENT0, 
         gl::TEXTURE_2D, 
-        input_texture.as_ref(), 
+        output_texture.as_ref(), 
         0
       );
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );
 
+      // Unbind the attachment
+      gl.bind_texture( gl::TEXTURE_2D, None );
+      gl.framebuffer_texture_2d
+      (
+        gl::FRAMEBUFFER, 
+        gl::COLOR_ATTACHMENT0, 
+        gl::TEXTURE_2D, 
+        None, 
+        0
+      );
+
       Ok
       (
-        input_texture
+        output_texture
       )
     }    
   }

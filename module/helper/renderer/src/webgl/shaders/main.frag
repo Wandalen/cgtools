@@ -20,9 +20,7 @@ in vec3 vViewPos;
 in vec3 vNormal;
 
 layout( location = 0 ) out vec4 frag_color;
-// #if defined( USE_EMISSION ) && !defined( RENDER_TO_SCREEN )
-//   layout( location = 1 ) out vec4 emissive_color;
-// #endif
+layout( location = 1 ) out vec4 emissive_color;
 
 uniform vec3 cameraPosition;
 
@@ -208,6 +206,7 @@ vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
     float dotNV = clamp( dot( N, V ), 0.0, 1.0 );
 
     const float MAX_LOD = 9.0;
+    if( dotNV > 0.0 )
     {
       vec3 Fs = F_Schlick( material.f0, material.f90, dotNV );
       float Fd = 1.0 - max_value( Fs );
@@ -334,6 +333,10 @@ void main()
     #endif
     normal = normalize( normal );
   #endif
+  if( !gl_FrontFacing )
+  {
+    normal *= -1.0;
+  }
 
   // Works only with indirect light
   #ifdef USE_OCCLUSION_TEXTURE
@@ -356,23 +359,23 @@ void main()
   //   vec3( 0.0, 0.0, -1.0 )
   // );
 
-  vec3 lightDirs[] = vec3[]
-  (
-    vec3( 1.0, 1.0, 1.0 ),
-    vec3( -1.0, 1.0, 1.0 ),
-    vec3( 1.0, -1.0, 1.0 ),
-    vec3( -1.0, -1.0, 1.0 ),
-    vec3( 1.0, 1.0, -1.0 ),
-    vec3( 1.0, -1.0, -1.0 ),
-    vec3( -1.0, 1.0, -1.0 ),
-    vec3( -1.0, -1.0, -1.0 )
-  );
-
-  const float lightIntensity = 3.0;
-  const vec3 lightColor = vec3( 1.0 );
-  float dotVN = clamp( dot( viewDir, normal ), 0.0, 1.0 );
-
   #if defined( USE_PBR ) && !defined( USE_IBL )
+    vec3 lightDirs[] = vec3[]
+    (
+      vec3( 1.0, 1.0, 1.0 ),
+      vec3( -1.0, 1.0, 1.0 ),
+      vec3( 1.0, -1.0, 1.0 ),
+      vec3( -1.0, -1.0, 1.0 ),
+      vec3( 1.0, 1.0, -1.0 ),
+      vec3( 1.0, -1.0, -1.0 ),
+      vec3( -1.0, 1.0, -1.0 ),
+      vec3( -1.0, -1.0, -1.0 )
+    );
+
+    const float lightIntensity = 3.0;
+    const vec3 lightColor = vec3( 1.0 );
+    float dotVN = clamp( dot( viewDir, normal ), 0.0, 1.0 );
+
     for( int i = 0; i < 8; i++ )
     {
       vec3 lightDir = normalize( lightDirs[ i ] );
@@ -413,11 +416,17 @@ void main()
   //   //   emissive_color.xyz *= texture( emissiveTexture, {EMISSION_UV} )
   //   // #endif
   // #endif
+  
+  {
+    float v = luminance( color );
+    float lum_alpha = smoothstep( 1.0, 1.5, v );
+    emissive_color = vec4( mix( vec3( 0.0 ), color, lum_alpha ), 1.0 );
+  }
 
-  #ifdef RENDER_TO_SCREEN
-    color = aces_tone_map( color );
-    color = LinearToSrgb( color );
-  #endif
+  // #ifdef RENDER_TO_SCREEN
+  //   color = aces_tone_map( color );
+  //   color = LinearToSrgb( color );
+  // #endif
 
   frag_color = vec4( color * alpha, alpha );
 }
