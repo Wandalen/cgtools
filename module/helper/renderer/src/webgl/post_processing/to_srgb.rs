@@ -38,6 +38,9 @@ mod private
       input_texture : Option< minwebgl::web_sys::WebGlTexture >
     ) -> Result< Option< minwebgl::web_sys::WebGlTexture >, minwebgl::WebglError > 
     {
+      gl.disable( gl::DEPTH_TEST );
+      gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
+
       self.material.bind( gl );
       gl.bind_texture( gl::TEXTURE_2D, input_texture.as_ref() );
       
@@ -45,7 +48,19 @@ mod private
       {
         gl.bind_framebuffer( gl::FRAMEBUFFER, None );
       }
+      // else 
+      // {
+      //   gl.framebuffer_texture_2d
+      //   (
+      //     gl::FRAMEBUFFER, 
+      //     gl::COLOR_ATTACHMENT0, 
+      //     gl::TEXTURE_2D, 
+      //     self.output_texture.as_ref(), 
+      //     0
+      //   );    
+      // }
 
+      gl.clear( gl::COLOR_BUFFER_BIT );
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );
 
       Ok
@@ -58,5 +73,8 @@ mod private
 
 crate::mod_interface!
 {
-  
+  orphan use
+  {
+    ToSrgbPass
+  };
 }

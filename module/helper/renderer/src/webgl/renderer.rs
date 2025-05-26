@@ -50,6 +50,11 @@ mod private
       self.ibl = Some( ibl );
     }
 
+    pub fn set_render_to_screen( &mut self, render_to_screen : bool )
+    {
+      self.render_to_screen = render_to_screen;
+    }
+
     /// Renders the scene using the provided camera.
     ///
     /// * `gl`: The `WebGl2RenderingContext` to use for rendering.
@@ -65,7 +70,8 @@ mod private
     {
       //scene.update_world_matrix();
 
-      gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA );
+      gl.enable( gl::DEPTH_TEST );
+      gl.disable( gl::BLEND );
       gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
       gl.clear_depth( 1.0 );
       gl.clear( gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT );
@@ -126,7 +132,8 @@ mod private
                   "#version 300 es\n{}\n{}\n{}\n{}\n{}\n{}", 
                   vs_defines, 
                   ibl_define,
-                  "#define USE_EMISSION\n",
+                  "",
+                 // "#define USE_EMISSION",
                   render_to_screen_define,
                   material.get_defines(),
                   MAIN_FRAGMENT_SHADER ) 
@@ -186,6 +193,9 @@ mod private
 
         dist1.partial_cmp( &dist2 ).unwrap()
       });
+
+      gl.enable( gl::BLEND );
+      gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA );
 
       // Render the transparent nodes.
       for ( node, primitive ) in self.transparent_nodes.iter()

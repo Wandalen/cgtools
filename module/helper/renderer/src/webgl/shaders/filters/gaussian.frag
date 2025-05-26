@@ -1,3 +1,4 @@
+precision mediump float;
 
 uniform sampler2D sourceTexture;
 uniform float kernel[ KERNEL_RADIUS ]

@@ -25,6 +25,7 @@ mod private
       let texture = gl.create_texture();
       gl.bind_texture( gl::TEXTURE_2D, texture.as_ref() );
       gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA8, width as i32, height as i32 );
+      gl::texture::d2::filter_linear( &gl );
 
       texture
     }    
@@ -44,7 +45,11 @@ mod private
       input_texture : Option< minwebgl::web_sys::WebGlTexture >
     ) -> Result< Option< minwebgl::web_sys::WebGlTexture >, minwebgl::WebglError > 
     {
+      gl.disable( gl::DEPTH_TEST );
+      gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
+
       self.material.bind( gl );
+      gl.active_texture( gl::TEXTURE0 );
       gl.bind_texture( gl::TEXTURE_2D, input_texture.as_ref() );
       gl.framebuffer_texture_2d
       (
@@ -54,6 +59,8 @@ mod private
         self.output_texture.as_ref(), 
         0
       );
+
+      gl.clear( gl::COLOR_BUFFER_BIT );
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );
 
       Ok( self.output_texture.clone() )
@@ -87,6 +94,7 @@ crate::mod_interface!
 {
   orphan use
   {
-    
+    ToneMappingAces,
+    ToneMappingPass
   };
 }

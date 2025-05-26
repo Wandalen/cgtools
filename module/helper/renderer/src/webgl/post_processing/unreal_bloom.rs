@@ -29,6 +29,10 @@ mod private
       format : u32
     ) -> Result< Self, gl::WebglError >
     {
+      gl.disable( gl::DEPTH_TEST );
+      gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
+      gl.clear( gl::COLOR_BUFFER_BIT );
+
       let mut horizontal_targets = Vec::new();
       let mut vertical_targets = Vec::new();
 
@@ -66,7 +70,7 @@ mod private
       let mut blur_materials = Vec::new();
       for i in 0..MIPS
       {
-        let fs_shader = format!( "#define KERNEL_RADIUS {}\n{}", kernel_radius[ i ], fs_shader );
+        let fs_shader = format!( "#version 300 es\n#define KERNEL_RADIUS {}\n{}", kernel_radius[ i ], fs_shader );
         let blur_material = gl::ProgramFromSources::new( VS_TRIANGLE, &fs_shader ).compile_and_link( gl )?;
         let blur_material = ProgramInfo::< program::GaussianFilterShader >::new( gl, blur_material );
 
@@ -84,7 +88,7 @@ mod private
       }
 
       let fs_shader = include_str!( "../shaders/post_processing/unreal_bloom.frag" );
-      let fs_shader = format!( "#define NUM_MIPS {}\n{}", MIPS, fs_shader );
+      let fs_shader = format!( "#version 300 es\n#define NUM_MIPS {}\n{}", MIPS, fs_shader );
       let composite_material = gl::ProgramFromSources::new( VS_TRIANGLE, &fs_shader ).compile_and_link( gl )?;
       let composite_material = ProgramInfo::< program::UnrealBloomShader >::new( gl, composite_material );
 

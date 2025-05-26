@@ -1,4 +1,5 @@
 
+precision mediump float;
 
 uniform sampler2D blurTexture0;
 uniform sampler2D blurTexture1;

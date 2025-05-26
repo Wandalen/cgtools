@@ -1,4 +1,4 @@
-precision mediump float;
+precision highp float;
 
 #define PI 3.141592653589793
 #define PI2 6.283185307179586
@@ -20,7 +20,9 @@ in vec3 vViewPos;
 in vec3 vNormal;
 
 layout( location = 0 ) out vec4 frag_color;
-layout( location = 1 ) out vec4 emissive_color;
+// #if defined( USE_EMISSION ) && !defined( RENDER_TO_SCREEN )
+//   layout( location = 1 ) out vec4 emissive_color;
+// #endif
 
 uniform vec3 cameraPosition;
 
@@ -399,18 +401,18 @@ void main()
     color += 0.1 * material.diffuseColor * material.occlusionFactor;
   #endif
 
-  #if defined( USE_EMISSION ) && !defined( RENDER_TO_SCREEN )
-    {
-      float v = luminance( color );
-      float lum_alpha = smoothstep( 1.0, 1.5, v );
-      emissive_color = vec4( mix( vec3( 0.0 ), color, lum_alpha ), 1.0 );
-    }
-    // emissive_color = vec4( 1.0 );
-    // emissive_color.xyz *= emissiveFactor;
-    // #ifdef USE_EMISSION_TEXTURE
-    //   emissive_color.xyz *= texture( emissiveTexture, {EMISSION_UV} )
-    // #endif
-  #endif
+  // #if defined( USE_EMISSION ) && !defined( RENDER_TO_SCREEN )
+  //   {
+  //     float v = luminance( color );
+  //     float lum_alpha = smoothstep( 1.0, 1.5, v );
+  //     emissive_color = vec4( mix( vec3( 0.0 ), color, lum_alpha ), 1.0 );
+  //   }
+  //   // emissive_color = vec4( 1.0 );
+  //   // emissive_color.xyz *= emissiveFactor;
+  //   // #ifdef USE_EMISSION_TEXTURE
+  //   //   emissive_color.xyz *= texture( emissiveTexture, {EMISSION_UV} )
+  //   // #endif
+  // #endif
 
   #ifdef RENDER_TO_SCREEN
     color = aces_tone_map( color );
