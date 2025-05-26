@@ -2,7 +2,6 @@ use std::f32;
 use minwebgl as gl;
 use gl::
 {
-  AsBytes,
   math::d2::mat3x3h,
   BufferDescriptor,
   JsCast as _,
@@ -58,7 +57,6 @@ async fn run() -> Result< (), gl::WebglError >
   gl::info!( "{}", res.to_string() );
 
   let meshes = load_glb( &gl ).await.unwrap();
-  gl::info!( "{}", meshes.len() );
 
   let width = 1280;
   let height = 720;
@@ -91,45 +89,49 @@ async fn run() -> Result< (), gl::WebglError >
   gl::index::upload( &gl, &index_buffer, CUBE_INDICES, GL::STATIC_DRAW );
   let position_attribute = AttributePointer::new( &gl, BufferDescriptor::new::< [ f32; 3 ] >(), position_buffer, 0 );
   let cube = Geometry::with_elements( &gl, position_attribute, index_buffer, CUBE_INDICES.len() as i32 )?;
-  // cube.activate();
 
-  let projection = mat3x3h::perspective_rh_gl( 45.0f32.to_radians(), width as f32 / height as f32, 0.1, 500.0 );
-  // let wall_transform = mat3x3h::translation( [ 0.0f32, 0.0, -120.0 ] ) * mat3x3h::scale( [ 100.0, 100.0, 1.0 ] );
-  let wall_transform = mat3x3h::translation( [ 0.0f32, 0.0, -220.0 ] ) * mat3x3h::scale( [ 1.0, 1.0, 1.0 ] );
+  let projection = mat3x3h::perspective_rh_gl( 60.0f32.to_radians(), width as f32 / height as f32, 0.1, 1000.0 );
+  let rotation = mat3x3h::rot( 10.0f32.to_radians(), 0.0, 0.0 ) * mat3x3h::rot( 0.0, 90.0f32.to_radians(), 0.0 );
+  let scene_transform = mat3x3h::translation( [ 0.0f32, -8.0, -45.0 ] ) * rotation * mat3x3h::scale( [ 0.06, 0.06, 0.06 ] );
 
   // gbuffer
   let gbuffer = gl.create_framebuffer();
-  let position_buffer = tex_storage_2d( &gl, GL::RGBA16F, width, height );
-  let normal_buffer = tex_storage_2d( &gl, GL::RGBA16F, width, height );
+  let position_gbuffer = tex_storage_2d( &gl, GL::RGBA16F, width, height );
+  let normal_gbuffer = tex_storage_2d( &gl, GL::RGBA16F, width, height );
+  let color_gbuffer = tex_storage_2d( &gl, GL::RGBA8, width, height );
   let depthbuffer = gl.create_renderbuffer();
   gl.bind_renderbuffer( GL::RENDERBUFFER, depthbuffer.as_ref() );
   gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH_COMPONENT24, width, height );
   gl.bind_framebuffer( GL::FRAMEBUFFER, gbuffer.as_ref() );
-  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, position_buffer.as_ref(), 0 );
-  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, normal_buffer.as_ref(), 0 );
+  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, position_gbuffer.as_ref(), 0 );
+  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, normal_gbuffer.as_ref(), 0 );
+  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT2, GL::TEXTURE_2D, color_gbuffer.as_ref(), 0 );
   gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::RENDERBUFFER, depthbuffer.as_ref() );
 
   // draw big wall into gbuffer once, because it is static
-  gl::drawbuffers::drawbuffers( &gl, &[ GL::COLOR_ATTACHMENT0, GL::COLOR_ATTACHMENT1 ] );
+  gl::drawbuffers::drawbuffers( &gl, &[ GL::COLOR_ATTACHMENT0, GL::COLOR_ATTACHMENT1, GL::COLOR_ATTACHMENT2 ] );
   object_shader.activate();
-  object_shader.uniform_matrix_upload( "u_model", wall_transform.raw_slice(), true );
-  object_shader.uniform_matrix_upload( "u_mvp", ( projection * wall_transform ).raw_slice(), true );
-  for mesh in meshes
+  object_shader.uniform_matrix_upload( "u_model", scene_transform.raw_slice(), true );
+  object_shader.uniform_matrix_upload( "u_mvp", ( projection * scene_transform ).raw_slice(), true );
+  object_shader.uniform_matrix_upload( "u_rotation", rotation.raw_slice(), true );
+  gl.active_texture( GL::TEXTURE0 );
+  for mesh in &meshes
   {
     mesh.0.activate();
+    gl.bind_texture( GL::TEXTURE_2D, mesh.1.as_ref() );
     gl.draw_elements_with_i32( GL::TRIANGLES, mesh.0.element_count, GL::UNSIGNED_INT, 0 );
   }
-  // gl.vertex_attrib3f( 1, 0.0, 0.0, 1.0 );
 
   // use same framebuffer object for offscreen rendering
   let offscreen_buffer = gbuffer;
   let color_buffer = tex_storage_2d( &gl, GL::RGBA8, width, height );
   // attach color buffer to framebuffer
-  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, color_buffer.as_ref(), 0 );
   // remove normal buffer from framebuffer
+  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, color_buffer.as_ref(), 0 );
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, None, 0 );
+  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT2, GL::TEXTURE_2D, None, 0 );
 
-  let light_radius = 20.0;
+  let light_radius = 100.0;
   // grid of light sources
   let rows = 1;
   let columns = 1;
@@ -192,7 +194,7 @@ async fn run() -> Result< (), gl::WebglError >
     let t = ( t / 1000.0 ) as f32;
     update_light_positions( &mut light_positions, t, &offsets, z, 2.0 );
     gl.bind_buffer( GL::ARRAY_BUFFER, Some( &light_position_buffer ) );
-    gl.buffer_sub_data_with_i32_and_u8_array( GL::ARRAY_BUFFER, 0, light_positions.as_bytes() );
+    // gl.buffer_sub_data_with_i32_and_u8_array( GL::ARRAY_BUFFER, 0, light_positions.as_bytes() );
 
     gl.bind_framebuffer( GL::FRAMEBUFFER, offscreen_buffer.as_ref() );
     gl::drawbuffers::drawbuffers( &gl, &[ GL::COLOR_ATTACHMENT0 ] );
@@ -207,15 +209,18 @@ async fn run() -> Result< (), gl::WebglError >
     gl.blend_func( gl::ONE, gl::ONE );
 
     gl.active_texture( GL::TEXTURE0 );
-    gl.bind_texture( GL::TEXTURE_2D, position_buffer.as_ref() );
+    gl.bind_texture( GL::TEXTURE_2D, position_gbuffer.as_ref() );
     gl.active_texture( GL::TEXTURE1 );
-    gl.bind_texture( GL::TEXTURE_2D, normal_buffer.as_ref() );
+    gl.bind_texture( GL::TEXTURE_2D, normal_gbuffer.as_ref() );
+    gl.active_texture( GL::TEXTURE2 );
+    gl.bind_texture( GL::TEXTURE_2D, color_gbuffer.as_ref() );
 
     light_shader.activate();
     light_shader.uniform_matrix_upload( "u_mvp", projection.raw_slice(), true );
     light_shader.uniform_upload( "u_screen_size", [ width as f32, height as f32 ].as_slice() );
     light_shader.uniform_upload( "u_positions", &0 );
     light_shader.uniform_upload( "u_normals", &1 );
+    light_shader.uniform_upload( "u_colors", &2 );
     gl.draw_elements_instanced_with_i32( GL::TRIANGLES, cube.element_count, GL::UNSIGNED_INT, 0, light_instances );
 
     // show on screen
@@ -276,6 +281,7 @@ async fn load_glb( gl : &GL ) -> Result< Vec< ( Geometry, Option< WebGlTexture >
       let geometry = Geometry::with_elements( gl, position_attribute, index_buffer, indices.len() as i32 )?;
       geometry.add_attribute( normal_attribute )?;
       geometry.add_attribute( tex_coord_attribute )?;
+      gl.bind_vertex_array( None );
 
       let texture = material.texture();
       let source = texture.source();
