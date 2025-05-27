@@ -1,14 +1,19 @@
+mod elliptical_orbit;
+
 use std::f32;
+use elliptical_orbit::EllipticalOrbit;
 use minwebgl as gl;
 use gl::
 {
+  F32x3,
   math::d2::mat3x3h,
   BufferDescriptor,
-  JsCast as _,
   WebGlBuffer,
   WebGlVertexArrayObject,
   WebglError,
-  GL
+  GL,
+  AsBytes as _,
+  JsCast as _,
 };
 use rand::Rng;
 use web_sys::{ HtmlCanvasElement, WebGlTexture };
@@ -55,19 +60,18 @@ async fn run() -> Result< (), gl::WebglError >
   let gl = gl::context::retrieve_or_make().expect( "Failed to retrieve WebGl context" );
   let res = gl.get_extension( "EXT_color_buffer_float" ).unwrap().unwrap();
   gl::info!( "{}", res.to_string() );
-
-  let meshes = load_glb( &gl ).await.unwrap();
-
-  let width = 1280;
-  let height = 720;
   let canvas = gl.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
-  canvas.set_width( width as u32 );
-  canvas.set_height( height as u32 );
+  let width = canvas.width() as i32;
+  let height = canvas.height() as i32;
+  let aspect = width as f32 / height as f32;
 
   gl.viewport( 0, 0, width, height );
   gl.enable( GL::DEPTH_TEST );
   gl.enable( GL::CULL_FACE );
+  gl.blend_func( gl::ONE, gl::ONE );
   gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
+
+  let meshes = load_glb( &gl ).await.unwrap();
 
   // shaders
   let vert = include_str!( "../shaders/light_volume.vert" );
@@ -82,18 +86,18 @@ async fn run() -> Result< (), gl::WebglError >
   let frag = include_str!( "../shaders/screen_texture.frag" );
   let screen_shader = gl::shader::Program::new( gl.clone(), vert, frag )?;
 
-  // cube geometry
-  let light_volume = light_volume( &gl )?;
-
-  let projection = mat3x3h::perspective_rh_gl( 60.0f32.to_radians(), width as f32 / height as f32, 0.1, 1000.0 );
-  let rotation = mat3x3h::rot( 10.0f32.to_radians(), 0.0, 0.0 ) * mat3x3h::rot( 0.0, 90.0f32.to_radians(), 0.0 );
-  let scene_transform = mat3x3h::translation( [ 0.0f32, -8.0, -45.0 ] ) * rotation * mat3x3h::scale( [ 0.06, 0.06, 0.06 ] );
+  let projection = mat3x3h::perspective_rh_gl( 65.0f32.to_radians(), aspect, 0.1, 1000.0 );
+  let rotation = mat3x3h::rot( 10.0f32.to_radians(), 0.0, 0.0 )
+  * mat3x3h::rot( 0.0, 80.0f32.to_radians(), 0.0 );
+  let scale = 0.1;
+  let scene_transform = mat3x3h::translation( [ 0.0f32, -45.0, -90.0 ] )
+  * rotation * mat3x3h::scale( [ scale, scale, scale ] );
 
   // gbuffer
   let ( gbuffer, position_gbuffer, normal_gbuffer, color_gbuffer ) = gbuffer( &gl, width, height );
 
-  // draw big wall into gbuffer once, because it is static
-  gl::drawbuffers::drawbuffers( &gl, &[ GL::COLOR_ATTACHMENT0, GL::COLOR_ATTACHMENT1, GL::COLOR_ATTACHMENT2 ] );
+  // fill gbuffer with data
+  gl::drawbuffers::drawbuffers( &gl, &[ 0, 1, 2 ] );
   object_shader.activate();
   object_shader.uniform_matrix_upload( "u_model", scene_transform.raw_slice(), true );
   object_shader.uniform_matrix_upload( "u_mvp", ( projection * scene_transform ).raw_slice(), true );
@@ -115,13 +119,32 @@ async fn run() -> Result< (), gl::WebglError >
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, None, 0 );
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT2, GL::TEXTURE_2D, None, 0 );
 
-  let light_radius = 200.0;
+  // cube geometry
+  let light_volume = light_volume( &gl )?;
+
+  let light_radius = 15.0;
   // grid of light sources
-  let rows = 1;
-  let columns = 1;
+  let rows = 30;
+  let columns = 10;
   // lights z position
-  let z = -40.0;
+  let z = -90.0;
   let light_instances = rows * columns;
+
+  let light_orbits = ( 0..light_instances ).map
+  (
+    | _ |
+    EllipticalOrbit
+    {
+      center : F32x3::new
+      (
+        rand::random_range( -40.0..=40.0 ),
+        rand::random_range( -30.0..=30.0 ),
+        rand::random_range( -110.0..=70.0 )
+      ),
+      ..EllipticalOrbit::random()
+    }
+  ).collect::< Vec< _ > >();
+
   // random z offset for each light source
   let offsets = ( 0..light_instances )
   .map( | _ | rand::random::< f32 >() * f32::consts::PI * 2.0 )
@@ -133,10 +156,12 @@ async fn run() -> Result< (), gl::WebglError >
   .map( | _ | light_radius + rand::random_range( -1.0..=3.0 ) )
   .collect::< Vec< _ > >();
   // positions of lights sources for instanced rendering
-  let mut light_positions = generate_light_positions( columns, rows, light_radius, z );
+  let light_positions = generate_light_positions( columns, rows, light_radius, z );
 
   let light_position_buffer = gl::buffer::create( &gl )?;
-  gl::buffer::upload( &gl, &light_position_buffer, light_positions.as_slice(), GL::DYNAMIC_DRAW );
+  gl.bind_buffer( GL::ARRAY_BUFFER, Some( &light_position_buffer ) );
+  gl.buffer_data_with_i32( GL::ARRAY_BUFFER, light_instances * 3 * size_of::< f32 >() as i32, GL::DYNAMIC_DRAW );
+
   let translation_attribute = AttributePointer::new
   (
     &gl,
@@ -144,7 +169,6 @@ async fn run() -> Result< (), gl::WebglError >
     light_position_buffer.clone(),
     1
   );
-
   let light_radius_buffer = gl::buffer::create( &gl )?;
   gl::buffer::upload( &gl, &light_radius_buffer, light_radii.as_slice(), GL::STATIC_DRAW );
   let radius_attribute = AttributePointer::new
@@ -154,8 +178,6 @@ async fn run() -> Result< (), gl::WebglError >
     light_radius_buffer,
     2
   );
-
-  // colors of lights sources for instanced rendering
   let light_color_buffer = gl::buffer::create( &gl )?;
   gl::buffer::upload( &gl, &light_color_buffer, light_colors.as_slice(), GL::STATIC_DRAW );
   let color_attribute = AttributePointer::new
@@ -176,12 +198,19 @@ async fn run() -> Result< (), gl::WebglError >
   let update = move | t |
   {
     let t = ( t / 1000.0 ) as f32;
-    update_light_positions( &mut light_positions, t, &offsets, z, 2.0 );
+
+    let pos = light_orbits
+    .iter()
+    .zip( offsets.iter() )
+    .map( | ( orbit, offset ) | orbit.position_at_angle( 0.2 * t + *offset ).0 )
+    .flatten()
+    .collect::< Vec< _ > >();
+
     gl.bind_buffer( GL::ARRAY_BUFFER, Some( &light_position_buffer ) );
-    // gl.buffer_sub_data_with_i32_and_u8_array( GL::ARRAY_BUFFER, 0, light_positions.as_bytes() );
+    gl.buffer_sub_data_with_i32_and_u8_array( GL::ARRAY_BUFFER, 0, pos.as_bytes() );
 
     gl.bind_framebuffer( GL::FRAMEBUFFER, offscreen_buffer.as_ref() );
-    gl::drawbuffers::drawbuffers( &gl, &[ GL::COLOR_ATTACHMENT0 ] );
+    gl::drawbuffers::drawbuffers( &gl, &[ 0 ] );
     gl.clear( gl::COLOR_BUFFER_BIT );
 
     gl.enable( GL::DEPTH_TEST );
@@ -190,7 +219,6 @@ async fn run() -> Result< (), gl::WebglError >
     gl.cull_face( GL::FRONT );
     // blending is needed when fragment is affected by several lights
     gl.enable( gl::BLEND );
-    gl.blend_func( gl::ONE, gl::ONE );
 
     gl.active_texture( GL::TEXTURE0 );
     gl.bind_texture( GL::TEXTURE_2D, position_gbuffer.as_ref() );
@@ -205,7 +233,14 @@ async fn run() -> Result< (), gl::WebglError >
     light_shader.uniform_upload( "u_positions", &0 );
     light_shader.uniform_upload( "u_normals", &1 );
     light_shader.uniform_upload( "u_colors", &2 );
-    gl.draw_elements_instanced_with_i32( GL::TRIANGLES, light_volume.element_count, GL::UNSIGNED_INT, 0, light_instances );
+    gl.draw_elements_instanced_with_i32
+    (
+      GL::TRIANGLES,
+      light_volume.element_count,
+      GL::UNSIGNED_INT,
+      0,
+      light_instances
+    );
 
     // show on screen
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );
@@ -222,35 +257,6 @@ async fn run() -> Result< (), gl::WebglError >
   gl::exec_loop::run( update );
 
   Ok( () )
-}
-
-fn gbuffer(gl: &GL, width: i32, height: i32)
--> ( Option< web_sys::WebGlFramebuffer >, Option< WebGlTexture >, Option< WebGlTexture >, Option< WebGlTexture > )
-{
-  let gbuffer = gl.create_framebuffer();
-  let position_gbuffer = tex_storage_2d( gl, GL::RGBA16F, width, height );
-  let normal_gbuffer = tex_storage_2d( gl, GL::RGBA16F, width, height );
-  let color_gbuffer = tex_storage_2d( gl, GL::RGBA8, width, height );
-  let depthbuffer = gl.create_renderbuffer();
-  gl.bind_renderbuffer( GL::RENDERBUFFER, depthbuffer.as_ref() );
-  gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH_COMPONENT24, width, height );
-  gl.bind_framebuffer( GL::FRAMEBUFFER, gbuffer.as_ref() );
-  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, position_gbuffer.as_ref(), 0 );
-  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, normal_gbuffer.as_ref(), 0 );
-  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT2, GL::TEXTURE_2D, color_gbuffer.as_ref(), 0 );
-  gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::RENDERBUFFER, depthbuffer.as_ref() );
-  ( gbuffer, position_gbuffer, normal_gbuffer, color_gbuffer )
-}
-
-fn light_volume(gl: &GL) -> Result< Geometry, WebglError >
-{
-  let position_buffer = gl::buffer::create( gl )?;
-  gl::buffer::upload( gl, &position_buffer, CUBE_VERTICES, GL::STATIC_DRAW );
-  let index_buffer = gl::buffer::create( gl )?;
-  gl::index::upload( gl, &index_buffer, CUBE_INDICES, GL::STATIC_DRAW );
-  let position_attribute = AttributePointer::new( gl, BufferDescriptor::new::< [ f32; 3 ] >(), position_buffer, 0 );
-  let light_volume = Geometry::with_elements( gl, position_attribute, index_buffer, CUBE_INDICES.len() as i32 )?;
-  Ok( light_volume )
 }
 
 async fn load_glb( gl : &GL ) -> Result< Vec< ( Geometry, Option< WebGlTexture > ) >, gl::WebglError >
@@ -350,13 +356,42 @@ async fn load_glb( gl : &GL ) -> Result< Vec< ( Geometry, Option< WebGlTexture >
   Ok( primitives )
 }
 
+fn gbuffer( gl : &GL, width : i32, height : i32 )
+-> ( Option< web_sys::WebGlFramebuffer >, Option< WebGlTexture >, Option< WebGlTexture >, Option< WebGlTexture > )
+{
+  let gbuffer = gl.create_framebuffer();
+  let position_gbuffer = tex_storage_2d( gl, GL::RGBA16F, width, height );
+  let normal_gbuffer = tex_storage_2d( gl, GL::RGBA16F, width, height );
+  let color_gbuffer = tex_storage_2d( gl, GL::RGBA8, width, height );
+  let depthbuffer = gl.create_renderbuffer();
+  gl.bind_renderbuffer( GL::RENDERBUFFER, depthbuffer.as_ref() );
+  gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH_COMPONENT24, width, height );
+  gl.bind_framebuffer( GL::FRAMEBUFFER, gbuffer.as_ref() );
+  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, position_gbuffer.as_ref(), 0 );
+  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, normal_gbuffer.as_ref(), 0 );
+  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT2, GL::TEXTURE_2D, color_gbuffer.as_ref(), 0 );
+  gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::RENDERBUFFER, depthbuffer.as_ref() );
+  ( gbuffer, position_gbuffer, normal_gbuffer, color_gbuffer )
+}
+
+fn light_volume( gl : &GL ) -> Result< Geometry, WebglError >
+{
+  let position_buffer = gl::buffer::create( gl )?;
+  gl::buffer::upload( gl, &position_buffer, CUBE_VERTICES, GL::STATIC_DRAW );
+  let index_buffer = gl::buffer::create( gl )?;
+  gl::index::upload( gl, &index_buffer, CUBE_INDICES, GL::STATIC_DRAW );
+  let position_attribute = AttributePointer::new( gl, BufferDescriptor::new::< [ f32; 3 ] >(), position_buffer, 0 );
+  let light_volume = Geometry::with_elements( gl, position_attribute, index_buffer, CUBE_INDICES.len() as i32 )?;
+  Ok( light_volume )
+}
+
 fn random_rgb_color() -> [ f32; 3 ]
 {
   let mut rng = rand::rng();
 
-  let mut r = if rng.random_bool( 0.5 ) { 1.0 } else { 0.0 };
-  let mut g = if rng.random_bool( 0.5 ) { 1.0 } else { 0.0 };
-  let mut b = if rng.random_bool( 0.5 ) { 1.0 } else { 0.0 };
+  let mut r = rng.random_bool( 0.5 ) as u8 as f32;
+  let mut g = rng.random_bool( 0.5 ) as u8 as f32;
+  let mut b = rng.random_bool( 0.5 ) as u8 as f32;
 
   if r == 0.0 && g == 0.0 && b == 0.0
   {
@@ -380,31 +415,7 @@ fn update_light_positions( positions : &mut[ f32 ], time : f32, offsets : &[ f32
   );
 }
 
-fn generate_light_positions( cols : i32, rows : i32, padding : f32, z : f32 ) -> Vec< f32 >
-{
-  // generate grid of light
-  let spacing = padding * 2.0;
-  let width = spacing * ( cols - 1 ) as f32;
-  let height = spacing * ( rows - 1 ) as f32;
-  let x = -width / 2.0;
-  let mut y = -height / 2.0;
-  let mut ret = vec![];
-
-  for _ in 0..rows
-  {
-    let mut x = x;
-    for _ in 0..cols
-    {
-      ret.push( x );
-      ret.push( y );
-      ret.push( z );
-      x += spacing;
-    }
-    y += spacing;
-  }
-
-  ret
-}
+fn generate_light_positions( cols : i32, rows : i32, padding : f32, z : f32 ) {}
 
 pub struct AttributePointer
 {
