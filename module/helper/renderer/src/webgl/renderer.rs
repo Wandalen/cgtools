@@ -16,31 +16,75 @@ mod private
     program
   };
 
+  /// Manages WebGL2 framebuffers and associated renderbuffers/textures for a rendering
+  /// context, specifically designed for multisampling and post-processing effects.
+  ///
+  /// This struct handles the setup and management of two primary framebuffers:
+  /// - A **multisample framebuffer** for rendering with anti-aliasing.
+  /// - A **resolved framebuffer** for storing the anti-aliased result as textures,
+  ///   ready for further post-processing or display.
+  ///
+  /// It supports two color attachments: a 'main' color buffer and an 'emission' color buffer,
+  /// allowing for separate rendering of different visual components.
   pub struct FramebufferContext
   {
-    pub texture_width : u32,
-    pub texture_height : u32,
-    pub multisample_framebuffer : Option< gl::web_sys::WebGlFramebuffer >,
-    pub resolved_framebuffer : Option< gl::web_sys::WebGlFramebuffer >,
-    pub depth_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
-    pub multisample_main_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
-    pub multisample_emission_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
-    pub main_texture : Option< gl::web_sys::WebGlTexture >,
-    pub emission_texture : Option< gl::web_sys::WebGlTexture >
+    /// The width of the textures attached to the resolved framebuffer.
+    pub texture_width: u32,
+    /// The height of the textures attached to the resolved framebuffer.
+    pub texture_height: u32,
+    /// The WebGL framebuffer used for multisampled rendering. This framebuffer
+    /// renders into `multisample_main_renderbuffer` and `multisample_emission_renderbuffer`.
+    pub multisample_framebuffer: Option<gl::web_sys::WebGlFramebuffer>,
+    /// The WebGL framebuffer used to store the resolved (non-multisampled)
+    /// textures. This is where the results of the multisample framebuffer
+    /// are blitted to, making them ready for sampling.
+    pub resolved_framebuffer: Option<gl::web_sys::WebGlFramebuffer>,
+    /// The renderbuffer used for depth and stencil testing in the multisample framebuffer.
+    pub depth_renderbuffer: Option<gl::web_sys::WebGlRenderbuffer>,
+    /// The renderbuffer that receives the main color output during multisampled rendering.
+    pub multisample_main_renderbuffer: Option<gl::web_sys::WebGlRenderbuffer>,
+    /// The renderbuffer that receives the emission color output during multisampled rendering.
+    pub multisample_emission_renderbuffer: Option<gl::web_sys::WebGlRenderbuffer>,
+    /// The 2D texture that receives the resolved main color output after multisample resolution.
+    /// This texture can be sampled in shaders.
+    pub main_texture: Option<gl::web_sys::WebGlTexture>,
+    /// The 2D texture that receives the resolved emission color output after multisample resolution.
+    /// This texture can be sampled in shaders.
+    pub emission_texture: Option<gl::web_sys::WebGlTexture>,
   }
 
   impl FramebufferContext 
   {
+    /// Creates a new `FramebufferContext` instance, initializing all necessary
+    /// WebGL2 framebuffers, renderbuffers, and textures.
+    ///
+    /// This constructor sets up:
+    /// - A multisampled framebuffer with a depth/stencil renderbuffer and two
+    ///   multisampled color renderbuffers (`RGBA16F` format).
+    /// - A resolved framebuffer with two 2D textures (`RGBA16F` format) to store
+    ///   the anti-aliased results.
+    ///
+    /// # Arguments
+    ///
+    /// * `gl` - A reference to the WebGl2RenderingContext.
+    /// * `width` - The desired width of the framebuffers and textures.
+    /// * `height` - The desired height of the framebuffers and textures.
+    /// * `samples` - The number of samples to use for multisample anti-aliasing (e.g., 4, 8).
+    ///
+    /// # Returns
+    ///
+    /// A new `FramebufferContext` instance.
     pub fn new( gl : &gl::WebGl2RenderingContext, width : u32, height : u32, samples : i32 ) -> Self
     {
-      // Stores multisampled texture
+      // Create the core framebuffer objects.
       let multisample_framebuffer = gl.create_framebuffer();
-      // Stores resolved texture from multisampled one
       let resolved_framebuffer = gl.create_framebuffer();
 
+      // --- Setup Depth/Stencil Renderbuffer ---
+      // Create and bind a renderbuffer for depth and stencil information.
       let depth_renderbuffer = gl.create_renderbuffer();
       gl.bind_renderbuffer( gl::RENDERBUFFER, depth_renderbuffer.as_ref() );
-      //gl.renderbuffer_storage( gl::RENDERBUFFER, gl::DEPTH24_STENCIL8, width as i32, height as i32 );
+      // Allocate storage for the depth/stencil renderbuffer with multisampling.
       gl.renderbuffer_storage_multisample
       (
         gl::RENDERBUFFER, 
@@ -50,8 +94,12 @@ mod private
         height as i32
       );
 
+      // --- Setup Multisample Main Color Renderbuffer ---
+      // Create and bind a renderbuffer for the main color attachment,
+      // which will be multisampled.
       let multisample_main_renderbuffer = gl.create_renderbuffer();
       gl.bind_renderbuffer( gl::RENDERBUFFER, multisample_main_renderbuffer.as_ref() );
+      // Allocate storage for the main color renderbuffer with multisampling.
       gl.renderbuffer_storage_multisample
       (
         gl::RENDERBUFFER, 
@@ -61,8 +109,12 @@ mod private
         height as i32
       );
 
+      // --- Setup Multisample Emission Color Renderbuffer ---
+      // Create and bind a renderbuffer for the emission color attachment,
+      // also multisampled.
       let multisample_emission_renderbuffer = gl.create_renderbuffer();
       gl.bind_renderbuffer( gl::RENDERBUFFER, multisample_emission_renderbuffer.as_ref() );
+      // Allocate storage for the emission color renderbuffer with multisampling.
       gl.renderbuffer_storage_multisample
       (
         gl::RENDERBUFFER, 
@@ -73,29 +125,44 @@ mod private
       );
       
 
-      // Create textures
+      // --- Create Resolved Textures ---
+      // These textures will store the final, resolved (non-multisampled)
+      // color information after blitting.
       let main_texture = gl.create_texture();
       let emission_texture = gl.create_texture();
 
+      // Configure the main texture.
       gl.bind_texture( gl::TEXTURE_2D, main_texture.as_ref() );
       gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width as i32, height  as i32 );
       gl::texture::d2::filter_linear( &gl );
       
+      // Configure the emission texture.
       gl.bind_texture( gl::TEXTURE_2D, emission_texture.as_ref() );
       gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width  as i32, height  as i32 );
       gl::texture::d2::filter_linear( &gl );
 
+      // --- Attach Renderbuffers to Multisample Framebuffer ---
+      // Bind the multisample framebuffer to configure its attachments.
       gl.bind_framebuffer( gl::FRAMEBUFFER, multisample_framebuffer.as_ref() );
+      // Attach the depth/stencil renderbuffer.
       gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::DEPTH_STENCIL_ATTACHMENT, gl::RENDERBUFFER, depth_renderbuffer.as_ref() );
+      // Attach the main and emission color renderbuffers as color attachments.
       gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, multisample_main_renderbuffer.as_ref() );
       gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::RENDERBUFFER, multisample_emission_renderbuffer.as_ref() );
+      // Specify which color attachments are active for drawing.
       gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1 ] );
 
+      // --- Attach Textures to Resolved Framebuffer ---
+      // Bind the resolved framebuffer to configure its attachments.
       gl.bind_framebuffer( gl::FRAMEBUFFER, resolved_framebuffer.as_ref() );
+      // Attach the main and emission textures as color attachments.
       gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, main_texture.as_ref(), 0 );
       gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, emission_texture.as_ref(), 0 );
+      // Specify which color attachments are active for drawing (though for resolved,
+      // these will typically be written to via `blit_framebuffer`).
       gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1 ] );
 
+      // Unbind all resources to clean up the global WebGL state.
       gl.bind_texture( gl::TEXTURE_2D, None );
       gl.bind_renderbuffer( gl::RENDERBUFFER, None );
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
@@ -117,47 +184,98 @@ mod private
       }
     }
 
+    /// Configures both the multisample and resolved framebuffers to allow
+    /// drawing to both `COLOR_ATTACHMENT0` (main) and `COLOR_ATTACHMENT1` (emission).
+    ///
+    /// This is useful when you want to render both normal scene data and
+    /// emissive properties in a single pass.
+    ///
+    /// # Arguments
+    ///
+    /// * `gl` - A reference to the WebGl2RenderingContext.
     pub fn enable_emission_texture( &self, gl : &gl::WebGl2RenderingContext )
     {
+      // Enable both attachments for the multisample framebuffer.
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
       gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1 ] );
 
+      // Enable both attachments for the resolved framebuffer.
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
       gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1 ] );
 
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
     }
 
+    /// Configures both the multisample and resolved framebuffers to allow
+    /// drawing only to `COLOR_ATTACHMENT0` (main), effectively disabling
+    /// rendering to the emission texture.
+    ///
+    /// This can be used when the emission channel is not needed or to optimize
+    /// rendering passes.
+    ///
+    /// # Arguments
+    ///
+    /// * `gl` - A reference to the WebGl2RenderingContext.
     pub fn disable_emission_texture( &self, gl : &gl::WebGl2RenderingContext )
     {
+      // Disable emission attachment for the multisample framebuffer.
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
       gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0 ] );
 
+      // Disable emission attachment for the resolved framebuffer.
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
       gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0 ] );
 
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
     }
 
+    /// Resolves the multisampled framebuffer into the non-multisampled textures
+    /// of the resolved framebuffer using `gl.blit_framebuffer`.
+    ///
+    /// This operation performs the anti-aliasing process, taking the averaged
+    /// color values from the multisample renderbuffers and writing them into
+    /// the corresponding textures.
+    ///
+    /// # Arguments
+    ///
+    /// * `gl` - A reference to the WebGl2RenderingContext.
     pub fn resolve( &self, gl : &gl::WebGl2RenderingContext )
     {
       self.bind_multisample( gl );
       self.bind_resolved( gl );
+
+      // Ensure the multisample framebuffer is bound for reading and
+      // the resolved framebuffer for drawing.
       gl.bind_framebuffer( gl::READ_FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
       gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
+      // Clear the color buffer of the resolved framebuffer before blitting.
+      // This is good practice to ensure clean results, especially if partial updates
+      // are not intended.
       gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ 0.0, 0.0, 0.0, 1.0 ] );
+      // Blit the multisampled color buffer (COLOR_ATTACHMENT0) from the read framebuffer
+      // to the draw framebuffer. The `gl::LINEAR` filter ensures a smooth resolution.
       gl.blit_framebuffer
       (
         0, 0, self.texture_width as i32, self.texture_height as i32, 
         0, 0, self.texture_width as i32, self.texture_height as i32, 
         gl::COLOR_BUFFER_BIT, gl::LINEAR
       );
+      // Unbind framebuffers to reset global state.
       gl.bind_framebuffer( gl::READ_FRAMEBUFFER, None );
       gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, None );
       self.unbind_multisample( gl );
       self.unbind_resolved( gl );
     }
 
+    /// Binds the `multisample_framebuffer` and attaches its renderbuffers.
+    ///
+    /// This function should be called before rendering operations that require
+    /// multisampling. It ensures that subsequent drawing commands write to
+    /// the multisampled color and depth renderbuffers.
+    ///
+    /// # Arguments
+    ///
+    /// * `gl` - A reference to the WebGl2RenderingContext.
     pub fn bind_multisample( &self, gl : &gl::WebGl2RenderingContext )
     {
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
@@ -165,6 +283,15 @@ mod private
       gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::RENDERBUFFER, self.multisample_emission_renderbuffer.as_ref() );
     }
 
+    /// Binds the `resolved_framebuffer` and attaches its textures.
+    ///
+    /// This function should be called when you want to render directly into
+    /// the resolved textures (e.g., for post-processing that doesn't require
+    /// multisampling, or after a `resolve` operation).
+    ///
+    /// # Arguments
+    ///
+    /// * `gl` - A reference to the WebGl2RenderingContext.
     pub fn bind_resolved( &self, gl : &gl::WebGl2RenderingContext )
     {
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
@@ -172,6 +299,15 @@ mod private
       gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, self.emission_texture.as_ref(), 0 );
     }
 
+    /// Unbinds the color renderbuffers from the `multisample_framebuffer`
+    /// and then unbinds the framebuffer itself.
+    ///
+    /// This function is useful for resetting the framebuffer state after
+    /// rendering to the multisample target, preventing accidental draws to it.
+    ///
+    /// # Arguments
+    ///
+    /// * `gl` - A reference to the WebGl2RenderingContext.
     pub fn unbind_multisample( &self, gl : &gl::WebGl2RenderingContext )
     {
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
@@ -180,6 +316,16 @@ mod private
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
     }
 
+    /// Unbinds the color textures from the `resolved_framebuffer` and then
+    /// unbinds the framebuffer itself.
+    ///
+    /// This function is useful for resetting the framebuffer state after
+    /// operations that write to the resolved textures, allowing them to be
+    /// used as input textures in subsequent rendering passes.
+    ///
+    /// # Arguments
+    ///
+    /// * `gl` - A reference to the WebGl2RenderingContext.
     pub fn unbind_resolved( &self, gl : &gl::WebGl2RenderingContext )
     {
        gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
@@ -205,6 +351,10 @@ mod private
     transparent_nodes : Vec< ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > > ) >,
     /// If set to true, the renderer will add blur to the original image
     use_emission : bool,
+    /// The **framebuffer context** used for multisampling and post-processing. This
+    /// manages the multisample framebuffer, resolved framebuffer, and their associated
+    /// renderbuffers and textures (main color and emission). It allows for anti-aliasing
+    /// and the separation of main scene rendering from emissive components.
     framebuffer_ctx : FramebufferContext
   }
 
@@ -237,11 +387,13 @@ mod private
       self.ibl = Some( ibl );
     }
 
+    /// Sets whether the renderer should use the emission texture for post-processing effects.
     pub fn set_use_emission( &mut self, use_emission : bool )
     {
       self.use_emission = use_emission;
     }
 
+    /// Retrieves a clone of the main color texture from the internal framebuffer context.
     pub fn get_main_texture( &self ) -> Option< gl::web_sys::WebGlTexture >
     {
       self.framebuffer_ctx.main_texture.clone()

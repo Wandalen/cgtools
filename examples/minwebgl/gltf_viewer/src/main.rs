@@ -53,7 +53,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
 
-  let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl, canvas.width(), canvas.height() )?;
+  let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
   //let bloom = post_processing::UnrealBloomPass::new( &gl, width, height, format)
 

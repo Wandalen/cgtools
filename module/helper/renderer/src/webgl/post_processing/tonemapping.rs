@@ -9,31 +9,15 @@ mod private
     ProgramInfo 
   };
 
+  /// Represents the ACES (Academy Color Encoding System) tone mapping algorithm.
   pub struct ToneMappingAces;
 
+  /// A generic post-processing pass for applying tone mapping to a texture.
   pub struct ToneMappingPass< T >
   {
+    /// The WebGL program used for the tone mapping operation.
     material : ProgramInfo< EmptyShader >,
-    output_texture : Option< gl::web_sys::WebGlTexture >,
     phantom : std::marker::PhantomData< T >
-  }
-
-  impl< T > ToneMappingPass< T > 
-  {
-    fn create_texture( gl : &gl::WebGl2RenderingContext, width : u32, height : u32 ) -> Option< gl::web_sys::WebGlTexture >
-    {
-      let texture = gl.create_texture();
-      gl.bind_texture( gl::TEXTURE_2D, texture.as_ref() );
-      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA8, width as i32, height as i32 );
-      gl::texture::d2::filter_linear( &gl );
-
-      texture
-    }    
-
-    pub fn get_output_texture( &self ) -> Option< gl::web_sys::WebGlTexture >
-    {
-      self.output_texture.clone()
-    }
   }
 
   impl< T > Pass for ToneMappingPass< T >
@@ -51,9 +35,11 @@ mod private
       output_texture : Option< minwebgl::web_sys::WebGlTexture >
     ) -> Result< Option< minwebgl::web_sys::WebGlTexture >, minwebgl::WebglError > 
     {
+      // Disable depth testing.
       gl.disable( gl::DEPTH_TEST );
       gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
 
+      // Bind the tone mapping shader program.
       self.material.bind( gl );
       gl.active_texture( gl::TEXTURE0 );
       gl.bind_texture( gl::TEXTURE_2D, input_texture.as_ref() );
@@ -69,7 +55,8 @@ mod private
       gl.clear( gl::COLOR_BUFFER_BIT );
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );
 
-      // Unbind the attachment
+      // --- Cleanup ---
+      // Unbind the texture and framebuffer attachment to restore default state.
       gl.bind_texture( gl::TEXTURE_2D, None );
       gl.framebuffer_texture_2d
       (
@@ -86,20 +73,25 @@ mod private
 
   impl ToneMappingPass< ToneMappingAces > 
   {
-    pub fn new( gl : &gl::WebGl2RenderingContext, width : u32, height : u32 ) -> Result< Self, gl::WebglError >
+    // Creates a new `ToneMappingPass` specifically configured for **ACES tone mapping**.
+    ///
+    /// This constructor loads the ACES fragment shader, compiles it, and initializes
+    /// the output texture.
+    ///
+    /// # Arguments
+    ///
+    /// * `gl` - A reference to the WebGl2RenderingContext.
+    pub fn new( gl : &gl::WebGl2RenderingContext ) -> Result< Self, gl::WebglError >
     {
       let fs_shader = include_str!( "../shaders/tonemapping/aces.frag" );
       let material = gl::ProgramFromSources::new(  VS_TRIANGLE, fs_shader ).compile_and_link( gl )?;
       let material = ProgramInfo::< EmptyShader >::new( material );
-      
-      let output_texture = Self::create_texture( gl, width, height );
 
       Ok
       ( 
         Self
         {
           material,
-          output_texture,
           phantom : PhantomData
         }
       )

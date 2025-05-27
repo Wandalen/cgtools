@@ -4,8 +4,10 @@ mod private
 
   pub trait Pass
   {
+    /// Indicates whether this rendering pass renders to its input texture.
     fn renders_to_input( &self ) -> bool;
 
+    /// Renders post-processing effect.
     fn render
     (
       &self,
@@ -15,31 +17,60 @@ mod private
     ) -> Result< Option< gl::web_sys::WebGlTexture >, gl::WebglError >;
   }
 
+  // Manages a pair of textures within a single framebuffer to facilitate ping-pong
+  /// rendering, where the output of one pass becomes the input for the next.
   pub struct SwapFramebuffer
   {
+    /// The WebGL framebuffer used for rendering. It has a single color attachment.
     framebuffer : Option< gl::web_sys::WebGlFramebuffer >,
+    /// The renderbuffer attached to the framebuffer for depth and stencil testing.
+    /// Needed to complete the framebuffer
     renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
+    /// A clone of the initial `output_texture` created upon instantiation.
+    /// This is used to `reset` the output texture to its original state.
     original_output : Option< gl::web_sys::WebGlTexture >,
+    /// The texture currently serving as the input for a rendering pass.
+    /// After a `swap`, this will hold the result from the previous `output_texture`.
     input_texture : Option< gl::web_sys::WebGlTexture >,
+    /// The texture currently serving as the output for a rendering pass.
+    /// After a `swap`, its content will become the new `input_texture`.
     output_texture : Option< gl::web_sys::WebGlTexture >
   }
 
   impl SwapFramebuffer 
   {
+    /// Creates a new `SwapFramebuffer` instance, initializing its WebGL framebuffer,
+    /// renderbuffer, and the primary output texture.
+    ///
+    /// The framebuffer is configured with a single color attachment point and a
+    /// depth/stencil renderbuffer. An initial `output_texture` is created with
+    /// `RGBA16F` format for high precision.
+    ///
+    /// # Arguments
+    ///
+    /// * `gl` - A reference to the WebGl2RenderingContext.
+    /// * `width` - The width of the textures and framebuffer.
+    /// * `height` - The height of the textures and framebuffer.
     pub fn new( gl : &gl::WebGl2RenderingContext, width : u32, height : u32 ) -> Self
     {
+      // Create and configure the framebuffer.
       let framebuffer = gl.create_framebuffer();
       gl.bind_framebuffer( gl::FRAMEBUFFER, framebuffer.as_ref() );
+      // Specify that only COLOR_ATTACHMENT0 is used for drawing.
       gl::drawbuffers::drawbuffers( &gl, &[ gl::COLOR_ATTACHMENT0 ] );
 
+      // Create and configure the depth/stencil renderbuffer.
       let renderbuffer = gl.create_renderbuffer();
       gl.bind_renderbuffer( gl::RENDERBUFFER, renderbuffer.as_ref() );
       gl.renderbuffer_storage( gl::RENDERBUFFER, gl::DEPTH24_STENCIL8, width as i32, height as i32 );
+      // Attach the renderbuffer to the framebuffer.
       gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::DEPTH_STENCIL_ATTACHMENT, gl::RENDERBUFFER, renderbuffer.as_ref() );
 
+      // Unbind renderbuffer and framebuffer to clean up global state.
       gl.bind_renderbuffer( gl::RENDERBUFFER, None );
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
 
+      // Create the primary output texture.
       let output_texture = gl.create_texture();
       gl.bind_texture( gl::TEXTURE_2D, output_texture.as_ref() );
       gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width as i32, height as i32 );
@@ -59,11 +90,16 @@ mod private
       }
     }
 
+    /// Binds the internal framebuffer of this `SwapFramebuffer` instance.
+    ///
+    /// This should be called before any drawing commands that are intended
+    /// to write to the `output_texture` managed by this `SwapFramebuffer`.
     pub fn bind( &self, gl : &gl::WebGl2RenderingContext )
     {
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.framebuffer.as_ref() );
     }
 
+    /// Swaps the `input_texture` and `output_texture`.
     pub fn swap( &mut self )
     {
       let tmp = self.input_texture.clone();
@@ -71,33 +107,39 @@ mod private
       self.output_texture = tmp;
     }
 
+    /// Resets the `output_texture` to its original texture.
     pub fn reset( &mut self )
     {
       self.output_texture = self.original_output.clone();
     }
 
+    /// Unbinds the color attachment from the internal framebuffer.
     pub fn unbind_attachment( &self, gl : &gl::WebGl2RenderingContext )
     {
       self.bind( gl );
       gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, None, 0 );
     }
 
+    /// Sets the `input_texture` of the `SwapFramebuffer`.
     pub fn set_input( &mut self, texture : Option< gl::web_sys::WebGlTexture > )
     {
       self.input_texture = texture;
     }
 
+    /// Sets the `output_texture` of the `SwapFramebuffer`.
     pub fn set_output( &mut self, texture : Option< gl::web_sys::WebGlTexture > )
     {
       self.output_texture = texture;
     }
 
 
+    /// Returns the current `input_texture`.
     pub fn get_input( &self ) -> Option< gl::web_sys::WebGlTexture >
     {
       self.input_texture.clone()
     }
 
+    /// Returns the current `output_texture`.
     pub fn get_output( &self ) -> Option< gl::web_sys::WebGlTexture >
     {
       self.output_texture.clone()
