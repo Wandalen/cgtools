@@ -55,7 +55,7 @@ void main()
   vec2 tex_coord = ( gl_FragCoord.xy - 0.5 ) / u_screen_size;
   vec3 frag_pos = texture( u_positions, tex_coord ).xyz;
   vec3 normal = texture( u_normals, tex_coord ).xyz;
-  vec3 color = texture( u_colors, tex_coord ).rgb;
+  vec3 base_color = texture( u_colors, tex_coord ).rgb;
 
   vec3 to_ligth = v_light_position - frag_pos;
   float distance = length( to_ligth );
@@ -64,8 +64,8 @@ void main()
   vec3 halfway_dir = normalize( light_dir + view_dir );
   float diffuse = max( dot( normal, light_dir ), 0.0 );
   float specular = pow( max( dot( normal, halfway_dir ), 0.0 ), 30.0 );
-  float attenuation = attenuate_no_cusp( distance, v_light_radius, 2.0, 40.0 );
-  vec3 colorr = vec3( specular + diffuse ) * color * attenuation;
+  float attenuation = attenuate_no_cusp( distance, v_light_radius, 1.0, 40.0 );
+  vec3 color = vec3( specular + diffuse ) * base_color * attenuation;
 
-  frag_color = vec4( pow( colorr, vec3( 1.0 / 2.2 ) ), 1.0 );
+  frag_color = vec4( pow( color, vec3( 1.0 / 2.2 ) ), 1.0 );
 }

@@ -83,30 +83,14 @@ async fn run() -> Result< (), gl::WebglError >
   let screen_shader = gl::shader::Program::new( gl.clone(), vert, frag )?;
 
   // cube geometry
-  let position_buffer = gl::buffer::create( &gl )?;
-  gl::buffer::upload( &gl, &position_buffer, CUBE_VERTICES, GL::STATIC_DRAW );
-  let index_buffer = gl::buffer::create( &gl )?;
-  gl::index::upload( &gl, &index_buffer, CUBE_INDICES, GL::STATIC_DRAW );
-  let position_attribute = AttributePointer::new( &gl, BufferDescriptor::new::< [ f32; 3 ] >(), position_buffer, 0 );
-  let cube = Geometry::with_elements( &gl, position_attribute, index_buffer, CUBE_INDICES.len() as i32 )?;
+  let light_volume = light_volume( &gl )?;
 
   let projection = mat3x3h::perspective_rh_gl( 60.0f32.to_radians(), width as f32 / height as f32, 0.1, 1000.0 );
   let rotation = mat3x3h::rot( 10.0f32.to_radians(), 0.0, 0.0 ) * mat3x3h::rot( 0.0, 90.0f32.to_radians(), 0.0 );
   let scene_transform = mat3x3h::translation( [ 0.0f32, -8.0, -45.0 ] ) * rotation * mat3x3h::scale( [ 0.06, 0.06, 0.06 ] );
 
   // gbuffer
-  let gbuffer = gl.create_framebuffer();
-  let position_gbuffer = tex_storage_2d( &gl, GL::RGBA16F, width, height );
-  let normal_gbuffer = tex_storage_2d( &gl, GL::RGBA16F, width, height );
-  let color_gbuffer = tex_storage_2d( &gl, GL::RGBA8, width, height );
-  let depthbuffer = gl.create_renderbuffer();
-  gl.bind_renderbuffer( GL::RENDERBUFFER, depthbuffer.as_ref() );
-  gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH_COMPONENT24, width, height );
-  gl.bind_framebuffer( GL::FRAMEBUFFER, gbuffer.as_ref() );
-  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, position_gbuffer.as_ref(), 0 );
-  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, normal_gbuffer.as_ref(), 0 );
-  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT2, GL::TEXTURE_2D, color_gbuffer.as_ref(), 0 );
-  gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::RENDERBUFFER, depthbuffer.as_ref() );
+  let ( gbuffer, position_gbuffer, normal_gbuffer, color_gbuffer ) = gbuffer( &gl, width, height );
 
   // draw big wall into gbuffer once, because it is static
   gl::drawbuffers::drawbuffers( &gl, &[ GL::COLOR_ATTACHMENT0, GL::COLOR_ATTACHMENT1, GL::COLOR_ATTACHMENT2 ] );
@@ -131,12 +115,12 @@ async fn run() -> Result< (), gl::WebglError >
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, None, 0 );
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT2, GL::TEXTURE_2D, None, 0 );
 
-  let light_radius = 100.0;
+  let light_radius = 200.0;
   // grid of light sources
   let rows = 1;
   let columns = 1;
   // lights z position
-  let z = 0.0;
+  let z = -40.0;
   let light_instances = rows * columns;
   // random z offset for each light source
   let offsets = ( 0..light_instances )
@@ -182,9 +166,9 @@ async fn run() -> Result< (), gl::WebglError >
     3
   );
 
-  cube.add_attribute( translation_attribute )?;
-  cube.add_attribute( radius_attribute )?;
-  cube.add_attribute( color_attribute )?;
+  light_volume.add_attribute( translation_attribute )?;
+  light_volume.add_attribute( radius_attribute )?;
+  light_volume.add_attribute( color_attribute )?;
 
   // doesn't need to write to depth buffer anymore
   gl.depth_mask( false );
@@ -221,7 +205,7 @@ async fn run() -> Result< (), gl::WebglError >
     light_shader.uniform_upload( "u_positions", &0 );
     light_shader.uniform_upload( "u_normals", &1 );
     light_shader.uniform_upload( "u_colors", &2 );
-    gl.draw_elements_instanced_with_i32( GL::TRIANGLES, cube.element_count, GL::UNSIGNED_INT, 0, light_instances );
+    gl.draw_elements_instanced_with_i32( GL::TRIANGLES, light_volume.element_count, GL::UNSIGNED_INT, 0, light_instances );
 
     // show on screen
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );
@@ -238,6 +222,35 @@ async fn run() -> Result< (), gl::WebglError >
   gl::exec_loop::run( update );
 
   Ok( () )
+}
+
+fn gbuffer(gl: &GL, width: i32, height: i32)
+-> ( Option< web_sys::WebGlFramebuffer >, Option< WebGlTexture >, Option< WebGlTexture >, Option< WebGlTexture > )
+{
+  let gbuffer = gl.create_framebuffer();
+  let position_gbuffer = tex_storage_2d( gl, GL::RGBA16F, width, height );
+  let normal_gbuffer = tex_storage_2d( gl, GL::RGBA16F, width, height );
+  let color_gbuffer = tex_storage_2d( gl, GL::RGBA8, width, height );
+  let depthbuffer = gl.create_renderbuffer();
+  gl.bind_renderbuffer( GL::RENDERBUFFER, depthbuffer.as_ref() );
+  gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH_COMPONENT24, width, height );
+  gl.bind_framebuffer( GL::FRAMEBUFFER, gbuffer.as_ref() );
+  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, position_gbuffer.as_ref(), 0 );
+  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, normal_gbuffer.as_ref(), 0 );
+  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT2, GL::TEXTURE_2D, color_gbuffer.as_ref(), 0 );
+  gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::RENDERBUFFER, depthbuffer.as_ref() );
+  ( gbuffer, position_gbuffer, normal_gbuffer, color_gbuffer )
+}
+
+fn light_volume(gl: &GL) -> Result< Geometry, WebglError >
+{
+  let position_buffer = gl::buffer::create( gl )?;
+  gl::buffer::upload( gl, &position_buffer, CUBE_VERTICES, GL::STATIC_DRAW );
+  let index_buffer = gl::buffer::create( gl )?;
+  gl::index::upload( gl, &index_buffer, CUBE_INDICES, GL::STATIC_DRAW );
+  let position_attribute = AttributePointer::new( gl, BufferDescriptor::new::< [ f32; 3 ] >(), position_buffer, 0 );
+  let light_volume = Geometry::with_elements( gl, position_attribute, index_buffer, CUBE_INDICES.len() as i32 )?;
+  Ok( light_volume )
 }
 
 async fn load_glb( gl : &GL ) -> Result< Vec< ( Geometry, Option< WebGlTexture > ) >, gl::WebglError >
@@ -287,26 +300,48 @@ async fn load_glb( gl : &GL ) -> Result< Vec< ( Geometry, Option< WebGlTexture >
       let source = texture.source();
       let image = &images[ source.index() ];
       let base_color_tex = gl.create_texture();
-      let format = match image.format
+
+      let mut rgba_pixels;
+
+      // Convert RGB images to RGBA because WebGL2 does not generate mipmaps for SRGB8 textures, only for SRGB8_ALPHA8
+      let pixels = match image.format
       {
-        gltf::image::Format::R8G8B8 => GL::RGB,
-        gltf::image::Format::R8G8B8A8 => GL::RGBA,
+        gltf::image::Format::R8G8B8 =>
+        {
+          rgba_pixels = Vec::with_capacity( ( image.width * image.height * 4 ) as usize );
+          image.pixels.chunks_exact( 3 ).for_each
+          (
+            | rgb |
+            {
+              rgba_pixels.push( rgb[ 0 ] );
+              rgba_pixels.push( rgb[ 1 ] );
+              rgba_pixels.push( rgb[ 2 ] );
+              rgba_pixels.push( 255 );
+            }
+          );
+          rgba_pixels.as_slice()
+        },
+        gltf::image::Format::R8G8B8A8 => image.pixels.as_slice(),
         _ => continue,
       };
+
       gl.bind_texture( GL::TEXTURE_2D , base_color_tex.as_ref() );
       gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_u8_array_and_src_offset
       (
         GL::TEXTURE_2D,
         0,
-        format as i32,
+        GL::SRGB8_ALPHA8 as i32,
         image.width as i32,
         image.height as i32,
         0,
-        format,
+        GL::RGBA,
         GL::UNSIGNED_BYTE,
-        &image.pixels,
+        pixels,
         0
       ).unwrap();
+      gl.generate_mipmap( GL::TEXTURE_2D );
+      gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::LINEAR_MIPMAP_LINEAR as i32 );
+      gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::LINEAR as i32 );
 
       primitives.push( ( geometry, base_color_tex ) );
     }
