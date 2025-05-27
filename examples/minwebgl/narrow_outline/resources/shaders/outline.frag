@@ -19,8 +19,6 @@ uniform mat4 u_projection;
 uniform vec2 u_resolution;
 
 uniform float u_outline_thickness;
-uniform vec4 u_outline_color;
-uniform vec4 u_object_color;
 uniform vec4 u_background_color;
 
 void main()
@@ -75,14 +73,13 @@ void main()
   // Determine the final fragment color based on sampled color and calculated outline.
   if ( texture( u_color_texture, v_tex_coord ).x > 0.1 )
   {
-    FragColor = u_object_color;
     float l = length( texture( u_norm_texture, v_tex_coord ).xyz );
-    FragColor = vec4( vec3( l ), 1.0 );
+    vec4 intensity = vec4( vec3( l ), 1.0 );
+    FragColor = texture( u_color_texture, v_tex_coord ) * intensity;
   }
   else if ( outline < 0.5 )
   {
-    FragColor = u_outline_color;
-    //FragColor = texture( u_norm_texture, v_tex_coord - vec2( 1, 1 ) );
+    FragColor = vec4( 1.0 );
   }
   else
   {

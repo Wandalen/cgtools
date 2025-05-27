@@ -1,4 +1,4 @@
-use minwebgl::{ self as gl, drawbuffers::{ drawbuffers, ColorAttachment } };
+use minwebgl::{ self as gl, drawbuffers::drawbuffers };
 use gl::
 {
   GL,
@@ -159,7 +159,7 @@ fn create_framebuffer
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1 + color_attachment, GL::TEXTURE_2D, Some( &normal ), 0 );
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::TEXTURE_2D, Some( &depth ), 0 );
   
-  drawbuffers( gl, &[ ColorAttachment::N0, ColorAttachment::N1 ] );
+  drawbuffers( gl, &[ GL::COLOR_ATTACHMENT0, GL::COLOR_ATTACHMENT1 ] );
 
   gl.bind_framebuffer( gl::FRAMEBUFFER, None );
 
@@ -312,10 +312,13 @@ pub fn primitives_data_csgrs
 (
     positions: &mut Vec< [ f32; 3 ] >,
     normals: &mut Vec< [ f32; 3 ] >,
+    object_ids: &mut Vec< f32 >,
     indices: &mut Vec< u32 >,
     vertex_offset: &mut u32,
 )
 {
+  let mut last_object_id = *object_ids.last().unwrap_or( &0.0 );
+
   let meshes: Vec< CSG< () > > = vec![
     {
       // Cone is constructed using frustum with one radius near zero.
@@ -382,7 +385,7 @@ pub fn primitives_data_csgrs
   let mut position = F32x4::new( 2.0, 0.0, 1.0, 1.0 );
 
   // Generate random transformation parameters for each mesh.
-  let mut rng = rand::thread_rng();
+  let mut rng = rand::rng();
   let count = meshes.len();
   let rot_matrix = rot(  0.0, ( 360.0 / count as f32 ).to_radians(), 0.0 );
   let primitives = ( 0..count )
@@ -396,7 +399,7 @@ pub fn primitives_data_csgrs
       {
         for i in indices.clone()
         {
-          t[i] = rng.gen_range( values.clone() );
+          t[i] = rng.random_range( values.clone() );
         }
       }
 
@@ -467,6 +470,9 @@ pub fn primitives_data_csgrs
     );
 
     normals.extend( primitive_normals );
+
+    last_object_id += 1.0;
+    object_ids.extend( vec![ last_object_id as f32; vertices_count ] );
     
     *vertex_offset += vertices_count as u32;
   }
@@ -484,6 +490,7 @@ struct Renderer
   viewport : ( i32, i32 ),
   camera : Camera,
   model_matrix : F32x4x4,
+  object_colors : Vec< f32 >,
   draw_count : i32 // Number of indices to draw for the object
 }
 
@@ -536,6 +543,7 @@ impl Renderer
       viewport,
       camera,
       model_matrix,
+      object_colors : vec![],
       draw_count : 0
     };
 
@@ -553,7 +561,7 @@ impl Renderer
     let outline_program = gl::ProgramFromSources::new( fullscreen_vs_src, outline_fs_src ).compile_and_link( gl ).unwrap();
 
     renderer.programs.insert( "object".to_string(), object_program );
-    renderer.programs.insert( "outline".to_string(), outline_program );
+    renderer.programs.insert( "outline".to_string(), outline_program.clone() );
 
     // --- Create Framebuffers and Textures ---
 
@@ -576,12 +584,13 @@ impl Renderer
     // Create GPU buffers and a Vertex Array Object ( VAO )
     let pos_buffer =  gl::buffer::create( gl ).unwrap();
     let norm_buffer = gl::buffer::create( gl ).unwrap();
+    let object_id_buffer = gl::buffer::create( gl ).unwrap();
     let index_buffer = gl::buffer::create( gl ).unwrap();
     let vao = gl::vao::create( gl ).unwrap();
 
     renderer.buffers.insert( "pos_buffer".to_string(), pos_buffer.clone() );
     renderer.buffers.insert( "norm_buffer".to_string(), norm_buffer.clone() );
-    renderer.buffers.insert( "index_buffer".to_string(), index_buffer.clone() );
+    renderer.buffers.insert( "object_id_buffer".to_string(), object_id_buffer.clone() );
     renderer.vaos.insert( "vao".to_string(), vao.clone() );
 
     // Load the GLTF model file
@@ -590,14 +599,17 @@ impl Renderer
 
     let mut positions : Vec< [ f32; 3 ] > = vec![];
     let mut normals : Vec< [ f32; 3 ] > = vec![];
+    let mut object_ids : Vec< f32 > = vec![];
     let mut indices : Vec< u32 > = vec![];
 
     // Process the default scene in the GLTF document
     {
       let scene = document.default_scene().unwrap();
       let mut vertex_offset : u32 = 0; // Counter for correct index offsetting
+      let mut last_object_id = *object_ids.last().unwrap_or( &0.0 );
       for node in scene.nodes()
       {
+        let old_vertex_offset = vertex_offset;
         // Recursively collect mesh data from the scene graph
         gltf_data
         (
@@ -609,12 +621,16 @@ impl Renderer
           &mut indices,  
           &mut vertex_offset // Output counter for vertex offset
         );
+        let vertex_count = vertex_offset - old_vertex_offset;
+        last_object_id += 1.0; 
+        object_ids.extend( vec![ last_object_id as f32; vertex_count as usize ] );
       }
       
       primitives_data_csgrs
       (
         &mut positions, 
         &mut normals,
+        &mut object_ids,
         &mut indices,  
         &mut vertex_offset
       );
@@ -622,8 +638,37 @@ impl Renderer
       renderer.draw_count = indices.len() as i32; // Store the total number of indices to draw
     }
 
+    let mut object_colors = vec![ vec![ 0.0; 4 ]; 256 ];
+    let mut object_count = *object_ids.last().unwrap_or( &0.0 ) as usize + 1;
+    let mut rng = rand::rng();
+
+    let range = 0.2..1.0;
+    ( 0..object_count ).for_each
+    ( 
+      | i |
+      {
+        object_colors[ i ] = vec![ 
+          rng.random_range( range.clone() ), 
+          rng.random_range( range.clone() ),
+          rng.random_range( range.clone() ),
+          1.0
+        ];
+      } 
+    );
+
+    let object_color_buffer = gl::buffer::create( &gl ).unwrap();
+    renderer.buffers.insert( "object_color_buffer".to_string(), object_color_buffer.clone() );
+    let u_object_colors_loc = gl.get_uniform_block_index( &outline_program, "ObjectColorBlock" );
+    gl.uniform_block_binding( &outline_program, u_object_colors_loc, 0 );
+    gl.bind_buffer_base( GL::UNIFORM_BUFFER, 0, Some( &object_color_buffer ) );
+    gl.bind_buffer( GL::UNIFORM_BUFFER, Some( &object_color_buffer ) );
+    gl.buffer_data_with_i32( GL::UNIFORM_BUFFER, 256 * 16, GL::STATIC_DRAW );
+    renderer.object_colors = object_colors.into_iter().flatten().collect::< Vec< _ > >();
+    gl::ubo::upload( &gl, &object_color_buffer, 0, &renderer.object_colors[ .. ], GL::STATIC_DRAW );
+
     gl::buffer::upload( &gl, &pos_buffer, &positions, GL::STATIC_DRAW );
     gl::buffer::upload( &gl, &norm_buffer, &normals, GL::STATIC_DRAW );
+    gl::buffer::upload( &gl, &object_id_buffer, &object_ids, GL::STATIC_DRAW );
     gl::index::upload( &gl, &index_buffer, &indices, GL::STATIC_DRAW );
 
     gl.bind_vertex_array( Some( &vao ) );
@@ -637,9 +682,17 @@ impl Renderer
     .offset( 0 )
     .attribute_pointer( &gl, 1, &norm_buffer ) // Location 1 for normals
     .unwrap();
+    gl::BufferDescriptor::new::< [ f32; 1 ] >()
+    .stride( 1 )
+    .offset( 0 )
+    .attribute_pointer( &gl, 2, &object_id_buffer ) // Location 2 for object_ids
+    .unwrap();
     gl.bind_buffer( GL::ELEMENT_ARRAY_BUFFER, Some( &index_buffer ) );
     gl.bind_vertex_array( None );
 
+    //gl::info!( "{:?}", ( positions.len(), normals.len(), object_ids.len() ) );
+
+    gl.bind_buffer( GL::UNIFORM_BUFFER, None );
     gl.bind_buffer( GL::ARRAY_BUFFER, None );
     gl.bind_buffer( GL::ELEMENT_ARRAY_BUFFER, None );
 
@@ -712,15 +765,11 @@ impl Renderer
     let u_projection_loc = gl.get_uniform_location( outline_program, "u_projection" ).unwrap();
     let u_resolution_loc = gl.get_uniform_location( outline_program, "u_resolution" ).unwrap();
     let u_outline_thickness_loc = gl.get_uniform_location( outline_program, "u_outline_thickness" ).unwrap();
-    let u_outline_color_loc = gl.get_uniform_location( outline_program, "u_outline_color" ).unwrap();
-    let u_object_color_loc = gl.get_uniform_location( outline_program, "u_object_color" ).unwrap();
     let u_background_color_loc = gl.get_uniform_location( outline_program, "u_background_color" ).unwrap();
 
     gl.use_program( Some( outline_program ) );
 
     let outline_thickness = [ ( 8.0 * ( t / 1000.0 ).sin().abs() ) as f32 ]; // Example animation
-    let outline_color = [ 1.0, 1.0, 1.0, 1.0 ]; // White outline
-    let object_color = [ 0.5, 0.5, 0.5, 1.0 ]; // Grey object
     let background_color = [ 0.0, 0.0, 0.0, 1.0 ]; 
 
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );
@@ -734,8 +783,6 @@ impl Renderer
     gl::uniform::matrix_upload( gl, Some( u_projection_loc.clone() ), &self.camera.get_projection_matrix().to_array()[ .. ], true ).unwrap();
     gl::uniform::upload( gl, Some( u_resolution_loc.clone() ), &[ self.viewport.0 as f32, self.viewport.1 as f32 ] ).unwrap();
     gl::uniform::upload( gl, Some( u_outline_thickness_loc.clone() ), &outline_thickness ).unwrap();
-    gl::uniform::upload( gl, Some( u_outline_color_loc.clone() ), &outline_color ).unwrap();
-    gl::uniform::upload( gl, Some( u_object_color_loc.clone() ), &object_color ).unwrap();
     gl::uniform::upload( gl, Some( u_background_color_loc.clone() ), &background_color ).unwrap();
 
     gl.draw_arrays( GL::TRIANGLES, 0, 3 );

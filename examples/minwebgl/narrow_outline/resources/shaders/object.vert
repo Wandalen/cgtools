@@ -3,9 +3,13 @@
 layout ( location = 0 ) in vec3 a_pos;
 // Input normal attribute.
 layout ( location = 1 ) in vec3 a_norm;
+// Input object id attribute.
+layout ( location = 2 ) in float a_object_id;
 
 // Output varying for the fragment shader (transformed normal).
 out vec3 v_norm;
+// Output flat for the fragment shader.
+out float v_object_id;
 
 // Uniform transformation matrices: Projection, View, and Model.
 // These are uploaded from the Rust application code.
@@ -25,4 +29,5 @@ void main()
   // Transform the normal vector to view space using the normal matrix.
   // We only care about the direction, so we set w to 0.
   v_norm = mat3( u_normal_matrix ) * a_norm;
+  v_object_id = a_object_id;
 }
