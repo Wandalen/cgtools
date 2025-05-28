@@ -72,7 +72,7 @@ async fn run() -> Result< (), gl::WebglError >
   // gbuffer
   let ( gbuffer, position_gbuffer, normal_gbuffer, color_gbuffer ) = gbuffer( &gl, width, height );
 
-  // render data to gbuffer for once
+  // render data to gbuffer for once because scene and camera are static
   gl::drawbuffers::drawbuffers( &gl, &[ 0, 1, 2 ] );
   object_shader.activate();
   object_shader.uniform_matrix_upload( "u_model", scene_transform.raw_slice(), true );
@@ -85,7 +85,7 @@ async fn run() -> Result< (), gl::WebglError >
     gl.draw_elements_with_i32( GL::TRIANGLES, mesh.0.element_count, GL::UNSIGNED_INT, 0 );
   }
   gl.bind_vertex_array( None );
-  // doesn't need to write to depth buffer anymore
+  // doesn't need to write to depth buffer anymore, because scene is static
   gl.depth_mask( false );
 
   // reuse same framebuffer object for offscreen rendering
@@ -96,9 +96,9 @@ async fn run() -> Result< (), gl::WebglError >
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, color_buffer.as_ref(), 0 );
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, None, 0 );
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT2, GL::TEXTURE_2D, None, 0 );
+  gl::drawbuffers::drawbuffers( &gl, &[ 0 ] );
 
   // generate light specific data
-  let light_volume = light_volume( &gl )?;
   let max_light_count = 5000;
   let light_count = Rc::new( RefCell::new( 200 ) );
   let light_radius = 12.0;
@@ -158,6 +158,7 @@ async fn run() -> Result< (), gl::WebglError >
     3
   );
 
+  let light_volume = light_volume( &gl )?;
   light_volume.add_attribute( translation_attribute )?;
   light_volume.add_attribute( radius_attribute )?;
   light_volume.add_attribute( color_attribute )?;
@@ -176,7 +177,6 @@ async fn run() -> Result< (), gl::WebglError >
         let num = e.target().unwrap()
         .dyn_into::< HtmlInputElement >().unwrap().value_as_number() as usize;
         *light_count.borrow_mut() = num;
-        // gl::info!( "{num}" );
         slider_value.set_text_content( Some( &num.to_string() ) );
       }
     }
@@ -190,6 +190,7 @@ async fn run() -> Result< (), gl::WebglError >
   let update = move | time_millis |
   {
     let current_time = ( time_millis / 1000.0 ) as f32;
+    // update fps text when a whole second ellapsed
     if current_time as u32 > last_time as u32
     {
       fps_counter.set_text_content( Some( &format!( "fps: {}", fps ) ) );
@@ -217,13 +218,11 @@ async fn run() -> Result< (), gl::WebglError >
     );
 
     gl.bind_framebuffer( GL::FRAMEBUFFER, offscreen_buffer.as_ref() );
-    gl::drawbuffers::drawbuffers( &gl, &[ 0 ] );
     gl.clear( gl::COLOR_BUFFER_BIT );
-
     gl.enable( GL::DEPTH_TEST );
-    // inverse depth testing to discard fragments out of back bound of light volume
-    gl.depth_func( GL::GEQUAL );
+    // draw back faces of volumes and clip fragments that are behind of back face
     gl.cull_face( GL::FRONT );
+    gl.depth_func( GL::GEQUAL );
     // blending is needed when fragment is affected by several lights
     gl.enable( gl::BLEND );
 
@@ -380,6 +379,7 @@ fn gbuffer( gl : &GL, width : i32, height : i32 )
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, normal_gbuffer.as_ref(), 0 );
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT2, GL::TEXTURE_2D, color_gbuffer.as_ref(), 0 );
   gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::RENDERBUFFER, depthbuffer.as_ref() );
+
   ( gbuffer, position_gbuffer, normal_gbuffer, color_gbuffer )
 }
 
@@ -423,27 +423,25 @@ fn light_volume( gl : &GL ) -> Result< Geometry, WebglError >
   gl::index::upload( gl, &index_buffer, CUBE_INDICES, GL::STATIC_DRAW );
   let position_attribute = AttributePointer::new( gl, BufferDescriptor::new::< [ f32; 3 ] >(), position_buffer, 0 );
   let light_volume = Geometry::with_elements( gl, position_attribute, index_buffer, CUBE_INDICES.len() as i32 )?;
+
   Ok( light_volume )
 }
 
 fn random_rgb_color() -> [ f32; 3 ]
 {
-  let mut r = rand::random_bool( 0.5 ) as u8 as f32;
-  let mut g = rand::random_bool( 0.5 ) as u8 as f32;
-  let mut b = rand::random_bool( 0.5 ) as u8 as f32;
+  let mut rgb =
+  [
+    rand::random_bool( 0.5 ) as u8 as f32,
+    rand::random_bool( 0.5 ) as u8 as f32,
+    rand::random_bool( 0.5 ) as u8 as f32,
+  ];
 
-  if r == 0.0 && g == 0.0 && b == 0.0
+  if rgb[ 0 ] == 0.0 && rgb[ 1 ] == 0.0 && rgb[ 2 ] == 0.0
   {
-    match rand::random_range( 0..3 )
-    {
-      0 => r = 1.0,
-      1 => g = 1.0,
-      2 => b = 1.0,
-      _ => {},
-    }
+    rgb[ rand::random_range( 0..3 ) ] = 1.0;
   }
 
-  [ r, g, b ]
+  rgb
 }
 
 fn tex_storage_2d( gl : &GL, format : u32, width : i32, height : i32 ) -> Option< WebGlTexture >

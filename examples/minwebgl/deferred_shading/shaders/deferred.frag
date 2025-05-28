@@ -20,22 +20,6 @@ float square( float x )
 }
 
 // Attenuation function from this resource https://lisyarus.github.io/blog/posts/point-light-attenuation.html
-float attenuate_no_cusp( float distance, float radius, float max_intensity, float falloff )
-{
-  float s = distance / radius;
-  float s2 = square( s );
-
-  if ( s >= 1.0 )
-  {
-    return 0.0;
-  }
-  else
-  {
-    return max_intensity * square( 1.0 - s2 ) / ( 1.0 + falloff * s2 );
-  }
-}
-
-// Attenuation function from this resource https://lisyarus.github.io/blog/posts/point-light-attenuation.html
 float attenuate_cusp( float distance, float radius, float max_intensity, float falloff )
 {
   float s = distance / radius;
