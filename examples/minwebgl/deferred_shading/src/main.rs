@@ -1,6 +1,6 @@
 mod elliptical_orbit;
 
-use std::f32;
+use std::{ cell::RefCell, f32, rc::Rc };
 use elliptical_orbit::EllipticalOrbit;
 use minwebgl as gl;
 use gl::
@@ -15,7 +15,15 @@ use gl::
   AsBytes as _,
   JsCast as _,
 };
-use web_sys::{ HtmlCanvasElement, WebGlFramebuffer, WebGlTexture };
+use web_sys::
+{
+  wasm_bindgen::prelude::Closure,
+  Event,
+  HtmlCanvasElement,
+  HtmlInputElement,
+  WebGlFramebuffer,
+  WebGlTexture
+};
 
 fn main()
 {
@@ -58,7 +66,7 @@ async fn run() -> Result< (), gl::WebglError >
   let rotation = mat3x3h::rot( 10.0f32.to_radians(), 0.0, 0.0 )
   * mat3x3h::rot( 0.0, 90.0f32.to_radians(), 0.0 );
   let scale = 0.1;
-  let scene_transform = mat3x3h::translation( [ 0.0f32, -40.0, -90.0 ] )
+  let scene_transform = mat3x3h::translation( [ 0.0f32, -40.0, -100.0 ] )
   * rotation * mat3x3h::scale( [ scale, scale, scale ] );
 
   // gbuffer
@@ -88,11 +96,12 @@ async fn run() -> Result< (), gl::WebglError >
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT2, GL::TEXTURE_2D, None, 0 );
 
   let light_volume = light_volume( &gl )?;
-  let light_instances = 300 + 1;
+  let max_light_count = 5000;
+  let light_count = Rc::new( RefCell::new( 500 ) );
   let light_radius = 12.0;
   generate_light_positions( 0, 0, light_radius, 0.0 );
 
-  let light_orbits = ( 0..( light_instances  - 1 ) ).map
+  let light_orbits = ( 0..max_light_count ).map
   (
     | _ |
     EllipticalOrbit
@@ -106,22 +115,23 @@ async fn run() -> Result< (), gl::WebglError >
       ..EllipticalOrbit::random()
     }
   ).collect::< Vec< _ > >();
-  let offsets = ( 0..( light_instances - 1 ) )
+  let offsets = ( 0..max_light_count )
   .map( | _ | rand::random_range( 0.0..=( f32::consts::PI * 2.0 ) ) )
   .collect::< Vec< _ > >();
-  let mut light_colors = ( 0..( light_instances - 1 ) )
+  let mut light_colors = ( 0..max_light_count )
   .map( | _ | random_rgb_color() )
   .collect::< Vec< _ > >();
-  light_colors.push( [ 0.5, 0.5, 0.5 ] );
-  let mut light_radii = ( 0..( light_instances - 1 ) )
-  .map( | _ | light_radius + rand::random_range( -1.0..=5.0 ) )
+  light_colors[ 0 ] = [ 0.5, 0.5, 0.5 ];
+  let mut light_radii = ( 0..max_light_count )
+  .map( | _ | light_radius + rand::random_range( -1.0..=7.0 ) )
   .collect::< Vec< _ > >();
-  light_radii.push( 100.0 );
+  light_radii[ 0 ] = 100.0;
+  let mut light_positions = vec![ [ 0.0, 0.0, 0.0 ]; max_light_count as usize ];
+  light_positions[ 0 ] = [ 0.0, 0.0, -100.0 ];
 
   // generate buffers with light data for instanced rendering
   let light_position_buffer = gl::buffer::create( &gl )?;
-  gl.bind_buffer( GL::ARRAY_BUFFER, Some( &light_position_buffer ) );
-  gl.buffer_data_with_i32( GL::ARRAY_BUFFER, light_instances * 3 * size_of::< f32 >() as i32, GL::DYNAMIC_DRAW );
+  gl::buffer::upload( &gl, &light_position_buffer, &light_positions, GL::DYNAMIC_DRAW );
   let translation_attribute = AttributePointer::new
   (
     &gl,
@@ -153,13 +163,32 @@ async fn run() -> Result< (), gl::WebglError >
   light_volume.add_attribute( color_attribute )?;
 
   gl.bind_vertex_array( None );
-
   // doesn't need to write to depth buffer anymore
   gl.depth_mask( false );
 
+  let document =  web_sys::window().unwrap().document().unwrap();
+  let fps_counter = document.get_element_by_id( "fps-counter" ).unwrap();
+  let slider_value = document.get_element_by_id( "slider-value" ).unwrap();
+  let slider = document.get_element_by_id( "slider" ).unwrap().dyn_into::< HtmlInputElement >().unwrap();
+  let onchange = Closure::< dyn Fn( _ ) >::new
+  (
+    {
+      let light_count = light_count.clone();
+      move | e : Event |
+      {
+        let num = e.target().unwrap().dyn_into::< HtmlInputElement >().unwrap().value_as_number() as usize;
+        *light_count.borrow_mut() = num;
+        gl::info!( "{num}" );
+        slider_value.set_text_content( Some( &num.to_string() ) );
+      }
+    }
+  );
+  slider.set_onchange( Some( onchange.as_ref().unchecked_ref() ) );
+  onchange.forget();
+
   let mut last_time = 0.0;
-  let fps_counter = web_sys::window().unwrap().document().unwrap().get_element_by_id( "fps-counter" ).unwrap();
   let mut fps = 0;
+
   let update = move | time_millis |
   {
     fps += 1;
@@ -170,18 +199,19 @@ async fn run() -> Result< (), gl::WebglError >
       fps = 0;
     }
     last_time = current_time;
-    // let frame_time = current_time - last_time;
-    // let fps = 1.0 / frame_time;
 
     // update light positions
-    let mut pos = light_orbits
-    .iter()
-    .zip( offsets.iter() )
-    .map( | ( orbit, offset ) | orbit.position_at_angle( 0.2 * current_time + *offset ).0 )
-    .collect::< Vec< _ > >();
-    pos.push( [ 0.0, 0.0, -90.0 ] );
+    let light_count = *light_count.borrow();
+    light_orbits[ 1..light_count ].iter().zip( offsets[ 1..light_count ].iter() ).enumerate()
+    .for_each( | ( i, ( orbit, offset ) ) | light_positions[ i ] = orbit.position_at_angle( 0.2 * current_time + *offset ).0 );
     gl.bind_buffer( GL::ARRAY_BUFFER, Some( &light_position_buffer ) );
-    gl.buffer_sub_data_with_i32_and_u8_array( GL::ARRAY_BUFFER, 0, pos.as_bytes() );
+    gl.buffer_sub_data_with_i32_and_u8_array_and_src_offset
+    (
+      GL::ARRAY_BUFFER,
+      size_of::< [ f32; 3 ] >() as i32,
+      light_positions[ 1..light_count ].as_bytes(),
+      0
+    );
 
     gl.bind_framebuffer( GL::FRAMEBUFFER, offscreen_buffer.as_ref() );
     gl::drawbuffers::drawbuffers( &gl, &[ 0 ] );
@@ -214,7 +244,7 @@ async fn run() -> Result< (), gl::WebglError >
       light_volume.element_count,
       GL::UNSIGNED_INT,
       0,
-      light_instances
+      light_count as i32
     );
     gl.bind_vertex_array( None );
 

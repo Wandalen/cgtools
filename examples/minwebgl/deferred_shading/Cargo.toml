@@ -19,4 +19,6 @@ web-sys = { workspace = true, features = [
   "WebGlFramebuffer",
   "WebGlRenderbuffer",
   "WebGlTexture",
+  "HtmlInputElement",
+  "Event",
 ] }
