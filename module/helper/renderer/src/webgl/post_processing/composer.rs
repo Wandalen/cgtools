@@ -23,9 +23,6 @@ mod private
   {
     /// The WebGL framebuffer used for rendering. It has a single color attachment.
     framebuffer : Option< gl::web_sys::WebGlFramebuffer >,
-    /// The renderbuffer attached to the framebuffer for depth and stencil testing.
-    /// Needed to complete the framebuffer
-    renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
     /// A clone of the initial `output_texture` created upon instantiation.
     /// This is used to `reset` the output texture to its original state.
     original_output : Option< gl::web_sys::WebGlTexture >,
@@ -59,13 +56,6 @@ mod private
       // Specify that only COLOR_ATTACHMENT0 is used for drawing.
       gl::drawbuffers::drawbuffers( &gl, &[ gl::COLOR_ATTACHMENT0 ] );
 
-      // Create and configure the depth/stencil renderbuffer.
-      let renderbuffer = gl.create_renderbuffer();
-      gl.bind_renderbuffer( gl::RENDERBUFFER, renderbuffer.as_ref() );
-      gl.renderbuffer_storage( gl::RENDERBUFFER, gl::DEPTH24_STENCIL8, width as i32, height as i32 );
-      // Attach the renderbuffer to the framebuffer.
-      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::DEPTH_STENCIL_ATTACHMENT, gl::RENDERBUFFER, renderbuffer.as_ref() );
-
       // Unbind renderbuffer and framebuffer to clean up global state.
       gl.bind_renderbuffer( gl::RENDERBUFFER, None );
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
@@ -83,7 +73,6 @@ mod private
       Self
       {
         framebuffer,
-        renderbuffer,
         input_texture,
         output_texture,
         original_output

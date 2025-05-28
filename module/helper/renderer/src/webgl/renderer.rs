@@ -5,15 +5,7 @@ mod private
 
   use crate::webgl::
   { 
-    Camera, 
-    IBL, 
-    Object3D,
-    Node, 
-    ProgramInfo, 
-    Scene,
-    Primitive,
-    AlphaMode,
-    program
+    post_processing::{BlendPass, Pass, SwapFramebuffer, UnrealBloomPass}, program, AlphaMode, Camera, Node, Object3D, Primitive, ProgramInfo, Scene, IBL
   };
 
   /// Manages WebGL2 framebuffers and associated renderbuffers/textures for a rendering
@@ -34,23 +26,23 @@ mod private
     pub texture_height: u32,
     /// The WebGL framebuffer used for multisampled rendering. This framebuffer
     /// renders into `multisample_main_renderbuffer` and `multisample_emission_renderbuffer`.
-    pub multisample_framebuffer: Option<gl::web_sys::WebGlFramebuffer>,
+    pub multisample_framebuffer: Option< gl::web_sys::WebGlFramebuffer >,
     /// The WebGL framebuffer used to store the resolved (non-multisampled)
     /// textures. This is where the results of the multisample framebuffer
     /// are blitted to, making them ready for sampling.
-    pub resolved_framebuffer: Option<gl::web_sys::WebGlFramebuffer>,
+    pub resolved_framebuffer: Option< gl::web_sys::WebGlFramebuffer >,
     /// The renderbuffer used for depth and stencil testing in the multisample framebuffer.
-    pub depth_renderbuffer: Option<gl::web_sys::WebGlRenderbuffer>,
+    pub depth_renderbuffer: Option< gl::web_sys::WebGlRenderbuffer >,
     /// The renderbuffer that receives the main color output during multisampled rendering.
-    pub multisample_main_renderbuffer: Option<gl::web_sys::WebGlRenderbuffer>,
+    pub multisample_main_renderbuffer: Option< gl::web_sys::WebGlRenderbuffer >,
     /// The renderbuffer that receives the emission color output during multisampled rendering.
-    pub multisample_emission_renderbuffer: Option<gl::web_sys::WebGlRenderbuffer>,
+    pub multisample_emission_renderbuffer: Option< gl::web_sys::WebGlRenderbuffer> ,
     /// The 2D texture that receives the resolved main color output after multisample resolution.
     /// This texture can be sampled in shaders.
-    pub main_texture: Option<gl::web_sys::WebGlTexture>,
+    pub main_texture: Option< gl::web_sys::WebGlTexture >,
     /// The 2D texture that receives the resolved emission color output after multisample resolution.
     /// This texture can be sampled in shaders.
-    pub emission_texture: Option<gl::web_sys::WebGlTexture>,
+    pub emission_texture: Option< gl::web_sys::WebGlTexture >,
   }
 
   impl FramebufferContext 
@@ -93,6 +85,7 @@ mod private
         width as i32, 
         height as i32
       );
+      gl.bind_renderbuffer( gl::RENDERBUFFER, None );
 
       // --- Setup Multisample Main Color Renderbuffer ---
       // Create and bind a renderbuffer for the main color attachment,
@@ -108,6 +101,7 @@ mod private
         width as i32, 
         height as i32
       );
+      gl.bind_renderbuffer( gl::RENDERBUFFER, None );
 
       // --- Setup Multisample Emission Color Renderbuffer ---
       // Create and bind a renderbuffer for the emission color attachment,
@@ -123,6 +117,7 @@ mod private
         width as i32, 
         height as i32
       );
+      gl.bind_renderbuffer( gl::RENDERBUFFER, None );
       
 
       // --- Create Resolved Textures ---
@@ -134,12 +129,14 @@ mod private
       // Configure the main texture.
       gl.bind_texture( gl::TEXTURE_2D, main_texture.as_ref() );
       gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width as i32, height  as i32 );
-      gl::texture::d2::filter_linear( &gl );
+      gl::texture::d2::filter_linear( gl );
+      gl::texture::d2::wrap_clamp( gl );
       
       // Configure the emission texture.
       gl.bind_texture( gl::TEXTURE_2D, emission_texture.as_ref() );
       gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width  as i32, height  as i32 );
-      gl::texture::d2::filter_linear( &gl );
+      gl::texture::d2::filter_linear( gl );
+      gl::texture::d2::wrap_clamp( gl );
 
       // --- Attach Renderbuffers to Multisample Framebuffer ---
       // Bind the multisample framebuffer to configure its attachments.
@@ -248,12 +245,24 @@ mod private
       // the resolved framebuffer for drawing.
       gl.bind_framebuffer( gl::READ_FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
       gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
+      gl.read_buffer( gl::COLOR_ATTACHMENT0 );
+      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0 ] );
       // Clear the color buffer of the resolved framebuffer before blitting.
       // This is good practice to ensure clean results, especially if partial updates
       // are not intended.
       gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ 0.0, 0.0, 0.0, 1.0 ] );
       // Blit the multisampled color buffer (COLOR_ATTACHMENT0) from the read framebuffer
       // to the draw framebuffer. The `gl::LINEAR` filter ensures a smooth resolution.
+      gl.blit_framebuffer
+      (
+        0, 0, self.texture_width as i32, self.texture_height as i32, 
+        0, 0, self.texture_width as i32, self.texture_height as i32, 
+        gl::COLOR_BUFFER_BIT, gl::LINEAR
+      );
+
+      gl.read_buffer( gl::COLOR_ATTACHMENT1 );
+      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT1 ] );
+      gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ 0.0, 0.0, 0.0, 1.0 ] );
       gl.blit_framebuffer
       (
         0, 0, self.texture_width as i32, self.texture_height as i32, 
@@ -278,6 +287,7 @@ mod private
     /// * `gl` - A reference to the WebGl2RenderingContext.
     pub fn bind_multisample( &self, gl : &gl::WebGl2RenderingContext )
     {
+      gl.viewport( 0, 0, self.texture_width as i32, self.texture_height as i32 );
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
       gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, self.multisample_main_renderbuffer.as_ref() );
       gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::RENDERBUFFER, self.multisample_emission_renderbuffer.as_ref() );
@@ -294,6 +304,7 @@ mod private
     /// * `gl` - A reference to the WebGl2RenderingContext.
     pub fn bind_resolved( &self, gl : &gl::WebGl2RenderingContext )
     {
+      gl.viewport( 0, 0, self.texture_width as i32, self.texture_height as i32 );
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
       gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, self.main_texture.as_ref(), 0 );
       gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, self.emission_texture.as_ref(), 0 );
@@ -355,28 +366,40 @@ mod private
     /// manages the multisample framebuffer, resolved framebuffer, and their associated
     /// renderbuffers and textures (main color and emission). It allows for anti-aliasing
     /// and the separation of main scene rendering from emissive components.
-    framebuffer_ctx : FramebufferContext
+    framebuffer_ctx : FramebufferContext,
+    bloom_effect : UnrealBloomPass,
+    blend_effect : BlendPass,
+    swap_buffer : SwapFramebuffer
   }
 
   impl Renderer 
   {
     /// Creates a new `Renderer` instance with default settings.
-    pub fn new( gl : &gl::WebGl2RenderingContext, width : u32, height : u32, samples : i32 ) -> Self
+    pub fn new( gl : &gl::WebGl2RenderingContext, width : u32, height : u32, samples : i32 ) -> Result< Self, gl::WebglError >
     {
       let framebuffer_ctx = FramebufferContext::new( gl, width, height, samples );
       let use_emission = false;
       let programs = HashMap::new();
       let ibl = None;
       let transparent_nodes = Vec::new();
+      let bloom_effect = UnrealBloomPass::new( gl, width, height, gl::RGBA16F )?;
+      let mut blend_effect = BlendPass::new( gl )?;
+      blend_effect.dst_factor = gl::ONE;
+      blend_effect.src_factor = gl::ONE;
+      blend_effect.blend_texture = framebuffer_ctx.main_texture.clone();
+      let swap_buffer = SwapFramebuffer::new( gl, width, height );
       
-      Self
+      Ok(Self
       {
         programs,
         ibl,
         transparent_nodes,
         use_emission,
-        framebuffer_ctx
-      }
+        framebuffer_ctx,
+        blend_effect,
+        bloom_effect,
+        swap_buffer
+      })
     } 
 
     /// Sets the Image-Based Lighting (IBL) textures to be used for rendering.
@@ -569,9 +592,19 @@ mod private
         primitive.draw( gl );
       }
 
-      //gl.bind_framebuffer( gl::FRAMEBUFFER, None );
-      self.framebuffer_ctx.unbind_multisample( gl );
       self.framebuffer_ctx.resolve( gl );
+      self.framebuffer_ctx.unbind_multisample( gl );
+
+      if self.use_emission
+      {
+        self.swap_buffer.reset();
+        self.swap_buffer.bind( gl );
+        self.swap_buffer.set_input( self.framebuffer_ctx.emission_texture.clone() );
+
+        self.bloom_effect.render( gl, self.swap_buffer.get_input(), self.swap_buffer.get_output() )?;
+        self.blend_effect.blend_texture = self.swap_buffer.get_output();
+        self.blend_effect.render( gl, None, self.framebuffer_ctx.main_texture.clone() )?;
+      }
 
       Ok( () )
     }

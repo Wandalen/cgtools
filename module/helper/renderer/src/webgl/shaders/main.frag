@@ -82,10 +82,12 @@ struct PhysicalMaterial
 #endif
 
 
-#ifdef USE_EMISSION_TEXTURE
+#ifdef USE_EMISSION
   // vEmissionUv
-  uniform sampler2D emissiveTexture;
-  uniform float emissiveFactor;
+  #ifdef USE_EMISSION_TEXTURE
+    uniform sampler2D emissiveTexture;
+  #endif
+  uniform vec3 emissiveFactor;
 #endif
 
 
@@ -404,29 +406,20 @@ void main()
     color += 0.1 * material.diffuseColor * material.occlusionFactor;
   #endif
 
-  // #if defined( USE_EMISSION ) && !defined( RENDER_TO_SCREEN )
-  //   {
-  //     float v = luminance( color );
-  //     float lum_alpha = smoothstep( 1.0, 1.5, v );
-  //     emissive_color = vec4( mix( vec3( 0.0 ), color, lum_alpha ), 1.0 );
-  //   }
-  //   // emissive_color = vec4( 1.0 );
-  //   // emissive_color.xyz *= emissiveFactor;
-  //   // #ifdef USE_EMISSION_TEXTURE
-  //   //   emissive_color.xyz *= texture( emissiveTexture, {EMISSION_UV} )
-  //   // #endif
-  // #endif
+  emissive_color = vec4( vec3( 0.0 ), 1.0 );
+  #ifdef USE_EMISSION 
+    emissive_color.xyz = emissiveFactor;
+    #ifdef USE_EMISSION_TEXTURE
+      emissive_color.xyz *= SrgbToLinear( texture( emissiveTexture, vEmissionUv ).rgb );
+    #endif
+  #endif
   
-  {
-    float v = luminance( color );
-    float lum_alpha = smoothstep( 1.0, 1.5, v );
-    emissive_color = vec4( mix( vec3( 0.0 ), color, lum_alpha ), 1.0 );
-  }
+  // float v = luminance( color );
+  // float lum_alpha = smoothstep( 2.0, 5.0, v );
+  // emissive_color = vec4( mix( vec3( 0.0 ), color, lum_alpha ), 1.0 );
+  // emissive_color = vec4( 1.0, 0.0, 0.0, 1.0 );
+  //emissive_color = vec4( color * 0.1, 1.0 );
 
-  // #ifdef RENDER_TO_SCREEN
-  //   color = aces_tone_map( color );
-  //   color = LinearToSrgb( color );
-  // #endif
 
   frag_color = vec4( color * alpha, alpha );
 }

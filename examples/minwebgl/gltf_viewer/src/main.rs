@@ -47,7 +47,7 @@ async fn run() -> Result< (), gl::WebglError >
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
   let scenes = gltf.scenes;
 
-  let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 );
+  let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   renderer.set_use_emission( true );
   renderer.set_ibl( loaders::ibl::load( &gl, "envMap" ).await );
 
@@ -55,7 +55,6 @@ async fn run() -> Result< (), gl::WebglError >
 
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
-  //let bloom = post_processing::UnrealBloomPass::new( &gl, width, height, format)
 
   scenes[ 0 ].borrow_mut().update_world_matrix();
   // Define the update and draw logic
