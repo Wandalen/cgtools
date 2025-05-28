@@ -27,25 +27,39 @@ async fn run() -> Result< (), gl::WebglError >
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
 
+  let gltf_path = "dodge-challenger/gltf/scene.gltf";
+  let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
+  let scenes = gltf.scenes;
+  scenes[ 0 ].borrow_mut().update_world_matrix();
+
+  let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
+  gl::info!( "Boudnig box: {:?}", scene_bounding_box );
+  let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
+  let dist = scene_bounding_box.max.mag();
+  let exponent = 
+  {
+    let bits = diagonal.to_bits();
+    let exponent_field = ( ( bits >> 23 ) & 0xFF ) as i32;
+    exponent_field - 127
+  };
+  gl::info!( "Exponent: {:?}", exponent );
+
   // Camera setup
-  let mut eye = gl::math::F32x3::from( [ 0.0, 20.0, 20.0 ] );
-  eye /= 500.0;
+  let mut eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
+  eye *= dist;
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
-  let center = gl::math::F32x3::from( [ 0.0, 0.0, 0.0 ] );
+
+  let center = scene_bounding_box.center();
+
 
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
-  let near = 0.001;
-  let far = 100.0;
+  let near = 1.0 * 10.0f32.powi( exponent ).min( 1.0 );
+  let far = near * 10.0f32.powi( exponent.abs() );
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
   camera.set_window_size( [ width, height ].into() );
-
   camera_controls::setup_controls( &canvas, &camera.get_controls() );
-
-  let gltf_path = "dodge-challenger/gltf";
-  let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
-  let scenes = gltf.scenes;
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   renderer.set_use_emission( true );
@@ -56,7 +70,6 @@ async fn run() -> Result< (), gl::WebglError >
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
-  scenes[ 0 ].borrow_mut().update_world_matrix();
   // Define the update and draw logic
   let update_and_draw =
   {

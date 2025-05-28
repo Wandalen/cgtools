@@ -236,7 +236,7 @@ mod private
     /// # Arguments
     ///
     /// * `gl` - A reference to the WebGl2RenderingContext.
-    pub fn resolve( &self, gl : &gl::WebGl2RenderingContext )
+    pub fn resolve( &self, gl : &gl::WebGl2RenderingContext, use_emission : bool )
     {
       self.bind_multisample( gl );
       self.bind_resolved( gl );
@@ -260,15 +260,18 @@ mod private
         gl::COLOR_BUFFER_BIT, gl::LINEAR
       );
 
-      gl.read_buffer( gl::COLOR_ATTACHMENT1 );
-      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT1 ] );
-      gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ 0.0, 0.0, 0.0, 1.0 ] );
-      gl.blit_framebuffer
-      (
-        0, 0, self.texture_width as i32, self.texture_height as i32, 
-        0, 0, self.texture_width as i32, self.texture_height as i32, 
-        gl::COLOR_BUFFER_BIT, gl::LINEAR
-      );
+      if use_emission
+      {
+        gl.read_buffer( gl::COLOR_ATTACHMENT1 );
+        gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT1 ] );
+        gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ 0.0, 0.0, 0.0, 1.0 ] );
+        gl.blit_framebuffer
+        (
+          0, 0, self.texture_width as i32, self.texture_height as i32, 
+          0, 0, self.texture_width as i32, self.texture_height as i32, 
+          gl::COLOR_BUFFER_BIT, gl::LINEAR
+        );
+      }
       // Unbind framebuffers to reset global state.
       gl.bind_framebuffer( gl::READ_FRAMEBUFFER, None );
       gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, None );
@@ -592,7 +595,7 @@ mod private
         primitive.draw( gl );
       }
 
-      self.framebuffer_ctx.resolve( gl );
+      self.framebuffer_ctx.resolve( gl, self.use_emission );
       self.framebuffer_ctx.unbind_multisample( gl );
 
       if self.use_emission
