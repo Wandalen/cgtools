@@ -85,6 +85,8 @@ async fn run() -> Result< (), gl::WebglError >
     gl.draw_elements_with_i32( GL::TRIANGLES, mesh.0.element_count, GL::UNSIGNED_INT, 0 );
   }
   gl.bind_vertex_array( None );
+  // doesn't need to write to depth buffer anymore
+  gl.depth_mask( false );
 
   // reuse same framebuffer object for offscreen rendering
   // use offscreen framebuffer to be able to use values from depthbuffer
@@ -95,11 +97,12 @@ async fn run() -> Result< (), gl::WebglError >
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, None, 0 );
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT2, GL::TEXTURE_2D, None, 0 );
 
+  // generate light specific data
   let light_volume = light_volume( &gl )?;
   let max_light_count = 5000;
-  let light_count = Rc::new( RefCell::new( 500 ) );
+  let light_count = Rc::new( RefCell::new( 200 ) );
   let light_radius = 12.0;
-  generate_light_positions( 0, 0, light_radius, 0.0 );
+  f( 0, 0, light_radius, 0.0 );
 
   let light_orbits = ( 0..max_light_count ).map
   (
@@ -110,26 +113,23 @@ async fn run() -> Result< (), gl::WebglError >
       (
         rand::random_range( -30.0..=30.0 ),
         rand::random_range( -30.0..=30.0 ),
-        rand::random_range( -110.0..=-70.0 )
+        rand::random_range( -110.0..=-90.0 )
       ),
       ..EllipticalOrbit::random()
     }
   ).collect::< Vec< _ > >();
   let offsets = ( 0..max_light_count )
-  .map( | _ | rand::random_range( 0.0..=( f32::consts::PI * 2.0 ) ) )
-  .collect::< Vec< _ > >();
+  .map( | _ | rand::random_range( 0.0..=( f32::consts::PI * 2.0 ) ) ).collect::< Vec< _ > >();
   let mut light_colors = ( 0..max_light_count )
-  .map( | _ | random_rgb_color() )
-  .collect::< Vec< _ > >();
+  .map( | _ | random_rgb_color() ).collect::< Vec< _ > >();
   light_colors[ 0 ] = [ 0.5, 0.5, 0.5 ];
   let mut light_radii = ( 0..max_light_count )
-  .map( | _ | light_radius + rand::random_range( -1.0..=7.0 ) )
-  .collect::< Vec< _ > >();
+  .map( | _ | light_radius + rand::random_range( -1.0..=7.0 ) ).collect::< Vec< _ > >();
   light_radii[ 0 ] = 100.0;
   let mut light_positions = vec![ [ 0.0, 0.0, 0.0 ]; max_light_count as usize ];
   light_positions[ 0 ] = [ 0.0, 0.0, -100.0 ];
 
-  // generate buffers with light data for instanced rendering
+  // upload light data into buffers for instanced rendering
   let light_position_buffer = gl::buffer::create( &gl )?;
   gl::buffer::upload( &gl, &light_position_buffer, &light_positions, GL::DYNAMIC_DRAW );
   let translation_attribute = AttributePointer::new
@@ -162,10 +162,7 @@ async fn run() -> Result< (), gl::WebglError >
   light_volume.add_attribute( radius_attribute )?;
   light_volume.add_attribute( color_attribute )?;
 
-  gl.bind_vertex_array( None );
-  // doesn't need to write to depth buffer anymore
-  gl.depth_mask( false );
-
+  // setup slider for light count
   let document =  web_sys::window().unwrap().document().unwrap();
   let fps_counter = document.get_element_by_id( "fps-counter" ).unwrap();
   let slider_value = document.get_element_by_id( "slider-value" ).unwrap();
@@ -176,9 +173,10 @@ async fn run() -> Result< (), gl::WebglError >
       let light_count = light_count.clone();
       move | e : Event |
       {
-        let num = e.target().unwrap().dyn_into::< HtmlInputElement >().unwrap().value_as_number() as usize;
+        let num = e.target().unwrap()
+        .dyn_into::< HtmlInputElement >().unwrap().value_as_number() as usize;
         *light_count.borrow_mut() = num;
-        gl::info!( "{num}" );
+        // gl::info!( "{num}" );
         slider_value.set_text_content( Some( &num.to_string() ) );
       }
     }
@@ -191,7 +189,6 @@ async fn run() -> Result< (), gl::WebglError >
 
   let update = move | time_millis |
   {
-    fps += 1;
     let current_time = ( time_millis / 1000.0 ) as f32;
     if current_time as u32 > last_time as u32
     {
@@ -199,11 +196,13 @@ async fn run() -> Result< (), gl::WebglError >
       fps = 0;
     }
     last_time = current_time;
+    fps += 1;
 
     // update light positions
     let light_count = *light_count.borrow();
+    // from 1 to light_count because we dont update first light source becaues it is global light
     light_orbits[ 1..light_count ].iter().zip( offsets[ 1..light_count ].iter() ).enumerate()
-    .for_each( | ( i, ( orbit, offset ) ) | light_positions[ i ] = orbit.position_at_angle( 0.2 * current_time + *offset ).0 );
+    .for_each( | ( i, ( orbit, offset ) ) | light_positions[ i + 1 ] = orbit.position_at_angle( 0.3 * current_time + *offset ).0 );
     gl.bind_buffer( GL::ARRAY_BUFFER, Some( &light_position_buffer ) );
     gl.buffer_sub_data_with_i32_and_u8_array_and_src_offset
     (
@@ -237,7 +236,6 @@ async fn run() -> Result< (), gl::WebglError >
     light_shader.uniform_upload( "u_positions", &0 );
     light_shader.uniform_upload( "u_normals", &1 );
     light_shader.uniform_upload( "u_colors", &2 );
-    light_volume.activate();
     gl.draw_elements_instanced_with_i32
     (
       GL::TRIANGLES,
@@ -246,7 +244,6 @@ async fn run() -> Result< (), gl::WebglError >
       0,
       light_count as i32
     );
-    gl.bind_vertex_array( None );
 
     // show on screen
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );
@@ -454,7 +451,7 @@ fn tex_storage_2d( gl : &GL, format : u32, width : i32, height : i32 ) -> Option
   Some( tex )
 }
 
-fn generate_light_positions( _ : i32, _ : i32, _ : f32, _ : f32 ) {}
+fn f( _ : i32, _ : i32, _ : f32, _ : f32 ) {}
 
 pub struct AttributePointer
 {
