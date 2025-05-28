@@ -260,4 +260,14 @@ impl Camera
   {
     self.projection_matrix
   }
+
+  pub fn get_near( &self ) -> f32
+  {
+    self.near
+  }
+
+  pub fn get_far( &self ) -> f32
+  {
+    self.far
+  }
 }

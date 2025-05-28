@@ -43,4 +43,5 @@ features = [
     'Url',
     'WebGlTexture', 
     'WebGlFramebuffer', 
+    'WebGlRenderbuffer', 
 ]

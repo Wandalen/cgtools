@@ -11,6 +11,7 @@ use gl::
     WebGlTexture,
     WebGlVertexArrayObject,
     WebGlFramebuffer, 
+    WebGlRenderbuffer
   }
 };
 use ndarray_cg::
@@ -136,9 +137,13 @@ fn create_framebuffer
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE as i32 );
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
 
+  let depthbuffer = gl.create_renderbuffer().unwrap();
+  gl.bind_renderbuffer( GL::RENDERBUFFER, Some( &depthbuffer ) );
+  gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH_COMPONENT24, width, height );
+
   let depth = gl.create_texture()?;
   gl.bind_texture( GL::TEXTURE_2D, Some( &depth ) );
-  gl.tex_storage_2d( GL::TEXTURE_2D, 1, gl::DEPTH_COMPONENT16, width, height );
+  gl.tex_storage_2d( GL::TEXTURE_2D, 1, gl::RGBA8, width, height );
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32 );
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE as i32 );
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
@@ -157,9 +162,10 @@ fn create_framebuffer
   // Attach the texture to the framebuffer's color attachment point
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0 + color_attachment, GL::TEXTURE_2D, Some( &color ), 0 );
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1 + color_attachment, GL::TEXTURE_2D, Some( &normal ), 0 );
-  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::TEXTURE_2D, Some( &depth ), 0 );
-  
-  drawbuffers( gl, &[ GL::COLOR_ATTACHMENT0, GL::COLOR_ATTACHMENT1 ] );
+  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT2 + color_attachment, GL::TEXTURE_2D, Some( &depth ), 0 );
+  gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::RENDERBUFFER, Some( &depthbuffer ) );
+
+  drawbuffers( gl, &[ GL::COLOR_ATTACHMENT0, GL::COLOR_ATTACHMENT1, GL::COLOR_ATTACHMENT2 ] );
 
   gl.bind_framebuffer( gl::FRAMEBUFFER, None );
 
@@ -730,6 +736,8 @@ impl Renderer
     let u_view_loc = gl.get_uniform_location( object_program, "u_view" ).unwrap();
     let u_model_loc = gl.get_uniform_location( object_program, "u_model" ).unwrap();
     let u_normal_matrix_loc = gl.get_uniform_location( object_program, "u_normal_matrix" ).unwrap();
+    let u_near_loc = gl.get_uniform_location( object_program, "near" ).unwrap();
+    let u_far_loc = gl.get_uniform_location( object_program, "far" ).unwrap();
 
     gl.use_program( Some( object_program ) );
 
@@ -744,6 +752,8 @@ impl Renderer
     gl::uniform::matrix_upload( gl, Some( u_model_loc.clone() ), &self.model_matrix.to_array()[ .. ], true ).unwrap();
     let normal_matrix = self.camera.get_view_matrix() * self.model_matrix;
     gl::uniform::matrix_upload( gl, Some( u_normal_matrix_loc.clone() ), &normal_matrix.to_array()[ .. ], true ).unwrap();
+    gl::uniform::upload( gl, Some( u_near_loc.clone() ), &[ self.camera.get_near() ] ).unwrap();
+    gl::uniform::upload( gl, Some( u_far_loc.clone() ), &[ self.camera.get_far() ] ).unwrap();
 
     gl.bind_vertex_array( Some( vao ) );
     gl.draw_elements_with_i32( gl::TRIANGLES, self.draw_count, gl::UNSIGNED_INT, 0 );
@@ -762,14 +772,14 @@ impl Renderer
     let u_color_texture_loc = gl.get_uniform_location( outline_program, "u_color_texture" ).unwrap();
     let u_depth_texture_loc = gl.get_uniform_location( outline_program, "u_depth_texture" ).unwrap();
     let u_norm_texture_loc = gl.get_uniform_location( outline_program, "u_norm_texture" ).unwrap();
-    let u_projection_loc = gl.get_uniform_location( outline_program, "u_projection" ).unwrap();
+    //let u_projection_loc = gl.get_uniform_location( outline_program, "u_projection" ).unwrap();
     let u_resolution_loc = gl.get_uniform_location( outline_program, "u_resolution" ).unwrap();
     let u_outline_thickness_loc = gl.get_uniform_location( outline_program, "u_outline_thickness" ).unwrap();
     let u_background_color_loc = gl.get_uniform_location( outline_program, "u_background_color" ).unwrap();
 
     gl.use_program( Some( outline_program ) );
 
-    let outline_thickness = [ ( 8.0 * ( t / 1000.0 ).sin().abs() ) as f32 ]; // Example animation
+    let outline_thickness = [ ( 2.0 * ( t / 1000.0 ).sin().abs() ) as f32 ]; // Example animation
     let background_color = [ 0.0, 0.0, 0.0, 1.0 ]; 
 
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );
@@ -780,7 +790,7 @@ impl Renderer
     upload_texture( gl, object_fb_color, &u_color_texture_loc, GL::TEXTURE0 );
     upload_texture( gl, object_fb_depth, &u_depth_texture_loc, GL::TEXTURE1 );
     upload_texture( gl, object_fb_norm, &u_norm_texture_loc, GL::TEXTURE2 );
-    gl::uniform::matrix_upload( gl, Some( u_projection_loc.clone() ), &self.camera.get_projection_matrix().to_array()[ .. ], true ).unwrap();
+    //gl::uniform::matrix_upload( gl, Some( u_projection_loc.clone() ), &self.camera.get_projection_matrix().to_array()[ .. ], true ).unwrap();
     gl::uniform::upload( gl, Some( u_resolution_loc.clone() ), &[ self.viewport.0 as f32, self.viewport.1 as f32 ] ).unwrap();
     gl::uniform::upload( gl, Some( u_outline_thickness_loc.clone() ), &outline_thickness ).unwrap();
     gl::uniform::upload( gl, Some( u_background_color_loc.clone() ), &background_color ).unwrap();
