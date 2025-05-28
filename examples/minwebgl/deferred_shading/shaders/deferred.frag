@@ -19,6 +19,7 @@ float square( float x )
   return x * x;
 }
 
+// Attenuation function from this resource https://lisyarus.github.io/blog/posts/point-light-attenuation.html
 float attenuate_no_cusp( float distance, float radius, float max_intensity, float falloff )
 {
   float s = distance / radius;
@@ -34,6 +35,7 @@ float attenuate_no_cusp( float distance, float radius, float max_intensity, floa
   }
 }
 
+// Attenuation function from this resource https://lisyarus.github.io/blog/posts/point-light-attenuation.html
 float attenuate_cusp( float distance, float radius, float max_intensity, float falloff )
 {
   float s = distance / radius;
@@ -51,6 +53,8 @@ float attenuate_cusp( float distance, float radius, float max_intensity, float f
 
 void main()
 {
+  // Default Blinn-Phong shading model
+
   vec3 view_position = vec3( 0.0 );
   vec2 tex_coord = ( gl_FragCoord.xy - 0.5 ) / u_screen_size;
   vec3 frag_pos = texture( u_positions, tex_coord ).xyz;
@@ -70,8 +74,12 @@ void main()
   vec3 view_dir = normalize( view_position - frag_pos );
   vec3 halfway_dir = normalize( light_dir + view_dir );
   float diffuse = max( dot( normal, light_dir ), 0.0 );
-  float specular = pow( max( dot( normal, halfway_dir ), 0.0 ), 30.0 );
-  float attenuation = attenuate_no_cusp( distance, v_light_radius, 5.0, 40.0 );
+
+  float specular_intensity = 0.5;
+  float shininess = 32.0;
+  float specular = specular_intensity * pow( max( dot( normal, halfway_dir ), 0.0 ), shininess );
+
+  float attenuation = attenuate_cusp( distance, v_light_radius, 3.0, 5.0 );
   vec3 color = vec3( specular + diffuse ) * base_color * v_light_color * attenuation;
 
   const vec3 CORRECTION = vec3( 1.0 / 2.2 );

@@ -49,11 +49,11 @@ impl EllipticalOrbit
         rng.random_range( -5.0..=5.0 ),
         rng.random_range( -5.0..=5.0 ),
       ),
-      rng.random_range( 10.0..=100.0 ),
-      rng.random_range( 1.0..=20.0 ),
+      rng.random_range( 30.0..=140.0 ),
+      rng.random_range( 5.0..=20.0 ),
       rng.random_range( 0.0..=PI ),
-      rng.random_range( 0.0..=2.0 * PI ),
-      rng.random_range( 0.0..=2.0 * PI ),
+      rng.random_range( 0.0..=( 2.0 * PI ) ),
+      rng.random_range( 0.0..=( 2.0 * PI ) ),
     )
   }
 

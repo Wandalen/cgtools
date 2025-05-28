@@ -14,6 +14,7 @@ layout( location = 2 ) out vec4 color;
 
 void main()
 {
+  // Just fill gbuffer
   position = vec4( v_position, 1.0 );
   normal = vec4( normalize( v_normal ), 1.0 );
   color = texture( u_base_color, v_tex_coord );
