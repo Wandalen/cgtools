@@ -157,15 +157,27 @@ async fn run() -> Result< (), gl::WebglError >
   // doesn't need to write to depth buffer anymore
   gl.depth_mask( false );
 
-  let update = move | t |
+  let mut last_time = 0.0;
+  let fps_counter = web_sys::window().unwrap().document().unwrap().get_element_by_id( "fps-counter" ).unwrap();
+  let mut fps = 0;
+  let update = move | time_millis |
   {
-    let t = ( t / 1000.0 ) as f32;
+    fps += 1;
+    let current_time = ( time_millis / 1000.0 ) as f32;
+    if current_time as u32 > last_time as u32
+    {
+      fps_counter.set_text_content( Some( &format!( "fps: {}", fps ) ) );
+      fps = 0;
+    }
+    last_time = current_time;
+    // let frame_time = current_time - last_time;
+    // let fps = 1.0 / frame_time;
 
     // update light positions
     let mut pos = light_orbits
     .iter()
     .zip( offsets.iter() )
-    .map( | ( orbit, offset ) | orbit.position_at_angle( 0.2 * t + *offset ).0 )
+    .map( | ( orbit, offset ) | orbit.position_at_angle( 0.2 * current_time + *offset ).0 )
     .collect::< Vec< _ > >();
     pos.push( [ 0.0, 0.0, -90.0 ] );
     gl.bind_buffer( GL::ARRAY_BUFFER, Some( &light_position_buffer ) );
