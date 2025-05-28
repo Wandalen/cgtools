@@ -14,6 +14,7 @@ out vec2 v_tex_coord;
 
 void main()
 {
+  // Default vertex shader with normal and tex_coord attributes
   v_position = ( u_model * vec4( a_position, 1.0 ) ).xyz;
   v_normal = ( u_rotation * vec4( a_normal, 1.0 ) ).xyz;
   v_tex_coord = a_tex_coord;

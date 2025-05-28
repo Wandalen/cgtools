@@ -6,11 +6,16 @@ use std::f32::consts::PI;
 pub struct EllipticalOrbit
 {
   pub center : F32x3,
-  pub semi_major_axis : f32,    // 'a' - half the length of the major axis
-  pub semi_minor_axis : f32,    // 'b' - half the length of the minor axis
-  pub inclination : f32,        // rotation around x-axis (radians)
-  pub longitude : f32,          // rotation around z-axis (radians)
-  pub argument_of_periapsis : f32, // rotation of ellipse in orbital plane (radians)
+  /// 'a' - half the length of the major axis
+  pub semi_major_axis : f32,
+  /// 'b' - half the length of the minor axis
+  pub semi_minor_axis : f32,
+  /// rotation around x-axis (radians)
+  pub inclination : f32,
+  /// rotation around z-axis (radians)
+  pub longitude : f32,
+  /// rotation of ellipse in orbital plane (radians)
+  pub argument_of_periapsis : f32,
 }
 
 impl EllipticalOrbit

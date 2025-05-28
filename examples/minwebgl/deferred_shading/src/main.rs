@@ -102,7 +102,7 @@ async fn run() -> Result< (), gl::WebglError >
   let max_light_count = 5000;
   let light_count = Rc::new( RefCell::new( 200 ) );
   let light_radius = 12.0;
-  f( 0, 0, light_radius, 0.0 );
+  wtf( light_radius );
 
   let light_orbits = ( 0..max_light_count ).map
   (
@@ -453,7 +453,7 @@ fn tex_storage_2d( gl : &GL, format : u32, width : i32, height : i32 ) -> Option
   Some( tex )
 }
 
-fn f( _ : i32, _ : i32, _ : f32, _ : f32 ) {}
+fn wtf( _ : f32 ) {}
 
 pub struct AttributePointer
 {
