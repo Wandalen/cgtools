@@ -202,7 +202,11 @@ async fn run() -> Result< (), gl::WebglError >
     let light_count = *light_count.borrow();
     // from 1 to light_count because we dont update first light source becaues it is global light
     light_orbits[ 1..light_count ].iter().zip( offsets[ 1..light_count ].iter() ).enumerate()
-    .for_each( | ( i, ( orbit, offset ) ) | light_positions[ i + 1 ] = orbit.position_at_angle( 0.3 * current_time + *offset ).0 );
+    .for_each
+    (
+      | ( i, ( orbit, offset ) ) |
+      light_positions[ i + 1 ] = orbit.position_at_angle( 0.3 * current_time + *offset ).0
+    );
     gl.bind_buffer( GL::ARRAY_BUFFER, Some( &light_position_buffer ) );
     gl.buffer_sub_data_with_i32_and_u8_array_and_src_offset
     (
