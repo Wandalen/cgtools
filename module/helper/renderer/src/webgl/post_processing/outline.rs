@@ -3,6 +3,7 @@ mod private
 {
   use minwebgl as gl;
   use web_sys::WebGlBuffer;
+  use gl::GL;
   use crate::webgl::{ post_processing::{ Pass, VS_TRIANGLE }, program::OutlineShader, ProgramInfo };
 
   pub const MAX_OBJECT_COUNT : usize = 1024;
@@ -13,7 +14,7 @@ mod private
     depth_texture : Option< gl::web_sys::WebGlTexture >,
     object_id_texture : Option< gl::web_sys::WebGlTexture >,
     outline_thickness : f32,
-    object_colors : Vec< [ f32; 4 ] >,
+    object_colors : Option< Vec< [ f32; 4 ] > >,
     object_colors_buffer : WebGlBuffer,
     width : u32,
     height : u32
@@ -33,26 +34,26 @@ mod private
     {
       let fs_shader = include_str!( "../shaders/post_processing/outline.frag" );
       let program = gl::ProgramFromSources::new( VS_TRIANGLE, fs_shader ).compile_and_link( gl )?;
-      let material = ProgramInfo::< OutlineShader >::new( gl, material );
+      let material = ProgramInfo::< OutlineShader >::new( gl, program.clone() );
 
       {
         let locations = material.get_locations();
 
-        let source_texture_loc = locations.get( "sourceTexture" ).unwrap().clone().as_ref();
-        let depth_texture_loc = locations.get( "depthTexture" ).unwrap().clone().as_ref();
-        let object_id_texture_loc = locations.get( "objectIdTexture" ).unwrap().clone().as_ref();
+        let source_texture_loc = locations.get( "sourceTexture" ).unwrap().clone();
+        let depth_texture_loc = locations.get( "depthTexture" ).unwrap().clone();
+        let object_id_texture_loc = locations.get( "objectIdTexture" ).unwrap().clone();
 
-        gl.uniform1i( source_texture_loc, 0 );
-        gl.uniform1i( depth_texture_loc, 1 );
-        gl.uniform1i( object_id_texture_loc, 2 );
+        gl.uniform1i( source_texture_loc.as_ref(), 0 );
+        gl.uniform1i( depth_texture_loc.as_ref(), 1 );
+        gl.uniform1i( object_id_texture_loc.as_ref(), 2 );
       }
 
       let object_colors_buffer = gl::buffer::create( &gl )?;
       let object_colors_loc = gl.get_uniform_block_index( &program, "ObjectColorBlock" );
       gl.uniform_block_binding( &program, object_colors_loc, 0 );
-      gl.bind_buffer_base( GL::UNIFORM_BUFFER, 0, Some( &object_color_buffer ) );
-      gl.bind_buffer( GL::UNIFORM_BUFFER, Some( &object_color_buffer ) );
-      gl.buffer_data_with_i32( GL::UNIFORM_BUFFER, MAX_OBJECT_COUNT * 16, GL::DYNAMIC_DRAW );
+      gl.bind_buffer_base( GL::UNIFORM_BUFFER, 0, Some( &object_colors_buffer ) );
+      gl.bind_buffer( GL::UNIFORM_BUFFER, Some( &object_colors_buffer ) );
+      gl.buffer_data_with_i32( GL::UNIFORM_BUFFER, MAX_OBJECT_COUNT as i32 * 16, GL::DYNAMIC_DRAW );
 
       let mut pass = Self
       {
@@ -102,8 +103,8 @@ mod private
 
       let locations = self.material.get_locations();
 
-      let resolution_loc = locations.get( "resolution" ).unwrap().clone().as_ref();
-      let outline_thickness_loc = locations.get( "outlineThickness" ).unwrap().clone().as_ref();
+      let resolution_loc = locations.get( "resolution" ).unwrap().clone();
+      let outline_thickness_loc = locations.get( "outlineThickness" ).unwrap().clone();
 
       gl::uniform::upload( gl, resolution_loc, &[ self.width as f32, self.height as f32 ] ).unwrap();
       gl::uniform::upload( gl, outline_thickness_loc, &[ self.outline_thickness ] ).unwrap();
