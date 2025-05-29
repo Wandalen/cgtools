@@ -26,6 +26,8 @@ mod private
     /// Composites all the blurred mipmap levels together to create the final bloom effect.
     composite_material : ProgramInfo< program::UnrealBloomShader >,
     copy_material : ProgramInfo< program::EmptyShader >,
+    width : u32,
+    height : u32
   }
 
   impl UnrealBloomPass 
@@ -60,7 +62,8 @@ mod private
       {
         gl.bind_texture( gl::TEXTURE_2D, t );
         gl.tex_storage_2d( gl::TEXTURE_2D, 1, format, width as i32, height as i32 );
-        gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32 );
+        gl::texture::d2::filter_linear( gl );
+        gl::texture::d2::wrap_clamp( gl );
       };
 
       // Define the kernel radii for the Gaussian blur at each mip level.
@@ -92,6 +95,7 @@ mod private
       let fs_shader = include_str!( "../shaders/filters/gaussian.frag" );
 
       let mut size = [ width / 2, height / 2 ];
+      //let mut size = [ width, height ];
       let mut blur_materials = Vec::new();
 
       // Compile and configure a Gaussian blur shader for each mip level.
@@ -152,7 +156,9 @@ mod private
           vertical_targets,
           blur_materials,
           composite_material,
-          copy_material
+          copy_material,
+          width,
+          height
         }
       )
     }  
@@ -173,11 +179,15 @@ mod private
       output_texture : Option< minwebgl::web_sys::WebGlTexture >
     ) -> Result< Option< gl::web_sys::WebGlTexture >, gl::WebglError >
     {
+      gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
       // --- Multi-Pass Gaussian Blur ---
       // Iterate through mip levels to apply horizontal and vertical Gaussian blur.
       let mut blur_input = input_texture.as_ref();
+      let mut size = [ self.width / 2, self.height / 2 ];
       for i in 0..MIPS
       {
+        gl.viewport( 0, 0, size[ 0 ] as i32, size[ 1 ] as i32 );
+
         let mat = &self.blur_materials[ i ];
         mat.bind( gl );
         let locations = mat.get_locations();
@@ -195,6 +205,7 @@ mod private
           self.horizontal_targets[ i ].as_ref(), 
           0
         );
+        gl.clear( gl::COLOR_BUFFER_BIT );
         gl.draw_arrays( gl::TRIANGLES, 0, 3 );
 
         // Vertical blur pass:
@@ -208,13 +219,20 @@ mod private
           self.vertical_targets[ i ].as_ref(), 
           0
         );
+        gl.clear( gl::COLOR_BUFFER_BIT );
         gl.draw_arrays( gl::TRIANGLES, 0, 3 );
 
+        // gl.bind_texture( gl::TEXTURE_2D, None );
+        // gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, None, 0 );
+
         blur_input = self.vertical_targets[ i ].as_ref();
+        // Update size for the next mip.
+        size[ 0 ] /= 2;
+        size[ 1 ] /= 2;
       }
 
-
       // --- Bloom Composite Pass ---
+      gl.viewport( 0, 0, self.width as i32, self.height as i32 );
       let locations = self.composite_material.get_locations();
       self.composite_material.bind( gl );
       for i in 0..MIPS
@@ -229,27 +247,33 @@ mod private
         gl::FRAMEBUFFER, 
         gl::COLOR_ATTACHMENT0, 
         gl::TEXTURE_2D, 
-        self.horizontal_targets[ 0 ].as_ref(), 
-        0
-      );
-      gl.draw_arrays( gl::TRIANGLES, 0, 3 );
-
-      self.copy_material.bind( gl );
-      gl.blend_func( gl::ONE, gl::ONE );
-      gl.active_texture( gl::TEXTURE0 );
-      gl.bind_texture( gl::TEXTURE_2D, self.horizontal_targets[ 0 ].as_ref() );
-      gl.framebuffer_texture_2d
-      ( 
-        gl::FRAMEBUFFER, 
-        gl::COLOR_ATTACHMENT0, 
-        gl::TEXTURE_2D, 
         output_texture.as_ref(), 
         0
       );
+      gl.clear( gl::COLOR_BUFFER_BIT );
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );
 
+      // self.copy_material.bind( gl );
+      // gl.blend_func( gl::ONE, gl::ONE );
+      // gl.active_texture( gl::TEXTURE0 );
+      // gl.bind_texture( gl::TEXTURE_2D, self.horizontal_targets[ 0 ].as_ref() );
+      // gl.framebuffer_texture_2d
+      // ( 
+      //   gl::FRAMEBUFFER, 
+      //   gl::COLOR_ATTACHMENT0, 
+      //   gl::TEXTURE_2D, 
+      //   output_texture.as_ref(), 
+      //   0
+      // );
+      // gl.draw_arrays( gl::TRIANGLES, 0, 3 );
+
       // Unbind the attachment
-      gl.bind_texture( gl::TEXTURE_2D, None );
+      for i in 0..MIPS
+      {
+        gl.active_texture( gl::TEXTURE0 + i as u32 );
+        gl.bind_texture( gl::TEXTURE_2D, None );
+      }
+
       gl.framebuffer_texture_2d
       (
         gl::FRAMEBUFFER, 
@@ -276,7 +300,7 @@ mod private
     for i in 0..radius
     {
       let e = ( -0.5 * ( i as f32 ).powi( 2 ) / sigma.powi( 2 ) ).exp();
-      let denom = ( sigma * ( std::f32::consts::PI * 2.0 ).sqrt() );
+      let denom = sigma * ( std::f32::consts::PI * 2.0 ).sqrt();
       let k = e / denom;
       c.push( k );
     }
