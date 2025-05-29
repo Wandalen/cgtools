@@ -201,7 +201,7 @@ async fn run() -> Result< (), gl::WebglError >
 
     // update light positions
     let light_count = *light_count.borrow();
-    // from 1 to light_count because we dont update first light source becaues it is global light
+    // from 1 to light_count because we dont update first light source because it is global light
     light_orbits[ 1..light_count ].iter().zip( offsets[ 1..light_count ].iter() ).enumerate()
     .for_each
     (
