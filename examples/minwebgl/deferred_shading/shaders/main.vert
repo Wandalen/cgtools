@@ -16,7 +16,7 @@ void main()
 {
   // Default vertex shader with normal and tex_coord attributes
   v_position = ( u_model * vec4( a_position, 1.0 ) ).xyz;
-  v_normal = ( u_rotation * vec4( a_normal, 1.0 ) ).xyz;
+  v_normal = mat3( u_rotation ) * a_normal;
   v_tex_coord = a_tex_coord;
   gl_Position = u_mvp * vec4( a_position, 1.0 );
 }
