@@ -19,7 +19,7 @@ gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
 renderer = { workspace = true }
 zune-hdr = { workspace = true }
 rand = { workspace = true }
-getrandom = { workspace = true }
+getrandom = { workspace = true, features = [ "wasm_js" ] }
 
 [dependencies.web-sys]
 workspace = true
