@@ -3,12 +3,33 @@ use minwebgl as gl;
 
 use renderer::webgl::
 {
-  post_processing::{self, Pass, SwapFramebuffer}, Camera, Renderer
+  post_processing::{self, Pass, SwapFramebuffer, outline::{ OutlinePass, MAX_OBJECT_COUNT } }, Camera, Renderer
 };
 
 mod camera_controls;
 mod loaders;
-//mod post_processing;
+
+fn generate_object_colors( object_count : usize ) -> Vec< [ f32; 4 ] > 
+{
+  let mut object_colors = vec![ vec![ 0.0; 4 ]; MAX_OBJECT_COUNT ];
+  let mut rng = rand::rng();
+
+  let range = 0.2..1.0;
+  ( 0..object_count ).for_each
+  ( 
+    | i |
+    {
+      object_colors[ i ] = [ 
+        rng.random_range( range.clone() ), 
+        rng.random_range( range.clone() ),
+        rng.random_range( range.clone() ),
+        1.0
+      ];
+    } 
+  );
+
+  object_colors
+}
 
 async fn run() -> Result< (), gl::WebglError >
 {
@@ -16,13 +37,11 @@ async fn run() -> Result< (), gl::WebglError >
   let options = gl::context::ContexOptions::default().antialias( false );
 
   let canvas = gl::canvas::make()?;
-  //let gl = gl::context::from_canvas( &canvas )?;
   let gl = gl::context::from_canvas_with( &canvas, options )?;
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();
 
   let _ = gl.get_extension( "EXT_color_buffer_float" ).expect( "Failed to enable EXT_color_buffer_float extension" );
-  //let _ = gl.get_extension( "EXT_color_buffer_half_float" ).expect( "Failed to enable EXT_color_buffer_half_float extension" );
 
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
@@ -55,7 +74,19 @@ async fn run() -> Result< (), gl::WebglError >
 
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
-  //let bloom = post_processing::UnrealBloomPass::new( &gl, width, height, format)
+  let mut outline = post_processing::OutlinePass::new
+  ( 
+    &gl, 
+    renderer.get_depth_texture(), 
+    renderer.get_object_id_texture(), 
+    2.0, 
+    canvas.width(), 
+    canvas.height() 
+  )?;
+
+  let object_count = scenes[ 0 ].borrow().children.len();
+  let object_colors = generate_object_colors( object_count );
+  outline.set_object_colors( &gl, object_colors );
 
   scenes[ 0 ].borrow_mut().update_world_matrix();
   // Define the update and draw logic
@@ -79,8 +110,16 @@ async fn run() -> Result< (), gl::WebglError >
       swap_buffer.set_output( t );
       swap_buffer.swap();
     
-      let _ = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      let t = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
       .expect( "Failed to render ToSrgbPass" );
+
+      swap_buffer.set_output( t );
+      swap_buffer.swap();
+
+      let outline_thickness = ( 2.0 * ( t / 1000.0 ).sin().abs() ) as f32;
+      outline.set_outline_thickness( outline_thickness );
+      let _ = outline.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      .expect( "Failed to render OutlinePass" );
 
       true
     }
