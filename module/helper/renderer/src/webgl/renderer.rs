@@ -51,6 +51,15 @@ mod private
     /// The 2D texture that receives the resolved emission color output after multisample resolution.
     /// This texture can be sampled in shaders.
     pub emission_texture: Option<gl::web_sys::WebGlTexture>,
+    /// The 2D texture that receives the resolved normal output after multisample resolution.
+    /// This texture can be sampled in shaders.
+    pub normal_texture: Option<gl::web_sys::WebGlTexture>,
+    /// The 2D texture that receives the resolved depth output after multisample resolution.
+    /// This texture can be sampled in shaders.
+    pub depth_texture: Option<gl::web_sys::WebGlTexture>,
+    /// The 2D texture that receives the resolved object id output after multisample resolution.
+    /// This texture can be sampled in shaders.
+    pub object_id_texture: Option<gl::web_sys::WebGlTexture>,
   }
 
   impl FramebufferContext 
@@ -130,6 +139,9 @@ mod private
       // color information after blitting.
       let main_texture = gl.create_texture();
       let emission_texture = gl.create_texture();
+      let normal_texture = gl.create_texture();
+      let depth_texture = gl.create_texture();
+      let object_id_texture = gl.create_texture();
 
       // Configure the main texture.
       gl.bind_texture( gl::TEXTURE_2D, main_texture.as_ref() );
@@ -138,6 +150,21 @@ mod private
       
       // Configure the emission texture.
       gl.bind_texture( gl::TEXTURE_2D, emission_texture.as_ref() );
+      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width  as i32, height  as i32 );
+      gl::texture::d2::filter_linear( &gl );
+
+      // Configure the normal texture.
+      gl.bind_texture( gl::TEXTURE_2D, normal_texture.as_ref() );
+      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width  as i32, height  as i32 );
+      gl::texture::d2::filter_linear( &gl );
+
+      // Configure the depth texture.
+      gl.bind_texture( gl::TEXTURE_2D, depth_texture.as_ref() );
+      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width  as i32, height  as i32 );
+      gl::texture::d2::filter_linear( &gl );
+
+      // Configure the object id texture.
+      gl.bind_texture( gl::TEXTURE_2D, object_id_texture.as_ref() );
       gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width  as i32, height  as i32 );
       gl::texture::d2::filter_linear( &gl );
 
@@ -150,7 +177,7 @@ mod private
       gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, multisample_main_renderbuffer.as_ref() );
       gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::RENDERBUFFER, multisample_emission_renderbuffer.as_ref() );
       // Specify which color attachments are active for drawing.
-      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1 ] );
+      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1, gl::COLOR_ATTACHMENT2, gl::COLOR_ATTACHMENT3, gl::COLOR_ATTACHMENT4 ] );
 
       // --- Attach Textures to Resolved Framebuffer ---
       // Bind the resolved framebuffer to configure its attachments.
@@ -158,9 +185,12 @@ mod private
       // Attach the main and emission textures as color attachments.
       gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, main_texture.as_ref(), 0 );
       gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, emission_texture.as_ref(), 0 );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT2, gl::TEXTURE_2D, normal_texture.as_ref(), 0 );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT3, gl::TEXTURE_2D, depth_texture.as_ref(), 0 );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT4, gl::TEXTURE_2D, object_id_texture.as_ref(), 0 );
       // Specify which color attachments are active for drawing (though for resolved,
       // these will typically be written to via `blit_framebuffer`).
-      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1 ] );
+      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1, gl::COLOR_ATTACHMENT2, gl::COLOR_ATTACHMENT3, gl::COLOR_ATTACHMENT4 ] );
 
       // Unbind all resources to clean up the global WebGL state.
       gl.bind_texture( gl::TEXTURE_2D, None );
@@ -180,7 +210,10 @@ mod private
         multisample_emission_renderbuffer,
         multisample_main_renderbuffer,
         main_texture,
-        emission_texture
+        emission_texture,
+        normal_texture,
+        depth_texture,
+        object_id_texture
       }
     }
 
@@ -197,11 +230,11 @@ mod private
     {
       // Enable both attachments for the multisample framebuffer.
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
-      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1 ] );
+      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1, gl::COLOR_ATTACHMENT2, gl::COLOR_ATTACHMENT3, gl::COLOR_ATTACHMENT4 ] );
 
       // Enable both attachments for the resolved framebuffer.
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
-      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1 ] );
+      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1, gl::COLOR_ATTACHMENT2, gl::COLOR_ATTACHMENT3, gl::COLOR_ATTACHMENT4 ] );
 
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
     }
@@ -220,11 +253,11 @@ mod private
     {
       // Disable emission attachment for the multisample framebuffer.
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
-      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0 ] );
+      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT2, gl::COLOR_ATTACHMENT3, gl::COLOR_ATTACHMENT4 ] );
 
       // Disable emission attachment for the resolved framebuffer.
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
-      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0 ] );
+      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT2, gl::COLOR_ATTACHMENT3, gl::COLOR_ATTACHMENT4 ] );
 
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
     }
@@ -297,6 +330,9 @@ mod private
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
       gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, self.main_texture.as_ref(), 0 );
       gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, self.emission_texture.as_ref(), 0 );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT2, gl::TEXTURE_2D, self.normal_texture.as_ref(), 0 );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT3, gl::TEXTURE_2D, self.depth_texture.as_ref(), 0 );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT4, gl::TEXTURE_2D, self.object_id_texture.as_ref(), 0 );
     }
 
     /// Unbinds the color renderbuffers from the `multisample_framebuffer`
@@ -397,6 +433,24 @@ mod private
     pub fn get_main_texture( &self ) -> Option< gl::web_sys::WebGlTexture >
     {
       self.framebuffer_ctx.main_texture.clone()
+    }
+
+    /// Retrieves a clone of the normal texture from the internal framebuffer context.
+    pub fn get_normal_texture( &self ) -> Option< gl::web_sys::WebGlTexture >
+    {
+      self.framebuffer_ctx.normal_texture.clone()
+    }
+
+    /// Retrieves a clone of the depth texture from the internal framebuffer context.
+    pub fn get_depth_texture( &self ) -> Option< gl::web_sys::WebGlTexture >
+    {
+      self.framebuffer_ctx.depth_texture.clone()
+    }
+
+    /// Retrieves a clone of the object id texture from the internal framebuffer context.
+    pub fn get_object_id_texture( &self ) -> Option< gl::web_sys::WebGlTexture >
+    {
+      self.framebuffer_ctx.object_id_texture.clone()
     }
 
     /// Renders the scene using the provided camera.
