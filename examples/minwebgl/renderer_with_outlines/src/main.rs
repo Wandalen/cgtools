@@ -1,6 +1,6 @@
 
 use minwebgl as gl;
-
+use rand::Rng;
 use renderer::webgl::
 {
   post_processing::{self, Pass, SwapFramebuffer, outline::{ OutlinePass, MAX_OBJECT_COUNT } }, Camera, Renderer
@@ -11,7 +11,7 @@ mod loaders;
 
 fn generate_object_colors( object_count : usize ) -> Vec< [ f32; 4 ] > 
 {
-  let mut object_colors = vec![ vec![ 0.0; 4 ]; MAX_OBJECT_COUNT ];
+  let mut object_colors = vec![ [ 0.0; 4 ]; MAX_OBJECT_COUNT ];
   let mut rng = rand::rng();
 
   let range = 0.2..1.0;
@@ -66,7 +66,7 @@ async fn run() -> Result< (), gl::WebglError >
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
   let scenes = gltf.scenes;
 
-  let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 );
+  let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   renderer.set_use_emission( true );
   renderer.set_ibl( loaders::ibl::load( &gl, "envMap" ).await );
 
@@ -74,7 +74,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
-  let mut outline = post_processing::OutlinePass::new
+  let mut outline = OutlinePass::new
   ( 
     &gl, 
     renderer.get_depth_texture(), 
@@ -95,7 +95,7 @@ async fn run() -> Result< (), gl::WebglError >
     move | t : f64 |
     {
       // If textures are of different size, gl.view_port needs to be called
-      let _time = t as f32 / 1000.0;
+      let time = t as f32 / 1000.0;
 
       renderer.render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
       .expect( "Failed to render" );
@@ -116,7 +116,7 @@ async fn run() -> Result< (), gl::WebglError >
       swap_buffer.set_output( t );
       swap_buffer.swap();
 
-      let outline_thickness = ( 2.0 * ( t / 1000.0 ).sin().abs() ) as f32;
+      let outline_thickness = ( 2.0 * ( time / 1000.0 ).sin().abs() ) as f32;
       outline.set_outline_thickness( outline_thickness );
       let _ = outline.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
       .expect( "Failed to render OutlinePass" );

@@ -146,23 +146,23 @@ mod private
       
       // Configure the emission texture.
       gl.bind_texture( gl::TEXTURE_2D, emission_texture.as_ref() );
-      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width  as i32, height  as i32 );
+      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width as i32, height as i32 );
       gl::texture::d2::filter_linear( gl );
       gl::texture::d2::wrap_clamp( gl );
 
       // Configure the normal texture.
       gl.bind_texture( gl::TEXTURE_2D, normal_texture.as_ref() );
-      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width  as i32, height  as i32 );
+      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width as i32, height as i32 );
       gl::texture::d2::filter_linear( &gl );
 
       // Configure the depth texture.
       gl.bind_texture( gl::TEXTURE_2D, depth_texture.as_ref() );
-      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width  as i32, height  as i32 );
+      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::R32I, width as i32, height as i32 );
       gl::texture::d2::filter_linear( &gl );
 
       // Configure the object id texture.
       gl.bind_texture( gl::TEXTURE_2D, object_id_texture.as_ref() );
-      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width  as i32, height  as i32 );
+      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::R32I, width as i32, height as i32 );
       gl::texture::d2::filter_linear( &gl );
 
       // --- Attach Renderbuffers to Multisample Framebuffer ---
