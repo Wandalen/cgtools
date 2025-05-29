@@ -79,6 +79,8 @@ use minwebgl as gl;
 
     /// Optional texture providing the emission color of the material.
     pub emissive_texture : Option< TextureInfo >,
+    /// Option scaling factor for the emission intensity
+    pub emissive_factor : Option< gl::F32x3 >,
 
     /// Optional scaling factor for the specular intensity. (KHR_materials_specular extension)
     pub specular_factor : Option< f32 >,
@@ -167,6 +169,7 @@ use minwebgl as gl;
       upload( "specularFactor", self.occlusion_strength )?;
       gl::uniform::upload( gl, locations.get( "baseColorFactor" ).unwrap().clone(), self.base_color_factor.as_slice() )?;
       upload_array( "specularColorFactor", self.specular_color_factor.as_ref().map( | v | v.as_slice() ) )?;
+      upload_array( "emissiveFactor", self.emissive_factor.as_ref().map( | v | v.as_slice() ) )?;
 
       self.upload_textures( gl );
 
@@ -219,7 +222,8 @@ use minwebgl as gl;
       let use_base_color_texture = self.base_color_texture.is_some();
       let use_metallic_roughness_texture = self.metallic_roughness_texture.is_some();
 
-      let use_emission_texture = self.emissive_texture.is_some();
+      let use_emissive_texture = self.emissive_texture.is_some();
+      let use_emission = self.emissive_factor.is_some() | use_emissive_texture;
 
       let use_khr_materials_specular = self.specular_factor.is_some()
       | self.specular_color_factor.is_some()
@@ -254,9 +258,13 @@ use minwebgl as gl;
       }
 
       // Emission texture related
-      if use_emission_texture 
-      { 
-        add_texture( &mut defines, "USE_EMISSION_TEXTURE", "vEmissionUv", self.emissive_texture.as_ref() ); 
+      if use_emission
+      {
+        defines.push_str( &format!( "#define USE_EMISSION\n" ) );
+        if use_emissive_texture 
+        { 
+          add_texture( &mut defines, "USE_EMISSION_TEXTURE", "vEmissionUv", self.emissive_texture.as_ref() ); 
+        }
       }
 
       // KHR_Materials_Specular extension related
@@ -314,6 +322,7 @@ use minwebgl as gl;
       let occlusion_texture = Default::default();
 
       let emissive_texture = Default::default();
+      let emissive_factor = Default::default();
 
       let specular_factor = Default::default();
       let specular_texture = Default::default();
@@ -336,6 +345,7 @@ use minwebgl as gl;
         occlusion_strength,
         occlusion_texture,
         emissive_texture,
+        emissive_factor,
         specular_factor,
         specular_texture,
         specular_color_factor,

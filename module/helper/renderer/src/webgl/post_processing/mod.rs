@@ -10,6 +10,7 @@ crate::mod_interface!
   layer composer;
   layer tonemapping;
   layer to_srgb;
+  layer blend;
 
   own use
   {

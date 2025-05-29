@@ -74,6 +74,8 @@ mod_interface!
   layer drawbuffers;
   /// Simple geometry
   layer geometry;
+  /// Clean up the state
+  layer clean;
 
   /// Useful information about your objects
   #[ cfg( feature = "diagnostics" ) ]
