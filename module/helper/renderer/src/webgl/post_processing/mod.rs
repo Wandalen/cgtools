@@ -11,6 +11,7 @@ crate::mod_interface!
   layer tonemapping;
   layer to_srgb;
   layer blend;
+  layer outline;
 
   own use
   {
