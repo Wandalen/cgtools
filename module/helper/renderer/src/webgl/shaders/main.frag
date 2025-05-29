@@ -414,9 +414,10 @@ void main()
     #endif
   #endif
   
-  // float v = luminance( color );
-  // float lum_alpha = smoothstep( 2.0, 5.0, v );
-  // emissive_color = vec4( mix( vec3( 0.0 ), color, lum_alpha ), 1.0 );
+  float v = luminance( color );
+  float lum_alpha = smoothstep( 0.0, 2.0, v );
+  emissive_color.xyz += vec3( mix( vec3( 0.0 ), color, lum_alpha ) );
+  //emissive_color.a += mix( 0.0, 5.0, lum_alpha );
   // emissive_color = vec4( 1.0, 0.0, 0.0, 1.0 );
   //emissive_color = vec4( color * 0.1, 1.0 );
 
