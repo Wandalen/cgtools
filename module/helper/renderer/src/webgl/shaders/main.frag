@@ -18,13 +18,9 @@ in vec2 vUv_4;
 in vec3 vWorldPos;
 in vec3 vViewPos;
 in vec3 vNormal;
-in float vObjectId;
 
 layout( location = 0 ) out vec4 frag_color;
 layout( location = 1 ) out vec4 emissive_color;
-layout( location = 2 ) out vec4 normal_buffer;
-layout( location = 3 ) out vec4 depth_buffer;
-layout( location = 4 ) out vec4 object_id_buffer;
 
 uniform vec3 cameraPosition;
 
@@ -278,11 +274,6 @@ vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
   }
 #endif
 
-float linearizeDepth( float depth )
-{
-  return ( 2.0 * near * far ) / ( far + near - ( depth * 2.0 - 1.0 ) * ( far - near ) );
-}
-
 void main()
 {
   PhysicalMaterial material;
@@ -431,7 +422,4 @@ void main()
 
 
   frag_color = vec4( color * alpha, alpha );
-  normal_buffer = vec4( normal, 1.0 );
-  depth_buffer = vec4( vec3( linearizeDepth( gl_FragCoord.z ) ), 1.0 );
-  object_id_buffer = vec4( vec3( vObjectId ), 1.0 );
 }

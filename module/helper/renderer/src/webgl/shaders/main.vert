@@ -10,7 +10,6 @@ layout( location = 8 ) in vec4 color_1;
 #ifdef USE_TANGENTS 
   layout( location = 9 ) in vec4 tangent;
 #endif
-layout( location = 10 ) in float object_id;
 
 uniform mat4x4 worldMatrix;
 uniform mat4x4 viewMatrix;
@@ -18,7 +17,6 @@ uniform mat4x4 projectionMatrix;
 
 out vec3 vWorldPos;
 out vec3 vNormal;
-out float vObjectId;
 out vec2 vUv_0;
 out vec2 vUv_1;
 out vec2 vUv_2;
@@ -43,7 +41,6 @@ void main()
     vTangent = tangent;
   #endif
   vNormal = normalize( mat3x3( worldMatrix ) * normal );
-  vObjectId = object_id;
 
   vec4 worldPos = worldMatrix * vec4( position, 1.0 );
   vec4 viewPos = viewMatrix * worldPos;
