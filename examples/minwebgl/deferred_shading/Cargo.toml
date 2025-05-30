@@ -7,7 +7,11 @@ authors = [
   "Oleksandr Zaharevskyi <oleksandr.z@obox.systems>",
 ]
 
+[lints]
+workspace = true
+
 [dependencies]
+gltf = { workspace = true }
 rand = { workspace = true }
 getrandom = { workspace = true, features = ["wasm_js"] }
 minwebgl = { workspace = true, features = ["math"] }
@@ -15,4 +19,6 @@ web-sys = { workspace = true, features = [
   "WebGlFramebuffer",
   "WebGlRenderbuffer",
   "WebGlTexture",
+  "HtmlInputElement",
+  "Event",
 ] }

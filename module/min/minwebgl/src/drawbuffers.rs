@@ -14,10 +14,11 @@ mod private
     let mut buffers = [ GL::NONE; MAX_COLOR_ATTACHMENTS ];
     for attachment in attachments
     {
-      let index = ( *attachment as usize )
-      .checked_sub( GL::COLOR_ATTACHMENT0 as usize )
+      let index = *attachment as usize;
+      let attachment = attachment
+      .checked_add( GL::COLOR_ATTACHMENT0 )
       .expect( &format!( "Invalid color attachment {}", *attachment ) );
-      buffers[ index ] = *attachment;
+      buffers[ index ] = attachment;
     }
     let last = buffers.iter().rposition( | item | *item != GL::NONE ).map_or( 0, | i | i + 1 );
     let array = js_sys::Array::from_iter
