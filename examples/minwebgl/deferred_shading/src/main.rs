@@ -135,11 +135,11 @@ async fn run() -> Result< (), gl::WebglError >
   .map( | _ | rand::random_range( 0.0..=( f32::consts::PI * 2.0 ) ) ).collect::< Vec< _ > >();
   let mut light_colors = ( 0..max_light_count )
   .map( | _ | random_rgb_color() ).collect::< Vec< _ > >();
-  light_colors[ 0 ] = [ 0.5, 0.5, 0.5 ];
   let mut light_radii = ( 0..max_light_count )
   .map( | _ | light_radius + rand::random_range( -1.0..=7.0 ) ).collect::< Vec< _ > >();
   let mut light_positions = vec![ [ 0.0, 0.0, 0.0 ]; max_light_count as usize ];
   // set values for static light source
+  light_colors[ 0 ] = [ 0.5, 0.5, 0.5 ];
   light_radii[ 0 ] = 100.0;
   light_positions[ 0 ] = [ 0.0, 0.0, -100.0 ];
 
