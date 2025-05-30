@@ -10,8 +10,7 @@ use gl::
     WebGlBuffer,
     WebGlTexture,
     WebGlVertexArrayObject,
-    WebGlFramebuffer, 
-    WebGlRenderbuffer
+    WebGlFramebuffer
   }
 };
 use ndarray_cg::
@@ -137,22 +136,18 @@ fn create_framebuffer
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE as i32 );
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
 
-  let depthbuffer = gl.create_renderbuffer().unwrap();
-  gl.bind_renderbuffer( GL::RENDERBUFFER, Some( &depthbuffer ) );
-  gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH_COMPONENT24, width, height );
-
   let depth = gl.create_texture()?;
   gl.bind_texture( GL::TEXTURE_2D, Some( &depth ) );
-  gl.tex_storage_2d( GL::TEXTURE_2D, 1, gl::RGBA8, width, height );
+  gl.tex_storage_2d( GL::TEXTURE_2D, 1, GL::R16I, width, height );
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32 );
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE as i32 );
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
 
   // Normal attachment
-  // Using RGBA8 for normals (each component x,y,z stored in R,G,B)
+  // Using RGB8 for normals (each component x,y,z stored in R,G,B)
   let normal = gl.create_texture()?;
   gl.bind_texture( GL::TEXTURE_2D, Some( &normal ) );
-  gl.tex_storage_2d( GL::TEXTURE_2D, 1, gl::RGBA8, width, height );
+  gl.tex_storage_2d( GL::TEXTURE_2D, 1, gl::RGB8, width, height );
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32 );
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE as i32 );
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
@@ -162,10 +157,9 @@ fn create_framebuffer
   // Attach the texture to the framebuffer's color attachment point
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0 + color_attachment, GL::TEXTURE_2D, Some( &color ), 0 );
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1 + color_attachment, GL::TEXTURE_2D, Some( &normal ), 0 );
-  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT2 + color_attachment, GL::TEXTURE_2D, Some( &depth ), 0 );
-  gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::RENDERBUFFER, Some( &depthbuffer ) );
+  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::TEXTURE_2D, Some( &depth ), 0 );
 
-  drawbuffers( gl, &[ GL::COLOR_ATTACHMENT0, GL::COLOR_ATTACHMENT1, GL::COLOR_ATTACHMENT2 ] );
+  drawbuffers( gl, &[ GL::COLOR_ATTACHMENT0, GL::COLOR_ATTACHMENT1 ] );
 
   gl.bind_framebuffer( gl::FRAMEBUFFER, None );
 
@@ -445,14 +439,14 @@ pub fn primitives_data_csgrs
 
     let vertices_count = mesh.vertices().len();
 
+    // Calculating normals for primitives using this article: https://iquilezles.org/articles/normals/
     let mut primitive_normals = vec![ [ 0.0; 3 ]; vertices_count ];
     primitive_indices.chunks( 3 )
     .for_each
     ( 
       | ids | 
       {
-        let t = ( 0..3 ).map( | i | positions[ ids[ i ] as usize ] )
-        .map( | p | F32x3::new( p[ 0 ], p[ 1 ], p[ 2 ] ) )
+        let t = ( 0..3 ).map( | i | F32x3::from( positions[ ids[ i ] as usize ] ) )
         .collect::< Vec< _ > >();
         let e1 = t[ 0 ] - t[ 1 ];
         let e2 = t[ 2 ] - t[ 1 ];
@@ -471,7 +465,7 @@ pub fn primitives_data_csgrs
     .for_each( 
       | n |
       {
-        *n = ndarray_cg::vector::normalized( &F32x3::from_array( *n ) );
+        *n = *F32x3::from_array( *n ).normalize();
       }
     );
 
@@ -644,8 +638,8 @@ impl Renderer
       renderer.draw_count = indices.len() as i32; // Store the total number of indices to draw
     }
 
-    let mut object_colors = vec![ vec![ 0.0; 4 ]; 256 ];
-    let mut object_count = *object_ids.last().unwrap_or( &0.0 ) as usize + 1;
+    let mut object_colors = vec![ [ 0.0; 4 ]; 256 ];
+    let object_count = *object_ids.last().unwrap_or( &0.0 ) as usize + 1;
     let mut rng = rand::rng();
 
     let range = 0.2..1.0;
@@ -653,12 +647,15 @@ impl Renderer
     ( 
       | i |
       {
-        object_colors[ i ] = vec![ 
-          rng.random_range( range.clone() ), 
-          rng.random_range( range.clone() ),
-          rng.random_range( range.clone() ),
-          1.0
-        ];
+        object_colors[ i ] = F32x4::from( 
+          [ 
+            rng.random_range( range.clone() ), 
+            rng.random_range( range.clone() ),
+            rng.random_range( range.clone() ),
+            1.0
+          ] 
+        )
+        .0;
       } 
     );
 

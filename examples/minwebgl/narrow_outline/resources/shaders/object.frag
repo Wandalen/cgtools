@@ -9,9 +9,9 @@ in float v_object_id;
 // Output fragment color. This will be written to the framebuffer's color attachment.
 layout( location = 0 ) out vec4 FragColor;
 // Output fragment normal. This will be written to the framebuffer's normal attachment.
-layout( location = 1 ) out vec4 FragNorm;
+layout( location = 1 ) out vec3 FragNorm;
 // Output fragment depth. This will be written to the framebuffer's depth attachment.
-layout( location = 2 ) out vec4 FragDepth;
+layout( location = 2 ) out float FragDepth;
 
 layout( std140 ) uniform ObjectColorBlock
 {
@@ -29,9 +29,9 @@ float linearizeDepth( float depth )
 void main()
 {
 	FragColor = u_object_colors[ uint( v_object_id ) ];
-	FragDepth = vec4( vec3( linearizeDepth( gl_FragCoord.z ) ), 1.0 );  
+	FragDepth = linearizeDepth( gl_FragCoord.z );  
 	// Output the normalized view-space normal.
   // We store it in a vec4 and normalize it here to ensure it's a unit vector.
   // Store it as a color by mapping the [-1, 1] range to [0, 1].
-  FragNorm = vec4( normalize( v_norm ) * 0.5 + 0.5, 1.0 );
+  FragNorm = normalize( v_norm ) * 0.5 + 0.5;
 }
