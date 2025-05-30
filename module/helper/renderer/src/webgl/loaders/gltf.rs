@@ -1,7 +1,7 @@
 mod private
 {
   use std::{ cell::RefCell, rc::Rc };
-  use minwebgl::{ self as gl, JsCast, geometry::BoundingBox };
+  use minwebgl::{ self as gl, geometry::BoundingBox, JsCast, JsValue, WebglError };
   use crate::webgl::
   {
     ToFromGlEnum,
@@ -22,7 +22,7 @@ mod private
     TextureInfo, 
     WrappingMode
   };
-  use web_sys::wasm_bindgen::prelude::Closure;
+  use web_sys::{js_sys::Uint8Array, wasm_bindgen::prelude::Closure, WebGlBuffer};
 
   pub struct GLTF
   {
@@ -35,6 +35,54 @@ mod private
     pub meshes : Vec< Rc< RefCell< Mesh > > >
   }
 
+  fn upload_buffer_data< T >( 
+    gl : &gl::WebGl2RenderingContext, 
+    buffer : WebGlBuffer, 
+    target : u32, 
+    offset : u32, 
+    data : Vec< T > 
+  )
+  {
+    let data = data.iter()
+    .map( | i | i.to_be_bytes() )
+    .flatten()
+    .collect::< Vec< _ > >();
+
+    gl.bind_buffer( target, Some( &buffer ) );
+    gl.buffer_data_with_js_u8_array_and_src_offset_and_length
+    ( 
+      target, 
+      &UInt8Array::from( &data ), 
+      gl::STATIC_DRAW,
+      offset,
+      data.len() as u32
+    );
+  }
+
+  fn make_buffer_attibute_info< T >( 
+    buffer : web_sys::WebGlBuffer, 
+    offset : i32, 
+    stride : i32, 
+    slot : u32,
+    normalized : bool,
+    vector: gl::VectorDataType
+  ) -> AttributeInfo
+  {
+    let descriptor = gl::BufferDescriptor::new::< T >()
+    .offset( offset / vector.scalar().byte_size() )
+    .normalized( normalized )
+    .stride( stride / vector.scalar().byte_size() )
+    .vector( vector );
+
+    AttributeInfo
+    {
+      slot,
+      buffer,
+      descriptor,
+      bounding_box : Default::default()
+    }
+  }
+
   pub async fn load
   ( 
     document : &gl::web_sys::Document,
@@ -42,8 +90,13 @@ mod private
     gl : &gl::WebGl2RenderingContext 
   ) -> Result< GLTF, gl::WebglError >
   {
-    let gltf_slice= gl::file::load( &format!( "{}/scene.gltf", gltf_path ) )
-    .await.expect( "Failed to load gltf file" );
+    let path = std::path::Path::new( gltf_path );
+    let folder_path = path.parent().map_or( "", | p | p.to_str().expect( "Path is not UTF-8 encoded" ) );
+    gl::info!( "Folder: {}\nFile: {}", folder_path, gltf_path );
+
+    // let gltf_slice= gl::file::load( &format!( "{}/scene.gltf", gltf_path ) )
+    // .await.expect( "Failed to load gltf file" );
+    let gltf_slice = gl::file::load( gltf_path ).await.expect( "Failed to load gltf file" );
     let mut gltf_file = gltf::Gltf::from_slice( &gltf_slice ).unwrap();
 
     let mut buffers : Vec< gl::js_sys::Uint8Array > = Vec::new();
@@ -62,7 +115,7 @@ mod private
       {
         gltf::buffer::Source::Uri( uri ) =>
         {
-          let path = format!( "{}/{}", gltf_path, uri );
+          let path = format!( "{}/{}", folder_path, uri );
           let buffer = gl::file::load( &path ).await
           .expect( "Failed to load a buffer" );
 
@@ -143,11 +196,12 @@ mod private
       {
         gltf::image::Source::Uri { uri, mime_type: _ } =>
         {
-          upload_texture( Rc::new( format!( "static/{}/{}", gltf_path, uri ) ) );
+          upload_texture( Rc::new( format!( "static/{}/{}", folder_path, uri ) ) );
         },
         gltf::image::Source::View { view, mime_type } =>
         {
           let buffer = buffers[ view.buffer().index() ].clone();
+          let buffer = gl::js_sys::Uint8Array::new_with_byte_offset_and_length( &buffer.buffer(), view.offset() as u32, view.length() as u32 );
           let blob = {
             let options = gl::web_sys::BlobPropertyBag::new();
             options.set_type( mime_type );
@@ -155,7 +209,7 @@ mod private
             let mut blob_parts = Vec::new();
             blob_parts.push( buffer );
 
-            gl::web_sys::Blob::new_with_u8_array_sequence_and_options( &( blob_parts.into() ), &options )
+            gl::web_sys::Blob::new_with_u8_slice_sequence_and_options( &( blob_parts.into() ), &options )
           }.expect( "Failed to create a Blob" );
 
           let url = gl::web_sys::Url::create_object_url_with_blob( &blob ).expect( "Failed to create object url" );
@@ -170,6 +224,7 @@ mod private
     let mut gl_buffers = Vec::new();
     // The target option may not be set for the attributes/indices buffers
     // This scenario should be checked
+
     for view in gltf_file.views()
     {
       let buffer = gl::buffer::create( &gl )?;
@@ -199,6 +254,9 @@ mod private
 
       gl_buffers.push( buffer );
     }
+
+    let object_id_buffer = gl::buffer::create( &gl )?;
+    gl_buffers.push( object_id_buffer );
 
     gl::info!( "GL Buffers: {}", gl_buffers.len() );
 
@@ -263,6 +321,7 @@ mod private
       material.base_color_texture = make_texture_info( pbr.base_color_texture() );
       material.metallic_roughness_texture = make_texture_info( pbr.metallic_roughness_texture() );
       material.emissive_texture = make_texture_info( gltf_m.emissive_texture() );
+      material.emissive_factor = Some( gl::F32x3::from( gltf_m.emissive_factor() ) );
       // KHR_materials_specular
       if let Some( s ) = gltf_m.specular()
       {
@@ -300,8 +359,11 @@ mod private
     materials.push( Rc::new( RefCell::new( Material::default() ) ) );
 
     gl::log::info!( "Materials: {}",materials.len() );
+    let mut stride = 0;
+    let mut offset = 0;
     let make_attibute_info = | acc : &gltf::Accessor< '_ >, slot |
     {
+      stride = acc.view().unwrap().stride().unwrap_or( 0 ) as i32 + 1;
       let data_type = match acc.data_type()
       {
         gltf::accessor::DataType::U8 => gl::DataType::U8,
@@ -312,11 +374,15 @@ mod private
         gltf::accessor::DataType::F32 => gl::DataType::F32
       };
 
+      let elements = 1;
+
       let descriptor = gl::BufferDescriptor::new::< [ f32; 1 ] >()
       .offset( acc.offset() as i32 / data_type.byte_size() )
       .normalized( acc.normalized() )
-      .stride( acc.view().unwrap().stride().unwrap_or( 0 ) as i32 / data_type.byte_size() )
-      .vector( gl::VectorDataType::new( data_type, acc.dimensions().multiplicity() as i32, 1 ) );
+      .stride( stride / data_type.byte_size() )
+      .vector( gl::VectorDataType::new( data_type, acc.dimensions().multiplicity() as i32, elements ) );
+
+      offset = acc.offset() as i32 + data_type.byte_size() * acc.dimensions().multiplicity() as i32 * elements;
 
       AttributeInfo
       {
@@ -326,101 +392,127 @@ mod private
         bounding_box : Default::default()
       }
     };
+
     let mut meshes = Vec::new();
+    let mut object_id : u32 = 0;
+    let mut object_id_data : Vec< u32 > = vec![];
+
     for gltf_mesh in gltf_file.meshes()
     {
-    let mut mesh = Mesh::default();
+      let mut mesh = Mesh::default();
 
-    for gltf_primitive in gltf_mesh.primitives()
-    {
-      let mut geometry = Geometry::new( gl )?;
-      geometry.draw_mode = gltf_primitive.mode().as_gl_enum();
-
-      // Indices
-      if let Some( acc ) = gltf_primitive.indices()
+      for gltf_primitive in gltf_mesh.primitives()
       {
-        let info = IndexInfo
-        {
-          buffer : gl_buffers[ acc.view().unwrap().index() ].clone(),
-          count : acc.count() as u32,
-          offset : acc.offset() as u32,
-          data_type : acc.data_type().as_gl_enum()
-        };
-        geometry.add_index( gl, info )?;
-      }
+        let mut geometry = Geometry::new( gl )?;
+        geometry.draw_mode = gltf_primitive.mode().as_gl_enum();
 
-      // Attributes
-      for ( sem, acc ) in gltf_primitive.attributes()
-      {
-        if acc.sparse().is_some()
+        // Indices
+        if let Some( acc ) = gltf_primitive.indices()
         {
-          gl::log::info!( "Sparce accessors are not supported yet" );
-          continue;
+          let info = IndexInfo
+          {
+            buffer : gl_buffers[ acc.view().unwrap().index() ].clone(),
+            count : acc.count() as u32,
+            offset : acc.offset() as u32,
+            data_type : acc.data_type().as_gl_enum()
+          };
+          geometry.add_index( gl, info )?;
         }
-        
-        match sem
-        {
-          gltf::Semantic::Positions => 
-          {
-            geometry.vertex_count = acc.count() as u32;
-            let gltf_box = gltf_primitive.bounding_box();
 
-            let mut attr_info = make_attibute_info( &acc, 0 );
-            attr_info.bounding_box = BoundingBox::new( gltf_box.min, gltf_box.max );
-            geometry.add_attribute( gl, "positions", attr_info, false )?;
-          },
-          gltf::Semantic::Normals => 
-          { 
-            geometry.add_attribute( gl, "normals", make_attibute_info( &acc, 1 ), false )?;
-          },
-          gltf::Semantic::TexCoords( i ) =>
+        // Attributes
+        for ( sem, acc ) in gltf_primitive.attributes()
+        {
+          if acc.sparse().is_some()
           {
-            assert!( i < 5, "Only 5 types of texture coordinates are supported" );
-            geometry.add_attribute
-            ( 
-              gl,
-              format!( "texture_coordinates_{}", 2 + i ), 
-              make_attibute_info( &acc, 2 + i ), 
-              false 
-            )?;
-          },
-          gltf::Semantic::Colors( i ) =>
+            gl::log::info!( "Sparce accessors are not supported yet" );
+            continue;
+          }
+
+          offset = 0;
+          
+          match sem
           {
-            assert!( i < 2, "Only 2 types of color coordinates are supported" );
-            geometry.add_attribute
-            ( 
-              gl,
-              format!( "colors_{}", 7 + i ), 
-              make_attibute_info( &acc, 7 + i ), 
-              false 
-            )?;
-          },
-          gltf::Semantic::Tangents =>
-          {
-            geometry.add_attribute
-            ( 
-              gl,
-              "tangents", 
-              make_attibute_info( &acc, 9 ), 
-              true 
-            )?;
-          },
-          a => { gl::warn!( "Unsupported attribute: {:?}", a ); continue; }
+            gltf::Semantic::Positions => 
+            {
+              geometry.vertex_count = acc.count() as u32;
+              let gltf_box = gltf_primitive.bounding_box();
+
+              let mut attr_info = make_attibute_info( &acc, 0 );
+              attr_info.bounding_box = BoundingBox::new( gltf_box.min, gltf_box.max );
+              geometry.add_attribute( gl, "positions", attr_info, false )?;
+            },
+            gltf::Semantic::Normals => 
+            { 
+              geometry.add_attribute( gl, "normals", make_attibute_info( &acc, 1 ), false )?;
+            },
+            gltf::Semantic::TexCoords( i ) =>
+            {
+              assert!( i < 5, "Only 5 types of texture coordinates are supported" );
+              geometry.add_attribute
+              ( 
+                gl,
+                format!( "texture_coordinates_{}", 2 + i ), 
+                make_attibute_info( &acc, 2 + i ), 
+                false 
+              )?;
+            },
+            gltf::Semantic::Colors( i ) =>
+            {
+              assert!( i < 2, "Only 2 types of color coordinates are supported" );
+              geometry.add_attribute
+              ( 
+                gl,
+                format!( "colors_{}", 7 + i ), 
+                make_attibute_info( &acc, 7 + i ), 
+                false 
+              )?;
+            },
+            gltf::Semantic::Tangents =>
+            {
+              geometry.add_attribute
+              ( 
+                gl,
+                "tangents", 
+                make_attibute_info( &acc, 9 ), 
+                true 
+              )?;
+            },
+            a => { gl::warn!( "Unsupported attribute: {:?}", a ); continue; }
+          };
+        }
+
+        let object_id_attribute_info = make_buffer_attibute_info::< [ F32; 1 ] >( 
+          object_id_buffer, 
+          offset, 
+          stride, 
+          10, 
+          false, 
+          gl::VectorDataType::new( mingl::DataType::U32, 1, 1 ) 
+        );
+
+        geometry.add_attribute
+        ( 
+          gl,
+          "object_id", 
+          object_id_attribute_info, 
+          false 
+        )?;
+
+        let material_id = gltf_primitive.material().index().unwrap_or( materials.len() - 1 );
+        let primitive = Primitive
+        {
+          geometry : Rc::new( RefCell::new( geometry ) ),
+          material : materials[ material_id ].clone()
         };
+
+        mesh.add_primitive( Rc::new( RefCell::new( primitive ) ) );
       }
 
-      let material_id = gltf_primitive.material().index().unwrap_or( materials.len() - 1 );
-      let primitive = Primitive
-      {
-        geometry : Rc::new( RefCell::new( geometry ) ),
-        material : materials[ material_id ].clone()
-      };
-
-      mesh.add_primitive( Rc::new( RefCell::new( primitive ) ) );
+      meshes.push( Rc::new( RefCell::new( mesh ) ) );
+      object_id += 1;
     }
 
-    meshes.push( Rc::new( RefCell::new( mesh ) ) );
-    }
+    upload_buffer_data( gl, object_id_buffer, gl::ARRAY_BUFFER, 0, object_id_data );
 
     gl::log::info!( "Meshes: {}",meshes.len() );
 

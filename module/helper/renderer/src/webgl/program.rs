@@ -3,10 +3,12 @@ mod private
   use minwebgl as gl;
   use std::collections::HashMap;
 
+  pub struct GBufferShader;
   pub struct EmptyShader;
   pub struct PBRShader;
   pub struct GaussianFilterShader;
   pub struct UnrealBloomShader;
+  pub struct OutlineShader;
 
   /// Stores information about a WebGL program, including the program object and the locations of its uniforms.
   /// This struct is intended for use by the renderer.
@@ -41,6 +43,39 @@ mod private
     {
       gl.use_program( Some( &self.program ) );
     }   
+  }
+
+  impl ProgramInfo< GBufferShader > 
+  {
+    /// Creates a new `ProgramInfo` instance.
+    ///
+    /// * `gl`: The `WebGl2RenderingContext` used to retrieve uniform locations.
+    /// * `program`: The compiled WebGL program object.
+    pub fn new( gl : &gl::WebGl2RenderingContext, program : gl::WebGlProgram ) -> Self
+    {
+      let mut locations = HashMap::new();
+
+      let mut add_location = | name : &str |
+      { 
+        if let Some( location ) = gl.get_uniform_location( &program, name )
+        {
+          locations.insert( name.to_string(), location );
+        }
+      };
+
+      add_location( "worldMatrix" );
+      add_location( "viewMatrix" );
+      add_location( "projectionMatrix" );
+      add_location( "near" );
+      add_location( "far" );
+
+      Self
+      {
+        program,
+        locations,
+        phantom : std::marker::PhantomData
+      }
+    } 
   }
 
   impl ProgramInfo< PBRShader >
@@ -87,6 +122,7 @@ mod private
       add_location( "occlusionStrength" );
       add_location( "specularFactor" );
       add_location( "specularColorFactor" );
+      add_location( "emissiveFactor" );
 
       Self
       {
@@ -181,6 +217,36 @@ mod private
       }
     }    
   }
+
+  impl ProgramInfo< OutlineShader > 
+  {
+    /// Creates a new `ProgramInfo` instance.
+    ///
+    /// * `gl`: The `WebGl2RenderingContext` used to retrieve uniform locations.
+    /// * `program`: The compiled WebGL program object.
+    pub fn new( gl : &gl::WebGl2RenderingContext, program : gl::WebGlProgram ) -> Self
+    {
+      let mut locations = HashMap::new();
+
+      let mut add_location = | name : &str |
+      {
+        locations.insert( name.to_string(), gl.get_uniform_location( &program, name ) );
+      };
+
+      add_location( "sourceTexture" );
+      add_location( "objectIdTexture" );
+      add_location( "depthTexture" );
+      add_location( "resolution" );
+      add_location( "outlineThickness" );
+
+      Self
+      {
+        program,
+        locations,
+        phantom : std::marker::PhantomData
+      }
+    }    
+  }
 }
 
 crate::mod_interface!
@@ -190,7 +256,8 @@ crate::mod_interface!
     EmptyShader,
     GaussianFilterShader,
     UnrealBloomShader,
-    PBRShader
+    PBRShader,
+    OutlineShader
   };
   
   orphan use

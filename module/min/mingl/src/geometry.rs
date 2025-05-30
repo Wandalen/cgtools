@@ -2,7 +2,7 @@ mod private
 {
   use crate::*;
 
-  #[ derive( Debug ) ]
+  #[ derive( Debug, Clone, Copy ) ]
   pub struct BoundingBox
   {
     pub min : F32x3,

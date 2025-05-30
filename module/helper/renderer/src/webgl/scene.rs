@@ -1,8 +1,9 @@
 mod private
 {
   use std::{ cell::RefCell, rc::Rc };
-  use minwebgl as gl;
-  use crate::webgl::Node;
+  use mingl::geometry::BoundingBox;
+use minwebgl as gl;
+  use crate::webgl::{Node, Object3D};
 
   /// Represents a scene containing a hierarchy of nodes.
   #[ derive( Default ) ]
@@ -58,6 +59,35 @@ mod private
       {
         child.borrow_mut().update_world_matrix( identity );
       }
+    }
+
+    pub fn bounding_box( &self ) -> BoundingBox
+    {
+      let mut bbox = BoundingBox::default();
+
+      let mut calc_bounding_box = 
+      | 
+        node : Rc< RefCell< Node > > 
+      | -> Result< (), gl::WebglError >
+      {
+        let node = node.borrow();
+        if let Object3D::Mesh( ref mesh ) = node.object
+        {
+          let mbbox = mesh.borrow().bounding_box();
+
+          let tmin = node.world_matrix * gl::F32x4::from( [ mbbox.min.x(), mbbox.min.y(), mbbox.min.z(), 1.0 ] );
+          let tmax = node.world_matrix * gl::F32x4::from( [ mbbox.max.x(), mbbox.max.y(), mbbox.max.z(), 1.0 ] );
+
+          bbox.min = bbox.min.min( gl::F32x3::from( [ tmin.x(), tmin.y(), tmin.z() ] ) );
+          bbox.max = bbox.max.max( gl::F32x3::from( [ tmax.x(), tmax.y(), tmax.z() ] ) );
+        }
+
+        Ok( () )
+      };
+
+      self.traverse( &mut calc_bounding_box ).unwrap();
+
+      bbox
     }
   }
 }

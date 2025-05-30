@@ -7,6 +7,9 @@ authors = [
   "Avramenko Yevhenii <yevhenii.av@obox.systems>" 
 ]
 
+[lints]
+workspace = true
+
 [dependencies]
 
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
@@ -26,5 +29,6 @@ features = [
   'Blob',
   'BlobPropertyBag',
   'Url',
-  'WebGlFramebuffer'
+  'WebGlFramebuffer',
+  'WebGlRenderbuffer'
 ]
