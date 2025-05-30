@@ -16,7 +16,7 @@ mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 ndarray_cg = { workspace = true }
 gltf = { workspace = true }
 rand = { workspace = true }
-getrandom = { workspace = true }
+getrandom = { workspace = true, features = [ "wasm_js" ] }
 csgrs = { workspace = true }
 parry3d = { workspace = true }
 
