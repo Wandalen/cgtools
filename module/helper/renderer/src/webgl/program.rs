@@ -3,6 +3,7 @@ mod private
   use minwebgl as gl;
   use std::collections::HashMap;
 
+  pub struct GBufferShader;
   pub struct EmptyShader;
   pub struct PBRShader;
   pub struct GaussianFilterShader;
@@ -42,6 +43,39 @@ mod private
     {
       gl.use_program( Some( &self.program ) );
     }   
+  }
+
+  impl ProgramInfo< GBufferShader > 
+  {
+    /// Creates a new `ProgramInfo` instance.
+    ///
+    /// * `gl`: The `WebGl2RenderingContext` used to retrieve uniform locations.
+    /// * `program`: The compiled WebGL program object.
+    pub fn new( gl : &gl::WebGl2RenderingContext, program : gl::WebGlProgram ) -> Self
+    {
+      let mut locations = HashMap::new();
+
+      let mut add_location = | name : &str |
+      { 
+        if let Some( location ) = gl.get_uniform_location( &program, name )
+        {
+          locations.insert( name.to_string(), location );
+        }
+      };
+
+      add_location( "worldMatrix" );
+      add_location( "viewMatrix" );
+      add_location( "projectionMatrix" );
+      add_location( "near" );
+      add_location( "far" );
+
+      Self
+      {
+        program,
+        locations,
+        phantom : std::marker::PhantomData
+      }
+    } 
   }
 
   impl ProgramInfo< PBRShader >
