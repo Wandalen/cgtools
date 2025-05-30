@@ -115,6 +115,7 @@ async fn run() -> Result< (), gl::WebglError >
   let light_radius = 12.0;
   do_magic( light_radius );
 
+  // random elliptical orbits for light sources movement
   let light_orbits = ( 0..max_light_count ).map
   (
     | _ |
@@ -129,6 +130,7 @@ async fn run() -> Result< (), gl::WebglError >
       ..EllipticalOrbit::random()
     }
   ).collect::< Vec< _ > >();
+  // random offests to make elliptical movement more diverse
   let offsets = ( 0..max_light_count )
   .map( | _ | rand::random_range( 0.0..=( f32::consts::PI * 2.0 ) ) ).collect::< Vec< _ > >();
   let mut light_colors = ( 0..max_light_count )
@@ -136,8 +138,9 @@ async fn run() -> Result< (), gl::WebglError >
   light_colors[ 0 ] = [ 0.5, 0.5, 0.5 ];
   let mut light_radii = ( 0..max_light_count )
   .map( | _ | light_radius + rand::random_range( -1.0..=7.0 ) ).collect::< Vec< _ > >();
-  light_radii[ 0 ] = 100.0;
   let mut light_positions = vec![ [ 0.0, 0.0, 0.0 ]; max_light_count as usize ];
+  // set values for static light source
+  light_radii[ 0 ] = 100.0;
   light_positions[ 0 ] = [ 0.0, 0.0, -100.0 ];
 
   // upload light data into buffers for instanced rendering
