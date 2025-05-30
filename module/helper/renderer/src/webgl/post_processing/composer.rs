@@ -106,7 +106,7 @@ mod private
     pub fn unbind_attachment( &self, gl : &gl::WebGl2RenderingContext )
     {
       self.bind( gl );
-      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, None, 0 );
+      gl::clean::framebuffer_texture_2d( gl );
     }
 
     /// Sets the `input_texture` of the `SwapFramebuffer`.

@@ -324,9 +324,9 @@ mod private
     /// * `gl` - A reference to the WebGl2RenderingContext.
     pub fn unbind_multisample( &self, gl : &gl::WebGl2RenderingContext )
     {
-      gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
-      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, None );
-      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::RENDERBUFFER, None );
+      // gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
+      // gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, None );
+      // gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::RENDERBUFFER, None );
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
     }
 
@@ -342,9 +342,9 @@ mod private
     /// * `gl` - A reference to the WebGl2RenderingContext.
     pub fn unbind_resolved( &self, gl : &gl::WebGl2RenderingContext )
     {
-       gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
-      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, None, 0 );
-      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, None, 0 );
+      //  gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
+      // gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, None, 0 );
+      // gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, None, 0 );
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
     }
   }
@@ -370,8 +370,11 @@ mod private
     /// renderbuffers and textures (main color and emission). It allows for anti-aliasing
     /// and the separation of main scene rendering from emissive components.
     framebuffer_ctx : FramebufferContext,
+    /// Bloom pass for the emissive texutre
     bloom_effect : UnrealBloomPass,
+    /// Blend pass to combined the blurred emissive texture with the main image
     blend_effect : BlendPass,
+    /// Swap buffer to control rendering of the effects
     swap_buffer : SwapFramebuffer
   }
 

@@ -25,8 +25,9 @@ mod private
     blur_materials : Vec< ProgramInfo< program::GaussianFilterShader > >,
     /// Composites all the blurred mipmap levels together to create the final bloom effect.
     composite_material : ProgramInfo< program::UnrealBloomShader >,
-    copy_material : ProgramInfo< program::EmptyShader >,
+    /// The width of the texture to blur
     width : u32,
+    /// The hegiht of the textuer to blur
     height : u32
   }
 
@@ -143,11 +144,6 @@ mod private
       gl.uniform1i( locations.get( "blurTexture3" ).unwrap().clone().as_ref() , 3 );
       gl.uniform1i( locations.get( "blurTexture4" ).unwrap().clone().as_ref() , 4 );
 
-      let fs_shader = include_str!( "../shaders/copy.frag" );
-
-      let copy_material = gl::ProgramFromSources::new( VS_TRIANGLE, fs_shader ).compile_and_link( gl )?;
-      let copy_material = ProgramInfo::< program::EmptyShader >::new( copy_material );
-
       Ok
       (
         Self 
@@ -156,7 +152,6 @@ mod private
           vertical_targets,
           blur_materials,
           composite_material,
-          copy_material,
           width,
           height
         }
@@ -253,35 +248,10 @@ mod private
       gl.clear( gl::COLOR_BUFFER_BIT );
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );
 
-      // self.copy_material.bind( gl );
-      // gl.blend_func( gl::ONE, gl::ONE );
-      // gl.active_texture( gl::TEXTURE0 );
-      // gl.bind_texture( gl::TEXTURE_2D, self.horizontal_targets[ 0 ].as_ref() );
-      // gl.framebuffer_texture_2d
-      // ( 
-      //   gl::FRAMEBUFFER, 
-      //   gl::COLOR_ATTACHMENT0, 
-      //   gl::TEXTURE_2D, 
-      //   output_texture.as_ref(), 
-      //   0
-      // );
-      // gl.draw_arrays( gl::TRIANGLES, 0, 3 );
-
       // Unbind the attachment
-      for i in 0..MIPS
-      {
-        gl.active_texture( gl::TEXTURE0 + i as u32 );
-        gl.bind_texture( gl::TEXTURE_2D, None );
-      }
+      gl::clean::texture_2d_array( gl, 0..MIPS );
+      gl::clean::framebuffer_texture_2d( gl );
 
-      gl.framebuffer_texture_2d
-      (
-        gl::FRAMEBUFFER, 
-        gl::COLOR_ATTACHMENT0, 
-        gl::TEXTURE_2D, 
-        None, 
-        0
-      );
 
       Ok( output_texture )
     }
