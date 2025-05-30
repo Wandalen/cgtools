@@ -16,7 +16,7 @@ layout( location = 2 ) out float FragDepth;
 layout( std140 ) uniform ObjectColorBlock
 {
   vec4 u_object_colors[ 256 ];
-};
+}; 
 
 uniform float near;
 uniform float far;
