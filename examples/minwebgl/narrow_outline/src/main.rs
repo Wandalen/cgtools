@@ -34,58 +34,6 @@ mod camera;
 
 use camera::*;
 
-/// Creates a WebGL2 texture.
-///
-/// # Arguments
-///
-/// * `gl` - The WebGL2 rendering context.
-/// * `slot` - The texture unit to activate and bind to ( e.g., `GL::TEXTURE0` ).
-/// * `size` - The size of the texture ( width, height ).
-/// * `internal_format` - The internal format of the texture ( e.g., `GL::RGBA8` ).
-/// * `format` - The format of the pixel data ( e.g., `GL::RGBA` ).
-/// * `pixel_type` - The data type of the pixel data ( e.g., `GL::UNSIGNED_BYTE` ).
-/// * `data` - Optional initial pixel data.
-///
-/// # Returns
-///
-/// An `Option< WebGlTexture >` containing the created texture, or `None` if creation fails.
-fn create_texture
-(
-  gl : &gl::WebGl2RenderingContext,
-  slot : u32,
-  size : ( i32, i32 ),
-  internal_format : i32,
-  format : u32,
-  pixel_type : u32,
-  data : Option< &[ u8 ] >
-) 
--> Option< WebGlTexture >
-{
-  let Some( texture ) = gl.create_texture() 
-  else 
-  {
-    return None;
-  };
-  gl.active_texture( slot );
-  gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) );
-  // Used to upload data.
-  gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
-  (
-    GL::TEXTURE_2D,  // target
-    0,               // level
-    internal_format, 
-    size.0,         
-    size.1,          
-    0,               // border
-    format,         
-    pixel_type,     
-    data,            // pixels data
-  )
-  .unwrap();
-  gl.bind_texture( GL::TEXTURE_2D, None );
-  Some( texture )
-}
-
 /// Binds a texture to a texture unit and uploads its location to a uniform.
 ///
 /// # Arguments
