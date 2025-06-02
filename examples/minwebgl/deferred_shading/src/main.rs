@@ -162,20 +162,20 @@ async fn run() -> Result< (), gl::WebglError >
     light_radius_buffer,
     2
   );
-  let light_color_buffer = gl::buffer::create( &gl )?;
-  gl::buffer::upload( &gl, &light_color_buffer, light_colors.as_slice(), GL::STATIC_DRAW );
-  let color_attribute = AttributePointer::new
-  (
-    &gl,
-    BufferDescriptor::new::< [ f32; 3 ] >().divisor( 1 ),
-    light_color_buffer,
-    3
-  );
+  // let light_color_buffer = gl::buffer::create( &gl )?;
+  // gl::buffer::upload( &gl, &light_color_buffer, light_colors.as_slice(), GL::STATIC_DRAW );
+  // let color_attribute = AttributePointer::new
+  // (
+  //   &gl,
+  //   BufferDescriptor::new::< [ f32; 3 ] >().divisor( 1 ),
+  //   light_color_buffer,
+  //   3
+  // );
 
   let light_volume = light_volume( &gl )?;
   light_volume.add_attribute( translation_attribute )?;
   light_volume.add_attribute( radius_attribute )?;
-  light_volume.add_attribute( color_attribute )?;
+  // light_volume.add_attribute( color_attribute )?;
 
   // setup slider for light count
   let document =  window.document().unwrap();
@@ -253,6 +253,7 @@ async fn run() -> Result< (), gl::WebglError >
     light_shader.uniform_upload( "u_positions", &0 );
     light_shader.uniform_upload( "u_normals", &1 );
     light_shader.uniform_upload( "u_colors", &2 );
+    gl.vertex_attrib3f( 3, 0.5, 0.5, 0.5 );
     // gl.vertex_attribut
     gl.draw_elements_instanced_with_i32
     (

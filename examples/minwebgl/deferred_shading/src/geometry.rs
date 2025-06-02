@@ -34,7 +34,6 @@ pub struct Geometry
   gl : GL,
   vao : WebGlVertexArrayObject,
   element_count : i32,
-  vertex_count : i32,
 }
 
 impl Geometry
@@ -43,7 +42,6 @@ impl Geometry
   (
     gl : &GL,
     vertex_attribute : AttributePointer,
-    vertex_count : i32
   )
   -> Result< Self, WebglError >
   {
@@ -58,7 +56,6 @@ impl Geometry
         gl : gl.clone(),
         vao,
         element_count : 0,
-        vertex_count,
       }
     )
   }
@@ -72,7 +69,7 @@ impl Geometry
   )
   -> Result< Self, WebglError >
   {
-    let mut this = Self::with_vertices( gl, vertex_attribute, 0 )?;
+    let mut this = Self::with_vertices( gl, vertex_attribute )?;
     this.element_count = element_count;
     gl.bind_buffer( GL::ELEMENT_ARRAY_BUFFER, Some( &element_buffer ) );
     Ok( this )
@@ -88,11 +85,6 @@ impl Geometry
     self.activate();
     attribute.enable()?;
     Ok( () )
-  }
-
-  pub fn vertex_count( &self ) -> i32
-  {
-    self.vertex_count
   }
 
   pub fn element_count( &self ) -> i32
