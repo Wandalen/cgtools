@@ -3,7 +3,7 @@ mod private
   use std::{ cell::RefCell, rc::Rc };
   use mingl::geometry::BoundingBox;
   use minwebgl as gl;
-  use crate::webgl::{Node, Object3D};
+  use crate::webgl::Node;
 
   /// Represents a scene containing a hierarchy of nodes.
   #[ derive( Default ) ]

@@ -148,7 +148,7 @@ mod private
       gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, multisample_main_renderbuffer.as_ref() );
       gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::RENDERBUFFER, multisample_emission_renderbuffer.as_ref() );
       // Specify which color attachments are active for drawing.
-      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1 ] );
+      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
 
       // --- Attach Textures to Resolved Framebuffer ---
       // Bind the resolved framebuffer to configure its attachments.
@@ -158,7 +158,7 @@ mod private
       gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, emission_texture.as_ref(), 0 );
       // Specify which color attachments are active for drawing (though for resolved,
       // these will typically be written to via `blit_framebuffer`).
-      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1 ] );
+      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
 
       // Unbind all resources to clean up the global WebGL state.
       gl.bind_texture( gl::TEXTURE_2D, None );
@@ -195,11 +195,11 @@ mod private
     {
       // Enable both attachments for the multisample framebuffer.
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
-      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1 ] );
+      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
 
       // Enable both attachments for the resolved framebuffer.
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
-      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1 ] );
+      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
 
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
     }
@@ -218,11 +218,11 @@ mod private
     {
       // Disable emission attachment for the multisample framebuffer.
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
-      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0 ] );
+      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
       // Disable emission attachment for the resolved framebuffer.
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
-      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0 ] );
+      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
     }
@@ -247,7 +247,7 @@ mod private
       gl.bind_framebuffer( gl::READ_FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
       gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
       gl.read_buffer( gl::COLOR_ATTACHMENT0 );
-      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0 ] );
+      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
       // Clear the color buffer of the resolved framebuffer before blitting.
       // This is good practice to ensure clean results, especially if partial updates
       // are not intended.
@@ -264,7 +264,7 @@ mod private
       if use_emission
       {
         gl.read_buffer( gl::COLOR_ATTACHMENT1 );
-        gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT1 ] );
+        gl::drawbuffers::drawbuffers( gl, &[ 1 ] );
         gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ 0.0, 0.0, 0.0, 1.0 ] );
         gl.blit_framebuffer
         (
