@@ -9,23 +9,54 @@
       padding: 0;
       width: 100%;
       height: 100%;
+      box-sizing: border-box;
     }
 
-    canvas {
+    #canvas {
+      display: block;
       position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      box-sizing: border-box;
+    }
+
+    #my-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 5px;
+      border-radius: 5px;
+      background: #333;
+      outline: none;
+    }
+
+    #my-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: #fff;
+      cursor: pointer;
     }
   </style>
   <meta charset="UTF-8">
   <title>Deferred shading</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <link data-trunk rel="copy-dir" href="resources" data-target-path="static" />
+  <link data-trunk rel="copy-dir" href="../../../assets" data-target-path="static" />
 </head>
 
 <body>
   <canvas id="canvas"></canvas>
+  <div id="fps-counter"
+    style="position: absolute; top: 10px; left: 10px; color: white; font-family: monospace; font-size: 16px; z-index: 1000; pointer-events: none;">
+  </div>
+  <div id="slider-container" style="position: absolute; top: 50px; left: 10px; z-index: 1000;">
+    <label style="color: white; font-family: monospace; display: block; margin-bottom: 5px;">
+      Light count: <span id="slider-value">200</span>
+    </label>
+    <input type="range" id="slider" min="1" max="5000" value="500" step="1" style="width: 200px;">
+  </div>
 </body>
 
 </html>

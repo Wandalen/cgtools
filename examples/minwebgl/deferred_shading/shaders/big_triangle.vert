@@ -2,6 +2,7 @@
 
 out vec2 v_tex_coord;
 
+// Draws big triangle to rasterize whole screen
 void main()
 {
   const vec2 VERTICES[] = vec2[]
