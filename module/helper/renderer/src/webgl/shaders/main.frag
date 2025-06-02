@@ -1,4 +1,4 @@
-precision mediump float;
+precision highp float;
 
 #define PI 3.141592653589793
 #define PI2 6.283185307179586
@@ -34,6 +34,9 @@ struct PhysicalMaterial
   float occlusionFactor;
   float specularFactor;
 };
+
+uniform float luminosityThreshold;
+uniform float luminositySmoothWidth;
 
 #ifdef USE_PBR
   uniform float metallicFactor; // Default: 1
@@ -82,10 +85,12 @@ struct PhysicalMaterial
 #endif
 
 
-#ifdef USE_EMISSION_TEXTURE
+#ifdef USE_EMISSION
   // vEmissionUv
-  uniform sampler2D emissiveTexture;
-  uniform float emissiveFactor;
+  #ifdef USE_EMISSION_TEXTURE
+    uniform sampler2D emissiveTexture;
+  #endif
+  uniform vec3 emissiveFactor;
 #endif
 
 
@@ -206,6 +211,7 @@ vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
     float dotNV = clamp( dot( N, V ), 0.0, 1.0 );
 
     const float MAX_LOD = 9.0;
+    if( dotNV > 0.0 )
     {
       vec3 Fs = F_Schlick( material.f0, material.f90, dotNV );
       float Fd = 1.0 - max_value( Fs );
@@ -332,6 +338,10 @@ void main()
     #endif
     normal = normalize( normal );
   #endif
+  if( !gl_FrontFacing )
+  {
+    normal *= -1.0;
+  }
 
   // Works only with indirect light
   #ifdef USE_OCCLUSION_TEXTURE
@@ -354,23 +364,23 @@ void main()
   //   vec3( 0.0, 0.0, -1.0 )
   // );
 
-  vec3 lightDirs[] = vec3[]
-  (
-    vec3( 1.0, 1.0, 1.0 ),
-    vec3( -1.0, 1.0, 1.0 ),
-    vec3( 1.0, -1.0, 1.0 ),
-    vec3( -1.0, -1.0, 1.0 ),
-    vec3( 1.0, 1.0, -1.0 ),
-    vec3( 1.0, -1.0, -1.0 ),
-    vec3( -1.0, 1.0, -1.0 ),
-    vec3( -1.0, -1.0, -1.0 )
-  );
-
-  const float lightIntensity = 3.0;
-  const vec3 lightColor = vec3( 1.0 );
-  float dotVN = clamp( dot( viewDir, normal ), 0.0, 1.0 );
-
   #if defined( USE_PBR ) && !defined( USE_IBL )
+    vec3 lightDirs[] = vec3[]
+    (
+      vec3( 1.0, 1.0, 1.0 ),
+      vec3( -1.0, 1.0, 1.0 ),
+      vec3( 1.0, -1.0, 1.0 ),
+      vec3( -1.0, -1.0, 1.0 ),
+      vec3( 1.0, 1.0, -1.0 ),
+      vec3( 1.0, -1.0, -1.0 ),
+      vec3( -1.0, 1.0, -1.0 ),
+      vec3( -1.0, -1.0, -1.0 )
+    );
+
+    const float lightIntensity = 3.0;
+    const vec3 lightColor = vec3( 1.0 );
+    float dotVN = clamp( dot( viewDir, normal ), 0.0, 1.0 );
+
     for( int i = 0; i < 8; i++ )
     {
       vec3 lightDir = normalize( lightDirs[ i ] );
@@ -399,23 +409,17 @@ void main()
     color += 0.1 * material.diffuseColor * material.occlusionFactor;
   #endif
 
-  #if defined( USE_EMISSION ) && !defined( RENDER_TO_SCREEN )
-    {
-      float v = luminance( color );
-      float lum_alpha = smoothstep( 1.0, 1.5, v );
-      emissive_color = vec4( mix( vec3( 0.0 ), color, lum_alpha ), 1.0 );
-    }
-    // emissive_color = vec4( 1.0 );
-    // emissive_color.xyz *= emissiveFactor;
-    // #ifdef USE_EMISSION_TEXTURE
-    //   emissive_color.xyz *= texture( emissiveTexture, {EMISSION_UV} )
-    // #endif
+  emissive_color = vec4( vec3( 0.0 ), 1.0 );
+  #ifdef USE_EMISSION 
+    emissive_color.xyz = emissiveFactor;
+    #ifdef USE_EMISSION_TEXTURE
+      emissive_color.xyz *= SrgbToLinear( texture( emissiveTexture, vEmissionUv ).rgb );
+    #endif
   #endif
+  
+  float lum_alpha = smoothstep( luminosityThreshold, luminosityThreshold + luminositySmoothWidth, luminance( color ) );
+  emissive_color.xyz += vec3( mix( vec3( 0.0 ), color, lum_alpha ) );
 
-  #ifdef RENDER_TO_SCREEN
-    color = aces_tone_map( color );
-    color = LinearToSrgb( color );
-  #endif
 
   frag_color = vec4( color * alpha, alpha );
 }

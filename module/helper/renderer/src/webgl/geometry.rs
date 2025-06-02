@@ -1,7 +1,8 @@
 mod private
 {
   use std::collections::HashMap;
-  use minwebgl as gl;
+  use mingl::geometry::BoundingBox;
+use minwebgl as gl;
 
   /// Represents information about a single vertex attribute.
   pub struct AttributeInfo
@@ -169,9 +170,14 @@ mod private
     /// It panics if the "positions" attribute is not found.
     pub fn center( &self ) -> gl::F32x3
     {
+      self.bounding_box().center()
+    }
+
+    pub fn bounding_box( &self ) -> BoundingBox
+    {
       self.attributes.get( "positions" )
       .expect( "Poisitions attribute not found on geometry")
-      .bounding_box.center()
+      .bounding_box
     }
 
     /// Binds the geometry's Vertex Array Object.

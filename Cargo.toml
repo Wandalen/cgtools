@@ -255,10 +255,13 @@ version = "0.9.1"
 # Needs flag: RUSTFLAGS='--cfg getrandom_backend="wasm_js"'
 [workspace.dependencies.getrandom]
 version = "0.3.3"
-features = [ "js" ]
+#features = [ "js" ]
 
 [workspace.dependencies.rustc-hash]
 version = "2.1.1"
 
 [workspace.dependencies.pathfinding]
 version = "4.14.0"
+
+[workspace.dependencies.serde-wasm-bindgen]
+version = "0.6.5"
