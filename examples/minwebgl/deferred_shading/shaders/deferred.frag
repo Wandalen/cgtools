@@ -63,9 +63,8 @@ void main()
   float shininess = 32.0;
   float specular = specular_intensity * pow( max( dot( normal, halfway_dir ), 0.0 ), shininess );
 
-  float attenuation = attenuate_cusp( distance, v_light_radius, 3.0, 5.0 );
+  float attenuation = attenuate_cusp( distance, v_light_radius, 2.5, 4.0 );
   vec3 color = vec3( specular + diffuse ) * base_color * v_light_color * attenuation;
 
-  const vec3 CORRECTION = vec3( 1.0 / 2.2 );
-  frag_color = vec4( pow( color, CORRECTION ), 1.0 );
+  frag_color = vec4( color, 1.0 );
 }
