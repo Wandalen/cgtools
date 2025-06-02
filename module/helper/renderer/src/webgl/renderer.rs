@@ -468,6 +468,11 @@ mod private
       self.bloom_effect.set_bloom_strength( strength );
     }
 
+    pub fn get_bloom_strength( &self  ) -> f32
+    {
+      self.bloom_effect.get_bloom_strength()
+    }
+
     /// Retrieves a clone of the main color texture from the internal framebuffer context.
     pub fn get_main_texture( &self ) -> Option< gl::web_sys::WebGlTexture >
     {
