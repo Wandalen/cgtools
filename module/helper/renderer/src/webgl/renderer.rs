@@ -32,6 +32,7 @@ mod private
     /// are blitted to, making them ready for sampling.
     pub resolved_framebuffer: Option< gl::web_sys::WebGlFramebuffer >,
     /// The renderbuffer used for depth and stencil testing in the multisample framebuffer.
+    #[ allow( dead_code ) ]
     pub depth_renderbuffer: Option< gl::web_sys::WebGlRenderbuffer >,
     /// The renderbuffer that receives the main color output during multisampled rendering.
     pub multisample_main_renderbuffer: Option< gl::web_sys::WebGlRenderbuffer >,
@@ -433,41 +434,62 @@ mod private
       self.use_emission = use_emission;
     }
 
+    /// Sets the luminosity threshold.
     pub fn set_luminosity_threshold( &mut self, threshold : f32 )
     {
       self.luminosity_threshold = threshold;
     }
 
+    /// Gets the luminosity threshold.
+    /// 
+    /// This value determines the minimum brightness a pixel must have to contribute
+    /// to the bloom effect. Pixels below this threshold will be ignored.
     pub fn get_luminosity_threshold( &self ) -> f32
     {
       self.luminosity_threshold
     }
 
+    /// Sets the luminosity smooth width.
     pub fn set_luminosity_smooth_width( &mut self, width : f32 )
     {
       self.luminosity_smooth_width = width;
     }
 
+    /// Gets the luminosity smooth width.
+    /// 
+    /// This parameter controls the softness or "feathering" of the luminosity threshold.
+    /// A larger width creates a smoother transition between pixels that contribute
+    /// to the bloom and those that don't, reducing harsh edges.
     pub fn get_luminosity_smooth_width( &self ) -> f32
     {
       self.luminosity_smooth_width
     }
 
+    /// Sets the radius of the bloom effect.
+    ///
+    /// This determines how far the light "bleeds" from bright areas. A larger radius
+    /// results in a more expansive and softer glow.
     pub fn set_bloom_radius( &mut self, radius : f32 )
     {
       self.bloom_effect.set_bloom_radius( radius );
     }
 
+    /// Gets the radius of the bloom effect.
     pub fn get_bloom_radius( &self ) -> f32
     {
       self.bloom_effect.get_bloom_radius()
     }
 
+    /// Sets the strength (intensity) of the bloom effect.
+    ///
+    /// This controls how bright or prominent the glow appears. A higher strength
+    /// makes the bloom more visible.
     pub fn set_bloom_strength( &mut self, strength : f32  )
     {
       self.bloom_effect.set_bloom_strength( strength );
     }
 
+    /// Gets the strength (intensity) of the bloom effect.
     pub fn get_bloom_strength( &self  ) -> f32
     {
       self.bloom_effect.get_bloom_strength()
@@ -564,11 +586,9 @@ mod private
                 &format!( "#version 300 es\n{}\n{}", vs_defines, MAIN_VERTEX_SHADER ), 
                 &format!
                 ( 
-                  "#version 300 es\n{}\n{}\n{}\n{}\n{}", 
+                  "#version 300 es\n{}\n{}\n{}\n{}", 
                   vs_defines, 
                   ibl_define,
-                  "",
-                 // "#define USE_EMISSION",
                   material.get_defines(),
                   MAIN_FRAGMENT_SHADER ) 
               ).compile_and_link( gl )?;
