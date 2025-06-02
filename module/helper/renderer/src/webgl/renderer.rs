@@ -375,7 +375,11 @@ mod private
     /// Blend pass to combined the blurred emissive texture with the main image
     blend_effect : BlendPass,
     /// Swap buffer to control rendering of the effects
-    swap_buffer : SwapFramebuffer
+    swap_buffer : SwapFramebuffer,
+    /// The threshold brightness for the blur pass
+    luminosity_threshold : f32,
+    /// The smoothing factor of the luminosity
+    luminosity_smooth_width : f32
   }
 
   impl Renderer 
@@ -394,18 +398,25 @@ mod private
       blend_effect.src_factor = gl::ONE;
       blend_effect.blend_texture = framebuffer_ctx.main_texture.clone();
       let swap_buffer = SwapFramebuffer::new( gl, width, height );
+      let luminosity_threshold = 2.0;
+      let luminosity_smooth_width = 0.5;
       
-      Ok(Self
-      {
-        programs,
-        ibl,
-        transparent_nodes,
-        use_emission,
-        framebuffer_ctx,
-        blend_effect,
-        bloom_effect,
-        swap_buffer
-      })
+      Ok
+      (
+        Self
+        {
+          programs,
+          ibl,
+          transparent_nodes,
+          use_emission,
+          framebuffer_ctx,
+          blend_effect,
+          bloom_effect,
+          swap_buffer,
+          luminosity_smooth_width,
+          luminosity_threshold
+        }
+      )
     } 
 
     /// Sets the Image-Based Lighting (IBL) textures to be used for rendering.
@@ -420,6 +431,41 @@ mod private
     pub fn set_use_emission( &mut self, use_emission : bool )
     {
       self.use_emission = use_emission;
+    }
+
+    pub fn set_luminosity_threshold( &mut self, threshold : f32 )
+    {
+      self.luminosity_threshold = threshold;
+    }
+
+    pub fn get_luminosity_threshold( &self ) -> f32
+    {
+      self.luminosity_threshold
+    }
+
+    pub fn set_luminosity_smooth_width( &mut self, width : f32 )
+    {
+      self.luminosity_smooth_width = width;
+    }
+
+    pub fn get_luminosity_smooth_width( &self ) -> f32
+    {
+      self.luminosity_smooth_width
+    }
+
+    pub fn set_bloom_radius( &mut self, radius : f32 )
+    {
+      self.bloom_effect.set_bloom_radius( radius );
+    }
+
+    pub fn get_bloom_radius( &self ) -> f32
+    {
+      self.bloom_effect.get_bloom_radius()
+    }
+
+    pub fn set_bloom_strength( &mut self, strength : f32  )
+    {
+      self.bloom_effect.set_bloom_strength( strength );
     }
 
     /// Retrieves a clone of the main color texture from the internal framebuffer context.
@@ -556,6 +602,13 @@ mod private
 
             // Bind the program, upload camera and node matrices, bind the primitive, and draw it.
             program_info.bind( gl );
+
+            if self.use_emission
+            {
+              gl::uniform::upload( gl, locations.get( "luminosityThreshold" ).unwrap().clone(), &self.luminosity_threshold )?;
+              gl::uniform::upload( gl, locations.get( "luminositySmoothWidth" ).unwrap().clone(), &self.luminosity_smooth_width )?;
+            }
+
             node.borrow().upload( gl, locations );
             primitive.bind( gl );
             primitive.draw( gl );
@@ -593,6 +646,13 @@ mod private
         let locations = program_info.get_locations();
 
         program_info.bind( gl );
+
+        if self.use_emission
+        {
+          gl::uniform::upload( gl, locations.get( "luminosityThreshold" ).unwrap().clone(), &self.luminosity_threshold )?;
+          gl::uniform::upload( gl, locations.get( "luminositySmoothWidth" ).unwrap().clone(), &self.luminosity_smooth_width )?;
+        }
+
         node.borrow().upload( gl, locations );
         primitive.bind( gl );
         primitive.draw( gl );

@@ -89,6 +89,10 @@ mod private
       add_location( "specularColorFactor" );
       add_location( "emissiveFactor" );
 
+      // Luminosity
+      add_location( "luminosityThreshold" );
+      add_location( "luminositySmoothWidth" );
+
       Self
       {
         program,

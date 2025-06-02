@@ -262,3 +262,6 @@ version = "2.1.1"
 
 [workspace.dependencies.pathfinding]
 version = "4.14.0"
+
+[workspace.dependencies.serde-wasm-bindgen]
+version = "0.6.5"

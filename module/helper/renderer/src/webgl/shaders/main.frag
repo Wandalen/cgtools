@@ -35,6 +35,9 @@ struct PhysicalMaterial
   float specularFactor;
 };
 
+uniform float luminosityThreshold;
+uniform float luminositySmoothWidth;
+
 #ifdef USE_PBR
   uniform float metallicFactor; // Default: 1
   uniform float roughnessFactor; // Default: 1
@@ -414,12 +417,8 @@ void main()
     #endif
   #endif
   
-  float v = luminance( color );
-  float lum_alpha = smoothstep( 0.0, 2.0, v );
+  float lum_alpha = smoothstep( luminosityThreshold, luminosityThreshold + luminositySmoothWidth, luminance( color ) );
   emissive_color.xyz += vec3( mix( vec3( 0.0 ), color, lum_alpha ) );
-  //emissive_color.a += mix( 0.0, 5.0, lum_alpha );
-  // emissive_color = vec4( 1.0, 0.0, 0.0, 1.0 );
-  //emissive_color = vec4( color * 0.1, 1.0 );
 
 
   frag_color = vec4( color * alpha, alpha );

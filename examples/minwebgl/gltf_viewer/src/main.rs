@@ -1,4 +1,5 @@
 
+use std::{ cell::RefCell, rc::Rc };
 use minwebgl as gl;
 
 use renderer::webgl::
@@ -8,7 +9,9 @@ use renderer::webgl::
 
 mod camera_controls;
 mod loaders;
-//mod post_processing;
+mod lil_gui;
+mod gui_setup;
+
 
 async fn run() -> Result< (), gl::WebglError >
 {
@@ -22,7 +25,6 @@ async fn run() -> Result< (), gl::WebglError >
   let document = window.document().unwrap();
 
   let _ = gl.get_extension( "EXT_color_buffer_float" ).expect( "Failed to enable EXT_color_buffer_float extension" );
-  //let _ = gl.get_extension( "EXT_color_buffer_half_float" ).expect( "Failed to enable EXT_color_buffer_half_float extension" );
 
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
@@ -65,10 +67,14 @@ async fn run() -> Result< (), gl::WebglError >
   renderer.set_use_emission( true );
   renderer.set_ibl( loaders::ibl::load( &gl, "envMap" ).await );
 
+  let renderer = Rc::new( RefCell::new( renderer ) );
+
   let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
 
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
+
+  gui_setup::setup( renderer.clone() );
 
   // Define the update and draw logic
   let update_and_draw =
@@ -78,12 +84,12 @@ async fn run() -> Result< (), gl::WebglError >
       // If textures are of different size, gl.view_port needs to be called
       let _time = t as f32 / 1000.0;
 
-      renderer.render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
+      renderer.borrow_mut().render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
       .expect( "Failed to render" );
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );
-      swap_buffer.set_input( renderer.get_main_texture() );
+      swap_buffer.set_input( renderer.borrow().get_main_texture() );
 
       let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
       .expect( "Failed to render tonemapping pass" );

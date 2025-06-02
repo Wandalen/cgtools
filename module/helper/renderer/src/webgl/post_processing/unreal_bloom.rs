@@ -28,7 +28,9 @@ mod private
     /// The width of the texture to blur
     width : u32,
     /// The hegiht of the textuer to blur
-    height : u32
+    height : u32,
+    bloom_radius : f32,
+    bloom_strength : f32
   }
 
   impl UnrealBloomPass 
@@ -144,6 +146,9 @@ mod private
       gl.uniform1i( locations.get( "blurTexture3" ).unwrap().clone().as_ref() , 3 );
       gl.uniform1i( locations.get( "blurTexture4" ).unwrap().clone().as_ref() , 4 );
 
+      let bloom_radius = 0.5;
+      let bloom_strength = 1.5;
+
       Ok
       (
         Self 
@@ -153,10 +158,32 @@ mod private
           blur_materials,
           composite_material,
           width,
-          height
+          height,
+          bloom_radius,
+          bloom_strength
         }
       )
-    }  
+    }
+
+    pub fn set_bloom_radius( &mut self, radius : f32 )
+    {
+      self.bloom_radius = radius.clamp( 0.0, 1.0 );
+    }
+
+    pub fn get_bloom_radius( &self ) -> f32
+    {
+      self.bloom_radius
+    }
+
+    pub fn set_bloom_strength( &mut self, strength : f32 )
+    {
+      self.bloom_strength = strength;
+    }
+
+    pub fn get_bloom_strength( &self ) -> f32
+    {
+      self.bloom_strength
+    }
   }
 
   impl Pass for UnrealBloomPass
@@ -235,8 +262,8 @@ mod private
         gl.active_texture( gl::TEXTURE0 + i as u32 );
         gl.bind_texture( gl::TEXTURE_2D, self.vertical_targets[ i ].as_ref() );
       }
-      gl::uniform::upload( gl, locations.get( "bloomStrength" ).unwrap().clone(), &1.5 )?;
-      gl::uniform::upload( gl, locations.get( "bloomRadius" ).unwrap().clone(), &0.4 )?;
+      gl::uniform::upload( gl, locations.get( "bloomStrength" ).unwrap().clone(), &self.bloom_strength )?;
+      gl::uniform::upload( gl, locations.get( "bloomRadius" ).unwrap().clone(), &self.bloom_radius )?;
       gl.framebuffer_texture_2d
       ( 
         gl::FRAMEBUFFER, 
@@ -251,8 +278,7 @@ mod private
       // Unbind the attachment
       gl::clean::texture_2d_array( gl, 0..MIPS );
       gl::clean::framebuffer_texture_2d( gl );
-
-
+      
       Ok( output_texture )
     }
   }
