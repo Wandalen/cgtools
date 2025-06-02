@@ -1,7 +1,9 @@
 mod private
 {
   use std::{ cell::RefCell, rc::Rc };
-  use crate::webgl::Primitive;
+  use mingl::geometry::BoundingBox;
+
+use crate::webgl::Primitive;
 
   /// Represents a collection of renderable primitives.
   #[ derive( Default ) ]
@@ -25,6 +27,18 @@ mod private
     pub fn add_primitive( &mut self, primitive : Rc< RefCell< Primitive > > )
     {
       self.primitives.push( primitive );
+    }
+
+    pub fn bounding_box( &self ) -> BoundingBox
+    {
+      let mut bbox = BoundingBox::default();
+      for primitive in self.primitives.iter()
+      {
+        let pbbox = primitive.borrow().bounding_box();
+        bbox.min = bbox.min.min( pbbox.min );
+        bbox.max = bbox.max.max( pbbox.max );
+      }
+      bbox
     }
   }
 }

@@ -1,7 +1,8 @@
 mod private
 {
   use std::{ cell::RefCell, collections::HashMap, rc::Rc };
-  use minwebgl as gl;
+  use mingl::geometry::BoundingBox;
+use minwebgl as gl;
   use crate::webgl::{ Geometry, Material };
 
   /// Represents a renderable object composed of geometry and material.
@@ -54,6 +55,11 @@ mod private
     {
       self.geometry.borrow().center()
     }
+
+    pub fn bounding_box( &self ) -> BoundingBox
+    {
+      self.geometry.borrow().bounding_box()
+    } 
   }
 }
 

@@ -7,6 +7,9 @@ authors = [
   "Avramenko Yevhenii <yevhenii.av@obox.systems>" 
 ]
 
+[lints]
+workspace = true
+
 [dependencies]
 
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
@@ -14,6 +17,8 @@ mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
 renderer = { workspace = true }
 zune-hdr = { workspace = true }
+serde = { workspace = true, features = [ "derive" ] }
+serde-wasm-bindgen = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true
@@ -26,5 +31,6 @@ features = [
   'Blob',
   'BlobPropertyBag',
   'Url',
-  'WebGlFramebuffer'
+  'WebGlFramebuffer',
+  'WebGlRenderbuffer'
 ]
