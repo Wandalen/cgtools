@@ -211,7 +211,7 @@ vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
     float dotNV = clamp( dot( N, V ), 0.0, 1.0 );
 
     const float MAX_LOD = 9.0;
-    if( dotNV > 0.0 )
+    //if( dotNV > 0.0 )
     {
       vec3 Fs = F_Schlick( material.f0, material.f90, dotNV );
       float Fd = 1.0 - max_value( Fs );
@@ -250,30 +250,6 @@ vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
 		float scale = ( det == 0.0 ) ? 0.0 : inversesqrt( det );
 
 		return mat3( T * scale, B * scale, surf_normal );
-  }
-#endif
-
-#ifdef RENDER_TO_SCREEN
-  vec3 aces_tone_map( vec3 hdr )
-  {
-    mat3x3 m1 = mat3x3
-    (
-      0.59719, 0.07600, 0.02840,
-      0.35458, 0.90834, 0.13383,
-      0.04823, 0.01566, 0.83777
-    );
-    mat3x3 m2 = mat3x3
-    (
-      1.60475, -0.10208, -0.00327,
-      -0.53108,  1.10813, -0.07276,
-      -0.07367, -0.00605,  1.07602
-    );
-
-    vec3 v = m1 * hdr;
-    vec3 a = v * ( v + 0.0245786 ) - 0.000090537;
-    vec3 b = v * ( 0.983729 * v + 0.4329510 ) + 0.238081;
-
-    return clamp( m2 * ( a / b ), vec3( 0.0 ), vec3( 1.0 ) );
   }
 #endif
 
@@ -323,6 +299,7 @@ void main()
   material.f0 = mix( material.f0, material.diffuseColor, material.metallness );
  
   vec3 normal = normalize( vNormal );
+
   #ifdef USE_NORMAL_TEXTURE
     vec3 normalSample = texture( normalTexture, vNormalUv ).xyz * 2.0 - 1.0;
     normalSample.xy *= vec2( normalScale );
@@ -408,8 +385,8 @@ void main()
   #elif defined( USE_PBR )
     color += 0.1 * material.diffuseColor * material.occlusionFactor;
   #endif
-
-  emissive_color = vec4( vec3( 0.0 ), 1.0 );
+  
+  emissive_color = vec4( vec3( 0.0 ), alpha );
   #ifdef USE_EMISSION 
     emissive_color.xyz = emissiveFactor;
     #ifdef USE_EMISSION_TEXTURE
@@ -419,7 +396,7 @@ void main()
   
   float lum_alpha = smoothstep( luminosityThreshold, luminosityThreshold + luminositySmoothWidth, luminance( color ) );
   emissive_color.xyz += vec3( mix( vec3( 0.0 ), color, lum_alpha ) );
-
+  emissive_color.xyz *= emissive_color.a;
 
   frag_color = vec4( color * alpha, alpha );
 }

@@ -38,6 +38,12 @@ mod private
     {
       self.0[ 2 ]
     }
+
+    #[ inline ]
+    pub fn truncate( &self ) -> Vector< E, 3 >
+    {
+      Vector::< E, 3 >::new( self.x(), self.y(), self.z() )
+    }
   }
 
   impl< E, Vec2 > From< ( Vec2, Vec2 ) > for Vector< E, 4 > 

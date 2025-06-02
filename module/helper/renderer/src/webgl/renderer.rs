@@ -619,6 +619,7 @@ mod private
                 self.transparent_nodes.push( ( node.clone(), primitive_rc.clone() ) );
                 continue; // Skip the immediate drawing of transparent objects.
               },
+              AlphaMode::Mask => gl::info!( "MASK" ),
               _ => {}
             }
 
@@ -649,8 +650,8 @@ mod private
       // Sort transparent nodes based on their distance to the camera (furthest to nearest).
       self.transparent_nodes.sort_by( | a, b | 
       {
-        let dist1 = camera.get_eye().distance_squared( &a.1.borrow().center() );
-        let dist2 = camera.get_eye().distance_squared( &b.1.borrow().center() );
+        let dist1 = camera.get_eye().distance_squared( &a.0.borrow().center() );
+        let dist2 = camera.get_eye().distance_squared( &b.0.borrow().center() );
 
         dist1.partial_cmp( &dist2 ).unwrap()
       });
