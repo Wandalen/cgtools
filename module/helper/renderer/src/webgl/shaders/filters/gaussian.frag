@@ -1,6 +1,8 @@
 
+precision highp float;
+
 uniform sampler2D sourceTexture;
-uniform float kernel[ KERNEL_RADIUS ]
+uniform float kernel[ KERNEL_RADIUS ];
 uniform vec2 invSize;
 uniform vec2 blurDir;
 
@@ -12,8 +14,8 @@ void main()
 {
   vec3 result = vec3( 0.0 );
   float weightSum = kernel[ 0 ];
-  result += texture( sourceTexture, vUV ).rgb * kernel[ 0 ];
-  for( int i = 1; i < radius; i++)
+  result += texture( sourceTexture, vUv ).rgb * kernel[ 0 ];
+  for( int i = 1; i < KERNEL_RADIUS; i++ )
   {
     result += texture( sourceTexture, vUv + invSize * float( i ) * blurDir ).rgb * kernel[ i ];
     result += texture( sourceTexture, vUv - invSize * float( i ) * blurDir ).rgb * kernel[ i ];

@@ -42,8 +42,13 @@ mod private
     gl : &gl::WebGl2RenderingContext
   ) -> Result< GLTF, gl::WebglError >
   {
-    let gltf_slice= gl::file::load( &format!( "{}/scene.gltf", gltf_path ) )
-    .await.expect( "Failed to load gltf file" );
+    let path = std::path::Path::new( gltf_path );
+    let folder_path = path.parent().map_or( "", | p | p.to_str().expect( "Path is not UTF-8 encoded" ) );
+    gl::info!( "Folder: {}\nFile: {}", folder_path, gltf_path );
+
+    // let gltf_slice= gl::file::load( &format!( "{}/scene.gltf", gltf_path ) )
+    // .await.expect( "Failed to load gltf file" );
+    let gltf_slice = gl::file::load( gltf_path ).await.expect( "Failed to load gltf file" );
     let mut gltf_file = gltf::Gltf::from_slice( &gltf_slice ).unwrap();
 
     let mut buffers : Vec< gl::js_sys::Uint8Array > = Vec::new();
@@ -62,7 +67,7 @@ mod private
       {
         gltf::buffer::Source::Uri( uri ) =>
         {
-          let path = format!( "{}/{}", gltf_path, uri );
+          let path = format!( "{}/{}", folder_path, uri );
           let buffer = gl::file::load( &path ).await
           .expect( "Failed to load a buffer" );
 
@@ -143,11 +148,12 @@ mod private
       {
         gltf::image::Source::Uri { uri, mime_type: _ } =>
         {
-          upload_texture( Rc::new( format!( "static/{}/{}", gltf_path, uri ) ) );
+          upload_texture( Rc::new( format!( "static/{}/{}", folder_path, uri ) ) );
         },
         gltf::image::Source::View { view, mime_type } =>
         {
           let buffer = buffers[ view.buffer().index() ].clone();
+          let buffer = gl::js_sys::Uint8Array::new_with_byte_offset_and_length( &buffer.buffer(), view.offset() as u32, view.length() as u32 );
           let blob = {
             let options = gl::web_sys::BlobPropertyBag::new();
             options.set_type( mime_type );
@@ -155,7 +161,7 @@ mod private
             let mut blob_parts = Vec::new();
             blob_parts.push( buffer );
 
-            gl::web_sys::Blob::new_with_u8_array_sequence_and_options( &( blob_parts.into() ), &options )
+            gl::web_sys::Blob::new_with_u8_slice_sequence_and_options( &( blob_parts.into() ), &options )
           }.expect( "Failed to create a Blob" );
 
           let url = gl::web_sys::Url::create_object_url_with_blob( &blob ).expect( "Failed to create object url" );
@@ -263,6 +269,7 @@ mod private
       material.base_color_texture = make_texture_info( pbr.base_color_texture() );
       material.metallic_roughness_texture = make_texture_info( pbr.metallic_roughness_texture() );
       material.emissive_texture = make_texture_info( gltf_m.emissive_texture() );
+      material.emissive_factor = Some( gl::F32x3::from( gltf_m.emissive_factor() ) );
       // KHR_materials_specular
       if let Some( s ) = gltf_m.specular()
       {

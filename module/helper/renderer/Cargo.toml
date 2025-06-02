@@ -36,5 +36,6 @@ features = [
   'Blob',
   'BlobPropertyBag',
   'Url',
-  'WebGlFramebuffer'
+  'WebGlFramebuffer',
+  'WebGlRenderbuffer'
 ]
