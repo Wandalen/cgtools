@@ -32,12 +32,12 @@ use crate::webgl::Primitive;
     pub fn bounding_box( &self ) -> BoundingBox
     {
       let mut bbox = BoundingBox::default();
+      
       for primitive in self.primitives.iter()
       {
-        let pbbox = primitive.borrow().bounding_box();
-        bbox.min = bbox.min.min( pbbox.min );
-        bbox.max = bbox.max.max( pbbox.max );
+        bbox.combine_mut( &primitive.borrow().bounding_box() );
       }
+
       bbox
     }
   }

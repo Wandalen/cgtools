@@ -58,6 +58,50 @@ mod private
 
       bounding_box
     }
+
+    pub fn combine( mut self, other : &BoundingBox ) -> Self
+    {
+      self.combine_mut( other );
+      self
+    }
+
+    pub fn combine_mut( &mut self, other : &BoundingBox )
+    {
+      self.min = self.min.min( other.min );
+      self.max = self.max.max( other.max );
+    }
+
+    pub fn apply_transform( mut self, transform : F32x4x4 ) -> Self
+    {
+      self.apply_transform_mut( transform );
+      self
+    }
+
+    pub fn apply_transform_mut( &mut self, transform : F32x4x4 )
+    {
+      let mut points : [ F32x4; 8 ] = Default::default();
+      points[ 0 ] = transform * self.min.to_homogenous();
+      points[ 1 ] = transform * F32x3::new( self.min.x(), self.max.y(), self.min.z() ).to_homogenous();
+      points[ 2 ] = transform * F32x3::new( self.max.x(), self.max.y(), self.min.z() ).to_homogenous(); 
+      points[ 3 ] = transform * F32x3::new( self.max.x(), self.min.y(), self.min.z() ).to_homogenous(); 
+
+      points[ 4 ] = transform * self.max.to_homogenous();
+      points[ 5 ] = transform * F32x3::new( self.max.x(), self.min.y(), self.max.z() ).to_homogenous();
+      points[ 6 ] = transform * F32x3::new( self.min.x(), self.min.y(), self.max.z() ).to_homogenous(); 
+      points[ 7 ] = transform * F32x3::new( self.min.x(), self.max.y(), self.max.z() ).to_homogenous();
+      
+      let mut min = F32x4::MAX;
+      let mut max = F32x4::MIN;
+
+      for p in points.iter()
+      {
+        min = min.min( *p );
+        max = max.max( *p ); 
+      }
+
+      self.min = min.truncate();
+      self.max = max.truncate();
+    }
   }
 
   #[ derive( Debug ) ]

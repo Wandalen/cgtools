@@ -22,7 +22,7 @@ export function addDropdownController( gui, object, property, options )
 
 export function onFinishChange( gui, callback ) 
 {
-  return gui.onFinishChange( event => callback( event.object ) );
+  return gui.onFinishChange( callback );
 }
 
 export function onChange( gui, callback ) 
