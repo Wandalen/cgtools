@@ -191,6 +191,7 @@ impl Input
     self.state.keyboard_keys[ key as usize ]
   }
 
+  /// Returns pointer position on the page.
   pub fn pointer_position( &self ) -> I32x2
   {
     self.state.pointer_position
@@ -201,6 +202,7 @@ impl Input
     self.state.scroll
   }
 
+  /// Updates inner state considering event that are currently in the queue.
   pub fn update_state( &mut self )
   {
     for Event { event_type, .. } in self.event_queue.borrow().as_slice()
@@ -221,6 +223,7 @@ impl Input
     }
   }
 
+  /// Clear the event queue after you have processed events.
   pub fn clear_events( &mut self )
   {
     self.event_queue.borrow_mut().clear();
