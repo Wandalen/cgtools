@@ -1,0 +1,5 @@
+trunk-version = "*"
+
+[build]
+# Allow disabling sub-resource integrity (SRI)
+no_sri = true

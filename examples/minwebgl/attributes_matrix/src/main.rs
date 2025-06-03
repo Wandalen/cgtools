@@ -94,7 +94,7 @@ fn run() -> Result< (), gl::WebglError >
 
   let trans_slot = 2;
   let trans_buffer = gl::buffer::create( &gl )?;
-  gl::buffer::upload( &gl, &trans_buffer, &trans_data, GL::STATIC_DRAW );
+  gl::buffer::upload( &gl, &trans_buffer, trans_data.as_slice().unwrap(), GL::STATIC_DRAW );
 
   // Create vao.
   // And set attributes.

@@ -42,6 +42,10 @@ mod private {}
   #[ cfg( feature = "math" ) ]
   layer math;
 
+  /// Geometry math.
+  #[ cfg( feature = "math" ) ]
+  layer geometry;
+
   /// Web related stuff
   #[ cfg( feature = "web" ) ]
   layer web;

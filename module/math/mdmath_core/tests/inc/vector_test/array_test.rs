@@ -12,24 +12,24 @@ fn test_const_length()
 #[ test ]
 fn test_vector_ref()
 {
-  use the_module::VectorRef;
+  use the_module::ArrayRef;
   let array : [ i32; 0 ] = [];
-  let vector_ref : &[ i32; 0 ] = array.vector_ref();
-  assert_eq!( vector_ref, &[] as &[ i32; 0 ] );
+  let array_ref : &[ i32; 0 ] = array.array_ref();
+  assert_eq!( array_ref, &[] as &[ i32; 0 ] );
 
   let array : [ i32; 1 ] = [ 42 ];
-  let vector_ref : &[ i32; 1 ] = array.vector_ref();
-  assert_eq!( vector_ref, &[ 42 ] );
+  let array_ref : &[ i32; 1 ] = array.array_ref();
+  assert_eq!( array_ref, &[ 42 ] );
 
   let array : [ i32; 3 ] = [ 1, 2, 3 ];
-  let vector_ref : &[ i32; 3 ] = array.vector_ref();
-  assert_eq!( vector_ref, &[ 1, 2, 3 ] );
+  let array_ref : &[ i32; 3 ] = array.array_ref();
+  assert_eq!( array_ref, &[ 1, 2, 3 ] );
 }
 
 #[ test ]
 fn test_vector_mut()
 {
-  use the_module::VectorMut;
+  use the_module::ArrayMut;
   let mut array : [ i32; 0 ] = [];
   {
     let vector_mut : &mut [ i32; 0 ] = array.vector_mut();

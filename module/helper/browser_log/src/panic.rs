@@ -93,6 +93,7 @@ mod private
   }
 
   #[ cfg( target_arch = "wasm32" ) ]
+  #[ allow( wasm_c_abi ) ]
   mod imp
   {
     use super::*;
@@ -105,13 +106,13 @@ mod private
     {
       type Error;
 
-      #[ wasm_bindgen( js_namespace = console ) ]
-      fn error( msg: String );
+      #[wasm_bindgen( js_namespace = console )]
+      fn error( msg : String );
 
-      #[ wasm_bindgen( constructor ) ]
+      #[wasm_bindgen( constructor )]
       fn new() -> Error;
 
-      #[ wasm_bindgen( structural, method, getter ) ]
+      #[wasm_bindgen( structural, method, getter )]
       fn stack( error : &Error ) -> String;
     }
 

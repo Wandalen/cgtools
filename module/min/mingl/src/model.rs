@@ -5,6 +5,6 @@ mod private
 
 crate::mod_interface!
 {
-  #[ cfg( feature = "objModel" ) ]
+  #[ cfg( feature = "model_obj" ) ]
   layer obj;
 }

@@ -2,10 +2,13 @@
 mod private
 {
   use crate::*;
-  use vector::arithmetics::inner_product::*;
+  // use vector::arithmetics::inner_product::*;
+  // use vector::arithmetics::{ normalized, mag };
+  use vector::{ normalized, mag, mag2, min, max };
 
   impl< E : MatEl + NdFloat, const LEN : usize > Vector< E, LEN >
   {
+
     /// Normalizes the vector
     pub fn normalize( self ) -> Self
     {
@@ -37,13 +40,13 @@ mod private
     }
 
     /// Computes length of the vector between two points in space
-    pub fn distance( &self, rhs: &Self ) -> E
+    pub fn distance( &self, rhs : &Self ) -> E
     {
       ( rhs - self ).mag()
     }
 
     /// Computes squared length of the vector between two points in space
-    pub fn distance_squared( &self, rhs: &Self ) -> E
+    pub fn distance_squared( &self, rhs : &Self ) -> E
     {
       ( rhs - self ).mag2()
     }
@@ -53,14 +56,6 @@ mod private
 
 crate::mod_interface!
 {
-  own use ::mdmath_core::vector::inner_product;
-
-  /// Mul trait implementations
-  layer mul;
-  /// Sub trait implementations
-  layer sub;
-  /// Add trait implementations
-  layer add;
-  /// Div trait implementations
-  layer div;
+  // xxx : reuse
+  reuse ::mdmath_core::vector::arithmetics;
 }

@@ -2,12 +2,11 @@
 name = "minwebgpu__"
 version = "0.1.0"
 edition = "2021"
-authors = [ 
+authors = [
   "Kostiantyn Mysnyk <wandalen@obox.systems>",
-  "Avramenko Yevhenii <yevhenii.av@obox.systems>" 
+  "Avramenko Yevhenii <yevhenii.av@obox.systems>"
 ]
 license = "MIT"
-
 
 [dependencies.minwebgpu]
 workspace = true

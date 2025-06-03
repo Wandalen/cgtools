@@ -18,16 +18,6 @@ mod private
     }
   }
 
-  impl< E, const N : usize >  From< E > for Vector< E, N >
-  where 
-    E : MatEl
-  {
-    fn from ( value: E ) -> Self 
-    {
-      Self::from( [ value; N ] )
-    }
-  }
-
   impl< E, const LEN : usize > Vector< E, LEN >  
   where
     E : MatEl

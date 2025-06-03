@@ -35,7 +35,7 @@ crate::mod_interface!
 {
 
   // Web utilities for the model in obj format
-  #[ cfg( feature = "webObjModel" ) ]
+  #[ cfg( feature = "web_model_obj" ) ]
   layer obj;
 
   own use

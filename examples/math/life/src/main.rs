@@ -4,8 +4,8 @@ use ndarray_cg::prelude::*;
 // Include the input file as a byte array at compile time
 const INPUT : &[u8] = include_bytes!( "life.txt" );
 
-// Define the size of the grid (100x100)
-const N : usize = 100;
+// Define the size of the grid (25x25)
+const N : usize = 25;
 
 // Define a struct to represent a cell
 #[derive( Clone, Copy )] // Add `Copy` to allow copying of `Cell` values

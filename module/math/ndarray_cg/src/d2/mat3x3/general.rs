@@ -1,25 +1,25 @@
 use crate::*;
 
-impl< E, Descriptor > Mat3< E, Descriptor > 
-where 
+impl< E, Descriptor > Mat3< E, Descriptor >
+where
 E : MatEl + nd::NdFloat,
 Descriptor : mat::Descriptor,
 Self : RawSliceMut< Scalar = E > +
-       ScalarMut< Scalar = E, Index = Ix2 > + 
-       ConstLayout< Index = Ix2 > + 
+       ScalarMut< Scalar = E, Index = Ix2 > +
+       ConstLayout< Index = Ix2 > +
        IndexingMut< Scalar = E, Index = Ix2 >
 {
   /// Construct a matrix from columns
   pub fn from_cols
-  ( 
+  (
     x : Vector< E, 3 >,
     y : Vector< E, 3 >,
     z : Vector< E, 3 >
   ) -> Self
   {
-    let x = x.vector_ref();
-    let y = y.vector_ref();
-    let z = z.vector_ref();
+    let x = x.array_ref();
+    let y = y.array_ref();
+    let z = z.array_ref();
 
     Self::from_column_major
     ([
@@ -44,13 +44,13 @@ Self : RawSliceMut< Scalar = E > +
     let h = *self.scalar_ref( Ix2( 2, 1 ) );
     let i = *self.scalar_ref( Ix2( 2, 2 ) );
 
-    ( a * e * i ) + 
-    ( b * f * g ) + 
+    ( a * e * i ) +
+    ( b * f * g ) +
     ( c * d * h ) -
     ( c * e * g ) -
     ( b * d * i ) -
     ( a * f * h )
-  }    
+  }
 
   /// Computes the inverse of the matrix.
   /// If the determinant is zero - return `None`

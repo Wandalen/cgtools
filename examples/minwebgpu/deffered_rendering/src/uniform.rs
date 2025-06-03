@@ -1,6 +1,5 @@
 use minwebgpu::{self as gl, WebGPUError};
 use gl::web_sys;
-
 #[ repr( C ) ]
 #[ derive( Clone, Copy, Default, gl::mem::Pod, gl::mem::Zeroable ) ]
 pub struct UniformRaw
@@ -23,7 +22,7 @@ pub struct Uniform
   pub elapsed_time : f32
 }
 
-impl Uniform 
+impl Uniform
 {
   pub fn as_raw( &self ) -> UniformRaw
   {
@@ -36,7 +35,7 @@ impl Uniform
       elapsed_time : self.elapsed_time,
       ..Default::default()
     }
-  }   
+  }
 }
 
 pub struct UniformState
@@ -45,7 +44,7 @@ pub struct UniformState
   pub buffer : web_sys::GpuBuffer
 }
 
-impl UniformState 
+impl UniformState
 {
   pub fn new( device: &web_sys::GpuDevice ) -> Result< Self, WebGPUError >
   {
@@ -62,11 +61,11 @@ impl UniformState
         buffer
       }
     )
-  } 
+  }
 
   pub fn update( &self, queue : &web_sys::GpuQueue ) -> Result< (), WebGPUError >
   {
     gl::queue::write_buffer( queue, &self.buffer, &[ self.uniform.as_raw() ] )?;
     Ok( () )
-  }   
+  }
 }

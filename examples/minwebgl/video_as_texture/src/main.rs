@@ -24,7 +24,7 @@ async fn run() -> Result< (), gl::WebglError >
   let texture = gl.create_texture().expect( "Failed to create texture" );
   gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
   gl::texture::d2::default_parameters( &gl );
-  
+
   let update_and_draw =
   {
     move | _ |
