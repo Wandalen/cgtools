@@ -1,0 +1,43 @@
+[package]
+name = "outline"
+version = "0.1.0"
+edition = "2021"
+authors = [ 
+    "Kostiantyn Mysnyk <wandalen@obox.systems>",
+    "Bilan Vadym <vadym.b@obox.systems>"
+]
+
+[dependencies]
+minwebgl = { workspace = true, features = [ "future" ] }
+mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
+ndarray_cg = { workspace = true }
+gltf = { workspace = true }
+rand = { workspace = true }
+getrandom = { workspace = true }
+csgrs = { workspace = true }
+parry3d = { workspace = true }
+
+[dependencies.web-sys]
+workspace = true
+features = [
+    'MouseEvent',
+    'PointerEvent',
+    'WheelEvent',
+    'Document',
+    'Window',
+    'HtmlCanvasElement',
+    'WebGl2RenderingContext',
+    'WebGlUniformLocation',
+    'WebGlActiveInfo',
+    'WebGlBuffer',
+    'WebGlRenderbuffer',
+    'WebGlVertexArrayObject',
+    'WebGlSync',
+    'console',
+    'Performance',
+    'HtmlImageElement',
+    'ImageBitmap',
+    'Url',
+    'WebGlTexture', 
+    'WebGlFramebuffer', 
+]

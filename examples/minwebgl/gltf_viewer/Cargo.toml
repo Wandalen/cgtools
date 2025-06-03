@@ -7,23 +7,18 @@ authors = [
   "Avramenko Yevhenii <yevhenii.av@obox.systems>" 
 ]
 
+[lints]
+workspace = true
+
 [dependencies]
 
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
-glam = "0.30.1"
-zune-hdr = { git = "https://github.com/etemesi254/zune-image" }
-
-asbytes = { workspace = true }
-
-[dependencies.uuid]
-version = "1.16.0"
-# Lets you generate random UUIDs
-features = [
-  "v4",
-  "js"
-]
+renderer = { workspace = true }
+zune-hdr = { workspace = true }
+serde = { workspace = true, features = [ "derive" ] }
+serde-wasm-bindgen = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true
@@ -36,5 +31,6 @@ features = [
   'Blob',
   'BlobPropertyBag',
   'Url',
-  'WebGlFramebuffer'
+  'WebGlFramebuffer',
+  'WebGlRenderbuffer'
 ]
