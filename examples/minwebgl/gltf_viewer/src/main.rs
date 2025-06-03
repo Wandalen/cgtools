@@ -28,16 +28,16 @@ async fn run() -> Result< (), gl::WebglError >
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
 
-  let gltf_path = "dodge-challenger/gltf/scene.gltf";
+  //let gltf_path = "dodge-challenger/gltf/scene.gltf";
   //let gltf_path = "gambeson.glb";
-  //let gltf_path = "old_rusty_car.glb";
+  let gltf_path = "old_rusty_car.glb";
   //let gltf_path = "sponza.glb";
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
   let scenes = gltf.scenes;
   scenes[ 0 ].borrow_mut().update_world_matrix();
 
   let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
-  gl::info!( "Boudnig box: {:?}", scene_bounding_box );
+  gl::info!( "Scene boudnig box: {:?}", scene_bounding_box );
   let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
   let dist = scene_bounding_box.max.mag();
   let exponent = 

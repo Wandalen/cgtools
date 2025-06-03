@@ -449,22 +449,22 @@ mod private
       {
         gltf::scene::Transform::Matrix { matrix } =>
         {
-          node.matrix = gl::F32x4x4::from_column_major( glam::Mat4::from_cols_array_2d( &matrix ).to_cols_array() );
+          node.set_local_matrix( gl::F32x4x4::from_column_major( glam::Mat4::from_cols_array_2d( &matrix ).to_cols_array() ) );
           let mat = glam::Mat4::from_cols_array_2d( &matrix );
           let ( s, r, t ) = mat.to_scale_rotation_translation();
 
-          node.scale = s.to_array().into();
-          node.translation = t.to_array().into();
-          node.rotation = r;
+          node.set_scale( s.to_array() );
+          node.set_translation( t.to_array() );
+          node.set_rotation( r );
         },
         gltf::scene::Transform::Decomposed { translation, rotation, scale } =>
         {
-          node.scale = scale.into();
-          node.translation = translation.into();
-          node.rotation = glam::Quat::from_array( rotation );
+          node.set_scale( scale );
+          node.set_translation( translation );
+          node.set_rotation( glam::Quat::from_array( rotation ) );
 
           let mat = glam::Mat4::from_scale_rotation_translation( scale.into(), glam::Quat::from_array( rotation ), translation.into() );
-          node.matrix = gl::F32x4x4::from_column_major( mat.to_cols_array() );
+          node.set_local_matrix( gl::F32x4x4::from_column_major( mat.to_cols_array() ) );
         }
       }
 

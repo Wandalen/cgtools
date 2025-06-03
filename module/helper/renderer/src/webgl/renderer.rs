@@ -514,7 +514,7 @@ mod private
       camera : &Camera 
     ) -> Result< (), gl::WebglError >
     {
-      //scene.update_world_matrix();
+      scene.update_world_matrix();
 
       gl.enable( gl::DEPTH_TEST );
       gl.disable( gl::BLEND );
@@ -614,12 +614,11 @@ mod private
             // Handle transparent objects by adding them to a separate list for later rendering.
             match material.alpha_mode
             {
-              AlphaMode::Blend =>
+              AlphaMode::Blend | AlphaMode::Mask =>
               {
                 self.transparent_nodes.push( ( node.clone(), primitive_rc.clone() ) );
                 continue; // Skip the immediate drawing of transparent objects.
               },
-              AlphaMode::Mask => gl::info!( "MASK" ),
               _ => {}
             }
 
@@ -653,6 +652,7 @@ mod private
         let dist1 = camera.get_eye().distance_squared( &a.0.borrow().center() );
         let dist2 = camera.get_eye().distance_squared( &b.0.borrow().center() );
 
+        //gl::info!( "Dist1: {:?} | dist2: {:?}", a.0.borrow().bounding_box(), b.0.borrow().bounding_box() );
         dist1.partial_cmp( &dist2 ).unwrap()
       });
 
