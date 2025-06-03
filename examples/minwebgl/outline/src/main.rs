@@ -38,58 +38,6 @@ use gl::
 use ndarray_cg::mat::DescriptorOrderColumnMajor;
 use std::collections::HashMap;
 
-/// Creates a WebGL2 texture.
-///
-/// # Arguments
-///
-/// * `gl` - The WebGL2 rendering context.
-/// * `slot` - The texture unit to activate and bind to ( e.g., `GL::TEXTURE0` ).
-/// * `size` - The size of the texture ( width, height ).
-/// * `internal_format` - The internal format of the texture ( e.g., `GL::RGBA8` ).
-/// * `format` - The format of the pixel data ( e.g., `GL::RGBA` ).
-/// * `pixel_type` - The data type of the pixel data ( e.g., `GL::UNSIGNED_BYTE` ).
-/// * `data` - Optional initial pixel data.
-///
-/// # Returns
-///
-/// An `Option< WebGlTexture >` containing the created texture, or `None` if creation fails.
-fn create_texture
-(
-  gl : &gl::WebGl2RenderingContext,
-  slot : u32,
-  size : ( i32, i32 ),
-  internal_format : i32,
-  format : u32,
-  pixel_type : u32,
-  data : Option< &[ u8 ] >
-) 
--> Option< WebGlTexture >
-{
-  let Some( texture ) = gl.create_texture() 
-  else 
-  {
-    return None;
-  };
-  gl.active_texture( slot );
-  gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) );
-  // Used to upload data.
-  gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
-  (
-    GL::TEXTURE_2D,  // target
-    0,               // level
-    internal_format, 
-    size.0,         
-    size.1,          
-    0,               // border
-    format,         
-    pixel_type,     
-    data,            // pixels data
-  )
-  .unwrap();
-  gl.bind_texture( GL::TEXTURE_2D, None );
-  Some( texture )
-}
-
 /// Binds a texture to a texture unit and uploads its location to a uniform.
 ///
 /// # Arguments
@@ -452,15 +400,15 @@ impl Renderer
 
     // 3. JFA Step Passes: Perform Jump Flooding Algorithm steps
     // The number of passes required is log2( max( width, height ) ).
-    let num_passes = ( self.viewport.0.max( self.viewport.1 ) as f32 ).log2().ceil() as i32;
+    let num_passes = 4;//( self.viewport.0.max( self.viewport.1 ) as f32 ).log2().ceil() as i32;
     for i in 0..num_passes
     {
       let last = false; // Use here i == ( num_passes - 1 ) if you want see JFA step result
-      self.jfa_step_pass( i, last );
+      self.jfa_step_pass( i, t, last );
     }
 
     // 4. Outline Pass: Generate and render the final scene with the outline
-    self.outline_pass( t, num_passes );
+    self.outline_pass( num_passes );
   }
 
   /// Renders the 3D object silhouette to the `object_fb`.
@@ -543,7 +491,7 @@ impl Renderer
   /// * `i` - The current JFA step index ( 0, 1, 2, ... ).
   /// * `last` - A boolean flag. If true, the result of this step is rendered
   ///            directly to the default framebuffer ( screen ) for debugging.
-  fn jfa_step_pass( &self, i : i32, last : bool )
+  fn jfa_step_pass( &self, i : i32, t : f64, last : bool )
   {
     let gl = &self.gl;
 
@@ -589,15 +537,9 @@ impl Renderer
     // Upload resolution uniform ( needed for distance calculations in the shader )
     gl::uniform::upload( gl, Some( u_resolution.clone() ), &[ self.viewport.0 as f32, self.viewport.1 as f32 ] ).unwrap();
 
-    // Calculate the jump distance for the current step
-    // The step size decreases by half in each pass.
-    let s = | c : i32 |
-    {
-      ( ( c as f32 ) / 2.0f32.powi( i + 1 ) ).max( 1.0 ) // Ensure minimum step size is 1 pixel
-    };
-
-    let max = self.viewport.0.max( self.viewport.1 );
-    let step_size = ( s( max ), s( max ) );
+    let aspect_ratio = self.viewport.0 as f32 / self.viewport.1 as f32;
+    let step_size = ( 5.0 * ( t as f32 / 500.0 ).sin().abs() ) / ( 2.0_f32 ).powf( i as f32 );
+    let step_size = ( step_size * aspect_ratio, step_size );
 
     gl::uniform::upload( gl, Some( u_step_size.clone() ), &[ step_size.0, step_size.1 ] ).unwrap();
 
@@ -617,7 +559,7 @@ impl Renderer
   /// * `num_passes` - The total number of JFA step passes performed. Used to determine
   ///                which of the ping-pong textures ( `jfa_step_fb_color_0` or `jfa_step_fb_color_1` )
   ///                holds the final JFA result.
-  fn outline_pass( &self, t : f64, num_passes : i32 )
+  fn outline_pass( &self, num_passes : i32 )
   {
     let gl = &self.gl;
 
@@ -637,7 +579,7 @@ impl Renderer
     gl.use_program( Some( outline_program ) );
 
     // Define outline parameters ( thickness animated with time )
-    let outline_thickness = [ ( 70.0 * ( t / 3000.0 ).sin().abs() ) as f32 + 8.0 ]; // Example animation
+    let outline_thickness = 30.0;
     let outline_color = [ 1.0, 1.0, 1.0, 1.0 ]; // White outline
     let object_color = [ 0.5, 0.5, 0.5, 1.0 ]; // Grey object
     let background_color = [ 0.0, 0.0, 0.0, 1.0 ]; // Black background
