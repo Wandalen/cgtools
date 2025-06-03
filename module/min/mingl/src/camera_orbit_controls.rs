@@ -41,7 +41,7 @@ mod private
     /// Return a righthanded view matrix of the current camera state
     pub fn view( &self ) -> math::F32x4x4
     {
-      math::mat3x3h::loot_at_rh( self.eye, self.center, self.up )
+      math::mat3x3h::look_at_rh( self.eye, self.center, self.up )
     }
 
     pub fn set_size( &mut self, size : [ f32; 2 ] )

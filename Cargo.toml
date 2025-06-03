@@ -7,18 +7,17 @@ members = [
   "module/min/*",
   "module/helper/*",
   "module/math/*",
-  "module/embroidery_tools",
   "examples/minwebgl/*",
   "examples/minwebgpu/*",
-  "examples/math/*",
-  "module/vectorizer"]
+  "examples/math/*"
+]
 
 # Source :: https://github.com/obox-systems/conventions/blob/master/code_style.md#lints-and-warnings
 [workspace.lints.rust]
 # Enforces idiomatic Rust 2018 practices.
 rust_2018_idioms = "deny"
 # Prevents use of unstable features.
-future_incompatible = "deny"
+future_incompatible = "warn"
 # # Encourages documentation for public items.
 # missing_docs = "warn" # qqq : uncomment please
 # # Suggests implementing Debug for public types.
@@ -39,12 +38,34 @@ std_instead_of_core = "warn"
 std_instead_of_alloc = "warn"
 # Allows functions called only once.
 single_call_fn = "allow"
-# Permits #[inline(always)] usage.
+# Permits #[ inline( always ) ] usage.
 inline_always = "allow"
 # Allows repeated module names.
 module_name_repetitions = "allow"
 # Permits absolute paths in code.
 absolute_paths = "allow"
+
+# = helpers
+
+[workspace.dependencies.browser_input]
+version = "0.1.0"
+path = "module/helper/browser_input"
+
+[workspace.dependencies.tiles_tools]
+version = "0.1.0"
+path = "module/helper/tiles_tools"
+
+[workspace.dependencies.browser_log]
+version = "~0.3.0"
+path = "module/helper/browser_log"
+
+[workspace.dependencies.browser_tools]
+version = "~0.2.0"
+path = "module/alias/browser_tools"
+
+[workspace.dependencies.renderer]
+version = "0.1.0"
+path = "module/helper/renderer"
 
 # = draw
 
@@ -86,16 +107,6 @@ path = "module/min/minwebgl"
 version = "~0.1.0"
 path = "module/min/minwebgpu"
 
-# = helpers
-
-[workspace.dependencies.browser_log]
-version = "~0.3.0"
-path = "module/helper/browser_log"
-
-[workspace.dependencies.browser_tools]
-version = "~0.2.0"
-path = "module/alias/browser_tools"
-
 # = vectorizer
 [workspace.dependencies.vectorizer]
 version = "~0.1.0"
@@ -104,7 +115,7 @@ path = "module/vectorizer"
 # = math
 
 [workspace.dependencies.ndarray_cg]
-version = "~0.2.0"
+version = "~0.3.0"
 path = "module/math/ndarray_cg"
 
 [workspace.dependencies.ndarray_tools]
@@ -120,6 +131,9 @@ path = "module/math/mdmath_core"
 [workspace.dependencies.derive_tools]
 version = "~0.29.0"
 
+[workspace.dependencies.strum]
+version = "~0.25"
+
 [workspace.dependencies.mod_interface]
 version = "~0.25.0"
 
@@ -130,29 +144,32 @@ version = "~2.9.0"
 version = "0.17.0"
 
 [workspace.dependencies.test_tools]
-version = "~0.10.0"
+version = "~0.14.0"
 
 [workspace.dependencies.clone_dyn_types]
 version = "~0.23.0"
 
+[workspace.dependencies.asbytes]
+version = "0.2.0"
+
 # = third-party dependencies
 
 [workspace.dependencies.log]
-version = "0.4.14"
+version = "0.4.27"
 
 [workspace.dependencies.wasm-bindgen]
-version = "0.2.93"
+version = "0.2.100"
 
 [workspace.dependencies.js-sys]
-version = "0.3.70"
+version = "0.3.77"
 features = []
 
 [workspace.dependencies.web-sys]
-version = "0.3.70"
+version = "0.3.77"
 features = []
 
 [workspace.dependencies.bytemuck]
-version = "1.18.0"
+version = "1.23.0"
 features = [ "derive" ]
 
 [workspace.dependencies.ndarray]
@@ -165,7 +182,7 @@ version = "0.5.1"
 version = "0.2.19"
 
 [workspace.dependencies.wasm-bindgen-futures]
-version = "0.4.43"
+version = "0.4.50"
 
 # [workspace.dependencies.generic-array]
 # version = "1.1.0"
@@ -176,11 +193,11 @@ version = "0.4.43"
 [workspace.dependencies.tobj]
 version = "4.0.2"
 default-features = false
-# features = [ "async" ]
+features = [ "async" ]
 
 [workspace.dependencies.visioncortex]
 git  = "https://github.com/obox-systems/visioncortex.git"
-
+version = "0.8.8"
 
 [workspace.dependencies.palette]
 version = "0.7.6"
@@ -193,12 +210,14 @@ version = "1.0.214"
 
 [workspace.dependencies.serde_with]
 version = "3.11.0"
+
 [workspace.dependencies.byteorder]
 version = "1.5.0"
 
 [workspace.dependencies.itertools]
 version = "0.13.0"
 
+# qqq : use error_tools instead
 [workspace.dependencies.thiserror]
 version = "2.0.4"
 
@@ -211,5 +230,38 @@ version = "0.25.5"
 
 [workspace.dependencies.tokio]
 version = "1.41.0"
+
+[workspace.dependencies.gltf]
+version = "1.4.1"
+
+[workspace.dependencies.csgrs]
+version = "0.17.4"
+default-features = false
+features = [ "f64", "delaunay" ]
+
+[workspace.dependencies.parry3d]
+version = "0.21.0"
+
+[workspace.dependencies.zune-hdr]
+git = "https://github.com/etemesi254/zune-image"
+
+[workspace.dependencies.uuid]
+version = "1.16.0"
+features = [ "v4", "js" ]
+
 [workspace.dependencies.rand]
-version = "0.8.5"
+version = "0.9.1"
+
+# Needs flag: RUSTFLAGS='--cfg getrandom_backend="wasm_js"'
+[workspace.dependencies.getrandom]
+version = "0.3.3"
+#features = [ "js" ]
+
+[workspace.dependencies.rustc-hash]
+version = "2.1.1"
+
+[workspace.dependencies.pathfinding]
+version = "4.14.0"
+
+[workspace.dependencies.serde-wasm-bindgen]
+version = "0.6.5"

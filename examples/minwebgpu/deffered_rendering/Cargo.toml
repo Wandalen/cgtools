@@ -2,24 +2,23 @@
 name = "minwebgpu_deffered_rendering"
 version = "0.1.0"
 edition = "2021"
-authors = [ 
+authors = [
   "Kostiantyn Mysnyk <wandalen@obox.systems>",
-  "Avramenko Yevhenii <yevhenii.av@obox.systems>" 
+  "Avramenko Yevhenii <yevhenii.av@obox.systems>"
 ]
 license = "MIT"
 
 [dependencies]
 tobj =  { workspace = true }
-bytemuck = { workspace = true }
-rand = "0.8.5"
-getrandom = { version = "0.2", features = ["js"] }
+bytemuck = { workspace = true, features = [ "derive" ] }
+rand = "0.8.5" # qqq : use workspace dependencies only
+getrandom = { version = "0.2", features = [ "js" ] } # qqq : use workspace dependencies only
 
 [dependencies.minwebgpu]
 workspace = true
 features = [
   'future',
   'file',
-  'objModel',
+  'model_obj',
   'math'
 ]
-

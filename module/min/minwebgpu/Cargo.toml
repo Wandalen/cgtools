@@ -2,9 +2,9 @@
 name = "minwebgpu"
 version = "0.1.0"
 edition = "2021"
-authors = [ 
+authors = [
   "Kostiantyn Mysnyk <wandalen@obox.systems>",
-  "Avramenko Yevhenii <yevhenii.av@obox.systems>" 
+  "Avramenko Yevhenii <yevhenii.av@obox.systems>"
 ]
 
 
@@ -20,28 +20,29 @@ enabled = [
   "dep:wasm-bindgen",
   "dep:js-sys",
   "dep:web-sys",
+  "dep:asbytes",
 ]
 
 default = [
   "enabled",
-  "minweb"
+  "web"
 ]
 
 full = [
   "default",
   "file",
   "future",
-  "objModel",
+  "model_obj",
   "math",
   "log"
 ]
 
 
-minweb = [ "mingl/web" ] # common web utils
-file = [ "mingl/webFile" ] # enable files handling
-future = [ "mingl/webFuture" ] # enable futures
-objModel = [ "mingl/webObjModel" ] # enable futures
-log = [ "mingl/webLog" ]
+web = [ "mingl/web" ] # common web utils
+file = [ "mingl/web_file" ] # enable files handling
+future = [ "mingl/web_future" ] # enable futures
+model_obj = [ "mingl/web_model_obj" ] # enable futures
+log = [ "mingl/web_log" ]
 math = [ "mingl/math" ]
 
 [dependencies]
@@ -49,6 +50,8 @@ math = [ "mingl/math" ]
 mingl = { workspace = true, optional = true }
 
 bytemuck = { workspace = true, optional = true, features = [ "derive" ] }
+asbytes = { workspace = true, optional = true }
+
 browser_log = { workspace = true, optional = true }
 
 error_tools = { workspace = true }

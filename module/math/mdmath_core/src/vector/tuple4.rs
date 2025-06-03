@@ -12,10 +12,19 @@ impl< E > ConstLength for ( E, E, E, E )
   const LEN : usize = 4;
 }
 
-impl< E > VectorRef< E, 4 > for ( E, E, E, E )
+impl< E > IntoArray< E, 4 > for ( E, E, E, E )
+{
+  #[ inline ]
+  fn into_array( self ) -> [ E ; 4 ]
+  {
+    [ self.0, self.1, self.2, self.3 ]
+  }
+}
+
+impl< E > ArrayRef< E, 4 > for ( E, E, E, E )
 {
   #[ inline( always ) ]
-  fn vector_ref( &self ) -> &[ E ; 4 ]
+  fn array_ref( &self ) -> &[ E ; 4 ]
   {
     use std::mem::{ align_of_val, size_of_val, transmute };
 
@@ -44,7 +53,7 @@ impl< E > VectorRef< E, 4 > for ( E, E, E, E )
   }
 }
 
-impl< E > VectorMut< E, 4 > for ( E, E, E, E )
+impl< E > ArrayMut< E, 4 > for ( E, E, E, E )
 {
   #[ inline( always ) ]
   fn vector_mut( &mut self ) -> &mut [ E ; 4 ]
