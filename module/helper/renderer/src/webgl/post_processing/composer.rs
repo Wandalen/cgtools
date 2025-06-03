@@ -54,7 +54,7 @@ mod private
       let framebuffer = gl.create_framebuffer();
       gl.bind_framebuffer( gl::FRAMEBUFFER, framebuffer.as_ref() );
       // Specify that only COLOR_ATTACHMENT0 is used for drawing.
-      gl::drawbuffers::drawbuffers( &gl, &[ gl::COLOR_ATTACHMENT0 ] );
+      gl::drawbuffers::drawbuffers( &gl, &[ 0 ] );
 
       // Unbind renderbuffer and framebuffer to clean up global state.
       gl.bind_renderbuffer( gl::RENDERBUFFER, None );
