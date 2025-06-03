@@ -201,6 +201,9 @@ use minwebgl as gl;
       }
     }
 
+    /// Performs the instanced draw call for the geometry.
+    ///
+    /// It checks if an index buffer is present and calls `draw_elements` or `draw_arrays` accordingly.
     pub fn draw_instanced( &self, gl : &gl::WebGl2RenderingContext, instance_count : i32 )
     {
       if let Some( info ) = self.index_info.as_ref()

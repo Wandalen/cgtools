@@ -8,6 +8,7 @@ flat in float v_light_radius;
 flat in vec3 v_light_color;
 
 uniform vec2 u_screen_size;
+uniform vec3 u_camera_position;
 uniform sampler2D u_positions;
 uniform sampler2D u_normals;
 uniform sampler2D u_colors;
@@ -38,8 +39,6 @@ float attenuate_cusp( float distance, float radius, float max_intensity, float f
 void main()
 {
   // Default Blinn-Phong shading model
-  // camera is static
-  vec3 view_position = vec3( 0.0 );
   vec2 tex_coord = ( gl_FragCoord.xy - 0.5 ) / u_screen_size;
   vec3 frag_pos = texture( u_positions, tex_coord ).xyz;
 
@@ -55,7 +54,7 @@ void main()
   vec3 base_color = texture( u_colors, tex_coord ).rgb;
 
   vec3 light_dir = to_ligth / distance;
-  vec3 view_dir = normalize( view_position - frag_pos );
+  vec3 view_dir = normalize( u_camera_position - frag_pos );
   vec3 halfway_dir = normalize( light_dir + view_dir );
   float diffuse = max( dot( normal, light_dir ), 0.0 );
 
