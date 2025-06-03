@@ -3,15 +3,22 @@ use std::collections::{HashMap, HashSet};
 
 use minwebgl as gl;
 use rand::Rng;
+use gl::math::F32x4;
 use renderer::webgl::
 {
-  post_processing::{self, Pass, SwapFramebuffer, GBuffer, GBufferAttachment, outline::{ OutlinePass, MAX_OBJECT_COUNT } }, Camera, Renderer
+  loaders::gltf::GLTF,
+  geometry::AttributeInfo, 
+  Camera, 
+  Renderer,
+  post_processing::{
+    self, add_buffer, add_attributes, outline::narrow_outline::{ NarrowOutlinePass, MAX_OBJECT_COUNT }, upload_buffer_data, GBuffer, GBufferAttachment, Pass, SwapFramebuffer
+  }
 };
 
 mod camera_controls;
 mod loaders;
 
-fn random_color( rng : &mut rand::Rng ) -> F32x4
+fn random_color( rng : &mut impl rand::Rng ) -> F32x4
 {
   let range = 0.2..1.0;
   F32x4::from
@@ -48,6 +55,21 @@ fn generate_object_colors( object_count : usize ) -> Vec< [ f32; 4 ] >
   object_colors
 }
 
+fn get_attributes( gltf : &GLTF ) -> Result< HashMap< Box< str >, AttributeInfo >, gl::WebglError >
+{
+  for mesh in &gltf.meshes
+  {
+    let mesh_ref = mesh.as_ref().borrow();
+    for primitive in &mesh_ref.primitives
+    {
+      let primitive_ref = primitive.as_ref().borrow();
+      return Ok( primitive_ref.geometry.as_ref().borrow().get_attributes() );
+    }
+  }
+
+  Err( gl::WebglError::MissingDataError( "Primitive".to_string() ) )
+}
+
 async fn run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
@@ -80,33 +102,53 @@ async fn run() -> Result< (), gl::WebglError >
   camera_controls::setup_controls( &canvas, &camera.get_controls() );
 
   let gltf_path = "dodge-challenger/gltf";
-  let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
+  let mut gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
   let scenes = gltf.scenes;
+
+  let object_id_data = add_attributes( 
+    &gl, 
+    &mut gltf, 
+    HashSet::from( [ GBufferAttachment::PbrInfo ] ) 
+  )?;
+
+  let object_color_id_buffer = add_buffer( &gl, &mut gltf, data )?;
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   renderer.set_use_emission( true );
   renderer.set_ibl( loaders::ibl::load( &gl, "envMap" ).await );
 
-  let b = gltf.gl_buffers.clone();
-  let buffers = [
-    vec![ b[ 0 ] ], 
-    vec![ b[ 7 ] ], 
-    vec![ b[ 1 ] ],
-    vec![ b[ 10 ], b[ 11 ], b[ 2 ]  ],
-    vec![ b[ 12 ] ]
-  ];
+  let attributes = get_attributes( &gltf )?;  
 
-  let attachments = post_processing::gbuffer::ALL.iter()
-  .zip( buffers )
-  .collect::< HashMap< _, _ > >();
+  let get_buffer = | name | attributes.get( name ).unwrap().buffer;
 
-  let mut gbuffer = Gbuffer::new( gl, canvas.width(), canvas.height(), attachments );
+  let gl_buffers_iter = gltf.gl_buffers.iter().rev();
+
+  let ( material_id_buffer, object_id_buffer ) = ( gl_buffers_iter.next().unwrap(), gl_buffers_iter.next().unwrap() );
+
+  let attachments = HashMap::from(
+    [
+      ( GBufferAttachment::Position, vec![ get_buffer( "positions" ) ] ),
+      ( GBufferAttachment::Albedo, vec![ get_buffer( "colors_7" ) ] ),
+      ( GBufferAttachment::Normal, vec![ get_buffer( "normals" ) ] ),
+      ( 
+        GBufferAttachment::PbrInfo, 
+        vec![ 
+          object_id_buffer.clone(),
+          material_id_buffer.clone(),
+          get_buffer( "texture_coordinates_2" )
+        ] 
+      ),
+      ( GBufferAttachment::ObjectColorId, vec![ object_color_id_buffer ] )
+    ]
+  );
+
+  let mut gbuffer = GBuffer::new( &gl, canvas.width(), canvas.height(), attachments )?;
 
   let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
 
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
-  let mut outline = OutlinePass::new
+  let mut outline = NarrowOutlinePass::new
   ( 
     &gl, 
     gbuffer.get_texture( GBufferAttachment::Normal ), 
@@ -116,7 +158,7 @@ async fn run() -> Result< (), gl::WebglError >
     canvas.height() 
   )?;
 
-  let object_count = scenes[ 0 ].borrow().children.len();
+  let object_count = scenes[ 0 ].as_ref().borrow().children.len();
   let object_colors = generate_object_colors( object_count );
   outline.set_object_colors( &gl, object_colors );
 
@@ -142,19 +184,21 @@ async fn run() -> Result< (), gl::WebglError >
       let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
       .expect( "Failed to render tonemapping pass" );
 
+      swap_buffer.bind( &gl );
       swap_buffer.set_output( t );
       swap_buffer.swap();
     
       let t = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
       .expect( "Failed to render to srgb pass" );
 
-      swap_buffer.set_output( t );
-      swap_buffer.swap();
+      // swap_buffer.bind( &gl );
+      // swap_buffer.set_output( t );
+      // swap_buffer.swap();
 
-      let outline_thickness = ( 2.0 * ( time / 1000.0 ).sin().abs() ) as f32;
-      outline.set_outline_thickness( outline_thickness );
-      let _ = outline.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
-      .expect( "Failed to render outline pass" );
+      // let outline_thickness = ( 2.0 * ( time / 1000.0 ).sin().abs() ) as f32;
+      // outline.set_outline_thickness( outline_thickness );
+      // let _ = outline.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      // .expect( "Failed to render outline pass" );
 
       true
     }

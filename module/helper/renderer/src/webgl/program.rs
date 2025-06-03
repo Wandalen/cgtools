@@ -8,7 +8,7 @@ mod private
   pub struct PBRShader;
   pub struct GaussianFilterShader;
   pub struct UnrealBloomShader;
-  pub struct OutlineShader;
+  pub struct NarrowOutlineShader;
 
   /// Stores information about a WebGL program, including the program object and the locations of its uniforms.
   /// This struct is intended for use by the renderer.
@@ -56,11 +56,8 @@ mod private
       let mut locations = HashMap::new();
 
       let mut add_location = | name : &str |
-      { 
-        if let Some( location ) = gl.get_uniform_location( &program, name )
-        {
-          locations.insert( name.to_string(), location );
-        }
+      {
+        locations.insert( name.to_string(), gl.get_uniform_location( &program, name ) );
       };
 
       add_location( "worldMatrix" );
@@ -218,7 +215,7 @@ mod private
     }    
   }
 
-  impl ProgramInfo< OutlineShader > 
+  impl ProgramInfo< NarrowOutlineShader > 
   {
     /// Creates a new `ProgramInfo` instance.
     ///
@@ -253,11 +250,12 @@ crate::mod_interface!
 {
   own use
   {
+    GBufferShader,
     EmptyShader,
     GaussianFilterShader,
     UnrealBloomShader,
     PBRShader,
-    OutlineShader
+    NarrowOutlineShader
   };
   
   orphan use

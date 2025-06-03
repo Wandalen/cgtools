@@ -4,13 +4,13 @@ mod private
   use minwebgl as gl;
   use web_sys::WebGlBuffer;
   use gl::GL;
-  use crate::webgl::{ post_processing::{ Pass, VS_TRIANGLE }, program::OutlineShader, ProgramInfo };
+  use crate::webgl::{ post_processing::{ Pass, VS_TRIANGLE }, program::NarrowOutlineShader, ProgramInfo };
 
   pub const MAX_OBJECT_COUNT : usize = 1024;
 
-  pub struct OutlinePass
+  pub struct NarrowOutlinePass
   {
-    material : ProgramInfo< OutlineShader >,
+    material : ProgramInfo< NarrowOutlineShader >,
     depth_texture : Option< gl::web_sys::WebGlTexture >,
     object_id_texture : Option< gl::web_sys::WebGlTexture >,
     outline_thickness : f32,
@@ -20,9 +20,9 @@ mod private
     height : u32
   }
 
-  impl OutlinePass 
+  impl NarrowOutlinePass 
   {
-    /// Creates a new `OutlinePass` instance.
+    /// Creates a new `NarrowOutlinePass` instance.
     pub fn new( 
       gl : &gl::WebGl2RenderingContext, 
       depth_texture : Option< gl::web_sys::WebGlTexture >,
@@ -32,9 +32,9 @@ mod private
       height : u32 
     ) -> Result< Self, gl::WebglError >
     {
-      let fs_shader = include_str!( "../shaders/post_processing/outline.frag" );
+      let fs_shader = include_str!( "../../shaders/post_processing/outline.frag" );
       let program = gl::ProgramFromSources::new( VS_TRIANGLE, fs_shader ).compile_and_link( gl )?;
-      let material = ProgramInfo::< OutlineShader >::new( gl, program.clone() );
+      let material = ProgramInfo::< NarrowOutlineShader >::new( gl, program.clone() );
 
       {
         let locations = material.get_locations();
@@ -84,7 +84,7 @@ mod private
     }
   }
 
-  impl Pass for OutlinePass
+  impl Pass for NarrowOutlinePass
   {
     fn renders_to_input( &self ) -> bool 
     {
@@ -156,7 +156,7 @@ crate::mod_interface!
 {
   orphan use
   {
-    OutlinePass,
+    NarrowOutlinePass,
     MAX_OBJECT_COUNT
   };
 }

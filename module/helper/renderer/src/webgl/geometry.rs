@@ -5,6 +5,7 @@ mod private
 use minwebgl as gl;
 
   /// Represents information about a single vertex attribute.
+  #[ derive( Clone ) ]
   pub struct AttributeInfo
   {
     /// The attribute slot index in the shader program.
@@ -199,6 +200,11 @@ use minwebgl as gl;
       {
         gl.draw_arrays( self.draw_mode, 0, self.vertex_count as i32 );
       }
+    }
+
+    pub fn get_attributes( &self ) -> HashMap< Box< str >, AttributeInfo >
+    {
+      self.attributes.clone()
     }
   }
 
