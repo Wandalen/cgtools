@@ -90,10 +90,11 @@ fn create_hexagon_geometry( gl : &GL ) -> Result< Geometry, minwebgl::WebglError
   (
     gl::math::mat2x2h::rot( 30.0f32.to_radians() )
   );
+  let tex_coords = tex_coords( &positions );
 
   let position_buffer = gl::buffer::create( &gl )?;
   gl::buffer::upload( &gl, &position_buffer, positions.as_slice(), GL::STATIC_DRAW );
-  let info = AttributeInfo
+  let pos_info = AttributeInfo
   {
     slot: 0,
     buffer : position_buffer,
@@ -101,11 +102,51 @@ fn create_hexagon_geometry( gl : &GL ) -> Result< Geometry, minwebgl::WebglError
     bounding_box: Default::default(),
   };
 
+  let tex_coord_buffer = gl::buffer::create( &gl )?;
+  gl::buffer::upload( &gl, &tex_coord_buffer, tex_coords.as_slice(), GL::STATIC_DRAW );
+  let tex_coord_info = AttributeInfo
+  {
+    slot: 2,
+    buffer : tex_coord_buffer,
+    descriptor : BufferDescriptor::new::< [ f32; 2 ] >(),
+    bounding_box: Default::default(),
+  };
+
   let mut geometry = Geometry::new( &gl )?;
   geometry.vertex_count = positions.len() as u32;
-  geometry.add_attribute( &gl, "position", info, false )?;
+  geometry.add_attribute( &gl, "position", pos_info, false )?;
+  geometry.add_attribute( &gl, "tex_coord", tex_coord_info, false )?;
 
   Ok( geometry )
+}
+
+fn tex_coords( positions : &[ f32 ] ) -> Vec< f32 >
+{
+  let mut x_min = f32::MAX;
+  let mut x_max = f32::MIN;
+  let mut y_min = f32::MAX;
+  let mut y_max = f32::MIN;
+
+  for pos in positions.chunks_exact( 2 )
+  {
+    x_min = x_min.min( pos[ 0 ] );
+    x_max = x_max.max( pos[ 0 ] );
+    y_min = y_min.min( pos[ 1 ] );
+    y_max = y_max.max( pos[ 1 ] );
+  }
+  let dist_x = x_max - x_min;
+  let dist_y = y_max - y_min;
+
+  let mut tex_coords = vec![];
+  for pos in positions.chunks_exact( 2 )
+  {
+    let x = ( pos[ 0 ] + x_min ) / dist_x;
+    let y = ( pos[ 1 ] + y_min ) / dist_y;
+    tex_coords.push( x );
+    tex_coords.push( y );
+  }
+
+  tex_coords
 }
 
 fn create_shader( gl : &GL ) -> Result< gl::shader::Program, minwebgl::WebglError >
