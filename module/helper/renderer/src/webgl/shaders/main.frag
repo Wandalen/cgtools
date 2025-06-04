@@ -152,12 +152,6 @@ vec3 LinearToSrgb( const in vec3 color )
   return mix( more, less, vec3( lessThanEqual( color, vec3( 0.0031308 ) ) ) );
 }
 
-float luminance( const in vec3 rgb ) 
-{
-  const vec3 weights = vec3( 0.2126, 0.7152, 0.0722 );
-  return dot( weights, rgb );
-}
-
 // Schilck's version of Fresnel equation, with Spherical Gaussian approximation for the power
 // https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
 vec3 F_Schlick( const in vec3 f0, const in vec3 f90, const in float dotVH ) 
@@ -393,10 +387,6 @@ void main()
       emissive_color.xyz *= SrgbToLinear( texture( emissiveTexture, vEmissionUv ).rgb );
     #endif
   #endif
-  
-  float lum_alpha = smoothstep( luminosityThreshold, luminosityThreshold + luminositySmoothWidth, luminance( color ) );
-  emissive_color.xyz += vec3( mix( vec3( 0.0 ), color, lum_alpha ) );
-  emissive_color.xyz *= emissive_color.a;
 
   frag_color = vec4( color * alpha, alpha );
 }

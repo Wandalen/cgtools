@@ -24,6 +24,7 @@ async fn run() -> Result< (), gl::WebglError >
   let document = window.document().unwrap();
 
   let _ = gl.get_extension( "EXT_color_buffer_float" ).expect( "Failed to enable EXT_color_buffer_float extension" );
+  let _ = gl.get_extension( "EXT_shader_image_load_store" ).expect( "Failed to enable EXT_shader_image_load_store  extension" );
 
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;

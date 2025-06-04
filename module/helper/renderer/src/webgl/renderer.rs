@@ -518,6 +518,7 @@ mod private
 
       gl.enable( gl::DEPTH_TEST );
       gl.disable( gl::BLEND );
+      gl.depth_mask( true );
       gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
       gl.clear_depth( 1.0 );
 
@@ -652,18 +653,19 @@ mod private
         let dist1 = camera.get_eye().distance_squared( &a.0.borrow().center() );
         let dist2 = camera.get_eye().distance_squared( &b.0.borrow().center() );
 
-        //gl::info!( "Dist1: {:?} | dist2: {:?}", a.0.borrow().bounding_box(), b.0.borrow().bounding_box() );
         dist1.partial_cmp( &dist2 ).unwrap()
       });
 
       gl.enable( gl::BLEND );
+      gl.enable( gl::CULL_FACE );
+      gl.depth_mask( false );
       gl.blend_equation( gl::FUNC_ADD );
-      gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA );
+      //gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA );
+      gl.blend_func( gl::ONE, gl::ONE_MINUS_SRC_ALPHA );
 
-      // Render the transparent nodes.
-      for ( node, primitive ) in self.transparent_nodes.iter()
+      let bind = | node : std::cell::Ref< '_, Node >, primitive : std::cell::Ref< '_, Primitive > | -> Result< (), gl::WebglError >
       {
-        let primitive = primitive.borrow();
+        let primitive = primitive;
         let material = primitive.material.borrow();
         let geometry = primitive.geometry.borrow();
         let vs_defines = geometry.get_defines();
@@ -679,8 +681,22 @@ mod private
           gl::uniform::upload( gl, locations.get( "luminositySmoothWidth" ).unwrap().clone(), &self.luminosity_smooth_width )?;
         }
 
-        node.borrow().upload( gl, locations );
+        node.upload( gl, locations );
         primitive.bind( gl );
+       
+       Ok( () )
+      };
+
+      // Render the transparent nodes.
+      for ( node, primitive ) in self.transparent_nodes.iter()
+      {
+        let primitive = primitive.borrow();
+        let node = node.borrow();
+        bind( node, std::cell::Ref::clone( &primitive ) )?;
+
+        gl.cull_face( gl::FRONT );
+        primitive.draw( gl );
+        gl.cull_face( gl::BACK );
         primitive.draw( gl );
       }
 
@@ -697,6 +713,8 @@ mod private
         self.blend_effect.blend_texture = self.swap_buffer.get_output();
         self.blend_effect.render( gl, None, self.framebuffer_ctx.main_texture.clone() )?;
       }
+
+      gl.disable( gl::CULL_FACE );
 
       Ok( () )
     }
