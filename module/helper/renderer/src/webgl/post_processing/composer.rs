@@ -86,6 +86,7 @@ mod private
     pub fn bind( &self, gl : &gl::WebGl2RenderingContext )
     {
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.framebuffer.as_ref() );
+      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
     }
 
     /// Swaps the `input_texture` and `output_texture`.

@@ -21,6 +21,8 @@ in vec3 vNormal;
 
 layout( location = 0 ) out vec4 frag_color;
 layout( location = 1 ) out vec4 emissive_color;
+layout( location = 2 ) out vec4 trasnparentA;
+layout( location = 3 ) out float transparentB;
 
 uniform vec3 cameraPosition;
 
@@ -152,12 +154,6 @@ vec3 LinearToSrgb( const in vec3 color )
   return mix( more, less, vec3( lessThanEqual( color, vec3( 0.0031308 ) ) ) );
 }
 
-float luminance( const in vec3 rgb ) 
-{
-  const vec3 weights = vec3( 0.2126, 0.7152, 0.0722 );
-  return dot( weights, rgb );
-}
-
 // Schilck's version of Fresnel equation, with Spherical Gaussian approximation for the power
 // https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
 vec3 F_Schlick( const in vec3 f0, const in vec3 f90, const in float dotVH ) 
@@ -230,6 +226,11 @@ vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
     return color;
   }
 #endif
+
+float alpha_weight( float z, float a )
+{
+  return clamp(pow(min(1.0, a * 10.0) + 0.01, 3.0) * 1e8 * pow(1.0 - z * 0.9, 3.0), 1e-2, 3e3);
+}
 
 #ifndef USE_TANGENTS
   // http://www.thetenthplanet.de/archives/1180
@@ -386,17 +387,17 @@ void main()
     color += 0.1 * material.diffuseColor * material.occlusionFactor;
   #endif
   
-  emissive_color = vec4( vec3( 0.0 ), alpha );
+  emissive_color = vec4( 0.0 );
   #ifdef USE_EMISSION 
+    emissive_color.a = 1.0;
     emissive_color.xyz = emissiveFactor;
     #ifdef USE_EMISSION_TEXTURE
       emissive_color.xyz *= SrgbToLinear( texture( emissiveTexture, vEmissionUv ).rgb );
     #endif
   #endif
-  
-  float lum_alpha = smoothstep( luminosityThreshold, luminosityThreshold + luminositySmoothWidth, luminance( color ) );
-  emissive_color.xyz += vec3( mix( vec3( 0.0 ), color, lum_alpha ) );
-  emissive_color.xyz *= emissive_color.a;
 
+  float a_weight = alpha * alpha_weight( gl_FragCoord.z, alpha );
   frag_color = vec4( color * alpha, alpha );
+  trasnparentA = vec4( color * a_weight, alpha );
+  transparentB = a_weight;
 }

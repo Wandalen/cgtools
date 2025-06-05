@@ -7,6 +7,7 @@ mod private
   pub struct PBRShader;
   pub struct GaussianFilterShader;
   pub struct UnrealBloomShader;
+  pub struct CompositeShader;
 
   /// Stores information about a WebGL program, including the program object and the locations of its uniforms.
   /// This struct is intended for use by the renderer.
@@ -186,6 +187,34 @@ mod private
       }
     }    
   }
+
+  impl ProgramInfo< CompositeShader > 
+  {
+    /// Creates a new `ProgramInfo` instance.
+    ///
+    /// * `gl`: The `WebGl2RenderingContext` used to retrieve uniform locations.
+    /// * `program`: The compiled WebGL program object.
+    pub fn new( gl : &gl::WebGl2RenderingContext, program : gl::WebGlProgram ) -> Self
+    {
+      let mut locations = HashMap::new();
+
+      let mut add_location = | name : &str |
+      {
+        locations.insert( name.to_string(), gl.get_uniform_location( &program, name ) );
+      };
+
+      add_location( "transparentA" );
+      add_location( "transparentB" );
+
+
+      Self
+      {
+        program,
+        locations,
+        phantom : std::marker::PhantomData
+      }
+    }    
+  }
 }
 
 crate::mod_interface!
@@ -195,7 +224,8 @@ crate::mod_interface!
     EmptyShader,
     GaussianFilterShader,
     UnrealBloomShader,
-    PBRShader
+    PBRShader,
+    CompositeShader
   };
   
   orphan use

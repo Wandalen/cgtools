@@ -24,6 +24,7 @@ async fn run() -> Result< (), gl::WebglError >
   let document = window.document().unwrap();
 
   let _ = gl.get_extension( "EXT_color_buffer_float" ).expect( "Failed to enable EXT_color_buffer_float extension" );
+  let _ = gl.get_extension( "EXT_shader_image_load_store" ).expect( "Failed to enable EXT_shader_image_load_store  extension" );
 
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
@@ -32,12 +33,14 @@ async fn run() -> Result< (), gl::WebglError >
   //let gltf_path = "gambeson.glb";
   //let gltf_path = "old_rusty_car.glb";
   //let gltf_path = "sponza.glb";
+  //let gltf_path = "nissan_titan_2017_transparent.glb";
+  //let gltf_path = "transparent_cubes_oit_rendering_test_model.glb";
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
   let scenes = gltf.scenes;
   scenes[ 0 ].borrow_mut().update_world_matrix();
 
   let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
-  gl::info!( "Boudnig box: {:?}", scene_bounding_box );
+  gl::info!( "Scene boudnig box: {:?}", scene_bounding_box );
   let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
   let dist = scene_bounding_box.max.mag();
   let exponent = 
@@ -66,7 +69,7 @@ async fn run() -> Result< (), gl::WebglError >
   camera_controls::setup_controls( &canvas, &camera.get_controls() );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  //renderer.set_use_emission( true );
+  renderer.set_use_emission( true );
   renderer.set_ibl( loaders::ibl::load( &gl, "envMap" ).await );
 
   let renderer = Rc::new( RefCell::new( renderer ) );

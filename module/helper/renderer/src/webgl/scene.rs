@@ -57,7 +57,7 @@ mod private
       // Recursively update the world matrix of each root node and its descendants.
       for child in self.children.iter_mut()
       {
-        child.borrow_mut().update_world_matrix( identity );
+        child.borrow_mut().update_world_matrix( identity, false );
       }
     }
 
@@ -67,7 +67,7 @@ mod private
 
       for child in self.children.iter()
       {
-        bbox.combine_mut( &child.borrow().bounding_box() );
+        bbox.combine_mut( &child.borrow().bounding_box_hierarchical() );
       }
 
       bbox
