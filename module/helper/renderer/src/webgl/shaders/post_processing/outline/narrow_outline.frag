@@ -26,7 +26,7 @@ const uint IDS[ 13 ] = uint[ 13 ](
 uniform sampler2D sourceTexture;
 
 // G-Buffer textures
-uniform sampler2D objectIdTexture;
+uniform sampler2D objectColorIdTexture;
 uniform sampler2D depthTexture;
 
 layout( std140 ) uniform ObjectColorBlock
@@ -48,11 +48,11 @@ float outlineStencil()
   {
     for( int x = 0; x < 5; x++ )
     {
-      uint objectId = uint( texture(
-        objectIdTexture,
+      uint objectColorId = uint( texture(
+        objectColorIdTexture,
         vUv + vec2( float( x - 2 ), float( y - 2 ) ) * outlineThickness / resolution
       ).r );
-      pickedObjectColors[ y * 5 + x ] = length( objectColors[ objectId ] );
+      pickedObjectColors[ y * 5 + x ] = length( objectColors[ objectColorId ] );
     }
   }
 
@@ -79,20 +79,20 @@ float outlineStencil()
   return outline;
 }
 
-vec4 outlineColor()
+uint outlineColorId()
 {
   float depth = 1.0 - texture( depthTexture, vUv ).x;
 
-  float nearObjectId = 0.0;
+  float nearObjectColorId = 0.0;
   float nearDepth = 0.0;
 
-  vec4 objectIds[ 25 ];
+  vec4 objectColorIds[ 25 ];
   for( int y = 0; y < 5; y++ )
   {
     for( int x = 0; x < 5; x++ )
     {
-      objectIds[ y * 5 + x ] = texture(
-        objectIdTexture,
+      objectColorIds[ y * 5 + x ] = texture(
+        objectColorIdTexture,
         vUv + vec2( float( x - 2 ), float( y - 2 ) ) * outlineThickness / resolution
       ).r;
     }
@@ -116,11 +116,11 @@ vec4 outlineColor()
     if ( nearDepth < depths[ j ] && depths[ j ] >= 0.0 )
     {
       nearDepth = depths[ j ];
-      nearObjectId = objectIds[ j ];
+      nearObjectColorId = objectColorIds[ j ];
     }
   }
 
-  return objectColors[ uint( nearObjectId ) ];
+  return uint( nearObjectColorId );
 }
 
 void main()
@@ -134,7 +134,15 @@ void main()
   }
   else if ( outline < 0.9 )
   {
-    FragColor = outlineColor();
+    uint colorId = outlineColorId();
+    if colorId == 0
+    {
+      FragColor = texture( sourceTexture, vUv );
+    }
+    else
+    {
+      FragColor = objectColors[ colorId ];
+    }
   }
   else
   {

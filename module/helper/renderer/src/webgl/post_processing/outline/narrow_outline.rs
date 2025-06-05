@@ -10,7 +10,7 @@ mod private
 
   pub struct NarrowOutlinePass
   {
-    material : ProgramInfo< NarrowOutlineShader >,
+    program_info : ProgramInfo< NarrowOutlineShader >,
     depth_texture : Option< gl::web_sys::WebGlTexture >,
     object_id_texture : Option< gl::web_sys::WebGlTexture >,
     outline_thickness : f32,
@@ -32,12 +32,12 @@ mod private
       height : u32 
     ) -> Result< Self, gl::WebglError >
     {
-      let fs_shader = include_str!( "../../shaders/post_processing/outline.frag" );
+      let fs_shader = include_str!( "../../shaders/post_processing/outline/narrow_outline.frag" );
       let program = gl::ProgramFromSources::new( VS_TRIANGLE, fs_shader ).compile_and_link( gl )?;
-      let material = ProgramInfo::< NarrowOutlineShader >::new( gl, program.clone() );
+      let program_info = ProgramInfo::< NarrowOutlineShader >::new( gl, program.clone() );
 
       {
-        let locations = material.get_locations();
+        let locations = program_info.get_locations();
 
         let source_texture_loc = locations.get( "sourceTexture" ).unwrap().clone();
         let depth_texture_loc = locations.get( "depthTexture" ).unwrap().clone();
@@ -57,7 +57,7 @@ mod private
 
       let mut pass = Self
       {
-        material,
+        program_info,
         depth_texture,
         object_id_texture,
         outline_thickness,
@@ -99,9 +99,9 @@ mod private
       output_texture : Option< minwebgl::web_sys::WebGlTexture >
     ) -> Result< Option< minwebgl::web_sys::WebGlTexture >, minwebgl::WebglError > 
     {
-      self.material.bind( gl );
+      self.program_info.bind( gl );
 
-      let locations = self.material.get_locations();
+      let locations = self.program_info.get_locations();
 
       let resolution_loc = locations.get( "resolution" ).unwrap().clone();
       let outline_thickness_loc = locations.get( "outlineThickness" ).unwrap().clone();
