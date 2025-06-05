@@ -4,14 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-web-sys = { workspace = true, features = [
-  "HtmlImageElement",
-  "WebGlTexture",
-] }
+web-sys = { workspace = true, features = ["HtmlImageElement", "WebGlTexture"] }
 minwebgl = { workspace = true, features = ["math"] }
 browser_input.workspace = true
 renderer.workspace = true
 tiles_tools.workspace = true
+quick-xml = { workspace = true, features = ["serialize"] }
+serde = { workspace = true, features = ["derive"] }
 
 [lints]
 workspace = true
