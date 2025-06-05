@@ -215,20 +215,20 @@ use minwebgl as gl;
     pub fn get_defines( &self ) -> String
     {
       let use_pbr = self.metallic_factor.is_some()
-      | self.roughness_factor.is_some()
-      | self.metallic_roughness_texture.is_some()
-      | self.base_color_texture.is_some();
+      || self.roughness_factor.is_some()
+      || self.metallic_roughness_texture.is_some()
+      || self.base_color_texture.is_some();
 
       let use_base_color_texture = self.base_color_texture.is_some();
       let use_metallic_roughness_texture = self.metallic_roughness_texture.is_some();
 
       let use_emissive_texture = self.emissive_texture.is_some();
-      let use_emission = self.emissive_factor.is_some() | use_emissive_texture;
+      let use_emission = self.emissive_factor.is_some() || use_emissive_texture;
 
       let use_khr_materials_specular = self.specular_factor.is_some()
-      | self.specular_color_factor.is_some()
-      | self.specular_texture.is_some()
-      | self.specular_color_texture.is_some();
+      || self.specular_color_factor.is_some()
+      || self.specular_texture.is_some()
+      || self.specular_color_texture.is_some();
 
       let use_specular_texture = self.specular_texture.is_some();
       let use_specular_color_texture = self.specular_color_texture.is_some();

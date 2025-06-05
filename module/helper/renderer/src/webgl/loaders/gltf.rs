@@ -269,7 +269,11 @@ mod private
       material.base_color_texture = make_texture_info( pbr.base_color_texture() );
       material.metallic_roughness_texture = make_texture_info( pbr.metallic_roughness_texture() );
       material.emissive_texture = make_texture_info( gltf_m.emissive_texture() );
-      material.emissive_factor = Some( gl::F32x3::from( gltf_m.emissive_factor() ) );
+      if gl::F32x3::from( gltf_m.emissive_factor() ) != gl::F32x3::ZERO
+      {
+        material.emissive_factor = Some( gl::F32x3::from( gltf_m.emissive_factor() ) );
+      }
+  
       // KHR_materials_specular
       if let Some( s ) = gltf_m.specular()
       {

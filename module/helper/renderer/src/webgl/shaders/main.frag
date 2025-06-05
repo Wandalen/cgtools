@@ -387,8 +387,9 @@ void main()
     color += 0.1 * material.diffuseColor * material.occlusionFactor;
   #endif
   
-  emissive_color = vec4( vec3( 0.0 ), alpha );
+  emissive_color = vec4( 0.0 );
   #ifdef USE_EMISSION 
+    emissive_color.a = 1.0;
     emissive_color.xyz = emissiveFactor;
     #ifdef USE_EMISSION_TEXTURE
       emissive_color.xyz *= SrgbToLinear( texture( emissiveTexture, vEmissionUv ).rgb );
