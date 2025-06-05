@@ -5,7 +5,7 @@ mod private
 
   use crate::webgl::
   { 
-    post_processing::{BlendPass, Pass, SwapFramebuffer, UnrealBloomPass}, program, AlphaMode, Camera, Node, Object3D, Primitive, ProgramInfo, Scene, IBL
+    post_processing::{BlendPass, Pass, SwapFramebuffer, UnrealBloomPass, VS_TRIANGLE}, program::{self, CompositeShader}, AlphaMode, Camera, Node, Object3D, Primitive, ProgramInfo, Scene, IBL
   };
 
   /// Manages WebGL2 framebuffers and associated renderbuffers/textures for a rendering
@@ -21,29 +21,33 @@ mod private
   pub struct FramebufferContext
   {
     /// The width of the textures attached to the resolved framebuffer.
-    pub texture_width: u32,
+    pub texture_width : u32,
     /// The height of the textures attached to the resolved framebuffer.
-    pub texture_height: u32,
+    pub texture_height : u32,
     /// The WebGL framebuffer used for multisampled rendering. This framebuffer
     /// renders into `multisample_main_renderbuffer` and `multisample_emission_renderbuffer`.
-    pub multisample_framebuffer: Option< gl::web_sys::WebGlFramebuffer >,
+    pub multisample_framebuffer : Option< gl::web_sys::WebGlFramebuffer >,
     /// The WebGL framebuffer used to store the resolved (non-multisampled)
     /// textures. This is where the results of the multisample framebuffer
     /// are blitted to, making them ready for sampling.
-    pub resolved_framebuffer: Option< gl::web_sys::WebGlFramebuffer >,
+    pub resolved_framebuffer : Option< gl::web_sys::WebGlFramebuffer >,
     /// The renderbuffer used for depth and stencil testing in the multisample framebuffer.
     #[ allow( dead_code ) ]
-    pub depth_renderbuffer: Option< gl::web_sys::WebGlRenderbuffer >,
+    pub depth_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
     /// The renderbuffer that receives the main color output during multisampled rendering.
-    pub multisample_main_renderbuffer: Option< gl::web_sys::WebGlRenderbuffer >,
+    pub multisample_main_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
     /// The renderbuffer that receives the emission color output during multisampled rendering.
-    pub multisample_emission_renderbuffer: Option< gl::web_sys::WebGlRenderbuffer> ,
+    pub multisample_emission_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer>,
+    pub multisample_transparent_accumulate_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer>,
+    pub multisample_transparent_revealage_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer>,
     /// The 2D texture that receives the resolved main color output after multisample resolution.
     /// This texture can be sampled in shaders.
-    pub main_texture: Option< gl::web_sys::WebGlTexture >,
+    pub main_texture : Option< gl::web_sys::WebGlTexture >,
     /// The 2D texture that receives the resolved emission color output after multisample resolution.
     /// This texture can be sampled in shaders.
-    pub emission_texture: Option< gl::web_sys::WebGlTexture >,
+    pub emission_texture : Option< gl::web_sys::WebGlTexture >,
+    pub transparent_accumulate_texture : Option< gl::web_sys::WebGlTexture >,
+    pub transparent_revealage_texture : Option< gl::web_sys::WebGlTexture >,
   }
 
   impl FramebufferContext 
@@ -86,7 +90,6 @@ mod private
         width as i32, 
         height as i32
       );
-      gl.bind_renderbuffer( gl::RENDERBUFFER, None );
 
       // --- Setup Multisample Main Color Renderbuffer ---
       // Create and bind a renderbuffer for the main color attachment,
@@ -102,7 +105,6 @@ mod private
         width as i32, 
         height as i32
       );
-      gl.bind_renderbuffer( gl::RENDERBUFFER, None );
 
       // --- Setup Multisample Emission Color Renderbuffer ---
       // Create and bind a renderbuffer for the emission color attachment,
@@ -118,6 +120,30 @@ mod private
         width as i32, 
         height as i32
       );
+
+      let multisample_transparent_accumulate_renderbuffer = gl.create_renderbuffer();
+      gl.bind_renderbuffer( gl::RENDERBUFFER, multisample_transparent_accumulate_renderbuffer.as_ref() );
+      // Allocate storage for the emission color renderbuffer with multisampling.
+      gl.renderbuffer_storage_multisample
+      (
+        gl::RENDERBUFFER, 
+        samples, 
+        gl::RGBA16F, 
+        width as i32, 
+        height as i32
+      );
+
+      let multisample_transparent_revealage_renderbuffer = gl.create_renderbuffer();
+      gl.bind_renderbuffer( gl::RENDERBUFFER, multisample_transparent_revealage_renderbuffer.as_ref() );
+      // Allocate storage for the emission color renderbuffer with multisampling.
+      gl.renderbuffer_storage_multisample
+      (
+        gl::RENDERBUFFER, 
+        samples, 
+        gl::R16F, 
+        width as i32, 
+        height as i32
+      );
       gl.bind_renderbuffer( gl::RENDERBUFFER, None );
       
 
@@ -126,6 +152,8 @@ mod private
       // color information after blitting.
       let main_texture = gl.create_texture();
       let emission_texture = gl.create_texture();
+      let transparent_accumulate_texture = gl.create_texture();
+      let transparent_revealage_texture = gl.create_texture();
 
       // Configure the main texture.
       gl.bind_texture( gl::TEXTURE_2D, main_texture.as_ref() );
@@ -139,6 +167,18 @@ mod private
       gl::texture::d2::filter_linear( gl );
       gl::texture::d2::wrap_clamp( gl );
 
+      // Configure the  texture.
+      gl.bind_texture( gl::TEXTURE_2D, transparent_accumulate_texture.as_ref() );
+      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width as i32, height  as i32 );
+      gl::texture::d2::filter_linear( gl );
+      gl::texture::d2::wrap_clamp( gl );
+      
+      // Configure the  texture.
+      gl.bind_texture( gl::TEXTURE_2D, transparent_revealage_texture.as_ref() );
+      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::R16F, width  as i32, height  as i32 );
+      gl::texture::d2::filter_linear( gl );
+      gl::texture::d2::wrap_clamp( gl );
+
       // --- Attach Renderbuffers to Multisample Framebuffer ---
       // Bind the multisample framebuffer to configure its attachments.
       gl.bind_framebuffer( gl::FRAMEBUFFER, multisample_framebuffer.as_ref() );
@@ -147,6 +187,8 @@ mod private
       // Attach the main and emission color renderbuffers as color attachments.
       gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, multisample_main_renderbuffer.as_ref() );
       gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::RENDERBUFFER, multisample_emission_renderbuffer.as_ref() );
+      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT2, gl::RENDERBUFFER, multisample_transparent_accumulate_renderbuffer.as_ref() );
+      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT3, gl::RENDERBUFFER, multisample_transparent_revealage_renderbuffer.as_ref() );
       // Specify which color attachments are active for drawing.
       gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
 
@@ -156,6 +198,8 @@ mod private
       // Attach the main and emission textures as color attachments.
       gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, main_texture.as_ref(), 0 );
       gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, emission_texture.as_ref(), 0 );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT2, gl::TEXTURE_2D, transparent_accumulate_texture.as_ref(), 0 );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT3, gl::TEXTURE_2D, transparent_revealage_texture.as_ref(), 0 );
       // Specify which color attachments are active for drawing (though for resolved,
       // these will typically be written to via `blit_framebuffer`).
       gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
@@ -177,8 +221,12 @@ mod private
         depth_renderbuffer,
         multisample_emission_renderbuffer,
         multisample_main_renderbuffer,
+        multisample_transparent_accumulate_renderbuffer,
+        multisample_transparent_revealage_renderbuffer,
         main_texture,
-        emission_texture
+        emission_texture,
+        transparent_accumulate_texture,
+        transparent_revealage_texture
       }
     }
 
@@ -241,6 +289,7 @@ mod private
     {
       self.bind_multisample( gl );
       self.bind_resolved( gl );
+      gl.bind_framebuffer( gl::FRAMEBUFFER, None );
 
       // Ensure the multisample framebuffer is bound for reading and
       // the resolved framebuffer for drawing.
@@ -273,6 +322,27 @@ mod private
           gl::COLOR_BUFFER_BIT, gl::LINEAR
         );
       }
+
+      gl.read_buffer( gl::COLOR_ATTACHMENT2 );
+      gl::drawbuffers::drawbuffers( gl, &[ 2 ] );
+      gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ 0.0, 0.0, 0.0, 1.0 ] );
+      gl.blit_framebuffer
+      (
+        0, 0, self.texture_width as i32, self.texture_height as i32, 
+        0, 0, self.texture_width as i32, self.texture_height as i32, 
+        gl::COLOR_BUFFER_BIT, gl::LINEAR
+      );
+
+      gl.read_buffer( gl::COLOR_ATTACHMENT3 );
+      gl::drawbuffers::drawbuffers( gl, &[ 3 ] );
+      gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ 0.0, 0.0, 0.0, 1.0 ]  );
+      gl.blit_framebuffer
+      (
+        0, 0, self.texture_width as i32, self.texture_height as i32, 
+        0, 0, self.texture_width as i32, self.texture_height as i32, 
+        gl::COLOR_BUFFER_BIT, gl::LINEAR
+      );
+
       // Unbind framebuffers to reset global state.
       gl.bind_framebuffer( gl::READ_FRAMEBUFFER, None );
       gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, None );
@@ -295,6 +365,8 @@ mod private
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
       gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, self.multisample_main_renderbuffer.as_ref() );
       gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::RENDERBUFFER, self.multisample_emission_renderbuffer.as_ref() );
+      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT2, gl::RENDERBUFFER, self.multisample_transparent_accumulate_renderbuffer.as_ref() );
+      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT3, gl::RENDERBUFFER, self.multisample_transparent_revealage_renderbuffer.as_ref() );
     }
 
     /// Binds the `resolved_framebuffer` and attaches its textures.
@@ -312,6 +384,8 @@ mod private
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
       gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, self.main_texture.as_ref(), 0 );
       gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, self.emission_texture.as_ref(), 0 );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT2, gl::TEXTURE_2D, self.transparent_accumulate_texture.as_ref(), 0 );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT3, gl::TEXTURE_2D, self.transparent_revealage_texture.as_ref(), 0 );
     }
 
     /// Unbinds the color renderbuffers from the `multisample_framebuffer`
@@ -380,7 +454,8 @@ mod private
     /// The threshold brightness for the blur pass
     luminosity_threshold : f32,
     /// The smoothing factor of the luminosity
-    luminosity_smooth_width : f32
+    luminosity_smooth_width : f32,
+    composite_shader : ProgramInfo< CompositeShader >
   }
 
   impl Renderer 
@@ -401,6 +476,13 @@ mod private
       let swap_buffer = SwapFramebuffer::new( gl, width, height );
       let luminosity_threshold = 2.0;
       let luminosity_smooth_width = 0.5;
+
+      let composite_program = gl::ProgramFromSources::new( VS_TRIANGLE, include_str!( "shaders/composite.frag" ) ).compile_and_link( gl )?; 
+      let composite_shader = ProgramInfo::< CompositeShader >::new( gl, composite_program );
+      let locations = composite_shader.get_locations();
+      composite_shader.bind( gl );
+      gl.uniform1i( locations.get( "transparentA" ).unwrap().clone().as_ref() , 0 );
+      gl.uniform1i( locations.get( "transparentB" ).unwrap().clone().as_ref() , 1 );
       
       Ok
       (
@@ -415,7 +497,8 @@ mod private
           bloom_effect,
           swap_buffer,
           luminosity_smooth_width,
-          luminosity_threshold
+          luminosity_threshold,
+          composite_shader
         }
       )
     } 
@@ -532,10 +615,13 @@ mod private
       }
 
       self.framebuffer_ctx.bind_multisample( gl );
+      gl::drawbuffers::drawbuffers( gl, &[ 0, 1, 2, 3 ] );
       gl.clear( gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT );
 
       // Clear the list of transparent nodes before each render.
       self.transparent_nodes.clear();
+
+      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
 
       for program in self.programs.values()
       {
@@ -647,21 +733,12 @@ mod private
       // Traverse the scene and draw all opaque objects.
       scene.traverse( &mut draw_node )?;
 
-      // Sort transparent nodes based on their distance to the camera (furthest to nearest).
-      self.transparent_nodes.sort_by( | a, b | 
-      {
-        let dist1 = camera.get_eye().distance_squared( &a.0.borrow().center() );
-        let dist2 = camera.get_eye().distance_squared( &b.0.borrow().center() );
-
-        dist1.partial_cmp( &dist2 ).unwrap()
-      });
+      gl::drawbuffers::drawbuffers( gl, &[ 2, 3 ] );
 
       gl.enable( gl::BLEND );
-      gl.enable( gl::CULL_FACE );
       gl.depth_mask( false );
       gl.blend_equation( gl::FUNC_ADD );
-      //gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA );
-      gl.blend_func( gl::ONE, gl::ONE_MINUS_SRC_ALPHA );
+      gl.blend_func_separate( gl::ONE, gl::ONE, gl::ZERO, gl::ONE_MINUS_SRC_ALPHA );
 
       let bind = | node : std::cell::Ref< '_, Node >, primitive : std::cell::Ref< '_, Primitive > | -> Result< (), gl::WebglError >
       {
@@ -694,14 +771,25 @@ mod private
         let node = node.borrow();
         bind( node, std::cell::Ref::clone( &primitive ) )?;
 
-        gl.cull_face( gl::FRONT );
-        primitive.draw( gl );
-        gl.cull_face( gl::BACK );
         primitive.draw( gl );
       }
 
       self.framebuffer_ctx.resolve( gl, self.use_emission );
       self.framebuffer_ctx.unbind_multisample( gl );
+
+      gl.blend_func( gl::ONE, gl::ONE_MINUS_SRC_ALPHA );
+      self.composite_shader.bind( gl );
+      
+      gl.bind_framebuffer( gl::FRAMEBUFFER, self.framebuffer_ctx.resolved_framebuffer.as_ref() );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT2, gl::TEXTURE_2D, None, 0 );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT3, gl::TEXTURE_2D, None, 0 );
+      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
+      gl.active_texture( gl::TEXTURE0 );
+      gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.transparent_accumulate_texture.as_ref() );
+      gl.active_texture( gl::TEXTURE1 );
+      gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.transparent_revealage_texture.as_ref() );
+      gl.draw_arrays( gl::TRIANGLES, 0, 3 );
+      
 
       if self.use_emission
       {
@@ -713,8 +801,6 @@ mod private
         self.blend_effect.blend_texture = self.swap_buffer.get_output();
         self.blend_effect.render( gl, None, self.framebuffer_ctx.main_texture.clone() )?;
       }
-
-      gl.disable( gl::CULL_FACE );
 
       Ok( () )
     }

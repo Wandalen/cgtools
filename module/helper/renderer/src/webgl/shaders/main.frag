@@ -21,6 +21,8 @@ in vec3 vNormal;
 
 layout( location = 0 ) out vec4 frag_color;
 layout( location = 1 ) out vec4 emissive_color;
+layout( location = 2 ) out vec4 trasnparentA;
+layout( location = 3 ) out float transparentB;
 
 uniform vec3 cameraPosition;
 
@@ -225,6 +227,11 @@ vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
   }
 #endif
 
+float alpha_weight( float z, float a )
+{
+  return clamp(pow(min(1.0, a * 10.0) + 0.01, 3.0) * 1e8 * pow(1.0 - z * 0.9, 3.0), 1e-2, 3e3);
+}
+
 #ifndef USE_TANGENTS
   // http://www.thetenthplanet.de/archives/1180
   mat3 getTBN( vec3 surf_normal, vec3 pos, vec2 uv )
@@ -388,5 +395,8 @@ void main()
     #endif
   #endif
 
+  float a_weight = alpha * alpha_weight( gl_FragCoord.z, alpha );
   frag_color = vec4( color * alpha, alpha );
+  trasnparentA = vec4( color * a_weight, alpha );
+  transparentB = a_weight;
 }

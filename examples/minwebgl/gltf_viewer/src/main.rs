@@ -31,8 +31,10 @@ async fn run() -> Result< (), gl::WebglError >
 
   //let gltf_path = "dodge-challenger/gltf/scene.gltf";
   //let gltf_path = "gambeson.glb";
-  let gltf_path = "old_rusty_car.glb";
+  //let gltf_path = "old_rusty_car.glb";
   //let gltf_path = "sponza.glb";
+  //let gltf_path = "nissan_titan_2017_transparent.glb";
+  let gltf_path = "transparent_cubes_oit_rendering_test_model.glb";
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
   let scenes = gltf.scenes;
   scenes[ 0 ].borrow_mut().update_world_matrix();
@@ -67,7 +69,7 @@ async fn run() -> Result< (), gl::WebglError >
   camera_controls::setup_controls( &canvas, &camera.get_controls() );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  //renderer.set_use_emission( true );
+  renderer.set_use_emission( true );
   renderer.set_ibl( loaders::ibl::load( &gl, "envMap" ).await );
 
   let renderer = Rc::new( RefCell::new( renderer ) );
