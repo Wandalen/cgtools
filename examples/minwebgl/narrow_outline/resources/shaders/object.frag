@@ -29,7 +29,7 @@ float linearizeDepth( float depth )
 void main()
 {
 	FragColor = u_object_colors[ uint( v_object_id ) ];
-	FragDepth = linearizeDepth( gl_FragCoord.z );  
+	FragDepth = linearizeDepth( gl_FragCoord.z ) / 10.0;  
 	// Output the normalized view-space normal.
   // We store it in a vec4 and normalize it here to ensure it's a unit vector.
   // Store it as a color by mapping the [-1, 1] range to [0, 1].
