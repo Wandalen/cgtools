@@ -5,10 +5,20 @@ edition = "2024"
 
 [dependencies]
 web-sys = { workspace = true, features = [
-  "HtmlImageElement",
   "WebGlTexture",
+  "HtmlImageElement",
   "HtmlSelectElement",
   "HtmlOptionElement",
+  "HtmlButtonElement",
+  "HtmlAnchorElement",
+  "BlobPropertyBag",
+  "Blob",
+  "Url",
+  "DragEvent",
+  "DataTransfer",
+  "File",
+  "FileList",
+  "FileReader",
 ] }
 minwebgl = { workspace = true, features = ["math"] }
 browser_input.workspace = true
@@ -17,6 +27,7 @@ tiles_tools.workspace = true
 quick-xml = { workspace = true, features = ["serialize"] }
 serde = { workspace = true, features = ["derive"] }
 strum = { workspace = true, features = ["derive"] }
+serde_json = "1.0.140"
 
 [lints]
 workspace = true

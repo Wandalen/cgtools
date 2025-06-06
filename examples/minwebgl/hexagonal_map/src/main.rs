@@ -1,25 +1,26 @@
 use minwebgl as gl;
-use serde::Deserialize;
-use std::{ collections::HashMap, str::FromStr as _ };
-use tiles_tools::{ coordinates::{ hexagonal, pixel::Pixel }, geometry };
+use serde::{Deserialize, Serialize};
+use std::{ cell::RefCell, collections::HashMap, rc::Rc, str::FromStr as _ };
+use tiles_tools::{ coordinates::{ hexagonal, pixel::Pixel } };
 use hexagonal::Coordinate;
 use gl::{ JsCast as _, F32x2, I32x2, Vector, GL, BufferDescriptor };
 use browser_input::{ keyboard::KeyboardKey, mouse::MouseButton, Event, EventType };
-use renderer::webgl::{ Geometry, AttributeInfo };
+use renderer::webgl::{ AttributeInfo, Geometry };
 use strum::{ AsRefStr, EnumIter, IntoEnumIterator, EnumString };
 use web_sys::
 {
   wasm_bindgen::prelude::*,
+  HtmlButtonElement,
   HtmlCanvasElement,
   HtmlImageElement,
   HtmlOptionElement,
   HtmlSelectElement,
-  WebGlTexture
+  WebGlTexture,
 };
 
 type Axial = Coordinate< hexagonal::Axial, hexagonal::Pointy >;
 
-#[ derive( Debug, Clone, Copy, AsRefStr, EnumIter, EnumString ) ]
+#[ derive( Debug, Clone, Copy, AsRefStr, EnumIter, EnumString, Serialize, Deserialize ) ]
 enum TileValue
 {
   Empty,
@@ -93,6 +94,8 @@ async fn run() -> Result< (), gl::WebglError >
   canvas.set_width( width as u32 );
   canvas.set_height( height as u32 );
   gl.viewport( 0, 0, width, height );
+  gl.enable( gl::BLEND );
+  gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA );
 
   let hexagon = create_hexagon_geometry( &gl )?;
   hexagon.bind( &gl );
@@ -108,10 +111,17 @@ async fn run() -> Result< (), gl::WebglError >
   let atlas = String::from_utf8( atlas ).unwrap();
   let atlas : TextureAtlas = quick_xml::de::from_str( &atlas ).unwrap();
 
-  let select_element = get_select( &document );
+  let select_element = get_select_element( &document );
 
-  let mut map = HashMap::< Axial, TileValue >::new();
-  let mut input = browser_input::Input::new( Some( canvas.dyn_into().unwrap() ), browser_input::CLIENT );
+  let map = Rc::new( RefCell::new( HashMap::< Axial, TileValue >::new() ) );
+  setup_download_button( &document, map.clone() );
+
+  let mut input = browser_input::Input::new
+  (
+    Some( canvas.dyn_into().unwrap() ),
+    browser_input::CLIENT,
+    true
+  );
   let dpr = dpr as f32;
   let mut zoom = 0.0625;
   let zoom_factor = 0.75;
@@ -131,7 +141,7 @@ async fn run() -> Result< (), gl::WebglError >
       {
         if delta.is_sign_negative()
         {
-          zoom *= 1.0 / zoom_factor;
+          zoom /= zoom_factor;
         }
         else
         {
@@ -140,12 +150,17 @@ async fn run() -> Result< (), gl::WebglError >
       }
     }
 
+    let pointer_pos = screen_to_world( pointer_pos, inv_canvas_size, dpr, aspect, zoom );
+    let mut hexagonal_pos = pointer_pos - camera_pos;
+    hexagonal_pos[ 1 ] = -hexagonal_pos[ 1 ];
+    let hexagonal_pos : Pixel = hexagonal_pos.into();
+    let coordinate = hexagonal_pos.into();
+
     if input.is_key_down( KeyboardKey::Space )
     && input.is_button_down( MouseButton::Main )
     {
       if let Some( last_pointer_pos ) = last_pointer_pos
       {
-        let pointer_pos = screen_to_world( pointer_pos, inv_canvas_size, dpr, aspect, zoom );
         let last_pointer_pos = screen_to_world( last_pointer_pos, inv_canvas_size, dpr, aspect, zoom );
         let movement = pointer_pos - last_pointer_pos;
         camera_pos += movement;
@@ -153,22 +168,23 @@ async fn run() -> Result< (), gl::WebglError >
     }
     else if input.is_button_down( MouseButton::Main )
     {
-      let world_pos = screen_to_world( pointer_pos, inv_canvas_size, dpr, aspect, zoom );
-      let mut hexagonal_pos = world_pos - camera_pos;
-      hexagonal_pos[ 1 ] = -hexagonal_pos[ 1 ];
-      let hexagonal_pos : Pixel = hexagonal_pos.into();
-      let coordinate = hexagonal_pos.into();
-
       let variant = get_variant( &select_element );
-      map.insert( coordinate, variant );
+      map.borrow_mut().insert( coordinate, variant );
     }
+    else if input.is_button_down( MouseButton::Secondary )
+    {
+      map.borrow_mut().remove( &coordinate );
+    }
+
     last_pointer_pos = Some( input.pointer_position() );
 
     input.clear_events();
 
+    gl.clear( GL::COLOR_BUFFER_BIT );
+
     shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
     shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
-    for ( coord, value ) in map.iter()
+    for ( coord, value ) in map.borrow().iter()
     {
       let axial : Axial = ( *coord ).into();
       let sprite = value.to_asset( &atlas );
@@ -193,12 +209,11 @@ async fn run() -> Result< (), gl::WebglError >
 
 fn create_hexagon_geometry( gl : &GL ) -> Result< Geometry, minwebgl::WebglError >
 {
-  let positions = geometry::hexagon_triangles_with_tranform
+  let positions = tiles_tools::geometry::hexagon_triangles_with_tranform
   (
     gl::math::mat2x2h::rot( 30.0f32.to_radians() )
   );
   let tex_coords = tex_coords( &positions );
-  // gl::info!( "{tex_coords:?}" );
 
   let position_buffer = gl::buffer::create( &gl )?;
   gl::buffer::upload( &gl, &position_buffer, positions.as_slice(), GL::STATIC_DRAW );
@@ -244,8 +259,8 @@ fn tex_coords( positions : &[ f32 ] ) -> Vec< f32 >
     y_min = y_min.min( pos[ 1 ] );
     y_max = y_max.max( pos[ 1 ] );
     // make hexagon a little smaller to remove transparent edges from tile sheet
-    pos[ 0 ] *= 0.982;
-    pos[ 1 ] *= 0.982;
+    // pos[ 0 ] *= 0.982;
+    // pos[ 1 ] *= 0.982;
   }
 
   let dist_x = x_max - x_min;
@@ -271,7 +286,12 @@ fn create_shader( gl : &GL ) -> Result< gl::shader::Program, minwebgl::WebglErro
   gl::shader::Program::new( gl.clone(), vert, frag )
 }
 
-fn load_sprite_sheet( gl : &GL, document : &web_sys::Document, src : &str ) -> Option< WebGlTexture >
+fn load_sprite_sheet
+(
+  gl : &GL,
+  document : &web_sys::Document,
+  src : &str
+) -> Option< WebGlTexture >
 {
   let img = document.create_element( "img" )
   .unwrap()
@@ -285,7 +305,6 @@ fn load_sprite_sheet( gl : &GL, document : &web_sys::Document, src : &str ) -> O
   ({
     let gl = gl.clone();
     let img = img.clone();
-    let src = src.to_owned();
     let texture = texture.clone();
     move ||
     {
@@ -301,8 +320,7 @@ fn load_sprite_sheet( gl : &GL, document : &web_sys::Document, src : &str ) -> O
       ).expect( "Failed to upload data to texture" );
 
       gl::texture::d2::filter_nearest( &gl );
-      gl::texture::d2::wrap_clamp( &gl );
-      web_sys::Url::revoke_object_url( &src ).unwrap();
+
       img.remove();
     }
   });
@@ -314,7 +332,7 @@ fn load_sprite_sheet( gl : &GL, document : &web_sys::Document, src : &str ) -> O
   texture
 }
 
-fn get_select( document : &web_sys::Document ) -> HtmlSelectElement
+fn get_select_element( document : &web_sys::Document ) -> HtmlSelectElement
 {
   let select = document.get_element_by_id( "myDropdown" ).unwrap();
   let select_element = select.dyn_into::< HtmlSelectElement >().unwrap();
@@ -354,4 +372,128 @@ fn screen_to_world
   let mut world = ( screenf32 * dpr * inv_canvas_size - 0.5 ) * 2.0 / ( zoom * aspect );
   world[ 1 ] = -world[ 1 ];
   world
+}
+
+fn setup_download_button
+(
+  document : &web_sys::Document,
+  map : Rc< RefCell< HashMap::< Axial, TileValue > > >
+)
+{
+  let button = document.get_element_by_id( "download" )
+  .unwrap()
+  .dyn_into::< HtmlButtonElement >()
+  .unwrap();
+
+  let onclick : Closure< dyn Fn() > = Closure::new
+  ({
+    move ||
+    {
+      download_map( &map.borrow() );
+    }
+  });
+
+  button.set_onclick( Some( onclick.as_ref().unchecked_ref() ) );
+  onclick.forget();
+}
+
+fn download_map( map : &HashMap::< Axial, TileValue > )
+{
+  let map = map.to_owned().into_iter().collect::< Vec< _ > >();
+  let json = serde_json::to_string( &map ).unwrap();
+  let array = web_sys::js_sys::Array::new();
+  array.push( &JsValue::from_str( &json ) );
+
+  let blob_props = web_sys::BlobPropertyBag::new();
+  blob_props.set_type( "application/json" );
+  let blob = web_sys::Blob::new_with_str_sequence_and_options( &array, &blob_props ).unwrap();
+
+  let window = web_sys::window().unwrap();
+  let document = window.document().unwrap();
+  let url = web_sys::Url::create_object_url_with_blob( &blob ).unwrap();
+
+  let anchor = document.create_element( "a" )
+  .unwrap()
+  .dyn_into::< web_sys::HtmlAnchorElement >()
+  .unwrap();
+
+  anchor.set_href( &url );
+  anchor.set_download( "data.json" );
+  anchor.click();
+
+  web_sys::Url::revoke_object_url( &url ).unwrap();
+}
+
+pub fn setup_drop_zone( element_id : &str ) -> Result< (), JsValue >
+{
+  let window = web_sys::window().unwrap();
+  let document = window.document().unwrap();
+  let element = document.get_element_by_id( element_id ).unwrap();
+
+  // Prevent default drag behaviors
+  let prevent_default = Closure::< dyn Fn( _ ) >::new
+  (
+    | e : web_sys::Event |
+    {
+      e.prevent_default();
+      e.stop_propagation();
+    }
+  );
+
+  element.add_event_listener_with_callback( "dragover", prevent_default.as_ref().unchecked_ref() )?;
+  element.add_event_listener_with_callback( "dragenter", prevent_default.as_ref().unchecked_ref() )?;
+  prevent_default.forget();
+
+  let drop_handler = Closure::< dyn Fn( _ ) >::new
+  (
+    move | e : web_sys::DragEvent |
+    {
+      e.prevent_default();
+      e.stop_propagation();
+
+      if let Some( file ) = e.data_transfer()
+      .and_then( | dt | dt.files() )
+      .and_then( | files | files.get( 0 ) )
+      {
+        read_json_file( file );
+      }
+    }
+  );
+
+  element.add_event_listener_with_callback( "drop", drop_handler.as_ref().unchecked_ref() )?;
+  drop_handler.forget();
+
+  Ok( () )
+}
+
+fn read_json_file( file : web_sys::File )
+{
+  let reader = web_sys::FileReader::new().unwrap();
+  reader.read_as_text( &file ).unwrap();
+
+  let onload = Closure::< dyn Fn( _ ) >::new
+  ({
+    let reader = reader.clone();
+    move | _ : web_sys::Event |
+    {
+
+      let Ok( result ) = reader.result() else
+      {
+        return;
+      };
+      let Some( text ) = result.as_string() else
+      {
+        return;
+      };
+
+      match serde_json::from_str::< HashMap::< Axial, TileValue > >( &text )
+      {
+        Ok( v ) => todo!(),
+        Err( e ) => todo!(),
+      }
+    }
+  });
+
+  reader.set_onloadend( Some( onload.as_ref().unchecked_ref() ) );
+  onload.forget();
 }

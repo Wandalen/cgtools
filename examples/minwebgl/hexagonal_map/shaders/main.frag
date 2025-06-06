@@ -1,7 +1,7 @@
 #version 300 es
 precision mediump float;
 
-in highp vec2 v_tex_coord;
+in vec2 v_tex_coord;
 
 uniform sampler2D u_sprite_sheet;
 

@@ -90,7 +90,12 @@ pub struct Input
 
 impl Input
 {
-  pub fn new< F >( pointer_event_target : Option< EventTarget >, get_coords : F ) -> Self
+  pub fn new< F >
+  (
+    pointer_event_target : Option< EventTarget >,
+    get_coords : F,
+    prevent_right_click : bool
+  ) -> Self
   where
     F : Fn( &PointerEvent ) -> I32x2 + 'static
   {
@@ -220,6 +225,18 @@ impl Input
       input.wheel_closure.as_ref().unchecked_ref()
     ).unwrap();
 
+    if prevent_right_click
+    {
+      let prevent_default = | e : web_sys::Event | e.prevent_default();
+      let prevent_default = Closure::< dyn Fn( _ ) >::new( prevent_default );
+      pointer_event_target.add_event_listener_with_callback
+      (
+        "contextmenu",
+        prevent_default.as_ref().unchecked_ref()
+      ).unwrap();
+      prevent_default.forget();
+    }
+
     input
   }
 
@@ -279,6 +296,7 @@ impl Input
 
 impl Drop for Input
 {
+  // Unsubscribe all event listeners
   fn drop( &mut self )
   {
     let document = web_sys::window().unwrap().document().unwrap();
