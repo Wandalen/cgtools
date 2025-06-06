@@ -11,9 +11,4 @@ void main()
 {
   vec4 color = texture( u_sprite_sheet, v_tex_coord );
   frag_color = vec4( color.rgb, 1.0 );
-  // vec4 color = texelFetch( u_sprite_sheet, ivec2( v_tex_coord ), 0 );
-  // if ( color.a < 0.5 )
-  // {
-  //   discard;
-  // }
 }

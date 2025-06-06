@@ -1,18 +1,48 @@
 use minwebgl as gl;
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 use tiles_tools::{ coordinates::{ hexagonal, pixel::Pixel }, geometry };
 use hexagonal::Coordinate;
 use gl::{ JsCast as _, F32x2, I32x2, Vector, GL, BufferDescriptor };
-use web_sys::{ wasm_bindgen::prelude::*, HtmlCanvasElement, HtmlImageElement, WebGlTexture };
 use browser_input::{ keyboard::KeyboardKey, mouse::MouseButton, Action, Event, EventType };
 use renderer::webgl::{ Geometry, AttributeInfo };
+use strum::{ AsRefStr, EnumIter, IntoEnumIterator, EnumString };
+use web_sys::
+{
+  wasm_bindgen::prelude::*,
+  HtmlCanvasElement,
+  HtmlImageElement,
+  HtmlOptionElement,
+  HtmlSelectElement,
+  WebGlTexture
+};
 
 type Axial = Coordinate< hexagonal::Axial, hexagonal::Pointy >;
 
+#[ derive( Debug, Clone, Copy, AsRefStr, EnumIter, EnumString ) ]
 enum TileValue
 {
-  Empty
+  Empty,
+  Capital,
+  Trees,
+  Stones,
+  Castle,
+}
+
+impl TileValue
+{
+  fn to_asset< 'a >( &self, atlas : &'a TextureAtlas ) -> &'a SubTexture
+  {
+    let sprite_name = match self
+    {
+      TileValue::Empty => "grass_05.png",
+      TileValue::Capital => "medieval_smallCastle.png",
+      TileValue::Trees => "grass_12.png",
+      TileValue::Stones => "grass_15.png",
+      TileValue::Castle => "medieval_largeCastle.png",
+    };
+    atlas.sub_textures.iter().find( | item | item.name == sprite_name ).unwrap()
+  }
 }
 
 #[ derive( Debug, Deserialize ) ]
@@ -77,61 +107,63 @@ async fn run() -> Result< (), gl::WebglError >
   let atlas = gl::file::load( "kenney_hexagon_pack/Spritesheets/hexagonAll_sheet.xml" ).await.unwrap();
   let atlas = String::from_utf8( atlas ).unwrap();
   let atlas : TextureAtlas = quick_xml::de::from_str( &atlas ).unwrap();
-  let sprite = atlas.sub_textures.iter().find( | item | item.name == "medieval_church.png" ).unwrap();
-  let sprite_offset = F32x2::from_array( [ sprite.x as f32, sprite.y as f32 ] ) / atlas_size;
-  let sprite_size = F32x2::from_array( [ sprite.width as f32, sprite.height as f32 ] ) / atlas_size;
+
+  let select_element = get_select( &document );
 
   let mut map = HashMap::< Axial, TileValue >::new();
   let mut input = browser_input::Input::new( Some( canvas.dyn_into().unwrap() ) );
   let dpr = dpr as f32;
-  let zoom = 0.1;
+  let zoom = 0.0625;
   let inv_canvas_size = F32x2::new( 1.0 / width as f32, 1.0 / height as f32 );
-  let ascpect_scale = F32x2::new( 1.0, width as f32 / height as f32 );
+  let aspect = F32x2::new( 1.0, width as f32 / height as f32 );
   let mut camera_pos = F32x2::default();
   let mut last_pointer_pos : Option< I32x2 > = None;
-  let move_speed = 15.0;
-  let canvas_res = F32x2::new( width as f32, height as f32 );
 
   let update = move | _ |
   {
     input.update_state();
+    let pointer_pos = input.pointer_position();
 
     if input.is_key_down( KeyboardKey::Space )
     && input.is_button_down( MouseButton::Main )
     {
       if let Some( last_pointer_pos ) = last_pointer_pos
       {
-        let Vector ( [ pos_x, pos_y ] ) = input.pointer_position();
-        let Vector ( [ last_pos_x, last_pos_y ] ) = last_pointer_pos;
-        let mut movement = ( F32x2::new( pos_x as f32, pos_y as f32 )
-        - F32x2::new( last_pos_x as f32, last_pos_y as f32 ) ) / canvas_res;
-        movement[ 1 ] = -movement[ 1 ];
-        camera_pos += movement * move_speed;
+        let pointer_pos = screen_to_world( pointer_pos, inv_canvas_size, dpr, aspect, zoom );
+        let last_pointer_pos = screen_to_world( last_pointer_pos, inv_canvas_size, dpr, aspect, zoom );
+        let movement = pointer_pos - last_pointer_pos;
+        camera_pos += movement;
       }
     }
     else if input.is_button_down( MouseButton::Main )
     {
-      let Vector ( [ x, y ] ) = input.pointer_position();
+      let world_pos = screen_to_world( pointer_pos, inv_canvas_size, dpr, aspect, zoom );
+      let mut hexagonal_pos = world_pos - camera_pos;
+      hexagonal_pos[ 1 ] = -hexagonal_pos[ 1 ];
+      let hexagonal_pos : Pixel = hexagonal_pos.into();
+      let coordinate = hexagonal_pos.into();
 
-      let position = F32x2::new( x as f32 * dpr, y as f32 * dpr );
-      let position = ( position * inv_canvas_size - 0.5 ) * 2.0;
-      let position : Pixel = ( position / ( zoom * ascpect_scale ) - camera_pos ).into();
-      let coordinate = position.into();
-      gl::info!( "{coordinate:?}" );
-      map.insert( coordinate, TileValue::Empty );
+      let variant = get_variant( &select_element );
+      map.insert( coordinate, variant );
     }
     last_pointer_pos = Some( input.pointer_position() );
+
     input.clear_events();
 
-    for coord in map.keys()
+    for ( coord, value ) in map.iter()
     {
       let axial : Axial = ( *coord ).into();
+      let sprite = value.to_asset( &atlas );
+
+      let sprite_offset = F32x2::from_array( [ sprite.x as f32, sprite.y as f32 ] ) / atlas_size;
+      let sprite_size = F32x2::from_array( [ sprite.width as f32, sprite.height as f32 ] ) / atlas_size;
+
       let mut position : Pixel = axial.into();
       position.data[ 1 ] = -position.data[ 1 ];
       gl.vertex_attrib2fv_with_f32_array( 1, &position.data );
       gl.vertex_attrib2fv_with_f32_array( 3, sprite_offset.as_slice() );
       gl.vertex_attrib2fv_with_f32_array( 4, sprite_size.as_slice() );
-      shader.uniform_upload( "u_scale", ( zoom * ascpect_scale ).as_slice() );
+      shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
       shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
       hexagon.draw( &gl );
     }
@@ -203,19 +235,12 @@ fn tex_coords( positions : &[ f32 ] ) -> Vec< f32 >
   let dist_x = x_max - x_min;
   let dist_y = y_max - y_min;
 
-  // gl::info!( "x_min: {x_min}" );
-  // gl::info!( "x_max: {x_max}" );
-  // gl::info!( "y_min: {y_min}" );
-  // gl::info!( "y_max: {y_max}" );
-
-  // gl::info!( "dist_x: {dist_x}" );
-  // gl::info!( "dist_y: {dist_y}" );
-
   let mut tex_coords = vec![];
   for pos in positions.chunks_exact( 2 )
   {
     let x = ( pos[ 0 ] - x_min ) / dist_x;
     let y = ( pos[ 1 ] - y_min ) / dist_y;
+    let y = 1.0 - y;
     tex_coords.push( x );
     tex_coords.push( y );
   }
@@ -273,4 +298,46 @@ fn load_sprite_sheet( gl : &GL, document : &web_sys::Document, src : &str ) -> O
   on_load.forget();
 
   texture
+}
+
+fn get_select( document : &web_sys::Document ) -> HtmlSelectElement
+{
+  let select = document.get_element_by_id( "myDropdown" ).unwrap();
+  let select_element = select.dyn_into::< HtmlSelectElement >().unwrap();
+  for variant in TileValue::iter()
+  {
+    let option_value = variant.as_ref();
+    let option_element = document.create_element( "option" )
+    .unwrap()
+    .dyn_into::< HtmlOptionElement >()
+    .unwrap();
+
+    option_element.set_value( option_value );
+    option_element.set_text( option_value );
+    select_element.add_with_html_option_element( &option_element ).unwrap();
+  }
+  return select_element;
+}
+
+fn get_variant( select_element : &HtmlSelectElement ) -> TileValue
+{
+  let value = select_element.value();
+  let variant = TileValue::from_str( &value ).unwrap();
+  variant
+}
+
+fn screen_to_world
+(
+  screen : I32x2,
+  inv_canvas_size : F32x2,
+  dpr : f32,
+  aspect : F32x2,
+  zoom : f32
+) -> F32x2
+{
+  let Vector ( [ x, y ] ) = screen;
+  let screenf32 = F32x2::new( x as f32, y as f32 );
+  let mut world = ( screenf32 * dpr * inv_canvas_size - 0.5 ) * 2.0 / ( zoom * aspect );
+  world[ 1 ] = -world[ 1 ];
+  world
 }
