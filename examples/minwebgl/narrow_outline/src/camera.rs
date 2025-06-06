@@ -157,8 +157,8 @@ pub fn setup_controls
 pub struct Camera
 {
   controls : Rc< RefCell< CameraOrbitControls > >,
-  aspect_ratio : f32,
-  fov : f32,
+  _aspect_ratio : f32,
+  _fov : f32,
   near : f32,
   far : f32,
   projection_matrix : F32x4x4,
@@ -202,8 +202,8 @@ impl Camera
       controls,
       near,
       far,
-      aspect_ratio,
-      fov,
+      _aspect_ratio : aspect_ratio,
+      _fov : fov,
       projection_matrix
     }
   }
@@ -246,11 +246,6 @@ impl Camera
     self.controls.clone()
   }
 
-  pub fn get_eye( &self ) -> F32x3
-  {
-    self.controls.borrow().eye
-  }
-
   pub fn get_view_matrix( &self ) -> F32x4x4
   {
     self.controls.borrow().view()
@@ -259,5 +254,15 @@ impl Camera
   pub fn get_projection_matrix( &self ) -> F32x4x4
   {
     self.projection_matrix
+  }
+
+  pub fn get_near( &self ) -> f32
+  {
+    self.near
+  }
+
+  pub fn get_far( &self ) -> f32
+  {
+    self.far
   }
 }

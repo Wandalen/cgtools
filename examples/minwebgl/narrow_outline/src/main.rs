@@ -1,4 +1,4 @@
-use minwebgl::{ self as gl };
+use minwebgl::{ self as gl, drawbuffers::drawbuffers };
 use gl::
 {
   GL,
@@ -10,7 +10,7 @@ use gl::
     WebGlBuffer,
     WebGlTexture,
     WebGlVertexArrayObject,
-    WebGlFramebuffer, 
+    WebGlFramebuffer
   }
 };
 use ndarray_cg::
@@ -28,64 +28,11 @@ use ndarray_cg::
 };
 use csgrs::CSG;
 use rand::Rng;
-use web_sys::WebGlRenderbuffer;
 use std::collections::HashMap;
 
 mod camera;
 
 use camera::*;
-
-/// Creates a WebGL2 texture.
-///
-/// # Arguments
-///
-/// * `gl` - The WebGL2 rendering context.
-/// * `slot` - The texture unit to activate and bind to ( e.g., `GL::TEXTURE0` ).
-/// * `size` - The size of the texture ( width, height ).
-/// * `internal_format` - The internal format of the texture ( e.g., `GL::RGBA8` ).
-/// * `format` - The format of the pixel data ( e.g., `GL::RGBA` ).
-/// * `pixel_type` - The data type of the pixel data ( e.g., `GL::UNSIGNED_BYTE` ).
-/// * `data` - Optional initial pixel data.
-///
-/// # Returns
-///
-/// An `Option< WebGlTexture >` containing the created texture, or `None` if creation fails.
-fn create_texture
-(
-  gl : &gl::WebGl2RenderingContext,
-  slot : u32,
-  size : ( i32, i32 ),
-  internal_format : i32,
-  format : u32,
-  pixel_type : u32,
-  data : Option< &[ u8 ] >
-) 
--> Option< WebGlTexture >
-{
-  let Some( texture ) = gl.create_texture() 
-  else 
-  {
-    return None;
-  };
-  gl.active_texture( slot );
-  gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) );
-  // Used to upload data.
-  gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
-  (
-    GL::TEXTURE_2D,  // target
-    0,               // level
-    internal_format, 
-    size.0,         
-    size.1,          
-    0,               // border
-    format,         
-    pixel_type,     
-    data,            // pixels data
-  )
-  .unwrap();
-  gl.bind_texture( GL::TEXTURE_2D, None );
-  Some( texture )
-}
 
 /// Binds a texture to a texture unit and uploads its location to a uniform.
 ///
@@ -127,21 +74,32 @@ fn create_framebuffer
   ( width, height ) : ( i32, i32 ),
   color_attachment : u32
 ) 
--> Option< ( WebGlFramebuffer, WebGlTexture, WebGlTexture ) >
+-> Option< ( WebGlFramebuffer, Vec< WebGlTexture > ) >
 {
   let color = gl.create_texture()?;
   gl.bind_texture( GL::TEXTURE_2D, Some( &color ) );
   // Use tex_storage_2d for immutable texture storage ( WebGL2 )
   gl.tex_storage_2d( GL::TEXTURE_2D, 1, gl::RGBA8, width, height );
-  // Configure texture parameters (filtering, wrapping)
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::LINEAR as i32 );
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE as i32 );
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
 
+  let depthbuffer = gl.create_renderbuffer().unwrap();
+  gl.bind_renderbuffer( GL::RENDERBUFFER, Some( &depthbuffer ) );
+  gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH_COMPONENT24, width, height );
+
   let depth = gl.create_texture()?;
   gl.bind_texture( GL::TEXTURE_2D, Some( &depth ) );
-  gl.tex_storage_2d( GL::TEXTURE_2D, 1, gl::DEPTH_COMPONENT16, width, height );
-  // Configure texture parameters (filtering, wrapping)
+  gl.tex_storage_2d( GL::TEXTURE_2D, 1, GL::R32F, width, height );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32 );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE as i32 );
+  gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
+
+  // Normal attachment
+  // Using RGB8 for normals (each component x,y,z stored in R,G,B)
+  let normal = gl.create_texture()?;
+  gl.bind_texture( GL::TEXTURE_2D, Some( &normal ) );
+  gl.tex_storage_2d( GL::TEXTURE_2D, 1, gl::RGB8, width, height );
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32 );
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE as i32 );
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
@@ -150,10 +108,15 @@ fn create_framebuffer
   gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &framebuffer ) );
   // Attach the texture to the framebuffer's color attachment point
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0 + color_attachment, GL::TEXTURE_2D, Some( &color ), 0 );
-  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::TEXTURE_2D, Some( &depth ), 0 );
+  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1 + color_attachment, GL::TEXTURE_2D, Some( &normal ), 0 );
+  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT2 + color_attachment, GL::TEXTURE_2D, Some( &depth ), 0 );
+  gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::RENDERBUFFER, Some( &depthbuffer ) );
+
+  drawbuffers( gl, &[ GL::COLOR_ATTACHMENT0, GL::COLOR_ATTACHMENT1, GL::COLOR_ATTACHMENT2 ] );
+
   gl.bind_framebuffer( gl::FRAMEBUFFER, None );
 
-  Some( ( framebuffer, color, depth ) )
+  Some( ( framebuffer, vec![ color, depth, normal ] ) )
 }
 
 /// Binds a framebuffer for rendering and sets the viewport to its size.
@@ -187,10 +150,11 @@ fn upload_framebuffer(
 ///                     Used to correctly offset indices for the current mesh.
 fn gltf_data
 (
-  node : &gltf::Node,
+  node : &gltf::Node< '_ >,
   buffers : &[ gltf::buffer::Data ],
   parent_transform : F32x4x4,
   positions : &mut Vec< [ f32; 3 ] >,
+  normals : &mut Vec< [ f32; 3 ] >,
   indices : &mut Vec< u32 >,
   vertex_offset : &mut u32
 )
@@ -210,6 +174,10 @@ fn gltf_data
 
   // Combine parent transform with local transform
   let current_transform = parent_transform * local_transform;
+
+  // For normals, we need the inverse transpose of the model matrix, but since we are only using rotation and translation,
+  // the upper-left 3x3 of the model matrix is sufficient.
+  let normal_transform = current_transform.transpose().inverse().unwrap();
 
   // If the node has a mesh, process its primitives
   if let Some( mesh ) = node.mesh()
@@ -231,24 +199,49 @@ fn gltf_data
           current_primitive_positions.push( [ tp[ 0 ], tp[ 1 ], tp[ 2 ] ].into() );
         }
 
-        let num_current_vertices = current_primitive_positions.len();
-
         // Add transformed positions to the global list
         positions.extend( current_primitive_positions );
-
-        // Read and adjust indices
-        if let Some( indices_iter ) = reader.read_indices()
-        {
-          for index in indices_iter.into_u32()
-          {
-             // Add the current vertex offset to each index
-             indices.push( index + *vertex_offset );
-          }
-        }
-
-        // Update the vertex offset for the next mesh/primitive
-        *vertex_offset += num_current_vertices as u32;
       }
+
+      // Read and transform normals
+      if let Some( normals_iter ) = reader.read_normals()
+      {
+        let mut current_primitive_normals : Vec< [ f32; 3 ] > = Vec::new();
+        for n in normals_iter
+        {
+          let norm_vec = F32x4::from_array( [ n[ 0 ], n[ 1 ], n[ 2 ], 0.0 ] ); // w=0 for vectors
+          // Apply combined transform to normal vector
+          let tn = normal_transform * norm_vec;
+          current_primitive_normals.push( [ tn[ 0 ], tn[ 1 ], tn[ 2 ] ].into() );
+        }
+        normals.extend( current_primitive_normals );
+      }
+
+      // Read and adjust indices
+      if let Some( indices_iter ) = reader.read_indices()
+      {
+        for index in indices_iter.into_u32()
+        {
+            // Add the current vertex offset to each index
+            indices.push( index + *vertex_offset );
+        }
+      }
+
+      let num_current_vertices = if let Some( positions_accessor ) = primitive.attributes()
+      .find
+      ( 
+        | ( semantic, _ ) | *semantic == gltf::Semantic::Positions
+      ) 
+      {
+        positions_accessor.1.count()
+      } 
+      else 
+      {
+        0
+      };
+
+      // Update the vertex offset for the next mesh/primitive
+      *vertex_offset += num_current_vertices as u32;
     }
   }
 
@@ -261,6 +254,7 @@ fn gltf_data
       buffers,
       current_transform, // Pass the current combined transform down
       positions,
+      normals,
       indices,
       vertex_offset
     );
@@ -269,11 +263,15 @@ fn gltf_data
 
 pub fn primitives_data_csgrs
 (
-    positions: &mut Vec<[f32; 3]>,
-    indices: &mut Vec<u32>,
+    positions: &mut Vec< [ f32; 3 ] >,
+    normals: &mut Vec< [ f32; 3 ] >,
+    object_ids: &mut Vec< f32 >,
+    indices: &mut Vec< u32 >,
     vertex_offset: &mut u32,
 )
 {
+  let mut last_object_id = *object_ids.last().unwrap_or( &0.0 );
+
   let meshes: Vec< CSG< () > > = vec![
     {
       // Cone is constructed using frustum with one radius near zero.
@@ -340,7 +338,7 @@ pub fn primitives_data_csgrs
   let mut position = F32x4::new( 2.0, 0.0, 1.0, 1.0 );
 
   // Generate random transformation parameters for each mesh.
-  let mut rng = rand::thread_rng();
+  let mut rng = rand::rng();
   let count = meshes.len();
   let rot_matrix = rot(  0.0, ( 360.0 / count as f32 ).to_radians(), 0.0 );
   let primitives = ( 0..count )
@@ -354,7 +352,7 @@ pub fn primitives_data_csgrs
       {
         for i in indices.clone()
         {
-          t[i] = rng.gen_range( values.clone() );
+          t[i] = rng.random_range( values.clone() );
         }
       }
 
@@ -383,16 +381,52 @@ pub fn primitives_data_csgrs
     .iter()
     .map( | p | [ p.coords.x as f32, p.coords.y as f32, p.coords.z as f32 ] )
     .collect::< Vec< _ > >();
-    positions.extend( primitive_positions );
+    positions.extend( primitive_positions.clone() );
 
     let primitive_indices = mesh.indices()
     .iter()
     .flatten()
     .map( | i | i + *vertex_offset )
     .collect::< Vec< _ > >();
-    indices.extend( primitive_indices );
-    
+    indices.extend( primitive_indices.clone() );
+
     let vertices_count = mesh.vertices().len();
+
+    // Calculating normals for primitives using this article: https://iquilezles.org/articles/normals/
+    let mut primitive_normals = vec![ [ 0.0; 3 ]; vertices_count ];
+    primitive_indices.chunks( 3 )
+    .for_each
+    ( 
+      | ids | 
+      {
+        let t = ( 0..3 ).map( | i | F32x3::from( positions[ ids[ i ] as usize ] ) )
+        .collect::< Vec< _ > >();
+        let e1 = t[ 0 ] - t[ 1 ];
+        let e2 = t[ 2 ] - t[ 1 ];
+        let c = ndarray_cg::vector::cross( &e1, &e2 );
+        ( 0..3 ).for_each
+        (
+          | i |
+          {
+            primitive_normals[ ( ids[ i ] - *vertex_offset ) as usize ] = [ c[ 0 ], c[ 1 ], c[ 2 ] ];
+          }
+        );
+      }
+    );
+
+    primitive_normals.iter_mut()
+    .for_each( 
+      | n |
+      {
+        *n = *F32x3::from_array( *n ).normalize();
+      }
+    );
+
+    normals.extend( primitive_normals );
+
+    last_object_id += 1.0;
+    object_ids.extend( vec![ last_object_id as f32; vertices_count ] );
+    
     *vertex_offset += vertices_count as u32;
   }
 }
@@ -409,6 +443,7 @@ struct Renderer
   viewport : ( i32, i32 ),
   camera : Camera,
   model_matrix : F32x4x4,
+  object_colors : Vec< f32 >,
   draw_count : i32 // Number of indices to draw for the object
 }
 
@@ -461,6 +496,7 @@ impl Renderer
       viewport,
       camera,
       model_matrix,
+      object_colors : vec![],
       draw_count : 0
     };
 
@@ -478,16 +514,20 @@ impl Renderer
     let outline_program = gl::ProgramFromSources::new( fullscreen_vs_src, outline_fs_src ).compile_and_link( gl ).unwrap();
 
     renderer.programs.insert( "object".to_string(), object_program );
-    renderer.programs.insert( "outline".to_string(), outline_program );
+    renderer.programs.insert( "outline".to_string(), outline_program.clone() );
 
     // --- Create Framebuffers and Textures ---
 
     // Framebuffer for rendering the initial object silhouette
-    let ( object_fb, object_fb_color, object_fb_depth ) = create_framebuffer( gl, viewport, 0 ).unwrap();
+    let ( object_fb, t ) = create_framebuffer( gl, viewport, 0 ).unwrap();
+    let object_fb_color = t[ 0 ].clone();
+    let object_fb_depth = t[ 1 ].clone();
+    let object_fb_norm = t[ 2 ].clone();
 
     // Store the color attachment textures
     renderer.textures.insert( "object_fb_color".to_string(), object_fb_color );
     renderer.textures.insert( "object_fb_depth".to_string(), object_fb_depth );
+    renderer.textures.insert( "object_fb_norm".to_string(), object_fb_norm );
 
     // Store the framebuffers
     renderer.framebuffers.insert( "object_fb".to_string(), object_fb );
@@ -496,11 +536,14 @@ impl Renderer
 
     // Create GPU buffers and a Vertex Array Object ( VAO )
     let pos_buffer =  gl::buffer::create( gl ).unwrap();
+    let norm_buffer = gl::buffer::create( gl ).unwrap();
+    let object_id_buffer = gl::buffer::create( gl ).unwrap();
     let index_buffer = gl::buffer::create( gl ).unwrap();
     let vao = gl::vao::create( gl ).unwrap();
 
     renderer.buffers.insert( "pos_buffer".to_string(), pos_buffer.clone() );
-    renderer.buffers.insert( "index_buffer".to_string(), index_buffer.clone() );
+    renderer.buffers.insert( "norm_buffer".to_string(), norm_buffer.clone() );
+    renderer.buffers.insert( "object_id_buffer".to_string(), object_id_buffer.clone() );
     renderer.vaos.insert( "vao".to_string(), vao.clone() );
 
     // Load the GLTF model file
@@ -508,14 +551,18 @@ impl Renderer
     let ( document, buffers, _ ) = gltf::import_slice( &obj_buffer[ .. ] ).expect( "Failed to parse the glb file" );
 
     let mut positions : Vec< [ f32; 3 ] > = vec![];
+    let mut normals : Vec< [ f32; 3 ] > = vec![];
+    let mut object_ids : Vec< f32 > = vec![];
     let mut indices : Vec< u32 > = vec![];
 
     // Process the default scene in the GLTF document
     {
       let scene = document.default_scene().unwrap();
       let mut vertex_offset : u32 = 0; // Counter for correct index offsetting
+      let mut last_object_id = *object_ids.last().unwrap_or( &0.0 );
       for node in scene.nodes()
       {
+        let old_vertex_offset = vertex_offset;
         // Recursively collect mesh data from the scene graph
         gltf_data
         (
@@ -523,14 +570,20 @@ impl Renderer
           &buffers, // GLTF buffer data
           model_matrix, // Initial model transform ( applied to the root node's children )
           &mut positions, 
+          &mut normals, 
           &mut indices,  
           &mut vertex_offset // Output counter for vertex offset
         );
+        let vertex_count = vertex_offset - old_vertex_offset;
+        last_object_id += 1.0; 
+        object_ids.extend( vec![ last_object_id as f32; vertex_count as usize ] );
       }
       
       primitives_data_csgrs
       (
         &mut positions, 
+        &mut normals,
+        &mut object_ids,
         &mut indices,  
         &mut vertex_offset
       );
@@ -538,18 +591,64 @@ impl Renderer
       renderer.draw_count = indices.len() as i32; // Store the total number of indices to draw
     }
 
+    let mut object_colors = vec![ [ 0.0; 4 ]; 256 ];
+    let object_count = *object_ids.last().unwrap_or( &0.0 ) as usize + 1;
+    let mut rng = rand::rng();
+
+    let range = 0.2..1.0;
+    ( 0..object_count ).for_each
+    ( 
+      | i |
+      {
+        object_colors[ i ] = F32x4::from( 
+          [ 
+            rng.random_range( range.clone() ), 
+            rng.random_range( range.clone() ),
+            rng.random_range( range.clone() ),
+            1.0
+          ] 
+        )
+        .0;
+      } 
+    );
+
+    let object_color_buffer = gl::buffer::create( &gl ).unwrap();
+    renderer.buffers.insert( "object_color_buffer".to_string(), object_color_buffer.clone() );
+    let u_object_colors_loc = gl.get_uniform_block_index( &outline_program, "ObjectColorBlock" );
+    gl.uniform_block_binding( &outline_program, u_object_colors_loc, 0 );
+    gl.bind_buffer_base( GL::UNIFORM_BUFFER, 0, Some( &object_color_buffer ) );
+    gl.bind_buffer( GL::UNIFORM_BUFFER, Some( &object_color_buffer ) );
+    gl.buffer_data_with_i32( GL::UNIFORM_BUFFER, 256 * 16, GL::STATIC_DRAW );
+    renderer.object_colors = object_colors.into_iter().flatten().collect::< Vec< _ > >();
+    gl::ubo::upload( &gl, &object_color_buffer, 0, &renderer.object_colors[ .. ], GL::STATIC_DRAW );
+
     gl::buffer::upload( &gl, &pos_buffer, &positions, GL::STATIC_DRAW );
+    gl::buffer::upload( &gl, &norm_buffer, &normals, GL::STATIC_DRAW );
+    gl::buffer::upload( &gl, &object_id_buffer, &object_ids, GL::STATIC_DRAW );
     gl::index::upload( &gl, &index_buffer, &indices, GL::STATIC_DRAW );
 
     gl.bind_vertex_array( Some( &vao ) );
     gl::BufferDescriptor::new::< [ f32; 3 ] >()
-        .stride( 3 ) 
-        .offset( 0 )
-        .attribute_pointer( &gl, 0, &pos_buffer ) 
-        .unwrap();
+    .stride( 3 ) 
+    .offset( 0 )
+    .attribute_pointer( &gl, 0, &pos_buffer ) 
+    .unwrap();
+    gl::BufferDescriptor::new::< [ f32; 3 ] >()
+    .stride( 3 )
+    .offset( 0 )
+    .attribute_pointer( &gl, 1, &norm_buffer ) // Location 1 for normals
+    .unwrap();
+    gl::BufferDescriptor::new::< [ f32; 1 ] >()
+    .stride( 1 )
+    .offset( 0 )
+    .attribute_pointer( &gl, 2, &object_id_buffer ) // Location 2 for object_ids
+    .unwrap();
     gl.bind_buffer( GL::ELEMENT_ARRAY_BUFFER, Some( &index_buffer ) );
     gl.bind_vertex_array( None );
 
+    //gl::info!( "{:?}", ( positions.len(), normals.len(), object_ids.len() ) );
+
+    gl.bind_buffer( GL::UNIFORM_BUFFER, None );
     gl.bind_buffer( GL::ARRAY_BUFFER, None );
     gl.bind_buffer( GL::ELEMENT_ARRAY_BUFFER, None );
 
@@ -586,6 +685,9 @@ impl Renderer
     let u_projection_loc = gl.get_uniform_location( object_program, "u_projection" ).unwrap();
     let u_view_loc = gl.get_uniform_location( object_program, "u_view" ).unwrap();
     let u_model_loc = gl.get_uniform_location( object_program, "u_model" ).unwrap();
+    let u_normal_matrix_loc = gl.get_uniform_location( object_program, "u_normal_matrix" ).unwrap();
+    let u_near_loc = gl.get_uniform_location( object_program, "near" ).unwrap();
+    let u_far_loc = gl.get_uniform_location( object_program, "far" ).unwrap();
 
     gl.use_program( Some( object_program ) );
 
@@ -598,6 +700,10 @@ impl Renderer
 
     self.camera.apply( &self.gl, &u_view_loc, &u_projection_loc );
     gl::uniform::matrix_upload( gl, Some( u_model_loc.clone() ), &self.model_matrix.to_array()[ .. ], true ).unwrap();
+    let normal_matrix = self.camera.get_view_matrix() * self.model_matrix;
+    gl::uniform::matrix_upload( gl, Some( u_normal_matrix_loc.clone() ), &normal_matrix.to_array()[ .. ], true ).unwrap();
+    gl::uniform::upload( gl, Some( u_near_loc.clone() ), &[ self.camera.get_near() ] ).unwrap();
+    gl::uniform::upload( gl, Some( u_far_loc.clone() ), &[ self.camera.get_far() ] ).unwrap();
 
     gl.bind_vertex_array( Some( vao ) );
     gl.draw_elements_with_i32( gl::TRIANGLES, self.draw_count, gl::UNSIGNED_INT, 0 );
@@ -611,21 +717,19 @@ impl Renderer
     let outline_program = self.programs.get( "outline" ).unwrap();
     let object_fb_color = self.textures.get( "object_fb_color" ).unwrap();
     let object_fb_depth = self.textures.get( "object_fb_depth" ).unwrap();
+    let object_fb_norm = self.textures.get( "object_fb_norm" ).unwrap();
 
     let u_color_texture_loc = gl.get_uniform_location( outline_program, "u_color_texture" ).unwrap();
     let u_depth_texture_loc = gl.get_uniform_location( outline_program, "u_depth_texture" ).unwrap();
-    let u_projection_loc = gl.get_uniform_location( outline_program, "u_projection" ).unwrap();
+    let u_norm_texture_loc = gl.get_uniform_location( outline_program, "u_norm_texture" ).unwrap();
+    //let u_projection_loc = gl.get_uniform_location( outline_program, "u_projection" ).unwrap();
     let u_resolution_loc = gl.get_uniform_location( outline_program, "u_resolution" ).unwrap();
     let u_outline_thickness_loc = gl.get_uniform_location( outline_program, "u_outline_thickness" ).unwrap();
-    let u_outline_color_loc = gl.get_uniform_location( outline_program, "u_outline_color" ).unwrap();
-    let u_object_color_loc = gl.get_uniform_location( outline_program, "u_object_color" ).unwrap();
     let u_background_color_loc = gl.get_uniform_location( outline_program, "u_background_color" ).unwrap();
 
     gl.use_program( Some( outline_program ) );
 
-    let outline_thickness = [ ( 8.0 * ( t / 1000.0 ).sin().abs() ) as f32 ]; // Example animation
-    let outline_color = [ 1.0, 1.0, 1.0, 1.0 ]; // White outline
-    let object_color = [ 0.5, 0.5, 0.5, 1.0 ]; // Grey object
+    let outline_thickness = [ ( 2.0 * ( t / 1000.0 ).sin().abs() ) as f32 ]; // Example animation
     let background_color = [ 0.0, 0.0, 0.0, 1.0 ]; 
 
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );
@@ -635,11 +739,10 @@ impl Renderer
 
     upload_texture( gl, object_fb_color, &u_color_texture_loc, GL::TEXTURE0 );
     upload_texture( gl, object_fb_depth, &u_depth_texture_loc, GL::TEXTURE1 );
-    gl::uniform::matrix_upload( gl, Some( u_projection_loc.clone() ), &self.camera.get_projection_matrix().to_array()[ .. ], true ).unwrap();
+    upload_texture( gl, object_fb_norm, &u_norm_texture_loc, GL::TEXTURE2 );
+    //gl::uniform::matrix_upload( gl, Some( u_projection_loc.clone() ), &self.camera.get_projection_matrix().to_array()[ .. ], true ).unwrap();
     gl::uniform::upload( gl, Some( u_resolution_loc.clone() ), &[ self.viewport.0 as f32, self.viewport.1 as f32 ] ).unwrap();
     gl::uniform::upload( gl, Some( u_outline_thickness_loc.clone() ), &outline_thickness ).unwrap();
-    gl::uniform::upload( gl, Some( u_outline_color_loc.clone() ), &outline_color ).unwrap();
-    gl::uniform::upload( gl, Some( u_object_color_loc.clone() ), &object_color ).unwrap();
     gl::uniform::upload( gl, Some( u_background_color_loc.clone() ), &background_color ).unwrap();
 
     gl.draw_arrays( GL::TRIANGLES, 0, 3 );
