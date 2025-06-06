@@ -20,22 +20,39 @@
 //!    If this distance is within a defined thickness, draw the outline color; otherwise,
 //!    draw the background color. Object pixels are drawn with the object color.
 
-use minwebgl as gl;
+use mingl::CameraOrbitControls;
+use minwebgl::{ self as gl, WebglError, JsCast };
 use gl::
 {
   GL,
   web_sys::
   {
+    wasm_bindgen::closure::Closure,
     WebGl2RenderingContext,
-    WebGlProgram,
     WebGlUniformLocation,
-    WebGlBuffer,
     WebGlTexture,
-    WebGlVertexArrayObject,
-    WebGlFramebuffer
+    WebGlFramebuffer,
+    HtmlCanvasElement
   }
 };
-use ndarray_cg::mat::DescriptorOrderColumnMajor;
+use std::rc::Rc;
+use std::cell::RefCell;
+use renderer::webgl::
+{
+  loaders::gltf::load,
+  scene::Scene,
+  camera::Camera,
+  node::{ Node, Object3D },
+  program::
+  {
+    ProgramInfo,
+    JfaOutlineObjectShader,
+    JfaOutlineInitShader,
+    JfaOutlineStepShader,
+    JfaOutlineShader
+  }
+};
+use ndarray_cg::F32x3;
 use std::collections::HashMap;
 
 /// Binds a texture to a texture unit and uploads its location to a uniform.
@@ -115,179 +132,150 @@ fn upload_framebuffer(
   gl.viewport( 0, 0, size.0, size.1 );
 }
 
-/// Recursively collects mesh data ( positions and indices ) from a GLTF node and its children.
-/// Transforms vertex positions using the current node's transform combined with parent transforms.
-///
-/// # Arguments
-///
-/// * `node` - The current GLTF node to process.
-/// * `buffers` - A slice of GLTF buffer data.
-/// * `parent_transform` - The accumulated transformation matrix from parent nodes.
-/// * `positions` - A mutable vector to accumulate vertex positions. Transformed positions are added here.
-/// * `indices` - A mutable vector to accumulate indices. Indices are adjusted by the current vertex offset.
-/// * `vertex_offset` - A mutable counter to keep track of the total number of vertices processed so far.
-///                     Used to correctly offset indices for the current mesh.
-fn collect_mesh_data
+enum CameraState
+{
+  Rotate,
+  Pan,
+  None
+}
+
+pub fn setup_controls
 (
-  node : &gltf::Node,
-  buffers : &[ gltf::buffer::Data ],
-  parent_transform : ndarray_cg::Mat4< f32, DescriptorOrderColumnMajor >,
-  positions : &mut Vec< [ f32; 3 ] >,
-  indices : &mut Vec< u32 >,
-  vertex_offset : &mut u32
+  canvas : &HtmlCanvasElement,
+  camera : &Rc< RefCell< CameraOrbitControls > >
 )
 {
-  // Get the node's local transformation matrix
-  let transform = node.transform().matrix();
-  let mut transform_raw : [ f32; 16 ] = [ 0.0; 16 ];
-  for ( i, r ) in transform_raw.chunks_mut( 4 ).enumerate()
-  {
-    r[ 0 ] = transform[ i ][ 0 ];
-    r[ 1 ] = transform[ i ][ 1 ];
-    r[ 2 ] = transform[ i ][ 2 ];
-    r[ 3 ] = transform[ i ][ 3 ];
-  }
+  let state =  Rc::new( RefCell::new( CameraState::None ) );
+  let prev_screen_pos = Rc::new( RefCell::new( [ 0.0, 0.0 ] ) );
 
-  let local_transform : ndarray_cg::Mat4< f32, DescriptorOrderColumnMajor > = ndarray_cg::Mat4::from_column_major( &transform_raw );
-
-  // Combine parent transform with local transform
-  let current_transform = parent_transform * local_transform;
-
-  // If the node has a mesh, process its primitives
-  if let Some( mesh ) = node.mesh()
-  {
-    for primitive in mesh.primitives()
+  let on_pointer_down : Closure< dyn Fn( _ ) > = Closure::new
+  (
     {
-      let reader = primitive.reader( | buffer | Some( &buffers[ buffer.index() ] ) );
-
-      // Read and transform positions
-      if let Some( positions_iter ) = reader.read_positions()
+      let state = state.clone();
+      let prev_screen_pos = prev_screen_pos.clone();
+      move | e : gl::web_sys::PointerEvent |
       {
-        let mut current_primitive_positions : Vec< [ f32; 3 ] > = Vec::new();
-
-        for p in positions_iter
+        *prev_screen_pos.borrow_mut() = [ e.screen_x() as f32, e.screen_y() as f32 ];
+        match e.button()
         {
-          let pos_vec = ndarray_cg::F32x4::from_array( [ p[ 0 ], p[ 1 ], p[ 2 ], 1.0 ] );
-          // Apply combined transform to vertex position
-          let tp = current_transform * pos_vec;
-          current_primitive_positions.push( [ tp[ 0 ], tp[ 1 ], tp[ 2 ] ].into() );
+          0 => *state.borrow_mut() = CameraState::Rotate,
+          2 => *state.borrow_mut() = CameraState::Pan,
+          _ => {}
         }
-
-        let num_current_vertices = current_primitive_positions.len();
-
-        // Add transformed positions to the global list
-        positions.extend( current_primitive_positions );
-
-        // Read and adjust indices
-        if let Some( indices_iter ) = reader.read_indices()
-        {
-          for index in indices_iter.into_u32()
-          {
-             // Add the current vertex offset to each index
-             indices.push( index + *vertex_offset );
-          }
-        }
-
-        // Update the vertex offset for the next mesh/primitive
-        *vertex_offset += num_current_vertices as u32;
       }
     }
-  }
+  );
 
-  // Recursively process child nodes
-  for child in node.children()
-  {
-    collect_mesh_data
-    (
-      &child,
-      buffers,
-      current_transform, // Pass the current combined transform down
-      positions,
-      indices,
-      vertex_offset
-    );
-  }
-}
-
-/// Represents the camera's view and projection settings.
-struct Camera
-{
-  eye : ndarray_cg::F32x3,
-  up : ndarray_cg::F32x3,
-  projection : ndarray_cg::Mat4< f32, DescriptorOrderColumnMajor >,
-  model : ndarray_cg::Mat4< f32, DescriptorOrderColumnMajor >
-}
-
-/// Manages WebGL resources and rendering passes.
-struct Renderer
-{
-  gl : WebGl2RenderingContext,
-  programs : HashMap< String, WebGlProgram >,
-  buffers : HashMap< String, WebGlBuffer >,
-  textures : HashMap< String, WebGlTexture >,
-  vaos : HashMap< String, WebGlVertexArrayObject >,
-  framebuffers : HashMap< String, WebGlFramebuffer >,
-  viewport : ( i32, i32 ),
-  camera : Camera,
-  draw_count : i32 // Number of indices to draw for the object
-}
-
-impl Renderer
-{
-  /// Creates a new Renderer instance, initializes WebGL, loads resources,
-  /// and prepares the scene for rendering.
-  async fn new() -> Self
-  {
-    gl::browser::setup( Default::default() );
-    let gl = gl::context::retrieve_or_make().unwrap();
-
-    // --- Initialization ---
-
-    let viewport = ( gl.drawing_buffer_width(), gl.drawing_buffer_height() );
-
-    // Camera setup (initial position, up vector, projection matrix, initial model matrix)
-    let eye = ndarray_cg::F32x3::from_array( [  0.0, 1.4, 2.5 ] );
-    let up = ndarray_cg::F32x3::Y;
-
-    let aspect_ratio = viewport.0 as f32 / viewport.1 as f32;
-    let u_projection = ndarray_cg::mat3x3h::perspective_rh_gl
-    (
-      70.0f32.to_radians(), 
-      aspect_ratio, 
-      0.1, 
-      1000.0
-    );
-    let u_model = glam::Mat4::from_scale_rotation_translation
-    (
-      glam::Vec3::ONE,
-      glam::Quat::from_rotation_y( 0.0 ),
-      glam::Vec3::ZERO
-    );
-    let u_model : ndarray_cg::Mat4< f32, DescriptorOrderColumnMajor > = ndarray_cg::Mat4::from_column_major( u_model.to_cols_array() );
-
-    let camera = Camera{
-      eye,
-      up,
-      projection : u_projection,
-      model : u_model // Note: The actual object model transformation is handled in collect_mesh_data and animated view in object_pass
-    };
-
-    // Create and store renderer instance
-    let mut renderer = Self
+  let on_mouse_move : Closure< dyn Fn( _ ) > = Closure::new
+  (
     {
-      gl,
-      programs : HashMap::new(),
-      buffers : HashMap::new(),
-      textures : HashMap::new(),
-      vaos : HashMap::new(),
-      framebuffers : HashMap::new(),
-      viewport,
-      camera,
-      draw_count : 0
-    };
+      let state = state.clone();
+      let camera = camera.clone();
+      let prev_screen_pos = prev_screen_pos.clone();
+      move | e : gl::web_sys::MouseEvent |
+      {
+        let prev_pos = *prev_screen_pos.borrow_mut();
+        let new_pos = [ e.screen_x() as f32, e.screen_y() as f32 ];
+        let delta = [ new_pos[ 0 ] - prev_pos[ 0 ], new_pos[ 1 ] - prev_pos[ 1 ] ];
+        *prev_screen_pos.borrow_mut() = new_pos;
+        match *state.borrow_mut()
+        {
+          CameraState::Rotate => 
+          {
+            camera.borrow_mut().rotate( delta );
+          },
+          CameraState::Pan => 
+          {
+            camera.borrow_mut().pan( delta );
+          }
+          _ => {}
+        }
+      }
+    }
+  );
 
-    let gl = &renderer.gl;
+  let on_wheel : Closure< dyn Fn( _ ) > = Closure::new
+  (
+    {
+      let state = state.clone();
+      let camera = camera.clone();
+      move | e : gl::web_sys::WheelEvent |
+      {
+        match *state.borrow_mut()
+        {
+          CameraState::None => {
+            let delta_y = e.delta_y() as f32;
+            camera.borrow_mut().zoom( delta_y );
+          },
+          _ => {}
+        }
+      }
+    }
+  );
 
+  let on_pointer_up : Closure< dyn Fn() > = Closure::new
+  (
+    {
+      let state = state.clone();
+      move | |
+      {
+        *state.borrow_mut() = CameraState::None;
+      }
+    }
+  );
+
+  let on_pointer_out : Closure< dyn Fn() > = Closure::new
+  (
+    {
+      let state = state.clone();
+      move | |
+      {
+        *state.borrow_mut() = CameraState::None;
+      }
+    }
+  );
+
+  let on_context_menu : Closure< dyn Fn( _ ) > = Closure::new
+  (
+    {
+      move | e : gl::web_sys::PointerEvent |
+      {
+        e.prevent_default();
+      }
+    }
+  );
+
+  canvas.set_oncontextmenu( Some( on_context_menu.as_ref().unchecked_ref() ) );
+  on_context_menu.forget();
+  
+  canvas.set_onpointerdown( Some( on_pointer_down.as_ref().unchecked_ref() ) );
+  on_pointer_down.forget();
+
+  canvas.set_onmousemove( Some( on_mouse_move.as_ref().unchecked_ref() ) );
+  on_mouse_move.forget();
+
+  canvas.set_onwheel( Some( on_wheel.as_ref().unchecked_ref() ) );
+  on_wheel.forget();
+
+  canvas.set_onpointerup( Some( on_pointer_up.as_ref().unchecked_ref() ) );
+  on_pointer_up.forget();
+
+  canvas.set_onpointerout( Some( on_pointer_out.as_ref().unchecked_ref() ) );
+  on_pointer_out.forget();
+}
+
+struct Programs
+{
+  object : ProgramInfo< JfaOutlineObjectShader >,
+  jfa_init : ProgramInfo< JfaOutlineInitShader >,
+  jfa_step : ProgramInfo< JfaOutlineStepShader >,
+  outline : ProgramInfo< JfaOutlineShader >
+}
+
+impl Programs
+{
+  fn new( gl : &gl::WebGl2RenderingContext ) -> Self
+  {
     // --- Load and Compile Shaders ---
 
     let object_vs_src = include_str!( "../resources/shaders/object.vert" );
@@ -303,10 +291,80 @@ impl Renderer
     let jfa_step_program = gl::ProgramFromSources::new( fullscreen_vs_src, jfa_step_fs_src ).compile_and_link( gl ).unwrap();
     let outline_program = gl::ProgramFromSources::new( fullscreen_vs_src, outline_fs_src ).compile_and_link( gl ).unwrap();
 
-    renderer.programs.insert( "object".to_string(), object_program );
-    renderer.programs.insert( "jfa_init".to_string(), jfa_init_program );
-    renderer.programs.insert( "jfa_step".to_string(), jfa_step_program );
-    renderer.programs.insert( "outline".to_string(), outline_program );
+    let object = ProgramInfo::< JfaOutlineObjectShader >::new( gl, object_program );
+    let jfa_init = ProgramInfo::< JfaOutlineInitShader >::new( gl, jfa_init_program );
+    let jfa_step = ProgramInfo::< JfaOutlineStepShader >::new( gl, jfa_step_program );
+    let outline = ProgramInfo::< JfaOutlineShader >::new( gl, outline_program );
+
+    Self
+    {
+      object,
+      jfa_init,
+      jfa_step,
+      outline
+    }
+  }
+}
+
+/// Manages WebGL resources and rendering passes.
+struct Renderer
+{
+  gl : WebGl2RenderingContext,
+  programs : Programs,
+  textures : HashMap< String, WebGlTexture >,
+  framebuffers : HashMap< String, WebGlFramebuffer >,
+  viewport : ( i32, i32 ),
+  camera : Camera
+}
+
+impl Renderer
+{
+  /// Creates a new Renderer instance, initializes WebGL, loads resources,
+  /// and prepares the scene for rendering.
+  async fn new() -> Self
+  {
+    gl::browser::setup( Default::default() );
+    let canvas = gl::canvas::make().unwrap();
+    let gl = gl::context::from_canvas( &canvas ).unwrap();
+
+    // --- Initialization ---
+
+    let viewport = ( gl.drawing_buffer_width(), gl.drawing_buffer_height() );
+
+    let eye = F32x3::from_array( [ 0.0, 1.4, 2.5 ] ) * 1.5;
+    let up = F32x3::Y;
+
+    let aspect_ratio = viewport.0 as f32 / viewport.1 as f32;
+    let fov =  70.0f32.to_radians();
+    let near = 0.1;
+    let far = 1000.0;
+
+    let camera = Camera::new(
+      eye,
+      up,
+      F32x3::new( 0.0, 0.4, 0.0 ),
+      aspect_ratio,
+      fov,
+      near,
+      far
+    );
+
+    setup_controls( &canvas, &camera.get_controls() );
+
+    let programs = Programs::new( &gl );
+
+    // Create and store renderer instance
+    let mut renderer = Self
+    {
+      gl,
+      programs,
+      textures : HashMap::new(),
+      framebuffers : HashMap::new(),
+      viewport,
+      camera
+    };
+
+    let gl = &renderer.gl;
 
     // --- Create Framebuffers and Textures ---
 
@@ -330,59 +388,6 @@ impl Renderer
     renderer.framebuffers.insert( "jfa_step_fb_0".to_string(), jfa_step_fb_0 );
     renderer.framebuffers.insert( "jfa_step_fb_1".to_string(), jfa_step_fb_1 );
 
-    // --- Create and Upload Mesh Data ---
-
-    // Create GPU buffers and a Vertex Array Object ( VAO )
-    let pos_buffer =  gl::buffer::create( gl ).unwrap();
-    let index_buffer = gl::buffer::create( gl ).unwrap();
-    let vao = gl::vao::create( gl ).unwrap();
-
-    renderer.buffers.insert( "pos_buffer".to_string(), pos_buffer.clone() );
-    renderer.buffers.insert( "index_buffer".to_string(), index_buffer.clone() );
-    renderer.vaos.insert( "vao".to_string(), vao.clone() );
-
-    // Load the GLTF model file
-    let obj_buffer = gl::file::load( "model.glb" ).await.expect( "Failed to load the model" );
-    let ( document, buffers, _ ) = gltf::import_slice( &obj_buffer[ .. ] ).expect( "Failed to parse the glb file" );
-
-    let mut positions : Vec< [ f32; 3 ] > = vec![];
-    let mut indices : Vec< u32 > = vec![];
-
-    // Process the default scene in the GLTF document
-    {
-      let scene = document.default_scene().unwrap();
-      let mut vertex_offset : u32 = 0; // Counter for correct index offsetting
-      for node in scene.nodes()
-      {
-         // Recursively collect mesh data from the scene graph
-         collect_mesh_data
-         (
-           &document.nodes().nth( node.index() ).expect( "Node not found" ), 
-           &buffers, // GLTF buffer data
-           u_model, // Initial model transform ( applied to the root node's children )
-           &mut positions, 
-           &mut indices,  
-           &mut vertex_offset // Output counter for vertex offset
-         );
-      }
-      renderer.draw_count = indices.len() as i32; // Store the total number of indices to draw
-    }
-
-    gl::buffer::upload( &gl, &pos_buffer, &positions, GL::STATIC_DRAW );
-    gl::index::upload( &gl, &index_buffer, &indices, GL::STATIC_DRAW );
-
-    gl.bind_vertex_array( Some( &vao ) );
-    gl::BufferDescriptor::new::< [ f32; 3 ] >()
-        .stride( 3 ) 
-        .offset( 0 )
-        .attribute_pointer( &gl, 0, &pos_buffer ) 
-        .unwrap();
-    gl.bind_buffer( GL::ELEMENT_ARRAY_BUFFER, Some( &index_buffer ) );
-    gl.bind_vertex_array( None );
-
-    gl.bind_buffer( GL::ARRAY_BUFFER, None );
-    gl.bind_buffer( GL::ELEMENT_ARRAY_BUFFER, None );
-
     renderer
   }
 
@@ -391,20 +396,19 @@ impl Renderer
   /// # Arguments
   ///
   /// * `t` - The current time in milliseconds ( used for animation ).
-  fn render( &self, t : f64 )
+  fn render( &self, scene : Rc< RefCell< Scene > >, t : f64 )
   {
     // 1. Object Rendering Pass: Render the object silhouette to a texture
-    self.object_pass( t );
+    let _ = self.object_pass( scene );
     // 2. JFA Initialization Pass: Initialize JFA texture from the silhouette
     self.jfa_init_pass();
 
     // 3. JFA Step Passes: Perform Jump Flooding Algorithm steps
     // The number of passes required is log2( max( width, height ) ).
-    let num_passes = 4;//( self.viewport.0.max( self.viewport.1 ) as f32 ).log2().ceil() as i32;
+    let num_passes = 4;
     for i in 0..num_passes
     {
-      let last = false; // Use here i == ( num_passes - 1 ) if you want see JFA step result
-      self.jfa_step_pass( i, t, last );
+      self.jfa_step_pass( i, t );
     }
 
     // 4. Outline Pass: Generate and render the final scene with the outline
@@ -419,25 +423,17 @@ impl Renderer
   /// # Arguments
   ///
   /// * `t` - The current time in milliseconds ( used for rotating the camera/view ).
-  fn object_pass( &self, t : f64 )
+  fn object_pass( &self, scene : Rc< RefCell< Scene > > ) -> Result<(), WebglError >
   {
     let gl = &self.gl;
 
-    let object_program = self.programs.get( "object" ).unwrap();
     let object_fb = self.framebuffers.get( "object_fb" ).unwrap();
-    let vao = self.vaos.get( "vao" ).unwrap();
 
-    let u_projection_loc = gl.get_uniform_location( object_program, "u_projection" ).unwrap();
-    let u_view_loc = gl.get_uniform_location( object_program, "u_view" ).unwrap();
-    let u_model_loc = gl.get_uniform_location( object_program, "u_model" ).unwrap();
+    let locations = self.programs.object.get_locations();
 
-    gl.use_program( Some( object_program ) );
-
-    let rotation = ndarray_cg::mat3x3::from_axis_angle( ndarray_cg::F32x3::Y, t as f32 / 1000.0 ); 
-    let eye = rotation * self.camera.eye;
-    let center = ndarray_cg::F32x3::from_array( [ 0.0, 0.3, 0.0 ] );
-
-    let u_view = ndarray_cg::d2::mat3x3h::look_at_rh( eye, center, self.camera.up );
+    let u_projection_loc = locations.get( "u_projection" ).unwrap().clone().unwrap();
+    let u_view_loc = locations.get( "u_view" ).unwrap().clone().unwrap(); 
+    let u_model_loc = locations.get( "u_model" ).unwrap().clone().unwrap();
 
     upload_framebuffer( gl, object_fb, self.viewport );
 
@@ -446,13 +442,36 @@ impl Renderer
     gl.clear( GL::COLOR_BUFFER_BIT | GL::DEPTH_BUFFER_BIT );
     gl.enable( GL::DEPTH_TEST );
 
-    gl::uniform::matrix_upload( gl, Some( u_projection_loc.clone() ), &self.camera.projection.to_array()[ .. ], true ).unwrap();
-    gl::uniform::matrix_upload( gl, Some( u_view_loc.clone() ), &u_view.to_array()[ .. ], true ).unwrap();
-    gl::uniform::matrix_upload( gl, Some( u_model_loc.clone() ), &self.camera.model.to_array()[ .. ], true ).unwrap();
+    // Define a closure to handle the drawing of each node in the scene.
+    let mut draw_node = 
+    | 
+      node : Rc< RefCell< Node > >
+    | -> Result< (), gl::WebglError >
+    {
+      // If the node contains a mesh...
+      if let Object3D::Mesh( ref mesh ) = node.borrow().object
+      {
+        // Iterate over each primitive in the mesh.
+        for primitive_rc in mesh.borrow().primitives.iter()
+        {
+          let primitive = primitive_rc.borrow();
 
-    gl.bind_vertex_array( Some( vao ) );
-    gl.draw_elements_with_i32( gl::TRIANGLES, self.draw_count, gl::UNSIGNED_INT, 0 );
-    gl.bind_vertex_array( None );
+          self.programs.object.bind( gl );
+
+          gl::uniform::matrix_upload( gl, Some( u_projection_loc.clone() ), &self.camera.get_projection_matrix().to_array(), true ).unwrap();
+          gl::uniform::matrix_upload( gl, Some( u_view_loc.clone() ), &self.camera.get_view_matrix().to_array(), true ).unwrap();
+          gl::uniform::matrix_upload( gl, Some( u_model_loc.clone() ), &node.borrow().world_matrix.to_array(), true ).unwrap();
+
+          primitive.bind( gl );
+          primitive.draw( gl );
+        }
+      } 
+
+      Ok( () )
+    };
+
+    // Traverse the scene and draw all opaque objects.
+    scene.borrow().traverse( &mut draw_node )
   }
 
   /// Performs the JFA initialization pass.
@@ -464,21 +483,19 @@ impl Renderer
   {
     let gl = &self.gl;
 
-    let jfa_init_program = self.programs.get( "jfa_init" ).unwrap();
     let jfa_init_fb = self.framebuffers.get( "jfa_init_fb" ).unwrap();
     let object_fb_color = self.textures.get( "object_fb_color" ).unwrap();
 
-    // Get uniform location for the object texture ( silhouette )
-    let u_object_texture = gl.get_uniform_location( jfa_init_program, "u_object_texture" ).unwrap();
+    self.programs.jfa_init.bind( gl );
+    let locations = self.programs.jfa_init.get_locations();
 
-    gl.use_program( Some( jfa_init_program ) );
+    let u_object_texture = locations.get( "u_object_texture" ).unwrap().clone().unwrap();
 
     upload_framebuffer( gl, jfa_init_fb, self.viewport );
 
     upload_texture( gl, object_fb_color, &u_object_texture, GL::TEXTURE0 );
 
-    gl.draw_arrays( GL::TRIANGLES, 0, 6 );
-    gl.bind_vertex_array( None );
+    gl.draw_arrays( GL::TRIANGLES, 0, 3 );
   }
 
   /// Performs one step of the Jump Flooding Algorithm.
@@ -491,22 +508,22 @@ impl Renderer
   /// * `i` - The current JFA step index ( 0, 1, 2, ... ).
   /// * `last` - A boolean flag. If true, the result of this step is rendered
   ///            directly to the default framebuffer ( screen ) for debugging.
-  fn jfa_step_pass( &self, i : i32, t : f64, last : bool )
+  fn jfa_step_pass( &self, i : i32, t : f64 )
   {
     let gl = &self.gl;
 
-    let jfa_step_program = self.programs.get( "jfa_step" ).unwrap();
     let jfa_step_fb_0 = self.framebuffers.get( "jfa_step_fb_0" ).unwrap();
     let jfa_step_fb_1 = self.framebuffers.get( "jfa_step_fb_1" ).unwrap();
     let jfa_init_fb_color = self.textures.get( "jfa_init_fb_color" ).unwrap(); // Initial JFA texture
     let jfa_step_fb_color_0 = self.textures.get( "jfa_step_fb_color_0" ).unwrap(); // Color texture for FB 0
     let jfa_step_fb_color_1 = self.textures.get( "jfa_step_fb_color_1" ).unwrap(); // Color texture for FB 1
 
-    let u_resolution = gl.get_uniform_location( &jfa_step_program, "u_resolution" ).unwrap();
-    let u_step_size = gl.get_uniform_location( &jfa_step_program, "u_step_size" ).unwrap();
-    let u_jfa_init_texture = gl.get_uniform_location( &jfa_step_program, "u_jfa_texture" ).unwrap(); // Sampler for input JFA texture
+    self.programs.jfa_step.bind( gl );
+    let locations = self.programs.jfa_step.get_locations();
 
-    gl.use_program( Some( jfa_step_program ) );
+    let u_resolution = locations.get( "u_resolution" ).unwrap().clone().unwrap();
+    let u_step_size = locations.get( "u_step_size" ).unwrap().clone().unwrap();
+    let u_jfa_init_texture = locations.get( "u_jfa_texture" ).unwrap().clone().unwrap();
 
     // Ping-pong rendering: Determine input texture and output framebuffer based on step index `i`
     if i == 0 // First step uses the initialization result
@@ -525,15 +542,6 @@ impl Renderer
       upload_texture( gl, jfa_step_fb_color_0, &u_jfa_init_texture, GL::TEXTURE0 ); // Input is texture from FB 0
     }
 
-    // If 'last' is true, bind the default framebuffer ( screen ) instead of the current step's FB.
-    // This is for visualizing the JFA result directly.
-    if last
-    {
-      gl.bind_framebuffer( GL::FRAMEBUFFER, None );
-      gl.clear_color( 0.0, 0.0, 0.0, 0.0 );
-      gl.clear( GL::COLOR_BUFFER_BIT );
-    }
-
     // Upload resolution uniform ( needed for distance calculations in the shader )
     gl::uniform::upload( gl, Some( u_resolution.clone() ), &[ self.viewport.0 as f32, self.viewport.1 as f32 ] ).unwrap();
 
@@ -543,8 +551,7 @@ impl Renderer
 
     gl::uniform::upload( gl, Some( u_step_size.clone() ), &[ step_size.0, step_size.1 ] ).unwrap();
 
-    gl.draw_arrays( GL::TRIANGLES, 0, 6 );
-    gl.bind_vertex_array( None );
+    gl.draw_arrays( GL::TRIANGLES, 0, 3 );
   }
 
   /// Performs the final outline pass.
@@ -563,20 +570,20 @@ impl Renderer
   {
     let gl = &self.gl;
 
-    let outline_program = self.programs.get( "outline" ).unwrap();
     let object_fb_color = self.textures.get( "object_fb_color" ).unwrap(); // Original silhouette
     let jfa_step_fb_color_0 = self.textures.get( "jfa_step_fb_color_0" ).unwrap(); // JFA ping-pong texture 0
     let jfa_step_fb_color_1 = self.textures.get( "jfa_step_fb_color_1" ).unwrap(); // JFA ping-pong texture 1
 
-    let outline_u_object_texture = gl.get_uniform_location( outline_program, "u_object_texture" ).unwrap();
-    let u_jfa_step_texture = gl.get_uniform_location( outline_program, "u_jfa_texture" ).unwrap();
-    let u_resolution = gl.get_uniform_location( outline_program, "u_resolution" ).unwrap();
-    let u_outline_thickness = gl.get_uniform_location( outline_program, "u_outline_thickness" ).unwrap();
-    let u_outline_color = gl.get_uniform_location( outline_program, "u_outline_color" ).unwrap();
-    let u_object_color = gl.get_uniform_location( outline_program, "u_object_color" ).unwrap();
-    let u_background_color = gl.get_uniform_location( outline_program, "u_background_color" ).unwrap();
+    self.programs.outline.bind( gl );
+    let locations = self.programs.outline.get_locations();
 
-    gl.use_program( Some( outline_program ) );
+    let outline_u_object_texture = locations.get( "u_object_texture" ).unwrap().clone().unwrap();
+    let u_jfa_step_texture = locations.get( "u_jfa_texture" ).unwrap().clone().unwrap();
+    let u_resolution = locations.get( "u_resolution" ).unwrap().clone().unwrap();
+    let u_outline_thickness = locations.get( "u_outline_thickness" ).unwrap().clone().unwrap();
+    let u_outline_color = locations.get( "u_outline_color" ).unwrap().clone().unwrap();
+    let u_object_color = locations.get( "u_object_color" ).unwrap().clone().unwrap();
+    let u_background_color = locations.get( "u_background_color" ).unwrap().clone().unwrap();    
 
     // Define outline parameters ( thickness animated with time )
     let outline_thickness = 30.0;
@@ -607,8 +614,7 @@ impl Renderer
       upload_texture( gl, jfa_step_fb_color_1, &u_jfa_step_texture, GL::TEXTURE1 );
     }
 
-    gl.draw_arrays( GL::TRIANGLES, 0, 6 );
-    gl.bind_vertex_array( None );
+    gl.draw_arrays( GL::TRIANGLES, 0, 3 );
   }
 }
 
@@ -624,11 +630,19 @@ async fn run() -> Result< (), gl::WebglError >
 {
   let renderer = Renderer::new().await;
 
+  let window = gl::web_sys::window().unwrap();
+  let document = window.document().unwrap();
+
+  let gltf_path = "model.glb";
+  let gltf = load( &document, gltf_path, &renderer.gl ).await?;
+  let scenes = gltf.scenes.clone();
+  scenes[ 0 ].borrow_mut().update_world_matrix();
+
   let update_and_draw =
   {
     move | t : f64 |
     {
-      renderer.render( t );
+      renderer.render( scenes[ 0 ].clone(), t );
       true
     }
   };
