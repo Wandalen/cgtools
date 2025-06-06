@@ -14,7 +14,7 @@ mod private
     depth_texture : Option< gl::web_sys::WebGlTexture >,
     object_id_texture : Option< gl::web_sys::WebGlTexture >,
     outline_thickness : f32,
-    object_colors : Option< Vec< [ f32; 4 ] > >,
+    _object_colors : Option< Vec< [ f32; 4 ] > >,
     object_colors_buffer : WebGlBuffer,
     width : u32,
     height : u32
@@ -61,7 +61,7 @@ mod private
         depth_texture,
         object_id_texture,
         outline_thickness,
-        object_colors : None,
+        _object_colors : None,
         object_colors_buffer,
         width,
         height
@@ -79,6 +79,7 @@ mod private
 
     pub fn set_object_colors( &mut self, gl : &gl::WebGl2RenderingContext, object_colors: Vec< [ f32; 4 ] > )
     {
+      self._object_colors = Some( object_colors.clone() );
       let object_colors = object_colors.into_iter().flatten().collect::< Vec< _ > >();
       gl::ubo::upload( &gl, &self.object_colors_buffer, 0, &object_colors[ .. ], GL::DYNAMIC_DRAW );
     }

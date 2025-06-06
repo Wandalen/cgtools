@@ -8,6 +8,8 @@ in vec2 vUv;
 // Output fragment color to the default framebuffer ( screen ).
 out vec4 FragColor;
 
+const float outlineThickness = 30.0;   // Outline thickness in pixels
+
 uniform sampler2D sourceTexture;
 // Input: The texture containing the original rendered object silhouette.
 uniform sampler2D objectColorIdTexture;
@@ -15,7 +17,6 @@ uniform sampler2D objectColorIdTexture;
 uniform sampler2D jfaTexture;
 // Uniforms for parameters needed for outlining.
 uniform vec2 resolution;           // Screen/texture size in pixels
-uniform float outlineThickness;   // Outline thickness in pixels
 
 layout( std140 ) uniform ObjectColorBlock
 {

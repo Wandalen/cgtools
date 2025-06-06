@@ -9,6 +9,9 @@ mod private
   pub struct GaussianFilterShader;
   pub struct UnrealBloomShader;
   pub struct NarrowOutlineShader;
+  pub struct WideOutlineInitShader;
+  pub struct WideOutlineStepShader;
+  pub struct WideOutlineShader;
 
   /// Stores information about a WebGL program, including the program object and the locations of its uniforms.
   /// This struct is intended for use by the renderer.
@@ -318,7 +321,6 @@ mod private
       add_location( "objectColorIdTexture" );
       add_location( "jfaTexture" );
       add_location( "resolution" );
-      add_location( "outlineThickness" );
 
       Self
       {
