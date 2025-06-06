@@ -1,6 +1,13 @@
 use minwebgl as min;
-use min::{ JsCast as _, I32x2 };
-use web_sys::{ wasm_bindgen::prelude::Closure, EventTarget, KeyboardEvent, MouseEvent };
+use min::{ JsCast as _, I32x2, F64x3 };
+use web_sys::
+{
+  wasm_bindgen::prelude::Closure,
+  EventTarget,
+  KeyboardEvent,
+  PointerEvent,
+  WheelEvent,
+};
 use std::{ cell::{ Ref, RefCell }, rc::Rc };
 use strum::EnumCount as _;
 use crate::keyboard::KeyboardKey;
@@ -20,7 +27,7 @@ pub enum EventType
   KeyboardKey( KeyboardKey, Action ),
   MouseButton( MouseButton, Action ),
   MouseMovement( I32x2 ),
-  // Wheel, // not supported yet
+  Wheel( F64x3 ),
 }
 
 #[ derive( Debug, Clone, Copy, PartialEq ) ]
@@ -38,7 +45,7 @@ struct State
   keyboard_keys : [ bool; KeyboardKey::COUNT ],
   mouse_buttons : [ bool; MouseButton::COUNT ],
   pointer_position : I32x2,
-  scroll : i32,
+  scroll : F64x3,
 }
 
 impl State
@@ -55,33 +62,48 @@ impl State
   }
 }
 
+pub static CLIENT : fn( &PointerEvent ) -> I32x2 = | event |
+{
+  I32x2::from_array( [ event.client_x(), event.client_y() ] )
+};
+
+pub static PAGE : fn( &PointerEvent ) -> I32x2 = | event |
+{
+  I32x2::from_array( [ event.page_x(), event.page_y() ] )
+};
+
+pub static SCREEN : fn( &PointerEvent ) -> I32x2 = | event |
+{
+  I32x2::from_array( [ event.screen_x(), event.screen_y() ] )
+};
+
 pub struct Input
 {
   event_queue : Rc< RefCell< Vec< Event > > >,
-  mousebutton_closure : Closure< dyn Fn( MouseEvent ) >,
-  mousemove_closure : Closure< dyn Fn( MouseEvent ) >,
+  pointerbutton_closure : Closure< dyn Fn( PointerEvent ) >,
+  pointermove_closure : Closure< dyn Fn( PointerEvent ) >,
   keyboard_closure : Closure< dyn Fn( KeyboardEvent ) >,
-  mouse_event_target : Option< EventTarget >,
+  wheel_closure : Closure< dyn Fn( WheelEvent ) >,
+  pointer_event_target : Option< EventTarget >,
   state : State,
 }
 
 impl Input
 {
-  pub fn new( mouse_event_target : Option< EventTarget > ) -> Self
+  pub fn new< F >( pointer_event_target : Option< EventTarget >, get_coords : F ) -> Self
+  where
+    F : Fn( &PointerEvent ) -> I32x2 + 'static
   {
-    // TODO:
-    // pointer events instead of mouse events
-    // customization of pointer coordinates eg client, screen, page, etc
     let event_queue = Rc::new( RefCell::new( Vec::< Event >::new() ) );
 
-    let mousebutton_callback =
+    let pointerbutton_callback =
     {
       let event_queue = event_queue.clone();
-      move | event : MouseEvent |
+      move | event : PointerEvent |
       {
         let button = MouseButton::from_button( event.button() );
 
-        let action = if event.type_() == "mousedown" { Action::Press } else { Action::Release };
+        let action = if event.type_() == "pointerdown" { Action::Press } else { Action::Release };
 
         let event_type = EventType::MouseButton( button, action );
         let alt = event.alt_key();
@@ -93,14 +115,32 @@ impl Input
       }
     };
 
-    let mousemove_callback =
+    let pointermove_callback =
     {
       let event_queue = event_queue.clone();
-      move | event : MouseEvent |
+      move | event : PointerEvent |
       {
-        let position = I32x2::from_array( [ event.client_x(), event.client_y() ] );
+        let position = get_coords( &event );
 
         let event_type = EventType::MouseMovement( position );
+        let alt = event.alt_key();
+        let ctrl = event.ctrl_key();
+        let shift = event.shift_key();
+
+        let event = Event { event_type, alt, ctrl, shift };
+        event_queue.borrow_mut().push( event );
+      }
+    };
+
+    let wheel_callback =
+    {
+      let event_queue = event_queue.clone();
+      move | event : WheelEvent |
+      {
+        let delta_x = event.delta_x();
+        let delta_y = event.delta_y();
+        let delta_z = event.delta_z();
+        let event_type = EventType::Wheel( F64x3::new( delta_x, delta_y, delta_z ) );
         let alt = event.alt_key();
         let ctrl = event.ctrl_key();
         let shift = event.shift_key();
@@ -128,17 +168,19 @@ impl Input
       }
     };
 
-    let mousebutton_closure = Closure::< dyn Fn( _ ) >::new( mousebutton_callback );
-    let mousemove_closure = Closure::< dyn Fn( _ ) >::new( mousemove_callback );
+    let pointerbutton_closure = Closure::< dyn Fn( _ ) >::new( pointerbutton_callback );
+    let pointermove_closure = Closure::< dyn Fn( _ ) >::new( pointermove_callback );
+    let wheel_closure = Closure::< dyn Fn( _ ) >::new( wheel_callback );
     let keyboard_closure = Closure::< dyn Fn( _ ) >::new( keyboard_callback );
 
     let input = Self
     {
       event_queue,
-      mousebutton_closure,
-      mousemove_closure,
+      pointerbutton_closure,
+      pointermove_closure,
       keyboard_closure,
-      mouse_event_target,
+      wheel_closure,
+      pointer_event_target,
       state : State::new(),
     };
 
@@ -156,21 +198,26 @@ impl Input
     ).unwrap();
 
     let document = document.dyn_into().unwrap();
-    let mouse_event_target = input.mouse_event_target.as_ref().unwrap_or( &document );
-    mouse_event_target.add_event_listener_with_callback
+    let pointer_event_target = input.pointer_event_target.as_ref().unwrap_or( &document );
+    pointer_event_target.add_event_listener_with_callback
     (
-      "mousedown",
-      input.mousebutton_closure.as_ref().unchecked_ref()
+      "pointerdown",
+      input.pointerbutton_closure.as_ref().unchecked_ref()
     ).unwrap();
-    mouse_event_target.add_event_listener_with_callback
+    pointer_event_target.add_event_listener_with_callback
     (
-      "mouseup",
-      input.mousebutton_closure.as_ref().unchecked_ref()
+      "pointerup",
+      input.pointerbutton_closure.as_ref().unchecked_ref()
     ).unwrap();
-    mouse_event_target.add_event_listener_with_callback
+    pointer_event_target.add_event_listener_with_callback
     (
-      "mousemove",
-      input.mousemove_closure.as_ref().unchecked_ref()
+      "pointermove",
+      input.pointermove_closure.as_ref().unchecked_ref()
+    ).unwrap();
+    pointer_event_target.add_event_listener_with_callback
+    (
+      "wheel",
+      input.wheel_closure.as_ref().unchecked_ref()
     ).unwrap();
 
     input
@@ -197,9 +244,9 @@ impl Input
     self.state.pointer_position
   }
 
-  pub fn scroll( &self ) -> i32
+  pub fn scroll( &self ) -> &F64x3
   {
-    self.state.scroll
+    &self.state.scroll
   }
 
   /// Updates inner state considering event that are currently in the queue.
@@ -218,7 +265,7 @@ impl Input
           self.state.mouse_buttons[ *mouse_button as usize ] = *action == Action::Press
         }
         EventType::MouseMovement( position ) => self.state.pointer_position = *position,
-        // EventType::Wheel => todo!(),
+        EventType::Wheel( delta ) => self.state.scroll += *delta,
       }
     }
   }
@@ -235,14 +282,38 @@ impl Drop for Input
   fn drop( &mut self )
   {
     let document = web_sys::window().unwrap().document().unwrap();
-    _ = document.remove_event_listener_with_callback( "keydown", self.keyboard_closure.as_ref().unchecked_ref() );
-    _ = document.remove_event_listener_with_callback( "keyup", self.keyboard_closure.as_ref().unchecked_ref() );
+    _ = document.remove_event_listener_with_callback
+    (
+      "keydown",
+      self.keyboard_closure.as_ref().unchecked_ref()
+    );
+    _ = document.remove_event_listener_with_callback
+    (
+      "keyup",
+      self.keyboard_closure.as_ref().unchecked_ref()
+    );
 
     let document = document.dyn_into().unwrap();
-    let mouse_event_target = self.mouse_event_target.as_ref().unwrap_or( &document );
-    _ = mouse_event_target.remove_event_listener_with_callback( "mousedown", self.mousebutton_closure.as_ref().unchecked_ref() );
-    _ = mouse_event_target.remove_event_listener_with_callback( "mouseup", self.mousebutton_closure.as_ref().unchecked_ref() );
-    _ = mouse_event_target.remove_event_listener_with_callback( "mousemove", self.mousemove_closure.as_ref().unchecked_ref() );
-    // _ = window.remove_event_listener_with_callback( "mousemove", ( *self.mousemove_closure ).as_ref().unchecked_ref() );
+    let pointer_event_target = self.pointer_event_target.as_ref().unwrap_or( &document );
+    _ = pointer_event_target.remove_event_listener_with_callback
+    (
+      "pointerdown",
+      self.pointerbutton_closure.as_ref().unchecked_ref()
+    );
+    _ = pointer_event_target.remove_event_listener_with_callback
+    (
+      "pointerup",
+      self.pointerbutton_closure.as_ref().unchecked_ref()
+    );
+    _ = pointer_event_target.remove_event_listener_with_callback
+    (
+      "pointermove",
+      self.pointermove_closure.as_ref().unchecked_ref()
+    );
+    _ = pointer_event_target.remove_event_listener_with_callback
+    (
+      "wheel",
+      self.wheel_closure.as_ref().unchecked_ref()
+    );
   }
 }

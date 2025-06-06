@@ -1,10 +1,10 @@
 use minwebgl as gl;
 use serde::Deserialize;
-use std::{collections::HashMap, str::FromStr};
+use std::{ collections::HashMap, str::FromStr as _ };
 use tiles_tools::{ coordinates::{ hexagonal, pixel::Pixel }, geometry };
 use hexagonal::Coordinate;
 use gl::{ JsCast as _, F32x2, I32x2, Vector, GL, BufferDescriptor };
-use browser_input::{ keyboard::KeyboardKey, mouse::MouseButton, Action, Event, EventType };
+use browser_input::{ keyboard::KeyboardKey, mouse::MouseButton, Event, EventType };
 use renderer::webgl::{ Geometry, AttributeInfo };
 use strum::{ AsRefStr, EnumIter, IntoEnumIterator, EnumString };
 use web_sys::
@@ -111,9 +111,10 @@ async fn run() -> Result< (), gl::WebglError >
   let select_element = get_select( &document );
 
   let mut map = HashMap::< Axial, TileValue >::new();
-  let mut input = browser_input::Input::new( Some( canvas.dyn_into().unwrap() ) );
+  let mut input = browser_input::Input::new( Some( canvas.dyn_into().unwrap() ), browser_input::CLIENT );
   let dpr = dpr as f32;
-  let zoom = 0.0625;
+  let mut zoom = 0.0625;
+  let zoom_factor = 0.75;
   let inv_canvas_size = F32x2::new( 1.0 / width as f32, 1.0 / height as f32 );
   let aspect = F32x2::new( 1.0, width as f32 / height as f32 );
   let mut camera_pos = F32x2::default();
@@ -123,6 +124,21 @@ async fn run() -> Result< (), gl::WebglError >
   {
     input.update_state();
     let pointer_pos = input.pointer_position();
+
+    for Event { event_type, .. } in input.event_queue().iter()
+    {
+      if let EventType::Wheel( Vector( [ _, delta, _ ] ) ) = event_type
+      {
+        if delta.is_sign_negative()
+        {
+          zoom *= 1.0 / zoom_factor;
+        }
+        else
+        {
+          zoom *= zoom_factor;
+        }
+      }
+    }
 
     if input.is_key_down( KeyboardKey::Space )
     && input.is_button_down( MouseButton::Main )
@@ -150,6 +166,8 @@ async fn run() -> Result< (), gl::WebglError >
 
     input.clear_events();
 
+    shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
+    shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
     for ( coord, value ) in map.iter()
     {
       let axial : Axial = ( *coord ).into();
@@ -163,8 +181,6 @@ async fn run() -> Result< (), gl::WebglError >
       gl.vertex_attrib2fv_with_f32_array( 1, &position.data );
       gl.vertex_attrib2fv_with_f32_array( 3, sprite_offset.as_slice() );
       gl.vertex_attrib2fv_with_f32_array( 4, sprite_size.as_slice() );
-      shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
-      shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
       hexagon.draw( &gl );
     }
 
@@ -274,7 +290,6 @@ fn load_sprite_sheet( gl : &GL, document : &web_sys::Document, src : &str ) -> O
     move ||
     {
       gl.bind_texture( gl::TEXTURE_2D, texture.as_ref() );
-      // gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 1 );
       gl.tex_image_2d_with_u32_and_u32_and_html_image_element
       (
         gl::TEXTURE_2D,
@@ -284,7 +299,6 @@ fn load_sprite_sheet( gl : &GL, document : &web_sys::Document, src : &str ) -> O
         gl::UNSIGNED_BYTE,
         &img
       ).expect( "Failed to upload data to texture" );
-      // gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 0 );
 
       gl::texture::d2::filter_nearest( &gl );
       gl::texture::d2::wrap_clamp( &gl );
