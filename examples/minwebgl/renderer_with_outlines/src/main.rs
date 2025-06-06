@@ -3,54 +3,67 @@ use std::collections::{HashMap, HashSet};
 
 use minwebgl as gl;
 use rand::Rng;
-use gl::math::F32x4;
 use renderer::webgl::
 {
   loaders::gltf::GLTF,
   geometry::AttributeInfo, 
   Camera, 
   Renderer,
-  post_processing::{
-    self, add_buffer, add_attributes, outline::narrow_outline::{ NarrowOutlinePass, MAX_OBJECT_COUNT }, upload_buffer_data, GBuffer, GBufferAttachment, Pass, SwapFramebuffer
+  post_processing::
+  {
+    self, 
+    add_buffer, 
+    add_attributes, 
+    outline::narrow_outline::
+    { 
+      NarrowOutlinePass, 
+      MAX_OBJECT_COUNT 
+    }, 
+    /*upload_buffer_data,*/ 
+    GBuffer, 
+    GBufferAttachment, 
+    Pass, 
+    SwapFramebuffer
   }
 };
+//use gl::math::F32x4;
 
 mod camera_controls;
 mod loaders;
 
-fn random_color( rng : &mut impl rand::Rng ) -> F32x4
-{
-  let range = 0.2..1.0;
-  F32x4::from
-  (
-    [ 
-      rng.random_range( range.clone() ), 
-      rng.random_range( range.clone() ),
-      rng.random_range( range.clone() ),
-      1.0
-    ] 
-  )
-}
+// fn random_color( rng : &mut impl rand::Rng ) -> F32x4
+// {
+//   let range = 0.2..1.0;
+//   F32x4::from
+//   (
+//     [ 
+//       rng.random_range( range.clone() ), 
+//       rng.random_range( range.clone() ),
+//       rng.random_range( range.clone() ),
+//       1.0
+//     ] 
+//   )
+// }
 
-fn generate_object_colors( object_count : usize ) -> Vec< [ f32; 4 ] > 
+fn generate_object_colors() -> Vec< [ f32; 4 ] > 
 {
-  let mut object_colors = vec![ [ 0.0; 4 ]; MAX_OBJECT_COUNT ];
   let mut rng = rand::rng();
 
   let range = 0.2..1.0;
-  ( 0..object_count ).for_each
+  let object_colors = ( 0..MAX_OBJECT_COUNT )
+  .map
   ( 
-    | i |
+    | _ |
     {
-      object_colors[ i ] = 
       [ 
         rng.random_range( range.clone() ), 
         rng.random_range( range.clone() ),
         rng.random_range( range.clone() ),
         1.0
-      ];
+      ]
     } 
-  );
+  )
+  .collect::< Vec< _ > >();
 
   object_colors
 }
@@ -103,15 +116,19 @@ async fn run() -> Result< (), gl::WebglError >
 
   let gltf_path = "dodge-challenger/gltf";
   let mut gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
-  let scenes = gltf.scenes;
+  let scenes = gltf.scenes.clone();
 
-  let object_id_data = add_attributes( 
+  let _ = add_attributes( 
     &gl, 
     &mut gltf, 
     HashSet::from( [ GBufferAttachment::PbrInfo ] ) 
   )?;
-
-  let object_color_id_buffer = add_buffer( &gl, &mut gltf, data )?;
+  
+  let object_count = scenes[ 0 ].as_ref().borrow().children.len();
+  let mut object_color_id_data = vec![ 0_u32; MAX_OBJECT_COUNT ];
+  ( 0..object_count ).for_each( | i | object_color_id_data[ i ] = i as u32 + 1 );
+  let object_color_id_data = object_color_id_data.iter().map( | i | i.to_be_bytes() ).flatten().collect::< Vec< _ > >();
+  let object_color_id_buffer = add_buffer( &gl, &mut gltf, object_color_id_data )?;
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   renderer.set_use_emission( true );
@@ -119,11 +136,12 @@ async fn run() -> Result< (), gl::WebglError >
 
   let attributes = get_attributes( &gltf )?;  
 
-  let get_buffer = | name | attributes.get( name ).unwrap().buffer;
+  gl::info!( "{:?}", attributes.keys() );
+  let get_buffer = | name | attributes.get( name ).unwrap().buffer.clone();
 
-  let gl_buffers_iter = gltf.gl_buffers.iter().rev();
+  let mut gl_buffers_iter = gltf.gl_buffers.iter().rev();
 
-  let ( material_id_buffer, object_id_buffer ) = ( gl_buffers_iter.next().unwrap(), gl_buffers_iter.next().unwrap() );
+  let ( material_id_buffer, object_id_buffer ) = ( gl_buffers_iter.next().unwrap().clone(), gl_buffers_iter.next().unwrap().clone() );
 
   let attachments = HashMap::from(
     [
@@ -158,8 +176,7 @@ async fn run() -> Result< (), gl::WebglError >
     canvas.height() 
   )?;
 
-  let object_count = scenes[ 0 ].as_ref().borrow().children.len();
-  let object_colors = generate_object_colors( object_count );
+  let object_colors = generate_object_colors();
   outline.set_object_colors( &gl, object_colors );
 
   scenes[ 0 ].borrow_mut().update_world_matrix();
@@ -169,7 +186,7 @@ async fn run() -> Result< (), gl::WebglError >
     move | t : f64 |
     {
       // If textures are of different size, gl.view_port needs to be called
-      let time = t as f32 / 1000.0;
+      let _time = t as f32 / 1000.0;
 
       renderer.render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
       .expect( "Failed to render" );
@@ -188,7 +205,7 @@ async fn run() -> Result< (), gl::WebglError >
       swap_buffer.set_output( t );
       swap_buffer.swap();
     
-      let t = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      let _t = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
       .expect( "Failed to render to srgb pass" );
 
       // swap_buffer.bind( &gl );
