@@ -28,20 +28,13 @@ void main()
       // and then divided by the resolution to convert from pixel space to normalized ( 0-1 ) texture space.
       // `ceil` is used to ensure step sizes are rounded up to the nearest pixel distance,
       // as the step size might not be a perfect integer during intermediate steps.
-      vec2 offset = ceil( vec2( float( x ), float( y ) ) * u_step_size ) / u_resolution;
+      vec2 offset = ceil( vec2( float( x ), float( y ) ) * u_step_size.x ) / u_resolution;
 
       // Calculate the sample coordinate in the input JFA texture.
       vec2 sample_coord = v_tex_coord + offset;
 
       // Sample the input JFA texture at the calculated sample coordinate.
       vec2 seed_coord = texture( u_jfa_texture, sample_coord ).xy;
-
-      // Check if the sampled coordinate is a valid seed coordinate ( not the sentinel ).
-      if ( seed_coord.x < 0.01 )
-      {
-        // We skip this sample as it doesn't provide a valid seed location.
-        continue;
-      }
 
       // Calculate the distance between the current pixel's coordinate and the sampled seed coordinate.
       float dist = distance( v_tex_coord * u_resolution, seed_coord * u_resolution );

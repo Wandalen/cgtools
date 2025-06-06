@@ -37,7 +37,7 @@ void main()
 
     // Check if a valid seed coordinate was found ( i.e., not the sentinel value -1.0 ).
     // Assuming sentinel has x < 0.0.
-    if ( seed_coord.x >= 0.0 )
+    if ( seed_coord.x != 0.0 && seed_coord.y != 0.0 )
     {
         // Calculate the distance in pixel units between the current pixel and the nearest seed.
         // Scale normalized coordinates by resolution to get pixel coordinates.
