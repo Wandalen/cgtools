@@ -18,6 +18,7 @@ mod private
 
   pub const ALL : [ GBufferAttachment; 5 ] = [
     GBufferAttachment::Position,
+    GBufferAttachment::Color,
     GBufferAttachment::Albedo,
     GBufferAttachment::Normal,
     GBufferAttachment::PbrInfo,
@@ -28,6 +29,7 @@ mod private
   pub enum GBufferAttachment
   {
     Position,
+    Color,
     Albedo,
     Normal,
     PbrInfo,
@@ -41,6 +43,7 @@ mod private
       match self 
       {
         GBufferAttachment::Position => "POSITION",
+        GBufferAttachment::Color => "COLOR",
         GBufferAttachment::Albedo => "ALBEDO",
         GBufferAttachment::Normal => "NORMAL",
         GBufferAttachment::PbrInfo => "PBR_INFO",

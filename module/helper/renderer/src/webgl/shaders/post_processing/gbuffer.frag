@@ -1,7 +1,7 @@
 #define MAX_OBJECT_COUNT 1024
 
-#ifdef ALBEDO
-  in vec4 vAlbedo;
+#ifdef COLOR
+  in vec4 vColor;
 #endif
 #ifdef NORMAL
   in vec3 vNormal;
@@ -52,7 +52,10 @@ void main()
     FragPosition = vec3( gl_FragCoord.xy, linearizeDepth( gl_FragCoord.z ) ); 
   #endif
   #ifdef ALBEDO 
-    FragAlbedo = vAlbedo;
+    #ifdef COLOR
+      FragAlbedo = vColor;
+    #endif
+
   #endif
   #ifdef NORMAL 
     FragNormal = normalize( vNormal ) * 0.5 + 0.5;

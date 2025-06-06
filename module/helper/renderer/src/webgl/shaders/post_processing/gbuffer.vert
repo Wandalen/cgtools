@@ -1,6 +1,6 @@
 layout( location = 0 ) in vec3 position;
-#ifdef ALBEDO
-  layout( location = 1 ) in vec4 albedo;
+#ifdef COLOR
+  layout( location = 1 ) in vec4 color;
 #endif
 #ifdef NORMAL
   layout( location = 2 ) in vec3 normal;
@@ -18,8 +18,8 @@ uniform mat4x4 worldMatrix;
 uniform mat4x4 viewMatrix;
 uniform mat4x4 projectionMatrix;
 
-#ifdef ALBEDO
-  out vec4 vAlbedo;
+#ifdef COLOR
+  out vec4 vColor;
 #endif
 #ifdef NORMAL
   out vec3 vNormal;
@@ -36,8 +36,8 @@ uniform mat4x4 projectionMatrix;
 void main()
 {
   gl_Position = projectionMatrix * viewMatrix * worldMatrix * vec4( position, 1.0 );
-  #ifdef ALBEDO
-    vAlbedo = albedo;
+  #ifdef COLOR
+    vColor = color;
   #endif
   #ifdef NORMAL
     vNormal = normalize( mat3x3( worldMatrix ) * normal );
