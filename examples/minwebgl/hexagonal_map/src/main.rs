@@ -1,5 +1,5 @@
 use minwebgl as gl;
-use serde::{Deserialize, Serialize};
+use serde::{ Deserialize, Serialize };
 use std::{ cell::RefCell, collections::HashMap, rc::Rc, str::FromStr as _ };
 use tiles_tools::{ coordinates::{ hexagonal, pixel::Pixel } };
 use hexagonal::Coordinate;
@@ -38,7 +38,7 @@ impl TileValue
     {
       TileValue::Empty => "grass_05.png",
       TileValue::Capital => "medieval_smallCastle.png",
-      TileValue::Trees => "grass_12.png",
+      TileValue::Trees => "grass_10.png",
       TileValue::Stones => "grass_15.png",
       TileValue::Castle => "medieval_largeCastle.png",
     };
@@ -115,6 +115,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let map = Rc::new( RefCell::new( HashMap::< Axial, TileValue >::new() ) );
   setup_download_button( &document, map.clone() );
+  setup_drop_zone( &document, map.clone() );
 
   let mut input = browser_input::Input::new
   (
@@ -207,6 +208,22 @@ async fn run() -> Result< (), gl::WebglError >
   Ok( () )
 }
 
+fn screen_to_world
+(
+  screen : I32x2,
+  inv_canvas_size : F32x2,
+  dpr : f32,
+  aspect : F32x2,
+  zoom : f32
+) -> F32x2
+{
+  let Vector ( [ x, y ] ) = screen;
+  let screenf32 = F32x2::new( x as f32, y as f32 );
+  let mut world = ( screenf32 * dpr * inv_canvas_size - 0.5 ) * 2.0 / ( zoom * aspect );
+  world[ 1 ] = -world[ 1 ];
+  world
+}
+
 fn create_hexagon_geometry( gl : &GL ) -> Result< Geometry, minwebgl::WebglError >
 {
   let positions = tiles_tools::geometry::hexagon_triangles_with_tranform
@@ -259,8 +276,8 @@ fn tex_coords( positions : &[ f32 ] ) -> Vec< f32 >
     y_min = y_min.min( pos[ 1 ] );
     y_max = y_max.max( pos[ 1 ] );
     // make hexagon a little smaller to remove transparent edges from tile sheet
-    // pos[ 0 ] *= 0.982;
-    // pos[ 1 ] *= 0.982;
+    pos[ 0 ] *= 0.982;
+    pos[ 1 ] *= 0.982;
   }
 
   let dist_x = x_max - x_min;
@@ -358,22 +375,6 @@ fn get_variant( select_element : &HtmlSelectElement ) -> TileValue
   variant
 }
 
-fn screen_to_world
-(
-  screen : I32x2,
-  inv_canvas_size : F32x2,
-  dpr : f32,
-  aspect : F32x2,
-  zoom : f32
-) -> F32x2
-{
-  let Vector ( [ x, y ] ) = screen;
-  let screenf32 = F32x2::new( x as f32, y as f32 );
-  let mut world = ( screenf32 * dpr * inv_canvas_size - 0.5 ) * 2.0 / ( zoom * aspect );
-  world[ 1 ] = -world[ 1 ];
-  world
-}
-
 fn setup_download_button
 (
   document : &web_sys::Document,
@@ -424,13 +425,14 @@ fn download_map( map : &HashMap::< Axial, TileValue > )
   web_sys::Url::revoke_object_url( &url ).unwrap();
 }
 
-pub fn setup_drop_zone( element_id : &str ) -> Result< (), JsValue >
+fn setup_drop_zone
+(
+  document : &web_sys::Document,
+  map : Rc< RefCell< HashMap::< Axial, TileValue > > >
+)
 {
-  let window = web_sys::window().unwrap();
-  let document = window.document().unwrap();
-  let element = document.get_element_by_id( element_id ).unwrap();
+  let element = document.get_element_by_id( "drop-zone" ).unwrap();
 
-  // Prevent default drag behaviors
   let prevent_default = Closure::< dyn Fn( _ ) >::new
   (
     | e : web_sys::Event |
@@ -440,8 +442,16 @@ pub fn setup_drop_zone( element_id : &str ) -> Result< (), JsValue >
     }
   );
 
-  element.add_event_listener_with_callback( "dragover", prevent_default.as_ref().unchecked_ref() )?;
-  element.add_event_listener_with_callback( "dragenter", prevent_default.as_ref().unchecked_ref() )?;
+  element.add_event_listener_with_callback
+  (
+    "dragover",
+    prevent_default.as_ref().unchecked_ref()
+  ).unwrap();
+  element.add_event_listener_with_callback
+  (
+    "dragenter",
+    prevent_default.as_ref().unchecked_ref()
+  ).unwrap();
   prevent_default.forget();
 
   let drop_handler = Closure::< dyn Fn( _ ) >::new
@@ -455,18 +465,20 @@ pub fn setup_drop_zone( element_id : &str ) -> Result< (), JsValue >
       .and_then( | dt | dt.files() )
       .and_then( | files | files.get( 0 ) )
       {
-        read_json_file( file );
+        read_json_file( file, map.clone() );
       }
     }
   );
 
-  element.add_event_listener_with_callback( "drop", drop_handler.as_ref().unchecked_ref() )?;
+  element.add_event_listener_with_callback
+  (
+    "drop",
+    drop_handler.as_ref().unchecked_ref()
+  ).unwrap();
   drop_handler.forget();
-
-  Ok( () )
 }
 
-fn read_json_file( file : web_sys::File )
+fn read_json_file( file : web_sys::File, map : Rc< RefCell< HashMap::< Axial, TileValue > > > )
 {
   let reader = web_sys::FileReader::new().unwrap();
   reader.read_as_text( &file ).unwrap();
@@ -476,7 +488,6 @@ fn read_json_file( file : web_sys::File )
     let reader = reader.clone();
     move | _ : web_sys::Event |
     {
-
       let Ok( result ) = reader.result() else
       {
         return;
@@ -486,10 +497,10 @@ fn read_json_file( file : web_sys::File )
         return;
       };
 
-      match serde_json::from_str::< HashMap::< Axial, TileValue > >( &text )
+      match serde_json::from_str::< Vec::< ( Axial, TileValue ) > >( &text )
       {
-        Ok( v ) => todo!(),
-        Err( e ) => todo!(),
+        Ok( v ) => *map.borrow_mut() = HashMap::from_iter( v.into_iter() ),
+        Err( e ) => gl::error!( "{e:?}" ),
       }
     }
   });

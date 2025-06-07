@@ -22,6 +22,7 @@ pub struct Coordinate< System, Orientation >
   pub q : i32,
   /// Row index
   pub r : i32,
+  #[ serde( skip ) ]
   pub _marker : PhantomData< ( System, Orientation ) >,
 }
 
