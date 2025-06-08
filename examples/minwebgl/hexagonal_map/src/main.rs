@@ -20,6 +20,14 @@ use web_sys::
 
 type Axial = Coordinate< hexagonal::Axial, hexagonal::Pointy >;
 
+#[ derive( Debug, Serialize, Deserialize ) ]
+struct Tile
+{
+  value : TileValue,
+  // TODO: New type
+  owner : u8,
+}
+
 #[ derive( Debug, Clone, Copy, AsRefStr, EnumIter, EnumString, Serialize, Deserialize ) ]
 enum TileValue
 {
@@ -93,6 +101,7 @@ async fn run() -> Result< (), gl::WebglError >
   let height = ( fheight * dpr ) as i32;
   canvas.set_width( width as u32 );
   canvas.set_height( height as u32 );
+  gl.clear_color( 0.0, 0.15, 0.5, 1.0 );
   gl.viewport( 0, 0, width, height );
   gl.enable( gl::BLEND );
   gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA );
@@ -111,9 +120,11 @@ async fn run() -> Result< (), gl::WebglError >
   let atlas = String::from_utf8( atlas ).unwrap();
   let atlas : TextureAtlas = quick_xml::de::from_str( &atlas ).unwrap();
 
-  let select_element = get_select_element( &document );
+  let tile_select_element = get_select_element( &document );
+  let player_select = document.get_element_by_id( "player" ).unwrap();
+  let player_select = player_select.dyn_into::< HtmlSelectElement >().unwrap();
 
-  let map = Rc::new( RefCell::new( HashMap::< Axial, TileValue >::new() ) );
+  let map = Rc::new( RefCell::new( HashMap::< Axial, Tile >::new() ) );
   setup_download_button( &document, map.clone() );
   setup_drop_zone( &document, map.clone() );
 
@@ -169,8 +180,9 @@ async fn run() -> Result< (), gl::WebglError >
     }
     else if input.is_button_down( MouseButton::Main )
     {
-      let variant = get_variant( &select_element );
-      map.borrow_mut().insert( coordinate, variant );
+      let variant = get_variant( &tile_select_element );
+      let owner : u8 = player_select.value().parse().unwrap();
+      map.borrow_mut().insert( coordinate, Tile { value : variant, owner } );
     }
     else if input.is_button_down( MouseButton::Secondary )
     {
@@ -185,7 +197,7 @@ async fn run() -> Result< (), gl::WebglError >
 
     shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
     shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
-    for ( coord, value ) in map.borrow().iter()
+    for ( coord, Tile { value, owner } ) in map.borrow().iter()
     {
       let axial : Axial = ( *coord ).into();
       let sprite = value.to_asset( &atlas );
@@ -198,6 +210,7 @@ async fn run() -> Result< (), gl::WebglError >
       gl.vertex_attrib2fv_with_f32_array( 1, &position.data );
       gl.vertex_attrib2fv_with_f32_array( 3, sprite_offset.as_slice() );
       gl.vertex_attrib2fv_with_f32_array( 4, sprite_size.as_slice() );
+      gl.vertex_attrib1f( 5, *owner as f32 );
       hexagon.draw( &gl );
     }
 
@@ -351,7 +364,7 @@ fn load_sprite_sheet
 
 fn get_select_element( document : &web_sys::Document ) -> HtmlSelectElement
 {
-  let select = document.get_element_by_id( "myDropdown" ).unwrap();
+  let select = document.get_element_by_id( "tile" ).unwrap();
   let select_element = select.dyn_into::< HtmlSelectElement >().unwrap();
   for variant in TileValue::iter()
   {
@@ -378,7 +391,7 @@ fn get_variant( select_element : &HtmlSelectElement ) -> TileValue
 fn setup_download_button
 (
   document : &web_sys::Document,
-  map : Rc< RefCell< HashMap::< Axial, TileValue > > >
+  map : Rc< RefCell< HashMap::< Axial, Tile > > >
 )
 {
   let button = document.get_element_by_id( "download" )
@@ -398,7 +411,7 @@ fn setup_download_button
   onclick.forget();
 }
 
-fn download_map( map : &HashMap::< Axial, TileValue > )
+fn download_map( map : &HashMap::< Axial, Tile > )
 {
   let map = map.to_owned().into_iter().collect::< Vec< _ > >();
   let json = serde_json::to_string( &map ).unwrap();
@@ -428,7 +441,7 @@ fn download_map( map : &HashMap::< Axial, TileValue > )
 fn setup_drop_zone
 (
   document : &web_sys::Document,
-  map : Rc< RefCell< HashMap::< Axial, TileValue > > >
+  map : Rc< RefCell< HashMap::< Axial, Tile > > >
 )
 {
   let element = document.get_element_by_id( "drop-zone" ).unwrap();
@@ -478,7 +491,7 @@ fn setup_drop_zone
   drop_handler.forget();
 }
 
-fn read_json_file( file : web_sys::File, map : Rc< RefCell< HashMap::< Axial, TileValue > > > )
+fn read_json_file( file : web_sys::File, map : Rc< RefCell< HashMap::< Axial, Tile > > > )
 {
   let reader = web_sys::FileReader::new().unwrap();
   reader.read_as_text( &file ).unwrap();
@@ -497,9 +510,15 @@ fn read_json_file( file : web_sys::File, map : Rc< RefCell< HashMap::< Axial, Ti
         return;
       };
 
-      match serde_json::from_str::< Vec::< ( Axial, TileValue ) > >( &text )
+      match serde_json::from_str::< Vec::< ( Axial, Tile ) > >( &text )
       {
-        Ok( v ) => *map.borrow_mut() = HashMap::from_iter( v.into_iter() ),
+        Ok( v ) =>
+        {
+          *map.borrow_mut() = HashMap::from_iter
+          (
+            v.into_iter() //.map( | ( k, value ) | ( k, Tile { value, owner : 0 } ) )
+          )
+        },
         Err( e ) => gl::error!( "{e:?}" ),
       }
     }

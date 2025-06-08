@@ -42,7 +42,8 @@
       margin-right: 10px;
     }
 
-    #myDropdown {
+    #tile,
+    #player {
       padding: 5px;
       font-size: 16px;
     }
@@ -62,8 +63,18 @@
 
 <body>
   <div class="ui-container">
-    <label for="myDropdown">Tile: </label>
-    <select id="myDropdown"></select>
+    <label for="tile">Tile: </label>
+    <select id="tile"></select>
+    <br>
+    <label for="player">Player: </label>
+    <select id="player">
+      <option value="0">1</option>
+      <option value="1">2</option>
+      <option value="2">3</option>
+      <option value="3">4</option>
+      <option value="4">5</option>
+      <option value="5">6</option>
+    </select>
     <button id="download">Download</button>
     <div id="drop-zone" style="border: 2px dashed #ccc; padding: 20px;">
       Drop JSON file here

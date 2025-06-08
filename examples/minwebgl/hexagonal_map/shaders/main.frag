@@ -1,7 +1,18 @@
 #version 300 es
 precision mediump float;
 
+const vec3[] PALETTE = vec3[]
+(
+  vec3( 1.0, 0.4, 0.4 ),
+  vec3( 0.2, 0.6, 0.2 ),
+  vec3( 0.4, 0.4, 1.0 ),
+  vec3( 0.8, 0.8, 0.4 ),
+  vec3( 0.8, 0.3, 0.7 ),
+  vec3( 0.2, 0.8, 0.8 )
+);
+
 in vec2 v_tex_coord;
+flat in float v_player_id;
 
 uniform sampler2D u_sprite_sheet;
 
@@ -10,5 +21,7 @@ layout ( location = 0 ) out vec4 frag_color;
 void main()
 {
   vec4 color = texture( u_sprite_sheet, v_tex_coord );
-  frag_color = vec4( color.rgb, 1.0 );
+  vec3 player_color = PALETTE[ int( v_player_id ) ];
+
+  frag_color = vec4( mix( color.rgb , player_color, 0.5 ), 1.0 );
 }
