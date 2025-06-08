@@ -132,7 +132,6 @@ async fn run() -> Result< (), gl::WebglError >
   (
     Some( canvas.dyn_into().unwrap() ),
     browser_input::CLIENT,
-    true
   );
   let dpr = dpr as f32;
   let mut zoom = 0.0625;
