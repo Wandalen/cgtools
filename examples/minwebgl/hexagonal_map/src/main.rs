@@ -1,9 +1,9 @@
 use minwebgl as gl;
+use gl::{ JsCast as _, F32x2, I32x2, Vector, GL, BufferDescriptor, geometry::BoundingBox };
 use serde::{ Deserialize, Serialize };
 use std::{ cell::RefCell, collections::HashMap, rc::Rc, str::FromStr as _ };
 use tiles_tools::{ coordinates::{ hexagonal, pixel::Pixel } };
 use hexagonal::Coordinate;
-use gl::{ JsCast as _, F32x2, I32x2, Vector, GL, BufferDescriptor };
 use browser_input::{ keyboard::KeyboardKey, mouse::MouseButton, Event, EventType };
 use renderer::webgl::{ AttributeInfo, Geometry };
 use strum::{ AsRefStr, EnumIter, IntoEnumIterator, EnumString };
@@ -280,13 +280,16 @@ fn tex_coords( positions : &[ f32 ] ) -> Vec< f32 >
   let mut x_max = f32::MIN;
   let mut y_min = f32::MAX;
   let mut y_max = f32::MIN;
+  let BoundingBox { min, max } = BoundingBox::compute2d( &positions );
+  let Vector( [ x_min, y_min, .. ] ) = min;
+  let Vector( [ x_max, y_max, .. ] ) = max;
 
   for pos in positions.chunks_exact_mut( 2 )
   {
-    x_min = x_min.min( pos[ 0 ] );
-    x_max = x_max.max( pos[ 0 ] );
-    y_min = y_min.min( pos[ 1 ] );
-    y_max = y_max.max( pos[ 1 ] );
+    // x_min = x_min.min( pos[ 0 ] );
+    // x_max = x_max.max( pos[ 0 ] );
+    // y_min = y_min.min( pos[ 1 ] );
+    // y_max = y_max.max( pos[ 1 ] );
     // make hexagon a little smaller to remove transparent edges from tile sheet
     pos[ 0 ] *= 0.982;
     pos[ 1 ] *= 0.982;
@@ -337,23 +340,23 @@ fn load_sprite_sheet
     let texture = texture.clone();
     move ||
     {
-      gl.bind_texture( gl::TEXTURE_2D, texture.as_ref() );
-      gl.tex_image_2d_with_u32_and_u32_and_html_image_element
-      (
-        gl::TEXTURE_2D,
-        0,
-        gl::RGBA as i32,
-        gl::RGBA,
-        gl::UNSIGNED_BYTE,
-        &img
-      ).expect( "Failed to upload data to texture" );
-
+      gl::texture::d2::upload_no_flip( &gl, texture.as_ref(), &img );
       gl::texture::d2::filter_nearest( &gl );
-
       img.remove();
+
+      // gl.bind_texture( gl::TEXTURE_2D, texture.as_ref() );
+      // gl.tex_image_2d_with_u32_and_u32_and_html_image_element
+      // (
+      //   gl::TEXTURE_2D,
+      //   0,
+      //   gl::RGBA as i32,
+      //   gl::RGBA,
+      //   gl::UNSIGNED_BYTE,
+      //   &img
+      // ).expect( "Failed to upload data to texture" );
+
     }
   });
-
   img.set_onload( Some( on_load.as_ref().unchecked_ref() ) );
   img.set_src( &src );
   on_load.forget();
@@ -417,6 +420,7 @@ fn download_map( map : &HashMap::< Axial, Tile > )
   let array = web_sys::js_sys::Array::new();
   array.push( &JsValue::from_str( &json ) );
 
+  // вынести маленький хэлпер
   let blob_props = web_sys::BlobPropertyBag::new();
   blob_props.set_type( "application/json" );
   let blob = web_sys::Blob::new_with_str_sequence_and_options( &array, &blob_props ).unwrap();
