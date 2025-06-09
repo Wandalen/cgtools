@@ -23,5 +23,5 @@ void main()
   vec4 color = texture( u_sprite_sheet, v_tex_coord );
   vec3 player_color = PALETTE[ int( v_player_id ) ];
 
-  frag_color = vec4( mix( color.rgb , player_color, 0.5 ), 1.0 );
+  frag_color = vec4( mix( color.rgb , player_color, 1.0 ), 1.0 );
 }

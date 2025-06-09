@@ -1,12 +1,24 @@
+mod blob;
+mod sprite;
+
 use minwebgl as gl;
-use gl::{ JsCast as _, F32x2, I32x2, Vector, GL, BufferDescriptor, geometry::BoundingBox };
-use serde::{ Deserialize, Serialize };
-use std::{ cell::RefCell, collections::HashMap, rc::Rc, str::FromStr as _ };
-use tiles_tools::{ coordinates::{ hexagonal, pixel::Pixel } };
-use hexagonal::Coordinate;
 use browser_input::{ keyboard::KeyboardKey, mouse::MouseButton, Event, EventType };
-use renderer::webgl::{ AttributeInfo, Geometry };
+use std::{ cell::RefCell, collections::HashMap, rc::Rc, str::FromStr as _ };
 use strum::{ AsRefStr, EnumIter, IntoEnumIterator, EnumString };
+use tiles_tools::coordinates::{ hexagonal, pixel::Pixel };
+use renderer::webgl::{ AttributeInfo, Geometry };
+use serde::{ Deserialize, Serialize };
+use hexagonal::Coordinate;
+use gl::
+{
+  JsCast as _,
+  F32x2,
+  I32x2,
+  Vector,
+  GL,
+  BufferDescriptor,
+  geometry::BoundingBox
+};
 use web_sys::
 {
   wasm_bindgen::prelude::*,
@@ -18,7 +30,7 @@ use web_sys::
   WebGlTexture,
 };
 
-type Axial = Coordinate< hexagonal::Axial, hexagonal::Pointy >;
+type Axial = Coordinate< hexagonal::Axial, hexagonal::Flat >;
 
 #[ derive( Debug, Serialize, Deserialize ) ]
 struct Tile
@@ -98,29 +110,33 @@ async fn run() -> Result< (), gl::WebglError >
   let canvas = gl.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
   let width = ( fwidth * dpr ) as i32;
   let height = ( fheight * dpr ) as i32;
-  browser_input::prevent_rightclick( canvas.clone().dyn_into().unwrap() );
   canvas.set_width( width as u32 );
   canvas.set_height( height as u32 );
+  browser_input::prevent_rightclick( canvas.clone().dyn_into().unwrap() );
+
   gl.clear_color( 0.0, 0.15, 0.5, 1.0 );
   gl.viewport( 0, 0, width, height );
-  gl.enable( gl::BLEND );
-  gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA );
 
   let hexagon = create_hexagon_geometry( &gl )?;
+  let outline = create_line_geometry( &gl )?;
+
   hexagon.bind( &gl );
-  let shader = create_shader( &gl )?;
-  shader.activate();
+  let main_shader = create_shader( &gl )?;
+  let line_shader = create_line_shader( &gl )?;
 
   let sprite_sheet_path = "static/kenney_hexagon_pack/Spritesheets/hexagonAll_sheet.png";
   let sprite_sheet = load_sprite_sheet( &gl, &document, sprite_sheet_path );
   gl.bind_texture( GL::TEXTURE_2D, sprite_sheet.as_ref() );
 
   let atlas_size = 2048.0f32;
-  let atlas = gl::file::load( "kenney_hexagon_pack/Spritesheets/hexagonAll_sheet.xml" ).await.unwrap();
+  let atlas = gl::file::load
+  (
+    "kenney_hexagon_pack/Spritesheets/hexagonAll_sheet.xml"
+  ).await.unwrap();
   let atlas = String::from_utf8( atlas ).unwrap();
   let atlas : TextureAtlas = quick_xml::de::from_str( &atlas ).unwrap();
 
-  let tile_select_element = get_select_element( &document );
+  let tile_select_element = setup_select_element( &document );
   let player_select = document.get_element_by_id( "player" ).unwrap();
   let player_select = player_select.dyn_into::< HtmlSelectElement >().unwrap();
 
@@ -172,7 +188,14 @@ async fn run() -> Result< (), gl::WebglError >
     {
       if let Some( last_pointer_pos ) = last_pointer_pos
       {
-        let last_pointer_pos = screen_to_world( last_pointer_pos, inv_canvas_size, dpr, aspect, zoom );
+        let last_pointer_pos = screen_to_world
+        (
+          last_pointer_pos,
+          inv_canvas_size,
+          dpr,
+          aspect,
+          zoom
+        );
         let movement = pointer_pos - last_pointer_pos;
         camera_pos += movement;
       }
@@ -194,8 +217,12 @@ async fn run() -> Result< (), gl::WebglError >
 
     gl.clear( GL::COLOR_BUFFER_BIT );
 
-    shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
-    shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
+    main_shader.activate();
+    main_shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
+    main_shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
+    line_shader.activate();
+    line_shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
+    line_shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
     for ( coord, Tile { value, owner } ) in map.borrow().iter()
     {
       let axial : Axial = ( *coord ).into();
@@ -206,11 +233,19 @@ async fn run() -> Result< (), gl::WebglError >
 
       let mut position : Pixel = axial.into();
       position.data[ 1 ] = -position.data[ 1 ];
+
+      hexagon.bind( &gl );
+      main_shader.activate();
       gl.vertex_attrib2fv_with_f32_array( 1, &position.data );
       gl.vertex_attrib2fv_with_f32_array( 3, sprite_offset.as_slice() );
       gl.vertex_attrib2fv_with_f32_array( 4, sprite_size.as_slice() );
       gl.vertex_attrib1f( 5, *owner as f32 );
       hexagon.draw( &gl );
+
+      outline.bind( &gl );
+      line_shader.activate();
+      gl.vertex_attrib2fv_with_f32_array( 1, &position.data );
+      outline.draw( &gl );
     }
 
     true
@@ -238,10 +273,7 @@ fn screen_to_world
 
 fn create_hexagon_geometry( gl : &GL ) -> Result< Geometry, minwebgl::WebglError >
 {
-  let positions = tiles_tools::geometry::hexagon_triangles_with_tranform
-  (
-    gl::math::mat2x2h::rot( 30.0f32.to_radians() )
-  );
+  let positions = tiles_tools::geometry::hexagon_triangles();
   let tex_coords = tex_coords( &positions );
 
   let position_buffer = gl::buffer::create( &gl )?;
@@ -268,32 +300,38 @@ fn create_hexagon_geometry( gl : &GL ) -> Result< Geometry, minwebgl::WebglError
   geometry.vertex_count = positions.len() as u32;
   geometry.add_attribute( &gl, "position", pos_info, false )?;
   geometry.add_attribute( &gl, "tex_coord", tex_coord_info, false )?;
+  gl.bind_vertex_array( None );
+
+  Ok( geometry )
+}
+
+fn create_line_geometry( gl : &GL ) -> Result< Geometry, minwebgl::WebglError >
+{
+  let positions = tiles_tools::geometry::hexagon_lines();
+  let position_buffer = gl::buffer::create( &gl )?;
+  gl::buffer::upload( &gl, &position_buffer, positions.as_slice(), GL::STATIC_DRAW );
+  let pos_info = AttributeInfo
+  {
+    slot : 0,
+    buffer : position_buffer,
+    descriptor : BufferDescriptor::new::< [ f32; 2 ] >(),
+    bounding_box : Default::default(),
+  };
+
+  let mut geometry = Geometry::new( &gl )?;
+  geometry.draw_mode = GL::LINES;
+  geometry.vertex_count = positions.len() as u32;
+  geometry.add_attribute( &gl, "position", pos_info, false )?;
+  gl.bind_vertex_array( None );
 
   Ok( geometry )
 }
 
 fn tex_coords( positions : &[ f32 ] ) -> Vec< f32 >
 {
-  let mut positions = positions.to_vec();
-
-  let mut x_min = f32::MAX;
-  let mut x_max = f32::MIN;
-  let mut y_min = f32::MAX;
-  let mut y_max = f32::MIN;
   let BoundingBox { min, max } = BoundingBox::compute2d( &positions );
   let Vector( [ x_min, y_min, .. ] ) = min;
   let Vector( [ x_max, y_max, .. ] ) = max;
-
-  for pos in positions.chunks_exact_mut( 2 )
-  {
-    // x_min = x_min.min( pos[ 0 ] );
-    // x_max = x_max.max( pos[ 0 ] );
-    // y_min = y_min.min( pos[ 1 ] );
-    // y_max = y_max.max( pos[ 1 ] );
-    // make hexagon a little smaller to remove transparent edges from tile sheet
-    pos[ 0 ] *= 0.982;
-    pos[ 1 ] *= 0.982;
-  }
 
   let dist_x = x_max - x_min;
   let dist_y = y_max - y_min;
@@ -301,8 +339,8 @@ fn tex_coords( positions : &[ f32 ] ) -> Vec< f32 >
   let mut tex_coords = vec![];
   for pos in positions.chunks_exact( 2 )
   {
-    let x = ( pos[ 0 ] - x_min ) / dist_x;
-    let y = ( pos[ 1 ] - y_min ) / dist_y;
+    let x = ( pos[ 0 ] * 0.982 - x_min ) / dist_x;
+    let y = ( pos[ 1 ] * 0.982 - y_min ) / dist_y;
     let y = 1.0 - y;
     tex_coords.push( x );
     tex_coords.push( y );
@@ -318,6 +356,13 @@ fn create_shader( gl : &GL ) -> Result< gl::shader::Program, minwebgl::WebglErro
   gl::shader::Program::new( gl.clone(), vert, frag )
 }
 
+fn create_line_shader( gl : &GL ) -> Result< gl::shader::Program, minwebgl::WebglError >
+{
+  let vert = include_str!( "../shaders/main.vert" );
+  let frag = include_str!( "../shaders/line.frag" );
+  gl::shader::Program::new( gl.clone(), vert, frag )
+}
+
 fn load_sprite_sheet
 (
   gl : &GL,
@@ -330,9 +375,9 @@ fn load_sprite_sheet
   .dyn_into::< HtmlImageElement >()
   .unwrap();
   img.style().set_property( "display", "none" ).unwrap();
-
   let texture = gl.create_texture();
 
+  // TODO: use size of image
   let on_load : Closure< dyn Fn() > = Closure::new
   ({
     let gl = gl.clone();
@@ -343,18 +388,6 @@ fn load_sprite_sheet
       gl::texture::d2::upload_no_flip( &gl, texture.as_ref(), &img );
       gl::texture::d2::filter_nearest( &gl );
       img.remove();
-
-      // gl.bind_texture( gl::TEXTURE_2D, texture.as_ref() );
-      // gl.tex_image_2d_with_u32_and_u32_and_html_image_element
-      // (
-      //   gl::TEXTURE_2D,
-      //   0,
-      //   gl::RGBA as i32,
-      //   gl::RGBA,
-      //   gl::UNSIGNED_BYTE,
-      //   &img
-      // ).expect( "Failed to upload data to texture" );
-
     }
   });
   img.set_onload( Some( on_load.as_ref().unchecked_ref() ) );
@@ -364,7 +397,7 @@ fn load_sprite_sheet
   texture
 }
 
-fn get_select_element( document : &web_sys::Document ) -> HtmlSelectElement
+fn setup_select_element( document : &web_sys::Document ) -> HtmlSelectElement
 {
   let select = document.get_element_by_id( "tile" ).unwrap();
   let select_element = select.dyn_into::< HtmlSelectElement >().unwrap();
@@ -403,10 +436,7 @@ fn setup_download_button
 
   let onclick : Closure< dyn Fn() > = Closure::new
   ({
-    move ||
-    {
-      download_map( &map.borrow() );
-    }
+    move || download_map( &map.borrow() )
   });
 
   button.set_onclick( Some( onclick.as_ref().unchecked_ref() ) );
@@ -420,14 +450,10 @@ fn download_map( map : &HashMap::< Axial, Tile > )
   let array = web_sys::js_sys::Array::new();
   array.push( &JsValue::from_str( &json ) );
 
-  // вынести маленький хэлпер
-  let blob_props = web_sys::BlobPropertyBag::new();
-  blob_props.set_type( "application/json" );
-  let blob = web_sys::Blob::new_with_str_sequence_and_options( &array, &blob_props ).unwrap();
+  let url = blob::create_blob( array, "application/json" ).unwrap();
 
   let window = web_sys::window().unwrap();
   let document = window.document().unwrap();
-  let url = web_sys::Url::create_object_url_with_blob( &blob ).unwrap();
 
   let anchor = document.create_element( "a" )
   .unwrap()
@@ -437,8 +463,6 @@ fn download_map( map : &HashMap::< Axial, Tile > )
   anchor.set_href( &url );
   anchor.set_download( "data.json" );
   anchor.click();
-
-  web_sys::Url::revoke_object_url( &url ).unwrap();
 }
 
 fn setup_drop_zone

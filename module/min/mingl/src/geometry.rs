@@ -59,7 +59,7 @@ mod private
       bounding_box
     }
 
-    /// Computes the bounding box of the model from the provided positions array
+    /// Computes the bounding box of the model from the provided 2D positions array
     /// Positions should be in the form [ x, y, x, y, ... ]
     pub fn compute2d( positions : &[ f32 ] ) -> Self
     {
@@ -69,7 +69,6 @@ mod private
       {
         let x = positions[ i * 2 + 0 ];
         let y = positions[ i * 2 + 1 ];
-        // let z = positions[ i * 3 + 2 ];
 
         let p = F32x3::new( x, y, 0.0 );
 
