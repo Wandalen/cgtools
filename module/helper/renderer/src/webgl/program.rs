@@ -91,8 +91,7 @@ mod private
       add_location( "emissiveFactor" );
 
       // Luminosity
-      add_location( "luminosityThreshold" );
-      add_location( "luminositySmoothWidth" );
+      add_location( "alphaCutoff" );
 
       Self
       {

@@ -167,6 +167,7 @@ use minwebgl as gl;
       upload( "normalScale", self.normal_scale )?;
       upload( "occlusionStrength", self.occlusion_strength )?;
       upload( "specularFactor", self.occlusion_strength )?;
+      upload( "alphaCutoff", self.alpha_cutoff )?;
       gl::uniform::upload( gl, locations.get( "baseColorFactor" ).unwrap().clone(), self.base_color_factor.as_slice() )?;
       upload_array( "specularColorFactor", self.specular_color_factor.as_ref().map( | v | v.as_slice() ) )?;
       upload_array( "emissiveFactor", self.emissive_factor.as_ref().map( | v | v.as_slice() ) )?;

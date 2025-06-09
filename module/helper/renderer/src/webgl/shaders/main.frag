@@ -26,6 +26,10 @@ layout( location = 3 ) out float transparentB;
 
 uniform vec3 cameraPosition;
 
+#ifdef USE_ALPHA_CUTOFF
+  uniform float alphaCutoff;
+#endif
+
 struct PhysicalMaterial
 {
   vec3 diffuseColor;
@@ -33,8 +37,15 @@ struct PhysicalMaterial
   float roughness;
   vec3 f0;
   vec3 f90;
-  float occlusionFactor;
   float specularFactor;
+};
+
+struct ReflectedLight
+{
+  vec3 indirectDiffuse;
+  vec3 indirectSpecular;
+  vec3 directDiffuse;
+  vec3 directSpecular;
 };
 
 uniform float luminosityThreshold;
@@ -198,10 +209,10 @@ vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
   return vec4( F, G * D ) ;
 }
 
-#define EXPOSURE 1.0
+#define EXPOSURE 0.0
 
 #ifdef USE_IBL
-  vec3 sampleEnvIrradiance( const in vec3 N, const in vec3 V, const in PhysicalMaterial material )
+  vec3 sampleEnvIrradiance( const in vec3 N, const in vec3 V, const in PhysicalMaterial material, inout ReflectedLight reflectedLight )
   {
     vec3 color = vec3( 0.0 );
     float dotNV = clamp( dot( N, V ), 0.0, 1.0 );
@@ -220,7 +231,10 @@ vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
 
       vec3 diffuseBRDF = diffuse * material.diffuseColor;
       vec3 specularBRDF = prefilter * ( material.f0 * envBrdf.x + envBrdf.y );
-      color = Fd * diffuseBRDF + specularBRDF;
+      //color = Fd * diffuseBRDF + specularBRDF;
+
+      reflectedLight.indirectDiffuse +=  diffuseBRDF;
+      reflectedLight.indirectSpecular += specularBRDF;
     }
 
     return color;
@@ -229,7 +243,7 @@ vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
 
 float alpha_weight( float z, float a )
 {
-  return clamp(pow(min(1.0, a * 10.0) + 0.01, 3.0) * 1e8 * pow(1.0 - z * 0.9, 3.0), 1e-2, 3e3);
+  return clamp( pow( min( 1.0, a * 10.0 ) + 0.01, 3.0 ) * 1e8 * pow( 1.0 - z * 0.9, 3.0 ), 1e-2, 3e3 );
 }
 
 #ifndef USE_TANGENTS
@@ -257,6 +271,7 @@ float alpha_weight( float z, float a )
 void main()
 {
   PhysicalMaterial material;
+  ReflectedLight reflectedLight = ReflectedLight( vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ) );
 
   float alpha = 1.0;
   #ifdef USE_PBR
@@ -316,18 +331,11 @@ void main()
     #endif
     normal = normalize( normal );
   #endif
+
   if( !gl_FrontFacing )
   {
     normal *= -1.0;
   }
-
-  // Works only with indirect light
-  #ifdef USE_OCCLUSION_TEXTURE
-    float occlusion = texture( occlusionTexture, vOcclusionUv ).r;
-    material.occlusionFactor = 1.0 + occlusionStrength * ( occlusion - 1.0 );
-  #else
-    material.occlusionFactor = 1.0;
-  #endif
 
 
   vec3 color = vec3( 0.0 );
@@ -355,7 +363,7 @@ void main()
       vec3( -1.0, -1.0, -1.0 )
     );
 
-    const float lightIntensity = 3.0;
+    const float lightIntensity = 1.0;
     const vec3 lightColor = vec3( 1.0 );
     float dotVN = clamp( dot( viewDir, normal ), 0.0, 1.0 );
 
@@ -369,22 +377,30 @@ void main()
         vec4 brdf = BRDF_GGX( lightDir, viewDir, normal, material );
         vec3 Fs = brdf.xyz;
         float Fd = 1.0 - max_value( Fs );
-        Fd *= 1.0 - material.metallness;
+        //Fd *=  ( 1.0 - material.metallness );
         float DG = brdf.w;
 
-        vec3 light_diffuse = Fd * material.diffuseColor * RECIPROCAL_PI;
+        vec3 light_diffuse = material.diffuseColor * RECIPROCAL_PI;
         vec3 light_specular = Fs * DG;// / max( 4.0 * dotVN * dotNL, 0.0001 );
 
-        color += ( light_diffuse + light_specular ) * lightColor * lightIntensity * dotNL;
+        vec3 irradiance = lightColor * lightIntensity * dotNL;
+        reflectedLight.directDiffuse += irradiance * light_diffuse;
+        reflectedLight.directSpecular += irradiance * light_specular;
       }
     }
   #endif
 
   // Ambient color
   #if defined( USE_PBR ) && defined( USE_IBL )
-    color += sampleEnvIrradiance( normal, viewDir, material ) * material.occlusionFactor;
+    sampleEnvIrradiance( normal, viewDir, material, reflectedLight );
   #elif defined( USE_PBR )
-    color += 0.1 * material.diffuseColor * material.occlusionFactor;
+    reflectedLight.indirectDiffuse += 0.1 * material.diffuseColor;
+  #endif
+
+   // Works only with indirect light
+  #ifdef USE_OCCLUSION_TEXTURE
+    float occlusion = texture( occlusionTexture, vOcclusionUv ).r;
+    reflectedLight.indirectDiffuse *= 1.0 + occlusionStrength * ( occlusion - 1.0 );
   #endif
   
   emissive_color = vec4( 0.0 );
@@ -396,8 +412,20 @@ void main()
     #endif
   #endif
 
+  #ifdef USE_ALPHA_CUTOFF
+    alpha = step( alpha, 1.0 - alphaCutoff );
+  #endif
+
+  color = reflectedLight.indirectDiffuse + 
+  reflectedLight.indirectSpecular + 
+  reflectedLight.directDiffuse +
+  reflectedLight.directSpecular;
+  //color = reflectedLight.directSpecular;
+
+  //color = vec3( material.occlusionFactor );
   float a_weight = alpha * alpha_weight( gl_FragCoord.z, alpha );
   frag_color = vec4( color * alpha, alpha );
   trasnparentA = vec4( color * a_weight, alpha );
   transparentB = a_weight;
+ // frag_color = vec4( vec3( material.roughness ), 1.0 );
 }
