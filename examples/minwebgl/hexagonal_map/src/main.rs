@@ -93,12 +93,12 @@ async fn run() -> Result< (), gl::WebglError >
   let fwidth = window.inner_width().unwrap().as_f64().unwrap();
   let fheight = window.inner_height().unwrap().as_f64().unwrap();
   let dpr = window.device_pixel_ratio();
-
   let gl = gl::context::retrieve_or_make().unwrap();
 
   let canvas = gl.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
   let width = ( fwidth * dpr ) as i32;
   let height = ( fheight * dpr ) as i32;
+  browser_input::prevent_rightclick( canvas.clone().dyn_into().unwrap() );
   canvas.set_width( width as u32 );
   canvas.set_height( height as u32 );
   gl.clear_color( 0.0, 0.15, 0.5, 1.0 );
