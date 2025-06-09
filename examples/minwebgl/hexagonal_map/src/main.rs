@@ -515,7 +515,7 @@ fn read_json_file( file : web_sys::File, map : Rc< RefCell< HashMap::< Axial, Ti
         {
           *map.borrow_mut() = HashMap::from_iter
           (
-            v.into_iter() //.map( | ( k, value ) | ( k, Tile { value, owner : 0 } ) )
+            v.into_iter()
           )
         },
         Err( e ) => gl::error!( "{e:?}" ),
