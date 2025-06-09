@@ -48,6 +48,13 @@ struct ReflectedLight
   vec3 directSpecular;
 };
 
+struct LightInfo
+{
+  vec3 direction;
+  vec3 color;
+  float strength;
+};
+
 uniform float luminosityThreshold;
 uniform float luminositySmoothWidth;
 
@@ -133,6 +140,11 @@ float pow4( const in float x )
   return x2*x2;
 }
 
+float dot2( const in vec3 v )
+{
+  return dot( v, v );
+}
+
 vec4 SrgbToLinear( const in vec4 color )
 {
   vec3 more = pow( color.rgb * 0.9478672986 + vec3( 0.0521327014 ), vec3( 2.4 ) );
@@ -173,8 +185,27 @@ vec3 F_Schlick( const in vec3 f0, const in vec3 f90, const in float dotVH )
   return f0 + ( f90 - f0 ) * fresnel;
 }
 
+vec3 Fd_Barley
+( 
+  const in float alpha, 
+  const in float dotNV, 
+  const in float dotNL, 
+  const in float dotLH 
+)
+{
+  vec3 f90 = vec3( 0.5 + 2.0 * alpha * pow2( dotLH ) );
+  vec3 lightScatter = F_Schlick( vec3( 1.0 ), f90, dotNL );
+  vec3 viewScatter = F_Schlick( vec3( 1.0 ), f90, dotNV );
+  return viewScatter * lightScatter * RECIPROCAL_PI;
+}
+
 // https://web.archive.org/web/20160702002225/http://www.frostbite.com/wp-content/uploads/2014/11/course_notes_moving_frostbite_to_pbr_v2.pdf
 // https://inria.hal.science/hal-00942452v1/document
+// Visibility Geometry function
+// V = G / ( 4 * dotNV * dotNL )
+// G = G1( L ) * G1( V )
+// G1( L ) = 2dotNL / ( dotNL + sqrt( a2 + ( 1 - a2 ) * dotNL2 ) )
+// The term ( 4 * dotNV * dotNL ) in BRDF cancels out
 float V_GGX_SmithCorrelated( const in float alpha, const in float dotNL, const in float dotNV ) 
 {
   float a2 = pow2( alpha );
@@ -183,6 +214,7 @@ float V_GGX_SmithCorrelated( const in float alpha, const in float dotNL, const i
   return 0.5 / max( gv + gl, 1e-6 );
 }
 
+// Normal distribution function
 float D_GGX( const in float alpha, const in float dotNH ) 
 {
   float a2 = pow2( alpha );
@@ -207,6 +239,45 @@ vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
   // Normal distribution function
   float D = D_GGX( alpha, dotNH );
   return vec4( F, G * D ) ;
+}
+
+void computeDirectLight
+( 
+  const in LightInfo lightInfo, 
+  const in vec3 viewDir, 
+  const in vec3 normal, 
+  const in PhysicalMaterial material,
+  inout ReflectedLight reflectedLight
+)
+{
+  float alpha = pow2( material.roughness );
+  vec3 halfDir = normalize( lightInfo.direction + viewDir );
+
+  float dotNL = clamp( dot( normal, lightInfo.direction ), 0.0, 1.0 );
+  float dotNV = clamp( dot( normal, viewDir ), 0.0, 1.0 );
+  float dotNH = clamp( dot( normal, halfDir ), 0.0, 1.0 );
+  float dotVH = clamp( dot( viewDir, halfDir ), 0.0, 1.0 );
+  float dotLH = clamp( dot( lightInfo.direction, halfDir ), 0.0, 1.0 );
+
+  // Fresnel
+  vec3 Fs = F_Schlick( material.f0, material.f90, dotVH );
+  //float Fd = max_value( Fs );
+  vec3 Fd = Fd_Barley( alpha, dotNV, dotNL, dotLH );
+  // Visibility Geometry function
+  float V = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
+  // Normal distribution function
+  float D = D_GGX( alpha, dotNH );
+
+  vec3 irradiance = lightInfo.color * lightInfo.strength * dotNL; 
+  vec3 diffuseColor =  material.diffuseColor * irradiance;
+  vec3 specularColor =  D * V * irradiance;
+
+  // Diffuse BRDF( Lambert )
+  reflectedLight.directDiffuse += Fd * diffuseColor;
+  //reflectedLight.directDiffuse += vec3( Fd );
+
+  // Specular BRDF
+  reflectedLight.directSpecular += Fs * specularColor;
 }
 
 #define EXPOSURE 0.0
@@ -363,29 +434,19 @@ void main()
       vec3( -1.0, -1.0, -1.0 )
     );
 
-    const float lightIntensity = 1.0;
-    const vec3 lightColor = vec3( 1.0 );
+    LightInfo lightInfo;
+    lightInfo.strength = 2.0;
+    lightInfo.color = vec3( 1.0 );
     float dotVN = clamp( dot( viewDir, normal ), 0.0, 1.0 );
 
     for( int i = 0; i < 8; i++ )
     {
-      vec3 lightDir = normalize( lightDirs[ i ] );
-      float dotNL = clamp( dot( normal, lightDir ), 0.0, 1.0 );
+      lightInfo.direction = normalize( lightDirs[ i ] );
+      //float dotNL = clamp( dot( normal, lightInfo.direction ), 0.0, 1.0 );
 
-      if( dotNL > 0.0 )
+      //if( dotNL > 0.0 )
       {
-        vec4 brdf = BRDF_GGX( lightDir, viewDir, normal, material );
-        vec3 Fs = brdf.xyz;
-        float Fd = 1.0 - max_value( Fs );
-        //Fd *=  ( 1.0 - material.metallness );
-        float DG = brdf.w;
-
-        vec3 light_diffuse = material.diffuseColor * RECIPROCAL_PI;
-        vec3 light_specular = Fs * DG;// / max( 4.0 * dotVN * dotNL, 0.0001 );
-
-        vec3 irradiance = lightColor * lightIntensity * dotNL;
-        reflectedLight.directDiffuse += irradiance * light_diffuse;
-        reflectedLight.directSpecular += irradiance * light_specular;
+        computeDirectLight( lightInfo, viewDir, normal, material, reflectedLight );
       }
     }
   #endif
