@@ -156,8 +156,6 @@ float outline_stencil_color()
 
 vec4 outline_color()
 {
-  float depth = 1.0 - texture( u_depth_texture, v_tex_coord ).x;
-
   vec4 near_color = vec4( 0.0 );
   float near_depth = 0.0;
 
@@ -178,7 +176,7 @@ vec4 outline_color()
   {
     for( int x = 0; x < 5; x++ )
     {
-      depths[ y * 5 + x ] = texture(
+      depths[ y * 5 + x ] = 1.0 - texture(
         u_depth_texture,
         v_tex_coord + vec2( float( x - 2 ), float( y - 2 ) ) * u_outline_thickness / u_resolution
       ).r;
@@ -188,7 +186,7 @@ vec4 outline_color()
   for ( int i = 0; i < 13; i++ )
   {
     uint j = IDS[ i ];
-    if ( near_depth < depths[ j ] && depths[ j ] >= 0.0 )
+    if ( near_depth < depths[ j ] && depths[ j ] < 1.0 )
     {
       near_depth = depths[ j ];
       near_color = colors[ j ];

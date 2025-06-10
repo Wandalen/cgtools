@@ -724,8 +724,6 @@ fn primitives_csgrs_gltf
     gltf.scenes[ 0 ].borrow_mut().children.push( node );
   }
 
-  gl::info!( "{:?}", ( positions.len(), indices.len() ) );
-
   gl::buffer::upload( &gl, &position_buffer, &positions, GL::STATIC_DRAW );
   gl::buffer::upload( &gl, &normal_buffer, &normals, GL::STATIC_DRAW );
   gl::buffer::upload( &gl, &object_id_buffer, &object_ids, GL::STATIC_DRAW );
@@ -996,7 +994,7 @@ impl Renderer
     let u_outline_thickness_loc = locations.get( "u_outline_thickness" ).unwrap().clone().unwrap();
     let u_background_color_loc = locations.get( "u_background_color" ).unwrap().clone().unwrap();  
 
-    let outline_thickness = [ ( 2.0 * ( t / 1000.0 ).sin().abs() ) as f32 ]; // Example animation
+    let outline_thickness = [ 1.0 as f32 ]; //[ ( 2.0 * ( t / 1000.0 ).sin().abs() ) as f32 ]; // Example animation
     let background_color = [ 0.0, 0.0, 0.0, 1.0 ]; 
 
     // Bind the default framebuffer ( render to canvas )
