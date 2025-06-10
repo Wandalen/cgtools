@@ -1,4 +1,7 @@
 #version 300 es
+
+#define MAX_OBJECT_COUNT 1024
+
 // Set the precision for float calculations. mediump is usually sufficient for color.
 precision mediump float;
 
@@ -15,7 +18,7 @@ layout( location = 2 ) out float FragDepth;
 
 layout( std140 ) uniform ObjectColorBlock
 {
-  vec4 u_object_colors[ 256 ];
+  vec4 u_object_colors[ MAX_OBJECT_COUNT ];
 }; 
 
 uniform float near;
