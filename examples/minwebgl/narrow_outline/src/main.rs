@@ -127,7 +127,7 @@ fn create_framebuffer
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT2, GL::TEXTURE_2D, Some( &depth ), 0 );
   gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::RENDERBUFFER, Some( &depthbuffer ) );
 
-  drawbuffers( gl, &[ GL::COLOR_ATTACHMENT0, GL::COLOR_ATTACHMENT1, GL::COLOR_ATTACHMENT2 ] );
+  drawbuffers( gl, &[ 0, 1, 2 ] );
 
   gl.bind_framebuffer( gl::FRAMEBUFFER, None );
 
