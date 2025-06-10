@@ -89,17 +89,10 @@ mod private
 
       // --- Cleanup ---
       // Unbind the texture and framebuffer attachment to restore default state.
-      gl.bind_texture( gl::TEXTURE_2D, None );
+      gl::clean::texture_2d( gl );
       if !self.render_to_screen
       {
-        gl.framebuffer_texture_2d
-        (
-          gl::FRAMEBUFFER, 
-          gl::COLOR_ATTACHMENT0, 
-          gl::TEXTURE_2D, 
-          None, 
-          0
-        );
+        gl::clean::framebuffer_texture_2d( gl );
       }
 
       Ok

@@ -54,7 +54,7 @@ mod private
       let framebuffer = gl.create_framebuffer();
       gl.bind_framebuffer( gl::FRAMEBUFFER, framebuffer.as_ref() );
       // Specify that only COLOR_ATTACHMENT0 is used for drawing.
-      gl::drawbuffers::drawbuffers( &gl, &[ gl::COLOR_ATTACHMENT0 ] );
+      gl::drawbuffers::drawbuffers( &gl, &[ 0 ] );
 
       // Unbind renderbuffer and framebuffer to clean up global state.
       gl.bind_renderbuffer( gl::RENDERBUFFER, None );
@@ -106,7 +106,7 @@ mod private
     pub fn unbind_attachment( &self, gl : &gl::WebGl2RenderingContext )
     {
       self.bind( gl );
-      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, None, 0 );
+      gl::clean::framebuffer_texture_2d( gl );
     }
 
     /// Sets the `input_texture` of the `SwapFramebuffer`.
