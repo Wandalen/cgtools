@@ -2,9 +2,10 @@ mod private
 {
   use std::collections::HashMap;
   use mingl::geometry::BoundingBox;
-use minwebgl as gl;
+  use minwebgl as gl;
 
   /// Represents information about a single vertex attribute.
+  #[ derive( Clone ) ]
   pub struct AttributeInfo
   {
     /// The attribute slot index in the shader program.
@@ -30,6 +31,7 @@ use minwebgl as gl;
   }
 
   /// Holds information about the index buffer used for indexed drawing.
+  #[ derive( Debug, Clone ) ]
   pub struct IndexInfo
   {
     /// The WebGL buffer object containing the index data.
