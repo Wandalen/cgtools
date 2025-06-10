@@ -32,6 +32,7 @@ mod private
     /// are blitted to, making them ready for sampling.
     pub resolved_framebuffer: Option< gl::web_sys::WebGlFramebuffer >,
     /// The renderbuffer used for depth and stencil testing in the multisample framebuffer.
+    #[ allow( dead_code ) ]
     pub depth_renderbuffer: Option< gl::web_sys::WebGlRenderbuffer >,
     /// The renderbuffer that receives the main color output during multisampled rendering.
     pub multisample_main_renderbuffer: Option< gl::web_sys::WebGlRenderbuffer >,
@@ -147,7 +148,7 @@ mod private
       gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, multisample_main_renderbuffer.as_ref() );
       gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::RENDERBUFFER, multisample_emission_renderbuffer.as_ref() );
       // Specify which color attachments are active for drawing.
-      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1 ] );
+      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
 
       // --- Attach Textures to Resolved Framebuffer ---
       // Bind the resolved framebuffer to configure its attachments.
@@ -157,7 +158,7 @@ mod private
       gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, emission_texture.as_ref(), 0 );
       // Specify which color attachments are active for drawing (though for resolved,
       // these will typically be written to via `blit_framebuffer`).
-      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1 ] );
+      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
 
       // Unbind all resources to clean up the global WebGL state.
       gl.bind_texture( gl::TEXTURE_2D, None );
@@ -194,11 +195,11 @@ mod private
     {
       // Enable both attachments for the multisample framebuffer.
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
-      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1 ] );
+      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
 
       // Enable both attachments for the resolved framebuffer.
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
-      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1 ] );
+      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
 
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
     }
@@ -217,11 +218,11 @@ mod private
     {
       // Disable emission attachment for the multisample framebuffer.
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
-      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0 ] );
+      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
       // Disable emission attachment for the resolved framebuffer.
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
-      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0 ] );
+      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
     }
@@ -246,7 +247,7 @@ mod private
       gl.bind_framebuffer( gl::READ_FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
       gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
       gl.read_buffer( gl::COLOR_ATTACHMENT0 );
-      gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT0 ] );
+      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
       // Clear the color buffer of the resolved framebuffer before blitting.
       // This is good practice to ensure clean results, especially if partial updates
       // are not intended.
@@ -263,7 +264,7 @@ mod private
       if use_emission
       {
         gl.read_buffer( gl::COLOR_ATTACHMENT1 );
-        gl::drawbuffers::drawbuffers( gl, &[ gl::COLOR_ATTACHMENT1 ] );
+        gl::drawbuffers::drawbuffers( gl, &[ 1 ] );
         gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ 0.0, 0.0, 0.0, 1.0 ] );
         gl.blit_framebuffer
         (
@@ -433,41 +434,62 @@ mod private
       self.use_emission = use_emission;
     }
 
+    /// Sets the luminosity threshold.
     pub fn set_luminosity_threshold( &mut self, threshold : f32 )
     {
       self.luminosity_threshold = threshold;
     }
 
+    /// Gets the luminosity threshold.
+    /// 
+    /// This value determines the minimum brightness a pixel must have to contribute
+    /// to the bloom effect. Pixels below this threshold will be ignored.
     pub fn get_luminosity_threshold( &self ) -> f32
     {
       self.luminosity_threshold
     }
 
+    /// Sets the luminosity smooth width.
     pub fn set_luminosity_smooth_width( &mut self, width : f32 )
     {
       self.luminosity_smooth_width = width;
     }
 
+    /// Gets the luminosity smooth width.
+    /// 
+    /// This parameter controls the softness or "feathering" of the luminosity threshold.
+    /// A larger width creates a smoother transition between pixels that contribute
+    /// to the bloom and those that don't, reducing harsh edges.
     pub fn get_luminosity_smooth_width( &self ) -> f32
     {
       self.luminosity_smooth_width
     }
 
+    /// Sets the radius of the bloom effect.
+    ///
+    /// This determines how far the light "bleeds" from bright areas. A larger radius
+    /// results in a more expansive and softer glow.
     pub fn set_bloom_radius( &mut self, radius : f32 )
     {
       self.bloom_effect.set_bloom_radius( radius );
     }
 
+    /// Gets the radius of the bloom effect.
     pub fn get_bloom_radius( &self ) -> f32
     {
       self.bloom_effect.get_bloom_radius()
     }
 
+    /// Sets the strength (intensity) of the bloom effect.
+    ///
+    /// This controls how bright or prominent the glow appears. A higher strength
+    /// makes the bloom more visible.
     pub fn set_bloom_strength( &mut self, strength : f32  )
     {
       self.bloom_effect.set_bloom_strength( strength );
     }
 
+    /// Gets the strength (intensity) of the bloom effect.
     pub fn get_bloom_strength( &self  ) -> f32
     {
       self.bloom_effect.get_bloom_strength()
@@ -564,11 +586,9 @@ mod private
                 &format!( "#version 300 es\n{}\n{}", vs_defines, MAIN_VERTEX_SHADER ), 
                 &format!
                 ( 
-                  "#version 300 es\n{}\n{}\n{}\n{}\n{}", 
+                  "#version 300 es\n{}\n{}\n{}\n{}", 
                   vs_defines, 
                   ibl_define,
-                  "",
-                 // "#define USE_EMISSION",
                   material.get_defines(),
                   MAIN_FRAGMENT_SHADER ) 
               ).compile_and_link( gl )?;
@@ -599,6 +619,7 @@ mod private
                 self.transparent_nodes.push( ( node.clone(), primitive_rc.clone() ) );
                 continue; // Skip the immediate drawing of transparent objects.
               },
+              AlphaMode::Mask => gl::info!( "MASK" ),
               _ => {}
             }
 
@@ -629,8 +650,8 @@ mod private
       // Sort transparent nodes based on their distance to the camera (furthest to nearest).
       self.transparent_nodes.sort_by( | a, b | 
       {
-        let dist1 = camera.get_eye().distance_squared( &a.1.borrow().center() );
-        let dist2 = camera.get_eye().distance_squared( &b.1.borrow().center() );
+        let dist1 = camera.get_eye().distance_squared( &a.0.borrow().center() );
+        let dist2 = camera.get_eye().distance_squared( &b.0.borrow().center() );
 
         dist1.partial_cmp( &dist2 ).unwrap()
       });

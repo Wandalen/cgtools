@@ -18,7 +18,7 @@ mod private
     pub bounding_box : gl::geometry::BoundingBox
   }
 
-  impl AttributeInfo 
+  impl AttributeInfo
   {
     /// Configures the attribute pointer for this attribute, linking the buffer to the specified slot
     /// using the provided `WebGl2RenderingContext`.
@@ -27,7 +27,7 @@ mod private
       self.descriptor.attribute_pointer( gl, self.slot, &self.buffer )?;
 
       Ok( () )
-    }    
+    }
   }
 
   /// Holds information about the index buffer used for indexed drawing.
@@ -62,7 +62,7 @@ mod private
     attributes : HashMap< Box< str >, AttributeInfo >
   }
 
-  impl Geometry 
+  impl Geometry
   {
     /// Creates a new `Geometry` instance, initializing the VAO and other default values.
     pub fn new( gl : &gl::WebGl2RenderingContext ) -> Result< Self, gl::WebglError >
@@ -97,12 +97,12 @@ mod private
     /// It binds the VAO, uploads the attribute, and stores the `AttributeInfo`.
     /// It panics if an attribute with the same name already exists.
     pub fn add_attribute< Name : Into< Box< str > > >
-    ( 
-      &mut self, 
+    (
+      &mut self,
       gl : &gl::WebGl2RenderingContext,
-      name : Name, 
-      info : AttributeInfo, 
-      as_define : bool 
+      name : Name,
+      info : AttributeInfo,
+      as_define : bool
     ) -> Result< (), gl::WebglError >
     {
       let name = name.into();
@@ -116,20 +116,20 @@ mod private
         info.upload( gl )?;
         self.attributes.insert( name, info );
       }
-      else 
+      else
       {
         panic!( "An attribute {} already exists", name );
       }
 
-      Ok( () ) 
+      Ok( () )
     }
 
     /// Adds an index buffer to the geometry.
     ///
     /// It binds the VAO and the element array buffer, storing the information in the VAO.
     pub fn add_index
-    ( 
-      &mut self, 
+    (
+      &mut self,
       gl : &gl::WebGl2RenderingContext,
       info : IndexInfo,
     ) -> Result< (), gl::WebglError >
@@ -137,7 +137,7 @@ mod private
       self.bind( gl );
       gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, Some( &info.buffer ) );
       self.index_info = Some( info );
-      Ok( () ) 
+      Ok( () )
     }
 
     /// Uploads all attribute and index buffer data to the GPU.
@@ -197,9 +197,37 @@ mod private
       {
         gl.draw_elements_with_i32( self.draw_mode, info.count as i32, info.data_type, info.offset as i32 );
       }
-      else 
+      else
       {
         gl.draw_arrays( self.draw_mode, 0, self.vertex_count as i32 );
+      }
+    }
+
+    /// Performs the instanced draw call for the geometry.
+    ///
+    /// It checks if an index buffer is present and calls `draw_elements` or `draw_arrays` accordingly.
+    pub fn draw_instanced( &self, gl : &gl::WebGl2RenderingContext, instance_count : i32 )
+    {
+      if let Some( info ) = self.index_info.as_ref()
+      {
+        gl.draw_elements_instanced_with_i32
+        (
+          self.draw_mode,
+          info.count as i32,
+          info.data_type,
+          info.offset as i32,
+          instance_count
+        );
+      }
+      else
+      {
+        gl.draw_arrays_instanced
+        (
+          self.draw_mode,
+          0,
+          self.vertex_count as i32,
+          instance_count
+        );
       }
     }
   }

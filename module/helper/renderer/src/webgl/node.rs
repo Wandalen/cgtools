@@ -2,6 +2,7 @@ mod private
 {
   use std::{ cell::RefCell, collections::HashMap, rc::Rc };
   use minwebgl::{ self as gl };
+  use mingl::{ geometry::BoundingBox, F32x3 };
   use crate::webgl::Mesh;
 
   /// Represents a 3D object that can be part of the scene graph.  
@@ -168,6 +169,32 @@ mod private
       }
 
       Ok( () )
+    }
+
+    pub fn bounding_box( &self ) -> BoundingBox
+    {
+      let mut bbox = BoundingBox::default();
+
+      match self.object
+      {
+        Object3D::Mesh( ref mesh ) => 
+        { 
+          bbox = mesh.borrow().bounding_box().apply_transform( self.matrix );
+        },
+        _ => {}
+      }
+
+      for child in self.children.iter()
+      {
+        bbox.combine_mut( &child.borrow().bounding_box().apply_transform( self.matrix ) );
+      }
+
+      bbox
+    }
+
+    pub fn center( &self ) -> F32x3
+    {
+      self.bounding_box().center()
     }
   }
 }

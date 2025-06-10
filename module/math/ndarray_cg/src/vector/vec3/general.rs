@@ -37,6 +37,12 @@ mod private
     {
       cross( &self, &rhs )
     }
+
+    #[ inline ]
+    pub fn to_homogenous( self ) -> Vector< E, 4 >
+    {
+      Vector::< E, 4 >::new( self.x(), self.y(), self.z(), E::one() )
+    }
   }
 
 }
