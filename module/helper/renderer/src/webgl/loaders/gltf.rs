@@ -46,9 +46,9 @@ mod private
     let folder_path = path.parent().map_or( "", | p | p.to_str().expect( "Path is not UTF-8 encoded" ) );
     gl::info!( "Folder: {}\nFile: {}", folder_path, gltf_path );
 
-    let gltf_slice= gl::file::load( &format!( "{}/scene.gltf", gltf_path ) )
-    .await.expect( "Failed to load gltf file" );
-    //let gltf_slice = gl::file::load( gltf_path ).await.expect( "Failed to load gltf file" );
+    // let gltf_slice= gl::file::load( &format!( "{}/scene.gltf", gltf_path ) )
+    // .await.expect( "Failed to load gltf file" );
+    let gltf_slice = gl::file::load( gltf_path ).await.expect( "Failed to load gltf file" );
     let mut gltf_file = gltf::Gltf::from_slice( &gltf_slice ).unwrap();
 
     let mut buffers : Vec< gl::js_sys::Uint8Array > = Vec::new();
