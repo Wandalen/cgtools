@@ -1,8 +1,9 @@
-#define MAX_OBJECT_COUNT 1024
-
 #version 300 es
 
+#define MAX_OBJECT_COUNT 1024
+
 precision highp float;
+precision mediump usampler2D;
 
 in vec2 vUv;
 out vec4 FragColor;
@@ -23,11 +24,10 @@ const uint IDS[ 13 ] = uint[ 13 ](
   22u
 );
 
-uniform sampler2D sourceTexture;
-
 // G-Buffer textures
+uniform sampler2D sourceTexture;
+uniform sampler2D positionTexture;
 uniform sampler2D objectColorIdTexture;
-uniform sampler2D depthTexture;
 
 layout( std140 ) uniform ObjectColorBlock
 {
@@ -38,63 +38,117 @@ layout( std140 ) uniform ObjectColorBlock
 uniform mat4 projection;
 // Resolution of the viewport, used for calculating pixel offsets.
 uniform vec2 resolution;
+
 uniform float outlineThickness;
 
-float outlineStencil() 
+float outline_stencil() 
 {
   // Sample the color texture in a 3x3 kernel around the current fragment to perform edge detection.
-  float pickedObjectColors[ 25 ];
+  float pix[ 25 ];
   for( int y = 0; y < 5; y++ )
   {
     for( int x = 0; x < 5; x++ )
     {
-      uint objectColorId = uint( texture(
-        objectColorIdTexture,
+      // uint objectColorId = uint( 
+      //   texture(
+      //     objectColorIdTexture,
+      //     vUv + vec2( float( x - 2 ), float( y - 2 ) ) * outlineThickness / resolution
+      //   ).x 
+      // );
+
+      // pix[ y * 5 + x ] = objectColors[ objectColorId ].x;
+
+      vec4 sourceTextureColor =
+      texture(
+        sourceTexture,
         vUv + vec2( float( x - 2 ), float( y - 2 ) ) * outlineThickness / resolution
-      ).r );
-      pickedObjectColors[ y * 5 + x ] = length( objectColors[ objectColorId ] );
+      );
+
+      pix[ y * 5 + x ] = sourceTextureColor.x;
     }
   }
 
-  float laplacian =
+  float slaplacian =
   (
-    + pickedObjectColors[ 2 ] * -1.0
-    + pickedObjectColors[ 6 ] * -2.0
-    + pickedObjectColors[ 7 ] * -4.0
-    + pickedObjectColors[ 8 ] * -2.0
-    + pickedObjectColors[ 10 ] * -1.0
-    + pickedObjectColors[ 11 ] * -4.0
-    + pickedObjectColors[ 12 ] * 28.0
-    + pickedObjectColors[ 13 ] * -4.0
-    + pickedObjectColors[ 14 ] * -1.0
-    + pickedObjectColors[ 16 ] * -2.0
-    + pickedObjectColors[ 17 ] * -4.0
-    + pickedObjectColors[ 18 ] * -2.0
-    + pickedObjectColors[ 22 ] * -1.0
+    + pix[ 2 ] * -1.0
+    + pix[ 6 ] * -2.0
+    + pix[ 7 ] * -4.0
+    + pix[ 8 ] * -2.0
+    + pix[ 10 ] * -1.0
+    + pix[ 11 ] * -4.0
+    + pix[ 12 ] * 28.0
+    + pix[ 13 ] * -4.0
+    + pix[ 14 ] * -1.0
+    + pix[ 16 ] * -2.0
+    + pix[ 17 ] * -4.0
+    + pix[ 18 ] * -2.0
+    + pix[ 22 ] * -1.0
+  );
+
+  for( int y = 0; y < 5; y++ )
+  {
+    for( int x = 0; x < 5; x++ )
+    {
+      // uint objectColorId = uint( 
+      //   texture(
+      //     objectColorIdTexture,
+      //     vUv + vec2( float( x - 2 ), float( y - 2 ) ) * outlineThickness / resolution
+      //   ).x 
+      // );
+
+      // pix[ y * 5 + x ] = objectColors[ objectColorId ].x;
+
+      vec4 positionTextureColor =
+      texture(
+        positionTexture,
+        vUv + vec2( float( x - 2 ), float( y - 2 ) ) * outlineThickness / resolution
+      );
+
+      pix[ y * 5 + x ] = length( positionTextureColor.xyzw );
+    }
+  }
+
+  float plaplacian =
+  (
+    + pix[ 2 ] * -1.0
+    + pix[ 6 ] * -2.0
+    + pix[ 7 ] * -4.0
+    + pix[ 8 ] * -2.0
+    + pix[ 10 ] * -1.0
+    + pix[ 11 ] * -4.0
+    + pix[ 12 ] * 28.0
+    + pix[ 13 ] * -4.0
+    + pix[ 14 ] * -1.0
+    + pix[ 16 ] * -2.0
+    + pix[ 17 ] * -4.0
+    + pix[ 18 ] * -2.0
+    + pix[ 22 ] * -1.0
   );
 
   // Clamp the outline value to ensure it's within a valid range [0, 1].
-  float outline = clamp( laplacian, 0.0, 1.0 );
+  float outline = clamp( max( slaplacian, plaplacian ), 0.0, 1.0 );
 
   return outline;
 }
 
-uint outlineColorId()
+vec4 outline_color()
 {
-  float depth = 1.0 - texture( depthTexture, vUv ).x;
+  vec4 near_color = vec4( 0.0 );
+  float near_depth = 0.0;
 
-  float nearObjectColorId = 0.0;
-  float nearDepth = 0.0;
-
-  vec4 objectColorIds[ 25 ];
+  vec4 colors[ 25 ];
   for( int y = 0; y < 5; y++ )
   {
     for( int x = 0; x < 5; x++ )
     {
-      objectColorIds[ y * 5 + x ] = texture(
-        objectColorIdTexture,
-        vUv + vec2( float( x - 2 ), float( y - 2 ) ) * outlineThickness / resolution
-      ).r;
+      uint objectColorId = uint( 
+        texture(
+          objectColorIdTexture,
+          vUv + vec2( float( x - 2 ), float( y - 2 ) ) * outlineThickness / resolution
+        ).x 
+      );
+
+      colors[ y * 5 + x ] = objectColors[ objectColorId ];
     }
   }
 
@@ -103,49 +157,45 @@ uint outlineColorId()
   {
     for( int x = 0; x < 5; x++ )
     {
-      depths[ y * 5 + x ] = texture(
-        depthTexture,
+      depths[ y * 5 + x ] = 1.0 - texture(
+        positionTexture,
         vUv + vec2( float( x - 2 ), float( y - 2 ) ) * outlineThickness / resolution
-      ).r;
+      ).w;
     }
   }
 
   for ( int i = 0; i < 13; i++ )
   {
     uint j = IDS[ i ];
-    if ( nearDepth < depths[ j ] && depths[ j ] >= 0.0 )
+    if ( near_depth < depths[ j ] && depths[ j ] < 1.0 )
     {
-      nearDepth = depths[ j ];
-      nearObjectColorId = objectColorIds[ j ];
+      near_depth = depths[ j ];
+      near_color = colors[ j ];
     }
   }
 
-  return uint( nearObjectColorId );
+  return near_color;
 }
 
 void main()
 {
-  float outline = outlineStencil();
+  float outline = outline_stencil();
 
-  // Determine the final fragment color based on sampled color and calculated outline.
-  if ( texture( sourceTexture, vUv ).x >= 0.0 )
+  if ( outline > 0.6 )
   {
-    FragColor = texture( sourceTexture, vUv );
-  }
-  else if ( outline < 0.9 )
-  {
-    uint colorId = outlineColorId();
-    if colorId == 0
-    {
-      FragColor = texture( sourceTexture, vUv );
-    }
-    else
-    {
-      FragColor = objectColors[ colorId ];
-    }
+    FragColor = vec4( 1.0 );
   }
   else
   {
-    FragColor = texture( sourceTexture, vUv );
+    FragColor = vec4( vec3( 0.0 ), 1.0 );
   }
+  // Determine the final fragment color based on sampled color and calculated outline.
+  // if ( outline > 0.5 ) //texture( sourceTexture, vUv ).x > 0.0 && 
+  // {
+  //   FragColor = vec4( vec3( 0.3 ), 1.0 ); //texture( sourceTexture, vUv );
+  // }
+  // else
+  // {
+  //   FragColor = outline_color();
+  // }
 }
