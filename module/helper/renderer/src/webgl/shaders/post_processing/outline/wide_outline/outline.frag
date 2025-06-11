@@ -1,8 +1,10 @@
-#define MAX_OBJECT_COUNT 1024
-
 #version 300 es
+
 // High precision is recommended for coordinate/distance calculations.
 precision highp float;
+
+#define MAX_OBJECT_COUNT 1024
+
 // Interpolated texture coordinate from the vertex shader for the current pixel.
 in vec2 vUv;
 // Output fragment color to the default framebuffer ( screen ).
