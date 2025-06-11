@@ -1,5 +1,8 @@
 #define MAX_OBJECT_COUNT 1024
 
+precision highp float;
+
+in vec3 vPosition;
 #ifdef COLOR
   in vec4 vColor;
 #endif
@@ -7,34 +10,29 @@
   in vec3 vNormal;
 #endif
 #ifdef PBR_INFO
-  flat in uint vObjectId;
-  flat in uint vMaterialId;
+  flat in float vObjectId;
+  flat in float vMaterialId;
   in vec2 vTexCoord;
 #endif
 #ifdef OBJECT_COLOR_ID
-  flat in int vObjectColorId;
+  flat in float vObjectColorId;
 #endif
 
 #ifdef POSITION 
-  layout( location = 0 ) out vec3 FragPosition;
+  layout( location = 0 ) out vec4 FragPosition;
 #endif
 #ifdef ALBEDO 
   layout( location = 1 ) out vec4 FragAlbedo;
 #endif
 #ifdef NORMAL 
-  layout( location = 2 ) out vec3 FragNormal;
+  layout( location = 2 ) out vec4 FragNormal;
 #endif
 #ifdef PBR_INFO 
   layout( location = 3 ) out vec4 FragPbrInfo;
 #endif
-#ifdef OBJECT_COLOR
-  layout( location = 4 ) out vec4 FragObjectColor;
+#ifdef OBJECT_COLOR_ID
+  layout( location = 4 ) out vec4 FragObjectColorId;
 #endif
-
-layout( std140 ) uniform ObjectColorBlock
-{
-  vec4 objectColors[ MAX_OBJECT_COUNT ];
-};
 
 #ifdef POSITION 
   uniform float near;
@@ -46,24 +44,33 @@ layout( std140 ) uniform ObjectColorBlock
   }
 #endif
 
+#ifdef ALBEDO
+  #ifdef PBR_INFO
+    uniform sampler2D albedoTexture;
+  #endif
+#endif
+
 void main()
 {
   #ifdef POSITION 
-    FragPosition = vec3( gl_FragCoord.xy, linearizeDepth( gl_FragCoord.z ) ); 
+    FragPosition = vec4( normalize( vPosition ), linearizeDepth( gl_FragCoord.z ) / 10.0 ); 
   #endif
   #ifdef ALBEDO 
-    #ifdef COLOR
+    #if defined( PBR_INFO )
+      FragAlbedo = texture( albedoTexture, vTexCoord );
+    #elif defined( COLOR )
       FragAlbedo = vColor;
+    #else
+      FragAlbedo = vec4( 1.0 );
     #endif
-
   #endif
   #ifdef NORMAL 
-    FragNormal = normalize( vNormal ) * 0.5 + 0.5;
+    FragNormal = vec4( normalize( vNormal ) * 0.5 + 0.5, 1.0 );
   #endif
   #ifdef PBR_INFO
-    FragPbrInfo = vec4( vec2( float( vObjectId ), float( vMaterialId ) ), vTexCoord );
+    FragPbrInfo = vec4( vec2( vObjectId, vMaterialId ), vTexCoord );
   #endif
-  #ifdef OBJECT_COLOR
-    FragObjectColor = vObjectColor;
+  #ifdef OBJECT_COLOR_ID
+    FragObjectColorId = vec4( vec3( 10.0 ), 1.0 );
   #endif
 }

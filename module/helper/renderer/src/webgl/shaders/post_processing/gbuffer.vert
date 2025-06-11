@@ -1,23 +1,24 @@
-layout( location = 0 ) in vec3 position;
+layout ( location = 0 ) in vec3 position;
 #ifdef COLOR
-  layout( location = 1 ) in vec4 color;
+  layout ( location = 1 ) in vec4 color;
 #endif
 #ifdef NORMAL
-  layout( location = 2 ) in vec3 normal;
+  layout ( location = 2 ) in vec3 normal;
 #endif
 #ifdef PBR_INFO
-  layout( location = 3 ) in vec2 texCoord;
-  layout( location = 4 ) in uint objectId;
-  layout( location = 5 ) in uint materialId;  
+  layout ( location = 3 ) in float objectId;
+  layout ( location = 4 ) in float materialId;
+  layout ( location = 5 ) in vec2 texCoord;  
 #endif
 #ifdef OBJECT_COLOR_ID
-  layout( location = 6 ) in int objectColorId;
+  layout ( location = 6 ) in float objectColorId;
 #endif
 
 uniform mat4x4 worldMatrix;
 uniform mat4x4 viewMatrix;
 uniform mat4x4 projectionMatrix;
 
+out vec3 vPosition;
 #ifdef COLOR
   out vec4 vColor;
 #endif
@@ -26,16 +27,17 @@ uniform mat4x4 projectionMatrix;
 #endif
 #ifdef PBR_INFO
   out vec2 vTexCoord;
-  flat out uint vObjectId;
-  flat out uint vMaterialId;  
+  flat out float vObjectId;
+  flat out float vMaterialId;  
 #endif
 #ifdef OBJECT_COLOR_ID
-  flat out int vObjectColorId;
+  flat out float vObjectColorId;
 #endif
 
 void main()
 {
-  gl_Position = projectionMatrix * viewMatrix * worldMatrix * vec4( position, 1.0 );
+  vPosition = position;
+  gl_Position = projectionMatrix * viewMatrix * worldMatrix * vec4( position, 1.0 ); 
   #ifdef COLOR
     vColor = color;
   #endif

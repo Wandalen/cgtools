@@ -7,6 +7,7 @@ mod private
   pub struct PBRShader;
   pub struct GaussianFilterShader;
   pub struct UnrealBloomShader;
+  pub struct GBufferShader;
 
   pub struct JfaOutlineObjectShader;
   pub struct JfaOutlineInitShader;
@@ -196,6 +197,37 @@ mod private
         phantom : std::marker::PhantomData
       }
     }    
+  }
+
+  impl ProgramInfo< GBufferShader > 
+  {
+    /// Creates a new `ProgramInfo` instance.
+    ///
+    /// * `gl`: The `WebGl2RenderingContext` used to retrieve uniform locations.
+    /// * `program`: The compiled WebGL program object.
+    pub fn new( gl : &gl::WebGl2RenderingContext, program : gl::WebGlProgram ) -> Self
+    {
+      let mut locations = HashMap::new();
+
+      let mut add_location = | name : &str |
+      {
+        locations.insert( name.to_string(), gl.get_uniform_location( &program, name ) );
+      };
+
+      add_location( "worldMatrix" );
+      add_location( "viewMatrix" );
+      add_location( "projectionMatrix" );
+      add_location( "near" );
+      add_location( "far" );
+      add_location( "albedoTexture" );
+
+      Self
+      {
+        program,
+        locations,
+        phantom : std::marker::PhantomData
+      }
+    } 
   }
 
   impl ProgramInfo< JfaOutlineObjectShader > 
@@ -392,7 +424,7 @@ mod private
 
       add_location( "sourceTexture" );
       add_location( "objectColorIdTexture" );
-      add_location( "depthTexture" );
+      add_location( "positionTexture" );
       add_location( "resolution" );
       add_location( "outlineThickness" );
 
@@ -497,6 +529,7 @@ crate::mod_interface!
     GaussianFilterShader,
     UnrealBloomShader,
     PBRShader,
+    GBufferShader,
     JfaOutlineObjectShader,
     JfaOutlineInitShader,
     JfaOutlineStepShader,
