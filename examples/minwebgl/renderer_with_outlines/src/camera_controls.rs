@@ -10,8 +10,6 @@ use web_sys::
   HtmlCanvasElement
 };
 
-
-
 enum CameraState
 {
   Rotate,

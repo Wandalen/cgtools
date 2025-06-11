@@ -34,7 +34,7 @@ mod private
     #[ error( "Shader error :: {0}" ) ]
     ShaderError( #[ from ] shader::Error ),
     #[ error( "Can't find {0}" ) ]
-    MissingDataError( String ),
+    MissingDataError( &'static str ),
   }
 
   pub fn from_canvas( canvas : &HtmlCanvasElement ) -> Result< GL, Error >
