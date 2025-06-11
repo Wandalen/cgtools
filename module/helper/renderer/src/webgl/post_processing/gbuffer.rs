@@ -1,9 +1,9 @@
 mod private
 {
   use std::{ cell::RefCell, collections::{ HashMap, HashSet }, rc::Rc };
-  use mingl::{AsBytes, VectorDataType};
+  use mingl::{ AsBytes, VectorDataType };
   use minwebgl as gl;
-  use web_sys::{ WebGlTexture, WebGlBuffer, WebGlFramebuffer, WebGlProgram, WebGlUniformLocation, WebGlVertexArrayObject };
+  use web_sys::{ WebGlTexture, WebGlBuffer, WebGlFramebuffer, WebGlUniformLocation, WebGlVertexArrayObject };
   use gl::{ GL, drawbuffers::drawbuffers };
   use crate::webgl::
   { 
@@ -16,7 +16,7 @@ mod private
   /// The source code for the gbuffer fragment shader.
   const GBUFFER_FRAGMENT_SHADER : &'static str = include_str!( "../shaders/post_processing/gbuffer.frag" );
 
-  pub const ALL : [ GBufferAttachment; 5 ] = [
+  pub const ALL : [ GBufferAttachment; 6 ] = [
     GBufferAttachment::Position,
     GBufferAttachment::Color,
     GBufferAttachment::Albedo,
@@ -56,12 +56,35 @@ mod private
   fn into_defines( attachments : &HashSet< GBufferAttachment > ) -> String
   {
     let mut defines = String::new();
+
     for attachment in attachments
     {
       defines = defines + "#define " + &attachment.define_const() + "\n";
     }
 
     defines
+  }
+
+  /// Binds a texture to a texture unit and uploads its location to a uniform.
+  ///
+  /// # Arguments
+  ///
+  /// * `gl` - The WebGL2 rendering context.
+  /// * `texture` - The texture to bind.
+  /// * `location` - The uniform location in the shader for the sampler.
+  /// * `slot` - The texture unit to bind to ( e.g., `GL::TEXTURE0` ).
+  fn upload_texture
+  (
+    gl : &gl::WebGl2RenderingContext,
+    texture : &WebGlTexture,
+    location : &WebGlUniformLocation,
+    slot : u32,
+  )
+  {
+    gl.active_texture( slot ); 
+    gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) ); 
+    // Tell the sampler uniform in the shader which texture unit to use ( 0 for GL_TEXTURE0, 1 for GL_TEXTURE1, etc. )
+    gl.uniform1i( Some( location ), ( slot - GL::TEXTURE0 ) as i32 );
   }
 
   pub fn upload_buffer_data
@@ -109,9 +132,9 @@ mod private
     };
 
     let descriptor = descriptor
-    .offset( offset * 4 )
+    .offset( offset )
     .normalized( normalized )
-    .stride( stride * 4 )
+    .stride( stride )
     .vector( vector );
 
     Ok(
@@ -146,23 +169,23 @@ mod private
     gl : &gl::WebGl2RenderingContext, 
     gltf : &mut GLTF, 
     active_attachments : HashSet< GBufferAttachment > 
-  ) -> Result< Vec< i32 >, gl::WebglError >
+  ) -> Result< Vec< u32 >, gl::WebglError >
   {
-    let mut object_id_data : Vec< i32 > = vec![];
-    let mut material_id_data : Vec< i32 > = vec![];
+    let mut object_id_data : Vec< u32 > = vec![];
+    let mut material_id_data : Vec< u32 > = vec![];
 
     let uuid_to_id = gltf.materials.iter()
     .enumerate()
     .map( | ( i, m ) | ( m.borrow().id, i as i32 ) )
     .collect::< HashMap< _, _ > >();
 
-    let mut object_id = 1;
+    let mut object_id = 1_u32;
     let mut object_vertex_count = 0;
     for mesh in &gltf.meshes
     {
       for primitive in &mesh.borrow().primitives
       {
-        let material_id = *uuid_to_id.get( &primitive.borrow().material.borrow().id ).unwrap_or( &( 0 ) );
+        let material_id = *uuid_to_id.get( &primitive.borrow().material.borrow().id ).unwrap_or( &( 0 ) ) as u32 + 1;
         let primitive = primitive.borrow();
         let geometry = primitive.geometry.borrow();
         let vertex_count = geometry.vertex_count as usize;
@@ -226,9 +249,8 @@ mod private
 
   pub struct GBuffer
   {
-    program : WebGlProgram,
     program_info : ProgramInfo< program::GBufferShader >,
-    attachment_buffers: HashMap< GBufferAttachment, Vec< WebGlBuffer > > ,
+    attachment_buffers: HashMap< GBufferAttachment, Vec< WebGlBuffer > >,
     vao : WebGlVertexArrayObject,
     width : u32,
     height : u32,
@@ -245,7 +267,7 @@ mod private
       gl : &gl::WebGl2RenderingContext, 
       width : u32, 
       height : u32, 
-      attachment_buffers: HashMap< GBufferAttachment, Vec< WebGlBuffer > > 
+      attachment_buffers: HashMap< GBufferAttachment, Vec< WebGlBuffer > >
     ) -> Result< Self, gl::WebglError >
     {
       let attachments_set = attachment_buffers.iter()
@@ -270,67 +292,61 @@ mod private
         {
           continue;
         }
-        let ( v, n ) = match attachment
+        let ( s, v, n ) = match attachment
         {
-          GBufferAttachment::Position => ( VectorDataType::new( mingl::DataType::F32, 3, 1 ), false ),
-          GBufferAttachment::Albedo => ( VectorDataType::new( mingl::DataType::F32, 4, 1 ), true ),
-          GBufferAttachment::Normal => ( VectorDataType::new( mingl::DataType::F32, 3, 1 ), false ),
+          GBufferAttachment::Position => ( 0, VectorDataType::new( mingl::DataType::F32, 3, 1 ), false ),
+          GBufferAttachment::Color => ( 1, VectorDataType::new( mingl::DataType::F32, 4, 1 ), true ),
+          GBufferAttachment::Normal => ( 2, VectorDataType::new( mingl::DataType::F32, 3, 1 ), false ),
           GBufferAttachment::PbrInfo => 
           {
-            let ( v, n ) = ( VectorDataType::new( mingl::DataType::U32, 1, 1 ), false );
-            attribute_info_input.push( ( buffers[ 0 ].clone(), v, n ) );
-            let ( v, n ) = ( VectorDataType::new( mingl::DataType::U32, 1, 1 ), false );
-            attribute_info_input.push( ( buffers[ 1 ].clone(), v, n ) );
-            let ( v, n ) = ( VectorDataType::new( mingl::DataType::F32, 2, 1 ), true );
-            attribute_info_input.push( ( buffers[ 2 ].clone(), v, n ) );
+            let ( s, v, n ) = ( 3, VectorDataType::new( mingl::DataType::F32, 1, 1 ), false );
+            attribute_info_input.push( ( s, buffers[ 0 ].clone(), v, n ) );
+            let ( s, v, n ) = ( 4, VectorDataType::new( mingl::DataType::F32, 1, 1 ), false );
+            attribute_info_input.push( ( s, buffers[ 1 ].clone(), v, n ) );
+            let ( s, v, n ) = ( 5, VectorDataType::new( mingl::DataType::F32, 2, 1 ), true );
+            attribute_info_input.push( ( s, buffers[ 2 ].clone(), v, n ) );
             continue;
           },
-          GBufferAttachment::ObjectColorId => ( VectorDataType::new( mingl::DataType::U16, 1, 1 ), false ),
+          GBufferAttachment::ObjectColorId => ( 6, VectorDataType::new( mingl::DataType::F32, 1, 1 ), false ),
+          _ => continue
         };
-        attribute_info_input.push( ( buffers[ 0 ].clone(), v, n ) );
+        attribute_info_input.push( ( s, buffers[ 0 ].clone(), v, n ) );
       }
 
-      let mut stride = 0;
-      let mut offset = 0;
-
-      for ( _, vector, _ ) in &attribute_info_input
-      {
-        stride += vector.natoms * vector.nelements;
-      }
-
-      for ( slot, ( buffer, vector, normalized ) ) in attribute_info_input.iter().enumerate()
+      for ( slot, buffer, vector, normalized ) in attribute_info_input.iter()
       {
         let attribute_info = make_buffer_attibute_info(
           &buffer,
-          offset,
-          stride,
-          slot as u32,
+          vector.natoms * vector.nelements,
+          0,
+          *slot as u32,
           *normalized,
           *vector
         )?;
         attribute_info.upload( gl )?;
-        offset += vector.natoms * vector.nelements;
+        //offset += vector.natoms * vector.nelements;
       }
 
       let mut textures = HashMap::new();
  
       let framebuffer = gl.create_framebuffer().ok_or( gl::WebglError::FailedToAllocateResource( "Framebuffer" ) )?;
       gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &framebuffer ) );
+      gl.viewport( 0, 0, width as i32, height as i32 );
 
       let mut color_attachments = vec![];
 
-      let mut setup_texture = | gb_attachment : &GBufferAttachment, attachment, internal_type, filter, wrap |
+      let mut setup_texture = | gb_attachment : &GBufferAttachment, attachment, internal_format, filter, wrap |
       {
         let texture = gl.create_texture().ok_or( gl::WebglError::FailedToAllocateResource( "Texture" ) )?;
         gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) );
-        gl.tex_storage_2d( GL::TEXTURE_2D, 0, internal_type, width as i32, height as i32 );
+        gl.tex_storage_2d( GL::TEXTURE_2D, 1, internal_format, width as i32, height as i32 );
         gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, filter as i32 );
         gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, wrap as i32 );
         gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, wrap as i32 );
         gl.framebuffer_texture_2d( GL::FRAMEBUFFER, attachment, GL::TEXTURE_2D, Some( &texture ), 0 );
         if attachment != GL::DEPTH_ATTACHMENT
         {
-          color_attachments.push( attachment );
+          color_attachments.push( attachment - GL::COLOR_ATTACHMENT0 );
         }
         textures.insert( gb_attachment.define_const(), texture );
         Ok::< (), gl::WebglError >( () )
@@ -340,11 +356,12 @@ mod private
       {
         match attachment
         {
-          GBufferAttachment::Position => setup_texture( attachment, GL::COLOR_ATTACHMENT0, gl::RGB16F, GL::NEAREST, GL::CLAMP_TO_EDGE )?,
+          GBufferAttachment::Position => setup_texture( attachment, GL::COLOR_ATTACHMENT0, gl::RGBA16F, GL::NEAREST, GL::CLAMP_TO_EDGE )?,
           GBufferAttachment::Albedo => setup_texture( attachment, GL::COLOR_ATTACHMENT1, gl::RGBA8, GL::NEAREST, GL::CLAMP_TO_EDGE )?,
-          GBufferAttachment::Normal => setup_texture( attachment, GL::COLOR_ATTACHMENT2, gl::RGB16F, GL::NEAREST, GL::CLAMP_TO_EDGE )?,
-          GBufferAttachment::PbrInfo => setup_texture( attachment, GL::COLOR_ATTACHMENT3, gl::RGBA32F, GL::NEAREST, GL::CLAMP_TO_EDGE )?,
-          GBufferAttachment::ObjectColorId => setup_texture( attachment, GL::COLOR_ATTACHMENT4, gl::RGBA8, GL::NEAREST, GL::CLAMP_TO_EDGE )?,
+          GBufferAttachment::Normal => setup_texture( attachment, GL::COLOR_ATTACHMENT2, gl::RGBA16F, GL::NEAREST, GL::CLAMP_TO_EDGE )?,
+          GBufferAttachment::PbrInfo => setup_texture( attachment, GL::COLOR_ATTACHMENT3, gl::RGBA8, GL::NEAREST, GL::CLAMP_TO_EDGE )?,
+          GBufferAttachment::ObjectColorId => setup_texture( attachment, GL::COLOR_ATTACHMENT4, gl::RGBA16F, GL::NEAREST, GL::CLAMP_TO_EDGE )?,
+          _ => ()
         }
       }
 
@@ -359,7 +376,6 @@ mod private
       Ok(
         Self
         {
-          program,
           program_info,
           attachment_buffers,
           vao,
@@ -378,6 +394,7 @@ mod private
       self.program_info.bind( gl );
       gl.bind_vertex_array( Some( &self.vao ) );
       gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &self.framebuffer ) );
+      gl.viewport( 0, 0, self.width as i32, self.height as i32 );
       drawbuffers( gl, &self.color_attachments );
     }
 
@@ -394,15 +411,21 @@ mod private
       camera : &Camera 
     ) -> Result< (), gl::WebglError >
     {
-      gl.enable( gl::DEPTH_TEST );
-      gl.disable( gl::BLEND );
-      gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
-      gl.clear_depth( 1.0 );
-      gl.clear( gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT );
+      self.bind( gl );
 
       let locations = self.program_info.get_locations();
 
-      self.bind( gl );
+      gl.enable( gl::DEPTH_TEST );
+      gl.disable( gl::BLEND );
+
+      gl.clear_depth( 1.0 );
+      gl.clear( gl::DEPTH_BUFFER_BIT );
+      gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, [ -1.0, -1.0, -1.0, 1.0 ].as_slice() );
+      gl.clear_bufferfv_with_f32_array( gl::COLOR, 1, [ -1.0, -1.0, -1.0, 1.0 ].as_slice() );
+      gl.clear_bufferfv_with_f32_array( gl::COLOR, 2, [ -1.0, -1.0, -1.0, 1.0 ].as_slice() );
+      gl.clear_bufferfv_with_f32_array( gl::COLOR, 3, [ -1.0, -1.0, -1.0, 1.0 ].as_slice() );
+      gl.clear_bufferfv_with_f32_array( gl::COLOR, 4, [ -1.0, -1.0, -1.0, 1.0 ].as_slice() );
+      //gl.clear_bufferuiv_with_u32_array( gl::COLOR, 4, [ 0, 0, 0, 0 ].as_slice() );
 
       upload_camera( gl, &camera, locations );
 
@@ -419,6 +442,20 @@ mod private
           for primitive_rc in mesh.borrow().primitives.iter()
           {
             let primitive = primitive_rc.borrow();
+
+            if self.attachment_buffers.contains_key( &GBufferAttachment::Albedo ) 
+            && self.attachment_buffers.contains_key( &GBufferAttachment::PbrInfo )
+            {
+              let albedo_texture = primitive.material.borrow().base_color_texture.as_ref()
+              .map( | t | t.texture.borrow().source.clone() ).flatten();
+
+              if let Some( albedo_texture ) = albedo_texture
+              {
+                let albedo_texture_loc = self.program_info.get_locations()
+                .get( "albedoTexture" ).unwrap().clone().unwrap();
+                upload_texture( gl, &albedo_texture, &albedo_texture_loc, GL::TEXTURE0 );
+              }
+            }
 
             upload_camera( gl, &camera, locations );
             node.borrow().upload( gl, locations );
