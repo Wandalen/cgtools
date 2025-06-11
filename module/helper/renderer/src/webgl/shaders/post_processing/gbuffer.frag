@@ -71,6 +71,6 @@ void main()
     FragPbrInfo = vec4( vec2( vObjectId, vMaterialId ), vTexCoord );
   #endif
   #ifdef OBJECT_COLOR_ID
-    FragObjectColorId = vec4( vec3( 10.0 ), 1.0 );
+    FragObjectColorId = vec4( vec3( vObjectColorId ), 1.0 );
   #endif
 }

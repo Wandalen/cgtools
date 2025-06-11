@@ -183,19 +183,10 @@ void main()
 
   if ( outline > 0.6 )
   {
-    FragColor = vec4( 1.0 );
+    FragColor = vec4( 0.0, 1.0, 0.0, 1.0 );
   }
   else
   {
-    FragColor = vec4( vec3( 0.0 ), 1.0 );
+    FragColor = texture( sourceTexture, vUv );
   }
-  // Determine the final fragment color based on sampled color and calculated outline.
-  // if ( outline > 0.5 ) //texture( sourceTexture, vUv ).x > 0.0 && 
-  // {
-  //   FragColor = vec4( vec3( 0.3 ), 1.0 ); //texture( sourceTexture, vUv );
-  // }
-  // else
-  // {
-  //   FragColor = outline_color();
-  // }
 }
