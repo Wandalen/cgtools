@@ -219,7 +219,7 @@ async fn run() -> Result< (), gl::WebglError >
       swap_buffer.bind( &gl );
       swap_buffer.set_input( renderer.get_main_texture() );
 
-      let outline_thickness = 2.0;//( 2.0 * ( time / 1000.0 ).sin().abs() ) as f32;
+      let outline_thickness = ( 2.0 * ( time * 2.0 ).sin().abs() ) as f32;
       outline.set_outline_thickness( outline_thickness );
       let t = outline.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
       .expect( "Failed to render outline pass" );
