@@ -11,8 +11,8 @@ mod private
   pub struct NarrowOutlinePass
   {
     program_info : ProgramInfo< NarrowOutlineShader >,
-    depth_texture : Option< gl::web_sys::WebGlTexture >,
-    object_id_texture : Option< gl::web_sys::WebGlTexture >,
+    position_texture : Option< gl::web_sys::WebGlTexture >,
+    object_color_id_texture : Option< gl::web_sys::WebGlTexture >,
     outline_thickness : f32,
     _object_colors : Option< Vec< [ f32; 4 ] > >,
     object_colors_buffer : WebGlBuffer,
@@ -25,8 +25,8 @@ mod private
     /// Creates a new `NarrowOutlinePass` instance.
     pub fn new( 
       gl : &gl::WebGl2RenderingContext, 
-      depth_texture : Option< gl::web_sys::WebGlTexture >,
-      object_id_texture : Option< gl::web_sys::WebGlTexture >,
+      position_texture : Option< gl::web_sys::WebGlTexture >,
+      object_color_id_texture : Option< gl::web_sys::WebGlTexture >,
       outline_thickness : f32,
       width : u32, 
       height : u32 
@@ -37,15 +37,17 @@ mod private
       let program_info = ProgramInfo::< NarrowOutlineShader >::new( gl, program.clone() );
 
       {
+        program_info.bind( gl );
         let locations = program_info.get_locations();
 
         let source_texture_loc = locations.get( "sourceTexture" ).unwrap().clone();
-        let depth_texture_loc = locations.get( "depthTexture" ).unwrap().clone();
-        let object_id_texture_loc = locations.get( "objectIdTexture" ).unwrap().clone();
+        let position_texture_loc = locations.get( "positionTexture" ).unwrap().clone();
+        let object_color_id_texture_loc = locations.get( "objectColorIdTexture" ).unwrap().clone();
 
         gl.uniform1i( source_texture_loc.as_ref(), 0 );
-        gl.uniform1i( depth_texture_loc.as_ref(), 1 );
-        gl.uniform1i( object_id_texture_loc.as_ref(), 2 );
+        gl.uniform1i( position_texture_loc.as_ref(), 1 );
+        gl.uniform1i( object_color_id_texture_loc.as_ref(), 2 );
+        gl.use_program( None );
       }
 
       let object_colors_buffer = gl::buffer::create( &gl )?;
@@ -58,8 +60,8 @@ mod private
       let mut pass = Self
       {
         program_info,
-        depth_texture,
-        object_id_texture,
+        position_texture,
+        object_color_id_texture,
         outline_thickness,
         _object_colors : None,
         object_colors_buffer,
@@ -110,15 +112,6 @@ mod private
       gl::uniform::upload( gl, resolution_loc, &[ self.width as f32, self.height as f32 ] ).unwrap();
       gl::uniform::upload( gl, outline_thickness_loc, &[ self.outline_thickness ] ).unwrap();
 
-      gl.active_texture( gl::TEXTURE0 );
-      gl.bind_texture( gl::TEXTURE_2D, input_texture.as_ref() );
-      
-      gl.active_texture( gl::TEXTURE1 );
-      gl.bind_texture( gl::TEXTURE_2D, self.depth_texture.as_ref() );
-
-      gl.active_texture( gl::TEXTURE2 );
-      gl.bind_texture( gl::TEXTURE_2D, self.object_id_texture.as_ref() );
-      
       gl.framebuffer_texture_2d
       (
         gl::FRAMEBUFFER, 
@@ -126,24 +119,18 @@ mod private
         gl::TEXTURE_2D, 
         output_texture.as_ref(), 
         0
-      );
+      );  
 
-      gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
+      gl.active_texture( gl::TEXTURE0 );
+      gl.bind_texture( gl::TEXTURE_2D, input_texture.as_ref() );
+      
+      gl.active_texture( gl::TEXTURE1 );
+      gl.bind_texture( gl::TEXTURE_2D, self.position_texture.as_ref() );
+
+      gl.active_texture( gl::TEXTURE2 );
+      gl.bind_texture( gl::TEXTURE_2D, self.object_color_id_texture.as_ref() );
 
       gl.draw_arrays( GL::TRIANGLES, 0, 3 );
-
-      // --- Cleanup ---
-      // Unbind the texture and framebuffer attachment to restore default state.
-      gl.bind_vertex_array( None );
-      gl.bind_texture( gl::TEXTURE_2D, None );
-      gl.framebuffer_texture_2d
-      (
-        gl::FRAMEBUFFER, 
-        gl::COLOR_ATTACHMENT0, 
-        gl::TEXTURE_2D, 
-        None, 
-        0
-      );
 
       Ok
       (
