@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<glyph name="uni048B" format="2">
+  <advance width="423"/>
+  <unicode hex="048B"/>
+  <anchor x="372" y="40" name="Anchor-2"/>
+  <anchor x="145" y="-110" name="Anchor-1"/>
+  <anchor x="390" y="560" name="Anchor-0"/>
+  <outline>
+    <component base="u"/>
+    <component base="brevecombcy"/>
+    <component base="__descendercy.alt" xOffset="184" yOffset="-8"/>
+  </outline>
+</glyph>

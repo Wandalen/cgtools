@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<glyph name="uni04EA" format="2">
+  <advance width="543"/>
+  <unicode hex="04EA"/>
+  <anchor x="553" y="941" name="Anchor-4"/>
+  <anchor x="248" y="40" name="Anchor-2"/>
+  <anchor x="208" y="-110" name="Anchor-1"/>
+  <outline>
+    <component base="uni04E8"/>
+    <component base="uni0308.case"/>
+  </outline>
+</glyph>

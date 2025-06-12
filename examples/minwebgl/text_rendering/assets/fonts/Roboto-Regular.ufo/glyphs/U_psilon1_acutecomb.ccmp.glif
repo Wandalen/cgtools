@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<glyph name="Upsilon1_acutecomb.ccmp" format="2">
+  <advance width="1054"/>
+  <outline>
+    <component base="Upsilon1" xOffset="100"/>
+    <component base="tonos" xOffset="-340" yOffset="-1"/>
+  </outline>
+</glyph>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<glyph name="Ustraitcy" format="2">
+  <advance width="504"/>
+  <unicode hex="04AE"/>
+  <anchor x="488" y="785" name="Anchor-4"/>
+  <anchor x="330" y="267" name="Anchor-3"/>
+  <outline>
+    <component base="Y"/>
+  </outline>
+</glyph>

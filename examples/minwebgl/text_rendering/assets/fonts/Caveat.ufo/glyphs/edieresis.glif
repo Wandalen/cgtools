@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<glyph name="edieresis" format="2">
+  <advance width="325"/>
+  <unicode hex="00EB"/>
+  <anchor x="242" y="40" name="Anchor-2"/>
+  <anchor x="179" y="-110" name="Anchor-1"/>
+  <anchor x="359" y="689" name="Anchor-0"/>
+  <outline>
+    <component base="e"/>
+    <component base="dieresis" xOffset="-14"/>
+  </outline>
+</glyph>

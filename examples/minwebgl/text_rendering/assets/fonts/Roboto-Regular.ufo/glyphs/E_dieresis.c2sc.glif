@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<glyph name="Edieresis.c2sc" format="2">
+  <advance width="878"/>
+  <outline>
+    <component base="E.c2sc"/>
+    <component base="dieresis" xOffset="48" yOffset="30"/>
+  </outline>
+</glyph>

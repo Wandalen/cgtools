@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<glyph name="O_tildecomb_acutecomb.ccmp" format="2">
+  <advance width="1231"/>
+  <outline>
+    <component base="O"/>
+    <component base="glyph592" xOffset="1093" yOffset="340"/>
+  </outline>
+</glyph>

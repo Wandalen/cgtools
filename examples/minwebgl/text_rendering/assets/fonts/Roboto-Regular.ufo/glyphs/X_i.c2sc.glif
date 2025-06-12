@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<glyph name="Xi.c2sc" format="2">
+  <advance width="797"/>
+  <outline>
+    <contour>
+      <point x="728" y="152" type="line"/>
+      <point x="728" y="0" type="line"/>
+      <point x="69" y="0" type="line"/>
+      <point x="69" y="152" type="line"/>
+    </contour>
+    <contour>
+      <point x="675" y="684" type="line"/>
+      <point x="675" y="531" type="line"/>
+      <point x="119" y="531" type="line"/>
+      <point x="119" y="684" type="line"/>
+    </contour>
+    <contour>
+      <point x="728" y="1165" type="line"/>
+      <point x="728" y="1013" type="line"/>
+      <point x="69" y="1013" type="line"/>
+      <point x="69" y="1165" type="line"/>
+    </contour>
+  </outline>
+</glyph>
