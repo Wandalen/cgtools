@@ -7,11 +7,18 @@ mod private
   pub struct PBRShader;
   pub struct GaussianFilterShader;
   pub struct UnrealBloomShader;
+  pub struct GBufferShader;
 
   pub struct JfaOutlineObjectShader;
   pub struct JfaOutlineInitShader;
   pub struct JfaOutlineStepShader;
   pub struct JfaOutlineShader;
+  pub struct NormalDepthOutlineObjectShader;
+  pub struct NormalDepthOutlineShader;
+  pub struct NarrowOutlineShader;
+  pub struct WideOutlineInitShader;
+  pub struct WideOutlineStepShader;
+  pub struct WideOutlineShader;
 
   /// Stores information about a WebGL program, including the program object and the locations of its uniforms.
   /// This struct is intended for use by the renderer.
@@ -192,6 +199,37 @@ mod private
     }    
   }
 
+  impl ProgramInfo< GBufferShader > 
+  {
+    /// Creates a new `ProgramInfo` instance.
+    ///
+    /// * `gl`: The `WebGl2RenderingContext` used to retrieve uniform locations.
+    /// * `program`: The compiled WebGL program object.
+    pub fn new( gl : &gl::WebGl2RenderingContext, program : gl::WebGlProgram ) -> Self
+    {
+      let mut locations = HashMap::new();
+
+      let mut add_location = | name : &str |
+      {
+        locations.insert( name.to_string(), gl.get_uniform_location( &program, name ) );
+      };
+
+      add_location( "worldMatrix" );
+      add_location( "viewMatrix" );
+      add_location( "projectionMatrix" );
+      add_location( "near" );
+      add_location( "far" );
+      add_location( "albedoTexture" );
+
+      Self
+      {
+        program,
+        locations,
+        phantom : std::marker::PhantomData
+      }
+    } 
+  }
+
   impl ProgramInfo< JfaOutlineObjectShader > 
   {
     /// Creates a new `ProgramInfo` instance.
@@ -305,6 +343,182 @@ mod private
       }
     }    
   }
+
+  impl ProgramInfo< NormalDepthOutlineObjectShader > 
+  {
+    /// Creates a new `ProgramInfo` instance.
+    ///
+    /// * `gl`: The `WebGl2RenderingContext` used to retrieve uniform locations.
+    /// * `program`: The compiled WebGL program object.
+    pub fn new( gl : &gl::WebGl2RenderingContext, program : gl::WebGlProgram ) -> Self
+    {
+      let mut locations = HashMap::new();
+
+      let mut add_location = | name : &str |
+      {
+        locations.insert( name.to_string(), gl.get_uniform_location( &program, name ) );
+      };
+
+      add_location( "u_projection" );
+      add_location( "u_view" );
+      add_location( "u_model" );
+      add_location( "u_normal_matrix" );
+      add_location( "near" );
+      add_location( "far" );
+
+      Self
+      {
+        program,
+        locations,
+        phantom : std::marker::PhantomData
+      }
+    }    
+  }
+
+  impl ProgramInfo< NormalDepthOutlineShader > 
+  {
+    /// Creates a new `ProgramInfo` instance.
+    ///
+    /// * `gl`: The `WebGl2RenderingContext` used to retrieve uniform locations.
+    /// * `program`: The compiled WebGL program object.
+    pub fn new( gl : &gl::WebGl2RenderingContext, program : gl::WebGlProgram ) -> Self
+    {
+      let mut locations = HashMap::new();
+
+      let mut add_location = | name : &str |
+      {
+        locations.insert( name.to_string(), gl.get_uniform_location( &program, name ) );
+      };
+
+      add_location( "u_color_texture" );
+      add_location( "u_depth_texture" );
+      add_location( "u_norm_texture" );
+      add_location( "u_projection" );
+      add_location( "u_resolution" );
+      add_location( "u_outline_thickness" );
+      add_location( "u_background_color" );
+
+      Self
+      {
+        program,
+        locations,
+        phantom : std::marker::PhantomData
+      }
+    }    
+  }
+
+  impl ProgramInfo< NarrowOutlineShader > 
+  {
+    /// Creates a new `ProgramInfo` instance.
+    ///
+    /// * `gl`: The `WebGl2RenderingContext` used to retrieve uniform locations.
+    /// * `program`: The compiled WebGL program object.
+    pub fn new( gl : &gl::WebGl2RenderingContext, program : gl::WebGlProgram ) -> Self
+    {
+      let mut locations = HashMap::new();
+
+      let mut add_location = | name : &str |
+      {
+        locations.insert( name.to_string(), gl.get_uniform_location( &program, name ) );
+      };
+
+      add_location( "sourceTexture" );
+      add_location( "objectColorIdTexture" );
+      add_location( "positionTexture" );
+      add_location( "resolution" );
+      add_location( "outlineThickness" );
+
+      Self
+      {
+        program,
+        locations,
+        phantom : std::marker::PhantomData
+      }
+    }    
+  }
+
+  impl ProgramInfo< WideOutlineInitShader > 
+  {
+    /// Creates a new `ProgramInfo` instance.
+    ///
+    /// * `gl`: The `WebGl2RenderingContext` used to retrieve uniform locations.
+    /// * `program`: The compiled WebGL program object.
+    pub fn new( gl : &gl::WebGl2RenderingContext, program : gl::WebGlProgram ) -> Self
+    {
+      let mut locations = HashMap::new();
+
+      let mut add_location = | name : &str |
+      {
+        locations.insert( name.to_string(), gl.get_uniform_location( &program, name ) );
+      };
+
+      add_location( "objectColorIdTexture" );
+
+      Self
+      {
+        program,
+        locations,
+        phantom : std::marker::PhantomData
+      }
+    }    
+  }
+
+  impl ProgramInfo< WideOutlineStepShader > 
+  {
+    /// Creates a new `ProgramInfo` instance.
+    ///
+    /// * `gl`: The `WebGl2RenderingContext` used to retrieve uniform locations.
+    /// * `program`: The compiled WebGL program object.
+    pub fn new( gl : &gl::WebGl2RenderingContext, program : gl::WebGlProgram ) -> Self
+    {
+      let mut locations = HashMap::new();
+
+      let mut add_location = | name : &str |
+      {
+        locations.insert( name.to_string(), gl.get_uniform_location( &program, name ) );
+      };
+
+      add_location( "jfaTexture" );
+      add_location( "resolution" );
+      add_location( "stepSize" );
+
+      Self
+      {
+        program,
+        locations,
+        phantom : std::marker::PhantomData
+      }
+    }    
+  }
+
+  impl ProgramInfo< WideOutlineShader > 
+  {
+    /// Creates a new `ProgramInfo` instance.
+    ///
+    /// * `gl`: The `WebGl2RenderingContext` used to retrieve uniform locations.
+    /// * `program`: The compiled WebGL program object.
+    pub fn new( gl : &gl::WebGl2RenderingContext, program : gl::WebGlProgram ) -> Self
+    {
+      let mut locations = HashMap::new();
+
+      let mut add_location = | name : &str |
+      {
+        locations.insert( name.to_string(), gl.get_uniform_location( &program, name ) );
+      };
+
+      add_location( "sourceTexture" );
+      add_location( "objectColorIdTexture" );
+      add_location( "jfaTexture" );
+      add_location( "resolution" );
+
+      Self
+      {
+        program,
+        locations,
+        phantom : std::marker::PhantomData
+      }
+    }    
+  }
 }
 
 crate::mod_interface!
@@ -315,10 +529,17 @@ crate::mod_interface!
     GaussianFilterShader,
     UnrealBloomShader,
     PBRShader,
+    GBufferShader,
     JfaOutlineObjectShader,
     JfaOutlineInitShader,
     JfaOutlineStepShader,
-    JfaOutlineShader
+    JfaOutlineShader,
+    NormalDepthOutlineObjectShader,
+    NormalDepthOutlineShader,
+    NarrowOutlineShader,
+    WideOutlineInitShader,
+    WideOutlineStepShader,
+    WideOutlineShader
   };
   
   orphan use
