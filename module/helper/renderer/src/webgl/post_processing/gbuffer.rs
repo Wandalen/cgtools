@@ -122,13 +122,13 @@ mod private
   {
     let descriptor = match vector.scalar
     {
-        gl::DataType::U8 => gl::BufferDescriptor::new::< [ u8; 1 ] >(),
-        gl::DataType::I8 => gl::BufferDescriptor::new::< [ i8; 1 ] >(),
-        gl::DataType::U16 => gl::BufferDescriptor::new::< [ u16; 1 ] >(),
-        gl::DataType::I16 => gl::BufferDescriptor::new::< [ i16; 1 ] >(),
-        gl::DataType::U32 => gl::BufferDescriptor::new::< [ u32; 1 ] >(),
-        gl::DataType::F32 => gl::BufferDescriptor::new::< [ f32; 1 ] >(),
-        _ => return Err( gl::WebglError::NotSupportedForType( type_name_of_val( &vector.scalar ) ) )
+      gl::DataType::U8 => gl::BufferDescriptor::new::< [ u8; 1 ] >(),
+      gl::DataType::I8 => gl::BufferDescriptor::new::< [ i8; 1 ] >(),
+      gl::DataType::U16 => gl::BufferDescriptor::new::< [ u16; 1 ] >(),
+      gl::DataType::I16 => gl::BufferDescriptor::new::< [ i16; 1 ] >(),
+      gl::DataType::U32 => gl::BufferDescriptor::new::< [ u32; 1 ] >(),
+      gl::DataType::F32 => gl::BufferDescriptor::new::< [ f32; 1 ] >(),
+      _ => return Err( gl::WebglError::NotSupportedForType( type_name_of_val( &vector.scalar ) ) )
     };
 
     let descriptor = descriptor
