@@ -16,7 +16,6 @@ default = []
 
 [dependencies]
 ndarray_cg = { workspace = true }
-rustc-hash = { workspace = true }
 pathfinding = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 

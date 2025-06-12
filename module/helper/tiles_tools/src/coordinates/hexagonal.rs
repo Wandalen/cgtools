@@ -1,6 +1,6 @@
-use std::{ fmt::Debug, hash::Hash, marker::PhantomData };
 use ndarray_cg::I32x2;
-use serde::{Deserialize, Serialize};
+use serde::{ Deserialize, Serialize };
+use std::{ fmt::Debug, hash::Hash, marker::PhantomData };
 use crate::coordinates::{ pixel::Pixel, Distance, Neigbors };
 
 pub struct Axial;

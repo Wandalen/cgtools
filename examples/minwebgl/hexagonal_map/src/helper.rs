@@ -11,7 +11,6 @@ use web_sys::
   HtmlOptionElement,
   HtmlSelectElement,
 };
-
 use crate::blob;
 
 type Axial = Coordinate< hexagonal::Axial, hexagonal::Flat >;
@@ -75,7 +74,6 @@ pub struct TextureAtlas
   #[ serde( rename = "SubTexture", default ) ]
   pub sub_textures : Vec< SubTexture >,
 }
-
 
 pub fn setup_select_element( document : &web_sys::Document ) -> HtmlSelectElement
 {
