@@ -1,13 +1,14 @@
 mod blob;
 mod sprite;
+mod helper;
+mod tri;
 
+use helper::*;
 use minwebgl as gl;
 use browser_input::{ keyboard::KeyboardKey, mouse::MouseButton, Event, EventType };
-use std::{ cell::RefCell, collections::HashMap, rc::Rc, str::FromStr as _ };
-use strum::{ AsRefStr, EnumIter, IntoEnumIterator, EnumString };
+use std::{ cell::RefCell, collections::HashMap, rc::Rc };
 use tiles_tools::coordinates::{ hexagonal, pixel::Pixel };
 use renderer::webgl::{ AttributeInfo, Geometry };
-use serde::{ Deserialize, Serialize };
 use hexagonal::Coordinate;
 use gl::
 {
@@ -22,75 +23,13 @@ use gl::
 use web_sys::
 {
   wasm_bindgen::prelude::*,
-  HtmlButtonElement,
   HtmlCanvasElement,
   HtmlImageElement,
-  HtmlOptionElement,
   HtmlSelectElement,
   WebGlTexture,
 };
 
 type Axial = Coordinate< hexagonal::Axial, hexagonal::Flat >;
-
-#[ derive( Debug, Serialize, Deserialize ) ]
-struct Tile
-{
-  value : TileValue,
-  // TODO: New type
-  owner : u8,
-}
-
-#[ derive( Debug, Clone, Copy, AsRefStr, EnumIter, EnumString, Serialize, Deserialize ) ]
-enum TileValue
-{
-  Empty,
-  Capital,
-  Trees,
-  Stones,
-  Castle,
-}
-
-impl TileValue
-{
-  fn to_asset< 'a >( &self, atlas : &'a TextureAtlas ) -> &'a SubTexture
-  {
-    let sprite_name = match self
-    {
-      TileValue::Empty => "grass_05.png",
-      TileValue::Capital => "medieval_smallCastle.png",
-      TileValue::Trees => "grass_10.png",
-      TileValue::Stones => "grass_15.png",
-      TileValue::Castle => "medieval_largeCastle.png",
-    };
-    atlas.sub_textures.iter().find( | item | item.name == sprite_name ).unwrap()
-  }
-}
-
-#[ derive( Debug, Deserialize ) ]
-pub struct SubTexture
-{
-  #[ serde( rename = "@name" ) ] // @ prefix indicates an XML attribute
-  pub name : String,
-  #[ serde( rename = "@x" ) ]
-  pub x : u32,
-  #[ serde( rename = "@y" ) ]
-  pub y : u32,
-  #[ serde( rename = "@width" ) ]
-  pub width : u32,
-  #[ serde( rename = "@height" ) ]
-  pub height : u32,
-}
-
-// Represents the root <TextureAtlas> element
-#[ derive( Debug, Deserialize ) ]
-#[ serde( rename = "TextureAtlas" ) ] // Maps to the XML element name
-pub struct TextureAtlas
-{
-  #[ serde( rename = "@imagePath" ) ]
-  pub image_path : String,
-  #[ serde( rename = "SubTexture", default ) ]
-  pub sub_textures : Vec< SubTexture >,
-}
 
 fn main()
 {
@@ -116,25 +55,30 @@ async fn run() -> Result< (), gl::WebglError >
 
   gl.clear_color( 0.0, 0.15, 0.5, 1.0 );
   gl.viewport( 0, 0, width, height );
+  gl.enable( GL::BLEND );
+  gl.blend_func( GL::SRC_ALPHA, GL::ONE_MINUS_SRC_ALPHA );
 
   let hexagon = create_hexagon_geometry( &gl )?;
   let outline = create_line_geometry( &gl )?;
 
   hexagon.bind( &gl );
-  let main_shader = create_shader( &gl )?;
+  let hexagon_shader = create_shader( &gl )?;
   let line_shader = create_line_shader( &gl )?;
+  let sprite_shader = sprite::sprite_shader( &gl )?;
 
-  let sprite_sheet_path = "static/kenney_hexagon_pack/Spritesheets/hexagonAll_sheet.png";
-  let sprite_sheet = load_sprite_sheet( &gl, &document, sprite_sheet_path );
-  gl.bind_texture( GL::TEXTURE_2D, sprite_sheet.as_ref() );
+  // let size = Default::default();
+  // let sprite = load_texture( &gl, &document, "static/kenney_hexagon_pack/castle_small.png", size ).unwrap();
+  // let sprite_size = [ 106.0f32 * 0.5, 94.0 * 0.5 ];
+  // let sprite = sprite::Sprite::new( [ 106, 94, ].into(), sprite );
 
-  let atlas_size = 2048.0f32;
-  let atlas = gl::file::load
-  (
-    "kenney_hexagon_pack/Spritesheets/hexagonAll_sheet.xml"
-  ).await.unwrap();
-  let atlas = String::from_utf8( atlas ).unwrap();
-  let atlas : TextureAtlas = quick_xml::de::from_str( &atlas ).unwrap();
+  let sprites = load_sprites( &gl, &document );
+  // let atlas_size = 2048.0f32;
+  // let atlas = gl::file::load
+  // (
+  //   "kenney_hexagon_pack/Spritesheets/hexagonAll_sheet.xml"
+  // ).await.unwrap();
+  // let atlas = String::from_utf8( atlas ).unwrap();
+  // let atlas : TextureAtlas = quick_xml::de::from_str( &atlas ).unwrap();
 
   let tile_select_element = setup_select_element( &document );
   let player_select = document.get_element_by_id( "player" ).unwrap();
@@ -150,10 +94,11 @@ async fn run() -> Result< (), gl::WebglError >
     browser_input::CLIENT,
   );
   let dpr = dpr as f32;
-  let mut zoom = 0.0625;
+  let mut zoom = 1.0;
   let zoom_factor = 0.75;
   let inv_canvas_size = F32x2::new( 1.0 / width as f32, 1.0 / height as f32 );
-  let aspect = F32x2::new( 1.0, width as f32 / height as f32 );
+  let aspect = width as f32 / height as f32;
+  let aspect = F32x2::new( 1.0 / aspect, 1.0 );
   let mut camera_pos = F32x2::default();
   let mut last_pointer_pos : Option< I32x2 > = None;
 
@@ -217,28 +162,39 @@ async fn run() -> Result< (), gl::WebglError >
 
     gl.clear( GL::COLOR_BUFFER_BIT );
 
-    main_shader.activate();
-    main_shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
-    main_shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
+    hexagon_shader.activate();
+    hexagon_shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
+    hexagon_shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
+    gl.vertex_attrib1f( 6, 1.0 );
     line_shader.activate();
     line_shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
     line_shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
-    for ( coord, Tile { value, owner } ) in map.borrow().iter()
+    sprite_shader.activate();
+    sprite_shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
+    sprite_shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
+
+    // let g = tri::TriangleGrid::new( 1.0, tri::HexOrientation::Flat );
+    // let dual = g.hex_to_triangle_dual( map.borrow().keys().map( | Coordinate { q, r, .. } | tri::HexAxial::new( *q, *r ) ) );
+
+    let mut tiles : Vec< _ > = map.borrow().iter().map( | ( &k, &v ) | ( k, v ) ).collect();
+    tiles.sort_by_key( | v | ( v.0.r, v.0.q ) );
+
+    for ( coord, Tile { value, owner } ) in &tiles
     {
       let axial : Axial = ( *coord ).into();
-      let sprite = value.to_asset( &atlas );
 
-      let sprite_offset = F32x2::from_array( [ sprite.x as f32, sprite.y as f32 ] ) / atlas_size;
-      let sprite_size = F32x2::from_array( [ sprite.width as f32, sprite.height as f32 ] ) / atlas_size;
+      // let sprite = value.to_asset( &atlas );
 
+      // let sprite_offset = F32x2::from_array( [ sprite.x as f32, sprite.y as f32 ] ) / atlas_size;
+      // let sprite_size = F32x2::from_array( [ sprite.width as f32, sprite.height as f32 ] ) / atlas_size;
       let mut position : Pixel = axial.into();
       position.data[ 1 ] = -position.data[ 1 ];
 
       hexagon.bind( &gl );
-      main_shader.activate();
+      hexagon_shader.activate();
       gl.vertex_attrib2fv_with_f32_array( 1, &position.data );
-      gl.vertex_attrib2fv_with_f32_array( 3, sprite_offset.as_slice() );
-      gl.vertex_attrib2fv_with_f32_array( 4, sprite_size.as_slice() );
+      // gl.vertex_attrib2fv_with_f32_array( 3, sprite_offset.as_slice() );
+      // gl.vertex_attrib2fv_with_f32_array( 4, sprite_size.as_slice() );
       gl.vertex_attrib1f( 5, *owner as f32 );
       hexagon.draw( &gl );
 
@@ -246,7 +202,39 @@ async fn run() -> Result< (), gl::WebglError >
       line_shader.activate();
       gl.vertex_attrib2fv_with_f32_array( 1, &position.data );
       outline.draw( &gl );
+
+      gl.bind_vertex_array( None );
+
+      sprite_shader.activate();
+      let sprite_index = *value as usize;
+      if sprite_index == 0 { continue; }
+      let ( sprite, size ) = &sprites[ sprite_index - 1 ];
+      gl.bind_texture( GL::TEXTURE_2D, sprite.as_ref() );
+      let sprite_size = [ size.borrow()[ 0 ] as f32 * 0.5, size.borrow()[ 1 ] as f32 * 0.5 ];
+      gl.vertex_attrib2fv_with_f32_array( 0, &position.data );
+      gl.vertex_attrib2fv_with_f32_array( 1, sprite_size.as_slice() );
+      // let width = 2.0f32;
+      // let height = 3.0f32.sqrt();
+      gl.vertex_attrib1f( 2, 0.015 );
+      gl.draw_arrays( GL::TRIANGLE_STRIP, 0, 4 );
     }
+
+    let mut dual : Vec< _ > = map.borrow().keys().map( | key | hex_to_dual_triangles( *key ) ).flatten().collect();
+    dual.dedup();
+    for triangle in dual
+    {
+      let ( x, y ) = tri_to_pixel(triangle, 1.0 );
+      hexagon.bind( &gl );
+      hexagon_shader.activate();
+      gl.vertex_attrib2fv_with_f32_array( 1, &[ x as f32, -y as f32 ] );
+      gl.vertex_attrib1f( 5, 5 as f32 );
+      gl.vertex_attrib1f( 6, 0.5 );
+      hexagon.draw( &gl );
+    }
+        // let Coordinate { q, r, _marker } = coordinate;
+    // let grid = tri::TriangleGrid::new( 1.0, tri::HexOrientation::Flat );
+    // let tripos = grid.pixel_to_triangle( tri::Point { x : hexagonal_pos.x() as f64, y : hexagonal_pos.y() as f64 } );
+    // let triangle_vert = grid.triangle_vertices(tri)
 
     true
   };
@@ -363,12 +351,12 @@ fn create_line_shader( gl : &GL ) -> Result< gl::shader::Program, minwebgl::Webg
   gl::shader::Program::new( gl.clone(), vert, frag )
 }
 
-fn load_sprite_sheet
+fn load_texture
 (
   gl : &GL,
   document : &web_sys::Document,
-  src : &str
-) -> Option< WebGlTexture >
+  src : &str,
+) -> ( Option< WebGlTexture >, Rc< RefCell< gl::U32x2 > > )
 {
   let img = document.create_element( "img" )
   .unwrap()
@@ -376,17 +364,26 @@ fn load_sprite_sheet
   .unwrap();
   img.style().set_property( "display", "none" ).unwrap();
   let texture = gl.create_texture();
+  let size = Rc::new( RefCell::new( gl::U32x2::default() ) );
 
-  // TODO: use size of image
   let on_load : Closure< dyn Fn() > = Closure::new
   ({
     let gl = gl.clone();
     let img = img.clone();
     let texture = texture.clone();
+    let size = size.clone();
     move ||
     {
-      gl::texture::d2::upload_no_flip( &gl, texture.as_ref(), &img );
-      gl::texture::d2::filter_nearest( &gl );
+      let width = img.natural_width();
+      let height = img.natural_height();
+      *size.borrow_mut() = [ width, height ].into();
+      gl::texture::d2::upload( &gl, texture.as_ref(), &img );
+      gl.generate_mipmap( GL::TEXTURE_2D );
+      // gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::LINEAR_MIPMAP_LINEAR as i32 );
+      // gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::LINEAR_MIPMAP_LINEAR as i32 );
+      // gl::texture::d2::filter_nearest( &gl );
+      gl::texture::d2::filter_linear( &gl );
+      gl::texture::d2::wrap_clamp( &gl );
       img.remove();
     }
   });
@@ -394,163 +391,81 @@ fn load_sprite_sheet
   img.set_src( &src );
   on_load.forget();
 
-  texture
+  ( texture, size )
 }
 
-fn setup_select_element( document : &web_sys::Document ) -> HtmlSelectElement
+fn load_sprites( gl : &GL, document : &web_sys::Document )
+-> Vec< ( Option< WebGlTexture >, Rc< RefCell< gl::U32x2> > ) >
 {
-  let select = document.get_element_by_id( "tile" ).unwrap();
-  let select_element = select.dyn_into::< HtmlSelectElement >().unwrap();
-  for variant in TileValue::iter()
+  [
+    load_texture
+    (
+      &gl, &document, "static/kenney_hexagon_pack/house.png"
+    ),
+    load_texture
+    (
+      &gl, &document, "static/kenney_hexagon_pack/castle_small.png"
+    ),
+    load_texture
+    (
+      &gl, &document, "static/kenney_hexagon_pack/treeRound_large.png"
+    ),
+    load_texture
+    (
+      &gl, &document, "static/kenney_hexagon_pack/cactus1.png"
+    )
+  ].into()
+}
+
+#[ derive( Clone, Copy, Debug, Hash, PartialEq, Eq ) ]
+struct Tri
+{
+  a : i32,
+  b : i32,
+  c : i32, // 0 = up, 1 = down
+}
+
+fn hex_to_dual_triangles( hex : Axial ) -> [ Tri; 6 ]
+{
+  const TRI_OFFSETS : [ ( i32, i32, u8 ); 6 ] =
+  [
+    (1, 0, 0), (1, 1, 0), (0, 1, 0), (0, 1, 1), (0, 0, 1), (1, 0, 1)
+  ];
+
+  TRI_OFFSETS.map
+  (
+    | ( a, b, c ) |
+    Tri
+    {
+      a: hex.q + a,
+      b: hex.r + b,
+      c: todo!()
+    }
+  )
+}
+
+fn tri_to_pixel( tri : Tri, hex_size : f32 ) -> ( f32, f32 )
+{
+  let Tri { a: tq, b: tr, c: orientation } = tri;
+
+  // Position based on hex axial logic
+  // let base_x = hex_size * 3.0_f32.sqrt() * ( tq as f32 + tr as f32 / 2.0 );
+  // let base_y = hex_size * 1.5 * tr as f32;
+  let base_x = hex_size * 1.5 * tq as f32;
+  let base_y = hex_size * 3.0f32.sqrt() * ( tr as f32 + tq as f32 / 2.0 );
+
+  // Direction of offset (toward hex corner)
+  // For pointy-topped hexes, triangle "points" are vertical-ish
+  let angle = match orientation
   {
-    let option_value = variant.as_ref();
-    let option_element = document.create_element( "option" )
-    .unwrap()
-    .dyn_into::< HtmlOptionElement >()
-    .unwrap();
+    0 => 0.0f32,
+    1 => std::f32::consts::PI,
+    _ => panic!("Invalid triangle orientation"),
+  };
 
-    option_element.set_value( option_value );
-    option_element.set_text( option_value );
-    select_element.add_with_html_option_element( &option_element ).unwrap();
-  }
-  return select_element;
-}
+  let offset_distance = hex_size / 3.0; // small inward offset
+  let offset_x = offset_distance * angle.cos();
+  let offset_y = offset_distance * angle.sin();
 
-fn get_variant( select_element : &HtmlSelectElement ) -> TileValue
-{
-  let value = select_element.value();
-  let variant = TileValue::from_str( &value ).unwrap();
-  variant
-}
-
-fn setup_download_button
-(
-  document : &web_sys::Document,
-  map : Rc< RefCell< HashMap::< Axial, Tile > > >
-)
-{
-  let button = document.get_element_by_id( "download" )
-  .unwrap()
-  .dyn_into::< HtmlButtonElement >()
-  .unwrap();
-
-  let onclick : Closure< dyn Fn() > = Closure::new
-  ({
-    move || download_map( &map.borrow() )
-  });
-
-  button.set_onclick( Some( onclick.as_ref().unchecked_ref() ) );
-  onclick.forget();
-}
-
-fn download_map( map : &HashMap::< Axial, Tile > )
-{
-  let map = map.to_owned().into_iter().collect::< Vec< _ > >();
-  let json = serde_json::to_string( &map ).unwrap();
-  let array = web_sys::js_sys::Array::new();
-  array.push( &JsValue::from_str( &json ) );
-
-  let url = blob::create_blob( array, "application/json" ).unwrap();
-
-  let window = web_sys::window().unwrap();
-  let document = window.document().unwrap();
-
-  let anchor = document.create_element( "a" )
-  .unwrap()
-  .dyn_into::< web_sys::HtmlAnchorElement >()
-  .unwrap();
-
-  anchor.set_href( &url );
-  anchor.set_download( "data.json" );
-  anchor.click();
-}
-
-fn setup_drop_zone
-(
-  document : &web_sys::Document,
-  map : Rc< RefCell< HashMap::< Axial, Tile > > >
-)
-{
-  let element = document.get_element_by_id( "drop-zone" ).unwrap();
-
-  let prevent_default = Closure::< dyn Fn( _ ) >::new
-  (
-    | e : web_sys::Event |
-    {
-      e.prevent_default();
-      e.stop_propagation();
-    }
-  );
-
-  element.add_event_listener_with_callback
-  (
-    "dragover",
-    prevent_default.as_ref().unchecked_ref()
-  ).unwrap();
-  element.add_event_listener_with_callback
-  (
-    "dragenter",
-    prevent_default.as_ref().unchecked_ref()
-  ).unwrap();
-  prevent_default.forget();
-
-  let drop_handler = Closure::< dyn Fn( _ ) >::new
-  (
-    move | e : web_sys::DragEvent |
-    {
-      e.prevent_default();
-      e.stop_propagation();
-
-      if let Some( file ) = e.data_transfer()
-      .and_then( | dt | dt.files() )
-      .and_then( | files | files.get( 0 ) )
-      {
-        read_json_file( file, map.clone() );
-      }
-    }
-  );
-
-  element.add_event_listener_with_callback
-  (
-    "drop",
-    drop_handler.as_ref().unchecked_ref()
-  ).unwrap();
-  drop_handler.forget();
-}
-
-fn read_json_file( file : web_sys::File, map : Rc< RefCell< HashMap::< Axial, Tile > > > )
-{
-  let reader = web_sys::FileReader::new().unwrap();
-  reader.read_as_text( &file ).unwrap();
-
-  let onload = Closure::< dyn Fn( _ ) >::new
-  ({
-    let reader = reader.clone();
-    move | _ : web_sys::Event |
-    {
-      let Ok( result ) = reader.result() else
-      {
-        return;
-      };
-      let Some( text ) = result.as_string() else
-      {
-        return;
-      };
-
-      match serde_json::from_str::< Vec::< ( Axial, Tile ) > >( &text )
-      {
-        Ok( v ) =>
-        {
-          *map.borrow_mut() = HashMap::from_iter
-          (
-            v.into_iter()
-          )
-        },
-        Err( e ) => gl::error!( "{e:?}" ),
-      }
-    }
-  });
-
-  reader.set_onloadend( Some( onload.as_ref().unchecked_ref() ) );
-  onload.forget();
+  ( base_x + offset_x, base_y + offset_y )
 }

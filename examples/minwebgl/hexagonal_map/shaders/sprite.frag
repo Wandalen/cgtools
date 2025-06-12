@@ -1,4 +1,4 @@
-#version 300
+#version 300 es
 
 precision mediump float;
 
@@ -10,5 +10,7 @@ layout( location = 0 ) out vec4 frag_color;
 
 void main()
 {
-  frag_color = texture( u_image, v_tex_coord );
+  vec4 color = texture( u_image, v_tex_coord );
+  color.rgb *= color.a;
+  frag_color = color;
 }
