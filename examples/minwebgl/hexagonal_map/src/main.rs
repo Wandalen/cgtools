@@ -1,13 +1,17 @@
 mod blob;
 mod sprite;
 mod helper;
+mod triaxial;
 
 use helper::*;
+use triaxial::*;
 use minwebgl as gl;
 use browser_input::{ keyboard::KeyboardKey, mouse::MouseButton, Event, EventType };
 use std::{ cell::RefCell, collections::{ HashMap, HashSet }, rc::Rc };
 use tiles_tools::coordinates::{ hexagonal, pixel::Pixel };
 use renderer::webgl::{ AttributeInfo, Geometry };
+use strum::{ AsRefStr, EnumIter, EnumString };
+use serde::{ Deserialize, Serialize };
 use hexagonal::Coordinate;
 use gl::
 {
@@ -17,18 +21,50 @@ use gl::
   Vector,
   GL,
   BufferDescriptor,
-  geometry::BoundingBox
+  // geometry::BoundingBox
 };
 use web_sys::
 {
-  wasm_bindgen::prelude::*,
   HtmlCanvasElement,
-  HtmlImageElement,
   HtmlSelectElement,
   WebGlTexture,
 };
 
-type Axial = Coordinate< hexagonal::Axial, hexagonal::Flat >;
+pub type Axial = Coordinate< hexagonal::Axial, hexagonal::Flat >;
+
+#[ derive( Debug, Serialize, Deserialize, Clone, Copy ) ]
+pub struct Tile
+{
+  pub value : TileValue,
+  // TODO: New type
+  pub owner : u8,
+}
+
+#[ derive( Debug, Clone, Copy, AsRefStr, EnumIter, EnumString, Serialize, Deserialize ) ]
+pub enum TileValue
+{
+  Empty,
+  Capital,
+  Castle,
+  Trees,
+  Stones,
+}
+
+impl TileValue
+{
+  pub fn to_asset< 'a >( &self, atlas : &'a TextureAtlas ) -> &'a SubTexture
+  {
+    let sprite_name = match self
+    {
+      TileValue::Empty => "grass_05.png",
+      TileValue::Capital => "medieval_smallCastle.png",
+      TileValue::Trees => "grass_10.png",
+      TileValue::Stones => "grass_15.png",
+      TileValue::Castle => "medieval_largeCastle.png",
+    };
+    atlas.sub_textures.iter().find( | item | item.name == sprite_name ).unwrap()
+  }
+}
 
 fn main()
 {
@@ -60,41 +96,33 @@ async fn run() -> Result< (), gl::WebglError >
   let hexagon = create_hexagon_geometry( &gl )?;
   let outline = create_line_geometry( &gl )?;
 
-  hexagon.bind( &gl );
   let hexagon_shader = haxagon_shader( &gl )?;
-  let line_shader = line_shader( &gl )?;
-  let sprite_shader = sprite::sprite_shader( &gl )?;
+  let outline_shader = line_shader( &gl )?;
   let river_shader = river_shader( &gl )?;
-  // let size = Default::default();
-  // let sprite = load_texture( &gl, &document, "static/kenney_hexagon_pack/castle_small.png", size ).unwrap();
-  // let sprite_size = [ 106.0f32 * 0.5, 94.0 * 0.5 ];
-  // let sprite = sprite::Sprite::new( [ 106, 94, ].into(), sprite );
-  // let atlas_size = 2048.0f32;
-  // let atlas = gl::file::load
-  // (
-  //   "kenney_hexagon_pack/Spritesheets/hexagonAll_sheet.xml"
-  // ).await.unwrap();
-  // let atlas = String::from_utf8( atlas ).unwrap();
-  // let atlas : TextureAtlas = quick_xml::de::from_str( &atlas ).unwrap();
+  let sprite_shader = sprite::sprite_shader( &gl )?;
 
   let sprites = load_sprites( &gl, &document );
 
-  let tile_select_element = setup_select_element( &document );
-  let player_select = document.get_element_by_id( "player" ).unwrap();
-  let player_select = player_select.dyn_into::< HtmlSelectElement >().unwrap();
+  let tile_select_element = setup_tile_select( &document );
+  let player_select_element = document.get_element_by_id( "player" ).unwrap();
+  let player_select_element = player_select_element.dyn_into::< HtmlSelectElement >().unwrap();
 
   let map = Rc::new( RefCell::new( HashMap::< Axial, Tile >::new() ) );
   setup_download_button( &document, map.clone() );
   setup_drop_zone( &document, map.clone() );
 
-  let mut triangle_map = HashSet::< Tri >::new();
+  let mut river_map = HashSet::< TriAxial >::new();
 
   let mut input = browser_input::Input::new
   (
     Some( canvas.dyn_into().unwrap() ),
-    browser_input::CLIENT,
+    move | e |
+    {
+      let coord = gl::F64x2::new( e.client_x() as f64, e.client_y() as f64 ) * dpr;
+      I32x2::from_array( [ coord.x() as i32, coord.y() as i32 ] )
+    },
   );
-  let dpr = dpr as f32;
+
   let mut zoom = 1.0;
   let zoom_factor = 0.75;
   let inv_canvas_size = F32x2::new( 1.0 / width as f32, 1.0 / height as f32 );
@@ -106,6 +134,7 @@ async fn run() -> Result< (), gl::WebglError >
   let update = move | _ |
   {
     input.update_state();
+
     let pointer_pos = input.pointer_position();
 
     for Event { event_type, .. } in input.event_queue().iter()
@@ -123,22 +152,22 @@ async fn run() -> Result< (), gl::WebglError >
       }
     }
 
-    let pointer_pos = screen_to_world( pointer_pos, inv_canvas_size, dpr, aspect, zoom );
-    let mut hexagonal_pos = pointer_pos - camera_pos;
-    hexagonal_pos[ 1 ] = -hexagonal_pos[ 1 ];
-    let hexagonal_pos : Pixel = hexagonal_pos.into();
-    let coordinate : Axial = hexagonal_pos.into();
+    let pointer_pos = screen_to_world( pointer_pos, inv_canvas_size, aspect, zoom );
+    let mut pixel = pointer_pos - camera_pos;
+    pixel[ 1 ] = -pixel[ 1 ];
+    let pixel : Pixel = pixel.into();
+    let hexagon_coordinate : Axial = pixel.into();
 
     if input.is_key_down( KeyboardKey::Space )
     && input.is_button_down( MouseButton::Main )
     {
+      // Camera pan
       if let Some( last_pointer_pos ) = last_pointer_pos
       {
         let last_pointer_pos = screen_to_world
         (
           last_pointer_pos,
           inv_canvas_size,
-          dpr,
           aspect,
           zoom
         );
@@ -148,14 +177,16 @@ async fn run() -> Result< (), gl::WebglError >
     }
     else if input.is_button_down( MouseButton::Main )
     {
-      triangle_map.insert( Tri::from_point( hexagonal_pos.x(), hexagonal_pos.y() ) );
+      // Adding tile
+      river_map.insert( TriAxial::from_point( pixel.x(), pixel.y() ) );
       // let variant = get_variant( &tile_select_element );
       // let owner : u8 = player_select.value().parse().unwrap();
       // map.borrow_mut().insert( coordinate, Tile { value : variant, owner } );
     }
     else if input.is_button_down( MouseButton::Secondary )
     {
-      triangle_map.remove( &Tri::from_point( hexagonal_pos.x(), hexagonal_pos.y() ) );
+      // Removing tile
+      river_map.remove( &TriAxial::from_point( pixel.x(), pixel.y() ) );
       // map.borrow_mut().remove( &coordinate );
     }
 
@@ -168,11 +199,10 @@ async fn run() -> Result< (), gl::WebglError >
     hexagon_shader.activate();
     hexagon_shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
     hexagon_shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
-    gl.vertex_attrib1f( 6, 1.0 );
 
-    line_shader.activate();
-    line_shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
-    line_shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
+    outline_shader.activate();
+    outline_shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
+    outline_shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
 
     sprite_shader.activate();
     sprite_shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
@@ -187,48 +217,35 @@ async fn run() -> Result< (), gl::WebglError >
 
     for ( coord, Tile { value, owner } ) in &tiles
     {
-      let axial : Axial = ( *coord ).into();
-
-      // let sprite = value.to_asset( &atlas );
-
-      // let sprite_offset = F32x2::from_array( [ sprite.x as f32, sprite.y as f32 ] ) / atlas_size;
-      // let sprite_size = F32x2::from_array( [ sprite.width as f32, sprite.height as f32 ] ) / atlas_size;
-      let mut position : Pixel = axial.into();
+      let mut position : Pixel = ( *coord ).into();
       position.data[ 1 ] = -position.data[ 1 ];
 
       hexagon.bind( &gl );
       hexagon_shader.activate();
       gl.vertex_attrib2fv_with_f32_array( 1, &position.data );
-      // gl.vertex_attrib2fv_with_f32_array( 3, sprite_offset.as_slice() );
-      // gl.vertex_attrib2fv_with_f32_array( 4, sprite_size.as_slice() );
-      gl.vertex_attrib1f( 5, *owner as f32 );
+      gl.vertex_attrib_i4i( 5, *owner as i32, 0, 0, 0 );
       hexagon.draw( &gl );
 
       outline.bind( &gl );
-      line_shader.activate();
+      outline_shader.activate();
       gl.vertex_attrib2fv_with_f32_array( 1, &position.data );
       outline.draw( &gl );
 
       gl.bind_vertex_array( None );
 
-      sprite_shader.activate();
       let sprite_index = *value as usize;
       if sprite_index == 0 { continue; }
       let ( sprite, size ) = &sprites[ sprite_index - 1 ];
-      gl.bind_texture( GL::TEXTURE_2D, sprite.as_ref() );
       let sprite_size = [ size.borrow()[ 0 ] as f32 * 0.5, size.borrow()[ 1 ] as f32 * 0.5 ];
+      gl.bind_texture( GL::TEXTURE_2D, sprite.as_ref() );
+      sprite_shader.activate();
       gl.vertex_attrib2fv_with_f32_array( 0, &position.data );
       gl.vertex_attrib2fv_with_f32_array( 1, sprite_size.as_slice() );
-
       gl.vertex_attrib1f( 2, 0.015 );
       gl.draw_arrays( GL::TRIANGLE_STRIP, 0, 4 );
     }
 
-    // hexagon.bind( &gl );
-    // hexagon_shader.activate();
-    // gl.vertex_attrib1f( 5, 5 as f32 );
-    // gl.vertex_attrib1f( 6, 0.5 );
-    let pairs = find_pairs( &triangle_map );
+    let pairs = find_pairs( &river_map );
 
     river_shader.activate();
 
@@ -252,16 +269,6 @@ async fn run() -> Result< (), gl::WebglError >
       gl.draw_arrays( GL::TRIANGLE_STRIP, 0, 4 );
     }
 
-    // for tri in &triangle_map
-    // {
-    //   // let point = tri.to_point();
-    //   for corner in tri.corners()
-    //   {
-    //     gl.vertex_attrib2fv_with_f32_array( 1, &[ corner[ 0 ], -corner[ 1 ] ] );
-    //     hexagon.draw( &gl );
-    //   }
-    // }
-
     true
   };
   gl::exec_loop::run( update );
@@ -273,22 +280,43 @@ fn screen_to_world
 (
   screen : I32x2,
   inv_canvas_size : F32x2,
-  dpr : f32,
   aspect : F32x2,
   zoom : f32
 ) -> F32x2
 {
   let Vector ( [ x, y ] ) = screen;
   let screenf32 = F32x2::new( x as f32, y as f32 );
-  let mut world = ( screenf32 * dpr * inv_canvas_size - 0.5 ) * 2.0 / ( zoom * aspect );
+  let mut world = ( screenf32 * inv_canvas_size - 0.5 ) * 2.0 / ( zoom * aspect );
   world[ 1 ] = -world[ 1 ];
   world
+}
+
+fn find_pairs( map : &HashSet< TriAxial > ) -> HashSet< [ TriAxial; 2 ] >
+{
+  let mut pairs = HashSet::< [ TriAxial; 2 ] >::new();
+
+  for tri in map
+  {
+    let neighbors = tri.neighbors();
+    for neighbor in neighbors
+    {
+      if map.contains( &neighbor )
+      {
+        let mut pair = [ *tri, neighbor ];
+        // sort to exclude duplication
+        pair.sort_by_key( | item | ( item.a, item.b, item.c ) );
+        pairs.insert( pair );
+      }
+    }
+  }
+
+  pairs
 }
 
 fn create_hexagon_geometry( gl : &GL ) -> Result< Geometry, minwebgl::WebglError >
 {
   let positions = tiles_tools::geometry::hexagon_triangles();
-  let tex_coords = tex_coords( &positions );
+  // let tex_coords = tex_coords( &positions );
 
   let position_buffer = gl::buffer::create( &gl )?;
   gl::buffer::upload( &gl, &position_buffer, positions.as_slice(), GL::STATIC_DRAW );
@@ -300,24 +328,48 @@ fn create_hexagon_geometry( gl : &GL ) -> Result< Geometry, minwebgl::WebglError
     bounding_box : Default::default(),
   };
 
-  let tex_coord_buffer = gl::buffer::create( &gl )?;
-  gl::buffer::upload( &gl, &tex_coord_buffer, tex_coords.as_slice(), GL::STATIC_DRAW );
-  let tex_coord_info = AttributeInfo
-  {
-    slot : 2,
-    buffer : tex_coord_buffer,
-    descriptor : BufferDescriptor::new::< [ f32; 2 ] >(),
-    bounding_box : Default::default(),
-  };
+  // let tex_coord_buffer = gl::buffer::create( &gl )?;
+  // gl::buffer::upload( &gl, &tex_coord_buffer, tex_coords.as_slice(), GL::STATIC_DRAW );
+  // let tex_coord_info = AttributeInfo
+  // {
+  //   slot : 2,
+  //   buffer : tex_coord_buffer,
+  //   descriptor : BufferDescriptor::new::< [ f32; 2 ] >(),
+  //   bounding_box : Default::default(),
+  // };
 
   let mut geometry = Geometry::new( &gl )?;
   geometry.vertex_count = positions.len() as u32;
   geometry.add_attribute( &gl, "position", pos_info, false )?;
-  geometry.add_attribute( &gl, "tex_coord", tex_coord_info, false )?;
+  // geometry.add_attribute( &gl, "tex_coord", tex_coord_info, false )?;
   gl.bind_vertex_array( None );
 
   Ok( geometry )
 }
+
+/*
+fn tex_coords( positions : &[ f32 ] ) -> Vec< f32 >
+{
+  let BoundingBox { min, max } = BoundingBox::compute2d( &positions );
+  let Vector( [ x_min, y_min, .. ] ) = min;
+  let Vector( [ x_max, y_max, .. ] ) = max;
+
+  let dist_x = x_max - x_min;
+  let dist_y = y_max - y_min;
+
+  let mut tex_coords = vec![];
+  for pos in positions.chunks_exact( 2 )
+  {
+    let x = ( pos[ 0 ] * 0.982 - x_min ) / dist_x;
+    let y = ( pos[ 1 ] * 0.982 - y_min ) / dist_y;
+    let y = 1.0 - y;
+    tex_coords.push( x );
+    tex_coords.push( y );
+  }
+
+  tex_coords
+}
+*/
 
 fn create_line_geometry( gl : &GL ) -> Result< Geometry, minwebgl::WebglError >
 {
@@ -341,28 +393,6 @@ fn create_line_geometry( gl : &GL ) -> Result< Geometry, minwebgl::WebglError >
   Ok( geometry )
 }
 
-fn tex_coords( positions : &[ f32 ] ) -> Vec< f32 >
-{
-  let BoundingBox { min, max } = BoundingBox::compute2d( &positions );
-  let Vector( [ x_min, y_min, .. ] ) = min;
-  let Vector( [ x_max, y_max, .. ] ) = max;
-
-  let dist_x = x_max - x_min;
-  let dist_y = y_max - y_min;
-
-  let mut tex_coords = vec![];
-  for pos in positions.chunks_exact( 2 )
-  {
-    let x = ( pos[ 0 ] * 0.982 - x_min ) / dist_x;
-    let y = ( pos[ 1 ] * 0.982 - y_min ) / dist_y;
-    let y = 1.0 - y;
-    tex_coords.push( x );
-    tex_coords.push( y );
-  }
-
-  tex_coords
-}
-
 fn haxagon_shader( gl : &GL ) -> Result< gl::shader::Program, minwebgl::WebglError >
 {
   let vert = include_str!( "../shaders/main.vert" );
@@ -382,49 +412,6 @@ fn river_shader( gl : &GL ) -> Result< gl::shader::Program, minwebgl::WebglError
   let vert = include_str!( "../shaders/river.vert" );
   let frag = include_str!( "../shaders/river.frag" );
   gl::shader::Program::new( gl.clone(), vert, frag )
-}
-
-fn load_texture
-(
-  gl : &GL,
-  document : &web_sys::Document,
-  src : &str,
-) -> ( Option< WebGlTexture >, Rc< RefCell< gl::U32x2 > > )
-{
-  let img = document.create_element( "img" )
-  .unwrap()
-  .dyn_into::< HtmlImageElement >()
-  .unwrap();
-  img.style().set_property( "display", "none" ).unwrap();
-  let texture = gl.create_texture();
-  let size = Rc::new( RefCell::new( gl::U32x2::default() ) );
-
-  let on_load : Closure< dyn Fn() > = Closure::new
-  ({
-    let gl = gl.clone();
-    let img = img.clone();
-    let texture = texture.clone();
-    let size = size.clone();
-    move ||
-    {
-      let width = img.natural_width();
-      let height = img.natural_height();
-      *size.borrow_mut() = [ width, height ].into();
-      gl::texture::d2::upload( &gl, texture.as_ref(), &img );
-      gl.generate_mipmap( GL::TEXTURE_2D );
-      // gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::LINEAR_MIPMAP_LINEAR as i32 );
-      // gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::LINEAR_MIPMAP_LINEAR as i32 );
-      // gl::texture::d2::filter_nearest( &gl );
-      gl::texture::d2::filter_linear( &gl );
-      gl::texture::d2::wrap_clamp( &gl );
-      img.remove();
-    }
-  });
-  img.set_onload( Some( on_load.as_ref().unchecked_ref() ) );
-  img.set_src( &src );
-  on_load.forget();
-
-  ( texture, size )
 }
 
 fn load_sprites( gl : &GL, document : &web_sys::Document )
@@ -448,114 +435,4 @@ fn load_sprites( gl : &GL, document : &web_sys::Document )
       &gl, &document, "static/kenney_hexagon_pack/cactus1.png"
     )
   ].into()
-}
-
-#[ derive( Clone, Copy, Debug, Hash, PartialEq, Eq ) ]
-struct Tri
-{
-  a : i32,
-  b : i32,
-  c : i32,
-}
-
-impl Tri
-{
-  const SQRT_3 : f32 = 1.73205080757;
-  const SIDE_LENGHT : f32 = Self::SQRT_3;
-  const CELL_SIZE : [ f32; 2 ] = [ Self::SIDE_LENGHT * Self::SQRT_3 / 2.0, Self::SIDE_LENGHT * 1.0 ];
-
-  const fn new( a : i32, b : i32, c : i32 ) -> Self
-  {
-    Self { a, b, c }
-  }
-
-  const fn is_left( &self ) -> bool { self.a + self.b + self.c == 1 }
-
-  const fn is_right( &self ) -> bool { self.a + self.b + self.c == 2 }
-
-  fn from_point( x : f32, y : f32 ) -> Self
-  {
-    let x = x / Self::CELL_SIZE[ 0 ];
-    let y = y / Self::CELL_SIZE[ 1 ];
-
-    Tri
-    {
-      a : x.floor() as i32 + 1,
-      b : ( y - 0.5 * x ).ceil() as i32,
-      c : ( -y - 0.5 * x ).ceil() as i32,
-    }
-  }
-
-  const fn to_point( &self ) -> [ f32; 2 ]
-  {
-    let Self { a, b, c } = *self;
-
-    [
-      ( -1.0 / 3.0 * b as f32 + 2.0 / 3.0 * a as f32 - 1.0 / 3.0 * c as f32 ) * Self::CELL_SIZE[ 0 ],
-      ( 0.5 * b as f32 - 0.5 * c as f32 ) * Self::CELL_SIZE[ 1 ],
-    ]
-  }
-
-  const fn neighbors( &self ) -> [ Tri; 3 ]
-  {
-    let Self { a, b, c } = *self;
-
-    let is_right = self.is_right() as i32;
-    let is_left = self.is_left() as i32;
-    let offset = -1 * is_right + is_left;
-
-    [
-      Self::new( a + offset, b, c ),
-      Self::new( a, b + offset, c ),
-      Self::new( a, b, c + offset ),
-    ]
-  }
-
-  const fn corners_axial( &self ) -> [ Axial; 3 ]
-  {
-    let Self { b, c, .. } = *self;
-    let is_right = self.is_right() as i32;
-    let is_left = self.is_left() as i32;
-    let offset = is_right + is_left * -1;
-    [
-      Axial::new( -c, -b ),
-      Axial::new( -( offset + c ), -b ),
-      Axial::new( -c, -( offset + b ) ),
-    ]
-  }
-
-  const fn corners_points( &self ) -> [ [ f32; 2 ]; 3 ]
-  {
-    let Self { a, b, c } = *self;
-    let is_right = self.is_right() as i32;
-    let is_left = self.is_left() as i32;
-    let offset = is_right + is_left * -1;
-    [
-      Self::new( offset + a, b, c ).to_point(),
-      Self::new( a, b, offset + c ).to_point(),
-      Self::new( a, offset + b, c ).to_point(),
-    ]
-  }
-}
-
-fn find_pairs( map : &HashSet< Tri > ) -> HashSet< [ Tri; 2 ] >
-{
-  let mut pairs = HashSet::< [ Tri; 2 ] >::new();
-
-  for tri in map
-  {
-    let neighbors = tri.neighbors();
-    for neighbor in neighbors
-    {
-      if map.contains( &neighbor )
-      {
-        let mut pair = [ *tri, neighbor ];
-        // sort to exclude duplication
-        pair.sort_by_key( | item | ( item.a, item.b, item.c ) );
-        pairs.insert( pair );
-      }
-    }
-  }
-
-  pairs
 }

@@ -1,53 +1,18 @@
 use minwebgl as gl;
-use tiles_tools::coordinates::hexagonal;
-use hexagonal::Coordinate;
-use strum::{ AsRefStr, EnumIter, EnumString, IntoEnumIterator as _ };
+use gl::GL;
 use std::{ cell::RefCell, collections::HashMap, rc::Rc, str::FromStr as _ };
-use serde::{ Deserialize, Serialize };
+use strum::IntoEnumIterator as _;
+use serde::Deserialize;
 use web_sys::
 {
   wasm_bindgen::prelude::*,
+  WebGlTexture,
+  HtmlImageElement,
   HtmlButtonElement,
   HtmlOptionElement,
   HtmlSelectElement,
 };
-use crate::blob;
-
-type Axial = Coordinate< hexagonal::Axial, hexagonal::Flat >;
-
-#[ derive( Debug, Serialize, Deserialize, Clone, Copy ) ]
-pub struct Tile
-{
-  pub value : TileValue,
-  // TODO: New type
-  pub owner : u8,
-}
-
-#[ derive( Debug, Clone, Copy, AsRefStr, EnumIter, EnumString, Serialize, Deserialize ) ]
-pub enum TileValue
-{
-  Empty,
-  Capital,
-  Castle,
-  Trees,
-  Stones,
-}
-
-impl TileValue
-{
-  pub fn to_asset< 'a >( &self, atlas : &'a TextureAtlas ) -> &'a SubTexture
-  {
-    let sprite_name = match self
-    {
-      TileValue::Empty => "grass_05.png",
-      TileValue::Capital => "medieval_smallCastle.png",
-      TileValue::Trees => "grass_10.png",
-      TileValue::Stones => "grass_15.png",
-      TileValue::Castle => "medieval_largeCastle.png",
-    };
-    atlas.sub_textures.iter().find( | item | item.name == sprite_name ).unwrap()
-  }
-}
+use crate::{ blob, Axial, Tile, TileValue };
 
 #[ derive( Debug, Deserialize ) ]
 pub struct SubTexture
@@ -75,7 +40,7 @@ pub struct TextureAtlas
   pub sub_textures : Vec< SubTexture >,
 }
 
-pub fn setup_select_element( document : &web_sys::Document ) -> HtmlSelectElement
+pub fn setup_tile_select( document : &web_sys::Document ) -> HtmlSelectElement
 {
   let select = document.get_element_by_id( "tile" ).unwrap();
   let select_element = select.dyn_into::< HtmlSelectElement >().unwrap();
@@ -231,4 +196,44 @@ fn read_json_file( file : web_sys::File, map : Rc< RefCell< HashMap::< Axial, Ti
 
   reader.set_onloadend( Some( onload.as_ref().unchecked_ref() ) );
   onload.forget();
+}
+
+pub fn load_texture
+(
+  gl : &GL,
+  document : &web_sys::Document,
+  src : &str,
+) -> ( Option< WebGlTexture >, Rc< RefCell< gl::U32x2 > > )
+{
+  let img = document.create_element( "img" )
+  .unwrap()
+  .dyn_into::< HtmlImageElement >()
+  .unwrap();
+  img.style().set_property( "display", "none" ).unwrap();
+  let texture = gl.create_texture();
+  let size = Rc::new( RefCell::new( gl::U32x2::default() ) );
+
+  let on_load : Closure< dyn Fn() > = Closure::new
+  ({
+    let gl = gl.clone();
+    let img = img.clone();
+    let texture = texture.clone();
+    let size = size.clone();
+    move ||
+    {
+      let width = img.natural_width();
+      let height = img.natural_height();
+      *size.borrow_mut() = [ width, height ].into();
+      gl::texture::d2::upload( &gl, texture.as_ref(), &img );
+      gl::texture::d2::filter_linear( &gl );
+      gl::texture::d2::wrap_clamp( &gl );
+      img.remove();
+    }
+  });
+
+  img.set_onload( Some( on_load.as_ref().unchecked_ref() ) );
+  img.set_src( &src );
+  on_load.forget();
+
+  ( texture, size )
 }

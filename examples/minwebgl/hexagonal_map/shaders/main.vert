@@ -5,19 +5,18 @@ layout( location = 1 ) in vec2 a_translation;
 layout( location = 2 ) in vec2 a_tex_coord;
 layout( location = 3 ) in vec2 a_sprite_offset;
 layout( location = 4 ) in vec2 a_sprite_size;
-layout( location = 5 ) in float a_player_id;
-layout( location = 6 ) in float a_scale;
+layout( location = 5 ) in int a_player_id;
 
 uniform vec2 u_scale;
 uniform vec2 u_camera_pos;
 
 out vec2 v_tex_coord;
-flat out float v_player_id;
+flat out int v_player_id;
 
 void main()
 {
   v_tex_coord = a_sprite_offset + a_tex_coord * a_sprite_size;
   v_player_id = a_player_id;
-  vec2 pos = u_scale * ( a_scale * a_position + a_translation + u_camera_pos );
+  vec2 pos = u_scale * ( a_position + a_translation + u_camera_pos );
   gl_Position = vec4( pos, 0.0, 1.0 );
 }
