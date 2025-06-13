@@ -17,10 +17,11 @@ where
   pathfinding::prelude::astar
   (
     start,
+    // origin coord
     | coord | coord.neighbors()
                    .iter()
                    .filter( | coord | is_accessible( coord ) )
-                   .map( | coord | ( coord.clone(), cost( coord ) ) )
+                   .map( | coord | ( coord.clone(), cost( coord ) ) ) // TODO: pass origin coord and destination coord
                    .collect::< Vec< _ > >(),
     | coord | goal.distance( coord ),
     | p | *p == *goal

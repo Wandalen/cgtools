@@ -1,5 +1,6 @@
-use std::{ fmt::Debug, hash::Hash, marker::PhantomData };
 use ndarray_cg::I32x2;
+use serde::{ Deserialize, Serialize };
+use std::{ fmt::Debug, hash::Hash, marker::PhantomData };
 use crate::coordinates::{ pixel::Pixel, Distance, Neigbors };
 
 pub struct Axial;
@@ -14,12 +15,14 @@ pub struct Odd;
 
 pub struct Even;
 
+#[ derive( Serialize, Deserialize ) ]
 pub struct Coordinate< System, Orientation >
 {
   /// Column index
   pub q : i32,
   /// Row index
   pub r : i32,
+  #[ serde( skip ) ]
   pub _marker : PhantomData< ( System, Orientation ) >,
 }
 

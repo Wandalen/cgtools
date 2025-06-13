@@ -9,9 +9,9 @@ mod private
     pub max : F32x3
   }
 
-  impl Default for BoundingBox 
+  impl Default for BoundingBox
   {
-    fn default() -> Self 
+    fn default() -> Self
     {
       BoundingBox
       {
@@ -59,6 +59,26 @@ mod private
       bounding_box
     }
 
+    /// Computes the bounding box of the model from the provided 2D positions array
+    /// Positions should be in the form [ x, y, x, y, ... ]
+    pub fn compute2d( positions : &[ f32 ] ) -> Self
+    {
+      let mut bounding_box = BoundingBox::default();
+
+      for i in 0..positions.len() / 2
+      {
+        let x = positions[ i * 2 + 0 ];
+        let y = positions[ i * 2 + 1 ];
+
+        let p = F32x3::new( x, y, 0.0 );
+
+        bounding_box.min = p.min( bounding_box.min );
+        bounding_box.max = p.max( bounding_box.max );
+      }
+
+      bounding_box
+    }
+
     pub fn combine( mut self, other : &BoundingBox ) -> Self
     {
       self.combine_mut( other );
@@ -82,21 +102,21 @@ mod private
       let mut points : [ F32x4; 8 ] = Default::default();
       points[ 0 ] = transform * self.min.to_homogenous();
       points[ 1 ] = transform * F32x3::new( self.min.x(), self.max.y(), self.min.z() ).to_homogenous();
-      points[ 2 ] = transform * F32x3::new( self.max.x(), self.max.y(), self.min.z() ).to_homogenous(); 
-      points[ 3 ] = transform * F32x3::new( self.max.x(), self.min.y(), self.min.z() ).to_homogenous(); 
+      points[ 2 ] = transform * F32x3::new( self.max.x(), self.max.y(), self.min.z() ).to_homogenous();
+      points[ 3 ] = transform * F32x3::new( self.max.x(), self.min.y(), self.min.z() ).to_homogenous();
 
       points[ 4 ] = transform * self.max.to_homogenous();
       points[ 5 ] = transform * F32x3::new( self.max.x(), self.min.y(), self.max.z() ).to_homogenous();
-      points[ 6 ] = transform * F32x3::new( self.min.x(), self.min.y(), self.max.z() ).to_homogenous(); 
+      points[ 6 ] = transform * F32x3::new( self.min.x(), self.min.y(), self.max.z() ).to_homogenous();
       points[ 7 ] = transform * F32x3::new( self.min.x(), self.max.y(), self.max.z() ).to_homogenous();
-      
+
       let mut min = F32x4::MAX;
       let mut max = F32x4::MIN;
 
       for p in points.iter()
       {
         min = min.min( *p );
-        max = max.max( *p ); 
+        max = max.max( *p );
       }
 
       self.min = min.truncate();
@@ -108,12 +128,12 @@ mod private
   pub struct BoundingSphere
   {
     pub center : F32x3,
-    pub radius : f32 
+    pub radius : f32
   }
 
-  impl Default for BoundingSphere 
+  impl Default for BoundingSphere
   {
-    fn default() -> Self 
+    fn default() -> Self
     {
       BoundingSphere
       {

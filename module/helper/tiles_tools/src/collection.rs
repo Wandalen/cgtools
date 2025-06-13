@@ -1,6 +1,7 @@
-use std::ops::{Index, IndexMut };
+use std::ops::{ Index, IndexMut };
 use ndarray_cg::{ nd::iter::Iter, Array2, I32x2 };
 use crate::coordinates::hexagonal::Coordinate;
+
 pub struct HexArray< System, Orientation, T >
 {
   data : Array2< T >,
