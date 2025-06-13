@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<glyph name="Omicrontonos.c2sc" format="2">
+  <advance width="1074"/>
+  <outline>
+    <component base="O.c2sc" xOffset="10"/>
+    <component base="tonos" xOffset="-219" yOffset="-292"/>
+  </outline>
+</glyph>

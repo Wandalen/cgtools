@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<glyph name="h_dotbelowcomb.ccmp" format="2">
+  <advance width="989"/>
+  <outline>
+    <component base="h"/>
+    <component base="dotbelowcomb" xOffset="1114" yOffset="10"/>
+  </outline>
+</glyph>

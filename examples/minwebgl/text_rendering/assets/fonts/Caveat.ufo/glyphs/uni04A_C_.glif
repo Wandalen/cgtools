@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<glyph name="uni04AC" format="2">
+  <advance width="496"/>
+  <unicode hex="04AC"/>
+  <anchor x="503" y="785" name="Anchor-4"/>
+  <anchor x="207" y="-110" name="Anchor-1"/>
+  <outline>
+    <component base="T" xOffset="18"/>
+    <component base="__descendercy.case" xOffset="210" yOffset="-92"/>
+  </outline>
+</glyph>

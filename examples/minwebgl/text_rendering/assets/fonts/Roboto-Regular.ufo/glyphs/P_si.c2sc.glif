@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<glyph name="Psi.c2sc" format="2">
+  <advance width="1147"/>
+  <outline>
+    <contour>
+      <point x="872" y="1165" type="line"/>
+      <point x="1049" y="1165" type="line"/>
+      <point x="1049" y="853" type="line" smooth="yes"/>
+      <point x="1049" y="671"/>
+      <point x="935" y="417"/>
+      <point x="723" y="285"/>
+      <point x="574" y="285" type="qcurve" smooth="yes"/>
+      <point x="556" y="285" type="line" smooth="yes"/>
+      <point x="448" y="285"/>
+      <point x="278" y="360"/>
+      <point x="161" y="505"/>
+      <point x="99" y="717"/>
+      <point x="99" y="853" type="qcurve" smooth="yes"/>
+      <point x="99" y="1165" type="line"/>
+      <point x="275" y="1165" type="line"/>
+      <point x="275" y="853" type="line" smooth="yes"/>
+      <point x="275" y="753"/>
+      <point x="310" y="598"/>
+      <point x="380" y="491"/>
+      <point x="486" y="436"/>
+      <point x="556" y="436" type="qcurve" smooth="yes"/>
+      <point x="574" y="436" type="line" smooth="yes"/>
+      <point x="675" y="436"/>
+      <point x="807" y="533"/>
+      <point x="872" y="720"/>
+      <point x="872" y="853" type="qcurve" smooth="yes"/>
+    </contour>
+    <contour>
+      <point x="662" y="1165" type="line"/>
+      <point x="662" y="0" type="line"/>
+      <point x="485" y="0" type="line"/>
+      <point x="485" y="1165" type="line"/>
+    </contour>
+  </outline>
+</glyph>

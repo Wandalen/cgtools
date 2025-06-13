@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<glyph name="v_tildecomb.ccmp" format="2">
+  <advance width="876"/>
+  <outline>
+    <component base="v"/>
+    <component base="tilde" xOffset="14" yOffset="-6"/>
+  </outline>
+</glyph>

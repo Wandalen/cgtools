@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<glyph name="uni01F4" format="2">
+  <advance width="498"/>
+  <unicode hex="01F4"/>
+  <anchor x="555" y="951" name="Anchor-4"/>
+  <anchor x="198" y="-110" name="Anchor-1"/>
+  <outline>
+    <component base="G"/>
+    <component base="acutecomb.case" xOffset="2"/>
+  </outline>
+</glyph>

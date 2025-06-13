@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<glyph name="one.c2sc" format="2">
+  <advance width="918"/>
+  <outline>
+    <contour>
+      <point x="594" y="1168" type="line"/>
+      <point x="594" y="0" type="line"/>
+      <point x="417" y="0" type="line"/>
+      <point x="417" y="943" type="line"/>
+      <point x="146" y="845" type="line"/>
+      <point x="146" y="1003" type="line"/>
+      <point x="570" y="1168" type="line"/>
+    </contour>
+  </outline>
+</glyph>

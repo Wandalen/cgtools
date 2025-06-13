@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<glyph name="N_gravecomb.ccmp" format="2">
+  <advance width="1269"/>
+  <outline>
+    <component base="N"/>
+    <component base="grave" xOffset="261" yOffset="311"/>
+  </outline>
+</glyph>
