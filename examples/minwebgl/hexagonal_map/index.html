@@ -43,7 +43,8 @@
     }
 
     #tile,
-    #player {
+    #player,
+    #edit-mode {
       padding: 5px;
       font-size: 16px;
     }
@@ -75,6 +76,9 @@
       <option value="4">5</option>
       <option value="5">6</option>
     </select>
+    <br>
+    <label for="edit-mode">Mode: </label>
+    <select id="edit-mode"></select>
     <button id="download">Download</button>
     <div id="drop-zone" style="border: 2px dashed #ccc; padding: 20px;">
       Drop JSON file here

@@ -36,7 +36,7 @@ pub type Axial = Coordinate< hexagonal::Axial, hexagonal::Flat >;
 pub struct Tile
 {
   pub value : TileValue,
-  // TODO: New type
+  // TODO: use new-type
   pub owner : u8,
 }
 
@@ -46,24 +46,19 @@ pub enum TileValue
   Empty,
   Capital,
   Castle,
-  Trees,
-  Stones,
+  Pine,
+  Palm,
+  Peasant,
+  Spearman,
+  Knight,
+  Baron,
 }
 
-impl TileValue
+#[ derive( Debug, Clone, Copy, AsRefStr, EnumIter, EnumString ) ]
+enum EditMode
 {
-  pub fn to_asset< 'a >( &self, atlas : &'a TextureAtlas ) -> &'a SubTexture
-  {
-    let sprite_name = match self
-    {
-      TileValue::Empty => "grass_05.png",
-      TileValue::Capital => "medieval_smallCastle.png",
-      TileValue::Trees => "grass_10.png",
-      TileValue::Stones => "grass_15.png",
-      TileValue::Castle => "medieval_largeCastle.png",
-    };
-    atlas.sub_textures.iter().find( | item | item.name == sprite_name ).unwrap()
-  }
+  EditTiles,
+  EditRivers,
 }
 
 fn main()
@@ -104,12 +99,13 @@ async fn run() -> Result< (), gl::WebglError >
   let sprites = load_sprites( &gl, &document );
 
   let tile_select_element = setup_tile_select( &document );
+  let edit_mode_select_element = setup_edit_mode_select( &document );
   let player_select_element = document.get_element_by_id( "player" ).unwrap();
   let player_select_element = player_select_element.dyn_into::< HtmlSelectElement >().unwrap();
 
-  let map = Rc::new( RefCell::new( HashMap::< Axial, Tile >::new() ) );
-  setup_download_button( &document, map.clone() );
-  setup_drop_zone( &document, map.clone() );
+  let tile_map = Rc::new( RefCell::new( HashMap::< Axial, Tile >::new() ) );
+  setup_download_button( &document, tile_map.clone() );
+  setup_drop_zone( &document, tile_map.clone() );
 
   let mut river_map = HashSet::< TriAxial >::new();
 
@@ -175,19 +171,42 @@ async fn run() -> Result< (), gl::WebglError >
         camera_pos += movement;
       }
     }
-    else if input.is_button_down( MouseButton::Main )
+    else
     {
-      // Adding tile
-      river_map.insert( TriAxial::from_point( pixel.x(), pixel.y() ) );
-      // let variant = get_variant( &tile_select_element );
-      // let owner : u8 = player_select.value().parse().unwrap();
-      // map.borrow_mut().insert( coordinate, Tile { value : variant, owner } );
-    }
-    else if input.is_button_down( MouseButton::Secondary )
-    {
-      // Removing tile
-      river_map.remove( &TriAxial::from_point( pixel.x(), pixel.y() ) );
-      // map.borrow_mut().remove( &coordinate );
+      let mode = get_variant::< EditMode >( &edit_mode_select_element );
+      let main_button = input.is_button_down( MouseButton::Main );
+      let secondary_button = input.is_button_down( MouseButton::Secondary );
+      match mode
+      {
+        EditMode::EditTiles =>
+        {
+          if main_button
+          {
+            // Adding tile
+            let variant = get_variant( &tile_select_element );
+            let owner : u8 = player_select_element.value().parse().unwrap();
+            tile_map.borrow_mut().insert( hexagon_coordinate, Tile { value : variant, owner } );
+          }
+          else if secondary_button
+          {
+            // Removing tile
+            tile_map.borrow_mut().remove( &hexagon_coordinate );
+          }
+        },
+        EditMode::EditRivers =>
+        {
+          if main_button
+          {
+            // Adding tile
+            river_map.insert( TriAxial::from_point( pixel.x(), pixel.y() ) );
+          }
+          else if secondary_button
+          {
+            // Removing tile
+            river_map.remove( &TriAxial::from_point( pixel.x(), pixel.y() ) );
+          }
+        },
+      }
     }
 
     last_pointer_pos = Some( input.pointer_position() );
@@ -212,7 +231,7 @@ async fn run() -> Result< (), gl::WebglError >
     river_shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
     river_shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
 
-    let mut tiles : Vec< _ > = map.borrow().iter().map( | ( &k, &v ) | ( k, v ) ).collect();
+    let mut tiles : Vec< _ > = tile_map.borrow().iter().map( | ( &k, &v ) | ( k, v ) ).collect();
     tiles.sort_by_key( | v | ( v.0.r, v.0.q ) );
 
     for ( coord, Tile { value, owner } ) in &tiles

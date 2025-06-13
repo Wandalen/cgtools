@@ -1,6 +1,6 @@
 use minwebgl as gl;
 use gl::GL;
-use std::{ cell::RefCell, collections::HashMap, rc::Rc, str::FromStr as _ };
+use std::{ cell::RefCell, collections::HashMap, fmt::Debug, rc::Rc, str::FromStr as _ };
 use strum::IntoEnumIterator as _;
 use serde::Deserialize;
 use web_sys::
@@ -12,7 +12,7 @@ use web_sys::
   HtmlOptionElement,
   HtmlSelectElement,
 };
-use crate::{ blob, Axial, Tile, TileValue };
+use crate::{ blob, Axial, EditMode, Tile, TileValue };
 
 #[ derive( Debug, Deserialize ) ]
 pub struct SubTexture
@@ -42,8 +42,8 @@ pub struct TextureAtlas
 
 pub fn setup_tile_select( document : &web_sys::Document ) -> HtmlSelectElement
 {
-  let select = document.get_element_by_id( "tile" ).unwrap();
-  let select_element = select.dyn_into::< HtmlSelectElement >().unwrap();
+  let select_element = document.get_element_by_id( "tile" ).unwrap();
+  let select_element = select_element.dyn_into::< HtmlSelectElement >().unwrap();
   for variant in TileValue::iter()
   {
     let option_value = variant.as_ref();
@@ -59,10 +59,30 @@ pub fn setup_tile_select( document : &web_sys::Document ) -> HtmlSelectElement
   return select_element;
 }
 
-pub fn get_variant( select_element : &HtmlSelectElement ) -> TileValue
+pub fn setup_edit_mode_select( document : &web_sys::Document ) -> HtmlSelectElement
+{
+  let select_element = document.get_element_by_id( "edit-mode" ).unwrap();
+  let select_element = select_element.dyn_into::< HtmlSelectElement >().unwrap();
+  for variant in EditMode::iter()
+  {
+    let option_value = variant.as_ref();
+    let option_element = document.create_element( "option" )
+    .unwrap()
+    .dyn_into::< HtmlOptionElement >()
+    .unwrap();
+
+    option_element.set_value( option_value );
+    option_element.set_text( option_value );
+    select_element.add_with_html_option_element( &option_element ).unwrap();
+  }
+  return select_element;
+}
+
+pub fn get_variant< T >( select_element : &HtmlSelectElement ) -> T
+where T : std::str::FromStr< Err : Debug >
 {
   let value = select_element.value();
-  let variant = TileValue::from_str( &value ).unwrap();
+  let variant = T::from_str( &value ).unwrap();
   variant
 }
 
