@@ -21,10 +21,9 @@ in vec3 vNormal;
 
 layout( location = 0 ) out vec4 frag_color;
 layout( location = 1 ) out vec4 emissive_color;
-layout( location = 2 ) out vec4 trasnparentA;
-layout( location = 3 ) out float transparentB;
 
 uniform vec3 cameraPosition;
+uniform float exposure;
 
 #ifdef USE_ALPHA_CUTOFF
   uniform float alphaCutoff;
@@ -57,61 +56,59 @@ struct LightInfo
 
 uniform float luminosityThreshold;
 uniform float luminositySmoothWidth;
+uniform float metallicFactor; // Default: 1
+uniform float roughnessFactor; // Default: 1
+uniform vec4 baseColorFactor; // Default: [1, 1, 1, 1]
 
-#ifdef USE_PBR
-  uniform float metallicFactor; // Default: 1
-  uniform float roughnessFactor; // Default: 1
-  uniform vec4 baseColorFactor; // Default: [1, 1, 1, 1]
-  #ifdef USE_IBL
-    uniform samplerCube irradianceTexture;
-    uniform samplerCube prefilterEnvMap;
-    uniform sampler2D integrateBRDF;
+#ifdef USE_IBL
+  uniform samplerCube irradianceTexture;
+  uniform samplerCube prefilterEnvMap;
+  uniform sampler2D integrateBRDF;
+#endif
+#ifdef USE_KHR_materials_specular
+  uniform float specularFactor;
+  uniform vec3 specularColorFactor;
+  #ifdef USE_SPECULAR_TEXTURE
+    uniform sampler2D specularTexture;
   #endif
-  #ifdef USE_KHR_materials_specular
-    uniform float specularFactor;
-    uniform vec3 specularColorFactor;
-    #ifdef USE_SPECULAR_TEXTURE
-      uniform sampler2D specularTexture;
-    #endif
-    #ifdef USE_SPECULAR_COLOR_TEXTURE
-      uniform sampler2D specularColorTexture;
-    #endif
-  #endif
-  #ifdef USE_MR_TEXTURE
-    // Roughness is sampled from the G channel
-    // Metalness is sampled from the B channel
-    // vMRUv
-    uniform sampler2D metallicRoughnessTexture;
-  #endif
-  #ifdef USE_BASE_COLOR_TEXTURE
-    // vBaseColorUv
-    uniform sampler2D baseColorTexture;
+  #ifdef USE_SPECULAR_COLOR_TEXTURE
+    uniform sampler2D specularColorTexture;
   #endif
 #endif
+#ifdef USE_MR_TEXTURE
+  // Roughness is sampled from the G channel
+  // Metalness is sampled from the B channel
+  // vMRUv
+  uniform sampler2D metallicRoughnessTexture;
+#endif
+#ifdef USE_BASE_COLOR_TEXTURE
+  // vBaseColorUv
+  uniform sampler2D baseColorTexture;
+#endif
 
+
+// Scales the normal in X and Y directions
+// ( <sample normalTexture> * 2.0 - 1.0 ) * vec3( normalScale, normalScale, 1.0 )
+uniform float normalScale; // Default: 1
 #ifdef USE_NORMAL_TEXTURE
   // vNormalUv
   uniform sampler2D normalTexture;
-  // Scales the normal in X and Y directions
-  // ( <sample normalTexture> * 2.0 - 1.0 ) * vec3( normalScale, normalScale, 1.0 )
-  uniform float normalScale; // Default: 1
 #endif
 
+// 1.0 + occlusionStrength * ( <sample occlusionTexture> - 1.0 )
+uniform float occlusionStrength; // Default: 1
 #ifdef USE_OCCLUSION_TEXTURE
   // vOcclusionUv
   uniform sampler2D occlusionTexture;
-  // 1.0 + occlusionStrength * ( <sample occlusionTexture> - 1.0 )
-  uniform float occlusionStrength; // Default: 1
 #endif
 
 
-#ifdef USE_EMISSION
-  // vEmissionUv
-  #ifdef USE_EMISSION_TEXTURE
-    uniform sampler2D emissiveTexture;
-  #endif
-  uniform vec3 emissiveFactor;
+// vEmissionUv
+#ifdef USE_EMISSION_TEXTURE
+  uniform sampler2D emissiveTexture;
 #endif
+uniform vec3 emissiveFactor;
+
 
 
 float max_value( const in vec3 v )
@@ -274,48 +271,55 @@ void computeDirectLight
 
   // Diffuse BRDF( Lambert )
   reflectedLight.directDiffuse += Fd * diffuseColor;
-  //reflectedLight.directDiffuse += vec3( Fd );
 
   // Specular BRDF
   reflectedLight.directSpecular += Fs * specularColor;
 }
 
-#define EXPOSURE 0.0
-
 #ifdef USE_IBL
-  vec3 sampleEnvIrradiance( const in vec3 N, const in vec3 V, const in PhysicalMaterial material, inout ReflectedLight reflectedLight )
+  void sampleEnvIrradiance( const in vec3 N, const in vec3 V, const in PhysicalMaterial material, inout ReflectedLight reflectedLight )
   {
-    vec3 color = vec3( 0.0 );
+    float alpha = pow2( material.roughness );
     float dotNV = clamp( dot( N, V ), 0.0, 1.0 );
 
     const float MAX_LOD = 9.0;
     //if( dotNV > 0.0 )
     {
       vec3 Fs = F_Schlick( material.f0, material.f90, dotNV );
-      float Fd = 1.0 - max_value( Fs );
-      Fd *= 1.0 - material.metallness;
       vec3 R = reflect( -V, N );
 
-      vec3 diffuse = texture( irradianceTexture, N ).xyz * pow( 2.0, EXPOSURE );
-      vec3 prefilter = texture( prefilterEnvMap, R, material.roughness * MAX_LOD ).xyz * pow( 2.0, EXPOSURE );
+      vec3 diffuse = texture( irradianceTexture, N ).xyz * pow( 2.0, exposure );
+      vec3 prefilter = texture( prefilterEnvMap, R, material.roughness * MAX_LOD ).xyz * pow( 2.0, exposure );
       vec2 envBrdf = texture( integrateBRDF, vec2( dotNV, material.roughness ) ).xy;
 
       vec3 diffuseBRDF = diffuse * material.diffuseColor;
       vec3 specularBRDF = prefilter * ( material.f0 * envBrdf.x + envBrdf.y );
-      //color = Fd * diffuseBRDF + specularBRDF;
+      //vec3 specularBRDF = prefilter * ( Fs * envBrdf.x + envBrdf.y );
 
-      reflectedLight.indirectDiffuse +=  diffuseBRDF;
+      reflectedLight.indirectDiffuse += diffuseBRDF;
       reflectedLight.indirectSpecular += specularBRDF;
     }
-
-    return color;
   }
 #endif
 
-float alpha_weight( float z, float a )
+float alpha_weight( float a )
 {
-  return clamp( pow( min( 1.0, a * 10.0 ) + 0.01, 3.0 ) * 1e8 * pow( 1.0 - z * 0.9, 3.0 ), 1e-2, 3e3 );
+  return clamp( pow( min( 1.0, a * 10.0 ) + 0.01, 3.0 ) * 1e8 * pow( 1.0 - gl_FragCoord.z * 0.9, 3.0 ), 1e-2, 3e3 );
 }
+
+// float alpha_weight( float a )
+// {
+//   float z = abs( vViewPos.z );
+//   float b = min( 3e3, 10.0 / ( 1e-5 + pow( z / 5.0 , 3.0 ) + pow( z / 2e2, 6.0 ) ) );
+//   float c = max( 1e-2, b );
+//   return a * c;
+// }
+
+// float alpha_weight( float a )
+// {
+//   float c = max( 1e-2, 3e3 * pow( 1.0 - gl_FragCoord.z, 3.0 ) );
+//   return a * c;
+// }
 
 #ifndef USE_TANGENTS
   // http://www.thetenthplanet.de/archives/1180
@@ -339,31 +343,47 @@ float alpha_weight( float z, float a )
   }
 #endif
 
+float adjustRoughnessNormalMap ( const in float roughness, const in vec3 normal ) 
+{
+  float nlen2 = dot (normal, normal );
+  if( nlen2 < 1.0 ) 
+  {
+    float nlen = sqrt( nlen2 );
+    float kappa = (3.0 * nlen -  nlen2 * nlen) / (1.0 - nlen2);
+    return min(1.0, sqrt(roughness * roughness + 1.0 / kappa));
+  }
+  return roughness;
+}
+
 void main()
 {
   PhysicalMaterial material;
   ReflectedLight reflectedLight = ReflectedLight( vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ) );
 
   float alpha = 1.0;
-  #ifdef USE_PBR
-    material.metallness = metallicFactor;
-    material.roughness = roughnessFactor;
-    #ifdef USE_BASE_COLOR_TEXTURE
-      vec4 baseColor = baseColorFactor * SrgbToLinear( texture( baseColorTexture, vBaseColorUv ) );
-      material.diffuseColor =  baseColor.rgb;
-      alpha = baseColor.a;
-    #else
-      material.diffuseColor = baseColorFactor.xyz;
-      alpha = baseColorFactor.w;
-    #endif
-    #ifdef USE_MR_TEXTURE
-      vec4 mr_sample = texture( metallicRoughnessTexture, vMRUv );
-      material.metallness *= mr_sample.b;
-      material.roughness *= mr_sample.g;
-    #endif
-  #else
-    material.metallness = 0.0;
-    material.roughness = 1.0;
+
+  material.metallness = metallicFactor;
+  material.roughness = roughnessFactor;
+  material.diffuseColor = baseColorFactor.rgb;
+  alpha *= baseColorFactor.a;
+  #ifdef USE_BASE_COLOR_TEXTURE
+    vec4 baseColor = texture( baseColorTexture, vBaseColorUv );
+    baseColor.rgb = SrgbToLinear( baseColor.rgb );
+    material.diffuseColor *= baseColor.rgb;
+    alpha *= baseColor.a;
+  #endif
+  #ifdef USE_MR_TEXTURE
+    vec4 mr_sample = texture( metallicRoughnessTexture, vMRUv );
+    material.metallness *= mr_sample.b;
+    material.roughness *= mr_sample.g;
+  #endif
+
+  #ifdef USE_ALPHA_CUTOFF
+    alpha = step( alpha, 1.0 - alphaCutoff );
+    if( alpha == 0.0 )
+    {
+      discard;
+    }
   #endif
 
   //Specular part
@@ -384,11 +404,13 @@ void main()
     material.f0 = min( material.f0 * material.specularFactor, vec3( 1.0 ) );
   #endif
   material.f0 = mix( material.f0, material.diffuseColor, material.metallness );
+  material.diffuseColor *= 1.0 - material.metallness;
  
   vec3 normal = normalize( vNormal );
 
   #ifdef USE_NORMAL_TEXTURE
     vec3 normalSample = texture( normalTexture, vNormalUv ).xyz * 2.0 - 1.0;
+    //material.roughness = adjustRoughnessNormalMap( material.roughness, normalSample );
     normalSample.xy *= vec2( normalScale );
 
     #ifdef USE_TANGENTS
@@ -403,11 +425,8 @@ void main()
     normal = normalize( normal );
   #endif
 
-  if( !gl_FrontFacing )
-  {
-    normal *= -1.0;
-  }
-
+  float faceDirection = gl_FrontFacing ? 1.0 : -1.0;
+  normal *= faceDirection;
 
   vec3 color = vec3( 0.0 );
   vec3 viewDir = normalize( cameraPosition - vWorldPos );
@@ -421,7 +440,7 @@ void main()
   //   vec3( 0.0, 0.0, -1.0 )
   // );
 
-  #if defined( USE_PBR ) && !defined( USE_IBL )
+  #if !defined( USE_IBL )
     vec3 lightDirs[] = vec3[]
     (
       vec3( 1.0, 1.0, 1.0 ),
@@ -442,9 +461,9 @@ void main()
     for( int i = 0; i < 8; i++ )
     {
       lightInfo.direction = normalize( lightDirs[ i ] );
-      //float dotNL = clamp( dot( normal, lightInfo.direction ), 0.0, 1.0 );
+      float dotNL = clamp( dot( normal, lightInfo.direction ), 0.0, 1.0 );
 
-      //if( dotNL > 0.0 )
+      if( dotNL > 0.0 )
       {
         computeDirectLight( lightInfo, viewDir, normal, material, reflectedLight );
       }
@@ -452,9 +471,9 @@ void main()
   #endif
 
   // Ambient color
-  #if defined( USE_PBR ) && defined( USE_IBL )
+  #if defined( USE_IBL )
     sampleEnvIrradiance( normal, viewDir, material, reflectedLight );
-  #elif defined( USE_PBR )
+  #else
     reflectedLight.indirectDiffuse += 0.1 * material.diffuseColor;
   #endif
 
@@ -464,29 +483,24 @@ void main()
     reflectedLight.indirectDiffuse *= 1.0 + occlusionStrength * ( occlusion - 1.0 );
   #endif
   
-  emissive_color = vec4( 0.0 );
-  #ifdef USE_EMISSION 
-    emissive_color.a = 1.0;
-    emissive_color.xyz = emissiveFactor;
-    #ifdef USE_EMISSION_TEXTURE
-      emissive_color.xyz *= SrgbToLinear( texture( emissiveTexture, vEmissionUv ).rgb );
-    #endif
+  emissive_color = vec4( emissiveFactor, 1.0 );
+  #ifdef USE_EMISSION_TEXTURE
+    emissive_color.xyz *= SrgbToLinear( texture( emissiveTexture, vEmissionUv ).rgb );
   #endif
 
-  #ifdef USE_ALPHA_CUTOFF
-    alpha = step( alpha, 1.0 - alphaCutoff );
-  #endif
 
   color = reflectedLight.indirectDiffuse + 
   reflectedLight.indirectSpecular + 
   reflectedLight.directDiffuse +
   reflectedLight.directSpecular;
-  //color = reflectedLight.directSpecular;
 
   //color = vec3( material.occlusionFactor );
-  float a_weight = alpha * alpha_weight( gl_FragCoord.z, alpha );
+  //color = vec3( material.f0 );
+  //color = vec3( alpha );
+  //color = material.diffuseColor;
+  //float a_weight = alpha * alpha_weight( alpha );
+  //alpha = 0.9;
+  //color = material.diffuseColor;
+  color = normal;
   frag_color = vec4( color * alpha, alpha );
-  trasnparentA = vec4( color * a_weight, alpha );
-  transparentB = a_weight;
- // frag_color = vec4( vec3( material.roughness ), 1.0 );
 }

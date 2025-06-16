@@ -6,7 +6,7 @@ use minwebgl as gl;
   use std:: { cell::RefCell, collections::HashMap, rc::Rc };
 
   /// Represents the alpha blending mode of the material.
-  #[ derive( Default, Clone, Copy, PartialEq, Eq ) ]
+  #[ derive( Default, Clone, Copy, PartialEq, Eq, Debug ) ]
   pub enum AlphaMode
   {
     /// The material is fully opaque.
@@ -26,7 +26,7 @@ use minwebgl as gl;
   /// layout( location = 1 ) in vec2 uv_1;
   /// `
   /// uv_position will defines which UV to use
-  #[ derive( Default, Clone ) ]
+  #[ derive( Default, Clone, Debug ) ]
   pub struct TextureInfo
   {
     /// The texture object.
@@ -51,7 +51,7 @@ use minwebgl as gl;
   }
 
   /// Represents the visual properties of a surface.
-  #[ derive( Clone, Former ) ]
+  #[ derive( Clone, Former, Debug ) ]
   pub struct Material
   {
     /// A unique identifier for the material.
@@ -60,27 +60,27 @@ use minwebgl as gl;
     pub base_color_factor : gl::F32x4,
     /// Optional texture providing the base color.
     pub base_color_texture : Option< TextureInfo >,
-    /// Optional scaling factor for the metallic component.
-    pub metallic_factor : Option< f32 >,
-    /// Optional scaling factor for the roughness component.
-    pub roughness_factor : Option< f32 >,
+    /// Scaling factor for the metallic component.
+    pub metallic_factor : f32,
+    /// Scaling factor for the roughness component.
+    pub roughness_factor : f32,
     /// Optional texture providing the metallic and roughness values. Metalness is sampled from the B channel and roughness from the G channel.
     pub metallic_roughness_texture : Option< TextureInfo >,
 
-    /// Optional scaling factor applied to each normal vector of the normal texture.
-    pub normal_scale : Option< f32 >,
+    /// Scaling factor applied to each normal vector of the normal texture.
+    pub normal_scale : f32,
     /// Optional texture containing normal vectors.
     pub normal_texture : Option< TextureInfo >,
 
-    /// Optional scalar multiplier applied to the AO values sampled from the occlusion texture.
-    pub occlusion_strength : Option< f32 >,
+    /// Scalar multiplier applied to the AO values sampled from the occlusion texture.
+    pub occlusion_strength : f32,
     /// Optional texture providing ambient occlusion values.
     pub occlusion_texture : Option< TextureInfo >,
 
     /// Optional texture providing the emission color of the material.
     pub emissive_texture : Option< TextureInfo >,
-    /// Option scaling factor for the emission intensity
-    pub emissive_factor : Option< gl::F32x3 >,
+    /// Scaling factor for the emission intensity
+    pub emissive_factor : gl::F32x3,
 
     /// Optional scaling factor for the specular intensity. (KHR_materials_specular extension)
     pub specular_factor : Option< f32 >,
@@ -91,10 +91,12 @@ use minwebgl as gl;
     /// Optional texture providing the specular color. (KHR_materials_specular extension)
     pub specular_color_texture : Option< TextureInfo >,
 
-    /// Optional alpha cutoff value for mask mode. Fragments with alpha below this value are discarded.
-    pub alpha_cutoff : Option< f32 >,
+    /// Alpha cutoff value for mask mode. Fragments with alpha below this value are discarded.
+    pub alpha_cutoff : f32,
     /// The alpha blending mode for the material. Defaults to `Opaque`.
-    pub alpha_mode : AlphaMode
+    pub alpha_mode : AlphaMode,
+    /// Determines wheter to draw both or one side of the primitive
+    pub double_sided : bool
   }
 
   impl Material
@@ -162,15 +164,17 @@ use minwebgl as gl;
         Ok( () )
       };
 
-      upload( "metallicFactor", self.metallic_factor )?;
-      upload( "roughnessFactor", self.roughness_factor )?;
-      upload( "normalScale", self.normal_scale )?;
-      upload( "occlusionStrength", self.occlusion_strength )?;
-      upload( "specularFactor", self.occlusion_strength )?;
-      upload( "alphaCutoff", self.alpha_cutoff )?;
+      upload( "specularFactor", self.specular_factor )?;
+
       gl::uniform::upload( gl, locations.get( "baseColorFactor" ).unwrap().clone(), self.base_color_factor.as_slice() )?;
+      gl::uniform::upload( gl, locations.get( "metallicFactor" ).unwrap().clone(), &self.metallic_factor )?;
+      gl::uniform::upload( gl, locations.get( "roughnessFactor" ).unwrap().clone(), &self.roughness_factor )?;
+      gl::uniform::upload( gl, locations.get( "normalScale" ).unwrap().clone(), &self.normal_scale )?;
+      gl::uniform::upload( gl, locations.get( "occlusionStrength" ).unwrap().clone(), &self.occlusion_strength )?;
+      gl::uniform::upload( gl, locations.get( "alphaCutoff" ).unwrap().clone(), &self.alpha_cutoff )?;
+      gl::uniform::upload( gl, locations.get( "emissiveFactor" ).unwrap().clone(), self.emissive_factor.as_slice() )?;
+
       upload_array( "specularColorFactor", self.specular_color_factor.as_ref().map( | v | v.as_slice() ) )?;
-      upload_array( "emissiveFactor", self.emissive_factor.as_ref().map( | v | v.as_slice() ) )?;
 
       self.upload_textures( gl );
 
@@ -215,28 +219,22 @@ use minwebgl as gl;
     /// Generates `#define` directives to be inserted into the fragment shader based on the material's properties.
     pub fn get_defines( &self ) -> String
     {
-      let use_pbr = self.metallic_factor.is_some()
-      || self.roughness_factor.is_some()
-      || self.metallic_roughness_texture.is_some()
-      || self.base_color_texture.is_some();
-
       let use_base_color_texture = self.base_color_texture.is_some();
       let use_metallic_roughness_texture = self.metallic_roughness_texture.is_some();
 
       let use_emissive_texture = self.emissive_texture.is_some();
-      let use_emission = self.emissive_factor.is_some() || use_emissive_texture;
-
-      let use_khr_materials_specular = self.specular_factor.is_some()
-      || self.specular_color_factor.is_some()
-      || self.specular_texture.is_some()
-      || self.specular_color_texture.is_some();
 
       let use_specular_texture = self.specular_texture.is_some();
       let use_specular_color_texture = self.specular_color_texture.is_some();
 
+      let use_khr_materials_specular = self.specular_factor.is_some()
+      || self.specular_color_factor.is_some()
+      || use_specular_texture
+      || use_specular_color_texture;
+
       let use_normal_texture = self.normal_texture.is_some();
       let use_occlusion_texture = self.occlusion_texture.is_some();
-      let use_alpha_cutoff = self.alpha_cutoff.is_some() && self.alpha_mode == AlphaMode::Mask;
+      let use_alpha_cutoff = self.alpha_mode == AlphaMode::Mask;
 
       let mut defines = String::new();
       let add_texture = | defines : &mut String, name : &str, uv_name : &str, info : Option< &TextureInfo > |
@@ -245,7 +243,6 @@ use minwebgl as gl;
         defines.push_str( &format!( "#define {} vUv_{}\n", uv_name, info.unwrap().uv_position ) );
       };
 
-      if use_pbr { defines.push_str( "#define USE_PBR\n" ); }
       // Base color texture related
       if use_base_color_texture 
       { 
@@ -259,13 +256,9 @@ use minwebgl as gl;
       }
 
       // Emission texture related
-      if use_emission
-      {
-        defines.push_str( &format!( "#define USE_EMISSION\n" ) );
-        if use_emissive_texture 
-        { 
-          add_texture( &mut defines, "USE_EMISSION_TEXTURE", "vEmissionUv", self.emissive_texture.as_ref() ); 
-        }
+      if use_emissive_texture 
+      { 
+        add_texture( &mut defines, "USE_EMISSION_TEXTURE", "vEmissionUv", self.emissive_texture.as_ref() ); 
       }
 
       // KHR_Materials_Specular extension related
@@ -312,18 +305,18 @@ use minwebgl as gl;
       let base_color_factor = gl::F32x4::from( [ 1.0, 1.0, 1.0, 1.0 ] );
 
       let base_color_texture = Default::default();
-      let metallic_factor = Default::default();
-      let roughness_factor = Default::default();
+      let metallic_factor = 1.0;
+      let roughness_factor = 1.0;
       let metallic_roughness_texture = Default::default();
 
-      let normal_scale = Default::default();
+      let normal_scale = 1.0;
       let normal_texture = Default::default();
 
-      let occlusion_strength = Default::default();
+      let occlusion_strength = 1.0;
       let occlusion_texture = Default::default();
 
       let emissive_texture = Default::default();
-      let emissive_factor = Default::default();
+      let emissive_factor = gl::F32x3::from( [ 0.0, 0.0, 0.0 ] );
 
       let specular_factor = Default::default();
       let specular_texture = Default::default();
@@ -331,7 +324,8 @@ use minwebgl as gl;
       let specular_color_texture = Default::default();
 
       let alpha_mode = AlphaMode::default();
-      let alpha_cutoff = Default::default();
+      let alpha_cutoff = 0.5;
+      let double_sided = false;
 
       return Self
       {
@@ -352,7 +346,8 @@ use minwebgl as gl;
         specular_color_factor,
         specular_color_texture,
         alpha_mode,
-        alpha_cutoff
+        alpha_cutoff,
+        double_sided
       };
     }
   }

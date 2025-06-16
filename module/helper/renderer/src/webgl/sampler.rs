@@ -4,7 +4,7 @@ mod private
   use minwebgl::{ self as gl };
 
   /// Defines how texture coordinates outside the range [0, 1] should be handled.
-  #[ derive( Default, Clone, Copy ) ]
+  #[ derive( Default, Clone, Copy, Debug ) ]
   pub enum WrappingMode
   {
     /// Repeats the texture image.
@@ -17,7 +17,7 @@ mod private
   }
 
   /// Defines how the color of a texel is determined when it is magnified (stretched).
-  #[ derive( Default, Clone, Copy ) ]
+  #[ derive( Default, Clone, Copy, Debug ) ]
   pub enum MagFilterMode
   {
     /// Returns the weighted average of the four nearest texels.
@@ -28,7 +28,7 @@ mod private
   }
 
   /// Defines how the color of a texel is determined when it is minified (shrunk).
-  #[ derive( Default, Clone, Copy ) ]
+  #[ derive( Default, Clone, Copy, Debug ) ]
   pub enum MinFilterMode
   {
     /// Returns the weighted average of the four nearest texels.
@@ -51,7 +51,7 @@ mod private
   }
 
   /// Defines the comparison function used for depth textures.
-  #[ derive( Default, Clone, Copy ) ]
+  #[ derive( Default, Clone, Copy, Debug ) ]
   pub enum CompareFunction
   {
     /// Passes if the source sample is less than or equal to the stored sample.
@@ -74,7 +74,7 @@ mod private
   }
 
   /// Represents the sampler state for a texture.
-  #[ derive( Default, Clone, Copy, Former ) ]
+  #[ derive( Default, Clone, Copy, Former, Debug ) ]
   pub struct Sampler
   {
    /// The magnification filter mode.

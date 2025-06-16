@@ -26,6 +26,8 @@ mod private
   #[ derive( Default ) ]
   pub struct Node
   {
+
+    name : Option< Box< str > >,
     /// The child nodes of this node.
     children : Vec< Rc< RefCell< Node > > >,
     /// The 3D object associated with this node.
@@ -34,6 +36,7 @@ mod private
     matrix : gl::F32x4x4,
     /// The global transformation matrix of the node, including the transformations of its parents.
     world_matrix : gl::F32x4x4,
+    normal_matrix : gl::F32x3x3,
     /// The local scale of the node.
     scale : gl::F32x3,
     /// The local translation of the node.
@@ -52,6 +55,11 @@ mod private
     pub fn new() -> Self
     {
       Self::default()
+    }
+
+    pub fn set_name( &mut self, name : impl Into< Box< str > > )
+    {
+      self.name = Some( name.into() );
     }
 
     /// Sets the local scale of the node.
@@ -108,6 +116,7 @@ mod private
     fn set_world_matrix( &mut self, matrix : F32x4x4 )
     {
       self.world_matrix = matrix;
+      self.normal_matrix = matrix.truncate().inverse().unwrap().transpose();
       self.compute_bounding_box();
       self.needs_world_matrix_update = false;
     }
@@ -125,9 +134,7 @@ mod private
       self.needs_local_matrix_update = false;
       self.needs_world_matrix_update = true;
     }
-
-    /// Updates the world transformation matrix of the node and recursively updates the world matrices of its children.
-    ///
+ 
     /// * `parent_mat`: The world matrix of the parent node. For the root node, this should be the identity matrix.
     pub fn update_world_matrix( &mut self, parent_mat : gl::F32x4x4, mut needs_world_matrix_update : bool )
     {
@@ -139,6 +146,7 @@ mod private
       if needs_world_matrix_update || self.needs_world_matrix_update
       {
         self.set_world_matrix( parent_mat * self.matrix );
+        //self.set_world_matrix(  self.matrix );
         needs_world_matrix_update = true;
       }
 
@@ -172,6 +180,14 @@ mod private
         &gl,
         locations.get( "worldMatrix" ).unwrap().clone(),
         self.world_matrix.to_array().as_slice(),
+        true
+      ).unwrap();
+
+      gl::uniform::matrix_upload
+      (
+        &gl,
+        locations.get( "normalMatrix" ).unwrap().clone(),
+        self.normal_matrix.to_array().as_slice(),
         true
       ).unwrap();
     }

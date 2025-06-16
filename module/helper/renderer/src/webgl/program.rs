@@ -66,6 +66,7 @@ mod private
 
       // Node uniform locations
       add_location( "worldMatrix" );
+      add_location( "normalMatrix" );
 
       // Material uniform  locations
       //// Textures uniform locations
@@ -92,6 +93,7 @@ mod private
 
       // Luminosity
       add_location( "alphaCutoff" );
+      add_location( "exposure" );
 
       Self
       {

@@ -29,12 +29,32 @@ async fn run() -> Result< (), gl::WebglError >
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
 
-  let gltf_path = "dodge-challenger/gltf/scene.gltf";
+  let mat1 = gl::Mat::< 2, 2, f32, gl::math::mat::DescriptorOrderColumnMajor >::from_row_major([
+    1.0, 2.0,
+    3.0, 4.0
+  ]);
+
+  let mat2 = gl::Mat::< 2, 2, f32, gl::math::mat::DescriptorOrderColumnMajor >::from_row_major([
+    5.0, 1.0,
+    2.0, 1.0
+  ]);
+
+  let mat3 = mat1 * mat2;
+  gl::info!( "{:?}", mat3 );
+
+  //let gltf_path = "dodge-challenger/gltf/scene.gltf";
   //let gltf_path = "gambeson.glb";
   //let gltf_path = "old_rusty_car.glb";
   //let gltf_path = "sponza.glb";
   //let gltf_path = "nissan_titan_2017_transparent.glb";
   //let gltf_path = "transparent_cubes_oit_rendering_test_model.glb";
+  let gltf_path = "model.glb";
+  //let gltf_path = "untitled.glb";
+  //let gltf_path = "astro_carrier_2.0.glb";
+  //let gltf_path = "av-8b_harrier_ii.glb";
+  //let gltf_path = "dae_crib_-_tommys_garage.glb";
+  //let gltf_path = "low_poly_kids_playground.glb";
+  //let gltf_path = "watchman_of_doom_2.0_special.glb";
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
   let scenes = gltf.scenes;
   scenes[ 0 ].borrow_mut().update_world_matrix();
@@ -53,6 +73,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   // Camera setup
   let mut eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
+  eye = gl::math::F32x3::from( [ 0.0, 0.0, 1.0 ] );
   eye *= dist;
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
 
@@ -61,8 +82,8 @@ async fn run() -> Result< (), gl::WebglError >
 
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
-  let near = 1.0 * 10.0f32.powi( exponent ).min( 1.0 );
-  let far = near * 10.0f32.powi( exponent.abs() );
+  let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 );
+  let far = near * 100.0f32.powi( exponent.abs() );
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
   camera.set_window_size( [ width, height ].into() );
@@ -70,7 +91,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   //renderer.set_use_emission( true );
- // renderer.set_ibl( loaders::ibl::load( &gl, "envMap" ).await );
+  renderer.set_ibl( loaders::ibl::load( &gl, "envMap" ).await );
 
   let renderer = Rc::new( RefCell::new( renderer ) );
 
