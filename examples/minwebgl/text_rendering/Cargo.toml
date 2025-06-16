@@ -1,5 +1,5 @@
 [package]
-name = "renderer_with_outlines"
+name = "text_rendering"
 version = "0.1.0"
 edition = "2021"
 authors = [ 
@@ -18,7 +18,11 @@ gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
 renderer = { workspace = true }
 zune-hdr = { workspace = true }
 rand = { workspace = true }
-getrandom = { workspace = true, features = [ "wasm_js" ] }
+getrandom = { version = "0.2", features = [ "js" ] }
+norad = { workspace = true, default-features = false, features = [ "kurbo" ] }
+parley = { workspace = true }
+kurbo = { workspace = true }
+triangulate = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true
