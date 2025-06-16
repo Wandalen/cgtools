@@ -534,9 +534,6 @@ mod private
       gl.clear_depth( 1.0 );
       gl.clear_stencil( 0 );
       gl.front_face( gl::CCW );
-      // gl.enable( gl::CULL_FACE );
-      // gl.cull_face( gl::FRONT );
-      //gl.front_face( gl::CW );
 
       if self.use_emission 
       {
