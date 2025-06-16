@@ -1,7 +1,6 @@
-mod blob;
-mod sprite;
-mod helper;
-mod triaxial;
+pub mod blob;
+pub mod helper;
+pub mod triaxial;
 
 use helper::*;
 use triaxial::*;
@@ -21,7 +20,6 @@ use gl::
   Vector,
   GL,
   BufferDescriptor,
-  // geometry::BoundingBox
 };
 use web_sys::
 {
@@ -61,6 +59,41 @@ enum EditMode
   EditRivers,
 }
 
+#[ derive( Debug, Default ) ]
+pub struct Map
+{
+  tile_map : HashMap< Axial, Tile >,
+  river_map : HashSet< TriAxial >,
+}
+
+impl Map
+{
+  pub fn to_json( &self ) -> String
+  {
+    let tile_map = self.tile_map.iter().map( | ( k, v ) | ( *k, *v ) ).collect();
+    let river_map = self.river_map.iter().copied().collect();
+    let serde = MapSerde{ tile_map, river_map };
+    serde_json::to_string( &serde ).unwrap()
+  }
+
+  pub fn from_json( json : &str ) -> Self
+  {
+    let MapSerde { tile_map, river_map } : MapSerde = serde_json::from_str( json ).unwrap();
+    Self
+    {
+      tile_map : HashMap::from_iter( tile_map.into_iter() ),
+      river_map : HashSet::from_iter( river_map.into_iter() )
+    }
+  }
+}
+
+#[ derive( Debug, Serialize, Deserialize ) ]
+struct MapSerde
+{
+  tile_map : Vec< ( Axial, Tile ) >,
+  river_map : Vec< TriAxial >,
+}
+
 fn main()
 {
   gl::spawn_local( async move { run().await.unwrap() } );
@@ -94,20 +127,20 @@ async fn run() -> Result< (), gl::WebglError >
   let hexagon_shader = haxagon_shader( &gl )?;
   let outline_shader = line_shader( &gl )?;
   let river_shader = river_shader( &gl )?;
-  let sprite_shader = sprite::sprite_shader( &gl )?;
+  let sprite_shader = sprite_shader( &gl )?;
 
   let sprites = load_sprites( &gl, &document );
 
   let tile_select_element = setup_tile_select( &document );
   let edit_mode_select_element = setup_edit_mode_select( &document );
-  let player_select_element = document.get_element_by_id( "player" ).unwrap();
-  let player_select_element = player_select_element.dyn_into::< HtmlSelectElement >().unwrap();
+  let player_select_element = document.get_element_by_id( "player" )
+  .unwrap()
+  .dyn_into::< HtmlSelectElement >()
+  .unwrap();
 
-  let tile_map = Rc::new( RefCell::new( HashMap::< Axial, Tile >::new() ) );
-  setup_download_button( &document, tile_map.clone() );
-  setup_drop_zone( &document, tile_map.clone() );
-
-  let mut river_map = HashSet::< TriAxial >::new();
+  let map = Rc::new( RefCell::new( Map::default() ) );
+  setup_download_button( &document, map.clone() );
+  setup_drop_zone( &document, map.clone() );
 
   let mut input = browser_input::Input::new
   (
@@ -154,10 +187,10 @@ async fn run() -> Result< (), gl::WebglError >
     let pixel : Pixel = pixel.into();
     let hexagon_coordinate : Axial = pixel.into();
 
+    // Camera pan
     if input.is_key_down( KeyboardKey::Space )
     && input.is_button_down( MouseButton::Main )
     {
-      // Camera pan
       if let Some( last_pointer_pos ) = last_pointer_pos
       {
         let last_pointer_pos = screen_to_world
@@ -171,39 +204,41 @@ async fn run() -> Result< (), gl::WebglError >
         camera_pos += movement;
       }
     }
+    // Map editing
     else
     {
       let mode = get_variant::< EditMode >( &edit_mode_select_element );
       let main_button = input.is_button_down( MouseButton::Main );
       let secondary_button = input.is_button_down( MouseButton::Secondary );
+
       match mode
       {
         EditMode::EditTiles =>
         {
+          // Adding tile
           if main_button
           {
-            // Adding tile
             let variant = get_variant( &tile_select_element );
             let owner : u8 = player_select_element.value().parse().unwrap();
-            tile_map.borrow_mut().insert( hexagon_coordinate, Tile { value : variant, owner } );
+            map.borrow_mut().tile_map.insert( hexagon_coordinate, Tile { value : variant, owner } );
           }
+          // Removing tile
           else if secondary_button
           {
-            // Removing tile
-            tile_map.borrow_mut().remove( &hexagon_coordinate );
+            map.borrow_mut().tile_map.remove( &hexagon_coordinate );
           }
         },
         EditMode::EditRivers =>
         {
+          // Adding tile
           if main_button
           {
-            // Adding tile
-            river_map.insert( TriAxial::from_point( pixel.x(), pixel.y() ) );
+            map.borrow_mut().river_map.insert( TriAxial::from_point( pixel.x(), pixel.y() ) );
           }
+          // Removing tile
           else if secondary_button
           {
-            // Removing tile
-            river_map.remove( &TriAxial::from_point( pixel.x(), pixel.y() ) );
+            map.borrow_mut().river_map.remove( &TriAxial::from_point( pixel.x(), pixel.y() ) );
           }
         },
       }
@@ -231,7 +266,8 @@ async fn run() -> Result< (), gl::WebglError >
     river_shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
     river_shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
 
-    let mut tiles : Vec< _ > = tile_map.borrow().iter().map( | ( &k, &v ) | ( k, v ) ).collect();
+    // Order tiles
+    let mut tiles : Vec< _ > = map.borrow().tile_map.iter().map( | ( &k, &v ) | ( k, v ) ).collect();
     tiles.sort_by_key( | v | ( v.0.r, v.0.q ) );
 
     for ( coord, Tile { value, owner } ) in &tiles
@@ -256,18 +292,17 @@ async fn run() -> Result< (), gl::WebglError >
       if sprite_index == 0 { continue; }
       let ( sprite, size ) = &sprites[ sprite_index - 1 ];
       let sprite_size = [ size.borrow()[ 0 ] as f32 * 0.5, size.borrow()[ 1 ] as f32 * 0.5 ];
-      gl.bind_texture( GL::TEXTURE_2D, sprite.as_ref() );
       sprite_shader.activate();
       gl.vertex_attrib2fv_with_f32_array( 0, &position.data );
       gl.vertex_attrib2fv_with_f32_array( 1, sprite_size.as_slice() );
       gl.vertex_attrib1f( 2, 0.015 );
+      gl.bind_texture( GL::TEXTURE_2D, sprite.as_ref() );
       gl.draw_arrays( GL::TRIANGLE_STRIP, 0, 4 );
     }
 
-    let pairs = find_pairs( &river_map );
-
+    // Draw rivers
+    let pairs = find_pairs( &map.borrow().river_map );
     river_shader.activate();
-
     for [ tri1, tri2 ] in pairs
     {
       let mut p1 : F32x2 = tri1.to_point().into();
@@ -430,6 +465,13 @@ fn river_shader( gl : &GL ) -> Result< gl::shader::Program, minwebgl::WebglError
 {
   let vert = include_str!( "../shaders/river.vert" );
   let frag = include_str!( "../shaders/river.frag" );
+  gl::shader::Program::new( gl.clone(), vert, frag )
+}
+
+fn sprite_shader( gl : &GL ) -> Result< gl::shader::Program, minwebgl::WebglError >
+{
+  let vert = include_str!( "../shaders/sprite.vert" );
+  let frag = include_str!( "../shaders/sprite.frag" );
   gl::shader::Program::new( gl.clone(), vert, frag )
 }
 

@@ -1,6 +1,7 @@
 use crate::Axial;
+use serde::{ Serialize, Deserialize };
 
-#[ derive( Clone, Copy, Debug, Hash, PartialEq, Eq ) ]
+#[ derive( Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize ) ]
 pub struct TriAxial
 {
   pub a : i32,
@@ -11,6 +12,7 @@ pub struct TriAxial
 impl TriAxial
 {
   const SQRT_3 : f32 = 1.73205080757;
+  // Distance between neighbor unit hexagonas equals to length of a triangle side
   const SIDE_LENGHT : f32 = Self::SQRT_3;
   const CELL_SIZE : [ f32; 2 ] = [ Self::SIDE_LENGHT * Self::SQRT_3 / 2.0, Self::SIDE_LENGHT * 1.0 ];
 

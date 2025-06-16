@@ -1,6 +1,6 @@
 use minwebgl as gl;
 use gl::GL;
-use std::{ cell::RefCell, collections::HashMap, fmt::Debug, rc::Rc, str::FromStr as _ };
+use std::{ cell::RefCell, fmt::Debug, rc::Rc };
 use strum::IntoEnumIterator as _;
 use serde::Deserialize;
 use web_sys::
@@ -12,7 +12,7 @@ use web_sys::
   HtmlOptionElement,
   HtmlSelectElement,
 };
-use crate::{ blob, Axial, EditMode, Tile, TileValue };
+use crate::{ blob, EditMode, TileValue, Map };
 
 #[ derive( Debug, Deserialize ) ]
 pub struct SubTexture
@@ -89,7 +89,7 @@ where T : std::str::FromStr< Err : Debug >
 pub fn setup_download_button
 (
   document : &web_sys::Document,
-  map : Rc< RefCell< HashMap::< Axial, Tile > > >
+  map : Rc< RefCell< Map > >
 )
 {
   let button = document.get_element_by_id( "download" )
@@ -106,10 +106,9 @@ pub fn setup_download_button
   onclick.forget();
 }
 
-fn download_map( map : &HashMap::< Axial, Tile > )
+fn download_map( map : &Map )
 {
-  let map = map.to_owned().into_iter().collect::< Vec< _ > >();
-  let json = serde_json::to_string( &map ).unwrap();
+  let json = map.to_json();
   let array = web_sys::js_sys::Array::new();
   array.push( &JsValue::from_str( &json ) );
 
@@ -131,7 +130,7 @@ fn download_map( map : &HashMap::< Axial, Tile > )
 pub fn setup_drop_zone
 (
   document : &web_sys::Document,
-  map : Rc< RefCell< HashMap::< Axial, Tile > > >
+  map : Rc< RefCell< Map > >
 )
 {
   let element = document.get_element_by_id( "drop-zone" ).unwrap();
@@ -181,7 +180,7 @@ pub fn setup_drop_zone
   drop_handler.forget();
 }
 
-fn read_json_file( file : web_sys::File, map : Rc< RefCell< HashMap::< Axial, Tile > > > )
+fn read_json_file( file : web_sys::File, map : Rc< RefCell< Map > > )
 {
   let reader = web_sys::FileReader::new().unwrap();
   reader.read_as_text( &file ).unwrap();
@@ -200,17 +199,7 @@ fn read_json_file( file : web_sys::File, map : Rc< RefCell< HashMap::< Axial, Ti
         return;
       };
 
-      match serde_json::from_str::< Vec::< ( Axial, Tile ) > >( &text )
-      {
-        Ok( v ) =>
-        {
-          *map.borrow_mut() = HashMap::from_iter
-          (
-            v.into_iter()
-          )
-        },
-        Err( e ) => gl::error!( "{e:?}" ),
-      }
+      *map.borrow_mut() = Map::from_json( &text );
     }
   });
 
