@@ -76,6 +76,8 @@ mod_interface!
   layer geometry;
   /// Clean up the state
   layer clean;
+  /// Blob creation shortcut
+  layer blob;
 
   /// Useful information about your objects
   #[ cfg( feature = "diagnostics" ) ]

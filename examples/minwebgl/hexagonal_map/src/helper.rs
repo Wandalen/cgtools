@@ -12,7 +12,7 @@ use web_sys::
   HtmlOptionElement,
   HtmlSelectElement,
 };
-use crate::{ blob, Map };
+use crate::Map;
 
 #[ derive( Debug, Deserialize ) ]
 pub struct SubTexture
@@ -95,7 +95,7 @@ fn download_map( map : &Map )
   let array = web_sys::js_sys::Array::new();
   array.push( &JsValue::from_str( &json ) );
 
-  let url = blob::create_blob( array, "application/json" ).unwrap();
+  let url = gl::blob::create_blob( array, "application/json" ).unwrap();
 
   let window = web_sys::window().unwrap();
   let document = window.document().unwrap();
