@@ -29,26 +29,13 @@ async fn run() -> Result< (), gl::WebglError >
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
 
-  let mat1 = gl::Mat::< 2, 2, f32, gl::math::mat::DescriptorOrderColumnMajor >::from_row_major([
-    1.0, 2.0,
-    3.0, 4.0
-  ]);
-
-  let mat2 = gl::Mat::< 2, 2, f32, gl::math::mat::DescriptorOrderColumnMajor >::from_row_major([
-    5.0, 1.0,
-    2.0, 1.0
-  ]);
-
-  let mat3 = mat1 * mat2;
-  gl::info!( "{:?}", mat3 );
-
-  //let gltf_path = "dodge-challenger/gltf/scene.gltf";
+  let gltf_path = "dodge-challenger/gltf/scene.gltf";
   //let gltf_path = "gambeson.glb";
   //let gltf_path = "old_rusty_car.glb";
   //let gltf_path = "sponza.glb";
   //let gltf_path = "nissan_titan_2017_transparent.glb";
   //let gltf_path = "transparent_cubes_oit_rendering_test_model.glb";
-  let gltf_path = "model.glb";
+  //let gltf_path = "model.glb";
   //let gltf_path = "untitled.glb";
   //let gltf_path = "astro_carrier_2.0.glb";
   //let gltf_path = "av-8b_harrier_ii.glb";

@@ -21,6 +21,8 @@ in vec3 vNormal;
 
 layout( location = 0 ) out vec4 frag_color;
 layout( location = 1 ) out vec4 emissive_color;
+layout( location = 2 ) out vec4 trasnparentA;
+layout( location = 3 ) out float transparentB;
 
 uniform vec3 cameraPosition;
 uniform float exposure;
@@ -501,6 +503,9 @@ void main()
   //float a_weight = alpha * alpha_weight( alpha );
   //alpha = 0.9;
   //color = material.diffuseColor;
-  color = normal;
-  frag_color = vec4( color * alpha, alpha );
+  //color = normal;
+  float a_weight = alpha * alpha_weight( alpha );
+  trasnparentA = vec4( color * a_weight, alpha );
+  transparentB = a_weight;
+  frag_color = vec4( color, alpha );
 }
