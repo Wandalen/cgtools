@@ -201,6 +201,8 @@ mod private
       output_texture : Option< minwebgl::web_sys::WebGlTexture >
     ) -> Result< Option< gl::web_sys::WebGlTexture >, gl::WebglError >
     {
+      gl.disable( gl::DEPTH_TEST );
+      gl.disable( gl::BLEND );
       gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
       // --- Multi-Pass Gaussian Blur ---
       // Iterate through mip levels to apply horizontal and vertical Gaussian blur.

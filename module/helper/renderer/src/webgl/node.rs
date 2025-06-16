@@ -2,7 +2,7 @@ mod private
 {
   use std::{ cell::RefCell, collections::HashMap, rc::Rc };
   use minwebgl::{ self as gl };
-  use mingl::{ geometry::BoundingBox, F32x3 };
+  use mingl::{ geometry::BoundingBox, F32x3, F32x4x4 };
   use crate::webgl::Mesh;
 
   /// Represents a 3D object that can be part of the scene graph.  
@@ -26,22 +26,27 @@ mod private
   #[ derive( Default ) ]
   pub struct Node
   {
+
+    name : Option< Box< str > >,
     /// The child nodes of this node.
-    pub children : Vec< Rc< RefCell< Node > > >,
+    children : Vec< Rc< RefCell< Node > > >,
     /// The 3D object associated with this node.
     pub object : Object3D,
     /// The local transformation matrix of the node.
-    pub matrix : gl::F32x4x4,
+    matrix : gl::F32x4x4,
     /// The global transformation matrix of the node, including the transformations of its parents.
-    pub world_matrix : gl::F32x4x4,
+    world_matrix : gl::F32x4x4,
+    normal_matrix : gl::F32x3x3,
     /// The local scale of the node.
-    pub scale : gl::F32x3,
+    scale : gl::F32x3,
     /// The local translation of the node.
-    pub translation : gl::F32x3,
+    translation : gl::F32x3,
     /// The local rotation of the node as a quaternion.
-    pub rotation : glam::Quat,
+    rotation : glam::Quat,
     /// A flag indicating whether the local matrix needs to be updated based on scale, translation, or rotation changes.
-    needs_local_matrix_update : bool
+    needs_local_matrix_update : bool,
+    needs_world_matrix_update : bool,
+    bounding_box : BoundingBox
   }
 
   impl Node
@@ -50,6 +55,11 @@ mod private
     pub fn new() -> Self
     {
       Self::default()
+    }
+
+    pub fn set_name( &mut self, name : impl Into< Box< str > > )
+    {
+      self.name = Some( name.into() );
     }
 
     /// Sets the local scale of the node.
@@ -97,6 +107,20 @@ mod private
       self.rotation
     }
 
+    pub fn set_local_matrix( &mut self, matrix : F32x4x4 )
+    {
+      self.matrix = matrix;
+      self.needs_world_matrix_update = true;
+    }
+
+    fn set_world_matrix( &mut self, matrix : F32x4x4 )
+    {
+      self.world_matrix = matrix;
+      self.normal_matrix = matrix.truncate().inverse().unwrap().transpose();
+      self.compute_bounding_box();
+      self.needs_world_matrix_update = false;
+    }
+
     /// Updates the local transformation matrix based on the current scale, rotation, and translation.
     pub fn update_local_matrix( &mut self )
     {
@@ -108,23 +132,27 @@ mod private
       );
       self.matrix = gl::F32x4x4::from_column_major( mat.to_cols_array() );
       self.needs_local_matrix_update = false;
+      self.needs_world_matrix_update = true;
     }
-
-    /// Updates the world transformation matrix of the node and recursively updates the world matrices of its children.
-    ///
+ 
     /// * `parent_mat`: The world matrix of the parent node. For the root node, this should be the identity matrix.
-    pub fn update_world_matrix( &mut self, parent_mat : gl::F32x4x4 )
+    pub fn update_world_matrix( &mut self, parent_mat : gl::F32x4x4, mut needs_world_matrix_update : bool )
     {
       if self.needs_local_matrix_update
       {
         self.update_local_matrix();
       }
 
-      self.world_matrix = parent_mat * self.matrix;
+      if needs_world_matrix_update || self.needs_world_matrix_update
+      {
+        self.set_world_matrix( parent_mat * self.matrix );
+        //self.set_world_matrix(  self.matrix );
+        needs_world_matrix_update = true;
+      }
 
       for child in self.children.iter_mut()
       {
-        child.borrow_mut().update_world_matrix( self.world_matrix );
+        child.borrow_mut().update_world_matrix( self.world_matrix, needs_world_matrix_update );
       }
     }
 
@@ -154,6 +182,14 @@ mod private
         self.world_matrix.to_array().as_slice(),
         true
       ).unwrap();
+
+      gl::uniform::matrix_upload
+      (
+        &gl,
+        locations.get( "normalMatrix" ).unwrap().clone(),
+        self.normal_matrix.to_array().as_slice(),
+        true
+      ).unwrap();
     }
 
     /// Traverses the node and its descendants, calling the provided callback function for each node.
@@ -173,20 +209,28 @@ mod private
 
     pub fn bounding_box( &self ) -> BoundingBox
     {
-      let mut bbox = BoundingBox::default();
+      self.bounding_box
+    }
 
+    pub fn compute_bounding_box( &mut self )
+    {
       match self.object
       {
         Object3D::Mesh( ref mesh ) => 
         { 
-          bbox = mesh.borrow().bounding_box().apply_transform( self.matrix );
+          self.bounding_box = mesh.borrow().bounding_box().apply_transform( self.world_matrix );
         },
         _ => {}
       }
+    }
+
+    pub fn bounding_box_hierarchical( &self ) -> BoundingBox
+    {
+      let mut bbox = self.bounding_box;
 
       for child in self.children.iter()
       {
-        bbox.combine_mut( &child.borrow().bounding_box().apply_transform( self.matrix ) );
+        bbox.combine_mut( &child.borrow().bounding_box_hierarchical() );
       }
 
       bbox
