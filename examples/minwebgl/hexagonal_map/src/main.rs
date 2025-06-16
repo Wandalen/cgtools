@@ -131,8 +131,8 @@ async fn run() -> Result< (), gl::WebglError >
 
   let sprites = load_sprites( &gl, &document );
 
-  let tile_select_element = setup_tile_select( &document );
-  let edit_mode_select_element = setup_edit_mode_select( &document );
+  let tile_select_element = setup_select::< TileValue >( &document, "tile" );
+  let edit_mode_select_element = setup_select::< EditMode >( &document, "edit-mode" );
   let player_select_element = document.get_element_by_id( "player" )
   .unwrap()
   .dyn_into::< HtmlSelectElement >()

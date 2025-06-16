@@ -1,7 +1,7 @@
 use minwebgl as gl;
 use gl::GL;
 use std::{ cell::RefCell, fmt::Debug, rc::Rc };
-use strum::IntoEnumIterator as _;
+use strum::IntoEnumIterator;
 use serde::Deserialize;
 use web_sys::
 {
@@ -12,7 +12,7 @@ use web_sys::
   HtmlOptionElement,
   HtmlSelectElement,
 };
-use crate::{ blob, EditMode, TileValue, Map };
+use crate::{ blob, Map };
 
 #[ derive( Debug, Deserialize ) ]
 pub struct SubTexture
@@ -40,30 +40,13 @@ pub struct TextureAtlas
   pub sub_textures : Vec< SubTexture >,
 }
 
-pub fn setup_tile_select( document : &web_sys::Document ) -> HtmlSelectElement
+pub fn setup_select< T >( document : &web_sys::Document, id : &str ) -> HtmlSelectElement
+where
+  T : IntoEnumIterator + AsRef< str >
 {
-  let select_element = document.get_element_by_id( "tile" ).unwrap();
+  let select_element = document.get_element_by_id( id ).unwrap();
   let select_element = select_element.dyn_into::< HtmlSelectElement >().unwrap();
-  for variant in TileValue::iter()
-  {
-    let option_value = variant.as_ref();
-    let option_element = document.create_element( "option" )
-    .unwrap()
-    .dyn_into::< HtmlOptionElement >()
-    .unwrap();
-
-    option_element.set_value( option_value );
-    option_element.set_text( option_value );
-    select_element.add_with_html_option_element( &option_element ).unwrap();
-  }
-  return select_element;
-}
-
-pub fn setup_edit_mode_select( document : &web_sys::Document ) -> HtmlSelectElement
-{
-  let select_element = document.get_element_by_id( "edit-mode" ).unwrap();
-  let select_element = select_element.dyn_into::< HtmlSelectElement >().unwrap();
-  for variant in EditMode::iter()
+  for variant in T::iter()
   {
     let option_value = variant.as_ref();
     let option_element = document.create_element( "option" )
