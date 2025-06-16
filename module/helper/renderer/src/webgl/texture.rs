@@ -10,7 +10,7 @@ mod private
   /// This struct encapsulates the necessary data and functionality for working with WebGL textures.
   /// It includes the texture's target, the actual WebGL texture object, and a sampler for controlling
   /// how the texture is sampled.
-  #[ derive( Former ) ]
+  #[ derive( Former, Debug ) ]
   pub struct Texture
   {
     /// The target of the texture (e.g., `TEXTURE_2D`, `TEXTURE_CUBE_MAP`).  Defaults to `TEXTURE_2D`.

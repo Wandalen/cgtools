@@ -75,7 +75,7 @@ where
       ConstLayout< Index = Ix2 > + 
       IndexingMut< Scalar = f32, Index = Ix2 >
 {
-  let mat = the_module::F32x4x4::from_row_major
+  let mat = Mat4::< f32, Descriptor >::from_row_major
   ([ 
     1.0, 2.0, 3.0, 4.0, 
     5.0, 6.0, 7.0, 8.0, 
@@ -85,7 +85,7 @@ where
   let got = mat.inverse();
   assert!( got.is_none() );
 
-  let mat = the_module::F32x4x4::from_row_major
+  let mat = Mat4::< f32, Descriptor >::from_row_major
   ([ 
     1.0, 3.0, 5.0, 9.0, 
     1.0, 3.0, 1.0, 7.0, 
@@ -93,7 +93,7 @@ where
     5.0, 2.0, 0.0, 9.0 
   ]);
 
-  let exp = the_module::F32x4x4::from_row_major
+  let exp = Mat4::< f32, Descriptor >::from_row_major
   ([ 
     -13.0 / 47.0,  2.0 / 47.0,   7.0 / 47.0,    6.0 / 47.0, 
     -5.0 / 8.0,    7.0 / 8.0,    1.0 / 4.0,    -1.0 / 4.0, 
@@ -104,7 +104,7 @@ where
   let got = mat.inverse().unwrap();
   assert_eq!( got, exp );
 
-  let mat = the_module::F32x4x4::from_row_major
+  let mat = Mat4::< f32, Descriptor >::from_row_major
   ([ 
     1.0, 0.0, 0.0, 0.0,
     0.0, 1.0, 0.0, 0.0, 
@@ -125,4 +125,62 @@ fn test_inverse_row_major()
 fn test_inverse_column_major()
 {
   test_inverse_generic::< mat::DescriptorOrderColumnMajor >();
+}
+
+fn test_truncate_generic< Descriptor : mat::Descriptor >()
+where 
+  Mat4< f32, Descriptor > : 
+      RawSlice< Scalar = f32 > +
+      RawSliceMut< Scalar = f32 >,
+  Mat3< f32, Descriptor > : 
+      RawSliceMut< Scalar = f32 > +
+      PartialEq
+{
+  let mat = Mat4::< f32, Descriptor >::from_row_major
+  ([ 
+    1.0, 2.0, 3.0, 4.0, 
+    5.0, 6.0, 7.0, 8.0, 
+    9.0, 10.0, 11.0, 12.0,
+    13.0, 14.0, 15.0, 16.0 
+  ]);
+
+  let exp = Mat3::< f32, Descriptor >::from_row_major
+  ([ 
+    1.0, 2.0, 3.0, 
+    5.0, 6.0, 7.0, 
+    9.0, 10.0, 11.0,
+  ]);
+
+  let got = mat.truncate();
+  assert_eq!( got, exp );
+
+  let mat = Mat4::< f32, Descriptor >::from_row_major
+  ([ 
+    1.0, 0.0, 0.0, 0.0,
+    0.0, 1.0, 0.0, 0.0, 
+    0.0, 0.0, 1.0, 0.0,
+    0.0, 0.0, 0.0, 1.0
+  ]);
+
+  let exp = Mat3::< f32, Descriptor >::from_row_major
+  ([ 
+    1.0, 0.0, 0.0, 
+    0.0, 1.0, 0.0,
+    0.0, 0.0, 1.0,
+  ]);
+
+  let got = mat.inverse().unwrap();
+  assert_eq!( got, mat );
+}
+
+#[ test ]
+fn test_truncate_row_major()
+{
+  test_truncate_generic::< mat::DescriptorOrderRowMajor >();
+}
+
+#[ test ]
+fn test_truncate_column_major()
+{
+  test_truncate_generic::< mat::DescriptorOrderColumnMajor >();
 }

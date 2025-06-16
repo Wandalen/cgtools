@@ -74,3 +74,37 @@ Self : RawSliceMut< Scalar = E > +
     Some( res.transpose() )
   }
 }
+
+impl< E, Descriptor > Mat< 3, 3, E, Descriptor > 
+where 
+E : MatEl + nd::NdFloat,
+Descriptor : mat::Descriptor,
+Self : RawSlice< Scalar = E >
+{
+  /// Converts the matrix to an array
+  pub fn to_array( &self ) -> [ E; 9 ]
+  {
+    self.raw_slice().try_into().unwrap()
+  }
+
+  /// Convertes this matrix into the 3x3 matrix
+  pub fn truncate( &self ) -> Mat< 2, 2, E, Descriptor >
+  where 
+    Mat< 2, 2, E, Descriptor > : RawSliceMut< Scalar = E >
+  {
+    let slice = self.raw_slice();
+
+    let trunc_slice = 
+    [
+      slice[ 0 ],
+      slice[ 1 ],
+
+      slice[ 3 ],
+      slice[ 4 ],
+    ];
+
+    let mut mat3 = Mat::< 2, 2, E, Descriptor >::default();
+    mat3.raw_set_slice( &trunc_slice );
+    mat3
+  }
+}
