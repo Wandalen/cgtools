@@ -514,6 +514,7 @@ crate::mod_interface!
 {
   own use
   {
+    GLTF,
     load
   };
 }
