@@ -7,8 +7,15 @@ mod private
   // Maximum amount of ColorAttachments supported by WebGl2
   const MAX_COLOR_ATTACHMENTS : usize = 16;
 
-  /// This is just a wrapper over `gl.draw_buffers`. Provide attachments
-  /// you want to draw into and it will do the rest
+  /// Wrapper over `gl.draw_buffers`. Provide attachments
+  /// you want to draw into and it will do the rest.
+  ///
+  /// # Example
+  ///
+  /// ``` rust
+  /// // binds for drawing GL::ATTACHMENT0, GL::ATTACHMENT1, GL::ATTACHMENT3
+  /// drawbuffers( &gl, &[ 0, 1, 3 ] );
+  /// ```
   pub fn drawbuffers( gl : &GL, attachments : &[ u32 ] )
   {
     let mut buffers = [ GL::NONE; MAX_COLOR_ATTACHMENTS ];
