@@ -265,3 +265,9 @@ version = "4.14.0"
 
 [workspace.dependencies.serde-wasm-bindgen]
 version = "0.6.5"
+
+[workspace.dependencies.quick-xml]
+version = "0.37.5"
+
+[workspace.dependencies.serde_json]
+version = "1.0.140"
