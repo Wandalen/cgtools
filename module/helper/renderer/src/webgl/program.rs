@@ -7,11 +7,14 @@ mod private
   pub struct PBRShader;
   pub struct GaussianFilterShader;
   pub struct UnrealBloomShader;
+  pub struct CompositeShader;
 
   pub struct JfaOutlineObjectShader;
   pub struct JfaOutlineInitShader;
   pub struct JfaOutlineStepShader;
   pub struct JfaOutlineShader;
+  pub struct NormalDepthOutlineObjectShader;
+  pub struct NormalDepthOutlineShader;
 
   /// Stores information about a WebGL program, including the program object and the locations of its uniforms.
   /// This struct is intended for use by the renderer.
@@ -70,6 +73,7 @@ mod private
 
       // Node uniform locations
       add_location( "worldMatrix" );
+      add_location( "normalMatrix" );
 
       // Material uniform  locations
       //// Textures uniform locations
@@ -95,8 +99,8 @@ mod private
       add_location( "emissiveFactor" );
 
       // Luminosity
-      add_location( "luminosityThreshold" );
-      add_location( "luminositySmoothWidth" );
+      add_location( "alphaCutoff" );
+      add_location( "exposure" );
 
       Self
       {
@@ -182,6 +186,33 @@ mod private
     pub fn new( program : gl::WebGlProgram ) -> Self
     {
       let locations = HashMap::new();
+
+      Self
+      {
+        program,
+        locations,
+        phantom : std::marker::PhantomData
+      }
+    }    
+  }
+
+  impl ProgramInfo< CompositeShader > 
+  {
+    /// Creates a new `ProgramInfo` instance.
+    ///
+    /// * `gl`: The `WebGl2RenderingContext` used to retrieve uniform locations.
+    /// * `program`: The compiled WebGL program object.
+    pub fn new( gl : &gl::WebGl2RenderingContext, program : gl::WebGlProgram ) -> Self
+    {
+      let mut locations = HashMap::new();
+
+      let mut add_location = | name : &str |
+      {
+        locations.insert( name.to_string(), gl.get_uniform_location( &program, name ) );
+      };
+
+      add_location( "transparentA" );
+      add_location( "transparentB" );
 
       Self
       {
@@ -305,6 +336,69 @@ mod private
       }
     }    
   }
+
+  impl ProgramInfo< NormalDepthOutlineObjectShader > 
+  {
+    /// Creates a new `ProgramInfo` instance.
+    ///
+    /// * `gl`: The `WebGl2RenderingContext` used to retrieve uniform locations.
+    /// * `program`: The compiled WebGL program object.
+    pub fn new( gl : &gl::WebGl2RenderingContext, program : gl::WebGlProgram ) -> Self
+    {
+      let mut locations = HashMap::new();
+
+      let mut add_location = | name : &str |
+      {
+        locations.insert( name.to_string(), gl.get_uniform_location( &program, name ) );
+      };
+
+      add_location( "u_projection" );
+      add_location( "u_view" );
+      add_location( "u_model" );
+      add_location( "u_normal_matrix" );
+      add_location( "near" );
+      add_location( "far" );
+
+      Self
+      {
+        program,
+        locations,
+        phantom : std::marker::PhantomData
+      }
+    }    
+  }
+
+  impl ProgramInfo< NormalDepthOutlineShader > 
+  {
+    /// Creates a new `ProgramInfo` instance.
+    ///
+    /// * `gl`: The `WebGl2RenderingContext` used to retrieve uniform locations.
+    /// * `program`: The compiled WebGL program object.
+    pub fn new( gl : &gl::WebGl2RenderingContext, program : gl::WebGlProgram ) -> Self
+    {
+      let mut locations = HashMap::new();
+
+      let mut add_location = | name : &str |
+      {
+        locations.insert( name.to_string(), gl.get_uniform_location( &program, name ) );
+      };
+
+      add_location( "u_color_texture" );
+      add_location( "u_depth_texture" );
+      add_location( "u_norm_texture" );
+      add_location( "u_projection" );
+      add_location( "u_resolution" );
+      add_location( "u_outline_thickness" );
+      add_location( "u_background_color" );
+
+      Self
+      {
+        program,
+        locations,
+        phantom : std::marker::PhantomData
+      }
+    }    
+  }
 }
 
 crate::mod_interface!
@@ -315,10 +409,13 @@ crate::mod_interface!
     GaussianFilterShader,
     UnrealBloomShader,
     PBRShader,
+    CompositeShader,
     JfaOutlineObjectShader,
     JfaOutlineInitShader,
     JfaOutlineStepShader,
-    JfaOutlineShader
+    JfaOutlineShader,
+    NormalDepthOutlineObjectShader,
+    NormalDepthOutlineShader
   };
   
   orphan use

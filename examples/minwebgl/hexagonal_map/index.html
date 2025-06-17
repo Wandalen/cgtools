@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <style>
+    body,
+    html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      box-sizing: border-box;
+    }
+
+    #canvas {
+      display: block;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      box-sizing: border-box;
+    }
+
+    .ui-container {
+      position: fixed;
+      /* Position relative to the viewport */
+      top: 20px;
+      /* Distance from the top */
+      left: 20px;
+      /* Distance from the left */
+      z-index: 10;
+      /* Higher z-index to be on top of the canvas */
+      background-color: rgba(255, 255, 255, 0.8);
+      /* Optional: slight background for readability */
+      padding: 10px;
+      border-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    }
+
+    .ui-container label {
+      margin-right: 10px;
+    }
+
+    #tile,
+    #player,
+    #edit-mode {
+      padding: 5px;
+      font-size: 16px;
+    }
+
+    button {
+      padding: 8px 12px;
+      margin-top: 10px;
+      cursor: pointer;
+      display: block;
+    }
+  </style>
+  <meta charset="UTF-8">
+  <title>map</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <link data-trunk rel="copy-dir" href="../../../assets" data-target-path="static" />
+</head>
+
+<body>
+  <div class="ui-container">
+    <label for="tile">Tile: </label>
+    <select id="tile"></select>
+    <br>
+    <label for="player">Player: </label>
+    <select id="player">
+      <option value="0">1</option>
+      <option value="1">2</option>
+      <option value="2">3</option>
+      <option value="3">4</option>
+      <option value="4">5</option>
+      <option value="5">6</option>
+    </select>
+    <br>
+    <label for="edit-mode">Mode: </label>
+    <select id="edit-mode"></select>
+    <button id="download">Download</button>
+    <div id="drop-zone" style="border: 2px dashed #ccc; padding: 20px;">
+      Drop JSON file here
+    </div>
+  </div>
+  <canvas id="canvas"></canvas>
+</body>
+
+</html>

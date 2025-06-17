@@ -76,3 +76,57 @@ fn test_inverse_column_major()
 {
   test_inverse_generic::< mat::DescriptorOrderColumnMajor >();
 }
+
+fn test_truncate_generic< Descriptor : mat::Descriptor >()
+where 
+  Mat3< f32, Descriptor > : 
+      RawSlice< Scalar = f32 > +
+      RawSliceMut< Scalar = f32 >,
+  Mat2< f32, Descriptor > : 
+      RawSliceMut< Scalar = f32 > +
+      PartialEq
+{
+  let mat = Mat3::< f32, Descriptor >::from_row_major
+  ([ 
+    1.0, 2.0, 3.0, 
+    4.0, 5.0, 6.0,
+    7.0, 8.0, 9.0,
+  ]);
+
+  let exp = Mat2::< f32, Descriptor >::from_row_major
+  ([ 
+    1.0, 2.0,
+    4.0, 5.0,
+  ]);
+
+  let got = mat.truncate();
+  assert_eq!( got, exp );
+
+  let mat = Mat3::< f32, Descriptor >::from_row_major
+  ([ 
+    1.0, 0.0, 0.0,
+    0.0, 1.0, 0.0,  
+    0.0, 0.0, 1.0,
+  ]);
+
+  let exp = Mat2::< f32, Descriptor >::from_row_major
+  ([ 
+    1.0, 0.0,
+    0.0, 1.0,
+  ]);
+
+  let got = mat.inverse().unwrap();
+  assert_eq!( got, mat );
+}
+
+#[ test ]
+fn test_truncate_row_major()
+{
+  test_truncate_generic::< mat::DescriptorOrderRowMajor >();
+}
+
+#[ test ]
+fn test_truncate_column_major()
+{
+  test_truncate_generic::< mat::DescriptorOrderColumnMajor >();
+}
