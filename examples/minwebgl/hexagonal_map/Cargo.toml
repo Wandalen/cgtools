@@ -28,6 +28,7 @@ browser_input.workspace = true
 tiles_tools.workspace = true
 serde_json.workspace = true
 renderer.workspace = true
+nutype = { workspace = true, features = ["serde"] }
 
 [lints]
 workspace = true

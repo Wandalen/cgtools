@@ -1,6 +1,6 @@
-pub mod blob;
 pub mod helper;
 pub mod triaxial;
+mod map_file_format;
 
 use helper::*;
 use triaxial::*;
@@ -128,6 +128,10 @@ async fn run() -> Result< (), gl::WebglError >
   let outline_shader = line_shader( &gl )?;
   let river_shader = river_shader( &gl )?;
   let sprite_shader = sprite_shader( &gl )?;
+
+  let v = include_str!( "../shaders/s.vert" );
+  let f = include_str!( "../shaders/river.frag" );
+  let s = gl::shader::Program::new( gl.clone() , v, f )?;
 
   let sprites = load_sprites( &gl, &document );
 
@@ -266,6 +270,10 @@ async fn run() -> Result< (), gl::WebglError >
     river_shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
     river_shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
 
+    s.activate();
+    s.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
+    s.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
+
     // Order tiles
     let mut tiles : Vec< _ > = map.borrow().tile_map.iter().map( | ( &k, &v ) | ( k, v ) ).collect();
     tiles.sort_by_key( | v | ( v.0.r, v.0.q ) );
@@ -302,7 +310,6 @@ async fn run() -> Result< (), gl::WebglError >
 
     // Draw rivers
     let pairs = find_pairs( &map.borrow().river_map );
-    river_shader.activate();
     for [ tri1, tri2 ] in pairs
     {
       let mut p1 : F32x2 = tri1.to_point().into();
@@ -310,16 +317,38 @@ async fn run() -> Result< (), gl::WebglError >
       let mut p2 : F32x2 = tri2.to_point().into();
       p2[ 1 ] = -p2[ 1 ];
       let center = ( p1 + p2 ) / 2.0;
-      let lenght = p1.distance( &p2 ) / 2.0;
+      let length = p1.distance( &p2 ) / 2.0;
       let dx = p2.x() - p1.x();
       let dy = p2.y() - p1.y();
       let angle = dy.atan2( dx );
       let rot = gl::math::d2::mat2x2h::rot( angle );
       let translate = gl::math::d2::mat2x2h::translate( center );
-      let scale = gl::math::d2::mat2x2h::scale( [ lenght, 0.1 ] );
+      let width = 0.1;
+      let scale = gl::math::d2::mat2x2h::scale( [ length, width ] );
       let transform = translate * rot * scale;
 
+
+      // [ 0.0f32, 0.0 ],
+      // [ width / 60.0f32.sin(), 0.0 ],
+      // let len = F32x2::from( [ 3.0f32.sqrt() / 2.0, 0.5 ] ).mag();
+      // let ratio = width / len;
+      // let points =
+      // [
+      //   ratio * F32x2::from( [ 1.0, 0.0 ] ),
+      //   ratio * F32x2::from( [ 0.0, 0.0, ] ),
+      //   ratio * F32x2::from( [ 3.0f32.sqrt() / 2.0, 0.5 ] ),
+      //   ratio * F32x2::from( [ 3.0f32.sqrt() / 2.0, -0.5 ] ),
+      // ];
+
+      river_shader.activate();
       river_shader.uniform_matrix_upload( "u_transform", transform.raw_slice(), true );
+      gl.draw_arrays( GL::TRIANGLE_STRIP, 0, 4 );
+      let rot = gl::math::d2::mat2x2h::rot( 60.0f32.to_radians() );
+      let translate = gl::math::d2::mat2x2h::translate( p2 );
+
+      s.activate();
+      s.uniform_upload( "u_width", &width );
+      s.uniform_matrix_upload( "u_transform", ( translate * rot ).raw_slice(), true );
       gl.draw_arrays( GL::TRIANGLE_STRIP, 0, 4 );
     }
 

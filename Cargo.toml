@@ -271,3 +271,6 @@ version = "0.37.5"
 
 [workspace.dependencies.serde_json]
 version = "1.0.140"
+
+[workspace.dependencies.nutype]
+version = "0.6.1"
