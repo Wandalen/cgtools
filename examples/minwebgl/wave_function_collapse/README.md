@@ -3,7 +3,7 @@
 This example shows how create map with wave function collapse algorithm and display it with tile renderer using `WebGl2`. Goal of this example is generate tile map using wave function collapse algorithm.
 
 <p align="center">
-  <img src="./resources/showcase.png" width="600px">
+  <img src="./showcase.png" width="600px">
 </p>
 
 ### How it is useful
