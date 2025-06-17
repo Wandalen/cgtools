@@ -63,17 +63,54 @@ impl TriAxial
     ]
   }
 
-  pub const fn corners_axial( &self ) -> [ Axial; 3 ]
+  pub fn corners_axial( &self ) -> [ Axial; 3 ]
   {
-    let Self { b, c, .. } = *self;
-    let is_right = self.is_right() as i32;
-    let is_left = self.is_left() as i32;
-    let offset = is_right + is_left * -1;
-    [
-      Axial::new( -c, -b ),
-      Axial::new( -( offset + c ), -b ),
-      Axial::new( -c, -( offset + b ) ),
-    ]
+    let corner_points = self.corners_points();
+    corner_points.map
+    (
+      | p |
+      {
+        let pixel : tiles_tools::coordinates::pixel::Pixel = p.into();
+        let axial : Axial = pixel.into();
+        axial
+      }
+    )
+    // let Self { a, b, c } = *self;
+    // let corners = if self.is_right()
+    // {
+    //   [ Corners::UpRight, Corners::DownRight, Corners::Left ]
+    // }
+    // else
+    // {
+    //   [ Corners::UpLeft, Corners::DownLeft, Corners::Right ]
+    // };
+
+    // corners.map
+    // (
+    //   | corner |
+    //   {
+    //     let ( q, r, c ) = match corner
+    //     {
+    //       Corners::Right =>      ( a,     b - 1, c - 1 ),
+    //       Corners::UpRight =>    ( a,     b,     c - 1 ),
+    //       Corners::UpLeft =>     ( a - 1, b,     c - 1 ),
+    //       Corners::Left =>       ( a - 1, b,     c     ),
+    //       Corners::DownLeft =>   ( a - 1, b - 1, c     ),
+    //       Corners::DownRight =>  ( a,     b - 1, c     ),
+    //     };
+    //     minwebgl::info!( "{:?}", ( q, r, c ) );
+    //     Axial::new( q, r )
+    //   }
+    // )
+
+    // let is_right = self.is_right() as i32;
+    // let is_left = self.is_left() as i32;
+    // let offset = is_right + is_left * -1;
+    // [
+    //   Axial::new( -c, -b ),
+    //   Axial::new( -( offset + c ), -b ),
+    //   Axial::new( -c, -( offset + b ) ),
+    // ]
   }
 
   pub const fn corners_points( &self ) -> [ [ f32; 2 ]; 3 ]
@@ -88,4 +125,27 @@ impl TriAxial
       Self::new( a, offset + b, c ).to_point(),
     ]
   }
+
+  pub const fn corners( &self ) -> [ TriAxial; 3 ]
+  {
+    let Self { a, b, c } = *self;
+    let is_right = self.is_right() as i32;
+    let is_left = self.is_left() as i32;
+    let offset = is_right + is_left * -1;
+    [
+      Self::new( offset + a, b, c ),
+      Self::new( a, b, offset + c ),
+      Self::new( a, offset + b, c ),
+    ]
+  }
 }
+
+// enum Corners
+// {
+//   Right,
+//   UpRight,
+//   UpLeft,
+//   Left,
+//   DownLeft,
+//   DownRight,
+// }

@@ -129,9 +129,14 @@ async fn run() -> Result< (), gl::WebglError >
   let river_shader = river_shader( &gl )?;
   let sprite_shader = sprite_shader( &gl )?;
 
-  let v = include_str!( "../shaders/s.vert" );
+  let v = include_str!( "../shaders/river_edge.vert" );
   let f = include_str!( "../shaders/river.frag" );
-  let s = gl::shader::Program::new( gl.clone() , v, f )?;
+  let river_edges_shader = gl::shader::Program::new( gl.clone() , v, f )?;
+
+  river_shader.activate();
+  river_shader.uniform_upload( "u_color", &[ 0.0, 0.15, 0.5, ] );
+  river_edges_shader.activate();
+  river_edges_shader.uniform_upload( "u_color", &[ 0.0, 0.15, 0.5, ] );
 
   let sprites = load_sprites( &gl, &document );
 
@@ -270,9 +275,9 @@ async fn run() -> Result< (), gl::WebglError >
     river_shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
     river_shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
 
-    s.activate();
-    s.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
-    s.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
+    river_edges_shader.activate();
+    river_edges_shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
+    river_edges_shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
 
     // Order tiles
     let mut tiles : Vec< _ > = map.borrow().tile_map.iter().map( | ( &k, &v ) | ( k, v ) ).collect();
@@ -310,6 +315,8 @@ async fn run() -> Result< (), gl::WebglError >
 
     // Draw rivers
     let pairs = find_pairs( &map.borrow().river_map );
+
+    let width = 0.1;
     for [ tri1, tri2 ] in pairs
     {
       let mut p1 : F32x2 = tri1.to_point().into();
@@ -323,32 +330,66 @@ async fn run() -> Result< (), gl::WebglError >
       let angle = dy.atan2( dx );
       let rot = gl::math::d2::mat2x2h::rot( angle );
       let translate = gl::math::d2::mat2x2h::translate( center );
-      let width = 0.1;
       let scale = gl::math::d2::mat2x2h::scale( [ length, width ] );
       let transform = translate * rot * scale;
-
-
-      // [ 0.0f32, 0.0 ],
-      // [ width / 60.0f32.sin(), 0.0 ],
-      // let len = F32x2::from( [ 3.0f32.sqrt() / 2.0, 0.5 ] ).mag();
-      // let ratio = width / len;
-      // let points =
-      // [
-      //   ratio * F32x2::from( [ 1.0, 0.0 ] ),
-      //   ratio * F32x2::from( [ 0.0, 0.0, ] ),
-      //   ratio * F32x2::from( [ 3.0f32.sqrt() / 2.0, 0.5 ] ),
-      //   ratio * F32x2::from( [ 3.0f32.sqrt() / 2.0, -0.5 ] ),
-      // ];
 
       river_shader.activate();
       river_shader.uniform_matrix_upload( "u_transform", transform.raw_slice(), true );
       gl.draw_arrays( GL::TRIANGLE_STRIP, 0, 4 );
-      let rot = gl::math::d2::mat2x2h::rot( 60.0f32.to_radians() );
-      let translate = gl::math::d2::mat2x2h::translate( p2 );
+    }
 
-      s.activate();
-      s.uniform_upload( "u_width", &width );
-      s.uniform_matrix_upload( "u_transform", ( translate * rot ).raw_slice(), true );
+    // Fill river edges
+    let river_map = &map.borrow().river_map;
+    for point in river_map
+    {
+      let neighbors = point.neighbors();
+      let mut not_present_neighbor_index = 0;
+      let neighbor_count = neighbors.iter()
+      .enumerate()
+      .filter
+      (
+        | ( i, n ) |
+        {
+          let is_present = river_map.contains( *n );
+          if !is_present { not_present_neighbor_index = *i }
+          is_present
+        }
+      )
+      .count();
+
+      if neighbor_count != 2
+      {
+        continue;
+      }
+
+      let ( _, neighbor1 ) = neighbors.iter()
+      .enumerate()
+      .find( | ( i, _ ) | *i != not_present_neighbor_index )
+      .unwrap();
+      let ( _, neighbor2 ) = neighbors.iter()
+      .enumerate()
+      .rfind( | ( i, _ ) | *i != not_present_neighbor_index )
+      .unwrap();
+
+      let common_hexagon = point.corners_axial()
+      .into_iter()
+      .find
+      (
+        | h | neighbor1.corners_axial().contains( &h )
+        && neighbor2.corners_axial().contains( &h )
+      )
+      .unwrap();
+
+      let origin : Pixel = ( common_hexagon.clone() ).into();
+      let point : Pixel = point.to_point().into();
+      let unit_point = point - origin;
+      let angle = unit_point.y().atan2( unit_point.x() );
+
+      let rot = gl::math::d2::mat2x2h::rot( -angle );
+      let translate = gl::math::d2::mat2x2h::translate( &[ point.x(), -point.y() ] );
+      river_edges_shader.activate();
+      river_edges_shader.uniform_upload( "u_width", &width );
+      river_edges_shader.uniform_matrix_upload( "u_transform", ( translate * rot ).raw_slice(), true );
       gl.draw_arrays( GL::TRIANGLE_STRIP, 0, 4 );
     }
 
