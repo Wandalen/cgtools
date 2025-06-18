@@ -5,6 +5,7 @@ mod map_file_format;
 use helper::*;
 use triaxial::*;
 use minwebgl as gl;
+use map_file_format::*;
 use browser_input::{ keyboard::KeyboardKey, mouse::MouseButton, Event, EventType };
 use std::{ cell::RefCell, collections::{ HashMap, HashSet }, rc::Rc };
 use tiles_tools::coordinates::{ hexagonal, pixel::Pixel };
@@ -87,12 +88,6 @@ impl Map
   }
 }
 
-#[ derive( Debug, Serialize, Deserialize ) ]
-struct MapSerde
-{
-  tile_map : Vec< ( Axial, Tile ) >,
-  river_map : Vec< TriAxial >,
-}
 
 fn main()
 {
