@@ -1,17 +1,17 @@
 
-pub mod norad
+pub mod ufo
 {
-  use std::collections::HashMap;
-
-use gltf::Material;
-use kurbo::flatten;
-use norad::Codepoints;
-use renderer::webgl::{primitive, Geometry};
-use std::rc::Rc;
-use std::cell::RefCell;
-use triangulate::{ PoligonList, ListFormat };
-
-use crate::
+  use std::{collections::HashMap, str::FromStr};
+  use kurbo::flatten;
+  use norad::{ PointType, ContourPoint, Contour };
+  use std::rc::Rc;
+  use std::cell::RefCell;
+  use minwebgl as gl;
+  use gl::{ F32x3, math::vector::cross };
+  use quick_xml::{ Reader, events::Event };
+  use i_float::int::point::IntPoint;
+  use i_triangle::int::triangulatable::IntTriangulatable;
+  use crate::
   { 
     AttributesData, PrimitiveData, Transform 
   };
@@ -19,27 +19,28 @@ use crate::
   #[ derive( Clone ) ]
   struct Glyph
   {
+    character : char,
     contours : Vec< Vec< [ f64; 2 ] > >,
     bounding_box : [ [ f64; 2 ]; 2 ]
   }
 
   impl Glyph
   {
-    fn new( mut contours : Vec< Vec< [ f64; 2 ] > > ) -> Self
+    fn new( mut contours : Vec< Vec< [ f64; 2 ] > >, character : char ) -> Self
     {
       let mut bounding_box = [ [ f64::MAX; 2 ], [ f64::MIN; 2 ] ];
 
-      for contour in contours
+      for contour in &contours
       {
         for point in contour
         {
-          if point < bounding_box[ 0 ]
+          if *point < bounding_box[ 0 ]
           {
-            bounding_box[ 0 ] = point;
+            bounding_box[ 0 ] = *point;
           }
-          if point > bounding_box[ 1 ]
+          if *point > bounding_box[ 1 ]
           {
-            bounding_box[ 1 ] = point;
+            bounding_box[ 1 ] = *point;
           }
         }
       }
@@ -61,9 +62,164 @@ use crate::
 
       Self
       {
+        character,
         contours,
         bounding_box
       }
+    }
+
+    fn scale( &mut self, scale : f64 )
+    {
+      let bounding_box = self.bounding_box;
+      let halfx = ( self.bounding_box[ 1 ][ 0 ] - bounding_box[ 0 ][ 0 ] ) / 2.0;
+      let halfy = ( bounding_box[ 1 ][ 1 ] - bounding_box[ 0 ][ 1 ] ) / 2.0;
+
+      for contour in self.contours.iter_mut()
+      {
+        for point in contour.iter_mut()
+        {
+          point[ 0 ] -= halfx;
+          point[ 1 ] -= halfy;
+          point[ 0 ] *= scale;
+          point[ 1 ] *= scale;
+        }
+      }
+
+      let [ [ x1, y1 ], [ x2,  y2 ] ] = bounding_box;
+      self.bounding_box = [ [ ( x1 - halfx ) * scale, ( y1 - halfy ) * scale ], [ ( x2 - halfx ) * scale, ( y2 - halfy ) * scale ] ];
+    }
+
+    fn from_glif( glif_bytes : Vec< u8 >, character : char ) -> Option< Self >
+    {
+      let glif_str = std::str::from_utf8( &glif_bytes ).unwrap();
+      let mut reader = Reader::from_str( glif_str );
+      reader.config_mut().trim_text( true );
+
+      let mut _contours = vec![];
+      let mut contour_points = vec![];
+      let mut typ = PointType::Move;
+
+      loop 
+      {
+        let event = reader.read_event();
+        match event
+        { 
+          Ok( Event::Empty( e ) ) if e.starts_with( b"point" ) => 
+          {
+            let element = e.clone(); 
+
+            let mut x = None;
+            let mut y = None;
+            let smooth = true;
+
+            'attr : for attr in element.attributes()
+            {
+              let Ok( attr ) = attr
+              else 
+              {
+                continue 'attr;
+              };
+
+              let Ok( value ) = String::from_utf8( attr.value.to_vec() )
+              else 
+              {
+                continue 'attr;
+              };
+
+              match attr.key.0
+              {
+                b"x" => x = value.parse::< f64 >().ok(),
+                b"y" => y = value.parse::< f64 >().ok(),
+                b"typ" => 
+                {
+                  let Ok( t ) = PointType::from_str( &value )
+                  else
+                  {
+                    continue 'attr;
+                  };
+                  typ = t;
+                }
+                _ => continue 'attr
+              }
+            }
+
+            if x.is_none() || y.is_none()
+            {
+              continue;
+            }
+
+            contour_points.push(
+              ContourPoint::new(
+                x.unwrap(),
+                y.unwrap(),
+                typ,
+                smooth,
+                None,
+                None
+              )
+            )
+          },
+          Ok( Event::End( e ) ) if e.starts_with( b"contour" ) => 
+          {
+            typ = PointType::Move;
+            let mut contour = Contour::default();
+            contour.points = contour_points.drain( .. ).collect::< Vec< _ > >();
+            _contours.push( contour );
+          },
+          Ok( Event::Eof ) => break,
+          _ => ()
+        }
+      }
+
+      let mut contours = vec![];
+
+      for contour in _contours
+      {
+        let mut path = vec![];
+        let Ok( bez_path ) = contour.to_kurbo() 
+        else
+        {
+          return None;
+        };
+
+        flatten( 
+          bez_path.elements().iter().cloned(), 
+          0.25, 
+          | p | path.push( p ) 
+        );
+
+        let mut contour = vec![];
+
+        path.iter()
+        .for_each
+        ( 
+          | p |
+          {
+            match p
+            {
+              kurbo::PathEl::MoveTo( point ) |
+              kurbo::PathEl::LineTo( point ) => contour.push( [ point.x, point.y ] ),
+              kurbo::PathEl::ClosePath => 
+              {
+                contours.push( contour.clone() );
+                contour.clear();
+              },
+              _ => ()
+            }
+          }
+        );
+
+        contours.push( contour );
+      }
+
+      contours.retain( | c | !c.is_empty() );
+
+      if contours.is_empty()
+      {
+        return None;
+      }
+
+      Some( Glyph::new( contours, character ) )
     }
   }
 
@@ -73,70 +229,48 @@ use crate::
     glyphs : HashMap< char, Glyph >
   }
 
-  impl From< norad::Font > for Font 
+  impl Font
   {
-    fn from( font : norad::Font ) -> Self
+    async fn new( path : &str ) -> Self
     {
       let mut glyphs = HashMap::< char, Glyph >::new();
-      'glyph : for glyph in font.iter_names()
+      let glyphs_path = path.to_string() + "/glyphs";
+
+      for c in b'a'..=b'z' 
       {
-        if let Some( glyph ) = font.get_glyph( glyph.as_str() )
+        let glyph_path = glyphs_path.clone() + "/" + &( c as char ).to_string() + ".glif";
+        let glif_bytes = gl::file::load( &glyph_path ).await
+        .expect( "Failed to load glif file" );
+        if let Some( glyph ) = Glyph::from_glif( glif_bytes, c as char )
         {
-          for codepoint in glyph.codepoints
-          {
-            let mut contours = vec![];
-
-            for contour in glyph.contours
-            {
-              let mut path = vec![];
-              let Ok( bez_path ) = contour.to_kurbo() 
-              else
-              {
-                continue 'glyph;
-              };
-
-              flatten( 
-                bez_path.elements(), 
-                0.25, 
-                | p | path.push( p ) 
-              );
-
-              let mut contour = vec![];
-
-              path.iter()
-              .for_each
-              ( 
-                | p |
-                {
-                  match p
-                  {
-                    kurbo::PathEl::MoveTo( point ) => 
-                    {
-                      contours.push( contour.clone() );
-                      contour.clear();
-                      contour.push( [ point.x, point.y ] );
-                    }
-                    kurbo::PathEl::LineTo( point ) => contour.push( [ point.x, point.y ] ),
-                    kurbo::PathEl::ClosePath => 
-                    {
-                      contours.push( contour.clone() );
-                      contour.clear();
-                    },
-                    _ => ()
-                  }
-                }
-              );
-
-              contours.push( contour );
-            }
-
-            contours.retain( | c | !c.is_empty() );
-
-            let _glyph = Glyph::new( contours );
-
-            glyphs.insert( codepoint, _glyph );
-          }
+          glyphs.insert( c as char, glyph );
         }
+      }
+
+      for c in b'A'..=b'Z' 
+      {
+        let glyph_path = glyphs_path.clone() + "/" + &( c as char ).to_string() + "_.glif";
+        let glif_bytes = gl::file::load( &glyph_path ).await
+        .expect( "Failed to load glif file" );
+        if let Some( glyph ) = Glyph::from_glif( glif_bytes, c as char )
+        {
+          glyphs.insert( c as char, glyph );
+        }
+      }
+
+      let mut max_size = 0.0;
+      for ( _, glyph ) in &glyphs
+      {
+        let glyph_size = glyph.bounding_box[ 1 ][ 0 ] - glyph.bounding_box[ 0 ][ 0 ];
+        if max_size < glyph_size
+        {
+          max_size = glyph_size;
+        }
+      }
+
+      for ( _, glyph ) in glyphs.iter_mut()
+      {
+        glyph.scale( 250.0 / max_size );
       }
 
       Self
@@ -146,6 +280,7 @@ use crate::
     }
   }
 
+  #[ derive( Clone ) ]
   struct Glyph3D
   {
     data : PrimitiveData,
@@ -156,132 +291,27 @@ use crate::
   {
     fn from( glyph : Glyph ) -> Self 
     {
-      let mut flat_positions = Vec::< [ f64; 2 ] >::new();
-      let mut indices = Vec::< u32 >::new(); 
-
-      // Glyph surface triangulation
-      glyph.contours.triangulate( triangulate::format::DeindexedListFormat::new( &mut flat_positions ).into_fan_format() )
-      .expect( "Triangulation failed" );
-
-      glyph.contours.triangulate( triangulate::format::IndexedListFormat::new( &mut indices ).into_fan_format() )
-      .expect( "Triangulation failed" );
-
-      // Create two surface of glyph
-      let mut positions = flat_positions.iter()
-      .map(
-        | p |
-        {
-          [ p[ 0 ], p[ 1 ], 0.5 ]
-        }
-      )
-      .collect::< Vec< _ > >();
-
-      let second_surface_positions = flat_positions.iter()
-      .map(
-        | p |
-        {
-          [ p[ 0 ], p[ 1 ], -0.5 ]
-        }
-      )
-      .collect::< Vec< _ > >();
-
-      positions.extend( second_surface_positions );
-
-      let vertex_count = flat_positions.len();
-      let second_surface_indices = indices.iter()
-      .map( | i | i + vertex_count )
-      .collect::< Vec< _ > >();
-
-      indices.extend( second_surface_indices );  
-
-      // Add border to glyph mesh
-      let vc1 = positions.len() as u32;
-      let vc2 = vc1 + glyph.contours.iter().flatten().count() as u32;
-
-      for z in [ 0.5, -0.5 ]
+      let Some( primitive_data ) = contours_to_mesh( &glyph.contours, glyph.character )
+      else
       {
-        for c in glyph.contours
+        return Self
         {
-          positions.extend( c.iter().map( | p | [ p[ 0 ], p[ 1 ], z ] ) );
-        }
-      }
-
-      let mut edges = vec![];
-
-      for c in glyph.contours.iter()
-      {
-        let mut contour_edges = vec![];
-        for ( i, _ ) in c.iter().enumerate() 
-        {
-          contour_edges.push( [ i as u32 + vc, i as u32 + vc2 ] ); 
-        }
-
-        edges.push( contour_edges );
-      }
-
-      for ce in edges 
-      {
-        if ce.len() > 2
-        {
-          let mut i = 0; 
-          while i < ce.len() - 1
-          {
-            // Counter clockwise ↺
-            // [ i + 1 ] c *---* d
-            //             |\  |
-            //             | \ |
-            //             |  \|        
-            // [   i   ] a *---* b
-            let [ a, b ] = [ ce[ i ][ 0 ], ce[ i ][ 1 ] ];
-            let [ c, d ] = [ ce[ i + 1 ][ 0 ], ce[ i + 1 ][ 1 ] ];
-            indices.extend( [ c, a, b ] );
-            indices.extend( [ c, b, d ] );
-            i += 1;
-          }
-
-          let last = ce.len() - 1;
-          let [ a, b ] = [ ce[ last ][ 0 ], ce[ last ][ 1 ] ];
-          let [ c, d ] = [ ce[ 0 ][ 0 ], ce[ 0 ][ 1 ] ];
-          indices.extend( [ c, a, b ] );
-          indices.extend( [ c, b, d ] );
-        }
-      }
-
-      let mut normals = vec![ [ 0.0; 3 ]; positions.len() ];
-      indices.chunks( 3 )
-      .for_each
-      ( 
-        | ids | 
-        {
-          let t = ( 0..3 ).map( | i | F32x3::from( positions[ ids[ i ] as usize ] ) )
-          .collect::< Vec< _ > >();
-          let e1 = t[ 0 ] - t[ 1 ];
-          let e2 = t[ 2 ] - t[ 1 ];
-          let c = ndarray_cg::vector::cross( &e1, &e2 );
-          ( 0..3 ).for_each
-          (
-            | i | normals[ ids[ i ] as usize ] = [ c[ 0 ], c[ 1 ], c[ 2 ] ]
-          );
-        }
-      );
-
-      normals.iter_mut()
-      .for_each( 
-        | n | *n = *F32x3::from_array( *n ).normalize()
-      );
-
-      let attributes = AttributesData
-      {
-        positions, 
-        normals, 
-        indices, 
-      };
-
-      let primitive_data = PrimitiveData 
-      { 
-        attributes : Rc::new( RefCell::new( attributes ) ),
-        material : Rc::new( RefCell::new( renderer::webgl::Material::default() ) ), 
-        transform : Transform::default()  
+          data : PrimitiveData { 
+            attributes : Rc::new( 
+              RefCell::new( 
+                AttributesData 
+                { 
+                  positions: vec![], 
+                  normals: vec![], 
+                  indices: vec![] 
+                } 
+              ) 
+            ), 
+            material : Rc::new( RefCell::new( Default::default() ) ), 
+            transform : Default::default() 
+          },
+          bounding_box : [ [ 0.0; 3 ]; 2 ]
+        };
       };
 
       let [ a, b ] = glyph.bounding_box;
@@ -293,6 +323,227 @@ use crate::
         bounding_box
       }
     }
+  }
+
+  fn contours_to_mesh( contours : &[ Vec< [ f64; 2 ] > ], c : char ) -> Option< PrimitiveData >
+  {
+    let contours = contours.into_iter()
+    .map( 
+      | c | 
+      {
+        c.into_iter()
+        .map( 
+          | [ x, y ] |
+          {
+            IntPoint
+            {
+              x : *x as i32, 
+              y : *y as i32
+            }
+          } 
+        )
+        .collect::< Vec< _ > >()
+      } 
+    )
+    .collect::< Vec< _ > >();
+    let mut overlay = match contours.len()
+    {
+      0 => return None,
+      1 => 
+      {
+        let subject = vec![ contours[ 0 ].clone() ];
+        i_overlay::core::overlay::Overlay::with_contours( 
+          subject.as_slice(), 
+          &[]
+        )
+      },
+      _ => 
+      {
+        i_overlay::core::overlay::Overlay::with_contours( 
+          &vec![ contours[ 0 ].clone() ], 
+          &contours[ 1.. ]
+        )
+      }
+    };
+
+    let shapes = overlay.overlay( 
+      i_overlay::core::overlay_rule::OverlayRule::Union, 
+      i_overlay::core::fill_rule::FillRule::EvenOdd 
+    );
+    
+    let Some( mut subject ) = shapes.get( 0 ).cloned()
+    else
+    {
+      return None; 
+    };
+
+    let clip_shapes = overlay.overlay( 
+      i_overlay::core::overlay_rule::OverlayRule::Clip, 
+      i_overlay::core::fill_rule::FillRule::EvenOdd 
+    )
+    .into_iter()
+    .filter_map( | s | s.first().cloned() )
+    .collect::< Vec< _ > >();
+
+    // subject.extend( clip_shapes );
+    
+    // let mut overlay = i_overlay::core::overlay::Overlay::with_contours( 
+    //   subject.as_slice(), 
+    //   &[]
+    // );
+
+    // let shapes = overlay.overlay( 
+    //   i_overlay::core::overlay_rule::OverlayRule::Difference, 
+    //   i_overlay::core::fill_rule::FillRule::EvenOdd 
+    // );
+
+    // let Some( shape ) = shapes.get( 0 )
+    // else
+    // {
+    //   return None; 
+    // };
+
+    // if !clip_shapes.is_empty() && c == 'e'
+    // {
+    //   gl::info!( "clip_shapes {:?}", clip_shapes[ 0 ].iter().map( | p | [ p.x, p.y ] ).collect::< Vec< _ > >() );
+    //   gl::info!( "shapes {:?}", shapes[ 0 ][ 0 ].iter().map( | p | [ p.x, p.y ] ).collect::< Vec< _ > >() );
+    // }
+
+    subject.extend( clip_shapes );
+
+    let triangulation = subject.triangulate().to_triangulation::< u32 >();
+
+    let flat_positions = triangulation.points;
+    let mut indices = triangulation.indices;
+
+    // Create two surface of glyph
+    let mut positions = flat_positions.iter()
+    .map(
+      | p |
+      {
+        [ p.x as f32, p.y as f32, 0.5 ]
+      }
+    )
+    .collect::< Vec< _ > >();
+
+    let second_surface_positions = flat_positions.iter()
+    .map(
+      | p |
+      {
+        [ p.x as f32, p.y as f32, -0.5 ]
+      }
+    )
+    .collect::< Vec< _ > >();
+
+    positions.extend( second_surface_positions );
+
+    let vertex_count = flat_positions.len() as u32;
+    let second_surface_indices = indices.iter()
+    .map( | i | i + vertex_count )
+    .collect::< Vec< _ > >();
+
+    indices.extend( second_surface_indices );  
+
+    // Add border to glyph mesh
+    let vc1 = positions.len() as u32;
+    let vc2 = vc1 + contours.iter().flatten().count() as u32;
+
+    for z in [ 0.5, -0.5 ]
+    {
+      for c in &contours
+      {
+        positions.extend( c.iter().map( | p | [ p.x as f32, p.y as f32, z ] ) );
+      }
+    }
+
+    let mut edges = vec![];
+
+    for c in contours.iter()
+    {
+      let mut contour_edges = vec![];
+      for ( i, _ ) in c.iter().enumerate() 
+      {
+        contour_edges.push( [ i as u32 + vc1, i as u32 + vc2 ] ); 
+      }
+
+      edges.push( contour_edges );
+    }
+
+    for ce in &edges 
+    {
+      if ce.len() > 2
+      {
+        let mut i = 0; 
+        while i < ce.len() - 1
+        {
+          // Counter clockwise ↺
+          // [ i + 1 ] c *---* d
+          //             |\  |
+          //             | \ |
+          //             |  \|        
+          // [   i   ] a *---* b
+          let [ a, b ] = [ ce[ i ][ 0 ], ce[ i ][ 1 ] ];
+          let [ c, d ] = [ ce[ i + 1 ][ 0 ], ce[ i + 1 ][ 1 ] ];
+          indices.extend( [ c, a, b ] );
+          indices.extend( [ c, b, d ] );
+          i += 1;
+        }
+      }
+    }
+
+    if !edges.is_empty()
+    {
+      if let Some( first ) = edges.first().unwrap().first()
+      {
+        if let Some( last ) = edges.first().unwrap().last()
+        {
+          let [ a, b ] = [ last[ 0 ], last[ 1 ] ];
+          let [ c, d ] = [ first[ 0 ], first[ 1 ] ];
+          indices.extend( [ c, a, b ] );
+          indices.extend( [ c, b, d ] );
+        }
+      }
+    }
+
+    let mut normals = vec![ [ 0.0; 3 ]; positions.len() ];
+    indices.chunks( 3 )
+    .for_each
+    ( 
+      | ids | 
+      {
+        let t = ( 0..3 )
+        .map( | i | F32x3::from( positions[ ids[ i ] as usize ] ) )
+        .collect::< Vec< _ > >();
+        let e1 = t[ 0 ] - t[ 1 ];
+        let e2 = t[ 2 ] - t[ 1 ];
+        let c = cross( &e1, &e2 );
+        ( 0..3 ).for_each
+        (
+          | i | normals[ ids[ i ] as usize ] = [ c[ 0 ], c[ 1 ], c[ 2 ] ]
+        );
+      }
+    );
+
+    normals.iter_mut()
+    .for_each( 
+      | n | *n = *F32x3::from_array( *n ).normalize()
+    );
+
+    let attributes = AttributesData
+    {
+      positions, 
+      normals, 
+      indices, 
+    };
+
+    let primitive_data = PrimitiveData 
+    { 
+      attributes : Rc::new( RefCell::new( attributes ) ),
+      material : Rc::new( RefCell::new( renderer::webgl::Material::default() ) ), 
+      transform : Transform::default()  
+    };
+
+    Some( primitive_data )
   }
 
   pub struct Font3D
@@ -318,33 +569,36 @@ use crate::
     }
   }
 
-  pub fn load_fonts( font_names : Vec< String > ) -> HashMap< String, Font >
+  pub async fn load_fonts( font_names : &[ String ] ) -> HashMap< String, Font >
   {
-    let mut fonts = HashMap::< String, norad::Font >::new();
+    let mut fonts = HashMap::< String, Font >::new();
 
     for font_name in font_names
     {
       let font_path = "fonts/ufo/".to_string() + &font_name + ".ufo";
-      let font = norad::Font::load( font_path ).expect( "failed to load font" );
-      fonts.insert( font_name, font );
+      fonts.insert( font_name.to_string(), Font::new( &font_path ).await );
     }
     
     fonts
   }
 
-  pub fn load_fonts_3d( font_names : Vec< String > ) -> HashMap< String, Font >
+  pub async fn load_fonts_3d( font_names : &[ String ] ) -> HashMap< String, Font3D >
   {
     load_fonts( font_names )
+    .await
     .iter()
     .map( | ( n, f ) | ( n.clone(), f.clone().into() ) )
-    .collect::< HashMap< _, text::norad::Font3D > >()
+    .collect::< HashMap< _, Font3D > >()
   }
 
-  pub fn text_to_mesh( text : &str, font : &Font3D ) -> Vec< PrimitiveData >
+  pub fn text_to_mesh( text : &str, font : &Font3D, transform : &Transform ) -> Vec< PrimitiveData >
   {
     let mut mesh = vec![]; 
 
-    let mut transform = Transform::default();
+    let start_transform = transform.clone();
+    let mut transform = start_transform.clone();
+    transform.scale = [ 0.003, 0.003, 0.05 ];
+    let mut half = 0.0;
     for char in text.chars()
     {
       let Some( glyph ) = font.glyphs.get( &char ).cloned() 
@@ -353,32 +607,51 @@ use crate::
         continue;
       };
 
-      let half = ( glyph.bounding_box[ 1 ][ 0 ] - glyph.bounding_box[ 0 ][ 0 ] ) / 2.0;
-      transform.translation[ 0 ] -= half as f32; 
+      let halfx = ( ( glyph.bounding_box[ 1 ][ 0 ] - glyph.bounding_box[ 0 ][ 0 ] ) / 2.0 ) * transform.scale[ 0 ] as f64 * 1.1;
+      transform.translation[ 0 ] -= halfx as f32; 
     }
 
     for char in text.chars()
     {
-      let Some( glyph ) = font.glyphs.get( &char ).cloned() 
+      let Some( mut glyph ) = font.glyphs.get( &char ).cloned() 
       else
       {
         continue;
       };
 
-      let half = ( glyph.bounding_box[ 1 ][ 0 ] - glyph.bounding_box[ 0 ][ 0 ] ) / 2.0;
+      let half = ( ( glyph.bounding_box[ 1 ][ 0 ] - glyph.bounding_box[ 0 ][ 0 ] ) / 2.0 ) * transform.scale[ 0 ] as f64 * 1.1;
+      let diff = ( 250.0 - ( glyph.bounding_box[ 1 ][ 1 ] - glyph.bounding_box[ 0 ][ 1 ] ) ) * transform.scale[ 1 ] as f64;
+      transform.translation[ 1 ] = start_transform.translation[ 1 ];
+      transform.translation[ 1 ] -= diff as f32;
       transform.translation[ 0 ] += half as f32; 
-      glyph.data.transform = transform;
+      glyph.data.transform = transform.clone();
       transform.translation[ 0 ] += half as f32; 
-      mesh.push( glyph );
+
+      mesh.push( glyph.data.clone() );
     }
 
     mesh
   }
+}
 
-  // pub fn text_to_image( text : &str, font : &Font, dpi : f32 ) -> PrimitiveData
-  // {
+mod ttf
+{
+  use std::collections::HashMap;
+  use minwebgl as gl;
 
-  // }
+  pub async fn load_fonts( font_names : &[ String ] ) -> HashMap< String, Vec< u8 > >
+  {
+    let mut fonts = HashMap::< String, Vec< u8 > >::new();
+
+    for font_name in font_names
+    {
+      let font_path = "fonts/ttf/".to_string() + &font_name + ".ttf";
+      let ttf_bytes = gl::file::load( &font_path ).await.expect( "Failed to load ttf file" );
+      fonts.insert( font_name.to_string(), ttf_bytes );
+    }
+    
+    fonts
+  }
 }
 
 // mod parley
