@@ -1,69 +1,77 @@
-
-use std::{cell::RefCell, collections::{HashMap, HashSet}};
-
+use std::cell::RefCell;
 use minwebgl as gl;
 use gl::
 {
+  GL,
   WebGl2RenderingContext,
-  web_sys::HtmlCanvasElement
+  web_sys::HtmlCanvasElement,
+  VectorDataType
 };
-use parley::FontContext;
-use rand::Rng;
 use renderer::webgl::
 {
-  geometry::AttributeInfo, loaders::gltf::GLTF, post_processing::
+  Mesh,
+  Object3D,
+  Node,
+  Geometry,
+  IndexInfo,
+  geometry::AttributeInfo, 
+  loaders::gltf::GLTF, 
+  post_processing::
   {
-    self, add_attributes, add_buffer, outline::narrow_outline::
-    { 
-      NarrowOutlinePass, 
-      MAX_OBJECT_COUNT 
-    }, GBuffer, GBufferAttachment, Pass, SwapFramebuffer
-  }, Camera, Material, Primitive, Renderer
+    self, Pass, SwapFramebuffer
+  }, 
+  Camera, 
+  Material, 
+  Primitive, 
+  Renderer,
+  Scene
 };
+use std::rc::Rc;
+use std::any::type_name_of_val;
 
 mod camera_controls;
 mod loaders;
 mod text;
 
-fn generate_object_colors() -> Vec< [ f32; 4 ] > 
+fn make_buffer_attibute_info
+( 
+  buffer : &web_sys::WebGlBuffer, 
+  offset : i32, 
+  stride : i32, 
+  slot : u32,
+  normalized : bool,
+  vector: gl::VectorDataType
+) -> Result< AttributeInfo, gl::WebglError >
 {
-  let mut rng = rand::rng();
-
-  let range = 0.2..1.0;
-  let object_colors = ( 0..MAX_OBJECT_COUNT )
-  .map
-  ( 
-    | _ |
-    {
-      [ 
-        rng.random_range( range.clone() ), 
-        rng.random_range( range.clone() ),
-        rng.random_range( range.clone() ),
-        1.0
-      ]
-    } 
-  )
-  .collect::< Vec< _ > >();
-
-  object_colors
-}
-
-fn get_attributes( gltf : &GLTF ) -> Result< HashMap< Box< str >, AttributeInfo >, gl::WebglError >
-{
-  for mesh in &gltf.meshes
+  let descriptor = match vector.scalar
   {
-    let mesh_ref = mesh.as_ref().borrow();
-    for primitive in &mesh_ref.primitives
-    {
-      let primitive_ref = primitive.as_ref().borrow();
-      return Ok( primitive_ref.geometry.as_ref().borrow().get_attributes() );
-    }
-  }
+    gl::DataType::U8 => gl::BufferDescriptor::new::< [ u8; 1 ] >(),
+    gl::DataType::I8 => gl::BufferDescriptor::new::< [ i8; 1 ] >(),
+    gl::DataType::U16 => gl::BufferDescriptor::new::< [ u16; 1 ] >(),
+    gl::DataType::I16 => gl::BufferDescriptor::new::< [ i16; 1 ] >(),
+    gl::DataType::U32 => gl::BufferDescriptor::new::< [ u32; 1 ] >(),
+    gl::DataType::F32 => gl::BufferDescriptor::new::< [ f32; 1 ] >(),
+    _ => return Err( gl::WebglError::NotSupportedForType( type_name_of_val( &vector.scalar ) ) )
+  };
 
-  Err( gl::WebglError::MissingDataError( "Primitive" ) )
+  let descriptor = descriptor
+  .offset( offset )
+  .normalized( normalized )
+  .stride( stride )
+  .vector( vector );
+
+  Ok(
+    AttributeInfo
+    {
+      slot,
+      buffer : buffer.clone(),
+      descriptor,
+      bounding_box : Default::default()
+    }
+  )
 }
 
-#[ derive( Debug, Clone, Copy ) ]
+#[ derive( Debug, Clone ) ]
 struct Transform
 {
   translation : [ f32; 3 ],
@@ -86,13 +94,16 @@ impl Default for Transform
 
 impl Transform
 {
-  fn set_node_transform( node : Rc< RefCell< Node > > )
+  fn set_node_transform( &self, node : Rc< RefCell< Node > > )
   {
+    let t = self.translation;
+    let r = self.rotation;
+    let s = self.scale;
     let mut node_mut = node.borrow_mut();
     node_mut.set_translation( [ t[ 0 ], t[ 1 ], t[ 2 ] ] );
-    let q = glam::Quat::from_euler( glam::EulerRot::XYZ, t[ 3 ], t[ 4 ], t[ 5 ] );
+    let q = glam::Quat::from_euler( glam::EulerRot::XYZ, r[ 0 ], r[ 1 ], r[ 2 ] );
     node_mut.set_rotation( q );
-    node_mut.set_scale( [ t[ 6 ], t[ 7 ], t[ 8 ] ] );
+    node_mut.set_scale( [ s[ 0 ], s[ 1 ], s[ 2 ] ] );
     node_mut.update_local_matrix();
   }
 }
@@ -104,6 +115,7 @@ struct AttributesData
   indices : Vec< u32 >
 }
 
+#[ derive( Clone ) ]
 struct PrimitiveData 
 {
   attributes : Rc< RefCell< AttributesData > >,
@@ -113,6 +125,7 @@ struct PrimitiveData
 
 fn primitives_data_to_gltf
 ( 
+  gl : &GL,
   primitives_data : Vec< PrimitiveData >, 
   materials : Vec< Rc< RefCell< Material > > > 
 ) -> GLTF
@@ -139,7 +152,7 @@ fn primitives_data_to_gltf
   let attribute_infos = 
   [
     ( 
-      "position", 
+      "positions", 
       make_buffer_attibute_info( 
         &position_buffer, 
         0, 
@@ -150,7 +163,7 @@ fn primitives_data_to_gltf
       ).unwrap() 
     ),
     ( 
-      "normal", 
+      "normals", 
       make_buffer_attibute_info( 
         &normal_buffer, 
         0, 
@@ -179,17 +192,17 @@ fn primitives_data_to_gltf
 
   for primitive_data in primitives_data
   {
-    let last_indices_count = indices.len() as u32;
-
-    positions.extend( primitive_data.positions.clone() );
-    normals.extend( primitive_data.normals.clone() );
-    let primitive_indices = primitive_data.indices.iter()
-    .map( | i | i + last_indices_count )
+    let last_positions_count = positions.len() as u32;
+    positions.extend( primitive_data.attributes.borrow().positions.clone() );
+    normals.extend( primitive_data.attributes.borrow().normals.clone() );
+    let primitive_indices = primitive_data.attributes.borrow().indices.iter()
+    .map( | i | i + last_positions_count )
     .collect::< Vec< _ > >();
+    let offset = indices.len() as u32 * 4;
     indices.extend( primitive_indices );
 
-    index_info.offset = last_indices_count * 4;
-    index_info.count = primitive_data.indices.len();
+    index_info.offset = offset;
+    index_info.count = primitive_data.attributes.borrow().indices.len() as u32;
 
     let Ok( mut geometry ) = Geometry::new( gl ) else
     {
@@ -202,7 +215,7 @@ fn primitives_data_to_gltf
     }
 
     geometry.add_index( gl, index_info.clone() ).unwrap();
-    geometry.vertex_count = primitive_data.positions.len();
+    geometry.vertex_count = primitive_data.attributes.borrow().positions.len() as u32;
 
     let primitive = Primitive
     {
@@ -214,12 +227,15 @@ fn primitives_data_to_gltf
     mesh.borrow_mut().add_primitive( Rc::new( RefCell::new( primitive ) ) );
 
     let node = Rc::new( RefCell::new( Node::new() ) );
-    node.borrow_mut().object = Object3D::Mesh( mesh );
+    node.borrow_mut().object = Object3D::Mesh( mesh.clone() );
     primitive_data.transform.set_node_transform( node.clone() );
 
     nodes.push( node.clone() );
+    meshes.push( mesh );
     scenes[ 0 ].borrow_mut().children.push( node );
   }
+
+  //gl::info!( "{:?}", indices );
 
   gl::buffer::upload( &gl, &position_buffer, &positions, GL::STATIC_DRAW );
   gl::buffer::upload( &gl, &normal_buffer, &normals, GL::STATIC_DRAW );
@@ -230,8 +246,8 @@ fn primitives_data_to_gltf
     scenes,
     nodes,
     gl_buffers,
-    images : vec![],
-    textures : Rc::new( RefCell::new( vec![] ) ),
+    images : Rc::new( RefCell::new( vec![] ) ),
+    textures : vec![],
     materials,
     meshes
   }
@@ -242,10 +258,8 @@ fn init_context() -> ( WebGl2RenderingContext, HtmlCanvasElement )
   gl::browser::setup( Default::default() );
   let options = gl::context::ContexOptions::default().antialias( false );
 
-  let canvas = gl::canvas::make()?;
-  let gl = gl::context::from_canvas_with( &canvas, options )?;
-  let window = gl::web_sys::window().unwrap();
-  let document = window.document().unwrap();
+  let canvas = gl::canvas::make().unwrap();
+  let gl = gl::context::from_canvas_with( &canvas, options ).unwrap();
 
   let _ = gl.get_extension( "EXT_color_buffer_float" ).expect( "Failed to enable EXT_color_buffer_float extension" );
 
@@ -258,26 +272,26 @@ fn init_camera( canvas : &HtmlCanvasElement, scene : Rc< RefCell< Scene > > ) ->
   let height = canvas.height() as f32;
 
   // Camera setup
-  let scene_bounding_box = scene.borrow().bounding_box();
-  let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
-  let dist = scene_bounding_box.max.mag();
-  let exponent = 
-  {
-    let bits = diagonal.to_bits();
-    let exponent_field = ( ( bits >> 23 ) & 0xFF ) as i32;
-    exponent_field - 127
-  };
+  // let scene_bounding_box = scene.borrow().bounding_box();
+  // let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
+  // let dist = scene_bounding_box.max.mag();
+  // let exponent = 
+  // {
+  //   let bits = diagonal.to_bits();
+  //   let exponent_field = ( ( bits >> 23 ) & 0xFF ) as i32;
+  //   exponent_field - 127
+  // };
 
   // Camera setup
   let mut eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
-  eye *= dist;
+  //eye *= dist;
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
-  let center = scene_bounding_box.center();
+  let center = gl::math::F32x3::from( [ 0.0, 0.0, 0.0 ] );//scene_bounding_box.center();
 
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
-  let near = 1.0 * 10.0f32.powi( exponent ).min( 1.0 );
-  let far = near * 10.0f32.powi( exponent.abs() );
+  let near = 0.1; //1.0 * 10.0f32.powi( exponent ).min( 1.0 ) / 5.0;
+  let far = 1000.0; // * near * 10.0f32.powi( exponent.abs() );
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
   camera.set_window_size( [ width, height ].into() );
@@ -289,27 +303,29 @@ fn init_camera( canvas : &HtmlCanvasElement, scene : Rc< RefCell< Scene > > ) ->
 
 async fn run() -> Result< (), gl::WebglError >
 {
-  let ( gl, canvas ) = init();
+  let ( gl, canvas ) = init_context();
 
-  let font_names = 
-  [
+  let font_names = vec![
+    //"Roboto-Regular".to_string(),
     "Caveat".to_string(),
     "HennyPenny-Regular".to_string(),
-    "Parisienne-Regular".to_string(),
-    "Roboto-Regular".to_string()
+    "Parisienne-Regular".to_string()
   ];
 
-  let fonts_3d = text::norad::load_fonts_3d( font_names );
+  let fonts_3d = text::ufo::load_fonts_3d( &font_names ).await;
 
   let text = "Hello world".to_string();
 
   let material = Rc::new( RefCell::new( Material::default() ) );
   let materials = vec![ material.clone() ];
 
-  let primitives_data = vec![];
+  let mut primitives_data = vec![];
+  let mut transform = Transform::default();
+  transform.translation[ 1 ] += 1.0 * (font_names.len() as f32 + 1.0 ) / 2.0;
   for font_name in font_names
   {
-    let mut text_mesh = text::norad::text_to_mesh( &text, fonts_3d.get( &font_name ).unwrap() );
+    transform.translation[ 1 ] -= 1.0; 
+    let mut text_mesh = text::ufo::text_to_mesh( &text, fonts_3d.get( &font_name ).unwrap(), &transform );
     for p in text_mesh.iter_mut()
     {
       p.material = material.clone()
@@ -317,10 +333,19 @@ async fn run() -> Result< (), gl::WebglError >
     primitives_data.extend( text_mesh );
   }
 
-  let gltf = primitives_data_to_gltf( primitives_data, materials );
-  let scenes = gltf.scenes.clone();
-  scenes[ 0 ].borrow_mut().update_world_matrix();
+  // let gltf_path = "model.glb";
+  // let window = gl::web_sys::window().unwrap();
+  // let document = window.document().unwrap();
+  // let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
+  // let scenes = gltf.scenes.clone();
 
+  //let mut scenes = vec![ Rc::new( RefCell::new( Scene::new() ) ) ];
+
+  let gltf1 = primitives_data_to_gltf( &gl, primitives_data, materials );
+  let scenes = gltf1.scenes.clone();
+  //scenes[ 0 ].borrow_mut().children.extend( gltf1.scenes[ 0 ].borrow().children.iter().cloned() );
+
+  scenes[ 0 ].borrow_mut().update_world_matrix();
   let camera = init_camera( &canvas, scenes[ 0 ].clone() );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
@@ -337,7 +362,7 @@ async fn run() -> Result< (), gl::WebglError >
     move | t : f64 |
     {
       // If textures are of different size, gl.view_port needs to be called
-      let time = t as f32 / 1000.0;
+      let _time = t as f32 / 1000.0;
 
       renderer.render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
       .expect( "Failed to render" );
