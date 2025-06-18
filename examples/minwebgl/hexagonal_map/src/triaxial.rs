@@ -113,17 +113,15 @@ impl TriAxial
     // ]
   }
 
-  pub const fn corners_points( &self ) -> [ [ f32; 2 ]; 3 ]
+  pub fn corners_points( &self ) -> [ [ f32; 2 ]; 3 ]
   {
-    let Self { a, b, c } = *self;
-    let is_right = self.is_right() as i32;
-    let is_left = self.is_left() as i32;
-    let offset = is_right + is_left * -1;
-    [
-      Self::new( offset + a, b, c ).to_point(),
-      Self::new( a, b, offset + c ).to_point(),
-      Self::new( a, offset + b, c ).to_point(),
-    ]
+    self.corners().map
+    (
+      | corner |
+      {
+        corner.to_point()
+      }
+    )
   }
 
   pub const fn corners( &self ) -> [ TriAxial; 3 ]

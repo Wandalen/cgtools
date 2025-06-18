@@ -71,10 +71,11 @@ impl Map
 {
   pub fn to_json( &self ) -> String
   {
-    let tile_map = self.tile_map.iter().map( | ( k, v ) | ( *k, *v ) ).collect();
-    let river_map = self.river_map.iter().copied().collect();
-    let serde = MapSerde{ tile_map, river_map };
-    serde_json::to_string( &serde ).unwrap()
+    todo!()
+    // let tile_map = self.tile_map.iter().map( | ( k, v ) | ( *k, *v ) ).collect();
+    // let river_map = self.river_map.iter().copied().collect();
+    // let serde = MapSerde{ tile_map, river_map };
+    // serde_json::to_string( &serde ).unwrap()
   }
 
   pub fn from_json( json : &str ) -> Self
@@ -82,7 +83,7 @@ impl Map
     let MapSerde { tile_map, river_map } : MapSerde = serde_json::from_str( json ).unwrap();
     Self
     {
-      tile_map : HashMap::from_iter( tile_map.into_iter() ),
+      tile_map : todo!(),
       river_map : HashSet::from_iter( river_map.into_iter() )
     }
   }
@@ -96,6 +97,7 @@ fn main()
 
 async fn run() -> Result< (), gl::WebglError >
 {
+  map_file_format::MapFile { metadata: todo!(), config: todo!(), map: todo!() };
   gl::browser::setup( Default::default() );
   let window = web_sys::window().unwrap();
   let document = window.document().unwrap();
