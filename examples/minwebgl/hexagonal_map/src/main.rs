@@ -89,7 +89,6 @@ impl Map
   }
 }
 
-
 fn main()
 {
   gl::spawn_local( async move { run().await.unwrap() } );
@@ -97,8 +96,64 @@ fn main()
 
 async fn run() -> Result< (), gl::WebglError >
 {
-  map_file_format::MapFile { metadata: todo!(), config: todo!(), map: todo!() };
+  let file = map_file_format::MapFile
+  {
+    metadata : MetadataSerde { bounds : Default::default() },
+    config : ConfigSerde
+    {
+      player_colors : vec![ [ 255, 255, 255 ] ],
+      object_config : vec!
+      [
+        PropertiesSerde
+        {
+          name : "Capital".into(),
+          attributes : Default::default(),
+          sprite : Some
+          (
+            Sprite
+            {
+              source : "./".into(),
+              width : 0,
+              height : 0,
+              x_offset : 0,
+              y_offset : 0,
+              scale : 0.0
+            }
+          )
+        }
+      ],
+      terrain_config : vec!
+      [
+        PropertiesSerde
+        {
+          name : "Ground".into(),
+          attributes : Default::default(),
+          sprite : None
+        }
+      ]
+    },
+    map : MapSerde
+    {
+      tile_map : vec!
+      [
+        TileSerde
+        {
+          coord : Default::default(),
+          player_index : 0,
+          object_name : None,
+          terrain_name : "Ground".into()
+        }
+      ],
+      river_map: vec![]
+    }
+  };
+  // let file = serde_json::to_string_pretty( &file ).unwrap();
+
   gl::browser::setup( Default::default() );
+  let mut instance = read_map_file( include_str!( "../config.json" ) ).unwrap();
+  let water_color = [ 0.1, 0.2, 0.4 ];
+  // gl::info!( "{instance:?}" );
+
   let window = web_sys::window().unwrap();
   let document = window.document().unwrap();
   let fwidth = window.inner_width().unwrap().as_f64().unwrap();
@@ -113,7 +168,7 @@ async fn run() -> Result< (), gl::WebglError >
   canvas.set_height( height as u32 );
   browser_input::prevent_rightclick( canvas.clone().dyn_into().unwrap() );
 
-  gl.clear_color( 0.0, 0.15, 0.5, 1.0 );
+  gl.clear_color( water_color[ 0 ], water_color[ 1 ], water_color[ 2 ], 1.0 );
   gl.viewport( 0, 0, width, height );
   gl.enable( GL::BLEND );
   gl.blend_func( GL::SRC_ALPHA, GL::ONE_MINUS_SRC_ALPHA );
@@ -128,13 +183,24 @@ async fn run() -> Result< (), gl::WebglError >
 
   let v = include_str!( "../shaders/river_edge.vert" );
   let f = include_str!( "../shaders/river.frag" );
-  let river_edges_shader = gl::shader::Program::new( gl.clone() , v, f )?;
+  let river_edge_shader = gl::shader::Program::new( gl.clone() , v, f )?;
 
   river_shader.activate();
-  river_shader.uniform_upload( "u_color", &[ 0.0, 0.15, 0.5, ] );
-  river_edges_shader.activate();
-  river_edges_shader.uniform_upload( "u_color", &[ 0.0, 0.15, 0.5, ] );
+  river_shader.uniform_upload( "u_color", &water_color );
+  river_edge_shader.activate();
+  river_edge_shader.uniform_upload( "u_color", &water_color );
 
+  let mut textures = rustc_hash::FxHashMap::default();
+  for conf in instance.object_config.values()
+  {
+    let Some( sprite ) = &conf.sprite else { continue; };
+    if !textures.contains_key( &sprite.source )
+    {
+      let ( texture, size ) = helper::load_texture( &gl, &document, &sprite.source );
+      let texture = Texture { size, texture };
+      textures.insert( sprite.source.clone(), texture );
+    }
+  }
   let sprites = load_sprites( &gl, &document );
 
   let tile_select_element = setup_select::< TileValue >( &document, "tile" );
@@ -227,6 +293,7 @@ async fn run() -> Result< (), gl::WebglError >
             let variant = get_variant( &tile_select_element );
             let owner : u8 = player_select_element.value().parse().unwrap();
             map.borrow_mut().tile_map.insert( hexagon_coordinate, Tile { value : variant, owner } );
+
           }
           // Removing tile
           else if secondary_button
@@ -272,9 +339,9 @@ async fn run() -> Result< (), gl::WebglError >
     river_shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
     river_shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
 
-    river_edges_shader.activate();
-    river_edges_shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
-    river_edges_shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
+    river_edge_shader.activate();
+    river_edge_shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
+    river_edge_shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
 
     // Order tiles
     let mut tiles : Vec< _ > = map.borrow().tile_map.iter().map( | ( &k, &v ) | ( k, v ) ).collect();
@@ -288,7 +355,7 @@ async fn run() -> Result< (), gl::WebglError >
       hexagon.bind( &gl );
       hexagon_shader.activate();
       gl.vertex_attrib2fv_with_f32_array( 1, &position.data );
-      gl.vertex_attrib_i4i( 5, *owner as i32, 0, 0, 0 );
+      gl.vertex_attrib_i4i( 2, *owner as i32, 0, 0, 0 );
       hexagon.draw( &gl );
 
       outline.bind( &gl );
@@ -313,7 +380,7 @@ async fn run() -> Result< (), gl::WebglError >
     // Draw rivers
     let pairs = find_pairs( &map.borrow().river_map );
 
-    let width = 0.1;
+    let river_width = 0.1;
     for [ tri1, tri2 ] in pairs
     {
       let mut p1 : F32x2 = tri1.to_point().into();
@@ -327,7 +394,7 @@ async fn run() -> Result< (), gl::WebglError >
       let angle = dy.atan2( dx );
       let rot = gl::math::d2::mat2x2h::rot( angle );
       let translate = gl::math::d2::mat2x2h::translate( center );
-      let scale = gl::math::d2::mat2x2h::scale( [ length, width ] );
+      let scale = gl::math::d2::mat2x2h::scale( [ length, river_width ] );
       let transform = translate * rot * scale;
 
       river_shader.activate();
@@ -384,9 +451,9 @@ async fn run() -> Result< (), gl::WebglError >
 
       let rot = gl::math::d2::mat2x2h::rot( -angle );
       let translate = gl::math::d2::mat2x2h::translate( &[ point.x(), -point.y() ] );
-      river_edges_shader.activate();
-      river_edges_shader.uniform_upload( "u_width", &width );
-      river_edges_shader.uniform_matrix_upload( "u_transform", ( translate * rot ).raw_slice(), true );
+      river_edge_shader.activate();
+      river_edge_shader.uniform_upload( "u_width", &river_width );
+      river_edge_shader.uniform_matrix_upload( "u_transform", ( translate * rot ).raw_slice(), true );
       gl.draw_arrays( GL::TRIANGLE_STRIP, 0, 4 );
     }
 

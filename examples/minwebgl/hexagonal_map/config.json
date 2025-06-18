@@ -1,0 +1,58 @@
+{
+  "metadata": {
+    "bounds": [
+      {
+        "q": 0,
+        "r": 0
+      },
+      {
+        "q": 0,
+        "r": 0
+      }
+    ]
+  },
+  "config": {
+    "player_colors": [
+      [
+        255,
+        255,
+        255
+      ]
+    ],
+    "object_config": [
+      {
+        "name": "Capital",
+        "attributes": {},
+        "sprite": {
+          "source": "./",
+          "width": 0,
+          "height": 0,
+          "x_offset": 0,
+          "y_offset": 0,
+          "scale": 0.0
+        }
+      }
+    ],
+    "terrain_config": [
+      {
+        "name": "Ground",
+        "attributes": {},
+        "sprite": null
+      }
+    ]
+  },
+  "map": {
+    "tile_map": [
+      {
+        "coord": {
+          "q": 0,
+          "r": 0
+        },
+        "player_index": 0,
+        "object_name": null,
+        "terrain_name": "Ground"
+      }
+    ],
+    "river_map": []
+  }
+}

@@ -215,13 +215,14 @@ impl StrPool
   }
 }
 
+#[ derive( Debug ) ]
 pub struct Instance
 {
-  object_config : HashMap< Rc< str >, Properties >,
-  terrain_config : HashMap< Rc< str >, Properties >,
-  tile_map : HashMap< Axial, Tile >,
-  river_map : HashSet< TriAxial >,
-  player_colors : Vec< minwebgl::F32x3 >,
+  pub object_config : HashMap< Rc< str >, Properties >,
+  pub terrain_config : HashMap< Rc< str >, Properties >,
+  pub tile_map : HashMap< Axial, Tile >,
+  pub river_map : HashSet< TriAxial >,
+  pub player_colors : Vec< minwebgl::F32x3 >,
 }
 
 #[ derive( Debug, Clone ) ]
@@ -233,14 +234,15 @@ pub struct Tile
   coord : Axial,
 }
 
+#[ derive( Debug) ]
 pub struct Properties
 {
-  attributes : HashMap< Rc< str >, serde_json::Value >,
-  sprite : Option< Sprite >,
+  pub attributes : HashMap< Rc< str >, serde_json::Value >,
+  pub sprite : Option< Sprite >,
 }
 
 pub struct Texture
 {
-  size : Rc< RefCell< minwebgl::U32x2 > >,
-  texture : Option< web_sys::WebGlTexture >
+  pub size : Rc< RefCell< minwebgl::U32x2 > >,
+  pub texture : Option< web_sys::WebGlTexture >
 }

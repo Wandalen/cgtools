@@ -20,16 +20,16 @@ web-sys = { workspace = true, features = [
   "FileList",
   "FileReader",
 ] }
-quick-xml = { workspace = true, features = ["serialize"] }
+# quick-xml = { workspace = true, features = ["serialize"] }
 minwebgl = { workspace = true, features = ["math"] }
 serde = { workspace = true, features = ["derive"] }
 strum = { workspace = true, features = ["derive"] }
+# nutype = { workspace = true, features = ["serde"] }
 browser_input.workspace = true
 tiles_tools.workspace = true
 serde_json.workspace = true
 renderer.workspace = true
 rustc-hash.workspace = true
-nutype = { workspace = true, features = ["serde"] }
 
 [lints]
 workspace = true
