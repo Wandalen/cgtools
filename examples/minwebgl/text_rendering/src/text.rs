@@ -291,7 +291,7 @@ pub mod ufo
   {
     fn from( glyph : Glyph ) -> Self 
     {
-      let Some( primitive_data ) = contours_to_mesh( &glyph.contours, glyph.character )
+      let Some( primitive_data ) = contours_to_mesh( &glyph.contours )
       else
       {
         return Self
@@ -325,8 +325,34 @@ pub mod ufo
     }
   }
 
-  fn contours_to_mesh( contours : &[ Vec< [ f64; 2 ] > ], c : char ) -> Option< PrimitiveData >
+  fn contours_to_mesh( contours : &[ Vec< [ f64; 2 ] > ] ) -> Option< PrimitiveData >
   {
+    let mut body_id = 0;
+    let mut max_box_diagonal_size = 0;
+    for ( i, contour ) in contours.iter().enumerate()
+    {
+      if contour.is_empty()
+      {
+        continue;
+      }
+      let [ x1, y1 ] = contour.iter()
+      .map( | [ a, b ] | [ *a as isize, *b as isize ] )
+      .min().unwrap();
+      let [ x2, y2 ] = contour.iter()
+      .map( | [ a, b ] | [ *a as isize, *b as isize ] )
+      .max().unwrap();
+      let controur_size = ( ( x2 - x1 ).pow( 2 ) + ( y2 - y1 ).pow( 2 ) ).isqrt();
+      if max_box_diagonal_size < controur_size
+      {
+        max_box_diagonal_size = controur_size;
+        body_id = i;
+      }
+    }
+
+    let mut contours = contours.to_vec();
+
+    contours.swap( body_id, 0 );
+
     let contours = contours.into_iter()
     .map( 
       | c | 
@@ -337,8 +363,8 @@ pub mod ufo
           {
             IntPoint
             {
-              x : *x as i32, 
-              y : *y as i32
+              x : x as i32, 
+              y : y as i32
             }
           } 
         )
@@ -346,72 +372,8 @@ pub mod ufo
       } 
     )
     .collect::< Vec< _ > >();
-    let mut overlay = match contours.len()
-    {
-      0 => return None,
-      1 => 
-      {
-        let subject = vec![ contours[ 0 ].clone() ];
-        i_overlay::core::overlay::Overlay::with_contours( 
-          subject.as_slice(), 
-          &[]
-        )
-      },
-      _ => 
-      {
-        i_overlay::core::overlay::Overlay::with_contours( 
-          &vec![ contours[ 0 ].clone() ], 
-          &contours[ 1.. ]
-        )
-      }
-    };
 
-    let shapes = overlay.overlay( 
-      i_overlay::core::overlay_rule::OverlayRule::Union, 
-      i_overlay::core::fill_rule::FillRule::EvenOdd 
-    );
-    
-    let Some( mut subject ) = shapes.get( 0 ).cloned()
-    else
-    {
-      return None; 
-    };
-
-    let clip_shapes = overlay.overlay( 
-      i_overlay::core::overlay_rule::OverlayRule::Clip, 
-      i_overlay::core::fill_rule::FillRule::EvenOdd 
-    )
-    .into_iter()
-    .filter_map( | s | s.first().cloned() )
-    .collect::< Vec< _ > >();
-
-    // subject.extend( clip_shapes );
-    
-    // let mut overlay = i_overlay::core::overlay::Overlay::with_contours( 
-    //   subject.as_slice(), 
-    //   &[]
-    // );
-
-    // let shapes = overlay.overlay( 
-    //   i_overlay::core::overlay_rule::OverlayRule::Difference, 
-    //   i_overlay::core::fill_rule::FillRule::EvenOdd 
-    // );
-
-    // let Some( shape ) = shapes.get( 0 )
-    // else
-    // {
-    //   return None; 
-    // };
-
-    // if !clip_shapes.is_empty() && c == 'e'
-    // {
-    //   gl::info!( "clip_shapes {:?}", clip_shapes[ 0 ].iter().map( | p | [ p.x, p.y ] ).collect::< Vec< _ > >() );
-    //   gl::info!( "shapes {:?}", shapes[ 0 ][ 0 ].iter().map( | p | [ p.x, p.y ] ).collect::< Vec< _ > >() );
-    // }
-
-    subject.extend( clip_shapes );
-
-    let triangulation = subject.triangulate().to_triangulation::< u32 >();
+    let triangulation = contours.triangulate().to_triangulation::< u32 >();
 
     let flat_positions = triangulation.points;
     let mut indices = triangulation.indices;
@@ -595,37 +557,36 @@ pub mod ufo
   {
     let mut mesh = vec![]; 
 
+    let mut max_x = 0.0;
+    for ( _, glyph ) in &font.glyphs
+    {
+      let glyph_size_x = glyph.bounding_box[ 1 ][ 0 ] - glyph.bounding_box[ 0 ][ 0 ];
+      if max_x < glyph_size_x
+      {
+        max_x = glyph_size_x;
+      }
+    }    
+
     let start_transform = transform.clone();
     let mut transform = start_transform.clone();
     transform.scale = [ 0.003, 0.003, 0.05 ];
-    let mut half = 0.0;
-    for char in text.chars()
-    {
-      let Some( glyph ) = font.glyphs.get( &char ).cloned() 
-      else
-      {
-        continue;
-      };
-
-      let halfx = ( ( glyph.bounding_box[ 1 ][ 0 ] - glyph.bounding_box[ 0 ][ 0 ] ) / 2.0 ) * transform.scale[ 0 ] as f64 * 1.1;
-      transform.translation[ 0 ] -= halfx as f32; 
-    }
+    let halfx = ( max_x / 2.0 ) * transform.scale[ 0 ] as f64;
+    transform.translation[ 0 ] -= ( text.len() as f32 * halfx as f32 ) / 2.0; 
 
     for char in text.chars()
     {
       let Some( mut glyph ) = font.glyphs.get( &char ).cloned() 
       else
       {
+        transform.translation[ 0 ] += halfx as f32; 
         continue;
       };
 
-      let half = ( ( glyph.bounding_box[ 1 ][ 0 ] - glyph.bounding_box[ 0 ][ 0 ] ) / 2.0 ) * transform.scale[ 0 ] as f64 * 1.1;
       let diff = ( 250.0 - ( glyph.bounding_box[ 1 ][ 1 ] - glyph.bounding_box[ 0 ][ 1 ] ) ) * transform.scale[ 1 ] as f64;
       transform.translation[ 1 ] = start_transform.translation[ 1 ];
       transform.translation[ 1 ] -= diff as f32;
-      transform.translation[ 0 ] += half as f32; 
+      transform.translation[ 0 ] += halfx as f32; 
       glyph.data.transform = transform.clone();
-      transform.translation[ 0 ] += half as f32; 
 
       mesh.push( glyph.data.clone() );
     }
@@ -633,99 +594,3 @@ pub mod ufo
     mesh
   }
 }
-
-mod ttf
-{
-  use std::collections::HashMap;
-  use minwebgl as gl;
-
-  pub async fn load_fonts( font_names : &[ String ] ) -> HashMap< String, Vec< u8 > >
-  {
-    let mut fonts = HashMap::< String, Vec< u8 > >::new();
-
-    for font_name in font_names
-    {
-      let font_path = "fonts/ttf/".to_string() + &font_name + ".ttf";
-      let ttf_bytes = gl::file::load( &font_path ).await.expect( "Failed to load ttf file" );
-      fonts.insert( font_name.to_string(), ttf_bytes );
-    }
-    
-    fonts
-  }
-}
-
-// mod parley
-// {
-//   // pub fn load_fonts( font_names : Vec< String > ) -> FontContext
-//   // {
-//   //   let font_cx = FontContext::new();
-
-//   //   for font_name in font_names
-//   //   {
-//   //     let font_path = "fonts/ttf/".to_string() + &font_name + "ttf";
-//   //     let font = ;
-//   //     font_cx.collection.register_fonts( data, info_override );
-//   //     font_cx
-//   //   }
-//   // }
-
-//   fn text_to_layout( font_cx : &mut FontContext, text : &str, font : &str ) -> Layout< () >
-//   {
-//     let mut layout_cx = LayoutContext::new();
-
-//     let mut builder = layout_cx.ranged_builder( &mut font_cx, &text, 1.0, true );
-
-//     builder.push_default( StyleProperty::FontSize( 14.0 ) );
-//   }
-
-//   fn layout_to_mesh( layout : Layout< () > ) -> PrimitiveData
-//   {
-//     let positions = ;
-//     let normals = ;
-//     let indices = ;
-
-//     for line in layout.lines() 
-//     {
-//       for item in line.items() 
-//       {
-//         match item 
-//         {
-//           PositionedLayoutItem::GlyphRun( glyph_run ) => 
-//           {
-
-//           }
-//           PositionedLayoutItem::InlineBox( inline_box ) => 
-//           {
-            
-//           }
-//         };
-//       }
-//     }
-
-//     PrimitiveData
-//     {
-//       positions,
-//       normals,
-//       indices,
-//       material : Rc::new( RefCell::new( Material::default() ) ),
-//       transform : Tra,
-//     }
-//   }
-
-//   // fn layout_to_image( layout : Layout< () >, dpi : f32 ) -> DynamicImage
-//   // {
-
-//   // }
-
-//   pub fn text_to_mesh( font_cx : &mut FontContext, text : &str, font : &str ) -> PrimitiveData
-//   {
-//     let layout = text_to_layout( font_cx, text, font );
-//     layout_to_mesh( layout )
-//   }
-
-//   // pub fn text_to_image( font_cx : &mut FontContext, text : &str, font : &str, dpi : f32 ) -> PrimitiveData
-//   // {
-//   //   let layout = text_to_layout( &mut font_cx, text, font );
-//   //   layout_to_image( layout, dpi )
-//   // }
-// }
