@@ -326,7 +326,6 @@ async fn run() -> Result< (), gl::WebglError >
   let camera = init_camera( &canvas );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_ibl( loaders::ibl::load( &gl, "envMap" ).await );
 
   let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
 
