@@ -1,0 +1,45 @@
+[package]
+name = "curve_surface_rendering"
+version = "0.1.0"
+edition = "2021"
+authors = [ 
+  "Kostiantyn Mysnyk <wandalen@obox.systems>",
+  "Avramenko Yevhenii <yevhenii.av@obox.systems>",
+  "Bilan Vadym <vadym.b@obox.systems>" 
+]
+
+[lints]
+workspace = true
+
+[dependencies]
+minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
+mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
+gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
+renderer = { workspace = true }
+zune-hdr = { workspace = true }
+glam = "0.30.1"
+rand = { workspace = true }
+getrandom = { workspace = true, features = [ "wasm_js" ] }
+norad = { workspace = true, default-features = false, features = [ "kurbo" ] }
+parley = { workspace = true }
+kurbo = { workspace = true }
+earcutr = { workspace = true }
+i_overlay = { workspace = true }
+i_triangle = { workspace = true }
+i_float = { workspace = true }
+quick-xml = { workspace = true }
+
+[dependencies.web-sys]
+workspace = true
+features = [
+  'MouseEvent',
+  'PointerEvent',
+  'WheelEvent',
+  'WebGlTexture',
+  'HtmlImageElement',
+  'Blob',
+  'BlobPropertyBag',
+  'Url',
+  'WebGlFramebuffer',
+  'WebGlRenderbuffer'
+]
