@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<glyph name="Zacute.c2sc" format="2">
-  <advance width="931"/>
-  <outline>
-    <component base="Z.c2sc"/>
-    <component base="acute" xOffset="244" yOffset="30"/>
-  </outline>
-</glyph>

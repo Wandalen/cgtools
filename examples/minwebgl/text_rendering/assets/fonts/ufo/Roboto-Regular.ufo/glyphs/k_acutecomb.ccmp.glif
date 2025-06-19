@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<glyph name="k_acutecomb.ccmp" format="2">
-  <advance width="923"/>
-  <outline>
-    <component base="k"/>
-    <component base="acute" xOffset="257" yOffset="321"/>
-  </outline>
-</glyph>

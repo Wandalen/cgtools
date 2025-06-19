@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<glyph name="Etatonos.c2sc" format="2">
-  <advance width="1153"/>
-  <outline>
-    <component base="H.c2sc" xOffset="60"/>
-    <component base="tonos" xOffset="-239" yOffset="-292"/>
-  </outline>
-</glyph>

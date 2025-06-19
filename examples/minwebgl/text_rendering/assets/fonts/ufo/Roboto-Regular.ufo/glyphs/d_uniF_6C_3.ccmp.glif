@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<glyph name="d_uniF6C3.ccmp" format="2">
-  <advance width="1016"/>
-  <outline>
-    <component base="d"/>
-    <component base="uniF6C3" xOffset="304" yOffset="-354"/>
-  </outline>
-</glyph>

@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<glyph name="glyph1320" format="2">
-  <advance width="482"/>
-  <outline>
-    <component base="dotlessi"/>
-    <component base="dotbelowcomb" xOffset="832" yOffset="10"/>
-  </outline>
-</glyph>

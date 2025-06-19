@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<glyph name="Imacron.c2sc" format="2">
-  <advance width="455"/>
-  <outline>
-    <component base="I.c2sc"/>
-    <component base="macron" xOffset="-199" yOffset="38"/>
-  </outline>
-</glyph>

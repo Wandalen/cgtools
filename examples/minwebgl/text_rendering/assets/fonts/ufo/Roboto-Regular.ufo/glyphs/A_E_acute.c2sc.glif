@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<glyph name="AEacute.c2sc" format="2">
-  <advance width="1385"/>
-  <outline>
-    <component base="AE.c2sc"/>
-    <component base="acute" xOffset="552"/>
-  </outline>
-</glyph>

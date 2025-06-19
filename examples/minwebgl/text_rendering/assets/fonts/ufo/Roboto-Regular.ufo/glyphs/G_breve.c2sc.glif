@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<glyph name="Gbreve.c2sc" format="2">
-  <advance width="1043"/>
-  <outline>
-    <component base="G.c2sc"/>
-    <component base="breve" xOffset="79" yOffset="30"/>
-  </outline>
-</glyph>

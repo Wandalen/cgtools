@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<glyph name="Eogonek.c2sc.locl" format="2">
-  <advance width="878"/>
-  <outline>
-    <component base="E.c2sc"/>
-    <component base="ogonek" xOffset="191" yOffset="8"/>
-  </outline>
-</glyph>

@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<glyph name="Epsilontonos.c2sc" format="2">
-  <advance width="938"/>
-  <outline>
-    <component base="E.c2sc" xOffset="60"/>
-    <component base="tonos" xOffset="-265" yOffset="-289"/>
-  </outline>
-</glyph>

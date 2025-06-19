@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<glyph name="Iotatonos.c2sc" format="2">
-  <advance width="515"/>
-  <outline>
-    <component base="I.c2sc" xOffset="60"/>
-    <component base="tonos" xOffset="-237" yOffset="-289"/>
-  </outline>
-</glyph>

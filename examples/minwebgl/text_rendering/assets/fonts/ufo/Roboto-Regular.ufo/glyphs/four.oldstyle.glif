@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<glyph name="four.oldstyle" format="2">
-  <advance width="1011"/>
-  <outline>
-    <component base="four.oldstyle.pnum" xOffset="-21"/>
-  </outline>
-</glyph>

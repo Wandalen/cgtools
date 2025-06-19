@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<glyph name="Lcaron.c2sc" format="2">
-  <advance width="843"/>
-  <outline>
-    <component base="L.c2sc"/>
-    <component base="uniF6C3" xOffset="333" yOffset="928"/>
-  </outline>
-</glyph>

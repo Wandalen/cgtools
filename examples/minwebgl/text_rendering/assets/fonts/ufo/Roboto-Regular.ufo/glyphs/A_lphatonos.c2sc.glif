@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<glyph name="Alphatonos.c2sc" format="2">
-  <advance width="1029"/>
-  <outline>
-    <component base="A.c2sc"/>
-    <component base="tonos" xOffset="-57" yOffset="-292"/>
-  </outline>
-</glyph>

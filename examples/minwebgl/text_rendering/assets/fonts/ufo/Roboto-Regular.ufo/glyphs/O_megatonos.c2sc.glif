@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<glyph name="Omegatonos.c2sc" format="2">
-  <advance width="1117"/>
-  <outline>
-    <component base="uni03A9.c2sc" xOffset="10"/>
-    <component base="tonos" xOffset="-205" yOffset="-293"/>
-  </outline>
-</glyph>

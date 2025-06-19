@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<glyph name="e_uni030F.ccmp" format="2">
-  <advance width="960"/>
-  <outline>
-    <component base="e"/>
-    <component base="uni030F" xOffset="848" yOffset="-5"/>
-  </outline>
-</glyph>

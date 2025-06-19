@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<glyph name="Upsilontonos.c2sc" format="2">
-  <advance width="999"/>
-  <outline>
-    <component base="Y.c2sc" xOffset="60"/>
-    <component base="tonos" xOffset="-325" yOffset="-292"/>
-  </outline>
-</glyph>

@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<glyph name="Abreve.c2sc" format="2">
-  <advance width="1029"/>
-  <outline>
-    <component base="A.c2sc"/>
-    <component base="breve" xOffset="88" yOffset="30"/>
-  </outline>
-</glyph>
