@@ -293,15 +293,14 @@ async fn run() -> Result< (), gl::WebglError >
 
   let font_names = vec![
     "Roboto-Regular".to_string(),
-    // "Caveat".to_string(),
-    // "HennyPenny-Regular".to_string(),
-    // "Parisienne-Regular".to_string()
+    "Caveat".to_string(),
+    "HennyPenny-Regular".to_string(),
+    "Parisienne-Regular".to_string()
   ];
 
   let fonts_3d = text::ufo::load_fonts_3d( &font_names ).await;
 
-  let text = "Hello world".to_string();
-  //let text = "0123456789".to_string();
+  let text = "CGTools".to_string();
 
   let material = Rc::new( RefCell::new( Material::default() ) );
   let materials = vec![ material.clone() ];
