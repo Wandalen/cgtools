@@ -258,6 +258,29 @@ pub mod ufo
         }
       }
 
+      for ( c, name ) in 
+      [
+        ( '0', "zero" ),
+        ( '1', "one" ),
+        ( '2', "two" ),
+        ( '3', "three" ),
+        ( '4', "four" ),
+        ( '5', "five" ),
+        ( '6', "six" ),
+        ( '7', "seven" ),
+        ( '8', "eight" ),
+        ( '9', "nine" )
+      ]
+      {
+        let glyph_path = glyphs_path.clone() + "/" + name + ".glif";
+        let glif_bytes = gl::file::load( &glyph_path ).await
+        .expect( "Failed to load glif file" );
+        if let Some( glyph ) = Glyph::from_glif( glif_bytes, c )
+        {
+          glyphs.insert( c, glyph );
+        }
+      }
+
       let mut max_size = 0.0;
       for ( _, glyph ) in &glyphs
       {

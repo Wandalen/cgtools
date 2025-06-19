@@ -235,8 +235,6 @@ fn primitives_data_to_gltf
     scenes[ 0 ].borrow_mut().children.push( node );
   }
 
-  //gl::info!( "{:?}", indices );
-
   gl::buffer::upload( &gl, &position_buffer, &positions, GL::STATIC_DRAW );
   gl::buffer::upload( &gl, &normal_buffer, &normals, GL::STATIC_DRAW );
   gl::index::upload( &gl, &index_buffer, &indices, GL::STATIC_DRAW );
@@ -294,15 +292,16 @@ async fn run() -> Result< (), gl::WebglError >
   let ( gl, canvas ) = init_context();
 
   let font_names = vec![
-    //"Roboto-Regular".to_string(),
-    "Caveat".to_string(),
-    "HennyPenny-Regular".to_string(),
-    "Parisienne-Regular".to_string()
+    "Roboto-Regular".to_string(),
+    // "Caveat".to_string(),
+    // "HennyPenny-Regular".to_string(),
+    // "Parisienne-Regular".to_string()
   ];
 
   let fonts_3d = text::ufo::load_fonts_3d( &font_names ).await;
 
   let text = "Hello world".to_string();
+  //let text = "0123456789".to_string();
 
   let material = Rc::new( RefCell::new( Material::default() ) );
   let materials = vec![ material.clone() ];
