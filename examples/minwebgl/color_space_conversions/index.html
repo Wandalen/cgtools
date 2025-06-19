@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Color Converter Demo</title>
+    <style>
+      body 
+      {
+        font-family: sans-serif;
+        display: flex;
+        flex-direction: column; 
+        align-items: center; 
+        padding: 20px;
+        background-color: #f0f0f0;
+      }
+      .main-picker-group 
+      {
+        border: 1px solid #ccc;
+        padding: 15px;
+        border-radius: 8px;
+        text-align: center;
+        background-color: white;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+        margin-bottom: 30px; 
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .main-picker-group label 
+      {
+        display: block;
+        margin-bottom: 10px;
+        font-weight: bold;
+        color: #333;
+      }
+      .main-picker-group input[type="color"] 
+      {
+        width: 100px;
+        height: 100px;
+        border: 1px solid #eee;
+        padding: 0;
+        cursor: pointer;
+        border-radius: 8px;
+      }
+
+      .color-grid 
+      {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 20px;
+        max-width: 1200px; 
+        width: 100%;
+        justify-content: center;
+      }
+      .color-rectangle-group 
+      {
+        border: 1px solid #ddd;
+        padding: 10px;
+        border-radius: 8px;
+        text-align: center;
+        background-color: white;
+        box-shadow: 1px 1px 3px rgba(0,0,0,0.05);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .color-label 
+      {
+        margin-bottom: 8px;
+        font-weight: bold;
+        color: #555;
+        font-size: 0.9em;
+      }
+      .color-rectangle 
+      {
+        width: 100px; 
+        height: 100px; 
+        border: 1px solid #eee;
+        border-radius: 5px;
+        background-color: #FF0000; 
+      }
+      .color-value 
+      {
+        margin-top: 8px;
+        font-family: monospace;
+        font-size: 0.85em;
+        color: #333;
+        word-break: break-all;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main-picker-group">
+      <label for="srgb-color-picker">sRGB Color Picker</label>
+      <input type="color" id="srgb-color-picker" value="#FF0000">
+      <div class="color-value" id="srgb-value"></div>
+    </div>
+
+    <div class="color-grid">
+      <div class="color-rectangle-group">
+        <div class="color-label">A98 RGB</div>
+        <div class="color-rectangle" id="a98rgb-rectangle"></div>
+        <div class="color-value" id="a98rgb-value"></div>
+      </div>
+      <div class="color-rectangle-group">
+        <div class="color-label">ACES2065-1</div>
+        <div class="color-rectangle" id="aces2065-1-rectangle"></div>
+        <div class="color-value" id="aces2065-1-value"></div>
+      </div>
+      <div class="color-rectangle-group">
+        <div class="color-label">ACES CG</div>
+        <div class="color-rectangle" id="aces-cg-rectangle"></div>
+        <div class="color-value" id="aces-cg-value"></div>
+      </div>
+      <div class="color-rectangle-group">
+        <div class="color-label">Display P3</div>
+        <div class="color-rectangle" id="display-p3-rectangle"></div>
+        <div class="color-value" id="display-p3-value"></div>
+      </div>
+      <div class="color-rectangle-group">
+        <div class="color-label">HSL</div>
+        <div class="color-rectangle" id="hsl-rectangle"></div>
+        <div class="color-value" id="hsl-value"></div>
+      </div>
+      <div class="color-rectangle-group">
+        <div class="color-label">HWB</div>
+        <div class="color-rectangle" id="hwb-rectangle"></div>
+        <div class="color-value" id="hwb-value"></div>
+      </div>
+      <div class="color-rectangle-group">
+        <div class="color-label">Lab</div>
+        <div class="color-rectangle" id="lab-rectangle"></div>
+        <div class="color-value" id="lab-value"></div>
+      </div>
+      <div class="color-rectangle-group">
+        <div class="color-label">LCH</div>
+        <div class="color-rectangle" id="lch-rectangle"></div>
+        <div class="color-value" id="lch-value"></div>
+      </div>
+      <div class="color-rectangle-group">
+        <div class="color-label">Linear sRGB</div>
+        <div class="color-rectangle" id="linear-srgb-rectangle"></div>
+        <div class="color-value" id="linear-srgb-value"></div>
+      </div>
+      <div class="color-rectangle-group">
+        <div class="color-label">Oklab</div>
+        <div class="color-rectangle" id="oklab-rectangle"></div>
+        <div class="color-value" id="oklab-value"></div>
+      </div>
+      <div class="color-rectangle-group">
+        <div class="color-label">Oklch</div>
+        <div class="color-rectangle" id="oklch-rectangle"></div>
+        <div class="color-value" id="oklch-value"></div>
+      </div>
+      <div class="color-rectangle-group">
+        <div class="color-label">Prophoto RGB</div>
+        <div class="color-rectangle" id="prophoto-rgb-rectangle"></div>
+        <div class="color-value" id="prophoto-rgb-value"></div>
+      </div>
+      <div class="color-rectangle-group">
+        <div class="color-label">Rec2020</div>
+        <div class="color-rectangle" id="rec2020-rectangle"></div>
+        <div class="color-value" id="rec2020-value"></div>
+      </div>
+      <div class="color-rectangle-group">
+        <div class="color-label">XYZ D50</div>
+        <div class="color-rectangle" id="xyz-d50-rectangle"></div>
+        <div class="color-value" id="xyz-d50-value"></div>
+      </div>
+      <div class="color-rectangle-group">
+        <div class="color-label">XYZ D65</div>
+        <div class="color-rectangle" id="xyz-d65-rectangle"></div>
+        <div class="color-value" id="xyz-d65-value"></div>
+      </div>
+    </div>
+  </body>
+</html>
