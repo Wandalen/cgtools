@@ -266,32 +266,20 @@ fn init_context() -> ( WebGl2RenderingContext, HtmlCanvasElement )
   ( gl, canvas )
 }
 
-fn init_camera( canvas : &HtmlCanvasElement, scene : Rc< RefCell< Scene > > ) -> Camera
+fn init_camera( canvas : &HtmlCanvasElement ) -> Camera
 {
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
 
   // Camera setup
-  // let scene_bounding_box = scene.borrow().bounding_box();
-  // let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
-  // let dist = scene_bounding_box.max.mag();
-  // let exponent = 
-  // {
-  //   let bits = diagonal.to_bits();
-  //   let exponent_field = ( ( bits >> 23 ) & 0xFF ) as i32;
-  //   exponent_field - 127
-  // };
-
-  // Camera setup
   let mut eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
-  //eye *= dist;
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
-  let center = gl::math::F32x3::from( [ 0.0, 0.0, 0.0 ] );//scene_bounding_box.center();
+  let center = gl::math::F32x3::from( [ 0.0, 0.0, 0.0 ] );
 
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
-  let near = 0.1; //1.0 * 10.0f32.powi( exponent ).min( 1.0 ) / 5.0;
-  let far = 1000.0; // * near * 10.0f32.powi( exponent.abs() );
+  let near = 0.1;
+  let far = 1000.0;
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
   camera.set_window_size( [ width, height ].into() );
@@ -321,7 +309,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut primitives_data = vec![];
   let mut transform = Transform::default();
-  transform.translation[ 1 ] += 1.0 * (font_names.len() as f32 + 1.0 ) / 2.0;
+  transform.translation[ 1 ] += 1.0 * (font_names.len() as f32 + 1.0 ) / 2.0 + 0.5;
   for font_name in font_names
   {
     transform.translation[ 1 ] -= 1.0; 
@@ -333,20 +321,11 @@ async fn run() -> Result< (), gl::WebglError >
     primitives_data.extend( text_mesh );
   }
 
-  // let gltf_path = "model.glb";
-  // let window = gl::web_sys::window().unwrap();
-  // let document = window.document().unwrap();
-  // let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
-  // let scenes = gltf.scenes.clone();
-
-  //let mut scenes = vec![ Rc::new( RefCell::new( Scene::new() ) ) ];
-
-  let gltf1 = primitives_data_to_gltf( &gl, primitives_data, materials );
-  let scenes = gltf1.scenes.clone();
-  //scenes[ 0 ].borrow_mut().children.extend( gltf1.scenes[ 0 ].borrow().children.iter().cloned() );
+  let gltf = primitives_data_to_gltf( &gl, primitives_data, materials );
+  let scenes = gltf.scenes.clone();
 
   scenes[ 0 ].borrow_mut().update_world_matrix();
-  let camera = init_camera( &canvas, scenes[ 0 ].clone() );
+  let camera = init_camera( &canvas );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   renderer.set_ibl( loaders::ibl::load( &gl, "envMap" ).await );
