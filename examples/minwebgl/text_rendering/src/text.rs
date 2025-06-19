@@ -19,7 +19,7 @@ pub mod ufo
   #[ derive( Clone ) ]
   struct Glyph
   {
-    character : char,
+    _character : char,
     contours : Vec< Vec< [ f64; 2 ] > >,
     bounding_box : [ [ f64; 2 ]; 2 ]
   }
@@ -62,7 +62,7 @@ pub mod ufo
 
       Self
       {
-        character,
+        _character : character,
         contours,
         bounding_box
       }

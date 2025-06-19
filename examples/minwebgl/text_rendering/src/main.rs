@@ -272,7 +272,7 @@ fn init_camera( canvas : &HtmlCanvasElement ) -> Camera
   let height = canvas.height() as f32;
 
   // Camera setup
-  let mut eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
+  let eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
   let center = gl::math::F32x3::from( [ 0.0, 0.0, 0.0 ] );
 
