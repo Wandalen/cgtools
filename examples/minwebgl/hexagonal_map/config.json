@@ -1,58 +1,90 @@
 {
-  "metadata": {
-    "bounds": [
-      {
-        "q": 0,
-        "r": 0
-      },
-      {
-        "q": 0,
-        "r": 0
-      }
+  "player_colors": [
+    [
+      255,
+      0,
+      0
+    ],
+    [
+      0,
+      255,
+      0
+    ],
+    [
+      0,
+      0,
+      255
+    ],
+    [
+      255,
+      255,
+      0
+    ],
+    [
+      255,
+      0,
+      255
+    ],
+    [
+      0,
+      255,
+      255
     ]
-  },
-  "config": {
-    "player_colors": [
-      [
-        255,
-        255,
-        255
-      ]
-    ],
-    "object_config": [
-      {
-        "name": "Capital",
-        "attributes": {},
-        "sprite": {
-          "source": "./",
-          "width": 0,
-          "height": 0,
-          "x_offset": 0,
-          "y_offset": 0,
-          "scale": 0.0
-        }
+  ],
+  "object_props": [
+    {
+      "name": "Empty",
+      "attributes": {},
+      "sprite": null
+    },
+    {
+      "name": "Capital",
+      "attributes": {},
+      "sprite": {
+        "source": "static/kenney_hexagon_pack/house.png",
+        "width": 0,
+        "height": 0,
+        "x_offset": 0,
+        "y_offset": 0,
+        "scale": 0.012
       }
-    ],
-    "terrain_config": [
-      {
-        "name": "Ground",
-        "attributes": {},
-        "sprite": null
+    },
+    {
+      "name": "Castle",
+      "attributes": {},
+      "sprite": {
+        "source": "static/kenney_hexagon_pack/castle_small.png",
+        "width": 0,
+        "height": 0,
+        "x_offset": 0,
+        "y_offset": 0,
+        "scale": 0.012
       }
-    ]
-  },
-  "map": {
-    "tile_map": [
-      {
-        "coord": {
-          "q": 0,
-          "r": 0
-        },
-        "player_index": 0,
-        "object_name": null,
-        "terrain_name": "Ground"
+    },
+    {
+      "name": "Pine",
+      "attributes": {},
+      "sprite": {
+        "source": "static/kenney_hexagon_pack/treeRound_large.png",
+        "width": 0,
+        "height": 0,
+        "x_offset": 0,
+        "y_offset": 0,
+        "scale": 0.02
       }
-    ],
-    "river_map": []
-  }
+    },
+    {
+      "name": "Palm",
+      "attributes": {},
+      "sprite": {
+        "source": "static/kenney_hexagon_pack/cactus1.png",
+        "width": 0,
+        "height": 0,
+        "x_offset": 0,
+        "y_offset": 0,
+        "scale": 0.025
+      }
+    }
+  ],
+  "terrain_props": []
 }

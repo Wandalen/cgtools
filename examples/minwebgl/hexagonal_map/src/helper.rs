@@ -1,8 +1,9 @@
 use minwebgl as gl;
-use gl::GL;
+use gl::{ GL, BufferDescriptor };
+use renderer::webgl::{ AttributeInfo, Geometry };
+use tiles_tools::coordinates::hexagonal::Coordinate;
 use std::{ cell::RefCell, fmt::Debug, rc::Rc };
-use strum::IntoEnumIterator;
-use serde::Deserialize;
+use strum::{ AsRefStr, EnumIter, EnumString, VariantArray };
 use web_sys::
 {
   wasm_bindgen::prelude::*,
@@ -12,67 +13,45 @@ use web_sys::
   HtmlOptionElement,
   HtmlSelectElement,
 };
-use crate::Map;
+use crate::core_game;
 
-#[ derive( Debug, Deserialize ) ]
-pub struct SubTexture
+#[ derive( Debug, Clone, Copy, AsRefStr, EnumIter, EnumString, VariantArray, PartialEq, Eq ) ]
+pub enum EditMode
 {
-  #[ serde( rename = "@name" ) ] // @ prefix indicates an XML attribute
-  pub name : String,
-  #[ serde( rename = "@x" ) ]
-  pub x : u32,
-  #[ serde( rename = "@y" ) ]
-  pub y : u32,
-  #[ serde( rename = "@width" ) ]
-  pub width : u32,
-  #[ serde( rename = "@height" ) ]
-  pub height : u32,
+  EditTiles,
+  EditRivers,
 }
 
-// Represents the root <TextureAtlas> element
-#[ derive( Debug, Deserialize ) ]
-#[ serde( rename = "TextureAtlas" ) ] // Maps to the XML element name
-pub struct TextureAtlas
+pub struct Texture
 {
-  #[ serde( rename = "@imagePath" ) ]
-  pub image_path : String,
-  #[ serde( rename = "SubTexture", default ) ]
-  pub sub_textures : Vec< SubTexture >,
+  pub size : Rc< RefCell< gl::U32x2 > >,
+  pub texture : Option< web_sys::WebGlTexture >
 }
 
-pub fn setup_select< T >( document : &web_sys::Document, id : &str ) -> HtmlSelectElement
+pub fn setup_select< 'a, I >( document : &web_sys::Document, id : &str, variants : I ) -> HtmlSelectElement
 where
-  T : IntoEnumIterator + AsRef< str >
+  I : Iterator< Item = &'a String >
 {
   let select_element = document.get_element_by_id( id ).unwrap();
   let select_element = select_element.dyn_into::< HtmlSelectElement >().unwrap();
-  for variant in T::iter()
+  for variant in variants
   {
-    let option_value = variant.as_ref();
     let option_element = document.create_element( "option" )
     .unwrap()
     .dyn_into::< HtmlOptionElement >()
     .unwrap();
 
-    option_element.set_value( option_value );
-    option_element.set_text( option_value );
+    option_element.set_value( variant );
+    option_element.set_text( variant );
     select_element.add_with_html_option_element( &option_element ).unwrap();
   }
   return select_element;
 }
 
-pub fn get_variant< T >( select_element : &HtmlSelectElement ) -> T
-where T : std::str::FromStr< Err : Debug >
-{
-  let value = select_element.value();
-  let variant = T::from_str( &value ).unwrap();
-  variant
-}
-
 pub fn setup_download_button
 (
   document : &web_sys::Document,
-  map : Rc< RefCell< Map > >
+  map : Rc< RefCell< core_game::Map > >
 )
 {
   let button = document.get_element_by_id( "download" )
@@ -89,9 +68,9 @@ pub fn setup_download_button
   onclick.forget();
 }
 
-fn download_map( map : &Map )
+fn download_map( map : &core_game::Map )
 {
-  let json = map.to_json();
+  let json = serde_json::to_string( map ).unwrap();
   let array = web_sys::js_sys::Array::new();
   array.push( &JsValue::from_str( &json ) );
 
@@ -105,15 +84,17 @@ fn download_map( map : &Map )
   .dyn_into::< web_sys::HtmlAnchorElement >()
   .unwrap();
 
+  let [ q, r ] = calculate_map_size( map );
+  let file_name = format!( "map_{q}x{r}.json" );
   anchor.set_href( &url );
-  anchor.set_download( "data.json" );
+  anchor.set_download( &file_name );
   anchor.click();
 }
 
 pub fn setup_drop_zone
 (
   document : &web_sys::Document,
-  map : Rc< RefCell< Map > >
+  map_json : Rc< RefCell< Option< String > > >
 )
 {
   let element = document.get_element_by_id( "drop-zone" ).unwrap();
@@ -150,7 +131,7 @@ pub fn setup_drop_zone
       .and_then( | dt | dt.files() )
       .and_then( | files | files.get( 0 ) )
       {
-        read_json_file( file, map.clone() );
+        upload_json_map( file, map_json.clone() );
       }
     }
   );
@@ -163,7 +144,7 @@ pub fn setup_drop_zone
   drop_handler.forget();
 }
 
-fn read_json_file( file : web_sys::File, map : Rc< RefCell< Map > > )
+fn upload_json_map( file : web_sys::File, map_json : Rc< RefCell< Option< String > > > )
 {
   let reader = web_sys::FileReader::new().unwrap();
   reader.read_as_text( &file ).unwrap();
@@ -182,7 +163,7 @@ fn read_json_file( file : web_sys::File, map : Rc< RefCell< Map > > )
         return;
       };
 
-      *map.borrow_mut() = Map::from_json( &text );
+      *map_json.borrow_mut() = Some( text );
     }
   });
 
@@ -228,4 +209,117 @@ pub fn load_texture
   on_load.forget();
 
   ( texture, size )
+}
+
+pub fn create_hexagon_geometry( gl : &GL ) -> Result< Geometry, gl::WebglError >
+{
+  let positions = tiles_tools::geometry::hexagon_triangles();
+
+  let position_buffer = gl::buffer::create( &gl )?;
+  gl::buffer::upload( &gl, &position_buffer, positions.as_slice(), GL::STATIC_DRAW );
+  let pos_info = AttributeInfo
+  {
+    slot : 0,
+    buffer : position_buffer,
+    descriptor : BufferDescriptor::new::< [ f32; 2 ] >(),
+    bounding_box : Default::default(),
+  };
+
+  let mut geometry = Geometry::new( &gl )?;
+  geometry.vertex_count = positions.len() as u32;
+  geometry.add_attribute( &gl, "position", pos_info, false )?;
+
+  gl.bind_vertex_array( None );
+
+  Ok( geometry )
+}
+
+pub fn create_line_geometry( gl : &GL ) -> Result< Geometry, gl::WebglError >
+{
+  let positions = tiles_tools::geometry::hexagon_lines();
+  let position_buffer = gl::buffer::create( &gl )?;
+  gl::buffer::upload( &gl, &position_buffer, positions.as_slice(), GL::STATIC_DRAW );
+  let pos_info = AttributeInfo
+  {
+    slot : 0,
+    buffer : position_buffer,
+    descriptor : BufferDescriptor::new::< [ f32; 2 ] >(),
+    bounding_box : Default::default(),
+  };
+
+  let mut geometry = Geometry::new( &gl )?;
+  geometry.draw_mode = GL::LINES;
+  geometry.vertex_count = positions.len() as u32;
+  geometry.add_attribute( &gl, "position", pos_info, false )?;
+  gl.bind_vertex_array( None );
+
+  Ok( geometry )
+}
+
+pub fn hexagon_shader( gl : &GL ) -> Result< gl::shader::Program, gl::WebglError >
+{
+  let vert = include_str!( "../shaders/main.vert" );
+  let frag = include_str!( "../shaders/main.frag" );
+  gl::shader::Program::new( gl.clone(), vert, frag )
+}
+
+pub fn line_shader( gl : &GL ) -> Result< gl::shader::Program, gl::WebglError >
+{
+  let vert = include_str!( "../shaders/main.vert" );
+  let frag = include_str!( "../shaders/line.frag" );
+  gl::shader::Program::new( gl.clone(), vert, frag )
+}
+
+pub fn river_shader( gl : &GL ) -> Result< gl::shader::Program, gl::WebglError >
+{
+  let vert = include_str!( "../shaders/river.vert" );
+  let frag = include_str!( "../shaders/river.frag" );
+  gl::shader::Program::new( gl.clone(), vert, frag )
+}
+
+pub fn sprite_shader( gl : &GL ) -> Result< gl::shader::Program, gl::WebglError >
+{
+  let vert = include_str!( "../shaders/sprite.vert" );
+  let frag = include_str!( "../shaders/sprite.frag" );
+  gl::shader::Program::new( gl.clone(), vert, frag )
+}
+
+pub fn river_edge_shader( gl : &GL ) -> Result< gl::shader::Program, gl::WebglError >
+{
+  let vert = include_str!( "../shaders/river_edge.vert" );
+  let frag = include_str!( "../shaders/river.frag" );
+  gl::shader::Program::new( gl.clone(), vert, frag )
+}
+
+pub fn calculate_map_size( map : &crate::core_game::Map ) -> [ i64; 2 ]
+{
+  let mut min_q = None;
+  let mut max_q = None;
+  let mut min_r = None;
+  let mut max_r = None;
+
+  map.tiles.keys().for_each
+  (
+  | Coordinate { q, r, ..  } |
+    {
+      let min_q = min_q.get_or_insert( *q );
+      *min_q = ( *min_q ).min( *q );
+
+      let max_q = max_q.get_or_insert( *q );
+      *max_q = ( *max_q ).max( *q );
+
+      let min_r = min_r.get_or_insert( *r );
+      *min_r = ( *min_r ).min( *r );
+
+      let max_r = max_r.get_or_insert( *r );
+      *max_r = ( *max_r ).max( *r );
+    }
+  );
+
+  let min_q = min_q.unwrap_or_default() as i64;
+  let max_q = max_q.map_or( 0, | inner | inner + 1 ) as i64;
+  let min_r = min_r.unwrap_or_default() as i64;
+  let max_r = max_r.map_or( 0, | inner | inner + 1 ) as i64;
+
+  [ max_q - min_q, max_r - min_r ]
 }
