@@ -420,13 +420,15 @@ pub mod ufo
 
     let mut edges = vec![];
 
+    let mut offset = 0;
     for c in contours.iter()
     {
       let mut contour_edges = vec![];
       for ( i, _ ) in c.iter().enumerate() 
       {
-        contour_edges.push( [ i as u32 + vc1, i as u32 + vc2 ] ); 
+        contour_edges.push( [ i as u32 + offset + vc1, i as u32 + offset + vc2 ] ); 
       }
+      offset += c.len() as u32;
 
       edges.push( contour_edges );
     }
@@ -450,20 +452,13 @@ pub mod ufo
           indices.extend( [ c, b, d ] );
           i += 1;
         }
-      }
-    }
 
-    if !edges.is_empty()
-    {
-      if let Some( first ) = edges.first().unwrap().first()
-      {
-        if let Some( last ) = edges.first().unwrap().last()
-        {
-          let [ a, b ] = [ last[ 0 ], last[ 1 ] ];
-          let [ c, d ] = [ first[ 0 ], first[ 1 ] ];
-          indices.extend( [ c, a, b ] );
-          indices.extend( [ c, b, d ] );
-        }
+        let first = ce.first().unwrap();
+        let last = ce.last().unwrap();
+        let [ a, b ] = [ last[ 0 ], last[ 1 ] ];
+        let [ c, d ] = [ first[ 0 ], first[ 1 ] ];
+        indices.extend( [ c, a, b ] );
+        indices.extend( [ c, b, d ] );
       }
     }
 
