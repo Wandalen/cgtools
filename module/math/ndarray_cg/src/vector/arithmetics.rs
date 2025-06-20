@@ -4,7 +4,7 @@ mod private
   use crate::*;
   // use vector::arithmetics::inner_product::*;
   // use vector::arithmetics::{ normalized, mag };
-  use vector::{ normalized, mag, mag2, min, max };
+  use vector::{ normalized, mag, mag2, min, max, dot };
 
   impl< E : MatEl + NdFloat, const LEN : usize > Vector< E, LEN >
   {
@@ -49,6 +49,12 @@ mod private
     pub fn distance_squared( &self, rhs : &Self ) -> E
     {
       ( rhs - self ).mag2()
+    }
+
+    /// Computes the dot product of two vectors
+    pub fn dot( &self, rhs : &Self ) -> E
+    {
+      dot( self, rhs )
     }
   }
 
