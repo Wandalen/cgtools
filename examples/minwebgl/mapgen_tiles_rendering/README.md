@@ -2,7 +2,7 @@
 
 This example shows how create own tile renderer using `WebGl2`. Goal of this example is render tilemap on quad.
 
-![showcase]( ./resources/showcase.png )
+![showcase]( ./showcase.png )
 
 ### How it is useful
 

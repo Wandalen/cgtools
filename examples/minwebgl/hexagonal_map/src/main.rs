@@ -1,4 +1,3 @@
-pub mod blob;
 pub mod helper;
 pub mod triaxial;
 
