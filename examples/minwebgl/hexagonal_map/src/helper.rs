@@ -256,11 +256,12 @@ pub fn create_line_geometry( gl : &GL ) -> Result< Geometry, gl::WebglError >
   Ok( geometry )
 }
 
-pub fn hexagon_shader( gl : &GL ) -> Result< gl::shader::Program, gl::WebglError >
+pub fn hexagon_shader( gl : &GL, player_count : usize ) -> Result< gl::shader::Program, gl::WebglError >
 {
   let vert = include_str!( "../shaders/main.vert" );
   let frag = include_str!( "../shaders/main.frag" );
-  gl::shader::Program::new( gl.clone(), vert, frag )
+  let frag = frag.replace( "#define PLAYER_COUNT 1", &format!( "#define PLAYER_COUNT {player_count}" ) );
+  gl::shader::Program::new( gl.clone(), vert, &frag )
 }
 
 pub fn line_shader( gl : &GL ) -> Result< gl::shader::Program, gl::WebglError >

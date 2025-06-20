@@ -35,28 +35,12 @@ async fn run() -> Result< (), gl::WebglError >
   canvas.set_height( height as u32 );
   browser_input::prevent_rightclick( canvas.clone().dyn_into().unwrap() );
 
-  let water_color = [ 0.1, 0.2, 0.4 ];
-  gl.clear_color( water_color[ 0 ], water_color[ 1 ], water_color[ 2 ], 1.0 );
-  gl.viewport( 0, 0, width, height );
-  gl.enable( GL::BLEND );
-  gl.blend_func( GL::SRC_ALPHA, GL::ONE_MINUS_SRC_ALPHA );
-
-  let hexagon = create_hexagon_geometry( &gl )?;
-  let outline = create_line_geometry( &gl )?;
-
-  let hexagon_shader = hexagon_shader( &gl )?;
-  let outline_shader = line_shader( &gl )?;
-  let river_shader = river_shader( &gl )?;
-  let sprite_shader = sprite_shader( &gl )?;
-  let river_edge_shader = river_edge_shader( &gl )?;
-
-  river_shader.activate();
-  river_shader.uniform_upload( "u_color", &water_color );
-  river_edge_shader.activate();
-  river_edge_shader.uniform_upload( "u_color", &water_color );
-
   let config = include_str!( "../config.json" );
   let config = serde_json::from_str::< core_game::Config >( config ).unwrap();
+  let player_colors = &config.player_colors
+  .iter()
+  .map( | [ r, g, b ] | [ *r as f32 / 255.0, *g as f32 / 255.0, *b as f32 / 255.0 ] )
+  .collect::< Vec< _ > >();
   let mut textures = FxHashMap::default();
   load_textures_from_config( &document, &gl, &config, &mut textures );
   let map = Rc::new( RefCell::new( core_game::Map::default() ) );
@@ -80,6 +64,29 @@ async fn run() -> Result< (), gl::WebglError >
       I32x2::from_array( [ coord.x() as i32, coord.y() as i32 ] )
     },
   );
+
+  let water_color = [ 0.1, 0.2, 0.4 ];
+
+  gl.clear_color( water_color[ 0 ], water_color[ 1 ], water_color[ 2 ], 1.0 );
+  gl.viewport( 0, 0, width, height );
+  gl.enable( GL::BLEND );
+  gl.blend_func( GL::SRC_ALPHA, GL::ONE_MINUS_SRC_ALPHA );
+
+  let hexagon = create_hexagon_geometry( &gl )?;
+  let outline = create_line_geometry( &gl )?;
+
+  let hexagon_shader = hexagon_shader( &gl, player_colors.len() )?;
+  let outline_shader = line_shader( &gl )?;
+  let river_shader = river_shader( &gl )?;
+  let sprite_shader = sprite_shader( &gl )?;
+  let river_edge_shader = river_edge_shader( &gl )?;
+
+  hexagon_shader.activate();
+  hexagon_shader.uniform_upload( "u_player_colors", player_colors.as_slice() );
+  river_shader.activate();
+  river_shader.uniform_upload( "u_color", &water_color );
+  river_edge_shader.activate();
+  river_edge_shader.uniform_upload( "u_color", &water_color );
 
   let mut zoom = 1.0;
   let zoom_factor = 0.75;

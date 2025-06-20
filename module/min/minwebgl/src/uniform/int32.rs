@@ -21,7 +21,7 @@ impl UniformUpload for [ i32 ]
       4 => Ok( gl.uniform4iv_with_i32_array( uniform_location.as_ref(), self ) ),
       _ => Err
       (
-        WebglError::CanUploadUniform
+        WebglError::CantUploadUniform
         (
           "vector",
           type_name_of_val( self ),
@@ -45,7 +45,7 @@ impl< const N : usize > UniformUpload for [ i32 ; N ]
       4 => Ok( gl.uniform4iv_with_i32_array( uniform_location.as_ref(), self ) ),
       _ => Err
       (
-        WebglError::CanUploadUniform
+        WebglError::CantUploadUniform
         (
           "vector",
           type_name_of_val( self ),
