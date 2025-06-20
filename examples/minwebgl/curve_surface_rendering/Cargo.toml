@@ -23,6 +23,7 @@ glam = "0.30.1"
 rand = { workspace = true }
 getrandom = { workspace = true, features = [ "wasm_js" ] }
 kurbo = { workspace = true }
+image = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true
