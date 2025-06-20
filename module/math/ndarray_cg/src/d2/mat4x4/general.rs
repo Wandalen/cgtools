@@ -124,6 +124,28 @@ Self : ScalarMut< Scalar = E, Index = Ix2 > +
 
     Some( adj / det )
   }
+
+  pub fn from_scale_rotation_translation< Vec, Q >
+  ( 
+    scale : Vec,
+    rotation : Q,
+    translation : Vec
+  )
+  where
+    Vec : VectorIter< E, 3 >,
+    Q : Into< Quat< E > >
+  {
+    let rot = rotation.into().to_matrix();
+
+    let mut siter = scale.vector_iter();
+    let sx = siter.next();
+    let sy = siter.next();
+    let sz = siter.next();
+
+    let mut res = rot.to_homogenous();
+    
+    
+  }
 }
 
 impl< E, Descriptor > Mat< 4, 4, E, Descriptor > 
@@ -165,3 +187,4 @@ Self : RawSlice< Scalar = E >
     mat3
   }
 }
+
