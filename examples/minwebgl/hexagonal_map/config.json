@@ -84,6 +84,54 @@
         "y_offset": 0,
         "scale": 0.025
       }
+    },
+    {
+      "name": "Peasant",
+      "attributes": {},
+      "sprite": {
+        "source": "static/kenney_hexagon_pack/MiniArcherMan.png",
+        "width": 0,
+        "height": 0,
+        "x_offset": 0,
+        "y_offset": 0,
+        "scale": 0.007
+      }
+    },
+    {
+      "name": "Spearman",
+      "attributes": {},
+      "sprite": {
+        "source": "static/kenney_hexagon_pack/MiniSpearMan.png",
+        "width": 0,
+        "height": 0,
+        "x_offset": 0,
+        "y_offset": 0,
+        "scale": 0.007
+      }
+    },
+    {
+      "name": "Knight",
+      "attributes": {},
+      "sprite": {
+        "source": "static/kenney_hexagon_pack/MiniSwordMan.png",
+        "width": 0,
+        "height": 0,
+        "x_offset": 0,
+        "y_offset": 0,
+        "scale": 0.007
+      }
+    },
+    {
+      "name": "Baron",
+      "attributes": {},
+      "sprite": {
+        "source": "static/kenney_hexagon_pack/MiniCavalierMan.png",
+        "width": 0,
+        "height": 0,
+        "x_offset": 0,
+        "y_offset": 0,
+        "scale": 0.005
+      }
     }
   ],
   "terrain_props": []
