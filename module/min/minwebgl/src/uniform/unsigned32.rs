@@ -56,3 +56,27 @@ impl< const N : usize > UniformUpload for [ u32 ; N ]
     }
   }
 }
+
+impl< const N : usize > UniformUpload for [ [ u32 ; N ] ]
+{
+  fn upload( &self, gl : &GL, uniform_location : Option< WebGlUniformLocation > ) -> Result< (), WebglError >
+  {
+    match N
+    {
+      1 => Ok( gl.uniform1uiv_with_u32_array( uniform_location.as_ref(), self.as_flattened() ) ),
+      2 => Ok( gl.uniform2uiv_with_u32_array( uniform_location.as_ref(), self.as_flattened() ) ),
+      3 => Ok( gl.uniform3uiv_with_u32_array( uniform_location.as_ref(), self.as_flattened() ) ),
+      4 => Ok( gl.uniform4uiv_with_u32_array( uniform_location.as_ref(), self.as_flattened() ) ),
+      _ => Err
+      (
+        WebglError::CantUploadUniform
+        (
+          "vector",
+          type_name_of_val( self ),
+          self.len(),
+          "1, 2, 3, 4",
+        ),
+      )
+    }
+  }
+}
