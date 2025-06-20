@@ -111,6 +111,7 @@ struct AttributesData
 {
   positions : Vec< [ f32; 3 ] >,
   normals : Vec< [ f32; 3 ] >,
+  uvs : Vec< [ f32; 2 ] >,
   indices : Vec< u32 >
 }
 
@@ -248,6 +249,80 @@ fn primitives_data_to_gltf
     materials,
     meshes
   }
+}
+
+fn get_primitives_data() -> Vec< PrimitiveData >
+{
+  let primitive = CSG::sphere( 1.0, 32, 16, None );
+
+  let mesh = primitive.to_trimesh();
+  let mesh = mesh.as_trimesh().unwrap();
+
+  let positions = mesh.vertices()
+  .iter()
+  .map( | p | [ p.coords.x as f32, p.coords.y as f32, p.coords.z as f32 ] )
+  .collect::< Vec< _ > >();
+
+  let indices = mesh.indices()
+  .iter()
+  .flatten()
+  .collect::< Vec< _ > >();
+
+  let remap = | value, low1, high1, low2, high2 | low2 + (value - low1) * (high2 - low2) / (high1 - low1);
+  let half_pi = f32::consts::PI / 2;
+
+  let max = positions.iter().map( | [ _, _, z ] | z ).max().unwrap_or_default();
+  let min = positions.iter().map( | [ _, _, z ] | z ).min().unwrap_or_default();
+
+  let uvs = positions.iter()
+  .map(
+    | [ x, y, z ] |
+    {
+      let phi = ( y / x ).atan();
+      let u = remap( phi, - half_pi, half_pi, 0.0, 1.0 );
+      let v = remap( phi, min, max, 0.0, 1.0 );
+      [ u, v ]
+    }
+  )
+  .collect::< Vec< _ > >();
+
+  let vertices_count = mesh.vertices().len();
+
+  // Calculating normals for primitives using this article: https://iquilezles.org/articles/normals/
+  let mut normals = vec![ [ 0.0; 3 ]; vertices_count ];
+  indices.chunks( 3 )
+  .for_each
+  ( 
+    | ids | 
+    {
+      let [ a, b, c ] = ( 0..3 ).map( | i | F32x3::from( positions[ ids[ i ] as usize ] ) )
+      .collect::< [ _; 3 ] >();
+      let e1 = a - b;
+      let e2 = c - b;
+      let c = ndarray_cg::vector::cross( &e1, &e2 );
+      ( 0..3 ).for_each
+      (
+        | i | normals[ ids[ i ] as usize ] = c.normalize()
+      );
+    }
+  );
+
+  let attributes = AttributesData
+  {
+    positions,
+    normals,
+    uvs,
+    indices
+  };
+
+  vec![
+    PrimitiveData
+    {
+      attributes : Rc::new( RefCell::new( attributes ) ),
+      material : Rc::new( RefCell::new( Default::new() ) ),
+      transform : Default::new()
+    }
+  ]
 }
 
 fn init_context() -> ( WebGl2RenderingContext, HtmlCanvasElement )
