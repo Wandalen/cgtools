@@ -48,10 +48,10 @@ mod private
   where
     E : MatEl + nd::NdFloat
   {
-    /// Premultiplies self with rhs
     fn mul_assign( &mut self, rhs : Quat< E > )
     {
-      *self = rhs * *self;
+      //*self = rhs * *self;
+      *self = *self * rhs;
     }
   }
 
