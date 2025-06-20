@@ -17,17 +17,12 @@ mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
 renderer = { workspace = true }
 zune-hdr = { workspace = true }
+csgrs = { workspace = true }
+parry3d = { workspace = true }
 glam = "0.30.1"
 rand = { workspace = true }
 getrandom = { workspace = true, features = [ "wasm_js" ] }
-norad = { workspace = true, default-features = false, features = [ "kurbo" ] }
-parley = { workspace = true }
 kurbo = { workspace = true }
-earcutr = { workspace = true }
-i_overlay = { workspace = true }
-i_triangle = { workspace = true }
-i_float = { workspace = true }
-quick-xml = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true
