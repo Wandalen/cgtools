@@ -172,7 +172,7 @@ struct AttributesData
 {
   positions : Vec< [ f32; 3 ] >,
   normals : Vec< [ f32; 3 ] >,
-  uvs : Vec< [ f32; 2 ] >,
+  uvs : Vec< [ f32; 3 ] >,
   indices : Vec< u32 >
 }
 
@@ -242,12 +242,12 @@ fn primitives_data_to_gltf
       "uvs", 
       make_buffer_attibute_info( 
         &normal_buffer, 
-        gl::BufferDescriptor::new::< [ f32; 2 ] >(),
+        gl::BufferDescriptor::new::< [ f32; 3 ] >(),
         0, 
-        2, 
+        3, 
         2, 
         true,
-        VectorDataType::new( mingl::DataType::F32, 2, 1 )
+        VectorDataType::new( mingl::DataType::F32, 3, 1 )
       ).unwrap() 
     )
   ];
@@ -371,7 +371,7 @@ fn generate_primitive_data( primitive : &CSG< () > ) -> PrimitiveData
       let phi = ( y / x ).atan();
       let u = remap( phi, - half_pi, half_pi, 0.0_f32, 1.0_f32 );
       let v = remap( *z, min, max, 0.0, 1.0 );
-      [ u, v ]
+      [ u, v, 0.0 ]
     }
   )
   .collect::< Vec< _ > >();
