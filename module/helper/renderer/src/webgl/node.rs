@@ -113,12 +113,17 @@ mod private
       self.needs_world_matrix_update = true;
     }
 
-    fn set_world_matrix( &mut self, matrix : F32x4x4 )
+    pub fn set_world_matrix( &mut self, matrix : F32x4x4 )
     {
       self.world_matrix = matrix;
       self.normal_matrix = matrix.truncate().inverse().unwrap().transpose();
       self.compute_bounding_box();
       self.needs_world_matrix_update = false;
+    }
+
+    pub fn get_world_matrix( &self ) -> F32x4x4
+    {
+      self.world_matrix
     }
 
     /// Updates the local transformation matrix based on the current scale, rotation, and translation.
