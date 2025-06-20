@@ -203,6 +203,11 @@ mod private
       }
     }
 
+    pub fn get_attributes( &self ) -> HashMap< Box< str >, AttributeInfo >
+    {
+      self.attributes.clone()
+    }
+
     /// Performs the instanced draw call for the geometry.
     ///
     /// It checks if an index buffer is present and calls `draw_elements` or `draw_arrays` accordingly.
