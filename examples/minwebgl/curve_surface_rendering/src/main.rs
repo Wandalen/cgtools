@@ -2,39 +2,111 @@ use std::cell::RefCell;
 use minwebgl as gl;
 use gl::
 {
+  JsCast,
+  F32x3,
+  math::vector::cross,
   GL,
   WebGl2RenderingContext,
-  web_sys::HtmlCanvasElement,
+  web_sys::
+  {
+    HtmlCanvasElement,
+    wasm_bindgen::closure::Closure,
+    WebGlTexture
+  },
   VectorDataType
 };
 use renderer::webgl::
 {
-  Mesh,
-  Object3D,
-  Node,
-  Geometry,
-  IndexInfo,
-  geometry::AttributeInfo, 
-  loaders::gltf::GLTF, 
-  post_processing::
+  geometry::AttributeInfo, loaders::gltf::GLTF, post_processing::
   {
     self, Pass, SwapFramebuffer
-  }, 
-  Camera, 
-  Material, 
-  Primitive, 
-  Renderer,
-  Scene
+  }, MinFilterMode, MagFilterMode, WrappingMode, Camera, Geometry, IndexInfo, Material, Mesh, Node, Object3D, Primitive, Renderer, Scene, Texture, TextureInfo, Sampler
 };
 use std::rc::Rc;
-use std::any::type_name_of_val;
+use csgrs::CSG;
 
 mod camera_controls;
 mod loaders;
 
+fn upload_texture( gl : &WebGl2RenderingContext, src : Rc< String > ) -> WebGlTexture
+{
+  let window = web_sys::window().unwrap();
+  let document =  window.document().unwrap();
+
+  let texture = gl.create_texture().expect( "Failed to create a texture" );
+
+  let img_element = document.create_element( "img" ).unwrap()
+  .dyn_into::< gl::web_sys::HtmlImageElement >().unwrap();
+  img_element.style().set_property( "display", "none" ).unwrap();
+  let load_texture : Closure< dyn Fn() > = Closure::new
+  (
+    {
+      let gl = gl.clone();
+      let img = img_element.clone();
+      let texture = texture.clone();
+      let src = src.clone();
+      move ||
+      {
+        gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
+        gl.tex_image_2d_with_u32_and_u32_and_html_image_element
+        (
+          gl::TEXTURE_2D,
+          0,
+          gl::RGBA as i32,
+          gl::RGBA,
+          gl::UNSIGNED_BYTE,
+          &img
+        ).expect( "Failed to upload data to texture" );
+
+        gl.generate_mipmap( gl::TEXTURE_2D );
+
+        //match
+        gl::web_sys::Url::revoke_object_url( &src ).unwrap();
+        img.remove();
+      }
+    }
+  );
+
+  img_element.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
+  img_element.set_src( &src );
+  load_texture.forget();
+
+  texture
+}
+
+async fn create_texture( 
+  gl : &WebGl2RenderingContext,
+  image_path : &str
+) -> Option< TextureInfo >
+{
+  let texture_id = upload_texture( gl, Rc::new( image_path.to_string() ) );
+
+  let sampler = Sampler::former()
+  .min_filter( MinFilterMode::Linear )
+  .mag_filter( MagFilterMode::Linear )
+  .wrap_s( WrappingMode::Repeat )
+  .wrap_t( WrappingMode::Repeat )
+  .end();
+
+  let texture = Texture::former()
+  .target( GL::TEXTURE_2D )
+  .source( texture_id )
+  .sampler( sampler )
+  .end();
+
+  let texture_info = TextureInfo
+  {
+    texture : Rc::new( RefCell::new( texture ) ),
+    uv_position : 0,
+  };
+
+  Some( texture_info )
+}
+
 fn make_buffer_attibute_info
 ( 
-  buffer : &web_sys::WebGlBuffer, 
+  buffer : &web_sys::WebGlBuffer,
+  descriptor : gl::BufferDescriptor, 
   offset : i32, 
   stride : i32, 
   slot : u32,
@@ -42,17 +114,6 @@ fn make_buffer_attibute_info
   vector: gl::VectorDataType
 ) -> Result< AttributeInfo, gl::WebglError >
 {
-  let descriptor = match vector.scalar
-  {
-    gl::DataType::U8 => gl::BufferDescriptor::new::< [ u8; 1 ] >(),
-    gl::DataType::I8 => gl::BufferDescriptor::new::< [ i8; 1 ] >(),
-    gl::DataType::U16 => gl::BufferDescriptor::new::< [ u16; 1 ] >(),
-    gl::DataType::I16 => gl::BufferDescriptor::new::< [ i16; 1 ] >(),
-    gl::DataType::U32 => gl::BufferDescriptor::new::< [ u32; 1 ] >(),
-    gl::DataType::F32 => gl::BufferDescriptor::new::< [ f32; 1 ] >(),
-    _ => return Err( gl::WebglError::NotSupportedForType( type_name_of_val( &vector.scalar ) ) )
-  };
-
   let descriptor = descriptor
   .offset( offset )
   .normalized( normalized )
@@ -139,11 +200,13 @@ fn primitives_data_to_gltf
 
   let position_buffer = gl.create_buffer().unwrap();
   let normal_buffer = gl.create_buffer().unwrap();
+  let uv_buffer = gl.create_buffer().unwrap();
 
   for buffer in 
   [
     position_buffer.clone(),
-    normal_buffer.clone()
+    normal_buffer.clone(),
+    uv_buffer.clone()
   ]
   {
     gl_buffers.push( buffer );
@@ -155,6 +218,7 @@ fn primitives_data_to_gltf
       "positions", 
       make_buffer_attibute_info( 
         &position_buffer, 
+        gl::BufferDescriptor::new::< [ f32; 3 ] >(),
         0, 
         3, 
         0, 
@@ -166,11 +230,24 @@ fn primitives_data_to_gltf
       "normals", 
       make_buffer_attibute_info( 
         &normal_buffer, 
+        gl::BufferDescriptor::new::< [ f32; 3 ] >(),
         0, 
         3, 
         1, 
         false,
         VectorDataType::new( mingl::DataType::F32, 3, 1 )
+      ).unwrap() 
+    ),
+    ( 
+      "uvs", 
+      make_buffer_attibute_info( 
+        &normal_buffer, 
+        gl::BufferDescriptor::new::< [ f32; 2 ] >(),
+        0, 
+        2, 
+        2, 
+        true,
+        VectorDataType::new( mingl::DataType::F32, 2, 1 )
       ).unwrap() 
     )
   ];
@@ -188,6 +265,7 @@ fn primitives_data_to_gltf
 
   let mut positions = vec![];
   let mut normals = vec![];
+  let mut uvs = vec![];
   let mut indices = vec![];
 
   for primitive_data in primitives_data
@@ -195,6 +273,7 @@ fn primitives_data_to_gltf
     let last_positions_count = positions.len() as u32;
     positions.extend( primitive_data.attributes.borrow().positions.clone() );
     normals.extend( primitive_data.attributes.borrow().normals.clone() );
+    uvs.extend( primitive_data.attributes.borrow().uvs.clone() );
     let primitive_indices = primitive_data.attributes.borrow().indices.iter()
     .map( | i | i + last_positions_count )
     .collect::< Vec< _ > >();
@@ -237,6 +316,7 @@ fn primitives_data_to_gltf
 
   gl::buffer::upload( &gl, &position_buffer, &positions, GL::STATIC_DRAW );
   gl::buffer::upload( &gl, &normal_buffer, &normals, GL::STATIC_DRAW );
+  gl::buffer::upload( &gl, &uv_buffer, &uvs, GL::STATIC_DRAW );
   gl::index::upload( &gl, &index_buffer, &indices, GL::STATIC_DRAW );
   
   GLTF
@@ -251,10 +331,8 @@ fn primitives_data_to_gltf
   }
 }
 
-fn get_primitives_data() -> Vec< PrimitiveData >
+fn generate_primitive_data( primitive : &CSG< () > ) -> PrimitiveData
 {
-  let primitive = CSG::sphere( 1.0, 32, 16, None );
-
   let mesh = primitive.to_trimesh();
   let mesh = mesh.as_trimesh().unwrap();
 
@@ -266,25 +344,39 @@ fn get_primitives_data() -> Vec< PrimitiveData >
   let indices = mesh.indices()
   .iter()
   .flatten()
+  .cloned()
   .collect::< Vec< _ > >();
 
-  let remap = | value, low1, high1, low2, high2 | low2 + (value - low1) * (high2 - low2) / (high1 - low1);
-  let half_pi = f32::consts::PI / 2;
+  let remap = | value, low1, high1, low2, high2 | 
+  {
+    low2 + (value - low1) * (high2 - low2) / (high1 - low1)
+  };
+  let half_pi = std::f32::consts::PI / 2.0;
 
-  let max = positions.iter().map( | [ _, _, z ] | z ).max().unwrap_or_default();
-  let min = positions.iter().map( | [ _, _, z ] | z ).min().unwrap_or_default();
+  let max = positions.iter()
+  .map( | [ _, _, z ] | z )
+  .max_by(| x, y| x.partial_cmp( &y ).unwrap() )
+  .cloned()
+  .unwrap_or_default();
+  let min = positions.iter()
+  .map( | [ _, _, z ] | z )
+  .min_by(| x, y| x.partial_cmp( &y ).unwrap() )
+  .cloned()
+  .unwrap_or_default();
 
   let uvs = positions.iter()
   .map(
     | [ x, y, z ] |
     {
       let phi = ( y / x ).atan();
-      let u = remap( phi, - half_pi, half_pi, 0.0, 1.0 );
-      let v = remap( phi, min, max, 0.0, 1.0 );
+      let u = remap( phi, - half_pi, half_pi, 0.0_f32, 1.0_f32 );
+      let v = remap( *z, min, max, 0.0, 1.0 );
       [ u, v ]
     }
   )
   .collect::< Vec< _ > >();
+
+  //gl::info!( "{:#?}", positions.iter().zip( uvs.iter() ).collect::< Vec< _ > >() );
 
   let vertices_count = mesh.vertices().len();
 
@@ -295,14 +387,14 @@ fn get_primitives_data() -> Vec< PrimitiveData >
   ( 
     | ids | 
     {
-      let [ a, b, c ] = ( 0..3 ).map( | i | F32x3::from( positions[ ids[ i ] as usize ] ) )
-      .collect::< [ _; 3 ] >();
+      let p = | i | F32x3::from( positions[ ids[ i ] as usize ] );
+      let [ a, b, c ] = [ p( 0 ), p( 1 ), p( 2 ) ];
       let e1 = a - b;
       let e2 = c - b;
-      let c = ndarray_cg::vector::cross( &e1, &e2 );
+      let c = cross( &e1, &e2 );
       ( 0..3 ).for_each
       (
-        | i | normals[ ids[ i ] as usize ] = c.normalize()
+        | i | normals[ ids[ i ] as usize ] = c.normalize().0
       );
     }
   );
@@ -315,14 +407,23 @@ fn get_primitives_data() -> Vec< PrimitiveData >
     indices
   };
 
-  vec![
-    PrimitiveData
-    {
-      attributes : Rc::new( RefCell::new( attributes ) ),
-      material : Rc::new( RefCell::new( Default::new() ) ),
-      transform : Default::new()
-    }
+  PrimitiveData
+  {
+    attributes : Rc::new( RefCell::new( attributes ) ),
+    material : Rc::new( RefCell::new( Material::default() ) ),
+    transform : Transform::default()
+  }
+}
+
+fn get_primitives_data() -> Vec< PrimitiveData >
+{
+  [
+    CSG::sphere( 1.0, 128, 128, None ),
+    CSG::sphere( 500000.0, 16, 8, None )
   ]
+  .iter()
+  .map( | primitive | generate_primitive_data( &primitive ) )
+  .collect::< Vec< _ > >()
 }
 
 fn init_context() -> ( WebGl2RenderingContext, HtmlCanvasElement )
@@ -351,7 +452,7 @@ fn init_camera( canvas : &HtmlCanvasElement ) -> Camera
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
   let near = 0.1;
-  let far = 1000.0;
+  let far = 10000000.0;
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
   camera.set_window_size( [ width, height ].into() );
@@ -365,15 +466,28 @@ async fn run() -> Result< (), gl::WebglError >
 {
   let ( gl, canvas ) = init_context();
 
-  let material = Rc::new( RefCell::new( Material::default() ) );
-  let materials = vec![ material.clone() ];
+  let image_path = "static/curve_surface_rendering/chess.png";
+  let texture0 = create_texture( &gl, image_path ).await;
 
-  let mut primitives_data = vec![];
-  let mut transform = Transform::default();
-  for font_name in font_names
+  let image_path = "static/curve_surface_rendering/uv_test.jpg";
+  let texture1 = create_texture( &gl, image_path ).await;
+
+  let mut primitives_data = get_primitives_data();
+  primitives_data.pop();
+  if let Some( first ) = primitives_data.get( 0 )
   {
-    p.material = material.clone();
-    primitives_data.extend( text_mesh );
+    first.material.borrow_mut().base_color_texture = texture0;
+  }
+  if let Some( second ) = primitives_data.get( 1 )
+  {
+    second.material.borrow_mut().base_color_texture = texture1;
+  }
+
+  let mut materials = vec![];
+  for primitive_data in &primitives_data
+  {
+    primitive_data.material.borrow_mut().base_color_factor = [ 5.0, 5.0, 5.0, 1.0 ].into();
+    materials.push( primitive_data.material.clone() );
   }
 
   let gltf = primitives_data_to_gltf( &gl, primitives_data, materials );
@@ -383,6 +497,7 @@ async fn run() -> Result< (), gl::WebglError >
   let camera = init_camera( &canvas );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
+  renderer.set_ibl( loaders::ibl::load( &gl, "environment_maps/gltf_viewer_ibl_unreal" ).await );
 
   let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
 
