@@ -4,7 +4,7 @@ This example demonstrates how to render a 3D object with a real-time outline eff
 
 The JFA is used as a post-processing technique to efficiently calculate the distance from every pixel to the nearest pixel belonging to the rendered object. This distance information is then used to draw an outline of a specified thickness.
 
-![Showcase]( ./resources/showcase.png )
+![Showcase]( ./showcase.png )
 
 ## How it is useful
 
