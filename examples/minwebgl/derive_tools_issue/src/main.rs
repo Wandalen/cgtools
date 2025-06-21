@@ -3,9 +3,8 @@ fn main() {}
 #[ cfg( test ) ]
 mod tests
 {
-  use derive_tools::EnumCount;
-
-
+  // use derive_tools::EnumCount;
+  use strum::EnumCount;
 
   #[ derive( EnumCount ) ]
   #[allow(dead_code)]

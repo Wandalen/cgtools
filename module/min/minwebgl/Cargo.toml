@@ -99,7 +99,7 @@ web-sys = { workspace = true, optional = true, features = [
   'CanvasRenderingContext2d',
   'ImageData',
   'WebGlFramebuffer',
-  'Url',
-  'Blob',
-  'BlobPropertyBag'
+  "BlobPropertyBag",
+  "Blob",
+  "Url"
 ]}

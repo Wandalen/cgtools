@@ -1,0 +1,138 @@
+{
+  "player_colors": [
+    [
+      255,
+      0,
+      0
+    ],
+    [
+      0,
+      255,
+      0
+    ],
+    [
+      0,
+      0,
+      255
+    ],
+    [
+      255,
+      255,
+      0
+    ],
+    [
+      255,
+      0,
+      255
+    ],
+    [
+      0,
+      255,
+      255
+    ]
+  ],
+  "object_props": [
+    {
+      "name": "Empty",
+      "attributes": {},
+      "sprite": null
+    },
+    {
+      "name": "Capital",
+      "attributes": {},
+      "sprite": {
+        "source": "static/kenney_hexagon_pack/house.png",
+        "width": 0,
+        "height": 0,
+        "x_offset": 0,
+        "y_offset": 0,
+        "scale": 0.012
+      }
+    },
+    {
+      "name": "Castle",
+      "attributes": {},
+      "sprite": {
+        "source": "static/kenney_hexagon_pack/castle_small.png",
+        "width": 0,
+        "height": 0,
+        "x_offset": 0,
+        "y_offset": 0,
+        "scale": 0.012
+      }
+    },
+    {
+      "name": "Pine",
+      "attributes": {},
+      "sprite": {
+        "source": "static/kenney_hexagon_pack/treeRound_large.png",
+        "width": 0,
+        "height": 0,
+        "x_offset": 0,
+        "y_offset": 0,
+        "scale": 0.02
+      }
+    },
+    {
+      "name": "Palm",
+      "attributes": {},
+      "sprite": {
+        "source": "static/kenney_hexagon_pack/cactus1.png",
+        "width": 0,
+        "height": 0,
+        "x_offset": 0,
+        "y_offset": 0,
+        "scale": 0.025
+      }
+    },
+    {
+      "name": "Peasant",
+      "attributes": {},
+      "sprite": {
+        "source": "static/kenney_hexagon_pack/MiniArcherMan.png",
+        "width": 0,
+        "height": 0,
+        "x_offset": 0,
+        "y_offset": 0,
+        "scale": 0.007
+      }
+    },
+    {
+      "name": "Spearman",
+      "attributes": {},
+      "sprite": {
+        "source": "static/kenney_hexagon_pack/MiniSpearMan.png",
+        "width": 0,
+        "height": 0,
+        "x_offset": 0,
+        "y_offset": 0,
+        "scale": 0.007
+      }
+    },
+    {
+      "name": "Knight",
+      "attributes": {},
+      "sprite": {
+        "source": "static/kenney_hexagon_pack/MiniSwordMan.png",
+        "width": 0,
+        "height": 0,
+        "x_offset": 0,
+        "y_offset": 0,
+        "scale": 0.007
+      }
+    },
+    {
+      "name": "Baron",
+      "attributes": {},
+      "sprite": {
+        "source": "static/kenney_hexagon_pack/MiniCavalierMan.png",
+        "width": 0,
+        "height": 0,
+        "x_offset": 0,
+        "y_offset": 0,
+        "scale": 0.005
+      }
+    }
+  ],
+  "terrain_props": []
+}

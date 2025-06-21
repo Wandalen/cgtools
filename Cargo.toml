@@ -132,7 +132,7 @@ path = "module/math/mdmath_core"
 version = "~0.29.0"
 
 [workspace.dependencies.strum]
-version = "~0.25"
+version = "0.27.1"
 
 [workspace.dependencies.mod_interface]
 version = "~0.25.0"
@@ -206,7 +206,7 @@ version = "0.7.6"
 version = "1.8"
 
 [workspace.dependencies.serde]
-version = "1.0.214"
+version = "1.0.219"
 
 [workspace.dependencies.serde_with]
 version = "3.11.0"
@@ -271,3 +271,6 @@ version = "0.37.5"
 
 [workspace.dependencies.serde_json]
 version = "1.0.140"
+
+[workspace.dependencies.nutype]
+version = "0.6.1"
