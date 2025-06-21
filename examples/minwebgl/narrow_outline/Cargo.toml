@@ -2,7 +2,7 @@
 name = "narrow_outline"
 version = "0.1.0"
 edition = "2021"
-authors = [ 
+authors = [
     "Kostiantyn Mysnyk <wandalen@obox.systems>",
     "Bilan Vadym <vadym.b@obox.systems>"
 ]
@@ -20,7 +20,7 @@ rand = { workspace = true }
 getrandom = { workspace = true, features = [ "wasm_js" ] }
 csgrs = { workspace = true }
 parry3d = { workspace = true }
-glam = "0.30.1"
+glam = { workspace = true } # qqq : for Vadym : remove it! Don't ignore rules!
 
 [dependencies.web-sys]
 workspace = true
@@ -43,7 +43,7 @@ features = [
     'HtmlImageElement',
     'ImageBitmap',
     'Url',
-    'WebGlTexture', 
-    'WebGlFramebuffer', 
-    'WebGlRenderbuffer', 
+    'WebGlTexture',
+    'WebGlFramebuffer',
+    'WebGlRenderbuffer',
 ]
