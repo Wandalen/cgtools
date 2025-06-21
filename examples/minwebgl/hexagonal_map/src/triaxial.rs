@@ -1,4 +1,4 @@
-use crate::Axial;
+use crate::Coord;
 use serde::{ Serialize, Deserialize };
 
 #[ derive( Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize ) ]
@@ -12,7 +12,7 @@ pub struct TriAxial
 impl TriAxial
 {
   const SQRT_3 : f32 = 1.73205080757;
-  // Distance between neighbor unit hexagonas equals to length of a triangle side
+  // Distance between neighbor unit hexagonals equals to length of a triangle side
   const SIDE_LENGHT : f32 = Self::SQRT_3;
   const CELL_SIZE : [ f32; 2 ] = [ Self::SIDE_LENGHT * Self::SQRT_3 / 2.0, Self::SIDE_LENGHT * 1.0 ];
 
@@ -63,29 +63,41 @@ impl TriAxial
     ]
   }
 
-  pub const fn corners_axial( &self ) -> [ Axial; 3 ]
+  pub fn corners_axial( &self ) -> [ Coord; 3 ]
   {
-    let Self { b, c, .. } = *self;
-    let is_right = self.is_right() as i32;
-    let is_left = self.is_left() as i32;
-    let offset = is_right + is_left * -1;
-    [
-      Axial::new( -c, -b ),
-      Axial::new( -( offset + c ), -b ),
-      Axial::new( -c, -( offset + b ) ),
-    ]
+    let corner_points = self.corners_points();
+    corner_points.map
+    (
+      | p |
+      {
+        let pixel : tiles_tools::coordinates::pixel::Pixel = p.into();
+        let axial : Coord = pixel.into();
+        axial
+      }
+    )
   }
 
-  pub const fn corners_points( &self ) -> [ [ f32; 2 ]; 3 ]
+  pub fn corners_points( &self ) -> [ [ f32; 2 ]; 3 ]
+  {
+    self.corners().map
+    (
+      | corner |
+      {
+        corner.to_point()
+      }
+    )
+  }
+
+  pub const fn corners( &self ) -> [ TriAxial; 3 ]
   {
     let Self { a, b, c } = *self;
     let is_right = self.is_right() as i32;
     let is_left = self.is_left() as i32;
     let offset = is_right + is_left * -1;
     [
-      Self::new( offset + a, b, c ).to_point(),
-      Self::new( a, b, offset + c ).to_point(),
-      Self::new( a, offset + b, c ).to_point(),
+      Self::new( offset + a, b, c ),
+      Self::new( a, b, offset + c ),
+      Self::new( a, offset + b, c ),
     ]
   }
 }

@@ -23,7 +23,7 @@ mod private
     #[ error( "Failed to create resource {0}" ) ]
     FailedToAllocateResource( &'static str ),
     #[ error( "Cant upload uniform {0} with {1} of length {2}.\nKnown length : [ {3} ]" ) ]
-    CanUploadUniform( &'static str, &'static str, usize, &'static str ),
+    CantUploadUniform( &'static str, &'static str, usize, &'static str ),
     #[ error( "Not supported for type {0}" ) ]
     NotSupportedForType( &'static str ),
 

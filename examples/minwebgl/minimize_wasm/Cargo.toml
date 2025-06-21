@@ -5,6 +5,12 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
-minwebgl = "0.2"
-cgmath = "0.18.0"
-wee_alloc = "0.4"
+
+minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
+cgmath = { workspace = true }
+# qqq : for Yevhen : remove it
+wee_alloc = { workspace = true }
+
+# minwebgl = "0.2"
+# cgmath = "0.18.0"
+# wee_alloc = "0.4"

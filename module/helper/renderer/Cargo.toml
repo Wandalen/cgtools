@@ -2,9 +2,9 @@
 name = "renderer"
 version = "0.1.0"
 edition = "2021"
-authors = [ 
+authors = [
   "Kostiantyn Mysnyk <wandalen@obox.systems>",
-  "Avramenko Yevhenii <yevhenii.av@obox.systems>" 
+  "Avramenko Yevhenii <yevhenii.av@obox.systems>"
 ]
 
 [lints]
@@ -19,7 +19,7 @@ mod_interface = { workspace = true }
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
-glam = "0.30.1"
+glam = { workspace = true } # qqq : for Yevhen : remove
 
 asbytes = { workspace = true }
 former = { workspace = true }
