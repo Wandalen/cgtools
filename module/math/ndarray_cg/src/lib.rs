@@ -49,7 +49,6 @@ crate::mod_interface!
   // own use super::vector;
 
   layer quaternion;
-  own use super::quaternion;
 
   prelude use ::ndarray::prelude::*;
 

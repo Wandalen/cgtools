@@ -1,5 +1,6 @@
 use super::*;
 
+use ndarray_cg::IndexingRef;
 use the_module::
 { 
   Ix2,
@@ -130,10 +131,10 @@ fn test_inverse_column_major()
 fn test_truncate_generic< Descriptor : mat::Descriptor >()
 where 
   Mat4< f32, Descriptor > : 
-      RawSlice< Scalar = f32 > +
       RawSliceMut< Scalar = f32 >,
   Mat3< f32, Descriptor > : 
       RawSliceMut< Scalar = f32 > +
+      IndexingRef< Scalar = f32, Index = Ix2 > +
       PartialEq
 {
   let mat = Mat4::< f32, Descriptor >::from_row_major
@@ -169,8 +170,8 @@ where
     0.0, 0.0, 1.0,
   ]);
 
-  let got = mat.inverse().unwrap();
-  assert_eq!( got, mat );
+  let got = mat.truncate();
+  assert_eq!( got, exp );
 }
 
 #[ test ]

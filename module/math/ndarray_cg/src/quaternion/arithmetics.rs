@@ -73,19 +73,20 @@ mod private
       }
 
 
-      if cos_half_theta.abs() >= E::one() 
+      if cos_half_theta >= E::one() 
       {
         return self;
       }
 
-      //let half = E::one() / ( E::one() + E::one() );
-      let sin_half_theta = ( E::one() - cos_half_theta * cos_half_theta ).sqrt();
-      if sin_half_theta.abs() < E::epsilon() 
+      let sqr_sin_half_theta = E::one() - cos_half_theta * cos_half_theta;
+      if sqr_sin_half_theta <= E::epsilon() 
       {
         return ( self * ( E::one() - s ) + *other * s ).normalize(); 
       }
 
-      let half_theta = cos_half_theta.acos();
+      let sin_half_theta = sqr_sin_half_theta.sqrt();
+      //let half_theta = cos_half_theta.acos();
+      let half_theta = sin_half_theta.atan2( cos_half_theta );
 
       let ratio_a = ( ( E::one() - s ) * half_theta ).sin() / sin_half_theta;
       let ratio_b = ( s * half_theta ).sin() / sin_half_theta; 
