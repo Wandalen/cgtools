@@ -30,7 +30,6 @@ use std::rc::Rc;
 use std::any::type_name_of_val;
 
 mod camera_controls;
-mod loaders;
 mod text;
 
 fn make_buffer_attibute_info

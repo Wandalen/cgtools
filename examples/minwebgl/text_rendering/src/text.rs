@@ -3,8 +3,8 @@ pub mod ufo
 {
   use std::{collections::HashMap, str::FromStr};
   use kurbo::flatten;
-  use mingl::IntoArray;
-use norad::{ PointType, ContourPoint, Contour };
+  use mingl::{geometry::BoundingBox, IntoArray};
+  use norad::{ PointType, ContourPoint, Contour };
   use std::rc::Rc;
   use std::cell::RefCell;
   use minwebgl as gl;
@@ -21,15 +21,27 @@ use norad::{ PointType, ContourPoint, Contour };
   struct Glyph
   {
     _character : char,
-    contours : Vec< Vec< [ f64; 2 ] > >,
-    bounding_box : [ [ f64; 2 ]; 2 ]
+    contours : Vec< Vec< [ f32; 2 ] > >,
+    bounding_box : BoundingBox
   }
 
   impl Glyph
   {
-    fn new( mut contours : Vec< Vec< [ f64; 2 ] > >, character : char ) -> Self
+    fn new( contours : Vec< Vec< [ f64; 2 ] > >, character : char ) -> Self
     {
-      let mut bounding_box = [ [ f64::MAX; 2 ], [ f64::MIN; 2 ] ];
+      let mut contours = contours.into_iter()
+      .map
+      ( 
+        | v | 
+        v.into_iter()
+        .map
+        ( 
+          | [ a, b ] | [ a as f32, b as f32 ] 
+        )
+        .collect::< Vec< _ > >() 
+      )
+      .collect::< Vec< _ > >();
+      let mut bounding_box = [ [ f32::MAX; 2 ], [ f32::MIN; 2 ] ];
 
       for contour in &contours
       {
@@ -48,19 +60,27 @@ use norad::{ PointType, ContourPoint, Contour };
 
       let halfx = ( bounding_box[ 1 ][ 0 ] - bounding_box[ 0 ][ 0 ] ) / 2.0;
       let halfy = ( bounding_box[ 1 ][ 1 ] - bounding_box[ 0 ][ 1 ] ) / 2.0;
+      let offsetx = bounding_box[ 0 ][ 0 ];
+      let offsety = bounding_box[ 0 ][ 1 ];
+      let offsetx = - halfx - offsetx;
+      let offsety = - halfy - offsety;
 
       for contour in contours.iter_mut()
       {
         for point in contour.iter_mut()
         {
-          point[ 0 ] -= halfx;
-          point[ 1 ] -= halfy;
+          point[ 0 ] += offsetx;
+          point[ 1 ] += offsety;
         }
       }
 
       let [ [ x1, y1 ], [ x2,  y2 ] ] = bounding_box;
-      bounding_box = [ [ x1 - halfx, y1 - halfy ], [ x2 - halfx, y2 - halfy ] ];
-
+      let bounding_box = BoundingBox
+      {
+        min : [ ( x1 + offsetx ) as f32, ( y1 + offsety ) as f32, 0.0 ].into(),
+        max : [ ( x2 + offsetx ) as f32, ( y2 + offsety ) as f32, 0.0 ].into()
+      };
+      
       Self
       {
         _character : character,
@@ -69,11 +89,12 @@ use norad::{ PointType, ContourPoint, Contour };
       }
     }
 
-    fn scale( &mut self, scale : f64 )
+    fn scale( &mut self, scale : f32 )
     {
-      let bounding_box = self.bounding_box;
-      let halfx = ( self.bounding_box[ 1 ][ 0 ] - bounding_box[ 0 ][ 0 ] ) / 2.0;
-      let halfy = ( bounding_box[ 1 ][ 1 ] - bounding_box[ 0 ][ 1 ] ) / 2.0;
+      let [ x1, y1, _ ] = self.bounding_box.min.0;
+      let [ x2, y2, _ ] = self.bounding_box.max.0;
+      let halfx = ( x2 - x1 ) / 2.0;
+      let halfy = ( y2 - y1 ) / 2.0;
 
       for contour in self.contours.iter_mut()
       {
@@ -86,8 +107,8 @@ use norad::{ PointType, ContourPoint, Contour };
         }
       }
 
-      let [ [ x1, y1 ], [ x2,  y2 ] ] = bounding_box;
-      self.bounding_box = [ [ ( x1 - halfx ) * scale, ( y1 - halfy ) * scale ], [ ( x2 - halfx ) * scale, ( y2 - halfy ) * scale ] ];
+      self.bounding_box.min = [ ( x1 - halfx ) * scale, ( y1 - halfy ) * scale, 0.0 ].into();
+      self.bounding_box.max = [ ( x2 - halfx ) * scale, ( y2 - halfy ) * scale, 0.0 ].into();
     }
 
     fn from_glif( glif_bytes : Vec< u8 >, character : char ) -> Option< Self >
@@ -285,7 +306,7 @@ use norad::{ PointType, ContourPoint, Contour };
       let mut max_size = 0.0;
       for ( _, glyph ) in &glyphs
       {
-        let glyph_size = glyph.bounding_box[ 1 ][ 0 ] - glyph.bounding_box[ 0 ][ 0 ];
+        let glyph_size = glyph.bounding_box.max.0[ 0 ] - glyph.bounding_box.min.0[ 0 ];
         if max_size < glyph_size
         {
           max_size = glyph_size;
@@ -308,7 +329,7 @@ use norad::{ PointType, ContourPoint, Contour };
   struct Glyph3D
   {
     data : PrimitiveData,
-    bounding_box : [ [ f64; 3 ]; 2 ]
+    bounding_box : BoundingBox
   }
 
   impl From< Glyph > for Glyph3D
@@ -334,12 +355,17 @@ use norad::{ PointType, ContourPoint, Contour };
             material : Rc::new( RefCell::new( Default::default() ) ), 
             transform : Default::default() 
           },
-          bounding_box : [ [ 0.0; 3 ]; 2 ]
+          bounding_box : BoundingBox::default()
         };
       };
 
-      let [ a, b ] = glyph.bounding_box;
-      let bounding_box = [ [ a[ 0 ], a[ 1 ], -0.5 ], [ b[ 0 ], b[ 1 ], 0.5 ] ];
+      let a = glyph.bounding_box.min.0;
+      let b = glyph.bounding_box.max.0;
+      let bounding_box = BoundingBox 
+      { 
+        min : [ a[ 0 ], a[ 1 ], -0.5 ].into(), 
+        max : [ b[ 0 ], b[ 1 ], 0.5 ].into() 
+      };
 
       Self
       {
@@ -349,7 +375,7 @@ use norad::{ PointType, ContourPoint, Contour };
     }
   }
 
-  fn contours_to_mesh( contours : &[ Vec< [ f64; 2 ] > ] ) -> Option< PrimitiveData >
+  fn contours_to_mesh( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
   {
     let mut body_id = 0;
     let mut max_box_diagonal_size = 0;
@@ -551,7 +577,7 @@ use norad::{ PointType, ContourPoint, Contour };
 
     for font_name in font_names
     {
-      let font_path = format!( "fonts/ufo/{}.ufo", font_name );
+      let font_path = format!( "/fonts/ufo/{}.ufo", font_name );
       fonts.insert( font_name.to_string(), Font::new( &font_path ).await );
     }
     
@@ -574,7 +600,7 @@ use norad::{ PointType, ContourPoint, Contour };
     let mut max_x = 0.0;
     for ( _, glyph ) in &font.glyphs
     {
-      let glyph_size_x = glyph.bounding_box[ 1 ][ 0 ] - glyph.bounding_box[ 0 ][ 0 ];
+      let glyph_size_x = glyph.bounding_box.max.0[ 0 ] - glyph.bounding_box.min.0[ 0 ];
       if max_x < glyph_size_x
       {
         max_x = glyph_size_x;
@@ -584,22 +610,22 @@ use norad::{ PointType, ContourPoint, Contour };
     let start_transform = transform.clone();
     let mut transform = start_transform.clone();
     transform.scale = [ 0.003, 0.003, 0.05 ];
-    let halfx = ( max_x / 2.0 ) * transform.scale[ 0 ] as f64;
-    transform.translation[ 0 ] -= ( text.len() as f32 * halfx as f32 ) / 2.0; 
+    let halfx = ( max_x / 2.0 ) * transform.scale[ 0 ];
+    transform.translation[ 0 ] -= ( text.len() as f32 * halfx ) / 2.0; 
 
     for char in text.chars()
     {
       let Some( mut glyph ) = font.glyphs.get( &char ).cloned() 
       else
       {
-        transform.translation[ 0 ] += halfx as f32; 
+        transform.translation[ 0 ] += halfx; 
         continue;
       };
 
-      let diff = ( 250.0 - ( glyph.bounding_box[ 1 ][ 1 ] - glyph.bounding_box[ 0 ][ 1 ] ) ) * transform.scale[ 1 ] as f64;
+      let diff = ( 250.0 - ( glyph.bounding_box.max.0[ 1 ] - glyph.bounding_box.min.0[ 1 ] ) ) * transform.scale[ 1 ];
       transform.translation[ 1 ] = start_transform.translation[ 1 ];
-      transform.translation[ 1 ] -= diff as f32;
-      transform.translation[ 0 ] += halfx as f32; 
+      transform.translation[ 1 ] -= diff;
+      transform.translation[ 0 ] += halfx; 
       glyph.data.transform = transform.clone();
 
       mesh.push( glyph.data.clone() );
