@@ -14,6 +14,18 @@ mod private
     }
   }
 
+  impl< E > Div for Quat< E >
+  where
+    E : MatEl + NdFloat
+  {
+    type Output = Self;
+
+    fn div( self, rhs : Self ) -> Self::Output
+    {
+      self.devide( &rhs )
+    }
+  }
+
   impl< E > DivAssign< E > for Quat< E >
   where
     E : MatEl + NdFloat
@@ -30,7 +42,7 @@ mod private
   {
     fn div_assign( &mut self, rhs: Self ) 
     {
-      *self =  ( *self ) * rhs.conjugate() / rhs.mag2();
+      *self = *self / rhs;
     }
   }
 

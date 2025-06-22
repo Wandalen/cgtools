@@ -1,4 +1,5 @@
 use super::*;
+use approx::assert_abs_diff_eq;
 use ndarray_cg::{IndexingRef, QuatF32, QuatF64};
 use the_module::
 { 
@@ -137,6 +138,7 @@ fn test_truncate_column_major()
 
 fn test_from_quat_generic< Descriptor : mat::Descriptor >()
 where 
+  Descriptor : PartialEq,
   Mat3< f64, Descriptor > : 
       RawSliceMut< Scalar = f64 > + 
       IndexingRef< Scalar = f64, Index = Ix2 > +
@@ -164,7 +166,16 @@ where
 
   assert_eq!( Mat3::< f64, Descriptor >::from_quat( q ), exp, " Mat3 from Quat mismatch" );
 
+   let q = QuatF64::from( [ -5.0, 4.0, 1.0, 10.0 ] ).normalize();
 
+  let exp = Mat3::< f64, Descriptor >::from_column_major
+  ([ 
+    0.7605633802816901, -0.14084507042253522, -0.6338028169014085, 
+    -0.4225352112676056, 0.6338028169014085, -0.6478873239436619, 
+    0.49295774647887325, 0.7605633802816901, 0.4225352112676056,
+  ]);
+
+  assert_abs_diff_eq!( Mat3::< f64, Descriptor >::from_quat( q ), exp );
 }
 
 #[ test ]

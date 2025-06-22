@@ -1,3 +1,5 @@
+use approx::assert_abs_diff_eq;
+
 use super::*;
 
 #[ test ]
@@ -29,27 +31,24 @@ fn test_multiply()
   assert_eq!( q1, exp, "Quaternion *= Quaternion multiplication mismatch" );
 }
 
-// fn test_multiply()
-// where
+#[ test ]
+fn test_devide()
+{
+  use the_module::
+  {
+    QuatF32,
+  };
 
-// {
-//   use the_module::
-//   {
-//     Quat,
-//   };
+  let q1 = QuatF32::from( [ 1.0, 2.0, 3.0, 4.0 ] ).normalize();
+  let q2 = QuatF32::from( [ -5.0, 1.0, 3.0, 10.0 ] ).normalize();
 
-//   let q1 = Quat::from( [ 1.0, 2.0, 3.0, 4.0 ] );
-//   let q2 = Quat::from( [ -5.0, 1.0, 3.0, 10.0 ] );
+  let exp = QuatF32::from( [ 0.4242640687119285, 0.5342584568965025, 0.10999438818457405, 0.7228202652129152 ] );
+  assert_abs_diff_eq!( q1 / q2, exp, );
 
-//   let exp = Quat::from( [ 0.2, 0.252, 0.052, 0.341 ] );
-//   assert_eq!( q1 / q2, exp, "Quaternion / Quaternion division mismatch" );
+  let q1 = QuatF32::from( [ 1.0, 2.0, 3.0, 4.0 ] ).normalize();
+  let q2 = QuatF32::from( [ 0.9, 2.0, 3.0, 4.0 ] ).normalize();
 
-//   let mut q1 = Quat::from( [ 1.0, 2.0, 3.0, 4.0 ] );
-//   let q2 = Quat::from( [ -5.0, 1.0, 3.0, 10.0 ] );
+  let exp = QuatF32::from( [ 0.013375757175498215, 0.010031817881623634, -0.006687878587749038, 0.999837848868489 ] );
+  assert_abs_diff_eq!( q1 / q2, exp, );
 
-//   q1 /= q2;
-
-//   let exp = Quat::from( [ 0.2, 0.252, 0.052, 0.341 ] );
-//   assert_eq!( q1, exp, "Quaternion /= Quaternion division mismatch" );
-
-// }
+}

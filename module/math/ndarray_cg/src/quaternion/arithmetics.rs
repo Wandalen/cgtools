@@ -1,6 +1,6 @@
 mod private
 {
-  use crate::*;
+  use crate:: {mat::DescriptorOrderColumnMajor, * };
 
   impl< E > Quat< E >
   where E : MatEl + NdFloat
@@ -52,6 +52,51 @@ mod private
       self.0.dot( &other.0 )
     }
 
+    pub fn multiply( &self, other : &Self ) -> Self
+    {
+      let q1x = self.x();
+      let q1y = self.y();
+      let q1z = self.z();
+      let q1w = self.w();
+
+      let q2x = other.x();
+      let q2y = other.y();
+      let q2z = other.z();
+      let q2w = other.w(); 
+
+      let x = q1x * q2w + q1y * q2z - q1z * q2y + q1w * q2x;
+      let y = -q1x * q2z + q1y * q2w + q1z * q2x + q1w * q2y;
+      let z = q1x * q2y - q1y * q2x + q1z * q2w + q1w * q2z;
+      let w = -q1x * q2x - q1y * q2y - q1z * q2z + q1w * q2w;
+
+      Self( Vector::< E, 4 >::from( [ x, y, z, w ] ) )
+    }
+
+    pub fn multiply_mut( &mut self, other : &Self )
+    {
+      *self = self.multiply( other );
+    }
+
+    pub fn premultiply( &self, other : &Self ) -> Self
+    {
+      other.multiply( self )
+    }
+
+    pub fn premultiply_mut( &mut self, other : &Self )
+    {
+      *self = self.premultiply( other );
+    }
+
+    pub fn devide( &self, other : &Self ) -> Self
+    {
+      *self * other.invert()
+    }
+
+    pub fn device_mut( &mut self, other : &Self )
+    {
+      *self = self.devide( other );
+    }
+
     /// Performs spehrical linear interpolation between two unit quaternions
     pub fn slerp( self, other : &Self, s : E ) -> Self
     {
@@ -92,6 +137,23 @@ mod private
       let ratio_b = ( s * half_theta ).sin() / sin_half_theta; 
 
       self * ratio_a + *other * ratio_b
+    }
+
+    pub fn slerp_mut( &mut self, other : &Self, s : E )
+    {
+      *self = self.slerp( other, s );
+    }
+
+    /// Inverts the unit length quaternion
+    pub fn invert( &self ) -> Self
+    {
+      self.conjugate()
+    }
+
+    /// Transform the quaterion into a column major 3x3 rotation matrix
+    pub fn to_matrix( &self ) -> Mat3< E, DescriptorOrderColumnMajor >
+    {
+      Mat3::< E, DescriptorOrderColumnMajor >::from_quat( *self )
     }
 
     // pub fn from_rotation_matrix( rot : F32x3x3 )

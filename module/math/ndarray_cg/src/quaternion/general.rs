@@ -1,7 +1,7 @@
 mod private
 {
-  use crate::{ mat::DescriptorOrderColumnMajor, * };
-
+  use crate::*;
+  
   impl< E > Quat< E >
   where 
     E : MatEl
@@ -24,19 +24,6 @@ mod private
     pub fn w( &self ) -> E
     {
       self.0[ 3 ]
-    }
-  }
-
-  impl< E > Quat< E >
-  where 
-    E : MatEl + nd::NdFloat
-  {
-    /// Transform the quaterion into a column major 3x3 rotation matrix
-    pub fn to_matrix( &self ) -> Mat3< E, DescriptorOrderColumnMajor >
-    where 
-      Mat3< E, DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >
-    {
-      Mat3::< E, DescriptorOrderColumnMajor >::from_quat( *self )
     }
   }
 
