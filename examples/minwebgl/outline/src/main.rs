@@ -460,7 +460,7 @@ impl Renderer
 
           gl::uniform::matrix_upload( gl, Some( u_projection_loc.clone() ), &self.camera.get_projection_matrix().to_array(), true ).unwrap();
           gl::uniform::matrix_upload( gl, Some( u_view_loc.clone() ), &self.camera.get_view_matrix().to_array(), true ).unwrap();
-          gl::uniform::matrix_upload( gl, Some( u_model_loc.clone() ), &node.borrow().world_matrix.to_array(), true ).unwrap();
+          gl::uniform::matrix_upload( gl, Some( u_model_loc.clone() ), &node.borrow().get_world_matrix().to_array(), true ).unwrap();
 
           primitive.bind( gl );
           primitive.draw( gl );
@@ -633,7 +633,7 @@ async fn run() -> Result< (), gl::WebglError >
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();
 
-  let gltf_path = "model.glb";
+  let gltf_path = "bike.glb";
   let gltf = load( &document, gltf_path, &renderer.gl ).await?;
   let scenes = gltf.scenes.clone();
   scenes[ 0 ].borrow_mut().update_world_matrix();
