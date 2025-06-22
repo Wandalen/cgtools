@@ -6,8 +6,7 @@ use gl::{
     HtmlElement,
     wasm_bindgen::prelude::Closure,
     HtmlInputElement, 
-    Event,
-    console
+    Event
   }
 };
 use hex_color::HexColor;
@@ -118,14 +117,13 @@ async fn run() -> Result< (), gl::WebglError >
       .expect( "Target should be an input element" );
       let hex_color = input_element.value();
 
-      console::log_1( &format!( "sRGB picker changed to: {}", hex_color ).into() );
+      gl::info!( "sRGB picker changed to: {}", hex_color );
 
       let src_hex_color = match HexColor::parse( &hex_color ) 
       {
         Ok( c ) => c,
         Err( e ) => {
-          console::error_1( &format!( "Failed to parse hex color: {:?}", e ).into() );
-          return;
+          panic!( "Failed to parse hex color: {:?}", e );
         }
       };
 
@@ -224,7 +222,7 @@ async fn run() -> Result< (), gl::WebglError >
             format!( "color(xyz-d65 {:.2} {:.2} {:.2})", x, y, z )
           },
           _ => {
-            console::warn_1( &format!( "Unknown rectangle ID: {}", rect_elem.name ).into() );
+            gl::warn!( "Unknown rectangle ID: {}", rect_elem.name );
             continue;
           }
         };
