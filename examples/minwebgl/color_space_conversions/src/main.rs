@@ -46,11 +46,13 @@ impl RectInfo
 fn get_input_element( document: &web_sys::Document, id: &str ) -> Result< HtmlInputElement, gl::WebglError > 
 {
   document.get_element_by_id( id )
-  .ok_or_else( 
+  .ok_or_else
+  ( 
     || gl::WebglError::MissingDataError( "Element not found ( get_input_element )" ) 
   )?
   .dyn_into::< HtmlInputElement >()
-  .or_else( 
+  .or_else
+  ( 
     | _ | Err( gl::WebglError::NotSupportedForType( "Element can't be converted to HtmlInputElement" ) ) 
   )
 }
@@ -58,11 +60,13 @@ fn get_input_element( document: &web_sys::Document, id: &str ) -> Result< HtmlIn
 fn get_element( document: &web_sys::Document, id: &str ) -> Result< HtmlElement, gl::WebglError > 
 {
   document.get_element_by_id( id )
-  .ok_or_else( 
+  .ok_or_else
+  ( 
     || gl::WebglError::MissingDataError( "Element not found ( get_element )" )
   )?
   .dyn_into::< HtmlElement >()
-  .or_else( 
+  .or_else
+  ( 
     | _ | Err( gl::WebglError::NotSupportedForType( "Element can't be converted to HtmlElement" ) ) 
   )
 }
@@ -109,7 +113,8 @@ async fn run() -> Result< (), gl::WebglError >
 
   let ftou = | c : f32 | ( u8::MAX as f32 * c.clamp( 0.0, 1.0 ) ).round() as u8;
 
-  let update_rectangles = Closure::< dyn FnMut( Event ) >::new( 
+  let update_rectangles = Closure::< dyn FnMut( Event ) >::new
+  ( 
     move | event : Event | 
     {
       let target = event.target().expect( "Event should have a target" );
@@ -122,7 +127,8 @@ async fn run() -> Result< (), gl::WebglError >
       let src_hex_color = match HexColor::parse( &hex_color ) 
       {
         Ok( c ) => c,
-        Err( e ) => {
+        Err( e ) => 
+        {
           panic!( "Failed to parse hex color: {:?}", e );
         }
       };
@@ -134,7 +140,8 @@ async fn run() -> Result< (), gl::WebglError >
         src_hex_color.b as f32 / 255.0,
       ];
 
-      let color_css = format!( 
+      let color_css = format!
+      ( 
         "rgb( {} {} {} )", 
         src_hex_color.r, 
         src_hex_color.g, 
@@ -221,7 +228,8 @@ async fn run() -> Result< (), gl::WebglError >
             let [ x, y, z ] = Srgb::convert::< XyzD65 >( base_srgb_components );
             format!( "color(xyz-d65 {:.2} {:.2} {:.2})", x, y, z )
           },
-          _ => {
+          _ => 
+          {
             gl::warn!( "Unknown rectangle ID: {}", rect_elem.name );
             continue;
           }
@@ -233,10 +241,16 @@ async fn run() -> Result< (), gl::WebglError >
     }
   );
 
-  srgb_color_picker.add_event_listener_with_callback( "input", update_rectangles.as_ref().unchecked_ref() ).unwrap();
+  srgb_color_picker.add_event_listener_with_callback
+  ( 
+    "input", 
+    update_rectangles.as_ref().unchecked_ref() 
+  )
+  .unwrap();
   update_rectangles.forget();
 
-  let initial_event = Event::new( "input" ).expect( "Failed to create initial event" );
+  let initial_event = Event::new( "input" )
+  .expect( "Failed to create initial event" );
   srgb_color_picker.dispatch_event( &initial_event ).unwrap();
 
   Ok( () )
