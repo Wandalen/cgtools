@@ -330,7 +330,6 @@ mod private
     }
   }
 
-
   pub type Mat2< E, Descriptor > = Mat< 2, 2, E, Descriptor >;
   pub type Mat3< E, Descriptor > = Mat< 3, 3, E, Descriptor >;
   pub type Mat4< E, Descriptor > = Mat< 4, 4, E, Descriptor >;

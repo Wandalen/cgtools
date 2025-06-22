@@ -130,7 +130,6 @@ mod private
       }
 
       let sin_half_theta = sqr_sin_half_theta.sqrt();
-      //let half_theta = cos_half_theta.acos();
       let half_theta = sin_half_theta.atan2( cos_half_theta );
 
       let ratio_a = ( ( E::one() - s ) * half_theta ).sin() / sin_half_theta;
@@ -156,10 +155,26 @@ mod private
       Mat3::< E, DescriptorOrderColumnMajor >::from_quat( *self )
     }
 
-    // pub fn from_rotation_matrix( rot : F32x3x3 )
-    // {
+    pub fn from_euler_xyz< T : VectorIter< E, 3 > >( angles : T ) -> Self
+    {
+      let mut iter = angles.vector_iter();
+      let x = *iter.next().unwrap();
+      let y = *iter.next().unwrap();
+      let z = *iter.next().unwrap();
 
-    // }
+      let two = E::one() + E::one();
+      let ( s1, c1 ) = ( x / two ).sin_cos();
+      let ( s2, c2 ) = ( y / two ).sin_cos();
+      let ( s3, c3 ) = ( z / two ).sin_cos();
+
+      let mut q = Self::default();
+      q[ 0 ] = s1 * c2 * c3 + c1 * s2 * s3;
+      q[ 1 ] = c1 * s2 * c3 - s1 * c2 * s3;
+      q[ 2 ] = c1 * c2 * s3 + s1 * s2 * c3;
+      q[ 3 ] = c1 * c2 * c3 - s1 * s2 * s3;
+
+      q
+    }
   }
 }
 

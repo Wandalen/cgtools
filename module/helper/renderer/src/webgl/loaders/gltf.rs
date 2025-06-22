@@ -449,7 +449,7 @@ mod private
       let ( translation, rotation, scale ) = gltf_node.transform().decomposed();
       node.set_scale( scale );
       node.set_translation( translation );
-      node.set_rotation( glam::Quat::from_array( rotation ) );
+      node.set_rotation( gl::QuatF32::from( rotation ) );
       if let Some( name ) = gltf_node.name() { node.set_name( name ); }
 
       nodes.push( Rc::new( RefCell::new( node ) ) );
