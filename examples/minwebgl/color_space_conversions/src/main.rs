@@ -114,7 +114,8 @@ async fn run() -> Result< (), gl::WebglError >
     move | event : Event | 
     {
       let target = event.target().expect( "Event should have a target" );
-      let input_element = target.dyn_into::< HtmlInputElement >().expect( "Target should be an input element" );
+      let input_element = target.dyn_into::< HtmlInputElement >()
+      .expect( "Target should be an input element" );
       let hex_color = input_element.value();
 
       console::log_1( &format!( "sRGB picker changed to: {}", hex_color ).into() );
@@ -145,118 +146,91 @@ async fn run() -> Result< (), gl::WebglError >
 
       for rect_elem in rectangle_elements.iter() 
       {
-        match rect_elem.name.as_str() 
+        let color_css = match rect_elem.name.as_str() 
         {
           "a98rgb" => 
           {
             let [ r, g, b ] = Srgb::convert::< A98Rgb >( base_srgb_components );
-            let color_css = format!( "rgb( {} {} {} )", ftou( r ), ftou( g ), ftou( b ) );
-            set_color( &rect_elem.color_element, &color_css );
-            rect_elem.color_coord_label.set_text_content( Some( &color_css ) );
+            format!( "rgb( {} {} {} )", ftou( r ), ftou( g ), ftou( b ) )
           },
           "aces2065-1" => 
           {
             let [ r, g, b ] = Srgb::convert::< Aces2065_1 >( base_srgb_components );
-            let color_css = format!( "rgb( {} {} {} )", ftou( r ), ftou( g ), ftou( b ) );
-            set_color( &rect_elem.color_element, &color_css );
-            rect_elem.color_coord_label.set_text_content( Some( &color_css ) );
+            format!( "rgb( {} {} {} )", ftou( r ), ftou( g ), ftou( b ) )
           },
           "aces-cg" => 
           {
             let [ r, g, b ] = Srgb::convert::< AcesCg >( base_srgb_components );
-            let color_css = format!( "rgb( {} {} {} )", ftou( r ), ftou( g ), ftou( b ) );
-            set_color( &rect_elem.color_element, &color_css );
-            rect_elem.color_coord_label.set_text_content( Some( &color_css ) );
+            format!( "rgb( {} {} {} )", ftou( r ), ftou( g ), ftou( b ) )
           },
           "display-p3" => 
           {
             let [ r, g, b ] = Srgb::convert::< DisplayP3 >( base_srgb_components );
-            let color_css = format!( "rgb( {} {} {} )", ftou( r ), ftou( g ), ftou( b ) );
-            set_color( &rect_elem.color_element, &color_css );
-            rect_elem.color_coord_label.set_text_content( Some( &color_css ) );
+            format!( "rgb( {} {} {} )", ftou( r ), ftou( g ), ftou( b ) )
           },
           "hsl" => 
           {
             let [ h, s, l ] = Srgb::convert::< Hsl >( base_srgb_components );
-            let color_css = format!( "hsl( {:.2} {:.2} {:.2} )", h, s, l );
-            set_color( &rect_elem.color_element, &color_css );
-            rect_elem.color_coord_label.set_text_content( Some( &color_css ) );
+            format!( "hsl( {:.2} {:.2} {:.2} )", h, s, l )
           },
           "hwb" => 
           {
             let [ h, w, b ] = Srgb::convert::< Hwb >( base_srgb_components );
-            let color_css = format!( "hwb( {:.2} {:.2} {:.2} )", h, w, b );
-            set_color( &rect_elem.color_element, &color_css );
-            rect_elem.color_coord_label.set_text_content( Some( &color_css ) );
+            format!( "hwb( {:.2} {:.2} {:.2} )", h, w, b )
           },
           "lab" => 
           {
             let [ l, a, b ] = Srgb::convert::< Lab >( base_srgb_components );
-            let color_css = format!( "lab( {:.2} {:.2} {:.2} )", l, a, b );
-            set_color( &rect_elem.color_element, &color_css );
-            rect_elem.color_coord_label.set_text_content( Some( &color_css ) );
+            format!( "lab( {:.2} {:.2} {:.2} )", l, a, b )
           },
           "lch" => 
           {
             let [ l, c, h ] = Srgb::convert::< Lch >( base_srgb_components );
-            let color_css = format!( "lch( {:.2} {:.2} {:.2} )", l, c, h );
-            set_color( &rect_elem.color_element, &color_css );
-            rect_elem.color_coord_label.set_text_content( Some( &color_css ) );
+            format!( "lch( {:.2} {:.2} {:.2} )", l, c, h )
           },
           "linear-srgb" => 
           {
             let [ r, g, b ] = Srgb::convert::< LinearSrgb >( base_srgb_components );
-            let color_css = format!( "rgb( {} {} {} )", ftou( r ), ftou( g ), ftou( b ) );
-            set_color( &rect_elem.color_element, &color_css );
-            rect_elem.color_coord_label.set_text_content( Some( &color_css ) );
+            format!( "rgb( {} {} {} )", ftou( r ), ftou( g ), ftou( b ) )
           },
           "oklab" => 
           {
             let [ l, a, b ] = Srgb::convert::< Oklab >( base_srgb_components );
-            let color_css = format!( "oklab( {:.2} {:.2} {:.2} )", l, a, b );
-            set_color( &rect_elem.color_element, &color_css );
-            rect_elem.color_coord_label.set_text_content( Some( &color_css ) );
+            format!( "oklab( {:.2} {:.2} {:.2} )", l, a, b )
           },
           "oklch" => 
           {
             let [ l, c, h ] = Srgb::convert::< Oklch >( base_srgb_components );
-            let color_css = format!( "oklch( {:.2} {:.2} {:.2} )", l, c, h );
-            set_color( &rect_elem.color_element, &color_css );
-            rect_elem.color_coord_label.set_text_content( Some( &color_css ) );
+            format!( "oklch( {:.2} {:.2} {:.2} )", l, c, h )
           },
           "prophoto-rgb" => 
           {
             let [ r, g, b ] = Srgb::convert::< ProphotoRgb >( base_srgb_components );
-            let color_css = format!( "rgb( {} {} {} )", ftou( r ), ftou( g ), ftou( b ) );
-            set_color( &rect_elem.color_element, &color_css );
-            rect_elem.color_coord_label.set_text_content( Some( &color_css ) );
+            format!( "rgb( {} {} {} )", ftou( r ), ftou( g ), ftou( b ) )
           },
           "rec2020" => 
           {
             let [ r, g, b ] = Srgb::convert::< Rec2020 >( base_srgb_components );
-            let color_css = format!( "rgb( {} {} {} )", ftou( r ), ftou( g ), ftou( b ) );
-            set_color( &rect_elem.color_element, &color_css );
-            rect_elem.color_coord_label.set_text_content( Some( &color_css ) );
+            format!( "rgb( {} {} {} )", ftou( r ), ftou( g ), ftou( b ) )
           },
           "xyz-d50" => 
           {
             let [ x, y, z ] = Srgb::convert::< XyzD50 >( base_srgb_components );
-            let color_css = format!( "color(xyz-d50 {:.2} {:.2} {:.2})", x, y, z  );
-            set_color( &rect_elem.color_element, &color_css );
-            rect_elem.color_coord_label.set_text_content( Some( &color_css ) );
+            format!( "color(xyz-d50 {:.2} {:.2} {:.2})", x, y, z  )
           },
           "xyz-d65" => 
           {
             let [ x, y, z ] = Srgb::convert::< XyzD65 >( base_srgb_components );
-            let color_css = format!( "color(xyz-d65 {:.2} {:.2} {:.2})", x, y, z );
-            set_color( &rect_elem.color_element, &color_css );
-            rect_elem.color_coord_label.set_text_content( Some( &color_css ) );
+            format!( "color(xyz-d65 {:.2} {:.2} {:.2})", x, y, z )
           },
           _ => {
             console::warn_1( &format!( "Unknown rectangle ID: {}", rect_elem.name ).into() );
             continue;
           }
         };
+
+        set_color( &rect_elem.color_element, &color_css );
+        rect_elem.color_coord_label.set_text_content( Some( &color_css ) );
       }
     }
   );
