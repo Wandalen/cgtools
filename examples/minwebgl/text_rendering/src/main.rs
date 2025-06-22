@@ -306,7 +306,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut primitives_data = vec![];
   let mut transform = Transform::default();
-  transform.translation[ 1 ] += 1.0 * (font_names.len() as f32 + 1.0 ) / 2.0 + 0.5;
+  transform.translation[ 1 ] += (font_names.len() as f32 + 1.0 ) / 2.0 + 0.5;
   for font_name in font_names
   {
     transform.translation[ 1 ] -= 1.0; 

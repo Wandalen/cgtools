@@ -20,7 +20,7 @@ pub mod ufo
   #[ derive( Clone ) ]
   struct Glyph
   {
-    _character : char,
+    character : char,
     contours : Vec< Vec< [ f32; 2 ] > >,
     bounding_box : BoundingBox
   }
@@ -41,27 +41,35 @@ pub mod ufo
         .collect::< Vec< _ > >() 
       )
       .collect::< Vec< _ > >();
-      let mut bounding_box = [ [ f32::MAX; 2 ], [ f32::MIN; 2 ] ];
+      let [ [ mut x1, mut y1 ], [ mut x2, mut y2 ] ] = [ [ f32::MAX; 2 ], [ f32::MIN; 2 ] ];
 
       for contour in &contours
       {
-        for point in contour
+        for [ x, y ] in contour
         {
-          if *point < bounding_box[ 0 ]
+          if *x < x1
           {
-            bounding_box[ 0 ] = *point;
+            x1 = *x;
           }
-          if *point > bounding_box[ 1 ]
+          if *y < y1
           {
-            bounding_box[ 1 ] = *point;
+            y1 = *y;
+          }
+          if *x > x2
+          {
+            x2 = *x;
+          }
+          if *y > y2
+          {
+            y2 = *y;
           }
         }
       }
 
-      let halfx = ( bounding_box[ 1 ][ 0 ] - bounding_box[ 0 ][ 0 ] ) / 2.0;
-      let halfy = ( bounding_box[ 1 ][ 1 ] - bounding_box[ 0 ][ 1 ] ) / 2.0;
-      let offsetx = bounding_box[ 0 ][ 0 ];
-      let offsety = bounding_box[ 0 ][ 1 ];
+      let halfx = ( x2 - x1 ) / 2.0;
+      let halfy = ( y2 - y1 ) / 2.0;
+      let offsetx = x1;
+      let offsety = y1;
       let offsetx = - halfx - offsetx;
       let offsety = - halfy - offsety;
 
@@ -74,7 +82,6 @@ pub mod ufo
         }
       }
 
-      let [ [ x1, y1 ], [ x2,  y2 ] ] = bounding_box;
       let bounding_box = BoundingBox
       {
         min : [ ( x1 + offsetx ) as f32, ( y1 + offsety ) as f32, 0.0 ].into(),
@@ -83,32 +90,28 @@ pub mod ufo
       
       Self
       {
-        _character : character,
+        character,
         contours,
         bounding_box
       }
     }
 
-    fn scale( &mut self, scale : f32 )
-    {
+    fn scale( &mut self, scale : f32)
+    { 
       let [ x1, y1, _ ] = self.bounding_box.min.0;
       let [ x2, y2, _ ] = self.bounding_box.max.0;
-      let halfx = ( x2 - x1 ) / 2.0;
-      let halfy = ( y2 - y1 ) / 2.0;
 
       for contour in self.contours.iter_mut()
       {
         for point in contour.iter_mut()
         {
-          point[ 0 ] -= halfx;
-          point[ 1 ] -= halfy;
           point[ 0 ] *= scale;
           point[ 1 ] *= scale;
         }
       }
 
-      self.bounding_box.min = [ ( x1 - halfx ) * scale, ( y1 - halfy ) * scale, 0.0 ].into();
-      self.bounding_box.max = [ ( x2 - halfx ) * scale, ( y2 - halfy ) * scale, 0.0 ].into();
+      self.bounding_box.min = [ x1 * scale, y1 * scale, 0.0 ].into();
+      self.bounding_box.max = [ x2 * scale, y2 * scale, 0.0 ].into();
     }
 
     fn from_glif( glif_bytes : Vec< u8 >, character : char ) -> Option< Self >
@@ -248,7 +251,8 @@ pub mod ufo
   #[ derive( Clone ) ]
   pub struct Font
   {
-    glyphs : HashMap< char, Glyph >
+    glyphs : HashMap< char, Glyph >,
+    _max_size : BoundingBox
   }
 
   impl Font
@@ -303,24 +307,51 @@ pub mod ufo
         }
       }
 
-      let mut max_size = 0.0;
+      let [ mut max_x, mut max_y ] = [ 0.0, 0.0 ];
       for ( _, glyph ) in &glyphs
       {
-        let glyph_size = glyph.bounding_box.max.0[ 0 ] - glyph.bounding_box.min.0[ 0 ];
-        if max_size < glyph_size
+        let [ x1, y1, _ ] = glyph.bounding_box.min.0;
+        let [ x2, y2, _ ] = glyph.bounding_box.max.0;
+        let x = x2 - x1;
+        let y = y2 - y1;
+        if max_x < x
         {
-          max_size = glyph_size;
+          max_x = x;
+        }
+        if max_y < y
+        {
+          max_y = y;
         }
       }
 
+      let scale = 250.0;
       for ( _, glyph ) in glyphs.iter_mut()
       {
-        glyph.scale( 250.0 / max_size );
+        glyph.scale( scale / max_y );
+      }
+
+      let mut min = F32x3::MAX; 
+      let mut max = F32x3::MIN; 
+      for ( _, glyph ) in &glyphs
+      {
+        if min > glyph.bounding_box.min
+        {
+          min = glyph.bounding_box.min;
+        }
+        if max < glyph.bounding_box.max
+        {
+          max = glyph.bounding_box.max;
+        }
       }
 
       Self
       {
-        glyphs
+        glyphs,
+        _max_size : BoundingBox 
+        { 
+          min, 
+          max  
+        }
       }
     }
   }
@@ -328,6 +359,7 @@ pub mod ufo
   #[ derive( Clone ) ]
   struct Glyph3D
   {
+    character : char,
     data : PrimitiveData,
     bounding_box : BoundingBox
   }
@@ -341,6 +373,7 @@ pub mod ufo
       {
         return Self
         {
+          character : ' ',
           data : PrimitiveData { 
             attributes : Rc::new( 
               RefCell::new( 
@@ -369,6 +402,7 @@ pub mod ufo
 
       Self
       {
+        character : glyph.character,
         data : primitive_data,
         bounding_box
       }
@@ -550,7 +584,8 @@ pub mod ufo
 
   pub struct Font3D
   {
-    glyphs : HashMap< char, Glyph3D > 
+    glyphs : HashMap< char, Glyph3D >,
+    max_size : BoundingBox
   }
 
   impl From< Font > for Font3D
@@ -564,9 +599,28 @@ pub mod ufo
         glyphs.insert( char, glyph.into() );
       }
 
+      let mut min = F32x3::MAX; 
+      let mut max = F32x3::MIN; 
+      for ( _, glyph ) in glyphs.iter_mut()
+      {
+        if min > glyph.bounding_box.min
+        {
+          min = glyph.bounding_box.min;
+        }
+        if max < glyph.bounding_box.max
+        {
+          max = glyph.bounding_box.max;
+        }
+      }
+
       Self
       {
-        glyphs
+        glyphs,
+        max_size : BoundingBox 
+        { 
+          min, 
+          max  
+        }
       }
     }
   }
@@ -597,21 +651,34 @@ pub mod ufo
   {
     let mut mesh = vec![]; 
 
-    let mut max_x = 0.0;
-    for ( _, glyph ) in &font.glyphs
-    {
-      let glyph_size_x = glyph.bounding_box.max.0[ 0 ] - glyph.bounding_box.min.0[ 0 ];
-      if max_x < glyph_size_x
-      {
-        max_x = glyph_size_x;
-      }
-    }    
-
     let start_transform = transform.clone();
     let mut transform = start_transform.clone();
     transform.scale = [ 0.003, 0.003, 0.05 ];
-    let halfx = ( max_x / 2.0 ) * transform.scale[ 0 ];
-    transform.translation[ 0 ] -= ( text.len() as f32 * halfx ) / 2.0; 
+    let max_x = font.max_size.max[ 0 ] - font.max_size.min[ 0 ];
+    let max_y = font.max_size.max[ 1 ] - font.max_size.min[ 1 ];
+    let halfx = max_x * transform.scale[ 0 ];
+
+    for char in text.chars()
+    {
+      let Some( glyph ) = font.glyphs.get( &char )
+      else
+      {
+        transform.translation[ 0 ] -= halfx / 2.0; 
+        continue;
+      };
+
+      let glyph_x = ( glyph.bounding_box.max.0[ 0 ] - glyph.bounding_box.min.0[ 0 ] ) * transform.scale[ 0 ];
+      transform.translation[ 0 ] -= if glyph_x < halfx / 4.0
+      {
+        halfx / 2.0
+      }
+      else
+      {
+        glyph_x / 2.0
+      }
+    }
+
+    
 
     for char in text.chars()
     {
@@ -622,10 +689,19 @@ pub mod ufo
         continue;
       };
 
-      let diff = ( 250.0 - ( glyph.bounding_box.max.0[ 1 ] - glyph.bounding_box.min.0[ 1 ] ) ) * transform.scale[ 1 ];
+      let glyph_y = glyph.bounding_box.max.0[ 1 ] - glyph.bounding_box.min.0[ 1 ];
+      let diff = ( max_y - ( glyph_y * 0.5 ) ) * transform.scale[ 1 ];
       transform.translation[ 1 ] = start_transform.translation[ 1 ];
       transform.translation[ 1 ] -= diff;
-      transform.translation[ 0 ] += halfx; 
+      let glyph_x = ( glyph.bounding_box.max.0[ 0 ] - glyph.bounding_box.min.0[ 0 ] ) * transform.scale[ 0 ];
+      transform.translation[ 0 ] += if glyph_x < halfx / 4.0
+      {
+        halfx
+      }
+      else
+      {
+        glyph_x
+      };
       glyph.data.transform = transform.clone();
 
       mesh.push( glyph.data.clone() );
