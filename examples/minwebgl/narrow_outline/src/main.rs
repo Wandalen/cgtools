@@ -366,7 +366,7 @@ pub fn add_attributes
     {
       let primitive = primitive.borrow();
       let mut geometry = primitive.geometry.borrow_mut();
-      let _ = geometry.add_attribute( gl, "object_id", object_id_info.clone(), false );
+      let _ = geometry.add_attribute( gl, "object_ids", object_id_info.clone(), false );
     }
   }
 
@@ -624,7 +624,7 @@ fn primitives_csgrs_gltf
   let attribute_infos = 
   [
     ( 
-      "position", 
+      "positions", 
       make_buffer_attibute_info( 
         &position_buffer, 
         0, 
@@ -635,7 +635,7 @@ fn primitives_csgrs_gltf
       ).unwrap() 
     ),
     ( 
-      "normal", 
+      "normals", 
       make_buffer_attibute_info( 
         &normal_buffer, 
         0, 
@@ -646,7 +646,7 @@ fn primitives_csgrs_gltf
       ).unwrap() 
     ),
     ( 
-      "object_id", 
+      "object_ids", 
       make_buffer_attibute_info( 
         &object_id_buffer, 
         0, 
