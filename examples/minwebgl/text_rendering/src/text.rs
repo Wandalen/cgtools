@@ -3,7 +3,8 @@ pub mod ufo
 {
   use std::{collections::HashMap, str::FromStr};
   use kurbo::flatten;
-  use norad::{ PointType, ContourPoint, Contour };
+  use mingl::IntoArray;
+use norad::{ PointType, ContourPoint, Contour };
   use std::rc::Rc;
   use std::cell::RefCell;
   use minwebgl as gl;
@@ -112,18 +113,18 @@ pub mod ufo
             let mut y = None;
             let smooth = true;
 
-            'attr : for attr in element.attributes()
+            for attr in element.attributes()
             {
               let Ok( attr ) = attr
               else 
               {
-                continue 'attr;
+                continue;
               };
 
               let Ok( value ) = String::from_utf8( attr.value.to_vec() )
               else 
               {
-                continue 'attr;
+                continue;
               };
 
               match attr.key.0
@@ -135,11 +136,11 @@ pub mod ufo
                   let Ok( t ) = PointType::from_str( &value )
                   else
                   {
-                    continue 'attr;
+                    continue;
                   };
                   typ = t;
                 }
-                _ => continue 'attr
+                _ => continue
               }
             }
 
@@ -238,7 +239,7 @@ pub mod ufo
 
       for c in b'a'..=b'z' 
       {
-        let glyph_path = glyphs_path.clone() + "/" + &( c as char ).to_string() + ".glif";
+        let glyph_path = format!( "{}/{}.glif", glyphs_path, c as char );
         let glif_bytes = gl::file::load( &glyph_path ).await
         .expect( "Failed to load glif file" );
         if let Some( glyph ) = Glyph::from_glif( glif_bytes, c as char )
@@ -249,7 +250,7 @@ pub mod ufo
 
       for c in b'A'..=b'Z' 
       {
-        let glyph_path = glyphs_path.clone() + "/" + &( c as char ).to_string() + "_.glif";
+        let glyph_path = format!( "{}/{}_.glif", glyphs_path, c as char );
         let glif_bytes = gl::file::load( &glyph_path ).await
         .expect( "Failed to load glif file" );
         if let Some( glyph ) = Glyph::from_glif( glif_bytes, c as char )
@@ -272,7 +273,7 @@ pub mod ufo
         ( '9', "nine" )
       ]
       {
-        let glyph_path = glyphs_path.clone() + "/" + name + ".glif";
+        let glyph_path = format!( "{}/{}.glif", glyphs_path, name );
         let glif_bytes = gl::file::load( &glyph_path ).await
         .expect( "Failed to load glif file" );
         if let Some( glyph ) = Glyph::from_glif( glif_bytes, c )
@@ -491,22 +492,17 @@ pub mod ufo
     ( 
       | ids | 
       {
-        let t = ( 0..3 )
-        .map( | i | F32x3::from( positions[ ids[ i ] as usize ] ) )
-        .collect::< Vec< _ > >();
-        let e1 = t[ 0 ] - t[ 1 ];
-        let e2 = t[ 2 ] - t[ 1 ];
+        let a = F32x3::from( positions[ ids[ 0 ] as usize ] );
+        let b = F32x3::from( positions[ ids[ 1 ] as usize ] );
+        let c = F32x3::from( positions[ ids[ 2 ] as usize ] );
+        let e1 = a - b;
+        let e2 = c - b;
         let c = cross( &e1, &e2 );
         ( 0..3 ).for_each
         (
-          | i | normals[ ids[ i ] as usize ] = [ c[ 0 ], c[ 1 ], c[ 2 ] ]
+          | i | normals[ ids[ i ] as usize ] = c.normalize().as_array()
         );
       }
-    );
-
-    normals.iter_mut()
-    .for_each( 
-      | n | *n = *F32x3::from_array( *n ).normalize()
     );
 
     let attributes = AttributesData
@@ -555,7 +551,7 @@ pub mod ufo
 
     for font_name in font_names
     {
-      let font_path = "fonts/ufo/".to_string() + &font_name + ".ufo";
+      let font_path = format!( "fonts/ufo/{}.ufo", font_name );
       fonts.insert( font_name.to_string(), Font::new( &font_path ).await );
     }
     

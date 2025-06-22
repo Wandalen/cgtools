@@ -291,14 +291,14 @@ async fn run() -> Result< (), gl::WebglError >
 {
   let ( gl, canvas ) = init_context();
 
-  let font_names = vec![
+  let font_names = [
     "Roboto-Regular".to_string(),
     "Caveat".to_string(),
     "HennyPenny-Regular".to_string(),
     "Parisienne-Regular".to_string()
   ];
 
-  let fonts_3d = text::ufo::load_fonts_3d( &font_names ).await;
+  let fonts_3d = text::ufo::load_fonts_3d( font_names.as_slice() ).await;
 
   let text = "CGTools".to_string();
 

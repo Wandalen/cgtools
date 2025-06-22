@@ -203,9 +203,9 @@ mod private
       }
     }
 
-    pub fn get_attributes( &self ) -> HashMap< Box< str >, AttributeInfo >
+    pub fn get_attributes( &self ) -> &HashMap< Box< str >, AttributeInfo >
     {
-      self.attributes.clone()
+      &self.attributes
     }
 
     /// Performs the instanced draw call for the geometry.
