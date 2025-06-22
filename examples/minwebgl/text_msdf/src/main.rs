@@ -7,7 +7,7 @@ use minwebgl::{ self as gl, wasm_bindgen::prelude::Closure, JsCast };
 mod text;
 mod json;
 
-fn run() -> Result< (), gl::WebglError >
+async fn run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
 
@@ -24,9 +24,11 @@ fn run() -> Result< (), gl::WebglError >
   let height = canvas.height() as f32;
 
   let text = "Cgtools";
-  let font_str = include_str!( "../assets/font/Alike-Regular.json" );
+
+  let font_str = String::from_utf8( gl::file::load( "font/Alike-Regular.json" ).await.unwrap() ).unwrap();  
+  //let font_str = include_str!( "../assets/font/Alike-Regular.json" );
   // Parse font from the provided file
-  let font = json::MSDFFontJSON::parse_font( font_str );
+  let font = json::MSDFFontJSON::parse_font( &font_str );
   // Create render data from the text based on the font
   let fortmatted_text = font.format( text );
   let buffer = gl::buffer::create( &gl )?;
@@ -148,5 +150,5 @@ fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  run().unwrap()
+  gl::spawn_local( async move { run().await.unwrap() } );
 }

@@ -2,6 +2,7 @@
 mod private
 {
 
+  /// Creates a blob from u8 slice sequence and options
   pub fn create_blob< T : Into< web_sys::js_sys::Array > >( data : T, mime_type : &str )
   -> Result< String, crate::JsValue >
   {
