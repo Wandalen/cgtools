@@ -12,7 +12,6 @@ authors = [
 minwebgl = { workspace = true, features = [ "future" ] }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 renderer = { workspace = true }
-glam = { workspace = true } # qqq : for Vadym : remove it! Don't ignore rules!
 ndarray_cg = { workspace = true }
 gltf = "1.4"
 

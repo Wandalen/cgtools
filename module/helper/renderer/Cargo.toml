@@ -19,7 +19,6 @@ mod_interface = { workspace = true }
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
-glam = { workspace = true } # qqq : for Yevhen : remove
 
 asbytes = { workspace = true }
 former = { workspace = true }

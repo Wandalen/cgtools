@@ -20,7 +20,6 @@ rand = { workspace = true }
 getrandom = { workspace = true, features = [ "wasm_js" ] }
 csgrs = { workspace = true }
 parry3d = { workspace = true }
-glam = { workspace = true } # qqq : for Vadym : remove it! Don't ignore rules!
 
 [dependencies.web-sys]
 workspace = true

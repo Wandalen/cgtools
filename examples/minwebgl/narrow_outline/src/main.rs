@@ -715,7 +715,7 @@ fn primitives_csgrs_gltf
       node_mut.object = Object3D::Mesh( mesh );
 
       node_mut.set_translation( [ t[ 0 ], t[ 1 ], t[ 2 ] ] );
-      let q = glam::Quat::from_euler( glam::EulerRot::XYZ, t[ 3 ], t[ 4 ], t[ 5 ] );
+      let q = gl::QuatF32::from_euler_xyz( [ t[ 3 ], t[ 4 ], t[ 5 ] ] );
       node_mut.set_rotation( q );
       node_mut.set_scale( [ t[ 6 ], t[ 7 ], t[ 8 ] ] );
       node_mut.update_local_matrix();
