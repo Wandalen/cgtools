@@ -7,8 +7,6 @@ license = "MIT"
 [dependencies]
 
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
-cgmath = { workspace = true }
-# qqq : for Yevhen : remove it
 wee_alloc = { workspace = true }
 
 # minwebgl = "0.2"

@@ -155,6 +155,30 @@ mod private
       Mat3::< E, DescriptorOrderColumnMajor >::from_quat( *self )
     }
 
+    /// Creates a quaternion from rotation around the X axis in radians
+    pub fn from_angle_x( x : E ) -> Self
+    {
+      let two = E::one() + E::one();
+      let ( s, c ) = ( x / two ).sin_cos();
+      Self::from( [ s, E::zero(), E::zero(), c ] )
+    }
+
+    /// Creates a quaternion from rotation around the Y axis in radians
+    pub fn from_angle_y( y : E ) -> Self
+    {
+      let two = E::one() + E::one();
+      let ( s, c ) = ( y / two ).sin_cos();
+      Self::from( [ E::zero(), s, E::zero(), c ] )
+    }
+
+    /// Creates a quaternion from rotation around the Z axis in radians
+    pub fn from_angle_z( z : E ) -> Self
+    {
+      let two = E::one() + E::one();
+      let ( s, c ) = ( z / two ).sin_cos();
+      Self::from( [ E::zero(), E::zero(), s, c ] )
+    }
+
     pub fn from_euler_xyz< T : VectorIter< E, 3 > >( angles : T ) -> Self
     {
       let mut iter = angles.vector_iter();

@@ -127,12 +127,12 @@ version = "~0.3.0"
 path = "module/math/mdmath_core"
 
 # qqq : for Yevhen : comment out it
-[workspace.dependencies.cgmath]
-version = "0.18.0"
+#[workspace.dependencies.cgmath]
+#version = "0.18.0"
 
 # qqq : for Yevhen : comment out it
-[workspace.dependencies.glam]
-version = "0.29.0"
+#[workspace.dependencies.glam]
+#version = "0.29.0"
 
 # = external dependencies
 

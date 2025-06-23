@@ -53,6 +53,69 @@ fn test_devide()
 }
 
 #[ test ]
+fn test_from_angle_x()
+{
+  use the_module::
+  {
+    QuatF64,
+  };
+
+  let q = QuatF64::from_angle_x( 1.0 );
+  let exp = QuatF64::from( [ 0.479425538604203, 0.0, 0.0, 0.8775825618903728 ] );
+  assert_abs_diff_eq!( q, exp );
+
+  let q = QuatF64::from_angle_x( -1.0 );
+  let exp = QuatF64::from( [ -0.479425538604203, 0.0, 0.0, 0.8775825618903728 ] );
+  assert_abs_diff_eq!( q, exp );
+
+  let q = QuatF64::from_angle_x( 256.0 );
+  let exp = QuatF64::from( [ 0.7210377105017316, -0.0, 0.0, -0.6928958219201651 ] );
+  assert_abs_diff_eq!( q, exp );
+}
+
+#[ test ]
+fn test_from_angle_y()
+{
+  use the_module::
+  {
+    QuatF64,
+  };
+
+  let q = QuatF64::from_angle_y( 1.0 );
+  let exp = QuatF64::from( [ 0.0, 0.479425538604203, 0.0, 0.8775825618903728 ] );
+  assert_abs_diff_eq!( q, exp );
+
+  let q = QuatF64::from_angle_y( -1.0 );
+  let exp = QuatF64::from( [ 0.0, -0.479425538604203, 0.0, 0.8775825618903728 ] );
+  assert_abs_diff_eq!( q, exp );
+
+  let q = QuatF64::from_angle_y( 256.0 );
+  let exp = QuatF64::from( [ 0.0, 0.7210377105017316, 0.0, -0.6928958219201651 ] );
+  assert_abs_diff_eq!( q, exp );
+}
+
+#[ test ]
+fn test_from_angle_z()
+{
+  use the_module::
+  {
+    QuatF64,
+  };
+
+  let q = QuatF64::from_angle_z( 1.0 );
+  let exp = QuatF64::from( [ 0.0, 0.0, 0.479425538604203, 0.8775825618903728 ] );
+  assert_abs_diff_eq!( q, exp );
+
+  let q = QuatF64::from_angle_z( -1.0 );
+  let exp = QuatF64::from( [ 0.0, 0.0, -0.479425538604203, 0.8775825618903728 ] );
+  assert_abs_diff_eq!( q, exp );
+
+  let q = QuatF64::from_angle_z( 256.0 );
+  let exp = QuatF64::from( [ 0.0, 0.0, 0.7210377105017316, -0.6928958219201651 ] );
+  assert_abs_diff_eq!( q, exp );
+}
+
+#[ test ]
 fn test_from_euler_xyz()
 {
   use the_module::
