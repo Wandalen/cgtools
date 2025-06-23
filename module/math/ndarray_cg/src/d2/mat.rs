@@ -62,7 +62,7 @@ mod private
   // =
 
   /// Ordinary coordinates with row-major ordering.
-  #[ derive( Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, Display ) ]
+  #[ derive( Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, derive_tools::exposed::Display ) ]
   #[ display( "DescriptorOrderRowMajor" ) ]
   pub struct DescriptorOrderRowMajor;
   impl Descriptor for DescriptorOrderRowMajor {
@@ -93,7 +93,7 @@ mod private
   // = DescriptorOrderColumnMajor
 
   /// Ordinary coordinates with column-major ordering.
-  #[ derive( Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, Display ) ]
+  #[ derive( Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, derive_tools::exposed::Display ) ]
   #[ display( "DescriptorOrderColumnMajor" ) ]
   pub struct DescriptorOrderColumnMajor;
   impl Descriptor for DescriptorOrderColumnMajor {
