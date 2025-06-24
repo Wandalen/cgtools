@@ -16,14 +16,12 @@ minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
 renderer = { workspace = true }
-zune-hdr = { workspace = true }
 glam = { workspace = true }
-rand = { workspace = true }
-getrandom = { workspace = true, features = [ "wasm_js" ] }
+csgrs = { workspace = true, features = [ "truetype-text" ] }
+parry3d = { workspace = true }
 norad = { workspace = true, default-features = false, features = [ "kurbo" ] }
 parley = { workspace = true }
 kurbo = { workspace = true }
-earcutr = { workspace = true }
 i_overlay = { workspace = true }
 i_triangle = { workspace = true }
 i_float = { workspace = true }
