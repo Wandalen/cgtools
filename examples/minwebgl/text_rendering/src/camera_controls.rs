@@ -1,6 +1,6 @@
 
 
-use std::{cell::RefCell, rc::Rc};
+use std::{ cell::RefCell, rc::Rc };
 
 use mingl::CameraOrbitControls;
 use minwebgl::{ self as gl, JsCast };
