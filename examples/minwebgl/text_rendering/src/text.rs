@@ -41,30 +41,12 @@ pub mod ufo
         .collect::< Vec< _ > >() 
       )
       .collect::< Vec< _ > >();
-      let [ [ mut x1, mut y1 ], [ mut x2, mut y2 ] ] = [ [ f32::MAX; 2 ], [ f32::MIN; 2 ] ];
 
-      for contour in &contours
-      {
-        for [ x, y ] in contour
-        {
-          if *x < x1
-          {
-            x1 = *x;
-          }
-          if *y < y1
-          {
-            y1 = *y;
-          }
-          if *x > x2
-          {
-            x2 = *x;
-          }
-          if *y > y2
-          {
-            y2 = *y;
-          }
-        }
-      }
+      let flat_contours = contours.iter().flatten().flatten().cloned().collect::< Vec< _ > >();
+      let bounding_box = BoundingBox::compute2d( &flat_contours );
+
+      let [ x1, y1 ] = [ bounding_box.left(), bounding_box.down() ];
+      let [ x2, y2 ] = [ bounding_box.right(), bounding_box.up() ];
 
       let halfx = ( x2 - x1 ) / 2.0;
       let halfy = ( y2 - y1 ) / 2.0;
@@ -98,8 +80,8 @@ pub mod ufo
 
     fn scale( &mut self, scale : f32)
     { 
-      let [ x1, y1, _ ] = self.bounding_box.min.0;
-      let [ x2, y2, _ ] = self.bounding_box.max.0;
+      let [ x1, y1 ] = [ self.bounding_box.left(), self.bounding_box.down() ];
+      let [ x2, y2 ] = [ self.bounding_box.right(), self.bounding_box.up() ];
 
       for contour in self.contours.iter_mut()
       {
@@ -310,8 +292,8 @@ pub mod ufo
       let [ mut max_x, mut max_y ] = [ 0.0, 0.0 ];
       for ( _, glyph ) in &glyphs
       {
-        let [ x1, y1, _ ] = glyph.bounding_box.min.0;
-        let [ x2, y2, _ ] = glyph.bounding_box.max.0;
+        let [ x1, y1 ] = [ glyph.bounding_box.left(), glyph.bounding_box.down() ];
+        let [ x2, y2 ] = [ glyph.bounding_box.right(), glyph.bounding_box.up() ];
         let x = x2 - x1;
         let y = y2 - y1;
         if max_x < x
@@ -359,7 +341,7 @@ pub mod ufo
   #[ derive( Clone ) ]
   struct Glyph3D
   {
-    character : char,
+    _character : char,
     data : PrimitiveData,
     bounding_box : BoundingBox
   }
@@ -373,7 +355,7 @@ pub mod ufo
       {
         return Self
         {
-          character : ' ',
+          _character : ' ',
           data : PrimitiveData { 
             attributes : Rc::new( 
               RefCell::new( 
@@ -402,7 +384,7 @@ pub mod ufo
 
       Self
       {
-        character : glyph.character,
+        _character : glyph.character,
         data : primitive_data,
         bounding_box
       }
@@ -667,7 +649,7 @@ pub mod ufo
         continue;
       };
 
-      let glyph_x = ( glyph.bounding_box.max.0[ 0 ] - glyph.bounding_box.min.0[ 0 ] ) * transform.scale[ 0 ];
+      let glyph_x = glyph.bounding_box.width() * transform.scale[ 0 ];
       transform.translation[ 0 ] -= if glyph_x < halfx / 4.0
       {
         halfx / 2.0
@@ -678,7 +660,264 @@ pub mod ufo
       }
     }
 
+    for char in text.chars()
+    {
+      let Some( mut glyph ) = font.glyphs.get( &char ).cloned() 
+      else
+      {
+        transform.translation[ 0 ] += halfx; 
+        continue;
+      };
+
+      let glyph_y = glyph.bounding_box.height();
+      let diff = ( max_y - ( glyph_y * 0.5 ) ) * transform.scale[ 1 ];
+      transform.translation[ 1 ] = start_transform.translation[ 1 ];
+      transform.translation[ 1 ] -= diff;
+      let glyph_x = glyph.bounding_box.width() * transform.scale[ 0 ];
+      transform.translation[ 0 ] += if glyph_x < halfx / 4.0
+      {
+        halfx
+      }
+      else
+      {
+        glyph_x
+      };
+      glyph.data.transform = transform.clone();
+
+      mesh.push( glyph.data.clone() );
+    }
+
+    mesh
+  }
+}
+
+pub mod ttf 
+{
+  use crate::{ PrimitiveData, AttributesData, Transform };
+  use csgrs::CSG;
+  use minwebgl as gl;
+  use gl::
+  {
+    geometry::BoundingBox,
+    web::file,
+    math::vector::cross,
+    F32x3,
+    IntoArray
+  };
+  use std::rc::Rc;
+  use std::cell::RefCell;
+  use std::collections::HashMap;
+
+  #[ derive( Clone ) ]
+  struct Glyph3D
+  {
+    _character : char,
+    data : PrimitiveData,
+    bounding_box : BoundingBox
+  }
+
+  impl Glyph3D
+  {
+    fn from_ttf( ttf_bytes : &[ u8 ], character : char ) -> Self
+    {
+      let c = character.to_string();
+      let mut csg : CSG< () > = CSG::text( &c, ttf_bytes, 1.0, None )
+      .extrude( 0.5 );
+
+      let m = csg.bounding_box().mins;
+      csg = csg.translate_vector( [ - m.x, - m.y, - m.z ].into() );
+
+      let m = csg.bounding_box().maxs;
+      csg = csg.translate_vector( [ - m.x / 2.0, - m.y / 2.0, - m.z / 2.0 ].into() );
+
+      let min = csg.bounding_box().mins;
+      let max = csg.bounding_box().maxs;
+      let min = [ min.x as f32, min.y as f32, min.z as f32 ];
+      let max = [ max.x as f32, max.y as f32, max.z as f32 ];
+
+      let bounding_box = BoundingBox::new( min, max );
+      
+      let mesh = csg.to_trimesh().unwrap();
+
+      let positions = mesh.vertices()
+      .iter()
+      .map( | p | [ p.coords.x as f32, p.coords.y as f32, p.coords.z as f32 ] )
+      .collect::< Vec< _ > >();
+
+      let indices = mesh.indices()
+      .iter()
+      .cloned()
+      .flatten()
+      .collect::< Vec< _ > >();
+
+      let mut normals = vec![ [ 0.0; 3 ]; positions.len() ];
+      indices.chunks( 3 )
+      .for_each
+      ( 
+        | ids | 
+        {
+          let a = F32x3::from( positions[ ids[ 0 ] as usize ] );
+          let b = F32x3::from( positions[ ids[ 1 ] as usize ] );
+          let c = F32x3::from( positions[ ids[ 2 ] as usize ] );
+          let e1 = a - b;
+          let e2 = c - b;
+          let c = cross( &e1, &e2 );
+          ( 0..3 ).for_each
+          (
+            | i | normals[ ids[ i ] as usize ] = c.normalize().as_array()
+          );
+        }
+      );
+
+      let attributes = AttributesData
+      {
+        positions : positions, 
+        normals, 
+        indices, 
+      };
+
+      let data = PrimitiveData 
+      { 
+        attributes : Rc::new( RefCell::new( attributes ) ),
+        material : Rc::new( RefCell::new( renderer::webgl::Material::default() ) ), 
+        transform : Transform::default()  
+      };
+
+      Self
+      {
+        _character : character,
+        data,
+        bounding_box,
+      }
+    }
+
+    fn scale( &mut self, scale : [ f32; 3 ] )
+    { 
+      for position in self.data.attributes.borrow_mut().positions.iter_mut()
+      {
+        position[ 0 ] *= scale[ 0 ];
+        position[ 1 ] *= scale[ 1 ];
+        position[ 2 ] *= scale[ 2 ];
+      }
+
+      let scale : F32x3 = scale.into();
+      self.bounding_box.min = self.bounding_box.min * scale;
+      self.bounding_box.max = self.bounding_box.max * scale;
+    }
+  }
+
+  pub struct Font3D
+  {
+    glyphs : HashMap< char, Glyph3D >,
+    max_size : BoundingBox
+  }
+
+  impl Font3D
+  {
+    async fn new( path : &str ) -> Self
+    {
+      let ttf_bytes = file::load( path ).await
+      .expect( "Failed to load ttf file" );
+
+      let mut glyphs = HashMap::< char, Glyph3D >::new();
+
+      for c in [ 'C', 'G', 'T', 'o', 'l', 's' ]
+      {
+        glyphs.insert( c, Glyph3D::from_ttf( &ttf_bytes, c as char ) );
+      }
+
+      let [ mut max_x, mut max_y ] = [ 0.0, 0.0 ];
+      for ( _, glyph ) in &glyphs
+      {
+        let [ x1, y1 ] = [ glyph.bounding_box.left(), glyph.bounding_box.down() ];
+        let [ x2, y2 ] = [ glyph.bounding_box.right(), glyph.bounding_box.up() ];
+        let x = x2 - x1;
+        let y = y2 - y1;
+        if max_x < x
+        {
+          max_x = x;
+        }
+        if max_y < y
+        {
+          max_y = y;
+        }
+      }
+
+      let scale = 250.0;
+      for ( _, glyph ) in glyphs.iter_mut()
+      {
+        glyph.scale( [ scale / max_y, scale / max_y, 1.0 ] );
+      }
+
+      let mut min = F32x3::MAX; 
+      let mut max = F32x3::MIN; 
+      for ( _, glyph ) in &glyphs
+      {
+        if min > glyph.bounding_box.min
+        {
+          min = glyph.bounding_box.min;
+        }
+        if max < glyph.bounding_box.max
+        {
+          max = glyph.bounding_box.max;
+        }
+      }
+
+      Self
+      {
+        glyphs,
+        max_size : BoundingBox 
+        { 
+          min, 
+          max  
+        }
+      }
+    }
+  }
+
+  pub async fn load_fonts_3d( font_names : &[ String ] ) -> HashMap< String, Font3D >
+  {
+    let mut fonts = HashMap::< String, Font3D >::new();
+
+    for font_name in font_names
+    {
+      let font_path = format!( "/fonts/ttf/{}.ttf", font_name );
+      fonts.insert( font_name.to_string(), Font3D::new( &font_path ).await );
+    }
     
+    fonts
+  }
+
+  pub fn text_to_mesh( text : &str, font : &Font3D, transform : &Transform ) -> Vec< PrimitiveData >
+  {
+    let mut mesh = vec![]; 
+
+    let start_transform = transform.clone();
+    let mut transform = start_transform.clone();
+    transform.scale = [ 0.003, 0.003, 0.05 ];
+    let max_x = font.max_size.max[ 0 ] - font.max_size.min[ 0 ];
+    let max_y = font.max_size.max[ 1 ] - font.max_size.min[ 1 ];
+    let halfx = max_x * transform.scale[ 0 ];
+
+    for char in text.chars()
+    {
+      let Some( glyph ) = font.glyphs.get( &char )
+      else
+      {
+        transform.translation[ 0 ] -= halfx / 2.0; 
+        continue;
+      };
+
+      let glyph_x = glyph.bounding_box.width() * transform.scale[ 0 ];
+      transform.translation[ 0 ] -= if glyph_x < halfx / 4.0
+      {
+        halfx / 2.0
+      }
+      else
+      {
+        glyph_x / 2.0
+      }
+    }
 
     for char in text.chars()
     {
@@ -689,11 +928,11 @@ pub mod ufo
         continue;
       };
 
-      let glyph_y = glyph.bounding_box.max.0[ 1 ] - glyph.bounding_box.min.0[ 1 ];
+      let glyph_y = glyph.bounding_box.height();
       let diff = ( max_y - ( glyph_y * 0.5 ) ) * transform.scale[ 1 ];
       transform.translation[ 1 ] = start_transform.translation[ 1 ];
       transform.translation[ 1 ] -= diff;
-      let glyph_x = ( glyph.bounding_box.max.0[ 0 ] - glyph.bounding_box.min.0[ 0 ] ) * transform.scale[ 0 ];
+      let glyph_x = glyph.bounding_box.width() * transform.scale[ 0 ];
       transform.translation[ 0 ] += if glyph_x < halfx / 4.0
       {
         halfx
