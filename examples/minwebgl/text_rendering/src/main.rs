@@ -205,7 +205,7 @@ fn primitives_data_to_gltf
 
     let Ok( mut geometry ) = Geometry::new( gl ) else
     {
-      continue;
+      panic!( "Can't create new Geometry struct" );
     };
 
     for ( name, info ) in &attribute_infos
@@ -297,7 +297,8 @@ async fn run() -> Result< (), gl::WebglError >
     "Parisienne-Regular".to_string()
   ];
 
-  let fonts_3d = text::ufo::load_fonts_3d( font_names.as_slice() ).await;
+  let fonts_ufo_3d = text::ufo::load_fonts_3d( font_names.as_slice() ).await;
+  let fonts_ttf_3d = text::ttf::load_fonts_3d( font_names.as_slice() ).await;
 
   let text = "CGTools".to_string();
 
@@ -305,12 +306,24 @@ async fn run() -> Result< (), gl::WebglError >
   let materials = vec![ material.clone() ];
 
   let mut primitives_data = vec![];
-  let mut transform = Transform::default();
-  transform.translation[ 1 ] += (font_names.len() as f32 + 1.0 ) / 2.0 + 0.5;
+  let mut transform_ufo = Transform::default();
+  transform_ufo.translation[ 1 ] += (font_names.len() as f32 + 1.0 ) / 2.0 + 0.5;
+  transform_ufo.translation[ 0 ] -= 1.8;
+  let mut transform_ttf = Transform::default();
+  transform_ttf.translation[ 1 ] += (font_names.len() as f32 + 1.0 ) / 2.0 + 0.5;
+  transform_ttf.translation[ 0 ] += 1.8;
   for font_name in font_names
   {
-    transform.translation[ 1 ] -= 1.0; 
-    let mut text_mesh = text::ufo::text_to_mesh( &text, fonts_3d.get( &font_name ).unwrap(), &transform );
+    transform_ufo.translation[ 1 ] -= 1.0; 
+    let mut text_mesh = text::ufo::text_to_mesh( &text, fonts_ufo_3d.get( &font_name ).unwrap(), &transform_ufo );
+    for p in text_mesh.iter_mut()
+    {
+      p.material = material.clone()
+    }
+    primitives_data.extend( text_mesh );
+
+    transform_ttf.translation[ 1 ] -= 1.0; 
+    let mut text_mesh = text::ttf::text_to_mesh( &text, fonts_ttf_3d.get( &font_name ).unwrap(), &transform_ttf );
     for p in text_mesh.iter_mut()
     {
       p.material = material.clone()

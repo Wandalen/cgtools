@@ -426,7 +426,6 @@ pub fn add_primitive
 
   let p = primitive;
 
-  let mesh = p.to_trimesh();
   let mesh = mesh.as_trimesh().unwrap();
 
   let primitive_positions = mesh.vertices()
@@ -460,7 +459,7 @@ pub fn add_primitive
       (
         | i |
         {
-          primitive_normals[ ( ids[ i ] - *vertex_offset ) as usize ] = [ c[ 0 ], c[ 1 ], c[ 2 ] ];
+          primitive_normals[ ( *ids[ i ] - *vertex_offset ) as usize ] = [ c[ 0 ], c[ 1 ], c[ 2 ] ];
         }
       );
     }
@@ -518,7 +517,7 @@ fn get_primitives_and_transform() -> Vec< ( CSG< () >, [ f32; 9 ] ) >
     {
       // Direct cube/cuboid primitive.
       // Parameters: width, length, height
-      CSG::cube( 1.0, 1.0, 1.0, None )
+      CSG::cube( 1.0, None )
     },
     {
       // Capsule3d is constructed by unioning a cylinder with two hemispheres (spheres).
