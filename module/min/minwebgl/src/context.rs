@@ -23,7 +23,7 @@ mod private
     #[ error( "Failed to create resource {0}" ) ]
     FailedToAllocateResource( &'static str ),
     #[ error( "Cant upload uniform {0} with {1} of length {2}.\nKnown length : [ {3} ]" ) ]
-    CanUploadUniform( &'static str, &'static str, usize, &'static str ),
+    CantUploadUniform( &'static str, &'static str, usize, &'static str ),
     #[ error( "Not supported for type {0}" ) ]
     NotSupportedForType( &'static str ),
 
@@ -33,7 +33,8 @@ mod private
     DomError( #[ from ] dom::Error ),
     #[ error( "Shader error :: {0}" ) ]
     ShaderError( #[ from ] shader::Error ),
-
+    #[ error( "Can't find {0}" ) ]
+    MissingDataError( &'static str ),
   }
 
   pub fn from_canvas( canvas : &HtmlCanvasElement ) -> Result< GL, Error >

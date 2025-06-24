@@ -2,7 +2,7 @@
 name = "outline"
 version = "0.1.0"
 edition = "2021"
-authors = [ 
+authors = [
     "Kostiantyn Mysnyk <wandalen@obox.systems>",
     "Bilan Vadym <vadym.b@obox.systems>"
 ]
@@ -12,9 +12,8 @@ authors = [
 minwebgl = { workspace = true, features = [ "future" ] }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 renderer = { workspace = true }
-glam = "0.29.0"
 ndarray_cg = { workspace = true }
-gltf = "1.4" 
+gltf = "1.4"
 
 [dependencies.web-sys]
 workspace = true
@@ -36,6 +35,6 @@ features = [
     'HtmlImageElement',
     'ImageBitmap',
     'Url',
-    'WebGlTexture', 
-    'WebGlFramebuffer', 
+    'WebGlTexture',
+    'WebGlFramebuffer',
 ]

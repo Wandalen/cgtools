@@ -209,6 +209,56 @@ mod private
   {
   }
 
+  impl< E, const SIZE : usize > AbsDiffEq for Vector< E, SIZE >
+  where
+    E : AbsDiffEq + MatEl,
+    E::Epsilon : Copy,
+  {
+    type Epsilon = < [ E ] as AbsDiffEq< [ E ] > >::Epsilon;
+
+    fn default_epsilon() -> Self::Epsilon 
+    {
+      E::default_epsilon()
+    }
+
+    fn abs_diff_eq( &self, other: &Self, epsilon: Self::Epsilon ) -> bool 
+    {
+      < [ E ] as AbsDiffEq< [ E ] > >::abs_diff_eq( &self.0, &other.0, epsilon )   
+    }
+  }
+
+  impl< E, const SIZE : usize > RelativeEq for Vector< E, SIZE >
+  where
+    E : RelativeEq + MatEl,
+    E::Epsilon : Copy,
+  {
+    fn default_max_relative() -> Self::Epsilon 
+    {
+      E::default_max_relative()
+    }
+
+    fn relative_eq( &self, other: &Self, epsilon: Self::Epsilon, max_relative: Self::Epsilon ) -> bool 
+    {
+      < [ E ] as RelativeEq< [ E ] > >::relative_eq( &self.0, &other.0, epsilon, max_relative )
+    }
+  }
+
+  impl< E, const SIZE : usize > UlpsEq for Vector< E, SIZE >
+  where
+    E : UlpsEq + MatEl,
+    E::Epsilon : Copy,
+  {
+    fn default_max_ulps() -> u32 
+    {
+      E::default_max_ulps()
+    }
+
+    fn ulps_eq( &self, other: &Self, epsilon: Self::Epsilon, max_ulps: u32 ) -> bool 
+    {
+      < [ E ] as UlpsEq< [ E ] > >::ulps_eq( &self.0, &other.0, epsilon, max_ulps )
+    }
+  }
+
 }
 
 crate::mod_interface!

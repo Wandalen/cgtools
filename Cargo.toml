@@ -69,29 +69,29 @@ path = "module/helper/renderer"
 
 # = draw
 
-[workspace.dependencies.draw_lang]
-version = "~0.1.0"
-path = "module/draw/lang"
-
-[workspace.dependencies.draw_lang_core]
-version = "~0.1.0"
-path = "module/draw/core"
-
-[workspace.dependencies.draw_lang_derive]
-version = "~0.1.0"
-path = "module/draw/derive"
-
-[workspace.dependencies.draw_lang_primitives]
-version = "~0.1.0"
-path = "module/draw/primitives"
-
-[workspace.dependencies.draw_lang_transform]
-version = "~0.1.0"
-path = "module/draw/transform"
-
-[workspace.dependencies.draw_lang_yew]
-version = "~0.1.0"
-path = "module/draw/yew"
+# [workspace.dependencies.draw_lang]
+# version = "~0.1.0"
+# path = "module/draw/lang"
+#
+# [workspace.dependencies.draw_lang_core]
+# version = "~0.1.0"
+# path = "module/draw/core"
+#
+# [workspace.dependencies.draw_lang_derive]
+# version = "~0.1.0"
+# path = "module/draw/derive"
+#
+# [workspace.dependencies.draw_lang_primitives]
+# version = "~0.1.0"
+# path = "module/draw/primitives"
+#
+# [workspace.dependencies.draw_lang_transform]
+# version = "~0.1.0"
+# path = "module/draw/transform"
+#
+# [workspace.dependencies.draw_lang_yew]
+# version = "~0.1.0"
+# path = "module/draw/yew"
 
 # = min
 
@@ -126,33 +126,45 @@ path = "module/alias/ndarray_tools"
 version = "~0.3.0"
 path = "module/math/mdmath_core"
 
+# qqq : for Yevhen : comment out it
+#[workspace.dependencies.cgmath]
+#version = "0.18.0"
+
+# qqq : for Yevhen : comment out it
+#[workspace.dependencies.glam]
+#version = "0.29.0"
+
 # = external dependencies
 
 [workspace.dependencies.derive_tools]
-version = "~0.29.0"
+version = "~0.36.0"
+
+[workspace.dependencies.component_model]
+version = "~0.4.0"
 
 [workspace.dependencies.strum]
-version = "~0.25"
+version = "0.27.1"
 
 [workspace.dependencies.mod_interface]
-version = "~0.25.0"
+version = "~0.34.0"
 
 [workspace.dependencies.former]
-version = "~2.9.0"
+version = "~2.18.0"
 
 [workspace.dependencies.error_tools]
-version = "0.17.0"
+version = "0.22.0"
 
 [workspace.dependencies.test_tools]
-version = "~0.14.0"
+version = "~0.16.0"
 
 [workspace.dependencies.clone_dyn_types]
-version = "~0.23.0"
+version = "~0.31.0"
 
 [workspace.dependencies.asbytes]
 version = "0.2.0"
 
 # = third-party dependencies
+# qqq : categorize them
 
 [workspace.dependencies.log]
 version = "0.4.27"
@@ -206,7 +218,7 @@ version = "0.7.6"
 version = "1.8"
 
 [workspace.dependencies.serde]
-version = "1.0.214"
+version = "1.0.219"
 
 [workspace.dependencies.serde_with]
 version = "3.11.0"
@@ -274,3 +286,16 @@ version = "0.37.5"
 
 [workspace.dependencies.serde_json]
 version = "1.0.140"
+
+[workspace.dependencies.color]
+version = "0.3.1"
+
+[workspace.dependencies.hex_color]
+version = "3.0.0"
+
+[workspace.dependencies.wee_alloc]
+version = "0.4"
+
+# qqq : avoid this crate, use derive_tools and component_model
+[workspace.dependencies.nutype]
+version = "0.6.1"

@@ -1,5 +1,7 @@
 use super::*;
 
+use approx::{assert_abs_diff_eq, assert_relative_eq};
+use ndarray_cg::{IndexingRef, QuatF64};
 use the_module::
 { 
   Ix2,
@@ -130,10 +132,10 @@ fn test_inverse_column_major()
 fn test_truncate_generic< Descriptor : mat::Descriptor >()
 where 
   Mat4< f32, Descriptor > : 
-      RawSlice< Scalar = f32 > +
       RawSliceMut< Scalar = f32 >,
   Mat3< f32, Descriptor > : 
       RawSliceMut< Scalar = f32 > +
+      IndexingRef< Scalar = f32, Index = Ix2 > +
       PartialEq
 {
   let mat = Mat4::< f32, Descriptor >::from_row_major
@@ -169,8 +171,8 @@ where
     0.0, 0.0, 1.0,
   ]);
 
-  let got = mat.inverse().unwrap();
-  assert_eq!( got, mat );
+  let got = mat.truncate();
+  assert_eq!( got, exp );
 }
 
 #[ test ]
@@ -183,4 +185,86 @@ fn test_truncate_row_major()
 fn test_truncate_column_major()
 {
   test_truncate_generic::< mat::DescriptorOrderColumnMajor >();
+}
+
+
+fn test_from_scale_rotation_translation_generic< Descriptor : mat::Descriptor >()
+where 
+  Descriptor : PartialEq,
+  Mat4< f64, Descriptor > : 
+      ScalarMut< Scalar = f64 > + 
+      RawSliceMut< Scalar = f64 > +
+      IndexingMut< Scalar = f64, Index = Ix2 >
+{
+  let s = [ 1.0, 2.0, 3.0 ];
+  let r = QuatF64::from( [ 0.0, 0.0, 0.0, 1.0 ] ).normalize();
+  let t = [ 0.0, 0.0, 0.0 ];
+
+  let got = Mat4::< f64, Descriptor >::from_scale_rotation_translation( s, r, t );
+  let exp = Mat4::< f64, Descriptor >::from_column_major
+  ([ 
+    1.0, 0.0, 0.0, 0.0, 
+    0.0, 2.0, 0.0, 0.0, 
+    0.0, 0.0, 3.0, 0.0, 
+    0.0, 0.0, 0.0, 1.0 
+  ]);
+
+  assert_abs_diff_eq!( got, exp );
+
+  let s = [ 1.0, 1.0, 1.0 ];
+  let r = QuatF64::from( [ -5.0, 4.0, 1.0, 10.0 ] ).normalize();
+  let t = [ 0.0, 0.0, 0.0 ];
+
+  let got = Mat4::< f64, Descriptor >::from_scale_rotation_translation( s, r, t );
+  let exp = Mat4::< f64, Descriptor >::from_column_major
+  ([ 
+    0.7605633802816901, -0.14084507042253522, -0.6338028169014085, 0.0, 
+    -0.4225352112676056, 0.6338028169014085, -0.6478873239436619, 0.0, 
+    0.49295774647887325, 0.7605633802816901, 0.4225352112676056, 0.0, 
+    0.0, 0.0, 0.0, 1.0 
+  ]);
+
+  assert_abs_diff_eq!( got, exp );
+
+  let s = [ 1.0, 1.0, 1.0 ];
+  let r = QuatF64::from( [ 0.0, 0.0, 0.0, 1.0 ] ).normalize();
+  let t = [ 1.0, -10.0, 30.0 ];
+
+  let got = Mat4::< f64, Descriptor >::from_scale_rotation_translation( s, r, t );
+  let exp = Mat4::< f64, Descriptor >::from_column_major
+  ([ 
+    1.0, 0.0, 0.0, 0.0, 
+    0.0, 1.0, 0.0, 0.0, 
+    0.0, 0.0, 1.0, 0.0, 
+    1.0, -10.0, 30.0, 1.0 
+  ]);
+
+  assert_abs_diff_eq!( got, exp );
+
+  let s = [ 1.0, 2.0, 3.0 ];
+  let r = QuatF64::from( [ -5.0, 4.0, 1.0, 10.0 ] ).normalize();
+  let t = [ 1.0, -10.0, 30.0 ];
+
+  let got = Mat4::< f64, Descriptor >::from_scale_rotation_translation( s, r, t );
+  let exp = Mat4::< f64, Descriptor >::from_column_major
+  ([ 
+    0.7605633802816901, -0.14084507042253522, -0.6338028169014085, 0.0, 
+    -0.8450704225352113, 1.2676056338028168, -1.2957746478873242, 
+    0.0, 1.4788732394366197, 2.281690140845071, 1.2676056338028165, 0.0, 
+    1.0, -10.0, 30.0, 1.0 
+  ]);
+
+  assert_abs_diff_eq!( got, exp );
+}
+
+#[ test ]
+fn test_from_scale_rotation_translation_row_major()
+{
+  test_from_scale_rotation_translation_generic::< mat::DescriptorOrderRowMajor >();
+}
+
+#[ test ]
+fn test_from_scale_rotation_translation_column_major()
+{
+  test_from_scale_rotation_translation_generic::< mat::DescriptorOrderColumnMajor >();
 }

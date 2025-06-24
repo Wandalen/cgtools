@@ -1,8 +1,8 @@
 mod private
 {
   use crate::*;
-  // use vector::arithmetics::inner_product::*;
-  use vector::{ sum };
+// use vector::arithmetics::inner_product::*;
+  use vector::{ sum, sum_scalar };
 
   impl< E, const LEN : usize > Add for Vector< E, LEN >
   where
@@ -13,6 +13,18 @@ mod private
     fn add( self, rhs : Self ) -> Self::Output
     {
         sum( &self, &rhs )
+    }
+  }
+
+  impl< E, const LEN : usize > Add< E > for Vector< E, LEN >
+  where
+  E : MatEl + NdFloat
+  {
+    type Output = Self;
+
+    fn add( self, rhs : E ) -> Self::Output
+    {
+        sum_scalar( &self, rhs )
     }
   }
 
@@ -36,6 +48,7 @@ mod private
         *self = *self + rhs;
     }
   }
+
 }
 
 crate::mod_interface!

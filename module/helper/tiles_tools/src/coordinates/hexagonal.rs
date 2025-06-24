@@ -68,6 +68,14 @@ impl< System, Orientation > Hash for Coordinate< System, Orientation >
   }
 }
 
+impl< System, Orientation > Default for Coordinate< System, Orientation >
+{
+  fn default() -> Self
+  {
+    Self { q : Default::default(), r : Default::default(), _marker : Default::default() }
+  }
+}
+
 impl< System, Orientation > Into< I32x2 > for Coordinate< System, Orientation >
 {
   fn into( self ) -> I32x2

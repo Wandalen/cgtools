@@ -366,7 +366,7 @@ pub fn add_attributes
     {
       let primitive = primitive.borrow();
       let mut geometry = primitive.geometry.borrow_mut();
-      let _ = geometry.add_attribute( gl, "object_id", object_id_info.clone(), false );
+      let _ = geometry.add_attribute( gl, "object_ids", object_id_info.clone(), false );
     }
   }
 
@@ -624,7 +624,7 @@ fn primitives_csgrs_gltf
   let attribute_infos = 
   [
     ( 
-      "position", 
+      "positions", 
       make_buffer_attibute_info( 
         &position_buffer, 
         0, 
@@ -635,7 +635,7 @@ fn primitives_csgrs_gltf
       ).unwrap() 
     ),
     ( 
-      "normal", 
+      "normals", 
       make_buffer_attibute_info( 
         &normal_buffer, 
         0, 
@@ -646,7 +646,7 @@ fn primitives_csgrs_gltf
       ).unwrap() 
     ),
     ( 
-      "object_id", 
+      "object_ids", 
       make_buffer_attibute_info( 
         &object_id_buffer, 
         0, 
@@ -715,7 +715,7 @@ fn primitives_csgrs_gltf
       node_mut.object = Object3D::Mesh( mesh );
 
       node_mut.set_translation( [ t[ 0 ], t[ 1 ], t[ 2 ] ] );
-      let q = glam::Quat::from_euler( glam::EulerRot::XYZ, t[ 3 ], t[ 4 ], t[ 5 ] );
+      let q = gl::QuatF32::from_euler_xyz( [ t[ 3 ], t[ 4 ], t[ 5 ] ] );
       node_mut.set_rotation( q );
       node_mut.set_scale( [ t[ 6 ], t[ 7 ], t[ 8 ] ] );
       node_mut.update_local_matrix();
@@ -942,8 +942,8 @@ impl Renderer
 
           gl::uniform::matrix_upload( gl, Some( u_projection_loc.clone() ), &self.camera.get_projection_matrix().to_array(), true ).unwrap();
           gl::uniform::matrix_upload( gl, Some( u_view_loc.clone() ), &self.camera.get_view_matrix().to_array(), true ).unwrap();
-          gl::uniform::matrix_upload( gl, Some( u_model_loc.clone() ), &node.borrow().world_matrix.to_array(), true ).unwrap();
-          let normal_matrix = self.camera.get_view_matrix() * node.borrow().world_matrix;
+          gl::uniform::matrix_upload( gl, Some( u_model_loc.clone() ), &node.borrow().get_world_matrix().to_array(), true ).unwrap();
+          let normal_matrix = self.camera.get_view_matrix() * node.borrow().get_world_matrix();
           gl::uniform::matrix_upload( gl, Some( u_normal_matrix_loc.clone() ), &normal_matrix.to_array(), true ).unwrap();
 
           primitive.bind( gl );
@@ -1030,7 +1030,7 @@ async fn run() -> Result< (), gl::WebglError >
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();
 
-  let gltf_path = "model.glb";
+  let gltf_path = "bike.glb";
   let mut gltf = load( &document, gltf_path, &renderer.gl ).await?;
   let _ = add_attributes( &renderer.gl, &mut gltf );
 
