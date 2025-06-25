@@ -18,7 +18,7 @@ enum CameraState
 }
 
 
-pub fn setup_controls
+pub fn bind_controls_to_input
 (
   canvas : &HtmlCanvasElement,
   camera : &Rc< RefCell< CameraOrbitControls > >
