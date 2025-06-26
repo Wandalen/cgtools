@@ -1,9 +1,9 @@
-use minwebgl::{ self as gl, GL };
+use minwebgl as gl;
 use gl::
 {
   F32x4,
   drawbuffers::drawbuffers,
-  WebGl2RenderingContext,
+  GL,
   web_sys::
   {
     WebGlFramebuffer, 
@@ -35,7 +35,7 @@ use std::rc::Rc;
 /// its color attachment texture, or `None` if creation fails.
 fn create_framebuffer
 (
-  gl : &gl::WebGl2RenderingContext,
+  gl : &gl::GL,
   width : u32,
   height : u32
 ) 
@@ -54,6 +54,7 @@ fn create_framebuffer
 
   let framebuffer = gl.create_framebuffer()?;
   gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &framebuffer ) );
+  gl.viewport(0, 0, width as i32, height as i32 );
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, Some( &color ), 0 );
   gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::RENDERBUFFER, Some( &depthbuffer ) );
 
@@ -69,12 +70,14 @@ pub struct CanvasRenderer
   program : WebGlProgram,
   uniforms : HashMap< String, Option< gl::WebGlUniformLocation > >,
   framebuffer : WebGlFramebuffer,
-  output_texture : WebGlTexture
+  output_texture : WebGlTexture,
+  width : u32,
+  height : u32
 } 
 
 impl CanvasRenderer
 {
-  pub fn new( gl : &WebGl2RenderingContext, width : u32, height : u32 ) -> Result< Self, gl::WebglError >
+  pub fn new( gl : &GL, width : u32, height : u32 ) -> Result< Self, gl::WebglError >
   {
     let vertex_shader_src = include_str!( "../shaders/canvas.vert" );
     let fragment_shader_src = include_str!( "../shaders/canvas.frag" );
@@ -96,7 +99,6 @@ impl CanvasRenderer
     add_location( "worldMatrix" );
     add_location( "viewMatrix" );
     add_location( "projectionMatrix" );
-    add_location( "normalMatrix" );
 
     let Some( ( framebuffer, output_texture ) ) = create_framebuffer( gl, width, height )
     else
@@ -110,42 +112,75 @@ impl CanvasRenderer
         program,
         uniforms,
         framebuffer,
-        output_texture
+        output_texture,
+        width,
+        height
       }
     )
+  }
+
+  fn upload_camera( &self, gl : &GL, camera : &Camera )
+  {
+    gl::uniform::matrix_upload
+    ( 
+      &gl,
+      self.uniforms.get( "viewMatrix" ).unwrap().clone(),
+      &camera.get_view_matrix().to_array(), 
+      true 
+    ).unwrap();
+
+    gl::uniform::matrix_upload
+    ( 
+      &gl,
+      self.uniforms.get( "projectionMatrix" ).unwrap().clone(),
+      &camera.get_projection_matrix().to_array(), 
+      true 
+    ).unwrap();
+  }
+
+  pub fn upload_node
+  (
+    &self,
+    gl : &GL,
+    node : &Rc< RefCell< Node > >
+  )
+  {
+    gl::uniform::matrix_upload
+    (
+      &gl,
+      self.uniforms.get( "worldMatrix" ).unwrap().clone(),
+      node.borrow().get_world_matrix().to_array().as_slice(),
+      true
+    ).unwrap();
   }
 
   pub fn render
   ( 
     &self, 
-    gl : &WebGl2RenderingContext, 
+    gl : &GL, 
     scene : &mut Scene, 
-    camera : &Camera 
+    camera : &Camera,
+    colors : &[ F32x4 ]
   ) -> Result< (), gl::WebglError >
   {
     scene.update_world_matrix();
 
     gl.enable( gl::DEPTH_TEST );
-    gl.disable( gl::CULL_FACE );
     gl.disable( gl::BLEND );
     gl.clear_depth( 1.0 );
     gl.front_face( gl::CCW );
 
     gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &self.framebuffer ) );
+    gl.viewport(0, 0, self.width as i32, self.height as i32 );
 
     gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
-    gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ 0.0, 0.0, 0.0, 1.0 ] );
+    //gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ 0.0, 0.0, 0.0, 1.0 ] );
     gl.clear( gl::DEPTH_BUFFER_BIT );
 
     gl.use_program( Some( &self.program ) );
 
-    let color = F32x4::from_array( [ 1.0, 0.0, 0.0, 1.0 ] ); 
-    gl::uniform::upload
-    (
-      &gl,
-      self.uniforms.get( "color" ).unwrap().clone(),
-      &color.0[ .. ]
-    ).unwrap();
+    let mut i = 0; 
+    let default_color = F32x4::from_array( [ 1.0, 0.0, 1.0, 1.0 ] ); 
     
     // Define a closure to handle the drawing of each node in the scene.
     let mut draw_node = 
@@ -156,18 +191,27 @@ impl CanvasRenderer
       // If the node contains a mesh...
       if let Object3D::Mesh( ref mesh ) = node.borrow().object
       {
+        gl::uniform::upload
+        (
+          &gl,
+          self.uniforms.get( "color" ).unwrap().clone(),
+          colors.get( i ).unwrap_or( &default_color ).as_slice()
+        ).unwrap();
+
         // Iterate over each primitive in the mesh.
         for primitive_rc in mesh.borrow().primitives.iter()
         {
           let primitive = primitive_rc.borrow();
 
-          camera.upload( &gl, &self.uniforms );
-          node.borrow().upload( &gl, &self.uniforms );
+          self.upload_camera( gl, camera );
+          self.upload_node( gl, &node );
 
           primitive.geometry.borrow().bind( gl );
           primitive.draw( gl );
         }
       } 
+
+      i += 1;
 
       Ok( () )
     };
@@ -181,11 +225,12 @@ impl CanvasRenderer
   pub fn set_texture
   ( 
     &mut self, 
-    gl : &WebGl2RenderingContext, 
+    gl : &GL, 
     output_texture : WebGlTexture 
   )
   {
     gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &self.framebuffer ) );
+    gl.viewport(0, 0, self.width as i32, self.height as i32 );
     gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, Some( &output_texture ), 0 );
     gl.bind_framebuffer( gl::FRAMEBUFFER, None );
 
