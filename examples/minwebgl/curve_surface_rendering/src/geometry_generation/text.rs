@@ -2,7 +2,7 @@
 pub mod ufo
 {
   use std::{collections::HashMap, str::FromStr};
-  use kurbo::{ flatten, BezPath };
+  use kurbo::flatten;
   use mingl::geometry::BoundingBox;
   use norad::{ PointType, ContourPoint, Contour };
   use std::rc::Rc;
@@ -21,7 +21,6 @@ pub mod ufo
   struct Glyph
   {
     character : char,
-    curves : Vec< BezPath >,
     contours : Vec< Vec< [ f32; 2 ] > >,
     body : Option< PrimitiveData >,
     bounding_box : BoundingBox
@@ -29,7 +28,7 @@ pub mod ufo
 
   impl Glyph
   {
-    fn new( curves : Vec< BezPath >, contours : Vec< Vec< [ f64; 2 ] > >, character : char ) -> Self
+    fn new( contours : Vec< Vec< [ f64; 2 ] > >, character : char ) -> Self
     {
       let mut contours = contours.into_iter()
       .map
@@ -75,7 +74,6 @@ pub mod ufo
       Self
       {
         character,
-        curves,
         contours,
         body : None,
         bounding_box
@@ -232,7 +230,7 @@ pub mod ufo
         return None;
       }
 
-      Some( Glyph::new( curves, contours, character ) )
+      Some( Glyph::new( contours, character ) )
     }
   }
 
@@ -496,6 +494,81 @@ pub mod ufo
       };
       if let Some( mut geometry ) = glyph.body.clone()
       {
+        geometry.transform = transform.clone();
+        mesh.push( geometry );
+      }
+    }
+
+    mesh
+  }
+
+  pub fn text_to_countour_mesh( 
+    text : &str, 
+    font : &Font, 
+    transform : &Transform, 
+    width : f32 
+  ) -> Vec< PrimitiveData >
+  {
+    let mut mesh = vec![]; 
+
+    let start_transform = transform.clone();
+    let mut transform = start_transform.clone();
+    transform.scale = [ 0.003, 0.003, 1.0 ].into();
+    let max_x = font.max_size.max[ 0 ] - font.max_size.min[ 0 ];
+    let max_y = font.max_size.max[ 1 ] - font.max_size.min[ 1 ];
+    let halfx = max_x * transform.scale[ 0 ];
+
+    for char in text.chars()
+    {
+      let Some( glyph ) = font.glyphs.get( &char )
+      else
+      {
+        transform.translation[ 0 ] -= halfx / 2.0; 
+        continue;
+      };
+
+      let glyph_x = glyph.bounding_box.width() * transform.scale[ 0 ];
+      transform.translation[ 0 ] -= if glyph_x < halfx / 4.0
+      {
+        halfx / 2.0
+      }
+      else
+      {
+        glyph_x / 2.0
+      }
+    }
+
+    for char in text.chars()
+    {
+      let Some( glyph ) = font.glyphs.get( &char ).cloned() 
+      else
+      {
+        transform.translation[ 0 ] += halfx; 
+        continue;
+      };
+
+      let glyph_y = glyph.bounding_box.height();
+      let diff = ( max_y - ( glyph_y * 0.5 ) ) * transform.scale[ 1 ];
+      transform.translation[ 1 ] = start_transform.translation[ 1 ];
+      transform.translation[ 1 ] -= diff;
+      let glyph_x = glyph.bounding_box.width() * transform.scale[ 0 ];
+      transform.translation[ 0 ] += if glyph_x < halfx / 4.0
+      {
+        halfx
+      }
+      else
+      {
+        glyph_x
+      };
+      
+      for curve in glyph.contours
+      {
+        let Some( mut geometry ) = crate::geometry_generation::primitive::curve_to_geometry( &curve, width )
+        else
+        {
+          continue;
+        };
+
         geometry.transform = transform.clone();
         mesh.push( geometry );
       }
