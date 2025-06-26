@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use mingl::F32x4;
 use minwebgl as gl;
 use gl::
 {
@@ -42,7 +43,6 @@ mod geometry_generation;
 
 use canvas_renderer::*;
 use primitive::*;
-use geometry_generation::*;
 
 fn upload_texture( gl : &WebGl2RenderingContext, src : Rc< String > ) -> WebGlTexture
 {
@@ -92,10 +92,11 @@ fn upload_texture( gl : &WebGl2RenderingContext, src : Rc< String > ) -> WebGlTe
 
 async fn create_texture( 
   gl : &WebGl2RenderingContext,
-  image_path : &str
+  image_name : &str
 ) -> Option< TextureInfo >
 {
-  let texture_id = upload_texture( gl, Rc::new( image_path.to_string() ) );
+  let image_path = format!( "static/curve_surface_rendering/textures/{image_name}" );
+  let texture_id = upload_texture( gl, Rc::new( image_path ) );
 
   let sampler = Sampler::former()
   .min_filter( MinFilterMode::Linear )
@@ -165,18 +166,20 @@ fn clone( gltf : &mut GLTF, node : &Rc< RefCell< Node > > ) -> Rc< RefCell< Node
   gltf.nodes.push( clone.clone() );
   if let Object3D::Mesh( ref mesh ) = clone.borrow().object
   {
-    gltf.meshes.push( mesh.clone() );
+    let mesh = Rc::new( RefCell::new( mesh.borrow().clone() ) );
     for p in mesh.borrow().primitives.iter()
     {
       gltf.materials.push( p.borrow().material.clone() );
     }
+    gltf.meshes.push( mesh );
   }
   gltf.scenes[ 0 ].borrow_mut().add( clone.clone() );
 
   clone
 }
 
-fn set_texture( 
+fn set_texture
+( 
   node : &Rc< RefCell< Node > >,
   mut material_callback : impl FnMut( &mut Material ) 
 )
@@ -197,14 +200,12 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   let mut gltf = renderer::webgl::loaders::gltf::load( &document, "curve_surface_rendering/sphere.glb", &gl ).await?;
 
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 ).unwrap().clone();
-  let image_path = "static/curve_surface_rendering/earth2.jpg";
-  let texture = create_texture( &gl, image_path ).await;
+  let texture = create_texture( &gl, "earth2.jpg" ).await;
   set_texture( &earth, | m | { m.base_color_texture = texture.clone(); } );
   earth.borrow_mut().update_local_matrix();
 
   let clouds = clone( &mut gltf, &earth );
-  let image_path = "static/curve_surface_rendering/clouds2.png";
-  let texture = create_texture( &gl, image_path ).await;
+  let texture = create_texture( &gl, "clouds2.png" ).await;
   set_texture( &clouds, 
     | m | 
     { 
@@ -215,11 +216,11 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   let scale = 1.005;
   clouds.borrow_mut().set_translation( [ 0.0, 1.0 - scale, 0.0 ] );
   clouds.borrow_mut().set_scale( [ scale; 3 ] );
+  clouds.borrow_mut().set_rotation( gl::Quat::from_angle_y( 90.0 ) );
   clouds.borrow_mut().update_local_matrix();
 
   let moon = clone( &mut gltf, &earth );
-  let image_path = "static/curve_surface_rendering/moon2.jpg";
-  let texture = create_texture( &gl, image_path ).await;
+  let texture = create_texture( &gl, "moon2.jpg" ).await;
   set_texture( &moon, | m | { m.base_color_texture = texture.clone(); } );
   let scale = 0.25;
   let distance = 7.0;// 30.0 * 1.0;
@@ -228,8 +229,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   moon.borrow_mut().update_local_matrix();
 
   let environment = clone( &mut gltf, &earth );
-  let image_path = "static/curve_surface_rendering/space3.png";
-  let texture = create_texture( &gl, image_path ).await;
+  let texture = create_texture( &gl, "space3.png" ).await;
   set_texture( &environment, | m | { m.base_color_texture = texture.clone(); } );
   let scale = 100000.0;
   environment.borrow_mut().set_translation( [ 0.0, 1.0 - scale, 0.0 ] );
@@ -239,54 +239,95 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   Ok( gltf )
 }
 
-fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> GLTF
+async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x4 > )
 {
+  let font_names = [ "Roboto-Regular" ];
+  let fonts = geometry_generation::text::ufo::load_fonts( &font_names ).await;
+
+  let colors = 
+  [
+    F32x4::from_array( [ 1.0, 1.0, 1.0, 1.0 ] ),
+    F32x4::from_array( [ 0.5, 0.5, 0.5, 1.0 ] ),
+  ];
+  let text = "CGTools".to_string();
+
   let mut primitives_data = vec![];
+  let mut transform = Transform::default();
+  transform.translation.0[ 1 ] += ( font_names.len() as f32 + 1.0 ) / 2.0 + 0.5;
+  for font_name in font_names
+  {
+    transform.translation[ 1 ] -= 1.0; 
+    let mut text_mesh = geometry_generation::text::ufo::text_to_mesh( &text, fonts.get( font_name ).unwrap(), &transform );
+    text_mesh.iter_mut()
+    .enumerate()
+    .for_each( | ( i, p ) | p.color = colors[ i % 2 ].clone() );
+    primitives_data.extend( text_mesh );
+  }
 
-
-
+  let colors = primitives_data.iter()
+  .map( | p | p.color )
+  .collect::< Vec< _ > >();
   let canvas_gltf = primitives_data_to_gltf( &gl, primitives_data );
 
-  canvas_gltf
+  ( canvas_gltf, colors )
 }
 
 async fn run() -> Result< (), gl::WebglError >
 {
   let ( gl, canvas ) = init_context();
 
-  let gltf = setup_scene( &gl ).await?; 
+  let mut gltf = setup_scene( &gl ).await?; 
   
-  let canvas_gltf = setup_canvas_scene( &gl );
+  let ( canvas_gltf, colors ) = setup_canvas_scene( &gl ).await;
 
   let canvas_camera = init_camera( &canvas, &canvas_gltf.scenes );
-  camera_controls::bind_controls_to_input( &canvas, &canvas_camera.get_controls() );
-  //canvas_camera.get_controls()
+  //camera_controls::bind_controls_to_input( &canvas, &canvas_camera.get_controls() );
+  canvas_camera.get_controls().borrow_mut().window_size = [ ( canvas.width() * 4 ) as f32, ( canvas.height() * 4 ) as f32 ].into();
+  canvas_camera.get_controls().borrow_mut().eye = [ 0.0, 0.0, 8.0 ].into();
+  {
+    let mut controls = canvas_camera.get_controls();
+    let mut controls_ref = controls.borrow_mut();
+    let mut center = controls_ref.center.as_mut();
+    center[ 1 ] += 3.0;
+    center[ 0 ] -= 1.0;
+  }
 
-  let mut canvas_renderer = CanvasRenderer::new( &gl, canvas.width(), canvas.height() )?;
+  let mut canvas_renderer = CanvasRenderer::new( &gl, canvas.width() * 4, canvas.height() * 4 )?;
   let canvas_texture = canvas_renderer.get_texture();
 
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 ).unwrap().clone();
-  set_texture( 
-    &earth, 
+  let canvas_sphere = clone( &mut gltf, &earth );
+  set_texture
+  ( 
+    &canvas_sphere, 
     | m | 
     { 
-      m.base_color_texture.iter_mut()
-      .for_each
-      (
-        | t |
+      m.base_color_texture.as_mut()
+      .map
+      ( 
+        | t | 
         {
+          let texture = t.texture.borrow().clone();
+          t.texture = Rc::new( RefCell::new( texture ) );
           t.texture.borrow_mut().source = Some( canvas_texture.clone() );
-        }
-      );
+        } 
+      ); 
+      m.alpha_mode = renderer::webgl::AlphaMode::Blend;
     } 
   );
+  let scale = 1.01;
+  canvas_sphere.borrow_mut().set_translation( [ 0.0, 1.0 - scale, 0.0 ] );
+  canvas_sphere.borrow_mut().set_scale( [ scale; 3 ] );
+  canvas_sphere.borrow_mut().update_local_matrix();
 
   let scenes = gltf.scenes.clone();
   scenes[ 0 ].borrow_mut().update_world_matrix();
 
   let camera = init_camera( &canvas, &scenes );
-  // camera_controls::bind_controls_to_input( &canvas, &camera.get_controls() );
-  camera.get_controls().borrow_mut().eye = [ 0.0, 3.0, 3.0 ].into();
+  camera_controls::bind_controls_to_input( &canvas, &camera.get_controls() );
+  let eye = gl::math::mat3x3h::rot( 0.0, - 76.0_f32.to_radians(), - 20.0_f32.to_radians() ) 
+  * F32x4::from_array([ 0.0, 1.7, 1.7, 1.0 ] );
+  camera.get_controls().borrow_mut().eye = [ eye.x(), eye.y(), eye.z() ].into();
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   renderer.set_ibl( loaders::ibl::load( &gl, "environment_maps/gltf_viewer_ibl_unreal" ).await );
@@ -304,14 +345,15 @@ async fn run() -> Result< (), gl::WebglError >
       // If textures are of different size, gl.view_port needs to be called
       let _time = t as f32 / 1000.0;
 
-      // renderer.render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
-      // .expect( "Failed to render" );
+      canvas_renderer.render( &gl, &mut canvas_gltf.scenes[ 0 ].borrow_mut(), &canvas_camera, &colors ).unwrap();
 
-      canvas_renderer.render( &gl, &mut canvas_gltf.scenes[ 0 ].borrow_mut(), &canvas_camera ).unwrap();
+      renderer.render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
+      .expect( "Failed to render" );
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );
-      swap_buffer.set_input( Some( canvas_renderer.get_texture() ) );
+      swap_buffer.set_input( renderer.get_main_texture() );
+      //swap_buffer.set_input( Some( canvas_renderer.get_texture() ) );
 
       let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
       .expect( "Failed to render tonemapping pass" );
