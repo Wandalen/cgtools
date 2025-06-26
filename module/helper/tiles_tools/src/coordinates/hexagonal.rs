@@ -347,3 +347,36 @@ impl< Orientation > Neigbors for Coordinate< Axial, Orientation >
     ].into()
   }
 }
+
+impl Coordinate< Axial, Flat >
+{
+  pub fn up( &self ) -> Self
+  {
+    Self::new( self.q, self.r - 1 )
+  }
+
+  pub fn down( &self ) -> Self
+  {
+    Self::new( self.q, self.r + 1 )
+  }
+
+  pub fn left_up( &self ) -> Self
+  {
+    Self::new( self.q - 1, self.r )
+  }
+
+  pub fn left_down( &self ) -> Self
+  {
+    Self::new( self.q - 1, self.r + 1 )
+  }
+
+  pub fn right_up( &self ) -> Self
+  {
+    Self::new( self.q + 1, self.r - 1 )
+  }
+
+  pub fn right_down( &self ) -> Self
+  {
+    Self::new( self.q + 1, self.r )
+  }
+}

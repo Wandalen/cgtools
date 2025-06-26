@@ -168,7 +168,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   );
 
   // array to store painted hexagons
-  let mut painting_canvas = HexArray::< Offset< Odd >, Pointy, [ f32; 3 ] >::new
+  let mut painting_canvas = HexArray::< Offset< Odd >, Pointy, [ f32; 3 ] >::with_size_and_fn
   (
     [ 23, 23 ].into(),
     [ 11, 11 ].into(),
