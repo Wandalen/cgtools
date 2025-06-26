@@ -247,7 +247,7 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
   let colors = 
   [
     F32x4::from_array( [ 1.0, 1.0, 1.0, 1.0 ] ),
-    F32x4::from_array( [ 0.5, 0.5, 0.5, 1.0 ] ),
+    F32x4::from_array( [ 1.0, 0.0, 0.0, 1.0 ] ),
   ];
   let text = "CGTools".to_string();
 
@@ -262,6 +262,11 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
     .enumerate()
     .for_each( | ( i, p ) | p.color = colors[ i % 2 ].clone() );
     primitives_data.extend( text_mesh );
+
+    // let mut text_mesh = geometry_generation::text::ufo::text_to_countour_mesh( &text, fonts.get( font_name ).unwrap(), &transform, 10.0 );
+    // text_mesh.iter_mut()
+    // .for_each( | p | p.color = colors[ 0 ].clone() );
+    // primitives_data.extend( text_mesh );
   }
 
   let colors = primitives_data.iter()
@@ -281,13 +286,13 @@ async fn run() -> Result< (), gl::WebglError >
   let ( canvas_gltf, colors ) = setup_canvas_scene( &gl ).await;
 
   let canvas_camera = init_camera( &canvas, &canvas_gltf.scenes );
-  //camera_controls::bind_controls_to_input( &canvas, &canvas_camera.get_controls() );
+  camera_controls::bind_controls_to_input( &canvas, &canvas_camera.get_controls() );
   canvas_camera.get_controls().borrow_mut().window_size = [ ( canvas.width() * 4 ) as f32, ( canvas.height() * 4 ) as f32 ].into();
   canvas_camera.get_controls().borrow_mut().eye = [ 0.0, 0.0, 8.0 ].into();
   {
-    let mut controls = canvas_camera.get_controls();
+    let controls = canvas_camera.get_controls();
     let mut controls_ref = controls.borrow_mut();
-    let mut center = controls_ref.center.as_mut();
+    let center = controls_ref.center.as_mut();
     center[ 1 ] += 3.0;
     center[ 0 ] -= 1.0;
   }
