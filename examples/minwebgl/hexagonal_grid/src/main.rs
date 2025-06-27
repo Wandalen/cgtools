@@ -283,7 +283,7 @@ fn painting_demo
   ).into();
   // calculate hex coordinates
   let selected_hex_coord : Coordinate::< Axial, Pointy > = pos.into();
-  min::info!( "{selected_hex_coord:?}" );
+
   // get color
   let color = color_picker.value();
   let r = u8::from_str_radix( &color[ 1..3 ], 16 ).unwrap() as f32 / 255.0;
