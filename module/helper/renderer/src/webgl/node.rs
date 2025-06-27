@@ -49,6 +49,42 @@ mod private
     bounding_box : BoundingBox
   }
 
+  impl Clone for Node
+  {
+    fn clone( &self ) -> Self 
+    {
+      let object = match &self.object
+      {
+        Object3D::Mesh( mesh ) => 
+        {
+          Object3D::Mesh( Rc::new( RefCell::new( mesh.borrow().clone() ) ) )
+        },
+        Object3D::Other => Object3D::Other
+      };
+
+      Self 
+      { 
+        name : self.name.clone(), 
+        children : 
+        {
+          self.children.iter()
+          .map( | n | Rc::new( RefCell::new( n.borrow().clone() ) ) )
+          .collect::< Vec< _ > >()
+        }, 
+        object, 
+        matrix : self.matrix, 
+        world_matrix : self.world_matrix, 
+        normal_matrix : self.normal_matrix, 
+        scale : self.scale, 
+        translation : self.translation, 
+        rotation : self.rotation, 
+        needs_local_matrix_update : self.needs_local_matrix_update, 
+        needs_world_matrix_update : self.needs_world_matrix_update, 
+        bounding_box : self.bounding_box
+      }
+    }
+  }
+
   impl Node
   {
     /// Creates a new `Node` with default values.
