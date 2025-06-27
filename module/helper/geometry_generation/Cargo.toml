@@ -1,0 +1,45 @@
+[package]
+name = "geometry_generation"
+version = "0.1.0"
+edition = "2021"
+authors = [
+  "Kostiantyn Mysnyk <wandalen@obox.systems>",
+  "Bilan Vadym <vadym.b@obox.systems>"
+]
+
+[lints]
+workspace = true
+
+[dependencies]
+mod_interface = { workspace = true }
+minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
+mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
+renderer = { workspace = true }
+gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
+csgrs = { workspace = true }
+parry3d = { workspace = true }
+rand = { workspace = true }
+getrandom = { workspace = true, features = [ "wasm_js" ] }
+kurbo = { workspace = true }
+norad = { workspace = true, features = [ "kurbo" ] }
+quick-xml = { workspace = true }
+i_overlay = { workspace = true }
+i_triangle = { workspace = true }
+i_float = { workspace = true }
+#lottie = { workspace = true }
+interpoli = { workspace = true }
+
+[dependencies.web-sys]
+workspace = true
+features = [
+  'MouseEvent',
+  'PointerEvent',
+  'WheelEvent',
+  'WebGlTexture',
+  'HtmlImageElement',
+  'Blob',
+  'BlobPropertyBag',
+  'Url',
+  'WebGlFramebuffer',
+  'WebGlRenderbuffer'
+]

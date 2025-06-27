@@ -1,5 +1,4 @@
-
-pub mod ufo
+mod private
 {
   use std::{collections::HashMap, str::FromStr};
   use kurbo::flatten;
@@ -18,7 +17,7 @@ pub mod ufo
   };
 
   #[ derive( Clone ) ]
-  struct Glyph
+  pub struct Glyph
   {
     character : char,
     contours : Vec< Vec< [ f32; 2 ] > >,
@@ -347,7 +346,7 @@ pub mod ufo
     }
   }
 
-  fn contours_to_mesh( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
+  pub fn contours_to_mesh( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
   {
     let mut body_id = 0;
     let mut max_box_diagonal_size = 0;
@@ -432,7 +431,7 @@ pub mod ufo
 
     for font_name in font_names
     {
-      let font_path = format!( "curve_surface_rendering/fonts/ufo/{}.ufo", font_name );
+      let font_path = format!( "fonts/ufo/{}.ufo", font_name );
       fonts.insert( font_name.to_string(), Font::new( &font_path ).await );
     }
     
@@ -563,7 +562,7 @@ pub mod ufo
       
       for curve in glyph.contours
       {
-        let Some( mut geometry ) = crate::geometry_generation::primitive::curve_to_geometry( &curve, width )
+        let Some( mut geometry ) = crate::primitive::curve_to_geometry( &curve, width )
         else
         {
           continue;
@@ -576,4 +575,17 @@ pub mod ufo
 
     mesh
   }
+}
+
+crate::mod_interface!
+{
+  orphan use
+  {
+    load_fonts,
+    Glyph,
+    Font,
+    contours_to_mesh,
+    text_to_mesh,
+    text_to_countour_mesh
+  };
 }
