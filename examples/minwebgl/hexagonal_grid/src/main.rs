@@ -1,3 +1,4 @@
+use minwebgl as min;
 use browser_input::{ mouse, Input };
 use tiles_tools::
 {
@@ -6,8 +7,6 @@ use tiles_tools::
   geometry,
   layout::*
 };
-
-use minwebgl as min;
 use min::
 {
   math::{ F32x2, IntoVector, mat2x2h },
@@ -15,9 +14,6 @@ use min::
   JsCast,
   canvas::HtmlCanvasElement,
   GL,
-  // web::log::info,
-  // qqq : this import does not work, but not clear why
-  // make it working please
 };
 use web_sys::{ wasm_bindgen::prelude::Closure, HtmlButtonElement, HtmlInputElement };
 use std::{ cell::RefCell, collections::HashMap, rc::Rc };
