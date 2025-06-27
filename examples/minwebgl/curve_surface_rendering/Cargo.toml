@@ -16,20 +16,11 @@ minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
 renderer = { workspace = true }
+canvas_renderer = { workspace = true }
+geometry_generation = { workspace = true }
 zune-hdr = { workspace = true }
-csgrs = { workspace = true }
-parry3d = { workspace = true }
 rand = { workspace = true }
 getrandom = { workspace = true, features = [ "wasm_js" ] }
-kurbo = { workspace = true }
-image = { workspace = true }
-norad = { workspace = true, features = [ "kurbo" ] }
-quick-xml = { workspace = true }
-i_overlay = { workspace = true }
-i_triangle = { workspace = true }
-i_float = { workspace = true }
-#lottie = { workspace = true }
-interpoli = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true

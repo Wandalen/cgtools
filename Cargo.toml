@@ -67,6 +67,14 @@ path = "module/alias/browser_tools"
 version = "0.1.0"
 path = "module/helper/renderer"
 
+[workspace.dependencies.canvas_renderer]
+version = "0.1.0"
+path = "module/helper/canvas_renderer"
+
+[workspace.dependencies.geometry_generation]
+version = "0.1.0"
+path = "module/helper/geometry_generation"
+
 # = draw
 
 # [workspace.dependencies.draw_lang]
