@@ -242,9 +242,7 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
 
   let colors = 
   [
-    F32x4::from_array( [ 1.0, 0.0, 0.0, 1.0 ] ),
     F32x4::from_array( [ 1.0, 1.0, 1.0, 1.0 ] ),
-    F32x4::from_array( [ 0.0, 1.0, 0.0, 1.0 ] ),
   ];
   let text = "CGTools".to_string();
 
@@ -254,17 +252,9 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
   for font_name in font_names
   {
     transform.translation[ 1 ] -= 1.0; 
-    let mut text_mesh = text::ufo::text_to_mesh( &text, fonts.get( font_name ).unwrap(), &transform );
-    text_mesh.iter_mut()
-    .enumerate()
-    .for_each( | ( i, p ) | p.color = colors[ i % 3 ].clone() );
-    primitives_data.extend( text_mesh );
-
-    transform.translation[ 1 ] -= 0.8; 
     let mut text_mesh = text::ufo::text_to_countour_mesh( &text, fonts.get( font_name ).unwrap(), &transform, 5.0 );
     text_mesh.iter_mut()
-    .enumerate()
-    .for_each( | ( i, p ) | p.color = colors[ i % 3 ].clone() );
+    .for_each( | p | p.color = colors[ 0 ].clone() );
     primitives_data.extend( text_mesh );
   }
 
