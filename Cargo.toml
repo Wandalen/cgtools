@@ -292,7 +292,3 @@ version = "3.0.0"
 
 [workspace.dependencies.wee_alloc]
 version = "0.4"
-
-# qqq : avoid this crate, use derive_tools and component_model
-[workspace.dependencies.nutype]
-version = "0.6.1"
