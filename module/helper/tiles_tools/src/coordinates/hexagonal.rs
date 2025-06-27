@@ -214,11 +214,27 @@ impl From< Coordinate< Offset< Even >, Flat > > for Coordinate< Axial, Flat >
   }
 }
 
-impl< Orientation > From< ( i32, i32 ) > for Coordinate< Axial, Orientation >
+impl< System, Orientation > From< ( i32, i32 ) > for Coordinate< System, Orientation >
 {
   fn from( ( q, r ) : ( i32, i32 ) ) -> Self
   {
-    Self::new( q, r )
+    Self::new_uncheked( q, r )
+  }
+}
+
+impl< System, Orientation > From< [ i32; 2 ] > for Coordinate< System, Orientation >
+{
+  fn from( [ q, r ] : [ i32; 2 ] ) -> Self
+  {
+    Self::new_uncheked( q, r )
+  }
+}
+
+impl< System, Orientation > From< I32x2 > for Coordinate< System, Orientation >
+{
+  fn from( ndarray_cg::Vector( [ q, r ] ) : I32x2 ) -> Self
+  {
+    Self::new_uncheked( q, r )
   }
 }
 

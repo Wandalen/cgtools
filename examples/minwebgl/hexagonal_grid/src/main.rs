@@ -170,8 +170,8 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   // array to store painted hexagons
   let mut painting_canvas = HexArray::< Offset< Odd >, Pointy, [ f32; 3 ] >::with_size_and_fn
   (
-    [ 23, 23 ].into(),
-    [ 11, 11 ].into(),
+    [ -11, -11 ].into(),
+    [ 12, 12 ].into(),
     || [ 1.0, 1.0, 1.0 ]
   );
 
@@ -188,7 +188,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
     // then offset it by center of the grid, so that if cursor is in the center of the canvas, it will be in the center of the grid
     let cursor_pos : Pixel =
     (
-      ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) + grid_center.into()
+      ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) + Into::< F32x2 >::into( grid_center )
     ).into();
     // hexagon which cursor points to
     let selected_hex_coord : Coordinate::< Axial, Pointy > = cursor_pos.into();
@@ -287,6 +287,7 @@ fn painting_demo
   ).into();
   // calculate hex coordinates
   let selected_hex_coord : Coordinate::< Axial, Pointy > = pos.into();
+  min::info!( "{selected_hex_coord:?}" );
   // get color
   let color = color_picker.value();
   let r = u8::from_str_radix( &color[ 1..3 ], 16 ).unwrap() as f32 / 255.0;
