@@ -1,5 +1,5 @@
 [package]
-name = "curve_surface_rendering"
+name = "text_surface_rendering"
 version = "0.1.0"
 edition = "2021"
 authors = [ 
