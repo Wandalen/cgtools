@@ -2,14 +2,14 @@ use std::{ marker::PhantomData, ops::{ Index, IndexMut } };
 use ndarray_cg::{ nd::iter::Iter, Array2, I64x2 };
 use crate::coordinates::hexagonal::Coordinate;
 
-pub struct HexArray< System, Orientation, T >
+pub struct Grid2D< System, Orientation, T >
 {
   data : Array2< T >,
   min : I64x2,
   _marker : PhantomData< Coordinate< System, Orientation > >,
 }
 
-impl< System, Orientation, T > HexArray< System, Orientation, T >
+impl< System, Orientation, T > Grid2D< System, Orientation, T >
 {
   pub fn with_size_and_fn< F >
   (
@@ -58,7 +58,7 @@ impl< System, Orientation, T > HexArray< System, Orientation, T >
   }
 }
 
-impl< System, Orientation, T > HexArray< System, Orientation, T >
+impl< System, Orientation, T > Grid2D< System, Orientation, T >
 where
   T : Default
 {
@@ -87,7 +87,7 @@ where
   }
 }
 
-impl< System, Orientation, T > HexArray< System, Orientation, Option< T > >
+impl< System, Orientation, T > Grid2D< System, Orientation, Option< T > >
 {
   /// Insets a value at the given coordinates.
   /// Returns the previous value at the coordinates if there was one.
@@ -142,7 +142,7 @@ impl< System, Orientation, T > HexArray< System, Orientation, Option< T > >
   }
 }
 
-impl< C, System, Orientation, T > Index< C > for HexArray< System, Orientation, T >
+impl< C, System, Orientation, T > Index< C > for Grid2D< System, Orientation, T >
 where
   C : Into< Coordinate< System, Orientation > >,
 {
@@ -157,7 +157,7 @@ where
   }
 }
 
-impl< C, System, Orientation, T > IndexMut< C > for HexArray< System, Orientation, T >
+impl< C, System, Orientation, T > IndexMut< C > for Grid2D< System, Orientation, T >
 where
   C : Into< Coordinate< System, Orientation > >,
 {

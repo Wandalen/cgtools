@@ -1,7 +1,7 @@
 use browser_input::{ mouse, Input };
 use tiles_tools::
 {
-  collection::HexArray,
+  collection::Grid2D,
   coordinates::{ hexagonal::*, pixel::Pixel },
   geometry,
   layout::*
@@ -168,7 +168,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   );
 
   // array to store painted hexagons
-  let mut painting_canvas = HexArray::< Offset< Odd >, Pointy, [ f32; 3 ] >::with_size_and_fn
+  let mut painting_canvas = Grid2D::< Offset< Odd >, Pointy, [ f32; 3 ] >::with_size_and_fn
   (
     [ -11, -11 ].into(),
     [ 12, 12 ].into(),
@@ -261,7 +261,7 @@ fn painting_demo
   scale : F32x2,
   hex_shader : &Program,
   hexagon_geometry : &min::geometry::Positions,
-  painting_canvas : &mut HexArray< Offset< Odd >, Pointy, [ f32; 3 ] >,
+  painting_canvas : &mut Grid2D< Offset< Odd >, Pointy, [ f32; 3 ] >,
   color_picker : &HtmlInputElement
 )
 {
