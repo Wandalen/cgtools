@@ -156,8 +156,10 @@ mod private
               continue;
             }
 
-            contour_points.push(
-              ContourPoint::new(
+            contour_points.push
+            (
+              ContourPoint::new
+              (
                 x.unwrap(),
                 y.unwrap(),
                 typ,
@@ -191,7 +193,8 @@ mod private
           return None;
         };
 
-        flatten( 
+        flatten
+        ( 
           bez_path.elements().iter().cloned(), 
           0.25, 
           | p | path.push( p ) 
