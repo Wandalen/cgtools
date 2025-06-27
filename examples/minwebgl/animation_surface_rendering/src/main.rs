@@ -317,8 +317,8 @@ async fn run() -> Result< (), gl::WebglError >
   let scenes = gltf.scenes.clone();
   scenes[ 0 ].borrow_mut().update_world_matrix();
 
-  let camera = init_camera( &canvas, &scenes );
-  camera_controls::bind_controls_to_input( &canvas, &camera.get_controls() );
+  //let camera = init_camera( &canvas, &scenes );
+  //camera_controls::bind_controls_to_input( &canvas, &camera.get_controls() );
   let eye = gl::math::mat3x3h::rot( 0.0, - 76.0_f32.to_radians(), - 20.0_f32.to_radians() ) 
   * F32x4::from_array([ 0.0, 1.7, 1.7, 1.0 ] );
   camera.get_controls().borrow_mut().eye = [ eye.x(), eye.y(), eye.z() ].into();
@@ -341,13 +341,13 @@ async fn run() -> Result< (), gl::WebglError >
 
       canvas_renderer.render( &gl, &mut canvas_gltf.scenes[ 0 ].borrow_mut(), &canvas_camera, &colors ).unwrap();
 
-      renderer.render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
-      .expect( "Failed to render" );
+      // renderer.render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
+      // .expect( "Failed to render" );
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );
-      swap_buffer.set_input( renderer.get_main_texture() );
-      //swap_buffer.set_input( Some( canvas_renderer.get_texture() ) );
+      //swap_buffer.set_input( renderer.get_main_texture() );
+      swap_buffer.set_input( Some( canvas_renderer.get_texture() ) );
 
       let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
       .expect( "Failed to render tonemapping pass" );
