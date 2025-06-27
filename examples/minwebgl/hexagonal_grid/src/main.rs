@@ -188,7 +188,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
     // then offset it by center of the grid, so that if cursor is in the center of the canvas, it will be in the center of the grid
     let cursor_pos : Pixel =
     (
-      ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) + Into::< F32x2 >::into( grid_center )
+      ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) + F32x2::from_array( grid_center.data )
     ).into();
     // hexagon which cursor points to
     let selected_hex_coord : Coordinate::< Axial, Pointy > = cursor_pos.into();
