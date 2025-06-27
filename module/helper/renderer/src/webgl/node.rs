@@ -55,14 +55,15 @@ mod private
     {
       let object = match &self.object
       {
-        Object3D::Mesh( mesh) => 
+        Object3D::Mesh( mesh ) => 
         {
           Object3D::Mesh( Rc::new( RefCell::new( mesh.borrow().clone() ) ) )
         },
         Object3D::Other => Object3D::Other
       };
 
-      Self { 
+      Self 
+      { 
         name : self.name.clone(), 
         children : 
         {
@@ -71,15 +72,15 @@ mod private
           .collect::< Vec< _ > >()
         }, 
         object, 
-        matrix : self.matrix.clone(), 
-        world_matrix : self.world_matrix.clone(), 
-        normal_matrix : self.normal_matrix.clone(), 
-        scale : self.scale.clone(), 
-        translation : self.translation.clone(), 
-        rotation : self.rotation.clone(), 
-        needs_local_matrix_update : self.needs_local_matrix_update.clone(), 
-        needs_world_matrix_update : self.needs_world_matrix_update.clone(), 
-        bounding_box : self.bounding_box.clone() 
+        matrix : self.matrix, 
+        world_matrix : self.world_matrix, 
+        normal_matrix : self.normal_matrix, 
+        scale : self.scale, 
+        translation : self.translation, 
+        rotation : self.rotation, 
+        needs_local_matrix_update : self.needs_local_matrix_update, 
+        needs_world_matrix_update : self.needs_world_matrix_update, 
+        bounding_box : self.bounding_box
       }
     }
   }

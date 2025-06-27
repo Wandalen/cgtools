@@ -97,7 +97,8 @@ mod private
     .stride( stride )
     .vector( vector );
 
-    Ok(
+    Ok
+    (
       AttributeInfo
       {
         slot,
