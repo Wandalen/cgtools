@@ -42,11 +42,47 @@ mod private
     /// The local translation of the node.
     translation : gl::F32x3,
     /// The local rotation of the node as a quaternion.
-    rotation : glam::Quat,
+    rotation : gl::QuatF32,
     /// A flag indicating whether the local matrix needs to be updated based on scale, translation, or rotation changes.
     needs_local_matrix_update : bool,
     needs_world_matrix_update : bool,
     bounding_box : BoundingBox
+  }
+
+  impl Clone for Node
+  {
+    fn clone( &self ) -> Self 
+    {
+      let object = match &self.object
+      {
+        Object3D::Mesh( mesh ) => 
+        {
+          Object3D::Mesh( Rc::new( RefCell::new( mesh.borrow().clone() ) ) )
+        },
+        Object3D::Other => Object3D::Other
+      };
+
+      Self 
+      { 
+        name : self.name.clone(), 
+        children : 
+        {
+          self.children.iter()
+          .map( | n | Rc::new( RefCell::new( n.borrow().clone() ) ) )
+          .collect::< Vec< _ > >()
+        }, 
+        object, 
+        matrix : self.matrix, 
+        world_matrix : self.world_matrix, 
+        normal_matrix : self.normal_matrix, 
+        scale : self.scale, 
+        translation : self.translation, 
+        rotation : self.rotation, 
+        needs_local_matrix_update : self.needs_local_matrix_update, 
+        needs_world_matrix_update : self.needs_world_matrix_update, 
+        bounding_box : self.bounding_box
+      }
+    }
   }
 
   impl Node
@@ -95,14 +131,14 @@ mod private
     /// Sets the local rotation of the node.
     ///
     /// * `rotation`: The new rotation as a `glam::Quat`.
-    pub fn set_rotation( &mut self, rotation : glam::Quat )
+    pub fn set_rotation( &mut self, rotation : gl::QuatF32 )
     {
       self.rotation = rotation;
       self.needs_local_matrix_update = true;
     }
 
     /// Returns the current local rotation of the node.
-    pub fn get_rotation( &self ) -> glam::Quat
+    pub fn get_rotation( &self ) -> gl::QuatF32
     {
       self.rotation
     }
@@ -129,13 +165,13 @@ mod private
     /// Updates the local transformation matrix based on the current scale, rotation, and translation.
     pub fn update_local_matrix( &mut self )
     {
-      let mat = glam::Mat4::from_scale_rotation_translation
+      let mat = gl::F32x4x4::from_scale_rotation_translation
       ( 
-        self.scale.to_array().into(), 
+        self.scale, 
         self.rotation, 
-        self.translation.to_array().into() 
+        self.translation 
       );
-      self.matrix = gl::F32x4x4::from_column_major( mat.to_cols_array() );
+      self.matrix = gl::F32x4x4::from_column_major( mat.to_array());
       self.needs_local_matrix_update = false;
       self.needs_world_matrix_update = true;
     }

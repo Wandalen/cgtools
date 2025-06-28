@@ -48,6 +48,8 @@ crate::mod_interface!
   layer vector;
   // own use super::vector;
 
+  layer quaternion;
+
   prelude use ::ndarray::prelude::*;
 
 }

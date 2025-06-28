@@ -9,9 +9,7 @@ authors = [
 
 [dependencies]
 
-minwebgl = { workspace = true, features = [ "future" ] }
-cgmath = { workspace = true }
-# qqq : for Yevhen : remove it
+minwebgl = { workspace = true, features = [ "future", "math" ] }
 tobj =  { workspace = true, default-features = false, features = [ "async" ] }
 
 [dependencies.web-sys]

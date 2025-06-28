@@ -9,8 +9,7 @@ authors = [
 
 [dependencies]
 
-minwebgl = { workspace = true, features = [ "future" ] }
-glam = { workspace = true } # qqq : for Yevhen : remove it
+minwebgl = { workspace = true, features = [ "future", "math" ] }
 gltf = { version = "1.4.1", features = [ "import" ] }
 image = "0.25.2"
 

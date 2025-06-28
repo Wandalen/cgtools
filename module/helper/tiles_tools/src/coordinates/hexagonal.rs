@@ -214,11 +214,27 @@ impl From< Coordinate< Offset< Even >, Flat > > for Coordinate< Axial, Flat >
   }
 }
 
-impl< Orientation > From< ( i32, i32 ) > for Coordinate< Axial, Orientation >
+impl< System, Orientation > From< ( i32, i32 ) > for Coordinate< System, Orientation >
 {
   fn from( ( q, r ) : ( i32, i32 ) ) -> Self
   {
-    Self::new( q, r )
+    Self::new_uncheked( q, r )
+  }
+}
+
+impl< System, Orientation > From< [ i32; 2 ] > for Coordinate< System, Orientation >
+{
+  fn from( [ q, r ] : [ i32; 2 ] ) -> Self
+  {
+    Self::new_uncheked( q, r )
+  }
+}
+
+impl< System, Orientation > From< I32x2 > for Coordinate< System, Orientation >
+{
+  fn from( ndarray_cg::Vector( [ q, r ] ) : I32x2 ) -> Self
+  {
+    Self::new_uncheked( q, r )
   }
 }
 
@@ -345,5 +361,38 @@ impl< Orientation > Neigbors for Coordinate< Axial, Orientation >
       *self + ( -1,  1 ).into(),
       *self + (  0,  1 ).into(),
     ].into()
+  }
+}
+
+impl Coordinate< Axial, Flat >
+{
+  pub fn up( &self ) -> Self
+  {
+    Self::new( self.q, self.r - 1 )
+  }
+
+  pub fn down( &self ) -> Self
+  {
+    Self::new( self.q, self.r + 1 )
+  }
+
+  pub fn left_up( &self ) -> Self
+  {
+    Self::new( self.q - 1, self.r )
+  }
+
+  pub fn left_down( &self ) -> Self
+  {
+    Self::new( self.q - 1, self.r + 1 )
+  }
+
+  pub fn right_up( &self ) -> Self
+  {
+    Self::new( self.q + 1, self.r - 1 )
+  }
+
+  pub fn right_down( &self ) -> Self
+  {
+    Self::new( self.q + 1, self.r )
   }
 }
