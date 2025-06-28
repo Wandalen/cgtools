@@ -122,6 +122,36 @@ mod private
       self.min = min.truncate();
       self.max = max.truncate();
     }
+
+    pub fn left( &self ) -> f32
+    {
+      self.min.x()
+    }
+
+    pub fn right( &self ) -> f32
+    {
+      self.max.x()
+    }
+
+    pub fn down( &self ) -> f32
+    {
+      self.min.y()
+    }
+
+    pub fn up( &self ) -> f32
+    {
+      self.max.y()
+    }
+
+    pub fn width( &self ) -> f32
+    {
+      ( self.left() - self.right() ).abs()
+    }
+
+    pub fn height( &self ) -> f32
+    {
+      ( self.up() - self.down() ).abs()
+    }
   }
 
   #[ derive( Debug ) ]

@@ -67,6 +67,14 @@ path = "module/alias/browser_tools"
 version = "0.1.0"
 path = "module/helper/renderer"
 
+[workspace.dependencies.canvas_renderer]
+version = "0.1.0"
+path = "module/helper/canvas_renderer"
+
+[workspace.dependencies.geometry_generation]
+version = "0.1.0"
+path = "module/helper/geometry_generation"
+
 # = draw
 
 # [workspace.dependencies.draw_lang]
@@ -253,6 +261,27 @@ features = [ "f64", "delaunay" ]
 
 [workspace.dependencies.parry3d]
 version = "0.21.0"
+
+[workspace.dependencies.kurbo]
+version = "0.11.2"
+
+[workspace.dependencies.norad]
+version = "0.16.0"
+
+[workspace.dependencies.i_overlay]
+git = "https://github.com/vadimb892/iOverlay"
+
+[workspace.dependencies.i_triangle]
+git = "https://github.com/vadimb892/iOverlay"
+
+[workspace.dependencies.i_float]
+git = "https://github.com/vadimb892/iOverlay"
+
+#[workspace.dependencies.lottie]
+#version = "0.1.0"
+
+[workspace.dependencies.interpoli]
+git = "https://github.com/linebender/interpoli"
 
 [workspace.dependencies.zune-hdr]
 git = "https://github.com/etemesi254/zune-image"
