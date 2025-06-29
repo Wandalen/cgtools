@@ -59,6 +59,7 @@ mod private
     {
       // Disable depth testing
       gl.disable( gl::DEPTH_TEST );
+      gl.disable( gl::BLEND );
       gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
 
       // Bind the sRGB conversion shader program.

@@ -2,7 +2,7 @@ mod private
 {
   use std::collections::HashMap;
   use mingl::geometry::BoundingBox;
-use minwebgl as gl;
+  use minwebgl as gl;
 
   /// Represents information about a single vertex attribute.
   #[ derive( Clone ) ]
@@ -31,6 +31,7 @@ use minwebgl as gl;
   }
 
   /// Holds information about the index buffer used for indexed drawing.
+  #[ derive( Debug, Clone ) ]
   pub struct IndexInfo
   {
     /// The WebGL buffer object containing the index data.
@@ -202,9 +203,9 @@ use minwebgl as gl;
       }
     }
 
-    pub fn get_attributes( &self ) -> HashMap< Box< str >, AttributeInfo >
+    pub fn get_attributes( &self ) -> &HashMap< Box< str >, AttributeInfo >
     {
-      self.attributes.clone()
+      &self.attributes
     }
 
     /// Performs the instanced draw call for the geometry.

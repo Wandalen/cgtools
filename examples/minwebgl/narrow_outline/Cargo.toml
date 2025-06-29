@@ -2,18 +2,22 @@
 name = "narrow_outline"
 version = "0.1.0"
 edition = "2021"
-authors = [ 
+authors = [
     "Kostiantyn Mysnyk <wandalen@obox.systems>",
     "Bilan Vadym <vadym.b@obox.systems>"
 ]
 
+[lints]
+workspace = true
+
 [dependencies]
 minwebgl = { workspace = true, features = [ "future" ] }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
+renderer = { workspace = true }
 ndarray_cg = { workspace = true }
 gltf = { workspace = true }
 rand = { workspace = true }
-getrandom = { workspace = true }
+getrandom = { workspace = true, features = [ "wasm_js" ] }
 csgrs = { workspace = true }
 parry3d = { workspace = true }
 
@@ -38,6 +42,7 @@ features = [
     'HtmlImageElement',
     'ImageBitmap',
     'Url',
-    'WebGlTexture', 
-    'WebGlFramebuffer', 
+    'WebGlTexture',
+    'WebGlFramebuffer',
+    'WebGlRenderbuffer',
 ]

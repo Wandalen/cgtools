@@ -24,6 +24,7 @@ async fn run() -> Result< (), gl::WebglError >
   let document = window.document().unwrap();
 
   let _ = gl.get_extension( "EXT_color_buffer_float" ).expect( "Failed to enable EXT_color_buffer_float extension" );
+  let _ = gl.get_extension( "EXT_shader_image_load_store" ).expect( "Failed to enable EXT_shader_image_load_store  extension" );
 
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
@@ -32,12 +33,21 @@ async fn run() -> Result< (), gl::WebglError >
   //let gltf_path = "gambeson.glb";
   //let gltf_path = "old_rusty_car.glb";
   //let gltf_path = "sponza.glb";
+  //let gltf_path = "nissan_titan_2017_transparent.glb";
+  //let gltf_path = "transparent_cubes_oit_rendering_test_model.glb";
+  //let gltf_path = "model.glb";
+  //let gltf_path = "untitled.glb";
+  //let gltf_path = "astro_carrier_2.0.glb";
+  //let gltf_path = "av-8b_harrier_ii.glb";
+  //let gltf_path = "dae_crib_-_tommys_garage.glb";
+  //let gltf_path = "low_poly_kids_playground.glb";
+  //let gltf_path = "watchman_of_doom_2.0_special.glb";
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
   let scenes = gltf.scenes;
   scenes[ 0 ].borrow_mut().update_world_matrix();
 
   let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
-  gl::info!( "Boudnig box: {:?}", scene_bounding_box );
+  gl::info!( "Scene boudnig box: {:?}", scene_bounding_box );
   let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
   let dist = scene_bounding_box.max.mag();
   let exponent = 
@@ -50,6 +60,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   // Camera setup
   let mut eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
+  eye = gl::math::F32x3::from( [ 0.0, 0.0, 1.0 ] );
   eye *= dist;
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
 
@@ -58,8 +69,8 @@ async fn run() -> Result< (), gl::WebglError >
 
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
-  let near = 1.0 * 10.0f32.powi( exponent ).min( 1.0 );
-  let far = near * 10.0f32.powi( exponent.abs() );
+  let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 );
+  let far = near * 100.0f32.powi( exponent.abs() );
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
   camera.set_window_size( [ width, height ].into() );

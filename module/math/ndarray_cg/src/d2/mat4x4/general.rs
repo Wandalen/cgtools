@@ -66,13 +66,6 @@ Self : ScalarMut< Scalar = E, Index = Ix2 > +
        ConstLayout< Index = Ix2 > + 
        IndexingMut< Scalar = E, Index = Ix2 >
 {
-  /// Converts the matrix to an array
-  pub fn to_array( &self ) -> [ E; 16 ]
-  {
-    self.raw_slice().try_into().unwrap()
-  }
-
-
   /// Computes the determinant of the matrix
   pub fn determinant( &self ) -> E
   where 
@@ -132,3 +125,102 @@ Self : ScalarMut< Scalar = E, Index = Ix2 > +
     Some( adj / det )
   }
 }
+
+impl< E, Descriptor > Mat< 4, 4, E, Descriptor > 
+where 
+E : MatEl + nd::NdFloat,
+Descriptor : mat::Descriptor,
+Self : RawSlice< Scalar = E >
+{
+  /// Converts the matrix to an array
+  pub fn to_array( &self ) -> [ E; 16 ]
+  {
+    self.raw_slice().try_into().unwrap()
+  }
+
+  /// Convertes this matrix into the 3x3 matrix
+  pub fn truncate( &self ) -> Mat< 3, 3, E, Descriptor >
+  where 
+    Mat< 3, 3, E, Descriptor > : RawSliceMut< Scalar = E >
+  {
+    let slice = self.raw_slice();
+
+    let trunc_slice = 
+    [
+      slice[ 0 ],
+      slice[ 1 ],
+      slice[ 2 ],
+
+      slice[ 4 ],
+      slice[ 5 ],
+      slice[ 6 ],
+
+      slice[ 8 ],
+      slice[ 9 ],
+      slice[ 10 ],
+    ];
+
+    let mut mat3 = Mat::< 3, 3, E, Descriptor >::default();
+    mat3.raw_set_slice( &trunc_slice );
+    mat3
+  }
+}
+
+impl< E, Descriptor > Mat< 4, 4, E, Descriptor > 
+where 
+E : MatEl + nd::NdFloat,
+Descriptor : mat::Descriptor,
+Self : ScalarMut< Scalar = E > + 
+       IndexingMut< Scalar = E, Index = Ix2 >
+{
+  /// Creates a transformation matrix from scale, rotation and translation
+  pub fn from_scale_rotation_translation< Vec, Q >
+  ( 
+    scale : Vec,
+    rotation : Q,
+    translation : Vec
+  ) -> Self
+  where
+    Vec : VectorIter< E, 3 >,
+    Q : Into< Quat< E > >
+  {
+    let rot = rotation.into().to_matrix();
+
+    let mut siter = scale.vector_iter();
+    let sx = *siter.next().unwrap();
+    let sy = *siter.next().unwrap();
+    let sz = *siter.next().unwrap();
+
+    let mut titer = translation.vector_iter();
+    let tx = *titer.next().unwrap();
+    let ty = *titer.next().unwrap();
+    let tz = *titer.next().unwrap();
+
+    let rot = rot.raw_slice();
+
+    let mut res = Self::default();
+    
+    *res.scalar_mut(  Ix2( 0, 0 ) ) = rot[ 0 ] * sx;
+    *res.scalar_mut(  Ix2( 1, 0 ) ) = rot[ 1 ] * sx;
+    *res.scalar_mut(  Ix2( 2, 0 ) ) = rot[ 2 ] * sx;
+    *res.scalar_mut(  Ix2( 3, 0 ) ) = E::zero();
+
+    *res.scalar_mut(  Ix2( 0, 1 ) ) = rot[ 3 ] * sy;
+    *res.scalar_mut(  Ix2( 1, 1 ) ) = rot[ 4 ] * sy;
+    *res.scalar_mut(  Ix2( 2, 1 ) ) = rot[ 5 ] * sy;
+    *res.scalar_mut(  Ix2( 3, 1 ) ) = E::zero();
+
+    *res.scalar_mut(  Ix2( 0, 2 ) ) = rot[ 6 ] * sz;
+    *res.scalar_mut(  Ix2( 1, 2 ) ) = rot[ 7 ] * sz;
+    *res.scalar_mut(  Ix2( 2, 2 ) ) = rot[ 8 ] * sz;
+    *res.scalar_mut(  Ix2( 3, 2 ) ) = E::zero();
+
+    *res.scalar_mut(  Ix2( 0, 3 ) ) = tx;
+    *res.scalar_mut(  Ix2( 1, 3 ) ) = ty;
+    *res.scalar_mut(  Ix2( 2, 3 ) ) = tz;
+    *res.scalar_mut(  Ix2( 3, 3 ) ) = E::one();
+
+    res
+  }
+}
+

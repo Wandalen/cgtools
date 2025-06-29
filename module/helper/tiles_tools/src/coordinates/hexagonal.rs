@@ -1,5 +1,6 @@
-use std::{ fmt::Debug, hash::Hash, marker::PhantomData };
 use ndarray_cg::I32x2;
+use serde::{ Deserialize, Serialize };
+use std::{ fmt::Debug, hash::Hash, marker::PhantomData };
 use crate::coordinates::{ pixel::Pixel, Distance, Neigbors };
 
 pub struct Axial;
@@ -14,12 +15,14 @@ pub struct Odd;
 
 pub struct Even;
 
+#[ derive( Serialize, Deserialize ) ]
 pub struct Coordinate< System, Orientation >
 {
   /// Column index
   pub q : i32,
   /// Row index
   pub r : i32,
+  #[ serde( skip ) ]
   pub _marker : PhantomData< ( System, Orientation ) >,
 }
 
@@ -62,6 +65,14 @@ impl< System, Orientation > Hash for Coordinate< System, Orientation >
     self.q.hash( state );
     self.r.hash( state );
     self._marker.hash( state );
+  }
+}
+
+impl< System, Orientation > Default for Coordinate< System, Orientation >
+{
+  fn default() -> Self
+  {
+    Self { q : Default::default(), r : Default::default(), _marker : Default::default() }
   }
 }
 
@@ -203,11 +214,27 @@ impl From< Coordinate< Offset< Even >, Flat > > for Coordinate< Axial, Flat >
   }
 }
 
-impl< Orientation > From< ( i32, i32 ) > for Coordinate< Axial, Orientation >
+impl< System, Orientation > From< ( i32, i32 ) > for Coordinate< System, Orientation >
 {
   fn from( ( q, r ) : ( i32, i32 ) ) -> Self
   {
-    Self::new( q, r )
+    Self::new_uncheked( q, r )
+  }
+}
+
+impl< System, Orientation > From< [ i32; 2 ] > for Coordinate< System, Orientation >
+{
+  fn from( [ q, r ] : [ i32; 2 ] ) -> Self
+  {
+    Self::new_uncheked( q, r )
+  }
+}
+
+impl< System, Orientation > From< I32x2 > for Coordinate< System, Orientation >
+{
+  fn from( ndarray_cg::Vector( [ q, r ] ) : I32x2 ) -> Self
+  {
+    Self::new_uncheked( q, r )
   }
 }
 
@@ -334,5 +361,38 @@ impl< Orientation > Neigbors for Coordinate< Axial, Orientation >
       *self + ( -1,  1 ).into(),
       *self + (  0,  1 ).into(),
     ].into()
+  }
+}
+
+impl Coordinate< Axial, Flat >
+{
+  pub fn up( &self ) -> Self
+  {
+    Self::new( self.q, self.r - 1 )
+  }
+
+  pub fn down( &self ) -> Self
+  {
+    Self::new( self.q, self.r + 1 )
+  }
+
+  pub fn left_up( &self ) -> Self
+  {
+    Self::new( self.q - 1, self.r )
+  }
+
+  pub fn left_down( &self ) -> Self
+  {
+    Self::new( self.q - 1, self.r + 1 )
+  }
+
+  pub fn right_up( &self ) -> Self
+  {
+    Self::new( self.q + 1, self.r - 1 )
+  }
+
+  pub fn right_down( &self ) -> Self
+  {
+    Self::new( self.q + 1, self.r )
   }
 }

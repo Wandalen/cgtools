@@ -13,6 +13,22 @@ use crate::webgl::Primitive;
     pub primitives : Vec< Rc< RefCell< Primitive > > >,
   }
 
+  impl Clone for Mesh
+  {
+    fn clone( &self ) -> Self 
+    {
+      Self 
+      { 
+        primitives : 
+        {
+          self.primitives.iter()
+          .map( | p | Rc::new( RefCell::new( p.borrow().clone() ) ) )
+          .collect::< Vec< _ > >()
+        }
+      }
+    }
+  }
+
   impl Mesh
   {
     /// Creates a new, empty `Mesh`.

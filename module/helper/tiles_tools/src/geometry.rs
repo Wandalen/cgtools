@@ -75,6 +75,35 @@ pub fn hexagon_triangles() -> Vec< f32 >
   positions
 }
 
+pub fn hexagon_triangles_with_tranform( transform : F32x3x3 ) -> Vec< f32 >
+{
+  let mut points = hexagon_vertices();
+  for point in &mut points
+  {
+    let p = transform * Vector( [ point[ 0 ], point[ 1 ], 1.0 ] );
+    point.0 = [ p.x(), p.y() ];
+  }
+
+  let mut positions = vec![];
+
+  let first = points.first().unwrap();
+
+  for w in points[ 1.. ].windows( 2 )
+  {
+    let point1 = w[ 0 ];
+    let point2 = w[ 1 ];
+
+    positions.push( first[ 0 ] );
+    positions.push( first[ 1 ] );
+    positions.push( point1[ 0 ] );
+    positions.push( point1[ 1 ] );
+    positions.push( point2[ 0 ] );
+    positions.push( point2[ 1 ] );
+  }
+
+  positions
+}
+
 /// Generates a list of 2d positions of lines that form a hexagon of a unit radius.
 /// Center is at (0, 0). Distance from center to each vertex is 1.0.
 /// The hexagon is formed of into 6 lines.

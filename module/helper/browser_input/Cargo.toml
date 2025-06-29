@@ -6,8 +6,9 @@ edition = "2024"
 [dependencies]
 minwebgl = { workspace = true, features = ["math"] }
 web-sys = { workspace = true, features = [
-  "MouseEvent",
   "KeyboardEvent",
+  "PointerEvent",
+  "WheelEvent",
   "HtmlInputElement",
 ] }
 strum = { workspace = true, features = ["derive"] }

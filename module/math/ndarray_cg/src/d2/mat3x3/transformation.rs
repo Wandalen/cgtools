@@ -1,19 +1,50 @@
 use crate::*;
 //use mdmath_core::vector::arithmetics::*;
 
-pub fn from_angle_y< E >( angle : f32 ) -> Mat3< E, mat::DescriptorOrderColumnMajor >
+pub fn from_angle_x< E >( angle : E ) -> Mat3< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl + nd::NdFloat,
   Mat3< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >
 {
-  let s = E::from( angle.sin() ).unwrap();
-  let c = E::from( angle.cos() ).unwrap();
+  let ( s, c ) = angle.sin_cos();
+  Mat3::from_row_major
+  (
+    [
+      E::one(),  E::zero(), E::zero(),
+      E::zero(), c,         -s,
+      E::zero(), s,         c, 
+    ]
+  )
+}
+
+pub fn from_angle_y< E >( angle : E ) -> Mat3< E, mat::DescriptorOrderColumnMajor >
+where
+  E : MatEl + nd::NdFloat,
+  Mat3< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >
+{
+  let ( s, c ) = angle.sin_cos();
   Mat3::from_row_major
   (
     [
       c,         E::zero(), s,
       E::zero(), E::one(),  E::zero(),
       -s,        E::zero(), c
+    ]
+  )
+}
+
+pub fn from_angle_z< E >( angle : E ) -> Mat3< E, mat::DescriptorOrderColumnMajor >
+where
+  E : MatEl + nd::NdFloat,
+  Mat3< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >
+{
+  let ( s, c ) = angle.sin_cos();
+  Mat3::from_row_major
+  (
+    [
+      c,         -s,        E::zero(),
+      s,         c,         E::zero(),
+      E::zero(), E::zero(), E::one()
     ]
   )
 }

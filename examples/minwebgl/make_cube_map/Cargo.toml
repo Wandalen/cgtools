@@ -2,15 +2,14 @@
 name = "minwebgl_make_cube_map"
 version = "0.1.0"
 edition = "2021"
-authors = [ 
+authors = [
   "Kostiantyn Mysnyk <wandalen@obox.systems>",
-  "Avramenko Yevhenii <yevhenii.av@obox.systems>" 
+  "Avramenko Yevhenii <yevhenii.av@obox.systems>"
 ]
 
 [dependencies]
 
-minwebgl = { workspace = true, features = [ "future" ] }
-glam = "0.29.0"
+minwebgl = { workspace = true, features = [ "future", "math" ] }
 gltf = { version = "1.4.1", features = [ "import" ] }
 image = "0.25.2"
 
