@@ -39,6 +39,7 @@ use geometry_generation::*;
 
 mod camera_controls;
 mod loaders;
+mod animation;
 
 fn upload_texture( gl : &WebGl2RenderingContext, src : Rc< String > ) -> WebGlTexture
 {
@@ -266,6 +267,22 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
   ( canvas_gltf, colors )
 }
 
+fn setup_animation() -> Composition
+{
+
+}
+
+pub fn modulo( dividend : f64, divisor : f64 ) -> f64 
+{
+  let result = dividend % divisor;
+  if result < 0.0 
+  {
+    result + divisor.abs()
+  } else {
+    result
+  }
+}
+
 async fn run() -> Result< (), gl::WebglError >
 {
   let ( gl, canvas ) = init_context();
@@ -331,15 +348,23 @@ async fn run() -> Result< (), gl::WebglError >
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
+  let anim = setup_animation();
+  let transform = kurbo::Affine::translate( [ 0, 0 ] );
+
+  let mut animator = animation::Animator::new();
+
   // Define the update and draw logic
   let update_and_draw =
   {
     move | t : f64 |
     {
       // If textures are of different size, gl.view_port needs to be called
-      let _time = t as f32 / 1000.0;
+      let time = t as f32 / 1000.0;
 
-      canvas_renderer.render( &gl, &mut canvas_gltf.scenes[ 0 ].borrow_mut(), &canvas_camera, &colors ).unwrap();
+      let ( primitives, colors ) = animator.generate( &anim, modulo( time, 10 ), transform, 1.0 );
+      let mut animation_gltf = primitives_data_to_gltf( gl, primitives );
+
+      canvas_renderer.render( &gl, &mut animation_gltf.scenes[ 0 ].borrow_mut(), &canvas_camera, &colors ).unwrap();
 
       // renderer.render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
       // .expect( "Failed to render" );
