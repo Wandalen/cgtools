@@ -18,6 +18,7 @@ gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
 renderer = { workspace = true }
 canvas_renderer = { workspace = true }
 geometry_generation = { workspace = true }
+kurbo = { workspace = true }
 zune-hdr = { workspace = true }
 rand = { workspace = true }
 getrandom = { workspace = true, features = [ "wasm_js" ] }
