@@ -1,4 +1,4 @@
-use std::collections::{ HashMap, VecDeque };
+use std::collections::HashMap;
 use mingl::F32x4;
 use minwebgl::
 { 
@@ -175,6 +175,7 @@ async fn run() -> Result< (), gl::WebglError >
     [
       ( GBufferAttachment::Position, vec![ get_buffer( "positions" ) ] ),
       ( GBufferAttachment::Albedo, vec![] ),
+      ( GBufferAttachment::Uv1, vec![] ),
       ( GBufferAttachment::Normal, vec![ get_buffer( "normals" ) ] ),
       ( GBufferAttachment::PbrInfo, vec![ get_buffer( "texture_coordinates_2" ) ] ),
       ( GBufferAttachment::ObjectColor, vec![] )
@@ -386,38 +387,25 @@ async fn run() -> Result< (), gl::WebglError >
   let _ = outline_thickness_slider_element.add_event_listener_with_callback( "input", slider_change_closure.as_ref().unchecked_ref() );
   slider_change_closure.forget();
 
-  let fps_value_span = get_html_span_element_by_id( "fpsValue" );
-  let fps_value_span_rc = Rc::new( RefCell::new( fps_value_span ) );
-  let last_frame_time_rc = Rc::new( RefCell::new( 0.0f64 ) );
-
-  let fps_frame_rc = Rc::new( RefCell::new( VecDeque::new() ) );
+  let fps_value = get_html_span_element_by_id( "fpsValue" );
+  let mut last_time = 0.0;
+  let mut fps = 0;
 
   // Define the update and draw logic
   let update_and_draw =
   {
-    let fps_value_span_rc_clone = fps_value_span_rc.clone();
-    let last_frame_time_rc_clone = last_frame_time_rc.clone();
-    let fps_frame_rc_clone = fps_frame_rc.clone();
-
     move | t : f64 |
     {
-      let time = t / 1000.0;
+      let time = ( t / 1000.0 ) as f32;
 
-      let mut last_frame_time = last_frame_time_rc_clone.borrow_mut();
-      let delta_time = time - *last_frame_time;
-      *last_frame_time = time;
-
-      if delta_time > 0.0 
+      // Update fps text when a whole second elapsed
+      if time as u32 > last_time as u32
       {
-        let fps = ( 1.0 / delta_time ) as u32;
-        if fps_frame_rc_clone.borrow().len() > 20
-        {
-          fps_frame_rc_clone.borrow_mut().pop_front();
-        }
-        fps_frame_rc_clone.borrow_mut().push_back( fps );
-        let mid_fps : u32 = fps_frame_rc_clone.borrow().iter().sum::< u32 >() / 20;
-        let _ = fps_value_span_rc_clone.borrow().set_text_content( Some( &mid_fps.to_string() ) );
+        fps_value.set_text_content( Some( &format!( "{}", fps ) ) );
+        fps = 0;
       }
+      last_time = time;
+      fps += 1;
 
       gbuffer.clone()
       .borrow_mut()
