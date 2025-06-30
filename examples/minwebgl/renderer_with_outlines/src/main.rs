@@ -37,7 +37,6 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 mod camera_controls;
-mod loaders;
 
 fn generate_object_colors( object_count : u32 ) -> Vec< F32x4 > 
 {
@@ -165,7 +164,6 @@ async fn run() -> Result< (), gl::WebglError >
     )
   );
   let renderer1 = renderer.clone();
-  renderer.borrow_mut().set_ibl( loaders::ibl::load( &gl, "environment_map" ).await );
 
   let attributes = get_attributes( &gltf )?;  
 
