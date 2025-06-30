@@ -317,7 +317,7 @@ mod private
       gl.cull_face( gl::BACK );
       gl.depth_func( gl::LESS );
       gl.clear_depth( 1.0 );
-      gl.clear( GL::COLOR_BUFFER_BIT | GL::DEPTH_BUFFER_BIT );
+      gl.clear( GL::DEPTH_BUFFER_BIT );
 
       gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, [ -1.0, -1.0, -1.0, 1.0 ].as_slice() );
       gl.clear_bufferfv_with_f32_array( gl::COLOR, 1, [ -1.0, -1.0, -1.0, 1.0 ].as_slice() );
