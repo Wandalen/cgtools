@@ -91,7 +91,7 @@ async fn create_texture(
   image_name : &str
 ) -> Option< TextureInfo >
 {
-  let image_path = format!( "static/curve_surface_rendering/textures/{image_name}" );
+  let image_path = format!( "static/textures/{image_name}" );
   let texture_id = upload_texture( gl, Rc::new( image_path ) );
 
   let sampler = Sampler::former()
@@ -193,7 +193,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 {
   let window = web_sys::window().unwrap();
   let document =  window.document().unwrap();
-  let mut gltf = renderer::webgl::loaders::gltf::load( &document, "curve_surface_rendering/sphere.glb", &gl ).await?;
+  let mut gltf = renderer::webgl::loaders::gltf::load( &document, "gltf/sphere.glb", &gl ).await?;
 
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 ).unwrap().clone();
   let texture = create_texture( &gl, "earth2.jpg" ).await;
@@ -252,10 +252,9 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
   for font_name in font_names
   {
     transform.translation[ 1 ] -= 1.0; 
-    let mut text_mesh = text::ufo::text_to_mesh( &text, fonts.get( font_name ).unwrap(), &transform );
+    let mut text_mesh = text::ufo::text_to_countour_mesh( &text, fonts.get( font_name ).unwrap(), &transform, 5.0 );
     text_mesh.iter_mut()
-    .enumerate()
-    .for_each( | ( i, p ) | p.color = colors[ i % 3 ].clone() );
+    .for_each( | p | p.color = colors[ 0 ].clone() );
     primitives_data.extend( text_mesh );
   }
 
@@ -325,7 +324,7 @@ async fn run() -> Result< (), gl::WebglError >
   camera.get_controls().borrow_mut().eye = [ eye.x(), eye.y(), eye.z() ].into();
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_ibl( loaders::ibl::load( &gl, "environment_maps/gltf_viewer_ibl_unreal" ).await );
+  renderer.set_ibl( loaders::ibl::load( &gl, "environment_maps/" ).await );
 
   let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
 
