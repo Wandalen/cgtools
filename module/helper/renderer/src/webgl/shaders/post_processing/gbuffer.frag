@@ -7,7 +7,7 @@ in vec3 vPosition;
 #ifdef NORMAL
   in vec3 vNormal;
 #endif
-#ifdef PBR_INFO
+#ifdef UV_1
   in vec2 vTexCoord;
 #endif
 
@@ -28,11 +28,12 @@ in vec3 vPosition;
 #endif
 
 #ifdef POSITION 
-  uniform float near;
-  uniform float far;
+  uniform vec2 near_far;
 
   float linearizeDepth( float depth )
   {
+    float near = near_far.x;
+    float far = near_far.y;
     return ( 2.0 * near * far ) / ( far + near - ( depth * 2.0 - 1.0 ) * ( far - near ) );
   }
 #endif

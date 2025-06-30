@@ -5,7 +5,7 @@ layout ( location = 0 ) in vec3 position;
 #ifdef NORMAL
   layout ( location = 2 ) in vec3 normal;
 #endif
-#ifdef PBR_INFO
+#ifdef UV_1
   layout ( location = 3 ) in vec2 texCoord;  
 #endif
 
