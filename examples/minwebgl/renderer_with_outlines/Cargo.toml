@@ -32,5 +32,6 @@ features = [
   'BlobPropertyBag',
   'Url',
   'WebGlFramebuffer',
-  'WebGlRenderbuffer'
+  'WebGlRenderbuffer',
+  'HtmlInputElement'
 ]
