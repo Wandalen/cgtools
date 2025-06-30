@@ -3,8 +3,6 @@
 // High precision is recommended for coordinate/distance calculations.
 precision highp float;
 
-#define MAX_OBJECT_COUNT 1024
-
 // Interpolated texture coordinate from the vertex shader for the current pixel.
 in vec2 vUv;
 // Output fragment color to the default framebuffer ( screen ).
@@ -14,22 +12,17 @@ const float outlineThickness = 30.0;   // Outline thickness in pixels
 
 uniform sampler2D sourceTexture;
 // Input: The texture containing the original rendered object silhouette.
-uniform sampler2D objectColorIdTexture;
+uniform sampler2D objectColorTexture;
 // Input: The final JFA result texture ( contains nearest seed coordinates for all pixels ).
 uniform sampler2D jfaTexture;
 // Uniforms for parameters needed for outlining.
 uniform vec2 resolution;           // Screen/texture size in pixels
 
-layout( std140 ) uniform ObjectColorBlock
-{
-  vec4 objectColors[ MAX_OBJECT_COUNT ];
-};
-
 void main()
 {
   // Check if the current pixel belongs to the original object silhouette.
   // Sample the silhouette texture. Object pixels are white ( r=1.0 ).
-  float objectPresent = texture( objectColorIdTexture, vUv ).r;
+  float objectPresent = texture( objectColorTexture, vUv ).r;
 
   if ( objectPresent > 0.01 ) // Use a small tolerance for float comparisons
   {
@@ -46,19 +39,17 @@ void main()
 
     // Check if a valid seed coordinate was found ( i.e., not the sentinel value -1.0 ).
     // Assuming sentinel has x < 0.0.
-    if ( seedCoord.x >= 0.0 )
+    if ( seedCoord.x != 0.0 && seedCoord.y != 0.0 )
     {
         // Calculate the distance in pixel units between the current pixel and the nearest seed.
         // Scale normalized coordinates by resolution to get pixel coordinates.
         float dist = distance( vUv * resolution, seedCoord * resolution );
 
-        uint colorId = uint( texture( objectColorIdTexture, vUv ).r );
-
         // If the distance to the nearest object pixel is within the desired outline thickness...
-        if ( dist < outlineThickness && colorId != 0 )
+        if ( dist < outlineThickness )
         {
           // ...draw the outline color.
-          FragColor = objectColors[ colorId ];
+          FragColor = texture( objectColorTexture, vUv );
         }
         else
         {

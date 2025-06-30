@@ -7,13 +7,13 @@ in vec2 vUv;
 // RGBA32F texture format is typically used for this pass to store floating-point coordinates.
 out vec4 FragColor;
 // Input: The texture containing the rendered object silhouette ( from object_pass ).
-uniform sampler2D objectColorIdTexture;
+uniform sampler2D objectColorTexture;
 
 void main()
 {
   // Check if the pixel corresponds to the object silhouette in the input texture.
   // The object_pass renders object pixels as white ( r=1.0 ).
-  float objectPresent = texture( objectColorIdTexture, vUv ).r;
+  float objectPresent = texture( objectColorTexture, vUv ).r;
 
   if ( objectPresent > 0.01 ) // If pixel is part of the object ( check > 0.0 for robustness )
   {

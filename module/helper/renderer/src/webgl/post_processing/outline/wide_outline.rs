@@ -30,7 +30,6 @@ mod private
     {
       WebGlProgram,
       WebGlUniformLocation,
-      WebGlBuffer,
       WebGlTexture,
       WebGlFramebuffer
     }
@@ -47,8 +46,6 @@ mod private
     ProgramInfo 
   };
   use std::collections::HashMap;
-
-  pub const MAX_OBJECT_COUNT : usize = 1024;
 
   /// Binds a texture to a texture unit and uploads its location to a uniform.
   ///
@@ -105,8 +102,8 @@ mod private
       gl.tex_storage_2d( GL::TEXTURE_2D, 1, gl::RGBA8, width, height );
       // Configure texture parameters (filtering, wrapping)
       gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32 );
-      gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::REPEAT as i32 );
-      gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::REPEAT as i32 );
+      gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE as i32 );
+      gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
       color
     };
 
@@ -191,8 +188,6 @@ mod private
     framebuffers : HashMap< String, WebGlFramebuffer >,
     textures : HashMap< String, WebGlTexture >,
     outline_thickness : f32,
-    object_colors : Option< Vec< [ f32; 4 ] > >,
-    object_color_buffer : WebGlBuffer,
     width : u32,
     height : u32,
     num_passes : u32
@@ -203,7 +198,8 @@ mod private
     /// Creates a new `NarrowOutlinePass` instance.
     pub fn new( 
       gl : &gl::WebGl2RenderingContext, 
-      object_color_id_texture : WebGlTexture,
+      object_color_texture : WebGlTexture,
+      outline_thickness : f32,
       width : u32, 
       height : u32 
     ) -> Result< Self, gl::WebglError >
@@ -222,7 +218,7 @@ mod private
       let mut textures = HashMap::new();
 
       // Store the color attachment textures
-      textures.insert( "object_color_id".to_string(), object_color_id_texture );
+      textures.insert( "object_color".to_string(), object_color_texture );
       textures.insert( "jfa_init_fb_color".to_string(), jfa_init_fb_color );
       textures.insert( "jfa_step_fb_color_0".to_string(), jfa_step_fb_color_0 );
       textures.insert( "jfa_step_fb_color_1".to_string(), jfa_step_fb_color_1 );
@@ -236,29 +232,18 @@ mod private
       framebuffers.insert( "jfa_step_fb_1".to_string(), jfa_step_fb_1 );
       framebuffers.insert( "outline_fb".to_string(), outline_fb );
 
-      let object_color_buffer = gl::buffer::create( &gl )?;
-      let object_colors_loc = gl.get_uniform_block_index( &program_infos.outline.0, "ObjectColorBlock" );
-      gl.uniform_block_binding( &program_infos.outline.0, object_colors_loc, 0 );
-      gl.bind_buffer_base( GL::UNIFORM_BUFFER, 0, Some( &object_color_buffer ) );
-      gl.bind_buffer( GL::UNIFORM_BUFFER, Some( &object_color_buffer ) );
-      gl.buffer_data_with_i32( GL::UNIFORM_BUFFER, MAX_OBJECT_COUNT as i32 * 16, GL::DYNAMIC_DRAW );
-
       let num_passes = 4;//( width.max( height ) as f32 ).log2().ceil() as u32;
 
-      let mut pass = Self
+      let pass = Self
       {
         program_infos,
         framebuffers,
         textures,
-        outline_thickness : 10.0,
-        object_colors : None,
-        object_color_buffer,
+        outline_thickness,
         width,
         height,
         num_passes
       };
-
-      pass.set_object_colors( gl, vec![ [ 0.0; 4 ]; MAX_OBJECT_COUNT ] );
 
       Ok( pass )
     }    
@@ -268,11 +253,9 @@ mod private
       self.outline_thickness = new_value;
     }
 
-    pub fn set_object_colors( &mut self, gl : &gl::WebGl2RenderingContext, object_colors: Vec< [ f32; 4 ] > )
+    pub fn set_num_passes( &mut self, new_value : u32 )
     {
-      self.object_colors = Some( object_colors.clone() );
-      let object_colors = object_colors.into_iter().flatten().collect::< Vec< _ > >();
-      gl::ubo::upload( &gl, &self.object_color_buffer, 0, &object_colors[ .. ], GL::DYNAMIC_DRAW );
+      self.num_passes = new_value;
     }
 
     /// Performs the JFA initialization pass.
@@ -284,17 +267,17 @@ mod private
     {
       let jfa_init_program = &self.program_infos.jfa_init.0;
       let jfa_init_fb = self.framebuffers.get( "jfa_init_fb" ).unwrap();
-      let object_color_id = self.textures.get( "object_color_id" ).unwrap();
+      let object_color = self.textures.get( "object_color" ).unwrap();
 
       let jfa_init_locs = self.program_infos.jfa_init.1.get_locations();
 
-      let object_color_id_loc = jfa_init_locs.get( "objectColorIdTexture" ).unwrap().clone().unwrap();
+      let object_color_loc = jfa_init_locs.get( "objectColorTexture" ).unwrap().clone().unwrap();
 
       gl.use_program( Some( jfa_init_program ) );
 
       upload_framebuffer( gl, jfa_init_fb, self.width as i32, self.height as i32 );
 
-      upload_texture( gl, object_color_id, &object_color_id_loc, GL::TEXTURE0 );
+      upload_texture( gl, object_color, &object_color_loc, GL::TEXTURE0 );
 
       gl.draw_arrays( GL::TRIANGLES, 0, 3 );
     }
@@ -378,14 +361,14 @@ mod private
       let outline_program = &self.program_infos.outline.0;
       let outline_fb = self.framebuffers.get( "outline_fb" ).unwrap();
       let source = input_texture.unwrap();
-      let object_color_id = self.textures.get( "object_color_id" ).unwrap();
+      let object_color = self.textures.get( "object_color" ).unwrap();
       let jfa_step_fb_color_0 = self.textures.get( "jfa_step_fb_color_0" ).unwrap(); // JFA ping-pong texture 0
       let jfa_step_fb_color_1 = self.textures.get( "jfa_step_fb_color_1" ).unwrap(); // JFA ping-pong texture 1
 
       let outline_locs = self.program_infos.outline.1.get_locations();
 
       let source_loc = outline_locs.get( "sourceTexture" ).unwrap().clone().unwrap();
-      let object_color_id_loc = outline_locs.get( "objectColorIdTexture" ).unwrap().clone().unwrap();
+      let object_color_loc = outline_locs.get( "objectColorTexture" ).unwrap().clone().unwrap();
       let jfa_step_loc = outline_locs.get( "jfaTexture" ).unwrap().clone().unwrap();
       let resolution = outline_locs.get( "resolution" ).unwrap().clone().unwrap();
 
@@ -394,12 +377,12 @@ mod private
       gl.use_program( Some( outline_program ) );
 
       // Bind the default framebuffer ( render to canvas )
-      gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+      gl.bind_framebuffer( GL::FRAMEBUFFER, Some( outline_fb ) );
 
       gl::uniform::upload( gl, Some( resolution.clone() ), &[ self.width as f32, self.height as f32 ] ).unwrap();
 
       upload_texture( gl, &source, &source_loc, GL::TEXTURE0 );
-      upload_texture( gl, object_color_id, &object_color_id_loc, GL::TEXTURE1 );
+      upload_texture( gl, object_color, &object_color_loc, GL::TEXTURE1 );
       // The final JFA result is in jfa_step_fb_color_0 if num_passes is even, otherwise in jfa_step_fb_color_1
       if self.num_passes % 2 == 0
       {
@@ -454,7 +437,6 @@ crate::mod_interface!
 {
   orphan use
   {
-    WideOutlinePass,
-    MAX_OBJECT_COUNT
+    WideOutlinePass
   };
 }

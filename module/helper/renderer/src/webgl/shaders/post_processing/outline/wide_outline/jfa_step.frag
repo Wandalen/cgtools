@@ -31,17 +31,10 @@ void main()
       vec2 offset = ceil( vec2( float( x ), float( y ) ) * stepSize ) / resolution;
 
       // Calculate the sample coordinate in the input JFA texture.
-      vec2 sample_coord = vUv + offset;
+      vec2 sampleCoord = vUv + offset;
 
       // Sample the input JFA texture at the calculated sample coordinate.
       vec2 seedCoord = texture( jfaTexture, sampleCoord ).xy;
-
-      // Check if the sampled coordinate is a valid seed coordinate ( not the sentinel ).
-      if ( seedCoord.x < 0.01 )
-      {
-        // We skip this sample as it doesn't provide a valid seed location.
-        continue;
-      }
 
       // Calculate the distance between the current pixel's coordinate and the sampled seed coordinate.
       float dist = distance( vUv * resolution, seedCoord * resolution );
