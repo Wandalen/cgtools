@@ -14,9 +14,10 @@ mod private
   /// The source code for the gbuffer fragment shader.
   const GBUFFER_FRAGMENT_SHADER : &'static str = include_str!( "../shaders/post_processing/gbuffer.frag" );
 
-  pub const ALL : [ GBufferAttachment; 6 ] = [
+  pub const ALL : [ GBufferAttachment; 7 ] = [
     GBufferAttachment::Position,
     GBufferAttachment::Color,
+    GBufferAttachment::Uv1,
     GBufferAttachment::Albedo,
     GBufferAttachment::Normal,
     GBufferAttachment::PbrInfo,
@@ -28,6 +29,7 @@ mod private
   {
     Position,
     Color,
+    Uv1,
     Albedo,
     Normal,
     PbrInfo,
@@ -66,7 +68,7 @@ mod private
           .vector( VectorDataType::new( mingl::DataType::F32, 3, 1 ) );
           vec![ ( 2, d2 ) ]
         },
-        GBufferAttachment::PbrInfo => 
+        GBufferAttachment::Uv1 => 
         {
           let d3 = gl::BufferDescriptor::new::< [ f32; 2 ] >()
           .normalized( true )
@@ -107,6 +109,7 @@ mod private
       {
         GBufferAttachment::Position => "POSITION",
         GBufferAttachment::Color => "COLOR",
+        GBufferAttachment::Uv1 => "UV_1",
         GBufferAttachment::Albedo => "ALBEDO",
         GBufferAttachment::Normal => "NORMAL",
         GBufferAttachment::PbrInfo => "PBR_INFO",
@@ -122,7 +125,7 @@ mod private
 
     for attachment in attachments
     {
-      defines = defines + "#define " + &attachment.define_const() + "\n";
+      defines = format!( "{defines} #define {}\n", &attachment.define_const() );
     }
 
     defines
@@ -164,15 +167,8 @@ mod private
     gl::uniform::upload
     (
       gl,
-      locations.get( "near" ).unwrap().clone(),
-      &[ near ]
-    ).unwrap();
-
-    gl::uniform::upload
-    (
-      gl,
-      locations.get( "far" ).unwrap().clone(),
-      &[ far ]
+      locations.get( "near_far" ).unwrap().clone(),
+      &[ near, far ]
     ).unwrap();
   }
 
