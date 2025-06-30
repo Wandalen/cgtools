@@ -100,7 +100,7 @@ impl Transform
     let s = self.scale;
     let mut node_mut = node.borrow_mut();
     node_mut.set_translation( [ t[ 0 ], t[ 1 ], t[ 2 ] ] );
-    let q = glam::Quat::from_euler( glam::EulerRot::XYZ, r[ 0 ], r[ 1 ], r[ 2 ] );
+    let q = gl::Quat::from_euler_xyz( r[ 0 ], r[ 1 ], r[ 2 ] );
     node_mut.set_rotation( q );
     node_mut.set_scale( [ s[ 0 ], s[ 1 ], s[ 2 ] ] );
     node_mut.update_local_matrix();
