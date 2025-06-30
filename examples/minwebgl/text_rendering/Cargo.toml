@@ -1,5 +1,5 @@
 [package]
-name = "curve_surface_rendering"
+name = "text_rendering"
 version = "0.1.0"
 edition = "2021"
 authors = [ 
@@ -16,11 +16,16 @@ minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
 renderer = { workspace = true }
-canvas_renderer = { workspace = true }
-geometry_generation = { workspace = true }
-zune-hdr = { workspace = true }
-rand = { workspace = true }
-getrandom = { workspace = true, features = [ "wasm_js" ] }
+glam = { workspace = true }
+csgrs = { workspace = true, features = [ "truetype-text" ] }
+parry3d = { workspace = true }
+norad = { workspace = true, default-features = false, features = [ "kurbo" ] }
+parley = { workspace = true }
+kurbo = { workspace = true }
+i_overlay = { workspace = true }
+i_triangle = { workspace = true }
+i_float = { workspace = true }
+quick-xml = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true
