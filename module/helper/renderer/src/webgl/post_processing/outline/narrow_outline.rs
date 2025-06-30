@@ -2,20 +2,15 @@
 mod private
 {
   use minwebgl as gl;
-  use web_sys::WebGlBuffer;
   use gl::GL;
   use crate::webgl::{ post_processing::{ Pass, VS_TRIANGLE }, program::NarrowOutlineShader, ProgramInfo };
-
-  pub const MAX_OBJECT_COUNT : usize = 1024;
 
   pub struct NarrowOutlinePass
   {
     program_info : ProgramInfo< NarrowOutlineShader >,
     position_texture : Option< gl::web_sys::WebGlTexture >,
-    object_color_id_texture : Option< gl::web_sys::WebGlTexture >,
+    object_color_texture : Option< gl::web_sys::WebGlTexture >,
     outline_thickness : f32,
-    _object_colors : Option< Vec< [ f32; 4 ] > >,
-    object_colors_buffer : WebGlBuffer,
     width : u32,
     height : u32
   }
@@ -26,7 +21,7 @@ mod private
     pub fn new( 
       gl : &gl::WebGl2RenderingContext, 
       position_texture : Option< gl::web_sys::WebGlTexture >,
-      object_color_id_texture : Option< gl::web_sys::WebGlTexture >,
+      object_color_texture : Option< gl::web_sys::WebGlTexture >,
       outline_thickness : f32,
       width : u32, 
       height : u32 
@@ -42,34 +37,23 @@ mod private
 
         let source_texture_loc = locations.get( "sourceTexture" ).unwrap().clone();
         let position_texture_loc = locations.get( "positionTexture" ).unwrap().clone();
-        let object_color_id_texture_loc = locations.get( "objectColorIdTexture" ).unwrap().clone();
+        let object_color_texture_loc = locations.get( "objectColorTexture" ).unwrap().clone();
 
         gl.uniform1i( source_texture_loc.as_ref(), 0 );
         gl.uniform1i( position_texture_loc.as_ref(), 1 );
-        gl.uniform1i( object_color_id_texture_loc.as_ref(), 2 );
+        gl.uniform1i( object_color_texture_loc.as_ref(), 2 );
         gl.use_program( None );
       }
 
-      let object_colors_buffer = gl::buffer::create( &gl )?;
-      let object_colors_loc = gl.get_uniform_block_index( &program, "ObjectColorBlock" );
-      gl.uniform_block_binding( &program, object_colors_loc, 0 );
-      gl.bind_buffer_base( GL::UNIFORM_BUFFER, 0, Some( &object_colors_buffer ) );
-      gl.bind_buffer( GL::UNIFORM_BUFFER, Some( &object_colors_buffer ) );
-      gl.buffer_data_with_i32( GL::UNIFORM_BUFFER, MAX_OBJECT_COUNT as i32 * 16, GL::DYNAMIC_DRAW );
-
-      let mut pass = Self
+      let pass = Self
       {
         program_info,
         position_texture,
-        object_color_id_texture,
+        object_color_texture,
         outline_thickness,
-        _object_colors : None,
-        object_colors_buffer,
         width,
         height
       };
-
-      pass.set_object_colors( gl, vec![ [ 0.0; 4 ]; MAX_OBJECT_COUNT ] );
 
       Ok( pass )
     }    
@@ -77,13 +61,6 @@ mod private
     pub fn set_outline_thickness( &mut self, new_value : f32 )
     {
       self.outline_thickness = new_value;
-    }
-
-    pub fn set_object_colors( &mut self, gl : &gl::WebGl2RenderingContext, object_colors: Vec< [ f32; 4 ] > )
-    {
-      self._object_colors = Some( object_colors.clone() );
-      let object_colors = object_colors.into_iter().flatten().collect::< Vec< _ > >();
-      gl::ubo::upload( &gl, &self.object_colors_buffer, 0, &object_colors[ .. ], GL::DYNAMIC_DRAW );
     }
   }
 
@@ -128,7 +105,10 @@ mod private
       gl.bind_texture( gl::TEXTURE_2D, self.position_texture.as_ref() );
 
       gl.active_texture( gl::TEXTURE2 );
-      gl.bind_texture( gl::TEXTURE_2D, self.object_color_id_texture.as_ref() );
+      gl.bind_texture( gl::TEXTURE_2D, self.object_color_texture.as_ref() );
+
+      gl.clear( GL::COLOR_BUFFER_BIT );
+      gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, [ -1.0, -1.0, -1.0, 1.0 ].as_slice() );
 
       gl.draw_arrays( GL::TRIANGLES, 0, 3 );
 
@@ -144,7 +124,6 @@ crate::mod_interface!
 {
   orphan use
   {
-    NarrowOutlinePass,
-    MAX_OBJECT_COUNT
+    NarrowOutlinePass
   };
 }

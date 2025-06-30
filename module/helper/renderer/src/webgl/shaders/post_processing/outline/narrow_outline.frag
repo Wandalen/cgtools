@@ -1,7 +1,5 @@
 #version 300 es
 
-#define MAX_OBJECT_COUNT 1024
-
 precision highp float;
 precision mediump usampler2D;
 
@@ -27,12 +25,7 @@ const uint IDS[ 13 ] = uint[ 13 ](
 // G-Buffer textures
 uniform sampler2D sourceTexture;
 uniform sampler2D positionTexture;
-uniform sampler2D objectColorIdTexture;
-
-layout( std140 ) uniform ObjectColorBlock
-{
-  vec4 objectColors[ MAX_OBJECT_COUNT ];
-};
+uniform sampler2D objectColorTexture;
 
 // Projection matrix for converting view-space coordinates to clip-space.
 uniform mat4 projection;
@@ -49,66 +42,17 @@ float outline_stencil()
   {
     for( int x = 0; x < 5; x++ )
     {
-      // uint objectColorId = uint( 
-      //   texture(
-      //     objectColorIdTexture,
-      //     vUv + vec2( float( x - 2 ), float( y - 2 ) ) * outlineThickness / resolution
-      //   ).x 
-      // );
-
-      // pix[ y * 5 + x ] = objectColors[ objectColorId ].x;
-
-      vec4 sourceTextureColor =
+      vec4 objectColor = 
       texture(
-        sourceTexture,
+        objectColorTexture,
         vUv + vec2( float( x - 2 ), float( y - 2 ) ) * outlineThickness / resolution
       );
 
-      pix[ y * 5 + x ] = sourceTextureColor.x;
+      pix[ y * 5 + x ] = objectColor.x;
     }
   }
 
-  float slaplacian =
-  (
-    + pix[ 2 ] * -1.0
-    + pix[ 6 ] * -2.0
-    + pix[ 7 ] * -4.0
-    + pix[ 8 ] * -2.0
-    + pix[ 10 ] * -1.0
-    + pix[ 11 ] * -4.0
-    + pix[ 12 ] * 28.0
-    + pix[ 13 ] * -4.0
-    + pix[ 14 ] * -1.0
-    + pix[ 16 ] * -2.0
-    + pix[ 17 ] * -4.0
-    + pix[ 18 ] * -2.0
-    + pix[ 22 ] * -1.0
-  );
-
-  for( int y = 0; y < 5; y++ )
-  {
-    for( int x = 0; x < 5; x++ )
-    {
-      // uint objectColorId = uint( 
-      //   texture(
-      //     objectColorIdTexture,
-      //     vUv + vec2( float( x - 2 ), float( y - 2 ) ) * outlineThickness / resolution
-      //   ).x 
-      // );
-
-      // pix[ y * 5 + x ] = objectColors[ objectColorId ].x;
-
-      vec4 positionTextureColor =
-      texture(
-        positionTexture,
-        vUv + vec2( float( x - 2 ), float( y - 2 ) ) * outlineThickness / resolution
-      );
-
-      pix[ y * 5 + x ] = length( positionTextureColor.xyzw );
-    }
-  }
-
-  float plaplacian =
+  float laplacian =
   (
     + pix[ 2 ] * -1.0
     + pix[ 6 ] * -2.0
@@ -126,7 +70,7 @@ float outline_stencil()
   );
 
   // Clamp the outline value to ensure it's within a valid range [0, 1].
-  float outline = clamp( max( slaplacian, plaplacian ), 0.0, 1.0 );
+  float outline = clamp( laplacian, 0.0, 1.0 );
 
   return outline;
 }
@@ -141,14 +85,13 @@ vec4 outline_color()
   {
     for( int x = 0; x < 5; x++ )
     {
-      uint objectColorId = uint( 
-        texture(
-          objectColorIdTexture,
-          vUv + vec2( float( x - 2 ), float( y - 2 ) ) * outlineThickness / resolution
-        ).x 
+      vec4 objectColor =
+      texture(
+        objectColorTexture,
+        vUv + vec2( float( x - 2 ), float( y - 2 ) ) * outlineThickness / resolution
       );
 
-      colors[ y * 5 + x ] = objectColors[ objectColorId ];
+      colors[ y * 5 + x ] = objectColor;
     }
   }
 
@@ -183,7 +126,7 @@ void main()
 
   if ( outline > 0.6 )
   {
-    FragColor = vec4( 0.0, 1.0, 0.0, 1.0 );
+    FragColor = outline_color();
   }
   else
   {
