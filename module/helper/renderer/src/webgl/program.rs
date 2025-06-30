@@ -15,6 +15,7 @@ mod private
   pub struct JfaOutlineShader;
   pub struct NormalDepthOutlineObjectShader;
   pub struct NormalDepthOutlineShader;
+  pub struct NormalDepthOutlineBaseShader;
   pub struct NarrowOutlineShader;
   pub struct WideOutlineInitShader;
   pub struct WideOutlineStepShader;
@@ -218,9 +219,13 @@ mod private
       add_location( "worldMatrix" );
       add_location( "viewMatrix" );
       add_location( "projectionMatrix" );
+      add_location( "normalMatrix" );
       add_location( "near" );
       add_location( "far" );
       add_location( "albedoTexture" );
+      add_location( "objectId" );
+      add_location( "materialId" );
+      add_location( "objectColor" );
 
       Self
       {
@@ -436,6 +441,38 @@ mod private
     }    
   }
 
+  impl ProgramInfo< NormalDepthOutlineBaseShader > 
+  {
+    /// Creates a new `ProgramInfo` instance.
+    ///
+    /// * `gl`: The `WebGl2RenderingContext` used to retrieve uniform locations.
+    /// * `program`: The compiled WebGL program object.
+    pub fn new( gl : &gl::WebGl2RenderingContext, program : gl::WebGlProgram ) -> Self
+    {
+      let mut locations = HashMap::new();
+
+      let mut add_location = | name : &str |
+      {
+        locations.insert( name.to_string(), gl.get_uniform_location( &program, name ) );
+      };
+
+      add_location( "sourceTexture" );
+      add_location( "positionTexture" );
+      add_location( "normalTexture" );
+      add_location( "objectColorTexture" );
+      add_location( "projection" );
+      add_location( "resolution" );
+      add_location( "outlineThickness" );
+
+      Self
+      {
+        program,
+        locations,
+        phantom : std::marker::PhantomData
+      }
+    }    
+  }
+
   impl ProgramInfo< NarrowOutlineShader > 
   {
     /// Creates a new `ProgramInfo` instance.
@@ -452,7 +489,7 @@ mod private
       };
 
       add_location( "sourceTexture" );
-      add_location( "objectColorIdTexture" );
+      add_location( "objectColorTexture" );
       add_location( "positionTexture" );
       add_location( "resolution" );
       add_location( "outlineThickness" );
@@ -481,7 +518,7 @@ mod private
         locations.insert( name.to_string(), gl.get_uniform_location( &program, name ) );
       };
 
-      add_location( "objectColorIdTexture" );
+      add_location( "objectColorTexture" );
 
       Self
       {
@@ -536,7 +573,7 @@ mod private
       };
 
       add_location( "sourceTexture" );
-      add_location( "objectColorIdTexture" );
+      add_location( "objectColorTexture" );
       add_location( "jfaTexture" );
       add_location( "resolution" );
 
@@ -566,6 +603,7 @@ crate::mod_interface!
     JfaOutlineShader,
     NormalDepthOutlineObjectShader,
     NormalDepthOutlineShader,
+    NormalDepthOutlineBaseShader,
     NarrowOutlineShader,
     WideOutlineInitShader,
     WideOutlineStepShader,
