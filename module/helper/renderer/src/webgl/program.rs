@@ -220,8 +220,7 @@ mod private
       add_location( "viewMatrix" );
       add_location( "projectionMatrix" );
       add_location( "normalMatrix" );
-      add_location( "near" );
-      add_location( "far" );
+      add_location( "near_far" );
       add_location( "albedoTexture" );
       add_location( "objectId" );
       add_location( "materialId" );
