@@ -1,6 +1,6 @@
 # Text surface rendering
 
-This example demonstrates how to render a 2d text on surface like sphere utilizing the `web_sys`, `minwebgl`, `renderer`, `canvas_renderer` crates.
+This example demonstrates how to render a 2d text on surface like sphere utilizing the `web_sys`, `minwebgl`, `renderer`, `canvas_renderer`, `geometry_generation` crates.
 
 ![Showcase]( ./showcase.png )
 
