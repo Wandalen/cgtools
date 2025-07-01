@@ -472,14 +472,12 @@ pub mod ufo
     ///////////////////
 
     // Create two surface of glyph
-    let mut positions = flat_positions.iter()
-    .step_by( 2 )                                       // Take x coordinates
-    .zip( flat_positions.iter().skip( 1 ).step_by( 2 ) ) // Take y coordinates
+    let mut positions = flat_positions.chunks( 2 )
     .map
     (
-      | ( x, y ) |
+      | p |
       {
-        [ *x as f32, *y as f32, 0.5 ]
+        [ p[ 0 ] as f32, p[ 1 ] as f32, 0.5 ]
       }
     )
     .collect::< Vec< _ > >();
