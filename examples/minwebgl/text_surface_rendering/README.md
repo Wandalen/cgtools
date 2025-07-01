@@ -27,9 +27,43 @@ Load or create GLTF with scenes and choose scene to render. There is can be adde
 
 3. **Connect canvas renderer output texture with base texture of any 3d object from main scene**.
 
-4. **Call CanvasRenderer::render**.
+Rendering text on surface requires 3D object base texture setup. Base texture of target surface must be output of canvas renderer. That can be applied with this call: 
+
+```rust
+  set_texture
+  ( 
+    &canvas_sphere, 
+    | m | 
+    { 
+      m.base_color_texture.as_mut()
+      .map
+      ( 
+        | t | 
+        {
+          let texture = t.texture.borrow().clone();
+          t.texture = Rc::new( RefCell::new( texture ) );
+          t.texture.borrow_mut().source = Some( canvas_texture.clone() );
+        } 
+      ); 
+      m.alpha_mode = renderer::webgl::AlphaMode::Blend;
+    } 
+  );
+```
+
+If many different surfaces is used with different content, then need collect all textures from base textures of this surfaces. And then for every texture:
+
+  * setup canvas scene layout
+  * setup canvas output texture
+  * render canvas scene
+  * repeat for another texture
+
+4. **Call CanvasRenderer::render**. 
+
+Render canvas scene to canvas output texture. It can be repeated for every unique surface. You only need change `CanvasRenderer` output texture every time you need render texture for next surface.
 
 5. **Call Renderer::render**.
+
+Render main scene for making final frame.
 
 ## Running
 
