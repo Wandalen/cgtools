@@ -429,16 +429,8 @@ mod private
 
     ///////////////////
 
-    let positions = flat_positions.iter()
-    .step_by( 2 )                                       // Take x coordinates
-    .zip( flat_positions.iter().skip( 1 ).step_by( 2 ) ) // Take y coordinates
-    .map
-    (
-      | ( x, y ) |
-      {
-        [ *x as f32, *y as f32, 0.0 ]
-      }
-    )
+    let positions = flat_positions.chunks( 2 )                                     
+    .map( | c | [ c[ 0 ] as f32, c[ 1 ] as f32, 0.0 ] )
     .collect::< Vec< _ > >();
 
     let attributes = AttributesData
