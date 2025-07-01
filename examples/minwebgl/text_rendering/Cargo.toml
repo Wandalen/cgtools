@@ -21,9 +21,6 @@ parry3d = { workspace = true }
 norad = { workspace = true, default-features = false, features = [ "kurbo" ] }
 parley = { workspace = true }
 kurbo = { workspace = true }
-i_overlay = { workspace = true }
-i_triangle = { workspace = true }
-i_float = { workspace = true }
 quick-xml = { workspace = true }
 
 [dependencies.web-sys]
