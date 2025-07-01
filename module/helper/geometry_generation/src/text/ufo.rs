@@ -9,8 +9,6 @@ mod private
   use minwebgl as gl;
   use gl::{ F32x3, F32x4 };
   use quick_xml::{ Reader, events::Event };
-  use i_float::int::point::IntPoint;
-  use i_triangle::int::triangulatable::IntTriangulatable;
   use crate::
   { 
     AttributesData, PrimitiveData, Transform 
@@ -377,37 +375,68 @@ mod private
 
     contours.swap( body_id, 0 );
 
-    let contours = contours.into_iter()
-    .map( 
-      | c | 
+    ///////////////////////////////////
+
+    let mut flat_positions: Vec< f64 > = Vec::new();
+    let mut hole_indices: Vec< usize > = Vec::new();
+
+    if let Some( outer_contour ) = contours.get( 0 ) 
+    {
+      if outer_contour.is_empty() 
       {
-        c.into_iter()
-        .map( 
-          | [ x, y ] |
-          {
-            IntPoint
-            {
-              x : x as i32, 
-              y : y as i32
-            }
-          } 
-        )
-        .collect::< Vec< _ > >()
-      } 
-    )
+        return None;
+      }
+      for &[ x, y ] in outer_contour 
+      {
+        flat_positions.push( x as f64 );
+        flat_positions.push( y as f64 );
+      }
+    } 
+    else 
+    {
+      return None;
+    }
+
+    // Process holes (remaining contours)
+    // Their winding order must be opposite to the outer (e.g., CW for holes)
+    for i in 1..contours.len() 
+    {
+      let hole_contour = &contours[ i ];
+      if hole_contour.is_empty() 
+      {
+        continue;
+      }
+
+      hole_indices.push( flat_positions.len() / 2 );
+
+      for &[ x, y ] in hole_contour 
+      {
+        flat_positions.push( x as f64 );
+        flat_positions.push( y as f64 );
+      }
+    }
+
+    // Perform triangulation
+    let Ok( indices ) = earcutr::earcut( &flat_positions, &hole_indices, 2 ) 
+    else
+    {
+      return None;
+    };
+
+    let indices = indices.into_iter()
+    .map( | i | i as u32 )
     .collect::< Vec< _ > >();
 
-    let triangulation = contours.triangulate().to_triangulation::< u32 >();
+    ///////////////////
 
-    let flat_positions = triangulation.points;
-    let indices = triangulation.indices;
-
-    // Create two surface of glyph
     let positions = flat_positions.iter()
-    .map(
-      | p |
+    .step_by( 2 )                                       // Take x coordinates
+    .zip( flat_positions.iter().skip( 1 ).step_by( 2 ) ) // Take y coordinates
+    .map
+    (
+      | ( x, y ) |
       {
-        [ p.x as f32, p.y as f32, 0.0 ]
+        [ *x as f32, *y as f32, 0.0 ]
       }
     )
     .collect::< Vec< _ > >();
