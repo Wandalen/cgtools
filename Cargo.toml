@@ -268,15 +268,6 @@ version = "0.11.2"
 [workspace.dependencies.norad]
 version = "0.16.0"
 
-[workspace.dependencies.i_overlay]
-git = "https://github.com/vadimb892/iOverlay"
-
-[workspace.dependencies.i_triangle]
-git = "https://github.com/vadimb892/iOverlay"
-
-[workspace.dependencies.i_float]
-git = "https://github.com/vadimb892/iOverlay"
-
 #[workspace.dependencies.lottie]
 #version = "0.1.0"
 
@@ -321,6 +312,9 @@ version = "3.0.0"
 
 [workspace.dependencies.wee_alloc]
 version = "0.4"
+
+[workspace.dependencies.earcutr]
+version = "0.5"
 
 # qqq : avoid this crate, use derive_tools and component_model
 [workspace.dependencies.nutype]
