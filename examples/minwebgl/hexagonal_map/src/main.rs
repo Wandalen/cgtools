@@ -109,7 +109,7 @@ async fn run() -> Result< (), gl::WebglError >
       match serde_json::from_str( &map_json )
       {
         Ok( m ) => *map.borrow_mut() = m,
-        Err( e ) => gl::error!( "{e}" ),
+        Err( e ) => gl::warn!( "{e}" ),
       }
       *loaded_map = None;
     }
@@ -199,11 +199,11 @@ async fn run() -> Result< (), gl::WebglError >
       let main_button = input.is_button_down( MouseButton::Main );
       let secondary_button = input.is_button_down( MouseButton::Secondary );
       let selected_value = tile_select.value();
-      let object_index = core_game::ObjectIndex::new
+      let object_index = core_game::ObjectIndex
       (
         config.object_props.iter().position( | p | p.name == selected_value ).unwrap() as u32
       );
-      let owner_index = core_game::PlayerIndex::new( player_select.value().parse().unwrap() );
+      let owner_index = core_game::PlayerIndex( player_select.value().parse().unwrap() );
 
       if main_button
       {
@@ -255,7 +255,7 @@ async fn run() -> Result< (), gl::WebglError >
       hexagon.bind( &gl );
       hexagon_shader.activate();
       gl.vertex_attrib2fv_with_f32_array( 1, &position.data );
-      gl.vertex_attrib_i4i( 2, tile.owner_index.into_inner() as i32, 0, 0, 0 );
+      gl.vertex_attrib_i4i( 2, tile.owner_index.0 as i32, 0, 0, 0 );
       hexagon.draw( &gl );
 
       outline.bind( &gl );
@@ -266,7 +266,7 @@ async fn run() -> Result< (), gl::WebglError >
       gl.bind_vertex_array( None );
 
       let Some( object_index ) = tile.object_index else { continue; };
-      let prop = &config.object_props[ object_index.into_inner() as usize ];
+      let prop = &config.object_props[ object_index.0 as usize ];
       let Some( sprite ) = &prop.sprite else { continue; };
       let texture = textures.get( &sprite.source ).unwrap();
       let size =

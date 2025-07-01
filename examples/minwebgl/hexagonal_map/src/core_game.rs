@@ -2,19 +2,18 @@ use serde_with::serde_as;
 use serde::{ Deserialize, Serialize };
 use rustc_hash::{ FxHashMap, FxHashSet };
 use tiles_tools::coordinates::hexagonal::{ Axial, Coordinate, Flat };
-use nutype::nutype;
 use crate::triaxial;
 
 pub type Coord = Coordinate< Axial, Flat >;
 
-#[ nutype( derive( Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default ), default = 0 ) ]
-pub struct ObjectIndex( u32 );
+#[ derive( Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default ) ]
+pub struct ObjectIndex( pub u32 );
 
-#[ nutype( derive( Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default ), default = 0 ) ]
-pub struct TerraintIndex( u32 );
+#[ derive( Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default ) ]
+pub struct TerraintIndex( pub u32 );
 
-#[ nutype( derive( Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default ), default = 0 ) ]
-pub struct PlayerIndex( u32 );
+#[ derive( Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default ) ]
+pub struct PlayerIndex( pub u32 );
 
 #[ derive( Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq ) ]
 pub struct Tile
