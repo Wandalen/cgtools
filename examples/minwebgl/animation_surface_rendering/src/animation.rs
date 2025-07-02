@@ -1,17 +1,255 @@
 // Copyright 2024 the Interpoli Authors
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-use interpoli::{ fixed, Composition, Content, Draw, Geometry, GroupTransform, Layer, Shape };
-use kurbo::{ Affine, PathEl, Rect };
-use peniko::{ Fill, Mix };
+use interpoli::{ fixed, Composition, Content, Draw, Geometry, GroupTransform, Layer, Shape, Stroke, Brush };
+use kurbo::{ Affine, PathEl };
+use renderer::webgl::loaders::gltf::GLTF;
 use std::ops::Range;
+use minwebgl::{ F32x4, GL };
+
+use renderer::webgl::
+{
+  Scene,
+  Node
+};
+use geometry_generation::AttributesData;
+use color::{ AlphaColor, Rgba8 };
+
+fn merge_gltfs( gltfs : Vec< GLTF > ) -> GLTF
+{
+  let scenes = vec![];
+  let nodes = vec![];
+  let gl_buffers = vec![];
+  let images = vec![];
+  let textures = vec![];
+  let materials = vec![];
+  let meshes = vec![];
+
+  for gltf in gltfs 
+  {
+    scenes.extend( gltf.scenes );
+    nodes.extend( gltf.nodes );
+    gl_buffers.extend( gltf.gl_buffers );
+    images.extend( gltf.images.borrow() );
+    textures.extend( gltf.textures );
+    materials.extend( gltf.materials );
+    meshes.extend( gltf.meshes );
+  }
+
+  GLTF
+  {
+    scenes,
+    nodes,
+    gl_buffers,
+    images : Rc::new( RefCell::new( images ) ),
+    textures,
+    materials,
+    meshes,
+}
+}
+
+#[ derive( Clone ) ]
+pub struct PrimitiveData 
+{
+  pub attributes : Rc< RefCell< AttributesData > >,
+  pub parent : Option< usize >,
+  pub color : F32x4,
+  pub transform : Transform
+}
+
+pub fn primitives_data_to_gltf
+( 
+  gl : &WebGl2RenderingContext,
+  primitives_data : Vec< PrimitiveData >
+) -> GLTF
+{
+  let mut scenes = vec![];
+  let mut nodes = vec![];
+  let mut gl_buffers = vec![]; 
+  let mut meshes = vec![];
+
+  let material = Rc::new( RefCell::new( Material::default() ) );
+  let materials = vec![ material.clone() ];
+
+  scenes.push( Rc::new( RefCell::new( Scene::new() ) ) );
+
+  let position_buffer = gl.create_buffer().unwrap();
+
+  gl_buffers.push( position_buffer.clone() );
+
+  let attribute_infos = 
+  [
+    ( 
+      "positions", 
+      geometry_generation::make_buffer_attibute_info( 
+        &position_buffer, 
+        BufferDescriptor::new::< [ f32; 3 ] >(),
+        0, 
+        3, 
+        0, 
+        false,
+        VectorDataType::new( mingl::DataType::F32, 3, 1 )
+      ).unwrap() 
+    ),
+  ];
+
+  let index_buffer = gl.create_buffer().unwrap();
+  gl_buffers.push( index_buffer.clone() );
+
+  let mut index_info = IndexInfo
+  {
+    buffer : index_buffer.clone(),
+    count : 0,
+    offset : 0,
+    data_type : GL::UNSIGNED_INT
+  };
+
+  let mut positions = vec![];
+  let mut indices = vec![];
+
+  for primitive_data in primitives_data
+  {
+    let last_positions_count = positions.len() as u32;
+    positions.extend( primitive_data.attributes.borrow().positions.clone() );
+    let primitive_indices = primitive_data.attributes.borrow().indices.iter()
+    .map( | i | i + last_positions_count )
+    .collect::< Vec< _ > >();
+    let offset = indices.len() as u32 * 4;
+    indices.extend( primitive_indices );
+
+    index_info.offset = offset;
+    index_info.count = primitive_data.attributes.borrow().indices.len() as u32;
+
+    let Ok( mut geometry ) = Geometry::new( gl ) else
+    {
+      panic!( "Can't create new Geometry struct" );
+    };
+
+    for ( name, info ) in &attribute_infos
+    {
+      geometry.add_attribute( gl, *name, info.clone(), false ).unwrap();
+    }
+
+    geometry.add_index( gl, index_info.clone() ).unwrap();
+    geometry.vertex_count = primitive_data.attributes.borrow().positions.len() as u32;
+
+    let primitive = Primitive
+    {
+      geometry : Rc::new( RefCell::new( geometry ) ),
+      material : material.clone()
+    };
+
+    let mesh = Rc::new( RefCell::new( Mesh::new() ) );
+    mesh.borrow_mut().add_primitive( Rc::new( RefCell::new( primitive ) ) );
+
+    let node = Rc::new( RefCell::new( Node::new() ) );
+    node.borrow_mut().object = Object3D::Mesh( mesh.clone() );
+    primitive_data.transform.set_node_transform( node.clone() );
+
+    nodes.push( node.clone() );
+    meshes.push( mesh );
+    scenes[ 0 ].borrow_mut().children.push( node );
+  }
+
+  gl::buffer::upload( &gl, &position_buffer, &positions, GL::STATIC_DRAW );
+  gl::index::upload( &gl, &index_buffer, &indices, GL::STATIC_DRAW );
+  
+  GLTF
+  {
+    scenes,
+    nodes,
+    gl_buffers,
+    images : Rc::new( RefCell::new( vec![] ) ),
+    textures : vec![],
+    materials,
+    meshes
+  }
+}
+
+struct Animation
+{
+  gltf : GLTF,
+  composition : Composition
+}
+
+impl Animation
+{ 
+  fn new( gl : &GL, composition : Composition ) -> Self
+  {
+    let mut colors = vec![];
+    let mut gltfs = vec![];
+
+    for layer in composition.layers
+    {
+      let mut primitives_data = vec![];
+
+      layer.parent
+      layer.transform
+
+      let Content::Shape( mut shapes ) = layer.content 
+      else
+      {
+        continue;
+      };
+
+      let mut color = F32x4::from_array( [ 0.0, 0.0, 0.0, 1.0 ] );
+      let mut stroke_width = None;
+      let mut i = 0;
+      while i < shapes.len() 
+      {
+        match shape
+        {
+          Shape::Group( shapes, group_transform ) => 
+          {
+
+          },
+          Shape::Geometry( Geometry::Fixed( path ) ) => 
+          {
+
+          },
+          Shape::Draw
+          ( 
+            Draw
+            {
+              stroke,
+              brush : Brush::Fixed( peniko::Brush::Solid( color ) ),
+              opacity,
+            } 
+          ) => 
+          {
+            if let Some( Stroke::Fixed( stroke ) ) = stroke
+            {
+              stroke_width = Some( stroke.width );
+            }
+
+            color.to_rgba8()
+          },
+          _ => continue
+        }
+
+        i += 1;
+      }
+
+      let gltf = primitives_data_to_gltf( gl, primitives_data );
+      gltfs.push( gltf ); 
+    }
+
+    let gltf = merge_gltfs( gltfs );
+
+    Self
+    {
+      gltf,
+      composition
+    }
+  }
+}
 
 #[ derive( Default ) ]
 pub struct Animator
 {
   batch : Batch,
   frame_geometry : Vec< geometry_generation::PrimitiveData >,
-  colors : Vec< minwebgl::math::F32x4 >,
+  colors : Vec< F32x4 >,
   mask_elements : Vec< PathEl >,
 }
 
@@ -27,11 +265,11 @@ impl Animator
   pub fn generate
   (
     &mut self,
-    animation : &Composition,
+    animation : &mut Animation,
     frame : f64,
     transform : Affine,
     alpha : f64,
-  ) -> Vec< geometry_generation::PrimitiveData >
+  ) -> ( Vec< geometry_generation::PrimitiveData >, Vec< F32x4 > )
   {
     self.frame_geometry.clear();
     self.colors.clear();
@@ -73,8 +311,7 @@ impl Animator
     }
     let parent_transform = transform;
     let transform = self.compute_transform( layer_set, layer, parent_transform, frame );
-    let full_rect = Rect::new( 0.0, 0.0, animation.width as f64, animation.height as f64 );
-    if let Some( ( mode, mask_index ) ) = layer.mask_layer
+    if let Some( ( _, mask_index ) ) = layer.mask_layer
     {
       if let Some( mask ) = layer_set.get( mask_index )
       {
@@ -89,10 +326,10 @@ impl Animator
         );
       }
     }
-    let alpha = alpha * layer.opacity.evaluate( frame ) / 100.0;
+    let mut alpha = alpha * layer.opacity.evaluate( frame ) / 100.0;
     for mask in &layer.masks
     {
-      let alpha = mask.opacity.evaluate( frame ) / 100.0;
+      alpha = mask.opacity.evaluate( frame ) / 100.0;
       mask.geometry.evaluate( frame, &mut self.mask_elements );
       self.mask_elements.clear();
     }
@@ -370,8 +607,11 @@ impl Batch
     self.drawn_geometry = self.geometries.len();
   }
 
-  fn generate( &self ) -> ( Vec< geometry_generation::PrimitiveData >, Vec< minwebgl::math::F32x4 > )
+  fn generate( &self ) -> ( Vec< geometry_generation::PrimitiveData >, Vec< F32x4 > )
   {
+    let mut primitives = Vec::< geometry_generation::PrimitiveData >::new();
+    let mut colors = Vec::< F32x4 >::new();
+
     // Process all draws in reverse
     for draw in self.draws.iter().rev()
     {
@@ -391,14 +631,20 @@ impl Batch
         let transform = geometry.transform;
         if let Some( stroke ) = draw.stroke.as_ref()
         {
+          primitives.push();
+          colors.push();
           //scene.stroke( stroke, transform, brush, None, &path );
         } 
         else
         {
+          primitives.push();
+          colors.push();
           //scene.fill( Fill::NonZero, transform, brush, None, &path );
         }
       }
     }
+
+    ( primitives, colors )
   }
 
   fn clear( &mut self )
