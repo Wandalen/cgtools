@@ -11,6 +11,30 @@ mod private
   #[ derive( Default, Debug, Clone, Copy, PartialEq, PartialOrd ) ]
   pub struct Bevel;
 
+
+  impl Round 
+  {
+    pub fn geometry( segments : usize ) -> Vec< F32x2 >
+    {
+      round_geometry( segments )
+    }
+  }
+
+  impl Miter 
+  {
+    pub fn geometry() -> [ [ f32; 3 ]; 6 ]
+    {
+      [
+        [ 0.0, 0.0, 0.0 ],
+        [ 1.0, 0.0, 0.0 ],
+        [ 0.0, 1.0, 0.0 ],
+        [ 0.0, 0.0, 0.0 ],
+        [ 0.0, 1.0, 0.0 ],
+        [ 0.0, 0.0, 1.0 ]
+      ]
+    }
+  }
+
   pub fn round_geometry( segments : usize ) -> Vec< F32x2 >
   {
     let mut positions = Vec::with_capacity( segments );
@@ -22,14 +46,6 @@ mod private
     }
 
     positions
-  }
-
-  impl Round 
-  {
-    pub fn geometry( segments : usize ) -> Vec< F32x2 >
-    {
-      round_geometry( segments )
-    }
   }
 
   pub trait Join {}
