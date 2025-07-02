@@ -349,6 +349,11 @@ mod private
 
   pub fn contours_to_mesh( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
   {
+    if contours.is_empty()
+    {
+      return None;
+    }
+
     let mut body_id = 0;
     let mut max_box_diagonal_size = 0;
     for ( i, contour ) in contours.iter().enumerate()
@@ -371,67 +376,123 @@ mod private
       }
     }
 
-    let mut contours = contours.to_vec();
+    let body_bounding_box = BoundingBox::compute2d
+    ( 
+      contours.get( body_id ).unwrap()
+      .iter()
+      .flatten()
+      .cloned()
+      .collect::< Vec< _ > >()
+      .as_slice()
+    );
 
-    contours.swap( body_id, 0 );
-
-    ///////////////////////////////////
-
-    let mut flat_positions: Vec< f64 > = Vec::new();
-    let mut hole_indices: Vec< usize > = Vec::new();
-
-    if let Some( outer_contour ) = contours.get( 0 ) 
+    let mut outside_body_list = vec![];
+    let mut inside_body_list = vec![];
+    for ( i, contour ) in contours.iter().enumerate()
     {
-      if outer_contour.is_empty() 
-      {
-        return None;
-      }
-      for &[ x, y ] in outer_contour 
-      {
-        flat_positions.push( x as f64 );
-        flat_positions.push( y as f64 );
-      }
-    } 
-    else 
-    {
-      return None;
-    }
-
-    // Process holes (remaining contours)
-    // Their winding order must be opposite to the outer (e.g., CW for holes)
-    for i in 1..contours.len() 
-    {
-      let hole_contour = &contours[ i ];
-      if hole_contour.is_empty() 
+      if body_id == i
       {
         continue;
       }
 
-      hole_indices.push( flat_positions.len() / 2 );
+      let bounding_box = BoundingBox::compute2d
+      ( 
+        contour
+        .iter()
+        .flatten()
+        .cloned()
+        .collect::< Vec< _ > >() 
+        .as_slice()
+      );
 
-      for &[ x, y ] in hole_contour 
+      let has_part_outside_body = bounding_box.left() < body_bounding_box.left() ||
+      bounding_box.right() > body_bounding_box.right() ||
+      bounding_box.up() > body_bounding_box.up() ||
+      bounding_box.down() < body_bounding_box.down();
+
+      if has_part_outside_body
       {
-        flat_positions.push( x as f64 );
-        flat_positions.push( y as f64 );
+        outside_body_list.push( contour.clone() );
+      }
+      else
+      {
+        inside_body_list.push( contour.clone() );
       }
     }
 
-    // Perform triangulation
-    let Ok( indices ) = earcutr::earcut( &flat_positions, &hole_indices, 2 ) 
-    else
+    let mut base = vec![ contours[ body_id ].clone() ];
+    base.extend( inside_body_list );
+
+    let mut bodies = vec![ base ];
+    bodies.extend( outside_body_list.into_iter().map( | c | vec![ c ] ) );
+
+    let mut positions = vec![];
+    let mut indices = vec![];
+
+    for contours in bodies
     {
-      return None;
-    };
+      let mut flat_positions: Vec< f64 > = Vec::new();
+      let mut hole_indices: Vec< usize > = Vec::new();
 
-    let indices = indices.into_iter()
-    .map( | i | i as u32 )
-    .collect::< Vec< _ > >();
+      if let Some( outer_contour ) = contours.get( 0 ) 
+      {
+        if outer_contour.is_empty() 
+        {
+          return None;
+        }
+        for &[ x, y ] in outer_contour 
+        {
+          flat_positions.push( x as f64 );
+          flat_positions.push( y as f64 );
+        }
+      } 
+      else 
+      {
+        return None;
+      }
 
-    ///////////////////
+      // Process holes (remaining contours)
+      // Their winding order must be opposite to the outer (e.g., CW for holes)
+      for i in 1..contours.len() 
+      {
+        let hole_contour = &contours[ i ];
+        if hole_contour.is_empty() 
+        {
+          continue;
+        }
 
-    let positions = flat_positions.chunks( 2 )                                     
-    .map( | c | [ c[ 0 ] as f32, c[ 1 ] as f32, 0.0 ] )
-    .collect::< Vec< _ > >();
+        hole_indices.push( flat_positions.len() / 2 );
+
+        for &[ x, y ] in hole_contour 
+        {
+          flat_positions.push( x as f64 );
+          flat_positions.push( y as f64 );
+        }
+      }
+
+      // Perform triangulation
+      let Ok( body_indices ) = earcutr::earcut( &flat_positions, &hole_indices, 2 ) 
+      else
+      {
+        continue;
+      };
+
+      let body_indices = body_indices.into_iter()
+      .map( | i | i as u32 )
+      .collect::< Vec< _ > >();
+
+      let body_positions = flat_positions.chunks( 2 )                                     
+      .map( | c | [ c[ 0 ] as f32, c[ 1 ] as f32, 0.0 ] )
+      .collect::< Vec< _ > >();
+
+      let positions_count = positions.len();
+      positions.extend( body_positions );
+      indices.extend
+      ( 
+        body_indices.iter()
+        .map( | i | i + positions_count as u32 ) 
+      );
+    }
 
     let attributes = AttributesData
     {

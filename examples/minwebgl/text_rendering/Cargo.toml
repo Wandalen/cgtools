@@ -21,6 +21,7 @@ parry3d = { workspace = true }
 norad = { workspace = true, default-features = false, features = [ "kurbo" ] }
 parley = { workspace = true }
 kurbo = { workspace = true }
+earcutr = { workspace = true }
 quick-xml = { workspace = true }
 
 [dependencies.web-sys]
