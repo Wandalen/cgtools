@@ -32,7 +32,9 @@ mod private
         },
         _ => 
         {
-          ( Vec::new(), 0 )
+          let g = bevel_geometry();
+          let len = g.len();
+          ( g.into_iter().flatten().collect(), len )
         }
       }
     }
@@ -55,6 +57,15 @@ mod private
       [ 0.0, 0.0, 0.0 ],
       [ 0.0, 1.0, 0.0 ],
       [ 0.0, 0.0, 1.0 ]
+    ]
+  }
+
+  pub fn bevel_geometry() -> [ [ f32; 2 ]; 3 ]
+  {
+    [
+      [ 0.0, 0.0 ],
+      [ 1.0, 0.0 ],
+      [ 0.0, 1.0 ],
     ]
   }
 
