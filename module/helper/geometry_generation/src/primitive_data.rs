@@ -80,7 +80,7 @@ mod private
     pub transform : Transform
   }
 
-  fn make_buffer_attibute_info
+  pub fn make_buffer_attibute_info
   ( 
     buffer : &web_sys::WebGlBuffer,
     descriptor : gl::BufferDescriptor, 
@@ -226,6 +226,7 @@ crate::mod_interface!
     Transform,
     PrimitiveData,
     AttributesData,
-    primitives_data_to_gltf
+    primitives_data_to_gltf,
+    make_buffer_attibute_info
   };
 }
