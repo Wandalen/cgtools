@@ -6,7 +6,9 @@ mod private
   use std::rc::Rc;
   use crate::
   { 
-    AttributesData, PrimitiveData, Transform 
+    AttributesData, 
+    PrimitiveData, 
+    Transform 
   };
 
   /// Converts a `&[ [ f32; 2 ] ]` into `GeometryData` representing its 2D outline
@@ -96,12 +98,115 @@ mod private
       }
     )
   }
+
+  pub fn contours_to_fill_geometry( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
+  {
+    let mut body_id = 0;
+    let mut max_box_diagonal_size = 0;
+    for ( i, contour ) in contours.iter().enumerate()
+    {
+      if contour.is_empty()
+      {
+        continue;
+      }
+      let [ x1, y1 ] = contour.iter()
+      .map( | [ a, b ] | [ *a as isize, *b as isize ] )
+      .min().unwrap();
+      let [ x2, y2 ] = contour.iter()
+      .map( | [ a, b ] | [ *a as isize, *b as isize ] )
+      .max().unwrap();
+      let controur_size = ( ( x2 - x1 ).pow( 2 ) + ( y2 - y1 ).pow( 2 ) ).isqrt();
+      if max_box_diagonal_size < controur_size
+      {
+        max_box_diagonal_size = controur_size;
+        body_id = i;
+      }
+    }
+
+    let mut contours = contours.to_vec();
+
+    contours.swap( body_id, 0 );
+
+    ///////////////////////////////////
+
+    let mut flat_positions: Vec< f64 > = Vec::new();
+    let mut hole_indices: Vec< usize > = Vec::new();
+
+    if let Some( outer_contour ) = contours.get( 0 ) 
+    {
+      if outer_contour.is_empty() 
+      {
+        return None;
+      }
+      for &[ x, y ] in outer_contour 
+      {
+        flat_positions.push( x as f64 );
+        flat_positions.push( y as f64 );
+      }
+    } 
+    else 
+    {
+      return None;
+    }
+
+    // Process holes (remaining contours)
+    // Their winding order must be opposite to the outer (e.g., CW for holes)
+    for i in 1..contours.len() 
+    {
+      let hole_contour = &contours[ i ];
+      if hole_contour.is_empty() 
+      {
+        continue;
+      }
+
+      hole_indices.push( flat_positions.len() / 2 );
+
+      for &[ x, y ] in hole_contour 
+      {
+        flat_positions.push( x as f64 );
+        flat_positions.push( y as f64 );
+      }
+    }
+
+    // Perform triangulation
+    let Ok( indices ) = earcutr::earcut( &flat_positions, &hole_indices, 2 ) 
+    else
+    {
+      return None;
+    };
+
+    let indices = indices.into_iter()
+    .map( | i | i as u32 )
+    .collect::< Vec< _ > >();
+
+    ///////////////////
+
+    let positions = flat_positions.chunks( 2 )                                     
+    .map( | c | [ c[ 0 ] as f32, c[ 1 ] as f32, 0.0 ] )
+    .collect::< Vec< _ > >();
+
+    let attributes = AttributesData
+    {
+      positions, 
+      indices, 
+    };
+
+    let primitive_data = PrimitiveData 
+    { 
+      attributes : Rc::new( RefCell::new( attributes ) ),
+      color : F32x4::default(),
+      transform : Transform::default()  
+    };
+
+    Some( primitive_data )
+  }
 }
 
 crate::mod_interface!
 {
   orphan use
   {
-    curve_to_geometry
+    curve_to_geometry,
+    contours_to_fill_geometry
   };
 }

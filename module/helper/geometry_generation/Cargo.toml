@@ -23,9 +23,7 @@ getrandom = { workspace = true, features = [ "wasm_js" ] }
 kurbo = { workspace = true }
 norad = { workspace = true, features = [ "kurbo" ] }
 quick-xml = { workspace = true }
-i_overlay = { workspace = true }
-i_triangle = { workspace = true }
-i_float = { workspace = true }
+earcutr = { workspace = true }
 #lottie = { workspace = true }
 interpoli = { workspace = true }
 

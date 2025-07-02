@@ -4,16 +4,14 @@ mod private
   use kurbo::flatten;
   use mingl::geometry::BoundingBox;
   use norad::{ PointType, ContourPoint, Contour };
-  use std::rc::Rc;
-  use std::cell::RefCell;
   use minwebgl as gl;
-  use gl::{ F32x3, F32x4 };
-  use quick_xml::{ Reader, events::Event };
-  use i_float::int::point::IntPoint;
-  use i_triangle::int::triangulatable::IntTriangulatable;
+  use gl::F32x3;
+  use quick_xml::{ Reader, events::Event }; 
   use crate::
   { 
-    AttributesData, PrimitiveData, Transform 
+    PrimitiveData, 
+    Transform,
+    contours_to_fill_geometry 
   };
 
   #[ derive( Clone ) ]
@@ -334,7 +332,7 @@ mod private
 
       for ( _, glyph ) in glyphs.iter_mut()
       {
-        glyph.body = contours_to_mesh( &glyph.contours );
+        glyph.body = contours_to_fill_geometry( &glyph.contours );
       }
 
       Self
@@ -347,85 +345,6 @@ mod private
         }
       }
     }
-  }
-
-  pub fn contours_to_mesh( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
-  {
-    let mut body_id = 0;
-    let mut max_box_diagonal_size = 0;
-    for ( i, contour ) in contours.iter().enumerate()
-    {
-      if contour.is_empty()
-      {
-        continue;
-      }
-      let [ x1, y1 ] = contour.iter()
-      .map( | [ a, b ] | [ *a as isize, *b as isize ] )
-      .min().unwrap();
-      let [ x2, y2 ] = contour.iter()
-      .map( | [ a, b ] | [ *a as isize, *b as isize ] )
-      .max().unwrap();
-      let controur_size = ( ( x2 - x1 ).pow( 2 ) + ( y2 - y1 ).pow( 2 ) ).isqrt();
-      if max_box_diagonal_size < controur_size
-      {
-        max_box_diagonal_size = controur_size;
-        body_id = i;
-      }
-    }
-
-    let mut contours = contours.to_vec();
-
-    contours.swap( body_id, 0 );
-
-    let contours = contours.into_iter()
-    .map( 
-      | c | 
-      {
-        c.into_iter()
-        .map( 
-          | [ x, y ] |
-          {
-            IntPoint
-            {
-              x : x as i32, 
-              y : y as i32
-            }
-          } 
-        )
-        .collect::< Vec< _ > >()
-      } 
-    )
-    .collect::< Vec< _ > >();
-
-    let triangulation = contours.triangulate().to_triangulation::< u32 >();
-
-    let flat_positions = triangulation.points;
-    let indices = triangulation.indices;
-
-    // Create two surface of glyph
-    let positions = flat_positions.iter()
-    .map(
-      | p |
-      {
-        [ p.x as f32, p.y as f32, 0.0 ]
-      }
-    )
-    .collect::< Vec< _ > >();
-
-    let attributes = AttributesData
-    {
-      positions, 
-      indices, 
-    };
-
-    let primitive_data = PrimitiveData 
-    { 
-      attributes : Rc::new( RefCell::new( attributes ) ),
-      color : F32x4::default(),
-      transform : Transform::default()  
-    };
-
-    Some( primitive_data )
   }
 
   pub async fn load_fonts( font_names : &[ &str ] ) -> HashMap< String, Font >
@@ -587,7 +506,6 @@ crate::mod_interface!
     load_fonts,
     Glyph,
     Font,
-    contours_to_mesh,
     text_to_mesh,
     text_to_countour_mesh
   };
