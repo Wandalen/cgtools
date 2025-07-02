@@ -391,6 +391,11 @@ pub mod ufo
 
   fn contours_to_mesh( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
   {
+    if contours.is_empty()
+    {
+      return None;
+    }
+
     let mut body_id = 0;
     let mut max_box_diagonal_size = 0;
     for ( i, contour ) in contours.iter().enumerate()
@@ -413,147 +418,202 @@ pub mod ufo
       }
     }
 
-    let mut contours = contours.to_vec();
+    let body_bounding_box = BoundingBox::compute2d
+    ( 
+      contours.get( body_id ).unwrap()
+      .iter()
+      .flatten()
+      .cloned()
+      .collect::< Vec< _ > >()
+      .as_slice()
+    );
 
-    contours.swap( body_id, 0 );
-
-    ///////////////////////////////////
-
-    let mut flat_positions: Vec< f64 > = Vec::new();
-    let mut hole_indices: Vec< usize > = Vec::new();
-
-    if let Some( outer_contour ) = contours.get( 0 ) 
+    let mut outside_body_list = vec![];
+    let mut inside_body_list = vec![];
+    for ( i, contour ) in contours.iter().enumerate()
     {
-      if outer_contour.is_empty() 
-      {
-        return None;
-      }
-      for &[ x, y ] in outer_contour 
-      {
-        flat_positions.push( x as f64 );
-        flat_positions.push( y as f64 );
-      }
-    } 
-    else 
-    {
-      return None;
-    }
-
-    // Process holes (remaining contours)
-    // Their winding order must be opposite to the outer (e.g., CW for holes)
-    for i in 1..contours.len() 
-    {
-      let hole_contour = &contours[ i ];
-      if hole_contour.is_empty() 
+      if body_id == i
       {
         continue;
       }
 
-      hole_indices.push( flat_positions.len() / 2 );
+      let bounding_box = BoundingBox::compute2d
+      ( 
+        contour
+        .iter()
+        .flatten()
+        .cloned()
+        .collect::< Vec< _ > >() 
+        .as_slice()
+      );
 
-      for &[ x, y ] in hole_contour 
+      let has_part_outside_body = bounding_box.left() < body_bounding_box.left() ||
+      bounding_box.right() > body_bounding_box.right() ||
+      bounding_box.up() > body_bounding_box.up() ||
+      bounding_box.down() < body_bounding_box.down();
+
+      if has_part_outside_body
       {
-        flat_positions.push( x as f64 );
-        flat_positions.push( y as f64 );
+        outside_body_list.push( contour.clone() );
+      }
+      else
+      {
+        inside_body_list.push( contour.clone() );
       }
     }
 
-    // Perform triangulation
-    let Ok( indices ) = earcutr::earcut( &flat_positions, &hole_indices, 2 ) 
-    else
+    let mut base = vec![ contours[ body_id ].clone() ];
+    base.extend( inside_body_list );
+
+    let mut bodies = vec![ base ];
+    bodies.extend( outside_body_list.into_iter().map( | c | vec![ c ] ) );
+
+    let mut positions = vec![];
+    let mut indices = vec![];
+
+    for contours in bodies
     {
-      return None;
-    };
+      let mut flat_positions: Vec< f64 > = Vec::new();
+      let mut hole_indices: Vec< usize > = Vec::new();
 
-    let indices = indices.into_iter()
-    .map( | i | i as u32 )
-    .collect::< Vec< _ > >();
-
-    ///////////////////
-
-    // Create two surface of glyph
-    let mut positions = flat_positions.chunks( 2 )
-    .map
-    (
-      | p |
+      if let Some( outer_contour ) = contours.get( 0 ) 
       {
-        [ p[ 0 ] as f32, p[ 1 ] as f32, 0.5 ]
-      }
-    )
-    .collect::< Vec< _ > >();
-
-    let second_surface_positions = flat_positions.iter()
-    .map(
-      | p |
-      {
-        [ p.x as f32, p.y as f32, -0.5 ]
-      }
-    )
-    .collect::< Vec< _ > >();
-
-    positions.extend( second_surface_positions );
-
-    let vertex_count = flat_positions.len() as u32;
-    let second_surface_indices = indices.iter()
-    .map( | i | i + vertex_count )
-    .collect::< Vec< _ > >();
-
-    indices.extend( second_surface_indices );  
-
-    // Add border to glyph mesh
-    let vc1 = positions.len() as u32;
-    let vc2 = vc1 + contours.iter().flatten().count() as u32;
-
-    for z in [ 0.5, -0.5 ]
-    {
-      for c in &contours
-      {
-        positions.extend( c.iter().map( | p | [ p.x as f32, p.y as f32, z ] ) );
-      }
-    }
-
-    let mut edges = vec![];
-
-    let mut offset = 0;
-    for c in contours.iter()
-    {
-      let mut contour_edges = vec![];
-      for ( i, _ ) in c.iter().enumerate() 
-      {
-        contour_edges.push( [ i as u32 + offset + vc1, i as u32 + offset + vc2 ] ); 
-      }
-      offset += c.len() as u32;
-
-      edges.push( contour_edges );
-    }
-
-    for ce in &edges 
-    {
-      if ce.len() > 2
-      {
-        let mut i = 0; 
-        while i < ce.len() - 1
+        if outer_contour.is_empty() 
         {
-          // Counter clockwise ↺
-          // [ i + 1 ] c *---* d
-          //             |\  |
-          //             | \ |
-          //             |  \|        
-          // [   i   ] a *---* b
-          let [ a, b ] = [ ce[ i ][ 0 ], ce[ i ][ 1 ] ];
-          let [ c, d ] = [ ce[ i + 1 ][ 0 ], ce[ i + 1 ][ 1 ] ];
-          indices.extend( [ c, a, b ] );
-          indices.extend( [ c, b, d ] );
-          i += 1;
+          return None;
+        }
+        for &[ x, y ] in outer_contour 
+        {
+          flat_positions.push( x as f64 );
+          flat_positions.push( y as f64 );
+        }
+      } 
+      else 
+      {
+        return None;
+      }
+
+      // Process holes (remaining contours)
+      // Their winding order must be opposite to the outer (e.g., CW for holes)
+      for i in 1..contours.len() 
+      {
+        let hole_contour = &contours[ i ];
+        if hole_contour.is_empty() 
+        {
+          continue;
         }
 
-        let first = ce.first().unwrap();
-        let last = ce.last().unwrap();
-        let [ a, b ] = [ last[ 0 ], last[ 1 ] ];
-        let [ c, d ] = [ first[ 0 ], first[ 1 ] ];
-        indices.extend( [ c, a, b ] );
-        indices.extend( [ c, b, d ] );
+        hole_indices.push( flat_positions.len() / 2 );
+
+        for &[ x, y ] in hole_contour 
+        {
+          flat_positions.push( x as f64 );
+          flat_positions.push( y as f64 );
+        }
       }
+
+      // Perform triangulation
+      let Ok( body_indices ) = earcutr::earcut( &flat_positions, &hole_indices, 2 ) 
+      else
+      {
+        return None;
+      };
+
+      let mut body_indices = body_indices.into_iter()
+      .map( | i | i as u32 )
+      .collect::< Vec< _ > >();
+
+      // Create two surface of glyph
+      let mut body_positions = flat_positions.chunks( 2 )
+      .map(
+        | p |
+        {
+          [ p[ 0 ] as f32, p[ 1 ] as f32, 0.5 ]
+        }
+      )
+      .collect::< Vec< _ > >();
+
+      let second_surface_positions = flat_positions.chunks( 2 )
+      .map(
+        | p |
+        {
+          [ p[ 0 ] as f32, p[ 1 ] as f32, -0.5 ]
+        }
+      )
+      .collect::< Vec< _ > >();
+
+      body_positions.extend( second_surface_positions );
+
+      let vertex_count = flat_positions.len() as u32;
+      let second_surface_indices = body_indices.iter()
+      .map( | i | i + vertex_count )
+      .collect::< Vec< _ > >();
+
+      body_indices.extend( second_surface_indices );  
+
+      // Add border to glyph mesh
+      let vc1 = body_positions.len() as u32;
+      let vc2 = vc1 + contours.iter().flatten().count() as u32;
+
+      for z in [ 0.5, -0.5 ]
+      {
+        for c in &contours
+        {
+          body_positions.extend( c.iter().map( | p | [ p[ 0 ], p[ 1 ], z ] ) );
+        }
+      }
+
+      let mut edges = vec![];
+
+      let mut offset = 0;
+      for c in contours.iter()
+      {
+        let mut contour_edges = vec![];
+        for ( i, _ ) in c.iter().enumerate() 
+        {
+          contour_edges.push( [ i as u32 + offset + vc1, i as u32 + offset + vc2 ] ); 
+        }
+        offset += c.len() as u32;
+
+        edges.push( contour_edges );
+      }
+
+      for ce in &edges 
+      {
+        if ce.len() > 2
+        {
+          let mut i = 0; 
+          while i < ce.len() - 1
+          {
+            // Counter clockwise ↺
+            // [ i + 1 ] c *---* d
+            //             |\  |
+            //             | \ |
+            //             |  \|        
+            // [   i   ] a *---* b
+            let [ a, b ] = [ ce[ i ][ 0 ], ce[ i ][ 1 ] ];
+            let [ c, d ] = [ ce[ i + 1 ][ 0 ], ce[ i + 1 ][ 1 ] ];
+            body_indices.extend( [ c, a, b ] );
+            body_indices.extend( [ c, b, d ] );
+            i += 1;
+          }
+
+          let first = ce.first().unwrap();
+          let last = ce.last().unwrap();
+          let [ a, b ] = [ last[ 0 ], last[ 1 ] ];
+          let [ c, d ] = [ first[ 0 ], first[ 1 ] ];
+          body_indices.extend( [ c, a, b ] );
+          body_indices.extend( [ c, b, d ] );
+        }
+      }
+
+      let positions_count = positions.len();
+      positions.extend( body_positions );
+      indices.extend
+      ( 
+        body_indices.iter()
+        .map( | i | i + positions_count as u32 ) 
+      );
     }
 
     let mut normals = vec![ [ 0.0; 3 ]; positions.len() ];
