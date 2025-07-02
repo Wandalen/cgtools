@@ -36,6 +36,7 @@ use renderer::webgl::
 use std::rc::Rc;
 use canvas_renderer::renderer::*;
 use geometry_generation::*;
+use interpoli::Composition;
 
 mod camera_controls;
 mod loaders;
@@ -267,19 +268,197 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
   ( canvas_gltf, colors )
 }
 
-fn setup_animation() -> Composition
+pub fn modulo( dividend : f64, divisor : f64 ) -> f64 
 {
+  let mut result = dividend % divisor;
+  if result < 0.0 
+  {
+    result += divisor.abs();
+  } 
+  result
+}
+
+fn create_layer
+( 
+  width : f64, 
+  height : f64, 
+  parent: Option< usize >,
+  transform : Transform,
+  frames : Range< f64 >,
+  content : Content
+) -> Layer
+{
+  Layer 
+  {
+    name : String::new(),
+    parent,
+    transform,
+    opacity : Value::Fixed( 1.0 ),
+    width,
+    height,
+    blend_mode : None,
+    frames,
+    stretch : 1.0,
+    start_frame : 0.0,
+    masks : vec![],
+    is_mask : false,
+    mask_layer : None,
+    content
+  }
+}
+
+fn points_to_path( points : Vec< F32x2 > ) -> Vec< PathEl >
+{
+
 
 }
 
-pub fn modulo( dividend : f64, divisor : f64 ) -> f64 
+fn create_time
+(
+  frame : f64,
+  in_tangent : Option< EasingHandle >,
+  out_tangent : Option< EasingHandle >,
+  hold : bool
+) -> interpoli::Time
 {
-  let result = dividend % divisor;
-  if result < 0.0 
+  interpoli::Time
   {
-    result + divisor.abs()
-  } else {
-    result
+    frame,
+    in_tangent,
+    out_tangent,
+    hold,
+  } 
+}
+
+fn setup_animation( width : usize, height : usize ) -> Composition
+{
+  let mut layers = vec![];
+
+  let points : Vec< F32x2 > = vec!
+  [
+    [ -0.5, -0.5 ].into(),
+    [ -0.5, 0.5 ].into(),
+    [ 0.5, 0.5 ].into(),
+    [ 0.5, -0.5 ].into(),
+  ];
+
+  let content = interpoli::Content::Shape
+  (
+    vec!
+    [
+      interpoli::Shape::Geometry
+      ( 
+        interpoli::Geometry::Fixed( points_to_path( points ) )
+      )
+    ] 
+  );
+
+  // Value::Fixed( 0.0 )
+  // Value::Animated
+  // ( 
+  //   Animated
+  //   {
+  //     tiles : vec!
+  //     [
+  //       create_time( , , , ),  
+  //     ],
+  //     values : vec![ , , ,  ]
+  //   }
+  // )
+
+  layers.push
+  ( 
+    create_layer
+    ( 
+      width, 
+      height, 
+      None,
+      interpoli::Transform::Animated
+      ( 
+        interpoli::animated::Transform
+        {
+          anchor : Value::Fixed( kurbo::Point::new( 0.0, 0.0 ) ),
+          position : Position::Value( Value::Fixed( 0.0 ) ),
+          rotation : Value::Fixed( 0.0 ),
+          scale : Value::Fixed( kurbo::Vec2::new( 0.0, 0.0 ) ),
+          skew : Value::Fixed( 0.0 ),
+          skew_angle : Value::Fixed( 0.0 ),
+        }
+      ),
+      0.0..10.0,
+      content
+    )
+  );
+
+  layers.push
+  ( 
+    create_layer
+    ( 
+      width, 
+      height, 
+      None,
+      interpoli::Transform::Animated
+      ( 
+        interpoli::animated::Transform
+        {
+          anchor : Value::Fixed( kurbo::Point::new( 0.0, 0.0 ) ),
+          position : Position::Value
+          (
+            Value::Animated
+            ( 
+              Animated
+              {
+                tiles : vec!
+                [
+                  create_time( , , , ),  
+                ],
+                values : vec![ , , ,  ]
+              }
+            )
+          ),
+          rotation : Value::Animated
+          ( 
+            Animated
+            {
+              tiles : vec!
+              [
+                create_time( , , , ),  
+              ],
+              values : vec![ , , ,  ]
+            }
+          ),
+          scale : Value::Animated
+          ( 
+            Animated
+            {
+              tiles : vec!
+              [
+                create_time( , , , ),  
+              ],
+              values : vec!
+              [  
+                kurbo::Vec2::new( 1.5, 1.5 ),
+                
+              ]
+            }
+          ),
+          skew : Value::Fixed( 0.0 ),
+          skew_angle : Value::Fixed( 0.0 ),
+        }
+      ),
+      0.0..10.0,
+      content
+    )
+  );
+
+  Composition
+  {
+    frames : 0.0..10.0,
+    frame_rate : 60.0,
+    width,
+    height,
+    assets : HashMap::new(),
+    layers
   }
 }
 
@@ -288,10 +467,16 @@ async fn run() -> Result< (), gl::WebglError >
   let ( gl, canvas ) = init_context();
 
   let mut gltf = setup_scene( &gl ).await?; 
-  
-  let ( canvas_gltf, colors ) = setup_canvas_scene( &gl ).await;
 
-  let canvas_camera = init_camera( &canvas, &canvas_gltf.scenes );
+  let mut animator = animation::Animator::new();
+  
+  //let ( canvas_gltf, colors ) = setup_canvas_scene( &gl ).await;
+  let anim = setup_animation();
+  let transform = kurbo::Affine::translate( ( 0.0, 0.0 ) );
+  let ( primitives, _ ) = animator.generate( &anim, 0.0, transform, 1.0 );
+  let animation_gltf = primitives_data_to_gltf( &gl, primitives );
+
+  let canvas_camera = init_camera( &canvas, &animation_gltf.scenes );
   camera_controls::bind_controls_to_input( &canvas, &canvas_camera.get_controls() );
   canvas_camera.get_controls().borrow_mut().window_size = [ ( canvas.width() * 4 ) as f32, ( canvas.height() * 4 ) as f32 ].into();
   canvas_camera.get_controls().borrow_mut().eye = [ 0.0, 0.0, 8.0 ].into();
@@ -334,7 +519,7 @@ async fn run() -> Result< (), gl::WebglError >
   let scenes = gltf.scenes.clone();
   scenes[ 0 ].borrow_mut().update_world_matrix();
 
-  //let camera = init_camera( &canvas, &scenes );
+  let camera = init_camera( &canvas, &scenes );
   //camera_controls::bind_controls_to_input( &canvas, &camera.get_controls() );
   let eye = gl::math::mat3x3h::rot( 0.0, - 76.0_f32.to_radians(), - 20.0_f32.to_radians() ) 
   * F32x4::from_array([ 0.0, 1.7, 1.7, 1.0 ] );
@@ -348,11 +533,6 @@ async fn run() -> Result< (), gl::WebglError >
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
-  let anim = setup_animation();
-  let transform = kurbo::Affine::translate( [ 0, 0 ] );
-
-  let mut animator = animation::Animator::new();
-
   // Define the update and draw logic
   let update_and_draw =
   {
@@ -361,8 +541,8 @@ async fn run() -> Result< (), gl::WebglError >
       // If textures are of different size, gl.view_port needs to be called
       let time = t as f32 / 1000.0;
 
-      let ( primitives, colors ) = animator.generate( &anim, modulo( time, 10 ), transform, 1.0 );
-      let mut animation_gltf = primitives_data_to_gltf( gl, primitives );
+      let ( primitives, colors ) = animator.generate( &anim, modulo( time as f64, 10.0 ), transform, 1.0 );
+      let animation_gltf = primitives_data_to_gltf( &gl, primitives );
 
       canvas_renderer.render( &gl, &mut animation_gltf.scenes[ 0 ].borrow_mut(), &canvas_camera, &colors ).unwrap();
 
