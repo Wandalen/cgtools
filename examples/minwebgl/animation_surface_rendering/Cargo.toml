@@ -22,6 +22,8 @@ kurbo = { workspace = true }
 zune-hdr = { workspace = true }
 rand = { workspace = true }
 getrandom = { workspace = true, features = [ "wasm_js" ] }
+interpoli = { workspace = true }
+peniko = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true
