@@ -162,6 +162,11 @@ mod private
       self.world_matrix
     }
 
+    pub fn get_local_matrix( &self ) -> F32x4x4
+    {
+      self.matrix
+    }
+
     /// Updates the local transformation matrix based on the current scale, rotation, and translation.
     pub fn update_local_matrix( &mut self )
     {
