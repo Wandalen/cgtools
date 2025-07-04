@@ -13,6 +13,24 @@ mod private
     pub children : Vec< Rc< RefCell< Node > > >,
   }
 
+  impl Clone for Scene
+  {
+    fn clone( &self ) -> Self
+    {
+      let mut children = vec![];
+      
+      for child in &self.children 
+      {
+        children.push( Rc::new( RefCell::new( child.borrow().clone() ) ) );
+      }
+
+      Self
+      {
+        children
+      }
+    }
+  }
+
   impl Scene
   {
     /// Creates a new, empty `Scene`.
