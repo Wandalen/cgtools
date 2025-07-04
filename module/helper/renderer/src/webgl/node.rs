@@ -26,8 +26,9 @@ mod private
   #[ derive( Default ) ]
   pub struct Node
   {
-
     name : Option< Box< str > >,
+    /// The parent node of this node
+    parent : Option< Rc< RefCell< Node > > >,
     /// The child nodes of this node.
     children : Vec< Rc< RefCell< Node > > >,
     /// The 3D object associated with this node.
@@ -65,6 +66,7 @@ mod private
       Self 
       { 
         name : self.name.clone(), 
+        parent : self.parent.clone(),
         children : 
         {
           self.children.iter()
@@ -96,6 +98,35 @@ mod private
     pub fn set_name( &mut self, name : impl Into< Box< str > > )
     {
       self.name = Some( name.into() );
+    }
+
+    pub fn get_name( &self ) -> Option< Box< str > >
+    {
+      self.name.clone()
+    }
+
+    pub fn get_children( &self ) -> &Vec< Rc< RefCell< Node > > >
+    {
+      &self.children
+    }
+
+    pub fn set_parent( &mut self, parent : Option< Rc< RefCell< Node > > > ) 
+    {
+      self.parent = parent;
+    }
+
+    pub fn get_parent( &self ) -> &Option< Rc< RefCell< Node > > >
+    {
+      &self.parent
+    }
+
+    pub fn remove_children( &mut self, id : usize ) -> Option< Rc< RefCell< Node > > >
+    {
+      if self.children.get( id ).is_none()
+      {
+        return None;
+      }
+      Some( self.children.remove( id ) )
     }
 
     /// Sets the local scale of the node.
@@ -208,6 +239,18 @@ mod private
     pub fn add_child( &mut self, child : Rc< RefCell< Node > > )
     {
       self.children.push( child );
+    }
+
+    pub fn insert_child( &mut self, id : usize, child : Rc< RefCell< Node > > )
+    {
+      if id >= self.children.len()
+      {
+        self.add_child( child );
+      }
+      else
+      {
+        self.children.insert( id, child );
+      }
     }
 
     /// Uploads the world transformation matrix of this node to the GPU as a uniform.
