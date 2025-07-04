@@ -1,2 +1,5 @@
 [build]
 rustflags = [ '--cfg', 'getrandom_backend="wasm_js"' ]
+
+[unstable]
+build-std-features = [ "core/debug_refcell" ]

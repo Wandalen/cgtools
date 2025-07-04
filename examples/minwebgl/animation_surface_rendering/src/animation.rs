@@ -76,7 +76,7 @@ pub struct Animation
 {
   gltf : GLTF,
   behaviors : HashMap< Box< str >, Behavior >,
-  composition : Composition
+  _composition : Composition
 }
 
 impl Animation
@@ -271,7 +271,7 @@ impl Animation
     {
       gltf,
       behaviors,
-      composition
+      _composition : composition
     }
   }
 
@@ -311,7 +311,7 @@ impl Animation
       Ok( () )
     };
 
-    scene.traverse( &mut get_nodes_to_remove );
+    let _ = scene.traverse( &mut get_nodes_to_remove );
 
     let mut nodes = scene.children.clone();
 
@@ -436,7 +436,7 @@ impl Animation
       Ok( () )
     };
 
-    scene.traverse( &mut update );
+    let _ = scene.traverse( &mut update );
 
     Some( ( scene, colors ) )
   }

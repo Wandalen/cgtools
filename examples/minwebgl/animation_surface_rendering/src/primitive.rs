@@ -252,7 +252,7 @@ mod private
 
   pub fn points_to_path( points : Vec< [ f32; 2 ] > ) -> Vec< PathEl >
   {
-    points.into_iter()
+    let mut points = points.into_iter()
     .map
     ( 
       | [ x, y ] | 
@@ -260,7 +260,17 @@ mod private
         PathEl::LineTo( kurbo::Point::new( x as f64, y as f64 ) ) 
       }
     )
-    .collect::< Vec< _ > >()
+    .collect::< Vec< _ > >();
+
+    if let Some( el ) = points.get_mut( 0 )
+    {
+      if let PathEl::LineTo( p ) = el.clone() 
+      {
+        *el = PathEl::MoveTo( p );
+      } 
+    }
+
+    points
   }
 
   pub fn path_to_points( path : Vec< PathEl > ) -> Vec< [ f32; 2 ] >

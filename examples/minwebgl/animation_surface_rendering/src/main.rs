@@ -201,7 +201,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 {
   let window = web_sys::window().unwrap();
   let document =  window.document().unwrap();
-  let mut gltf = renderer::webgl::loaders::gltf::load( &document, "curve_surface_rendering/sphere.glb", &gl ).await?;
+  let mut gltf = renderer::webgl::loaders::gltf::load( &document, "gltf/sphere.glb", &gl ).await?;
 
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 ).unwrap().clone();
   let texture = create_texture( &gl, "earth2.jpg" ).await;
@@ -390,66 +390,66 @@ fn setup_animation( gl : &GL, width : usize, height : usize ) -> animation::Anim
     )
   );
 
-  layers.push
-  ( 
-    create_layer
-    ( 
-      width as f64, 
-      height as f64, 
-      None,
-      interpoli::Transform::Animated
-      ( 
-        interpoli::animated::Transform
-        {
-          anchor : Value::Fixed( kurbo::Point::new( 0.0, 0.0 ) ),
-          position : Position::Value
-          (
-            Value::Animated
-            ( 
-              Animated
-              {
-                times : vec!
-                [
-                  create_time( , , , ),  
-                ],
-                values : vec![ , , ,  ]
-              }
-            )
-          ),
-          rotation : Value::Animated
-          ( 
-            Animated
-            {
-              times : vec!
-              [
-                create_time( , , , ),  
-              ],
-              values : vec![ , , ,  ]
-            }
-          ),
-          scale : Value::Animated
-          ( 
-            Animated
-            {
-              times : vec!
-              [
-                create_time( , , , ),  
-              ],
-              values : vec!
-              [  
-                kurbo::Vec2::new( 1.5, 1.5 ),
+  // layers.push
+  // ( 
+  //   create_layer
+  //   ( 
+  //     width as f64, 
+  //     height as f64, 
+  //     None,
+  //     interpoli::Transform::Animated
+  //     ( 
+  //       interpoli::animated::Transform
+  //       {
+  //         anchor : Value::Fixed( kurbo::Point::new( 0.0, 0.0 ) ),
+  //         position : Position::Value
+  //         (
+  //           Value::Animated
+  //           ( 
+  //             Animated
+  //             {
+  //               times : vec!
+  //               [
+  //                 create_time( , , , ),  
+  //               ],
+  //               values : vec![ , , ,  ]
+  //             }
+  //           )
+  //         ),
+  //         rotation : Value::Animated
+  //         ( 
+  //           Animated
+  //           {
+  //             times : vec!
+  //             [
+  //               create_time( , , , ),  
+  //             ],
+  //             values : vec![ , , ,  ]
+  //           }
+  //         ),
+  //         scale : Value::Animated
+  //         ( 
+  //           Animated
+  //           {
+  //             times : vec!
+  //             [
+  //               create_time( , , , ),  
+  //             ],
+  //             values : vec!
+  //             [  
+  //               kurbo::Vec2::new( 1.5, 1.5 ),
                 
-              ]
-            }
-          ),
-          skew : Value::Fixed( 0.0 ),
-          skew_angle : Value::Fixed( 0.0 ),
-        }
-      ),
-      0.0..10.0,
-      content
-    )
-  );
+  //             ]
+  //           }
+  //         ),
+  //         skew : Value::Fixed( 0.0 ),
+  //         skew_angle : Value::Fixed( 0.0 ),
+  //       }
+  //     ),
+  //     0.0..10.0,
+  //     content
+  //   )
+  // );
 
   let composition = Composition
   {
