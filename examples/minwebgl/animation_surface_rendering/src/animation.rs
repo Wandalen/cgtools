@@ -1,659 +1,455 @@
 // Copyright 2024 the Interpoli Authors
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-use interpoli::{ fixed, Composition, Content, Draw, Geometry, GroupTransform, Layer, Shape, Stroke, Brush };
-use kurbo::{ Affine, PathEl };
+use interpoli::{ Composition, Content, Draw, Geometry, Shape, Stroke, Brush };
+use kurbo::Affine;
 use renderer::webgl::loaders::gltf::GLTF;
-use std::ops::Range;
-use minwebgl::{ F32x4, GL };
+use std::collections::HashMap;
+use minwebgl::{ self as gl, F32x4, F32x4x4, GL };
+use std::cell::RefCell;
+use std::rc::Rc;
+use crate::primitive_data::primitives_data_to_gltf;
 
 use renderer::webgl::
 {
   Scene,
   Node
 };
-use geometry_generation::AttributesData;
-use color::{ AlphaColor, Rgba8 };
+use crate::primitive_data::{ Behavior, PrimitiveData };
 
-fn merge_gltfs( gltfs : Vec< GLTF > ) -> GLTF
+fn affine_to_matrix( affine : Affine ) -> F32x4x4
 {
-  let scenes = vec![];
-  let nodes = vec![];
-  let gl_buffers = vec![];
-  let images = vec![];
-  let textures = vec![];
-  let materials = vec![];
-  let meshes = vec![];
+  let [ a, b, c, d , e, f ] = affine.as_coeffs();
 
-  for gltf in gltfs 
+  let mut matrix = F32x4x4::default();
+  
   {
-    scenes.extend( gltf.scenes );
-    nodes.extend( gltf.nodes );
-    gl_buffers.extend( gltf.gl_buffers );
-    images.extend( gltf.images.borrow() );
-    textures.extend( gltf.textures );
-    materials.extend( gltf.materials );
-    meshes.extend( gltf.meshes );
+    let matrix_mut : &mut [ f32 ] = matrix.raw_slice_mut();
+    let mut set_elem = 
+    | i : usize, j : usize, v : f32 | 
+    {
+      matrix_mut[ i * 4 + j ] = v;
+    };
+
+    for i in 0..4 
+    {
+      set_elem( i, i, 0.0 );
+    }
+    
+    set_elem( 0, 0, a as f32 );
+    set_elem( 1, 0, b as f32 );
+    set_elem( 0, 1, c as f32 );
+    set_elem( 1, 1, d as f32 );
+    set_elem( 0, 3, e as f32 );
+    set_elem( 1, 3, f as f32 );
   }
 
-  GLTF
-  {
-    scenes,
-    nodes,
-    gl_buffers,
-    images : Rc::new( RefCell::new( images ) ),
-    textures,
-    materials,
-    meshes,
-}
+  matrix
 }
 
-#[ derive( Clone ) ]
-pub struct PrimitiveData 
+fn brush_to_color( brush : &interpoli::Brush, frame : f64 ) -> F32x4
 {
-  pub attributes : Rc< RefCell< AttributesData > >,
-  pub parent : Option< usize >,
-  pub color : F32x4,
-  pub transform : Transform
-}
-
-pub fn primitives_data_to_gltf
-( 
-  gl : &WebGl2RenderingContext,
-  primitives_data : Vec< PrimitiveData >
-) -> GLTF
-{
-  let mut scenes = vec![];
-  let mut nodes = vec![];
-  let mut gl_buffers = vec![]; 
-  let mut meshes = vec![];
-
-  let material = Rc::new( RefCell::new( Material::default() ) );
-  let materials = vec![ material.clone() ];
-
-  scenes.push( Rc::new( RefCell::new( Scene::new() ) ) );
-
-  let position_buffer = gl.create_buffer().unwrap();
-
-  gl_buffers.push( position_buffer.clone() );
-
-  let attribute_infos = 
-  [
-    ( 
-      "positions", 
-      geometry_generation::make_buffer_attibute_info( 
-        &position_buffer, 
-        BufferDescriptor::new::< [ f32; 3 ] >(),
-        0, 
-        3, 
-        0, 
-        false,
-        VectorDataType::new( mingl::DataType::F32, 3, 1 )
-      ).unwrap() 
-    ),
-  ];
-
-  let index_buffer = gl.create_buffer().unwrap();
-  gl_buffers.push( index_buffer.clone() );
-
-  let mut index_info = IndexInfo
+  let color = match brush.evaluate( 1.0, frame ).into_owned()
   {
-    buffer : index_buffer.clone(),
-    count : 0,
-    offset : 0,
-    data_type : GL::UNSIGNED_INT
+    peniko::Brush::Solid( color ) => Some( color ),
+    _ => None
   };
 
-  let mut positions = vec![];
-  let mut indices = vec![];
-
-  for primitive_data in primitives_data
+  let color = if let Some( color ) = color
   {
-    let last_positions_count = positions.len() as u32;
-    positions.extend( primitive_data.attributes.borrow().positions.clone() );
-    let primitive_indices = primitive_data.attributes.borrow().indices.iter()
-    .map( | i | i + last_positions_count )
-    .collect::< Vec< _ > >();
-    let offset = indices.len() as u32 * 4;
-    indices.extend( primitive_indices );
-
-    index_info.offset = offset;
-    index_info.count = primitive_data.attributes.borrow().indices.len() as u32;
-
-    let Ok( mut geometry ) = Geometry::new( gl ) else
-    {
-      panic!( "Can't create new Geometry struct" );
-    };
-
-    for ( name, info ) in &attribute_infos
-    {
-      geometry.add_attribute( gl, *name, info.clone(), false ).unwrap();
-    }
-
-    geometry.add_index( gl, index_info.clone() ).unwrap();
-    geometry.vertex_count = primitive_data.attributes.borrow().positions.len() as u32;
-
-    let primitive = Primitive
-    {
-      geometry : Rc::new( RefCell::new( geometry ) ),
-      material : material.clone()
-    };
-
-    let mesh = Rc::new( RefCell::new( Mesh::new() ) );
-    mesh.borrow_mut().add_primitive( Rc::new( RefCell::new( primitive ) ) );
-
-    let node = Rc::new( RefCell::new( Node::new() ) );
-    node.borrow_mut().object = Object3D::Mesh( mesh.clone() );
-    primitive_data.transform.set_node_transform( node.clone() );
-
-    nodes.push( node.clone() );
-    meshes.push( mesh );
-    scenes[ 0 ].borrow_mut().children.push( node );
+    let [ r, g, b, a ] = color.to_rgba8().to_u8_array();
+    let color = F32x4::from_array
+    ( 
+      [ r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, a as f32 / 255.0 ] 
+    );
+    color
   }
-
-  gl::buffer::upload( &gl, &position_buffer, &positions, GL::STATIC_DRAW );
-  gl::index::upload( &gl, &index_buffer, &indices, GL::STATIC_DRAW );
-  
-  GLTF
+  else
   {
-    scenes,
-    nodes,
-    gl_buffers,
-    images : Rc::new( RefCell::new( vec![] ) ),
-    textures : vec![],
-    materials,
-    meshes
-  }
+    F32x4::default()
+  };
+
+  color
 }
 
-struct Animation
+pub struct Animation
 {
   gltf : GLTF,
+  behaviors : HashMap< Box< str >, Behavior >,
   composition : Composition
 }
 
 impl Animation
 { 
-  fn new( gl : &GL, composition : Composition ) -> Self
+  pub fn new( gl : &GL, composition : Composition ) -> Self
   {
-    let mut colors = vec![];
-    let mut gltfs = vec![];
+    let mut primitives = vec![];
 
-    for layer in composition.layers
+    let mut repeaters = vec![]; // ( layer, primitive_ids, repeater )
+
+    let mut layers = composition.layers.clone();
+
+    let mut i = 0; 
+    while i < layers.len()
     {
-      let mut primitives_data = vec![];
-
-      layer.parent
-      layer.transform
-
-      let Content::Shape( mut shapes ) = layer.content 
+      let layer = layers[ i ].clone();
+      let Content::Shape( ref shapes ) = layer.content 
       else
       {
         continue;
       };
 
-      let mut color = F32x4::from_array( [ 0.0, 0.0, 0.0, 1.0 ] );
-      let mut stroke_width = None;
-      let mut i = 0;
-      while i < shapes.len() 
+      let mut layer_primitives = vec![];
+
+      let mut brush = Brush::Fixed( interpoli::fixed::Brush::Solid( color::AlphaColor::from_rgba8( 0, 0, 0, 0 ) ) );
+      
+      let mut stroke_width = 1.0;
+
+      let layer_base = PrimitiveData
+      {
+        name : Some( format!("{i}").into_boxed_str() ),
+        attributes : None,
+        parent : layer.parent,
+        behavior : Behavior 
+        { 
+          animated_transform : Some( layer.transform.clone() ), 
+          repeater : None,
+          brush : brush.clone(),
+          frames : layer.frames.clone()
+        },
+        transform : Default::default(),
+      };
+
+      layer_primitives.push( layer_base );
+
+      let mut last_repeater_id = 0;
+      let mut last_repeater : Option< interpoli::Repeater > = None;
+
+      for shape in shapes
       {
         match shape
         {
           Shape::Group( shapes, group_transform ) => 
           {
-
+            let mut sublayer = layer.clone();
+            sublayer.content = Content::Shape( shapes.clone() );
+            sublayer.parent = Some( i );
+            if let Some( group_transform ) = group_transform
+            {
+              sublayer.transform = group_transform.transform.clone();
+              sublayer.opacity = group_transform.opacity.clone();
+            }
+            layers.push( sublayer );
+            if let Some( ref repeater ) = last_repeater
+            {
+              repeaters.push( ( layers.len() - 1, 0..0, repeater.clone() ) );
+            }
           },
-          Shape::Geometry( Geometry::Fixed( path ) ) => 
+          Shape::Geometry( geometry ) => 
           {
-
+            let mut path = vec![];
+            geometry.evaluate( 0.0, &mut path );
+            let contours = crate::primitive::path_to_points( path );
+            let primitive = match geometry
+            {
+              Geometry::Spline( _ ) => crate::primitive::curve_to_geometry( contours.as_slice(), stroke_width ),
+              _ => crate::primitive::contours_to_fill_geometry( &[ contours ] )
+            };
+            if let Some( mut primitive ) = primitive
+            {
+              primitive.behavior = Behavior
+              {
+                animated_transform : None,
+                repeater : None,
+                brush : brush.clone(),
+                frames : layer.frames.clone()
+              };
+              layer_primitives.push( primitive );
+            }
           },
           Shape::Draw
           ( 
             Draw
             {
               stroke,
-              brush : Brush::Fixed( peniko::Brush::Solid( color ) ),
-              opacity,
+              brush : _brush,
+              ..
             } 
           ) => 
           {
             if let Some( Stroke::Fixed( stroke ) ) = stroke
             {
-              stroke_width = Some( stroke.width );
+              stroke_width = stroke.width as f32;
             }
 
-            color.to_rgba8()
+            brush = _brush.clone();
           },
-          _ => continue
+          Shape::Repeater( repeater ) =>
+          {
+            repeaters.push( ( i, last_repeater_id..layer_primitives.len(), repeater.clone() ) );
+            last_repeater = Some( repeater.clone() );
+            last_repeater_id = layer_primitives.len();
+          },
         }
-
-        i += 1;
       }
 
-      let gltf = primitives_data_to_gltf( gl, primitives_data );
-      gltfs.push( gltf ); 
+      primitives.push( layer_primitives );
+
+      i += 1;
     }
 
-    let gltf = merge_gltfs( gltfs );
+    for ( layer, primitive_ids, repeater ) in repeaters
+    {
+      if primitive_ids.end == 0
+      {
+        primitives[ layer ][ 0 ].behavior.repeater = Some( repeater );
+      }
+      else
+      {
+        for primitive_id in primitive_ids
+        {
+          primitives[ layer ][ primitive_id ].behavior.repeater = Some( repeater.clone() );
+        }
+      }
+    }
+
+    let layer_iter= composition.layers.iter()
+    .zip( primitives.iter_mut() );
+
+    let mut last_element_id= 0; 
+    let mut parent_layer_to_primitive_id = HashMap::new();
+    for ( layer, primitives ) in layer_iter
+    {
+      if layer.parent.is_some()
+      {
+        parent_layer_to_primitive_id.insert( layer.parent.unwrap(), last_element_id );
+        primitives[ 0 ].parent = layer.parent;
+      }
+      let layer_name = primitives[ 0 ].name.clone();
+      for ( j, primitive ) in primitives.iter_mut().skip( 0 ).enumerate()
+      {
+        primitive.parent = Some( last_element_id );
+        primitive.name = Some( format!( "{}_{j}", layer_name.clone().unwrap() ).into_boxed_str() );
+      }
+      last_element_id += primitives.len();
+    }
+
+    let layer_iter= composition.layers.iter()
+    .zip( primitives.iter_mut() );
+    for ( layer, primitives ) in layer_iter
+    {
+      if let Some( parent_id ) = layer.parent
+      {
+        primitives[ 0 ].parent = parent_layer_to_primitive_id.get( &parent_id ).copied();
+      }
+    }
+
+    let primitives_data = primitives.into_iter()
+    .flatten()
+    .collect::< Vec< _ > >();
+
+    let behaviors = primitives_data.iter()
+    .filter_map
+    ( 
+      | p | 
+      {
+        if let Some( name ) = &p.name
+        {
+          Some( ( name.clone(), p.behavior.clone() ) ) 
+        } 
+        else
+        {
+          None
+        }
+      }
+    )
+    .collect::< HashMap< _, _ > >();
+
+    let gltf = primitives_data_to_gltf( gl, primitives_data );
 
     Self
     {
       gltf,
+      behaviors,
       composition
     }
   }
-}
 
-#[ derive( Default ) ]
-pub struct Animator
-{
-  batch : Batch,
-  frame_geometry : Vec< geometry_generation::PrimitiveData >,
-  colors : Vec< F32x4 >,
-  mask_elements : Vec< PathEl >,
-}
-
-impl Animator
-{
-  /// Creates a new animator.
-  pub fn new() -> Self
+  pub fn frame( &self, frame : f64 ) -> Option< ( Scene, Vec< F32x4 > ) >
   {
-    Self::default()
-  }
-
-  /// Generates the animation at a given frame
-  pub fn generate
-  (
-    &mut self,
-    animation : &mut Animation,
-    frame : f64,
-    transform : Affine,
-    alpha : f64,
-  ) -> ( Vec< geometry_generation::PrimitiveData >, Vec< F32x4 > )
-  {
-    self.frame_geometry.clear();
-    self.colors.clear();
-    self.batch.clear();
-    for layer in animation.layers.iter().rev()
-    {
-      if layer.is_mask
-      {
-        continue;
-      }
-      self.generate_layer
-      (
-        animation,
-        &animation.layers,
-        layer,
-        transform,
-        alpha,
-        frame,
-      );
-    }
-    
-    ( self.frame_geometry.clone(), self.colors.clone() )
-  }
-
-  fn generate_layer
-  (
-    &mut self,
-    animation : &Composition,
-    layer_set : &[ Layer ],
-    layer : &Layer,
-    transform : Affine,
-    alpha : f64,
-    frame : f64,
-  )
-  {
-    if !layer.frames.contains( &frame )
-    {
-      return;
-    }
-    let parent_transform = transform;
-    let transform = self.compute_transform( layer_set, layer, parent_transform, frame );
-    if let Some( ( _, mask_index ) ) = layer.mask_layer
-    {
-      if let Some( mask ) = layer_set.get( mask_index )
-      {
-        self.generate_layer
-        (
-          animation,
-          layer_set,
-          mask,
-          parent_transform,
-          alpha,
-          frame,
-        );
-      }
-    }
-    let mut alpha = alpha * layer.opacity.evaluate( frame ) / 100.0;
-    for mask in &layer.masks
-    {
-      alpha = mask.opacity.evaluate( frame ) / 100.0;
-      mask.geometry.evaluate( frame, &mut self.mask_elements );
-      self.mask_elements.clear();
-    }
-    match &layer.content
-    {
-      Content::None => {},
-      Content::Instance
-      {
-        name,
-        time_remap : _,
-      } =>
-      {
-        if let Some( asset_layers ) = animation.assets.get( name )
-        {
-          let frame = frame / layer.stretch;
-          let frame_delta = -layer.start_frame / layer.stretch;
-          for asset_layer in asset_layers.iter().rev()
-          {
-            if asset_layer.is_mask
-            {
-              continue;
-            }
-            self.generate_layer
-            (
-              animation,
-              asset_layers,
-              asset_layer,
-              transform,
-              alpha,
-              frame + frame_delta,
-            );
-          }
-        }
-      }
-      Content::Shape( shapes ) =>
-      {
-        self.generate_shapes( shapes, transform, alpha, frame );
-        let ( geometry, colors ) = self.batch.generate();
-        self.frame_geometry.extend( geometry );
-        self.colors.extend( colors );
-        self.batch.clear();
-      }
-    }
-  }
-
-  fn generate_shapes( &mut self, shapes : &[ Shape ], transform : Affine, alpha : f64, frame : f64 )
-  {
-    // Keep track of our local top of the geometry stack. Any subsequent
-    // draws are bounded by this.
-    let geometry_start = self.batch.geometries.len();
-    // Also keep track of top of draw stack for repeater evaluation.
-    let draw_start = self.batch.draws.len();
-    // Top to bottom, collect geometries and draws.
-    for shape in shapes
-    {
-      match shape
-      {
-        Shape::Group( shapes, group_transform ) =>
-        {
-          let ( group_transform, group_alpha ) =
-            if let Some( GroupTransform { transform, opacity } ) = group_transform
-            {
-              (
-                transform.evaluate( frame ).into_owned(),
-                opacity.evaluate( frame ) / 100.0,
-              )
-            } 
-            else
-            {
-              ( Affine::IDENTITY, 1.0 )
-            };
-          self.generate_shapes
-          (
-            shapes,
-            transform * group_transform,
-            alpha * group_alpha,
-            frame,
-          );
-        }
-        Shape::Geometry( geometry ) =>
-        {
-          self.batch.push_geometry( geometry, transform, frame );
-        }
-        Shape::Draw( draw ) =>
-        {
-          self.batch.push_draw( draw, alpha, geometry_start, frame );
-        }
-        Shape::Repeater( repeater ) =>
-        {
-          let repeater = repeater.evaluate( frame );
-          self.batch
-          .repeat( repeater.as_ref(), geometry_start, draw_start );
-        }
-      }
-    }
-  }
-
-  /// Computes the transform for a single layer. This currently chases the
-  /// full transform chain each time. If it becomes a bottleneck, we can
-  /// implement caching.
-  fn compute_transform
-  (
-    &self,
-    layer_set : &[ Layer ],
-    layer : &Layer,
-    global_transform : Affine,
-    frame : f64,
-  ) -> Affine
-  {
-    let mut transform = layer.transform.evaluate( frame ).into_owned();
-    let mut parent_index = layer.parent;
-    let mut count = 0_usize;
-    while let Some( index ) = parent_index
-    {
-      // We don't check for cycles at import time, so this heuristic
-      // prevents infinite loops.
-      if count >= layer_set.len()
-      {
-        break;
-      }
-      if let Some( parent ) = layer_set.get( index )
-      {
-        parent_index = parent.parent;
-        transform = parent.transform.evaluate( frame ).into_owned() * transform;
-        count += 1;
-      } 
-      else
-      {
-        break;
-      }
-    }
-    global_transform * transform
-  }
-}
-
-#[ derive( Clone, Debug ) ]
-struct DrawData
-{
-  stroke : Option< fixed::Stroke >,
-  brush : fixed::Brush,
-  alpha : f64,
-  /// Range into `ShapeBatch::geometries`
-  geometry : Range< usize >,
-}
-
-impl DrawData
-{
-  fn new( draw : &Draw, alpha : f64, geometry : Range< usize >, frame : f64 ) -> Self
-  {
-    Self
-    {
-      stroke : draw
-      .stroke
-      .as_ref()
-      .map( | stroke | stroke.evaluate( frame ).into_owned() ),
-      brush : draw.brush.evaluate( 1.0, frame ).into_owned(),
-      alpha : alpha * draw.opacity.evaluate( frame ) / 100.0,
-      geometry,
-    }
-  }
-}
-
-#[ derive( Clone, Debug ) ]
-struct GeometryData
-{
-  elements : Range< usize >,
-  transform : Affine,
-}
-
-#[ derive( Default ) ]
-struct Batch
-{
-  elements : Vec< PathEl >,
-  geometries : Vec< GeometryData >,
-  draws : Vec< DrawData >,
-  repeat_geometries : Vec< GeometryData >,
-  repeat_draws : Vec< DrawData >,
-  drawn_geometry : usize,
-}
-
-impl Batch
-{
-  fn push_geometry( &mut self, geometry : &Geometry, transform : Affine, frame : f64 )
-  {
-    // Merge with the previous geometry if possible. There are two
-    // conditions:
-    // 1. The previous geometry has not yet been referenced by a draw
-    // 2. The geometries have the same transform
-    if self.drawn_geometry < self.geometries.len()
-      && self.geometries.last().map( | last | last.transform ) == Some( transform )
-    {
-      geometry.evaluate( frame, &mut self.elements );
-      self.geometries.last_mut().unwrap().elements.end = self.elements.len();
-    } 
+    let Some( scene ) = self.gltf.scenes.get( 0 )
     else
     {
-      let start = self.elements.len();
-      geometry.evaluate( frame, &mut self.elements );
-      let end = self.elements.len();
-      self.geometries.push
-      ( 
-        GeometryData
-        {
-          elements : start..end,
-          transform,
-        }
-      );
-    }
-  }
-
-  fn push_draw( &mut self, draw : &Draw, alpha : f64, geometry_start : usize, frame : f64 )
-  {
-    self.draws.push( DrawData::new
-    (
-      draw,
-      alpha,
-      geometry_start..self.geometries.len(),
-      frame,
-    ));
-    self.drawn_geometry = self.geometries.len();
-  }
-
-  fn repeat( &mut self, repeater : &fixed::Repeater, geometry_start : usize, draw_start : usize )
-  {
-    // First move the relevant ranges of geometries and draws into side
-    // buffers
-    self.repeat_geometries
-    .extend( self.geometries.drain( geometry_start.. ) );
-    self.repeat_draws.extend( self.draws.drain( draw_start.. ) );
-    // Next, repeat the geometries and apply the offset transform
-    for geometry in self.repeat_geometries.iter()
-    {
-      for i in 0..repeater.copies
-      {
-        let transform = repeater.transform( i );
-        let mut geometry = geometry.clone();
-        geometry.transform *= transform;
-        self.geometries.push( geometry );
-      }
-    }
-    // Finally, repeat the draws, taking into account opacity and the
-    // modified newly repeated geometry ranges
-    let start_alpha = repeater.start_opacity / 100.0;
-    let end_alpha = repeater.end_opacity / 100.0;
-    let delta_alpha = if repeater.copies > 1
-    {
-      // See note in Skottie: AE does not cover the full opacity range
-      ( end_alpha - start_alpha ) / repeater.copies as f64
-    } 
-    else
-    {
-      0.0
+      return None;
     };
-    for i in 0..repeater.copies
-    {
-      let alpha = start_alpha + delta_alpha * i as f64;
-      if alpha <= 0.0
-      {
-        continue;
-      }
-      for mut draw in self.repeat_draws.iter().cloned()
-      {
-        draw.alpha *= alpha;
-        let count = draw.geometry.end - draw.geometry.start;
-        draw.geometry.start =
-        geometry_start + ( draw.geometry.start - geometry_start ) * repeater.copies;
-        draw.geometry.end = draw.geometry.start + count * repeater.copies;
-        self.draws.push( draw );
-      }
-    }
-    // Clear the side buffers
-    self.repeat_geometries.clear();
-    self.repeat_draws.clear();
-    // Prevent merging until new geometries are pushed
-    self.drawn_geometry = self.geometries.len();
-  }
 
-  fn generate( &self ) -> ( Vec< geometry_generation::PrimitiveData >, Vec< F32x4 > )
-  {
-    let mut primitives = Vec::< geometry_generation::PrimitiveData >::new();
-    let mut colors = Vec::< F32x4 >::new();
+    let mut scene = scene.borrow().clone();
+    let mut colors = vec![];
 
-    // Process all draws in reverse
-    for draw in self.draws.iter().rev()
+    let mut nodes_to_remove = HashMap::new();
+
+    let mut get_nodes_to_remove = 
+    | 
+      node : Rc< RefCell< Node > >
+    | -> Result< (), gl::WebglError >
     {
-      // Some nastiness to avoid cloning the brush if unnecessary
-      let modified_brush = if draw.alpha != 1.0
+      let node_mut = node.borrow_mut();
+      let Some( name ) = node_mut.get_name()
+      else 
       {
-        Some( draw.brush.clone().multiply_alpha( draw.alpha as f32 ) )
-      } 
-      else
-      {
-        None
+        return Ok( () );
       };
-      let brush = modified_brush.as_ref().unwrap_or( &draw.brush );
-      for geometry in self.geometries[ draw.geometry.clone() ].iter()
+      if let Some( behaviour ) = self.behaviors.get( &name )
       {
-        let path = &self.elements[ geometry.elements.clone() ];
-        let transform = geometry.transform;
-        if let Some( stroke ) = draw.stroke.as_ref()
+        if !( behaviour.frames.start <= frame && frame < behaviour.frames.end )
         {
-          primitives.push();
-          colors.push();
-          //scene.stroke( stroke, transform, brush, None, &path );
-        } 
+          nodes_to_remove.insert( name, node.clone() );
+          return Ok( () );
+        }
+      }
+
+      Ok( () )
+    };
+
+    scene.traverse( &mut get_nodes_to_remove );
+
+    let mut nodes = scene.children.clone();
+
+    scene.children = scene.children.iter()
+    .filter
+    (
+      | n | 
+      {
+        let Some( name ) = n.borrow().get_name()
         else
         {
-          primitives.push();
-          colors.push();
-          //scene.fill( Fill::NonZero, transform, brush, None, &path );
+          return false;
+        };
+        !nodes_to_remove.contains_key( &name ) 
+      }
+    )
+    .cloned()
+    .collect::< Vec< _ > >();
+
+    let mut i = 0;
+    while i < nodes.len()
+    {
+      let Some( node ) = nodes.get( i ).cloned()
+      else
+      {
+        break;
+      };
+
+      let mut id_to_remove = vec![];
+
+      for ( i, child )  in node.borrow().get_children().iter().enumerate()
+      {
+        let Some( name ) = child.borrow().get_name()
+        else
+        {
+          continue;
+        };
+        if nodes_to_remove.contains_key( &name ) 
+        {
+          id_to_remove.push( i );
         }
       }
+
+      for i in id_to_remove.iter().rev() 
+      {
+        if let Some( child ) = node.borrow_mut().remove_children( *i )
+        {
+          child.borrow_mut().set_parent( None );
+        }
+      }
+
+      nodes.extend( node.borrow().get_children().iter().cloned() );
+
+      i += 1;
     }
 
-    ( primitives, colors )
+    let mut update = 
+    | 
+      node : Rc< RefCell< Node > >
+    | -> Result< (), gl::WebglError >
+    {
+      let Some( node_name ) = node.borrow().get_name()
+      else
+      {
+        return Ok( () ); 
+      };
+      if let Some( behaviour ) = self.behaviors.get( &node_name )
+      {
+        if let Some( animated_transform ) = &behaviour.animated_transform
+        {
+          let matrix = affine_to_matrix( animated_transform.evaluate( 0.0 ).into_owned() );
+          node.borrow_mut().set_local_matrix( matrix );
+        }
+
+        let color = brush_to_color( &behaviour.brush, frame );
+
+        let Some( ref repeater ) = behaviour.repeater
+        else
+        {
+          colors.push( color );
+          return Ok( () );
+        };
+
+        let Some( parent ) = node.borrow_mut().get_parent().clone()
+        else
+        {
+          colors.push( color );
+          return Ok( () );
+        };
+
+        let Some( id ) = parent.borrow().get_children()
+        .iter()
+        .enumerate()
+        .find( | ( _, child ) | child.borrow().get_name().as_ref() == Some( &node_name ) )
+        .map( | ( i, _ ) | i )
+        else
+        {
+          colors.push( color );
+          return Ok( () );
+        };
+
+        let repeater = repeater.evaluate( frame ).into_owned();
+        let matrix = node.borrow_mut().get_local_matrix();
+
+        let mut repeater_colors = vec![];
+
+        for i in ( 0..repeater.copies ).rev()
+        {
+          let node_clone = Rc::new( RefCell::new( node.borrow_mut().clone() ) );
+          let transform = affine_to_matrix( repeater.transform( i ) );
+
+          node_clone.borrow_mut().set_local_matrix( matrix * transform );
+          node_clone.borrow_mut().set_parent( Some( parent.clone() ) );
+          parent.borrow_mut().insert_child( id + 1, node_clone );
+
+          repeater_colors.push( color );
+        } 
+
+        colors.extend( repeater_colors.iter().rev() );
+      }
+
+      Ok( () )
+    };
+
+    scene.traverse( &mut update );
+
+    Some( ( scene, colors ) )
   }
 
-  fn clear( &mut self )
+  pub fn set_world_matrix( &self, world_matrix : F32x4x4 )
   {
-    self.elements.clear();
-    self.geometries.clear();
-    self.draws.clear();
-    self.repeat_geometries.clear();
-    self.repeat_draws.clear();
-    self.drawn_geometry = 0;
+    for scene in &self.gltf.scenes
+    {
+      for child in scene.borrow().children.iter()
+      {
+        child.borrow_mut()
+        .update_world_matrix( world_matrix, true );
+      }
+    }
   }
 }
