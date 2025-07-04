@@ -1,8 +1,9 @@
 use std::cell::RefCell;
-use mingl::F32x4;
 use minwebgl as gl;
 use gl::
 {
+  F32x4,
+  F32x4x4,
   JsCast,
   GL,
   WebGl2RenderingContext,
@@ -36,11 +37,16 @@ use renderer::webgl::
 use std::rc::Rc;
 use canvas_renderer::renderer::*;
 use geometry_generation::*;
-use interpoli::Composition;
+use interpoli::{ Animated, Composition, Value, Content, Layer, EasingHandle, animated::Position };
+use std::ops::Range;
 
 mod camera_controls;
 mod loaders;
 mod animation;
+mod primitive_data;
+mod primitive;
+
+use crate::primitive::points_to_path;
 
 fn upload_texture( gl : &WebGl2RenderingContext, src : Rc< String > ) -> WebGlTexture
 {
@@ -283,7 +289,7 @@ fn create_layer
   width : f64, 
   height : f64, 
   parent: Option< usize >,
-  transform : Transform,
+  transform : interpoli::Transform,
   frames : Range< f64 >,
   content : Content
 ) -> Layer
@@ -307,12 +313,6 @@ fn create_layer
   }
 }
 
-fn points_to_path( points : Vec< F32x2 > ) -> Vec< PathEl >
-{
-
-
-}
-
 fn create_time
 (
   frame : f64,
@@ -330,16 +330,16 @@ fn create_time
   } 
 }
 
-fn setup_animation( width : usize, height : usize ) -> Composition
+fn setup_animation( gl : &GL, width : usize, height : usize ) -> animation::Animation
 {
   let mut layers = vec![];
 
-  let points : Vec< F32x2 > = vec!
+  let points : Vec< [ f32; 2 ] > = vec!
   [
-    [ -0.5, -0.5 ].into(),
-    [ -0.5, 0.5 ].into(),
-    [ 0.5, 0.5 ].into(),
-    [ 0.5, -0.5 ].into(),
+    [ -0.5, -0.5 ],
+    [ -0.5, 0.5 ],
+    [ 0.5, 0.5 ],
+    [ 0.5, -0.5 ],
   ];
 
   let content = interpoli::Content::Shape
@@ -358,7 +358,7 @@ fn setup_animation( width : usize, height : usize ) -> Composition
   // ( 
   //   Animated
   //   {
-  //     tiles : vec!
+  //     times : vec!
   //     [
   //       create_time( , , , ),  
   //     ],
@@ -370,15 +370,15 @@ fn setup_animation( width : usize, height : usize ) -> Composition
   ( 
     create_layer
     ( 
-      width, 
-      height, 
+      width as f64, 
+      height as f64, 
       None,
       interpoli::Transform::Animated
       ( 
         interpoli::animated::Transform
         {
           anchor : Value::Fixed( kurbo::Point::new( 0.0, 0.0 ) ),
-          position : Position::Value( Value::Fixed( 0.0 ) ),
+          position : Position::Value( Value::Fixed( kurbo::Point::ZERO ) ),
           rotation : Value::Fixed( 0.0 ),
           scale : Value::Fixed( kurbo::Vec2::new( 0.0, 0.0 ) ),
           skew : Value::Fixed( 0.0 ),
@@ -394,8 +394,8 @@ fn setup_animation( width : usize, height : usize ) -> Composition
   ( 
     create_layer
     ( 
-      width, 
-      height, 
+      width as f64, 
+      height as f64, 
       None,
       interpoli::Transform::Animated
       ( 
@@ -408,7 +408,7 @@ fn setup_animation( width : usize, height : usize ) -> Composition
             ( 
               Animated
               {
-                tiles : vec!
+                times : vec!
                 [
                   create_time( , , , ),  
                 ],
@@ -420,7 +420,7 @@ fn setup_animation( width : usize, height : usize ) -> Composition
           ( 
             Animated
             {
-              tiles : vec!
+              times : vec!
               [
                 create_time( , , , ),  
               ],
@@ -431,7 +431,7 @@ fn setup_animation( width : usize, height : usize ) -> Composition
           ( 
             Animated
             {
-              tiles : vec!
+              times : vec!
               [
                 create_time( , , , ),  
               ],
@@ -451,32 +451,49 @@ fn setup_animation( width : usize, height : usize ) -> Composition
     )
   );
 
-  Composition
+  let composition = Composition
   {
     frames : 0.0..10.0,
     frame_rate : 60.0,
     width,
     height,
-    assets : HashMap::new(),
+    assets : Default::default(),
     layers
+  };
+
+  animation::Animation::new( gl, composition )
+}
+
+
+struct IndentityMatrix;
+
+impl IndentityMatrix
+{
+  fn new() -> F32x4x4
+  {
+    let mut identity = gl::F32x4x4::default();
+    *identity.scalar_mut( gl::Ix2( 0, 0 ) ) = 1.0;
+    *identity.scalar_mut( gl::Ix2( 1, 1 ) ) = 1.0;
+    *identity.scalar_mut( gl::Ix2( 2, 2 ) ) = 1.0;
+    *identity.scalar_mut( gl::Ix2( 3, 3 ) ) = 1.0;
+
+    identity
   }
 }
+
+
 
 async fn run() -> Result< (), gl::WebglError >
 {
   let ( gl, canvas ) = init_context();
 
   let mut gltf = setup_scene( &gl ).await?; 
-
-  let mut animator = animation::Animator::new();
   
   //let ( canvas_gltf, colors ) = setup_canvas_scene( &gl ).await;
-  let anim = setup_animation();
-  let transform = kurbo::Affine::translate( ( 0.0, 0.0 ) );
-  let ( primitives, _ ) = animator.generate( &anim, 0.0, transform, 1.0 );
-  let animation_gltf = primitives_data_to_gltf( &gl, primitives );
+  let animation = setup_animation( &gl, canvas.height() as usize, canvas.width() as usize );
+  animation.set_world_matrix( IndentityMatrix::new() );
 
-  let canvas_camera = init_camera( &canvas, &animation_gltf.scenes );
+  let canvas_camera = init_camera( &canvas, &[ Rc::new( RefCell::new( animation.frame( 0.0 ).unwrap().0 ) ) ] );
   camera_controls::bind_controls_to_input( &canvas, &canvas_camera.get_controls() );
   canvas_camera.get_controls().borrow_mut().window_size = [ ( canvas.width() * 4 ) as f32, ( canvas.height() * 4 ) as f32 ].into();
   canvas_camera.get_controls().borrow_mut().eye = [ 0.0, 0.0, 8.0 ].into();
@@ -541,10 +558,10 @@ async fn run() -> Result< (), gl::WebglError >
       // If textures are of different size, gl.view_port needs to be called
       let time = t as f32 / 1000.0;
 
-      let ( primitives, colors ) = animator.generate( &anim, modulo( time as f64, 10.0 ), transform, 1.0 );
-      let animation_gltf = primitives_data_to_gltf( &gl, primitives );
-
-      canvas_renderer.render( &gl, &mut animation_gltf.scenes[ 0 ].borrow_mut(), &canvas_camera, &colors ).unwrap();
+      if let Some( ( mut scene, colors ) ) = animation.frame( modulo( time as f64, 10.0 ) )
+      {
+        canvas_renderer.render( &gl, &mut scene, &canvas_camera, &colors ).unwrap();
+      }
 
       // renderer.render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
       // .expect( "Failed to render" );
