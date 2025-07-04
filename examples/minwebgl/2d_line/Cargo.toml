@@ -9,4 +9,5 @@ authors = [
 license = "MIT"
 
 [dependencies]
+line_tools = { workspace = true }
 minwebgl = { workspace = true, features = [ "math" ] }

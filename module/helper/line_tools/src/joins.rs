@@ -20,7 +20,7 @@ mod private
       {
         Self::Round( segments ) => 
         {
-          let g = round_geometry( *segments );
+          let g = helpers::round_geometry( *segments );
           let len = g.len();
           ( g.into_iter().flatten().collect(), len )
         },
@@ -30,7 +30,7 @@ mod private
           let len = g.len();
           ( g.into_iter().flatten().collect(), len )
         },
-        _ => 
+        Self::Bevel => 
         {
           let g = bevel_geometry();
           let len = g.len();
@@ -69,30 +69,16 @@ mod private
     ]
   }
 
-  pub fn round_geometry( segments : usize ) -> Vec< [ f32; 2 ] >
-  {
-    let mut positions = Vec::with_capacity( segments );
-    for wedge in 0..=segments
-    {
-      let theta = 2.0 * std::f32::consts::PI * wedge as f32 / segments as f32;
-      let ( s, c ) = theta.sin_cos();
-      positions.push( [ 0.5 * c, 0.5 * s ] )
-    }
-
-    positions
-  }
-
-
-
 }
 
 crate::mod_interface!
 {
+  own use crate::helpers::round_geometry;
 
   own use
   {
-    round_geometry,
     miter_geometry,
+    bevel_geometry,
   };
 
   exposed use

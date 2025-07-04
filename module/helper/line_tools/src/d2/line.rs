@@ -22,6 +22,7 @@ mod private
       let body_buffer = gl.create_buffer().expect( "Failed to create a buffer" );
       let body_instanced_buffer = gl.create_buffer().expect( "Failed to create a instanced_buffer" );
       let join_instanced_buffer = gl.create_buffer().expect( "Failed to create a join_instanced_buffer" );
+      let cap_instanced_buffer = gl.create_buffer().expect( "Failed to create a cap_instanced_buffer" );
 
       gl.bind_buffer( gl::ARRAY_BUFFER, Some( &body_instanced_buffer ) );
       gl::buffer::upload( gl, &body_instanced_buffer, &BODY_GEOMETRY, gl::STATIC_DRAW );
@@ -31,6 +32,8 @@ mod private
 
       gl.bind_buffer( gl::ARRAY_BUFFER, Some( &join_instanced_buffer ) );
       gl::buffer::upload( &gl, &join_instanced_buffer, &join_geometry_list, gl::STATIC_DRAW );
+
+      
 
       // Body vao
       let body_vao = gl.create_vertex_array();

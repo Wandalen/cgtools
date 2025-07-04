@@ -16,4 +16,6 @@ mod private
 
   layer mesh;
   layer program;
+
+  layer helpers;
 }
