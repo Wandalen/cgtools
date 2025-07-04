@@ -1,7 +1,7 @@
 mod private
 {
   use minwebgl as gl;
-  use gl::{ F32x2, F32x4 };
+  use gl::{ F32x2, F32x4, geometry::BoundingBox };
   use std::cell::RefCell;
   use std::rc::Rc;
   use crate::
