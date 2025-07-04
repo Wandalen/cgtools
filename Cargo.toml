@@ -317,7 +317,7 @@ version = "0.4"
 version = "0.5"
 
 [workspace.dependencies.peniko]
-version = "0.4"
+version = "0.3.1"
 
 # qqq : avoid this crate, use derive_tools and component_model
 [workspace.dependencies.nutype]

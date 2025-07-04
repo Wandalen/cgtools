@@ -24,6 +24,8 @@ rand = { workspace = true }
 getrandom = { workspace = true, features = [ "wasm_js" ] }
 interpoli = { workspace = true }
 peniko = { workspace = true }
+color = { version = "0.2.3" }
+earcutr = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true
