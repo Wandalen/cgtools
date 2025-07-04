@@ -52,7 +52,7 @@ mod private
 
   impl Transform
   {
-    fn set_node_transform( &self, node : Rc< RefCell< Node > > )
+    pub fn set_node_transform( &self, node : Rc< RefCell< Node > > )
     {
       let t = self.translation;
       let r = self.rotation;
