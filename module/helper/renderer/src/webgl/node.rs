@@ -161,7 +161,7 @@ mod private
 
     /// Sets the local rotation of the node.
     ///
-    /// * `rotation`: The new rotation as a `glam::Quat`.
+    /// * `rotation`: The new rotation as a `gl::QuatF32`.
     pub fn set_rotation( &mut self, rotation : gl::QuatF32 )
     {
       self.rotation = rotation;
