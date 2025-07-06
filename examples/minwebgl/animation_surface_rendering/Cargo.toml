@@ -12,6 +12,7 @@ authors = [
 workspace = true
 
 [dependencies]
+mod_interface = { workspace = true }
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
@@ -26,6 +27,7 @@ interpoli = { workspace = true }
 peniko = { workspace = true }
 color = "0.2.3"
 earcutr = { workspace = true }
+former = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true
