@@ -36,9 +36,7 @@ use renderer::webgl::
 };
 use std::rc::Rc;
 use canvas_renderer::renderer::*;
-use geometry_generation::*;
-use interpoli::{ Animated, Composition, Value, Content, Layer, EasingHandle, animated::Position };
-use std::ops::Range;
+use geometry_generation::text;
 
 mod camera_controls;
 mod loaders;
@@ -46,7 +44,8 @@ mod animation;
 mod primitive_data;
 mod primitive;
 
-use crate::primitive::points_to_path;
+use animation::*;
+use ease_functions::*;
 
 fn upload_texture( gl : &WebGl2RenderingContext, src : Rc< String > ) -> WebGlTexture
 {
@@ -255,7 +254,7 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
   let text = "CGTools".to_string();
 
   let mut primitives_data = vec![];
-  let mut transform = Transform::default();
+  let mut transform = geometry_generation::Transform::default();
   transform.translation.0[ 1 ] += ( font_names.len() as f32 + 1.0 ) / 2.0 + 0.5;
   for font_name in font_names
   {
@@ -269,7 +268,7 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
   let colors = primitives_data.iter()
   .map( | p | p.color )
   .collect::< Vec< _ > >();
-  let canvas_gltf = primitives_data_to_gltf( &gl, primitives_data );
+  let canvas_gltf = geometry_generation::primitives_data_to_gltf( &gl, primitives_data );
 
   ( canvas_gltf, colors )
 }
@@ -284,56 +283,8 @@ pub fn modulo( dividend : f64, divisor : f64 ) -> f64
   result
 }
 
-fn create_layer
-( 
-  width : f64, 
-  height : f64, 
-  parent: Option< usize >,
-  transform : interpoli::Transform,
-  frames : Range< f64 >,
-  content : Content
-) -> Layer
-{
-  Layer 
-  {
-    name : String::new(),
-    parent,
-    transform,
-    opacity : Value::Fixed( 1.0 ),
-    width,
-    height,
-    blend_mode : None,
-    frames,
-    stretch : 1.0,
-    start_frame : 0.0,
-    masks : vec![],
-    is_mask : false,
-    mask_layer : None,
-    content
-  }
-}
-
-fn create_time
-(
-  frame : f64,
-  in_tangent : Option< EasingHandle >,
-  out_tangent : Option< EasingHandle >,
-  hold : bool
-) -> interpoli::Time
-{
-  interpoli::Time
-  {
-    frame,
-    in_tangent,
-    out_tangent,
-    hold,
-  } 
-}
-
 fn setup_animation( gl : &GL, width : usize, height : usize ) -> animation::Animation
 {
-  let mut layers = vec![];
-
   let points : Vec< [ f32; 2 ] > = vec!
   [
     [ -0.5, -0.5 ],
@@ -342,126 +293,46 @@ fn setup_animation( gl : &GL, width : usize, height : usize ) -> animation::Anim
     [ 0.5, -0.5 ],
   ];
 
-  let content = interpoli::Content::Shape
-  (
-    vec!
-    [
-      interpoli::Shape::Geometry
-      ( 
-        interpoli::Geometry::Fixed( points_to_path( points ) )
-      )
-    ] 
-  );
+  let color = Shape::Color( Color::Fixed( [ 1.0, 0.0, 0.0, 1.0 ] ) );
 
-  // Value::Fixed( 0.0 )
-  // Value::Animated
-  // ( 
-  //   Animated
-  //   {
-  //     times : vec!
-  //     [
-  //       create_time( , , , ),  
-  //     ],
-  //     values : vec![ , , ,  ]
-  //   }
-  // )
+  let rect = Shape::Geometry( points );
 
-  layers.push
-  ( 
-    create_layer
-    ( 
-      width as f64, 
-      height as f64, 
-      None,
-      interpoli::Transform::Animated
-      ( 
-        interpoli::animated::Transform
-        {
-          anchor : Value::Fixed( kurbo::Point::new( 0.0, 0.0 ) ),
-          position : Position::Value( Value::Fixed( kurbo::Point::ZERO ) ),
-          rotation : Value::Fixed( 0.0 ),
-          scale : Value::Fixed( kurbo::Vec2::new( 0.0, 0.0 ) ),
-          skew : Value::Fixed( 0.0 ),
-          skew_angle : Value::Fixed( 0.0 ),
-        }
-      ),
-      0.0..10.0,
-      content
-    )
-  );
+  let transform = Transform::former()
+  .scale( ease_in_out_circ( ( 0.0, 10.0 ), ( kurbo::Vec2::new( 1.0, 1.0 ), kurbo::Vec2::new( 50.0, 50.0 ) ) ) )
+  .form();
 
-  // layers.push
-  // ( 
-  //   create_layer
-  //   ( 
-  //     width as f64, 
-  //     height as f64, 
-  //     None,
-  //     interpoli::Transform::Animated
-  //     ( 
-  //       interpoli::animated::Transform
-  //       {
-  //         anchor : Value::Fixed( kurbo::Point::new( 0.0, 0.0 ) ),
-  //         position : Position::Value
-  //         (
-  //           Value::Animated
-  //           ( 
-  //             Animated
-  //             {
-  //               times : vec!
-  //               [
-  //                 create_time( , , , ),  
-  //               ],
-  //               values : vec![ , , ,  ]
-  //             }
-  //           )
-  //         ),
-  //         rotation : Value::Animated
-  //         ( 
-  //           Animated
-  //           {
-  //             times : vec!
-  //             [
-  //               create_time( , , , ),  
-  //             ],
-  //             values : vec![ , , ,  ]
-  //           }
-  //         ),
-  //         scale : Value::Animated
-  //         ( 
-  //           Animated
-  //           {
-  //             times : vec!
-  //             [
-  //               create_time( , , , ),  
-  //             ],
-  //             values : vec!
-  //             [  
-  //               kurbo::Vec2::new( 1.5, 1.5 ),
-                
-  //             ]
-  //           }
-  //         ),
-  //         skew : Value::Fixed( 0.0 ),
-  //         skew_angle : Value::Fixed( 0.0 ),
-  //       }
-  //     ),
-  //     0.0..10.0,
-  //     content
-  //   )
-  // );
+  //let transform = kurbo::Affine::IDENTITY.then_scale( 5.0 );
 
-  let composition = Composition
+  let layer = Layer::former()
+  .frames( 0.0..10.0 )
+  .start_frame( 0.0 )
+  .transform( interpoli::Transform::Animated( transform.into() ) )
+  //.transform( interpoli::Transform::Fixed( transform ) )
+  .content()
+    .add( color )
+    .add( rect )
+    .end()
+  .form();
+
+  let _layer : interpoli::Layer = layer.clone().into();
+
+  for i in ( 0..100 ).step_by( 20 )
   {
-    frames : 0.0..10.0,
-    frame_rate : 60.0,
-    width,
-    height,
-    assets : Default::default(),
-    layers
-  };
+    let t = _layer.transform.evaluate( i as f64 ).into_owned();
+    gl::info!( "{:?}", t );
+    //gl::info!( "{:?}", affine_to_matrix( t ) );
+  }
 
-  animation::Animation::new( gl, composition )
+  let model = Model::former()
+  .width( width )
+  .height( height )
+  .frames( 0.0..10.0 )
+  .layers()
+    .add( layer )
+    .end()
+  .form();
+
+  animation::Animation::new( gl, model )
 }
 
 
@@ -489,11 +360,13 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut gltf = setup_scene( &gl ).await?; 
   
-  //let ( canvas_gltf, colors ) = setup_canvas_scene( &gl ).await;
+  let ( canvas_gltf, _ ) = setup_canvas_scene( &gl ).await;
+  canvas_gltf.scenes[ 0 ].borrow_mut().update_world_matrix();
   let animation = setup_animation( &gl, canvas.height() as usize, canvas.width() as usize );
   animation.set_world_matrix( IndentityMatrix::new() );
 
-  let canvas_camera = init_camera( &canvas, &[ Rc::new( RefCell::new( animation.frame( 0.0 ).unwrap().0 ) ) ] );
+  let canvas_camera = init_camera( &canvas, &canvas_gltf.scenes ); 
+  //let canvas_camera = init_camera( &canvas, &[ Rc::new( RefCell::new( animation.frame( 0.0 ).unwrap().0 ) ) ] );
   camera_controls::bind_controls_to_input( &canvas, &canvas_camera.get_controls() );
   canvas_camera.get_controls().borrow_mut().window_size = [ ( canvas.width() * 4 ) as f32, ( canvas.height() * 4 ) as f32 ].into();
   canvas_camera.get_controls().borrow_mut().eye = [ 0.0, 0.0, 8.0 ].into();
@@ -560,11 +433,14 @@ async fn run() -> Result< (), gl::WebglError >
 
       if let Some( ( mut scene, colors ) ) = animation.frame( modulo( time as f64, 10.0 ) )
       {
+        //gl::info!( "{colors:?}" );
         canvas_renderer.render( &gl, &mut scene, &canvas_camera, &colors ).unwrap();
       }
 
-      // renderer.render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
-      // .expect( "Failed to render" );
+      //canvas_renderer.render( &gl, &mut canvas_gltf.scenes[ 0 ].borrow_mut(), &canvas_camera, &colors ).unwrap();
+
+      renderer.render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
+      .expect( "Failed to render" );
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );
