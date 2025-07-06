@@ -299,8 +299,10 @@ mod private
   }
 }
 
-crate::mod_interface!
+::mod_interface::mod_interface!
 {
+  own use ::mod_interface::mod_interface;
+
   orphan use
   {
     curve_to_geometry,

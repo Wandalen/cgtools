@@ -177,6 +177,12 @@ mod private
 
       let node = Rc::new( RefCell::new( Node::new() ) );
       node.borrow_mut().object = object;
+
+      if let Some( name ) = &primitive_data.name
+      {
+        node.borrow_mut().set_name( name.clone() );
+      }
+
       primitive_data.transform.set_node_transform( node.clone() );
 
       nodes.push( node.clone() );
@@ -195,8 +201,11 @@ mod private
       {
         if let Some( parent ) = nodes.get( parent )
         {
-          child.borrow_mut().set_parent( Some( parent.clone() ) );
-          parent.borrow_mut().add_child( child.clone() );
+          if parent.borrow().get_name() != child.borrow().get_name()
+          {
+            child.borrow_mut().set_parent( Some( parent.clone() ) );
+            parent.borrow_mut().add_child( child.clone() );
+          }
         }
       }
     }
@@ -214,8 +223,10 @@ mod private
   }
 }
 
-crate::mod_interface!
+::mod_interface::mod_interface!
 {
+  own use ::mod_interface::mod_interface;
+
   orphan use
   {
     Behavior,
