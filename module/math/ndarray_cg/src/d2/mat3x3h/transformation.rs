@@ -79,6 +79,43 @@ where
   )
 }
 
+/// Creates right-handed orthogonal transformation with z in range [ -1.0, 1.0 ].
+/// This transformation corresponds to the transformation used in OpenGL:
+/// https://registry.khronos.org/OpenGL-Refpages/gl2.1/xhtml/glOrtho.xml
+pub fn orthogonal_rh_gl< E >
+(
+  left : E,
+  right : E,
+  bottom : E,
+  top : E,
+  near : E,
+  far : E
+)
+->  Mat4< E, mat::DescriptorOrderColumnMajor >
+where
+  E : MatEl + nd::NdFloat,
+  Mat4< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >,
+{
+  let two = E::from( 2.0 ).unwrap();
+  let a = two / ( right - left );
+  let b = two / ( top - bottom );
+  let c = -two / ( far - near );
+
+  let tx = - ( right + left ) / ( right - left );
+  let ty = - ( top + bottom ) / ( top - bottom );
+  let tz = - ( far + near ) / ( far - near );
+
+  Mat4::from_row_major
+  (
+    [
+      a,          E::zero(),  E::zero(),  tx,
+      E::zero(),  b,          E::zero(),  ty,
+      E::zero(),  E::zero(),  c,          tz,
+      E::zero(),  E::zero(),  E::zero(),  E::one()
+    ]
+  )
+}
+
 /// Make a right-handed view transformation from camera's position, camera's view directions,
 /// and camera's "up" orientation.
 /// (+)X - right, (+)Y - up, (+)Z - back
