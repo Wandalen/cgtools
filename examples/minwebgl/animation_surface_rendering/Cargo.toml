@@ -25,7 +25,7 @@ rand = { workspace = true }
 getrandom = { workspace = true, features = [ "wasm_js" ] }
 interpoli = { workspace = true }
 peniko = { workspace = true }
-color = "0.2.3"
+color = { workspace = true }
 earcutr = { workspace = true }
 former = { workspace = true }
 
