@@ -46,11 +46,11 @@ mod private
       }
       
       set_elem( 0, 0, a as f32 );
-      set_elem( 1, 0, b as f32 );
-      set_elem( 0, 1, c as f32 );
+      set_elem( 0, 1, b as f32 );
+      set_elem( 1, 0, c as f32 );
       set_elem( 1, 1, d as f32 );
-      set_elem( 0, 3, e as f32 );
-      set_elem( 1, 3, f as f32 );
+      set_elem( 3, 0, e as f32 );
+      set_elem( 3, 1, f as f32 );
       set_elem( 3, 3, 1.0 );
       set_elem( 2, 2, 1.0 );
     }
@@ -336,7 +336,7 @@ mod private
         };
         if let Some( behaviour ) = self.behaviors.get( &name )
         {
-          if !( behaviour.frames.start <= frame && frame < behaviour.frames.end )
+          if !( behaviour.frames.start <= frame && frame <= behaviour.frames.end )
           {
             nodes_to_remove.insert( name, node.clone() );
             return Ok( () );
@@ -350,7 +350,7 @@ mod private
 
       let mut nodes = scene.children.clone();
 
-      scene.children = scene.children.iter()
+      scene.children = scene.children.into_iter()
       .filter
       (
         | n | 
@@ -363,7 +363,6 @@ mod private
           !nodes_to_remove.contains_key( &name ) 
         }
       )
-      .cloned()
       .collect::< Vec< _ > >();
 
       let mut i = 0;
@@ -392,10 +391,12 @@ mod private
 
         for i in id_to_remove.iter().rev() 
         {
-          if let Some( child ) = node.borrow_mut().remove_children( *i )
+          if node.borrow().get_children().get( *i ).is_none()
           {
-            child.borrow_mut().set_parent( None );
+            continue;
           }
+          let child = node.borrow_mut().remove_children( *i );
+          child.borrow_mut().set_parent( None );
         }
 
         nodes.extend( node.borrow().get_children().iter().cloned() );
@@ -417,7 +418,7 @@ mod private
         {
           if let Some( animated_transform ) = &behaviour.animated_transform
           {
-            let matrix = affine_to_matrix( animated_transform.evaluate( 0.0 ).into_owned() );
+            let matrix = affine_to_matrix( animated_transform.evaluate( frame ).into_owned() );
             node.borrow_mut().set_local_matrix( matrix );
           }
 
