@@ -63,24 +63,10 @@ fn upload_texture( gl : &WebGl2RenderingContext, src : Rc< String > ) -> WebGlTe
       let gl = gl.clone();
       let img = img_element.clone();
       let texture = texture.clone();
-      let src = src.clone();
       move ||
       {
-        gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
-        gl.tex_image_2d_with_u32_and_u32_and_html_image_element
-        (
-          gl::TEXTURE_2D,
-          0,
-          gl::RGBA as i32,
-          gl::RGBA,
-          gl::UNSIGNED_BYTE,
-          &img
-        ).expect( "Failed to upload data to texture" );
-
+        gl::texture::d2::upload_no_flip( &gl, Some( &texture ), &img );
         gl.generate_mipmap( gl::TEXTURE_2D );
-
-        //match
-        gl::web_sys::Url::revoke_object_url( &src ).unwrap();
         img.remove();
       }
     }
@@ -93,12 +79,12 @@ fn upload_texture( gl : &WebGl2RenderingContext, src : Rc< String > ) -> WebGlTe
   texture
 }
 
-async fn create_texture( 
+fn create_texture( 
   gl : &WebGl2RenderingContext,
-  image_name : &str
+  image_path : &str
 ) -> Option< TextureInfo >
 {
-  let image_path = format!( "static/curve_surface_rendering/textures/{image_name}" );
+  let image_path = format!( "static/{image_path}" );
   let texture_id = upload_texture( gl, Rc::new( image_path ) );
 
   let sampler = Sampler::former()
@@ -203,12 +189,12 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   let mut gltf = renderer::webgl::loaders::gltf::load( &document, "gltf/sphere.glb", &gl ).await?;
 
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 ).unwrap().clone();
-  let texture = create_texture( &gl, "earth2.jpg" ).await;
+  let texture = create_texture( &gl, "textures/earth2.jpg" );
   set_texture( &earth, | m | { m.base_color_texture = texture.clone(); } );
   earth.borrow_mut().update_local_matrix();
 
   let clouds = clone( &mut gltf, &earth );
-  let texture = create_texture( &gl, "clouds2.png" ).await;
+  let texture = create_texture( &gl, "textures/clouds2.png" );
   set_texture( &clouds, 
     | m | 
     { 
@@ -223,7 +209,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   clouds.borrow_mut().update_local_matrix();
 
   let moon = clone( &mut gltf, &earth );
-  let texture = create_texture( &gl, "moon2.jpg" ).await;
+  let texture = create_texture( &gl, "textures/moon2.jpg" );
   set_texture( &moon, | m | { m.base_color_texture = texture.clone(); } );
   let scale = 0.25;
   let distance = 7.0;// 30.0 * 1.0;
@@ -232,7 +218,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   moon.borrow_mut().update_local_matrix();
 
   let environment = clone( &mut gltf, &earth );
-  let texture = create_texture( &gl, "space3.png" ).await;
+  let texture = create_texture( &gl, "environment_maps/equirectangular_maps/space3.png" );
   set_texture( &environment, | m | { m.base_color_texture = texture.clone(); } );
   let scale = 100000.0;
   environment.borrow_mut().set_translation( [ 0.0, 1.0 - scale, 0.0 ] );
@@ -298,30 +284,53 @@ fn setup_animation( gl : &GL, width : usize, height : usize ) -> animation::Anim
   let rect = Shape::Geometry( points );
 
   let transform = Transform::former()
-  .scale( ease_in_out_circ( ( 0.0, 10.0 ), ( kurbo::Vec2::new( 1.0, 1.0 ), kurbo::Vec2::new( 50.0, 50.0 ) ) ) )
+  //.position( fixed( kurbo::Point::new( 5.0, 1.5 ) ) )
+  .position
+  ( 
+    ease
+    ( 
+      ( 0.0, 10.0 ), 
+      ( kurbo::Point::new( 0.0, 0.0 ), kurbo::Point::new( 2.0, 0.0 ) ),
+      EASE_IN_OUT_BACK
+    ) 
+  )
+  .rotation
+  ( 
+    ease
+    ( 
+      ( 0.0, 10.0 ), 
+      ( 0.0, 180.0 ),
+      EASE_IN_OUT_BACK
+    ) 
+  )
+  .scale
+  ( 
+    ease
+    ( 
+      ( 0.0, 10.0 ), 
+      ( kurbo::Vec2::new( 100.0, 100.0 ), kurbo::Vec2::new( 200.0, 200.0 ) ),
+      EASE_IN_OUT_BACK
+    ) 
+  )
   .form();
-
-  //let transform = kurbo::Affine::IDENTITY.then_scale( 5.0 );
 
   let layer = Layer::former()
   .frames( 0.0..10.0 )
   .start_frame( 0.0 )
   .transform( interpoli::Transform::Animated( transform.into() ) )
-  //.transform( interpoli::Transform::Fixed( transform ) )
   .content()
     .add( color )
     .add( rect )
     .end()
   .form();
 
-  let _layer : interpoli::Layer = layer.clone().into();
-
-  for i in ( 0..100 ).step_by( 20 )
-  {
-    let t = _layer.transform.evaluate( i as f64 ).into_owned();
-    gl::info!( "{:?}", t );
-    //gl::info!( "{:?}", affine_to_matrix( t ) );
-  }
+  // let _layer : interpoli::Layer = layer.clone().into();
+  // for i in ( 0..10 ).step_by( 5 )
+  // {
+  //   let t = _layer.transform.evaluate( i as f64 ).into_owned();
+  //   gl::info!( "{:?}", t );
+  //   gl::info!( "{:?}", affine_to_matrix( t ) );
+  // }
 
   let model = Model::former()
   .width( width )
@@ -352,8 +361,6 @@ impl IndentityMatrix
   }
 }
 
-
-
 async fn run() -> Result< (), gl::WebglError >
 {
   let ( gl, canvas ) = init_context();
@@ -366,6 +373,17 @@ async fn run() -> Result< (), gl::WebglError >
   animation.set_world_matrix( IndentityMatrix::new() );
 
   let canvas_camera = init_camera( &canvas, &canvas_gltf.scenes ); 
+  // let aspect_ratio = canvas.width() as f32 / canvas.height() as f32;
+  // let projection_matrix = gl::math::mat3x3h::orthogonal_rh_gl
+  // (
+  //   -1.0 * aspect_ratio,
+  //   1.0 * aspect_ratio,
+  //   -1.0,
+  //   1.0,
+  //   0.1,
+  //   10000.0
+  // );
+  // canvas_camera.set_projection_matrix( projection_matrix );
   //let canvas_camera = init_camera( &canvas, &[ Rc::new( RefCell::new( animation.frame( 0.0 ).unwrap().0 ) ) ] );
   camera_controls::bind_controls_to_input( &canvas, &canvas_camera.get_controls() );
   canvas_camera.get_controls().borrow_mut().window_size = [ ( canvas.width() * 4 ) as f32, ( canvas.height() * 4 ) as f32 ].into();
@@ -431,13 +449,11 @@ async fn run() -> Result< (), gl::WebglError >
       // If textures are of different size, gl.view_port needs to be called
       let time = t as f32 / 1000.0;
 
-      if let Some( ( mut scene, colors ) ) = animation.frame( modulo( time as f64, 10.0 ) )
+      if let Some( ( mut scene, colors ) ) = animation.frame( modulo( time as f64 * 5.0, 10.0 ) )
       {
         //gl::info!( "{colors:?}" );
         canvas_renderer.render( &gl, &mut scene, &canvas_camera, &colors ).unwrap();
       }
-
-      //canvas_renderer.render( &gl, &mut canvas_gltf.scenes[ 0 ].borrow_mut(), &canvas_camera, &colors ).unwrap();
 
       renderer.render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
       .expect( "Failed to render" );
