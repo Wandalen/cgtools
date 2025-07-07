@@ -100,20 +100,26 @@ mod private
     }
 
     let mut body_id = 0;
-    let mut max_box_diagonal_size = 0;
+    let mut max_box_diagonal_size = 0.0;
     for ( i, contour ) in contours.iter().enumerate()
     {
       if contour.is_empty()
       {
         continue;
       }
-      let [ x1, y1 ] = contour.iter()
-      .map( | [ a, b ] | [ *a as isize, *b as isize ] )
-      .min().unwrap();
-      let [ x2, y2 ] = contour.iter()
-      .map( | [ a, b ] | [ *a as isize, *b as isize ] )
-      .max().unwrap();
-      let controur_size = ( ( x2 - x1 ).pow( 2 ) + ( y2 - y1 ).pow( 2 ) ).isqrt();
+      let x1 = contour.iter()
+      .map( | [ x, _ ] | x )
+      .min_by( | x, y | x.total_cmp( y ) ).unwrap();
+      let y1 = contour.iter()
+      .map( | [ _, y ] | y )
+      .min_by( | x, y | x.total_cmp( y ) ).unwrap();
+      let x2 = contour.iter()
+      .map( | [ x, _ ] | x )
+      .max_by( | x, y | x.total_cmp( y ) ).unwrap();
+      let y2 = contour.iter()
+      .map( | [ _, y ] | y )
+      .max_by( | x, y | x.total_cmp( y ) ).unwrap();
+      let controur_size = ( ( x2 - x1 ).powi( 2 ) + ( y2 - y1 ).powi( 2 ) ).sqrt();
       if max_box_diagonal_size < controur_size
       {
         max_box_diagonal_size = controur_size;
