@@ -100,6 +100,11 @@ mod private
       self.controls.borrow_mut().set_size( window_size.to_array() );
     }
 
+    pub fn set_projection_matrix( &mut self, projection_matrix : gl::F32x4x4 )
+    {
+      self.projection_matrix = projection_matrix;
+    }
+
     pub fn get_controls( &self ) -> Rc< RefCell< CameraOrbitControls > >
     {
       self.controls.clone()
