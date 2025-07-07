@@ -105,9 +105,9 @@ mod private
       self.name.clone()
     }
 
-    pub fn get_children( &self ) -> &Vec< Rc< RefCell< Node > > >
+    pub fn get_children( &self ) -> &[ Rc< RefCell< Node > > ]
     {
-      &self.children
+      self.children.as_slice()
     }
 
     pub fn set_parent( &mut self, parent : Option< Rc< RefCell< Node > > > ) 
@@ -120,13 +120,9 @@ mod private
       &self.parent
     }
 
-    pub fn remove_children( &mut self, id : usize ) -> Option< Rc< RefCell< Node > > >
+    pub fn remove_children( &mut self, id : usize ) -> Rc< RefCell< Node > >
     {
-      if self.children.get( id ).is_none()
-      {
-        return None;
-      }
-      Some( self.children.remove( id ) )
+      self.children.remove( id )
     }
 
     /// Sets the local scale of the node.

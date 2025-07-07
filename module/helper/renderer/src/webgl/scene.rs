@@ -17,7 +17,7 @@ mod private
   {
     fn clone( &self ) -> Self
     {
-      let mut children = vec![];
+      let mut children = Vec::with_capacity( self.children.len() );
       
       for child in &self.children 
       {
