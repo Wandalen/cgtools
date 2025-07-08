@@ -300,13 +300,6 @@ mod private
       )
       .collect::< HashMap< _, _ > >();
 
-      gl::info!
-      ( 
-        "{:?}", 
-        primitives_data.iter().cloned()
-        .map( | pd | ( pd.name, pd.parent ) ).collect::< Vec< _ > >() 
-      );
-
       let gltf = primitives_data_to_gltf( gl, primitives_data );
 
       Self
@@ -317,18 +310,91 @@ mod private
       }
     }
 
-    pub fn frame( &self, frame : f64 ) -> Option< ( Scene, Vec< F32x4 > ) >
+    fn update_scene( &self, scene : &mut Scene, frame : f64 )
     {
-      let Some( scene ) = self.gltf.scenes.get( 0 )
-      else
+      let mut nodes_to_insert = vec![];
+
+      let mut update = 
+      | 
+        node : Rc< RefCell< Node > >
+      | -> Result< (), gl::WebglError >
       {
-        return None;
+        let Some( node_name ) = node.borrow().get_name()
+        else
+        {
+          return Ok( () ); 
+        };
+        
+        if let Some( behaviour ) = self.behaviors.get( &node_name )
+        {
+          if let Some( animated_transform ) = &behaviour.animated_transform
+          {
+            let matrix = affine_to_matrix( animated_transform.evaluate( frame ).into_owned() );
+            node.borrow_mut().set_local_matrix( matrix );
+          }
+
+          let Some( ref repeater ) = behaviour.repeater
+          else
+          {
+            return Ok( () );
+          };
+
+          let Some( parent ) = node.borrow().get_parent().clone()
+          else
+          {
+            return Ok( () );
+          };
+
+          let Some( id ) = parent.borrow().get_children()
+          .iter()
+          .enumerate()
+          .find( | ( _, child ) | child.borrow().get_name().as_ref() == Some( &node_name ) )
+          .map( | ( i, _ ) | i )
+          else
+          {
+            return Ok( () );
+          };
+
+          let repeater = repeater.evaluate( frame ).into_owned();
+
+          if repeater.copies < 2
+          {
+            return Ok( () );
+          }
+
+          let matrix = node.borrow_mut().get_local_matrix();
+
+          let mut ids_and_children = vec![];
+          
+          for i in ( 0..repeater.copies ).rev()
+          {
+            let node_clone = node.borrow().clone();
+            let transform = affine_to_matrix( repeater.transform( i ) );
+
+            node_clone.borrow_mut().set_local_matrix( matrix * transform );
+            node_clone.borrow_mut().set_parent( Some( parent.clone() ) );
+            ids_and_children.push( ( id + 1, node_clone.clone() ) );
+          } 
+
+          nodes_to_insert.push( ( parent.clone(), ids_and_children ) );
+        }
+
+        Ok( () )
       };
 
-      let mut scene = scene.borrow().clone();
+      let _ = scene.traverse( &mut update );
 
-      let mut colors = vec![];
+      for ( parent, ids_and_children ) in nodes_to_insert.into_iter().rev()
+      {
+        for ( i, child ) in ids_and_children.into_iter().rev() 
+        {
+          parent.borrow_mut().insert_child( i, child );
+        }
+      }
+    }
 
+    fn filter_nodes( &self, scene : &mut Scene, frame : f64 )
+    {
       let mut nodes_to_remove = HashMap::new();
 
       let mut get_nodes_to_remove = 
@@ -336,8 +402,7 @@ mod private
         node : Rc< RefCell< Node > >
       | -> Result< (), gl::WebglError >
       {
-        let node_mut = node.borrow_mut();
-        let Some( name ) = node_mut.get_name()
+        let Some( name ) = node.borrow_mut().get_name()
         else 
         {
           return Ok( () );
@@ -356,7 +421,7 @@ mod private
 
       let _ = scene.traverse( &mut get_nodes_to_remove );
 
-      scene.children = scene.children.into_iter()
+      scene.children = scene.children.iter()
       .filter
       (
         | n | 
@@ -369,6 +434,7 @@ mod private
           !nodes_to_remove.contains_key( &name ) 
         }
       )
+      .cloned()
       .collect::< Vec< _ > >();
 
       let mut nodes = scene.children.clone();
@@ -403,7 +469,7 @@ mod private
           {
             continue;
           }
-          let child = node.borrow_mut().remove_children( *i );
+          let child = node.borrow_mut().remove_child( *i );
           child.borrow_mut().set_parent( None );
         }
 
@@ -411,101 +477,63 @@ mod private
 
         i += 1;
       }
+    }
 
-      let mut update = 
+    fn colors_from_scene( &self, scene : &mut Scene, frame : f64 ) -> Vec< F32x4 >
+    {
+      let mut colors = vec![];
+
+      let mut add_color = 
       | 
         node : Rc< RefCell< Node > >
       | -> Result< (), gl::WebglError >
       {
-        let Some( node_name ) = node.borrow().get_name()
-        else
+        let Some( name ) = node.borrow_mut().get_name()
+        else 
         {
-          return Ok( () ); 
+          return Ok( () );
         };
 
-        if let Some( behaviour ) = self.behaviors.get( &node_name )
+        let color = if let Some( behaviour ) = self.behaviors.get( &name )
         {
-          if let Some( animated_transform ) = &behaviour.animated_transform
-          {
-            let matrix = affine_to_matrix( animated_transform.evaluate( frame ).into_owned() );
-            node.borrow_mut().set_local_matrix( matrix );
-          }
-
-          let color = brush_to_color( &behaviour.brush, frame );
-
-          let Some( ref repeater ) = behaviour.repeater
-          else
-          {
-            colors.push( color );
-            return Ok( () );
-          };
-
-          let Some( parent ) = node.borrow().get_parent().clone()
-          else
-          {
-            colors.push( color );
-            return Ok( () );
-          };
-
-          let Some( id ) = parent.borrow().get_children()
-          .iter()
-          .enumerate()
-          .find( | ( _, child ) | child.borrow().get_name().as_ref() == Some( &node_name ) )
-          .map( | ( i, _ ) | i )
-          else
-          {
-            colors.push( color );
-            return Ok( () );
-          };
-
-          let repeater = repeater.evaluate( frame ).into_owned();
-          let matrix = node.borrow_mut().get_local_matrix();
-
-          let mut repeater_colors = vec![];
-
-          for i in ( 0..repeater.copies ).rev()
-          {
-            let node_clone = Rc::new( RefCell::new( node.borrow().clone() ) );
-            let transform = affine_to_matrix( repeater.transform( i ) );
-
-            node_clone.borrow_mut().set_local_matrix( matrix * transform );
-            node_clone.borrow_mut().set_parent( Some( parent.clone() ) );
-            parent.borrow_mut().insert_child( id + 1, node_clone );
-
-            repeater_colors.push( color );
-          } 
-
-          colors.extend( repeater_colors.iter().rev() );
+          brush_to_color( &behaviour.brush, frame )
         }
+        else
+        {
+          F32x4::from_array([ 0.0; 4 ] )
+        };
+
+        colors.push( color );
 
         Ok( () )
       };
 
-      let _ = scene.traverse( &mut update );
+      let _ = scene.traverse( &mut add_color );
+
+      colors
+    }
+
+    pub fn frame( &self, frame : f64 ) -> Option< ( Scene, Vec< F32x4 > ) >
+    {
+      let Some( scene ) = self.gltf.scenes.get( 0 )
+      else
+      {
+        return None;
+      };
+
+      let mut scene = scene.borrow().clone();
+
+      self.filter_nodes( &mut scene, frame );
+      self.update_scene( &mut scene, frame );
+      let colors = self.colors_from_scene( &mut scene, frame );
 
       Some( ( scene, colors ) )
     }
 
     pub fn set_world_matrix( &self, world_matrix : F32x4x4 )
     {
-      let mut print = 
-      | 
-        node : Rc< RefCell< Node > >
-      | -> Result< (), gl::WebglError >
-      {
-        let name = node.borrow().get_name();
-        let mut names = vec![];
-        for child in node.borrow().get_children()
-        {
-          names.push( child.borrow().get_name() );
-        }
-        gl::info!( "{:?} -> {:?}", name, names );
-        Ok( () )
-      };
-
       for scene in &self.gltf.scenes
       {
-        //let _ = scene.borrow().traverse( &mut print );
         for child in scene.borrow().children.iter()
         {
           child.borrow_mut().update_world_matrix( world_matrix, true );

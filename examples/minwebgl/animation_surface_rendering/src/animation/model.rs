@@ -94,8 +94,8 @@ mod private
   #[ derive( Debug, Clone, Former ) ]
   pub struct Repeater 
   {
-    #[ former( default = Value::Fixed( 0.0 ) ) ]
-    copies: Value< f64 >,
+    #[ former( default = 0.0 ) ]
+    copies: f64,
     #[ former( default = Value::Fixed( 0.0 ) ) ]
     offset: Value< f64 >,
     #[ former( default = Value::Fixed( kurbo::Point::new( 0.0, 0.0 ) ) ) ]
@@ -118,7 +118,7 @@ mod private
     {
       interpoli::animated::Repeater
       {
-        copies : self.copies.clone(),
+        copies : Value::Fixed( self.copies ),
         offset : self.offset.clone(),
         anchor_point : self.anchor_point.clone(),
         position : self.position.clone(),

@@ -21,7 +21,7 @@ mod private
       
       for child in &self.children 
       {
-        children.push( Rc::new( RefCell::new( child.borrow().clone() ) ) );
+        children.push( child.borrow().clone() );
       }
 
       Self
