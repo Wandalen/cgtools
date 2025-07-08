@@ -45,7 +45,6 @@ mod primitive_data;
 mod primitive;
 
 use animation::*;
-use ease_functions::*;
 
 fn upload_texture( gl : &WebGl2RenderingContext, src : Rc< String > ) -> WebGlTexture
 {
@@ -281,28 +280,64 @@ fn setup_animation( gl : &GL, width : usize, height : usize ) -> animation::Anim
 
   let color = Shape::Color( Color::Fixed( [ 1.0, 0.0, 0.0, 1.0 ] ) );
 
-  let rect = Shape::Geometry( points );
+  let rect_geo = Shape::Geometry( points );
 
   let transform = Transform::former()
-  //.position( fixed( kurbo::Point::new( 5.0, 1.5 ) ) )
-  .position
-  ( 
-    ease
-    ( 
-      ( 0.0, 10.0 ), 
-      ( kurbo::Point::new( 0.0, 0.0 ), kurbo::Point::new( 2.0, 0.0 ) ),
-      EASE_IN_OUT_BACK
-    ) 
-  )
+  //.position( fixed( kurbo::Point::new( 5.0, -2.0 ) ) )
+  // .position
+  // ( 
+  //   ease
+  //   ( 
+  //     ( 0.0, 10.0 ), 
+  //     ( kurbo::Point::new( 0.0, 0.0 ), kurbo::Point::new( 2.0, 0.0 ) ),
+  //     EASE_IN_OUT_BACK
+  //   ) 
+  // )
   .rotation
   ( 
     ease
     ( 
       ( 0.0, 10.0 ), 
-      ( 0.0, 180.0 ),
-      EASE_IN_OUT_BACK
+      ( 0.0, 360.0 ),
+      LINEAR
     ) 
   )
+  // .scale
+  // ( 
+  //   ease
+  //   ( 
+  //     ( 0.0, 10.0 ), 
+  //     ( kurbo::Vec2::new( 100.0, 100.0 ), kurbo::Vec2::new( 200.0, 200.0 ) ),
+  //     EASE_IN_OUT_BACK
+  //   ) 
+  // )
+  .form();
+
+  let base = Layer::former()
+  .frames( 0.0..10.0 )
+  .transform( interpoli::Transform::Animated( transform.into() ) )
+  .form();
+
+  let transform = Transform::former()
+  .position( fixed( kurbo::Point::new( 5.0, -2.0 ) ) )
+  // .position
+  // ( 
+  //   ease
+  //   ( 
+  //     ( 0.0, 10.0 ), 
+  //     ( kurbo::Point::new( 0.0, 0.0 ), kurbo::Point::new( 2.0, 0.0 ) ),
+  //     EASE_IN_OUT_BACK
+  //   ) 
+  // )
+  // .rotation
+  // ( 
+  //   ease
+  //   ( 
+  //     ( 0.0, 10.0 ), 
+  //     ( 0.0, 360.0 ),
+  //     EASE_IN_OUT_BACK
+  //   ) 
+  // )
   .scale
   ( 
     ease
@@ -314,13 +349,20 @@ fn setup_animation( gl : &GL, width : usize, height : usize ) -> animation::Anim
   )
   .form();
 
-  let layer = Layer::former()
+  let repeater = Repeater::former()
+  .copies( fixed( 5.0 ) )
+  .position( fixed( kurbo::Point::new( 5.0, -2.0 ) ) )
+  .rotation( fixed( 20.0 ) )
+  .form();
+
+  let rect = Layer::former()
+  .parent( 0_isize )
   .frames( 0.0..10.0 )
-  .start_frame( 0.0 )
   .transform( interpoli::Transform::Animated( transform.into() ) )
   .content()
     .add( color )
-    .add( rect )
+    .add( rect_geo )
+    .add( Shape::Repeater( interpoli::Repeater::Animated( repeater.into() ) ) )
     .end()
   .form();
 
@@ -337,7 +379,8 @@ fn setup_animation( gl : &GL, width : usize, height : usize ) -> animation::Anim
   .height( height )
   .frames( 0.0..10.0 )
   .layers()
-    .add( layer )
+    .add( base )
+    .add( rect )
     .end()
   .form();
 
