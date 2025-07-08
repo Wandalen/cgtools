@@ -150,7 +150,7 @@ fn init_camera( canvas : &HtmlCanvasElement, scenes : &[ Rc< RefCell< Scene > > 
 
 fn clone( gltf : &mut GLTF, node : &Rc< RefCell< Node > > ) -> Rc< RefCell< Node > > 
 {
-  let clone = Rc::new( RefCell::new( node.borrow().clone() ) );
+  let clone = node.borrow().clone();
   gltf.nodes.push( clone.clone() );
   if let Object3D::Mesh( ref mesh ) = clone.borrow().object
   {
@@ -278,12 +278,14 @@ fn setup_animation( gl : &GL, width : usize, height : usize ) -> animation::Anim
     [ 0.5, -0.5 ],
   ];
 
-  let color = Shape::Color( Color::Fixed( [ 1.0, 0.0, 0.0, 1.0 ] ) );
-
   let rect_geo = Shape::Geometry( points );
 
+  let base = Layer::former()
+  .frames( 0.0..10.0 )
+  .form();
+
   let transform = Transform::former()
-  //.position( fixed( kurbo::Point::new( 5.0, -2.0 ) ) )
+  //.position( fixed( kurbo::Point::new( 0.5, -0.5 ) ) )
   // .position
   // ( 
   //   ease
@@ -293,51 +295,90 @@ fn setup_animation( gl : &GL, width : usize, height : usize ) -> animation::Anim
   //     EASE_IN_OUT_BACK
   //   ) 
   // )
+  .form();
+
+  let circles = Layer::former()
+  .parent( 0_isize )
+  .frames( 0.0..10.0 )
+  .transform( interpoli::Transform::Animated( transform.into() ) )
+  .form();
+
+  let mut model = Model::former()
+  .width( width )
+  .height( height )
+  .frames( 0.0..10.0 )
+  .layers()
+    .add( base )
+    .add( circles )
+    .end()
+  .form();
+
+  let mut add_circle = 
+  | circle_transform : Transform, rect_transform : Transform, color : F32x4, repeats : usize |
+  {
+    let circle = Layer::former()
+    .parent( 1_isize )
+    .frames( 0.0..10.0 )
+    .transform( interpoli::Transform::Animated( circle_transform.into() ) )
+    .form();
+
+    model.layers.push( circle );
+    let circle_id = model.layers.len() as isize - 1;
+
+    let offset_rect_transform = Transform::former()
+    .rotation
+    ( 
+      ease
+      ( 
+        ( 0.0, 10.0 ), 
+        ( 0.0, 360.0 ),
+        LINEAR
+      ) 
+    )
+    .form();
+
+    let offset_rect = Layer::former()
+    .parent( circle_id )
+    .frames( 0.0..10.0 )
+    .transform( interpoli::Transform::Animated( offset_rect_transform.clone().into() ) )
+    .form();
+
+    let rect = Layer::former()
+    .parent( 3_isize )
+    .frames( 0.0..10.0 )
+    .transform( interpoli::Transform::Animated( rect_transform.into() ) )
+    .content()
+      .add( Shape::Color( Color::Fixed( *color ) ) )
+      .add( rect_geo.clone() )
+      .end()
+    .form();
+
+    let diff = 360.0 / repeats as f64;
+    for i in 0..repeats
+    {
+      let mut rect = rect.clone();
+      let mut offset_rect = offset_rect.clone();
+
+      let mut transform = offset_rect_transform.clone();
+      transform.rotation = fixed( diff * i as f64 );
+      offset_rect.transform = interpoli::Transform::Animated( transform.into() );
+      model.layers.push( offset_rect );
+
+      rect.parent = model.layers.len() as isize - 1;
+      model.layers.push( rect );
+    }
+  };
+
+  let circle_transform = Transform::former()
   .rotation
   ( 
     ease
     ( 
       ( 0.0, 10.0 ), 
-      ( 0.0, 360.0 ),
+      ( -10.0, 350.0 ),
       LINEAR
     ) 
   )
-  // .scale
-  // ( 
-  //   ease
-  //   ( 
-  //     ( 0.0, 10.0 ), 
-  //     ( kurbo::Vec2::new( 100.0, 100.0 ), kurbo::Vec2::new( 200.0, 200.0 ) ),
-  //     EASE_IN_OUT_BACK
-  //   ) 
-  // )
-  .form();
-
-  let base = Layer::former()
-  .frames( 0.0..10.0 )
-  .transform( interpoli::Transform::Animated( transform.into() ) )
-  .form();
-
-  let transform = Transform::former()
-  .position( fixed( kurbo::Point::new( 5.0, -2.0 ) ) )
-  // .position
-  // ( 
-  //   ease
-  //   ( 
-  //     ( 0.0, 10.0 ), 
-  //     ( kurbo::Point::new( 0.0, 0.0 ), kurbo::Point::new( 2.0, 0.0 ) ),
-  //     EASE_IN_OUT_BACK
-  //   ) 
-  // )
-  // .rotation
-  // ( 
-  //   ease
-  //   ( 
-  //     ( 0.0, 10.0 ), 
-  //     ( 0.0, 360.0 ),
-  //     EASE_IN_OUT_BACK
-  //   ) 
-  // )
   .scale
   ( 
     ease
@@ -349,40 +390,128 @@ fn setup_animation( gl : &GL, width : usize, height : usize ) -> animation::Anim
   )
   .form();
 
-  let repeater = Repeater::former()
-  .copies( fixed( 5.0 ) )
-  .position( fixed( kurbo::Point::new( 5.0, -2.0 ) ) )
-  .rotation( fixed( 20.0 ) )
+  let rect_transform = Transform::former()
+  .position( fixed( kurbo::Point::new( 1.6, 0.0 ) ) )
+  .rotation( fixed( -20.0 ) )
+  .scale( fixed( kurbo::Vec2::new( 60.0, 60.0 ) ) )
   .form();
 
-  let rect = Layer::former()
-  .parent( 0_isize )
-  .frames( 0.0..10.0 )
-  .transform( interpoli::Transform::Animated( transform.into() ) )
-  .content()
-    .add( color )
-    .add( rect_geo )
-    .add( Shape::Repeater( interpoli::Repeater::Animated( repeater.into() ) ) )
-    .end()
+  add_circle( circle_transform.clone(), rect_transform, F32x4::from_array( [ 1.0, 1.0, 1.0, 1.0 ] ), 11 );
+
+  let circle_transform = Transform::former()
+  .rotation
+  ( 
+    ease
+    ( 
+      ( 0.0, 10.0 ), 
+      ( 0.0, 360.0 ),
+      LINEAR
+    ) 
+  )
+  .scale
+  ( 
+    ease
+    ( 
+      ( 0.0, 10.0 ), 
+      ( kurbo::Vec2::new( 100.0, 100.0 ), kurbo::Vec2::new( 200.0, 200.0 ) ),
+      EASE_IN_OUT_BACK
+    ) 
+  )
   .form();
 
-  // let _layer : interpoli::Layer = layer.clone().into();
-  // for i in ( 0..10 ).step_by( 5 )
-  // {
-  //   let t = _layer.transform.evaluate( i as f64 ).into_owned();
-  //   gl::info!( "{:?}", t );
-  //   gl::info!( "{:?}", affine_to_matrix( t ) );
-  // }
-
-  let model = Model::former()
-  .width( width )
-  .height( height )
-  .frames( 0.0..10.0 )
-  .layers()
-    .add( base )
-    .add( rect )
-    .end()
+  let rect_transform = Transform::former()
+  .position( fixed( kurbo::Point::new( 2.7, 0.0 ) ) )
+  .rotation( fixed( -20.0 ) )
+  .scale( fixed( kurbo::Vec2::new( 80.0, 80.0 ) ) )
   .form();
+
+  add_circle( circle_transform.clone(), rect_transform, F32x4::from_array( [ 1.0, 0.75, 0.75, 1.0 ] ), 15 );
+  
+  let circle_transform = Transform::former()
+  .rotation
+  ( 
+    ease
+    ( 
+      ( 0.0, 10.0 ), 
+      ( 10.0, 370.0 ),
+      LINEAR
+    ) 
+  )
+  .scale
+  ( 
+    ease
+    ( 
+      ( 0.0, 10.0 ), 
+      ( kurbo::Vec2::new( 100.0, 100.0 ), kurbo::Vec2::new( 200.0, 200.0 ) ),
+      EASE_IN_OUT_BACK
+    ) 
+  )
+  .form();
+
+  let rect_transform = Transform::former()
+  .position( fixed( kurbo::Point::new( 4.2, 0.0 ) ) )
+  .rotation( fixed( -20.0 ) )
+  .form();
+
+  add_circle( circle_transform.clone(), rect_transform, F32x4::from_array( [ 1.0, 0.5, 0.5, 1.0 ] ), 17 );
+  
+  let circle_transform = Transform::former()
+  .rotation
+  ( 
+    ease
+    ( 
+      ( 0.0, 10.0 ), 
+      ( 20.0, 380.0 ),
+      LINEAR
+    ) 
+  )
+  .scale
+  ( 
+    ease
+    ( 
+      ( 0.0, 10.0 ), 
+      ( kurbo::Vec2::new( 100.0, 100.0 ), kurbo::Vec2::new( 200.0, 200.0 ) ),
+      EASE_IN_OUT_BACK
+    ) 
+  )
+  .form();
+
+  let rect_transform = Transform::former()
+  .position( fixed( kurbo::Point::new( 5.7, 0.0 ) ) )
+  .rotation( fixed( -20.0 ) )
+  .scale( fixed( kurbo::Vec2::new( 120.0, 120.0 ) ) )
+  .form();
+
+  add_circle( circle_transform, rect_transform, F32x4::from_array( [ 1.0, 0.25, 0.25, 1.0 ] ), 19 );
+
+  let circle_transform = Transform::former()
+  .rotation
+  ( 
+    ease
+    ( 
+      ( 0.0, 10.0 ), 
+      ( 30.0, 390.0 ),
+      LINEAR
+    ) 
+  )
+  .scale
+  ( 
+    ease
+    ( 
+      ( 0.0, 10.0 ), 
+      ( kurbo::Vec2::new( 100.0, 100.0 ), kurbo::Vec2::new( 200.0, 200.0 ) ),
+      EASE_IN_OUT_BACK
+    ) 
+  )
+  .form();
+
+  let rect_transform = Transform::former()
+  .position( fixed( kurbo::Point::new( 7.4, 0.0 ) ) )
+  .rotation( fixed( -20.0 ) )
+  .scale( fixed( kurbo::Vec2::new( 140.0, 140.0 ) ) )
+  .form();
+
+  add_circle( circle_transform, rect_transform, F32x4::from_array( [ 0.8, 0.0, 0.0, 1.0 ] ), 21 );
 
   animation::Animation::new( gl, model )
 }
@@ -416,27 +545,15 @@ async fn run() -> Result< (), gl::WebglError >
   animation.set_world_matrix( IndentityMatrix::new() );
 
   let canvas_camera = init_camera( &canvas, &canvas_gltf.scenes ); 
-  // let aspect_ratio = canvas.width() as f32 / canvas.height() as f32;
-  // let projection_matrix = gl::math::mat3x3h::orthogonal_rh_gl
-  // (
-  //   -1.0 * aspect_ratio,
-  //   1.0 * aspect_ratio,
-  //   -1.0,
-  //   1.0,
-  //   0.1,
-  //   10000.0
-  // );
-  // canvas_camera.set_projection_matrix( projection_matrix );
-  //let canvas_camera = init_camera( &canvas, &[ Rc::new( RefCell::new( animation.frame( 0.0 ).unwrap().0 ) ) ] );
-  camera_controls::bind_controls_to_input( &canvas, &canvas_camera.get_controls() );
+  //camera_controls::bind_controls_to_input( &canvas, &canvas_camera.get_controls() );
   canvas_camera.get_controls().borrow_mut().window_size = [ ( canvas.width() * 4 ) as f32, ( canvas.height() * 4 ) as f32 ].into();
-  canvas_camera.get_controls().borrow_mut().eye = [ 0.0, 0.0, 8.0 ].into();
+  canvas_camera.get_controls().borrow_mut().eye = [ 0.0, 0.0, 150.0 ].into();
   {
     let controls = canvas_camera.get_controls();
     let mut controls_ref = controls.borrow_mut();
     let center = controls_ref.center.as_mut();
-    center[ 1 ] += 3.0;
-    center[ 0 ] -= 1.0;
+    center[ 1 ] += 45.0;
+    center[ 0 ] -= 25.0;
   }
 
   let canvas_renderer = CanvasRenderer::new( &gl, canvas.width() * 4, canvas.height() * 4 )?;
@@ -471,8 +588,8 @@ async fn run() -> Result< (), gl::WebglError >
   scenes[ 0 ].borrow_mut().update_world_matrix();
 
   let camera = init_camera( &canvas, &scenes );
-  //camera_controls::bind_controls_to_input( &canvas, &camera.get_controls() );
-  let eye = gl::math::mat3x3h::rot( 0.0, - 76.0_f32.to_radians(), - 20.0_f32.to_radians() ) 
+  camera_controls::bind_controls_to_input( &canvas, &camera.get_controls() );
+  let eye = gl::math::mat3x3h::rot( 0.0, - 73.0_f32.to_radians(), - 15.0_f32.to_radians() ) 
   * F32x4::from_array([ 0.0, 1.7, 1.7, 1.0 ] );
   camera.get_controls().borrow_mut().eye = [ eye.x(), eye.y(), eye.z() ].into();
 
@@ -492,9 +609,8 @@ async fn run() -> Result< (), gl::WebglError >
       // If textures are of different size, gl.view_port needs to be called
       let time = t as f32 / 1000.0;
 
-      if let Some( ( mut scene, colors ) ) = animation.frame( modulo( time as f64 * 5.0, 10.0 ) )
+      if let Some( ( mut scene, colors ) ) = animation.frame( modulo( time as f64 * 1.0, 10.0 ) )
       {
-        //gl::info!( "{colors:?}" );
         canvas_renderer.render( &gl, &mut scene, &canvas_camera, &colors ).unwrap();
       }
 
@@ -503,8 +619,8 @@ async fn run() -> Result< (), gl::WebglError >
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );
-      //swap_buffer.set_input( renderer.get_main_texture() );
-      swap_buffer.set_input( Some( canvas_renderer.get_texture() ) );
+      swap_buffer.set_input( renderer.get_main_texture() );
+      //swap_buffer.set_input( Some( canvas_renderer.get_texture() ) );
 
       let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
       .expect( "Failed to render tonemapping pass" );
