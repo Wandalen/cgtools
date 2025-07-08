@@ -67,7 +67,7 @@ mod private
     position : Value< Point >,
     #[ former( default = Value::Fixed( 0.0 ) ) ]
     rotation : Value< f64 >,
-    #[ former( default = Value::Fixed( kurbo::Vec2::new( 1.0, 1.0 ) ) ) ]
+    #[ former( default = Value::Fixed( kurbo::Vec2::new( 100.0, 100.0 ) ) ) ]
     scale : Value< Vec2 >,
     #[ former( default = Value::Fixed( 0.0 ) ) ]
     skew : Value< f64 >,
@@ -104,7 +104,7 @@ mod private
     position: Value< Point >,
     #[ former( default = Value::Fixed( 0.0 ) ) ]
     rotation: Value< f64 >,
-    #[ former( default = Value::Fixed( kurbo::Vec2::new( 0.0, 0.0 ) ) ) ]
+    #[ former( default = Value::Fixed( kurbo::Vec2::new( 100.0, 100.0 ) ) ) ]
     scale: Value< Vec2 >,
     #[ former( default = Value::Fixed( 0.0 ) ) ]
     start_opacity: Value< f64 >,
@@ -269,8 +269,8 @@ mod private
   #[ derive( Debug, Clone, Former ) ]
   pub struct Layer
   {
-    #[ former( default = usize::MAX ) ]
-    parent : Option< usize >,
+    #[ former( default = -1_isize ) ]
+    parent : isize,
     #[ former( default = 0.0..0.0 ) ]
     frames : Range< f64 >,
     #[ former( default = 0.0 ) ]
@@ -286,10 +286,19 @@ mod private
   {
     fn into( self ) -> interpoli::Layer 
     {
+      let parent = if self.parent == -1 
+      {
+        None
+      }
+      else
+      { 
+        Some( self.parent as usize )
+      };
+
       interpoli::Layer 
       {
         name : String::new(),
-        parent : self.parent,
+        parent,
         transform : self.transform,
         opacity : Value::Fixed( 1.0 ),
         width : 0.0,

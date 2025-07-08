@@ -33,7 +33,7 @@ mod private
   };
   use std::ops::Range;
 
-  #[ derive( Clone ) ]
+  #[ derive( Debug, Clone ) ]
   pub struct Behavior
   {
     pub animated_transform : Option< interpoli::Transform >,
@@ -56,7 +56,7 @@ mod private
     }
   }
 
-  #[ derive( Clone ) ]
+  #[ derive( Debug, Clone ) ]
   pub struct PrimitiveData 
   {
     pub name : Option< Box< str > >,
@@ -186,7 +186,10 @@ mod private
       primitive_data.transform.set_node_transform( node.clone() );
 
       nodes.push( node.clone() );
-      scenes[ 0 ].borrow_mut().children.push( node );
+      if primitive_data.parent.is_none()
+      {
+        scenes[ 0 ].borrow_mut().children.push( node );
+      }
     }
 
     gl::buffer::upload( &gl, &position_buffer, &positions, GL::STATIC_DRAW );
@@ -201,7 +204,7 @@ mod private
       {
         if let Some( parent ) = nodes.get( parent )
         {
-          if parent.borrow().get_name() != child.borrow().get_name()
+          if parent.borrow().get_name() != child.borrow().get_name() && parent.borrow().get_name().is_some()
           {
             child.borrow_mut().set_parent( Some( parent.clone() ) );
             parent.borrow_mut().add_child( child.clone() );

@@ -66,6 +66,7 @@ mod private
     }
   }
   
+  #[ derive( Debug ) ]
   pub struct AttributesData
   {
     pub positions : Vec< [ f32; 3 ] >,

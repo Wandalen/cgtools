@@ -248,20 +248,20 @@ mod private
         }
       }
 
-      let layer_iter= composition.layers.iter()
+      let layer_iter = composition.layers.iter().enumerate()
       .zip( primitives.iter_mut() );
 
-      let mut last_element_id= 0; 
+      let mut last_element_id = 0; 
       let mut parent_layer_to_primitive_id = HashMap::new();
-      for ( layer, primitives ) in layer_iter
+      for ( ( i, layer ), primitives ) in layer_iter
       {
+        parent_layer_to_primitive_id.insert( i, last_element_id );
         if layer.parent.is_some()
         {
-          parent_layer_to_primitive_id.insert( layer.parent.unwrap(), last_element_id );
           primitives[ 0 ].parent = layer.parent;
         }
         let layer_name = primitives[ 0 ].name.clone();
-        for ( j, primitive ) in primitives.iter_mut().skip( 0 ).enumerate()
+        for ( j, primitive ) in primitives.iter_mut().skip( 1 ).enumerate()
         {
           primitive.parent = Some( last_element_id );
           primitive.name = Some( format!( "{}_{j}", layer_name.clone().unwrap() ).into_boxed_str() );
@@ -269,7 +269,7 @@ mod private
         last_element_id += primitives.len();
       }
 
-      let layer_iter= composition.layers.iter()
+      let layer_iter = composition.layers.iter()
       .zip( primitives.iter_mut() );
       for ( layer, primitives ) in layer_iter
       {
@@ -300,6 +300,13 @@ mod private
       )
       .collect::< HashMap< _, _ > >();
 
+      gl::info!
+      ( 
+        "{:?}", 
+        primitives_data.iter().cloned()
+        .map( | pd | ( pd.name, pd.parent ) ).collect::< Vec< _ > >() 
+      );
+
       let gltf = primitives_data_to_gltf( gl, primitives_data );
 
       Self
@@ -319,6 +326,7 @@ mod private
       };
 
       let mut scene = scene.borrow().clone();
+
       let mut colors = vec![];
 
       let mut nodes_to_remove = HashMap::new();
@@ -348,8 +356,6 @@ mod private
 
       let _ = scene.traverse( &mut get_nodes_to_remove );
 
-      let mut nodes = scene.children.clone();
-
       scene.children = scene.children.into_iter()
       .filter
       (
@@ -364,6 +370,8 @@ mod private
         }
       )
       .collect::< Vec< _ > >();
+
+      let mut nodes = scene.children.clone();
 
       let mut i = 0;
       while i < nodes.len()
@@ -414,6 +422,7 @@ mod private
         {
           return Ok( () ); 
         };
+
         if let Some( behaviour ) = self.behaviors.get( &node_name )
         {
           if let Some( animated_transform ) = &behaviour.animated_transform
@@ -431,7 +440,7 @@ mod private
             return Ok( () );
           };
 
-          let Some( parent ) = node.borrow_mut().get_parent().clone()
+          let Some( parent ) = node.borrow().get_parent().clone()
           else
           {
             colors.push( color );
@@ -456,7 +465,7 @@ mod private
 
           for i in ( 0..repeater.copies ).rev()
           {
-            let node_clone = Rc::new( RefCell::new( node.borrow_mut().clone() ) );
+            let node_clone = Rc::new( RefCell::new( node.borrow().clone() ) );
             let transform = affine_to_matrix( repeater.transform( i ) );
 
             node_clone.borrow_mut().set_local_matrix( matrix * transform );
@@ -479,20 +488,20 @@ mod private
 
     pub fn set_world_matrix( &self, world_matrix : F32x4x4 )
     {
-      // let mut print = 
-      // | 
-      //   node : Rc< RefCell< Node > >
-      // | -> Result< (), gl::WebglError >
-      // {
-      //   let name = node.borrow().get_name();
-      //   let mut names = vec![];
-      //   for child in node.borrow().get_children()
-      //   {
-      //     names.push( child.borrow().get_name() );
-      //   }
-      //   gl::info!( "{:?} -> {:?}", name, names );
-      //   Ok( () )
-      // };
+      let mut print = 
+      | 
+        node : Rc< RefCell< Node > >
+      | -> Result< (), gl::WebglError >
+      {
+        let name = node.borrow().get_name();
+        let mut names = vec![];
+        for child in node.borrow().get_children()
+        {
+          names.push( child.borrow().get_name() );
+        }
+        gl::info!( "{:?} -> {:?}", name, names );
+        Ok( () )
+      };
 
       for scene in &self.gltf.scenes
       {
