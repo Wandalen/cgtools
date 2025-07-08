@@ -181,6 +181,7 @@ mod private
     {
       self.matrix = matrix;
       self.needs_world_matrix_update = true;
+      self.needs_local_matrix_update = false;
     }
 
     pub fn set_world_matrix( &mut self, matrix : F32x4x4 )

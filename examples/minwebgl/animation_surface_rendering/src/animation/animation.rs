@@ -527,6 +527,8 @@ mod private
       self.update_scene( &mut scene, frame );
       let colors = self.colors_from_scene( &mut scene, frame );
 
+      scene.update_world_matrix();
+
       Some( ( scene, colors ) )
     }
 
