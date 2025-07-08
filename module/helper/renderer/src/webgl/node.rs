@@ -50,9 +50,15 @@ mod private
     bounding_box : BoundingBox
   }
 
-  impl Clone for Node
+  impl Node
   {
-    fn clone( &self ) -> Self 
+    /// Creates a new `Node` with default values.
+    pub fn new() -> Self
+    {
+      Self::default()
+    }
+
+    pub fn clone( &self ) -> Rc< RefCell< Self > > 
     {
       let object = match &self.object
       {
@@ -63,16 +69,11 @@ mod private
         Object3D::Other => Object3D::Other
       };
 
-      Self 
+      let clone = Self 
       { 
         name : self.name.clone(), 
-        parent : self.parent.clone(),
-        children : 
-        {
-          self.children.iter()
-          .map( | n | Rc::new( RefCell::new( n.borrow().clone() ) ) )
-          .collect::< Vec< _ > >()
-        }, 
+        parent : None,
+        children : vec![],
         object, 
         matrix : self.matrix, 
         world_matrix : self.world_matrix, 
@@ -83,16 +84,22 @@ mod private
         needs_local_matrix_update : self.needs_local_matrix_update, 
         needs_world_matrix_update : self.needs_world_matrix_update, 
         bounding_box : self.bounding_box
-      }
-    }
-  }
+      };
 
-  impl Node
-  {
-    /// Creates a new `Node` with default values.
-    pub fn new() -> Self
-    {
-      Self::default()
+      let clone_rc = Rc::new( RefCell::new( clone ) );
+
+      self.children.iter()
+      .for_each
+      ( 
+        | n | 
+        {
+          let child = n.borrow().clone();
+          child.borrow_mut().set_parent( Some( clone_rc.clone() ) );
+          clone_rc.borrow_mut().add_child( child.clone() );
+        } 
+      );
+
+      clone_rc
     }
 
     pub fn set_name( &mut self, name : impl Into< Box< str > > )
@@ -120,7 +127,7 @@ mod private
       &self.parent
     }
 
-    pub fn remove_children( &mut self, id : usize ) -> Rc< RefCell< Node > >
+    pub fn remove_child( &mut self, id : usize ) -> Rc< RefCell< Node > >
     {
       self.children.remove( id )
     }
