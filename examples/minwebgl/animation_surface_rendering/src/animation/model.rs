@@ -62,17 +62,17 @@ mod private
   pub struct Transform
   {
     #[ former( default = Value::Fixed( kurbo::Point::new( 0.0, 0.0 ) ) ) ]
-    anchor : Value< kurbo::Point >,
+    pub anchor : Value< kurbo::Point >,
     #[ former( default = Value::Fixed( kurbo::Point::new( 0.0, 0.0 ) ) ) ]
-    position : Value< Point >,
+    pub position : Value< Point >,
     #[ former( default = Value::Fixed( 0.0 ) ) ]
-    rotation : Value< f64 >,
+    pub rotation : Value< f64 >,
     #[ former( default = Value::Fixed( kurbo::Vec2::new( 100.0, 100.0 ) ) ) ]
-    scale : Value< Vec2 >,
+    pub scale : Value< Vec2 >,
     #[ former( default = Value::Fixed( 0.0 ) ) ]
-    skew : Value< f64 >,
+    pub skew : Value< f64 >,
     #[ former( default = Value::Fixed( 0.0 ) ) ]
-    skew_angle : Value< f64 >,
+    pub skew_angle : Value< f64 >,
   }
 
   impl Into< interpoli::animated::Transform > for Transform 
@@ -95,21 +95,21 @@ mod private
   pub struct Repeater 
   {
     #[ former( default = 0.0 ) ]
-    copies: f64,
+    pub copies: f64,
     #[ former( default = Value::Fixed( 0.0 ) ) ]
-    offset: Value< f64 >,
+    pub offset: Value< f64 >,
     #[ former( default = Value::Fixed( kurbo::Point::new( 0.0, 0.0 ) ) ) ]
-    anchor_point: Value< Point >,
+    pub anchor_point: Value< Point >,
     #[ former( default = Value::Fixed( kurbo::Point::new( 0.0, 0.0 ) ) ) ]
-    position: Value< Point >,
+    pub position: Value< Point >,
     #[ former( default = Value::Fixed( 0.0 ) ) ]
-    rotation: Value< f64 >,
+    pub rotation: Value< f64 >,
     #[ former( default = Value::Fixed( kurbo::Vec2::new( 100.0, 100.0 ) ) ) ]
-    scale: Value< Vec2 >,
+    pub scale: Value< Vec2 >,
     #[ former( default = Value::Fixed( 0.0 ) ) ]
-    start_opacity: Value< f64 >,
+    pub start_opacity: Value< f64 >,
     #[ former( default = Value::Fixed( 0.0 ) ) ]
-    end_opacity: Value< f64 >,
+    pub end_opacity: Value< f64 >,
   }
 
   impl Into< interpoli::animated::Repeater > for Repeater 
@@ -270,16 +270,16 @@ mod private
   pub struct Layer
   {
     #[ former( default = -1_isize ) ]
-    parent : isize,
+    pub parent : isize,
     #[ former( default = 0.0..0.0 ) ]
-    frames : Range< f64 >,
+    pub frames : Range< f64 >,
     #[ former( default = 0.0 ) ]
-    start_frame : f64,
+    pub start_frame : f64,
     #[ former( default = interpoli::Transform::Fixed( kurbo::Affine::IDENTITY ) ) ]
-    transform : interpoli::Transform,
+    pub transform : interpoli::Transform,
     #[ subform_collection ]
     #[ former( default = vec![] ) ]
-    content : Vec< Shape >
+    pub content : Vec< Shape >
   }
 
   impl Into< interpoli::Layer > for Layer 
@@ -319,14 +319,14 @@ mod private
   pub struct Model
   {
     #[ former( default = 1920_usize ) ]
-    width : usize, 
+    pub width : usize, 
     #[ former( default = 1080_usize ) ]
-    height : usize, 
+    pub height : usize, 
     #[ former( default = 0.0..0.0 ) ]
-    frames : Range< f64 >,
+    pub frames : Range< f64 >,
     #[ former( default = vec![] ) ]
     #[ subform_collection ]
-    layers : Vec< Layer >,
+    pub layers : Vec< Layer >,
   }
 
   impl Into< Composition > for Model 
