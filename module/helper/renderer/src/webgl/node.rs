@@ -58,7 +58,9 @@ mod private
       Self::default()
     }
 
-    pub fn clone( &self ) -> Rc< RefCell< Self > > 
+    /// Clone node and all its subnodes for creating 
+    /// new identical independed node
+    pub fn clone_tree( &self ) -> Rc< RefCell< Self > > 
     {
       let object = match &self.object
       {
@@ -93,7 +95,7 @@ mod private
       ( 
         | n | 
         {
-          let child = n.borrow().clone();
+          let child = n.borrow().clone_tree();
           child.borrow_mut().set_parent( Some( clone_rc.clone() ) );
           clone_rc.borrow_mut().add_child( child.clone() );
         } 

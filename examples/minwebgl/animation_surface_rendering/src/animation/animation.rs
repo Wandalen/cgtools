@@ -105,7 +105,7 @@ mod private
       while i < layers.len()
       {
         let layer = layers[ i ].clone();
-        let Content::Shape( ref shapes ) = layer.content 
+        let Content::Shape( shapes ) = layer.content.clone()
         else
         {
           continue;
@@ -144,7 +144,7 @@ mod private
             Shape::Group( shapes, group_transform ) => 
             {
               let mut sublayer = layer.clone();
-              sublayer.content = Content::Shape( shapes.clone() );
+              sublayer.content = Content::Shape( shapes );
               sublayer.parent = Some( i );
               if let Some( group_transform ) = group_transform
               {
@@ -368,7 +368,7 @@ mod private
           
           for i in ( 0..repeater.copies ).rev()
           {
-            let node_clone = node.borrow().clone();
+            let node_clone = node.borrow().clone_tree();
             let transform = affine_to_matrix( repeater.transform( i ) );
 
             node_clone.borrow_mut().set_local_matrix( matrix * transform );
@@ -421,8 +421,8 @@ mod private
 
       let _ = scene.traverse( &mut get_nodes_to_remove );
 
-      scene.children = scene.children.iter()
-      .filter
+      scene.children
+      .retain
       (
         | n | 
         {
@@ -433,9 +433,7 @@ mod private
           };
           !nodes_to_remove.contains_key( &name ) 
         }
-      )
-      .cloned()
-      .collect::< Vec< _ > >();
+      );
 
       let mut nodes = scene.children.clone();
 
