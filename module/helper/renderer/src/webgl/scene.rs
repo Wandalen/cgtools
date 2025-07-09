@@ -21,7 +21,7 @@ mod private
       
       for child in &self.children 
       {
-        children.push( child.borrow().clone() );
+        children.push( child.borrow().clone_tree() );
       }
 
       Self
