@@ -1,3 +1,4 @@
+#[ allow( unused ) ]
 mod private
 {
   use crate::model::animated;

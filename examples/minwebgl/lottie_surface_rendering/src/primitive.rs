@@ -40,7 +40,7 @@ mod private
     let half_width = width / 2.0;
 
     let mut add_segment = 
-    | end_point : &F32x2, start_point : &F32x2 |
+    | start_point : &F32x2, end_point : &F32x2 |
     {
       let direction = ( *end_point - *start_point ).normalize();
 
@@ -67,18 +67,20 @@ mod private
       indices.push( base_idx + 3 );
     };
 
-    let mut i = 1;
-    while i < curve.len()
-    {
-      let end_point = F32x2::from_array( curve[ i ] );
-      add_segment( &end_point, &start_point );
-      start_point = end_point;
-      i += 1;
-    }
+    curve.windows( 2 )
+    .for_each
+    (  
+      | w |
+      {
+        let start_point = F32x2::from_array( w[ 0 ] );
+        let end_point = F32x2::from_array( w[ 1 ] );
+        add_segment( &end_point, &start_point );
+      }
+    );
 
     start_point = ( *curve.last().unwrap() ).into();
     let end_point = F32x2::from_array( *curve.first().unwrap() );
-    add_segment( &end_point, &start_point );
+    add_segment( &start_point, &end_point );
 
     let attributes = AttributesData
     {
@@ -130,9 +132,9 @@ mod private
     let body_bounding_box = BoundingBox::compute2d
     ( 
       contours.get( body_id ).unwrap()
-      .iter()
+      .clone()
+      .into_iter()
       .flatten()
-      .cloned()
       .collect::< Vec< _ > >()
       .as_slice()
     );

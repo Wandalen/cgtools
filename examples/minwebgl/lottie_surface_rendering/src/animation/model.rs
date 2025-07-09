@@ -130,6 +130,7 @@ mod private
     }
   }
   
+  #[ allow( dead_code ) ]
   #[ derive( Debug, Clone ) ]
   pub enum Color 
   {
@@ -137,6 +138,7 @@ mod private
     Animated( Value< peniko::Color > )
   }
 
+  #[ allow( dead_code ) ]
   #[ derive( Debug, Clone ) ]
   pub enum Shape
   {
