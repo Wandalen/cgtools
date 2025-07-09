@@ -14,6 +14,7 @@ mod private
     contours_to_fill_geometry 
   };
 
+  #[ allow( dead_code ) ]
   #[ derive( Clone ) ]
   pub struct Glyph
   {
