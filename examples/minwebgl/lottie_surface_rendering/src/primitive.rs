@@ -27,13 +27,6 @@ mod private
   /// that form the rectangular segments of the path. The Z-coordinate is always 0.0.
   pub fn curve_to_geometry( curve : &[ [ f32; 2 ] ], width : f32 ) -> Option< PrimitiveData > 
   {
-    let Some( mut start_point )  = curve.first()
-    .map( | p | F32x2::from_array( *p ) )
-    else
-    {
-      return None;
-    };
-
     let mut positions = Vec::new();
     let mut indices = Vec::new();
 
@@ -78,7 +71,7 @@ mod private
       }
     );
 
-    start_point = ( *curve.last().unwrap() ).into();
+    let start_point = ( *curve.last().unwrap() ).into();
     let end_point = F32x2::from_array( *curve.first().unwrap() );
     add_segment( &start_point, &end_point );
 
