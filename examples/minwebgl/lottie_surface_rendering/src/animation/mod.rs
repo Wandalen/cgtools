@@ -10,4 +10,5 @@ mod private
   layer animation;
   layer model;
   layer ease_functions;
+  layer lottie;
 }
