@@ -153,7 +153,13 @@ mod private
 
         for ( name, info ) in &attribute_infos
         {
-          geometry.add_attribute( gl, *name, info.clone(), false ).unwrap();
+          let mut info = info.clone();
+          let flatten_positions = attributes.borrow().positions.iter()
+          .flatten()
+          .cloned()
+          .collect::< Vec< _ > >();
+          info.bounding_box = crate::gl::geometry::BoundingBox::compute( &flatten_positions );
+          geometry.add_attribute( gl, *name, info, false ).unwrap();
         }
 
         geometry.add_index( gl, index_info.clone() ).unwrap();
