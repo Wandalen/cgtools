@@ -36,7 +36,6 @@ use renderer::webgl::
 };
 use std::rc::Rc;
 use canvas_renderer::renderer::*;
-use geometry_generation::text;
 
 mod camera_controls;
 mod loaders;
@@ -227,37 +226,6 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   Ok( gltf )
 }
 
-async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x4 > )
-{
-  let font_names = [ "Roboto-Regular" ];
-  let fonts = text::ufo::load_fonts( &font_names ).await;
-
-  let colors = 
-  [
-    F32x4::from_array( [ 1.0, 1.0, 1.0, 1.0 ] ),
-  ];
-  let text = "CGTools".to_string();
-
-  let mut primitives_data = vec![];
-  let mut transform = geometry_generation::Transform::default();
-  transform.translation.0[ 1 ] += ( font_names.len() as f32 + 1.0 ) / 2.0 + 0.5;
-  for font_name in font_names
-  {
-    transform.translation[ 1 ] -= 1.0; 
-    let mut text_mesh = text::ufo::text_to_countour_mesh( &text, fonts.get( font_name ).unwrap(), &transform, 5.0 );
-    text_mesh.iter_mut()
-    .for_each( | p | p.color = colors[ 0 ].clone() );
-    primitives_data.extend( text_mesh );
-  }
-
-  let colors = primitives_data.iter()
-  .map( | p | p.color )
-  .collect::< Vec< _ > >();
-  let canvas_gltf = geometry_generation::primitives_data_to_gltf( &gl, primitives_data );
-
-  ( canvas_gltf, colors )
-}
-
 pub fn modulo( dividend : f64, divisor : f64 ) -> f64 
 {
   let mut result = dividend % divisor;
@@ -267,13 +235,6 @@ pub fn modulo( dividend : f64, divisor : f64 ) -> f64
   } 
   result
 }
-
-async fn load_animation( gl : &GL, path : &str ) -> animation::Animation
-{
-  let composition = load_lottie( path ).await.unwrap();
-  animation::Animation::new( gl, composition )
-}
-
 
 struct IndentityMatrix;
 
@@ -291,29 +252,65 @@ impl IndentityMatrix
   }
 }
 
+fn print_nodes_transform( scene : &mut Scene, frame : f32 )
+{
+  let mut i = 0.0;
+
+  let mut print_node = 
+  | 
+    node : Rc< RefCell< Node > >
+  | -> Result< (), gl::WebglError >
+  {
+    let Some( name ) = node.borrow().get_name()
+    else 
+    {
+      return Ok( () );
+    };
+
+    let mut s = name.to_string();
+    let mut m = node.borrow().get_local_matrix();
+    *m.scalar_mut( crate::gl::Ix2( 0, 3 ) ) = 0.0;
+    *m.scalar_mut( crate::gl::Ix2( 1, 3 ) ) = i * 0.01 * frame;
+    *m.scalar_mut( crate::gl::Ix2( 2, 3 ) ) = i * 1.0;
+    // *m.scalar_mut( crate::gl::Ix2( 0, 0 ) ) = 1000.0;
+    // *m.scalar_mut( crate::gl::Ix2( 1, 1 ) ) = 1000.0;
+    // *m.scalar_mut( crate::gl::Ix2( 2, 2 ) ) = 1000.0;
+    node.borrow_mut().set_local_matrix( m );
+    //node.borrow_mut().set_world_matrix( IndentityMatrix::new() );
+    //s.push_str( &format!( ": {:#?}", node.borrow().get_local_matrix() ) );
+
+    //gl::info!( "{s}" );
+
+    i += 1.0;
+
+    Ok( () )
+  };
+
+  let _ = scene.traverse( &mut print_node );
+} 
+
+
 async fn run() -> Result< (), gl::WebglError >
 {
   let ( gl, canvas ) = init_context();
 
   let mut gltf = setup_scene( &gl ).await?; 
-  
-  let ( canvas_gltf, _ ) = setup_canvas_scene( &gl ).await;
-  canvas_gltf.scenes[ 0 ].borrow_mut().update_world_matrix();
 
-  let lottie_path = "/lottie/confetti.json";
+  let lottie_path = "lottie/google.json";
   let animation = load_animation( &gl, lottie_path ).await;
   animation.set_world_matrix( IndentityMatrix::new() );
 
-  let canvas_camera = init_camera( &canvas, &canvas_gltf.scenes ); 
-  //camera_controls::bind_controls_to_input( &canvas, &canvas_camera.get_controls() );
+  let ( mut s, _ ) = animation.frame( 0.0 ).unwrap();
+  let canvas_camera = init_camera( &canvas, &[ Rc::new( RefCell::new( s ) ) ] ); 
+  camera_controls::bind_controls_to_input( &canvas, &canvas_camera.get_controls() );
   canvas_camera.get_controls().borrow_mut().window_size = [ ( canvas.width() * 4 ) as f32, ( canvas.height() * 4 ) as f32 ].into();
-  canvas_camera.get_controls().borrow_mut().eye = [ 0.0, 0.0, 150.0 ].into();
+  canvas_camera.get_controls().borrow_mut().eye = [ 0.0, 0.0, 1.0 ].into();
   {
     let controls = canvas_camera.get_controls();
     let mut controls_ref = controls.borrow_mut();
     let center = controls_ref.center.as_mut();
-    center[ 1 ] += 45.0;
-    center[ 0 ] -= 25.0;
+    center[ 1 ] += 3.0;
+    center[ 0 ] -= 1.0;
   }
 
   let canvas_renderer = CanvasRenderer::new( &gl, canvas.width() * 4, canvas.height() * 4 )?;
@@ -348,7 +345,7 @@ async fn run() -> Result< (), gl::WebglError >
   scenes[ 0 ].borrow_mut().update_world_matrix();
 
   let camera = init_camera( &canvas, &scenes );
-  camera_controls::bind_controls_to_input( &canvas, &camera.get_controls() );
+  //camera_controls::bind_controls_to_input( &canvas, &camera.get_controls() );
   let eye = gl::math::mat3x3h::rot( 0.0, - 73.0_f32.to_radians(), - 15.0_f32.to_radians() ) 
   * F32x4::from_array([ 0.0, 1.7, 1.7, 1.0 ] );
   camera.get_controls().borrow_mut().eye = [ eye.x(), eye.y(), eye.z() ].into();
@@ -369,8 +366,10 @@ async fn run() -> Result< (), gl::WebglError >
       // If textures are of different size, gl.view_port needs to be called
       let time = t as f32 / 1000.0;
 
-      if let Some( ( mut scene, colors ) ) = animation.frame( modulo( time as f64 * 1.0, 10.0 ) )
+      let frame = modulo( time as f64 * 75.0, 125.0 );
+      if let Some( ( mut scene, mut colors ) ) = animation.frame( frame )
       {
+        //gl::info!( "{:?}", colors );
         canvas_renderer.render( &gl, &mut scene, &canvas_camera, &colors ).unwrap();
       }
 
@@ -379,8 +378,8 @@ async fn run() -> Result< (), gl::WebglError >
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );
-      swap_buffer.set_input( renderer.get_main_texture() );
-      //swap_buffer.set_input( Some( canvas_renderer.get_texture() ) );
+      //swap_buffer.set_input( renderer.get_main_texture() );
+      swap_buffer.set_input( Some( canvas_renderer.get_texture() ) );
 
       let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
       .expect( "Failed to render tonemapping pass" );
