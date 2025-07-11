@@ -113,6 +113,25 @@ impl Animation
 
       let mut brush = Brush::Fixed( velato::model::fixed::Brush::Solid( color::AlphaColor::from_rgba8( 0, 0, 0, 0 ) ) );
       
+      for shape in &shapes
+      {
+        match shape
+        {
+          Shape::Draw
+          ( 
+            Draw
+            {
+              brush : _brush,
+              ..
+            } 
+          ) => 
+          {
+            brush = _brush.clone();
+          },
+          _ => continue
+        }
+      }
+
       let mut stroke_width = 1.0;
 
       let layer_base = PrimitiveData
@@ -246,7 +265,7 @@ impl Animation
       }
     }
 
-    let layer_iter = composition.layers.iter().enumerate()
+    let layer_iter = layers.iter().enumerate()
     .zip( primitives.iter_mut() );
 
     let mut last_element_id = 0; 
@@ -267,7 +286,7 @@ impl Animation
       last_element_id += primitives.len();
     }
 
-    let layer_iter = composition.layers.iter()
+    let layer_iter = layers.iter()
     .zip( primitives.iter_mut() );
     for ( layer, primitives ) in layer_iter
     {
@@ -276,6 +295,11 @@ impl Animation
         primitives[ 0 ].parent = parent_layer_to_primitive_id.get( &parent_id ).copied();
       }
     }
+
+    // gl::info!( 
+    //   "{:#?}", layers.iter().map( | l | ( l.name.clone(), l.parent ) ).enumerate()
+    //   .zip( primitives.iter().flatten().map( | p | ( p.name.clone(), p.parent ) ) ).collect::< Vec< _ > >() 
+    // );
 
     let primitives_data = primitives.into_iter()
     .flatten()
@@ -298,6 +322,8 @@ impl Animation
     )
     .collect::< HashMap< _, _ > >();
 
+    //gl::info!( "{:#?}", &primitives_data );
+
     let gltf = primitives_data_to_gltf( gl, primitives_data );
 
     Self
@@ -306,6 +332,11 @@ impl Animation
       behaviors,
       _composition : composition
     }
+  }
+
+  pub fn get_inner_gltf( &self ) -> &GLTF
+  { 
+    &self.gltf
   }
 
   fn update_scene( &self, scene : &mut Scene, frame : f64 )
