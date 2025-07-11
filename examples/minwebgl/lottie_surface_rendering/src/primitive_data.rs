@@ -36,9 +36,9 @@ mod private
   #[ derive( Debug, Clone ) ]
   pub struct Behavior
   {
-    pub animated_transform : Option< interpoli::Transform >,
-    pub repeater : Option< interpoli::Repeater >,
-    pub brush : interpoli::Brush,
+    pub animated_transform : Option< velato::model::Transform >,
+    pub repeater : Option< velato::model::Repeater >,
+    pub brush : velato::model::Brush,
     pub frames : Range< f64 >,
   }
 
@@ -50,7 +50,7 @@ mod private
       { 
         animated_transform : Default::default(), 
         repeater : Default::default(), 
-        brush : interpoli::Brush::Fixed( peniko::Brush::default() ), 
+        brush : velato::model::Brush::Fixed( peniko::Brush::default() ), 
         frames : 0.0..0.0
       }
     }
