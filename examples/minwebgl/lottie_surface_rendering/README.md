@@ -1,6 +1,6 @@
-# Animation surface rendering
+# Lottie surface rendering
 
-This example demonstrates how to render a 2d animation on surface like sphere utilizing the `web_sys`, `minwebgl`, `renderer`, `canvas_renderer`, `linebender::interpoli` crates.
+This example demonstrates how to render a 2d lottie animation on surface like sphere utilizing the `web_sys`, `minwebgl`, `renderer`, `canvas_renderer`, modified `linebender::velato` crates.
 
 ![Showcase]( ./showcase.png )
 
@@ -8,9 +8,8 @@ This example demonstrates how to render a 2d animation on surface like sphere ut
 
 The example showcases several useful techniques and concepts:
 
-  * How animate parameters using `interpoli::Value` structure wrappers.
-  * How create animation using structures `animation::model::Model`, `animation::model::Layer`, `animation::model::Shape`, `animation::model::Transform`, `animation::model::Repeater` etc.
-  * How get frame state baked in `Scene` structure using `animation::animation::Animation`. 
+  * How load lottie animations.
+  * How get frame state baked in `Scene` structure using `animation::Animation`. 
   * How create main scene for rendering by `renderer::Renderer`.
   * How use `renderer::Renderer` and `renderer::SwapFramebuffer`.
   * How create canvas scene with text for rendering by `canvas_renderer::CanvasRenderer`.
@@ -22,21 +21,13 @@ The example showcases several useful techniques and concepts:
 
 ### Animation
 
-1. **Create animation**.
+1. **Load animation**.
 
-Use builder pattern for organizing as hierarchy sttructures like `animation::model::Model`, `animation::model::Layer`, `animation::model::Shape`, `animation::model::Transform`, `animation::model::Repeater` etc. 
+Use `Composition::from_slice()` to load lottie animation and then use it for creating `animation::Animation`.   
 
-Use `fixed`, `animated`, `easing` functions for creating `interpoli::Value` that can be used for adding state ( fixed or dynamic ) for animation object parameters like color, translation, rotation, scale.
+2. **Animate every frame**.
 
-2. **Convert animation**.
-
-Convert `animation::model::Model` into `interpoli::Composition` object. 
-
-Then use `interpoli::Composition` object as input for `animation::animation::Animation` for baking animation into `Scene` object, that hidden inside `animation::animation::Animation` object.
-
-3. **Animate every frame**.
-
-Use frame method of `animation::animation::Animation` object and choose frame for creating `Scene` object with animation state for certain frame. Use scene with `canvas_renderer::CanvasRenderer`. `animation::animation::Animation::frame()` returns animation object colors in separated list, so   `canvas_renderer::CanvasRenderer` can get as input `Scene` and colors list.
+Use frame method of `animation::Animation` object and choose frame for creating `Scene` object with animation state for certain frame. Use scene with `canvas_renderer::CanvasRenderer`. `animation::Animation::frame()` returns animation object colors in separated list, so   `canvas_renderer::CanvasRenderer` can get as input `Scene` and colors list.
 
 ### Setup main scene
 
