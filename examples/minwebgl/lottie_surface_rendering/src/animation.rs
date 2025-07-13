@@ -81,23 +81,59 @@ fn brush_to_color( brush : &velato::model::Brush, frame : f64 ) -> F32x4
   color
 }
 
+#[ allow( dead_code ) ]
 pub struct Animation
 {
   gltf : GLTF,
   behaviors : HashMap< Box< str >, Behavior >,
-  _composition : Composition
+  composition : Composition
 }
 
+#[ allow( dead_code ) ]
 impl Animation
 { 
   pub fn new( gl : &GL, composition : impl Into< Composition > ) -> Self
   {
     let composition : Composition = composition.into();
     let mut primitives = vec![];
-
     let mut repeaters = vec![]; // ( layer, primitive_ids, repeater )
 
+    let assets = composition.assets.clone();
+
     let mut layers = composition.layers.clone();
+
+    let mut additional_layers : Vec< velato::model::Layer > = vec![];
+
+    let layers_count = layers.len();
+
+    for ( i, layer ) in layers.iter_mut().enumerate()
+    {
+      let velato::model::Content::Instance{ name : ref asset_name, .. } = layer.content
+      else
+      {
+        continue;
+      };
+
+      if let Some( asset_layers ) = assets.get( asset_name ).cloned()
+      {
+        for mut sublayer in asset_layers
+        {
+          sublayer.parent = if let Some( k ) = sublayer.parent
+          {
+            let j = layers_count + additional_layers.len();
+            Some( j + k )
+          }
+          else
+          {
+            Some( i )
+          };
+          
+          additional_layers.push( sublayer );
+        }
+      }
+    }
+
+    layers.extend( additional_layers );
 
     let mut i = 0; 
     while i < layers.len()
@@ -296,11 +332,6 @@ impl Animation
       }
     }
 
-    // gl::info!( 
-    //   "{:#?}", layers.iter().map( | l | ( l.name.clone(), l.parent ) ).enumerate()
-    //   .zip( primitives.iter().flatten().map( | p | ( p.name.clone(), p.parent ) ) ).collect::< Vec< _ > >() 
-    // );
-
     let primitives_data = primitives.into_iter()
     .flatten()
     .collect::< Vec< _ > >();
@@ -322,15 +353,13 @@ impl Animation
     )
     .collect::< HashMap< _, _ > >();
 
-    //gl::info!( "{:#?}", &primitives_data );
-
     let gltf = primitives_data_to_gltf( gl, primitives_data );
 
     Self
     {
       gltf,
       behaviors,
-      _composition : composition
+      composition
     }
   }
 
@@ -575,6 +604,5 @@ pub async fn load_animation( gl : &GL, path : &str ) -> Animation
 { 
   let lottie_json_bin = gl::file::load( path ).await.unwrap();
   let composition = Composition::from_slice( lottie_json_bin.as_slice() ).unwrap();
-  //gl::info!( "{:#?}", composition );
   Animation::new( gl, composition )
 }
