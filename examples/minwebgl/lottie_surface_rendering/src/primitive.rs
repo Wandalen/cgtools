@@ -251,29 +251,6 @@ mod private
     Some( primitive_data )
   }
 
-  pub fn points_to_path( points : Vec< [ f32; 2 ] > ) -> Vec< PathEl >
-  {
-    let mut points = points.into_iter()
-    .map
-    ( 
-      | [ x, y ] | 
-      {
-        PathEl::LineTo( kurbo::Point::new( x as f64, y as f64 ) ) 
-      }
-    )
-    .collect::< Vec< _ > >();
-
-    if let Some( el ) = points.get_mut( 0 )
-    {
-      if let PathEl::LineTo( p ) = el.clone() 
-      {
-        *el = PathEl::MoveTo( p );
-      } 
-    }
-
-    points
-  }
-
   pub fn path_to_points( path : Vec< PathEl > ) -> Vec< [ f32; 2 ] >
   {
     let mut points = vec![];
@@ -308,7 +285,6 @@ mod private
   {
     curve_to_geometry,
     contours_to_fill_geometry,
-    points_to_path,
     path_to_points
   };
 }
