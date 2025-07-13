@@ -252,44 +252,6 @@ impl IndentityMatrix
   }
 }
 
-fn print_nodes_transform( scene : &mut Scene, frame : f32 )
-{
-  let mut i = 0.0;
-
-  let mut print_node = 
-  | 
-    node : Rc< RefCell< Node > >
-  | -> Result< (), gl::WebglError >
-  {
-    let Some( name ) = node.borrow().get_name()
-    else 
-    {
-      return Ok( () );
-    };
-
-    let mut s = name.to_string();
-    let mut m = node.borrow().get_local_matrix();
-    *m.scalar_mut( crate::gl::Ix2( 0, 3 ) ) = 0.0;
-    *m.scalar_mut( crate::gl::Ix2( 1, 3 ) ) = i * 0.01 * frame;
-    *m.scalar_mut( crate::gl::Ix2( 2, 3 ) ) = i * 1.0;
-    // *m.scalar_mut( crate::gl::Ix2( 0, 0 ) ) = 1000.0;
-    // *m.scalar_mut( crate::gl::Ix2( 1, 1 ) ) = 1000.0;
-    // *m.scalar_mut( crate::gl::Ix2( 2, 2 ) ) = 1000.0;
-    node.borrow_mut().set_local_matrix( m );
-    //node.borrow_mut().set_world_matrix( IndentityMatrix::new() );
-    //s.push_str( &format!( ": {:#?}", node.borrow().get_local_matrix() ) );
-
-    //gl::info!( "{s}" );
-
-    i += 1.0;
-
-    Ok( () )
-  };
-
-  let _ = scene.traverse( &mut print_node );
-} 
-
-
 async fn run() -> Result< (), gl::WebglError >
 {
   let ( gl, canvas ) = init_context();
@@ -300,17 +262,27 @@ async fn run() -> Result< (), gl::WebglError >
   let animation = load_animation( &gl, lottie_path ).await;
   animation.set_world_matrix( IndentityMatrix::new() );
 
-  let ( mut s, _ ) = animation.frame( 0.0 ).unwrap();
+  let ( s, _ ) = animation.frame( 0.0 ).unwrap();
   let canvas_camera = init_camera( &canvas, &[ Rc::new( RefCell::new( s ) ) ] ); 
   camera_controls::bind_controls_to_input( &canvas, &canvas_camera.get_controls() );
   canvas_camera.get_controls().borrow_mut().window_size = [ ( canvas.width() * 4 ) as f32, ( canvas.height() * 4 ) as f32 ].into();
-  canvas_camera.get_controls().borrow_mut().eye = [ 0.0, 0.0, 1.0 ].into();
   {
     let controls = canvas_camera.get_controls();
     let mut controls_ref = controls.borrow_mut();
-    let center = controls_ref.center.as_mut();
-    center[ 1 ] += 3.0;
-    center[ 0 ] -= 1.0;
+    {
+      let center = controls_ref.center.as_mut();
+      center[ 1 ] -= 250.0;
+      center[ 0 ] -= 110.0;
+      center[ 1 ] += 175.0;
+    }
+    {
+      let eye = controls_ref.eye.as_mut();
+      eye[ 0 ] += 125.0;
+      eye[ 1 ] -= 125.0;
+      eye[ 0 ] -= 110.0;
+      eye[ 1 ] += 175.0;
+      eye[ 2 ] += 300.0;
+    }
   }
 
   let canvas_renderer = CanvasRenderer::new( &gl, canvas.width() * 4, canvas.height() * 4 )?;
@@ -345,7 +317,7 @@ async fn run() -> Result< (), gl::WebglError >
   scenes[ 0 ].borrow_mut().update_world_matrix();
 
   let camera = init_camera( &canvas, &scenes );
-  //camera_controls::bind_controls_to_input( &canvas, &camera.get_controls() );
+  camera_controls::bind_controls_to_input( &canvas, &camera.get_controls() );
   let eye = gl::math::mat3x3h::rot( 0.0, - 73.0_f32.to_radians(), - 15.0_f32.to_radians() ) 
   * F32x4::from_array([ 0.0, 1.7, 1.7, 1.0 ] );
   camera.get_controls().borrow_mut().eye = [ eye.x(), eye.y(), eye.z() ].into();
@@ -367,9 +339,8 @@ async fn run() -> Result< (), gl::WebglError >
       let time = t as f32 / 1000.0;
 
       let frame = modulo( time as f64 * 75.0, 125.0 );
-      if let Some( ( mut scene, mut colors ) ) = animation.frame( frame )
+      if let Some( ( mut scene, colors ) ) = animation.frame( frame )
       {
-        //gl::info!( "{:?}", colors );
         canvas_renderer.render( &gl, &mut scene, &canvas_camera, &colors ).unwrap();
       }
 
@@ -378,8 +349,8 @@ async fn run() -> Result< (), gl::WebglError >
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );
-      //swap_buffer.set_input( renderer.get_main_texture() );
-      swap_buffer.set_input( Some( canvas_renderer.get_texture() ) );
+      swap_buffer.set_input( renderer.get_main_texture() );
+      //swap_buffer.set_input( Some( canvas_renderer.get_texture() ) );
 
       let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
       .expect( "Failed to render tonemapping pass" );
