@@ -1,28 +1,24 @@
 [package]
-name = "renderer"
+name = "renderer_with_outlines"
 version = "0.1.0"
 edition = "2021"
-authors = [
+authors = [ 
   "Kostiantyn Mysnyk <wandalen@obox.systems>",
-  "Avramenko Yevhenii <yevhenii.av@obox.systems>"
+  "Avramenko Yevhenii <yevhenii.av@obox.systems>",
+  "Bilan Vadym <vadym.b@obox.systems>" 
 ]
 
 [lints]
 workspace = true
 
-[features]
-webgl = []
-
 [dependencies]
-
-mod_interface = { workspace = true }
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
-
-asbytes = { workspace = true }
-former = { workspace = true }
-uuid = { workspace = true }
+renderer = { workspace = true }
+zune-hdr = { workspace = true }
+rand = { workspace = true }
+getrandom = { workspace = true, features = [ "wasm_js" ] }
 
 [dependencies.web-sys]
 workspace = true
@@ -37,6 +33,5 @@ features = [
   'Url',
   'WebGlFramebuffer',
   'WebGlRenderbuffer',
-  'HtmlSpanElement',
-  'HtmlSelectElement'
+  'HtmlInputElement'
 ]

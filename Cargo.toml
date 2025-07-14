@@ -291,7 +291,6 @@ version = "0.9.1"
 # Needs flag: RUSTFLAGS='--cfg getrandom_backend="wasm_js"'
 [workspace.dependencies.getrandom]
 version = "0.3.3"
-#features = [ "js" ]
 
 [workspace.dependencies.rustc-hash]
 version = "2.1.1"
@@ -322,7 +321,3 @@ version = "0.5"
 
 [workspace.dependencies.peniko]
 version = "0.3.1"
-
-# qqq : avoid this crate, use derive_tools and component_model
-[workspace.dependencies.nutype]
-version = "0.6.1"
