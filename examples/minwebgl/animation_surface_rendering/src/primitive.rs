@@ -1,15 +1,12 @@
 mod private
 {
   use minwebgl as gl;
-  use gl::{ F32x2, F32x4, geometry::BoundingBox };
+  use gl::{ F32x2, geometry::BoundingBox };
   use std::cell::RefCell;
   use std::rc::Rc;
-  use crate::
-  { 
-    AttributesData, 
-    PrimitiveData, 
-    Transform 
-  };
+  use geometry_generation::AttributesData;
+  use kurbo::PathEl;
+  use crate::primitive_data::PrimitiveData;
 
   /// Converts a `&[ [ f32; 2 ] ]` into `GeometryData` representing its 2D outline
   /// as a series of rectangles, each with a specified `width`.
@@ -30,20 +27,13 @@ mod private
   /// that form the rectangular segments of the path. The Z-coordinate is always 0.0.
   pub fn curve_to_geometry( curve : &[ [ f32; 2 ] ], width : f32 ) -> Option< PrimitiveData > 
   {
-    let Some( mut start_point )  = curve.first()
-    .map( | p | F32x2::from_array( *p ) )
-    else
-    {
-      return None;
-    };
-
     let mut positions = Vec::new();
     let mut indices = Vec::new();
 
     let half_width = width / 2.0;
 
     let mut add_segment = 
-    | end_point : &F32x2, start_point : &F32x2 |
+    | start_point : &F32x2, end_point : &F32x2 |
     {
       let direction = ( *end_point - *start_point ).normalize();
 
@@ -70,18 +60,20 @@ mod private
       indices.push( base_idx + 3 );
     };
 
-    let mut i = 1;
-    while i < curve.len()
-    {
-      let end_point = F32x2::from_array( curve[ i ] );
-      add_segment( &end_point, &start_point );
-      start_point = end_point;
-      i += 1;
-    }
+    curve.windows( 2 )
+    .for_each
+    (  
+      | w |
+      {
+        let start_point = F32x2::from_array( w[ 0 ] );
+        let end_point = F32x2::from_array( w[ 1 ] );
+        add_segment( &end_point, &start_point );
+      }
+    );
 
-    start_point = ( *curve.last().unwrap() ).into();
+    let start_point = ( *curve.last().unwrap() ).into();
     let end_point = F32x2::from_array( *curve.first().unwrap() );
-    add_segment( &end_point, &start_point );
+    add_segment( &start_point, &end_point );
 
     let attributes = AttributesData
     {
@@ -89,13 +81,9 @@ mod private
       indices
     };
 
-    Some(
-      PrimitiveData 
-      { 
-        attributes : Rc::new( RefCell::new( attributes ) ),
-        color : F32x4::default(),
-        transform: Transform::default(),
-      }
+    Some
+    (
+      PrimitiveData::new( Some( Rc::new( RefCell::new( attributes ) ) ) )
     )
   }
 
@@ -107,20 +95,26 @@ mod private
     }
 
     let mut body_id = 0;
-    let mut max_box_diagonal_size = 0;
+    let mut max_box_diagonal_size = 0.0;
     for ( i, contour ) in contours.iter().enumerate()
     {
       if contour.is_empty()
       {
         continue;
       }
-      let [ x1, y1 ] = contour.iter()
-      .map( | [ a, b ] | [ *a as isize, *b as isize ] )
-      .min().unwrap();
-      let [ x2, y2 ] = contour.iter()
-      .map( | [ a, b ] | [ *a as isize, *b as isize ] )
-      .max().unwrap();
-      let controur_size = ( ( x2 - x1 ).pow( 2 ) + ( y2 - y1 ).pow( 2 ) ).isqrt();
+      let x1 = contour.iter()
+      .map( | [ x, _ ] | x )
+      .min_by( | x, y | x.total_cmp( y ) ).unwrap();
+      let y1 = contour.iter()
+      .map( | [ _, y ] | y )
+      .min_by( | x, y | x.total_cmp( y ) ).unwrap();
+      let x2 = contour.iter()
+      .map( | [ x, _ ] | x )
+      .max_by( | x, y | x.total_cmp( y ) ).unwrap();
+      let y2 = contour.iter()
+      .map( | [ _, y ] | y )
+      .max_by( | x, y | x.total_cmp( y ) ).unwrap();
+      let controur_size = ( ( x2 - x1 ).powi( 2 ) + ( y2 - y1 ).powi( 2 ) ).sqrt();
       if max_box_diagonal_size < controur_size
       {
         max_box_diagonal_size = controur_size;
@@ -131,9 +125,9 @@ mod private
     let body_bounding_box = BoundingBox::compute2d
     ( 
       contours.get( body_id ).unwrap()
-      .iter()
+      .clone()
+      .into_iter()
       .flatten()
-      .cloned()
       .collect::< Vec< _ > >()
       .as_slice()
     );
@@ -252,22 +246,69 @@ mod private
       indices, 
     };
 
-    let primitive_data = PrimitiveData 
-    { 
-      attributes : Rc::new( RefCell::new( attributes ) ),
-      color : F32x4::default(),
-      transform : Transform::default()  
-    };
+    let primitive_data = PrimitiveData::new( Some( Rc::new( RefCell::new( attributes ) ) ) );
 
     Some( primitive_data )
   }
+
+  pub fn points_to_path( points : Vec< [ f32; 2 ] > ) -> Vec< PathEl >
+  {
+    let mut points = points.into_iter()
+    .map
+    ( 
+      | [ x, y ] | 
+      {
+        PathEl::LineTo( kurbo::Point::new( x as f64, y as f64 ) ) 
+      }
+    )
+    .collect::< Vec< _ > >();
+
+    if let Some( el ) = points.get_mut( 0 )
+    {
+      if let PathEl::LineTo( p ) = el.clone() 
+      {
+        *el = PathEl::MoveTo( p );
+      } 
+    }
+
+    points
+  }
+
+  pub fn path_to_points( path : Vec< PathEl > ) -> Vec< [ f32; 2 ] >
+  {
+    let mut points = vec![];
+
+    kurbo::flatten
+    ( 
+      kurbo::BezPath::from_vec( path ),
+      0.25,
+      | el | 
+      {
+        let point = match el 
+        {
+          PathEl::MoveTo( p) | PathEl::LineTo( p ) => 
+          {
+            [ p.x as f32, p.y as f32 ]
+          },
+          _ => unreachable!( "kurbo::flatten can only return MoveTo and LineTo PathEls" )
+        };
+        points.push( point );
+      }
+    );
+
+    points
+  }
 }
 
-crate::mod_interface!
+::mod_interface::mod_interface!
 {
+  own use ::mod_interface::mod_interface;
+
   orphan use
   {
     curve_to_geometry,
-    contours_to_fill_geometry
+    contours_to_fill_geometry,
+    points_to_path,
+    path_to_points
   };
 }

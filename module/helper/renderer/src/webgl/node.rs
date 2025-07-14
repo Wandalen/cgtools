@@ -26,8 +26,9 @@ mod private
   #[ derive( Default ) ]
   pub struct Node
   {
-
     name : Option< Box< str > >,
+    /// The parent node of this node
+    parent : Option< Rc< RefCell< Node > > >,
     /// The child nodes of this node.
     children : Vec< Rc< RefCell< Node > > >,
     /// The 3D object associated with this node.
@@ -49,9 +50,17 @@ mod private
     bounding_box : BoundingBox
   }
 
-  impl Clone for Node
+  impl Node
   {
-    fn clone( &self ) -> Self 
+    /// Creates a new `Node` with default values.
+    pub fn new() -> Self
+    {
+      Self::default()
+    }
+
+    /// Clone node and all its subnodes for creating 
+    /// new identical independed node
+    pub fn clone_tree( &self ) -> Rc< RefCell< Self > > 
     {
       let object = match &self.object
       {
@@ -62,15 +71,11 @@ mod private
         Object3D::Other => Object3D::Other
       };
 
-      Self 
+      let clone = Self 
       { 
         name : self.name.clone(), 
-        children : 
-        {
-          self.children.iter()
-          .map( | n | Rc::new( RefCell::new( n.borrow().clone() ) ) )
-          .collect::< Vec< _ > >()
-        }, 
+        parent : None,
+        children : vec![],
         object, 
         matrix : self.matrix, 
         world_matrix : self.world_matrix, 
@@ -81,21 +86,52 @@ mod private
         needs_local_matrix_update : self.needs_local_matrix_update, 
         needs_world_matrix_update : self.needs_world_matrix_update, 
         bounding_box : self.bounding_box
-      }
-    }
-  }
+      };
 
-  impl Node
-  {
-    /// Creates a new `Node` with default values.
-    pub fn new() -> Self
-    {
-      Self::default()
+      let clone_rc = Rc::new( RefCell::new( clone ) );
+
+      self.children.iter()
+      .for_each
+      ( 
+        | n | 
+        {
+          let child = n.borrow().clone_tree();
+          child.borrow_mut().set_parent( Some( clone_rc.clone() ) );
+          clone_rc.borrow_mut().add_child( child.clone() );
+        } 
+      );
+
+      clone_rc
     }
 
     pub fn set_name( &mut self, name : impl Into< Box< str > > )
     {
       self.name = Some( name.into() );
+    }
+
+    pub fn get_name( &self ) -> Option< Box< str > >
+    {
+      self.name.clone()
+    }
+
+    pub fn get_children( &self ) -> &[ Rc< RefCell< Node > > ]
+    {
+      self.children.as_slice()
+    }
+
+    pub fn set_parent( &mut self, parent : Option< Rc< RefCell< Node > > > ) 
+    {
+      self.parent = parent;
+    }
+
+    pub fn get_parent( &self ) -> &Option< Rc< RefCell< Node > > >
+    {
+      &self.parent
+    }
+
+    pub fn remove_child( &mut self, id : usize ) -> Rc< RefCell< Node > >
+    {
+      self.children.remove( id )
     }
 
     /// Sets the local scale of the node.
@@ -147,6 +183,7 @@ mod private
     {
       self.matrix = matrix;
       self.needs_world_matrix_update = true;
+      self.needs_local_matrix_update = false;
     }
 
     pub fn set_world_matrix( &mut self, matrix : F32x4x4 )
@@ -160,6 +197,11 @@ mod private
     pub fn get_world_matrix( &self ) -> F32x4x4
     {
       self.world_matrix
+    }
+
+    pub fn get_local_matrix( &self ) -> F32x4x4
+    {
+      self.matrix
     }
 
     /// Updates the local transformation matrix based on the current scale, rotation, and translation.
@@ -203,6 +245,18 @@ mod private
     pub fn add_child( &mut self, child : Rc< RefCell< Node > > )
     {
       self.children.push( child );
+    }
+
+    pub fn insert_child( &mut self, id : usize, child : Rc< RefCell< Node > > )
+    {
+      if id >= self.children.len()
+      {
+        self.add_child( child );
+      }
+      else
+      {
+        self.children.insert( id, child );
+      }
     }
 
     /// Uploads the world transformation matrix of this node to the GPU as a uniform.

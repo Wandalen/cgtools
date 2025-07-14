@@ -4,16 +4,17 @@ mod private
   use kurbo::flatten;
   use mingl::geometry::BoundingBox;
   use norad::{ PointType, ContourPoint, Contour };
-  use std::rc::Rc;
-  use std::cell::RefCell;
   use minwebgl as gl;
   use gl::{ F32x3, F32x4 };
   use quick_xml::{ Reader, events::Event };
   use crate::
   { 
-    AttributesData, PrimitiveData, Transform 
+    PrimitiveData, 
+    Transform,
+    contours_to_fill_geometry 
   };
 
+  #[ allow( dead_code ) ]
   #[ derive( Clone ) ]
   pub struct Glyph
   {
@@ -332,7 +333,7 @@ mod private
 
       for ( _, glyph ) in glyphs.iter_mut()
       {
-        glyph.body = contours_to_mesh( &glyph.contours );
+        glyph.body = contours_to_fill_geometry( &glyph.contours );
       }
 
       Self
@@ -669,7 +670,6 @@ crate::mod_interface!
     load_fonts,
     Glyph,
     Font,
-    contours_to_mesh,
     text_to_mesh,
     text_to_countour_mesh
   };
