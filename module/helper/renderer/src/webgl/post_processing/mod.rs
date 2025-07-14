@@ -6,11 +6,13 @@ mod private
 
 crate::mod_interface!
 {
+  layer gbuffer;
   layer unreal_bloom;
   layer composer;
   layer tonemapping;
   layer to_srgb;
   layer blend;
+  layer outline;
 
   own use
   {

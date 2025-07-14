@@ -20,7 +20,7 @@ The example showcases several useful techniques and concepts:
 *   Basic animation (camera rotation, outline thickness).
 *   Using `minwebgl` utilities for file loading, buffer uploads, program compilation, etc.
 *   Interacting with WebGL2 via `web_sys`.
-*   Using linear algebra crates like `ndarray-cg` and `glam`.
+*   Using linear algebra crates like `ndarray-cg`.
 
 ## How it works
 
