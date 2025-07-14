@@ -71,12 +71,15 @@ mod private
       let eye = self.get_eye().to_array();
       let projection_matrix = self.get_projection_matrix();
 
-      gl::uniform::upload
-      (
-        &gl,
-        locations.get( "cameraPosition" ).unwrap().clone(),
-        &eye[ .. ]
-      ).unwrap();
+      if let Some( loc ) = locations.get( "cameraPosition" )
+      {
+        gl::uniform::upload
+        (
+          &gl,
+          loc.clone(),
+          &eye[ .. ]
+        ).unwrap();
+      }
 
       gl::uniform::matrix_upload
       (
@@ -123,6 +126,11 @@ mod private
     pub fn get_projection_matrix( &self ) -> gl::F32x4x4
     {
       self.projection_matrix
+    }
+
+    pub fn get_near_far( &self ) -> gl::F32x2
+    {
+      gl::F32x2::new( self.near, self.far )
     }
   }
 }
