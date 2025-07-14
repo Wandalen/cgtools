@@ -52,7 +52,7 @@ mod private
 
   impl Transform
   {
-    fn set_node_transform( &self, node : Rc< RefCell< Node > > )
+    pub fn set_node_transform( &self, node : Rc< RefCell< Node > > )
     {
       let t = self.translation;
       let r = self.rotation;
@@ -66,6 +66,7 @@ mod private
     }
   }
   
+  #[ derive( Debug ) ]
   pub struct AttributesData
   {
     pub positions : Vec< [ f32; 3 ] >,
@@ -80,7 +81,7 @@ mod private
     pub transform : Transform
   }
 
-  fn make_buffer_attibute_info
+  pub fn make_buffer_attibute_info
   ( 
     buffer : &web_sys::WebGlBuffer,
     descriptor : gl::BufferDescriptor, 
@@ -226,6 +227,7 @@ crate::mod_interface!
     Transform,
     PrimitiveData,
     AttributesData,
-    primitives_data_to_gltf
+    primitives_data_to_gltf,
+    make_buffer_attibute_info
   };
 }
