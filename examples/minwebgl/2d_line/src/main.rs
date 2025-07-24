@@ -52,7 +52,7 @@ fn run() -> Result< (), gl::WebglError >
   let points = generate_sample_points_interleaved( width, height );
 
   let mut line = line_tools::d2::Line::default();
-  line.join = line_tools::Join::Round( 16 );
+  line.join = line_tools::Join::Round( 50 );
 
   for p in points
   {
