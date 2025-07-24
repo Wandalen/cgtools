@@ -2,15 +2,24 @@
 precision highp float;
 
 layout( location = 0 ) in vec3 position;
-layout( location = 1 ) in vec2 pointA;
-layout( location = 2 ) in vec2 pointB;
-layout( location = 3 ) in vec2 pointC;
+layout( location = 1 ) in vec2 inPointA;
+layout( location = 2 ) in vec2 inPointB;
+layout( location = 3 ) in vec2 inPointC;
 
+uniform mat3 u_point_world_matrix;
+
+uniform mat4 u_world_matrix;
+uniform mat4 u_view_matrix;
 uniform mat4 u_projection_matrix;
 uniform float u_width;
 
 void main() 
 {
+  vec2 pointA = ( u_point_world_matrix * vec3( inPointA, 1.0 ) ).xy;
+  vec2 pointB = ( u_point_world_matrix * vec3( inPointB, 1.0 ) ).xy;
+  vec2 pointC = ( u_point_world_matrix * vec3( inPointC, 1.0 ) ).xy;
+
+
   vec2 tangent = normalize( normalize( pointC - pointB ) + normalize( pointB - pointA ) );
   vec2 miter = vec2( -tangent.y, tangent.x );
 
@@ -28,5 +37,5 @@ void main()
 
   vec2 point = pointB + p0 * position.x + p1 * position.y + p2 * position.z;
 
-  gl_Position =  u_projection_matrix * vec4( point, 0.0, 1.0 );
+  gl_Position =  u_projection_matrix * u_view_matrix * u_world_matrix * vec4( point, 0.0, 1.0 );
 }
