@@ -33,7 +33,6 @@ fn run() -> Result< (), gl::WebglError >
 
   let fragment_shader_src = include_str!( "../shaders/main.frag" );
 
-
   let projection_matrix = gl::math::mat3x3h::orthographic_rh_gl( -width / 2.0, width / 2.0, -height / 2.0, height / 2.0, 0.0, 1.0 );
   let line_width = 50.0;
 

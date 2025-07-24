@@ -167,22 +167,22 @@ mod private
       {
         Cap::Round( _ ) => 
         {
-          mesh.upload_to( gl, "cap", "u_point", self.points[ 0 ].as_slice() )?;
+          mesh.upload_to( gl, "cap", "u_inPoint", self.points[ 0 ].as_slice() )?;
           mesh.draw( gl, "cap" );
 
-          mesh.upload_to( gl, "cap", "u_point", self.points[ self.points.len() - 1 ].as_slice() )?;
+          mesh.upload_to( gl, "cap", "u_inPoint", self.points[ self.points.len() - 1 ].as_slice() )?;
           mesh.draw( gl, "cap" );
         },
         Cap::Square =>
         {
-          mesh.upload_to( gl, "cap", "u_pointA", self.points[ 1 ].as_slice() )?;
-          mesh.upload_to( gl, "cap", "u_pointB", self.points[ 0 ].as_slice() )?;
+          mesh.upload_to( gl, "cap", "u_inPointA", self.points[ 1 ].as_slice() )?;
+          mesh.upload_to( gl, "cap", "u_inPointB", self.points[ 0 ].as_slice() )?;
           mesh.draw( gl, "cap" );
 
           let len = self.points.len();
 
-          mesh.upload_to( gl, "cap", "u_pointA", self.points[ len - 2 ].as_slice() )?;
-          mesh.upload_to( gl, "cap", "u_pointB", self.points[ len - 1 ].as_slice() )?;
+          mesh.upload_to( gl, "cap", "u_inPointA", self.points[ len - 2 ].as_slice() )?;
+          mesh.upload_to( gl, "cap", "u_inPointB", self.points[ len - 1 ].as_slice() )?;
           mesh.draw( gl, "cap" );
         },
         _ => {}
