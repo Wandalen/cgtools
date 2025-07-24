@@ -1,5 +1,5 @@
 [package]
-name = "text_rendering"
+name = "renderer_with_outlines"
 version = "0.1.0"
 edition = "2021"
 authors = [ 
@@ -16,13 +16,9 @@ minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
 renderer = { workspace = true }
-csgrs = { workspace = true, features = [ "truetype-text" ] }
-parry3d = { workspace = true }
-norad = { workspace = true, default-features = false, features = [ "kurbo" ] }
-parley = { workspace = true }
-kurbo = { workspace = true }
-earcutr = { workspace = true }
-quick-xml = { workspace = true }
+zune-hdr = { workspace = true }
+rand = { workspace = true }
+getrandom = { workspace = true, features = [ "wasm_js" ] }
 
 [dependencies.web-sys]
 workspace = true
@@ -36,5 +32,6 @@ features = [
   'BlobPropertyBag',
   'Url',
   'WebGlFramebuffer',
-  'WebGlRenderbuffer'
+  'WebGlRenderbuffer',
+  'HtmlInputElement'
 ]
