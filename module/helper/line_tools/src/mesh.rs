@@ -1,10 +1,10 @@
 mod private
 {
   use crate::*;
-  use minwebgl::{self as gl, uniform::upload};
+  use minwebgl as gl;
   use std::collections::HashMap;
 
-  #[ derive( Default ) ]
+  #[ derive( Default, Debug, Clone ) ]
   pub struct Mesh
   {
     pub program_list : Vec< Program >,
@@ -63,7 +63,15 @@ mod private
       self.program_map.insert( name.into(), program );
     }
 
-    pub fn draw( &self, gl : &gl::WebGl2RenderingContext )
+    pub fn draw( &self, gl : &gl::WebGl2RenderingContext, name : &str )
+    {
+      if let Some( p ) = self.program_map.get( name )
+      {
+        p.draw( gl );
+      }
+    }
+
+    pub fn draw_all( &self, gl : &gl::WebGl2RenderingContext )
     {
       for p in self.program_list.iter()
       {

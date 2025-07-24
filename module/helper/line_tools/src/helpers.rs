@@ -1,5 +1,14 @@
 mod private
 {
+  pub const BODY_GEOMETRY : [ [ f32; 2 ]; 6 ] =
+  [
+    [ 0.0, -0.5 ],
+    [ 1.0, -0.5 ],
+    [ 1.0,  0.5 ],
+    [ 0.0, -0.5 ],
+    [ 1.0,  0.5 ],
+    [ 0.0,  0.5 ]
+  ];
 
   pub fn round_geometry( segments : usize ) -> Vec< [ f32; 2 ] >
   {
@@ -19,6 +28,7 @@ crate::mod_interface!
 {
   own use
   {
-    round_geometry
+    round_geometry,
+    BODY_GEOMETRY
   };
 }

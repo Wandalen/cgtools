@@ -22,19 +22,6 @@ fn generate_sample_points_interleaved( width : f32, height : f32 ) -> [ [ f32; 2
   return points;
 }
 
-fn circle_geometry< const N : usize >() -> [ [ f32; 2 ]; N ]
-{
-  let mut positions = [ [ 0.0; 2 ]; N  ];
-  for wedge in 0..N
-  {
-    let theta = 2.0 * std::f32::consts::PI * wedge as f32 / N as f32;
-    let ( s, c ) = theta.sin_cos();
-    positions[ wedge as usize ] = [ 0.5 * c, 0.5 * s ]
-  }
-
-  positions
-}
-
 fn run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
@@ -53,18 +40,23 @@ fn run() -> Result< (), gl::WebglError >
 
   let mut line = line_tools::d2::Line::default();
   line.join = line_tools::Join::Round( 50 );
+  line.cap = line_tools::Cap::Butt;
 
   for p in points
   {
     line.points.push( p.into() );
   }
 
-  let mesh = line.to_mesh( &gl, fragment_shader_src )?;
+  line.create_mesh( &gl, fragment_shader_src )?;
+  let mesh = line.get_mesh();
   mesh.upload_matrix( &gl, "u_projection_matrix", &projection_matrix.to_array() )?;
   mesh.upload( &gl, "u_width", &line_width )?;
 
+  //mesh.upload( &gl, "u_color", &[ 1.0, 1.0, 1.0 ] )?;
+
   mesh.upload_to( &gl, "body", "u_color", &[ 1.0, 1.0, 1.0 ] )?;
   mesh.upload_to( &gl, "join", "u_color", &[ 1.0, 0.0, 0.0 ] )?;
+  mesh.upload_to( &gl, "cap", "u_color", &[ 0.0, 1.0, 0.0 ] )?;
   
   // Define the update and draw logic
   let update_and_draw =
@@ -74,7 +66,7 @@ fn run() -> Result< (), gl::WebglError >
     {
       let _time = t as f32 / 1000.0;
       
-      mesh.draw( &gl );
+      line.draw( &gl ).unwrap();
 
       true
     }
