@@ -75,6 +75,10 @@ path = "module/helper/canvas_renderer"
 version = "0.1.0"
 path = "module/helper/geometry_generation"
 
+[workspace.dependencies.line_tools]
+version = "0.1.0"
+path = "module/helper/line_tools"
+
 # = draw
 
 # [workspace.dependencies.draw_lang]

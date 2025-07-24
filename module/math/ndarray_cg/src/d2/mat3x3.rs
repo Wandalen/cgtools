@@ -17,4 +17,9 @@ crate::mod_interface!
     from_axis_angle
   };
 
+  own use general::
+  {
+    identity
+  };
+
 }
