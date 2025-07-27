@@ -40,7 +40,7 @@ fn run() -> Result< (), gl::WebglError >
   let points = generate_sample_points_interleaved( width, height );
 
   let mut line = line_tools::d2::Line::default();
-  line.join = line_tools::Join::Round( 50 );
+  line.join = line_tools::Join::Miter;
   line.cap = line_tools::Cap::Round( 50 );
 
   for p in points
@@ -56,8 +56,8 @@ fn run() -> Result< (), gl::WebglError >
   mesh.upload( &gl, "u_color", &[ 1.0, 1.0, 1.0 ] )?;
 
   // mesh.upload_to( &gl, "body", "u_color", &[ 1.0, 1.0, 1.0 ] )?;
-  // mesh.upload_to( &gl, "join", "u_color", &[ 1.0, 0.0, 0.0 ] )?;
-  // mesh.upload_to( &gl, "cap", "u_color", &[ 0.0, 1.0, 0.0 ] )?;
+  mesh.upload_to( &gl, "join", "u_color", &[ 1.0, 0.0, 0.0 ] )?;
+  mesh.upload_to( &gl, "cap", "u_color", &[ 0.0, 1.0, 0.0 ] )?;
   
   // Define the update and draw logic
   let update_and_draw =
@@ -68,7 +68,7 @@ fn run() -> Result< (), gl::WebglError >
       let _time = t as f32 / 1000.0;
 
       let scale = [ ( ( _time * 2.0 ).sin().abs() + 0.1 ) * 2.0, 1.0 ];
-      let rotation = 0.0;
+      let rotation = ( _time * 2.0 ).sin();
       let translation = gl::F32x2::default();
       let world_matrix = gl::F32x3x3::from_scale_rotation_translation( scale, rotation, translation.as_array() );
       line.get_mesh().upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() ).unwrap();
