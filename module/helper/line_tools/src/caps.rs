@@ -20,7 +20,7 @@ mod private
       {
         Self::Round( segments ) => 
         {
-          let g = helpers::round_geometry( *segments );
+          let g = helpers::circle_geometry( *segments );
           let len = g.len();
           ( g.into_iter().flatten().collect(), len )
         },

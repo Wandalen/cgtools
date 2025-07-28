@@ -12,9 +12,10 @@ mod private
     pub join : Join,
     mesh : Option< Mesh >
   }
+
   impl Line
   {
-    pub fn create_mesh( &mut self, gl : &gl::WebGl2RenderingContext, fragment_shder : &str ) -> Result< (), gl::WebglError >
+    pub fn create_mesh( &mut self, gl : &gl::WebGl2RenderingContext, fragment_shader : &str ) -> Result< (), gl::WebglError >
     {
       let points : Vec< f32 > = self.points.iter().flat_map( | p | p.to_array() ).collect();
       let ( join_geometry_list, join_geometry_count ) = self.join.geometry(); 
@@ -91,7 +92,7 @@ mod private
       }
 
       // Programs
-      let body_program = gl::ProgramFromSources::new( include_str!( "./shaders/body.vert" ), fragment_shder ).compile_and_link( &gl )?;
+      let body_program = gl::ProgramFromSources::new( include_str!( "./shaders/body.vert" ), fragment_shader ).compile_and_link( &gl )?;
       let b_program = Program
       {
         vao : body_vao,
@@ -124,8 +125,8 @@ mod private
         _ => { ( include_str!( "./shaders/empty.vert" ), gl::TRIANGLES ) }
       };
 
-      let join_program = gl::ProgramFromSources::new( join_vert, fragment_shder ).compile_and_link( &gl )?;
-      let cap_program = gl::ProgramFromSources::new( cap_vert, fragment_shder ).compile_and_link( &gl )?;
+      let join_program = gl::ProgramFromSources::new( join_vert, fragment_shader ).compile_and_link( &gl )?;
+      let cap_program = gl::ProgramFromSources::new( cap_vert, fragment_shader ).compile_and_link( &gl )?;
 
       let j_program = Program
       {
@@ -196,6 +197,91 @@ mod private
       self.mesh.as_ref().expect( "Mesh has not been created yet" )
     }    
   }
+
+  #[ derive( Debug, Clone, Default ) ]
+  pub struct LineMerged
+  {
+    pub points : Vec< math::F32x2 >,
+    mesh : Option< Mesh >
+  }
+
+  impl LineMerged
+  {
+    pub fn create_mesh( &mut self, gl : &gl::WebGl2RenderingContext, segments : u32, fragment_shader : &str ) -> Result< (), gl::WebglError >
+    {
+      let body_geometry : Vec< [ f32; 3 ] > = helpers::BODY_GEOMETRY.into_iter()
+      .map( | v | { [ 0.0, v[ 1 ], v[ 0 ] ] } )
+      .collect();
+      let circle_left_half_geometry : Vec< [ f32; 3 ]> = helpers::circle_left_half_geometry( segments as usize )
+      .into_iter()
+      .map( | v | { [ v[ 0 ], v[ 1 ], 0.0 ] } )
+      .collect();
+      let circle_right_half_geometry : Vec< [ f32; 3 ]> = helpers::circle_right_half_geometry( segments as usize )
+      .into_iter()
+      .map( | v | { [ v[ 0 ], v[ 1 ], 1.0 ] } )
+      .collect();
+
+
+      let points : Vec< f32 > = self.points.iter().flat_map( | p | p.to_array() ).collect();
+
+      let body_count = body_geometry.len();
+      let circle_left_half_count = circle_left_half_geometry.len();
+      let circle_right_half_count = circle_right_half_geometry.len();
+
+      let vertex_count = body_count + circle_left_half_count + circle_right_half_count;
+
+      let mut geometry = Vec::new();
+      geometry.extend_from_slice( &circle_left_half_geometry );
+      geometry.extend_from_slice( &body_geometry );
+      geometry.extend_from_slice( &circle_right_half_geometry );
+
+
+      let buffer = gl.create_buffer().expect( "Failed to create a buffer" );
+      let instanced_buffer = gl.create_buffer().expect( "Failed to create a instanced_buffer" );
+
+      gl::buffer::upload( gl, &buffer, &points, gl::DYNAMIC_DRAW );
+      gl::buffer::upload( gl, &instanced_buffer, &geometry, gl::STATIC_DRAW );
+
+      let vao = gl.create_vertex_array();
+      gl.bind_vertex_array( vao.as_ref() );
+
+      gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).divisor( 0 ).attribute_pointer( gl, 0, &instanced_buffer )?;
+      gl::BufferDescriptor::new::< [ f32; 2 ] >().stride( 2 ).offset( 0 ).divisor( 1 ).attribute_pointer( gl, 1, &buffer )?;
+      gl::BufferDescriptor::new::< [ f32; 2 ] >().stride( 2 ).offset( 2 ).divisor( 1 ).attribute_pointer( gl, 2, &buffer )?;
+
+      let program = gl::ProgramFromSources::new( include_str!( "./shaders/merged.vert" ), fragment_shader ).compile_and_link( gl )?;
+      let program = Program
+      {
+        vao : vao,
+        program : program,
+        draw_mode : gl::TRIANGLES,
+        instance_count : Some( ( self.points.len() - 1 ) as u32 ),
+        index_count : None,
+        vertex_count : vertex_count as u32
+      };
+
+      let mut mesh = Mesh::default();
+      mesh.add_program( "body", program );
+
+      self.mesh = Some( mesh );
+
+      Ok( () )
+    }
+
+    pub fn draw( &self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
+    {
+      let mesh = self.mesh.as_ref().expect( "Mesh has not been created yet" );
+      mesh.draw( gl, "body" );
+
+      Ok( () )
+    }
+
+    pub fn get_mesh( &self ) -> &Mesh
+    {
+      self.mesh.as_ref().expect( "Mesh has not been created yet" )
+    } 
+  }
+  
 }
 
 crate::mod_interface!
@@ -203,6 +289,7 @@ crate::mod_interface!
 
   orphan use
   {
-    Line
+    Line,
+    LineMerged
   };
 }
