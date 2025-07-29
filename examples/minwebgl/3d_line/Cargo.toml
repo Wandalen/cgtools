@@ -11,3 +11,12 @@ license = "MIT"
 [dependencies]
 line_tools = { workspace = true }
 minwebgl = { workspace = true, features = [ "math" ] }
+mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
+
+[dependencies.web-sys]
+workspace = true
+features = [
+  'MouseEvent',
+  'PointerEvent',
+  'WheelEvent',
+]
