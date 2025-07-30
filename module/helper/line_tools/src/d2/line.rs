@@ -1,6 +1,8 @@
 mod private
 {
-  use crate::*;
+  use std::collections::HashMap;
+
+use crate::*;
   use minwebgl::{self as gl, IntoArray};
   use ndarray_cg as math;
 
@@ -10,7 +12,8 @@ mod private
     pub points : Vec< math::F32x2 >,
     pub cap : Cap,
     pub join : Join,
-    mesh : Option< Mesh >
+    mesh : Option< Mesh >,
+    join_changed : bool
   }
 
   impl Line
@@ -153,9 +156,35 @@ mod private
       mesh.add_program( "join", j_program );
       mesh.add_program( "body", b_program );
 
+      mesh.add_buffer( "body", body_instanced_buffer );
+      mesh.add_buffer( "cap", cap_instanced_buffer );
+      mesh.add_buffer( "join", join_instanced_buffer );
+      mesh.add_buffer( "points", body_buffer );
+
       self.mesh = Some( mesh );
 
       Ok( () )
+    }
+
+    pub fn set_join( &mut self, join : Join )
+    {
+      self.join = join;
+      self.join_changed = true;
+    }
+
+    pub fn update_mesh( &self )
+    {
+      let mesh = self.get_mesh();
+
+      if self.join_changed
+      {
+        let join_buffer = mesh.get_buffer( "join" );
+        let join_program = mesh.get_program( "join" );
+
+        let vao = join_program.vao;
+
+        self.join_changed = false;
+      }
     }
 
     pub fn draw( &self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >

@@ -21,6 +21,7 @@ default = []
 minwebgl = { workspace = true }
 ndarray_cg = { workspace = true }
 mod_interface = { workspace = true }
+serde = { workspace = true, features = [ "derive" ] }
 
 [dev-dependencies]
 test_tools = { workspace = true }

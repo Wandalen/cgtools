@@ -3,8 +3,9 @@ mod private
   use crate::*;
   use ndarray_cg as math;
   use math::F32x2;
+  use serde::{ Serialize, Deserialize };
 
-  #[ derive( Debug, Clone, Copy, PartialEq, PartialOrd ) ]
+  #[ derive( Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize ) ]
   pub enum Join
   {
     Round( usize ),

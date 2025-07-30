@@ -1,10 +1,21 @@
-use minwebgl::{self as gl, IntoArray};
+use minwebgl::{ self as gl, IntoArray };
 use gl::GL;
 use std::
 {
   cell::RefCell,
   rc::Rc,
 };
+use serde::{ Deserialize, Serialize };
+use gl::wasm_bindgen::prelude::*;
+
+mod lil_gui;
+
+#[ derive( Default, Serialize, Deserialize ) ]
+struct Settings
+{
+  join : String,
+  cap : String
+}
 
 fn generate_sample_points_interleaved( width : f32, height : f32 ) -> [ [ f32; 2 ]; 8 ]
 {
@@ -41,7 +52,7 @@ fn run() -> Result< (), gl::WebglError >
 
   let mut line = line_tools::d2::Line::default();
   line.join = line_tools::Join::Miter;
-  line.cap = line_tools::Cap::Round( 50 );
+  line.cap = line_tools::Cap::Butt;
 
   for p in points
   {
@@ -55,21 +66,40 @@ fn run() -> Result< (), gl::WebglError >
 
   mesh.upload( &gl, "u_color", &[ 1.0, 1.0, 1.0 ] )?;
 
-  // mesh.upload_to( &gl, "body", "u_color", &[ 1.0, 1.0, 1.0 ] )?;
-  mesh.upload_to( &gl, "join", "u_color", &[ 1.0, 0.0, 0.0 ] )?;
-  mesh.upload_to( &gl, "cap", "u_color", &[ 0.0, 1.0, 0.0 ] )?;
+  let line = Rc::new( RefCell::new( line ) );
 
-  let mut line_merged = line_tools::d2::LineMerged::default();
-  for p in points
+  // mesh.upload_to( &gl, "body", "u_color", &[ 1.0, 1.0, 1.0 ] )?;
+  // mesh.upload_to( &gl, "join", "u_color", &[ 1.0, 0.0, 0.0 ] )?;
+  // mesh.upload_to( &gl, "cap", "u_color", &[ 0.0, 1.0, 0.0 ] )?;
+
+   let mut settings = Settings
   {
-    line_merged.points.push( p.into() );
-  }
-  line_merged.create_mesh( &gl, 16, fragment_shader_src )?;
-  let mesh = line_merged.get_mesh();
-  mesh.upload_matrix( &gl, "u_projection_matrix", &projection_matrix.to_array() )?;
-  mesh.upload( &gl, "u_width", &line_width )?;
-  mesh.upload( &gl, "u_color", &[ 1.0, 1.0, 1.0 ] )?;
-  mesh.upload_matrix( &gl, "u_world_matrix", &gl::math::mat3x3::identity().to_array() ).unwrap();
+    join : "miter".into(),
+    cap : "butt".into()
+  };
+
+  let object = serde_wasm_bindgen::to_value( &settings ).unwrap();
+  let gui = lil_gui::new_gui();
+  let prop = lil_gui::add_dropdown( &gui, &object, "join", &serde_wasm_bindgen::to_value( &[ "miter", "bevel", "round" ] ).unwrap() );
+  let callback = Closure::new
+  (
+    {
+      let line = line.clone();
+      move | value : String |
+      {
+        let mut line = line.borrow_mut();
+        match value.as_str()
+        {
+          "miter" => { line.join = line_tools::Join::Miter; },
+          "bevel" => { line.join = line_tools::Join::Bevel; },
+          "round" => { line.join = line_tools::Join::Round( 16 ); },
+          _ => {}
+        }
+      }
+    }
+  );
+  lil_gui::on_change_string( &prop, &callback );
+  callback.forget();
   
   // Define the update and draw logic
   let update_and_draw =
@@ -83,11 +113,8 @@ fn run() -> Result< (), gl::WebglError >
       let rotation = ( _time * 2.0 ).sin();
       let translation = gl::F32x2::default();
       let world_matrix = gl::F32x3x3::from_scale_rotation_translation( scale, rotation, translation.as_array() );
-      // line.get_mesh().upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() ).unwrap();
-      // line.draw( &gl ).unwrap();
-
-      line_merged.get_mesh().upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() ).unwrap();
-      line_merged.draw( &gl ).unwrap();
+      line.borrow_mut().get_mesh().upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() ).unwrap();
+      line.borrow().draw( &gl ).unwrap();
 
       true
     }

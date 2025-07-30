@@ -3,7 +3,9 @@ mod private
 
   use crate::*;
 
-  #[ derive( Default, Debug, Clone, Copy, PartialEq, PartialOrd ) ]
+  use serde::{ Serialize, Deserialize };
+
+  #[ derive( Default, Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize ) ]
   pub enum Cap
   {
     #[ default ]
