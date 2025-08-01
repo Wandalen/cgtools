@@ -1,4 +1,12 @@
-## [Paraview](https://www.paraview.org/)
+
+- [1. Paraview](#1-paraview)  
+    - [1. Interface](#11-interface)
+    - [1.2 Files](#12-files)
+    - [1.3 Filters](#13-filters)
+- [2. OpenFOAM](#2-openfoam)
+
+
+## 1. [Paraview](https://www.paraview.org/)
 
 It is an open source tool for data visualization. It is build on top of [VTK] (Visualization toolkit) graphics library. Paraview has a visual pipeline that uses filters to process data. Each stage of the pipeline takes data as input, applies filter to the data, and return some new visual representation of the data.  
 
@@ -6,7 +14,7 @@ It is an open source tool for data visualization. It is build on top of [VTK] (V
 - [Repository](https://gitlab.kitware.com/paraview/paraview)
 - [C++ API](https://www.paraview.org/paraview-docs/nightly/cxx/)
 
-### 1. Interface
+### 1.1 Interface
 
 
 <p align="center">
@@ -19,7 +27,7 @@ The main 4 panels are:
 3. Render view - renders the resulting image
 4. Quick access panel - contain shortcuts for the most used functionality( Color maps, animation controls, camera controls and filters )
 
-### 2. Files
+### 1.2 Files
 
 Paraview supports more then 200 different file formats, and allows for Reader intergration for you desired filetype.
 
@@ -38,7 +46,7 @@ You can export the point data in your mesh in the following formats:
 
 Paraview also allows to same the rendered scene as an image.
 
-### 3. Filters
+### 1.3 Filters
 
 Filters are the most important part and Paraview has over 100 available filters for a wide variaty of technical tasks:
 
@@ -52,7 +60,7 @@ Here is an example of visualizaion with paraview:
     <img src="./assets/open_source/paraview/example.jpg" width="100%">
 </p>
 
-## [OpenFOAM](https://www.openfoam.com/)
+## 2. [OpenFOAM](https://www.openfoam.com/)
 
 OpenFOAM( Field Operation and Manipulation ) - is a Computational Fluid Dynamics software, that provides with solvers for physical simulations. It does not provide the visualization. For that you need to use another software like Paraview.
 
