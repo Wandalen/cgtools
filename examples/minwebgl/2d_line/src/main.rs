@@ -52,7 +52,7 @@ fn run() -> Result< (), gl::WebglError >
 
   let mut line = line_tools::d2::Line::default();
   line.join = line_tools::Join::Miter;
-  line.cap = line_tools::Cap::Butt;
+  line.cap = line_tools::Cap::Round( 16 );
 
   for p in points
   {
@@ -61,16 +61,19 @@ fn run() -> Result< (), gl::WebglError >
 
   line.create_mesh( &gl, fragment_shader_src )?;
   let mesh = line.get_mesh();
+  
   mesh.upload_matrix( &gl, "u_projection_matrix", &projection_matrix.to_array() )?;
+   gl::info!( "HERERER") ;
   mesh.upload( &gl, "u_width", &line_width )?;
 
   mesh.upload( &gl, "u_color", &[ 1.0, 1.0, 1.0 ] )?;
 
-  let line = Rc::new( RefCell::new( line ) );
 
-  // mesh.upload_to( &gl, "body", "u_color", &[ 1.0, 1.0, 1.0 ] )?;
-  // mesh.upload_to( &gl, "join", "u_color", &[ 1.0, 0.0, 0.0 ] )?;
-  // mesh.upload_to( &gl, "cap", "u_color", &[ 0.0, 1.0, 0.0 ] )?;
+  mesh.upload_to( &gl, "body", "u_color", &[ 1.0, 1.0, 1.0 ] )?;
+  mesh.upload_to( &gl, "join", "u_color", &[ 1.0, 0.0, 0.0 ] )?;
+  mesh.upload_to( &gl, "cap", "u_color", &[ 0.0, 1.0, 0.0 ] )?;
+
+  let line = Rc::new( RefCell::new( line ) );
 
    let mut settings = Settings
   {
@@ -114,7 +117,7 @@ fn run() -> Result< (), gl::WebglError >
       let translation = gl::F32x2::default();
       let world_matrix = gl::F32x3x3::from_scale_rotation_translation( scale, rotation, translation.as_array() );
       line.borrow_mut().get_mesh().upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() ).unwrap();
-      line.borrow().draw( &gl ).unwrap();
+      line.borrow_mut().draw( &gl ).unwrap();
 
       true
     }

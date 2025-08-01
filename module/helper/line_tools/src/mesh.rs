@@ -7,7 +7,6 @@ mod private
   #[ derive( Default, Debug, Clone ) ]
   pub struct Mesh
   {
-    pub program_list : Vec< Program >,
     pub program_map : HashMap< Box< str >, Program >,
     pub buffers : HashMap< Box< str >, gl::WebGlBuffer >
   }
@@ -18,7 +17,7 @@ mod private
     where 
       D : gl::UniformUpload + ?Sized
     {
-      for p in self.program_list.iter()
+      for p in self.program_map.values()
       {
         p.upload( gl, uniform_name, data )?;
       }
@@ -40,7 +39,7 @@ mod private
     where 
       D : gl::UniformMatrixUpload + ?Sized
     {
-      for p in self.program_list.iter()
+      for p in self.program_map.values()
       {
         p.upload_matrix( gl, uniform_name, data )?;
       }
@@ -60,7 +59,6 @@ mod private
 
     pub fn add_program< T : Into< Box< str > > >( &mut self, name : T, program : Program )
     {
-      self.program_list.push( program.clone() );
       self.program_map.insert( name.into(), program );
     }
 
@@ -84,7 +82,7 @@ mod private
 
     pub fn draw_all( &self, gl : &gl::WebGl2RenderingContext )
     {
-      for p in self.program_list.iter()
+      for p in self.program_map.values()
       {
         p.draw( gl );
       }

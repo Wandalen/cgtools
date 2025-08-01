@@ -14,6 +14,12 @@ mod private
   {
     pub fn create_mesh( &mut self, gl : &gl::WebGl2RenderingContext, segments : u32, fragment_shader : &str ) -> Result< (), gl::WebglError >
     {
+      let fragment_shader = gl::ShaderSource::former()
+      .shader_type( gl::FRAGMENT_SHADER )
+      .source( fragment_shader )
+      .compile( &gl )?;
+
+
       let body_geometry : Vec< [ f32; 3 ] > = helpers::BODY_GEOMETRY.into_iter()
       .map( | v | { [ 0.0, v[ 1 ], v[ 0 ] ] } )
       .collect();
@@ -54,11 +60,18 @@ mod private
       gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).divisor( 1 ).attribute_pointer( gl, 1, &buffer )?;
       gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 3 ).divisor( 1 ).attribute_pointer( gl, 2, &buffer )?;
 
-      let program = gl::ProgramFromSources::new( include_str!( "./shaders/merged.vert" ), fragment_shader ).compile_and_link( gl )?;
+      let vertex_shader = gl::ShaderSource::former()
+      .shader_type( gl::VERTEX_SHADER )
+      .source( d3::MERGED_VERTEX_SHADER )
+      .compile( &gl )?;
+
+      let program = gl::ProgramShaders::new( &vertex_shader, &fragment_shader ).link( &gl )?;
       let program = Program
       {
+        vertex_shader : Some( vertex_shader ),
+        fragment_shader : Some( fragment_shader ),
         vao : vao,
-        program : program,
+        program : Some( program ),
         draw_mode : gl::TRIANGLES,
         instance_count : Some( ( self.points.len() - 1 ) as u32 ),
         index_count : None,

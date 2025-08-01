@@ -3,10 +3,12 @@ mod private
   use crate::*;
   use minwebgl as gl;
 
-  #[ derive( Clone, Debug ) ]
+  #[ derive( Clone, Debug, Default ) ]
   pub struct Program
   {
-    pub program : gl::WebGlProgram,
+    pub vertex_shader : Option< gl::WebGlShader >,
+    pub fragment_shader : Option< gl::WebGlShader >,
+    pub program :Option< gl::WebGlProgram >,
     pub vao : Option< gl::web_sys::WebGlVertexArrayObject >,
     pub draw_mode : u32,
     pub instance_count : Option< u32 >,
@@ -16,12 +18,27 @@ mod private
 
   impl Program 
   {
+    pub fn delete_vertex_shader( &self, gl : &gl::WebGl2RenderingContext )
+    {
+      gl.delete_shader( self.vertex_shader.as_ref() );
+    }
+
+    pub fn delete_fragment_shader( &self, gl : &gl::WebGl2RenderingContext )
+    {
+      gl.delete_shader( self.fragment_shader.as_ref() );
+    }
+
+    pub fn delete_program( &self, gl : &gl::WebGl2RenderingContext )
+    {
+      gl.delete_program( self.program.as_ref() );
+    }
+
     pub fn upload< D >( &self, gl : &gl::WebGl2RenderingContext, name : &str, data : &D  ) -> Result< (), gl::WebglError >
     where 
       D : gl::UniformUpload + ?Sized
     {
-      gl.use_program( Some( &self.program ) );
-      gl::uniform::upload( gl, gl.get_uniform_location( &self.program, name ), data )?;
+      gl.use_program( self.program.as_ref() );
+      gl::uniform::upload( gl, gl.get_uniform_location( self.program.as_ref().expect( "Cannot upload, because the program is not set" ), name ), data )?;
 
       Ok( () )
     }
@@ -30,16 +47,15 @@ mod private
     where 
       D : gl::UniformMatrixUpload + ?Sized
     {
-      gl.use_program( Some( &self.program ) );
-      gl::uniform::matrix_upload( gl, gl.get_uniform_location( &self.program, name ), data, true )?;
+      gl.use_program( self.program.as_ref() );
+      gl::uniform::matrix_upload( gl, gl.get_uniform_location( self.program.as_ref().expect( "Cannot upload, because the program is not set" ), name ), data, true )?;
 
       Ok( () )
     }
-    
   
     pub fn bind( &self, gl : &gl::WebGl2RenderingContext )
     {
-      gl.use_program( Some( &self.program ) );
+      gl.use_program( self.program.as_ref() );
       gl.bind_vertex_array( self.vao.as_ref() );
     }
 
