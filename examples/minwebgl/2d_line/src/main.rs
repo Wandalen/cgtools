@@ -52,7 +52,7 @@ fn run() -> Result< (), gl::WebglError >
 
   let mut line = line_tools::d2::Line::default();
   line.join = line_tools::Join::Miter;
-  line.cap = line_tools::Cap::Round( 16 );
+  line.cap = line_tools::Cap::Square;
 
   for p in points
   {
@@ -63,7 +63,6 @@ fn run() -> Result< (), gl::WebglError >
   let mesh = line.get_mesh();
   
   mesh.upload_matrix( &gl, "u_projection_matrix", &projection_matrix.to_array() )?;
-   gl::info!( "HERERER") ;
   mesh.upload( &gl, "u_width", &line_width )?;
 
   mesh.upload( &gl, "u_color", &[ 1.0, 1.0, 1.0 ] )?;
@@ -75,14 +74,16 @@ fn run() -> Result< (), gl::WebglError >
 
   let line = Rc::new( RefCell::new( line ) );
 
-   let mut settings = Settings
+   let settings = Settings
   {
     join : "miter".into(),
-    cap : "butt".into()
+    cap : "square".into()
   };
 
   let object = serde_wasm_bindgen::to_value( &settings ).unwrap();
   let gui = lil_gui::new_gui();
+
+  // Joins
   let prop = lil_gui::add_dropdown( &gui, &object, "join", &serde_wasm_bindgen::to_value( &[ "miter", "bevel", "round" ] ).unwrap() );
   let callback = Closure::new
   (
@@ -97,6 +98,29 @@ fn run() -> Result< (), gl::WebglError >
           "miter" => { line.set_join( line_tools::Join::Miter ); },
           "bevel" => { line.set_join( line_tools::Join::Bevel ); },
           "round" => { line.set_join( line_tools::Join::Round( 16 ) ); },
+          _ => {}
+        }
+      }
+    }
+  );
+  lil_gui::on_change_string( &prop, &callback );
+  callback.forget();
+
+  // Caps
+  let prop = lil_gui::add_dropdown( &gui, &object, "cap", &serde_wasm_bindgen::to_value( &[ "butt", "square", "round" ] ).unwrap() );
+  let callback = Closure::new
+  (
+    {
+      let line = line.clone();
+      move | value : String |
+      {
+        gl::info!( "{:?}", value );
+        let mut line = line.borrow_mut();
+        match value.as_str()
+        {
+          "butt" => { line.set_cap( line_tools::Cap::Butt ); },
+          "square" => { line.set_cap( line_tools::Cap::Square ); },
+          "round" => { line.set_cap( line_tools::Cap::Round( 16 ) ); },
           _ => {}
         }
       }

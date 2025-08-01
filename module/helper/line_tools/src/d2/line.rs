@@ -186,11 +186,12 @@ mod private
       {
         let cap_buffer = mesh.get_buffer( "cap" );
         let ( cap_geometry_list, cap_geometry_count ) = self.cap.geometry();
-        gl::buffer::upload( gl, &cap_buffer, &cap_geometry_list, gl::DYNAMIC_DRAW );
+        gl::buffer::upload( gl, &cap_buffer, &cap_geometry_list, gl::STATIC_DRAW );
 
         let c_program = mesh.get_program( "cap" );
-        gl.bind_vertex_array( c_program.vao.as_ref() );
 
+        let vao = gl.create_vertex_array();
+        gl.bind_vertex_array( vao.as_ref() );
         match self.cap
         {
           Cap::Round( _ ) =>
@@ -217,12 +218,16 @@ mod private
         .source( vertex_shader )
         .compile( &gl )?;
         let cap_program = gl::ProgramShaders::new( &vertex_shader, c_program.fragment_shader.as_ref().expect( "Fragment shader has not been set" ) ).link( &gl )?;
+        mesh.get_program( "join" ).copy_uniforms_to( gl, &cap_program )?;
+        c_program.copy_uniforms_to( gl, &cap_program )?;
 
         let c_program = mesh.get_program_mut( "cap" );
 
         c_program.delete_vertex_shader( gl );
         c_program.delete_program( gl );
+        c_program.delete_vao( gl );
 
+        c_program.vao = vao;
         c_program.vertex_shader = Some( vertex_shader );
         c_program.program = Some( cap_program );
         c_program.instance_count = None;
