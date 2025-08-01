@@ -90,12 +90,13 @@ fn run() -> Result< (), gl::WebglError >
       let line = line.clone();
       move | value : String |
       {
+        gl::info!( "{:?}", value );
         let mut line = line.borrow_mut();
         match value.as_str()
         {
-          "miter" => { line.join = line_tools::Join::Miter; },
-          "bevel" => { line.join = line_tools::Join::Bevel; },
-          "round" => { line.join = line_tools::Join::Round( 16 ); },
+          "miter" => { line.set_join( line_tools::Join::Miter ); },
+          "bevel" => { line.set_join( line_tools::Join::Bevel ); },
+          "round" => { line.set_join( line_tools::Join::Round( 16 ) ); },
           _ => {}
         }
       }
@@ -116,7 +117,7 @@ fn run() -> Result< (), gl::WebglError >
       let rotation = ( _time * 2.0 ).sin();
       let translation = gl::F32x2::default();
       let world_matrix = gl::F32x3x3::from_scale_rotation_translation( scale, rotation, translation.as_array() );
-      line.borrow_mut().get_mesh().upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() ).unwrap();
+      line.borrow().get_mesh().upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() ).unwrap();
       line.borrow_mut().draw( &gl ).unwrap();
 
       true

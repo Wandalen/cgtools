@@ -54,7 +54,6 @@ mod private
       let mut join_program = Program::default();
       join_program.fragment_shader = Some( fragment_shader.clone() );
       join_program.vao = gl.create_vertex_array();
-      join_program.draw_mode = gl::TRIANGLES;
 
       let mut cap_program = Program::default();
       join_program.vao = gl.create_vertex_array();
@@ -107,11 +106,14 @@ mod private
       {
         let points_buffer = mesh.get_buffer( "points" );
         let points : Vec< f32 > = self.points.iter().flat_map( | p | p.to_array() ).collect();
-        gl::buffer::upload( &gl, &points_buffer, &points, gl::DYNAMIC_DRAW );
+        gl::buffer::upload( &gl, &points_buffer, &points, gl::STATIC_DRAW );
 
         let b_program = mesh.get_program_mut( "body" );
         b_program.instance_count = Some( ( self.points.len() - 1 ) as u32 );
         
+        let j_program = mesh.get_program_mut( "join" );
+        j_program.instance_count = Some( ( self.points.len() - 2 ) as u32 );
+
         self.points_changed = false;
       }
 
@@ -121,10 +123,10 @@ mod private
         let join_buffer = mesh.get_buffer( "join" );
 
         let ( join_geometry_list, join_geometry_count ) = self.join.geometry(); 
-        gl::buffer::upload( gl, &join_buffer, &join_geometry_list, gl::DYNAMIC_DRAW );
+        gl::buffer::upload( gl, &join_buffer, &join_geometry_list, gl::STATIC_DRAW );
 
         let j_program = mesh.get_program( "join" );
-        let vao = &j_program.vao;
+        let vao = gl.create_vertex_array();
         gl.bind_vertex_array( vao.as_ref() ); 
         match self.join
         {
@@ -162,12 +164,16 @@ mod private
         .source( vertex_shader )
         .compile( &gl )?;
         let join_program = gl::ProgramShaders::new( &vertex_shader, j_program.fragment_shader.as_ref().expect( "Fragment shader has not been set" ) ).link( &gl )?;
+        j_program.copy_uniforms_to( gl, &join_program )?;
 
         let j_program = mesh.get_program_mut( "join" );
 
         j_program.delete_vertex_shader( gl );
         j_program.delete_program( gl );
+        j_program.delete_vao( gl );
 
+        j_program.vao = vao;
+        j_program.draw_mode = gl::TRIANGLE_FAN;
         j_program.vertex_shader = Some( vertex_shader );
         j_program.program = Some( join_program );
         j_program.instance_count = Some( ( self.points.len() - 2 ) as u32 );
