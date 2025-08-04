@@ -15,8 +15,9 @@ workspace = true
 default = []
 
 [dependencies]
-rustc-hash = "1.1.0"
 ndarray_cg = { workspace = true }
+pathfinding = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
 test_tools = { workspace = true }

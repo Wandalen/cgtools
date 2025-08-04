@@ -1,11 +1,11 @@
-//! 
+//!
 //! # Embroidery thread representation
-//! 
+//!
 
 mod private
 {
   use std::borrow::Cow;
-  use rand::seq::SliceRandom as _;
+  use rand::seq::IndexedRandom;
   use itertools::Itertools as _;
   use crate::format::pec;
 
@@ -49,7 +49,7 @@ mod private
   {
     let mut chart = vec![ None; palette.len() ];
     let mut palette : Vec< _ > = palette.iter().map( Some ).collect();
-    
+
     for thread in threadlist.iter().unique()
     {
       let index = find_nearest_color( &thread.color, &palette );
@@ -69,7 +69,7 @@ mod private
     {
       palette.push( find_nearest_color( &thread.color, &chart ).unwrap() );
     }
-    
+
     palette
   }
 
@@ -103,12 +103,12 @@ mod private
   {
     // See the very good color distance paper:
     // https://www.compuphase.com/cmetric.htm
-    
+
     let red_mean = ( color1.r as i32 + color2.r as i32 ) / 2;
     let r = color1.r as i32 - color2.r as i32;
     let g = color1.g as i32 - color2.g as i32;
     let b = color1.b as i32 - color2.b as i32;
-    
+
     ( ( ( 512 + red_mean ) * r * r ) >> 8 )
     + 4 * g * g
     + ( ( ( 767 - red_mean ) * b * b ) >> 8 )
@@ -117,7 +117,7 @@ mod private
   /// Retrieves a random thread from PEC pallete
   pub fn get_random_thread() -> Thread
   {
-    pec::pec_threads()[ 1.. ].choose( &mut rand::thread_rng() ).unwrap().clone()
+    pec::pec_threads()[ 1.. ].choose( &mut rand::rng() ).unwrap().clone()
   }
 }
 

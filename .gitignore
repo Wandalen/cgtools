@@ -12,6 +12,8 @@
 /.vscode
 /_*
 /.
+/.roo
+/.roomodes
 
 .env
 _key

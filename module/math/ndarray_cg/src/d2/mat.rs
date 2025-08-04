@@ -62,7 +62,7 @@ mod private
   // =
 
   /// Ordinary coordinates with row-major ordering.
-  #[ derive( Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, Display ) ]
+  #[ derive( Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, derive_tools::exposed::Display ) ]
   #[ display( "DescriptorOrderRowMajor" ) ]
   pub struct DescriptorOrderRowMajor;
   impl Descriptor for DescriptorOrderRowMajor {
@@ -93,7 +93,7 @@ mod private
   // = DescriptorOrderColumnMajor
 
   /// Ordinary coordinates with column-major ordering.
-  #[ derive( Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, Display ) ]
+  #[ derive( Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, derive_tools::exposed::Display ) ]
   #[ display( "DescriptorOrderColumnMajor" ) ]
   pub struct DescriptorOrderColumnMajor;
   impl Descriptor for DescriptorOrderColumnMajor {
@@ -250,6 +250,85 @@ mod private
 
   }
 
+  impl
+  < 
+    E, 
+    const ROWS : usize, 
+    const COLS : usize, 
+    Descriptor : mat::Descriptor,
+  > AbsDiffEq for Mat< ROWS, COLS, E, Descriptor >
+  where
+    Descriptor : PartialEq,
+    Self : Collection< Scalar =  E >,
+    Mat< ROWS, COLS, E, Descriptor > : RawSlice,
+    E : AbsDiffEq + MatEl,
+    E::Epsilon : Copy,
+  {
+    type Epsilon = E::Epsilon;
+
+    fn default_epsilon() -> Self::Epsilon 
+    {
+      E::default_epsilon()
+    }
+
+    fn abs_diff_eq( &self, other: &Self, epsilon: Self::Epsilon ) -> bool 
+    {
+      ROWS == other.rows() && COLS == other.cols() &&
+      Iterator::zip( self.raw_slice().iter(), other.raw_slice() ).all( | ( x, y ) | E::abs_diff_eq( x, y, epsilon ) ) 
+    }
+  }
+
+  impl
+  < 
+    E, 
+    const ROWS : usize, 
+    const COLS : usize, 
+    Descriptor : mat::Descriptor,
+  > RelativeEq for Mat< ROWS, COLS, E, Descriptor >
+  where
+    Descriptor : PartialEq,
+    Self : Collection< Scalar =  E >,
+    Mat< ROWS, COLS, E, Descriptor > : RawSlice,
+    E : RelativeEq + MatEl,
+    E::Epsilon : Copy,
+  {
+    fn default_max_relative() -> Self::Epsilon 
+    {
+      E::default_max_relative()
+    }
+
+    fn relative_eq( &self, other: &Self, epsilon: Self::Epsilon, max_relative: Self::Epsilon ) -> bool 
+    {
+      ROWS == other.rows() && COLS == other.cols() &&
+      Iterator::zip( self.raw_slice().iter(), other.raw_slice() ).all( | ( x, y ) | E::relative_eq( x, y, epsilon, max_relative ) )
+    }
+  }
+
+  impl
+  < 
+    E, 
+    const ROWS : usize, 
+    const COLS : usize, 
+    Descriptor : mat::Descriptor,
+  > UlpsEq for Mat< ROWS, COLS, E, Descriptor >
+  where
+    Descriptor : PartialEq,
+    Self : Collection< Scalar =  E >,
+    Mat< ROWS, COLS, E, Descriptor > : RawSlice,
+    E : UlpsEq + MatEl,
+    E::Epsilon : Copy,
+  {
+    fn default_max_ulps() -> u32 
+    {
+      E::default_max_ulps()
+    }
+
+    fn ulps_eq( &self, other: &Self, epsilon: Self::Epsilon, max_ulps: u32 ) -> bool 
+    {
+      ROWS == other.rows() && COLS == other.cols() &&
+      Iterator::zip( self.raw_slice().iter(), other.raw_slice() ).all( | ( x, y ) | E::ulps_eq( x, y, epsilon, max_ulps ) )
+    }
+  }
 
   pub type Mat2< E, Descriptor > = Mat< 2, 2, E, Descriptor >;
   pub type Mat3< E, Descriptor > = Mat< 3, 3, E, Descriptor >;

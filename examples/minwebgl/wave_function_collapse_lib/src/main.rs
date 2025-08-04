@@ -28,12 +28,53 @@ use yawfc::overlapping::overlapping;
 
 // qqq : why const?
 // aaa : with this const user can set tile map size. I add const description below
-/// Tile map size. Length of square map side (a x a). 
+/// Tile map size. Length of square map side (a x a).
 /// More than 256x256 is very slow.
 /// This example can generate only static size square maps
 const SIZE : usize = 50;
-
 const PATTERN_SIZE : u32 = 3;
+
+// qqq : not enough explanations. give examples also
+// aaa : I add description and examples below:
+/// Desciption what neighbours can have current tile.
+/// You can imagine this relations array in such way:
+///
+/// `
+///   [
+///     0: [ 0, 1 ], // <tile_type>: [ <posible_neighbour_tile_types>... ]
+///     1: [ 1, 2 ],
+///     2: [ 2, 3 ],
+///     3: [ 3, 4 ],
+///     4: [ 4, 5 ],
+///     5: [ 5 ]
+///   ]
+/// `
+///
+/// Then relations array used by WFC algorithm for choosing neighbours of every map cell.
+///
+/// If tile type 0 has posible_neighbours 0, 1 then this is valid generation:
+/// `
+///   *, 1, *,
+///   1, *0*, 0, // *0* has neighbours 1, 1, 0, 0 and this is valid case
+///   *, 0, *,
+/// `
+///
+/// And this is invalid generation that case WFC have to avoid:
+/// `
+///   *, 2, *,
+///   3, *0*, 1, // *0*  has neighbours 3, 2, which isn't valid,
+///   *, 0, *,   // because 0 has such available neighbours array: [ 0, 1 ]
+/// `
+const RELATIONS : &str = "
+  [
+    [ 0, 1 ],
+    [ 1, 2 ],
+    [ 2, 3 ],
+    [ 3, 4 ],
+    [ 4, 5 ],
+    [ 5 ]
+  ]
+";
 
 /// Storage for generated tile map
 static MAP : Mutex< Option< Vec< Vec< u8 > > > > = Mutex::new( None );
@@ -54,25 +95,25 @@ static TILEMAP_PATTERN : Mutex< Option< DynamicImage > > = Mutex::new( None );
 // aaa : I delete set_load_callback function
 
 // qqq : what for so complicated function?
-// aaa : 
+// aaa :
 
-/// Set load callback for image with [`path`] location and hide it from UI. 
+/// Set load callback for image with [`path`] location and hide it from UI.
 ///
 /// This function creates an HTML `< img >` element, appends it to the
 /// document's body (initially hidden and positioned off-screen),
-/// sets its ID, cross-origin, load callback, `src` attributes, 
+/// sets its ID, cross-origin, load callback, `src` attributes,
 /// to trigger the browser's loading process.
 ///
 /// # Arguments
 ///
-/// * `path`: The path relative to the `/static/` directory, used to construct 
+/// * `path`: The path relative to the `/static/` directory, used to construct
 ///   the image URL and set the element's ID.
-/// * `on_load_callback`: A closure that will be invoked with a reference to 
+/// * `on_load_callback`: A closure that will be invoked with a reference to
 ///   the loaded `HtmlImageElement` when the browser's `load` event fires for the image.
 ///
 /// # Returns
 ///
-/// Returns `Ok( web_sys::HtmlImageElement )` containing the created image element if 
+/// Returns `Ok( web_sys::HtmlImageElement )` containing the created image element if
 /// successful, or `Err( minwebgl::JsValue )`.
 ///
 /// # Side effects
@@ -342,7 +383,7 @@ fn create_mvp() -> ndarray_cg::Mat< 4, 4, f32, DescriptorOrderColumnMajor >
   let eye = [ 0.0, 0.0, 1.0 ];
   let up = [ 0.0, 1.0, 0.0 ];
   let center = [ 0., 0., 0. ];
-  let view_matrix = ndarray_cg::d2::mat3x3h::loot_at_rh( eye, center, up );
+  let view_matrix = ndarray_cg::d2::mat3x3h::look_at_rh( eye, center, up );
 
   perspective_matrix * view_matrix * translate * scale
 }
@@ -350,7 +391,7 @@ fn create_mvp() -> ndarray_cg::Mat< 4, 4, f32, DescriptorOrderColumnMajor >
 // qqq : why is it needed? remove if not needed. if needed explain in documentation. add documentation
 // aaa : this function is needed. I add documentation for this function.
 
-/// Binds RGBA texture from image [`id`] to slot [`texture_id`]. 
+/// Binds RGBA texture from image [`id`] to slot [`texture_id`].
 /// Used for binding tile set to shader.
 fn prepare_texture_array( id : &str, texture_id : u32 ) -> Option< web_sys::WebGlTexture >
 {
@@ -422,7 +463,7 @@ fn prepare_texture_array( id : &str, texture_id : u32 ) -> Option< web_sys::WebG
 // qqq : why is it needed? remove if not needed. if needed explain in documentation. add documentation
 // aaa : this function is needed. I add documentation for this function.
 
-/// Binds R8UI texture [`data`] with [`size`] to slot [`texture_id`]. 
+/// Binds R8UI texture [`data`] with [`size`] to slot [`texture_id`].
 /// Used for binding tile map to shader.
 fn prepare_texture1u
 (
@@ -466,7 +507,7 @@ fn prepare_texture1u
 // aaa : I add documentation
 
 /// Used for rendering tile map. Called only once when images are loaded.
-/// This function prepare shaders, buffer data, bind textures, buffers to 
+/// This function prepare shaders, buffer data, bind textures, buffers to
 /// current GL context and then draws binded buffers
 fn render_tile_map()
 {
@@ -481,8 +522,8 @@ fn render_tile_map()
   }
 
   // qqq : bad idea to call retrieve_or_make on each frame
-  // aaa : I rename update to render_tile_map. This function 
-  // is called only once when tileset texture is loaded. So 
+  // aaa : I rename update to render_tile_map. This function
+  // is called only once when tileset texture is loaded. So
   // gl::context::retrieve_or_make() is acceptable here.
   let gl = gl::context::retrieve_or_make()
   .unwrap();

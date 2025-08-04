@@ -1,0 +1,17 @@
+[package]
+name = "browser_input"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+minwebgl = { workspace = true, features = ["math"] }
+web-sys = { workspace = true, features = [
+  "KeyboardEvent",
+  "PointerEvent",
+  "WheelEvent",
+  "HtmlInputElement",
+] }
+strum = { workspace = true, features = ["derive"] }
+
+[lints]
+workspace = true

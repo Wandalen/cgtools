@@ -16,6 +16,16 @@ impl Pixel
   {
     Self { data : [ x.into(), y.into() ] }
   }
+
+  pub fn x( &self ) -> f32
+  {
+    self[ 0 ]
+  }
+
+  pub fn y( &self ) -> f32
+  {
+    self[ 1 ]
+  }
 }
 
 impl< F > From< ( F, F ) > for Pixel
@@ -73,6 +83,14 @@ where
     {
       data : [ value[ 0 ].into(), value[ 1 ].into() ]
     }
+  }
+}
+
+impl Into< ndarray_cg::F32x2 > for Pixel
+{
+  fn into( self ) -> ndarray_cg::F32x2
+  {
+    self.data.into()
   }
 }
 

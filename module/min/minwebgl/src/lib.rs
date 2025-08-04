@@ -74,6 +74,10 @@ mod_interface!
   layer drawbuffers;
   /// Simple geometry
   layer geometry;
+  /// Clean up the state
+  layer clean;
+  /// Blob creation shortcut
+  layer blob;
 
   /// Useful information about your objects
   #[ cfg( feature = "diagnostics" ) ]

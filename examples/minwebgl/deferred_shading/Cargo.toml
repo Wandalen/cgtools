@@ -1,0 +1,25 @@
+[package]
+name = "deferred_shading"
+version = "0.1.0"
+edition = "2021"
+authors = [
+  "Kostiantyn Mysnyk <wandalen@obox.systems>",
+  "Oleksandr Zaharevskyi <oleksandr.z@obox.systems>",
+]
+
+[lints]
+workspace = true
+
+[dependencies]
+gltf = { workspace = true }
+rand = { workspace = true }
+getrandom = { workspace = true, features = ["wasm_js"] }
+minwebgl = { workspace = true, features = ["math"] }
+web-sys = { workspace = true, features = [
+  "WebGlFramebuffer",
+  "WebGlRenderbuffer",
+  "WebGlTexture",
+  "HtmlInputElement",
+  "Event",
+] }
+renderer = { workspace = true }
