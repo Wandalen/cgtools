@@ -1,5 +1,4 @@
 use minwebgl::{ self as gl, IntoArray };
-use gl::GL;
 use std::
 {
   cell::RefCell,

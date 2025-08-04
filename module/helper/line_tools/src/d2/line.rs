@@ -56,7 +56,6 @@ mod private
       join_program.vao = gl.create_vertex_array();
 
       let mut cap_program = Program::default();
-      join_program.vao = gl.create_vertex_array();
       cap_program.fragment_shader = Some( fragment_shader.clone() );
 
       let mut mesh = Mesh::default();

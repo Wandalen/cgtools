@@ -12,7 +12,7 @@ export function addFolder( gui, name )
 
 export function addSliderController( gui, object, property, min, max, step ) 
 {
-  return gui.add(object, property, min, max, step);
+  return gui.add( object, property, min, max, step );
 }
 
 export function addDropdownController( gui, object, property, options ) 
@@ -30,7 +30,7 @@ export function onChange( gui, callback )
   return gui.onChange( callback );
 }
 
-export function set_name( gui, name ) 
+export function setName( gui, name ) 
 {
   return gui.name( name );
 }

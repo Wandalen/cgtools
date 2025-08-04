@@ -39,7 +39,7 @@ extern "C"
   pub fn on_change_string( gui : &JsValue, callback : &Closure< dyn FnMut( String ) > ) -> JsValue;
 
   #[ allow( unsafe_code ) ]
-  #[ wasm_bindgen( js_name = "getTitle" ) ]
+  #[ wasm_bindgen( js_name = "setName" ) ]
   pub fn set_name( gui : &JsValue, value : &str ) -> JsValue;
 
 
