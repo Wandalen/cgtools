@@ -1,4 +1,4 @@
-use minwebgl::{ self as gl, IntoArray };
+use minwebgl as gl;
 use std::
 {
   cell::RefCell,
@@ -39,8 +39,8 @@ fn run() -> Result< (), gl::WebglError >
   let radius = 300.0;
 
   let mut line = line_tools::d2::Line::default();
-  line.join = line_tools::Join::Miter;
-  line.cap = line_tools::Cap::Square;
+  line.set_cap( line_tools::Cap::Square );
+  line.set_join( line_tools::Join::Miter );
   line.create_mesh( &gl, main_frag )?;
   let mesh = line.get_mesh();
   
@@ -50,7 +50,7 @@ fn run() -> Result< (), gl::WebglError >
 
   let line = Rc::new( RefCell::new( line ) );
 
-   let settings = Settings
+  let settings = Settings
   {
     join : "miter".into(),
     cap : "square".into(),

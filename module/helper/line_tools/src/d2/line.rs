@@ -8,9 +8,9 @@ mod private
   #[ derive( Debug, Clone, Default ) ]
   pub struct Line
   {
-    pub points : Vec< math::F32x2 >,
-    pub cap : Cap,
-    pub join : Join,
+    points : Vec< math::F32x2 >,
+    cap : Cap,
+    join : Join,
     mesh : Option< Mesh >,
     join_changed : bool,
     cap_changed : bool,
@@ -294,6 +294,11 @@ mod private
     {
       self.mesh.as_mut().expect( "Mesh has not been created yet" )
     } 
+
+    pub fn get_points( &self ) -> &[ gl::F32x2 ]
+    {
+      &self.points
+    }
   }
 
 }

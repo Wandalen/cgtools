@@ -67,7 +67,6 @@ fn run() -> Result< (), gl::WebglError >
   line.create_mesh( &gl, 16, main_frag )?;
   let mesh = line.get_mesh();
   mesh.upload( &gl, "u_width", &line_width )?;
-  mesh.upload( &gl, "u_color", &[ 1.0, 1.0, 1.0 ] )?;
   mesh.upload( &gl, "u_resolution", &[ width as f32, height as f32 ] )?;
   mesh.upload_matrix( &gl, "u_projection_matrix", &projection_matrix.to_array() )?;
   mesh.upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() ).unwrap();
