@@ -4,11 +4,13 @@ resolver = "2"
 members = [
   "module/alias/*",
   "module/blank/*",
-  "module/min/*",
+  "module/min/mingl",
+  "module/min/minwebgl",
+  # "module/min/minwebgpu", # xxx : temporarily disabled due to build errors
   "module/helper/*",
   "module/math/*",
   "examples/minwebgl/*",
-  "examples/minwebgpu/*",
+  # "examples/minwebgpu/*", # xxx : temporarily disabled due to build errors
   "examples/math/*"
 ]
 
@@ -115,9 +117,9 @@ path = "module/min/mingl"
 version = "~0.2.0"
 path = "module/min/minwebgl"
 
-[workspace.dependencies.minwebgpu]
-version = "~0.1.0"
-path = "module/min/minwebgpu"
+# [workspace.dependencies.minwebgpu] # xxx : temporarily disabled due to build errors
+# version = "~0.1.0"
+# path = "module/min/minwebgpu"
 
 # = vectorizer
 [workspace.dependencies.vectorizer]
