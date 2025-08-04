@@ -40,7 +40,7 @@ mod private
       body_program.vertex_shader = Some( body_vertex_shader );
       body_program.fragment_shader = Some( fragment_shader.clone() );
       body_program.draw_mode = gl::TRIANGLES;
-      body_program.instance_count = Some( ( self.points.len() - 1 ) as u32 );
+      body_program.instance_count = Some( ( self.points.len() as f32 - 1.0 ).max( 0.0 ) as u32 );
       body_program.vertex_count = helpers::BODY_GEOMETRY.len() as u32;
       
 
@@ -108,10 +108,10 @@ mod private
         gl::buffer::upload( &gl, &points_buffer, &points, gl::STATIC_DRAW );
 
         let b_program = mesh.get_program_mut( "body" );
-        b_program.instance_count = Some( ( self.points.len() - 1 ) as u32 );
+        b_program.instance_count = Some( ( self.points.len() as f32 - 1.0 ).max( 0.0 ) as u32 );
         
         let j_program = mesh.get_program_mut( "join" );
-        j_program.instance_count = Some( ( self.points.len() - 2 ) as u32 );
+        j_program.instance_count = Some( ( self.points.len() as f32 - 2.0 ).max( 0.0 ) as u32 );
 
         self.points_changed = false;
       }
@@ -175,7 +175,7 @@ mod private
         j_program.draw_mode = gl::TRIANGLE_FAN;
         j_program.vertex_shader = Some( vertex_shader );
         j_program.program = Some( join_program );
-        j_program.instance_count = Some( ( self.points.len() - 2 ) as u32 );
+        j_program.instance_count = Some( ( self.points.len() as f32 - 2.0 ).max( 0.0 ) as u32 );
         j_program.vertex_count = join_geometry_count as u32;
 
         self.join_changed = false;
@@ -239,37 +239,47 @@ mod private
       Ok( () )
     }
 
+    // Only draws a line if the are more than 1 point
     pub fn draw( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
+      //if self.points.len() <= 1 { return Ok( () ); }
+
       self.update_mesh( gl )?;
 
       let mesh = self.mesh.as_ref().expect( "Mesh has not been created yet" );
       mesh.draw( gl, "body" );
-      mesh.draw( gl, "join" );
-
-      match self.cap
+      
+      if self.points.len() > 2
       {
-        Cap::Round( _ ) => 
+        mesh.draw( gl, "join" );
+      }
+
+      if self.points.len() > 1
+      {
+        match self.cap
         {
-          mesh.upload_to( gl, "cap", "u_inPoint", self.points[ 0 ].as_slice() )?;
-          mesh.draw( gl, "cap" );
+          Cap::Round( _ ) => 
+          {
+            mesh.upload_to( gl, "cap", "u_inPoint", self.points[ 0 ].as_slice() )?;
+            mesh.draw( gl, "cap" );
 
-          mesh.upload_to( gl, "cap", "u_inPoint", self.points[ self.points.len() - 1 ].as_slice() )?;
-          mesh.draw( gl, "cap" );
-        },
-        Cap::Square =>
-        {
-          mesh.upload_to( gl, "cap", "u_inPointA", self.points[ 1 ].as_slice() )?;
-          mesh.upload_to( gl, "cap", "u_inPointB", self.points[ 0 ].as_slice() )?;
-          mesh.draw( gl, "cap" );
+            mesh.upload_to( gl, "cap", "u_inPoint", self.points[ self.points.len() - 1 ].as_slice() )?;
+            mesh.draw( gl, "cap" );
+          },
+          Cap::Square =>
+          {
+            mesh.upload_to( gl, "cap", "u_inPointA", self.points[ 1 ].as_slice() )?;
+            mesh.upload_to( gl, "cap", "u_inPointB", self.points[ 0 ].as_slice() )?;
+            mesh.draw( gl, "cap" );
 
-          let len = self.points.len();
+            let len = self.points.len();
 
-          mesh.upload_to( gl, "cap", "u_inPointA", self.points[ len - 2 ].as_slice() )?;
-          mesh.upload_to( gl, "cap", "u_inPointB", self.points[ len - 1 ].as_slice() )?;
-          mesh.draw( gl, "cap" );
-        },
-        _ => {}
+            mesh.upload_to( gl, "cap", "u_inPointA", self.points[ len - 2 ].as_slice() )?;
+            mesh.upload_to( gl, "cap", "u_inPointB", self.points[ len - 1 ].as_slice() )?;
+            mesh.draw( gl, "cap" );
+          },
+          _ => {}
+        }
       }
 
       Ok( () )
