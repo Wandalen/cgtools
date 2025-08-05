@@ -1,4 +1,4 @@
-use minwebgl as gl;
+use minwebgl::{self as gl, IntoArray};
 use std::
 {
   cell::RefCell,
@@ -15,6 +15,22 @@ struct Settings
   join : String,
   cap : String,
   width : f32
+}
+
+fn generate_sample_points_interleaved( width : f32, height : f32 ) -> [ [ f32; 2 ]; 8 ]
+{
+  let stepx = width / 9.0;
+  let stepy = height / 3.0;
+  let mut points = [ [ 0.0; 2 ]; 8 ];
+  let mut i = 0;
+  for x in ( 1..9 ).step_by( 2 )
+  {
+    points[ i ] = [ ( x as f32 + 0.0 ) * stepx - width / 2.0, 1.0 * stepy - height / 2.0];
+    points[ i + 1 ] = [ ( x as f32 + 1.0 ) * stepx - width / 2.0, 2.0 * stepy - height / 2.0];
+    i += 2;
+  }
+
+  return points;
 }
 
 fn run() -> Result< (), gl::WebglError >
@@ -34,19 +50,30 @@ fn run() -> Result< (), gl::WebglError >
 
   let world_matrix = gl::math::mat3x3::identity();
   let projection_matrix = gl::math::mat3x3h::orthographic_rh_gl( -width / 2.0, width / 2.0, -height / 2.0, height / 2.0, 0.0, 1.0 );
-  let line_width = 2.0;
+  let line_width = 50.0;
 
   let radius = 300.0;
 
-  let mut line = line_tools::d2::Line::default();
+  let points = generate_sample_points_interleaved( width, height );
+
+  let mut line = line_tools::d2::LineMerged::default();
   line.set_cap( line_tools::Cap::Square );
   line.set_join( line_tools::Join::Miter );
+
+  for i in 0..points.len()
+  {
+    line.add_point( points[ i ].into() );
+  }
+
   line.create_mesh( &gl, main_frag )?;
   let mesh = line.get_mesh();
   
   mesh.upload_matrix( &gl, "u_projection_matrix", &projection_matrix.to_array() )?;
   mesh.upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() )?;
   mesh.upload( &gl, "u_width", &line_width )?;
+  mesh.upload_to( &gl, "body", "u_color", &[ 1.0, 1.0, 1.0 ] )?;
+  mesh.upload_to( &gl, "join", "u_color", &[ 1.0, 0.0, 0.0 ] )?;
+  mesh.upload_to( &gl, "cap", "u_color", &[ 0.0, 1.0, 0.0 ] )?;
 
   let line = Rc::new( RefCell::new( line ) );
 
@@ -139,11 +166,17 @@ fn run() -> Result< (), gl::WebglError >
       let x = ( x_freq * time + x_offset ).cos() * radius; 
       let y = ( y_freq * time + y_offset ).sin() * radius; 
 
-      if elapsed_time > add_interval
-      {
-        line.borrow_mut().add_point( gl::F32x2::new( x, y ) );
-        elapsed_time = elapsed_time - add_interval;
-      }
+      // if elapsed_time > add_interval
+      // {
+      //   line.borrow_mut().add_point( gl::F32x2::new( x, y ) );
+      //   elapsed_time = elapsed_time - add_interval;
+      // }
+
+      let scale = [ ( ( time * 2.0 ).sin().abs() + 0.4 ) * 2.0, 1.0 ];
+      let rotation = 0.0;
+      let translation = gl::F32x2::default();
+      let world_matrix = gl::F32x3x3::from_scale_rotation_translation( scale, rotation, translation.as_array() );
+      line.borrow().get_mesh().upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() ).unwrap();
 
       //draw
       gl.use_program( Some( &background_program ) );
