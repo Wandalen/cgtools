@@ -173,7 +173,9 @@ fn run() -> Result< (), gl::WebglError >
       //   elapsed_time = elapsed_time - add_interval;
       // }
 
-      let scale = [ ( ( time * 2.0 ).sin().abs() + 0.4 ) * 2.0, 1.0 ];
+      let mut scale = [ ( ( time * 2.0 ).sin().abs() + 0.4 ) * 2.0, 1.0 ];
+      scale[ 0 ] = scale[ 0 ] * 0.5;
+      scale[ 1 ] = scale[ 1 ] * 0.5;
       let rotation = 0.0;
       let translation = gl::F32x2::default();
       let world_matrix = gl::F32x3x3::from_scale_rotation_translation( scale, rotation, translation.as_array() );
