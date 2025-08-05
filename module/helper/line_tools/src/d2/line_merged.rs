@@ -31,6 +31,7 @@ mod private
       let points_terminal_buffer = gl.create_buffer().expect( "Failed to create a points terminal buffer" );
       let body_instanced_buffer = gl.create_buffer().expect( "Failed to create a body_instanced_buffer" );
       let join_instanced_buffer = gl.create_buffer().expect( "Failed to create a join_instanced_buffer" );
+      let join_indices_buffer = gl.create_buffer().expect( "Failed to create a join_indices_buffer" );
       let cap_instanced_buffer = gl.create_buffer().expect( "Failed to create a cap_instanced_buffer" );
 
       gl::buffer::upload( gl, &body_instanced_buffer, &helpers::BODY_GEOMETRY, gl::STATIC_DRAW );
@@ -88,6 +89,7 @@ mod private
       mesh.add_buffer( "body", body_instanced_buffer );
       mesh.add_buffer( "cap", cap_instanced_buffer );
       mesh.add_buffer( "join", join_instanced_buffer );
+      mesh.add_buffer( "join_indices", join_indices_buffer );
       mesh.add_buffer( "points", points_buffer );
       mesh.add_buffer( "points_terminal", points_terminal_buffer );
 
@@ -170,9 +172,11 @@ mod private
       {
         let points_buffer = mesh.get_buffer( "points" );
         let join_buffer = mesh.get_buffer( "join" );
+        let join_indices_buffer = mesh.get_buffer( "join_indices" );
 
-        let ( join_geometry_list, join_geometry_count ) = self.join.geometry_merged(); 
+        let ( join_geometry_list, join_indices, join_geometry_count ) = self.join.geometry_merged(); 
         gl::buffer::upload( gl, &join_buffer, &join_geometry_list, gl::STATIC_DRAW );
+        gl::index::upload( gl, &join_indices_buffer, &join_indices, gl::STATIC_DRAW );
 
         let j_program = mesh.get_program( "join" );
         let vao = gl.create_vertex_array();
@@ -181,8 +185,12 @@ mod private
         {
           Join::Round( _ ) =>
           {
-            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( &gl, 0, &join_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 2 ).stride( 2 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_buffer )?;
+            gl::BufferDescriptor::new::< f32 >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 0, &join_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 2 ).stride( 2 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 4 ).stride( 2 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
+
+            gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, Some( &join_indices_buffer ) );
           },
           Join::Miter =>
           {
@@ -203,7 +211,7 @@ mod private
         let vertex_shader =
         match self.join 
         {
-          Join::Round( _ ) => d2::JOIN_ROUND_VERTEX_SHADER,
+          Join::Round( _ ) => d2::JOIN_ROUND_MERGED_VERTEX_SHADER,
           Join::Miter => d2::JOIN_MITER_MERGED_VERTEX_SHADER,
           Join::Bevel => d2::JOIN_BEVEL_MERGED_VERTEX_SHADER
         };
@@ -227,6 +235,7 @@ mod private
         j_program.program = Some( join_program );
         j_program.instance_count = Some( ( self.points.len() as f32 - 2.0 ).max( 0.0 ) as u32 );
         j_program.vertex_count = join_geometry_count as u32;
+        j_program.index_count = if join_indices.len() > 0 { Some( join_indices.len() as u32 ) } else { None };
 
         self.join_changed = false;
       }
@@ -302,6 +311,11 @@ mod private
       
       if self.points.len() > 2
       {
+        if let Join::Round( segments ) = self.join
+        {
+          mesh.upload_to( gl, "join", "u_segments", &( segments as f32 ) )?;
+        }
+
         mesh.draw( gl, "join" );
       }
 
