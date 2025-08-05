@@ -40,7 +40,6 @@ use std::collections::{ HashMap, HashSet };
 use std::hash::Hash;
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
-use rand::prelude::SliceRandom;
 use rayon::prelude::*;
 use serde::{ Serialize, Deserialize };
 use std::sync::Arc;
@@ -342,7 +341,7 @@ impl Wfc
   {
     let front = self.front.clone();
     let map = Arc::new( self.map.clone() );
-    let mut r = SmallRng::from_rng( rand::thread_rng() )
+    let mut r = SmallRng::from_rng( rand::rng() )
     .unwrap();
     let invalid_value = self.relations.0.len() as u8;
     let with_min_entrophy = self.get_with_min_entrophy( &front );
@@ -548,7 +547,7 @@ impl Wfc
         (
           | v |
           {
-            let mut rng = SmallRng::from_rng( rand::thread_rng() ).unwrap();
+            let mut rng = SmallRng::from_rng( rand::rng() ).unwrap();
             if v.is_empty()
             {
               *v = vec![ *all_variants.choose( &mut rng ).unwrap() ]
@@ -805,7 +804,7 @@ where
   .map_init(
     ||
     {
-      SmallRng::from_rng( rand::thread_rng() ).unwrap()
+      SmallRng::from_rng( rand::rng() ).unwrap()
     },
     | r, _ | 
     {

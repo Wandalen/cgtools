@@ -1,7 +1,7 @@
 mod private
 {
   use crate::*;
-  use minwebgl::{self as gl, IntoArray};
+  use minwebgl as gl;
   use ndarray_cg as math;
 
   #[ derive( Debug, Clone, Default ) ]
