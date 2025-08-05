@@ -186,7 +186,7 @@ mod private
           },
           Join::Miter =>
           {
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 0 ).attribute_pointer( &gl, 0, &join_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 4 ] >().offset( 0 ).stride( 4 ).divisor( 0 ).attribute_pointer( &gl, 0, &join_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 2 ).stride( 2 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 4 ).stride( 2 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
@@ -204,7 +204,7 @@ mod private
         match self.join 
         {
           Join::Round( _ ) => d2::JOIN_ROUND_VERTEX_SHADER,
-          Join::Miter => d2::JOIN_MITER_VERTEX_SHADER,
+          Join::Miter => d2::JOIN_MITER_MERGED_VERTEX_SHADER,
           Join::Bevel => d2::JOIN_BEVEL_MERGED_VERTEX_SHADER
         };
 

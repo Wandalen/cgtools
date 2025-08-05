@@ -52,7 +52,7 @@ mod private
         },
         Self::Miter =>
         {
-          let g = miter_geometry();
+          let g = miter_geometry_merged();
           let len = g.len();
           ( g.into_iter().flatten().collect(), len )
         },
@@ -101,6 +101,18 @@ mod private
       [ 1.0, 0.0, 0.0 ],
       [ 0.0, 1.0, 0.0 ],
       [ 0.0, 0.0, 1.0 ],
+    ]
+  }
+
+  pub fn miter_geometry_merged() -> [ [ f32; 4 ]; 6 ]
+  {
+    [
+      [ 0.0, 0.0, 0.0, 1.0 ],
+      [ 1.0, 0.0, 0.0, 0.0 ],
+      [ 0.0, 1.0, 0.0, 0.0 ],
+      [ 0.0, 0.0, 0.0, 1.0 ],
+      [ 0.0, 1.0, 0.0, 0.0 ],
+      [ 0.0, 0.0, 1.0, 0.0 ]
     ]
   }
 
