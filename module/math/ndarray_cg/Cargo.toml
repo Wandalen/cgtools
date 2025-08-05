@@ -43,7 +43,7 @@ asbytes = { workspace = true, optional = true }
 mod_interface = { workspace = true, optional = true }
 derive_tools = { workspace = true, optional = true }
 mdmath_core = { workspace = true, optional = true, features = [ "index", "float", "arithmetics", "approx", "general" ] }
-approx = { workspace = true }
+# approx = { workspace = true }
 
 [dev-dependencies]
 test_tools = { workspace = true }
