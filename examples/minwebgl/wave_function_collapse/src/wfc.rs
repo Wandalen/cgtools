@@ -539,22 +539,6 @@ impl Wfc
 
     let all_variants = ( 0..( self.relations.0.len() as u8 ) ).collect::< Vec< _ > >();
 
-    // for row in self.map.par_iter_mut()
-    // {
-    //   for v in row.iter_mut()
-    //   {
-    //     let mut rng = SmallRng::from_rng( &mut rand::rng() );
-    //     if v.is_empty()
-    //     {
-    //       *v = vec![ *all_variants.choose_mut( &mut rng ).unwrap() ]
-    //     }
-    //     else
-    //     {
-    //       *v = vec![ *v.choose_mut( &mut rng ).unwrap() ]
-    //     }
-    //   }
-    // }
-
     self.map.par_iter_mut()
     .for_each(
       | row |
