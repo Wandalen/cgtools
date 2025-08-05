@@ -17,7 +17,7 @@ mod private
   #[ derive( Clone ) ]
   pub struct Glyph
   {
-    character : char,
+    _character : char,
     contours : Vec< Vec< [ f32; 2 ] > >,
     body : Option< PrimitiveData >,
     bounding_box : BoundingBox
@@ -70,7 +70,7 @@ mod private
       
       Self
       {
-        character,
+        _character : character,
         contours,
         body : None,
         bounding_box
