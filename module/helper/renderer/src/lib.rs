@@ -1,5 +1,3 @@
-#![ doc = include_str!( "../readme.md" ) ]
-
 mod private
 {
 
