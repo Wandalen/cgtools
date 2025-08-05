@@ -39,6 +39,31 @@ mod private
         }
       }
     }
+
+    pub fn geometry_merged( &self ) -> ( Vec< f32 >, usize )
+    {
+      match self 
+      {
+        Self::Round( segments ) => 
+        {
+          let g = helpers::circle_geometry( *segments );
+          let len = g.len();
+          ( g.into_iter().flatten().collect(), len )
+        },
+        Self::Miter =>
+        {
+          let g = miter_geometry();
+          let len = g.len();
+          ( g.into_iter().flatten().collect(), len )
+        },
+        Self::Bevel => 
+        {
+          let g = bevel_geometry_merged();
+          let len = g.len();
+          ( g.into_iter().flatten().collect(), len )
+        }
+      }
+    }
   }
 
   impl Default for Join 
@@ -67,6 +92,15 @@ mod private
       [ 0.0, 0.0 ],
       [ 1.0, 0.0 ],
       [ 0.0, 1.0 ],
+    ]
+  }
+
+  pub fn bevel_geometry_merged() -> [ [ f32; 3 ]; 3 ]
+  {
+    [
+      [ 1.0, 0.0, 0.0 ],
+      [ 0.0, 1.0, 0.0 ],
+      [ 0.0, 0.0, 1.0 ],
     ]
   }
 

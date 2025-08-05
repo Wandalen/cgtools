@@ -171,7 +171,7 @@ mod private
         let points_buffer = mesh.get_buffer( "points" );
         let join_buffer = mesh.get_buffer( "join" );
 
-        let ( join_geometry_list, join_geometry_count ) = self.join.geometry(); 
+        let ( join_geometry_list, join_geometry_count ) = self.join.geometry_merged(); 
         gl::buffer::upload( gl, &join_buffer, &join_geometry_list, gl::STATIC_DRAW );
 
         let j_program = mesh.get_program( "join" );
@@ -193,7 +193,7 @@ mod private
           },
           Join::Bevel =>
           {
-            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( &gl, 0, &join_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 0 ).attribute_pointer( &gl, 0, &join_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 2 ).stride( 2 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 4 ).stride( 2 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
@@ -205,7 +205,7 @@ mod private
         {
           Join::Round( _ ) => d2::JOIN_ROUND_VERTEX_SHADER,
           Join::Miter => d2::JOIN_MITER_VERTEX_SHADER,
-          Join::Bevel => d2::JOIN_BEVEL_VERTEX_SHADER
+          Join::Bevel => d2::JOIN_BEVEL_MERGED_VERTEX_SHADER
         };
 
         let vertex_shader = gl::ShaderSource::former()
@@ -300,10 +300,10 @@ mod private
       mesh.draw( gl, "body" );
       mesh.draw( gl, "body_terminal" );
       
-      // if self.points.len() > 2
-      // {
-      //   mesh.draw( gl, "join" );
-      // }
+      if self.points.len() > 2
+      {
+        mesh.draw( gl, "join" );
+      }
 
       // if self.points.len() > 1
       // {

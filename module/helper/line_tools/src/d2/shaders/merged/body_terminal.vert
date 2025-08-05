@@ -32,13 +32,13 @@ void main()
   vec2 pAB = pointB - pointA;
   vec2 pCB = pointB - pointC;
 
-  vec2 pABNorm = normalize( vec2( -pAB.y, pAB.x ) );
+  vec2 ABNorm = normalize( vec2( -pAB.y, pAB.x ) );
   // Direction of the bend
   float sigma = sign( dot( pAB + pCB, normal ) );
 
   if( sign( position.y ) == -sigma )
   {
-    vec2 point = 0.5 * normal * -sigma * u_width / dot( normal, pABNorm );
+    vec2 point = 0.5 * normal * -sigma * u_width / dot( normal, ABNorm );
     gl_Position = u_projection_matrix * vec4( pointB + point, 0.0, 1.0 );
   }
   else

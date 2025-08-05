@@ -15,6 +15,8 @@ mod private
   pub const BODY_MERGED_VERTEX_SHADER : &'static str = include_str!( "./d2/shaders/merged/body.vert" );
   pub const BODY_TERMINAL_MERGED_VERTEX_SHADER : &'static str = include_str!( "./d2/shaders/merged/body_terminal.vert" );
 
+  pub const JOIN_BEVEL_MERGED_VERTEX_SHADER : &'static str = include_str!( "./d2/shaders/merged/bevel_join.vert" );
+
 }
 
 crate::mod_interface!
@@ -33,6 +35,8 @@ crate::mod_interface!
     CAP_SQUARE_VERTEX_SHADER,
 
     BODY_MERGED_VERTEX_SHADER,
-    BODY_TERMINAL_MERGED_VERTEX_SHADER
+    BODY_TERMINAL_MERGED_VERTEX_SHADER,
+
+    JOIN_BEVEL_MERGED_VERTEX_SHADER
   };
 }
