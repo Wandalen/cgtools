@@ -28,12 +28,15 @@ mod private
 
       // Buffers
       let points_buffer = gl.create_buffer().expect( "Failed to create a points buffer" );
+      let points_terminal_buffer = gl.create_buffer().expect( "Failed to create a points terminal buffer" );
       let body_instanced_buffer = gl.create_buffer().expect( "Failed to create a body_instanced_buffer" );
       let join_instanced_buffer = gl.create_buffer().expect( "Failed to create a join_instanced_buffer" );
       let cap_instanced_buffer = gl.create_buffer().expect( "Failed to create a cap_instanced_buffer" );
 
-      let body_vertex_shader = gl::ShaderSource::former().shader_type( gl::VERTEX_SHADER ).source( d2::BODY_MERGED_VERTEX_SHADER ).compile( gl )?;
       gl::buffer::upload( gl, &body_instanced_buffer, &helpers::BODY_GEOMETRY, gl::STATIC_DRAW );
+
+      let body_vertex_shader = gl::ShaderSource::former().shader_type( gl::VERTEX_SHADER ).source( d2::BODY_MERGED_VERTEX_SHADER ).compile( gl )?;
+      let body_terminal_vertex_shader = gl::ShaderSource::former().shader_type( gl::VERTEX_SHADER ).source( d2::BODY_TERMINAL_MERGED_VERTEX_SHADER ).compile( gl )?;
 
       let mut body_program = Program::default();
       body_program.program = Some( gl::ProgramShaders::new( &body_vertex_shader, &fragment_shader ).link( gl )? );
@@ -53,6 +56,22 @@ mod private
       gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 4 ).stride( 2 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
       gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 6 ).stride( 2 ).divisor( 1 ).attribute_pointer( &gl, 4, &points_buffer )?;
 
+      let mut body_terminal_program = Program::default();
+      body_terminal_program.program = Some( gl::ProgramShaders::new( &body_terminal_vertex_shader, &fragment_shader ).link( gl )? );
+      body_terminal_program.vertex_shader = Some( body_terminal_vertex_shader );
+      body_terminal_program.fragment_shader = Some( fragment_shader.clone() );
+      body_terminal_program.draw_mode = gl::TRIANGLES;
+      body_terminal_program.instance_count = Some( 2 );
+      body_terminal_program.vertex_count = helpers::BODY_GEOMETRY.len() as u32;
+
+      body_terminal_program.vao = gl.create_vertex_array();
+      gl.bind_vertex_array( body_terminal_program.vao.as_ref() );
+
+      gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( &gl, 0, &body_instanced_buffer )?;
+      gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 6 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_terminal_buffer )?;
+      gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 2 ).stride( 6 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_terminal_buffer )?;
+      gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 4 ).stride( 6 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_terminal_buffer )?;
+
       let mut join_program = Program::default();
       join_program.fragment_shader = Some( fragment_shader.clone() );
       join_program.vao = gl.create_vertex_array();
@@ -64,11 +83,13 @@ mod private
       mesh.add_program( "cap", cap_program );
       mesh.add_program( "join", join_program );
       mesh.add_program( "body", body_program );
+      mesh.add_program( "body_terminal", body_terminal_program );
 
       mesh.add_buffer( "body", body_instanced_buffer );
       mesh.add_buffer( "cap", cap_instanced_buffer );
       mesh.add_buffer( "join", join_instanced_buffer );
       mesh.add_buffer( "points", points_buffer );
+      mesh.add_buffer( "points_terminal", points_terminal_buffer );
 
       self.mesh = Some( mesh );
 
@@ -106,8 +127,35 @@ mod private
       if self.points_changed
       {
         let points_buffer = mesh.get_buffer( "points" );
+        let points_terminal_buffer = mesh.get_buffer( "points_terminal" );
         let points : Vec< f32 > = self.points.iter().flat_map( | p | p.to_array() ).collect();
+        let points_terminal = 
+        if self.points.len() >= 3
+        {
+          let len = self.points.len();
+          [ 
+            self.points[ 0 ], self.points[ 1 ], self.points[ 2 ],
+            self.points[ len - 1 ], self.points[ len - 2 ], self.points[ len - 3 ]
+          ]
+        }
+        else if self.points.len() == 2
+        {
+          let dir = self.points[ 1 ] - self.points[ 0 ];
+          [ 
+            self.points[ 0 ], self.points[ 1 ], self.points[ 1 ] + dir,
+            self.points[ 1 ], self.points[ 0 ], self.points[ 0 ] - dir,
+          ]
+        }
+        else
+        {
+          let zero = gl::F32x2::default();
+          [ zero, zero, zero, zero, zero, zero ]
+        };
+
+        let points_terminal : Vec< f32 > = points_terminal.into_iter().flat_map( | p | p.to_array() ).collect();
+
         gl::buffer::upload( &gl, &points_buffer, &points, gl::STATIC_DRAW );
+        gl::buffer::upload( &gl, &points_terminal_buffer, &points_terminal, gl::STATIC_DRAW );
 
         let b_program = mesh.get_program_mut( "body" );
         b_program.instance_count = Some( ( self.points.len() as f32 - 3.0 ).max( 0.0 ) as u32 );
@@ -250,6 +298,7 @@ mod private
 
       let mesh = self.mesh.as_ref().expect( "Mesh has not been created yet" );
       mesh.draw( gl, "body" );
+      mesh.draw( gl, "body_terminal" );
       
       // if self.points.len() > 2
       // {
