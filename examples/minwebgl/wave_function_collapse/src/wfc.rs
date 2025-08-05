@@ -39,8 +39,8 @@
 use std::collections::{ HashMap, HashSet };
 use std::hash::Hash;
 use rand::rngs::SmallRng;
+use rand::seq::IteratorRandom;
 use rand::SeedableRng;
-use rand::prelude::SliceRandom;
 use rayon::prelude::*;
 use serde::{ Serialize, Deserialize };
 use std::sync::Arc;
@@ -342,8 +342,7 @@ impl Wfc
   {
     let front = self.front.clone();
     let map = Arc::new( self.map.clone() );
-    let mut r = SmallRng::from_rng( rand::thread_rng() )
-    .unwrap();
+    let mut r = SmallRng::from_rng( &mut rand::rng() );
     let invalid_value = self.relations.0.len() as u8;
     let with_min_entrophy = self.get_with_min_entrophy( &front );
     let collapsed = with_min_entrophy.into_iter()
@@ -353,15 +352,15 @@ impl Wfc
       {
         (
           p,
-          map[ p.y as usize ][ p.x as usize ].choose( &mut r )
-          .unwrap_or( &invalid_value )
+          map[ p.y as usize ][ p.x as usize ].clone().into_iter().choose( &mut r )
+          .unwrap_or( invalid_value )
         )
       }
     )
     .collect::< Vec< _ > >();
     for ( p, v ) in collapsed
     {
-      self.map[ p.y as usize ][ p.x as usize ] = vec![ *v ];
+      self.map[ p.y as usize ][ p.x as usize ] = vec![ v ];
     }
   }
 
@@ -539,6 +538,7 @@ impl Wfc
     }
 
     let all_variants = ( 0..( self.relations.0.len() as u8 ) ).collect::< Vec< _ > >();
+
     self.map.par_iter_mut()
     .for_each(
       | row |
@@ -548,14 +548,14 @@ impl Wfc
         (
           | v |
           {
-            let mut rng = SmallRng::from_rng( rand::thread_rng() ).unwrap();
+            let mut rng = SmallRng::from_rng( &mut rand::rng() );
             if v.is_empty()
             {
-              *v = vec![ *all_variants.choose( &mut rng ).unwrap() ]
+              *v = vec![ all_variants.clone().into_iter().choose( &mut rng ).unwrap() ]
             }
             else
             {
-              *v = vec![ *v.choose( &mut rng ).unwrap() ]
+              *v = vec![ v.clone().into_iter().choose( &mut rng ).unwrap() ]
             }
           }
         )
@@ -797,7 +797,7 @@ where
   T: Clone +
   std::marker::Send +
   std::cmp::PartialOrd +
-  rand::distributions::uniform::SampleUniform +
+  rand::distr::uniform::SampleUniform +
   std::marker::Sync
 {
   ( 0..count )
@@ -805,11 +805,11 @@ where
   .map_init(
     ||
     {
-      SmallRng::from_rng( rand::thread_rng() ).unwrap()
+      SmallRng::from_rng( &mut rand::rng() )
     },
     | r, _ | 
     {
-      r.gen_range( range.clone() )
+      r.random_range( range.clone() )
     }   
   )
   .collect::< Vec< T > >()
@@ -829,12 +829,12 @@ fn create_new_front( density : f32, size : ( usize, usize ), sample_size : u8 ) 
     return Err( "density outside [0;1] range".to_string() );
   }
   let random_count = ( ( size.0 * size.1 ) as f32 * density ).floor() as usize;
-  let x = choose_multiple::< isize >( 0..( size.0 as isize ), random_count );
-  let y = choose_multiple::< isize >( 0..( size.1 as isize ), random_count );
+  let x = choose_multiple::< i64 >( 0..( size.0 as i64 ), random_count );
+  let y = choose_multiple::< i64 >( 0..( size.1 as i64 ), random_count );
   let v = choose_multiple::< u8 >( 0..sample_size, random_count );
   let front = x.into_iter()
   .zip( y.into_iter() )
-  .map( | ( x, y ) | Point::new( x, y ) ).collect::< Vec< _ > >();
+  .map( | ( x, y ) | Point::new( x as isize, y as isize ) ).collect::< Vec< _ > >();
   Ok( ( front, v ) )
 }
 
