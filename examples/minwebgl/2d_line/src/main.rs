@@ -56,7 +56,7 @@ fn run() -> Result< (), gl::WebglError >
 
   let points = generate_sample_points_interleaved( width, height );
 
-  let mut line = line_tools::d2::LineMerged::default();
+  let mut line = line_tools::d2::Line::default();
   line.set_cap( line_tools::Cap::Square );
   line.set_join( line_tools::Join::Miter );
 

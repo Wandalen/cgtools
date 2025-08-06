@@ -1,7 +1,7 @@
 #version 300 es
 precision highp float;
 
-layout( location = 0 ) in vec3 position;
+layout( location = 0 ) in vec4 position;
 layout( location = 1 ) in vec2 inPointA;
 layout( location = 2 ) in vec2 inPointB;
 layout( location = 3 ) in vec2 inPointC;
@@ -31,8 +31,9 @@ void main()
   vec2 p0 = 0.5 * u_width * sigma * ( sigma < 0.0 ? ABNorm : CBNorm );
   vec2 p1 = 0.5 * u_width * sigma * miter / dot( CBNorm, miter );
   vec2 p2 = 0.5 * u_width * sigma * ( sigma < 0.0 ? CBNorm : ABNorm );
+  vec2 p3 = 0.5 * miter * -sigma * u_width / dot( miter, ABNorm );
 
-  vec2 point = pointB + p0 * position.x + p1 * position.y + p2 * position.z;
+  vec2 point = pointB + p0 * position.x + p1 * position.y + p2 * position.z +p3 * position.w;
 
   gl_Position =  u_projection_matrix * vec4( point, 0.0, 1.0 );
 }
