@@ -163,18 +163,12 @@ fn run() -> Result< (), gl::WebglError >
       let rotation = 0.0;
       let translation = gl::F32x2::default();
       let world_matrix = gl::F32x3x3::from_scale_rotation_translation( scale, rotation, translation.to_array() );
-<<<<<<< HEAD
       line.borrow().get_mesh().upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() ).unwrap();
 
       //draw
       gl.use_program( Some( &background_program ) );
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );
       line.borrow_mut().draw( &gl ).unwrap();
-=======
-      line.get_mesh().upload_matrix( &gl, "u_point_world_matrix", &world_matrix.to_array() ).unwrap();
-      
-      line.draw( &gl ).unwrap();
->>>>>>> master
 
       true
     }
