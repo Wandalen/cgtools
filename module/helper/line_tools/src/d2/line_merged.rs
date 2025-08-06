@@ -33,6 +33,8 @@ mod private
       let join_instanced_buffer = gl.create_buffer().expect( "Failed to create a join_instanced_buffer" );
       let join_indices_buffer = gl.create_buffer().expect( "Failed to create a join_indices_buffer" );
       let cap_instanced_buffer = gl.create_buffer().expect( "Failed to create a cap_instanced_buffer" );
+      let cap_indices_buffer = gl.create_buffer().expect( "Failed to create a cap_indices_buffer" );
+      let cap_indices_buffer = gl.create_buffer().expect( "Failed to create a cap_indices_buffer" );
 
       gl::buffer::upload( gl, &body_instanced_buffer, &helpers::BODY_GEOMETRY, gl::STATIC_DRAW );
 
@@ -88,6 +90,7 @@ mod private
 
       mesh.add_buffer( "body", body_instanced_buffer );
       mesh.add_buffer( "cap", cap_instanced_buffer );
+      mesh.add_buffer( "cap_indices", cap_indices_buffer );
       mesh.add_buffer( "join", join_instanced_buffer );
       mesh.add_buffer( "join_indices", join_indices_buffer );
       mesh.add_buffer( "points", points_buffer );
@@ -243,22 +246,36 @@ mod private
       if self.cap_changed
       {
         let cap_buffer = mesh.get_buffer( "cap" );
-        let ( cap_geometry_list, cap_geometry_count ) = self.cap.geometry();
+        let cap_index_buffer = mesh.get_buffer( "cap_indices" );
+        let points_terminal_buffer = mesh.get_buffer( "points_terminal" );
+
+        let ( cap_geometry_list, cap_indices, cap_geometry_count ) = self.cap.geometry_merged();
         gl::buffer::upload( gl, &cap_buffer, &cap_geometry_list, gl::STATIC_DRAW );
+        gl::index::upload( gl, &cap_index_buffer, &cap_indices, gl::STATIC_DRAW );
 
         let c_program = mesh.get_program( "cap" );
 
         let vao = gl.create_vertex_array();
         gl.bind_vertex_array( vao.as_ref() );
+        let mut instance_count = None;
         match self.cap
         {
           Cap::Round( _ ) =>
           {
             gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( &gl, 0, &cap_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 6 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_terminal_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 2 ).stride( 6 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_terminal_buffer )?;
+
+            gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, Some( &cap_index_buffer ) );
+            instance_count = Some( 2 );
           },
           Cap::Square =>
           {
             gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( &gl, 0, &cap_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 6 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_terminal_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 2 ).stride( 6 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_terminal_buffer )?;
+            gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, Some( &cap_index_buffer ) );
+            instance_count = Some( 2 );
           }
           _ => {}
         }
@@ -266,8 +283,8 @@ mod private
         let ( vertex_shader, cap_draw_mode ) =
         match self.cap
         {
-          Cap::Round( _ ) =>( d2::CAP_ROUND_VERTEX_SHADER, gl::TRIANGLE_FAN ),
-          Cap::Square =>( d2::CAP_SQUARE_VERTEX_SHADER, gl::TRIANGLES ),
+          Cap::Round( _ ) =>( d2::CAP_ROUND_MERGED_VERTEX_SHADER, gl::TRIANGLES ),
+          Cap::Square =>( d2::CAP_SQUARE_MERGED_VERTEX_SHADER, gl::TRIANGLES ),
           _ => ( d2::CAP_BUTT_VERTEX_SHADER, gl::TRIANGLES )
         };
 
@@ -288,9 +305,10 @@ mod private
         c_program.vao = vao;
         c_program.vertex_shader = Some( vertex_shader );
         c_program.program = Some( cap_program );
-        c_program.instance_count = None;
+        c_program.instance_count = instance_count;
         c_program.vertex_count = cap_geometry_count as u32;
         c_program.draw_mode = cap_draw_mode;
+        c_program.index_count = if cap_indices.len() > 0 { Some( cap_indices.len() as u32 ) } else { None };
 
         self.cap_changed = false;
       }
@@ -319,33 +337,10 @@ mod private
         mesh.draw( gl, "join" );
       }
 
-      // if self.points.len() > 1
-      // {
-      //   match self.cap
-      //   {
-      //     Cap::Round( _ ) => 
-      //     {
-      //       mesh.upload_to( gl, "cap", "u_inPoint", self.points[ 0 ].as_slice() )?;
-      //       mesh.draw( gl, "cap" );
-
-      //       mesh.upload_to( gl, "cap", "u_inPoint", self.points[ self.points.len() - 1 ].as_slice() )?;
-      //       mesh.draw( gl, "cap" );
-      //     },
-      //     Cap::Square =>
-      //     {
-      //       mesh.upload_to( gl, "cap", "u_inPointA", self.points[ 1 ].as_slice() )?;
-      //       mesh.upload_to( gl, "cap", "u_inPointB", self.points[ 0 ].as_slice() )?;
-      //       mesh.draw( gl, "cap" );
-
-      //       let len = self.points.len();
-
-      //       mesh.upload_to( gl, "cap", "u_inPointA", self.points[ len - 2 ].as_slice() )?;
-      //       mesh.upload_to( gl, "cap", "u_inPointB", self.points[ len - 1 ].as_slice() )?;
-      //       mesh.draw( gl, "cap" );
-      //     },
-      //     _ => {}
-      //   }
-      // }
+      if self.points.len() > 1
+      {
+        mesh.draw( gl, "cap" );
+      }
 
       Ok( () )
     }

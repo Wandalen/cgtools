@@ -19,6 +19,9 @@ mod private
   pub const JOIN_MITER_MERGED_VERTEX_SHADER : &'static str = include_str!( "./d2/shaders/merged/miter_join.vert" );
   pub const JOIN_ROUND_MERGED_VERTEX_SHADER : &'static str = include_str!( "./d2/shaders/merged/round_join.vert" );
 
+  pub const CAP_ROUND_MERGED_VERTEX_SHADER : &'static str = include_str!( "./d2/shaders/merged/round_cap.vert" );
+  pub const CAP_SQUARE_MERGED_VERTEX_SHADER : &'static str = include_str!( "./d2/shaders/merged/square_cap.vert" );
+
 }
 
 crate::mod_interface!
@@ -41,6 +44,9 @@ crate::mod_interface!
 
     JOIN_BEVEL_MERGED_VERTEX_SHADER,
     JOIN_MITER_MERGED_VERTEX_SHADER,
-    JOIN_ROUND_MERGED_VERTEX_SHADER
+    JOIN_ROUND_MERGED_VERTEX_SHADER,
+
+    CAP_ROUND_MERGED_VERTEX_SHADER,
+    CAP_SQUARE_MERGED_VERTEX_SHADER
   };
 }

@@ -148,6 +148,9 @@ fn run() -> Result< (), gl::WebglError >
   );
   lil_gui::on_change( &prop, &callback );
   callback.forget();
+
+  gl.enable( gl::BLEND );
+  gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA );
   
   // Define the update and draw logic
   let update_and_draw =
