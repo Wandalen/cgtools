@@ -355,28 +355,12 @@ fn create_mvp() -> ndarray_cg::Mat< 4, 4, f32, DescriptorOrderColumnMajor >
   );
 
   // qqq : use helpers
-  // aaa : for now ndarray_cg crate don't have analog for creating 3x3 transformations, it has only 2x2 
-  let t = ( 0.0, 0.075, 0.0 );
-  let translate = F32x4x4::from_column_major
-  (
-    [
-      1.0, 0.0, 0.0, t.0,
-      0.0, 1.0, 0.0, t.1,
-      0.0, 0.0, 1.0, t.2,
-      0.0, 0.0, 0.0, 1.0,
-    ]
-  );
+  // aaa : now used translation and scale
+  let t = [ 0.0, 0.075, 0.0 ];
+  let translate = gl::mat3x3h::translation( t );
 
-  let s = ( 1.95 / 3.0, 1.95 / 3.0, 1.95 / 3.0 );
-  let scale = F32x4x4::from_column_major
-  (
-    [
-      s.0, 0.0, 0.0, 0.0,
-      0.0, s.1, 0.0, 0.0,
-      0.0, 0.0, s.2, 0.0,
-      0.0, 0.0, 0.0, 1.0,
-    ]
-  );
+  let s = [ 1.95 / 3.0, 1.95 / 3.0, 1.95 / 3.0 ];
+  let scale = gl::mat3x3h::scale( s );
 
   let eye = [ 0.0, 0.0, 1.0 ];
   let up = [ 0.0, 1.0, 0.0 ];
