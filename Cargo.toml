@@ -271,7 +271,6 @@ default-features = false
 features = [ "kurbo" ]
 version = "0.16.0"
 
-
 [workspace.dependencies.parley]
 version = "0.5.0"
 
