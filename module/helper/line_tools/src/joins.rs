@@ -1,8 +1,5 @@
 mod private
 {
-  use crate::*;
-  use ndarray_cg as math;
-  use math::F32x2;
   use serde::{ Serialize, Deserialize };
 
   #[ derive( Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize ) ]
@@ -15,39 +12,14 @@ mod private
 
   impl Join
   {
-    pub fn geometry( &self ) -> ( Vec< f32 >, usize )
-    {
-      match self 
-      {
-        Self::Round( segments ) => 
-        {
-          let g = helpers::circle_geometry( *segments );
-          let len = g.len();
-          ( g.into_iter().flatten().collect(), len )
-        },
-        Self::Miter =>
-        {
-          let g = miter_geometry();
-          let len = g.len();
-          ( g.into_iter().flatten().collect(), len )
-        },
-        Self::Bevel => 
-        {
-          let g = bevel_geometry();
-          let len = g.len();
-          ( g.into_iter().flatten().collect(), len )
-        }
-      }
-    }
-
     // Returns vertices, indices, and the amount of elements
-    pub fn geometry_merged( &self ) -> ( Vec< f32 >, Vec< u32 >, usize )
+    pub fn geometry( &self ) -> ( Vec< f32 >, Vec< u32 >, usize )
     {
       match self 
       {
         Self::Round( segments ) => 
         {
-          let ( g, ind ) = round_geometry_merged( *segments );
+          let ( g, ind ) = round_geometry( *segments );
           let len = g.len();
           ( 
             g.into_iter().map( | v | v as f32 ).collect(), 
@@ -57,13 +29,13 @@ mod private
         },
         Self::Miter =>
         {
-          let g = miter_geometry_merged();
+          let g = miter_geometry();
           let len = g.len();
           ( g.into_iter().flatten().collect(), Vec::new(), len )
         },
         Self::Bevel => 
         {
-          let g = bevel_geometry_merged();
+          let g = bevel_geometry();
           let len = g.len();
           ( g.into_iter().flatten().collect(), Vec::new(), len )
         }
@@ -79,7 +51,7 @@ mod private
     }    
   }
 
-  pub fn miter_geometry() -> [ [ f32; 3 ]; 6 ]
+  pub fn miter() -> [ [ f32; 3 ]; 6 ]
   {
     [
       [ 0.0, 0.0, 0.0 ],
@@ -91,7 +63,7 @@ mod private
     ]
   }
 
-  pub fn bevel_geometry() -> [ [ f32; 2 ]; 3 ]
+  pub fn bevel() -> [ [ f32; 2 ]; 3 ]
   {
     [
       [ 0.0, 0.0 ],
@@ -100,7 +72,7 @@ mod private
     ]
   }
 
-  pub fn bevel_geometry_merged() -> [ [ f32; 3 ]; 3 ]
+  pub fn bevel_geometry() -> [ [ f32; 3 ]; 3 ]
   {
     [
       [ 1.0, 0.0, 0.0 ],
@@ -109,7 +81,7 @@ mod private
     ]
   }
 
-  pub fn miter_geometry_merged() -> [ [ f32; 4 ]; 6 ]
+  pub fn miter_geometry() -> [ [ f32; 4 ]; 6 ]
   {
     [
       [ 0.0, 0.0, 0.0, 1.0 ],
@@ -121,7 +93,7 @@ mod private
     ]
   }
 
-  pub fn round_geometry_merged( segments : usize ) -> ( Vec< u32 >, Vec< [ u32; 3 ] > )
+  pub fn round_geometry( segments : usize ) -> ( Vec< u32 >, Vec< [ u32; 3 ] > )
   {
     let mut ids = Vec::with_capacity( segments );
     let mut cells = Vec::with_capacity( segments );

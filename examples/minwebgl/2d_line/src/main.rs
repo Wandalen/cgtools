@@ -1,4 +1,4 @@
-use minwebgl::{self as gl, IntoArray};
+use minwebgl as gl;
 use std::
 {
   cell::RefCell,
@@ -51,7 +51,6 @@ fn run() -> Result< (), gl::WebglError >
   let world_matrix = gl::math::mat3x3::identity();
   let projection_matrix = gl::math::mat3x3h::orthographic_rh_gl( -width / 2.0, width / 2.0, -height / 2.0, height / 2.0, 0.0, 1.0 );
   let line_width = 50.0;
-
   let radius = 300.0;
 
   let points = generate_sample_points_interleaved( width, height );
@@ -62,7 +61,6 @@ fn run() -> Result< (), gl::WebglError >
 
   for i in 0..points.len()
   {
-    //if i >= 2 { break; }
     line.add_point( points[ i ].into() );
   }
 
@@ -156,36 +154,21 @@ fn run() -> Result< (), gl::WebglError >
   // Define the update and draw logic
   let update_and_draw =
   {
-    let add_interval = 0.01;
-    let mut elapsed_time = 0.0;
-    let mut last_time = 0.0;
+
     move | t : f64 |
     {
       let time = t as f32 / 1000.0;
-      let delta = time - last_time;
 
-      let x_freq = ( time / 10.0 ).sin() * 3.0;
-      let y_freq = ( time / 10.0 ).cos() * 3.0;
-
-      let x_offset = 0.0;
-      let y_offset = 0.0;
-
-      let x = ( x_freq * time + x_offset ).cos() * radius; 
-      let y = ( y_freq * time + y_offset ).sin() * radius; 
-
-      // if elapsed_time > add_interval
-      // {
-      //   line.borrow_mut().add_point( gl::F32x2::new( x, y ) );
-      //   elapsed_time = elapsed_time - add_interval;
-      // }
+      let scale = [ ( ( time * 2.0 ).sin().abs() + 0.2 ), ( time / 2.0 ).sin() ];
+      let rotation = 0.0;
+      let translation = gl::F32x2::default();
+      let world_matrix = gl::F32x3x3::from_scale_rotation_translation( scale, rotation, translation.to_array() );
+      line.borrow().get_mesh().upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() ).unwrap();
 
       //draw
       gl.use_program( Some( &background_program ) );
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );
       line.borrow_mut().draw( &gl ).unwrap();
-
-      elapsed_time += delta;
-      last_time = time;
 
       true
     }

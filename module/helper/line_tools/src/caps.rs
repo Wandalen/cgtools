@@ -1,8 +1,5 @@
 mod private
 {
-
-  use crate::*;
-
   use serde::{ Serialize, Deserialize };
 
   #[ derive( Default, Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize ) ]
@@ -16,36 +13,13 @@ mod private
 
   impl Cap 
   {
-    pub fn geometry( &self ) -> ( Vec< f32 >, usize )
+    pub fn geometry( &self ) -> ( Vec< f32 >, Vec< u32 >, usize )
     {
       match self 
       {
         Self::Round( segments ) => 
         {
-          let g = helpers::circle_geometry( *segments );
-          let len = g.len();
-          ( g.into_iter().flatten().collect(), len )
-        },
-        Self::Square =>
-        {
-          let g = helpers::BODY_GEOMETRY;
-          let len = g.len();
-          ( g.into_iter().flatten().collect(), len )
-        },
-        Self::Butt => 
-        {
-          ( Vec::new(), 0 )
-        }
-      }
-    }
-
-    pub fn geometry_merged( &self ) -> ( Vec< f32 >, Vec< u32 >, usize )
-    {
-      match self 
-      {
-        Self::Round( segments ) => 
-        {
-          let ( g, ind ) = round_cap_geometry_merged( *segments );
+          let ( g, ind ) = round_cap_geometry( *segments );
           let len = g.len();
           ( 
             g.into_iter().flatten().collect(), 
@@ -55,7 +29,7 @@ mod private
         },
         Self::Square =>
         {
-          let ( g, ind ) = square_cap_geometry_merged();
+          let ( g, ind ) = square_cap_geometry();
           let len = g.len();
           ( g.into_iter().flatten().collect(), ind.into_iter().collect(), len )
         },
@@ -67,7 +41,7 @@ mod private
     }
   }
 
-  pub fn round_cap_geometry_merged( segments : usize ) -> ( Vec< [ f32; 2 ] >, Vec< [ u32; 3 ] > )
+  pub fn round_cap_geometry( segments : usize ) -> ( Vec< [ f32; 2 ] >, Vec< [ u32; 3 ] > )
   {
     let mut positions = Vec::new();
     let mut indices = Vec::new();
@@ -89,7 +63,7 @@ mod private
     ( positions, indices )
   }
 
-  pub fn square_cap_geometry_merged() -> ([ [ f32; 2 ]; 4 ] , [ u32; 6 ] )
+  pub fn square_cap_geometry() -> ([ [ f32; 2 ]; 4 ] , [ u32; 6 ] )
   {
     let positions = 
     [

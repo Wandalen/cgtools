@@ -187,7 +187,7 @@ mod private
         let join_buffer = mesh.get_buffer( "join" );
         let join_indices_buffer = mesh.get_buffer( "join_indices" );
 
-        let ( join_geometry_list, join_indices, join_geometry_count ) = self.join.geometry_merged(); 
+        let ( join_geometry_list, join_indices, join_geometry_count ) = self.join.geometry(); 
         gl::buffer::upload( gl, &join_buffer, &join_geometry_list, gl::STATIC_DRAW );
         gl::index::upload( gl, &join_indices_buffer, &join_indices, gl::STATIC_DRAW );
 
@@ -258,7 +258,7 @@ mod private
         let cap_index_buffer = mesh.get_buffer( "cap_indices" );
         let points_terminal_buffer = mesh.get_buffer( "points_terminal" );
 
-        let ( cap_geometry_list, cap_indices, cap_geometry_count ) = self.cap.geometry_merged();
+        let ( cap_geometry_list, cap_indices, cap_geometry_count ) = self.cap.geometry();
         gl::buffer::upload( gl, &cap_buffer, &cap_geometry_list, gl::STATIC_DRAW );
         gl::index::upload( gl, &cap_index_buffer, &cap_indices, gl::STATIC_DRAW );
 
