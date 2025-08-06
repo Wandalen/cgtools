@@ -51,7 +51,6 @@ fn run() -> Result< (), gl::WebglError >
   let world_matrix = gl::math::mat3x3::identity();
   let projection_matrix = gl::math::mat3x3h::orthographic_rh_gl( -width / 2.0, width / 2.0, -height / 2.0, height / 2.0, 0.0, 1.0 );
   let line_width = 50.0;
-  let radius = 300.0;
 
   let points = generate_sample_points_interleaved( width, height );
 
