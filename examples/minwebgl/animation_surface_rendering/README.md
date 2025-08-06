@@ -1,4 +1,4 @@
-# Text surface rendering
+# Animation surface rendering
 
 This example demonstrates how to render a 2d animation on surface like sphere utilizing the `web_sys`, `minwebgl`, `renderer`, `canvas_renderer`, `linebender::interpoli` crates.
 
