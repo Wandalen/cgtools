@@ -1,5 +1,7 @@
 mod private
 {
+  use std::rc::Rc;
+  use std::cell::RefCell;
   use std::{collections::HashMap, str::FromStr};
   use kurbo::flatten;
   use mingl::geometry::BoundingBox;
@@ -9,6 +11,7 @@ mod private
   use quick_xml::{ Reader, events::Event };
   use crate::
   { 
+    AttributesData,
     PrimitiveData, 
     Transform,
     contours_to_fill_geometry 
