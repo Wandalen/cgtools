@@ -12,10 +12,10 @@ mod private
   ///
   /// # Example
   ///
-  /// ``` rust
-  /// // binds for drawing GL::ATTACHMENT0, GL::ATTACHMENT1, GL::ATTACHMENT3
-  /// drawbuffers( &gl, &[ 0, 1, 3 ] );
-  /// ```
+  /// binds for drawing GL::ATTACHMENT0, GL::ATTACHMENT1, GL::ATTACHMENT3
+  ///
+  /// `drawbuffers( &gl, &[ 0, 1, 3 ] );`
+  ///
   pub fn drawbuffers( gl : &GL, attachments : &[ u32 ] )
   {
     let mut buffers = [ GL::NONE; MAX_COLOR_ATTACHMENTS ];

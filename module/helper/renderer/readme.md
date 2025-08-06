@@ -2,7 +2,8 @@
 Contains structures to create and render scene. So far in webgl only.
 
 Example:
-```rust
+
+``` rust
 use minwebgl as gl;
 use renderer::webgl::
 {
@@ -20,7 +21,7 @@ use renderer::webgl::
 let window = gl::web_sys::window().unwrap();
 // Get an html document handle
 let document = window.document().unwrap();
-// Turn of the antialiasing, because the renderer renders to the 
+// Turn of the antialiasing, because the renderer renders to the
 // multisample render buffer
 let options = gl::context::ContexOptions::default().antialias( false );
 // Create canvas
@@ -70,7 +71,7 @@ let output = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_o
 
 // Update the output texture of the swap_buffer
 swap_buffer.set_output( output );
-// Swap the `input` and `output` textures 
+// Swap the `input` and `output` textures
 swap_buffer.swap();
 
 // ToSrgbPass will render to the screen, because we passed `true` to the `render_to_screen` variable of the pass
@@ -92,7 +93,7 @@ let _ = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
 - [Notes on importance sampling]
 - [Article - Physically Based Rendering - Cook–Torrance]
 - [Vulkan-glTF-PBR]
-- 
+-
 
 #### Normal mapping
 - [Normals and the Inverse Transpose, Part 1: Grassmann Algebra]

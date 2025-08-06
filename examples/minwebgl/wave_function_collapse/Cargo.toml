@@ -1,0 +1,28 @@
+[package]
+name = "wave_function_collapse"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
+license = "MIT"
+
+[dependencies]
+minwebgl = { workspace = true }
+serde = { version = "1.0", features = [ "derive" ] }
+serde_json = "1.0"
+rayon = "1.10"
+getrandom = { workspace = true, features = ["wasm_js"] }
+rand = { workspace = true }
+ndarray_cg = { workspace = true }
+
+[dependencies.web-sys]
+workspace = true
+features = [
+  'Document',
+  'Element',
+  'HtmlCanvasElement',
+  'Window',
+  'WebGlTexture',
+  'CanvasRenderingContext2d',
+  'HtmlImageElement',
+  'DomRect'
+]

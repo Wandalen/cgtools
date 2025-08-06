@@ -267,6 +267,8 @@ features = [ "f64", "delaunay" ]
 version = "0.21.0"
 
 [workspace.dependencies.norad]
+default-features = false
+features = [ "kurbo" ]
 version = "0.16.0"
 
 [workspace.dependencies.parley]
