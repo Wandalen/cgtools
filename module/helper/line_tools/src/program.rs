@@ -1,7 +1,6 @@
 mod private
 {
-  use crate::*;
-  use minwebgl::{self as gl, JsCast, JsValue };
+  use minwebgl as gl;
 
   #[ derive( Clone, Debug, Default ) ]
   pub struct Program
