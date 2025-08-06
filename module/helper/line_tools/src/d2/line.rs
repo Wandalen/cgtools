@@ -77,9 +77,11 @@ mod private
       let mut join_program = Program::default();
       join_program.fragment_shader = Some( fragment_shader.clone() );
       join_program.vao = gl.create_vertex_array();
+      join_program.index_buffer = Some( join_indices_buffer.clone() );
 
       let mut cap_program = Program::default();
       cap_program.fragment_shader = Some( fragment_shader.clone() );
+      cap_program.index_buffer = Some( cap_indices_buffer.clone() );
 
       let mut mesh = Mesh::default();
       mesh.add_program( "cap", cap_program );
@@ -133,27 +135,33 @@ mod private
         let points_buffer = mesh.get_buffer( "points" );
         let points_terminal_buffer = mesh.get_buffer( "points_terminal" );
         let points : Vec< f32 > = self.points.iter().flat_map( | p | p.to_array() ).collect();
-        let points_terminal = 
+        let ( points_terminal, terminal_instance_count ) = 
         if self.points.len() >= 3
         {
           let len = self.points.len();
-          [ 
-            self.points[ 0 ], self.points[ 1 ], self.points[ 2 ],
-            self.points[ len - 1 ], self.points[ len - 2 ], self.points[ len - 3 ]
-          ]
+          (
+            [ 
+              self.points[ 0 ], self.points[ 1 ], self.points[ 2 ],
+              self.points[ len - 1 ], self.points[ len - 2 ], self.points[ len - 3 ]
+            ],
+            2
+          )
         }
         else if self.points.len() == 2
         {
           let dir = self.points[ 1 ] - self.points[ 0 ];
-          [ 
-            self.points[ 0 ], self.points[ 1 ], self.points[ 1 ] + dir,
-            self.points[ 1 ], self.points[ 0 ], self.points[ 0 ] - dir,
-          ]
+          (
+            [ 
+              self.points[ 0 ], self.points[ 1 ], self.points[ 1 ] + dir,
+              self.points[ 1 ], self.points[ 0 ], self.points[ 0 ] - dir,
+            ],
+            1
+          )
         }
         else
         {
           let zero = gl::F32x2::default();
-          [ zero, zero, zero, zero, zero, zero ]
+          ( [ zero, zero, zero, zero, zero, zero ], 0 )
         };
 
         let points_terminal : Vec< f32 > = points_terminal.into_iter().flat_map( | p | p.to_array() ).collect();
@@ -163,6 +171,9 @@ mod private
 
         let b_program = mesh.get_program_mut( "body" );
         b_program.instance_count = Some( ( self.points.len() as f32 - 3.0 ).max( 0.0 ) as u32 );
+
+        let bt_program = mesh.get_program_mut( "body_terminal" );
+        bt_program.instance_count = Some( terminal_instance_count );
         
         let j_program = mesh.get_program_mut( "join" );
         j_program.instance_count = Some( ( self.points.len() as f32 - 2.0 ).max( 0.0 ) as u32 );
@@ -223,7 +234,6 @@ mod private
         let join_program = gl::ProgramShaders::new( &vertex_shader, j_program.fragment_shader.as_ref().expect( "Fragment shader has not been set" ) ).link( &gl )?;
         j_program.copy_uniforms_to( gl, &join_program )?;
 
-        let join_indices_buffer = join_indices_buffer.clone();
         let j_program = mesh.get_program_mut( "join" );
 
         j_program.delete_vertex_shader( gl );
@@ -237,12 +247,6 @@ mod private
         j_program.instance_count = Some( ( self.points.len() as f32 - 2.0 ).max( 0.0 ) as u32 );
         j_program.vertex_count = join_geometry_count as u32;
         j_program.index_count = if join_indices.len() > 0 { Some( join_indices.len() as u32 ) } else { None };
-
-        match self.join 
-        {
-          Join::Round( _ ) => j_program.index_buffer = Some( join_indices_buffer ),
-          _ => {}
-        }
 
         self.join_changed = false;
         
@@ -301,7 +305,6 @@ mod private
         mesh.get_program( "join" ).copy_uniforms_to( gl, &cap_program )?;
         c_program.copy_uniforms_to( gl, &cap_program )?;
 
-        let cap_index_buffer = cap_index_buffer.clone();
         let c_program = mesh.get_program_mut( "cap" );
 
         c_program.delete_vertex_shader( gl );
@@ -316,17 +319,11 @@ mod private
         c_program.draw_mode = cap_draw_mode;
         c_program.index_count = if cap_indices.len() > 0 { Some( cap_indices.len() as u32 ) } else { None };
 
-        match self.cap 
-        {
-          Cap::Round( _ ) | Cap::Square => c_program.index_buffer = Some( cap_index_buffer ),
-          _ => {}
-        }
-
         self.cap_changed = false;
       }
 
       gl.bind_buffer( gl::ARRAY_BUFFER, None );
-        gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, None );
+      gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, None );
 
       Ok( () )
     }
@@ -334,7 +331,6 @@ mod private
     // Only draws a Line if the are more than 1 point
     pub fn draw( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
-      //if self.points.len() <= 1 { return Ok( () ); }
 
       self.update_mesh( gl )?;
 
