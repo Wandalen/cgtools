@@ -13,12 +13,12 @@
 //!
 //! Initialize the logger with a configuration. If initialization fails, an error message is logged to the browser console.
 //!
-//! ```rust, no_run
+//! ``` no_run
 //! // Default setup
-//! browser_log::log::setup( Default::default() );
+//! browser_log::log::setup::setup( Default::default() );
 //!
 //! // Setup with target filtering
-//! browser_log::log::setup( browser_log::log::Config::default().target_filter( "lib_name" ) );
+//! browser_log::log::setup::setup( browser_log::log::setup::Config::default().target_filter( "lib_name" ) );
 //! ```
 //!
 //! ## Configuration

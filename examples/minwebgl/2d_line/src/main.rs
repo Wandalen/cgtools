@@ -1,10 +1,4 @@
-use minwebgl::{self as gl, IntoArray};
-use gl::GL;
-use std::
-{
-  cell::RefCell,
-  rc::Rc,
-};
+use minwebgl as gl;
 
 fn generate_sample_points_interleaved( width : f32, height : f32 ) -> [ [ f32; 2 ]; 8 ]
 {
@@ -75,7 +69,7 @@ fn run() -> Result< (), gl::WebglError >
       let scale = [ ( ( _time * 2.0 ).sin().abs() + 0.1 ) * 2.0, 1.0 ];
       let rotation = 0.0;
       let translation = gl::F32x2::default();
-      let world_matrix = gl::F32x3x3::from_scale_rotation_translation( scale, rotation, translation.as_array() );
+      let world_matrix = gl::F32x3x3::from_scale_rotation_translation( scale, rotation, translation.to_array() );
       line.get_mesh().upload_matrix( &gl, "u_point_world_matrix", &world_matrix.to_array() ).unwrap();
       
       line.draw( &gl ).unwrap();

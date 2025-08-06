@@ -11,7 +11,7 @@ mod private
   pub struct Config
   {
     /// Logging config.
-    pub log : log::Config,
+    pub log : log::setup::Config,
     /// Panic config.
     pub panic : panic::Config,
   }
@@ -20,7 +20,7 @@ mod private
   pub fn setup( config : Config )
   {
     panic::setup( config.panic );
-    log::setup( config.log );
+    log::setup::setup( config.log );
   }
 
 }
