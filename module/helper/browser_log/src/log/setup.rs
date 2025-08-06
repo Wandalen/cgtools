@@ -162,13 +162,14 @@ mod private
   /// Initialize the logger which the given config. If failed, it will log a message to the the browser console.
   ///
   /// ## Examples
-  /// ```rust
-  /// browser_log::log::setup( Default::default() );
-  /// ```
+  ///
+  /// browser_log::log::setup::setup( Default::default() );
+  ///
   /// or
-  /// ```rust
-  /// browser_log::log::setup( browser_log::log::Config::default().target_filter( "lib_name" ) );
-  /// ```
+  ///
+  /// browser_log::log::setup::setup( browser_log::log::setup::Config::default().target_filter( "lib_name" ) );
+  ///
+  ///
   pub fn setup( config : Config )
   {
     let max_level = config.level;

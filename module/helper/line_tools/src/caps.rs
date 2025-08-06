@@ -26,8 +26,9 @@ mod private
         },
         Self::Square =>
         {
-          
-          ( Vec::new(), 0 )
+          let g = helpers::BODY_GEOMETRY;
+          let len = g.len();
+          ( g.into_iter().flatten().collect(), len )
         },
         Self::Butt => 
         {
