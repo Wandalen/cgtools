@@ -20,7 +20,6 @@ use std::sync::Mutex;
 use web_sys::{ HtmlInputElement, HtmlButtonElement, FileReader, Event };
 use wfc::*;
 use wfc_image::{ generate_image, wrap::*, retry::* };
-use yawfc::overlapping::overlapping;
 
 // qqq : why const?
 // const LAYERS : i32 = 7;
@@ -199,7 +198,7 @@ fn on_input_change
               let _ = render_tile_map();
             }
           },
-          _ => ()
+          _ => gl::error!( "Can't read input file" )
         }
       }
     }
@@ -234,7 +233,7 @@ pub fn input_tilemap_init() -> Result< (), JsValue >
   Ok( () )
 }
 
-fn button_generate_setup( id: &str, top: u32, generate_map_fn: fn() -> () ) -> Result< (), JsValue > 
+fn button_generate_setup( id: &str, top: u32, fn_generate_map: fn() -> () ) -> Result< (), JsValue > 
 {
   let window = web_sys::window().unwrap();
   let document = window.document().unwrap();
@@ -252,7 +251,7 @@ fn button_generate_setup( id: &str, top: u32, generate_map_fn: fn() -> () ) -> R
   let button_callback = Closure::< dyn FnMut( _ ) >::new( 
     move | _e : Event |
     {
-      let _ = generate_map_fn();
+      let _ = fn_generate_map();
       let _ = render_tile_map();
     } 
   );
@@ -274,7 +273,6 @@ fn init()
 
   let _ = input_tilemap_init();
   let _ = button_generate_setup("generate-wfc-image", 50, generate_map_wfc_image );
-  //let _ = button_generate_setup("generate-yawfc", 85, generate_map_yawfc );
 
   let window = web_sys::window()
   .expect( "Should have a window" );
@@ -627,54 +625,6 @@ fn generate_map_wfc_image()
   let map_raw : Vec<u8> = map_img.to_luma8().into_raw();
   let map = map_raw.chunks( SIZE as usize )
   .map( | row | row.to_vec() )
-  .collect::< Vec< Vec< _ > > >();
-
-  *MAP.lock().unwrap() = Some( map );
-}
-
-fn generate_map_yawfc()
-{
-  let Some( pattern_img ) = TILEMAP_PATTERN.lock().unwrap().clone()
-  else 
-  {
-    return;
-  };
-
-  let pattern_raw = pattern_img.as_bytes()
-  .to_vec()
-  .chunks( pattern_img.width() as usize )
-  .map( | v | v.to_vec() )
-  .collect::< Vec< Vec< _ > > >();
-
-  let mut wave = overlapping(
-    pattern_raw, 
-    SIZE, 
-    SIZE, 
-    false, 
-    false, 
-    rand::random::< u64 >()
-  );
-  for _ in 0..( pattern_img.width() as u64 * pattern_img.height() as u64 ){ 
-    if wave.is_contradiction(){
-      break;
-    }
-    wave.step();
-  }
-
-  let map = wave.wave.into_iter()
-  .map
-  (
-    | v | 
-    {
-      v.into_iter()
-      .map( | v | v.iter().position( | i | *i ).unwrap_or( 0 ) as u8 )
-      .collect::< Vec< _ > >()
-    }
-  )
-  .collect::< Vec< Vec< _ > > >();
-
-  let map = map.into_iter()
-  .map( | v | v.into_iter().collect::< Vec< _ > >() )
   .collect::< Vec< Vec< _ > > >();
 
   *MAP.lock().unwrap() = Some( map );

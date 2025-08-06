@@ -1,5 +1,5 @@
 [package]
-name = "wave_function_collapse_using_lib"
+name = "wfc"
 version = "0.1.0"
 edition = "2021"
 authors = [ 
@@ -9,13 +9,11 @@ authors = [
 license = "MIT"
 
 [dependencies]
-image = { version = "0.24.9", features = ["rayon"] }
-wfc = "0.10"
-wfc_image = { version = "0.12", features = ["parallel"] }
-yawfc = "0.1.0"
-RustyXML = "0.3.0"
+image = { workspace = true, features = ["rayon"] }
+wfc = { workspace = true }
+wfc_image = { workspace = true, features = ["parallel"] }
 minwebgl = { workspace = true }
-getrandom = { version = "0.2", features = [ "js" ] }
+getrandom = { workspace = true, features = [ "wasm_js" ] }
 rand = { workspace = true }
 ndarray_cg = { workspace = true }
 
