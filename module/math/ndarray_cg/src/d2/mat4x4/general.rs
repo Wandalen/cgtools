@@ -224,3 +224,19 @@ Self : ScalarMut< Scalar = E > +
   }
 }
 
+pub fn identity< E >() -> Mat4< E, mat::DescriptorOrderColumnMajor > 
+where 
+  E : MatEl + nd::NdFloat,
+  Mat4< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >
+{
+  Mat4::from_column_major
+  (
+    [
+      E::one(),  E::zero(), E::zero(), E::zero(),
+      E::zero(), E::one(),  E::zero(), E::zero(),
+      E::zero(), E::zero(), E::one(),  E::zero(),
+      E::zero(), E::zero(), E::zero(), E::one(),
+    ]
+  )
+}
+

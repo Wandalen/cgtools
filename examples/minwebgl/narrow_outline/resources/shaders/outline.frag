@@ -209,7 +209,7 @@ void main()
     }
     else if ( outline_stencil_normal() > 0.3 )
     {
-      FragColor = outline_color();
+      FragColor = vec4(1.0); //outline_color();
     }
     else
     {
