@@ -34,7 +34,6 @@ mod private
       let join_indices_buffer = gl.create_buffer().expect( "Failed to create a join_indices_buffer" );
       let cap_instanced_buffer = gl.create_buffer().expect( "Failed to create a cap_instanced_buffer" );
       let cap_indices_buffer = gl.create_buffer().expect( "Failed to create a cap_indices_buffer" );
-      let cap_indices_buffer = gl.create_buffer().expect( "Failed to create a cap_indices_buffer" );
 
       gl::buffer::upload( gl, &body_instanced_buffer, &helpers::BODY_GEOMETRY, gl::STATIC_DRAW );
 
@@ -192,8 +191,6 @@ mod private
             gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 2 ).stride( 2 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 4 ).stride( 2 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
-
-            gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, Some( &join_indices_buffer ) );
           },
           Join::Miter =>
           {
@@ -226,6 +223,7 @@ mod private
         let join_program = gl::ProgramShaders::new( &vertex_shader, j_program.fragment_shader.as_ref().expect( "Fragment shader has not been set" ) ).link( &gl )?;
         j_program.copy_uniforms_to( gl, &join_program )?;
 
+        let join_indices_buffer = join_indices_buffer.clone();
         let j_program = mesh.get_program_mut( "join" );
 
         j_program.delete_vertex_shader( gl );
@@ -240,7 +238,14 @@ mod private
         j_program.vertex_count = join_geometry_count as u32;
         j_program.index_count = if join_indices.len() > 0 { Some( join_indices.len() as u32 ) } else { None };
 
+        match self.join 
+        {
+          Join::Round( _ ) => j_program.index_buffer = Some( join_indices_buffer ),
+          _ => {}
+        }
+
         self.join_changed = false;
+        
       }
 
       if self.cap_changed
@@ -296,6 +301,7 @@ mod private
         mesh.get_program( "join" ).copy_uniforms_to( gl, &cap_program )?;
         c_program.copy_uniforms_to( gl, &cap_program )?;
 
+        let cap_index_buffer = cap_index_buffer.clone();
         let c_program = mesh.get_program_mut( "cap" );
 
         c_program.delete_vertex_shader( gl );
@@ -310,8 +316,17 @@ mod private
         c_program.draw_mode = cap_draw_mode;
         c_program.index_count = if cap_indices.len() > 0 { Some( cap_indices.len() as u32 ) } else { None };
 
+        match self.cap 
+        {
+          Cap::Round( _ ) | Cap::Square => c_program.index_buffer = Some( cap_index_buffer ),
+          _ => {}
+        }
+
         self.cap_changed = false;
       }
+
+      gl.bind_buffer( gl::ARRAY_BUFFER, None );
+        gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, None );
 
       Ok( () )
     }

@@ -73,7 +73,8 @@ mod private
         draw_mode : gl::TRIANGLES,
         instance_count : Some( ( self.points.len() as f32 - 1.0 ).max( 0.0 ) as u32 ),
         index_count : None,
-        vertex_count : vertex_count as u32
+        vertex_count : vertex_count as u32,
+        index_buffer : None
       };
 
       let mut mesh = Mesh::default();

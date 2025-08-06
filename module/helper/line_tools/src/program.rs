@@ -13,7 +13,8 @@ mod private
     pub draw_mode : u32,
     pub instance_count : Option< u32 >,
     pub index_count : Option< u32 >,
-    pub vertex_count : u32
+    pub vertex_count : u32,
+    pub index_buffer : Option< gl::WebGlBuffer >
   }
 
   impl Program 
@@ -111,6 +112,7 @@ mod private
     {
       gl.use_program( self.program.as_ref() );
       gl.bind_vertex_array( self.vao.as_ref() );
+      gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, self.index_buffer.as_ref() );
     }
 
     pub fn draw( &self, gl : &gl::WebGl2RenderingContext )
