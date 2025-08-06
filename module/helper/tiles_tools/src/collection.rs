@@ -1,8 +1,7 @@
-use std::{ marker::PhantomData, ops::{ Index, IndexMut } };
+use std::{ fmt::Debug, marker::PhantomData, ops::{ Index, IndexMut } };
 use ndarray_cg::{ nd::iter::Iter, Array2, I64x2 };
 use crate::coordinates::hexagonal::Coordinate;
 
-#[ derive( Debug, Clone ) ]
 pub struct Grid2D< System, Orientation, T >
 {
   data : Array2< T >,
@@ -168,5 +167,35 @@ where
     let i : usize = ( coord.r as i64 - self.min[ 1 ] ).try_into().expect( "Coordinate out of bound" );
     let j : usize = ( coord.q as i64 - self.min[ 0 ] ).try_into().expect( "Coordinate out of bound" );
     self.data.index_mut( ( i, j ) )
+  }
+}
+
+impl< System, Orientation, T > Clone for Grid2D< System, Orientation, T >
+where
+  T : Clone,
+{
+  fn clone( &self ) -> Self
+  {
+    Self
+    {
+      data : self.data.clone(),
+      min : self.min,
+      _marker : PhantomData,
+    }
+  }
+}
+
+impl< System, Orientation, T > Debug for Grid2D< System, Orientation, T >
+where
+  T : Debug
+{
+  fn fmt( &self, f : &mut std::fmt::Formatter< '_ > ) -> std::fmt::Result
+  {
+    f
+    .debug_struct( "Grid2D" )
+    .field( "data", &self.data )
+    .field( "min", &self.min )
+    .field( "_marker", &self._marker )
+    .finish()
   }
 }
