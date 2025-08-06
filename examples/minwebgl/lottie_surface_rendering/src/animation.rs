@@ -37,11 +37,6 @@ pub fn affine_to_matrix( affine : Affine ) -> F32x4x4
     {
       matrix_mut[ i * 4 + j ] = v;
     };
-
-    for i in 0..4 
-    {
-      set_elem( i, i, 0.0 );
-    }
     
     set_elem( 0, 0, a as f32 );
     set_elem( 0, 1, b as f32 );
