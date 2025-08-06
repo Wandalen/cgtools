@@ -1,4 +1,4 @@
-use approx::{assert_abs_diff_eq, assert_relative_eq};
+use ndarray_cg::approx::{ assert_abs_diff_eq, assert_relative_eq };
 
 use super::*;
 

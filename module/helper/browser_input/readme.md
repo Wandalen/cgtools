@@ -12,7 +12,7 @@ Implement functionality to retrieve user input on browser page.
 ## Example
 
 ``` rust
-let mut input = browser_input::Input::new( None );
+let mut input = browser_input::Input::new( None, browser_input::CLIENT );
 
 loop
 {

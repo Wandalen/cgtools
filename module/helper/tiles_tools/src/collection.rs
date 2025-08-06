@@ -2,6 +2,7 @@ use std::{ marker::PhantomData, ops::{ Index, IndexMut } };
 use ndarray_cg::{ nd::iter::Iter, Array2, I64x2 };
 use crate::coordinates::hexagonal::Coordinate;
 
+#[ derive( Debug, Clone ) ]
 pub struct Grid2D< System, Orientation, T >
 {
   data : Array2< T >,

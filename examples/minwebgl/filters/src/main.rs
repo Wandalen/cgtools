@@ -23,7 +23,7 @@ fn main()
   gl::browser::setup( Default::default() );
   if let Err( e ) = run()
   {
-    gl::error!( "{e:?}" );
+    gl::warn!( "{e:?}" );
   }
 }
 
@@ -59,7 +59,7 @@ fn run() -> Result< (), gl::WebglError >
 
       if res.is_err()
       {
-        gl::error!( "{res:?}" );
+        gl::warn!( "{res:?}" );
         return;
       }
 

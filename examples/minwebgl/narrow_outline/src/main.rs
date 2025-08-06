@@ -424,9 +424,7 @@ pub fn add_primitive
 {
   let mut last_object_id = *object_ids.last().unwrap_or( &0.0 );
 
-  let p = primitive;
-
-  let mesh = mesh.as_trimesh().unwrap();
+  let mesh = primitive.to_trimesh().unwrap();
 
   let primitive_positions = mesh.vertices()
   .iter()
@@ -459,7 +457,7 @@ pub fn add_primitive
       (
         | i |
         {
-          primitive_normals[ ( *ids[ i ] - *vertex_offset ) as usize ] = [ c[ 0 ], c[ 1 ], c[ 2 ] ];
+          primitive_normals[ ( ids[ i ] - *vertex_offset ) as usize ] = [ c[ 0 ], c[ 1 ], c[ 2 ] ];
         }
       );
     }
@@ -883,11 +881,11 @@ impl Renderer
   /// # Arguments
   ///
   /// * `t` - The current time in milliseconds ( used for animation ).
-  fn render( &self, scenes : Vec< Rc< RefCell< Scene > > >, t : f64 )
+  fn render( &self, scenes : Vec< Rc< RefCell< Scene > > >, _t : f64 )
   {
     // 1. Object Rendering Pass: Render the object silhouette to a texture
     let _ = self.object_pass( scenes );
-    self.outline_pass( t );
+    self.outline_pass();
   }
 
   /// Renders the 3D object silhouette to the `object_fb`.
@@ -914,6 +912,7 @@ impl Renderer
     let u_far_loc = locations.get( "far" ).unwrap().clone().unwrap();
 
     upload_framebuffer( gl, object_fb, self.viewport );
+    //gl.bind_framebuffer( GL::FRAMEBUFFER, None );
 
     gl.clear_color( 0.0, 0.0, 0.0, 0.0 ); 
     gl.clear_depth( 1.0 );
@@ -974,7 +973,7 @@ impl Renderer
   /// * `num_passes` - The total number of JFA step passes performed. Used to determine
   ///                which of the ping-pong textures ( `jfa_step_fb_color_0` or `jfa_step_fb_color_1` )
   ///                holds the final JFA result.
-  fn outline_pass( &self, t : f64 )
+  fn outline_pass( &self )
   {
     let gl = &self.gl;
 
@@ -1000,7 +999,6 @@ impl Renderer
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );
 
     gl.clear_color( background_color[ 0 ], background_color[ 1 ], background_color[ 2 ], background_color[ 3 ] );
-    gl.clear( GL::COLOR_BUFFER_BIT );
 
     upload_texture( gl, object_fb_color, &u_color_texture_loc, GL::TEXTURE0 );
     upload_texture( gl, object_fb_depth, &u_depth_texture_loc, GL::TEXTURE1 );
@@ -1025,6 +1023,9 @@ impl Renderer
 async fn run() -> Result< (), gl::WebglError >
 {
   let renderer = Renderer::new().await;
+
+  let _ = renderer.gl.get_extension( "EXT_color_buffer_float" )
+  .expect( "Failed to enable EXT_color_buffer_float extension" );
 
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();

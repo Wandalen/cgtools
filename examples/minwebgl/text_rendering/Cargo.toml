@@ -18,7 +18,7 @@ gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
 renderer = { workspace = true }
 csgrs = { workspace = true, features = [ "truetype-text" ] }
 parry3d = { workspace = true }
-norad = { workspace = true, default-features = false, features = [ "kurbo" ] }
+norad = { workspace = true }
 parley = { workspace = true }
 kurbo = { workspace = true }
 earcutr = { workspace = true }

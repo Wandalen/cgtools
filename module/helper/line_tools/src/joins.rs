@@ -1,8 +1,6 @@
 mod private
 {
   use crate::*;
-  use ndarray_cg as math;
-  use math::F32x2;
 
   #[ derive( Debug, Clone, Copy, PartialEq, PartialOrd ) ]
   pub enum Join

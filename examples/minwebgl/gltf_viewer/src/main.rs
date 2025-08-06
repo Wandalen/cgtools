@@ -60,7 +60,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   // Camera setup
   let mut eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
-  eye = gl::math::F32x3::from( [ 0.0, 0.0, 1.0 ] );
+  //eye = gl::math::F32x3::from( [ 0.0, 0.0, 1.0 ] );
   eye *= dist;
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
 

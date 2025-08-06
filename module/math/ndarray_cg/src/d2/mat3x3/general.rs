@@ -53,6 +53,43 @@ Self : RawSliceMut< Scalar = E > +
     let res = Self::from_cols( a, b, c ) / det;
     Some( res.transpose() )
   }
+
+   /// Creates a transformation matrix from scale, rotation( angle ) and translation
+  pub fn from_scale_rotation_translation< Vec >
+  ( 
+    scale : Vec,
+    rotation : E,
+    translation : Vec
+  ) -> Self
+  where
+    Vec : VectorIter< E, 2 >,
+  {
+    let mut siter = scale.vector_iter();
+    let sx = *siter.next().unwrap();
+    let sy = *siter.next().unwrap();
+
+    let mut titer = translation.vector_iter();
+    let tx = *titer.next().unwrap();
+    let ty = *titer.next().unwrap();
+
+    let ( s, c ) = rotation.sin_cos();
+
+    let mut res = Self::default();
+    
+    *res.scalar_mut(  Ix2( 0, 0 ) ) = c * sx;
+    *res.scalar_mut(  Ix2( 1, 0 ) ) = s * sx;
+    *res.scalar_mut(  Ix2( 2, 0 ) ) = E::zero();
+
+    *res.scalar_mut(  Ix2( 0, 1 ) ) = -s * sy;
+    *res.scalar_mut(  Ix2( 1, 1 ) ) = c * sy;
+    *res.scalar_mut(  Ix2( 2, 1 ) ) = E::zero();
+
+    *res.scalar_mut(  Ix2( 0, 2 ) ) = tx;
+    *res.scalar_mut(  Ix2( 1, 2 ) ) = ty;
+    *res.scalar_mut(  Ix2( 2, 2 ) ) = E::one();
+
+    res
+  }
 }
 
 impl< E, Descriptor > Mat< 3, 3, E, Descriptor > 
@@ -169,4 +206,19 @@ Self : RawSliceMut< Scalar = E >
       ]
     )
   }
+}
+
+pub fn identity< E >() -> Mat3< E, mat::DescriptorOrderColumnMajor > 
+where 
+  E : MatEl + nd::NdFloat,
+  Mat3< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >
+{
+  Mat3::from_column_major
+  (
+    [
+      E::one(),  E::zero(), E::zero(),
+      E::zero(), E::one(),  E::zero(),
+      E::zero(), E::zero(), E::one(),
+    ]
+  )
 }

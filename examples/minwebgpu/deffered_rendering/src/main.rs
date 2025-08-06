@@ -100,9 +100,9 @@ async fn run() -> Result< (), gl::WebGPUError >
   (
     gl::BindGroupLayoutEntry::new()
     .vertex()
-    .ty( gl::binding_type::buffer() )
+    .ty( gl::binding_type::buffer_type() )
   )
-  .entry_from_ty( gl::binding_type::buffer().storage_readonly() )
+  .entry_from_ty( gl::binding_type::buffer_type().storage_readonly() )
   .create( &device )?;
 
   let uniform_bind_group = gl::BindGroupDescriptor::new( &uniform_bind_group_layout )
@@ -121,10 +121,10 @@ async fn run() -> Result< (), gl::WebGPUError >
     &gl::layout::bind_group::desc()
     .fragment()
     .auto_bindings()
-    .entry_from_ty( gl::binding_type::texture().sample_unfilterable_float() )
-    .entry_from_ty( gl::binding_type::texture().sample_unfilterable_float() )
-    .entry_from_ty( gl::binding_type::texture().sample_unfilterable_float() )
-    .entry_from_ty( gl::binding_type::texture().sample_depth() )
+    .entry_from_ty( gl::binding_type::texture_type().sample_unfilterable_float() )
+    .entry_from_ty( gl::binding_type::texture_type().sample_unfilterable_float() )
+    .entry_from_ty( gl::binding_type::texture_type().sample_unfilterable_float() )
+    .entry_from_ty( gl::binding_type::texture_type().sample_depth() )
     .to_web()
   )?;
 

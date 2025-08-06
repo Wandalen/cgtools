@@ -1,6 +1,5 @@
 mod private
 {
-  use crate::*;
   use minwebgl as gl;
 
   #[ derive( Clone, Debug ) ]

@@ -45,27 +45,27 @@ mod private
   impl_into_binding_ty!( web_sys::GpuExternalTextureBindingLayout, ExternalTexture );
 
 
-  pub fn buffer() -> BufferBindingLayout
+  pub fn buffer_type() -> BufferBindingLayout
   {
     BufferBindingLayout::new()
   }
 
-  pub fn texture() -> TextureBindingLayout
+  pub fn texture_type() -> TextureBindingLayout
   {
     TextureBindingLayout::new()
   }
 
-  pub fn sampler() -> SamplerBindingLayout
+  pub fn sampler_type() -> SamplerBindingLayout
   {
     SamplerBindingLayout::new()
   }
   
-  pub fn storage_texture() -> StorageTextureBindingLayout
+  pub fn storage_texture_type() -> StorageTextureBindingLayout
   {
     StorageTextureBindingLayout::new()
   }
 
-  pub fn external_texture() -> ExternalTextureBindingLayout
+  pub fn external_texture_type() -> ExternalTextureBindingLayout
   {
     ExternalTextureBindingLayout
   }
@@ -81,11 +81,11 @@ crate::mod_interface!
 
   own use
   {
-    buffer,
-    texture,
-    sampler,
-    storage_texture,
-    external_texture
+    buffer_type,
+    texture_type,
+    sampler_type,
+    storage_texture_type,
+    external_texture_type
   };
 
   exposed use

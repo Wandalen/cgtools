@@ -75,6 +75,10 @@ path = "module/helper/canvas_renderer"
 version = "0.1.0"
 path = "module/helper/geometry_generation"
 
+[workspace.dependencies.line_tools]
+version = "0.1.0"
+path = "module/helper/line_tools"
+
 # = draw
 
 # [workspace.dependencies.draw_lang]
@@ -263,6 +267,8 @@ features = [ "f64", "delaunay" ]
 version = "0.21.0"
 
 [workspace.dependencies.norad]
+default-features = false
+features = [ "kurbo" ]
 version = "0.16.0"
 
 
