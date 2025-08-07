@@ -175,6 +175,7 @@ mod private
       self.bounding_box().center()
     }
 
+    /// Return the bounding box of the `positions` attribute
     pub fn bounding_box( &self ) -> BoundingBox
     {
       self.attributes.get( "positions" )
@@ -203,6 +204,7 @@ mod private
       }
     }
 
+    /// Returns a reference to the `HashMap` containing the attribute information.
     pub fn get_attributes( &self ) -> &HashMap< Box< str >, AttributeInfo >
     {
       &self.attributes
