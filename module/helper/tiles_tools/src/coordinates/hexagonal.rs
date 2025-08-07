@@ -3,16 +3,22 @@ use serde::{ Deserialize, Serialize };
 use std::{ fmt::Debug, hash::Hash, marker::PhantomData };
 use crate::coordinates::{ pixel::Pixel, Distance, Neigbors };
 
+#[ derive( Debug ) ]
 pub struct Axial;
 
+#[ derive( Debug ) ]
 pub struct Offset< Parity >( PhantomData< Parity > );
 
+#[ derive( Debug ) ]
 pub struct Pointy;
 
+#[ derive( Debug ) ]
 pub struct Flat;
 
+#[ derive( Debug ) ]
 pub struct Odd;
 
+#[ derive( Debug ) ]
 pub struct Even;
 
 #[ derive( Serialize, Deserialize ) ]
