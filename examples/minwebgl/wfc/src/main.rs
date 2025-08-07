@@ -12,7 +12,7 @@
 use gl::GL;
 use image::{ DynamicImage, ImageBuffer, Luma };
 use minwebgl as gl;
-use ndarray_cg::{ mat::DescriptorOrderColumnMajor, F32x4x4 };
+use ndarray_cg::F32x4x4;
 use web_sys::wasm_bindgen::prelude::*;
 use minwebgl::dom::create_image_element;
 use minwebgl::WebGlVertexArrayObject;
@@ -20,6 +20,7 @@ use std::sync::Mutex;
 use web_sys::{ HtmlInputElement, HtmlButtonElement, FileReader, Event };
 use wfc::*;
 use wfc_image::{ generate_image, wrap::*, retry::* };
+use ndarray_cg::mat3x3h;
 
 // qqq : why const?
 // const LAYERS : i32 = 7;
@@ -32,48 +33,6 @@ use wfc_image::{ generate_image, wrap::*, retry::* };
 /// This example can generate only static size square maps
 const SIZE : usize = 50;
 const PATTERN_SIZE : u32 = 3;
-
-// qqq : not enough explanations. give examples also
-// aaa : I add description and examples below:
-/// Desciption what neighbours can have current tile.
-/// You can imagine this relations array in such way:
-///
-/// `
-///   [
-///     0: [ 0, 1 ], // <tile_type>: [ <posible_neighbour_tile_types>... ]
-///     1: [ 1, 2 ],
-///     2: [ 2, 3 ],
-///     3: [ 3, 4 ],
-///     4: [ 4, 5 ],
-///     5: [ 5 ]
-///   ]
-/// `
-///
-/// Then relations array used by WFC algorithm for choosing neighbours of every map cell.
-///
-/// If tile type 0 has posible_neighbours 0, 1 then this is valid generation:
-/// `
-///   *, 1, *,
-///   1, *0*, 0, // *0* has neighbours 1, 1, 0, 0 and this is valid case
-///   *, 0, *,
-/// `
-///
-/// And this is invalid generation that case WFC have to avoid:
-/// `
-///   *, 2, *,
-///   3, *0*, 1, // *0*  has neighbours 3, 2, which isn't valid,
-///   *, 0, *,   // because 0 has such available neighbours array: [ 0, 1 ]
-/// `
-const RELATIONS : &str = "
-  [
-    [ 0, 1 ],
-    [ 1, 2 ],
-    [ 2, 3 ],
-    [ 3, 4 ],
-    [ 4, 5 ],
-    [ 5 ]
-  ]
-";
 
 /// Storage for generated tile map
 static MAP : Mutex< Option< Vec< Vec< u8 > > > > = Mutex::new( None );
@@ -193,12 +152,12 @@ fn on_input_change
           {
             if let Some( tmx_content ) = js_val.as_string() 
             {
-              set_pattern( tmx_content );
+              let _ = set_pattern( &tmx_content );
               let _ = generate_map_wfc_image();
               let _ = render_tile_map();
             }
           },
-          _ => gl::error!( "Can't read input file" )
+          _ => gl::warn!( "Can't read input file" )
         }
       }
     }
@@ -338,7 +297,7 @@ fn prepare_vertex_attributes() -> WebGlVertexArrayObject
   vao
 }
 
-fn create_mvp() -> ndarray_cg::Mat< 4, 4, f32, DescriptorOrderColumnMajor >
+fn create_mvp() -> F32x4x4
 {
   let gl = gl::context::retrieve_or_make()
   .unwrap();
@@ -347,7 +306,7 @@ fn create_mvp() -> ndarray_cg::Mat< 4, 4, f32, DescriptorOrderColumnMajor >
   let height = gl.drawing_buffer_height() as f32;
   let aspect_ratio = width / height;
 
-  let perspective_matrix = ndarray_cg::d2::mat3x3h::perspective_rh_gl(
+  let perspective_matrix = mat3x3h::perspective_rh_gl(
     70.0f32.to_radians(),
     aspect_ratio,
     0.1,
@@ -356,16 +315,16 @@ fn create_mvp() -> ndarray_cg::Mat< 4, 4, f32, DescriptorOrderColumnMajor >
 
   // qqq : use helpers
   // aaa : now used translation and scale
-  let t = [ 0.0, 0.075, 0.0 ];
-  let translate = gl::mat3x3h::translation( t );
+  let t = [ 0.0, 0.0, 0.0 ];
+  let translate = mat3x3h::translation( t );
 
   let s = [ 1.95 / 3.0, 1.95 / 3.0, 1.95 / 3.0 ];
-  let scale = gl::mat3x3h::scale( s );
+  let scale = mat3x3h::scale( s );
 
   let eye = [ 0.0, 0.0, 1.0 ];
   let up = [ 0.0, 1.0, 0.0 ];
   let center = [ 0., 0., 0. ];
-  let view_matrix = ndarray_cg::d2::mat3x3h::look_at_rh( eye, center, up );
+  let view_matrix = mat3x3h::look_at_rh( eye, center, up );
 
   perspective_matrix * view_matrix * translate * scale
 }
@@ -551,7 +510,7 @@ fn render_tile_map()
 }
 
 /// Parse and set reference for generating tilemap from tmx file content 
-fn set_pattern( tmx_content: String )
+fn set_pattern( tmx_content : &str )
 {
   let elem : xml::Element = tmx_content.parse().unwrap();
 
