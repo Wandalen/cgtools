@@ -326,6 +326,7 @@ version = "0.5"
 
 [workspace.dependencies.wfc]
 version = "0.10"
+features = [ "js" ]
 
 [workspace.dependencies.wfc_image] 
 version = "0.12"
