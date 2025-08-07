@@ -1,39 +1,53 @@
+//! This module provides a generic `Coordinate` struct for representing positions in a hexagonal grid.
+//! It supports different coordinate systems (Axial and Offset) and orientations (Pointy-topped and Flat-topped)
+//! through a flexible, type-safe generic implementation. It also includes conversions between systems
+//! and from pixel coordinates, as well as utility functions for grid operations like distance and neighbor finding.
+
 use ndarray_cg::I32x2;
 use serde::{ Deserialize, Serialize };
 use std::{ fmt::Debug, hash::Hash, marker::PhantomData };
 use crate::coordinates::{ pixel::Pixel, Distance, Neigbors };
 
+/// A marker struct representing the Axial coordinate system for hexagonal grids.
 #[ derive( Debug ) ]
 pub struct Axial;
 
+/// A marker struct representing the Offset coordinate system, parameterized by `Parity` (Odd or Even).
 #[ derive( Debug ) ]
 pub struct Offset< Parity >( PhantomData< Parity > );
 
+/// A marker struct for pointy-topped hexagon orientation.
 #[ derive( Debug ) ]
 pub struct Pointy;
 
+/// A marker struct for flat-topped hexagon orientation.
 #[ derive( Debug ) ]
 pub struct Flat;
 
+/// A marker struct for "odd" parity in an Offset coordinate system.
 #[ derive( Debug ) ]
 pub struct Odd;
 
+/// A marker struct for "even" parity in an Offset coordinate system.
 #[ derive( Debug ) ]
 pub struct Even;
 
+/// Represents a coordinate in a hexagonal grid with a specific system and orientation.
 #[ derive( Serialize, Deserialize ) ]
 pub struct Coordinate< System, Orientation >
 {
-  /// Column index
+  /// The column index of the coordinate (often 'q' or 'col').
   pub q : i32,
-  /// Row index
+  /// The row index of the coordinate (often 'r' or 'row').
   pub r : i32,
+  /// A marker to hold the generic types for the coordinate system and orientation.
   #[ serde( skip ) ]
   pub _marker : PhantomData< ( System, Orientation ) >,
 }
 
 impl< System, Orientation > Debug for Coordinate< System, Orientation >
 {
+  /// Formats the coordinate for debugging, including its system type.
   fn fmt( &self, f : &mut std::fmt::Formatter< '_ > ) -> std::fmt::Result
   {
     f.debug_struct( "Coordinate" )
@@ -46,6 +60,7 @@ impl< System, Orientation > Debug for Coordinate< System, Orientation >
 
 impl< System, Orientation > Clone for Coordinate< System, Orientation >
 {
+  /// Clones the coordinate.
   fn clone( &self ) -> Self
   {
     Self::new_uncheked( self.q, self.r )
@@ -58,6 +73,7 @@ impl< System, Orientation > Eq for Coordinate< System, Orientation > {}
 
 impl< System, Orientation > PartialEq for Coordinate< System, Orientation >
 {
+  /// Checks for equality between two coordinates based on their `q` and `r` values.
   fn eq( &self, other : &Self ) -> bool
   {
     self.q == other.q && self.r == other.r
@@ -66,6 +82,7 @@ impl< System, Orientation > PartialEq for Coordinate< System, Orientation >
 
 impl< System, Orientation > Hash for Coordinate< System, Orientation >
 {
+  /// Hashes the coordinate based on its `q`, `r`, and type markers.
   fn hash< H : std::hash::Hasher >( &self, state : &mut H )
   {
     self.q.hash( state );
@@ -76,6 +93,7 @@ impl< System, Orientation > Hash for Coordinate< System, Orientation >
 
 impl< System, Orientation > Default for Coordinate< System, Orientation >
 {
+  /// Returns a default coordinate at (0, 0).
   fn default() -> Self
   {
     Self { q : Default::default(), r : Default::default(), _marker : Default::default() }
@@ -84,6 +102,7 @@ impl< System, Orientation > Default for Coordinate< System, Orientation >
 
 impl< System, Orientation > Into< I32x2 > for Coordinate< System, Orientation >
 {
+  /// Converts the coordinate into an `I32x2` vector.
   fn into( self ) -> I32x2
   {
     I32x2::from_array( [ self.q, self.r ] )
@@ -92,6 +111,7 @@ impl< System, Orientation > Into< I32x2 > for Coordinate< System, Orientation >
 
 impl< System, Orientation > Into< ( i32, i32 ) > for Coordinate< System, Orientation >
 {
+  /// Converts the coordinate into a tuple `(q, r)`.
   fn into( self ) -> ( i32, i32 )
   {
     ( self.q, self.r )
@@ -100,7 +120,7 @@ impl< System, Orientation > Into< ( i32, i32 ) > for Coordinate< System, Orienta
 
 impl< System, Orientation > Coordinate< System, Orientation >
 {
-  /// Create a new coordinate
+  /// Creates a new coordinate without any checks. For internal use.
   pub( crate ) const fn new_uncheked( q : i32, r : i32 ) -> Self
   {
     Self
@@ -114,7 +134,7 @@ impl< System, Orientation > Coordinate< System, Orientation >
 
 impl< Orientation, Parity > Coordinate< Offset< Parity >, Orientation >
 {
-  /// Create a new coordinate
+  /// Creates a new `Offset` coordinate.
   pub const fn new( q : i32, r : i32 ) -> Self
   {
     Self::new_uncheked( q, r )
@@ -123,12 +143,13 @@ impl< Orientation, Parity > Coordinate< Offset< Parity >, Orientation >
 
 impl< Orientation > Coordinate< Axial, Orientation >
 {
-  /// Create a new coordinate
+  /// Creates a new `Axial` coordinate.
   pub const fn new( q : i32, r : i32 ) -> Self
   {
     Self::new_uncheked( q, r )
   }
 
+  /// Calculates the grid distance between two `Axial` coordinates.
   pub fn distance( &self, Self { q, r, .. } : Self ) -> i32
   {
     let s = -self.q - self.r;
@@ -142,6 +163,7 @@ impl< Orientation > Coordinate< Axial, Orientation >
 
 impl From< Coordinate< Axial, Pointy > > for Coordinate< Offset< Odd >, Pointy >
 {
+  /// Converts from Axial (Pointy) to Offset (Odd, Pointy) coordinates.
   fn from( value : Coordinate< Axial, Pointy > ) -> Self
   {
     let col = value.q + ( value.r - ( value.r & 1 ) ) / 2;
@@ -152,6 +174,7 @@ impl From< Coordinate< Axial, Pointy > > for Coordinate< Offset< Odd >, Pointy >
 
 impl From< Coordinate< Axial, Pointy > > for Coordinate< Offset< Even >, Pointy >
 {
+  /// Converts from Axial (Pointy) to Offset (Even, Pointy) coordinates.
   fn from( value : Coordinate< Axial, Pointy > ) -> Self
   {
     let col = value.q + ( value.r + ( value.r & 1 ) ) / 2;
@@ -162,6 +185,7 @@ impl From< Coordinate< Axial, Pointy > > for Coordinate< Offset< Even >, Pointy 
 
 impl From< Coordinate< Axial, Flat > > for Coordinate< Offset< Odd >, Flat >
 {
+  /// Converts from Axial (Flat) to Offset (Odd, Flat) coordinates.
   fn from( value : Coordinate< Axial, Flat > ) -> Self
   {
     let col = value.q;
@@ -172,6 +196,7 @@ impl From< Coordinate< Axial, Flat > > for Coordinate< Offset< Odd >, Flat >
 
 impl From< Coordinate< Axial, Flat > > for Coordinate< Offset< Even >, Flat >
 {
+  /// Converts from Axial (Flat) to Offset (Even, Flat) coordinates.
   fn from( value : Coordinate< Axial, Flat > ) -> Self
   {
     let col = value.q;
@@ -182,6 +207,7 @@ impl From< Coordinate< Axial, Flat > > for Coordinate< Offset< Even >, Flat >
 
 impl From< Coordinate< Offset< Odd >, Pointy > > for Coordinate< Axial, Pointy >
 {
+  /// Converts from Offset (Odd, Pointy) to Axial (Pointy) coordinates.
   fn from( value : Coordinate< Offset< Odd >, Pointy > ) -> Self
   {
     let q = value.q - ( value.r - ( value.r & 1 ) ) / 2;
@@ -192,6 +218,7 @@ impl From< Coordinate< Offset< Odd >, Pointy > > for Coordinate< Axial, Pointy >
 
 impl From< Coordinate< Offset< Even >, Pointy > > for Coordinate< Axial, Pointy >
 {
+  /// Converts from Offset (Even, Pointy) to Axial (Pointy) coordinates.
   fn from( value : Coordinate< Offset< Even >, Pointy > ) -> Self
   {
     let q = value.q - ( value.r + ( value.r & 1 ) ) / 2;
@@ -202,6 +229,7 @@ impl From< Coordinate< Offset< Even >, Pointy > > for Coordinate< Axial, Pointy 
 
 impl From< Coordinate< Offset< Odd >, Flat > > for Coordinate< Axial, Flat >
 {
+  /// Converts from Offset (Odd, Flat) to Axial (Flat) coordinates.
   fn from( value : Coordinate< Offset< Odd >, Flat > ) -> Self
   {
     let q = value.q;
@@ -212,6 +240,7 @@ impl From< Coordinate< Offset< Odd >, Flat > > for Coordinate< Axial, Flat >
 
 impl From< Coordinate< Offset< Even >, Flat > > for Coordinate< Axial, Flat >
 {
+  /// Converts from Offset (Even, Flat) to Axial (Flat) coordinates.
   fn from( value : Coordinate< Offset< Even >, Flat > ) -> Self
   {
     let q = value.q;
@@ -222,6 +251,7 @@ impl From< Coordinate< Offset< Even >, Flat > > for Coordinate< Axial, Flat >
 
 impl< System, Orientation > From< ( i32, i32 ) > for Coordinate< System, Orientation >
 {
+  /// Creates a coordinate from a tuple `(q, r)`.
   fn from( ( q, r ) : ( i32, i32 ) ) -> Self
   {
     Self::new_uncheked( q, r )
@@ -230,6 +260,7 @@ impl< System, Orientation > From< ( i32, i32 ) > for Coordinate< System, Orienta
 
 impl< System, Orientation > From< [ i32; 2 ] > for Coordinate< System, Orientation >
 {
+  /// Creates a coordinate from an array `[q, r]`.
   fn from( [ q, r ] : [ i32; 2 ] ) -> Self
   {
     Self::new_uncheked( q, r )
@@ -238,6 +269,7 @@ impl< System, Orientation > From< [ i32; 2 ] > for Coordinate< System, Orientati
 
 impl< System, Orientation > From< I32x2 > for Coordinate< System, Orientation >
 {
+  /// Creates a coordinate from an `I32x2` vector.
   fn from( ndarray_cg::Vector( [ q, r ] ) : I32x2 ) -> Self
   {
     Self::new_uncheked( q, r )
@@ -248,6 +280,7 @@ impl< Orientation > std::ops::Add for Coordinate< Axial, Orientation >
 {
   type Output = Self;
 
+  /// Adds two `Axial` coordinates (vector addition).
   fn add( self, rhs : Self ) -> Self::Output
   {
     Self::new( self.q + rhs.q, self.r + rhs.r )
@@ -258,6 +291,7 @@ impl< Orientation > std::ops::Sub for Coordinate< Axial, Orientation >
 {
   type Output = Self;
 
+  /// Subtracts two `Axial` coordinates (vector subtraction).
   fn sub( self, rhs : Self ) -> Self::Output
   {
     Self::new( self.q - rhs.q, self.r - rhs.r )
@@ -268,6 +302,7 @@ impl< Orientation > std::ops::Mul< i32 > for Coordinate< Axial, Orientation >
 {
   type Output = Self;
 
+  /// Scales an `Axial` coordinate by an integer factor.
   fn mul( self, rhs : i32 ) -> Self::Output
   {
     Self::new( self.q * rhs, self.r * rhs )
@@ -278,6 +313,7 @@ impl< Orientation > std::ops::Div< i32 > for Coordinate< Axial, Orientation >
 {
   type Output = Self;
 
+  /// Divides an `Axial` coordinate by an integer factor.
   fn div( self, rhs : i32 ) -> Self::Output
   {
     Self::new( self.q / rhs, self.r / rhs )
@@ -286,6 +322,7 @@ impl< Orientation > std::ops::Div< i32 > for Coordinate< Axial, Orientation >
 
 impl From< Pixel > for Coordinate< Axial, Pointy >
 {
+  /// Converts pixel coordinates to the nearest `Axial` coordinate with pointy-topped orientation.
   fn from( Pixel { data : [ x, y ] } : Pixel ) -> Self
   {
     // implementation is taken from https://www.redblobgames.com/grids/hexagons/#pixel-to-hex
@@ -298,6 +335,7 @@ impl From< Pixel > for Coordinate< Axial, Pointy >
 
 impl From< Pixel > for Coordinate< Axial, Flat >
 {
+  /// Converts pixel coordinates to the nearest `Axial` coordinate with flat-topped orientation.
   fn from( Pixel { data : [ x, y ] } : Pixel ) -> Self
   {
     // implementation is taken from https://www.redblobgames.com/grids/hexagons/#pixel-to-hex
@@ -308,15 +346,19 @@ impl From< Pixel > for Coordinate< Axial, Flat >
   }
 }
 
-/// Rounds the given floating-point axial coordinates to the nearest integer axial coordinates.
-/// This function is used to convert floating-point axial coordinates to integer axial coordinates.
+/// Rounds floating-point axial coordinates to the nearest integer axial coordinates.
 ///
-/// # Parameters
-/// - `q`: The floating-point q-coordinate.
-/// - `r`: The floating-point r-coordinate.
+/// This function converts fractional `(q, r)` axial coordinates (which can arise from
+/// pixel-to-hex conversions) into the nearest valid integer `(q, r)` hex coordinate by
+/// using a third "s" coordinate (`s = -q - r`) and rounding each to the nearest integer,
+/// then resolving any inconsistencies.
+///
+/// # Arguments
+/// * `q` - The floating-point q-coordinate.
+/// * `r` - The floating-point r-coordinate.
 ///
 /// # Returns
-/// A tuple containing the rounded integer q and r coordinates.
+/// A tuple `(i32, i32)` containing the rounded integer q and r coordinates.
 fn axial_round( q : f32, r : f32 ) -> ( i32, i32 )
 {
   // implementation is taken from https://www.redblobgames.com/grids/hexagons/#rounding
@@ -344,6 +386,7 @@ fn axial_round( q : f32, r : f32 ) -> ( i32, i32 )
 
 impl< Orientation > Distance for Coordinate< Axial, Orientation >
 {
+  /// Calculates the grid distance between two `Axial` coordinates.
   fn distance( &self, Self { q, r, .. } : &Self ) -> u32
   {
     let s = -self.q as i64 - self.r as i64;
@@ -357,6 +400,7 @@ impl< Orientation > Distance for Coordinate< Axial, Orientation >
 
 impl< Orientation > Neigbors for Coordinate< Axial, Orientation >
 {
+  /// Returns a `Vec` containing all 6 direct neighbors of an `Axial` coordinate.
   fn neighbors( &self ) -> Vec< Self >
   {
     [
@@ -372,31 +416,37 @@ impl< Orientation > Neigbors for Coordinate< Axial, Orientation >
 
 impl Coordinate< Axial, Flat >
 {
+  /// Returns the coordinate directly above in a flat-topped layout.
   pub fn up( &self ) -> Self
   {
     Self::new( self.q, self.r - 1 )
   }
 
+  /// Returns the coordinate directly below in a flat-topped layout.
   pub fn down( &self ) -> Self
   {
     Self::new( self.q, self.r + 1 )
   }
 
+  /// Returns the coordinate to the upper-left in a flat-topped layout.
   pub fn left_up( &self ) -> Self
   {
     Self::new( self.q - 1, self.r )
   }
 
+  /// Returns the coordinate to the lower-left in a flat-topped layout.
   pub fn left_down( &self ) -> Self
   {
     Self::new( self.q - 1, self.r + 1 )
   }
 
+  /// Returns the coordinate to the upper-right in a flat-topped layout.
   pub fn right_up( &self ) -> Self
   {
     Self::new( self.q + 1, self.r - 1 )
   }
 
+  /// Returns the coordinate to the lower-right in a flat-topped layout.
   pub fn right_down( &self ) -> Self
   {
     Self::new( self.q + 1, self.r )

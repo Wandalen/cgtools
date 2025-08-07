@@ -19,7 +19,7 @@ rust_2018_idioms = "deny"
 # Prevents use of unstable features.
 future_incompatible = "warn"
 # # Encourages documentation for public items.
-# missing_docs = "warn" # qqq : uncomment please
+missing_docs = "warn" # qqq : uncomment please
 # # Suggests implementing Debug for public types.
 # missing_debug_implementations = "warn" # qqq : uncomment please
 # Warns against using unsafe code.
