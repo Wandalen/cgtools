@@ -6,7 +6,21 @@ mod private
 
   // qqq : implement typed errors
   // qqq : documentation, please
-
+  /// Asynchronously loads a file from the `/static/` directory of the web server.
+  ///
+  /// This function uses the browser's `fetch` API to request a file. It constructs the URL
+  /// by combining the window's origin with the provided file name inside a `/static/` path.
+  ///
+  /// # Arguments
+  /// * `file_name` - The name of the file to load from the `/static/` directory.
+  ///
+  /// # Returns
+  /// A `Result` which is either a `Vec<u8>` containing the file's byte data on success,
+  /// or a `JsValue` containing a JavaScript error on failure.
+  ///
+  /// # Panics
+  /// This function will panic if it cannot access the browser's `window` object,
+  /// if the URL is malformed, or if the fetch request promise is rejected.
   pub async fn load( file_name : &str ) -> Result< Vec< u8 >, JsValue >
   {
 

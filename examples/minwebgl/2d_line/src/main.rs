@@ -1,3 +1,5 @@
+//! 2d line demo
+
 use minwebgl as gl;
 use std::
 {
@@ -65,7 +67,7 @@ fn run() -> Result< (), gl::WebglError >
 
   line.create_mesh( &gl, main_frag )?;
   let mesh = line.get_mesh();
-  
+
   mesh.upload_matrix( &gl, "u_projection_matrix", &projection_matrix.to_array() )?;
   mesh.upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() )?;
   mesh.upload( &gl, "u_width", &line_width )?;
@@ -149,7 +151,7 @@ fn run() -> Result< (), gl::WebglError >
 
   gl.enable( gl::BLEND );
   gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA );
-  
+
   // Define the update and draw logic
   let update_and_draw =
   {

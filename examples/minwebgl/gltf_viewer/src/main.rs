@@ -1,4 +1,4 @@
-
+#![ doc = "../README.md" ]
 use std::{ cell::RefCell, rc::Rc };
 use minwebgl as gl;
 
@@ -50,7 +50,7 @@ async fn run() -> Result< (), gl::WebglError >
   gl::info!( "Scene boudnig box: {:?}", scene_bounding_box );
   let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
   let dist = scene_bounding_box.max.mag();
-  let exponent = 
+  let exponent =
   {
     let bits = diagonal.to_bits();
     let exponent_field = ( ( bits >> 23 ) & 0xFF ) as i32;
@@ -109,7 +109,7 @@ async fn run() -> Result< (), gl::WebglError >
 
       swap_buffer.set_output( t );
       swap_buffer.swap();
-    
+
       let _ = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
       .expect( "Failed to render ToSrgbPass" );
 
