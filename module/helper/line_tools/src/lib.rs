@@ -10,6 +10,7 @@ mod private
   own use ::mod_interface::mod_interface;
 
   layer d2;
+  layer d3;
 
   layer joins;
   layer caps;

@@ -7,8 +7,8 @@ mod private
   #[ derive( Default, Debug, Clone ) ]
   pub struct Mesh
   {
-    pub program_list : Vec< Program >,
-    pub program_map : HashMap< Box< str >, Program >
+    pub program_map : HashMap< Box< str >, Program >,
+    pub buffers : HashMap< Box< str >, gl::WebGlBuffer >
   }
 
   impl Mesh 
@@ -17,7 +17,7 @@ mod private
     where 
       D : gl::UniformUpload + ?Sized
     {
-      for p in self.program_list.iter()
+      for p in self.program_map.values()
       {
         p.upload( gl, uniform_name, data )?;
       }
@@ -39,7 +39,7 @@ mod private
     where 
       D : gl::UniformMatrixUpload + ?Sized
     {
-      for p in self.program_list.iter()
+      for p in self.program_map.values()
       {
         p.upload_matrix( gl, uniform_name, data )?;
       }
@@ -57,10 +57,19 @@ mod private
       Ok( () )
     }
 
-    pub fn add_program( &mut self, name : &str, program : Program )
+    pub fn add_program< T : Into< Box< str > > >( &mut self, name : T, program : Program )
     {
-      self.program_list.push( program.clone() );
       self.program_map.insert( name.into(), program );
+    }
+
+    pub fn get_program( &self, name : &str ) -> &Program
+    {
+      self.program_map.get( name ).expect( "Program with the specified name does not exist" )
+    }
+
+    pub fn get_program_mut( &mut self, name : &str ) -> &mut Program
+    {
+      self.program_map.get_mut( name ).expect( "Program with the specified name does not exist" )
     }
 
     pub fn draw( &self, gl : &gl::WebGl2RenderingContext, name : &str )
@@ -73,11 +82,21 @@ mod private
 
     pub fn draw_all( &self, gl : &gl::WebGl2RenderingContext )
     {
-      for p in self.program_list.iter()
+      for p in self.program_map.values()
       {
         p.draw( gl );
       }
-    }     
+    }
+
+    pub fn get_buffer( &self, name : &str ) -> &gl::WebGlBuffer
+    {
+      self.buffers.get( name ).expect( "Buffer with the specified name does not exist" )
+    }
+
+    pub fn add_buffer< T : Into< Box< str > > >( &mut self, name : T, buffer : gl::WebGlBuffer )
+    {
+      self.buffers.insert( name.into(), buffer );
+    }
   }
     
 }
