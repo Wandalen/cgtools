@@ -1,3 +1,5 @@
+#![ doc = include_str!( "../README.md" ) ]
+
 use minwebgl as gl;
 use gl::{
   JsCast,
