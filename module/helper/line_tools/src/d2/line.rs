@@ -5,20 +5,32 @@ mod private
   use minwebgl as gl;
   use ndarray_cg as math;
 
+  /// Represents a renderable 2D line with configurable caps and joins.
   #[ derive( Debug, Clone, Default ) ]
   pub struct Line
   {
+    /// A vector of 2D points that define the line's path.
     points : Vec< math::F32x2 >,
+    /// The style of the line's end caps (`Butt`, `Round`, or `Square`).
     cap : Cap,
+    /// The style of the line's joins between segments (`Round`, `Miter`, or `Bevel`).
     join : Join,
+    /// The mesh object that encapsulates all WebGL buffers and shader programs.
     mesh : Option< Mesh >,
+    /// A flag to indicate if the join style has been changed.
     join_changed : bool,
+    /// A flag to indicate if the cap style has been changed.
     cap_changed : bool,
+    /// A flag to indicate if the line's points have been changed.
     points_changed : bool
   }
 
   impl Line
   {
+    /// Creates and initializes the WebGL mesh for the line.
+    ///
+    /// This function compiles all necessary shaders, creates all buffers, sets up
+    /// the vertex attribute pointers, and links the shader programs.
     pub fn create_mesh( &mut self, gl : &gl::WebGl2RenderingContext, fragment_shader : &str ) -> Result< (), gl::WebglError >
     {
       let fragment_shader = gl::ShaderSource::former()
@@ -108,24 +120,28 @@ mod private
       Ok( () )
     }
 
+    /// Sets the join style of the line and marks it for an update.
     pub fn set_join( &mut self, join : Join )
     {
       self.join = join;
       self.join_changed = true;
     }
 
+    /// Sets the cap style of the line and marks it for an update.
     pub fn set_cap( &mut self, cap : Cap )
     {
       self.cap = cap;
       self.cap_changed = true;
     }
 
+    /// Adds a new point to the line and marks the points as changed.
     pub fn add_point( &mut self, point : gl::F32x2 )
     {
       self.points.push( point );
       self.points_changed = true;
     }
 
+    /// Updates the mesh's WebGL resources if any part of the line has changed.
     pub fn update_mesh( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
       let mesh = self.mesh.as_mut().expect( "Mesh has not been created yet" );
@@ -328,7 +344,7 @@ mod private
       Ok( () )
     }
 
-    // Only draws a Line if the are more than 1 point
+    /// Update the line and draw it if it has more than one point.
     pub fn draw( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
 
@@ -356,16 +372,19 @@ mod private
       Ok( () )
     }
 
+    /// Returns a reference to the internal mesh.
     pub fn get_mesh( &self ) -> &Mesh
     {
       self.mesh.as_ref().expect( "Mesh has not been created yet" )
     }   
 
+    /// Returns a mutable reference to the internal mesh.
     pub fn get_mesh_mut( &mut self ) -> &mut Mesh
     {
       self.mesh.as_mut().expect( "Mesh has not been created yet" )
     } 
 
+    /// Returns a slice of the line's points.
     pub fn get_points( &self ) -> &[ gl::F32x2 ]
     {
       &self.points
