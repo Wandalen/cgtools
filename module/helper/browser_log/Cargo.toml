@@ -13,15 +13,22 @@ keywords = ["wasm"]
 [lints]
 workspace = true
 
+[features]
+enabled = [
+  "dep:wasm-bindgen",
+  "dep:web-sys",
+  "dep:log",
+  "dep:mod_interface",
+]
+default = [ "enabled" ]
+full = [ "default" ]
+
 [dependencies]
 
-wasm-bindgen = { workspace = true }
-web-sys = { workspace = true, features = [
+wasm-bindgen = { workspace = true, optional = true }
+web-sys = { workspace = true, optional = true, features = [
   'console',
 ]}
-log = { workspace = true, features = [ "std" ] }
-mod_interface = { workspace = true }
-
-# xxx : introduce features
-# xxx : introduce features: enabled, default, full
+log = { workspace = true, optional = true, features = [ "std" ] }
+mod_interface = { workspace = true, optional = true }
 

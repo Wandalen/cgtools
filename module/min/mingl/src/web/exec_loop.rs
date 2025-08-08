@@ -1,4 +1,7 @@
-/// Internal namespace.
+//! This module provides a simple and convenient way to create a main application loop
+//! for WebAssembly projects, using the browser's `requestAnimationFrame` API.
+
+/// Internal namespace for implementation details.
 mod private
 {
   // use crate::*;
@@ -16,6 +19,11 @@ mod private
     rc::Rc,
   };
 
+  /// Starts and runs a render loop that calls the provided closure on each animation frame.
+  ///
+  /// # Arguments
+  /// * `update_and_draw` - A closure that takes a `f64` timestamp and performs all per-frame logic.
+  ///   It should return `true` to continue the loop or `false` to stop it.
   pub fn run< F >( mut update_and_draw : F )
   where
     F : 'static + FnMut( f64 ) -> bool,
@@ -38,7 +46,14 @@ mod private
     request_animation_frame( render_loop.borrow().as_ref().unwrap() );
   }
 
-  // Helper function to request animation frame
+  /// A helper function to make a single `requestAnimationFrame` call.
+  ///
+  /// # Arguments
+  /// * `f` - The closure to be executed on the next animation frame.
+  ///
+  /// # Panics
+  /// Panics if it cannot access the browser's `window` object or if the
+  /// `request_animation_frame` call itself fails.
   pub fn request_animation_frame( f : &Closure< dyn FnMut( f64 ) > )
   {
     use wasm_bindgen::JsCast;
@@ -50,10 +65,11 @@ mod private
 
 }
 
+// This macro exposes the public interface of the module.
 crate::mod_interface!
 {
-
+  /// The main function to start the animation loop.
   own use run;
+  /// The helper function to request a single animation frame.
   orphan use request_animation_frame;
-
 }

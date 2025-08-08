@@ -1,3 +1,4 @@
+//! This module contains tests for the `ndarray_cg` module, specifically focusing on the `inc` module.
 #![ allow( unused_imports ) ]
 
 use test_tools::exposed::*;

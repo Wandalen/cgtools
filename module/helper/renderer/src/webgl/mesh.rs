@@ -45,6 +45,7 @@ use crate::webgl::Primitive;
       self.primitives.push( primitive );
     }
 
+    /// Calculates and returns the combined bounding box for all primitives in the scene.
     pub fn bounding_box( &self ) -> BoundingBox
     {
       let mut bbox = BoundingBox::default();

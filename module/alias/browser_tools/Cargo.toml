@@ -13,10 +13,15 @@ keywords = ["wasm"]
 [lints]
 workspace = true
 
+[features]
+enabled = [
+  "dep:mod_interface",
+  "dep:browser_log",
+]
+default = [ "enabled" ]
+full = [ "default" ]
+
 [dependencies]
 
-mod_interface = { workspace = true }
-browser_log = { workspace = true }
-
-# xxx : introduce features
-# xxx : introduce features: enabled, default, full
+mod_interface = { workspace = true, optional = true }
+browser_log = { workspace = true, optional = true }

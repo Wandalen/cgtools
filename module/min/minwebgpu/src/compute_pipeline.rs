@@ -3,12 +3,15 @@ mod private
 {
   use crate::*;
 
+
+  /// Creates a `GpuComputePipelineDescriptor` with the specified compute stage.
   pub fn desc< 'a, T >( compute : T ) -> ComputePipelineDescriptor< 'a >
     where  T : Into< web_sys::GpuProgrammableStage >
   {
     ComputePipelineDescriptor::new( compute )
   }
 
+  /// Creates a GPU compute pipeline synchronously.
   pub fn create
   ( 
     device : &web_sys::GpuDevice ,
@@ -19,6 +22,7 @@ mod private
     pipeline
   }
 
+  /// Creates a GPU compute pipeline asynchronously.
   pub async fn create_async
   ( 
     device : &web_sys::GpuDevice,

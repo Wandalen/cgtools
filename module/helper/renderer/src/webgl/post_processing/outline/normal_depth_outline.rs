@@ -5,14 +5,26 @@ mod private
   use gl::GL;
   use crate::webgl::{ post_processing::{ Pass, VS_TRIANGLE }, program::NormalDepthOutlineBaseShader, ProgramInfo };
 
+  /// A struct representing a rendering pass for creating outlines based on normal and depth information.
   pub struct NormalDepthOutlinePass
   {
+    /// Holds the WebGL program and its uniform/attribute locations. The `NormalDepthOutlineBaseShader`
+    /// type parameter ensures that the correct shader is used.
     program_info : ProgramInfo< NormalDepthOutlineBaseShader >,
+    /// The texture containing per-pixel position data, typically from a G-Buffer. This is
+    /// used to calculate depth differences between pixels.
     position_texture : Option< gl::web_sys::WebGlTexture >,
+    /// The texture containing per-pixel normal vectors, also from a G-Buffer. This is
+    /// used to detect sharp changes in surface orientation.
     normal_texture : Option< gl::web_sys::WebGlTexture >,
+    /// The texture containing per-pixel object color or an object ID. This can be used to
+    /// detect edges between different objects.
     object_color_texture : Option< gl::web_sys::WebGlTexture >,
+    /// A floating-point value that controls the thickness of the rendered outline.
     outline_thickness : f32,
+    /// The width of the viewport or texture being rendered to.
     width : u32,
+    /// The height of the viewport or texture being rendered to.
     height : u32
   }
 
@@ -63,6 +75,7 @@ mod private
       Ok( pass )
     }    
 
+    /// Sets the thickness of the outline.
     pub fn set_outline_thickness( &mut self, new_value : f32 )
     {
       self.outline_thickness = new_value;

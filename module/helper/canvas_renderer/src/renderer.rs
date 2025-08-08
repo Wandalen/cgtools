@@ -1,3 +1,7 @@
+//! This module contains the implementation for offscreen 
+//! rendering to a texture using WebGL2. It includes a utility 
+//! function to create a framebuffer and the `CanvasRenderer` 
+//! struct for managing the rendering process.
 mod private
 {
   use minwebgl as gl;
@@ -67,18 +71,26 @@ mod private
     Some( ( framebuffer, color ) )
   }
 
+  /// Renderer for 2d opaque objects
   pub struct CanvasRenderer
   {
+    /// The WebGL program used for rendering.
     program : WebGlProgram,
+    /// A map storing the locations of uniform variables in the program.
     uniforms : HashMap< String, Option< gl::WebGlUniformLocation > >,
+    /// The WebGL framebuffer used for offscreen rendering.
     framebuffer : WebGlFramebuffer,
+    /// The texture attached to the framebuffer, where the rendering results are stored.
     output_texture : WebGlTexture,
+    /// The width of the framebuffer and its output texture.
     width : u32,
+    /// The height of the framebuffer and its output texture.
     height : u32
   } 
 
   impl CanvasRenderer
   {
+    /// Creates a new `CanvasRenderer`.
     pub fn new( gl : &GL, width : u32, height : u32 ) -> Result< Self, gl::WebglError >
     {
       let vertex_shader_src = include_str!( "../shaders/canvas.vert" );
@@ -121,6 +133,7 @@ mod private
       )
     }
 
+    /// Uploads the camera's view and projection matrices to the shader uniforms.
     fn upload_camera( &self, gl : &GL, camera : &Camera )
     {
       gl::uniform::matrix_upload
@@ -140,6 +153,7 @@ mod private
       ).unwrap();
     }
 
+    /// Uploads a node's world matrix to the shader uniforms.
     pub fn upload_node
     (
       &self,
@@ -156,6 +170,7 @@ mod private
       ).unwrap();
     }
 
+    /// Renders the scene to the offscreen framebuffer.
     pub fn render
     ( 
       &self, 
@@ -225,6 +240,7 @@ mod private
       Ok( () )
     }
 
+    /// Sets a new output texture for the renderer's framebuffer.
     pub fn set_texture
     ( 
       &mut self, 
@@ -240,6 +256,7 @@ mod private
       self.output_texture = output_texture;
     }
 
+    /// Returns a clone of the current output texture.
     pub fn get_texture( &self ) -> WebGlTexture
     {
       self.output_texture.clone()

@@ -3,12 +3,15 @@ mod private
 {
   use crate::*;
 
+  /// Retrieves the `web_sys::Navigator` object from the current window.
   pub fn navigator() -> web_sys::Navigator
   {
     let window = web_sys::window().unwrap();
     let navigator = window.navigator();
     navigator
   }
+
+  /// Asynchronously requests a WebGPU adapter from the browser.
   pub async fn request_adapter() -> web_sys::GpuAdapter
   {
     let navigator = navigator();
@@ -18,12 +21,14 @@ mod private
     adapter.dyn_into().unwrap()
   }
 
+  /// Asynchronously requests a logical GPU device from a given adapter.
   pub async fn request_device( adapter : &web_sys::GpuAdapter ) -> web_sys::GpuDevice
   {
     let device = JsFuture::from( adapter.request_device() ).await.unwrap();
     device.dyn_into().unwrap()
   }
 
+  /// Retrieves the WebGPU context from an HTML canvas element.
   pub fn from_canvas( canvas : &web_sys::HtmlCanvasElement ) -> Result< GL, dom::Error >
   {
     let context = canvas
@@ -38,6 +43,7 @@ mod private
     Ok( gl ) 
   }
 
+  /// Configures the WebGPU canvas context for rendering.
   pub fn configure( device : &web_sys::GpuDevice, context : &GL, format : GpuTextureFormat ) -> Result< (), WebGPUError >
   {
     let configuration = web_sys::GpuCanvasConfiguration::new( device, format );
@@ -46,6 +52,7 @@ mod private
     Ok( () )
   }
 
+  /// Retrieves the preferred texture format for the current canvas.
   pub fn preferred_format() -> GpuTextureFormat
   {
     let navigator = navigator();
@@ -53,6 +60,7 @@ mod private
     format
   }
 
+  /// Gets the current texture from the WebGPU context.
   pub fn current_texture( context : &GL ) -> Result< web_sys::GpuTexture, WebGPUError >
   {
     let format = context.get_current_texture()

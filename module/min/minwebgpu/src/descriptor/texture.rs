@@ -25,7 +25,9 @@ mod private
     view_formats : Vec< GpuTextureFormat >
   }
 
-  impl< 'a > TextureDescriptor< 'a > {
+  impl< 'a > TextureDescriptor< 'a > 
+  {
+    /// Creates a new `TextureDescriptor` with default values.
     pub fn new() -> Self
     {
       let format = web_sys::GpuTextureFormat::Rgba8unormSrgb;
@@ -134,6 +136,7 @@ mod private
       self
     } 
 
+    /// Creates a synchronous texture on the GPU.
     pub fn create
     ( 
       self,

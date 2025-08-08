@@ -2,8 +2,7 @@ mod private
 {
   use crate::*;
 
-  // =
-
+  /// Provides immutable access to the underlying data of a collection as a flat slice.
   pub trait RawSlice : Collection
   {
     /// Returns a reference to the underlying data as a flat array.
@@ -46,15 +45,15 @@ mod private
 
     /// Sets the underlying data from an array of scalars, assuming the input to be in row major order.
     /// The resulting data will conform to the type of matrix used - row major or column major.
-    /// 
+    ///
     /// # Arguments
     /// - `scalars`: An array of scalars to set the data.
     ///
     /// # Returns
     /// - The modified collection with the new scalar data.
-    /// 
+    ///
     /// Example:
-    /// If `scalars = [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ]`, 
+    /// If `scalars = [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ]`,
     /// then internally it will be placed in memory like this:
     /// For Row major matrix: `[ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ]`
     /// For Column major matrix: `[ 1.0, 4.0, 2.0, 5.0, 3.0, 6.0 ]`
@@ -62,15 +61,15 @@ mod private
 
     /// Sets the underlying data from an array of scalars, assuming the input to be in column major order.
     /// The resulting data will conform to the type of matrix used - row major or column major.
-    /// 
+    ///
     /// /// # Arguments
     /// - `scalars`: An array of scalars to set the data.
     ///
     /// # Returns
     /// - The modified collection with the new scalar data.
-    /// 
+    ///
     /// Example:
-    /// If `scalars = [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ]`, 
+    /// If `scalars = [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ]`,
     /// then internally it will be placed in memory like this:
     /// For Row major matrix: `[ 1.0, 3.0, 5.0, 2.0, 4.0, 6.0 ]`
     /// For Column major matrix: `[ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ]`

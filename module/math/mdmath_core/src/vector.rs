@@ -304,6 +304,7 @@ mod private
   /// Trait to get iterator over elements of a vector. Should be implemented even for scalars.
   pub trait VectorIter< E, const N : usize >
   {
+    /// Returns an iterator over references to the elements of the vector.
     fn vector_iter< 'a >( &'a self ) -> impl VectorIteratorRef< 'a, &'a E >
     where
       E : 'a;
@@ -338,6 +339,7 @@ mod private
   where
     Self : VectorIter< E, N >,
   {
+    /// Returns an iterator over mutable references to the elements of the vector.
     fn vector_iter_mut< 'a >( &'a mut self ) -> impl VectorIterator< 'a, &'a mut E >
     where
       E : 'a;

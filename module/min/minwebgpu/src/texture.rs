@@ -3,11 +3,13 @@ mod private
 {
   use crate::*;
 
+  /// Returns a new `TextureDescriptor` with default settings.
   pub fn desc< 'a >() -> TextureDescriptor< 'a >
   {
     TextureDescriptor::new()
   }
 
+  /// Creates a new `GpuTexture` on a WebGPU device.
   pub fn create
   ( 
     device : &web_sys::GpuDevice, 
@@ -20,6 +22,7 @@ mod private
     Ok( texture )
   }
 
+  /// Creates a default `GpuTextureView` for a given texture.
   pub fn view( texture : &web_sys::GpuTexture ) -> Result< web_sys::GpuTextureView, WebGPUError >
   {
     let view = texture.create_view()
@@ -28,6 +31,7 @@ mod private
     Ok( view )
   }
 
+  /// Creates a `GpuTextureView` with a specific descriptor.
   pub fn view_with_descriptor
   ( 
     texture : &web_sys::GpuTexture,

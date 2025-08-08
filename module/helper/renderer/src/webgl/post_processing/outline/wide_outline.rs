@@ -182,14 +182,34 @@ mod private
     }
   }
 
+  /// A struct representing a multi-pass rendering technique for creating wide outlines.
+  /// 
+  /// This pass uses an algorithm like the Jump Flood Algorithm (JFA) to generate
+  /// a distance field, which allows for rendering thick, smooth outlines. Because
+  /// this is a multi-pass process, it requires multiple framebuffers and textures
+  /// to store intermediate results.
   pub struct WideOutlinePass
   {
+    /// A collection of WebGL program information structs, one for each shader used
+    /// in the multi-pass process (e.g., initialization, stepping, and final rendering).
     program_infos : ProgramInfos,
+    /// A hash map to manage multiple WebGL framebuffers. These are used to render
+    /// to different textures in each pass of the algorithm.
     framebuffers : HashMap< String, WebGlFramebuffer >,
+    /// A hash map to store the textures used by the different passes. This includes
+    /// the initial data texture and the textures used to store intermediate distance
+    /// field results.
     textures : HashMap< String, WebGlTexture >,
+    /// The desired thickness of the final outline. This value influences the number
+    /// of passes and the final rendering stage.
     outline_thickness : f32,
+    /// The width of the rendering surface. This is used to size the framebuffers and
+    /// textures correctly.
     width : u32,
+    /// The height of the rendering surface.
     height : u32,
+    /// The number of rendering passes required for the algorithm. This is typically
+    /// related to the outline thickness and the power-of-two size of the textures.
     num_passes : u32
   }
 
@@ -248,11 +268,13 @@ mod private
       Ok( pass )
     }    
 
+    /// Sets the thickness of the outline.
     pub fn set_outline_thickness( &mut self, new_value : f32 )
     {
       self.outline_thickness = new_value;
     }
 
+    /// Sets the number of passes for the wide outline algorithm.
     pub fn set_num_passes( &mut self, new_value : u32 )
     {
       self.num_passes = new_value;

@@ -13,6 +13,13 @@ keywords = ["wasm", "cg"]
 [lints]
 workspace = true
 
+[features]
+enabled = [
+  "dep:mod_interface",
+]
+default = [ "enabled" ]
+full = [ "default" ]
+
 [dependencies]
 
-mod_interface = { workspace = true }
+mod_interface = { workspace = true, optional = true }

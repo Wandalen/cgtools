@@ -4,6 +4,7 @@ mod private
 
   use crate::*;
 
+  /// Describes the layout for a WebGPU bind group.
   #[ derive( Clone ) ]
   pub struct  BindGroupLayoutDescriptor
   {
@@ -17,6 +18,7 @@ mod private
 
   impl BindGroupLayoutDescriptor
   {
+    /// Creates a new `BindGroupLayoutDescriptor` with default values.
     pub fn new() -> Self
     {
       let auto_bindings = false;
@@ -79,6 +81,7 @@ mod private
       self
     }
 
+    /// Creates a `web_sys::GpuBindGroupLayout` from this descriptor.
     pub fn create( self, device : &web_sys::GpuDevice ) -> Result< web_sys::GpuBindGroupLayout, WebGPUError >
     {
       layout::bind_group::create( device, &self.into() )

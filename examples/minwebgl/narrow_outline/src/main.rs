@@ -1,3 +1,5 @@
+#![ doc = "../README.md" ]
+
 use mingl::{ AsBytes, CameraOrbitControls, VectorDataType };
 use minwebgl::{ self as gl, WebglError, JsCast };
 use gl::
@@ -20,21 +22,21 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use renderer::webgl::
 {
-  camera::Camera, 
-  loaders::gltf::{ load, GLTF }, 
-  node::{ Node, Object3D }, 
+  camera::Camera,
+  loaders::gltf::{ load, GLTF },
+  node::{ Node, Object3D },
   program::
   {
-    NormalDepthOutlineObjectShader, 
-    NormalDepthOutlineShader, 
+    NormalDepthOutlineObjectShader,
+    NormalDepthOutlineShader,
     ProgramInfo
-  }, 
-  scene::Scene, 
-  AttributeInfo, 
+  },
+  scene::Scene,
+  AttributeInfo,
   IndexInfo,
-  Geometry, 
-  Material, 
-  Mesh, 
+  Geometry,
+  Material,
+  Mesh,
   Primitive
 };
 use ndarray_cg::
@@ -66,8 +68,8 @@ fn upload_texture
   slot : u32,
 )
 {
-  gl.active_texture( slot ); 
-  gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) ); 
+  gl.active_texture( slot );
+  gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) );
   // Tell the sampler uniform in the shader which texture unit to use ( 0 for GL_TEXTURE0, 1 for GL_TEXTURE1, etc. )
   gl.uniform1i( Some( location ), ( slot - GL::TEXTURE0 ) as i32 );
 }
@@ -88,7 +90,7 @@ fn create_framebuffer
 (
   gl : &gl::WebGl2RenderingContext,
   ( width, height ) : ( i32, i32 )
-) 
+)
 -> Option< ( WebGlFramebuffer, Vec< WebGlTexture > ) >
 {
   let color = gl.create_texture()?;
@@ -121,7 +123,6 @@ fn create_framebuffer
 
   let framebuffer = gl.create_framebuffer()?;
   gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &framebuffer ) );
-  // Attach the texture to the framebuffer's color attachment point
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, Some( &color ), 0 );
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, Some( &normal ), 0 );
   gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT2, GL::TEXTURE_2D, Some( &depth ), 0 );
@@ -151,14 +152,24 @@ fn upload_framebuffer(
   gl.viewport( 0, 0, size.0, size.1 );
 }
 
+/// Represents the different states of the camera's controls.
 enum CameraState
 {
+  /// The user is rotating the camera.
   Rotate,
+  /// The user is panning the camera.
   Pan,
+  /// The user is not interacting with the camera controls.
   None
 }
 
-pub fn setup_controls
+/// Sets up event listeners on the canvas for camera controls.
+///
+/// # Arguments
+///
+/// * `canvas` - The HTML canvas element to attach listeners to.
+/// * `camera` - A shared, mutable reference to the `CameraOrbitControls` to be manipulated.
+fn setup_controls
 (
   canvas : &HtmlCanvasElement,
   camera : &Rc< RefCell< CameraOrbitControls > >
@@ -167,6 +178,7 @@ pub fn setup_controls
   let state =  Rc::new( RefCell::new( CameraState::None ) );
   let prev_screen_pos = Rc::new( RefCell::new( [ 0.0, 0.0 ] ) );
 
+  // A closure for the `pointerdown` event, which sets the camera state.
   let on_pointer_down : Closure< dyn Fn( _ ) > = Closure::new
   (
     {
@@ -185,6 +197,7 @@ pub fn setup_controls
     }
   );
 
+  // A closure for the `mousemove` event, which rotates or pans the camera based on the current state.
   let on_mouse_move : Closure< dyn Fn( _ ) > = Closure::new
   (
     {
@@ -199,11 +212,11 @@ pub fn setup_controls
         *prev_screen_pos.borrow_mut() = new_pos;
         match *state.borrow_mut()
         {
-          CameraState::Rotate => 
+          CameraState::Rotate =>
           {
             camera.borrow_mut().rotate( delta );
           },
-          CameraState::Pan => 
+          CameraState::Pan =>
           {
             camera.borrow_mut().pan( delta );
           }
@@ -213,6 +226,7 @@ pub fn setup_controls
     }
   );
 
+  // A closure for the `wheel` event, which zooms the camera.
   let on_wheel : Closure< dyn Fn( _ ) > = Closure::new
   (
     {
@@ -232,6 +246,7 @@ pub fn setup_controls
     }
   );
 
+  // A closure for the `pointerup` event, which resets the camera state to `None`.
   let on_pointer_up : Closure< dyn Fn() > = Closure::new
   (
     {
@@ -243,6 +258,7 @@ pub fn setup_controls
     }
   );
 
+  // A closure for the `pointerout` event, which resets the camera state to `None`.
   let on_pointer_out : Closure< dyn Fn() > = Closure::new
   (
     {
@@ -254,6 +270,7 @@ pub fn setup_controls
     }
   );
 
+  // A closure for the `contextmenu` event, which prevents the default behavior.
   let on_context_menu : Closure< dyn Fn( _ ) > = Closure::new
   (
     {
@@ -283,6 +300,15 @@ pub fn setup_controls
   on_pointer_out.forget();
 }
 
+/// Uploads raw byte data to a WebGL buffer.
+///
+/// # Arguments
+///
+/// * `gl` - The WebGL2 rendering context.
+/// * `buffer` - The `WebGlBuffer` to upload data to.
+/// * `target` - The target buffer type ( e.g., `GL::ARRAY_BUFFER` ).
+/// * `offset` - The offset in bytes within the buffer to start uploading data.
+/// * `data` - The `Vec<u8>` containing the data to upload.
 pub fn upload_buffer_data
 ( 
   gl : &gl::WebGl2RenderingContext, 
@@ -297,9 +323,9 @@ pub fn upload_buffer_data
 
   gl.bind_buffer( target, Some( buffer ) );
   gl.buffer_data_with_js_u8_array_and_src_offset_and_length
-  ( 
-    target, 
-    &gl::js_sys::Uint8Array::from( data.as_bytes() ), 
+  (
+    target,
+    &gl::js_sys::Uint8Array::from( data.as_bytes() ),
     gl::STATIC_DRAW,
     offset,
     data.len() as u32
@@ -308,10 +334,10 @@ pub fn upload_buffer_data
 
 /// Simplifies new buffer initialization
 pub fn add_buffer
-( 
-  gl : &gl::WebGl2RenderingContext, 
-  gltf : &mut GLTF, 
-  buffer_data : Vec< u8 > 
+(
+  gl : &gl::WebGl2RenderingContext,
+  gltf : &mut GLTF,
+  buffer_data : Vec< u8 >
 ) -> Result< WebGlBuffer, gl::WebglError >
 {
   let buffer = gl.create_buffer().ok_or( gl::WebglError::FailedToAllocateResource( "Buffer" ) )?;
@@ -320,12 +346,12 @@ pub fn add_buffer
   Ok( buffer )
 }
 
-/// Adds additional attributes and their data into [`GLTF`] and 
+/// Adds additional attributes and their data into [`GLTF`] and
 /// returns object_id data for updating data for per object attributes
 pub fn add_attributes
-( 
-  gl : &gl::WebGl2RenderingContext, 
-  gltf : &mut GLTF, 
+(
+  gl : &gl::WebGl2RenderingContext,
+  gltf : &mut GLTF,
 ) -> Result< Vec< i32 >, gl::WebglError >
 {
   let mut object_id_data : Vec< i32 > = vec![];
@@ -341,7 +367,7 @@ pub fn add_attributes
       let vertex_count = geometry.vertex_count as usize;
       object_vertex_count += vertex_count;
     }
-    
+
     object_id_data.extend( vec![ object_id; object_vertex_count ] );
 
     object_id += 1;
@@ -350,11 +376,11 @@ pub fn add_attributes
   let object_id_bytes = object_id_data.iter().map( | i | i.to_be_bytes() ).flatten().collect::< Vec< _ > >();
   let object_id_buffer = add_buffer( gl, gltf, object_id_bytes )?;
 
-  let object_id_info = make_buffer_attibute_info( 
-    &object_id_buffer, 
-    0, 
-    1, 
-    2, 
+  let object_id_info = make_buffer_attribute_info(
+    &object_id_buffer,
+    0,
+    1,
+    2,
     false,
     VectorDataType::new( mingl::DataType::F32, 1, 1 )
   )
@@ -373,11 +399,25 @@ pub fn add_attributes
   Ok( object_id_data )
 }
 
-fn make_buffer_attibute_info
-( 
-  buffer : &web_sys::WebGlBuffer, 
-  offset : i32, 
-  stride : i32, 
+/// Creates an `AttributeInfo` struct for a given WebGL buffer.
+///
+/// # Arguments
+///
+/// * `buffer` - The WebGL buffer containing the attribute data.
+/// * `offset` - The offset in bytes to the first component of the first generic vertex attribute.
+/// * `stride` - The byte offset between consecutive generic vertex attributes.
+/// * `slot` - The attribute location ( slot ) in the shader program.
+/// * `normalized` - Whether integer data values should be normalized.
+/// * `vector` - The `VectorDataType` describing the data type and component count.
+///
+/// # Returns
+///
+/// A `Result<AttributeInfo, WebglError>` containing the attribute info or an error if the type is not supported.
+fn make_buffer_attribute_info
+(
+  buffer : &web_sys::WebGlBuffer,
+  offset : i32,
+  stride : i32,
   slot : u32,
   normalized : bool,
   vector: gl::VectorDataType
@@ -412,6 +452,16 @@ fn make_buffer_attibute_info
   )
 }
 
+/// Adds a single CSG primitive's geometry data to the provided vectors.
+///
+/// # Arguments
+///
+/// * `primitive` - The CSG primitive to process.
+/// * `positions` - A mutable vector to accumulate vertex position data.
+/// * `normals` - A mutable vector to accumulate vertex normal data.
+/// * `object_ids` - A mutable vector to accumulate object ID data for each vertex.
+/// * `indices` - A mutable vector to accumulate index data.
+/// * `vertex_offset` - A mutable reference to the current vertex offset, which is updated.
 pub fn add_primitive
 (
   primitive : CSG< () >,
@@ -445,8 +495,8 @@ pub fn add_primitive
   let mut primitive_normals = vec![ [ 0.0; 3 ]; vertices_count ];
   primitive_indices.chunks( 3 )
   .for_each
-  ( 
-    | ids | 
+  (
+    | ids |
     {
       let t = ( 0..3 ).map( | i | F32x3::from( positions[ ids[ i ] as usize ] ) )
       .collect::< Vec< _ > >();
@@ -464,7 +514,7 @@ pub fn add_primitive
   );
 
   primitive_normals.iter_mut()
-  .for_each( 
+  .for_each(
     | n |
     {
       *n = *F32x3::from_array( *n ).normalize();
@@ -475,10 +525,16 @@ pub fn add_primitive
 
   last_object_id += 1.0;
   object_ids.extend( vec![ last_object_id as f32; vertices_count ] );
-  
+
   *vertex_offset += vertices_count as u32;
 }
 
+/// Generates a vector of CSG primitives and random transformations for each.
+///
+/// # Returns
+///
+/// A `Vec<(CSG<()>, [f32; 9])>` where each tuple contains a primitive and an array of
+/// 9 floats representing its translation, rotation, and scale.
 fn get_primitives_and_transform() -> Vec< ( CSG< () >, [ f32; 9 ] ) >
 {
   let meshes: Vec< CSG< () > > = vec![
@@ -575,6 +631,15 @@ fn get_primitives_and_transform() -> Vec< ( CSG< () >, [ f32; 9 ] ) >
   primitives
 }
 
+/// Converts a collection of CSG primitives into a GLTF object with WebGL resources.
+///
+/// # Arguments
+///
+/// * `gl` - The WebGL2 rendering context.
+///
+/// # Returns
+///
+/// A `GLTF` struct containing scenes, nodes, buffers, and other resources derived from the CSG primitives.
 fn primitives_csgrs_gltf
 (
   gl : &gl::WebGl2RenderingContext,
@@ -603,7 +668,7 @@ fn primitives_csgrs_gltf
   let normal_buffer = gl.create_buffer().unwrap();
   let object_id_buffer = gl.create_buffer().unwrap();
 
-  for buffer in 
+  for buffer in
   [
     position_buffer.clone(),
     normal_buffer.clone(),
@@ -618,40 +683,40 @@ fn primitives_csgrs_gltf
   let material = Rc::new( RefCell::new( Material::default() ) );
   gltf.materials.push( material.clone() );
 
-  let attribute_infos = 
+  let attribute_infos =
   [
-    ( 
-      "positions", 
-      make_buffer_attibute_info( 
-        &position_buffer, 
-        0, 
-        3, 
-        0, 
+    (
+      "positions",
+      make_buffer_attribute_info(
+        &position_buffer,
+        0,
+        3,
+        0,
         false,
         VectorDataType::new( mingl::DataType::F32, 3, 1 )
-      ).unwrap() 
+      ).unwrap()
     ),
-    ( 
-      "normals", 
-      make_buffer_attibute_info( 
-        &normal_buffer, 
-        0, 
-        3, 
-        1, 
+    (
+      "normals",
+      make_buffer_attribute_info(
+        &normal_buffer,
+        0,
+        3,
+        1,
         false,
         VectorDataType::new( mingl::DataType::F32, 3, 1 )
-      ).unwrap() 
+      ).unwrap()
     ),
-    ( 
-      "object_ids", 
-      make_buffer_attibute_info( 
-        &object_id_buffer, 
-        0, 
-        1, 
-        2, 
+    (
+      "object_ids",
+      make_buffer_attribute_info(
+        &object_id_buffer,
+        0,
+        1,
+        2,
         false,
         VectorDataType::new( mingl::DataType::F32, 1, 1 )
-      ).unwrap() 
+      ).unwrap()
     ),
   ];
 
@@ -674,10 +739,10 @@ fn primitives_csgrs_gltf
     add_primitive
     (
       primitive,
-      &mut positions, 
+      &mut positions,
       &mut normals,
       &mut object_ids,
-      &mut indices,  
+      &mut indices,
       &mut vertex_offset
     );
 
@@ -729,15 +794,28 @@ fn primitives_csgrs_gltf
   gltf
 }
 
+/// A collection of shader programs used for rendering.
 struct Programs
 {
+  /// The shader program for the initial object rendering pass.
   object : ProgramInfo< NormalDepthOutlineObjectShader >,
+  /// The shader program for the final outline pass.
   outline : ProgramInfo< NormalDepthOutlineShader >,
+  /// The raw WebGL program for the outline shader.
   outline_program : WebGlProgram
 }
 
 impl Programs
 {
+  /// Creates a new `Programs` instance, compiling and linking the necessary shaders.
+  ///
+  /// # Arguments
+  ///
+  /// * `gl` - The WebGL2 rendering context.
+  ///
+  /// # Returns
+  ///
+  /// A `Programs` struct with the compiled and linked shader programs.
   fn new( gl : &gl::WebGl2RenderingContext ) -> Self
   {
     // --- Load and Compile Shaders ---
@@ -766,13 +844,21 @@ impl Programs
 /// Manages WebGL resources and rendering passes.
 struct Renderer
 {
+  /// The WebGL2 rendering context.
   gl : WebGl2RenderingContext,
+  /// The compiled and linked shader programs.
   programs : Programs,
+  /// A hash map to store WebGL buffers by name.
   buffers : HashMap< String, WebGlBuffer >,
+  /// A hash map to store WebGL textures by name.
   textures : HashMap< String, WebGlTexture >,
+  /// A hash map to store WebGL framebuffers by name.
   framebuffers : HashMap< String, WebGlFramebuffer >,
+  /// The current viewport size ( width, height ).
   viewport : ( i32, i32 ),
+  /// The main camera for the scene.
   camera : Camera,
+  /// A vector of random colors for each object, used in the outline pass.
   object_colors : Vec< f32 >
 }
 
@@ -817,7 +903,7 @@ impl Renderer
     {
       gl,
       programs,
-      buffers : HashMap::new(), 
+      buffers : HashMap::new(),
       textures : HashMap::new(),
       framebuffers : HashMap::new(),
       viewport,
@@ -848,19 +934,19 @@ impl Renderer
 
     let range = 0.2..1.0;
     ( 0..MAX_OBJECT_COUNT ).for_each
-    ( 
+    (
       | i |
       {
-        object_colors[ i ] = F32x4::from( 
-          [ 
-            rng.random_range( range.clone() ), 
+        object_colors[ i ] = F32x4::from(
+          [
+            rng.random_range( range.clone() ),
             rng.random_range( range.clone() ),
             rng.random_range( range.clone() ),
             1.0
-          ] 
+          ]
         )
         .0;
-      } 
+      }
     );
 
     let object_color_buffer = gl::buffer::create( &gl ).unwrap();
@@ -914,14 +1000,14 @@ impl Renderer
     upload_framebuffer( gl, object_fb, self.viewport );
     //gl.bind_framebuffer( GL::FRAMEBUFFER, None );
 
-    gl.clear_color( 0.0, 0.0, 0.0, 0.0 ); 
+    gl.clear_color( 0.0, 0.0, 0.0, 0.0 );
     gl.clear_depth( 1.0 );
     gl.clear( GL::COLOR_BUFFER_BIT | GL::DEPTH_BUFFER_BIT );
     gl.enable( GL::DEPTH_TEST );
 
     // Define a closure to handle the drawing of each node in the scene.
-    let mut draw_node = 
-    | 
+    let mut draw_node =
+    |
       node : Rc< RefCell< Node > >
     | -> Result< (), gl::WebglError >
     {
@@ -947,7 +1033,7 @@ impl Renderer
           primitive.bind( gl );
           primitive.draw( gl );
         }
-      } 
+      }
 
       Ok( () )
     };
@@ -971,8 +1057,8 @@ impl Renderer
   ///
   /// * `t` - The current time in milliseconds ( used for animating outline thickness ).
   /// * `num_passes` - The total number of JFA step passes performed. Used to determine
-  ///                which of the ping-pong textures ( `jfa_step_fb_color_0` or `jfa_step_fb_color_1` )
-  ///                holds the final JFA result.
+  ///                 which of the ping-pong textures ( `jfa_step_fb_color_0` or `jfa_step_fb_color_1` )
+  ///                 holds the final JFA result.
   fn outline_pass( &self )
   {
     let gl = &self.gl;
@@ -990,10 +1076,10 @@ impl Renderer
     //let u_projection_loc = locations.get( "u_projection" ).unwrap().clone().unwrap();
     let u_resolution_loc = locations.get( "u_resolution" ).unwrap().clone().unwrap();
     let u_outline_thickness_loc = locations.get( "u_outline_thickness" ).unwrap().clone().unwrap();
-    let u_background_color_loc = locations.get( "u_background_color" ).unwrap().clone().unwrap();  
+    let u_background_color_loc = locations.get( "u_background_color" ).unwrap().clone().unwrap();
 
     let outline_thickness = [ 1.0 as f32 ]; //[ ( 2.0 * ( t / 1000.0 ).sin().abs() ) as f32 ]; // Example animation
-    let background_color = [ 0.0, 0.0, 0.0, 1.0 ]; 
+    let background_color = [ 0.0, 0.0, 0.0, 1.0 ];
 
     // Bind the default framebuffer ( render to canvas )
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );

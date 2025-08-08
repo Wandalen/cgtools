@@ -56,7 +56,7 @@ Self : RawSliceMut< Scalar = E > +
 
    /// Creates a transformation matrix from scale, rotation( angle ) and translation
   pub fn from_scale_rotation_translation< Vec >
-  ( 
+  (
     scale : Vec,
     rotation : E,
     translation : Vec
@@ -75,7 +75,7 @@ Self : RawSliceMut< Scalar = E > +
     let ( s, c ) = rotation.sin_cos();
 
     let mut res = Self::default();
-    
+
     *res.scalar_mut(  Ix2( 0, 0 ) ) = c * sx;
     *res.scalar_mut(  Ix2( 1, 0 ) ) = s * sx;
     *res.scalar_mut(  Ix2( 2, 0 ) ) = E::zero();
@@ -92,8 +92,8 @@ Self : RawSliceMut< Scalar = E > +
   }
 }
 
-impl< E, Descriptor > Mat< 3, 3, E, Descriptor > 
-where 
+impl< E, Descriptor > Mat< 3, 3, E, Descriptor >
+where
 E : MatEl + nd::NdFloat,
 Descriptor : mat::Descriptor,
 Self : RawSlice< Scalar = E >
@@ -104,14 +104,15 @@ Self : RawSlice< Scalar = E >
     self.raw_slice().try_into().unwrap()
   }
 
+  /// Converts the matrix to a 4x4 homogenous matrix
   pub fn to_homogenous( &self ) -> Mat4< E, Descriptor >
-  where 
+  where
     Mat4< E, Descriptor > : RawSliceMut< Scalar = E >
   {
     let s = self.raw_slice();
     let mut mat = Mat4::< E, Descriptor >::default();
     let rs = mat.raw_slice_mut();
-    
+
     rs[ 0 ] = s[ 0 ];
     rs[ 1 ] = s[ 1 ];
     rs[ 2 ] = s[ 2 ];
@@ -137,12 +138,12 @@ Self : RawSlice< Scalar = E >
 
   /// Convertes this matrix into the 3x3 matrix
   pub fn truncate( &self ) -> Mat< 2, 2, E, Descriptor >
-  where 
+  where
     Mat< 2, 2, E, Descriptor > : RawSliceMut< Scalar = E >
   {
     let slice = self.raw_slice();
 
-    let trunc_slice = 
+    let trunc_slice =
     [
       slice[ 0 ],
       slice[ 1 ],
@@ -157,8 +158,8 @@ Self : RawSlice< Scalar = E >
   }
 }
 
-impl< E, Descriptor > Mat< 3, 3, E, Descriptor > 
-where 
+impl< E, Descriptor > Mat< 3, 3, E, Descriptor >
+where
 E : MatEl + nd::NdFloat,
 Descriptor : mat::Descriptor,
 Self : RawSliceMut< Scalar = E >
@@ -180,8 +181,8 @@ Self : RawSliceMut< Scalar = E >
       ]
     )
   }
-  
-  // Creates a rotation matrix from a unit quaternion
+
+  /// Creates a rotation matrix from a unit quaternion
   pub fn from_quat( quat : Quat< E > ) -> Self
   {
     let x2 = quat.x() + quat.x();
@@ -208,8 +209,9 @@ Self : RawSliceMut< Scalar = E >
   }
 }
 
-pub fn identity< E >() -> Mat3< E, mat::DescriptorOrderColumnMajor > 
-where 
+/// Creates a 3x3 identity matrix
+pub fn identity< E >() -> Mat3< E, mat::DescriptorOrderColumnMajor >
+where
   E : MatEl + nd::NdFloat,
   Mat3< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >
 {

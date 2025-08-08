@@ -3,6 +3,7 @@ mod private
 {
   use crate::*;
 
+  /// Creates a new GPU pipeline layout.
   pub fn create
   ( 
     device : &web_sys::GpuDevice, 
@@ -12,6 +13,7 @@ mod private
     device.create_pipeline_layout( desc )
   }
 
+  /// Creates a new pipeline layout descriptor builder.
   pub fn desc< 'a >() -> PipelineLayoutDescriptor< 'a >
   {
     PipelineLayoutDescriptor::new()

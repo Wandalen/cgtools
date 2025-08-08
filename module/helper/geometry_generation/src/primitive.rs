@@ -1,3 +1,5 @@
+//! This module store functions and structures for creating `PrimitiveData` 
+//! of different abstactions like curves.
 mod private
 {
   use minwebgl as gl;
@@ -99,6 +101,24 @@ mod private
     )
   }
 
+  /// Converts a set of 2D contours into a solid flat 3D primitive suitable for rendering.
+  ///
+  /// The function first identifies the largest contour, which it assumes is the
+  /// main body of the shape. It then classifies other contours as either holes
+  /// (if they are fully contained within the main body's bounding box) or as
+  /// separate bodies. Finally, it uses a triangulation algorithm (`earcutr`) to
+  /// generate a filled mesh with positions and indices.
+  ///
+  /// # Arguments
+  ///
+  /// * `contours`: A slice of vectors, where each inner vector is a contour
+  ///   represented by an array of `[f32; 2]` points.
+  ///
+  /// # Returns
+  ///
+  /// Returns `Some( PrimitiveData )` on success, containing the generated mesh
+  /// data. Returns `None` if the input `contours` is empty or if the
+  /// triangulation process fails.
   pub fn contours_to_fill_geometry( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
   {
     if contours.is_empty()

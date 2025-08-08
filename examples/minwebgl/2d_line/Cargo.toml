@@ -8,6 +8,11 @@ authors = [
 ]
 license = "MIT"
 
+[lints]
+workspace = true
+
 [dependencies]
 line_tools = { workspace = true }
 minwebgl = { workspace = true, features = [ "math" ] }
+serde = { workspace = true, features = [ "derive" ] }
+serde-wasm-bindgen = { workspace = true }

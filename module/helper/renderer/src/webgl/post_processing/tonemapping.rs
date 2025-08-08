@@ -79,7 +79,7 @@ mod private
     {
       let fs_shader = include_str!( "../shaders/tonemapping/aces.frag" );
       let material = gl::ProgramFromSources::new(  VS_TRIANGLE, fs_shader ).compile_and_link( gl )?;
-      let material = ProgramInfo::< EmptyShader >::new( material );
+      let material = ProgramInfo::< EmptyShader >::new( gl, material );
 
       Ok
       ( 

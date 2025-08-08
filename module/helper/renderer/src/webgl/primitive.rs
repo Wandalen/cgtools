@@ -67,7 +67,7 @@ mod private
     {
       self.geometry.borrow().center()
     }
-
+    /// Returns the bounding box of the geometry.
     pub fn bounding_box( &self ) -> BoundingBox
     {
       self.geometry.borrow().bounding_box()

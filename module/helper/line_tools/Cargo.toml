@@ -21,6 +21,12 @@ default = []
 minwebgl = { workspace = true }
 ndarray_cg = { workspace = true }
 mod_interface = { workspace = true }
+serde = { workspace = true, features = [ "derive" ] }
+
+web-sys = { workspace = true, features = [
+  'WebGlActiveInfo',
+]}
+
 
 [dev-dependencies]
 test_tools = { workspace = true }

@@ -5,7 +5,7 @@ mod private
   use mingl::{ geometry::BoundingBox, F32x3, F32x4x4 };
   use crate::webgl::Mesh;
 
-  /// Represents a 3D object that can be part of the scene graph.  
+  /// Represents a 3D object that can be part of the scene graph.
   pub enum Object3D
   {
     /// A mesh object, containing geometry and material information.
@@ -26,6 +26,7 @@ mod private
   #[ derive( Default ) ]
   pub struct Node
   {
+    /// The name of the node.
     name : Option< Box< str > >,
     /// The parent node of this node
     parent : Option< Rc< RefCell< Node > > >,
@@ -37,6 +38,7 @@ mod private
     matrix : gl::F32x4x4,
     /// The global transformation matrix of the node, including the transformations of its parents.
     world_matrix : gl::F32x4x4,
+    /// The normal matrix for transforming normals, derived from the world matrix.
     normal_matrix : gl::F32x3x3,
     /// The local scale of the node.
     scale : gl::F32x3,
@@ -46,7 +48,9 @@ mod private
     rotation : gl::QuatF32,
     /// A flag indicating whether the local matrix needs to be updated based on scale, translation, or rotation changes.
     needs_local_matrix_update : bool,
+    /// A flag indicating whether the world matrix needs to be updated.
     needs_world_matrix_update : bool,
+    /// The bounding box of the node's object in world space.
     bounding_box : BoundingBox
   }
 
@@ -58,33 +62,32 @@ mod private
       Self::default()
     }
 
-    /// Clone node and all its subnodes for creating 
-    /// new identical independed node
-    pub fn clone_tree( &self ) -> Rc< RefCell< Self > > 
+    /// Clones the node and all of its descendants, creating a new independent scene graph subtree.
+    pub fn clone_tree( &self ) -> Rc< RefCell< Self > >
     {
       let object = match &self.object
       {
-        Object3D::Mesh( mesh ) => 
+        Object3D::Mesh( mesh ) =>
         {
           Object3D::Mesh( Rc::new( RefCell::new( mesh.borrow().clone() ) ) )
         },
         Object3D::Other => Object3D::Other
       };
 
-      let clone = Self 
-      { 
-        name : self.name.clone(), 
+      let clone = Self
+      {
+        name : self.name.clone(),
         parent : None,
         children : vec![],
-        object, 
-        matrix : self.matrix, 
-        world_matrix : self.world_matrix, 
-        normal_matrix : self.normal_matrix, 
-        scale : self.scale, 
-        translation : self.translation, 
-        rotation : self.rotation, 
-        needs_local_matrix_update : self.needs_local_matrix_update, 
-        needs_world_matrix_update : self.needs_world_matrix_update, 
+        object,
+        matrix : self.matrix,
+        world_matrix : self.world_matrix,
+        normal_matrix : self.normal_matrix,
+        scale : self.scale,
+        translation : self.translation,
+        rotation : self.rotation,
+        needs_local_matrix_update : self.needs_local_matrix_update,
+        needs_world_matrix_update : self.needs_world_matrix_update,
         bounding_box : self.bounding_box
       };
 
@@ -92,43 +95,49 @@ mod private
 
       self.children.iter()
       .for_each
-      ( 
-        | n | 
+      (
+        | n |
         {
           let child = n.borrow().clone_tree();
           child.borrow_mut().set_parent( Some( clone_rc.clone() ) );
           clone_rc.borrow_mut().add_child( child.clone() );
-        } 
+        }
       );
 
       clone_rc
     }
 
+    /// Sets the name of the node.
     pub fn set_name( &mut self, name : impl Into< Box< str > > )
     {
       self.name = Some( name.into() );
     }
 
+    /// Returns an owned clone of the node's name.
     pub fn get_name( &self ) -> Option< Box< str > >
     {
       self.name.clone()
     }
 
+    /// Returns a slice of the node's children.
     pub fn get_children( &self ) -> &[ Rc< RefCell< Node > > ]
     {
       self.children.as_slice()
     }
 
-    pub fn set_parent( &mut self, parent : Option< Rc< RefCell< Node > > > ) 
+    /// Sets the parent of the node.
+    pub fn set_parent( &mut self, parent : Option< Rc< RefCell< Node > > > )
     {
       self.parent = parent;
     }
 
+    /// Returns a reference to the node's parent.
     pub fn get_parent( &self ) -> &Option< Rc< RefCell< Node > > >
     {
       &self.parent
     }
 
+    /// Removes a child node at the given index.
     pub fn remove_child( &mut self, id : usize ) -> Rc< RefCell< Node > >
     {
       self.children.remove( id )
@@ -179,6 +188,7 @@ mod private
       self.rotation
     }
 
+    /// Sets the local transformation matrix for the node.
     pub fn set_local_matrix( &mut self, matrix : F32x4x4 )
     {
       self.matrix = matrix;
@@ -186,6 +196,7 @@ mod private
       self.needs_local_matrix_update = false;
     }
 
+    /// Sets the world transformation matrix for the node.
     pub fn set_world_matrix( &mut self, matrix : F32x4x4 )
     {
       self.world_matrix = matrix;
@@ -194,11 +205,13 @@ mod private
       self.needs_world_matrix_update = false;
     }
 
+    /// Returns the current world transformation matrix.
     pub fn get_world_matrix( &self ) -> F32x4x4
     {
       self.world_matrix
     }
 
+    /// Returns the current local transformation matrix.
     pub fn get_local_matrix( &self ) -> F32x4x4
     {
       self.matrix
@@ -208,17 +221,20 @@ mod private
     pub fn update_local_matrix( &mut self )
     {
       let mat = gl::F32x4x4::from_scale_rotation_translation
-      ( 
-        self.scale, 
-        self.rotation, 
-        self.translation 
+      (
+        self.scale,
+        self.rotation,
+        self.translation
       );
       self.matrix = gl::F32x4x4::from_column_major( mat.to_array());
       self.needs_local_matrix_update = false;
       self.needs_world_matrix_update = true;
     }
- 
+
+    /// Updates the world transformation matrix of the node and its children.
+    ///
     /// * `parent_mat`: The world matrix of the parent node. For the root node, this should be the identity matrix.
+    /// * `needs_world_matrix_update`: A flag to force an update, even if the node's flags are false.
     pub fn update_world_matrix( &mut self, parent_mat : gl::F32x4x4, mut needs_world_matrix_update : bool )
     {
       if self.needs_local_matrix_update
@@ -247,6 +263,7 @@ mod private
       self.children.push( child );
     }
 
+    /// Inserts a child node at a specific index.
     pub fn insert_child( &mut self, id : usize, child : Rc< RefCell< Node > > )
     {
       if id >= self.children.len()
@@ -302,23 +319,30 @@ mod private
       Ok( () )
     }
 
+    /// Returns the pre-computed bounding box of the node.
     pub fn bounding_box( &self ) -> BoundingBox
     {
       self.bounding_box
     }
 
+    /// Computes the bounding box for the current node based on its `Object3D` type.
     pub fn compute_bounding_box( &mut self )
     {
       match self.object
       {
-        Object3D::Mesh( ref mesh ) => 
-        { 
+        Object3D::Mesh( ref mesh ) =>
+        {
           self.bounding_box = mesh.borrow().bounding_box().apply_transform( self.world_matrix );
         },
         _ => {}
       }
     }
 
+    /// Computes the hierarchical bounding box for the node and all of its children.
+    ///
+    /// This function starts with the node's own bounding box and then recursively
+    /// combines the hierarchical bounding boxes of all its children. This creates a
+    /// single bounding box that encapsulates the entire sub-tree.
     pub fn bounding_box_hierarchical( &self ) -> BoundingBox
     {
       let mut bbox = self.bounding_box;
@@ -331,6 +355,7 @@ mod private
       bbox
     }
 
+    /// Returns the center point of the node's pre-computed bounding box.
     pub fn center( &self ) -> F32x3
     {
       self.bounding_box().center()

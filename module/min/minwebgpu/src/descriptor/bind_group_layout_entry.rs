@@ -3,16 +3,30 @@ mod private
 {
   use crate::*;
 
+  /// Represents a single entry in a WebGPU bind group layout.
   #[ derive( Clone ) ]
   pub struct BindGroupLayoutEntry
   {
+    /// The binding number (slot) for this resource in the shader.
+    ///
+    /// This corresponds to the `@binding(...)` attribute in WGSL (WebGPU Shading Language)
+    /// and must be a unique number within the bind group.
     binding : u32,
+    /// The visibility of the binding to different shader stages.
+    ///
+    /// This is a bitmask that specifies which shader stages can access this resource.
+    /// For example, a uniform buffer might be visible to both the vertex and fragment stages.
     visibility : u32,
+    /// The type of resource being bound.
+    ///
+    /// This enum specifies the kind of resource, such as a uniform buffer, a sampled
+    /// texture, or a sampler. This is a key part of the bind group layout.
     ty : BindingType
   }
 
   impl BindGroupLayoutEntry
   {
+    /// Creates a new `BindGroupLayoutEntry` with default values.
     pub fn new() -> Self
     {
       let binding = 0;

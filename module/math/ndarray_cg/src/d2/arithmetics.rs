@@ -1,3 +1,6 @@
+//! This module provides implementations for fundamental mathematical operations
+//! such as addition, multiplication, and division, tailored for vector and matrix types.
+
 mod private
 {
   // Keeping this commented out as it might be needed in the future

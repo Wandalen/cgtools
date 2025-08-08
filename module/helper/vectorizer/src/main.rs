@@ -1,8 +1,9 @@
+#![ doc = include_str!( "../readme.md" ) ]
+
 use std::error::Error;
-
 use clap::Parser;
-
 use vectorizer::commands::{ Cli, CliCommand, self };
+
 
 #[ tokio::main ]
 async fn main() -> Result< (), Box< dyn Error > >

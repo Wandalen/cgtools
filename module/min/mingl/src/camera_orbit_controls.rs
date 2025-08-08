@@ -1,61 +1,77 @@
+//! This module provides an implementation of a camera with orbit controls,
+//! allowing for easy 3D scene navigation through rotation, panning, and zooming.
+//! It is designed to be independent of any specific graphics backend.
+
+/// Internal namespace for implementation details.
 mod private
 {
   use crate::*;
 
-  /// Provides camera controls independent of the API backend
+  /// Provides an orbit-style camera controller for 3D scenes.
+  ///
+  /// This camera rotates around a central `center` point, can pan across the view plane,
+  /// and zoom in and out. It's suitable for inspecting 3D models or scenes.
   pub struct CameraOrbitControls
   {
-    /// Position of the camera
+    /// The position of the camera in 3D space.
     pub eye : F32x3,
-    /// Orientation of camera
+    /// The "up" direction for the camera, typically `(0, 1, 0)`.
     pub up : F32x3,
-    /// Look at point, which is also the center of the sphere of rotation
+    /// The point in space the camera is looking at and orbiting around.
     pub center : F32x3,
-    /// Size of the drawing window
+    /// The size of the rendering window or viewport, used for panning calculations.
     pub window_size : F32x2,
-    /// Scales the speed of rotation
+    /// A scaling factor to adjust the sensitivity of camera rotation.
     pub rotation_speed_scale : f32,
-    /// Scales the speed of zoom
+    /// A scaling factor to adjust the sensitivity of camera zooming.
     pub zoom_speed_scale : f32,
-    /// Field of view of the camera
+    /// The vertical field of view of the camera, in radians.
     pub fov : f32
   }
 
-  impl CameraOrbitControls 
+  impl CameraOrbitControls
   {
+    /// Returns the current position of the camera (`eye`).
     pub fn eye( &self ) -> F32x3
     {
       self.eye
     }
 
+    /// Returns the current "up" vector of the camera.
     pub fn up( &self ) -> F32x3
     {
       self.up
     }
 
+    /// Returns the point the camera is centered on.
     pub fn center( &self ) -> F32x3
     {
       self.center
     }
 
-    /// Return a righthanded view matrix of the current camera state
+    /// Calculates and returns a right-handed view matrix based on the camera's current state.
     pub fn view( &self ) -> math::F32x4x4
     {
       math::mat3x3h::look_at_rh( self.eye, self.center, self.up )
     }
 
+    /// Updates the camera's knowledge of the window or viewport size.
     pub fn set_size( &mut self, size : [ f32; 2 ] )
     {
       self.window_size = F32x2::from( size );
     }
 
-    /// Makes rotation around the sphere with center at self.center and radius equal to length of ( self.center - self.eye ).
-    /// As input takes the amount of pixels cursor moved on the screen.
-    /// You can get this value from the corresponding MouseMove event
+    /// Rotates the camera around the `center` point.
+    ///
+    /// The rotation is based on the displacement of the cursor on the screen,
+    /// creating an intuitive orbiting effect.
+    ///
+    /// # Arguments
+    /// * `screen_d` - The change in screen coordinates `[dx, dy]` from a mouse movement event.
     pub fn rotate
-    ( 
-      &mut self, 
-      mut screen_d :  [ f32; 2 ]
+    (
+      &mut self,
+      mut screen_d : [ f32; 2 ]
     )
     {
       screen_d[ 0 ] /= self.rotation_speed_scale;
@@ -65,7 +81,7 @@ mod private
       let x = dir.cross( self.up ).normalize();
 
       // We rotate aroung the y axis based on the movement in x direction.
-      // And we rotate aroung the axix perpendicular to the current up and direction vectors 
+      // And we rotate aroung the axix perpendicular to the current up and direction vectors
       // based on the movement in y direction
       let rot_y = math::mat3x3::from_angle_y( -screen_d[ 0 ] );
       let rot_x = math::mat3x3::from_axis_angle( x, -screen_d[ 1 ] );
@@ -79,18 +95,21 @@ mod private
 
       let up_new = rot * self.up;
 
-      self.eye = eye_new;  
+      self.eye = eye_new;
       self.up = up_new;
 
     }
 
-    /// Moves camera around in the plane that the direction vector of the camera is perpendicular to.
-    /// As input takes the amount of pixels cursor moved on the screen.
-    /// You can get this value from the corresponding MouseMove event
+    /// Pans the camera by moving both its position and its center point in a plane.
+    ///
+    /// The plane is perpendicular to the camera's viewing direction.
+    ///
+    /// # Arguments
+    /// * `screen_d` - The change in screen coordinates `[dx, dy]` from a mouse movement event.
     pub fn pan
-    ( 
-      &mut self, 
-      screen_d :  [ f32; 2 ] 
+    (
+      &mut self,
+      screen_d : [ f32; 2 ]
     )
     {
       // Convert to cgmath Vectors
@@ -121,12 +140,15 @@ mod private
       self.eye = eye_new;
     }
 
-    /// Zooms in/out camera in the view direction
-    /// As input takes the scroll amount, that you usually can take from the ScrollEvent.
+    /// Zooms the camera in or out along its viewing direction.
+    ///
+    /// # Arguments
+    /// * `delta_y` - The scroll amount, typically from a mouse wheel event.
+    ///   A negative value zooms in, and a positive value zooms out.
     pub fn zoom
-    ( 
-      &mut self, 
-      mut delta_y : f32 
+    (
+      &mut self,
+      mut delta_y : f32
     )
     {
       delta_y /= self.zoom_speed_scale;
@@ -148,25 +170,30 @@ mod private
     }
   }
 
-  impl Default for CameraOrbitControls {
-      fn default() -> Self {
-          CameraOrbitControls
-          {
-            eye : F32x3::from( [ 1.0, 0.0, 0.0 ] ),
-            up : F32x3::from( [ 0.0, 1.0, 0.0 ] ),
-            center : F32x3::from( [ 0.0, 0.0, 0.0 ] ),
-            window_size : F32x2::from( [ 1000.0, 1000.0 ] ),
-            rotation_speed_scale : 500.0,
-            zoom_speed_scale : 1000.0,
-            fov : 70f32.to_radians()
-          }
+  impl Default for CameraOrbitControls
+  {
+    /// Creates a new `CameraOrbitControls` with a set of sensible default values.
+    fn default() -> Self
+    {
+      CameraOrbitControls
+      {
+        eye : F32x3::from( [ 1.0, 0.0, 0.0 ] ),
+        up : F32x3::from( [ 0.0, 1.0, 0.0 ] ),
+        center : F32x3::from( [ 0.0, 0.0, 0.0 ] ),
+        window_size : F32x2::from( [ 1000.0, 1000.0 ] ),
+        rotation_speed_scale : 500.0,
+        zoom_speed_scale : 1000.0,
+        fov : 70f32.to_radians()
       }
+    }
   }
 }
 
+// This macro exposes the public interface of the module.
 crate::mod_interface!
 {
-  exposed use 
+  /// Exposes the `CameraOrbitControls` struct for public use.
+  exposed use
   {
     CameraOrbitControls
   };

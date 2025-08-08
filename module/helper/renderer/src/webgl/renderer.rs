@@ -553,11 +553,13 @@ mod private
       self.use_emission = use_emission;
     }
 
+    /// Returns the current exposure value.
     pub fn get_exposure( &self ) -> f32
     {
       self.exposure
     }
 
+    /// Sets a new exposure value.
     pub fn set_exposure( &mut self, exposure : f32 )
     {
       self.exposure = exposure;

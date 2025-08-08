@@ -3,28 +3,28 @@ use ndarray::Dimension;
 use crate::*;
 
 fn minor
-< 
-  E : MatEl + nd::NdFloat, 
-  Descriptor : mat::Descriptor 
+<
+  E : MatEl + nd::NdFloat,
+  Descriptor : mat::Descriptor
 >
-( 
-  from : &Mat4< E, Descriptor >, 
-  to : &mut Mat3< E, Descriptor >, 
-  i : usize, 
-  j : usize 
+(
+  from : &Mat4< E, Descriptor >,
+  to : &mut Mat3< E, Descriptor >,
+  i : usize,
+  j : usize
 )
-where 
+where
 Mat4< E, Descriptor > : RawSliceMut< Scalar = E > + IndexingRef< Scalar = E, Index = Ix2 >,
 Mat3< E, Descriptor > : RawSliceMut< Scalar = E >
 {
   for( id, ( _, v ) ) in from
   .iter_indexed_unstable()
-  .filter( 
+  .filter(
     | ( id, _ ) |
-    { 
+    {
       let ( r, c ) = id.into_pattern();
       r != i && c != j
-    } 
+    }
   ).enumerate()
   {
     to.raw_slice_mut()[ id ] = *v;
@@ -32,24 +32,24 @@ Mat3< E, Descriptor > : RawSliceMut< Scalar = E >
 }
 
 fn cofactor
-< 
-  E : MatEl + nd::NdFloat, 
-  Descriptor : mat::Descriptor 
+<
+  E : MatEl + nd::NdFloat,
+  Descriptor : mat::Descriptor
 >
-( 
-  from : &Mat4< E, Descriptor >, 
-  to : &mut Mat3< E, Descriptor >,  
-  i : usize, 
-  j : usize 
+(
+  from : &Mat4< E, Descriptor >,
+  to : &mut Mat3< E, Descriptor >,
+  i : usize,
+  j : usize
 ) -> E
-where 
-Mat4< E, Descriptor > : 
-  RawSliceMut< Scalar = E > + 
+where
+Mat4< E, Descriptor > :
+  RawSliceMut< Scalar = E > +
   IndexingRef< Scalar = E, Index = Ix2 >,
-Mat3< E, Descriptor > : 
-  RawSliceMut< Scalar = E > + 
-  ScalarRef< Scalar = E, Index = Ix2 > + 
-  ConstLayout< Index = Ix2 > + 
+Mat3< E, Descriptor > :
+  RawSliceMut< Scalar = E > +
+  ScalarRef< Scalar = E, Index = Ix2 > +
+  ConstLayout< Index = Ix2 > +
   IndexingMut< Scalar = E, Index = Ix2 >
 {
   let k = E::from( ( -1i32 ).pow( ( i + j ) as u32 ) ).unwrap();
@@ -57,22 +57,22 @@ Mat3< E, Descriptor > :
   k * to.determinant()
 }
 
-impl< E, Descriptor > Mat< 4, 4, E, Descriptor > 
-where 
+impl< E, Descriptor > Mat< 4, 4, E, Descriptor >
+where
 E : MatEl + nd::NdFloat,
 Descriptor : mat::Descriptor,
 Self : ScalarMut< Scalar = E, Index = Ix2 > +
-       RawSliceMut< Scalar = E > + 
-       ConstLayout< Index = Ix2 > + 
+       RawSliceMut< Scalar = E > +
+       ConstLayout< Index = Ix2 > +
        IndexingMut< Scalar = E, Index = Ix2 >
 {
   /// Computes the determinant of the matrix
   pub fn determinant( &self ) -> E
-  where 
-    Mat< 3, 3, E, Descriptor > : 
+  where
+    Mat< 3, 3, E, Descriptor > :
       RawSliceMut< Scalar = E > +
-      ScalarMut< Scalar = E, Index = Ix2 > + 
-      ConstLayout< Index = Ix2 > + 
+      ScalarMut< Scalar = E, Index = Ix2 > +
+      ConstLayout< Index = Ix2 > +
       IndexingMut< Scalar = E, Index = Ix2 >
   {
     let _a11 = *self.scalar_ref( Ix2( 0, 0 ) );
@@ -97,11 +97,11 @@ Self : ScalarMut< Scalar = E, Index = Ix2 > +
   /// Computes the inverse of the matrix.
   /// If the determinant is zero - return `None`
   pub fn inverse( &self ) -> Option< Self >
-  where 
-    Mat< 3, 3, E, Descriptor > : 
+  where
+    Mat< 3, 3, E, Descriptor > :
       RawSliceMut< Scalar = E > +
-      ScalarMut< Scalar = E, Index = Ix2 > + 
-      ConstLayout< Index = Ix2 > + 
+      ScalarMut< Scalar = E, Index = Ix2 > +
+      ConstLayout< Index = Ix2 > +
       IndexingMut< Scalar = E, Index = Ix2 >
   {
     let det = self.determinant();
@@ -126,8 +126,8 @@ Self : ScalarMut< Scalar = E, Index = Ix2 > +
   }
 }
 
-impl< E, Descriptor > Mat< 4, 4, E, Descriptor > 
-where 
+impl< E, Descriptor > Mat< 4, 4, E, Descriptor >
+where
 E : MatEl + nd::NdFloat,
 Descriptor : mat::Descriptor,
 Self : RawSlice< Scalar = E >
@@ -140,12 +140,12 @@ Self : RawSlice< Scalar = E >
 
   /// Convertes this matrix into the 3x3 matrix
   pub fn truncate( &self ) -> Mat< 3, 3, E, Descriptor >
-  where 
+  where
     Mat< 3, 3, E, Descriptor > : RawSliceMut< Scalar = E >
   {
     let slice = self.raw_slice();
 
-    let trunc_slice = 
+    let trunc_slice =
     [
       slice[ 0 ],
       slice[ 1 ],
@@ -166,16 +166,16 @@ Self : RawSlice< Scalar = E >
   }
 }
 
-impl< E, Descriptor > Mat< 4, 4, E, Descriptor > 
-where 
+impl< E, Descriptor > Mat< 4, 4, E, Descriptor >
+where
 E : MatEl + nd::NdFloat,
 Descriptor : mat::Descriptor,
-Self : ScalarMut< Scalar = E > + 
+Self : ScalarMut< Scalar = E > +
        IndexingMut< Scalar = E, Index = Ix2 >
 {
   /// Creates a transformation matrix from scale, rotation and translation
   pub fn from_scale_rotation_translation< Vec, Q >
-  ( 
+  (
     scale : Vec,
     rotation : Q,
     translation : Vec
@@ -199,7 +199,7 @@ Self : ScalarMut< Scalar = E > +
     let rot = rot.raw_slice();
 
     let mut res = Self::default();
-    
+
     *res.scalar_mut(  Ix2( 0, 0 ) ) = rot[ 0 ] * sx;
     *res.scalar_mut(  Ix2( 1, 0 ) ) = rot[ 1 ] * sx;
     *res.scalar_mut(  Ix2( 2, 0 ) ) = rot[ 2 ] * sx;
@@ -224,8 +224,9 @@ Self : ScalarMut< Scalar = E > +
   }
 }
 
-pub fn identity< E >() -> Mat4< E, mat::DescriptorOrderColumnMajor > 
-where 
+/// Creates a 4x4 identity matrix.
+pub fn identity< E >() -> Mat4< E, mat::DescriptorOrderColumnMajor >
+where
   E : MatEl + nd::NdFloat,
   Mat4< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >
 {

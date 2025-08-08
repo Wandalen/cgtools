@@ -1,6 +1,7 @@
 /// Internal namespace.
 mod private
 {
+  /// The required alignment for data when copying between WebGPU buffers.
   pub const COPY_BUFFER_ALIGNMENT: u64 = 4;
 
   pub use web_sys::GpuCanvasContext as GL;
