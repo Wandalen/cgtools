@@ -1,4 +1,5 @@
-#![ doc = include_str!( "../readme.md" ) ]
+//! Core multidimensional mathematics library.
+#![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 
 #[ cfg( feature = "enabled" ) ]
 use ::mod_interface::mod_interface;

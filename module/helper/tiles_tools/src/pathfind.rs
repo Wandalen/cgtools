@@ -1,6 +1,8 @@
 use std::hash::Hash;
-use crate::coordinates::{ Distance, Neigbors };
+use crate::coordinates::{ Distance, Neighbors };
 
+/// Find the shortest path between two coordinates using the A* algorithm.
+/// Returns a path and the total cost, or None if no path exists.
 pub fn astar< C, Fa, Fc >
 (
   start : &C,
@@ -10,7 +12,7 @@ pub fn astar< C, Fa, Fc >
 )
 -> Option< ( Vec< C >, u32 ) >
 where
-  C : Distance + Neigbors + Eq + Clone + Hash,
+  C : Distance + Neighbors + Eq + Clone + Hash,
   Fa : FnMut( &C ) -> bool,
   Fc : FnMut( &C ) -> u32
 {

@@ -1,4 +1,5 @@
-#![ doc = include_str!( "../readme.md" ) ]
+//! Vector graphics processing and conversion utilities.
+#![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 
 #[ cfg( feature = "enabled" ) ]
 mod private {}

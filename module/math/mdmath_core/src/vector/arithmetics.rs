@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ NdFloat, VectorIter, VectorIterMut, vector };
   use crate::approx::ulps_eq;
 
   /// Computes the dot product of two vectors.

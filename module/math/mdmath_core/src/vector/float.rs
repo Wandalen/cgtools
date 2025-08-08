@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ ToRef, Float };
   use core::iter::{ Map, Iterator };
 
   // Sealing the trait to prevent external implementations
@@ -41,7 +41,7 @@ mod private
       Self : Sized,
       < Self as Iterator >::Item : ToRef< bool >,
     {
-      self.all( | x : Self::Item | *x.to_ref() )
+      return self.all( | x : Self::Item | return *x.to_ref() )
     }
     #[ inline ]
     fn any_true( &mut self ) -> bool
@@ -49,7 +49,7 @@ mod private
       Self : Sized,
       < Self as Iterator >::Item : ToRef< bool >,
     {
-      self.any( | x : Self::Item | *x.to_ref() )
+      return self.any( | x : Self::Item | return *x.to_ref() )
     }
   }
 
@@ -74,7 +74,7 @@ mod private
     where
       Self : Sized,
     {
-      self.map( | x : Self::Item | x.is_nan() )
+      return self.map( | x : Self::Item | return x.is_nan() )
     }
   }
 

@@ -1,4 +1,5 @@
-//#![ doc = include_str!( "../readme.md" ) ]
+//! Geometry generation utilities for creating 3D shapes and primitives.
+#![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 
 mod private
 {

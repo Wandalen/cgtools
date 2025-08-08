@@ -1,7 +1,7 @@
 use ndarray_cg::I32x2;
 use serde::{ Deserialize, Serialize };
 use std::{ fmt::Debug, hash::Hash, marker::PhantomData };
-use crate::coordinates::{ pixel::Pixel, Distance, Neigbors };
+use crate::coordinates::{ pixel::Pixel, Distance, Neighbors };
 
 #[ derive( Debug ) ]
 pub struct Axial;
@@ -355,7 +355,7 @@ impl< Orientation > Distance for Coordinate< Axial, Orientation >
   }
 }
 
-impl< Orientation > Neigbors for Coordinate< Axial, Orientation >
+impl< Orientation > Neighbors for Coordinate< Axial, Orientation >
 {
   fn neighbors( &self ) -> Vec< Self >
   {

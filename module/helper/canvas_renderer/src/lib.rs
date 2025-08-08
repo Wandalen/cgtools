@@ -1,4 +1,5 @@
-//#![ doc = include_str!( "../readme.md" ) ]
+//! Canvas rendering utilities for 2D graphics operations.
+#![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 
 mod private
 {
