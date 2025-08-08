@@ -3,7 +3,7 @@
 //! It offers a modular structure with layers for derives, error handling, buffer and memory management,
 //! data type descriptors, and optional features for camera controls and diagnostics.
 //!
-#![ doc = include_str!( "../readme.md" ) ]
+#![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ]
 
 // use error::prelude::*;
 // use former::Former;

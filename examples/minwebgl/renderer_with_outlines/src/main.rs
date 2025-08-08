@@ -1,4 +1,4 @@
-#![ doc = include_str!( "../README.md" ) ]
+#![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ]
 
 use std::collections::HashMap;
 use mingl::F32x4;

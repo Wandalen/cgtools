@@ -1,4 +1,5 @@
-#![ doc = include_str!( "../README.md" ) ]
+//! Text surface rendering example demonstrating curve-based text rendering with WebGL.
+#![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ]
 
 use std::cell::RefCell;
 use minwebgl as gl;

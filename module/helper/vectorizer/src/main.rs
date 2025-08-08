@@ -1,4 +1,4 @@
-#![ doc = include_str!( "../readme.md" ) ]
+#![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ]
 
 use std::error::Error;
 use clap::Parser;
