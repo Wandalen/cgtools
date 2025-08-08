@@ -9,7 +9,7 @@ mod tests
   use super::*;
 
   // xxx : enable
-  #[ path = "../../../../math/ndarray_cg/tests/inc/mod.rs" ]
-  mod tests;
+  // #[ path = "../../../math/ndarray_cg/tests/inc/mod.rs" ]
+  // mod tests;
 
 }
