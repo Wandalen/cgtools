@@ -1,9 +1,12 @@
 /// Internal namespace.
 mod private
 {
-    use crate::*;
+  use crate::*;
+
+  /// A generic trait for converting a type into its WebGPU equivalent.
   pub trait AsWeb< T >
   {
+    /// Converts the implementing type into the target WebGPU type.
     fn to_web( self ) -> T;
   }
 
