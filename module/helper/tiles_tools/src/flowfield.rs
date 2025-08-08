@@ -419,92 +419,105 @@ impl< System, Orientation > MultiGoalFlowField< System, Orientation >
 ///
 /// More efficient than full recalculation for dynamic environments
 /// where obstacles appear and disappear frequently.
-#[derive(Debug, Clone)]
-pub struct DynamicFlowField<System, Orientation> {
+#[ derive( Debug, Clone ) ]
+pub struct DynamicFlowField< System, Orientation >
+{
   /// Positions that need recalculation
-  dirty_positions: std::collections::HashSet<(i32, i32)>,
+  dirty_positions : std::collections::HashSet< ( i32, i32 ) >,
   /// Grid width in cells
-  pub width: i32,
+  pub width : i32,
   /// Grid height in cells  
-  pub height: i32,
+  pub height : i32,
   /// Phantom marker for system type
-  _phantom_system: std::marker::PhantomData<System>,
+  _phantom_system : std::marker::PhantomData< System >,
   /// Phantom marker for orientation type
-  _phantom_orientation: std::marker::PhantomData<Orientation>,
+  _phantom_orientation : std::marker::PhantomData< Orientation >,
 }
 
-impl<System, Orientation> DynamicFlowField<System, Orientation> {
+impl< System, Orientation > DynamicFlowField< System, Orientation >
+{
   /// Creates a new dynamic flow field.
-  pub fn new(width: i32, height: i32) -> Self {
+  pub fn new( width : i32, height : i32 ) -> Self
+  {
     // Simplified stub implementation for testing
-    Self {
-      dirty_positions: std::collections::HashSet::new(),
+    Self
+    {
+      dirty_positions : std::collections::HashSet::new(),
       width,
       height,
-      _phantom_system: std::marker::PhantomData,
-      _phantom_orientation: std::marker::PhantomData,
+      _phantom_system : std::marker::PhantomData,
+      _phantom_orientation : std::marker::PhantomData,
     }
   }
 
   /// Marks a position as changed (obstacle added/removed).
-  pub fn mark_dirty(&mut self, pos: (i32, i32)) {
-    self.dirty_positions.insert(pos);
+  pub fn mark_dirty( &mut self, pos : ( i32, i32 ) )
+  {
+    self.dirty_positions.insert( pos );
   }
 
   /// Incrementally updates the flow field for changed positions.
-  pub fn incremental_update<C, Fa, Fc>(&mut self, _is_passable: Fa, _get_cost: Fc)
+  pub fn incremental_update< C, Fa, Fc >( &mut self, _is_passable : Fa, _get_cost : Fc )
   where
-    C: Distance + Neighbors + Clone + PartialEq + std::hash::Hash,
-    Fa: Fn(&C) -> bool,
-    Fc: Fn(&C) -> u32,
-    Grid2D<System, Orientation, u32>: std::ops::Index<C, Output = u32> + std::ops::IndexMut<C, Output = u32>,
-    Grid2D<System, Orientation, FlowDirection>: std::ops::IndexMut<C, Output = FlowDirection>,
+    C : Distance + Neighbors + Clone + PartialEq + std::hash::Hash,
+    Fa : Fn( &C ) -> bool,
+    Fc : Fn( &C ) -> u32,
+    Grid2D< System, Orientation, u32 > : std::ops::Index< C, Output = u32 > + std::ops::IndexMut< C, Output = u32 >,
+    Grid2D< System, Orientation, FlowDirection > : std::ops::IndexMut< C, Output = FlowDirection >,
   {
     // Implementation would use wavefront propagation to update only affected areas
     self.dirty_positions.clear();
   }
 }
 
-#[cfg(test)]
-mod tests {
+#[ cfg( test ) ]
+mod tests
+{
   use super::*;
-  // use crate::coordinates::square::{Coordinate as SquareCoord, FourConnected};
+  // use crate::coordinates::square::{ Coordinate as SquareCoord, FourConnected };
 
-  #[test]
-  fn test_flow_field_creation() {
-    let flow_field = FlowField::<(), ()>::new(10, 10);
-    assert_eq!(flow_field.width, 10);
-    assert_eq!(flow_field.height, 10);
+  #[ test ]
+  fn test_flow_field_creation()
+  {
+    let flow_field = FlowField::< (), () >::new( 10, 10 );
+    assert_eq!( flow_field.width, 10 );
+    assert_eq!( flow_field.height, 10 );
   }
 
-  #[test]
-  fn test_integration_field_creation() {
-    let integration = IntegrationField::<(), ()>::new(5, 5);
-    assert_eq!(integration.max_cost, u32::MAX);
+  #[ test ]
+  fn test_integration_field_creation()
+  {
+    let integration = IntegrationField::< (), () >::new( 5, 5 );
+    assert_eq!( integration.max_cost, u32::MAX );
   }
 
-  #[test]
-  fn test_flow_direction_enum() {
-    let dir = FlowDirection::Move(1, 0);
-    match dir {
-      FlowDirection::Move(dx, dy) => {
-        assert_eq!(dx, 1);
-        assert_eq!(dy, 0);
+  #[ test ]
+  fn test_flow_direction_enum()
+  {
+    let dir = FlowDirection::Move( 1, 0 );
+    match dir
+    {
+      FlowDirection::Move( dx, dy ) =>
+      {
+        assert_eq!( dx, 1 );
+        assert_eq!( dy, 0 );
       }
-      _ => panic!("Expected Move direction"),
+      _ => panic!( "Expected Move direction" ),
     }
   }
 
-  #[test]
-  fn test_multi_goal_flow_field_creation() {
-    let multi_field = MultiGoalFlowField::<(), ()>::new(8, 8);
-    assert_eq!(multi_field.goal_fields.len(), 0);
+  #[ test ]
+  fn test_multi_goal_flow_field_creation()
+  {
+    let multi_field = MultiGoalFlowField::< (), () >::new( 8, 8 );
+    assert_eq!( multi_field.goal_fields.len(), 0 );
   }
 
-  #[test]
-  fn test_dynamic_flow_field_dirty_marking() {
-    let mut dynamic_field = DynamicFlowField::<(), ()>::new(6, 6);
-    dynamic_field.mark_dirty((3, 3));
-    assert!(dynamic_field.dirty_positions.contains(&(3, 3)));
+  #[ test ]
+  fn test_dynamic_flow_field_dirty_marking()
+  {
+    let mut dynamic_field = DynamicFlowField::< (), () >::new( 6, 6 );
+    dynamic_field.mark_dirty( ( 3, 3 ) );
+    assert!( dynamic_field.dirty_positions.contains( &( 3, 3 ) ) );
   }
 }

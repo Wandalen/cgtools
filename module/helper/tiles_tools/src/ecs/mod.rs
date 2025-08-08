@@ -23,26 +23,27 @@
 //! # Examples
 //!
 //! ```rust
-//! use tiles_tools::ecs::{World, Position, Movable, Health};
-//! use tiles_tools::coordinates::square::{Coordinate as SquareCoord, FourConnected};
+//! use tiles_tools::ecs::{ World, Position, Movable, Health };
+//! use tiles_tools::coordinates::square::{ Coordinate as SquareCoord, FourConnected };
 //! 
 //! // Create a world and spawn entities
 //! let mut world = World::new();
 //! 
 //! let player = world.spawn((
-//!     Position::new(SquareCoord::<FourConnected>::new(0, 0)),
-//!     Movable::new(2), // 2 tiles per turn
-//!     Health::new(100),
+//!     Position::new( SquareCoord::< FourConnected >::new( 0, 0 ) ),
+//!     Movable::new( 2 ), // 2 tiles per turn
+//!     Health::new( 100 ),
 //! ));
 //! 
 //! let enemy = world.spawn((
-//!     Position::new(SquareCoord::<FourConnected>::new(5, 3)),
-//!     Health::new(50),
+//!     Position::new( SquareCoord::< FourConnected >::new( 5, 3 ) ),
+//!     Health::new( 50 ),
 //! ));
 //! 
 //! // Query entities with specific components
-//! for (entity, (pos, health)) in world.query::<(&Position<SquareCoord<FourConnected>>, &Health)>().iter() {
-//!     println!("Entity {:?} at {:?} has {} health", entity, pos.coord, health.current);
+//! for ( entity, ( pos, health ) ) in world.query::< ( &Position< SquareCoord< FourConnected > >, &Health ) >().iter()
+//! {
+//!     println!( "Entity {:?} at {:?} has {} health", entity, pos.coord, health.current );
 //! }
 //! ```
 
