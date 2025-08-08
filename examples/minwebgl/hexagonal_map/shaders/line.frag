@@ -2,7 +2,7 @@
 precision mediump float;
 
 in vec2 v_tex_coord;
-flat in float v_player_id;
+flat in int v_player_id;
 
 layout ( location = 0 ) out vec4 frag_color;
 
