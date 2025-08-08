@@ -1,4 +1,6 @@
-#![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ]
+#![ doc( html_root_url = "https://docs.rs/geometry_generation/latest/geometry_generation/" ) ]
+#![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
+#![ cfg_attr( not( doc ), doc = "Set of tools for generating 3D geometry" ) ]
 
 mod private
 {
