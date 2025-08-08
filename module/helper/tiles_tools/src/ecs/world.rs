@@ -14,31 +14,32 @@
 //! # Examples
 //!
 //! ```rust
-//! use tiles_tools::ecs::{World, Position, Health, Movable, Stats, Team};
-//! use tiles_tools::coordinates::square::{Coordinate as SquareCoord, FourConnected};
+//! use tiles_tools::ecs::{ World, Position, Health, Movable, Stats, Team };
+//! use tiles_tools::coordinates::square::{ Coordinate as SquareCoord, FourConnected };
 //! 
 //! // Create a world
 //! let mut world = World::new();
 //! 
 //! // Spawn a player entity
 //! let player = world.spawn((
-//!     Position::new(SquareCoord::<FourConnected>::new(0, 0)),
-//!     Health::new(100),
-//!     Movable::new(3),
-//!     Stats::new(20, 15, 12, 1),
-//!     Team::new(0),
+//!     Position::new( SquareCoord::< FourConnected >::new( 0, 0 ) ),
+//!     Health::new( 100 ),
+//!     Movable::new( 3 ),
+//!     Stats::new( 20, 15, 12, 1 ),
+//!     Team::new( 0 ),
 //! ));
 //! 
 //! // Query entities
-//! for (entity, (pos, health)) in world.query::<(&Position<SquareCoord<FourConnected>>, &Health)>().iter() {
-//!     println!("Entity at ({}, {}) has {} health", pos.coord.x, pos.coord.y, health.current);
+//! for ( entity, ( pos, health ) ) in world.query::< ( &Position< SquareCoord< FourConnected > >, &Health ) >().iter()
+//! {
+//!     println!( "Entity at ({}, {}) has {} health", pos.coord.x, pos.coord.y, health.current );
 //! }
 //! 
 //! // Update game systems
-//! world.update(0.016); // 60 FPS
+//! world.update( 0.016 ); // 60 FPS
 //! ```
 
-use crate::ecs::{components::*, systems::*};
+use crate::ecs::{ components::*, systems::* };
 use crate::coordinates::Distance;
 use std::collections::HashMap;
 
@@ -47,158 +48,182 @@ use std::collections::HashMap;
 /// The World is the central container for all game state and logic in the ECS
 /// architecture. It manages entity lifecycles, component storage, and system
 /// execution.
-pub struct World {
+pub struct World
+{
   /// The underlying HECS world for entity-component storage
-  pub hecs_world: hecs::World,
+  pub hecs_world : hecs::World,
   /// Pending movement requests from various sources (AI, player input, etc.)
   /// Note: In a real implementation, this would use a proper enum or trait object
   /// for type-safe movement requests across coordinate systems
-  movement_requests: HashMap<hecs::Entity, String>, // Simplified for now
+  movement_requests : HashMap< hecs::Entity, String >, // Simplified for now
   /// Game events generated this frame
-  events: Vec<GameEvent>,
+  events : Vec< GameEvent >,
   /// Total elapsed time
-  elapsed_time: f32,
+  elapsed_time : f32,
 }
 
-impl World {
+impl World
+{
   /// Creates a new empty world.
-  pub fn new() -> Self {
-    Self {
-      hecs_world: hecs::World::new(),
-      movement_requests: HashMap::new(),
-      events: Vec::new(),
-      elapsed_time: 0.0,
+  pub fn new() -> Self
+  {
+    Self
+    {
+      hecs_world : hecs::World::new(),
+      movement_requests : HashMap::new(),
+      events : Vec::new(),
+      elapsed_time : 0.0,
     }
   }
 
   /// Spawns a new entity with the given components.
-  pub fn spawn(&mut self, components: impl hecs::DynamicBundle) -> hecs::Entity {
-    self.hecs_world.spawn(components)
+  pub fn spawn( &mut self, components : impl hecs::DynamicBundle ) -> hecs::Entity
+  {
+    self.hecs_world.spawn( components )
   }
 
   /// Despawns an entity, removing it and all its components.
-  pub fn despawn(&mut self, entity: hecs::Entity) -> Result<(), hecs::NoSuchEntity> {
-    self.hecs_world.despawn(entity)
+  pub fn despawn( &mut self, entity : hecs::Entity ) -> Result< (), hecs::NoSuchEntity >
+  {
+    self.hecs_world.despawn( entity )
   }
 
   /// Returns a query over entities with the specified components.
-  pub fn query<Q: hecs::Query>(&self) -> hecs::QueryBorrow<'_, Q> {
-    self.hecs_world.query::<Q>()
+  pub fn query< Q : hecs::Query >( &self ) -> hecs::QueryBorrow< '_, Q >
+  {
+    self.hecs_world.query::< Q >()
   }
 
   /// Returns a mutable query over entities with the specified components.
-  pub fn query_mut<Q: hecs::Query>(&mut self) -> hecs::QueryMut<'_, Q> {
-    self.hecs_world.query_mut::<Q>()
+  pub fn query_mut< Q : hecs::Query >( &mut self ) -> hecs::QueryMut< '_, Q >
+  {
+    self.hecs_world.query_mut::< Q >()
   }
 
   /// Gets a component from a specific entity.
-  pub fn get<T: hecs::Component>(&self, entity: hecs::Entity) -> Result<hecs::Ref<'_, T>, hecs::ComponentError> {
-    self.hecs_world.get::<&T>(entity)
+  pub fn get< T : hecs::Component >( &self, entity : hecs::Entity ) -> Result< hecs::Ref< '_, T >, hecs::ComponentError >
+  {
+    self.hecs_world.get::< &T >( entity )
   }
 
   /// Gets a mutable component from a specific entity.
-  pub fn get_mut<T: hecs::Component>(&mut self, entity: hecs::Entity) -> Result<hecs::RefMut<'_, T>, hecs::ComponentError> {
-    self.hecs_world.get::<&mut T>(entity)
+  pub fn get_mut< T : hecs::Component >( &mut self, entity : hecs::Entity ) -> Result< hecs::RefMut< '_, T >, hecs::ComponentError >
+  {
+    self.hecs_world.get::< &mut T >( entity )
   }
 
   /// Updates all game systems with the specified time delta.
-  pub fn update(&mut self, dt: f32) {
+  pub fn update( &mut self, dt : f32 )
+  {
     self.elapsed_time += dt;
     self.events.clear();
 
     // Update animations
-    AnimationSystem::update_animations(&mut self.hecs_world, dt);
+    AnimationSystem::update_animations( &mut self.hecs_world, dt );
 
     // Update AI systems
-    AISystem::update_ai(&mut self.hecs_world, dt);
+    AISystem::update_ai( &mut self.hecs_world, dt );
 
     // Process movement requests
     self.process_movement_requests();
 
     // Process combat
-    let combat_events = CombatSystem::process_combat(&mut self.hecs_world);
-    self.process_combat_events(combat_events);
+    let combat_events = CombatSystem::process_combat( &mut self.hecs_world );
+    self.process_combat_events( combat_events );
 
     // Clean up defeated entities
-    let defeated_entities = CleanupSystem::cleanup_defeated_entities(&mut self.hecs_world);
-    for entity in defeated_entities {
-      self.events.push(GameEvent::EntityDestroyed { entity });
+    let defeated_entities = CleanupSystem::cleanup_defeated_entities( &mut self.hecs_world );
+    for entity in defeated_entities
+    {
+      self.events.push( GameEvent::EntityDestroyed { entity } );
     }
   }
 
   /// Requests movement for an entity to a specific coordinate.
   /// Note: Simplified implementation - in practice would handle proper coordinate types
-  pub fn request_movement<C>(&mut self, entity: hecs::Entity, _target: C)
+  pub fn request_movement< C >( &mut self, entity : hecs::Entity, _target : C )
   where
-    C: 'static + Clone,
+    C : 'static + Clone,
   {
-    self.movement_requests.insert(entity, "movement_requested".to_string());
+    self.movement_requests.insert( entity, "movement_requested".to_string() );
   }
 
   /// Gets all events generated this frame.
-  pub fn events(&self) -> &[GameEvent] {
+  pub fn events( &self ) -> &[ GameEvent ]
+  {
     &self.events
   }
 
   /// Clears all pending events.
-  pub fn clear_events(&mut self) {
+  pub fn clear_events( &mut self )
+  {
     self.events.clear();
   }
 
   /// Gets the current elapsed time.
-  pub fn elapsed_time(&self) -> f32 {
+  pub fn elapsed_time( &self ) -> f32
+  {
     self.elapsed_time
   }
 
   /// Finds all entities within range of a position.
-  pub fn find_entities_in_range<C>(
+  pub fn find_entities_in_range< C >
+  (
     &self,
-    center: &Position<C>,
-    range: u32,
-  ) -> Vec<(hecs::Entity, Position<C>)>
+    center : &Position< C >,
+    range : u32,
+  ) -> Vec< ( hecs::Entity, Position< C > ) >
   where
-    C: Distance + Clone + Send + Sync + 'static,
+    C : Distance + Clone + Send + Sync + 'static,
   {
-    find_entities_in_range(&self.hecs_world, center, range)
+    find_entities_in_range( &self.hecs_world, center, range )
   }
 
   /// Finds the nearest entity to a position.
-  pub fn find_nearest_entity<C>(
+  pub fn find_nearest_entity< C >
+  (
     &self,
-    center: &Position<C>,
-  ) -> Option<(hecs::Entity, Position<C>, u32)>
+    center : &Position< C >,
+  ) -> Option< ( hecs::Entity, Position< C >, u32 ) >
   where
-    C: Distance + Clone + Send + Sync + 'static,
+    C : Distance + Clone + Send + Sync + 'static,
   {
-    find_nearest_entity(&self.hecs_world, center)
+    find_nearest_entity( &self.hecs_world, center )
   }
 
   /// Processes AI actions generated by the AI system.
-  #[allow(dead_code)]
-  fn process_ai_actions<C>(&mut self, actions: Vec<AIAction<C>>)
+  #[ allow( dead_code ) ]
+  fn process_ai_actions< C >( &mut self, actions : Vec< AIAction< C > > )
   where
-    C: 'static + Clone,
+    C : 'static + Clone,
   {
-    for action in actions {
-      match action {
-        AIAction::MoveToward { entity, target_position } => {
-          self.request_movement(entity, target_position);
+    for action in actions
+    {
+      match action
+      {
+        AIAction::MoveToward { entity, target_position } =>
+        {
+          self.request_movement( entity, target_position );
         }
-        AIAction::Attack { entity, target } => {
-          self.events.push(GameEvent::AttackAttempt { attacker: entity, target });
+        AIAction::Attack { entity, target } =>
+        {
+          self.events.push( GameEvent::AttackAttempt { attacker : entity, target } );
         }
-        AIAction::StartPursuit { entity, target, .. } => {
-          self.events.push(GameEvent::PursuitStarted { pursuer: entity, target });
+        AIAction::StartPursuit { entity, target, .. } =>
+        {
+          self.events.push( GameEvent::PursuitStarted { pursuer : entity, target } );
         }
-        AIAction::StartPatrol { entity } => {
-          self.events.push(GameEvent::PatrolStarted { entity });
+        AIAction::StartPatrol { entity } =>
+        {
+          self.events.push( GameEvent::PatrolStarted { entity } );
         }
       }
     }
   }
 
   /// Processes pending movement requests.
-  fn process_movement_requests(&mut self) {
+  fn process_movement_requests( &mut self )
+  {
     // This is a simplified version - in reality we'd need to handle different coordinate types
     // For now, we'll clear the requests to prevent memory leaks
     // TODO: Implement proper type-safe movement request processing
@@ -206,83 +231,100 @@ impl World {
   }
 
   /// Processes combat events.
-  fn process_combat_events(&mut self, combat_events: Vec<CombatEvent>) {
-    for event in combat_events {
-      match event {
-        CombatEvent::Damage { attacker, target, damage } => {
-          self.events.push(GameEvent::Damage { attacker, target, damage });
+  fn process_combat_events( &mut self, combat_events : Vec< CombatEvent > )
+  {
+    for event in combat_events
+    {
+      match event
+      {
+        CombatEvent::Damage { attacker, target, damage } =>
+        {
+          self.events.push( GameEvent::Damage { attacker, target, damage } );
         }
-        CombatEvent::Defeated { entity } => {
-          self.events.push(GameEvent::EntityDefeated { entity });
+        CombatEvent::Defeated { entity } =>
+        {
+          self.events.push( GameEvent::EntityDefeated { entity } );
         }
       }
     }
   }
 }
 
-impl Default for World {
-  fn default() -> Self {
+impl Default for World
+{
+  fn default() -> Self
+  {
     Self::new()
   }
 }
 
 /// Game events that can occur during world updates.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GameEvent {
+#[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
+pub enum GameEvent
+{
   /// An entity was spawned
-  EntitySpawned {
+  EntitySpawned
+  {
     /// The newly spawned entity
-    entity: hecs::Entity,
+    entity : hecs::Entity,
   },
   /// An entity was destroyed
-  EntityDestroyed {
+  EntityDestroyed
+  {
     /// The destroyed entity
-    entity: hecs::Entity,
+    entity : hecs::Entity,
   },
   /// An entity was defeated (health reached 0)
-  EntityDefeated {
+  EntityDefeated
+  {
     /// The defeated entity
-    entity: hecs::Entity,
+    entity : hecs::Entity,
   },
   /// Damage was dealt to an entity
-  Damage {
+  Damage
+  {
     /// Entity that dealt the damage
-    attacker: hecs::Entity,
+    attacker : hecs::Entity,
     /// Entity that received the damage
-    target: hecs::Entity,
+    target : hecs::Entity,
     /// Amount of damage dealt
-    damage: u32,
+    damage : u32,
   },
   /// An entity started pursuing another
-  PursuitStarted {
+  PursuitStarted
+  {
     /// Entity doing the pursuing
-    pursuer: hecs::Entity,
+    pursuer : hecs::Entity,
     /// Entity being pursued
-    target: hecs::Entity,
+    target : hecs::Entity,
   },
   /// An entity started patrolling
-  PatrolStarted {
+  PatrolStarted
+  {
     /// Entity that started patrolling
-    entity: hecs::Entity,
+    entity : hecs::Entity,
   },
   /// An attack was attempted
-  AttackAttempt {
+  AttackAttempt
+  {
     /// Entity attempting the attack
-    attacker: hecs::Entity,
+    attacker : hecs::Entity,
     /// Entity being attacked
-    target: hecs::Entity,
+    target : hecs::Entity,
   },
   /// An entity moved to a new position
-  EntityMoved {
+  EntityMoved
+  {
     /// Entity that moved
-    entity: hecs::Entity,
+    entity : hecs::Entity,
   },
   /// A trigger was activated
-  TriggerActivated {
+  TriggerActivated
+  {
     /// The trigger entity that was activated
-    trigger_entity: hecs::Entity,
+    trigger_entity : hecs::Entity,
     /// The entity that activated the trigger
-    activated_by: hecs::Entity,
+    activated_by : hecs::Entity,
   },
 }
 

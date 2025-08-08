@@ -526,15 +526,18 @@ impl Animation
 ///
 /// This component identifies entities that should respond to player input
 /// and receive special treatment in game systems.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct PlayerControlled {
+#[ derive( Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize ) ]
+pub struct PlayerControlled
+{
   /// Player identifier
-  pub player_id: u32,
+  pub player_id : u32,
 }
 
-impl PlayerControlled {
+impl PlayerControlled
+{
   /// Creates a new player control component.
-  pub fn new(player_id: u32) -> Self {
+  pub fn new( player_id : u32 ) -> Self
+  {
     Self { player_id }
   }
 }
@@ -543,21 +546,23 @@ impl PlayerControlled {
 ///
 /// This component defines the artificial intelligence behavior and state
 /// for entities that act autonomously.
-#[derive(Debug, Clone, PartialEq)]
-pub struct AI {
+#[ derive( Debug, Clone, PartialEq ) ]
+pub struct AI
+{
   /// Current AI state
-  pub state: AIState,
+  pub state : AIState,
   /// Target entity (if any)
-  pub target: Option<hecs::Entity>,
+  pub target : Option< hecs::Entity >,
   /// AI decision timer
-  pub decision_timer: f32,
+  pub decision_timer : f32,
   /// Time between AI decisions
-  pub decision_interval: f32,
+  pub decision_interval : f32,
 }
 
 /// AI behavioral states.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum AIState {
+#[ derive( Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize ) ]
+pub enum AIState
+{
   /// Entity is idle and looking for something to do
   Idle,
   /// Entity is patrolling an area
@@ -572,39 +577,47 @@ pub enum AIState {
   Guarding,
 }
 
-impl AI {
+impl AI
+{
   /// Creates a new AI component.
-  pub fn new(decision_interval: f32) -> Self {
-    Self {
-      state: AIState::Idle,
-      target: None,
-      decision_timer: 0.0,
+  pub fn new( decision_interval : f32 ) -> Self
+  {
+    Self
+    {
+      state : AIState::Idle,
+      target : None,
+      decision_timer : 0.0,
       decision_interval,
     }
   }
 
   /// Updates the AI decision timer.
-  pub fn update(&mut self, dt: f32) {
+  pub fn update( &mut self, dt : f32 )
+  {
     self.decision_timer += dt;
   }
 
   /// Returns whether it's time for a new AI decision.
-  pub fn should_make_decision(&self) -> bool {
+  pub fn should_make_decision( &self ) -> bool
+  {
     self.decision_timer >= self.decision_interval
   }
 
   /// Resets the decision timer.
-  pub fn reset_decision_timer(&mut self) {
+  pub fn reset_decision_timer( &mut self )
+  {
     self.decision_timer = 0.0;
   }
 
   /// Sets a new target.
-  pub fn set_target(&mut self, target: Option<hecs::Entity>) {
+  pub fn set_target( &mut self, target : Option< hecs::Entity > )
+  {
     self.target = target;
   }
 
   /// Changes the AI state.
-  pub fn set_state(&mut self, state: AIState) {
+  pub fn set_state( &mut self, state : AIState )
+  {
     self.state = state;
   }
 }
@@ -613,23 +626,25 @@ impl AI {
 ///
 /// This component enables entities to respond to proximity, interaction, or
 /// other game events with custom behaviors.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Trigger {
+#[ derive( Debug, Clone, PartialEq, Serialize, Deserialize ) ]
+pub struct Trigger
+{
   /// The type of trigger condition
-  pub trigger_type: TriggerType,
+  pub trigger_type : TriggerType,
   /// Whether the trigger can be activated multiple times
-  pub repeatable: bool,
+  pub repeatable : bool,
   /// Whether the trigger has been activated
-  pub activated: bool,
+  pub activated : bool,
   /// Cooldown time between activations (if repeatable)
-  pub cooldown: f32,
+  pub cooldown : f32,
   /// Current cooldown timer
-  pub cooldown_timer: f32,
+  pub cooldown_timer : f32,
 }
 
 /// Types of trigger conditions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum TriggerType {
+#[ derive( Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize ) ]
+pub enum TriggerType
+{
   /// Triggers when an entity enters the same tile
   OnEnter,
   /// Triggers when an entity leaves the tile
@@ -639,48 +654,60 @@ pub enum TriggerType {
   /// Triggers when directly interacted with
   OnInteract,
   /// Triggers after a time delay
-  OnTimer(u32), // time in game ticks
+  OnTimer( u32 ), // time in game ticks
 }
 
-impl Trigger {
+impl Trigger
+{
   /// Creates a new trigger component.
-  pub fn new(trigger_type: TriggerType) -> Self {
-    Self {
+  pub fn new( trigger_type : TriggerType ) -> Self
+  {
+    Self
+    {
       trigger_type,
-      repeatable: false,
-      activated: false,
-      cooldown: 0.0,
-      cooldown_timer: 0.0,
+      repeatable : false,
+      activated : false,
+      cooldown : 0.0,
+      cooldown_timer : 0.0,
     }
   }
 
   /// Makes the trigger repeatable with a cooldown.
-  pub fn repeatable(mut self, cooldown: f32) -> Self {
+  pub fn repeatable( mut self, cooldown : f32 ) -> Self
+  {
     self.repeatable = true;
     self.cooldown = cooldown;
     self
   }
 
   /// Updates the trigger cooldown timer.
-  pub fn update(&mut self, dt: f32) {
-    if self.cooldown_timer > 0.0 {
+  pub fn update( &mut self, dt : f32 )
+  {
+    if self.cooldown_timer > 0.0
+    {
       self.cooldown_timer -= dt;
     }
   }
 
   /// Returns whether the trigger can be activated.
-  pub fn can_activate(&self) -> bool {
-    if self.activated && !self.repeatable {
+  pub fn can_activate( &self ) -> bool
+  {
+    if self.activated && !self.repeatable
+    {
       false
-    } else {
+    }
+    else
+    {
       self.cooldown_timer <= 0.0
     }
   }
 
   /// Activates the trigger.
-  pub fn activate(&mut self) {
+  pub fn activate( &mut self )
+  {
     self.activated = true;
-    if self.repeatable {
+    if self.repeatable
+    {
       self.cooldown_timer = self.cooldown;
     }
   }

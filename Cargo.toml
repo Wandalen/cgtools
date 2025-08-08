@@ -278,7 +278,7 @@ default-features = false
 features = [ "f64", "delaunay" ]
 
 [workspace.dependencies.parry3d]
-version = "0.22.0"
+version = "0.22.1"
 
 [workspace.dependencies.norad]
 default-features = false

@@ -11,7 +11,7 @@ authors = [
 
 minwebgl = { workspace = true, features = [ "future", "math" ] }
 gltf = { version = "1.4.1", features = [ "import" ] }
-image = "0.25.2"
+image = "0.25.6"
 
 [dependencies.web-sys]
 workspace = true
