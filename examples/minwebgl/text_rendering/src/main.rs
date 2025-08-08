@@ -1,4 +1,4 @@
-#![ doc = include_str!( "../README.md" ) ]
+#![ doc = "../README.md" ]
 
 use std::cell::RefCell;
 use minwebgl as gl;
@@ -16,15 +16,15 @@ use renderer::webgl::
   Node,
   Geometry,
   IndexInfo,
-  geometry::AttributeInfo, 
-  loaders::gltf::GLTF, 
+  geometry::AttributeInfo,
+  loaders::gltf::GLTF,
   post_processing::
   {
     self, Pass, SwapFramebuffer
-  }, 
-  Camera, 
-  Material, 
-  Primitive, 
+  },
+  Camera,
+  Material,
+  Primitive,
   Renderer,
   Scene
 };
@@ -35,10 +35,10 @@ mod camera_controls;
 mod text;
 
 fn make_buffer_attibute_info
-( 
-  buffer : &web_sys::WebGlBuffer, 
-  offset : i32, 
-  stride : i32, 
+(
+  buffer : &web_sys::WebGlBuffer,
+  offset : i32,
+  stride : i32,
   slot : u32,
   normalized : bool,
   vector: gl::VectorDataType
@@ -82,14 +82,14 @@ struct Transform
 
 impl Default for Transform
 {
-  fn default() -> Self 
+  fn default() -> Self
   {
-    Self 
-    { 
-      translation : [ 0.0; 3 ], 
-      rotation : [ 0.0; 3 ], 
-      scale : [ 1.0; 3 ] 
-    }    
+    Self
+    {
+      translation : [ 0.0; 3 ],
+      rotation : [ 0.0; 3 ],
+      scale : [ 1.0; 3 ]
+    }
   }
 }
 
@@ -117,7 +117,7 @@ struct AttributesData
 }
 
 #[ derive( Clone ) ]
-struct PrimitiveData 
+struct PrimitiveData
 {
   attributes : Rc< RefCell< AttributesData > >,
   material : Rc< RefCell< Material > >,
@@ -125,15 +125,15 @@ struct PrimitiveData
 }
 
 fn primitives_data_to_gltf
-( 
+(
   gl : &GL,
-  primitives_data : Vec< PrimitiveData >, 
-  materials : Vec< Rc< RefCell< Material > > > 
+  primitives_data : Vec< PrimitiveData >,
+  materials : Vec< Rc< RefCell< Material > > >
 ) -> GLTF
 {
   let mut scenes = vec![];
   let mut nodes = vec![];
-  let mut gl_buffers = vec![]; 
+  let mut gl_buffers = vec![];
   let mut meshes = vec![];
 
   scenes.push( Rc::new( RefCell::new( Scene::new() ) ) );
@@ -141,7 +141,7 @@ fn primitives_data_to_gltf
   let position_buffer = gl.create_buffer().unwrap();
   let normal_buffer = gl.create_buffer().unwrap();
 
-  for buffer in 
+  for buffer in
   [
     position_buffer.clone(),
     normal_buffer.clone()
@@ -150,29 +150,29 @@ fn primitives_data_to_gltf
     gl_buffers.push( buffer );
   }
 
-  let attribute_infos = 
+  let attribute_infos =
   [
-    ( 
-      "positions", 
-      make_buffer_attibute_info( 
-        &position_buffer, 
-        0, 
-        3, 
-        0, 
+    (
+      "positions",
+      make_buffer_attibute_info(
+        &position_buffer,
+        0,
+        3,
+        0,
         false,
         VectorDataType::new( mingl::DataType::F32, 3, 1 )
-      ).unwrap() 
+      ).unwrap()
     ),
-    ( 
-      "normals", 
-      make_buffer_attibute_info( 
-        &normal_buffer, 
-        0, 
-        3, 
-        1, 
+    (
+      "normals",
+      make_buffer_attibute_info(
+        &normal_buffer,
+        0,
+        3,
+        1,
         false,
         VectorDataType::new( mingl::DataType::F32, 3, 1 )
-      ).unwrap() 
+      ).unwrap()
     )
   ];
 
@@ -239,7 +239,7 @@ fn primitives_data_to_gltf
   gl::buffer::upload( &gl, &position_buffer, &positions, GL::STATIC_DRAW );
   gl::buffer::upload( &gl, &normal_buffer, &normals, GL::STATIC_DRAW );
   gl::index::upload( &gl, &index_buffer, &indices, GL::STATIC_DRAW );
-  
+
   GLTF
   {
     scenes,
@@ -316,7 +316,7 @@ async fn run() -> Result< (), gl::WebglError >
   transform_ttf.translation[ 0 ] += 1.8;
   for font_name in font_names
   {
-    transform_ufo.translation[ 1 ] -= 1.0; 
+    transform_ufo.translation[ 1 ] -= 1.0;
     let mut text_mesh = text::ufo::text_to_mesh( &text, fonts_ufo_3d.get( &font_name ).unwrap(), &transform_ufo );
     for p in text_mesh.iter_mut()
     {
@@ -324,7 +324,7 @@ async fn run() -> Result< (), gl::WebglError >
     }
     primitives_data.extend( text_mesh );
 
-    transform_ttf.translation[ 1 ] -= 1.0; 
+    transform_ttf.translation[ 1 ] -= 1.0;
     let mut text_mesh = text::ttf::text_to_mesh( &text, fonts_ttf_3d.get( &font_name ).unwrap(), &transform_ttf );
     for p in text_mesh.iter_mut()
     {
@@ -366,7 +366,7 @@ async fn run() -> Result< (), gl::WebglError >
 
       swap_buffer.set_output( t );
       swap_buffer.swap();
-    
+
       let _t = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
       .expect( "Failed to render to srgb pass" );
 

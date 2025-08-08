@@ -1,10 +1,10 @@
-#![ doc = include_str!( "../README.md" ) ]
+#![ doc = "../README.md" ]
 
 use std::collections::HashMap;
 use mingl::F32x4;
 use minwebgl::
-{ 
-  self as gl,  
+{
+  self as gl,
   JsCast,
   web_sys::
   {
@@ -20,18 +20,18 @@ use rand::Rng;
 use renderer::webgl::
 {
   loaders::gltf::GLTF,
-  geometry::AttributeInfo, 
-  Camera, 
+  geometry::AttributeInfo,
+  Camera,
   Renderer,
   post_processing::
   {
-    self,  
+    self,
     outline::narrow_outline::NarrowOutlinePass,
     outline::normal_depth_outline::NormalDepthOutlinePass,
     outline::wide_outline::WideOutlinePass,
-    GBuffer, 
-    GBufferAttachment, 
-    Pass, 
+    GBuffer,
+    GBufferAttachment,
+    Pass,
     SwapFramebuffer
   }
 };
@@ -40,26 +40,26 @@ use std::cell::RefCell;
 
 mod camera_controls;
 
-fn generate_object_colors( object_count : u32 ) -> Vec< F32x4 > 
+fn generate_object_colors( object_count : u32 ) -> Vec< F32x4 >
 {
   let mut rng = rand::rng();
 
   let range = 0.2..1.0;
   let object_colors = ( 0..object_count )
   .map
-  ( 
+  (
     | _ |
     {
       F32x4::from_array
       (
-        [ 
-          rng.random_range( range.clone() ), 
+        [
+          rng.random_range( range.clone() ),
           rng.random_range( range.clone() ),
           rng.random_range( range.clone() ),
           1.0
         ]
       )
-    } 
+    }
   )
   .collect::< Vec< _ > >();
 
@@ -93,14 +93,14 @@ fn get_html_element_by_id( id : &str ) -> HtmlElement
   .unwrap()
 }
 
-fn get_html_span_element_by_id( id : &str ) -> HtmlSpanElement 
+fn get_html_span_element_by_id( id : &str ) -> HtmlSpanElement
 {
   get_html_element_by_id( id )
   .dyn_into::< HtmlSpanElement >()
   .unwrap()
 }
 
-fn get_html_input_element_by_id( id : &str ) -> HtmlInputElement 
+fn get_html_input_element_by_id( id : &str ) -> HtmlInputElement
 {
   get_html_element_by_id( id )
   .dyn_into::< HtmlInputElement >()
@@ -135,7 +135,7 @@ async fn run() -> Result< (), gl::WebglError >
   gl::info!( "Scene boudnig box: {:?}", scene_bounding_box );
   let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
   let dist = scene_bounding_box.max.mag();
-  let exponent = 
+  let exponent =
   {
     let bits = diagonal.to_bits();
     let exponent_field = ( ( bits >> 23 ) & 0xFF ) as i32;
@@ -159,18 +159,18 @@ async fn run() -> Result< (), gl::WebglError >
   camera_controls::setup_controls( &canvas, &camera.get_controls() );
 
   let renderer = Rc::new
-  ( 
+  (
     RefCell::new
-    ( 
+    (
       Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?
     )
   );
   let renderer1 = renderer.clone();
 
-  let attributes = get_attributes( &gltf )?;  
+  let attributes = get_attributes( &gltf )?;
 
   gl::info!( "{:?}", attributes.keys() );
-  
+
   let get_buffer = | name | attributes.get( name ).unwrap().buffer.clone();
 
   let attachments = HashMap::from(
@@ -185,24 +185,24 @@ async fn run() -> Result< (), gl::WebglError >
   );
 
   let gbuffer = Rc::new
-  ( 
+  (
     RefCell::new
-    ( 
+    (
       GBuffer::new
-      ( 
-        &gl, 
-        canvas.width(), 
-        canvas.height(), 
-        attachments 
+      (
+        &gl,
+        canvas.width(),
+        canvas.height(),
+        attachments
       )?
     )
   );
   let gbuffer_rc = gbuffer.clone();
 
   let swap_buffer = Rc::new
-  ( 
+  (
     RefCell::new
-    ( 
+    (
       SwapFramebuffer::new( &gl, canvas.width(), canvas.height() )
     )
   );
@@ -212,56 +212,56 @@ async fn run() -> Result< (), gl::WebglError >
 
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
-  
+
   let outline_thickness = Rc::new( RefCell::new( 5.0f32 ) );
   let outline_thickness_1 = outline_thickness.clone();
   let outline_thickness_2 = outline_thickness.clone();
-  
+
   let narrow_outline = Rc::new
-  ( 
+  (
     RefCell::new
-    ( 
+    (
       NarrowOutlinePass::new
-      ( 
-        &gl, 
-        gbuffer.borrow().get_texture( GBufferAttachment::Position ), 
-        gbuffer.borrow().get_texture( GBufferAttachment::ObjectColor ), 
-        *outline_thickness.borrow(), 
-        canvas.width(), 
-        canvas.height() 
+      (
+        &gl,
+        gbuffer.borrow().get_texture( GBufferAttachment::Position ),
+        gbuffer.borrow().get_texture( GBufferAttachment::ObjectColor ),
+        *outline_thickness.borrow(),
+        canvas.width(),
+        canvas.height()
       )?
     )
   );
 
   let normal_depth_outline = Rc::new
-  ( 
+  (
     RefCell::new
-    ( 
+    (
       NormalDepthOutlinePass::new
-      ( 
-        &gl, 
-        gbuffer.borrow().get_texture( GBufferAttachment::Position ), 
+      (
+        &gl,
+        gbuffer.borrow().get_texture( GBufferAttachment::Position ),
         gbuffer.borrow().get_texture( GBufferAttachment::Normal ),
-        gbuffer.borrow().get_texture( GBufferAttachment::ObjectColor ), 
-        *outline_thickness.borrow(), 
-        canvas.width(), 
-        canvas.height() 
+        gbuffer.borrow().get_texture( GBufferAttachment::ObjectColor ),
+        *outline_thickness.borrow(),
+        canvas.width(),
+        canvas.height()
       )?
     )
   );
 
   let wide_outline = Rc::new
-  ( 
+  (
     RefCell::new
-    ( 
+    (
       WideOutlinePass::new
-      ( 
-        &gl, 
+      (
+        &gl,
         gbuffer.borrow()
-        .get_texture( GBufferAttachment::ObjectColor ).unwrap(), 
-        *outline_thickness.borrow(), 
-        canvas.width(), 
-        canvas.height() 
+        .get_texture( GBufferAttachment::ObjectColor ).unwrap(),
+        *outline_thickness.borrow(),
+        canvas.width(),
+        canvas.height()
       )?
     )
   );
@@ -282,7 +282,7 @@ async fn run() -> Result< (), gl::WebglError >
       "normal" => gbuffer_rc.borrow().get_texture( GBufferAttachment::Normal ),
       "albedo" => gbuffer_rc.borrow().get_texture( GBufferAttachment::Albedo ),
       "object_color" => gbuffer_rc.borrow().get_texture( GBufferAttachment::ObjectColor ),
-      "narrow_outline" => 
+      "narrow_outline" =>
       {
         let narrow_outline_1 = narrow_outline.clone();
         narrow_outline_1.borrow_mut()
@@ -291,7 +291,7 @@ async fn run() -> Result< (), gl::WebglError >
         .render( &gl1.borrow(), sw1.borrow().get_input(), sw1.borrow().get_output() )
         .expect( "Failed to render outline pass" )
       },
-      "normal_depth_outline" => 
+      "normal_depth_outline" =>
       {
         let normal_depth_outline_1 = normal_depth_outline.clone();
         normal_depth_outline_1.borrow_mut()
@@ -300,7 +300,7 @@ async fn run() -> Result< (), gl::WebglError >
         .render( &gl1.borrow(), sw1.borrow().get_input(), sw1.borrow().get_output() )
         .expect( "Failed to render outline pass" )
       },
-      _ if select_value.starts_with( "wide_outline" ) => 
+      _ if select_value.starts_with( "wide_outline" ) =>
       {
         let wide_outline_1 = wide_outline.clone();
         if let Some( passes ) = select_value.strip_prefix( "wide_outline" )
@@ -330,20 +330,20 @@ async fn run() -> Result< (), gl::WebglError >
   (
     Box::new
     (
-    move | event: web_sys::Event | 
+    move | event: web_sys::Event |
     {
       let select_element_target = event.target()
       .and_then( | t | t.dyn_into::< HtmlSelectElement >().ok() );
-      if let Some( select_elem ) = select_element_target 
+      if let Some( select_elem ) = select_element_target
       {
         *select_value_clone.borrow_mut() = select_elem.value().to_string();
-      } 
-      else 
+      }
+      else
       {
         gl::warn!( "Failed to cast event target to HtmlSelectElement" );
       }
     }
-    ) 
+    )
     as Box< dyn FnMut( _ ) >
   );
 
@@ -358,27 +358,27 @@ async fn run() -> Result< (), gl::WebglError >
   // Set initial value of the display span
   let _ = outline_thickness_display_span.set_text_content( Some( &outline_thickness.borrow().to_string() ) );
 
-  let slider_change_closure = 
+  let slider_change_closure =
   Closure::wrap
   (
     Box::new(
-      move | event : web_sys::Event | 
+      move | event : web_sys::Event |
       {
         let input_element_target = event.target()
         .and_then( | t | t.dyn_into::< HtmlInputElement >().ok() );
-        if let Some(input_elem) = input_element_target 
+        if let Some(input_elem) = input_element_target
         {
-          if let Ok( value ) = input_elem.value().parse::<f32>() 
+          if let Ok( value ) = input_elem.value().parse::<f32>()
           {
             *outline_thickness_2.borrow_mut() = value;
             let _ = outline_thickness_display_span.set_text_content( Some( &value.to_string() ) );
-          } 
-          else 
+          }
+          else
           {
             gl::warn!( "Failed to parse slider value to f32" );
           }
-        } 
-        else 
+        }
+        else
         {
           gl::warn!( "Failed to cast event target to HtmlInputElement" );
         }
@@ -433,7 +433,7 @@ async fn run() -> Result< (), gl::WebglError >
 
       sw2.borrow_mut().set_output( t );
       sw2.borrow_mut().swap();
-    
+
       let _t = to_srgb.render( &gl2.borrow(), sw2.borrow().get_input(), sw2.borrow().get_output() )
       .expect( "Failed to render to srgb pass" );
 
