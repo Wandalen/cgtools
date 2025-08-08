@@ -8,6 +8,7 @@
 //! "collapse" possibilities on a grid until a consistent, novel image is 
 //! generated that shares the structural and textural characteristics of 
 //! the source.
+#![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ]
 
 use gl::GL;
 use image::{ DynamicImage, ImageBuffer, Luma };
