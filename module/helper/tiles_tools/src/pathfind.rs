@@ -1,7 +1,7 @@
 //! This module provides a generic implementation of the A* pathfinding algorithm,
 //! adaptable to any grid-like structure that defines coordinates, accessibility, and costs.
 
-use crate::coordinates::{Distance, Neighbors};
+use crate::coordinates::{ Distance, Neighbors };
 use std::hash::Hash;
 
 /// Finds the shortest path between a start and goal coordinate using the A* algorithm.
@@ -24,21 +24,25 @@ use std::hash::Hash;
 /// # Returns
 /// An `Option` containing a tuple with the path as a `Vec<C>` and the total cost as a `u32`.
 /// Returns `None` if no path from `start` to `goal` can be found.
-pub fn astar<C, Fa, Fc>(
-    start: &C,
-    goal: &C,
-    mut is_accessible: Fa,
-    mut cost: Fc,
-) -> Option<(Vec<C>, u32)>
+pub fn astar< C, Fa, Fc >
+(
+  start : &C,
+  goal : &C,
+  mut is_accessible : Fa,
+  mut cost : Fc,
+)
+-> Option< ( Vec< C >, u32 ) >
 where
-    C: Distance + Neighbors + Eq + Clone + Hash,
-    Fa: FnMut(&C) -> bool,
-    Fc: FnMut(&C) -> u32,
+  C : Distance + Neighbors + Eq + Clone + Hash,
+  Fa : FnMut( &C ) -> bool,
+  Fc : FnMut( &C ) -> u32,
 {
-    pathfinding::prelude::astar(
-        start,
+  pathfinding::prelude::astar
+  (
+    start,
         // origin coord
-        |coord| {
+    | coord |
+    {
             coord
                 .neighbors()
                 .iter()

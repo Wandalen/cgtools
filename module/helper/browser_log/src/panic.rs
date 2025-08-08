@@ -157,7 +157,7 @@ mod private
 
     pub fn hook_impl( info : &std::panic::PanicHookInfo< '_ >, _config : &Config )
     {
-      let _ = writeln!( io::stderr(), "{}", info );
+      let _ = writeln!( io::stderr(), "{info}" );
     }
   }
 

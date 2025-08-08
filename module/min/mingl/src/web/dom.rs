@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  // use crate::*;
   pub use web_sys::
   {
     wasm_bindgen::
@@ -11,23 +11,35 @@ mod private
   };
 
   /// Represents errors related to dom elements handling.
-  #[ derive( Debug, error::typed::Error ) ]
+  #[ derive( Debug ) ]
   pub enum Error
   {
 
     /// Error when failing to find or create a canvas.
-    #[ error( "Failed to find or create a canvas\n{0}" ) ]
     CanvasRetrievingError( &'static str ),
 
     /// Error when failing to get WebGL2 context.
-    #[ error( "Failed to get WebGL2 context" )]
     ContextRetrievingError( &'static str ),
 
     /// Error when dealing with bingen functionality
-    #[ error( "Bindgen error : {0}\n{1}" )]
     BindgenError( &'static str, String ),
 
   }
+
+  impl core::fmt::Display for Error
+  {
+    fn fmt( &self, f : &mut core::fmt::Formatter< '_ > ) -> core::fmt::Result
+    {
+      match self
+      {
+        Self::CanvasRetrievingError( msg ) => write!( f, "Failed to find or create a canvas\n{}", msg ),
+        Self::ContextRetrievingError( msg ) => write!( f, "Failed to get WebGL2 context\n{}", msg ),
+        Self::BindgenError( msg, details ) => write!( f, "Bindgen error: {}\n{}", msg, details ),
+      }
+    }
+  }
+
+  impl std::error::Error for Error {}
 
   /// Create HtmlVideoElement configure and set source of video resource
   ///

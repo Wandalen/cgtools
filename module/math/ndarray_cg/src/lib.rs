@@ -1,6 +1,26 @@
 //! Ndarray extensions for computer graphics mathematics.
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 
+#![allow(clippy::implicit_return)]
+#![allow(clippy::missing_inline_in_public_items)]
+#![allow(clippy::default_numeric_fallback)]
+#![allow(clippy::many_single_char_names)]
+#![allow(clippy::similar_names)]
+#![allow(clippy::same_name_method)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::blanket_clippy_restriction_lints)]
+#![allow(clippy::needless_return)]
+#![allow(clippy::transmute_ptr_to_ptr)]
+#![allow(clippy::elidable_lifetime_names)]
+#![allow(clippy::if_then_some_else_none)]
+#![allow(clippy::borrow_as_ptr)]
+#![allow(clippy::wildcard_imports)]
+#![allow(clippy::explicit_deref_methods)]
+#![allow(clippy::return_self_not_must_use)]
+#![allow(clippy::missing_panics_doc)]
+#![allow(clippy::single_char_lifetime_names)]
+#![allow(clippy::should_implement_trait)]
+
 use ::mod_interface::mod_interface;
 
 mod private

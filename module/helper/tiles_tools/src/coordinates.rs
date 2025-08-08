@@ -15,13 +15,15 @@ pub mod square;
 pub mod triangular;
 
 /// A trait for calculating the distance between two points in a grid.
-pub trait Distance {
+pub trait Distance
+{
     /// Calculates the grid-specific distance between this point and another.
-    fn distance(&self, other: &Self) -> u32;
+  fn distance( &self, other : &Self ) -> u32;
 }
 
 /// A trait for finding all adjacent coordinates to a point in a grid.
-pub trait Neighbors: Sized {
+pub trait Neighbors : Sized
+{
     /// Returns a `Vec` containing all direct neighbors of the current coordinate.
-    fn neighbors(&self) -> Vec<Self>;
+  fn neighbors( &self ) -> Vec< Self >;
 }

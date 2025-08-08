@@ -114,17 +114,23 @@ impl MovementSystem {
 pub enum MovementResult<C> {
   /// Movement was successful
   Success {
+    /// The computed path taken to reach the destination
     path: Vec<C>,
+    /// The final position after movement
     new_position: C,
   },
   /// Target is out of movement range
   OutOfRange {
+    /// The distance to the requested target
     requested_distance: u32,
+    /// The maximum movement range for this entity
     maximum_range: u32,
   },
   /// Path exists but is too long
   PathTooLong {
+    /// The length of the computed path
     path_length: u32,
+    /// The maximum movement range for this entity
     maximum_range: u32,
   },
   /// No valid path to target
@@ -165,12 +171,16 @@ impl CombatSystem {
 pub enum CombatEvent {
   /// Damage was dealt
   Damage {
+    /// Entity that initiated the attack
     attacker: hecs::Entity,
+    /// Entity that received the damage
     target: hecs::Entity,
+    /// Amount of damage dealt
     damage: u32,
   },
   /// Entity was defeated
   Defeated {
+    /// Entity that was defeated and should be removed
     entity: hecs::Entity,
   },
 }
@@ -204,22 +214,30 @@ impl AISystem {
 pub enum AIAction<C> {
   /// Start pursuing a target
   StartPursuit {
+    /// The AI entity that will start pursuing
     entity: hecs::Entity,
+    /// The entity to pursue
     target: hecs::Entity,
+    /// Last known position of the target
     target_position: C,
   },
   /// Start patrolling
   StartPatrol {
+    /// The AI entity that will start patrolling
     entity: hecs::Entity,
   },
   /// Move toward a position
   MoveToward {
+    /// The AI entity that should move
     entity: hecs::Entity,
+    /// The position to move toward
     target_position: C,
   },
   /// Attack a target
   Attack {
+    /// The AI entity performing the attack
     entity: hecs::Entity,
+    /// The target being attacked
     target: hecs::Entity,
   },
 }

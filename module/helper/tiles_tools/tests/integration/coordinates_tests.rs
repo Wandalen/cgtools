@@ -8,24 +8,25 @@
 //! | T2.1 | Offset | Convert   | From Axial | Correct coords  |
 //! | T2.2 | Offset | Convert   | To Axial   | Correct coords  |
 
-#![cfg(feature = "integration")]
+#![ cfg( feature = "integration" ) ]
 
 use super::*;
-use tiles_tools::coordinates::hexagonal::{Axial, Coordinate, Pointy};
-use tiles_tools::coordinates::{Distance, Neighbors};
+use tiles_tools::coordinates::hexagonal::{ Axial, Coordinate, Pointy };
+use tiles_tools::coordinates::{ Distance, Neighbors };
 
 /// Tests axial coordinate creation with valid input
 /// Test Combination: T1.1
-#[test]
-fn test_coordinate_creation_axial() {
-    let coord = Coordinate::<Axial, Pointy>::new(0, 0);
-    assert_eq!(coord.q, 0);
-    assert_eq!(coord.r, 0);
+#[ test ]
+fn test_coordinate_creation_axial()
+{
+  let coord = Coordinate::< Axial, Pointy >::new( 0, 0 );
+  assert_eq!( coord.q, 0 );
+  assert_eq!( coord.r, 0 );
 }
 
 /// Tests distance calculation between axial coordinates
 /// Test Combination: T1.2
-#[test]
+#[ test ]
 fn test_coordinate_distance_axial() {
     let coord1 = Coordinate::<Axial, Pointy>::new(0, 0);
     let coord2 = Coordinate::<Axial, Pointy>::new(1, 1);
@@ -35,7 +36,7 @@ fn test_coordinate_distance_axial() {
 
 /// Tests neighbor generation for axial coordinates
 /// Test Combination: T1.3
-#[test]
+#[ test ]
 fn test_coordinate_neighbors_axial() {
     let coord = Coordinate::<Axial, Pointy>::new(0, 0);
     let neighbors = coord.neighbors();

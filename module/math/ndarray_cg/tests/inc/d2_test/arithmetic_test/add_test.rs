@@ -13,12 +13,12 @@ where
   };
 
   // Define matrices
-  let mat_a = the_module::Mat::< 2, 2, f32, D >::default().set
+  let mat_a = the_module::Mat::< 2, 2, f32, D >::default().set_raw
   ([
     1.0, 2.0,
     3.0, 4.0,
   ]);
-  let mat_b = Mat::< 2, 2, f32, D >::default().set
+  let mat_b = Mat::< 2, 2, f32, D >::default().set_raw
   ([
     5.0, 6.0,
     7.0, 8.0,
@@ -29,7 +29,7 @@ where
   d2::add( &mut mat_r, &mat_a, &mat_b );
 
   // Expected result
-  let exp = Mat::< 2, 2, f32, D >::default().set
+  let exp = Mat::< 2, 2, f32, D >::default().set_raw
   ([
     6.0, 8.0,
     10.0, 12.0,
@@ -77,8 +77,8 @@ where
   };
 
   // Define incompatible matrices
-  let mat_a = Mat::< 2, 3, f32, D >::default().set([ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ]);
-  let mat_b = Mat::< 2, 2, f32, D >::default().set([ 7.0, 8.0, 9.0, 10.0 ]);
+  let mat_a = Mat::< 2, 3, f32, D >::default().set_raw([ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ]);
+  let mat_b = Mat::< 2, 2, f32, D >::default().set_raw([ 7.0, 8.0, 9.0, 10.0 ]);
   let mut mat_r = Mat::< 2, 2, f32, D >::default();
 
   // Attempt addition, should panic
