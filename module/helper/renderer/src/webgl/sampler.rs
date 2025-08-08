@@ -131,6 +131,7 @@ mod private
     }
   }
 
+  /// A trait for converting between a type and its corresponding WebGL enum value.
   pub trait ToFromGlEnum
   {
     /// Converts the `Self` to its corresponding WebGL enum value.

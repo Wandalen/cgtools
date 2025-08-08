@@ -3,19 +3,28 @@ mod private
 {
   use crate::*;
 
+  /// Describes the configuration for creating a WebGPU buffer.
   pub struct BufferDescriptor< 'a >
   {
+    /// A bitmask that defines how the buffer will be used (e.g., as vertex data,
+    /// index data, or uniform data). This is a required field.
     usage : u32,
-    /// Defaults to `0`
+    /// The size of the buffer in bytes.
+    /// Defaults to `0` and should be set to a non-zero value before creation.
     size : f64,
-    /// Defaults to `false`
+    /// A boolean flag indicating whether the buffer should be mapped for writing
+    /// immediately upon creation. This is useful for buffers that need to be
+    /// populated with data right away.
+    /// Defaults to `false`.
     mapped_at_creation : Option< bool >,
-    /// Defaults to `None`
+    /// An optional label for the buffer, useful for debugging and performance tools.
+    /// Defaults to `None`.
     label : Option< &'a str >
   }
 
   impl< 'a > BufferDescriptor< 'a >
   {
+    /// Creates a new `BufferDescriptor` with a specified usage.
     pub fn new( usage : u32 ) -> Self
     {
       let label = None;
@@ -52,18 +61,21 @@ mod private
       self
     }
 
+    /// Sets an optional label for the buffer.
     pub fn label( mut self, label : &'a str ) -> Self
     {
       self.label = Some( label );
       self
     }
 
+    /// Sets the `mapped_at_creation` property to `true`.
     pub fn mapped( mut self ) -> Self
     {
       self.mapped_at_creation = Some( true );
       self
     }
 
+    /// Creates a `web_sys::GpuBuffer` from this descriptor.
     pub fn create( self, device : &web_sys::GpuDevice ) -> Result< web_sys::GpuBuffer, WebGPUError >
     {
       buffer::create( device, &self.into() )
