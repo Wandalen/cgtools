@@ -1,4 +1,4 @@
-#![ doc = "../README.md" ]
+#![ doc = include_str!( "../README.md" ) ]
 
 use mingl::{ AsBytes, CameraOrbitControls, VectorDataType };
 use minwebgl::{ self as gl, WebglError, JsCast };
