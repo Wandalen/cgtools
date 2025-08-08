@@ -1,4 +1,4 @@
-#![ doc = "../README.md" ]
+#![ doc = include_str!( "../README.md" ) ]
 
 use std::collections::HashMap;
 use mingl::F32x4;
