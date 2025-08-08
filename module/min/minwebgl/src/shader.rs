@@ -142,19 +142,18 @@ mod private
     fragment_shader : &'a str,
   }
 
-  /// Implementation for `ProgramFromSources`.
-  impl< 'a > ProgramFromSources< 'a >
-  {
-    /// Create a new ProgramFromSources with vertex and fragment shader source code.
-    pub fn new( vertex_shader : &'a str, fragment_shader : &'a str ) -> Self
-    {
-      Self { vertex_shader, fragment_shader }
-    }
-  }
+  // /// Implementation for `ProgramFromSources`.
+  // impl< 'a > ProgramFromSources< 'a >
+  // {
+  //   /// Create a new ProgramFromSources with vertex and fragment shader source code.
+  //   pub fn new( vertex_shader : &'a str, fragment_shader : &'a str ) -> Self
+  //   {
+  //     Self { vertex_shader, fragment_shader }
+  //   }
+  // }
 
   impl< 'a > ProgramFromSources< 'a >
   {
-
     /// Compiles and links the shaders into a program.
     pub fn compile_and_link( &self, gl : &GL ) -> Result< WebGlProgram, Error >
     {
