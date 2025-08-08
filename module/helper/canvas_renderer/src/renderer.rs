@@ -71,7 +71,7 @@ mod private
     Some( ( framebuffer, color ) )
   }
 
-  /// Manages a WebGL2 rendering pass to an offscreen texture.
+  /// Renderer for 2d opaque objects
   pub struct CanvasRenderer
   {
     /// The WebGL program used for rendering.
