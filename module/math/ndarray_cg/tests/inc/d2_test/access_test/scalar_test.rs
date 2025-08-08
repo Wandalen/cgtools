@@ -24,10 +24,10 @@ where
 {
   use the_module::{ Mat, Ix2, ScalarRef };
 
-  // 2x2 matrix
-  let mat = Mat::< 2, 2, f32, D >::default().set( [ 1.0, 2.0, 3.0, 4.0 ] );
+  // Use set_row_major for consistent logical layout regardless of internal storage
+  let mat = Mat::< 2, 2, f32, D >::default().set_row_major( &[ 1.0, 2.0, 3.0, 4.0 ] );
 
-  // Test scalar_ref for each element
+  // Test scalar_ref for each element - these should work consistently now
   let scalar = mat.scalar_ref( Ix2( 0, 0 ) );
   let exp = &1.0;
   assert_eq!( scalar, exp, "Expected {:?}, got {:?}", exp, scalar );
@@ -69,7 +69,7 @@ where
 {
   use the_module::{ Mat, Ix2, ScalarMut, RawSliceMut };
 
-  let mut mat = Mat::< 3, 3, f32, D >::default().set( [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0 ] );
+  let mut mat = Mat::< 3, 3, f32, D >::default().set_raw( [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0 ] );
 
   // Modify a specific element
   let index = Ix2( 2, 2 ); // Access the element at row 2, column 2
@@ -77,7 +77,7 @@ where
   *value = 10.0;
 
   // Verify the modification
-  let expected = Mat::< 3, 3, f32, D >::default().set( [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 10.0 ] );
+  let expected = Mat::< 3, 3, f32, D >::default().set_raw( [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 10.0 ] );
   assert_eq!( mat.raw_slice(), expected.raw_slice(), "Modification failed" );
 }
 

@@ -1,3 +1,5 @@
+//! Hexagonal grid pathfinding example using tiles_tools and minwebgl.
+
 use minwebgl as min;
 use browser_input::{ mouse, Input };
 use tiles_tools::

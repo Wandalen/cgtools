@@ -270,34 +270,34 @@ mod private
   }
 
   /// Trait that encapsulates an vector elements iterator with specific characteristics and implemetning `CloneDyn`.
-  pub trait VectorIterator< 'a, E >
+  pub trait VectorIterator< 'lifetime, E >
   where
-    E : 'a,
+    E : 'lifetime,
     Self : Iterator< Item = E > + ExactSizeIterator< Item = E > + DoubleEndedIterator,
     // Self : clone_dyn_types::CloneDyn,
   {
   }
 
-  impl< 'a, E, T > VectorIterator< 'a, E > for T
+  impl< 'lifetime, E, T > VectorIterator< 'lifetime, E > for T
   where
-    E : 'a,
+    E : 'lifetime,
     Self : Iterator< Item = E > + ExactSizeIterator< Item = E > + DoubleEndedIterator,
     // Self : clone_dyn_types::CloneDyn,
   {
   }
 
   /// Trait that encapsulates an vector elements iterator with specific characteristics and implemetning `CloneDyn`.
-  pub trait VectorIteratorRef< 'a, E >
+  pub trait VectorIteratorRef< 'lifetime, E >
   where
-    E : 'a,
-    Self : VectorIterator< 'a, E > + clone_dyn_types::CloneDyn,
+    E : 'lifetime,
+    Self : VectorIterator< 'lifetime, E > + clone_dyn_types::CloneDyn,
   {
   }
 
-  impl< 'a, E, T > VectorIteratorRef< 'a, E > for T
+  impl< 'lifetime, E, T > VectorIteratorRef< 'lifetime, E > for T
   where
-    E : 'a,
-    Self : VectorIterator< 'a, E > + clone_dyn_types::CloneDyn,
+    E : 'lifetime,
+    Self : VectorIterator< 'lifetime, E > + clone_dyn_types::CloneDyn,
   {
   }
 
@@ -305,9 +305,9 @@ mod private
   pub trait VectorIter< E, const N : usize >
   {
     /// Returns an iterator over references to the elements of the vector.
-    fn vector_iter< 'a >( &'a self ) -> impl VectorIteratorRef< 'a, &'a E >
+    fn vector_iter< 'lifetime >( &'lifetime self ) -> impl VectorIteratorRef< 'lifetime, &'lifetime E >
     where
-      E : 'a;
+      E : 'lifetime;
   }
 
   /// Implementation of `ArrayRef` for references to collections.
@@ -315,8 +315,8 @@ mod private
   where
     T : VectorIter< E, N >,
   {
-    fn vector_iter< 'a >( &'a self ) -> impl VectorIteratorRef< 'a, &'a E >
-    where E : 'a
+    fn vector_iter< 'lifetime >( &'lifetime self ) -> impl VectorIteratorRef< 'lifetime, &'lifetime E >
+    where E : 'lifetime
     {
       < T as VectorIter< E, N > >::vector_iter( self )
     }
@@ -327,8 +327,8 @@ mod private
   where
     T : VectorIter< E, N >,
   {
-    fn vector_iter< 'a >( &'a self ) -> impl VectorIteratorRef< 'a, &'a E >
-    where E : 'a
+    fn vector_iter< 'lifetime >( &'lifetime self ) -> impl VectorIteratorRef< 'lifetime, &'lifetime E >
+    where E : 'lifetime
     {
       < T as VectorIter< E, N > >::vector_iter( self )
     }
@@ -340,9 +340,9 @@ mod private
     Self : VectorIter< E, N >,
   {
     /// Returns an iterator over mutable references to the elements of the vector.
-    fn vector_iter_mut< 'a >( &'a mut self ) -> impl VectorIterator< 'a, &'a mut E >
+    fn vector_iter_mut< 'lifetime >( &'lifetime mut self ) -> impl VectorIterator< 'lifetime, &'lifetime mut E >
     where
-      E : 'a;
+      E : 'lifetime;
   }
 
   /// Implementation of `ArrayRef` for references to collections.
@@ -350,8 +350,8 @@ mod private
   where
     T : VectorIterMut< E, N > + VectorIter< E, N >,
   {
-    fn vector_iter_mut< 'a >( &'a mut self ) -> impl VectorIterator< 'a, &'a mut E >
-    where E : 'a
+    fn vector_iter_mut< 'lifetime >( &'lifetime mut self ) -> impl VectorIterator< 'lifetime, &'lifetime mut E >
+    where E : 'lifetime
     {
       < T as VectorIterMut< E, N > >::vector_iter_mut( self )
     }

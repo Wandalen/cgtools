@@ -2,6 +2,7 @@ use crate::*;
 
 type GL = web_sys::WebGl2RenderingContext;
 
+/// Set default parameters for cube texture (linear filtering, repeat wrapping).
 pub fn default_parameters( gl : &GL )
 {
   filter_linear( gl );

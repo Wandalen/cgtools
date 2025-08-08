@@ -1,4 +1,5 @@
-use crate::*;
+use crate::{ Collection, ConstLength, IntoArray, ArrayRef, ArrayMut, Ix };
+use ::ndarray::{ Ix0, Ix1, Ix2, Ix3 };
 
 // = 0
 

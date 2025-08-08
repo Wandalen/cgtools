@@ -1,4 +1,4 @@
-//#![ doc = include_str!( "../readme.md" ) ]
+//! Geometry generation utilities for creating 3D shapes and primitives.
 
 mod private
 {
@@ -9,9 +9,12 @@ mod private
 {
   own use ::mod_interface::mod_interface;
 
+  /// Text generation and font processing utilities.
   layer text;
 
+  /// Basic geometric primitive creation.
   layer primitive;
 
+  /// Data structures for primitive attributes and transformations.
   layer primitive_data;
 }

@@ -540,7 +540,7 @@ fn get_primitives_and_transform() -> Vec< ( CSG< () >, [ f32; 9 ] ) >
   // Generate random transformation parameters for each mesh.
   let mut rng = rand::rng();
   let count = meshes.len();
-  let rot_matrix = rot(  0.0, ( 360.0 / count as f32 ).to_radians(), 0.0 );
+  let rot_matrix = rot( 0.0f32, ( 360.0f32 / count as f32 ).to_radians(), 0.0f32 );
   let primitives = ( 0..count )
   .into_iter()
   .map(

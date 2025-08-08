@@ -21,10 +21,12 @@ mod private
     LinkingError( String ),
   }
 
+  /// Utilities for working with shader types.
   pub mod typ
   {
     use super::*;
 
+    /// Convert shader type constant to human-readable string.
     pub fn to_str( shader_type : u32 ) -> &'static str
     {
       match shader_type
@@ -123,11 +125,19 @@ mod private
   }
 
   /// Compile shaders and link them into a program, give readable diagnostic information if fail.
-  #[ derive( New ) ]
   pub struct ProgramFromSources< 'a >
   {
     vertex_shader : &'a str,
     fragment_shader : &'a str,
+  }
+
+  impl< 'a > ProgramFromSources< 'a >
+  {
+    /// Create a new ProgramFromSources with vertex and fragment shader source code.
+    pub fn new( vertex_shader : &'a str, fragment_shader : &'a str ) -> Self
+    {
+      Self { vertex_shader, fragment_shader }
+    }
   }
 
   impl< 'a > ProgramFromSources< 'a >
@@ -154,7 +164,6 @@ mod private
   }
 
   /// Set of shaders necessary to compile a GPU program.
-  #[ derive( New ) ]
   pub struct ProgramShaders< 'a >
   {
     vertex_shader : &'a WebGlShader,
@@ -163,8 +172,17 @@ mod private
 
   impl< 'a > ProgramShaders< 'a >
   {
+    /// Create a new ProgramShaders with compiled vertex and fragment shaders.
+    pub fn new( vertex_shader : &'a WebGlShader, fragment_shader : &'a WebGlShader ) -> Self
+    {
+      Self { vertex_shader, fragment_shader }
+    }
+  }
 
-    // Utility function to link a program
+  impl< 'a > ProgramShaders< 'a >
+  {
+
+    /// Link the vertex and fragment shaders into a WebGL program.
     pub fn link
     (
       &self,

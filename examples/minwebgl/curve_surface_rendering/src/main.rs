@@ -1,3 +1,5 @@
+//! Text surface rendering example demonstrating curve-based text rendering with WebGL.
+
 use std::cell::RefCell;
 use mingl::F32x4;
 use minwebgl as gl;

@@ -1,4 +1,4 @@
-//#![ doc = include_str!( "../readme.md" ) ]
+//! Canvas rendering utilities for 2D graphics operations.
 
 mod private
 {
