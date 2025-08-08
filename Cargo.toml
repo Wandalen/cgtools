@@ -348,9 +348,6 @@ features = [ "js" ]
 [workspace.dependencies.wfc_image] 
 version = "0.12"
 
-[workspace.dependencies.rayon]
-version = "1.10"
-
 [workspace.dependencies.peniko]
 version = "0.3.1"
 
