@@ -24,17 +24,27 @@ mod private
   };
   use web_sys::wasm_bindgen::prelude::Closure;
 
+  /// Represents a loaded glTF (GL Transmission Format) scene.
   pub struct GLTF
   {
+    /// A collection of top-level scenes defined in the glTF file.
     pub scenes : Vec< Rc< RefCell< Scene > > >,
+    /// A flat list of all nodes in the glTF file.
     pub nodes : Vec< Rc< RefCell< Node > > >,
+    /// A list of WebGL buffer objects that store vertex data, indices, etc.
     pub gl_buffers : Vec< gl::WebGlBuffer >,
+    /// A shared collection of WebGL textures, which are the raw image data on the GPU.
     pub images : Rc< RefCell< Vec< gl::web_sys::WebGlTexture > > >,
+    /// A list of `Texture` objects, which wrap the raw WebGL textures and may contain
+    /// additional metadata like sampler information.
     pub textures : Vec< Rc< RefCell< Texture > > >,
+    /// A collection of `Material` objects, defining how the surfaces of the meshes should be shaded.
     pub materials : Vec< Rc< RefCell< Material > > >,
+    /// A list of `Mesh` objects, which represent the geometry of the scene.
     pub meshes : Vec< Rc< RefCell< Mesh > > >
   }
 
+  /// Asynchronously loads a glTF (GL Transmission Format) file and its associated resources.
   pub async fn load
   (
     document : &gl::web_sys::Document,

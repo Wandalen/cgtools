@@ -93,6 +93,7 @@ mod private
       Self::default()
     }
 
+    /// Sets the name to the node
     pub fn set_name( &mut self, name : impl Into< Box< str > > )
     {
       self.name = Some( name.into() );
@@ -143,12 +144,14 @@ mod private
       self.rotation
     }
 
+    /// Sets the local transformation matrix for the node.
     pub fn set_local_matrix( &mut self, matrix : F32x4x4 )
     {
       self.matrix = matrix;
       self.needs_world_matrix_update = true;
     }
 
+    /// Sets the world transformation matrix for the node.
     pub fn set_world_matrix( &mut self, matrix : F32x4x4 )
     {
       self.world_matrix = matrix;
@@ -157,6 +160,7 @@ mod private
       self.needs_world_matrix_update = false;
     }
 
+    /// Returns the current world transformation matrix.
     pub fn get_world_matrix( &self ) -> F32x4x4
     {
       self.world_matrix
@@ -248,11 +252,13 @@ mod private
       Ok( () )
     }
 
+    /// Returns the pre-computed bounding box of the node.
     pub fn bounding_box( &self ) -> BoundingBox
     {
       self.bounding_box
     }
 
+    /// Computes the bounding box for the current node based on its `Object3D` type.
     pub fn compute_bounding_box( &mut self )
     {
       match self.object
@@ -265,6 +271,11 @@ mod private
       }
     }
 
+    /// Computes the hierarchical bounding box for the node and all of its children.
+    ///
+    /// This function starts with the node's own bounding box and then recursively
+    /// combines the hierarchical bounding boxes of all its children. This creates a
+    /// single bounding box that encapsulates the entire sub-tree.
     pub fn bounding_box_hierarchical( &self ) -> BoundingBox
     {
       let mut bbox = self.bounding_box;
@@ -277,6 +288,7 @@ mod private
       bbox
     }
 
+    /// Returns the center point of the node's pre-computed bounding box.
     pub fn center( &self ) -> F32x3
     {
       self.bounding_box().center()

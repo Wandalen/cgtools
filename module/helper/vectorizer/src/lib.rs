@@ -12,7 +12,10 @@ mod private {}
   own use ::palette;
   own use ::fastrand;
 
+  /// Module for converting to svg
   layer svg;
+  /// Vectorization functionality
   layer actions;
+  /// Module for dealing with CLI commands
   layer commands;
 }

@@ -1,3 +1,7 @@
+//! This crate provides a simple hexagonal map editor using WebGL and browser input handling.
+//! It allows users to edit tiles, rivers, and player colors on a hexagonal grid.
+//! The map can be saved and loaded in JSON format.
+
 mod helper;
 mod triaxial;
 mod core_game;

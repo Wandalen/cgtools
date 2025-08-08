@@ -1,3 +1,6 @@
+//! Filtering example using WebGL
+//! This example demonstrates how to apply various filters to an image using WebGL.
+
 mod ui_setup;
 mod utils;
 mod filters;

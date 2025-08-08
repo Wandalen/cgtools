@@ -1,4 +1,9 @@
-use crate::coordinates::pixel::Pixel;
+//! This module provides functions for generating 2D meshes and geometric shapes,
+//! particularly focusing on hexagonal shapes. It includes functions to create hexagonal
+//! triangles and lines, as well as to transform these shapes using a transformation matrix.
+
+use crate::coordinates;
+use coordinates::pixel::Pixel;
 use ndarray_cg::{ F32x2, F32x3x3, IntoVector as _, Vector };
 
 // aaa : use geometry instead of mesh. rename also file
@@ -74,8 +79,10 @@ pub fn hexagon_triangles() -> Vec< f32 >
   positions
 }
 
-/// Generates hexagon triangles with a transformation matrix applied.
-/// Similar to `hexagon_triangles()` but applies the given transform to each vertex.
+/// Generates a list of 2d positions of triangles that form a hexagon of a unit radius.
+/// Center is at (0, 0). Distance from center to each vertex is 1.0.
+/// The hexagon is divided into 4 triangles.
+/// Each vertex is transformed by the given `transform`.
 pub fn hexagon_triangles_with_tranform( transform : F32x3x3 ) -> Vec< f32 >
 {
   let mut points = hexagon_vertices();

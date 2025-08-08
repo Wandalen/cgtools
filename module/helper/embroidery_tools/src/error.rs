@@ -1,6 +1,6 @@
 //!
 //! # Emboidery errors
-//! 
+//!
 
 mod private
 {

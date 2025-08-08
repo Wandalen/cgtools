@@ -12,7 +12,7 @@ mod private
     pub src_factor : u32,
     /// The destination blending factor
     pub dst_factor : u32,
-    // The blending equation, specifying how source and destination components are combined.
+    /// The blending equation, specifying how source and destination components are combined.
     pub equation : u32,
     /// The WebGL program used for the blending operation.
     material : ProgramInfo< EmptyShader >,
@@ -41,7 +41,7 @@ mod private
 
       let fs_shader = include_str!( "../shaders/copy.frag" );
       let material = gl::ProgramFromSources::new( VS_TRIANGLE, fs_shader ).compile_and_link( gl )?;
-      let material = ProgramInfo::< EmptyShader >::new( material );
+      let material = ProgramInfo::< EmptyShader >::new( gl, material );
       
       Ok
       (

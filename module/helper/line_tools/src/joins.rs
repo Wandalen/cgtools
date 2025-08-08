@@ -2,17 +2,25 @@ mod private
 {
   use serde::{ Serialize, Deserialize };
 
+  /// Represents the different types of line segment joins.
   #[ derive( Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize ) ]
   pub enum Join
   {
+    /// A round join, which is a circular arc connecting two line segments.
+    /// The `usize` parameter specifies the number of segments used to approximate the curve.
     Round( usize ),
+    /// A miter join, where the outer edges of the line segments meet at a sharp point.
     Miter,
+    /// A bevel join, where the corner is "cut off" by a straight line, creating a flat edge.
     Bevel
   }
 
   impl Join
   {
-    // Returns vertices, indices, and the amount of elements
+    /// Generates the geometry for the specified join type.
+    ///
+    /// This method returns a tuple containing the vertices, indices, and the number of
+    /// elements for the join's mesh.
     pub fn geometry( &self ) -> ( Vec< f32 >, Vec< u32 >, usize )
     {
       match self 
@@ -51,6 +59,7 @@ mod private
     }    
   }
 
+  /// Generates the vertex data for a bevel join.
   pub fn bevel_geometry() -> [ [ f32; 3 ]; 3 ]
   {
     [
@@ -60,6 +69,7 @@ mod private
     ]
   }
 
+  /// Generates the vertex data for a miter join.
   pub fn miter_geometry() -> [ [ f32; 4 ]; 6 ]
   {
     [
@@ -72,6 +82,7 @@ mod private
     ]
   }
 
+  /// Generates the vertex IDs and triangle indices for a round join.
   pub fn round_geometry( segments : usize ) -> ( Vec< u32 >, Vec< [ u32; 3 ] > )
   {
     let mut ids = Vec::with_capacity( segments );

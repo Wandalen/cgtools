@@ -1,5 +1,9 @@
-//! Minimal OpenGL wrapper providing low-level graphics primitives.
-#![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
+//!
+//! This crate provides a foundational toolkit for graphics and rendering applications.
+//! It offers a modular structure with layers for derives, error handling, buffer and memory management,
+//! data type descriptors, and optional features for camera controls and diagnostics.
+//!
+#![ doc = include_str!( "../readme.md" ) ]
 
 // use error::prelude::*;
 // use former::Former;
@@ -14,6 +18,7 @@ mod private {}
 
   // own use ::error;
   // own use ::log;
+  /// Re-exports the `mod_interface` macro for use in other modules.
   own use ::mod_interface::mod_interface;
 
   /// Derives.
@@ -28,14 +33,15 @@ mod private {}
   /// Memory-related entities.
   layer mem;
 
-  // Camera with controls
+  /// Provides an orbit-style camera controller.
   #[ cfg( all( feature = "math", feature = "camera_orbit_controls" ) ) ]
   layer camera_orbit_controls;
 
+  /// Includes diagnostic tools.
   #[ cfg( all( feature = "math", feature = "diagnostics" ) ) ]
   layer diagnostics;
 
-  /// Utilities related to different models
+  /// Utilities related to different models.
   #[ cfg( feature = "math" ) ]
   layer model;
 

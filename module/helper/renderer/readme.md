@@ -3,7 +3,7 @@ Contains structures to create and render scene. So far in webgl only.
 
 Example:
 
-``` rust
+``` no_run rust
 use minwebgl as gl;
 use renderer::webgl::
 {
