@@ -3,7 +3,9 @@
 //! It offers a modular structure with layers for derives, error handling, buffer and memory management,
 //! data type descriptors, and optional features for camera controls and diagnostics.
 //!
-#![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ]
+#![ doc( html_root_url = "https://docs.rs/mingl/latest/mingl/" ) ]
+#![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
+#![ cfg_attr( not( doc ), doc = "Set of tools and helpers for working with WebGL and WebGPU" ) ]
 
 // use error::prelude::*;
 // use former::Former;
