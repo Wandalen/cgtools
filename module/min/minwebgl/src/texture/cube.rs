@@ -3,7 +3,7 @@ use crate::*;
 /// A type alias for the WebGL2 rendering context.
 type GL = web_sys::WebGl2RenderingContext;
 
-/// Sets the default texture parameters for a cube map, including linear filtering and repeat wrapping.
+/// Set default parameters for cube texture (linear filtering, repeat wrapping).
 pub fn default_parameters( gl : &GL )
 {
   filter_linear( gl );

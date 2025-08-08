@@ -3,8 +3,27 @@
 //! coordinate systems, managing collections of tiles in grid structures, defining
 //! layouts, handling geometric calculations, and performing pathfinding.
 
+#![ cfg_attr( not( feature = "enabled" ), allow( unused ) ) ]
+
 pub mod coordinates;
+
+#[cfg(feature = "enabled")]
 pub mod collection;
-pub mod layout;
+
+#[cfg(feature = "enabled")]
 pub mod geometry;
+
+#[cfg(feature = "enabled")]
 pub mod pathfind;
+
+#[cfg(feature = "enabled")]
+pub mod layout;
+
+#[cfg(feature = "enabled")]
+pub mod ecs;
+
+#[cfg(feature = "enabled")]
+pub mod flowfield;
+
+#[cfg(feature = "enabled")]
+pub mod field_of_view;

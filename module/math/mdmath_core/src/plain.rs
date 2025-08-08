@@ -5,7 +5,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ Collection, ArrayRef };
   use core::
   {
     fmt,

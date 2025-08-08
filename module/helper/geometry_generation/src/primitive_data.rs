@@ -43,15 +43,15 @@ mod private
     AttributeInfo
   };
 
-  /// Represents a 3D transformation with translation, rotation, and scale components.
+  /// 3D transformation data including translation, rotation, and scale components.
   #[ derive( Debug, Clone ) ]
   pub struct Transform
   {
-    /// The translation vector of the transform.
+    /// Position offset in 3D space.
     pub translation : F32x3,
-    /// The rotation vector (in Euler angles) of the transform.
+    /// Rotation angles in radians for each axis.
     pub rotation : F32x3,
-    /// The scale vector of the transform.
+    /// Scale factors for each axis.
     pub scale : F32x3
   }
 
@@ -86,24 +86,24 @@ mod private
     }
   }
   
-  /// Stores vertex attribute data for a geometry.
+  /// Mesh attribute data containing vertex positions and triangle indices.
   pub struct AttributesData
   {
-    /// The list of vertex positions.
+    /// Vertex positions in 3D space.
     pub positions : Vec< [ f32; 3 ] >,
-    /// The list of indices for the vertices.
+    /// Triangle indices referencing the positions array.
     pub indices : Vec< u32 >
   }
 
-  /// Contains the data needed to create a `Primitive`.
+  /// Complete primitive data including geometry attributes, color, and transform.
   #[ derive( Clone ) ]
   pub struct PrimitiveData 
   {
-    /// The vertex attributes data.
+    /// Shared mesh attribute data.
     pub attributes : Rc< RefCell< AttributesData > >,
-    /// The color of the primitive.
+    /// RGBA color values.
     pub color : F32x4,
-    /// The transform to apply to the primitive.
+    /// 3D transformation to apply to the primitive.
     pub transform : Transform
   }
 
@@ -137,7 +137,7 @@ mod private
     )
   }
 
-  /// Converts a vector of `PrimitiveData` into a `GLTF` object.
+  /// Converts a collection of primitive data into a GLTF scene for WebGL rendering.
   pub fn primitives_data_to_gltf
   ( 
     gl : &WebGl2RenderingContext,

@@ -18,7 +18,7 @@ default = []
 mod_interface = { workspace = true }
 byteorder = { workspace = true }
 itertools = { workspace = true }
-thiserror = { workspace = true }
+error_tools = { workspace = true }
 rand = { workspace = true }
 
 [dev-dependencies]

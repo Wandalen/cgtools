@@ -16,33 +16,38 @@ mod private
   pub trait DebugLog : fmt::Debug
   {
     /// Logs the debug representation of the object at a specified log level.
+    #[inline]
     fn debug_log( &self, level : Level )
     {
-      log::log!( level, "{:#?}", self );
+      log::log!( level, "{self:#?}" );
     }
 
     /// Logs the debug representation of the object at the `trace` level.
+    #[inline]
     fn debug_trace( &self )
     {
-      log::trace!( "{:#?}", self );
+      log::trace!( "{self:#?}" );
     }
 
     /// Logs the debug representation of the object at the `info` level.
+    #[inline]
     fn debug_info( &self )
     {
-      log::info!( "{:#?}", self );
+      log::info!( "{self:#?}" );
     }
 
     /// Logs the debug representation of the object at the `warn` level.
+    #[inline]
     fn debug_warn( &self )
     {
-      log::warn!( "{:#?}", self );
+      log::warn!( "{self:#?}" );
     }
 
     /// Logs the debug representation of the object at the `error` level.
+    #[inline]
     fn debug_error( &self )
     {
-      log::error!( "{:#?}", self );
+      log::error!( "{self:#?}" );
     }
   }
 
