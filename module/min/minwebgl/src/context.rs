@@ -18,25 +18,37 @@ mod private
   #[ derive( Debug, error::typed::Error ) ]
   pub enum WebglError
   {
-
-    /// Error when failing to find or create a canvas.
+    /// Occurs when the system fails to create a WebGL resource, such as a buffer, texture, or vertex array object (VAO),
+    /// which can happen if the browser's WebGL context is lost or resources are exhausted.
     #[ error( "Failed to create resource {0}" ) ]
     FailedToAllocateResource( &'static str ),
+    /// An error for when a uniform variable's data cannot be uploaded to the GPU. This typically happens if the
+    /// provided data length doesn't match the expected size of the uniform in the shader program.
     #[ error( "Cant upload uniform {0} with {1} of length {2}.\nKnown length : [ {3} ]" ) ]
     CantUploadUniform( &'static str, &'static str, usize, &'static str ),
+    /// A generic error indicating that an operation is not supported for the given data type,
+    /// for example, attempting to upload an unsupported data format to a texture.
     #[ error( "Not supported for type {0}" ) ]
     NotSupportedForType( &'static str ),
-
+    /// A comprehensive error that wraps an underlying `data_type` error, providing details
+    /// about issues with the handling or conversion of WebGL data types.
     #[ error( "Data type error :: {0}" ) ]
     DataType( #[ from ] data_type::Error ),
+    /// A detailed error that wraps an underlying `dom` error, providing information on issues
+    /// related to accessing or manipulating HTML DOM elements, such as the canvas.
     #[ error( "Dom error :: {0}" ) ]
     DomError( #[ from ] dom::Error ),
+    /// A specific error that wraps an underlying `shader` error, offering detailed diagnostics
+    /// for problems encountered during shader compilation or program linking.
     #[ error( "Shader error :: {0}" ) ]
     ShaderError( #[ from ] shader::Error ),
+    /// An error used when a required resource, like an HTML element, attribute, or uniform,
+    /// cannot be found.
     #[ error( "Can't find {0}" ) ]
     MissingDataError( &'static str ),
   }
 
+  /// Creates a WebGL2 context from a canvas using default context options.
   pub fn from_canvas( canvas : &HtmlCanvasElement ) -> Result< GL, Error >
   {
     from_canvas_with( canvas, ContexOptions::default() )
@@ -108,15 +120,20 @@ mod private
     from_canvas_with( &canvas, o )
   }
 
+  /// Specifies the power preference for the WebGL context.
   #[ derive( Debug, Clone, Copy, Default ) ]
   pub enum PowerPreference
   {
+    /// The rendering context will be configured to prioritize power savings.
     LowPower,
+    /// The rendering context will be configured to prioritize rendering performance.
     HighPerformance,
+    /// The user agent will make the best choice based on the device and application.
     #[ default ]
     Default,
   }
 
+  /// Converts the `PowerPreference` enum variant to its corresponding string representation.
   impl ToString for PowerPreference
   {
     fn to_string( &self ) -> String
@@ -180,60 +197,70 @@ mod private
 
   impl ContexOptions
   {
+    /// Sets `remove_dpr_scaling` to the given value and returns the modified `ContexOptions` instance.
     pub fn remove_dpr_scaling( mut self, val : bool ) -> Self
     {
       self.remove_dpr_scaling = val;
       self
     }
 
+    /// Sets `preserve_drawing_buffer` to the given value and returns the modified `ContexOptions` instance.
     pub fn preserve_drawing_buffer( mut self, val : bool ) -> Self
     {
       self.preserve_drawing_buffer = val;
       self
     }
 
+    /// Sets `alpha` to the given value and returns the modified `ContexOptions` instance.
     pub fn alpha( mut self, val : bool ) -> Self
     {
       self.alpha = val;
       self
     }
 
+    /// Sets `antialias` to the given value and returns the modified `ContexOptions` instance.
     pub fn antialias( mut self, val : bool ) -> Self
     {
       self.antialias = val;
       self
     }
 
+    /// Sets `depth` to the given value and returns the modified `ContexOptions` instance.
     pub fn depth( mut self, val : bool ) -> Self
     {
       self.depth = val;
       self
     }
 
+    /// Sets `stencil` to the given value and returns the modified `ContexOptions` instance.
     pub fn stencil( mut self, val : bool ) -> Self
     {
       self.stencil = val;
       self
     }
 
+    /// Sets `premultiplied_alpha` to the given value and returns the modified `ContexOptions` instance.
     pub fn premultiplied_alpha( mut self, val : bool ) -> Self
     {
       self.premultiplied_alpha = val;
       self
     }
 
+    /// Sets `fail_if_major_performance_caveat` to the given value and returns the modified `ContexOptions` instance.
     pub fn fail_if_major_performance_caveat( mut self, val : bool ) -> Self
     {
       self.fail_if_major_performance_caveat = val;
       self
     }
 
+    /// Sets `power_preference` to the given value and returns the modified `ContexOptions` instance.
     pub fn power_preference( mut self, val : PowerPreference ) -> Self
     {
       self.power_preference = val;
       self
     }
 
+    /// Sets `desynchronized` to the given value and returns the modified `ContexOptions` instance.
     pub fn desynchronized( mut self, val : bool ) -> Self
     {
       self.desynchronized = val;
@@ -241,6 +268,7 @@ mod private
     }
   }
 
+  /// Provides a default implementation for `ContexOptions`.
   impl Default for ContexOptions
   {
     fn default() -> Self
@@ -261,6 +289,7 @@ mod private
     }
   }
 
+  /// Converts `ContexOptions` into a `js_sys::Object` for use with JavaScript.
   impl Into< js_sys::Object > for ContexOptions
   {
     fn into( self ) -> js_sys::Object
