@@ -1,4 +1,4 @@
-#![doc = "../README.md"]
+#![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ]
 
 use minwebgl as gl;
 use gl::{
