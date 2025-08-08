@@ -16,7 +16,8 @@ mod private
     rc::Rc,
   };
 
-  /// Starts a requestAnimationFrame loop that repeatedly calls the provided function.
+  /// Starts an animation loop that repeatedly calls the provided function.
+  /// The loop continues until the function returns false.
   pub fn run< F >( mut update_and_draw : F )
   where
     F : 'static + FnMut( f64 ) -> bool,

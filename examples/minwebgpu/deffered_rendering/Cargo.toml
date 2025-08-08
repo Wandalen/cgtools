@@ -8,11 +8,14 @@ authors = [
 ]
 license = "MIT"
 
+[lints]
+workspace = true
+
 [dependencies]
 tobj =  { workspace = true }
 bytemuck = { workspace = true, features = [ "derive" ] }
-rand = "0.8.5" # qqq : use workspace dependencies only
-getrandom = { version = "0.2", features = [ "js" ] } # qqq : use workspace dependencies only
+rand = { workspace = true }
+getrandom = { workspace = true, features = [ "wasm_js" ] }
 
 [dependencies.minwebgpu]
 workspace = true

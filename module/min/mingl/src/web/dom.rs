@@ -20,11 +20,11 @@ mod private
     CanvasRetrievingError( &'static str ),
 
     /// Error when failing to get WebGL2 context.
-    #[ error( "Failed to get WebGL2 context" )]
+    #[ error( "Failed to get WebGL2 context\n{0}" ) ]
     ContextRetrievingError( &'static str ),
 
     /// Error when dealing with bingen functionality
-    #[ error( "Bindgen error : {0}\n{1}" )]
+    #[ error( "Bindgen error: {0}\n{1}" ) ]
     BindgenError( &'static str, String ),
 
   }

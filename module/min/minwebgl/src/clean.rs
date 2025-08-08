@@ -5,20 +5,20 @@ mod private
   /// A type alias for the WebGL2 rendering context.
   type GL = WebGl2RenderingContext;
 
-  /// Unbinds the current 2D texture.
+  /// Unbind the currently bound 2D texture.
   pub fn texture_2d( gl : &GL )
   {
     gl.bind_texture( GL::TEXTURE_2D, None );
   }
 
-  /// Activates a specific texture unit and then unbinds the 2D texture from it.
+  /// Unbind the 2D texture from a specific texture unit.
   pub fn texture_2d_active( gl : &GL, active : u32 )
   {
     gl.active_texture( GL::TEXTURE0 + active );
     texture_2d( gl );
   }
 
-  /// Unbinds 2D textures from a collection of active texture units.
+  /// Unbind 2D textures from multiple texture units.
   pub fn texture_2d_array< T, E >( gl : &GL, active : T )
   where 
     T : IntoIterator,
@@ -31,13 +31,13 @@ mod private
     }
   }
 
-  /// Unbinds the current framebuffer, restoring the default framebuffer.
+  /// Unbind the currently bound framebuffer.
   pub fn framebuffer( gl : &GL )
   {
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );
   }
 
-  /// Detaches a 2D texture from a specific color attachment point of the currently bound framebuffer.
+  /// Detach a 2D texture from a specific framebuffer attachment.
   pub fn framebuffer_texture_2d_attachment( gl : &GL, attachment : u32 )
   {
     gl.framebuffer_texture_2d
@@ -50,13 +50,13 @@ mod private
     );
   } 
 
-  /// Detaches the 2D texture from the first color attachment point of the currently bound framebuffer.
+  /// Detach the 2D texture from framebuffer attachment 0.
   pub fn framebuffer_texture_2d( gl : &GL )
   {
     framebuffer_texture_2d_attachment( gl, 0 );
   } 
 
-  /// Detaches 2D textures from a collection of color attachment points of the currently bound framebuffer.
+  /// Detach 2D textures from multiple framebuffer attachments.
   pub fn framebuffer_texture_2d_array< T, E >( gl : &GL, attachments : T )
   where 
     T : IntoIterator,
@@ -82,13 +82,13 @@ mod private
     );
   } 
 
-  /// Detaches the renderbuffer from the first color attachment point of the currently bound framebuffer.
+  /// Detach the renderbuffer from framebuffer attachment 0.
   pub fn framebuffer_renderbuffer( gl : &GL )
   {
     framebuffer_renderbuffer_attachment( gl, 0 );
   } 
 
-  /// Detaches renderbuffers from a collection of color attachment points of the currently bound framebuffer.
+  /// Detach renderbuffers from multiple framebuffer attachments.
   pub fn framebuffer_renderbuffer_array< T, E >( gl : &GL, attachments : T )
   where 
     T : IntoIterator,

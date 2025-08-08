@@ -12,12 +12,23 @@ keywords = ["hexagonal", "grid", "tools"]
 workspace = true
 
 [features]
-default = []
+default = [ "enabled" ]
+enabled = [ "dep:error_tools", "dep:former", "dep:mod_interface", "dep:hecs", "dep:pathfinding", "dep:serde", "dep:ndarray_cg" ]
+full = [ "enabled" ]
+integration = []
 
 [dependencies]
-ndarray_cg = { workspace = true }
-pathfinding = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
+# Core wTools ecosystem
+error_tools = { workspace = true, optional = true }
+former = { workspace = true, optional = true }
+mod_interface = { workspace = true, optional = true }
+
+# ECS and core functionality  
+hecs = { workspace = true, optional = true }
+ndarray_cg = { workspace = true, optional = true }
+pathfinding = { workspace = true, optional = true }
+serde = { workspace = true, features = ["derive"], optional = true }
 
 [dev-dependencies]
 test_tools = { workspace = true }
+serde_json = { workspace = true }

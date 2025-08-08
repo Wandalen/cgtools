@@ -1,4 +1,5 @@
-#![ doc = include_str!( "../readme.md" ) ]
+//! WebGL wrapper providing browser-based graphics functionality.
+#![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 
 #[ cfg( feature = "enabled" ) ]
 pub use mingl::mod_interface;

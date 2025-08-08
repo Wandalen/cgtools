@@ -1,4 +1,5 @@
-#![ doc = include_str!( "../readme.md" ) ]
+//! Linear algebra operations for multidimensional mathematics.
+#![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 
 use ::mod_interface::mod_interface;
 

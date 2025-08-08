@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ ToRef, Float };
   use core::iter::{ Map, Iterator };
 
   // Sealing the trait to prevent external implementations
@@ -30,7 +30,7 @@ mod private
       ;
   }
 
-  impl<'a, I > IterExt for I
+  impl<'item_ref, I > IterExt for I
   where
     I : Iterator,
     // IntoBool : Into< bool >,
@@ -41,7 +41,7 @@ mod private
       Self : Sized,
       < Self as Iterator >::Item : ToRef< bool >,
     {
-      self.all( | x : Self::Item | *x.to_ref() )
+      return self.all( | x : Self::Item | return *x.to_ref() )
     }
     #[ inline ]
     fn any_true( &mut self ) -> bool
@@ -49,7 +49,7 @@ mod private
       Self : Sized,
       < Self as Iterator >::Item : ToRef< bool >,
     {
-      self.any( | x : Self::Item | *x.to_ref() )
+      return self.any( | x : Self::Item | return *x.to_ref() )
     }
   }
 
@@ -64,17 +64,17 @@ mod private
       Self : Sized;
   }
 
-  impl<'a, I, Item > IterFloat for I
+  impl<'item_ref, I, Item > IterFloat for I
   where
-    I : Iterator< Item = &'a Item > + IterExt,
-    Item : Copy + Float + 'a,
+    I : Iterator< Item = &'item_ref Item > + IterExt,
+    Item : Copy + Float + 'item_ref,
   {
     #[ inline ]
     fn is_nan( self ) -> Map< Self, fn( Self::Item ) -> bool >
     where
       Self : Sized,
     {
-      self.map( | x : Self::Item | x.is_nan() )
+      return self.map( | x : Self::Item | return x.is_nan() )
     }
   }
 

@@ -11,18 +11,29 @@ authors = [
 workspace = true
 
 [features]
+enabled = [
+  "dep:mod_interface",
+  "dep:minwebgl", 
+  "dep:mingl",
+  "dep:gltf",
+  "dep:asbytes",
+  "dep:former",
+  "dep:uuid"
+]
+default = ["enabled"]
+full = ["enabled", "webgl"]
 webgl = []
 
 [dependencies]
 
-mod_interface = { workspace = true }
-minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
-mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
-gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
+mod_interface = { workspace = true, optional = true }
+minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ], optional = true }
+mingl = { workspace = true, features = [ "camera_orbit_controls" ], optional = true }
+gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ], optional = true }
 
-asbytes = { workspace = true }
-former = { workspace = true }
-uuid = { workspace = true }
+asbytes = { workspace = true, optional = true }
+former = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
 
 [dependencies.web-sys]
 workspace = true

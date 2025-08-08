@@ -2,10 +2,10 @@
 //! area within a hexagonal grid using offset coordinates. It provides methods for iterating
 //! over the coordinates within these bounds and for calculating the layout's center point in pixel space.
 
-use crate::coordinates::{ hexagonal, pixel };
-use hexagonal::{ Coordinate, Flat, Offset, Pointy, Axial };
+use crate::coordinates::{hexagonal, pixel};
+use hexagonal::{Axial, Coordinate, Flat, Offset, Pointy};
+use ndarray_cg::{F32x2, I32x2};
 use pixel::Pixel;
-use ndarray_cg::{ F32x2, I32x2 };
 use std::marker::PhantomData;
 
 /// Represents a rectangularly-bounded area of a hexagonal grid using offset coordinates.
@@ -47,10 +47,7 @@ impl< Parity, Orientation > RectangularGrid< Parity, Orientation >
     assert!( bounds[ 0 ].q <= bounds[ 1 ].q, "Incorrect bounds" );
     assert!( bounds[ 0 ].r <= bounds[ 1 ].r, "Incorrect bounds" );
 
-    Self
-    {
-      bounds,
-    }
+    Self { bounds }
   }
 
   /// Returns an iterator over all coordinates contained within the rectangular grid.

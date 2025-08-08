@@ -127,7 +127,7 @@ mod private
   // =
 
   /// A matrix structure.
-  #[ derive( From, Clone, Copy, PartialEq, PartialOrd, Hash ) ]
+  #[ derive( Clone, Copy, PartialEq, PartialOrd, Hash ) ]
   // pub struct Mat< const ROWS : usize, const COLS : usize, E = f32, Descriptor : mat::Descriptor = DescriptorDefault >
   pub struct Mat< const ROWS : usize, const COLS : usize, E, Descriptor >
   (

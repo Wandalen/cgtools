@@ -27,7 +27,7 @@ fn default()
   // assert!( mat.is_zero(), "Matrix should be zero after calling set_zero()" );
   assert!( IndexingRef::iter_unstable( &mat ).all( | e | e.is_zero() ), "Matrix should not be zero after setting non-zero values" );
 
-  let mut mat = Mat::< 2, 2, f32, DescriptorOrderRowMajor >::default().raw_set( [ 1.0, 2.0, 3.0, 4.0 ] );
+  let mut mat = Mat::< 2, 2, f32, DescriptorOrderRowMajor >::default().set_raw( [ 1.0, 2.0, 3.0, 4.0 ] );
 
   assert!( !IndexingRef::iter_unstable( &mat ).all( | e | e.is_zero() ), "Matrix should not be zero after setting non-zero values" );
   // assert!( !mat.is_zero(), "Matrix should not be zero after setting non-zero values" );
