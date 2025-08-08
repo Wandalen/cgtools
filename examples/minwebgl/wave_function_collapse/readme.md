@@ -1,29 +1,57 @@
-## Wave function collapse
+# 🌊 Wave Function Collapse
 
-This example shows how create map with wave function collapse algorithm and display it with tile renderer using `WebGl2`. Goal of this example is generate tile map using wave function collapse algorithm.
+**Procedural Tile Map Generation with WebGL Rendering**
+
+A comprehensive demonstration of the Wave Function Collapse (WFC) algorithm for procedural tile map generation, rendered in real-time using WebGL2. This example showcases how to create coherent, rule-based tile patterns that can be used for game worlds, level generation, and procedural content creation.
 
 <p align="center">
   <img src="./showcase.png" width="600px">
 </p>
 
-### How it is useful
+## ✨ Features
 
-The example shows:
-- how wave function collapse algorithm works.
-- how use implemented algorithm for generating tile map.
-- how convert raw tile map data to texture. 
+- **🔄 Wave Function Collapse Algorithm**: Complete WFC implementation with constraint propagation
+- **🎲 Procedural Generation**: Generate infinite variations of tile-based content  
+- **⚡ WebGL2 Rendering**: Hardware-accelerated tile rendering with texture atlases
+- **🧩 Configurable Rules**: Customizable adjacency relations between tiles
+- **🎨 Custom Tilesets**: Support for user-provided tile textures
+- **🔧 Real-time Generation**: Interactive map generation with immediate visual feedback
 
-Rendering details description can be found in [ mapgen_tiles_rendering ]( ../mapgen_tiles_rendering/README.md ) example
+## 🎯 What You'll Learn
 
-### How it works
+This example demonstrates:
+- **Algorithm Implementation**: How WFC algorithm works step-by-step
+- **Constraint Solving**: Managing tile adjacency rules and propagation
+- **Texture Management**: Converting tile data to GPU textures efficiently
+- **Real-time Generation**: Interactive procedural content creation
 
-Example include such noteworthy steps:
- - set size, front, relations fields with related methods of Wfc.
- - call calculate method.
- - calculate method do repeatedly cycle collapse-propagate while front isn't empty.
-    - collapse - for each tile coordinates with minimal entropy in front choose any posible variant and write result back to map.
-    - propagate - set new front and update front tiles variants.
- - when the cycle ended check and handle errors for each tile and then returns tile map.
+For detailed rendering implementation, see the [Tile Map Rendering](../mapgen_tiles_rendering/README.md) example.
+
+## 🔬 How It Works
+
+The Wave Function Collapse algorithm follows these key steps:
+
+### 1. 🎯 **Initialization**
+- Configure map size, tile relations, and initial constraints
+- Set up the "superposition" state where each cell can be any tile
+
+### 2. 🔄 **Main Algorithm Loop**
+The algorithm repeats the **collapse-propagate** cycle until completion:
+
+#### **Collapse Phase** 🎲
+- Find cells with minimum entropy (fewest possible states)
+- Randomly choose one valid tile for that cell
+- "Collapse" the quantum superposition to a definite state
+
+#### **Propagate Phase** 📡  
+- Update neighboring cells based on adjacency rules
+- Remove invalid possibilities from adjacent cells
+- Propagate constraints throughout the grid
+
+### 3. ✅ **Completion**
+- Continue until all cells are resolved or contradiction detected
+- Handle any remaining conflicts or impossible states
+- Return the final coherent tile map
 
 ### Running
 
