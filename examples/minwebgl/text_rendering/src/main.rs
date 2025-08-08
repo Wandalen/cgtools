@@ -34,7 +34,7 @@ use std::any::type_name_of_val;
 mod camera_controls;
 mod text;
 
-fn make_buffer_attibute_info
+fn make_buffer_attribute_info
 (
   buffer : &web_sys::WebGlBuffer,
   offset : i32,
@@ -154,7 +154,7 @@ fn primitives_data_to_gltf
   [
     (
       "positions",
-      make_buffer_attibute_info(
+      make_buffer_attribute_info(
         &position_buffer,
         0,
         3,
@@ -165,7 +165,7 @@ fn primitives_data_to_gltf
     ),
     (
       "normals",
-      make_buffer_attibute_info(
+      make_buffer_attribute_info(
         &normal_buffer,
         0,
         3,
