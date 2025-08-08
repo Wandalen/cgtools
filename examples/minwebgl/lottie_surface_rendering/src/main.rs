@@ -1,3 +1,5 @@
+#![ doc = "../README.md" ]
+
 use std::cell::RefCell;
 use minwebgl as gl;
 use gl::
@@ -226,6 +228,19 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   Ok( gltf )
 }
 
+/// Calculates the mathematical modulo of two floating-point numbers.
+///
+/// This function ensures the result is always non-negative, which differs
+/// from the standard remainder operator (`%`) for negative dividends.
+///
+/// # Arguments
+///
+/// * `dividend` - The number to be divided.
+/// * `divisor` - The number to divide by.
+///
+/// # Returns
+///
+/// The non-negative remainder of the division.
 pub fn modulo( dividend : f64, divisor : f64 ) -> f64 
 {
   let mut result = dividend % divisor;
