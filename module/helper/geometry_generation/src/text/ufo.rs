@@ -365,7 +365,7 @@ mod private
   }
 
   /// Converts a set of 2D contours into `PrimitiveData` for a 3D mesh.
-  pub fn contours_to_mesh( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
+  pub fn _contours_to_mesh( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
   {
     if contours.is_empty()
     {
