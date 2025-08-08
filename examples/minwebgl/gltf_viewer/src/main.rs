@@ -1,4 +1,5 @@
-#![ doc = "../README.md" ]
+#![ doc = include_str!( "../README.md" ) ]
+
 use std::{ cell::RefCell, rc::Rc };
 use minwebgl as gl;
 
