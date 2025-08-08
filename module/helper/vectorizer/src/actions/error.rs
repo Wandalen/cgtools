@@ -1,9 +1,9 @@
 
 mod private 
 {
+  use crate::*;
   use serde_with::DisplayFromStr;
   use serde;
-  use error_tools::typed::Error;
   use derive_tools::AsRefStr;
 
   /// Collective enum for errors in Raster actions.
@@ -17,7 +17,7 @@ mod private
   /// * `IOError` - Represents a general input/output error.
   /// * `KeyColorError` - Indicates that no unused color could be found in the image for keying.
   #[ serde_with::serde_as ]
-  #[ derive( Debug, Error, AsRefStr, serde::Serialize ) ]
+  #[ derive( Debug, error::typed::Error, AsRefStr, serde::Serialize ) ]
   #[ serde( tag = "type", content = "data" ) ]
   pub enum Error
   {

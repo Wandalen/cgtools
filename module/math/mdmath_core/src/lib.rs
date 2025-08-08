@@ -1,4 +1,25 @@
-#![ doc = include_str!( "../readme.md" ) ]
+//! Core multidimensional mathematics library.
+#![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
+
+#![allow(clippy::implicit_return)]
+#![allow(clippy::missing_inline_in_public_items)]
+#![allow(clippy::default_numeric_fallback)]
+#![allow(clippy::missing_trait_methods)]
+#![allow(clippy::wildcard_imports)]
+#![allow(clippy::arithmetic_side_effects)]
+#![allow(clippy::indexing_slicing)]
+#![allow(clippy::panic)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::ptr_as_ptr)]
+#![allow(clippy::as_conversions)]
+#![allow(clippy::needless_maybe_sized)]
+#![allow(clippy::std_instead_of_core)]
+#![allow(clippy::blanket_clippy_restriction_lints)]
+#![allow(clippy::needless_return)]
+#![allow(clippy::transmute_ptr_to_ptr)]
+#![allow(clippy::elidable_lifetime_names)]
+#![allow(clippy::if_then_some_else_none)]
+#![allow(clippy::borrow_as_ptr)]
 
 #[ cfg( feature = "enabled" ) ]
 use ::mod_interface::mod_interface;
