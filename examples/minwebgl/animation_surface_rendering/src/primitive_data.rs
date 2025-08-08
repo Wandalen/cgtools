@@ -29,7 +29,7 @@ mod private
   { 
     Transform, 
     AttributesData,
-    make_buffer_attibute_info 
+    make_buffer_attribute_info 
   };
   use std::ops::Range;
 
@@ -105,7 +105,7 @@ mod private
     [
       ( 
         "positions", 
-        make_buffer_attibute_info( 
+        make_buffer_attribute_info( 
           &position_buffer, 
           BufferDescriptor::new::< [ f32; 3 ] >(),
           0, 

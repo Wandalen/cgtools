@@ -23,27 +23,28 @@ mod private
     #[ error( "Failed to get WebGL2 context" )]
     ContextRetrievingError( &'static str ),
 
+    /// Error when dealing with bingen functionality
     #[ error( "Bindgen error : {0}\n{1}" )]
     BindgenError( &'static str, String ),
 
   }
 
   /// Create HtmlVideoElement configure and set source of video resource
-  /// 
+  ///
   /// # Parameters
   /// - `path`: Path to the video resource
   /// - `video_width`: Desired width of the video element
   /// - `video_height`: Desired height of the video element
-  /// 
+  ///
   /// # Returns
   /// A `Result` containing the created `HtmlVideoElement` or a `JsValue` error
-  /// 
+  ///
   /// # Behavior
   /// - Creates video element from document
   /// - Sets video source using full URL (including origin)
   /// - Configures video to loop and mute
   /// - Automatically starts video playback
-  /// 
+  ///
   /// # When it useful
   /// - Create an video element for the natural and cheapest video upload to the web
   pub fn create_video_element( path : &str, video_width : u32, video_height : u32 ) -> Result< web_sys::HtmlVideoElement, wasm_bindgen::JsValue >
@@ -68,17 +69,17 @@ mod private
   }
 
   /// Create HtmlImageElement and set source of image resource
-  /// 
+  ///
   /// # Parameters
   /// - `path`: Path to the image resource
-  /// 
+  ///
   /// # Returns
   /// A `Result` containing the created `HtmlImageElement` or a `JsValue` error
-  /// 
+  ///
   /// # Behavior
   /// - Creates image element from document
   /// - Sets image source using full URL (including origin)
-  /// 
+  ///
   /// # When it useful
   /// - Create an image element for the natural and cheapest image upload to the web
   pub fn create_image_element( path : &str ) -> Result< web_sys::HtmlImageElement, wasm_bindgen::JsValue >

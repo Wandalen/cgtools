@@ -16,6 +16,7 @@ mod private
     rc::Rc,
   };
 
+  /// Starts a requestAnimationFrame loop that repeatedly calls the provided function.
   pub fn run< F >( mut update_and_draw : F )
   where
     F : 'static + FnMut( f64 ) -> bool,
@@ -38,7 +39,9 @@ mod private
     request_animation_frame( render_loop.borrow().as_ref().unwrap() );
   }
 
-  // Helper function to request animation frame
+  /// Helper function to request animation frame
+  /// 
+  /// Requests that the browser calls the given closure on the next animation frame.
   pub fn request_animation_frame( f : &Closure< dyn FnMut( f64 ) > )
   {
     use wasm_bindgen::JsCast;
