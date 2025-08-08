@@ -1,3 +1,5 @@
+//! 3d line demo
+
 use mingl::CameraOrbitControls;
 use minwebgl as gl;
 use std::
@@ -95,7 +97,7 @@ fn run() -> Result< (), gl::WebglError >
   );
   lil_gui::on_change( &prop, &callback );
   callback.forget();
-  
+
   // Define the update and draw logic
   let update_and_draw =
   {
@@ -113,9 +115,9 @@ fn run() -> Result< (), gl::WebglError >
       let y_offset = 0.0;
       let z_offset = 0.0;
 
-      let x = ( x_freq * time + x_offset ).cos() * radius; 
-      let y = ( y_freq * time + y_offset ).sin() * radius; 
-      let z = ( z_freq * time + z_offset ).sin() * radius; 
+      let x = ( x_freq * time + x_offset ).cos() * radius;
+      let y = ( y_freq * time + y_offset ).sin() * radius;
+      let z = ( z_freq * time + z_offset ).sin() * radius;
 
       if elapsed_time > add_interval
       {
@@ -124,7 +126,7 @@ fn run() -> Result< (), gl::WebglError >
       }
 
       line.borrow().get_mesh().upload_matrix( &gl, "u_view_matrix", &camera.borrow().view().to_array() ).unwrap();
-      
+
       gl.use_program( Some( &background_program ) );
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );
       line.borrow_mut().draw( &gl ).unwrap();
