@@ -15,7 +15,7 @@ members = [
 # Source :: https://github.com/obox-systems/conventions/blob/master/code_style.md#lints-and-warnings
 [workspace.lints.rust]
 # Enforces idiomatic Rust 2018 practices.
-rust_2018_idioms = "deny"
+rust_2018_idioms = { level = "deny", priority = -1 }
 # Prevents use of unstable features.
 future_incompatible = "warn"
 # # Encourages documentation for public items.
@@ -27,9 +27,9 @@ unsafe-code = "warn"
 
 [workspace.lints.clippy]
 # Warns against restrictive language patterns.
-restriction = "warn"
+restriction = { level = "warn", priority = -1 }
 # Enforces strict coding styles.
-pedantic = "warn"
+pedantic = { level = "warn", priority = -1 }
 # Requires documentation for unsafe blocks.
 undocumented_unsafe_blocks = "deny"
 # Suggests using core instead of std when possible.
@@ -44,6 +44,20 @@ inline_always = "allow"
 module_name_repetitions = "allow"
 # Permits absolute paths in code.
 absolute_paths = "allow"
+# Allows pub use patterns (needed for mod_interface macro)
+pub_use = "allow"
+# Allows mod.rs files (used in this codebase intentionally)
+mod_module_files = "allow"
+# Allows allow attributes (needed for targeted allows)
+allow_attributes = "allow"
+# Allows allow attributes without reasons (for brevity)
+allow_attributes_without_reason = "allow"
+# Allows arbitrary source item ordering
+arbitrary_source_item_ordering = "allow"
+# Allows missing docs in private items (not required for private)
+missing_docs_in_private_items = "allow"
+# Allows many single char names in mathematical contexts
+many_single_char_names = "allow"
 
 # = helpers
 
@@ -193,7 +207,7 @@ version = "0.3.77"
 features = []
 
 [workspace.dependencies.bytemuck]
-version = "1.23.0"
+version = "1.23"
 features = [ "derive" ]
 
 [workspace.dependencies.ndarray]
@@ -215,7 +229,7 @@ version = "0.4.50"
 # version = "1.1.0"
 
 [workspace.dependencies.tobj]
-version = "4.0.2"
+version = "4.0.3"
 default-features = false
 features = [ "async" ]
 
@@ -224,10 +238,10 @@ git  = "https://github.com/obox-systems/visioncortex.git"
 version = "0.8.8"
 
 [workspace.dependencies.palette]
-version = "0.7.6"
+version = "0.7"
 
 [workspace.dependencies.fastrand]
-version = "1.8"
+version = "2.3.0"
 
 [workspace.dependencies.serde]
 version = "1.0.219"
@@ -253,10 +267,10 @@ features = ["derive"]
 version = "0.25.5"
 
 [workspace.dependencies.tokio]
-version = "1.41.0"
+version = "1.41.1"
 
 [workspace.dependencies.gltf]
-version = "1.4.1"
+version = "1.4"
 
 [workspace.dependencies.csgrs]
 version = "0.19.1"
@@ -264,7 +278,7 @@ default-features = false
 features = [ "f64", "delaunay" ]
 
 [workspace.dependencies.parry3d]
-version = "0.21.0"
+version = "0.21.1"
 
 [workspace.dependencies.norad]
 default-features = false
@@ -275,7 +289,7 @@ version = "0.16.0"
 version = "0.5.0"
 
 [workspace.dependencies.kurbo]
-version = "0.11.2"
+version = "0.11.3"
 
 #[workspace.dependencies.lottie]
 #version = "0.1.0"
@@ -287,7 +301,7 @@ git = "https://github.com/linebender/interpoli"
 git = "https://github.com/etemesi254/zune-image"
 
 [workspace.dependencies.uuid]
-version = "1.16.0"
+version = "1.16.1"
 features = [ "v4", "js" ]
 
 [workspace.dependencies.rand]
@@ -307,7 +321,7 @@ version = "4.14.0"
 version = "0.6.5"
 
 [workspace.dependencies.quick-xml]
-version = "0.37.5"
+version = "0.37"
 
 [workspace.dependencies.serde_json]
 version = "1.0.140"
@@ -325,4 +339,4 @@ version = "0.4"
 version = "0.5"
 
 [workspace.dependencies.hecs]
-version = "0.10.5"
+version = "0.10"

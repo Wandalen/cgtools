@@ -14,6 +14,7 @@ mod private
     AttributesData, PrimitiveData, Transform 
   };
 
+  /// Represents a single character glyph with its contour data and rendered mesh.
   #[ derive( Clone ) ]
   pub struct Glyph
   {
@@ -234,6 +235,7 @@ mod private
     }
   }
 
+  /// UFO font containing a collection of glyphs with size information.
   #[ derive( Clone ) ]
   pub struct Font
   {
@@ -347,6 +349,7 @@ mod private
     }
   }
 
+  /// Converts a set of 2D contours into a triangulated mesh with holes support.
   pub fn contours_to_mesh( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
   {
     if contours.is_empty()
@@ -510,6 +513,7 @@ mod private
     Some( primitive_data )
   }
 
+  /// Loads multiple UFO fonts by name from the fonts/ufo directory.
   pub async fn load_fonts( font_names : &[ &str ] ) -> HashMap< String, Font >
   {
     let mut fonts = HashMap::< String, Font >::new();
@@ -523,6 +527,7 @@ mod private
     fonts
   }
 
+  /// Converts text string into a collection of filled mesh primitives using the specified font.
   pub fn text_to_mesh( text : &str, font : &Font, transform : &Transform ) -> Vec< PrimitiveData >
   {
     let mut mesh = vec![]; 
@@ -586,6 +591,7 @@ mod private
     mesh
   }
 
+  /// Converts text string into outlined contour meshes with specified line width.
   pub fn text_to_countour_mesh( 
     text : &str, 
     font : &Font, 

@@ -39,9 +39,9 @@ impl< E, const N : usize > ArrayMut< E, N > for [ E ; N ]
 
 impl< E, const N : usize > VectorIter< E, N > for [ E ; N ]
 {
-  fn vector_iter< 'a >( &'a self ) -> impl VectorIteratorRef< 'a, &'a E >
+  fn vector_iter< 'data >( &'data self ) -> impl VectorIteratorRef< 'data, &'data E >
   where
-    E : 'a,
+    E : 'data,
   {
     <[ E ]>::iter( self )
   }
@@ -49,9 +49,9 @@ impl< E, const N : usize > VectorIter< E, N > for [ E ; N ]
 
 impl< E, const N : usize > VectorIterMut< E, N > for [ E ; N ]
 {
-  fn vector_iter_mut< 'a >( &'a mut self ) -> impl VectorIterator< 'a, &'a mut E >
+  fn vector_iter_mut< 'data >( &'data mut self ) -> impl VectorIterator< 'data, &'data mut E >
   where
-    E : 'a,
+    E : 'data,
   {
     <[ E ]>::iter_mut( self )
   }

@@ -1,8 +1,8 @@
 //! This module provides a generic implementation of the A* pathfinding algorithm,
 //! adaptable to any grid-like structure that defines coordinates, accessibility, and costs.
 
+use crate::coordinates::{Distance, Neighbors};
 use std::hash::Hash;
-use crate::coordinates::{ Distance, Neighbors };
 
 /// Finds the shortest path between a start and goal coordinate using the A* algorithm.
 ///
@@ -24,29 +24,29 @@ use crate::coordinates::{ Distance, Neighbors };
 /// # Returns
 /// An `Option` containing a tuple with the path as a `Vec<C>` and the total cost as a `u32`.
 /// Returns `None` if no path from `start` to `goal` can be found.
-pub fn astar< C, Fa, Fc >
-(
-  start : &C,
-  goal : &C,
-  mut is_accessible : Fa,
-  mut cost : Fc
-)
--> Option< ( Vec< C >, u32 ) >
+pub fn astar<C, Fa, Fc>(
+    start: &C,
+    goal: &C,
+    mut is_accessible: Fa,
+    mut cost: Fc,
+) -> Option<(Vec<C>, u32)>
 where
-  C : Distance + Neighbors + Eq + Clone + Hash,
-  Fa : FnMut( &C ) -> bool,
-  Fc : FnMut( &C ) -> u32
+    C: Distance + Neighbors + Eq + Clone + Hash,
+    Fa: FnMut(&C) -> bool,
+    Fc: FnMut(&C) -> u32,
 {
-  pathfinding::prelude::astar
-  (
-    start,
-    // origin coord
-    | coord | coord.neighbors()
-                   .iter()
-                   .filter( | coord | is_accessible( coord ) )
-                   .map( | coord | ( coord.clone(), cost( coord ) ) ) // TODO: pass origin coord and destination coord
-                   .collect::< Vec< _ > >(),
-    | coord | goal.distance( coord ),
-    | p | *p == *goal
-  )
+    pathfinding::prelude::astar(
+        start,
+        // origin coord
+        |coord| {
+            coord
+                .neighbors()
+                .iter()
+                .filter(|coord| is_accessible(coord))
+                .map(|coord| (coord.clone(), cost(coord))) // TODO: pass origin coord and destination coord
+                .collect::<Vec<_>>()
+        },
+        |coord| goal.distance(coord),
+        |p| *p == *goal,
+    )
 }

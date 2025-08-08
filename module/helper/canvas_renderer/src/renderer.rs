@@ -1,3 +1,5 @@
+//! Canvas renderer implementation for 2D graphics rendering using WebGL.
+
 mod private
 {
   use minwebgl as gl;
@@ -67,6 +69,10 @@ mod private
     Some( ( framebuffer, color ) )
   }
 
+  /// A 2D canvas renderer that renders 3D scenes to a texture using WebGL.
+  ///
+  /// This renderer creates a framebuffer with a color attachment texture and provides
+  /// methods to render scenes with custom colors and camera configurations.
   pub struct CanvasRenderer
   {
     program : WebGlProgram,
@@ -79,6 +85,20 @@ mod private
 
   impl CanvasRenderer
   {
+    /// Creates a new canvas renderer with the specified dimensions.
+    ///
+    /// This function compiles and links the canvas shaders, initializes uniform locations,
+    /// and creates a framebuffer with color and depth attachments.
+    ///
+    /// # Arguments
+    ///
+    /// * `gl` - The WebGL2 rendering context
+    /// * `width` - Width of the render target in pixels
+    /// * `height` - Height of the render target in pixels
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(CanvasRenderer)` on success, or `Err(WebglError)` if initialization fails.
     pub fn new( gl : &GL, width : u32, height : u32 ) -> Result< Self, gl::WebglError >
     {
       let vertex_shader_src = include_str!( "../shaders/canvas.vert" );
@@ -140,6 +160,14 @@ mod private
       ).unwrap();
     }
 
+    /// Uploads the world transformation matrix of a node to the GPU.
+    ///
+    /// This method updates the "worldMatrix" uniform with the node's world transformation matrix.
+    ///
+    /// # Arguments
+    ///
+    /// * `gl` - The WebGL2 rendering context
+    /// * `node` - The scene node whose world matrix will be uploaded
     pub fn upload_node
     (
       &self,
@@ -156,6 +184,21 @@ mod private
       ).unwrap();
     }
 
+    /// Renders a 3D scene to the internal framebuffer using specified colors.
+    ///
+    /// This method configures WebGL state, binds the framebuffer, and traverses the scene
+    /// to render all mesh nodes with their corresponding colors from the colors array.
+    ///
+    /// # Arguments
+    ///
+    /// * `gl` - The WebGL2 rendering context
+    /// * `scene` - The 3D scene to render (will update world matrices)
+    /// * `camera` - The camera defining view and projection matrices
+    /// * `colors` - Array of colors to apply to scene nodes in order
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` on successful rendering, or `Err(WebglError)` if rendering fails.
     pub fn render
     ( 
       &self, 
@@ -224,6 +267,15 @@ mod private
       Ok( () )
     }
 
+    /// Sets a new output texture as the color attachment for the framebuffer.
+    ///
+    /// This method replaces the current output texture with the provided one,
+    /// effectively changing where the renderer will draw its output.
+    ///
+    /// # Arguments
+    ///
+    /// * `gl` - The WebGL2 rendering context
+    /// * `output_texture` - The new texture to use as the color attachment
     pub fn set_texture
     ( 
       &mut self, 
@@ -239,6 +291,14 @@ mod private
       self.output_texture = output_texture;
     }
 
+    /// Returns a clone of the current output texture.
+    ///
+    /// This method provides access to the texture that contains the rendered output,
+    /// which can be used for further processing or display.
+    ///
+    /// # Returns
+    ///
+    /// A clone of the WebGlTexture that serves as the color attachment.
     pub fn get_texture( &self ) -> WebGlTexture
     {
       self.output_texture.clone()

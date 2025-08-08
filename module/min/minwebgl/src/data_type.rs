@@ -8,6 +8,7 @@ mod private
     ops::Deref,
   };
 
+  /// A type-safe wrapper for WebGL constants with phantom marker types.
   #[ derive( Debug, PartialEq, Eq, Hash, Clone, Copy ) ]
   pub struct Const< Marker >( u32, PhantomData< Marker > );
 

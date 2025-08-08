@@ -1,6 +1,10 @@
 //! Core multidimensional mathematics library.
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 
+#![allow(clippy::implicit_return)]
+#![allow(clippy::missing_inline_in_public_items)]
+#![allow(clippy::default_numeric_fallback)]
+
 #[ cfg( feature = "enabled" ) ]
 use ::mod_interface::mod_interface;
 

@@ -31,3 +31,4 @@ serde = { workspace = true, features = ["derive"], optional = true }
 
 [dev-dependencies]
 test_tools = { workspace = true }
+serde_json = { workspace = true }

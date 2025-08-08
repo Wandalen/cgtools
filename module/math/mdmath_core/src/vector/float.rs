@@ -30,7 +30,7 @@ mod private
       ;
   }
 
-  impl<'a, I > IterExt for I
+  impl<'item_ref, I > IterExt for I
   where
     I : Iterator,
     // IntoBool : Into< bool >,
@@ -64,10 +64,10 @@ mod private
       Self : Sized;
   }
 
-  impl<'a, I, Item > IterFloat for I
+  impl<'item_ref, I, Item > IterFloat for I
   where
-    I : Iterator< Item = &'a Item > + IterExt,
-    Item : Copy + Float + 'a,
+    I : Iterator< Item = &'item_ref Item > + IterExt,
+    Item : Copy + Float + 'item_ref,
   {
     #[ inline ]
     fn is_nan( self ) -> Map< Self, fn( Self::Item ) -> bool >
