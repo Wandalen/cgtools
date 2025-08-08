@@ -13,7 +13,7 @@ The example shows:
 - how use implemented algorithm for generating tile map.
 - how convert raw tile map data to texture. 
 
-Rendering details description can be found in [ mapgen_tiles_rendering ]( ../mapgen_tiles_rendering/README.md ) example
+Rendering details description can be found in [ mapgen_tiles_rendering ]( ../mapgen_tiles_rendering/readme.md ) example
 
 ### How it works
 
