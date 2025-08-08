@@ -4,11 +4,11 @@
 
 mod private
 {
-  use thiserror::Error;
+  use error_tools::*;
   use std::{ borrow::Cow, io };
 
   /// Represents errors that can be possibly encountered while decoding or encoding emroidery file
-  #[ derive( Debug, Error ) ]
+  #[ derive( Debug, error::typed::Error ) ]
   pub enum EmbroideryError
   {
     /// Error occured during IO operations

@@ -29,6 +29,8 @@ mod private {}
   own use ::visioncortex;
   own use ::palette;
   own use ::fastrand;
+  
+  reuse ::error_tools as error;
 
   /// Module for converting to svg
   layer svg;

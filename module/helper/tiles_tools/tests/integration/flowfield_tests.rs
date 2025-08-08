@@ -45,12 +45,14 @@ fn test_flow_direction_variants() {
   assert_eq!(none_dir, FlowDirection::None);
   assert_ne!(none_dir, move_dir);
   
-  match move_dir {
-    FlowDirection::Move(dx, dy) => {
-      assert_eq!(dx, 1);
-      assert_eq!(dy, 0);
+  match move_dir
+  {
+    FlowDirection::Move( dx, dy ) =>
+    {
+      assert_eq!( dx, 1 );
+      assert_eq!( dy, 0 );
     }
-    _ => panic!("Expected Move direction"),
+    _ => panic!( "Expected Move direction" ),
   }
 }
 
@@ -104,7 +106,8 @@ fn test_square_grid_terrain_costs() {
   
   // Define terrain with varying costs
   let get_terrain_cost = |coord: &SquareCoord<EightConnected>| -> u32 {
-    match (coord.x + coord.y) % 3 {
+    match ( coord.x + coord.y ) % 3
+    {
       0 => 1, // Normal terrain
       1 => 2, // Difficult terrain  
       2 => 4, // Very difficult terrain

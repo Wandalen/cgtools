@@ -335,15 +335,16 @@ pub enum GameEvent
 /// Helper for spawning common entity archetypes.
 pub struct EntityBuilder;
 
-impl EntityBuilder {
+impl EntityBuilder
+{
   /// Creates a basic unit entity with position, health, and stats.
-  pub fn unit<C>(position: C, health: u32, stats: Stats, team: Team) -> impl hecs::DynamicBundle 
+  pub fn unit< C >( position : C, health : u32, stats : Stats, team : Team ) -> impl hecs::DynamicBundle 
   where
-    C: 'static + Send + Sync,
+    C : 'static + Send + Sync,
   {
     (
-      Position::new(position),
-      Health::new(health),
+      Position::new( position ),
+      Health::new( health ),
       stats,
       team,
       Size::single(),
@@ -351,77 +352,79 @@ impl EntityBuilder {
   }
 
   /// Creates a player-controlled unit.
-  pub fn player<C>(
-    position: C, 
-    health: u32, 
-    stats: Stats, 
-    player_id: u32
+  pub fn player< C >
+  (
+    position : C, 
+    health : u32, 
+    stats : Stats, 
+    player_id : u32
   ) -> impl hecs::DynamicBundle
   where
-    C: 'static + Send + Sync,
+    C : 'static + Send + Sync,
   {
     (
-      Position::new(position),
-      Health::new(health),
-      Movable::new(3).with_diagonal(),
+      Position::new( position ),
+      Health::new( health ),
+      Movable::new( 3 ).with_diagonal(),
       stats,
-      Team::new(0), // Player team
-      PlayerControlled::new(player_id),
+      Team::new( 0 ), // Player team
+      PlayerControlled::new( player_id ),
       Size::single(),
     )
   }
 
   /// Creates an AI-controlled enemy.
-  pub fn enemy<C>(
-    position: C,
-    health: u32,
-    stats: Stats,
-    team: Team,
+  pub fn enemy< C >
+  (
+    position : C,
+    health : u32,
+    stats : Stats,
+    team : Team,
   ) -> impl hecs::DynamicBundle
   where
-    C: 'static + Send + Sync,
+    C : 'static + Send + Sync,
   {
     (
-      Position::new(position),
-      Health::new(health),
-      Movable::new(2),
+      Position::new( position ),
+      Health::new( health ),
+      Movable::new( 2 ),
       stats,
       team,
-      AI::new(1.0), // 1 second decision interval
+      AI::new( 1.0 ), // 1 second decision interval
       Size::single(),
     )
   }
 
   /// Creates a static object (wall, obstacle, etc.).
-  pub fn obstacle<C>(position: C) -> impl hecs::DynamicBundle
+  pub fn obstacle< C >( position : C ) -> impl hecs::DynamicBundle
   where
-    C: 'static + Send + Sync,
+    C : 'static + Send + Sync,
   {
     (
-      Position::new(position),
+      Position::new( position ),
       Size::single(),
     )
   }
 
   /// Creates a trigger entity.
-  pub fn trigger<C>(position: C, trigger_type: TriggerType) -> impl hecs::DynamicBundle
+  pub fn trigger< C >( position : C, trigger_type : TriggerType ) -> impl hecs::DynamicBundle
   where
-    C: 'static + Send + Sync,
+    C : 'static + Send + Sync,
   {
     (
-      Position::new(position),
-      Trigger::new(trigger_type),
+      Position::new( position ),
+      Trigger::new( trigger_type ),
       Size::single(),
     )
   }
 
   /// Creates a visual-only entity (decoration, effects, etc.).
-  pub fn decoration<C>(position: C, sprite: Sprite) -> impl hecs::DynamicBundle
+  pub fn decoration< C >( position : C, sprite : Sprite ) -> impl hecs::DynamicBundle
   where
-    C: 'static + Send + Sync,
+    C : 'static + Send + Sync,
   {
     (
-      Position::new(position),
+      Position::new( position ),
       sprite,
       Size::single(),
     )

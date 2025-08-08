@@ -314,6 +314,9 @@ version = "0.3.3"
 [workspace.dependencies.rustc-hash]
 version = "2.1.1"
 
+[workspace.dependencies.rayon]
+version = "1.10"
+
 [workspace.dependencies.pathfinding]
 version = "4.14.0"
 

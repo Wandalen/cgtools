@@ -51,8 +51,10 @@ impl MovementSystem {
       if let Ok((pos, movable)) = world.query_one_mut::<(&mut Position<C>, &Movable)>(*entity) {
         let movement_result = Self::calculate_movement(&pos.coord, target, movable);
         
-        match movement_result {
-          MovementResult::Success { path, new_position } => {
+        match movement_result
+        {
+          MovementResult::Success { path, new_position } =>
+          {
             pos.coord = new_position.clone();
             results.push(MovementResult::Success { path, new_position });
           }
@@ -90,8 +92,10 @@ impl MovementSystem {
       |_coord| 1,    // TODO: Add terrain cost calculation
     );
 
-    match path_result {
-      Some((path, cost)) => {
+    match path_result
+    {
+      Some((path, cost)) =>
+      {
         if cost <= movable.range {
           MovementResult::Success {
             path: path.clone(),
