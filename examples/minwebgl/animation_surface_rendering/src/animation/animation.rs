@@ -33,7 +33,7 @@ mod private
     let mut matrix = F32x4x4::default();
     
     {
-      let matrix_mut : &mut [ f32 ] = matrix.raw_slice_mut();
+      let matrix_mut : &mut [ f32 ] = matrix.as_raw_slice_mut();
       let mut set_elem = 
       | i : usize, j : usize, v : f32 | 
       {
