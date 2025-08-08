@@ -1,103 +1,362 @@
-# Roadmap: Tiles Tools Engine
+# Practical Development Roadmap: Tiles Tools Engine
 
-*   **Version:** 1.2 (Current Implementation Status)
-*   **Date:** 2025-08-08
-*   **Status:** **In Progress - Phase 1 Complete**
+**Version:** 1.3 (Practical Focus)  
+**Date:** 2025-08-08  
+**Status:** Phase 1 Complete → Phase 2 Active  
+**Next Sprint Goal:** Square coordinate system implementation
 
-## Project: Tiles Tools Engine
+## Quick Start for Contributors
 
-This document outlines the development plan for the `tiles_tools` crate, a high-performance, generic, and extensible Rust library for developing tile-based games and applications. The plan is derived from `spec.md` version 1.1 and reflects the current implementation status.
+**Current Priority:** Milestone 08 (Square Coordinates) - see [Sprint Tasks](#current-sprint-milestone-08-square-coordinates) below
 
-## Current Implementation Status
+**Ready to Code:**
+1. Clone repo and run `cargo test` to verify Phase 1 works
+2. Check [Development Environment](#development-environment) setup
+3. Pick a task from [Current Sprint](#current-sprint-milestone-08-square-coordinates)
+4. Follow [Definition of Done](#definition-of-done) criteria
 
-### ✅ Completed (Phase 1: Hexagonal Foundation)
+## Development Environment
 
-- **Hexagonal Coordinate Systems**: Full implementation with Axial/Offset variants and type safety
-- **Pixel Coordinate Conversion**: Accurate transformations between hex and screen coordinates  
-- **Grid Storage**: Generic Grid2D container with coordinate-based indexing
-- **Pathfinding**: Generic A* algorithm working with any coordinate system
-- **Geometry Generation**: Hexagonal mesh creation with transformation support
-- **Distance/Neighbors Traits**: Abstract grid topology operations
-- **Mathematical Operations**: Full arithmetic support for coordinates
-- **Comprehensive Testing**: Integration tests with Test Matrix documentation
+**Prerequisites:**
+- Rust 1.70+ with stable toolchain
+- Git configured for the cgtools workspace
+- `cargo clippy` and `cargo fmt` installed
 
-### 🚧 In Progress (Phase 2: Extensions)
+**Setup Commands:**
+```bash
+cd /home/user1/pro/lib/cgtools/module/helper/tiles_tools
+cargo test                    # Verify all tests pass
+cargo clippy -- -D warnings  # Ensure no warnings
+cargo doc --open              # Review current API
+```
 
-- **Additional Grid Systems**: Square, triangular, isometric coordinate systems
-- **ECS Integration**: HECS-based entity-component system with abstraction
-- **Advanced Pathfinding**: Flow fields, visibility, region analysis
-- **Procedural Generation**: Wave Function Collapse and noise systems
+**Files to Understand First:**
+1. `src/coordinates/hexagonal.rs` - Reference implementation pattern
+2. `src/coordinates/mod.rs` - Distance/Neighbors traits
+3. `tests/integration/coordinates_tests.rs` - Testing patterns
 
-## Table of Contents
+## Implementation Status Dashboard
 
-### Phase 1: Hexagonal Foundation ✅ (Completed)
-1. [Milestone 01: `ecs_dependency_research`](#milestone-01-ecs_dependency_research) ✅
-2. [Milestone 02: `hexagonal_coordinates_implement`](#milestone-02-hexagonal_coordinates_implement) ✅  
-3. [Milestone 03: `pixel_conversion_implement`](#milestone-03-pixel_conversion_implement) ✅
-4. [Milestone 04: `grid_storage_implement`](#milestone-04-grid_storage_implement) ✅
-5. [Milestone 05: `pathfinding_generic_implement`](#milestone-05-pathfinding_generic_implement) ✅
-6. [Milestone 06: `geometry_hexagonal_implement`](#milestone-06-geometry_hexagonal_implement) ✅
-7. [Milestone 07: `testing_infrastructure_establish`](#milestone-07-testing_infrastructure_establish) ✅
+| Component | Status | Files | Test Coverage | Docs |
+|-----------|--------|-------|---------------|------|
+| Hexagonal Coords | ✅ Complete | `hexagonal.rs` | ✅ 100% | ✅ Full |
+| Pixel Conversion | ✅ Complete | `pixel.rs` | ✅ 100% | ✅ Full |
+| Grid Storage | ✅ Complete | `collection.rs` | ✅ 100% | ✅ Full |
+| A* Pathfinding | ✅ Complete | `pathfind.rs` | ✅ 100% | ✅ Full |
+| Hex Geometry | ✅ Complete | `geometry.rs` | ✅ 100% | ✅ Full |
+| Square Coords | 🚧 **IN PROGRESS** | `square.rs` | ❌ 0% | ❌ 0% |
+| Triangular Coords | ⏳ Planned | - | ❌ 0% | ❌ 0% |
+| ECS Integration | ⏳ Planned | - | ❌ 0% | ❌ 0% |
+| Flow Fields | ⏳ Planned | - | ❌ 0% | ❌ 0% |
 
-### Phase 2: Grid System Extensions 🚧 (In Progress)  
-8. [Milestone 08: `square_coordinates_implement`](#milestone-08-square_coordinates_implement)
-9. [Milestone 09: `triangular_coordinates_implement`](#milestone-09-triangular_coordinates_implement)
-10. [Milestone 10: `isometric_coordinates_implement`](#milestone-10-isometric_coordinates_implement)
-11. [Milestone 11: `coordinate_conversion_utilities`](#milestone-11-coordinate_conversion_utilities)
+**Phase 1 Metrics:**
+- ✅ 7/7 milestones complete
+- ✅ 1,200+ lines of production code
+- ✅ 800+ lines of test code
+- ✅ 100% documentation coverage
+- ✅ Zero compiler warnings
 
-### Phase 3: ECS Integration
-12. [Milestone 12: `ecs_abstraction_implement`](#milestone-12-ecs_abstraction_implement)
-13. [Milestone 13: `component_system_establish`](#milestone-13-component_system_establish)  
-14. [Milestone 14: `entity_grid_integration`](#milestone-14-entity_grid_integration)
-15. [Milestone 15: `world_management_implement`](#milestone-15-world_management_implement)
+**Phase 2 Target:**
+- 🎯 4 additional coordinate systems
+- 🎯 Universal pathfinding for all grid types
+- 🎯 Performance benchmarks for all operations
 
-### Phase 4: Advanced Analysis
-16. [Milestone 16: `flow_field_implement`](#milestone-16-flow_field_implement)
-17. [Milestone 17: `visibility_analysis_implement`](#milestone-17-visibility_analysis_implement)
-18. [Milestone 18: `region_analysis_implement`](#milestone-18-region_analysis_implement)
-19. [Milestone 19: `multi_grid_pathfinding`](#milestone-19-multi_grid_pathfinding)
+## Current Sprint: Milestone 08 (Square Coordinates)
 
-### Phase 5: Procedural Generation
-20. [Milestone 20: `tileset_definition_system`](#milestone-20-tileset_definition_system)
-21. [Milestone 21: `wave_function_collapse_implement`](#milestone-21-wave_function_collapse_implement)
-22. [Milestone 22: `noise_generation_implement`](#milestone-22-noise_generation_implement)
-23. [Milestone 23: `constraint_system_implement`](#milestone-23-constraint_system_implement)
+**Sprint Goal:** Add square/rectangular grid support with 4-way and 8-way connectivity
+**Duration:** 3-5 days  
+**Assigned:** Available for pickup
 
-### Phase 6: Performance & Polish
-24. [Milestone 24: `performance_optimization`](#milestone-24-performance_optimization)
-25. [Milestone 25: `memory_layout_optimize`](#milestone-25-memory_layout_optimize)
-26. [Milestone 26: `api_refinement_pass`](#milestone-26-api_refinement_pass)
-27. [Milestone 27: `documentation_completion`](#milestone-27-documentation_completion)
+### Sprint Backlog (Ready to Work)
 
-### Phase 7: Examples & Release  
-28. [Milestone 28: `example_game_of_life_create`](#milestone-28-example_game_of_life_create)
-29. [Milestone 29: `example_tactical_rpg_create`](#milestone-29-example_tactical_rpg_create)
-30. [Milestone 30: `example_procedural_map_create`](#milestone-30-example_procedural_map_create)
-31. [Milestone 31: `benchmarking_suite_create`](#milestone-31-benchmarking_suite_create)
-32. [Milestone 32: `release_preparation`](#milestone-32-release_preparation)
+| Task | Type | Estimate | Dependencies | Ready? |
+|------|------|----------|--------------|--------|
+| 08.1: Create square.rs file structure | Setup | 1h | None | ✅ |
+| 08.2: Implement basic Square coordinate | Code | 2h | 08.1 | ✅ |
+| 08.3: Add Distance trait for Manhattan | Code | 2h | 08.2 | ✅ |
+| 08.4: Add Distance trait for Chebyshev | Code | 2h | 08.3 | ✅ |
+| 08.5: Add Neighbors trait (4-way) | Code | 2h | 08.2 | ✅ |
+| 08.6: Add Neighbors trait (8-way) | Code | 1h | 08.5 | ✅ |
+| 08.7: Create comprehensive test suite | Test | 3h | 08.6 | ✅ |
+| 08.8: Add pathfinding integration test | Test | 2h | 08.7 | ✅ |
+| 08.9: Update documentation | Docs | 1h | 08.8 | ✅ |
 
-## Phase 1: Hexagonal Foundation ✅ (Completed Milestones)
+**Total Estimate:** 16 hours
 
-### Milestone 01: `ecs_dependency_research` ✅ 
-*   **Description:** Research and select the core ECS library dependency.
-*   **Status:** **COMPLETED** - Selected HECS for lightweight, fast compilation
-*   **Deliverable:** Decision document (`docs/ecs_decision.md`) with comprehensive analysis
-*   **Key Decisions:**
-    - Chose HECS over Bevy ECS for compilation speed and simplicity
-    - Added to workspace Cargo.toml with proper feature gating
-    - Established foundation for future ECS abstraction layer
+### Definition of Done
 
-### Milestone 02: `hexagonal_coordinates_implement` ✅
-*   **Description:** Implement comprehensive hexagonal coordinate system support
-*   **Status:** **COMPLETED** - Full type-safe implementation with multiple systems
-*   **Deliverables:**
-    - Generic `Coordinate<System, Orientation>` structure
-    - Axial and Offset coordinate systems with Odd/Even parity
-    - Pointy-top and Flat-top orientations
-    - Mathematical operations (Add, Sub, Mul, Div) for Axial coordinates
-    - Distance and Neighbors trait implementations
-    - Comprehensive conversion utilities between systems
-*   **Files:** `src/coordinates/hexagonal.rs`, `src/coordinates/mod.rs`
+**Code Quality:**
+- [ ] All code follows existing patterns from hexagonal.rs
+- [ ] Zero compiler warnings with `cargo clippy -- -D warnings`
+- [ ] All functions have rustdoc comments with examples
+- [ ] Code formatted with `cargo fmt`
+
+**Testing:**
+- [ ] Unit tests for all public functions
+- [ ] Integration tests with pathfinding algorithm
+- [ ] Tests pass with `cargo test`
+- [ ] Test coverage matches hexagonal implementation
+
+**Documentation:**
+- [ ] All public APIs documented
+- [ ] Code examples in rustdoc work
+- [ ] Updated module-level documentation
+
+**Integration:**
+- [ ] Works with existing Grid2D storage
+- [ ] Compatible with A* pathfinding algorithm
+- [ ] No breaking changes to existing APIs
+
+---
+
+## Development Phases Overview
+
+### ✅ Phase 1: Hexagonal Foundation (Completed)
+**Duration:** 4 weeks  
+**Status:** Complete with comprehensive test coverage
+
+### 🚧 Phase 2: Grid System Extensions (Current)
+**Duration:** 3 weeks  
+**Progress:** 0/4 milestones complete  
+**Current Focus:** Square coordinates (Milestone 08)
+
+| Milestone | Status | Estimate | Start Date | Target Date |
+|-----------|--------|----------|------------|-------------|
+| 08: Square Coords | 🚧 Active | 3 days | Today | +3 days |
+| 09: Triangle Coords | ⏳ Ready | 5 days | +3 days | +8 days |
+| 10: Isometric Coords | ⏳ Blocked | 4 days | +8 days | +12 days |
+| 11: Conversion Utils | ⏳ Blocked | 2 days | +12 days | +14 days |
+
+### 📅 Phase 3: ECS Integration (Next)
+**Duration:** 4 weeks  
+**Target Start:** 3 weeks from today
+**Scope:** HECS integration with component system
+
+---
+
+## Detailed Milestone Specifications
+
+### Current Sprint: Milestone 08 - Square Coordinates
+
+**Objective:** Implement square/rectangular grid coordinate system following established patterns
+
+#### Task 08.1: File Structure Setup (1h)
+```bash
+# Commands to run:
+touch src/coordinates/square.rs
+# Add to src/coordinates/mod.rs:
+# pub mod square;
+```
+
+**Acceptance Criteria:**
+- [ ] File `src/coordinates/square.rs` created
+- [ ] Module exported in `mod.rs`
+- [ ] File compiles without errors
+
+#### Task 08.2: Basic Square Coordinate (2h)
+
+**Code Template:**
+```rust
+//! Square/rectangular grid coordinate system implementation
+
+use std::{fmt::Debug, hash::Hash, marker::PhantomData};
+use serde::{Deserialize, Serialize};
+use crate::coordinates::{Distance, Neighbors};
+
+/// Square grid system marker
+#[derive(Debug)]
+pub struct Square;
+
+/// Four-connected neighbors (orthogonal only)
+#[derive(Debug)]
+pub struct FourConnected;
+
+/// Eight-connected neighbors (orthogonal + diagonal)
+#[derive(Debug)]
+pub struct EightConnected;
+
+/// Square coordinate with connectivity type
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Coordinate<Connectivity> {
+    pub x: i32,
+    pub y: i32,
+    #[serde(skip)]
+    pub _marker: PhantomData<Connectivity>,
+}
+
+// Basic implementations...
+```
+
+**Acceptance Criteria:**
+- [ ] Coordinate struct matches hexagonal pattern
+- [ ] Phantom type system implemented correctly
+- [ ] Basic trait implementations (Debug, Clone, Copy, etc.)
+- [ ] Serde support for serialization
+
+#### Task 08.3: Manhattan Distance (2h)
+
+```rust
+impl Distance for Coordinate<FourConnected> {
+    fn distance(&self, other: &Self) -> u32 {
+        ((self.x - other.x).abs() + (self.y - other.y).abs()) as u32
+    }
+}
+```
+
+**Test Requirements:**
+- [ ] Distance between (0,0) and (3,4) equals 7
+- [ ] Distance is symmetric: d(a,b) == d(b,a)
+- [ ] Distance to self equals 0
+
+#### Task 08.4: Chebyshev Distance (2h)
+
+```rust
+impl Distance for Coordinate<EightConnected> {
+    fn distance(&self, other: &Self) -> u32 {
+        ((self.x - other.x).abs().max((self.y - other.y).abs())) as u32
+    }
+}
+```
+
+**Test Requirements:**
+- [ ] Distance between (0,0) and (3,4) equals 4
+- [ ] Diagonal movement correctly calculated
+
+#### Task 08.5: Four-Way Neighbors (2h)
+
+```rust
+impl Neighbors for Coordinate<FourConnected> {
+    fn neighbors(&self) -> Vec<Self> {
+        vec![
+            Self::new(self.x + 1, self.y),     // Right
+            Self::new(self.x - 1, self.y),     // Left
+            Self::new(self.x, self.y + 1),     // Up
+            Self::new(self.x, self.y - 1),     // Down
+        ]
+    }
+}
+```
+
+**Test Requirements:**
+- [ ] Returns exactly 4 neighbors
+- [ ] Neighbors are orthogonally adjacent
+- [ ] No duplicate coordinates
+
+#### Task 08.6: Eight-Way Neighbors (1h)
+
+Extend to include diagonal neighbors.
+
+**Test Requirements:**
+- [ ] Returns exactly 8 neighbors
+- [ ] Includes all orthogonal and diagonal adjacencies
+
+#### Task 08.7: Comprehensive Test Suite (3h)
+
+Create `tests/integration/square_coords_tests.rs`:
+
+```rust
+//! ## Test Matrix for Square Coordinates
+//!
+//! | Test ID | Operation | Input | Expected |
+//! |---------|-----------|-------|----------|
+//! | SC1.1   | Create    | (0,0) | Success  |
+//! | SC2.1   | Distance  | 4-conn| Manhattan|
+//! | SC2.2   | Distance  | 8-conn| Chebyshev|
+//! | SC3.1   | Neighbors | 4-conn| 4 coords |
+//! | SC3.2   | Neighbors | 8-conn| 8 coords |
+
+#[test]
+fn test_square_coordinate_creation() {
+    let coord = SquareCoord4::new(5, 10);
+    assert_eq!(coord.x, 5);
+    assert_eq!(coord.y, 10);
+}
+
+// More tests...
+```
+
+**Test Categories:**
+- [ ] Coordinate creation and basic operations
+- [ ] Distance calculations for both connectivity types
+- [ ] Neighbor finding for both connectivity types
+- [ ] Serialization/deserialization
+- [ ] Hash and equality operations
+
+#### Task 08.8: Pathfinding Integration (2h)
+
+```rust
+#[test]
+fn test_pathfinding_square_grid() {
+    use crate::pathfind::astar;
+    use crate::coordinates::square::{Coordinate, FourConnected};
+    
+    let start = Coordinate::<FourConnected>::new(0, 0);
+    let goal = Coordinate::<FourConnected>::new(3, 3);
+    
+    let result = astar(
+        &start,
+        &goal,
+        |_coord| true,  // All accessible
+        |_coord| 1,     // Unit cost
+    );
+    
+    assert!(result.is_some());
+    let (path, cost) = result.unwrap();
+    assert_eq!(cost, 6);  // Manhattan distance
+    assert_eq!(path.len(), 7);  // Start + 6 steps
+}
+```
+
+**Acceptance Criteria:**
+- [ ] A* algorithm works with square coordinates
+- [ ] Path finding produces correct Manhattan distance
+- [ ] Integration with existing pathfinding code
+
+#### Task 08.9: Documentation (1h)
+
+**Requirements:**
+- [ ] Module-level documentation with examples
+- [ ] All public functions have rustdoc
+- [ ] Code examples in docs compile and run
+- [ ] Usage examples for both connectivity types
+
+**Example Documentation:**
+```rust
+//! # Square Grid Coordinates
+//! 
+//! This module provides coordinate systems for square/rectangular grids.
+//! 
+//! ## Example
+//! ```rust
+//! use tiles_tools::coordinates::square::{Coordinate, FourConnected};
+//! use tiles_tools::coordinates::{Distance, Neighbors};
+//! 
+//! let coord = Coordinate::<FourConnected>::new(2, 3);
+//! let neighbors = coord.neighbors();
+//! assert_eq!(neighbors.len(), 4);
+//! ```
+```
+
+### Next Up: Milestone 09 - Triangular Coordinates
+
+**Scope:** Triangular grid with 12-neighbor connectivity  
+**Challenge:** Complex neighbor calculations  
+**Estimate:** 5 days  
+**Prerequisites:** Milestone 08 complete
+
+---
+
+## Phase 1: Completed Foundation
+
+### Milestone 01: ECS Research ✅ (2 days completed)
+**Outcome:** Selected HECS over Bevy ECS  
+**Deliverable:** `docs/ecs_decision.md` with analysis  
+**Impact:** Foundation for Phase 3 ECS integration
+
+### Milestone 02: Hexagonal Coords ✅ (3 days completed)
+**Outcome:** Full hexagonal coordinate system with type safety  
+**Key Features:** Axial/Offset systems, both orientations, math ops  
+**Files:** `src/coordinates/hexagonal.rs` (450 LOC)
 
 ### Milestone 03: `pixel_conversion_implement` ✅
 *   **Description:** Accurate hex-to-pixel coordinate transformations
@@ -152,96 +411,87 @@ This document outlines the development plan for the `tiles_tools` crate, a high-
     - Pathfinding algorithm validation
 *   **Files:** `tests/integration/`
 
-## Phase 2: Grid System Extensions 🚧 (In Progress)
+## Upcoming Milestones (Phase 2)
 
-### Milestone 08: `square_coordinates_implement` 🚧
-*   **Description:** Implement square/rectangular grid coordinate systems
-*   **Status:** **PENDING** - Next priority for coordinate system expansion
-*   **Prerequisites:** Phase 1 complete
-*   **Enables:** 11, 19, 28
-*   **Estimate:** 12h
-*   **Delivery period:** 1w
-*   **Technical Design:**
-    - Create `src/coordinates/square.rs` with Square coordinate system
-    - Implement 4-connected and 8-connected neighbor patterns
-    - Add Distance trait for Manhattan and Chebyshev distances
-    - Support rectangular grids with different width/height
-    - Integrate with existing Grid2D storage system
-*   **API Specification:**
-    ```rust
-    // In src/coordinates/square.rs
-    pub struct Square;
-    pub struct FourConnected;
-    pub struct EightConnected;
-    
-    pub type SquareCoord<Connectivity> = Coordinate<Square, Connectivity>;
-    
-    impl Distance for Coordinate<Square, FourConnected> {
-        fn distance(&self, other: &Self) -> u32 {
-            ((self.q - other.q).abs() + (self.r - other.r).abs()) as u32
-        }
-    }
-    ```
-*   **Verification Strategy:**
-    - Unit tests for coordinate creation and basic operations
-    - Distance calculation tests (Manhattan vs Euclidean)
-    - Neighbor finding tests (4 vs 8 connectivity)
-    - Integration with pathfinding algorithm
-    - Grid storage compatibility tests
+### Milestone 09: Triangular Coordinates (5 days)
+**Goal:** 12-neighbor connectivity for specialized applications  
+**Challenge:** Complex neighbor calculations with up/down triangles  
+**Deliverables:**
+- `src/coordinates/triangular.rs` with dual triangle types
+- 12-neighbor implementation (3 edge + 9 vertex adjacent)
+- Distance calculations for triangular topology
+- Integration tests with pathfinding
 
-### Milestone 09: `triangular_coordinates_implement`
-*   **Description:** Implement triangular grid coordinate systems
-*   **Status:** **PENDING** - Specialized grid for high connectivity
-*   **Prerequisites:** 08
-*   **Enables:** 11, 19
-*   **Estimate:** 16h
-*   **Delivery period:** 2w
-*   **Technical Design:**
-    - Create triangular coordinate system with 12-neighbor connectivity
-    - Handle upward and downward pointing triangles
-    - Implement complex neighbor calculations
-    - Add specialized distance metrics for triangular grids
-*   **Verification Strategy:**
-    - Test 12-neighbor connectivity patterns
-    - Verify pathfinding works with high connectivity
-    - Performance tests for neighbor calculations
+**Ready to Start:** After Milestone 08 complete
 
-### Milestone 10: `isometric_coordinates_implement`
-*   **Description:** Implement isometric coordinate transformations
-*   **Status:** **PENDING** - Popular for pseudo-3D games
-*   **Prerequisites:** 08
-*   **Enables:** 11, 29
-*   **Estimate:** 10h
-*   **Delivery period:** 1w
-*   **Technical Design:**
-    - Isometric coordinate transformations (diamond visual)
-    - Screen-to-world and world-to-screen conversion
-    - Integration with existing square grid logic
-    - Support for different isometric ratios
-*   **API Specification:**
-    ```rust
-    // In src/coordinates/isometric.rs
-    pub struct Isometric;
-    
-    impl From<Coordinate<Square, FourConnected>> for Pixel {
-        fn from(coord: Coordinate<Square, FourConnected>) -> Self {
-            // Isometric transformation
-        }
-    }
-    ```
+### Milestone 10: Isometric Coordinates (4 days)
+**Goal:** Popular pseudo-3D coordinate system  
+**Challenge:** Screen-to-world transformation accuracy  
+**Deliverables:**
+- `src/coordinates/isometric.rs` with diamond visuals
+- Screen-to-world and world-to-screen conversions
+- Integration with square grid underlying logic
+- Rendering transformation utilities
 
-### Milestone 11: `coordinate_conversion_utilities`
-*   **Description:** Universal coordinate system conversion utilities
-*   **Status:** **PENDING** - Enables multi-grid applications
-*   **Prerequisites:** 08, 09, 10
-*   **Enables:** 14, 19
-*   **Estimate:** 8h
-*   **Delivery period:** 1w
-*   **Technical Design:**
-    - Generic conversion traits between coordinate systems
-    - Approximate conversions where exact ones aren't possible
-    - Conversion utility functions and macros
-    - Performance-optimized batch conversions
+### Milestone 11: Conversion Utilities (2 days)
+**Goal:** Universal coordinate system interoperability  
+**Deliverables:**
+- Generic conversion traits between systems
+- Approximate conversions where exact isn't possible
+- Batch conversion utilities for performance
+- Comprehensive conversion test matrix
+
+---
+
+## Future Phases (Planning)
+
+### Phase 3: ECS Integration (4 weeks)
+**Target Start:** 3 weeks from now  
+**Key Milestones:**
+- ECS abstraction layer over HECS
+- Standard tile-based game components  
+- Entity-grid integration
+- World management system
+
+### Phase 4: Advanced Analysis (3 weeks)
+**Key Features:**
+- Flow field pathfinding for RTS games
+- Field-of-view calculations  
+- Region analysis and flood fill
+- Multi-grid pathfinding utilities
+
+### Phase 5: Procedural Generation (4 weeks)
+**Key Features:**
+- Wave Function Collapse implementation
+- Tileset definition system with constraints
+- Noise generation for terrain
+- Configuration-driven generation
+
+### Phase 6: Performance & Examples (2 weeks)
+**Key Deliverables:**
+- Performance optimization pass
+- Game of Life example
+- Tactical RPG example  
+- Procedural map generation example
+- Benchmarking suite
+
+---
+
+## Success Metrics & Risk Management
+
+### Definition of Success
+- ✅ **API Stability:** No breaking changes between minor versions
+- ✅ **Performance:** All operations under specified time limits (see spec)
+- ✅ **Documentation:** 100% rustdoc coverage with working examples
+- ✅ **Testing:** >90% code coverage with integration tests
+- ✅ **Usability:** New developers productive within 2 hours
+
+### Risk Mitigation
+- **Scope Creep:** Strict phase boundaries, no feature additions mid-phase
+- **Performance Issues:** Benchmarking integrated from Phase 2
+- **API Design Flaws:** Extensive real-world examples in each phase
+- **Testing Gaps:** Test Matrix methodology prevents coverage gaps
+- **Documentation Debt:** Rustdoc required for all public APIs
 
 ---
 
