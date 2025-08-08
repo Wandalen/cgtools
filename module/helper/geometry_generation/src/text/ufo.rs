@@ -1,30 +1,41 @@
+//! This module provides functionality for loading UFO 
+//! fonts and converting text into a 3D mesh representation.
 mod private
 {
+  use std::rc::Rc;
+  use std::cell::RefCell;
   use std::{collections::HashMap, str::FromStr};
   use kurbo::flatten;
   use mingl::geometry::BoundingBox;
   use norad::{ PointType, ContourPoint, Contour };
-  use std::rc::Rc;
-  use std::cell::RefCell;
   use minwebgl as gl;
   use gl::{ F32x3, F32x4 };
   use quick_xml::{ Reader, events::Event };
   use crate::
   { 
-    AttributesData, PrimitiveData, Transform 
+    AttributesData,
+    PrimitiveData, 
+    Transform,
+    contours_to_fill_geometry 
   };
 
+  /// Represents a single character glyph, including its contours and a generated 3D body.
   #[ derive( Clone ) ]
   pub struct Glyph
   {
+    /// The character associated with the glyph.
     _character : char,
+    /// A vector of contours, where each contour is a vector of 2D points.
     contours : Vec< Vec< [ f32; 2 ] > >,
+    /// The generated 3D primitive data for the glyph's body.
     body : Option< PrimitiveData >,
+    /// The bounding box of the glyph.
     bounding_box : BoundingBox
   }
 
   impl Glyph
   {
+    /// Creates a new `Glyph` from a vector of 2D contours and a character.
     fn new( contours : Vec< Vec< [ f64; 2 ] > >, character : char ) -> Self
     {
       let mut contours = contours.into_iter()
@@ -77,6 +88,7 @@ mod private
       }
     }
 
+    /// Scales the glyph's contours and bounding box by a given factor.
     fn scale( &mut self, scale : f32)
     { 
       let [ x1, y1 ] = [ self.bounding_box.left(), self.bounding_box.down() ];
@@ -95,6 +107,7 @@ mod private
       self.bounding_box.max = [ x2 * scale, y2 * scale, 0.0 ].into();
     }
 
+    /// Creates a `Glyph` from a `.glif` file's byte data.
     fn from_glif( glif_bytes : Vec< u8 >, character : char ) -> Option< Self >
     {
       let glif_str = std::str::from_utf8( &glif_bytes ).unwrap();
@@ -234,15 +247,19 @@ mod private
     }
   }
 
+  /// Represents a font loaded from UFO files, containing a collection of glyphs.
   #[ derive( Clone ) ]
   pub struct Font
   {
+    /// A map of characters to their corresponding glyphs.
     glyphs : HashMap< char, Glyph >,
+    /// The maximum bounding box of glyph in the font.
     max_size : BoundingBox
   }
 
   impl Font
   {
+    /// Asynchronously loads a new `Font` from a UFO directory path.
     async fn new( path : &str ) -> Self
     {
       let mut glyphs = HashMap::< char, Glyph >::new();
@@ -332,7 +349,7 @@ mod private
 
       for ( _, glyph ) in glyphs.iter_mut()
       {
-        glyph.body = contours_to_mesh( &glyph.contours );
+        glyph.body = contours_to_fill_geometry( &glyph.contours );
       }
 
       Self
@@ -341,13 +358,14 @@ mod private
         max_size : BoundingBox 
         { 
           min, 
-          max  
+          max   
         }
       }
     }
   }
 
-  pub fn contours_to_mesh( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
+  /// Converts a set of 2D contours into `PrimitiveData` for a 3D mesh.
+  pub fn _contours_to_mesh( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
   {
     if contours.is_empty()
     {
@@ -481,7 +499,7 @@ mod private
       .map( | i | i as u32 )
       .collect::< Vec< _ > >();
 
-      let body_positions = flat_positions.chunks( 2 )                                     
+      let body_positions = flat_positions.chunks( 2 )          
       .map( | c | [ c[ 0 ] as f32, c[ 1 ] as f32, 0.0 ] )
       .collect::< Vec< _ > >();
 
@@ -504,12 +522,13 @@ mod private
     { 
       attributes : Rc::new( RefCell::new( attributes ) ),
       color : F32x4::default(),
-      transform : Transform::default()  
+      transform : Transform::default()   
     };
 
     Some( primitive_data )
   }
 
+  /// Asynchronously loads multiple fonts from a list of font names.
   pub async fn load_fonts( font_names : &[ &str ] ) -> HashMap< String, Font >
   {
     let mut fonts = HashMap::< String, Font >::new();
@@ -523,6 +542,7 @@ mod private
     fonts
   }
 
+  /// Converts a string of text into a vector of `PrimitiveData` meshes.
   pub fn text_to_mesh( text : &str, font : &Font, transform : &Transform ) -> Vec< PrimitiveData >
   {
     let mut mesh = vec![]; 
@@ -586,6 +606,7 @@ mod private
     mesh
   }
 
+  /// Converts a string of text into a vector of `PrimitiveData` for the contours of the glyphs.
   pub fn text_to_countour_mesh( 
     text : &str, 
     font : &Font, 
@@ -669,7 +690,6 @@ crate::mod_interface!
     load_fonts,
     Glyph,
     Font,
-    contours_to_mesh,
     text_to_mesh,
     text_to_countour_mesh
   };

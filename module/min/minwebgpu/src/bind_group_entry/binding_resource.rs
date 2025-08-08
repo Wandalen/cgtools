@@ -3,8 +3,10 @@ mod private
 {
   use crate::*;
 
+  /// A trait for types that can be used as a WebGPU binding resource.
   pub trait BindingResource
   {
+    /// Converts the resource into a `JsValue`.
     fn as_resource( &self ) -> JsValue;
   }
 

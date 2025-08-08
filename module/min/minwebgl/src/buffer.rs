@@ -81,6 +81,7 @@ mod private
       }
     }
 
+    /// Sets flag that choose normalize attribute data or not
     pub fn normalized( mut self, normalized : bool ) -> Self
     {
       self.normalized = normalized;

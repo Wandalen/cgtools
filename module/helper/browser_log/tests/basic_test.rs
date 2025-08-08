@@ -1,3 +1,4 @@
+//! Log tests
 
 #[ test ]
 fn manual_setup_test()

@@ -19,7 +19,7 @@ rust_2018_idioms = "deny"
 # Prevents use of unstable features.
 future_incompatible = "warn"
 # # Encourages documentation for public items.
-# missing_docs = "warn" # qqq : uncomment please
+missing_docs = "warn"
 # # Suggests implementing Debug for public types.
 # missing_debug_implementations = "warn" # qqq : uncomment please
 # Warns against using unsafe code.
@@ -277,11 +277,11 @@ version = "0.5.0"
 [workspace.dependencies.kurbo]
 version = "0.11.2"
 
-#[workspace.dependencies.lottie]
-#version = "0.1.0"
-
 [workspace.dependencies.interpoli]
 git = "https://github.com/linebender/interpoli"
+
+[workspace.dependencies.velato]
+git = "https://github.com/vadimb892/velato"
 
 [workspace.dependencies.zune-hdr]
 git = "https://github.com/etemesi254/zune-image"
@@ -313,7 +313,7 @@ version = "0.37.5"
 version = "1.0.140"
 
 [workspace.dependencies.color]
-version = "0.3.1"
+version = "0.2.3"
 
 [workspace.dependencies.hex_color]
 version = "3.0.0"
@@ -333,3 +333,7 @@ version = "0.12"
 
 [workspace.dependencies.rayon]
 version = "1.10"
+
+[workspace.dependencies.peniko]
+version = "0.3.1"
+

@@ -13,6 +13,24 @@ mod private
     pub children : Vec< Rc< RefCell< Node > > >,
   }
 
+  impl Clone for Scene
+  {
+    fn clone( &self ) -> Self
+    {
+      let mut children = Vec::with_capacity( self.children.len() );
+      
+      for child in &self.children 
+      {
+        children.push( child.borrow().clone_tree() );
+      }
+
+      Self
+      {
+        children
+      }
+    }
+  }
+
   impl Scene
   {
     /// Creates a new, empty `Scene`.
@@ -61,6 +79,9 @@ mod private
       }
     }
 
+    /// Computes the bounding box for the entire hierarchy of a node.
+    ///
+    /// This function calculates a `BoundingBox` that encompasses the current node and all of its descendants.
     pub fn bounding_box( &self ) -> BoundingBox
     {
       let mut bbox = BoundingBox::default();

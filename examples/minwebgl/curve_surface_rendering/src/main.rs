@@ -1,3 +1,5 @@
+#![ doc = include_str!( "../README.md" ) ]
+
 use std::cell::RefCell;
 use mingl::F32x4;
 use minwebgl as gl;
@@ -158,7 +160,7 @@ fn init_camera( canvas : &HtmlCanvasElement, scenes : &[ Rc< RefCell< Scene > > 
 
 fn clone( gltf : &mut GLTF, node : &Rc< RefCell< Node > > ) -> Rc< RefCell< Node > > 
 {
-  let clone = Rc::new( RefCell::new( node.borrow().clone() ) );
+  let clone = node.borrow().clone_tree();
   gltf.nodes.push( clone.clone() );
   if let Object3D::Mesh( ref mesh ) = clone.borrow().object
   {
@@ -242,7 +244,9 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
 
   let colors = 
   [
+    F32x4::from_array( [ 1.0, 0.0, 0.0, 1.0 ] ),
     F32x4::from_array( [ 1.0, 1.0, 1.0, 1.0 ] ),
+    F32x4::from_array( [ 0.0, 1.0, 0.0, 1.0 ] ),
   ];
   let text = "CGTools".to_string();
 

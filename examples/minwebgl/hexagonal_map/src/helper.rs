@@ -226,7 +226,7 @@ pub fn create_hexagon_geometry( gl : &GL ) -> Result< Geometry, gl::WebglError >
   };
 
   let mut geometry = Geometry::new( &gl )?;
-  geometry.vertex_count = positions.len() as u32;
+  geometry.vertex_count = positions.len() as u32 / 2;
   geometry.add_attribute( &gl, "position", pos_info, false )?;
 
   gl.bind_vertex_array( None );
@@ -249,7 +249,7 @@ pub fn create_line_geometry( gl : &GL ) -> Result< Geometry, gl::WebglError >
 
   let mut geometry = Geometry::new( &gl )?;
   geometry.draw_mode = GL::LINES;
-  geometry.vertex_count = positions.len() as u32;
+  geometry.vertex_count = positions.len() as u32 / 2;
   geometry.add_attribute( &gl, "position", pos_info, false )?;
   gl.bind_vertex_array( None );
 
