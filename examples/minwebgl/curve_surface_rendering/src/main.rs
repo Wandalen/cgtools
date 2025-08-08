@@ -1,3 +1,5 @@
+#![ doc = include_str!( "../README.md" ) ]
+
 use std::cell::RefCell;
 use mingl::F32x4;
 use minwebgl as gl;

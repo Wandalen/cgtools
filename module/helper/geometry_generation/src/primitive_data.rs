@@ -1,3 +1,17 @@
+//! This module provides a set of tools for working with 3D primitives 
+//! and transforming them into a GLTF scene graph for rendering. It 
+//! defines essential data structures:
+//! 
+//! - `Transform` for manipulating an object's position, rotation, 
+//! and scale.
+//! 
+//! - `AttributesData` and `PrimitiveData` for holding vertex and index 
+//! data along with other primitive properties. 
+//! 
+//! The core functionality is encapsulated in `primitives_data_to_gltf`, 
+//! which takes a collection of `PrimitiveData` and constructs a complete 
+//! `GLTF` object, including all necessary WebGL buffers, geometries 
+//! and a scene hierarchy.
 mod private
 {
   use minwebgl::
@@ -29,16 +43,21 @@ mod private
     AttributeInfo
   };
 
+  /// Represents a 3D transformation with translation, rotation, and scale components.
   #[ derive( Debug, Clone ) ]
   pub struct Transform
   {
+    /// The translation vector of the transform.
     pub translation : F32x3,
+    /// The rotation vector (in Euler angles) of the transform.
     pub rotation : F32x3,
+    /// The scale vector of the transform.
     pub scale : F32x3
   }
 
   impl Default for Transform
   {
+    /// Returns a new `Transform` with default values: translation and rotation are zero, and scale is one.
     fn default() -> Self 
     {
       Self 
@@ -46,13 +65,14 @@ mod private
         translation : [ 0.0; 3 ].into(), 
         rotation : [ 0.0; 3 ].into(), 
         scale : [ 1.0; 3 ].into() 
-      }    
+      }     
     }
   }
 
   impl Transform
   {
-    pub fn set_node_transform( &self, node : Rc< RefCell< Node > > )
+    /// Set new local matrix of `Node`.
+    fn set_node_transform( &self, node : Rc< RefCell< Node > > )
     {
       let t = self.translation;
       let r = self.rotation;
@@ -66,22 +86,29 @@ mod private
     }
   }
   
-  #[ derive( Debug ) ]
+  /// Stores vertex attribute data for a geometry.
   pub struct AttributesData
   {
+    /// The list of vertex positions.
     pub positions : Vec< [ f32; 3 ] >,
+    /// The list of indices for the vertices.
     pub indices : Vec< u32 >
   }
 
+  /// Contains the data needed to create a `Primitive`.
   #[ derive( Clone ) ]
   pub struct PrimitiveData 
   {
+    /// The vertex attributes data.
     pub attributes : Rc< RefCell< AttributesData > >,
+    /// The color of the primitive.
     pub color : F32x4,
+    /// The transform to apply to the primitive.
     pub transform : Transform
   }
 
-  pub fn make_buffer_attibute_info
+  /// Creates an `AttributeInfo` object using one function call for a WebGL buffer.
+  fn make_buffer_attibute_info
   ( 
     buffer : &web_sys::WebGlBuffer,
     descriptor : gl::BufferDescriptor, 
@@ -110,6 +137,7 @@ mod private
     )
   }
 
+  /// Converts a vector of `PrimitiveData` into a `GLTF` object.
   pub fn primitives_data_to_gltf
   ( 
     gl : &WebGl2RenderingContext,

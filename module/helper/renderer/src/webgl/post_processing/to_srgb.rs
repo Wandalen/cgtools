@@ -18,7 +18,7 @@ mod private
 
   impl ToSrgbPass 
   {
-    // Sets whether the pass should render its output directly to the screen.
+    /// Sets whether the pass should render its output directly to the screen.
     pub fn set_render_to_screen( &mut self, render_to_screen : bool )
     {
       self.render_to_screen = render_to_screen;
@@ -29,7 +29,7 @@ mod private
     {
       let fs_shader = include_str!( "../shaders/post_processing/to_srgb.frag" );
       let material = gl::ProgramFromSources::new( VS_TRIANGLE, fs_shader ).compile_and_link( gl )?;
-      let material = ProgramInfo::< EmptyShader >::new( material );
+      let material = ProgramInfo::< EmptyShader >::new( gl, material );
 
       Ok
       (
