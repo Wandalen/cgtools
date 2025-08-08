@@ -2,17 +2,27 @@ mod private
 {
   use serde::{ Serialize, Deserialize };
 
+  /// Represents the different types of line caps.
   #[ derive( Default, Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize ) ]
   pub enum Cap
   {
+    /// A butt cap, which is a flat end perpendicular to the line segment's direction.
+    /// It's the default cap style.
     #[ default ]
     Butt,
+    /// A round cap, which is a semicircular end.
+    /// The `usize` parameter specifies the number of segments used to approximate the curve.
     Round( usize ),
+    /// A square cap, which extends the line segment by half its width.
     Square
   }
 
   impl Cap 
   {
+    /// Generates the geometry for the specified cap type.
+    ///
+    /// This method returns a tuple containing the vertices, indices, and the number of vertices
+    /// for the cap's mesh.
     pub fn geometry( &self ) -> ( Vec< f32 >, Vec< u32 >, usize )
     {
       match self 

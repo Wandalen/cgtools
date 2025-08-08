@@ -1,5 +1,6 @@
 mod private
 {
+  /// Geometry for a rectangular body segment, represented by two triangles.
   pub const BODY_GEOMETRY : [ [ f32; 2 ]; 6 ] =
   [
     [ 0.0, -0.5 ],
@@ -10,7 +11,7 @@ mod private
     [ 0.0,  0.5 ]
   ];
 
-  // Produces the geometry for TRIANGLE_FAN draw mode 
+  /// Generates the geometry for a circle using a `TRIANGLE_FAN` draw mode.
   pub fn circle_geometry( segments : usize ) -> Vec< [ f32; 2 ] >
   {
     let mut positions = Vec::with_capacity( segments );
@@ -24,7 +25,7 @@ mod private
     positions
   }
 
-  // Produces the geometry for TRIANGLES draw mode
+   /// Generates the geometry for the left half of a circle using `TRIANGLES` draw mode.
   pub fn circle_left_half_geometry( segments : usize ) -> Vec< [ f32; 2 ] >
   {
     let mut positions = Vec::with_capacity( segments * 3 );
@@ -42,7 +43,8 @@ mod private
     positions
   }
 
-   pub fn circle_right_half_geometry( segments : usize ) -> Vec< [ f32; 2 ] >
+  /// Generates the geometry for the right half of a circle using `TRIANGLES` draw mode.
+  pub fn circle_right_half_geometry( segments : usize ) -> Vec< [ f32; 2 ] >
   {
     let mut positions = Vec::with_capacity( segments * 3 );
     for wedge in 0..segments
