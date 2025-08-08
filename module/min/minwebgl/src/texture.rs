@@ -4,9 +4,9 @@ mod private
   
 }
 
-/// A module containing tools for working with 2D textures.
+/// 2D texture utilities.
 pub mod d2;
-/// A module containing tools for working with cube textures.
+/// Cube texture utilities.
 pub mod cube;
 
 crate::mod_interface!

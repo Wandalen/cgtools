@@ -18,7 +18,10 @@ impl Pixel
   /// Creates a new `Pixel` from x and y components.
   pub fn new( x : f32, y : f32 ) -> Self
   {
-    Self { data : [ x.into(), y.into() ] }
+    Self
+    {
+      data : [ x.into(), y.into() ],
+    }
   }
 
   /// Returns the x component of the pixel coordinate.
@@ -36,24 +39,29 @@ impl Pixel
 
 impl< F > From< ( F, F ) > for Pixel
 where
-  F : Into< f32 >
+  F : Into< f32 >,
 {
   /// Creates a `Pixel` from a tuple of two convertible numeric types.
   fn from( ( x, y ) : ( F, F ) ) -> Self
   {
-    Self { data : [ x.into(), y.into() ] }
+    Self
+    {
+      data : [ x.into(), y.into() ],
+    }
   }
 }
 
 impl< F > From< [ F; 2 ] > for Pixel
 where
-  F : Into< f32 >
+  F : Into< f32 >,
 {
   /// Creates a `Pixel` from an array of two convertible numeric types.
   fn from( [ x, y ] : [ F; 2 ] ) -> Self
   {
-
-    Self { data : [ x.into(), y.into() ] }
+    Self
+    {
+      data : [ x.into(), y.into() ],
+    }
   }
 }
 
@@ -65,7 +73,7 @@ impl From< Coordinate< Axial, Pointy > > for Pixel
     let q = value.q as f32;
     let r = value.r as f32;
     let x = 3.0f32.sqrt() * q + 3.0f32.sqrt() / 2.0 * r;
-    let y =                               3.0 / 2.0 * r;
+    let y = 3.0 / 2.0 * r;
     ( x, y ).into()
   }
 }
@@ -77,7 +85,7 @@ impl From< Coordinate< Axial, Flat > > for Pixel
   {
     let q = value.q as f32;
     let r = value.r as f32;
-    let x =           3.0 / 2.0 * q                    ;
+    let x = 3.0 / 2.0 * q;
     let y = 3.0f32.sqrt() / 2.0 * q + 3.0f32.sqrt() * r;
     ( x, y ).into()
   }
@@ -85,14 +93,14 @@ impl From< Coordinate< Axial, Flat > > for Pixel
 
 impl< E > From< ndarray_cg::Vector< E, 2 > > for Pixel
 where
-  E : ndarray_cg::MatEl + Into< f32 >
+  E : ndarray_cg::MatEl + Into< f32 >,
 {
   /// Converts an `ndarray_cg` 2D vector into a `Pixel`.
-  fn from( value : ndarray_cg::Vector< E, 2 >) -> Self
+  fn from( value : ndarray_cg::Vector< E, 2 > ) -> Self
   {
     Self
     {
-      data : [ value[ 0 ].into(), value[ 1 ].into() ]
+      data : [ value[ 0 ].into(), value[ 1 ].into() ],
     }
   }
 }
@@ -120,11 +128,7 @@ impl ndarray_cg::Add for Pixel
   {
     Self
     {
-      data :
-      [
-        self.data[ 0 ] + rhs.data[ 0 ],
-        self.data[ 1 ] + rhs.data[ 1 ]
-      ]
+      data : [ self.data[ 0 ] + rhs.data[ 0 ], self.data[ 1 ] + rhs.data[ 1 ] ],
     }
   }
 }
@@ -138,11 +142,7 @@ impl ndarray_cg::Sub for Pixel
   {
     Self
     {
-      data :
-      [
-        self.data[ 0 ] - rhs.data[ 0 ],
-        self.data[ 1 ] - rhs.data[ 1 ]
-      ]
+      data : [ self.data[ 0 ] - rhs.data[ 0 ], self.data[ 1 ] - rhs.data[ 1 ] ],
     }
   }
 }

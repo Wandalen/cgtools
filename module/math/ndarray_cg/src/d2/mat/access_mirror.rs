@@ -27,7 +27,7 @@ where
   /// # Returns
   /// - A mutable slice of the scalar data.
   #[ inline( always ) ]
-  pub fn raw_slice_mut( &mut self ) -> &mut [ < Self as Collection >::Scalar ]
+  pub fn as_raw_slice_mut( &mut self ) -> &mut [ < Self as Collection >::Scalar ]
   {
     < Self as RawSliceMut >::raw_slice_mut( self )
   }
@@ -37,7 +37,7 @@ where
   /// # Arguments
   /// - `scalars`: A slice of scalars to set the data.
   #[ inline( always ) ]
-  pub fn raw_set_slice( &mut self, scalars : &[ < Self as Collection >::Scalar ] )
+  pub fn set_raw_slice( &mut self, scalars : &[ < Self as Collection >::Scalar ] )
   {
     < Self as RawSliceMut >::raw_set_slice( self, scalars )
   }
@@ -47,7 +47,7 @@ where
   /// # Arguments
   /// - `scalars`: An array of scalars to set the data.
   #[ inline( always ) ]
-  pub fn raw_set< const N : usize >( self, scalars : [ < Self as Collection >::Scalar ; N ] ) -> Self
+  pub fn set_raw< const N : usize >( self, scalars : [ < Self as Collection >::Scalar ; N ] ) -> Self
   {
     < Self as RawSliceMut >::raw_set( self, scalars )
   }
@@ -58,7 +58,7 @@ where
   /// # Arguments
   /// - `scalars`: An array of scalars to set the data.
   #[ inline( always ) ]
-  pub fn set< const N : usize >( self, scalars : [ < Self as Collection >::Scalar ; N ] ) -> Self
+  pub fn set_data< const N : usize >( self, scalars : [ < Self as Collection >::Scalar ; N ] ) -> Self
   {
     < Self as RawSliceMut >::set( self, scalars )
   }
@@ -69,7 +69,7 @@ where
   /// # Arguments
   /// - `scalars`: An array of scalars to set the data.
   #[ inline( always ) ]
-  pub fn with_row_major( self, scalars : &[ < Self as Collection >::Scalar ] ) -> Self
+  pub fn set_row_major( self, scalars : &[ < Self as Collection >::Scalar ] ) -> Self
   {
     < Self as RawSliceMut >::with_row_major( self, scalars )
   }
@@ -80,7 +80,7 @@ where
   /// /// # Arguments
   /// - `scalars`: An array of scalars to set the data.
   #[ inline( always ) ]
-  pub fn with_column_major( self, scalars : &[ < Self as Collection >::Scalar ] ) -> Self
+  pub fn set_column_major( self, scalars : &[ < Self as Collection >::Scalar ] ) -> Self
   {
     < Self as RawSliceMut >::with_column_major( self, scalars )
   }

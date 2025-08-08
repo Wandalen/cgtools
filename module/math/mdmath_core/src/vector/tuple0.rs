@@ -48,15 +48,15 @@ impl ArrayMut< usize, 0 > for ()
 // Tuple0Iter represents an iterator over a tuple with 0 elements.
 // It's always empty and never yields any items.
 #[ derive( Clone ) ]
-struct Tuple0Iter< 'a >
+struct Tuple0Iter< 'tuple_ref >
 {
-  // PhantomData is used to make the struct generic over 'a without storing any data.
-  _phantom : std::marker::PhantomData< &'a () >,
+  // PhantomData is used to make the struct generic over 'tuple_ref without storing any data.
+  _phantom : std::marker::PhantomData< &'tuple_ref () >,
 }
 
-impl< 'a > Iterator for Tuple0Iter< 'a >
+impl< 'tuple_ref > Iterator for Tuple0Iter< 'tuple_ref >
 {
-  type Item = &'a usize;
+  type Item = &'tuple_ref usize;
 
   fn next( &mut self ) -> Option< Self::Item >
   {
@@ -72,10 +72,10 @@ impl< 'a > Iterator for Tuple0Iter< 'a >
 }
 
 // Implement ExactSizeIterator as we always know the exact number of iterations (0).
-impl< 'a > ExactSizeIterator for Tuple0Iter< 'a > {}
+impl< 'tuple_ref > ExactSizeIterator for Tuple0Iter< 'tuple_ref > {}
 
 // Implement DoubleEndedIterator as we can iterate from both ends (although it's always empty).
-impl< 'a > DoubleEndedIterator for Tuple0Iter< 'a >
+impl< 'tuple_ref > DoubleEndedIterator for Tuple0Iter< 'tuple_ref >
 {
   fn next_back( &mut self ) -> Option< Self::Item >
   {
@@ -86,15 +86,15 @@ impl< 'a > DoubleEndedIterator for Tuple0Iter< 'a >
 
 // Tuple0IterMut represents a mutable iterator over a tuple with 0 elements.
 // It's always empty and never yields any items.
-struct Tuple0IterMut< 'a >
+struct Tuple0IterMut< 'tuple_ref >
 {
-  // PhantomData is used to make the struct generic over 'a without storing any data.
-  _phantom : std::marker::PhantomData< &'a mut () >,
+  // PhantomData is used to make the struct generic over 'tuple_ref without storing any data.
+  _phantom : std::marker::PhantomData< &'tuple_ref mut () >,
 }
 
-impl< 'a > Iterator for Tuple0IterMut< 'a >
+impl< 'tuple_ref > Iterator for Tuple0IterMut< 'tuple_ref >
 {
-  type Item = &'a mut usize;
+  type Item = &'tuple_ref mut usize;
 
   fn next( &mut self ) -> Option< Self::Item >
   {
@@ -110,10 +110,10 @@ impl< 'a > Iterator for Tuple0IterMut< 'a >
 }
 
 // Implement ExactSizeIterator as we always know the exact number of iterations (0).
-impl< 'a > ExactSizeIterator for Tuple0IterMut< 'a > {}
+impl< 'tuple_ref > ExactSizeIterator for Tuple0IterMut< 'tuple_ref > {}
 
 // Implement DoubleEndedIterator as we can iterate from both ends (although it's always empty).
-impl< 'a > DoubleEndedIterator for Tuple0IterMut< 'a >
+impl< 'tuple_ref > DoubleEndedIterator for Tuple0IterMut< 'tuple_ref >
 {
   fn next_back( &mut self ) -> Option< Self::Item >
   {
@@ -124,9 +124,9 @@ impl< 'a > DoubleEndedIterator for Tuple0IterMut< 'a >
 
 impl VectorIter< usize, 0 > for ()
 {
-  fn vector_iter< 'a >( &'a self ) -> impl VectorIteratorRef< 'a, &'a usize >
+  fn vector_iter< 'tuple_ref >( &'tuple_ref self ) -> impl VectorIteratorRef< 'tuple_ref, &'tuple_ref usize >
   where
-    usize: 'a,
+    usize: 'tuple_ref,
   {
     // Return an empty iterator
     Tuple0Iter
@@ -138,9 +138,9 @@ impl VectorIter< usize, 0 > for ()
 
 impl VectorIterMut< usize, 0 > for ()
 {
-  fn vector_iter_mut< 'a >( &'a mut self ) -> impl VectorIterator< 'a, &'a mut usize >
+  fn vector_iter_mut< 'tuple_ref >( &'tuple_ref mut self ) -> impl VectorIterator< 'tuple_ref, &'tuple_ref mut usize >
   where
-    usize: 'a,
+    usize: 'tuple_ref,
   {
     // Return an empty mutable iterator
     Tuple0IterMut
