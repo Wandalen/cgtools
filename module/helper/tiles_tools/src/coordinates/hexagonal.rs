@@ -3,10 +3,10 @@
 //! through a flexible, type-safe generic implementation. It also includes conversions between systems
 //! and from pixel coordinates, as well as utility functions for grid operations like distance and neighbor finding.
 
+use crate::coordinates::{ Distance, Neighbors, pixel::Pixel };
 use ndarray_cg::I32x2;
 use serde::{ Deserialize, Serialize };
 use std::{ fmt::Debug, hash::Hash, marker::PhantomData };
-use crate::coordinates::{ pixel::Pixel, Distance, Neigbors };
 
 /// A marker struct representing the Axial coordinate system for hexagonal grids.
 #[ derive( Debug ) ]
@@ -36,35 +36,35 @@ pub struct Even;
 #[ derive( Serialize, Deserialize ) ]
 pub struct Coordinate< System, Orientation >
 {
-  /// The column index of the coordinate (often 'q' or 'col').
+    /// The column index of the coordinate (often 'q' or 'col').
   pub q : i32,
-  /// The row index of the coordinate (often 'r' or 'row').
+    /// The row index of the coordinate (often 'r' or 'row').
   pub r : i32,
-  /// A marker to hold the generic types for the coordinate system and orientation.
+    /// A marker to hold the generic types for the coordinate system and orientation.
   #[ serde( skip ) ]
   pub _marker : PhantomData< ( System, Orientation ) >,
 }
 
 impl< System, Orientation > Debug for Coordinate< System, Orientation >
 {
-  /// Formats the coordinate for debugging, including its system type.
+    /// Formats the coordinate for debugging, including its system type.
   fn fmt( &self, f : &mut std::fmt::Formatter< '_ > ) -> std::fmt::Result
   {
     f.debug_struct( "Coordinate" )
-    .field( "q", &self.q )
-    .field( "r", &self.r )
-    .field( "system", &self._marker )
-    .finish()
-  }
+      .field( "q", &self.q )
+      .field( "r", &self.r )
+      .field( "system", &self._marker )
+      .finish()
+    }
 }
 
 impl< System, Orientation > Clone for Coordinate< System, Orientation >
 {
-  /// Clones the coordinate.
+    /// Clones the coordinate.
   fn clone( &self ) -> Self
   {
     Self::new_uncheked( self.q, self.r )
-  }
+    }
 }
 
 impl< System, Orientation > Copy for Coordinate< System, Orientation > {}
@@ -73,54 +73,59 @@ impl< System, Orientation > Eq for Coordinate< System, Orientation > {}
 
 impl< System, Orientation > PartialEq for Coordinate< System, Orientation >
 {
-  /// Checks for equality between two coordinates based on their `q` and `r` values.
+    /// Checks for equality between two coordinates based on their `q` and `r` values.
   fn eq( &self, other : &Self ) -> bool
   {
     self.q == other.q && self.r == other.r
-  }
+    }
 }
 
 impl< System, Orientation > Hash for Coordinate< System, Orientation >
 {
-  /// Hashes the coordinate based on its `q`, `r`, and type markers.
+    /// Hashes the coordinate based on its `q`, `r`, and type markers.
   fn hash< H : std::hash::Hasher >( &self, state : &mut H )
   {
     self.q.hash( state );
     self.r.hash( state );
     self._marker.hash( state );
-  }
+    }
 }
 
 impl< System, Orientation > Default for Coordinate< System, Orientation >
 {
-  /// Returns a default coordinate at (0, 0).
+    /// Returns a default coordinate at (0, 0).
   fn default() -> Self
   {
-    Self { q : Default::default(), r : Default::default(), _marker : Default::default() }
-  }
+    Self
+    {
+      q : Default::default(),
+      r : Default::default(),
+      _marker : Default::default(),
+        }
+    }
 }
 
 impl< System, Orientation > Into< I32x2 > for Coordinate< System, Orientation >
 {
-  /// Converts the coordinate into an `I32x2` vector.
+    /// Converts the coordinate into an `I32x2` vector.
   fn into( self ) -> I32x2
   {
     I32x2::from_array( [ self.q, self.r ] )
-  }
+    }
 }
 
 impl< System, Orientation > Into< ( i32, i32 ) > for Coordinate< System, Orientation >
 {
-  /// Converts the coordinate into a tuple `(q, r)`.
+    /// Converts the coordinate into a tuple `(q, r)`.
   fn into( self ) -> ( i32, i32 )
   {
     ( self.q, self.r )
-  }
+    }
 }
 
 impl< System, Orientation > Coordinate< System, Orientation >
 {
-  /// Creates a new coordinate without any checks. For internal use.
+    /// Creates a new coordinate without any checks. For internal use.
   pub( crate ) const fn new_uncheked( q : i32, r : i32 ) -> Self
   {
     Self
@@ -129,16 +134,16 @@ impl< System, Orientation > Coordinate< System, Orientation >
       r,
       _marker : PhantomData,
     }
-  }
+    }
 }
 
 impl< Orientation, Parity > Coordinate< Offset< Parity >, Orientation >
 {
-  /// Creates a new `Offset` coordinate.
+    /// Creates a new `Offset` coordinate.
   pub const fn new( q : i32, r : i32 ) -> Self
   {
     Self::new_uncheked( q, r )
-  }
+    }
 }
 
 impl< Orientation > Coordinate< Axial, Orientation >
@@ -327,7 +332,7 @@ impl From< Pixel > for Coordinate< Axial, Pointy >
   {
     // implementation is taken from https://www.redblobgames.com/grids/hexagons/#pixel-to-hex
     let q = 3.0f32.sqrt() / 3.0 * x - 1.0 / 3.0 * y;
-    let r =                           2.0 / 3.0 * y;
+    let r = 2.0 / 3.0 * y;
     let ( q, r ) = axial_round( q, r );
     Self::new( q, r )
   }
@@ -339,7 +344,7 @@ impl From< Pixel > for Coordinate< Axial, Flat >
   fn from( Pixel { data : [ x, y ] } : Pixel ) -> Self
   {
     // implementation is taken from https://www.redblobgames.com/grids/hexagons/#pixel-to-hex
-    let q =  2.0 / 3.0 * x;
+    let q = 2.0 / 3.0 * x;
     let r = -1.0 / 3.0 * x + 3.0f32.sqrt() / 3.0 * y;
     let ( q, r ) = axial_round( q, r );
     Self::new( q, r )
@@ -398,19 +403,20 @@ impl< Orientation > Distance for Coordinate< Axial, Orientation >
   }
 }
 
-impl< Orientation > Neigbors for Coordinate< Axial, Orientation >
+impl< Orientation > Neighbors for Coordinate< Axial, Orientation >
 {
   /// Returns a `Vec` containing all 6 direct neighbors of an `Axial` coordinate.
   fn neighbors( &self ) -> Vec< Self >
   {
     [
-      *self + (  1,  0 ).into(),
-      *self + (  1, -1 ).into(),
-      *self + (  0, -1 ).into(),
-      *self + ( -1,  0 ).into(),
-      *self + ( -1,  1 ).into(),
-      *self + (  0,  1 ).into(),
-    ].into()
+      *self + ( 1, 0 ).into(),
+      *self + ( 1, -1 ).into(),
+      *self + ( 0, -1 ).into(),
+      *self + ( -1, 0 ).into(),
+      *self + ( -1, 1 ).into(),
+      *self + ( 0, 1 ).into(),
+    ]
+    .into()
   }
 }
 

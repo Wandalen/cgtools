@@ -2,9 +2,14 @@
 //! mapped to hexagonal coordinates. It is built upon `ndarray` and supports arbitrary
 //! coordinate ranges and different hexagonal systems and orientations.
 
-use std::{ fmt::Debug, marker::PhantomData, ops::{ Index, IndexMut } };
-use ndarray_cg::{ nd::iter::Iter, Array2, I64x2 };
 use crate::coordinates::hexagonal::Coordinate;
+use ndarray_cg::{ Array2, I64x2, nd::iter::Iter };
+use std::
+{
+  fmt::Debug,
+  marker::PhantomData,
+  ops::{ Index, IndexMut },
+};
 
 /// A generic 2D grid for storing data associated with hexagonal coordinates.
 ///
@@ -28,7 +33,8 @@ impl< System, Orientation, T > Grid2D< System, Orientation, T >
     min_inclusive : Coordinate< System, Orientation >,
     max_exclusive : Coordinate< System, Orientation >,
     f : F,
-  ) -> Self
+  )
+  -> Self
   where
     F : Fn() -> T,
   {
@@ -44,14 +50,14 @@ impl< System, Orientation, T > Grid2D< System, Orientation, T >
 
     Self
     {
-      data : Array2::from_shape_simple_fn( ( rows , columns ), f ),
+      data : Array2::from_shape_simple_fn( ( rows, columns ), f ),
       min : I64x2::from_array( [ min_q, min_r ] ),
-      _marker: PhantomData
+      _marker : PhantomData,
     }
   }
 
   /// Returns an iterator over the values in the grid.
-  pub fn iter( &self ) -> Iter< '_, T , ndarray_cg::Dim< [ usize; 2 ] > >
+  pub fn iter( &self ) -> Iter< '_, T, ndarray_cg::Dim< [ usize; 2 ] > >
   {
     self.data.iter()
   }
@@ -59,22 +65,19 @@ impl< System, Orientation, T > Grid2D< System, Orientation, T >
   /// Returns an iterator that yields each coordinate and a reference to its corresponding value.
   pub fn indexed_iter( &self ) -> impl Iterator< Item = ( Coordinate< System, Orientation >, &T ) >
   {
-    self.data.indexed_iter().map
-    (
-      | ( ( i, j ), value ) |
-      {
-        let i = ( i as i64 + self.min[ 1 ] ) as i32;
-        let j = ( j as i64 + self.min[ 0 ] ) as i32;
-        let coord = Coordinate::< System, Orientation >::new_uncheked( j, i );
-        ( coord, value )
-      }
-    )
+    self.data.indexed_iter().map( | ( ( i, j ), value ) |
+    {
+      let i = ( i as i64 + self.min[ 1 ] ) as i32;
+      let j = ( j as i64 + self.min[ 0 ] ) as i32;
+      let coord = Coordinate::< System, Orientation >::new_uncheked( j, i );
+      ( coord, value )
+    })
   }
 }
 
 impl< System, Orientation, T > Grid2D< System, Orientation, T >
 where
-  T : Default
+  T : Default,
 {
   /// Creates a new grid with a specified size, filling it with the default value of `T`.
   ///
@@ -83,8 +86,9 @@ where
   pub fn with_size_and_default
   (
     min_inclusive : Coordinate< System, Orientation >,
-    max_exclusive : Coordinate< System, Orientation >
-  ) -> Self
+    max_exclusive : Coordinate< System, Orientation >,
+  )
+  -> Self
   {
     let Coordinate { q, r, .. } = min_inclusive;
     let min_q = q as i64;
@@ -98,9 +102,9 @@ where
 
     Self
     {
-      data : Array2::from_shape_simple_fn( ( rows , columns ), T::default ),
+      data : Array2::from_shape_simple_fn( ( rows, columns ), T::default ),
       min : I64x2::from_array( [ min_q, min_r ] ),
-      _marker: PhantomData
+      _marker : PhantomData,
     }
   }
 }
@@ -115,9 +119,13 @@ impl< System, Orientation, T > Grid2D< System, Orientation, Option< T > >
   where
     C : Into< Coordinate< System, Orientation > >,
   {
-    let coord : Coordinate::< System, Orientation > = coord.into();
-    let i : usize = ( coord.r as i64 - self.min[ 1 ] ).try_into().expect( "Coordinate out of bound" );
-    let j : usize = ( coord.q as i64 - self.min[ 0 ] ).try_into().expect( "Coordinate out of bound" );
+    let coord : Coordinate< System, Orientation > = coord.into();
+    let i : usize = ( coord.r as i64 - self.min[ 1 ] )
+    .try_into()
+    .expect( "Coordinate out of bound" );
+    let j : usize = ( coord.q as i64 - self.min[ 0 ] )
+    .try_into()
+    .expect( "Coordinate out of bound" );
     std::mem::replace( &mut self.data[ ( i, j ) ], Some( value ) )
   }
 
@@ -129,9 +137,13 @@ impl< System, Orientation, T > Grid2D< System, Orientation, Option< T > >
   where
     C : Into< Coordinate< System, Orientation > >,
   {
-    let coord : Coordinate::< System, Orientation > = coord.into();
-    let i : usize = ( coord.r as i64 - self.min[ 1 ] ).try_into().expect( "Coordinate out of bound" );
-    let j : usize = ( coord.q as i64 - self.min[ 0 ] ).try_into().expect( "Coordinate out of bound" );
+    let coord : Coordinate< System, Orientation > = coord.into();
+    let i : usize = ( coord.r as i64 - self.min[ 1 ] )
+    .try_into()
+    .expect( "Coordinate out of bound" );
+    let j : usize = ( coord.q as i64 - self.min[ 0 ] )
+    .try_into()
+    .expect( "Coordinate out of bound" );
     std::mem::take( &mut self.data[ ( i, j ) ] )
   }
 
@@ -141,11 +153,15 @@ impl< System, Orientation, T > Grid2D< System, Orientation, Option< T > >
   /// Panics if the coordinate is out of the grid's bounds.
   pub fn get< C >( &self, coord : C ) -> Option< &T >
   where
-    C : Into< Coordinate< System, Orientation > >
+    C : Into< Coordinate< System, Orientation > >,
   {
-    let coord : Coordinate::< System, Orientation > = coord.into();
-    let i : usize = ( coord.r as i64 - self.min[ 1 ] ).try_into().expect( "Coordinate out of bound" );
-    let j : usize = ( coord.q as i64 - self.min[ 0 ] ).try_into().expect( "Coordinate out of bound" );
+    let coord : Coordinate< System, Orientation > = coord.into();
+    let i : usize = ( coord.r as i64 - self.min[ 1 ] )
+    .try_into()
+    .expect( "Coordinate out of bound" );
+    let j : usize = ( coord.q as i64 - self.min[ 0 ] )
+    .try_into()
+    .expect( "Coordinate out of bound" );
     self.data.get( ( i, j ) ).and_then( | o | o.as_ref() )
   }
 
@@ -155,11 +171,15 @@ impl< System, Orientation, T > Grid2D< System, Orientation, Option< T > >
   /// Panics if the coordinate is out of the grid's bounds.
   pub fn get_mut< C >( &mut self, coord : C ) -> Option< &mut T >
   where
-    C : Into< Coordinate< System, Orientation > >
+    C : Into< Coordinate< System, Orientation > >,
   {
-    let coord : Coordinate::< System, Orientation > = coord.into();
-    let i : usize = ( coord.r as i64 - self.min[ 1 ] ).try_into().expect( "Coordinate out of bound" );
-    let j : usize = ( coord.q as i64 - self.min[ 0 ] ).try_into().expect( "Coordinate out of bound" );
+    let coord : Coordinate< System, Orientation > = coord.into();
+    let i : usize = ( coord.r as i64 - self.min[ 1 ] )
+    .try_into()
+    .expect( "Coordinate out of bound" );
+    let j : usize = ( coord.q as i64 - self.min[ 0 ] )
+    .try_into()
+    .expect( "Coordinate out of bound" );
     self.data.get_mut( ( i, j ) ).and_then( | o | o.as_mut() )
   }
 }
@@ -176,9 +196,13 @@ where
   /// Panics if the coordinate is out of the grid's bounds.
   fn index( &self, index : C ) -> &Self::Output
   {
-    let coord : Coordinate::< System, Orientation > = index.into();
-    let i : usize = ( coord.r as i64 - self.min[ 1 ] ).try_into().expect( "Coordinate out of bound" );
-    let j : usize = ( coord.q as i64 - self.min[ 0 ] ).try_into().expect( "Coordinate out of bound" );
+    let coord : Coordinate< System, Orientation > = index.into();
+    let i : usize = ( coord.r as i64 - self.min[ 1 ] )
+    .try_into()
+    .expect( "Coordinate out of bound" );
+    let j : usize = ( coord.q as i64 - self.min[ 0 ] )
+    .try_into()
+    .expect( "Coordinate out of bound" );
     self.data.index( ( i, j ) )
   }
 }
@@ -193,9 +217,13 @@ where
   /// Panics if the coordinate is out of the grid's bounds.
   fn index_mut( &mut self, index : C ) -> &mut Self::Output
   {
-    let coord : Coordinate::< System, Orientation > = index.into();
-    let i : usize = ( coord.r as i64 - self.min[ 1 ] ).try_into().expect( "Coordinate out of bound" );
-    let j : usize = ( coord.q as i64 - self.min[ 0 ] ).try_into().expect( "Coordinate out of bound" );
+    let coord : Coordinate< System, Orientation > = index.into();
+    let i : usize = ( coord.r as i64 - self.min[ 1 ] )
+    .try_into()
+    .expect( "Coordinate out of bound" );
+    let j : usize = ( coord.q as i64 - self.min[ 0 ] )
+    .try_into()
+    .expect( "Coordinate out of bound" );
     self.data.index_mut( ( i, j ) )
   }
 }
@@ -218,13 +246,12 @@ where
 
 impl< System, Orientation, T > Debug for Grid2D< System, Orientation, T >
 where
-  T : Debug
+  T : Debug,
 {
   /// Formats the grid for debugging purposes.
   fn fmt( &self, f : &mut std::fmt::Formatter< '_ > ) -> std::fmt::Result
   {
-    f
-    .debug_struct( "Grid2D" )
+    f.debug_struct( "Grid2D" )
     .field( "data", &self.data )
     .field( "min", &self.min )
     .field( "_marker", &self._marker )

@@ -542,7 +542,7 @@ mod private
     fonts
   }
 
-  /// Converts a string of text into a vector of `PrimitiveData` meshes.
+  /// Converts text string into a collection of filled mesh primitives using the specified font.
   pub fn text_to_mesh( text : &str, font : &Font, transform : &Transform ) -> Vec< PrimitiveData >
   {
     let mut mesh = vec![]; 
@@ -606,7 +606,7 @@ mod private
     mesh
   }
 
-  /// Converts a string of text into a vector of `PrimitiveData` for the contours of the glyphs.
+  /// Converts text string into outlined contour meshes with specified line width.
   pub fn text_to_countour_mesh( 
     text : &str, 
     font : &Font, 
