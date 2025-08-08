@@ -18,3 +18,6 @@ pub mod pathfind;
 
 #[cfg(feature = "enabled")]
 pub mod layout;
+
+#[cfg(feature = "enabled")]
+pub mod ecs;

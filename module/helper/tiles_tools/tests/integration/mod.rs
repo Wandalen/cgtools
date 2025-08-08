@@ -7,6 +7,7 @@
 
 mod conversion_tests;
 mod coordinates_tests;
+mod ecs_tests;
 mod isometric_coords_tests;
 mod square_coords_tests;
 mod triangular_coords_tests;

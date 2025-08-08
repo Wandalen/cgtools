@@ -94,6 +94,14 @@ cargo doc --open              # Review current API
 - ✅ Type-safe coordinate system prevents mixing errors
 - ✅ Serde serialization support across all systems
 
+---
+
+## Current Phase: Phase 3 - ECS Integration 🚧
+
+**Duration:** 4 weeks  
+**Status:** ✅ Started - Building entity-component-system foundation  
+**Goal:** HECS-based ECS with grid-aware components and systems
+
 ### Definition of Done
 
 **Code Quality:**
