@@ -14,7 +14,7 @@ documentation = "https://docs.rs/vectorizer"
 description = "High-quality raster to vector image conversion with SVG output and command-line interface"
 readme = "readme.md"
 keywords = ["vectorizer", "svg", "image", "raster", "conversion"]
-categories = ["multimedia::images", "graphics", "command-line-utilities"]
+categories = ["multimedia", "graphics", "command-line-utilities"]
 include = [
     "src/**/*",
     "tests/**/*",
