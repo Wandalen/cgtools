@@ -2,9 +2,26 @@
 name = "minwebgpu"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.75.0"
 authors = [
   "Kostiantyn Mysnyk <wandalen@obox.systems>",
   "Avramenko Yevhenii <yevhenii.av@obox.systems>"
+]
+license = "MIT"
+repository = "https://github.com/Wandalen/cgtools"
+homepage = "https://github.com/Wandalen/cgtools/tree/master/module/min/minwebgpu"
+documentation = "https://docs.rs/minwebgpu"
+description = "Minimal WebGPU toolkit for modern graphics programming with compute shaders and rendering pipelines"
+readme = "readme.md"
+keywords = ["webgpu", "graphics", "minimal", "wasm", "compute"]
+categories = ["graphics", "web-programming", "rendering", "wasm"]
+include = [
+    "src/**/*",
+    "tests/**/*",
+    "Cargo.toml",
+    "readme.md",
+    "license*",
+    "changelog*",
 ]
 
 
@@ -157,3 +174,25 @@ web-sys = { workspace = true, optional = true, features = [
   'gpu_color_write',
   'gpu_buffer_usage',
 ]}
+
+[dev-dependencies]
+test_tools = { workspace = true }
+
+# Metadata for crates.io
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+default-target = "wasm32-unknown-unknown"
+targets = [
+    "wasm32-unknown-unknown",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+    "x86_64-apple-darwin",
+]
+
+# Cargo.toml maintenance metadata
+[package.metadata.release]
+pre-release-replacements = [
+    { file = "readme.md", search = "minwebgpu = \"[0-9.]+\"", replace = "minwebgpu = \"{{version}}\"" },
+    { file = "changelog.md", search = "## Unreleased", replace = "## Unreleased\n\n## {{version}} - {{date}}" },
+]

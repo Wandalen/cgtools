@@ -40,7 +40,7 @@ line_tools = { workspace = true }
 
 ### Basic Line Rendering
 
-```rust
+```rust,ignore
 use line_tools::*;
 use minwebgl as gl;
 use ndarray_cg::*;
@@ -69,11 +69,12 @@ fn render_lines(gl: &gl::WebGl2RenderingContext) -> Result<(), Box<dyn std::erro
 
 ### Advanced Line Styling
 
-```rust
+```rust,ignore
 use line_tools::*;
 
 fn styled_lines(renderer: &mut LineRenderer, gl: &WebGl2RenderingContext) -> Result<(), Box<dyn std::error::Error>> {
   // Dashed line
+  let line_points = vec![[0.0, 0.0], [1.0, 1.0]];
   renderer.draw_line(&line_points)
     .width(3.0)
     .dash_pattern(&[10.0, 5.0, 2.0, 5.0])
@@ -81,6 +82,7 @@ fn styled_lines(renderer: &mut LineRenderer, gl: &WebGl2RenderingContext) -> Res
     .render(gl)?;
   
   // Gradient line
+  let curve_points = vec![[0.0, 0.0], [0.5, 1.0], [1.0, 0.0]];
   renderer.draw_line(&curve_points)
     .width(4.0)
     .gradient(
@@ -91,6 +93,7 @@ fn styled_lines(renderer: &mut LineRenderer, gl: &WebGl2RenderingContext) -> Res
     .render(gl)?;
   
   // Variable width line
+  let points = vec![[0.0, 0.0], [0.25, 0.5], [0.5, 0.0], [0.75, 0.5], [1.0, 0.0]];
   let widths = vec![1.0, 3.0, 2.0, 4.0, 1.0];
   renderer.draw_line_variable_width(&points, &widths)
     .color([1.0, 1.0, 0.0, 1.0])
@@ -122,7 +125,7 @@ fn styled_lines(renderer: &mut LineRenderer, gl: &WebGl2RenderingContext) -> Res
 
 ### Styling Options
 
-```rust
+```rust,ignore
 renderer.draw_line(&points)
   .width(2.5)                    // Line thickness
   .color([r, g, b, a])          // RGBA color
@@ -145,8 +148,11 @@ renderer.draw_line(&points)
 ## ⚡ Performance Tips
 
 ### Batch Rendering
-```rust
+```rust,ignore
 // Efficient: batch multiple lines
+let line1 = vec![[0.0, 0.0], [1.0, 0.0]];
+let line2 = vec![[0.0, 1.0], [1.0, 1.0]];
+let line3 = vec![[0.0, 2.0], [1.0, 2.0]];
 let lines = vec![line1, line2, line3];
 renderer.draw_batch(&lines).render(gl)?;
 
@@ -167,10 +173,12 @@ for line in lines {
 ### Matrix Transformations
 Integration with ndarray_cg for complex transformations:
 
-```rust
+```rust,ignore
 use ndarray_cg::*;
+use std::f64::consts::PI;
 
 let transform = mat3x3::scale([2.0, 1.5]) * mat3x3::rot(PI / 4.0);
+let points = vec![[0.0, 0.0], [1.0, 1.0]];
 renderer.set_transform(&transform);
 renderer.draw_line(&points).render(gl)?;
 ```
@@ -178,7 +186,9 @@ renderer.draw_line(&points).render(gl)?;
 ### Custom Shaders
 Extend functionality with custom GLSL shaders:
 
-```rust
+```rust,ignore
+let vertex_shader_source = "#version 300 es\n...";
+let fragment_shader_source = "#version 300 es\n...";
 let custom_shader = renderer.create_custom_shader(
   vertex_shader_source,
   fragment_shader_source

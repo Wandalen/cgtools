@@ -1,111 +1,83 @@
-# Canvas renderer
+# canvas_renderer
 
-A Rust crate designed for offscreen WebGL2 rendering of 2D graphics. The `CanvasRenderer` provides a dedicated system for drawing objects such as text, curves, and 2D shapes, encapsulating them within a `Scene` object. Instead of rendering directly to the screen, it outputs the result to a texture, which can then be used as a dynamic texture on a 3D object within a larger WebGL scene. This is ideal for creating interactive interfaces, information displays, or other dynamic 2D elements within a 3D environment.
+2D canvas renderer for WebGL applications with framebuffer rendering and 3D scene support.
+
+[![Crates.io](https://img.shields.io/crates/v/canvas_renderer.svg)](https://crates.io/crates/canvas_renderer)
+[![Documentation](https://docs.rs/canvas_renderer/badge.svg)](https://docs.rs/canvas_renderer)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+## Features
+
+- **Canvas Rendering**: High-performance 2D canvas rendering for WebGL applications
+- **Framebuffer Support**: Render to texture capabilities with WebGL framebuffers
+- **3D Scene Integration**: Support for rendering 3D scenes to 2D canvas output
+- **WebAssembly Optimized**: Designed specifically for WASM environments
+- **Modular Design**: Clean API with optional feature flags
 
 ## Installation
 
-Add this to your `Cargo.toml` file:
+Add this to your `Cargo.toml`:
 
-```
+```toml
 [dependencies]
 canvas_renderer = "0.1.0"
 ```
 
+For full functionality, enable the `full` feature:
+
+```toml
+[dependencies]
+canvas_renderer = { version = "0.1.0", features = ["full"] }
+```
+
 ## Features
 
-  * **Specialized 2D Rendering:** A dedicated renderer for drawing a variety of 2D objects, including text and vector shapes.
-
-  * **Offscreen Rendering to Texture:** Renders the 2D scene directly to a WebGL texture, enabling dynamic content to be seamlessly integrated into a 3D world.
-
-  * **Scene Integration:** Designed to work with a scene graph based on `Node` and `Object3D` types, allowing for structured scene management and the integration of 2D and 3D elements.
-
-  * **Shader Uniforms:** Automatically handles uploading `worldMatrix`, `viewMatrix`, and `projectionMatrix` to the shader program.
+- `enabled` (default): Core canvas rendering functionality
+- `full`: All features enabled
 
 ## Usage
 
-Here is a conceptual example demonstrating how to initialize and use the `CanvasRenderer`. This example shows how to render a 2D scene to a texture, and then use that texture on a 3D object in your main scene, which is rendered by a `Renderer`.
+### Basic Canvas Rendering
 
-```
+```rust
 use canvas_renderer::renderer::CanvasRenderer;
-use minwebgl as gl;
-use renderer::webgl::{ Camera, Node, Scene, Renderer, Texture, TextureInfo, Material, TextureSource };
-use std::rc::Rc;
-use std::cell::RefCell;
 
-fn set_texture
-( 
-  node : &Rc< RefCell< Node > >,
-  mut material_callback : impl FnMut( &mut Material ) 
-)
-{
-  if let Object3D::Mesh( ref mesh ) = &node.borrow().object
-  {
-    for p in &mesh.borrow().primitives
-    {
-      material_callback( &mut p.borrow().material.borrow_mut() );
-    }
-  }
-}
+// Initialize the renderer
+let renderer = CanvasRenderer::new(canvas_element)?;
 
-fn setup_and_render( gl : &gl::GL ) -> Result< (), gl::WebglError > 
-{
-  let width = 800;
-  let height = 600;
-
-  // --- 1. Set up and render the content for the offscreen canvas ---
-
-  // Create the CanvasRenderer and get its initial output texture
-  let canvas_renderer = CanvasRenderer::new( &gl, width, height )?;
-  let canvas_texture_handle = canvas_renderer.get_texture();
-
-  // In a real application, you would populate `canvas_scene` with 2D elements.
-  let mut canvas_scene = Scene::new();
-  let canvas_camera = Camera::new();
-  let colors = &[]; // Colors for the 2D elements.
-
-  // Render the 2D scene to the CanvasRenderer's texture.
-  canvas_renderer.render( &gl, &mut canvas_scene, &canvas_camera, colors )?;
-
-  // --- 2. Set up the main 3D scene and use the offscreen texture ---
-
-  // Create the main Renderer for the final output
-  let mut main_renderer = Renderer::new( &gl, width, height, 4 )?;
-
-  // For this example, we assume that setup_scene returns 
-  // complete `Scene` struct with 3D objects.
-  let mut main_scene = setup_scene();
-
-  // Object for that you want change texture 
-  let object = main_scene.borrow().children.get( 0 ).unwrap().clone();
-
-  // Create a new `Texture` and set its source to the texture from the CanvasRenderer.
-  let canvas_texture = Texture::former()
-  .source( TextureSource::Texture( canvas_texture_handle ) )
-  .end();
-
-  set_texture
-  ( 
-    &object, 
-    | m | 
-    { 
-      m.base_color_texture.as_mut()
-      .map
-      ( 
-        | t | 
-        {
-          let texture = t.texture.borrow().clone();
-          t.texture = Rc::new( RefCell::new( texture ) );
-          t.texture.borrow_mut().source = Some( canvas_texture.clone() );
-        } 
-      ); 
-      m.alpha_mode = renderer::webgl::AlphaMode::Blend;
-    } 
-  );
-
-  // Set up the main camera and render the final scene.
-  let main_camera = Camera::new();
-  main_renderer.render( &gl, &mut main_scene, &main_camera )?;
-
-  Ok( () )
-}
+// Render your content
+renderer.render_to_canvas(texture, width, height)?;
 ```
+
+### Framebuffer Rendering
+
+```rust
+// Render 3D scene to framebuffer
+let framebuffer = renderer.create_framebuffer(width, height)?;
+renderer.render_scene_to_framebuffer(&scene, &framebuffer)?;
+
+// Convert framebuffer to 2D canvas
+renderer.framebuffer_to_canvas(&framebuffer)?;
+```
+
+## Platform Support
+
+This crate is designed for WebAssembly environments and supports:
+
+- `wasm32-unknown-unknown` (primary target)
+- Native builds for development and testing
+
+## Dependencies
+
+- `minwebgl`: WebGL context management and utilities
+- `mingl`: Mathematics and 3D graphics utilities
+- `renderer`: Core rendering functionality
+- `web-sys`: Browser API bindings
+
+## License
+
+Licensed under the MIT License. See [LICENSE](license) file for details.
+
+## Contributing
+
+Contributions are welcome! Please see the [repository](https://github.com/Wandalen/cgtools) for contribution guidelines.

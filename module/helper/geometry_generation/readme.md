@@ -1,44 +1,110 @@
-# Geometry generation
+# geometry_generation
 
-The `geometry_generation` crate is a powerful tool for programmatically creating 3D geometry from abstract data and converting it into a renderable GLTF scene graph. It includes modules for handling 3D primitives, curves, and text, making it ideal for on-the-fly geometry creation in graphics applications.
+3D geometry generation toolkit with primitives, text rendering, and procedural shape creation.
 
------
+[![Crates.io](https://img.shields.io/crates/v/geometry_generation.svg)](https://crates.io/crates/geometry_generation)
+[![Documentation](https://docs.rs/geometry_generation/badge.svg)](https://docs.rs/geometry_generation)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## How It Works
+## Features
 
-This crate is structured into three main layers: `text`, `primitive`, and `primitive_data`.
+- **3D Primitives**: Generate spheres, cubes, cylinders, and other basic shapes
+- **Text Rendering**: Convert text to 3D geometry with font support
+- **Procedural Generation**: Create complex shapes algorithmically
+- **CSG Operations**: Constructive Solid Geometry for shape combinations
+- **Font Processing**: Advanced typography and text layout capabilities
+- **glTF Import**: Load and process 3D models from glTF files
+- **WebAssembly Ready**: Optimized for browser environments
 
-  * **`primitive_data`:** This is the core module that defines the foundational data structures for 3D geometry. It includes `Transform` for manipulating an object's position, rotation, and scale, and `PrimitiveData` for storing vertex attributes and indices. The key function here is `primitives_data_to_gltf`, which takes a collection of `PrimitiveData` and builds a complete `GLTF` scene. This GLTF object is ready to be rendered by a WebGL renderer, as it includes all the necessary buffers, geometries, and scene nodes.
-  * **`primitive`:** This layer contains functions for generating `PrimitiveData` from higher-level abstractions. A notable function is `curve_to_geometry`, which takes a 2D curve and converts it into a 3D polygonal representation (a series of rectangles) with a specified thickness. This allows you to easily render 2D shapes in a 3D scene.
-  * **`text`:** This module is designed for handling font loading and converting text into a 3D mesh. It includes a sub-module for processing `.ufo` font files. This functionality is crucial for dynamic text rendering in a 3D environment, such as creating labels, titles, or other text-based UI elements.
+## Installation
 
------
+Add this to your `Cargo.toml`:
 
-## How to Use It
-
-The primary use case for this crate is to create renderable 3D geometry from a variety of sources. Here is a simple example of how to create a 3D curve and a GLTF scene from it:
-
-1.  **Generate `PrimitiveData` for the curve.**
-
-Use the `curve_to_geometry` function to create a `PrimitiveData` object from a list of 2D points.
-
-```rust
-use geometry_generation::primitive::curve_to_geometry;
-
-let points = [ [ 0.0, 0.0 ], [ 1.0, 1.0 ], [ 2.0, 0.0 ] ];
-let curve_primitive = curve_to_geometry( &points, 0.1 );
+```toml
+[dependencies]
+geometry_generation = "0.1.0"
 ```
 
-2.  **Convert `PrimitiveData` to a GLTF scene.**
+For full functionality, enable all features:
 
-Pass the generated `PrimitiveData` to `primitives_data_to_gltf` to create a `GLTF` object that can be rendered.
-
-```rust
-use geometry_generation::primitive_data::primitives_data_to_gltf;
-use renderer::webgl::loaders::gltf::GLTF;
-
-// `gl` is a WebGL2RenderingContext instance
-let gltf_scene: GLTF = primitives_data_to_gltf( &gl, vec![ curve_primitive.unwrap() ] );
+```toml
+[dependencies]
+geometry_generation = { version = "0.1.0", features = ["full"] }
 ```
 
-This `gltf_scene` can now be used with a compatible renderer to display the curve in your WebGL application. The same pattern applies to text and other primitives, providing a flexible and powerful way to generate dynamic content.
+## Features
+
+- `enabled` (default): Core geometry generation functionality
+- `full`: All features enabled
+- `csg`: Constructive Solid Geometry operations
+- `text`: Text rendering and font processing
+- `font-processing`: Advanced font processing features
+- `gltf-import`: glTF model loading support
+- `random`: Random geometry generation
+
+## Usage
+
+### Basic Primitive Generation
+
+```rust
+use geometry_generation::primitive::{Sphere, Cube, PrimitiveData};
+
+// Generate a sphere
+let sphere = Sphere::new(1.0, 32, 16);
+let sphere_data = sphere.generate();
+
+// Generate a cube
+let cube = Cube::new(2.0, 2.0, 2.0);
+let cube_data = cube.generate();
+
+// Access vertex data
+println!("Vertices: {:?}", sphere_data.positions);
+println!("Normals: {:?}", sphere_data.normals);
+println!("UVs: {:?}", sphere_data.uvs);
+```
+
+### Text to 3D Geometry
+
+```rust
+// Requires "text" feature
+use geometry_generation::text::TextMesh;
+
+let text_mesh = TextMesh::new("Hello World", font_data)?;
+let geometry = text_mesh.generate_3d(extrusion_depth)?;
+```
+
+### CSG Operations
+
+```rust
+// Requires "csg" feature
+use geometry_generation::csg::{union, intersection, difference};
+
+let result = union(&cube_mesh, &sphere_mesh)?;
+let carved = difference(&cube_mesh, &sphere_mesh)?;
+```
+
+## Platform Support
+
+This crate supports multiple platforms:
+
+- `wasm32-unknown-unknown` (WebAssembly)
+- `x86_64-unknown-linux-gnu`
+- `x86_64-pc-windows-msvc`
+- `x86_64-apple-darwin`
+
+## Dependencies
+
+- `minwebgl`: WebGL context management
+- `mingl`: 3D mathematics utilities
+- `renderer`: Core rendering support
+- `gltf`: 3D model loading (optional)
+- `csgrs`: CSG operations (optional)
+- `kurbo`: Vector graphics (optional)
+
+## License
+
+Licensed under the MIT License. See [LICENSE](license) file for details.
+
+## Contributing
+
+Contributions are welcome! Please see the [repository](https://github.com/Wandalen/cgtools) for contribution guidelines.

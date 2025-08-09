@@ -100,6 +100,7 @@ impl World
     self.hecs_world.query_mut::< Q >()
   }
 
+
   /// Gets a component from a specific entity.
   pub fn get< T : hecs::Component >( &self, entity : hecs::Entity ) -> Result< hecs::Ref< '_, T >, hecs::ComponentError >
   {

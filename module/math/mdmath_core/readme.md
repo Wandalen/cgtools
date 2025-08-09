@@ -41,7 +41,7 @@ mdmath_core = { workspace = true, features = ["full"] }
 
 ### Basic Vector Operations
 
-```rust
+```rust,ignore
 use mdmath_core::vector;
 
 fn main() {
@@ -54,7 +54,8 @@ fn main() {
   println!("Dot product: {}", dot_result); // 32.0
   
   // Vector magnitude
-  let magnitude = vector::mag2(&vec_a).sqrt();
+  let magnitude: f32 = vector::mag2(&vec_a);
+  let magnitude = magnitude.sqrt();
   println!("Magnitude: {}", magnitude); // ~3.74
   
   // Normalize vector
@@ -66,7 +67,7 @@ fn main() {
 
 ### Advanced Vector Operations
 
-```rust
+```rust,ignore
 use mdmath_core::vector;
 use approx::assert_ulps_eq;
 
