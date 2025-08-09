@@ -163,7 +163,7 @@ version = "~0.3.0"
 path = "module/min/mingl"
 
 [workspace.dependencies.minwebgl]
-version = "~0.2.0"
+version = "~0.3.0"
 path = "module/min/minwebgl"
 
 [workspace.dependencies.minwebgpu]
