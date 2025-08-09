@@ -2,7 +2,9 @@
 mod private 
 {
   use crate::*;
+  #[ cfg( feature = "serialization" ) ]
   use serde_with::DisplayFromStr;
+  #[ cfg( feature = "serialization" ) ]
   use serde;
   use derive_tools::AsRefStr;
 

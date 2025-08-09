@@ -1,5 +1,7 @@
 //! Vector graphics processing and conversion utilities.
+#![ doc( html_root_url = "https://docs.rs/vectorizer/latest/vectorizer/" ) ]
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
+#![ cfg_attr( not( doc ), doc = "Converts raster into vector images" ) ]
 
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::as_conversions)]
@@ -28,6 +30,7 @@ mod private {}
   own use ::mod_interface::mod_interface;
   own use ::visioncortex;
   own use ::palette;
+  #[ cfg( feature = "random" ) ]
   own use ::fastrand;
   
   reuse ::error_tools as error;
