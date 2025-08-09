@@ -37,11 +37,12 @@ web-sys = "0.3"
 use minwebgl as gl;
 use wasm_bindgen::prelude::*;
 
-#[wasm_bindgen(start)]
-pub fn main() -> Result<(), JsValue> {
+#[ wasm_bindgen( start ) ]
+pub fn main() -> Result< (), JsValue >
+{
   // Create canvas and WebGL context
   let canvas = gl::canvas::make()?;
-  let gl_context = gl::context::from_canvas(&canvas)?;
+  let gl_context = gl::context::from_canvas( &canvas )?;
   
   // Vertex shader
   let vertex_src = r#"

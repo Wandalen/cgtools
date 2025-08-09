@@ -142,22 +142,25 @@ Complex effects require multiple rendering passes:
 
 ```rust
 // Multi-pass filter implementation
-struct MultiPassFilter {
-  pass1_shader: WebGlProgram,
-  pass2_shader: WebGlProgram,
-  intermediate_framebuffer: WebGlFramebuffer,
-  intermediate_texture: WebGlTexture,
+struct MultiPassFilter
+{
+  pass1_shader : WebGlProgram,
+  pass2_shader : WebGlProgram,
+  intermediate_framebuffer : WebGlFramebuffer,
+  intermediate_texture : WebGlTexture,
 }
 
-impl MultiPassFilter {
-  fn apply(&mut self, input_texture: &WebGlTexture) -> WebGlTexture {
+impl MultiPassFilter
+{
+  fn apply( &mut self, input_texture : &WebGlTexture ) -> WebGlTexture
+  {
     // Pass 1: Horizontal blur
     self.bind_intermediate_framebuffer();
-    self.render_with_shader(&self.pass1_shader, input_texture);
+    self.render_with_shader( &self.pass1_shader, input_texture );
     
     // Pass 2: Vertical blur using intermediate result
     self.bind_main_framebuffer();
-    self.render_with_shader(&self.pass2_shader, &self.intermediate_texture);
+    self.render_with_shader( &self.pass2_shader, &self.intermediate_texture );
     
     self.get_result_texture()
   }
@@ -293,18 +296,21 @@ void main() {
 ```rust
 // Separable filter optimization (Gaussian blur)
 // Instead of 2D convolution O(n²), use two 1D passes O(2n)
-struct SeparableBlurFilter {
-  horizontal_pass: WebGlProgram,
-  vertical_pass: WebGlProgram,
+struct SeparableBlurFilter
+{
+  horizontal_pass : WebGlProgram,
+  vertical_pass : WebGlProgram,
 }
 
-impl SeparableBlurFilter {
-  fn apply_blur(&mut self, input: &WebGlTexture, radius: f32) {
+impl SeparableBlurFilter
+{
+  fn apply_blur( &mut self, input : &WebGlTexture, radius : f32 )
+  {
     // Pass 1: Horizontal blur
-    let intermediate = self.horizontal_blur(input, radius);
+    let intermediate = self.horizontal_blur( input, radius );
     
     // Pass 2: Vertical blur on result
-    self.vertical_blur(&intermediate, radius)
+    self.vertical_blur( &intermediate, radius )
   }
 }
 ```
@@ -329,14 +335,16 @@ impl SeparableBlurFilter {
 
 ```rust
 // Define new filter parameters
-struct CustomFilterParams {
-  intensity: f32,
-  color_shift: [f32; 3],
-  noise_level: f32,
+struct CustomFilterParams
+{
+  intensity : f32,
+  color_shift : [ f32; 3 ],
+  noise_level : f32,
 }
 
 // Implement filter logic
-fn create_custom_filter_shader() -> String {
+fn create_custom_filter_shader() -> String
+{
   r#"
     #version 300 es
     precision mediump float;
@@ -374,22 +382,27 @@ fn create_custom_filter_shader() -> String {
 
 ```rust
 // Parameter binding for real-time control
-struct FilterParameters {
-  sliders: HashMap<String, f32>,
-  checkboxes: HashMap<String, bool>,
-  color_pickers: HashMap<String, [f32; 3]>,
+struct FilterParameters
+{
+  sliders : HashMap< String, f32 >,
+  checkboxes : HashMap< String, bool >,
+  color_pickers : HashMap< String, [ f32; 3 ] >,
 }
 
-impl FilterParameters {
-  fn bind_to_shader(&self, program: &WebGlProgram, gl: &WebGl2RenderingContext) {
-    for (name, value) in &self.sliders {
-      let location = gl.get_uniform_location(program, name);
-      gl.uniform1f(location.as_ref(), *value);
+impl FilterParameters
+{
+  fn bind_to_shader( &self, program : &WebGlProgram, gl : &WebGl2RenderingContext )
+  {
+    for ( name, value ) in &self.sliders
+    {
+      let location = gl.get_uniform_location( program, name );
+      gl.uniform1f( location.as_ref(), *value );
     }
     
-    for (name, color) in &self.color_pickers {
-      let location = gl.get_uniform_location(program, name);
-      gl.uniform3f(location.as_ref(), color[0], color[1], color[2]);
+    for ( name, color ) in &self.color_pickers
+    {
+      let location = gl.get_uniform_location( program, name );
+      gl.uniform3f( location.as_ref(), color[ 0 ], color[ 1 ], color[ 2 ] );
     }
   }
 }
@@ -418,10 +431,11 @@ impl FilterParameters {
 ### Debug Techniques
 ```rust
 // Visualize intermediate results
-fn debug_render_intermediate(&self, texture: &WebGlTexture) {
+fn debug_render_intermediate( &self, texture : &WebGlTexture )
+{
   // Render intermediate texture to screen corner
-  let debug_viewport = Rect::new(0, 0, 200, 200);
-  self.render_texture_to_viewport(texture, debug_viewport);
+  let debug_viewport = Rect::new( 0, 0, 200, 200 );
+  self.render_texture_to_viewport( texture, debug_viewport );
 }
 ```
 

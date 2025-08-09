@@ -1,8 +1,13 @@
 # 🎨 CGTools - Web-First Computer Graphics Toolkit
 
+[![CI](https://github.com/Wandalen/cgtools/workflows/CI/badge.svg)](https://github.com/Wandalen/cgtools/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Rust](https://img.shields.io/badge/rust-1.75%2B-blue.svg)](https://www.rust-lang.org)
+[![WASM](https://img.shields.io/badge/WebAssembly-Ready-brightgreen)](https://webassembly.org/)
+
 > **Modern, performant computer graphics tools built for the web platform**
 
-CGTools is a comprehensive Rust-based toolkit for computer graphics programming, specifically designed for WebAssembly and web deployment. It provides everything you need to build interactive graphics applications, games, and visualizations that run natively in the browser.
+CGTools is a comprehensive Rust-based toolkit for computer graphics programming, specifically designed for WebAssembly and web deployment. It provides everything you need to build interactive graphics applications, games, and visualizations that run natively in the browser with near-native performance.
 
 ![Abstract Art](./assets/primitives.jpg)
 
@@ -35,8 +40,9 @@ CGTools is a comprehensive Rust-based toolkit for computer graphics programming,
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Rust 1.70+ with WebAssembly target: `rustup target add wasm32-unknown-unknown`
-- Web server for serving examples (Python: `python -m http.server`)
+- **Rust 1.75+** with WebAssembly target: `rustup target add wasm32-unknown-unknown`
+- **Web server** for serving examples: `python -m http.server` or `npx serve`
+- **Optional**: `wasm-pack` for building WebAssembly modules: `cargo install wasm-pack`
 
 ### Try an Example
 ```bash
@@ -60,17 +66,46 @@ ndarray_cg = "0.3"      # Computer graphics math
 browser_input = "0.1"   # Input handling
 ```
 
-## 📦 Core Modules
+## 📦 Core Library Crates
 
-| Module | Description | Use Cases |
-|--------|-------------|-----------|
-| **`minwebgl`** | WebGL 2.0 wrapper and utilities | 3D rendering, shaders, textures |
-| **`minwebgpu`** | WebGPU bindings and abstractions | Modern compute and graphics |
-| **`tiles_tools`** | Tile-based game engine components | Grid games, pathfinding, FOV |
-| **`ndarray_cg`** | N-dimensional arrays for graphics | Matrix math, transformations |
-| **`browser_input`** | Web input event handling | Mouse, keyboard, touch input |
-| **`renderer`** | High-level rendering abstractions | Scene graphs, lighting |
-| **`vectorizer`** | Vector graphics tools | SVG generation, path tracing |
+### 🎮 **Game Development**
+| Crate | Version | Description | Features |
+|-------|---------|-------------|----------|
+| **[`tiles_tools`](./module/helper/tiles_tools)** | `0.1.0` | Complete tile-based game toolkit | Hex/Square grids, A* pathfinding, ECS, FOV |
+
+### 🎨 **Graphics & Rendering**
+| Crate | Version | Description | Features |
+|-------|---------|-------------|----------|
+| **[`minwebgl`](./module/min/minwebgl)** | `0.2.0` | Minimal WebGL 2.0 toolkit | Shaders, textures, geometry, utilities |
+| **[`minwebgpu`](./module/min/minwebgpu)** | `0.1.0` | Minimal WebGPU toolkit | Compute shaders, modern graphics pipeline |
+| **[`renderer`](./module/helper/renderer)** | `0.1.0` | High-level 3D rendering system | Scene graphs, PBR, deferred shading |
+| **[`line_tools`](./module/helper/line_tools)** | `0.1.0` | High-performance line rendering | Anti-aliasing, batch processing |
+| **[`canvas_renderer`](./module/helper/canvas_renderer)** | `0.1.0` | 2D canvas rendering utilities | Sprites, shapes, image processing |
+
+### 🧮 **Mathematics**  
+| Crate | Version | Description | Features |
+|-------|---------|-------------|----------|
+| **[`ndarray_cg`](./module/math/ndarray_cg)** | `0.3.0` | Computer graphics mathematics | Vectors, matrices, quaternions |
+| **[`mdmath_core`](./module/math/mdmath_core)** | `0.3.0` | Multidimensional math core | N-dimensional operations, indexing |
+
+### 🌐 **Web Integration**
+| Crate | Version | Description | Features |
+|-------|---------|-------------|----------|
+| **[`browser_input`](./module/helper/browser_input)** | `0.1.0` | Ergonomic input handling | Keyboard, mouse, touch events |
+| **[`browser_log`](./module/helper/browser_log)** | `0.3.0` | WebAssembly logging utilities | Console integration, panic handling |
+
+### 🛠️ **Specialized Tools**
+| Crate | Version | Description | Features |
+|-------|---------|-------------|----------|
+| **[`geometry_generation`](./module/helper/geometry_generation)** | `0.1.0` | 3D geometry and text processing | Mesh generation, font parsing |
+| **[`embroidery_tools`](./module/helper/embroidery_tools)** | `0.1.0` | Embroidery pattern tools | PES/PEC format support |
+| **[`vectorizer`](./module/helper/vectorizer)** | `0.1.0` | Raster to vector conversion | SVG output, CLI interface |
+
+### 📦 **Convenience Aliases**
+| Crate | Version | Description |
+|-------|---------|-------------|
+| **[`browser_tools`](./module/alias/browser_tools)** | `0.2.0` | Browser development convenience package |
+| **[`ndarray_tools`](./module/alias/ndarray_tools)** | `0.1.0` | Mathematics convenience package |
 
 ## 🎮 Examples & Demos
 
@@ -109,15 +144,31 @@ CGTools follows a modular, web-first architecture:
 
 ### Building the Workspace
 ```bash
-# Test all crates
+# Test all library crates
 cargo test --workspace
 
-# Build for web (specific example)
-cd examples/minwebgl/trivial
-wasm-pack build --target web
+# Check all crates compile
+cargo check --workspace
 
-# Run with optimizations
-cargo build --release --target wasm32-unknown-unknown
+# Build individual crate for publishing
+cargo build -p tiles_tools --release
+
+# Build WebAssembly examples
+cd examples/minwebgl/trivial
+wasm-pack build --target web --out-dir pkg
+
+# Optimize for production
+RUSTFLAGS='-C target-feature=+simd128' cargo build --release --target wasm32-unknown-unknown
+```
+
+### Publishing Crates
+Each crate is publishing-ready with comprehensive metadata:
+```bash
+# Validate before publishing
+cargo publish --dry-run -p tiles_tools
+
+# Publish to crates.io
+cargo publish -p tiles_tools
 ```
 
 ### Adding New Features
@@ -128,10 +179,10 @@ cargo build --release --target wasm32-unknown-unknown
 
 ## 📚 Documentation
 
-- **[API Documentation](https://docs.rs/cgtools)** - Complete API reference
-- **[Examples](./examples/)** - Interactive demos and tutorials  
-- **[Architecture Guide](./docs/architecture.md)** - Design principles and patterns
-- **[WebAssembly Integration](./docs/wasm.md)** - Web deployment guide
+- **[API Documentation](https://docs.rs/)** - Complete API reference for all crates
+- **[Interactive Examples](./examples/)** - 30+ WebGL/WebGPU demos and tutorials  
+- **[Crate Documentation](https://docs.rs/tiles_tools)** - Individual crate documentation
+- **[WebAssembly Guide](./examples/readme.md)** - Web deployment and optimization
 
 ## 🤝 Contributing
 

@@ -2,11 +2,39 @@
 
 resolver = "2"
 members = [
-  "module/alias/*",
-  "module/blank/*",
-  "module/min/*",
-  "module/helper/*",
-  "module/math/*",
+  # Alias modules
+  "module/alias/browser_tools",
+  "module/alias/ndarray_tools",
+  
+  # Blank modules
+  "module/blank/cg_tools",
+  "module/blank/cgtools",
+  "module/blank/mdmath",
+  "module/blank/mdmath_ai",
+  "module/blank/mdmath_cg",
+  "module/blank/mdmath_linalg",
+  
+  # Min modules
+  "module/min/mingl",
+  "module/min/minwebgl", 
+  "module/min/minwebgpu",
+  
+  # Helper modules (excluding incomplete tilemap_renderer and problematic vectorizer)
+  "module/helper/browser_input",
+  "module/helper/browser_log",
+  "module/helper/canvas_renderer",
+  "module/helper/embroidery_tools",
+  "module/helper/geometry_generation",
+  "module/helper/line_tools",
+  "module/helper/renderer",
+  "module/helper/tiles_tools",
+  # "module/helper/vectorizer", # TODO: Fix feature gate issues
+  
+  # Math modules
+  "module/math/mdmath_core",
+  "module/math/ndarray_cg",
+  
+  # Examples
   "examples/minwebgl/*",
   "examples/minwebgpu/*",
   "examples/math/*"

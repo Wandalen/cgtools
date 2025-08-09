@@ -97,6 +97,7 @@
 //! ```rust
 //! use tiles_tools::pathfind::astar;
 //! use tiles_tools::coordinates::square::{Coordinate as SquareCoord, EightConnected};
+//! use tiles_tools::coordinates::Distance;
 //! 
 //! // Dynamic obstacle system
 //! struct GameState {

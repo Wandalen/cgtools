@@ -68,19 +68,20 @@ Raycasting creates a 3D perspective from a 2D map by casting rays from the playe
 
 ```rust
 // Cast rays across the screen width
-for x in 0..screen_width {
+for x in 0..screen_width
+{
   // Calculate ray direction
   let camera_x = 2.0 * x as f32 / screen_width as f32 - 1.0;
   let ray_dir = player_dir + camera_plane * camera_x;
   
   // Perform DDA to find wall intersection
-  let hit = cast_ray(player_pos, ray_dir, &world_map);
+  let hit = cast_ray( player_pos, ray_dir, &world_map );
   
   // Calculate wall height based on distance
   let wall_height = screen_height as f32 / hit.distance;
   
   // Draw vertical line for this ray
-  draw_wall_slice(x, wall_height, hit.texture, hit.tex_x);
+  draw_wall_slice( x, wall_height, hit.texture, hit.tex_x );
 }
 ```
 
@@ -89,52 +90,67 @@ for x in 0..screen_width {
 The **Digital Differential Analyzer** efficiently traverses the grid:
 
 ```rust
-fn cast_ray(start: Vec2, direction: Vec2, map: &WorldMap) -> RayHit {
+fn cast_ray( start : Vec2, direction : Vec2, map : &WorldMap ) -> RayHit
+{
   // Which grid cell we're in
   let mut map_x = start.x as i32;
   let mut map_y = start.y as i32;
   
   // Calculate delta distances
-  let delta_dist_x = (1.0 / direction.x).abs();
-  let delta_dist_y = (1.0 / direction.y).abs();
+  let delta_dist_x = ( 1.0 / direction.x ).abs();
+  let delta_dist_y = ( 1.0 / direction.y ).abs();
   
   // Calculate step direction and initial side_dist
-  let (step_x, mut side_dist_x) = if direction.x < 0.0 {
-    (-1, (start.x - map_x as f32) * delta_dist_x)
-  } else {
-    (1, (map_x as f32 + 1.0 - start.x) * delta_dist_x)
+  let ( step_x, mut side_dist_x ) = if direction.x < 0.0
+  {
+    ( -1, ( start.x - map_x as f32 ) * delta_dist_x )
+  }
+  else
+  {
+    ( 1, ( map_x as f32 + 1.0 - start.x ) * delta_dist_x )
   };
   
-  let (step_y, mut side_dist_y) = if direction.y < 0.0 {
-    (-1, (start.y - map_y as f32) * delta_dist_y)
-  } else {
-    (1, (map_y as f32 + 1.0 - start.y) * delta_dist_y)
+  let ( step_y, mut side_dist_y ) = if direction.y < 0.0
+  {
+    ( -1, ( start.y - map_y as f32 ) * delta_dist_y )
+  }
+  else
+  {
+    ( 1, ( map_y as f32 + 1.0 - start.y ) * delta_dist_y )
   };
   
   // Perform DDA
-  loop {
+  loop
+  {
     // Jump to next map square, either in x-direction, or in y-direction
-    if side_dist_x < side_dist_y {
+    if side_dist_x < side_dist_y
+    {
       side_dist_x += delta_dist_x;
       map_x += step_x;
       side = 0; // X-side
-    } else {
+    }
+    else
+    {
       side_dist_y += delta_dist_y;
       map_y += step_y;
       side = 1; // Y-side
     }
     
     // Check if ray has hit a wall
-    if map.get(map_x, map_y).is_wall() {
+    if map.get( map_x, map_y ).is_wall()
+    {
       break;
     }
   }
   
   // Calculate distance and texture coordinates
-  let perpendicular_wall_dist = if side == 0 {
-    (map_x as f32 - start.x + (1 - step_x) as f32 / 2.0) / direction.x
-  } else {
-    (map_y as f32 - start.y + (1 - step_y) as f32 / 2.0) / direction.y
+  let perpendicular_wall_dist = if side == 0
+  {
+    ( map_x as f32 - start.x + ( 1 - step_x ) as f32 / 2.0 ) / direction.x
+  }
+  else
+  {
+    ( map_y as f32 - start.y + ( 1 - step_y ) as f32 / 2.0 ) / direction.y
   };
   
   RayHit {
@@ -151,21 +167,23 @@ fn cast_ray(start: Vec2, direction: Vec2, map: &WorldMap) -> RayHit {
 Each ray determines the height of a vertical strip:
 
 ```rust
-fn draw_wall_slice(x: usize, wall_height: f32, texture: &Texture, tex_x: f32) {
+fn draw_wall_slice( x : usize, wall_height : f32, texture : &Texture, tex_x : f32 )
+{
   let line_height = wall_height as i32;
   
   // Calculate start and end of line to draw on screen
-  let draw_start = max(0, (-line_height / 2 + screen_height / 2));
-  let draw_end = min(screen_height - 1, (line_height / 2 + screen_height / 2));
+  let draw_start = max( 0, ( -line_height / 2 + screen_height / 2 ) );
+  let draw_end = min( screen_height - 1, ( line_height / 2 + screen_height / 2 ) );
   
   // Texture mapping
-  for y in draw_start..=draw_end {
+  for y in draw_start..=draw_end
+  {
     // Calculate texture Y coordinate
     let d = y * 256 - screen_height * 128 + line_height * 128;
-    let tex_y = ((d * texture.height as i32) / line_height) / 256;
+    let tex_y = ( ( d * texture.height as i32 ) / line_height ) / 256;
     
     // Sample texture and draw pixel
-    let color = texture.sample(tex_x as u32, tex_y as u32);
+    let color = texture.sample( tex_x as u32, tex_y as u32 );
     set_pixel(x, y as usize, color);
   }
 }

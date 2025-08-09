@@ -28,6 +28,7 @@ mod private {}
   own use ::mod_interface::mod_interface;
   own use ::visioncortex;
   own use ::palette;
+  #[ cfg( feature = "random" ) ]
   own use ::fastrand;
   
   reuse ::error_tools as error;
