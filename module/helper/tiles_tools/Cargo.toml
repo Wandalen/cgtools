@@ -128,6 +128,11 @@ name = "serialization_demo"
 required-features = ["serialization"]
 doc-scrape-examples = true
 
+[[example]]
+name = "debug_demo"
+required-features = ["enabled"]
+doc-scrape-examples = true
+
 # Benchmarks configuration
 [[bench]]
 name = "coordinate_benchmarks"

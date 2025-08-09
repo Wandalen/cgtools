@@ -81,8 +81,8 @@
 <polygon points="290,212 300,217 300,227 290,232 280,227 280,217" fill="none" stroke="lightgray" stroke-width="1"/>
 <polygon points="320,212 330,217 330,227 320,232 310,227 310,217" fill="none" stroke="lightgray" stroke-width="1"/>
 <polygon points="350,212 360,217 360,227 350,232 340,227 340,217" fill="none" stroke="lightgray" stroke-width="1"/>
-<text x="125" y="160" text-anchor="middle" fill="black" font-family="monospace" font-size="16" font-weight="bold">S</text>
-<title>Start position</title>
 <text x="275" y="220" text-anchor="middle" fill="black" font-family="monospace" font-size="16" font-weight="bold">G</text>
 <title>Goal position</title>
+<text x="125" y="160" text-anchor="middle" fill="black" font-family="monospace" font-size="16" font-weight="bold">S</text>
+<title>Start position</title>
 </svg>

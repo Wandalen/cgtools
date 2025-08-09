@@ -288,7 +288,7 @@ impl GridRenderer {
     // Render square grid with coordinates and markers
     for y in 0..self.height as i32 {
       // Top border
-      for x in 0..self.width as i32 {
+      for _x in 0..self.width as i32 {
         output.push_str("+---");
       }
       output.push_str("+\n");
@@ -721,6 +721,21 @@ impl ECSInspector {
   /// Records system execution time.
   pub fn record_system_timing(&mut self, system_name: String, duration: Duration) {
     self.system_timings.insert(system_name, duration);
+  }
+
+  /// Gets the number of entities currently tracked.
+  pub fn entity_count(&self) -> usize {
+    self.entity_data.len()
+  }
+
+  /// Gets entity information by ID.
+  pub fn get_entity(&self, id: u32) -> Option<&EntityDebugInfo> {
+    self.entity_data.get(&id)
+  }
+
+  /// Gets all entity IDs.
+  pub fn entity_ids(&self) -> Vec<u32> {
+    self.entity_data.keys().copied().collect()
   }
 
   /// Generates a debug report.
