@@ -127,7 +127,7 @@ version = "0.1.0"
 path = "module/helper/geometry_generation"
 
 [workspace.dependencies.line_tools]
-version = "0.1.0"
+version = "0.2.0"
 path = "module/helper/line_tools"
 
 # = draw
