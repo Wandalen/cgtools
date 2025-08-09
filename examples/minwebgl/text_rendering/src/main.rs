@@ -1,4 +1,7 @@
-//! text rendering demo
+//! Text surface rendering example demonstrating curve-based text rendering with WebGL.
+#![ doc( html_root_url = "https://docs.rs/text_rendering/latest/text_rendering/" ) ]
+#![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
+#![ cfg_attr( not( doc ), doc = "Renders text as set of 3D glyph meshes" ) ]
 
 use std::cell::RefCell;
 use minwebgl as gl;

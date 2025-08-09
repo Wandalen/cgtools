@@ -1,3 +1,17 @@
+//! This module provides a set of tools for working with 3D primitives 
+//! and transforming them into a GLTF scene graph for rendering. It 
+//! defines essential data structures:
+//! 
+//! - `Transform` for manipulating an object's position, rotation, 
+//! and scale.
+//! 
+//! - `AttributesData` and `PrimitiveData` for holding vertex and index 
+//! data along with other primitive properties. 
+//! 
+//! The core functionality is encapsulated in `primitives_data_to_gltf`, 
+//! which takes a collection of `PrimitiveData` and constructs a complete 
+//! `GLTF` object, including all necessary WebGL buffers, geometries 
+//! and a scene hierarchy.
 mod private
 {
   use minwebgl::
@@ -43,6 +57,7 @@ mod private
 
   impl Default for Transform
   {
+    /// Returns a new `Transform` with default values: translation and rotation are zero, and scale is one.
     fn default() -> Self 
     {
       Self 
@@ -50,12 +65,13 @@ mod private
         translation : [ 0.0; 3 ].into(), 
         rotation : [ 0.0; 3 ].into(), 
         scale : [ 1.0; 3 ].into() 
-      }    
+      }     
     }
   }
 
   impl Transform
   {
+    /// Set new local matrix of `Node`.
     fn set_node_transform( &self, node : Rc< RefCell< Node > > )
     {
       let t = self.translation;
@@ -91,6 +107,7 @@ mod private
     pub transform : Transform
   }
 
+  /// Creates an `AttributeInfo` object using one function call for a WebGL buffer.
   fn make_buffer_attibute_info
   ( 
     buffer : &web_sys::WebGlBuffer,

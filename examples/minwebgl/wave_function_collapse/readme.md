@@ -17,6 +17,8 @@ A comprehensive demonstration of the Wave Function Collapse (WFC) algorithm for 
 - **🎨 Custom Tilesets**: Support for user-provided tile textures
 - **🔧 Real-time Generation**: Interactive map generation with immediate visual feedback
 
+Rendering details description can be found in [ mapgen_tiles_rendering ]( ../mapgen_tiles_rendering/readme.md ) example
+
 ## 🎯 What You'll Learn
 
 This example demonstrates:

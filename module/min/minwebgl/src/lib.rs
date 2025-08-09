@@ -1,5 +1,7 @@
 //! WebGL wrapper providing browser-based graphics functionality.
+#![ doc( html_root_url = "https://docs.rs/minwebgl/latest/minwebgl/" ) ]
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
+#![ cfg_attr( not( doc ), doc = "WebGL wrapper providing browser-based graphics functionality" ) ]
 
 #![allow(clippy::unreadable_literal)]
 #![allow(clippy::implicit_return)]

@@ -1,5 +1,7 @@
 //! Core multidimensional mathematics library.
+#![ doc( html_root_url = "https://docs.rs/mdmath_core/latest/mdmath_core/" ) ]
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
+#![ cfg_attr( not( doc ), doc = "Core multidimensional mathematics library" ) ]
 
 #![allow(clippy::implicit_return)]
 #![allow(clippy::missing_inline_in_public_items)]
