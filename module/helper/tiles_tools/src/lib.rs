@@ -223,3 +223,6 @@ pub mod events;
 
 #[cfg(feature = "serialization")]
 pub mod serialization;
+
+#[cfg(feature = "enabled")]
+pub mod debug;
