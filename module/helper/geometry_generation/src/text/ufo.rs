@@ -368,6 +368,7 @@ mod private
 
   /// Converts a set of 2D contours into a triangulated mesh with holes support.
   #[ cfg( feature = "font-processing" ) ]
+  #[ allow( dead_code ) ]
   pub fn contours_to_mesh( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
   {
     if contours.is_empty()
