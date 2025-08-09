@@ -69,43 +69,49 @@ use std::collections::HashSet;
 // Test Category 1: Coordinate Creation
 // =============================================================================
 
-#[test]
-fn test_coordinate_creation_basic() {
+#[ test ]
+fn test_coordinate_creation_basic()
+{
   let coord = Coordinate::<TwelveConnected>::new(0, 0);
   assert_eq!(coord.x, 0);
   assert_eq!(coord.y, 0);
 }
 
-#[test]
-fn test_coordinate_creation_values() {
+#[ test ]
+fn test_coordinate_creation_values()
+{
   let coord = Coordinate::<TwelveConnected>::new(5, 3);
   assert_eq!(coord.x, 5);
   assert_eq!(coord.y, 3);
 }
 
-#[test]
-fn test_coordinate_creation_negative() {
+#[ test ]
+fn test_coordinate_creation_negative()
+{
   let coord = Coordinate::<TwelveConnected>::new(-5, -3);
   assert_eq!(coord.x, -5);
   assert_eq!(coord.y, -3);
 }
 
-#[test]
-fn test_coordinate_from_tuple() {
+#[ test ]
+fn test_coordinate_from_tuple()
+{
   let coord: Coordinate<TwelveConnected> = (7, -2).into();
   assert_eq!(coord.x, 7);
   assert_eq!(coord.y, -2);
 }
 
-#[test]
-fn test_coordinate_from_array() {
+#[ test ]
+fn test_coordinate_from_array()
+{
   let coord: Coordinate<TwelveConnected> = [3, 8].into();
   assert_eq!(coord.x, 3);
   assert_eq!(coord.y, 8);
 }
 
-#[test]
-fn test_triangular_coord_alias() {
+#[ test ]
+fn test_triangular_coord_alias()
+{
   let coord = TriangularCoord::new(4, 6);
   assert_eq!(coord.x, 4);
   assert_eq!(coord.y, 6);
@@ -115,36 +121,41 @@ fn test_triangular_coord_alias() {
 // Test Category 2: Triangle Orientation
 // =============================================================================
 
-#[test]
-fn test_up_pointing_even_sum() {
+#[ test ]
+fn test_up_pointing_even_sum()
+{
   let coord = Coordinate::<TwelveConnected>::new(2, 4); // 2+4=6 (even)
   assert!(coord.is_up_pointing());
   assert!(!coord.is_down_pointing());
 }
 
-#[test]
-fn test_down_pointing_odd_sum() {
+#[ test ]
+fn test_down_pointing_odd_sum()
+{
   let coord = Coordinate::<TwelveConnected>::new(2, 3); // 2+3=5 (odd)
   assert!(!coord.is_up_pointing());
   assert!(coord.is_down_pointing());
 }
 
-#[test]
-fn test_up_pointing_zero_sum() {
+#[ test ]
+fn test_up_pointing_zero_sum()
+{
   let coord = Coordinate::<TwelveConnected>::new(0, 0); // 0+0=0 (even)
   assert!(coord.is_up_pointing());
   assert!(!coord.is_down_pointing());
 }
 
-#[test]
-fn test_down_pointing_negative_odd() {
+#[ test ]
+fn test_down_pointing_negative_odd()
+{
   let coord = Coordinate::<TwelveConnected>::new(-1, 0); // -1+0=-1 (odd)
   assert!(!coord.is_up_pointing());
   assert!(coord.is_down_pointing());
 }
 
-#[test]
-fn test_up_pointing_negative_even() {
+#[ test ]
+fn test_up_pointing_negative_even()
+{
   let coord = Coordinate::<TwelveConnected>::new(-2, 0); // -2+0=-2 (even)
   assert!(coord.is_up_pointing());
   assert!(!coord.is_down_pointing());
@@ -154,51 +165,58 @@ fn test_up_pointing_negative_even() {
 // Test Category 3: Distance Calculations
 // =============================================================================
 
-#[test]
-fn test_distance_to_self() {
+#[ test ]
+fn test_distance_to_self()
+{
   let coord = Coordinate::<TwelveConnected>::new(5, 3);
   assert_eq!(coord.distance(&coord), 0);
 }
 
-#[test]
-fn test_distance_horizontal() {
+#[ test ]
+fn test_distance_horizontal()
+{
   let coord1 = Coordinate::<TwelveConnected>::new(0, 0);
   let coord2 = Coordinate::<TwelveConnected>::new(2, 0);
   assert_eq!(coord1.distance(&coord2), 2);
 }
 
-#[test]
-fn test_distance_vertical() {
+#[ test ]
+fn test_distance_vertical()
+{
   let coord1 = Coordinate::<TwelveConnected>::new(0, 0);
   let coord2 = Coordinate::<TwelveConnected>::new(0, 3);
   assert_eq!(coord1.distance(&coord2), 3);
 }
 
-#[test]
-fn test_distance_diagonal() {
+#[ test ]
+fn test_distance_diagonal()
+{
   let coord1 = Coordinate::<TwelveConnected>::new(0, 0);
   let coord2 = Coordinate::<TwelveConnected>::new(2, 2);
   assert_eq!(coord1.distance(&coord2), 2); // max(2, 2) = 2
 }
 
-#[test]
-fn test_distance_asymmetric() {
+#[ test ]
+fn test_distance_asymmetric()
+{
   let coord1 = Coordinate::<TwelveConnected>::new(1, 2);
   let coord2 = Coordinate::<TwelveConnected>::new(4, 7);
   // |4-1| = 3, |7-2| = 5, max(3, 5) = 5
   assert_eq!(coord1.distance(&coord2), 5);
 }
 
-#[test]
-fn test_distance_negative_coordinates() {
+#[ test ]
+fn test_distance_negative_coordinates()
+{
   let coord1 = Coordinate::<TwelveConnected>::new(-3, -2);
   let coord2 = Coordinate::<TwelveConnected>::new(1, 4);
   // |1-(-3)| = 4, |4-(-2)| = 6, max(4, 6) = 6
   assert_eq!(coord1.distance(&coord2), 6);
 }
 
-#[test]
-fn test_distance_symmetry() {
+#[ test ]
+fn test_distance_symmetry()
+{
   let coord1 = Coordinate::<TwelveConnected>::new(2, 5);
   let coord2 = Coordinate::<TwelveConnected>::new(7, 1);
   assert_eq!(coord1.distance(&coord2), coord2.distance(&coord1));
@@ -208,15 +226,17 @@ fn test_distance_symmetry() {
 // Test Category 4: Neighbor Finding
 // =============================================================================
 
-#[test]
-fn test_neighbors_count() {
+#[ test ]
+fn test_neighbors_count()
+{
   let coord = Coordinate::<TwelveConnected>::new(5, 3);
   let neighbors = coord.neighbors();
   assert_eq!(neighbors.len(), 12, "All triangular coordinates should have exactly 12 neighbors");
 }
 
-#[test]
-fn test_neighbors_up_triangle() {
+#[ test ]
+fn test_neighbors_up_triangle()
+{
   let coord = Coordinate::<TwelveConnected>::new(2, 4); // 2+4=6 (even) -> up triangle
   assert!(coord.is_up_pointing());
   
@@ -246,8 +266,9 @@ fn test_neighbors_up_triangle() {
   }
 }
 
-#[test]
-fn test_neighbors_down_triangle() {
+#[ test ]
+fn test_neighbors_down_triangle()
+{
   let coord = Coordinate::<TwelveConnected>::new(2, 3); // 2+3=5 (odd) -> down triangle
   assert!(coord.is_down_pointing());
   
@@ -277,8 +298,9 @@ fn test_neighbors_down_triangle() {
   }
 }
 
-#[test]
-fn test_neighbors_uniqueness() {
+#[ test ]
+fn test_neighbors_uniqueness()
+{
   let coord = Coordinate::<TwelveConnected>::new(5, 7);
   let neighbors = coord.neighbors();
   let unique_neighbors: HashSet<_> = neighbors.iter().collect();
@@ -286,8 +308,9 @@ fn test_neighbors_uniqueness() {
              "All neighbors should be unique");
 }
 
-#[test]
-fn test_neighbors_exclude_self() {
+#[ test ]
+fn test_neighbors_exclude_self()
+{
   let coord = Coordinate::<TwelveConnected>::new(3, 8);
   let neighbors = coord.neighbors();
   assert!(!neighbors.contains(&coord), 
@@ -298,15 +321,17 @@ fn test_neighbors_exclude_self() {
 // Test Category 5: Conversions
 // =============================================================================
 
-#[test]
-fn test_into_tuple() {
+#[ test ]
+fn test_into_tuple()
+{
   let coord = Coordinate::<TwelveConnected>::new(7, -3);
   let tuple: (i32, i32) = coord.into();
   assert_eq!(tuple, (7, -3));
 }
 
-#[test]
-fn test_into_array() {
+#[ test ]
+fn test_into_array()
+{
   let coord = Coordinate::<TwelveConnected>::new(-2, 9);
   let array: [i32; 2] = coord.into();
   assert_eq!(array, [-2, 9]);
@@ -316,30 +341,34 @@ fn test_into_array() {
 // Test Category 6: Trait Implementations
 // =============================================================================
 
-#[test]
-fn test_debug_trait() {
+#[ test ]
+fn test_debug_trait()
+{
   let coord = Coordinate::<TwelveConnected>::new(5, -1);
   let debug_str = format!("{:?}", coord);
   assert!(debug_str.contains("5"));
   assert!(debug_str.contains("-1"));
 }
 
-#[test]
-fn test_clone_trait() {
+#[ test ]
+fn test_clone_trait()
+{
   let coord = Coordinate::<TwelveConnected>::new(4, 2);
   let cloned = coord.clone();
   assert_eq!(coord, cloned);
 }
 
-#[test]
-fn test_copy_trait() {
+#[ test ]
+fn test_copy_trait()
+{
   let coord = Coordinate::<TwelveConnected>::new(1, 6);
   let copied = coord;  // This should work due to Copy trait
   assert_eq!(coord, copied);
 }
 
-#[test]
-fn test_partial_eq_trait() {
+#[ test ]
+fn test_partial_eq_trait()
+{
   let coord1 = Coordinate::<TwelveConnected>::new(3, 4);
   let coord2 = Coordinate::<TwelveConnected>::new(3, 4);
   let coord3 = Coordinate::<TwelveConnected>::new(3, 5);
@@ -348,8 +377,9 @@ fn test_partial_eq_trait() {
   assert_ne!(coord1, coord3);
 }
 
-#[test]
-fn test_hash_trait() {
+#[ test ]
+fn test_hash_trait()
+{
   use std::collections::HashMap;
   
   let coord1 = Coordinate::<TwelveConnected>::new(2, 3);
@@ -362,8 +392,9 @@ fn test_hash_trait() {
   assert_eq!(map.get(&coord2), Some(&"value"));
 }
 
-#[test]
-fn test_default_trait() {
+#[ test ]
+fn test_default_trait()
+{
   let coord: Coordinate<TwelveConnected> = Default::default();
   assert_eq!(coord.x, 0);
   assert_eq!(coord.y, 0);
@@ -373,8 +404,9 @@ fn test_default_trait() {
 // Test Category 7: Serialization/Deserialization
 // =============================================================================
 
-#[test]
-fn test_serialize() {
+#[ test ]
+fn test_serialize()
+{
   let coord = Coordinate::<TwelveConnected>::new(5, -2);
   let serialized = serde_json::to_string(&coord).expect("Serialization should succeed");
   
@@ -384,8 +416,9 @@ fn test_serialize() {
   assert!(!serialized.contains("_marker"));
 }
 
-#[test]
-fn test_deserialize() {
+#[ test ]
+fn test_deserialize()
+{
   let json = r#"{"x": 7, "y": 3}"#;
   let coord: Coordinate<TwelveConnected> = serde_json::from_str(json)
     .expect("Deserialization should succeed");
@@ -394,8 +427,9 @@ fn test_deserialize() {
   assert_eq!(coord.y, 3);
 }
 
-#[test]
-fn test_round_trip_serialization() {
+#[ test ]
+fn test_round_trip_serialization()
+{
   let original = Coordinate::<TwelveConnected>::new(-4, 8);
   let serialized = serde_json::to_string(&original)
     .expect("Serialization should succeed");
@@ -409,22 +443,25 @@ fn test_round_trip_serialization() {
 // Test Category 8: Edge Cases and Boundary Conditions
 // =============================================================================
 
-#[test]
-fn test_large_coordinates() {
+#[ test ]
+fn test_large_coordinates()
+{
   let coord = Coordinate::<TwelveConnected>::new(1000000, -1000000);
   let neighbors = coord.neighbors();
   assert_eq!(neighbors.len(), 12);
 }
 
-#[test]
-fn test_max_coordinate_values() {
+#[ test ]
+fn test_max_coordinate_values()
+{
   let coord = Coordinate::<TwelveConnected>::new(i32::MAX, i32::MAX);
   // Should not panic
   let _ = coord.is_up_pointing();
 }
 
-#[test]
-fn test_min_coordinate_values() {
+#[ test ]
+fn test_min_coordinate_values()
+{
   let coord = Coordinate::<TwelveConnected>::new(i32::MIN, i32::MIN);
   // Should not panic
   let _ = coord.is_down_pointing();
@@ -434,8 +471,9 @@ fn test_min_coordinate_values() {
 // Test Category 9: Integration Tests
 // =============================================================================
 
-#[test]
-fn test_distance_between_neighbors() {
+#[ test ]
+fn test_distance_between_neighbors()
+{
   let coord = Coordinate::<TwelveConnected>::new(5, 3);
   let neighbors = coord.neighbors();
   
@@ -446,8 +484,9 @@ fn test_distance_between_neighbors() {
   }
 }
 
-#[test]
-fn test_orientation_consistency() {
+#[ test ]
+fn test_orientation_consistency()
+{
   for x in -5..=5 {
     for y in -5..=5 {
       let coord = Coordinate::<TwelveConnected>::new(x, y);
@@ -459,8 +498,9 @@ fn test_orientation_consistency() {
   }
 }
 
-#[test]
-fn test_neighbors_reciprocal() {
+#[ test ]
+fn test_neighbors_reciprocal()
+{
   let coord = Coordinate::<TwelveConnected>::new(3, 7);
   let neighbors = coord.neighbors();
   
@@ -477,8 +517,9 @@ fn test_neighbors_reciprocal() {
 // Test Category 10: Pathfinding Integration
 // =============================================================================
 
-#[test]
-fn test_pathfinding_integration() {
+#[ test ]
+fn test_pathfinding_integration()
+{
   use tiles_tools::pathfind::astar;
   
   let start = TriangularCoord::new(0, 0);
@@ -501,8 +542,9 @@ fn test_pathfinding_integration() {
   assert_eq!(path[path.len() - 1], goal);
 }
 
-#[test]
-fn test_pathfinding_blocked_path() {
+#[ test ]
+fn test_pathfinding_blocked_path()
+{
   use tiles_tools::pathfind::astar;
   
   let start = TriangularCoord::new(0, 0);
@@ -529,8 +571,9 @@ fn test_pathfinding_blocked_path() {
   }
 }
 
-#[test]
-fn test_pathfinding_same_position() {
+#[ test ]
+fn test_pathfinding_same_position()
+{
   use tiles_tools::pathfind::astar;
   
   let coord = TriangularCoord::new(5, 3);
@@ -549,8 +592,9 @@ fn test_pathfinding_same_position() {
   assert_eq!(path[0], coord);
 }
 
-#[test]
-fn test_pathfinding_impossible() {
+#[ test ]
+fn test_pathfinding_impossible()
+{
   use tiles_tools::pathfind::astar;
   
   let start = TriangularCoord::new(0, 0);

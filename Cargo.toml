@@ -17,7 +17,7 @@ members = [
   # Min modules
   "module/min/mingl",
   "module/min/minwebgl", 
-  # "module/min/minwebgpu", # TODO: Enable when WebGPU unstable APIs configuration is resolved
+  "module/min/minwebgpu",
   
   # Helper modules (excluding incomplete tilemap_renderer and problematic vectorizer)
   "module/helper/browser_input",
@@ -36,7 +36,7 @@ members = [
   
   # Examples
   "examples/minwebgl/*",
-  # "examples/minwebgpu/*", # TODO: Enable when WebGPU unstable APIs configuration is resolved
+  "examples/minwebgpu/*",
   "examples/math/*"
 ]
 

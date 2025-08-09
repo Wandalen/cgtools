@@ -1,30 +1,30 @@
 //! Game systems demonstration showing integrated turn-based gameplay.
 
-#![allow(clippy::needless_return)]
-#![allow(clippy::implicit_return)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::items_after_statements)]
-#![allow(clippy::unnecessary_cast)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::cast_sign_loss)]
-#![allow(clippy::explicit_iter_loop)]
-#![allow(clippy::format_in_format_args)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::wildcard_imports)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::std_instead_of_core)]
-#![allow(clippy::similar_names)]
-#![allow(clippy::duplicated_attributes)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::trivially_copy_pass_by_ref)]
-#![allow(clippy::missing_inline_in_public_items)]
-#![allow(clippy::useless_vec)]
-#![allow(clippy::unnested_or_patterns)]
-#![allow(clippy::else_if_without_else)]
-#![allow(clippy::unreadable_literal)]
-#![allow(clippy::redundant_else)]
-#![allow(clippy::min_ident_chars)]
-#![allow(clippy::if_not_else)]
+#![ allow( clippy::needless_return ) ]
+#![ allow( clippy::implicit_return ) ]
+#![ allow( clippy::uninlined_format_args ) ]
+#![ allow( clippy::items_after_statements ) ]
+#![ allow( clippy::unnecessary_cast ) ]
+#![ allow( clippy::doc_markdown ) ]
+#![ allow( clippy::cast_sign_loss ) ]
+#![ allow( clippy::explicit_iter_loop ) ]
+#![ allow( clippy::format_in_format_args ) ]
+#![ allow( clippy::cast_precision_loss ) ]
+#![ allow( clippy::wildcard_imports ) ]
+#![ allow( clippy::too_many_lines ) ]
+#![ allow( clippy::std_instead_of_core ) ]
+#![ allow( clippy::similar_names ) ]
+#![ allow( clippy::duplicated_attributes ) ]
+#![ allow( clippy::cast_possible_truncation ) ]
+#![ allow( clippy::trivially_copy_pass_by_ref ) ]
+#![ allow( clippy::missing_inline_in_public_items ) ]
+#![ allow( clippy::useless_vec ) ]
+#![ allow( clippy::unnested_or_patterns ) ]
+#![ allow( clippy::else_if_without_else ) ]
+#![ allow( clippy::unreadable_literal ) ]
+#![ allow( clippy::redundant_else ) ]
+#![ allow( clippy::min_ident_chars ) ]
+#![ allow( clippy::if_not_else ) ]
 //!
 //! This example demonstrates the comprehensive game systems integration including:
 //! - Turn-based game management with initiative and action points
@@ -35,11 +35,12 @@
 //! - System integration and event coordination
 
 use tiles_tools::game_systems::*;
-use tiles_tools::events::{EventBus, EventResult};
-use tiles_tools::debug::{GridRenderer, GridStyle, DebugColor};
+use tiles_tools::events::{ EventBus, EventResult };
+use tiles_tools::debug::{ GridRenderer, GridStyle, DebugColor };
 use std::collections::HashMap;
 
-fn main() {
+fn main()
+{
   println!("🎮 Game Systems Demonstration");
   println!("==============================");
 
@@ -84,7 +85,8 @@ fn main() {
   println!("• Event-driven architecture for system coordination");
 }
 
-fn demonstrate_turn_based_combat() {
+fn demonstrate_turn_based_combat()
+{
   let mut game = TurnBasedGame::new();
 
   println!("Setting up combat participants...");
@@ -209,7 +211,8 @@ fn demonstrate_turn_based_combat() {
   }
 }
 
-fn demonstrate_game_state_machine() {
+fn demonstrate_game_state_machine()
+{
   let mut state_machine = GameStateMachine::new(GameState::Initialize);
   
   println!("Starting game state machine...");
@@ -256,7 +259,8 @@ fn demonstrate_game_state_machine() {
   println!("Final state: {:?}", state_machine.current_state());
 }
 
-fn demonstrate_resource_management() {
+fn demonstrate_resource_management()
+{
   let mut resource_manager = ResourceManager::new();
 
   println!("Setting up entities with resources...");
@@ -355,7 +359,8 @@ fn demonstrate_resource_management() {
   }
 }
 
-fn demonstrate_quest_system() {
+fn demonstrate_quest_system()
+{
   let mut quest_manager = QuestManager::new();
 
   println!("Setting up quest system...");
@@ -498,7 +503,8 @@ fn demonstrate_quest_system() {
   println!("  hero_reputation: {}", quest_manager.get_flag("hero_reputation"));
 }
 
-fn demonstrate_integrated_gameplay() {
+fn demonstrate_integrated_gameplay()
+{
   println!("Setting up integrated tactical RPG session...");
 
   // Initialize all systems

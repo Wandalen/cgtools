@@ -1,2 +1,9 @@
+# Cargo configuration for cgtools workspace
+
 [build]
-rustflags = [ "--cfg", "web_sys_unstable_apis" ]
+# Enable WebGPU unstable APIs for web-sys
+rustflags = ["--cfg", "web_sys_unstable_apis"]
+
+[target.wasm32-unknown-unknown]
+# WebAssembly specific configuration
+rustflags = ["--cfg", "web_sys_unstable_apis"]

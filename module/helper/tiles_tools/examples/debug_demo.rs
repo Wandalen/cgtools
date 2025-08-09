@@ -1,29 +1,29 @@
 //! Debug system demonstration showing visual debugging and profiling tools.
 
-#![allow(clippy::needless_return)]
-#![allow(clippy::implicit_return)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::items_after_statements)]
-#![allow(clippy::unnecessary_cast)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::cast_sign_loss)]
-#![allow(clippy::explicit_iter_loop)]
-#![allow(clippy::format_in_format_args)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::wildcard_imports)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::std_instead_of_core)]
-#![allow(clippy::similar_names)]
-#![allow(clippy::duplicated_attributes)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::trivially_copy_pass_by_ref)]
-#![allow(clippy::missing_inline_in_public_items)]
-#![allow(clippy::useless_vec)]
-#![allow(clippy::unnested_or_patterns)]
-#![allow(clippy::else_if_without_else)]
-#![allow(clippy::unreadable_literal)]
-#![allow(clippy::redundant_else)]
-#![allow(clippy::cast_lossless)]
+#![ allow( clippy::needless_return ) ]
+#![ allow( clippy::implicit_return ) ]
+#![ allow( clippy::uninlined_format_args ) ]
+#![ allow( clippy::items_after_statements ) ]
+#![ allow( clippy::unnecessary_cast ) ]
+#![ allow( clippy::doc_markdown ) ]
+#![ allow( clippy::cast_sign_loss ) ]
+#![ allow( clippy::explicit_iter_loop ) ]
+#![ allow( clippy::format_in_format_args ) ]
+#![ allow( clippy::cast_precision_loss ) ]
+#![ allow( clippy::wildcard_imports ) ]
+#![ allow( clippy::too_many_lines ) ]
+#![ allow( clippy::std_instead_of_core ) ]
+#![ allow( clippy::similar_names ) ]
+#![ allow( clippy::duplicated_attributes ) ]
+#![ allow( clippy::cast_possible_truncation ) ]
+#![ allow( clippy::trivially_copy_pass_by_ref ) ]
+#![ allow( clippy::missing_inline_in_public_items ) ]
+#![ allow( clippy::useless_vec ) ]
+#![ allow( clippy::unnested_or_patterns ) ]
+#![ allow( clippy::else_if_without_else ) ]
+#![ allow( clippy::unreadable_literal ) ]
+#![ allow( clippy::redundant_else ) ]
+#![ allow( clippy::cast_lossless ) ]
 //!
 //! This example demonstrates the comprehensive debug system including:
 //! - Grid visualization with multiple styles and coordinate systems
@@ -35,10 +35,11 @@
 
 use tiles_tools::debug::*;
 use tiles_tools::debug::utils;
-use std::time::{Duration, Instant};
+use std::time::{ Duration, Instant };
 use std::collections::HashMap;
 
-fn main() {
+fn main()
+{
   println!("🔍 Debug System Demonstration");
   println!("==============================");
 
@@ -91,7 +92,8 @@ fn main() {
   println!("• Integrated debugging workflows");
 }
 
-fn demonstrate_grid_styles() {
+fn demonstrate_grid_styles()
+{
   println!("Testing different grid styles...");
 
   // Square grid with markers
@@ -135,7 +137,8 @@ fn demonstrate_grid_styles() {
   println!("{}", tri_grid.render_ascii());
 }
 
-fn demonstrate_pathfinding_debug() {
+fn demonstrate_pathfinding_debug()
+{
   let mut pathfinder = PathfindingDebugger::new(12, 8);
 
   // Set up a pathfinding scenario
@@ -190,7 +193,8 @@ fn demonstrate_pathfinding_debug() {
   // println!("✅ Pathfinding debug exported to debug_pathfinding.svg");
 }
 
-fn demonstrate_ecs_inspector() {
+fn demonstrate_ecs_inspector()
+{
   let mut inspector = ECSInspector::new();
 
   // Simulate entity data from a game session
@@ -265,7 +269,8 @@ fn demonstrate_ecs_inspector() {
   println!("{}", inspector.export_json());
 }
 
-fn demonstrate_performance_profiler() {
+fn demonstrate_performance_profiler()
+{
   let mut profiler = PerformanceProfiler::new();
 
   // Simulate frame data over time
@@ -322,7 +327,8 @@ fn demonstrate_performance_profiler() {
   // println!("✅ Performance data exported to performance_data.csv");
 }
 
-fn demonstrate_debug_utilities() {
+fn demonstrate_debug_utilities()
+{
   println!("Testing debug utility functions...");
 
   // Boolean grid visualization
@@ -359,7 +365,8 @@ fn demonstrate_debug_utilities() {
   }
 }
 
-fn demonstrate_integrated_debugging() {
+fn demonstrate_integrated_debugging()
+{
   println!("Simulating integrated debugging session...");
 
   // Create a game world debug scenario

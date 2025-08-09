@@ -54,40 +54,45 @@ use tiles_tools::coordinates::{Distance, Neighbors};
 use tiles_tools::pathfind::astar;
 
 /// Test SC1.1: Create 4-connected coordinate
-#[test]
-fn test_square_coordinate_creation_4conn() {
+#[ test ]
+fn test_square_coordinate_creation_4conn()
+{
     let coord = Coordinate::<FourConnected>::new(0, 0);
     assert_eq!(coord.x, 0);
     assert_eq!(coord.y, 0);
 }
 
 /// Test SC1.2: Create 8-connected coordinate  
-#[test]
-fn test_square_coordinate_creation_8conn() {
+#[ test ]
+fn test_square_coordinate_creation_8conn()
+{
     let coord = Coordinate::<EightConnected>::new(5, 10);
     assert_eq!(coord.x, 5);
     assert_eq!(coord.y, 10);
 }
 
 /// Test SC2.1: Manhattan distance calculation
-#[test]
-fn test_manhattan_distance() {
+#[ test ]
+fn test_manhattan_distance()
+{
     let coord1 = SquareCoord4::new(0, 0);
     let coord2 = SquareCoord4::new(3, 4);
     assert_eq!(coord1.distance(&coord2), 7); // |3-0| + |4-0| = 7
 }
 
 /// Test SC2.2: Chebyshev distance calculation
-#[test]
-fn test_chebyshev_distance() {
+#[ test ]
+fn test_chebyshev_distance()
+{
     let coord1 = SquareCoord8::new(0, 0);
     let coord2 = SquareCoord8::new(3, 4);
     assert_eq!(coord1.distance(&coord2), 4); // max(|3-0|, |4-0|) = max(3, 4) = 4
 }
 
 /// Test SC2.3: Distance to same coordinate is zero
-#[test]
-fn test_distance_to_self() {
+#[ test ]
+fn test_distance_to_self()
+{
     let coord = SquareCoord4::new(5, 7);
     assert_eq!(coord.distance(&coord), 0);
     
@@ -96,8 +101,9 @@ fn test_distance_to_self() {
 }
 
 /// Test SC2.4: Distance is symmetric
-#[test]
-fn test_distance_symmetry() {
+#[ test ]
+fn test_distance_symmetry()
+{
     let coord1 = SquareCoord4::new(2, 3);
     let coord2 = SquareCoord4::new(8, 6);
     assert_eq!(coord1.distance(&coord2), coord2.distance(&coord1));
@@ -108,8 +114,9 @@ fn test_distance_symmetry() {
 }
 
 /// Test SC3.1: 4-connected neighbors
-#[test]
-fn test_four_connected_neighbors() {
+#[ test ]
+fn test_four_connected_neighbors()
+{
     let coord = SquareCoord4::new(2, 3);
     let neighbors = coord.neighbors();
     assert_eq!(neighbors.len(), 4);
@@ -128,8 +135,9 @@ fn test_four_connected_neighbors() {
 }
 
 /// Test SC3.2: 8-connected neighbors
-#[test]
-fn test_eight_connected_neighbors() {
+#[ test ]
+fn test_eight_connected_neighbors()
+{
     let coord = SquareCoord8::new(2, 3);
     let neighbors = coord.neighbors();
     assert_eq!(neighbors.len(), 8);
@@ -154,8 +162,9 @@ fn test_eight_connected_neighbors() {
 }
 
 /// Test SC3.3: 4-connected neighbors are only orthogonal
-#[test]
-fn test_four_connected_only_orthogonal() {
+#[ test ]
+fn test_four_connected_only_orthogonal()
+{
     let coord = SquareCoord4::new(5, 5);
     let neighbors = coord.neighbors();
     
@@ -174,8 +183,9 @@ fn test_four_connected_only_orthogonal() {
 }
 
 /// Test SC3.4: 8-connected neighbors include diagonals
-#[test]
-fn test_eight_connected_includes_diagonal() {
+#[ test ]
+fn test_eight_connected_includes_diagonal()
+{
     let coord = SquareCoord8::new(5, 5);
     let neighbors = coord.neighbors();
     
@@ -194,8 +204,9 @@ fn test_eight_connected_includes_diagonal() {
 }
 
 /// Test SC4.1: Addition operation
-#[test]
-fn test_coordinate_addition() {
+#[ test ]
+fn test_coordinate_addition()
+{
     let coord1 = SquareCoord4::new(1, 2);
     let coord2 = SquareCoord4::new(3, 4);
     let result = coord1 + coord2;
@@ -204,8 +215,9 @@ fn test_coordinate_addition() {
 }
 
 /// Test SC4.2: Subtraction operation
-#[test]
-fn test_coordinate_subtraction() {
+#[ test ]
+fn test_coordinate_subtraction()
+{
     let coord1 = SquareCoord4::new(5, 7);
     let coord2 = SquareCoord4::new(2, 3);
     let result = coord1 - coord2;
@@ -214,8 +226,9 @@ fn test_coordinate_subtraction() {
 }
 
 /// Test SC4.3: Multiplication by scalar
-#[test]
-fn test_coordinate_multiplication() {
+#[ test ]
+fn test_coordinate_multiplication()
+{
     let coord = SquareCoord4::new(2, 3);
     let result = coord * 2;
     assert_eq!(result.x, 4);
@@ -223,8 +236,9 @@ fn test_coordinate_multiplication() {
 }
 
 /// Test SC4.4: Division by scalar
-#[test]
-fn test_coordinate_division() {
+#[ test ]
+fn test_coordinate_division()
+{
     let coord = SquareCoord4::new(4, 6);
     let result = coord / 2;
     assert_eq!(result.x, 2);
@@ -232,32 +246,36 @@ fn test_coordinate_division() {
 }
 
 /// Test SC5.1: Conversion from tuple
-#[test]
-fn test_from_tuple() {
+#[ test ]
+fn test_from_tuple()
+{
     let coord: SquareCoord4 = (1, 2).into();
     assert_eq!(coord.x, 1);
     assert_eq!(coord.y, 2);
 }
 
 /// Test SC5.2: Conversion from array
-#[test]
-fn test_from_array() {
+#[ test ]
+fn test_from_array()
+{
     let coord: SquareCoord4 = [3, 4].into();
     assert_eq!(coord.x, 3);
     assert_eq!(coord.y, 4);
 }
 
 /// Test SC5.3: Conversion to tuple
-#[test]
-fn test_to_tuple() {
+#[ test ]
+fn test_to_tuple()
+{
     let coord = SquareCoord4::new(5, 6);
     let tuple: (i32, i32) = coord.into();
     assert_eq!(tuple, (5, 6));
 }
 
 /// Test SC6.1: A* pathfinding with 4-connected grid
-#[test]
-fn test_pathfinding_four_connected() {
+#[ test ]
+fn test_pathfinding_four_connected()
+{
     let start = SquareCoord4::new(0, 0);
     let goal = SquareCoord4::new(3, 3);
     
@@ -279,8 +297,9 @@ fn test_pathfinding_four_connected() {
 }
 
 /// Test SC6.2: A* pathfinding with 8-connected grid should find shorter path
-#[test]
-fn test_pathfinding_eight_connected() {
+#[ test ]
+fn test_pathfinding_eight_connected()
+{
     let start = SquareCoord8::new(0, 0);
     let goal = SquareCoord8::new(3, 3);
     
@@ -302,8 +321,9 @@ fn test_pathfinding_eight_connected() {
 }
 
 /// Test pathfinding with obstacles
-#[test]
-fn test_pathfinding_with_obstacles() {
+#[ test ]
+fn test_pathfinding_with_obstacles()
+{
     let start = SquareCoord4::new(0, 0);
     let goal = SquareCoord4::new(2, 0);
     
@@ -330,8 +350,9 @@ fn test_pathfinding_with_obstacles() {
 }
 
 /// Test edge case: pathfinding to same position
-#[test]
-fn test_pathfinding_same_position() {
+#[ test ]
+fn test_pathfinding_same_position()
+{
     let coord = SquareCoord4::new(5, 5);
     
     let result = astar(
@@ -349,8 +370,9 @@ fn test_pathfinding_same_position() {
 }
 
 /// Test impossible pathfinding scenario
-#[test]
-fn test_pathfinding_impossible() {
+#[ test ]
+fn test_pathfinding_impossible()
+{
     let start = SquareCoord4::new(0, 0);
     let goal = SquareCoord4::new(2, 0);
     
@@ -365,8 +387,9 @@ fn test_pathfinding_impossible() {
 }
 
 /// Test serialization/deserialization
-#[test]
-fn test_serde_serialization() {
+#[ test ]
+fn test_serde_serialization()
+{
     let coord = SquareCoord4::new(10, 20);
     
     // Test JSON serialization
@@ -377,8 +400,9 @@ fn test_serde_serialization() {
 }
 
 /// Test coordinate hashing for use in HashSet/HashMap
-#[test]
-fn test_coordinate_hashing() {
+#[ test ]
+fn test_coordinate_hashing()
+{
     use std::collections::HashSet;
     
     let mut set = HashSet::new();
@@ -395,16 +419,18 @@ fn test_coordinate_hashing() {
 }
 
 /// Test default implementation
-#[test]
-fn test_default_coordinate() {
+#[ test ]
+fn test_default_coordinate()
+{
     let coord: SquareCoord4 = Default::default();
     assert_eq!(coord.x, 0);
     assert_eq!(coord.y, 0);
 }
 
 /// Benchmark-style test for performance characteristics
-#[test]
-fn test_performance_characteristics() {
+#[ test ]
+fn test_performance_characteristics()
+{
     use std::time::Instant;
     
     let coord = SquareCoord8::new(0, 0);

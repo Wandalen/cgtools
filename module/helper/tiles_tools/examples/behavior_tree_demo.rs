@@ -1,29 +1,29 @@
 //! Behavior Tree AI system demonstration.
 
-#![allow(clippy::needless_return)]
-#![allow(clippy::implicit_return)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::items_after_statements)]
-#![allow(clippy::unnecessary_cast)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::cast_sign_loss)]
-#![allow(clippy::explicit_iter_loop)]
-#![allow(clippy::format_in_format_args)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::wildcard_imports)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::std_instead_of_core)]
-#![allow(clippy::similar_names)]
-#![allow(clippy::duplicated_attributes)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::trivially_copy_pass_by_ref)]
-#![allow(clippy::missing_inline_in_public_items)]
-#![allow(clippy::useless_vec)]
-#![allow(clippy::unnested_or_patterns)]
-#![allow(clippy::else_if_without_else)]
-#![allow(clippy::unreadable_literal)]
-#![allow(clippy::redundant_else)]
-#![allow(clippy::cast_lossless)]
+#![ allow( clippy::needless_return ) ]
+#![ allow( clippy::implicit_return ) ]
+#![ allow( clippy::uninlined_format_args ) ]
+#![ allow( clippy::items_after_statements ) ]
+#![ allow( clippy::unnecessary_cast ) ]
+#![ allow( clippy::doc_markdown ) ]
+#![ allow( clippy::cast_sign_loss ) ]
+#![ allow( clippy::explicit_iter_loop ) ]
+#![ allow( clippy::format_in_format_args ) ]
+#![ allow( clippy::cast_precision_loss ) ]
+#![ allow( clippy::wildcard_imports ) ]
+#![ allow( clippy::too_many_lines ) ]
+#![ allow( clippy::std_instead_of_core ) ]
+#![ allow( clippy::similar_names ) ]
+#![ allow( clippy::duplicated_attributes ) ]
+#![ allow( clippy::cast_possible_truncation ) ]
+#![ allow( clippy::trivially_copy_pass_by_ref ) ]
+#![ allow( clippy::missing_inline_in_public_items ) ]
+#![ allow( clippy::useless_vec ) ]
+#![ allow( clippy::unnested_or_patterns ) ]
+#![ allow( clippy::else_if_without_else ) ]
+#![ allow( clippy::unreadable_literal ) ]
+#![ allow( clippy::redundant_else ) ]
+#![ allow( clippy::cast_lossless ) ]
 //!
 //! This example demonstrates the comprehensive behavior tree system including:
 //! - Composite nodes (sequence, selector, parallel)
@@ -37,7 +37,8 @@ use tiles_tools::{
 };
 use std::time::Duration;
 
-fn main() {
+fn main()
+{
   println!("Behavior Tree AI System Demonstration");
   println!("=====================================");
 
@@ -252,7 +253,8 @@ fn main() {
 }
 
 /// Creates a guard patrol behavior tree for demonstration.
-fn create_guard_patrol_tree() -> BehaviorTree {
+fn create_guard_patrol_tree() -> BehaviorTree
+{
   BehaviorTreeBuilder::new()
     .selector(vec![
       // High priority: Handle low health
@@ -305,7 +307,8 @@ fn create_guard_patrol_tree() -> BehaviorTree {
 }
 
 /// Creates a combat AI behavior tree for demonstration.
-fn create_combat_ai_tree() -> BehaviorTree {
+fn create_combat_ai_tree() -> BehaviorTree
+{
   BehaviorTreeBuilder::new()
     .selector(vec![
       // Emergency: Use health potion if available and health is critical
@@ -344,7 +347,8 @@ fn create_combat_ai_tree() -> BehaviorTree {
 }
 
 /// Creates a simple AI behavior tree for performance testing.
-fn create_simple_ai_tree(name: String) -> BehaviorTree {
+fn create_simple_ai_tree(name: String) -> BehaviorTree
+{
   BehaviorTreeBuilder::new()
     .sequence(vec![
       set_blackboard("initialized", true),
