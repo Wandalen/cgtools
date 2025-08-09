@@ -135,7 +135,7 @@ mod private
     }
 
     /// Adds a new point to the line and marks the points as changed.
-    pub fn add_point( &mut self, point : gl::F32x2 )
+    pub fn add_point( &mut self, point : math::F32x2 )
     {
       self.points.push( point );
       self.points_changed = true;
@@ -176,7 +176,7 @@ mod private
         }
         else
         {
-          let zero = gl::F32x2::default();
+          let zero = math::F32x2::default();
           ( [ zero, zero, zero, zero, zero, zero ], 0 )
         };
 
@@ -385,7 +385,7 @@ mod private
     } 
 
     /// Returns a slice of the line's points.
-    pub fn get_points( &self ) -> &[ gl::F32x2 ]
+    pub fn get_points( &self ) -> &[ math::F32x2 ]
     {
       &self.points
     }
