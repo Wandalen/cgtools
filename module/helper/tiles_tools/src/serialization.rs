@@ -56,8 +56,9 @@ use std::time::{SystemTime, UNIX_EPOCH, Duration};
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
 
 /// Version information for save file compatibility.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SaveVersion {
+#[ derive( Debug, Clone, Serialize, Deserialize ) ]
+pub struct SaveVersion
+{
   /// Major version - incompatible changes
   pub major: u32,
   /// Minor version - backward compatible additions
@@ -68,7 +69,8 @@ pub struct SaveVersion {
   pub timestamp: u64,
 }
 
-impl SaveVersion {
+impl SaveVersion
+{
   /// Creates a new save version.
   pub fn new(major: u32, minor: u32, patch: u32) -> Self {
     Self {

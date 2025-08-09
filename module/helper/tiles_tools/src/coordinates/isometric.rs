@@ -42,9 +42,12 @@
 //! assert_eq!(world_coord, coord);
 //! ```
 
-use crate::coordinates::{Distance, Neighbors, pixel::Pixel};
-use serde::{Deserialize, Serialize};
-use std::{fmt::Debug, hash::Hash, marker::PhantomData};
+use crate::coordinates::{ Distance, Neighbors };
+use crate::coordinates::pixel::Pixel;
+use serde::{ Deserialize, Serialize };
+use std::fmt::Debug;
+use std::hash::Hash;
+use std::marker::PhantomData;
 
 /// Marker struct representing the diamond-shaped isometric grid system.
 /// 

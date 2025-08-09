@@ -2,7 +2,7 @@
 //! It provides conversions from and to hexagonal coordinate systems and other numeric types,
 //! as well as basic vector arithmetic.
 
-use super::hexagonal::*;
+use super::hexagonal::{ Coordinate, Axial, Pointy, Flat };
 
 /// Represents a 2D pixel coordinate, typically used for rendering.
 /// It is assumed that the Y-axis points downwards.
