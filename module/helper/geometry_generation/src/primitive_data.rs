@@ -1,3 +1,17 @@
+//! This module provides a set of tools for working with 3D primitives 
+//! and transforming them into a GLTF scene graph for rendering. It 
+//! defines essential data structures:
+//! 
+//! - `Transform` for manipulating an object's position, rotation, 
+//! and scale.
+//! 
+//! - `AttributesData` and `PrimitiveData` for holding vertex and index 
+//! data along with other primitive properties. 
+//! 
+//! The core functionality is encapsulated in `primitives_data_to_gltf`, 
+//! which takes a collection of `PrimitiveData` and constructs a complete 
+//! `GLTF` object, including all necessary WebGL buffers, geometries 
+//! and a scene hierarchy.
 mod private
 {
   use minwebgl::
@@ -43,6 +57,7 @@ mod private
 
   impl Default for Transform
   {
+    /// Returns a new `Transform` with default values: translation and rotation are zero, and scale is one.
     fn default() -> Self 
     {
       Self 
@@ -50,13 +65,14 @@ mod private
         translation : [ 0.0; 3 ].into(), 
         rotation : [ 0.0; 3 ].into(), 
         scale : [ 1.0; 3 ].into() 
-      }    
+      }     
     }
   }
 
   impl Transform
   {
-    fn set_node_transform( &self, node : Rc< RefCell< Node > > )
+    /// Set new local matrix of `Node`.
+    pub fn set_node_transform( &self, node : Rc< RefCell< Node > > )
     {
       let t = self.translation;
       let r = self.rotation;
@@ -71,6 +87,7 @@ mod private
   }
   
   /// Mesh attribute data containing vertex positions and triangle indices.
+  #[ derive( Debug ) ]
   pub struct AttributesData
   {
     /// Vertex positions in 3D space.
@@ -91,7 +108,8 @@ mod private
     pub transform : Transform
   }
 
-  fn make_buffer_attibute_info
+  /// Creates an `AttributeInfo` object using one function call for a WebGL buffer.
+  pub fn make_buffer_attribute_info
   ( 
     buffer : &web_sys::WebGlBuffer,
     descriptor : gl::BufferDescriptor, 
@@ -145,7 +163,7 @@ mod private
     [
       ( 
         "positions", 
-        make_buffer_attibute_info( 
+        make_buffer_attribute_info( 
           &position_buffer, 
           BufferDescriptor::new::< [ f32; 3 ] >(),
           0, 
@@ -238,6 +256,7 @@ crate::mod_interface!
     Transform,
     PrimitiveData,
     AttributesData,
-    primitives_data_to_gltf
+    primitives_data_to_gltf,
+    make_buffer_attribute_info
   };
 }

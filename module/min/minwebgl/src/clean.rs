@@ -2,6 +2,7 @@
 mod private
 {
   use crate::*;
+  /// A type alias for the WebGL2 rendering context.
   type GL = WebGl2RenderingContext;
 
   /// Unbind the currently bound 2D texture.
@@ -68,7 +69,7 @@ mod private
     }
   } 
 
-  /// Detach a renderbuffer from a specific framebuffer attachment.
+  /// Detaches a renderbuffer from a specific color attachment point of the currently bound framebuffer.
   pub fn framebuffer_renderbuffer_attachment( gl : &GL, attachment : u32 )
   {
     gl.framebuffer_texture_2d

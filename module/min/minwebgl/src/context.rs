@@ -18,8 +18,8 @@ mod private
   #[ derive( Debug, error::typed::Error ) ]
   pub enum WebglError
   {
-
-    /// Error when failing to find or create a canvas.
+    /// Occurs when the system fails to create a WebGL resource, such as a buffer, texture, or vertex array object (VAO),
+    /// which can happen if the browser's WebGL context is lost or resources are exhausted.
     #[ error( "Failed to create resource {0}" ) ]
     FailedToAllocateResource( &'static str ),
     /// Error when trying to upload a uniform with incorrect data.
@@ -28,7 +28,6 @@ mod private
     /// Error when operation is not supported for the given type.
     #[ error( "Not supported for type {0}" ) ]
     NotSupportedForType( &'static str ),
-
     /// Error related to data type conversion.
     #[ error( "Data type error :: {0}" ) ]
     DataType( #[ from ] data_type::Error ),
@@ -128,6 +127,7 @@ mod private
     Default,
   }
 
+  /// Converts the `PowerPreference` enum variant to its corresponding string representation.
   impl ToString for PowerPreference
   {
     fn to_string( &self ) -> String
@@ -262,6 +262,7 @@ mod private
     }
   }
 
+  /// Provides a default implementation for `ContexOptions`.
   impl Default for ContexOptions
   {
     fn default() -> Self
@@ -282,6 +283,7 @@ mod private
     }
   }
 
+  /// Converts `ContexOptions` into a `js_sys::Object` for use with JavaScript.
   impl Into< js_sys::Object > for ContexOptions
   {
     fn into( self ) -> js_sys::Object

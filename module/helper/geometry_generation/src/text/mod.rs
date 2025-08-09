@@ -1,3 +1,5 @@
+//! This module provides functionality for loading 
+//! fonts and converting text into a 3D mesh representation.
 mod private
 {
 

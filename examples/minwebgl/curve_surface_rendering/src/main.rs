@@ -1,4 +1,7 @@
-//! Text surface rendering example demonstrating curve-based text rendering with WebGL.
+//! Renders 2D curves on surface of 3D object.
+#![ doc( html_root_url = "https://docs.rs/curve_surface_rendering/latest/curve_surface_rendering/" ) ]
+#![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
+#![ cfg_attr( not( doc ), doc = "Renders 2D curves on surface of 3D object" ) ]
 
 use std::cell::RefCell;
 use mingl::F32x4;
@@ -160,7 +163,7 @@ fn init_camera( canvas : &HtmlCanvasElement, scenes : &[ Rc< RefCell< Scene > > 
 
 fn clone( gltf : &mut GLTF, node : &Rc< RefCell< Node > > ) -> Rc< RefCell< Node > > 
 {
-  let clone = Rc::new( RefCell::new( node.borrow().clone() ) );
+  let clone = node.borrow().clone_tree();
   gltf.nodes.push( clone.clone() );
   if let Object3D::Mesh( ref mesh ) = clone.borrow().object
   {
@@ -244,7 +247,9 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
 
   let colors = 
   [
+    F32x4::from_array( [ 1.0, 0.0, 0.0, 1.0 ] ),
     F32x4::from_array( [ 1.0, 1.0, 1.0, 1.0 ] ),
+    F32x4::from_array( [ 0.0, 1.0, 0.0, 1.0 ] ),
   ];
   let text = "CGTools".to_string();
 

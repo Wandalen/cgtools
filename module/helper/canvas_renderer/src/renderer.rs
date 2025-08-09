@@ -1,4 +1,7 @@
-//! Canvas renderer implementation for 2D graphics rendering using WebGL.
+//! This module contains the implementation for offscreen 
+//! rendering to a texture using WebGL2. It includes a utility 
+//! function to create a framebuffer and the `CanvasRenderer` 
+//! struct for managing the rendering process.
 
 mod private
 {
@@ -75,11 +78,17 @@ mod private
   /// methods to render scenes with custom colors and camera configurations.
   pub struct CanvasRenderer
   {
+    /// The WebGL program used for rendering.
     program : WebGlProgram,
+    /// A map storing the locations of uniform variables in the program.
     uniforms : HashMap< String, Option< gl::WebGlUniformLocation > >,
+    /// The WebGL framebuffer used for offscreen rendering.
     framebuffer : WebGlFramebuffer,
+    /// The texture attached to the framebuffer, where the rendering results are stored.
     output_texture : WebGlTexture,
+    /// The width of the framebuffer and its output texture.
     width : u32,
+    /// The height of the framebuffer and its output texture.
     height : u32
   } 
 
@@ -141,6 +150,7 @@ mod private
       )
     }
 
+    /// Uploads the camera's view and projection matrices to the shader uniforms.
     fn upload_camera( &self, gl : &GL, camera : &Camera )
     {
       gl::uniform::matrix_upload
@@ -212,6 +222,7 @@ mod private
 
       gl.enable( gl::DEPTH_TEST );
       gl.disable( gl::BLEND );
+      gl.depth_mask( true );
       gl.clear_depth( 1.0 );
       gl.front_face( gl::CCW );
 
@@ -219,7 +230,7 @@ mod private
       gl.viewport(0, 0, self.width as i32, self.height as i32 );
 
       gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
-      //gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ 0.0, 0.0, 0.0, 1.0 ] );
+      gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ 0.0, 0.0, 0.0, 0.0 ] );
       gl.clear( gl::DEPTH_BUFFER_BIT );
 
       gl.use_program( Some( &self.program ) );
