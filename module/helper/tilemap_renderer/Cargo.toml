@@ -1,0 +1,37 @@
+[package]
+name = "tilemap_renderer"
+version = "0.1.0"
+edition = "2021"
+authors = [ "cgtools contributors" ]
+license = "MIT"
+description = "Agnostic 2D rendering engine with backend adapter support"
+repository = "https://github.com/cgtools-os/cgtools"
+homepage = "https://github.com/cgtools-os/cgtools"
+documentation = "https://docs.rs/tilemap_renderer"
+readme = "readme.md"
+categories = [ "graphics", "rendering", "game-development" ]
+keywords = [ "2d", "rendering", "graphics", "agnostic", "backend" ]
+
+[lints]
+workspace = true
+
+[features]
+# The crate is enabled by default
+default = [ "full" ]
+# The 'full' feature enables all functionality
+full = [ "enabled", "scene", "commands", "ports", "query" ]
+# The master switch for the crate's core functionality
+enabled = [ "dep:error_tools", "dep:serde" ]
+# Granular features for discrete components
+scene = [ "enabled" ]
+commands = [ "enabled" ]
+ports = [ "enabled" ]
+query = [ "enabled" ]
+
+[dependencies]
+# All dependencies are optional and gated by features
+error_tools = { workspace = true, optional = true }
+serde = { workspace = true, optional = true, features = [ "derive" ] }
+
+[dev-dependencies]
+test_tools = { workspace = true }

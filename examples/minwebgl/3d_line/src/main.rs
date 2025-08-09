@@ -1,4 +1,11 @@
 //! 3d line demo
+#![ allow( clippy::implicit_return ) ]
+#![ allow( clippy::needless_return ) ]
+#![ allow( clippy::match_wildcard_for_single_variants ) ]
+#![ allow( clippy::single_match ) ]
+#![ allow( clippy::needless_pass_by_value ) ]
+#![ allow( clippy::min_ident_chars ) ]
+#![ allow( clippy::cast_possible_truncation ) ]
 
 use mingl::CameraOrbitControls;
 use minwebgl as gl;
@@ -22,11 +29,13 @@ struct Settings
 
 fn run() -> Result< (), gl::WebglError >
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas( &canvas )?;
 
+  #[ allow( clippy::cast_precision_loss ) ]
   let width = canvas.width() as f32;
+  #[ allow( clippy::cast_precision_loss ) ]
   let height = canvas.height() as f32;
 
   let main_frag = include_str!( "../shaders/main.frag" );
@@ -103,9 +112,11 @@ fn run() -> Result< (), gl::WebglError >
   {
     let add_interval = 0.2;
     let mut elapsed_time = 0.0;
-    move | t : f64 |
+    #[ allow( clippy::min_ident_chars ) ]
+    move | time_ms : f64 |
     {
-      let time = t as f32 / 1000.0;
+      #[ allow( clippy::cast_possible_truncation ) ]
+      let time = time_ms as f32 / 1000.0;
 
       let x_freq = ( time / 10.0 ).sin() * 3.0;
       let y_freq = ( time / 10.0 ).cos() * 3.0;
@@ -122,7 +133,7 @@ fn run() -> Result< (), gl::WebglError >
       if elapsed_time > add_interval
       {
         line.borrow_mut().add_point( gl::F32x3::new( x, y, z ) );
-        elapsed_time = elapsed_time - add_interval;
+        elapsed_time -= add_interval;
       }
 
       line.borrow().get_mesh().upload_matrix( &gl, "u_view_matrix", &camera.borrow().view().to_array() ).unwrap();
@@ -133,16 +144,16 @@ fn run() -> Result< (), gl::WebglError >
 
       elapsed_time += time;
 
-      true
+      return true
     }
   };
 
   // Run the render loop
   gl::exec_loop::run( update_and_draw );
-  Ok( () )
+  return Ok( () )
 }
 
 fn main()
 {
-  run().unwrap()
+  run().unwrap();
 }

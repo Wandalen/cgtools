@@ -42,9 +42,9 @@ async fn run() -> Result< (), gl::WebglError >
 
   let camera = CameraOrbitControls
   {
-    eye : eye,
-    up : up,
-    center : center,
+    eye,
+    up,
+    center,
     window_size : [ width, height ].into(),
     fov,
     ..Default::default()

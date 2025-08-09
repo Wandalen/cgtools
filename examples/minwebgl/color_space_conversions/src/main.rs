@@ -1,6 +1,8 @@
 #![ doc( html_root_url = "https://docs.rs/color_space_convertion/latest/color_space_convertion/" ) ]
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 #![ cfg_attr( not( doc ), doc = "Converts colors from RGBA into another color spaces" ) ]
+#![ allow( clippy::needless_return ) ]
+#![ allow( clippy::implicit_return ) ]
 
 use minwebgl as gl;
 use gl::{
@@ -43,7 +45,7 @@ impl RectInfo
         color_element : get_element( document, &format!( "{name}-rectangle" ) )?,
         color_coord_label : get_element( document, &format!( "{name}-value" ) )?
       }
-    );
+    )
   }
 }
 
@@ -58,7 +60,7 @@ fn get_input_element( document: &web_sys::Document, id: &str ) -> Result< HtmlIn
   .map_err
   (
     | _ | gl::WebglError::NotSupportedForType( "Element can't be converted to HtmlInputElement" )
-  );
+  )
 }
 
 fn get_element( document: &web_sys::Document, id: &str ) -> Result< HtmlElement, gl::WebglError >
@@ -72,9 +74,10 @@ fn get_element( document: &web_sys::Document, id: &str ) -> Result< HtmlElement,
   .map_err
   (
     | _ | gl::WebglError::NotSupportedForType( "Element can't be converted to HtmlElement" )
-  );
+  )
 }
 
+#[ allow( clippy::too_many_lines ) ]
 fn run() -> Result< (), gl::WebglError >
 {
   let window = gl::web_sys::window().expect( "no global `window` exists" );
@@ -115,7 +118,8 @@ fn run() -> Result< (), gl::WebglError >
     .expect( "Failed to set style" );
   };
 
-  let ftou = | c : f32 | ( u8::MAX as f32 * c.clamp( 0.0, 1.0 ) ).round() as u8;
+  #[ allow( clippy::min_ident_chars, clippy::cast_possible_truncation, clippy::cast_sign_loss ) ]
+  let ftou = | component : f32 | return ( f32::from(u8::MAX) * component.clamp( 0.0, 1.0 ) ).round() as u8;
 
   let update_rectangles = Closure::< dyn FnMut( Event ) >::new
   (
@@ -126,22 +130,22 @@ fn run() -> Result< (), gl::WebglError >
       .expect( "Target should be an input element" );
       let hex_color = input_element.value();
 
-      gl::info!( "sRGB picker changed to: {}", hex_color );
+      gl::info!( "sRGB picker changed to: {hex_color}" );
 
       let src_hex_color = match HexColor::parse( &hex_color )
       {
-        Ok( c ) => c,
-        Err( e ) =>
+        Ok( color ) => color,
+        Err( error ) =>
         {
-          panic!( "Failed to parse hex color: {:?}", e );
+          panic!( "Failed to parse hex color: {error:?}" );
         }
       };
 
       let base_srgb_components =
       [
-        src_hex_color.r as f32 / 255.0,
-        src_hex_color.g as f32 / 255.0,
-        src_hex_color.b as f32 / 255.0,
+        f32::from(src_hex_color.r) / 255.0,
+        f32::from(src_hex_color.g) / 255.0,
+        f32::from(src_hex_color.b) / 255.0,
       ];
 
       let color_css = format!
@@ -153,7 +157,7 @@ fn run() -> Result< (), gl::WebglError >
       );
       srgb_element.set_text_content( Some( &color_css ) );
 
-      for rect_elem in rectangle_elements.iter()
+      for rect_elem in &rectangle_elements
       {
         let color_css = match rect_elem.name.as_str()
         {
@@ -257,7 +261,7 @@ fn run() -> Result< (), gl::WebglError >
   .expect( "Failed to create initial event" );
   srgb_color_picker.dispatch_event( &initial_event ).unwrap();
 
-  Ok( () )
+  return Ok( () )
 }
 
 fn main()

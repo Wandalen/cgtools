@@ -100,9 +100,9 @@ fn test_normalize()
   vector::normalize( &mut got, &vec_zero );
   assert!( got.iter().is_nan().all_true(), "Expected NaN, got {:?}", got );
 
-  for value in got.iter()
+  for value in &got
   {
-    assert!( value.is_nan(), "Expected NaN, got {}", value );
+    assert!( value.is_nan(), "Expected NaN, got {value}" );
   }
 
 }
@@ -128,9 +128,9 @@ fn test_normalized()
   let vec_zero = [ 0.0, 0.0 ];
   let got = vector::normalized( &vec_zero );
 
-  for value in got.iter()
+  for value in &got
   {
-    assert!( value.is_nan(), "Expected NaN, got {}", value );
+    assert!( value.is_nan(), "Expected NaN, got {value}" );
   }
 
 }
@@ -156,9 +156,9 @@ fn test_normalize_to()
   let mut got = [ 0.0, 0.0 ];
   vector::normalize_to( &mut got, 10.0 );
 
-  for value in got.iter()
+  for value in &got
   {
-    assert!( value.is_nan(), "Expected NaN, got {}", value );
+    assert!( value.is_nan(), "Expected NaN, got {value}" );
   }
 
 }
@@ -183,9 +183,9 @@ fn test_normalized_to()
 
   let vec_zero = [ 0.0, 0.0 ];
   let got = vector::normalized_to( &vec_zero, 10.0 );
-  for value in got.iter()
+  for value in &got
   {
-    assert!( value.is_nan(), "Expected NaN, got {}", value );
+    assert!( value.is_nan(), "Expected NaN, got {value}" );
   }
 }
 
@@ -202,7 +202,7 @@ fn test_project_on()
   let mut vec_a = [ 1.0, 2.0, 3.0 ];
   let vec_b = [ 4.0, 5.0, 6.0 ];
   vector::project_on( &mut vec_a, &vec_b );
-  let expected = [ 1.6623376623376624, 2.077922077922078, 2.4935064935064934 ];
+  let expected = [ 1.662_337_662_337_662_4, 2.077_922_077_922_078, 2.493_506_493_506_493_4 ];
   for ( a, b ) in vec_a.iter().zip( expected.iter() )
   {
     assert_ulps_eq!( a, b );
@@ -227,7 +227,7 @@ fn test_projected_on()
   let vec_a = [ 1.0, 2.0, 3.0 ];
   let vec_b = [ 4.0, 5.0, 6.0 ];
   let result = vector::projected_on( &vec_a, &vec_b );
-  let expected = [ 1.6623376623376624, 2.077922077922078, 2.4935064935064934 ];
+  let expected = [ 1.662_337_662_337_662_4, 2.077_922_077_922_078, 2.493_506_493_506_493_4 ];
   // xxx : rid of cylce here
   for ( a, b ) in result.iter().zip( expected.iter() )
   {
@@ -252,7 +252,7 @@ fn test_angle()
   let vec_a = [ 1.0, 0.0 ];
   let vec_b = [ 0.0, 1.0 ];
   let result = vector::angle( &vec_a, &vec_b );
-  assert_ulps_eq!( result, std::f32::consts::FRAC_PI_2 );
+  assert_ulps_eq!( result, core::f32::consts::FRAC_PI_2 );
 
   let vec_zero = [ 0.0, 0.0 ];
   let got = vector::angle( &vec_a, &vec_zero );
