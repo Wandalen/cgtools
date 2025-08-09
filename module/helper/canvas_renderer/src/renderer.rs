@@ -222,6 +222,7 @@ mod private
 
       gl.enable( gl::DEPTH_TEST );
       gl.disable( gl::BLEND );
+      gl.depth_mask( true );
       gl.clear_depth( 1.0 );
       gl.front_face( gl::CCW );
 
@@ -229,7 +230,7 @@ mod private
       gl.viewport(0, 0, self.width as i32, self.height as i32 );
 
       gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
-      //gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ 0.0, 0.0, 0.0, 1.0 ] );
+      gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ 0.0, 0.0, 0.0, 0.0 ] );
       gl.clear( gl::DEPTH_BUFFER_BIT );
 
       gl.use_program( Some( &self.program ) );

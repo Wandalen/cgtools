@@ -1,13 +1,11 @@
-//! Renders 2D curves on surface of 3D object.
-#![ doc( html_root_url = "https://docs.rs/curve_surface_rendering/latest/curve_surface_rendering/" ) ]
-#![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
-#![ cfg_attr( not( doc ), doc = "Renders 2D curves on surface of 3D object" ) ]
+#![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ]
 
 use std::cell::RefCell;
-use mingl::F32x4;
 use minwebgl as gl;
 use gl::
 {
+  F32x4,
+  F32x4x4,
   JsCast,
   GL,
   WebGl2RenderingContext,
@@ -40,10 +38,15 @@ use renderer::webgl::
 };
 use std::rc::Rc;
 use canvas_renderer::renderer::*;
-use geometry_generation::*;
+use geometry_generation::text;
 
 mod camera_controls;
 mod loaders;
+mod animation;
+mod primitive_data;
+mod primitive;
+
+use animation::*;
 
 fn upload_texture( gl : &WebGl2RenderingContext, src : Rc< String > ) -> WebGlTexture
 {
@@ -61,24 +64,10 @@ fn upload_texture( gl : &WebGl2RenderingContext, src : Rc< String > ) -> WebGlTe
       let gl = gl.clone();
       let img = img_element.clone();
       let texture = texture.clone();
-      let src = src.clone();
       move ||
       {
-        gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
-        gl.tex_image_2d_with_u32_and_u32_and_html_image_element
-        (
-          gl::TEXTURE_2D,
-          0,
-          gl::RGBA as i32,
-          gl::RGBA,
-          gl::UNSIGNED_BYTE,
-          &img
-        ).expect( "Failed to upload data to texture" );
-
+        gl::texture::d2::upload_no_flip( &gl, Some( &texture ), &img );
         gl.generate_mipmap( gl::TEXTURE_2D );
-
-        //match
-        gl::web_sys::Url::revoke_object_url( &src ).unwrap();
         img.remove();
       }
     }
@@ -91,7 +80,7 @@ fn upload_texture( gl : &WebGl2RenderingContext, src : Rc< String > ) -> WebGlTe
   texture
 }
 
-async fn create_texture( 
+fn create_texture( 
   gl : &WebGl2RenderingContext,
   image_path : &str
 ) -> Option< TextureInfo >
@@ -201,12 +190,12 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   let mut gltf = renderer::webgl::loaders::gltf::load( &document, "gltf/sphere.glb", &gl ).await?;
 
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 ).unwrap().clone();
-  let texture = create_texture( &gl, "textures/earth2.jpg" ).await;
+  let texture = create_texture( &gl, "textures/earth2.jpg" );
   set_texture( &earth, | m | { m.base_color_texture = texture.clone(); } );
   earth.borrow_mut().update_local_matrix();
 
   let clouds = clone( &mut gltf, &earth );
-  let texture = create_texture( &gl, "textures/clouds2.png" ).await;
+  let texture = create_texture( &gl, "textures/clouds2.png" );
   set_texture( &clouds, 
     | m | 
     { 
@@ -221,7 +210,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   clouds.borrow_mut().update_local_matrix();
 
   let moon = clone( &mut gltf, &earth );
-  let texture = create_texture( &gl, "textures/moon2.jpg" ).await;
+  let texture = create_texture( &gl, "textures/moon2.jpg" );
   set_texture( &moon, | m | { m.base_color_texture = texture.clone(); } );
   let scale = 0.25;
   let distance = 7.0;// 30.0 * 1.0;
@@ -230,7 +219,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   moon.borrow_mut().update_local_matrix();
 
   let environment = clone( &mut gltf, &earth );
-  let texture = create_texture( &gl, "environment_maps/equirectangular_maps/space3.png" ).await;
+  let texture = create_texture( &gl, "environment_maps/equirectangular_maps/space3.png" );
   set_texture( &environment, | m | { m.base_color_texture = texture.clone(); } );
   let scale = 100000.0;
   environment.borrow_mut().set_translation( [ 0.0, 1.0 - scale, 0.0 ] );
@@ -247,14 +236,12 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
 
   let colors = 
   [
-    F32x4::from_array( [ 1.0, 0.0, 0.0, 1.0 ] ),
     F32x4::from_array( [ 1.0, 1.0, 1.0, 1.0 ] ),
-    F32x4::from_array( [ 0.0, 1.0, 0.0, 1.0 ] ),
   ];
   let text = "CGTools".to_string();
 
   let mut primitives_data = vec![];
-  let mut transform = Transform::default();
+  let mut transform = geometry_generation::Transform::default();
   transform.translation.0[ 1 ] += ( font_names.len() as f32 + 1.0 ) / 2.0 + 0.5;
   for font_name in font_names
   {
@@ -268,9 +255,297 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
   let colors = primitives_data.iter()
   .map( | p | p.color )
   .collect::< Vec< _ > >();
-  let canvas_gltf = primitives_data_to_gltf( &gl, primitives_data );
+  let canvas_gltf = geometry_generation::primitives_data_to_gltf( &gl, primitives_data );
 
   ( canvas_gltf, colors )
+}
+
+/// Calculates the mathematical modulo of two floating-point numbers.
+///
+/// This function ensures the result is always non-negative, which differs
+/// from the standard remainder operator (`%`) for negative dividends.
+///
+/// # Arguments
+///
+/// * `dividend` - The number to be divided.
+/// * `divisor` - The number to divide by.
+///
+/// # Returns
+///
+/// The non-negative remainder of the division.
+pub fn modulo( dividend : f64, divisor : f64 ) -> f64 
+{
+  let mut result = dividend % divisor;
+  if result < 0.0 
+  {
+    result += divisor.abs();
+  } 
+  result
+}
+
+fn setup_animation( gl : &GL, width : usize, height : usize ) -> animation::Animation
+{
+  let points : Vec< [ f32; 2 ] > = vec!
+  [
+    [ -0.5, -0.5 ],
+    [ -0.5, 0.5 ],
+    [ 0.5, 0.5 ],
+    [ 0.5, -0.5 ],
+  ];
+
+  let rect_geo = Shape::Geometry( points );
+
+  let base = Layer::former()
+  .frames( 0.0..10.0 )
+  .form();
+
+  let transform = Transform::former()
+  //.position( fixed( kurbo::Point::new( 0.5, -0.5 ) ) )
+  // .position
+  // ( 
+  //   ease
+  //   ( 
+  //     ( 0.0, 10.0 ), 
+  //     ( kurbo::Point::new( 0.0, 0.0 ), kurbo::Point::new( 2.0, 0.0 ) ),
+  //     EASE_IN_OUT_BACK
+  //   ) 
+  // )
+  .form();
+
+  let circles = Layer::former()
+  .parent( 0_isize )
+  .frames( 0.0..10.0 )
+  .transform( interpoli::Transform::Animated( transform.into() ) )
+  .form();
+
+  let mut model = Model::former()
+  .width( width )
+  .height( height )
+  .frames( 0.0..10.0 )
+  .layers()
+    .add( base )
+    .add( circles )
+    .end()
+  .form();
+
+  let mut add_circle = 
+  | circle_transform : Transform, rect_transform : Transform, color : F32x4, repeats : usize |
+  {
+    let circle = Layer::former()
+    .parent( 1_isize )
+    .frames( 0.0..10.0 )
+    .transform( interpoli::Transform::Animated( circle_transform.into() ) )
+    .form();
+
+    model.layers.push( circle );
+    let circle_id = model.layers.len() as isize - 1;
+
+    let offset_rect_transform = Transform::former()
+    .rotation
+    ( 
+      ease
+      ( 
+        ( 0.0, 10.0 ), 
+        ( 0.0, 360.0 ),
+        LINEAR
+      ) 
+    )
+    .form();
+
+    let offset_rect = Layer::former()
+    .parent( circle_id )
+    .frames( 0.0..10.0 )
+    .transform( interpoli::Transform::Animated( offset_rect_transform.clone().into() ) )
+    .form();
+
+    let rect = Layer::former()
+    .parent( 3_isize )
+    .frames( 0.0..10.0 )
+    .transform( interpoli::Transform::Animated( rect_transform.into() ) )
+    .content()
+      .add( Shape::Color( Color::Fixed( *color ) ) )
+      .add( rect_geo.clone() )
+      .end()
+    .form();
+
+    let diff = 360.0 / repeats as f64;
+    for i in 0..repeats
+    {
+      let mut rect = rect.clone();
+      let mut offset_rect = offset_rect.clone();
+
+      let mut transform = offset_rect_transform.clone();
+      transform.rotation = fixed( diff * i as f64 );
+      offset_rect.transform = interpoli::Transform::Animated( transform.into() );
+      model.layers.push( offset_rect );
+
+      rect.parent = model.layers.len() as isize - 1;
+      model.layers.push( rect );
+    }
+  };
+
+  let circle_transform = Transform::former()
+  .rotation
+  ( 
+    ease
+    ( 
+      ( 0.0, 10.0 ), 
+      ( -10.0, 350.0 ),
+      LINEAR
+    ) 
+  )
+  .scale
+  ( 
+    ease
+    ( 
+      ( 0.0, 10.0 ), 
+      ( kurbo::Vec2::new( 100.0, 100.0 ), kurbo::Vec2::new( 200.0, 200.0 ) ),
+      EASE_IN_OUT_BACK
+    ) 
+  )
+  .form();
+
+  let rect_transform = Transform::former()
+  .position( fixed( kurbo::Point::new( 1.6, 0.0 ) ) )
+  .rotation( fixed( -20.0 ) )
+  .scale( fixed( kurbo::Vec2::new( 60.0, 60.0 ) ) )
+  .form();
+
+  add_circle( circle_transform.clone(), rect_transform, F32x4::from_array( [ 1.0, 1.0, 1.0, 1.0 ] ), 11 );
+
+  let circle_transform = Transform::former()
+  .rotation
+  ( 
+    ease
+    ( 
+      ( 0.0, 10.0 ), 
+      ( 0.0, 360.0 ),
+      LINEAR
+    ) 
+  )
+  .scale
+  ( 
+    ease
+    ( 
+      ( 0.0, 10.0 ), 
+      ( kurbo::Vec2::new( 100.0, 100.0 ), kurbo::Vec2::new( 200.0, 200.0 ) ),
+      EASE_IN_OUT_BACK
+    ) 
+  )
+  .form();
+
+  let rect_transform = Transform::former()
+  .position( fixed( kurbo::Point::new( 2.7, 0.0 ) ) )
+  .rotation( fixed( -20.0 ) )
+  .scale( fixed( kurbo::Vec2::new( 80.0, 80.0 ) ) )
+  .form();
+
+  add_circle( circle_transform.clone(), rect_transform, F32x4::from_array( [ 1.0, 0.75, 0.75, 1.0 ] ), 15 );
+  
+  let circle_transform = Transform::former()
+  .rotation
+  ( 
+    ease
+    ( 
+      ( 0.0, 10.0 ), 
+      ( 10.0, 370.0 ),
+      LINEAR
+    ) 
+  )
+  .scale
+  ( 
+    ease
+    ( 
+      ( 0.0, 10.0 ), 
+      ( kurbo::Vec2::new( 100.0, 100.0 ), kurbo::Vec2::new( 200.0, 200.0 ) ),
+      EASE_IN_OUT_BACK
+    ) 
+  )
+  .form();
+
+  let rect_transform = Transform::former()
+  .position( fixed( kurbo::Point::new( 4.2, 0.0 ) ) )
+  .rotation( fixed( -20.0 ) )
+  .form();
+
+  add_circle( circle_transform.clone(), rect_transform, F32x4::from_array( [ 1.0, 0.5, 0.5, 1.0 ] ), 17 );
+  
+  let circle_transform = Transform::former()
+  .rotation
+  ( 
+    ease
+    ( 
+      ( 0.0, 10.0 ), 
+      ( 20.0, 380.0 ),
+      LINEAR
+    ) 
+  )
+  .scale
+  ( 
+    ease
+    ( 
+      ( 0.0, 10.0 ), 
+      ( kurbo::Vec2::new( 100.0, 100.0 ), kurbo::Vec2::new( 200.0, 200.0 ) ),
+      EASE_IN_OUT_BACK
+    ) 
+  )
+  .form();
+
+  let rect_transform = Transform::former()
+  .position( fixed( kurbo::Point::new( 5.7, 0.0 ) ) )
+  .rotation( fixed( -20.0 ) )
+  .scale( fixed( kurbo::Vec2::new( 120.0, 120.0 ) ) )
+  .form();
+
+  add_circle( circle_transform, rect_transform, F32x4::from_array( [ 1.0, 0.25, 0.25, 1.0 ] ), 19 );
+
+  let circle_transform = Transform::former()
+  .rotation
+  ( 
+    ease
+    ( 
+      ( 0.0, 10.0 ), 
+      ( 30.0, 390.0 ),
+      LINEAR
+    ) 
+  )
+  .scale
+  ( 
+    ease
+    ( 
+      ( 0.0, 10.0 ), 
+      ( kurbo::Vec2::new( 100.0, 100.0 ), kurbo::Vec2::new( 200.0, 200.0 ) ),
+      EASE_IN_OUT_BACK
+    ) 
+  )
+  .form();
+
+  let rect_transform = Transform::former()
+  .position( fixed( kurbo::Point::new( 7.4, 0.0 ) ) )
+  .rotation( fixed( -20.0 ) )
+  .scale( fixed( kurbo::Vec2::new( 140.0, 140.0 ) ) )
+  .form();
+
+  add_circle( circle_transform, rect_transform, F32x4::from_array( [ 0.8, 0.0, 0.0, 1.0 ] ), 21 );
+
+  animation::Animation::new( gl, model )
+}
+
+
+struct IndentityMatrix;
+
+impl IndentityMatrix
+{
+  fn new() -> F32x4x4
+  {
+    let mut identity = gl::F32x4x4::default();
+    *identity.scalar_mut( gl::Ix2( 0, 0 ) ) = 1.0;
+    *identity.scalar_mut( gl::Ix2( 1, 1 ) ) = 1.0;
+    *identity.scalar_mut( gl::Ix2( 2, 2 ) ) = 1.0;
+    *identity.scalar_mut( gl::Ix2( 3, 3 ) ) = 1.0;
+
+    identity
+  }
 }
 
 async fn run() -> Result< (), gl::WebglError >
@@ -279,18 +554,21 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut gltf = setup_scene( &gl ).await?; 
   
-  let ( canvas_gltf, colors ) = setup_canvas_scene( &gl ).await;
+  let ( canvas_gltf, _ ) = setup_canvas_scene( &gl ).await;
+  canvas_gltf.scenes[ 0 ].borrow_mut().update_world_matrix();
+  let animation = setup_animation( &gl, canvas.height() as usize, canvas.width() as usize );
+  animation.set_world_matrix( IndentityMatrix::new() );
 
-  let canvas_camera = init_camera( &canvas, &canvas_gltf.scenes );
-  camera_controls::bind_controls_to_input( &canvas, &canvas_camera.get_controls() );
+  let canvas_camera = init_camera( &canvas, &canvas_gltf.scenes ); 
+  //camera_controls::bind_controls_to_input( &canvas, &canvas_camera.get_controls() );
   canvas_camera.get_controls().borrow_mut().window_size = [ ( canvas.width() * 4 ) as f32, ( canvas.height() * 4 ) as f32 ].into();
-  canvas_camera.get_controls().borrow_mut().eye = [ 0.0, 0.0, 8.0 ].into();
+  canvas_camera.get_controls().borrow_mut().eye = [ 0.0, 0.0, 150.0 ].into();
   {
     let controls = canvas_camera.get_controls();
     let mut controls_ref = controls.borrow_mut();
     let center = controls_ref.center.as_mut();
-    center[ 1 ] += 3.0;
-    center[ 0 ] -= 1.0;
+    center[ 1 ] += 45.0;
+    center[ 0 ] -= 25.0;
   }
 
   let canvas_renderer = CanvasRenderer::new( &gl, canvas.width() * 4, canvas.height() * 4 )?;
@@ -326,12 +604,12 @@ async fn run() -> Result< (), gl::WebglError >
 
   let camera = init_camera( &canvas, &scenes );
   camera_controls::bind_controls_to_input( &canvas, &camera.get_controls() );
-  let eye = gl::math::mat3x3h::rot( 0.0, - 76.0_f32.to_radians(), - 20.0_f32.to_radians() ) 
+  let eye = gl::math::mat3x3h::rot( 0.0, - 73.0_f32.to_radians(), - 15.0_f32.to_radians() ) 
   * F32x4::from_array([ 0.0, 1.7, 1.7, 1.0 ] );
   camera.get_controls().borrow_mut().eye = [ eye.x(), eye.y(), eye.z() ].into();
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_ibl( loaders::ibl::load( &gl, "environment_maps/gltf_viewer_ibl_unreal/" ).await );
+  renderer.set_ibl( loaders::ibl::load( &gl, "environment_maps/gltf_viewer_ibl_unreal" ).await );
 
   let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
 
@@ -344,9 +622,12 @@ async fn run() -> Result< (), gl::WebglError >
     move | t : f64 |
     {
       // If textures are of different size, gl.view_port needs to be called
-      let _time = t as f32 / 1000.0;
+      let time = t as f32 / 1000.0;
 
-      canvas_renderer.render( &gl, &mut canvas_gltf.scenes[ 0 ].borrow_mut(), &canvas_camera, &colors ).unwrap();
+      if let Some( ( mut scene, colors ) ) = animation.frame( modulo( time as f64 * 1.0, 10.0 ) )
+      {
+        canvas_renderer.render( &gl, &mut scene, &canvas_camera, &colors ).unwrap();
+      }
 
       renderer.render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
       .expect( "Failed to render" );
