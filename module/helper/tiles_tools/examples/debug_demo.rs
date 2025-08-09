@@ -110,8 +110,8 @@ fn demonstrate_grid_styles()
   println!("{}", square_grid.render_ascii());
 
   // Export square grid as SVG (commented out file operations for demo)
-  // square_grid.export_svg("debug_square_grid.svg").expect("Failed to export SVG");
-  // println!("✅ Square grid exported to debug_square_grid.svg");
+  // square_grid.export_svg("-debug_square_grid.svg").expect("Failed to export SVG");
+  // println!("✅ Square grid exported to -debug_square_grid.svg");
 
   // Hexagonal grid
   let mut hex_grid = GridRenderer::new()
@@ -189,8 +189,8 @@ fn demonstrate_pathfinding_debug()
   println!("{}", pathfinder.render_ascii());
 
   // Export pathfinding debug
-  // pathfinder.export_svg("debug_pathfinding.svg").expect("Failed to export pathfinding SVG");
-  // println!("✅ Pathfinding debug exported to debug_pathfinding.svg");
+  // pathfinder.export_svg("-debug_pathfinding.svg").expect("Failed to export pathfinding SVG");
+  // println!("✅ Pathfinding debug exported to -debug_pathfinding.svg");
 }
 
 fn demonstrate_ecs_inspector()
@@ -323,7 +323,7 @@ fn demonstrate_performance_profiler()
   println!("• Uptime: {}", utils::format_duration(stats.uptime));
 
   // Export performance data (commented out for demo)
-  // profiler.export_csv("performance_data.csv").expect("Failed to export CSV");
+  // profiler.export_csv("-performance_data.csv").expect("Failed to export CSV");
   // println!("✅ Performance data exported to performance_data.csv");
 }
 
