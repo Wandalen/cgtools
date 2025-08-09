@@ -1,32 +1,78 @@
 [package]
 name = "line_tools"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+rust-version = "1.75.0"
 authors = [
   "Kostiantyn Mysnyk <wandalen@obox.systems>",
   "Avramenko Yevhenii <yevhenii.av@obox.systems>"
 ]
 license = "MIT"
 repository = "https://github.com/Wandalen/cgtools"
-description = "A library for rendering lines."
-keywords = ["line"]
+homepage = "https://github.com/Wandalen/cgtools/tree/master/module/helper/line_tools"
+documentation = "https://docs.rs/line_tools"
+description = "High-performance line rendering for WebGL applications with anti-aliasing and batch processing"
+readme = "readme.md"
+keywords = ["line", "rendering", "webgl", "graphics", "visualization"]
+categories = ["graphics", "rendering", "web-programming", "visualization"]
+include = [
+    "src/**/*",
+    "tests/**/*",
+    "Cargo.toml",
+    "readme.md",
+    "license*",
+    "changelog*",
+]
 
 [lints]
 workspace = true
 
 [features]
-default = []
+default = ["enabled"]
+
+# Core line rendering functionality
+enabled = [
+    "dep:minwebgl",
+    "dep:ndarray_cg",
+    "dep:mod_interface",
+    "dep:web-sys",
+]
+
+# Full feature set with serialization
+full = ["enabled", "serialization"]
+
+# Serialization support for line data
+serialization = ["enabled", "dep:serde"]
 
 [dependencies]
-minwebgl = { workspace = true }
-ndarray_cg = { workspace = true }
-mod_interface = { workspace = true }
-serde = { workspace = true, features = [ "derive" ] }
+minwebgl = { workspace = true, optional = true }
+ndarray_cg = { workspace = true, optional = true }
+mod_interface = { workspace = true, optional = true }
+serde = { workspace = true, features = [ "derive" ], optional = true }
 
-web-sys = { workspace = true, features = [
+web-sys = { workspace = true, optional = true, features = [
   'WebGlActiveInfo',
 ]}
 
 
 [dev-dependencies]
 test_tools = { workspace = true }
+
+# Metadata for crates.io
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+default-target = "wasm32-unknown-unknown"
+targets = [
+    "wasm32-unknown-unknown",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+    "x86_64-apple-darwin",
+]
+
+# Cargo.toml maintenance metadata
+[package.metadata.release]
+pre-release-replacements = [
+    { file = "readme.md", search = "line_tools = \"[0-9.]+\"", replace = "line_tools = \"{{version}}\"" },
+    { file = "changelog.md", search = "## Unreleased", replace = "## Unreleased\n\n## {{version}} - {{date}}" },
+]

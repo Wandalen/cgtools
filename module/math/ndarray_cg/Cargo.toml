@@ -2,12 +2,24 @@
 name = "ndarray_cg"
 version = "0.3.0"
 edition = "2021"
-authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
+rust-version = "1.75.0"
+authors = ["Kostiantyn Mysnyk <wandalen@obox.systems>"]
 license = "MIT"
-repository = "https://github.com/Wandalen/cg_tools"
+repository = "https://github.com/Wandalen/cgtools"
+homepage = "https://github.com/Wandalen/cgtools/tree/master/module/math/ndarray_cg"
+documentation = "https://docs.rs/ndarray_cg"
 readme = "readme.md"
-description = "Math for computer graphics based on `ndarray`. The approach used in ndarray for computer graphics math is highly flexible and performant, even though there are many specialized crates focused on game development and computer graphics."
-keywords = ["math", "cg"]
+description = "High-performance computer graphics mathematics library based on ndarray with vectors, matrices, and transformations"
+keywords = ["math", "computer-graphics", "ndarray", "linear-algebra", "vectors"]
+categories = ["mathematics", "graphics", "game-development", "science"]
+include = [
+    "src/**/*",
+    "tests/**/*",
+    "Cargo.toml",
+    "readme.md",
+    "license*",
+    "changelog*",
+]
 
 [lints]
 workspace = true
@@ -47,3 +59,22 @@ mdmath_core = { workspace = true, optional = true, features = [ "index", "float"
 
 [dev-dependencies]
 test_tools = { workspace = true }
+
+# Metadata for crates.io
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+default-target = "x86_64-unknown-linux-gnu"
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+    "x86_64-apple-darwin",
+    "wasm32-unknown-unknown",
+]
+
+# Cargo.toml maintenance metadata
+[package.metadata.release]
+pre-release-replacements = [
+    { file = "readme.md", search = "ndarray_cg = \"[0-9.]+\"", replace = "ndarray_cg = \"{{version}}\"" },
+    { file = "changelog.md", search = "## Unreleased", replace = "## Unreleased\n\n## {{version}} - {{date}}" },
+]

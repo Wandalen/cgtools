@@ -68,18 +68,20 @@ Traditional CPU-based ray-object intersection is expensive. GPU picking uses col
 
 ```rust
 // Assign unique color ID to each object
-struct PickableObject {
-  mesh: Mesh,
-  pick_id: u32,
-  world_transform: Mat4,
+struct PickableObject
+{
+  mesh : Mesh,
+  pick_id : u32,
+  world_transform : Mat4,
 }
 
 // Convert ID to unique RGB color
-fn id_to_color(id: u32) -> [f32; 3] {
+fn id_to_color( id : u32 ) -> [ f32; 3 ]
+{
   [
-    ((id >> 16) & 0xFF) as f32 / 255.0,
-    ((id >> 8) & 0xFF) as f32 / 255.0,
-    (id & 0xFF) as f32 / 255.0,
+    ( ( id >> 16 ) & 0xFF ) as f32 / 255.0,
+    ( ( id >> 8 ) & 0xFF ) as f32 / 255.0,
+    ( id & 0xFF ) as f32 / 255.0,
   ]
 }
 ```
@@ -127,28 +129,33 @@ void main() {
 
 ```rust
 // Read pixel from pick buffer at mouse coordinates
-fn get_picked_object(mouse_x: i32, mouse_y: i32, gl: &WebGl2RenderingContext) -> Option<u32> {
+fn get_picked_object( mouse_x : i32, mouse_y : i32, gl : &WebGl2RenderingContext ) -> Option< u32 >
+{
   // Bind pick framebuffer
-  gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&pick_framebuffer));
+  gl.bind_framebuffer( WebGl2RenderingContext::FRAMEBUFFER, Some( &pick_framebuffer ) );
   
   // Read single pixel at mouse position
-  let mut pixel_data = [0u8; 4];
-  gl.read_pixels(
+  let mut pixel_data = [ 0u8; 4 ];
+  gl.read_pixels
+  (
     mouse_x, canvas_height - mouse_y, // Flip Y coordinate
     1, 1,
     WebGl2RenderingContext::RGBA,
     WebGl2RenderingContext::UNSIGNED_BYTE,
-    Some(&mut pixel_data)
+    Some( &mut pixel_data )
   );
   
   // Convert RGB back to object ID
-  if pixel_data[0] == 0 && pixel_data[1] == 0 && pixel_data[2] == 0 {
+  if pixel_data[ 0 ] == 0 && pixel_data[ 1 ] == 0 && pixel_data[ 2 ] == 0
+  {
     None // Background pixel
-  } else {
-    let id = (pixel_data[0] as u32) << 16 
-           | (pixel_data[1] as u32) << 8 
-           | (pixel_data[2] as u32);
-    Some(id)
+  }
+  else
+  {
+    let id = ( pixel_data[ 0 ] as u32 ) << 16 
+           | ( pixel_data[ 1 ] as u32 ) << 8 
+           | ( pixel_data[ 2 ] as u32 );
+    Some( id )
   }
 }
 ```
@@ -164,25 +171,29 @@ fn get_picked_object(mouse_x: i32, mouse_y: i32, gl: &WebGl2RenderingContext) ->
 ### Implementation Efficiency
 ```rust
 // Batch render both buffers in single frame
-struct DualPassRenderer {
-  scene_framebuffer: WebGlFramebuffer,
-  pick_framebuffer: WebGlFramebuffer,
-  scene_program: WebGlProgram,
-  pick_program: WebGlProgram,
+struct DualPassRenderer
+{
+  scene_framebuffer : WebGlFramebuffer,
+  pick_framebuffer : WebGlFramebuffer,
+  scene_program : WebGlProgram,
+  pick_program : WebGlProgram,
 }
 
-impl DualPassRenderer {
-  fn render_frame(&mut self, objects: &[PickableObject]) {
+impl DualPassRenderer
+{
+  fn render_frame( &mut self, objects : &[ PickableObject ] )
+  {
     // Pass 1: Render pick buffer (off-screen)
-    self.render_pick_buffer(objects);
+    self.render_pick_buffer( objects );
     
     // Pass 2: Render visible scene
-    self.render_scene_buffer(objects);
+    self.render_scene_buffer( objects );
     
     // Handle mouse picking if needed
-    if let Some(mouse_pos) = self.pending_mouse_click {
-      let picked_id = self.read_pick_pixel(mouse_pos);
-      self.handle_object_selection(picked_id);
+    if let Some( mouse_pos ) = self.pending_mouse_click
+    {
+      let picked_id = self.read_pick_pixel( mouse_pos );
+      self.handle_object_selection( picked_id );
     }
   }
 }
@@ -217,17 +228,22 @@ impl DualPassRenderer {
 ### Multi-Selection Support
 ```rust
 // Hold Ctrl for multi-select
-fn handle_mouse_click(&mut self, mouse_pos: (i32, i32), ctrl_held: bool) {
-  let picked_id = self.read_pick_pixel(mouse_pos);
+fn handle_mouse_click( &mut self, mouse_pos : ( i32, i32 ), ctrl_held : bool )
+{
+  let picked_id = self.read_pick_pixel( mouse_pos );
   
-  if let Some(id) = picked_id {
-    if ctrl_held {
+  if let Some( id ) = picked_id
+  {
+    if ctrl_held
+    {
       // Add to selection set
-      self.selected_objects.insert(id);
-    } else {
+      self.selected_objects.insert( id );
+    }
+    else
+    {
       // Replace selection
       self.selected_objects.clear();
-      self.selected_objects.insert(id);
+      self.selected_objects.insert( id );
     }
   }
 }
@@ -236,10 +252,12 @@ fn handle_mouse_click(&mut self, mouse_pos: (i32, i32), ctrl_held: bool) {
 ### Hover Effects
 ```rust
 // Track mouse movement for hover effects
-fn handle_mouse_move(&mut self, mouse_pos: (i32, i32)) {
-  let hovered_id = self.read_pick_pixel(mouse_pos);
+fn handle_mouse_move( &mut self, mouse_pos : ( i32, i32 ) )
+{
+  let hovered_id = self.read_pick_pixel( mouse_pos );
   
-  if hovered_id != self.current_hover {
+  if hovered_id != self.current_hover
+  {
     // Update hover state
     self.current_hover = hovered_id;
     self.request_redraw();
@@ -292,21 +310,25 @@ examples/minwebgl/object_picking/
 ### Custom Object Types
 ```rust
 // Add metadata to pickable objects
-struct EnhancedPickableObject {
-  mesh: Mesh,
-  pick_id: u32,
-  name: String,
-  object_type: ObjectType,
-  properties: HashMap<String, Value>,
+struct EnhancedPickableObject
+{
+  mesh : Mesh,
+  pick_id : u32,
+  name : String,
+  object_type : ObjectType,
+  properties : HashMap< String, Value >,
 }
 
 // Handle different object types
-fn handle_object_selected(&mut self, id: u32) {
-  if let Some(obj) = self.objects.get(&id) {
-    match obj.object_type {
-      ObjectType::Weapon => self.show_weapon_info(obj),
-      ObjectType::Character => self.show_character_stats(obj),
-      ObjectType::Building => self.show_building_details(obj),
+fn handle_object_selected( &mut self, id : u32 )
+{
+  if let Some( obj ) = self.objects.get( &id )
+  {
+    match obj.object_type
+    {
+      ObjectType::Weapon => self.show_weapon_info( obj ),
+      ObjectType::Character => self.show_character_stats( obj ),
+      ObjectType::Building => self.show_building_details( obj ),
     }
   }
 }
@@ -315,14 +337,17 @@ fn handle_object_selected(&mut self, id: u32) {
 ### Performance Profiling
 ```rust
 // Measure picking performance
-struct PickingMetrics {
-  pick_buffer_render_time: f64,
-  pixel_read_time: f64,
-  total_objects: usize,
+struct PickingMetrics
+{
+  pick_buffer_render_time : f64,
+  pixel_read_time : f64,
+  total_objects : usize,
 }
 
-impl PickingMetrics {
-  fn measure_frame(&mut self) {
+impl PickingMetrics
+{
+  fn measure_frame( &mut self )
+  {
     let start = performance::now();
     // ... rendering code ...
     self.pick_buffer_render_time = performance::now() - start;
@@ -348,9 +373,10 @@ impl PickingMetrics {
 ### Debug Techniques
 ```rust
 // Visualize pick buffer for debugging
-fn debug_show_pick_buffer(&self) {
+fn debug_show_pick_buffer( &self )
+{
   // Render pick buffer to screen instead of hidden framebuffer
-  gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
+  gl.bind_framebuffer( WebGl2RenderingContext::FRAMEBUFFER, None );
   // Render with pick shaders...
 }
 ```

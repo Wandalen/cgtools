@@ -2,12 +2,24 @@
 name = "mdmath_core"
 version = "0.3.0"
 edition = "2021"
-authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
+rust-version = "1.75.0"
+authors = ["Kostiantyn Mysnyk <wandalen@obox.systems>"]
 license = "MIT"
-repository = "https://github.com/Wandalen/cg_tools"
+repository = "https://github.com/Wandalen/cgtools"
+homepage = "https://github.com/Wandalen/cgtools/tree/master/module/math/mdmath_core"
+documentation = "https://docs.rs/mdmath_core"
 readme = "readme.md"
-description = "Multidimensional math, fundamental functionality and types."
-keywords = [ "math" ]
+description = "Core multidimensional mathematics library with fundamental types, traits, and operations"
+keywords = ["math", "multidimensional", "linear-algebra", "traits", "core"]
+categories = ["mathematics", "no-std", "science", "api-bindings"]
+include = [
+    "src/**/*",
+    "tests/**/*",
+    "Cargo.toml",
+    "readme.md",
+    "license*",
+    "changelog*",
+]
 
 [lints]
 workspace = true
@@ -51,3 +63,22 @@ num-traits = { workspace = true, optional = true, features = [] }
 
 [dev-dependencies]
 test_tools = { workspace = true }
+
+# Metadata for crates.io
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+default-target = "x86_64-unknown-linux-gnu"
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+    "x86_64-apple-darwin",
+    "wasm32-unknown-unknown",
+]
+
+# Cargo.toml maintenance metadata
+[package.metadata.release]
+pre-release-replacements = [
+    { file = "readme.md", search = "mdmath_core = \"[0-9.]+\"", replace = "mdmath_core = \"{{version}}\"" },
+    { file = "changelog.md", search = "## Unreleased", replace = "## Unreleased\n\n## {{version}} - {{date}}" },
+]
