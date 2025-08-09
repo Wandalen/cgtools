@@ -159,7 +159,7 @@ path = "module/helper/line_tools"
 # = min
 
 [workspace.dependencies.mingl]
-version = "~0.2.0"
+version = "~0.3.0"
 path = "module/min/mingl"
 
 [workspace.dependencies.minwebgl]
