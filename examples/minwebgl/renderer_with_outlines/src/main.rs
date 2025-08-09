@@ -1,4 +1,7 @@
-#![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ]
+//! Compares different outline methods for GLTF files.
+#![ doc( html_root_url = "https://docs.rs/renderer_with_outlines/latest/renderer_with_outlines/" ) ]
+#![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
+#![ cfg_attr( not( doc ), doc = "Compares different outline methods for GLTF files" ) ]
 
 use std::collections::HashMap;
 use mingl::F32x4;

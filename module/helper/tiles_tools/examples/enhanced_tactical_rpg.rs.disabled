@@ -1,0 +1,512 @@
+//! Enhanced Tactical RPG Example
+//! 
+//! This example demonstrates advanced tiles_tools features including:
+//! - Advanced pathfinding with obstacles and terrain costs
+//! - Multi-goal pathfinding for AI decision making
+//! - ECS integration for entity management
+//! - Field-of-view calculations for tactical gameplay
+//! 
+//! # Features Showcased
+//! 
+//! - **Advanced A* pathfinding** with terrain costs and obstacle avoidance
+//! - **Multi-unit coordination** using flow fields for group movement
+//! - **Line-of-sight mechanics** for tactical positioning
+//! - **ECS integration** with components and systems
+//! - **Spatial queries** for collision detection and area effects
+
+use tiles_tools::{
+    ecs::{ World, Position, Health, Movable, Stats, Team, AI, AIState },
+    pathfind::{ astar_advanced, astar_multi_goal, PathfindingConfig },
+    field_of_view::{ FieldOfView, FOVAlgorithm },
+    coordinates::square::{ Coordinate as SquareCoord, FourConnected, EightConnected },
+    coordinates::{ Distance, Neighbors },
+};
+use std::collections::{ HashMap, HashSet };
+
+/// Terrain types affecting movement costs and line of sight
+#[ derive( Debug, Clone, Copy, PartialEq, Eq, Hash ) ]
+pub enum TerrainType
+{
+    /// Open grassland (cost 1, no sight blocking)
+    Grassland,
+    /// Rough rocky terrain (cost 2, no sight blocking) 
+    RockyGround,
+    /// Dense forest (cost 3, blocks sight)
+    Forest,
+    /// Impassable mountain (infinite cost, blocks sight)
+    Mountain,
+    /// Water (cost 4 for amphibious units, blocks others)
+    Water,
+    /// Settlement building (cost 2, blocks sight)
+    Building,
+}
+
+impl TerrainType
+{
+    /// Returns the movement cost for this terrain type
+    pub fn movement_cost( &self ) -> u32
+    {
+        match self
+        {
+            TerrainType::Grassland => 1,
+            TerrainType::RockyGround => 2,
+            TerrainType::Forest => 3,
+            TerrainType::Mountain => u32::MAX, // Impassable
+            TerrainType::Water => 4,
+            TerrainType::Building => 2,
+        }
+    }
+    
+    /// Returns whether this terrain blocks line of sight
+    pub fn blocks_sight( &self ) -> bool
+    {
+        matches!( self, TerrainType::Forest | TerrainType::Mountain | TerrainType::Building )
+    }
+    
+    /// Returns whether terrain is passable
+    pub fn is_passable( &self ) -> bool
+    {
+        !matches!( self, TerrainType::Mountain )
+    }
+}
+
+/// Game state managing the battlefield
+pub struct TacticalBattlefield
+{
+    /// ECS world containing all entities
+    pub world : World,
+    /// Terrain map defining movement costs and sight blocking
+    pub terrain : HashMap< SquareCoord< FourConnected >, TerrainType >,
+    /// Field-of-view calculator
+    pub fov_calculator : FieldOfView,
+    /// Cached visibility maps for each unit
+    pub visibility_cache : HashMap< hecs::Entity, HashSet< SquareCoord< FourConnected > > >,
+    /// Current turn number
+    pub turn : u32,
+}
+
+impl TacticalBattlefield
+{
+    /// Creates a new battlefield with the specified dimensions
+    pub fn new( width : i32, height : i32 ) -> Self
+    {
+        let mut battlefield = Self
+        {
+            world : World::new(),
+            terrain : HashMap::new(),
+            fov_calculator : FieldOfView::new(),
+            visibility_cache : HashMap::new(),
+            turn : 1,
+        };
+        
+        // Initialize with default grassland terrain
+        for x in 0..width
+        {
+            for y in 0..height
+            {
+                let coord = SquareCoord::< FourConnected >::new( x, y );
+                battlefield.terrain.insert( coord, TerrainType::Grassland );
+            }
+        }
+        
+        battlefield
+    }
+    
+    /// Sets terrain at the specified position
+    pub fn set_terrain( &mut self, coord : SquareCoord< FourConnected >, terrain : TerrainType )
+    {
+        self.terrain.insert( coord, terrain );
+    }
+    
+    /// Spawns a player unit at the specified position
+    pub fn spawn_player_unit( &mut self, pos : SquareCoord< FourConnected >, name : &str ) -> hecs::Entity
+    {
+        self.world.spawn( (
+            Position::new( pos ),
+            Health::new( 100 ),
+            Movable::new( 3 ).with_diagonal(), // 3 movement range with diagonal movement
+            Stats::new( 25, 15, 12, 5 ), // attack, defense, speed, level
+            Team::new( 1 ), // Player team
+        ) )
+    }
+    
+    /// Spawns an enemy unit with AI at the specified position
+    pub fn spawn_enemy_unit( &mut self, pos : SquareCoord< FourConnected >, ai_type : AIState ) -> hecs::Entity
+    {
+        self.world.spawn( (
+            Position::new( pos ),
+            Health::new( 75 ),
+            Movable::new( 2 ), // 2 movement range
+            Stats::new( 20, 12, 10, 3 ), // Slightly weaker than player units
+            Team::hostile( 2 ), // Enemy team, hostile by default
+            AI::new( 1.0 ).with_initial_state( ai_type ),
+        ) )
+    }
+    
+    /// Calculates optimal movement for a unit to a target position
+    pub fn calculate_movement_path( 
+        &self, 
+        unit : hecs::Entity, 
+        target : SquareCoord< FourConnected > 
+    ) -> Option< ( Vec< SquareCoord< FourConnected > >, u32 ) >
+    {
+        if let Ok( query_result ) = self.world.hecs_world.query_one::< ( &Position< SquareCoord< FourConnected > >, &Movable ) >( unit )
+        {
+            let ( pos, movable ) = query_result.get();
+            // Create pathfinding configuration with terrain and entity obstacles
+            let config = self.create_pathfinding_config( movable );
+            
+            astar_advanced( &pos.coord, &target, &config )
+        }
+        else
+        {
+            None
+        }
+    }
+    
+    /// Calculates AI movement using multi-goal pathfinding
+    pub fn calculate_ai_movement( 
+        &self, 
+        unit : hecs::Entity 
+    ) -> Option< ( Vec< SquareCoord< FourConnected > >, u32, SquareCoord< FourConnected > ) >
+    {
+        if let Ok( query_result ) = self.world.hecs_world.query_one::< ( 
+            &Position< SquareCoord< FourConnected > >, 
+            &Movable, 
+            &AI, 
+            &Team 
+        ) >( unit )
+        {
+            let ( pos, movable, ai, team ) = query_result.get();
+            // Find potential targets based on AI state
+            let targets = self.find_ai_targets( &pos.coord, ai, team );
+            
+            if targets.is_empty()
+            {
+                return None;
+            }
+            
+            astar_multi_goal(
+                &pos.coord,
+                &targets,
+                | coord | self.is_position_passable( coord, movable ),
+                | coord | self.get_movement_cost( coord ),
+            )
+        }
+        else
+        {
+            None
+        }
+    }
+    
+    /// Updates field-of-view for all units
+    pub fn update_visibility( &mut self )
+    {
+        self.visibility_cache.clear();
+        
+        // Calculate FOV for each unit
+        for ( entity, ( pos, team ) ) in self.world.query::< ( &Position< SquareCoord< FourConnected > >, &Team ) >().iter()
+        {
+            let visible_positions = self.fov_calculator.calculate_fov(
+                &pos.coord,
+                8, // vision range
+                | coord | self.terrain.get( coord )
+                    .map_or( false, | t | t.blocks_sight() )
+            );
+            
+            let visible_set : HashSet< _ > = visible_positions.visible_positions().collect();
+            self.visibility_cache.insert( entity, visible_set );
+        }
+    }
+    
+    /// Checks if one unit can see another
+    pub fn can_unit_see_unit( &self, observer : hecs::Entity, target : hecs::Entity ) -> bool
+    {
+        if let ( Some( visible_positions ), Ok( target_pos ) ) = (
+            self.visibility_cache.get( &observer ),
+            self.world.hecs_world.query_one::< &Position< SquareCoord< FourConnected > > >( target )
+        )
+        {
+            visible_positions.contains( &target_pos.coord )
+        }
+        else
+        {
+            false
+        }
+    }
+    
+    /// Executes combat between two units
+    pub fn execute_combat( &mut self, attacker : hecs::Entity, defender : hecs::Entity ) -> CombatResult
+    {
+        if let ( Ok( attacker_stats ), Ok( ( mut defender_health, defender_stats ) ) ) = (
+            self.world.hecs_world.query_one::< &Stats >( attacker ),
+            self.world.hecs_world.query_one_mut::< ( &mut Health, &Stats ) >( defender )
+        )
+        {
+            let damage = attacker_stats.calculate_damage( defender_stats.defense );
+            defender_health.damage( damage );
+            
+            CombatResult
+            {
+                damage_dealt : damage,
+                target_killed : !defender_health.is_alive(),
+                attacker_position : self.world.hecs_world.query_one::< &Position< SquareCoord< FourConnected > > >( attacker )
+                    .map( | pos | pos.coord ).unwrap_or( SquareCoord::new( 0, 0 ) ),
+                defender_position : self.world.hecs_world.query_one::< &Position< SquareCoord< FourConnected > > >( defender )
+                    .map( | pos | pos.coord ).unwrap_or( SquareCoord::new( 0, 0 ) ),
+            }
+        }
+        else
+        {
+            CombatResult::default()
+        }
+    }
+    
+    /// Processes one turn of the game
+    pub fn process_turn( &mut self )
+    {
+        println!( "=== Turn {} ===" , self.turn );
+        
+        // Update AI decision timers
+        for ( _entity, ai ) in self.world.query_mut::< &mut AI >()
+        {
+            ai.update( 1.0 ); // Simulate 1 second per turn
+        }
+        
+        // Update visibility for all units
+        self.update_visibility();
+        
+        // Process AI actions for enemy units
+        let ai_entities : Vec< _ > = self.world.query::< ( &AI, &Team ) >()
+            .iter()
+            .filter( | ( _entity, ( _ai, team ) ) | team.id == 2 ) // Enemy team
+            .map( | ( entity, _ ) | entity )
+            .collect();
+            
+        for entity in ai_entities
+        {
+            self.process_ai_turn( entity );
+        }
+        
+        self.turn += 1;
+    }
+    
+    // Helper methods
+    
+    fn create_pathfinding_config( &self, movable : &Movable ) -> PathfindingConfig< SquareCoord< FourConnected > >
+    {
+        let mut config = PathfindingConfig::new()
+            .with_max_distance( movable.range )
+            .with_base_cost( 1 );
+            
+        // Add terrain costs
+        for ( coord, terrain ) in &self.terrain
+        {
+            if terrain.movement_cost() > 1
+            {
+                config = config.with_terrain_cost( *coord, terrain.movement_cost() );
+            }
+            if !terrain.is_passable()
+            {
+                config = config.with_obstacle( *coord );
+            }
+        }
+        
+        // Add entity obstacles (other units block movement)
+        for ( entity, pos ) in self.world.query::< &Position< SquareCoord< FourConnected > > >().iter()
+        {
+            config = config.with_blocking_entity( pos.coord, entity.id() );
+        }
+        
+        config
+    }
+    
+    fn find_ai_targets( 
+        &self, 
+        ai_pos : &SquareCoord< FourConnected >, 
+        ai : &AI, 
+        ai_team : &Team 
+    ) -> Vec< SquareCoord< FourConnected > >
+    {
+        let mut targets = Vec::new();
+        
+        match ai.state
+        {
+            AIState::Pursuing | AIState::Attacking =>
+            {
+                // Target enemy units within range
+                for ( _entity, ( pos, team ) ) in self.world.query::< ( &Position< SquareCoord< FourConnected > >, &Team ) >().iter()
+                {
+                    if ai_team.is_hostile_to( team ) && ai_pos.distance( &pos.coord ) <= 10
+                    {
+                        targets.push( pos.coord );
+                    }
+                }
+            }
+            AIState::Patrolling =>
+            {
+                // Create patrol points around current position
+                for dx in -2..=2
+                {
+                    for dy in -2..=2
+                    {
+                        if dx != 0 || dy != 0
+                        {
+                            let patrol_point = SquareCoord::new( ai_pos.x + dx, ai_pos.y + dy );
+                            targets.push( patrol_point );
+                        }
+                    }
+                }
+            }
+            _ => {} // Other states don't require movement targets
+        }
+        
+        targets
+    }
+    
+    fn is_position_passable( &self, coord : &SquareCoord< FourConnected >, _movable : &Movable ) -> bool
+    {
+        if let Some( terrain ) = self.terrain.get( coord )
+        {
+            terrain.is_passable()
+        }
+        else
+        {
+            false // Out of bounds
+        }
+    }
+    
+    fn get_movement_cost( &self, coord : &SquareCoord< FourConnected > ) -> u32
+    {
+        self.terrain.get( coord )
+            .map_or( u32::MAX, | t | t.movement_cost() )
+    }
+    
+    fn process_ai_turn( &mut self, entity : hecs::Entity )
+    {
+        if let Ok( ai ) = self.world.hecs_world.query_one_mut::< &mut AI >( entity )
+        {
+            if !ai.should_make_decision()
+            {
+                return;
+            }
+            
+            ai.reset_decision_timer();
+            
+            // Calculate movement based on current AI state
+            if let Some( ( _path, _cost, target ) ) = self.calculate_ai_movement( entity )
+            {
+                // Move AI unit toward target (simplified - would need proper movement system)
+                if let Ok( mut pos ) = self.world.hecs_world.query_one_mut::< &mut Position< SquareCoord< FourConnected > > >( entity )
+                {
+                    // Simple movement toward target
+                    let current = pos.coord;
+                    if current.x < target.x { pos.coord.x += 1; }
+                    else if current.x > target.x { pos.coord.x -= 1; }
+                    else if current.y < target.y { pos.coord.y += 1; }
+                    else if current.y > target.y { pos.coord.y -= 1; }
+                }
+            }
+        }
+    }
+}
+
+/// Result of combat between two units
+#[ derive( Debug, Clone, Default ) ]
+pub struct CombatResult
+{
+    pub damage_dealt : u32,
+    pub target_killed : bool,
+    pub attacker_position : SquareCoord< FourConnected >,
+    pub defender_position : SquareCoord< FourConnected >,
+}
+
+/// Extension trait for AI component
+trait AIExt
+{
+    fn with_initial_state( self, state : AIState ) -> Self;
+}
+
+impl AIExt for AI
+{
+    fn with_initial_state( mut self, state : AIState ) -> Self
+    {
+        self.set_state( state );
+        self
+    }
+}
+
+fn main()
+{
+    println!( "Enhanced Tactical RPG Demo" );
+    println!( "=========================" );
+    
+    // Create battlefield
+    let mut battlefield = TacticalBattlefield::new( 20, 15 );
+    
+    // Set up terrain
+    battlefield.set_terrain( SquareCoord::new( 5, 5 ), TerrainType::Forest );
+    battlefield.set_terrain( SquareCoord::new( 5, 6 ), TerrainType::Forest );
+    battlefield.set_terrain( SquareCoord::new( 6, 5 ), TerrainType::Forest );
+    battlefield.set_terrain( SquareCoord::new( 10, 8 ), TerrainType::Mountain );
+    battlefield.set_terrain( SquareCoord::new( 15, 3 ), TerrainType::Building );
+    
+    // Spawn player units
+    let player1 = battlefield.spawn_player_unit( SquareCoord::new( 2, 2 ), "Knight" );
+    let player2 = battlefield.spawn_player_unit( SquareCoord::new( 3, 2 ), "Archer" );
+    
+    // Spawn enemy units with different AI behaviors
+    let enemy1 = battlefield.spawn_enemy_unit( SquareCoord::new( 18, 12 ), AIState::Pursuing );
+    let enemy2 = battlefield.spawn_enemy_unit( SquareCoord::new( 16, 10 ), AIState::Patrolling );
+    
+    println!( "Spawned {} player units and {} enemy units", 2, 2 );
+    
+    // Demonstrate pathfinding
+    println!( "\nDemonstrating Advanced Pathfinding:" );
+    if let Some( ( path, cost ) ) = battlefield.calculate_movement_path( player1, SquareCoord::new( 15, 10 ) )
+    {
+        println!( "Player 1 path to (15,10): {} steps, cost: {}", path.len(), cost );
+        println!( "Path: {:?}", path );
+    }
+    
+    // Demonstrate AI multi-goal pathfinding
+    println!( "\nDemonstrating AI Multi-Goal Pathfinding:" );
+    if let Some( ( path, cost, target ) ) = battlefield.calculate_ai_movement( enemy1 )
+    {
+        println!( "Enemy 1 targeting {:?} with cost {}, path length: {}", target, cost, path.len() );
+    }
+    
+    // Process several turns
+    println!( "\nProcessing turns..." );
+    for _turn in 0..3
+    {
+        battlefield.process_turn();
+    }
+    
+    // Demonstrate line-of-sight
+    println!( "\nDemonstrating Line-of-Sight:" );
+    battlefield.update_visibility();
+    
+    if battlefield.can_unit_see_unit( player1, enemy1 )
+    {
+        println!( "Player 1 can see Enemy 1" );
+    }
+    else
+    {
+        println!( "Player 1 cannot see Enemy 1 (blocked by terrain or out of range)" );
+    }
+    
+    // Demonstrate combat
+    println!( "\nDemonstrating Combat:" );
+    let combat_result = battlefield.execute_combat( player1, enemy1 );
+    println!( "Combat result: {} damage dealt, target killed: {}", 
+        combat_result.damage_dealt, combat_result.target_killed );
+    
+    println!( "\nEnhanced Tactical RPG Demo Complete!" );
+    println!( "This example showcased:" );
+    println!( "- Advanced pathfinding with terrain costs and obstacles" );
+    println!( "- Multi-goal AI pathfinding for intelligent behavior" );
+    println!( "- ECS integration for entity management" );
+    println!( "- Field-of-view calculations for tactical gameplay" );
+    println!( "- Combat system with stats and damage calculation" );
+}

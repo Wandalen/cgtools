@@ -5,6 +5,7 @@
 mod private
 {
   use std::borrow::Cow;
+  #[ cfg( feature = "random" ) ]
   use rand::seq::IndexedRandom;
   use itertools::Itertools as _;
   use crate::format::pec;
@@ -117,7 +118,14 @@ mod private
   /// Retrieves a random thread from PEC pallete
   pub fn get_random_thread() -> Thread
   {
-    pec::pec_threads()[ 1.. ].choose( &mut rand::rng() ).unwrap().clone()
+    #[ cfg( feature = "random" ) ]
+    {
+      pec::pec_threads()[ 1.. ].choose( &mut rand::rng() ).unwrap().clone()
+    }
+    #[ cfg( not( feature = "random" ) ) ]
+    {
+      pec::pec_threads()[ 1 ].clone()
+    }
   }
 }
 

@@ -2,12 +2,27 @@
 name = "vectorizer"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.75.0"
 license = "MIT"
 authors = [
   "Kostiantyn Mysnyk <wandalen@obox.systems>",
   "Avramenko Yevhenii <yevhenii.av@obox.systems>"
 ]
-description = "Utilities to vectorize raster images"
+repository = "https://github.com/Wandalen/cgtools"
+homepage = "https://github.com/Wandalen/cgtools/tree/master/module/helper/vectorizer"
+documentation = "https://docs.rs/vectorizer"
+description = "High-quality raster to vector image conversion with SVG output and command-line interface"
+readme = "readme.md"
+keywords = ["vectorizer", "svg", "image", "raster", "conversion"]
+categories = ["multimedia::images", "graphics", "command-line-utilities"]
+include = [
+    "src/**/*",
+    "tests/**/*",
+    "Cargo.toml",
+    "readme.md",
+    "license*",
+    "changelog*",
+]
 exclude = [ "article" ]
 
 
@@ -15,21 +30,67 @@ exclude = [ "article" ]
 workspace = true
 
 [features]
-enabled = []
-default = [
-  "enabled",
+default = ["enabled"]
+
+# Core vectorization functionality
+enabled = [
+    "dep:mod_interface",
+    "dep:visioncortex",
+    "dep:palette",
+    "dep:error_tools",
+    "dep:derive_tools",
+    "dep:image",
 ]
 
+# Full feature set with CLI and serialization
+full = ["enabled", "cli", "serialization", "random"]
+
+# Command-line interface
+cli = ["enabled", "dep:clap", "dep:tokio"]
+
+# Serialization support
+serialization = ["enabled", "dep:serde", "dep:serde_with"]
+
+# Random color generation
+random = ["enabled", "dep:fastrand"]
+
 [dependencies]
-mod_interface = { workspace = true }
-visioncortex = { workspace = true }
-palette = { workspace = true }
-fastrand = { workspace = true }
-error_tools = { workspace = true, features = [ "full" ] }
-derive_tools = { workspace = true, features = [ "enabled", "full" ] }
-serde = { workspace = true, features = [ "serde_derive" ] }
-serde_with = { workspace = true }
-clap = { workspace = true }
-image = { workspace = true }
-tokio = { workspace = true, features = [ "full" ] }
+mod_interface = { workspace = true, optional = true }
+visioncortex = { workspace = true, optional = true }
+palette = { workspace = true, optional = true }
+fastrand = { workspace = true, optional = true }
+error_tools = { workspace = true, features = [ "full" ], optional = true }
+derive_tools = { workspace = true, features = [ "enabled", "full" ], optional = true }
+serde = { workspace = true, features = [ "serde_derive" ], optional = true }
+serde_with = { workspace = true, optional = true }
+clap = { workspace = true, optional = true }
+image = { workspace = true, optional = true }
+tokio = { workspace = true, features = [ "full" ], optional = true }
+
+[dev-dependencies]
+test_tools = { workspace = true }
+
+# Binary target
+[[bin]]
+name = "vectorizer"
+path = "src/main.rs"
+required-features = ["cli"]
+
+# Metadata for crates.io
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+default-target = "x86_64-unknown-linux-gnu"
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+    "x86_64-apple-darwin",
+]
+
+# Cargo.toml maintenance metadata
+[package.metadata.release]
+pre-release-replacements = [
+    { file = "readme.md", search = "vectorizer = \"[0-9.]+\"", replace = "vectorizer = \"{{version}}\"" },
+    { file = "changelog.md", search = "## Unreleased", replace = "## Unreleased\n\n## {{version}} - {{date}}" },
+]
 

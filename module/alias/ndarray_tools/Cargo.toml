@@ -2,22 +2,62 @@
 name = "ndarray_tools"
 version = "0.1.0"
 edition = "2021"
-authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
+rust-version = "1.75.0"
+authors = ["Kostiantyn Mysnyk <wandalen@obox.systems>"]
 license = "MIT"
-repository = "https://github.com/Wandalen/cg_tools"
+repository = "https://github.com/Wandalen/cgtools"
+homepage = "https://github.com/Wandalen/cgtools/tree/master/module/alias/ndarray_tools"
+documentation = "https://docs.rs/ndarray_tools"
 readme = "readme.md"
-description = "Math for computer graphics based on `ndarray`. The approach used in ndarray for computer graphics math is highly flexible and performant, even though there are many specialized crates focused on game development and computer graphics."
-keywords = ["math", "cg"]
+description = "Convenience alias crate for ndarray-based computer graphics mathematics tools and utilities"
+keywords = ["math", "computer-graphics", "ndarray", "linear-algebra", "alias"]
+categories = ["mathematics", "graphics", "game-development", "science"]
+include = [
+    "src/**/*",
+    "tests/**/*",
+    "Cargo.toml",
+    "readme.md",
+    "license*",
+    "changelog*",
+]
 
 [lints]
 workspace = true
 
-# xxx : introduce features
-# xxx : introduce features: enabled, default, full
+[features]
+default = ["enabled"]
+
+# Core alias functionality
+enabled = [
+    "dep:mod_interface",
+    "dep:ndarray_cg",
+]
+
+# Full feature set
+full = ["enabled"]
 
 [dependencies]
-mod_interface = { workspace = true }
-ndarray_cg = { workspace = true }
+mod_interface = { workspace = true, optional = true }
+ndarray_cg = { workspace = true, optional = true }
 
 [dev-dependencies]
 test_tools = { workspace = true }
+
+# Metadata for crates.io
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+default-target = "x86_64-unknown-linux-gnu"
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+    "x86_64-apple-darwin",
+    "wasm32-unknown-unknown",
+]
+
+# Cargo.toml maintenance metadata
+[package.metadata.release]
+pre-release-replacements = [
+    { file = "readme.md", search = "ndarray_tools = \"[0-9.]+\"", replace = "ndarray_tools = \"{{version}}\"" },
+    { file = "changelog.md", search = "## Unreleased", replace = "## Unreleased\n\n## {{version}} - {{date}}" },
+]

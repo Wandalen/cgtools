@@ -2,12 +2,24 @@
 name = "minwebgl"
 version = "0.2.0"
 edition = "2021"
-authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
+rust-version = "1.75.0"
+authors = ["Kostiantyn Mysnyk <wandalen@obox.systems>"]
 license = "MIT"
-repository = "https://github.com/Wandalen/cg_tools"
-description = "Minimal set of tools for concise WebGL programming"
+repository = "https://github.com/Wandalen/cgtools"
+homepage = "https://github.com/Wandalen/cgtools/tree/master/module/min/minwebgl"
+documentation = "https://docs.rs/minwebgl"
+description = "Minimal WebGL toolkit for concise graphics programming with utilities, shaders, and resource management"
 readme = "readme.md"
-keywords = [ "webgl" ]
+keywords = ["webgl", "graphics", "minimal", "wasm", "shaders"]
+categories = ["graphics", "web-programming", "rendering", "wasm"]
+include = [
+    "src/**/*",
+    "tests/**/*",
+    "Cargo.toml",
+    "readme.md",
+    "license*",
+    "changelog*",
+]
 
 [lints]
 workspace = true
@@ -103,3 +115,25 @@ web-sys = { workspace = true, optional = true, features = [
   "Blob",
   "Url"
 ]}
+
+[dev-dependencies]
+test_tools = { workspace = true }
+
+# Metadata for crates.io
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+default-target = "wasm32-unknown-unknown"
+targets = [
+    "wasm32-unknown-unknown",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+    "x86_64-apple-darwin",
+]
+
+# Cargo.toml maintenance metadata
+[package.metadata.release]
+pre-release-replacements = [
+    { file = "readme.md", search = "minwebgl = \"[0-9.]+\"", replace = "minwebgl = \"{{version}}\"" },
+    { file = "changelog.md", search = "## Unreleased", replace = "## Unreleased\n\n## {{version}} - {{date}}" },
+]

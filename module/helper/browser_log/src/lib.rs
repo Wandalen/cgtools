@@ -1,5 +1,7 @@
 //! Browser logging and panic handling utilities.
+#![ doc( html_root_url = "https://docs.rs/browser_log/latest/browser_log/" ) ]
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
+#![ cfg_attr( not( doc ), doc = "Browser logging and panic handling utilities" ) ]
 
 #![allow(clippy::implicit_return)]
 #![allow(clippy::missing_inline_in_public_items)]

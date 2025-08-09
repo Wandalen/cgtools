@@ -337,3 +337,254 @@ where
 
   nearest
 }
+
+// =============================================================================
+// Collision Detection Systems
+// =============================================================================
+
+/// System for handling collision detection between entities.
+pub struct CollisionSystem;
+
+impl CollisionSystem {
+  /// Detects collisions between all entities with collision components.
+  pub fn detect_collisions<C>(
+    world: &hecs::World,
+  ) -> Vec<CollisionEvent<C>>
+  where
+    C: Distance + Clone + PartialEq + Send + Sync + 'static,
+  {
+    let mut collisions = Vec::new();
+    let mut query = world.query::<(&Position<C>, &Collision)>();
+    let entities_with_collision: Vec<_> = query.iter().collect();
+
+    // Check all pairs of entities for collisions
+    for i in 0..entities_with_collision.len() {
+      for j in (i + 1)..entities_with_collision.len() {
+        let (entity1, (pos1, collision1)) = entities_with_collision[i];
+        let (entity2, (pos2, collision2)) = entities_with_collision[j];
+
+        if Self::check_collision(pos1, collision1, pos2, collision2) {
+          collisions.push(CollisionEvent {
+            entity1,
+            entity2,
+            position1: pos1.clone(),
+            position2: pos2.clone(),
+          });
+        }
+      }
+    }
+
+    collisions
+  }
+
+  /// Checks if two entities are colliding based on their positions and collision properties.
+  fn check_collision<C>(
+    pos1: &Position<C>,
+    collision1: &Collision,
+    pos2: &Position<C>, 
+    collision2: &Collision,
+  ) -> bool
+  where
+    C: Distance,
+  {
+    let distance = pos1.distance_to(pos2);
+    let collision_distance = collision1.radius + collision2.radius;
+    distance <= collision_distance
+  }
+
+  /// Resolves collisions by separating overlapping entities.
+  pub fn resolve_collisions<C>(
+    world: &mut hecs::World,
+    collisions: &[CollisionEvent<C>],
+  )
+  where
+    C: Distance + Neighbors + Clone + Send + Sync + 'static,
+  {
+    for collision in collisions {
+      // Handle each collision separately to avoid borrowing conflicts
+      if let Ok(pos1) = world.query_one_mut::<&mut Position<C>>(collision.entity1) {
+        let neighbors1 = pos1.coord.neighbors();
+        if let Some(best_pos1) = neighbors1.iter()
+          .max_by_key(|neighbor| collision.position2.coord.distance(neighbor))
+        {
+          pos1.coord = best_pos1.clone();
+        }
+      }
+      
+      if let Ok(pos2) = world.query_one_mut::<&mut Position<C>>(collision.entity2) {
+        let neighbors2 = pos2.coord.neighbors();
+        if let Some(best_pos2) = neighbors2.iter()
+          .max_by_key(|neighbor| collision.position1.coord.distance(neighbor))
+        {
+          pos2.coord = best_pos2.clone();
+        }
+      }
+    }
+  }
+}
+
+/// Event representing a collision between two entities.
+#[derive(Debug, Clone)]
+pub struct CollisionEvent<C> {
+  /// First entity in collision
+  pub entity1: hecs::Entity,
+  /// Second entity in collision  
+  pub entity2: hecs::Entity,
+  /// Position of first entity
+  pub position1: Position<C>,
+  /// Position of second entity
+  pub position2: Position<C>,
+}
+
+/// Collision component for entities that can collide.
+#[derive(Debug, Clone)]
+pub struct Collision {
+  /// Collision radius (distance at which collision occurs)
+  pub radius: u32,
+  /// Whether this entity can pass through other entities
+  pub solid: bool,
+  /// Collision layer for filtering collision detection
+  pub layer: u32,
+}
+
+impl Collision {
+  /// Creates a new collision component.
+  pub fn new(radius: u32) -> Self {
+    Self {
+      radius,
+      solid: true,
+      layer: 0,
+    }
+  }
+
+  /// Sets the collision as non-solid (can overlap).
+  pub fn non_solid(mut self) -> Self {
+    self.solid = false;
+    self
+  }
+
+  /// Sets the collision layer.
+  pub fn with_layer(mut self, layer: u32) -> Self {
+    self.layer = layer;
+    self
+  }
+}
+
+// =============================================================================
+// Spatial Query Systems
+// =============================================================================
+
+/// System for efficient spatial queries and neighbor finding.
+pub struct SpatialQuerySystem;
+
+impl SpatialQuerySystem {
+  /// Finds all entities within a circular area.
+  pub fn query_circle<C>(
+    world: &hecs::World,
+    center: &Position<C>,
+    radius: u32,
+  ) -> Vec<(hecs::Entity, Position<C>)>
+  where
+    C: Distance + Clone + Send + Sync + 'static,
+  {
+    find_entities_in_range(world, center, radius)
+  }
+
+  /// Finds all entities along a line between two points.
+  pub fn query_line<C>(
+    world: &hecs::World,
+    start: &Position<C>,
+    end: &Position<C>,
+  ) -> Vec<(hecs::Entity, Position<C>)>
+  where
+    C: Distance + Neighbors + Clone + PartialEq + std::hash::Hash + Send + Sync + 'static,
+  {
+    let mut entities = Vec::new();
+    
+    // Get line positions using simplified line tracing
+    let line_positions = Self::trace_line(&start.coord, &end.coord);
+    
+    // Find entities at each position along the line
+    for line_pos in line_positions {
+      for (entity, pos) in world.query::<&Position<C>>().iter() {
+        if pos.coord == line_pos {
+          entities.push((entity, pos.clone()));
+        }
+      }
+    }
+
+    entities
+  }
+
+  /// Finds all entities within a rectangular area.
+  pub fn query_rectangle<C>(
+    world: &hecs::World,
+    center: &Position<C>,
+    width: u32,
+    height: u32,
+  ) -> Vec<(hecs::Entity, Position<C>)>
+  where
+    C: Distance + Clone + Send + Sync + 'static,
+  {
+    let mut entities = Vec::new();
+    let max_distance = ((width * width + height * height) as f32).sqrt() as u32;
+
+    for (entity, pos) in world.query::<&Position<C>>().iter() {
+      let distance = center.distance_to(pos);
+      if distance <= max_distance {
+        // Additional filtering could be added here for precise rectangular bounds
+        entities.push((entity, pos.clone()));
+      }
+    }
+
+    entities
+  }
+
+  /// Finds entities by team affiliation within a range.
+  pub fn query_by_team<C>(
+    world: &hecs::World,
+    center: &Position<C>,
+    radius: u32,
+    team_filter: impl Fn(&Team) -> bool,
+  ) -> Vec<(hecs::Entity, Position<C>, Team)>
+  where
+    C: Distance + Clone + Send + Sync + 'static,
+  {
+    let mut entities = Vec::new();
+
+    for (entity, (pos, team)) in world.query::<(&Position<C>, &Team)>().iter() {
+      if center.distance_to(pos) <= radius && team_filter(team) {
+        entities.push((entity, pos.clone(), team.clone()));
+      }
+    }
+
+    entities
+  }
+
+  /// Simplified line tracing for spatial queries.
+  fn trace_line<C>(start: &C, end: &C) -> Vec<C>
+  where
+    C: Distance + Neighbors + Clone + PartialEq,
+  {
+    let mut line_positions = Vec::new();
+    let mut current = start.clone();
+    line_positions.push(current.clone());
+
+    while current != *end && line_positions.len() < 100 {
+      let neighbors = current.neighbors();
+      if let Some(next) = neighbors.iter()
+        .min_by_key(|neighbor| neighbor.distance(end))
+      {
+        if next == &current {
+          break; // Prevent infinite loop
+        }
+        current = next.clone();
+        line_positions.push(current.clone());
+      } else {
+        break;
+      }
+    }
+
+    line_positions
+  }
+}

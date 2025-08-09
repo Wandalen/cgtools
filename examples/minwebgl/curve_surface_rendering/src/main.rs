@@ -1,4 +1,7 @@
-#![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ]
+//! Renders 2D curves on surface of 3D object.
+#![ doc( html_root_url = "https://docs.rs/curve_surface_rendering/latest/curve_surface_rendering/" ) ]
+#![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
+#![ cfg_attr( not( doc ), doc = "Renders 2D curves on surface of 3D object" ) ]
 
 use std::cell::RefCell;
 use mingl::F32x4;

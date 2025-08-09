@@ -1,4 +1,7 @@
-#![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ]
+//! Renders outlines for 3D objects.
+#![ doc( html_root_url = "https://docs.rs/narrow_outline/latest/narrow_outline/" ) ]
+#![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
+#![ cfg_attr( not( doc ), doc = "Renders outlines for 3D objects" ) ]
 
 use mingl::{ AsBytes, CameraOrbitControls, VectorDataType };
 use minwebgl::{ self as gl, WebglError, JsCast };

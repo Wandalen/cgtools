@@ -2,13 +2,24 @@
 name = "browser_tools"
 version = "0.2.0"
 edition = "2021"
-rust-version = "1.81.0"
-authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
+rust-version = "1.75.0"
+authors = ["Kostiantyn Mysnyk <wandalen@obox.systems>"]
 license = "MIT"
-repository = "https://github.com/Wandalen/cg_tools"
-description = "Utility to log in wasm/browser"
+repository = "https://github.com/Wandalen/cgtools"
+homepage = "https://github.com/Wandalen/cgtools/tree/master/module/alias/browser_tools"
+documentation = "https://docs.rs/browser_tools"
+description = "Convenience alias crate for browser development tools and WebAssembly utilities"
 readme = "readme.md"
-keywords = ["wasm"]
+keywords = ["browser", "wasm", "webassembly", "logging", "tools"]
+categories = ["web-programming", "wasm", "development-tools"]
+include = [
+    "src/**/*",
+    "tests/**/*",
+    "Cargo.toml",
+    "readme.md",
+    "license*",
+    "changelog*",
+]
 
 [lints]
 workspace = true
@@ -25,3 +36,25 @@ full = [ "default" ]
 
 mod_interface = { workspace = true, optional = true }
 browser_log = { workspace = true, optional = true }
+
+[dev-dependencies]
+test_tools = { workspace = true }
+
+# Metadata for crates.io
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+default-target = "wasm32-unknown-unknown"
+targets = [
+    "wasm32-unknown-unknown",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+    "x86_64-apple-darwin",
+]
+
+# Cargo.toml maintenance metadata
+[package.metadata.release]
+pre-release-replacements = [
+    { file = "readme.md", search = "browser_tools = \"[0-9.]+\"", replace = "browser_tools = \"{{version}}\"" },
+    { file = "changelog.md", search = "## Unreleased", replace = "## Unreleased\n\n## {{version}} - {{date}}" },
+]

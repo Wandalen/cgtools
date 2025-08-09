@@ -1,5 +1,7 @@
 //! This module provides functionality for loading UFO 
 //! fonts and converting text into a 3D mesh representation.
+
+#[ cfg( feature = "text" ) ]
 mod private
 {
   use std::rc::Rc;
@@ -364,8 +366,9 @@ mod private
     }
   }
 
-  /// Converts a set of 2D contours into `PrimitiveData` for a 3D mesh.
-  pub fn _contours_to_mesh( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
+  /// Converts a set of 2D contours into a triangulated mesh with holes support.
+  #[ cfg( feature = "font-processing" ) ]
+  pub fn contours_to_mesh( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
   {
     if contours.is_empty()
     {
@@ -680,6 +683,59 @@ mod private
     }
 
     mesh
+  }
+}
+
+#[ cfg( not( feature = "text" ) ) ]
+mod private
+{
+  use std::collections::HashMap;
+  use crate::{ PrimitiveData };
+
+  /// Stub implementation of Glyph when text feature is disabled
+  #[ derive( Clone ) ]
+  pub struct Glyph;
+
+  /// Stub implementation of Font when text feature is disabled  
+  #[ derive( Clone ) ]
+  pub struct Font;
+
+  impl Font
+  {
+    /// Stub implementation for Font constructor when text feature is disabled
+    pub async fn new( _path : &str ) -> Self
+    {
+      Self
+    }
+  }
+
+  /// Stub implementation - always returns None when text feature is disabled
+  pub fn contours_to_mesh( _contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
+  {
+    None
+  }
+
+  /// Stub implementation - always returns empty map when text feature is disabled
+  pub async fn load_fonts( _font_names : &[ &str ] ) -> HashMap< String, Font >
+  {
+    HashMap::new()
+  }
+
+  /// Stub implementation - always returns None when text feature is disabled
+  pub fn text_to_mesh( _text : &str, _font : &Font ) -> Option< PrimitiveData >
+  {
+    None
+  }
+
+  /// Stub implementation - always returns empty vec when text feature is disabled
+  pub fn text_to_countour_mesh( 
+    _text : &str, 
+    _font : &Font, 
+    _transform : &crate::Transform, 
+    _width : f32 
+  ) -> Vec< PrimitiveData >
+  {
+    Vec::new()
   }
 }
 

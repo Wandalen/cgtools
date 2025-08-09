@@ -1,4 +1,7 @@
-#![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ]
+//! Renders GLTF files using postprocess effects.
+#![ doc( html_root_url = "https://docs.rs/gltf_viewer/latest/gltf_viewer/" ) ]
+#![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
+#![ cfg_attr( not( doc ), doc = "Renders GLTF files using postprocess effects" ) ]
 
 use std::{ cell::RefCell, rc::Rc };
 use minwebgl as gl;

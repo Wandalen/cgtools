@@ -1,9 +1,11 @@
 mod private
 {
+  #[ cfg( feature = "serialization" ) ]
   use serde::{ Serialize, Deserialize };
 
   /// Represents the different types of line segment joins.
-  #[ derive( Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize ) ]
+  #[ derive( Debug, Clone, Copy, PartialEq, PartialOrd ) ]
+  #[ cfg_attr( feature = "serialization", derive( Serialize, Deserialize ) ) ]
   pub enum Join
   {
     /// A round join, which is a circular arc connecting two line segments.

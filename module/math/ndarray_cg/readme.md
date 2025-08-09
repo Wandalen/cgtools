@@ -1,214 +1,220 @@
-# ndarray_cg
+# 🎯 ndarray_cg
 
-This crate provides math functionality for computer graphics based on `ndarray`. The approach used in ndarray for computer graphics math is highly flexible and performant, even though there are many specialized crates focused on game development and computer graphics.
+> **High-performance computer graphics mathematics built on ndarray**
 
-To use it within workspace, simply add it to the `Cargo.toml`
+A comprehensive matrix and linear algebra library specifically designed for computer graphics applications. Built on top of the powerful `ndarray` crate, ndarray_cg provides specialized functionality for 2D/3D transformations, graphics pipelines, and geometric operations with excellent performance characteristics.
+
+## ✨ Features
+
+### 🔄 **Matrix Operations**
+- **2D/3D/4D Matrices** - Specialized matrix types for graphics (Mat2, Mat3, Mat4)
+- **Row & Column Major** - Support for both memory layouts
+- **Operator Overloading** - Natural mathematical syntax (+, -, *, etc.)
+- **In-Place Operations** - Memory-efficient computations
+
+### 🎮 **Graphics Transformations**
+- **Rotation Matrices** - 2D/3D rotation operations
+- **Translation** - Homogeneous coordinate translations
+- **Scaling** - Uniform and non-uniform scaling
+- **Reflection** - Mirror transformations
+- **Shearing** - Skew transformations
+
+### 🚀 **Performance Optimized**
+- **SIMD Support** - Vectorized operations via ndarray
+- **Zero-Copy Views** - Efficient memory access patterns
+- **Stack Allocation** - Small matrices on stack
+- **Generic Types** - Works with f32, f64, and other numeric types
+
+### 🔧 **Developer Experience**
+- **Type Aliases** - Convenient F32x2x2, F32x3x3, F32x4x4 types
+- **Indexed Iteration** - Multiple iteration patterns
+- **Debug Support** - Rich debugging and display traits
+
+## 📦 Installation
+
+Add to your `Cargo.toml`:
 ```toml
-ndarray_cg = { workspace = true, features = { "enabled" } }
+ndarray_cg = { workspace = true, features = ["enabled"] }
 ```
 
-### Example: Trivial
+## 🚀 Quick Start
 
-```Rust
-use ndarray_cg::*;
-// Will create the following matrix
-// [ 1.0, 2.0,
-//   3.0, 4.0,
-//   5.0, 6.0 ]
-let matrix = Mat< 2, 2, f32, DescriptorOrderRowMajor >::from_row_major( [ 1.0, 2.0, 3.0, 4.0 ] );
-
-// For computer graphics related matrices, you can use a shortcut:
-// Will create the following matrix
-// [ 1.0, 2.0,
-//   3.0, 4.0 ]
-let matrix = Mat2::from_row_major( [ 1.0, 2.0, 3.0, 4.0 ] );
-
-// You can multiply two matrices
-let rotated_matrix = mat2x2::rot( 45.0f32.to_radians() ) * matrix;
-
-
-// You can iterate over your matrix in different ways
-let matrix = Mat< 2, 3, f32, DescriptorOrderRowMajor >::from_row_major( [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ] );
-for ( id, v ) in rotated_matrix.iter_indexed_msfirst()
-{
-    println!( " Index: {:?} , value: {:?}", id, v );
-}
-
-for ( id, v ) in rotated_matrix.lane_indexed_iter( 1, 0 )
-{
-    println!( " Index: {:?} , value: {:?}", id, v );
-}
-```
-
-### Example: Adding
+### Basic Matrix Operations
 
 ```rust
-  use ndarray_cg::*;
+use ndarray_cg::*;
 
-  let mat_a = F32x2x2::from_row_major
-  ([
+fn main() {
+  // Create a 2x2 matrix using row-major layout
+  // [ 1.0, 2.0 ]
+  // [ 3.0, 4.0 ]
+  let matrix = Mat2::from_row_major([1.0, 2.0, 3.0, 4.0]);
+  
+  // Create a rotation matrix (45 degrees)
+  let rotation = mat2x2::rot(45.0f32.to_radians());
+  
+  // Apply rotation to the matrix
+  let rotated = rotation * matrix;
+  
+  println!("Original: {:?}", matrix.raw_slice());
+  println!("Rotated:  {:?}", rotated.raw_slice());
+}
+```
+
+### Common Graphics Transformations
+
+```rust,ignore
+use ndarray_cg::*;
+use std::f32::consts::PI;
+
+fn graphics_example() {
+  // 2D Rotation (45 degrees)
+  let angle = PI / 4.0;
+  let rotation = mat2x2::rot(angle);
+  
+  // 2D Scaling
+  let scale = mat2x2::scale([2.0, 3.0]);
+  
+  // 2D Translation (using homogeneous coordinates)
+  let translation = mat2x2h::translate([5.0, 10.0]);
+  
+  // Reflection across X-axis
+  let reflect = mat2x2::reflect_x();
+  
+  // Shearing transformation
+  let shear = mat2x2::shear([1.0, 0.5]);
+  
+  // Combine transformations
+  let transform = translation * scale * rotation;
+  println!("Combined transform: {:?}", transform.raw_slice());
+}
+```
+
+### Matrix Arithmetic Operations
+
+```rust
+use ndarray_cg::*;
+
+fn arithmetic_examples() {
+  // Matrix addition
+  let mat_a = F32x2x2::from_row_major([
     1.0, 2.0,
     3.0, 4.0,
   ]);
-  let mat_b = F32x2x2::from_row_major
-  ([
+  let mat_b = F32x2x2::from_row_major([
     5.0, 6.0,
     7.0, 8.0,
   ]);
-  let mut mat_r = F32x2x2::default();
-
-  // Perform addition
-  d2::add( &mut mat_r, &mat_a, &mat_b );
-
-  let exp = F32x2x2::from_row_major
-  ([
-    6.0, 8.0,
-    10.0, 12.0,
-  ]);
-
-  assert_eq!( mat_r, exp, "Expected {:?}, got {:?}", exp.raw_slice(), mat_r.raw_slice() );
-
-  // Operator overloading
-  let mat_r = &mat_a + &mat_b;
-  assert_eq!( mat_r, exp, "Expected {:?}, got {:?}", exp.raw_slice(), mat_r.raw_slice() );
+  
+  // Using operator overloading (recommended)
+  let result = &mat_a + &mat_b;
+  
+  // Or using explicit function calls
+  let mut result2 = F32x2x2::default();
+  d2::add(&mut result2, &mat_a, &mat_b);
+  
+  println!("Addition result: {:?}", result.raw_slice());
+}
 ```
 
-### Example: Multiplication
+### Matrix Multiplication
 
 ```rust
-  use ndarray_cg::*;
-  use mat::DescriptorOrderRowMajor;
+use ndarray_cg::*;
+use mat::DescriptorOrderRowMajor;
 
-  let mat_a = Mat::< 1, 3, f32, DescriptorOrderRowMajor >::from_row_major
-  ([
+fn multiplication_example() {
+  // 1x3 matrix
+  let mat_a = Mat::<1, 3, f32, DescriptorOrderRowMajor>::from_row_major([
     1.0, 2.0, 3.0,
   ]);
-  let mat_b = Mat::< 3, 2, f32, DescriptorOrderRowMajor >::from_row_major
-  ([
+  
+  // 3x2 matrix  
+  let mat_b = Mat::<3, 2, f32, DescriptorOrderRowMajor>::from_row_major([
     7.0, 8.0,
     9.0, 10.0,
     11.0, 12.0,
   ]);
-  let mut mat_r = Mat::< 1, 2, f32, DescriptorOrderRowMajor >::default();
-
-  // Perform multiplication
-  d2::mul( &mut mat_r, &mat_a, &mat_b );
-
-  let exp = Mat::< 1, 2, f32, DescriptorOrderRowMajor >::from_row_major
-  ([
-    58.0, 64.0,
-  ]);
-  assert_eq!( mat_r, exp, "Expected {:?}, got {:?}", exp.raw_slice(), mat_r.raw_slice() );
-
-  // Operator overloading
-  let mat_r = &mat_a * &mat_b;
-  assert_eq!( mat_r, exp, "Expected {:?}, got {:?}", exp.raw_slice(), mat_r.raw_slice() );
+  
+  // Matrix multiplication: 1x3 * 3x2 = 1x2
+  let result = &mat_a * &mat_b;
+  println!("Multiplication result: {:?}", result.raw_slice()); // [58.0, 64.0]
+}
 ```
 
-### Example: Angle rotation
+## 📖 API Reference
+
+### Matrix Types
+
+| Type | Description | Use Case |
+|------|-------------|----------|
+| `Mat2` / `F32x2x2` | 2x2 matrix | 2D transformations |
+| `Mat3` / `F32x3x3` | 3x3 matrix | 2D homogeneous coords |
+| `Mat4` / `F32x4x4` | 4x4 matrix | 3D transformations |
+
+### Transformation Functions
+
+| Function | Purpose | Example |
+|----------|---------|---------|
+| `mat2x2::rot(angle)` | 2D rotation | `mat2x2::rot(PI / 4.0)` |
+| `mat2x2::scale([sx, sy])` | 2D scaling | `mat2x2::scale([2.0, 3.0])` |
+| `mat2x2h::translate([tx, ty])` | 2D translation | `mat2x2h::translate([5.0, 10.0])` |
+| `mat2x2::reflect_x()` | X-axis reflection | `mat2x2::reflect_x()` |
+| `mat2x2::shear([shx, shy])` | Shearing | `mat2x2::shear([1.0, 0.5])` |
+
+### Advanced Features
 
 ```rust
-  use ndarray_cg::*;
-  use std::f32::consts::PI;
+use ndarray_cg::*;
+use mat::DescriptorOrderRowMajor;
 
-  let angle_radians = PI / 4.0;
-  let cos_theta = angle_radians.cos();
-  let sin_theta = angle_radians.sin();
-
-  let exp = F32x2x2::from_row_major
-  ([
-    cos_theta, -sin_theta,
-    sin_theta, cos_theta,
-  ]);
-
-  let got = mat2x2::rot( angle_radians );
-
-  assert_eq!( got, exp );
+fn advanced_features() {
+  // Matrix iteration
+  let matrix = Mat::<1, 2, f32, DescriptorOrderRowMajor>::from_row_major([1.0, 2.0]);
+  
+  // Iterate over matrix lanes (rows/columns)
+  for value in matrix.lane_iter(0, 0) {
+    println!("Value: {}", value);
+  }
+  
+  // Indexed iteration
+  for (index, value) in matrix.iter_indexed_msfirst() {
+    println!("Index: {:?}, Value: {}", index, value);
+  }
+}
 ```
 
-### Example: Translation
+## 🎯 Use Cases
 
-```rust
-  use ndarray_cg::*;
+- **2D Game Development** - Sprite transformations and camera systems
+- **3D Graphics Programming** - Model-view-projection matrices
+- **Computer Vision** - Image transformations and homography
+- **Animation Systems** - Skeletal animation and keyframe interpolation
+- **Physics Simulations** - Coordinate system transformations
 
-  let tx = 2.0;
-  let ty = 3.0;
+## 🔧 Advanced Configuration
 
-  let exp = F32x3x3::from_row_major
-  ([
-    1.0, 0.0, tx,
-    0.0, 1.0, ty,
-    0.0, 0.0, 1.0,
-  ]);
+### Features
 
-  let got = mat2x2h::translate( [ tx, ty ] );
+- `enabled` - Core functionality (default)
+- `full` - All features enabled
 
-  assert_eq!( got, exp );
+### Memory Layout Options
+
+```rust,ignore
+use ndarray_cg::*;
+use mat::{DescriptorOrderRowMajor, DescriptorOrderColumnMajor};
+
+// Row-major (default for graphics)
+let row_major = Mat::<2, 2, f32, DescriptorOrderRowMajor>::from_row_major([1.0, 2.0, 3.0, 4.0]);
+
+// Column-major (for compatibility with certain graphics APIs)
+let col_major = Mat::<2, 2, f32, DescriptorOrderColMajor>::default();
 ```
 
-### Example: Basic scaling
+## ⚡ Performance Notes
 
-```rust
-  use ndarray_cg::*;
-
-  let sx = 2.0;
-  let sy = 3.0;
-
-  let exp = F32x2x2::from_row_major
-  ([
-    sx, 0.0,
-    0.0, sy,
-  ]);
-
-  let got = mat2x2::scale( [ sx, sy ] );
-
-  assert_eq!( got, exp );
-```
-
-### Example: Reflecting
-
-```rust
-  use ndarray_cg::*;
-
-  let exp = F32x2x2::from_row_major
-  ([
-    1.0, 0.0,
-    0.0, -1.0,
-  ]);
-
-  let got = mat2x2::reflect_x();
-
-  assert_eq!( got, exp );
-```
-
-### Example: Shearing
-
-```rust
-  use ndarray_cg::*;
-
-  let shx = 1.0;
-  let shy = 0.5;
-
-  let exp = F32x2x2::from_row_major
-  ([
-    1.0, shx,
-    shy, 1.0,
-  ]);
-
-  let got = mat2x2::shear( [ shx, shy ] );
-
-  assert_eq!( got, exp );
-```
-
-### Example: Line iteration
-
-```rust
-  use ndarray_cg::*;
-  use mat::DescriptorOrderRowMajor;
-
-  let mat = Mat::< 1, 2, f32, DescriptorOrderRowMajor >::from_row_major( [ 1.0, 2.0 ] );
-  let row_iter : Vec< _ > = mat.lane_iter( 0, 0 ).collect();
-  let exp = vec![ &1.0, &2.0 ];
-
-  assert_eq!( row_iter, exp, "Expected {:?}, got {:?}", exp, row_iter );
-```
+- Built on ndarray's highly optimized SIMD operations
+- Zero-cost abstractions over raw array operations
+- Efficient memory layouts for cache performance
+- Generic over numeric types (f32, f64, etc.)

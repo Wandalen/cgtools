@@ -123,7 +123,7 @@ mod private
     }
 
     /// Adds a new point to the end of the line strip.
-    pub fn add_point( &mut self, point : gl::F32x3 )
+    pub fn add_point( &mut self, point : math::F32x3 )
     {
       self.points.push( point );
       self.points_changed = true;
@@ -153,7 +153,7 @@ mod private
     }  
 
     /// Retrieves a slice of the line's points.
-    pub fn get_points( &self ) -> &[ gl::F32x3 ]
+    pub fn get_points( &self ) -> &[ math::F32x3 ]
     {
       &self.points
     }  
