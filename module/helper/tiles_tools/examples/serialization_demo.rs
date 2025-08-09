@@ -56,11 +56,11 @@ fn main() {
   
   // Add an achievement
   game_state.progress.achievements.push(Achievement {
-    id: "first_level".to_string(),
-    name: "First Steps".to_string(),
-    description: "Complete your first level".to_string(),
-    unlocked_at: 1234567890,
-    points: 50,
+  id: "first_level".to_string(),
+  name: "First Steps".to_string(),
+  description: "Complete your first level".to_string(),
+  unlocked_at: 1234567890,
+  points: 50,
   });
 
   // Update game statistics
@@ -70,17 +70,17 @@ fn main() {
 
   // Add custom metadata tags
   game_state.metadata = game_state.metadata
-    .with_tag("demo".to_string())
-    .with_tag("tutorial_complete".to_string())
-    .with_custom("difficulty".to_string(), "normal".to_string())
-    .with_custom("character_class".to_string(), "warrior".to_string());
+  .with_tag("demo".to_string())
+  .with_tag("tutorial_complete".to_string())
+  .with_custom("difficulty".to_string(), "normal".to_string())
+  .with_custom("character_class".to_string(), "warrior".to_string());
 
   println!("Created game state:");
   println!("  Player Level: {}", game_state.progress.level);
   println!("  Experience: {}", game_state.progress.experience);
   println!("  Playtime: {}h {}m", 
-    game_state.progress.playtime_seconds / 3600, 
-    (game_state.progress.playtime_seconds % 3600) / 60);
+  game_state.progress.playtime_seconds / 3600, 
+  (game_state.progress.playtime_seconds % 3600) / 60);
   println!("  Achievements: {}", game_state.progress.achievements.len());
   println!("  Levels Completed: {}", game_state.progress.levels_completed.len());
 
@@ -90,35 +90,35 @@ fn main() {
 
   // Test JSON serialization
   let json_serializer = GameStateSerializer::new()
-    .with_format(SerializationFormat::Json);
+  .with_format(SerializationFormat::Json);
 
   let json_data = json_serializer.serialize_game_state(&game_state)
-    .expect("Failed to serialize to JSON");
+  .expect("Failed to serialize to JSON");
   println!("JSON serialization: {} bytes", json_data.len());
 
   // Test Binary serialization
   let binary_serializer = GameStateSerializer::new()
-    .with_format(SerializationFormat::Binary);
+  .with_format(SerializationFormat::Binary);
 
   let binary_data = binary_serializer.serialize_game_state(&game_state)
-    .expect("Failed to serialize to binary");
+  .expect("Failed to serialize to binary");
   println!("Binary serialization: {} bytes", binary_data.len());
 
   // Test RON serialization
   let ron_serializer = GameStateSerializer::new()
-    .with_format(SerializationFormat::Ron);
+  .with_format(SerializationFormat::Ron);
 
   let ron_data = ron_serializer.serialize_game_state(&game_state)
-    .expect("Failed to serialize to RON");
+  .expect("Failed to serialize to RON");
   println!("RON serialization: {} bytes", ron_data.len());
 
   // Verify deserialization works
   let json_restored = json_serializer.deserialize_game_state(&json_data)
-    .expect("Failed to deserialize JSON");
+  .expect("Failed to deserialize JSON");
   let binary_restored = binary_serializer.deserialize_game_state(&binary_data)
-    .expect("Failed to deserialize binary");
+  .expect("Failed to deserialize binary");
   let ron_restored = ron_serializer.deserialize_game_state(&ron_data)
-    .expect("Failed to deserialize RON");
+  .expect("Failed to deserialize RON");
 
   println!("✅ All formats successfully roundtrip serialized");
   println!("  JSON player level: {}", json_restored.progress.level);
@@ -130,28 +130,28 @@ fn main() {
   println!("--------------");
 
   let uncompressed_serializer = GameStateSerializer::new()
-    .with_compression(false);
+  .with_compression(false);
   let compressed_serializer = GameStateSerializer::new()
-    .with_compression(true);
+  .with_compression(true);
 
   let uncompressed = uncompressed_serializer.serialize_game_state(&game_state)
-    .expect("Failed to serialize uncompressed");
+  .expect("Failed to serialize uncompressed");
   let compressed = compressed_serializer.serialize_game_state(&game_state)
-    .expect("Failed to serialize compressed");
+  .expect("Failed to serialize compressed");
 
   println!("Uncompressed size: {} bytes", uncompressed.len());
   println!("Compressed size: {} bytes", compressed.len());
   let ratio = if compressed.len() < uncompressed.len() {
-    ((uncompressed.len() - compressed.len()) as f64 / uncompressed.len() as f64) * 100.0
+  ((uncompressed.len() - compressed.len()) as f64 / uncompressed.len() as f64) * 100.0
   } else {
-    // No compression achieved (mock compression adds overhead)
-    -((compressed.len() - uncompressed.len()) as f64 / uncompressed.len() as f64) * 100.0
+  // No compression achieved (mock compression adds overhead)
+  -((compressed.len() - uncompressed.len()) as f64 / uncompressed.len() as f64) * 100.0
   };
   println!("Compression ratio: {:.1}%", ratio);
 
   // Verify compressed data can be decompressed
   let decompressed = compressed_serializer.deserialize_game_state(&compressed)
-    .expect("Failed to decompress data");
+  .expect("Failed to decompress data");
   println!("✅ Compression/decompression successful");
   println!("  Restored player level: {}", decompressed.progress.level);
 
@@ -164,11 +164,11 @@ fn main() {
   std::fs::create_dir_all(&temp_dir).expect("Failed to create saves directory");
 
   let save_manager = SaveManager::new(&temp_dir)
-    .with_serializer(GameStateSerializer::new().with_compression(true));
+  .with_serializer(GameStateSerializer::new().with_compression(true));
 
   // Save the game state
   save_manager.save_game_state("demo_save", &game_state)
-    .expect("Failed to save game state");
+  .expect("Failed to save game state");
   println!("✅ Game saved as 'demo_save'");
 
   // Create additional saves with different states
@@ -178,7 +178,7 @@ fn main() {
   quick_save.progress.experience = 3000;
   
   save_manager.save_game_state("quick_save", &quick_save)
-    .expect("Failed to save quick save");
+  .expect("Failed to save quick save");
 
   let mut checkpoint = game_state.clone();
   checkpoint.metadata.description = "Checkpoint - Forest Entry".to_string();
@@ -187,39 +187,39 @@ fn main() {
   checkpoint.metadata = checkpoint.metadata.with_tag("checkpoint".to_string());
 
   save_manager.save_game_state("checkpoint_1", &checkpoint)
-    .expect("Failed to save checkpoint");
+  .expect("Failed to save checkpoint");
 
   // List all saves
   println!("\n📂 Available Saves:");
   let saves = save_manager.list_saves()
-    .expect("Failed to list saves");
+  .expect("Failed to list saves");
   for save_name in &saves {
-    println!("  - {}", save_name);
+  println!("  - {}", save_name);
   }
 
   // Get detailed save information
   println!("\n📊 Save Information:");
   let saves_info = save_manager.get_saves_info()
-    .expect("Failed to get saves info");
+  .expect("Failed to get saves info");
   
   for (name, metadata) in &saves_info {
-    let _created_time = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(metadata.created_at);
-    println!("  Save: {}", name);
-    println!("    Description: {}", metadata.description);
-    println!("    Size: {} bytes", metadata.size_bytes);
-    println!("    Version: {}.{}.{}", metadata.version.major, metadata.version.minor, metadata.version.patch);
-    println!("    Compressed: {}", metadata.compressed);
-    println!("    Tags: {:?}", metadata.tags);
-    if !metadata.custom.is_empty() {
-      println!("    Custom data: {:?}", metadata.custom);
-    }
-    println!();
+  let _created_time = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(metadata.created_at);
+  println!("  Save: {}", name);
+  println!("    Description: {}", metadata.description);
+  println!("    Size: {} bytes", metadata.size_bytes);
+  println!("    Version: {}.{}.{}", metadata.version.major, metadata.version.minor, metadata.version.patch);
+  println!("    Compressed: {}", metadata.compressed);
+  println!("    Tags: {:?}", metadata.tags);
+  if !metadata.custom.is_empty() {
+    println!("    Custom data: {:?}", metadata.custom);
+  }
+  println!();
   }
 
   // Load a specific save
   println!("🔄 Loading save 'demo_save'...");
   let loaded_state = save_manager.load_game_state("demo_save")
-    .expect("Failed to load save");
+  .expect("Failed to load save");
   
   println!("✅ Save loaded successfully:");
   println!("  Player Level: {}", loaded_state.progress.level);
@@ -263,12 +263,12 @@ fn main() {
 
   // Save configuration
   config_manager.save_config(&custom_config)
-    .expect("Failed to save configuration");
+  .expect("Failed to save configuration");
   println!("✅ Configuration saved");
 
   // Load configuration
   let loaded_config = config_manager.load_config()
-    .expect("Failed to load configuration");
+  .expect("Failed to load configuration");
   println!("✅ Configuration loaded:");
   println!("  Difficulty: {}", loaded_config.difficulty);
   println!("  Resolution: {}x{}", loaded_config.graphics.resolution_width, loaded_config.graphics.resolution_height);
@@ -289,28 +289,28 @@ fn main() {
   
   // Add completed levels
   progress.levels_completed.extend([
-    "tutorial".to_string(),
-    "forest_1".to_string(),
-    "forest_2".to_string(),
-    "caves_1".to_string(),
+  "tutorial".to_string(),
+  "forest_1".to_string(),
+  "forest_2".to_string(),
+  "caves_1".to_string(),
   ]);
 
   // Add achievements
   progress.achievements.extend([
-    Achievement {
-      id: "level_5".to_string(),
-      name: "Experienced".to_string(),
-      description: "Reach level 5".to_string(),
-      unlocked_at: 1234567890,
-      points: 100,
-    },
-    Achievement {
-      id: "cave_explorer".to_string(),
-      name: "Cave Explorer".to_string(),
-      description: "Complete the cave levels".to_string(),
-      unlocked_at: 1234568000,
-      points: 150,
-    },
+  Achievement {
+    id: "level_5".to_string(),
+    name: "Experienced".to_string(),
+    description: "Reach level 5".to_string(),
+    unlocked_at: 1234567890,
+    points: 100,
+  },
+  Achievement {
+    id: "cave_explorer".to_string(),
+    name: "Cave Explorer".to_string(),
+    description: "Complete the cave levels".to_string(),
+    unlocked_at: 1234568000,
+    points: 150,
+  },
   ]);
 
   // Update statistics
@@ -323,7 +323,7 @@ fn main() {
 
   // Serialize progress
   let _progress_json = serde_json::to_string_pretty(&progress)
-    .expect("Failed to serialize progress");
+  .expect("Failed to serialize progress");
   
   println!("Player Progress Summary:");
   println!("  Level: {}", progress.level);
@@ -331,8 +331,8 @@ fn main() {
   println!("  Playtime: {}h {}m", progress.playtime_seconds / 3600, (progress.playtime_seconds % 3600) / 60);
   println!("  Levels Completed: {}", progress.levels_completed.len());
   println!("  Achievements: {} (total {} points)", 
-    progress.achievements.len(),
-    progress.achievements.iter().map(|a| a.points).sum::<u32>());
+  progress.achievements.len(),
+  progress.achievements.iter().map(|a| a.points).sum::<u32>());
   println!("  Statistics:");
   println!("    Entities Defeated: {}", progress.statistics.entities_defeated);
   println!("    Distance Moved: {:.1}m", progress.statistics.distance_moved);
@@ -346,11 +346,11 @@ fn main() {
 
   // Demonstrate save deletion
   save_manager.delete_save("checkpoint_1")
-    .expect("Failed to delete save");
+  .expect("Failed to delete save");
   println!("✅ Deleted checkpoint_1 save");
 
   let remaining_saves = save_manager.list_saves()
-    .expect("Failed to list remaining saves");
+  .expect("Failed to list remaining saves");
   println!("Remaining saves: {:?}", remaining_saves);
 
   // Clean up temporary directory
@@ -365,24 +365,24 @@ fn main() {
   
   // Add lots of custom data to simulate a large game state
   for i in 0..100 {
-    large_state.custom_data.insert(
-      format!("large_data_{}", i),
-      vec![0u8; 1024] // 1KB per entry
-    );
+  large_state.custom_data.insert(
+    format!("large_data_{}", i),
+    vec![0u8; 1024] // 1KB per entry
+  );
   }
 
   let start_time = std::time::Instant::now();
   let serialized_large = GameStateSerializer::new()
-    .with_compression(true)
-    .serialize_game_state(&large_state)
-    .expect("Failed to serialize large state");
+  .with_compression(true)
+  .serialize_game_state(&large_state)
+  .expect("Failed to serialize large state");
   let serialize_duration = start_time.elapsed();
 
   let start_time = std::time::Instant::now();
   let _deserialized_large = GameStateSerializer::new()
-    .with_compression(true)
-    .deserialize_game_state(&serialized_large)
-    .expect("Failed to deserialize large state");
+  .with_compression(true)
+  .deserialize_game_state(&serialized_large)
+  .expect("Failed to deserialize large state");
   let deserialize_duration = start_time.elapsed();
 
   println!("Large game state performance:");

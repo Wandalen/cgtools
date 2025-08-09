@@ -109,41 +109,41 @@ fn benchmark_coordinate_conversions( c : &mut Criterion )
   let square_coord = SquareCoord::< FourConnected >::new( 5, 8 );
   group.bench_function( "square_to_isometric", |b| 
   {
-    b.iter( || 
-    {
-      let iso : IsoCoord< Diamond > = square_coord.convert();
-      iso
-    })
+  b.iter( || 
+  {
+    let iso : IsoCoord< Diamond > = square_coord.convert();
+    iso
+  })
   });
   
   let iso_coord = IsoCoord::< Diamond >::new( 5, 8 );
   group.bench_function( "isometric_to_square", |b| 
   {
-    b.iter( || 
-    {
-      let square : SquareCoord< FourConnected > = iso_coord.convert();
-      square
-    })
+  b.iter( || 
+  {
+    let square : SquareCoord< FourConnected > = iso_coord.convert();
+    square
+  })
   });
   
   // Approximate conversions: Hexagonal ↔ Square
   let hex_coord = HexCoord::< Axial, Pointy >::new( 5, 8 );
   group.bench_function( "hexagonal_to_square_approx", |b| 
   {
-    b.iter( || 
-    {
-      let square : SquareCoord< FourConnected > = hex_coord.approximate_convert();
-      square
-    })
+  b.iter( || 
+  {
+    let square : SquareCoord< FourConnected > = hex_coord.approximate_convert();
+    square
+  })
   });
   
   group.bench_function( "square_to_hexagonal_approx", |b| 
   {
-    b.iter( || 
-    {
-      let hex : HexCoord< Axial, Pointy > = square_coord.approximate_convert();
-      hex
-    })
+  b.iter( || 
+  {
+    let hex : HexCoord< Axial, Pointy > = square_coord.approximate_convert();
+    hex
+  })
   });
   
   group.finish();
@@ -155,31 +155,31 @@ fn benchmark_coordinate_creation( c : &mut Criterion )
   
   for size in [ 10, 100, 1000 ].iter()
   {
-    group.bench_with_input( BenchmarkId::new( "hexagonal_creation", size ), size, |b, &size| 
+  group.bench_with_input( BenchmarkId::new( "hexagonal_creation", size ), size, |b, &size| 
+  {
+    b.iter( || 
     {
-      b.iter( || 
+      let mut coords = Vec::with_capacity( size );
+      for i in 0..size
       {
-        let mut coords = Vec::with_capacity( size );
-        for i in 0..size
-        {
-          coords.push( HexCoord::< Axial, Pointy >::new( i as i32, i as i32 ) );
-        }
-        coords
-      })
-    });
-    
-    group.bench_with_input( BenchmarkId::new( "square_creation", size ), size, |b, &size| 
+        coords.push( HexCoord::< Axial, Pointy >::new( i as i32, i as i32 ) );
+      }
+      coords
+    })
+  });
+  
+  group.bench_with_input( BenchmarkId::new( "square_creation", size ), size, |b, &size| 
+  {
+    b.iter( || 
     {
-      b.iter( || 
+      let mut coords = Vec::with_capacity( size );
+      for i in 0..size
       {
-        let mut coords = Vec::with_capacity( size );
-        for i in 0..size
-        {
-          coords.push( SquareCoord::< FourConnected >::new( i as i32, i as i32 ) );
-        }
-        coords
-      })
-    });
+        coords.push( SquareCoord::< FourConnected >::new( i as i32, i as i32 ) );
+      }
+      coords
+    })
+  });
   }
   
   group.finish();

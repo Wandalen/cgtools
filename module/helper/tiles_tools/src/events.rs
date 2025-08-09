@@ -62,7 +62,8 @@ use std::sync::{Arc, Mutex};
 
 /// Result of event processing by a listener.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EventResult {
+pub enum EventResult
+{
   /// Continue processing this event with other listeners
   Continue,
   /// Stop processing this event (consume it)
@@ -73,7 +74,8 @@ pub enum EventResult {
 
 /// Priority level for event listeners.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum EventPriority {
+pub enum EventPriority
+{
   /// Lowest priority - processed last
   Low = 0,
   /// Normal priority - default processing order
@@ -84,7 +86,8 @@ pub enum EventPriority {
   Critical = 3,
 }
 
-impl Default for EventPriority {
+impl Default for EventPriority
+{
   fn default() -> Self {
     EventPriority::Normal
   }

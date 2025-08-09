@@ -62,8 +62,9 @@ pub struct TurnBasedGame {
 }
 
 /// Participant in a turn-based game.
-#[derive(Debug, Clone)]
-pub struct TurnParticipant {
+#[ derive( Debug, Clone ) ]
+pub struct TurnParticipant
+{
   /// Entity ID
   pub entity_id: u32,
   /// Initiative score (higher goes first)
@@ -79,8 +80,9 @@ pub struct TurnParticipant {
 }
 
 /// Status effect that can be applied to entities.
-#[derive(Debug, Clone)]
-pub struct StatusEffect {
+#[ derive( Debug, Clone ) ]
+pub struct StatusEffect
+{
   /// Unique identifier for the effect
   pub id: String,
   /// Human-readable name
@@ -120,10 +122,13 @@ pub enum EffectCategory {
   Custom(String),
 }
 
-impl TurnBasedGame {
+impl TurnBasedGame
+{
   /// Creates a new turn-based game manager.
-  pub fn new() -> Self {
-    Self {
+  pub fn new() -> Self
+  {
+    Self
+    {
       participants: BTreeMap::new(),
       turn_order: VecDeque::new(),
       current_turn_index: 0,

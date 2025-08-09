@@ -51,7 +51,8 @@ use std::path::Path;
 use crate::coordinates::{Distance, Neighbors};
 
 /// Visual debugging renderer for coordinate grids.
-pub struct GridRenderer {
+pub struct GridRenderer
+{
   width: usize,
   height: usize,
   style: GridStyle,
@@ -61,8 +62,9 @@ pub struct GridRenderer {
 }
 
 /// Style options for grid rendering.
-#[derive(Debug, Clone, Copy)]
-pub enum GridStyle {
+#[ derive( Debug, Clone, Copy ) ]
+pub enum GridStyle
+{
   /// Square grid with 4-connected neighbors
   Square4,
   /// Square grid with 8-connected neighbors
@@ -76,8 +78,9 @@ pub enum GridStyle {
 }
 
 /// Debug marker for highlighting specific coordinates.
-#[derive(Debug, Clone)]
-pub struct DebugMarker {
+#[ derive( Debug, Clone ) ]
+pub struct DebugMarker
+{
   /// Display symbol (single character)
   pub symbol: String,
   /// Tooltip description
@@ -148,10 +151,13 @@ pub enum DebugColor {
   Gray,
 }
 
-impl GridRenderer {
+impl GridRenderer
+{
   /// Creates a new grid renderer.
-  pub fn new() -> Self {
-    Self {
+  pub fn new() -> Self
+  {
+    Self
+    {
       width: 20,
       height: 15,
       style: GridStyle::Square4,
