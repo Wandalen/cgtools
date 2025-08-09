@@ -45,7 +45,7 @@ enabled = [
 full = [ "enabled", "serialization", "ecs-systems" ]
 
 # Serialization support for coordinates and components
-serialization = [ "enabled", "dep:serde" ]
+serialization = [ "enabled", "dep:serde", "dep:serde_json", "dep:bincode", "dep:ron" ]
 
 # Enhanced ECS systems and components
 ecs-systems = [ "enabled", "dep:hecs" ]
@@ -85,6 +85,11 @@ pathfinding = { workspace = true, optional = true }
 # Serialization support for coordinates and game state
 serde = { workspace = true, features = ["derive"], optional = true }
 
+# Additional serialization dependencies
+serde_json = { version = "1.0", optional = true }
+bincode = { version = "1.3", optional = true }
+ron = { version = "0.8", optional = true }
+
 [dev-dependencies]
 # Testing framework and utilities
 test_tools = { workspace = true }
@@ -95,6 +100,7 @@ serde_json = { workspace = true }
 # Additional testing utilities for examples and benchmarks
 rand = { version = "0.8", features = ["std_rng"] }
 criterion = { version = "0.5", features = ["html_reports"] }
+tempfile = { version = "3.0" }
 
 # Examples configuration
 [[example]]
@@ -110,6 +116,16 @@ doc-scrape-examples = true
 [[example]]
 name = "tactical_rpg"
 required-features = ["enabled", "ecs-systems", "pathfinding-algorithms"]
+doc-scrape-examples = true
+
+[[example]]
+name = "event_system_demo"
+required-features = ["enabled"]
+doc-scrape-examples = true
+
+[[example]]
+name = "serialization_demo"
+required-features = ["serialization"]
 doc-scrape-examples = true
 
 # Benchmarks configuration

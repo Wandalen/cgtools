@@ -1,8 +1,6 @@
 # 🚀 CGTools Examples
 
-> **Comprehensive examples showcasing computer graphics techniques and WebAssembly rendering**
-
-This directory contains a rich collection of examples demonstrating the capabilities of CGTools across different graphics APIs, mathematical concepts, and rendering techniques. Each example is designed to be educational, showcasing best practices and real-world applications.
+Interactive examples showcasing computer graphics techniques and WebAssembly rendering with CGTools. Each example demonstrates specific concepts and real-world applications.
 
 ## 📂 Example Categories
 
@@ -36,38 +34,28 @@ Mathematical concepts and algorithms:
 ## 🚀 Quick Start
 
 ### Prerequisites
-- [Rust](https://rustup.rs/) (latest stable)
-- [Trunk](https://trunkrs.dev/) for WebAssembly builds
+- Rust 1.75+ with `rustup target add wasm32-unknown-unknown`
+- Trunk: `cargo install trunk`
 - Modern web browser with WebGL 2.0/WebGPU support
 
 ### Running Examples
 
-1. **Install Trunk** (if not already installed):
-   ```bash
-   cargo install trunk
-   ```
-
-2. **Navigate to any example**:
-   ```bash
-   cd minwebgl/hexagonal_grid
-   ```
-
-3. **Run the example**:
-   ```bash
-   trunk serve --release
-   ```
-
-4. **Open your browser** to `http://localhost:8080`
-
-### Development Mode
-For faster compilation during development:
 ```bash
-trunk serve --dev
+# Navigate to any example
+cd minwebgl/hexagonal_grid
+
+# Run the example
+trunk serve --release
+
+# Open http://localhost:8080 in your browser
 ```
 
-### Building for Production
-To build optimized WebAssembly bundles:
+### Development & Building
 ```bash
+# Development mode (faster compilation)
+trunk serve
+
+# Build for production
 trunk build --release
 ```
 
@@ -138,23 +126,10 @@ example_name/
 
 ## 🔧 Development Tips
 
-### Performance Profiling
-Use browser DevTools to profile your applications:
-```bash
-trunk serve --release --features="profile"
-```
-
-### Debugging WebAssembly
-Enable debug symbols for better error messages:
-```bash
-trunk serve --dev --features="debug"
-```
-
-### Asset Management
-Place assets in the `assets/` directory - Trunk will automatically copy them to the build output.
-
-### Custom Shaders
-GLSL shaders can be embedded directly in Rust code or loaded as separate files during build.
+- **Performance**: Use `trunk serve --release` for testing performance
+- **Debugging**: Use `trunk serve` for better error messages
+- **Assets**: Place files in `assets/` directory - Trunk copies them automatically
+- **Shaders**: Embed GLSL directly in Rust or load as separate files
 
 ## 🌐 Browser Compatibility
 
@@ -170,21 +145,10 @@ GLSL shaders can be embedded directly in Rust code or loaded as separate files d
 ## 🤝 Contributing Examples
 
 When adding new examples:
-
-1. **Follow the standard structure** shown above
-2. **Include comprehensive README** with theory and implementation details
-3. **Add inline documentation** explaining key concepts
-4. **Optimize for learning** - prioritize clarity over brevity
-5. **Test across browsers** to ensure compatibility
-
-### Example Template
-Use this template when creating new examples:
-```bash
-# Copy template structure
-cp -r _template your_example_name
-cd your_example_name
-# Edit Cargo.toml, src/, and README.md
-```
+1. Follow the standard structure shown above
+2. Include comprehensive README with implementation details  
+3. Add inline documentation explaining key concepts
+4. Test across browsers for compatibility
 
 ## 📚 Additional Resources
 
@@ -196,27 +160,17 @@ cd your_example_name
 
 ## 🐛 Troubleshooting
 
-### Common Issues
-
 **Build Errors:**
 ```bash
-# Clean and rebuild
-trunk clean
-cargo clean
-trunk build --release
+trunk clean && cargo clean && trunk build --release
 ```
 
-**Runtime Errors:**
-- Check browser console for JavaScript errors
-- Verify WebGL/WebGPU support in your browser
-- Ensure WASM is enabled
+**Runtime Issues:**
+- Check browser console for errors
+- Verify WebGL/WebGPU support  
+- Use `trunk serve --release` for performance testing
 
-**Performance Issues:**
-- Use `--release` flag for production builds
-- Profile with browser DevTools
-- Consider reducing complexity for mobile devices
-
-### Getting Help
-- Check example-specific README files for detailed guidance
-- Review the main CGTools documentation
-- Browse the source code for implementation details
+**Getting Help:**
+- Check example README files
+- Review CGTools documentation
+- Browse source code for implementation details
