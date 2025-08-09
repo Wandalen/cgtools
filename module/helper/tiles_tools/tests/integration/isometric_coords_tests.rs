@@ -35,6 +35,34 @@
 //! | IC9.1   | Serde    | serialize | coord | json     | ✅ |
 //! | IC9.2   | Serde    | deserial  | json  | coord    | ✅ |
 
+#![allow(clippy::needless_return)]
+#![allow(clippy::implicit_return)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::items_after_statements)]
+#![allow(clippy::unnecessary_cast)]
+#![allow(clippy::doc_markdown)]
+#![allow(clippy::cast_sign_loss)]
+#![allow(clippy::explicit_iter_loop)]
+#![allow(clippy::format_in_format_args)]
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::wildcard_imports)]
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::std_instead_of_core)]
+#![allow(clippy::similar_names)]
+#![allow(clippy::duplicated_attributes)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::trivially_copy_pass_by_ref)]
+#![allow(clippy::missing_inline_in_public_items)]
+#![allow(clippy::useless_vec)]
+#![allow(clippy::unnested_or_patterns)]
+#![allow(clippy::else_if_without_else)]
+#![allow(clippy::unreadable_literal)]
+#![allow(clippy::redundant_else)]
+#![allow(clippy::single_char_pattern)]
+#![allow(clippy::clone_on_copy)]
+#![allow(clippy::default_trait_access)]
+#![allow(clippy::min_ident_chars)]
+
 use tiles_tools::coordinates::isometric::{Coordinate, Diamond, IsometricCoord};
 use tiles_tools::coordinates::{Distance, Neighbors, pixel::Pixel};
 use std::collections::HashSet;

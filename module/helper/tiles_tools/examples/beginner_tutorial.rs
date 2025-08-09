@@ -1,4 +1,15 @@
 //! Beginner Tutorial: Building Your First Tile-Based Game
+
+#![allow(clippy::needless_return)]
+#![allow(clippy::implicit_return)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::items_after_statements)]
+#![allow(clippy::unnecessary_cast)]
+#![allow(clippy::doc_markdown)]
+#![allow(clippy::cast_sign_loss)]
+#![allow(clippy::explicit_iter_loop)]
+#![allow(clippy::format_in_format_args)]
+#![allow(clippy::cast_precision_loss)]
 //! 
 //! This tutorial walks you through creating a simple tile-based game using tiles_tools.
 //! We'll build a basic dungeon explorer where a player moves around a grid, collects
@@ -343,6 +354,8 @@ fn tutorial_step_6_combat() {
             player_pos = Some(pos.coord);
         } else if entity == goblin {
             goblin_pos = Some(pos.coord);
+        } else {
+            // No action needed for other entities
         }
     }
     

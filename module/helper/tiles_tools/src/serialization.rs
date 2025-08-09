@@ -423,7 +423,7 @@ impl GameStateSerializer {
     };
 
     if self.compress {
-      Ok(self.compress_data(data)?)
+      Ok(self.compress_data(data))
     } else {
       Ok(data)
     }
@@ -442,8 +442,9 @@ impl GameStateSerializer {
       SerializationFormat::Binary => bincode::deserialize(&data)?,
       SerializationFormat::Ron => {
         let text = String::from_utf8(data)?;
-        ron::from_str(&text).map_err(|e| match e {
-          ron::error::SpannedError { code, .. } => SerializationError::Ron(ron::Error::from(code)),
+        ron::from_str(&text).map_err(|e| {
+          let ron::error::SpannedError { code, .. } = e;
+          SerializationError::Ron(ron::Error::from(code))
         })?
       }
     };
@@ -463,18 +464,18 @@ impl GameStateSerializer {
   }
 
   // Private compression methods (stubbed for now - would use flate2 or similar)
-  fn compress_data(&self, data: Vec<u8>) -> Result<Vec<u8>, SerializationError> {
+  fn compress_data(&self, data: Vec<u8>) -> Vec<u8> {
     // In a real implementation, this would use flate2 or similar
     // For now, just return the data unchanged with a marker
     let mut compressed = vec![0xC0, 0x4D, 0x50]; // "CMP" marker
     compressed.extend_from_slice(&(data.len() as u32).to_le_bytes());
     compressed.extend(data);
-    Ok(compressed)
+    compressed
   }
 
   fn decompress_data(&self, data: &[u8]) -> Result<Vec<u8>, SerializationError> {
     // Check for compression marker
-    if data.len() < 7 || &data[0..3] != &[0xC0, 0x4D, 0x50] {
+    if data.len() < 7 || data[0..3] != [0xC0, 0x4D, 0x50] {
       return Err(SerializationError::InvalidCompressionFormat);
     }
 
@@ -884,9 +885,11 @@ mod tests {
 
   #[test]
   fn test_player_progress_serialization() {
-    let mut progress = PlayerProgress::default();
-    progress.level = 5;
-    progress.experience = 1500;
+    let mut progress = PlayerProgress {
+      level: 5,
+      experience: 1500,
+      ..Default::default()
+    };
     progress.achievements.push(Achievement {
       id: "first_kill".to_string(),
       name: "First Kill".to_string(),

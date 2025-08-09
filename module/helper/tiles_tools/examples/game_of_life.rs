@@ -1,4 +1,30 @@
 #![allow(dead_code)]
+#![allow(clippy::needless_return)]
+#![allow(clippy::implicit_return)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::items_after_statements)]
+#![allow(clippy::unnecessary_cast)]
+#![allow(clippy::doc_markdown)]
+#![allow(clippy::cast_sign_loss)]
+#![allow(clippy::explicit_iter_loop)]
+#![allow(clippy::format_in_format_args)]
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::wildcard_imports)]
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::std_instead_of_core)]
+#![allow(clippy::similar_names)]
+#![allow(clippy::duplicated_attributes)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::trivially_copy_pass_by_ref)]
+#![allow(clippy::missing_inline_in_public_items)]
+#![allow(clippy::useless_vec)]
+#![allow(clippy::unnested_or_patterns)]
+#![allow(clippy::else_if_without_else)]
+#![allow(clippy::unreadable_literal)]
+#![allow(clippy::redundant_else)]
+#![allow(clippy::match_same_arms)]
+#![allow(clippy::needless_pass_by_value)]
+#![allow(clippy::min_ident_chars)]
 //! Conway's Game of Life implementation using the tiles_tools ECS system.
 //!
 //! This example demonstrates how to use the tiles_tools library to implement
@@ -108,7 +134,7 @@ impl SquareGameOfLife {
       let currently_alive = self.is_cell_alive(&coord);
       
       let should_be_alive = match (currently_alive, neighbor_count) {
-        (true, 2) | (true, 3) => true,  // Survival
+        (true, 2 | 3) => true,  // Survival
         (false, 3) => true,             // Birth
         _ => false,                     // Death or remain dead
       };

@@ -184,22 +184,34 @@ let nearby = quadtree.query_region(90, 90, 110, 110);
 
 ## 🛠️ Examples & Tutorials
 
+### 📋 Complete Examples Index
+
+| Example | Description | Features | Command |
+|---------|-------------|-----------|---------|
+| **beginner_tutorial** | 🎓 Step-by-step learning path | Coordinates, pathfinding, ECS basics | `cargo run --example beginner_tutorial` |
+| **game_systems_demo** | ⚔️ Turn-based gameplay integration | Combat, resources, quests, state machine | `cargo run --example game_systems_demo` |
+| **tactical_rpg** | 🎮 Hexagonal tactical combat | Initiative, equipment, AI, grid combat | `cargo run --example tactical_rpg --features ecs-systems,pathfinding-algorithms` |
+| **stealth_game** | 👤 Field-of-view stealth mechanics | Line-of-sight, lighting, guard AI | `cargo run --example stealth_game --features ecs-systems` |
+| **ecs_collision_demo** | 💥 Spatial collision detection | Quadtree, collision resolution, queries | `cargo run --example ecs_collision_demo` |
+| **behavior_tree_demo** | 🧠 AI decision-making system | Behavior trees, blackboards, cooldowns | `cargo run --example behavior_tree_demo` |
+| **animation_demo** | 🎬 Smooth tweening system | Easing functions, timelines, interpolation | `cargo run --example animation_demo` |
+| **event_system_demo** | 📡 Decoupled event handling | Type-safe events, priorities, statistics | `cargo run --example event_system_demo` |
+| **field_of_view_demo** | 👁️ Vision algorithms | Shadowcasting, raycasting, multi-source lighting | `cargo run --example field_of_view_demo` |
+| **serialization_demo** | 💾 Save/load functionality | JSON, binary, RON formats, compression | `cargo run --example serialization_demo --features serialization` |
+| **debug_demo** | 🔍 Visual debugging tools | Grid rendering, profiling, ECS inspection | `cargo run --example debug_demo` |
+| **advanced_pathfinding_demo** | 🗺️ Multi-coordinate pathfinding | Hexagonal, triangular, isometric grids | `cargo run --example advanced_pathfinding_demo` |
+| **game_of_life** | 🔬 Conway's Game of Life | Multi-coordinate ECS implementation | `cargo run --example game_of_life` |
+| **simple_collision_demo** | ⚡ Basic collision detection | Simple ECS collision system | `cargo run --example simple_collision_demo` |
+
 ### 📚 Learning Path
 
-1. **Beginner Tutorial**: Step-by-step guide to core concepts
-```bash
-cargo run --example beginner_tutorial
-```
-
-2. **Game Systems Demo**: Advanced integration showcase  
-```bash
-cargo run --example game_systems_demo
-```
-
-3. **ECS Collision Demo**: Real-world collision detection
-```bash
-cargo run --example ecs_collision_demo
-```
+**🎯 Recommended Learning Order:**
+1. **beginner_tutorial** - Start here for core concepts
+2. **ecs_collision_demo** - Learn spatial systems  
+3. **game_systems_demo** - Understand integrated gameplay
+4. **tactical_rpg** - See complete game implementation
+5. **behavior_tree_demo** - Add intelligent AI
+6. **animation_demo** - Polish with smooth animations
 
 ### 🎮 Implemented Features
 
