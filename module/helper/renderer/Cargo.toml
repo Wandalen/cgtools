@@ -2,9 +2,26 @@
 name = "renderer"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.75.0"
 authors = [
   "Kostiantyn Mysnyk <wandalen@obox.systems>",
   "Avramenko Yevhenii <yevhenii.av@obox.systems>"
+]
+license = "MIT"
+repository = "https://github.com/Wandalen/cgtools"
+homepage = "https://github.com/Wandalen/cgtools/tree/master/module/helper/renderer"
+documentation = "https://docs.rs/renderer"
+description = "3D renderer for WebGL applications with glTF loading, scene management, and material support"
+readme = "readme.md"
+keywords = ["renderer", "webgl", "3d", "gltf", "graphics"]
+categories = ["graphics", "rendering", "web-programming", "game-development"]
+include = [
+    "src/**/*",
+    "tests/**/*",
+    "Cargo.toml",
+    "readme.md",
+    "license*",
+    "changelog*",
 ]
 
 [lints]
@@ -18,7 +35,8 @@ enabled = [
   "dep:gltf",
   "dep:asbytes",
   "dep:former",
-  "dep:uuid"
+  "dep:uuid",
+  "dep:web-sys"
 ]
 default = ["enabled"]
 full = ["enabled", "webgl"]
@@ -37,6 +55,7 @@ uuid = { workspace = true, optional = true }
 
 [dependencies.web-sys]
 workspace = true
+optional = true
 features = [
   'MouseEvent',
   'PointerEvent',
@@ -50,4 +69,26 @@ features = [
   'WebGlRenderbuffer',
   'HtmlSpanElement',
   'HtmlSelectElement'
+]
+
+[dev-dependencies]
+test_tools = { workspace = true }
+
+# Metadata for crates.io
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+default-target = "wasm32-unknown-unknown"
+targets = [
+    "wasm32-unknown-unknown",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+    "x86_64-apple-darwin",
+]
+
+# Cargo.toml maintenance metadata
+[package.metadata.release]
+pre-release-replacements = [
+    { file = "readme.md", search = "renderer = \"[0-9.]+\"", replace = "renderer = \"{{version}}\"" },
+    { file = "changelog.md", search = "## Unreleased", replace = "## Unreleased\n\n## {{version}} - {{date}}" },
 ]

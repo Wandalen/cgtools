@@ -1,9 +1,11 @@
 mod private
 {
+  #[ cfg( feature = "serialization" ) ]
   use serde::{ Serialize, Deserialize };
 
   /// Represents the different types of line caps.
-  #[ derive( Default, Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize ) ]
+  #[ derive( Default, Debug, Clone, Copy, PartialEq, PartialOrd ) ]
+  #[ cfg_attr( feature = "serialization", derive( Serialize, Deserialize ) ) ]
   pub enum Cap
   {
     /// A butt cap, which is a flat end perpendicular to the line segment's direction.
