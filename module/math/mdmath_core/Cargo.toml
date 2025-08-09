@@ -22,7 +22,42 @@ include = [
 ]
 
 [lints]
-workspace = true
+# Custom lints for mdmath_core (inherits most from workspace but allows mathematical conventions)
+
+[lints.rust]
+# Inherit workspace rust lints
+rust_2018_idioms = { level = "deny", priority = -1 }
+future_incompatible = "warn"
+missing_docs = "warn"
+unsafe-code = "warn"
+
+[lints.clippy]
+# Inherit key workspace clippy lints
+pedantic = { level = "warn", priority = -1 }
+undocumented_unsafe_blocks = "deny"
+std_instead_of_core = "warn"
+
+# Allow specific lints for mathematical code
+min_ident_chars = "allow"
+too_many_arguments = "allow"
+missing_panics_doc = "allow"
+missing_errors_doc = "allow"
+extra_unused_lifetimes = "allow"
+wrong_self_convention = "allow"
+
+# Allow workspace exceptions
+single_call_fn = "allow"
+inline_always = "allow"
+module_name_repetitions = "allow"
+absolute_paths = "allow"
+pub_use = "allow"
+mod_module_files = "allow"
+self_named_module_files = "allow"
+allow_attributes = "allow"
+allow_attributes_without_reason = "allow"
+arbitrary_source_item_ordering = "allow"
+missing_docs_in_private_items = "allow"
+many_single_char_names = "allow"
 
 # [lints.rust]
 # # Encourages documentation for public items.

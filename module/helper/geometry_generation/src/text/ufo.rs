@@ -686,6 +686,7 @@ mod private
 
   impl Font
   {
+    /// Stub implementation for Font constructor when text feature is disabled
     pub async fn new( _path : &str ) -> Self
     {
       Self

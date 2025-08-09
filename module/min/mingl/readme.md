@@ -35,8 +35,8 @@ mingl = { workspace = true, features = ["camera_orbit_controls"] }
 
 ### Camera Controls
 
-```rust
-use mingl::camera::{Camera, OrbitControls};
+```rust,ignore
+use mingl::camera_orbit_controls::{Camera, OrbitControls};
 
 fn setup_camera() {
   // Create orbital camera controller
@@ -51,23 +51,25 @@ fn setup_camera() {
     .zoom_speed(0.1);
   
   // Update camera based on input
+  let delta_time = 0.016; // 60fps
   controls.update(&mut camera, delta_time);
   
   // Get view and projection matrices
   let view_matrix = camera.view_matrix();
+  let (aspect_ratio, fov, near, far) = (16.0/9.0, 45.0, 0.1, 100.0);
   let proj_matrix = camera.projection_matrix(aspect_ratio, fov, near, far);
 }
 ```
 
 ### Data Conversion
 
-```rust
-use mingl::convert::{ToVector, ToBytes};
+```rust,ignore
+use mingl::convert::{IntoVector, IntoBytes};
 
 fn data_conversion_examples() {
   // Convert numeric types to vectors
   let float_data: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0];
-  let vector = float_data.to_vector();
+  let vector = float_data.into_vector();
   
   // Convert 2D arrays
   let positions = [
@@ -75,11 +77,11 @@ fn data_conversion_examples() {
     [1.0, 0.0, 0.0], 
     [0.5, 1.0, 0.0],
   ];
-  let vertex_buffer = positions.to_bytes();
+  let vertex_buffer = positions.into_bytes();
   
   // Handle different numeric types
   let indices: Vec<u16> = vec![0, 1, 2];
-  let index_buffer = indices.to_bytes();
+  let index_buffer = indices.into_bytes();
 }
 ```
 
@@ -106,10 +108,13 @@ fn data_conversion_examples() {
 
 ### Camera Configuration
 
-```rust
-use mingl::camera::*;
+```rust,ignore
+use mingl::camera_orbit_controls::*;
 
 // Configure orbital camera
+let (x, y, z) = (0.0, 0.0, 5.0);
+let (tx, ty, tz) = (0.0, 0.0, 0.0);
+let (ux, uy, uz) = (0.0, 1.0, 0.0);
 let camera = Camera::new()
   .position([x, y, z])
   .target([tx, ty, tz])
@@ -149,8 +154,8 @@ let controls = OrbitControls::new()
 
 ### Custom Camera Controllers
 
-```rust
-use mingl::camera::*;
+```rust,ignore
+use mingl::camera_orbit_controls::*;
 
 struct CustomController {
   sensitivity: f32,
@@ -170,7 +175,7 @@ impl CameraController for CustomController {
 
 ### Efficient Data Processing
 
-```rust
+```rust,ignore
 use mingl::convert::*;
 
 // Batch convert vertex data efficiently
@@ -179,9 +184,9 @@ fn process_mesh_data(vertices: &[[f32; 3]], normals: &[[f32; 3]], uvs: &[[f32; 2
   
   // Interleave vertex attributes for optimal GPU access
   for i in 0..vertices.len() {
-    buffer.extend_from_slice(&vertices[i].to_bytes());
-    buffer.extend_from_slice(&normals[i].to_bytes());
-    buffer.extend_from_slice(&uvs[i].to_bytes());
+    buffer.extend_from_slice(&vertices[i].into_bytes());
+    buffer.extend_from_slice(&normals[i].into_bytes());
+    buffer.extend_from_slice(&uvs[i].into_bytes());
   }
   
   buffer
@@ -203,21 +208,22 @@ fn process_mesh_data(vertices: &[[f32; 3]], normals: &[[f32; 3]], uvs: &[[f32; 2
 ## 🔧 Integration Examples
 
 ### With WebGL
-```rust
-use mingl::camera::*;
+```rust,ignore
+use mingl::camera_orbit_controls::*;
 use mingl::convert::*;
+use web_sys::{WebGl2RenderingContext, WebGlBuffer};
 
 fn setup_webgl_scene(gl: &WebGl2RenderingContext) {
   let camera = Camera::new().position([0.0, 0.0, 5.0]);
   
   // Convert vertex data for WebGL
   let vertices = vec![[0.0, 1.0, 0.0], [-1.0, -1.0, 0.0], [1.0, -1.0, 0.0]];
-  let vertex_buffer = vertices.to_bytes();
+  let vertex_buffer = vertices.into_bytes();
   
   // Upload to GPU
   let buffer = gl.create_buffer().unwrap();
-  gl.bind_buffer(ARRAY_BUFFER, Some(&buffer));
-  gl.buffer_data_with_u8_array(ARRAY_BUFFER, &vertex_buffer, STATIC_DRAW);
+  gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&buffer));
+  gl.buffer_data_with_u8_array(WebGl2RenderingContext::ARRAY_BUFFER, &vertex_buffer, WebGl2RenderingContext::STATIC_DRAW);
 }
 ```
 

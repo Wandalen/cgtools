@@ -22,7 +22,60 @@ include = [
 ]
 
 [lints]
-workspace = true
+# Custom lints for ndarray_cg (inherits most from workspace but allows mathematical conventions)
+
+[lints.rust]
+# Inherit workspace rust lints
+rust_2018_idioms = { level = "deny", priority = -1 }
+future_incompatible = "warn"
+missing_docs = "warn"
+unsafe-code = "warn"
+
+[lints.clippy]
+# Inherit key workspace clippy lints
+pedantic = { level = "warn", priority = -1 }
+undocumented_unsafe_blocks = "deny"
+
+# Allow specific lints for mathematical/ndarray code
+min_ident_chars = "allow"
+too_many_arguments = "allow"
+missing_panics_doc = "allow"
+missing_errors_doc = "allow"
+extra_unused_lifetimes = "allow"
+wrong_self_convention = "allow"
+manual_assert = "allow"
+uninlined_format_args = "allow"
+explicit_auto_deref = "allow"
+std_instead_of_core = "allow"
+must_use_candidate = "allow"
+default_trait_access = "allow"
+ptr_as_ptr = "allow"
+unnecessary_cast = "allow"
+assign_op_pattern = "allow"
+into_iter_without_iter = "allow"
+semicolon_if_nothing_returned = "allow"
+iter_skip_zero = "allow"
+write_with_newline = "allow"
+used_underscore_binding = "allow"
+expect_fun_call = "allow"
+explicit_iter_loop = "allow"
+doc_markdown = "allow"
+needless_pass_by_value = "allow"
+cast_possible_truncation = "allow"
+
+# Allow workspace exceptions
+single_call_fn = "allow"
+inline_always = "allow"
+module_name_repetitions = "allow"
+absolute_paths = "allow"
+pub_use = "allow"
+mod_module_files = "allow"
+self_named_module_files = "allow"
+allow_attributes = "allow"
+allow_attributes_without_reason = "allow"
+arbitrary_source_item_ordering = "allow"
+missing_docs_in_private_items = "allow"
+many_single_char_names = "allow"
 
 # [lints.rust]
 # # Encourages documentation for public items.

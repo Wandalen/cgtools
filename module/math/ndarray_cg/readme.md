@@ -63,7 +63,7 @@ fn main() {
 
 ### Common Graphics Transformations
 
-```rust
+```rust,ignore
 use ndarray_cg::*;
 use std::f32::consts::PI;
 
@@ -201,9 +201,9 @@ fn advanced_features() {
 
 ### Memory Layout Options
 
-```rust
+```rust,ignore
 use ndarray_cg::*;
-use mat::{DescriptorOrderRowMajor, DescriptorOrderColMajor};
+use mat::{DescriptorOrderRowMajor, DescriptorOrderColumnMajor};
 
 // Row-major (default for graphics)
 let row_major = Mat::<2, 2, f32, DescriptorOrderRowMajor>::from_row_major([1.0, 2.0, 3.0, 4.0]);

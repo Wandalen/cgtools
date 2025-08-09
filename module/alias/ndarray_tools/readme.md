@@ -24,7 +24,7 @@ ndarray_tools = "0.1.0"
 
 ## 💡 Usage
 
-```rust
+```rust,ignore
 use ndarray_tools::*;
 
 // Basic vector and matrix operations

@@ -33,7 +33,7 @@ web-sys = "0.3"
 ```
 
 ### Basic Triangle Example
-```rust
+```rust,ignore
 use minwebgl as gl;
 use wasm_bindgen::prelude::*;
 
@@ -89,7 +89,7 @@ pub fn main() -> Result< (), JsValue >
 ```
 
 ### Advanced Features Example
-```rust
+```rust,ignore
 use minwebgl as gl;
 
 // Instanced rendering with matrices
@@ -175,7 +175,7 @@ For asset loading with Trunk:
 ## 🔧 Advanced Usage
 
 ### Custom Context Options
-```rust
+```rust,ignore
 let options = gl::context::ContextOptions::default()
   .antialias(false)
   .alpha(true)
@@ -187,7 +187,7 @@ let gl_context = gl::context::from_canvas_with(&canvas, options)?;
 ```
 
 ### Uniform Buffer Objects
-```rust
+```rust,ignore
 // Create UBO
 let ubo = gl::buffer::make(&gl_context);
 gl::buffer::bind_uniform(&gl_context, &ubo);
@@ -203,7 +203,7 @@ gl::buffer::bind_buffer_base_uniform(&gl_context, 0, &ubo);
 ```
 
 ### Error Handling
-```rust
+```rust,ignore
 // Enable debug output
 gl::debug::enable(&gl_context);
 

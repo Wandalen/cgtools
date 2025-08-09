@@ -41,18 +41,18 @@ use browser_log::*;
 // Initialize logging (call once at startup)
 fn init_logging() {
   // Setup panic handler
-  init_panic_handler();
+  panic::setup(panic::Config::default());
   
   // Initialize logger with default settings
-  init_logger().expect("Failed to initialize logger");
+  log::setup::setup(log::setup::Config::default());
 }
 
 // Use standard Rust logging macros
 fn example_logging() {
-  log::info!("Application started");
-  log::debug!("Debug information: {}", 42);
-  log::warn!("Warning message");
-  log::error!("Error occurred: {}", "connection failed");
+  ::log::info!("Application started");
+  ::log::debug!("Debug information: {}", 42);
+  ::log::warn!("Warning message");
+  ::log::error!("Error occurred: {}", "connection failed");
 }
 ```
 
@@ -60,20 +60,23 @@ fn example_logging() {
 
 ```rust
 use browser_log::*;
+use browser_log::log::console;
 
 fn setup_advanced_logging() {
-  // Custom panic handler with additional context
-  init_panic_handler_with_context(|info| {
-    console::error(&format!("PANIC: {}\nLocation: {:?}", info, info.location()));
-  });
+  // Custom panic handler configuration
+  let config = panic::Config {
+    with_location: true,
+    with_stack_trace: true,
+  };
+  panic::setup(config);
   
   // Configure logger with specific level
-  init_logger_with_level(log::Level::Debug).expect("Logger init failed");
+  log::setup::setup(log::setup::Config::new(::log::Level::Debug));
   
-  // Performance timing
-  let timer = console::time("operation");
+  // Performance timing (basic console timing)
+  console::time();
   // ... perform operation
-  timer.end();
+  console::time_end();
 }
 ```
 
@@ -83,10 +86,10 @@ fn setup_advanced_logging() {
 
 | Function | Purpose | Example |
 |----------|---------|---------|
-| `init_logger()` | Initialize default logger | `browser_log::init_logger()?` |
-| `init_panic_handler()` | Setup panic handling | `browser_log::init_panic_handler()` |
-| `console::log()` | Direct console output | `console::log("message")` |
-| `console::time()` | Performance timing | `let timer = console::time("test")` |
+| `log::setup::setup()` | Initialize logger | `browser_log::log::setup::setup(Default::default())` |
+| `panic::setup()` | Setup panic handling | `browser_log::panic::setup(Default::default())` |
+| `console::log_1()` | Direct console output | `console::log_1(&JsValue::from_str("message"))` |
+| `console::time()` | Performance timing | `console::time()` |
 
 ### Logging Levels
 
@@ -101,24 +104,25 @@ log::error!("Error conditions");
 
 ### Console API
 
-```rust
-use browser_log::console;
+```rust,no_run
+use browser_log::log::console;
+use wasm_bindgen::JsValue;
 
-// Direct console methods
-console::log("Basic log message");
-console::info("Information message");
-console::warn("Warning message");
-console::error("Error message");
+// Direct console methods (using web-sys console API)
+console::log_1(&JsValue::from_str("Basic log message"));
+console::info_1(&JsValue::from_str("Information message"));
+console::warn_1(&JsValue::from_str("Warning message"));
+console::error_1(&JsValue::from_str("Error message"));
 
 // Performance timing
-let timer = console::time("database_query");
+console::time();
 // ... perform database query
-timer.end(); // Outputs timing to console
+console::time_end();
 
 // Grouped logging
-console::group("User Actions");
-console::log("User clicked button");
-console::log("Form submitted");
+console::group_1(&JsValue::from_str("User Actions"));
+console::log_1(&JsValue::from_str("User clicked button"));
+console::log_1(&JsValue::from_str("Form submitted"));
 console::group_end();
 ```
 
@@ -148,59 +152,57 @@ console::group_end();
 
 ```rust
 use browser_log::*;
+use std::panic;
 
 // Custom panic handler with user notification
-init_panic_handler_with_context(|panic_info| {
+panic::set_hook(Box::new(|panic_info| {
   let message = match panic_info.payload().downcast_ref::<&str>() {
     Some(s) => *s,
     None => "Unknown panic occurred",
   };
   
-  console::error(&format!("Application Error: {}", message));
+  // Use the browser_log panic handler
+  browser_log::panic::hook(panic_info, &browser_log::panic::Config::default());
   
-  // Show user-friendly error message
-  web_sys::window()
-    .unwrap()
-    .alert_with_message(&format!("An error occurred: {}", message));
-});
+  // Show user-friendly error message (requires Window feature)
+  // web_sys::window().unwrap().alert_with_message(&format!("An error occurred: {}", message));
+}));
 ```
 
 ### Conditional Logging
 
 ```rust
-use browser_log::*;
-
 // Only log in debug builds
 #[cfg(debug_assertions)]
 fn debug_log(message: &str) {
-  log::debug!("{}", message);
+  ::log::debug!("{}", message);
 }
 
 // Log with context information
 fn log_with_context(operation: &str, data: &impl std::fmt::Debug) {
-  log::info!("[{}] Data: {:?}", operation, data);
+  ::log::info!("[{}] Data: {:?}", operation, data);
 }
 ```
 
 ### Performance Profiling
 
 ```rust
-use browser_log::console;
+use browser_log::log::console;
 
 struct ProfileScope {
-  name: String,
+  _name: String,
 }
 
 impl ProfileScope {
   fn new(name: &str) -> Self {
-    console::time(name);
-    Self { name: name.to_string() }
+    console::time();
+    Self { _name: name.to_string() }
   }
 }
 
 impl Drop for ProfileScope {
   fn drop(&mut self) {
-    console::time_end(&self.name);
+    console::time_end();
   }
 }
 

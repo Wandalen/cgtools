@@ -133,3 +133,12 @@ pub mod flowfield;
 
 #[cfg(feature = "enabled")]
 pub mod field_of_view;
+
+#[cfg(feature = "enabled")]
+pub mod spatial;
+
+#[cfg(feature = "enabled")]
+pub mod behavior_tree;
+
+#[cfg(feature = "enabled")]
+pub mod animation;

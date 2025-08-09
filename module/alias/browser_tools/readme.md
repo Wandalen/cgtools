@@ -26,11 +26,11 @@ browser_tools = "0.2"
 
 ### Basic Logging
 
-```rust
+```rust,no_run
 use browser_tools::*;
 
 // Initialize logging (call once at startup)
-init_log();
+log::setup::setup(log::setup::Config::default());
 
 // Use standard logging macros
 log::info!("Application started");
@@ -41,11 +41,11 @@ log::debug!("Detailed debugging info");
 
 ### Panic Handling
 
-```rust
+```rust,no_run
 use browser_tools::*;
 
 // Set up panic handler for better error reporting
-init_panic_hook();
+panic::setup(panic::Config::default());
 
 // Now panics will be visible in browser console
 panic!("This will show up in console.error");
