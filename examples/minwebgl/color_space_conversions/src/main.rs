@@ -1,4 +1,3 @@
-//! Converts colors from RGBA into another color spaces.
 #![ doc( html_root_url = "https://docs.rs/color_space_convertion/latest/color_space_convertion/" ) ]
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 #![ cfg_attr( not( doc ), doc = "Converts colors from RGBA into another color spaces" ) ]
