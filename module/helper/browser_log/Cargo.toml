@@ -11,7 +11,7 @@ documentation = "https://docs.rs/browser_log"
 description = "Advanced logging and panic handling for WebAssembly applications with browser console integration"
 readme = "readme.md"
 keywords = ["wasm", "logging", "browser", "webassembly", "console"]
-categories = ["web-programming", "development-tools", "debugging", "wasm"]
+categories = ["web-programming", "development-tools", "wasm"]
 include = [
     "src/**/*",
     "tests/**/*",
