@@ -27,7 +27,7 @@ Add to `Cargo.toml`:
 ```toml
 [dependencies]
 minwebgl = "0.2"
-tiles_tools = "0.1"  
+tiles_tools = "0.1"
 ndarray_cg = "0.3"
 browser_input = "0.1"
 ```
@@ -49,7 +49,7 @@ browser_input = "0.1"
 ## Examples
 
 - [Hexagonal Grid](./examples/minwebgl/hexagonal_grid/) - Interactive pathfinding
-- [Deferred Shading](./examples/minwebgl/deferred_shading/) - 3D rendering pipeline  
+- [Deferred Shading](./examples/minwebgl/deferred_shading/) - 3D rendering pipeline
 - [Text Rendering](./examples/minwebgl/text_rendering/) - GPU text rendering
 - [Hello Triangle](./examples/minwebgpu/hello_triangle/) - WebGPU basics
 
