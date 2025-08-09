@@ -2,6 +2,8 @@
 
 Computer graphics toolkit for WebAssembly applications.
 
+![Abstract Art](./assets/primitives.jpg)
+
 ## Overview
 
 Rust-based graphics libraries for WebGL/WebGPU applications, mathematical computation, and game development.
