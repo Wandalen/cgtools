@@ -65,10 +65,10 @@ Open http://localhost:8080 in your browser to interact with the hex grid.
 ### Coordinate Systems
 ```rust
 // Axial coordinates (q, r)
-let hex_coord = HexCoord::new(2, -1);
+let hex_coord = HexCoord::new( 2, -1 );
 
 // Convert to pixel coordinates for rendering
-let pixel_pos = hex_coord.to_pixel(hex_size);
+let pixel_pos = hex_coord.to_pixel( hex_size );
 
 // Find neighbors for pathfinding
 let neighbors = hex_coord.neighbors();
@@ -128,16 +128,18 @@ let neighbors = hex_coord.neighbors();
 ### Adding New Features
 ```rust
 // Add hex obstacles
-grid.set_blocked(HexCoord::new(3, 2), true);
+grid.set_blocked( HexCoord::new( 3, 2 ), true );
 
 // Custom pathfinding costs
-let path = pathfind_with_cost(start, goal, |hex| {
-  if is_difficult_terrain(hex) { 2.0 } else { 1.0 }
+let path = pathfind_with_cost( start, goal, | hex |
+{
+  if is_difficult_terrain( hex ) { 2.0 } else { 1.0 }
 });
 
 // Multiple path visualization
-for (i, path) in paths.iter().enumerate() {
-  render_path(path, COLORS[i % COLORS.len()]);
+for ( i, path ) in paths.iter().enumerate()
+{
+  render_path( path, COLORS[ i % COLORS.len() ] );
 }
 ```
 

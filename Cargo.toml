@@ -2,11 +2,39 @@
 
 resolver = "2"
 members = [
-  "module/alias/*",
-  "module/blank/*",
-  "module/min/*",
-  "module/helper/*",
-  "module/math/*",
+  # Alias modules
+  "module/alias/browser_tools",
+  "module/alias/ndarray_tools",
+  
+  # Blank modules
+  "module/blank/cg_tools",
+  "module/blank/cgtools",
+  "module/blank/mdmath",
+  "module/blank/mdmath_ai",
+  "module/blank/mdmath_cg",
+  "module/blank/mdmath_linalg",
+  
+  # Min modules
+  "module/min/mingl",
+  "module/min/minwebgl", 
+  "module/min/minwebgpu",
+  
+  # Helper modules (excluding incomplete tilemap_renderer and problematic vectorizer)
+  "module/helper/browser_input",
+  "module/helper/browser_log",
+  "module/helper/canvas_renderer",
+  "module/helper/embroidery_tools",
+  "module/helper/geometry_generation",
+  "module/helper/line_tools",
+  "module/helper/renderer",
+  "module/helper/tiles_tools",
+  # "module/helper/vectorizer", # TODO: Fix feature gate issues
+  
+  # Math modules
+  "module/math/mdmath_core",
+  "module/math/ndarray_cg",
+  
+  # Examples
   "examples/minwebgl/*",
   "examples/minwebgpu/*",
   "examples/math/*"
@@ -26,8 +54,15 @@ missing_docs = "warn" # qqq : uncomment please
 unsafe-code = "warn"
 
 [workspace.lints.clippy]
-# Warns against restrictive language patterns.
-restriction = { level = "warn", priority = -1 }
+# Individual restriction lints (not as a group per clippy recommendations)
+# Common useful restriction lints
+wildcard_imports = "warn"
+implicit_return = "warn"
+missing_inline_in_public_items = "warn"
+exhaustive_enums = "warn"
+exhaustive_structs = "warn"
+else_if_without_else = "warn"
+min_ident_chars = "warn"
 # Enforces strict coding styles.
 pedantic = { level = "warn", priority = -1 }
 # Requires documentation for unsafe blocks.
@@ -46,8 +81,10 @@ module_name_repetitions = "allow"
 absolute_paths = "allow"
 # Allows pub use patterns (needed for mod_interface macro)
 pub_use = "allow"
-# Allows mod.rs files (used in this codebase intentionally)
+# Allows mod.rs files (used in this codebase intentionally) 
 mod_module_files = "allow"
+# Allows self-named module files (format.rs instead of format/mod.rs)
+self_named_module_files = "allow"
 # Allows allow attributes (needed for targeted allows)
 allow_attributes = "allow"
 # Allows allow attributes without reasons (for brevity)
