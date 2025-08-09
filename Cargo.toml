@@ -19,7 +19,7 @@ members = [
   "module/min/minwebgl",
   "module/min/minwebgpu",
 
-  # Helper modules (excluding incomplete tilemap_renderer and problematic vectorizer)
+  # Helper modules
   "module/helper/browser_input",
   "module/helper/browser_log",
   "module/helper/canvas_renderer",
@@ -27,6 +27,7 @@ members = [
   "module/helper/geometry_generation",
   "module/helper/line_tools",
   "module/helper/renderer",
+  "module/helper/tilemap_renderer",
   "module/helper/tiles_tools",
   # "module/helper/vectorizer", # TODO: Fix feature gate issues
 
@@ -129,6 +130,10 @@ path = "module/helper/geometry_generation"
 [workspace.dependencies.line_tools]
 version = "0.2.0"
 path = "module/helper/line_tools"
+
+[workspace.dependencies.tilemap_renderer]
+version = "0.1.0"
+path = "module/helper/tilemap_renderer"
 
 # = min
 

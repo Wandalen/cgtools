@@ -1,0 +1,1 @@
+//! Scene querying and inspection capabilities.
