@@ -1,4 +1,10 @@
-//! Minwebgpu
+//! Minwebgpu - A minimal WebGPU toolkit for browser environments
+//!
+//! This crate is designed specifically for WebAssembly targets and browser environments.
+//! It provides WebGPU bindings and utilities that only work when compiled for `wasm32-unknown-unknown`.
+//!
+//! For native targets, this crate provides stub implementations to enable compilation
+//! without runtime functionality.
 
 #![allow(clippy::wildcard_imports)]
 #![allow(clippy::exhaustive_enums)]
@@ -25,13 +31,14 @@
 #![allow(clippy::missing_panics_doc)]
 #![allow(clippy::redundant_closure_for_method_calls)]
 
-#[ cfg( feature = "enabled" ) ]
+// WebAssembly target - full WebGPU functionality
+#[ cfg( all( feature = "enabled", target_arch = "wasm32" ) ) ]
 pub use mingl::mod_interface;
 
-#[ cfg( feature = "enabled" ) ]
+#[ cfg( all( feature = "enabled", target_arch = "wasm32" ) ) ]
 mod private {}
 
-#[ cfg( feature = "enabled" ) ]
+#[ cfg( all( feature = "enabled", target_arch = "wasm32" ) ) ]
 mod_interface!
 {
   own use ::wasm_bindgen;
@@ -103,3 +110,29 @@ mod_interface!
   /// Compute pipeline related
   layer compute_pipeline;
 }
+
+// Native target stub - provides minimal compatibility without WebGPU functionality
+#[ cfg( all( feature = "enabled", not( target_arch = "wasm32" ) ) ) ]
+pub mod stub {
+  //! Stub implementations for native targets
+  //! 
+  //! This module provides empty/stub implementations of the minwebgpu API
+  //! to allow compilation on native targets without WebGPU support.
+  //! All functions will return appropriate errors when called.
+  
+  /// Stub error type for native targets
+  #[derive(Debug)]
+  pub struct WebGPUNotAvailableError;
+  
+  impl std::fmt::Display for WebGPUNotAvailableError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+      write!(f, "WebGPU functionality is only available on WebAssembly targets")
+    }
+  }
+  
+  impl std::error::Error for WebGPUNotAvailableError {}
+}
+
+// Re-export stub for non-wasm targets when enabled
+#[ cfg( all( feature = "enabled", not( target_arch = "wasm32" ) ) ) ]
+pub use stub::*;
