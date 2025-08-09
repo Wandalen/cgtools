@@ -133,6 +133,11 @@ name = "debug_demo"
 required-features = ["enabled"]
 doc-scrape-examples = true
 
+[[example]]
+name = "game_systems_demo"
+required-features = ["enabled"]
+doc-scrape-examples = true
+
 # Benchmarks configuration
 [[bench]]
 name = "coordinate_benchmarks"

@@ -43,6 +43,9 @@
 #![allow(clippy::manual_unwrap_or_default)]
 #![allow(clippy::manual_string_new)]
 #![allow(clippy::std_instead_of_alloc)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::must_use_candidate)]
+#![allow(clippy::from_over_into)]
 
 #[ cfg( feature = "enabled" ) ]
 pub use mingl::mod_interface;
