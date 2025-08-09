@@ -72,6 +72,11 @@
 #![allow(clippy::default_trait_access)]
 #![allow(clippy::cast_abs_to_unsigned)]
 #![allow(clippy::useless_conversion)]
+#![allow(clippy::needless_raw_string_hashes)]
+#![allow(clippy::format_push_string)]
+#![allow(clippy::doc_markdown)]
+#![allow(clippy::type_complexity)]
+#![allow(clippy::if_not_else)]
 
 //! # 🎲 Tiles Tools
 //! 
@@ -223,3 +228,9 @@ pub mod events;
 
 #[cfg(feature = "serialization")]
 pub mod serialization;
+
+#[cfg(feature = "enabled")]
+pub mod debug;
+
+#[cfg(feature = "enabled")]
+pub mod game_systems;

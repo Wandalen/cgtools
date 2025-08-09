@@ -868,15 +868,15 @@ mod tests {
     assert_eq!(*counter.lock().unwrap(), 2);
   }
 
+  #[derive(Debug, Clone)]
+  struct EventA { value: i32 }
+
+  #[derive(Debug, Clone)]
+  struct EventB { text: String }
+
   #[test]
   fn test_multiple_event_types() {
     let mut bus = EventBus::new();
-
-    #[derive(Debug, Clone)]
-    struct EventA { value: i32 }
-
-    #[derive(Debug, Clone)]
-    struct EventB { text: String }
 
     let received_a = Arc::new(Mutex::new(Vec::new()));
     let received_b = Arc::new(Mutex::new(Vec::new()));

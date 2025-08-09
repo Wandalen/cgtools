@@ -15,10 +15,12 @@ description = "Minimal WebGPU toolkit for modern graphics programming with compu
 readme = "readme.md"
 keywords = ["webgpu", "graphics", "minimal", "wasm", "compute"]
 categories = ["graphics", "web-programming", "rendering", "wasm"]
+build = "build.rs"
 include = [
     "src/**/*",
     "tests/**/*",
     "Cargo.toml",
+    "build.rs",
     "readme.md",
     "license*",
     "changelog*",
@@ -38,6 +40,7 @@ enabled = [
   "dep:js-sys",
   "dep:web-sys",
   "dep:asbytes",
+  "log",
 ]
 
 default = [
@@ -181,7 +184,7 @@ test_tools = { workspace = true }
 # Metadata for crates.io
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
+rustdoc-args = ["--cfg", "docsrs", "--cfg", "web_sys_unstable_apis"]
 default-target = "wasm32-unknown-unknown"
 targets = [
     "wasm32-unknown-unknown",
