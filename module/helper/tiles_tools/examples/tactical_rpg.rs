@@ -1,33 +1,33 @@
-#![allow(dead_code)]
-#![allow(clippy::needless_return)]
-#![allow(clippy::implicit_return)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::items_after_statements)]
-#![allow(clippy::unnecessary_cast)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::cast_sign_loss)]
-#![allow(clippy::explicit_iter_loop)]
-#![allow(clippy::format_in_format_args)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::wildcard_imports)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::std_instead_of_core)]
-#![allow(clippy::similar_names)]
-#![allow(clippy::duplicated_attributes)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::trivially_copy_pass_by_ref)]
-#![allow(clippy::missing_inline_in_public_items)]
-#![allow(clippy::useless_vec)]
-#![allow(clippy::unnested_or_patterns)]
-#![allow(clippy::else_if_without_else)]
-#![allow(clippy::unreadable_literal)]
-#![allow(clippy::redundant_else)]
-#![allow(clippy::cast_lossless)]
-#![allow(clippy::map_unwrap_or)]
-#![allow(clippy::unused_self)]
-#![allow(clippy::min_ident_chars)]
-#![allow(clippy::std_instead_of_alloc)]
-#![allow(clippy::struct_field_names)]
+#![allow(dead_code ) ]
+#![ allow( clippy::needless_return ) ]
+#![ allow( clippy::implicit_return ) ]
+#![ allow( clippy::uninlined_format_args ) ]
+#![ allow( clippy::items_after_statements ) ]
+#![ allow( clippy::unnecessary_cast ) ]
+#![ allow( clippy::doc_markdown ) ]
+#![ allow( clippy::cast_sign_loss ) ]
+#![ allow( clippy::explicit_iter_loop ) ]
+#![ allow( clippy::format_in_format_args ) ]
+#![ allow( clippy::cast_precision_loss ) ]
+#![ allow( clippy::wildcard_imports ) ]
+#![ allow( clippy::too_many_lines ) ]
+#![ allow( clippy::std_instead_of_core ) ]
+#![ allow( clippy::similar_names ) ]
+#![ allow( clippy::duplicated_attributes ) ]
+#![ allow( clippy::cast_possible_truncation ) ]
+#![ allow( clippy::trivially_copy_pass_by_ref ) ]
+#![ allow( clippy::missing_inline_in_public_items ) ]
+#![ allow( clippy::useless_vec ) ]
+#![ allow( clippy::unnested_or_patterns ) ]
+#![ allow( clippy::else_if_without_else ) ]
+#![ allow( clippy::unreadable_literal ) ]
+#![ allow( clippy::redundant_else ) ]
+#![ allow( clippy::cast_lossless ) ]
+#![ allow( clippy::map_unwrap_or ) ]
+#![ allow( clippy::unused_self ) ]
+#![ allow( clippy::min_ident_chars ) ]
+#![ allow( clippy::std_instead_of_alloc ) ]
+#![ allow( clippy::struct_field_names ) ]
 //! Tactical RPG example demonstrating advanced ECS gameplay mechanics.
 //!
 //! This example showcases a turn-based tactical RPG combat system using
@@ -57,8 +57,9 @@ use std::collections::VecDeque;
 // =============================================================================
 
 /// Experience and leveling component
-#[derive(Debug, Clone, Copy)]
-struct Experience {
+#[derive(Debug, Clone, Copy ) ]
+struct Experience
+{
   current_xp: u32,
   level: u32,
   xp_to_next_level: u32,
@@ -95,8 +96,9 @@ impl Experience {
 }
 
 /// Initiative component for turn order
-#[derive(Debug, Clone, Copy)]
-struct Initiative {
+#[derive(Debug, Clone, Copy ) ]
+struct Initiative
+{
   base_initiative: u32,
   current_initiative: u32,
   has_acted: bool,
@@ -122,37 +124,42 @@ impl Initiative {
 }
 
 /// Equipment and inventory component
-#[derive(Debug, Clone)]
-struct Equipment {
+#[derive(Debug, Clone ) ]
+struct Equipment
+{
   weapon: Option<Weapon>,
   armor: Option<Armor>,
   accessories: Vec<Accessory>,
   inventory_slots: u32,
 }
 
-#[derive(Debug, Clone)]
-struct Weapon {
+#[derive(Debug, Clone ) ]
+struct Weapon
+{
   name: String,
   attack_bonus: u32,
   range: u32,
   damage_type: DamageType,
 }
 
-#[derive(Debug, Clone)]
-struct Armor {
+#[derive(Debug, Clone ) ]
+struct Armor
+{
   name: String,
   defense_bonus: u32,
   resistances: Vec<DamageType>,
 }
 
-#[derive(Debug, Clone)]
-struct Accessory {
+#[derive(Debug, Clone ) ]
+struct Accessory
+{
   name: String,
   effect: AccessoryEffect,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum DamageType {
+#[derive(Debug, Clone, Copy, PartialEq ) ]
+enum DamageType
+{
   Physical,
   Fire,
   Ice,
@@ -160,30 +167,34 @@ enum DamageType {
   Healing,
 }
 
-#[derive(Debug, Clone)]
-enum AccessoryEffect {
+#[derive(Debug, Clone ) ]
+enum AccessoryEffect
+{
   StatBonus(StatType, u32),
   Resistance(DamageType),
   ExtraMovement(u32),
 }
 
-#[derive(Debug, Clone, Copy)]
-enum StatType {
+#[derive(Debug, Clone, Copy ) ]
+enum StatType
+{
   Attack,
   Defense,
   Speed,
 }
 
 /// Ability component for special attacks and spells
-#[derive(Debug, Clone)]
-struct Abilities {
+#[derive(Debug, Clone ) ]
+struct Abilities
+{
   abilities: Vec<Ability>,
   mana: u32,
   max_mana: u32,
 }
 
-#[derive(Debug, Clone)]
-struct Ability {
+#[derive(Debug, Clone ) ]
+struct Ability
+{
   name: String,
   mana_cost: u32,
   range: u32,
@@ -232,7 +243,8 @@ impl Abilities {
 // =============================================================================
 
 /// Main tactical RPG game state
-struct TacticalRPG {
+struct TacticalRPG
+{
   world: World,
   turn_queue: VecDeque<hecs::Entity>,
   current_turn: Option<hecs::Entity>,
@@ -242,8 +254,9 @@ struct TacticalRPG {
   game_phase: GamePhase,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum GamePhase {
+#[derive(Debug, Clone, Copy, PartialEq ) ]
+enum GamePhase
+{
   Planning,    // Player selects actions
   Execution,   // Actions are executed
   AI,          // AI makes decisions
@@ -749,7 +762,8 @@ impl TacticalRPG {
 }
 
 /// Main entry point for the tactical RPG demo
-fn main() {
+fn main()
+{
   let mut game = TacticalRPG::new();
   game.run_simulation();
   

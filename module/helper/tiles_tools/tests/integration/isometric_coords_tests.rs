@@ -71,43 +71,49 @@ use std::collections::HashSet;
 // Test Category 1: Coordinate Creation
 // =============================================================================
 
-#[test]
-fn test_coordinate_creation_basic() {
+#[ test ]
+fn test_coordinate_creation_basic()
+{
   let coord = Coordinate::<Diamond>::new(0, 0);
   assert_eq!(coord.x, 0);
   assert_eq!(coord.y, 0);
 }
 
-#[test]
-fn test_coordinate_creation_values() {
+#[ test ]
+fn test_coordinate_creation_values()
+{
   let coord = Coordinate::<Diamond>::new(5, 3);
   assert_eq!(coord.x, 5);
   assert_eq!(coord.y, 3);
 }
 
-#[test]
-fn test_coordinate_creation_negative() {
+#[ test ]
+fn test_coordinate_creation_negative()
+{
   let coord = Coordinate::<Diamond>::new(-5, -3);
   assert_eq!(coord.x, -5);
   assert_eq!(coord.y, -3);
 }
 
-#[test]
-fn test_coordinate_from_tuple() {
+#[ test ]
+fn test_coordinate_from_tuple()
+{
   let coord: Coordinate<Diamond> = (7, -2).into();
   assert_eq!(coord.x, 7);
   assert_eq!(coord.y, -2);
 }
 
-#[test]
-fn test_coordinate_from_array() {
+#[ test ]
+fn test_coordinate_from_array()
+{
   let coord: Coordinate<Diamond> = [3, 8].into();
   assert_eq!(coord.x, 3);
   assert_eq!(coord.y, 8);
 }
 
-#[test]
-fn test_isometric_coord_alias() {
+#[ test ]
+fn test_isometric_coord_alias()
+{
   let coord = IsometricCoord::new(4, 6);
   assert_eq!(coord.x, 4);
   assert_eq!(coord.y, 6);
@@ -117,26 +123,30 @@ fn test_isometric_coord_alias() {
 // Test Category 2: Coordinate Validation
 // =============================================================================
 
-#[test]
-fn test_coordinate_is_valid_positive() {
+#[ test ]
+fn test_coordinate_is_valid_positive()
+{
   let coord = Coordinate::<Diamond>::new(10, 20);
   assert!(coord.is_valid());
 }
 
-#[test]
-fn test_coordinate_is_valid_negative() {
+#[ test ]
+fn test_coordinate_is_valid_negative()
+{
   let coord = Coordinate::<Diamond>::new(-10, -20);
   assert!(coord.is_valid());
 }
 
-#[test]
-fn test_coordinate_is_valid_mixed() {
+#[ test ]
+fn test_coordinate_is_valid_mixed()
+{
   let coord = Coordinate::<Diamond>::new(-5, 15);
   assert!(coord.is_valid());
 }
 
-#[test]
-fn test_coordinate_is_valid_zero() {
+#[ test ]
+fn test_coordinate_is_valid_zero()
+{
   let coord = Coordinate::<Diamond>::new(0, 0);
   assert!(coord.is_valid());
 }
@@ -145,52 +155,59 @@ fn test_coordinate_is_valid_zero() {
 // Test Category 3: Distance Calculations
 // =============================================================================
 
-#[test]
-fn test_distance_to_self() {
+#[ test ]
+fn test_distance_to_self()
+{
   let coord = Coordinate::<Diamond>::new(5, 3);
   assert_eq!(coord.distance(&coord), 0);
 }
 
-#[test]
-fn test_distance_horizontal() {
+#[ test ]
+fn test_distance_horizontal()
+{
   let coord1 = Coordinate::<Diamond>::new(0, 0);
   let coord2 = Coordinate::<Diamond>::new(3, 0);
   assert_eq!(coord1.distance(&coord2), 3);
 }
 
-#[test]
-fn test_distance_vertical() {
+#[ test ]
+fn test_distance_vertical()
+{
   let coord1 = Coordinate::<Diamond>::new(0, 0);
   let coord2 = Coordinate::<Diamond>::new(0, 4);
   assert_eq!(coord1.distance(&coord2), 4);
 }
 
-#[test]
-fn test_distance_diagonal() {
+#[ test ]
+fn test_distance_diagonal()
+{
   let coord1 = Coordinate::<Diamond>::new(0, 0);
   let coord2 = Coordinate::<Diamond>::new(2, 2);
   // Manhattan distance: |2-0| + |2-0| = 4
   assert_eq!(coord1.distance(&coord2), 4);
 }
 
-#[test]
-fn test_distance_asymmetric() {
+#[ test ]
+fn test_distance_asymmetric()
+{
   let coord1 = Coordinate::<Diamond>::new(1, 2);
   let coord2 = Coordinate::<Diamond>::new(4, 7);
   // |4-1| + |7-2| = 3 + 5 = 8
   assert_eq!(coord1.distance(&coord2), 8);
 }
 
-#[test]
-fn test_distance_negative_coordinates() {
+#[ test ]
+fn test_distance_negative_coordinates()
+{
   let coord1 = Coordinate::<Diamond>::new(-3, -2);
   let coord2 = Coordinate::<Diamond>::new(1, 4);
   // |1-(-3)| + |4-(-2)| = 4 + 6 = 10
   assert_eq!(coord1.distance(&coord2), 10);
 }
 
-#[test]
-fn test_distance_symmetry() {
+#[ test ]
+fn test_distance_symmetry()
+{
   let coord1 = Coordinate::<Diamond>::new(2, 5);
   let coord2 = Coordinate::<Diamond>::new(7, 1);
   assert_eq!(coord1.distance(&coord2), coord2.distance(&coord1));
@@ -200,15 +217,17 @@ fn test_distance_symmetry() {
 // Test Category 4: Neighbor Finding
 // =============================================================================
 
-#[test]
-fn test_neighbors_count() {
+#[ test ]
+fn test_neighbors_count()
+{
   let coord = Coordinate::<Diamond>::new(5, 3);
   let neighbors = coord.neighbors();
   assert_eq!(neighbors.len(), 4, "Isometric coordinates should have exactly 4 neighbors");
 }
 
-#[test]
-fn test_neighbors_positions() {
+#[ test ]
+fn test_neighbors_positions()
+{
   let coord = Coordinate::<Diamond>::new(2, 3);
   let neighbors = coord.neighbors();
   let expected = vec![
@@ -225,8 +244,9 @@ fn test_neighbors_positions() {
   }
 }
 
-#[test]
-fn test_neighbors_uniqueness() {
+#[ test ]
+fn test_neighbors_uniqueness()
+{
   let coord = Coordinate::<Diamond>::new(5, 7);
   let neighbors = coord.neighbors();
   let unique_neighbors: HashSet<_> = neighbors.iter().collect();
@@ -234,8 +254,9 @@ fn test_neighbors_uniqueness() {
              "All neighbors should be unique");
 }
 
-#[test]
-fn test_neighbors_exclude_self() {
+#[ test ]
+fn test_neighbors_exclude_self()
+{
   let coord = Coordinate::<Diamond>::new(3, 8);
   let neighbors = coord.neighbors();
   assert!(!neighbors.contains(&coord),
@@ -246,8 +267,9 @@ fn test_neighbors_exclude_self() {
 // Test Category 5: Screen Coordinate Transformations
 // =============================================================================
 
-#[test]
-fn test_to_screen_origin() {
+#[ test ]
+fn test_to_screen_origin()
+{
   let coord = Coordinate::<Diamond>::new(0, 0);
   let screen_pos = coord.to_screen(32.0);
   
@@ -256,8 +278,9 @@ fn test_to_screen_origin() {
   assert!((screen_pos.y() - 0.0).abs() < 1e-6);
 }
 
-#[test]
-fn test_to_screen_positive() {
+#[ test ]
+fn test_to_screen_positive()
+{
   let coord = Coordinate::<Diamond>::new(2, 1);
   let screen_pos = coord.to_screen(32.0);
   
@@ -270,8 +293,9 @@ fn test_to_screen_positive() {
   assert!((screen_pos.y() - expected_y).abs() < 1e-6);
 }
 
-#[test]
-fn test_to_screen_negative() {
+#[ test ]
+fn test_to_screen_negative()
+{
   let coord = Coordinate::<Diamond>::new(-1, 2);
   let screen_pos = coord.to_screen(32.0);
   
@@ -282,8 +306,9 @@ fn test_to_screen_negative() {
   assert!((screen_pos.y() - expected_y).abs() < 1e-6);
 }
 
-#[test]
-fn test_from_screen_origin() {
+#[ test ]
+fn test_from_screen_origin()
+{
   let screen_pos = Pixel::new(0.0, 0.0);
   let coord = Coordinate::<Diamond>::from_screen(screen_pos, 32.0);
   
@@ -291,8 +316,9 @@ fn test_from_screen_origin() {
   assert_eq!(coord.y, 0);
 }
 
-#[test]
-fn test_from_screen_positive() {
+#[ test ]
+fn test_from_screen_positive()
+{
   let screen_pos = Pixel::new(16.0, 24.0);
   let coord = Coordinate::<Diamond>::from_screen(screen_pos, 32.0);
   
@@ -301,8 +327,9 @@ fn test_from_screen_positive() {
   assert_eq!(coord.y, 1);
 }
 
-#[test]
-fn test_screen_coordinate_roundtrip() {
+#[ test ]
+fn test_screen_coordinate_roundtrip()
+{
   let original = Coordinate::<Diamond>::new(3, -2);
   let screen_pos = original.to_screen(32.0);
   let converted_back = Coordinate::<Diamond>::from_screen(screen_pos, 32.0);
@@ -310,8 +337,9 @@ fn test_screen_coordinate_roundtrip() {
   assert_eq!(original, converted_back);
 }
 
-#[test]
-fn test_screen_coordinate_roundtrip_various_sizes() {
+#[ test ]
+fn test_screen_coordinate_roundtrip_various_sizes()
+{
   let coords = vec![
     Coordinate::<Diamond>::new(0, 0),
     Coordinate::<Diamond>::new(5, 3),
@@ -335,8 +363,9 @@ fn test_screen_coordinate_roundtrip_various_sizes() {
 // Test Category 6: Tile Rendering Support
 // =============================================================================
 
-#[test]
-fn test_tile_corners() {
+#[ test ]
+fn test_tile_corners()
+{
   let coord = Coordinate::<Diamond>::new(1, 1);
   let corners = coord.tile_corners(32.0);
   
@@ -364,8 +393,9 @@ fn test_tile_corners() {
   }
 }
 
-#[test]
-fn test_tile_corners_different_sizes() {
+#[ test ]
+fn test_tile_corners_different_sizes()
+{
   let coord = Coordinate::<Diamond>::new(0, 0);
   
   let sizes_and_expected = vec![
@@ -396,15 +426,17 @@ fn test_tile_corners_different_sizes() {
 // Test Category 7: Conversions
 // =============================================================================
 
-#[test]
-fn test_into_tuple() {
+#[ test ]
+fn test_into_tuple()
+{
   let coord = Coordinate::<Diamond>::new(7, -3);
   let tuple: (i32, i32) = coord.into();
   assert_eq!(tuple, (7, -3));
 }
 
-#[test]
-fn test_into_array() {
+#[ test ]
+fn test_into_array()
+{
   let coord = Coordinate::<Diamond>::new(-2, 9);
   let array: [i32; 2] = coord.into();
   assert_eq!(array, [-2, 9]);
@@ -414,30 +446,34 @@ fn test_into_array() {
 // Test Category 8: Trait Implementations
 // =============================================================================
 
-#[test]
-fn test_debug_trait() {
+#[ test ]
+fn test_debug_trait()
+{
   let coord = Coordinate::<Diamond>::new(5, -1);
   let debug_str = format!("{:?}", coord);
   assert!(debug_str.contains("5"));
   assert!(debug_str.contains("-1"));
 }
 
-#[test]
-fn test_clone_trait() {
+#[ test ]
+fn test_clone_trait()
+{
   let coord = Coordinate::<Diamond>::new(4, 2);
   let cloned = coord.clone();
   assert_eq!(coord, cloned);
 }
 
-#[test]
-fn test_copy_trait() {
+#[ test ]
+fn test_copy_trait()
+{
   let coord = Coordinate::<Diamond>::new(1, 6);
   let copied = coord;  // This should work due to Copy trait
   assert_eq!(coord, copied);
 }
 
-#[test]
-fn test_partial_eq_trait() {
+#[ test ]
+fn test_partial_eq_trait()
+{
   let coord1 = Coordinate::<Diamond>::new(3, 4);
   let coord2 = Coordinate::<Diamond>::new(3, 4);
   let coord3 = Coordinate::<Diamond>::new(3, 5);
@@ -446,8 +482,9 @@ fn test_partial_eq_trait() {
   assert_ne!(coord1, coord3);
 }
 
-#[test]
-fn test_hash_trait() {
+#[ test ]
+fn test_hash_trait()
+{
   use std::collections::HashMap;
   
   let coord1 = Coordinate::<Diamond>::new(2, 3);
@@ -460,8 +497,9 @@ fn test_hash_trait() {
   assert_eq!(map.get(&coord2), Some(&"value"));
 }
 
-#[test]
-fn test_default_trait() {
+#[ test ]
+fn test_default_trait()
+{
   let coord: Coordinate<Diamond> = Default::default();
   assert_eq!(coord.x, 0);
   assert_eq!(coord.y, 0);
@@ -471,8 +509,9 @@ fn test_default_trait() {
 // Test Category 9: Serialization/Deserialization
 // =============================================================================
 
-#[test]
-fn test_serialize() {
+#[ test ]
+fn test_serialize()
+{
   let coord = Coordinate::<Diamond>::new(5, -2);
   let serialized = serde_json::to_string(&coord).expect("Serialization should succeed");
   
@@ -482,8 +521,9 @@ fn test_serialize() {
   assert!(!serialized.contains("_marker"));
 }
 
-#[test]
-fn test_deserialize() {
+#[ test ]
+fn test_deserialize()
+{
   let json = r#"{"x": 7, "y": 3}"#;
   let coord: Coordinate<Diamond> = serde_json::from_str(json)
     .expect("Deserialization should succeed");
@@ -492,8 +532,9 @@ fn test_deserialize() {
   assert_eq!(coord.y, 3);
 }
 
-#[test]
-fn test_round_trip_serialization() {
+#[ test ]
+fn test_round_trip_serialization()
+{
   let original = Coordinate::<Diamond>::new(-4, 8);
   let serialized = serde_json::to_string(&original)
     .expect("Serialization should succeed");
@@ -507,24 +548,27 @@ fn test_round_trip_serialization() {
 // Test Category 10: Edge Cases and Boundary Conditions
 // =============================================================================
 
-#[test]
-fn test_large_coordinates() {
+#[ test ]
+fn test_large_coordinates()
+{
   let coord = Coordinate::<Diamond>::new(1000000, -1000000);
   let neighbors = coord.neighbors();
   assert_eq!(neighbors.len(), 4);
   assert!(coord.is_valid());
 }
 
-#[test]
-fn test_screen_transform_large_coordinates() {
+#[ test ]
+fn test_screen_transform_large_coordinates()
+{
   let coord = Coordinate::<Diamond>::new(1000, -500);
   let screen_pos = coord.to_screen(32.0);
   let converted_back = Coordinate::<Diamond>::from_screen(screen_pos, 32.0);
   assert_eq!(coord, converted_back);
 }
 
-#[test]
-fn test_tile_corners_extreme_positions() {
+#[ test ]
+fn test_tile_corners_extreme_positions()
+{
   let coord = Coordinate::<Diamond>::new(-100, 200);
   let corners = coord.tile_corners(32.0);
   assert_eq!(corners.len(), 4);
@@ -544,8 +588,9 @@ fn test_tile_corners_extreme_positions() {
 // Test Category 11: Integration Tests
 // =============================================================================
 
-#[test]
-fn test_distance_between_neighbors() {
+#[ test ]
+fn test_distance_between_neighbors()
+{
   let coord = Coordinate::<Diamond>::new(5, 3);
   let neighbors = coord.neighbors();
   
@@ -556,8 +601,9 @@ fn test_distance_between_neighbors() {
   }
 }
 
-#[test]
-fn test_neighbors_reciprocal() {
+#[ test ]
+fn test_neighbors_reciprocal()
+{
   let coord = Coordinate::<Diamond>::new(3, 7);
   let neighbors = coord.neighbors();
   
@@ -570,8 +616,9 @@ fn test_neighbors_reciprocal() {
   }
 }
 
-#[test]
-fn test_isometric_visual_properties() {
+#[ test ]
+fn test_isometric_visual_properties()
+{
   // Test that the isometric transformation creates the expected diamond pattern
   let coords = vec![
     Coordinate::<Diamond>::new(0, 0),  // Center
@@ -609,8 +656,9 @@ fn test_isometric_visual_properties() {
 // Test Category 12: Pathfinding Integration
 // =============================================================================
 
-#[test]
-fn test_pathfinding_integration() {
+#[ test ]
+fn test_pathfinding_integration()
+{
   use tiles_tools::pathfind::astar;
   
   let start = IsometricCoord::new(0, 0);
@@ -633,8 +681,9 @@ fn test_pathfinding_integration() {
   assert_eq!(path[path.len() - 1], goal);
 }
 
-#[test]
-fn test_pathfinding_blocked_path() {
+#[ test ]
+fn test_pathfinding_blocked_path()
+{
   use tiles_tools::pathfind::astar;
   
   let start = IsometricCoord::new(0, 0);
@@ -660,8 +709,9 @@ fn test_pathfinding_blocked_path() {
           "Path should not go through blocked tile (1,0)");
 }
 
-#[test]
-fn test_pathfinding_same_position() {
+#[ test ]
+fn test_pathfinding_same_position()
+{
   use tiles_tools::pathfind::astar;
   
   let coord = IsometricCoord::new(5, 3);
@@ -680,8 +730,9 @@ fn test_pathfinding_same_position() {
   assert_eq!(path[0], coord);
 }
 
-#[test]
-fn test_pathfinding_impossible() {
+#[ test ]
+fn test_pathfinding_impossible()
+{
   use tiles_tools::pathfind::astar;
   
   let start = IsometricCoord::new(0, 0);

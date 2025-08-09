@@ -1,31 +1,31 @@
 //! Animation and tweening system demonstration.
 
-#![allow(clippy::needless_return)]
-#![allow(clippy::implicit_return)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::items_after_statements)]
-#![allow(clippy::unnecessary_cast)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::cast_sign_loss)]
-#![allow(clippy::explicit_iter_loop)]
-#![allow(clippy::format_in_format_args)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::wildcard_imports)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::std_instead_of_core)]
-#![allow(clippy::similar_names)]
-#![allow(clippy::duplicated_attributes)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::trivially_copy_pass_by_ref)]
-#![allow(clippy::missing_inline_in_public_items)]
-#![allow(clippy::useless_vec)]
-#![allow(clippy::unnested_or_patterns)]
-#![allow(clippy::else_if_without_else)]
-#![allow(clippy::unreadable_literal)]
-#![allow(clippy::redundant_else)]
-#![allow(clippy::map_unwrap_or)]
-#![allow(clippy::min_ident_chars)]
-#![allow(clippy::cast_lossless)]
+#![ allow( clippy::needless_return ) ]
+#![ allow( clippy::implicit_return ) ]
+#![ allow( clippy::uninlined_format_args ) ]
+#![ allow( clippy::items_after_statements ) ]
+#![ allow( clippy::unnecessary_cast ) ]
+#![ allow( clippy::doc_markdown ) ]
+#![ allow( clippy::cast_sign_loss ) ]
+#![ allow( clippy::explicit_iter_loop ) ]
+#![ allow( clippy::format_in_format_args ) ]
+#![ allow( clippy::cast_precision_loss ) ]
+#![ allow( clippy::wildcard_imports ) ]
+#![ allow( clippy::too_many_lines ) ]
+#![ allow( clippy::std_instead_of_core ) ]
+#![ allow( clippy::similar_names ) ]
+#![ allow( clippy::duplicated_attributes ) ]
+#![ allow( clippy::cast_possible_truncation ) ]
+#![ allow( clippy::trivially_copy_pass_by_ref ) ]
+#![ allow( clippy::missing_inline_in_public_items ) ]
+#![ allow( clippy::useless_vec ) ]
+#![ allow( clippy::unnested_or_patterns ) ]
+#![ allow( clippy::else_if_without_else ) ]
+#![ allow( clippy::unreadable_literal ) ]
+#![ allow( clippy::redundant_else ) ]
+#![ allow( clippy::map_unwrap_or ) ]
+#![ allow( clippy::min_ident_chars ) ]
+#![ allow( clippy::cast_lossless ) ]
 //!
 //! This example demonstrates the comprehensive animation system including:
 //! - Various easing functions and their effects
@@ -35,13 +35,15 @@
 //! - Builder pattern for complex animations
 //! - Performance characteristics
 
-use tiles_tools::{
+use tiles_tools::
+{
   animation::*,
-  coordinates::square::{Coordinate as SquareCoord, FourConnected},
+  coordinates::square::{ Coordinate as SquareCoord, FourConnected },
 };
 use std::time::Instant;
 
-fn main() {
+fn main()
+{
   println!("Animation and Tweening System Demonstration");
   println!("==========================================");
 

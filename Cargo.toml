@@ -17,7 +17,7 @@ members = [
   # Min modules
   "module/min/mingl",
   "module/min/minwebgl", 
-  # "module/min/minwebgpu", # TODO: Enable when WebGPU unstable APIs configuration is resolved
+  "module/min/minwebgpu",
   
   # Helper modules (excluding incomplete tilemap_renderer and problematic vectorizer)
   "module/helper/browser_input",
@@ -36,7 +36,7 @@ members = [
   
   # Examples
   "examples/minwebgl/*",
-  # "examples/minwebgpu/*", # TODO: Enable when WebGPU unstable APIs configuration is resolved
+  "examples/minwebgpu/*",
   "examples/math/*"
 ]
 
@@ -99,15 +99,15 @@ many_single_char_names = "allow"
 # = helpers
 
 [workspace.dependencies.browser_input]
-version = "0.1.0"
+version = "0.2.0"
 path = "module/helper/browser_input"
 
 [workspace.dependencies.tiles_tools]
-version = "0.1.0"
+version = "0.2.0"
 path = "module/helper/tiles_tools"
 
 [workspace.dependencies.browser_log]
-version = "~0.3.0"
+version = "~0.4.0"
 path = "module/helper/browser_log"
 
 [workspace.dependencies.browser_tools]
@@ -127,7 +127,7 @@ version = "0.1.0"
 path = "module/helper/geometry_generation"
 
 [workspace.dependencies.line_tools]
-version = "0.1.0"
+version = "0.2.0"
 path = "module/helper/line_tools"
 
 # = draw
@@ -159,15 +159,15 @@ path = "module/helper/line_tools"
 # = min
 
 [workspace.dependencies.mingl]
-version = "~0.2.0"
+version = "~0.3.0"
 path = "module/min/mingl"
 
 [workspace.dependencies.minwebgl]
-version = "~0.2.0"
+version = "~0.3.0"
 path = "module/min/minwebgl"
 
 [workspace.dependencies.minwebgpu]
-version = "~0.1.0"
+version = "~0.2.0"
 path = "module/min/minwebgpu"
 
 # = vectorizer

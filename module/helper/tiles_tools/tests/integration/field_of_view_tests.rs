@@ -51,8 +51,9 @@ use tiles_tools::coordinates::{
 // Basic FOV Algorithm Tests
 // =============================================================================
 
-#[test]
-fn test_shadowcasting_fov_square_grid() {
+#[ test ]
+fn test_shadowcasting_fov_square_grid()
+{
   let fov = FieldOfView::with_algorithm(FOVAlgorithm::Shadowcasting);
   let viewer = SquareCoord::<EightConnected>::new(5, 5);
   
@@ -76,8 +77,9 @@ fn test_shadowcasting_fov_square_grid() {
   }
 }
 
-#[test]
-fn test_shadowcasting_fov_with_obstacles() {
+#[ test ]
+fn test_shadowcasting_fov_with_obstacles()
+{
   let fov = FieldOfView::with_algorithm(FOVAlgorithm::Shadowcasting);
   let viewer = SquareCoord::<EightConnected>::new(3, 3);
   
@@ -104,8 +106,9 @@ fn test_shadowcasting_fov_with_obstacles() {
   // For now, just check that FOV calculation completes
 }
 
-#[test]
-fn test_ray_casting_fov() {
+#[ test ]
+fn test_ray_casting_fov()
+{
   let fov = FieldOfView::with_algorithm(FOVAlgorithm::RayCasting);
   let viewer = SquareCoord::<EightConnected>::new(10, 10);
   
@@ -119,8 +122,9 @@ fn test_ray_casting_fov() {
   assert!(!visible_coords.is_empty());
 }
 
-#[test]
-fn test_flood_fill_fov() {
+#[ test ]
+fn test_flood_fill_fov()
+{
   let fov = FieldOfView::with_algorithm(FOVAlgorithm::FloodFill);
   let viewer = SquareCoord::<EightConnected>::new(8, 8);
   
@@ -134,8 +138,9 @@ fn test_flood_fill_fov() {
   assert!(!nearby_positions.is_empty());
 }
 
-#[test]
-fn test_bresenham_fov() {
+#[ test ]
+fn test_bresenham_fov()
+{
   let fov = FieldOfView::with_algorithm(FOVAlgorithm::Bresenham);
   let viewer = SquareCoord::<EightConnected>::new(0, 0);
   
@@ -152,8 +157,9 @@ fn test_bresenham_fov() {
 // Hexagonal Grid FOV Tests
 // =============================================================================
 
-#[test]
-fn test_hexagonal_shadowcasting_fov() {
+#[ test ]
+fn test_hexagonal_shadowcasting_fov()
+{
   let fov = FieldOfView::new();
   let viewer = HexCoord::<Axial, Pointy>::new(0, 0);
   
@@ -179,8 +185,9 @@ fn test_hexagonal_shadowcasting_fov() {
   }
 }
 
-#[test]
-fn test_hexagonal_fov_with_blocking_terrain() {
+#[ test ]
+fn test_hexagonal_fov_with_blocking_terrain()
+{
   let fov = FieldOfView::new();
   let viewer = HexCoord::<Axial, Pointy>::new(-1, -1);
   
@@ -202,8 +209,9 @@ fn test_hexagonal_fov_with_blocking_terrain() {
 // Line-of-Sight Tests
 // =============================================================================
 
-#[test]
-fn test_line_of_sight_clear() {
+#[ test ]
+fn test_line_of_sight_clear()
+{
   let fov = FieldOfView::new();
   let from = SquareCoord::<EightConnected>::new(1, 1);
   let to = SquareCoord::<EightConnected>::new(4, 4);
@@ -214,8 +222,9 @@ fn test_line_of_sight_clear() {
   let _ = has_los;
 }
 
-#[test]
-fn test_line_of_sight_blocked() {
+#[ test ]
+fn test_line_of_sight_blocked()
+{
   let fov = FieldOfView::new();
   let from = SquareCoord::<EightConnected>::new(0, 0);
   let to = SquareCoord::<EightConnected>::new(5, 5);
@@ -225,8 +234,9 @@ fn test_line_of_sight_blocked() {
   assert!(!has_los);
 }
 
-#[test]
-fn test_line_of_sight_partial_blocking() {
+#[ test ]
+fn test_line_of_sight_partial_blocking()
+{
   let fov = FieldOfView::new();
   let from = SquareCoord::<EightConnected>::new(2, 2);
   let to = SquareCoord::<EightConnected>::new(6, 2);
@@ -248,8 +258,9 @@ fn test_line_of_sight_partial_blocking() {
   let _ = clear_los;
 }
 
-#[test]
-fn test_hexagonal_line_of_sight() {
+#[ test ]
+fn test_hexagonal_line_of_sight()
+{
   let fov = FieldOfView::new();
   let from = HexCoord::<Axial, Pointy>::new(-2, 1);
   let to = HexCoord::<Axial, Pointy>::new(2, -1);
@@ -271,8 +282,9 @@ fn test_hexagonal_line_of_sight() {
 // Advanced FOV Features Tests
 // =============================================================================
 
-#[test]
-fn test_visibility_state_properties() {
+#[ test ]
+fn test_visibility_state_properties()
+{
   let visible_state = VisibilityState::new(true, 3, 0.7);
   assert!(visible_state.visible);
   assert_eq!(visible_state.distance, 3);
@@ -288,8 +300,9 @@ fn test_visibility_state_properties() {
   assert_eq!(invisible_state.light_level, 0.0);
 }
 
-#[test]
-fn test_fov_exclude_viewer() {
+#[ test ]
+fn test_fov_exclude_viewer()
+{
   let fov = FieldOfView::new().include_viewer(false);
   let viewer = SquareCoord::<EightConnected>::new(7, 7);
   
@@ -304,8 +317,9 @@ fn test_fov_exclude_viewer() {
   let _ = visibility.is_visible(&adjacent);
 }
 
-#[test]
-fn test_fov_distance_ranges() {
+#[ test ]
+fn test_fov_distance_ranges()
+{
   let fov = FieldOfView::new();
   let viewer = SquareCoord::<EightConnected>::new(10, 10);
   
@@ -329,8 +343,9 @@ fn test_fov_distance_ranges() {
 // Multi-Source Lighting Tests
 // =============================================================================
 
-#[test]
-fn test_light_source_creation() {
+#[ test ]
+fn test_light_source_creation()
+{
   let position = SquareCoord::<EightConnected>::new(15, 15);
   let light = LightSource::new(position.clone(), 6, 0.8)
     .with_color(1.0, 0.5, 0.2)
@@ -342,8 +357,9 @@ fn test_light_source_creation() {
   assert!(light.penetrates_walls);
 }
 
-#[test]
-fn test_single_light_source_calculation() {
+#[ test ]
+fn test_single_light_source_calculation()
+{
   let mut calculator = LightingCalculator::new();
   
   let light_pos = SquareCoord::<EightConnected>::new(5, 5);
@@ -364,8 +380,9 @@ fn test_single_light_source_calculation() {
   }
 }
 
-#[test]
-fn test_multiple_light_sources() {
+#[ test ]
+fn test_multiple_light_sources()
+{
   let mut calculator = LightingCalculator::new();
   
   // Add two overlapping light sources
@@ -388,8 +405,9 @@ fn test_multiple_light_sources() {
   }
 }
 
-#[test]
-fn test_light_with_obstacles() {
+#[ test ]
+fn test_light_with_obstacles()
+{
   let mut calculator = LightingCalculator::new();
   
   let light_pos = SquareCoord::<EightConnected>::new(8, 8);
@@ -412,8 +430,9 @@ fn test_light_with_obstacles() {
   let _ = light_level;
 }
 
-#[test]
-fn test_penetrating_light() {
+#[ test ]
+fn test_penetrating_light()
+{
   let mut calculator = LightingCalculator::new();
   
   let light_pos = SquareCoord::<EightConnected>::new(12, 12);
@@ -438,8 +457,9 @@ fn test_penetrating_light() {
 // Cross-Coordinate System FOV Tests
 // =============================================================================
 
-#[test]
-fn test_square_vs_hex_fov_consistency() {
+#[ test ]
+fn test_square_vs_hex_fov_consistency()
+{
   let square_fov = FieldOfView::new();
   let hex_fov = FieldOfView::new();
   
@@ -458,8 +478,9 @@ fn test_square_vs_hex_fov_consistency() {
   assert!(!hex_vis.visible_coordinates().is_empty());
 }
 
-#[test]
-fn test_fov_algorithm_comparison() {
+#[ test ]
+fn test_fov_algorithm_comparison()
+{
   let viewer = SquareCoord::<EightConnected>::new(5, 5);
   let range = 3;
   
@@ -484,8 +505,9 @@ fn test_fov_algorithm_comparison() {
 // Performance and Edge Case Tests
 // =============================================================================
 
-#[test]
-fn test_fov_large_range() {
+#[ test ]
+fn test_fov_large_range()
+{
   let fov = FieldOfView::new();
   let viewer = SquareCoord::<EightConnected>::new(50, 50);
   
@@ -502,8 +524,9 @@ fn test_fov_large_range() {
   assert!(visible_count > 100);
 }
 
-#[test]
-fn test_fov_zero_range() {
+#[ test ]
+fn test_fov_zero_range()
+{
   let fov = FieldOfView::new();
   let viewer = SquareCoord::<EightConnected>::new(3, 3);
   
@@ -516,8 +539,9 @@ fn test_fov_zero_range() {
   assert_eq!(visible_coords[0], viewer);
 }
 
-#[test]
-fn test_fov_all_blocking_terrain() {
+#[ test ]
+fn test_fov_all_blocking_terrain()
+{
   let fov = FieldOfView::new();
   let viewer = SquareCoord::<EightConnected>::new(7, 7);
   
@@ -536,8 +560,9 @@ fn test_fov_all_blocking_terrain() {
   }
 }
 
-#[test]
-fn test_lighting_performance() {
+#[ test ]
+fn test_lighting_performance()
+{
   let mut calculator = LightingCalculator::new();
   
   // Add multiple light sources

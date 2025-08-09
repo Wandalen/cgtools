@@ -1,15 +1,15 @@
 //! Beginner Tutorial: Building Your First Tile-Based Game
 
-#![allow(clippy::needless_return)]
-#![allow(clippy::implicit_return)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::items_after_statements)]
-#![allow(clippy::unnecessary_cast)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::cast_sign_loss)]
-#![allow(clippy::explicit_iter_loop)]
-#![allow(clippy::format_in_format_args)]
-#![allow(clippy::cast_precision_loss)]
+#![ allow( clippy::needless_return ) ]
+#![ allow( clippy::implicit_return ) ]
+#![ allow( clippy::uninlined_format_args ) ]
+#![ allow( clippy::items_after_statements ) ]
+#![ allow( clippy::unnecessary_cast ) ]
+#![ allow( clippy::doc_markdown ) ]
+#![ allow( clippy::cast_sign_loss ) ]
+#![ allow( clippy::explicit_iter_loop ) ]
+#![ allow( clippy::format_in_format_args ) ]
+#![ allow( clippy::cast_precision_loss ) ]
 //! 
 //! This tutorial walks you through creating a simple tile-based game using tiles_tools.
 //! We'll build a basic dungeon explorer where a player moves around a grid, collects
@@ -25,16 +25,18 @@
 //! - Visual debugging and grid rendering
 //! - Event handling between game systems
 
-use tiles_tools::{
-    coordinates::{square::{Coordinate as SquareCoord, FourConnected}, Distance, Neighbors},
-    pathfind::astar,
-    ecs::{World, Position, Health},
-    debug::{GridRenderer, GridStyle, DebugColor},
-    game_systems::{TurnBasedGame, ResourceManager, GameStateMachine, GameState, GameStateEvent},
-    events::{EventBus, EventResult},
+use tiles_tools::
+{
+  coordinates::{ square::{ Coordinate as SquareCoord, FourConnected }, Distance, Neighbors },
+  pathfind::astar,
+  ecs::{ World, Position, Health },
+  debug::{ GridRenderer, GridStyle, DebugColor },
+  game_systems::{ TurnBasedGame, ResourceManager, GameStateMachine, GameState, GameStateEvent },
+  events::{ EventBus, EventResult },
 };
 
-fn main() {
+fn main()
+{
     println!("🎮 Tiles Tools Beginner Tutorial");
     println!("=================================");
     println!("Welcome to your first tile-based game!");
@@ -75,7 +77,8 @@ fn main() {
 }
 
 // Step 1: Understanding coordinate systems
-fn tutorial_step_1_coordinates() {
+fn tutorial_step_1_coordinates()
+{
     println!("📍 Step 1: Understanding Coordinates");
     println!("------------------------------------");
     println!("Tiles_tools supports multiple coordinate systems. Let's start with square tiles.");
@@ -102,7 +105,8 @@ fn tutorial_step_1_coordinates() {
 }
 
 // Step 2: Creating a simple map with obstacles
-fn tutorial_step_2_map_creation() {
+fn tutorial_step_2_map_creation()
+{
     println!("🗺️ Step 2: Creating a Simple Map");
     println!("--------------------------------");
     
@@ -156,7 +160,8 @@ fn tutorial_step_2_map_creation() {
 }
 
 // Step 3: Adding a player character
-fn tutorial_step_3_player_basics() {
+fn tutorial_step_3_player_basics()
+{
     println!("🧙 Step 3: Adding a Player Character");
     println!("------------------------------------");
     
@@ -187,7 +192,8 @@ fn tutorial_step_3_player_basics() {
 }
 
 // Step 4: Basic movement and pathfinding
-fn tutorial_step_4_movement() {
+fn tutorial_step_4_movement()
+{
     println!("🚶 Step 4: Movement and Pathfinding");
     println!("-----------------------------------");
     
@@ -243,7 +249,8 @@ fn tutorial_step_4_movement() {
 }
 
 // Step 5: Adding different types of game entities
-fn tutorial_step_5_entities() {
+fn tutorial_step_5_entities()
+{
     println!("👾 Step 5: Adding Game Entities");
     println!("-------------------------------");
     
@@ -319,7 +326,8 @@ fn tutorial_step_5_entities() {
 }
 
 // Step 6: Simple combat system
-fn tutorial_step_6_combat() {
+fn tutorial_step_6_combat()
+{
     println!("⚔️ Step 6: Simple Combat System");
     println!("-------------------------------");
     
@@ -410,7 +418,8 @@ fn tutorial_step_6_combat() {
 }
 
 // Step 7: Visual debugging to see what's happening
-fn tutorial_step_7_debugging() {
+fn tutorial_step_7_debugging()
+{
     println!("🔍 Step 7: Visual Debugging");
     println!("---------------------------");
     println!("Debugging tools help you visualize and understand your game state.");
@@ -459,7 +468,8 @@ fn tutorial_step_7_debugging() {
 }
 
 // Step 8: Putting it all together in a complete mini-game
-fn tutorial_step_8_complete_game() {
+fn tutorial_step_8_complete_game()
+{
     println!("🎯 Step 8: Complete Mini-Game");
     println!("-----------------------------");
     println!("Let's put everything together into a working game!");
@@ -472,7 +482,7 @@ fn tutorial_step_8_complete_game() {
     let mut state_machine = GameStateMachine::new(GameState::Playing);
     
     // Game events
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone ) ]
     struct PlayerMoved {
         from: (i32, i32),
         to: (i32, i32),
@@ -484,7 +494,7 @@ fn tutorial_step_8_complete_game() {
         position: (i32, i32),
     }
     
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone ) ]
     struct TreasureFound {
         position: (i32, i32),
         value: u32,

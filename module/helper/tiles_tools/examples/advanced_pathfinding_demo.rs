@@ -1,21 +1,24 @@
 //! Simplified advanced pathfinding demonstration to avoid clippy issues.
 
-#![allow(clippy::needless_return)]
-#![allow(clippy::implicit_return)]
-#![allow(clippy::redundant_else)]
+#![ allow( clippy::needless_return ) ]
+#![ allow( clippy::implicit_return ) ]
+#![ allow( clippy::redundant_else ) ]
 
-use tiles_tools::{
-    pathfind::{astar, astar_multi_goal, astar_with_edge_costs, PathfindingConfig, astar_advanced},
-    coordinates::{
-        hexagonal::{Coordinate as HexCoord, Axial, Pointy},
-        triangular::{Coordinate as TriCoord, TwelveConnected},
-        isometric::{Coordinate as IsoCoord, Diamond},
-        square::{Coordinate as SquareCoord, FourConnected, EightConnected},
-    },
+use tiles_tools::
+{
+  pathfind::{ astar, astar_multi_goal, astar_with_edge_costs, PathfindingConfig, astar_advanced },
+  coordinates::
+  {
+    hexagonal::{ Coordinate as HexCoord, Axial, Pointy },
+    triangular::{ Coordinate as TriCoord, TwelveConnected },
+    isometric::{ Coordinate as IsoCoord, Diamond },
+    square::{ Coordinate as SquareCoord, FourConnected, EightConnected },
+  },
 };
 use std::collections::HashSet;
 
-fn main() {
+fn main()
+{
     println!("Advanced Pathfinding Demonstration");
     println!("=================================");
     
@@ -36,7 +39,8 @@ fn main() {
     println!("- Performance characteristics");
 }
 
-fn demonstrate_basic_pathfinding() {
+fn demonstrate_basic_pathfinding()
+{
     println!("\n=== Basic A* Pathfinding ===");
     let start = SquareCoord::<FourConnected>::new(0, 0);
     let goal = SquareCoord::<FourConnected>::new(5, 5);
@@ -61,7 +65,8 @@ fn demonstrate_basic_pathfinding() {
     }
 }
 
-fn demonstrate_advanced_pathfinding() {
+fn demonstrate_advanced_pathfinding()
+{
     println!("\n=== Advanced A* with Configuration ===");
     let start = SquareCoord::<FourConnected>::new(0, 0);
     let goal = SquareCoord::<FourConnected>::new(5, 5);
@@ -80,7 +85,8 @@ fn demonstrate_advanced_pathfinding() {
     }
 }
 
-fn demonstrate_multi_goal_pathfinding() {
+fn demonstrate_multi_goal_pathfinding()
+{
     println!("\n=== Multi-Goal Pathfinding ===");
     let ai_position = SquareCoord::<FourConnected>::new(2, 2);
     let possible_targets = [
@@ -104,7 +110,8 @@ fn demonstrate_multi_goal_pathfinding() {
     }
 }
 
-fn demonstrate_edge_cost_pathfinding() {
+fn demonstrate_edge_cost_pathfinding()
+{
     println!("\n=== Edge Cost Pathfinding (8-Connected) ===");
     let start_8 = SquareCoord::<EightConnected>::new(0, 0);
     let goal_8 = SquareCoord::<EightConnected>::new(4, 3);
@@ -130,7 +137,8 @@ fn demonstrate_edge_cost_pathfinding() {
     }
 }
 
-fn demonstrate_hexagonal_pathfinding() {
+fn demonstrate_hexagonal_pathfinding()
+{
     println!("\n=== Hexagonal Grid Pathfinding ===");
     let hex_start = HexCoord::<Axial, Pointy>::new(-2, 2);
     let hex_goal = HexCoord::<Axial, Pointy>::new(3, -1);
@@ -148,7 +156,8 @@ fn demonstrate_hexagonal_pathfinding() {
     }
 }
 
-fn demonstrate_triangular_pathfinding() {
+fn demonstrate_triangular_pathfinding()
+{
     println!("\n=== Triangular Grid Pathfinding ===");
     let tri_start = TriCoord::<TwelveConnected>::new(0, 0);
     let tri_goal = TriCoord::<TwelveConnected>::new(4, 2);
@@ -166,7 +175,8 @@ fn demonstrate_triangular_pathfinding() {
     }
 }
 
-fn demonstrate_isometric_pathfinding() {
+fn demonstrate_isometric_pathfinding()
+{
     println!("\n=== Isometric Grid Pathfinding ===");
     let iso_start = IsoCoord::<Diamond>::new(0, 0);
     let iso_goal = IsoCoord::<Diamond>::new(3, 2);

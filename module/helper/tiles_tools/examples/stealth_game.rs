@@ -1,31 +1,31 @@
-#![allow(dead_code)]
-#![allow(clippy::needless_return)]
-#![allow(clippy::implicit_return)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::items_after_statements)]
-#![allow(clippy::unnecessary_cast)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::cast_sign_loss)]
-#![allow(clippy::explicit_iter_loop)]
-#![allow(clippy::format_in_format_args)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::wildcard_imports)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::std_instead_of_core)]
-#![allow(clippy::similar_names)]
-#![allow(clippy::duplicated_attributes)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::trivially_copy_pass_by_ref)]
-#![allow(clippy::missing_inline_in_public_items)]
-#![allow(clippy::useless_vec)]
-#![allow(clippy::unnested_or_patterns)]
-#![allow(clippy::else_if_without_else)]
-#![allow(clippy::unreadable_literal)]
-#![allow(clippy::redundant_else)]
-#![allow(clippy::map_unwrap_or)]
-#![allow(clippy::collapsible_else_if)]
-#![allow(clippy::clone_on_copy)]
-#![allow(clippy::struct_field_names)]
+#![allow(dead_code ) ]
+#![ allow( clippy::needless_return ) ]
+#![ allow( clippy::implicit_return ) ]
+#![ allow( clippy::uninlined_format_args ) ]
+#![ allow( clippy::items_after_statements ) ]
+#![ allow( clippy::unnecessary_cast ) ]
+#![ allow( clippy::doc_markdown ) ]
+#![ allow( clippy::cast_sign_loss ) ]
+#![ allow( clippy::explicit_iter_loop ) ]
+#![ allow( clippy::format_in_format_args ) ]
+#![ allow( clippy::cast_precision_loss ) ]
+#![ allow( clippy::wildcard_imports ) ]
+#![ allow( clippy::too_many_lines ) ]
+#![ allow( clippy::std_instead_of_core ) ]
+#![ allow( clippy::similar_names ) ]
+#![ allow( clippy::duplicated_attributes ) ]
+#![ allow( clippy::cast_possible_truncation ) ]
+#![ allow( clippy::trivially_copy_pass_by_ref ) ]
+#![ allow( clippy::missing_inline_in_public_items ) ]
+#![ allow( clippy::useless_vec ) ]
+#![ allow( clippy::unnested_or_patterns ) ]
+#![ allow( clippy::else_if_without_else ) ]
+#![ allow( clippy::unreadable_literal ) ]
+#![ allow( clippy::redundant_else ) ]
+#![ allow( clippy::map_unwrap_or ) ]
+#![ allow( clippy::collapsible_else_if ) ]
+#![ allow( clippy::clone_on_copy ) ]
+#![ allow( clippy::struct_field_names ) ]
 //! Stealth Game example demonstrating field-of-view mechanics.
 //!
 //! This example showcases a stealth-based game using the tiles_tools
@@ -40,7 +40,7 @@
 //!
 //! Run with: `cargo run --example stealth_game --features enabled`
 
-#![allow(dead_code)]
+#![allow(dead_code ) ]
 
 use tiles_tools::{
   ecs::{World, Position, Health, Stats, Team, AI, Movable},
@@ -57,8 +57,9 @@ use tiles_tools::{
 // =============================================================================
 
 /// Stealth component for sneaking and detection.
-#[derive(Debug, Clone, Copy)]
-struct Stealth {
+#[derive(Debug, Clone, Copy ) ]
+struct Stealth
+{
   /// Stealth skill level (higher = harder to detect)
   stealth_level: u32,
   /// Current stealth state (hiding, moving, etc.)
@@ -97,8 +98,9 @@ impl Stealth {
   }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum StealthState {
+#[derive(Debug, Clone, Copy, PartialEq ) ]
+enum StealthState
+{
   Hidden,      // Stationary and trying to avoid detection
   Moving,      // Moving but trying to be stealthy
   Exposed,     // Detected or making noise
@@ -106,8 +108,9 @@ enum StealthState {
 }
 
 /// Vision component for guards and NPCs.
-#[derive(Debug, Clone)]
-struct Vision {
+#[derive(Debug, Clone ) ]
+struct Vision
+{
   /// Base vision range in normal lighting
   base_range: u32,
   /// Field of view angle in degrees (360 = all directions)
@@ -146,8 +149,9 @@ impl Vision {
 }
 
 /// Patrol route component for guard movement.
-#[derive(Debug, Clone)]
-struct PatrolRoute {
+#[derive(Debug, Clone ) ]
+struct PatrolRoute
+{
   /// Waypoints in the patrol route
   waypoints: Vec<SquareCoord<EightConnected>>,
   /// Current waypoint index
@@ -215,7 +219,8 @@ impl PatrolRoute {
 // =============================================================================
 
 /// Main stealth game state.
-struct StealthGame {
+struct StealthGame
+{
   world: World,
   player_entity: hecs::Entity,
   guard_entities: Vec<hecs::Entity>,
@@ -226,8 +231,9 @@ struct StealthGame {
   game_state: GameState,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum GameState {
+#[derive(Debug, Clone, Copy, PartialEq ) ]
+enum GameState
+{
   Stealth,        // Player is undetected
   Alert,          // Guards are searching
   Detected,       // Player has been spotted
@@ -236,7 +242,8 @@ enum GameState {
 }
 
 /// Simple level map for obstacle and cover detection.
-struct LevelMap {
+struct LevelMap
+{
   width: i32,
   height: i32,
   walls: std::collections::HashSet<SquareCoord<EightConnected>>,
@@ -808,7 +815,8 @@ impl StealthGame {
 }
 
 /// Main entry point for the stealth game demo.
-fn main() {
+fn main()
+{
   let mut game = StealthGame::new();
   game.run_simulation();
   
