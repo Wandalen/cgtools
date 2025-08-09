@@ -1,3 +1,5 @@
+#![ allow( missing_docs ) ]
+
 /// Internal namespace.
 mod private
 {
@@ -39,18 +41,23 @@ mod private
 
   }
 
-  /// Information about shader necessary to compile it.
+  /// Information about a shader necessary to compile it.
   #[ derive( Former, Debug, Default ) ]
   pub struct ShaderSource< 'a >
   {
+    /// The type of the shader (e.g., `GL::VERTEX_SHADER`).
     shader_type : u32,
+    /// The source code of the shader.
     source : &'a str,
+    /// An optional name for the shader.
     shader_name : Option< &'a str >,
   }
 
+  /// Implementation for the `Former` pattern for `ShaderSource`.
   impl< 'a > ShaderSourceFormer< 'a >
   {
 
+    /// Compiles the formed `ShaderSource` into a `WebGlShader`.
     pub fn compile( self, gl : &GL ) -> Result< WebGlShader, Error >
     {
       self.form().compile( gl )
@@ -58,10 +65,11 @@ mod private
 
   }
 
+  /// Implementation for `ShaderSource`.
   impl< 'a > ShaderSource< 'a >
   {
 
-    /// Deduce shader name.
+    /// Deduce the shader's name. Returns an empty string if no name is provided.
     pub fn name( &self ) -> &str
     {
       if let Some( name ) = self.shader_name
@@ -74,7 +82,7 @@ mod private
       }
     }
 
-    /// Utility function to compile a shader
+    /// Compiles the shader source code and returns a `WebGlShader`.
     pub fn compile
     (
       &self,
@@ -124,26 +132,29 @@ mod private
 
   }
 
+  #[ derive( New ) ]
   /// Compile shaders and link them into a program, give readable diagnostic information if fail.
   pub struct ProgramFromSources< 'a >
   {
+    /// The source code for the vertex shader.
     vertex_shader : &'a str,
+    /// The source code for the fragment shader.
     fragment_shader : &'a str,
   }
 
-  impl< 'a > ProgramFromSources< 'a >
-  {
-    /// Create a new ProgramFromSources with vertex and fragment shader source code.
-    pub fn new( vertex_shader : &'a str, fragment_shader : &'a str ) -> Self
-    {
-      Self { vertex_shader, fragment_shader }
-    }
-  }
+  // /// Implementation for `ProgramFromSources`.
+  // impl< 'a > ProgramFromSources< 'a >
+  // {
+  //   /// Create a new ProgramFromSources with vertex and fragment shader source code.
+  //   pub fn new( vertex_shader : &'a str, fragment_shader : &'a str ) -> Self
+  //   {
+  //     Self { vertex_shader, fragment_shader }
+  //   }
+  // }
 
   impl< 'a > ProgramFromSources< 'a >
   {
-
-    /// Compile shaders and link them into a program, give readable diagnostic information if fail.
+    /// Compiles and links the shaders into a program.
     pub fn compile_and_link( &self, gl : &GL ) -> Result< WebGlProgram, Error >
     {
 
@@ -166,10 +177,13 @@ mod private
   /// Set of shaders necessary to compile a GPU program.
   pub struct ProgramShaders< 'a >
   {
+    /// A reference to the compiled vertex shader.
     vertex_shader : &'a WebGlShader,
+    /// A reference to the compiled fragment shader.
     fragment_shader : &'a WebGlShader,
   }
 
+  /// Implementation for `ProgramShaders`.
   impl< 'a > ProgramShaders< 'a >
   {
     /// Create a new ProgramShaders with compiled vertex and fragment shaders.
@@ -218,13 +232,13 @@ mod private
   /// and drawing.
   pub trait ProgramInterface
   {
-    /// Compiles and link shader source code and updates the program.
+    /// Compiles and links shader source code and updates the program.
     fn compile_and_link( &self, vertex_src : &str, fragment_src : &str ) -> Result< (), String >;
-    /// Sets a uniform value in the shader for types that implement `UniformUpload`.
+    /// Sets a uniform value in the shader.
     fn uniform_upload< D >( &self, name : &str, value : &D )
     where
       D : UniformUpload + std::fmt::Debug + ?Sized;
-    /// Sets a matrix uniform value in the shader for types that implement `UniformMatrixUpload`.
+    /// Sets a matrix uniform value in the shader.
     fn uniform_matrix_upload< D >( &self, name : &str, data : &D, column_major : bool )
     where
       D : uniform::UniformMatrixUpload + ?Sized;
@@ -240,11 +254,13 @@ mod private
   /// link, set uniforms (including matrix uniforms), and draw with the program.
   pub struct Program
   {
-    /// Graphical context.
+    /// The graphical context.
     gl : GL,
+    /// Reference to `WebGlProgram`
     program : RefCell< Option< WebGlProgram > >,
   }
 
+  /// Implementation for `Program`.
   impl Program
   {
     /// Creates a new `Program` from vertex and fragment shader source code.

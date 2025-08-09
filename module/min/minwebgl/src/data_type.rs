@@ -14,6 +14,7 @@ mod private
 
   impl< Marker > Const< Marker >
   {
+    /// Creates a new `Const` instance with the given `u32` value.
     fn new( val : u32 ) -> Self
     {
       Self( val, Default::default() )
@@ -22,7 +23,9 @@ mod private
 
   impl< Marker > Deref for Const< Marker >
   {
+    /// The target type of the dereference operation.
     type Target = u32;
+    /// Dereferences the `Const` to a reference to the inner `u32`.
     fn deref( &self ) -> &Self::Target
     {
       &self.0
@@ -33,16 +36,17 @@ mod private
   #[ derive( Debug, error::typed::Error ) ]
   pub enum Error
   {
-    /// Manifest data not loaded.
+    /// The given data type cannot be converted because it has no corresponding WebGL2 value.
     #[ error( "Type {0} can't be converted into {1}, because there is no corresponding value for {2} for WebGL2" ) ]
     NoCorrespndingType( &'static str, &'static str, String ),
   }
 
   impl TryFrom< DataType > for Const< DataType >
   {
+    /// The error type returned if the conversion fails.
     type Error = Error;
 
-    /// Attempts to convert `DataType` to u32.
+    /// Attempts to convert a `DataType` enum variant to its corresponding WebGL `u32` constant.
     fn try_from( value : DataType ) -> Result< Self, Self::Error >
     {
       use core::any::{ type_name_of_val, type_name };
@@ -62,9 +66,10 @@ mod private
 
   impl TryFrom< Const< DataType > > for DataType
   {
+    /// The error type returned if the conversion fails.
     type Error = Error;
 
-    /// Attempts to convert a `u32` to a `DataType`.
+    /// Attempts to convert a WebGL `u32` constant wrapped in `Const<DataType>` back to its corresponding `DataType` enum variant.
     fn try_from( value : Const< DataType > ) -> Result< Self, Self::Error >
     {
       use core::any::{ type_name_of_val, type_name };

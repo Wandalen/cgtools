@@ -1,5 +1,7 @@
 //! Ndarray extensions for computer graphics mathematics.
+#![ doc( html_root_url = "https://docs.rs/ndarray_cg/latest/ndarray_cg/" ) ]
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
+#![ cfg_attr( not( doc ), doc = "Ndarray extensions for computer graphics mathematics" ) ]
 
 #![allow(clippy::implicit_return)]
 #![allow(clippy::missing_inline_in_public_items)]
