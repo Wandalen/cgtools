@@ -29,7 +29,7 @@ Load or create GLTF with scenes and choose scene to render. There is can be adde
 
 Rendering text on surface requires 3D object base texture setup. Base texture of target surface must be output of canvas renderer. That can be applied with this call: 
 
-```rust
+```no_run, rust
   set_texture
   ( 
     &canvas_sphere, 

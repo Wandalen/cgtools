@@ -1,3 +1,4 @@
+/// Internal namespace.
 mod private
 {
   

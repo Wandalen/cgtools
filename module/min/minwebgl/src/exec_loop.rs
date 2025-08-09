@@ -40,7 +40,9 @@ mod private
     request_animation_frame( render_loop.borrow().as_ref().unwrap() );
   }
 
-  /// Request the next animation frame with the provided closure.
+  /// Helper function to request animation frame
+  /// 
+  /// Requests that the browser calls the given closure on the next animation frame.
   pub fn request_animation_frame( f : &Closure< dyn FnMut( f64 ) > )
   {
     use wasm_bindgen::JsCast;
