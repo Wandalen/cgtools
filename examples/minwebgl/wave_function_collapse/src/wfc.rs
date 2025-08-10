@@ -36,6 +36,7 @@
 /// anisotropic relationships and for calculating the coordinates of neighboring cells
 /// during the WFC propagation step.
 
+#[ allow( clippy::empty_line_after_doc_comments ) ]
 use std::collections::{ HashMap, HashSet };
 use std::hash::Hash;
 use rand::rngs::SmallRng;

@@ -27,6 +27,8 @@
 #![ allow( clippy::collapsible_if ) ]
 #![ allow( clippy::unused_async ) ]
 #![ allow( clippy::needless_borrows_for_generic_args ) ]
+#![ allow( clippy::std_instead_of_alloc ) ]
+#![ allow( clippy::unnecessary_wraps ) ]
 
 mod ui_setup;
 mod utils;
