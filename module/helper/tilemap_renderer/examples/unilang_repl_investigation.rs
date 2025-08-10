@@ -4,6 +4,8 @@
 #![ allow( clippy::implicit_return ) ]
 #![ allow( clippy::unnecessary_wraps ) ]
 #![ allow( clippy::std_instead_of_core ) ]
+#![ allow( clippy::wildcard_imports ) ]
+#![ allow( clippy::uninlined_format_args ) ]
 
 fn main() -> Result< (), Box< dyn std::error::Error > >
 {

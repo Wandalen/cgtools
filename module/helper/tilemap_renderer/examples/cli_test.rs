@@ -1,5 +1,9 @@
 //! Test CLI compilation with unilang.
 
+#![ allow( clippy::implicit_return ) ]
+#![ allow( clippy::wildcard_imports ) ]
+#![ allow( clippy::std_instead_of_core ) ]
+
 #[ cfg( feature = "cli" ) ]
 fn main() -> Result< (), Box< dyn std::error::Error > >
 {

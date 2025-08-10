@@ -8,6 +8,9 @@
 #![ allow( clippy::implicit_return ) ]
 #![ allow( clippy::min_ident_chars ) ]
 #![ allow( clippy::needless_return ) ]
+#![ allow( clippy::else_if_without_else ) ]
+#![ allow( clippy::single_char_pattern ) ]
+#![ allow( clippy::while_let_on_iterator ) ]
 #![ allow( clippy::assertions_on_constants ) ]
 
 use tilemap_renderer::

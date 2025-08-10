@@ -21,6 +21,7 @@ mod private
   /// A Scene represents everything to be rendered in a single frame,
   /// composed of an ordered list of `RenderCommands` (FR-A2).
   #[ derive( Debug, Clone, PartialEq ) ]
+  #[ cfg_attr( feature = "serde", derive( serde::Serialize, serde::Deserialize ) ) ]
   pub struct Scene
   {
     /// Ordered list of render commands for this scene.
@@ -91,6 +92,12 @@ mod private
     pub fn len( &self ) -> usize
     {
       self.commands.len()
+    }
+
+    /// Returns an iterator over the commands in the scene.
+    pub fn iter( &self ) -> core::slice::Iter< '_, RenderCommand >
+    {
+      self.commands.iter()
     }
     
     /// Returns true if the scene contains no commands.

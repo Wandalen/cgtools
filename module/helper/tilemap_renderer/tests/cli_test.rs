@@ -1,5 +1,7 @@
 //! CLI integration tests verifying all dot commands work properly.
 
+#![ allow( clippy::needless_borrows_for_generic_args ) ]
+
 #[ cfg( feature = "cli" ) ]
 mod cli_tests
 {
