@@ -116,9 +116,9 @@ cache-friendly = []
 gpu-compute = []
 
 # CLI and REPL features
-cli-basic = [ "std", "standard", "dep:unilang" ]
+cli-basic = [ "enabled", "std", "standard", "serde", "dep:unilang" ]
 cli-commands = [ "cli-basic" ]
-cli-repl = [ "cli-basic" ]
+cli-repl = [ "cli-basic", "dep:rustyline" ]
 cli = [ "cli-basic", "cli-commands", "cli-repl" ]
 
 # Development and debug features
@@ -149,6 +149,7 @@ error_tools = { workspace = true, optional = true }
 serde = { workspace = true, optional = true, features = [ "derive" ] }
 mod_interface = { workspace = true }
 unilang = { version = "0.10.0", optional = true }
+rustyline = { version = "14.0", optional = true }
 
 # Future backend dependencies (will be added when backends are implemented)
 # minwebgl = { path = "../minwebgl", optional = true }
@@ -192,6 +193,10 @@ required-features = [ "testing", "adapter-webgpu" ]
 name = "svg_browser_adapter_test"
 required-features = [ "testing", "adapter-svg-browser" ]
 
+[[test]]
+name = "cli_test"
+required-features = [ "cli" ]
+
 [[example]]
 name = "svg_demo"
 required-features = [ "testing" ]
@@ -214,6 +219,14 @@ required-features = [ "testing" ]
 
 [[example]]
 name = "cli_test"
+required-features = [ "cli" ]
+
+[[example]]
+name = "unilang_basic_test"
+required-features = [ "cli" ]
+
+[[example]]
+name = "unilang_api_test"
 required-features = [ "cli" ]
 
 [[bin]]

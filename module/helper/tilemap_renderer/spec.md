@@ -59,7 +59,7 @@ Developers are often locked into a single rendering backend, making it difficult
     - `renderer_adapter_webgl` - Hardware-accelerated WebGL rendering
     - `renderer_adapter_webgpu` - Next-generation WebGPU rendering
     - `renderer_adapter_terminal` - ASCII art terminal output
-3.  **Published CLI Crate (`are_cli`):** The interactive command-line tool built with `unilang`.
+3.  **Integrated CLI Tool (`are`):** The interactive command-line tool built with `unilang`, included in the main crate via feature gating.
 4.  **Source Code Repository:** A Git monorepo containing all crates with comprehensive feature flags.
 5.  **Comprehensive API Documentation:** Publicly hosted `cargo doc` documentation.
 6.  **Usage Examples & Gallery:** Examples showing the same scene rendered with different backends.
@@ -93,9 +93,9 @@ To provide the Rust ecosystem with a uniquely flexible and decoupled 2D renderin
 | Actor | Category | Description |
 | :--- | :--- | :--- |
 | **Application Developer** | Human | The primary user of the library who writes code to generate `RenderCommands`. |
-| **CLI User** | Human | A user of the `are_cli` tool for interactive or headless rendering. |
+| **CLI User** | Human | A user of the `are` CLI tool for interactive or headless rendering. |
 | **Host Application** | External System | The program that consumes the `agnostic_renderer` crate. |
-| **`unilang` Interpreter**| External System | The language interpreter that powers the `are_cli` tool. |
+| **`unilang` Interpreter**| External System | The language interpreter that powers the `are` CLI tool. |
 
 ### 8. Functional Requirements: Scene Definition
 #### 8.1. FR-A: Scene & Command Queue
@@ -114,13 +114,19 @@ To provide the Rust ecosystem with a uniquely flexible and decoupled 2D renderin
 - **FR-B5:** Must provide a `ParticleEmitterCommand`.
 
 ### 9. Functional Requirements: CLI
-- **FR-C1:** Must be built using the `unilang` crate.
-- **FR-C2:** Must provide commands for scene management (`scene.new`, `scene.add`, `scene.list`).
-- **FR-C3:** `scene.add` must support all core primitives.
-- **FR-C4:** Must support loading and saving scenes from/to a file.
-- **FR-C5:** Must provide a `render` command.
-- **FR-C6:** `render` command must allow specifying the output file and backend adapter.
-- **FR-C7:** Must be able to run in a fully headless environment.
+- **FR-C1:** Must be built using the `unilang` crate for command parsing and registration.
+- **FR-C2:** All CLI commands must start with a dot prefix (e.g., `.scene.new`, `.help`).
+- **FR-C3:** Must provide commands for scene management (`.scene.new`, `.scene.add`, `.scene.list`).
+- **FR-C4:** `.scene.add` must support all core primitives (line, curve, text, tilemap, particle).
+- **FR-C5:** Must support loading and saving scenes from/to a file (`.scene.load`, `.scene.save`).
+- **FR-C6:** Must provide a `.render` command for headless rendering.
+- **FR-C7:** `.render` command must allow specifying the output file and backend adapter.
+- **FR-C8:** Must support both single-command mode and interactive REPL mode.
+- **FR-C9:** REPL mode must provide proper command history and line editing.
+- **FR-C10:** Must provide comprehensive help system (`.help`, `.h`, `.`) and version information (`.version`, `.v`).
+- **FR-C11:** REPL mode must support built-in commands (`.quit`, `.exit`, `.clear`).
+- **FR-C12:** Must handle invalid commands gracefully with proper error messages.
+- **FR-C13:** Must be able to run in a fully headless environment without interactive features.
 
 ### 9.1. Functional Requirements: Backend Adapters
 
