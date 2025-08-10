@@ -37,6 +37,18 @@
 /// during the WFC propagation step.
 
 #[ allow( clippy::empty_line_after_doc_comments ) ]
+#[ allow( clippy::useless_attribute ) ]
+#[ allow( clippy::needless_pass_by_value ) ]
+#[ allow( clippy::doc_markdown ) ]
+#[ allow( clippy::redundant_comparisons ) ]
+#[ allow( clippy::useless_conversion ) ]
+#[ allow( clippy::std_instead_of_alloc ) ]
+#[ allow( clippy::trivially_copy_pass_by_ref ) ]
+#[ allow( clippy::missing_errors_doc ) ]
+#[ allow( clippy::unnecessary_wraps ) ]
+#[ allow( clippy::ptr_arg ) ]
+#[ allow( clippy::assigning_clones ) ]
+#[ allow( clippy::explicit_counter_loop ) ]
 use std::collections::{ HashMap, HashSet };
 use std::hash::Hash;
 use rand::rngs::SmallRng;

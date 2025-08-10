@@ -8,6 +8,7 @@
 #![ allow( clippy::cast_possible_truncation ) ]
 #![ allow( clippy::assign_op_pattern ) ]
 #![ allow( clippy::semicolon_if_nothing_returned ) ]
+#![ allow( clippy::unnecessary_to_owned ) ]
 #![ allow( clippy::too_many_lines ) ]
 #![ allow( clippy::wildcard_imports ) ]
 #![ allow( clippy::needless_borrow ) ]

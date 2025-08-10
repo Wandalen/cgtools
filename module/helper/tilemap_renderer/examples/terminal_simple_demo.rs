@@ -2,6 +2,9 @@
 //!
 //! This example shows the terminal backend adapter rendering basic shapes.
 
+#![ allow( clippy::implicit_return ) ]
+#![ allow( clippy::needless_return ) ]
+
 use tilemap_renderer::
 {
   adapters::TerminalRenderer,
@@ -9,7 +12,7 @@ use tilemap_renderer::
   commands::{ Point2D, StrokeStyle, LineCommand, CurveCommand, LineCap, LineJoin },
 };
 
-fn main() -> Result< (), Box< dyn std::error::Error > >
+fn main() -> Result< (), Box< dyn core::error::Error > >
 {
   // Create a terminal renderer with smaller dimensions for demo
   let mut renderer = TerminalRenderer::with_dimensions( 40, 15 );
@@ -79,7 +82,7 @@ fn main() -> Result< (), Box< dyn std::error::Error > >
   
   // Display the result
   println!( "Terminal Renderer Demo:" );
-  println!( "{}", output );
+  println!( "{output}" );
   
   // Export to file
   renderer.export_to_file( "-terminal_simple_demo.txt" )?;

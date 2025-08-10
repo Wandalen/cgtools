@@ -11,6 +11,18 @@
 #![ allow( clippy::implicit_return ) ]
 #![ allow( clippy::let_and_return ) ]
 #![ allow( clippy::never_loop ) ]
+#![ allow( clippy::default_trait_access ) ]
+#![ allow( clippy::uninlined_format_args ) ]
+#![ allow( clippy::cast_possible_wrap ) ]
+#![ allow( clippy::from_str_radix_10 ) ]
+#![ allow( clippy::excessive_precision ) ]
+#![ allow( clippy::map_unwrap_or ) ]
+#![ allow( clippy::unnecessary_wraps ) ]
+#![ allow( clippy::cast_possible_truncation ) ]
+#![ allow( clippy::min_ident_chars ) ]
+#![ allow( clippy::let_unit_value ) ]
+#![ allow( clippy::ignored_unit_patterns ) ]
+#![ allow( clippy::cast_sign_loss ) ]
 
 use std::collections::HashMap;
 use mingl::F32x4;

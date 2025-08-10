@@ -14,11 +14,13 @@
 #![ allow( clippy::implicit_return ) ]
 #![ allow( clippy::float_cmp ) ]
 
-use tilemap_renderer as the_module;
-use the_module::adapters::svg::SvgRenderer;
-use the_module::ports::*;
-use the_module::scene::*;
-use the_module::commands::*;
+use tilemap_renderer::
+{
+  adapters::SvgRenderer,
+  ports::{ Renderer, RenderContext, RenderError },
+  scene::Scene,
+  commands::{ Point2D, StrokeStyle, FontStyle, TextAnchor, LineCap, LineJoin, RenderCommand, LineCommand, CurveCommand, TextCommand, TilemapCommand },
+};
 
 /// Tests SVG renderer capabilities.
 /// Test Focus: Backend capability reporting

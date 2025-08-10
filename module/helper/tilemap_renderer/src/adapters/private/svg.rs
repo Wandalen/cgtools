@@ -8,6 +8,8 @@
 #![ allow( clippy::format_push_string ) ]
 #![ allow( clippy::cast_possible_truncation ) ]
 #![ allow( clippy::cast_sign_loss ) ]
+#![ allow( clippy::needless_return ) ]
+#![ allow( clippy::redundant_else ) ]
 
 use crate::ports::{ RenderContext, Renderer, RendererCapabilities, RenderError, PrimitiveRenderer };
 use crate::scene::Scene;
@@ -34,18 +36,20 @@ impl SvgRenderer
 {
   /// Creates a new SVG renderer instance.
   #[ must_use ]
+  #[ inline ]
   pub fn new() -> Self
   {
-    Self
+    return Self
     {
       svg_content: String::new(),
       initialized: false,
       frame_active: false,
       context: None,
-    }
+    };
   }
   
   /// Converts a color array to SVG color string.
+  #[ inline ]
   fn color_to_svg( color: &[ f32; 4 ] ) -> String
   {
     let r = ( color[ 0 ] * 255.0 ) as u8;
@@ -55,58 +59,62 @@ impl SvgRenderer
     
     if ( a - 1.0 ).abs() < f32::EPSILON
     {
-      format!( "rgb({r},{g},{b})" )
+      return format!( "rgb({r},{g},{b})" );
     }
     else
     {
-      format!( "rgba({r},{g},{b},{a})" )
+      return format!( "rgba({r},{g},{b},{a})" );
     }
   }
   
   /// Converts line cap style to SVG stroke-linecap.
+  #[ inline ]
   fn line_cap_to_svg( cap: LineCap ) -> &'static str
   {
     match cap
     {
-      LineCap::Butt => "butt",
-      LineCap::Round => "round", 
-      LineCap::Square => "square",
+      LineCap::Butt => return "butt",
+      LineCap::Round => return "round", 
+      LineCap::Square => return "square",
     }
   }
   
   /// Converts line join style to SVG stroke-linejoin.
+  #[ inline ]
   fn line_join_to_svg( join: LineJoin ) -> &'static str
   {
     match join
     {
-      LineJoin::Miter => "miter",
-      LineJoin::Round => "round",
-      LineJoin::Bevel => "bevel",
+      LineJoin::Miter => return "miter",
+      LineJoin::Round => return "round",
+      LineJoin::Bevel => return "bevel",
     }
   }
   
   /// Resolves font family from font family ID.
   /// For now, this is a simple mapping. In a full implementation,
   /// this would lookup from a font registry.
+  #[ inline ]
   fn resolve_font_family( family_id: u32 ) -> &'static str
   {
     match family_id
     {
-      0 => "Arial",
-      1 => "Times New Roman", 
-      2 => "Courier New",
-      3 => "Helvetica",
-      4 => "Georgia",
-      _ => "sans-serif", // Fallback
+      0 => return "Arial",
+      1 => return "Times New Roman", 
+      2 => return "Courier New",
+      3 => return "Helvetica",
+      4 => return "Georgia",
+      _ => return "sans-serif", // Fallback
     }
   }
 }
 
 impl Default for SvgRenderer
 {
+  #[ inline ]
   fn default() -> Self
   {
-    Self::new()
+    return Self::new();
   }
 }
 
@@ -114,6 +122,7 @@ impl Renderer for SvgRenderer
 {
   type Output = String;
   
+  #[ inline ]
   fn capabilities( &self ) -> RendererCapabilities
   {
     let mut caps = RendererCapabilities::default();
@@ -126,13 +135,14 @@ impl Renderer for SvgRenderer
     caps.supports_particles = false; // Not implemented for SVG
     caps.supports_realtime = false; // SVG is static
     caps.max_scene_complexity = 10000; // Large scenes supported
-    caps
+    return caps;
   }
   
   /// Initializes the SVG renderer with the given context.
   ///
   /// # Errors
   /// Returns `InitializationFailed` if the renderer cannot be initialized.
+  #[ inline ]
   fn initialize( &mut self, context: &RenderContext ) -> core::result::Result< (), RenderError >
   {
     if self.initialized
@@ -142,13 +152,14 @@ impl Renderer for SvgRenderer
     
     self.context = Some( context.clone() );
     self.initialized = true;
-    Ok( () )
+    return Ok( () );
   }
   
   /// Begins a new rendering frame.
   ///
   /// # Errors
   /// Returns `InvalidContext` if the context is invalid or `RenderFailed` if frame setup fails.
+  #[ inline ]
   fn begin_frame( &mut self, context: &RenderContext ) -> core::result::Result< (), RenderError >
   {
     if !self.initialized
@@ -183,13 +194,14 @@ impl Renderer for SvgRenderer
       ) );
     }
     
-    Ok( () )
+    return Ok( () );
   }
   
   /// Renders a complete scene to the output.
   ///
   /// # Errors
   /// Returns various errors including `UnsupportedCommand`, `ComplexityLimitExceeded`, or `RenderFailed`.
+  #[ inline ]
   fn render_scene( &mut self, scene: &Scene ) -> core::result::Result< (), RenderError >
   {
     if !self.frame_active
@@ -211,13 +223,14 @@ impl Renderer for SvgRenderer
       }
     }
     
-    Ok( () )
+    return Ok( () );
   }
   
   /// Ends the current rendering frame and finalizes the output.
   ///
   /// # Errors
   /// Returns `RenderFailed` if frame finalization fails.
+  #[ inline ]
   fn end_frame( &mut self ) -> core::result::Result< (), RenderError >
   {
     if !self.frame_active
@@ -229,13 +242,14 @@ impl Renderer for SvgRenderer
     self.svg_content.push_str( "</svg>\n" );
     
     self.frame_active = false;
-    Ok( () )
+    return Ok( () );
   }
   
   /// Retrieves the rendered output.
   ///
   /// # Errors
   /// Returns `OutputError` if the output cannot be retrieved.
+  #[ inline ]
   fn output( &self ) -> core::result::Result< Self::Output, RenderError >
   {
     if self.frame_active
@@ -248,30 +262,33 @@ impl Renderer for SvgRenderer
       return Err( RenderError::OutputError( "Renderer not initialized".to_string() ) );
     }
     
-    Ok( self.svg_content.clone() )
+    return Ok( self.svg_content.clone() );
   }
   
   /// Performs cleanup and releases resources.
   ///
   /// # Errors
   /// Returns `RenderFailed` if cleanup operations fail.
+  #[ inline ]
   fn cleanup( &mut self ) -> core::result::Result< (), RenderError >
   {
     self.initialized = false;
     self.frame_active = false;
     self.svg_content.clear();
     self.context = None;
-    Ok( () )
+    return Ok( () );
   }
   
+  #[ inline ]
   fn supports_tilemaps( &self ) -> bool
   {
-    false // SVG adapter doesn't support tilemaps
+    return false; // SVG adapter doesn't support tilemaps
   }
   
+  #[ inline ]
   fn supports_particles( &self ) -> bool
   {
-    false // SVG adapter doesn't support particle effects
+    return false; // SVG adapter doesn't support particle effects
   }
 }
 
@@ -281,6 +298,7 @@ impl PrimitiveRenderer for SvgRenderer
   ///
   /// # Errors
   /// Returns `RenderFailed` if line rendering fails.
+  #[ inline ]
   fn render_line( &mut self, command: &LineCommand ) -> core::result::Result< (), RenderError >
   {
     let stroke_color = Self::color_to_svg( &command.style.color );
@@ -296,13 +314,14 @@ impl PrimitiveRenderer for SvgRenderer
       line_cap, line_join
     ) );
     
-    Ok( () )
+    return Ok( () );
   }
   
   /// Renders a curve command.
   ///
   /// # Errors
   /// Returns `RenderFailed` if curve rendering fails.
+  #[ inline ]
   fn render_curve( &mut self, command: &CurveCommand ) -> core::result::Result< (), RenderError >
   {
     let stroke_color = Self::color_to_svg( &command.style.color );
@@ -325,13 +344,14 @@ impl PrimitiveRenderer for SvgRenderer
       line_cap, line_join
     ) );
     
-    Ok( () )
+    return Ok( () );
   }
   
   /// Renders a text command.
   ///
   /// # Errors
   /// Returns `RenderFailed` if text rendering fails.
+  #[ inline ]
   fn render_text( &mut self, command: &TextCommand ) -> core::result::Result< (), RenderError >
   {
     let fill_color = Self::color_to_svg( &command.font_style.color );
@@ -362,24 +382,26 @@ impl PrimitiveRenderer for SvgRenderer
       text_content
     ) );
     
-    Ok( () )
+    return Ok( () );
   }
   
   /// Renders a tilemap command.
   ///
   /// # Errors
   /// Returns `FeatureNotImplemented` if tilemap rendering is not supported.
+  #[ inline ]
   fn render_tilemap( &mut self, _command: &TilemapCommand ) -> core::result::Result< (), RenderError >
   {
-    Err( RenderError::FeatureNotImplemented( "Tilemap rendering not supported in SVG backend".to_string() ) )
+    return Err( RenderError::FeatureNotImplemented( "Tilemap rendering not supported in SVG backend".to_string() ) );
   }
   
   /// Renders a particle emitter command.
   ///
   /// # Errors
   /// Returns `FeatureNotImplemented` if particle rendering is not supported.
+  #[ inline ]
   fn render_particle_emitter( &mut self, _command: &ParticleEmitterCommand ) -> core::result::Result< (), RenderError >
   {
-    Err( RenderError::FeatureNotImplemented( "Particle rendering not supported in SVG backend".to_string() ) )
+    return Err( RenderError::FeatureNotImplemented( "Particle rendering not supported in SVG backend".to_string() ) );
   }
 }

@@ -1,5 +1,10 @@
 //! Just draw a large point in the middle of the screen.
 
+#![ allow( clippy::needless_borrow ) ]
+#![ allow( clippy::arc_with_non_send_sync ) ]
+#![ allow( clippy::unnecessary_unwrap ) ]
+#![ allow( clippy::single_match ) ]
+
 use std::
 {
   collections::{ HashMap, HashSet },

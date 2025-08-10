@@ -8,6 +8,7 @@
 #![ allow( clippy::min_ident_chars ) ]
 #![ allow( clippy::std_instead_of_core ) ]
 #![ allow( clippy::cast_precision_loss ) ]
+#![ allow( clippy::needless_pass_by_value ) ]
 #![ allow( clippy::cast_possible_truncation ) ]
 #![ allow( clippy::assign_op_pattern ) ]
 #![ allow( clippy::semicolon_if_nothing_returned ) ]

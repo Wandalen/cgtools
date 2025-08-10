@@ -79,7 +79,7 @@ adapter-webgl-buffers = [ "adapter-webgl-context" ]
 adapter-webgl-textures = [ "adapter-webgl-context" ]
 adapter-webgl = [ "adapter-webgl-context", "adapter-webgl-shaders", "adapter-webgl-buffers", "adapter-webgl-textures" ]
 
-adapter-webgpu-device = [ "traits-renderer", "traits-async", "wasm-bindgen" ]
+adapter-webgpu-device = [ "enabled", "traits-renderer", "traits-async", "ports", "commands", "scene-methods", "serde-commands", "wasm-bindgen", "dep:minwebgpu" ]
 adapter-webgpu-compute = [ "adapter-webgpu-device" ]
 adapter-webgpu-pipeline = [ "adapter-webgpu-device" ]
 adapter-webgpu = [ "adapter-webgpu-device", "adapter-webgpu-compute", "adapter-webgpu-pipeline" ]
@@ -115,6 +115,12 @@ simd-avx2 = [ "simd-basic" ]
 cache-friendly = []
 gpu-compute = []
 
+# CLI and REPL features
+cli-basic = [ "std", "standard", "dep:unilang" ]
+cli-commands = [ "cli-basic" ]
+cli-repl = [ "cli-basic" ]
+cli = [ "cli-basic", "cli-commands", "cli-repl" ]
+
 # Development and debug features
 debug-basic = [ "std" ]
 debug-scene = [ "debug-basic", "scene-methods" ]
@@ -130,22 +136,23 @@ core = [ "minimal", "scene-container", "command-enum" ]
 standard = [ "core", "scene-methods", "commands", "query-basic" ]
 adapters-static = [ "standard", "adapter-svg", "adapter-terminal" ]
 adapters-web = [ "standard", "adapter-svg-browser", "adapter-webgl", "adapter-webgpu" ]
-full-native = [ "adapters-static", "native-threading", "native-simd", "parallel-rayon" ]
+full-native = [ "adapters-static", "native-threading", "native-simd", "parallel-rayon", "cli" ]
 full-wasm = [ "adapters-web", "wasm-web", "wasm-worker" ]
-full = [ "standard", "adapters-static", "adapters-web", "serde", "parallel-basic", "debug-basic" ]
+full = [ "standard", "adapters-static", "adapters-web", "serde", "parallel-basic", "debug-basic", "cli" ]
 
 # Testing convenience (used by tests and examples)
-testing = [ "enabled", "standard", "ports", "serde", "adapter-svg", "adapter-terminal", "test-utilities" ]
+testing = [ "enabled", "standard", "ports", "serde", "adapter-svg", "adapter-terminal", "adapter-webgl", "test-utilities" ]
 
 [dependencies]
 # All dependencies are optional and gated by features
 error_tools = { workspace = true, optional = true }
 serde = { workspace = true, optional = true, features = [ "derive" ] }
 mod_interface = { workspace = true }
+unilang = { version = "0.10.0", optional = true }
 
 # Future backend dependencies (will be added when backends are implemented)
 # minwebgl = { path = "../minwebgl", optional = true }
-# minwebgpu = { path = "../minwebgpu", optional = true }
+minwebgpu = { path = "../../min/minwebgpu", optional = true }
 
 [dev-dependencies]
 test_tools = { workspace = true }
@@ -173,6 +180,18 @@ required-features = [ "testing" ]
 name = "terminal_adapter_test"
 required-features = [ "testing" ]
 
+[[test]]
+name = "webgl_adapter_test"
+required-features = [ "testing" ]
+
+[[test]]
+name = "webgpu_adapter_test"
+required-features = [ "testing", "adapter-webgpu" ]
+
+[[test]]
+name = "svg_browser_adapter_test"
+required-features = [ "testing", "adapter-svg-browser" ]
+
 [[example]]
 name = "svg_demo"
 required-features = [ "testing" ]
@@ -184,3 +203,20 @@ required-features = [ "testing" ]
 [[example]]
 name = "terminal_simple_demo"
 required-features = [ "testing" ]
+
+[[example]]
+name = "webgl_demo"
+required-features = [ "testing" ]
+
+[[example]]
+name = "svg_browser_demo"
+required-features = [ "testing" ]
+
+[[example]]
+name = "cli_test"
+required-features = [ "cli" ]
+
+[[bin]]
+name = "are"
+path = "src/bin/are.rs"
+required-features = [ "cli" ]

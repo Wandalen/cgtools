@@ -44,3 +44,11 @@ pub mod adapters;
   feature = "query"
 ) ) ]
 pub mod query;
+
+#[ cfg( any(
+  feature = "cli-basic",
+  feature = "cli-commands",
+  feature = "cli-repl",
+  feature = "cli"
+) ) ]
+pub mod cli;

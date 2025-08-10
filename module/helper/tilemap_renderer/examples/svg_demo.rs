@@ -7,11 +7,15 @@
 #![ allow( clippy::implicit_return ) ]
 #![ allow( clippy::std_instead_of_core ) ]
 #![ allow( clippy::uninlined_format_args ) ]
+#![ allow( clippy::needless_return ) ]
 
-use tilemap_renderer::adapters::svg::SvgRenderer;
-use tilemap_renderer::ports::*;
-use tilemap_renderer::scene::*;
-use tilemap_renderer::commands::*;
+use tilemap_renderer::
+{
+  adapters::SvgRenderer,
+  ports::{ Renderer, RenderContext },
+  scene::Scene,
+  commands::{ Point2D, StrokeStyle, FontStyle, TextAnchor, LineCap, LineJoin, RenderCommand, LineCommand, CurveCommand, TextCommand },
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>>
 {

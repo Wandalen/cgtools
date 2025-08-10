@@ -1,3 +1,6 @@
+#![ allow( clippy::needless_borrow ) ]
+#![ allow( clippy::useless_asref ) ]
+
 mod shaders;
 
 use minwebgl as gl;

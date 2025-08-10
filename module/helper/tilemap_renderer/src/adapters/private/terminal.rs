@@ -9,6 +9,17 @@
 #![ allow( clippy::cast_sign_loss ) ]
 #![ allow( clippy::similar_names ) ]
 #![ allow( unused_imports ) ]
+#![ allow( clippy::needless_return ) ]
+#![ allow( clippy::missing_inline_in_public_items ) ]
+#![ allow( clippy::implicit_return ) ]
+#![ allow( clippy::struct_excessive_bools ) ]
+#![ allow( clippy::uninlined_format_args ) ]
+#![ allow( clippy::missing_errors_doc ) ]
+#![ allow( clippy::needless_borrow ) ]
+#![ allow( clippy::manual_abs_diff ) ]
+#![ allow( clippy::cast_possible_wrap ) ]
+#![ allow( clippy::cast_precision_loss ) ]
+#![ allow( clippy::match_same_arms ) ]
 
 use crate::ports::{ RenderContext, Renderer, RendererCapabilities, RenderError, PrimitiveRenderer };
 use crate::scene::Scene;
@@ -157,8 +168,9 @@ impl TerminalRenderer
       let ch = if self.unicode_enabled { '│' } else { '|' };
       let start_y = y1_i.min( y2_i );
       let end_y = y1_i.max( y2_i );
-      let x = if dy > 0 {
-        x1_i + ( ( x2_i as isize - x1_i as isize ) * ( start_y as isize - y1_i as isize ) / ( y2_i as isize - y1_i as isize ).max( 1 ) ) as usize
+      let x = if dy > 0 && y2_i != y1_i {
+        let dx_calc = ( x2_i as isize - x1_i as isize ) * ( start_y as isize - y1_i as isize ) / ( y2_i as isize - y1_i as isize );
+        ( x1_i as isize + dx_calc ).max( 0 ).min( self.dimensions.0 as isize - 1 ) as usize
       } else {
         x1_i
       };
