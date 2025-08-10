@@ -29,6 +29,14 @@
 #![ allow( clippy::collapsible_if ) ]
 #![ allow( clippy::unused_async ) ]
 #![ allow( clippy::needless_borrows_for_generic_args ) ]
+#![ allow( clippy::manual_midpoint ) ]
+#![ allow( clippy::needless_for_each ) ]
+#![ allow( clippy::clone_on_copy ) ]
+#![ allow( clippy::option_map_unit_fn ) ]
+#![ allow( clippy::no_effect_underscore_binding ) ]
+#![ allow( clippy::std_instead_of_alloc ) ]
+#![ allow( clippy::expect_fun_call ) ]
+#![ allow( clippy::assigning_clones ) ]
 
 use std::cell::RefCell;
 use mingl::F32x4;

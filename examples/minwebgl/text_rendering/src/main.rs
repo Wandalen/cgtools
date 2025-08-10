@@ -29,6 +29,10 @@
 #![ allow( clippy::collapsible_if ) ]
 #![ allow( clippy::unused_async ) ]
 #![ allow( clippy::needless_borrows_for_generic_args ) ]
+#![ allow( clippy::needless_pass_by_value ) ]
+#![ allow( clippy::manual_midpoint ) ]
+#![ allow( clippy::no_effect_underscore_binding ) ]
+#![ allow( clippy::std_instead_of_alloc ) ]
 
 use std::cell::RefCell;
 use minwebgl as gl;

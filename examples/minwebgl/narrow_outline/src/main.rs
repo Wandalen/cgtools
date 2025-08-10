@@ -3,6 +3,18 @@
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 #![ cfg_attr( not( doc ), doc = "Renders outlines for 3D objects" ) ]
 
+#![ allow( clippy::std_instead_of_core ) ]
+#![ allow( clippy::cast_precision_loss ) ]
+#![ allow( clippy::too_many_lines ) ]
+#![ allow( clippy::needless_pass_by_value ) ]
+#![ allow( clippy::implicit_return ) ]
+#![ allow( clippy::min_ident_chars ) ]
+#![ allow( clippy::wildcard_imports ) ]
+#![ allow( clippy::doc_overindented_list_items ) ]
+#![ allow( clippy::unnecessary_cast ) ]
+#![ allow( clippy::unused_async ) ]
+#![ allow( clippy::explicit_iter_loop ) ]
+
 use mingl::{ AsBytes, CameraOrbitControls, VectorDataType };
 use minwebgl::{ self as gl, WebglError, JsCast };
 use gl::

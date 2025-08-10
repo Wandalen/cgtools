@@ -3,6 +3,15 @@
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 #![ cfg_attr( not( doc ), doc = "Compares different outline methods for GLTF files" ) ]
 
+#![ allow( clippy::std_instead_of_core ) ]
+#![ allow( clippy::cast_precision_loss ) ]
+#![ allow( clippy::too_many_lines ) ]
+#![ allow( clippy::needless_pass_by_value ) ]
+#![ allow( clippy::std_instead_of_alloc ) ]
+#![ allow( clippy::implicit_return ) ]
+#![ allow( clippy::let_and_return ) ]
+#![ allow( clippy::never_loop ) ]
+
 use std::collections::HashMap;
 use mingl::F32x4;
 use minwebgl::

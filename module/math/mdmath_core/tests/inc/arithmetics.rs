@@ -1,3 +1,7 @@
+#![ allow( clippy::uninlined_format_args ) ]
+#![ allow( clippy::float_cmp ) ]
+#![ allow( clippy::clone_on_copy ) ]
+
 use super::*;
 
 #[ test ]

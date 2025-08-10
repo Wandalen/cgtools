@@ -6,6 +6,8 @@
 #![ allow( clippy::needless_pass_by_value ) ]
 #![ allow( clippy::min_ident_chars ) ]
 #![ allow( clippy::cast_possible_truncation ) ]
+#![ allow( clippy::redundant_field_names ) ]
+#![ allow( clippy::std_instead_of_core ) ]
 
 use mingl::CameraOrbitControls;
 use minwebgl as gl;

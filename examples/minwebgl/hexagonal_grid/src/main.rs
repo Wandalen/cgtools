@@ -10,6 +10,13 @@
 #![ allow( clippy::cast_possible_truncation ) ]
 #![ allow( clippy::cast_possible_wrap ) ]
 #![ allow( clippy::map_flatten ) ]
+#![ allow( clippy::cast_precision_loss ) ]
+#![ allow( clippy::uninlined_format_args ) ]
+#![ allow( clippy::redundant_closure ) ]
+#![ allow( clippy::from_iter_instead_of_collect ) ]
+#![ allow( clippy::too_many_arguments ) ]
+#![ allow( clippy::cast_lossless ) ]
+#![ allow( clippy::useless_conversion ) ]
 
 use minwebgl as min;
 use browser_input::{ mouse, Input };
