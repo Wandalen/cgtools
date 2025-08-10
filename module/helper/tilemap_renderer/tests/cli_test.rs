@@ -164,7 +164,7 @@ mod cli_tests
     let stdout = String::from_utf8_lossy( &output.stdout );
     assert!( stdout.contains( "Agnostic Rendering Engine CLI (ARE) - REPL Mode" ) );
     assert!( stdout.contains( "Type .help for available commands, .quit to exit" ) );
-    assert!( stdout.contains( "Use Up/Down arrows for command history" ) );
+    assert!( stdout.contains( "↑/↓ Arrow keys for command history" ) );
     assert!( stdout.contains( "Goodbye!" ) );
   }
 }

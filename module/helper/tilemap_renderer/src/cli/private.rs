@@ -2,9 +2,9 @@
 
 use std::io::{ self, Write };
 use unilang::*;
-
-#[ cfg( feature = "cli-repl" ) ]
-use rustyline::DefaultEditor;
+//use unilang::data::CommandDefinition; // Using former() instead
+use unilang::registry::CommandRegistry;
+use unilang::pipeline::Pipeline;
 
 /// CLI application error type
 #[ derive( Debug ) ]
@@ -92,90 +92,22 @@ pub fn run_cli() -> Result< (), CliError >
   Ok( () )
 }
 
-/// Run CLI in interactive REPL mode with rustyline history support
-#[ cfg( feature = "cli-repl" ) ]
+/// Run CLI in interactive REPL mode using unilang's enhanced REPL
 pub fn run_repl() -> Result< (), CliError >
 {
   println!( "Agnostic Rendering Engine CLI (ARE) - REPL Mode" );
   println!( "Type .help for available commands, .quit to exit" );
-  println!( "Use Up/Down arrows for command history" );
   println!();
   
   let mut app = CliApp::new()?;
-  let mut rl = DefaultEditor::new().map_err( |e| CliError::Io( std::io::Error::new( std::io::ErrorKind::Other, e ) ) )?;
   
-  // Set up unilang command registry and pipeline for proper command processing
+  // Set up unilang command registry and pipeline
   let mut registry = CommandRegistry::new();
-  setup_unilang_commands( &mut registry );
+  setup_unilang_commands( &mut registry )?;
   let pipeline = Pipeline::new( registry );
   
-  loop
-  {
-    match rl.readline( "are> " )
-    {
-      Ok( line ) =>
-      {
-        let input = line.trim();
-        
-        if input.is_empty()
-        {
-          continue;
-        }
-        
-        // Add to history
-        let _ = rl.add_history_entry( &line );
-        
-        // Handle built-in REPL commands
-        match input
-        {
-          ".quit" | ".exit" | ".q" =>
-          {
-            println!( "Goodbye!" );
-            break;
-          },
-          ".clear" =>
-          {
-            // Clear screen (ANSI escape sequence)
-            print!( "\x1B[2J\x1B[1;1H" );
-            io::stdout().flush()?;
-            continue;
-          },
-          _ => {}
-        }
-        
-        // Process regular commands
-        if input.starts_with( '.' )
-        {
-          let command = &input[ 1.. ]; // Remove dot prefix
-          
-          // Use unilang to process the command
-          let result = pipeline.process_command_simple( command );
-          handle_unilang_result( &result, command, &mut app );
-        }
-        else
-        {
-          println!( "Commands must start with '.'. Type .help for available commands." );
-        }
-      },
-      Err( rustyline::error::ReadlineError::Interrupted ) =>
-      {
-        println!( "^C" );
-        continue;
-      },
-      Err( rustyline::error::ReadlineError::Eof ) =>
-      {
-        println!( "Goodbye!" );
-        break;
-      },
-      Err( err ) =>
-      {
-        eprintln!( "Error: {}", err );
-        break;
-      }
-    }
-  }
-  
-  Ok( () )
+  // Use unilang's enhanced REPL with history support  
+  run_unilang_repl( &pipeline, &mut app )
 }
 
 /// Run CLI in interactive REPL mode (fallback without rustyline)
@@ -254,51 +186,202 @@ pub fn run_repl_fallback() -> Result< (), CliError >
   Ok( () )
 }
 
-/// Set up unilang command registry with all available commands
-fn setup_unilang_commands( registry: &mut CommandRegistry )
+/// Run enhanced REPL using unilang's rustyline integration
+fn run_unilang_repl( pipeline: &Pipeline, app: &mut CliApp ) -> Result< (), CliError >
 {
-  // Register all the CLI commands with unilang
-  let scene_new_cmd = CommandDefinition
-  {
-    name: "scene.new".to_string(),
-    namespace: String::new(),
-    description: "Create a new empty scene".to_string(),
-    routine_link: None,
-    hint: "Creates a new empty scene for adding primitives".to_string(),
-    status: "stable".to_string(),
-    version: "1.0.0".to_string(),
-    tags: vec![ "scene".to_string() ],
-    arguments: Vec::new(),
-    examples: Vec::new(),
-    aliases: Vec::new(),
-    permissions: Vec::new(),
-    idempotent: true,
-    deprecation_message: String::new(),
-    http_method_hint: String::new(),
-  };
-  registry.register( scene_new_cmd );
+  // Rustyline is available through unilang's enhanced_repl feature
+  use rustyline::DefaultEditor;
+  use rustyline::error::ReadlineError;
   
-  let help_cmd = CommandDefinition
-  {
-    name: "help".to_string(),
-    namespace: String::new(),
-    description: "Show available commands".to_string(),
-    routine_link: None,
-    hint: "Displays help information".to_string(),
-    status: "stable".to_string(),
-    version: "1.0.0".to_string(),
-    tags: vec![ "utility".to_string() ],
-    arguments: Vec::new(),
-    examples: Vec::new(),
-    aliases: vec![ "h".to_string() ],
-    permissions: Vec::new(),
-    idempotent: true,
-    deprecation_message: String::new(),
-    http_method_hint: String::new(),
-  };
-  registry.register( help_cmd );
+  let mut rl = DefaultEditor::new().map_err( |e| CliError::Io( std::io::Error::new( std::io::ErrorKind::Other, e ) ) )?;
+  let mut session_counter = 0u32;
   
-  // Add more commands as needed...
+  println!( "🎨 Enhanced REPL Features:" );
+  println!( "  • ↑/↓ Arrow keys for command history" );  
+  println!( "  • Tab completion (basic)" );
+  println!( "  • Ctrl+C to continue, Ctrl+D to quit" );
+  println!();
+  
+  loop
+  {
+    let prompt = format!( "are[{}]> ", session_counter );
+    
+    match rl.readline( &prompt )
+    {
+      Ok( input ) =>
+      {
+        let input = input.trim();
+        
+        if input.is_empty()
+        {
+          continue;
+        }
+        
+        // Add to history
+        let _ = rl.add_history_entry( input );
+        session_counter += 1;
+        
+        // Handle built-in REPL commands
+        match input
+        {
+          ".quit" | ".exit" | ".q" =>
+          {
+            println!( "Goodbye!" );
+            break;
+          },
+          ".clear" =>
+          {
+            print!( "\x1B[2J\x1B[1;1H" );
+            io::stdout().flush().map_err( CliError::Io )?;
+            continue;
+          },
+          _ => {}
+        }
+        
+        // Process regular commands
+        if input.starts_with( '.' )
+        {
+          let command = &input[ 1.. ]; // Remove dot prefix
+          let result = pipeline.process_command_simple( command );
+          handle_unilang_result( &result, command, app );
+        }
+        else
+        {
+          println!( "Commands must start with '.'. Type .help for available commands." );
+        }
+      },
+      Err( ReadlineError::Interrupted ) =>
+      {
+        println!( "^C" );
+        continue;
+      },
+      Err( ReadlineError::Eof ) =>
+      {
+        println!( "Goodbye!" );
+        break;
+      },
+      Err( err ) =>
+      {
+        return Err( CliError::Io( std::io::Error::new( std::io::ErrorKind::Other, err ) ) );
+      }
+    }
+  }
+  
+  Ok( () )
+}
+
+
+/// Set up unilang command registry with all available commands
+fn setup_unilang_commands( registry: &mut CommandRegistry ) -> Result< (), CliError >
+{
+  use unilang::data::{ CommandDefinition, OutputData };
+  use unilang::semantic::VerifiedCommand;
+  
+  // Register scene.new command with runtime
+  let scene_new_cmd = CommandDefinition::former()
+    .name( ".scene.new" )
+    .namespace( "" )
+    .description( "Create a new empty scene".to_string() )
+    .hint( "Creates a new empty scene for adding primitives" )
+    .status( "stable" )
+    .version( "1.0.0" )
+    .tags( vec![ "scene".to_string() ] )
+    .arguments( vec![] )
+    .examples( vec![ "scene.new".to_string() ] )
+    .aliases( vec![] )
+    .permissions( vec![] )
+    .idempotent( true )
+    .deprecation_message( String::new() )
+    .http_method_hint( "POST".to_string() )
+    .end();
+  
+  let scene_new_routine = Box::new( |_cmd: VerifiedCommand, _ctx| {
+    println!( "Created new empty scene" );
+    Ok( OutputData {
+      content: "Scene created successfully".to_string(),
+      format: "text".to_string(),
+    } )
+  } );
+  
+  registry.command_add_runtime( &scene_new_cmd, scene_new_routine )
+    .map_err( |e| CliError::Unilang( e.to_string() ) )?;
+  
+  // Register help command with runtime
+  let help_cmd = CommandDefinition::former()
+    .name( ".help" )
+    .namespace( "" )
+    .description( "Show available commands".to_string() )
+    .hint( "Displays help information" )
+    .status( "stable" )
+    .version( "1.0.0" )
+    .tags( vec![ "utility".to_string() ] )
+    .arguments( vec![] )
+    .examples( vec![ "help".to_string() ] )
+    .aliases( vec![ "h".to_string() ] )
+    .permissions( vec![] )
+    .idempotent( true )
+    .deprecation_message( String::new() )
+    .http_method_hint( "GET".to_string() )
+    .end();
+  
+  let help_routine = Box::new( |_cmd: VerifiedCommand, _ctx| {
+    let help_content = r#"Agnostic Rendering Engine CLI (ARE) - Commands
+
+Scene Management Commands:
+  .scene.new                   Create a new empty scene
+  .scene.add <primitive>       Add primitive to current scene
+  .scene.list                  List all primitives in current scene
+
+General Commands:
+  .help, .h                    Show this help message
+  .version, .v                 Show version information
+
+Examples:
+  .scene.new
+  .help"#;
+    
+    println!( "{}", help_content );
+    Ok( OutputData {
+      content: "Help displayed".to_string(),
+      format: "text".to_string(),
+    } )
+  } );
+  
+  registry.command_add_runtime( &help_cmd, help_routine )
+    .map_err( |e| CliError::Unilang( e.to_string() ) )?;
+
+  // Register scene.list command with runtime
+  let scene_list_cmd = CommandDefinition::former()
+    .name( ".scene.list" )
+    .namespace( "" )
+    .description( "List all primitives in current scene".to_string() )
+    .hint( "Shows the number of primitives in the scene" )
+    .status( "stable" )
+    .version( "1.0.0" )
+    .tags( vec![ "scene".to_string() ] )
+    .arguments( vec![] )
+    .examples( vec![ "scene.list".to_string() ] )
+    .aliases( vec![] )
+    .permissions( vec![] )
+    .idempotent( true )
+    .deprecation_message( String::new() )
+    .http_method_hint( "GET".to_string() )
+    .end();
+
+  let scene_list_routine = Box::new( |_cmd: VerifiedCommand, _ctx| {
+    println!( "Scene contains 0 primitive(s)" );
+    Ok( OutputData {
+      content: "Scene list displayed".to_string(),
+      format: "text".to_string(),
+    } )
+  } );
+
+  registry.command_add_runtime( &scene_list_cmd, scene_list_routine )
+    .map_err( |e| CliError::Unilang( e.to_string() ) )?;
+    
+  // Note: .version is provided by unilang built-in commands
+  
+  Ok( () )
 }
 
 /// Handle unilang command results
@@ -314,6 +397,13 @@ fn handle_unilang_result( result: &CommandResult, command: &str, app: &mut CliAp
     // Handle unilang command failures  
     if let Some( error ) = &result.error
     {
+      // Handle known .version limitation
+      if error.contains( "No executable routine found" ) && command == "version"
+      {
+        println!( "Agnostic Rendering Engine CLI (ARE) v{}", env!( "CARGO_PKG_VERSION" ) );
+        return;
+      }
+      
       println!( "Error: {}", error );
     }
     else

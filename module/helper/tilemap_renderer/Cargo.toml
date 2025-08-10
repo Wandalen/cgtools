@@ -148,7 +148,7 @@ testing = [ "enabled", "standard", "ports", "serde", "adapter-svg", "adapter-ter
 error_tools = { workspace = true, optional = true }
 serde = { workspace = true, optional = true, features = [ "derive" ] }
 mod_interface = { workspace = true }
-unilang = { version = "0.10.0", optional = true }
+unilang = { path = "/home/user1/pro/lib/wTools2/module/move/unilang", optional = true, features = [ "enhanced_repl" ] }
 rustyline = { version = "14.0", optional = true }
 
 # Future backend dependencies (will be added when backends are implemented)
@@ -196,6 +196,14 @@ required-features = [ "testing", "adapter-svg-browser" ]
 [[test]]
 name = "cli_test"
 required-features = [ "cli" ]
+
+[[test]]
+name = "integration_test"
+required-features = [ "testing" ]
+
+[[test]]
+name = "error_handling_test"
+required-features = [ "testing" ]
 
 [[example]]
 name = "svg_demo"

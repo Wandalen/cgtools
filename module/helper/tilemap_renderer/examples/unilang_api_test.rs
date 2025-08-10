@@ -7,7 +7,7 @@ fn main() -> Result< (), Box< dyn std::error::Error > >
   
   println!( "Testing unilang API capabilities..." );
   
-  let mut registry = CommandRegistry::new();
+  let registry = CommandRegistry::new();
   let pipeline = Pipeline::new( registry );
   
   // Check what methods are available on Pipeline
@@ -28,7 +28,7 @@ fn main() -> Result< (), Box< dyn std::error::Error > >
   // let _interactive = pipeline.run_interactive(); // CONFIRMED: doesn't exist
   
   // Check if there's a REPL struct or module:
-  let _repl = unilang::Repl::new();
+  // let _repl = unilang::Repl::new(); // CONFIRMED: doesn't exist
   
   println!( "Testing complete - no REPL methods found to test" );
   
