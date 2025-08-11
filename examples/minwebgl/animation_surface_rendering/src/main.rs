@@ -37,8 +37,9 @@ use renderer::webgl::
   Node
 };
 use std::rc::Rc;
-use canvas_renderer::renderer::*;
+use canvas_renderer::renderer::CanvasRenderer;
 use geometry_generation::text;
+use ::mod_interface::mod_interface;
 
 mod camera_controls;
 mod loaders;
@@ -46,7 +47,7 @@ mod animation;
 mod primitive_data;
 mod primitive;
 
-use animation::*;
+use crate::animation::{ model, Model, Shape, Layer, Transform, Color, fixed, ease, LINEAR, EASE_IN_OUT_BACK };
 
 fn upload_texture( gl : &WebGl2RenderingContext, src : Rc< String > ) -> WebGlTexture
 {
