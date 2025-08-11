@@ -44,7 +44,7 @@ impl< Orientation > Clone for Coordinate< Orientation >
 {
   fn clone( &self ) -> Self
   {
-    Self::new( self.a, self.b, self.c )
+    Self::new_unchecked( self.a, self.b, self.c )
   }
 }
 
@@ -76,7 +76,23 @@ impl< Orientation > Coordinate< Orientation >
   /// Creates a new `TriAxial` coordinate from its three components.
   #[ inline ]
   #[ must_use ]
-  pub const fn new( a : i32, b : i32, c : i32 ) -> Self
+  pub fn new( a : i32, b : i32, c : i32 ) -> Option< Self >
+  {
+    let sum = a + b + c;
+    if ( 1..=2 ).contains( &sum )
+    {
+      Some( Self { a, b, c, _marker : PhantomData } )
+    }
+    else
+    {
+      None
+    }
+  }
+
+  /// Creates a new `TriAxial` coordinate from its three components.
+  #[ inline ]
+  #[ must_use ]
+  pub( crate ) const fn new_unchecked( a : i32, b : i32, c : i32 ) -> Self
   {
     Self { a, b, c, _marker : PhantomData }
   }
@@ -137,9 +153,9 @@ impl< Orientation > Neighbors for Coordinate< Orientation >
     let offset = -is_right + is_left;
 
     [
-      Self::new( a + offset, b, c ),
-      Self::new( a, b + offset, c ),
-      Self::new( a, b, c + offset ),
+      Self::new_unchecked( a + offset, b, c ),
+      Self::new_unchecked( a, b + offset, c ),
+      Self::new_unchecked( a, b, c + offset ),
     ].to_vec()
   }
 }
@@ -170,7 +186,7 @@ impl Coordinate< FlatSided >
     let x = x / cell_size[ 0 ];
     let y = y / cell_size[ 1 ];
 
-    Self::new
+    Self::new_unchecked
     (
       x.floor() as i32 + 1,
       ( y - 0.5 * x ).ceil() as i32,
@@ -202,7 +218,7 @@ impl Coordinate< FlatTopped >
   #[ allow( clippy::cast_possible_truncation ) ]
   pub fn from_pixel_with_edge_len( Pixel { data : [ x, y ]  } : Pixel, edge_length : f32 ) -> Self
   {
-    Self::new
+    Self::new_unchecked
     (
       ( (  1.0 * x - SQRT_3 / 3.0 * y ) / edge_length ).ceil()  as i32,
       ( (      SQRT_3 * 2.0 / 3.0 * y ) / edge_length ).floor() as i32 + 1,

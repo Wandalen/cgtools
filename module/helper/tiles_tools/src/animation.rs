@@ -650,7 +650,7 @@ impl<T: std::fmt::Debug + Clone> Animatable for crate::coordinates::triangular::
     let a = self.a.interpolate( &other.a, t );
     let b = self.b.interpolate( &other.b, t );
     let c = self.c.interpolate( &other.c, t );
-    Self::new( a, b, c )
+    Self::new_unchecked( a, b, c )
   }
 }
 

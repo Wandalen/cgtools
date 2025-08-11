@@ -476,12 +476,12 @@ impl< HOrientation, TOrientation > ToDual< triangular::Coordinate< TOrientation 
     let c = s;
 
     [
-      triangular::Coordinate::new( a + 1, b,     c     ),
-      triangular::Coordinate::new( a,     b + 1, c     ),
-      triangular::Coordinate::new( a,     b,     c + 1 ),
-      triangular::Coordinate::new( a + 1, b + 1, c     ),
-      triangular::Coordinate::new( a,     b + 1, c + 1 ),
-      triangular::Coordinate::new( a + 1, b,     c + 1 ),
+      triangular::Coordinate::new_unchecked( a + 1, b,     c     ),
+      triangular::Coordinate::new_unchecked( a,     b + 1, c     ),
+      triangular::Coordinate::new_unchecked( a,     b,     c + 1 ),
+      triangular::Coordinate::new_unchecked( a + 1, b + 1, c     ),
+      triangular::Coordinate::new_unchecked( a,     b + 1, c + 1 ),
+      triangular::Coordinate::new_unchecked( a + 1, b,     c + 1 ),
     ].to_vec()
   }
 }

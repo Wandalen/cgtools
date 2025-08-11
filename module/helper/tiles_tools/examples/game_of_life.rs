@@ -43,7 +43,7 @@ use tiles_tools::{
   coordinates::{
   square::{Coordinate as SquareCoord, EightConnected},
   hexagonal::{Coordinate as HexCoord, Axial, Pointy},
-  // triangular::{Coordinate as TriCoord, TwelveConnected},
+  triangular::{Coordinate as TriCoord, FlatSided},
   },
 };
 use std::collections::HashMap;
@@ -280,54 +280,54 @@ impl HexGameOfLife {
 }
 
 /// Game of Life simulation on a triangular grid.
-// struct TriangularGameOfLife
-// {
-//   world: World,
-//   generation: u32,
-// }
+struct TriangularGameOfLife
+{
+  world: World,
+  generation: u32,
+}
 
-// impl TriangularGameOfLife {
-//   /// Creates a new Game of Life on a triangular grid.
-//   pub fn new() -> Self {
-//   let mut world = World::new();
+impl TriangularGameOfLife {
+  /// Creates a new Game of Life on a triangular grid.
+  pub fn new() -> Self {
+  let mut world = World::new();
 
-//   // Spawn initial triangular pattern
-//   let tri_pattern = [
-//     (0, 0), (1, 0), (0, 1), (1, 1)
-//   ];
+  // Spawn initial triangular pattern
+  let tri_pattern = [
+    (0, 0, 1), (1, 0, 1), (2, -1, 1), (1, -1, 2)
+  ];
 
-//   for &(x, y) in &tri_pattern {
-//     let coord = TriCoord::<TwelveConnected>::new(x, y);
-//     world.spawn((
-//       Position::new(coord),
-//       Cell::new(),
-//     ));
-//   }
+  for &(a, b, c) in &tri_pattern {
+    let coord = TriCoord::<FlatSided>::new( a, b, c ).unwrap();
+    world.spawn((
+      Position::new(coord),
+      Cell::new(),
+    ));
+  }
 
-//   Self { world, generation: 0 }
-//   }
+  Self { world, generation: 0 }
+  }
 
-//   /// Advances one generation with triangular grid rules.
-//   pub fn step(&mut self) {
-//   // Triangular grids have 12 neighbors, so different rules apply
-//   println!("Triangular Generation {}: Complex neighbor relationships",
-//            self.generation + 1);
-//   self.generation += 1;
-//   }
+  /// Advances one generation with triangular grid rules.
+  pub fn step(&mut self) {
+  // Triangular grids have 12 neighbors, so different rules apply
+  println!("Triangular Generation {}: Complex neighbor relationships",
+           self.generation + 1);
+  self.generation += 1;
+  }
 
-//   /// Prints the triangular grid state.
-//   pub fn print_state(&self) {
-//   println!("\nTriangular Generation {}", self.generation);
+  /// Prints the triangular grid state.
+  pub fn print_state(&self) {
+  println!("\nTriangular Generation {}", self.generation);
 
-//   let mut query = self.world.query::<(&Position<TriCoord<TwelveConnected>>, &Cell)>();
-//   let living_cells: Vec<_> = query.iter()
-//     .filter(|(_, (_, cell))| cell.is_alive())
-//     .map(|(_, (pos, _))| (pos.coord.x, pos.coord.y))
-//     .collect();
+  let mut query = self.world.query::<(&Position<TriCoord<FlatSided>>, &Cell)>();
+  let living_cells: Vec<_> = query.iter()
+    .filter(|(_, (_, cell))| cell.is_alive())
+    .map(|(_, (pos, _))| (pos.coord.a, pos.coord.b, pos.coord.c,))
+    .collect();
 
-//   println!("Living triangular cells: {:?}", living_cells);
-//   }
-// }
+  println!("Living triangular cells: {:?}", living_cells);
+  }
+}
 
 /// Demonstrates Game of Life across different coordinate systems.
 fn main()
@@ -360,14 +360,14 @@ fn main()
   }
 
   // Triangular Grid Game of Life
-  // println!("\n🔺 TRIANGULAR GRID (12-connected neighbors)");
-  // let mut tri_game = TriangularGameOfLife::new();
-  // tri_game.print_state();
+  println!("\n🔺 TRIANGULAR GRID (3-connected neighbors)");
+  let mut tri_game = TriangularGameOfLife::new();
+  tri_game.print_state();
 
-  // for _ in 1..=3 {
-  // tri_game.step();
-  // tri_game.print_state();
-  // }
+  for _ in 1..=3 {
+  tri_game.step();
+  tri_game.print_state();
+  }
 
   println!("\n✨ Demo Complete!");
   println!("This example showcases how tiles_tools ECS works seamlessly");

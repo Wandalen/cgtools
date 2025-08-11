@@ -10,7 +10,7 @@ use tiles_tools::
   coordinates::
   {
     hexagonal::{ Coordinate as HexCoord, Axial, Pointy },
-    // triangular::{ Coordinate as TriCoord, TwelveConnected },
+    triangular::{ Coordinate as TriCoord, FlatSided },
     isometric::{ Coordinate as IsoCoord, Diamond },
     square::{ Coordinate as SquareCoord, FourConnected, EightConnected },
   },
@@ -159,20 +159,20 @@ fn demonstrate_hexagonal_pathfinding()
 fn demonstrate_triangular_pathfinding()
 {
     println!("\n=== Triangular Grid Pathfinding ===");
-    // let tri_start = TriCoord::<TwelveConnected>::new(0, 0);
-    // let tri_goal = TriCoord::<TwelveConnected>::new(4, 2);
+    let tri_start = TriCoord::< FlatSided >::new( 0, 1, 0 ).unwrap();
+    let tri_goal = TriCoord::< FlatSided >::new( 1, 2, -1 ).unwrap();
 
-    // if let Some((path, cost)) = astar(
-    //     &tri_start,
-    //     &tri_goal,
-    //     |_coord| return true,
-    //     |_coord| return 1,
-    // ) {
-    //     println!("Triangular path found: {} steps, cost: {}", path.len(), cost);
-    //     println!("Path: {path:?}");
-    // } else {
-    //     println!("No triangular path found");
-    // }
+    if let Some((path, cost)) = astar(
+        &tri_start,
+        &tri_goal,
+        |_coord| return true,
+        |_coord| return 1,
+    ) {
+        println!("Triangular path found: {} steps, cost: {}", path.len(), cost);
+        println!("Path: {path:?}");
+    } else {
+        println!("No triangular path found");
+    }
 }
 
 fn demonstrate_isometric_pathfinding()
