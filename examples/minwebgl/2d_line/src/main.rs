@@ -9,7 +9,10 @@ use std::
 use serde::{ Deserialize, Serialize };
 use gl::wasm_bindgen::prelude::*;
 
+use crate::events::add_point_on_click;
+
 mod lil_gui;
+mod events;
 
 #[ derive( Default, Serialize, Deserialize ) ]
 struct Settings
@@ -60,10 +63,10 @@ fn run() -> Result< (), gl::WebglError >
   line.set_cap( line_tools::Cap::Square );
   line.set_join( line_tools::Join::Miter );
 
-  for i in 0..points.len()
-  {
-    line.add_point( points[ i ].into() );
-  }
+  // for i in 0..points.len()
+  // {
+  //   line.add_point( points[ i ].into() );
+  // }
 
   line.create_mesh( &gl, main_frag )?;
   let mesh = line.get_mesh();
@@ -77,6 +80,7 @@ fn run() -> Result< (), gl::WebglError >
   mesh.upload_to( &gl, "cap", "u_color", &[ 0.0, 1.0, 0.0 ] )?;
 
   let line = Rc::new( RefCell::new( line ) );
+  add_point_on_click( line.clone(), &canvas );
 
   let settings = Settings
   {
@@ -134,7 +138,7 @@ fn run() -> Result< (), gl::WebglError >
   lil_gui::on_change_string( &prop, &callback );
   callback.forget();
 
-  let prop = lil_gui::add_slider( &gui, &object, "width", 0.0, 100.0, 0.1 );
+  let prop = lil_gui::add_slider( &gui, &object, "width", 0.0, 300.0, 0.1 );
   let callback = Closure::new
   (
     {
@@ -164,7 +168,7 @@ fn run() -> Result< (), gl::WebglError >
       let rotation = 0.0;
       let translation = gl::F32x2::default();
       let world_matrix = gl::F32x3x3::from_scale_rotation_translation( scale, rotation, translation.to_array() );
-      line.borrow().get_mesh().upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() ).unwrap();
+      //line.borrow().get_mesh().upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() ).unwrap();
 
       //draw
       gl.use_program( Some( &background_program ) );
