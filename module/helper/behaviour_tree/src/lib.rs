@@ -775,7 +775,6 @@ pub fn set_blackboard<T: Into<BehaviorValue>>(key: &str, value: T) -> Box<dyn Be
 mod tests {
   use super::*;
   use std::time::Duration;
-  // use crate::coordinates::square::{Coordinate as SquareCoord, FourConnected};
 
   #[test]
   fn test_behavior_context_creation() {
