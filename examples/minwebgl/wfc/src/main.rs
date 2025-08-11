@@ -73,11 +73,11 @@ fn load_image
   let image = create_image_element( "tileset.png" )?;
 
   let window = web_sys::window()
-  .expect( "Should have a window" );
+  .ok_or_else( || JsValue::from_str( "Failed to get window" ) )?;
   let document = window.document()
-  .expect( "Should have a document" );
+  .ok_or_else( || JsValue::from_str( "Failed to get document" ) )?;
   let body = document.body()
-  .unwrap();
+  .ok_or_else( || JsValue::from_str( "Failed to get body" ) )?;
   let _ = body.append_child( &image );
   image.set_id( &format!( "{path}" ) );
 
@@ -115,12 +115,29 @@ fn on_input_change
   app_state : Rc< RefCell< ApplicationState > >
 )
 {
-  let input = event.target()
-  .and_then( | target | target.dyn_into::< HtmlInputElement >().ok() );
+  let Some( target ) = event.target()
+  else
+  { 
+    gl::warn!( "Event target is not present" );
+    return;
+  };
 
-  let input = input.unwrap();
-  let file_list = input.files().unwrap();
-  let file = file_list.get( 0 ).unwrap();
+  let input : HtmlInputElement = target
+  .dyn_into()
+  .unwrap();
+
+  let Some( file_list ) = input.files()
+  else
+  { 
+    gl::warn!( "Failed to get file list from input" );
+    return;
+  };
+  let Some( file ) = file_list.get( 0 )
+  else
+  { 
+    gl::warn!( "No file selected" );
+    return;
+  };
 
   let reader = FileReader::new().unwrap();
   let app_state_clone = Rc::clone( &app_state );
