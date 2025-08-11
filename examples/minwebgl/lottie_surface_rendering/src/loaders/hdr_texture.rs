@@ -1,5 +1,17 @@
 use minwebgl as gl;
 
+/// Loads an HDR image from a file path, decodes it, and uploads it to a specific mipmap level of a WebGL cube map texture.
+///
+/// This function handles the file loading and HDR decoding using the `zune_hdr` library. It then iterates
+/// through the six faces of the cube map, uploading the appropriate slice of the decoded image data.
+/// Note that the function swaps the +Y and -Y faces to align with common graphics conventions.
+///
+/// # Arguments
+///
+/// * `gl` - The WebGl2RenderingContext.
+/// * `texture` - An optional reference to the WebGL texture to bind to.
+/// * `mip_level` - The mipmap level to upload the data to.
+/// * `path` - The file path to the HDR image.
 #[allow(unused_variables)]
 pub async fn load_to_mip_cube
 (
@@ -45,7 +57,7 @@ pub async fn load_to_mip_cube
       gl::RGB,
       gl::FLOAT,
       &image_data,
-      ( width * width * 3  ) as u32 * i2
+      ( width * width * 3 ) as u32 * i2
     ).expect( "Failed to allocate memory for a cube texture" );
   }
   gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 0 );
@@ -56,6 +68,17 @@ pub async fn load_to_mip_cube
   gl.bind_texture( gl::TEXTURE_CUBE_MAP, None );
 }
 
+/// Loads an HDR image from a file path, decodes it, and uploads it to a specific mipmap level of a WebGL 2D texture.
+///
+/// This function loads the image data, decodes it, and then uploads it to the GPU as a 2D texture.
+/// It sets the texture wrapping and filtering to linear.
+///
+/// # Arguments
+///
+/// * `gl` - The WebGl2RenderingContext.
+/// * `texture` - An optional reference to the WebGL texture to bind to.
+/// * `mip_level` - The mipmap level to upload the data to.
+/// * `path` - The file path to the HDR image.
 #[allow(unused_variables)]
 pub async fn load_to_mip_d2
 (
