@@ -366,7 +366,7 @@ mod private
 
       if self.points.len() > 1
       {
-        mesh.draw( gl, "cap" );
+        //mesh.draw( gl, "cap" );
       }
 
       Ok( () )

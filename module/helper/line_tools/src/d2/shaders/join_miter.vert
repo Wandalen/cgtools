@@ -18,20 +18,35 @@ void main()
 
 
   vec2 tangent = normalize( normalize( pointC - pointB ) + normalize( pointB - pointA ) );
-  vec2 miter = vec2( -tangent.y, tangent.x );
+  vec2 normal = vec2( -tangent.y, tangent.x );
 
   vec2 AB = pointB - pointA;
   vec2 CB = pointB - pointC;
 
-  float sigma = sign( dot( AB + CB, miter ) );
+  float sigma = sign( dot( AB + CB, normal ) );
 
   vec2 ABNorm = normalize( vec2( -AB.y, AB.x ) );
   vec2 CBNorm = normalize( vec2( CB.y, -CB.x ) );
 
   vec2 p0 = 0.5 * u_width * sigma * ( sigma < 0.0 ? ABNorm : CBNorm );
-  vec2 p1 = 0.5 * u_width * sigma * miter / dot( CBNorm, miter );
+  vec2 p1 = 0.5 * u_width * sigma * normal / dot( CBNorm, normal );
   vec2 p2 = 0.5 * u_width * sigma * ( sigma < 0.0 ? CBNorm : ABNorm );
-  vec2 p3 = 0.5 * miter * -sigma * u_width / dot( miter, ABNorm );
+  vec2 p3 = 0.5 * normal * -sigma * u_width / dot( normal, ABNorm );
+
+  {
+    vec2 dirA = dot( normalize( AB ), normal * sigma ) * AB;
+    vec2 dirC = dot( normalize( CB ), normal * sigma ) * CB;
+
+    float maxDist = min( length( dirA ), length( dirC ) );
+    vec2 correctionPoint = normal * -sigma * maxDist;
+
+    //vec2 point = 0.5 * normal * -sigma * u_width / dot( normal, ABNorm );
+
+    if( length( p3 ) > maxDist )
+    {
+      p3 = correctionPoint - ( p3 - correctionPoint );
+    }
+  }
 
   vec2 point = pointB + p0 * position.x + p1 * position.y + p2 * position.z +p3 * position.w;
 

@@ -38,7 +38,19 @@ void main()
 
   if( sign( position.y ) == -sigma )
   {
+    vec2 dirA = dot( normalize( pAB ), normal * sigma ) * pAB;
+    vec2 dirC = dot( normalize( pCB ), normal * sigma ) * pCB;
+
+    float maxDist = min( length( dirA ), length( dirC ) );
+    vec2 correctionPoint = normal * -sigma * maxDist;
+
     vec2 point = 0.5 * normal * -sigma * u_width / dot( normal, ABNorm );
+
+    if( length( point ) > maxDist )
+    {
+      point = correctionPoint - ( point - correctionPoint );
+    }
+    
     gl_Position = u_projection_matrix * vec4( pointB + point, 0.0, 1.0 );
   }
   else
