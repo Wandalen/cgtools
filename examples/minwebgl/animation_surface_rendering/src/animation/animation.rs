@@ -1,4 +1,5 @@
-mod private 
+#[ allow( unused ) ]
+mod private
 {
   use interpoli::
   { 
@@ -26,6 +27,7 @@ mod private
   };
   use crate::primitive_data::{ Behavior, PrimitiveData };
 
+  /// Converts a Kurbo `Affine` transformation into a WebGL-compatible 4x4 matrix.
   pub fn affine_to_matrix( affine : Affine ) -> F32x4x4
   {
     let [ a, b, c, d , e, f ] = affine.as_coeffs();
@@ -53,6 +55,7 @@ mod private
     matrix
   }
 
+  /// Converts an `interpoli::Brush` to an `F32x4` color vector for a given frame.
   fn brush_to_color( brush : &interpoli::Brush, frame : f64 ) -> F32x4
   {
     let color = match brush.evaluate( 1.0, frame ).into_owned()
@@ -78,6 +81,7 @@ mod private
     color
   }
 
+  /// Represents a complete animation, holding the GLTF scene data and animation behaviors.
   pub struct Animation
   {
     gltf : GLTF,
@@ -87,6 +91,7 @@ mod private
 
   impl Animation
   { 
+    /// Creates a new `Animation` instance from a composition and a WebGL context.
     pub fn new( gl : &GL, composition : impl Into< Composition > ) -> Self
     {
       let composition : Composition = composition.into();
@@ -305,6 +310,7 @@ mod private
       }
     }
 
+    /// Updates the scene nodes with their animated transformations and repeater logic for a given frame.
     fn update_scene( &self, scene : &mut Scene, frame : f64 )
     {
       let mut nodes_to_insert = vec![];
@@ -388,6 +394,7 @@ mod private
       }
     }
 
+    /// Filters and removes nodes from the scene that are outside of their defined frame range.
     fn filter_nodes( &self, scene : &mut Scene, frame : f64 )
     {
       let mut nodes_to_remove = HashMap::new();
@@ -472,6 +479,7 @@ mod private
       }
     }
 
+    /// Retrieves the color for each node in the scene based on its associated brush behavior.
     fn colors_from_scene( &self, scene : &mut Scene, frame : f64 ) -> Vec< F32x4 >
     {
       let mut colors = vec![];
@@ -506,6 +514,7 @@ mod private
       colors
     }
 
+    /// Returns a new scene and a list of colors for a specific animation frame.
     pub fn frame( &self, frame : f64 ) -> Option< ( Scene, Vec< F32x4 > ) >
     {
       let Some( scene ) = self.gltf.scenes.get( 0 )
@@ -525,6 +534,7 @@ mod private
       Some( ( scene, colors ) )
     }
 
+    /// Sets the world matrix for all scenes within the GLTF data.
     pub fn set_world_matrix( &self, world_matrix : F32x4x4 )
     {
       for scene in &self.gltf.scenes
@@ -546,4 +556,3 @@ crate::mod_interface!
     Animation
   };
 }
-

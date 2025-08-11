@@ -2,14 +2,31 @@ use minwebgl as gl;
 use renderer::webgl::IBL;
 use super::hdr_texture;
 
+/// Asynchronously loads Image-Based Lighting (IBL) textures from a specified directory.
+///
+/// This function loads a set of HDR textures, including a diffuse irradiance map (a cube map)
+/// and a specular pre-filtered environment map (a cube map with multiple mip levels).
+/// It also loads a 2D texture for specular BRDF lookup. The specular cube map's
+/// minification filter is set to `LINEAR_MIPMAP_LINEAR`.
+///
+/// # Arguments
+///
+/// * `gl` - The WebGl2RenderingContext used for creating and uploading textures.
+/// * `path` - The base path to the directory containing the IBL HDR files.
+///
+/// # Returns
+///
+/// An `IBL` struct containing the loaded WebGL textures.
 pub async fn load( gl : &gl::WebGl2RenderingContext, path : &str ) -> IBL
 {
+  // Asynchronously loads an HDR image and uploads it to a single mipmap level of a WebGL cube map texture.
   let load_cube = async | name, mip_level, texture : Option< &gl::web_sys::WebGlTexture > |
   {
     let file_path = format!( "{}/{}.hdr", path, name );
     hdr_texture::load_to_mip_cube( gl, texture, mip_level, &file_path ).await;
   };
 
+  // Asynchronously loads an HDR image and uploads it to a single mipmap level of a WebGL 2D texture.
   let load_d2 = async | name, mip_level, texture : Option< &gl::web_sys::WebGlTexture > |
   {
     let file_path = format!( "{}/{}.hdr", path, name );

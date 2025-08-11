@@ -4,6 +4,7 @@ mod private
   use crate::model::animated;
   use interpoli::Value;
 
+  /// Defines an easing function with two optional `(x, y)` Bezier control points.
   type EaseFunction = [ Option< [ f64; 2 ] > ; 2 ];
 
   pub const EASE_IN_SINE : EaseFunction = [ Some( [ 0.12, 0.0] ), Some( [ 0.39, 0.0 ] ) ];
@@ -38,8 +39,20 @@ mod private
   pub const EASE_OUT_BACK : EaseFunction = [ Some( [ 0.34, 1.56 ] ), Some( [ 0.64, 1.0 ] ) ];
   pub const EASE_IN_OUT_BACK : EaseFunction = [ Some( [ 0.68, -0.6 ] ), Some( [ 0.32, 1.6 ] ) ];
 
+  /// A linear easing function, which provides a constant rate of change.
   pub const LINEAR : EaseFunction = [ None, None ];
 
+  /// Creates a simple two-keyframe animation with a specified easing function.
+  ///
+  /// # Arguments
+  ///
+  /// * `( f1, f2 )` - A tuple containing the start and end frames of the animation.
+  /// * `( v1, v2 )` - A tuple containing the start and end values of the animation.
+  /// * `ease_function` - The easing function to apply between the two keyframes.
+  ///
+  /// # Returns
+  ///
+  /// An animated `Value` that transitions from `v1` to `v2` over the specified frame range.
   pub fn ease< T : interpoli::Tween >
   ( 
     ( f1, f2 ) : ( f64, f64 ),
