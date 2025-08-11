@@ -67,7 +67,7 @@ impl< System, Orientation > Clone for Coordinate< System, Orientation >
   fn clone( &self ) -> Self
   {
     Self::new_uncheked( self.q, self.r )
-    }
+  }
 }
 
 impl< System, Orientation > Copy for Coordinate< System, Orientation > {}

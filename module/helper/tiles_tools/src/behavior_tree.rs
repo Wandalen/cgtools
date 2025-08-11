@@ -141,16 +141,18 @@ pub enum BehaviorValue {
   Bool(bool),
   /// 32-bit signed integer
   Int(i32),
+  /// 32-bit unsigned integer
+  UInt(u32),
   /// 32-bit floating point number
   Float(f32),
   /// String value
   String(String),
   /// 2D position with x and y coordinates
-  Position2D { 
+  Position2D {
     /// X coordinate
-    x: i32, 
+    x: i32,
     /// Y coordinate
-    y: i32 
+    y: i32
   },
   /// Entity identifier
   EntityId(u32),
@@ -269,7 +271,7 @@ impl BehaviorNode for SequenceNode {
         }
       }
     }
-    
+
     self.reset();
     BehaviorStatus::Success
   }
@@ -326,7 +328,7 @@ impl BehaviorNode for SelectorNode {
         }
       }
     }
-    
+
     self.reset();
     BehaviorStatus::Failure
   }
@@ -686,7 +688,7 @@ impl<C> MoveToAction<C> {
   }
 }
 
-impl<C> BehaviorNode for MoveToAction<C> 
+impl<C> BehaviorNode for MoveToAction<C>
 where
   C: Distance + Clone + std::fmt::Debug,
 {
@@ -696,7 +698,7 @@ where
     // 2. Calculate path to target using self.target
     // 3. Move entity along path
     // 4. Check if target reached within tolerance
-    
+
     // For now, simulate movement completion and store target info
     context.set_blackboard("movement_target_reached", true);
     context.set_blackboard("movement_tolerance", self.tolerance);
