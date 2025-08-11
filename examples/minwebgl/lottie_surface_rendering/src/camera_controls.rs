@@ -1,23 +1,36 @@
-
-
 use std::{cell::RefCell, rc::Rc};
 
 use mingl::CameraOrbitControls;
 use minwebgl::{ self as gl, JsCast };
 use web_sys::
 {
-  wasm_bindgen::prelude::Closure, 
+  wasm_bindgen::prelude::Closure,
   HtmlCanvasElement
 };
 
+/// Represents the current state of the camera controls, based on user input.
 enum CameraState
 {
+  /// The camera is not being manipulated.
+  None,
+  /// The user is rotating the camera.
   Rotate,
+  /// The user is panning the camera.
   Pan,
-  None
 }
 
-
+/// Binds mouse and pointer events to the camera controls for interaction.
+///
+/// This function sets up event listeners on an `HtmlCanvasElement` to handle
+/// camera rotation, panning, and zooming. Left-click (pointer button 0) is used
+/// for rotation, right-click (pointer button 2) for panning, and the mouse wheel
+/// is used for zooming. It also prevents the default context menu from appearing on right-click.
+///
+/// # Arguments
+///
+/// * `canvas` - A reference to the HTML canvas element where the events will be bound.
+/// * `camera` - A reference-counted, mutable reference to the `CameraOrbitControls`
+///   instance that will be manipulated by the user input.
 pub fn bind_controls_to_input
 (
   canvas : &HtmlCanvasElement,
@@ -59,11 +72,11 @@ pub fn bind_controls_to_input
         *prev_screen_pos.borrow_mut() = new_pos;
         match *state.borrow_mut()
         {
-          CameraState::Rotate => 
+          CameraState::Rotate =>
           {
             camera.borrow_mut().rotate( delta );
           },
-          CameraState::Pan => 
+          CameraState::Pan =>
           {
             camera.borrow_mut().pan( delta );
           }

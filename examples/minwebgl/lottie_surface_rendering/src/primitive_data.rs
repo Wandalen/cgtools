@@ -1,9 +1,9 @@
 mod private
 {
   use minwebgl::
-  { 
-    self as gl, 
-    BufferDescriptor 
+  {
+    self as gl,
+    BufferDescriptor
   };
   use gl::
   {
@@ -26,13 +26,14 @@ mod private
     IndexInfo
   };
   use geometry_generation::primitive_data::
-  { 
-    Transform, 
+  {
+    Transform,
     AttributesData,
-    make_buffer_attribute_info 
+    make_buffer_attribute_info
   };
   use std::ops::Range;
 
+  /// Defines the dynamic behavior of a primitive, including animation, repetition, and color.
   #[ derive( Debug, Clone ) ]
   pub struct Behavior
   {
@@ -44,7 +45,7 @@ mod private
 
   impl Default for Behavior
   {
-    fn default() -> Self 
+    fn default() -> Self
     {
       Self 
       { 
@@ -56,8 +57,9 @@ mod private
     }
   }
 
+  /// A struct that holds all the data required to represent a graphical primitive.
   #[ derive( Debug, Clone ) ]
-  pub struct PrimitiveData 
+  pub struct PrimitiveData
   {
     pub name : Option< Box< str > >,
     pub attributes : Option< Rc< RefCell< AttributesData > > >,
@@ -68,10 +70,19 @@ mod private
 
   impl PrimitiveData
   {
+    /// Creates a new `PrimitiveData` instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `attributes` - An `Option` containing a reference-counted, mutable `AttributesData`.
+    ///
+    /// # Returns
+    ///
+    /// A new `PrimitiveData` with default values for its fields, except for `attributes`.
     pub fn new( attributes : Option< Rc< RefCell< AttributesData > > > ) -> Self
     {
-      Self 
-      { 
+      Self
+      {
         name : None,
         attributes,
         parent : None,
@@ -81,15 +92,31 @@ mod private
     }
   }
 
+  /// Converts a vector of `PrimitiveData` structs into a `GLTF` scene.
+  ///
+  /// This function takes a collection of `PrimitiveData` objects, each representing
+  /// a single graphical primitive, and converts them into a `GLTF` format suitable for rendering.
+  /// It aggregates all position and index data into global buffers, creates the
+  /// corresponding `Node`, `Mesh`, `Primitive`, `Geometry`, and `Material` objects,
+  /// and constructs the scene graph hierarchy.
+  ///
+  /// # Arguments
+  ///
+  /// * `gl` - A `WebGl2RenderingContext` instance for creating and uploading buffer data.
+  /// * `primitives_data` - A `Vec` of `PrimitiveData` structs to convert.
+  ///
+  /// # Returns
+  ///
+  /// A `GLTF` struct representing the constructed scene.
   pub fn primitives_data_to_gltf
-  ( 
+  (
     gl : &WebGl2RenderingContext,
     primitives_data : Vec< PrimitiveData >
   ) -> GLTF
   {
     let mut scenes = vec![];
     let mut nodes = vec![];
-    let mut gl_buffers = vec![]; 
+    let mut gl_buffers = vec![];
     let mut meshes = vec![];
 
     let material = Rc::new( RefCell::new( Material::default() ) );
@@ -101,19 +128,19 @@ mod private
 
     gl_buffers.push( position_buffer.clone() );
 
-    let attribute_infos = 
+    let attribute_infos =
     [
-      ( 
-        "positions", 
-        make_buffer_attribute_info( 
-          &position_buffer, 
+      (
+        "positions",
+        make_buffer_attribute_info(
+          &position_buffer,
           BufferDescriptor::new::< [ f32; 3 ] >(),
-          0, 
-          3, 
-          0, 
+          0,
+          3,
+          0,
           false,
           VectorDataType::new( mingl::DataType::F32, 3, 1 )
-        ).unwrap() 
+        ).unwrap()
       ),
     ];
 
