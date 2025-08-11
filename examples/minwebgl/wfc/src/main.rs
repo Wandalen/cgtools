@@ -17,18 +17,13 @@ use ndarray_cg::F32x4x4;
 use web_sys::wasm_bindgen::prelude::*;
 use minwebgl::dom::create_image_element;
 use minwebgl::WebGlVertexArrayObject;
-use std::sync::Mutex;
+use std::rc::Rc;
+use std::cell::RefCell;
 use web_sys::{ HtmlInputElement, HtmlButtonElement, FileReader, Event };
 use wfc::*;
 use wfc_image::{ generate_image, wrap::*, retry::* };
 use ndarray_cg::mat3x3h;
 
-// qqq : why const?
-// const LAYERS : i32 = 7;
-// aaa : I delete LAYERS, now tile set size (layers) will be calculated automatically
-
-// qqq : why const?
-// aaa : with this const user can set tile map size. I add const description below
 /// Tile map size. Length of square map side (a x a).
 /// More than 256x256 is very slow.
 /// This example can generate only static size square maps.
@@ -37,11 +32,13 @@ const SIZE : usize = 50;
 /// The size of the patterns to be analyzed from the input tilemap image.
 const PATTERN_SIZE : u32 = 3;
 
-/// Storage for the generated tile map.
-static MAP : Mutex< Option< Vec< Vec< u8 > > > > = Mutex::new( None );
-
-/// Reference for generating the tilemap.
-static TILEMAP_PATTERN : Mutex< Option< DynamicImage > > = Mutex::new( None );
+/// A struct to hold the application's state.
+/// This replaces the global static variables.
+struct ApplicationState 
+{
+  map : Option< Vec< Vec< u8 > > >,
+  pattern_image : Option< DynamicImage >,
+}
 
 /// Set load callback for an image with `path` and hide it from the UI.
 ///
@@ -112,12 +109,10 @@ fn load_image
 }
 
 /// Handles the `change` event on the file input element.
-///
-/// This function reads the selected TMX file, parses its content to set the
-/// tilemap pattern, and then generates and renders a new tilemap.
 fn on_input_change
 (
-  event : Event
+  event : Event,
+  app_state : Rc< RefCell< ApplicationState > >
 )
 {
   let input = event.target()
@@ -128,7 +123,8 @@ fn on_input_change
   let file = file_list.get( 0 ).unwrap();
 
   let reader = FileReader::new().unwrap();
-  let onload_callback = Closure::<dyn FnMut(_)>::new
+  let app_state_clone = Rc::clone( &app_state );
+  let onload_callback = Closure::< dyn FnMut( _ ) >::new
   (
     move | _event : Event |
     {
@@ -143,9 +139,10 @@ fn on_input_change
           {
             if let Some( tmx_content ) = js_val.as_string()
             {
-              let _ = set_pattern( &tmx_content );
-              let _ = generate_map_wfc_image();
-              let _ = render_tile_map();
+              let mut state = app_state_clone.borrow_mut();
+              set_pattern( &tmx_content, &mut state );
+              generate_map_wfc_image( &mut state );
+              render_tile_map( &state );
             }
           },
           _ => gl::warn!( "Can't read input file" )
@@ -161,10 +158,7 @@ fn on_input_change
 }
 
 /// Initializes the file input element for uploading TMX files.
-///
-/// This function gets the file input element, sets its style, and attaches
-/// a `change` event listener to handle file selection.
-pub fn input_tilemap_init() -> Result< (), JsValue >
+fn input_tilemap_init( app_state: Rc< RefCell< ApplicationState > > ) -> Result< (), JsValue >
 {
   let window = web_sys::window().unwrap();
   let document = window.document().unwrap();
@@ -179,7 +173,13 @@ pub fn input_tilemap_init() -> Result< (), JsValue >
   let _ = file_input_style.set_property( "top", "15px" );
   let _ = file_input_style.set_property( "left", "15px" );
 
-  let on_change_callback = Closure::< dyn FnMut( _ ) >::new( on_input_change );
+  let on_change_callback = Closure::< dyn FnMut( _ ) >::new
+  (
+    {
+      let app_state = Rc::clone( &app_state );
+      move | e : Event | on_input_change( e, Rc::clone( &app_state ) )
+    }
+  );
 
   file_input.add_event_listener_with_callback( "change", on_change_callback.as_ref().unchecked_ref() )?;
   on_change_callback.forget();
@@ -188,10 +188,7 @@ pub fn input_tilemap_init() -> Result< (), JsValue >
 }
 
 /// Sets up a button with a click event listener.
-///
-/// This function gets a button element by its `id`, positions it on the screen,
-/// and attaches a callback that generates and renders a new tilemap when clicked.
-fn button_generate_setup( id: &str, top: u32, fn_generate_map: fn() -> () ) -> Result< (), JsValue >
+fn button_generate_setup(id : &str, top : u32, app_state : Rc< RefCell< ApplicationState > > ) -> Result< (), JsValue >
 {
   let window = web_sys::window().unwrap();
   let document = window.document().unwrap();
@@ -203,14 +200,19 @@ fn button_generate_setup( id: &str, top: u32, fn_generate_map: fn() -> () ) -> R
 
   let button_style = button_element.style();
   let _ = button_style.set_property( "position", "absolute" );
-  let _ = button_style.set_property( "top", format!("{}px", top).as_str() );
+  let _ = button_style.set_property( "top", format!( "{}px", top ).as_str() );
   let _ = button_style.set_property( "left", "15px" );
 
-  let button_callback = Closure::< dyn FnMut( _ ) >::new(
-    move | _e : Event |
+  let button_callback = Closure::< dyn FnMut( _ ) >::new
+  (
     {
-      let _ = fn_generate_map();
-      let _ = render_tile_map();
+      let app_state = Rc::clone(&app_state );
+      move | _e : Event |
+      {
+        let mut state = app_state.borrow_mut();
+        generate_map_wfc_image( &mut state );
+        render_tile_map( &state );
+      }
     }
   );
 
@@ -226,15 +228,24 @@ fn button_generate_setup( id: &str, top: u32, fn_generate_map: fn() -> () ) -> R
 }
 
 /// Initializes the application by setting up the browser environment and UI.
-///
-/// This function sets up the WebGL context, initializes the file input, sets up the
-/// generate button, styles the document body, and loads the initial tile set image.
 fn init()
 {
   gl::browser::setup( Default::default() );
 
-  let _ = input_tilemap_init();
-  let _ = button_generate_setup("generate-wfc-image", 50, generate_map_wfc_image );
+  let app_state = Rc::new
+  (
+    RefCell::new
+    (
+      ApplicationState 
+      {
+        map : None,
+        pattern_image : None,
+      }
+    )
+  );
+
+  let _ = input_tilemap_init( Rc::clone( &app_state ) );
+  let _ = button_generate_setup( "generate-wfc-image", 50, Rc::clone( &app_state ) );
 
   let window = web_sys::window()
   .expect( "Should have a window" );
@@ -248,15 +259,12 @@ fn init()
   let _ = body_style.set_property( "overflow", "hidden" );
   let _ = body_style.set_property( "height", "100%" );
 
-  let load = move | _img : &web_sys::HtmlImageElement | {  };
+  let load = move | _img : &web_sys::HtmlImageElement | {};
 
   let _ = load_image( "tileset.png", Box::new( load ) );
 }
 
 /// Prepares the vertex attributes for rendering a quad.
-///
-/// This function creates and populates vertex buffers for position and UV coordinates,
-/// then binds them to a WebGL Vertex Array Object (VAO) for efficient rendering.
 fn prepare_vertex_attributes() -> WebGlVertexArrayObject
 {
   let gl = gl::context::retrieve_or_make()
@@ -303,9 +311,6 @@ fn prepare_vertex_attributes() -> WebGlVertexArrayObject
 }
 
 /// Creates a Model-View-Projection (MVP) matrix for the scene.
-///
-/// This function calculates a perspective, view, and model matrix and combines them
-/// into a single MVP matrix. It uses helper functions for translation and scale.
 fn create_mvp() -> F32x4x4
 {
   let gl = gl::context::retrieve_or_make()
@@ -315,15 +320,14 @@ fn create_mvp() -> F32x4x4
   let height = gl.drawing_buffer_height() as f32;
   let aspect_ratio = width / height;
 
-  let perspective_matrix = mat3x3h::perspective_rh_gl(
+  let perspective_matrix = mat3x3h::perspective_rh_gl
+  (
     70.0f32.to_radians(),
     aspect_ratio,
     0.1,
     1000.0
   );
 
-  // qqq : use helpers
-  // aaa : now used translation and scale
   let t = [ 0.0, 0.0, 0.0 ];
   let translate = mat3x3h::translation( t );
 
@@ -339,10 +343,6 @@ fn create_mvp() -> F32x4x4
 }
 
 /// Binds an RGBA texture from an image `id` to a specified `texture_id` slot.
-///
-/// This function is essential for binding the tile set image to the shader,
-/// allowing it to be sampled during rendering. It creates a WebGL 2D texture array,
-/// populates it with the image data, and sets the texture parameters.
 fn prepare_texture_array( id : &str, texture_id : u32 ) -> Option< web_sys::WebGlTexture >
 {
   let gl = gl::context::retrieve_or_make()
@@ -358,12 +358,9 @@ fn prepare_texture_array( id : &str, texture_id : u32 ) -> Option< web_sys::WebG
 
   let width = img.natural_width();
   let layers = img.natural_height() / width;
-  // Texture array is image with height: 1 tile height * tile count
   let height = img.natural_height() / layers;
 
   let texture_array = gl.create_texture();
-  // Don't forget to activate the texture before binding and
-  // setting texture data and parameters
   gl.active_texture( texture_id );
   gl.bind_texture( GL::TEXTURE_2D_ARRAY, texture_array.as_ref() );
 
@@ -411,9 +408,6 @@ fn prepare_texture_array( id : &str, texture_id : u32 ) -> Option< web_sys::WebG
 }
 
 /// Binds an R8UI texture from `data` with `size` to a specified `texture_id` slot.
-///
-/// This function is needed for binding the generated tile map data to the shader,
-/// allowing the shader to know which tile to render at each position on the quad.
 fn prepare_texture1u
 (
   data: &[ u8 ],
@@ -431,8 +425,6 @@ fn prepare_texture1u
   (
     GL::TEXTURE_2D,
     0,
-    // Texture from raw data must have format with integer channels
-    // Data range here is 0..255
     GL::R8UI as i32,
     size.0,
     size.1,
@@ -452,12 +444,9 @@ fn prepare_texture1u
 }
 
 /// Renders the tile map on the quad.
-///
-/// This function is called once after the tileset texture is loaded. It compiles shaders,
-/// prepares buffer data, binds the tile set and tile map textures, and then draws the quad.
-fn render_tile_map()
+fn render_tile_map(app_state: &ApplicationState)
 {
-  let Some( ref map ) = *MAP.lock().unwrap()
+  let Some( ref map ) = app_state.map
   else
   {
     return;
@@ -465,12 +454,8 @@ fn render_tile_map()
   if map.is_empty() || map[ 0 ].is_empty()
   {
     return;
-  }
+  };
 
-  // qqq : bad idea to call retrieve_or_make on each frame
-  // aaa : I rename update to render_tile_map. This function
-  // is called only once when tileset texture is loaded. So
-  // gl::context::retrieve_or_make() is acceptable here.
   let gl = gl::context::retrieve_or_make()
   .unwrap();
 
@@ -502,7 +487,6 @@ fn render_tile_map()
   let tiles_location = gl.get_uniform_location( &program, "tiles_sampler" );
   let map_location = gl.get_uniform_location( &program, "map_sampler" );
 
-  // When more than 1 texture is used. You need set binding slot for every texture.
   gl.uniform1i( tiles_location.as_ref(), 0 );
   gl.uniform1i( map_location.as_ref(), 1 );
 
@@ -515,7 +499,7 @@ fn render_tile_map()
 }
 
 /// Parses and sets the reference pattern for generating the tilemap from the content of a TMX file.
-fn set_pattern( tmx_content : &str )
+fn set_pattern( tmx_content : &str, app_state : &mut ApplicationState )
 {
   let elem : xml::Element = tmx_content.parse().unwrap();
 
@@ -531,7 +515,7 @@ fn set_pattern( tmx_content : &str )
   .parse::< u32 >()
   .unwrap();
   let data = layer.get_children( "data", None )
-  .filter(|ch| ch.attributes.get( &( "encoding".to_string(), None ) ) == Some( &"csv".to_string() ) )
+  .filter(| ch | ch.attributes.get( &( "encoding".to_string(), None ) ) == Some( &"csv".to_string() ) )
   .next()
   .unwrap();
 
@@ -544,16 +528,13 @@ fn set_pattern( tmx_content : &str )
   .unwrap();
   let pattern_img = DynamicImage::ImageLuma8( pattern_buf );
 
-  *TILEMAP_PATTERN.lock().unwrap() = Some( pattern_img );
+  app_state.pattern_image = Some( pattern_img );
 }
 
 /// Generates a new tile map using the WFC algorithm with the loaded pattern image.
-///
-/// This function retrieves the pattern from `TILEMAP_PATTERN`, runs the `wfc-image`
-/// generation process, and stores the resulting map in the `MAP` static variable.
-fn generate_map_wfc_image()
+fn generate_map_wfc_image( app_state : &mut ApplicationState )
 {
-  let Some( pattern_img ) = TILEMAP_PATTERN.lock().unwrap().clone()
+  let Some( ref pattern_img ) = app_state.pattern_image
   else
   {
     return;
@@ -561,7 +542,7 @@ fn generate_map_wfc_image()
 
   let Ok( map_img ) = generate_image
   (
-    &pattern_img,
+    pattern_img,
     std::num::NonZero::new( PATTERN_SIZE ).unwrap(),
     Size::try_new( SIZE as u32, SIZE as u32 ).unwrap(),
     &wfc::orientation::ALL,
@@ -579,21 +560,16 @@ fn generate_map_wfc_image()
   .map( | row | row.to_vec() )
   .collect::< Vec< Vec< _ > > >();
 
-  *MAP.lock().unwrap() = Some( map );
+  app_state.map = Some( map );
 }
 
 /// Runs the main application logic.
-///
-/// This function serves as the entry point for the application's runtime, calling
-/// the `init` function to set up the environment.
 fn run()
 {
   init();
 }
 
 /// The main entry point of the Rust program.
-///
-/// This function calls `run` to start the application.
 fn main()
 {
   run()
