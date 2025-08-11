@@ -25,14 +25,14 @@ mod private
   ///
   /// A `GeometryData` struct containing the 3D vertex positions and triangle indices
   /// that form the rectangular segments of the path. The Z-coordinate is always 0.0.
-  pub fn curve_to_geometry( curve : &[ [ f32; 2 ] ], width : f32 ) -> Option< PrimitiveData > 
+  pub fn curve_to_geometry( curve : &[ [ f32; 2 ] ], width : f32 ) -> Option< PrimitiveData >
   {
     let mut positions = Vec::new();
     let mut indices = Vec::new();
 
     let half_width = width / 2.0;
 
-    let mut add_segment = 
+    let mut add_segment =
     | start_point : &F32x2, end_point : &F32x2 |
     {
       let direction = ( *end_point - *start_point ).normalize();
@@ -62,7 +62,7 @@ mod private
 
     curve.windows( 2 )
     .for_each
-    (  
+    ( 
       | w |
       {
         let start_point = F32x2::from_array( w[ 0 ] );
@@ -77,7 +77,7 @@ mod private
 
     let attributes = AttributesData
     {
-      positions, 
+      positions,
       indices
     };
 
@@ -87,6 +87,22 @@ mod private
     )
   }
 
+  /// Converts a vector of contours (closed paths) into a filled geometry.
+  ///
+  /// This function takes a set of contours, identifies the outer boundary
+  /// (the largest contour), and then triangulates the resulting shape,
+  /// accounting for any inner contours which act as holes.
+  ///
+  /// # Arguments
+  ///
+  /// * `contours` - A slice of vectors, where each inner vector represents a
+  /// contour as a series of 2D points. The first contour is the outer body,
+  /// subsequent ones are holes.
+  ///
+  /// # Returns
+  ///
+  /// An `Option<PrimitiveData>` containing the triangulated geometry for the
+  /// filled shape. Returns `None` if the input is empty or invalid.
   pub fn contours_to_fill_geometry( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
   {
     if contours.is_empty()
@@ -123,7 +139,7 @@ mod private
     }
 
     let body_bounding_box = BoundingBox::compute2d
-    ( 
+    (
       contours.get( body_id ).unwrap()
       .clone()
       .into_iter()
@@ -142,12 +158,12 @@ mod private
       }
 
       let bounding_box = BoundingBox::compute2d
-      ( 
+      (
         contour
         .iter()
         .flatten()
         .cloned()
-        .collect::< Vec< _ > >() 
+        .collect::< Vec< _ > >()
         .as_slice()
       );
 
@@ -180,36 +196,36 @@ mod private
       let mut flat_positions: Vec< f64 > = Vec::new();
       let mut hole_indices: Vec< usize > = Vec::new();
 
-      if let Some( outer_contour ) = contours.get( 0 ) 
+      if let Some( outer_contour ) = contours.get( 0 )
       {
-        if outer_contour.is_empty() 
+        if outer_contour.is_empty()
         {
           return None;
         }
-        for &[ x, y ] in outer_contour 
+        for &[ x, y ] in outer_contour
         {
           flat_positions.push( x as f64 );
           flat_positions.push( y as f64 );
         }
-      } 
-      else 
+      }
+      else
       {
         return None;
       }
 
       // Process holes (remaining contours)
       // Their winding order must be opposite to the outer (e.g., CW for holes)
-      for i in 1..contours.len() 
+      for i in 1..contours.len()
       {
         let hole_contour = &contours[ i ];
-        if hole_contour.is_empty() 
+        if hole_contour.is_empty()
         {
           continue;
         }
 
         hole_indices.push( flat_positions.len() / 2 );
 
-        for &[ x, y ] in hole_contour 
+        for &[ x, y ] in hole_contour
         {
           flat_positions.push( x as f64 );
           flat_positions.push( y as f64 );
@@ -217,7 +233,7 @@ mod private
       }
 
       // Perform triangulation
-      let Ok( body_indices ) = earcutr::earcut( &flat_positions, &hole_indices, 2 ) 
+      let Ok( body_indices ) = earcutr::earcut( &flat_positions, &hole_indices, 2 )
       else
       {
         continue;
@@ -227,23 +243,23 @@ mod private
       .map( | i | i as u32 )
       .collect::< Vec< _ > >();
 
-      let body_positions = flat_positions.chunks( 2 )                                     
+      let body_positions = flat_positions.chunks( 2 )
       .map( | c | [ c[ 0 ] as f32, c[ 1 ] as f32, 0.0 ] )
       .collect::< Vec< _ > >();
 
       let positions_count = positions.len();
       positions.extend( body_positions );
       indices.extend
-      ( 
+      (
         body_indices.iter()
-        .map( | i | i + positions_count as u32 ) 
+        .map( | i | i + positions_count as u32 )
       );
     }
 
     let attributes = AttributesData
     {
-      positions, 
-      indices, 
+      positions,
+      indices,
     };
 
     let primitive_data = PrimitiveData::new( Some( Rc::new( RefCell::new( attributes ) ) ) );
@@ -251,19 +267,68 @@ mod private
     Some( primitive_data )
   }
 
+  /// Converts a vector of 2D points into a `Vec<PathEl>`.
+  ///
+  /// The first point is converted to a `PathEl::MoveTo` and subsequent points
+  /// are converted to `PathEl::LineTo`.
+  ///
+  /// # Arguments
+  ///
+  /// * `points` - A `Vec` of 2D points `[ f32; 2 ]`.
+  ///
+  /// # Returns
+  ///
+  /// A `Vec<PathEl>` representing the path.
+  #[ allow( dead_code ) ]
+  pub fn points_to_path( points : Vec< [ f32; 2 ] > ) -> Vec< PathEl >
+  {
+    let mut points = points.into_iter()
+    .map
+    (
+      | [ x, y ] |
+      {
+        PathEl::LineTo( kurbo::Point::new( x as f64, y as f64 ) )
+      }
+    )
+    .collect::< Vec< _ > >();
+
+    if let Some( el ) = points.get_mut( 0 )
+    {
+      if let PathEl::LineTo( p ) = el.clone()
+      {
+        *el = PathEl::MoveTo( p );
+      }
+    }
+
+    points
+  }
+
+  /// Converts a `Vec<PathEl>` into a flattened vector of 2D points.
+  ///
+  /// This function uses `kurbo::flatten` to convert a path with curves
+  /// into a series of straight line segments. The tolerance for flattening is
+  /// set to `0.25`.
+  ///
+  /// # Arguments
+  ///
+  /// * `path` - A `Vec<PathEl>` representing the path to flatten.
+  ///
+  /// # Returns
+  ///
+  /// A `Vec<[f32; 2]>` containing the flattened 2D points of the path.
   pub fn path_to_points( path : Vec< PathEl > ) -> Vec< [ f32; 2 ] >
   {
     let mut points = vec![];
 
     kurbo::flatten
-    ( 
+    (
       kurbo::BezPath::from_vec( path ),
       0.25,
-      | el | 
+      | el |
       {
-        let point = match el 
+        let point = match el
         {
-          PathEl::MoveTo( p) | PathEl::LineTo( p ) => 
+          PathEl::MoveTo( p) | PathEl::LineTo( p ) =>
           {
             [ p.x as f32, p.y as f32 ]
           },
@@ -285,6 +350,7 @@ mod private
   {
     curve_to_geometry,
     contours_to_fill_geometry,
+    points_to_path,
     path_to_points
   };
 }

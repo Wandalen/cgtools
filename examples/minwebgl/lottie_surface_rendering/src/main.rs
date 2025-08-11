@@ -47,6 +47,7 @@ mod primitive;
 
 use animation::load_animation;
 
+/// Uploads an image from a URL to a WebGL texture.
 fn upload_texture( gl : &WebGl2RenderingContext, src : Rc< String > ) -> WebGlTexture
 {
   let window = web_sys::window().unwrap();
@@ -79,6 +80,7 @@ fn upload_texture( gl : &WebGl2RenderingContext, src : Rc< String > ) -> WebGlTe
   texture
 }
 
+/// Creates a new texture from a given image path and returns its metadata.
 fn create_texture( 
   gl : &WebGl2RenderingContext,
   image_path : &str
@@ -109,6 +111,7 @@ fn create_texture(
   Some( texture_info )
 }
 
+/// Initializes the WebGL2 rendering context and an HTML canvas.
 fn init_context() -> ( WebGl2RenderingContext, HtmlCanvasElement )
 {
   gl::browser::setup( Default::default() );
@@ -122,6 +125,7 @@ fn init_context() -> ( WebGl2RenderingContext, HtmlCanvasElement )
   ( gl, canvas )
 }
 
+/// Initializes a camera based on the scene's bounding box and canvas dimensions.
 fn init_camera( canvas : &HtmlCanvasElement, scenes : &[ Rc< RefCell< Scene > > ] ) -> Camera
 {
   let width = canvas.width() as f32;
@@ -149,6 +153,7 @@ fn init_camera( canvas : &HtmlCanvasElement, scenes : &[ Rc< RefCell< Scene > > 
   camera
 }
 
+/// Clones a node and its children, adding them to the GLTF scene and internal lists.
 fn clone( gltf : &mut GLTF, node : &Rc< RefCell< Node > > ) -> Rc< RefCell< Node > > 
 {
   let clone = node.borrow().clone_tree();
@@ -167,6 +172,7 @@ fn clone( gltf : &mut GLTF, node : &Rc< RefCell< Node > > ) -> Rc< RefCell< Node
   clone
 }
 
+/// Sets the texture on a node's materials using a callback.
 fn set_texture
 ( 
   node : &Rc< RefCell< Node > >,
@@ -182,6 +188,7 @@ fn set_texture
   }
 }
 
+/// Asynchronously sets up the initial GLTF scene with multiple textured objects.
 async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglError >
 {
   let window = web_sys::window().unwrap();
@@ -251,10 +258,12 @@ pub fn modulo( dividend : f64, divisor : f64 ) -> f64
   result
 }
 
+/// A helper struct to create a 4x4 identity matrix.
 struct IndentityMatrix;
 
 impl IndentityMatrix
 {
+  /// Creates a new 4x4 identity matrix.
   fn new() -> F32x4x4
   {
     let mut identity = gl::F32x4x4::default();
@@ -267,6 +276,7 @@ impl IndentityMatrix
   }
 }
 
+/// The main asynchronous function that sets up the scene, camera, and render loop.
 async fn run() -> Result< (), gl::WebglError >
 {
   let ( gl, canvas ) = init_context();
@@ -386,6 +396,7 @@ async fn run() -> Result< (), gl::WebglError >
   Ok( () )
 }
 
+/// The main entry point of the application.
 fn main()
 {
   gl::spawn_local( async move { run().await.unwrap() } );
