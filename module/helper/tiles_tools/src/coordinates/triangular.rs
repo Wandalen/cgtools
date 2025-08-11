@@ -1,7 +1,9 @@
 use core::marker::PhantomData;
 use std::{ fmt::Debug, hash::Hash };
 use crate::coordinates;
-use coordinates::{ ToDual, Neighbors, hexagonal::*, pixel::Pixel };
+use coordinates::{ ToDual, Neighbors, Distance, hexagonal, pixel::Pixel };
+
+const SQRT_3 : f32 = 1.732_050_8;
 
 #[ derive( Debug ) ]
 pub struct FlatTopped;
@@ -12,7 +14,7 @@ pub struct FlatSided;
 /// Represents a coordinate in a tri-axial grid system, often used for triangular tiling.
 /// Each coordinate defines a unique triangle on the grid.
 #[ derive( serde::Serialize, serde::Deserialize ) ]
-pub struct Triangular< Orientation >
+pub struct Coordinate< Orientation >
 {
   /// The 'a' component of the tri-axial coordinate.
   pub a : i32,
@@ -24,7 +26,7 @@ pub struct Triangular< Orientation >
   _marker : PhantomData< Orientation >
 }
 
-impl< Orientation > Debug for Triangular< Orientation >
+impl< Orientation > Debug for Coordinate< Orientation >
 {
   fn fmt( &self, f : &mut std::fmt::Formatter< '_ > ) -> std::fmt::Result
   {
@@ -38,7 +40,7 @@ impl< Orientation > Debug for Triangular< Orientation >
   }
 }
 
-impl< Orientation > Clone for Triangular< Orientation >
+impl< Orientation > Clone for Coordinate< Orientation >
 {
   fn clone( &self ) -> Self
   {
@@ -46,9 +48,9 @@ impl< Orientation > Clone for Triangular< Orientation >
   }
 }
 
-impl< Orientation > Copy for Triangular< Orientation > {}
+impl< Orientation > Copy for Coordinate< Orientation > {}
 
-impl< Orientation > Hash for Triangular< Orientation >
+impl< Orientation > Hash for Coordinate< Orientation >
 {
   fn hash< H : std::hash::Hasher >( &self, state : &mut H )
   {
@@ -59,7 +61,7 @@ impl< Orientation > Hash for Triangular< Orientation >
   }
 }
 
-impl< Orientation > PartialEq for Triangular< Orientation >
+impl< Orientation > PartialEq for Coordinate< Orientation >
 {
   fn eq(&self, other: &Self) -> bool
   {
@@ -67,17 +69,10 @@ impl< Orientation > PartialEq for Triangular< Orientation >
   }
 }
 
-impl< Orientation > Eq for Triangular< Orientation > {}
+impl< Orientation > Eq for Coordinate< Orientation > {}
 
-impl< Orientation > Triangular< Orientation >
+impl< Orientation > Coordinate< Orientation >
 {
-  /// A pre-calculated constant for the square root of 3.
-  const SQRT_3 : f32 = 1.732_050_8;
-  /// Distance between neighbor unit hexagonals equals to length of a triangle side
-  const SIDE_LENGHT : f32 = Self::SQRT_3;
-  /// The size of a cell used for converting between pixel and grid coordinates.
-  const CELL_SIZE : [ f32; 2 ] = [ Self::SIDE_LENGHT * Self::SQRT_3 / 2.0, Self::SIDE_LENGHT ];
-
   /// Creates a new `TriAxial` coordinate from its three components.
   #[ inline ]
   #[ must_use ]
@@ -109,33 +104,12 @@ impl< Orientation > Triangular< Orientation >
 
   #[ inline ]
   pub const fn is_down_or_left( &self ) -> bool { self.a + self.b + self.c == 1 }
-
-  /// Finds the six triangles that surround a given hexagonal coordinate.
-  #[ inline ]
-  #[ must_use ]
-  pub const fn from_hex_coord( HexCoord { q, r, .. } : HexCoord ) -> [ Self; 6 ]
-  {
-    let s = -q - r;
-
-    let a = q;
-    let b = r;
-    let c = s;
-
-    [
-      Triangular::new( a + 1, b,     c     ),
-      Triangular::new( a,     b + 1, c     ),
-      Triangular::new( a,     b,     c + 1 ),
-      Triangular::new( a + 1, b + 1, c     ),
-      Triangular::new( a,     b + 1, c + 1 ),
-      Triangular::new( a + 1, b,     c + 1 ),
-    ]
-  }
 }
 
-impl< HOrientation, TOrientation > ToDual< Coordinate< Axial, HOrientation > > for Triangular< TOrientation >
+impl< HOrientation, TOrientation > ToDual< hexagonal::Coordinate< hexagonal::Axial, HOrientation > > for Coordinate< TOrientation >
 {
   #[ inline ]
-  fn dual( &self ) -> Vec< Coordinate< Axial, HOrientation > >
+  fn dual( &self ) -> Vec< hexagonal::Coordinate< hexagonal::Axial, HOrientation > >
   {
     let corners = self.corners();
     corners.map
@@ -144,13 +118,13 @@ impl< HOrientation, TOrientation > ToDual< Coordinate< Axial, HOrientation > > f
       {
         let q = a;
         let r = b;
-        Coordinate::new_uncheked( q, r )
+        hexagonal::Coordinate::new_uncheked( q, r )
       }
     ).to_vec()
   }
 }
 
-impl< Orientation > Neighbors for Triangular< Orientation >
+impl< Orientation > Neighbors for Coordinate< Orientation >
 {
   /// Returns the three immediate neighbors of the current triangle.
   #[ inline ]
@@ -170,16 +144,31 @@ impl< Orientation > Neighbors for Triangular< Orientation >
   }
 }
 
-impl Triangular< FlatSided >
+impl< Orientation > Distance for Coordinate< Orientation >
 {
-   /// Converts a 2D point (e.g., from a mouse click) to the nearest `TriAxial` coordinate.
+  #[ inline ]
+  fn distance( &self, other : &Self ) -> u32
+  {
+    (
+      ( self.a as i64 - other.a as i64 ).abs()
+      + ( self.b as i64 - other.b as i64 ).abs()
+      + ( self.c as i64 - other.c as i64 ).abs()
+    ) as u32
+  }
+}
+
+impl Coordinate< FlatSided >
+{
+  /// Converts a 2D point (e.g., from a mouse click) to the nearest `TriAxial` coordinate.
   #[ inline ]
   #[ must_use ]
   #[ allow( clippy::cast_possible_truncation ) ]
-  pub fn from_pixel_with_size( Pixel { data : [ x, y ]  } : Pixel, side_size : f32 ) -> Self
+  pub fn from_pixel_with_edge_len( Pixel { data : [ x, y ]  } : Pixel, edge_length : f32 ) -> Self
   {
-    let x = x / Self::CELL_SIZE[ 0 ];
-    let y = y / Self::CELL_SIZE[ 1 ];
+    let cell_size : [ f32; 2 ] = [ edge_length * SQRT_3 / 2.0, edge_length ];
+
+    let x = x / cell_size[ 0 ];
+    let y = y / cell_size[ 1 ];
 
     Self::new
     (
@@ -192,12 +181,45 @@ impl Triangular< FlatSided >
   /// Converts a `TriAxial` coordinate to its 2D point representation in space.
   #[ inline ]
   #[ must_use ]
-  pub const fn to_pixel_with_size( &self, side_size : f32 ) -> Pixel
+  pub fn to_pixel_with_edge_len( &self, edge_length : f32 ) -> Pixel
+  {
+    let cell_size : [ f32; 2 ] = [ edge_length * SQRT_3 / 2.0, edge_length ];
+
+    let Self { a, b, c, .. } = *self;
+
+    [
+      ( -1.0 / 3.0 * b as f32 + 2.0 / 3.0 * a as f32 - 1.0 / 3.0 * c as f32 ) * cell_size[ 0 ],
+      ( 0.5 * b as f32 - 0.5 * c as f32 ) * cell_size[ 1 ],
+    ].into()
+  }
+}
+
+impl Coordinate< FlatTopped >
+{
+  /// Converts a 2D point (e.g., from a mouse click) to the nearest `TriAxial` coordinate.
+  #[ inline ]
+  #[ must_use ]
+  #[ allow( clippy::cast_possible_truncation ) ]
+  pub fn from_pixel_with_edge_len( Pixel { data : [ x, y ]  } : Pixel, edge_length : f32 ) -> Self
+  {
+    Self::new
+    (
+      ( (  1.0 * x - SQRT_3 / 3.0 * y ) / edge_length ).ceil()  as i32,
+      ( (      SQRT_3 * 2.0 / 3.0 * y ) / edge_length ).floor() as i32 + 1,
+      ( ( -1.0 * x - SQRT_3 / 3.0 * y ) / edge_length ).ceil()  as i32,
+    )
+  }
+
+  /// Converts a `TriAxial` coordinate to its 2D point representation in space.
+  #[ inline ]
+  #[ must_use ]
+  pub fn to_pixel_with_edge_len( &self, edge_length : f32 ) -> Pixel
   {
     let Self { a, b, c, .. } = *self;
+
     [
-      ( -1.0 / 3.0 * b as f32 + 2.0 / 3.0 * a as f32 - 1.0 / 3.0 * c as f32 ) * Self::CELL_SIZE[ 0 ],
-      ( 0.5 * b as f32 - 0.5 * c as f32 ) * Self::CELL_SIZE[ 1 ],
+      (           0.5 * a as f32 +                                   -0.5 * c as f32 ) * edge_length,
+      ( -SQRT_3 / 6.0 * a as f32 + SQRT_3 / 3.0 * b as f32 - SQRT_3 / 6.0 * c as f32 ) * edge_length
     ].into()
   }
 }
