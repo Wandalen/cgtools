@@ -66,6 +66,3 @@ cd examples/minwebgl/trivial
 trunk serve --release
 ```
 
-## License
-
-MIT

@@ -1,3 +1,5 @@
+#![ allow( clippy::expect_fun_call ) ]
+
 use web_sys::
 {
   wasm_bindgen,

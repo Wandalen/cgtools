@@ -439,10 +439,3 @@ fn debug_render_intermediate( &self, texture : &WebGlTexture )
 }
 ```
 
-## 🤝 Contributing
-
-Part of the CGTools workspace. Feel free to submit issues and pull requests on GitHub.
-
-## 📄 License
-
-MIT
