@@ -1,4 +1,29 @@
 //! Integration tests for the ECS (Entity-Component-System) module.
+
+#![allow(clippy::needless_return)]
+#![allow(clippy::implicit_return)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::items_after_statements)]
+#![allow(clippy::unnecessary_cast)]
+#![allow(clippy::doc_markdown)]
+#![allow(clippy::cast_sign_loss)]
+#![allow(clippy::explicit_iter_loop)]
+#![allow(clippy::format_in_format_args)]
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::wildcard_imports)]
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::std_instead_of_core)]
+#![allow(clippy::similar_names)]
+#![allow(clippy::duplicated_attributes)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::trivially_copy_pass_by_ref)]
+#![allow(clippy::missing_inline_in_public_items)]
+#![allow(clippy::useless_vec)]
+#![allow(clippy::unnested_or_patterns)]
+#![allow(clippy::else_if_without_else)]
+#![allow(clippy::unreadable_literal)]
+#![allow(clippy::redundant_else)]
+#![allow(clippy::float_cmp)]
 //!
 //! These tests verify that the ECS implementation works correctly with all
 //! coordinate systems and provides complete game development functionality.
@@ -30,14 +55,16 @@ use tiles_tools::coordinates::{
 // Basic World and Entity Tests
 // =============================================================================
 
-#[test]
-fn test_world_creation() {
+#[ test ]
+fn test_world_creation()
+{
   let world = World::new();
   assert_eq!(world.elapsed_time(), 0.0);
 }
 
-#[test] 
-fn test_entity_spawning_square_coords() {
+#[ test ]
+fn test_entity_spawning_square_coords()
+{
   let mut world = World::new();
   
   let player = world.spawn((
@@ -57,8 +84,9 @@ fn test_entity_spawning_square_coords() {
   assert_eq!(health.maximum, 100);
 }
 
-#[test]
-fn test_entity_spawning_hex_coords() {
+#[ test ]
+fn test_entity_spawning_hex_coords()
+{
   let mut world = World::new();
   
   let enemy = world.spawn((
@@ -80,8 +108,9 @@ fn test_entity_spawning_hex_coords() {
 // Entity Builder Tests
 // =============================================================================
 
-#[test]
-fn test_entity_builder_player() {
+#[ test ]
+fn test_entity_builder_player()
+{
   let mut world = World::new();
   
   let player = world.spawn(EntityBuilder::player(
@@ -101,8 +130,9 @@ fn test_entity_builder_player() {
   assert!(world.get::<Size>(player).is_ok());
 }
 
-#[test]
-fn test_entity_builder_enemy() {
+#[ test ]
+fn test_entity_builder_enemy()
+{
   let mut world = World::new();
   
   let enemy = world.spawn(EntityBuilder::enemy(
@@ -121,8 +151,9 @@ fn test_entity_builder_enemy() {
 // Component Functionality Tests
 // =============================================================================
 
-#[test]
-fn test_health_component() {
+#[ test ]
+fn test_health_component()
+{
   let mut health = Health::new(100);
   assert!(health.is_alive());
   assert!(health.is_full_health());
@@ -145,8 +176,9 @@ fn test_health_component() {
   assert!(!health.is_alive());
 }
 
-#[test]
-fn test_stats_component() {
+#[ test ]
+fn test_stats_component()
+{
   let attacker_stats = Stats::new(20, 5, 12, 2);
   let defender_stats = Stats::new(15, 10, 8, 1);
   
@@ -154,8 +186,9 @@ fn test_stats_component() {
   assert_eq!(damage, 15); // 20 - (10/2) = 15
 }
 
-#[test]
-fn test_team_relationships() {
+#[ test ]
+fn test_team_relationships()
+{
   let team_a = Team::new(0);
   let team_b = Team::new(1);
   let team_c = Team::hostile(2);
@@ -171,8 +204,9 @@ fn test_team_relationships() {
   assert!(team_c.is_hostile_to(&team_b)); // team_c is hostile
 }
 
-#[test]
-fn test_position_component_with_neighbors() {
+#[ test ]
+fn test_position_component_with_neighbors()
+{
   let pos = Position::new(SquareCoord::<FourConnected>::new(2, 2));
   let neighbors = pos.neighbors();
   
@@ -191,8 +225,9 @@ fn test_position_component_with_neighbors() {
   }
 }
 
-#[test]
-fn test_animation_component() {
+#[ test ]
+fn test_animation_component()
+{
   let mut anim = Animation::new(4, 0.25); // 4 frames, 0.25s per frame
   assert_eq!(anim.current_frame, 0);
   assert!(anim.playing);
@@ -216,8 +251,9 @@ fn test_animation_component() {
 // World System Integration Tests
 // =============================================================================
 
-#[test]
-fn test_world_update_systems() {
+#[ test ]
+fn test_world_update_systems()
+{
   let mut world = World::new();
   
   // Create entities with various components
@@ -248,8 +284,9 @@ fn test_world_update_systems() {
   assert!(ai.decision_timer < 1.0);
 }
 
-#[test] 
-fn test_world_spatial_queries() {
+#[ test ]
+fn test_world_spatial_queries()
+{
   let mut world = World::new();
   
   let center_pos = Position::new(SquareCoord::<FourConnected>::new(5, 5));
@@ -286,8 +323,9 @@ fn test_world_spatial_queries() {
 // Cross-Coordinate System Tests
 // =============================================================================
 
-#[test]
-fn test_mixed_coordinate_systems() {
+#[ test ]
+fn test_mixed_coordinate_systems()
+{
   let mut world = World::new();
   
   // Create entities with different coordinate systems in the same world
@@ -317,8 +355,9 @@ fn test_mixed_coordinate_systems() {
   assert_eq!(hex_entities.len(), 1);
 }
 
-#[test]
-fn test_entity_lifecycle() {
+#[ test ]
+fn test_entity_lifecycle()
+{
   let mut world = World::new();
   
   // Spawn entity with low health
@@ -341,8 +380,9 @@ fn test_entity_lifecycle() {
   assert!(world.get::<Health>(entity).is_err());
 }
 
-#[test]
-fn test_movement_requests() {
+#[ test ]
+fn test_movement_requests()
+{
   let mut world = World::new();
   
   let entity = world.spawn((
@@ -365,8 +405,9 @@ fn test_movement_requests() {
 // Performance and Edge Case Tests  
 // =============================================================================
 
-#[test]
-fn test_large_entity_count() {
+#[ test ]
+fn test_large_entity_count()
+{
   let mut world = World::new();
   let mut entities = Vec::new();
   
@@ -390,8 +431,9 @@ fn test_large_entity_count() {
   world.update(0.016);
 }
 
-#[test]
-fn test_component_combinations() {
+#[ test ]
+fn test_component_combinations()
+{
   let mut world = World::new();
   
   // Test entity with maximum components

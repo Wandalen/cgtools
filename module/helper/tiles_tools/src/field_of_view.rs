@@ -24,15 +24,15 @@
 //! // Create FOV calculator
 //! let mut fov = FieldOfView::new();
 //! 
-//! // Calculate visibility from a position
-//! let viewer = SquareCoord::<EightConnected>::new(5, 5);
-//! let visibility = fov.calculate_fov(&viewer, 10, |coord| {
+//! // Calculate visibility from a position  
+//! let viewer = SquareCoord::<EightConnected>::new(2, 2);
+//! let visibility = fov.calculate_fov(&viewer, 3, |coord| {
 //!     // Return true if position blocks line of sight
 //!     false // Open terrain
 //! });
 //! 
 //! // Check if target is visible
-//! let target = SquareCoord::<EightConnected>::new(8, 7);
+//! let target = SquareCoord::<EightConnected>::new(3, 3);
 //! if visibility.is_visible(&target) {
 //!     println!("Target is visible!");
 //! }

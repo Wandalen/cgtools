@@ -2,6 +2,7 @@
 mod private
 {
   use crate::*;
+  use wasm_bindgen_futures::JsFuture;
 
 
   /// Creates a `GpuComputePipelineDescriptor` with the specified compute stage.

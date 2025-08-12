@@ -1,3 +1,5 @@
+#![ allow( clippy::if_not_else ) ]
+
 use crate::*;
 use utils::*;
 use filters::*;

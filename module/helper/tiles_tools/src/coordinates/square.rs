@@ -33,7 +33,9 @@
 
 use crate::coordinates::{ Distance, Neighbors };
 use serde::{ Deserialize, Serialize };
-use std::{ fmt::Debug, hash::Hash, marker::PhantomData };
+use std::fmt::Debug;
+use std::hash::Hash;
+use std::marker::PhantomData;
 
 /// Square grid system marker
 #[derive(Debug)]

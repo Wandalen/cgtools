@@ -482,10 +482,3 @@ impl LifeGrid {
 }
 ```
 
-## 🤝 Contributing
-
-Part of the CGTools workspace. Feel free to submit issues and pull requests on GitHub.
-
-## 📄 License
-
-MIT

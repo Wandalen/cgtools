@@ -12,7 +12,7 @@ fn manual_setup_test()
 #[ test ]
 fn setpu_test()
 {
-  browser_log::panic::setup( Default::default() );
-  browser_log::panic::setup( Default::default() );
-  browser_log::panic::setup( Default::default() );
+  browser_log::panic::setup( browser_log::panic::Config::default() );
+  browser_log::panic::setup( browser_log::panic::Config::default() );
+  browser_log::panic::setup( browser_log::panic::Config::default() );
 }

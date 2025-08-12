@@ -13,6 +13,30 @@
 //! | FF3.1   | Multi     | Batch Process  | Efficient      |
 //! | FF4.1   | Dynamic   | Incremental    | Fast Update    |
 
+#![allow(clippy::needless_return)]
+#![allow(clippy::implicit_return)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::items_after_statements)]
+#![allow(clippy::unnecessary_cast)]
+#![allow(clippy::doc_markdown)]
+#![allow(clippy::cast_sign_loss)]
+#![allow(clippy::explicit_iter_loop)]
+#![allow(clippy::format_in_format_args)]
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::wildcard_imports)]
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::std_instead_of_core)]
+#![allow(clippy::similar_names)]
+#![allow(clippy::duplicated_attributes)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::trivially_copy_pass_by_ref)]
+#![allow(clippy::missing_inline_in_public_items)]
+#![allow(clippy::useless_vec)]
+#![allow(clippy::unnested_or_patterns)]
+#![allow(clippy::else_if_without_else)]
+#![allow(clippy::unreadable_literal)]
+#![allow(clippy::redundant_else)]
+
 use tiles_tools::flowfield::{FlowField, FlowDirection, IntegrationField, MultiGoalFlowField};
 use tiles_tools::coordinates::{
   Distance, Neighbors,
@@ -24,21 +48,24 @@ use tiles_tools::coordinates::{
 // Basic Flow Field Tests
 // =============================================================================
 
-#[test]
-fn test_integration_field_creation() {
+#[ test ]
+fn test_integration_field_creation()
+{
   let integration = IntegrationField::<(), ()>::new(10, 10);
   assert_eq!(integration.max_cost, u32::MAX);
 }
 
-#[test]
-fn test_flow_field_creation() {
+#[ test ]
+fn test_flow_field_creation()
+{
   let flow_field = FlowField::<(), ()>::new(15, 15);
   assert_eq!(flow_field.width, 15);
   assert_eq!(flow_field.height, 15);
 }
 
-#[test]
-fn test_flow_direction_variants() {
+#[ test ]
+fn test_flow_direction_variants()
+{
   let none_dir = FlowDirection::None;
   let move_dir = FlowDirection::Move(1, 0);
   
@@ -60,8 +87,9 @@ fn test_flow_direction_variants() {
 // Square Grid Flow Field Tests
 // =============================================================================
 
-#[test]
-fn test_square_grid_flow_field_basic() {
+#[ test ]
+fn test_square_grid_flow_field_basic()
+{
   let mut flow_field = FlowField::<(), ()>::new(5, 5);
   
   // Test basic properties
@@ -76,8 +104,9 @@ fn test_square_grid_flow_field_basic() {
   // In a full implementation, would verify actual flow directions
 }
 
-#[test] 
-fn test_square_grid_obstacles() {
+#[ test ]
+fn test_square_grid_obstacles()
+{
   let mut flow_field = FlowField::<(), ()>::new(8, 8);
   
   let goal = SquareCoord::<FourConnected>::new(6, 6);
@@ -98,8 +127,9 @@ fn test_square_grid_obstacles() {
   // Units should path around obstacles
 }
 
-#[test]
-fn test_square_grid_terrain_costs() {
+#[ test ]
+fn test_square_grid_terrain_costs()
+{
   let mut flow_field = FlowField::<(), ()>::new(6, 6);
   
   let goal = SquareCoord::<EightConnected>::new(5, 5);
@@ -124,8 +154,9 @@ fn test_square_grid_terrain_costs() {
 // Hexagonal Grid Flow Field Tests
 // =============================================================================
 
-#[test]
-fn test_hexagonal_grid_flow_field() {
+#[ test ]
+fn test_hexagonal_grid_flow_field()
+{
   let mut flow_field = FlowField::<(), ()>::new(7, 7);
   
   let goal = HexCoord::<Axial, Pointy>::new(0, 0);
@@ -137,8 +168,9 @@ fn test_hexagonal_grid_flow_field() {
   // In full implementation would verify flow direction points toward goal
 }
 
-#[test]
-fn test_hex_grid_with_water_obstacles() {
+#[ test ]
+fn test_hex_grid_with_water_obstacles()
+{
   let mut flow_field = FlowField::<(), ()>::new(10, 10);
   
   let goal = HexCoord::<Axial, Pointy>::new(4, -2);
@@ -162,8 +194,9 @@ fn test_hex_grid_with_water_obstacles() {
 // Batch Processing Tests
 // =============================================================================
 
-#[test]
-fn test_batch_flow_direction_queries() {
+#[ test ]
+fn test_batch_flow_direction_queries()
+{
   let flow_field = FlowField::<(), ()>::new(12, 12);
   
   let test_coordinates = vec![
@@ -178,8 +211,9 @@ fn test_batch_flow_direction_queries() {
   assert_eq!(directions.len(), test_coordinates.len());
 }
 
-#[test]
-fn test_group_movement_flow_application() {
+#[ test ]
+fn test_group_movement_flow_application()
+{
   let flow_field = FlowField::<(), ()>::new(15, 15);
   
   let unit_positions = vec![
@@ -200,14 +234,16 @@ fn test_group_movement_flow_application() {
 // Multi-Goal Flow Field Tests  
 // =============================================================================
 
-#[test]
-fn test_multi_goal_flow_field_creation() {
+#[ test ]
+fn test_multi_goal_flow_field_creation()
+{
   let multi_field = MultiGoalFlowField::<(), ()>::new(20, 20);
   assert_eq!(multi_field.goal_fields.len(), 0);
 }
 
-#[test]
-fn test_multi_goal_resource_gathering() {
+#[ test ]
+fn test_multi_goal_resource_gathering()
+{
   let mut multi_field = MultiGoalFlowField::<(), ()>::new(25, 25);
   
   // Add multiple resource nodes as goals
@@ -228,8 +264,9 @@ fn test_multi_goal_resource_gathering() {
   let _optimal_direction = multi_field.get_optimal_direction(&worker_pos);
 }
 
-#[test]
-fn test_multi_goal_capture_points() {
+#[ test ]
+fn test_multi_goal_capture_points()
+{
   let mut multi_field = MultiGoalFlowField::<(), ()>::new(30, 30);
   
   // Add capture points for RTS scenario
@@ -252,8 +289,9 @@ fn test_multi_goal_capture_points() {
 // Performance and Stress Tests
 // =============================================================================
 
-#[test]
-fn test_large_grid_performance() {
+#[ test ]
+fn test_large_grid_performance()
+{
   let mut flow_field = FlowField::<(), ()>::new(100, 100);
   
   let goal = SquareCoord::<FourConnected>::new(50, 50);
@@ -267,8 +305,9 @@ fn test_large_grid_performance() {
   assert!(calculation_time.as_millis() < 5000); // 5 second max
 }
 
-#[test]
-fn test_many_units_batch_processing() {
+#[ test ]
+fn test_many_units_batch_processing()
+{
   let flow_field = FlowField::<(), ()>::new(50, 50);
   
   // Create many unit positions
@@ -296,8 +335,9 @@ fn test_many_units_batch_processing() {
 // Edge Case and Error Handling Tests
 // =============================================================================
 
-#[test]
-fn test_flow_field_with_no_goal() {
+#[ test ]
+fn test_flow_field_with_no_goal()
+{
   let flow_field = FlowField::<(), ()>::new(5, 5);
   
   let test_pos = SquareCoord::<FourConnected>::new(2, 2);
@@ -307,8 +347,9 @@ fn test_flow_field_with_no_goal() {
   // In uninitialized flow field, all directions are None
 }
 
-#[test]
-fn test_flow_field_unreachable_goal() {
+#[ test ]
+fn test_flow_field_unreachable_goal()
+{
   let mut flow_field = FlowField::<(), ()>::new(10, 10);
   
   let goal = SquareCoord::<FourConnected>::new(8, 8);
@@ -336,15 +377,17 @@ fn test_flow_field_unreachable_goal() {
   // Should be None or indicate no valid path
 }
 
-#[test]
-fn test_zero_dimension_flow_field() {
+#[ test ]
+fn test_zero_dimension_flow_field()
+{
   let flow_field = FlowField::<(), ()>::new(0, 0);
   assert_eq!(flow_field.width, 0);
   assert_eq!(flow_field.height, 0);
 }
 
-#[test]
-fn test_single_cell_flow_field() {
+#[ test ]
+fn test_single_cell_flow_field()
+{
   let mut flow_field = FlowField::<(), ()>::new(1, 1);
   
   let goal = SquareCoord::<FourConnected>::new(0, 0);
@@ -359,8 +402,9 @@ fn test_single_cell_flow_field() {
 // Integration with ECS Tests
 // =============================================================================
 
-#[test]
-fn test_flow_field_ecs_integration() {
+#[ test ]
+fn test_flow_field_ecs_integration()
+{
   use tiles_tools::ecs::{World, Position, Movable};
   
   let mut world = World::new();
@@ -391,8 +435,9 @@ fn test_flow_field_ecs_integration() {
   // Flow field integration with ECS works correctly
 }
 
-#[test]
-fn test_rts_scenario_simulation() {
+#[ test ]
+fn test_rts_scenario_simulation()
+{
   use tiles_tools::ecs::{World, Position, Team};
   
   let mut world = World::new();
