@@ -359,3 +359,9 @@ version = "0.5"
 
 [workspace.dependencies.hecs]
 version = "0.10"
+
+[workspace.dependencies.unilang]
+path = "/home/user1/pro/lib/wTools/module/move/unilang"
+
+[workspace.dependencies.rustyline]
+version = "14.0"

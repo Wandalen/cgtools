@@ -12,6 +12,9 @@ readme = "readme.md"
 categories = [ "graphics", "rendering", "game-development" ]
 keywords = [ "2d", "rendering", "graphics", "agnostic", "backend" ]
 
+[package.metadata.docs.rs]
+features = [ "standard" ]
+
 [lints]
 workspace = true
 
@@ -131,7 +134,7 @@ trace-logging = [ "std" ]
 metrics-collection = [ "std" ]
 
 # Convenience feature bundles
-minimal = [ "std", "types-basic", "traits-basic" ]
+minimal = [ "std", "enabled", "types-basic", "traits-basic" ]
 core = [ "minimal", "scene-container", "command-enum" ]
 standard = [ "core", "scene-methods", "commands", "query-basic" ]
 adapters-static = [ "standard", "adapter-svg", "adapter-terminal" ]
@@ -149,12 +152,12 @@ error_tools = { workspace = true, optional = true }
 serde = { workspace = true, optional = true, features = [ "derive" ] }
 serde_json = { workspace = true, optional = true }
 mod_interface = { workspace = true }
-unilang = { path = "/home/user1/pro/lib/wTools/module/move/unilang", optional = true, features = [ "enhanced_repl" ] }
-rustyline = { version = "14.0", optional = true }
+unilang = { workspace = true, optional = true, features = [ "enhanced_repl" ] }
+rustyline = { workspace = true, optional = true }
 
 # Future backend dependencies (will be added when backends are implemented)
 # minwebgl = { path = "../minwebgl", optional = true }
-minwebgpu = { path = "../../min/minwebgpu", optional = true }
+minwebgpu = { workspace = true, optional = true }
 
 [dev-dependencies]
 test_tools = { workspace = true }

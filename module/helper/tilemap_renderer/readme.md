@@ -15,7 +15,15 @@ This crate provides a high-performance, backend-agnostic 2D rendering engine des
 
 ## usage
 
-```rust
+This crate uses ultra-granular features for minimal builds. For full functionality, enable the `standard` feature:
+
+```toml
+[dependencies]
+tilemap_renderer = { version = "0.1", features = ["standard"] }
+```
+
+```rust,ignore
+// Example requires "standard" feature enabled
 use tilemap_renderer::{ scene::Scene, commands::* };
 
 // Create a new scene
