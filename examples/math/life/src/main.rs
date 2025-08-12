@@ -1,3 +1,6 @@
+#![allow(clippy::reversed_empty_ranges)] // False positive: ndarray negative indexing syntax
+#![allow(clippy::uninlined_format_args)] // Domain-specific: prefers explicit format args for clarity
+
 // Import the ndarray_cg crate's prelude for array manipulation
 use ndarray_cg::prelude::*;
 

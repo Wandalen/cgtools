@@ -4,12 +4,9 @@
 
 use crate::coordinates::hexagonal::Coordinate;
 use ndarray_cg::{ Array2, I64x2, nd::iter::Iter };
-use std::
-{
-  fmt::Debug,
-  marker::PhantomData,
-  ops::{ Index, IndexMut },
-};
+use std::fmt::Debug;
+use std::marker::PhantomData;
+use std::ops::{ Index, IndexMut };
 
 /// A generic 2D grid for storing data associated with hexagonal coordinates.
 ///

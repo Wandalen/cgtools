@@ -2,6 +2,7 @@
 mod private
 {
   use crate::*;
+  use wasm_bindgen_futures::JsFuture;
 
   /// Creates a new `RenderPipelineDescriptor` with the specified vertex state.
   pub fn desc< 'a, T >( vertex : T ) -> RenderPipelineDescriptor< 'a >

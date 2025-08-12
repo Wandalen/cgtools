@@ -39,25 +39,53 @@ canvas_renderer = { version = "0.1.0", features = ["full"] }
 
 ### Basic Canvas Rendering
 
-```rust
-use canvas_renderer::renderer::CanvasRenderer;
+```rust,no_run
+# use canvas_renderer::renderer::CanvasRenderer;
+# use minwebgl as gl;
+# use std::error::Error;
+# 
+# fn example() -> Result<(), Box<dyn Error>> {
+# let gl_context: &gl::GL = todo!("Get WebGL context from canvas");
+# let width = 800u32;
+# let height = 600u32;
 
 // Initialize the renderer
-let renderer = CanvasRenderer::new(canvas_element)?;
+let renderer = CanvasRenderer::new(gl_context, width, height)?;
 
-// Render your content
-renderer.render_to_canvas(texture, width, height)?;
+// Access the output texture
+let _output_texture = renderer.get_texture();
+
+# Ok(())
+# }
 ```
 
 ### Framebuffer Rendering
 
-```rust
-// Render 3D scene to framebuffer
-let framebuffer = renderer.create_framebuffer(width, height)?;
-renderer.render_scene_to_framebuffer(&scene, &framebuffer)?;
+```rust,no_run
+# use canvas_renderer::renderer::CanvasRenderer;
+# use minwebgl as gl;
+# use renderer::webgl::{Scene, Camera};
+# use minwebgl::F32x4;
+# use std::error::Error;
+# 
+# fn example() -> Result<(), Box<dyn Error>> {
+# let gl_context: &gl::GL = todo!("Get WebGL context from canvas");
+# let width = 800u32;
+# let height = 600u32;
+# let mut scene: Scene = todo!("Create scene");
+# let camera: Camera = todo!("Create camera");
+# let colors = vec![F32x4::from_array([1.0, 0.0, 0.0, 1.0])];
 
-// Convert framebuffer to 2D canvas
-renderer.framebuffer_to_canvas(&framebuffer)?;
+let renderer = CanvasRenderer::new(gl_context, width, height)?;
+
+// Render 3D scene to internal framebuffer
+renderer.render(gl_context, &mut scene, &camera, &colors)?;
+
+// Access the rendered texture
+let _output_texture = renderer.get_texture();
+
+# Ok(())
+# }
 ```
 
 ## Platform Support

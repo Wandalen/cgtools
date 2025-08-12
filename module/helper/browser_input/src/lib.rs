@@ -11,6 +11,22 @@
 //! `Input` struct goes out of scope.
 //!
 
+#![allow(clippy::exhaustive_enums)]
+#![allow(clippy::std_instead_of_core)]
+#![allow(clippy::exhaustive_structs)]
+#![allow(clippy::implicit_return)]
+#![allow(clippy::default_trait_access)]
+#![allow(clippy::missing_inline_in_public_items)]
+#![allow(clippy::must_use_candidate)]
+#![allow(clippy::missing_panics_doc)]
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::semicolon_if_nothing_returned)]
+#![allow(clippy::needless_pass_by_value)]
+#![allow(clippy::min_ident_chars)]
+#![allow(clippy::string_to_string)]
+#![allow(clippy::non_ascii_literal)]
+#![allow(clippy::doc_markdown)]
+
 mod input;
 mod util;
 pub mod keyboard;

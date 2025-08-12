@@ -52,7 +52,7 @@ crate::mod_interface!
   #[ cfg( feature = "general" ) ]
   layer general;
 
-  /// Reusing nd_array.
+  /// Reusing `nd_array`.
   #[ cfg( feature = "nd" ) ]
   layer nd;
 

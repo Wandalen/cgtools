@@ -502,7 +502,7 @@ mod tests
         assert_eq!( dx, 1 );
         assert_eq!( dy, 0 );
       }
-      _ => panic!( "Expected Move direction" ),
+      FlowDirection::None => panic!( "Expected Move direction" ),
     }
   }
 

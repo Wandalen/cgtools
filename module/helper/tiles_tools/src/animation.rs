@@ -47,8 +47,9 @@
 use std::collections::HashMap;
 
 /// Represents different easing functions for smooth animations.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum EasingFunction {
+#[ derive( Debug, Clone, Copy, PartialEq ) ]
+pub enum EasingFunction
+{
   /// Linear interpolation (constant speed)
   Linear,
   /// Ease in (slow start)
@@ -79,12 +80,15 @@ pub enum EasingFunction {
   BackOut,
 }
 
-impl EasingFunction {
+impl EasingFunction
+{
   /// Applies the easing function to a normalized time value (0.0 to 1.0).
-  pub fn apply(&self, t: f32) -> f32 {
+  pub fn apply( &self, t : f32 ) -> f32
+  {
     let t = t.clamp(0.0, 1.0);
     
-    match self {
+    match self
+    {
       EasingFunction::Linear => t,
       
       EasingFunction::EaseIn => t * t,
@@ -108,20 +112,26 @@ impl EasingFunction {
       }
       
       EasingFunction::EaseInCubic => t * t * t,
-      EasingFunction::EaseOutCubic => {
+      EasingFunction::EaseOutCubic =>
+      {
         let t1 = t - 1.0;
         1.0 + t1 * t1 * t1
       }
-      EasingFunction::EaseInOutCubic => {
-        if t < 0.5 {
+      EasingFunction::EaseInOutCubic =>
+      {
+        if t < 0.5
+        {
           4.0 * t * t * t
-        } else {
+        }
+        else
+        {
           let t1 = 2.0 * t - 2.0;
           1.0 + t1 * t1 * t1 / 2.0
         }
       }
       
-      EasingFunction::BounceOut => {
+      EasingFunction::BounceOut =>
+      {
         if t < 1.0 / 2.75 {
           7.5625 * t * t
         } else if t < 2.0 / 2.75 {

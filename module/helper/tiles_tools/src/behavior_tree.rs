@@ -51,8 +51,9 @@ use std::time::{Duration, Instant};
 use crate::coordinates::Distance;
 
 /// Status returned by behavior tree nodes during execution.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BehaviorStatus {
+#[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
+pub enum BehaviorStatus
+{
   /// Node completed successfully
   Success,
   /// Node failed to complete
@@ -62,8 +63,9 @@ pub enum BehaviorStatus {
 }
 
 /// Context passed through behavior tree execution containing game state.
-#[derive(Debug)]
-pub struct BehaviorContext {
+#[ derive( Debug ) ]
+pub struct BehaviorContext
+{
   /// Entity ID this behavior tree belongs to
   pub entity_id: Option<u32>,
   /// Current game time for time-based behaviors
@@ -76,10 +78,13 @@ pub struct BehaviorContext {
   pub properties: HashMap<String, BehaviorValue>,
 }
 
-impl BehaviorContext {
+impl BehaviorContext
+{
   /// Creates a new behavior context.
-  pub fn new() -> Self {
-    Self {
+  pub fn new() -> Self
+  {
+    Self
+    {
       entity_id: None,
       current_time: Instant::now(),
       delta_time: Duration::from_secs_f32(1.0 / 60.0), // Default 60 FPS
@@ -89,7 +94,8 @@ impl BehaviorContext {
   }
 
   /// Creates a context for a specific entity.
-  pub fn for_entity(entity_id: u32) -> Self {
+  pub fn for_entity( entity_id : u32 ) -> Self
+  {
     let mut context = Self::new();
     context.entity_id = Some(entity_id);
     context

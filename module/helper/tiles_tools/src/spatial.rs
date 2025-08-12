@@ -44,8 +44,9 @@
 use crate::coordinates::Distance;
 
 /// Represents a rectangular spatial boundary for quadtree operations.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct SpatialBounds {
+#[ derive( Debug, Clone, Copy, PartialEq ) ]
+pub struct SpatialBounds
+{
     /// Left boundary (minimum x)
     pub left: i32,
     /// Top boundary (minimum y)  
@@ -56,7 +57,8 @@ pub struct SpatialBounds {
     pub bottom: i32,
 }
 
-impl SpatialBounds {
+impl SpatialBounds
+{
     /// Creates a new spatial boundary.
     pub fn new(left: i32, top: i32, right: i32, bottom: i32) -> Self {
         Self { left, top, right, bottom }

@@ -118,10 +118,8 @@ pub trait BatchConvertApproximate<T, U> {
 // Exact Conversions: Square ↔ Isometric
 // =============================================================================
 
-use crate::coordinates::{
-  square::{Coordinate as SquareCoord, FourConnected as SquareFour, EightConnected as SquareEight},
-  isometric::{Coordinate as IsoCoord, Diamond},
-};
+use crate::coordinates::square::{ Coordinate as SquareCoord, FourConnected as SquareFour, EightConnected as SquareEight };
+use crate::coordinates::isometric::{ Coordinate as IsoCoord, Diamond };
 
 /// Square to Isometric conversion (exact).
 ///
@@ -157,9 +155,7 @@ impl Convert<SquareCoord<SquareEight>> for IsoCoord<Diamond> {
 // Approximate Conversions: Hexagonal ↔ Square/Isometric
 // =============================================================================
 
-use crate::coordinates::hexagonal::{
-  Coordinate as HexCoord, Axial, Pointy
-};
+use crate::coordinates::hexagonal::{ Coordinate as HexCoord, Axial, Pointy };
 
 /// Hexagonal to Square conversion (approximate).
 ///
@@ -217,7 +213,7 @@ impl ApproximateConvert<HexCoord<Axial, Pointy>> for IsoCoord<Diamond> {
 // Approximate Conversions: Triangular ↔ Other Systems
 // =============================================================================
 
-use crate::coordinates::triangular::{Coordinate as TriCoord, TwelveConnected};
+use crate::coordinates::triangular::{ Coordinate as TriCoord, TwelveConnected };
 
 /// Triangular to Square conversion (approximate).
 ///

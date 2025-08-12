@@ -2,8 +2,8 @@
 //! area within a hexagonal grid using offset coordinates. It provides methods for iterating
 //! over the coordinates within these bounds and for calculating the layout's center point in pixel space.
 
-use crate::coordinates::{hexagonal, pixel};
-use hexagonal::{Axial, Coordinate, Flat, Offset, Pointy};
+use crate::coordinates::{ hexagonal, pixel };
+use crate::coordinates::hexagonal::{ Axial, Coordinate, Flat, Offset, Pointy };
 use ndarray_cg::{F32x2, I32x2};
 use pixel::Pixel;
 use std::marker::PhantomData;

@@ -2,146 +2,101 @@
 
 [![Crates.io](https://img.shields.io/crates/v/tiles_tools.svg)](https://crates.io/crates/tiles_tools)
 [![Documentation](https://docs.rs/tiles_tools/badge.svg)](https://docs.rs/tiles_tools)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/Wandalen/cgtools/blob/master/module/helper/tiles_tools/license)
 [![Rust](https://img.shields.io/badge/rust-1.75%2B-blue.svg)](https://www.rust-lang.org)
 
-**High-Performance Tile-Based Game Development Toolkit**
+**A high-performance, generic, and extensible Rust crate for developing sophisticated tile-based games and applications.**
 
-A comprehensive, generic, and extensible Rust crate for developing sophisticated tile-based games and applications. This crate provides a complete toolkit for working with multiple coordinate systems, pathfinding, ECS integration, and advanced grid-based algorithms.
+This crate provides a complete toolkit for working with multiple coordinate systems, pathfinding, ECS integration, advanced AI systems, and performance-optimized game mechanics.
 
 ## ✨ Core Features
 
-- **🗺️ Universal Coordinate Systems**: Hexagonal, Square, Triangular, Isometric, and Pixel coordinates
-- **🔄 Seamless Conversions**: Exact and approximate conversions between coordinate systems  
-- **🧭 Advanced Pathfinding**: A* algorithm optimized for all coordinate systems
-- **⚡ ECS Integration**: Complete Entity-Component-System with game-specific components
-- **👁️ Field of View**: Multiple FOV algorithms including shadowcasting and raycasting
-- **🌊 Flow Fields**: Efficient multi-unit pathfinding and crowd simulation
-- **🎯 Grid Collections**: Type-safe, high-performance grid data structures
-- **🚀 Zero-Cost Abstractions**: Performance-focused design with compile-time optimizations
-
-## 🏗️ Architecture
-
-The library follows strict architectural principles:
-
-- **🔧 Modular Design**: Clear separation of concerns with mod_interface patterns
-- **🛡️ Error Handling**: Exclusive use of error_tools for consistent error management  
-- **🔐 Type Safety**: Newtype wrappers for all core types
-- **🚀 Performance**: Optimized data structures with cache-friendly layouts
+*   **Universal Coordinate Systems**: First-class support for Hexagonal, Square, Triangular, and Isometric grids.
+*   **Advanced Pathfinding**: A\* algorithm optimized for all coordinate systems with support for obstacles and variable terrain costs.
+*   **Complete Game Framework**: A full Entity-Component-System (ECS) powered by `hecs` with specialized components and systems for grid-based games.
+*   **Performance-Optimized Systems**: Includes an animation system, behavior trees for AI, a type-safe event system, and spatial partitioning to ensure high performance.
+*   **Development Tools**: Features debug visualization with ASCII and SVG output, performance profiling, and comprehensive serialization for save/load functionality.
 
 ## 🚀 Quick Start
 
-Add this to your `Cargo.toml`:
+Add `tiles_tools` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
 tiles_tools = "0.1.0"
 ```
 
-### 🔷 Hexagonal Coordinates
-```rust
-use tiles_tools::coordinates::hexagonal::{ Coordinate, Axial, Pointy };
-use tiles_tools::coordinates::{ Distance, Neighbors };
-
-let coord = Coordinate::<Axial, Pointy>::new(2, -1);
-let other_coord = Coordinate::<Axial, Pointy>::new(5, 1);
-let distance = coord.distance(other_coord); // Hexagonal distance
-let neighbors = coord.neighbors(); // 6 surrounding hexes
-assert_eq!(neighbors.len(), 6);
-```
-
-### 🔄 Coordinate Conversions
+Create a simple game world with pathfinding:
 
 ```rust
-use tiles_tools::coordinates::conversion::{ Convert, ApproximateConvert };
-use tiles_tools::coordinates::{ 
-    square::{ Coordinate as Square, FourConnected }, 
-    isometric::{ Coordinate as Iso, Diamond }
+use tiles_tools::
+{
+  coordinates::square::{ Coordinate, FourConnected },
+  ecs::{ World, Position, Health },
+  pathfind::astar,
+  game_systems::{ TurnBasedGame, ResourceManager },
+  debug::GridRenderer,
 };
 
-let square = Square::<FourConnected>::new(3, 4);
-let iso: Iso<Diamond> = square.convert(); // Exact conversion
-let back: Square<FourConnected> = iso.convert(); // Perfect roundtrip
-assert_eq!(square, back);
-```
+fn main()
+{
+  // Create game world and systems
+  let mut world = World::new();
+  let mut turn_game = TurnBasedGame::new();
+  let mut resource_manager = ResourceManager::new();
 
-## 🧭 Universal Pathfinding
+  // Spawn player entity
+  let player = world.spawn( (
+    Position::new( Coordinate::< FourConnected >::new( 1, 1 ) ),
+    Health::new( 100 ),
+  ) );
 
-```rust
-use tiles_tools::pathfind::astar;
-use tiles_tools::coordinates::square::{ Coordinate, FourConnected };
+  // Add to turn-based system
+  turn_game.add_participant( player.id() as u32, 100 );
+  resource_manager.add_entity( player.id() as u32, 100.0, 30.0 );
 
-let start = Coordinate::<FourConnected>::new(0, 0);
-let goal = Coordinate::<FourConnected>::new(10, 10);
+  // Pathfinding with obstacle avoidance
+  let start = Coordinate::< FourConnected >::new( 1, 1 );
+  let goal = Coordinate::< FourConnected >::new( 10, 8 );
 
-if let Some((path, cost)) = astar(&start, &goal, |_| true, |_| 1) {
-    println!("Found path with cost: {}", cost);
+  if let Some( ( path, cost ) ) = astar( &start, &goal, | _ | true, | _ | 1 )
+  {
+    println!( "Found path with {} steps, cost: {}", path.len(), cost );
+  }
+
+  // Debug visualization
+  let mut debug_renderer = GridRenderer::new()
+  .with_size( 12, 10 )
+  .with_style( tiles_tools::debug::GridStyle::Square4 );
+
+  debug_renderer.add_colored_marker
+  (
+    ( 1, 1 ),
+    "P",
+    "Player",
+    tiles_tools::debug::DebugColor::Green,
+    20
+  );
+  println!( "\n{}", debug_renderer.render_ascii() );
 }
 ```
 
-## 🎮 ECS Game Development
+## 📦 Examples
 
-```rust
-use tiles_tools::ecs::{ World, Position, Health, Movable };
-use tiles_tools::coordinates::square::{ Coordinate, FourConnected };
+The crate includes a wide range of examples to demonstrate its capabilities.
 
-let mut world = World::new();
-let player = world.spawn((
-    Position::new(Coordinate::<FourConnected>::new(0, 0)),
-    Health::new(100),
-    Movable::new(3),
-));
-```
+| Example | Description | Command |
+|---|---|---|
+| **beginner\_tutorial** | A step-by-step guide to the core concepts. | `cargo run --example beginner_tutorial` |
+| **tactical\_rpg** | A complete hexagonal grid tactical combat game. | `cargo run --example tactical_rpg` |
+| **stealth\_game** | Demonstrates field-of-view and lighting mechanics. | `cargo run --example stealth_game` |
+| **behavior\_tree\_demo** | Showcases the advanced AI decision-making system. | `cargo run --example behavior_tree_demo` |
+| **serialization\_demo** | Implements save/load functionality. | `cargo run --example serialization_demo --features serialization` |
 
-## 🎲 Coordinate Systems
+To run an example, use the command `cargo run --example <example_name>`. Some examples may require specifying features.
 
-All coordinate systems implement the [`Distance`] and [`Neighbors`] traits, providing a uniform interface:
+---
 
-- **Hexagonal**: Perfect for strategy games and organic movement patterns
-- **Square**: Classic grid games with 4 or 8-connected movement  
-- **Triangular**: Unique tessellation with rich neighbor relationships
-- **Isometric**: Pseudo-3D visualization for RPGs and city builders
-- **Pixel**: Screen-space coordinates for rendering and input handling
+**Built with ❤️ for the Rust game development community**
 
-## 📦 Feature Flags
-
-- **`enabled`** (default): Core functionality with all coordinate systems
-- **`full`**: All features for maximum functionality  
-- **`ecs-systems`**: Enhanced ECS components and systems
-- **`serialization`**: Serde support for save/load functionality
-- **`pathfinding-algorithms`**: A* and other pathfinding algorithms
-- **`field-of-view`**: Line of sight and visibility calculations
-- **`flow-fields`**: Multi-unit pathfinding and crowd behavior
-
-## 🛠️ Examples
-
-The crate includes comprehensive examples:
-
-- **Conway's Game of Life**: Cellular automaton implementation
-- **Stealth Game**: Line-of-sight mechanics and field of view
-- **Tactical RPG**: Turn-based combat with pathfinding
-
-Run examples with:
-```bash
-cargo run --example game_of_life --features enabled
-cargo run --example stealth_game --features enabled,ecs-systems
-cargo run --example tactical_rpg --features enabled,ecs-systems,pathfinding-algorithms
-```
-
-## 🎮 Use Cases
-
-- **Strategy Games**: Turn-based and real-time strategy games
-- **RPG Systems**: Grid-based movement and tactical combat
-- **Puzzle Games**: Match-3, Tetris-like, and spatial puzzles
-- **Board Game Simulations**: Digital versions of classic board games
-- **Map Editors**: Tools for creating tile-based worlds
-- **Procedural Generation**: Algorithmic world and dungeon generation
-
-## 📚 Documentation
-
-- [API Documentation](https://docs.rs/tiles_tools)
-- [Repository](https://github.com/Wandalen/cgtools/tree/master/module/helper/tiles_tools)
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [license](license) file for details.
+*Tiles Tools - Making tile-based game development simple, fast, and fun.*
