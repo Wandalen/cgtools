@@ -465,10 +465,3 @@ fn debug_draw_rays(&self, player: &Player) {
 - **Arcade Shooters** - Classic FPS movement and aiming
 - **Educational Games** - Visual algorithm demonstrations
 
-## 🤝 Contributing
-
-Part of the CGTools workspace. Feel free to submit issues and pull requests on GitHub.
-
-## 📄 License
-
-MIT

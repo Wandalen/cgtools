@@ -1,6 +1,15 @@
 //! This module provides functionality for loading UFO 
 //! fonts and converting text into a 3D mesh representation.
 
+#![ allow( clippy::needless_continue ) ]
+#![ allow( clippy::cloned_instead_of_copied ) ]
+#![ allow( clippy::explicit_iter_loop ) ]
+#![ allow( clippy::unnecessary_cast ) ]
+#![ allow( clippy::too_many_lines ) ]
+#![ allow( clippy::semicolon_if_nothing_returned ) ]
+#![ allow( clippy::uninlined_format_args ) ]
+#![ allow( clippy::redundant_closure_for_method_calls ) ]
+
 #[ cfg( feature = "text" ) ]
 mod private
 {

@@ -46,41 +46,37 @@ geometry_generation = { version = "0.1.0", features = ["full"] }
 
 ### Basic Primitive Generation
 
-```rust
-use geometry_generation::primitive::{Sphere, Cube, PrimitiveData};
+```rust,no_run
+use geometry_generation::{PrimitiveData, AttributesData, Transform};
+use std::cell::RefCell;
+use std::rc::Rc;
+use minwebgl::F32x4;
 
-// Generate a sphere
-let sphere = Sphere::new(1.0, 32, 16);
-let sphere_data = sphere.generate();
+// Create basic geometry data
+let attributes = AttributesData {
+  positions: vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.5, 1.0, 0.0]],
+  indices: vec![0, 1, 2],
+};
 
-// Generate a cube
-let cube = Cube::new(2.0, 2.0, 2.0);
-let cube_data = cube.generate();
-
-// Access vertex data
-println!("Vertices: {:?}", sphere_data.positions);
-println!("Normals: {:?}", sphere_data.normals);
-println!("UVs: {:?}", sphere_data.uvs);
+let primitive = PrimitiveData {
+  attributes: Rc::new(RefCell::new(attributes)),
+  color: F32x4::from_array([1.0, 0.0, 0.0, 1.0]),
+  transform: Transform::default(),
+};
 ```
 
 ### Text to 3D Geometry
 
-```rust
-// Requires "text" feature
-use geometry_generation::text::TextMesh;
-
-let text_mesh = TextMesh::new("Hello World", font_data)?;
-let geometry = text_mesh.generate_3d(extrusion_depth)?;
+```rust,no_test
+// Text rendering functionality is planned but not yet implemented
+// This feature will be available in future versions
 ```
 
 ### CSG Operations
 
-```rust
-// Requires "csg" feature
-use geometry_generation::csg::{union, intersection, difference};
-
-let result = union(&cube_mesh, &sphere_mesh)?;
-let carved = difference(&cube_mesh, &sphere_mesh)?;
+```rust,no_test
+// CSG operations are planned but not yet implemented
+// This feature will be available in future versions
 ```
 
 ## Platform Support

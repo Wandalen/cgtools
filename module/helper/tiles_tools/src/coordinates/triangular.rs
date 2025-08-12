@@ -38,9 +38,11 @@
 //! let dist = coord.distance(&other);
 //! ```
 
-use crate::coordinates::{Distance, Neighbors};
-use serde::{Deserialize, Serialize};
-use std::{fmt::Debug, hash::Hash, marker::PhantomData};
+use crate::coordinates::{ Distance, Neighbors };
+use serde::{ Deserialize, Serialize };
+use std::fmt::Debug;
+use std::hash::Hash;
+use std::marker::PhantomData;
 
 /// Marker struct representing the twelve-connected triangular grid system.
 /// 

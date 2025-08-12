@@ -2,6 +2,7 @@
 mod private
 {
   use crate::*;
+  use wasm_bindgen_futures::JsFuture;
 
   /// Retrieves the `web_sys::Navigator` object from the current window.
   pub fn navigator() -> web_sys::Navigator

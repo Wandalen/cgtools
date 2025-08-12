@@ -1,0 +1,267 @@
+[package]
+name = "tilemap_renderer"
+version = "0.1.0"
+edition = "2021"
+authors = [ "cgtools contributors" ]
+license = "MIT"
+description = "Agnostic 2D rendering engine with backend adapter support"
+repository = "https://github.com/cgtools-os/cgtools"
+homepage = "https://github.com/cgtools-os/cgtools"
+documentation = "https://docs.rs/tilemap_renderer"
+readme = "readme.md"
+categories = [ "graphics", "rendering", "game-development" ]
+keywords = [ "2d", "rendering", "graphics", "agnostic", "backend" ]
+
+[package.metadata.docs.rs]
+features = [ "standard" ]
+
+[lints]
+workspace = true
+
+[features]
+# Ultra-minimal build with zero dependencies, only basic type definitions
+default = []
+
+# Minimal core features
+std = []
+alloc = []
+enabled = [ "std" ]
+
+# Data structure features (ultra-granular)
+types-basic = []
+types-color = []
+types-style = [ "types-color" ]
+types-anchor = []
+scene-container = [ "types-basic" ]
+scene-methods = [ "scene-container", "alloc" ]
+scene-iteration = [ "scene-container" ]
+scene-statistics = [ "scene-container" ]
+
+# Command features (per-primitive granularity)
+command-line = [ "types-basic", "types-style" ]
+command-curve = [ "types-basic", "types-style" ]
+command-text = [ "types-basic", "types-style", "types-anchor" ]
+command-tilemap = [ "types-basic" ]
+command-particle = [ "types-basic", "types-color" ]
+command-enum = [ "alloc" ]  # Requires at least one command type
+commands = [ "command-line", "command-curve", "command-text", "command-tilemap", "command-particle", "command-enum" ]
+
+# Query features (micro-granular)
+query-basic = [ "scene-container", "scene-iteration" ]
+query-by-type = [ "query-basic", "commands" ]
+query-predicate = [ "query-basic" ]
+query-statistics = [ "query-basic", "scene-statistics" ]
+query-advanced = [ "query-by-type", "query-predicate" ]
+query = [ "query-basic", "query-by-type", "query-predicate", "query-statistics", "query-advanced" ]
+
+# Port/trait features (interface granularity)
+traits-basic = [ "types-basic" ]
+traits-renderer = [ "traits-basic", "scene-container" ]
+traits-primitive = [ "traits-basic", "commands" ]
+traits-async = [ "traits-renderer" ]
+traits-capabilities = [ "traits-basic" ]
+traits-context = [ "types-basic", "types-color" ]
+traits-error = [ "std" ]
+ports = [ "traits-renderer", "traits-primitive", "traits-async", "traits-capabilities", "traits-context", "traits-error", "dep:error_tools" ]
+
+# Backend adapter features (maximum granularity)
+adapter-svg-basic = [ "enabled", "ports", "commands", "scene-methods" ]
+adapter-svg-colors = [ "adapter-svg-basic", "types-color" ]
+adapter-svg-fonts = [ "adapter-svg-basic" ]
+adapter-svg-paths = [ "adapter-svg-basic", "command-curve" ]
+adapter-svg = [ "adapter-svg-basic", "adapter-svg-colors", "adapter-svg-fonts", "adapter-svg-paths" ]
+
+adapter-svg-browser-dom = [ "adapter-svg", "wasm-bindgen" ]
+adapter-svg-browser-events = [ "adapter-svg-browser-dom" ]
+adapter-svg-browser-animation = [ "adapter-svg-browser-dom" ]
+adapter-svg-browser = [ "adapter-svg-browser-dom", "adapter-svg-browser-events", "adapter-svg-browser-animation" ]
+
+adapter-webgl-context = [ "enabled", "ports", "wasm-bindgen" ]
+adapter-webgl-shaders = [ "adapter-webgl-context" ]
+adapter-webgl-buffers = [ "adapter-webgl-context" ]
+adapter-webgl-textures = [ "adapter-webgl-context" ]
+adapter-webgl = [ "adapter-webgl-context", "adapter-webgl-shaders", "adapter-webgl-buffers", "adapter-webgl-textures" ]
+
+adapter-webgpu-device = [ "enabled", "ports", "commands", "scene-methods", "serde-commands", "wasm-bindgen", "dep:minwebgpu" ]
+adapter-webgpu-compute = [ "adapter-webgpu-device" ]
+adapter-webgpu-pipeline = [ "adapter-webgpu-device" ]
+adapter-webgpu = [ "adapter-webgpu-device", "adapter-webgpu-compute", "adapter-webgpu-pipeline" ]
+
+adapter-terminal-basic = [ "enabled", "ports", "commands", "scene-methods" ]
+adapter-terminal-color = [ "adapter-terminal-basic", "types-color" ]
+adapter-terminal-unicode = [ "adapter-terminal-basic" ]
+adapter-terminal = [ "adapter-terminal-basic", "adapter-terminal-color", "adapter-terminal-unicode" ]
+
+# Serialization features (selective support)
+serde-basic = [ "types-basic", "dep:serde" ]
+serde-commands = [ "serde-basic", "commands" ]
+serde-scene = [ "serde-basic", "scene-container" ]
+serde-json = [ "serde-basic" ]
+serde-binary = [ "serde-basic" ]
+serde-custom = [ "serde-basic" ]
+serde = [ "serde-basic", "serde-commands", "serde-scene", "serde-json", "serde-binary", "serde-custom" ]
+
+# Platform features (target-specific)
+wasm-basic = []
+wasm-bindgen = [ "wasm-basic" ]
+wasm-web = [ "wasm-bindgen" ]
+wasm-worker = [ "wasm-web" ]
+native-threading = [ "std" ]
+native-simd = [ "std" ]
+
+# Performance features (optional optimizations)
+parallel-basic = [ "std" ]
+parallel-rayon = [ "parallel-basic" ]
+parallel-tokio = [ "parallel-basic" ]
+simd-basic = [ "std" ]
+simd-avx2 = [ "simd-basic" ]
+cache-friendly = []
+gpu-compute = []
+
+# CLI and REPL features
+cli-basic = [ "enabled", "std", "standard", "serde", "ports", "adapter-svg", "adapter-terminal", "dep:unilang", "dep:serde_json" ]
+cli-commands = [ "cli-basic" ]
+cli-repl = [ "cli-basic", "dep:rustyline" ]
+cli = [ "cli-basic", "cli-commands", "cli-repl" ]
+
+# Development and debug features
+debug-basic = [ "std" ]
+debug-scene = [ "debug-basic", "scene-methods" ]
+debug-performance = [ "debug-basic" ]
+test-utilities = [ "std" ]
+bench-utilities = [ "std" ]
+trace-logging = [ "std" ]
+metrics-collection = [ "std" ]
+
+# Convenience feature bundles
+minimal = [ "std", "enabled", "types-basic", "traits-basic" ]
+core = [ "minimal", "scene-container", "command-enum" ]
+standard = [ "core", "scene-methods", "commands", "query-basic" ]
+adapters-static = [ "standard", "adapter-svg", "adapter-terminal" ]
+adapters-web = [ "standard", "adapter-svg-browser", "adapter-webgl", "adapter-webgpu" ]
+full-native = [ "adapters-static", "native-threading", "native-simd", "parallel-rayon", "cli" ]
+full-wasm = [ "adapters-web", "wasm-web", "wasm-worker" ]
+full = [ "standard", "adapters-static", "adapters-web", "serde", "parallel-basic", "debug-basic", "cli" ]
+
+# Testing convenience (used by tests and examples)
+testing = [ "enabled", "standard", "ports", "serde", "adapter-svg", "adapter-terminal", "adapter-webgl", "test-utilities" ]
+
+[dependencies]
+# All dependencies are optional and gated by features
+error_tools = { workspace = true, optional = true }
+serde = { workspace = true, optional = true, features = [ "derive" ] }
+serde_json = { workspace = true, optional = true }
+mod_interface = { workspace = true }
+unilang = { workspace = true, optional = true, features = [ "enhanced_repl" ] }
+rustyline = { workspace = true, optional = true }
+
+# Future backend dependencies (will be added when backends are implemented)
+# minwebgl = { path = "../minwebgl", optional = true }
+minwebgpu = { workspace = true, optional = true }
+
+[dev-dependencies]
+test_tools = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = [ "rt", "macros" ] }
+
+# Test targets need the testing features enabled
+[[test]]
+name = "commands_test"
+required-features = [ "testing" ]
+
+[[test]]
+name = "scene_test"
+required-features = [ "testing" ]
+
+[[test]]
+name = "ports_test"
+required-features = [ "testing" ]
+
+[[test]]
+name = "svg_adapter_test"
+required-features = [ "testing" ]
+
+[[test]]
+name = "terminal_adapter_test"
+required-features = [ "testing" ]
+
+[[test]]
+name = "webgl_adapter_test"
+required-features = [ "testing" ]
+
+[[test]]
+name = "webgpu_adapter_test"
+required-features = [ "testing", "adapter-webgpu" ]
+
+[[test]]
+name = "svg_browser_adapter_test"
+required-features = [ "testing", "adapter-svg-browser" ]
+
+[[test]]
+name = "cli_test"
+required-features = [ "cli" ]
+
+[[test]]
+name = "cli_comprehensive_test"
+required-features = [ "cli" ]
+
+[[test]]
+name = "cli_basic_test"
+required-features = [ "cli" ]
+
+[[test]]
+name = "query_focused_test"
+required-features = [ "testing" ]
+
+[[test]]
+name = "feature_matrix_test"
+required-features = [ "testing" ]
+
+[[test]]
+name = "perfect_coverage_test"
+required-features = [ "testing" ]
+
+[[test]]
+name = "integration_test"
+required-features = [ "testing" ]
+
+[[test]]
+name = "error_handling_test"
+required-features = [ "testing" ]
+
+[[example]]
+name = "svg_demo"
+required-features = [ "testing" ]
+
+[[example]]
+name = "terminal_demo"
+required-features = [ "testing" ]
+
+[[example]]
+name = "terminal_simple_demo"
+required-features = [ "testing" ]
+
+[[example]]
+name = "webgl_demo"
+required-features = [ "testing" ]
+
+[[example]]
+name = "svg_browser_demo"
+required-features = [ "testing" ]
+
+[[example]]
+name = "cli_test"
+required-features = [ "cli" ]
+
+[[example]]
+name = "unilang_basic_test"
+required-features = [ "cli" ]
+
+[[example]]
+name = "unilang_api_test"
+required-features = [ "cli" ]
+
+[[bin]]
+name = "are"
+path = "src/bin/are.rs"
+required-features = [ "cli" ]

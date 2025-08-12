@@ -1,4 +1,29 @@
 //! # Comprehensive Test Suite for Coordinate System Conversions
+
+#![allow(clippy::needless_return)]
+#![allow(clippy::implicit_return)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::items_after_statements)]
+#![allow(clippy::unnecessary_cast)]
+#![allow(clippy::doc_markdown)]
+#![allow(clippy::cast_sign_loss)]
+#![allow(clippy::explicit_iter_loop)]
+#![allow(clippy::format_in_format_args)]
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::wildcard_imports)]
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::std_instead_of_core)]
+#![allow(clippy::similar_names)]
+#![allow(clippy::duplicated_attributes)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::trivially_copy_pass_by_ref)]
+#![allow(clippy::missing_inline_in_public_items)]
+#![allow(clippy::useless_vec)]
+#![allow(clippy::unnested_or_patterns)]
+#![allow(clippy::else_if_without_else)]
+#![allow(clippy::unreadable_literal)]
+#![allow(clippy::redundant_else)]
+#![allow(clippy::redundant_closure_for_method_calls)]
 //!
 //! This test suite follows the Test Matrix methodology to ensure complete
 //! coverage of the coordinate conversion system implementation.
@@ -39,8 +64,9 @@ use tiles_tools::coordinates::{
 // Test Category 1: Exact Conversions
 // =============================================================================
 
-#[test]
-fn test_square_to_isometric_conversion() {
+#[ test ]
+fn test_square_to_isometric_conversion()
+{
   let square = SquareCoord::<SquareFour>::new(5, 3);
   let iso: IsoCoord<Diamond> = square.convert();
   
@@ -48,8 +74,9 @@ fn test_square_to_isometric_conversion() {
   assert_eq!(iso.y, 3);
 }
 
-#[test]
-fn test_isometric_to_square_conversion() {
+#[ test ]
+fn test_isometric_to_square_conversion()
+{
   let iso = IsoCoord::<Diamond>::new(7, -2);
   let square: SquareCoord<SquareFour> = iso.convert();
   
@@ -57,8 +84,9 @@ fn test_isometric_to_square_conversion() {
   assert_eq!(square.y, -2);
 }
 
-#[test]
-fn test_square_isometric_roundtrip() {
+#[ test ]
+fn test_square_isometric_roundtrip()
+{
   let original = SquareCoord::<SquareFour>::new(10, -5);
   let iso: IsoCoord<Diamond> = original.convert();
   let back: SquareCoord<SquareFour> = iso.convert();
@@ -66,8 +94,9 @@ fn test_square_isometric_roundtrip() {
   assert_eq!(original, back);
 }
 
-#[test]
-fn test_isometric_square_roundtrip() {
+#[ test ]
+fn test_isometric_square_roundtrip()
+{
   let original = IsoCoord::<Diamond>::new(-3, 8);
   let square: SquareCoord<SquareFour> = original.convert();
   let back: IsoCoord<Diamond> = square.convert();
@@ -75,8 +104,9 @@ fn test_isometric_square_roundtrip() {
   assert_eq!(original, back);
 }
 
-#[test]
-fn test_square_eight_to_isometric() {
+#[ test ]
+fn test_square_eight_to_isometric()
+{
   let square = SquareCoord::<SquareEight>::new(4, 6);
   let iso: IsoCoord<Diamond> = square.convert();
   
@@ -84,8 +114,9 @@ fn test_square_eight_to_isometric() {
   assert_eq!(iso.y, 6);
 }
 
-#[test]
-fn test_isometric_to_square_eight() {
+#[ test ]
+fn test_isometric_to_square_eight()
+{
   let iso = IsoCoord::<Diamond>::new(2, -4);
   let square: SquareCoord<SquareEight> = iso.convert();
   
@@ -93,8 +124,9 @@ fn test_isometric_to_square_eight() {
   assert_eq!(square.y, -4);
 }
 
-#[test]
-fn test_multiple_exact_conversions() {
+#[ test ]
+fn test_multiple_exact_conversions()
+{
   let coords = vec![
     SquareCoord::<SquareFour>::new(0, 0),
     SquareCoord::<SquareFour>::new(1, 1),
@@ -113,8 +145,9 @@ fn test_multiple_exact_conversions() {
 // Test Category 2: Approximate Conversions
 // =============================================================================
 
-#[test]
-fn test_hexagonal_to_square_approximate() {
+#[ test ]
+fn test_hexagonal_to_square_approximate()
+{
   let hex = HexCoord::<Axial, Pointy>::new(2, -1);
   let square: SquareCoord<SquareFour> = hex.approximate_convert();
   
@@ -124,8 +157,9 @@ fn test_hexagonal_to_square_approximate() {
   assert_eq!(square.y, -1);
 }
 
-#[test]
-fn test_square_to_hexagonal_approximate() {
+#[ test ]
+fn test_square_to_hexagonal_approximate()
+{
   let square = SquareCoord::<SquareFour>::new(3, 2);
   let hex: HexCoord<Axial, Pointy> = square.approximate_convert();
   
@@ -135,8 +169,9 @@ fn test_square_to_hexagonal_approximate() {
   assert_eq!(hex.r, 2);
 }
 
-#[test]
-fn test_triangular_to_square_approximate() {
+#[ test ]
+fn test_triangular_to_square_approximate()
+{
   let tri = TriCoord::<TwelveConnected>::new(4, 6);
   let square: SquareCoord<SquareFour> = tri.approximate_convert();
   
@@ -146,8 +181,9 @@ fn test_triangular_to_square_approximate() {
   assert_eq!(square.y, 3);
 }
 
-#[test]
-fn test_square_to_triangular_approximate() {
+#[ test ]
+fn test_square_to_triangular_approximate()
+{
   let square = SquareCoord::<SquareFour>::new(5, 2);
   let tri: TriCoord<TwelveConnected> = square.approximate_convert();
   
@@ -157,8 +193,9 @@ fn test_square_to_triangular_approximate() {
   assert_eq!(tri.y, 4);
 }
 
-#[test]
-fn test_hexagonal_to_isometric_via_square() {
+#[ test ]
+fn test_hexagonal_to_isometric_via_square()
+{
   let hex = HexCoord::<Axial, Pointy>::new(1, 1);
   let iso: IsoCoord<Diamond> = hex.approximate_convert();
   
@@ -169,8 +206,9 @@ fn test_hexagonal_to_isometric_via_square() {
   assert_eq!(iso, expected_iso);
 }
 
-#[test]
-fn test_isometric_to_hexagonal_via_square() {
+#[ test ]
+fn test_isometric_to_hexagonal_via_square()
+{
   let iso = IsoCoord::<Diamond>::new(3, -1);
   let hex: HexCoord<Axial, Pointy> = iso.approximate_convert();
   
@@ -181,8 +219,9 @@ fn test_isometric_to_hexagonal_via_square() {
   assert_eq!(hex, expected_hex);
 }
 
-#[test]
-fn test_triangular_to_isometric_via_square() {
+#[ test ]
+fn test_triangular_to_isometric_via_square()
+{
   let tri = TriCoord::<TwelveConnected>::new(2, 4);
   let iso: IsoCoord<Diamond> = tri.approximate_convert();
   
@@ -193,8 +232,9 @@ fn test_triangular_to_isometric_via_square() {
   assert_eq!(iso, expected_iso);
 }
 
-#[test]
-fn test_triangular_to_hexagonal_via_square() {
+#[ test ]
+fn test_triangular_to_hexagonal_via_square()
+{
   let tri = TriCoord::<TwelveConnected>::new(6, 2);
   let hex: HexCoord<Axial, Pointy> = tri.approximate_convert();
   
@@ -205,8 +245,9 @@ fn test_triangular_to_hexagonal_via_square() {
   assert_eq!(hex, expected_hex);
 }
 
-#[test]
-fn test_complex_conversion_chain() {
+#[ test ]
+fn test_complex_conversion_chain()
+{
   let original = TriCoord::<TwelveConnected>::new(4, 8);
   
   // Chain: Triangular → Square → Isometric → Square → Hexagonal
@@ -226,8 +267,9 @@ fn test_complex_conversion_chain() {
 // Test Category 3: Batch Conversions
 // =============================================================================
 
-#[test]
-fn test_batch_exact_conversion() {
+#[ test ]
+fn test_batch_exact_conversion()
+{
   let squares = vec![
     SquareCoord::<SquareFour>::new(1, 2),
     SquareCoord::<SquareFour>::new(3, 4),
@@ -244,8 +286,9 @@ fn test_batch_exact_conversion() {
   }
 }
 
-#[test]
-fn test_batch_approximate_conversion() {
+#[ test ]
+fn test_batch_approximate_conversion()
+{
   let hexes = vec![
     HexCoord::<Axial, Pointy>::new(1, -1),
     HexCoord::<Axial, Pointy>::new(2, 0),
@@ -263,16 +306,18 @@ fn test_batch_approximate_conversion() {
   }
 }
 
-#[test]
-fn test_batch_conversion_empty_vector() {
+#[ test ]
+fn test_batch_conversion_empty_vector()
+{
   let empty_squares: Vec<SquareCoord<SquareFour>> = vec![];
   let empty_isos: Vec<IsoCoord<Diamond>> = empty_squares.convert_batch_exact();
   
   assert_eq!(empty_isos.len(), 0);
 }
 
-#[test]
-fn test_batch_conversion_single_element() {
+#[ test ]
+fn test_batch_conversion_single_element()
+{
   let single = vec![SquareCoord::<SquareFour>::new(7, 3)];
   let result: Vec<IsoCoord<Diamond>> = single.clone().convert_batch_exact();
   
@@ -281,8 +326,9 @@ fn test_batch_conversion_single_element() {
   assert_eq!(result[0].y, single[0].y);
 }
 
-#[test]
-fn test_batch_conversion_large_vector() {
+#[ test ]
+fn test_batch_conversion_large_vector()
+{
   // Create a large vector of coordinates
   let squares: Vec<SquareCoord<SquareFour>> = (0..1000)
     .map(|i| SquareCoord::<SquareFour>::new(i % 50, i / 50))
@@ -301,8 +347,9 @@ fn test_batch_conversion_large_vector() {
 // Test Category 4: Utility Functions
 // =============================================================================
 
-#[test]
-fn test_convert_batch_exact_utility() {
+#[ test ]
+fn test_convert_batch_exact_utility()
+{
   let squares = vec![
     SquareCoord::<SquareFour>::new(1, 2),
     SquareCoord::<SquareFour>::new(3, 4),
@@ -317,8 +364,9 @@ fn test_convert_batch_exact_utility() {
   }
 }
 
-#[test]
-fn test_convert_batch_approximate_utility() {
+#[ test ]
+fn test_convert_batch_approximate_utility()
+{
   let hexes = vec![
     HexCoord::<Axial, Pointy>::new(1, -1),
     HexCoord::<Axial, Pointy>::new(2, 0),
@@ -333,8 +381,9 @@ fn test_convert_batch_approximate_utility() {
   }
 }
 
-#[test]
-fn test_roundtrip_conversion_utility() {
+#[ test ]
+fn test_roundtrip_conversion_utility()
+{
   let square = SquareCoord::<SquareFour>::new(5, -3);
   
   // Test exact roundtrip conversion
@@ -353,8 +402,9 @@ fn test_roundtrip_conversion_utility() {
   }
 }
 
-#[test]
-fn test_measure_approximate_conversion_error() {
+#[ test ]
+fn test_measure_approximate_conversion_error()
+{
   let hex = HexCoord::<Axial, Pointy>::new(3, -2);
   
   let error = measure_approximate_conversion_error::<_, SquareCoord<SquareFour>>(hex);
@@ -367,8 +417,9 @@ fn test_measure_approximate_conversion_error() {
   assert!(error < 100.0, "Error seems unreasonably large: {}", error);
 }
 
-#[test]
-fn test_measure_error_various_coordinates() {
+#[ test ]
+fn test_measure_error_various_coordinates()
+{
   let test_coords = vec![
     HexCoord::<Axial, Pointy>::new(0, 0),
     HexCoord::<Axial, Pointy>::new(1, 1),
@@ -387,8 +438,9 @@ fn test_measure_error_various_coordinates() {
 // Test Category 5: Edge Cases and Boundary Conditions
 // =============================================================================
 
-#[test]
-fn test_conversion_with_zero_coordinates() {
+#[ test ]
+fn test_conversion_with_zero_coordinates()
+{
   let square_zero = SquareCoord::<SquareFour>::new(0, 0);
   let iso_zero: IsoCoord<Diamond> = square_zero.convert();
   
@@ -399,8 +451,9 @@ fn test_conversion_with_zero_coordinates() {
   assert_eq!(back, square_zero);
 }
 
-#[test]
-fn test_conversion_with_negative_coordinates() {
+#[ test ]
+fn test_conversion_with_negative_coordinates()
+{
   let square_neg = SquareCoord::<SquareFour>::new(-5, -10);
   let iso_neg: IsoCoord<Diamond> = square_neg.convert();
   
@@ -408,8 +461,9 @@ fn test_conversion_with_negative_coordinates() {
   assert_eq!(iso_neg.y, -10);
 }
 
-#[test]
-fn test_conversion_with_large_coordinates() {
+#[ test ]
+fn test_conversion_with_large_coordinates()
+{
   let square_large = SquareCoord::<SquareFour>::new(1000000, -1000000);
   let iso_large: IsoCoord<Diamond> = square_large.convert();
   let back: SquareCoord<SquareFour> = iso_large.convert();
@@ -417,8 +471,9 @@ fn test_conversion_with_large_coordinates() {
   assert_eq!(back, square_large);
 }
 
-#[test]
-fn test_approximate_conversion_consistency() {
+#[ test ]
+fn test_approximate_conversion_consistency()
+{
   // Test that approximate conversions are at least consistent
   let hex = HexCoord::<Axial, Pointy>::new(5, -3);
   
@@ -431,8 +486,9 @@ fn test_approximate_conversion_consistency() {
   assert_eq!(square2, square3);
 }
 
-#[test]
-fn test_batch_conversion_preserves_order() {
+#[ test ]
+fn test_batch_conversion_preserves_order()
+{
   let coords = vec![
     SquareCoord::<SquareFour>::new(1, 1),
     SquareCoord::<SquareFour>::new(2, 2),
@@ -454,8 +510,9 @@ fn test_batch_conversion_preserves_order() {
 // Test Category 6: Performance and Stress Tests
 // =============================================================================
 
-#[test]
-fn test_conversion_performance() {
+#[ test ]
+fn test_conversion_performance()
+{
   // Create a reasonably large dataset
   let coords: Vec<SquareCoord<SquareFour>> = (0..10000)
     .map(|i| SquareCoord::<SquareFour>::new(i % 100, i / 100))
@@ -473,8 +530,9 @@ fn test_conversion_performance() {
   }
 }
 
-#[test]
-fn test_roundtrip_stress() {
+#[ test ]
+fn test_roundtrip_stress()
+{
   // Test many roundtrip conversions with various coordinate ranges
   let ranges = vec![
     (-100..100, -100..100),
@@ -501,8 +559,9 @@ fn test_roundtrip_stress() {
 // Test Category 7: Integration with Other Systems
 // =============================================================================
 
-#[test]
-fn test_conversion_with_pathfinding() {
+#[ test ]
+fn test_conversion_with_pathfinding()
+{
   use tiles_tools::pathfind::astar;
   
   // Create a path in square coordinates
@@ -533,8 +592,9 @@ fn test_conversion_with_pathfinding() {
   assert_eq!(cost, 6); // Manhattan distance from (0,0) to (3,3)
 }
 
-#[test]
-fn test_mixed_coordinate_system_operations() {
+#[ test ]
+fn test_mixed_coordinate_system_operations()
+{
   // Start with different coordinate systems and verify they can all
   // be converted to a common system for operations
   

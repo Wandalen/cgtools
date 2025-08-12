@@ -1,3 +1,6 @@
+#![ allow( clippy::single_match ) ]
+#![ allow( clippy::needless_borrow ) ]
+
 use std::sync::{ Arc, Mutex };
 
 use mingl::CameraOrbitControls;

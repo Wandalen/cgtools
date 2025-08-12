@@ -1,6 +1,8 @@
 #![ doc( html_root_url = "https://docs.rs/color_space_convertion/latest/color_space_convertion/" ) ]
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 #![ cfg_attr( not( doc ), doc = "Converts colors from RGBA into another color spaces" ) ]
+#![ allow( clippy::needless_return ) ]
+#![ allow( clippy::implicit_return ) ]
 
 use minwebgl as gl;
 use gl::{
@@ -36,12 +38,12 @@ impl RectInfo
     name : &str,
   ) -> Result< Self, gl::WebglError >
   {
-    Ok(
+    return Ok(
       Self
       {
         name : name.to_string(),
-        color_element : get_element( &document, &format!( "{name}-rectangle" ) )?,
-        color_coord_label : get_element( &document, &format!( "{name}-value" ) )?
+        color_element : get_element( document, &format!( "{name}-rectangle" ) )?,
+        color_coord_label : get_element( document, &format!( "{name}-value" ) )?
       }
     )
   }
@@ -49,33 +51,34 @@ impl RectInfo
 
 fn get_input_element( document: &web_sys::Document, id: &str ) -> Result< HtmlInputElement, gl::WebglError >
 {
-  document.get_element_by_id( id )
-  .ok_or_else
+  return document.get_element_by_id( id )
+  .ok_or
   (
-    || gl::WebglError::MissingDataError( "Element not found ( get_input_element )" )
+    gl::WebglError::MissingDataError( "Element not found ( get_input_element )" )
   )?
   .dyn_into::< HtmlInputElement >()
-  .or_else
+  .map_err
   (
-    | _ | Err( gl::WebglError::NotSupportedForType( "Element can't be converted to HtmlInputElement" ) )
+    | _ | gl::WebglError::NotSupportedForType( "Element can't be converted to HtmlInputElement" )
   )
 }
 
 fn get_element( document: &web_sys::Document, id: &str ) -> Result< HtmlElement, gl::WebglError >
 {
-  document.get_element_by_id( id )
-  .ok_or_else
+  return document.get_element_by_id( id )
+  .ok_or
   (
-    || gl::WebglError::MissingDataError( "Element not found ( get_element )" )
+    gl::WebglError::MissingDataError( "Element not found ( get_element )" )
   )?
   .dyn_into::< HtmlElement >()
-  .or_else
+  .map_err
   (
-    | _ | Err( gl::WebglError::NotSupportedForType( "Element can't be converted to HtmlElement" ) )
+    | _ | gl::WebglError::NotSupportedForType( "Element can't be converted to HtmlElement" )
   )
 }
 
-async fn run() -> Result< (), gl::WebglError >
+#[ allow( clippy::too_many_lines ) ]
+fn run() -> Result< (), gl::WebglError >
 {
   let window = gl::web_sys::window().expect( "no global `window` exists" );
   let document = window.document().expect( "should have a document on window" );
@@ -115,7 +118,8 @@ async fn run() -> Result< (), gl::WebglError >
     .expect( "Failed to set style" );
   };
 
-  let ftou = | c : f32 | ( u8::MAX as f32 * c.clamp( 0.0, 1.0 ) ).round() as u8;
+  #[ allow( clippy::min_ident_chars, clippy::cast_possible_truncation, clippy::cast_sign_loss ) ]
+  let ftou = | component : f32 | return ( f32::from(u8::MAX) * component.clamp( 0.0, 1.0 ) ).round() as u8;
 
   let update_rectangles = Closure::< dyn FnMut( Event ) >::new
   (
@@ -126,111 +130,111 @@ async fn run() -> Result< (), gl::WebglError >
       .expect( "Target should be an input element" );
       let hex_color = input_element.value();
 
-      gl::info!( "sRGB picker changed to: {}", hex_color );
+      gl::info!( "sRGB picker changed to: {hex_color}" );
 
       let src_hex_color = match HexColor::parse( &hex_color )
       {
-        Ok( c ) => c,
-        Err( e ) =>
+        Ok( color ) => color,
+        Err( error ) =>
         {
-          panic!( "Failed to parse hex color: {:?}", e );
+          panic!( "Failed to parse hex color: {error:?}" );
         }
       };
 
       let base_srgb_components =
       [
-        src_hex_color.r as f32 / 255.0,
-        src_hex_color.g as f32 / 255.0,
-        src_hex_color.b as f32 / 255.0,
+        f32::from(src_hex_color.r) / 255.0,
+        f32::from(src_hex_color.g) / 255.0,
+        f32::from(src_hex_color.b) / 255.0,
       ];
 
       let color_css = format!
       (
-        "rgb( {} {} {} )",
-        src_hex_color.r,
-        src_hex_color.g,
-        src_hex_color.b
+        "rgb( {red} {green} {blue} )",
+        red = src_hex_color.r,
+        green = src_hex_color.g,
+        blue = src_hex_color.b
       );
       srgb_element.set_text_content( Some( &color_css ) );
 
-      for rect_elem in rectangle_elements.iter()
+      for rect_elem in &rectangle_elements
       {
         let color_css = match rect_elem.name.as_str()
         {
           "a98rgb" =>
           {
-            let [ r, g, b ] = Srgb::convert::< A98Rgb >( base_srgb_components );
-            format!( "rgb( {} {} {} )", ftou( r ), ftou( g ), ftou( b ) )
+            let [ red, green, blue ] = Srgb::convert::< A98Rgb >( base_srgb_components );
+            format!( "rgb( {} {} {} )", ftou( red ), ftou( green ), ftou( blue ) )
           },
           "aces2065-1" =>
           {
-            let [ r, g, b ] = Srgb::convert::< Aces2065_1 >( base_srgb_components );
-            format!( "rgb( {} {} {} )", ftou( r ), ftou( g ), ftou( b ) )
+            let [ red, green, blue ] = Srgb::convert::< Aces2065_1 >( base_srgb_components );
+            format!( "rgb( {} {} {} )", ftou( red ), ftou( green ), ftou( blue ) )
           },
           "aces-cg" =>
           {
-            let [ r, g, b ] = Srgb::convert::< AcesCg >( base_srgb_components );
-            format!( "rgb( {} {} {} )", ftou( r ), ftou( g ), ftou( b ) )
+            let [ red, green, blue ] = Srgb::convert::< AcesCg >( base_srgb_components );
+            format!( "rgb( {} {} {} )", ftou( red ), ftou( green ), ftou( blue ) )
           },
           "display-p3" =>
           {
-            let [ r, g, b ] = Srgb::convert::< DisplayP3 >( base_srgb_components );
-            format!( "rgb( {} {} {} )", ftou( r ), ftou( g ), ftou( b ) )
+            let [ red, green, blue ] = Srgb::convert::< DisplayP3 >( base_srgb_components );
+            format!( "rgb( {} {} {} )", ftou( red ), ftou( green ), ftou( blue ) )
           },
           "hsl" =>
           {
-            let [ h, s, l ] = Srgb::convert::< Hsl >( base_srgb_components );
-            format!( "hsl( {:.2} {:.2} {:.2} )", h, s, l )
+            let [ hue, saturation, lightness ] = Srgb::convert::< Hsl >( base_srgb_components );
+            format!( "hsl( {hue:.2} {saturation:.2} {lightness:.2} )" )
           },
           "hwb" =>
           {
-            let [ h, w, b ] = Srgb::convert::< Hwb >( base_srgb_components );
-            format!( "hwb( {:.2} {:.2} {:.2} )", h, w, b )
+            let [ hue, whiteness, blackness ] = Srgb::convert::< Hwb >( base_srgb_components );
+            format!( "hwb( {hue:.2} {whiteness:.2} {blackness:.2} )" )
           },
           "lab" =>
           {
-            let [ l, a, b ] = Srgb::convert::< Lab >( base_srgb_components );
-            format!( "lab( {:.2} {:.2} {:.2} )", l, a, b )
+            let [ lightness, a_axis, b_axis ] = Srgb::convert::< Lab >( base_srgb_components );
+            format!( "lab( {lightness:.2} {a_axis:.2} {b_axis:.2} )" )
           },
           "lch" =>
           {
-            let [ l, c, h ] = Srgb::convert::< Lch >( base_srgb_components );
-            format!( "lch( {:.2} {:.2} {:.2} )", l, c, h )
+            let [ lightness, chroma, hue ] = Srgb::convert::< Lch >( base_srgb_components );
+            format!( "lch( {lightness:.2} {chroma:.2} {hue:.2} )" )
           },
           "linear-srgb" =>
           {
-            let [ r, g, b ] = Srgb::convert::< LinearSrgb >( base_srgb_components );
-            format!( "rgb( {} {} {} )", ftou( r ), ftou( g ), ftou( b ) )
+            let [ red, green, blue ] = Srgb::convert::< LinearSrgb >( base_srgb_components );
+            format!( "rgb( {} {} {} )", ftou( red ), ftou( green ), ftou( blue ) )
           },
           "oklab" =>
           {
-            let [ l, a, b ] = Srgb::convert::< Oklab >( base_srgb_components );
-            format!( "oklab( {:.2} {:.2} {:.2} )", l, a, b )
+            let [ lightness, a_axis, b_axis ] = Srgb::convert::< Oklab >( base_srgb_components );
+            format!( "oklab( {lightness:.2} {a_axis:.2} {b_axis:.2} )" )
           },
           "oklch" =>
           {
-            let [ l, c, h ] = Srgb::convert::< Oklch >( base_srgb_components );
-            format!( "oklch( {:.2} {:.2} {:.2} )", l, c, h )
+            let [ lightness, chroma, hue ] = Srgb::convert::< Oklch >( base_srgb_components );
+            format!( "oklch( {lightness:.2} {chroma:.2} {hue:.2} )" )
           },
           "prophoto-rgb" =>
           {
-            let [ r, g, b ] = Srgb::convert::< ProphotoRgb >( base_srgb_components );
-            format!( "rgb( {} {} {} )", ftou( r ), ftou( g ), ftou( b ) )
+            let [ red, green, blue ] = Srgb::convert::< ProphotoRgb >( base_srgb_components );
+            format!( "rgb( {} {} {} )", ftou( red ), ftou( green ), ftou( blue ) )
           },
           "rec2020" =>
           {
-            let [ r, g, b ] = Srgb::convert::< Rec2020 >( base_srgb_components );
-            format!( "rgb( {} {} {} )", ftou( r ), ftou( g ), ftou( b ) )
+            let [ red, green, blue ] = Srgb::convert::< Rec2020 >( base_srgb_components );
+            format!( "rgb( {} {} {} )", ftou( red ), ftou( green ), ftou( blue ) )
           },
           "xyz-d50" =>
           {
-            let [ x, y, z ] = Srgb::convert::< XyzD50 >( base_srgb_components );
-            format!( "color(xyz-d50 {:.2} {:.2} {:.2})", x, y, z  )
+            let [ x_coord, y_coord, z_coord ] = Srgb::convert::< XyzD50 >( base_srgb_components );
+            format!( "color(xyz-d50 {x_coord:.2} {y_coord:.2} {z_coord:.2})"  )
           },
           "xyz-d65" =>
           {
-            let [ x, y, z ] = Srgb::convert::< XyzD65 >( base_srgb_components );
-            format!( "color(xyz-d65 {:.2} {:.2} {:.2})", x, y, z )
+            let [ x_coord, y_coord, z_coord ] = Srgb::convert::< XyzD65 >( base_srgb_components );
+            format!( "color(xyz-d65 {x_coord:.2} {y_coord:.2} {z_coord:.2})" )
           },
           _ =>
           {
@@ -257,11 +261,11 @@ async fn run() -> Result< (), gl::WebglError >
   .expect( "Failed to create initial event" );
   srgb_color_picker.dispatch_event( &initial_event ).unwrap();
 
-  Ok( () )
+  return Ok( () )
 }
 
 fn main()
 {
-  gl::browser::setup( Default::default() );
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::browser::setup( gl::browser::Config::default() );
+  gl::spawn_local( async move { run().unwrap() } );
 }

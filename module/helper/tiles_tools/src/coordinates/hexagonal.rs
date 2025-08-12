@@ -3,10 +3,13 @@
 //! through a flexible, type-safe generic implementation. It also includes conversions between systems
 //! and from pixel coordinates, as well as utility functions for grid operations like distance and neighbor finding.
 
-use crate::coordinates::{ Distance, Neighbors, pixel::Pixel };
+use crate::coordinates::{ Distance, Neighbors };
+use crate::coordinates::pixel::Pixel;
 use ndarray_cg::I32x2;
 use serde::{ Deserialize, Serialize };
-use std::{ fmt::Debug, hash::Hash, marker::PhantomData };
+use std::fmt::Debug;
+use std::hash::Hash;
+use std::marker::PhantomData;
 
 /// A marker struct representing the Axial coordinate system for hexagonal grids.
 #[ derive( Debug ) ]
