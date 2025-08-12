@@ -1,5 +1,8 @@
 //! TODO
-// #![ doc = "../readme.md" ]
+
+use wgpu::util::DeviceExt;
+
+mod context;
 
 fn main()
 {
@@ -8,29 +11,9 @@ fn main()
 
 fn run()
 {
-  let instance = wgpu::Instance::new
-  (
-    &wgpu::InstanceDescriptor
-    {
-      backends : wgpu::Backends::PRIMARY,
-      ..Default::default()
-    }
-  );
+  let context = context::Context::new_temp();
 
-  let adapter = minwgpu::helper::request_adapter
-  (
-    &instance,
-    &wgpu::RequestAdapterOptions
-    {
-      power_preference : wgpu::PowerPreference::HighPerformance,
-      ..Default::default()
-    }
-  ).expect( "Failed to retrieve an adapter" );
-
-  let ( device, queue ) = minwgpu::helper::request_device( &adapter, &wgpu::DeviceDescriptor::default() )
-  .expect( "Failed to retrieve a device" );
-
-  let shader = device.create_shader_module( wgpu::include_wgsl!( "../shaders/shader.wgsl" ) );
+  let shader = context.device().create_shader_module( wgpu::include_wgsl!( "../shaders/shader.wgsl" ) );
 
   let width = 512;
   let height = 512;
@@ -41,7 +24,7 @@ fn run()
     depth_or_array_layers : 1,
   };
 
-  let texture = device.create_texture
+  let texture = context.device().create_texture
   (
     &wgpu::TextureDescriptor
     {
@@ -60,7 +43,7 @@ fn run()
   let bytes_per_pixel = 4;
   let buffer_size = bytes_per_pixel * width * height;
   let output_buffer_size = wgpu::BufferAddress::from( buffer_size );
-  let output_buffer = device.create_buffer
+  let output_buffer = context.device().create_buffer
   (
     &wgpu::BufferDescriptor
     {
@@ -71,17 +54,99 @@ fn run()
     }
   );
 
-  let render_pipeline_layout = device.create_pipeline_layout
+  let vertex_buffer = tiles_tools::geometry::hexagon_triangles();
+  let vertex_count = ( vertex_buffer.len() / 2 ) as u32;
+  let vertex_buffer = context.device().create_buffer_init
+  (
+    &wgpu::util::BufferInitDescriptor
+    {
+      label : Some( "hexagon_mesh" ),
+      contents : bytemuck::cast_slice( vertex_buffer.as_slice() ),
+      usage : wgpu::BufferUsages::VERTEX,
+    }
+  );
+  let vertex_buffer_layout = wgpu::VertexBufferLayout
+  {
+    array_stride : ( 2 * size_of::< f32 >() ) as wgpu::BufferAddress,
+    step_mode : wgpu::VertexStepMode::Vertex,
+    attributes :
+    &[
+      wgpu::VertexAttribute
+      {
+        format : wgpu::VertexFormat::Float32x2,
+        offset : 0,
+        shader_location : 0,
+      }
+    ],
+  };
+
+  let uniform = Uniform
+  {
+    scale: 1.0,
+    color : [ 1.0, 0.0, 0.0, 1.0 ],
+    ..Default::default()
+  };
+  let uniform_buffer = context.device().create_buffer_init
+  (
+    &wgpu::util::BufferInitDescriptor
+    {
+      label : Some( "uniform_buffer" ),
+      contents : bytemuck::bytes_of( &uniform ),
+      usage : wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+    }
+  );
+
+  let bind_group_layout = context.device().create_bind_group_layout
+  (
+    &wgpu::BindGroupLayoutDescriptor
+    {
+      label : Some("uniform_bind_group_layout"),
+      entries :
+      &[
+        wgpu::BindGroupLayoutEntry
+        {
+          binding : 0,
+          visibility : wgpu::ShaderStages::VERTEX_FRAGMENT,
+          ty : wgpu::BindingType::Buffer
+          {
+            ty : wgpu::BufferBindingType::Uniform,
+            has_dynamic_offset : false,
+            min_binding_size : None,
+          },
+          count : None,
+        },
+      ],
+    }
+  );
+
+  let bind_group = context.device().create_bind_group
+  (
+    &wgpu::BindGroupDescriptor
+    {
+      label : Some( "uniform_bind_group" ),
+      layout : &bind_group_layout,
+      entries :
+      &[
+        wgpu::BindGroupEntry
+        {
+          binding : 0,
+          resource : uniform_buffer.as_entire_binding(),
+        },
+      ],
+    }
+  );
+
+  let render_pipeline_layout = context.device().create_pipeline_layout
   (
     &wgpu::PipelineLayoutDescriptor
     {
       label : Some( "hexagonal_pipeline_layout" ),
-      bind_group_layouts : &[],
+      bind_group_layouts : &[ &bind_group_layout ],
       push_constant_ranges : &[]
     }
   );
 
-  let render_pipeline = device.create_render_pipeline
+  let render_pipeline = context.device().create_render_pipeline
   (
     &wgpu::RenderPipelineDescriptor
     {
@@ -92,7 +157,7 @@ fn run()
         module : &shader,
         entry_point : Some( "vs_main" ),
         compilation_options : wgpu::PipelineCompilationOptions::default(),
-        buffers : &[]
+        buffers : &[ vertex_buffer_layout ]
       },
       primitive : wgpu::PrimitiveState::default(),
       depth_stencil : None,
@@ -123,7 +188,8 @@ fn run()
     }
   );
 
-  let mut encoder = device.create_command_encoder( &wgpu::CommandEncoderDescriptor { label : Some( "encoder" ) } );
+  let mut encoder = context.device()
+  .create_command_encoder( &wgpu::CommandEncoderDescriptor { label : Some( "encoder" ) } );
 
   let mut render_pass = encoder.begin_render_pass
   (
@@ -162,7 +228,9 @@ fn run()
     }
   );
   render_pass.set_pipeline( &render_pipeline );
-  render_pass.draw( 0..3, 0..1 );
+  render_pass.set_bind_group( 0, &bind_group, &[] );
+  render_pass.set_vertex_buffer( 0, vertex_buffer.slice( .. ) );
+  render_pass.draw( 0..vertex_count, 0..1 );
   drop( render_pass );
 
   encoder.copy_texture_to_buffer
@@ -181,14 +249,24 @@ fn run()
     texture_extent
   );
 
-  queue.submit( Some( encoder.finish() ) );
+  context.queue().submit( Some( encoder.finish() ) );
 
   let buffer_slice = output_buffer.slice( .. );
   buffer_slice.map_async( wgpu::MapMode::Read, | _ | {} );
 
-  device.poll( wgpu::PollType::Wait ).expect( "Failed to render an image" );
+  context.device().poll( wgpu::PollType::Wait ).expect( "Failed to render an image" );
 
   let data = buffer_slice.get_mapped_range();
   image::save_buffer( "triangle.png", &data, width, height, image::ColorType::Rgba8 )
   .expect( "Failed to save image" );
+}
+
+#[ repr( C ) ]
+#[ derive( Default, Clone, Copy, bytemuck::Zeroable, bytemuck::Pod ) ]
+struct Uniform
+{
+  color : [ f32; 4 ],
+  translation : [ f32; 2 ],
+  scale : f32,
+  _padding : [ u8; 4 ]
 }
