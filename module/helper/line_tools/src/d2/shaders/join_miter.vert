@@ -10,6 +10,14 @@ uniform mat3 u_world_matrix;
 uniform mat4 u_projection_matrix;
 uniform float u_width;
 
+vec2 lineIntersection( vec2 p1, vec2 n1, vec2 p2, vec2 n2 )
+{
+  vec2 m = ( p2 - p1 ) / n1;
+  vec2 n = n2 / n1;
+  float d = ( m.x - m.y ) / ( n.y - n.x );
+  return d * n2 + p2;
+}
+
 void main() 
 {
   vec2 pointA = ( u_world_matrix * vec3( inPointA, 1.0 ) ).xy;
@@ -33,34 +41,49 @@ void main()
   vec2 p2 = 0.5 * u_width * sigma * ( sigma < 0.0 ? CBNorm : ABNorm );
   vec2 p3 = 0.5 * normal * -sigma * u_width / dot( normal, ABNorm );
 
+  if( position.w == 1.0 )
   {
-    vec2 xBasis = pointB - pointA;
-    vec2 yBasis = normalize( vec2( -xBasis.y, xBasis.x ) );
+    vec2 normToAB = normalize( vec2( -AB.y, AB.x ) );
+    vec2 normToCB = normalize( vec2( -CB.y, CB.x ) );
 
-    vec2 cornerA = pointA + ABNorm * -sigma * u_width * 0.5;
-    vec2 cornerC = pointC + CBNorm * sigma * u_width * 0.5;
+    vec2 cornerA = pointA + normToAB * -sigma * u_width * 0.5;
+    vec2 cornerC = pointC + normToCB * sigma * u_width * 0.5;
+    vec2 cornerA2 = pointB + normToAB * sigma * u_width * 0.5;
 
-    vec2 cAB = pointB - cornerA;
-    vec2 cCB = pointB - cornerC;
+    vec2 closestPoint;
+    vec2 closestNormal;
 
-    vec2 dirA = dot( normalize( cAB ), normal * sigma ) * cAB;
-    vec2 dirC = dot( normalize( cCB ), normal * sigma ) * cCB;
-
-    float maxDist = min( length( dirA ), length( dirC ) );
-    vec2 correctionPoint = normal * -sigma * maxDist;
-    vec2 offsetPoint = 0.5 * normal * -sigma * u_width / dot( normal, ABNorm );
-
-    float offsetLength = length( offsetPoint );
-    if( offsetLength > maxDist )
+    if( dot( AB, AB ) > dot( CB, CB ) )
     {
-      // float hypot = 2.0 * length( offsetPoint - correctionPoint );
-      offsetPoint = correctionPoint - offsetPoint + correctionPoint;
-      // offsetPoint += yBasis * sigma * hypot * dot( normal, -yBasis );
-      p3 = offsetPoint;
+      closestPoint = cornerC;
+      closestNormal = normToCB;
     }
+    else
+    {
+      closestPoint = cornerA;
+      closestNormal = normToAB;
+    }
+
+    vec2 intersectionPoint = lineIntersection( pointB, normal, closestPoint, closestNormal );
+    vec2 offsetPoint = pointB + 0.5 * normal * -sigma * u_width / dot( normal, normToAB );
+
+    if( dot( offsetPoint - intersectionPoint, normal * sigma ) < 0.0 )
+    {
+      vec2 normalizedAB = normalize( AB );
+      vec2 cAtoInt =  intersectionPoint - cornerA;
+      float k = dot( cAtoInt, normalizedAB );
+      offsetPoint = cornerA + k * normalizedAB + normalizedAB * dot( normal * sigma, normalizedAB ) * length( intersectionPoint - offsetPoint );
+
+      if( dot( offsetPoint - pointB, AB ) > 0.0 )
+      {
+        offsetPoint = cornerA + AB;
+      }
+    }
+
+    p3 = lineIntersection( pointB, normal, offsetPoint, cornerA2 - offsetPoint ) - pointB;
   }
 
-  vec2 point = pointB + p0 * position.x + p1 * position.y + p2 * position.z +p3 * position.w;
+  vec2 point = pointB + p0 * position.x + p1 * position.y + p2 * position.z + p3 * position.w;
 
   gl_Position =  u_projection_matrix * vec4( point, 0.0, 1.0 );
 }

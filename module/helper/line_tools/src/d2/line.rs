@@ -361,12 +361,12 @@ mod private
           mesh.upload_to( gl, "join", "u_segments", &( segments as f32 ) )?;
         }
 
-        //mesh.draw( gl, "join" );
+        mesh.draw( gl, "join" );
       }
 
       if self.points.len() > 1
       {
-        //mesh.draw( gl, "cap" );
+        mesh.draw( gl, "cap" );
       }
 
       Ok( () )
