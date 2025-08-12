@@ -1,3 +1,5 @@
+//! This module store functions and structures for creating `PrimitiveData` 
+//! of different abstactions like curves.
 mod private
 {
   use minwebgl as gl;

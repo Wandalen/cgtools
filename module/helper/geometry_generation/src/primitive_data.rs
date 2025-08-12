@@ -1,3 +1,17 @@
+//! This module provides a set of tools for working with 3D primitives 
+//! and transforming them into a GLTF scene graph for rendering. It 
+//! defines essential data structures:
+//! 
+//! - `Transform` for manipulating an object's position, rotation, 
+//! and scale.
+//! 
+//! - `AttributesData` and `PrimitiveData` for holding vertex and index 
+//! data along with other primitive properties. 
+//! 
+//! The core functionality is encapsulated in `primitives_data_to_gltf`, 
+//! which takes a collection of `PrimitiveData` and constructs a complete 
+//! `GLTF` object, including all necessary WebGL buffers, geometries 
+//! and a scene hierarchy.
 mod private
 {
   use minwebgl::
@@ -29,16 +43,21 @@ mod private
     AttributeInfo
   };
 
+  /// 3D transformation data including translation, rotation, and scale components.
   #[ derive( Debug, Clone ) ]
   pub struct Transform
   {
+    /// Position offset in 3D space.
     pub translation : F32x3,
+    /// Rotation angles in radians for each axis.
     pub rotation : F32x3,
+    /// Scale factors for each axis.
     pub scale : F32x3
   }
 
   impl Default for Transform
   {
+    /// Returns a new `Transform` with default values: translation and rotation are zero, and scale is one.
     fn default() -> Self 
     {
       Self 
@@ -46,12 +65,13 @@ mod private
         translation : [ 0.0; 3 ].into(), 
         rotation : [ 0.0; 3 ].into(), 
         scale : [ 1.0; 3 ].into() 
-      }    
+      }     
     }
   }
 
   impl Transform
   {
+    /// Set new local matrix of `Node`.
     fn set_node_transform( &self, node : Rc< RefCell< Node > > )
     {
       let t = self.translation;
@@ -66,20 +86,28 @@ mod private
     }
   }
   
+  /// Mesh attribute data containing vertex positions and triangle indices.
   pub struct AttributesData
   {
+    /// Vertex positions in 3D space.
     pub positions : Vec< [ f32; 3 ] >,
+    /// Triangle indices referencing the positions array.
     pub indices : Vec< u32 >
   }
 
+  /// Complete primitive data including geometry attributes, color, and transform.
   #[ derive( Clone ) ]
   pub struct PrimitiveData 
   {
+    /// Shared mesh attribute data.
     pub attributes : Rc< RefCell< AttributesData > >,
+    /// RGBA color values.
     pub color : F32x4,
+    /// 3D transformation to apply to the primitive.
     pub transform : Transform
   }
 
+  /// Creates an `AttributeInfo` object using one function call for a WebGL buffer.
   fn make_buffer_attibute_info
   ( 
     buffer : &web_sys::WebGlBuffer,
@@ -109,6 +137,7 @@ mod private
     )
   }
 
+  /// Converts a collection of primitive data into a GLTF scene for WebGL rendering.
   pub fn primitives_data_to_gltf
   ( 
     gl : &WebGl2RenderingContext,

@@ -1,6 +1,10 @@
+//! This module provides functionality for loading UFO 
+//! fonts and converting text into a 3D mesh representation.
+
+#[ cfg( feature = "text" ) ]
 mod private
 {
-  use std::{collections::HashMap, str::FromStr};
+  use std::collections::HashMap;
   use kurbo::flatten;
   use mingl::geometry::BoundingBox;
   use norad::{ PointType, ContourPoint, Contour };
@@ -14,17 +18,23 @@ mod private
     AttributesData, PrimitiveData, Transform 
   };
 
+  /// Represents a single character glyph, including its contours and a generated 3D body.
   #[ derive( Clone ) ]
   pub struct Glyph
   {
+    /// The character associated with the glyph.
     _character : char,
+    /// A vector of contours, where each contour is a vector of 2D points.
     contours : Vec< Vec< [ f32; 2 ] > >,
+    /// The generated 3D primitive data for the glyph's body.
     body : Option< PrimitiveData >,
+    /// The bounding box of the glyph.
     bounding_box : BoundingBox
   }
 
   impl Glyph
   {
+    /// Creates a new `Glyph` from a vector of 2D contours and a character.
     fn new( contours : Vec< Vec< [ f64; 2 ] > >, character : char ) -> Self
     {
       let mut contours = contours.into_iter()
@@ -77,6 +87,7 @@ mod private
       }
     }
 
+    /// Scales the glyph's contours and bounding box by a given factor.
     fn scale( &mut self, scale : f32)
     { 
       let [ x1, y1 ] = [ self.bounding_box.left(), self.bounding_box.down() ];
@@ -95,6 +106,7 @@ mod private
       self.bounding_box.max = [ x2 * scale, y2 * scale, 0.0 ].into();
     }
 
+    /// Creates a `Glyph` from a `.glif` file's byte data.
     fn from_glif( glif_bytes : Vec< u8 >, character : char ) -> Option< Self >
     {
       let glif_str = std::str::from_utf8( &glif_bytes ).unwrap();
@@ -234,15 +246,19 @@ mod private
     }
   }
 
+  /// Represents a font loaded from UFO files, containing a collection of glyphs.
   #[ derive( Clone ) ]
   pub struct Font
   {
+    /// A map of characters to their corresponding glyphs.
     glyphs : HashMap< char, Glyph >,
+    /// The maximum bounding box of glyph in the font.
     max_size : BoundingBox
   }
 
   impl Font
   {
+    /// Asynchronously loads a new `Font` from a UFO directory path.
     async fn new( path : &str ) -> Self
     {
       let mut glyphs = HashMap::< char, Glyph >::new();
@@ -341,12 +357,14 @@ mod private
         max_size : BoundingBox 
         { 
           min, 
-          max  
+          max   
         }
       }
     }
   }
 
+  /// Converts a set of 2D contours into a triangulated mesh with holes support.
+  #[ cfg( feature = "font-processing" ) ]
   pub fn contours_to_mesh( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
   {
     if contours.is_empty()
@@ -481,7 +499,7 @@ mod private
       .map( | i | i as u32 )
       .collect::< Vec< _ > >();
 
-      let body_positions = flat_positions.chunks( 2 )                                     
+      let body_positions = flat_positions.chunks( 2 )          
       .map( | c | [ c[ 0 ] as f32, c[ 1 ] as f32, 0.0 ] )
       .collect::< Vec< _ > >();
 
@@ -504,12 +522,13 @@ mod private
     { 
       attributes : Rc::new( RefCell::new( attributes ) ),
       color : F32x4::default(),
-      transform : Transform::default()  
+      transform : Transform::default()   
     };
 
     Some( primitive_data )
   }
 
+  /// Asynchronously loads multiple fonts from a list of font names.
   pub async fn load_fonts( font_names : &[ &str ] ) -> HashMap< String, Font >
   {
     let mut fonts = HashMap::< String, Font >::new();
@@ -523,6 +542,7 @@ mod private
     fonts
   }
 
+  /// Converts text string into a collection of filled mesh primitives using the specified font.
   pub fn text_to_mesh( text : &str, font : &Font, transform : &Transform ) -> Vec< PrimitiveData >
   {
     let mut mesh = vec![]; 
@@ -586,6 +606,7 @@ mod private
     mesh
   }
 
+  /// Converts text string into outlined contour meshes with specified line width.
   pub fn text_to_countour_mesh( 
     text : &str, 
     font : &Font, 
@@ -659,6 +680,59 @@ mod private
     }
 
     mesh
+  }
+}
+
+#[ cfg( not( feature = "text" ) ) ]
+mod private
+{
+  use std::collections::HashMap;
+  use crate::{ PrimitiveData };
+
+  /// Stub implementation of Glyph when text feature is disabled
+  #[ derive( Clone ) ]
+  pub struct Glyph;
+
+  /// Stub implementation of Font when text feature is disabled  
+  #[ derive( Clone ) ]
+  pub struct Font;
+
+  impl Font
+  {
+    /// Stub implementation for Font constructor when text feature is disabled
+    pub async fn new( _path : &str ) -> Self
+    {
+      Self
+    }
+  }
+
+  /// Stub implementation - always returns None when text feature is disabled
+  pub fn contours_to_mesh( _contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
+  {
+    None
+  }
+
+  /// Stub implementation - always returns empty map when text feature is disabled
+  pub async fn load_fonts( _font_names : &[ &str ] ) -> HashMap< String, Font >
+  {
+    HashMap::new()
+  }
+
+  /// Stub implementation - always returns None when text feature is disabled
+  pub fn text_to_mesh( _text : &str, _font : &Font ) -> Option< PrimitiveData >
+  {
+    None
+  }
+
+  /// Stub implementation - always returns empty vec when text feature is disabled
+  pub fn text_to_countour_mesh( 
+    _text : &str, 
+    _font : &Font, 
+    _transform : &crate::Transform, 
+    _width : f32 
+  ) -> Vec< PrimitiveData >
+  {
+    Vec::new()
   }
 }
 

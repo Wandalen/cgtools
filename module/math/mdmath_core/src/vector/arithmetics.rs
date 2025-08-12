@@ -1,7 +1,7 @@
 /// Internal namespace.
 mod private
 {
-  use crate::*;
+  use crate::{ NdFloat, VectorIter, VectorIterMut, vector };
   use crate::approx::ulps_eq;
 
   /// Computes the dot product of two vectors.
@@ -170,6 +170,8 @@ mod private
     ulps_eq!( dot( a, b ), &E::zero() )
   }
 
+  /// Computes the cross product of two 3D vectors.
+  /// This function modifies the first vector in place.
   #[ inline ]
   pub fn cross_mut< E, R, B >( r : &mut R, b : &B )
   where
@@ -205,6 +207,7 @@ mod private
     *iter.next().unwrap() = z;
   }
 
+  /// Computes the cross product of two 3D vectors.
   #[ inline ]
   pub fn cross< E, A, B >( a : &A, b : &B ) -> A
   where
@@ -217,6 +220,8 @@ mod private
     r
   }
 
+  /// Performs element-wise addition operation on vectors.
+  /// Modifies first vector in place.
   #[ inline ]
   pub fn sum_mut< E, R, A, const N : usize >( r : &mut R, a : &A )
   where
@@ -231,6 +236,7 @@ mod private
     }
   }
 
+  /// Performs element-wise addition operation on vectors.
   #[ inline ]
   pub fn sum< E, A, B, const N : usize >( a : &A, b : &B ) -> A
   where
@@ -243,6 +249,8 @@ mod private
     r
   }
 
+  /// Performs element-wise addition operation on vector with a scalar.
+  /// Modifies first vector in place.
   #[ inline ]
   pub fn sum_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
   where
@@ -256,6 +264,7 @@ mod private
     }
   }
 
+  /// Performs element-wise addition operation on vector with a scalar.
   #[ inline ]
   pub fn sum_scalar< E, A, const N : usize >( a : &A, b : E ) -> A
   where
@@ -267,6 +276,8 @@ mod private
     r
   }
 
+  /// Performs element-wise subtraction operation of vectors.
+  /// Modifies first vector in place.
   #[ inline ]
   pub fn sub_mut< E, R, A, const N : usize >( r : &mut R, a : &A )
   where
@@ -281,6 +292,7 @@ mod private
     }
   }
 
+  /// Performs element-wise subtraction operation of vectors.
   #[ inline ]
   pub fn sub< E, A, B, const N : usize >( a : &A, b : &B ) -> A
   where
@@ -293,6 +305,8 @@ mod private
     r
   }
 
+  /// Performs element-wise subtraction operation of vector with a scalar.
+  /// Modifies first vector in place.
   #[ inline ]
   pub fn sub_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
   where
@@ -306,6 +320,7 @@ mod private
     }
   }
 
+  /// Performs element-wise subtraction operation of vector with a scalar.
   #[ inline ]
   pub fn sub_scalar< E, A, const N : usize >( a : &A, b : E ) -> A
   where
@@ -317,6 +332,8 @@ mod private
     r
   }
 
+  /// Performs element-wise multiplication operation on vectors.
+  /// Modifies first vector in place.
   #[ inline ]
   pub fn mul_mut< E, R, A, const N : usize >( r : &mut R, a : A )
   where
@@ -331,6 +348,7 @@ mod private
     }
   }
 
+  /// Performs element-wise multiplication operation on vectors.
   #[ inline ]
   pub fn mul< E, A, B, const N : usize >( a : &A, b : &B ) -> A
   where
@@ -343,6 +361,8 @@ mod private
     r
   }
 
+  /// Performs element-wise multiplication operation on vector with a scalar.
+  /// Modifies first vector in place.
   #[ inline ]
   pub fn mul_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
   where
@@ -356,6 +376,7 @@ mod private
     }
   }
 
+  /// Performs element-wise multiplication operation on vector with a scalar.
   #[ inline ]
   pub fn mul_scalar< E, R, const N : usize >( a : &R, b : E ) -> R
   where
@@ -367,6 +388,8 @@ mod private
     r
   }
 
+  /// Performs element-wise division operation of vectors.
+  /// Modifies first vector in place.
   #[ inline ]
   pub fn div_mut< E, R, A, const N : usize >( r : &mut R, a : &A )
   where
@@ -381,6 +404,7 @@ mod private
     }
   }
 
+  /// Performs element-wise division operation of vectors.
   #[ inline ]
   pub fn div< E, A, B, const N : usize >( a : &A, b : &B ) -> A
   where
@@ -393,6 +417,8 @@ mod private
     r
   }
 
+  /// Performs element-wise division operation of vector with a scalar.
+  /// Modifies first vector in place.
   #[ inline ]
   pub fn div_scalar_mut< E, R, const N : usize >( r : &mut R, a : E )
   where
@@ -406,6 +432,7 @@ mod private
     }
   }
 
+  /// Performs element-wise division operation of vector with a scalar.
   #[ inline ]
   pub fn div_scalar< E, R, const N : usize >( a : &R, b : E ) -> R
   where
@@ -417,6 +444,8 @@ mod private
     r
   }
 
+  /// Performs element-wise minimum operation on vectors.
+  /// Modifies first vector in place.
   #[ inline ]
   pub fn min_mut< E, R, A, const N : usize >( r : &mut R, a : &A )
   where
@@ -431,6 +460,7 @@ mod private
     }
   }
 
+  /// Performs element-wise minimum operation on vectors.
   #[ inline ]
   pub fn min< E, A, B, const N : usize >( a : &A, b : &B ) -> A
   where
@@ -443,6 +473,8 @@ mod private
     r
   }
 
+  /// Performs element-wise maximum operation on vectors.
+  /// Modifies first vector in place.
   #[ inline ]
   pub fn max_mut< E, R, A, const N : usize >( r : &mut R, a : &A )
   where
@@ -457,6 +489,7 @@ mod private
     }
   }
 
+  /// Performs element-wise maximum operation on vectors.
   #[ inline ]
   pub fn max< E, A, B, const N : usize >( a : &A, b : &B ) -> A
   where

@@ -5,13 +5,20 @@ mod private
   use gl::GL;
   use crate::webgl::{ post_processing::{ Pass, VS_TRIANGLE }, program::NarrowOutlineShader, ProgramInfo };
 
+  /// A struct representing a rendering pass for drawing narrow outlines.
   pub struct NarrowOutlinePass
   {
+    /// `ProgramInfo` holds the WebGL program and its uniform/attribute locations.
     program_info : ProgramInfo< NarrowOutlineShader >,
+    /// The texture containing position data from the G-Buffer.
     position_texture : Option< gl::web_sys::WebGlTexture >,
+    /// The texture containing object color or ID data from the G-Buffer.
     object_color_texture : Option< gl::web_sys::WebGlTexture >,
+    /// The thickness of the outline to be rendered.
     outline_thickness : f32,
+    /// The width of the viewport/texture.
     width : u32,
+    /// The height of the viewport/texture.
     height : u32
   }
 
@@ -58,6 +65,7 @@ mod private
       Ok( pass )
     }    
 
+    /// Sets the thickness of the outline.
     pub fn set_outline_thickness( &mut self, new_value : f32 )
     {
       self.outline_thickness = new_value;

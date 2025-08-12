@@ -61,6 +61,9 @@ mod private
       }
     }
 
+    /// Computes the bounding box for the entire hierarchy of a node.
+    ///
+    /// This function calculates a `BoundingBox` that encompasses the current node and all of its descendants.
     pub fn bounding_box( &self ) -> BoundingBox
     {
       let mut bbox = BoundingBox::default();

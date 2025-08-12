@@ -3,6 +3,7 @@ mod private
 {
   use crate::*;
 
+  /// A builder for creating a `web_sys::GpuVertexAttribute`.
   #[ derive( Clone ) ]
   pub struct VertexAttribute
   {
@@ -16,6 +17,7 @@ mod private
 
   impl VertexAttribute 
   {
+    /// Creates a new `VertexAttribute` with default values.
     pub fn new() -> Self
     {
       let offset = 0.0;
@@ -72,6 +74,7 @@ mod private
     }    
   }
 
+  /// Calculates the size in bytes of a given `GpuVertexFormat`.
   pub fn format_to_size( format : web_sys::GpuVertexFormat ) -> usize
   {
     use web_sys::GpuVertexFormat;

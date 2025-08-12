@@ -1,3 +1,5 @@
+//! MouseButton for representing the different mouse buttons as defined by the MouseEvent.button property
+
 use std::str::FromStr;
 use strum::EnumCount;
 
@@ -15,12 +17,18 @@ use strum::EnumCount;
 #[ derive( Debug, Clone, Copy, PartialEq, Eq, Hash, EnumCount ) ]
 pub enum MouseButton
 {
-  Main,        // Left button (0)
-  Auxiliary,   // Middle button (1)
-  Secondary,   // Right button (2)
-  Back,        // Back button (3)
-  Forward,     // Forward button (4)
-  Unknown,     // For any other values
+  /// Left button (0)
+  Main,
+  /// Middle button (1)
+  Auxiliary,
+  /// Right button (2)
+  Secondary,
+  /// Back button (3)
+  Back,
+  /// Forward button (4)
+  Forward,
+  /// For any other values
+  Unknown,
 }
 
 impl MouseButton

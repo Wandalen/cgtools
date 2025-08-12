@@ -1,27 +1,66 @@
 [package]
 name = "browser_log"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
-authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
+rust-version = "1.75.0"
+authors = ["Kostiantyn Mysnyk <wandalen@obox.systems>"]
 license = "MIT"
-rust-version = "1.81.0"
-repository = "https://github.com/Wandalen/cg_tools"
-description = "Utility to log in wasm/browser"
+repository = "https://github.com/Wandalen/cgtools"
+homepage = "https://github.com/Wandalen/cgtools/tree/master/module/helper/browser_log"
+documentation = "https://docs.rs/browser_log"
+description = "Advanced logging and panic handling for WebAssembly applications with browser console integration"
 readme = "readme.md"
-keywords = ["wasm"]
+keywords = ["wasm", "logging", "browser", "webassembly", "console"]
+categories = ["web-programming", "development-tools", "wasm"]
+include = [
+    "src/**/*",
+    "tests/**/*",
+    "Cargo.toml",
+    "readme.md",
+    "license*",
+    "changelog*",
+]
 
 [lints]
 workspace = true
 
-[dependencies]
+[features]
+enabled = [
+  "dep:wasm-bindgen",
+  "dep:web-sys",
+  "dep:log",
+  "dep:mod_interface",
+]
+default = [ "enabled" ]
+full = [ "default" ]
 
-wasm-bindgen = { workspace = true }
-web-sys = { workspace = true, features = [
+[dependencies]
+wasm-bindgen = { workspace = true, optional = true }
+web-sys = { workspace = true, optional = true, features = [
   'console',
 ]}
-log = { workspace = true, features = [ "std" ] }
-mod_interface = { workspace = true }
+log = { workspace = true, optional = true, features = [ "std" ] }
+mod_interface = { workspace = true, optional = true }
 
-# xxx : introduce features
-# xxx : introduce features: enabled, default, full
+[dev-dependencies]
+test_tools = { workspace = true }
+
+# Metadata for crates.io
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+default-target = "wasm32-unknown-unknown"
+targets = [
+    "wasm32-unknown-unknown",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+    "x86_64-apple-darwin",
+]
+
+# Cargo.toml maintenance metadata
+[package.metadata.release]
+pre-release-replacements = [
+    { file = "readme.md", search = "browser_log = \"[0-9.]+\"", replace = "browser_log = \"{{version}}\"" },
+    { file = "changelog.md", search = "## Unreleased", replace = "## Unreleased\n\n## {{version}} - {{date}}" },
+]
 

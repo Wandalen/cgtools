@@ -1,9 +1,12 @@
+//! KeyboardCode for representing all possible values for the KeyboardEvent.code property
+
 use std::str::FromStr;
 use strum::EnumCount;
 
 /// KeyboardCode represents all possible values for the KeyboardEvent.code property
 /// as defined in the UI Events KeyboardEvent code Values specification.
 #[ derive( Debug, Clone, Copy, PartialEq, Eq, Hash, EnumCount ) ]
+#[ allow( missing_docs ) ]
 pub enum KeyboardKey
 {
   // Modifier keys

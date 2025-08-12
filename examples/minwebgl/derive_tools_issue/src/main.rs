@@ -1,3 +1,5 @@
+//! This crate provides a minimal WebGL application that demonstrates the issue of using `EnumCount` with `derive_tools`
+
 fn main() {}
 
 #[ cfg( test ) ]

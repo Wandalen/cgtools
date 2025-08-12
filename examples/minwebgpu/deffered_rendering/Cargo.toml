@@ -8,13 +8,17 @@ authors = [
 ]
 license = "MIT"
 
-[dependencies]
+[lints]
+workspace = true
+
+# Only include WebGPU and related dependencies for wasm32 targets
+[target.'cfg(target_arch = "wasm32")'.dependencies]
 tobj =  { workspace = true }
 bytemuck = { workspace = true, features = [ "derive" ] }
-rand = "0.8.5" # qqq : use workspace dependencies only
-getrandom = { version = "0.2", features = [ "js" ] } # qqq : use workspace dependencies only
+rand = { workspace = true }
+getrandom = { workspace = true, features = [ "wasm_js" ] }
 
-[dependencies.minwebgpu]
+[target.'cfg(target_arch = "wasm32")'.dependencies.minwebgpu]
 workspace = true
 features = [
   'future',
@@ -22,3 +26,7 @@ features = [
   'model_obj',
   'math'
 ]
+
+# No dependencies needed for native targets
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# Stub dependencies for compilation

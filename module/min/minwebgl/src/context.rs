@@ -18,25 +18,31 @@ mod private
   #[ derive( Debug, error::typed::Error ) ]
   pub enum WebglError
   {
-
-    /// Error when failing to find or create a canvas.
+    /// Occurs when the system fails to create a WebGL resource, such as a buffer, texture, or vertex array object (VAO),
+    /// which can happen if the browser's WebGL context is lost or resources are exhausted.
     #[ error( "Failed to create resource {0}" ) ]
     FailedToAllocateResource( &'static str ),
+    /// Error when trying to upload a uniform with incorrect data.
     #[ error( "Cant upload uniform {0} with {1} of length {2}.\nKnown length : [ {3} ]" ) ]
     CantUploadUniform( &'static str, &'static str, usize, &'static str ),
+    /// Error when operation is not supported for the given type.
     #[ error( "Not supported for type {0}" ) ]
     NotSupportedForType( &'static str ),
-
+    /// Error related to data type conversion.
     #[ error( "Data type error :: {0}" ) ]
     DataType( #[ from ] data_type::Error ),
+    /// Error related to DOM operations.
     #[ error( "Dom error :: {0}" ) ]
     DomError( #[ from ] dom::Error ),
+    /// Error related to shader compilation or linking.
     #[ error( "Shader error :: {0}" ) ]
     ShaderError( #[ from ] shader::Error ),
+    /// Error when required data is missing.
     #[ error( "Can't find {0}" ) ]
     MissingDataError( &'static str ),
   }
 
+  /// Create a WebGL2 context from a canvas element with default options.
   pub fn from_canvas( canvas : &HtmlCanvasElement ) -> Result< GL, Error >
   {
     from_canvas_with( canvas, ContexOptions::default() )
@@ -108,15 +114,20 @@ mod private
     from_canvas_with( &canvas, o )
   }
 
+  /// WebGL power preference options for context creation.
   #[ derive( Debug, Clone, Copy, Default ) ]
   pub enum PowerPreference
   {
+    /// Prefer low power consumption.
     LowPower,
+    /// Prefer high performance.
     HighPerformance,
+    /// Use default power preference.
     #[ default ]
     Default,
   }
 
+  /// Converts the `PowerPreference` enum variant to its corresponding string representation.
   impl ToString for PowerPreference
   {
     fn to_string( &self ) -> String
@@ -180,60 +191,70 @@ mod private
 
   impl ContexOptions
   {
+    /// Set whether to remove device pixel ratio scaling.
     pub fn remove_dpr_scaling( mut self, val : bool ) -> Self
     {
       self.remove_dpr_scaling = val;
       self
     }
 
+    /// Set whether to preserve the drawing buffer.
     pub fn preserve_drawing_buffer( mut self, val : bool ) -> Self
     {
       self.preserve_drawing_buffer = val;
       self
     }
 
+    /// Set whether the canvas has an alpha channel.
     pub fn alpha( mut self, val : bool ) -> Self
     {
       self.alpha = val;
       self
     }
 
+    /// Set whether antialiasing is enabled.
     pub fn antialias( mut self, val : bool ) -> Self
     {
       self.antialias = val;
       self
     }
 
+    /// Set whether a depth buffer is created.
     pub fn depth( mut self, val : bool ) -> Self
     {
       self.depth = val;
       self
     }
 
+    /// Set whether a stencil buffer is created.
     pub fn stencil( mut self, val : bool ) -> Self
     {
       self.stencil = val;
       self
     }
 
+    /// Set whether to use premultiplied alpha.
     pub fn premultiplied_alpha( mut self, val : bool ) -> Self
     {
       self.premultiplied_alpha = val;
       self
     }
 
+    /// Set whether to fail on major performance caveats.
     pub fn fail_if_major_performance_caveat( mut self, val : bool ) -> Self
     {
       self.fail_if_major_performance_caveat = val;
       self
     }
 
+    /// Set the power preference for the WebGL context.
     pub fn power_preference( mut self, val : PowerPreference ) -> Self
     {
       self.power_preference = val;
       self
     }
 
+    /// Set whether the context is desynchronized.
     pub fn desynchronized( mut self, val : bool ) -> Self
     {
       self.desynchronized = val;
@@ -241,6 +262,7 @@ mod private
     }
   }
 
+  /// Provides a default implementation for `ContexOptions`.
   impl Default for ContexOptions
   {
     fn default() -> Self
@@ -261,6 +283,7 @@ mod private
     }
   }
 
+  /// Converts `ContexOptions` into a `js_sys::Object` for use with JavaScript.
   impl Into< js_sys::Object > for ContexOptions
   {
     fn into( self ) -> js_sys::Object
