@@ -5,7 +5,7 @@ members = [
   # Alias modules
   "module/alias/browser_tools",
   "module/alias/ndarray_tools",
-  
+
   # Blank modules
   "module/blank/cg_tools",
   "module/blank/cgtools",
@@ -13,12 +13,12 @@ members = [
   "module/blank/mdmath_ai",
   "module/blank/mdmath_cg",
   "module/blank/mdmath_linalg",
-  
+
   # Min modules
   "module/min/mingl",
-  "module/min/minwebgl", 
+  "module/min/minwebgl",
   "module/min/minwebgpu",
-  
+
   # Helper modules (excluding incomplete tilemap_renderer and problematic vectorizer)
   "module/helper/browser_input",
   "module/helper/browser_log",
@@ -29,11 +29,11 @@ members = [
   "module/helper/renderer",
   "module/helper/tiles_tools",
   # "module/helper/vectorizer", # TODO: Fix feature gate issues
-  
+
   # Math modules
   "module/math/mdmath_core",
   "module/math/ndarray_cg",
-  
+
   # Examples
   "examples/minwebgl/*",
   "examples/minwebgpu/*",
@@ -81,7 +81,7 @@ module_name_repetitions = "allow"
 absolute_paths = "allow"
 # Allows pub use patterns (needed for mod_interface macro)
 pub_use = "allow"
-# Allows mod.rs files (used in this codebase intentionally) 
+# Allows mod.rs files (used in this codebase intentionally)
 mod_module_files = "allow"
 # Allows self-named module files (format.rs instead of format/mod.rs)
 self_named_module_files = "allow"
@@ -99,15 +99,15 @@ many_single_char_names = "allow"
 # = helpers
 
 [workspace.dependencies.browser_input]
-version = "0.1.0"
+version = "0.2.0"
 path = "module/helper/browser_input"
 
 [workspace.dependencies.tiles_tools]
-version = "0.1.0"
+version = "0.2.0"
 path = "module/helper/tiles_tools"
 
 [workspace.dependencies.browser_log]
-version = "~0.3.0"
+version = "~0.4.0"
 path = "module/helper/browser_log"
 
 [workspace.dependencies.browser_tools]
@@ -127,47 +127,21 @@ version = "0.1.0"
 path = "module/helper/geometry_generation"
 
 [workspace.dependencies.line_tools]
-version = "0.1.0"
+version = "0.2.0"
 path = "module/helper/line_tools"
-
-# = draw
-
-# [workspace.dependencies.draw_lang]
-# version = "~0.1.0"
-# path = "module/draw/lang"
-#
-# [workspace.dependencies.draw_lang_core]
-# version = "~0.1.0"
-# path = "module/draw/core"
-#
-# [workspace.dependencies.draw_lang_derive]
-# version = "~0.1.0"
-# path = "module/draw/derive"
-#
-# [workspace.dependencies.draw_lang_primitives]
-# version = "~0.1.0"
-# path = "module/draw/primitives"
-#
-# [workspace.dependencies.draw_lang_transform]
-# version = "~0.1.0"
-# path = "module/draw/transform"
-#
-# [workspace.dependencies.draw_lang_yew]
-# version = "~0.1.0"
-# path = "module/draw/yew"
 
 # = min
 
 [workspace.dependencies.mingl]
-version = "~0.2.0"
+version = "~0.3.0"
 path = "module/min/mingl"
 
 [workspace.dependencies.minwebgl]
-version = "~0.2.0"
+version = "~0.3.0"
 path = "module/min/minwebgl"
 
 [workspace.dependencies.minwebgpu]
-version = "~0.1.0"
+version = "~0.2.0"
 path = "module/min/minwebgpu"
 
 # = vectorizer
@@ -178,7 +152,7 @@ path = "module/vectorizer"
 # = math
 
 [workspace.dependencies.ndarray_cg]
-version = "~0.3.0"
+version = "~0.4.0"
 path = "module/math/ndarray_cg"
 
 [workspace.dependencies.ndarray_tools]
@@ -186,7 +160,7 @@ version = "~0.1.0"
 path = "module/alias/ndarray_tools"
 
 [workspace.dependencies.mdmath_core]
-version = "~0.3.0"
+version = "~0.4.0"
 path = "module/math/mdmath_core"
 
 # qqq : for Yevhen : comment out it

@@ -2,6 +2,8 @@
 //! # Tools for reading and writing embroidery files
 //!
 
+#![allow(clippy::unnecessary_unwrap)]
+
 use mod_interface::mod_interface;
 
 mod private {}
