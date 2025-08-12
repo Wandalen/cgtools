@@ -21,8 +21,6 @@ canvas_renderer = { workspace = true }
 geometry_generation = { workspace = true, features = [ "font-processing" ] }
 kurbo = { workspace = true }
 zune-hdr = { workspace = true }
-rand = { workspace = true }
-getrandom = { workspace = true, features = [ "wasm_js" ] }
 interpoli = { workspace = true }
 peniko = { workspace = true }
 color = { workspace = true }
