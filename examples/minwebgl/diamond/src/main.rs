@@ -1,5 +1,8 @@
 //! Just draw a large point in the middle of the screen.
 
+#![ allow( clippy::needless_range_loop ) ]
+#![ allow( clippy::needless_borrow ) ]
+
 use minwebgl as gl;
 use gl::
 {

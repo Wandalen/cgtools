@@ -1,5 +1,8 @@
 
 
+#![ allow( clippy::match_wildcard_for_single_variants ) ]
+#![ allow( clippy::single_match ) ]
+
 use std::{cell::RefCell, rc::Rc};
 
 use mingl::CameraOrbitControls;

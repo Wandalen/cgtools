@@ -1,4 +1,17 @@
 //! 2d line demo
+#![ allow( clippy::implicit_return ) ]
+#![ allow( clippy::default_trait_access ) ]
+#![ allow( clippy::min_ident_chars ) ]
+#![ allow( clippy::std_instead_of_core ) ]
+#![ allow( clippy::cast_precision_loss ) ]
+#![ allow( clippy::cast_possible_truncation ) ]
+#![ allow( clippy::assign_op_pattern ) ]
+#![ allow( clippy::semicolon_if_nothing_returned ) ]
+#![ allow( clippy::too_many_lines ) ]
+#![ allow( clippy::similar_names ) ]
+#![ allow( clippy::needless_return ) ]
+#![ allow( clippy::needless_range_loop ) ]
+#![ allow( clippy::uninlined_format_args ) ]
 
 use minwebgl as gl;
 use std::

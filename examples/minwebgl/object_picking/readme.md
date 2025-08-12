@@ -381,10 +381,3 @@ fn debug_show_pick_buffer( &self )
 }
 ```
 
-## 🤝 Contributing
-
-Part of the CGTools workspace. Feel free to submit issues and pull requests on GitHub.
-
-## 📄 License
-
-MIT
