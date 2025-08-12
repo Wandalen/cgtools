@@ -146,6 +146,10 @@ path = "module/min/minwebgl"
 version = "~0.2.0"
 path = "module/min/minwebgpu"
 
+[workspace.dependencies.minwgpu]
+version = "0.1.0"
+path = "module/min/minwgpu"
+
 # = vectorizer
 [workspace.dependencies.vectorizer]
 version = "~0.1.0"

@@ -1,3 +1,5 @@
+//! Polygonal light demo
+
 mod precompute;
 
 use minwebgl as gl;
