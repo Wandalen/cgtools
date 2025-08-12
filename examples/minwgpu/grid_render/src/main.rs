@@ -1,11 +1,12 @@
-//! Example of rendering a hexagonal grid with wgpu
+//! TODO
+// #![ doc = "../readme.md" ]
 
 fn main()
 {
-  pollster::block_on( async { run().await } );
+  run();
 }
 
-async fn run()
+fn run()
 {
   let instance = wgpu::Instance::new
   (
@@ -16,19 +17,18 @@ async fn run()
     }
   );
 
-  let adapter = instance.request_adapter
+  let adapter = minwgpu::helper::request_adapter
   (
+    &instance,
     &wgpu::RequestAdapterOptions
     {
       power_preference : wgpu::PowerPreference::HighPerformance,
       ..Default::default()
     }
-  ).await.expect( "Failed to retrieve an adapter" );
+  ).expect( "Failed to retrieve an adapter" );
 
-  let ( device, queue ) = adapter.request_device
-  (
-    &wgpu::wgt::DeviceDescriptor::default()
-  ).await.expect( "Failed to retrieve a device" );
+  let ( device, queue ) = minwgpu::helper::request_device( &adapter, &wgpu::DeviceDescriptor::default() )
+  .expect( "Failed to retrieve a device" );
 
   let shader = device.create_shader_module( wgpu::include_wgsl!( "../shaders/shader.wgsl" ) );
 
@@ -57,6 +57,20 @@ async fn run()
   );
   let texture_view = texture.create_view( &wgpu::TextureViewDescriptor::default() );
 
+  let bytes_per_pixel = 4;
+  let buffer_size = bytes_per_pixel * width * height;
+  let output_buffer_size = wgpu::BufferAddress::from( buffer_size );
+  let output_buffer = device.create_buffer
+  (
+    &wgpu::BufferDescriptor
+    {
+      label : Some( "Output Buffer" ),
+      size : output_buffer_size,
+      usage : wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+      mapped_at_creation : false,
+    }
+  );
+
   let render_pipeline_layout = device.create_pipeline_layout
   (
     &wgpu::PipelineLayoutDescriptor
@@ -80,16 +94,7 @@ async fn run()
         compilation_options : wgpu::PipelineCompilationOptions::default(),
         buffers : &[]
       },
-      primitive : wgpu::PrimitiveState
-      {
-        topology : wgpu::PrimitiveTopology::TriangleList,
-        strip_index_format : None,
-        front_face : wgpu::FrontFace::Ccw,
-        cull_mode : None,
-        unclipped_depth : false,
-        polygon_mode : wgpu::PolygonMode::Fill,
-        conservative : false
-      },
+      primitive : wgpu::PrimitiveState::default(),
       depth_stencil : None,
       multisample : wgpu::MultisampleState::default(),
       fragment : Some
@@ -120,61 +125,45 @@ async fn run()
 
   let mut encoder = device.create_command_encoder( &wgpu::CommandEncoderDescriptor { label : Some( "encoder" ) } );
 
-  {
-    let mut render_pass = encoder.begin_render_pass
-    (
-      &wgpu::RenderPassDescriptor
-      {
-        label : Some( "render_pass" ),
-        color_attachments :
-        &[
-          Some
-          (
-            wgpu::RenderPassColorAttachment
-            {
-              view : &texture_view,
-              resolve_target : None,
-              ops : wgpu::Operations
-              {
-                load : wgpu::LoadOp::Clear
-                (
-                  wgpu::Color
-                  {
-                    r : 0.1,
-                    g : 0.2,
-                    b : 0.3,
-                    a : 1.0,
-                  }
-                ),
-                store : wgpu::StoreOp::Store,
-              },
-              depth_slice : None,
-            }
-          )
-        ],
-        depth_stencil_attachment : None,
-        timestamp_writes : None,
-        occlusion_query_set : None,
-      }
-    );
-
-    render_pass.set_pipeline( &render_pipeline );
-    render_pass.draw( 0..3, 0..1 );
-  }
-
-  let bytes_per_pixel = 4;
-  let buffer_size = bytes_per_pixel * width * height;
-  let output_buffer_size = wgpu::BufferAddress::from( buffer_size );
-  let output_buffer = device.create_buffer
+  let mut render_pass = encoder.begin_render_pass
   (
-    &wgpu::BufferDescriptor
+    &wgpu::RenderPassDescriptor
     {
-      label : Some( "Output Buffer" ),
-      size : output_buffer_size,
-      usage : wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-      mapped_at_creation : false,
+      label : Some( "render_pass" ),
+      color_attachments :
+      &[
+        Some
+        (
+          wgpu::RenderPassColorAttachment
+          {
+            view : &texture_view,
+            resolve_target : None,
+            ops : wgpu::Operations
+            {
+              load : wgpu::LoadOp::Clear
+              (
+                wgpu::Color
+                {
+                  r : 0.1,
+                  g : 0.2,
+                  b : 0.3,
+                  a : 1.0,
+                }
+              ),
+              store : wgpu::StoreOp::Store,
+            },
+            depth_slice : None,
+          }
+        )
+      ],
+      depth_stencil_attachment : None,
+      timestamp_writes : None,
+      occlusion_query_set : None,
     }
   );
+  render_pass.set_pipeline( &render_pipeline );
+  render_pass.draw( 0..3, 0..1 );
+  drop( render_pass );
 
   encoder.copy_texture_to_buffer
   (

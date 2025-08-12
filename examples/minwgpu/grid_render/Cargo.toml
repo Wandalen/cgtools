@@ -1,14 +1,13 @@
 [package]
-name = "hexgrid_render"
+name = "grid_render"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 wgpu.workspace = true
-tiles_tools.workspace = true
-pollster.workspace = true
 image.workspace = true
 minwgpu.workspace = true
+tiles_tools.workspace = true
 
 [lints]
 workspace = true
