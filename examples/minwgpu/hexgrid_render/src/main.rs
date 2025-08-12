@@ -11,14 +11,14 @@ async fn run()
   (
     &wgpu::InstanceDescriptor
     {
-      backends: wgpu::Backends::PRIMARY,
+      backends : wgpu::Backends::PRIMARY,
       ..Default::default()
     }
   );
 
   let adapter = instance.request_adapter
   (
-    &wgpu::RequestAdapterOptionsBase
+    &wgpu::RequestAdapterOptions
     {
       power_preference : wgpu::PowerPreference::HighPerformance,
       ..Default::default()
@@ -40,6 +40,7 @@ async fn run()
     height,
     depth_or_array_layers : 1,
   };
+
   let texture = device.create_texture
   (
     &wgpu::TextureDescriptor
@@ -117,4 +118,88 @@ async fn run()
     }
   );
 
+  let mut encoder = device.create_command_encoder( &wgpu::CommandEncoderDescriptor { label : Some( "encoder" ) } );
+
+  {
+    let mut render_pass = encoder.begin_render_pass
+    (
+      &wgpu::RenderPassDescriptor
+      {
+        label : Some( "render_pass" ),
+        color_attachments :
+        &[
+          Some
+          (
+            wgpu::RenderPassColorAttachment
+            {
+              view : &texture_view,
+              resolve_target : None,
+              ops : wgpu::Operations
+              {
+                load : wgpu::LoadOp::Clear
+                (
+                  wgpu::Color
+                  {
+                    r : 0.1,
+                    g : 0.2,
+                    b : 0.3,
+                    a : 1.0,
+                  }
+                ),
+                store : wgpu::StoreOp::Store,
+              },
+              depth_slice : None,
+            }
+          )
+        ],
+        depth_stencil_attachment : None,
+        timestamp_writes : None,
+        occlusion_query_set : None,
+      }
+    );
+
+    render_pass.set_pipeline( &render_pipeline );
+    render_pass.draw( 0..3, 0..1 );
+  }
+
+  let bytes_per_pixel = 4;
+  let buffer_size = bytes_per_pixel * width * height;
+  let output_buffer_size = wgpu::BufferAddress::from( buffer_size );
+  let output_buffer = device.create_buffer
+  (
+    &wgpu::BufferDescriptor
+    {
+      label : Some( "Output Buffer" ),
+      size : output_buffer_size,
+      usage : wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+      mapped_at_creation : false,
+    }
+  );
+
+  encoder.copy_texture_to_buffer
+  (
+    texture.as_image_copy(),
+    wgpu::TexelCopyBufferInfo
+    {
+      buffer : &output_buffer,
+      layout : wgpu::TexelCopyBufferLayout
+      {
+        offset : 0,
+        bytes_per_row : Some( width * bytes_per_pixel ),
+        rows_per_image : None
+      }
+    },
+    texture_extent
+  );
+
+  queue.submit( Some( encoder.finish() ) );
+
+  let buffer_slice = output_buffer.slice( .. );
+  buffer_slice.map_async( wgpu::MapMode::Read, | _ | {} );
+
+  device.poll( wgpu::PollType::Wait ).expect( "Failed to render an image" );
+
+  let data = buffer_slice.get_mapped_range();
+  image::save_buffer( "triangle.png", &data, width, height, image::ColorType::Rgba8 )
+  .expect( "Failed to save image" );
 }
