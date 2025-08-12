@@ -584,10 +584,3 @@ fn debug_model_loading(obj_path: &str) {
 - **Texture issues** - Ensure texture coordinates are within [0,1] range
 - **Performance drops** - Monitor polygon count and texture memory usage
 
-## 🤝 Contributing
-
-Part of the CGTools workspace. Feel free to submit issues and pull requests on GitHub.
-
-## 📄 License
-
-MIT

@@ -20,7 +20,7 @@ members = [
   "module/min/minwebgpu",
   "module/min/minwgpu",
 
-  # Helper modules (excluding incomplete tilemap_renderer and problematic vectorizer)
+  # Helper modules
   "module/helper/browser_input",
   "module/helper/browser_log",
   "module/helper/canvas_renderer",
@@ -28,6 +28,7 @@ members = [
   "module/helper/geometry_generation",
   "module/helper/line_tools",
   "module/helper/renderer",
+  "module/helper/tilemap_renderer",
   "module/helper/tiles_tools",
   # "module/helper/vectorizer", # TODO: Fix feature gate issues
 
@@ -132,6 +133,10 @@ path = "module/helper/geometry_generation"
 version = "0.2.0"
 path = "module/helper/line_tools"
 
+[workspace.dependencies.tilemap_renderer]
+version = "0.1.0"
+path = "module/helper/tilemap_renderer"
+
 # = min
 
 [workspace.dependencies.mingl]
@@ -192,7 +197,7 @@ version = "0.27.2"
 version = "~0.34.0"
 
 [workspace.dependencies.former]
-version = "~2.26.0"
+version = "~2.27.0"
 
 [workspace.dependencies.error_tools]
 version = "0.22.0"
@@ -366,3 +371,9 @@ version = "26.0.1"
 
 [workspace.dependencies.pollster]
 version = "0.4.0"
+
+[workspace.dependencies.unilang]
+version = "0.11.0"
+
+[workspace.dependencies.rustyline]
+version = "14.0"
