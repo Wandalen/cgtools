@@ -166,10 +166,3 @@ if (!navigator.gpu) {
 - **Shader Validation** - Built-in WGSL syntax checking
 - **Performance Profiler** - GPU timing and resource usage
 
-## 🤝 Contributing
-
-Part of the CGTools workspace. Feel free to submit issues and pull requests on GitHub.
-
-## 📄 License
-
-MIT

@@ -417,10 +417,3 @@ fn monitor_texture_updates() {
 }
 ```
 
-## 🤝 Contributing
-
-Part of the CGTools workspace. Feel free to submit issues and pull requests on GitHub.
-
-## 📄 License
-
-MIT

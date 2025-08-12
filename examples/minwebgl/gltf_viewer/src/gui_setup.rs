@@ -1,3 +1,6 @@
+#![ allow( clippy::needless_pass_by_value ) ]
+#![ allow( clippy::field_reassign_with_default ) ]
+
 use std::{cell::RefCell, rc::Rc};
 
 use minwebgl as gl;

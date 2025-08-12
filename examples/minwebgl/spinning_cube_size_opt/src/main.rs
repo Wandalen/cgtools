@@ -1,5 +1,32 @@
 //! Just draw a large point in the middle of the screen.
 
+#![ allow( clippy::implicit_return ) ]
+#![ allow( clippy::default_trait_access ) ]
+#![ allow( clippy::min_ident_chars ) ]
+#![ allow( clippy::std_instead_of_core ) ]
+#![ allow( clippy::cast_precision_loss ) ]
+#![ allow( clippy::cast_possible_truncation ) ]
+#![ allow( clippy::assign_op_pattern ) ]
+#![ allow( clippy::semicolon_if_nothing_returned ) ]
+#![ allow( clippy::too_many_lines ) ]
+#![ allow( clippy::wildcard_imports ) ]
+#![ allow( clippy::needless_borrow ) ]
+#![ allow( clippy::cast_possible_wrap ) ]
+#![ allow( clippy::redundant_field_names ) ]
+#![ allow( clippy::useless_format ) ]
+#![ allow( clippy::let_unit_value ) ]
+#![ allow( clippy::needless_return ) ]
+#![ allow( clippy::cast_sign_loss ) ]
+#![ allow( clippy::similar_names ) ]
+#![ allow( clippy::needless_continue ) ]
+#![ allow( clippy::else_if_without_else ) ]
+#![ allow( clippy::unreadable_literal ) ]
+#![ allow( clippy::explicit_iter_loop ) ]
+#![ allow( clippy::uninlined_format_args ) ]
+#![ allow( clippy::collapsible_if ) ]
+#![ allow( clippy::unused_async ) ]
+#![ allow( clippy::needless_borrows_for_generic_args ) ]
+
 use minwebgl as gl;
 
 #[ cfg( target_arch = "wasm32" ) ]

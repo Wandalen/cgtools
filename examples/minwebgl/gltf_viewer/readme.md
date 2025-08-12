@@ -367,10 +367,3 @@ fn debug_render_material_channels(&self, material: &PbrMaterial) {
 }
 ```
 
-## 🤝 Contributing
-
-Part of the CGTools workspace. Feel free to submit issues and pull requests on GitHub.
-
-## 📄 License
-
-MIT

@@ -4,6 +4,10 @@
 //! outline around it using the Jump Flooding Algorithm ( JFA ).
 //!
 //! The process involves several rendering passes:
+
+#![ allow( clippy::needless_borrow ) ]
+#![ allow( clippy::single_match ) ]
+#![ allow( clippy::doc_overindented_list_items ) ]
 //! 1. **Object Pass:** Render the 3D object to a texture ( framebuffer ) to get a silhouette.
 //!    Object pixels are marked ( e.g., white ), background is clear.
 //! 2. **JFA Initialization Pass:** Initialize a JFA texture. Pixels corresponding

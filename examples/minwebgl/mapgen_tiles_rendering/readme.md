@@ -526,10 +526,3 @@ fn debug_tilemap_texture(tilemap_data: &[u8], width: usize, height: usize) {
 }
 ```
 
-## 🤝 Contributing
-
-Part of the CGTools workspace. Feel free to submit issues and pull requests on GitHub.
-
-## 📄 License
-
-MIT

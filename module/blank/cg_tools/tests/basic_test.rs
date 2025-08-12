@@ -1,1 +1,1 @@
-//! Basic tests for cg_tools module.
+//! Basic tests for `cg_tools` module.

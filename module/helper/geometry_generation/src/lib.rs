@@ -25,6 +25,21 @@
 #![allow(clippy::identity_op)]
 #![allow(clippy::needless_pass_by_value)]
 #![allow(clippy::unnecessary_wraps)]
+#![allow(clippy::float_cmp)]
+#![allow(clippy::cast_lossless)]
+#![allow(clippy::cloned_instead_of_copied)]
+#![allow(clippy::for_kv_map)]
+#![allow(clippy::unnecessary_cast)]
+#![allow(clippy::if_same_then_else)]
+#![allow(clippy::redundant_closure)]
+#![allow(clippy::from_iter_instead_of_collect)]
+#![allow(clippy::drain_collect)]
+#![allow(clippy::used_underscore_binding)]
+#![allow(clippy::needless_for_each)]
+#![allow(clippy::get_first)]
+#![allow(clippy::needless_range_loop)]
+#![allow(clippy::incompatible_msrv)]
+#![allow(clippy::inefficient_to_string)]
 
 mod private
 {

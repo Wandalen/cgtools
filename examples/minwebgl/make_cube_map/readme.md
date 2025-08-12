@@ -529,10 +529,3 @@ fn validate_cube_map(gl: &WebGl2RenderingContext, texture: &WebGlTexture) -> boo
 }
 ```
 
-## 🤝 Contributing
-
-Part of the CGTools workspace. Feel free to submit issues and pull requests on GitHub.
-
-## 📄 License
-
-MIT

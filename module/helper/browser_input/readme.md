@@ -302,10 +302,3 @@ let input = Input::new( None, CLIENT );
 - State queries (`is_key_down`) are O(1) constant time
 - Memory usage scales with the number of simultaneous key presses
 
-## 🤝 Contributing
-
-This crate is part of the CGTools workspace. Feel free to submit issues and pull requests on GitHub.
-
-## 📄 License
-
-MIT

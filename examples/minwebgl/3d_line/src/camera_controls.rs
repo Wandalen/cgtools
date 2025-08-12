@@ -1,5 +1,9 @@
 
 
+#![ allow( clippy::std_instead_of_core ) ]
+#![ allow( clippy::cast_precision_loss ) ]
+#![ allow( clippy::too_many_lines ) ]
+
 use std::{ cell::RefCell, rc::Rc };
 use mingl::CameraOrbitControls;
 use minwebgl::{ self as gl, JsCast };

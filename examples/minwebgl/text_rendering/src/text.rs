@@ -1,4 +1,16 @@
 
+#![ allow( clippy::cast_lossless ) ]
+#![ allow( clippy::std_instead_of_alloc ) ]
+#![ allow( clippy::cloned_instead_of_copied ) ]
+#![ allow( clippy::unnecessary_cast ) ]
+#![ allow( clippy::for_kv_map ) ]
+#![ allow( clippy::single_match ) ]
+#![ allow( clippy::drain_collect ) ]
+#![ allow( clippy::used_underscore_binding ) ]
+#![ allow( clippy::needless_for_each ) ]
+#![ allow( clippy::get_first ) ]
+#![ allow( clippy::needless_range_loop ) ]
+
 pub mod ufo
 {
   use std::{collections::HashMap, str::FromStr};

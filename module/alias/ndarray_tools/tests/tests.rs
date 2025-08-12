@@ -1,4 +1,4 @@
-//! Tests for ndarray_tools
+//! Tests for `ndarray_tools`
 #![ allow( unused_imports ) ]
 
 use test_tools::exposed::*;

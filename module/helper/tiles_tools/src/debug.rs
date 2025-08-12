@@ -40,7 +40,7 @@
 //! println!("{}", renderer.render_ascii());
 //!
 //! // Export as SVG
-//! renderer.export_svg("debug_grid.svg").expect("Failed to export SVG");
+//! renderer.export_svg("-debug_grid.svg").expect("Failed to export SVG");
 //! ```
 
 use std::collections::{HashMap, VecDeque};

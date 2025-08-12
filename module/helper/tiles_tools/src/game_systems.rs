@@ -37,12 +37,14 @@
 //! game.add_participant(1, 100); // entity_id: 1, initiative: 100
 //! game.add_participant(2, 85);  // entity_id: 2, initiative: 85
 //!
-//! // Process turns
-//! while let Some(current_entity) = game.current_turn() {
-//!     println!("Entity {}'s turn", current_entity);
-//!     
-//!     // Process actions for current entity
-//!     game.end_turn();
+//! // Process a few turns
+//! for _ in 0..3 {
+//!     if let Some(current_entity) = game.current_turn() {
+//!         println!("Entity {}'s turn", current_entity);
+//!         
+//!         // Process actions for current entity
+//!         game.end_turn();
+//!     }
 //! }
 //! ```
 
