@@ -138,7 +138,7 @@ fn run() -> Result< (), gl::WebglError >
   lil_gui::on_change_string( &prop, &callback );
   callback.forget();
 
-  let prop = lil_gui::add_slider( &gui, &object, "width", 0.0, 300.0, 0.1 );
+  let prop = lil_gui::add_slider( &gui, &object, "width", 0.0, 500.0, 0.1 );
   let callback = Closure::new
   (
     {

@@ -34,17 +34,29 @@ void main()
   vec2 p3 = 0.5 * normal * -sigma * u_width / dot( normal, ABNorm );
 
   {
-    vec2 dirA = dot( normalize( AB ), normal * sigma ) * AB;
-    vec2 dirC = dot( normalize( CB ), normal * sigma ) * CB;
+    vec2 xBasis = pointB - pointA;
+    vec2 yBasis = normalize( vec2( -xBasis.y, xBasis.x ) );
+
+    vec2 cornerA = pointA + ABNorm * -sigma * u_width * 0.5;
+    vec2 cornerC = pointC + CBNorm * sigma * u_width * 0.5;
+
+    vec2 cAB = pointB - cornerA;
+    vec2 cCB = pointB - cornerC;
+
+    vec2 dirA = dot( normalize( cAB ), normal * sigma ) * cAB;
+    vec2 dirC = dot( normalize( cCB ), normal * sigma ) * cCB;
 
     float maxDist = min( length( dirA ), length( dirC ) );
     vec2 correctionPoint = normal * -sigma * maxDist;
+    vec2 offsetPoint = 0.5 * normal * -sigma * u_width / dot( normal, ABNorm );
 
-    //vec2 point = 0.5 * normal * -sigma * u_width / dot( normal, ABNorm );
-
-    if( length( p3 ) > maxDist )
+    float offsetLength = length( offsetPoint );
+    if( offsetLength > maxDist )
     {
-      p3 = correctionPoint - ( p3 - correctionPoint );
+      // float hypot = 2.0 * length( offsetPoint - correctionPoint );
+      offsetPoint = correctionPoint - offsetPoint + correctionPoint;
+      // offsetPoint += yBasis * sigma * hypot * dot( normal, -yBasis );
+      p3 = offsetPoint;
     }
   }
 
