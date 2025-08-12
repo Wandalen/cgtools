@@ -16,12 +16,21 @@ This crate provides a high-performance, backend-agnostic 2D rendering engine des
 ## usage
 
 ```rust
-// Basic usage example (implementation in progress)
-// use tilemap_renderer::{ Scene, RenderCommand };
-// 
-// let mut scene = Scene::new();
-// scene.add( RenderCommand::Line( /* ... */ ) );
+use tilemap_renderer::{ scene::Scene, commands::* };
+
+// Create a new scene
+let mut scene = Scene::new();
+
+// Add rendering commands  
+scene.add( RenderCommand::Line( LineCommand {
+  start: Point2D { x: 0.0, y: 0.0 },
+  end: Point2D { x: 100.0, y: 100.0 },
+  style: StrokeStyle::default(),
+}));
+
 // Render with any backend adapter
+// let mut renderer = SvgRenderer::new();
+// renderer.render_scene( &scene )?;
 ```
 
 ## architecture

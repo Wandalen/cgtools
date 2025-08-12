@@ -62,7 +62,7 @@ traits-error = [ "std" ]
 ports = [ "traits-renderer", "traits-primitive", "traits-async", "traits-capabilities", "traits-context", "traits-error", "dep:error_tools" ]
 
 # Backend adapter features (maximum granularity)
-adapter-svg-basic = [ "traits-renderer", "scene-methods" ]
+adapter-svg-basic = [ "enabled", "ports", "commands", "scene-methods" ]
 adapter-svg-colors = [ "adapter-svg-basic", "types-color" ]
 adapter-svg-fonts = [ "adapter-svg-basic" ]
 adapter-svg-paths = [ "adapter-svg-basic", "command-curve" ]
@@ -73,18 +73,18 @@ adapter-svg-browser-events = [ "adapter-svg-browser-dom" ]
 adapter-svg-browser-animation = [ "adapter-svg-browser-dom" ]
 adapter-svg-browser = [ "adapter-svg-browser-dom", "adapter-svg-browser-events", "adapter-svg-browser-animation" ]
 
-adapter-webgl-context = [ "traits-renderer", "wasm-bindgen" ]
+adapter-webgl-context = [ "enabled", "ports", "wasm-bindgen" ]
 adapter-webgl-shaders = [ "adapter-webgl-context" ]
 adapter-webgl-buffers = [ "adapter-webgl-context" ]
 adapter-webgl-textures = [ "adapter-webgl-context" ]
 adapter-webgl = [ "adapter-webgl-context", "adapter-webgl-shaders", "adapter-webgl-buffers", "adapter-webgl-textures" ]
 
-adapter-webgpu-device = [ "enabled", "traits-renderer", "traits-async", "ports", "commands", "scene-methods", "serde-commands", "wasm-bindgen", "dep:minwebgpu" ]
+adapter-webgpu-device = [ "enabled", "ports", "commands", "scene-methods", "serde-commands", "wasm-bindgen", "dep:minwebgpu" ]
 adapter-webgpu-compute = [ "adapter-webgpu-device" ]
 adapter-webgpu-pipeline = [ "adapter-webgpu-device" ]
 adapter-webgpu = [ "adapter-webgpu-device", "adapter-webgpu-compute", "adapter-webgpu-pipeline" ]
 
-adapter-terminal-basic = [ "traits-renderer", "scene-methods" ]
+adapter-terminal-basic = [ "enabled", "ports", "commands", "scene-methods" ]
 adapter-terminal-color = [ "adapter-terminal-basic", "types-color" ]
 adapter-terminal-unicode = [ "adapter-terminal-basic" ]
 adapter-terminal = [ "adapter-terminal-basic", "adapter-terminal-color", "adapter-terminal-unicode" ]
@@ -201,6 +201,22 @@ required-features = [ "cli" ]
 [[test]]
 name = "cli_comprehensive_test"
 required-features = [ "cli" ]
+
+[[test]]
+name = "cli_basic_test"
+required-features = [ "cli" ]
+
+[[test]]
+name = "query_focused_test"
+required-features = [ "testing" ]
+
+[[test]]
+name = "feature_matrix_test"
+required-features = [ "testing" ]
+
+[[test]]
+name = "perfect_coverage_test"
+required-features = [ "testing" ]
 
 [[test]]
 name = "integration_test"
