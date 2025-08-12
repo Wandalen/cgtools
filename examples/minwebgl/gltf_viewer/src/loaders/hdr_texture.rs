@@ -1,3 +1,5 @@
+#![ allow( clippy::expect_fun_call ) ]
+
 use minwebgl as gl;
 
 #[allow(unused_variables)]

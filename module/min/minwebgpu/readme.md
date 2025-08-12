@@ -268,10 +268,3 @@ wasm-pack build --target web --out-dir pkg
 trunk serve --release
 ```
 
-## 🤝 Contributing
-
-Part of the CGTools workspace. Feel free to submit issues and pull requests on GitHub.
-
-## 📄 License
-
-MIT

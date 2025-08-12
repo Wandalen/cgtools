@@ -213,10 +213,3 @@ if let Some(error) = gl::get_error(&gl_context) {
 }
 ```
 
-## 🤝 Contributing
-
-This crate is part of the CGTools workspace. Feel free to submit issues and pull requests on GitHub.
-
-## 📄 License
-
-MIT

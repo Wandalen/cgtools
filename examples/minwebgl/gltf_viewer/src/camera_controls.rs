@@ -1,5 +1,12 @@
 
 
+#![ allow( clippy::too_many_lines ) ]
+#![ allow( clippy::min_ident_chars ) ]
+#![ allow( clippy::cast_precision_loss ) ]
+#![ allow( clippy::std_instead_of_core ) ]
+#![ allow( clippy::single_match ) ]
+#![ allow( clippy::match_wildcard_for_single_variants ) ]
+
 use std::{cell::RefCell, rc::Rc};
 
 use mingl::CameraOrbitControls;
