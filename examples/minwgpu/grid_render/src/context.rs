@@ -1,6 +1,7 @@
 pub struct Context
 {
   instance : wgpu::Instance,
+  adapter : wgpu::Adapter,
   device : wgpu::Device,
   queue : wgpu::Queue,
 }
@@ -35,12 +36,17 @@ impl Context
     )
     .expect( "Failed to retrieve a device" );
 
-    Self { instance, device, queue }
+    Self { instance, adapter, device, queue }
   }
 
   pub fn instance( &self ) -> &wgpu::Instance
   {
     &self.instance
+  }
+
+  pub fn adapter( &self ) -> &wgpu::Adapter
+  {
+    &self.adapter
   }
 
   pub fn device( &self ) -> &wgpu::Device

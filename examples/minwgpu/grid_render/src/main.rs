@@ -28,7 +28,7 @@ fn run()
   (
     &wgpu::TextureDescriptor
     {
-      label : Some( "Render Texture" ),
+      label : Some( "render_texture" ),
       size : texture_extent,
       mip_level_count : 1,
       sample_count : 1,
@@ -47,21 +47,21 @@ fn run()
   (
     &wgpu::BufferDescriptor
     {
-      label : Some( "Output Buffer" ),
+      label : Some( "output_buffer" ),
       size : output_buffer_size,
       usage : wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
       mapped_at_creation : false,
     }
   );
 
-  let vertex_buffer = tiles_tools::geometry::hexagon_triangles();
-  let vertex_count = ( vertex_buffer.len() / 2 ) as u32;
+  let vertices = tiles_tools::geometry::hexagon_triangles();
+  let vertex_count = ( vertices.len() / 2 ) as u32;
   let vertex_buffer = context.device().create_buffer_init
   (
     &wgpu::util::BufferInitDescriptor
     {
       label : Some( "hexagon_mesh" ),
-      contents : bytemuck::cast_slice( vertex_buffer.as_slice() ),
+      contents : bytemuck::cast_slice( vertices.as_slice() ),
       usage : wgpu::BufferUsages::VERTEX,
     }
   );
@@ -100,7 +100,7 @@ fn run()
   (
     &wgpu::BindGroupLayoutDescriptor
     {
-      label : Some("uniform_bind_group_layout"),
+      label : Some( "uniform_bind_group_layout" ),
       entries :
       &[
         wgpu::BindGroupLayoutEntry
