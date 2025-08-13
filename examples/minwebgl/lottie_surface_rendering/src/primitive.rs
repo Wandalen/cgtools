@@ -118,18 +118,16 @@ mod private
       {
         continue;
       }
-      let x1 = contour.iter()
-      .map( | [ x, _ ] | x )
-      .min_by( | x, y | x.total_cmp( y ) ).unwrap();
-      let y1 = contour.iter()
-      .map( | [ _, y ] | y )
-      .min_by( | x, y | x.total_cmp( y ) ).unwrap();
-      let x2 = contour.iter()
-      .map( | [ x, _ ] | x )
-      .max_by( | x, y | x.total_cmp( y ) ).unwrap();
-      let y2 = contour.iter()
-      .map( | [ _, y ] | y )
-      .max_by( | x, y | x.total_cmp( y ) ).unwrap();
+      
+      let ( mut x1, mut y1, mut x2, mut y2 ) = ( f32::MAX, f32::MAX, f32::MIN, f32::MIN );
+      for [ x, y ] in contour
+      {
+        x1 = x1.min( *x );
+        y1 = y1.min( *y );
+        x2 = x2.max( *x );
+        y2 = y2.max( *y );
+      }
+
       let controur_size = ( ( x2 - x1 ).powi( 2 ) + ( y2 - y1 ).powi( 2 ) ).sqrt();
       if max_box_diagonal_size < controur_size
       {
