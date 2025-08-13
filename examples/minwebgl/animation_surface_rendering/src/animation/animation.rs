@@ -119,7 +119,7 @@ mod private
 
         let layer_base = PrimitiveData
         {
-          name : Some( format!("{i}").into_boxed_str() ),
+          name : Some( format!( "{i}" ).into_boxed_str() ),
           attributes : None,
           parent : layer.parent,
           behavior : Behavior 
