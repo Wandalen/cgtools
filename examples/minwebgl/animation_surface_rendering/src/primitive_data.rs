@@ -1,15 +1,12 @@
 mod private
 {
-  use minwebgl::
-  {
-    self as gl,
-    BufferDescriptor
-  };
+  use minwebgl as gl;
   use gl::
   {
     GL,
     WebGl2RenderingContext,
-    VectorDataType
+    VectorDataType,
+    BufferDescriptor
   };
   use std::cell::RefCell;
   use std::rc::Rc;
