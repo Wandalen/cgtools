@@ -4,6 +4,7 @@ mod private
 {
   use minwebgl as gl;
 
+  use gltf
   use renderer::webgl::
   {
     Object3D,
@@ -11,7 +12,7 @@ mod private
     Scene
   };
 
-  
+  fn 
 }
 
 crate::mod_interface!
