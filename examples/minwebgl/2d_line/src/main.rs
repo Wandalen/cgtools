@@ -140,7 +140,7 @@ fn run() -> Result< (), gl::WebglError >
 
     move | t : f64 |
     {
-      let time = t as f32 / 1000.0;
+      let _time = t as f32 / 1000.0;
 
       //draw
       gl.use_program( Some( &background_program ) );
