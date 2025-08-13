@@ -95,7 +95,8 @@ pub fn bind_controls_to_input
       {
         match *state.borrow_mut()
         {
-          CameraState::None => {
+          CameraState::None => 
+          {
             let delta_y = e.delta_y() as f32;
             camera.borrow_mut().zoom( delta_y );
           },
