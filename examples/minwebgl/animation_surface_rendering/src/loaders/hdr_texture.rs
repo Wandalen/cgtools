@@ -12,7 +12,7 @@ use minwebgl as gl;
 /// * `texture` - An optional reference to the WebGL texture to bind to.
 /// * `mip_level` - The mipmap level to upload the data to.
 /// * `path` - The file path to the HDR image.
-#[allow(unused_variables)]
+#[ allow( unused_variables ) ]
 pub async fn load_to_mip_cube
 (
   gl : &gl::WebGl2RenderingContext,
@@ -42,8 +42,14 @@ pub async fn load_to_mip_cube
   {
     // +Y and -Y need to be swapped
     let mut i2 = i;
-    if i == 2 { i2 = 3; }
-    if i == 3 { i2 = 2; }
+    if i == 2 
+    { 
+      i2 = 3; 
+    }
+    if i == 3 
+    { 
+      i2 = 2; 
+    }
 
     gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_array_buffer_view_and_src_offset
     (
@@ -78,7 +84,7 @@ pub async fn load_to_mip_cube
 /// * `texture` - An optional reference to the WebGL texture to bind to.
 /// * `mip_level` - The mipmap level to upload the data to.
 /// * `path` - The file path to the HDR image.
-#[allow(unused_variables)]
+#[ allow( unused_variables ) ]
 pub async fn load_to_mip_d2
 (
   gl : &gl::WebGl2RenderingContext,
@@ -108,7 +114,8 @@ pub async fn load_to_mip_d2
     gl::FLOAT,
     &image_data,
     0
-  ).expect( "Failed to allocate memory for a cube texture" );
+  )
+  .expect( "Failed to allocate memory for a cube texture" );
   gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 0 );
 
   gl::texture::d2::wrap_clamp( gl );
