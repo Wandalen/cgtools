@@ -174,7 +174,7 @@ impl Animation
 
       let layer_base = PrimitiveData
       {
-        name : Some( format!("{i}").into_boxed_str() ),
+        name : Some( format!( "{i}" ).into_boxed_str() ),
         attributes : None,
         parent : layer.parent,
         behavior : Behavior
@@ -511,7 +511,7 @@ impl Animation
 
       let mut id_to_remove = vec![];
 
-      for ( i, child )  in node.borrow().get_children().iter().enumerate()
+      for ( i, child ) in node.borrow().get_children().iter().enumerate()
       {
         let Some( name ) = child.borrow().get_name()
         else
