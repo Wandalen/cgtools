@@ -720,7 +720,8 @@ fn primitives_csgrs_gltf
   [
     (
       "positions",
-      make_buffer_attribute_info(
+      make_buffer_attribute_info
+      (
         &position_buffer,
         0,
         3,
@@ -731,7 +732,8 @@ fn primitives_csgrs_gltf
     ),
     (
       "normals",
-      make_buffer_attribute_info(
+      make_buffer_attribute_info
+      (
         &normal_buffer,
         0,
         3,
@@ -742,7 +744,8 @@ fn primitives_csgrs_gltf
     ),
     (
       "object_ids",
-      make_buffer_attribute_info(
+      make_buffer_attribute_info
+      (
         &object_id_buffer,
         0,
         1,

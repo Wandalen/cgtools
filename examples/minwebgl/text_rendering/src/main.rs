@@ -188,7 +188,8 @@ fn primitives_data_to_gltf
   [
     (
       "positions",
-      make_buffer_attribute_info(
+      make_buffer_attribute_info
+      (
         &position_buffer,
         0,
         3,
@@ -199,7 +200,8 @@ fn primitives_data_to_gltf
     ),
     (
       "normals",
-      make_buffer_attribute_info(
+      make_buffer_attribute_info
+      (
         &normal_buffer,
         0,
         3,
