@@ -2,14 +2,16 @@
 precision highp float;
 
 layout( location = 0 ) in vec2 position;
-layout( location = 1 ) in vec2 inPointA;
-layout( location = 2 ) in vec2 inPointB;
-layout( location = 3 ) in vec2 inPointC;
-layout( location = 4 ) in vec2 inPointD;
+layout( location = 1 ) in vec3 inPointA;
+layout( location = 2 ) in vec3 inPointB;
+layout( location = 3 ) in vec3 inPointC;
+layout( location = 4 ) in vec3 inPointD;
 
 uniform mat3 u_world_matrix;
 uniform mat4 u_projection_matrix;
 uniform float u_width;
+
+out vec2 vUv;
 
 vec2 lineIntersection( vec2 p1, vec2 n1, vec2 p2, vec2 n2 )
 {
@@ -22,10 +24,10 @@ vec2 lineIntersection( vec2 p1, vec2 n1, vec2 p2, vec2 n2 )
 
 void main() 
 {
-  vec2 pointA = ( u_world_matrix * vec3( inPointA, 1.0 ) ).xy;
-  vec2 pointB = ( u_world_matrix * vec3( inPointB, 1.0 ) ).xy;
-  vec2 pointC = ( u_world_matrix * vec3( inPointC, 1.0 ) ).xy;
-  vec2 pointD = ( u_world_matrix * vec3( inPointD, 1.0 ) ).xy;
+  vec2 pointA = ( u_world_matrix * vec3( inPointA.xy, 1.0 ) ).xy;
+  vec2 pointB = ( u_world_matrix * vec3( inPointB.xy, 1.0 ) ).xy;
+  vec2 pointC = ( u_world_matrix * vec3( inPointC.xy, 1.0 ) ).xy;
+  vec2 pointD = ( u_world_matrix * vec3( inPointD.xy, 1.0 ) ).xy;
 
   vec2 p0 = pointA;
   vec2 p1 = pointB;
