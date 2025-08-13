@@ -5,7 +5,7 @@ use minwebgl as gl;
 use gl::
 {
   F32x4,
-  F32x4x4,
+  math::mat4x4::identity,
   JsCast,
   GL,
   WebGl2RenderingContext,
@@ -640,31 +640,6 @@ fn setup_animation( gl : &GL, width : usize, height : usize ) -> animation::Anim
   animation::Animation::new( gl, model )
 }
 
-/// A struct to create an identity matrix.
-struct IndentityMatrix;
-
-impl IndentityMatrix
-{
-  /// Creates a new 4x4 identity matrix.
-  ///
-  /// This method constructs a `F32x4x4` matrix and sets its diagonal elements to 1.0,
-  /// resulting in an identity matrix.
-  ///
-  /// # Returns
-  ///
-  /// A 4x4 identity matrix of type `F32x4x4`.
-  fn new() -> F32x4x4
-  {
-    let mut identity = gl::F32x4x4::default();
-    *identity.scalar_mut( gl::Ix2( 0, 0 ) ) = 1.0;
-    *identity.scalar_mut( gl::Ix2( 1, 1 ) ) = 1.0;
-    *identity.scalar_mut( gl::Ix2( 2, 2 ) ) = 1.0;
-    *identity.scalar_mut( gl::Ix2( 3, 3 ) ) = 1.0;
-
-    identity
-  }
-}
-
 /// The main asynchronous function to set up and run the rendering loop.
 ///
 /// This function orchestrates the entire application flow:
@@ -685,7 +660,7 @@ async fn run() -> Result< (), gl::WebglError >
   let ( canvas_gltf, _ ) = setup_canvas_scene( &gl ).await;
   canvas_gltf.scenes[ 0 ].borrow_mut().update_world_matrix();
   let animation = setup_animation( &gl, canvas.height() as usize, canvas.width() as usize );
-  animation.set_world_matrix( IndentityMatrix::new() );
+  animation.set_world_matrix( identity() );
 
   let canvas_camera = init_camera( &canvas, &canvas_gltf.scenes );
   //camera_controls::bind_controls_to_input( &canvas, &canvas_camera.get_controls() );
@@ -725,10 +700,8 @@ async fn run() -> Result< (), gl::WebglError >
   let scale = 1.01;
   canvas_sphere.borrow_mut().set_translation( [ 0.0, 1.0 - scale, 0.0 ] );
   canvas_sphere.borrow_mut().set_scale( [ scale; 3 ] );
-  canvas_sphere.borrow_mut().update_local_matrix();
 
   let scenes = gltf.scenes.clone();
-  scenes[ 0 ].borrow_mut().update_world_matrix();
 
   let camera = init_camera( &canvas, &scenes );
   camera_controls::bind_controls_to_input( &canvas, &camera.get_controls() );
