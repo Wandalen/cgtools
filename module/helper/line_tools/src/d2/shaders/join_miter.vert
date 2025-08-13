@@ -39,7 +39,7 @@ void main()
   vec2 p0 = 0.5 * u_width * sigma * ( sigma < 0.0 ? ABNorm : CBNorm );
   vec2 p1 = 0.5 * u_width * sigma * normal / dot( CBNorm, normal );
   vec2 p2 = 0.5 * u_width * sigma * ( sigma < 0.0 ? CBNorm : ABNorm );
-  vec2 p3 = 0.5 * normal * -sigma * u_width / dot( normal, ABNorm );
+  vec2 p3 = vec2( 0.0 );
 
   if( position.w == 1.0 )
   {
