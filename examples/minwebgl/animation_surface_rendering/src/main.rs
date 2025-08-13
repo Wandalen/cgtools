@@ -733,7 +733,7 @@ async fn run() -> Result< (), gl::WebglError >
   let camera = init_camera( &canvas, &scenes );
   camera_controls::bind_controls_to_input( &canvas, &camera.get_controls() );
   let eye = gl::math::mat3x3h::rot( 0.0, - 73.0_f32.to_radians(), - 15.0_f32.to_radians() )
-  * F32x4::from_array([ 0.0, 1.7, 1.7, 1.0 ] );
+  * F32x4::from_array( [ 0.0, 1.7, 1.7, 1.0 ] );
   camera.get_controls().borrow_mut().eye = [ eye.x(), eye.y(), eye.z() ].into();
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
