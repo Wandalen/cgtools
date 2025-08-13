@@ -327,7 +327,7 @@ mod private
       {
         let point = match el
         {
-          PathEl::MoveTo( p) | PathEl::LineTo( p ) =>
+          PathEl::MoveTo( p ) | PathEl::LineTo( p ) =>
           {
             [ p.x as f32, p.y as f32 ]
           },
