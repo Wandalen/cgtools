@@ -15,7 +15,7 @@ mod private
 {
   use std::rc::Rc;
   use std::cell::RefCell;
-  use std::{collections::HashMap, str::FromStr};
+  use std::{ collections::HashMap, str::FromStr };
   use kurbo::flatten;
   use mingl::geometry::BoundingBox;
   use norad::{ PointType, ContourPoint, Contour };
