@@ -725,10 +725,8 @@ async fn run() -> Result< (), gl::WebglError >
   let scale = 1.01;
   canvas_sphere.borrow_mut().set_translation( [ 0.0, 1.0 - scale, 0.0 ] );
   canvas_sphere.borrow_mut().set_scale( [ scale; 3 ] );
-  canvas_sphere.borrow_mut().update_local_matrix();
 
   let scenes = gltf.scenes.clone();
-  scenes[ 0 ].borrow_mut().update_world_matrix();
 
   let camera = init_camera( &canvas, &scenes );
   camera_controls::bind_controls_to_input( &canvas, &camera.get_controls() );
