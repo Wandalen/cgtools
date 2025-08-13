@@ -189,7 +189,7 @@ fn on_input_change
     move | _event : Event |
     {
       let reader = _event.target()
-      .and_then(| target | target.dyn_into::< FileReader >().ok() );
+      .and_then( | target | target.dyn_into::< FileReader >().ok() );
 
       if let Some( reader ) = reader
       {
@@ -218,7 +218,7 @@ fn on_input_change
 }
 
 /// Initializes the file input element for uploading TMX files.
-fn input_tilemap_init( app_state: Rc< RefCell< ApplicationState > > ) -> Result< (), JsValue >
+fn input_tilemap_init( app_state : Rc< RefCell< ApplicationState > > ) -> Result< (), JsValue >
 {
   let window = web_sys::window().unwrap();
   let document = window.document().unwrap();
@@ -248,7 +248,7 @@ fn input_tilemap_init( app_state: Rc< RefCell< ApplicationState > > ) -> Result<
 }
 
 /// Sets up a button with a click event listener.
-fn button_generate_setup(id : &str, top : u32, app_state : Rc< RefCell< ApplicationState > > ) -> Result< (), JsValue >
+fn button_generate_setup( id : &str, top : u32, app_state : Rc< RefCell< ApplicationState > > ) -> Result< (), JsValue >
 {
   let window = web_sys::window().unwrap();
   let document = window.document().unwrap();
@@ -470,9 +470,9 @@ fn prepare_texture_array( id : &str, texture_id : u32 ) -> Option< web_sys::WebG
 /// Binds an R8UI texture from `data` with `size` to a specified `texture_id` slot.
 fn prepare_texture1u
 (
-  data: &[ u8 ],
-  size: ( i32, i32 ),
-  texture_id: u32,
+  data : &[ u8 ],
+  size : ( i32, i32 ),
+  texture_id : u32,
 )
 {
   let gl = gl::context::retrieve_or_make()
@@ -504,7 +504,7 @@ fn prepare_texture1u
 }
 
 /// Renders the tile map on the quad.
-fn render_tile_map(app_state: &ApplicationState)
+fn render_tile_map(app_state : &ApplicationState)
 {
   let Some( ref map ) = app_state.map
   else
