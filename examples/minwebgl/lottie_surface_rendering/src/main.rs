@@ -5,7 +5,7 @@ use minwebgl as gl;
 use gl::
 {
   F32x4,
-  F32x4x4,
+  math::mat4x4::identity,
   JsCast,
   GL,
   WebGl2RenderingContext,
@@ -261,24 +261,6 @@ pub fn modulo( dividend : f64, divisor : f64 ) -> f64
   result
 }
 
-/// A helper struct to create a 4x4 identity matrix.
-struct IndentityMatrix;
-
-impl IndentityMatrix
-{
-  /// Creates a new 4x4 identity matrix.
-  fn new() -> F32x4x4
-  {
-    let mut identity = gl::F32x4x4::default();
-    *identity.scalar_mut( gl::Ix2( 0, 0 ) ) = 1.0;
-    *identity.scalar_mut( gl::Ix2( 1, 1 ) ) = 1.0;
-    *identity.scalar_mut( gl::Ix2( 2, 2 ) ) = 1.0;
-    *identity.scalar_mut( gl::Ix2( 3, 3 ) ) = 1.0;
-
-    identity
-  }
-}
-
 /// The main asynchronous function that sets up the scene, camera, and render loop.
 async fn run() -> Result< (), gl::WebglError >
 {
@@ -288,7 +270,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let lottie_path = "lottie/google.json";
   let animation = load_animation( &gl, lottie_path ).await;
-  animation.set_world_matrix( IndentityMatrix::new() );
+  animation.set_world_matrix( identity() );
 
   let ( s, _ ) = animation.frame( 0.0 ).unwrap();
   let canvas_camera = init_camera( &canvas, &[ Rc::new( RefCell::new( s ) ) ] ); 
