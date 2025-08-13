@@ -109,7 +109,8 @@ fn upload_texture( gl : &WebGl2RenderingContext, src : Rc< String > ) -> WebGlTe
 /// # Returns
 ///
 /// An `Option<TextureInfo>` containing the texture data, or `None` if creation fails.
-fn create_texture(
+fn create_texture
+(
   gl : &WebGl2RenderingContext,
   image_path : &str
 ) -> Option< TextureInfo >
@@ -155,7 +156,8 @@ fn init_context() -> ( WebGl2RenderingContext, HtmlCanvasElement )
   let canvas = gl::canvas::make().unwrap();
   let gl = gl::context::from_canvas_with( &canvas, options ).unwrap();
 
-  let _ = gl.get_extension( "EXT_color_buffer_float" ).expect( "Failed to enable EXT_color_buffer_float extension" );
+  let _ = gl.get_extension( "EXT_color_buffer_float" )
+  .expect( "Failed to enable EXT_color_buffer_float extension" );
 
   ( gl, canvas )
 }
@@ -282,7 +284,9 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 
   let clouds = clone( &mut gltf, &earth );
   let texture = create_texture( &gl, "textures/clouds2.png" );
-  set_texture( &clouds,
+  set_texture
+  ( 
+    &clouds,
     | m |
     {
       m.base_color_texture = texture.clone();
@@ -786,5 +790,11 @@ async fn run() -> Result< (), gl::WebglError >
 /// which sets up and runs the entire WebGL application.
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  gl::spawn_local
+  ( 
+    async move 
+    { 
+      run().await.unwrap() 
+    } 
+  );
 }

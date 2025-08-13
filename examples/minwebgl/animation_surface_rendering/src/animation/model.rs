@@ -169,8 +169,8 @@ mod private
         position : self.position.clone(),
         rotation : self.rotation.clone(),
         scale : self.scale.clone(),
-        start_opacity: self.start_opacity.clone(),
-        end_opacity: self.end_opacity.clone()
+        start_opacity : self.start_opacity.clone(),
+        end_opacity : self.end_opacity.clone()
       }
     }
   }
