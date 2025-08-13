@@ -132,7 +132,8 @@ mod private
     [
       (
         "positions",
-        make_buffer_attribute_info(
+        make_buffer_attribute_info
+        (
           &position_buffer,
           BufferDescriptor::new::< [ f32; 3 ] >(),
           0,
@@ -140,7 +141,8 @@ mod private
           0,
           false,
           VectorDataType::new( mingl::DataType::F32, 3, 1 )
-        ).unwrap()
+        )
+        .unwrap()
       ),
     ];
 
