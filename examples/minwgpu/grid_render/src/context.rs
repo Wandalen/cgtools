@@ -32,7 +32,15 @@ impl Context
     let ( device, queue ) = minwgpu::helper::request_device
     (
       &adapter,
-      &wgpu::DeviceDescriptor::default()
+      &wgpu::DeviceDescriptor{
+        required_features : wgpu::Features::PUSH_CONSTANTS,
+        required_limits : wgpu::Limits
+        {
+          max_push_constant_size : 16,
+          ..Default::default()
+        },
+        ..Default::default()
+      }
     )
     .expect( "Failed to retrieve a device" );
 
@@ -55,6 +63,38 @@ impl Context
   }
 
   pub fn queue( &self ) -> &wgpu::Queue
+  {
+    &self.queue
+  }
+}
+
+impl AsRef< wgpu::Instance > for Context
+{
+  fn as_ref( &self ) -> &wgpu::Instance
+  {
+    &self.instance
+  }
+}
+
+impl AsRef< wgpu::Adapter > for Context
+{
+  fn as_ref( &self ) -> &wgpu::Adapter
+  {
+    &self.adapter
+  }
+}
+
+impl AsRef< wgpu::Device > for Context
+{
+  fn as_ref( &self ) -> &wgpu::Device
+  {
+    &self.device
+  }
+}
+
+impl AsRef< wgpu::Queue > for Context
+{
+  fn as_ref( &self ) -> &wgpu::Queue
   {
     &self.queue
   }

@@ -1,8 +1,10 @@
 //! TODO
 
-use wgpu::util::DeviceExt;
-
 mod context;
+mod buffer;
+
+use tiles_tools::coordinates::{ hexagonal, pixel::Pixel, Neighbors as _ };
+use hexagonal::{ Axial, Coordinate, Flat };
 
 fn main()
 {
@@ -23,8 +25,7 @@ fn run()
     height,
     depth_or_array_layers : 1,
   };
-
-  let texture = context.device().create_texture
+  let render_texture = context.device().create_texture
   (
     &wgpu::TextureDescriptor
     {
@@ -38,63 +39,63 @@ fn run()
       view_formats : &[],
     }
   );
-  let texture_view = texture.create_view( &wgpu::TextureViewDescriptor::default() );
+  let texture_view = render_texture.create_view( &wgpu::TextureViewDescriptor::default() );
 
   let bytes_per_pixel = 4;
   let buffer_size = bytes_per_pixel * width * height;
   let output_buffer_size = wgpu::BufferAddress::from( buffer_size );
-  let output_buffer = context.device().create_buffer
+  let output_buffer = buffer::Buffer::buffer_builder
   (
-    &wgpu::BufferDescriptor
-    {
-      label : Some( "output_buffer" ),
-      size : output_buffer_size,
-      usage : wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-      mapped_at_creation : false,
-    }
-  );
+    wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ
+  )
+  .label( "output_buffer" )
+  .size( output_buffer_size )
+  .build( context.device() );
 
-  let vertices = tiles_tools::geometry::hexagon_triangles();
-  let vertex_count = ( vertices.len() / 2 ) as u32;
-  let vertex_buffer = context.device().create_buffer_init
-  (
-    &wgpu::util::BufferInitDescriptor
-    {
-      label : Some( "hexagon_mesh" ),
-      contents : bytemuck::cast_slice( vertices.as_slice() ),
-      usage : wgpu::BufferUsages::VERTEX,
-    }
-  );
-  let vertex_buffer_layout = wgpu::VertexBufferLayout
-  {
-    array_stride : ( 2 * size_of::< f32 >() ) as wgpu::BufferAddress,
-    step_mode : wgpu::VertexStepMode::Vertex,
-    attributes :
-    &[
-      wgpu::VertexAttribute
-      {
-        format : wgpu::VertexFormat::Float32x2,
-        offset : 0,
-        shader_location : 0,
-      }
-    ],
-  };
+  let vertex_data = tiles_tools::geometry::hexagon_triangles();
+  let vertex_count = ( vertex_data.len() / 2 ) as u32;
+  let attributes = [ buffer::attr( wgpu::VertexFormat::Float32x2, 0, 0 ) ];
+  let vertex_buffer = buffer::Buffer::vertex_buffer_builder()
+  .label( "hexagon_mesh" )
+  .data( vertex_data.as_slice() )
+  .array_stride( wgpu::VertexFormat::Float32x2.size() )
+  .attributes( &attributes )
+  .build( context.device() );
 
-  let uniform = Uniform
-  {
-    scale: 1.0,
-    color : [ 1.0, 0.0, 0.0, 1.0 ],
-    ..Default::default()
-  };
-  let uniform_buffer = context.device().create_buffer_init
-  (
-    &wgpu::util::BufferInitDescriptor
-    {
-      label : Some( "uniform_buffer" ),
-      contents : bytemuck::bytes_of( &uniform ),
-      usage : wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-    }
-  );
+  let line_data = tiles_tools::geometry::hexagon_lines();
+  let line_vertex_count = ( line_data.len() / 2 ) as u32;
+  let attributes = [ buffer::attr( wgpu::VertexFormat::Float32x2, 0, 0 ) ];
+  let line_vertex_buffer = buffer::Buffer::vertex_buffer_builder()
+  .label( "hexagon_outline" )
+  .data( line_data.as_slice() )
+  .array_stride( wgpu::VertexFormat::Float32x2.size() )
+  .attributes( &attributes )
+  .build( context.device() );
+
+  let coord = Coordinate::< Axial, Flat >::new( 0, 0 );
+  let mut hexagon_coordinates = vec![];
+  hexagon_coordinates.push( coord );
+  hexagon_coordinates.append( &mut coord.neighbors() );
+  let instance_count = hexagon_coordinates.len() as u32;
+  let positions : Vec< f32 > = hexagon_coordinates
+  .into_iter()
+  .map( | c | Pixel::from( c ).data )
+  .flatten()
+  .collect();
+  let attributes = &[ buffer::attr( wgpu::VertexFormat::Float32x2, 0, 1 ) ];
+  let position_buffer = buffer::Buffer::vertex_buffer_builder()
+  .label( "hexagon_positions" )
+  .data( positions.as_slice() )
+  .array_stride( wgpu::VertexFormat::Float32x2.size() )
+  .step_mode( wgpu::VertexStepMode::Instance )
+  .attributes( attributes )
+  .build( context.device() );
+
+  let scale_uniform = 0.25_f32;
+  let uniform_buffer = buffer::Buffer::buffer_builder( wgpu::BufferUsages::UNIFORM )
+  .label( "uniform_buffer" )
+  .data( &[ scale_uniform ] )
+  .build( context.device() );
 
   let bind_group_layout = context.device().create_bind_group_layout
   (
@@ -130,7 +131,7 @@ fn run()
         wgpu::BindGroupEntry
         {
           binding : 0,
-          resource : uniform_buffer.as_entire_binding(),
+          resource : uniform_buffer.as_ref().as_entire_binding(),
         },
       ],
     }
@@ -142,31 +143,158 @@ fn run()
     {
       label : Some( "hexagonal_pipeline_layout" ),
       bind_group_layouts : &[ &bind_group_layout ],
-      push_constant_ranges : &[]
+      push_constant_ranges : &
+      [
+        wgpu::PushConstantRange { stages : wgpu::ShaderStages::FRAGMENT, range : 0..16 }
+      ]
     }
   );
 
-  let render_pipeline = context.device().create_render_pipeline
+  let hexagon_fill_pipeline = create_pipeline
+  (
+    &context,
+    &shader,
+    &vertex_buffer,
+    &position_buffer,
+    wgpu::PrimitiveState::default(),
+    &render_pipeline_layout
+  );
+
+  let hexagon_outline_pipeline = create_pipeline
+  (
+    &context,
+    &shader,
+    &line_vertex_buffer,
+    &position_buffer,
+    wgpu::PrimitiveState
+    {
+      topology : wgpu::PrimitiveTopology::LineList,
+      ..Default::default()
+    },
+    &render_pipeline_layout
+  );
+
+  let render_pass_desc = &wgpu::RenderPassDescriptor
+  {
+    label : Some( "render_pass" ),
+    color_attachments :
+    &[
+      Some
+      (
+        wgpu::RenderPassColorAttachment
+        {
+          view : &texture_view,
+          resolve_target : None,
+          ops : wgpu::Operations
+          {
+            load : wgpu::LoadOp::Clear
+            (
+              wgpu::Color
+              {
+                r : 0.1,
+                g : 0.2,
+                b : 0.3,
+                a : 1.0,
+              }
+            ),
+            store : wgpu::StoreOp::Store,
+          },
+          depth_slice : None,
+        }
+      )
+    ],
+    depth_stencil_attachment : None,
+    timestamp_writes : None,
+    occlusion_query_set : None,
+  };
+
+  let mut encoder = context.device()
+  .create_command_encoder( &wgpu::CommandEncoderDescriptor { label : Some( "encoder" ) } );
+
+  let mut render_pass = encoder.begin_render_pass( &render_pass_desc );
+  render_pass.set_pipeline( &hexagon_fill_pipeline );
+  render_pass.set_push_constants
+  (
+    wgpu::ShaderStages::FRAGMENT,
+    0,
+    bytemuck::cast_slice( &[ 1.0_f32, 0.0, 0.0 ] )
+  );
+  render_pass.set_bind_group( 0, &bind_group, &[] );
+  render_pass.set_vertex_buffer( 0, vertex_buffer.as_ref().slice( .. ) );
+  render_pass.set_vertex_buffer( 1, position_buffer.as_ref().slice( .. ) );
+  render_pass.draw( 0..vertex_count, 0..instance_count );
+
+  render_pass.set_pipeline( &hexagon_outline_pipeline );
+  render_pass.set_push_constants
+  (
+    wgpu::ShaderStages::FRAGMENT,
+    0,
+    bytemuck::cast_slice( &[ 0.0_f32, 0.0, 0.0 ] )
+  );
+  render_pass.set_bind_group( 0, &bind_group, &[] );
+  render_pass.set_vertex_buffer( 0, line_vertex_buffer.as_ref().slice( .. ) );
+  render_pass.set_vertex_buffer( 1, position_buffer.as_ref().slice( .. ) );
+  render_pass.draw( 0..line_vertex_count, 0..instance_count );
+  drop( render_pass );
+
+  encoder.copy_texture_to_buffer
+  (
+    render_texture.as_image_copy(),
+    wgpu::TexelCopyBufferInfo
+    {
+      buffer : output_buffer.as_ref(),
+      layout : wgpu::TexelCopyBufferLayout
+      {
+        offset : 0,
+        bytes_per_row : Some( width * bytes_per_pixel ),
+        rows_per_image : None
+      }
+    },
+    texture_extent
+  );
+  context.queue().submit( Some( encoder.finish() ) );
+
+  let buffer_slice = output_buffer.as_ref().slice( .. );
+  buffer_slice.map_async( wgpu::MapMode::Read, | _ | {} );
+
+  context.device().poll( wgpu::PollType::Wait ).expect( "Failed to render an image" );
+
+  let data = buffer_slice.get_mapped_range();
+  image::save_buffer( "hexagons.png", &data, width, height, image::ColorType::Rgba8 )
+  .expect( "Failed to save image" );
+}
+
+fn create_pipeline
+(
+  context : &context::Context,
+  shader : &wgpu::ShaderModule,
+  vertex_buffer : &buffer::Buffer< wgpu::VertexBufferLayout< '_ > >,
+  position_buffer : &buffer::Buffer< wgpu::VertexBufferLayout< '_ > >,
+  primitive : wgpu::PrimitiveState,
+  render_pipeline_layout : &wgpu::PipelineLayout
+) -> wgpu::RenderPipeline
+{
+  context.device().create_render_pipeline
   (
     &wgpu::RenderPipelineDescriptor
     {
       label : Some( "hexagonal_pipeline" ),
-      layout : Some( &render_pipeline_layout ),
+      layout : Some( render_pipeline_layout ),
       vertex: wgpu::VertexState
       {
-        module : &shader,
+        module : shader,
         entry_point : Some( "vs_main" ),
         compilation_options : wgpu::PipelineCompilationOptions::default(),
-        buffers : &[ vertex_buffer_layout ]
+        buffers : &[ vertex_buffer.layout().clone(), position_buffer.layout().clone() ]
       },
-      primitive : wgpu::PrimitiveState::default(),
+      primitive,
       depth_stencil : None,
       multisample : wgpu::MultisampleState::default(),
       fragment : Some
       (
         wgpu::FragmentState
         {
-          module : &shader,
+          module : shader,
           entry_point : Some( "fs_main" ),
           compilation_options : wgpu::PipelineCompilationOptions::default(),
           targets :
@@ -186,87 +314,5 @@ fn run()
       multiview : None,
       cache : None
     }
-  );
-
-  let mut encoder = context.device()
-  .create_command_encoder( &wgpu::CommandEncoderDescriptor { label : Some( "encoder" ) } );
-
-  let mut render_pass = encoder.begin_render_pass
-  (
-    &wgpu::RenderPassDescriptor
-    {
-      label : Some( "render_pass" ),
-      color_attachments :
-      &[
-        Some
-        (
-          wgpu::RenderPassColorAttachment
-          {
-            view : &texture_view,
-            resolve_target : None,
-            ops : wgpu::Operations
-            {
-              load : wgpu::LoadOp::Clear
-              (
-                wgpu::Color
-                {
-                  r : 0.1,
-                  g : 0.2,
-                  b : 0.3,
-                  a : 1.0,
-                }
-              ),
-              store : wgpu::StoreOp::Store,
-            },
-            depth_slice : None,
-          }
-        )
-      ],
-      depth_stencil_attachment : None,
-      timestamp_writes : None,
-      occlusion_query_set : None,
-    }
-  );
-  render_pass.set_pipeline( &render_pipeline );
-  render_pass.set_bind_group( 0, &bind_group, &[] );
-  render_pass.set_vertex_buffer( 0, vertex_buffer.slice( .. ) );
-  render_pass.draw( 0..vertex_count, 0..1 );
-  drop( render_pass );
-
-  encoder.copy_texture_to_buffer
-  (
-    texture.as_image_copy(),
-    wgpu::TexelCopyBufferInfo
-    {
-      buffer : &output_buffer,
-      layout : wgpu::TexelCopyBufferLayout
-      {
-        offset : 0,
-        bytes_per_row : Some( width * bytes_per_pixel ),
-        rows_per_image : None
-      }
-    },
-    texture_extent
-  );
-
-  context.queue().submit( Some( encoder.finish() ) );
-
-  let buffer_slice = output_buffer.slice( .. );
-  buffer_slice.map_async( wgpu::MapMode::Read, | _ | {} );
-
-  context.device().poll( wgpu::PollType::Wait ).expect( "Failed to render an image" );
-
-  let data = buffer_slice.get_mapped_range();
-  image::save_buffer( "triangle.png", &data, width, height, image::ColorType::Rgba8 )
-  .expect( "Failed to save image" );
-}
-
-#[ repr( C ) ]
-#[ derive( Default, Clone, Copy, bytemuck::Zeroable, bytemuck::Pod ) ]
-struct Uniform
-{
-  color : [ f32; 4 ],
-  translation : [ f32; 2 ],
-  scale : f32,
-  _padding : [ u8; 4 ]
+  )
 }
