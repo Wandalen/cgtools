@@ -428,9 +428,9 @@ fn setup_animation( gl : &GL, width : usize, height : usize ) -> animation::Anim
   .height( height )
   .frames( 0.0..10.0 )
   .layers()
-    .add( base )
-    .add( circles )
-    .end()
+  .add( base )
+  .add( circles )
+  .end()
   .form();
 
   let mut add_circle =
@@ -468,9 +468,9 @@ fn setup_animation( gl : &GL, width : usize, height : usize ) -> animation::Anim
     .frames( 0.0..10.0 )
     .transform( interpoli::Transform::Animated( rect_transform.into() ) )
     .content()
-      .add( Shape::Color( Color::Fixed( *color ) ) )
-      .add( rect_geo.clone() )
-      .end()
+    .add( Shape::Color( Color::Fixed( *color ) ) )
+    .add( rect_geo.clone() )
+    .end()
     .form();
 
     let diff = 360.0 / repeats as f64;

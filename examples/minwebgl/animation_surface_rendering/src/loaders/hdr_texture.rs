@@ -34,7 +34,6 @@ pub async fn load_to_mip_cube
     start..end
   };
 
-
   let image_data : gl::js_sys::Object = gl::js_sys::Float32Array::from( data.as_slice() ).into();
 
   gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 1 );
@@ -96,7 +95,6 @@ pub async fn load_to_mip_d2
 
   let image_data : gl::js_sys::Object = gl::js_sys::Float32Array::from( data.as_slice() ).into();
 
-  //gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 1 );
   gl.bind_texture( gl::TEXTURE_2D, texture );
   gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_array_buffer_view_and_src_offset
   (
