@@ -9,6 +9,7 @@ pollster.workspace = true
 mingl.workspace = true
 error_tools.workspace = true
 thiserror.workspace = true
+asbytes.workspace = true
 
 [lints]
 workspace = true

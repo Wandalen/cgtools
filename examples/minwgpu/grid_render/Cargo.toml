@@ -8,7 +8,7 @@ wgpu.workspace = true
 image.workspace = true
 minwgpu.workspace = true
 tiles_tools.workspace = true
-bytemuck.workspace = true
+asbytes.workspace = true
 
 [lints]
 workspace = true

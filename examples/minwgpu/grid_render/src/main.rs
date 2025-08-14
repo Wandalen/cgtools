@@ -1,19 +1,35 @@
-//! TODO
-
-mod context;
-mod buffer;
+#![ doc = "../readme.md" ]
 
 use tiles_tools::coordinates::{ hexagonal, pixel::Pixel, Neighbors as _ };
 use hexagonal::{ Axial, Coordinate, Flat };
+use minwgpu::{ buffer, context, helper };
 
 fn main()
 {
-  run();
+  println!( "{:?}", run() );
 }
 
-fn run()
+fn run() -> Result< (), minwgpu::Error >
 {
-  let context = context::Context::new_temp();
+  let context = context::Context::builder()
+  .backends( wgpu::Backends::PRIMARY )
+  .make_instance()
+  .power_preference( wgpu::PowerPreference::HighPerformance )
+  .request_adapter()?
+  .label( "device" )
+  .required_features( wgpu::Features::PUSH_CONSTANTS )
+  .required_limits( wgpu::Limits { max_push_constant_size : 16, ..Default::default() } )
+  .finish_context()?;
+
+  let clear_color = wgpu::Color
+  {
+    r : 0.1,
+    g : 0.2,
+    b : 0.3,
+    a : 1.0,
+  };
+  let hexagon_color = [ 1.0_f32, 0.0, 0.0 ];
+  let outline_color = [ 0.0_f32, 0.0, 0.0 ];
 
   let shader = context.device().create_shader_module( wgpu::include_wgsl!( "../shaders/shader.wgsl" ) );
 
@@ -44,18 +60,18 @@ fn run()
   let bytes_per_pixel = 4;
   let buffer_size = bytes_per_pixel * width * height;
   let output_buffer_size = wgpu::BufferAddress::from( buffer_size );
-  let output_buffer = buffer::Buffer::buffer_builder
+  let output_buffer = buffer::buffer
   (
     wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ
   )
   .label( "output_buffer" )
-  .size( output_buffer_size )
+  .size_from_value( output_buffer_size )
   .build( context.device() );
 
   let vertex_data = tiles_tools::geometry::hexagon_triangles();
   let vertex_count = ( vertex_data.len() / 2 ) as u32;
-  let attributes = [ buffer::attr( wgpu::VertexFormat::Float32x2, 0, 0 ) ];
-  let vertex_buffer = buffer::Buffer::vertex_buffer_builder()
+  let attributes = [ helper::attr( wgpu::VertexFormat::Float32x2, 0, 0 ) ];
+  let vertex_buffer = buffer::vertex_buffer()
   .label( "hexagon_mesh" )
   .data( vertex_data.as_slice() )
   .array_stride( wgpu::VertexFormat::Float32x2.size() )
@@ -64,8 +80,8 @@ fn run()
 
   let line_data = tiles_tools::geometry::hexagon_lines();
   let line_vertex_count = ( line_data.len() / 2 ) as u32;
-  let attributes = [ buffer::attr( wgpu::VertexFormat::Float32x2, 0, 0 ) ];
-  let line_vertex_buffer = buffer::Buffer::vertex_buffer_builder()
+  let attributes = [ helper::attr( wgpu::VertexFormat::Float32x2, 0, 0 ) ];
+  let line_vertex_buffer = buffer::vertex_buffer()
   .label( "hexagon_outline" )
   .data( line_data.as_slice() )
   .array_stride( wgpu::VertexFormat::Float32x2.size() )
@@ -82,8 +98,8 @@ fn run()
   .map( | c | Pixel::from( c ).data )
   .flatten()
   .collect();
-  let attributes = &[ buffer::attr( wgpu::VertexFormat::Float32x2, 0, 1 ) ];
-  let position_buffer = buffer::Buffer::vertex_buffer_builder()
+  let attributes = &[ helper::attr( wgpu::VertexFormat::Float32x2, 0, 1 ) ];
+  let position_buffer = buffer::vertex_buffer()
   .label( "hexagon_positions" )
   .data( positions.as_slice() )
   .array_stride( wgpu::VertexFormat::Float32x2.size() )
@@ -92,7 +108,7 @@ fn run()
   .build( context.device() );
 
   let scale_uniform = 0.25_f32;
-  let uniform_buffer = buffer::Buffer::buffer_builder( wgpu::BufferUsages::UNIFORM )
+  let uniform_buffer = buffer::buffer( wgpu::BufferUsages::UNIFORM )
   .label( "uniform_buffer" )
   .data( &[ scale_uniform ] )
   .build( context.device() );
@@ -131,7 +147,7 @@ fn run()
         wgpu::BindGroupEntry
         {
           binding : 0,
-          resource : uniform_buffer.as_ref().as_entire_binding(),
+          resource : uniform_buffer.as_entire_binding(),
         },
       ],
     }
@@ -187,16 +203,7 @@ fn run()
           resolve_target : None,
           ops : wgpu::Operations
           {
-            load : wgpu::LoadOp::Clear
-            (
-              wgpu::Color
-              {
-                r : 0.1,
-                g : 0.2,
-                b : 0.3,
-                a : 1.0,
-              }
-            ),
+            load : wgpu::LoadOp::Clear( clear_color ),
             store : wgpu::StoreOp::Store,
           },
           depth_slice : None,
@@ -211,40 +218,41 @@ fn run()
   let mut encoder = context.device()
   .create_command_encoder( &wgpu::CommandEncoderDescriptor { label : Some( "encoder" ) } );
 
-  let mut render_pass = encoder.begin_render_pass( &render_pass_desc );
-  render_pass.set_pipeline( &hexagon_fill_pipeline );
-  // Hexagon color
-  render_pass.set_push_constants
-  (
-    wgpu::ShaderStages::FRAGMENT,
-    0,
-    bytemuck::cast_slice( &[ 1.0_f32, 0.0, 0.0 ] )
-  );
-  render_pass.set_bind_group( 0, &bind_group, &[] );
-  render_pass.set_vertex_buffer( 0, vertex_buffer.as_ref().slice( .. ) );
-  render_pass.set_vertex_buffer( 1, position_buffer.as_ref().slice( .. ) );
-  render_pass.draw( 0..vertex_count, 0..instance_count );
+  {
+    let mut render_pass = encoder.begin_render_pass( &render_pass_desc );
+    render_pass.set_pipeline( &hexagon_fill_pipeline );
+    // Hexagon color
+    render_pass.set_push_constants
+    (
+      wgpu::ShaderStages::FRAGMENT,
+      0,
+      asbytes::cast_slice( &hexagon_color )
+    );
+    render_pass.set_bind_group( 0, &bind_group, &[] );
+    render_pass.set_vertex_buffer( 0, vertex_buffer.as_ref().slice( .. ) );
+    render_pass.set_vertex_buffer( 1, position_buffer.as_ref().slice( .. ) );
+    render_pass.draw( 0..vertex_count, 0..instance_count );
 
-  render_pass.set_pipeline( &hexagon_outline_pipeline );
-  // Outline color
-  render_pass.set_push_constants
-  (
-    wgpu::ShaderStages::FRAGMENT,
-    0,
-    bytemuck::cast_slice( &[ 0.0_f32, 0.0, 0.0 ] )
-  );
-  render_pass.set_bind_group( 0, &bind_group, &[] );
-  render_pass.set_vertex_buffer( 0, line_vertex_buffer.as_ref().slice( .. ) );
-  render_pass.set_vertex_buffer( 1, position_buffer.as_ref().slice( .. ) );
-  render_pass.draw( 0..line_vertex_count, 0..instance_count );
-  drop( render_pass );
+    render_pass.set_pipeline( &hexagon_outline_pipeline );
+    // Outline color
+    render_pass.set_push_constants
+    (
+      wgpu::ShaderStages::FRAGMENT,
+      0,
+      asbytes::cast_slice( &outline_color )
+    );
+    render_pass.set_bind_group( 0, &bind_group, &[] );
+    render_pass.set_vertex_buffer( 0, line_vertex_buffer.as_ref().slice( .. ) );
+    render_pass.set_vertex_buffer( 1, position_buffer.as_ref().slice( .. ) );
+    render_pass.draw( 0..line_vertex_count, 0..instance_count );
+  }
 
   encoder.copy_texture_to_buffer
   (
     render_texture.as_image_copy(),
     wgpu::TexelCopyBufferInfo
     {
-      buffer : output_buffer.as_ref(),
+      buffer : &output_buffer,
       layout : wgpu::TexelCopyBufferLayout
       {
         offset : 0,
@@ -256,7 +264,7 @@ fn run()
   );
   context.queue().submit( Some( encoder.finish() ) );
 
-  let buffer_slice = output_buffer.as_ref().slice( .. );
+  let buffer_slice = output_buffer.slice( .. );
   buffer_slice.map_async( wgpu::MapMode::Read, | _ | {} );
 
   context.device().poll( wgpu::PollType::Wait ).expect( "Failed to render an image" );
@@ -264,14 +272,16 @@ fn run()
   let data = buffer_slice.get_mapped_range();
   image::save_buffer( "hexagons.png", &data, width, height, image::ColorType::Rgba8 )
   .expect( "Failed to save image" );
+
+  Ok( () )
 }
 
 fn create_pipeline
 (
   context : &context::Context,
   shader : &wgpu::ShaderModule,
-  vertex_buffer : &buffer::Buffer< wgpu::VertexBufferLayout< '_ > >,
-  position_buffer : &buffer::Buffer< wgpu::VertexBufferLayout< '_ > >,
+  vertex_buffer : &buffer::VertexBuffer< '_ >,
+  position_buffer : &buffer::VertexBuffer< '_ >,
   primitive : wgpu::PrimitiveState,
   render_pipeline_layout : &wgpu::PipelineLayout
 ) -> wgpu::RenderPipeline
