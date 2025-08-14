@@ -284,7 +284,7 @@ mod private
           {
             root : node.clone(),
             inverse_bind_matrices : matrices,
-            offset : skin.joints()
+            offset : skin.joints().next().map( | n | n.index().flatten() ).unwrap_or( 0 )
           }
         }
       }
