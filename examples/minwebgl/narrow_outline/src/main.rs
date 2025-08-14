@@ -409,7 +409,7 @@ pub fn add_attributes
   let object_id_bytes = object_id_data.iter().map( | i | i.to_be_bytes() ).flatten().collect::< Vec< _ > >();
   let object_id_buffer = add_buffer( gl, gltf, object_id_bytes )?;
 
-  let object_id_info = make_buffer_attibute_info(
+  let object_id_info = make_buffer_attribute_info(
     &object_id_buffer,
     0,
     1,
@@ -446,7 +446,7 @@ pub fn add_attributes
 /// # Returns
 ///
 /// A `Result<AttributeInfo, WebglError>` containing the attribute info or an error if the type is not supported.
-fn make_buffer_attibute_info
+fn make_buffer_attribute_info
 (
   buffer : &web_sys::WebGlBuffer,
   offset : i32,
@@ -720,7 +720,8 @@ fn primitives_csgrs_gltf
   [
     (
       "positions",
-      make_buffer_attibute_info(
+      make_buffer_attribute_info
+      (
         &position_buffer,
         0,
         3,
@@ -731,7 +732,8 @@ fn primitives_csgrs_gltf
     ),
     (
       "normals",
-      make_buffer_attibute_info(
+      make_buffer_attribute_info
+      (
         &normal_buffer,
         0,
         3,
@@ -742,7 +744,8 @@ fn primitives_csgrs_gltf
     ),
     (
       "object_ids",
-      make_buffer_attibute_info(
+      make_buffer_attribute_info
+      (
         &object_id_buffer,
         0,
         1,

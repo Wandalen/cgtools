@@ -13,19 +13,21 @@
 #[ cfg( feature = "text" ) ]
 mod private
 {
-  use std::collections::HashMap;
-  use std::str::FromStr;
+  use std::rc::Rc;
+  use std::cell::RefCell;
+  use std::{collections::HashMap, str::FromStr};
   use kurbo::flatten;
   use mingl::geometry::BoundingBox;
   use norad::{ PointType, ContourPoint, Contour };
-  use std::rc::Rc;
-  use std::cell::RefCell;
   use minwebgl as gl;
   use gl::{ F32x3, F32x4 };
   use quick_xml::{ Reader, events::Event };
   use crate::
   { 
-    AttributesData, PrimitiveData, Transform 
+    AttributesData,
+    PrimitiveData, 
+    Transform,
+    contours_to_fill_geometry 
   };
 
   /// Represents a single character glyph, including its contours and a generated 3D body.
@@ -358,7 +360,7 @@ mod private
 
       for ( _, glyph ) in glyphs.iter_mut()
       {
-        glyph.body = contours_to_mesh( &glyph.contours );
+        glyph.body = contours_to_fill_geometry( &glyph.contours );
       }
 
       Self
@@ -375,6 +377,7 @@ mod private
 
   /// Converts a set of 2D contours into a triangulated mesh with holes support.
   #[ cfg( feature = "font-processing" ) ]
+  #[ allow( dead_code ) ]
   pub fn contours_to_mesh( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
   {
     if contours.is_empty()
@@ -753,7 +756,6 @@ crate::mod_interface!
     load_fonts,
     Glyph,
     Font,
-    contours_to_mesh,
     text_to_mesh,
     text_to_countour_mesh
   };
