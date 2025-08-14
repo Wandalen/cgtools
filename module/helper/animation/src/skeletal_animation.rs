@@ -15,6 +15,7 @@ mod private
 
   pub struct Rigs
   {
+    gl_buffers : Vec< WebGlBuffer >, 
     pub rigs : Vec< ( Rig, Vec< Sequencer > ) >
   }
 
@@ -24,6 +25,7 @@ mod private
     {
       Self
       {
+        gl_buffers : vec![],
         rigs : vec![]
       }
     }
