@@ -213,6 +213,7 @@ fn run()
 
   let mut render_pass = encoder.begin_render_pass( &render_pass_desc );
   render_pass.set_pipeline( &hexagon_fill_pipeline );
+  // Hexagon color
   render_pass.set_push_constants
   (
     wgpu::ShaderStages::FRAGMENT,
@@ -225,6 +226,7 @@ fn run()
   render_pass.draw( 0..vertex_count, 0..instance_count );
 
   render_pass.set_pipeline( &hexagon_outline_pipeline );
+  // Outline color
   render_pass.set_push_constants
   (
     wgpu::ShaderStages::FRAGMENT,

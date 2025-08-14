@@ -25,11 +25,14 @@ impl Buffer< () >
   {
     BufferBuilder
     {
-      data : None,
-      label : None,
-      size : 0,
-      mapped_at_creation : false,
-      usage
+      inner : BufferBuilderInner
+      {
+        data : None,
+        label : None,
+        size : 0,
+        mapped_at_creation : false,
+        usage
+      },
     }
   }
 }
@@ -51,7 +54,7 @@ impl< L > AsRef< wgpu::Buffer > for Buffer< L >
 }
 
 #[ derive( Debug ) ]
-pub struct BufferBuilder< 'a >
+pub struct BufferBuilderInner< 'a >
 {
   data : Option< &'a [ u8 ] >,
   label : Option< &'a str >,
@@ -60,40 +63,8 @@ pub struct BufferBuilder< 'a >
   usage : wgpu::BufferUsages,
 }
 
-impl< 'a > BufferBuilder< 'a >
+impl< 'a > BufferBuilderInner< 'a >
 {
-  pub fn data< D >( mut self, value : &'a [ D ] ) -> Self
-  where
-    D : bytemuck::NoUninit
-  {
-    self.data = Some( bytemuck::cast_slice( value ) );
-    self
-  }
-
-  pub fn label( mut self, value : &'a str ) -> Self
-  {
-    self.label = Some( value );
-    self
-  }
-
-  pub fn size( mut self, value : wgpu::BufferAddress ) -> Self
-  {
-    self.size = value;
-    self
-  }
-
-  pub fn mapped_at_creation( mut self, value : bool ) -> Self
-  {
-    self.mapped_at_creation = value;
-    self
-  }
-
-  pub fn usage( mut self, value : wgpu::BufferUsages ) -> Self
-  {
-    self.usage = value;
-    self
-  }
-
   pub fn build( self, device : &wgpu::Device ) -> Buffer< () >
   {
     let Self { data, label, size, mapped_at_creation, usage } = self;
@@ -164,12 +135,28 @@ macro_rules! impl_buffer_builder_methods
 }
 
 #[ derive( Debug ) ]
+pub struct BufferBuilder< 'a >
+{
+  inner : BufferBuilderInner< 'a >
+}
+
+impl_buffer_builder_methods!( BufferBuilder< 'a >, inner );
+
+impl< 'a > BufferBuilder< 'a >
+{
+  pub fn build( self, device : &wgpu::Device ) -> Buffer< () >
+  {
+    self.inner.build( device )
+  }
+}
+
+#[ derive( Debug ) ]
 pub struct VertexBufferBuilder< 'a >
 {
   array_stride : wgpu::BufferAddress,
   step_mode : wgpu::VertexStepMode,
   attributes : &'a [ wgpu::VertexAttribute ],
-  buffer_builder : BufferBuilder< 'a >
+  buffer_builder : BufferBuilderInner< 'a >
 }
 
 impl_buffer_builder_methods!( VertexBufferBuilder< 'a >, buffer_builder );
@@ -183,7 +170,7 @@ impl< 'a > VertexBufferBuilder< 'a >
       array_stride  : 0,
       step_mode : wgpu::VertexStepMode::Vertex,
       attributes : &[],
-      buffer_builder : Buffer::buffer_builder( wgpu::BufferUsages::VERTEX )
+      buffer_builder : Buffer::buffer_builder( wgpu::BufferUsages::VERTEX ).inner
     }
   }
 
