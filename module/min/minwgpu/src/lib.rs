@@ -1,5 +1,6 @@
 #![ allow( clippy::implicit_return ) ]
 
+//!
 //! # `minwgpu`
 //!
 //! Minwgpu is a minimal, opinionated toolkit designed to simplify common
