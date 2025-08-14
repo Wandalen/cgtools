@@ -30,6 +30,7 @@ members = [
   "module/helper/renderer",
   "module/helper/tilemap_renderer",
   "module/helper/tiles_tools",
+  "module/helper/behaviour_tree",
   # "module/helper/vectorizer", # TODO: Fix feature gate issues
 
   # Math modules
@@ -362,6 +363,9 @@ version = "0.4"
 
 [workspace.dependencies.earcutr]
 version = "0.5"
+
+[workspace.dependencies.peniko]
+version = "0.4.0"
 
 [workspace.dependencies.hecs]
 version = "0.10"

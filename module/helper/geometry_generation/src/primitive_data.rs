@@ -72,7 +72,7 @@ mod private
   impl Transform
   {
     /// Set new local matrix of `Node`.
-    fn set_node_transform( &self, node : Rc< RefCell< Node > > )
+    pub fn set_node_transform( &self, node : Rc< RefCell< Node > > )
     {
       let t = self.translation;
       let r = self.rotation;
@@ -87,6 +87,7 @@ mod private
   }
   
   /// Mesh attribute data containing vertex positions and triangle indices.
+  #[ derive( Debug ) ]
   pub struct AttributesData
   {
     /// Vertex positions in 3D space.
@@ -108,7 +109,7 @@ mod private
   }
 
   /// Creates an `AttributeInfo` object using one function call for a WebGL buffer.
-  fn make_buffer_attibute_info
+  pub fn make_buffer_attribute_info
   ( 
     buffer : &web_sys::WebGlBuffer,
     descriptor : gl::BufferDescriptor, 
@@ -162,7 +163,7 @@ mod private
     [
       ( 
         "positions", 
-        make_buffer_attibute_info( 
+        make_buffer_attribute_info( 
           &position_buffer, 
           BufferDescriptor::new::< [ f32; 3 ] >(),
           0, 
@@ -255,6 +256,7 @@ crate::mod_interface!
     Transform,
     PrimitiveData,
     AttributesData,
-    primitives_data_to_gltf
+    primitives_data_to_gltf,
+    make_buffer_attribute_info
   };
 }

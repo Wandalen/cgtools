@@ -97,6 +97,7 @@ mod private
   mod imp
   {
     use super::Config;
+    use std::panic;
 
     // extern crate wasm_bindgen;
     use wasm_bindgen::prelude::*;
