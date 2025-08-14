@@ -112,14 +112,25 @@ mod private
   {
     fn into( self ) -> interpoli::animated::Transform 
     {
+      let Transform
+      {
+        anchor,
+        position,
+        rotation,
+        scale,
+        skew,
+        skew_angle,
+      } 
+      = self;
+
       interpoli::animated::Transform
       {
-        anchor : self.anchor.clone(),
-        position : interpoli::animated::Position::Value( self.position.clone() ),
-        rotation : self.rotation.clone(),
-        scale : self.scale.clone(),
-        skew : self.skew.clone(),
-        skew_angle : self.skew_angle.clone()
+        anchor,
+        position : interpoli::animated::Position::Value( position ),
+        rotation,
+        scale,
+        skew,
+        skew_angle
       }
     }
   }

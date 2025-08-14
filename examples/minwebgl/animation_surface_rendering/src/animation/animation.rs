@@ -32,7 +32,7 @@ mod private
   {
     let [ a, b, c, d , e, f ] = affine.as_coeffs();
 
-    let mut matrix = F32x4x4::default();
+    let mut matrix = gl::math::mat4x4::identity();
     
     {
       let matrix_mut : &mut [ f32 ] = matrix.as_raw_slice_mut();
@@ -48,15 +48,13 @@ mod private
       set_elem( 1, 1, d as f32 );
       set_elem( 3, 0, e as f32 );
       set_elem( 3, 1, f as f32 );
-      set_elem( 3, 3, 1.0 );
-      set_elem( 2, 2, 1.0 );
     }
 
     matrix
   }
 
   /// Converts an `interpoli::Brush` to an `F32x4` color vector for a given frame.
-  fn brush_to_color( brush : &interpoli::Brush, frame : f64 ) -> F32x4
+  fn brush_to_color< 'a >( brush : &'a interpoli::Brush, frame : f64 ) -> F32x4
   {
     let color = match brush.evaluate( 1.0, frame ).into_owned()
     {
