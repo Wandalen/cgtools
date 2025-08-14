@@ -63,16 +63,18 @@ use crate::animation::{ model, Model, Shape, Layer, Transform, Color, fixed, eas
 /// # Returns
 ///
 /// A `WebGlTexture` object.
-fn upload_texture( gl : &WebGl2RenderingContext, src : Rc< String > ) -> WebGlTexture
+fn upload_texture< 'a >( gl : &'a WebGl2RenderingContext, src : Rc< String > ) -> WebGlTexture
 {
-  let window = web_sys::window().unwrap();
-  let document =  window.document().unwrap();
+  let window = web_sys::window().expect( "Can't get window" );
+  let document =  window.document().expect( "Can't get document" );
 
   let texture = gl.create_texture().expect( "Failed to create a texture" );
 
-  let img_element = document.create_element( "img" ).unwrap()
-  .dyn_into::< gl::web_sys::HtmlImageElement >().unwrap();
-  img_element.style().set_property( "display", "none" ).unwrap();
+  let img_element = document.create_element( "img" )
+  .expect( "Can't create img" )
+  .dyn_into::< gl::web_sys::HtmlImageElement >()
+  .expect( "Can't convert to gl::web_sys::HtmlImageElement" );
+  img_element.style().set_property( "display", "none" ).expect( "Can't set property" );
   let load_texture : Closure< dyn Fn() > = Closure::new
   (
     {
@@ -153,8 +155,10 @@ fn init_context() -> ( WebGl2RenderingContext, HtmlCanvasElement )
   gl::browser::setup( Default::default() );
   let options = gl::context::ContexOptions::default().antialias( false );
 
-  let canvas = gl::canvas::make().unwrap();
-  let gl = gl::context::from_canvas_with( &canvas, options ).unwrap();
+  let canvas = gl::canvas::make()
+  .expect( "Can't create canvas" );
+  let gl = gl::context::from_canvas_with( &canvas, options )
+  .expect( "Can't create WebGL context" );
 
   let _ = gl.get_extension( "EXT_color_buffer_float" )
   .expect( "Failed to enable EXT_color_buffer_float extension" );
@@ -273,11 +277,12 @@ fn set_texture
 /// A `Result` containing the configured `GLTF` scene, or a `gl::WebglError` if loading fails.
 async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglError >
 {
-  let window = web_sys::window().unwrap();
-  let document =  window.document().unwrap();
+  let window = web_sys::window().expect( "Can't get window" );
+  let document =  window.document().expect( "Can't get document" );
   let mut gltf = renderer::webgl::loaders::gltf::load( &document, "gltf/sphere.glb", &gl ).await?;
 
-  let earth = gltf.scenes[ 0 ].borrow().children.get( 1 ).unwrap().clone();
+  let earth = gltf.scenes[ 0 ].borrow().children.get( 1 )
+  .expect( "Scene is empty" ).clone();
   let texture = create_texture( &gl, "textures/earth2.jpg" );
   set_texture( &earth, | m | { m.base_color_texture = texture.clone(); } );
   earth.borrow_mut().update_local_matrix();
@@ -349,7 +354,13 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
   for font_name in font_names
   {
     transform.translation[ 1 ] -= 1.0;
-    let mut text_mesh = text::ufo::text_to_countour_mesh( &text, fonts.get( font_name ).unwrap(), &transform, 5.0 );
+    let mut text_mesh = text::ufo::text_to_countour_mesh
+    ( 
+      &text, 
+      fonts.get( font_name ).expect( "Can't find font" ), 
+      &transform, 
+      5.0 
+    );
     text_mesh.iter_mut()
     .for_each( | p | p.color = colors[ 0 ].clone() );
     primitives_data.extend( text_mesh );
@@ -677,7 +688,8 @@ async fn run() -> Result< (), gl::WebglError >
   let canvas_renderer = CanvasRenderer::new( &gl, canvas.width() * 4, canvas.height() * 4 )?;
   let canvas_texture = canvas_renderer.get_texture();
 
-  let earth = gltf.scenes[ 0 ].borrow().children.get( 1 ).unwrap().clone();
+  let earth = gltf.scenes[ 0 ].borrow().children.get( 1 )
+  .expect( "Scene is empty" ).clone();
   let canvas_sphere = clone( &mut gltf, &earth );
   set_texture
   (
@@ -727,7 +739,7 @@ async fn run() -> Result< (), gl::WebglError >
 
       if let Some( ( mut scene, colors ) ) = animation.frame( modulo( time as f64 * 1.0, 10.0 ) )
       {
-        canvas_renderer.render( &gl, &mut scene, &canvas_camera, &colors ).unwrap();
+        canvas_renderer.render( &gl, &mut scene, &canvas_camera, &colors ).expect( "Failed to render frame" );
       }
 
       renderer.render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
@@ -767,7 +779,7 @@ fn main()
   ( 
     async move 
     { 
-      run().await.unwrap() 
+      run().await.expect( "Program finish work with errors" )
     } 
   );
 }
