@@ -25,7 +25,7 @@ mod private
   ///
   /// A `GeometryData` struct containing the 3D vertex positions and triangle indices
   /// that form the rectangular segments of the path. The Z-coordinate is always 0.0.
-  pub fn curve_to_geometry( curve : &[ [ f32; 2 ] ], width : f32 ) -> Option< PrimitiveData >
+  pub fn curve_to_geometry< 'a >( curve : &'a [ [ f32; 2 ] ], width : f32 ) -> Option< PrimitiveData >
   {
     let mut positions = Vec::new();
     let mut indices = Vec::new();
@@ -71,8 +71,8 @@ mod private
       }
     );
 
-    let start_point = ( *curve.last().unwrap() ).into();
-    let end_point = F32x2::from_array( *curve.first().unwrap() );
+    let start_point = ( *curve.last().expect( "Curve is empty" ) ).into();
+    let end_point = F32x2::from_array( *curve.first().expect( "Curve is empty" ) );
     add_segment( &start_point, &end_point );
 
     let attributes = AttributesData
@@ -103,7 +103,7 @@ mod private
   ///
   /// An `Option<PrimitiveData>` containing the triangulated geometry for the
   /// filled shape. Returns `None` if the input is empty or invalid.
-  pub fn contours_to_fill_geometry( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
+  pub fn contours_to_fill_geometry< 'a >( contours : &'a [ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
   {
     if contours.is_empty()
     {
@@ -138,7 +138,7 @@ mod private
 
     let body_bounding_box = BoundingBox::compute2d
     (
-      contours.get( body_id ).unwrap()
+      contours.get( body_id ).unwrap_or( &vec![] )
       .clone()
       .into_iter()
       .flatten()
