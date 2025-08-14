@@ -149,7 +149,6 @@ mod private
     pub fn update_mesh( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
       let mesh = self.mesh.as_mut().expect( "Mesh has not been created yet" );
-      let changed = self.points_changed || self.join_changed || self.cap_changed;
 
       if self.points_changed
       {
@@ -344,15 +343,6 @@ mod private
 
         self.cap_changed = false;
       }
-
-      // if changed
-      // {
-
-      //   for i in 0..self.points.len()
-      //   {
-          
-      //   }
-      // }
 
       gl.bind_buffer( gl::ARRAY_BUFFER, None );
       gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, None );

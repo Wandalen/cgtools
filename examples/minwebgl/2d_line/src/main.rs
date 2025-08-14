@@ -43,7 +43,7 @@ fn run() -> Result< (), gl::WebglError >
 
 
   let mut line = line_tools::d2::Line::default();
-  line.set_cap( line_tools::Cap::Square );
+  line.set_cap( line_tools::Cap::Butt );
   line.set_join( line_tools::Join::Miter );
 
   line.create_mesh( &gl, main_frag )?;
@@ -63,7 +63,7 @@ fn run() -> Result< (), gl::WebglError >
   let settings = Settings
   {
     join : "miter".into(),
-    cap : "square".into(),
+    cap : "butt".into(),
     width : line_width
   };
 
@@ -142,6 +142,7 @@ fn run() -> Result< (), gl::WebglError >
     {
       let _time = t as f32 / 1000.0;
 
+      line.borrow().get_mesh().upload( &gl, "time", &_time ).unwrap();
       //draw
       gl.use_program( Some( &background_program ) );
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );

@@ -2,6 +2,7 @@
 precision highp float;
 
 uniform vec3 u_color;
+uniform float time;
 out vec4 frag_color;
 
 in vec2 vUv;
@@ -18,6 +19,7 @@ void main()
   vec3 col = vec3( 112.21, 201.45, 94.35 ) / 255.0;
 
   col = stripes();
-  col = vec3( fract( vUv.x ) );
+  
+  col = vec3( fract( vUv.x - time ) );
   frag_color = vec4( col, 1.5 );
 }

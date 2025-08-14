@@ -48,44 +48,48 @@ void main()
   // Direction of the bend
   float sigma = sign( dot( AB + CB, normal ) );
 
-  vec2 corner1 = pointA + normToAB * sigma * u_width * 0.5;
-  vec2 corner2 = pointA - normToAB * sigma * u_width * 0.5;
-  vec2 corner3 = pointB - normToAB * sigma * u_width * 0.5;
-  vec2 corner4 = pointB + normToAB * sigma * u_width * 0.5;
+  if( sigma == 0.0 ) { sigma = 1.0; }
 
-  vec2 currentPoint = 
-  mix
-  (
-    // x = 0
-    mix
-    (
-      // y < 0
-      corner2,
-      // y > 0
-      corner1,
-      step( 0.0, position.y )
-    ),
-    // x = 1
-    mix
-    (
-      // y < 0
-      corner3,
-      // y > 0
-      corner4,
-      step( 0.0, position.y )
-    ),
-    position.x
-  );
+  vec2 cornerB = pointB + normToAB * sigma * u_width * 0.5;
+  vec2 cornerA = pointA + normToAB * -sigma * u_width * 0.5;
+  vec2 cornerC = pointC + normToCB * sigma * u_width * 0.5;
 
-  float totalDist = distanceToLine( pointA, normal, pointB );
-  float currentDist = distanceToLine( pointA, normal, currentPoint );
+  vec2 closestPoint;
+  vec2 closestNormal;
 
-  vUv.x = mix( inPointA.z, inPointB.z, currentDist / totalDist );
+  if( dot( AB, AB ) > dot( CB, CB ) )
+  {
+    closestPoint = cornerC;
+    closestNormal = normToCB;
+  }
+  else
+  {
+    closestPoint = cornerA;
+    closestNormal = normToAB;
+  }
+
+  vec2 intersectionPoint = lineIntersection( pointB, normal, closestPoint, closestNormal );
+  vec2 offsetPoint = pointB + 0.5 * normal * -sigma * u_width / dot( normal, normToAB );
+
+  if( dot( offsetPoint - intersectionPoint, normal * sigma ) < 0.0 )
+  {
+    vec2 normalizedAB = normalize( AB );
+    vec2 cAtoInt =  intersectionPoint - cornerA;
+    float k = dot( cAtoInt, normalizedAB );
+    offsetPoint = cornerA + k * normalizedAB + normalizedAB * dot( normal * sigma, normalizedAB ) * length( intersectionPoint - offsetPoint );
+
+    if( dot( offsetPoint - pointB, AB ) > 0.0 )
+    {
+      offsetPoint = cornerA + AB;
+    }
+  }
+
+
   vUv.y = mix( 0.0, 1.0, step( 0.0, sign( inPointB.z - inPointA.z ) * position.y ) );
-  //vUv.x = mix( inPointA.z, inPointB.z, position.x );
 
   if( position.x == 0.0 )
   {
+    vUv.x = inPointA.z;
     vec2 point = pointA + xBasis * position.x + yBasis * position.y * u_width;
     gl_Position =  u_projection_matrix * vec4( point, 0.0, 1.0 );
     return;
@@ -93,45 +97,14 @@ void main()
 
   if( sign( position.y ) == -sigma )
   {
-    vec2 cornerA = pointA + normToAB * -sigma * u_width * 0.5;
-    vec2 cornerC = pointC + normToCB * sigma * u_width * 0.5;
-
-    vec2 closestPoint;
-    vec2 closestNormal;
-
-    if( dot( AB, AB ) > dot( CB, CB ) )
-    {
-      closestPoint = cornerC;
-      closestNormal = normToCB;
-    }
-    else
-    {
-      closestPoint = cornerA;
-      closestNormal = normToAB;
-    }
-
-    vec2 intersectionPoint = lineIntersection( pointB, normal, closestPoint, closestNormal );
-    vec2 offsetPoint = pointB + 0.5 * normal * -sigma * u_width / dot( normal, normToAB );
-
-    if( dot( offsetPoint - intersectionPoint, normal * sigma ) < 0.0 )
-    {
-      vec2 normalizedAB = normalize( AB );
-      vec2 cAtoInt =  intersectionPoint - cornerA;
-      float k = dot( cAtoInt, normalizedAB );
-      offsetPoint = cornerA + k * normalizedAB + normalizedAB * dot( normal * sigma, normalizedAB ) * length( intersectionPoint - offsetPoint );
-
-      if( dot( offsetPoint - pointB, AB ) > 0.0 )
-      {
-        offsetPoint = cornerA + AB;
-      }
-    }
-
     vUv.x = inPointB.z;
     gl_Position = u_projection_matrix * vec4( offsetPoint, 0.0, 1.0 );
   }
   else
   {
-    vec2 point = pointA + xBasis * position.x + yBasis * position.y * u_width;
+    //vec2 point = pointA + xBasis * position.x + 5.0 * yBasis * position.y * u_width;
+    vec2 point = offsetPoint + normToAB * sigma * u_width;
+    vUv.x = mix( inPointB.z, inPointB.z + 0.5, 1.0 - clamp( dot( normalize( point - offsetPoint ), normToAB * sigma ), 0.0, 1.0 ) );
     gl_Position =  u_projection_matrix * vec4( point, 0.0, 1.0 );
   }
 }
