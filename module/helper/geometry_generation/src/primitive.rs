@@ -2,7 +2,6 @@
 //! of different abstactions like curves.
 
 #[ allow( clippy::too_many_lines ) ]
-
 mod private
 {
   use minwebgl as gl;
