@@ -71,8 +71,8 @@ mod private
       }
     );
 
-    let start_point = ( *curve.last().unwrap() ).into();
-    let end_point = F32x2::from_array( *curve.first().unwrap() );
+    let start_point = ( *curve.last().expect( "Curve is empty" ) ).into();
+    let end_point = F32x2::from_array( *curve.first().expect( "Curve is empty" ) );
     add_segment( &start_point, &end_point );
 
     let attributes = AttributesData
@@ -138,7 +138,7 @@ mod private
 
     let body_bounding_box = BoundingBox::compute2d
     (
-      contours.get( body_id ).unwrap()
+      contours.get( body_id ).unwrap_or( &vec![] )
       .clone()
       .into_iter()
       .flatten()
