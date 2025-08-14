@@ -27,3 +27,8 @@ pub trait Neighbors : Sized
   /// Returns a `Vec` containing all direct neighbors of the current coordinate.
   fn neighbors( &self ) -> Vec< Self >;
 }
+
+pub trait ToDual< T >
+{
+  fn dual( &self ) -> Vec< T >;
+}
