@@ -11,6 +11,15 @@ uniform mat3 u_world_matrix;
 uniform mat4 u_projection_matrix;
 uniform float u_width;
 
+vec2 lineIntersection( vec2 p1, vec2 n1, vec2 p2, vec2 n2 )
+{
+  vec2 m = ( p2 - p1 ) / n1;
+  vec2 n = n2 / n1;
+  float d = ( m.x - m.y ) / ( n.y - n.x );
+  return d * n2 + p2;
+}
+
+
 void main() 
 {
   vec2 pointA = ( u_world_matrix * vec3( inPointA, 1.0 ) ).xy;
@@ -43,8 +52,43 @@ void main()
 
   if( sign( pos.y ) == -sigma )
   {
-    vec2 point = 0.5 * normal * -sigma * u_width / dot( normal, p01Norm );
-    gl_Position = u_projection_matrix * vec4( p1 + point, 0.0, 1.0 );
+    vec2 normTo01 = normalize( vec2( -p01.y, p01.x ) );
+    vec2 normTo21 = normalize( vec2( -p21.y, p21.x ) );
+
+    vec2 corner0 = p0 + normTo01 * -sigma * u_width * 0.5;
+    vec2 corner2 = p2 + normTo21 * sigma * u_width * 0.5;
+
+    vec2 closestPoint;
+    vec2 closestNormal;
+
+    if( dot( p01, p01 ) > dot( p21, p21 ) )
+    {
+      closestPoint = corner2;
+      closestNormal = normTo21;
+    }
+    else
+    {
+      closestPoint = corner0;
+      closestNormal = normTo01;
+    }
+
+    vec2 intersectionPoint = lineIntersection( p1, normal, closestPoint, closestNormal );
+    vec2 offsetPoint = p1 + 0.5 * normal * -sigma * u_width / dot( normal, normTo01 );
+
+    if( dot( offsetPoint - intersectionPoint, normal * sigma ) < 0.0 )
+    {
+      vec2 normalized21 = normalize( p21 );
+      vec2 cAtoInt =  intersectionPoint - corner2;
+      float k = dot( cAtoInt, normalized21 );
+      offsetPoint = corner2 + k * normalized21 + normalized21 * dot( normal * sigma, normalized21 ) * length( intersectionPoint - offsetPoint );
+
+      if( dot( offsetPoint - p1, p21 ) > 0.0 )
+      {
+        offsetPoint = corner2 + p21;
+      }
+    }
+
+    gl_Position = u_projection_matrix * vec4( offsetPoint, 0.0, 1.0 );
   }
   else
   {
