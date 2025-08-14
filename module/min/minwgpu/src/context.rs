@@ -461,7 +461,8 @@ mod tests
   #[ test ]
   fn device_builder_sets_label()
   {
-    let builder = device_builder_state().label( "test_device" );
+    let label = String::from( "test_device" );
+    let builder = device_builder_state().label( &label );
     assert_eq!( builder.device_descriptor.label, Some( "test_device" ) );
   }
 
