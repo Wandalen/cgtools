@@ -29,6 +29,7 @@ members = [
   "module/helper/renderer",
   "module/helper/tilemap_renderer",
   "module/helper/tiles_tools",
+  "module/helper/behaviour_tree",
   # "module/helper/vectorizer", # TODO: Fix feature gate issues
 
   # Math modules
@@ -38,7 +39,7 @@ members = [
   # Examples
   "examples/minwebgl/*",
   "examples/minwebgpu/*",
-  "examples/math/*"
+  "examples/math/*",
 ]
 
 # Source :: https://github.com/obox-systems/conventions/blob/master/code_style.md#lints-and-warnings
@@ -224,7 +225,7 @@ features = []
 
 [workspace.dependencies.bytemuck]
 version = "1.23"
-features = [ "derive" ]
+features = ["derive"]
 
 [workspace.dependencies.ndarray]
 version = "0.16.1"
@@ -247,10 +248,10 @@ version = "0.4.50"
 [workspace.dependencies.tobj]
 version = "4.0.3"
 default-features = false
-features = [ "async" ]
+features = ["async"]
 
 [workspace.dependencies.visioncortex]
-git  = "https://github.com/obox-systems/visioncortex.git"
+git = "https://github.com/obox-systems/visioncortex.git"
 version = "0.8.8"
 
 [workspace.dependencies.palette]
@@ -291,14 +292,14 @@ version = "1.4"
 [workspace.dependencies.csgrs]
 version = "0.19.1"
 default-features = false
-features = [ "f64", "delaunay" ]
+features = ["f64", "delaunay"]
 
 [workspace.dependencies.parry3d]
 version = "0.22.1"
 
 [workspace.dependencies.norad]
 default-features = false
-features = [ "kurbo" ]
+features = ["kurbo"]
 version = "0.16.0"
 
 [workspace.dependencies.parley]
@@ -318,7 +319,7 @@ git = "https://github.com/etemesi254/zune-image"
 
 [workspace.dependencies.uuid]
 version = "1.17.0"
-features = [ "v4", "js" ]
+features = ["v4", "js"]
 
 [workspace.dependencies.rand]
 version = "0.9.2"
