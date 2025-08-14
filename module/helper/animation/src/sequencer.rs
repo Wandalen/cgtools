@@ -125,13 +125,71 @@ mod private
   }
 
   /// Trait for type-erased animatable values in Sequencer.
-  pub trait AnimatableValue: std::fmt::Debug {
+  pub trait AnimatableValue: std::fmt::Debug 
+  {
     fn update(&mut self, delta_time: f32);
     fn is_completed(&self) -> bool;
     fn pause(&mut self);
     fn resume(&mut self);
     fn reset(&mut self);
     fn as_any(&self) -> &dyn std::any::Any;
+  }
+
+  #[ cfg( test ) ]
+  mod tests 
+  {
+
+    use super::*;
+    
+    #[test]
+    fn test_timeline_basic() 
+    {
+      let mut timeline = Timeline::new();
+      
+      let position_tween = tween(
+        SquareCoord::<FourConnected>::new(0, 0),
+        SquareCoord::<FourConnected>::new(10, 10),
+        1.0
+      );
+      
+      let scale_tween = tween(1.0_f32, 2.0_f32, 1.0);
+      
+      timeline.add_tween("position", position_tween);
+      timeline.add_tween("scale", scale_tween);
+      
+      assert_eq!(timeline.animation_count(), 2);
+      assert!(!timeline.is_completed());
+      
+      timeline.update(0.5);
+      
+      let pos = timeline.get_value::<SquareCoord<FourConnected>>("position").unwrap();
+      assert_eq!(pos.x, 5);
+      assert_eq!(pos.y, 5);
+      
+      let scale = timeline.get_value::<f32>("scale").unwrap();
+      assert_eq!(scale, 1.5);
+      
+      timeline.update(0.5);
+      assert!(timeline.is_completed());
+    }
+
+    #[test]
+    fn test_timeline_pause_resume() {
+      let mut timeline = Timeline::new();
+      timeline.add_tween("test", tween(0.0_f32, 10.0_f32, 1.0));
+      
+      timeline.update(0.5);
+      timeline.pause();
+      
+      // Should not update while paused
+      timeline.update(0.5);
+      let value = timeline.get_value::<f32>("test").unwrap();
+      assert_eq!(value, 5.0);
+      
+      timeline.resume();
+      timeline.update(0.5);
+      assert!(timeline.is_completed());
+    }
   }
 }
 
