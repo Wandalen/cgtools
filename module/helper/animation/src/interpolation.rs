@@ -459,7 +459,7 @@ mod private
 
   impl Animatable for Translation
   {
-    fn interpolate(&self, other : &Self, t : F32x3 ) -> Self 
+    fn interpolate(&self, other : &Self, t : f32 ) -> Self 
     {
       F32x3::from
       (
@@ -474,7 +474,7 @@ mod private
 
   impl Animatable for Rotation
   {
-    fn interpolate(&self, other : &Self, t : QuatF32 ) -> Self 
+    fn interpolate(&self, other : &Self, t : f32 ) -> Self 
     {
       QuatF32::from
       (
@@ -490,7 +490,7 @@ mod private
 
   impl Animatable for Scale
   {
-    fn interpolate(&self, other : &Self, t : F32x3 ) -> Self 
+    fn interpolate(&self, other : &Self, t : f32 ) -> Self 
     {
       F32x3::from
       (

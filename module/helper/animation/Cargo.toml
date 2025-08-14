@@ -47,6 +47,7 @@ mod_interface = { workspace = true, optional = true }
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ], optional = true }
 mingl = { workspace = true, optional = true }
 renderer = { workspace = true, optional = true }
+bytemuck = { workspace = true }
 gltf = { workspace = true }
 
 [dependencies.web-sys]
