@@ -348,7 +348,7 @@ mod tests
   fn buffer_builder_sets_mapped_at_creation()
   {
     let builder = buffer( wgpu::BufferUsages::empty() ).mapped_at_creation( true );
-    assert_eq!( builder.inner.mapped_at_creation, true );
+    assert!( builder.inner.mapped_at_creation );
   }
 
   #[ test ]

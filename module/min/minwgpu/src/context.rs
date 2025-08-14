@@ -448,7 +448,7 @@ mod tests
   fn adapter_builder_sets_force_fallback()
   {
     let builder = adapter_builder_state().force_fallback_adapter( true );
-    assert_eq!( builder.request_adapter_options.force_fallback_adapter, true );
+    assert!( builder.request_adapter_options.force_fallback_adapter );
   }
 
   #[ test ]
