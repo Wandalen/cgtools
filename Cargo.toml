@@ -18,6 +18,7 @@ members = [
   "module/min/mingl",
   "module/min/minwebgl",
   "module/min/minwebgpu",
+  "module/min/minwgpu",
 
   # Helper modules
   "module/helper/browser_input",
@@ -39,6 +40,7 @@ members = [
   # Examples
   "examples/minwebgl/*",
   "examples/minwebgpu/*",
+  "examples/minwgpu/*",
   "examples/math/*",
 ]
 
@@ -149,6 +151,10 @@ path = "module/min/minwebgl"
 [workspace.dependencies.minwebgpu]
 version = "~0.2.0"
 path = "module/min/minwebgpu"
+
+[workspace.dependencies.minwgpu]
+version = "0.1.0"
+path = "module/min/minwgpu"
 
 # = vectorizer
 [workspace.dependencies.vectorizer]
@@ -363,6 +369,12 @@ version = "0.4.0"
 
 [workspace.dependencies.hecs]
 version = "0.10"
+
+[workspace.dependencies.wgpu]
+version = "26.0.1"
+
+[workspace.dependencies.pollster]
+version = "0.4.0"
 
 [workspace.dependencies.unilang]
 version = "0.11.0"
