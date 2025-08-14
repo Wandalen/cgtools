@@ -4,9 +4,9 @@ precision highp float;
 const float PI = 3.1415926;
 
 layout( location = 0 ) in float id;
-layout( location = 1 ) in vec2 inPointA;
-layout( location = 2 ) in vec2 inPointB;
-layout( location = 3 ) in vec2 inPointC;
+layout( location = 1 ) in vec3 inPointA;
+layout( location = 2 ) in vec3 inPointB;
+layout( location = 3 ) in vec3 inPointC;
 
 uniform mat3 u_world_matrix;
 
@@ -14,6 +14,8 @@ uniform mat4 u_projection_matrix;
 uniform float u_width;
 
 uniform float u_segments;
+
+out vec2 vUv;
 
 vec2 lineIntersection( vec2 p1, vec2 n1, vec2 p2, vec2 n2 )
 {
@@ -25,9 +27,9 @@ vec2 lineIntersection( vec2 p1, vec2 n1, vec2 p2, vec2 n2 )
 
 void main() 
 {
-  vec2 pointA = ( u_world_matrix * vec3( inPointA, 1.0 ) ).xy;
-  vec2 pointB = ( u_world_matrix * vec3( inPointB, 1.0 ) ).xy;
-  vec2 pointC = ( u_world_matrix * vec3( inPointC, 1.0 ) ).xy;
+  vec2 pointA = ( u_world_matrix * vec3( inPointA.xy, 1.0 ) ).xy;
+  vec2 pointB = ( u_world_matrix * vec3( inPointB.xy, 1.0 ) ).xy;
+  vec2 pointC = ( u_world_matrix * vec3( inPointC.xy, 1.0 ) ).xy;
 
   vec2 xBasis = normalize( normalize( pointC - pointB ) + normalize( pointB - pointA ) );
   vec2 yBasis = vec2( -xBasis.y, xBasis.x );
