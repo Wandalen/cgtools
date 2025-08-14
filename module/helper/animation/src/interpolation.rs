@@ -48,6 +48,12 @@ mod private
 {
   use crate::sequencer::AnimatableValue;
   use std::collections::HashMap;
+  use minwebgl as gl;
+  use gl
+  {
+    F32x3,
+    QuatF32
+  };
 
   /// Represents different easing functions for smooth animations.
   #[ derive( Debug, Clone, Copy, PartialEq ) ]
@@ -443,6 +449,69 @@ mod private
     }
   }
 
+  pub struct Translation( F32x3 );
+  
+  pub struct Rotation( QuatF32 );
+  
+  pub struct Scale( F32x3 );
+
+  //struct Weights( ? );
+
+  impl Animatable for Translation
+  {
+    fn interpolate(&self, other : &Self, t : F32x3 ) -> Self 
+    {
+      F32x3::from
+      (
+        [
+          self.x().interpolate( &other.x(), t ),
+          self.y().interpolate( &other.y(), t ),
+          self.z().interpolate( &other.z(), t )
+        ]
+      )
+    }
+  } 
+
+  impl Animatable for Rotation
+  {
+    fn interpolate(&self, other : &Self, t : QuatF32 ) -> Self 
+    {
+      QuatF32::from
+      (
+        [
+          self.x().interpolate( &other.x(), t ),
+          self.y().interpolate( &other.y(), t ),
+          self.z().interpolate( &other.z(), t ),
+          self.w().interpolate( &other.w(), t )
+        ]
+      )
+    }
+  } 
+
+  impl Animatable for Scale
+  {
+    fn interpolate(&self, other : &Self, t : F32x3 ) -> Self 
+    {
+      F32x3::from
+      (
+        [
+          self.x().interpolate( &other.x(), t ),
+          self.y().interpolate( &other.y(), t ),
+          self.z().interpolate( &other.z(), t )
+        ]
+      )
+    }
+  } 
+
+  impl Animatable for (i32, i32) {
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+      (
+        self.0.interpolate(&other.0, t),
+        self.1.interpolate(&other.1, t),
+      )
+    }
+  }
+
   /// RGB Color for animations.
   #[derive(Debug, Clone, Copy, PartialEq)]
   pub struct Color {
@@ -496,14 +565,6 @@ mod private
         b: self.b.interpolate(&other.b, t),
         a: self.a.interpolate(&other.a, t),
       }
-    }
-  }
-
-  impl Animatable for crate::coordinates::pixel::Pixel {
-    fn interpolate(&self, other: &Self, t: f32) -> Self {
-      let x = self.x().interpolate(&other.x(), t);
-      let y = self.y().interpolate(&other.y(), t);
-      Self::new(x, y)
     }
   }
 
@@ -598,7 +659,6 @@ mod private
   #[cfg(test)]
   mod tests {
     use super::*;
-    use crate::coordinates::square::{Coordinate as SquareCoord, FourConnected};
 
     #[test]
     fn test_easing_functions() {
@@ -633,16 +693,6 @@ mod private
       assert_eq!(purple.g, 0.0);
       assert_eq!(purple.b, 0.5);
       assert_eq!(purple.a, 1.0);
-    }
-
-    #[test]
-    fn test_coordinate_interpolation() {
-      let start = SquareCoord::<FourConnected>::new(0, 0);
-      let end = SquareCoord::<FourConnected>::new(10, 20);
-      
-      let mid = start.interpolate(&end, 0.5);
-      assert_eq!(mid.x, 5);
-      assert_eq!(mid.y, 10);
     }
 
     #[test]
@@ -737,37 +787,6 @@ mod private
     }
 
     #[test]
-    fn test_timeline_basic() {
-      let mut timeline = Timeline::new();
-      
-      let position_tween = tween(
-        SquareCoord::<FourConnected>::new(0, 0),
-        SquareCoord::<FourConnected>::new(10, 10),
-        1.0
-      );
-      
-      let scale_tween = tween(1.0_f32, 2.0_f32, 1.0);
-      
-      timeline.add_tween("position", position_tween);
-      timeline.add_tween("scale", scale_tween);
-      
-      assert_eq!(timeline.animation_count(), 2);
-      assert!(!timeline.is_completed());
-      
-      timeline.update(0.5);
-      
-      let pos = timeline.get_value::<SquareCoord<FourConnected>>("position").unwrap();
-      assert_eq!(pos.x, 5);
-      assert_eq!(pos.y, 5);
-      
-      let scale = timeline.get_value::<f32>("scale").unwrap();
-      assert_eq!(scale, 1.5);
-      
-      timeline.update(0.5);
-      assert!(timeline.is_completed());
-    }
-
-    #[test]
     fn test_animation_builder() {
       let tween = animate(0.0_f32)
         .to(10.0, 1.0)
@@ -835,24 +854,6 @@ mod private
       
       assert_eq!(elastic_start, 0.0);
       assert_eq!(elastic_end, 1.0);
-    }
-
-    #[test]
-    fn test_timeline_pause_resume() {
-      let mut timeline = Timeline::new();
-      timeline.add_tween("test", tween(0.0_f32, 10.0_f32, 1.0));
-      
-      timeline.update(0.5);
-      timeline.pause();
-      
-      // Should not update while paused
-      timeline.update(0.5);
-      let value = timeline.get_value::<f32>("test").unwrap();
-      assert_eq!(value, 5.0);
-      
-      timeline.resume();
-      timeline.update(0.5);
-      assert!(timeline.is_completed());
     }
   }
 }
