@@ -313,6 +313,7 @@ git = "https://github.com/linebender/interpoli"
 
 [workspace.dependencies.velato]
 git = "https://github.com/vadimb892/velato"
+branch = "optional-vello"
 
 [workspace.dependencies.zune-hdr]
 git = "https://github.com/etemesi254/zune-image"
