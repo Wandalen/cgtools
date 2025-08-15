@@ -311,6 +311,8 @@ version = "0.11.3"
 [workspace.dependencies.interpoli]
 git = "https://github.com/linebender/interpoli"
 
+# velato contains good lottie parser, but depends from vello renderer.
+# So this fork is used for making velato independed from any renderer.
 [workspace.dependencies.velato]
 git = "https://github.com/vadimb892/velato"
 branch = "optional-vello"
