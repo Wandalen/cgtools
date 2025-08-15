@@ -533,7 +533,9 @@ mod private
 
     let primitive_data = PrimitiveData 
     { 
-      attributes : Rc::new( RefCell::new( attributes ) ),
+      name : None,
+      parent : None,
+      attributes : Some( Rc::new( RefCell::new( attributes ) ) ),
       color : F32x4::default(),
       transform : Transform::default()   
     };
