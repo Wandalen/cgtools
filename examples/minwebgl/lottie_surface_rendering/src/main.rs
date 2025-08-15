@@ -288,6 +288,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 /// # Returns
 ///
 /// The non-negative remainder of the division.
+#[ must_use ]
 pub fn modulo( dividend : f64, divisor : f64 ) -> f64 
 {
   let mut result = dividend % divisor;
@@ -386,7 +387,7 @@ async fn run() -> Result< (), gl::WebglError >
       // If textures are of different size, gl.view_port needs to be called
       let time = t as f32 / 1000.0;
 
-      let frame = modulo( time as f64 * 75.0, 125.0 );
+      let frame = modulo( f64::from( time ) * 75.0, 125.0 );
       if let Some( ( mut scene, colors ) ) = animation.frame( frame )
       {
         canvas_renderer.render( &gl, &mut scene, &canvas_camera, &colors )
