@@ -85,21 +85,24 @@ fn brush_to_color( brush : &velato::model::Brush, frame : f64 ) -> F32x4
     _ => None
   };
 
-  let color = if let Some( color ) = color
+  if let Some( color ) = color
   {
     let [ r, g, b, a ] = color.to_rgba8().to_u8_array();
-    let color = F32x4::from_array
+    F32x4::from_array
     (
-      [ r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, a as f32 / 255.0 ]
-    );
-    color
+      [ 
+        f32::from( r ), 
+        f32::from( g ), 
+        f32::from( b ), 
+        f32::from( a ) 
+      ]
+    )
+    / 255.0
   }
   else
   {
     F32x4::default()
-  };
-
-  color
+  }
 }
 
 /// Represents a loaded and parsed animation, ready to be rendered.
@@ -183,12 +186,12 @@ impl Animation
           (
             Draw
             {
-              brush : _brush,
+              brush : b,
               ..
             }
           ) =>
           {
-            brush = _brush.clone();
+            brush = b.clone();
           },
           _ => continue
         }
@@ -253,7 +256,7 @@ impl Animation
                 }
               ) =>
               {
-                if let Some( path ) = values.get( 0 )
+                if let Some( path ) = values.first()
                 {
                   let contour = path.start.clone().into_iter()
                   .map( | p | [ p.x as f32, p.y as f32 ] )
@@ -292,7 +295,7 @@ impl Animation
             Draw
             {
               stroke,
-              brush : _brush,
+              brush : b,
               ..
             }
           ) =>
@@ -302,7 +305,7 @@ impl Animation
               stroke_width = stroke.width as f32;
             }
 
-            brush = _brush.clone();
+            brush = b.clone();
           },
           Shape::Repeater( repeater ) =>
           {
@@ -373,14 +376,7 @@ impl Animation
     (
       | p |
       {
-        if let Some( name ) = &p.0.name
-        {
-          Some( ( name.clone(), p.1.clone() ) )
-        }
-        else
-        {
-          None
-        }
+        p.0.name.as_ref().map( | name | ( name.clone(), p.1.clone() ) )
       }
     )
     .collect::< HashMap< _, _ > >();
@@ -614,11 +610,7 @@ impl Animation
   /// Calculates and returns the updated scene and colors for a specific animation frame.
   pub fn frame( &self, frame : f64 ) -> Option< ( Scene, Vec< F32x4 > ) >
   {
-    let Some( scene ) = self.gltf.scenes.get( 0 )
-    else
-    {
-      return None;
-    };
+    let scene = self.gltf.scenes.first()?;
 
     let mut scene = scene.borrow().clone();
 
