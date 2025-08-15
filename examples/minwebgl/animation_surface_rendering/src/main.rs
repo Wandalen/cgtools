@@ -1,5 +1,42 @@
 #![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ]
 
+#![ allow( clippy::implicit_return ) ]
+#![ allow( clippy::default_trait_access ) ]
+#![ allow( clippy::min_ident_chars ) ]
+#![ allow( clippy::std_instead_of_core ) ]
+#![ allow( clippy::cast_precision_loss ) ]
+#![ allow( clippy::needless_pass_by_value ) ]
+#![ allow( clippy::cast_possible_truncation ) ]
+#![ allow( clippy::assign_op_pattern ) ]
+#![ allow( clippy::semicolon_if_nothing_returned ) ]
+#![ allow( clippy::too_many_lines ) ]
+#![ allow( clippy::wildcard_imports ) ]
+#![ allow( clippy::needless_borrow ) ]
+#![ allow( clippy::cast_possible_wrap ) ]
+#![ allow( clippy::redundant_field_names ) ]
+#![ allow( clippy::useless_format ) ]
+#![ allow( clippy::let_unit_value ) ]
+#![ allow( clippy::needless_return ) ]
+#![ allow( clippy::cast_sign_loss ) ]
+#![ allow( clippy::similar_names ) ]
+#![ allow( clippy::needless_continue ) ]
+#![ allow( clippy::else_if_without_else ) ]
+#![ allow( clippy::unreadable_literal ) ]
+#![ allow( clippy::explicit_iter_loop ) ]
+#![ allow( clippy::uninlined_format_args ) ]
+#![ allow( clippy::collapsible_if ) ]
+#![ allow( clippy::unused_async ) ]
+#![ allow( clippy::needless_borrows_for_generic_args ) ]
+#![ allow( clippy::manual_midpoint ) ]
+#![ allow( clippy::needless_for_each ) ]
+#![ allow( clippy::clone_on_copy ) ]
+#![ allow( clippy::option_map_unit_fn ) ]
+#![ allow( clippy::no_effect_underscore_binding ) ]
+#![ allow( clippy::std_instead_of_alloc ) ]
+#![ allow( clippy::expect_fun_call ) ]
+#![ allow( clippy::assigning_clones ) ]
+#![ allow( clippy::from_over_into ) ]
+
 use std::cell::RefCell;
 use minwebgl as gl;
 use gl::
@@ -54,13 +91,13 @@ use crate::animation::{ model, Model, Shape, Layer, Transform, Color, fixed, eas
 ///
 /// # Arguments
 ///
-/// * `gl` - The WebGl2RenderingContext.
+/// * `gl` - The `WebGl2RenderingContext`.
 /// * `src` - A reference-counted string containing the URL of the image to load.
 ///
 /// # Returns
 ///
 /// A `WebGlTexture` object.
-fn upload_texture< 'a >( gl : &'a WebGl2RenderingContext, src : Rc< String > ) -> WebGlTexture
+fn upload_texture( gl : &WebGl2RenderingContext, src : Rc< String > ) -> WebGlTexture
 {
   let window = web_sys::window().expect( "Can't get window" );
   let document =  window.document().expect( "Can't get document" );
@@ -102,7 +139,7 @@ fn upload_texture< 'a >( gl : &'a WebGl2RenderingContext, src : Rc< String > ) -
 ///
 /// # Arguments
 ///
-/// * `gl` - The WebGl2RenderingContext.
+/// * `gl` - The `WebGl2RenderingContext`.
 /// * `image_path` - The path to the image file, relative to the `static/` directory.
 ///
 /// # Returns
@@ -112,7 +149,7 @@ fn create_texture
 (
   gl : &WebGl2RenderingContext,
   image_path : &str
-) -> Option< TextureInfo >
+) -> TextureInfo
 {
   let image_path = format!( "static/{image_path}" );
   let texture_id = upload_texture( gl, Rc::new( image_path ) );
@@ -130,13 +167,11 @@ fn create_texture
   .sampler( sampler )
   .end();
 
-  let texture_info = TextureInfo
+  TextureInfo
   {
     texture : Rc::new( RefCell::new( texture ) ),
     uv_position : 0,
-  };
-
-  Some( texture_info )
+  }
 }
 
 /// Initializes the WebGL2 rendering context and canvas.
@@ -281,7 +316,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 )
   .expect( "Scene is empty" ).clone();
   let texture = create_texture( &gl, "textures/earth2.jpg" );
-  set_texture( &earth, | m | { m.base_color_texture = texture.clone(); } );
+  set_texture( &earth, | m | { m.base_color_texture = Some( texture.clone() ); } );
   earth.borrow_mut().update_local_matrix();
 
   let clouds = clone( &mut gltf, &earth );
@@ -291,7 +326,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
     &clouds,
     | m |
     {
-      m.base_color_texture = texture.clone();
+      m.base_color_texture = Some( texture.clone() );
       m.alpha_mode = renderer::webgl::AlphaMode::Blend;
     }
   );
@@ -303,7 +338,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 
   let moon = clone( &mut gltf, &earth );
   let texture = create_texture( &gl, "textures/moon2.jpg" );
-  set_texture( &moon, | m | { m.base_color_texture = texture.clone(); } );
+  set_texture( &moon, | m | { m.base_color_texture = Some( texture.clone() ); } );
   let scale = 0.25;
   let distance = 7.0;// 30.0 * 1.0;
   moon.borrow_mut().set_translation( [ distance, ( 1.0 - scale ), 0.0 ] );
@@ -312,7 +347,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 
   let environment = clone( &mut gltf, &earth );
   let texture = create_texture( &gl, "environment_maps/equirectangular_maps/space3.png" );
-  set_texture( &environment, | m | { m.base_color_texture = texture.clone(); } );
+  set_texture( &environment, | m | { m.base_color_texture = Some( texture.clone() ); } );
   let scale = 100000.0;
   environment.borrow_mut().set_translation( [ 0.0, 1.0 - scale, 0.0 ] );
   environment.borrow_mut().set_scale( [ scale; 3 ] );
@@ -323,7 +358,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 
 /// Sets up a 2D scene for text rendering on a canvas.
 ///
-/// This asynchronous function loads a font, generates a mesh for the text "CGTools",
+/// This asynchronous function loads a font, generates a mesh for the text `CGTools`,
 /// and converts it into a `GLTF` format suitable for rendering on a separate canvas.
 /// It also returns the colors used for the text primitives.
 ///
@@ -384,6 +419,7 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
 /// # Returns
 ///
 /// The non-negative remainder of the division.
+#[ must_use ]
 pub fn modulo( dividend : f64, divisor : f64 ) -> f64
 {
   let mut result = dividend % divisor;
@@ -736,7 +772,7 @@ async fn run() -> Result< (), gl::WebglError >
       // If textures are of different size, gl.view_port needs to be called
       let time = t as f32 / 1000.0;
 
-      if let Some( ( mut scene, colors ) ) = animation.frame( modulo( time as f64 * 1.0, 10.0 ) )
+      if let Some( ( mut scene, colors ) ) = animation.frame( modulo( f64::from( time ) * 1.0, 10.0 ) )
       {
         canvas_renderer.render( &gl, &mut scene, &canvas_camera, &colors ).expect( "Failed to render frame" );
       }

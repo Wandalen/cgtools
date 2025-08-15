@@ -78,7 +78,7 @@ mod private
   }
 
   /// Converts an `interpoli::Brush` to an `F32x4` color vector for a given frame.
-  fn brush_to_color< 'a >( brush : &'a interpoli::Brush, frame : f64 ) -> F32x4
+  fn brush_to_color( brush : &interpoli::Brush, frame : f64 ) -> F32x4
   {
     let color = match brush.evaluate( 1.0, frame ).into_owned()
     {
@@ -86,21 +86,24 @@ mod private
       _ => None
     };
 
-    let color = if let Some( color ) = color
+    if let Some( color ) = color
     {
       let [ r, g, b, a ] = color.to_rgba8().to_u8_array();
-      let color = F32x4::from_array
+      F32x4::from_array
       ( 
-        [ r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, a as f32 / 255.0 ] 
-      );
-      color
+        [ 
+          f32::from( r ), 
+          f32::from( g ), 
+          f32::from( b ), 
+          f32::from( a ) 
+        ] 
+      ) 
+      / 255.0
     }
     else
     {
       F32x4::default()
-    };
-
-    color
+    }
   }
 
   /// Represents a complete animation, holding the GLTF scene data and animation behaviors.
@@ -185,38 +188,28 @@ mod private
             },
             Shape::Geometry( geometry ) => 
             {
-              let primitive = match geometry
+              let primitive = if let Geometry::Spline( interpoli::animated::Spline{ values, .. } ) = geometry
               {
-                Geometry::Spline
-                ( 
-                  Spline
-                  {
-                    values,
-                    ..
-                  } 
-                ) => 
+                if let Some( path ) = values.first()
                 {
-                  if let Some( path ) = values.get( 0 )
-                  {
-                    let contour = path.into_iter()
-                    .map( | p | [ p.x as f32, p.y as f32 ] )
-                    .collect::< Vec< _ > >();
-                    geometry_generation::primitive::curve_to_geometry( contour.as_slice(), stroke_width )
-                    .map( | p | ( p, Behavior::default() ) )
-                  }
-                  else
-                  {
-                    None
-                  }
-                },
-                _ => 
-                {
-                  let mut path = vec![];
-                  geometry.evaluate( 0.0, &mut path );
-                  let contours = path_to_points( path );
-                  geometry_generation::primitive::contours_to_fill_geometry( &[ contours ] )
+                  let contour = path.iter()
+                  .map( | p | [ p.x as f32, p.y as f32 ] )
+                  .collect::< Vec< _ > >();
+                  geometry_generation::primitive::curve_to_geometry( contour.as_slice(), stroke_width )
                   .map( | p | ( p, Behavior::default() ) )
                 }
+                else
+                {
+                  None
+                }
+              }
+              else
+              {
+                let mut path = vec![];
+                geometry.evaluate( 0.0, &mut path );
+                let contours = path_to_points( path );
+                geometry_generation::primitive::contours_to_fill_geometry( &[ contours ] )
+                .map( | p | ( p, Behavior::default() ) )
               };
               if let Some( mut primitive ) = primitive
               {
@@ -235,7 +228,7 @@ mod private
               Draw
               {
                 stroke,
-                brush : _brush,
+                brush : b,
                 ..
               } 
             ) => 
@@ -245,7 +238,7 @@ mod private
                 stroke_width = stroke.width as f32;
               }
 
-              brush = _brush.clone();
+              brush = b.clone();
             },
             Shape::Repeater( repeater ) =>
             {
@@ -316,14 +309,7 @@ mod private
       ( 
         | p | 
         {
-          if let Some( name ) = &p.0.name
-          {
-            Some( ( name.clone(), p.1.clone() ) ) 
-          } 
-          else
-          {
-            None
-          }
+          p.0.name.as_ref().map( | name | ( name.clone(), p.1.clone() ) )
         }
       )
       .collect::< HashMap< _, _ > >();
@@ -551,11 +537,7 @@ mod private
     /// Returns a new scene and a list of colors for a specific animation frame.
     pub fn frame( &self, frame : f64 ) -> Option< ( Scene, Vec< F32x4 > ) >
     {
-      let Some( scene ) = self.gltf.scenes.get( 0 )
-      else
-      {
-        return None;
-      };
+      let scene = self.gltf.scenes.first()?;
 
       let mut scene = scene.borrow().clone();
 
