@@ -317,7 +317,7 @@ mod private
 
     if let Some( el ) = points.get_mut( 0 )
     {
-      if let PathEl::LineTo( p ) = el.clone()
+      if let PathEl::LineTo( p ) = *el
       {
         *el = PathEl::MoveTo( p );
       }

@@ -10,7 +10,7 @@ mod private
   ///
   /// # Arguments
   ///
-  /// * `gl` - The WebGl2RenderingContext.
+  /// * `gl` - The `WebGl2RenderingContext`.
   /// * `texture` - An optional reference to the WebGL texture to bind to.
   /// * `mip_level` - The mipmap level to upload the data to.
   /// * `path` - The file path to the HDR image.
@@ -26,7 +26,8 @@ mod private
     let image = gl::file::load( path ).await.expect( "Can't load image" );
     let image = std::io::Cursor::new( image );
     let mut decoder = zune_hdr::HdrDecoder::new( image );
-    let data = decoder.decode().expect( &format!( "Failed to decode {}", path ) );
+    let data = decoder.decode()
+    .unwrap_or_else( | _ | panic!( "Failed to decode {}", path ) );
     let ( width, height ) = decoder.dimensions().expect( "Can't get image dimensions" );
 
     let image_slice = | i : usize |
@@ -82,7 +83,7 @@ mod private
   ///
   /// # Arguments
   ///
-  /// * `gl` - The WebGl2RenderingContext.
+  /// * `gl` - The `WebGl2RenderingContext`.
   /// * `texture` - An optional reference to the WebGL texture to bind to.
   /// * `mip_level` - The mipmap level to upload the data to.
   /// * `path` - The file path to the HDR image.
@@ -98,7 +99,8 @@ mod private
     let image = gl::file::load( path ).await.expect( "Can't load image" );
     let image = std::io::Cursor::new( image );
     let mut decoder = zune_hdr::HdrDecoder::new( image );
-    let data = decoder.decode().expect( &format!( "Failed to decode {}", path ) );
+    let data = decoder.decode()
+    .unwrap_or_else( | _ | panic!( "Failed to decode {}", path ) );
     let ( width, height ) = decoder.dimensions().expect( "Can't get image dimensions" );
 
     let image_data : gl::js_sys::Object = gl::js_sys::Float32Array::from( data.as_slice() ).into();
