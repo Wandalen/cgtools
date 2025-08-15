@@ -1,0 +1,12 @@
+[package]
+name = "hello_triangle"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+wgpu.workspace = true
+image.workspace = true
+minwgpu.workspace = true
+
+[lints]
+workspace = true
