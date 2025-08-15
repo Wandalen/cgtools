@@ -1,5 +1,41 @@
 #![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ]
 
+#![ allow( clippy::implicit_return ) ]
+#![ allow( clippy::default_trait_access ) ]
+#![ allow( clippy::min_ident_chars ) ]
+#![ allow( clippy::std_instead_of_core ) ]
+#![ allow( clippy::cast_precision_loss ) ]
+#![ allow( clippy::needless_pass_by_value ) ]
+#![ allow( clippy::cast_possible_truncation ) ]
+#![ allow( clippy::assign_op_pattern ) ]
+#![ allow( clippy::semicolon_if_nothing_returned ) ]
+#![ allow( clippy::too_many_lines ) ]
+#![ allow( clippy::wildcard_imports ) ]
+#![ allow( clippy::needless_borrow ) ]
+#![ allow( clippy::cast_possible_wrap ) ]
+#![ allow( clippy::redundant_field_names ) ]
+#![ allow( clippy::useless_format ) ]
+#![ allow( clippy::let_unit_value ) ]
+#![ allow( clippy::needless_return ) ]
+#![ allow( clippy::cast_sign_loss ) ]
+#![ allow( clippy::similar_names ) ]
+#![ allow( clippy::needless_continue ) ]
+#![ allow( clippy::else_if_without_else ) ]
+#![ allow( clippy::unreadable_literal ) ]
+#![ allow( clippy::explicit_iter_loop ) ]
+#![ allow( clippy::uninlined_format_args ) ]
+#![ allow( clippy::collapsible_if ) ]
+#![ allow( clippy::unused_async ) ]
+#![ allow( clippy::needless_borrows_for_generic_args ) ]
+#![ allow( clippy::manual_midpoint ) ]
+#![ allow( clippy::needless_for_each ) ]
+#![ allow( clippy::clone_on_copy ) ]
+#![ allow( clippy::option_map_unit_fn ) ]
+#![ allow( clippy::no_effect_underscore_binding ) ]
+#![ allow( clippy::std_instead_of_alloc ) ]
+#![ allow( clippy::expect_fun_call ) ]
+#![ allow( clippy::assigning_clones ) ]
+
 use std::cell::RefCell;
 use minwebgl as gl;
 use gl::
@@ -85,7 +121,7 @@ fn create_texture
 ( 
   gl : &WebGl2RenderingContext,
   image_path : &str
-) -> Option< TextureInfo >
+) -> TextureInfo
 {
   let image_path = format!( "static/{image_path}" );
   let texture_id = upload_texture( gl, Rc::new( image_path ) );
@@ -103,13 +139,11 @@ fn create_texture
   .sampler( sampler )
   .end();
 
-  let texture_info = TextureInfo
+  TextureInfo
   {
     texture : Rc::new( RefCell::new( texture ) ),
     uv_position : 0,
-  };
-
-  Some( texture_info )
+  }
 }
 
 /// Initializes the WebGL2 rendering context and an HTML canvas.
@@ -201,7 +235,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 )
   .expect( "Scene is empty" ).clone();
   let texture = create_texture( &gl, "textures/earth2.jpg" );
-  set_texture( &earth, | m | { m.base_color_texture = texture.clone(); } );
+  set_texture( &earth, | m | { m.base_color_texture = Some( texture.clone() ); } );
   earth.borrow_mut().update_local_matrix();
 
   let clouds = clone( &mut gltf, &earth );
@@ -211,7 +245,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
     &clouds, 
     | m | 
     { 
-      m.base_color_texture = texture.clone(); 
+      m.base_color_texture = Some( texture.clone() ); 
       m.alpha_mode = renderer::webgl::AlphaMode::Blend;
     } 
   );
@@ -223,7 +257,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 
   let moon = clone( &mut gltf, &earth );
   let texture = create_texture( &gl, "textures/moon2.jpg" );
-  set_texture( &moon, | m | { m.base_color_texture = texture.clone(); } );
+  set_texture( &moon, | m | { m.base_color_texture = Some( texture.clone() ); } );
   let scale = 0.25;
   let distance = 7.0;// 30.0 * 1.0;
   moon.borrow_mut().set_translation( [ distance, ( 1.0 - scale ), 0.0 ] );
@@ -232,7 +266,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 
   let environment = clone( &mut gltf, &earth );
   let texture = create_texture( &gl, "environment_maps/equirectangular_maps/space3.png" );
-  set_texture( &environment, | m | { m.base_color_texture = texture.clone(); } );
+  set_texture( &environment, | m | { m.base_color_texture = Some( texture.clone() ); } );
   let scale = 100000.0;
   environment.borrow_mut().set_translation( [ 0.0, 1.0 - scale, 0.0 ] );
   environment.borrow_mut().set_scale( [ scale; 3 ] );
