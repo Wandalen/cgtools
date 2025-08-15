@@ -19,6 +19,7 @@ use gl::
 use renderer::webgl::
 {
   loaders::gltf::GLTF,
+  camera_controls,
   post_processing::
   {
     self, Pass, SwapFramebuffer
@@ -39,11 +40,7 @@ use renderer::webgl::
 use std::rc::Rc;
 use canvas_renderer::renderer::CanvasRenderer;
 
-mod camera_controls;
-mod loaders;
 mod animation;
-mod primitive_data;
-mod primitive;
 
 use animation::load_animation;
 
@@ -340,7 +337,7 @@ async fn run() -> Result< (), gl::WebglError >
   camera.get_controls().borrow_mut().eye = [ eye.x(), eye.y(), eye.z() ].into();
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_ibl( loaders::ibl::load( &gl, "environment_maps/gltf_viewer_ibl_unreal" ).await );
+  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "environment_maps/gltf_viewer_ibl_unreal" ).await );
 
   let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
 
