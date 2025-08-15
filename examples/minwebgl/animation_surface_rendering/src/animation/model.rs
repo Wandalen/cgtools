@@ -14,7 +14,7 @@ mod private
     Point,
     Vec2
   };
-  use crate::primitive::points_to_path;
+  use geometry_generation::points_to_path;
   use std::ops::Range;
 
   /// Creates a fixed `Value` that holds a single, constant value.

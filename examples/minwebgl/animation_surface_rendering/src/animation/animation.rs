@@ -18,14 +18,38 @@ mod private
   use minwebgl::{ self as gl, F32x4, F32x4x4, GL };
   use std::cell::RefCell;
   use std::rc::Rc;
-  use crate::primitive_data::primitives_data_to_gltf;
+  use std::ops::Range;
+  use geometry_generation::{ PrimitiveData, primitives_data_to_gltf, path_to_points };
 
   use renderer::webgl::
   {
     Scene,
     Node
   };
-  use crate::primitive_data::{ Behavior, PrimitiveData };
+
+  /// Defines the dynamic behavior of a primitive, including animation, repetition, and color.
+  #[ derive( Debug, Clone ) ]
+  pub struct Behavior
+  {
+    pub animated_transform : Option< interpoli::Transform >,
+    pub repeater : Option< interpoli::Repeater >,
+    pub brush : interpoli::Brush,
+    pub frames : Range< f64 >,
+  }
+
+  impl Default for Behavior
+  {
+    fn default() -> Self
+    {
+      Self
+      {
+        animated_transform : Default::default(),
+        repeater : Default::default(),
+        brush : interpoli::Brush::Fixed( peniko::Brush::default() ),
+        frames : 0.0..0.0
+      }
+    }
+  }
 
   /// Converts a Kurbo `Affine` transformation into a WebGL-compatible 4x4 matrix.
   pub fn affine_to_matrix( affine : Affine ) -> F32x4x4
@@ -115,20 +139,24 @@ mod private
         
         let mut stroke_width = 1.0;
 
-        let layer_base = PrimitiveData
-        {
-          name : Some( format!( "{i}" ).into_boxed_str() ),
-          attributes : None,
-          parent : layer.parent,
-          behavior : Behavior 
+        let layer_base = 
+        (
+          PrimitiveData
+          {
+            name : Some( format!( "{i}" ).into_boxed_str() ),
+            attributes : None,
+            parent : layer.parent,
+            transform : Default::default(),
+            color : Default::default() 
+          },
+          Behavior 
           { 
             animated_transform : Some( layer.transform.clone() ), 
             repeater : None,
             brush : brush.clone(),
             frames : layer.frames.clone()
-          },
-          transform : Default::default(),
-        };
+          }
+        );
 
         layer_primitives.push( layer_base );
 
@@ -173,7 +201,8 @@ mod private
                     let contour = path.into_iter()
                     .map( | p | [ p.x as f32, p.y as f32 ] )
                     .collect::< Vec< _ > >();
-                    crate::primitive::curve_to_geometry( contour.as_slice(), stroke_width )
+                    geometry_generation::primitive::curve_to_geometry( contour.as_slice(), stroke_width )
+                    .map( | p | ( p, Behavior::default() ) )
                   }
                   else
                   {
@@ -184,13 +213,14 @@ mod private
                 {
                   let mut path = vec![];
                   geometry.evaluate( 0.0, &mut path );
-                  let contours = crate::primitive::path_to_points( path );
-                  crate::primitive::contours_to_fill_geometry( &[ contours ] )
+                  let contours = path_to_points( path );
+                  geometry_generation::primitive::contours_to_fill_geometry( &[ contours ] )
+                  .map( | p | ( p, Behavior::default() ) )
                 }
               };
               if let Some( mut primitive ) = primitive
               {
-                primitive.behavior = Behavior
+                primitive.1 = Behavior
                 {
                   animated_transform : None,
                   repeater : None,
@@ -235,13 +265,13 @@ mod private
       {
         if primitive_ids.end == 0
         {
-          primitives[ layer ][ 0 ].behavior.repeater = Some( repeater );
+          primitives[ layer ][ 0 ].1.repeater = Some( repeater );
         }
         else
         {
           for primitive_id in primitive_ids
           {
-            primitives[ layer ][ primitive_id ].behavior.repeater = Some( repeater.clone() );
+            primitives[ layer ][ primitive_id ].1.repeater = Some( repeater.clone() );
           }
         }
       }
@@ -256,13 +286,13 @@ mod private
         parent_layer_to_primitive_id.insert( i, last_element_id );
         if layer.parent.is_some()
         {
-          primitives[ 0 ].parent = layer.parent;
+          primitives[ 0 ].0.parent = layer.parent;
         }
-        let layer_name = primitives[ 0 ].name.clone();
+        let layer_name = primitives[ 0 ].0.name.clone();
         for ( j, primitive ) in primitives.iter_mut().skip( 1 ).enumerate()
         {
-          primitive.parent = Some( last_element_id );
-          primitive.name = Some( format!( "{}_{j}", layer_name.clone().unwrap() ).into_boxed_str() );
+          primitive.0.parent = Some( last_element_id );
+          primitive.0.name = Some( format!( "{}_{j}", layer_name.clone().unwrap() ).into_boxed_str() );
         }
         last_element_id += primitives.len();
       }
@@ -273,7 +303,7 @@ mod private
       {
         if let Some( parent_id ) = layer.parent
         {
-          primitives[ 0 ].parent = parent_layer_to_primitive_id.get( &parent_id ).copied();
+          primitives[ 0 ].0.parent = parent_layer_to_primitive_id.get( &parent_id ).copied();
         }
       }
 
@@ -286,9 +316,9 @@ mod private
       ( 
         | p | 
         {
-          if let Some( name ) = &p.name
+          if let Some( name ) = &p.0.name
           {
-            Some( ( name.clone(), p.behavior.clone() ) ) 
+            Some( ( name.clone(), p.1.clone() ) ) 
           } 
           else
           {
@@ -298,7 +328,13 @@ mod private
       )
       .collect::< HashMap< _, _ > >();
 
-      let gltf = primitives_data_to_gltf( gl, primitives_data );
+      let gltf = primitives_data_to_gltf
+      ( 
+        gl, 
+        primitives_data.into_iter()
+        .map( | ( p, _ ) | p )
+        .collect::< Vec< _ > >() 
+      );
 
       Self
       {
