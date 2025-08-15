@@ -41,6 +41,25 @@ mod private
       }
     }
 
+    /// Creates a new `ContextBuilder` with a provided `wgpu::Instance`.
+    ///
+    /// This is the entry point for the fluent builder pattern.
+    #[ inline ]
+    #[ must_use ]
+    pub fn from_instance( instance : wgpu::Instance ) -> ContextBuilder< 'static, 'static, 'static, 'static, AdapterBuilder >
+    {
+      ContextBuilder
+      {
+        _state : PhantomData,
+        instance_descriptor : wgpu::InstanceDescriptor::default(),
+        request_adapter_options : wgpu::RequestAdapterOptionsBase::default(),
+        device_descriptor : wgpu::wgt::DeviceDescriptor::default(),
+        instance : Some( instance ),
+        adapter : None,
+        adapter_selector : None
+      }
+    }
+
     /// Returns a reference to the `wgpu::Instance`.
     #[ inline ]
     #[ must_use ]
