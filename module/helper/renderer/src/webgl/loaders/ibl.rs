@@ -13,13 +13,13 @@ mod private
   ///
   /// # Arguments
   ///
-  /// * `gl` - The WebGl2RenderingContext used for creating and uploading textures.
+  /// * `gl` - The `WebGl2RenderingContext` used for creating and uploading textures.
   /// * `path` - The base path to the directory containing the IBL HDR files.
   ///
   /// # Returns
   ///
   /// An `IBL` struct containing the loaded WebGL textures.
-  pub async fn load< 'a >( gl : &'a gl::WebGl2RenderingContext, path : &'a str ) -> IBL
+  pub async fn load( gl : &gl::WebGl2RenderingContext, path : &str ) -> IBL
   {
     // Asynchronously loads an HDR image and uploads it to a single mipmap level of a WebGL cube map texture.
     let load_cube = async | name, mip_level, texture : Option< &gl::web_sys::WebGlTexture > |

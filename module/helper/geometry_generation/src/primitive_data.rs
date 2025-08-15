@@ -141,6 +141,101 @@ mod private
     )
   }
 
+  /// Creates [`Node`]'s from [`PrimitiveData`]'s and add them all to [`GLTF`] 
+  fn add_nodes
+  ( 
+    gl : &WebGl2RenderingContext,
+    gltf : &mut GLTF, 
+    primitives_data : &[ PrimitiveData ],
+    attribute_infos : &[ ( &str, AttributeInfo ) ]
+  )
+  {
+    let material = Rc::new( RefCell::new( Material::default() ) );
+    gltf.materials = vec![ material.clone() ];
+
+
+    let mut index_info = IndexInfo
+    {
+      buffer : gltf.gl_buffers[ 1 ].clone(),
+      count : 0,
+      offset : 0,
+      data_type : GL::UNSIGNED_INT
+    };
+
+    let mut positions = vec![];
+    let mut indices = vec![];
+
+    for primitive_data in primitives_data
+    {
+      let object = if let Some( attributes ) = &primitive_data.attributes
+      {
+        let last_positions_count = positions.len() as u32;
+        positions.extend( attributes.borrow().positions.clone() );
+        let primitive_indices = attributes.borrow().indices.iter()
+        .map( | i | i + last_positions_count )
+        .collect::< Vec< _ > >();
+        let offset = indices.len() as u32 * 4;
+        indices.extend( primitive_indices );
+
+        index_info.offset = offset;
+        index_info.count = attributes.borrow().indices.len() as u32;
+
+        let Ok( mut geometry ) = Geometry::new( gl ) else
+        {
+          panic!( "Can't create new Geometry struct" );
+        };
+
+        for ( name, info ) in attribute_infos
+        {
+          let mut info = info.clone();
+          let flatten_positions = attributes.borrow().positions.iter()
+          .flatten()
+          .cloned()
+          .collect::< Vec< _ > >();
+          info.bounding_box = BoundingBox::compute( &flatten_positions );
+          geometry.add_attribute( gl, *name, info, false ).unwrap();
+        }
+
+        geometry.add_index( gl, index_info.clone() ).unwrap();
+        geometry.vertex_count = attributes.borrow().positions.len() as u32;
+
+        let primitive = Primitive
+        {
+          geometry : Rc::new( RefCell::new( geometry ) ),
+          material : gltf.materials[ 0 ].clone()
+        };
+
+        let mesh = Rc::new( RefCell::new( Mesh::new() ) );
+        mesh.borrow_mut().add_primitive( Rc::new( RefCell::new( primitive ) ) );
+        gltf.meshes.push( mesh.clone() );
+        Object3D::Mesh( mesh )
+      }
+      else
+      {
+        Object3D::Other
+      };
+
+      let node = Rc::new( RefCell::new( Node::new() ) );
+      node.borrow_mut().object = object;
+
+      if let Some( name ) = &primitive_data.name
+      {
+        node.borrow_mut().set_name( name.clone() );
+      }
+
+      primitive_data.transform.set_node_transform( node.clone() );
+      gltf.nodes.push( node.clone() );
+
+      if primitive_data.parent.is_none()
+      {
+        gltf.scenes[ 0 ].borrow_mut().children.push( node );
+      }
+    }
+
+    gl::buffer::upload( &gl, &gltf.gl_buffers[ 0 ], &positions, GL::STATIC_DRAW );
+    gl::index::upload( &gl, &gltf.gl_buffers[ 1 ], &indices, GL::STATIC_DRAW );
+  }
+
   /// Converts a collection of primitive data into a GLTF scene for WebGL rendering.
   pub fn primitives_data_to_gltf
   ( 
@@ -148,22 +243,25 @@ mod private
     primitives_data : Vec< PrimitiveData >
   ) -> GLTF
   {
-    let mut scenes = vec![];
-    let mut nodes = vec![];
-    let mut gl_buffers = vec![]; 
-    let mut meshes = vec![];
+    let mut gltf = GLTF
+    {
+      scenes : vec![],
+      nodes : vec![],
+      gl_buffers : vec![],
+      images : Rc::new( RefCell::new( vec![] ) ),
+      textures : vec![],
+      materials : vec![],
+      meshes : vec![]
+    };
 
-    let material = Rc::new( RefCell::new( Material::default() ) );
-    let materials = vec![ material.clone() ];
-
-    scenes.push( Rc::new( RefCell::new( Scene::new() ) ) );
+    gltf.scenes.push( Rc::new( RefCell::new( Scene::new() ) ) );
 
     let position_buffer = gl.create_buffer().unwrap();
 
-    gl_buffers.push( position_buffer.clone() );
+    gltf.gl_buffers.push( position_buffer.clone() );
 
     let attribute_infos = 
-    [
+    &[
       ( 
         "positions", 
         make_buffer_attribute_info
@@ -181,97 +279,18 @@ mod private
     ];
 
     let index_buffer = gl.create_buffer().unwrap();
-    gl_buffers.push( index_buffer.clone() );
+    gltf.gl_buffers.push( index_buffer.clone() );
 
-    let mut index_info = IndexInfo
-    {
-      buffer : index_buffer.clone(),
-      count : 0,
-      offset : 0,
-      data_type : GL::UNSIGNED_INT
-    };
-
-    let mut positions = vec![];
-    let mut indices = vec![];
-
-    for primitive_data in &primitives_data
-    {
-      let last_positions_count = positions.len() as u32;
-      let object = if let Some( attributes ) = &primitive_data.attributes
-      {
-        positions.extend( attributes.borrow().positions.clone() );
-        let primitive_indices = attributes.borrow().indices.iter()
-        .map( | i | i + last_positions_count )
-        .collect::< Vec< _ > >();
-        let offset = indices.len() as u32 * 4;
-        indices.extend( primitive_indices );
-
-        index_info.offset = offset;
-        index_info.count = attributes.borrow().indices.len() as u32;
-
-        let Ok( mut geometry ) = Geometry::new( gl ) else
-        {
-          panic!( "Can't create new Geometry struct" );
-        };
-
-        for ( name, info ) in &attribute_infos
-        {
-          let mut info = info.clone();
-          let flatten_positions = attributes.borrow().positions.iter()
-          .flatten()
-          .cloned()
-          .collect::< Vec< _ > >();
-          info.bounding_box = BoundingBox::compute( &flatten_positions );
-          geometry.add_attribute( gl, *name, info, false ).unwrap();
-        }
-
-        geometry.add_index( gl, index_info.clone() ).unwrap();
-        geometry.vertex_count = attributes.borrow().positions.len() as u32;
-
-        let primitive = Primitive
-        {
-          geometry : Rc::new( RefCell::new( geometry ) ),
-          material : material.clone()
-        };
-
-        let mesh = Rc::new( RefCell::new( Mesh::new() ) );
-        mesh.borrow_mut().add_primitive( Rc::new( RefCell::new( primitive ) ) );
-        meshes.push( mesh.clone() );
-        Object3D::Mesh( mesh )
-      }
-      else
-      {
-        Object3D::Other
-      };
-
-      let node = Rc::new( RefCell::new( Node::new() ) );
-      node.borrow_mut().object = object;
-
-      if let Some( name ) = &primitive_data.name
-      {
-        node.borrow_mut().set_name( name.clone() );
-      }
-
-      primitive_data.transform.set_node_transform( node.clone() );
-      nodes.push( node.clone() );
-
-      if primitive_data.parent.is_none()
-      {
-        scenes[ 0 ].borrow_mut().children.push( node );
-      }
-    }
-
-    gl::buffer::upload( &gl, &position_buffer, &positions, GL::STATIC_DRAW );
-    gl::index::upload( &gl, &index_buffer, &indices, GL::STATIC_DRAW );
+    add_nodes( gl, &mut gltf, &primitives_data, attribute_infos );
     
-    let node_iter = nodes.iter()
+    let node_iter = gltf.nodes.iter()
     .zip( primitives_data.iter().map( | p | p.parent ) );
 
     for ( child, parent ) in node_iter
     {
       if let Some( parent ) = parent
       {
-        if let Some( parent ) = nodes.get( parent )
+        if let Some( parent ) = gltf.nodes.get( parent )
         {
           if parent.borrow().get_name() != child.borrow().get_name() && parent.borrow().get_name().is_some()
           {
@@ -282,16 +301,7 @@ mod private
       }
     }
 
-    GLTF
-    {
-      scenes,
-      nodes,
-      gl_buffers,
-      images : Rc::new( RefCell::new( vec![] ) ),
-      textures : vec![],
-      materials,
-      meshes
-    }
+    gltf
   }
 }
 
