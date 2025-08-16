@@ -27,7 +27,7 @@
 //! # Examples
 //!
 //! ```rust
-//! use tiles_tools::behavior_tree::*;
+//! use behavior_tree::*;
 //! use tiles_tools::ecs::*;
 //! use tiles_tools::coordinates::square::{ Coordinate, FourConnected };
 //!
@@ -48,7 +48,7 @@
 
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-use crate::coordinates::Distance;
+// use crate::coordinates::Distance;
 
 /// Status returned by behavior tree nodes during execution.
 #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
@@ -663,55 +663,6 @@ impl BehaviorNode for SetBlackboardAction {
   }
 }
 
-/// Game-specific action: Move to a target position.
-#[derive(Debug)]
-pub struct MoveToAction<C> {
-  target: C,
-  tolerance: f32,
-  name: String,
-}
-
-impl<C> MoveToAction<C> {
-  /// Creates a new move-to action.
-  pub fn new(target: C) -> Self {
-    Self {
-      target,
-      tolerance: 1.0,
-      name: "MoveTo".to_string(),
-    }
-  }
-
-  /// Sets the distance tolerance for reaching the target.
-  pub fn with_tolerance(mut self, tolerance: f32) -> Self {
-    self.tolerance = tolerance;
-    self
-  }
-}
-
-impl<C> BehaviorNode for MoveToAction<C>
-where
-  C: Distance + Clone + std::fmt::Debug,
-{
-  fn execute(&mut self, context: &mut BehaviorContext) -> BehaviorStatus {
-    // In a real implementation, this would:
-    // 1. Get current position from ECS
-    // 2. Calculate path to target using self.target
-    // 3. Move entity along path
-    // 4. Check if target reached within tolerance
-
-    // For now, simulate movement completion and store target info
-    context.set_blackboard("movement_target_reached", true);
-    context.set_blackboard("movement_tolerance", self.tolerance);
-    // Access target to prevent unused field warning (in real implementation this would be used for pathfinding)
-    let _target_position = &self.target;
-    BehaviorStatus::Success
-  }
-
-  fn name(&self) -> &str {
-    &self.name
-  }
-}
-
 // === BUILDER PATTERN ===
 
 /// Builder for constructing behavior trees with fluent API.
@@ -824,7 +775,6 @@ pub fn set_blackboard<T: Into<BehaviorValue>>(key: &str, value: T) -> Box<dyn Be
 mod tests {
   use super::*;
   use std::time::Duration;
-  use crate::coordinates::square::{Coordinate as SquareCoord, FourConnected};
 
   #[test]
   fn test_behavior_context_creation() {
@@ -998,17 +948,6 @@ mod tests {
     // We can't easily test the full execution without more setup,
     // but we can verify the node was created
     assert_eq!(node.name(), "Sequence");
-  }
-
-  #[test]
-  fn test_move_to_action() {
-    let target = SquareCoord::<FourConnected>::new(10, 10);
-    let mut move_action = MoveToAction::new(target).with_tolerance(2.0);
-    let mut context = BehaviorContext::new();
-
-    let status = move_action.execute(&mut context);
-    assert_eq!(status, BehaviorStatus::Success);
-    assert_eq!(context.get_blackboard("movement_target_reached"), Some(&BehaviorValue::Bool(true)));
   }
 
   #[test]

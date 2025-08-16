@@ -15,14 +15,38 @@ use std::collections::HashMap;
 use minwebgl::{ self as gl, F32x4, F32x4x4, GL };
 use std::cell::RefCell;
 use std::rc::Rc;
-use crate::primitive_data::primitives_data_to_gltf;
+use geometry_generation::{ PrimitiveData, primitives_data_to_gltf };
+use std::ops::Range;
 
 use renderer::webgl::
 {
   Scene,
   Node
 };
-use crate::primitive_data::{ Behavior, PrimitiveData };
+
+/// Defines the dynamic behavior of a primitive, including animation, repetition, and color.
+#[ derive( Debug, Clone ) ]
+pub struct Behavior
+{
+  pub animated_transform : Option< velato::model::Transform >,
+  pub repeater : Option< velato::model::Repeater >,
+  pub brush : velato::model::Brush,
+  pub frames : Range< f64 >,
+}
+
+impl Default for Behavior
+{
+  fn default() -> Self
+  {
+    Self 
+    { 
+      animated_transform : Default::default(), 
+      repeater : Default::default(), 
+      brush : velato::model::Brush::Fixed( peniko::Brush::default() ), 
+      frames : 0.0..0.0
+    }
+  }
+}
 
 /// Converts a 2D `Affine` transformation matrix to a 4x4 `F32x4x4` matrix, suitable for 3D rendering.
 pub fn affine_to_matrix( affine : Affine ) -> F32x4x4
@@ -61,21 +85,24 @@ fn brush_to_color( brush : &velato::model::Brush, frame : f64 ) -> F32x4
     _ => None
   };
 
-  let color = if let Some( color ) = color
+  if let Some( color ) = color
   {
     let [ r, g, b, a ] = color.to_rgba8().to_u8_array();
-    let color = F32x4::from_array
+    F32x4::from_array
     (
-      [ r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, a as f32 / 255.0 ]
-    );
-    color
+      [ 
+        f32::from( r ), 
+        f32::from( g ), 
+        f32::from( b ), 
+        f32::from( a ) 
+      ]
+    )
+    / 255.0
   }
   else
   {
     F32x4::default()
-  };
-
-  color
+  }
 }
 
 /// Represents a loaded and parsed animation, ready to be rendered.
@@ -159,12 +186,12 @@ impl Animation
           (
             Draw
             {
-              brush : _brush,
+              brush : b,
               ..
             }
           ) =>
           {
-            brush = _brush.clone();
+            brush = b.clone();
           },
           _ => continue
         }
@@ -172,20 +199,24 @@ impl Animation
 
       let mut stroke_width = 1.0;
 
-      let layer_base = PrimitiveData
-      {
-        name : Some( format!( "{i}" ).into_boxed_str() ),
-        attributes : None,
-        parent : layer.parent,
-        behavior : Behavior
+      let layer_base = 
+      (
+        PrimitiveData
         {
-          animated_transform : Some( layer.transform.clone() ),
+          name : Some( format!( "{i}" ).into_boxed_str() ),
+          attributes : None,
+          parent : layer.parent,
+          transform : Default::default(),
+          color : Default::default(),
+        },
+        Behavior 
+        { 
+          animated_transform : Some( layer.transform.clone() ), 
           repeater : None,
           brush : brush.clone(),
           frames : layer.frames.clone()
-        },
-        transform : Default::default(),
-      };
+        }
+      );
 
       layer_primitives.push( layer_base );
 
@@ -225,12 +256,13 @@ impl Animation
                 }
               ) =>
               {
-                if let Some( path ) = values.get( 0 )
+                if let Some( path ) = values.first()
                 {
                   let contour = path.start.clone().into_iter()
                   .map( | p | [ p.x as f32, p.y as f32 ] )
                   .collect::< Vec< _ > >();
-                  crate::primitive::curve_to_geometry( contour.as_slice(), stroke_width )
+                  geometry_generation::primitive::curve_to_geometry( contour.as_slice(), stroke_width )
+                  .map( | p | ( p, Behavior::default() ) )
                 }
                 else
                 {
@@ -241,13 +273,14 @@ impl Animation
               {
                 let mut path = vec![];
                 geometry.evaluate( 0.0, &mut path );
-                let contours = crate::primitive::path_to_points( path );
-                crate::primitive::contours_to_fill_geometry( &[ contours ] )
+                let contours = geometry_generation::path_to_points( path );
+                geometry_generation::primitive::contours_to_fill_geometry( &[ contours ] )
+                .map( | p | ( p, Behavior::default() ) )
               }
             };
             if let Some( mut primitive ) = primitive
             {
-              primitive.behavior = Behavior
+              primitive.1 = Behavior
               {
                 animated_transform : None,
                 repeater : None,
@@ -262,7 +295,7 @@ impl Animation
             Draw
             {
               stroke,
-              brush : _brush,
+              brush : b,
               ..
             }
           ) =>
@@ -272,7 +305,7 @@ impl Animation
               stroke_width = stroke.width as f32;
             }
 
-            brush = _brush.clone();
+            brush = b.clone();
           },
           Shape::Repeater( repeater ) =>
           {
@@ -292,13 +325,13 @@ impl Animation
     {
       if primitive_ids.end == 0
       {
-        primitives[ layer ][ 0 ].behavior.repeater = Some( repeater );
+        primitives[ layer ][ 0 ].1.repeater = Some( repeater );
       }
       else
       {
         for primitive_id in primitive_ids
         {
-          primitives[ layer ][ primitive_id ].behavior.repeater = Some( repeater.clone() );
+          primitives[ layer ][ primitive_id ].1.repeater = Some( repeater.clone() );
         }
       }
     }
@@ -313,13 +346,13 @@ impl Animation
       parent_layer_to_primitive_id.insert( i, last_element_id );
       if layer.parent.is_some()
       {
-        primitives[ 0 ].parent = layer.parent;
+        primitives[ 0 ].0.parent = layer.parent;
       }
-      let layer_name = primitives[ 0 ].name.clone();
+      let layer_name = primitives[ 0 ].0.name.clone();
       for ( j, primitive ) in primitives.iter_mut().skip( 1 ).enumerate()
       {
-        primitive.parent = Some( last_element_id );
-        primitive.name = Some( format!( "{}_{j}", layer_name.clone().unwrap() ).into_boxed_str() );
+        primitive.0.parent = Some( last_element_id );
+        primitive.0.name = Some( format!( "{}_{j}", layer_name.clone().unwrap() ).into_boxed_str() );
       }
       last_element_id += primitives.len();
     }
@@ -330,7 +363,7 @@ impl Animation
     {
       if let Some( parent_id ) = layer.parent
       {
-        primitives[ 0 ].parent = parent_layer_to_primitive_id.get( &parent_id ).copied();
+        primitives[ 0 ].0.parent = parent_layer_to_primitive_id.get( &parent_id ).copied();
       }
     }
 
@@ -343,19 +376,18 @@ impl Animation
     (
       | p |
       {
-        if let Some( name ) = &p.name
-        {
-          Some( ( name.clone(), p.behavior.clone() ) )
-        }
-        else
-        {
-          None
-        }
+        p.0.name.as_ref().map( | name | ( name.clone(), p.1.clone() ) )
       }
     )
     .collect::< HashMap< _, _ > >();
 
-    let gltf = primitives_data_to_gltf( gl, primitives_data );
+    let gltf = primitives_data_to_gltf
+    ( 
+      gl, 
+      primitives_data.into_iter()
+      .map( | ( p, _ ) | p )
+      .collect::< Vec< _ > >() 
+    );
 
     Self
     {
@@ -578,11 +610,7 @@ impl Animation
   /// Calculates and returns the updated scene and colors for a specific animation frame.
   pub fn frame( &self, frame : f64 ) -> Option< ( Scene, Vec< F32x4 > ) >
   {
-    let Some( scene ) = self.gltf.scenes.get( 0 )
-    else
-    {
-      return None;
-    };
+    let scene = self.gltf.scenes.first()?;
 
     let mut scene = scene.borrow().clone();
 

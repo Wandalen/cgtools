@@ -80,11 +80,11 @@ If many different surfaces is used with different content, then need collect all
   * render canvas scene
   * repeat for another texture
 
-4. **Call CanvasRenderer::render**. 
+4. **Call `CanvasRenderer::render`**. 
 
 Render canvas scene to canvas output texture. It can be repeated for every unique surface. You only need change `CanvasRenderer` output texture every time you need render texture for next surface.
 
-5. **Call Renderer::render**.
+5. **Call `Renderer::render`**.
 
 Render main scene for making final frame.
 
@@ -102,7 +102,7 @@ In order to run the example:
   trunk serve
 ```
 
-3. Open your web browser to the address provided by trunk (usually http://127.0.0.1:8080).
+3. Open your web browser to the address provided by trunk (usually `<http://127.0.0.1:8080>`).
 
 The application will load the GLTF model, compile and link shaders, set up WebGL resources, and start the rendering loop, displaying the 3D object with rendered text on its surface.
 

@@ -40,6 +40,9 @@ crate::mod_interface!
   /// Camera related functionality
   layer camera;
 
+  /// Camera controls related functionality
+  layer camera_controls;
+
   /// Program related functionality
   layer program;
 

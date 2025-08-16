@@ -10,7 +10,7 @@ use tiles_tools::
   coordinates::
   {
     hexagonal::{ Coordinate as HexCoord, Axial, Pointy },
-    triangular::{ Coordinate as TriCoord, TwelveConnected },
+    triangular::{ Coordinate as TriCoord, FlatSided },
     isometric::{ Coordinate as IsoCoord, Diamond },
     square::{ Coordinate as SquareCoord, FourConnected, EightConnected },
   },
@@ -21,7 +21,7 @@ fn main()
 {
     println!("Advanced Pathfinding Demonstration");
     println!("=================================");
-    
+
     demonstrate_basic_pathfinding();
     demonstrate_advanced_pathfinding();
     demonstrate_multi_goal_pathfinding();
@@ -29,7 +29,7 @@ fn main()
     demonstrate_hexagonal_pathfinding();
     demonstrate_triangular_pathfinding();
     demonstrate_isometric_pathfinding();
-    
+
     println!("\n🎉 Advanced Pathfinding Demo Complete!");
     println!("Key features demonstrated:");
     println!("- Multiple coordinate systems");
@@ -44,14 +44,14 @@ fn demonstrate_basic_pathfinding()
     println!("\n=== Basic A* Pathfinding ===");
     let start = SquareCoord::<FourConnected>::new(0, 0);
     let goal = SquareCoord::<FourConnected>::new(5, 5);
-    
+
     let obstacles: HashSet<_> = [
         SquareCoord::<FourConnected>::new(2, 1),
         SquareCoord::<FourConnected>::new(2, 2),
         SquareCoord::<FourConnected>::new(2, 3),
         SquareCoord::<FourConnected>::new(3, 3),
     ].into_iter().collect();
-    
+
     if let Some((path, cost)) = astar(
         &start,
         &goal,
@@ -70,13 +70,13 @@ fn demonstrate_advanced_pathfinding()
     println!("\n=== Advanced A* with Configuration ===");
     let start = SquareCoord::<FourConnected>::new(0, 0);
     let goal = SquareCoord::<FourConnected>::new(5, 5);
-    
+
     let config = PathfindingConfig::new()
         .with_max_distance(20)
         .with_terrain_cost(SquareCoord::<FourConnected>::new(1, 1), 3)
         .with_terrain_cost(SquareCoord::<FourConnected>::new(1, 2), 3)
         .with_base_cost(1);
-    
+
     if let Some((path, cost)) = astar_advanced(&start, &goal, &config) {
         println!("Advanced path found: {} steps, cost: {}", path.len(), cost);
         println!("Path: {path:?}");
@@ -95,7 +95,7 @@ fn demonstrate_multi_goal_pathfinding()
         SquareCoord::<FourConnected>::new(1, 5),
         SquareCoord::<FourConnected>::new(4, 4),
     ];
-    
+
     if let Some((path, cost, chosen_target)) = astar_multi_goal(
         &ai_position,
         &possible_targets,
@@ -115,7 +115,7 @@ fn demonstrate_edge_cost_pathfinding()
     println!("\n=== Edge Cost Pathfinding (8-Connected) ===");
     let start_8 = SquareCoord::<EightConnected>::new(0, 0);
     let goal_8 = SquareCoord::<EightConnected>::new(4, 3);
-    
+
     if let Some((path, cost)) = astar_with_edge_costs(
         &start_8,
         &goal_8,
@@ -142,7 +142,7 @@ fn demonstrate_hexagonal_pathfinding()
     println!("\n=== Hexagonal Grid Pathfinding ===");
     let hex_start = HexCoord::<Axial, Pointy>::new(-2, 2);
     let hex_goal = HexCoord::<Axial, Pointy>::new(3, -1);
-    
+
     if let Some((path, cost)) = astar(
         &hex_start,
         &hex_goal,
@@ -159,9 +159,9 @@ fn demonstrate_hexagonal_pathfinding()
 fn demonstrate_triangular_pathfinding()
 {
     println!("\n=== Triangular Grid Pathfinding ===");
-    let tri_start = TriCoord::<TwelveConnected>::new(0, 0);
-    let tri_goal = TriCoord::<TwelveConnected>::new(4, 2);
-    
+    let tri_start = TriCoord::< FlatSided >::new( 0, 1, 0 ).unwrap();
+    let tri_goal = TriCoord::< FlatSided >::new( 1, 2, -1 ).unwrap();
+
     if let Some((path, cost)) = astar(
         &tri_start,
         &tri_goal,
@@ -180,7 +180,7 @@ fn demonstrate_isometric_pathfinding()
     println!("\n=== Isometric Grid Pathfinding ===");
     let iso_start = IsoCoord::<Diamond>::new(0, 0);
     let iso_goal = IsoCoord::<Diamond>::new(3, 2);
-    
+
     if let Some((path, cost)) = astar(
         &iso_start,
         &iso_goal,

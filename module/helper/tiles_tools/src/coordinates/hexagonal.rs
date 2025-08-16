@@ -3,7 +3,7 @@
 //! through a flexible, type-safe generic implementation. It also includes conversions between systems
 //! and from pixel coordinates, as well as utility functions for grid operations like distance and neighbor finding.
 
-use crate::coordinates::{ Distance, Neighbors };
+use crate::coordinates::{ ToDual, Distance, Neighbors, triangular };
 use crate::coordinates::pixel::Pixel;
 use ndarray_cg::I32x2;
 use serde::{ Deserialize, Serialize };
@@ -67,7 +67,7 @@ impl< System, Orientation > Clone for Coordinate< System, Orientation >
   fn clone( &self ) -> Self
   {
     Self::new_uncheked( self.q, self.r )
-    }
+  }
 }
 
 impl< System, Orientation > Copy for Coordinate< System, Orientation > {}
@@ -459,5 +459,29 @@ impl Coordinate< Axial, Flat >
   pub fn right_down( &self ) -> Self
   {
     Self::new( self.q + 1, self.r )
+  }
+}
+
+impl< HOrientation, TOrientation > ToDual< triangular::Coordinate< TOrientation > > for Coordinate< Axial, HOrientation >
+{
+  /// Finds the six triangles that surround a given hexagonal coordinate.
+  #[ inline ]
+  fn dual( &self ) -> Vec< triangular::Coordinate< TOrientation > >
+  {
+    let Coordinate { q, r, .. } = *self;
+    let s = -q - r;
+
+    let a = q;
+    let b = r;
+    let c = s;
+
+    [
+      triangular::Coordinate::new_unchecked( a + 1, b,     c     ),
+      triangular::Coordinate::new_unchecked( a,     b + 1, c     ),
+      triangular::Coordinate::new_unchecked( a,     b,     c + 1 ),
+      triangular::Coordinate::new_unchecked( a + 1, b + 1, c     ),
+      triangular::Coordinate::new_unchecked( a,     b + 1, c + 1 ),
+      triangular::Coordinate::new_unchecked( a + 1, b,     c + 1 ),
+    ].to_vec()
   }
 }
