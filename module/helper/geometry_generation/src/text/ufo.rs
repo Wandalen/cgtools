@@ -15,7 +15,7 @@ mod private
 {
   use std::rc::Rc;
   use std::cell::RefCell;
-  use std::{collections::HashMap, str::FromStr};
+  use std::{ collections::HashMap, str::FromStr };
   use kurbo::flatten;
   use mingl::geometry::BoundingBox;
   use norad::{ PointType, ContourPoint, Contour };
@@ -533,7 +533,9 @@ mod private
 
     let primitive_data = PrimitiveData 
     { 
-      attributes : Rc::new( RefCell::new( attributes ) ),
+      name : None,
+      parent : None,
+      attributes : Some( Rc::new( RefCell::new( attributes ) ) ),
       color : F32x4::default(),
       transform : Transform::default()   
     };

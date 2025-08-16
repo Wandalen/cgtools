@@ -409,7 +409,8 @@ pub fn add_attributes
   let object_id_bytes = object_id_data.iter().map( | i | i.to_be_bytes() ).flatten().collect::< Vec< _ > >();
   let object_id_buffer = add_buffer( gl, gltf, object_id_bytes )?;
 
-  let object_id_info = make_buffer_attribute_info(
+  let object_id_info = make_buffer_attribute_info
+  (
     &object_id_buffer,
     0,
     1,

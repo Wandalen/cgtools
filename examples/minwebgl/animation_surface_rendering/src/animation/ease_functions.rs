@@ -64,8 +64,8 @@ mod private
     (
       vec!
       [
-        ( f1, ease_function, false, v1 ),
-        ( f2, ease_function, false, v2 ),
+        crate::animation::model::Keyframe::new( f1, ease_function, false, v1 ),
+        crate::animation::model::Keyframe::new( f2, ease_function, false, v2 ),
       ]
     ) 
   }
