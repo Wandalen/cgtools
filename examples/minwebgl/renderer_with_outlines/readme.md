@@ -80,7 +80,7 @@ Run the command:
   trunk serve
 ``` 
 
-Open your web browser to the address provided by trunk (usually http://127.0.0.1:8080).
+Open your web browser to the address provided by trunk (usually `<http://127.0.0.1:8080>`).
 
 The application will load the GLTF model, compile shaders, set up WebGL resources, and start the rendering loop, displaying the 3D object with outline. You can select different outline types and adjust the thickness using the provided UI controls.
 

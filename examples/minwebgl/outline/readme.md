@@ -78,7 +78,7 @@ In order to run the example:
 trunk serve
 ```
 
-3. Open your web browser to the address provided by trunk (usually http://127.0.0.1:8080).
+3. Open your web browser to the address provided by trunk (usually `<http://127.0.0.1:8080>`).
 
 The application will load the GLTF model, compile and link shaders, set up WebGL resources, and start the rendering loop, displaying the 3D object with an animated outline.
 
