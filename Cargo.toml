@@ -381,3 +381,10 @@ version = "0.11.0"
 
 [workspace.dependencies.rustyline]
 version = "14.0"
+
+[workspace.dependencies.wfc]
+version = "0.10"
+features = [ "js" ]
+
+[workspace.dependencies.wfc_image] 
+version = "0.12"
