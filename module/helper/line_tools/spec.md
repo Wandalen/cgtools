@@ -6,7 +6,6 @@
 
 ## Table of Contents
 
-**Part I: Public Contract (Mandatory Requirements)**
 1. [Project Goal](#1-project-goal)
 2. [Problem Solved](#2-problem-solved)
 3. [Ubiquitous Language](#3-ubiquitous-language)
@@ -15,15 +14,9 @@
 6. [Functional Requirements](#6-functional-requirements)
 7. [Non-Functional Requirements](#7-non-functional-requirements)
 8. [Dependency Architecture](#8-dependency-architecture)
-
-**Part II: Internal Design (Rulebook Compliant)**
-9. [Module Structure](#9-module-structure)
-10. [Error Handling Strategy](#10-error-handling-strategy)
-11. [Code Generation Strategy](#11-code-generation-strategy)
-12. [Testing Strategy](#12-testing-strategy)
-
-**Part III: Implementation Plan**
-13. [Conformance Checklist](#13-conformance-checklist)
+9. [Module Structure](#9-module-structure)  
+10. [Conformance Checklist](#10-conformance-checklist)  
+11. [Corner cases](#11-corner-cases)  
 
 ---
 
@@ -71,17 +64,14 @@ Create a high-performance Rust crate (`line_tools`) that provides comprehensive 
 
 ## 6. Functional Requirements
 
-
 - **FR-1**: Different implementations of lines should be feature seperated
 - **FR-2**: 3D line should decrease in size with distance from the camera
 - **FR-3**: Line should support editing of any points from the list
-
 
 ## 7. Non-Functional Requirements
 - **NFR-1**: 100% documentation coverage via `cargo doc`
 - **NFR-2**: All functions use noun-verb naming order
 - **NFR-3**: 100% adherence to Codestyle Rulebook formatting
-
 
 ## 8. Dependency Architecture
 
@@ -154,7 +144,7 @@ mod private
 }
 ```
 
-## 13. Conformance Checklist
+## 10. Conformance Checklist
 
 - ⏳ **FR-1**: Different implementations of lines should be feature seperated
 - ⏳ **FR-2**: 3D line should decrease in size with distance from the camera
@@ -163,3 +153,10 @@ mod private
 - ✅ **NFR-1**: 100% documentation coverage via `cargo doc`
 - ⏳ **NFR-2**: All functions use noun-verb naming order
 - ✅ **NFR-3**: 100% adherence to Codestyle Rulebook formatting
+
+## 11. Corner cases
+- ✅ **1**: Overlapping segments when using blending
+- ✅ **2**: With a very small angle and bir width, two neighbouring segments begin to intersect
+- ❌ **3**: When points are very close to eachother and line width is much bigger than the distance between the points - segments begin to overlap a lot
+- ❌ **4**: When neighbouring points occupy the same position - the line brake are the position
+- ❌ **5**: Side effect of the solution for the second corner case - unusual ovelapping between non neighbouring segments
