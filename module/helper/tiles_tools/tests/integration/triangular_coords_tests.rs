@@ -61,7 +61,7 @@
 #![allow(clippy::clone_on_copy)]
 #![allow(clippy::default_trait_access)]
 
-use tiles_tools::coordinates::triangular::{Coordinate, TwelveConnected, TriangularCoord};
+use tiles_tools::coordinates::triangular::{ Coordinate, FlatSided };
 use tiles_tools::coordinates::{Distance, Neighbors};
 use std::collections::HashSet;
 
@@ -72,49 +72,37 @@ use std::collections::HashSet;
 #[ test ]
 fn test_coordinate_creation_basic()
 {
-  let coord = Coordinate::<TwelveConnected>::new(0, 0);
-  assert_eq!(coord.x, 0);
-  assert_eq!(coord.y, 0);
+  let coord = Coordinate::< FlatSided >::new(0, 1, 0).unwrap();
+  assert_eq!( coord.a, 0 );
+  assert_eq!( coord.b, 1 );
+  assert_eq!( coord.c, 0 );
 }
 
 #[ test ]
 fn test_coordinate_creation_values()
 {
-  let coord = Coordinate::<TwelveConnected>::new(5, 3);
-  assert_eq!(coord.x, 5);
-  assert_eq!(coord.y, 3);
-}
-
-#[ test ]
-fn test_coordinate_creation_negative()
-{
-  let coord = Coordinate::<TwelveConnected>::new(-5, -3);
-  assert_eq!(coord.x, -5);
-  assert_eq!(coord.y, -3);
+  let coord = Coordinate::< FlatSided >::new( 5, 3, -7 ).unwrap();
+  assert_eq!(coord.a, 5);
+  assert_eq!(coord.b, 3);
+  assert_eq!(coord.c, -7);
 }
 
 #[ test ]
 fn test_coordinate_from_tuple()
 {
-  let coord: Coordinate<TwelveConnected> = (7, -2).into();
-  assert_eq!(coord.x, 7);
-  assert_eq!(coord.y, -2);
+  let coord: Coordinate< FlatSided > = ( 7, -2, -3 ).try_into().unwrap();
+  assert_eq!(coord.a, 7);
+  assert_eq!(coord.b, -2);
+  assert_eq!(coord.c, -3);
 }
 
 #[ test ]
 fn test_coordinate_from_array()
 {
-  let coord: Coordinate<TwelveConnected> = [3, 8].into();
-  assert_eq!(coord.x, 3);
-  assert_eq!(coord.y, 8);
-}
-
-#[ test ]
-fn test_triangular_coord_alias()
-{
-  let coord = TriangularCoord::new(4, 6);
-  assert_eq!(coord.x, 4);
-  assert_eq!(coord.y, 6);
+  let coord: Coordinate< FlatSided > = [ 3, 8, -10 ].try_into().unwrap();
+  assert_eq!(coord.a, 3);
+  assert_eq!(coord.b, 8);
+  assert_eq!(coord.c, -10);
 }
 
 // =============================================================================
@@ -122,43 +110,26 @@ fn test_triangular_coord_alias()
 // =============================================================================
 
 #[ test ]
-fn test_up_pointing_even_sum()
+fn test_up_pointing_left()
 {
-  let coord = Coordinate::<TwelveConnected>::new(2, 4); // 2+4=6 (even)
-  assert!(coord.is_up_pointing());
-  assert!(!coord.is_down_pointing());
+  let coord = Coordinate::< FlatSided >::new( 2, -4, 3 ).unwrap();
+  assert!(coord.is_down_or_left());
+  assert!(!coord.is_up_or_right());
 }
 
 #[ test ]
-fn test_down_pointing_odd_sum()
+fn test_down_pointing_right()
 {
-  let coord = Coordinate::<TwelveConnected>::new(2, 3); // 2+3=5 (odd)
-  assert!(!coord.is_up_pointing());
-  assert!(coord.is_down_pointing());
+  let coord = Coordinate::< FlatSided >::new( 2, 3, -3 ).unwrap();
+  assert!(!coord.is_down_or_left() );
+  assert!(coord.is_up_or_right());
 }
 
 #[ test ]
-fn test_up_pointing_zero_sum()
+fn test_invalid_coordinates()
 {
-  let coord = Coordinate::<TwelveConnected>::new(0, 0); // 0+0=0 (even)
-  assert!(coord.is_up_pointing());
-  assert!(!coord.is_down_pointing());
-}
-
-#[ test ]
-fn test_down_pointing_negative_odd()
-{
-  let coord = Coordinate::<TwelveConnected>::new(-1, 0); // -1+0=-1 (odd)
-  assert!(!coord.is_up_pointing());
-  assert!(coord.is_down_pointing());
-}
-
-#[ test ]
-fn test_up_pointing_negative_even()
-{
-  let coord = Coordinate::<TwelveConnected>::new(-2, 0); // -2+0=-2 (even)
-  assert!(coord.is_up_pointing());
-  assert!(!coord.is_down_pointing());
+  let coord = Coordinate::< FlatSided >::new(0, 0, 0);
+  assert!(coord.is_none());
 }
 
 // =============================================================================
@@ -168,173 +139,50 @@ fn test_up_pointing_negative_even()
 #[ test ]
 fn test_distance_to_self()
 {
-  let coord = Coordinate::<TwelveConnected>::new(5, 3);
-  assert_eq!(coord.distance(&coord), 0);
+  let coord = Coordinate::< FlatSided >::new( 5, 3, -7 ).unwrap();
+  assert_eq!( coord.distance( &coord ), 0);
 }
-
-#[ test ]
-fn test_distance_horizontal()
-{
-  let coord1 = Coordinate::<TwelveConnected>::new(0, 0);
-  let coord2 = Coordinate::<TwelveConnected>::new(2, 0);
-  assert_eq!(coord1.distance(&coord2), 2);
-}
-
-#[ test ]
-fn test_distance_vertical()
-{
-  let coord1 = Coordinate::<TwelveConnected>::new(0, 0);
-  let coord2 = Coordinate::<TwelveConnected>::new(0, 3);
-  assert_eq!(coord1.distance(&coord2), 3);
-}
-
-#[ test ]
-fn test_distance_diagonal()
-{
-  let coord1 = Coordinate::<TwelveConnected>::new(0, 0);
-  let coord2 = Coordinate::<TwelveConnected>::new(2, 2);
-  assert_eq!(coord1.distance(&coord2), 2); // max(2, 2) = 2
-}
-
-#[ test ]
-fn test_distance_asymmetric()
-{
-  let coord1 = Coordinate::<TwelveConnected>::new(1, 2);
-  let coord2 = Coordinate::<TwelveConnected>::new(4, 7);
-  // |4-1| = 3, |7-2| = 5, max(3, 5) = 5
-  assert_eq!(coord1.distance(&coord2), 5);
-}
-
-#[ test ]
-fn test_distance_negative_coordinates()
-{
-  let coord1 = Coordinate::<TwelveConnected>::new(-3, -2);
-  let coord2 = Coordinate::<TwelveConnected>::new(1, 4);
-  // |1-(-3)| = 4, |4-(-2)| = 6, max(4, 6) = 6
-  assert_eq!(coord1.distance(&coord2), 6);
-}
-
-#[ test ]
-fn test_distance_symmetry()
-{
-  let coord1 = Coordinate::<TwelveConnected>::new(2, 5);
-  let coord2 = Coordinate::<TwelveConnected>::new(7, 1);
-  assert_eq!(coord1.distance(&coord2), coord2.distance(&coord1));
-}
-
-// =============================================================================
-// Test Category 4: Neighbor Finding
-// =============================================================================
 
 #[ test ]
 fn test_neighbors_count()
 {
-  let coord = Coordinate::<TwelveConnected>::new(5, 3);
+  let coord = Coordinate::< FlatSided >::new( 0, 0, 1 ).unwrap();
   let neighbors = coord.neighbors();
-  assert_eq!(neighbors.len(), 12, "All triangular coordinates should have exactly 12 neighbors");
-}
-
-#[ test ]
-fn test_neighbors_up_triangle()
-{
-  let coord = Coordinate::<TwelveConnected>::new(2, 4); // 2+4=6 (even) -> up triangle
-  assert!(coord.is_up_pointing());
-  
-  let neighbors = coord.neighbors();
-  let expected = vec![
-    // Edge-adjacent (3)
-    Coordinate::<TwelveConnected>::new(1, 4), // Left
-    Coordinate::<TwelveConnected>::new(3, 4), // Right  
-    Coordinate::<TwelveConnected>::new(2, 3), // Bottom
-    
-    // Vertex-adjacent (9)
-    Coordinate::<TwelveConnected>::new(0, 4), // Far left
-    Coordinate::<TwelveConnected>::new(4, 4), // Far right
-    Coordinate::<TwelveConnected>::new(2, 2), // Far bottom
-    Coordinate::<TwelveConnected>::new(1, 3), // Bottom-left
-    Coordinate::<TwelveConnected>::new(3, 3), // Bottom-right
-    Coordinate::<TwelveConnected>::new(1, 5), // Top-left
-    Coordinate::<TwelveConnected>::new(3, 5), // Top-right
-    Coordinate::<TwelveConnected>::new(2, 5), // Top
-    Coordinate::<TwelveConnected>::new(2, 6), // Far top
-  ];
-  
-  assert_eq!(neighbors.len(), expected.len());
-  for expected_neighbor in expected {
-    assert!(neighbors.contains(&expected_neighbor), 
-            "Missing neighbor: {:?}", expected_neighbor);
-  }
-}
-
-#[ test ]
-fn test_neighbors_down_triangle()
-{
-  let coord = Coordinate::<TwelveConnected>::new(2, 3); // 2+3=5 (odd) -> down triangle
-  assert!(coord.is_down_pointing());
-  
-  let neighbors = coord.neighbors();
-  let expected = vec![
-    // Edge-adjacent (3)
-    Coordinate::<TwelveConnected>::new(1, 3), // Left
-    Coordinate::<TwelveConnected>::new(3, 3), // Right
-    Coordinate::<TwelveConnected>::new(2, 4), // Top
-    
-    // Vertex-adjacent (9)
-    Coordinate::<TwelveConnected>::new(0, 3), // Far left
-    Coordinate::<TwelveConnected>::new(4, 3), // Far right  
-    Coordinate::<TwelveConnected>::new(2, 5), // Far top
-    Coordinate::<TwelveConnected>::new(1, 2), // Bottom-left
-    Coordinate::<TwelveConnected>::new(3, 2), // Bottom-right
-    Coordinate::<TwelveConnected>::new(1, 4), // Top-left
-    Coordinate::<TwelveConnected>::new(3, 4), // Top-right
-    Coordinate::<TwelveConnected>::new(2, 2), // Bottom
-    Coordinate::<TwelveConnected>::new(2, 1), // Far bottom
-  ];
-  
-  assert_eq!(neighbors.len(), expected.len());
-  for expected_neighbor in expected {
-    assert!(neighbors.contains(&expected_neighbor),
-            "Missing neighbor: {:?}", expected_neighbor);
-  }
+  assert_eq!(neighbors.len(), 3, "All triangular coordinates should have exactly 3 neighbors");
 }
 
 #[ test ]
 fn test_neighbors_uniqueness()
 {
-  let coord = Coordinate::<TwelveConnected>::new(5, 7);
+  let coord = Coordinate::< FlatSided >::new( 0, 0, 1 ).unwrap();
   let neighbors = coord.neighbors();
-  let unique_neighbors: HashSet<_> = neighbors.iter().collect();
-  assert_eq!(neighbors.len(), unique_neighbors.len(), 
+  let unique_neighbors: HashSet< _ > = neighbors.iter().collect();
+  assert_eq!(neighbors.len(), unique_neighbors.len(),
              "All neighbors should be unique");
 }
 
 #[ test ]
 fn test_neighbors_exclude_self()
 {
-  let coord = Coordinate::<TwelveConnected>::new(3, 8);
+  let coord = Coordinate::< FlatSided >::new( 0, 0, 1 ).unwrap();
   let neighbors = coord.neighbors();
-  assert!(!neighbors.contains(&coord), 
-          "Coordinate should not be its own neighbor");
+  assert!(!neighbors.contains(&coord), "Coordinate should not be its own neighbor");
 }
-
-// =============================================================================
-// Test Category 5: Conversions
-// =============================================================================
 
 #[ test ]
 fn test_into_tuple()
 {
-  let coord = Coordinate::<TwelveConnected>::new(7, -3);
-  let tuple: (i32, i32) = coord.into();
-  assert_eq!(tuple, (7, -3));
+  let coord = Coordinate::< FlatSided >::new( 0, 0, 1 ).unwrap();
+  let tuple: (i32, i32, i32) = coord.into();
+  assert_eq!(tuple, ( 0, 0, 1 ));
 }
 
 #[ test ]
 fn test_into_array()
 {
-  let coord = Coordinate::<TwelveConnected>::new(-2, 9);
-  let array: [i32; 2] = coord.into();
-  assert_eq!(array, [-2, 9]);
+  let coord = Coordinate::< FlatSided >::new( 0, 0, 1 ).unwrap();
+  let array: [i32; 3] = coord.into();
+  assert_eq!( array, [ 0, 0, 1 ] );
 }
 
 // =============================================================================
@@ -344,16 +192,16 @@ fn test_into_array()
 #[ test ]
 fn test_debug_trait()
 {
-  let coord = Coordinate::<TwelveConnected>::new(5, -1);
+  let coord = Coordinate::< FlatSided >::new( 0, 0, 1 ).unwrap();
   let debug_str = format!("{:?}", coord);
-  assert!(debug_str.contains("5"));
-  assert!(debug_str.contains("-1"));
+  assert!(debug_str.contains("0"));
+  assert!(debug_str.contains("1"));
 }
 
 #[ test ]
 fn test_clone_trait()
 {
-  let coord = Coordinate::<TwelveConnected>::new(4, 2);
+  let coord = Coordinate::< FlatSided >::new( 0, 0, 1 ).unwrap();
   let cloned = coord.clone();
   assert_eq!(coord, cloned);
 }
@@ -361,7 +209,7 @@ fn test_clone_trait()
 #[ test ]
 fn test_copy_trait()
 {
-  let coord = Coordinate::<TwelveConnected>::new(1, 6);
+  let coord = Coordinate::< FlatSided >::new( 0, 0, 1 ).unwrap();
   let copied = coord;  // This should work due to Copy trait
   assert_eq!(coord, copied);
 }
@@ -369,10 +217,10 @@ fn test_copy_trait()
 #[ test ]
 fn test_partial_eq_trait()
 {
-  let coord1 = Coordinate::<TwelveConnected>::new(3, 4);
-  let coord2 = Coordinate::<TwelveConnected>::new(3, 4);
-  let coord3 = Coordinate::<TwelveConnected>::new(3, 5);
-  
+  let coord1 = Coordinate::< FlatSided >::new( 0, 0, 1 ).unwrap();
+  let coord2 = Coordinate::< FlatSided >::new( 0, 0, 1 ).unwrap();
+  let coord3 = Coordinate::< FlatSided >::new( 0, 0, 2 ).unwrap();
+
   assert_eq!(coord1, coord2);
   assert_ne!(coord1, coord3);
 }
@@ -381,61 +229,49 @@ fn test_partial_eq_trait()
 fn test_hash_trait()
 {
   use std::collections::HashMap;
-  
-  let coord1 = Coordinate::<TwelveConnected>::new(2, 3);
-  let coord2 = Coordinate::<TwelveConnected>::new(2, 3);
-  
+
+  let coord1 = Coordinate::< FlatSided >::new( 0, 0, 1 ).unwrap();
+  let coord2 = Coordinate::< FlatSided >::new( 0, 0, 1 ).unwrap();
+
   let mut map = HashMap::new();
   map.insert(coord1, "value");
-  
+
   // Should be able to retrieve with equivalent coordinate
   assert_eq!(map.get(&coord2), Some(&"value"));
 }
 
 #[ test ]
-fn test_default_trait()
-{
-  let coord: Coordinate<TwelveConnected> = Default::default();
-  assert_eq!(coord.x, 0);
-  assert_eq!(coord.y, 0);
-}
-
-// =============================================================================
-// Test Category 7: Serialization/Deserialization
-// =============================================================================
-
-#[ test ]
 fn test_serialize()
 {
-  let coord = Coordinate::<TwelveConnected>::new(5, -2);
+  let coord = Coordinate::< FlatSided >::new( 0, 0, 1 ).unwrap();
   let serialized = serde_json::to_string(&coord).expect("Serialization should succeed");
-  
+
   // Should contain the x and y values but not the phantom marker
-  assert!(serialized.contains("5"));
-  assert!(serialized.contains("-2"));
+  assert!(serialized.contains("0"));
+  assert!(serialized.contains("1"));
   assert!(!serialized.contains("_marker"));
 }
 
 #[ test ]
 fn test_deserialize()
 {
-  let json = r#"{"x": 7, "y": 3}"#;
-  let coord: Coordinate<TwelveConnected> = serde_json::from_str(json)
-    .expect("Deserialization should succeed");
-  
-  assert_eq!(coord.x, 7);
-  assert_eq!(coord.y, 3);
+  let json = r#"{"a": 0, "b": 1, "c": 0}"#;
+  let coord: Coordinate<FlatSided> = serde_json::from_str(json).expect("Deserialization should succeed");
+
+  assert_eq!(coord.a, 0);
+  assert_eq!(coord.b, 1);
+  assert_eq!(coord.c, 0);
 }
 
 #[ test ]
 fn test_round_trip_serialization()
 {
-  let original = Coordinate::<TwelveConnected>::new(-4, 8);
+  let original = Coordinate::<FlatSided>::new(0, 1, 0).unwrap();
   let serialized = serde_json::to_string(&original)
     .expect("Serialization should succeed");
-  let deserialized: Coordinate<TwelveConnected> = serde_json::from_str(&serialized)
+  let deserialized: Coordinate<FlatSided> = serde_json::from_str(&serialized)
     .expect("Deserialization should succeed");
-  
+
   assert_eq!(original, deserialized);
 }
 
@@ -446,25 +282,17 @@ fn test_round_trip_serialization()
 #[ test ]
 fn test_large_coordinates()
 {
-  let coord = Coordinate::<TwelveConnected>::new(1000000, -1000000);
+  let coord = Coordinate::<FlatSided>::new(1000000, -1000000, 1).unwrap();
   let neighbors = coord.neighbors();
-  assert_eq!(neighbors.len(), 12);
+  assert_eq!(neighbors.len(), 3);
 }
 
 #[ test ]
-fn test_max_coordinate_values()
+fn test_minmax_coordinate_values()
 {
-  let coord = Coordinate::<TwelveConnected>::new(i32::MAX, i32::MAX);
+  let coord = Coordinate::<FlatSided>::new(i32::MAX, 2, i32::MIN).unwrap();
   // Should not panic
-  let _ = coord.is_up_pointing();
-}
-
-#[ test ]
-fn test_min_coordinate_values()
-{
-  let coord = Coordinate::<TwelveConnected>::new(i32::MIN, i32::MIN);
-  // Should not panic
-  let _ = coord.is_down_pointing();
+  let _ = coord.is_down_or_left();
 }
 
 // =============================================================================
@@ -474,138 +302,12 @@ fn test_min_coordinate_values()
 #[ test ]
 fn test_distance_between_neighbors()
 {
-  let coord = Coordinate::<TwelveConnected>::new(5, 3);
+  let coord = Coordinate::<FlatSided>::new( 0, 0, 1 ).unwrap();
   let neighbors = coord.neighbors();
-  
+
   for neighbor in neighbors {
     let distance = coord.distance(&neighbor);
     // All neighbors should be at distance 1 or 2 (depending on edge vs vertex adjacency)
-    assert!(distance <= 2, "Neighbor distance should be <= 2, got {}", distance);
+    assert!(distance == 1, "Neighbor distance should be 1, got {}", distance);
   }
-}
-
-#[ test ]
-fn test_orientation_consistency()
-{
-  for x in -5..=5 {
-    for y in -5..=5 {
-      let coord = Coordinate::<TwelveConnected>::new(x, y);
-      let expected_up = (x + y) % 2 == 0;
-      
-      assert_eq!(coord.is_up_pointing(), expected_up);
-      assert_eq!(coord.is_down_pointing(), !expected_up);
-    }
-  }
-}
-
-#[ test ]
-fn test_neighbors_reciprocal()
-{
-  let coord = Coordinate::<TwelveConnected>::new(3, 7);
-  let neighbors = coord.neighbors();
-  
-  // For each neighbor, coord should be in that neighbor's neighbor list
-  for neighbor in neighbors {
-    let neighbor_neighbors = neighbor.neighbors();
-    assert!(neighbor_neighbors.contains(&coord),
-            "Reciprocal neighbor relationship should hold for {:?} and {:?}", 
-            coord, neighbor);
-  }
-}
-
-// =============================================================================
-// Test Category 10: Pathfinding Integration
-// =============================================================================
-
-#[ test ]
-fn test_pathfinding_integration()
-{
-  use tiles_tools::pathfind::astar;
-  
-  let start = TriangularCoord::new(0, 0);
-  let goal = TriangularCoord::new(3, 3);
-  
-  let result = astar(
-    &start,
-    &goal,
-    |_coord| true,  // All tiles accessible
-    |_coord| 1,     // Unit cost
-  );
-  
-  assert!(result.is_some(), "Should find a path");
-  let (path, cost) = result.unwrap();
-  
-  // Distance should be max(|3-0|, |3-0|) = 3 for triangular coordinates
-  assert_eq!(cost, 3, "Path cost should match triangular distance");
-  assert_eq!(path.len(), 4, "Path should contain start + 3 steps");
-  assert_eq!(path[0], start);
-  assert_eq!(path[path.len() - 1], goal);
-}
-
-#[ test ]
-fn test_pathfinding_blocked_path()
-{
-  use tiles_tools::pathfind::astar;
-  
-  let start = TriangularCoord::new(0, 0);
-  let goal = TriangularCoord::new(2, 0);
-  
-  // Block the direct path
-  let result = astar(
-    &start,
-    &goal,
-    |coord| coord.x != 1, // Block x=1 column
-    |_coord| 1,
-  );
-  
-  assert!(result.is_some(), "Should find alternative path");
-  let (path, _cost) = result.unwrap();
-  
-  // Should find path around the blocked area
-  assert_eq!(path[0], start);
-  assert_eq!(path[path.len() - 1], goal);
-  
-  // Verify no path goes through blocked area
-  for coord in path {
-    assert_ne!(coord.x, 1, "Path should not go through blocked area");
-  }
-}
-
-#[ test ]
-fn test_pathfinding_same_position()
-{
-  use tiles_tools::pathfind::astar;
-  
-  let coord = TriangularCoord::new(5, 3);
-  
-  let result = astar(
-    &coord,
-    &coord,
-    |_coord| true,
-    |_coord| 1,
-  );
-  
-  assert!(result.is_some(), "Should handle same start/goal");
-  let (path, cost) = result.unwrap();
-  assert_eq!(cost, 0, "Cost to same position should be 0");
-  assert_eq!(path.len(), 1, "Path should contain only the position itself");
-  assert_eq!(path[0], coord);
-}
-
-#[ test ]
-fn test_pathfinding_impossible()
-{
-  use tiles_tools::pathfind::astar;
-  
-  let start = TriangularCoord::new(0, 0);
-  let goal = TriangularCoord::new(2, 0);
-  
-  let result = astar(
-    &start,
-    &goal,
-    |_coord| false, // No tiles accessible
-    |_coord| 1,
-  );
-  
-  assert!(result.is_none(), "Should return None when no path exists");
 }

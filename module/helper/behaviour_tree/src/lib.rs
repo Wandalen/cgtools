@@ -26,8 +26,8 @@
 //!
 //! # Examples
 //!
-//! ```rust
-//! use behavior_tree::*;
+//! ``` rust
+//! use behaviour_tree::*;
 //! use tiles_tools::ecs::*;
 //! use tiles_tools::coordinates::square::{ Coordinate, FourConnected };
 //!

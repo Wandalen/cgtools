@@ -218,9 +218,6 @@ pub mod field_of_view;
 pub mod spatial;
 
 #[ cfg( feature = "enabled" ) ]
-pub mod behavior_tree;
-
-#[ cfg( feature = "enabled" ) ]
 pub mod animation;
 
 #[ cfg( feature = "enabled" ) ]
