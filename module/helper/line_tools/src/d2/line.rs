@@ -213,9 +213,9 @@ mod private
         let join_indices_buffer = mesh.get_buffer( "join_indices" );
         let join_uv_buffer = mesh.get_buffer( "join_uv" );
 
-        let ( join_geometry_list, join_indices, join_geometry_count ) = self.join.geometry(); 
+        let ( join_geometry_list, join_indices, join_uvs, join_geometry_count ) = self.join.geometry(); 
         gl::buffer::upload( gl, &join_buffer, &join_geometry_list, gl::STATIC_DRAW );
-        gl::buffer::upload( gl, &join_uv_buffer, &self.join.uv(), gl::STATIC_DRAW );
+        gl::buffer::upload( gl, &join_uv_buffer, &join_uvs, gl::STATIC_DRAW );
         gl::index::upload( gl, &join_indices_buffer, &join_indices, gl::STATIC_DRAW );
 
         let j_program = mesh.get_program( "join" );
@@ -236,7 +236,7 @@ mod private
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( &gl, 4, &join_uv_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 4, &join_uv_buffer )?;
           },
           Join::Bevel =>
           {

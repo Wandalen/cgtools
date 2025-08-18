@@ -5,7 +5,7 @@ layout( location = 0 ) in vec4 position;
 layout( location = 1 ) in vec3 inPointA;
 layout( location = 2 ) in vec3 inPointB;
 layout( location = 3 ) in vec3 inPointC;
-layout( location = 4 ) in vec2 inUvIndex;
+layout( location = 4 ) in float inUvIndex;
 
 uniform mat3 u_world_matrix;
 uniform mat4 u_projection_matrix;
@@ -95,13 +95,21 @@ void main()
   vUv.y = mix( 0.0, 1.0, 1.0 - position.w );
   //vUv.x = inPointB.z * position.x + ( inPointB.z + 1.0 ) * position.z + ( inPointB.z + 0.5 ) * position.y + ( inPointB.z + 0.5 ) * position.w;
 
-  if( abs( inUvIndex.x ) < 1e-5 ) { vUv.x = 0.0; }
-  else if ( abs( inUvIndex.x - 1.0 ) < 1e-5 ) { vUv.x = 0.5; }
-  else if ( abs( inUvIndex.x - 2.0 ) < 1e-5 ) { vUv.x = 1.0; }
+  if( abs( inUvIndex ) < 1e-5 ) { vUv.x = 0.0; }
+  else if ( abs( inUvIndex - 1.0 ) < 1e-5 ) { vUv.x = 0.5; }
+  else if ( abs( inUvIndex - 2.0 ) < 1e-5 ) { vUv.x = 1.0; }
+
+  //vUv.x = vUv.y;
+
 
   //if( inUvIndex.y == 1.0 ) { vUv.y = 1.0 - vUv.y; }
 
-  vec2 point = pointB + p0 * position.x + p1 * position.y + p2 * position.z + p3 * position.w;
+  vec2 point =
+  pointB + 
+  mix( p3, p0, position.x ) * ( 1.0 - step( position.x, 0.0 ) )  + 
+  mix( p3, p1, position.y ) * ( 1.0 - step( position.y, 0.0 ) ) + 
+  mix( p3, p2, position.z ) * ( 1.0 - step( position.z, 0.0 ) ) + 
+  p3 * position.w;
 
   gl_Position =  u_projection_matrix * vec4( point, 0.0, 1.0 );
 }

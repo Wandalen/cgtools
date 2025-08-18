@@ -99,15 +99,21 @@ void main()
     }
   }
 
+  //offsetPoint = cornerA + 0.9 * ( offsetPoint - cornerA );
+
   if( sign( position.y ) == -sigma )
   {
     vUv.x = inPointB.z;
+    //offsetPoint = pointB + normToAB * position.y * u_width;
+    //offsetPoint = cornerA + 0.999 * ( offsetPoint - cornerA );
     gl_Position = u_projection_matrix * vec4( offsetPoint, 0.0, 1.0 );
   }
   else
   {
     vUv.x = inPointB.z;
     vec2 point = offsetPoint + normToAB * sigma * u_width;
+    //vec2 point = pointB + normToAB * position.y * u_width;
+    //vec2 point = pointA + AB * position.x + normToAB * position.y * u_width;
     gl_Position =  u_projection_matrix * vec4( point, 0.0, 1.0 );
   }
 }
