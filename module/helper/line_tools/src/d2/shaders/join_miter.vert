@@ -5,6 +5,7 @@ layout( location = 0 ) in vec4 position;
 layout( location = 1 ) in vec3 inPointA;
 layout( location = 2 ) in vec3 inPointB;
 layout( location = 3 ) in vec3 inPointC;
+layout( location = 4 ) in vec2 inUvIndex;
 
 uniform mat3 u_world_matrix;
 uniform mat4 u_projection_matrix;
@@ -38,12 +39,11 @@ void main()
   vec2 ABNorm = normalize( vec2( -AB.y, AB.x ) );
   vec2 CBNorm = normalize( vec2( CB.y, -CB.x ) );
 
-  vec2 p0 = 0.5 * u_width * sigma * ( sigma < 0.0 ? ABNorm : CBNorm );
   vec2 p1 = 0.5 * u_width * sigma * normal / dot( CBNorm, normal );
-  vec2 p2 = 0.5 * u_width * sigma * ( sigma < 0.0 ? CBNorm : ABNorm );
   vec2 p3 = vec2( 0.0 );
+  
 
-  if( position.w == 1.0 )
+  //if( position.w == 1.0 )
   {
     vec2 normToAB = normalize( vec2( -AB.y, AB.x ) );
     vec2 normToCB = normalize( vec2( -CB.y, CB.x ) );
@@ -82,8 +82,24 @@ void main()
       }
     }
 
-    p3 = lineIntersection( pointB, normal, offsetPoint, cornerA2 - offsetPoint ) - pointB;
+    p3 = lineIntersection( pointB, normal, offsetPoint, ABNorm ) - pointB;
+    //p3 = lineIntersection( pointB, normal, pointB - normToAB * sigma * u_width * 0.5, ABNorm ) - pointB;
   }
+
+  // vec2 p0 = p3 + ABNorm * sigma * u_width;
+  // vec2 p2 = p3 + CBNorm * sigma * u_width;
+
+  vec2 p0 = lineIntersection( pointB + ABNorm * sigma * u_width * 0.5, AB, p3 + pointB, ABNorm * sigma ) - pointB;
+  vec2 p2 = lineIntersection( pointB + CBNorm * sigma * u_width * 0.5, CB, p3 + pointB, CBNorm * sigma ) - pointB;
+
+  vUv.y = mix( 0.0, 1.0, 1.0 - position.w );
+  //vUv.x = inPointB.z * position.x + ( inPointB.z + 1.0 ) * position.z + ( inPointB.z + 0.5 ) * position.y + ( inPointB.z + 0.5 ) * position.w;
+
+  if( abs( inUvIndex.x ) < 1e-5 ) { vUv.x = 0.0; }
+  else if ( abs( inUvIndex.x - 1.0 ) < 1e-5 ) { vUv.x = 0.5; }
+  else if ( abs( inUvIndex.x - 2.0 ) < 1e-5 ) { vUv.x = 1.0; }
+
+  //if( inUvIndex.y == 1.0 ) { vUv.y = 1.0 - vUv.y; }
 
   vec2 point = pointB + p0 * position.x + p1 * position.y + p2 * position.z + p3 * position.w;
 

@@ -44,8 +44,10 @@ mod private
       let body_instanced_buffer = gl.create_buffer().expect( "Failed to create a body_instanced_buffer" );
       let join_instanced_buffer = gl.create_buffer().expect( "Failed to create a join_instanced_buffer" );
       let join_indices_buffer = gl.create_buffer().expect( "Failed to create a join_indices_buffer" );
+      let join_uv_buffer = gl.create_buffer().expect( "Failed to create a join_uv_buffer" );
       let cap_instanced_buffer = gl.create_buffer().expect( "Failed to create a cap_instanced_buffer" );
       let cap_indices_buffer = gl.create_buffer().expect( "Failed to create a cap_indices_buffer" );
+
 
       let uv_buffer = gl.create_buffer().expect( "Failed to create a uv_buffer" );
 
@@ -108,6 +110,7 @@ mod private
       mesh.add_buffer( "cap_indices", cap_indices_buffer );
       mesh.add_buffer( "join", join_instanced_buffer );
       mesh.add_buffer( "join_indices", join_indices_buffer );
+      mesh.add_buffer( "join_uv", join_uv_buffer );
       mesh.add_buffer( "points", points_buffer );
       mesh.add_buffer( "points_terminal", points_terminal_buffer );
 
@@ -208,9 +211,11 @@ mod private
         let points_buffer = mesh.get_buffer( "points" );
         let join_buffer = mesh.get_buffer( "join" );
         let join_indices_buffer = mesh.get_buffer( "join_indices" );
+        let join_uv_buffer = mesh.get_buffer( "join_uv" );
 
         let ( join_geometry_list, join_indices, join_geometry_count ) = self.join.geometry(); 
         gl::buffer::upload( gl, &join_buffer, &join_geometry_list, gl::STATIC_DRAW );
+        gl::buffer::upload( gl, &join_uv_buffer, &self.join.uv(), gl::STATIC_DRAW );
         gl::index::upload( gl, &join_indices_buffer, &join_indices, gl::STATIC_DRAW );
 
         let j_program = mesh.get_program( "join" );
@@ -231,6 +236,7 @@ mod private
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( &gl, 4, &join_uv_buffer )?;
           },
           Join::Bevel =>
           {
@@ -241,12 +247,12 @@ mod private
           },
         }
 
-        let vertex_shader =
+        let ( vertex_shader, draw_mode ) =
         match self.join 
         {
-          Join::Round( _ ) => d2::JOIN_ROUND_VERTEX_SHADER,
-          Join::Miter => d2::JOIN_MITER_VERTEX_SHADER,
-          Join::Bevel => d2::JOIN_BEVEL_VERTEX_SHADER
+          Join::Round( _ ) => ( d2::JOIN_ROUND_VERTEX_SHADER, gl::TRIANGLE_FAN ),
+          Join::Miter => ( d2::JOIN_MITER_VERTEX_SHADER,gl::TRIANGLES ),
+          Join::Bevel => ( d2::JOIN_BEVEL_VERTEX_SHADER, gl::TRIANGLE_FAN )
         };
 
         let vertex_shader = gl::ShaderSource::former()
@@ -263,7 +269,7 @@ mod private
         j_program.delete_vao( gl );
 
         j_program.vao = vao;
-        j_program.draw_mode = gl::TRIANGLE_FAN;
+        j_program.draw_mode = draw_mode;
         j_program.vertex_shader = Some( vertex_shader );
         j_program.program = Some( join_program );
         j_program.instance_count = Some( ( self.points.len() as f32 - 2.0 ).max( 0.0 ) as u32 );
@@ -372,7 +378,7 @@ mod private
 
       if self.points.len() > 1
       {
-        mesh.draw( gl, "cap" );
+        //mesh.draw( gl, "cap" );
       }
 
       Ok( () )

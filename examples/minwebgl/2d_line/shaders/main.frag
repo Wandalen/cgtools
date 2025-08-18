@@ -21,5 +21,6 @@ void main()
   col = stripes();
   
   col = vec3( fract( vUv.x - time ) );
+  //col = vec3( vUv.x  );
   frag_color = vec4( col, 1.5 );
 }

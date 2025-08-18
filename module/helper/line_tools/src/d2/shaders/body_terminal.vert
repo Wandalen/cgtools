@@ -12,8 +12,14 @@ uniform float u_width;
 
 out vec2 vUv;
 
+// If points are on parallel lines - returns the second point
 vec2 lineIntersection( vec2 p1, vec2 n1, vec2 p2, vec2 n2 )
 {
+  if( dot( p2 - p1, n2 ) == 0.0 )
+  {
+    return p2;
+  }
+
   vec2 m = ( p2 - p1 ) / n1;
   vec2 n = n2 / n1;
   float d = ( m.x - m.y ) / ( n.y - n.x );
@@ -39,9 +45,6 @@ void main()
   vec2 AB = pointB - pointA;
   vec2 CB = pointB - pointC;
 
-  vec2 xBasis = pointB - pointA;
-  vec2 yBasis = normalize( vec2( -xBasis.y, xBasis.x ) );
-
   vec2 normToAB = normalize( vec2( -AB.y, AB.x ) );
   vec2 normToCB = normalize( vec2( -CB.y, CB.x ) );
 
@@ -50,6 +53,17 @@ void main()
 
   if( sigma == 0.0 ) { sigma = 1.0; }
 
+  vUv.y = mix( 0.0, 1.0, step( 0.0, sigma * position.y ) );
+
+  if( position.x == 0.0 )
+  {
+    vUv.x = inPointA.z;
+    vec2 point = pointA + AB * position.x + normToAB * position.y * u_width;
+    gl_Position =  u_projection_matrix * vec4( point, 0.0, 1.0 );
+    return;
+  }
+
+  
   vec2 cornerB = pointB + normToAB * sigma * u_width * 0.5;
   vec2 cornerA = pointA + normToAB * -sigma * u_width * 0.5;
   vec2 cornerC = pointC + normToCB * sigma * u_width * 0.5;
@@ -68,8 +82,9 @@ void main()
     closestNormal = normToAB;
   }
 
+  float offsetAmount = dot( normal, normToAB );
   vec2 intersectionPoint = lineIntersection( pointB, normal, closestPoint, closestNormal );
-  vec2 offsetPoint = pointB + 0.5 * normal * -sigma * u_width / dot( normal, normToAB );
+  vec2 offsetPoint = pointB + 0.5 * normal * -sigma * u_width / offsetAmount;
 
   if( dot( offsetPoint - intersectionPoint, normal * sigma ) < 0.0 )
   {
@@ -84,17 +99,6 @@ void main()
     }
   }
 
-
-  vUv.y = mix( 0.0, 1.0, step( 0.0, sign( inPointB.z - inPointA.z ) * position.y ) );
-
-  if( position.x == 0.0 )
-  {
-    vUv.x = inPointA.z;
-    vec2 point = pointA + xBasis * position.x + yBasis * position.y * u_width;
-    gl_Position =  u_projection_matrix * vec4( point, 0.0, 1.0 );
-    return;
-  }
-
   if( sign( position.y ) == -sigma )
   {
     vUv.x = inPointB.z;
@@ -102,9 +106,8 @@ void main()
   }
   else
   {
-    //vec2 point = pointA + xBasis * position.x + 5.0 * yBasis * position.y * u_width;
+    vUv.x = inPointB.z;
     vec2 point = offsetPoint + normToAB * sigma * u_width;
-    vUv.x = mix( inPointB.z, inPointB.z + 0.5, 1.0 - clamp( dot( normalize( point - offsetPoint ), normToAB * sigma ), 0.0, 1.0 ) );
     gl_Position =  u_projection_matrix * vec4( point, 0.0, 1.0 );
   }
 }

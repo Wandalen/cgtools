@@ -51,6 +51,21 @@ mod private
         }
       }
     }
+
+    pub fn uv( &self ) -> Vec< f32 >
+    {
+      match self
+      {
+        Self::Miter =>
+        {
+          miter_uv().into_iter().flatten().collect()
+        },
+        _ =>
+        {
+          Vec::new()
+        }
+      }
+    }
   }
 
   impl Default for Join 
@@ -81,6 +96,14 @@ mod private
       [ 0.0, 0.0, 0.0, 1.0 ],
       [ 0.0, 1.0, 0.0, 0.0 ],
       [ 0.0, 0.0, 1.0, 0.0 ]
+    ]
+  }
+
+  pub fn miter_uv() -> [ [ f32; 2 ] ; 6 ]
+  {
+    [ 
+      [ 0.0, 0.0 ], [ 0.0, 0.0 ], [ 1.0, 0.0 ],
+      [ 2.0, 1.0 ], [ 1.0, 1.0 ], [ 2.0, 1.0 ] 
     ]
   }
 
