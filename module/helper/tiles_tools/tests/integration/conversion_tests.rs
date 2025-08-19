@@ -57,7 +57,6 @@ use tiles_tools::coordinates::{
   square::{Coordinate as SquareCoord, FourConnected as SquareFour, EightConnected as SquareEight},
   isometric::{Coordinate as IsoCoord, Diamond},
   hexagonal::{Coordinate as HexCoord, Axial, Pointy},
-  // triangular::{Coordinate as TriCoord, TwelveConnected},
 };
 
 // =============================================================================
