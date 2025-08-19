@@ -53,4 +53,5 @@ pub mod query;
 ) ) ]
 pub mod cli;
 
+#[ cfg( feature = "adapter-wgpu" ) ]
 pub mod wgpu_renderer;
