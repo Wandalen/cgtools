@@ -61,6 +61,22 @@ mod private
     pub viewport_scale : f32,
   }
 
+  impl RenderContext
+  {
+    pub fn new
+    (
+      width : u32,
+      height : u32,
+      background_color : [ f32; 4 ],
+      clear_background : bool,
+      viewport_offset : Point2D,
+      viewport_scale : f32
+    ) -> Self
+    {
+      Self { width, height, background_color, clear_background, viewport_offset, viewport_scale }
+    }
+  }
+
   /// Rendering error types that can occur during rendering operations.
   #[ derive( Debug, Clone, PartialEq ) ]
   pub enum RenderError
