@@ -255,7 +255,7 @@ mod private
               let ac = acc.count();
               let ao = acc.offset();
 
-              matrix_buffer_slice : &[ [ f32; 16 ] ] = Some
+              matrix_buffer_slice = Some
               ( 
                 cast_slice( buffer.as_slice()[ vo..( vo + vl ) ][ ao..( ao + ( 16 * 4 * ac ) ) ] ) 
               );
@@ -285,7 +285,7 @@ mod private
             root : node.clone(),
             inverse_bind_matrices : matrices,
             offset : skin.joints().next().map( | n | n.index().flatten() ).unwrap_or( 0 )
-          }
+          };
         }
       }
 

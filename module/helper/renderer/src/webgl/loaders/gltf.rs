@@ -423,6 +423,26 @@ mod private
               true
             )?;
           },
+          gltf::Semantic::Joints( i ) =>
+          {
+            geometry.add_attribute
+            (
+              gl,
+              format!( "joints_{}", i ),
+              make_attibute_info( &acc, 10 + i ),
+              false
+            )?;
+          },
+          gltf::Semantic::Weights( i ) =>
+          {
+            geometry.add_attribute
+            (
+              gl,
+              format!( "weights_{}", i ),
+              make_attibute_info( &acc, 13 + i ),
+              false
+            )?;
+          },
           a => { gl::warn!( "Unsupported attribute: {:?}", a ); continue; }
         };
       }
@@ -443,6 +463,7 @@ mod private
     gl::log::info!( "Meshes: {}",meshes.len() );
 
     let mut nodes = Vec::new();
+    let mut skeletons = Vec::new();
     for gltf_node in gltf_file.nodes()
     {
       let mut node = Node::default();
@@ -462,6 +483,62 @@ mod private
       node.set_rotation( gl::QuatF32::from( rotation ) );
       if let Some( name ) = gltf_node.name() { node.set_name( name ); }
 
+      if let Some( skin ) = gltf_node.skin()
+      {
+        if let Some( acc ) = skin.inverse_bind_matrices()
+        {
+          let mut matrices = vec![];
+
+          let view = acc.view();
+          let gltf_buffer = view.buffer();
+          let mut matrix_buffer_slice : Option< &[ [ f32; 16 ] ] > = None;
+          match gltf_buffer.source()
+          {
+            gltf::buffer::Source::Uri( uri ) =>
+            {
+              let path = format!( "{}/{}", folder_path, uri );
+              let buffer = gl::file::load( &path ).await
+              .expect( "Failed to load a buffer" );
+
+              let vl = view.length();
+              let vo = view.offset();
+              let ac = acc.count();
+              let ao = acc.offset();
+
+              matrix_buffer_slice = Some
+              ( 
+                cast_slice( buffer.as_slice()[ vo..( vo + vl ) ][ ao..( ao + ( 16 * 4 * ac ) ) ] ) 
+              );
+            },
+            _ => {}
+          }
+
+          if let Some( slice ) = matrix_buffer_slice
+          {
+            matrices = slice.into_iter()
+            .map( | array | F32x4x4::from_column_major( array ) )
+            .collect::< Vec< _ > >();
+          }
+
+          // let mut name_to_matrix = HashMap::new();
+          // let mut inverse_bind_matrices = HashMap::new();
+          // for ( joint, matrix ) in skin.joints().zip( matrices )
+          // {
+          //   if let Some( name ) = joint.name()
+          //   {  
+          //     inverse_bind_matrices.insert( name.to_string(), matrix );
+          //   }
+          // }
+
+          let skeleton = Skeleton
+          {
+            root : node.clone(),
+            inverse_bind_matrices : matrices,
+            offset : skin.joints().next().map( | n | n.index().flatten() ).unwrap_or( 0 )
+          };
+        }
+      }
+
       nodes.push( Rc::new( RefCell::new( node ) ) );
     }
 
@@ -474,6 +551,7 @@ mod private
       }
     }
 
+    gl::log::info!( "Sceletons: {}", skeletons.len() );
     gl::log::info!( "Nodes: {}", nodes.len() );
 
     let mut scenes = Vec::new();
