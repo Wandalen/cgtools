@@ -76,7 +76,7 @@ use renderer::webgl::
 };
 use std::rc::Rc;
 use canvas_renderer::renderer::*;
-use geometry_generation::*;
+use primitive_generation::*;
 
 mod camera_controls;
 mod loaders;

@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2024-08-08
 
 ### Added
-- Initial release of geometry_generation crate
+- Initial release of primitive_generation crate
 - 3D primitive generation (spheres, cubes, cylinders)
 - Text to 3D geometry conversion capabilities
 - Procedural shape creation tools
@@ -21,4 +21,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - WebAssembly-optimized implementation
 - Comprehensive feature flag system for modular builds
 
-[0.1.0]: https://github.com/Wandalen/cgtools/releases/tag/geometry_generation-v0.1.0
+[0.1.0]: https://github.com/Wandalen/cgtools/releases/tag/primitive_generation-v0.1.0

@@ -25,7 +25,7 @@ members = [
   "module/helper/browser_log",
   "module/helper/canvas_renderer",
   "module/helper/embroidery_tools",
-  "module/helper/geometry_generation",
+  "module/helper/primitive_generation",
   "module/helper/line_tools",
   "module/helper/renderer",
   "module/helper/tilemap_renderer",
@@ -126,9 +126,9 @@ path = "module/helper/renderer"
 version = "0.1.0"
 path = "module/helper/canvas_renderer"
 
-[workspace.dependencies.geometry_generation]
+[workspace.dependencies.primitive_generation]
 version = "0.1.0"
-path = "module/helper/geometry_generation"
+path = "module/helper/primitive_generation"
 
 [workspace.dependencies.line_tools]
 version = "0.2.0"

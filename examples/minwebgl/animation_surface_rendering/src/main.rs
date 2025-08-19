@@ -38,7 +38,7 @@ use renderer::webgl::
 };
 use std::rc::Rc;
 use canvas_renderer::renderer::CanvasRenderer;
-use geometry_generation::text;
+use primitive_generation::text;
 use ::mod_interface::mod_interface;
 
 mod camera_controls;
@@ -349,7 +349,7 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
   let text = "CGTools".to_string();
 
   let mut primitives_data = vec![];
-  let mut transform = geometry_generation::Transform::default();
+  let mut transform = primitive_generation::Transform::default();
   transform.translation.0[ 1 ] += ( font_names.len() as f32 + 1.0 ) / 2.0 + 0.5;
   for font_name in font_names
   {
@@ -369,7 +369,7 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
   let colors = primitives_data.iter()
   .map( | p | p.color )
   .collect::< Vec< _ > >();
-  let canvas_gltf = geometry_generation::primitives_data_to_gltf( &gl, primitives_data );
+  let canvas_gltf = primitive_generation::primitives_data_to_gltf( &gl, primitives_data );
 
   ( canvas_gltf, colors )
 }

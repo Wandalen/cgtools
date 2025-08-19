@@ -17,7 +17,7 @@ mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
 renderer = { workspace = true }
 canvas_renderer = { workspace = true }
-geometry_generation = { workspace = true }
+primitive_generation = { workspace = true }
 zune-hdr = { workspace = true }
 rand = { workspace = true }
 getrandom = { workspace = true, features = [ "wasm_js" ] }
