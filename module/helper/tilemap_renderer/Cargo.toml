@@ -143,7 +143,7 @@ adapter-terminal = [
   "adapter-terminal-unicode",
 ]
 
-adapter-wgpu = [ "enabled", "dep:minwgpu", "dep:wgpu", "serde" ]
+adapter-wgpu = [ "enabled", "serde", "dep:wgpu", "dep:minwgpu", "dep:bytemuck" ]
 
 # Serialization features (selective support)
 serde-basic = ["types-basic", "dep:serde"]
