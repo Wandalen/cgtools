@@ -51,8 +51,10 @@ void main()
   // Direction of the bend
   float sigma = sign( dot( AB + CB, normal ) );
 
+  // If segments are parallel
   if( sigma == 0.0 ) { sigma = 1.0; }
 
+  vUv.x = inPointB.z;
   vUv.y = mix( 0.0, 1.0, step( 0.0, sigma * position.y ) );
 
   if( position.x == 0.0 )
@@ -62,23 +64,23 @@ void main()
     gl_Position =  u_projection_matrix * vec4( point, 0.0, 1.0 );
     return;
   }
-
   
-  vec2 cornerB = pointB + normToAB * sigma * u_width * 0.5;
-  vec2 cornerA = pointA + normToAB * -sigma * u_width * 0.5;
-  vec2 cornerC = pointC + normToCB * sigma * u_width * 0.5;
+  vec2 rightUpperCornerA = pointB + normToAB * sigma * u_width * 0.5;
+  vec2 leftBottomCornerA = pointA + normToAB * -sigma * u_width * 0.5;
+  vec2 rightBottomCornerC = pointC + normToCB * sigma * u_width * 0.5;
 
   vec2 closestPoint;
   vec2 closestNormal;
 
+  // Choose the closest corner
   if( dot( AB, AB ) > dot( CB, CB ) )
   {
-    closestPoint = cornerC;
+    closestPoint = rightBottomCornerC;
     closestNormal = normToCB;
   }
   else
   {
-    closestPoint = cornerA;
+    closestPoint = leftBottomCornerA;
     closestNormal = normToAB;
   }
 
@@ -86,34 +88,27 @@ void main()
   vec2 intersectionPoint = lineIntersection( pointB, normal, closestPoint, closestNormal );
   vec2 offsetPoint = pointB + 0.5 * normal * -sigma * u_width / offsetAmount;
 
+  // If two segments overlap each other
   if( dot( offsetPoint - intersectionPoint, normal * sigma ) < 0.0 )
   {
     vec2 normalizedAB = normalize( AB );
-    vec2 cAtoInt =  intersectionPoint - cornerA;
+    vec2 cAtoInt =  intersectionPoint - leftBottomCornerA;
     float k = dot( cAtoInt, normalizedAB );
-    offsetPoint = cornerA + k * normalizedAB + normalizedAB * dot( normal * sigma, normalizedAB ) * length( intersectionPoint - offsetPoint );
+    offsetPoint = leftBottomCornerA + k * normalizedAB + normalizedAB * dot( normal * sigma, normalizedAB ) * length( intersectionPoint - offsetPoint );
 
     if( dot( offsetPoint - pointB, AB ) > 0.0 )
     {
-      offsetPoint = cornerA + AB;
+      offsetPoint = leftBottomCornerA + AB;
     }
   }
 
-  //offsetPoint = cornerA + 0.9 * ( offsetPoint - cornerA );
-
   if( sign( position.y ) == -sigma )
   {
-    vUv.x = inPointB.z;
-    //offsetPoint = pointB + normToAB * position.y * u_width;
-    //offsetPoint = cornerA + 0.999 * ( offsetPoint - cornerA );
     gl_Position = u_projection_matrix * vec4( offsetPoint, 0.0, 1.0 );
   }
   else
   {
-    vUv.x = inPointB.z;
     vec2 point = offsetPoint + normToAB * sigma * u_width;
-    //vec2 point = pointB + normToAB * position.y * u_width;
-    //vec2 point = pointA + AB * position.x + normToAB * position.y * u_width;
     gl_Position =  u_projection_matrix * vec4( point, 0.0, 1.0 );
   }
 }

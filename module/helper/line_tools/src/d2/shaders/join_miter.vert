@@ -5,7 +5,7 @@ layout( location = 0 ) in vec4 position;
 layout( location = 1 ) in vec3 inPointA;
 layout( location = 2 ) in vec3 inPointB;
 layout( location = 3 ) in vec3 inPointC;
-layout( location = 4 ) in float inUvIndex;
+layout( location = 4 ) in float inUvX;
 
 uniform mat3 u_world_matrix;
 uniform mat4 u_projection_matrix;
@@ -27,7 +27,6 @@ void main()
   vec2 pointB = ( u_world_matrix * vec3( inPointB.xy, 1.0 ) ).xy;
   vec2 pointC = ( u_world_matrix * vec3( inPointC.xy, 1.0 ) ).xy;
 
-
   vec2 tangent = normalize( normalize( pointC - pointB ) + normalize( pointB - pointA ) );
   vec2 normal = vec2( -tangent.y, tangent.x );
 
@@ -39,77 +38,62 @@ void main()
   vec2 ABNorm = normalize( vec2( -AB.y, AB.x ) );
   vec2 CBNorm = normalize( vec2( CB.y, -CB.x ) );
 
-  vec2 p1 = 0.5 * u_width * sigma * normal / dot( CBNorm, normal );
+  // Upper corner
+  vec2 p1 = pointB + 0.5 * u_width * sigma * normal / dot( CBNorm, normal );
+  // Bottom corner
   vec2 p3 = vec2( 0.0 );
   
-
-  //if( position.w == 1.0 )
   {
     vec2 normToAB = normalize( vec2( -AB.y, AB.x ) );
     vec2 normToCB = normalize( vec2( -CB.y, CB.x ) );
 
-    vec2 cornerA = pointA + normToAB * -sigma * u_width * 0.5;
-    vec2 cornerC = pointC + normToCB * sigma * u_width * 0.5;
-    vec2 cornerA2 = pointB + normToAB * sigma * u_width * 0.5;
+    vec2 leftBottomCornerA = pointA + normToAB * -sigma * u_width * 0.5;
+    vec2 rightBottomCornerC = pointC + normToCB * sigma * u_width * 0.5;
 
     vec2 closestPoint;
     vec2 closestNormal;
 
+    // Choose the closest corner
     if( dot( AB, AB ) > dot( CB, CB ) )
     {
-      closestPoint = cornerC;
+      closestPoint = rightBottomCornerC;
       closestNormal = normToCB;
     }
     else
     {
-      closestPoint = cornerA;
+      closestPoint = leftBottomCornerA;
       closestNormal = normToAB;
     }
 
     vec2 intersectionPoint = lineIntersection( pointB, normal, closestPoint, closestNormal );
     vec2 offsetPoint = pointB + 0.5 * normal * -sigma * u_width / dot( normal, normToAB );
-
+    
+    // If two segments overlap each other
     if( dot( offsetPoint - intersectionPoint, normal * sigma ) < 0.0 )
     {
       vec2 normalizedAB = normalize( AB );
-      vec2 cAtoInt =  intersectionPoint - cornerA;
+      vec2 cAtoInt =  intersectionPoint - leftBottomCornerA;
       float k = dot( cAtoInt, normalizedAB );
-      offsetPoint = cornerA + k * normalizedAB + normalizedAB * dot( normal * sigma, normalizedAB ) * length( intersectionPoint - offsetPoint );
+      offsetPoint = leftBottomCornerA + k * normalizedAB + normalizedAB * dot( normal * sigma, normalizedAB ) * length( intersectionPoint - offsetPoint );
 
       if( dot( offsetPoint - pointB, AB ) > 0.0 )
       {
-        offsetPoint = cornerA + AB;
+        offsetPoint = leftBottomCornerA + AB;
       }
     }
 
-    p3 = lineIntersection( pointB, normal, offsetPoint, ABNorm ) - pointB;
-    //p3 = lineIntersection( pointB, normal, pointB - normToAB * sigma * u_width * 0.5, ABNorm ) - pointB;
+    p3 = lineIntersection( pointB, normal, offsetPoint, ABNorm );
   }
 
-  // vec2 p0 = p3 + ABNorm * sigma * u_width;
-  // vec2 p2 = p3 + CBNorm * sigma * u_width;
-
-  vec2 p0 = lineIntersection( pointB + ABNorm * sigma * u_width * 0.5, AB, p3 + pointB, ABNorm * sigma ) - pointB;
-  vec2 p2 = lineIntersection( pointB + CBNorm * sigma * u_width * 0.5, CB, p3 + pointB, CBNorm * sigma ) - pointB;
+  // Left corner
+  vec2 p0 = lineIntersection( pointB + ABNorm * sigma * u_width * 0.5, AB, p3, ABNorm * sigma );
+  // Right corner
+  vec2 p2 = lineIntersection( pointB + CBNorm * sigma * u_width * 0.5, CB, p3, CBNorm * sigma );
 
   vUv.y = mix( 0.0, 1.0, 1.0 - position.w );
-  //vUv.x = inPointB.z * position.x + ( inPointB.z + 1.0 ) * position.z + ( inPointB.z + 0.5 ) * position.y + ( inPointB.z + 0.5 ) * position.w;
+  vUv.x = inUvX;
 
-  if( abs( inUvIndex ) < 1e-5 ) { vUv.x = 0.0; }
-  else if ( abs( inUvIndex - 1.0 ) < 1e-5 ) { vUv.x = 0.5; }
-  else if ( abs( inUvIndex - 2.0 ) < 1e-5 ) { vUv.x = 1.0; }
-
-  //vUv.x = vUv.y;
-
-
-  //if( inUvIndex.y == 1.0 ) { vUv.y = 1.0 - vUv.y; }
-
-  vec2 point =
-  pointB + 
-  mix( p3, p0, position.x ) * ( 1.0 - step( position.x, 0.0 ) )  + 
-  mix( p3, p1, position.y ) * ( 1.0 - step( position.y, 0.0 ) ) + 
-  mix( p3, p2, position.z ) * ( 1.0 - step( position.z, 0.0 ) ) + 
-  p3 * position.w;
+  vec2 point = p3 + ( p0 - p3 ) * position.x + ( p1 - p3 ) * position.y + ( p2 - p3 ) * position.z;
 
   gl_Position =  u_projection_matrix * vec4( point, 0.0, 1.0 );
 }

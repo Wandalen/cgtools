@@ -230,7 +230,7 @@ mod private
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
           },
-          Join::Miter =>
+          Join::Miter( _, _ ) =>
           {
             gl::BufferDescriptor::new::< [ f32; 4 ] >().offset( 0 ).stride( 4 ).divisor( 0 ).attribute_pointer( &gl, 0, &join_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_buffer )?;
@@ -251,7 +251,7 @@ mod private
         match self.join 
         {
           Join::Round( _ ) => ( d2::JOIN_ROUND_VERTEX_SHADER, gl::TRIANGLE_FAN ),
-          Join::Miter => ( d2::JOIN_MITER_VERTEX_SHADER,gl::TRIANGLES ),
+          Join::Miter( _, _ ) => ( d2::JOIN_MITER_VERTEX_SHADER,gl::TRIANGLES ),
           Join::Bevel => ( d2::JOIN_BEVEL_VERTEX_SHADER, gl::TRIANGLE_FAN )
         };
 

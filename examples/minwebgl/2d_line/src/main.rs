@@ -44,7 +44,7 @@ fn run() -> Result< (), gl::WebglError >
 
   let mut line = line_tools::d2::Line::default();
   line.set_cap( line_tools::Cap::Butt );
-  line.set_join( line_tools::Join::Miter );
+  line.set_join( line_tools::Join::Miter( 7, 7 ) );
 
   line.create_mesh( &gl, main_frag )?;
   let mesh = line.get_mesh();
@@ -82,7 +82,7 @@ fn run() -> Result< (), gl::WebglError >
         let mut line = line.borrow_mut();
         match value.as_str()
         {
-          "miter" => { line.set_join( line_tools::Join::Miter ); },
+          "miter" => { line.set_join( line_tools::Join::Miter( 7, 7 ) ); },
           "bevel" => { line.set_join( line_tools::Join::Bevel ); },
           "round" => { line.set_join( line_tools::Join::Round( 16 ) ); },
           _ => {}
