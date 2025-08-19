@@ -25,7 +25,7 @@
 #![ allow( clippy::cast_sign_loss ) ]
 
 use std::collections::HashMap;
-use mingl::{ bind_controls_to_input, F32x4 };
+use mingl::F32x4;
 use minwebgl::
 {
   self as gl,
@@ -178,7 +178,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
   camera.set_window_size( [ width, height ].into() );
-  bind_controls_to_input( &canvas, &camera.get_controls() );
+  camera.bind_controls( &canvas );
 
   let renderer = Rc::new
   (

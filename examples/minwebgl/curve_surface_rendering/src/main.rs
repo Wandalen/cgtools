@@ -40,7 +40,7 @@
 #![ allow( clippy::assigning_clones ) ]
 
 use std::cell::RefCell;
-use mingl::{ bind_controls_to_input, F32x4 };
+use mingl::F32x4;
 use minwebgl as gl;
 use gl::
 {
@@ -315,7 +315,7 @@ async fn run() -> Result< (), gl::WebglError >
   let ( canvas_gltf, colors ) = setup_canvas_scene( &gl ).await;
 
   let canvas_camera = init_camera( &canvas, &canvas_gltf.scenes );
-  bind_controls_to_input( &canvas, &canvas_camera.get_controls() );
+  canvas_camera.bind_controls( &canvas );
   canvas_camera.get_controls().borrow_mut().window_size = [ ( canvas.width() * 4 ) as f32, ( canvas.height() * 4 ) as f32 ].into();
   canvas_camera.get_controls().borrow_mut().eye = [ 0.0, 0.0, 8.0 ].into();
   {
@@ -358,7 +358,7 @@ async fn run() -> Result< (), gl::WebglError >
   scenes[ 0 ].borrow_mut().update_world_matrix();
 
   let camera = init_camera( &canvas, &scenes );
-  bind_controls_to_input( &canvas, &camera.get_controls() );
+  camera.bind_controls( &canvas );
   let eye = gl::math::mat3x3h::rot( 0.0, - 76.0_f32.to_radians(), - 20.0_f32.to_radians() ) 
   * F32x4::from_array([ 0.0, 1.7, 1.7, 1.0 ] );
   camera.get_controls().borrow_mut().eye = [ eye.x(), eye.y(), eye.z() ].into();

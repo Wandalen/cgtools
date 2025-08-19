@@ -9,7 +9,11 @@
 #![ allow( clippy::redundant_field_names ) ]
 #![ allow( clippy::std_instead_of_core ) ]
 
-use mingl::{ CameraOrbitControls, bind_controls_to_input };
+use mingl::
+{ 
+  CameraOrbitControls, 
+  camera_orbit_controls::bind_controls_to_input 
+};
 use minwebgl as gl;
 use std::
 {

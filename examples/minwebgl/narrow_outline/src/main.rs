@@ -36,8 +36,7 @@
 use mingl::
 { 
   AsBytes,  
-  VectorDataType, 
-  bind_controls_to_input 
+  VectorDataType 
 };
 use minwebgl as gl;
 use gl::
@@ -786,7 +785,7 @@ impl Renderer
       far
     );
 
-    bind_controls_to_input( &canvas, &camera.get_controls() );
+    camera.bind_controls( &canvas );
 
     let programs = Programs::new( &gl );
 

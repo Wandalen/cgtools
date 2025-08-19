@@ -15,7 +15,11 @@ use std::
 
 use material::{ GLMaterial, TextureType };
 use mesh::GLMesh;
-use mingl::{ CameraOrbitControls, bind_controls_to_input };
+use mingl::
+{ 
+  CameraOrbitControls, 
+  camera_orbit_controls::bind_controls_to_input 
+};
 use minwebgl::{ self as gl, JsCast };
 use web_sys::wasm_bindgen::prelude::Closure;
 

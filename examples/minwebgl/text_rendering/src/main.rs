@@ -35,7 +35,6 @@
 #![ allow( clippy::std_instead_of_alloc ) ]
 
 use std::cell::RefCell;
-use mingl::bind_controls_to_input;
 use minwebgl as gl;
 use gl::
 {
@@ -319,7 +318,7 @@ fn init_camera( canvas : &HtmlCanvasElement ) -> Camera
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
   camera.set_window_size( [ width, height ].into() );
 
-  bind_controls_to_input( &canvas, &camera.get_controls() );
+  camera.bind_controls( &canvas );
 
   camera
 }

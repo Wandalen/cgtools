@@ -192,7 +192,7 @@ mod private
   }
 
   /// Represents the current state of the camera controls, based on user input.
-  pub enum CameraState
+  enum CameraState
   {
     /// The camera is not being manipulated.
     None,
@@ -344,11 +344,14 @@ mod private
 // This macro exposes the public interface of the module.
 crate::mod_interface!
 {
+  own use 
+  {
+    bind_controls_to_input
+  };
+
   /// Exposes the `CameraOrbitControls` struct for public use.
   exposed use
   {
-    CameraOrbitControls,
-    CameraState,
-    bind_controls_to_input
+    CameraOrbitControls
   };
 }

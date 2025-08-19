@@ -24,7 +24,6 @@
 //!    If this distance is within a defined thickness, draw the outline color; otherwise,
 //!    draw the background color. Object pixels are drawn with the object color.
 
-use mingl::bind_controls_to_input;
 use minwebgl as gl;
 use gl::
 {
@@ -220,7 +219,7 @@ impl Renderer
       far
     );
 
-    bind_controls_to_input( &canvas, &camera.get_controls() );
+    camera.bind_controls( &canvas );
 
     let programs = Programs::new( &gl );
 
