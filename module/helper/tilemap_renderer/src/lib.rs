@@ -8,14 +8,14 @@
 #[ cfg( any( feature = "scene-container", feature = "scene-methods" ) ) ]
 pub mod scene;
 
-// #[ cfg( any(
-//   feature = "command-line",
-//   feature = "command-curve",
-//   feature = "command-text",
-//   feature = "command-tilemap",
-//   feature = "command-particle",
-//   feature = "commands"
-// ) ) ]
+#[ cfg( any(
+  feature = "command-line",
+  feature = "command-curve",
+  feature = "command-text",
+  feature = "command-tilemap",
+  feature = "command-particle",
+  feature = "commands"
+) ) ]
 pub mod commands;
 
 #[ cfg( any(
