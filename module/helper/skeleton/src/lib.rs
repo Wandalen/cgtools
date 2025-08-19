@@ -24,7 +24,5 @@ mod private
 {
   own use ::mod_interface::mod_interface;
 
-  layer interpolation;
-
   layer skeletal_animation;
 }
