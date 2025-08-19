@@ -25,7 +25,7 @@
 #![ allow( clippy::cast_sign_loss ) ]
 
 use std::collections::HashMap;
-use mingl::F32x4;
+use mingl::{ bind_controls_to_input, F32x4 };
 use minwebgl::
 {
   self as gl,
@@ -61,8 +61,6 @@ use renderer::webgl::
 };
 use std::rc::Rc;
 use std::cell::RefCell;
-
-mod camera_controls;
 
 fn generate_object_colors( object_count : u32 ) -> Vec< F32x4 >
 {
@@ -180,7 +178,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
   camera.set_window_size( [ width, height ].into() );
-  camera_controls::setup_controls( &canvas, &camera.get_controls() );
+  bind_controls_to_input( &canvas, &camera.get_controls() );
 
   let renderer = Rc::new
   (

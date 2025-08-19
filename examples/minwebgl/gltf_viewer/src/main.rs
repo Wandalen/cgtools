@@ -15,6 +15,7 @@
 #![ allow( clippy::no_effect_underscore_binding ) ]
 
 use std::{ cell::RefCell, rc::Rc };
+use mingl::bind_controls_to_input;
 use minwebgl as gl;
 
 use renderer::webgl::
@@ -22,7 +23,6 @@ use renderer::webgl::
   post_processing::{self, Pass, SwapFramebuffer}, Camera, Renderer
 };
 
-mod camera_controls;
 mod loaders;
 mod lil_gui;
 mod gui_setup;
@@ -89,7 +89,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
   camera.set_window_size( [ width, height ].into() );
-  camera_controls::setup_controls( &canvas, &camera.get_controls() );
+  bind_controls_to_input( &canvas, &camera.get_controls() );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   //renderer.set_use_emission( true );
