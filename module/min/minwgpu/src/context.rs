@@ -11,6 +11,7 @@ mod private
   /// A container for the core `wgpu` components, representing a complete graphics context.
   ///
   /// An instance of `Context` holds everything needed to start creating resources and rendering.
+  #[ derive( Debug, Clone ) ]
   pub struct Context
   {
     pub( super ) instance : wgpu::Instance,

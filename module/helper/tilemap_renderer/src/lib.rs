@@ -8,28 +8,28 @@
 #[ cfg( any( feature = "scene-container", feature = "scene-methods" ) ) ]
 pub mod scene;
 
-#[ cfg( any( 
-  feature = "command-line", 
-  feature = "command-curve", 
-  feature = "command-text", 
-  feature = "command-tilemap", 
-  feature = "command-particle",
-  feature = "commands" 
-) ) ]
+// #[ cfg( any(
+//   feature = "command-line",
+//   feature = "command-curve",
+//   feature = "command-text",
+//   feature = "command-tilemap",
+//   feature = "command-particle",
+//   feature = "commands"
+// ) ) ]
 pub mod commands;
 
 #[ cfg( any(
-  feature = "traits-renderer", 
-  feature = "traits-primitive", 
+  feature = "traits-renderer",
+  feature = "traits-primitive",
   feature = "traits-async",
   feature = "ports"
-) ) ]  
+) ) ]
 pub mod ports;
 
 #[ cfg( any(
   feature = "adapter-svg-basic",
   feature = "adapter-svg",
-  feature = "adapter-svg-browser", 
+  feature = "adapter-svg-browser",
   feature = "adapter-webgl",
   feature = "adapter-webgpu",
   feature = "adapter-terminal-basic",
@@ -40,7 +40,7 @@ pub mod adapters;
 #[ cfg( any(
   feature = "query-basic",
   feature = "query-by-type",
-  feature = "query-predicate", 
+  feature = "query-predicate",
   feature = "query"
 ) ) ]
 pub mod query;
@@ -52,3 +52,5 @@ pub mod query;
   feature = "cli"
 ) ) ]
 pub mod cli;
+
+pub mod wgpu_renderer;

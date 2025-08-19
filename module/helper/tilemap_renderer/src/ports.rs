@@ -7,15 +7,15 @@
 #[ cfg( feature = "enabled" ) ]
 mod private
 {
-  
+
   // Allow certain clippy warnings for trait definitions
   #![ allow( clippy::missing_inline_in_public_items ) ]
   #![ allow( clippy::implicit_return ) ]
   #![ allow( clippy::exhaustive_enums ) ]
-  
+
   use crate::scene::Scene;
   use crate::commands::{ Point2D, RenderCommand, LineCommand, CurveCommand, TextCommand, TilemapCommand, ParticleEmitterCommand };
-  
+
   /// Rendering capability information returned by backends.
   #[ derive( Debug, Clone, PartialEq ) ]
   #[ non_exhaustive ]
@@ -41,7 +41,7 @@ mod private
     /// Maximum scene complexity (estimated render commands).
     pub max_scene_complexity : usize,
   }
-  
+
   /// Rendering context information for frame rendering.
   #[ derive( Debug, Clone, PartialEq ) ]
   #[ non_exhaustive ]
@@ -60,7 +60,7 @@ mod private
     /// Optional viewport scale factor.
     pub viewport_scale : f32,
   }
-  
+
   /// Rendering error types that can occur during rendering operations.
   #[ derive( Debug, Clone, PartialEq ) ]
   pub enum RenderError
@@ -82,7 +82,7 @@ mod private
     /// Backend feature not implemented.
     FeatureNotImplemented( String ),
   }
-  
+
   impl core::fmt::Display for RenderError
   {
     #[ allow( clippy::min_ident_chars ) ]
@@ -102,9 +102,9 @@ mod private
       }
     }
   }
-  
+
   impl core::error::Error for RenderError {}
-  
+
   /// Primary renderer trait defining the rendering lifecycle.
   ///
   /// This trait defines the main interface that backend adapters must implement.
@@ -114,19 +114,19 @@ mod private
   {
     /// Backend-specific output type (e.g., SVG string, image buffer, etc.).
     type Output;
-    
+
     /// Returns the capabilities of this renderer backend.
     fn capabilities( &self ) -> RendererCapabilities;
-    
+
     /// Initializes the renderer with the given context.
-    /// 
+    ///
     /// This method should prepare the renderer for rendering operations,
     /// allocate necessary resources, and validate the rendering context.
     ///
     /// # Errors
     /// Returns `InitializationFailed` if the renderer cannot be initialized.
     fn initialize( &mut self, context: &RenderContext ) -> core::result::Result< (), RenderError >;
-    
+
     /// Begins a new rendering frame.
     ///
     /// This method should prepare for rendering a new frame, typically
@@ -135,7 +135,7 @@ mod private
     /// # Errors
     /// Returns `InvalidContext` if the context is invalid or `RenderFailed` if frame setup fails.
     fn begin_frame( &mut self, context: &RenderContext ) -> core::result::Result< (), RenderError >;
-    
+
     /// Renders a complete scene to the output.
     ///
     /// This is the main rendering method that processes all commands in the
@@ -144,7 +144,7 @@ mod private
     /// # Errors
     /// Returns various errors including `UnsupportedCommand`, `ComplexityLimitExceeded`, or `RenderFailed`.
     fn render_scene( &mut self, scene: &Scene ) -> core::result::Result< (), RenderError >;
-    
+
     /// Ends the current rendering frame and finalizes the output.
     ///
     /// This method should complete any pending operations and prepare
@@ -153,7 +153,7 @@ mod private
     /// # Errors
     /// Returns `RenderFailed` if frame finalization fails.
     fn end_frame( &mut self ) -> core::result::Result< (), RenderError >;
-    
+
     /// Retrieves the rendered output.
     ///
     /// This method should return the final rendered output in the
@@ -162,7 +162,7 @@ mod private
     /// # Errors
     /// Returns `OutputError` if the output cannot be retrieved.
     fn output( &self ) -> core::result::Result< Self::Output, RenderError >;
-    
+
     /// Performs cleanup and releases resources.
     ///
     /// This method should clean up any allocated resources and
@@ -171,7 +171,7 @@ mod private
     /// # Errors
     /// Returns `RenderFailed` if cleanup operations fail.
     fn cleanup( &mut self ) -> core::result::Result< (), RenderError >;
-    
+
     /// Checks if a specific command type is supported by this renderer.
     fn supports_command( &self, command: &RenderCommand ) -> bool
     {
@@ -182,39 +182,51 @@ mod private
         RenderCommand::Text( _ ) => self.supports_text(),
         RenderCommand::Tilemap( _ ) => self.supports_tilemaps(),
         RenderCommand::ParticleEmitter( _ ) => self.supports_particles(),
+        RenderCommand::Geometry2DCommand( _ ) => self.supports_geometry2d(),
+        RenderCommand::SpriteCommand( _ ) => self.supports_sprite(),
       }
     }
-    
+
     /// Returns whether this renderer supports line primitives.
     fn supports_lines( &self ) -> bool
     {
       true // Most backends support lines
     }
-    
+
     /// Returns whether this renderer supports curve primitives.
     fn supports_curves( &self ) -> bool
     {
       true // Most backends support curves
     }
-    
+
     /// Returns whether this renderer supports text primitives.
     fn supports_text( &self ) -> bool
     {
       true // Most backends support text
     }
-    
+
     /// Returns whether this renderer supports tilemap primitives.
     fn supports_tilemaps( &self ) -> bool
     {
       false // Not all backends support tilemaps
     }
-    
+
     /// Returns whether this renderer supports particle emitter primitives.
     fn supports_particles( &self ) -> bool
     {
       false // Not all backends support particles
     }
-    
+
+    fn supports_geometry2d( &self ) -> bool
+    {
+      false
+    }
+
+    fn supports_sprite( &self ) -> bool
+    {
+      false
+    }
+
     /// Validates that the renderer can handle the given scene.
     ///
     /// # Errors
@@ -226,7 +238,7 @@ mod private
       {
         return Err( RenderError::ComplexityLimitExceeded );
       }
-      
+
       // Check command support
       for command in scene.commands()
       {
@@ -235,19 +247,21 @@ mod private
           let cmd_name = match command
           {
             RenderCommand::Line( _ ) => "Line",
-            RenderCommand::Curve( _ ) => "Curve", 
+            RenderCommand::Curve( _ ) => "Curve",
             RenderCommand::Text( _ ) => "Text",
             RenderCommand::Tilemap( _ ) => "Tilemap",
             RenderCommand::ParticleEmitter( _ ) => "ParticleEmitter",
+            RenderCommand::Geometry2DCommand( _ ) => "Geometry2DCommand",
+            RenderCommand::SpriteCommand( _ ) => "SpriteCommand",
           };
           return Err( RenderError::UnsupportedCommand( cmd_name.to_string() ) );
         }
       }
-      
+
       Ok( () )
     }
   }
-  
+
   /// Trait for rendering individual primitive commands.
   ///
   /// This trait provides granular control over how individual rendering
@@ -260,31 +274,31 @@ mod private
     /// # Errors
     /// Returns `RenderFailed` if line rendering fails.
     fn render_line( &mut self, command: &LineCommand ) -> core::result::Result< (), RenderError >;
-    
+
     /// Renders a curve command.
     ///
     /// # Errors
     /// Returns `RenderFailed` if curve rendering fails.
     fn render_curve( &mut self, command: &CurveCommand ) -> core::result::Result< (), RenderError >;
-    
+
     /// Renders a text command.
     ///
     /// # Errors
     /// Returns `RenderFailed` if text rendering fails.
     fn render_text( &mut self, command: &TextCommand ) -> core::result::Result< (), RenderError >;
-    
+
     /// Renders a tilemap command.
     ///
     /// # Errors
     /// Returns `FeatureNotImplemented` if tilemap rendering is not supported.
     fn render_tilemap( &mut self, command: &TilemapCommand ) -> core::result::Result< (), RenderError >;
-    
+
     /// Renders a particle emitter command.
     ///
     /// # Errors
     /// Returns `FeatureNotImplemented` if particle rendering is not supported.
     fn render_particle_emitter( &mut self, command: &ParticleEmitterCommand ) -> core::result::Result< (), RenderError >;
-    
+
     /// Dispatches a render command to the appropriate primitive renderer method.
     ///
     /// # Errors
@@ -298,10 +312,12 @@ mod private
         RenderCommand::Text( cmd ) => self.render_text( cmd ),
         RenderCommand::Tilemap( cmd ) => self.render_tilemap( cmd ),
         RenderCommand::ParticleEmitter( cmd ) => self.render_particle_emitter( cmd ),
+        RenderCommand::Geometry2DCommand( _cmd ) => todo!(),
+        RenderCommand::SpriteCommand( _cmd ) => todo!(),
       }
     }
   }
-  
+
   /// Trait for async rendering operations.
   ///
   /// This trait extends the basic Renderer trait with async capabilities
@@ -318,7 +334,7 @@ mod private
         self.render_scene( scene )
       }
     }
-    
+
     /// Asynchronously retrieves the rendered output.
     fn output_async( &self ) -> impl core::future::Future< Output = core::result::Result< Self::Output, RenderError > > + Send
     where
@@ -330,7 +346,7 @@ mod private
       }
     }
   }
-  
+
   impl Default for RenderContext
   {
     fn default() -> Self
@@ -346,7 +362,7 @@ mod private
       }
     }
   }
-  
+
   impl Default for RendererCapabilities
   {
     fn default() -> Self

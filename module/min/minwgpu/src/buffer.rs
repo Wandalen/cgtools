@@ -44,8 +44,8 @@ mod private
   #[ derive( Debug ) ]
   pub struct VertexBuffer< 'a >
   {
-    buffer : wgpu::Buffer,
-    layout : wgpu::VertexBufferLayout< 'a >,
+    pub buffer : wgpu::Buffer,
+    pub layout : wgpu::VertexBufferLayout< 'a >,
   }
 
   impl< 'a > VertexBuffer< 'a >
