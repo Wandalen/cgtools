@@ -391,7 +391,7 @@ fn test_pathfinding_same_position()
 #[ test ]
 fn test_neighbors_up_triangle()
 {
-  let coord = Coordinate::< FlatSided >::new( 0, 2, 0 ).unwrap(); // 2+4=6 (even) -> up triangle
+  let coord = Coordinate::< FlatSided >::new( 0, 2, 0 ).unwrap();
   assert!(coord.is_up_or_right());
 
   let neighbors = coord.neighbors();
@@ -412,7 +412,7 @@ fn test_neighbors_up_triangle()
 #[ test ]
 fn test_neighbors_down_triangle()
 {
-  let coord = Coordinate::< FlatSided >::new(0, 1, 0).unwrap(); // 2+3=5 (odd) -> down triangle
+  let coord = Coordinate::< FlatSided >::new(0, 1, 0).unwrap();
   assert!(coord.is_down_or_left());
 
   let neighbors = coord.neighbors();
