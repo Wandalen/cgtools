@@ -24,6 +24,8 @@ mod private
 {
   own use ::mod_interface::mod_interface;
 
+  layer easing;
+
   layer interpolation;
 
   layer sequencer;
