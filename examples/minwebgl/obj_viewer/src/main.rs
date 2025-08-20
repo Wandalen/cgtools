@@ -8,17 +8,22 @@
 use std::
 {
   collections::{ HashMap, HashSet },
+  rc::Rc, 
+  cell::RefCell,
   sync::{ Arc, Mutex }
 };
 
 use material::{ GLMaterial, TextureType };
 use mesh::GLMesh;
-use mingl::CameraOrbitControls;
+use mingl::
+{ 
+  CameraOrbitControls, 
+  camera_orbit_controls::bind_controls_to_input 
+};
 use minwebgl::{ self as gl, JsCast };
 use web_sys::wasm_bindgen::prelude::Closure;
 
 mod mesh;
-mod camera_controls;
 mod material;
 
 async fn run() -> Result< (), gl::WebglError >
@@ -54,9 +59,9 @@ async fn run() -> Result< (), gl::WebglError >
     fov,
     ..Default::default()
   };
-  let camera = Arc::new( Mutex::new( camera ) );
+  let camera = Rc::new( RefCell::new( camera ) );
 
-  camera_controls::setup_controls( &canvas, &camera );
+  bind_controls_to_input( &canvas, &camera );
 
   // You need to provide the full path to the object, and paths to folder that contain textures and mtl
   // Path is relative to "assets", and you cannot move up, so all of your file should be located in "assets" folder
@@ -183,8 +188,8 @@ async fn run() -> Result< (), gl::WebglError >
     {
       let _time = t as f32 / 1000.0;
 
-      let view_matrix = camera.lock().unwrap().view().to_array();
-      let eye = camera.lock().unwrap().eye().to_array();
+      let view_matrix = camera.borrow().view().to_array();
+      let eye = camera.borrow().eye().to_array();
 
       for m in gl_meshes_opaque.iter()
       {
