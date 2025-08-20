@@ -62,8 +62,6 @@ use renderer::webgl::
 use std::rc::Rc;
 use std::cell::RefCell;
 
-mod camera_controls;
-
 fn generate_object_colors( object_count : u32 ) -> Vec< F32x4 >
 {
   let mut rng = rand::rng();
@@ -180,7 +178,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
   camera.set_window_size( [ width, height ].into() );
-  camera_controls::setup_controls( &canvas, &camera.get_controls() );
+  camera.bind_controls( &canvas );
 
   let renderer = Rc::new
   (

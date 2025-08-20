@@ -1,5 +1,5 @@
 [package]
-name = "geometry_generation"
+name = "primitive_generation"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.75.0"
@@ -9,8 +9,8 @@ authors = [
 ]
 license = "MIT"
 repository = "https://github.com/Wandalen/cgtools"
-homepage = "https://github.com/Wandalen/cgtools/tree/master/module/helper/geometry_generation"
-documentation = "https://docs.rs/geometry_generation"
+homepage = "https://github.com/Wandalen/cgtools/tree/master/module/helper/primitive_generation"
+documentation = "https://docs.rs/primitive_generation"
 description = "3D geometry generation toolkit with primitives, text rendering, and procedural shape creation"
 readme = "readme.md"
 keywords = ["geometry", "3d", "primitives", "mesh", "graphics"]
@@ -107,6 +107,6 @@ targets = [
 # Cargo.toml maintenance metadata
 [package.metadata.release]
 pre-release-replacements = [
-    { file = "readme.md", search = "geometry_generation = \"[0-9.]+\"", replace = "geometry_generation = \"{{version}}\"" },
+    { file = "readme.md", search = "primitive_generation = \"[0-9.]+\"", replace = "primitive_generation = \"{{version}}\"" },
     { file = "changelog.md", search = "## Unreleased", replace = "## Unreleased\n\n## {{version}} - {{date}}" },
 ]

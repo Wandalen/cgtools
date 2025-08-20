@@ -25,7 +25,7 @@ mod private
     Geometry,
     IndexInfo
   };
-  use geometry_generation::primitive_data::
+  use primitive_generation::primitive_data::
   {
     Transform,
     AttributesData,

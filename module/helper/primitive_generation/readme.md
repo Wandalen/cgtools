@@ -1,9 +1,9 @@
-# geometry_generation
+# primitive_generation
 
 3D geometry generation toolkit with primitives, text rendering, and procedural shape creation.
 
-[![Crates.io](https://img.shields.io/crates/v/geometry_generation.svg)](https://crates.io/crates/geometry_generation)
-[![Documentation](https://docs.rs/geometry_generation/badge.svg)](https://docs.rs/geometry_generation)
+[![Crates.io](https://img.shields.io/crates/v/primitive_generation.svg)](https://crates.io/crates/primitive_generation)
+[![Documentation](https://docs.rs/primitive_generation/badge.svg)](https://docs.rs/primitive_generation)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Features
@@ -22,14 +22,14 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-geometry_generation = "0.1.0"
+primitive_generation = "0.1.0"
 ```
 
 For full functionality, enable all features:
 
 ```toml
 [dependencies]
-geometry_generation = { version = "0.1.0", features = ["full"] }
+primitive_generation = { version = "0.1.0", features = ["full"] }
 ```
 
 ## Features
@@ -47,7 +47,7 @@ geometry_generation = { version = "0.1.0", features = ["full"] }
 ### Basic Primitive Generation
 
 ```rust,no_run
-use geometry_generation::{PrimitiveData, AttributesData, Transform};
+use primitive_generation::{PrimitiveData, AttributesData, Transform};
 use std::cell::RefCell;
 use std::rc::Rc;
 use minwebgl::F32x4;

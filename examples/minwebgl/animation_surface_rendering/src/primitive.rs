@@ -4,7 +4,7 @@ mod private
   use gl::{ F32x2, geometry::BoundingBox };
   use std::cell::RefCell;
   use std::rc::Rc;
-  use geometry_generation::AttributesData;
+  use primitive_generation::AttributesData;
   use kurbo::PathEl;
   use crate::primitive_data::PrimitiveData;
 
