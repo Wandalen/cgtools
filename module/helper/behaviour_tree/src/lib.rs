@@ -23,28 +23,7 @@
 //! - **Success**: Node completed successfully
 //! - **Failure**: Node failed to complete
 //! - **Running**: Node is still executing (multi-frame actions)
-//!
-//! # Examples
-//!
-//! ```rust
-//! use behavior_tree::*;
-//! use tiles_tools::ecs::*;
-//! use tiles_tools::coordinates::square::{ Coordinate, FourConnected };
-//!
-//! // Create a simple patrol behavior
-//! let mut patrol_tree = BehaviorTreeBuilder::new()
-//!     .sequence(vec![
-//!         Box::new(MoveToAction::new(Coordinate::<FourConnected>::new(10, 10))),
-//!         Box::new(WaitAction::new(2.0)), // Wait 2 seconds
-//!         Box::new(MoveToAction::new(Coordinate::<FourConnected>::new(5, 5))),
-//!         Box::new(WaitAction::new(2.0)),
-//!     ])
-//!     .build();
-//!
-//! // Execute the behavior tree
-//! let mut context = BehaviorContext::new();
-//! let status = patrol_tree.execute(&mut context);
-//! ```
+
 
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
