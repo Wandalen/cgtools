@@ -311,3 +311,78 @@ fn test_distance_between_neighbors()
     assert!(distance == 1, "Neighbor distance should be 1, got {}", distance);
   }
 }
+
+#[ test ]
+fn test_distance_symmetry()
+{
+  let coord1 = Coordinate::< FlatSided >::new(0, 0, 1).unwrap();
+  let coord2 = Coordinate::< FlatSided >::new(0, 0, 2).unwrap();
+  assert_eq!(coord1.distance(&coord2), coord2.distance(&coord1));
+}
+
+#[ test ]
+fn test_neighbors_reciprocal()
+{
+  let coord = Coordinate::< FlatSided >::new( 0, 0, 1 ).unwrap();
+  let neighbors = coord.neighbors();
+
+  // For each neighbor, coord should be in that neighbor's neighbor list
+  for neighbor in neighbors
+  {
+    let neighbor_neighbors = neighbor.neighbors();
+    assert!
+    (
+      neighbor_neighbors.contains(&coord),
+      "Reciprocal neighbor relationship should hold for {:?} and {:?}",
+      coord,
+      neighbor
+    );
+  }
+}
+#[ test ]
+fn test_pathfinding_integration()
+{
+  use tiles_tools::pathfind::astar;
+
+  let start = Coordinate::< FlatSided >::new( 0, 0, 1 ).unwrap();
+  let goal = Coordinate::< FlatSided >::new( 1, 1, -1 ).unwrap();
+
+  let result = astar
+  (
+    &start,
+    &goal,
+    | _coord | true,
+    | _coord | 1,
+  );
+
+  assert!( result.is_some(), "Should find a path" );
+  let ( path, cost ) = result.unwrap();
+
+  // Distance should be max(|3-0|, |3-0|) = 3 for triangular coordinates
+  assert_eq!(cost, 4, "Path cost should match triangular distance");
+  assert_eq!(path.len(), 5, "Path should contain start + 3 steps");
+  assert_eq!(path[0], start);
+  assert_eq!(path[path.len() - 1], goal);
+}
+
+#[ test ]
+fn test_pathfinding_same_position()
+{
+  use tiles_tools::pathfind::astar;
+
+  let coord = Coordinate::< FlatSided >::new( 0, 0, 1 ).unwrap();
+
+  let result = astar
+  (
+    &coord,
+    &coord,
+    |_coord| true,
+    |_coord| 1,
+  );
+
+  assert!(result.is_some(), "Should handle same start/goal");
+  let (path, cost) = result.unwrap();
+  assert_eq!(cost, 0, "Cost to same position should be 0");
+  assert_eq!(path.len(), 1, "Path should contain only the position itself");
+  assert_eq!(path[0], coord);
+}
