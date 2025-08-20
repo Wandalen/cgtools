@@ -83,7 +83,7 @@ fn run() -> Result< (), gl::WebglError >
         match value.as_str()
         {
           "miter" => { line.set_join( line_tools::Join::Miter( 7, 7 ) ); },
-          "bevel" => { line.set_join( line_tools::Join::Bevel ); },
+          "bevel" => { line.set_join( line_tools::Join::Bevel( 7, 7 ) ); },
           "round" => { line.set_join( line_tools::Join::Round( 16 ) ); },
           _ => {}
         }

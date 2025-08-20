@@ -33,20 +33,18 @@ void main()
   vec2 AB = pointB - pointA;
   vec2 CB = pointB - pointC;
 
+  // Direction of the bend
   float sigma = sign( dot( AB + CB, normal ) );
 
-  vec2 ABNorm = normalize( vec2( -AB.y, AB.x ) );
-  vec2 CBNorm = normalize( vec2( CB.y, -CB.x ) );
+  vec2 normToAB = normalize( vec2( -AB.y, AB.x ) );
+  vec2 normToCB = normalize( vec2( -CB.y, CB.x ) );
 
   // Upper corner
-  vec2 p1 = pointB + 0.5 * u_width * sigma * normal / dot( CBNorm, normal );
+  vec2 p1 = pointB + 0.5 * u_width * sigma * normal / dot( -normToCB, normal );
   // Bottom corner
   vec2 p3 = vec2( 0.0 );
   
   {
-    vec2 normToAB = normalize( vec2( -AB.y, AB.x ) );
-    vec2 normToCB = normalize( vec2( -CB.y, CB.x ) );
-
     vec2 leftBottomCornerA = pointA + normToAB * -sigma * u_width * 0.5;
     vec2 rightBottomCornerC = pointC + normToCB * sigma * u_width * 0.5;
 
@@ -82,13 +80,13 @@ void main()
       }
     }
 
-    p3 = lineIntersection( pointB, normal, offsetPoint, ABNorm );
+    p3 = lineIntersection( pointB, normal, offsetPoint, normToAB );
   }
 
   // Left corner
-  vec2 p0 = lineIntersection( pointB + ABNorm * sigma * u_width * 0.5, AB, p3, ABNorm * sigma );
+  vec2 p0 = lineIntersection( pointB + normToAB * sigma * u_width * 0.5, AB, p3, normToAB * sigma );
   // Right corner
-  vec2 p2 = lineIntersection( pointB + CBNorm * sigma * u_width * 0.5, CB, p3, CBNorm * sigma );
+  vec2 p2 = lineIntersection( pointB - normToCB * sigma * u_width * 0.5, CB, p3, normToCB * sigma );
 
   vUv.y = mix( 0.0, 1.0, 1.0 - position.w );
   vUv.x = inUvX;

@@ -218,6 +218,8 @@ mod private
         gl::buffer::upload( gl, &join_uv_buffer, &join_uvs, gl::STATIC_DRAW );
         gl::index::upload( gl, &join_indices_buffer, &join_indices, gl::STATIC_DRAW );
 
+        gl::info!( "Join count : {}", join_geometry_count );
+
         let j_program = mesh.get_program( "join" );
         let vao = gl.create_vertex_array();
         gl.bind_vertex_array( vao.as_ref() ); 
@@ -238,12 +240,13 @@ mod private
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 4, &join_uv_buffer )?;
           },
-          Join::Bevel =>
+          Join::Bevel( _, _ ) =>
           {
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 0 ).attribute_pointer( &gl, 0, &join_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 4, &join_uv_buffer )?;
           },
         }
 
@@ -252,7 +255,7 @@ mod private
         {
           Join::Round( _ ) => ( d2::JOIN_ROUND_VERTEX_SHADER, gl::TRIANGLE_FAN ),
           Join::Miter( _, _ ) => ( d2::JOIN_MITER_VERTEX_SHADER,gl::TRIANGLES ),
-          Join::Bevel => ( d2::JOIN_BEVEL_VERTEX_SHADER, gl::TRIANGLE_FAN )
+          Join::Bevel( _, _ ) => ( d2::JOIN_BEVEL_VERTEX_SHADER, gl::TRIANGLES )
         };
 
         let vertex_shader = gl::ShaderSource::former()

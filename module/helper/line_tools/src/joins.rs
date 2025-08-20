@@ -16,7 +16,8 @@ mod private
     /// Accepts level of triangualtion in the horizontal and vertical directions
     Miter( usize, usize ),
     /// A bevel join, where the corner is "cut off" by a straight line, creating a flat edge.
-    Bevel
+    /// Accepts level of triangualtion in the horizontal and vertical directions
+    Bevel( usize, usize )
   }
 
   impl Join
@@ -43,19 +44,18 @@ mod private
         },
         Self::Miter( row_precision, column_precision ) =>
         {
-          let ( g, uv ) = miter_geometry_dynamic( *row_precision, *column_precision );
+          let ( g, uv ) = miter_geometry( *row_precision, *column_precision );
+          let len = g.len();
           let g : Vec< f32 > = g.into_iter().map( | v | v.as_array() ).flatten().collect();
           let ind = Vec::new();
-          let len = g.len();
           ( g, ind, uv, len )
         },
-        Self::Bevel => 
+        Self::Bevel( row_precision, column_precision ) => 
         {
-          let g = bevel_geometry();
-          let g : Vec< f32 > = g.into_iter().flatten().collect();
-          let ind = Vec::new();
-          let uv = Vec::new();
+          let ( g, uv ) = bevel_geometry( *row_precision, *column_precision );
           let len = g.len();
+          let g : Vec< f32 > = g.into_iter().map( | v | v.as_array() ).flatten().collect();
+          let ind = Vec::new();
           ( g, ind, uv, len )
         }
       }
@@ -71,17 +71,89 @@ mod private
   }
 
   /// Generates the vertex data for a bevel join.
-  pub fn bevel_geometry() -> [ [ f32; 3 ]; 3 ]
+  pub fn bevel_geometry( row_precision : usize, column_precision : usize ) -> ( Vec< gl::F32x3 >, Vec< f32 > ) 
   {
-    [
-      [ 1.0, 0.0, 0.0 ],
-      [ 0.0, 1.0, 0.0 ],
-      [ 0.0, 0.0, 1.0 ],
-    ]
+    let mut vertex_row_list = Vec::with_capacity( row_precision );
+    let mut verticies = Vec::new();
+    let mut uvs = Vec::new();
+
+    let p0 = gl::F32x3::new( 1.0, 0.0, 0.0 );
+    let p1 = gl::F32x3::new( 0.0, 1.0, 0.0 );
+    let p2 = gl::F32x3::new( 0.0, 0.0, 1.0 );
+
+    let p2_offset = 0.005;
+
+    // Create vertices
+    for i in 0..( row_precision + 1 )
+    {
+      let rm = ( 1.0 - ( i as f32 / row_precision as f32 ) ).max( p2_offset );
+      let mut column_list = Vec::with_capacity( column_precision );
+      let rp0 = p0 * rm;
+      let rp1 = p1 * rm;
+
+      for k in 0..( column_precision + 1 )
+      {
+        let cm = k as f32 / column_precision as f32;
+        let p = rp0 * ( 1.0 - cm ) + rp1 * cm;
+        column_list.push( p );
+      }
+
+      vertex_row_list.push( column_list );
+    }
+
+    // Create triangles
+    for i in 0..( vertex_row_list.len() - 1 )
+    {
+      let row1 = &vertex_row_list[ i ];
+      let row2 = &vertex_row_list[ i + 1 ];
+
+      // Left triangle
+      for j in 0..column_precision
+      {
+        let c11 = row1[ j ];
+        let c12 = row1[ j + 1 ];
+
+        let c21 = row2[ j ];
+        let c22 = row2[ j + 1 ];
+
+        verticies.push( [ c11, c21, c22 ] );
+        verticies.push( [ c11, c22, c12 ] );
+
+        let uv1 = j as f32 / column_precision as f32;
+        let uv2 = ( j + 1 ) as f32 / column_precision as f32;
+
+        uvs.push( [ uv1, uv1, uv2 ] );
+        uvs.push( [ uv1, uv2, uv2 ] );
+      }
+    }
+
+    //// Create the last row of triangles
+    let last_row = &vertex_row_list[ vertex_row_list.len() - 1 ];
+    {
+      let c11 = last_row[ 0 ];
+      let c12 = last_row[ vertex_row_list.len() - 1  ];
+
+      verticies.push( [ c11, p2, c12 ] );
+
+      let uv1 = 0.0;
+      let uv2 = 1.0;
+
+      uvs.push( [ uv1, 0.5, uv2 ] );
+    }
+
+    // for i in 0..verticies.len()
+    // {
+    //   gl::info!( "{:?} || {:?}", verticies[ i ], uvs[ i ] );
+    // }
+
+    let verticies = verticies.into_iter().flatten().collect();
+    let uvs = uvs.into_iter().flatten().collect();
+
+    ( verticies, uvs )
   }
 
   /// Generates the vertex data for a miter join.
-  pub fn miter_geometry_dynamic( row_precision : usize, column_precision : usize ) -> ( Vec< gl::F32x4 >, Vec< f32 > ) 
+  pub fn miter_geometry( row_precision : usize, column_precision : usize ) -> ( Vec< gl::F32x4 >, Vec< f32 > ) 
   {
     let mut vertex_row_list = Vec::with_capacity( row_precision );
     let mut verticies = Vec::new();
@@ -174,33 +246,29 @@ mod private
 
     //// Create the last row of triangles
     let last_row = &vertex_row_list[ vertex_row_list.len() - 1 ];
-    // Left triangle
-    for j in 0..column_precision
+
+    //Left triangle
     {
-      let c11 = last_row[ j ];
-      let c12 = last_row[ j + 1 ];
+      let c11 = last_row[ 0 ];
+      let c12 = last_row[ column_precision - 1 ];
 
       verticies.push( [ c11, p3, c12 ] );
 
-      let uv1 = 0.5 * j as f32 / column_precision as f32;
-      let uv2 = 0.5 * ( j + 1 ) as f32 / column_precision as f32;
+      let uv1 = 0.0;
+      let uv2 = 0.5;
 
       uvs.push( [ uv1, 0.5, uv2 ] );
     }
 
     // Right triangle
-    for j in 0..column_precision
     {
-      let j_old = j;
-      let j = j + column_precision;
-
-      let c11 = last_row[ j ];
-      let c12 = last_row[ j + 1 ];
+      let c11 = last_row[ column_precision ];
+      let c12 = last_row[ last_row.len() - 1 ];
 
       verticies.push( [ c11, p3, c12 ] );
 
-      let uv1 = 0.5 + 0.5 * j_old as f32 / column_precision as f32;
-      let uv2 = 0.5 + 0.5 * ( j_old + 1 ) as f32 / column_precision as f32;
+      let uv1 = 0.5;
+      let uv2 = 1.0;
 
       uvs.push( [ uv1, 0.5, uv2 ] );
     }
@@ -240,7 +308,7 @@ crate::mod_interface!
 
   own use
   {
-    miter_geometry_dynamic,
+    miter_geometry,
     bevel_geometry,
     round_geometry
   };
