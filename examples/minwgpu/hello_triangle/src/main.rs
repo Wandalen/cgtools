@@ -16,7 +16,7 @@ fn run()
     }
   );
 
-  let adapter = minwgpu::helper::request_adapter
+  let adapter = minwgpu::helper::adapter::request_adapter
   (
     &instance,
     &wgpu::RequestAdapterOptions
@@ -26,7 +26,7 @@ fn run()
     }
   ).expect( "Failed to retrieve an adapter" );
 
-  let ( device, queue ) = minwgpu::helper::request_device( &adapter, &wgpu::DeviceDescriptor::default() )
+  let ( device, queue ) = minwgpu::helper::device::request_device( &adapter, &wgpu::DeviceDescriptor::default() )
   .expect( "Failed to retrieve a device" );
 
   let shader = device.create_shader_module( wgpu::include_wgsl!( "../shaders/shader.wgsl" ) );

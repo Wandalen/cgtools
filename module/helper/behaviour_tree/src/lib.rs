@@ -26,8 +26,8 @@
 //!
 //! # Examples
 //!
-//! ```rust
-//! use behavior_tree::*;
+//! `
+//! use behaviour_tree::*;
 //! use tiles_tools::ecs::*;
 //! use tiles_tools::coordinates::square::{ Coordinate, FourConnected };
 //!
@@ -44,7 +44,7 @@
 //! // Execute the behavior tree
 //! let mut context = BehaviorContext::new();
 //! let status = patrol_tree.execute(&mut context);
-//! ```
+//! `
 
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
