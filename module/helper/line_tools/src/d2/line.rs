@@ -225,9 +225,9 @@ mod private
         gl.bind_vertex_array( vao.as_ref() ); 
         match self.join
         {
-          Join::Round( _ ) =>
+          Join::Round( _, _ ) =>
           {
-            gl::BufferDescriptor::new::< f32 >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 0, &join_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 0, &join_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
@@ -253,7 +253,7 @@ mod private
         let ( vertex_shader, draw_mode ) =
         match self.join 
         {
-          Join::Round( _ ) => ( d2::JOIN_ROUND_VERTEX_SHADER, gl::TRIANGLE_FAN ),
+          Join::Round( _, _ ) => ( d2::JOIN_ROUND_VERTEX_SHADER, gl::TRIANGLES ),
           Join::Miter( _, _ ) => ( d2::JOIN_MITER_VERTEX_SHADER,gl::TRIANGLES ),
           Join::Bevel( _, _ ) => ( d2::JOIN_BEVEL_VERTEX_SHADER, gl::TRIANGLES )
         };
@@ -371,9 +371,9 @@ mod private
       
       if self.points.len() > 2
       {
-        if let Join::Round( segments ) = self.join
+        if let Join::Round( row_precision, _ ) = self.join
         {
-          mesh.upload_to( gl, "join", "u_segments", &( segments as f32 ) )?;
+          mesh.upload_to( gl, "join", "u_segments", &( row_precision as f32 ) )?;
         }
 
         mesh.draw( gl, "join" );

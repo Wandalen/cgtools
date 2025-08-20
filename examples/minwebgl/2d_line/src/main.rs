@@ -84,7 +84,7 @@ fn run() -> Result< (), gl::WebglError >
         {
           "miter" => { line.set_join( line_tools::Join::Miter( 7, 7 ) ); },
           "bevel" => { line.set_join( line_tools::Join::Bevel( 7, 7 ) ); },
-          "round" => { line.set_join( line_tools::Join::Round( 16 ) ); },
+          "round" => { line.set_join( line_tools::Join::Round( 16, 8 ) ); },
           _ => {}
         }
       }

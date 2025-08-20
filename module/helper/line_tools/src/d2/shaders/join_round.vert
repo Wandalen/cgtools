@@ -3,7 +3,7 @@ precision highp float;
 
 const float PI = 3.1415926;
 
-layout( location = 0 ) in float id;
+layout( location = 0 ) in vec2 id;
 layout( location = 1 ) in vec3 inPointA;
 layout( location = 2 ) in vec3 inPointB;
 layout( location = 3 ) in vec3 inPointC;
