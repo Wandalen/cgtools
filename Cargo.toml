@@ -138,6 +138,10 @@ path = "module/helper/line_tools"
 version = "0.1.0"
 path = "module/helper/tilemap_renderer"
 
+[workspace.dependencies.behaviour_tree]
+version = "0.1.0"
+path = "module/helper/behaviour_tree"
+
 # = min
 
 [workspace.dependencies.mingl]

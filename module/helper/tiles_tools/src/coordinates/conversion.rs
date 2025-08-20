@@ -213,73 +213,8 @@ impl ApproximateConvert<HexCoord<Axial, Pointy>> for IsoCoord<Diamond> {
 // Approximate Conversions: Triangular ↔ Other Systems
 // =============================================================================
 
-// use crate::coordinates::triangular::{ Coordinate as TriCoord, TwelveConnected };
+// Currently no implementation
 
-/// Triangular to Square conversion (approximate).
-///
-/// Maps triangular coordinates to square grid positions. Since triangular
-/// grids have a different tessellation pattern, this conversion approximates
-/// the spatial relationship.
-// impl ApproximateConvert<SquareCoord<SquareFour>> for TriCoord<TwelveConnected> {
-//   fn approximate_convert(self) -> SquareCoord<SquareFour> {
-//     // Simple mapping that attempts to preserve general spatial layout
-//     // Triangular coordinates are scaled and shifted to fit square grid
-//     let x = self.x;
-//     let y = self.y / 2;  // Compress y-axis due to triangular packing
-//     SquareCoord::<SquareFour>::new(x, y)
-//   }
-// }
-
-// impl ApproximateConvert<SquareCoord<SquareEight>> for TriCoord<TwelveConnected> {
-//   fn approximate_convert(self) -> SquareCoord<SquareEight> {
-//     let x = self.x;
-//     let y = self.y / 2;
-//     SquareCoord::<SquareEight>::new(x, y)
-//   }
-// }
-
-/// Square to Triangular conversion (approximate).
-// impl<Connectivity> ApproximateConvert<TriCoord<TwelveConnected>> for SquareCoord<Connectivity> {
-//   fn approximate_convert(self) -> TriCoord<TwelveConnected> {
-//     // Expand y-axis to account for triangular packing density
-//     let x = self.x;
-//     let y = self.y * 2;
-//     TriCoord::<TwelveConnected>::new(x, y)
-//   }
-// }
-
-/// Triangular to Isometric conversion (approximate, via Square).
-// impl ApproximateConvert<IsoCoord<Diamond>> for TriCoord<TwelveConnected> {
-//   fn approximate_convert(self) -> IsoCoord<Diamond> {
-//     let square: SquareCoord<SquareFour> = self.approximate_convert();
-//     square.convert()
-//   }
-// }
-
-/// Isometric to Triangular conversion (approximate, via Square).
-// impl ApproximateConvert<TriCoord<TwelveConnected>> for IsoCoord<Diamond> {
-//   fn approximate_convert(self) -> TriCoord<TwelveConnected> {
-//     let square: SquareCoord<SquareFour> = self.convert();
-//     square.approximate_convert()
-//   }
-// }
-
-/// Triangular to Hexagonal conversion (approximate).
-// impl ApproximateConvert<HexCoord<Axial, Pointy>> for TriCoord<TwelveConnected> {
-//   fn approximate_convert(self) -> HexCoord<Axial, Pointy> {
-//     // Convert via square grid as intermediate
-//     let square: SquareCoord<SquareFour> = self.approximate_convert();
-//     square.approximate_convert()
-//   }
-// }
-
-/// Hexagonal to Triangular conversion (approximate).
-// impl<Orientation> ApproximateConvert<TriCoord<TwelveConnected>> for HexCoord<Axial, Orientation> {
-//   fn approximate_convert(self) -> TriCoord<TwelveConnected> {
-//     let square: SquareCoord<SquareFour> = self.approximate_convert();
-//     square.approximate_convert()
-//   }
-// }
 
 // =============================================================================
 // Batch Conversion Implementations
