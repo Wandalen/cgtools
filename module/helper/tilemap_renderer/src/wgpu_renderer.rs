@@ -18,13 +18,14 @@ mod private
     geometry2d_pipeline : wgpu::RenderPipeline,
     line2d_pipeline : wgpu::RenderPipeline,
     sprite_pipeline : wgpu::RenderPipeline,
+    render_context : ports::RenderContext,
   }
 
   impl WGPURender
   {
     const GEOMETRY2D_ATTRIBUTES : &[ wgpu::VertexAttribute ] = &[ helper::attr( wgpu::VertexFormat::Float32x2, 0, 0 ) ];
 
-    pub fn new( backends : wgpu::Backends ) -> Result< Self, Error >
+    pub fn new( backends : wgpu::Backends, render_context : ports::RenderContext ) -> Result< Self, Error >
     {
       let context = context::Context::builder()
       .backends( backends )
@@ -256,11 +257,11 @@ mod private
           texture_bindgroup_layout,
           texture_sampler : sampler,
           textures : rustc_hash::FxHashMap::default(),
-          // geometry2d_layout,
           geometry2d : rustc_hash::FxHashMap::default(),
           geometry2d_pipeline,
           line2d_pipeline,
           sprite_pipeline,
+          render_context,
         }
       )
     }
@@ -348,8 +349,9 @@ mod private
       _ = self.geometry2d.insert( id, ( buf, vertex_count ) );
     }
 
-    pub fn commands_execute( &self, commands : &[ commands::RenderCommand ], ctx : ports::RenderContext ) -> Vec< u8 >
+    pub fn commands_execute( &self, commands : &[ commands::RenderCommand ] ) -> Vec< u8 >
     {
+      let ctx = &self.render_context;
       let width = ctx.width;
       let height = ctx.height;
       let scale = ctx.viewport_scale;
@@ -543,6 +545,11 @@ mod private
       };
       renderpass.set_push_constants( wgpu::ShaderStages::VERTEX, 0, bytemuck::bytes_of( &pc ) );
       renderpass.draw( 0..4, 0..1 );
+    }
+
+    pub fn render_context_set( &mut self, render_context : ports::RenderContext )
+    {
+      self.render_context = render_context;
     }
   }
 

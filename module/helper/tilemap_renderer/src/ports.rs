@@ -43,7 +43,7 @@ mod private
   }
 
   /// Rendering context information for frame rendering.
-  #[ derive( Debug, Clone, PartialEq ) ]
+  #[ derive( Debug, Clone, Copy, PartialEq ) ]
   #[ non_exhaustive ]
   pub struct RenderContext
   {
