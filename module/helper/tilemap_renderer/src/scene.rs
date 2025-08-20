@@ -356,7 +356,9 @@ mod private
     pub tilemap_count : usize,
     /// Number of `ParticleEmitter` commands.
     pub particle_emitter_count : usize,
+    /// Number of `Geometry2D` commands.
     pub geometry2d_count : usize,
+    /// Number of `Sprite` commands.
     pub sprite_count : usize,
   }
 

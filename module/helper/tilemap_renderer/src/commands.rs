@@ -107,17 +107,21 @@ mod private
     pub y : f32,
   }
 
-
-  #[ derive( Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize ) ]
+  /// Represents a 2D transformation with position, rotation, and scale.
+  #[ derive( Debug, Clone, Copy, PartialEq, Serialize, Deserialize ) ]
   pub struct Transform2D
   {
+    /// The translation component, as `[x, y]`.
     pub position : [ f32; 2 ],
+    /// The rotation component, in radians.
     pub rotation : f32,
+    /// The scale component, as `[x, y]`.
     pub scale : [ f32; 2 ]
   }
 
   impl Transform2D
   {
+    /// Creates a new `Transform2D` from its components.
     pub fn new< V1, V2 >( position : V2, rotation : V1, scale : V2 ) -> Self
     where
       V1 : Into< f32 >,
@@ -131,6 +135,7 @@ mod private
       }
     }
 
+    /// Sets the position of the transform.
     pub fn position_set< V2 >( &mut self, position : V2 )
     where
       V2 : Into< [ f32; 2 ] >
@@ -138,6 +143,7 @@ mod private
       self.position = position.into();
     }
 
+    /// Sets the rotation of the transform.
     pub fn rotation_set< V1 >( &mut self, rotation : V1 )
     where
       V1 : Into< f32 >
@@ -145,6 +151,7 @@ mod private
       self.rotation = rotation.into();
     }
 
+    /// Sets the scale of the transform.
     pub fn scale_set< V2 >( &mut self, scale : V2 )
     where
       V2 : Into< [ f32; 2 ] >
@@ -153,26 +160,45 @@ mod private
     }
   }
 
+  impl Default for Transform2D
+  {
+    fn default() -> Self
+    {
+      Self { position : Default::default(), rotation : Default::default(), scale : [ 1.0; 2 ] }
+    }
+  }
+
+  /// Specifies the rendering mode for 2D geometry.
   #[ derive( Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize ) ]
   pub enum GeometryMode
   {
+    /// Renders the geometry as a series of filled triangles.
     Triangles,
+    /// Renders the geometry as a series of lines.
     Lines,
   }
 
+  /// A command to render a piece of 2D geometry.
   #[ derive( Debug, Clone, Copy, Serialize, Deserialize, PartialEq ) ]
   pub struct Geometry2DCommand
   {
+    /// The unique identifier of the geometry resource to be drawn.
     pub id : u32,
+    /// The 2D transformation to apply to the geometry.
     pub transform : Transform2D,
+    /// The solid color to apply to the geometry, as `[r, g, b]`.
     pub color : [ f32; 3 ],
+    /// The mode (triangles or lines) to use for rendering.
     pub mode : GeometryMode
   }
 
+  /// A command to render a sprite.
   #[ derive( Debug, Clone, Copy, Serialize, Deserialize, PartialEq ) ]
   pub struct SpriteCommand
   {
+    /// The unique identifier of the texture resource to be drawn.
     pub id : u32,
+    /// The 2D transformation to apply to the sprite.
     pub transform : Transform2D,
   }
 
@@ -451,7 +477,9 @@ mod private
     Tilemap( TilemapCommand ),
     /// Particle emitter primitive.
     ParticleEmitter( ParticleEmitterCommand ),
+    /// 2D geometry primitive.
     Geometry2DCommand( Geometry2DCommand ),
+    /// Sprite primitive.
     SpriteCommand( SpriteCommand )
   }
 

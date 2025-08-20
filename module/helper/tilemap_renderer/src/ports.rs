@@ -63,6 +63,7 @@ mod private
 
   impl RenderContext
   {
+    /// Constructs new `RenderContext`
     pub fn new
     (
       width : u32,
@@ -233,11 +234,13 @@ mod private
       false // Not all backends support particles
     }
 
+    /// Returns whether this renderer supports 2d geometry primitives.
     fn supports_geometry2d( &self ) -> bool
     {
       false
     }
 
+    /// Returns whether this renderer supports sprite primitives.
     fn supports_sprite( &self ) -> bool
     {
       false
@@ -328,8 +331,8 @@ mod private
         RenderCommand::Text( cmd ) => self.render_text( cmd ),
         RenderCommand::Tilemap( cmd ) => self.render_tilemap( cmd ),
         RenderCommand::ParticleEmitter( cmd ) => self.render_particle_emitter( cmd ),
-        RenderCommand::Geometry2DCommand( _cmd ) => todo!(),
-        RenderCommand::SpriteCommand( _cmd ) => todo!(),
+        RenderCommand::Geometry2DCommand( _ ) | RenderCommand::SpriteCommand( _ )
+        => Err( RenderError::FeatureNotImplemented( "Feature's not yet implemented".into() ) ),
       }
     }
   }

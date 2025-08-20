@@ -33,7 +33,8 @@ pub mod ports;
   feature = "adapter-webgl",
   feature = "adapter-webgpu",
   feature = "adapter-terminal-basic",
-  feature = "adapter-terminal"
+  feature = "adapter-terminal",
+  feature = "adapter-wgpu"
 ) ) ]
 pub mod adapters;
 
@@ -53,5 +54,5 @@ pub mod query;
 ) ) ]
 pub mod cli;
 
-#[ cfg( feature = "adapter-wgpu" ) ]
-pub mod wgpu_renderer;
+// #[ cfg( feature = "adapter-wgpu" ) ]
+// pub mod wgpu_renderer;
