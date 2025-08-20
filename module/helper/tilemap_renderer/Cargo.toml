@@ -147,6 +147,7 @@ adapter-wgpu = [
   "enabled",
   "serde",
   "ports",
+  "commands",
   "dep:wgpu",
   "dep:minwgpu",
   "dep:bytemuck",

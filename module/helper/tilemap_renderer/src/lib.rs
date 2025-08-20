@@ -53,6 +53,3 @@ pub mod query;
   feature = "cli"
 ) ) ]
 pub mod cli;
-
-// #[ cfg( feature = "adapter-wgpu" ) ]
-// pub mod wgpu_renderer;
