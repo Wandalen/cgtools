@@ -36,10 +36,10 @@ mod private
       .required_limits( wgpu::Limits { max_push_constant_size : 44, ..Default::default() } )
       .finish_context()?;
 
-      let geom2d_shader = context.device().create_shader_module( wgpu::include_wgsl!( "../shaders/geom2d.wgsl" ) );
-      let sprite_shader = context.device().create_shader_module( wgpu::include_wgsl!( "../shaders/sprite.wgsl" ) );
+      let geom2d_shader = context.get_device().create_shader_module( wgpu::include_wgsl!( "../shaders/geom2d.wgsl" ) );
+      let sprite_shader = context.get_device().create_shader_module( wgpu::include_wgsl!( "../shaders/sprite.wgsl" ) );
 
-      let texture_bindgroup_layout = context.device().create_bind_group_layout
+      let texture_bindgroup_layout = context.get_device().create_bind_group_layout
       (
         &wgpu::BindGroupLayoutDescriptor
         {
@@ -69,7 +69,7 @@ mod private
         }
       );
 
-      let sampler = context.device().create_sampler
+      let sampler = context.get_device().create_sampler
       (
         &wgpu::SamplerDescriptor
         {
@@ -90,7 +90,7 @@ mod private
         attributes : Self::GEOMETRY2D_ATTRIBUTES,
       };
 
-      let geometry_pipeline_layout = context.device().create_pipeline_layout
+      let geometry_pipeline_layout = context.get_device().create_pipeline_layout
       (
         &wgpu::PipelineLayoutDescriptor
         {
@@ -104,7 +104,7 @@ mod private
         }
       );
 
-      let sprite_pipeline_layout = context.device().create_pipeline_layout
+      let sprite_pipeline_layout = context.get_device().create_pipeline_layout
       (
         &wgpu::PipelineLayoutDescriptor
         {
@@ -114,7 +114,7 @@ mod private
         }
       );
 
-      let geometry2d_pipeline = context.device().create_render_pipeline
+      let geometry2d_pipeline = context.get_device().create_render_pipeline
       (
         &wgpu::RenderPipelineDescriptor
         {
@@ -156,7 +156,7 @@ mod private
         }
       );
 
-      let line2d_pipeline = context.device().create_render_pipeline
+      let line2d_pipeline = context.get_device().create_render_pipeline
       (
         &wgpu::RenderPipelineDescriptor
         {
@@ -202,7 +202,7 @@ mod private
         }
       );
 
-      let sprite_pipeline = context.device().create_render_pipeline
+      let sprite_pipeline = context.get_device().create_render_pipeline
       (
         &wgpu::RenderPipelineDescriptor
         {
@@ -275,7 +275,7 @@ mod private
         depth_or_array_layers : 1,
       };
 
-      let texture = self.context.device().create_texture
+      let texture = self.context.get_device().create_texture
       (
         &wgpu::TextureDescriptor
         {
@@ -290,7 +290,7 @@ mod private
         }
       );
 
-      self.context.queue().write_texture
+      self.context.get_queue().write_texture
       (
         wgpu::TexelCopyTextureInfo
         {
@@ -309,12 +309,12 @@ mod private
         extent,
       );
 
-      self.context.queue().submit( [] );
+      self.context.get_queue().submit( [] );
 
       let view = texture.create_view( &wgpu::wgt::TextureViewDescriptor::default() );
       let texture = texture::Texture::new( texture, extent, view, self.texture_sampler.clone() );
 
-      let texture_bindgroup = self.context.device().create_bind_group
+      let texture_bindgroup = self.context.get_device().create_bind_group
       (
         &wgpu::BindGroupDescriptor
         {
@@ -343,7 +343,7 @@ mod private
     {
       let buf = buffer::buffer( wgpu::BufferUsages::VERTEX )
       .data( data )
-      .build( self.context.device() );
+      .build( self.context.get_device() );
 
       _ = self.geometry2d.insert( id, ( buf, vertex_count ) );
     }
@@ -369,7 +369,7 @@ mod private
         height,
         depth_or_array_layers : 1,
       };
-      let render_texture = self.context.device().create_texture
+      let render_texture = self.context.get_device().create_texture
       (
         &wgpu::TextureDescriptor
         {
@@ -394,7 +394,7 @@ mod private
       )
       .label( "output_buffer" )
       .size_from_value( output_buffer_size )
-      .build( self.context.device() );
+      .build( self.context.get_device() );
 
       let op = if ctx.clear_background
       {
@@ -431,7 +431,7 @@ mod private
         occlusion_query_set : None,
       };
 
-      let mut encoder = self.context.device()
+      let mut encoder = self.context.get_device()
       .create_command_encoder( &wgpu::CommandEncoderDescriptor { label : Some( "encoder" ) } );
 
       {
@@ -474,11 +474,11 @@ mod private
         texture_extent
       );
 
-      self.context.queue().submit( Some( encoder.finish() ) );
+      self.context.get_queue().submit( Some( encoder.finish() ) );
 
       let buffer_slice = output_buffer.slice( .. );
       buffer_slice.map_async( wgpu::MapMode::Read, | _ | {} );
-      self.context.device().poll( wgpu::PollType::Wait ).expect( "Failed to render an image" );
+      self.context.get_device().poll( wgpu::PollType::Wait ).expect( "Failed to render an image" );
 
       let data = buffer_slice.get_mapped_range();
       data.to_owned()
