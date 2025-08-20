@@ -26,7 +26,7 @@ fn vs_main( @location( 0 ) position : vec2< f32 > ) -> @builtin( position ) vec4
   );
 
   let pos = ( rot * ( pc.scale * position ) + pc.translation ) * pc.aspect_scale;
-  // let pos = ( pc.scale * position + pc.translation ) * pc.aspect_scale;
+
   return vec4< f32 >( pos, 0.0, 1.0 );
 }
 
