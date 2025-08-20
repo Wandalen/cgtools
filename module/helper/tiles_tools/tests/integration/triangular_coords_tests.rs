@@ -386,3 +386,46 @@ fn test_pathfinding_same_position()
   assert_eq!(path.len(), 1, "Path should contain only the position itself");
   assert_eq!(path[0], coord);
 }
+
+
+#[ test ]
+fn test_neighbors_up_triangle()
+{
+  let coord = Coordinate::< FlatSided >::new( 0, 2, 0 ).unwrap(); // 2+4=6 (even) -> up triangle
+  assert!(coord.is_up_or_right());
+
+  let neighbors = coord.neighbors();
+  let expected = vec![
+    // Edge-adjacent (3)
+    Coordinate::< FlatSided >::new(-1, 2, 0).unwrap(),
+    Coordinate::< FlatSided >::new(0, 2, -1).unwrap(),
+    Coordinate::< FlatSided >::new(0, 1, 0).unwrap(),
+  ];
+
+  assert_eq!(neighbors.len(), expected.len());
+  for expected_neighbor in expected {
+    assert!(neighbors.contains(&expected_neighbor),
+            "Missing neighbor: {:?}", expected_neighbor);
+  }
+}
+
+#[ test ]
+fn test_neighbors_down_triangle()
+{
+  let coord = Coordinate::< FlatSided >::new(0, 1, 0).unwrap(); // 2+3=5 (odd) -> down triangle
+  assert!(coord.is_down_or_left());
+
+  let neighbors = coord.neighbors();
+  let expected = vec!
+  [
+    Coordinate::< FlatSided >::new( 0, 1, 1 ).unwrap(),
+    Coordinate::< FlatSided >::new( 1, 1, 0 ).unwrap(),
+    Coordinate::< FlatSided >::new( 0, 2, 0 ).unwrap(),
+  ];
+
+  assert_eq!(neighbors.len(), expected.len());
+  for expected_neighbor in expected {
+    assert!(neighbors.contains(&expected_neighbor),
+            "Missing neighbor: {:?}", expected_neighbor);
+  }
+}
