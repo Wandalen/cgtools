@@ -34,6 +34,9 @@ void main()
   vec2 p2 = pointC;
   vec2 pos = position;
 
+  vUv.y = step( 0.0, pos.y );
+  vUv.x = position.x;
+
   if( position.x == 1.0 )
   {
     p0 = pointD;
@@ -48,55 +51,55 @@ void main()
   vec2 p01 = p1 - p0;
   vec2 p21 = p1 - p2;
 
-  vec2 p01Norm = normalize( vec2( -p01.y, p01.x ) );
+  vec2 normTo01 = normalize( vec2( -p01.y, p01.x ) );
+  vec2 normTo21 = normalize( vec2( -p21.y, p21.x ) );
+
   // Direction of the bend
   float sigma = sign( dot( p01 + p21, normal ) );
 
+  vec2 leftBottomCorner0 = p0 + normTo01 * -sigma * u_width * 0.5;
+  vec2 rightBottomCorner2 = p2 + normTo21 * sigma * u_width * 0.5;
+
+  vec2 closestPoint;
+  vec2 closestNormal;
+
+  // Choose the closest corner
+  if( dot( p01, p01 ) > dot( p21, p21 ) )
+  {
+    closestPoint = rightBottomCorner2;
+    closestNormal = normTo21;
+  }
+  else
+  {
+    closestPoint = leftBottomCorner0;
+    closestNormal = normTo01;
+  }
+
+  float offsetAmount = dot( normal, normTo01 );
+  vec2 intersectionPoint = lineIntersection( p1, normal, closestPoint, closestNormal );
+  vec2 offsetPoint = p1 + 0.5 * normal * -sigma * u_width / offsetAmount;
+
+  // If two segments overlap each other
+  if( dot( offsetPoint - intersectionPoint, normal * sigma ) < 0.0 )
+  {
+    vec2 normalized21 = normalize( p21 );
+    vec2 c2toInt =  intersectionPoint - rightBottomCorner2;
+    float k = dot( c2toInt, normalized21 );
+    offsetPoint = rightBottomCorner2 + k * normalized21 + normalized21 * dot( normal * sigma, normalized21 ) * length( intersectionPoint - offsetPoint );
+
+    if( dot( offsetPoint - p1, p21 ) > 0.0 )
+    {
+      offsetPoint = rightBottomCorner2 + p21;
+    }
+  }
+
   if( sign( pos.y ) == -sigma )
   {
-    vec2 normTo01 = normalize( vec2( -p01.y, p01.x ) );
-    vec2 normTo21 = normalize( vec2( -p21.y, p21.x ) );
-
-    vec2 corner0 = p0 + normTo01 * -sigma * u_width * 0.5;
-    vec2 corner2 = p2 + normTo21 * sigma * u_width * 0.5;
-
-    vec2 closestPoint;
-    vec2 closestNormal;
-
-    if( dot( p01, p01 ) > dot( p21, p21 ) )
-    {
-      closestPoint = corner2;
-      closestNormal = normTo21;
-    }
-    else
-    {
-      closestPoint = corner0;
-      closestNormal = normTo01;
-    }
-
-    vec2 intersectionPoint = lineIntersection( p1, normal, closestPoint, closestNormal );
-    vec2 offsetPoint = p1 + 0.5 * normal * -sigma * u_width / dot( normal, normTo01 );
-
-    if( dot( offsetPoint - intersectionPoint, normal * sigma ) < 0.0 )
-    {
-      vec2 normalized21 = normalize( p21 );
-      vec2 cAtoInt =  intersectionPoint - corner2;
-      float k = dot( cAtoInt, normalized21 );
-      offsetPoint = corner2 + k * normalized21 + normalized21 * dot( normal * sigma, normalized21 ) * length( intersectionPoint - offsetPoint );
-
-      if( dot( offsetPoint - p1, p21 ) > 0.0 )
-      {
-        offsetPoint = corner2 + p21;
-      }
-    }
-
     gl_Position = u_projection_matrix * vec4( offsetPoint, 0.0, 1.0 );
   }
   else
   {
-    vec2 xBasis = p2 - p1;
-    vec2 yBasis = normalize( vec2( -xBasis.y, xBasis.x ) );
-    vec2 point = p1 + xBasis * pos.x + yBasis * pos.y * u_width;
+    vec2 point = offsetPoint - normTo21 * sigma * u_width;
     gl_Position =  u_projection_matrix * vec4( point, 0.0, 1.0 );
   }
 }

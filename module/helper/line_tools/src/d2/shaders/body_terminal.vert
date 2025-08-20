@@ -48,18 +48,23 @@ void main()
   vec2 normToAB = normalize( vec2( -AB.y, AB.x ) );
   vec2 normToCB = normalize( vec2( -CB.y, CB.x ) );
 
-  // Direction of the bend
+  // Direction of the bend - left or right
+  float curl = sign( cross( vec3( AB, 0.0 ), vec3( CB, 0.0 ) ).z );
+
+  // Direction of the bend - up or down
   float sigma = sign( dot( AB + CB, normal ) );
 
   // If segments are parallel
   if( sigma == 0.0 ) { sigma = 1.0; }
 
-  vUv.x = inPointB.z;
-  vUv.y = mix( 0.0, 1.0, step( 0.0, sigma * position.y ) );
+  vUv.x = mix( 1.0 - position.x, position.x, step( 0.0, sigma ) );
+  vUv.y = step( 0.0, position.y );
+  //vUv.y = mix( vUv.y, 1.0 -  vUv.y, step( 0.0, mix( -sigma, sigma, float( gl_InstanceID ) ) ) );
+  vUv.y = mix( 1.0 - vUv.y, vUv.y, step( 0.0, sigma * curl ) );
+  vUv.y = mix( vUv.y, 1.0 - vUv.y, float( gl_InstanceID ) );
 
   if( position.x == 0.0 )
   {
-    vUv.x = inPointA.z;
     vec2 point = pointA + AB * position.x + normToAB * position.y * u_width;
     gl_Position =  u_projection_matrix * vec4( point, 0.0, 1.0 );
     return;

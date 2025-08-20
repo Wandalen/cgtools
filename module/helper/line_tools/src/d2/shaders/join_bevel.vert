@@ -89,6 +89,7 @@ void main()
   vec2 p1 = lineIntersection( pointB - normToCB * sigma * u_width * 0.5, CB, p2, normToCB * sigma );
 
   vUv.y = mix( 0.0, 1.0, position.x + position.y );
+  vUv.y = mix( 1.0 - vUv.y, vUv.y, step( 0.0, sigma ) );
   vUv.x = inUvX;
 
   vec2 point = p2 + ( p0 - p2 ) * position.x + ( p1 - p2 ) * position.y;

@@ -95,6 +95,7 @@ void main()
   point = p2 + tangent * point.x + normal * point.y;
 
   vUv.y = mix( 0.0, 1.0, position.y );
+  vUv.y = mix( 1.0 - vUv.y, vUv.y, step( 0.0, sigma ) );
   vUv.x = 1.0 - inUvX;
 
   gl_Position =  u_projection_matrix * vec4( point, 0.0, 1.0 );
