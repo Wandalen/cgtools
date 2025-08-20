@@ -227,10 +227,11 @@ mod private
         {
           Join::Round( _, _ ) =>
           {
-            gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 0, &join_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( &gl, 0, &join_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 4, &join_uv_buffer )?;
           },
           Join::Miter( _, _ ) =>
           {
@@ -371,10 +372,10 @@ mod private
       
       if self.points.len() > 2
       {
-        if let Join::Round( row_precision, _ ) = self.join
-        {
-          mesh.upload_to( gl, "join", "u_segments", &( row_precision as f32 ) )?;
-        }
+        // if let Join::Round( row_precision, _ ) = self.join
+        // {
+        //   mesh.upload_to( gl, "join", "u_segments", &( row_precision as f32 ) )?;
+        // }
 
         mesh.draw( gl, "join" );
       }
