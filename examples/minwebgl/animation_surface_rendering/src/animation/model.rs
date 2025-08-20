@@ -14,8 +14,39 @@ mod private
     Point,
     Vec2
   };
-  use crate::primitive::points_to_path;
+  use geometry_generation::points_to_path;
   use std::ops::Range;
+
+  pub struct Keyframe< T >
+  {
+    /// Time point
+    pub frame : f64, 
+    /// `EasingHandle` in, out parameters
+    pub tangents : [ Option< [ f64; 2 ] >; 2 ], 
+    /// Hold value or not
+    pub hold : bool, 
+    /// Interpolated value at this frame
+    pub value : T 
+  }
+
+  impl< T : interpoli::Tween > Keyframe< T >
+  {
+    pub fn new( 
+      frame : f64, 
+      tangents : [ Option< [ f64; 2 ] >; 2 ], 
+      hold : bool, 
+      value : T 
+    ) -> Self
+    {
+      Self
+      {
+        frame,
+        tangents,
+        hold,
+        value
+      }
+    }
+  }
 
   /// Creates a fixed `Value` that holds a single, constant value.
   ///
@@ -47,19 +78,26 @@ mod private
   /// A `Value::Animated` containing the animated data.
   pub fn animated< T : interpoli::Tween >
   ( 
-    values : Vec< ( f64, [ Option< [ f64; 2 ] >; 2 ], bool, T ) > 
+    values : Vec< Keyframe< T > > 
   ) -> Value< T >
   {
-    let _values = values.iter()
-    .map( | ( _, _, _, v ) | v )
-    .cloned()
+    let output_values = values.iter()
+    .map( | k | k.value.clone() )
     .collect::< Vec< _ > >();
 
     let times = values.into_iter()
     .map
     ( 
-      | ( frame, [ in_tangent, out_tangent ], hold, _ ) | 
+      | keyframe | 
       {
+        let Keyframe
+        {
+          frame,
+          tangents : [ in_tangent, out_tangent ],
+          hold,
+          ..
+        } 
+        = keyframe;
         interpoli::Time
         {
           frame,
@@ -76,7 +114,7 @@ mod private
       interpoli::Animated
       {
         times,
-        values : _values
+        values : output_values
       }
     )
   }
@@ -217,7 +255,7 @@ mod private
       is_closed : bool
     },
     /// A repeater that duplicates the previous shapes.
-    Repeater( interpoli::Repeater )
+    Repeater( Box< interpoli::Repeater > )
   }
 
   impl Shape
@@ -225,7 +263,7 @@ mod private
     /// Converts a vector of `Shape` enum variants into an `interpoli::Content` object.
     fn into_content( shapes : Vec< Shape > ) -> Content
     {
-      let mut _shapes = vec![];
+      let mut output_shapes = vec![];
 
       let mut stroke = None;
       let mut color = Color::Fixed( [ 0.0; 4 ] );
@@ -234,9 +272,9 @@ mod private
       {
         let shape : interpoli::Shape = match shape
         {
-          Shape::Stroke( _stroke ) => 
+          Shape::Stroke( s ) => 
           {
-            stroke = _stroke;
+            stroke = s;
 
             let brush = match color
             {
@@ -266,9 +304,9 @@ mod private
               } 
             )
           },
-          Shape::Color( _color ) =>
+          Shape::Color( c ) =>
           {
-            color = _color;
+            color = c;
 
             let brush = match color
             {
@@ -326,13 +364,13 @@ mod private
               )
             )
           },
-          Shape::Repeater( repeater ) => interpoli::Shape::Repeater( repeater.into() ),
+          Shape::Repeater( repeater ) => interpoli::Shape::Repeater( *repeater ),
         };
 
-        _shapes.push( shape );
+        output_shapes.push( shape );
       }
 
-      Content::Shape( _shapes )
+      Content::Shape( output_shapes )
     }
   }
   
@@ -425,7 +463,7 @@ mod private
         assets : Default::default(),
         layers : self.layers.clone()
         .into_iter()
-        .map( | l | l.into() )
+        .map( minwebgl::Into::into )
         .collect::< Vec< interpoli::Layer > >()
       }
     }
@@ -438,6 +476,7 @@ crate::mod_interface!
   {
     fixed,
     animated,
+    Keyframe,
     Transform,
     Color,
     Repeater,

@@ -1,6 +1,6 @@
-# Curve surface rendering
+# Lottie surface rendering
 
-This example demonstrates how to render a 2d curve on surface like sphere utilizing the `web_sys`, `minwebgl`, `renderer`, `canvas_renderer`, `geometry_generation` crates.
+This example demonstrates how to render a 2d lottie animation on surface like sphere utilizing the `web_sys`, `minwebgl`, `renderer`, `canvas_renderer`, modified `linebender::velato` crates.
 
 ![Showcase]( ./showcase.png )
 
@@ -8,6 +8,8 @@ This example demonstrates how to render a 2d curve on surface like sphere utiliz
 
 The example showcases several useful techniques and concepts:
 
+  * How load lottie animations.
+  * How get frame state baked in `Scene` structure using `animation::Animation`. 
   * How create main scene for rendering by `renderer::Renderer`.
   * How use `renderer::Renderer` and `renderer::SwapFramebuffer`.
   * How create canvas scene with text for rendering by `canvas_renderer::CanvasRenderer`.
@@ -16,6 +18,18 @@ The example showcases several useful techniques and concepts:
   * How set start state of `Camera` and make `Camera` static.
 
 ## How it works
+
+### Animation
+
+1. **Load animation**.
+
+Use `Composition::from_slice()` to load lottie animation and then use it for creating `animation::Animation`.   
+
+2. **Animate every frame**.
+
+Use frame method of `animation::Animation` object and choose frame for creating `Scene` object with animation state for certain frame. Use scene with `canvas_renderer::CanvasRenderer`. `animation::Animation::frame()` returns animation object colors in separated list, so   `canvas_renderer::CanvasRenderer` can get as input `Scene` and colors list.
+
+### Setup main scene
 
 1. **Setup main scene and camera**.
 
@@ -29,7 +43,7 @@ Load or create GLTF with scenes and choose scene to render. There is can be adde
 
 Rendering text on surface requires 3D object base texture setup. Base texture of target surface must be output of canvas renderer. That can be applied with this call: 
 
-```no_run, rust
+```rust
   set_texture
   ( 
     &canvas_sphere, 
@@ -85,5 +99,5 @@ The application will load the GLTF model, compile and link shaders, set up WebGL
 
 If you want you can:
   1. Use a different 3D model for rendering to its surface, replace the `sphere.glb` with any gltf file from `assets/gltf` folder. 
-  2. Experiment with canvas scene layout by adding/removing text and changing its transform.
+  2. Edit animation structure adding, connecting layers, adding shapes, set element animated values for parameters like color, rotation, position, scale etc.
   3. Change canvas renderer camera state.
