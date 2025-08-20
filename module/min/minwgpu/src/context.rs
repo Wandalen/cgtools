@@ -11,6 +11,7 @@ mod private
   /// A container for the core `wgpu` components, representing a complete graphics context.
   ///
   /// An instance of `Context` holds everything needed to start creating resources and rendering.
+  #[ derive( Debug, Clone ) ]
   pub struct Context
   {
     pub( super ) instance : wgpu::Instance,
@@ -40,10 +41,29 @@ mod private
       }
     }
 
+    /// Creates a new `ContextBuilder` with a provided `wgpu::Instance`.
+    ///
+    /// This is the entry point for the fluent builder pattern.
+    #[ inline ]
+    #[ must_use ]
+    pub fn from_instance( instance : wgpu::Instance ) -> ContextBuilder< 'static, 'static, 'static, 'static, AdapterBuilder >
+    {
+      ContextBuilder
+      {
+        _state : PhantomData,
+        instance_descriptor : wgpu::InstanceDescriptor::default(),
+        request_adapter_options : wgpu::RequestAdapterOptionsBase::default(),
+        device_descriptor : wgpu::wgt::DeviceDescriptor::default(),
+        instance : Some( instance ),
+        adapter : None,
+        adapter_selector : None
+      }
+    }
+
     /// Returns a reference to the `wgpu::Instance`.
     #[ inline ]
     #[ must_use ]
-    pub fn instance( &self ) -> &wgpu::Instance
+    pub fn get_instance( &self ) -> &wgpu::Instance
     {
       &self.instance
     }
@@ -51,7 +71,7 @@ mod private
     /// Returns a reference to the `wgpu::Adapter`.
     #[ inline ]
     #[ must_use ]
-    pub fn adapter( &self ) -> &wgpu::Adapter
+    pub fn get_adapter( &self ) -> &wgpu::Adapter
     {
       &self.adapter
     }
@@ -59,7 +79,7 @@ mod private
     /// Returns a reference to the `wgpu::Device`.
     #[ inline ]
     #[ must_use ]
-    pub fn device( &self ) -> &wgpu::Device
+    pub fn get_device( &self ) -> &wgpu::Device
     {
       &self.device
     }
@@ -67,7 +87,7 @@ mod private
     /// Returns a reference to the `wgpu::Queue`.
     #[ inline ]
     #[ must_use ]
-    pub fn queue( &self ) -> &wgpu::Queue
+    pub fn get_queue( &self ) -> &wgpu::Queue
     {
       &self.queue
     }

@@ -31,14 +31,14 @@ workspace = true
 default = [ "enabled" ]
 
 # Core functionality with all coordinate systems and pathfinding
-enabled = [ 
-    "dep:error_tools", 
-    "dep:former", 
-    "dep:mod_interface", 
-    "dep:hecs", 
-    "dep:pathfinding", 
-    "dep:serde", 
-    "dep:ndarray_cg" 
+enabled = [
+    "dep:error_tools",
+    "dep:former",
+    "dep:mod_interface",
+    "dep:hecs",
+    "dep:pathfinding",
+    "dep:serde",
+    "dep:ndarray_cg"
 ]
 
 # All features enabled for maximum functionality
@@ -55,7 +55,7 @@ integration = []
 
 # Coordinate system features for fine-grained control
 coordinates = []
-hexagonal = [ "coordinates" ]  
+hexagonal = [ "coordinates" ]
 square = [ "coordinates" ]
 triangular = [ "coordinates" ]
 isometric = [ "coordinates" ]
@@ -76,9 +76,9 @@ mod_interface = { workspace = true, optional = true }
 # Entity-Component-System architecture
 hecs = { workspace = true, optional = true }
 
-# Mathematical operations and grid data structures  
+# Mathematical operations and grid data structures
 ndarray_cg = { workspace = true, optional = true }
-
+rustc-hash = { workspace = true }
 # Pathfinding algorithms (A*, Dijkstra, etc.)
 pathfinding = { workspace = true, optional = true }
 
@@ -109,7 +109,7 @@ required-features = ["enabled"]
 doc-scrape-examples = true
 
 [[example]]
-name = "stealth_game"  
+name = "stealth_game"
 required-features = ["enabled", "ecs-systems"]
 doc-scrape-examples = true
 
@@ -145,7 +145,7 @@ harness = false
 required-features = ["enabled"]
 
 [[bench]]
-name = "pathfinding_benchmarks" 
+name = "pathfinding_benchmarks"
 harness = false
 required-features = ["enabled", "pathfinding-algorithms"]
 
@@ -156,7 +156,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 default-target = "x86_64-unknown-linux-gnu"
 targets = [
     "x86_64-unknown-linux-gnu",
-    "x86_64-pc-windows-msvc", 
+    "x86_64-pc-windows-msvc",
     "x86_64-apple-darwin",
     "wasm32-unknown-unknown",
 ]

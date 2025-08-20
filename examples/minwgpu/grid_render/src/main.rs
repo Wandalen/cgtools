@@ -31,7 +31,7 @@ fn run() -> Result< (), minwgpu::Error >
   let hexagon_color = [ 1.0_f32, 0.0, 0.0 ];
   let outline_color = [ 0.0_f32, 0.0, 0.0 ];
 
-  let shader = context.device().create_shader_module( wgpu::include_wgsl!( "../shaders/shader.wgsl" ) );
+  let shader = context.get_device().create_shader_module( wgpu::include_wgsl!( "../shaders/shader.wgsl" ) );
 
   let width = 512;
   let height = 512;
@@ -41,7 +41,7 @@ fn run() -> Result< (), minwgpu::Error >
     height,
     depth_or_array_layers : 1,
   };
-  let render_texture = context.device().create_texture
+  let render_texture = context.get_device().create_texture
   (
     &wgpu::TextureDescriptor
     {
@@ -66,7 +66,7 @@ fn run() -> Result< (), minwgpu::Error >
   )
   .label( "output_buffer" )
   .size_from_value( output_buffer_size )
-  .build( context.device() );
+  .build( context.get_device() );
 
   let vertex_data = tiles_tools::geometry::hexagon_triangles();
   let vertex_count = ( vertex_data.len() / 2 ) as u32;
@@ -76,7 +76,7 @@ fn run() -> Result< (), minwgpu::Error >
   .data( vertex_data.as_slice() )
   .array_stride( wgpu::VertexFormat::Float32x2.size() )
   .attributes( &attributes )
-  .build( context.device() );
+  .build( context.get_device() );
 
   let line_data = tiles_tools::geometry::hexagon_lines();
   let line_vertex_count = ( line_data.len() / 2 ) as u32;
@@ -86,7 +86,7 @@ fn run() -> Result< (), minwgpu::Error >
   .data( line_data.as_slice() )
   .array_stride( wgpu::VertexFormat::Float32x2.size() )
   .attributes( &attributes )
-  .build( context.device() );
+  .build( context.get_device() );
 
   let coord = Coordinate::< Axial, Flat >::new( 0, 0 );
   let mut hexagon_coordinates = vec![];
@@ -105,15 +105,15 @@ fn run() -> Result< (), minwgpu::Error >
   .array_stride( wgpu::VertexFormat::Float32x2.size() )
   .step_mode( wgpu::VertexStepMode::Instance )
   .attributes( attributes )
-  .build( context.device() );
+  .build( context.get_device() );
 
   let scale_uniform = 0.25_f32;
   let uniform_buffer = buffer::buffer( wgpu::BufferUsages::UNIFORM )
   .label( "uniform_buffer" )
   .data( &[ scale_uniform ] )
-  .build( context.device() );
+  .build( context.get_device() );
 
-  let bind_group_layout = context.device().create_bind_group_layout
+  let bind_group_layout = context.get_device().create_bind_group_layout
   (
     &wgpu::BindGroupLayoutDescriptor
     {
@@ -136,7 +136,7 @@ fn run() -> Result< (), minwgpu::Error >
     }
   );
 
-  let bind_group = context.device().create_bind_group
+  let bind_group = context.get_device().create_bind_group
   (
     &wgpu::BindGroupDescriptor
     {
@@ -153,7 +153,7 @@ fn run() -> Result< (), minwgpu::Error >
     }
   );
 
-  let render_pipeline_layout = context.device().create_pipeline_layout
+  let render_pipeline_layout = context.get_device().create_pipeline_layout
   (
     &wgpu::PipelineLayoutDescriptor
     {
@@ -215,7 +215,7 @@ fn run() -> Result< (), minwgpu::Error >
     occlusion_query_set : None,
   };
 
-  let mut encoder = context.device()
+  let mut encoder = context.get_device()
   .create_command_encoder( &wgpu::CommandEncoderDescriptor { label : Some( "encoder" ) } );
 
   {
@@ -262,12 +262,12 @@ fn run() -> Result< (), minwgpu::Error >
     },
     texture_extent
   );
-  context.queue().submit( Some( encoder.finish() ) );
+  context.get_queue().submit( Some( encoder.finish() ) );
 
   let buffer_slice = output_buffer.slice( .. );
   buffer_slice.map_async( wgpu::MapMode::Read, | _ | {} );
 
-  context.device().poll( wgpu::PollType::Wait ).expect( "Failed to render an image" );
+  context.get_device().poll( wgpu::PollType::Wait ).expect( "Failed to render an image" );
 
   let data = buffer_slice.get_mapped_range();
   image::save_buffer( "hexagons.png", &data, width, height, image::ColorType::Rgba8 )
@@ -286,7 +286,7 @@ fn create_pipeline
   render_pipeline_layout : &wgpu::PipelineLayout
 ) -> wgpu::RenderPipeline
 {
-  context.device().create_render_pipeline
+  context.get_device().create_render_pipeline
   (
     &wgpu::RenderPipelineDescriptor
     {
@@ -297,7 +297,7 @@ fn create_pipeline
         module : shader,
         entry_point : Some( "vs_main" ),
         compilation_options : wgpu::PipelineCompilationOptions::default(),
-        buffers : &[ vertex_buffer.layout().clone(), position_buffer.layout().clone() ]
+        buffers : &[ vertex_buffer.get_layout().clone(), position_buffer.get_layout().clone() ]
       },
       primitive,
       depth_stencil : None,
