@@ -20,7 +20,7 @@ void main()
 
   col = stripes();
   
-  col = vec3( fract( vUv.x - time / 5.0 ) );
+  col = vec3( fract( vUv.y - time / 5.0 ) );
   //col = vec3( vUv.x  );
   frag_color = vec4( col, 1.5 );
 }
