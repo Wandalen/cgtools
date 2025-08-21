@@ -144,8 +144,8 @@ fn benchmark_astar_triangular( c : &mut Criterion )
   {
   group.bench_with_input( BenchmarkId::new( "straight_line", distance ), distance, |b, &distance|
   {
-    let start = TriCoord::< TwelveConnected >::new( 0, 0, 1 ).unwrap();
-    let goal = TriCoord::< TwelveConnected >::new( distance, -(distance - 1), 0 ).unwrap();
+    let start = TriCoord::< FlatSided >::new( 0, 0, 1 ).unwrap();
+    let goal = TriCoord::< FlatSided >::new( distance, -(distance - 1), 0 ).unwrap();
 
     b.iter( ||
     {
