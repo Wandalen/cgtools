@@ -138,22 +138,21 @@ mod private
   }
 
   /// Generates the vertex data for a bevel join.
-  pub fn bevel_geometry( row_precision : usize, column_precision : usize ) -> ( Vec< gl::F32x3 >, Vec< f32 > ) 
+  pub fn bevel_geometry( row_precision : usize, column_precision : usize ) -> ( Vec< gl::F32x2 >, Vec< f32 > ) 
   {
     let mut vertex_row_list = Vec::with_capacity( row_precision );
     let mut verticies = Vec::new();
     let mut uvs = Vec::new();
 
-    let p0 = gl::F32x3::new( 1.0, 0.0, 0.0 );
-    let p1 = gl::F32x3::new( 0.0, 1.0, 0.0 );
-    let p2 = gl::F32x3::new( 0.0, 0.0, 1.0 );
+    let p0 = gl::F32x2::new( 1.0, 0.0 );
+    let p1 = gl::F32x2::new( 0.0, 1.0 );
 
-    let p2_offset = 0.005;
+    let center_offset = 0.005;
 
     // Create vertices
     for i in 0..( row_precision + 1 )
     {
-      let rm = ( 1.0 - ( i as f32 / row_precision as f32 ) ).max( p2_offset );
+      let rm = ( 1.0 - ( i as f32 / row_precision as f32 ) ).max( center_offset );
       let mut column_list = Vec::with_capacity( column_precision );
       let rp0 = p0 * rm;
       let rp1 = p1 * rm;
@@ -200,7 +199,7 @@ mod private
       let c11 = last_row[ 0 ];
       let c12 = last_row[ last_row.len() - 1  ];
 
-      verticies.push( [ c11, p2, c12 ] );
+      verticies.push( [ c11, gl::F32x2::ZERO, c12 ] );
 
       let uv1 = 0.0;
       let uv2 = 1.0;
@@ -215,23 +214,22 @@ mod private
   }
 
   /// Generates the vertex data for a miter join.
-  pub fn miter_geometry( row_precision : usize, column_precision : usize ) -> ( Vec< gl::F32x4 >, Vec< f32 > ) 
+  pub fn miter_geometry( row_precision : usize, column_precision : usize ) -> ( Vec< gl::F32x3 >, Vec< f32 > ) 
   {
     let mut vertex_row_list = Vec::with_capacity( row_precision );
     let mut verticies = Vec::new();
     let mut uvs = Vec::new();
 
-    let p0 = gl::F32x4::new( 1.0, 0.0, 0.0, 0.0 );
-    let p1 = gl::F32x4::new( 0.0, 1.0, 0.0, 0.0 );
-    let p2 = gl::F32x4::new( 0.0, 0.0, 1.0, 0.0 );
-    let p3 = gl::F32x4::new( 0.0, 0.0, 0.0, 1.0 );
+    let p0 = gl::F32x3::new( 1.0, 0.0, 0.0 );
+    let p1 = gl::F32x3::new( 0.0, 1.0, 0.0 );
+    let p2 = gl::F32x3::new( 0.0, 0.0, 1.0 );
 
-    let p3_offset = 0.005;
+    let center_offset = 0.005;
 
     // Create vertices
     for i in 0..( row_precision + 1 )
     {
-      let rm = ( 1.0 - ( i as f32 / row_precision as f32 ) ).max( p3_offset );
+      let rm = ( 1.0 - ( i as f32 / row_precision as f32 ) ).max( center_offset );
       let mut column_list = Vec::with_capacity( column_precision );
       let rp0 = p0 * rm;
       let rp1 = p1 * rm;
@@ -314,7 +312,7 @@ mod private
       let c11 = last_row[ 0 ];
       let c12 = last_row[ column_precision - 1 ];
 
-      verticies.push( [ c11, p3, c12 ] );
+      verticies.push( [ c11, gl::F32x3::ZERO, c12 ] );
 
       let uv1 = 0.0;
       let uv2 = 0.5;
@@ -327,7 +325,7 @@ mod private
       let c11 = last_row[ column_precision ];
       let c12 = last_row[ last_row.len() - 1 ];
 
-      verticies.push( [ c11, p3, c12 ] );
+      verticies.push( [ c11, gl::F32x3::ZERO, c12 ] );
 
       let uv1 = 0.5;
       let uv2 = 1.0;

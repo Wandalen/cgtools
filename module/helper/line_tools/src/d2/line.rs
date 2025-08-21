@@ -265,7 +265,7 @@ mod private
           },
           Join::Miter( _, _ ) =>
           {
-            gl::BufferDescriptor::new::< [ f32; 4 ] >().offset( 0 ).stride( 4 ).divisor( 0 ).attribute_pointer( &gl, 0, &join_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 0 ).attribute_pointer( &gl, 0, &join_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
@@ -274,7 +274,7 @@ mod private
           },
           Join::Bevel( _, _ ) =>
           {
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 0 ).attribute_pointer( &gl, 0, &join_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( &gl, 0, &join_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;

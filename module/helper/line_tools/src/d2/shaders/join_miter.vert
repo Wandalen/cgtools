@@ -1,7 +1,7 @@
 #version 300 es
 precision highp float;
 
-layout( location = 0 ) in vec4 position;
+layout( location = 0 ) in vec3 position;
 layout( location = 1 ) in vec3 inPointA;
 layout( location = 2 ) in vec3 inPointB;
 layout( location = 3 ) in vec3 inPointC;
