@@ -2,7 +2,7 @@ mod private
 {
   #[ cfg( feature = "serialization" ) ]
   use serde::{ Serialize, Deserialize };
-  use minwebgl::{self as gl, IntoArray};
+  use minwebgl::{ self as gl, IntoArray };
 
   /// Represents the different types of line segment joins.
   #[ derive( Debug, Clone, Copy, PartialEq, PartialOrd ) ]

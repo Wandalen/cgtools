@@ -219,7 +219,7 @@ mod private
         else
         {
           let zero = math::F32x2::default();
-          ( [ zero, zero, zero, zero, zero, zero ], [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, ], 0 )
+          ( [ zero; 6 ], [ 0.0; 6 ], 0 )
         };
 
         let points_terminal : Vec< f32 > = points_terminal.into_iter().zip( uvs_terminal.iter() ).flat_map( | ( p, d ) | [ p.x(), p.y(), d / self.total_distance ] ).collect();

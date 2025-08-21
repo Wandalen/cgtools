@@ -9,7 +9,7 @@ use std::
 use serde::{ Deserialize, Serialize };
 use gl::wasm_bindgen::prelude::*;
 
-use crate::events::add_point_on_click;
+use crate::events::update;
 
 mod lil_gui;
 mod events;
@@ -57,8 +57,14 @@ fn run() -> Result< (), gl::WebglError >
   mesh.upload_to( &gl, "join", "u_color", &[ 1.0, 0.0, 0.0 ] )?;
   mesh.upload_to( &gl, "cap", "u_color", &[ 0.0, 1.0, 0.0 ] )?;
 
+  let mut input = browser_input::Input::new
+  (
+    Some( canvas.clone().dyn_into().unwrap() ),
+    browser_input::SCREEN,
+  );
+
   let line = Rc::new( RefCell::new( line ) );
-  add_point_on_click( line.clone(), &canvas );
+  //add_point_on_click( line.clone(), &canvas, &mut input );
 
   let settings = Settings
   {
@@ -137,10 +143,11 @@ fn run() -> Result< (), gl::WebglError >
   // Define the update and draw logic
   let update_and_draw =
   {
-
     move | t : f64 |
     {
       let _time = t as f32 / 1000.0;
+
+      update( line.clone(), &canvas, &mut input );
 
       line.borrow().get_mesh().upload( &gl, "time", &_time ).unwrap();
       line.borrow().get_mesh().upload( &gl, "totalDistance", &line.borrow().get_total_distance() ).unwrap();
