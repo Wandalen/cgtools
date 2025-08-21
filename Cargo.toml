@@ -103,6 +103,10 @@ many_single_char_names = "allow"
 
 # = helpers
 
+[workspace.dependencies.animation]
+version = "0.1.0"
+path = "module/helper/animation"
+
 [workspace.dependencies.browser_input]
 version = "0.2.0"
 path = "module/helper/browser_input"
