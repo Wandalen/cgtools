@@ -417,15 +417,7 @@ mod private
     {
       Self
       (
-        QuatF32::from
-        (
-          [
-            self.0.x().interpolate( &other.0.x(), t ),
-            self.0.y().interpolate( &other.0.y(), t ),
-            self.0.z().interpolate( &other.0.z(), t ),
-            self.0.w().interpolate( &other.0.w(), t )
-          ]
-        )
+        self.0.slerp( &other.0, t )
       )
     }
   } 

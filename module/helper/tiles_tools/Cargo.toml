@@ -38,7 +38,8 @@ enabled = [
     "dep:hecs",
     "dep:pathfinding",
     "dep:serde",
-    "dep:ndarray_cg"
+    "dep:ndarray_cg",
+    "dep:animation"
 ]
 
 # All features enabled for maximum functionality
@@ -75,6 +76,9 @@ mod_interface = { workspace = true, optional = true }
 
 # Entity-Component-System architecture
 hecs = { workspace = true, optional = true }
+
+# Animation
+animation = { workspace = true, optional = true }
 
 # Mathematical operations and grid data structures
 ndarray_cg = { workspace = true, optional = true }
