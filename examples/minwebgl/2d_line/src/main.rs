@@ -143,6 +143,7 @@ fn run() -> Result< (), gl::WebglError >
       let _time = t as f32 / 1000.0;
 
       line.borrow().get_mesh().upload( &gl, "time", &_time ).unwrap();
+      line.borrow().get_mesh().upload( &gl, "totalDistance", &line.borrow().get_total_distance() ).unwrap();
       //draw
       gl.use_program( Some( &background_program ) );
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );

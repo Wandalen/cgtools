@@ -23,7 +23,6 @@ vec2 lineIntersection( vec2 p1, vec2 n1, vec2 p2, vec2 n2 )
   return d * n2 + p2;
 }
 
-
 void main() 
 {
   vec2 pointA = ( u_world_matrix * vec3( inPointA.xy, 1.0 ) ).xy;
@@ -41,7 +40,6 @@ void main()
   float uv2 = inPointC.z;
 
   vUv.y = step( 0.0, pos.y );
-  //vUv.x = position.x;
 
   if( position.x == 1.0 )
   {
@@ -103,8 +101,7 @@ void main()
     }
   }
 
-   vUv.x = mix( uv2, uv1, length( offsetPoint - rightBottomCorner2 ) / length( p1 - p2 ) ); 
-
+  vUv.x = mix( uv2, uv1, length( offsetPoint - rightBottomCorner2 ) / length( p1 - p2 ) ); 
 
   if( sign( pos.y ) == -sigma )
   {

@@ -168,6 +168,12 @@ mod private
       self.points_changed = true;
     }
 
+    /// Return the total lenth of the line
+    pub fn get_total_distance( &self ) -> f32
+    {
+      self.total_distance
+    }
+
     /// Updates the mesh's WebGL resources if any part of the line has changed.
     pub fn update_mesh( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
@@ -246,8 +252,6 @@ mod private
         gl::buffer::upload( gl, &join_buffer, &join_geometry_list, gl::STATIC_DRAW );
         gl::buffer::upload( gl, &join_uv_buffer, &join_uvs, gl::STATIC_DRAW );
         gl::index::upload( gl, &join_indices_buffer, &join_indices, gl::STATIC_DRAW );
-
-        gl::info!( "Join count : {}", join_geometry_count );
 
         let j_program = mesh.get_program( "join" );
         let vao = gl.create_vertex_array();
