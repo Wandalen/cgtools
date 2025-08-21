@@ -22,9 +22,16 @@ mod_interface::mod_interface!
   #[ cfg( any( feature = "adapter-webgl-context", feature = "adapter-webgl" ) ) ]
   exposed use super::private::webgl::WebGLRenderer;
 
+  /// WebGL backend adapter for hardware-accelerated web rendering.
+  #[ cfg( any( feature = "adapter-webgl" ) ) ]
+  exposed use super::private::webgl::WebGLTileRenderer;
+
   /// WebGPU backend adapter for next-generation GPU computing and rendering.
   #[ cfg( any( feature = "adapter-webgpu-device", feature = "adapter-webgpu" ) ) ]
   exposed use super::private::webgpu::WebGPURenderer;
+
+  #[ cfg( feature = "adapter-wgpu" ) ]
+  exposed use super::private::wgpu::WGPUTileRenderer;
 }
 
 mod private
@@ -43,4 +50,7 @@ mod private
 
   #[ cfg( any( feature = "adapter-webgpu-device", feature = "adapter-webgpu" ) ) ]
   pub mod webgpu;
+
+  #[ cfg( feature = "adapter-wgpu" ) ]
+  pub mod wgpu;
 }

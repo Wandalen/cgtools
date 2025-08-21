@@ -60,7 +60,7 @@ impl TerminalRenderer
   }
 
   /// Creates a new terminal renderer with specified dimensions.
-  #[ must_use ]  
+  #[ must_use ]
   pub fn with_dimensions( width: usize, height: usize ) -> Self
   {
     let mut renderer = Self
@@ -84,7 +84,7 @@ impl TerminalRenderer
     self.unicode_enabled = enabled;
   }
 
-  /// Sets whether ANSI color support is enabled.  
+  /// Sets whether ANSI color support is enabled.
   pub fn set_color_enabled( &mut self, enabled: bool )
   {
     self.color_enabled = enabled;
@@ -129,7 +129,7 @@ impl TerminalRenderer
   fn draw_line( &mut self, x1: f32, y1: f32, x2: f32, y2: f32, color: Option< &str > )
   {
     let x1_i = x1 as usize;
-    let y1_i = y1 as usize;  
+    let y1_i = y1 as usize;
     let x2_i = x2 as usize;
     let y2_i = y2 as usize;
 
@@ -151,12 +151,12 @@ impl TerminalRenderer
       let ch = if self.unicode_enabled { '─' } else { '-' };
       let start_x = x1_i.min( x2_i );
       let end_x = x1_i.max( x2_i );
-      let y = if dx > 0 { 
+      let y = if dx > 0 {
         y1_i + ( ( y2_i as isize - y1_i as isize ) * ( start_x as isize - x1_i as isize ) / ( x2_i as isize - x1_i as isize ).max( 1 ) ) as usize
-      } else { 
-        y1_i 
+      } else {
+        y1_i
       };
-      
+
       for x in start_x..=end_x
       {
         self.set_char_at( x, y, ch, color );
@@ -175,7 +175,7 @@ impl TerminalRenderer
         x1_i
       };
 
-      for y in start_y..=end_y  
+      for y in start_y..=end_y
       {
         self.set_char_at( x, y, ch, color );
       }
@@ -187,25 +187,25 @@ impl TerminalRenderer
   {
     // Simple curve approximation with multiple line segments
     const SEGMENTS: usize = 10;
-    
+
     for i in 0..SEGMENTS
     {
       let t1 = i as f32 / SEGMENTS as f32;
       let t2 = ( i + 1 ) as f32 / SEGMENTS as f32;
-      
+
       // Cubic Bezier curve calculation using control1 (ignoring control2 for simplicity)
-      let x1 = ( 1.0 - t1 ).powi( 2 ) * cmd.start.x + 
-                2.0 * ( 1.0 - t1 ) * t1 * cmd.control1.x + 
+      let x1 = ( 1.0 - t1 ).powi( 2 ) * cmd.start.x +
+                2.0 * ( 1.0 - t1 ) * t1 * cmd.control1.x +
                 t1.powi( 2 ) * cmd.end.x;
-      let y1 = ( 1.0 - t1 ).powi( 2 ) * cmd.start.y + 
-                2.0 * ( 1.0 - t1 ) * t1 * cmd.control1.y + 
+      let y1 = ( 1.0 - t1 ).powi( 2 ) * cmd.start.y +
+                2.0 * ( 1.0 - t1 ) * t1 * cmd.control1.y +
                 t1.powi( 2 ) * cmd.end.y;
-                
-      let x2 = ( 1.0 - t2 ).powi( 2 ) * cmd.start.x + 
-                2.0 * ( 1.0 - t2 ) * t2 * cmd.control1.x + 
+
+      let x2 = ( 1.0 - t2 ).powi( 2 ) * cmd.start.x +
+                2.0 * ( 1.0 - t2 ) * t2 * cmd.control1.x +
                 t2.powi( 2 ) * cmd.end.x;
-      let y2 = ( 1.0 - t2 ).powi( 2 ) * cmd.start.y + 
-                2.0 * ( 1.0 - t2 ) * t2 * cmd.control1.y + 
+      let y2 = ( 1.0 - t2 ).powi( 2 ) * cmd.start.y +
+                2.0 * ( 1.0 - t2 ) * t2 * cmd.control1.y +
                 t2.powi( 2 ) * cmd.end.y;
 
       self.draw_line( x1, y1, x2, y2, color );
@@ -218,7 +218,7 @@ impl TerminalRenderer
     // Convert text from [u8; 64] array to string
     let text_end = cmd.text.iter().position( |&b| b == 0 ).unwrap_or( cmd.text.len() );
     let text_str = core::str::from_utf8( &cmd.text[ ..text_end ] ).unwrap_or( "<invalid>" );
-    
+
     let mut x = cmd.position.x as usize;
     let y = cmd.position.y as usize;
 
@@ -247,11 +247,11 @@ impl TerminalRenderer
   /// Converts RGBA color to ANSI escape sequence.
   fn rgba_to_ansi( color: &[ f32; 4 ] ) -> String
   {
-    // Convert to RGB 8-bit values  
+    // Convert to RGB 8-bit values
     let r = ( color[ 0 ] * 255.0 ) as u8;
     let g = ( color[ 1 ] * 255.0 ) as u8;
     let b = ( color[ 2 ] * 255.0 ) as u8;
-    
+
     // Use 24-bit ANSI color code
     format!( "\x1b[38;2;{};{};{}m", r, g, b )
   }
@@ -261,7 +261,7 @@ impl TerminalRenderer
   pub fn get_output( &self ) -> String
   {
     let mut result = String::new();
-    
+
     for y in 0..self.dimensions.1
     {
       for x in 0..self.dimensions.0
@@ -278,7 +278,7 @@ impl TerminalRenderer
       }
       result.push( '\n' );
     }
-    
+
     result
   }
 
@@ -386,6 +386,8 @@ impl Renderer for TerminalRenderer
         RenderCommand::Text( cmd ) => self.render_text( &cmd )?,
         RenderCommand::Tilemap( cmd ) => self.render_tilemap( &cmd )?,
         RenderCommand::ParticleEmitter( cmd ) => self.render_particle_emitter( &cmd )?,
+        RenderCommand::Geometry2DCommand( _ ) => return Err( RenderError::UnsupportedCommand( "Geometry2DCommand".into() ) ),
+        RenderCommand::SpriteCommand( _ ) => return Err( RenderError::UnsupportedCommand( "SpriteCommand".into() ) ),
       }
     }
 

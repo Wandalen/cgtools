@@ -18,5 +18,6 @@ mod_interface!
   layer helper;
   layer buffer;
   layer context;
+  layer texture;
   layer error;
 }
