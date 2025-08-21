@@ -2,7 +2,7 @@
 //!
 //! This module provides traits and utilities for converting between different
 //! coordinate systems, enabling seamless interoperability across grid types.
-//! 
+//!
 //! # Conversion Types
 //!
 //! - **Exact Conversions**: Perfect 1:1 mappings (e.g., Square ↔ Isometric)
@@ -17,13 +17,13 @@
 //!     square::{Coordinate as SquareCoord, FourConnected},
 //!     isometric::{Coordinate as IsoCoord, Diamond},
 //! };
-//! 
+//!
 //! // Exact conversion: Square ↔ Isometric
 //! let square = SquareCoord::<FourConnected>::new(3, 2);
 //! let iso: IsoCoord<Diamond> = square.convert();
 //! let back: SquareCoord<FourConnected> = iso.convert();
 //! assert_eq!(square, back);
-//! 
+//!
 //! // Batch conversion for performance
 //! let square_coords = vec![
 //!     SquareCoord::<FourConnected>::new(0, 0),
@@ -41,14 +41,14 @@
 /// bidirectional and satisfy the roundtrip property: `x.convert().convert() == x`.
 ///
 /// # Examples
-/// 
+///
 /// ```rust
 /// use tiles_tools::coordinates::{
 ///     conversion::Convert,
 ///     square::{Coordinate as SquareCoord, FourConnected},
 ///     isometric::{Coordinate as IsoCoord, Diamond},
 /// };
-/// 
+///
 /// let square = SquareCoord::<FourConnected>::new(5, 3);
 /// let iso: IsoCoord<Diamond> = square.convert();
 /// let roundtrip: SquareCoord<FourConnected> = iso.convert();
@@ -76,7 +76,7 @@ pub trait Convert<T> {
 ///     hexagonal::{Coordinate as HexCoord, Axial, Pointy},
 ///     square::{Coordinate as SquareCoord, FourConnected},
 /// };
-/// 
+///
 /// let hex = HexCoord::<Axial, Pointy>::new(2, -1);
 /// let square: SquareCoord<FourConnected> = hex.approximate_convert();
 /// // Note: Reverse conversion may not yield exactly the original coordinate
@@ -92,7 +92,7 @@ pub trait ApproximateConvert<T> {
 /// Trait for batch exact coordinate conversions.
 ///
 /// Provides efficient bulk conversion operations for collections of coordinates
-/// using exact conversions. Implementations may optimize for performance when 
+/// using exact conversions. Implementations may optimize for performance when
 /// converting many coordinates at once.
 pub trait BatchConvertExact<T, U> {
   /// Converts a collection of coordinates using exact conversion.
@@ -109,7 +109,7 @@ pub trait BatchConvertExact<T, U> {
 pub trait BatchConvertApproximate<T, U> {
   /// Converts a collection of coordinates using approximate conversion.
   ///
-  /// This method may be more efficient than calling `approximate_convert()` 
+  /// This method may be more efficient than calling `approximate_convert()`
   /// individually on each coordinate, especially for large collections.
   fn convert_batch_approximate(self) -> U;
 }
@@ -213,73 +213,8 @@ impl ApproximateConvert<HexCoord<Axial, Pointy>> for IsoCoord<Diamond> {
 // Approximate Conversions: Triangular ↔ Other Systems
 // =============================================================================
 
-use crate::coordinates::triangular::{ Coordinate as TriCoord, TwelveConnected };
+// Currently no implementation
 
-/// Triangular to Square conversion (approximate).
-///
-/// Maps triangular coordinates to square grid positions. Since triangular
-/// grids have a different tessellation pattern, this conversion approximates
-/// the spatial relationship.
-impl ApproximateConvert<SquareCoord<SquareFour>> for TriCoord<TwelveConnected> {
-  fn approximate_convert(self) -> SquareCoord<SquareFour> {
-    // Simple mapping that attempts to preserve general spatial layout
-    // Triangular coordinates are scaled and shifted to fit square grid
-    let x = self.x;
-    let y = self.y / 2;  // Compress y-axis due to triangular packing
-    SquareCoord::<SquareFour>::new(x, y)
-  }
-}
-
-impl ApproximateConvert<SquareCoord<SquareEight>> for TriCoord<TwelveConnected> {
-  fn approximate_convert(self) -> SquareCoord<SquareEight> {
-    let x = self.x;
-    let y = self.y / 2;
-    SquareCoord::<SquareEight>::new(x, y)
-  }
-}
-
-/// Square to Triangular conversion (approximate).
-impl<Connectivity> ApproximateConvert<TriCoord<TwelveConnected>> for SquareCoord<Connectivity> {
-  fn approximate_convert(self) -> TriCoord<TwelveConnected> {
-    // Expand y-axis to account for triangular packing density
-    let x = self.x;
-    let y = self.y * 2;
-    TriCoord::<TwelveConnected>::new(x, y)
-  }
-}
-
-/// Triangular to Isometric conversion (approximate, via Square).
-impl ApproximateConvert<IsoCoord<Diamond>> for TriCoord<TwelveConnected> {
-  fn approximate_convert(self) -> IsoCoord<Diamond> {
-    let square: SquareCoord<SquareFour> = self.approximate_convert();
-    square.convert()
-  }
-}
-
-/// Isometric to Triangular conversion (approximate, via Square).
-impl ApproximateConvert<TriCoord<TwelveConnected>> for IsoCoord<Diamond> {
-  fn approximate_convert(self) -> TriCoord<TwelveConnected> {
-    let square: SquareCoord<SquareFour> = self.convert();
-    square.approximate_convert()
-  }
-}
-
-/// Triangular to Hexagonal conversion (approximate).
-impl ApproximateConvert<HexCoord<Axial, Pointy>> for TriCoord<TwelveConnected> {
-  fn approximate_convert(self) -> HexCoord<Axial, Pointy> {
-    // Convert via square grid as intermediate
-    let square: SquareCoord<SquareFour> = self.approximate_convert();
-    square.approximate_convert()
-  }
-}
-
-/// Hexagonal to Triangular conversion (approximate).
-impl<Orientation> ApproximateConvert<TriCoord<TwelveConnected>> for HexCoord<Axial, Orientation> {
-  fn approximate_convert(self) -> TriCoord<TwelveConnected> {
-    let square: SquareCoord<SquareFour> = self.approximate_convert();
-    square.approximate_convert()
-  }
-}
 
 // =============================================================================
 // Batch Conversion Implementations
@@ -322,7 +257,7 @@ where
 ///     square::{Coordinate as SquareCoord, FourConnected},
 ///     isometric::{Coordinate as IsoCoord, Diamond},
 /// };
-/// 
+///
 /// let squares = vec![
 ///     SquareCoord::<FourConnected>::new(1, 2),
 ///     SquareCoord::<FourConnected>::new(3, 4),
@@ -349,12 +284,12 @@ where
 ///     hexagonal::{Coordinate as HexCoord, Axial, Pointy},
 ///     square::{Coordinate as SquareCoord, FourConnected},
 /// };
-/// 
+///
 /// let hex_coords = vec![
 ///     HexCoord::<Axial, Pointy>::new(1, -1),
 ///     HexCoord::<Axial, Pointy>::new(2, 0),
 /// ];
-/// let square_coords: Vec<SquareCoord<FourConnected>> = 
+/// let square_coords: Vec<SquareCoord<FourConnected>> =
 ///     convert_batch_approximate(hex_coords);
 /// ```
 pub fn convert_batch_approximate<T, U>(coords: Vec<T>) -> Vec<U>
@@ -377,7 +312,7 @@ where
 ///     square::{Coordinate as SquareCoord, FourConnected},
 ///     isometric::{Coordinate as IsoCoord, Diamond},
 /// };
-/// 
+///
 /// let square = SquareCoord::<FourConnected>::new(5, 3);
 /// assert!(test_roundtrip_conversion::<_, IsoCoord<Diamond>, SquareCoord<FourConnected>>(square));
 /// ```
@@ -405,10 +340,10 @@ where
 {
   let converted: U = original.clone().approximate_convert();
   let roundtrip: T = converted.approximate_convert();
-  
+
   let (x1, y1) = original.into();
   let (x2, y2) = roundtrip.into();
-  
+
   // Calculate Euclidean distance
   let dx = (x2 - x1) as f64;
   let dy = (y2 - y1) as f64;

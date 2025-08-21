@@ -65,10 +65,9 @@ use renderer::webgl::
 use std::rc::Rc;
 use std::any::type_name_of_val;
 
-mod camera_controls;
 mod text;
 
-fn make_buffer_attibute_info
+fn make_buffer_attribute_info
 (
   buffer : &web_sys::WebGlBuffer,
   offset : i32,
@@ -136,7 +135,7 @@ impl Transform
     let s = self.scale;
     let mut node_mut = node.borrow_mut();
     node_mut.set_translation( [ t[ 0 ], t[ 1 ], t[ 2 ] ] );
-    let q = gl::Quat::from_euler_xyz( r );
+    let q = gl::QuatF32::from_euler_xyz( r );
     node_mut.set_rotation( q );
     node_mut.set_scale( [ s[ 0 ], s[ 1 ], s[ 2 ] ] );
     node_mut.update_local_matrix();
@@ -188,7 +187,8 @@ fn primitives_data_to_gltf
   [
     (
       "positions",
-      make_buffer_attibute_info(
+      make_buffer_attribute_info
+      (
         &position_buffer,
         0,
         3,
@@ -199,7 +199,8 @@ fn primitives_data_to_gltf
     ),
     (
       "normals",
-      make_buffer_attibute_info(
+      make_buffer_attribute_info
+      (
         &normal_buffer,
         0,
         3,
@@ -317,7 +318,7 @@ fn init_camera( canvas : &HtmlCanvasElement ) -> Camera
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
   camera.set_window_size( [ width, height ].into() );
 
-  camera_controls::setup_controls( &canvas, &camera.get_controls() );
+  camera.bind_controls( &canvas );
 
   camera
 }

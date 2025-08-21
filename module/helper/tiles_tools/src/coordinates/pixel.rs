@@ -6,7 +6,7 @@ use super::hexagonal::{ Coordinate, Axial, Pointy, Flat };
 
 /// Represents a 2D pixel coordinate, typically used for rendering.
 /// It is assumed that the Y-axis points downwards.
-#[ derive( Debug, Clone, Copy, PartialEq ) ]
+#[ derive( Debug, Default, Clone, Copy, PartialEq ) ]
 pub struct Pixel
 {
   /// The raw [x, y] floating-point coordinates.

@@ -40,7 +40,7 @@ mod private
   where
     E : MatEl + NdFloat
   {
-    fn div_assign( &mut self, rhs: Self ) 
+    fn div_assign( &mut self, rhs : Self ) 
     {
       *self = *self / rhs;
     }

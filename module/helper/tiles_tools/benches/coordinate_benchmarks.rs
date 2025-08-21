@@ -36,7 +36,7 @@ use tiles_tools::coordinates::
 {
   hexagonal::{ Coordinate as HexCoord, Axial, Pointy },
   square::{ Coordinate as SquareCoord, FourConnected, EightConnected },
-  triangular::{ Coordinate as TriCoord, TwelveConnected },
+  triangular::{ Coordinate as TriCoord, FlatSided },
   isometric::{ Coordinate as IsoCoord, Diamond },
   conversion::{ Convert, ApproximateConvert },
   { Distance, Neighbors },
@@ -45,119 +45,119 @@ use tiles_tools::coordinates::
 fn benchmark_distance_calculations( c : &mut Criterion )
 {
   let mut group = c.benchmark_group( "distance_calculations" );
-  
+
   // Hexagonal distance
   let hex_coord1 = HexCoord::< Axial, Pointy >::new( 0, 0 );
   let hex_coord2 = HexCoord::< Axial, Pointy >::new( 10, 15 );
   group.bench_function( "hexagonal_distance", |b| b.iter( || hex_coord1.distance( hex_coord2 ) ) );
-  
+
   // Square distance (4-connected)
   let square_coord1 = SquareCoord::< FourConnected >::new( 0, 0 );
   let square_coord2 = SquareCoord::< FourConnected >::new( 10, 15 );
   group.bench_function( "square_4_distance", |b| b.iter( || square_coord1.distance( &square_coord2 ) ) );
-  
+
   // Square distance (8-connected)
   let square8_coord1 = SquareCoord::< EightConnected >::new( 0, 0 );
   let square8_coord2 = SquareCoord::< EightConnected >::new( 10, 15 );
   group.bench_function( "square_8_distance", |b| b.iter( || square8_coord1.distance( &square8_coord2 ) ) );
-  
+
   // Triangular distance
-  let tri_coord1 = TriCoord::< TwelveConnected >::new( 0, 0 );
-  let tri_coord2 = TriCoord::< TwelveConnected >::new( 10, 15 );
+  let tri_coord1 = TriCoord::< FlatSided >::new( 0, 0, 1 ).unwrap();
+  let tri_coord2 = TriCoord::< FlatSided >::new( 10, 15, -24 ).unwrap();
   group.bench_function( "triangular_distance", |b| b.iter( || tri_coord1.distance( &tri_coord2 ) ) );
-  
+
   // Isometric distance
   let iso_coord1 = IsoCoord::< Diamond >::new( 0, 0 );
   let iso_coord2 = IsoCoord::< Diamond >::new( 10, 15 );
   group.bench_function( "isometric_distance", |b| b.iter( || iso_coord1.distance( &iso_coord2 ) ) );
-  
+
   group.finish();
 }
 
 fn benchmark_neighbor_calculations( c : &mut Criterion )
 {
   let mut group = c.benchmark_group( "neighbor_calculations" );
-  
+
   // Hexagonal neighbors (6 neighbors)
   let hex_coord = HexCoord::< Axial, Pointy >::new( 5, 8 );
   group.bench_function( "hexagonal_neighbors", |b| b.iter( || hex_coord.neighbors() ) );
-  
+
   // Square neighbors (4-connected)
   let square_coord = SquareCoord::< FourConnected >::new( 5, 8 );
   group.bench_function( "square_4_neighbors", |b| b.iter( || square_coord.neighbors() ) );
-  
+
   // Square neighbors (8-connected)
   let square8_coord = SquareCoord::< EightConnected >::new( 5, 8 );
   group.bench_function( "square_8_neighbors", |b| b.iter( || square8_coord.neighbors() ) );
-  
-  // Triangular neighbors (12 neighbors)
-  let tri_coord = TriCoord::< TwelveConnected >::new( 5, 8 );
+
+  // Triangular neighbors (3 neighbors)
+  let tri_coord = TriCoord::< FlatSided >::new( 5, 8, -12 ).unwrap();
   group.bench_function( "triangular_neighbors", |b| b.iter( || tri_coord.neighbors() ) );
-  
+
   // Isometric neighbors (4 neighbors)
   let iso_coord = IsoCoord::< Diamond >::new( 5, 8 );
   group.bench_function( "isometric_neighbors", |b| b.iter( || iso_coord.neighbors() ) );
-  
+
   group.finish();
 }
 
 fn benchmark_coordinate_conversions( c : &mut Criterion )
 {
   let mut group = c.benchmark_group( "coordinate_conversions" );
-  
+
   // Exact conversions: Square ↔ Isometric
   let square_coord = SquareCoord::< FourConnected >::new( 5, 8 );
-  group.bench_function( "square_to_isometric", |b| 
+  group.bench_function( "square_to_isometric", |b|
   {
-  b.iter( || 
+  b.iter( ||
   {
     let iso : IsoCoord< Diamond > = square_coord.convert();
     iso
   })
   });
-  
+
   let iso_coord = IsoCoord::< Diamond >::new( 5, 8 );
-  group.bench_function( "isometric_to_square", |b| 
+  group.bench_function( "isometric_to_square", |b|
   {
-  b.iter( || 
+  b.iter( ||
   {
     let square : SquareCoord< FourConnected > = iso_coord.convert();
     square
   })
   });
-  
+
   // Approximate conversions: Hexagonal ↔ Square
   let hex_coord = HexCoord::< Axial, Pointy >::new( 5, 8 );
-  group.bench_function( "hexagonal_to_square_approx", |b| 
+  group.bench_function( "hexagonal_to_square_approx", |b|
   {
-  b.iter( || 
+  b.iter( ||
   {
     let square : SquareCoord< FourConnected > = hex_coord.approximate_convert();
     square
   })
   });
-  
-  group.bench_function( "square_to_hexagonal_approx", |b| 
+
+  group.bench_function( "square_to_hexagonal_approx", |b|
   {
-  b.iter( || 
+  b.iter( ||
   {
     let hex : HexCoord< Axial, Pointy > = square_coord.approximate_convert();
     hex
   })
   });
-  
+
   group.finish();
 }
 
 fn benchmark_coordinate_creation( c : &mut Criterion )
 {
   let mut group = c.benchmark_group( "coordinate_creation" );
-  
+
   for size in [ 10, 100, 1000 ].iter()
   {
-  group.bench_with_input( BenchmarkId::new( "hexagonal_creation", size ), size, |b, &size| 
+  group.bench_with_input( BenchmarkId::new( "hexagonal_creation", size ), size, |b, &size|
   {
-    b.iter( || 
+    b.iter( ||
     {
       let mut coords = Vec::with_capacity( size );
       for i in 0..size
@@ -167,10 +167,10 @@ fn benchmark_coordinate_creation( c : &mut Criterion )
       coords
     })
   });
-  
-  group.bench_with_input( BenchmarkId::new( "square_creation", size ), size, |b, &size| 
+
+  group.bench_with_input( BenchmarkId::new( "square_creation", size ), size, |b, &size|
   {
-    b.iter( || 
+    b.iter( ||
     {
       let mut coords = Vec::with_capacity( size );
       for i in 0..size
@@ -181,7 +181,7 @@ fn benchmark_coordinate_creation( c : &mut Criterion )
     })
   });
   }
-  
+
   group.finish();
 }
 

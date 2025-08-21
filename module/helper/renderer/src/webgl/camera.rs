@@ -2,8 +2,11 @@ mod private
 {
   use minwebgl as gl;
   use std::{ cell::RefCell, collections::HashMap, rc::Rc };
-  use mingl::CameraOrbitControls;
-
+  use mingl::
+  { 
+    CameraOrbitControls, 
+    camera_orbit_controls::bind_controls_to_input 
+  };
 
   /// A struct representing a 3D camera with orbit controls.
   #[ allow( dead_code ) ]
@@ -71,6 +74,19 @@ mod private
       }
     }
 
+    /// Binds mouse and pointer events to the camera controls for interaction.
+    /// 
+    /// # Arguments
+    /// * `canvas` - A reference to the HTML canvas element where the events will be bound.
+    pub fn bind_controls
+    (
+      &self, 
+      canvas : &web_sys::HtmlCanvasElement
+    )
+    {
+      bind_controls_to_input( canvas, &self.controls );
+    }
+
     /// Uploads the camera's matrices and position to a WebGL2 shader program.
     /// 
     /// # Arguments
@@ -118,6 +134,12 @@ mod private
     pub fn set_window_size( &mut self, window_size : gl::F32x2 )
     {
       self.controls.borrow_mut().set_size( window_size.to_array() );
+    }
+
+    /// Sets the projection matrix value
+    pub fn set_projection_matrix( &mut self, projection_matrix : gl::F32x4x4 )
+    {
+      self.projection_matrix = projection_matrix;
     }
 
     /// Returns a clone of the `Rc` to the camera controls.

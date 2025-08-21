@@ -79,18 +79,18 @@
 #![ allow( clippy::if_not_else ) ]
 
 //! # 🎲 Tiles Tools
-//! 
+//!
 //! **High-Performance Tile-Based Game Development Toolkit**
 //!
-//! A comprehensive, generic, and extensible Rust crate for developing sophisticated 
-//! tile-based games and applications. This crate provides a complete toolkit for 
-//! working with multiple coordinate systems, pathfinding, ECS integration, and 
+//! A comprehensive, generic, and extensible Rust crate for developing sophisticated
+//! tile-based games and applications. This crate provides a complete toolkit for
+//! working with multiple coordinate systems, pathfinding, ECS integration, and
 //! advanced grid-based algorithms.
 //!
 //! ## ✨ Core Features
 //!
 //! - **🗺️ Universal Coordinate Systems**: Hexagonal, Square, Triangular, Isometric, and Pixel coordinates
-//! - **🔄 Seamless Conversions**: Exact and approximate conversions between coordinate systems  
+//! - **🔄 Seamless Conversions**: Exact and approximate conversions between coordinate systems
 //! - **🧭 Advanced Pathfinding**: A* algorithm optimized for all coordinate systems
 //! - **⚡ ECS Integration**: Complete Entity-Component-System with game-specific components
 //! - **👁️ Field of View**: Multiple FOV algorithms including shadowcasting and raycasting
@@ -143,11 +143,11 @@
 //!
 //! ## 🎮 Coordinate Systems
 //!
-//! All coordinate systems implement the [`Distance`](coordinates::Distance) and 
+//! All coordinate systems implement the [`Distance`](coordinates::Distance) and
 //! [`Neighbors`](coordinates::Neighbors) traits, providing a uniform interface:
 //!
 //! - **Hexagonal**: Perfect for strategy games and organic movement patterns
-//! - **Square**: Classic grid games with 4 or 8-connected movement  
+//! - **Square**: Classic grid games with 4 or 8-connected movement
 //! - **Triangular**: Unique tessellation with rich neighbor relationships
 //! - **Isometric**: Pseudo-3D visualization for RPGs and city builders
 //! - **Pixel**: Screen-space coordinates for rendering and input handling
@@ -158,8 +158,8 @@
 //!
 //! ```rust
 //! use tiles_tools::coordinates::conversion::{ Convert, ApproximateConvert };
-//! use tiles_tools::coordinates::{ 
-//!     square::{ Coordinate as Square, FourConnected }, 
+//! use tiles_tools::coordinates::{
+//!     square::{ Coordinate as Square, FourConnected },
 //!     isometric::{ Coordinate as Iso, Diamond }
 //! };
 //!
@@ -172,7 +172,7 @@
 //! ## 📦 Feature Flags
 //!
 //! - **`enabled`** (default): Core functionality with all coordinate systems
-//! - **`full`**: All features for maximum functionality  
+//! - **`full`**: All features for maximum functionality
 //! - **`ecs-systems`**: Enhanced ECS components and systems
 //! - **`serialization`**: Serde support for save/load functionality
 //! - **`pathfinding-algorithms`**: A* and other pathfinding algorithms
@@ -216,12 +216,6 @@ pub mod field_of_view;
 
 #[ cfg( feature = "enabled" ) ]
 pub mod spatial;
-
-#[ cfg( feature = "enabled" ) ]
-pub mod behavior_tree;
-
-#[ cfg( feature = "enabled" ) ]
-pub mod animation;
 
 #[ cfg( feature = "enabled" ) ]
 pub mod events;
