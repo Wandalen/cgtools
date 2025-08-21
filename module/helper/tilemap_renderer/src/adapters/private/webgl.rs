@@ -718,6 +718,11 @@ impl PrimitiveRenderer for WebGLRenderer
   }
 }
 
+/// The WebGL renderer tile rendering logic.
+///
+/// This struct manages GPU resources such as textures, geometry, and shader programs.
+/// It processes a queue of `RenderCommand`s to draw to the canvas.
+#[ derive( Debug ) ]
 pub struct WebGLTileRenderer
 {
   gl : gl::GL,
@@ -730,6 +735,9 @@ pub struct WebGLTileRenderer
 
 impl WebGLTileRenderer
 {
+  /// Creates a new renderer instance.
+  ///
+  /// This function initializes the WebGL shader programs and sets up the initial state.
   pub fn new( gl : &gl::GL, render_context : ports::RenderContext ) -> Self
   {
     let v_main = include_str!( "../../../shaders/main.vert" );
@@ -752,9 +760,8 @@ impl WebGLTileRenderer
   }
 
   /// Creates a vertex buffer, loads `data` into it, and stores it internally by the provided `id`.
-  /// Expects an array of 2D `f32` points.
   ///
-  /// The `id` can be used to render the geometry later.
+  /// Expects a slice of `f32` representing 2D points. The `id` can be used to render the geometry later.
   /// If geometry with the same `id` already exists, it is replaced.
   pub fn geometry2d_load( &mut self, data : &[ f32 ], id : u32 ) -> Result< (), gl::WebglError >
   {
@@ -773,6 +780,13 @@ impl WebGLTileRenderer
     Ok( () )
   }
 
+  /// Asynchronously loads an image from a URL, creates a WebGL texture, and stores it internally by `id`.
+  /// If texture with the same `id` already exists, it is replaced.
+  ///
+  /// # Returns
+  ///
+  /// A `Result` containing a shared reference to the texture's dimensions, which will be populated
+  /// once the image loads.
   pub fn texture_load_from_src( &mut self, document : &web_sys::Document, src : &str, id : u32 )
   -> Result< rc::Rc< cell::Cell< [ u32; 2 ] > >, gl::WebglError >
   {
@@ -816,11 +830,16 @@ impl WebGLTileRenderer
     Ok( size )
   }
 
+  /// Sets the `RenderContext`.
   pub fn context_set( &mut self, render_context : ports::RenderContext )
   {
     self.context = render_context;
   }
 
+  /// Executes a list of render commands for the current frame.
+  ///
+  /// Currently supports only `RenderCommand::Geometry2DCommand`, `RenderCommand::SpriteCommand`
+  /// commands. In case of facing an unsupported command in the command buffer just ignores it.
   pub fn commands_execute( &self, commands : &[ commands::RenderCommand ] )
   {
     let ctx = &self.context;
