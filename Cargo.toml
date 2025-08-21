@@ -21,6 +21,7 @@ members = [
   "module/min/minwgpu",
 
   # Helper modules
+  "module/helper/animation",
   "module/helper/browser_input",
   "module/helper/browser_log",
   "module/helper/canvas_renderer",

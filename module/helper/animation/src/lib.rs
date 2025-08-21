@@ -24,9 +24,12 @@ mod private
 {
   own use ::mod_interface::mod_interface;
 
+  /// Set of easing functions and related stuff.
   layer easing;
 
+  /// Tweening system for smooth entity movement in tile-based games.
   layer interpolation;
 
+  /// Tools for managing [`AnimatableValue`] playback in every time moment 
   layer sequencer;
 }

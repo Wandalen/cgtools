@@ -1,12 +1,16 @@
 mod private
 { 
+  use crate::impl_easing_function;
   use crate::easing::base::
   { 
-    impl_easing_function,
     EasingFunction, 
     EasingBuilder 
   };
 
+  /// Represents a cubic Bezier curve easing function.
+  /// 
+  /// The curve is defined by two control points: `in_tangent` and `out_tangent`.
+  #[ derive( Debug ) ]
   pub struct Cubic
   {
     in_tangent : [ f32; 2 ],
@@ -16,6 +20,9 @@ mod private
 
   impl Cubic
   {
+    /// Calculates the x-coordinate of the Bezier curve at a given time `t`.
+    /// 
+    /// This is part of the inverse function used to solve for `t`.
     fn get_x( &self, t: f32 ) -> f32 
     {
       let one_minus_t = 1.0 - t;
@@ -24,6 +31,9 @@ mod private
       + t.powi( 3 )
     }
 
+    /// Calculates the y-coordinate of the Bezier curve at a given time `t`.
+    /// 
+    /// This represents the final easing value.
     fn get_y( &self, t : f32 ) -> f32 
     {
       let one_minus_t = 1.0 - t;
@@ -32,6 +42,10 @@ mod private
       + t.powi( 3 )
     }
 
+    /// Creates a new `Cubic` easing function with the specified Bezier curve parameters.
+    /// 
+    /// `parameters` should be an array of four `f32` values representing
+    /// `[ in_tangent_x, in_tangent_y, out_tangent_x, out_tangent_y ]`.
     pub fn new( parameters : [ f32; 4 ] ) -> Self 
     {
       let [ i1, i2, o1, o2 ] = parameters;
@@ -43,6 +57,9 @@ mod private
       }
     }
 
+    /// Sets the number of iterations for the easing function's internal calculation.
+    /// 
+    /// Higher values increase precision at the cost of performance.
     pub fn set_iterations( &mut self, iterations : usize ) 
     {
       self.iterations = iterations;
@@ -51,7 +68,7 @@ mod private
 
   impl EasingFunction for Cubic
   {
-    pub fn apply( &self, t : f32 ) -> f32 
+    fn apply( &self, t : f32 ) -> f32 
     {
       if t <= 0.0 
       {
