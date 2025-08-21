@@ -1,7 +1,16 @@
-//!
+//! Tools for managing [`AnimatableValue`] playback in every time moment 
 
 mod private
 {
+  use std::collections::HashMap;
+
+  use crate::
+  {
+    AnimationState,
+    Animatable,
+    Tween
+  };
+
   /// Sequencer for managing multiple animations with sequencing and grouping.
   #[ derive( Debug ) ]
   pub struct Sequencer 
@@ -14,7 +23,7 @@ mod private
     state : AnimationState,
   }
 
-  impl Sequencer 
+  impl Sequencer
   {
     /// Creates a new animation Sequencer.
     pub fn new() -> Self 
@@ -28,7 +37,8 @@ mod private
     }
 
     /// Adds a tween to the Sequencer.
-    pub fn add_tween< T : Animatable >( &mut self, name : &str, tween : Tween< T > ) 
+    pub fn add_tween< T >( &mut self, name : &str, tween : Tween< T > ) 
+    where T : Animatable + 'static
     {
       self.tweens.insert( name.to_string(), Box::new( tween ) );
       if self.state == AnimationState::Pending && !self.tweens.is_empty() 
@@ -64,7 +74,8 @@ mod private
     }
 
     /// Gets the current value of a named animation.
-    pub fn get_value< T : Animatable + 'static >( &self, name : &str ) -> Option< T > 
+    pub fn get_value< T >( &self, name : &str ) -> Option< T > 
+    where T : Animatable + 'static
     {
       let tween_box = self.tweens.get( name )?;
       let any_ref = tween_box.as_any();
@@ -156,13 +167,19 @@ mod private
   }
 
   /// Trait for type-erased animatable values in Sequencer.
-  pub trait AnimatableValue : std::fmt::Debug 
+  pub trait AnimatableValue : std::fmt::Debug
   {
+    /// Updates the animation state based on time.
     fn update( &mut self, delta_time : f32 );
+    /// Returns true if the animation has completed.
     fn is_completed( &self ) -> bool;
+    /// Pauses the animation.
     fn pause( &mut self );
+    /// Resumes the animation.
     fn resume( &mut self );
+    /// Resets the animation to its initial state.
     fn reset( &mut self );
+    /// Returns a type-erased reference to the underlying value.
     fn as_any( &self ) -> &dyn std::any::Any;
   }
 
@@ -170,57 +187,181 @@ mod private
   mod tests 
   {
     use super::*;
+    use crate::easing::
+    { 
+      base::EasingBuilder, 
+      Linear, 
+      EaseInSine 
+    };
     
     #[ test ]
-    fn test_timeline_basic() 
+    fn test_sequencer_basic_flow() 
     {
-      let mut timeline = Timeline::new();
+      let mut sequencer = Sequencer::new();
       
-      let position_tween = tween
-      (
-        SquareCoord::< FourConnected >::new( 0, 0 ),
-        SquareCoord::< FourConnected >::new( 10, 10 ),
-        1.0
-      );
+      assert_eq!( sequencer.state(), AnimationState::Pending );
+      assert_eq!( sequencer.animation_count(), 0 );
       
-      let scale_tween = tween( 1.0_f32, 2.0_f32, 1.0 );
+      let float_tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() );
+      sequencer.add_tween( "test", float_tween );
       
-      timeline.add_tween( "position", position_tween );
-      timeline.add_tween( "scale", scale_tween );
+      assert_eq!( sequencer.state(), AnimationState::Running );
+      assert_eq!( sequencer.animation_count(), 1 );
+      assert!( !sequencer.is_completed() );
       
-      assert_eq!( timeline.animation_count(), 2 );
-      assert!( !timeline.is_completed() );
+      sequencer.update( 0.5 );
+      assert_eq!( sequencer.time(), 0.5 );
+      assert_eq!( sequencer.state(), AnimationState::Running );
       
-      timeline.update( 0.5 );
+      let value = sequencer.get_value::< f32 >( "test" ).unwrap();
+      assert_eq!( value, 5.0 );
       
-      let pos = timeline.get_value::< SquareCoord< FourConnected > >( "position" ).unwrap();
-      assert_eq!( pos.x, 5 );
-      assert_eq!( pos.y, 5 );
+      sequencer.update( 0.5 );
+      assert_eq!( sequencer.time(), 1.0 );
       
-      let scale = timeline.get_value::< f32 >( "scale" ).unwrap();
-      assert_eq!( scale, 1.5 );
-      
-      timeline.update( 0.5 );
-      assert!( timeline.is_completed() );
+      assert!( sequencer.is_completed() );
+      assert_eq!( sequencer.state(), AnimationState::Completed );
     }
 
     #[ test ]
-    fn test_timeline_pause_resume() 
+    fn test_sequencer_multiple_tweens() 
     {
-      let mut timeline = Timeline::new();
-      timeline.add_tween( "test", tween( 0.0_f32, 10.0_f32, 1.0 ) );
+      let mut sequencer = Sequencer::new();
       
-      timeline.update( 0.5 );
-      timeline.pause();
+      let tween1 = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() );
+      let tween2 = Tween::new( 0.0_f32, 10.0_f32, 2.0, Linear::new() );
+      sequencer.add_tween( "short_tween", tween1 );
+      sequencer.add_tween( "long_tween", tween2 );
+
+      sequencer.update( 1.5 );
       
-      // Should not update while paused
-      timeline.update( 0.5 );
-      let value = timeline.get_value::< f32 >( "test" ).unwrap();
+      assert!( !sequencer.is_completed() );
+      assert_eq!( sequencer.state(), AnimationState::Running );
+      assert_eq!( sequencer.time(), 1.5 );
+      
+      sequencer.update( 0.5 );
+      
+      assert!( sequencer.is_completed() );
+      assert_eq!( sequencer.time(), 2.0 );
+      assert_eq!( sequencer.state(), AnimationState::Completed );
+    }
+
+    #[ test ]
+    fn test_sequencer_pause_resume() 
+    {
+      let mut sequencer = Sequencer::new();
+      sequencer.add_tween
+      ( 
+        "test", 
+        Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() ) 
+      );
+      
+      sequencer.update( 0.5 );
+      assert_eq!( sequencer.get_value::< f32 >( "test" ).unwrap(), 5.0 );
+      
+      sequencer.pause();
+      assert_eq!( sequencer.state(), AnimationState::Paused );
+      
+      sequencer.update( 0.5 );
+      let value = sequencer.get_value::< f32 >( "test" ).unwrap();
       assert_eq!( value, 5.0 );
       
-      timeline.resume();
-      timeline.update( 0.5 );
-      assert!( timeline.is_completed() );
+      sequencer.resume();
+      assert_eq!( sequencer.state(), AnimationState::Running );
+      
+      sequencer.update( 0.5 );
+      assert!( sequencer.is_completed() );
+      let value = sequencer.get_value::< f32 >( "test" ).unwrap();
+      assert_eq!( value, 10.0 );
+    }
+
+    #[ test ]
+    fn test_sequencer_reset() 
+    {
+      let mut sequencer = Sequencer::new();
+      sequencer.add_tween
+      ( 
+        "test", 
+        Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() ) 
+      );
+      
+      sequencer.update( 0.5 );
+      assert_eq!( sequencer.time(), 0.5 );
+      assert_eq!( sequencer.get_value::< f32 >( "test" ).unwrap(), 5.0 );
+      
+      sequencer.reset();
+      
+      assert_eq!( sequencer.time(), 0.0 );
+      assert_eq!( sequencer.state(), AnimationState::Running );
+      assert_eq!( sequencer.get_value::< f32 >( "test" ).unwrap(), 0.0 );
+      
+      sequencer.update( 1.0 );
+      assert!( sequencer.is_completed() );
+      assert_eq!( sequencer.get_value::< f32 >( "test" ).unwrap(), 10.0 );
+    }
+
+    #[ test ]
+    fn test_sequencer_remove_tween() 
+    {
+      let mut sequencer = Sequencer::new();
+      
+      sequencer.add_tween
+      ( 
+        "tween1", 
+        Tween::new( 0.0_f32, 1.0_f32, 1.0, Linear::new() ) 
+      );
+      sequencer.add_tween
+      ( 
+        "tween2", 
+        Tween::new( 0.0_f32, 1.0_f32, 1.0, Linear::new() ) 
+      );
+      assert_eq!( sequencer.animation_count(), 2 );
+      
+      assert!( sequencer.remove_tween( "tween1" ) );
+      assert_eq!( sequencer.animation_count(), 1 );
+      
+      assert!( sequencer.get_value::< f32 >( "tween1" ).is_none() );
+      assert!( sequencer.get_value::< f32 >( "tween2" ).is_some() );
+      
+      assert!( !sequencer.remove_tween( "tween1" ) );
+    }
+
+    #[ test ]
+    fn test_sequencer_get_value_wrong_type() 
+    {
+      let mut sequencer = Sequencer::new();
+      
+      sequencer.add_tween
+      ( 
+        "float_tween", 
+        Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() ) 
+      );
+      
+      assert!( sequencer.get_value::< i32 >( "float_tween" ).is_none() );
+
+      assert!( sequencer.get_value::< f32 >( "float_tween" ).is_some() );
+    }
+
+    #[ test ]
+    fn test_sequencer_ease_in() 
+    {
+      let mut sequencer = Sequencer::new();
+      
+      sequencer.add_tween
+      ( 
+        "ease_in_tween", 
+        Tween::new( 0.0_f32, 10.0_f32, 1.0, EaseInSine::new() ) 
+      );
+      
+      sequencer.update( 0.5 );
+      
+      let value = sequencer.get_value::< f32 >( "ease_in_tween" ).unwrap();
+      assert_eq!( value, 1.25 );
+      
+      sequencer.update( 0.5 );
+      assert!( sequencer.is_completed() );
+      let value = sequencer.get_value::< f32 >( "ease_in_tween" ).unwrap();
+      assert_eq!( value, 10.0 );
     }
   }
 }

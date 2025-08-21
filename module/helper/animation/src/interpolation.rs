@@ -1,4 +1,4 @@
-//! Animation and tweening system for smooth entity movement in tile-based games.
+//! Tweening system for smooth entity movement in tile-based games.
 //!
 //! This module provides comprehensive animation capabilities for creating smooth,
 //! visually appealing movement and transformations in tile-based games. It supports
@@ -15,7 +15,7 @@
 //! - **Tween**: Interpolates between start and end values over duration
 //! - **Easing**: Mathematical functions that control animation timing
 //! - **Animation**: Collection of tweens that can run sequentially or in parallel
-//! - **Timeline**: Manages multiple animations with precise timing control
+//! - **Sequencer**: Manages multiple animations with precise timing control
 //!
 //! ## Supported Value Types
 //!
@@ -24,34 +24,14 @@
 //! - Colors ( RGB, RGBA )
 //! - Custom interpolatable values
 //!
-//! # Examples
-//!
-//! ```rust
-//! use tiles_tools::animation::*;
-//! use tiles_tools::coordinates::square::{ Coordinate, FourConnected };
-//!
-//! // Create a position animation
-//! let start = Coordinate::< FourConnected >::new( 0, 0 );
-//! let end = Coordinate::< FourConnected >::new( 10, 5 );
-//! let tween = Tween::new( start, end, 2.0, EaseInOutCubic::new() );
-//!
-//! // Create an animation timeline
-//! let mut timeline = Timeline::new();
-//! timeline.add_tween( "move", tween );
-//!
-//! // Update animation over time
-//! timeline.update( 0.5 ); // 0.5 seconds elapsed
-//! let current_pos = timeline.get_value::< Coordinate< FourConnected > >( "move" );
-//! ```
 
 mod private
 {
   use crate::sequencer::AnimatableValue;
-  use crate::easing::base::{ EasingFunction, Linear };
-  use crate::easing::cubic::{ EaseInSine, EaseInQuad, EaseOutQuad, EaseInOutCubic };
-  use std::collections::HashMap;
+  use crate::easing::base::{ EasingFunction, Linear, EasingBuilder };
+  //use crate::easing::cubic::{ EaseInSine, EaseInQuad, EaseOutQuad, EaseInOutCubic };
   use minwebgl as gl;
-  use gl
+  use gl::
   {
     F32x3,
     QuatF32
@@ -78,7 +58,7 @@ mod private
   }
 
   /// Core tween structure for animating between two values.
-  #[ derive( Debug, Clone ) ]
+  #[ derive( Debug ) ]
   pub struct Tween< T > 
   {
     /// Starting value
@@ -90,7 +70,7 @@ mod private
     /// Current elapsed time
     elapsed : f32,
     /// Easing function to use
-    easing : EasingFunction,
+    easing : Box< dyn EasingFunction >,
     /// Current animation state
     state : AnimationState,
     /// Delay before animation starts
@@ -99,11 +79,12 @@ mod private
     repeat_count : i32,
     /// Current repeat iteration
     current_repeat : i32,
-    /// Whether to reverse on repeat (ping-pong)
+    /// Whether to reverse on repeat ( ping-pong )
     yoyo : bool,
   }
 
-  impl< T : Animatable > Tween< T > 
+  impl< T > Tween< T > 
+  where T : Animatable
   {
     /// Creates a new tween animation.
     pub fn new
@@ -111,7 +92,7 @@ mod private
       start : T, 
       end : T, 
       duration : f32, 
-      easing : impl EasingFunction 
+      easing : Box< dyn EasingFunction > 
     ) -> Self 
     {
       Self 
@@ -234,25 +215,29 @@ mod private
     }
 
     /// Handles animation repeat logic.
-    fn handle_repeat( &mut self ) 
+    fn handle_repeat( &mut self )
     {
-      if self.repeat_count > 0 
-      {
-        self.current_repeat += 1;
-        if self.current_repeat > self.repeat_count 
-        {
-          self.state = AnimationState::Completed;
-          return;
-        }
-      } 
-      else if self.repeat_count == -1 
+      let elapsed_repeats = ( self.elapsed / self.duration ).floor();
+      if self.repeat_count == -1
       {
         // Infinite repeat
-        self.current_repeat += 1;
+        self.current_repeat += elapsed_repeats as i32;
+        self.elapsed = ( self.elapsed - ( self.duration * elapsed_repeats ) ).min( 0.0 );
+        self.state = AnimationState::Running;
       }
-
-      self.elapsed = 0.0;
-      self.state = AnimationState::Running;
+      else if self.repeat_count > 0 && self.current_repeat < self.repeat_count
+      {
+        // Finite repeat
+        self.current_repeat += elapsed_repeats as i32;
+        self.elapsed = ( self.elapsed - ( self.duration * elapsed_repeats ) ).min( 0.0 );
+        self.state = AnimationState::Running;
+      }
+      else
+      {
+        // No repeats left or invalid repeat count
+        self.state = AnimationState::Completed;
+        self.elapsed = self.duration;
+      }
     }
 
     /// Pauses the animation.
@@ -314,7 +299,8 @@ mod private
     }
   }
 
-  impl< T : Animatable + 'static > AnimatableValue for Tween< T > 
+  impl< T > AnimatableValue for Tween< T > 
+  where T : Animatable + 'static
   {
     fn update( &mut self, delta_time : f32 ) 
     {
@@ -395,25 +381,32 @@ mod private
     }
   }
 
+  #[ derive( Debug, Clone ) ]
   pub struct Translation( F32x3 );
   
+  #[ derive( Debug, Clone ) ]
   pub struct Rotation( QuatF32 );
   
+  #[ derive( Debug, Clone ) ]
   pub struct Scale( F32x3 );
 
-  //struct Weights( ? );
+  // #[ derive( Debug, Clone ) ]
+  // struct Weights( ? );
 
   impl Animatable for Translation
   {
     fn interpolate(&self, other : &Self, t : f32 ) -> Self 
     {
-      F32x3::from
+      Self
       (
-        [
-          self.x().interpolate( &other.x(), t ),
-          self.y().interpolate( &other.y(), t ),
-          self.z().interpolate( &other.z(), t )
-        ]
+        F32x3::from
+        (
+          [
+            self.0.x().interpolate( &other.0.x(), t ),
+            self.0.y().interpolate( &other.0.y(), t ),
+            self.0.z().interpolate( &other.0.z(), t )
+          ]
+        )
       )
     }
   } 
@@ -422,14 +415,17 @@ mod private
   {
     fn interpolate( &self, other : &Self, t : f32 ) -> Self 
     {
-      QuatF32::from
+      Self
       (
-        [
-          self.x().interpolate( &other.x(), t ),
-          self.y().interpolate( &other.y(), t ),
-          self.z().interpolate( &other.z(), t ),
-          self.w().interpolate( &other.w(), t )
-        ]
+        QuatF32::from
+        (
+          [
+            self.0.x().interpolate( &other.0.x(), t ),
+            self.0.y().interpolate( &other.0.y(), t ),
+            self.0.z().interpolate( &other.0.z(), t ),
+            self.0.w().interpolate( &other.0.w(), t )
+          ]
+        )
       )
     }
   } 
@@ -438,13 +434,16 @@ mod private
   {
     fn interpolate(&self, other : &Self, t : f32 ) -> Self 
     {
-      F32x3::from
+      Self
       (
-        [
-          self.x().interpolate( &other.x(), t ),
-          self.y().interpolate( &other.y(), t ),
-          self.z().interpolate( &other.z(), t )
-        ]
+        F32x3::from
+        (
+          [
+            self.0.x().interpolate( &other.0.x(), t ),
+            self.0.y().interpolate( &other.0.y(), t ),
+            self.0.z().interpolate( &other.0.z(), t )
+          ]
+        )
       )
     }
   } 
@@ -535,10 +534,11 @@ mod private
 
     /// Creates a tween to the target value.
     pub fn to( &self, end_value : T, duration : f32 ) -> TweenBuilder< T > 
+    where T : Animatable
     {
       TweenBuilder 
       {
-        tween : Tween::new( self.start_value.clone(), end_value, duration, EasingFunction::Linear ),
+        tween : Tween::new( self.start_value.clone(), end_value, duration, Linear::new() ),
       }
     }
 
@@ -548,9 +548,10 @@ mod private
       &self, 
       end_value : T, 
       duration : f32, 
-      easing : impl EasingFunction 
+      easing : Box< dyn EasingFunction > 
     ) 
     -> TweenBuilder< T > 
+    where T : Animatable
     {
       TweenBuilder 
       {
@@ -561,15 +562,17 @@ mod private
 
   /// Builder for configuring tween properties.
   #[ derive( Debug ) ]
-  pub struct TweenBuilder< T : Animatable > 
+  pub struct TweenBuilder< T > 
+  where T : Animatable
   {
     tween : Tween< T >,
   }
 
-  impl< T : Animatable > TweenBuilder< T > 
+  impl< T > TweenBuilder< T > 
+  where T : Animatable
   {
     /// Sets the easing function.
-    pub fn easing( mut self, easing : EasingFunction ) -> Self 
+    pub fn easing( mut self, easing : Box< dyn EasingFunction > ) -> Self 
     {
       self.tween.easing = easing;
       self
@@ -612,9 +615,10 @@ mod private
   }
 
   /// Creates a simple linear tween.
-  pub fn tween< T : Animatable >( start : T, end : T, duration : f32 ) -> Tween< T > 
+  pub fn tween< T >( start : T, end : T, duration : f32 ) -> Tween< T >
+  where T : Animatable
   {
-    Tween::new( start, end, duration, Linear )
+    Tween::new( start, end, duration, Linear::new() )
   }
 
   /// Creates a tween with easing.
@@ -623,7 +627,7 @@ mod private
     start : T, 
     end : T, 
     duration : f32, 
-    easing : impl EasingFunction
+    easing : Box< dyn EasingFunction >
   ) 
   -> Tween< T > 
   {
@@ -634,38 +638,36 @@ mod private
   mod tests 
   {
     use super::*;
+    use crate::easing::base::Linear;
+    use crate::easing::cubic::EaseInOutCubic;
+
+    // --- Animatable Trait Tests ---
 
     #[ test ]
-    fn test_easing_functions() 
-    {
-      assert_eq!( Linear.apply(0.5), 0.5 );
-      assert_eq!( EaseInSine::new().apply( 0.0 ), 0.0 );
-      assert_eq!( EaseInSine::new().apply( 1.0 ), 1.0 );
-      
-      // EaseInQuad should be slower than linear at the start
-      assert!( EaseInQuad::new().apply( 0.2 ) < Linear.apply( 0.2 ) );
-      
-      // EaseOutQuad should be faster than linear at the start
-      assert!( EaseOutQuad::new().apply( 0.2 ) > Linear.apply( 0.2 ) );
-    }
-
-    #[ test ]
-    fn test_f32_interpolation() 
+    fn test_f32_interpolation()
     {
       let start = 10.0_f32;
       let end = 20.0_f32;
-      
       assert_eq!( start.interpolate( &end, 0.0 ), 10.0 );
       assert_eq!( start.interpolate( &end, 1.0 ), 20.0 );
       assert_eq!( start.interpolate( &end, 0.5 ), 15.0 );
     }
 
     #[ test ]
-    fn test_color_interpolation() 
+    fn test_i32_interpolation()
+    {
+      let start = 5_i32;
+      let end = 15_i32;
+      assert_eq!( start.interpolate( &end, 0.0 ), 5 );
+      assert_eq!( start.interpolate( &end, 1.0 ), 15 );
+      assert_eq!( start.interpolate( &end, 0.5 ), 10 );
+    }
+
+    #[ test ]
+    fn test_color_interpolation()
     {
       let red = Color::rgb( 1.0, 0.0, 0.0 );
       let blue = Color::rgb( 0.0, 0.0, 1.0 );
-      
       let purple = red.interpolate( &blue, 0.5 );
       assert_eq!( purple.r, 0.5 );
       assert_eq!( purple.g, 0.0 );
@@ -673,176 +675,162 @@ mod private
       assert_eq!( purple.a, 1.0 );
     }
 
+    // --- Tween Core Logic Tests ---
+
     #[ test ]
-    fn test_tween_basic_animation() 
+    fn test_tween_initial_state()
     {
-      let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear );
-      
+      let tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() );
       assert_eq!( tween.state(), AnimationState::Pending );
+      assert_eq!( tween.progress(), 0.0 );
+      assert!( !tween.is_completed() );
+    }
+
+    #[ test ]
+    fn test_tween_progress_and_completion()
+    {
+      let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() );
       
-      let value1 = tween.update( 0.5 );
+      let val1 = tween.update( 0.5 );
       assert_eq!( tween.state(), AnimationState::Running );
-      assert_eq!( value1, 5.0 );
-      
-      let value2 = tween.update( 0.5 );
+      assert_eq!( val1, 5.0 );
+      assert_eq!( tween.progress(), 0.5 );
+
+      let val2 = tween.update( 0.5 );
       assert_eq!( tween.state(), AnimationState::Completed );
-      assert_eq!( value2, 10.0 );
-      
+      assert_eq!( val2, 10.0 );
+      assert_eq!( tween.progress(), 1.0 );
       assert!( tween.is_completed() );
     }
 
     #[ test ]
-    fn test_tween_with_delay() 
+    fn test_tween_with_delay_behavior()
     {
-      let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear )
+      let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
       .with_delay( 0.5 );
       
-      // During delay, should return start value
-      let value1 = tween.update( 0.3 );
-      assert_eq!( value1, 0.0 );
+      // First update: still in delay
+      let val1 = tween.update( 0.2 );
+      assert_eq!( val1, 0.0 );
       assert_eq!( tween.state(), AnimationState::Pending );
-      
-      // After delay, should start animating
-      let value2 = tween.update( 0.3 );
+
+      // Second update: delay ends, animation starts
+      let val2 = tween.update( 0.3 ); // 0.2 + 0.3 = 0.5 total elapsed time
       assert_eq!( tween.state(), AnimationState::Running );
-      assert!( ( value2 - 1.0 ).abs() < 0.001 ); // 0.1s into 1s animation = 10% ≈ 1.0
-    }
-
-    #[ test ]
-    fn test_tween_repeat() 
-    {
-      let mut tween = Tween::new( 0.0_f32, 10.0_f32, 0.5, Linear )
-      .with_repeat( 2 );
+      assert_eq!( val2, 0.0 ); // Since 0 remaining time for animation
       
-      // First iteration
-      let _value1 = tween.update( 0.5 );
-      assert!( !tween.is_completed() );
-      
-      // Second iteration
-      let _value2 = tween.update( 0.5 );
-      assert!( !tween.is_completed() );
-      
-      // Third iteration (final repeat)
-      let _value3 = tween.update( 0.5 );
-      assert!( tween.is_completed() );
-    }
-
-    #[ test ]
-    fn test_tween_yoyo() 
-    {
-      let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear )
-      .with_repeat( 1 )
-      .with_yoyo( true );
-      
-      // First iteration: 0 -> 10
-      let _value1 = tween.update( 1.0 );
-      assert!( !tween.is_completed() );
-      
-      // Second iteration: 10 -> 0 ( yoyo )
-      let value2 = tween.update( 0.5 );
-      assert_eq!( value2, 5.0 ); // Halfway back from 10 to 0
-      
-      tween.update( 0.5 );
-      assert!( tween.is_completed() );
-    }
-
-    #[ test ]
-    fn test_tween_pause_resume() 
-    {
-      let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear );
-      
-      tween.update( 0.5 );
+      // Third update: animates
+      let val3 = tween.update( 0.5 );
       assert_eq!( tween.state(), AnimationState::Running );
+      assert_eq!( val3, 5.0 );
+    }
+
+    #[ test ]
+    fn test_tween_pause_resume()
+    {
+      let mut tween = Tween::new( 0.0_f32, 10.0_f32, 2.0, Linear::new() );
+      tween.update( 0.5 ); // Progress to 2.5
+      assert_eq!( tween.get_current_value(), 2.5 );
       
       tween.pause();
       assert_eq!( tween.state(), AnimationState::Paused );
       
-      // Updating while paused shouldn't change the value
-      let paused_value = tween.update( 0.5 );
-      assert_eq!( paused_value, 5.0 );
+      let val = tween.update( 1.0 ); // Update while paused, value should not change
+      assert_eq!( val, 2.5 );
       assert_eq!( tween.state(), AnimationState::Paused );
       
       tween.resume();
       assert_eq!( tween.state(), AnimationState::Running );
       
-      tween.update( 0.5 );
+      let val2 = tween.update( 1.5 ); // Update for remaining duration
+      assert_eq!( val2, 10.0 );
       assert!( tween.is_completed() );
     }
 
-    #[test]
-    fn test_animation_builder() 
+    #[ test ]
+    fn test_tween_finite_repeat()
     {
-      let tween = animate( 0.0_f32 )
-        .to(10.0, 1.0)
-        .easing( EaseInOutCubic::new() )
-        .delay(0.1)
-        .repeat(2)
-        .yoyo(true)
-        .build();
+      let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() ).with_repeat( 2 );
       
-      assert_eq!( tween.start_value, 0.0 );
-      assert_eq!( tween.end_value, 10.0 );
-      assert_eq!( tween.duration, 1.0 );
-      assert_eq!( tween.easing, EaseInOutCubic::new() );
-      assert_eq!( tween.delay, 0.1 );
-      assert_eq!( tween.repeat_count, 2 );
-      assert!( tween.yoyo );
+      tween.update( 1.0 ); // First loop finishes
+      assert!( !tween.is_completed() );
+      assert_eq!( tween.current_repeat, 1 );
+
+      tween.update( 1.0 ); // Second loop finishes
+      assert!( !tween.is_completed() );
+      assert_eq!( tween.current_repeat, 2 );
+
+      tween.update( 1.0 ); // Third loop finishes, which is the final repeat
+      assert!( tween.is_completed() );
     }
 
     #[ test ]
-    fn test_convenience_functions() 
+    fn test_tween_infinite_repeat()
+    {
+      let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
+      .with_repeat( -1 );
+      
+      tween.update( 1.0 );
+      assert!( !tween.is_completed() );
+      assert_eq!( tween.current_repeat, 1 );
+
+      tween.update( 10.0 );
+      assert!( !tween.is_completed() );
+      assert_eq!( tween.current_repeat, 11 );
+    }
+    
+    #[ test ]
+    fn test_tween_yoyo_with_repeat()
+    {
+      let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
+      .with_repeat( 1 ).with_yoyo( true );
+      
+      // First loop: 0.0 -> 10.0
+      let val1 = tween.update( 0.5 );
+      assert_eq!( val1, 5.0 );
+      tween.update( 0.5 );
+      assert_eq!( tween.get_current_value(), 10.0 );
+      assert_eq!( tween.current_repeat, 1 );
+
+      // Second loop: 10.0 -> 0.0 (yoyo)
+      let val2 = tween.update( 0.5 );
+      assert_eq!( val2, 5.0 );
+      tween.update( 0.5 );
+      assert_eq!( tween.get_current_value(), 0.0 );
+      assert!( tween.is_completed() );
+    }
+
+    // --- TweenBuilder and Convenience Function Tests ---
+
+    #[ test ]
+    fn test_animation_builder_full_chain()
+    {
+      let tween = animate( 0.0_f32 )
+      .to_with_easing( 100.0, 2.0, EaseInOutCubic::new() )
+      .delay( 0.5 )
+      .repeat( 3 )
+      .yoyo( true )
+      .build();
+      
+      assert_eq!( tween.start_value, 0.0 );
+      assert_eq!( tween.end_value, 100.0 );
+      assert_eq!( tween.duration, 2.0 );
+      assert_eq!( tween.delay, 0.5 );
+      assert_eq!( tween.repeat_count, 3 );
+      assert_eq!( tween.yoyo, true );
+    }
+
+    #[ test ]
+    fn test_simple_tween_helper()
     {
       let simple_tween = tween( 5.0_f32, 15.0_f32, 2.0 );
       assert_eq!( simple_tween.start_value, 5.0 );
       assert_eq!( simple_tween.end_value, 15.0 );
       assert_eq!( simple_tween.duration, 2.0 );
-      assert_eq!( simple_tween.easing, Linear );
       
-      let easing_tween = tween_with_easing
-      (
-        0.0_f32, 
-        100.0_f32, 
-        1.5, 
-        EaseInOutCubic::new()
-      );
-      assert_eq!( easing_tween.easing, EaseInOutCubic::new() );
-    }
-
-    #[ test ]
-    fn test_color_animations() 
-    {
-      let mut color_tween = tween
-      (
-        Color::black(),
-        Color::white(),
-        1.0
-      );
-      
-      let mid_color = color_tween.update( 0.5 );
-      assert_eq!( mid_color.r, 0.5 );
-      assert_eq!( mid_color.g, 0.5 );
-      assert_eq!( mid_color.b, 0.5 );
-      assert_eq!( mid_color.a, 1.0 );
-    }
-
-    #[ test ]
-    fn test_complex_easing() 
-    {
-      // Test bounce easing has the expected characteristics
-      let bounce_start = EasingFunction::BounceOut.apply( 0.0 );
-      let bounce_end = EasingFunction::BounceOut.apply( 1.0 );
-      let bounce_mid = EasingFunction::BounceOut.apply( 0.5 );
-      
-      assert_eq!( bounce_start, 0.0 );
-      assert_eq!( bounce_end, 1.0 );
-      assert!( bounce_mid > 0.0 && bounce_mid < 1.0 );
-      
-      // Test elastic easing
-      let elastic_start = EasingFunction::ElasticOut.apply( 0.0 );
-      let elastic_end = EasingFunction::ElasticOut.apply( 1.0 );
-      
-      assert_eq!( elastic_start, 0.0 );
-      assert_eq!( elastic_end, 1.0 );
+      let mut tween = simple_tween;
+      let val = tween.update( 1.0 );
+      assert_eq!( val, 10.0 );
     }
   }
 }
@@ -851,6 +839,8 @@ crate::mod_interface!
 {
   orphan use
   {
-    
+    AnimationState,
+    Tween,
+    Animatable
   };
 }
