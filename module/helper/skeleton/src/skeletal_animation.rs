@@ -16,20 +16,12 @@ mod private
     inverse_bind_matrices :  Vec< F32x4x4 >, //HashMap< String, F32x4x4 >
     offset : usize
   }
-
-  impl Skeleton
-  {
-    fn a( : Rc< RefCell< Node > > )
-    {
-
-    }
-  }
 }
 
 crate::mod_interface!
 {
   orphan use
   {
-    
+    Skeleton
   };
 }
