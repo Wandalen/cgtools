@@ -222,7 +222,7 @@ mod private
           ( [ zero, zero, zero, zero, zero, zero ], [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, ], 0 )
         };
 
-        let points_terminal : Vec< f32 > = points_terminal.into_iter().zip( uvs_terminal.into_iter() ).flat_map( | ( p, d ) | [ p.x(), p.y(), d / self.total_distance ] ).collect();
+        let points_terminal : Vec< f32 > = points_terminal.into_iter().zip( uvs_terminal.iter() ).flat_map( | ( p, d ) | [ p.x(), p.y(), d / self.total_distance ] ).collect();
 
         gl::buffer::upload( &gl, &points_buffer, &points, gl::STATIC_DRAW );
         gl::buffer::upload( &gl, &points_terminal_buffer, &points_terminal, gl::STATIC_DRAW );
