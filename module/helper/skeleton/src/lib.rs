@@ -24,5 +24,5 @@ mod private
 {
   own use ::mod_interface::mod_interface;
 
-  layer skeletal_animation;
+  layer base;
 }

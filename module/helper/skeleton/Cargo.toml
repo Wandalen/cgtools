@@ -45,7 +45,7 @@ full = ["enabled"]
 mod_interface = { workspace = true, optional = true }
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ], optional = true }
 mingl = { workspace = true, optional = true }
-#animation = { workspace = true, optional = true }
+animation = { workspace = true, optional = true }
 
 [dependencies.web-sys]
 workspace = true
