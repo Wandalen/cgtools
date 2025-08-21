@@ -41,7 +41,9 @@ mod private
     /// A collection of `Material` objects, defining how the surfaces of the meshes should be shaded.
     pub materials : Vec< Rc< RefCell< Material > > >,
     /// A list of `Mesh` objects, which represent the geometry of the scene.
-    pub meshes : Vec< Rc< RefCell< Mesh > > >
+    pub meshes : Vec< Rc< RefCell< Mesh > > >,
+    /// 
+    pub skeletons : Vec< Rc< RefCell< Skeleton > > >,
   }
 
   /// Asynchronously loads a glTF (GL Transmission Format) file and its associated resources.
@@ -576,7 +578,8 @@ mod private
         images,
         textures,
         materials,
-        meshes
+        meshes,
+        skeletons
       }
     )
   }
