@@ -11,6 +11,10 @@ mod private
   {
     /// A vector of 2D points that define the line's path.
     points : Vec< math::F32x2 >,
+    /// The distance from the beginning of the line to the current point
+    distances : Vec< f32 >,
+    /// Total length of the line
+    total_distance : f32,
     /// The style of the line's end caps (`Butt`, `Round`, or `Square`).
     cap : Cap,
     /// The style of the line's joins between segments (`Round`, `Miter`, or `Bevel`).
@@ -40,6 +44,7 @@ mod private
 
       // Buffers
       let points_buffer = gl.create_buffer().expect( "Failed to create a points buffer" );
+      let distance_buffer = gl.create_buffer().expect( "Failed to create a distance buffer" );
       let points_terminal_buffer = gl.create_buffer().expect( "Failed to create a points terminal buffer" );
       let body_instanced_buffer = gl.create_buffer().expect( "Failed to create a body_instanced_buffer" );
       let join_instanced_buffer = gl.create_buffer().expect( "Failed to create a join_instanced_buffer" );
@@ -73,6 +78,7 @@ mod private
       gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
       gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
       gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 9 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 4, &points_buffer )?;
+      gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 5, &distance_buffer )?;
 
       let mut body_terminal_program = Program::default();
       body_terminal_program.program = Some( gl::ProgramShaders::new( &body_terminal_vertex_shader, &fragment_shader ).link( gl )? );
@@ -89,6 +95,7 @@ mod private
       gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 9 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_terminal_buffer )?;
       gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 9 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_terminal_buffer )?;
       gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 9 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_terminal_buffer )?;
+      gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 4, &distance_buffer )?;
 
       let mut join_program = Program::default();
       join_program.fragment_shader = Some( fragment_shader.clone() );
@@ -113,6 +120,7 @@ mod private
       mesh.add_buffer( "join_uv", join_uv_buffer );
       mesh.add_buffer( "points", points_buffer );
       mesh.add_buffer( "points_terminal", points_terminal_buffer );
+      mesh.add_buffer( "distance", distance_buffer );
 
       mesh.add_buffer( "uv", uv_buffer );
 
@@ -144,6 +152,18 @@ mod private
     /// Adds a new point to the line and marks the points as changed.
     pub fn add_point( &mut self, point : math::F32x2 )
     {
+      let distance = if let Some( last ) = self.points.last().copied()
+      {
+        ( point - last ).mag() 
+      }
+      else
+      {
+        0.0
+      };
+
+      self.total_distance += distance;
+      self.distances.push( self.total_distance );
+
       self.points.push( point );
       self.points_changed = true;
     }
@@ -156,8 +176,9 @@ mod private
       if self.points_changed
       {
         let points_buffer = mesh.get_buffer( "points" );
+        let distance_buffer = mesh.get_buffer( "distance" );
         let points_terminal_buffer = mesh.get_buffer( "points_terminal" );
-        let points : Vec< f32 > = self.points.iter().enumerate().flat_map( | ( i, p ) | [ p.x(), p.y(), i as f32 ] ).collect();
+        let points : Vec< f32 > = self.points.iter().zip( self.distances.iter() ).flat_map( | ( p, d ) | [ p.x(), p.y(), *d / self.total_distance ] ).collect();
         let ( points_terminal, uvs_terminal, terminal_instance_count ) = 
         if self.points.len() >= 3
         {
@@ -167,7 +188,10 @@ mod private
               self.points[ 0 ], self.points[ 1 ], self.points[ 2 ],
               self.points[ len - 1 ], self.points[ len - 2 ], self.points[ len - 3 ]
             ],
-            [ 0, 1, 2, len - 1, len - 2, len - 3 ],
+            [ 
+              self.distances[ 0 ], self.distances[ 1 ], self.distances[ 2 ],
+              self.distances[ len - 1 ], self.distances[ len - 2 ], self.distances[ len - 3 ]
+            ],
             2
           )
         }
@@ -179,20 +203,24 @@ mod private
               self.points[ 0 ], self.points[ 1 ], self.points[ 1 ] + dir,
               self.points[ 1 ], self.points[ 0 ], self.points[ 0 ] - dir,
             ],
-            [ 0, 1, 2, 2, 1, 0 ],
+            [ 
+              self.distances[ 0 ], self.distances[ 1 ], self.distances[ 1 ],
+              self.distances[ 1 ], self.distances[ 0 ], self.distances[ 0 ],
+            ],
             1
           )
         }
         else
         {
           let zero = math::F32x2::default();
-          ( [ zero, zero, zero, zero, zero, zero ], [ 0, 0, 0, 0, 0, 0, ], 0 )
+          ( [ zero, zero, zero, zero, zero, zero ], [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, ], 0 )
         };
 
-        let points_terminal : Vec< f32 > = points_terminal.into_iter().zip( uvs_terminal.into_iter() ).flat_map( | ( p, i ) | [ p.x(), p.y(), i as f32 ] ).collect();
+        let points_terminal : Vec< f32 > = points_terminal.into_iter().zip( uvs_terminal.into_iter() ).flat_map( | ( p, d ) | [ p.x(), p.y(), d / self.total_distance ] ).collect();
 
         gl::buffer::upload( &gl, &points_buffer, &points, gl::STATIC_DRAW );
         gl::buffer::upload( &gl, &points_terminal_buffer, &points_terminal, gl::STATIC_DRAW );
+        gl::buffer::upload( &gl, &distance_buffer, &self.distances, gl::STATIC_DRAW );
 
         let b_program = mesh.get_program_mut( "body" );
         b_program.instance_count = Some( ( self.points.len() as f32 - 3.0 ).max( 0.0 ) as u32 );
@@ -212,6 +240,7 @@ mod private
         let join_buffer = mesh.get_buffer( "join" );
         let join_indices_buffer = mesh.get_buffer( "join_indices" );
         let join_uv_buffer = mesh.get_buffer( "join_uv" );
+        let distance_buffer = mesh.get_buffer( "distance" );
 
         let ( join_geometry_list, join_indices, join_uvs, join_geometry_count ) = self.join.geometry(); 
         gl::buffer::upload( gl, &join_buffer, &join_geometry_list, gl::STATIC_DRAW );
@@ -232,6 +261,7 @@ mod private
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 4, &join_uv_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 5, &distance_buffer )?;
           },
           Join::Miter( _, _ ) =>
           {
@@ -240,6 +270,7 @@ mod private
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 4, &join_uv_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 5, &distance_buffer )?;
           },
           Join::Bevel( _, _ ) =>
           {
@@ -248,6 +279,7 @@ mod private
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
             gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 4, &join_uv_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 5, &distance_buffer )?;
           },
         }
 
@@ -367,16 +399,16 @@ mod private
       self.update_mesh( gl )?;
 
       let mesh = self.mesh.as_ref().expect( "Mesh has not been created yet" );
+
+      mesh.upload_to( gl, "body", "u_total_distance", &self.total_distance )?;
+      mesh.upload_to( gl, "body_terminal", "u_total_distance", &self.total_distance )?;
+
       mesh.draw( gl, "body" );
       mesh.draw( gl, "body_terminal" );
       
       if self.points.len() > 2
       {
-        // if let Join::Round( row_precision, _ ) = self.join
-        // {
-        //   mesh.upload_to( gl, "join", "u_segments", &( row_precision as f32 ) )?;
-        // }
-
+        mesh.upload_to( gl, "join", "u_total_distance", &self.total_distance )?;
         mesh.draw( gl, "join" );
       }
 

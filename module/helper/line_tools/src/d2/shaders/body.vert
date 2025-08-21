@@ -6,10 +6,12 @@ layout( location = 1 ) in vec3 inPointA;
 layout( location = 2 ) in vec3 inPointB;
 layout( location = 3 ) in vec3 inPointC;
 layout( location = 4 ) in vec3 inPointD;
+layout( location = 5 ) in float currentDistance;
 
 uniform mat3 u_world_matrix;
 uniform mat4 u_projection_matrix;
 uniform float u_width;
+uniform float u_total_distance;
 
 out vec2 vUv;
 
@@ -34,8 +36,12 @@ void main()
   vec2 p2 = pointC;
   vec2 pos = position;
 
+  float uv0 = inPointA.z;
+  float uv1 = inPointB.z;
+  float uv2 = inPointC.z;
+
   vUv.y = step( 0.0, pos.y );
-  vUv.x = position.x;
+  //vUv.x = position.x;
 
   if( position.x == 1.0 )
   {
@@ -43,6 +49,10 @@ void main()
     p1 = pointC;
     p2 = pointB;
     pos = vec2( 1.0 - position.x, -position.y );
+
+    uv0 = inPointD.z;
+    uv1 = inPointC.z;
+    uv2 = inPointB.z;
   }
 
   vec2 tangent = normalize( normalize( p2 - p1 ) + normalize( p1 - p0 ) );
@@ -92,6 +102,9 @@ void main()
       offsetPoint = rightBottomCorner2 + p21;
     }
   }
+
+   vUv.x = mix( uv2, uv1, length( offsetPoint - rightBottomCorner2 ) / length( p1 - p2 ) ); 
+
 
   if( sign( pos.y ) == -sigma )
   {

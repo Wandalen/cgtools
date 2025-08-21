@@ -5,10 +5,12 @@ layout( location = 0 ) in vec2 position;
 layout( location = 1 ) in vec3 inPointA;
 layout( location = 2 ) in vec3 inPointB;
 layout( location = 3 ) in vec3 inPointC;
+layout( location = 4 ) in float currentDistance;
 
 uniform mat3 u_world_matrix;
 uniform mat4 u_projection_matrix;
 uniform float u_width;
+uniform float u_total_distance;
 
 out vec2 vUv;
 
@@ -57,14 +59,14 @@ void main()
   // If segments are parallel
   if( sigma == 0.0 ) { sigma = 1.0; }
 
-  vUv.x = mix( 1.0 - position.x, position.x, step( 0.0, sigma ) );
+  //vUv.x = mix( position.x, 1.0 - position.x, float( gl_InstanceID ) );
   vUv.y = step( 0.0, position.y );
-  //vUv.y = mix( vUv.y, 1.0 -  vUv.y, step( 0.0, mix( -sigma, sigma, float( gl_InstanceID ) ) ) );
   vUv.y = mix( 1.0 - vUv.y, vUv.y, step( 0.0, sigma * curl ) );
   vUv.y = mix( vUv.y, 1.0 - vUv.y, float( gl_InstanceID ) );
 
   if( position.x == 0.0 )
   {
+    vUv.x = inPointA.z;
     vec2 point = pointA + AB * position.x + normToAB * position.y * u_width;
     gl_Position =  u_projection_matrix * vec4( point, 0.0, 1.0 );
     return;
@@ -106,6 +108,8 @@ void main()
       offsetPoint = leftBottomCornerA + AB;
     }
   }
+
+  vUv.x = mix( inPointA.z, inPointB.z, length( offsetPoint - leftBottomCornerA ) / length( pointB - pointA ) );
 
   if( sign( position.y ) == -sigma )
   {
