@@ -48,6 +48,8 @@ mod_interface = { workspace = true, optional = true }
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ], optional = true }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ], optional = true }
 gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ], optional = true }
+animation = { workspace = true, optional = true }
+skeleton = { workspace = true, optional = true }
 zune-hdr = { workspace = true }
 
 asbytes = { workspace = true, optional = true }
