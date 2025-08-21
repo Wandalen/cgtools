@@ -918,9 +918,9 @@ impl WebGLTileRenderer
 
     let gl = &self.gl;
     let texture = &self.textures[ &command.id ];
+    gl.active_texture( gl::GL::TEXTURE0 );
     gl.bind_texture( gl::GL::TEXTURE_2D, Some( texture ) );
     gl.bind_vertex_array( None );
-    gl.active_texture( gl::GL::TEXTURE0 );
 
     self.sprite_program.activate();
     gl.vertex_attrib2fv_with_f32_array( 1, &translation );
