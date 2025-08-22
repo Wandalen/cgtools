@@ -681,10 +681,10 @@ mod private
       let red = Color::rgb( 1.0, 0.0, 0.0 );
       let blue = Color::rgb( 0.0, 0.0, 1.0 );
       let purple = red.interpolate( &blue, 0.5 );
-      assert_eq!( purple.r, 0.5 );
-      assert_eq!( purple.g, 0.0 );
-      assert_eq!( purple.b, 0.5 );
-      assert_eq!( purple.a, 1.0 );
+      assert_eq!( purple.red, 0.5 );
+      assert_eq!( purple.green, 0.0 );
+      assert_eq!( purple.blue, 0.5 );
+      assert_eq!( purple.alpha, 1.0 );
     }
 
     // --- Tween Core Logic Tests ---
