@@ -1,4 +1,4 @@
-//! 
+//! A general purpose library for working with animatable values.
 #![ doc( html_root_url = "https://docs.rs/animation/latest/animation/" ) ]
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 #![ cfg_attr( not( doc ), doc = "" ) ]

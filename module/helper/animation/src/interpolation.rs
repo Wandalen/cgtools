@@ -285,6 +285,12 @@ mod private
       self.state
     }
 
+    /// Gets the current repeat count.
+    pub fn current_repeat( &self ) -> i32 
+    {
+      self.current_repeat
+    }
+
     /// Gets the progress of the animation ( 0.0 to 1.0 ).
     pub fn progress( &self ) -> f32 
     {
@@ -381,62 +387,68 @@ mod private
     }
   }
 
-  #[ derive( Debug, Clone ) ]
-  pub struct Translation( F32x3 );
-  
-  #[ derive( Debug, Clone ) ]
-  pub struct Rotation( QuatF32 );
-  
-  #[ derive( Debug, Clone ) ]
-  pub struct Scale( F32x3 );
-
-  // #[ derive( Debug, Clone ) ]
-  // struct Weights( ? );
-
-  impl Animatable for Translation
+  impl Animatable for F32x3
   {
     fn interpolate(&self, other : &Self, t : f32 ) -> Self 
     {
-      Self
+      Self::from
       (
-        F32x3::from
-        (
-          [
-            self.0.x().interpolate( &other.0.x(), t ),
-            self.0.y().interpolate( &other.0.y(), t ),
-            self.0.z().interpolate( &other.0.z(), t )
-          ]
-        )
+        [
+          self.x().interpolate( &other.x(), t ),
+          self.y().interpolate( &other.y(), t ),
+          self.z().interpolate( &other.z(), t )
+        ]
       )
     }
   } 
 
-  impl Animatable for Rotation
+  impl Animatable for QuatF32
   {
     fn interpolate( &self, other : &Self, t : f32 ) -> Self 
     {
-      Self
-      (
-        self.0.slerp( &other.0, t )
-      )
+      self.slerp( &other, t )
     }
   } 
 
-  impl Animatable for Scale
+  #[ derive( Debug, Clone ) ]
+  pub struct Transform
+  {
+    pub translation : Option< F32x3 >,
+    pub rotation : Option< QuatF32 >,
+    pub scale : Option< F32x3 >
+  }
+
+  impl Animatable for Transform
   {
     fn interpolate(&self, other : &Self, t : f32 ) -> Self 
     {
+      let translation = match ( self.translation, other.translation )
+      {
+        ( None, b ) => b,
+        ( a, None ) => a,
+        ( Some( a ), Some( b ) ) => Some( a.interpolate( &b, t ) )
+      };
+
+      let rotation = match ( self.rotation, other.rotation )
+      {
+        ( None, b ) => b,
+        ( a, None ) => a,
+        ( Some( a ), Some( b ) ) => Some( a.interpolate( &b, t ) )
+      };
+
+      let scale = match ( self.scale, other.scale )
+      {
+        ( None, b ) => b,
+        ( a, None ) => a,
+        ( Some( a ), Some( b ) ) => Some( a.interpolate( &b, t ) )
+      };
+
       Self
-      (
-        F32x3::from
-        (
-          [
-            self.0.x().interpolate( &other.0.x(), t ),
-            self.0.y().interpolate( &other.0.y(), t ),
-            self.0.z().interpolate( &other.0.z(), t )
-          ]
-        )
-      )
+      {
+        translation,
+        rotation,
+        scale
+      }
     }
   } 
 
@@ -833,6 +845,7 @@ crate::mod_interface!
   {
     AnimationState,
     Tween,
-    Animatable
+    Animatable,
+    Transform
   };
 }

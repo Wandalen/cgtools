@@ -13,7 +13,7 @@ homepage = "https://github.com/Wandalen/cgtools/tree/master/module/helper/animat
 documentation = "https://docs.rs/animation"
 description = ""
 readme = "readme.md"
-keywords = ["webgl", "animation", "3d", "gltf"]
+keywords = ["webgl", "animation", "3d"]
 categories = ["animation", "web-programming", "game-development"]
 include = [
     "src/**/*",
@@ -46,7 +46,6 @@ mod_interface = { workspace = true, optional = true }
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ], optional = true }
 mingl = { workspace = true, optional = true }
 bytemuck = { workspace = true }
-gltf = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true
