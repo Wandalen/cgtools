@@ -88,7 +88,10 @@ void main()
   float theta = acos( dot( normToAB, -normToCB ) );
   theta = sigma *  0.5 * PI - 0.5 * theta + theta  * position.x;
 
-  vec2 point = u_width * vec2( cos( theta ), sin( theta ) ) * position.y;
+  vec2 referencePoint = lineIntersection( pointB + normToAB * sigma * u_width * 0.5, AB, p2, normToAB * sigma );
+  float newWidth = length( referencePoint - p2 );
+
+  vec2 point = newWidth * vec2( cos( theta ), sin( theta ) ) * position.y;
   point = p2 + tangent * point.x + normal * point.y;
 
   float uvLeft = mix( inPointA.z, inPointB.z, length( p2 - leftBottomCornerA ) / length( pointB - pointA ) ); 
