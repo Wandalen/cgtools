@@ -38,15 +38,17 @@ mod private
   };
 
   /// Trait for types that can be animated ( interpolated ).
-  pub trait Animatable : Clone + std::fmt::Debug 
+  pub trait Animatable : Clone + core::fmt::Debug 
   {
     /// Interpolates between two values at time t ( 0.0 to 1.0 ).
     fn interpolate( &self, other : &Self, t : f32 ) -> Self;
   }
 
   /// Animation state for tracking tween progress.
+  #[ non_exhaustive ]
   #[ derive( Debug, Clone, Copy, PartialEq ) ]
-  pub enum AnimationState {
+  pub enum AnimationState 
+  {
     /// Animation hasn't started yet
     Pending,
     /// Animation is currently running
@@ -202,7 +204,7 @@ mod private
       let eased_time = self.easing.apply( normalized_time );
 
       // Handle yoyo mode
-      let ( start, end, t ) = if self.yoyo && self.current_repeat % 2 == 1 
+      let ( start, end, time ) = if self.yoyo && self.current_repeat % 2 == 1 
       {
         ( &self.end_value, &self.start_value, eased_time )
       } 
@@ -211,7 +213,7 @@ mod private
         ( &self.start_value, &self.end_value, eased_time )
       };
 
-      start.interpolate( end, t )
+      start.interpolate( end, time )
     }
 
     /// Handles animation repeat logic.
@@ -333,7 +335,7 @@ mod private
       self.reset();
     }
 
-    fn as_any( &self ) -> &dyn std::any::Any 
+    fn as_any( &self ) -> &dyn core::any::Any 
     {
       self
     }
@@ -343,60 +345,60 @@ mod private
 
   impl Animatable for f32 
   {
-    fn interpolate( &self, other : &Self, t : f32 ) -> Self 
+    fn interpolate( &self, other : &Self, time : f32 ) -> Self 
     {
-      self + ( other - self ) * t
+      self + ( other - self ) * time
     }
   }
 
   impl Animatable for f64 
   {
-    fn interpolate( &self, other : &Self, t : f32 ) -> Self 
+    fn interpolate( &self, other : &Self, time : f32 ) -> Self 
     {
-      self + ( other - self ) * ( t as f64 )
+      self + ( other - self ) * f64::from( time )
     }
   }
 
   impl Animatable for i32 
   {
-    fn interpolate( &self, other : &Self, t : f32 ) -> Self 
+    fn interpolate( &self, other : &Self, time : f32 ) -> Self 
     {
-      ( *self as f32 + ( *other as f32 - *self as f32 ) * t ) as i32
+      ( *self as f32 + ( *other as f32 - *self as f32 ) * time ) as i32
     }
   }
 
   impl Animatable for ( f32, f32 ) 
   {
-    fn interpolate( &self, other : &Self, t : f32 ) -> Self 
+    fn interpolate( &self, other : &Self, time : f32 ) -> Self 
     {
       (
-        self.0.interpolate( &other.0, t ),
-        self.1.interpolate( &other.1, t ),
+        self.0.interpolate( &other.0, time ),
+        self.1.interpolate( &other.1, time ),
       )
     }
   }
 
   impl Animatable for ( i32, i32 ) 
   {
-    fn interpolate( &self, other : &Self, t : f32 ) -> Self 
+    fn interpolate( &self, other : &Self, time : f32 ) -> Self 
     {
       (
-        self.0.interpolate( &other.0, t ),
-        self.1.interpolate( &other.1, t ),
+        self.0.interpolate( &other.0, time ),
+        self.1.interpolate( &other.1, time ),
       )
     }
   }
 
   impl Animatable for F32x3
   {
-    fn interpolate(&self, other : &Self, t : f32 ) -> Self 
+    fn interpolate(&self, other : &Self, time : f32 ) -> Self 
     {
       Self::from
       (
         [
-          self.x().interpolate( &other.x(), t ),
-          self.y().interpolate( &other.y(), t ),
-          self.z().interpolate( &other.z(), t )
+          self.x().interpolate( &other.x(), time ),
+          self.y().interpolate( &other.y(), time ),
+          self.z().interpolate( &other.z(), time )
         ]
       )
     }
@@ -404,43 +406,49 @@ mod private
 
   impl Animatable for QuatF32
   {
-    fn interpolate( &self, other : &Self, t : f32 ) -> Self 
+    fn interpolate( &self, other : &Self, time : f32 ) -> Self 
     {
-      self.slerp( &other, t )
+      self.slerp( other, time )
     }
   } 
 
+  /// Special version of [`Transform`] structure that 
+  /// used for skeletal animation
+  #[ non_exhaustive ]
   #[ derive( Debug, Clone ) ]
   pub struct Transform
   {
+    /// Translation used in node transform interpolation if animated 
     pub translation : Option< F32x3 >,
+    /// Rotation used in node transform interpolation if animated 
     pub rotation : Option< QuatF32 >,
+    /// Scale used in node transform interpolation if animated 
     pub scale : Option< F32x3 >
   }
 
   impl Animatable for Transform
   {
-    fn interpolate(&self, other : &Self, t : f32 ) -> Self 
+    fn interpolate(&self, other : &Self, time : f32 ) -> Self 
     {
       let translation = match ( self.translation, other.translation )
       {
-        ( None, b ) => b,
-        ( a, None ) => a,
-        ( Some( a ), Some( b ) ) => Some( a.interpolate( &b, t ) )
+        ( None, other ) => other,
+        ( this, None ) => this,
+        ( Some( this ), Some( other ) ) => Some( this.interpolate( &other, time ) )
       };
 
       let rotation = match ( self.rotation, other.rotation )
       {
-        ( None, b ) => b,
-        ( a, None ) => a,
-        ( Some( a ), Some( b ) ) => Some( a.interpolate( &b, t ) )
+        ( None, other ) => other,
+        ( this, None ) => this,
+        ( Some( this ), Some( other ) ) => Some( this.interpolate( &other, time ) )
       };
 
       let scale = match ( self.scale, other.scale )
       {
-        ( None, b ) => b,
-        ( a, None ) => a,
-        ( Some( a ), Some( b ) ) => Some( a.interpolate( &b, t ) )
+        ( None, other ) => other,
+        ( this, None ) => this,
+        ( Some( this ), Some( other ) ) => Some( this.interpolate( &other, time ) )
       };
 
       Self
@@ -457,33 +465,33 @@ mod private
   pub struct Color 
   {
     /// Red component ( 0.0 to 1.0 )
-    pub r : f32,
+    pub red : f32,
     /// Green component ( 0.0 to 1.0 )
-    pub g : f32,
+    pub green : f32,
     /// Blue component ( 0.0 to 1.0 )
-    pub b : f32,
+    pub blue : f32,
     /// Alpha component ( 0.0 to 1.0 )
-    pub a : f32
+    pub alpha : f32
   }
 
   impl Color 
   {
     /// Creates a new color.
-    pub fn new( r : f32, g : f32, b : f32, a : f32 ) -> Self 
+    pub fn new( red : f32, green : f32, blue : f32, alpha : f32 ) -> Self 
     {
       Self 
       {
-        r : r.clamp( 0.0, 1.0 ),
-        g : g.clamp( 0.0, 1.0 ),
-        b : b.clamp( 0.0, 1.0 ),
-        a : a.clamp( 0.0, 1.0 ),
+        red : red.clamp( 0.0, 1.0 ),
+        green : green.clamp( 0.0, 1.0 ),
+        blue : blue.clamp( 0.0, 1.0 ),
+        alpha : alpha.clamp( 0.0, 1.0 ),
       }
     }
 
     /// Creates an RGB color ( alpha = 1.0 ).
-    pub fn rgb( r : f32, g : f32, b : f32 ) -> Self 
+    pub fn rgb( red : f32, green : f32, blue : f32 ) -> Self 
     {
-      Self::new( r, g, b, 1.0 )
+      Self::new( red, green, blue, 1.0 )
     }
 
     /// Creates a white color.
@@ -507,14 +515,14 @@ mod private
 
   impl Animatable for Color 
   {
-    fn interpolate( &self, other : &Self, t : f32 ) -> Self 
+    fn interpolate( &self, other : &Self, time : f32 ) -> Self 
     {
       Self 
       {
-        r : self.r.interpolate( &other.r, t ),
-        g : self.g.interpolate( &other.g, t ),
-        b : self.b.interpolate( &other.b, t ),
-        a : self.a.interpolate( &other.a, t ),
+        red : self.red.interpolate( &other.red, time ),
+        green : self.green.interpolate( &other.green, time ),
+        blue : self.blue.interpolate( &other.blue, time ),
+        alpha : self.alpha.interpolate( &other.alpha, time ),
       }
     }
   }
@@ -673,10 +681,10 @@ mod private
       let red = Color::rgb( 1.0, 0.0, 0.0 );
       let blue = Color::rgb( 0.0, 0.0, 1.0 );
       let purple = red.interpolate( &blue, 0.5 );
-      assert_eq!( purple.r, 0.5 );
-      assert_eq!( purple.g, 0.0 );
-      assert_eq!( purple.b, 0.5 );
-      assert_eq!( purple.a, 1.0 );
+      assert_eq!( purple.red, 0.5 );
+      assert_eq!( purple.green, 0.0 );
+      assert_eq!( purple.blue, 0.5 );
+      assert_eq!( purple.alpha, 1.0 );
     }
 
     // --- Tween Core Logic Tests ---
