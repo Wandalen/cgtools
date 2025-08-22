@@ -285,6 +285,12 @@ mod private
       self.state
     }
 
+    /// Gets the current repeat count.
+    pub fn current_repeat( &self ) -> i32 
+    {
+      self.current_repeat
+    }
+
     /// Gets the progress of the animation ( 0.0 to 1.0 ).
     pub fn progress( &self ) -> f32 
     {
@@ -385,16 +391,13 @@ mod private
   {
     fn interpolate(&self, other : &Self, t : f32 ) -> Self 
     {
-      Self
+      Self::from
       (
-        F32x3::from
-        (
-          [
-            self.x().interpolate( &other.x(), t ),
-            self.y().interpolate( &other.y(), t ),
-            self.z().interpolate( &other.z(), t )
-          ]
-        )
+        [
+          self.x().interpolate( &other.x(), t ),
+          self.y().interpolate( &other.y(), t ),
+          self.z().interpolate( &other.z(), t )
+        ]
       )
     }
   } 
@@ -403,10 +406,7 @@ mod private
   {
     fn interpolate( &self, other : &Self, t : f32 ) -> Self 
     {
-      Self
-      (
-        self.slerp( &other, t )
-      )
+      self.slerp( &other, t )
     }
   } 
 
@@ -426,21 +426,21 @@ mod private
       {
         ( None, b ) => b,
         ( a, None ) => a,
-        ( Some( a ), Some( b ) ) => a.interpolate( &b, t )
+        ( Some( a ), Some( b ) ) => Some( a.interpolate( &b, t ) )
       };
 
       let rotation = match ( self.rotation, other.rotation )
       {
         ( None, b ) => b,
         ( a, None ) => a,
-        ( Some( a ), Some( b ) ) => a.interpolate( &b, t )
+        ( Some( a ), Some( b ) ) => Some( a.interpolate( &b, t ) )
       };
 
       let scale = match ( self.scale, other.scale )
       {
         ( None, b ) => b,
         ( a, None ) => a,
-        ( Some( a ), Some( b ) ) => a.interpolate( &b, t )
+        ( Some( a ), Some( b ) ) => Some( a.interpolate( &b, t ) )
       };
 
       Self
@@ -451,54 +451,6 @@ mod private
       }
     }
   } 
-
-  // #[ derive( Debug, Clone ) ]
-  // pub struct Translation( F32x3 );
-  
-  // #[ derive( Debug, Clone ) ]
-  // pub struct Rotation( QuatF32 );
-  
-  // #[ derive( Debug, Clone ) ]
-  // pub struct Scale( F32x3 );
-
-  // #[ derive( Debug, Clone ) ]
-  // struct Weights( ? );
-
-  // impl Animatable for Translation
-  // {
-  //   fn interpolate(&self, other : &Self, t : f32 ) -> Self 
-  //   {
-  //     Self
-  //     (
-  //       F32x3::from
-  //       (
-  //         [
-  //           self.0.x().interpolate( &other.0.x(), t ),
-  //           self.0.y().interpolate( &other.0.y(), t ),
-  //           self.0.z().interpolate( &other.0.z(), t )
-  //         ]
-  //       )
-  //     )
-  //   }
-  // } 
-
-  // impl Animatable for Scale
-  // {
-  //   fn interpolate(&self, other : &Self, t : f32 ) -> Self 
-  //   {
-  //     Self
-  //     (
-  //       F32x3::from
-  //       (
-  //         [
-  //           self.0.x().interpolate( &other.0.x(), t ),
-  //           self.0.y().interpolate( &other.0.y(), t ),
-  //           self.0.z().interpolate( &other.0.z(), t )
-  //         ]
-  //       )
-  //     )
-  //   }
-  // } 
 
   /// RGB Color for animations.
   #[ derive( Debug, Clone, Copy, PartialEq ) ]
