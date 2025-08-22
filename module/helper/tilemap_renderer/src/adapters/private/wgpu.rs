@@ -362,7 +362,6 @@ impl WGPUTileRenderer
     _ = self.geometry2d.insert( id, ( buf, vertex_count ) );
   }
 
-
   /// Executes a list of render commands and returns the resulting image.
   ///
   /// This function performs an off-screen render pass based on the provided commands
@@ -535,7 +534,7 @@ impl WGPUTileRenderer
     {
       aspect_scale,
       translation : [ pos_x + cam_pos_x, pos_y + cam_pos_y ],
-      rotation_sin_cos : [ command.transform.rotation.sin(), command.transform.rotation.cos() ],
+      rotation_cos_sin : [ command.transform.rotation.cos(), command.transform.rotation.sin() ],
       scale : command.transform.scale,
     };
     renderpass.set_push_constants( wgpu::ShaderStages::VERTEX, 0, bytemuck::bytes_of( &pc ) );
@@ -564,7 +563,7 @@ impl WGPUTileRenderer
     {
       aspect_scale,
       translation : [ pos_x + cam_pos_x, pos_y + cam_pos_y ],
-      rotation_sin_cos : [ command.transform.rotation.sin(), command.transform.rotation.cos() ],
+      rotation_cos_sin : [ command.transform.rotation.cos(), command.transform.rotation.sin() ],
       scale : command.transform.scale,
     };
     renderpass.set_push_constants( wgpu::ShaderStages::VERTEX, 0, bytemuck::bytes_of( &pc ) );
@@ -584,6 +583,6 @@ struct PushConstant
 {
   aspect_scale : [ f32; 2 ],
   translation : [ f32; 2 ],
-  rotation_sin_cos : [ f32; 2 ],
+  rotation_cos_sin : [ f32; 2 ],
   scale : [ f32; 2 ],
 }
