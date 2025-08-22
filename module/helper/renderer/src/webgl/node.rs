@@ -4,15 +4,12 @@ mod private
   use minwebgl::{ self as gl };
   use mingl::{ geometry::BoundingBox, F32x3, F32x4x4 };
   use crate::webgl::Mesh;
-  use skeleton::Skeleton;
 
   /// Represents a 3D object that can be part of the scene graph.
   pub enum Object3D
   {
     /// A mesh object, containing geometry and material information.
     Mesh( Rc< RefCell< Mesh > > ),
-    /// A skeleton object, containing information about animated nodes and their inverse bind matrices
-    Skeleton( Rc< RefCell< Skeleton > > ),
     /// A placeholder for other types of 3D objects.
     Other
   }
@@ -36,7 +33,7 @@ mod private
     /// The child nodes of this node.
     children : Vec< Rc< RefCell< Node > > >,
     /// The 3D objects associated with this node.
-    pub objects : HashMap< Box< str >, Object3D >,
+    pub object : Object3D,
     /// The local transformation matrix of the node.
     matrix : gl::F32x4x4,
     /// The global transformation matrix of the node, including the transformations of its parents.
@@ -82,7 +79,7 @@ mod private
         name : self.name.clone(),
         parent : None,
         children : vec![],
-        objects,
+        object,
         matrix : self.matrix,
         world_matrix : self.world_matrix,
         normal_matrix : self.normal_matrix,
