@@ -1,5 +1,5 @@
 //! Renders GLTF files using postprocess effects.
-#![ doc( html_root_url = "https://docs.rs/gltf_viewer/latest/skeleton_animation/" ) ]
+#![ doc( html_root_url = "https://docs.rs/gltf_viewer/latest/skeletal_animation/" ) ]
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 #![ cfg_attr( not( doc ), doc = "Renders skeleton animation from GLTF files" ) ]
 
@@ -24,7 +24,6 @@ use renderer::webgl::
 mod loaders;
 // mod lil_gui;
 // mod gui_setup;
-
 
 async fn run() -> Result< (), gl::WebglError >
 {
