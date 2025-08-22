@@ -23,7 +23,7 @@ use crate::
 };
 
 /// Interactive SVG renderer for browser deployment.
-/// 
+///
 /// Generates SVG content with embedded JavaScript for mouse events,
 /// hover effects, selection, and runtime interactivity.
 #[ derive( Clone ) ]
@@ -31,35 +31,35 @@ pub struct SvgBrowserRenderer
 {
   /// Accumulated SVG elements with interactive features
   elements: Vec< String >,
-  
+
   /// JavaScript event handlers
   event_handlers: Vec< String >,
-  
+
   /// CSS styles for interactivity
   styles: Vec< String >,
-  
+
   /// Viewport dimensions
   width: u32,
   height: u32,
-  
+
   /// Background color
   background_color: [ f32; 4 ],
-  
+
   /// Mouse picking enabled flag
   mouse_picking_enabled: bool,
-  
+
   /// Hover effects enabled flag
   hover_effects_enabled: bool,
-  
+
   /// Animation support enabled flag
   animation_enabled: bool,
-  
+
   /// Current element ID counter for unique identification
   element_id_counter: u32,
-  
+
   /// Initialization state
   is_initialized: bool,
-  
+
   /// Frame active state
   frame_active: bool,
 }
@@ -87,7 +87,7 @@ impl SvgBrowserRenderer
       frame_active: false,
     }
   }
-  
+
   /// Creates a new interactive SVG browser renderer with specified dimensions.
   #[ must_use ]
   #[ inline ]
@@ -98,35 +98,35 @@ impl SvgBrowserRenderer
     renderer.height = height;
     renderer
   }
-  
+
   /// Enables or disables mouse picking functionality.
   #[ inline ]
   pub fn set_mouse_picking_enabled( &mut self, enabled: bool )
   {
     self.mouse_picking_enabled = enabled;
   }
-  
+
   /// Enables or disables hover effects.
   #[ inline ]
   pub fn set_hover_effects_enabled( &mut self, enabled: bool )
   {
     self.hover_effects_enabled = enabled;
   }
-  
+
   /// Enables or disables animation support.
   #[ inline ]
   pub fn set_animation_enabled( &mut self, enabled: bool )
   {
     self.animation_enabled = enabled;
   }
-  
+
   /// Generates a unique element ID.
   fn generate_element_id( &mut self ) -> String
   {
     self.element_id_counter += 1;
     format!( "element_{}", self.element_id_counter )
   }
-  
+
   /// Converts RGBA color to CSS hex format.
   fn color_to_hex( color: [ f32; 4 ] ) -> String
   {
@@ -137,7 +137,7 @@ impl SvgBrowserRenderer
       ( color[ 2 ] * 255.0 ) as u8
     )
   }
-  
+
   /// Converts RGBA color to CSS rgba format with alpha.
   fn color_to_rgba( color: [ f32; 4 ] ) -> String
   {
@@ -149,7 +149,7 @@ impl SvgBrowserRenderer
       color[ 3 ]
     )
   }
-  
+
   /// Adds hover effect CSS for an element.
   fn add_hover_effect( &mut self, element_id: &str, base_color: [ f32; 4 ] )
   {
@@ -162,7 +162,7 @@ impl SvgBrowserRenderer
         ( base_color[ 2 ] * 1.2 ).min( 1.0 ),
         base_color[ 3 ]
       ];
-      
+
       self.styles.push( format!(
         "#{element_id}:hover {{ stroke: {}; cursor: pointer; }}",
         Self::color_to_rgba( hover_color ),
@@ -170,14 +170,14 @@ impl SvgBrowserRenderer
       ) );
     }
   }
-  
+
   /// Adds click event handler for an element.
   fn add_click_handler( &mut self, element_id: &str )
   {
     if self.mouse_picking_enabled
     {
       self.event_handlers.push( format!(
-        "document.getElementById('{}').addEventListener('click', function(e) {{ 
+        "document.getElementById('{}').addEventListener('click', function(e) {{
           console.log('Clicked element: {}');
           e.target.setAttribute('stroke-width', '3');
           setTimeout(() => e.target.setAttribute('stroke-width', '2'), 200);
@@ -186,12 +186,12 @@ impl SvgBrowserRenderer
       ) );
     }
   }
-  
+
   /// Generates the complete HTML document with embedded SVG and interactivity.
   fn generate_html_document( &self ) -> String
   {
     let background_color = Self::color_to_hex( self.background_color );
-    
+
     let mut html = format!(
       r#"<!DOCTYPE html>
 <html lang="en">
@@ -220,7 +220,7 @@ impl SvgBrowserRenderer
 "#,
       background_color = background_color
     );
-    
+
     // Add custom styles
     for style in &self.styles
     {
@@ -228,7 +228,7 @@ impl SvgBrowserRenderer
       html.push_str( style );
       html.push( '\n' );
     }
-    
+
     html.push_str( r#"  </style>
 </head>
 <body>
@@ -239,7 +239,7 @@ impl SvgBrowserRenderer
     html.push_str( &self.height.to_string() );
     html.push_str( r#"" xmlns="http://www.w3.org/2000/svg">
 "# );
-    
+
     // Add all SVG elements
     for element in &self.elements
     {
@@ -247,16 +247,16 @@ impl SvgBrowserRenderer
       html.push_str( element );
       html.push( '\n' );
     }
-    
+
     html.push_str( r#"    </svg>
   </div>
-  
+
   <script>
     // Interactive SVG functionality
     console.log('Interactive SVG renderer loaded');
-    
+
 "# );
-    
+
     // Add event handlers
     for handler in &self.event_handlers
     {
@@ -264,37 +264,37 @@ impl SvgBrowserRenderer
       html.push_str( handler );
       html.push( '\n' );
     }
-    
+
     if self.animation_enabled
     {
-      html.push_str( r#"    
+      html.push_str( r#"
     // Animation utilities
     function animateElement(elementId, property, fromValue, toValue, duration) {
       const element = document.getElementById(elementId);
       const startTime = Date.now();
-      
+
       function animate() {
         const elapsed = Date.now() - startTime;
         const progress = Math.min(elapsed / duration, 1);
-        
+
         const currentValue = fromValue + (toValue - fromValue) * progress;
         element.setAttribute(property, currentValue);
-        
+
         if (progress < 1) {
           requestAnimationFrame(animate);
         }
       }
-      
+
       animate();
     }
 "# );
     }
-    
+
     html.push_str( r#"  </script>
 </body>
 </html>
 "# );
-    
+
     html
   }
 }
@@ -311,24 +311,24 @@ impl Default for SvgBrowserRenderer
 impl Renderer for SvgBrowserRenderer
 {
   type Output = String;
-  
+
   #[ inline ]
   fn initialize( &mut self, context: &RenderContext ) -> Result< (), RenderError >
   {
     self.width = context.width;
     self.height = context.height;
     self.background_color = context.background_color;
-    
+
     // Clear previous content
     self.elements.clear();
     self.event_handlers.clear();
     self.styles.clear();
     self.element_id_counter = 0;
-    
+
     self.is_initialized = true;
     Ok( () )
   }
-  
+
   #[ inline ]
   fn begin_frame( &mut self, _context: &RenderContext ) -> Result< (), RenderError >
   {
@@ -336,16 +336,16 @@ impl Renderer for SvgBrowserRenderer
     {
       return Err( RenderError::InitializationFailed( "Renderer not initialized".to_string() ) );
     }
-    
+
     if self.frame_active
     {
       return Err( RenderError::RenderFailed( "Frame already active".to_string() ) );
     }
-    
+
     self.frame_active = true;
     Ok( () )
   }
-  
+
   #[ inline ]
   fn end_frame( &mut self ) -> Result< (), RenderError >
   {
@@ -353,21 +353,21 @@ impl Renderer for SvgBrowserRenderer
     {
       return Err( RenderError::RenderFailed( "No active frame".to_string() ) );
     }
-    
+
     self.frame_active = false;
     Ok( () )
   }
-  
+
   fn render_scene( &mut self, scene: &Scene ) -> Result< (), RenderError >
   {
     if !self.frame_active
     {
       return Err( RenderError::RenderFailed( "No active frame".to_string() ) );
     }
-    
+
     // Validate scene before rendering
     self.validate_scene( scene )?;
-    
+
     for command in scene.commands()
     {
       match command
@@ -377,12 +377,14 @@ impl Renderer for SvgBrowserRenderer
         crate::commands::RenderCommand::Text( text_cmd ) => self.render_text( text_cmd )?,
         crate::commands::RenderCommand::Tilemap( tilemap_cmd ) => self.render_tilemap( tilemap_cmd )?,
         crate::commands::RenderCommand::ParticleEmitter( particle_cmd ) => self.render_particle_emitter( particle_cmd )?,
+        crate::commands::RenderCommand::Geometry2DCommand( _ ) => return Err( RenderError::UnsupportedCommand( "Geometry2DCommand".into() ) ),
+        crate::commands::RenderCommand::SpriteCommand( _ ) => return Err( RenderError::UnsupportedCommand( "SpriteCommand".into() ) ),
       }
     }
-    
+
     Ok( () )
   }
-  
+
   #[ inline ]
   fn capabilities( &self ) -> RendererCapabilities
   {
@@ -399,12 +401,12 @@ impl Renderer for SvgBrowserRenderer
       max_scene_complexity: 50_000,
     }
   }
-  
+
   fn output( &self ) -> Result< Self::Output, RenderError >
   {
     Ok( self.generate_html_document() )
   }
-  
+
   #[ inline ]
   fn cleanup( &mut self ) -> Result< (), RenderError >
   {
@@ -426,10 +428,10 @@ impl PrimitiveRenderer for SvgBrowserRenderer
     {
       return Err( RenderError::RenderFailed( "No active frame".to_string() ) );
     }
-    
+
     let element_id = self.generate_element_id();
     let color = Self::color_to_rgba( command.style.color );
-    
+
     let line_element = format!(
       r#"<line id="{}" x1="{}" y1="{}" x2="{}" y2="{}" stroke="{}" stroke-width="{}" stroke-opacity="{}" stroke-linecap="{}" stroke-linejoin="{}"/>"#,
       element_id,
@@ -453,24 +455,24 @@ impl PrimitiveRenderer for SvgBrowserRenderer
         crate::commands::LineJoin::Bevel => "bevel",
       }
     );
-    
+
     self.elements.push( line_element );
     self.add_hover_effect( &element_id, command.style.color );
     self.add_click_handler( &element_id );
-    
+
     Ok( () )
   }
-  
+
   fn render_curve( &mut self, command: &CurveCommand ) -> Result< (), RenderError >
   {
     if !self.frame_active
     {
       return Err( RenderError::RenderFailed( "No active frame".to_string() ) );
     }
-    
+
     let element_id = self.generate_element_id();
     let color = Self::color_to_rgba( command.style.color );
-    
+
     let path_data = format!(
       "M {} {} C {} {}, {} {}, {} {}",
       command.start.x, command.start.y,
@@ -478,7 +480,7 @@ impl PrimitiveRenderer for SvgBrowserRenderer
       command.control2.x, command.control2.y,
       command.end.x, command.end.y
     );
-    
+
     let curve_element = format!(
       r#"<path id="{}" d="{}" stroke="{}" stroke-width="{}" stroke-opacity="{}" fill="none" stroke-linecap="{}" stroke-linejoin="{}"/>"#,
       element_id,
@@ -499,29 +501,29 @@ impl PrimitiveRenderer for SvgBrowserRenderer
         crate::commands::LineJoin::Bevel => "bevel",
       }
     );
-    
+
     self.elements.push( curve_element );
     self.add_hover_effect( &element_id, command.style.color );
     self.add_click_handler( &element_id );
-    
+
     Ok( () )
   }
-  
+
   fn render_text( &mut self, command: &TextCommand ) -> Result< (), RenderError >
   {
     if !self.frame_active
     {
       return Err( RenderError::RenderFailed( "No active frame".to_string() ) );
     }
-    
+
     let element_id = self.generate_element_id();
     let color = Self::color_to_rgba( command.font_style.color );
-    
+
     // Extract text from fixed-size array
     let text_slice = &command.text[ ..command.text_len as usize ];
     let text_string = core::str::from_utf8( text_slice )
       .map_err( |_| RenderError::RenderFailed( "Invalid UTF-8 text".to_string() ) )?;
-    
+
     // Calculate text anchor position
     let ( anchor_x, anchor_y ) = match command.anchor
     {
@@ -535,7 +537,7 @@ impl PrimitiveRenderer for SvgBrowserRenderer
       crate::commands::TextAnchor::BottomCenter => ( command.position.x, command.position.y ),
       crate::commands::TextAnchor::BottomRight => ( command.position.x, command.position.y ),
     };
-    
+
     let text_anchor = match command.anchor
     {
       crate::commands::TextAnchor::TopLeft |
@@ -548,7 +550,7 @@ impl PrimitiveRenderer for SvgBrowserRenderer
       crate::commands::TextAnchor::CenterRight |
       crate::commands::TextAnchor::BottomRight => "end",
     };
-    
+
     let text_element = format!(
       r#"<text id="{}" x="{}" y="{}" fill="{}" fill-opacity="{}" font-size="{}" font-weight="{}" font-style="{}" text-anchor="{}">{}</text>"#,
       element_id,
@@ -562,9 +564,9 @@ impl PrimitiveRenderer for SvgBrowserRenderer
       text_anchor,
       text_string
     );
-    
+
     self.elements.push( text_element );
-    
+
     // Add hover effect for text with different styling
     if self.hover_effects_enabled
     {
@@ -573,20 +575,20 @@ impl PrimitiveRenderer for SvgBrowserRenderer
         element_id = element_id
       ) );
     }
-    
+
     self.add_click_handler( &element_id );
-    
+
     Ok( () )
   }
-  
+
   fn render_tilemap( &mut self, _command: &TilemapCommand ) -> Result< (), RenderError >
   {
     Err( RenderError::UnsupportedCommand( "Tilemap rendering not implemented for SVG-Browser backend".to_string() ) )
   }
-  
+
   fn render_particle_emitter( &mut self, _command: &ParticleEmitterCommand ) -> Result< (), RenderError >
   {
     Err( RenderError::UnsupportedCommand( "Particle emitter rendering not implemented for SVG-Browser backend".to_string() ) )
   }
-  
+
 }

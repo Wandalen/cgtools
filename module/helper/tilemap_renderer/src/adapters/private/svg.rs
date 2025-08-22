@@ -47,7 +47,7 @@ impl SvgRenderer
       context: None,
     };
   }
-  
+
   /// Converts a color array to SVG color string.
   #[ inline ]
   fn color_to_svg( color: &[ f32; 4 ] ) -> String
@@ -56,7 +56,7 @@ impl SvgRenderer
     let g = ( color[ 1 ] * 255.0 ) as u8;
     let b = ( color[ 2 ] * 255.0 ) as u8;
     let a = color[ 3 ];
-    
+
     if ( a - 1.0 ).abs() < f32::EPSILON
     {
       return format!( "rgb({r},{g},{b})" );
@@ -66,7 +66,7 @@ impl SvgRenderer
       return format!( "rgba({r},{g},{b},{a})" );
     }
   }
-  
+
   /// Converts line cap style to SVG stroke-linecap.
   #[ inline ]
   fn line_cap_to_svg( cap: LineCap ) -> &'static str
@@ -74,11 +74,11 @@ impl SvgRenderer
     match cap
     {
       LineCap::Butt => return "butt",
-      LineCap::Round => return "round", 
+      LineCap::Round => return "round",
       LineCap::Square => return "square",
     }
   }
-  
+
   /// Converts line join style to SVG stroke-linejoin.
   #[ inline ]
   fn line_join_to_svg( join: LineJoin ) -> &'static str
@@ -90,7 +90,7 @@ impl SvgRenderer
       LineJoin::Bevel => return "bevel",
     }
   }
-  
+
   /// Resolves font family from font family ID.
   /// For now, this is a simple mapping. In a full implementation,
   /// this would lookup from a font registry.
@@ -100,7 +100,7 @@ impl SvgRenderer
     match family_id
     {
       0 => return "Arial",
-      1 => return "Times New Roman", 
+      1 => return "Times New Roman",
       2 => return "Courier New",
       3 => return "Helvetica",
       4 => return "Georgia",
@@ -121,7 +121,7 @@ impl Default for SvgRenderer
 impl Renderer for SvgRenderer
 {
   type Output = String;
-  
+
   #[ inline ]
   fn capabilities( &self ) -> RendererCapabilities
   {
@@ -137,7 +137,7 @@ impl Renderer for SvgRenderer
     caps.max_scene_complexity = 10000; // Large scenes supported
     return caps;
   }
-  
+
   /// Initializes the SVG renderer with the given context.
   ///
   /// # Errors
@@ -149,12 +149,12 @@ impl Renderer for SvgRenderer
     {
       return Err( RenderError::InitializationFailed( "SVG renderer already initialized".to_string() ) );
     }
-    
+
     self.context = Some( context.clone() );
     self.initialized = true;
     return Ok( () );
   }
-  
+
   /// Begins a new rendering frame.
   ///
   /// # Errors
@@ -166,16 +166,16 @@ impl Renderer for SvgRenderer
     {
       return Err( RenderError::InvalidContext( "SVG renderer not initialized".to_string() ) );
     }
-    
+
     if self.frame_active
     {
       return Err( RenderError::RenderFailed( "Frame already active".to_string() ) );
     }
-    
+
     self.context = Some( context.clone() );
     self.frame_active = true;
     self.svg_content.clear();
-    
+
     // Start SVG document
     self.svg_content.push_str( &format!(
       r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -183,7 +183,7 @@ impl Renderer for SvgRenderer
 "#,
       context.width, context.height, context.width, context.height
     ) );
-    
+
     // Add background if needed
     if context.clear_background
     {
@@ -193,10 +193,10 @@ impl Renderer for SvgRenderer
 "#
       ) );
     }
-    
+
     return Ok( () );
   }
-  
+
   /// Renders a complete scene to the output.
   ///
   /// # Errors
@@ -208,9 +208,9 @@ impl Renderer for SvgRenderer
     {
       return Err( RenderError::RenderFailed( "No active frame".to_string() ) );
     }
-    
+
     self.validate_scene( scene )?;
-    
+
     for command in scene.commands()
     {
       match command
@@ -220,12 +220,14 @@ impl Renderer for SvgRenderer
         RenderCommand::Text( text_cmd ) => self.render_text( text_cmd )?,
         RenderCommand::Tilemap( _ ) => return Err( RenderError::UnsupportedCommand( "Tilemap".to_string() ) ),
         RenderCommand::ParticleEmitter( _ ) => return Err( RenderError::UnsupportedCommand( "ParticleEmitter".to_string() ) ),
+        RenderCommand::Geometry2DCommand( _ ) => return Err( RenderError::UnsupportedCommand( "Geometry2DCommand".into() ) ),
+        RenderCommand::SpriteCommand( _ ) => return Err( RenderError::UnsupportedCommand( "SpriteCommand".into() ) ),
       }
     }
-    
+
     return Ok( () );
   }
-  
+
   /// Ends the current rendering frame and finalizes the output.
   ///
   /// # Errors
@@ -237,14 +239,14 @@ impl Renderer for SvgRenderer
     {
       return Err( RenderError::RenderFailed( "No active frame".to_string() ) );
     }
-    
+
     // Close SVG document
     self.svg_content.push_str( "</svg>\n" );
-    
+
     self.frame_active = false;
     return Ok( () );
   }
-  
+
   /// Retrieves the rendered output.
   ///
   /// # Errors
@@ -256,15 +258,15 @@ impl Renderer for SvgRenderer
     {
       return Err( RenderError::OutputError( "Frame still active".to_string() ) );
     }
-    
+
     if !self.initialized
     {
       return Err( RenderError::OutputError( "Renderer not initialized".to_string() ) );
     }
-    
+
     return Ok( self.svg_content.clone() );
   }
-  
+
   /// Performs cleanup and releases resources.
   ///
   /// # Errors
@@ -278,13 +280,13 @@ impl Renderer for SvgRenderer
     self.context = None;
     return Ok( () );
   }
-  
+
   #[ inline ]
   fn supports_tilemaps( &self ) -> bool
   {
     return false; // SVG adapter doesn't support tilemaps
   }
-  
+
   #[ inline ]
   fn supports_particles( &self ) -> bool
   {
@@ -304,7 +306,7 @@ impl PrimitiveRenderer for SvgRenderer
     let stroke_color = Self::color_to_svg( &command.style.color );
     let line_cap = Self::line_cap_to_svg( command.style.cap_style );
     let line_join = Self::line_join_to_svg( command.style.join_style );
-    
+
     self.svg_content.push_str( &format!(
       r#"  <line x1="{}" y1="{}" x2="{}" y2="{}" stroke="{}" stroke-width="{}" stroke-linecap="{}" stroke-linejoin="{}"/>
 "#,
@@ -313,10 +315,10 @@ impl PrimitiveRenderer for SvgRenderer
       stroke_color, command.style.width,
       line_cap, line_join
     ) );
-    
+
     return Ok( () );
   }
-  
+
   /// Renders a curve command.
   ///
   /// # Errors
@@ -327,7 +329,7 @@ impl PrimitiveRenderer for SvgRenderer
     let stroke_color = Self::color_to_svg( &command.style.color );
     let line_cap = Self::line_cap_to_svg( command.style.cap_style );
     let line_join = Self::line_join_to_svg( command.style.join_style );
-    
+
     // SVG cubic bezier curve
     let path_data = format!(
       "M {} {} C {} {}, {} {}, {} {}",
@@ -336,17 +338,17 @@ impl PrimitiveRenderer for SvgRenderer
       command.control2.x, command.control2.y,
       command.end.x, command.end.y
     );
-    
+
     self.svg_content.push_str( &format!(
       r#"  <path d="{}" fill="none" stroke="{}" stroke-width="{}" stroke-linecap="{}" stroke-linejoin="{}"/>
 "#,
       path_data, stroke_color, command.style.width,
       line_cap, line_join
     ) );
-    
+
     return Ok( () );
   }
-  
+
   /// Renders a text command.
   ///
   /// # Errors
@@ -356,7 +358,7 @@ impl PrimitiveRenderer for SvgRenderer
   {
     let fill_color = Self::color_to_svg( &command.font_style.color );
     let text_content = command.text();
-    
+
     // Convert text anchor to SVG text-anchor
     let text_anchor = match command.anchor
     {
@@ -364,15 +366,15 @@ impl PrimitiveRenderer for SvgRenderer
       TextAnchor::TopCenter | TextAnchor::Center | TextAnchor::BottomCenter => "middle",
       TextAnchor::TopRight | TextAnchor::CenterRight | TextAnchor::BottomRight => "end",
     };
-    
+
     // Convert vertical alignment to dominant-baseline
     let dominant_baseline = match command.anchor
     {
       TextAnchor::TopLeft | TextAnchor::TopCenter | TextAnchor::TopRight => "hanging",
-      TextAnchor::CenterLeft | TextAnchor::Center | TextAnchor::CenterRight => "central", 
+      TextAnchor::CenterLeft | TextAnchor::Center | TextAnchor::CenterRight => "central",
       TextAnchor::BottomLeft | TextAnchor::BottomCenter | TextAnchor::BottomRight => "baseline",
     };
-    
+
     self.svg_content.push_str( &format!(
       r#"  <text x="{}" y="{}" font-family="{}" font-size="{}" fill="{}" text-anchor="{}" dominant-baseline="{}">{}</text>
 "#,
@@ -381,10 +383,10 @@ impl PrimitiveRenderer for SvgRenderer
       fill_color, text_anchor, dominant_baseline,
       text_content
     ) );
-    
+
     return Ok( () );
   }
-  
+
   /// Renders a tilemap command.
   ///
   /// # Errors
@@ -394,7 +396,7 @@ impl PrimitiveRenderer for SvgRenderer
   {
     return Err( RenderError::FeatureNotImplemented( "Tilemap rendering not supported in SVG backend".to_string() ) );
   }
-  
+
   /// Renders a particle emitter command.
   ///
   /// # Errors

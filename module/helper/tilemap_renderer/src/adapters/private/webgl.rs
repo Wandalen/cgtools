@@ -165,7 +165,7 @@ impl WebGLRenderer
     ctx.width = render_context.width;
     ctx.height = render_context.height;
     ctx.viewport = ( 0, 0, render_context.width, render_context.height );
-    
+
     // Mock WebGL initialization steps
     // In real implementation, this would:
     // 1. Get WebGL context from canvas
@@ -173,11 +173,11 @@ impl WebGLRenderer
     // 3. Load and compile shaders
     // 4. Create vertex buffer objects
     // 5. Set up blending and depth testing
-    
+
     ctx.line_vbo = Some( 1 ); // Mock VBO ID
     ctx.curve_vbo = Some( 2 ); // Mock VBO ID
     ctx.active_program = Some( 1 ); // Mock shader program ID
-    
+
     self.context = Some( ctx );
     return Ok( () );
   }
@@ -193,7 +193,7 @@ impl WebGLRenderer
     // 3. Link shader program
     // 4. Get uniform and attribute locations
     // 5. Set up texture samplers if needed
-    
+
     if let Some( ref mut ctx ) = self.context
     {
       ctx.active_program = Some( 1 ); // Mock compiled program ID
@@ -218,7 +218,7 @@ impl WebGLRenderer
       // 3. Set up vertex attribute pointers
       // 4. Issue draw call (drawArrays or drawElements)
       // 5. Update rendering statistics
-      
+
       ctx.stats.vertices_rendered += self.batch_count * 2; // Lines have 2 vertices
       ctx.stats.draw_calls += 1;
       ctx.stats.texture_bindings += 0; // No textures for basic primitives
@@ -260,12 +260,12 @@ impl WebGLRenderer
   {
     // High-quality curve tessellation for smooth GPU rendering
     const CURVE_SEGMENTS: usize = 20; // Higher quality for GPU rendering
-    
+
     for i in 0..CURVE_SEGMENTS
     {
       let t1 = i as f32 / CURVE_SEGMENTS as f32;
       let t2 = ( i + 1 ) as f32 / CURVE_SEGMENTS as f32;
-      
+
       // Cubic Bezier curve calculation
       let x1 = Self::cubic_bezier( t1, cmd.start.x, cmd.control1.x, cmd.control2.x, cmd.end.x );
       let y1 = Self::cubic_bezier( t1, cmd.start.y, cmd.control1.y, cmd.control2.y, cmd.end.y );
@@ -286,7 +286,7 @@ impl WebGLRenderer
 
       self.batch_count += 1;
     }
-    
+
     return Ok( () );
   }
 
@@ -294,9 +294,9 @@ impl WebGLRenderer
   fn cubic_bezier( t: f32, p0: f32, p1: f32, p2: f32, p3: f32 ) -> f32
   {
     let u = 1.0 - t;
-    u.powi( 3 ) * p0 + 
-    3.0 * u.powi( 2 ) * t * p1 + 
-    3.0 * u * t.powi( 2 ) * p2 + 
+    u.powi( 3 ) * p0 +
+    3.0 * u.powi( 2 ) * t * p1 +
+    3.0 * u * t.powi( 2 ) * p2 +
     t.powi( 3 ) * p3
   }
 
@@ -310,54 +310,54 @@ impl WebGLRenderer
     // 3. Generate quad vertices for each character
     // 4. Add text quads to batch rendering system
     // 5. Handle text anchoring and styling
-    
+
     // Convert text from [u8; 64] array to string
     let text_end = cmd.text.iter().position( |&b| b == 0 ).unwrap_or( cmd.text.len() );
     let text_str = core::str::from_utf8( &cmd.text[ ..text_end ] ).unwrap_or( "<invalid>" );
-    
+
     // Mock character processing
     let char_count = text_str.len();
     let char_width = 8.0; // Mock character width in pixels
     let _char_height = 12.0; // Mock character height in pixels
-    
+
     // Apply text anchoring
     let mut x_offset = 0.0;
     match cmd.anchor
     {
       TextAnchor::TopLeft | TextAnchor::CenterLeft | TextAnchor::BottomLeft => {},
-      TextAnchor::TopCenter | TextAnchor::Center | TextAnchor::BottomCenter => 
+      TextAnchor::TopCenter | TextAnchor::Center | TextAnchor::BottomCenter =>
         x_offset = -( char_count as f32 * char_width ) / 2.0,
-      TextAnchor::TopRight | TextAnchor::CenterRight | TextAnchor::BottomRight => 
+      TextAnchor::TopRight | TextAnchor::CenterRight | TextAnchor::BottomRight =>
         x_offset = -( char_count as f32 * char_width ),
     }
-    
+
     // Mock adding character quads to batch
     for i in 0..char_count
     {
       let x = cmd.position.x + x_offset + ( i as f32 * char_width );
       let y = cmd.position.y;
-      
+
       // Mock quad vertices (each character as 2 triangles = 6 vertices)
       if self.batch_count >= self.max_batch_size
       {
         self.flush_batch();
       }
-      
+
       // Add mock character quad (simplified to single line for demonstration)
       self.vertex_buffer.extend_from_slice( &[ x, y, x + char_width, y ] );
       self.color_buffer.extend_from_slice( &[
         cmd.font_style.color[ 0 ], cmd.font_style.color[ 1 ], cmd.font_style.color[ 2 ], cmd.font_style.color[ 3 ],
         cmd.font_style.color[ 0 ], cmd.font_style.color[ 1 ], cmd.font_style.color[ 2 ], cmd.font_style.color[ 3 ],
       ] );
-      
+
       self.batch_count += 1;
     }
-    
+
     if let Some( ref mut ctx ) = self.context
     {
       ctx.stats.texture_bindings += 1; // Text rendering uses font atlas texture
     }
-    
+
     return Ok( () );
   }
 
@@ -374,16 +374,16 @@ impl WebGLRenderer
         // 2. Recreate all GPU resources (shaders, buffers, textures)
         // 3. Restore rendering state
         // 4. Continue rendering seamlessly
-        
+
         ctx.context_lost = false;
         ctx.line_vbo = Some( 1 );
         ctx.curve_vbo = Some( 2 );
         ctx.active_program = Some( 1 );
-        
+
         self.compile_shaders();
       }
     }
-    
+
     return Ok( () );
   }
 
@@ -394,16 +394,16 @@ impl WebGLRenderer
     {
       return None;
     }
-    
+
     self.last_mouse_pos = ( x, y );
-    
+
     // Mock mouse picking implementation
     // In real implementation, this would:
     // 1. Render scene to offscreen buffer with unique colors per primitive
     // 2. Sample pixel at mouse position
     // 3. Map color back to primitive ID
     // 4. Return picked primitive for interaction
-    
+
     // Mock primitive ID based on position
     if let Some( ref ctx ) = self.context
     {
@@ -493,10 +493,10 @@ impl Renderer for WebGLRenderer
 
     self.frame_active = true;
     self.render_context = Some( context.clone() );
-    
+
     // Clear frame statistics
     self.reset_stats();
-    
+
     // Mock WebGL frame setup
     // In real implementation, this would:
     // 1. Set viewport to canvas size
@@ -504,14 +504,14 @@ impl Renderer for WebGLRenderer
     // 3. Set up initial rendering state
     // 4. Enable blending for transparency
     // 5. Set up projection matrix for 2D rendering
-    
+
     if let Some( ref mut ctx ) = self.context
     {
       ctx.viewport = ( 0, 0, context.width, context.height );
       ctx.width = context.width;
       ctx.height = context.height;
     }
-    
+
     return Ok( () );
   }
 
@@ -532,12 +532,14 @@ impl Renderer for WebGLRenderer
         RenderCommand::Text( cmd ) => self.render_text( &cmd )?,
         RenderCommand::Tilemap( cmd ) => self.render_tilemap( &cmd )?,
         RenderCommand::ParticleEmitter( cmd ) => self.render_particle_emitter( &cmd )?,
+        RenderCommand::Geometry2DCommand( _ ) => return Err( RenderError::UnsupportedCommand( "Geometry2DCommand".into() ) ),
+        RenderCommand::SpriteCommand( _ ) => return Err( RenderError::UnsupportedCommand( "SpriteCommand".into() ) ),
       }
     }
-    
+
     // Flush any remaining batched primitives
     self.flush_batch();
-    
+
     return Ok( () );
   }
 
@@ -550,17 +552,17 @@ impl Renderer for WebGLRenderer
 
     // Final batch flush and frame completion
     self.flush_batch();
-    
+
     // Mock WebGL frame completion
     // In real implementation, this would:
     // 1. Present rendered frame to canvas
     // 2. Swap buffers if double-buffered
     // 3. Update performance counters
     // 4. Handle any pending GPU operations
-    
+
     self.frame_active = false;
     self.render_context = None;
-    
+
     return Ok( () );
   }
 
@@ -569,7 +571,7 @@ impl Renderer for WebGLRenderer
     // Return rendering statistics as JSON
     if let Some( stats ) = self.get_stats()
     {
-      Ok( format!( 
+      Ok( format!(
         r#"{{
   "backend": "WebGL",
   "vertices_rendered": {},
@@ -600,7 +602,7 @@ impl Renderer for WebGLRenderer
     // 1. Delete all GPU resources (buffers, textures, shaders)
     // 2. Release WebGL context
     // 3. Clear all internal state
-    
+
     self.context = None;
     self.initialized = false;
     self.frame_active = false;
@@ -608,7 +610,7 @@ impl Renderer for WebGLRenderer
     self.vertex_buffer.clear();
     self.color_buffer.clear();
     self.batch_count = 0;
-    
+
     return Ok( () );
   }
 }
@@ -638,9 +640,9 @@ impl PrimitiveRenderer for WebGLRenderer
     // 2. Generate instanced quads for each tile
     // 3. Use GPU instancing for high performance
     // 4. Support texture animation and variety
-    
+
     let tile_count = cmd.tile_count;
-    
+
     // Mock processing tiles
     for _ in 0..tile_count
     {
@@ -648,23 +650,23 @@ impl PrimitiveRenderer for WebGLRenderer
       {
         self.flush_batch();
       }
-      
+
       // Mock tile quad (simplified)
       self.vertex_buffer.extend_from_slice( &[
         cmd.position.x, cmd.position.y,
         cmd.position.x + cmd.tile_width, cmd.position.y + cmd.tile_height,
       ] );
-      
+
       self.color_buffer.extend_from_slice( &[ 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0 ] );
-      
+
       self.batch_count += 1;
     }
-    
+
     if let Some( ref mut ctx ) = self.context
     {
       ctx.stats.texture_bindings += 1; // Tilemap uses texture atlas
     }
-    
+
     return Ok( () );
   }
 
@@ -676,37 +678,37 @@ impl PrimitiveRenderer for WebGLRenderer
     // 2. Update particle positions on GPU
     // 3. Render particles using instanced rendering
     // 4. Support particle physics and effects
-    
+
     let particle_count = (cmd.emission_rate * cmd.particle_lifetime).min( 1000.0 ) as usize; // Reasonable limit for demo
-    
+
     for i in 0..particle_count
     {
       if self.batch_count >= self.max_batch_size
       {
         self.flush_batch();
       }
-      
+
       // Mock particle position calculation
       let offset_x = ( i as f32 * 0.1 ).sin() * 10.0;
       let offset_y = ( i as f32 * 0.1 ).cos() * 10.0;
-      
+
       let particle_x = cmd.position.x + offset_x;
       let particle_y = cmd.position.y + offset_y;
-      
+
       // Mock particle quad
       self.vertex_buffer.extend_from_slice( &[
         particle_x, particle_y,
         particle_x + cmd.particle_size, particle_y + cmd.particle_size,
       ] );
-      
+
       self.color_buffer.extend_from_slice( &[
         cmd.particle_color[ 0 ], cmd.particle_color[ 1 ], cmd.particle_color[ 2 ], cmd.particle_color[ 3 ],
         cmd.particle_color[ 0 ], cmd.particle_color[ 1 ], cmd.particle_color[ 2 ], cmd.particle_color[ 3 ],
       ] );
-      
+
       self.batch_count += 1;
     }
-    
+
     return Ok( () );
   }
 }
