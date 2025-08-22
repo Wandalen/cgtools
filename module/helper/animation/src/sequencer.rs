@@ -79,14 +79,8 @@ mod private
     {
       let tween_box = self.tweens.get( name )?;
       let any_ref = tween_box.as_any();
-      if let Some( concrete_tween ) = any_ref.downcast_ref::< Tween< T > >() 
-      {
-        Some( concrete_tween.get_current_value() )
-      } 
-      else 
-      {
-        None
-      }
+      any_ref.downcast_ref::< Tween< T > >()
+      .map( Tween::get_current_value )
     }
 
     /// Checks if the Sequencer has completed all animations.
@@ -167,7 +161,7 @@ mod private
   }
 
   /// Trait for type-erased animatable values in Sequencer.
-  pub trait AnimatableValue : std::fmt::Debug
+  pub trait AnimatableValue : core::fmt::Debug
   {
     /// Updates the animation state based on time.
     fn update( &mut self, delta_time : f32 );
@@ -180,7 +174,7 @@ mod private
     /// Resets the animation to its initial state.
     fn reset( &mut self );
     /// Returns a type-erased reference to the underlying value.
-    fn as_any( &self ) -> &dyn std::any::Any;
+    fn as_any( &self ) -> &dyn core::any::Any;
   }
 
   #[ cfg( test ) ]

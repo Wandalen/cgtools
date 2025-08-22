@@ -23,23 +23,23 @@ mod private
     /// Calculates the x-coordinate of the Bezier curve at a given time `t`.
     /// 
     /// This is part of the inverse function used to solve for `t`.
-    fn get_x( &self, t: f32 ) -> f32 
+    fn get_x( &self, time : f32 ) -> f32 
     {
-      let one_minus_t = 1.0 - t;
-      3.0 * one_minus_t.powi( 2 ) * t * self.in_tangent[ 0 ]
-      + 3.0 * one_minus_t * t.powi( 2 ) * self.out_tangent[ 0 ]
-      + t.powi( 3 )
+      let one_minus_t = 1.0 - time;
+      3.0 * one_minus_t.powi( 2 ) * time * self.in_tangent[ 0 ]
+      + 3.0 * one_minus_t * time.powi( 2 ) * self.out_tangent[ 0 ]
+      + time.powi( 3 )
     }
 
     /// Calculates the y-coordinate of the Bezier curve at a given time `t`.
     /// 
     /// This represents the final easing value.
-    fn get_y( &self, t : f32 ) -> f32 
+    fn get_y( &self, time : f32 ) -> f32 
     {
-      let one_minus_t = 1.0 - t;
-      3.0 * one_minus_t.powi( 2 ) * t * self.in_tangent[ 1 ]
-      + 3.0 * one_minus_t * t.powi( 2 ) * self.out_tangent[ 1 ]
-      + t.powi( 3 )
+      let one_minus_t = 1.0 - time;
+      3.0 * one_minus_t.powi( 2 ) * time * self.in_tangent[ 1 ]
+      + 3.0 * one_minus_t * time.powi( 2 ) * self.out_tangent[ 1 ]
+      + time.powi( 3 )
     }
 
     /// Creates a new `Cubic` easing function with the specified Bezier curve parameters.
@@ -68,18 +68,18 @@ mod private
 
   impl EasingFunction for Cubic
   {
-    fn apply( &self, t : f32 ) -> f32 
+    fn apply( &self, time : f32 ) -> f32 
     {
-      if t <= 0.0 
+      if time <= 0.0 
       {
         return 0.0;
       }
-      else if t >= 1.0 
+      if time >= 1.0 
       {
         return 1.0;
       }
 
-      let mut bezier_t = t;
+      let mut bezier_t = time;
       for _ in 0..self.iterations
       {
         let slope = 3.0 * ( 1.0 - bezier_t ).powi( 2 ) * self.in_tangent[ 0 ]
@@ -89,7 +89,7 @@ mod private
         {
           break;
         }
-        let x_val = self.get_x( bezier_t ) - t;
+        let x_val = self.get_x( bezier_t ) - time;
         bezier_t -= x_val / slope;
       }
 

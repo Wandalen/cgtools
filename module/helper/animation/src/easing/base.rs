@@ -7,12 +7,12 @@ mod private
   /// transforms it to a new value, usually for animation purposes.
   /// 
   // #[ derive( Debug, Clone, Copy, PartialEq ) ]
-  pub trait EasingFunction : std::fmt::Debug
+  pub trait EasingFunction : core::fmt::Debug
   {
     /// Applies the easing function to a given value `t`.
     /// 
     /// The input `t` should be a value in the range [ 0.0, 1.0 ].
-    fn apply( &self, t : f32 ) -> f32;
+    fn apply( &self, time : f32 ) -> f32;
   }
 
 
@@ -39,6 +39,7 @@ mod private
       /// 
       /// This struct provides a way to create a boxed instance of the
       /// associated easing function.
+      #[ non_exhaustive ] 
       pub struct $builder_ty;
 
       impl EasingBuilder< $function_ty > for $builder_ty
@@ -55,14 +56,15 @@ mod private
   /// A basic linear easing function.
   /// 
   /// The value returned is the same as the input `t`.
+  #[ non_exhaustive ]
   #[ derive( Debug ) ]
   pub struct Linear;
 
   impl EasingFunction for Linear 
   {
-    fn apply( &self, t : f32 ) -> f32
+    fn apply( &self, time : f32 ) -> f32
     {
-      t
+      time
     }
   }
 
@@ -77,6 +79,7 @@ mod private
   /// A step-based easing function.
   /// 
   /// The output value progresses in discrete steps instead of a smooth gradient.
+  #[ non_exhaustive ]
   #[ derive( Debug ) ]
   pub struct Step
   {
@@ -85,7 +88,7 @@ mod private
 
   impl Step
   {
-    // Init [`Step`] easing function
+    /// Init [`Step`] easing function
     pub fn new( steps : f32 ) -> Self
     {
       Self
@@ -97,9 +100,9 @@ mod private
 
   impl EasingFunction for Step 
   {
-    fn apply( &self, t : f32 ) -> f32
+    fn apply( &self, time : f32 ) -> f32
     {
-      ( t * self.steps ).floor() / self.steps
+      ( time * self.steps ).floor() / self.steps
     }
   }
 }
