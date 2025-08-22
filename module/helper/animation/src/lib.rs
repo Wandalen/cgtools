@@ -10,6 +10,8 @@
 #![ allow( clippy::cast_precision_loss ) ]
 #![ allow( clippy::cast_possible_truncation ) ]
 #![ allow( clippy::new_ret_no_self ) ]
+#![ allow( dead_code ) ]
+#![ allow( macro_expanded_macro_exports_accessed_by_absolute_paths ) ]
 
 mod private
 {
