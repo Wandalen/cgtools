@@ -20,5 +20,9 @@ void main()
   vec2 yBasis = vec2( -xBasis.y, xBasis.x );
   vec2 point = pointA + xBasis * position.x * u_width + yBasis * position.y * u_width;
 
+  vUv.y = step( 0.0, float( position.y ) );
+  vUv.y = mix( 1.0 - vUv.y, vUv.y, float( gl_InstanceID ) );
+  vUv.x = mix( 0.0, 1.0, float( gl_InstanceID ) );
+
   gl_Position =  u_projection_matrix * vec4( point, 0.0, 1.0 );
 }

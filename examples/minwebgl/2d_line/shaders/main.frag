@@ -24,5 +24,7 @@ void main()
 
   vec3 col = vec3( 112.21, 201.45, 94.35 ) / 255.0;
   float stripe = stripes( uv.x  * 10.0 - time );
+  stripe = 1.0;
+  col = vec3( fract( uv.y - time ) );
   frag_color = vec4( col * stripe, stripe * 0.5 );
 }
