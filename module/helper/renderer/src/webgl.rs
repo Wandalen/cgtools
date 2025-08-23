@@ -19,6 +19,9 @@ crate::mod_interface!
   /// Scene related functionality
   layer scene;
 
+  /// Animation related functionality
+  layer animation;
+
   /// Texture related functionality
   layer texture;
 
