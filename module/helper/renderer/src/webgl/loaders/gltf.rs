@@ -569,7 +569,7 @@ mod private
 
     gl::log::info!( "Nodes: {}", nodes.len() );
 
-    animation::load( &gltf_file, &nodes );
+    let animations = animation::load( &gltf_file, &nodes );
 
     gl::log::info!( "Animations: {}", animations.len() );
 
