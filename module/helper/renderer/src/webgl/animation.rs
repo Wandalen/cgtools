@@ -5,20 +5,18 @@ mod private
   {
     easing::
     {
-      EasingBuilder,
-      EasingFunction,
-      Linear,
-      Step,
-      Cubic
+      Cubic, EasingBuilder, EasingFunction, Linear, Step
     },
     Sequencer,
-    Transform
+    Transform,
+    Tween
   };
   use gltf::
   {
     Gltf,
     animation::{ Interpolation, Property }
   };
+  use mingl::{ F32x3, QuatF32, VectorIter };
   use crate::webgl::Node;
 
   /// Contains data for animating [`Mesh`]
@@ -30,6 +28,28 @@ mod private
     pub sequencer : Rc< RefCell< Sequencer > >,
     /// Related animated [`Node`]'s
     pub nodes : HashMap< Box< str >, Rc< RefCell< Node > > >
+  }
+
+  fn decode_accessor( accessor : &Accessor ) -> Option< Vec< f32 > >
+  {
+    let view = accessor.view()?;
+    let buffer = view.buffer();
+    let slice = buffer.source.slice( &blob );
+
+    let start = view.offset() + accessor.offset();
+    let end = start + accessor.count() * accessor.size();
+    let data = &slice[ start..end ];
+
+    let mut decoded_data = Vec::with_capacity( data.len() / 4 );
+    let mut chunks = data.chunks_exact( 4 );
+    while let Some( chunk ) = chunks.next()
+    {
+      let mut bytes = [ 0u8; 4 ];
+      bytes.copy_from_slice( chunk );
+      decoded_data.push( f32::from_le_bytes( bytes ) );
+    }
+
+    Some( decoded_data )
   }
 
   /// Load all animations from [`Gltf`] file
@@ -55,38 +75,66 @@ mod private
         let in_acc = sampler.input();
         let out_acc = sampler.output();
 
+        let Some( times ) = decode_accessor( in_acc )
+        else
+        {
+          continue;
+        };
 
+        let Some( values ) = decode_accessor( out_acc )
+        else
+        {
+          continue;
+        };
+
+        let iter = times.into_iter()
+        .zip( values.chunks( 2 ) );
 
         let easing : Box< dyn EasingFunction > = match sampler.interpolation()
         {
           Interpolation::Linear => Linear::new(),
-          Interpolation::Step => Box::new( Step::new( 0 ) ),
+          Interpolation::Step => Box::new( Step::new( 1 ) ),
           Interpolation::CubicSpline => Box::new( Cubic::new( [ , , , ] ) )
         };
 
-        let mut transform = Transform
+        let easing = match sampler.interpolation()
         {
-          translation : None,
-          rotation : None,
-          scale : None
+          Interpolation::Linear => 1,
+          Interpolation::Step => Box::new( Step::new( 1 ) ),
+          Interpolation::CubicSpline => Box::new( Cubic::new( [ , , , ] ) )
         };
 
-        match target.property()
+        for ( t, v ) in iter
         {
-          Property::Translation =>
+          match target.property()
           {
-            transform.translation = ;
-          },
-          Property::Rotation =>
-          {
-            transform.rotation = ;
-          },
-          Property::Scale =>
-          {
-            transform.scale = ;
-          },
-          _ => ()
-          // Property::MorphTargetWeights => todo!(),
+            Property::Translation =>
+            {
+              let name = ;
+              F32x3::from_slice( [ , , ] );
+              let tween = Tween::new( start, end, duration, easing )
+              .with_delay( delay );
+              sequencer.add_tween( name, tween );
+            },
+            Property::Rotation =>
+            {
+              let name = ;
+              QuatF32::from( rotation );
+              let tween = Tween::new( start, end, duration, easing )
+              .with_delay( delay );
+              sequencer.add_tween( name, tween );
+            },
+            Property::Scale =>
+            {
+              let name = ;
+              F32x3::from_slice( [ , , ] );
+              let tween = Tween::new( start, end, duration, easing )
+              .with_delay( delay );
+              sequencer.add_tween( name, tween );
+            },
+            _ => ()
+            // Property::MorphTargetWeights => todo!(),
+          }
         }
       }
 
