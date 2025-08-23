@@ -36,11 +36,12 @@ enabled = [
   "dep:asbytes",
   "dep:former",
   "dep:uuid",
-  "dep:web-sys"
+  "dep:web-sys",
 ]
-default = ["enabled"]
+default = ["enabled", "animation"]
 full = ["enabled", "webgl"]
 webgl = []
+animation = [ "dep:animation", "dep:skeleton" ]
 
 [dependencies]
 
