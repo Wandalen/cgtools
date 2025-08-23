@@ -34,7 +34,7 @@ default = []
 mod_interface = { workspace = true }
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
 mingl = { workspace = true }
-animation = { workspace = true }
+#animation = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true
