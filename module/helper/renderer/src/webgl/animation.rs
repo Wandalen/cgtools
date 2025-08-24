@@ -64,10 +64,13 @@ mod private
       for channel in animation.channels()
       {
         let node = nodes[ target.node().index() ].clone();
-        if let Some( name ) = node.borrow().get_name()
+        let Some( name ) = node.borrow().get_name()
+        else
         {
-          animated_nodes.insert( name, node );
-        }
+          continue;
+        };
+
+        animated_nodes.insert( name, node );
 
         let target = channel.target();
         let sampler = channel.sampler();
@@ -87,30 +90,66 @@ mod private
           continue;
         };
 
-        let iter = times.into_iter()
-        .zip( values.chunks( 2 ) );
-
-        let easing : Box< dyn EasingFunction > = match sampler.interpolation()
+        let elements = match target.property()
         {
-          Interpolation::Linear => Linear::new(),
-          Interpolation::Step => Box::new( Step::new( 1 ) ),
-          Interpolation::CubicSpline => Box::new( Cubic::new( [ , , , ] ) )
+          Property::Translation | Property::Scale => 3,
+          Property::Rotation => 4,
+          _ => continue
+          // Property::MorphTargetWeights => todo!(),
         };
 
-        let easing = match sampler.interpolation()
+        let components = if let Interpolation::CubicSpline = sampler.interpolation()
         {
-          Interpolation::Linear => 1,
-          Interpolation::Step => Box::new( Step::new( 1 ) ),
-          Interpolation::CubicSpline => Box::new( Cubic::new( [ , , , ] ) )
+          3
+        }
+        else
+        {
+          1
         };
+
+        let mut iter = times.into_iter()
+        .zip( values.chunks( elements * components ) );
 
         for ( t, v ) in iter
         {
+          let out = if let Interpolation::CubicSpline = sampler.interpolation()
+          {
+            v.chunks( elements ).nth( 2 ).to_vec()
+          }
+          else
+          {
+            v.to_vec()
+          };
+
+          let easing : Box< dyn EasingFunction > = match sampler.interpolation()
+          {
+            Interpolation::Linear => Linear::new(),
+            Interpolation::Step => Box::new( Step::new( 1 ) ),
+            Interpolation::CubicSpline =>
+            {
+              let mut iter = v.chunks( elements );
+              let Some( in_tangents ) = iter.next()
+              else
+              {
+                continue;
+              };
+              iter.next();
+              let Some( out_tangents ) = iter.next()
+              else
+              {
+                continue;
+              };
+              let [ x1, y1, _ ] = in_tangents.as_chunks::< 3 >();
+              let [ x2, y2, _ ] = out_tangents.as_chunks::< 3 >();
+              Box::new( Cubic::new( [ x1, y1, x2, y2 ] ) )
+            }
+          };
+
           match target.property()
           {
             Property::Translation =>
             {
-              let name = ;
+              let name = name + ".translation";
               F32x3::from_slice( [ , , ] );
               let tween = Tween::new( start, end, duration, easing )
               .with_delay( delay );
@@ -118,7 +157,7 @@ mod private
             },
             Property::Rotation =>
             {
-              let name = ;
+              let name = name + ".rotation";
               QuatF32::from( rotation );
               let tween = Tween::new( start, end, duration, easing )
               .with_delay( delay );
@@ -126,7 +165,7 @@ mod private
             },
             Property::Scale =>
             {
-              let name = ;
+              let name = name + ".scale";
               F32x3::from_slice( [ , , ] );
               let tween = Tween::new( start, end, duration, easing )
               .with_delay( delay );
