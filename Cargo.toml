@@ -21,6 +21,7 @@ members = [
   "module/min/minwgpu",
 
   # Helper modules
+  "module/helper/animation",
   "module/helper/browser_input",
   "module/helper/browser_log",
   "module/helper/canvas_renderer",
@@ -101,6 +102,10 @@ missing_docs_in_private_items = "allow"
 many_single_char_names = "allow"
 
 # = helpers
+
+[workspace.dependencies.animation]
+version = "0.1.0"
+path = "module/helper/animation"
 
 [workspace.dependencies.browser_input]
 version = "0.2.0"
