@@ -1,5 +1,5 @@
 [package]
-name = "animation"
+name = "skeleton"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.75.0"
@@ -9,11 +9,11 @@ authors = [
 ]
 license = "MIT"
 repository = "https://github.com/Wandalen/cgtools"
-homepage = "https://github.com/Wandalen/cgtools/tree/master/module/helper/animation"
-documentation = "https://docs.rs/animation"
+homepage = "https://github.com/Wandalen/cgtools/tree/master/module/helper/skeleton"
+documentation = "https://docs.rs/skeleton"
 description = ""
 readme = "readme.md"
-keywords = ["webgl", "animation", "3d"]
+keywords = ["webgl", "animation", "3d", "gltf"]
 categories = ["animation", "web-programming", "game-development"]
 include = [
     "src/**/*",
@@ -34,6 +34,7 @@ default = []
 mod_interface = { workspace = true }
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
 mingl = { workspace = true }
+#animation = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true

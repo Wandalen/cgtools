@@ -1,9 +1,12 @@
 mod private
 {
   use std::{ cell::RefCell, collections::HashMap, rc::Rc };
-  use minwebgl::{ self as gl };
+  use minwebgl as gl;
+  use gl::GL;
   use mingl::{ geometry::BoundingBox, F32x3, F32x4x4 };
   use crate::webgl::Mesh;
+
+  const INVERSE_MATRICES_SLOT : u32 = GL::TEXTURE0;
 
   /// Represents a 3D object that can be part of the scene graph.
   pub enum Object3D
@@ -32,7 +35,7 @@ mod private
     parent : Option< Rc< RefCell< Node > > >,
     /// The child nodes of this node.
     children : Vec< Rc< RefCell< Node > > >,
-    /// The 3D object associated with this node.
+    /// The 3D objects associated with this node.
     pub object : Object3D,
     /// The local transformation matrix of the node.
     matrix : gl::F32x4x4,
@@ -287,6 +290,18 @@ mod private
       locations : &HashMap< String, Option< gl::WebGlUniformLocation > >
     )
     {
+      if let Object3D::Mesh( mesh ) = self.object
+      {
+        if let Some( skeleton ) = mesh.borrow().skeleton
+        {
+          let locs = locations.iter()
+          .map( | ( k, v ) | ( k.into_boxed_str(), v ) )
+          .cloned()
+          .collect::< HashMap< _, _ > >();
+          skeleton.borrow().upload( gl, locs, INVERSE_MATRICES_SLOT );
+        }
+      }
+
       gl::uniform::matrix_upload
       (
         &gl,

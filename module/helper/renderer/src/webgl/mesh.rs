@@ -2,8 +2,8 @@ mod private
 {
   use std::{ cell::RefCell, rc::Rc };
   use mingl::geometry::BoundingBox;
-
-use crate::webgl::Primitive;
+  use crate::webgl::Primitive;
+  use skeleton::Skeleton;
 
   /// Represents a collection of renderable primitives.
   #[ derive( Default ) ]
@@ -11,6 +11,7 @@ use crate::webgl::Primitive;
   {
     /// A vector holding the primitives that constitute the mesh. Each primitive is shared and mutable.
     pub primitives : Vec< Rc< RefCell< Primitive > > >,
+    pub skeleton : Option< Rc< RefCell< Skeleton > > >
   }
 
   impl Clone for Mesh
@@ -24,7 +25,8 @@ use crate::webgl::Primitive;
           self.primitives.iter()
           .map( | p | Rc::new( RefCell::new( p.borrow().clone() ) ) )
           .collect::< Vec< _ > >()
-        }
+        },
+        skeleton : None
       }
     }
   }

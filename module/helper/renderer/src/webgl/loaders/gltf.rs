@@ -1,9 +1,16 @@
 mod private
 {
   use std::{ cell::RefCell, rc::Rc };
-  use minwebgl::{ self as gl, JsCast, geometry::BoundingBox };
+  use minwebgl as gl;
+  use gl::
+  {
+    JsCast,
+    geometry::BoundingBox,
+    F32x4x4
+  };
   use crate::webgl::
   {
+    Animation,
     ToFromGlEnum,
     AlphaMode,
     AttributeInfo,
@@ -23,6 +30,9 @@ mod private
     WrappingMode
   };
   use web_sys::wasm_bindgen::prelude::Closure;
+  use std::collections::HashMap;
+  use skeleton::Skeleton;
+  use asbytes::cast_slice;
 
   /// Represents a loaded glTF (GL Transmission Format) scene.
   pub struct GLTF
@@ -41,7 +51,9 @@ mod private
     /// A collection of `Material` objects, defining how the surfaces of the meshes should be shaded.
     pub materials : Vec< Rc< RefCell< Material > > >,
     /// A list of `Mesh` objects, which represent the geometry of the scene.
-    pub meshes : Vec< Rc< RefCell< Mesh > > >
+    pub meshes : Vec< Rc< RefCell< Mesh > > >,
+    /// A list of `Animation` objects, which store `Node`'s tranform change in every time moment.
+    pub animations : Vec< Animation >
   }
 
   /// Asynchronously loads a glTF (GL Transmission Format) file and its associated resources.
@@ -280,7 +292,7 @@ mod private
       material.metallic_roughness_texture = make_texture_info( pbr.metallic_roughness_texture() );
       material.emissive_texture = make_texture_info( gltf_m.emissive_texture() );
       material.emissive_factor = gl::F32x3::from( gltf_m.emissive_factor() );
-  
+
       // KHR_materials_specular
       if let Some( s ) = gltf_m.specular()
       {
@@ -423,7 +435,27 @@ mod private
               true
             )?;
           },
-          a => { gl::warn!( "Unsupported attribute: {:?}", a ); continue; }
+          gltf::Semantic::Joints( i ) =>
+          {
+            geometry.add_attribute
+            (
+              gl,
+              format!( "joints_{}", i ),
+              make_attibute_info( &acc, 10 + i ),
+              false
+            )?;
+          },
+          gltf::Semantic::Weights( i ) =>
+          {
+            geometry.add_attribute
+            (
+              gl,
+              format!( "weights_{}", i ),
+              make_attibute_info( &acc, 13 + i ),
+              false
+            )?;
+          },
+          //a => { gl::warn!( "Unsupported attribute: {:?}", a ); continue; }
         };
       }
 
@@ -461,6 +493,67 @@ mod private
       node.set_translation( translation );
       node.set_rotation( gl::QuatF32::from( rotation ) );
       if let Some( name ) = gltf_node.name() { node.set_name( name ); }
+      if let Some( skin ) = gltf_node.skin()
+      {
+        if let Some( acc ) = skin.inverse_bind_matrices()
+        {
+          let mut matrices = vec![];
+
+          let Some( view ) = acc.view()
+          else
+          {
+            continue;
+          };
+          let gltf_buffer = view.buffer();
+
+          let mut matrix_buffer_slice : Option< Vec< [ f32; 16 ] > > = None;
+          match gltf_buffer.source()
+          {
+            gltf::buffer::Source::Uri( uri ) =>
+            {
+              let path = format!( "{}/{}", folder_path, uri );
+              let buffer = gl::file::load( &path ).await
+              .expect( "Failed to load a buffer" );
+
+              let vl = view.length();
+              let vo = view.offset();
+              let ac = acc.count();
+              let ao = acc.offset();
+
+              let slice = buffer.get( vo..( vo + vl ) )
+              .unwrap()
+              .get( ao..( ao + ( 16 * 4 * ac ) ) )
+              .unwrap();
+              matrix_buffer_slice = Some( cast_slice( slice ).to_vec() );
+            },
+            _ => {}
+          }
+
+          if let Some( slice ) = matrix_buffer_slice
+          {
+            matrices = slice.into_iter()
+            .map( | array | F32x4x4::from_column_major( array ) )
+            .collect::< Vec< _ > >();
+          }
+
+          let mut joints = HashMap::new();
+          for ( joint, matrix ) in skin.joints().zip( matrices )
+          {
+            if let Some( name ) = joint.name()
+            {
+              joints.insert( name.to_string().into_boxed_str(), matrix );
+            }
+          }
+
+          let skeleton = Skeleton::new( gl, joints )
+          .map( | s | Rc::new( RefCell::new( s ) ) );
+
+          if let Object3D::Mesh( mesh ) = node.object
+          {
+            mesh.borrow_mut().skeleton = skeleton;
+          }
+        }
+      }
 
       nodes.push( Rc::new( RefCell::new( node ) ) );
     }
@@ -475,6 +568,10 @@ mod private
     }
 
     gl::log::info!( "Nodes: {}", nodes.len() );
+
+    let animations = animation::load( &gltf_file, &nodes );
+
+    gl::log::info!( "Animations: {}", animations.len() );
 
     let mut scenes = Vec::new();
 
@@ -498,7 +595,8 @@ mod private
         images,
         textures,
         materials,
-        meshes
+        meshes,
+        animations
       }
     )
   }
