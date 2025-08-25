@@ -25,6 +25,13 @@ vec2 lineIntersection( vec2 p1, vec2 d1, vec2 p2, vec2 d2 )
   return p1 + d1 * k;
 }
 
+float distanceToLine( vec2 a, vec2 n, vec2 p )
+{
+  vec2 ap = a - p;
+  vec2 perp = ap - dot( ap, n ) * n;
+  return length( perp );
+}
+
 void main() 
 {
   vec2 pointA = ( u_world_matrix * vec3( inPointA.xy, 1.0 ) ).xy;
@@ -69,10 +76,13 @@ void main()
 
   vec2 intersectionPoint = lineIntersection( pointB, normal, closestPoint, closestNormal );
   vec2 offsetPoint = pointB + 0.5 * normal * -sigma * u_width / dot( normal, normToAB );
+
+  vec2 uvPoint = offsetPoint;
   
   // If two segments overlap each other
   if( dot( offsetPoint - intersectionPoint, normal * sigma ) < 0.0 )
   {
+    uvPoint = intersectionPoint;
     vec2 normalizedAB = normalize( AB );
     vec2 cAtoInt =  intersectionPoint - leftBottomCornerA;
     float k = dot( cAtoInt, normalizedAB );
@@ -86,8 +96,11 @@ void main()
 
   p3 = lineIntersection( pointB, normal, offsetPoint, normToAB );
 
-  float uvLeft = mix( inPointA.z, inPointB.z, length( p3 - leftBottomCornerA ) / length( pointB - pointA ) ); 
-  float uvRight = mix( inPointC.z, inPointB.z, length( p3 - rightBottomCornerC ) / length( pointB - pointC ) ); 
+  float uvLeftK = distanceToLine( pointA, normToAB, uvPoint ) / length( pointB - pointA );
+  float uvRightK = distanceToLine( pointC, normToCB, uvPoint ) / length( pointB - pointC );
+
+  float uvLeft = mix( inPointA.z, inPointB.z, uvLeftK ); 
+  float uvRight = mix( inPointC.z, inPointB.z, uvRightK ); 
 
   // Left corner
   vec2 p0 = lineIntersection( pointB + normToAB * sigma * u_width * 0.5, AB, p3, normToAB );
