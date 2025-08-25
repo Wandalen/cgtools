@@ -38,11 +38,9 @@ use renderer::webgl::
 };
 use std::rc::Rc;
 use canvas_renderer::renderer::CanvasRenderer;
-use geometry_generation::text;
+use primitive_generation::text;
 use ::mod_interface::mod_interface;
 
-mod camera_controls;
-mod loaders;
 mod animation;
 mod primitive_data;
 mod primitive;
@@ -349,7 +347,7 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
   let text = "CGTools".to_string();
 
   let mut primitives_data = vec![];
-  let mut transform = geometry_generation::Transform::default();
+  let mut transform = primitive_generation::Transform::default();
   transform.translation.0[ 1 ] += ( font_names.len() as f32 + 1.0 ) / 2.0 + 0.5;
   for font_name in font_names
   {
@@ -369,7 +367,7 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
   let colors = primitives_data.iter()
   .map( | p | p.color )
   .collect::< Vec< _ > >();
-  let canvas_gltf = geometry_generation::primitives_data_to_gltf( &gl, primitives_data );
+  let canvas_gltf = primitive_generation::primitives_data_to_gltf( &gl, primitives_data );
 
   ( canvas_gltf, colors )
 }
@@ -674,7 +672,7 @@ async fn run() -> Result< (), gl::WebglError >
   animation.set_world_matrix( identity() );
 
   let canvas_camera = init_camera( &canvas, &canvas_gltf.scenes );
-  //camera_controls::bind_controls_to_input( &canvas, &canvas_camera.get_controls() );
+  canvas_camera.bind_controls( &canvas );
   canvas_camera.get_controls().borrow_mut().window_size = [ ( canvas.width() * 4 ) as f32, ( canvas.height() * 4 ) as f32 ].into();
   canvas_camera.get_controls().borrow_mut().eye = [ 0.0, 0.0, 150.0 ].into();
   {
@@ -716,13 +714,13 @@ async fn run() -> Result< (), gl::WebglError >
   let scenes = gltf.scenes.clone();
 
   let camera = init_camera( &canvas, &scenes );
-  camera_controls::bind_controls_to_input( &canvas, &camera.get_controls() );
+  camera.bind_controls( &canvas );
   let eye = gl::math::mat3x3h::rot( 0.0, - 73.0_f32.to_radians(), - 15.0_f32.to_radians() )
   * F32x4::from_array([ 0.0, 1.7, 1.7, 1.0 ] );
   camera.get_controls().borrow_mut().eye = [ eye.x(), eye.y(), eye.z() ].into();
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_ibl( loaders::ibl::load( &gl, "environment_maps/gltf_viewer_ibl_unreal" ).await );
+  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "environment_maps/gltf_viewer_ibl_unreal" ).await );
 
   let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
 

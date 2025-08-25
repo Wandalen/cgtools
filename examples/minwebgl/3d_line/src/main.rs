@@ -9,7 +9,11 @@
 #![ allow( clippy::redundant_field_names ) ]
 #![ allow( clippy::std_instead_of_core ) ]
 
-use mingl::CameraOrbitControls;
+use mingl::
+{ 
+  CameraOrbitControls, 
+  camera_orbit_controls::bind_controls_to_input 
+};
 use minwebgl as gl;
 use std::
 {
@@ -19,7 +23,6 @@ use std::
 use gl::wasm_bindgen::prelude::*;
 use serde::{ Deserialize, Serialize };
 
-mod camera_controls;
 mod lil_gui;
 
 #[ derive( Default, Serialize, Deserialize ) ]
@@ -27,7 +30,6 @@ struct Settings
 {
   width : f32
 }
-
 
 fn run() -> Result< (), gl::WebglError >
 {
@@ -67,7 +69,7 @@ fn run() -> Result< (), gl::WebglError >
     ..Default::default()
   };
   let camera = Rc::new( RefCell::new( camera ) );
-  camera_controls::setup_controls( &canvas, &camera );
+  bind_controls_to_input( &canvas, &camera );
 
   let world_matrix = gl::math::mat4x4::identity();
   let projection_matrix = gl::math::mat3x3h::perspective_rh_gl( fov, aspect_ratio, near, far );

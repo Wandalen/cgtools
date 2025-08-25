@@ -53,7 +53,7 @@ mod private
     /// Returns a reference to the underlying `wgpu::Buffer`.
     #[ inline ]
     #[ must_use ]
-    pub fn buffer( &self ) -> &wgpu::Buffer
+    pub fn get_buffer( &self ) -> &wgpu::Buffer
     {
       &self.buffer
     }
@@ -61,7 +61,7 @@ mod private
     /// Returns a reference to the `wgpu::VertexBufferLayout`.
     #[ inline ]
     #[ must_use ]
-    pub fn layout( &self ) -> &wgpu::VertexBufferLayout< 'a >
+    pub fn get_layout( &self ) -> &wgpu::VertexBufferLayout< 'a >
     {
       &self.layout
     }

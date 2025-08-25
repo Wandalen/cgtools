@@ -21,11 +21,12 @@ members = [
   "module/min/minwgpu",
 
   # Helper modules
+  "module/helper/animation",
   "module/helper/browser_input",
   "module/helper/browser_log",
   "module/helper/canvas_renderer",
   "module/helper/embroidery_tools",
-  "module/helper/geometry_generation",
+  "module/helper/primitive_generation",
   "module/helper/line_tools",
   "module/helper/renderer",
   "module/helper/tilemap_renderer",
@@ -102,6 +103,10 @@ many_single_char_names = "allow"
 
 # = helpers
 
+[workspace.dependencies.animation]
+version = "0.1.0"
+path = "module/helper/animation"
+
 [workspace.dependencies.browser_input]
 version = "0.2.0"
 path = "module/helper/browser_input"
@@ -126,9 +131,9 @@ path = "module/helper/renderer"
 version = "0.1.0"
 path = "module/helper/canvas_renderer"
 
-[workspace.dependencies.geometry_generation]
+[workspace.dependencies.primitive_generation]
 version = "0.1.0"
-path = "module/helper/geometry_generation"
+path = "module/helper/primitive_generation"
 
 [workspace.dependencies.line_tools]
 version = "0.2.0"
@@ -137,6 +142,10 @@ path = "module/helper/line_tools"
 [workspace.dependencies.tilemap_renderer]
 version = "0.1.0"
 path = "module/helper/tilemap_renderer"
+
+[workspace.dependencies.behaviour_tree]
+version = "0.1.0"
+path = "module/helper/behaviour_tree"
 
 # = min
 
@@ -381,3 +390,10 @@ version = "0.11.0"
 
 [workspace.dependencies.rustyline]
 version = "14.0"
+
+[workspace.dependencies.wfc]
+version = "0.10"
+features = [ "js" ]
+
+[workspace.dependencies.wfc_image] 
+version = "0.12"
