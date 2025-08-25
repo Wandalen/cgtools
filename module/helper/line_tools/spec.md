@@ -161,4 +161,4 @@ mod private
 - ✅ **4**: When neighbouring points are placed at the same position - the line brakes due to zero vector length
 - ❌ **5**: Side effect of the solution for the second corner case - unusual ovelapping between non neighbouring segments
 - ✅ **6**: When neighbouring segments are parallel to each other, the division by zero happens causing the line to break
-- ❌ **7**: As line gets wider, the UV coordinates shrink and the flips the sign
+- ✅ **7**: As line gets wider, the UV coordinates shrink and the flips the sign
