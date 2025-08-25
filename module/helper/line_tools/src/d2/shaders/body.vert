@@ -15,12 +15,14 @@ uniform float u_total_distance;
 
 out vec2 vUv;
 
-vec2 lineIntersection( vec2 p1, vec2 n1, vec2 p2, vec2 n2 )
+vec2 lineIntersection( vec2 p1, vec2 d1, vec2 p2, vec2 d2 )
 {
-  vec2 m = ( p2 - p1 ) / n1;
-  vec2 n = n2 / n1;
-  float d = ( m.x - m.y ) / ( n.y - n.x );
-  return d * n2 + p2;
+  float d = d1.y * d2.x - d1.x * d2.y;
+  vec2 dp = p2 - p1;
+
+  vec2 r1 = vec2( -d2.y, d2.x );
+  float k = dot( r1, dp ) / d;
+  return p1 + d1 * k;
 }
 
 void main() 
@@ -65,6 +67,8 @@ void main()
   // Direction of the bend
   float sigma = sign( dot( p01 + p21, normal ) );
 
+  if( sigma == 0.0 ) { sigma = 1.0; }
+
   vec2 leftBottomCorner0 = p0 + normTo01 * -sigma * u_width * 0.5;
   vec2 rightBottomCorner2 = p2 + normTo21 * sigma * u_width * 0.5;
 
@@ -84,15 +88,25 @@ void main()
   }
 
   float offsetAmount = dot( normal, normTo01 );
-  vec2 intersectionPoint = lineIntersection( p1, normal, closestPoint, closestNormal );
   vec2 offsetPoint = p1 + 0.5 * normal * -sigma * u_width / offsetAmount;
+
+  vec2 intersectionPoint = vec2( 0.0 );
+  if( abs( dot( normal, closestNormal ) ) == 1.0 )
+  {
+    intersectionPoint = offsetPoint;
+  }
+  else
+  {
+    intersectionPoint = lineIntersection( p1, normal, closestPoint, closestNormal );
+  }
+  
 
   // If two segments overlap each other
   if( dot( offsetPoint - intersectionPoint, normal * sigma ) < 0.0 )
   {
     vec2 normalized21 = normalize( p21 );
     vec2 c2toInt =  intersectionPoint - rightBottomCorner2;
-    float k = dot( c2toInt, normalized21 );
+    float k = max( 0.0, dot( c2toInt, normalized21 ) );
     offsetPoint = rightBottomCorner2 + k * normalized21 + normalized21 * dot( normal * sigma, normalized21 ) * length( intersectionPoint - offsetPoint );
 
     if( dot( offsetPoint - p1, p21 ) > 0.0 )

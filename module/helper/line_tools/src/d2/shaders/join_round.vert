@@ -19,12 +19,14 @@ uniform float u_segments;
 
 out vec2 vUv;
 
-vec2 lineIntersection( vec2 p1, vec2 n1, vec2 p2, vec2 n2 )
+vec2 lineIntersection( vec2 p1, vec2 d1, vec2 p2, vec2 d2 )
 {
-  vec2 m = ( p2 - p1 ) / n1;
-  vec2 n = n2 / n1;
-  float d = ( m.x - m.y ) / ( n.y - n.x );
-  return d * n2 + p2;
+  float d = d1.y * d2.x - d1.x * d2.y;
+  vec2 dp = p2 - p1;
+
+  vec2 r1 = vec2( -d2.y, d2.x );
+  float k = dot( r1, dp ) / d;
+  return p1 + d1 * k;
 }
 
 void main() 

@@ -15,17 +15,14 @@ uniform float u_total_distance;
 out vec2 vUv;
 
 // If points are on parallel lines - returns the second point
-vec2 lineIntersection( vec2 p1, vec2 n1, vec2 p2, vec2 n2 )
+vec2 lineIntersection( vec2 p1, vec2 d1, vec2 p2, vec2 d2 )
 {
-  if( dot( p2 - p1, n2 ) == 0.0 )
-  {
-    return p2;
-  }
+  float d = d1.y * d2.x - d1.x * d2.y;
+  vec2 dp = p2 - p1;
 
-  vec2 m = ( p2 - p1 ) / n1;
-  vec2 n = n2 / n1;
-  float d = ( m.x - m.y ) / ( n.y - n.x );
-  return d * n2 + p2;
+  vec2 r1 = vec2( -d2.y, d2.x );
+  float k = dot( r1, dp ) / d;
+  return p1 + d1 * k;
 }
 
 float distanceToLine( vec2 a, vec2 n, vec2 p )
@@ -92,8 +89,19 @@ void main()
   }
 
   float offsetAmount = dot( normal, normToAB );
-  vec2 intersectionPoint = lineIntersection( pointB, normal, closestPoint, closestNormal );
   vec2 offsetPoint = pointB + 0.5 * normal * -sigma * u_width / offsetAmount;
+
+  vec2 intersectionPoint = vec2( 0.0 );
+  if( abs( dot( normal, closestNormal ) ) == 1.0 )
+  {
+    intersectionPoint = offsetPoint;
+  }
+  else
+  {
+    intersectionPoint = lineIntersection( pointB, normal, closestPoint, closestNormal );
+  }
+
+
 
   // If two segments overlap each other
   if( dot( offsetPoint - intersectionPoint, normal * sigma ) < 0.0 )

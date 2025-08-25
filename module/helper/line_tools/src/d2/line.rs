@@ -154,6 +154,12 @@ mod private
     {
       let distance = if let Some( last ) = self.points.last().copied()
       {
+        const EPSILON : f32 = 1e-8;
+        if ( last.x() - point.x() ).abs() < EPSILON && ( last.y() - point.y() ).abs() < EPSILON 
+        {
+          return;
+        }
+
         ( point - last ).mag() 
       }
       else

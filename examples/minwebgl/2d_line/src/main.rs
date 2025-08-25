@@ -64,7 +64,6 @@ fn run() -> Result< (), gl::WebglError >
   );
 
   let line = Rc::new( RefCell::new( line ) );
-  //add_point_on_click( line.clone(), &canvas, &mut input );
 
   let settings = Settings
   {
