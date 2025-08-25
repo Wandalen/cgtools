@@ -91,7 +91,7 @@ void main()
   vec2 offsetPoint = p1 + 0.5 * normal * -sigma * u_width / offsetAmount;
 
   vec2 intersectionPoint = vec2( 0.0 );
-  if( abs( dot( normal, closestNormal ) ) == 1.0 )
+  if( abs( normal.x - normTo01.x ) < 1e-6 && abs( normal.y - normTo01.y ) < 1e-6 )
   {
     intersectionPoint = offsetPoint;
   }

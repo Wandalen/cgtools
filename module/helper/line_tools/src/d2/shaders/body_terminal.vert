@@ -92,7 +92,7 @@ void main()
   vec2 offsetPoint = pointB + 0.5 * normal * -sigma * u_width / offsetAmount;
 
   vec2 intersectionPoint = vec2( 0.0 );
-  if( abs( dot( normal, closestNormal ) ) == 1.0 )
+  if( abs( normal.x - normToAB.x ) < 1e-6 && abs( normal.y - normToAB.y ) < 1e-6 )
   {
     intersectionPoint = offsetPoint;
   }
@@ -100,8 +100,6 @@ void main()
   {
     intersectionPoint = lineIntersection( pointB, normal, closestPoint, closestNormal );
   }
-
-
 
   // If two segments overlap each other
   if( dot( offsetPoint - intersectionPoint, normal * sigma ) < 0.0 )
