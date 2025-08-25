@@ -16,6 +16,7 @@ line_tools = { workspace = true }
 minwebgl = { workspace = true, features = [ "math" ] }
 serde = { workspace = true, features = [ "derive" ] }
 serde-wasm-bindgen = { workspace = true }
+browser_input = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true
