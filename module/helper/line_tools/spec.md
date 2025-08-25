@@ -155,8 +155,10 @@ mod private
 - ✅ **NFR-3**: 100% adherence to Codestyle Rulebook formatting
 
 ## 11. Corner cases
-- ✅ **1**: Overlapping segments when using blending
-- ✅ **2**: With a very small angle and bir width, two neighbouring segments begin to intersect
+- ✅ **1**: Overlapping geometry when using blending - joins, caps, segment body are draw as seperate geometry, causing a visible overlap when using blending
+- ✅ **2**: With a small angle and big enough width, two neighbouring segments begin to overlap
 - ❌ **3**: When points are very close to eachother and line width is much bigger than the distance between the points - segments begin to overlap a lot
-- ❌ **4**: When neighbouring points occupy the same position - the line brake are the position
+- ✅ **4**: When neighbouring points are placed at the same position - the line brakes due to zero vector length
 - ❌ **5**: Side effect of the solution for the second corner case - unusual ovelapping between non neighbouring segments
+- ✅ **6**: When neighbouring segments are parallel to each other, the division by zero happens causing the line to break
+- ❌ **7**: As line gets wider, the UV coordinates shrink and the flips the sign
