@@ -9,6 +9,7 @@ layout( location = 4 ) in float inUvX;
 layout( location = 5 ) in float currentDistance;
 
 uniform mat3 u_world_matrix;
+uniform mat3 u_view_matrix;
 uniform mat4 u_projection_matrix;
 uniform float u_width;
 uniform float u_total_distance;
@@ -34,9 +35,9 @@ float distanceToLine( vec2 a, vec2 n, vec2 p )
 
 void main() 
 {
-  vec2 pointA = ( u_world_matrix * vec3( inPointA.xy, 1.0 ) ).xy;
-  vec2 pointB = ( u_world_matrix * vec3( inPointB.xy, 1.0 ) ).xy;
-  vec2 pointC = ( u_world_matrix * vec3( inPointC.xy, 1.0 ) ).xy;
+  vec2 pointA = ( u_view_matrix * u_world_matrix * vec3( inPointA.xy, 1.0 ) ).xy;
+  vec2 pointB = ( u_view_matrix * u_world_matrix * vec3( inPointB.xy, 1.0 ) ).xy;
+  vec2 pointC = ( u_view_matrix * u_world_matrix * vec3( inPointC.xy, 1.0 ) ).xy;
 
   vec2 tangent = normalize( normalize( pointC - pointB ) + normalize( pointB - pointA ) );
   vec2 normal = vec2( -tangent.y, tangent.x );
@@ -111,5 +112,7 @@ void main()
 
   vec2 point = p2 + ( p0 - p2 ) * position.x + ( p1 - p2 ) * position.y;
 
-  gl_Position =  u_projection_matrix * vec4( point, 0.0, 1.0 );
+  vec3 view_point = u_view_matrix * vec3( point, 1.0 );
+
+  gl_Position =  u_projection_matrix * vec4( view_point.xy, 0.0, 1.0 );
 }
