@@ -17,7 +17,8 @@ minwebgl = { workspace = true, features = [ "math" ] }
 serde = { workspace = true, features = [ "derive" ] }
 serde-wasm-bindgen = { workspace = true }
 browser_input = { workspace = true }
-spart = { workspace = true }
+#spart = { workspace = true }
+spart = { git = "file:///home/jeki/projects/rust/spart", branch = "log_feature" }
 fastrand = { workspace = true }
 
 [dependencies.web-sys]

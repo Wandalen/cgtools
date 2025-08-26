@@ -96,7 +96,7 @@ fn run() -> Result< (), gl::WebglError >
   gl::uniform::matrix_upload( &gl, gl.get_uniform_location( &point_program, "worldMatrix" ), &world_matrix.to_array(), true )?;
 
 
-  let mut n_neighbours = 5;
+  let mut n_neighbours = 10;
   let mut lines = Vec::with_capacity( 5 );
 
 
@@ -202,8 +202,13 @@ fn run() -> Result< (), gl::WebglError >
         if i >= lines.len()
         {
           let mut line = line_tools::d2::Line::default();
+
           line.set_cap( line_tools::Cap::Round( 16 ) );
           line.create_mesh( &gl, line_frag ).expect( "Failed to create a line" );
+
+          line.get_mesh().upload( &gl, "u_width", &0.01 ).unwrap();
+          line.get_mesh().upload_matrix( &gl, "u_projection_matrix", &projection_matrix.to_array() ).unwrap();
+          line.get_mesh().upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() ).unwrap();
 
           lines.push( line );
         }
