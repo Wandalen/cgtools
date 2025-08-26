@@ -135,6 +135,19 @@ mod private
       Ok( () )
     }
 
+    /// Clears points without releasing memory
+    pub fn clear( &mut self )
+    {
+      self.points.clear();
+      self.points_changed = true;
+    }
+
+    /// Sets the point at the provided index
+    pub fn set_point( &mut self, point : math::F32x2, index : usize )
+    {
+      self.points[ index ] = point;
+    }
+
     /// Sets the join style of the line and marks it for an update.
     pub fn set_join( &mut self, join : Join )
     {

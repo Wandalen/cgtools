@@ -12,7 +12,6 @@ license = "MIT"
 image = { version = "0.24", features = ["rayon"] }
 RustyXML = "0.3.0"
 wfc = { workspace = true }
-wfc_image = { workspace = true, features = ["parallel"] }
 minwebgl = { workspace = true }
 getrandom = { version = "0.2", features = [ "js" ] }
 rand = { version = "0.8.5" }
