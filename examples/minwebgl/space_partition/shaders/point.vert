@@ -14,8 +14,7 @@ void main()
   vColor = color;
 
   vec2 worldPosition = ( worldMatrix * vec3( position, 1.0 ) ).xy;
-  worldPosition.x += worldMatrix[0].z;
 
   gl_Position = projectionMatrix * vec4( worldPosition, 0.0, 1.0 );
-  gl_PointSize = 5.0;
+  gl_PointSize = 10.0 + 5.0 * color.g;
 }

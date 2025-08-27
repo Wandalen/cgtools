@@ -1,7 +1,8 @@
 use minwebgl as gl;
 
+/// Encapsulated the 2d position and the index in an array
 #[ derive( Debug, Clone, Default, PartialEq ) ]
-pub struct Point2D( pub gl::F32x2 );
+pub struct Point2D( pub gl::F32x2, pub usize );
 
 
 impl spart::kd_tree::KdPoint for Point2D

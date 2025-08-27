@@ -9,5 +9,5 @@ void main()
 {
   vec2 uv = vUv;
   vec3 col = vec3( 1.0, 0.0, 0.0 );
-  frag_color = vec4( col, 0.5 );
+  frag_color = vec4( col, 0.2 );
 }
