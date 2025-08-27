@@ -39,9 +39,9 @@ float distanceToLine( vec2 a, vec2 n, vec2 p )
 
 void main() 
 {
-  vec2 pointA = ( u_view_matrix * u_world_matrix * vec3( inPointA.xy, 1.0 ) ).xy;
-  vec2 pointB = ( u_view_matrix * u_world_matrix * vec3( inPointB.xy, 1.0 ) ).xy;
-  vec2 pointC = ( u_view_matrix * u_world_matrix * vec3( inPointC.xy, 1.0 ) ).xy;
+  vec2 pointA = ( u_world_matrix * vec3( inPointA.xy, 1.0 ) ).xy;
+  vec2 pointB = ( u_world_matrix * vec3( inPointB.xy, 1.0 ) ).xy;
+  vec2 pointC = ( u_world_matrix * vec3( inPointC.xy, 1.0 ) ).xy;
 
   vec2 tangent = normalize( normalize( pointC - pointB ) + normalize( pointB - pointA ) );
   vec2 normal = vec2( -tangent.y, tangent.x );
