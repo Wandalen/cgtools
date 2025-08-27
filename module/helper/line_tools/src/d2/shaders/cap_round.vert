@@ -14,8 +14,8 @@ out vec2 vUv;
 
 void main() 
 {
-  vec2 pointA = ( u_view_matrix * u_world_matrix * vec3( inPointA.xy, 1.0 ) ).xy;
-  vec2 pointB = ( u_view_matrix * u_world_matrix * vec3( inPointB.xy, 1.0 ) ).xy;
+  vec2 pointA = ( u_world_matrix * vec3( inPointA.xy, 1.0 ) ).xy;
+  vec2 pointB = ( u_world_matrix * vec3( inPointB.xy, 1.0 ) ).xy;
 
   vec2 xBasis = normalize( pointB - pointA );
   vec2 yBasis = vec2( -xBasis.y, xBasis.x );
