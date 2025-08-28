@@ -118,18 +118,18 @@ mod private
 
     //// Create the last row of triangles
     let last_row = &vertex_row_list[ vertex_row_list.len() - 1 ];
+    for j in 0..column_precision
     {
-      let c11 = last_row[ 0 ];
-      let c12 = last_row[ last_row.len() - 1  ];
+      let c11 = last_row[ j ];
+      let c12 = last_row[ j + 1  ];
 
       verticies.push( [ c11, gl::F32x2::ZERO, c12 ] );
 
-      let uv1 = 0.0;
-      let uv2 = 1.0;
+      let uv1 = j as f32 / column_precision as f32;
+      let uv2 = ( j + 1 ) as f32 / column_precision as f32;
 
       uvs.push( [ uv1, 0.5, uv2 ] );
     }
-
 
     let verticies = verticies.into_iter().flatten().collect();
     let uvs = uvs.into_iter().flatten().collect();
@@ -195,14 +195,15 @@ mod private
 
     //// Create the last row of triangles
     let last_row = &vertex_row_list[ vertex_row_list.len() - 1 ];
+    for j in 0..column_precision
     {
-      let c11 = last_row[ 0 ];
-      let c12 = last_row[ last_row.len() - 1  ];
+      let c11 = last_row[ j ];
+      let c12 = last_row[ j + 1  ];
 
       verticies.push( [ c11, gl::F32x2::ZERO, c12 ] );
 
-      let uv1 = 0.0;
-      let uv2 = 1.0;
+      let uv1 = j as f32 / column_precision as f32;
+      let uv2 = ( j + 1 ) as f32 / column_precision as f32;
 
       uvs.push( [ uv1, 0.5, uv2 ] );
     }
@@ -306,32 +307,37 @@ mod private
 
     //// Create the last row of triangles
     let last_row = &vertex_row_list[ vertex_row_list.len() - 1 ];
-
     //Left triangle
+    for j in 0..column_precision
     {
-      let c11 = last_row[ 0 ];
-      let c12 = last_row[ column_precision - 1 ];
+      let c11 = last_row[ j ];
+      let c12 = last_row[ j + 1 ];
 
       verticies.push( [ c11, gl::F32x3::ZERO, c12 ] );
 
-      let uv1 = 0.0;
-      let uv2 = 0.5;
+      let uv1 = 0.5 * j as f32 / column_precision as f32;
+      let uv2 = 0.5 * ( j + 1 ) as f32 / column_precision as f32;
 
       uvs.push( [ uv1, 0.5, uv2 ] );
     }
 
     // Right triangle
+    for j in 0..column_precision
     {
-      let c11 = last_row[ column_precision ];
-      let c12 = last_row[ last_row.len() - 1 ];
+      let j_old = j;
+      let j = j + column_precision;
+
+      let c11 = last_row[ j ];
+      let c12 = last_row[ j + 1 ];
 
       verticies.push( [ c11, gl::F32x3::ZERO, c12 ] );
 
-      let uv1 = 0.5;
-      let uv2 = 1.0;
+      let uv1 = 0.5 + 0.5 * j_old as f32 / column_precision as f32;
+      let uv2 = 0.5 + 0.5 * ( j_old + 1 ) as f32 / column_precision as f32;
 
       uvs.push( [ uv1, 0.5, uv2 ] );
     }
+
 
     let verticies = verticies.into_iter().flatten().collect();
     let uvs = uvs.into_iter().flatten().collect();
