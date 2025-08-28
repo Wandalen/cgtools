@@ -3,6 +3,7 @@
 //! coordinate ranges and different hexagonal systems and orientations.
 
 use crate::coordinates::hexagonal::Coordinate;
+use ndarray_cg::nd::iter::IterMut;
 use ndarray_cg::{ Array2, I64x2, nd::iter::Iter };
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -57,6 +58,12 @@ impl< System, Orientation, T > Grid2D< System, Orientation, T >
   pub fn iter( &self ) -> Iter< '_, T, ndarray_cg::Dim< [ usize; 2 ] > >
   {
     self.data.iter()
+  }
+
+  /// Returns an iterator over the values in the grid.
+  pub fn iter_mut( &mut self ) -> IterMut< '_, T, ndarray_cg::Dim< [ usize; 2 ] > >
+  {
+    self.data.iter_mut()
   }
 
   /// Returns an iterator that yields each coordinate and a reference to its corresponding value.
