@@ -396,5 +396,6 @@ version = "0.10"
 features = [ "js" ]
 
 [workspace.dependencies.spart] 
-version = "0.3.0"
+git = "https://github.com/JekiXD/spart"
+branch = "log_feature"
 
