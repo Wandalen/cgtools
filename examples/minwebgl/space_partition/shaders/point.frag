@@ -11,5 +11,5 @@ void main()
   vec3 col = vec3( 0.0 );
   col = vColor;
 
-  frag_color = vec4( col * 0.7, mix( 1.0, 0.0, smoothstep( 0.5, 0.8, length( uv ) ) ) );
+  frag_color = vec4( col, mix( 1.0, 0.0, smoothstep( 0.5, 0.8, length( uv ) ) ) );
 }
