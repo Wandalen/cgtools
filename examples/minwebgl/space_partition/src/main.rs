@@ -56,6 +56,7 @@ fn run() -> Result< (), gl::WebglError >
 
   let projection_matrix = gl::math::mat3x3h::orthographic_rh_gl( -1.0, 1.0, -1.0, 1.0, 0.0, 1.0 );
   let world_matrix = gl::F32x3x3::from_scale_rotation_translation( [ 2.0, 2.0 ], 0.0, [ -1.0, -1.0 ] );
+  let view_matrix = gl::math::mat3x3::identity();
 
 
   const NUM_POINTS : usize = 500;
@@ -194,6 +195,7 @@ fn run() -> Result< (), gl::WebglError >
           line.get_mesh().upload( &gl, "u_width", &0.01 ).unwrap();
           line.get_mesh().upload_matrix( &gl, "u_projection_matrix", &projection_matrix.to_array() ).unwrap();
           line.get_mesh().upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() ).unwrap();
+          line.get_mesh().upload_matrix( &gl, "u_view_matrix", &view_matrix.to_array() ).unwrap();
 
           lines.push( line );
         }
