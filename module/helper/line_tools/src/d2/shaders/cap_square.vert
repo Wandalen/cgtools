@@ -6,6 +6,7 @@ layout( location = 1 ) in vec3 inPointA;
 layout( location = 2 ) in vec3 inPointB;
 
 uniform mat3 u_world_matrix;
+uniform mat3 u_view_matrix;
 uniform mat4 u_projection_matrix;
 uniform float u_width;
 
@@ -20,9 +21,15 @@ void main()
   vec2 yBasis = vec2( -xBasis.y, xBasis.x );
   vec2 point = pointA + xBasis * position.x * u_width + yBasis * position.y * u_width;
 
+  float dUvx = abs( inPointB.z - inPointA.z );
+  float k = length( position.x * u_width ) / length( pointB - pointA );
+
   vUv.y = step( 0.0, float( position.y ) );
   vUv.y = mix( 1.0 - vUv.y, vUv.y, float( gl_InstanceID ) );
-  vUv.x = mix( 0.0, 1.0, float( gl_InstanceID ) );
+  vUv.x = k * dUvx;
+  vUv.x = mix( -vUv.x, 1.0 + vUv.x, float( gl_InstanceID ) );
 
-  gl_Position =  u_projection_matrix * vec4( point, 0.0, 1.0 );
+  vec3 view_point = u_view_matrix * vec3( point, 1.0 );
+
+  gl_Position =  u_projection_matrix * vec4( view_point.xy, 0.0, 1.0 );
 }

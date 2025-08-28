@@ -51,6 +51,7 @@ fn run() -> Result< (), gl::WebglError >
   let background_program = gl::ProgramFromSources::new( background_vert, background_frag ).compile_and_link( &gl )?;
 
   let world_matrix = gl::math::mat3x3::identity();
+  let view_matrix = gl::math::mat3x3::identity();
   let projection_matrix = gl::math::mat3x3h::orthographic_rh_gl( -width / 2.0, width / 2.0, -height / 2.0, height / 2.0, 0.0, 1.0 );
   let line_width = 50.0;
 
@@ -64,6 +65,7 @@ fn run() -> Result< (), gl::WebglError >
 
   mesh.upload_matrix( &gl, "u_projection_matrix", &projection_matrix.to_array() )?;
   mesh.upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() )?;
+  mesh.upload_matrix( &gl, "u_view_matrix", &view_matrix.to_array() )?;
   mesh.upload( &gl, "u_width", &line_width )?;
   mesh.upload_to( &gl, "body", "u_color", &[ 1.0, 1.0, 1.0 ] )?;
   mesh.upload_to( &gl, "body_terminal", "u_color", &[ 1.0, 1.0, 0.0 ] )?;
