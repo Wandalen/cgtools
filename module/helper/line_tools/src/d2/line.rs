@@ -135,6 +135,15 @@ mod private
       Ok( () )
     }
 
+    /// Clears the points from the line without releasing the memory
+    pub fn clear( &mut self )
+    {
+      self.points.clear();
+      self.distances.clear();
+      self.total_distance = 0.0;
+      self.points_changed = true;
+    }
+
     /// Sets the join style of the line and marks it for an update.
     pub fn set_join( &mut self, join : Join )
     {
@@ -150,8 +159,10 @@ mod private
     }
 
     /// Adds a new point to the line and marks the points as changed.
-    pub fn add_point( &mut self, point : math::F32x2 )
+    pub fn add_point< P : gl::VectorIter< f32, 2 > >( &mut self, point : P )
     {
+      let mut iter = point.vector_iter();
+      let point = gl::F32x2::new( *iter.next().unwrap(), *iter.next().unwrap() );
       let distance = if let Some( last ) = self.points.last().copied()
       {
         const EPSILON : f32 = 1e-8;

@@ -9,6 +9,7 @@ layout( location = 4 ) in vec3 inPointD;
 layout( location = 5 ) in float currentDistance;
 
 uniform mat3 u_world_matrix;
+uniform mat3 u_view_matrix;
 uniform mat4 u_projection_matrix;
 uniform float u_width;
 uniform float u_total_distance;
@@ -119,11 +120,13 @@ void main()
 
   if( sign( pos.y ) == -sigma )
   {
-    gl_Position = u_projection_matrix * vec4( offsetPoint, 0.0, 1.0 );
+    vec3 view_point = u_view_matrix * vec3( offsetPoint, 1.0 );
+    gl_Position = u_projection_matrix * vec4( view_point.xy, 0.0, 1.0 );
   }
   else
   {
     vec2 point = offsetPoint - normTo21 * sigma * u_width;
-    gl_Position =  u_projection_matrix * vec4( point, 0.0, 1.0 );
+    vec3 view_point = u_view_matrix * vec3( point, 1.0 );
+    gl_Position =  u_projection_matrix * vec4( view_point.xy, 0.0, 1.0 );
   }
 }
