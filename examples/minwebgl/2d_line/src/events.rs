@@ -33,7 +33,7 @@ pub fn update
       x /= 2.0;
       y /= 2.0;
 
-      line.borrow_mut().add_point( gl::F32x2::new( x, y ) );
+      line.borrow_mut().point_add( gl::F32x2::new( x, y ) );
     }
   }
 

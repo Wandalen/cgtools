@@ -24,7 +24,7 @@ mod private
     /// This function compiles shaders, generates the line's geometry, creates buffers and a VAO,
     /// and initializes the `Mesh` object. It sets up the vertex attributes for instanced drawing,
     /// where each instance is a segment of the line.
-    pub fn create_mesh( &mut self, gl : &gl::WebGl2RenderingContext, segments : u32, fragment_shader : &str ) -> Result< (), gl::WebglError >
+    pub fn mesh_create( &mut self, gl : &gl::WebGl2RenderingContext, segments : u32, fragment_shader : &str ) -> Result< (), gl::WebglError >
     {
       let fragment_shader = gl::ShaderSource::former()
       .shader_type( gl::FRAGMENT_SHADER )
@@ -88,32 +88,32 @@ mod private
       };
 
       let mut mesh = Mesh::default();
-      mesh.add_program( "body", program );
+      mesh.program_add( "body", program );
 
-      mesh.add_buffer( "body", body_instanced_buffer );
-      mesh.add_buffer( "points", points_buffer );
+      mesh.buffer_add( "body", body_instanced_buffer );
+      mesh.buffer_add( "points", points_buffer );
 
       self.mesh = Some( mesh );
 
       self.points_changed = true;
-      self.update_mesh( gl )?;
+      self.mesh_update( gl )?;
 
       Ok( () )
     }
 
     /// Updates the mesh's vertex buffers if the line's points have changed.
-    pub fn update_mesh( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
+    pub fn mesh_update( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
       let mesh = self.mesh.as_mut().expect( "Mesh has not been created yet" );
 
       if self.points_changed
       {
-        let points_buffer = mesh.get_buffer( "points" );
+        let points_buffer = mesh.buffer_get( "points" );
         
         let points : Vec< f32 > = self.points.iter().flat_map( | p | p.to_array() ).collect();
         gl::buffer::upload( &gl, &points_buffer, &points, gl::STATIC_DRAW );
 
-        let b_program = mesh.get_program_mut( "body" );
+        let b_program = mesh.program_get_mut( "body" );
         b_program.instance_count = Some( ( self.points.len() as f32 - 1.0 ).max( 0.0 ) as u32 );
 
         self.points_changed = false;
@@ -123,7 +123,7 @@ mod private
     }
 
     /// Adds a new point to the end of the line strip.
-    pub fn add_point( &mut self, point : math::F32x3 )
+    pub fn point_add( &mut self, point : math::F32x3 )
     {
       self.points.push( point );
       self.points_changed = true;
@@ -132,7 +132,7 @@ mod private
     /// Draws the line mesh.
     pub fn draw( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
-      self.update_mesh( gl )?;
+      self.mesh_update( gl )?;
 
       let mesh = self.mesh.as_ref().expect( "Mesh has not been created yet" );
       mesh.draw( gl, "body" );
@@ -141,19 +141,19 @@ mod private
     }
 
     /// Retrieves a reference to the mesh.
-    pub fn get_mesh( &self ) -> &Mesh
+    pub fn mesh_get( &self ) -> &Mesh
     {
       self.mesh.as_ref().expect( "Mesh has not been created yet" )
     }  
 
     /// Retrieves a mutable reference to the mesh.
-    pub fn get_mesh_mut( &mut self ) -> &mut Mesh
+    pub fn mesh_get_mut( &mut self ) -> &mut Mesh
     {
       self.mesh.as_mut().expect( "Mesh has not been created yet" )
     }  
 
     /// Retrieves a slice of the line's points.
-    pub fn get_points( &self ) -> &[ math::F32x3 ]
+    pub fn points_get( &self ) -> &[ math::F32x3 ]
     {
       &self.points
     }  

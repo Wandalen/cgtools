@@ -79,12 +79,12 @@ fn run() -> Result< (), gl::WebglError >
 
   let mut line = line_tools::d3::Line::default();
 
-  line.create_mesh( &gl, 16, main_frag )?;
-  let mesh = line.get_mesh();
+  line.mesh_create( &gl, 16, main_frag )?;
+  let mesh = line.mesh_get();
   mesh.upload( &gl, "u_width", &line_width )?;
   mesh.upload( &gl, "u_resolution", &[ width as f32, height as f32 ] )?;
-  mesh.upload_matrix( &gl, "u_projection_matrix", &projection_matrix.to_array() )?;
-  mesh.upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() ).unwrap();
+  mesh.matrix_upload( &gl, "u_projection_matrix", &projection_matrix.to_array() )?;
+  mesh.matrix_upload( &gl, "u_world_matrix", &world_matrix.to_array() ).unwrap();
 
   let line = Rc::new( RefCell::new( line ) );
 
@@ -104,7 +104,7 @@ fn run() -> Result< (), gl::WebglError >
       let gl = gl.clone();
       move | value : f32 |
       {
-        line.borrow().get_mesh().upload( &gl, "u_width", &value ).unwrap();
+        line.borrow().mesh_get().upload( &gl, "u_width", &value ).unwrap();
       }
     }
   );
@@ -136,11 +136,11 @@ fn run() -> Result< (), gl::WebglError >
 
       if elapsed_time > add_interval
       {
-        line.borrow_mut().add_point( gl::F32x3::new( x, y, z ) );
+        line.borrow_mut().point_add( gl::F32x3::new( x, y, z ) );
         elapsed_time -= add_interval;
       }
 
-      line.borrow().get_mesh().upload_matrix( &gl, "u_view_matrix", &camera.borrow().view().to_array() ).unwrap();
+      line.borrow().mesh_get().matrix_upload( &gl, "u_view_matrix", &camera.borrow().view().to_array() ).unwrap();
 
       gl.use_program( Some( &background_program ) );
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );
