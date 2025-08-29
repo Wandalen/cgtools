@@ -42,6 +42,11 @@ fn run() -> Result< (), gl::WebglError >
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas( &canvas )?;
 
+  let width = canvas.width() as f32;
+  let height = canvas.height() as f32;
+
+  let aspect = width / height;
+
   let point_frag = include_str!( "../shaders/point.frag" );
   let point_vert = include_str!( "../shaders/point.vert" );
   let circle_frag = include_str!( "../shaders/circle.frag" );
@@ -54,13 +59,19 @@ fn run() -> Result< (), gl::WebglError >
   let point_program = gl::ProgramFromSources::new( point_vert, point_frag ).compile_and_link( &gl )?;
   let circle_program = gl::ProgramFromSources::new( circle_vert, circle_frag ).compile_and_link( &gl )?;
 
-  let projection_matrix = gl::math::mat3x3h::orthographic_rh_gl( -1.0, 1.0, -1.0, 1.0, 0.0, 1.0 );
+  let projection_matrix = gl::math::mat3x3h::orthographic_rh_gl( -aspect, aspect, -1.0, 1.0, 0.0, 1.0 );
   let world_matrix = gl::F32x3x3::from_scale_rotation_translation( [ 2.0, 2.0 ], 0.0, [ -1.0, -1.0 ] );
   let view_matrix = gl::math::mat3x3::identity();
 
 
   const NUM_POINTS : usize = 500;
-  let points = generate_points( NUM_POINTS );
+  let mut points = generate_points( NUM_POINTS );
+  for p in points.iter_mut()
+  {
+    p.0.0[ 0 ] = p.0.0[ 0 ] * 2.0 - 1.0;
+    p.0.0[ 0 ] *= aspect;
+    p.0.0[ 0 ] = ( p.0.0[ 0 ] + 1.0 ) / 2.0; 
+  }
   let mut colors = vec![ gl::F32x3::splat( 0.0 ); NUM_POINTS ];
 
   let mut kd_tree = spart::kd_tree::KdTree::new();
@@ -173,7 +184,10 @@ fn run() -> Result< (), gl::WebglError >
 
       input.update_state();
       let mouse_pos = input.pointer_position();
-      let mouse_pos = gl::F32x2::new( mouse_pos.0[ 0 ] as f32, height - mouse_pos.0[ 1 ] as f32 ) / gl::F32x2::new( width, height );
+      let mut mouse_pos = gl::F32x2::new( mouse_pos.0[ 0 ] as f32, height - mouse_pos.0[ 1 ] as f32 ) / gl::F32x2::new( width, height );
+      mouse_pos.0[ 0 ] = mouse_pos.0[ 0 ] * 2.0 - 1.0;
+      mouse_pos.0[ 0 ] *= aspect;
+      mouse_pos.0[ 0 ] = ( mouse_pos.0[ 0 ] + 1.0) / 2.0; 
 
       let neighbours = 
       match settings.borrow().search.as_str()
@@ -185,24 +199,27 @@ fn run() -> Result< (), gl::WebglError >
 
       for i in 0..neighbours.len()
       {
-        if i >= lines.len()
+        if settings.borrow().search.as_str() == "KNN"
         {
-          let mut line = line_tools::d2::Line::default();
+          if i >= lines.len()
+          {
+            let mut line = line_tools::d2::Line::default();
 
-          line.set_cap( line_tools::Cap::Round( 16 ) );
-          line.create_mesh( &gl, line_frag ).expect( "Failed to create a line" );
+            line.set_cap( line_tools::Cap::Round( 16 ) );
+            line.create_mesh( &gl, line_frag ).expect( "Failed to create a line" );
 
-          line.get_mesh().upload( &gl, "u_width", &0.01 ).unwrap();
-          line.get_mesh().upload_matrix( &gl, "u_projection_matrix", &projection_matrix.to_array() ).unwrap();
-          line.get_mesh().upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() ).unwrap();
-          line.get_mesh().upload_matrix( &gl, "u_view_matrix", &view_matrix.to_array() ).unwrap();
+            line.get_mesh().upload( &gl, "u_width", &0.01 ).unwrap();
+            line.get_mesh().upload_matrix( &gl, "u_projection_matrix", &projection_matrix.to_array() ).unwrap();
+            line.get_mesh().upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() ).unwrap();
+            line.get_mesh().upload_matrix( &gl, "u_view_matrix", &view_matrix.to_array() ).unwrap();
 
-          lines.push( line );
+            lines.push( line );
+          }
+
+          lines[ i ].clear();
+          lines[ i ].add_point( mouse_pos );
+          lines[ i ].add_point( neighbours[ i ].0 );
         }
-
-        lines[ i ].clear();
-        lines[ i ].add_point( mouse_pos );
-        lines[ i ].add_point( neighbours[ i ].0 );
 
         colors[ neighbours[ i ].1 ] = gl::F32x3::new( 0.0, 1.0, 0.0 );
       }
