@@ -6,6 +6,44 @@ use minwgpu::{ buffer, context, helper, texture };
 use crate::{ commands, ports };
 
 /// The offscreen renderer struct that encapsulates the `wgpu` context and for simple tile rendering.
+///
+/// # Limitations
+///
+/// Resolution of result image should be multiple of 256. So that width and height defined in a providing `RenderContext`
+/// should be multiples of 256.
+///
+/// # Example
+///
+/// ``` rust
+/// use tilemap_renderer::adapters::WGPUTileRenderer;
+/// use tilemap_renderer::{ commands, ports::RenderContext };
+/// use commands::{ Geometry2DCommand, Point2D, RenderCommand, Transform2D };
+///
+/// let renderer = WGPUTileRenderer::new
+/// (
+///   wgpu::Backends::PRIMARY,
+///   RenderContext::new( 256, 256, [ 0.0; 4 ], true, Point2D::new( 0.0, 0.0 ), 1.0 )
+/// );
+///
+/// let line = &[ 0.0_f32, 0.0, 1.0, 1.0 ];
+/// renderer.geometry2d_load( bytemuck::cast_slice( line ), 2, 0 );
+/// let res = renderer.commands_execute
+/// (
+///   &[
+///     RenderCommand::Geometry2DCommand
+///     (
+///       Geometry2DCommand
+///       {
+///         id : 0,
+///         transform : Transform2D::default(),
+///         color: [ 1.0; 3 ],
+///         mode: commands::GeometryMode::Lines
+///       }
+///     )
+///   ]
+/// );
+/// ```
+///
 #[ derive( Debug ) ]
 pub struct WGPUTileRenderer
 {
@@ -590,7 +628,8 @@ struct PushConstant
 #[ cfg( test ) ]
 mod tests
 {
-  use crate::{ commands::{Geometry2DCommand, Point2D, RenderCommand, Transform2D}, ports::RenderContext };
+  use crate::{ commands, ports::RenderContext };
+  use commands::{ Geometry2DCommand, Point2D, RenderCommand, Transform2D };
   use super::*;
 
   #[ test ]
