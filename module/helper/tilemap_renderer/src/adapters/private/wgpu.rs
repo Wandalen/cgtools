@@ -586,3 +586,70 @@ struct PushConstant
   rotation_cos_sin : [ f32; 2 ],
   scale : [ f32; 2 ],
 }
+
+#[ cfg( test ) ]
+mod tests
+{
+  use crate::{ commands::{Geometry2DCommand, Point2D, RenderCommand, Transform2D}, ports::RenderContext };
+  use super::*;
+
+  #[ test ]
+  fn test_context_creation()
+  {
+    let renderer = WGPUTileRenderer::new
+    (
+      wgpu::Backends::PRIMARY,
+      RenderContext::new( 256, 256, [ 0.0; 4 ], true, Point2D::new( 0.0, 0.0 ), 1.0 )
+    );
+    assert!( renderer.is_ok() );
+  }
+
+  #[ test ]
+  fn test_shader_compilation()
+  {
+    let context = context::Context::builder()
+    .backends( wgpu::Backends::PRIMARY )
+    .make_instance()
+    .power_preference( wgpu::PowerPreference::HighPerformance )
+    .request_adapter()
+    .map_err( | e | ports::RenderError::InitializationFailed( format!( "{e}" ) ) ).unwrap()
+    .label( "device" )
+    .required_features( wgpu::Features::PUSH_CONSTANTS )
+    .required_limits( wgpu::Limits { max_push_constant_size : 44, ..Default::default() } )
+    .finish_context()
+    .map_err( | e | ports::RenderError::InitializationFailed( format!( "{e}" ) ) ).unwrap();
+
+    _ = context.get_device().create_shader_module( wgpu::include_wgsl!( "../../../shaders/geom2d.wgsl" ) );
+    _ = context.get_device().create_shader_module( wgpu::include_wgsl!( "../../../shaders/sprite.wgsl" ) );
+  }
+
+  #[ test ]
+  fn test_render_pass()
+  {
+    let mut renderer = WGPUTileRenderer::new
+    (
+      wgpu::Backends::PRIMARY,
+      RenderContext::new( 256, 256, [ 0.0; 4 ], true, Point2D::new( 0.0, 0.0 ), 1.0 )
+    ).unwrap();
+
+    let line = &[ 0.0_f32, 0.0, 1.0, 1.0 ];
+
+    renderer.geometry2d_load( bytemuck::cast_slice( line ), 2, 0 );
+
+    _ = renderer.commands_execute
+    (
+      &[
+        RenderCommand::Geometry2DCommand
+        (
+          Geometry2DCommand
+          {
+            id : 0,
+            transform : Transform2D::default(),
+            color: [ 1.0; 3 ],
+            mode: commands::GeometryMode::Lines
+          }
+        )
+      ]
+    );
+  }
+}
