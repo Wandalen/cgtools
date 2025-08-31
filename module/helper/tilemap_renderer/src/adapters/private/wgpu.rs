@@ -12,6 +12,10 @@ use crate::{ commands, ports };
 /// Resolution of result image should be multiple of 256. So that width and height defined in a providing `RenderContext`
 /// should be multiples of 256.
 ///
+/// # Performance
+///
+/// This renderer is sutied for offscreen rendering and not intended for realtime usage.
+///
 /// # Example
 ///
 /// ``` rust
