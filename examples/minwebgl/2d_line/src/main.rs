@@ -22,7 +22,7 @@ use std::
 use serde::{ Deserialize, Serialize };
 use gl::wasm_bindgen::prelude::*;
 
-use crate::events::add_point_on_click;
+use crate::events::update;
 
 mod lil_gui;
 mod events;
@@ -51,32 +51,39 @@ fn run() -> Result< (), gl::WebglError >
   let background_program = gl::ProgramFromSources::new( background_vert, background_frag ).compile_and_link( &gl )?;
 
   let world_matrix = gl::math::mat3x3::identity();
+  let view_matrix = gl::math::mat3x3::identity();
   let projection_matrix = gl::math::mat3x3h::orthographic_rh_gl( -width / 2.0, width / 2.0, -height / 2.0, height / 2.0, 0.0, 1.0 );
   let line_width = 50.0;
 
 
   let mut line = line_tools::d2::Line::default();
-  line.set_cap( line_tools::Cap::Square );
-  line.set_join( line_tools::Join::Miter );
+  line.set_cap( line_tools::Cap::Butt );
+  line.set_join( line_tools::Join::Miter( 7, 7 ) );
 
   line.create_mesh( &gl, main_frag )?;
   let mesh = line.get_mesh();
 
   mesh.upload_matrix( &gl, "u_projection_matrix", &projection_matrix.to_array() )?;
   mesh.upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() )?;
+  mesh.upload_matrix( &gl, "u_view_matrix", &view_matrix.to_array() )?;
   mesh.upload( &gl, "u_width", &line_width )?;
   mesh.upload_to( &gl, "body", "u_color", &[ 1.0, 1.0, 1.0 ] )?;
   mesh.upload_to( &gl, "body_terminal", "u_color", &[ 1.0, 1.0, 0.0 ] )?;
   mesh.upload_to( &gl, "join", "u_color", &[ 1.0, 0.0, 0.0 ] )?;
   mesh.upload_to( &gl, "cap", "u_color", &[ 0.0, 1.0, 0.0 ] )?;
 
+  let mut input = browser_input::Input::new
+  (
+    Some( canvas.clone().dyn_into().unwrap() ),
+    browser_input::SCREEN,
+  );
+
   let line = Rc::new( RefCell::new( line ) );
-  add_point_on_click( line.clone(), &canvas );
 
   let settings = Settings
   {
     join : "miter".into(),
-    cap : "square".into(),
+    cap : "butt".into(),
     width : line_width
   };
 
@@ -95,9 +102,9 @@ fn run() -> Result< (), gl::WebglError >
         let mut line = line.borrow_mut();
         match value.as_str()
         {
-          "miter" => { line.set_join( line_tools::Join::Miter ); },
-          "bevel" => { line.set_join( line_tools::Join::Bevel ); },
-          "round" => { line.set_join( line_tools::Join::Round( 16 ) ); },
+          "miter" => { line.set_join( line_tools::Join::Miter( 7, 7 ) ); },
+          "bevel" => { line.set_join( line_tools::Join::Bevel( 7, 7 ) ); },
+          "round" => { line.set_join( line_tools::Join::Round( 16, 8 ) ); },
           _ => {}
         }
       }
@@ -150,11 +157,14 @@ fn run() -> Result< (), gl::WebglError >
   // Define the update and draw logic
   let update_and_draw =
   {
-
     move | t : f64 |
     {
       let _time = t as f32 / 1000.0;
 
+      update( line.clone(), &canvas, &mut input );
+
+      line.borrow().get_mesh().upload( &gl, "time", &_time ).unwrap();
+      line.borrow().get_mesh().upload( &gl, "totalDistance", &line.borrow().get_total_distance() ).unwrap();
       //draw
       gl.use_program( Some( &background_program ) );
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );

@@ -11,16 +11,6 @@ mod private
     [ 0.0,  0.5 ]
   ];
 
-  // pub const BODY_GEOMETRY : [ [ f32; 2 ]; 6 ] =
-  // [
-  //   [ 0.0, -0.5 ],
-  //   [ 1.0, -0.5 ],
-  //   [ 0.0,  0.5 ],
-  //   [ 0.0, 0.5 ],
-  //   [ 1.0,  -0.5 ],
-  //   [ 1.0,  0.5 ]
-  // ];
-
   /// Generates the geometry for a circle using a `TRIANGLE_FAN` draw mode.
   pub fn circle_geometry( segments : usize ) -> Vec< [ f32; 2 ] >
   {
