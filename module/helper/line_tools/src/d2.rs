@@ -12,4 +12,8 @@ crate::mod_interface!
   /// Layer for line that supports uv coordinates
   #[ cfg( feature = "uv" ) ]
   layer uv;
+
+  /// Layer for line that can be used in blending
+  #[ cfg( feature = "transparent" ) ]
+  layer transparent;
 }

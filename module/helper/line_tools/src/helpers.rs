@@ -83,6 +83,22 @@ mod private
     positions
   }
 
+  /// Creates geometry for an arc that can be dynamically changed in the vertex shader
+  pub fn simple_arc_geometry( segments : usize ) -> ( Vec< [ f32; 2 ] >, Vec< u32 > )
+  {
+    let segments = segments as u32;
+    let ind = ( 0..=segments + 1 ).collect();
+    let mut vertices = Vec::new();
+    vertices.push( [ 0.0, 0.0 ] );
+
+    for i in 1..=( segments + 1 )
+    {
+      vertices.push( [ ( i as f32 - 1.0 ) / segments as f32, 1.0 ] );
+    }
+
+    ( vertices, ind )
+  }
+
   /// Generates the vertex data for a triangulated circular arc with the slight offset at the center of the arc, to ensure smooth looking uv transition. 
   /// The arc is meant to be built in the vertex shader.
   /// 
@@ -383,6 +399,8 @@ crate::mod_interface!
     circle_geometry,
     circle_left_half_geometry,
     circle_right_half_geometry,
+
+    simple_arc_geometry,
 
     triangulated_arc_geometry,
     triangulated_bevel_geometry,

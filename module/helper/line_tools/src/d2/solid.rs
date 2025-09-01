@@ -29,14 +29,14 @@ crate::mod_interface!
   /// A layer dedicated to line cap styles (e.g., butt, round, square).
   layer caps;
 
-  #[ cfg( all( feature = "solid", not( feature = "uv" ) ) ) ]
+  #[ cfg( all( feature = "solid", not( feature = "uv" ), not( feature = "transparent" ) ) ) ]
   exposed use
   {
     Join,
     Cap,
   };
 
-  #[ cfg( all( feature = "solid", not( feature = "uv" ) ) ) ]
+  #[ cfg( all( feature = "solid", not( feature = "uv" ), not( feature = "transparent" ) ) ) ]
   orphan use
   {
     Line
