@@ -67,10 +67,6 @@ fn run() -> Result< (), gl::WebglError >
   mesh.matrix_upload( &gl, "u_world_matrix", &world_matrix.to_array() )?;
   mesh.matrix_upload( &gl, "u_view_matrix", &view_matrix.to_array() )?;
   mesh.upload( &gl, "u_width", &line_width )?;
-  mesh.upload_to( &gl, "body", "u_color", &[ 1.0, 1.0, 1.0 ] )?;
-  mesh.upload_to( &gl, "body_terminal", "u_color", &[ 1.0, 1.0, 0.0 ] )?;
-  mesh.upload_to( &gl, "join", "u_color", &[ 1.0, 0.0, 0.0 ] )?;
-  mesh.upload_to( &gl, "cap", "u_color", &[ 0.0, 1.0, 0.0 ] )?;
 
   let mut input = browser_input::Input::new
   (

@@ -4,6 +4,7 @@ mod private
   use crate::*;
   use minwebgl as gl;
   use ndarray_cg as math;
+  use d2::solid::*;
 
   /// Represents a renderable 2D line with configurable caps and joins.
   #[ derive( Debug, Clone, Default ) ]
@@ -44,22 +45,14 @@ mod private
 
       // Buffers
       let points_buffer = gl.create_buffer().expect( "Failed to create a points buffer" );
-      let distance_buffer = gl.create_buffer().expect( "Failed to create a distance buffer" );
       let points_terminal_buffer = gl.create_buffer().expect( "Failed to create a points terminal buffer" );
       let body_instanced_buffer = gl.create_buffer().expect( "Failed to create a body_instanced_buffer" );
       let join_instanced_buffer = gl.create_buffer().expect( "Failed to create a join_instanced_buffer" );
-      let join_indices_buffer = gl.create_buffer().expect( "Failed to create a join_indices_buffer" );
-      let join_uv_buffer = gl.create_buffer().expect( "Failed to create a join_uv_buffer" );
       let cap_instanced_buffer = gl.create_buffer().expect( "Failed to create a cap_instanced_buffer" );
-      let cap_indices_buffer = gl.create_buffer().expect( "Failed to create a cap_indices_buffer" );
-
-
-      let uv_buffer = gl.create_buffer().expect( "Failed to create a uv_buffer" );
 
       gl::buffer::upload( gl, &body_instanced_buffer, &helpers::BODY_GEOMETRY, gl::STATIC_DRAW );
 
-      let body_vertex_shader = gl::ShaderSource::former().shader_type( gl::VERTEX_SHADER ).source( d2::BODY_VERTEX_SHADER ).compile( gl )?;
-      let body_terminal_vertex_shader = gl::ShaderSource::former().shader_type( gl::VERTEX_SHADER ).source( d2::BODY_TERMINAL_VERTEX_SHADER ).compile( gl )?;
+      let body_vertex_shader = gl::ShaderSource::former().shader_type( gl::VERTEX_SHADER ).source( BODY_VERTEX_SHADER ).compile( gl )?;
 
       let mut body_program = Program::default();
       body_program.program = Some( gl::ProgramShaders::new( &body_vertex_shader, &fragment_shader ).link( gl )? );
@@ -69,60 +62,30 @@ mod private
       body_program.instance_count = Some( ( self.points.len() as f32 - 1.0 ).max( 0.0 ) as u32 );
       body_program.vertex_count = helpers::BODY_GEOMETRY.len() as u32;
       
-
       body_program.vao = gl.create_vertex_array();
       gl.bind_vertex_array( body_program.vao.as_ref() );
 
       gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( &gl, 0, &body_instanced_buffer )?;
-      gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_buffer )?;
-      gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
-      gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
-      gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 9 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 4, &points_buffer )?;
-      gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 5, &distance_buffer )?;
-
-      let mut body_terminal_program = Program::default();
-      body_terminal_program.program = Some( gl::ProgramShaders::new( &body_terminal_vertex_shader, &fragment_shader ).link( gl )? );
-      body_terminal_program.vertex_shader = Some( body_terminal_vertex_shader );
-      body_terminal_program.fragment_shader = Some( fragment_shader.clone() );
-      body_terminal_program.draw_mode = gl::TRIANGLES;
-      body_terminal_program.instance_count = Some( 2 );
-      body_terminal_program.vertex_count = helpers::BODY_GEOMETRY.len() as u32;
-
-      body_terminal_program.vao = gl.create_vertex_array();
-      gl.bind_vertex_array( body_terminal_program.vao.as_ref() );
-
-      gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( &gl, 0, &body_instanced_buffer )?;
-      gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 9 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_terminal_buffer )?;
-      gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 9 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_terminal_buffer )?;
-      gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 9 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_terminal_buffer )?;
-      gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 4, &distance_buffer )?;
+      gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_buffer )?;
+      gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 2 ).stride( 2 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
 
       let mut join_program = Program::default();
       join_program.fragment_shader = Some( fragment_shader.clone() );
       join_program.vao = gl.create_vertex_array();
-      join_program.index_buffer = Some( join_indices_buffer.clone() );
 
       let mut cap_program = Program::default();
       cap_program.fragment_shader = Some( fragment_shader.clone() );
-      cap_program.index_buffer = Some( cap_indices_buffer.clone() );
 
       let mut mesh = Mesh::default();
       mesh.program_add( "cap", cap_program );
       mesh.program_add( "join", join_program );
       mesh.program_add( "body", body_program );
-      mesh.program_add( "body_terminal", body_terminal_program );
 
       mesh.buffer_add( "body", body_instanced_buffer );
       mesh.buffer_add( "cap", cap_instanced_buffer );
-      mesh.buffer_add( "cap_indices", cap_indices_buffer );
       mesh.buffer_add( "join", join_instanced_buffer );
-      mesh.buffer_add( "join_indices", join_indices_buffer );
-      mesh.buffer_add( "join_uv", join_uv_buffer );
       mesh.buffer_add( "points", points_buffer );
-      mesh.buffer_add( "points_terminal", points_terminal_buffer );
-      mesh.buffer_add( "distance", distance_buffer );
-
-      mesh.buffer_add( "uv", uv_buffer );
+      mesh.buffer_add( "terminal", points_terminal_buffer );
 
       self.mesh = Some( mesh );
 
@@ -185,10 +148,34 @@ mod private
       self.points_changed = true;
     }
 
+    /// Retrieves the points at the specified position.
+    /// Will panic if index is out of range
+    pub fn point_get( &self, index : usize ) -> gl::F32x2
+    {
+      self.points[ index ]
+    }
+
+    /// Sets the points at the specified position.
+    /// Will panic if index is out of range
+    pub fn point_set< P : gl::VectorIter< f32, 2 > >( &mut self, point : P, index : usize )
+    {
+      let mut iter = point.vector_iter();
+      let point = gl::F32x2::new( *iter.next().unwrap(), *iter.next().unwrap() );
+      self.points[ index ] = point;
+      self.recalculate_distances();
+      self.points_changed = true;
+    }
+
     /// Return the total lenth of the line
     pub fn total_distance( &self ) -> f32
     {
       self.total_distance
+    }
+
+    /// Return the number of points that form this line
+    pub fn num_points( &self ) -> usize
+    {
+      self.points.len()
     }
 
     /// Updates the mesh's WebGL resources if any part of the line has changed.
@@ -199,58 +186,31 @@ mod private
       if self.points_changed
       {
         let points_buffer = mesh.buffer_get( "points" );
-        let distance_buffer = mesh.buffer_get( "distance" );
-        let points_terminal_buffer = mesh.buffer_get( "points_terminal" );
-        let points : Vec< f32 > = self.points.iter().zip( self.distances.iter() ).flat_map( | ( p, d ) | [ p.x(), p.y(), *d / self.total_distance ] ).collect();
-        let ( points_terminal, uvs_terminal, terminal_instance_count ) = 
-        if self.points.len() >= 3
+        let terminal_buffer = mesh.buffer_get( "terminal" );
+        let points : Vec< f32 > = self.points.iter().map( | p | p.to_array() ).flatten().collect();
+
+        let points_terminal = 
+        if self.points.len() >= 2
         {
           let len = self.points.len();
-          (
-            [ 
-              self.points[ 0 ], self.points[ 1 ], self.points[ 2 ],
-              self.points[ len - 1 ], self.points[ len - 2 ], self.points[ len - 3 ]
-            ],
-            [ 
-              self.distances[ 0 ], self.distances[ 1 ], self.distances[ 2 ],
-              self.distances[ len - 1 ], self.distances[ len - 2 ], self.distances[ len - 3 ]
-            ],
-            2
-          )
-        }
-        else if self.points.len() == 2
-        {
-          let dir = self.points[ 1 ] - self.points[ 0 ];
-          (
-            [ 
-              self.points[ 0 ], self.points[ 1 ], self.points[ 1 ] + dir,
-              self.points[ 1 ], self.points[ 0 ], self.points[ 0 ] - dir,
-            ],
-            [ 
-              self.distances[ 0 ], self.distances[ 1 ], self.distances[ 1 ],
-              self.distances[ 1 ], self.distances[ 0 ], self.distances[ 0 ],
-            ],
-            1
-          )
+          [ 
+            self.points[ 0 ], self.points[ 1 ],
+            self.points[ len - 1 ], self.points[ len - 2 ],
+          ]
         }
         else
         {
-          let zero = math::F32x2::default();
-          ( [ zero; 6 ], [ 0.0; 6 ], 0 )
+          [ gl::F32x2::ZERO; 4 ]
         };
 
-        let points_terminal : Vec< f32 > = points_terminal.into_iter().zip( uvs_terminal.iter() ).flat_map( | ( p, d ) | [ p.x(), p.y(), d / self.total_distance ] ).collect();
+        let points_terminal : Vec< f32 > = points_terminal.iter().map( | p | p.to_array() ).flatten().collect();
 
         gl::buffer::upload( &gl, &points_buffer, &points, gl::STATIC_DRAW );
-        gl::buffer::upload( &gl, &points_terminal_buffer, &points_terminal, gl::STATIC_DRAW );
-        gl::buffer::upload( &gl, &distance_buffer, &self.distances, gl::STATIC_DRAW );
+        gl::buffer::upload( &gl, &terminal_buffer, &points_terminal, gl::STATIC_DRAW );
 
         let b_program = mesh.program_get_mut( "body" );
-        b_program.instance_count = Some( ( self.points.len() as f32 - 3.0 ).max( 0.0 ) as u32 );
+        b_program.instance_count = Some( ( self.points.len() as f32 - 1.0 ).max( 0.0 ) as u32 );
 
-        let bt_program = mesh.program_get_mut( "body_terminal" );
-        bt_program.instance_count = Some( terminal_instance_count );
-        
         let j_program = mesh.program_get_mut( "join" );
         j_program.instance_count = Some( ( self.points.len() as f32 - 2.0 ).max( 0.0 ) as u32 );
 
@@ -261,55 +221,42 @@ mod private
       {
         let points_buffer = mesh.buffer_get( "points" );
         let join_buffer = mesh.buffer_get( "join" );
-        let join_indices_buffer = mesh.buffer_get( "join_indices" );
-        let join_uv_buffer = mesh.buffer_get( "join_uv" );
-        let distance_buffer = mesh.buffer_get( "distance" );
 
-        let ( join_geometry_list, join_indices, join_uvs, join_geometry_count ) = self.join.geometry(); 
+        let ( join_geometry_list, join_indices, _join_uvs, join_geometry_count ) = self.join.geometry(); 
         gl::buffer::upload( gl, &join_buffer, &join_geometry_list, gl::STATIC_DRAW );
-        gl::buffer::upload( gl, &join_uv_buffer, &join_uvs, gl::STATIC_DRAW );
-        gl::index::upload( gl, &join_indices_buffer, &join_indices, gl::STATIC_DRAW );
 
         let j_program = mesh.program_get( "join" );
         let vao = gl.create_vertex_array();
         gl.bind_vertex_array( vao.as_ref() ); 
         match self.join
         {
-          Join::Round( _, _ ) =>
+          Join::Round( _ ) =>
           {
             gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( &gl, 0, &join_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 4, &join_uv_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 5, &distance_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 2 ).stride( 2 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_buffer )?;
           },
-          Join::Miter( _, _ ) =>
+          Join::Miter =>
           {
             gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 0 ).attribute_pointer( &gl, 0, &join_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 4, &join_uv_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 5, &distance_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 2 ).stride( 2 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 4 ).stride( 2 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
           },
-          Join::Bevel( _, _ ) =>
+          Join::Bevel =>
           {
             gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( &gl, 0, &join_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 6 ).stride( 3 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 4, &join_uv_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 1 ] >().offset( 0 ).stride( 1 ).divisor( 0 ).attribute_pointer( &gl, 5, &distance_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 2 ).stride( 2 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 4 ).stride( 2 ).divisor( 1 ).attribute_pointer( &gl, 3, &points_buffer )?;
           },
         }
 
         let ( vertex_shader, draw_mode ) =
         match self.join 
         {
-          Join::Round( _, _ ) => ( d2::JOIN_ROUND_VERTEX_SHADER, gl::TRIANGLES ),
-          Join::Miter( _, _ ) => ( d2::JOIN_MITER_VERTEX_SHADER,gl::TRIANGLES ),
-          Join::Bevel( _, _ ) => ( d2::JOIN_BEVEL_VERTEX_SHADER, gl::TRIANGLES )
+          Join::Round( _) => ( d2::solid::JOIN_ROUND_VERTEX_SHADER, gl::TRIANGLE_FAN ),
+          Join::Miter => ( d2::solid::JOIN_MITER_VERTEX_SHADER,gl::TRIANGLES ),
+          Join::Bevel => ( d2::solid::JOIN_BEVEL_VERTEX_SHADER, gl::TRIANGLES )
         };
 
         let vertex_shader = gl::ShaderSource::former()
@@ -340,12 +287,10 @@ mod private
       if self.cap_changed
       {
         let cap_buffer = mesh.buffer_get( "cap" );
-        let cap_index_buffer = mesh.buffer_get( "cap_indices" );
-        let points_terminal_buffer = mesh.buffer_get( "points_terminal" );
+        let terminal_buffer = mesh.buffer_get( "terminal" );
 
-        let ( cap_geometry_list, cap_indices, cap_geometry_count ) = self.cap.geometry();
+        let ( cap_geometry_list, cap_indices, _cap_uvs, cap_geometry_count ) = self.cap.geometry();
         gl::buffer::upload( gl, &cap_buffer, &cap_geometry_list, gl::STATIC_DRAW );
-        gl::index::upload( gl, &cap_index_buffer, &cap_indices, gl::STATIC_DRAW );
 
         let c_program = mesh.program_get( "cap" );
 
@@ -357,19 +302,15 @@ mod private
           Cap::Round( _ ) =>
           {
             gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( &gl, 0, &cap_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 9 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_terminal_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 9 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_terminal_buffer )?;
-
-            gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, Some( &cap_index_buffer ) );
-            instance_count = Some( 2 );
+            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 4 ).divisor( 1 ).attribute_pointer( &gl, 1, &terminal_buffer )?;
+            instance_count = Some( 2 )
           },
           Cap::Square =>
           {
             gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 2 ).divisor( 0 ).attribute_pointer( &gl, 0, &cap_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 0 ).stride( 9 ).divisor( 1 ).attribute_pointer( &gl, 1, &points_terminal_buffer )?;
-            gl::BufferDescriptor::new::< [ f32; 3 ] >().offset( 3 ).stride( 9 ).divisor( 1 ).attribute_pointer( &gl, 2, &points_terminal_buffer )?;
-            gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, Some( &cap_index_buffer ) );
-            instance_count = Some( 2 );
+            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 0 ).stride( 4 ).divisor( 1 ).attribute_pointer( &gl, 1, &terminal_buffer )?;
+            gl::BufferDescriptor::new::< [ f32; 2 ] >().offset( 2 ).stride( 4 ).divisor( 1 ).attribute_pointer( &gl, 2, &terminal_buffer )?;
+            instance_count = Some( 2 )
           }
           _ => {}
         }
@@ -377,9 +318,9 @@ mod private
         let ( vertex_shader, cap_draw_mode ) =
         match self.cap
         {
-          Cap::Round( _ ) =>( d2::CAP_ROUND_VERTEX_SHADER, gl::TRIANGLES ),
-          Cap::Square =>( d2::CAP_SQUARE_VERTEX_SHADER, gl::TRIANGLES ),
-          _ => ( d2::CAP_BUTT_VERTEX_SHADER, gl::TRIANGLES )
+          Cap::Round( _ ) =>( d2::solid::CAP_ROUND_VERTEX_SHADER, gl::TRIANGLE_FAN ),
+          Cap::Square =>( d2::solid::CAP_SQUARE_VERTEX_SHADER, gl::TRIANGLES ),
+          _ => ( d2::solid::CAP_BUTT_VERTEX_SHADER, gl::TRIANGLES )
         };
 
         let vertex_shader = gl::ShaderSource::former()
@@ -421,21 +362,15 @@ mod private
 
       let mesh = self.mesh.as_ref().expect( "Mesh has not been created yet" );
 
-      mesh.upload_to( gl, "body", "u_total_distance", &self.total_distance )?;
-      mesh.upload_to( gl, "body_terminal", "u_total_distance", &self.total_distance )?;
-
-      mesh.draw( gl, "body" );
-      mesh.draw( gl, "body_terminal" );
-      
-      if self.points.len() > 2
-      {
-        mesh.upload_to( gl, "join", "u_total_distance", &self.total_distance )?;
-        mesh.draw( gl, "join" );
-      }
-
       if self.points.len() > 1
       {
+        mesh.draw( gl, "body" );
         mesh.draw( gl, "cap" );
+      }
+
+      if self.points.len() > 2
+      {
+        mesh.draw( gl, "join" );
       }
 
       Ok( () )
@@ -457,6 +392,20 @@ mod private
     pub fn points_get( &self ) -> &[ math::F32x2 ]
     {
       &self.points
+    }
+
+    fn recalculate_distances( &mut self )
+    {
+      self.total_distance = 0.0;
+      self.distances.clear();
+      self.distances.push( 0.0 );
+      for i in 1..self.points.len()
+      {
+        let point = self.points[ i ];
+        let last = self.points[ i - 1 ];
+        self.total_distance += ( point - last ).mag() ;
+        self.distances.push( self.total_distance );
+      }
     }
   }
 

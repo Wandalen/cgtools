@@ -12,7 +12,7 @@ license = "MIT"
 workspace = true
 
 [dependencies]
-line_tools = { workspace = true }
+line_tools = { workspace = true, features = [ "uv" ] }
 minwebgl = { workspace = true, features = [ "math" ] }
 serde = { workspace = true, features = [ "derive" ] }
 serde-wasm-bindgen = { workspace = true }
