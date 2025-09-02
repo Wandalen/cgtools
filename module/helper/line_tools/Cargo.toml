@@ -36,6 +36,7 @@ enabled = [
     "dep:ndarray_cg",
     "dep:mod_interface",
     "dep:web-sys",
+    "minwebgl/math"
 ]
 
 # Full feature set with serialization

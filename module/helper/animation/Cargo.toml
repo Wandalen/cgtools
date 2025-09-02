@@ -1,0 +1,86 @@
+[package]
+name = "animation"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75.0"
+authors = [
+  "Kostiantyn Mysnyk <wandalen@obox.systems>",
+  "Bilan Vadym <vadym.b@obox.systems>"
+]
+license = "MIT"
+repository = "https://github.com/Wandalen/cgtools"
+homepage = "https://github.com/Wandalen/cgtools/tree/master/module/helper/animation"
+documentation = "https://docs.rs/animation"
+description = ""
+readme = "readme.md"
+keywords = ["webgl", "animation", "3d"]
+categories = ["animation", "web-programming", "game-development"]
+include = [
+    "src/**/*",
+    "tests/**/*",
+    "Cargo.toml",
+    "readme.md",
+    "license*",
+    "changelog*",
+]
+
+[lints]
+workspace = true
+
+[features]
+default = ["enabled"]
+
+# Core canvas rendering functionality
+enabled = [
+    "dep:mod_interface",
+    "dep:minwebgl", 
+    "dep:mingl",
+    "dep:web-sys",
+]
+
+# Full feature set
+full = ["enabled"]
+
+[dependencies]
+mod_interface = { workspace = true, optional = true }
+minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ], optional = true }
+mingl = { workspace = true, optional = true }
+bytemuck = { workspace = true }
+
+[dependencies.web-sys]
+workspace = true
+optional = true
+features = [
+  'MouseEvent',
+  'PointerEvent',
+  'WheelEvent',
+  'WebGlTexture',
+  'HtmlImageElement',
+  'Blob',
+  'BlobPropertyBag',
+  'Url',
+  'WebGlFramebuffer',
+  'WebGlRenderbuffer'
+]
+
+[dev-dependencies]
+test_tools = { workspace = true }
+
+# Metadata for crates.io
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+default-target = "wasm32-unknown-unknown"
+targets = [
+    "wasm32-unknown-unknown",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+    "x86_64-apple-darwin",
+]
+
+# Cargo.toml maintenance metadata
+[package.metadata.release]
+pre-release-replacements = [
+    { file = "readme.md", search = "animation = \"[0-9.]+\"", replace = "animation = \"{{version}}\"" },
+    { file = "changelog.md", search = "## Unreleased", replace = "## Unreleased\n\n## {{version}} - {{date}}" },
+]
