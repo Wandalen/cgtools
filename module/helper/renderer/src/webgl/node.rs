@@ -6,7 +6,9 @@ mod private
   use mingl::{ geometry::BoundingBox, F32x3, F32x4x4 };
   use crate::webgl::Mesh;
 
-  const INVERSE_MATRICES_SLOT : u32 = GL::TEXTURE0;
+  /// Inverse matrices texture slot
+  #[ cfg( feature = "animation" ) ]
+  const INVERSE_MATRICES_SLOT : u32 = 13;
 
   /// Represents a 3D object that can be part of the scene graph.
   pub enum Object3D
@@ -194,8 +196,17 @@ mod private
     /// Sets the local transformation matrix for the node.
     pub fn set_local_matrix( &mut self, matrix : F32x4x4 )
     {
+      let Some( ( translation, rotation, scale ) ) = matrix.decompose()
+      else
+      {
+        return;
+      };
+
+      self.set_translation( translation );
+      self.set_rotation( rotation );
+      self.set_scale( scale );
+
       self.matrix = matrix;
-      self.needs_world_matrix_update = true;
       self.needs_local_matrix_update = false;
     }
 
@@ -248,7 +259,7 @@ mod private
       if needs_world_matrix_update || self.needs_world_matrix_update
       {
         self.set_world_matrix( parent_mat * self.matrix );
-        //self.set_world_matrix(  self.matrix );
+        //self.set_world_matrix( self.matrix );
         needs_world_matrix_update = true;
       }
 
@@ -290,6 +301,7 @@ mod private
       locations : &HashMap< String, Option< gl::WebGlUniformLocation > >
     )
     {
+      #[ cfg( feature = "animation" ) ]
       if let Object3D::Mesh( mesh ) = self.object
       {
         if let Some( skeleton ) = mesh.borrow().skeleton
@@ -383,6 +395,7 @@ crate::mod_interface!
   orphan use
   {
     Node,
-    Object3D
+    Object3D,
+    INVERSE_MATRICES_SLOT
   };
 }
