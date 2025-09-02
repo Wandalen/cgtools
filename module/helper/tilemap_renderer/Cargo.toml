@@ -95,6 +95,7 @@ adapter-svg = [
   "adapter-svg-colors",
   "adapter-svg-fonts",
   "adapter-svg-paths",
+  "dep:base64"
 ]
 
 adapter-svg-browser-dom = ["adapter-svg", "wasm-bindgen"]
@@ -275,6 +276,7 @@ web-sys = { workspace = true, optional = true, features = [
 wgpu = { workspace = true, optional = true }
 bytemuck = { workspace = true, optional = true, features = ["derive"] }
 rustc-hash = { workspace = true }
+base64 = { workspace = true, optional = true }
 
 [dev-dependencies]
 test_tools = { workspace = true }
