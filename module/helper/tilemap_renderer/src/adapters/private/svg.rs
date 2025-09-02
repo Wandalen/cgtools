@@ -3,17 +3,31 @@
 //! This adapter renders scenes to SVG format, providing scalable vector output
 //! suitable for web display, printing, and vector graphics workflows.
 
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::field_reassign_with_default ) ]
-#![ allow( clippy::format_push_string ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::cast_sign_loss ) ]
-#![ allow( clippy::needless_return ) ]
-#![ allow( clippy::redundant_else ) ]
+use base64::Engine;
+use rustc_hash::FxHashMap;
 
-use crate::ports::{ RenderContext, Renderer, RendererCapabilities, RenderError, PrimitiveRenderer };
+use crate::ports::
+{
+  RenderContext,
+  Renderer,
+  RendererCapabilities,
+  RenderError,
+  PrimitiveRenderer
+};
 use crate::scene::Scene;
-use crate::commands::{ LineCap, LineJoin, RenderCommand, LineCommand, CurveCommand, TextCommand, TextAnchor, TilemapCommand, ParticleEmitterCommand };
+use crate::commands::
+{
+  CurveCommand,
+  LineCap,
+  LineCommand,
+  LineJoin,
+  ParticleEmitterCommand,
+  RenderCommand,
+  TextAnchor,
+  TextCommand,
+  TilemapCommand,
+  Transform2D
+};
 
 /// SVG renderer backend adapter.
 ///
@@ -30,6 +44,7 @@ pub struct SvgRenderer
   frame_active : bool,
   /// Rendering context for the current frame.
   context : Option< RenderContext >,
+  images : FxHashMap< String, ( u32, u32 ) >
 }
 
 impl SvgRenderer
@@ -41,16 +56,17 @@ impl SvgRenderer
   {
     return Self
     {
-      svg_content: String::new(),
-      initialized: false,
-      frame_active: false,
-      context: None,
+      svg_content : String::new(),
+      initialized : false,
+      frame_active : false,
+      context : None,
+      images : FxHashMap::default()
     };
   }
 
   /// Converts a color array to SVG color string.
   #[ inline ]
-  fn color_to_svg( color: &[ f32; 4 ] ) -> String
+  fn color_to_svg( color : &[ f32; 4 ] ) -> String
   {
     let r = ( color[ 0 ] * 255.0 ) as u8;
     let g = ( color[ 1 ] * 255.0 ) as u8;
@@ -69,7 +85,7 @@ impl SvgRenderer
 
   /// Converts line cap style to SVG stroke-linecap.
   #[ inline ]
-  fn line_cap_to_svg( cap: LineCap ) -> &'static str
+  fn line_cap_to_svg( cap : LineCap ) -> &'static str
   {
     match cap
     {
@@ -81,7 +97,7 @@ impl SvgRenderer
 
   /// Converts line join style to SVG stroke-linejoin.
   #[ inline ]
-  fn line_join_to_svg( join: LineJoin ) -> &'static str
+  fn line_join_to_svg( join : LineJoin ) -> &'static str
   {
     match join
     {
@@ -95,7 +111,7 @@ impl SvgRenderer
   /// For now, this is a simple mapping. In a full implementation,
   /// this would lookup from a font registry.
   #[ inline ]
-  fn resolve_font_family( family_id: u32 ) -> &'static str
+  fn resolve_font_family( family_id : u32 ) -> &'static str
   {
     match family_id
     {
@@ -106,6 +122,78 @@ impl SvgRenderer
       4 => return "Georgia",
       _ => return "sans-serif", // Fallback
     }
+  }
+
+  #[ inline ]
+  pub fn render_geometry( &mut self, points : &[ [ f32; 2 ] ], mut transform : Transform2D, style : GeometryStyle )
+  {
+    if points.len() < 3
+    {
+      // Not a valid polygon, but we can just ignore it.
+      return;
+    }
+
+    transform.position[ 1 ] = -transform.position[ 1 ];
+    transform.position[ 0 ] += self.context.unwrap().width as f32 / 2.0;
+    transform.position[ 1 ] += self.context.unwrap().height as f32 / 2.0;
+    transform.rotation = transform.rotation.to_degrees();
+
+    // Convert the vector of points into an SVG-compatible string
+    let points_str = points
+    .iter()
+    .map( | &[ x, y ] | format!( "{},{}", x, y ) )
+    .collect::< Vec< String > >()
+    .join( " " );
+
+    let fill = style.fill_color.map_or( "none".to_string(), | c | Self::color_to_svg( &c ) );
+
+    let stroke = style.stroke_color.map_or( "none".to_string(), | c | Self::color_to_svg( &c ) );
+
+    self.svg_content.push_str
+    (
+      &format!
+      (
+        r#"<polygon points="{}" fill="{}" stroke="{}" stroke-width="{}" transform="translate({}, {}) rotate({}) scale({}, {})"/>"#,
+        points_str, fill, stroke, style.stroke_width, transform.scale[ 0 ], transform.scale[ 1 ], transform.rotation,
+        transform.position[ 0 ], transform.position[ 1 ]
+      )
+    );
+  }
+
+  pub fn load_image( &mut self, bytes : &[ u8 ], width : u32, height : u32, format : ImageFormat, id : &str )
+  {
+    let img = base64::prelude::BASE64_STANDARD.encode( bytes );
+    let def = format!
+    (
+      r#"<defs><symbol id="{id}" viewBox="-{} -{} {width} {height}">
+      <image href="data:image/{};base64,{img}" x="-{}" y="-{}" width="{width}" height="{height}"/>
+      </sybmbol></defs>"#,
+      width / 2, height / 2, format.as_ref(), width / 2, height / 2
+    );
+    self.svg_content.push_str( &def );
+    self.images.insert( id.to_string(), ( width, height ) );
+  }
+
+  pub fn render_image( &mut self, id : &str, mut transform : Transform2D )
+  {
+    transform.position[ 1 ] = -transform.position[ 1 ];
+    transform.position[ 0 ] += self.context.unwrap().width as f32 / 2.0;
+    transform.position[ 1 ] += self.context.unwrap().height as f32 / 2.0;
+    transform.rotation = transform.rotation.to_degrees();
+    let ( width, height ) = self.images[ id ];
+    let el = format!
+    (
+      r#"<g transform="translate({}, {}) rotate({}) scale({}, {})">
+      <use href="{id} width="{width}" height="{height}"/>
+      </g>"#,
+      transform.position[ 0 ],
+      transform.position[ 1 ],
+      transform.rotation,
+      transform.scale[ 0 ],
+      transform.scale[ 1 ],
+    );
+
+    self.svg_content.push_str( &el );
   }
 }
 
@@ -143,7 +231,7 @@ impl Renderer for SvgRenderer
   /// # Errors
   /// Returns `InitializationFailed` if the renderer cannot be initialized.
   #[ inline ]
-  fn initialize( &mut self, context: &RenderContext ) -> core::result::Result< (), RenderError >
+  fn initialize( &mut self, context : &RenderContext ) -> core::result::Result< (), RenderError >
   {
     if self.initialized
     {
@@ -160,7 +248,7 @@ impl Renderer for SvgRenderer
   /// # Errors
   /// Returns `InvalidContext` if the context is invalid or `RenderFailed` if frame setup fails.
   #[ inline ]
-  fn begin_frame( &mut self, context: &RenderContext ) -> core::result::Result< (), RenderError >
+  fn begin_frame( &mut self, context : &RenderContext ) -> core::result::Result< (), RenderError >
   {
     if !self.initialized
     {
@@ -177,21 +265,26 @@ impl Renderer for SvgRenderer
     self.svg_content.clear();
 
     // Start SVG document
-    self.svg_content.push_str( &format!(
-      r#"<?xml version="1.0" encoding="UTF-8"?>
-<svg width="{}" height="{}" viewBox="0 0 {} {}" xmlns="http://www.w3.org/2000/svg">
-"#,
-      context.width, context.height, context.width, context.height
-    ) );
+    self.svg_content.push_str
+    (
+      &format!
+      (
+        r#"<?xml version="1.0" encoding="UTF-8"?> <svg width="{}" height="{}" viewBox="0 0 {} {}" xmlns="http://www.w3.org/2000/svg">"#,
+        context.width, context.height, context.width, context.height
+      )
+    );
 
     // Add background if needed
     if context.clear_background
     {
       let bg_color = Self::color_to_svg( &context.background_color );
-      self.svg_content.push_str( &format!(
-        r#"  <rect width="100%" height="100%" fill="{bg_color}"/>
-"#
-      ) );
+      self.svg_content.push_str
+      (
+        &format!
+        (
+          r#"<rect width="100%" height="100%" fill="{bg_color}"/>"#
+        )
+      );
     }
 
     return Ok( () );
@@ -202,7 +295,7 @@ impl Renderer for SvgRenderer
   /// # Errors
   /// Returns various errors including `UnsupportedCommand`, `ComplexityLimitExceeded`, or `RenderFailed`.
   #[ inline ]
-  fn render_scene( &mut self, scene: &Scene ) -> core::result::Result< (), RenderError >
+  fn render_scene( &mut self, scene : &Scene ) -> core::result::Result< (), RenderError >
   {
     if !self.frame_active
     {
@@ -301,7 +394,7 @@ impl PrimitiveRenderer for SvgRenderer
   /// # Errors
   /// Returns `RenderFailed` if line rendering fails.
   #[ inline ]
-  fn render_line( &mut self, command: &LineCommand ) -> core::result::Result< (), RenderError >
+  fn render_line( &mut self, command : &LineCommand ) -> core::result::Result< (), RenderError >
   {
     let stroke_color = Self::color_to_svg( &command.style.color );
     let line_cap = Self::line_cap_to_svg( command.style.cap_style );
@@ -324,7 +417,7 @@ impl PrimitiveRenderer for SvgRenderer
   /// # Errors
   /// Returns `RenderFailed` if curve rendering fails.
   #[ inline ]
-  fn render_curve( &mut self, command: &CurveCommand ) -> core::result::Result< (), RenderError >
+  fn render_curve( &mut self, command : &CurveCommand ) -> core::result::Result< (), RenderError >
   {
     let stroke_color = Self::color_to_svg( &command.style.color );
     let line_cap = Self::line_cap_to_svg( command.style.cap_style );
@@ -405,5 +498,32 @@ impl PrimitiveRenderer for SvgRenderer
   fn render_particle_emitter( &mut self, _command: &ParticleEmitterCommand ) -> core::result::Result< (), RenderError >
   {
     return Err( RenderError::FeatureNotImplemented( "Particle rendering not supported in SVG backend".to_string() ) );
+  }
+}
+
+#[ derive( Debug, Clone ) ]
+pub struct GeometryStyle
+{
+  pub fill_color : Option< [ f32; 4 ] >,
+  pub stroke_color : Option< [ f32; 4 ] >,
+  pub stroke_width : f32,
+}
+
+#[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
+pub enum ImageFormat
+{
+  Png,
+  Jpeg,
+}
+
+impl AsRef< str > for ImageFormat
+{
+  fn as_ref( &self ) -> &str
+  {
+    match self
+    {
+      ImageFormat::Png => "png",
+      ImageFormat::Jpeg => "jpeg",
+    }
   }
 }
