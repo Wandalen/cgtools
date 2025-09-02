@@ -18,10 +18,18 @@ use std::{ cell::RefCell, rc::Rc };
 use minwebgl as gl;
 use renderer::webgl::
 {
-  post_processing::{self, Pass, SwapFramebuffer}, Camera, Renderer
+  post_processing::
+  {
+    self,
+    Pass,
+    SwapFramebuffer
+  },
+  Camera,
+  Renderer,
+  Animation,
+  Pose
 };
 
-mod loaders;
 // mod lil_gui;
 // mod gui_setup;
 
@@ -75,7 +83,7 @@ async fn run() -> Result< (), gl::WebglError >
   camera.bind_controls( &canvas );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_ibl( loaders::ibl::load( &gl, "envMap" ).await );
+  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "envMap" ).await );
 
   let renderer = Rc::new( RefCell::new( renderer ) );
 
@@ -86,13 +94,27 @@ async fn run() -> Result< (), gl::WebglError >
 
   //gui_setup::setup( renderer.clone() );
 
+  let mut last_time = Rc::new( RefCell::new( 0.0 ) );
+  let animation = gltf.animations[ 0 ];
+
   // Define the update and draw logic
   let update_and_draw =
   {
     move | t : f64 |
     {
-      // If textures are of different size, gl.view_port needs to be called
-      let _time = t as f32 / 1000.0;
+      let time = t / 1000.0;
+      let mut last_time = last_time.clone();
+
+      let delta_time = time - *last_time.borrow();
+      last_time.borrow_mut() = time;
+
+      if animation.sequencer.borrow().is_completed()
+      {
+        animation.sequencer.borrow_mut().reset();
+      }
+
+      animation.update( delta_time as f32 );
+      animation.set();
 
       renderer.borrow_mut().render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
       .expect( "Failed to render" );
