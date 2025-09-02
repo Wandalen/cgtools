@@ -43,6 +43,17 @@ mod private
       self.0[ 2 ]
     }
 
+    /// Calculates vector norm
+    pub fn norm( &self ) -> E
+    {
+      let n = self.x().powi( 2 ) +
+      self.y().powi( 2 ) +
+      self.z().powi( 2 ) +
+      self.w().powi( 2 );
+
+      n.sqrt()
+    }
+
     /// Truncates `w` component of a vector creating vector of 3 elements
     #[ inline ]
     pub fn truncate( &self ) -> Vector< E, 3 >

@@ -29,6 +29,14 @@ mod private
       self.0[ 1 ]
     }
 
+    /// Calculates vector norm
+    pub fn norm( &self ) -> E
+    {
+      let n = self.x().powi( 2 ) +
+      self.y().powi( 2 );
+
+      n.sqrt()
+    }
   }
 
 }
