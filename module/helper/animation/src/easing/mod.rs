@@ -130,4 +130,7 @@ crate::mod_interface!
 
   /// Collection of cubic spline easing functions
   layer cubic;
+
+  /// Quaternion interpolation easing
+  layer squad;
 }
