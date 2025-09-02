@@ -15,12 +15,6 @@ mod private
     WebGlUniformLocation
   };
   use std::collections::HashMap;
-  // use std::{ cell::RefCell, rc::Rc };
-  // use animation::
-  // {
-  //   interpolation::Transform,
-  //   sequencer::Sequencer,
-  // };
 
   /// Creates data texture where every pixel is 4 float values.
   /// Used for packing uniform matrices array
@@ -89,7 +83,7 @@ mod private
     gl.active_texture( slot );
     gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) );
     // Tell the sampler uniform in the shader which texture unit to use ( 0 for GL_TEXTURE0, 1 for GL_TEXTURE1, etc. )
-    gl.uniform1i( location.as_ref(), ( slot - GL::TEXTURE0 ) as i32 );
+    gl.uniform1i( location.as_ref(), slot as i32 );
   }
 
   /// Set of virtual bones used to deform and control the
@@ -103,9 +97,6 @@ mod private
     /// List of nodes correcting matrices used in nodes
     /// transform for playing skeletal animations
     _inverse_bind_matrices :  Vec< F32x4x4 >,
-    // /// Current binded animation that controls transform
-    // /// of all joints in every time moment
-    // animation : Option< Rc< RefCell< Sequencer > > >,
     /// Size of [`Skeleton::texture`]
     texture_size : [ u32; 2 ],
     /// Inverse bind matrices data texture
@@ -137,7 +128,7 @@ mod private
       }
 
       let data = Vec::with_capacity( inverse_bind_matrices.len() * 16 );
-      let a = ( data.len() as f32 ).sqrt().ceil() as u32;
+      let a = 4.0_f32.powf( ( data.len() as f32 ).sqrt().log( 4.0 ).ceil() ) as u32;
       let texture_size = [ a, a ];
 
       let texture = create_texture_4f( gl, data.as_slice(), texture_size ).unwrap();
@@ -148,7 +139,6 @@ mod private
         {
           _joints : nodes,
           _inverse_bind_matrices : inverse_bind_matrices,
-          // animation : None,
           texture_size,
           texture
         }
@@ -170,30 +160,6 @@ mod private
       upload_texture( gl, &self.texture, inverse_matrices_loc.clone(), slot );
       gl::uniform::upload( &gl, texture_size_loc.clone(), self.texture_size.as_slice() ).unwrap();
     }
-
-    // /// Set current animation for this [`Skeleton`]
-    // fn set_animation( &mut self, animation : Option< &Rc< RefCell< Sequencer > > > )
-    // {
-    //   self.animation = animation.cloned();
-    // }
-
-    // /// Return current animation of this [`Skeleton`]
-    // fn get_animation( &self ) -> Option< Rc< RefCell< Sequencer > > >
-    // {
-    //   self.animation.clone()
-    // }
-
-    // /// Update current animation and get current nodes [`Transform`]'s
-    // fn update( &self, time : f32 ) -> HashMap< Box< str >, Transform >
-    // {
-    //   let Some( animation ) = self.animation.as_ref()
-    //   else
-    //   {
-    //     return HashMap::new();
-    //   }
-
-    //   animation.borrow_mut().
-    // }
   }
 }
 
