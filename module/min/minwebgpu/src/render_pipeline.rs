@@ -2,13 +2,16 @@
 mod private
 {
   use crate::*;
+  use wasm_bindgen_futures::JsFuture;
 
+  /// Creates a new `RenderPipelineDescriptor` with the specified vertex state.
   pub fn desc< 'a, T >( vertex : T ) -> RenderPipelineDescriptor< 'a >
     where  T : Into< web_sys::GpuVertexState >
   {
     RenderPipelineDescriptor::new(vertex)
   }
 
+  /// Creates a new `RenderPipeline` synchronously.
   pub fn create
   ( 
     device : &web_sys::GpuDevice ,
@@ -21,6 +24,7 @@ mod private
     Ok( pipeline )
   }
 
+  /// Creates a new `RenderPipeline` asynchronously.
   pub async fn create_async
   ( 
     device : &web_sys::GpuDevice,

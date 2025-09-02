@@ -8,9 +8,14 @@ authors = [
 ]
 license = "MIT"
 
-[dependencies.minwebgpu]
+# Only include WebGPU dependencies for wasm32 targets
+[target.'cfg(target_arch = "wasm32")'.dependencies.minwebgpu]
 workspace = true
 features = [
     'future'
 ]
+
+# Stub dependency for other targets to allow compilation
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# No minwebgpu dependency for native targets
 

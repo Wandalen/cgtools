@@ -3,6 +3,7 @@ mod private
 {
   use crate::*;
 
+  /// Represents the layout for a WebGPU external texture binding.
   #[ derive( Clone ) ]
   pub struct ExternalTextureBindingLayout;
 

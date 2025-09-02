@@ -1,3 +1,6 @@
+#![ allow( clippy::std_instead_of_core ) ]
+#![ allow( clippy::implicit_return ) ]
+
 use minwebgl::F32x3;
 use rand::Rng;
 use std::f32::consts::PI;

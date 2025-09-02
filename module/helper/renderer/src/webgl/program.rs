@@ -3,10 +3,101 @@ mod private
   use minwebgl as gl;
   use std::collections::HashMap;
 
+  macro_rules! impl_locations 
+  {
+    ( $program_type:ty, $( $location_name:literal ),* ) => 
+    {
+      impl ProgramInfo< $program_type > 
+      {
+        /// Creates a new `ProgramInfo` instance.
+        #[ allow( unused_variables ) ]
+        pub fn new( gl : &gl::WebGl2RenderingContext, program : gl::WebGlProgram ) -> Self
+        {
+          #[ allow( unused_mut ) ]
+          let mut locations = HashMap::new();
+
+          $(
+            locations.insert( $location_name.to_string(), gl.get_uniform_location( &program, $location_name ) );
+          )*
+
+          Self
+          {
+            program,
+            locations,
+            phantom : std::marker::PhantomData
+          }
+        }    
+      }
+    };
+  }
+
+  /// An empty shader program.
+  ///
+  /// This is typically used as a placeholder or for a simple pass-through rendering pipeline.
   pub struct EmptyShader;
+  /// A Physically Based Rendering (PBR) shader.
   pub struct PBRShader;
+  /// A Gaussian filter shader
+  /// 
+  /// This type of shader is commonly used for post-processing effects like
+  /// blurring, often as part of a bloom effect.
   pub struct GaussianFilterShader;
+  /// An Unreal Bloom shader
+  /// 
+  /// This shader implements a bloom effect similar to the one used in the
+  /// Unreal Engine, which simulates a camera's lens reacting to bright light.
   pub struct UnrealBloomShader;
+  /// A public struct for a Geometry Buffer (GBuffer) shader.
+  pub struct GBufferShader;
+  /// A public struct for a composite shader.
+  pub struct CompositeShader;
+  /// A public struct for an outline shader that uses Jump Flood Algorithm (JFA)
+  /// to draw outlines around objects.
+  ///
+  /// This shader is part of a multi-pass JFA outlining technique.
+  pub struct JfaOutlineObjectShader;
+  /// A public struct for the initialization step of a JFA outline.
+  ///
+  /// This shader is the first pass of the JFA, which sets up the initial
+  /// state for the algorithm.
+  pub struct JfaOutlineInitShader;
+  /// A public struct for the stepping pass of a JFA outline.
+  ///
+  /// This shader is used in the iterative step of the JFA to propagate
+  /// information and find the nearest edge.
+  pub struct JfaOutlineStepShader;
+  /// A public struct representing the final JFA outline shader.
+  ///
+  /// This shader combines the results of the JFA passes to draw the final outline.
+  pub struct JfaOutlineShader;
+  /// A public struct for an outline shader based on normal and depth buffers.
+  ///
+  /// This shader is used to render an object's outline by comparing the normal
+  /// and depth values of adjacent pixels.
+  pub struct NormalDepthOutlineObjectShader;
+  /// A public struct representing the final Normal/Depth outline shader.
+  ///
+  /// This shader uses the Normal and Depth buffers to create the final outline.
+  pub struct NormalDepthOutlineShader;
+  /// A public struct for the base Normal/Depth outline shader.
+  ///
+  /// This is likely the first pass that generates the necessary data for the final
+  /// Normal/Depth outline.
+  pub struct NormalDepthOutlineBaseShader;
+  /// A public struct for a shader that draws narrow outlines.
+  pub struct NarrowOutlineShader;
+  /// A public struct for the initialization step of a wide outline.
+  ///
+  /// This shader is part of a multi-pass technique to create thick, wide outlines.
+  pub struct WideOutlineInitShader;
+  /// A public struct for the stepping pass of a wide outline.
+  ///
+  /// This is the iterative pass that propagates information for a wide outline.
+  pub struct WideOutlineStepShader;
+  /// A public struct representing the final wide outline shader.
+  ///
+  /// This shader combines the results of the previous passes to draw the final wide outline.
+  pub struct WideOutlineShader;
 
   /// Stores information about a WebGL program, including the program object and the locations of its uniforms.
   /// This struct is intended for use by the renderer.
@@ -43,149 +134,196 @@ mod private
     }   
   }
 
-  impl ProgramInfo< PBRShader >
-  {
-    /// Creates a new `ProgramInfo` instance.
-    ///
-    /// * `gl`: The `WebGl2RenderingContext` used to retrieve uniform locations.
-    /// * `program`: The compiled WebGL program object.
-    pub fn new( gl : &gl::WebGl2RenderingContext, program : gl::WebGlProgram ) -> Self
-    {
-      let mut locations = HashMap::new();
+  impl_locations!
+  ( 
+    PBRShader,
+    "cameraPosition",
+    "viewMatrix",
+    "projectionMatrix",
 
-      let mut add_location = | name : &str |
-      {
-        locations.insert( name.to_string(), gl.get_uniform_location( &program, name ) );
-      };
+    // Node uniform locations
+    "worldMatrix",
+    "normalMatrix",
 
-      // Camera uniform locations
-      add_location( "cameraPosition" );
-      add_location( "viewMatrix" );
-      add_location( "projectionMatrix" );
+    // Material uniform  locations
+    //// Textures uniform locations
+    "metallicRoughnessTexture",
+    "baseColorTexture",
+    "normalTexture",
+    "occlusionTexture",
+    "emissiveTexture",
+    "specularTexture",
+    "specularColorTexture",
+    //// IBL uniform locations
+    "irradianceTexture",
+    "prefilterEnvMap",
+    "integrateBRDF",
+    //// Scalers uniform locations
+    "baseColorFactor",
+    "metallicFactor",
+    "roughnessFactor",
+    "normalScale",
+    "occlusionStrength",
+    "specularFactor",
+    "specularColorFactor",
+    "emissiveFactor",
+    // Luminosity
+    "alphaCutoff",
+    "exposure"
+  );
 
-      // Node uniform locations
-      add_location( "worldMatrix" );
+  impl_locations!
+  ( 
+    GaussianFilterShader,
+    "sourceTexture",
+    "invSize",
+    "blurDir",
+    "kernel"
+  );
 
-      // Material uniform  locations
-      //// Textures uniform locations
-      add_location( "metallicRoughnessTexture" );
-      add_location( "baseColorTexture" );
-      add_location( "normalTexture" );
-      add_location( "occlusionTexture" );
-      add_location( "emissiveTexture" );
-      add_location( "specularTexture" );
-      add_location( "specularColorTexture" );
-      //// IBL uniform locations
-      add_location( "irradianceTexture" );
-      add_location( "prefilterEnvMap" );
-      add_location( "integrateBRDF" );
-      //// Scalers uniform locations
-      add_location( "baseColorFactor" );
-      add_location( "metallicFactor" );
-      add_location( "roughnessFactor" );
-      add_location( "normalScale" );
-      add_location( "occlusionStrength" );
-      add_location( "specularFactor" );
-      add_location( "specularColorFactor" );
-      add_location( "emissiveFactor" );
+  impl_locations!
+  ( 
+    UnrealBloomShader,
+    "blurTexture0",
+    "blurTexture1",
+    "blurTexture2",
+    "blurTexture3",
+    "blurTexture4",
 
-      // Luminosity
-      add_location( "luminosityThreshold" );
-      add_location( "luminositySmoothWidth" );
+    "bloomStrength",
+    "bloomRadius",
 
-      Self
-      {
-        program,
-        locations,
-        phantom : std::marker::PhantomData
-      }
-    }
-  }
+    "bloomFactors",
+    "bloomTintColors"
+  );
 
-  impl ProgramInfo< GaussianFilterShader > 
-  {
-    /// Creates a new `ProgramInfo` instance.
-    ///
-    /// * `gl`: The `WebGl2RenderingContext` used to retrieve uniform locations.
-    /// * `program`: The compiled WebGL program object.
-    pub fn new( gl : &gl::WebGl2RenderingContext, program : gl::WebGlProgram ) -> Self
-    {
-      let mut locations = HashMap::new();
+  impl_locations!
+  ( 
+    EmptyShader,
+  );
 
-      let mut add_location = | name : &str |
-      {
-        locations.insert( name.to_string(), gl.get_uniform_location( &program, name ) );
-      };
+  impl_locations!
+  ( 
+    GBufferShader,
+    "worldMatrix",
+    "viewMatrix",
+    "projectionMatrix",
+    "normalMatrix",
+    "near_far",
+    "albedoTexture",
+    "objectId",
+    "materialId",
+    "objectColor"
+  );
 
-      add_location( "sourceTexture" );
-      add_location( "invSize" );
-      add_location( "blurDir" );
-      add_location( "kernel" );
+  impl_locations!
+  ( 
+    CompositeShader,
+    "transparentA",
+    "transparentB"
+  );
 
+  impl_locations!
+  ( 
+    JfaOutlineObjectShader,
+    "u_projection",
+    "u_view",
+    "u_model"
+  );
 
-      Self
-      {
-        program,
-        locations,
-        phantom : std::marker::PhantomData
-      }
-    }    
-  }
+  impl_locations!
+  ( 
+    JfaOutlineInitShader,
+    "u_object_texture"
+  );
 
-  impl ProgramInfo< UnrealBloomShader > 
-  {
-    /// Creates a new `ProgramInfo` instance.
-    ///
-    /// * `gl`: The `WebGl2RenderingContext` used to retrieve uniform locations.
-    /// * `program`: The compiled WebGL program object.
-    pub fn new( gl : &gl::WebGl2RenderingContext, program : gl::WebGlProgram ) -> Self
-    {
-      let mut locations = HashMap::new();
+  impl_locations!
+  ( 
+    JfaOutlineStepShader,
+    "u_jfa_texture",
+    "u_resolution",
+    "u_step_size"
+  );
 
-      let mut add_location = | name : &str |
-      {
-        locations.insert( name.to_string(), gl.get_uniform_location( &program, name ) );
-      };
+  impl_locations!
+  ( 
+    JfaOutlineShader,
+    "u_object_texture",
+    "u_jfa_texture",
+    "u_resolution",
+    "u_outline_thickness",
+    "u_outline_color",
+    "u_object_color",
+    "u_background_color"
+  );
 
-      add_location( "blurTexture0" );
-      add_location( "blurTexture1" );
-      add_location( "blurTexture2" );
-      add_location( "blurTexture3" );
-      add_location( "blurTexture4" );
+  impl_locations!
+  ( 
+    NormalDepthOutlineObjectShader,
+    "u_projection",
+    "u_view",
+    "u_model",
+    "u_normal_matrix",
+    "near",
+    "far"
+  );
 
-      add_location( "bloomStrength" );
-      add_location( "bloomRadius" );
+  impl_locations!
+  ( 
+    NormalDepthOutlineShader,
+    "u_color_texture",
+    "u_depth_texture",
+    "u_norm_texture",
+    "u_projection",
+    "u_resolution",
+    "u_outline_thickness",
+    "u_background_color"
+  );
 
-      add_location( "bloomFactors" );
-      add_location( "bloomTintColors" );
+  impl_locations!
+  ( 
+    NormalDepthOutlineBaseShader,
+    "sourceTexture",
+    "positionTexture",
+    "normalTexture",
+    "objectColorTexture",
+    "projection",
+    "resolution",
+    "outlineThickness"
+  );
 
-      Self
-      {
-        program,
-        locations,
-        phantom : std::marker::PhantomData
-      }
-    }    
-  }
+  impl_locations!
+  ( 
+    NarrowOutlineShader,
+    "sourceTexture",
+    "objectColorTexture",
+    "positionTexture",
+    "resolution",
+    "outlineThickness"
+  );
 
-  impl ProgramInfo< EmptyShader > 
-  {
-    /// Creates a new `ProgramInfo` instance.
-    ///
-    /// * `gl`: The `WebGl2RenderingContext` used to retrieve uniform locations.
-    /// * `program`: The compiled WebGL program object.
-    pub fn new( program : gl::WebGlProgram ) -> Self
-    {
-      let locations = HashMap::new();
+  impl_locations!
+  ( 
+    WideOutlineInitShader,
+    "objectColorTexture"
+  );
 
-      Self
-      {
-        program,
-        locations,
-        phantom : std::marker::PhantomData
-      }
-    }    
-  }
+  impl_locations!
+  ( 
+    WideOutlineStepShader,
+    "jfaTexture",
+    "resolution",
+    "stepSize"
+  );
+
+  impl_locations!
+  ( 
+    WideOutlineShader,
+    "sourceTexture",
+    "objectColorTexture",
+    "jfaTexture",
+    "resolution"
+  );
 }
 
 crate::mod_interface!
@@ -195,7 +333,20 @@ crate::mod_interface!
     EmptyShader,
     GaussianFilterShader,
     UnrealBloomShader,
-    PBRShader
+    PBRShader,
+    GBufferShader,
+    CompositeShader,
+    JfaOutlineObjectShader,
+    JfaOutlineInitShader,
+    JfaOutlineStepShader,
+    JfaOutlineShader,
+    NormalDepthOutlineObjectShader,
+    NormalDepthOutlineShader,
+    NormalDepthOutlineBaseShader,
+    NarrowOutlineShader,
+    WideOutlineInitShader,
+    WideOutlineStepShader,
+    WideOutlineShader
   };
   
   orphan use

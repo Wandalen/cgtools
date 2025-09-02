@@ -1,3 +1,5 @@
+//! Basic tests for hexagonal grid example.
+
 // use hexagonal_grid::*;
 // use std::collections::HashSet;
 // use std::hash::{ Hash, Hasher };

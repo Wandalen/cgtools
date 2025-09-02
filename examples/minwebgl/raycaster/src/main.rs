@@ -1,3 +1,7 @@
+#![ allow( clippy::needless_borrow ) ]
+#![ allow( clippy::cast_possible_truncation ) ]
+#![ allow( clippy::cast_sign_loss ) ]
+
 mod controls;
 
 use std::f32::consts;

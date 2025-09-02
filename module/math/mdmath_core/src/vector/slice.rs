@@ -8,7 +8,7 @@ impl< E > Collection for [ E ]
 // Converted implementation using unwrap_or_else with panic! to avoid the Debug requirement
 impl< E, const N : usize > IntoArray< E, N > for &[ E ]
 where
-  [ E ; N ] : for< 'a > TryFrom< &'a [ E ] >
+  [ E ; N ] : for< 'data > TryFrom< &'data [ E ] >
 {
   #[ inline ]
   fn into_array( self ) -> [ E ; N ]
@@ -46,9 +46,9 @@ impl< E, const N : usize > ArrayMut< E, N > for [ E ]
 
 impl< E, const N : usize > VectorIter< E, N > for [ E ]
 {
-  fn vector_iter< 'a >( &'a self ) -> impl VectorIteratorRef< 'a, &'a E >
+  fn vector_iter< 'data >( &'data self ) -> impl VectorIteratorRef< 'data, &'data E >
   where
-    E : 'a,
+    E : 'data,
   {
     assert!( self.len() >= N, "Slice must have at least {} elements", N );
     <[ E ]>::iter( self ).take( N )
@@ -57,9 +57,9 @@ impl< E, const N : usize > VectorIter< E, N > for [ E ]
 
 impl< E, const N : usize > VectorIterMut< E, N > for [ E ]
 {
-  fn vector_iter_mut< 'a >( &'a mut self ) -> impl VectorIterator< 'a, &'a mut E >
+  fn vector_iter_mut< 'data >( &'data mut self ) -> impl VectorIterator< 'data, &'data mut E >
   where
-    E : 'a,
+    E : 'data,
   {
     assert!( self.len() >= N, "Slice must have at least {} elements", N );
     <[ E ]>::iter_mut( self )

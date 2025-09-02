@@ -121,20 +121,20 @@ impl LightVisualizationState
 
 fn generate_lights() -> Vec< Light >
 {
-  let mut rng = rand::thread_rng();
+  let mut rng = rand::rng();
 
   let mut lights = Vec::new();
   for _i in 0..NUM_LIGHTS
   {
-    let power = rng.gen::< f32 >() * 2.0 + 1.0;
-    let color = gl::F32x3::from( [ rng.gen(), rng.gen(), rng.gen() ] );
-    let direction = if rng.gen::< f32 >() < 0.5 { -1.0 } else { 1.0 };
+    let power = rng.random::< f32 >() * 2.0 + 1.0;
+    let color = gl::F32x3::from( [ rng.random(), rng.random(), rng.random() ] );
+    let direction = if rng.random::< f32 >() < 0.5 { -1.0 } else { 1.0 };
 
     let mut position = gl::F32x3::from
     ([
-      rng.gen::< f32 >() * 2.0,
-      rng.gen::< f32 >(),
-      rng.gen::< f32 >() * 2.0
+      rng.random::< f32 >() * 2.0,
+      rng.random::< f32 >(),
+      rng.random::< f32 >() * 2.0
     ]) - gl::F32x3::from( [ 1.0, 0.0, 1.0 ] ) ;
 
     position = position * gl::F32x3::from( [ 40.0, 5.0, 40.0 ] );

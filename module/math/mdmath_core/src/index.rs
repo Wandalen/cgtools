@@ -19,6 +19,7 @@ mod private
     ///
     /// # Returns
     /// - `Ix2`: The 2-dimensional index.
+    #[allow(clippy::wrong_self_convention)] // Conversion trait taking self by value is correct
     fn as_ix2( self ) -> Ix2;
   }
 
@@ -32,6 +33,7 @@ mod private
     ///
     /// # Returns
     /// - `Ix3`: The 3-dimensional index.
+    #[allow(clippy::wrong_self_convention)] // Conversion trait taking self by value is correct
     fn as_ix3( self ) -> Ix3;
   }
 }

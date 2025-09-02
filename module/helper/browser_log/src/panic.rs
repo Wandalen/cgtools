@@ -96,7 +96,8 @@ mod private
   #[ allow( wasm_c_abi ) ]
   mod imp
   {
-    use super::*;
+    use super::Config;
+    use std::panic;
 
     // extern crate wasm_bindgen;
     use wasm_bindgen::prelude::*;
@@ -152,12 +153,12 @@ mod private
   #[ cfg( not( target_arch = "wasm32" ) ) ]
   mod imp
   {
-    use super::*;
+    use super::Config;
     use std::io::{ self, Write };
 
-    pub fn hook_impl( info : &panic::PanicHookInfo< '_ >, _config : &Config )
+    pub fn hook_impl( info : &std::panic::PanicHookInfo< '_ >, _config : &Config )
     {
-      let _ = writeln!( io::stderr(), "{}", info );
+      let _ = writeln!( io::stderr(), "{info}" );
     }
   }
 

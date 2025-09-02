@@ -1,0 +1,27 @@
+[package]
+name = "minwebgl_3d_line"
+version = "0.1.0"
+edition = "2021"
+authors = [
+  "Kostiantyn Mysnyk <wandalen@obox.systems>",
+  "Avramenko Yevhenii <yevhenii.av@obox.systems>"
+]
+license = "MIT"
+
+[lints]
+workspace = true
+
+[dependencies]
+line_tools = { workspace = true }
+minwebgl = { workspace = true, features = [ "math" ] }
+mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
+serde = { workspace = true, features = [ "derive" ] }
+serde-wasm-bindgen = { workspace = true }
+
+[dependencies.web-sys]
+workspace = true
+features = [
+  'MouseEvent',
+  'PointerEvent',
+  'WheelEvent',
+]

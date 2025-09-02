@@ -2,6 +2,7 @@ mod private
 {
   use minwebgl as gl;
 
+  /// A trait defining the interface for a rendering pass.
   pub trait Pass
   {
     /// Indicates whether this rendering pass renders to its input texture.
@@ -86,6 +87,7 @@ mod private
     pub fn bind( &self, gl : &gl::WebGl2RenderingContext )
     {
       gl.bind_framebuffer( gl::FRAMEBUFFER, self.framebuffer.as_ref() );
+      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
     }
 
     /// Swaps the `input_texture` and `output_texture`.
@@ -136,6 +138,7 @@ mod private
   }
 
 
+  /// The `Composer` struct manages a chain of rendering passes
   pub struct Composer
   {
     effects : Vec< Box< dyn Pass > >,
@@ -144,6 +147,11 @@ mod private
 
   impl Composer 
   {
+    /// Creates a new `Composer` instance.
+    ///
+    /// This function initializes an empty vector for effects and creates a
+    /// new WebGL framebuffer. The framebuffer is essential for rendering
+    /// post-processing effects to textures.
     pub fn new( gl : &gl::WebGl2RenderingContext ) -> Self
     {
       let effects = Vec::new();
@@ -156,11 +164,13 @@ mod private
       }
     }
 
+    /// Adds a new rendering pass to the composer's effect chain.
     pub fn add_pass< T : Into< Box< dyn Pass > > >( &mut self, pass : T )
     {
       self.effects.push( pass.into() );
     }
 
+    /// Returns a reference to the WebGL framebuffer.
     pub fn get_framebuffer( &self ) -> &gl::web_sys::WebGlFramebuffer
     {
       &self.framebuffer

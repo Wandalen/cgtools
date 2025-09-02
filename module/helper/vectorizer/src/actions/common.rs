@@ -44,7 +44,7 @@ mod private
         visioncortex::Color::new( 0, 255, 255 ),
         visioncortex::Color::new( 255, 0, 255 ),
     ]);
-    let rng = Rng::new();
+    let mut rng = Rng::new();
     let random_colors = ( 0..NUM_UNUSED_COLOR_ITERATIONS )
     .map( | _ | visioncortex::Color::new( rng.u8( ..) , rng.u8( .. ), rng.u8( .. ) ) );
 

@@ -9,6 +9,7 @@ mod private
     Self : Rotation< 2 >,
   {
 
+    /// Creates a new instance of the type from the given rotation angle.
     fn from_angle< Dir, Up >( angle : < Self as Collection >::Scalar ) -> Self;
 
   }

@@ -3,26 +3,34 @@ mod private
 {
   use crate::*;
 
+  /// Describes the configuration for creating a WebGPU pipeline layout.
   #[ derive( Default, Clone ) ]
   pub struct PipelineLayoutDescriptor< 'a >
   {
+    /// An optional label for the pipeline layout. Defaults to `None`.
     label : Option< &'a str >,
+    /// A vector of `GpuBindGroupLayout`s that this pipeline layout will contain.
+    /// The order of these layouts is important as it corresponds to the `@group(...)`
+    /// indices in the WGSL shaders.
     bind_group_layouts : Vec< web_sys::GpuBindGroupLayout >
   }
 
   impl< 'a > PipelineLayoutDescriptor< 'a >  
   {
+    /// Creates a new, empty `PipelineLayoutDescriptor` with default values.
     pub fn new() -> Self
     {
       Self::default()
     }
 
+    /// Sets an optional label for the pipeline layout.
     pub fn label( mut self, label : &'a str ) -> Self
     {
       self.label = Some( label );
       self
     }
 
+    /// Adds a `GpuBindGroupLayout` to the pipeline layout.
     pub fn bind_group
     ( 
       mut self, 
@@ -33,6 +41,7 @@ mod private
       self
     }
 
+    /// Creates a `web_sys::GpuPipelineLayout` from this descriptor.
     pub fn create( self, device : &web_sys::GpuDevice ) -> web_sys::GpuPipelineLayout
     {
       device.create_pipeline_layout( &self.into() )

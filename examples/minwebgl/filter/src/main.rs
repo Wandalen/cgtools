@@ -1,3 +1,5 @@
+#![ allow( clippy::needless_borrow ) ]
+
 use minwebgl as gl;
 use gl::GL;
 use web_sys::

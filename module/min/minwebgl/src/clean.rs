@@ -2,19 +2,23 @@
 mod private
 {
   use crate::*;
+  /// A type alias for the WebGL2 rendering context.
   type GL = WebGl2RenderingContext;
 
+  /// Unbind the currently bound 2D texture.
   pub fn texture_2d( gl : &GL )
   {
     gl.bind_texture( GL::TEXTURE_2D, None );
   }
 
+  /// Unbind the 2D texture from a specific texture unit.
   pub fn texture_2d_active( gl : &GL, active : u32 )
   {
     gl.active_texture( GL::TEXTURE0 + active );
     texture_2d( gl );
   }
 
+  /// Unbind 2D textures from multiple texture units.
   pub fn texture_2d_array< T, E >( gl : &GL, active : T )
   where 
     T : IntoIterator,
@@ -27,11 +31,13 @@ mod private
     }
   }
 
+  /// Unbind the currently bound framebuffer.
   pub fn framebuffer( gl : &GL )
   {
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );
   }
 
+  /// Detach a 2D texture from a specific framebuffer attachment.
   pub fn framebuffer_texture_2d_attachment( gl : &GL, attachment : u32 )
   {
     gl.framebuffer_texture_2d
@@ -44,11 +50,13 @@ mod private
     );
   } 
 
+  /// Detach the 2D texture from framebuffer attachment 0.
   pub fn framebuffer_texture_2d( gl : &GL )
   {
     framebuffer_texture_2d_attachment( gl, 0 );
   } 
 
+  /// Detach 2D textures from multiple framebuffer attachments.
   pub fn framebuffer_texture_2d_array< T, E >( gl : &GL, attachments : T )
   where 
     T : IntoIterator,
@@ -61,6 +69,7 @@ mod private
     }
   } 
 
+  /// Detaches a renderbuffer from a specific color attachment point of the currently bound framebuffer.
   pub fn framebuffer_renderbuffer_attachment( gl : &GL, attachment : u32 )
   {
     gl.framebuffer_texture_2d
@@ -73,11 +82,13 @@ mod private
     );
   } 
 
+  /// Detach the renderbuffer from framebuffer attachment 0.
   pub fn framebuffer_renderbuffer( gl : &GL )
   {
     framebuffer_renderbuffer_attachment( gl, 0 );
   } 
 
+  /// Detach renderbuffers from multiple framebuffer attachments.
   pub fn framebuffer_renderbuffer_array< T, E >( gl : &GL, attachments : T )
   where 
     T : IntoIterator,

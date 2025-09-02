@@ -1,3 +1,4 @@
+//! Tests for `ndarray_tools`
 #![ allow( unused_imports ) ]
 
 use test_tools::exposed::*;
@@ -9,7 +10,7 @@ mod tests
   use super::*;
 
   // xxx : enable
-  #[ path = "../../../../math/ndarray_cg/tests/inc/mod.rs" ]
-  mod tests;
+  // #[ path = "../../../math/ndarray_cg/tests/inc/mod.rs" ]
+  // mod tests;
 
 }

@@ -5,8 +5,8 @@ layout( location = 1 ) in vec3 a_normal;
 layout( location = 2 ) in vec2 a_tex_coord;
 
 uniform mat4 u_model;
-uniform mat4 u_mvp;
 uniform mat4 u_rotation;
+uniform mat4 u_mvp;
 
 out vec3 v_position;
 out vec3 v_normal;

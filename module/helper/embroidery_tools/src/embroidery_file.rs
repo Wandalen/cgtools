@@ -4,6 +4,9 @@
 
 mod private
 {
+  //!
+  //! # Represents embroidery file
+  //!
   use crate::*;
   use thread::*;
   use metadata::Metadata;
@@ -27,7 +30,7 @@ mod private
     /// Creates new instance of `EmbroideryFile`
     pub fn new() -> Self
     {
-      Self 
+      Self
       {
         stitches : vec![],
         threads : vec![],
@@ -37,7 +40,7 @@ mod private
       }
     }
 
-    /// Returns stitches with absolute coordinates 
+    /// Returns stitches with absolute coordinates
     pub fn stitches( &self ) -> &[ Stitch ]
     {
       &self.stitches
@@ -60,7 +63,7 @@ mod private
     {
       &self.metadata
     }
-    
+
     /// Adds stitch instruction with relative coordinates
     pub fn stitch( &mut self, dx : i32, dy : i32 )
     {
@@ -72,7 +75,7 @@ mod private
     {
       self.add_stitch_relative( Stitch { x : dx, y : dy, instruction : Instruction::Jump } );
     }
-    
+
     /// Adds color change instruction with relative coordinates
     pub fn color_change( &mut self, dx : i32, dy : i32 )
     {
@@ -133,7 +136,7 @@ mod private
       for i in 0..self.stitches.len()
       {
         let instruction = self.stitches[ i ].instruction;
-        
+
         if ( instruction == Instruction::Stitch
         || instruction == Instruction::SewTo
         || instruction == Instruction::NeedleAt )
@@ -145,7 +148,7 @@ mod private
           {
             _ = self.threads.remove( thread_index );
             let last_change : usize = last_change.unwrap();
-            self.stitches[ last_change ].instruction = Instruction::Stop; 
+            self.stitches[ last_change ].instruction = Instruction::Stop;
           }
           else
           {
@@ -200,19 +203,19 @@ mod private
           else
           {
             // No colors to duplicate
-            return;    
+            return;
           }
         }
       }
     }
 
-    /// This function ensures that there is a enough threads 
+    /// This function ensures that there is a enough threads
     /// for every color change. If it is not then it adds some random threads
     pub fn fix_color_count( &mut self )
     {
       let mut thread_index = 0;
       let mut init_color = true;
-      
+
       for stitch in &self.stitches
       {
         let instruction = stitch.instruction;
@@ -224,14 +227,14 @@ mod private
           thread_index += 1;
           init_color = false;
         }
-        else if instruction == Instruction::ColorChange 
+        else if instruction == Instruction::ColorChange
         || instruction == Instruction::ColorBreak
         || instruction == Instruction::NeedleSet
         {
-          init_color = true;    
+          init_color = true;
         }
       }
-      
+
       while self.threads.len() < thread_index
       {
         self.add_thread( self.get_thread_or_filler( self.threads().len() ) );
@@ -258,7 +261,7 @@ mod private
 
       ( min_x, min_y, max_x, max_y )
     }
-  
+
     /// Returns blocks of stitches splitted at positions where
     /// instructions doesn't repeat. Currently used for PES encoding
     pub fn as_command_blocks( &self ) -> Vec< Vec< Stitch > >

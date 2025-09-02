@@ -12,10 +12,12 @@ layout( location = 8 ) in vec4 color_1;
 #endif
 
 uniform mat4x4 worldMatrix;
+uniform mat3x3 normalMatrix;
 uniform mat4x4 viewMatrix;
 uniform mat4x4 projectionMatrix;
 
 out vec3 vWorldPos;
+out vec3 vViewPos;
 out vec3 vNormal;
 out vec2 vUv_0;
 out vec2 vUv_1;
@@ -40,11 +42,17 @@ void main()
   #ifdef USE_TANGENTS
     vTangent = tangent;
   #endif
-  vNormal = normalize( mat3x3( worldMatrix ) * normal );
+  vNormal = normalize( normalMatrix * normal );
+  //vNormal = vec3( -1.0, -1.0)
+  //vNormal *= -1.0;
+  //vNormal = normalize( mat3x3( worldMatrix ) * normal );
+  //vNormal = normal;
 
   vec4 worldPos = worldMatrix * vec4( position, 1.0 );
+  //vec4 worldPos = vec4( position * 1e-2, 1.0 );
   vec4 viewPos = viewMatrix * worldPos;
 
+  vViewPos = viewPos.xyz;
   vWorldPos = worldPos.xyz;
 
   gl_Position = projectionMatrix * viewPos;

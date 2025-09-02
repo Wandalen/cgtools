@@ -6,6 +6,7 @@ mod private
   #[ derive( Clone, Copy, Debug, PartialEq, Hash, Eq ) ]
   #[ repr( u32 ) ]
   #[ non_exhaustive ]
+  #[ allow( missing_docs ) ]
   pub enum DataType
   {
     I8,
@@ -40,8 +41,11 @@ mod private
   #[ derive( Clone, Copy, Debug, PartialEq, Hash, Eq ) ]
   pub struct VectorDataType
   {
+    /// The scalar data type used for the elements (e.g., f32, f64).
     pub scalar : DataType,
+    /// The number of atoms in the data structure.
     pub natoms : i32,
+    /// The number of elements in the data structure.
     pub nelements : i32,
     // xxx : usize?
   }

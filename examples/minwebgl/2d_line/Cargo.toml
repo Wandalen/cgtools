@@ -1,0 +1,25 @@
+[package]
+name = "minwebgl_2d_line"
+version = "0.1.0"
+edition = "2021"
+authors = [
+  "Kostiantyn Mysnyk <wandalen@obox.systems>",
+  "Avramenko Yevhenii <yevhenii.av@obox.systems>"
+]
+license = "MIT"
+
+[lints]
+workspace = true
+
+[dependencies]
+line_tools = { workspace = true }
+minwebgl = { workspace = true, features = [ "math" ] }
+serde = { workspace = true, features = [ "derive" ] }
+serde-wasm-bindgen = { workspace = true }
+browser_input = { workspace = true }
+
+[dependencies.web-sys]
+workspace = true
+features = [
+  'PointerEvent',
+]

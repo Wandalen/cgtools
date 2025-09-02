@@ -1,3 +1,5 @@
+//! Contains traits for describing shapes of matrices
+
 mod private
 {
   // use crate::*;

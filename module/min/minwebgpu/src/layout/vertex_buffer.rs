@@ -3,6 +3,7 @@ mod private
 {
   use crate::*;
 
+  /// A builder for creating a `web_sys::GpuVertexBufferLayout`.
   #[ derive( Clone ) ]
   pub struct VertexBufferLayout
   { 
@@ -18,6 +19,7 @@ mod private
 
   impl VertexBufferLayout
   {
+    /// Creates a new `VertexBufferLayout` with default values.
     pub fn new() -> Self
     {
       let array_stride = None;

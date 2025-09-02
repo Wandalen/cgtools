@@ -31,5 +31,5 @@ vec3 aces_tone_map( vec3 hdr )
 void main()
 {
   vec3 color = aces_tone_map( texture( sourceTexture, vUv ).rgb );
-  frag_color = vec4( color, 1.0);
+  frag_color = vec4( color, 1.0 );
 }

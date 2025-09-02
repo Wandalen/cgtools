@@ -3,11 +3,13 @@ mod private
 {
   use crate::*;
 
+  /// Submits a command buffer to the WebGPU queue.
   pub fn submit( queue : &web_sys::GpuQueue, buffer : web_sys::GpuCommandBuffer )
   {
     queue.submit( &Vec::from( [ buffer ] ).into() );
   }
 
+  /// Writes data to a WebGPU buffer.
   pub fn write_buffer< T : mem::Pod >
   ( 
     queue : &web_sys::GpuQueue,

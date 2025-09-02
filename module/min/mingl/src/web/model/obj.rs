@@ -144,6 +144,15 @@ mod private
     }
   }
 
+  /// Generates model reports and wraps them for browser-side usage.
+  ///
+  /// This function first creates detailed `ReportObjModel` instances from the provided
+  /// models and materials, and then converts them into a `ForBrowser` format,
+  /// likely to facilitate their use in a WebAssembly environment.
+  ///
+  /// # Arguments
+  /// * `models`: A slice of `tobj::Model` instances to be reported on.
+  /// * `materials`: A slice of `tobj::Material` instances that the models may reference.
   pub fn make_reports< 'model, 'mtl >
   (
     models : &'model [ Model ],
@@ -155,6 +164,19 @@ mod private
     ForBrowser::from_reports( reports )
   }
 
+  /// Asynchronously loads a 3D model from a byte slice, resolving its materials from a web path.
+  ///
+  /// This function parses an OBJ model from an in-memory buffer. When it encounters a material
+  /// library (`.mtl` file) reference, it asynchronously attempts to fetch that file from the
+  /// provided `material_folder` path using web APIs.
+  ///
+  /// # Arguments
+  /// * `obj_buffer`: The byte slice containing the OBJ model data.
+  /// * `material_folder`: The base URL or path from which to load material files.
+  /// * `load_options`: Configuration options for loading the OBJ model, such as triangulation.
+  ///
+  /// # Returns
+  /// A `tobj::LoadResult` containing the loaded models and materials, or an error if loading fails.
   pub async fn load_model_from_slice
   (
     mut obj_buffer : &[ u8 ],
@@ -163,7 +185,7 @@ mod private
   )
   -> tobj::LoadResult
   {
-    #[allow(deprecated)]
+    #[ allow( deprecated ) ]
     tobj::load_obj_buf_async
     (
       &mut obj_buffer,

@@ -26,14 +26,14 @@ where
     d2,
   };
 
-  // Define matrices
-  let mat_a = Mat::< 1, 3, f32, D >::default().set
-  ([
+  // Define matrices using row_major for consistent logical layout
+  let mat_a = Mat::< 1, 3, f32, D >::default().set_row_major
+  (&[
     1.0, 2.0, 3.0,
   ]);
 
-  let mat_b = Mat::< 3, 2, f32, D >::default().set
-  ([
+  let mat_b = Mat::< 3, 2, f32, D >::default().set_row_major
+  (&[
     7.0, 8.0,
     9.0, 10.0,
     11.0, 12.0,
@@ -47,8 +47,8 @@ where
   println!( "After mul" );
 
   // Expected result
-  let exp = Mat::< 1, 2, f32, D >::default().set
-  ([
+  let exp = Mat::< 1, 2, f32, D >::default().set_row_major
+  (&[
     58.0, 64.0,
   ]);
   assert_eq!( mat_r.raw_slice(), exp.raw_slice(), "Expected {:?}, got {:?}", exp.raw_slice(), mat_r.raw_slice() );

@@ -97,15 +97,15 @@ impl< E > ArrayMut< E, 2 > for ( E, E )
 }
 
 #[ derive( Clone ) ]
-struct Tuple2Iter< 'a, E >
+struct Tuple2Iter< 'tuple_ref, E >
 {
-  tuple : &'a ( E, E ),
+  tuple : &'tuple_ref ( E, E ),
   index : usize,
 }
 
-impl< 'a, E > Iterator for Tuple2Iter< 'a, E >
+impl< 'tuple_ref, E > Iterator for Tuple2Iter< 'tuple_ref, E >
 {
-  type Item = &'a E;
+  type Item = &'tuple_ref E;
 
   fn next( &mut self ) -> Option< Self::Item >
   {
@@ -132,9 +132,9 @@ impl< 'a, E > Iterator for Tuple2Iter< 'a, E >
   }
 }
 
-impl< 'a, E > ExactSizeIterator for Tuple2Iter< 'a, E > {}
+impl< 'tuple_ref, E > ExactSizeIterator for Tuple2Iter< 'tuple_ref, E > {}
 
-impl< 'a, E > DoubleEndedIterator for Tuple2Iter< 'a, E >
+impl< 'tuple_ref, E > DoubleEndedIterator for Tuple2Iter< 'tuple_ref, E >
 {
   fn next_back( &mut self ) -> Option< Self::Item >
   {
@@ -155,15 +155,15 @@ impl< 'a, E > DoubleEndedIterator for Tuple2Iter< 'a, E >
   }
 }
 
-struct Tuple2IterMut< 'a, E >
+struct Tuple2IterMut< 'tuple_ref, E >
 {
-  tuple : &'a mut ( E, E ),
+  tuple : &'tuple_ref mut ( E, E ),
   index : usize,
 }
 
-impl< 'a, E > Iterator for Tuple2IterMut< 'a, E >
+impl< 'tuple_ref, E > Iterator for Tuple2IterMut< 'tuple_ref, E >
 {
-  type Item = &'a mut E;
+  type Item = &'tuple_ref mut E;
 
   fn next( &mut self ) -> Option< Self::Item >
   {
@@ -197,9 +197,9 @@ impl< 'a, E > Iterator for Tuple2IterMut< 'a, E >
   }
 }
 
-impl< 'a, E > ExactSizeIterator for Tuple2IterMut< 'a, E > {}
+impl< 'tuple_ref, E > ExactSizeIterator for Tuple2IterMut< 'tuple_ref, E > {}
 
-impl< 'a, E > DoubleEndedIterator for Tuple2IterMut< 'a, E >
+impl< 'tuple_ref, E > DoubleEndedIterator for Tuple2IterMut< 'tuple_ref, E >
 {
   fn next_back( &mut self ) -> Option< Self::Item >
   {
@@ -229,9 +229,9 @@ impl< 'a, E > DoubleEndedIterator for Tuple2IterMut< 'a, E >
 
 impl< E: Clone > VectorIter< E, 2 > for ( E, E )
 {
-  fn vector_iter< 'a >( &'a self ) -> impl VectorIteratorRef< 'a, &'a E >
+  fn vector_iter< 'tuple_ref >( &'tuple_ref self ) -> impl VectorIteratorRef< 'tuple_ref, &'tuple_ref E >
   where
-    E : 'a,
+    E : 'tuple_ref,
   {
     Tuple2Iter
     {
@@ -243,9 +243,9 @@ impl< E: Clone > VectorIter< E, 2 > for ( E, E )
 
 impl< E: Clone > VectorIterMut< E, 2 > for ( E, E )
 {
-  fn vector_iter_mut< 'a >( &'a mut self ) -> impl VectorIterator< 'a, &'a mut E >
+  fn vector_iter_mut< 'tuple_ref >( &'tuple_ref mut self ) -> impl VectorIterator< 'tuple_ref, &'tuple_ref mut E >
   where
-    E : 'a,
+    E : 'tuple_ref,
   {
     Tuple2IterMut
     {

@@ -15,12 +15,14 @@ mod private
       Self( [ x, y ] )
     }
 
+    /// The `x` component of vector
     #[ inline ]
     pub fn x( &self ) -> E
     {
       self.0[ 0 ]
     }
 
+    /// The `y` component of vector
     #[ inline ]
     pub fn y( &self ) -> E
     {

@@ -3,28 +3,28 @@ use ndarray::Dimension;
 use crate::*;
 
 fn minor
-< 
-  E : MatEl + nd::NdFloat, 
-  Descriptor : mat::Descriptor 
+<
+  E : MatEl + nd::NdFloat,
+  Descriptor : mat::Descriptor
 >
-( 
-  from : &Mat4< E, Descriptor >, 
-  to : &mut Mat3< E, Descriptor >, 
-  i : usize, 
-  j : usize 
+(
+  from : &Mat4< E, Descriptor >,
+  to : &mut Mat3< E, Descriptor >,
+  i : usize,
+  j : usize
 )
-where 
+where
 Mat4< E, Descriptor > : RawSliceMut< Scalar = E > + IndexingRef< Scalar = E, Index = Ix2 >,
 Mat3< E, Descriptor > : RawSliceMut< Scalar = E >
 {
   for( id, ( _, v ) ) in from
   .iter_indexed_unstable()
-  .filter( 
+  .filter(
     | ( id, _ ) |
-    { 
+    {
       let ( r, c ) = id.into_pattern();
       r != i && c != j
-    } 
+    }
   ).enumerate()
   {
     to.raw_slice_mut()[ id ] = *v;
@@ -32,24 +32,24 @@ Mat3< E, Descriptor > : RawSliceMut< Scalar = E >
 }
 
 fn cofactor
-< 
-  E : MatEl + nd::NdFloat, 
-  Descriptor : mat::Descriptor 
+<
+  E : MatEl + nd::NdFloat,
+  Descriptor : mat::Descriptor
 >
-( 
-  from : &Mat4< E, Descriptor >, 
-  to : &mut Mat3< E, Descriptor >,  
-  i : usize, 
-  j : usize 
+(
+  from : &Mat4< E, Descriptor >,
+  to : &mut Mat3< E, Descriptor >,
+  i : usize,
+  j : usize
 ) -> E
-where 
-Mat4< E, Descriptor > : 
-  RawSliceMut< Scalar = E > + 
+where
+Mat4< E, Descriptor > :
+  RawSliceMut< Scalar = E > +
   IndexingRef< Scalar = E, Index = Ix2 >,
-Mat3< E, Descriptor > : 
-  RawSliceMut< Scalar = E > + 
-  ScalarRef< Scalar = E, Index = Ix2 > + 
-  ConstLayout< Index = Ix2 > + 
+Mat3< E, Descriptor > :
+  RawSliceMut< Scalar = E > +
+  ScalarRef< Scalar = E, Index = Ix2 > +
+  ConstLayout< Index = Ix2 > +
   IndexingMut< Scalar = E, Index = Ix2 >
 {
   let k = E::from( ( -1i32 ).pow( ( i + j ) as u32 ) ).unwrap();
@@ -57,29 +57,22 @@ Mat3< E, Descriptor > :
   k * to.determinant()
 }
 
-impl< E, Descriptor > Mat< 4, 4, E, Descriptor > 
-where 
+impl< E, Descriptor > Mat< 4, 4, E, Descriptor >
+where
 E : MatEl + nd::NdFloat,
 Descriptor : mat::Descriptor,
 Self : ScalarMut< Scalar = E, Index = Ix2 > +
-       RawSliceMut< Scalar = E > + 
-       ConstLayout< Index = Ix2 > + 
+       RawSliceMut< Scalar = E > +
+       ConstLayout< Index = Ix2 > +
        IndexingMut< Scalar = E, Index = Ix2 >
 {
-  /// Converts the matrix to an array
-  pub fn to_array( &self ) -> [ E; 16 ]
-  {
-    self.raw_slice().try_into().unwrap()
-  }
-
-
   /// Computes the determinant of the matrix
   pub fn determinant( &self ) -> E
-  where 
-    Mat< 3, 3, E, Descriptor > : 
+  where
+    Mat< 3, 3, E, Descriptor > :
       RawSliceMut< Scalar = E > +
-      ScalarMut< Scalar = E, Index = Ix2 > + 
-      ConstLayout< Index = Ix2 > + 
+      ScalarMut< Scalar = E, Index = Ix2 > +
+      ConstLayout< Index = Ix2 > +
       IndexingMut< Scalar = E, Index = Ix2 >
   {
     let _a11 = *self.scalar_ref( Ix2( 0, 0 ) );
@@ -104,11 +97,11 @@ Self : ScalarMut< Scalar = E, Index = Ix2 > +
   /// Computes the inverse of the matrix.
   /// If the determinant is zero - return `None`
   pub fn inverse( &self ) -> Option< Self >
-  where 
-    Mat< 3, 3, E, Descriptor > : 
+  where
+    Mat< 3, 3, E, Descriptor > :
       RawSliceMut< Scalar = E > +
-      ScalarMut< Scalar = E, Index = Ix2 > + 
-      ConstLayout< Index = Ix2 > + 
+      ScalarMut< Scalar = E, Index = Ix2 > +
+      ConstLayout< Index = Ix2 > +
       IndexingMut< Scalar = E, Index = Ix2 >
   {
     let det = self.determinant();
@@ -132,3 +125,119 @@ Self : ScalarMut< Scalar = E, Index = Ix2 > +
     Some( adj / det )
   }
 }
+
+impl< E, Descriptor > Mat< 4, 4, E, Descriptor >
+where
+E : MatEl + nd::NdFloat,
+Descriptor : mat::Descriptor,
+Self : RawSlice< Scalar = E >
+{
+  /// Converts the matrix to an array
+  pub fn to_array( &self ) -> [ E; 16 ]
+  {
+    self.raw_slice().try_into().unwrap()
+  }
+
+  /// Convertes this matrix into the 3x3 matrix
+  pub fn truncate( &self ) -> Mat< 3, 3, E, Descriptor >
+  where
+    Mat< 3, 3, E, Descriptor > : RawSliceMut< Scalar = E >
+  {
+    let slice = self.raw_slice();
+
+    let trunc_slice =
+    [
+      slice[ 0 ],
+      slice[ 1 ],
+      slice[ 2 ],
+
+      slice[ 4 ],
+      slice[ 5 ],
+      slice[ 6 ],
+
+      slice[ 8 ],
+      slice[ 9 ],
+      slice[ 10 ],
+    ];
+
+    let mut mat3 = Mat::< 3, 3, E, Descriptor >::default();
+    mat3.raw_set_slice( &trunc_slice );
+    mat3
+  }
+}
+
+impl< E, Descriptor > Mat< 4, 4, E, Descriptor >
+where
+E : MatEl + nd::NdFloat,
+Descriptor : mat::Descriptor,
+Self : ScalarMut< Scalar = E > +
+       IndexingMut< Scalar = E, Index = Ix2 >
+{
+  /// Creates a transformation matrix from scale, rotation and translation
+  pub fn from_scale_rotation_translation< Vec, Q >
+  (
+    scale : Vec,
+    rotation : Q,
+    translation : Vec
+  ) -> Self
+  where
+    Vec : VectorIter< E, 3 >,
+    Q : Into< Quat< E > >
+  {
+    let rot = rotation.into().to_matrix();
+
+    let mut siter = scale.vector_iter();
+    let sx = *siter.next().unwrap();
+    let sy = *siter.next().unwrap();
+    let sz = *siter.next().unwrap();
+
+    let mut titer = translation.vector_iter();
+    let tx = *titer.next().unwrap();
+    let ty = *titer.next().unwrap();
+    let tz = *titer.next().unwrap();
+
+    let rot = rot.raw_slice();
+
+    let mut res = Self::default();
+
+    *res.scalar_mut(  Ix2( 0, 0 ) ) = rot[ 0 ] * sx;
+    *res.scalar_mut(  Ix2( 1, 0 ) ) = rot[ 1 ] * sx;
+    *res.scalar_mut(  Ix2( 2, 0 ) ) = rot[ 2 ] * sx;
+    *res.scalar_mut(  Ix2( 3, 0 ) ) = E::zero();
+
+    *res.scalar_mut(  Ix2( 0, 1 ) ) = rot[ 3 ] * sy;
+    *res.scalar_mut(  Ix2( 1, 1 ) ) = rot[ 4 ] * sy;
+    *res.scalar_mut(  Ix2( 2, 1 ) ) = rot[ 5 ] * sy;
+    *res.scalar_mut(  Ix2( 3, 1 ) ) = E::zero();
+
+    *res.scalar_mut(  Ix2( 0, 2 ) ) = rot[ 6 ] * sz;
+    *res.scalar_mut(  Ix2( 1, 2 ) ) = rot[ 7 ] * sz;
+    *res.scalar_mut(  Ix2( 2, 2 ) ) = rot[ 8 ] * sz;
+    *res.scalar_mut(  Ix2( 3, 2 ) ) = E::zero();
+
+    *res.scalar_mut(  Ix2( 0, 3 ) ) = tx;
+    *res.scalar_mut(  Ix2( 1, 3 ) ) = ty;
+    *res.scalar_mut(  Ix2( 2, 3 ) ) = tz;
+    *res.scalar_mut(  Ix2( 3, 3 ) ) = E::one();
+
+    res
+  }
+}
+
+/// Creates a 4x4 identity matrix.
+pub fn identity< E >() -> Mat4< E, mat::DescriptorOrderColumnMajor >
+where
+  E : MatEl + nd::NdFloat,
+  Mat4< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >
+{
+  Mat4::from_column_major
+  (
+    [
+      E::one(),  E::zero(), E::zero(), E::zero(),
+      E::zero(), E::one(),  E::zero(), E::zero(),
+      E::zero(), E::zero(), E::one(),  E::zero(),
+      E::zero(), E::zero(), E::zero(), E::one(),
+    ]
+  )
+}
+

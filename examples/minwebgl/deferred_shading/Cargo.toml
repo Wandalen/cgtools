@@ -22,3 +22,4 @@ web-sys = { workspace = true, features = [
   "HtmlInputElement",
   "Event",
 ] }
+renderer = { workspace = true }

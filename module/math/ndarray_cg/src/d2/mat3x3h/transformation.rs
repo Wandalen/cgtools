@@ -11,6 +11,79 @@ use mdmath_core::vector::arithmetics::*;
 //   pub offset : Vec,
 // }
 
+/// Creates right-handed orthographic projection transformation with z in range [ -1.0, 1.0 ].
+/// This transformation corresponds to the transformation used in OpenGL:
+/// https://registry.khronos.org/OpenGL-Refpages/gl2.1/xhtml/glOrtho.xml
+///
+/// Similiar functions:
+/// orthographic_rg - return the same matrix, but with z in range [ 0.0, 1.0 ]
+pub fn orthographic_rh_gl< E >
+(
+  left : E,
+  right : E,
+  bottom : E,
+  top : E,
+  near : E,
+  far : E
+)
+->  Mat4< E, mat::DescriptorOrderColumnMajor >
+where
+  E : MatEl + nd::NdFloat,
+  Mat4< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >,
+{
+  let two =  E::one() + E::one();
+  let a = two / ( right - left );
+  let b = two / ( top - bottom );
+  let c = -two / ( far - near );
+  let tx = -( right + left ) / ( right - left );
+  let ty = -( top + bottom ) / ( top - bottom );
+  let tz = -( far + near ) / ( far - near );
+
+  Mat4::from_row_major
+  (
+    [
+      a,          E::zero(),  E::zero(),  tx,
+      E::zero(),  b,          E::zero(),  ty,
+      E::zero(),  E::zero(),  c,          tz,
+      E::zero(),  E::zero(),  E::zero(),  E::one()
+    ]
+  )
+}
+
+/// Creates right-handed orthographic projection transformation with z in range [ 0.0, 1.0 ].
+pub fn orthographic_rh< E >
+(
+  left : E,
+  right : E,
+  bottom : E,
+  top : E,
+  near : E,
+  far : E
+)
+->  Mat4< E, mat::DescriptorOrderColumnMajor >
+where
+  E : MatEl + nd::NdFloat,
+  Mat4< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >,
+{
+  let two =  E::one() + E::one();
+  let a = two / ( right - left );
+  let b = two / ( top - bottom );
+  let c = -E::one() / ( far - near );
+  let tx = -( right + left ) / ( right - left );
+  let ty = -( top + bottom ) / ( top - bottom );
+  let tz = -near / ( far - near );
+
+  Mat4::from_row_major
+  (
+    [
+      a,          E::zero(),  E::zero(),  tx,
+      E::zero(),  b,          E::zero(),  ty,
+      E::zero(),  E::zero(),  c,          tz,
+      E::zero(),  E::zero(),  E::zero(),  E::one()
+    ]
+  )
+}
+
 /// Creates right-handed perspective transformation with z in range [ -1.0, 1.0 ].
 /// This transformation corresponds to the transformation used in OpenGL:
 /// https://registry.khronos.org/OpenGL-Refpages/gl2.1/xhtml/gluPerspective.xml
