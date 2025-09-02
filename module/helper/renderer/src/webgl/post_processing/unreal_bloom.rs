@@ -165,21 +165,25 @@ mod private
       )
     }
 
+    /// Sets the bloom radius.
     pub fn set_bloom_radius( &mut self, radius : f32 )
     {
       self.bloom_radius = radius.clamp( 0.0, 1.0 );
     }
 
+    /// Returns the current bloom radius.
     pub fn get_bloom_radius( &self ) -> f32
     {
       self.bloom_radius
     }
 
+    /// Sets the bloom strength.
     pub fn set_bloom_strength( &mut self, strength : f32 )
     {
       self.bloom_strength = strength;
     }
 
+    /// Returns the current bloom strength.
     pub fn get_bloom_strength( &self ) -> f32
     {
       self.bloom_strength
@@ -201,6 +205,8 @@ mod private
       output_texture : Option< minwebgl::web_sys::WebGlTexture >
     ) -> Result< Option< gl::web_sys::WebGlTexture >, gl::WebglError >
     {
+      gl.disable( gl::DEPTH_TEST );
+      gl.disable( gl::BLEND );
       gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
       // --- Multi-Pass Gaussian Blur ---
       // Iterate through mip levels to apply horizontal and vertical Gaussian blur.

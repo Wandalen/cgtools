@@ -2,7 +2,7 @@ mod private
 {
   use std::{ cell::RefCell, collections::HashMap, rc::Rc };
   use mingl::geometry::BoundingBox;
-use minwebgl as gl;
+  use minwebgl as gl;
   use crate::webgl::{ Geometry, Material };
 
   /// Represents a renderable object composed of geometry and material.
@@ -12,6 +12,18 @@ use minwebgl as gl;
     pub geometry : Rc< RefCell< Geometry > >,
     /// The material of the primitive.
     pub material : Rc< RefCell< Material > >
+  }
+
+  impl Clone for Primitive
+  {
+    fn clone( &self ) -> Self 
+    {
+      Self 
+      { 
+        geometry : self.geometry.clone(), 
+        material : Rc::new( RefCell::new( self.material.borrow().clone() ) ) 
+      }
+    }
   }
 
   impl Primitive
@@ -55,7 +67,7 @@ use minwebgl as gl;
     {
       self.geometry.borrow().center()
     }
-
+    /// Returns the bounding box of the geometry.
     pub fn bounding_box( &self ) -> BoundingBox
     {
       self.geometry.borrow().bounding_box()

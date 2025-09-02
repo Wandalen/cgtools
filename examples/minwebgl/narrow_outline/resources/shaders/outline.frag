@@ -5,12 +5,26 @@ precision highp float;
 in vec2 v_tex_coord;
 out vec4 FragColor;
 
-// Defines the level of detail for edge detection. Higher values result in more prominent outlines.
-const float DETAILS = 256.0;
+const uint IDS[ 13 ] = uint[ 13 ](
+  2u,
+  6u,
+  7u,
+  8u,
+  10u,
+  11u,
+  12u,
+  13u,
+  14u,
+  16u,
+  17u,
+  18u,
+  22u
+);
 
 // G-Buffer textures
-uniform sampler2D u_depth_texture;
 uniform sampler2D u_color_texture;
+uniform sampler2D u_depth_texture;
+uniform sampler2D u_norm_texture;
 
 // Projection matrix for converting view-space coordinates to clip-space.
 uniform mat4 u_projection;
@@ -18,67 +32,193 @@ uniform mat4 u_projection;
 uniform vec2 u_resolution;
 
 uniform float u_outline_thickness;
-uniform vec4 u_outline_color;
-uniform vec4 u_object_color;
 uniform vec4 u_background_color;
 
-void main()
+float outline_stencil_normal() 
 {
-  // Sample the depth from the depth texture and convert it to a linear depth value.
-  float depth = texture( u_depth_texture, v_tex_coord ).x;
-  vec3 ndc = vec3( v_tex_coord, depth ) * 2.0 - 1.0;
-  vec4 view = inverse( u_projection ) * vec4( ndc, 1.0 );
-  view.xyz /= view.w;
-  float linear_depth = - view.z;
+  // Sample the color texture in a 3x3 kernel around the current fragment to perform edge detection.
+  float pix[ 25 ];
+  for( int y = 0; y < 5; y++ )
+  {
+    for( int x = 0; x < 5; x++ )
+    {
+      pix[ y * 5 + x ] = length( 
+        texture(
+          u_norm_texture,
+          v_tex_coord + vec2( float( x - 2 ), float( y - 2 ) ) * u_outline_thickness / u_resolution
+        ) 
+      );
+    }
+  }
+
+  float laplacian =
+  (
+    + pix[ 2 ] * -1.0
+    + pix[ 6 ] * -2.0
+    + pix[ 7 ] * -4.0
+    + pix[ 8 ] * -2.0
+    + pix[ 10 ] * -1.0
+    + pix[ 11 ] * -4.0
+    + pix[ 12 ] * 28.0
+    + pix[ 13 ] * -4.0
+    + pix[ 14 ] * -1.0
+    + pix[ 16 ] * -2.0
+    + pix[ 17 ] * -4.0
+    + pix[ 18 ] * -2.0
+    + pix[ 22 ] * -1.0
+  );
+
+  // Clamp the outline value to ensure it's within a valid range [0, 1].
+  float outline = clamp( laplacian, 0.0, 1.0 );
+
+  return outline;
+}
+
+float outline_stencil_depth() 
+{
+  // Sample the color texture in a 3x3 kernel around the current fragment to perform edge detection.
+  float pix[ 25 ];
+  for( int y = 0; y < 5; y++ )
+  {
+    for( int x = 0; x < 5; x++ )
+    {
+      pix[ y * 5 + x ] = length( 
+        texture(
+          u_depth_texture,
+          v_tex_coord + vec2( float( x - 2 ), float( y - 2 ) ) * u_outline_thickness / u_resolution
+        ) 
+      );
+    }
+  }
+
+  float laplacian =
+  (
+    + pix[ 2 ] * -1.0
+    + pix[ 6 ] * -2.0
+    + pix[ 7 ] * -4.0
+    + pix[ 8 ] * -2.0
+    + pix[ 10 ] * -1.0
+    + pix[ 11 ] * -4.0
+    + pix[ 12 ] * 28.0
+    + pix[ 13 ] * -4.0
+    + pix[ 14 ] * -1.0
+    + pix[ 16 ] * -2.0
+    + pix[ 17 ] * -4.0
+    + pix[ 18 ] * -2.0
+    + pix[ 22 ] * -1.0
+  );
+
+  // Clamp the outline value to ensure it's within a valid range [0, 1].
+  float outline = clamp( laplacian, 0.0, 1.0 );
+
+  return outline;
+}
+
+float outline_stencil_color() 
+{
+  float depth = 1.0 - texture( u_depth_texture, v_tex_coord ).x;
 
   // Sample the color texture in a 3x3 kernel around the current fragment to perform edge detection.
-  float pix[ 9 ];
-  for( int y = 0; y < 3; y++ )
+  float pix[ 25 ];
+  for( int y = 0; y < 5; y++ )
   {
-    for( int x = 0; x < 3; x++ )
+    for( int x = 0; x < 5; x++ )
     {
-      pix[ y * 3 + x ] = texture(
+      pix[ y * 5 + x ] = texture(
         u_color_texture,
-        v_tex_coord + vec2( float( x - 1 ), float( y - 1 ) ) * u_outline_thickness / u_resolution
+        v_tex_coord + vec2( float( x - 2 ), float( y - 2 ) ) * u_outline_thickness / u_resolution
       ).r;
     }
   }
 
-  // Apply Sobel operator to detect edges based on color differences.
-  float sobel_src_x =
+  float laplacian =
   (
-    pix[0] * -1.0
-    + pix[3] * -2.0
-    + pix[6] * -1.0
-    + pix[2] * 1.0
-    + pix[5] * 2.0
-    + pix[8] * 1.0
+    + pix[ 2 ] * -1.0
+    + pix[ 6 ] * -2.0
+    + pix[ 7 ] * -4.0
+    + pix[ 8 ] * -2.0
+    + pix[ 10 ] * -1.0
+    + pix[ 11 ] * -4.0
+    + pix[ 12 ] * 28.0
+    + pix[ 13 ] * -4.0
+    + pix[ 14 ] * -1.0
+    + pix[ 16 ] * -2.0
+    + pix[ 17 ] * -4.0
+    + pix[ 18 ] * -2.0
+    + pix[ 22 ] * -1.0
   );
-  float sobel_src_y =
-  (
-    pix[0] * -1.0
-    + pix[1] * -2.0
-    + pix[2] * -1.0
-    + pix[6] * 1.0
-    + pix[7] * 2.0
-    + pix[8] * 1.0
-  );
-  float sobel = length( vec2( sobel_src_x, sobel_src_y ) );
-
-  // Calculate the outline intensity, scaled by depth to reduce outlines on distant objects.
-  float outline = 1.0 - sobel * DETAILS * linear_depth / 8.0;
 
   // Clamp the outline value to ensure it's within a valid range [0, 1].
-  outline = clamp( outline, 0.0, 1.0 );
+  float outline = clamp( laplacian, 0.0, 1.0 );
+
+  return outline;
+}
+
+vec4 outline_color()
+{
+  vec4 near_color = vec4( 0.0 );
+  float near_depth = 0.0;
+
+  vec4 colors[ 25 ];
+  for( int y = 0; y < 5; y++ )
+  {
+    for( int x = 0; x < 5; x++ )
+    {
+      colors[ y * 5 + x ] = texture(
+        u_color_texture,
+        v_tex_coord + vec2( float( x - 2 ), float( y - 2 ) ) * u_outline_thickness / u_resolution
+      );
+    }
+  }
+
+  float depths[ 25 ];
+  for( int y = 0; y < 5; y++ )
+  {
+    for( int x = 0; x < 5; x++ )
+    {
+      depths[ y * 5 + x ] = 1.0 - texture(
+        u_depth_texture,
+        v_tex_coord + vec2( float( x - 2 ), float( y - 2 ) ) * u_outline_thickness / u_resolution
+      ).r;
+    }
+  }
+
+  for ( int i = 0; i < 13; i++ )
+  {
+    uint j = IDS[ i ];
+    if ( near_depth < depths[ j ] && depths[ j ] < 1.0 )
+    {
+      near_depth = depths[ j ];
+      near_color = colors[ j ];
+    }
+  }
+
+  return near_color;
+}
+
+void main()
+{
+  float outline_s_color = outline_stencil_color();
 
   // Determine the final fragment color based on sampled color and calculated outline.
   if ( texture( u_color_texture, v_tex_coord ).x > 0.1 )
   {
-    FragColor = u_object_color;
+    if ( outline_stencil_depth() > 0.001 )
+    {
+      FragColor = outline_color();
+    }
+    else if ( outline_stencil_normal() > 0.3 )
+    {
+      FragColor = vec4(1.0); //outline_color();
+    }
+    else
+    {
+      FragColor = u_background_color;
+    }
   }
-  else if ( outline < 0.5 )
+  else if ( outline_s_color < 0.5 )
   {
-    FragColor = u_outline_color;
+    FragColor = outline_color();
   }
   else
   {

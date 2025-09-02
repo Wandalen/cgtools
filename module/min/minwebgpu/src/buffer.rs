@@ -3,6 +3,7 @@ mod private
 {
   use crate::*;
 
+  /// Creates a GPU buffer from a given descriptor.
   pub fn create
   (
     device : &web_sys::GpuDevice,
@@ -15,6 +16,7 @@ mod private
     Ok( buffer )
   }
 
+  /// Creates a new GPU buffer and initializes it with data.
   pub fn init< 'a, T : AsBytes >
   ( 
     device : &web_sys::GpuDevice, 

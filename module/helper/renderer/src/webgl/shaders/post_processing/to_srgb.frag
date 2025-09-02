@@ -17,5 +17,6 @@ vec3 LinearToSrgb( const in vec3 color )
 void main()
 {
   vec3 result = LinearToSrgb( texture( sourceTexture, vUv ).rgb );
+  //result = texture( sourceTexture, vUv ).rgb;
   frag_color = vec4( result, 1.0 );
 }

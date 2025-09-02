@@ -1,5 +1,33 @@
 //! Render tile map on quad.
 
+#![ allow( clippy::implicit_return ) ]
+#![ allow( clippy::default_trait_access ) ]
+#![ allow( clippy::min_ident_chars ) ]
+#![ allow( clippy::std_instead_of_core ) ]
+#![ allow( clippy::cast_precision_loss ) ]
+#![ allow( clippy::cast_possible_truncation ) ]
+#![ allow( clippy::assign_op_pattern ) ]
+#![ allow( clippy::semicolon_if_nothing_returned ) ]
+#![ allow( clippy::unnecessary_to_owned ) ]
+#![ allow( clippy::too_many_lines ) ]
+#![ allow( clippy::wildcard_imports ) ]
+#![ allow( clippy::needless_borrow ) ]
+#![ allow( clippy::cast_possible_wrap ) ]
+#![ allow( clippy::redundant_field_names ) ]
+#![ allow( clippy::useless_format ) ]
+#![ allow( clippy::let_unit_value ) ]
+#![ allow( clippy::needless_return ) ]
+#![ allow( clippy::cast_sign_loss ) ]
+#![ allow( clippy::similar_names ) ]
+#![ allow( clippy::needless_continue ) ]
+#![ allow( clippy::else_if_without_else ) ]
+#![ allow( clippy::unreadable_literal ) ]
+#![ allow( clippy::explicit_iter_loop ) ]
+#![ allow( clippy::uninlined_format_args ) ]
+#![ allow( clippy::collapsible_if ) ]
+#![ allow( clippy::unused_async ) ]
+#![ allow( clippy::needless_borrows_for_generic_args ) ]
+
 use gl::GL;
 use minwebgl as gl;
 use ndarray_cg::{ mat::DescriptorOrderColumnMajor, F32x4x4 };
@@ -54,7 +82,7 @@ fn load_image
   .body()
   .unwrap();
   let _ = body.append_child( &image );
-  image.set_id( &format!( "{path}" ) );
+  image.set_id( &path.to_string() );
   let _ = image.style()
   .set_property( "visibility", "hidden" );
   let _ = image.style()
@@ -311,7 +339,7 @@ fn update()
   let mvp = create_mvp();
   let mvp_location = gl.get_uniform_location( &program, "mvp" );
 
-  let _ = gl::uniform::matrix_upload( &gl, mvp_location, mvp.raw_slice(), false )
+  gl::uniform::matrix_upload( &gl, mvp_location, mvp.raw_slice(), false )
   .unwrap();
 
   prepare_vertex_attributes();

@@ -24,17 +24,27 @@ mod private
   };
   use web_sys::wasm_bindgen::prelude::Closure;
 
+  /// Represents a loaded glTF (GL Transmission Format) scene.
   pub struct GLTF
   {
+    /// A collection of top-level scenes defined in the glTF file.
     pub scenes : Vec< Rc< RefCell< Scene > > >,
+    /// A flat list of all nodes in the glTF file.
     pub nodes : Vec< Rc< RefCell< Node > > >,
+    /// A list of WebGL buffer objects that store vertex data, indices, etc.
     pub gl_buffers : Vec< gl::WebGlBuffer >,
+    /// A shared collection of WebGL textures, which are the raw image data on the GPU.
     pub images : Rc< RefCell< Vec< gl::web_sys::WebGlTexture > > >,
+    /// A list of `Texture` objects, which wrap the raw WebGL textures and may contain
+    /// additional metadata like sampler information.
     pub textures : Vec< Rc< RefCell< Texture > > >,
+    /// A collection of `Material` objects, defining how the surfaces of the meshes should be shaded.
     pub materials : Vec< Rc< RefCell< Material > > >,
+    /// A list of `Mesh` objects, which represent the geometry of the scene.
     pub meshes : Vec< Rc< RefCell< Mesh > > >
   }
 
+  /// Asynchronously loads a glTF (GL Transmission Format) file and its associated resources.
   pub async fn load
   (
     document : &gl::web_sys::Document,
@@ -262,14 +272,15 @@ mod private
         gltf::material::AlphaMode::Mask => AlphaMode::Mask,
         gltf::material::AlphaMode::Opaque => AlphaMode::Opaque
       };
-      material.alpha_cutoff = gltf_m.alpha_cutoff();
+      if let Some( value ) = gltf_m.alpha_cutoff() { material.alpha_cutoff = value; }
       material.base_color_factor = gl::F32x4::from( pbr.base_color_factor() );
-      material.roughness_factor = Some( pbr.roughness_factor() );
-      material.metallic_factor = Some( pbr.metallic_factor() );
+      material.roughness_factor =  pbr.roughness_factor();
+      material.metallic_factor = pbr.metallic_factor();
       material.base_color_texture = make_texture_info( pbr.base_color_texture() );
       material.metallic_roughness_texture = make_texture_info( pbr.metallic_roughness_texture() );
       material.emissive_texture = make_texture_info( gltf_m.emissive_texture() );
-      material.emissive_factor = Some( gl::F32x3::from( gltf_m.emissive_factor() ) );
+      material.emissive_factor = gl::F32x3::from( gltf_m.emissive_factor() );
+  
       // KHR_materials_specular
       if let Some( s ) = gltf_m.specular()
       {
@@ -283,7 +294,7 @@ mod private
 
       if let Some( n ) = gltf_m.normal_texture()
       {
-        material.normal_scale = Some( n.scale() );
+        material.normal_scale = n.scale();
         material.normal_texture = Some( TextureInfo
         {
           uv_position : n.tex_coord(),
@@ -293,7 +304,7 @@ mod private
 
       if let Some( o ) = gltf_m.occlusion_texture()
       {
-        material.occlusion_strength = Some( o.strength() );
+        material.occlusion_strength = o.strength();
         material.occlusion_texture = Some( TextureInfo
         {
           uv_position : o.tex_coord(),
@@ -445,28 +456,11 @@ mod private
         Object3D::Other
       };
 
-      match gltf_node.transform()
-      {
-        gltf::scene::Transform::Matrix { matrix } =>
-        {
-          node.matrix = gl::F32x4x4::from_column_major( glam::Mat4::from_cols_array_2d( &matrix ).to_cols_array() );
-          let mat = glam::Mat4::from_cols_array_2d( &matrix );
-          let ( s, r, t ) = mat.to_scale_rotation_translation();
-
-          node.scale = s.to_array().into();
-          node.translation = t.to_array().into();
-          node.rotation = r;
-        },
-        gltf::scene::Transform::Decomposed { translation, rotation, scale } =>
-        {
-          node.scale = scale.into();
-          node.translation = translation.into();
-          node.rotation = glam::Quat::from_array( rotation );
-
-          let mat = glam::Mat4::from_scale_rotation_translation( scale.into(), glam::Quat::from_array( rotation ), translation.into() );
-          node.matrix = gl::F32x4x4::from_column_major( mat.to_cols_array() );
-        }
-      }
+      let ( translation, rotation, scale ) = gltf_node.transform().decomposed();
+      node.set_scale( scale );
+      node.set_translation( translation );
+      node.set_rotation( gl::QuatF32::from( rotation ) );
+      if let Some( name ) = gltf_node.name() { node.set_name( name ); }
 
       nodes.push( Rc::new( RefCell::new( node ) ) );
     }
@@ -514,6 +508,7 @@ crate::mod_interface!
 {
   own use
   {
+    GLTF,
     load
   };
 }

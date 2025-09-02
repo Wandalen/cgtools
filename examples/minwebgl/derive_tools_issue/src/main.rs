@@ -1,11 +1,12 @@
+//! This crate provides a minimal WebGL application that demonstrates the issue of using `EnumCount` with `derive_tools`
+
 fn main() {}
 
 #[ cfg( test ) ]
 mod tests
 {
-  use derive_tools::EnumCount;
-
-
+  // use derive_tools::EnumCount;
+  use strum::EnumCount;
 
   #[ derive( EnumCount ) ]
   #[allow(dead_code)]

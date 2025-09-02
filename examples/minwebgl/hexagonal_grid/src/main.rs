@@ -1,13 +1,32 @@
+//! Hexagonal grid pathfinding example using `tiles_tools` and `minwebgl`.
+#![ allow( clippy::doc_markdown ) ]
+#![ allow( clippy::wildcard_imports ) ] 
+#![ allow( clippy::implicit_return ) ]
+#![ allow( clippy::too_many_lines ) ]
+#![ allow( clippy::default_trait_access ) ]
+#![ allow( clippy::min_ident_chars ) ]
+#![ allow( clippy::std_instead_of_core ) ]
+#![ allow( clippy::needless_borrow ) ]
+#![ allow( clippy::cast_possible_truncation ) ]
+#![ allow( clippy::cast_possible_wrap ) ]
+#![ allow( clippy::map_flatten ) ]
+#![ allow( clippy::cast_precision_loss ) ]
+#![ allow( clippy::uninlined_format_args ) ]
+#![ allow( clippy::redundant_closure ) ]
+#![ allow( clippy::from_iter_instead_of_collect ) ]
+#![ allow( clippy::too_many_arguments ) ]
+#![ allow( clippy::cast_lossless ) ]
+#![ allow( clippy::useless_conversion ) ]
+
+use minwebgl as min;
 use browser_input::{ mouse, Input };
 use tiles_tools::
 {
-  collection::HexArray,
+  collection::Grid2D,
   coordinates::{ hexagonal::*, pixel::Pixel },
   geometry,
   layout::*
 };
-
-use minwebgl as min;
 use min::
 {
   math::{ F32x2, IntoVector, mat2x2h },
@@ -15,9 +34,6 @@ use min::
   JsCast,
   canvas::HtmlCanvasElement,
   GL,
-  // web::log::info,
-  // qqq : this import does not work, but not clear why
-  // make it working please
 };
 use web_sys::{ wasm_bindgen::prelude::Closure, HtmlButtonElement, HtmlInputElement };
 use std::{ cell::RefCell, collections::HashMap, rc::Rc };
@@ -39,7 +55,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let dpr = web_sys::window().unwrap().device_pixel_ratio() as f32;
   let canvas_size = ( canvas.width() as f32, canvas.height() as f32 ).into_vector() / dpr;
 
-  let mut input = Input::new( Some( canvas.clone().dyn_into().unwrap() ) );
+  let mut input = Input::new( Some( canvas.clone().dyn_into().unwrap() ), browser_input::CLIENT );
 
   // inclusize grid bounds
   let region =
@@ -168,10 +184,10 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   );
 
   // array to store painted hexagons
-  let mut painting_canvas = HexArray::< Offset< Odd >, Pointy, [ f32; 3 ] >::new
+  let mut painting_canvas = Grid2D::< Offset< Odd >, Pointy, [ f32; 3 ] >::with_size_and_fn
   (
-    [ 23, 23 ].into(),
-    [ 11, 11 ].into(),
+    [ -11, -11 ].into(),
+    [ 12, 12 ].into(),
     || [ 1.0, 1.0, 1.0 ]
   );
 
@@ -188,7 +204,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
     // then offset it by center of the grid, so that if cursor is in the center of the canvas, it will be in the center of the grid
     let cursor_pos : Pixel =
     (
-      ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) + grid_center.into()
+      ( ( cursor_pos - canvas_pos ) - half_size ) / ( half_size * aspect_scale ) + F32x2::from_array( grid_center.data )
     ).into();
     // hexagon which cursor points to
     let selected_hex_coord : Coordinate::< Axial, Pointy > = cursor_pos.into();
@@ -261,7 +277,7 @@ fn painting_demo
   scale : F32x2,
   hex_shader : &Program,
   hexagon_geometry : &min::geometry::Positions,
-  painting_canvas : &mut HexArray< Offset< Odd >, Pointy, [ f32; 3 ] >,
+  painting_canvas : &mut Grid2D< Offset< Odd >, Pointy, [ f32; 3 ] >,
   color_picker : &HtmlInputElement
 )
 {
@@ -287,6 +303,7 @@ fn painting_demo
   ).into();
   // calculate hex coordinates
   let selected_hex_coord : Coordinate::< Axial, Pointy > = pos.into();
+
   // get color
   let color = color_picker.value();
   let r = u8::from_str_radix( &color[ 1..3 ], 16 ).unwrap() as f32 / 255.0;

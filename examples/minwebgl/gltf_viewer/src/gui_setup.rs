@@ -1,3 +1,6 @@
+#![ allow( clippy::needless_pass_by_value ) ]
+#![ allow( clippy::field_reassign_with_default ) ]
+
 use std::{cell::RefCell, rc::Rc};
 
 use minwebgl as gl;
@@ -8,36 +11,14 @@ use gl::wasm_bindgen::prelude::*;
 use crate::lil_gui::{add_slider, new_gui, on_change, show};
 
 
-#[ derive( Serialize, Deserialize ) ]
+#[ derive( Default, Serialize, Deserialize ) ]
 pub struct Settings
 {
   #[ serde( rename = "bloomRadius" ) ]
   bloom_radius : f32,
   #[ serde( rename = "bloomStrength" ) ]
   bloom_strength : f32,
-  #[ serde( rename = "luminosityThreshold" ) ]
-  luminosity_threshold : f32,
-  #[ serde( rename = "luminositySmoothWidth" ) ]
-  luminosity_smooth_width : f32
-}
-
-impl Default for Settings
-{
-  fn default() -> Self 
-  {
-    let bloom_radius = 0.5;
-    let bloom_strength = 1.0;
-    let luminosity_threshold  = 1.0;
-    let luminosity_smooth_width = 1.0;
-
-    Self
-    {
-      bloom_radius,
-      bloom_strength,
-      luminosity_smooth_width,
-      luminosity_threshold
-    }
-  }    
+  exposure : f32
 }
 
 
@@ -46,8 +27,7 @@ pub fn setup( renderer : Rc< RefCell< Renderer > > )
   let mut settings = Settings::default();
   settings.bloom_radius = renderer.borrow().get_bloom_radius();
   settings.bloom_strength = renderer.borrow().get_bloom_strength();
-  settings.luminosity_threshold = renderer.borrow().get_luminosity_threshold();
-  settings.luminosity_smooth_width = renderer.borrow().get_luminosity_smooth_width();
+  settings.exposure = renderer.borrow().get_exposure();
 
   let object = serde_wasm_bindgen::to_value( &settings ).unwrap();
   let gui = new_gui();
@@ -80,28 +60,14 @@ pub fn setup( renderer : Rc< RefCell< Renderer > > )
   on_change( &prop, &callback );
   callback.forget();
 
-  let prop = add_slider( &gui, &object, "luminosityThreshold", 0.0, 100.0, 0.01 );
+  let prop = add_slider( &gui, &object, "exposure", -10.0, 10.0, 0.1 );
   let callback = Closure::new
   (
     {
       let renderer = renderer.clone();
       move | value |
       {
-        renderer.borrow_mut().set_luminosity_threshold( value );
-      }
-    }
-  );
-  on_change( &prop, &callback );
-  callback.forget();
-
-  let prop = add_slider( &gui, &object, "luminositySmoothWidth", 0.0, 10.0, 0.01 );
-  let callback = Closure::new
-  (
-    {
-      let renderer = renderer.clone();
-      move | value |
-      {
-        renderer.borrow_mut().set_luminosity_smooth_width( value );
+        renderer.borrow_mut().set_exposure( value );
       }
     }
   );

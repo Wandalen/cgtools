@@ -81,6 +81,7 @@ mod private
       }
     }
 
+    /// Sets whether the buffer attribute should be normalized.
     pub fn normalized( mut self, normalized : bool ) -> Self
     {
       self.normalized = normalized;
