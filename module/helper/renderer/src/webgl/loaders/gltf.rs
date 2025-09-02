@@ -10,7 +10,6 @@ mod private
   };
   use crate::webgl::
   {
-    Animation,
     ToFromGlEnum,
     AlphaMode,
     AttributeInfo,
@@ -31,8 +30,14 @@ mod private
   };
   use web_sys::wasm_bindgen::prelude::Closure;
   use std::collections::HashMap;
-  use skeleton::Skeleton;
-  use asbytes::cast_slice;
+
+  #[ cfg( feature = "animation" ) ]
+  use
+  {
+    skeleton::Skeleton,
+    crate::webgl::animation::Animation,
+    asbytes::cast_slice
+  };
 
   /// Represents a loaded glTF (GL Transmission Format) scene.
   pub struct GLTF
@@ -54,6 +59,76 @@ mod private
     pub meshes : Vec< Rc< RefCell< Mesh > > >,
     /// A list of `Animation` objects, which store `Node`'s tranform change in every time moment.
     pub animations : Vec< Animation >
+  }
+
+  /// Asynchronously loads [`Skeleton`] for one [`Mesh`]
+  #[ cfg( feature = "animation" ) ]
+  async fn load_skeleton
+  (
+    skin : Skin< '_ >,
+    folder_path : &str
+  )
+  -> Option< Rc< RefCell< Skeleton > > >
+  {
+    let Some( acc ) = skin.inverse_bind_matrices()
+    else
+    {
+      return None;
+    };
+
+    let mut matrices = vec![];
+
+    let Some( view ) = acc.view()
+    else
+    {
+      return None;
+    };
+
+    let gltf_buffer = view.buffer();
+
+    let mut matrix_buffer_slice : Option< Vec< [ f32; 16 ] > > = None;
+    match gltf_buffer.source()
+    {
+      gltf::buffer::Source::Uri( uri ) =>
+      {
+        let path = format!( "{}/{}", folder_path, uri );
+        let buffer = gl::file::load( &path ).await
+        .expect( "Failed to load a buffer" );
+
+        let vl = view.length();
+        let vo = view.offset();
+        let ac = acc.count();
+        let ao = acc.offset();
+
+        let slice = buffer.get( vo..( vo + vl ) )
+        .unwrap()
+        .get( ao..( ao + ( 16 * 4 * ac ) ) )
+        .unwrap();
+        matrix_buffer_slice = Some( cast_slice( slice ).to_vec() );
+      },
+      _ => {}
+    }
+
+    if let Some( slice ) = matrix_buffer_slice
+    {
+      matrices = slice.into_iter()
+      .map( | array | F32x4x4::from_column_major( array ) )
+      .collect::< Vec< _ > >();
+    }
+
+    let mut joints = HashMap::new();
+    for ( joint, matrix ) in skin.joints().zip( matrices )
+    {
+      if let Some( name ) = joint.name()
+      {
+        joints.insert( name.to_string().into_boxed_str(), matrix );
+      }
+    }
+
+    let skeleton = Skeleton::new( gl, joints )
+    .map( | s | Rc::new( RefCell::new( s ) ) );
+
+    skeleton
   }
 
   /// Asynchronously loads a glTF (GL Transmission Format) file and its associated resources.
@@ -442,8 +517,9 @@ mod private
               gl,
               format!( "joints_{}", i ),
               make_attibute_info( &acc, 10 + i ),
-              false
+              true
             )?;
+
           },
           gltf::Semantic::Weights( i ) =>
           {
@@ -452,7 +528,7 @@ mod private
               gl,
               format!( "weights_{}", i ),
               make_attibute_info( &acc, 13 + i ),
-              false
+              true
             )?;
           },
           //a => { gl::warn!( "Unsupported attribute: {:?}", a ); continue; }
@@ -493,64 +569,21 @@ mod private
       node.set_translation( translation );
       node.set_rotation( gl::QuatF32::from( rotation ) );
       if let Some( name ) = gltf_node.name() { node.set_name( name ); }
+
+      #[ cfg( feature = "animation" ) ]
       if let Some( skin ) = gltf_node.skin()
       {
-        if let Some( acc ) = skin.inverse_bind_matrices()
+        if let Object3D::Mesh( mesh ) = node.object
         {
-          let mut matrices = vec![];
-
-          let Some( view ) = acc.view()
-          else
-          {
-            continue;
-          };
-          let gltf_buffer = view.buffer();
-
-          let mut matrix_buffer_slice : Option< Vec< [ f32; 16 ] > > = None;
-          match gltf_buffer.source()
-          {
-            gltf::buffer::Source::Uri( uri ) =>
-            {
-              let path = format!( "{}/{}", folder_path, uri );
-              let buffer = gl::file::load( &path ).await
-              .expect( "Failed to load a buffer" );
-
-              let vl = view.length();
-              let vo = view.offset();
-              let ac = acc.count();
-              let ao = acc.offset();
-
-              let slice = buffer.get( vo..( vo + vl ) )
-              .unwrap()
-              .get( ao..( ao + ( 16 * 4 * ac ) ) )
-              .unwrap();
-              matrix_buffer_slice = Some( cast_slice( slice ).to_vec() );
-            },
-            _ => {}
-          }
-
-          if let Some( slice ) = matrix_buffer_slice
-          {
-            matrices = slice.into_iter()
-            .map( | array | F32x4x4::from_column_major( array ) )
-            .collect::< Vec< _ > >();
-          }
-
-          let mut joints = HashMap::new();
-          for ( joint, matrix ) in skin.joints().zip( matrices )
-          {
-            if let Some( name ) = joint.name()
-            {
-              joints.insert( name.to_string().into_boxed_str(), matrix );
-            }
-          }
-
-          let skeleton = Skeleton::new( gl, joints )
-          .map( | s | Rc::new( RefCell::new( s ) ) );
-
-          if let Object3D::Mesh( mesh ) = node.object
+          if let Some( skeleton ) = load_skeleton( skin, folder_path ).await
           {
             mesh.borrow_mut().skeleton = skeleton;
+            for primitive in mesh.borrow().primitives
+            {
+              primitive.borrow()
+              .geometry.borrow_mut()
+              .defines += "#define USE_SKINNING\n";
+            }
           }
         }
       }
