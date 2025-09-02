@@ -38,7 +38,7 @@ mod private
   };
 
   /// Trait for types that can be animated ( interpolated ).
-  pub trait Animatable : Clone + core::fmt::Debug 
+  pub trait Animatable : Clone + core::fmt::Debug
   {
     /// Interpolates between two values at time t ( 0.0 to 1.0 ).
     fn interpolate( &self, other : &Self, t : f32 ) -> Self;
@@ -47,7 +47,7 @@ mod private
   /// Animation state for tracking tween progress.
   #[ non_exhaustive ]
   #[ derive( Debug, Clone, Copy, PartialEq ) ]
-  pub enum AnimationState 
+  pub enum AnimationState
   {
     /// Animation hasn't started yet
     Pending,
@@ -61,7 +61,7 @@ mod private
 
   /// Core tween structure for animating between two values.
   #[ derive( Debug ) ]
-  pub struct Tween< T > 
+  pub struct Tween< T >
   {
     /// Starting value
     start_value : T,
@@ -85,19 +85,19 @@ mod private
     yoyo : bool,
   }
 
-  impl< T > Tween< T > 
+  impl< T > Tween< T >
   where T : Animatable
   {
     /// Creates a new tween animation.
     pub fn new
-    ( 
-      start : T, 
-      end : T, 
-      duration : f32, 
-      easing : Box< dyn EasingFunction > 
-    ) -> Self 
+    (
+      start : T,
+      end : T,
+      duration : f32,
+      easing : Box< dyn EasingFunction >
+    ) -> Self
     {
-      Self 
+      Self
       {
         start_value : start,
         end_value : end,
@@ -113,56 +113,56 @@ mod private
     }
 
     /// Sets a delay before the animation starts.
-    pub fn with_delay( mut self, delay : f32 ) -> Self 
+    pub fn with_delay( mut self, delay : f32 ) -> Self
     {
       self.delay = delay.max( 0.0 );
       self
     }
 
     /// Sets the number of times to repeat the animation.
-    pub fn with_repeat( mut self, count : i32 ) -> Self 
+    pub fn with_repeat( mut self, count : i32 ) -> Self
     {
       self.repeat_count = count;
       self
     }
 
     /// Enables yoyo mode ( reverse direction on repeat ).
-    pub fn with_yoyo( mut self, yoyo : bool ) -> Self 
+    pub fn with_yoyo( mut self, yoyo : bool ) -> Self
     {
       self.yoyo = yoyo;
       self
     }
 
     /// Updates the tween with the elapsed time and returns current value.
-    pub fn update( &mut self, delta_time : f32 ) -> T 
+    pub fn update( &mut self, delta_time : f32 ) -> T
     {
       let mut remaining_time = delta_time;
 
-      match self.state 
+      match self.state
       {
-        AnimationState::Pending => 
+        AnimationState::Pending =>
         {
-          if self.delay > 0.0 
+          if self.delay > 0.0
           {
             let delay_consumed = remaining_time.min( self.delay );
             self.delay -= delay_consumed;
             remaining_time -= delay_consumed;
-            
-            if self.delay <= 0.0 
+
+            if self.delay <= 0.0
             {
               self.state = AnimationState::Running;
-            } 
-            else 
+            }
+            else
             {
               return self.start_value.clone();
             }
-          } 
-          else 
+          }
+          else
           {
             self.state = AnimationState::Running;
           }
         }
-        AnimationState::Paused | AnimationState::Completed => 
+        AnimationState::Paused | AnimationState::Completed =>
         {
           return self.get_current_value();
         }
@@ -170,18 +170,18 @@ mod private
       }
 
       // Apply remaining time to animation
-      if remaining_time > 0.0 && self.state == AnimationState::Running 
+      if remaining_time > 0.0 && self.state == AnimationState::Running
       {
         self.elapsed += remaining_time;
 
-        if self.elapsed >= self.duration 
+        if self.elapsed >= self.duration
         {
           // Animation completed this frame
-          if self.repeat_count != 0 
+          if self.repeat_count != 0
           {
             self.handle_repeat();
-          } 
-          else 
+          }
+          else
           {
             self.state = AnimationState::Completed;
             self.elapsed = self.duration;
@@ -193,9 +193,9 @@ mod private
     }
 
     /// Gets the current interpolated value without updating time.
-    pub fn get_current_value( &self ) -> T 
+    pub fn get_current_value( &self ) -> T
     {
-      if self.state == AnimationState::Pending 
+      if self.state == AnimationState::Pending
       {
         return self.start_value.clone();
       }
@@ -204,11 +204,11 @@ mod private
       let eased_time = self.easing.apply( normalized_time );
 
       // Handle yoyo mode
-      let ( start, end, time ) = if self.yoyo && self.current_repeat % 2 == 1 
+      let ( start, end, time ) = if self.yoyo && self.current_repeat % 2 == 1
       {
         ( &self.end_value, &self.start_value, eased_time )
-      } 
-      else 
+      }
+      else
       {
         ( &self.start_value, &self.end_value, eased_time )
       };
@@ -243,133 +243,211 @@ mod private
     }
 
     /// Pauses the animation.
-    pub fn pause( &mut self ) 
+    pub fn pause( &mut self )
     {
-      if self.state == AnimationState::Running 
+      if self.state == AnimationState::Running
       {
         self.state = AnimationState::Paused;
       }
     }
 
     /// Resumes a paused animation.
-    pub fn resume( &mut self ) 
+    pub fn resume( &mut self )
     {
-      if self.state == AnimationState::Paused 
+      if self.state == AnimationState::Paused
       {
         self.state = AnimationState::Running;
       }
     }
 
     /// Resets the animation to its starting state.
-    pub fn reset( &mut self ) 
+    pub fn reset( &mut self )
     {
       self.elapsed = 0.0;
       self.current_repeat = 0;
-      self.state = if self.delay > 0.0 
+      self.state = if self.delay > 0.0
       {
         AnimationState::Pending
-      } 
-      else 
+      }
+      else
       {
         AnimationState::Running
       };
     }
 
     /// Checks if the animation is completed.
-    pub fn is_completed( &self ) -> bool 
+    pub fn is_completed( &self ) -> bool
     {
       self.state == AnimationState::Completed
     }
 
     /// Gets the current animation state.
-    pub fn state( &self ) -> AnimationState 
+    pub fn state( &self ) -> AnimationState
     {
       self.state
     }
 
     /// Gets the current repeat count.
-    pub fn current_repeat( &self ) -> i32 
+    pub fn current_repeat( &self ) -> i32
     {
       self.current_repeat
     }
 
     /// Gets the progress of the animation ( 0.0 to 1.0 ).
-    pub fn progress( &self ) -> f32 
+    pub fn progress( &self ) -> f32
     {
-      if self.state == AnimationState::Pending 
+      if self.state == AnimationState::Pending
       {
         0.0
-      } 
-      else 
+      }
+      else
       {
         (self.elapsed / self.duration).clamp( 0.0, 1.0 )
       }
     }
   }
 
-  impl< T > AnimatableValue for Tween< T > 
+  impl< T > AnimatableValue for Tween< T >
   where T : Animatable + 'static
   {
-    fn update( &mut self, delta_time : f32 ) 
+    fn update( &mut self, delta_time : f32 )
     {
       self.update( delta_time );
     }
 
-    fn is_completed( &self ) -> bool 
+    fn is_completed( &self ) -> bool
     {
       self.is_completed()
     }
 
-    fn pause( &mut self ) 
+    fn pause( &mut self )
     {
       self.pause();
     }
 
-    fn resume( &mut self ) 
+    fn resume( &mut self )
     {
       self.resume();
     }
 
-    fn reset( &mut self ) 
+    fn reset( &mut self )
     {
       self.reset();
     }
 
-    fn as_any( &self ) -> &dyn core::any::Any 
+    fn as_any( &self ) -> &dyn core::any::Any
     {
       self
+    }
+
+    fn get_duration( &self ) -> f32
+    {
+      self.duration
+    }
+
+    fn get_delay( &self ) -> f32
+    {
+      self.delay
+    }
+  }
+
+  impl< T, const N : usize > AnimatableValue for [ Tween< T >; N ]
+  where T : Animatable + 'static
+  {
+    fn update( &mut self, delta_time : f32 )
+    {
+      for tween in self
+      {
+        tween.update( delta_time );
+      }
+    }
+
+    fn is_completed( &self ) -> bool
+    {
+      self.iter().all( | t | t.is_completed() )
+    }
+
+    fn pause( &mut self )
+    {
+      self.iter_mut()
+      .for_each( | t | t.pause() );
+    }
+
+    fn resume( &mut self )
+    {
+      self.iter_mut()
+      .for_each( | t | t.resume() );
+    }
+
+    fn reset( &mut self )
+    {
+      self.iter_mut()
+      .for_each( | t | t.reset() );
+    }
+
+    fn as_any( &self ) -> &dyn core::any::Any
+    {
+      self
+    }
+
+    fn get_duration( &self ) -> f32
+    {
+      let mut min_start = 0.0;
+      for t in self.iter()
+      {
+        min_start = t.delay.max( min_start );
+      }
+
+      let mut max_end = 0.0;
+      for t in self.iter()
+      {
+        max_end = ( t.delay + t.duration ).max( max_end );
+      }
+
+      max_end - min_start
+    }
+
+    fn get_delay( &self ) -> f32
+    {
+      let mut min_delay = 0.0;
+      for t in self.iter()
+      {
+        min_delay = t.delay.min( min_delay );
+      }
+
+      min_delay
     }
   }
 
   // === ANIMATABLE IMPLEMENTATIONS ===
 
-  impl Animatable for f32 
+  impl Animatable for f32
   {
-    fn interpolate( &self, other : &Self, time : f32 ) -> Self 
+    fn interpolate( &self, other : &Self, time : f32 ) -> Self
     {
       self + ( other - self ) * time
     }
   }
 
-  impl Animatable for f64 
+  impl Animatable for f64
   {
-    fn interpolate( &self, other : &Self, time : f32 ) -> Self 
+    fn interpolate( &self, other : &Self, time : f32 ) -> Self
     {
       self + ( other - self ) * f64::from( time )
     }
   }
 
-  impl Animatable for i32 
+  impl Animatable for i32
   {
-    fn interpolate( &self, other : &Self, time : f32 ) -> Self 
+    fn interpolate( &self, other : &Self, time : f32 ) -> Self
     {
       ( *self as f32 + ( *other as f32 - *self as f32 ) * time ) as i32
     }
   }
 
-  impl Animatable for ( f32, f32 ) 
+  impl Animatable for ( f32, f32 )
   {
-    fn interpolate( &self, other : &Self, time : f32 ) -> Self 
+    fn interpolate( &self, other : &Self, time : f32 ) -> Self
     {
       (
         self.0.interpolate( &other.0, time ),
@@ -378,9 +456,9 @@ mod private
     }
   }
 
-  impl Animatable for ( i32, i32 ) 
+  impl Animatable for ( i32, i32 )
   {
-    fn interpolate( &self, other : &Self, time : f32 ) -> Self 
+    fn interpolate( &self, other : &Self, time : f32 ) -> Self
     {
       (
         self.0.interpolate( &other.0, time ),
@@ -391,7 +469,7 @@ mod private
 
   impl Animatable for F32x3
   {
-    fn interpolate(&self, other : &Self, time : f32 ) -> Self 
+    fn interpolate(&self, other : &Self, time : f32 ) -> Self
     {
       Self::from
       (
@@ -402,33 +480,33 @@ mod private
         ]
       )
     }
-  } 
+  }
 
   impl Animatable for QuatF32
   {
-    fn interpolate( &self, other : &Self, time : f32 ) -> Self 
+    fn interpolate( &self, other : &Self, time : f32 ) -> Self
     {
       self.slerp( other, time )
     }
-  } 
+  }
 
-  /// Special version of [`Transform`] structure that 
+  /// Special version of [`Transform`] structure that
   /// used for skeletal animation
   #[ non_exhaustive ]
   #[ derive( Debug, Clone ) ]
   pub struct Transform
   {
-    /// Translation used in node transform interpolation if animated 
+    /// Translation used in node transform interpolation if animated
     pub translation : Option< F32x3 >,
-    /// Rotation used in node transform interpolation if animated 
+    /// Rotation used in node transform interpolation if animated
     pub rotation : Option< QuatF32 >,
-    /// Scale used in node transform interpolation if animated 
+    /// Scale used in node transform interpolation if animated
     pub scale : Option< F32x3 >
   }
 
   impl Animatable for Transform
   {
-    fn interpolate(&self, other : &Self, time : f32 ) -> Self 
+    fn interpolate(&self, other : &Self, time : f32 ) -> Self
     {
       let translation = match ( self.translation, other.translation )
       {
@@ -458,11 +536,11 @@ mod private
         scale
       }
     }
-  } 
+  }
 
   /// RGB Color for animations.
   #[ derive( Debug, Clone, Copy, PartialEq ) ]
-  pub struct Color 
+  pub struct Color
   {
     /// Red component ( 0.0 to 1.0 )
     pub red : f32,
@@ -474,12 +552,12 @@ mod private
     pub alpha : f32
   }
 
-  impl Color 
+  impl Color
   {
     /// Creates a new color.
-    pub fn new( red : f32, green : f32, blue : f32, alpha : f32 ) -> Self 
+    pub fn new( red : f32, green : f32, blue : f32, alpha : f32 ) -> Self
     {
-      Self 
+      Self
       {
         red : red.clamp( 0.0, 1.0 ),
         green : green.clamp( 0.0, 1.0 ),
@@ -489,35 +567,35 @@ mod private
     }
 
     /// Creates an RGB color ( alpha = 1.0 ).
-    pub fn rgb( red : f32, green : f32, blue : f32 ) -> Self 
+    pub fn rgb( red : f32, green : f32, blue : f32 ) -> Self
     {
       Self::new( red, green, blue, 1.0 )
     }
 
     /// Creates a white color.
-    pub fn white() -> Self 
+    pub fn white() -> Self
     {
       Self::rgb( 1.0, 1.0, 1.0 )
     }
 
     /// Creates a black color.
-    pub fn black() -> Self 
+    pub fn black() -> Self
     {
       Self::rgb( 0.0, 0.0, 0.0 )
     }
 
     /// Creates a transparent color.
-    pub fn transparent() -> Self 
+    pub fn transparent() -> Self
     {
       Self::new( 0.0, 0.0, 0.0, 0.0 )
     }
   }
 
-  impl Animatable for Color 
+  impl Animatable for Color
   {
-    fn interpolate( &self, other : &Self, time : f32 ) -> Self 
+    fn interpolate( &self, other : &Self, time : f32 ) -> Self
     {
-      Self 
+      Self
       {
         red : self.red.interpolate( &other.red, time ),
         green : self.green.interpolate( &other.green, time ),
@@ -531,24 +609,24 @@ mod private
 
   /// Builder for creating complex animations with chaining.
   #[ derive( Debug ) ]
-  pub struct AnimationBuilder< T : Animatable > 
+  pub struct AnimationBuilder< T : Animatable >
   {
     start_value : T,
   }
 
-  impl< T : Animatable > AnimationBuilder< T > 
+  impl< T : Animatable > AnimationBuilder< T >
   {
     /// Creates a new animation builder starting from a value.
-    pub fn from( start_value : T ) -> Self 
+    pub fn from( start_value : T ) -> Self
     {
       Self { start_value }
     }
 
     /// Creates a tween to the target value.
-    pub fn to( &self, end_value : T, duration : f32 ) -> TweenBuilder< T > 
+    pub fn to( &self, end_value : T, duration : f32 ) -> TweenBuilder< T >
     where T : Animatable
     {
-      TweenBuilder 
+      TweenBuilder
       {
         tween : Tween::new( self.start_value.clone(), end_value, duration, Linear::new() ),
       }
@@ -556,16 +634,16 @@ mod private
 
     /// Creates a tween with a specific easing function.
     pub fn to_with_easing
-    ( 
-      &self, 
-      end_value : T, 
-      duration : f32, 
-      easing : Box< dyn EasingFunction > 
-    ) 
-    -> TweenBuilder< T > 
+    (
+      &self,
+      end_value : T,
+      duration : f32,
+      easing : Box< dyn EasingFunction >
+    )
+    -> TweenBuilder< T >
     where T : Animatable
     {
-      TweenBuilder 
+      TweenBuilder
       {
         tween : Tween::new( self.start_value.clone(), end_value, duration, easing )
       }
@@ -574,45 +652,45 @@ mod private
 
   /// Builder for configuring tween properties.
   #[ derive( Debug ) ]
-  pub struct TweenBuilder< T > 
+  pub struct TweenBuilder< T >
   where T : Animatable
   {
     tween : Tween< T >,
   }
 
-  impl< T > TweenBuilder< T > 
+  impl< T > TweenBuilder< T >
   where T : Animatable
   {
     /// Sets the easing function.
-    pub fn easing( mut self, easing : Box< dyn EasingFunction > ) -> Self 
+    pub fn easing( mut self, easing : Box< dyn EasingFunction > ) -> Self
     {
       self.tween.easing = easing;
       self
     }
 
     /// Sets a delay before the animation starts.
-    pub fn delay( mut self, delay : f32 ) -> Self 
+    pub fn delay( mut self, delay : f32 ) -> Self
     {
       self.tween = self.tween.with_delay( delay );
       self
     }
 
     /// Sets the repeat count.
-    pub fn repeat( mut self, count : i32 ) -> Self 
+    pub fn repeat( mut self, count : i32 ) -> Self
     {
       self.tween = self.tween.with_repeat( count );
       self
     }
 
     /// Enables yoyo mode.
-    pub fn yoyo( mut self, yoyo: bool ) -> Self 
+    pub fn yoyo( mut self, yoyo: bool ) -> Self
     {
       self.tween = self.tween.with_yoyo( yoyo );
       self
     }
 
     /// Builds the final tween.
-    pub fn build( self ) -> Tween< T > 
+    pub fn build( self ) -> Tween< T >
     {
       self.tween
     }
@@ -621,7 +699,7 @@ mod private
   // === CONVENIENCE FUNCTIONS ===
 
   /// Creates an animation builder from a starting value.
-  pub fn animate< T : Animatable >( start_value : T ) -> AnimationBuilder< T > 
+  pub fn animate< T : Animatable >( start_value : T ) -> AnimationBuilder< T >
   {
     AnimationBuilder::from( start_value )
   }
@@ -636,18 +714,18 @@ mod private
   /// Creates a tween with easing.
   pub fn tween_with_easing< T : Animatable >
   (
-    start : T, 
-    end : T, 
-    duration : f32, 
+    start : T,
+    end : T,
+    duration : f32,
     easing : Box< dyn EasingFunction >
-  ) 
-  -> Tween< T > 
+  )
+  -> Tween< T >
   {
     Tween::new( start, end, duration, easing )
   }
 
   #[ cfg( test ) ]
-  mod tests 
+  mod tests
   {
     use super::*;
     use crate::easing::base::Linear;
@@ -702,7 +780,7 @@ mod private
     fn test_tween_progress_and_completion()
     {
       let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() );
-      
+
       let val1 = tween.update( 0.5 );
       assert_eq!( tween.state(), AnimationState::Running );
       assert_eq!( val1, 5.0 );
@@ -720,7 +798,7 @@ mod private
     {
       let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
       .with_delay( 0.5 );
-      
+
       // First update: still in delay
       let val1 = tween.update( 0.2 );
       assert_eq!( val1, 0.0 );
@@ -730,7 +808,7 @@ mod private
       let val2 = tween.update( 0.3 ); // 0.2 + 0.3 = 0.5 total elapsed time
       assert_eq!( tween.state(), AnimationState::Running );
       assert_eq!( val2, 0.0 ); // Since 0 remaining time for animation
-      
+
       // Third update: animates
       let val3 = tween.update( 0.5 );
       assert_eq!( tween.state(), AnimationState::Running );
@@ -743,17 +821,17 @@ mod private
       let mut tween = Tween::new( 0.0_f32, 10.0_f32, 2.0, Linear::new() );
       tween.update( 0.5 ); // Progress to 2.5
       assert_eq!( tween.get_current_value(), 2.5 );
-      
+
       tween.pause();
       assert_eq!( tween.state(), AnimationState::Paused );
-      
+
       let val = tween.update( 1.0 ); // Update while paused, value should not change
       assert_eq!( val, 2.5 );
       assert_eq!( tween.state(), AnimationState::Paused );
-      
+
       tween.resume();
       assert_eq!( tween.state(), AnimationState::Running );
-      
+
       let val2 = tween.update( 1.5 ); // Update for remaining duration
       assert_eq!( val2, 10.0 );
       assert!( tween.is_completed() );
@@ -763,7 +841,7 @@ mod private
     fn test_tween_finite_repeat()
     {
       let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() ).with_repeat( 2 );
-      
+
       tween.update( 1.0 ); // First loop finishes
       assert!( !tween.is_completed() );
       assert_eq!( tween.current_repeat, 1 );
@@ -781,7 +859,7 @@ mod private
     {
       let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
       .with_repeat( -1 );
-      
+
       tween.update( 1.0 );
       assert!( !tween.is_completed() );
       assert_eq!( tween.current_repeat, 1 );
@@ -790,13 +868,13 @@ mod private
       assert!( !tween.is_completed() );
       assert_eq!( tween.current_repeat, 11 );
     }
-    
+
     #[ test ]
     fn test_tween_yoyo_with_repeat()
     {
       let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
       .with_repeat( 1 ).with_yoyo( true );
-      
+
       // First loop: 0.0 -> 10.0
       let val1 = tween.update( 0.5 );
       assert_eq!( val1, 5.0 );
@@ -823,7 +901,7 @@ mod private
       .repeat( 3 )
       .yoyo( true )
       .build();
-      
+
       assert_eq!( tween.start_value, 0.0 );
       assert_eq!( tween.end_value, 100.0 );
       assert_eq!( tween.duration, 2.0 );
@@ -839,7 +917,7 @@ mod private
       assert_eq!( simple_tween.start_value, 5.0 );
       assert_eq!( simple_tween.end_value, 15.0 );
       assert_eq!( simple_tween.duration, 2.0 );
-      
+
       let mut tween = simple_tween;
       let val = tween.update( 1.0 );
       assert_eq!( val, 10.0 );
