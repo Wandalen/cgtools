@@ -7,8 +7,28 @@ layout( location = 5 ) in vec2 uv_3;
 layout( location = 6 ) in vec2 uv_4;
 layout( location = 7 ) in vec4 color_0;
 layout( location = 8 ) in vec4 color_1;
-#ifdef USE_TANGENTS 
+#ifdef USE_TANGENTS
   layout( location = 9 ) in vec4 tangent;
+#endif
+#ifdef USE_SKINNING
+  #ifdef USE_JOINTS_0
+    layout( location = 10 ) in vec4 joints_0;
+  #endif
+  #ifdef USE_JOINTS_1
+    layout( location = 11 ) in vec4 joints_1;
+  #endif
+  #ifdef USE_JOINTS_2
+    layout( location = 12 ) in vec4 joints_2;
+  #endif
+  #ifdef USE_WEIGHTS_0
+    layout( location = 13 ) in vec4 weights_0;
+  #endif
+  #ifdef USE_WEIGHTS_1
+    layout( location = 14 ) in vec4 weights_1;
+  #endif
+  #ifdef USE_WEIGHTS_2
+    layout( location = 15 ) in vec4 weights_2;
+  #endif
 #endif
 
 uniform mat4x4 worldMatrix;
@@ -30,6 +50,66 @@ out vec4 vColor_1;
   out vec4 vTangent;
 #endif
 
+#ifdef USE_SKINNING
+  uniform sample2D inverseMatrices;
+  uniform vec2 inverseMatricesSize;
+
+  // Retrieves a 4x4 matrix from a texture.
+  //
+  // The texture is assumed to store matrices as a sequence of pixels,
+  // where each matrix is represented by four consecutive pixels (columns).
+  //
+  // @param i The index of the matrix to retrieve.
+  // @return The 4x4 matrix at the specified index.
+  //
+  mat4 get_matrix( int i )
+  {
+    int x_base = ( i * 4 ) % int( inverseMatricesSize.x );
+    int y_base = ( i * 4 ) / int( inverseMatricesSize.x );
+
+    vec4 col0 = texelFetch( inverseMatrices, ivec2( x_base,     y_base ), 0 );
+    vec4 col1 = texelFetch( inverseMatrices, ivec2( x_base + 1, y_base ), 0 );
+    vec4 col2 = texelFetch( inverseMatrices, ivec2( x_base + 2, y_base ), 0 );
+    vec4 col3 = texelFetch( inverseMatrices, ivec2( x_base + 3, y_base ), 0 );
+
+    return mat4( col0, col1, col2, col3 );
+  }
+
+  mat4 skin_matrix( vec4 joints, vec4 weights )
+  {
+    mat4 skinMatrix = weights.x * get_matrix( int( joints.x ) ) +
+    weights.y * get_matrix( int( joints.y ) ) +
+    weights.z * get_matrix( int( joints.z ) ) +
+    weights.w * get_matrix( int( joints.w ) );
+
+    return skinMatrix;
+  }
+
+  mat4 skinning()
+  {
+    mat4 skinMatrix = mat4( 0.0 );
+
+    #if defined( USE_JOINTS_0 ) && defined( USE_WEIGHTS_0 )
+      skinMatrix += skin_matrix( joints_0, weights_0 );
+    #endif
+
+    #if defined( USE_JOINTS_1 ) && defined( USE_WEIGHTS_1 )
+      skinMatrix += skin_matrix( joints_1, weights_1 );
+    #endif
+
+    #if defined( USE_JOINTS_2 ) && defined( USE_WEIGHTS_2 )
+      skinMatrix += skin_matrix( joints_2, weights_2 );
+    #endif
+
+    if skinMatrix == mat4( 0.0 )
+    {
+      skinMatrix = mat4( 1.0 );
+    }
+
+    return skinMatrix;
+  }
+#endif
+
 void main()
 {
   vUv_0 = uv_0;
@@ -48,8 +128,14 @@ void main()
   //vNormal = normalize( mat3x3( worldMatrix ) * normal );
   //vNormal = normal;
 
-  vec4 worldPos = worldMatrix * vec4( position, 1.0 );
-  //vec4 worldPos = vec4( position * 1e-2, 1.0 );
+  vec4 position = vec4( position, 1.0 );
+
+  #ifdef USE_SKINNING
+    mat4 skinMatrix = skinning();
+    position = skinMatrix * position;
+  #endif
+
+  vec4 worldPos = worldMatrix * position;
   vec4 viewPos = viewMatrix * worldPos;
 
   vViewPos = viewPos.xyz;
