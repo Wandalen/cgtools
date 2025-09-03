@@ -155,7 +155,7 @@ impl SvgRenderer
     (
       &format!
       (
-        r#"<polygon points="{}" fill="{}" stroke="{}" stroke-width="{}" transform="scale=({}) translate({}, {}) rotate({}) scale({}, {})"/>"#,
+        r#"<polygon points="{}" fill="{}" stroke="{}" stroke-width="{}" transform="scale({}) translate({}, {}) rotate({}) scale({}, {})"/>"#,
         points_str, fill, stroke, style.stroke_width, zoom,
         transform.position[ 0 ], transform.position[ 1 ],
         transform.rotation,
