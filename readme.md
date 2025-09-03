@@ -66,3 +66,9 @@ cd examples/minwebgl/trivial
 trunk serve --release
 ```
 
+## Testing
+Run the following command to test the entire project:
+```bash
+RUSTFLAGS="-D warnings" cargo nextest run --all-features && RUSTDOCFLAGS="-D warnings" cargo test --doc --all-features && cargo clippy --all-targets --all-features -- -D warnings
+```
+
