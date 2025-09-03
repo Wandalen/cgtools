@@ -8,7 +8,7 @@ mod_interface::mod_interface!
 {
   /// SVG backend adapter for static vector graphics output.
   #[ cfg( any( feature = "adapter-svg-basic", feature = "adapter-svg" ) ) ]
-  exposed use super::private::svg::SvgRenderer;
+  exposed use super::private::svg::{ SvgRenderer, GeometryStyle, ImageFormat };
 
   /// Interactive SVG-in-browser backend adapter with JavaScript interactivity.
   #[ cfg( any( feature = "adapter-svg-browser", feature = "adapter-svg" ) ) ]
