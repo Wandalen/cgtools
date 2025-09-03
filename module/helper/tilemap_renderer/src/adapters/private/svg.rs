@@ -134,8 +134,9 @@ impl SvgRenderer
     }
 
     transform.position[ 1 ] = -transform.position[ 1 ];
-    transform.position[ 0 ] += self.context.unwrap().width as f32 / 2.0;
-    transform.position[ 1 ] += self.context.unwrap().height as f32 / 2.0;
+    let ctx = self.context.unwrap();
+    transform.position[ 0 ] += ctx.viewport_offset.x + ctx.width as f32 / 2.0;
+    transform.position[ 1 ] += -ctx.viewport_offset.y + ctx.height as f32 / 2.0;
     transform.rotation = transform.rotation.to_degrees();
     let zoom = self.context.unwrap().viewport_scale;
     // Convert the vector of points into an SVG-compatible string
@@ -180,8 +181,9 @@ impl SvgRenderer
   pub fn render_image( &mut self, id : &str, mut transform : Transform2D )
   {
     transform.position[ 1 ] = -transform.position[ 1 ];
-    transform.position[ 0 ] += self.context.unwrap().width as f32 / 2.0;
-    transform.position[ 1 ] += self.context.unwrap().height as f32 / 2.0;
+    let ctx = self.context.unwrap();
+    transform.position[ 0 ] += ctx.viewport_offset.x + ctx.width as f32 / 2.0;
+    transform.position[ 1 ] += -ctx.viewport_offset.y + ctx.height as f32 / 2.0;
     transform.rotation = transform.rotation.to_degrees();
     let zoom = self.context.unwrap().viewport_scale;
     let ( width, height ) = self.images[ id ];
