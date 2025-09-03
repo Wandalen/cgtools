@@ -200,13 +200,15 @@ impl SvgRenderer
     let ( width, height ) = self.images[ id ];
     let s = format!
     (
-      "<g transform=\"scale({}) translate({}, {}) rotate({}) scale({}, {})\"><use href=\"#{id}\" width=\"{width}\" height=\"{height}\"/></g>",
+      "<g transform=\"scale({}) translate({}, {}) rotate({}) scale({}, {})\"><use href=\"#{id}\" x=\"-{}\" y=\"-{}\" width=\"{width}\" height=\"{height}\"/></g>",
       zoom,
       transform.position[ 0 ],
       transform.position[ 1 ],
       transform.rotation,
       transform.scale[ 0 ],
       transform.scale[ 1 ],
+      width / 2,
+      height / 2,
     );
 
     self.push_frame_content( &s );
