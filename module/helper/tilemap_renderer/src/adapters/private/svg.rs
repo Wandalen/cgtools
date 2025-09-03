@@ -125,7 +125,7 @@ impl SvgRenderer
   }
 
   #[ inline ]
-  pub fn render_geometry( &mut self, points : &[ [ f32; 2 ] ], mut transform : Transform2D, style : GeometryStyle )
+  pub fn render_geometry( &mut self, points : &[ f32 ], mut transform : Transform2D, style : GeometryStyle )
   {
     if points.len() < 3
     {
@@ -140,11 +140,12 @@ impl SvgRenderer
     transform.rotation = transform.rotation.to_degrees();
     let zoom = self.context.unwrap().viewport_scale;
     // Convert the vector of points into an SVG-compatible string
-    let points_str = points
-    .iter()
-    .map( | &[ x, y ] | format!( "{},{}", x, y ) )
-    .collect::< Vec< String > >()
-    .join( " " );
+    let mut points_str = String::with_capacity( points.len() * 2 );
+    for c in points.chunks_exact( 2 )
+    {
+      points_str.push_str( &format!( "{},{} ", c[ 0 ], c[ 1 ] ) );
+    }
+    points_str.pop();
 
     let fill = style.fill_color.map_or( "none".to_string(), | c | Self::color_to_svg( &c ) );
 
