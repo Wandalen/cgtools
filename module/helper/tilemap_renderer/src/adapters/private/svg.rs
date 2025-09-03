@@ -388,7 +388,7 @@ impl Renderer for SvgRenderer
     // Close SVG document
     // self.svg_content.push_str( "</svg>\n" );
 
-    // self.frame_active = false;
+    self.frame_active = false;
     return Ok( () );
   }
 
