@@ -399,15 +399,15 @@ impl Renderer for SvgRenderer
   #[ inline ]
   fn end_frame( &mut self ) -> core::result::Result< (), RenderError >
   {
-    if !self.frame_active
-    {
-      return Err( RenderError::RenderFailed( "No active frame".to_string() ) );
-    }
+    // if !self.frame_active
+    // {
+    //   return Err( RenderError::RenderFailed( "No active frame".to_string() ) );
+    // }
 
     // Close SVG document
     // self.svg_content.push_str( "</svg>\n" );
 
-    self.frame_active = false;
+    // self.frame_active = false;
     return Ok( () );
   }
 
@@ -418,10 +418,10 @@ impl Renderer for SvgRenderer
   #[ inline ]
   fn output( &self ) -> core::result::Result< Self::Output, RenderError >
   {
-    if self.frame_active
-    {
-      return Err( RenderError::OutputError( "Frame still active".to_string() ) );
-    }
+    // if self.frame_active
+    // {
+    //   return Err( RenderError::OutputError( "Frame still active".to_string() ) );
+    // }
 
     if !self.initialized
     {
