@@ -137,7 +137,7 @@ impl SvgRenderer
     transform.position[ 0 ] += self.context.unwrap().width as f32 / 2.0;
     transform.position[ 1 ] += self.context.unwrap().height as f32 / 2.0;
     transform.rotation = transform.rotation.to_degrees();
-
+    let zoom = self.context.unwrap().viewport_scale;
     // Convert the vector of points into an SVG-compatible string
     let points_str = points
     .iter()
@@ -153,9 +153,11 @@ impl SvgRenderer
     (
       &format!
       (
-        r#"<polygon points="{}" fill="{}" stroke="{}" stroke-width="{}" transform="translate({}, {}) rotate({}) scale({}, {})"/>"#,
-        points_str, fill, stroke, style.stroke_width, transform.scale[ 0 ], transform.scale[ 1 ], transform.rotation,
-        transform.position[ 0 ], transform.position[ 1 ]
+        r#"<polygon points="{}" fill="{}" stroke="{}" stroke-width="{}" transform="scale=({}) translate({}, {}) rotate({}) scale({}, {})"/>"#,
+        points_str, fill, stroke, style.stroke_width, zoom,
+        transform.position[ 0 ], transform.position[ 1 ],
+        transform.rotation,
+        transform.scale[ 0 ], transform.scale[ 1 ]
       )
     );
   }
@@ -180,12 +182,14 @@ impl SvgRenderer
     transform.position[ 0 ] += self.context.unwrap().width as f32 / 2.0;
     transform.position[ 1 ] += self.context.unwrap().height as f32 / 2.0;
     transform.rotation = transform.rotation.to_degrees();
+    let zoom = self.context.unwrap().viewport_scale;
     let ( width, height ) = self.images[ id ];
-    let el = format!
+    let s = format!
     (
-      r#"<g transform="translate({}, {}) rotate({}) scale({}, {})">
+      r#"<g transform="scale({}) translate({}, {}) rotate({}) scale({}, {})">
       <use href="{id} width="{width}" height="{height}"/>
       </g>"#,
+      zoom,
       transform.position[ 0 ],
       transform.position[ 1 ],
       transform.rotation,
@@ -193,7 +197,7 @@ impl SvgRenderer
       transform.scale[ 1 ],
     );
 
-    self.svg_content.push_str( &el );
+    self.svg_content.push_str( &s );
   }
 }
 
