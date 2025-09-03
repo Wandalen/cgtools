@@ -95,7 +95,10 @@ adapter-svg = [
   "adapter-svg-colors",
   "adapter-svg-fonts",
   "adapter-svg-paths",
+  "commands",
+  "ports",
   "dep:base64",
+  "dep:serde",
 ]
 
 adapter-svg-browser-dom = ["adapter-svg", "wasm-bindgen"]
