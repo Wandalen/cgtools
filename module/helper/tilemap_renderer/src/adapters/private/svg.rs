@@ -149,7 +149,7 @@ impl SvgRenderer
 
     let stroke = style.stroke_color.map_or( "none".to_string(), | c | Self::color_to_svg( &c ) );
 
-    self.svg_content.push_str
+    self.push_frame_content
     (
       &format!
       (
@@ -172,8 +172,9 @@ impl SvgRenderer
       </sybmbol></defs>"#,
       width / 2, height / 2, format.as_ref(), width / 2, height / 2
     );
-    self.svg_content.push_str( &def );
-    self.images.insert( id.to_string(), ( width, height ) );
+    let begin_index = self.svg_content.find( "<!--framebegin-->" ).expect( "Renderer is not initialized" );
+    self.svg_content.insert_str( begin_index, &def );
+    _ = self.images.insert( id.to_string(), ( width, height ) );
   }
 
   pub fn render_image( &mut self, id : &str, mut transform : Transform2D )
@@ -197,7 +198,21 @@ impl SvgRenderer
       transform.scale[ 1 ],
     );
 
-    self.svg_content.push_str( &s );
+    self.push_frame_content( &s );
+  }
+
+  fn push_frame_content( &mut self, s : &str )
+  {
+    let idx = self.svg_content.find( "<!--framebegin-->" ).expect( "Renderer is not initialized" );
+    self.svg_content.insert_str(idx + "<!--framebegin-->".len(), s );
+  }
+
+  pub fn clear( &mut self )
+  {
+    let begin_index = self.svg_content.find( "<!--framebegin-->" ).expect( "Renderer is not initialized" )
+    + "<!--framebegin-->".len();
+    let end_index = self.svg_content.find( "<!--frameend-->" ).expect( "Renderer is not initialized" );
+    self.svg_content.replace_range( begin_index..end_index, "" );
   }
 }
 
@@ -244,27 +259,8 @@ impl Renderer for SvgRenderer
 
     self.context = Some( context.clone() );
     self.initialized = true;
-    return Ok( () );
-  }
 
-  /// Begins a new rendering frame.
-  ///
-  /// # Errors
-  /// Returns `InvalidContext` if the context is invalid or `RenderFailed` if frame setup fails.
-  #[ inline ]
-  fn begin_frame( &mut self, context : &RenderContext ) -> core::result::Result< (), RenderError >
-  {
-    if !self.initialized
-    {
-      return Err( RenderError::InvalidContext( "SVG renderer not initialized".to_string() ) );
-    }
-
-    if self.frame_active
-    {
-      return Err( RenderError::RenderFailed( "Frame already active".to_string() ) );
-    }
-
-    self.context = Some( context.clone() );
+    // self.context = Some( context.clone() );
     self.frame_active = true;
     self.svg_content.clear();
 
@@ -290,6 +286,57 @@ impl Renderer for SvgRenderer
         )
       );
     }
+
+    self.svg_content.push_str( "<!--framebegin--><!--frameend-->" );
+    self.svg_content.push_str( "</svg>\n" );
+    // self.svg_content.push_str( "" );
+
+    return Ok( () );
+  }
+
+  /// Begins a new rendering frame.
+  ///
+  /// # Errors
+  /// Returns `InvalidContext` if the context is invalid or `RenderFailed` if frame setup fails.
+  #[ inline ]
+  fn begin_frame( &mut self, context : &RenderContext ) -> core::result::Result< (), RenderError >
+  {
+    // if !self.initialized
+    // {
+    //   return Err( RenderError::InvalidContext( "SVG renderer not initialized".to_string() ) );
+    // }
+
+    // if self.frame_active
+    // {
+    //   return Err( RenderError::RenderFailed( "Frame already active".to_string() ) );
+    // }
+
+    // self.context = Some( context.clone() );
+    // self.frame_active = true;
+    // self.svg_content.clear();
+
+    // // Start SVG document
+    // self.svg_content.push_str
+    // (
+    //   &format!
+    //   (
+    //     r#"<?xml version="1.0" encoding="UTF-8"?> <svg width="{}" height="{}" viewBox="0 0 {} {}" xmlns="http://www.w3.org/2000/svg">"#,
+    //     context.width, context.height, context.width, context.height
+    //   )
+    // );
+
+    // // Add background if needed
+    // if context.clear_background
+    // {
+    //   let bg_color = Self::color_to_svg( &context.background_color );
+    //   self.svg_content.push_str
+    //   (
+    //     &format!
+    //     (
+    //       r#"<rect width="100%" height="100%" fill="{bg_color}"/>"#
+    //     )
+    //   );
+    // }
 
     return Ok( () );
   }
@@ -338,9 +385,9 @@ impl Renderer for SvgRenderer
     }
 
     // Close SVG document
-    self.svg_content.push_str( "</svg>\n" );
+    // self.svg_content.push_str( "</svg>\n" );
 
-    self.frame_active = false;
+    // self.frame_active = false;
     return Ok( () );
   }
 
@@ -404,9 +451,8 @@ impl PrimitiveRenderer for SvgRenderer
     let line_cap = Self::line_cap_to_svg( command.style.cap_style );
     let line_join = Self::line_join_to_svg( command.style.join_style );
 
-    self.svg_content.push_str( &format!(
-      r#"  <line x1="{}" y1="{}" x2="{}" y2="{}" stroke="{}" stroke-width="{}" stroke-linecap="{}" stroke-linejoin="{}"/>
-"#,
+    self.push_frame_content( &format!(
+      r#"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="{}" stroke-width="{}" stroke-linecap="{}" stroke-linejoin="{}"/>"#,
       command.start.x, command.start.y,
       command.end.x, command.end.y,
       stroke_color, command.style.width,
@@ -436,12 +482,15 @@ impl PrimitiveRenderer for SvgRenderer
       command.end.x, command.end.y
     );
 
-    self.svg_content.push_str( &format!(
-      r#"  <path d="{}" fill="none" stroke="{}" stroke-width="{}" stroke-linecap="{}" stroke-linejoin="{}"/>
-"#,
-      path_data, stroke_color, command.style.width,
-      line_cap, line_join
-    ) );
+    self.push_frame_content
+    (
+      &format!
+      (
+        r#"<path d="{}" fill="none" stroke="{}" stroke-width="{}" stroke-linecap="{}" stroke-linejoin="{}"/>"#,
+        path_data, stroke_color, command.style.width,
+        line_cap, line_join
+      )
+    );
 
     return Ok( () );
   }
@@ -472,9 +521,8 @@ impl PrimitiveRenderer for SvgRenderer
       TextAnchor::BottomLeft | TextAnchor::BottomCenter | TextAnchor::BottomRight => "baseline",
     };
 
-    self.svg_content.push_str( &format!(
-      r#"  <text x="{}" y="{}" font-family="{}" font-size="{}" fill="{}" text-anchor="{}" dominant-baseline="{}">{}</text>
-"#,
+    self.push_frame_content( &format!(
+      r#"<text x="{}" y="{}" font-family="{}" font-size="{}" fill="{}" text-anchor="{}" dominant-baseline="{}">{}</text>"#,
       command.position.x, command.position.y,
       Self::resolve_font_family( command.font_style.family_id ), command.font_style.size,
       fill_color, text_anchor, dominant_baseline,
