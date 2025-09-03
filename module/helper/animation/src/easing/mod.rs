@@ -42,9 +42,9 @@ mod private
     fn test_linear_function()
     {
       // Linear easing should return the input value directly
-      assert_eq!( Linear::new().apply( 0.5 ), 0.5 );
-      assert_eq!( Linear::new().apply( 0.0 ), 0.0 );
-      assert_eq!( Linear::new().apply( 1.0 ), 1.0 );
+      assert_eq!( Linear::new().apply( 0.0, 1.0, 0.5 ), 0.5 );
+      assert_eq!( Linear::new().apply( 0.0, 1.0, 0.0 ), 0.0 );
+      assert_eq!( Linear::new().apply( 0.0, 1.0, 1.0 ), 1.0 );
     }
 
     #[ test ]
@@ -52,13 +52,13 @@ mod private
     {
       // Step easing should progress in discrete steps
       let step_func = Step::new( 5.0 );
-      assert_eq!( step_func.apply( 0.0 ), 0.0 );
-      assert_eq!( step_func.apply( 0.01 ), 0.2 );
-      assert_eq!( step_func.apply( 0.2 ), 0.2 );
-      assert_eq!( step_func.apply( 0.21 ), 0.4 );
-      assert_eq!( step_func.apply( 0.4 ), 0.4 );
-      assert_eq!( step_func.apply( 0.81 ), 1.0 );
-      assert_eq!( step_func.apply( 1.0 ), 1.0 );
+      assert_eq!( step_func.apply( 0.0, 1.0, 0.0 ), 0.0 );
+      assert_eq!( step_func.apply( 0.0, 1.0, 0.01 ), 0.2 );
+      assert_eq!( step_func.apply( 0.0, 1.0, 0.2 ), 0.2 );
+      assert_eq!( step_func.apply( 0.0, 1.0, 0.21 ), 0.4 );
+      assert_eq!( step_func.apply( 0.0, 1.0, 0.4 ), 0.4 );
+      assert_eq!( step_func.apply( 0.0, 1.0, 0.81 ), 1.0 );
+      assert_eq!( step_func.apply( 0.0, 1.0, 1.0 ), 1.0 );
     }
 
     #[ test ]
@@ -96,8 +96,8 @@ mod private
       // All cubic functions should return 0.0 at t = 0.0 and 1.0 at t = 1.0
       for easing_function in cubic_functions
       {
-        assert_eq!( easing_function.apply( 0.0 ), 0.0, "{:?} should start at 0.0", easing_function );
-        assert_eq!( easing_function.apply( 1.0 ), 1.0, "{:?} should end at 1.0", easing_function );
+        assert_eq!( easing_function.apply( 0.0, 1.0, 0.0 ), 0.0, "{:?} should start at 0.0", easing_function );
+        assert_eq!( easing_function.apply( 0.0, 1.0, 1.0 ), 1.0, "{:?} should end at 1.0", easing_function );
       }
     }
 
@@ -105,20 +105,20 @@ mod private
     fn test_back_easing_overshoot()
     {
       // Back easing functions should have values outside the [ 0.0, 1.0 ] range
-      assert!( EaseInBack::new().apply( 0.1 ) < 0.0 );
-      assert!( EaseOutBack::new().apply( 0.9 ) > 1.0 );
-      assert!( EaseInOutBack::new().apply( 0.1 ) < 0.0 );
-      assert!( EaseInOutBack::new().apply( 0.9 ) > 1.0 );
+      assert!( EaseInBack::new().apply( 0.0, 1.0, 0.1 ) < 0.0 );
+      assert!( EaseOutBack::new().apply( 0.0, 1.0, 0.9 ) > 1.0 );
+      assert!( EaseInOutBack::new().apply( 0.0, 1.0, 0.1 ) < 0.0 );
+      assert!( EaseInOutBack::new().apply( 0.0, 1.0, 0.9 ) > 1.0 );
     }
 
     #[ test ]
     fn test_specific_easing_behaviors()
     {
       // EaseInQuad should be slower than linear at the start
-      assert!( EaseInQuad::new().apply( 0.2 ) < Linear::new().apply( 0.2 ) );
+      assert!( EaseInQuad::new().apply( 0.0, 1.0, 0.2 ) < Linear::new().apply( 0.0, 1.0, 0.2 ) );
 
       // EaseOutQuad should be faster than linear at the start
-      assert!( EaseOutQuad::new().apply( 0.2 ) > Linear::new().apply( 0.2 ) );
+      assert!( EaseOutQuad::new().apply( 0.0, 1.0, 0.2 ) > Linear::new().apply( 0.0, 1.0, 0.2 ) );
     }
   }
 }

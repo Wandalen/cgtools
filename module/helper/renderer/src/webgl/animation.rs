@@ -278,7 +278,7 @@ mod private
       let out_tangent = QuatF32::from( out_tangent );
       let r1 = last_value.unwrap_or( r2 );
 
-      let easing = Squad::new( r1, r2, in_tangent, out_tangent );
+      let easing = Squad::new( in_tangent, out_tangent );
 
       last_time = Some( t2 );
       last_value = Some( r2 );
@@ -326,46 +326,26 @@ mod private
       {
         continue;
       };
-
+      let m1 = F32x3::from_array( [ mx1, my1, mz1 ] );
+      let m2 = F32x3::from_array( [ mx2, my2, mz2 ] );
+      let v2 = F32x3::from_array( [ x2, y2, z2 ] );
       let t1 = last_time.unwrap_or( t2 );
-      let [ x1, y1, z1 ] = last_value.unwrap_or( [ x2, y2, z2 ] );
+      let v1 = last_value
+      .unwrap_or( v2 );
 
       let easing : Vec< Box< dyn EasingFunction > > = match sampler.interpolation()
       {
-        Interpolation::Linear =>
-        {
-          vec![ Linear::new(), Linear::new(), Linear::new() ]
-        },
-        Interpolation::Step =>
-        {
-          vec!
-          [
-            Box::new( Step::new( 1 ) ),
-            Box::new( Step::new( 1 ) ),
-            Box::new( Step::new( 1 ) )
-          ]
-        }
-        Interpolation::CubicSpline =>
-        {
-          vec!
-          [
-            Box::new( CubicHermite::new( t1, x1, mx1, t2, x2, mx2 ).into::< CubicBezier >() ),
-            Box::new( CubicHermite::new( t1, y1, my1, t2, y2, my2 ).into::< CubicBezier >() ),
-            Box::new( CubicHermite::new( t1, z1, mz1, t2, z2, mz2 ).into::< CubicBezier >() )
-          ]
-        }
+        Interpolation::Linear => Linear::new(),
+        Interpolation::Step => Box::new( Step::new( 1 ) ),
+        Interpolation::CubicSpline => Box::new( CubicHermite::new( m1, m2 ) ),
       };
 
       last_time = Some( t2 );
-      last_value = Some( [ x2, y2, z2 ] );
+      last_value = Some( v2 );
       let duration = t2 - t1;
       let delay = t1;
-      let tween =
-      [
-        Tween::new( x1, x2, duration, easing[ 0 ] ).with_delay( delay ),
-        Tween::new( y1, y2, duration, easing[ 1 ] ).with_delay( delay ),
-        Tween::new( z1, z2, duration, easing[ 2 ] ).with_delay( delay ),
-      ];
+      let tween = Tween::new( v1, v2, duration, easing )
+      .with_delay( delay );
       tweens.push( tween );
     }
 

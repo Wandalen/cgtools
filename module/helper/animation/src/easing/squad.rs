@@ -1,6 +1,6 @@
 mod private
 {
-  use mingl::QuatF32;
+  use mingl::{ NdFloat, Quat, MatEl };
   use crate::easing::base::
   {
     EasingFunction
@@ -9,47 +9,48 @@ mod private
   /// A quaternion interpolation easing function.
   #[ non_exhaustive ]
   #[ derive( Debug ) ]
-  pub struct Squad
+  pub struct Squad< E >
+  where
+    E : MatEl + core::fmt::Debug + std::marker::Copy + std::default::Default
   {
-    start : QuatF32,
-    end : QuatF32,
-    in_tangent : QuatF32,
-    out_tangent : QuatF32
+    in_tangent : Quat< E >,
+    out_tangent : Quat< E >
   }
 
-  impl Squad
+  impl< E > Squad< E >
+  where
+    E : MatEl + core::fmt::Debug + std::marker::Copy + std::default::Default
   {
     /// Creates a new `Squad` easing function with tangent quaternions.
     pub fn new
     (
-      start : QuatF32,
-      end : QuatF32,
-      in_tangent : QuatF32,
-      out_tangent : QuatF32
+      in_tangent : Quat< E >,
+      out_tangent : Quat< E >
     ) -> Self
     {
       Self
       {
-        start,
-        end,
         in_tangent,
         out_tangent
       }
     }
   }
 
-  impl EasingFunction for Squad
+  impl< E > EasingFunction for Squad< E >
+  where
+    E : MatEl + core::fmt::Debug + std::marker::Copy + std::default::Default + NdFloat
   {
-    type EasingMethod = Hermite;
+    type AnimatableType = Quat< E >;
 
-    fn apply( &self, time : f32 ) -> f32
+    fn apply( &self, start : Quat< E >, end : Quat< E >, time : f32 ) -> Quat< E >
     {
-      let b_start = self.start.slerp( &self.out_tangent, 1.0 / 3.0 );
-      let b_end = self.end.slerp( &self.in_tangent, 1.0 / 3.0 );
-      let slerp1 = self.start.slerp( &self.end, time );
-      let slerp2 = b_start.slerp( &b_end, time );
+      let t = E::from( time ).unwrap();
+      let b_start = start.slerp( &self.out_tangent, E::from( 1.0 / 3.0 ).unwrap() );
+      let b_end = end.slerp( &self.in_tangent, E::from( 1.0 / 3.0 ).unwrap() );
+      let slerp1 = start.slerp( &end, t );
+      let slerp2 = b_start.slerp( &b_end, t );
 
-      slerp1.slerp( &slerp2, 2.0 * time * ( 1.0 - time ) )
+      slerp1.slerp( &slerp2, E::from( 2.0 * time * ( 1.0 - time ) ).unwrap() )
     }
   }
 }

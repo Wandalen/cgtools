@@ -1,57 +1,58 @@
 mod private
 {
   use crate::easing::base::EasingFunction;
+  use mingl::{ MatEl, Vector, Mul, NdFloat };
 
   /// Hermite spline implementation for interpolation
   #[ derive( Debug ) ]
-  pub struct CubicHermite
+  pub struct CubicHermite< E, const N : usize >
+  where E : MatEl + std::default::Default + std::marker::Copy
   {
-    /// Value start
-    pub v1 : f32,
     /// Tangent start
-    pub m1 : f32,
-    /// Value end
-    pub v2 : f32,
+    pub m1 : Vector< E, N >,
     /// Tangent end
-    pub m2 : f32
+    pub m2 : Vector< E, N >
   }
 
-  impl CubicHermite
+  impl< E, const N : usize > CubicHermite< E, N >
+  where E : MatEl + std::default::Default + std::marker::Copy
   {
     /// [`CubicHermite`] constructor
     pub fn new
     (
-      v1 : f32,
-      m1 : f32,
-      v2 : f32,
-      m2 : f32
+      m1 : Vector<E, N >,
+      m2 : Vector<E, N >
     )
     -> Self
     {
       Self
       {
-        v1,
         m1,
-        v2,
         m2
       }
     }
   }
 
-  impl EasingFunction for CubicHermite
+  impl< E, const N : usize > EasingFunction for CubicHermite< E, N >
+  where
+    E : MatEl +
+    std::default::Default +
+    std::marker::Copy +
+    Mul< Vector< E, N >, Output = Vector< E, N > > +
+    NdFloat
   {
-    type EasingMethod = Hermite;
+    type AnimatableType = Vector< E, N >;
 
-    fn apply( &self, time : f32 ) -> f32
+    fn apply( &self, start : Vector< E, N >, end : Vector< E, N >, time : f32 ) -> Vector< E, N >
     {
       let t = time;
       let t2 = t * t;
       let t3 = t2 * t;
 
-      ( 2 * t3 - 3 * t2 + 1 ) * self.v1 +
-      ( t3 - 2 * t2 + t ) * self.m1 +
-      ( -2 * t3 + 3 * t2 ) * self.v2 +
-      ( t3 - t2 ) * self.m2
+      Vector::splat( E::from( 2.0 * t3 - 3.0 * t2 + 1.0 ).unwrap() ) * start +
+      Vector::splat( E::from( t3 - 2.0 * t2 + t ).unwrap() ) * self.m1 +
+      Vector::splat( E::from( -2.0 * t3 + 3.0 * t2 ).unwrap() ) * end +
+      Vector::splat( E::from( t3 - t2 ).unwrap() ) * self.m2
     }
   }
 }

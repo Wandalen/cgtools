@@ -1,5 +1,9 @@
 mod private
 {
+    use std::marker::PhantomData;
+
+    use crate::Animatable;
+
 
   /// A trait for all easing functions.
   ///
@@ -8,23 +12,25 @@ mod private
   ///
   pub trait EasingFunction : core::fmt::Debug
   {
-    ///
-    type EasingMethod;
+    type AnimatableType;
     /// Applies the easing function to a given value `t`.
     ///
     /// The input `t` should be a value in the range [ 0.0, 1.0 ].
-    fn apply( &self, time : f32 ) -> f32;
+    fn apply
+    (
+      &self,
+      start : Self::AnimatableType,
+      end : Self::AnimatableType,
+      time : f32
+    )
+    -> Self::AnimatableType;
   }
 
-  /// Easing interpolation method that uses two endpoints and tangent vectors
-  pub struct Hermite;
-
-  /// Easing interpolation method that uses control points
-  pub struct Bezier;
-
   /// A trait for a builder of new easing function instance.
-  pub trait EasingBuilder< T >
-  where T : EasingFunction
+  pub trait EasingBuilder< T, A >
+  where
+    T : EasingFunction< AnimatableType = A >,
+    A : Animatable,
   {
     /// Creates a new `Box` containing an instance of the easing function.
     fn new() -> Box< T >;
@@ -45,9 +51,10 @@ mod private
       /// This struct provides a way to create a boxed instance of the
       /// associated easing function.
       #[ non_exhaustive ]
-      pub struct $builder_ty;
+      pub struct $builder_ty< A >( PhantomData< A > );
 
-      impl EasingBuilder< $function_ty > for $builder_ty
+      impl< A > EasingBuilder< $function_ty, A > for $builder_ty< A >
+      where A : Animatable
       {
         /// Creates a new `Box` containing an instance of the easing function.
         fn new() -> Box< $function_ty >
@@ -63,23 +70,25 @@ mod private
   /// The value returned is the same as the input `t`.
   #[ non_exhaustive ]
   #[ derive( Debug ) ]
-  pub struct Linear;
+  pub struct Linear< A >( PhantomData< A > ) where A : Animatable;
 
-  impl EasingFunction for Linear
+  impl< A > EasingFunction for Linear< A >
+  where A : Animatable
   {
-    type EasingMethod = Bezier;
+    type AnimatableType = A;
 
-    fn apply( &self, time : f32 ) -> f32
+    fn apply( &self, start : Self::AnimatableType, end : Self::AnimatableType, time : f32 ) -> Self::AnimatableType
     {
-      time
+      start.interpolate( &end, time )
     }
   }
 
-  impl EasingBuilder< Linear > for Linear
+  impl< A > EasingBuilder< Linear< A >, A > for Linear< A >
+  where A : Animatable
   {
-    fn new() -> Box< Linear >
+    fn new() -> Box< Linear< A > >
     {
-      Box::new( Linear )
+      Box::new( Linear( PhantomData ) )
     }
   }
 
@@ -88,30 +97,39 @@ mod private
   /// The output value progresses in discrete steps instead of a smooth gradient.
   #[ non_exhaustive ]
   #[ derive( Debug ) ]
-  pub struct Step
+  pub struct Step< A >
+  where
+    A : Animatable,
   {
-    steps : f32
+    steps : f32,
+    _marker : PhantomData< A >
   }
 
-  impl Step
+  impl< A > Step< A >
+  where
+    A : Animatable,
   {
     /// Init [`Step`] easing function
     pub fn new( steps : f32 ) -> Self
     {
       Self
       {
-        steps
+        steps,
+        _marker : PhantomData
       }
     }
   }
 
-  impl EasingFunction for Step
+  impl< A > EasingFunction for Step< A >
+  where
+    A : Animatable,
   {
-    type EasingMethod = Bezier;
+    type AnimatableType = A;
 
-    fn apply( &self, time : f32 ) -> f32
+    fn apply( &self, start : Self::AnimatableType, end : Self::AnimatableType, time : f32 ) -> Self::AnimatableType
     {
-      ( time * self.steps ).ceil() / self.steps
+      let time = ( time * self.steps ).ceil() / self.steps;
+      start.interpolate( &end, time )
     }
   }
 }
@@ -123,8 +141,6 @@ crate::mod_interface!
     EasingBuilder,
     EasingFunction,
     Linear,
-    Step,
-    Hermite,
-    Bezier
+    Step
   };
 }
