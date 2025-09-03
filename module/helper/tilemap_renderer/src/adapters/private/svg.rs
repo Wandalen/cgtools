@@ -202,8 +202,8 @@ impl SvgRenderer
 
   fn push_frame_content( &mut self, s : &str )
   {
-    let idx = self.svg_content.find( "<!--framebegin-->" ).expect( "Renderer is not initialized" );
-    self.svg_content.insert_str(idx + "<!--framebegin-->".len(), s );
+    let idx = self.svg_content.find( "<!--frameend-->" ).expect( "Renderer is not initialized" );
+    self.svg_content.insert_str( idx, s );
   }
 
   pub fn clear( &mut self )
