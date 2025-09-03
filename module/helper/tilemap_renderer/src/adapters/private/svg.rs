@@ -553,7 +553,7 @@ impl PrimitiveRenderer for SvgRenderer
   }
 }
 
-#[ derive( Debug, Clone ) ]
+#[ derive( Debug, Clone, Copy ) ]
 pub struct GeometryStyle
 {
   pub fill_color : Option< [ f32; 4 ] >,
