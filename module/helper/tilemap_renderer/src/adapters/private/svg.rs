@@ -169,9 +169,7 @@ impl SvgRenderer
     let img = base64::prelude::BASE64_STANDARD.encode( bytes );
     let def = format!
     (
-      r#"<defs><symbol id="{id}" viewBox="-{} -{} {width} {height}">
-      <image href="data:image/{};base64,{img}" x="-{}" y="-{}" width="{width}" height="{height}"/>
-      </sybmbol></defs>"#,
+      r#"<defs><symbol id="{id}" viewBox="-{} -{} {width} {height}"><image href="data:image/{};base64,{img}" x="-{}" y="-{}" width="{width}" height="{height}"/></symbol></defs>"#,
       width / 2, height / 2, format.as_ref(), width / 2, height / 2
     );
     let begin_index = self.svg_content.find( "<!--framebegin-->" ).expect( "Renderer is not initialized" );
