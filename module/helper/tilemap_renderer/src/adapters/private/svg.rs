@@ -64,6 +64,13 @@ impl SvgRenderer
     };
   }
 
+  #[ inline ]
+  /// Returns render context
+  pub const fn context( &self ) -> Option< &RenderContext >
+  {
+    self.context.as_ref()
+  }
+
   /// Converts a color array to SVG color string.
   #[ inline ]
   fn color_to_svg( color : &[ f32; 4 ] ) -> String
