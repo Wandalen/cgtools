@@ -8,7 +8,6 @@ mod private
       EasingFunction,
       EasingBuilder,
     },
-    cubic::CubicHermite
   };
 
   /// Represents a cubic Bezier curve easing function.
@@ -72,6 +71,8 @@ mod private
 
   impl EasingFunction for CubicBezier
   {
+    type EasingMethod = Bezier;
+
     fn apply( &self, time : f32 ) -> f32
     {
       if time <= 0.0
@@ -98,38 +99,6 @@ mod private
       }
 
       self.get_y( bezier_t )
-    }
-  }
-
-  impl From< CubicHermite > for CubicBezier
-  {
-    fn from( hermite : CubicHermite ) -> Self
-    {
-      let duration = hermite.t2 - hermite.t1;
-      let value_change = hermite.v2 - hermite.v1;
-
-      let x1 = 1.0 / 3.0;
-      let x2 = 2.0 / 3.0;
-
-      let y1 = if value_change == 0.0
-      {
-        0.0
-      }
-      else
-      {
-        ( hermite.m2 * duration ) / ( value_change * 3.0 )
-      };
-
-      let y2 = if value_change == 0.0
-      {
-        1.0
-      }
-      else
-      {
-        1.0 - ( hermite.m1 * duration ) / ( value_change * 3.0 )
-      };
-
-      Self::new( [ x1, y1, x2, y2  ] )
     }
   }
 

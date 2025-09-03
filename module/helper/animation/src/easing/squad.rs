@@ -40,6 +40,8 @@ mod private
 
   impl EasingFunction for Squad
   {
+    type EasingMethod = Hermite;
+
     fn apply( &self, time : f32 ) -> f32
     {
       let b_start = self.start.slerp( &self.out_tangent, 1.0 / 3.0 );

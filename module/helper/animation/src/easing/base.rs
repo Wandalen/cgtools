@@ -6,14 +6,21 @@ mod private
   /// An easing function takes a value `t` between 0.0 and 1.0 and
   /// transforms it to a new value, usually for animation purposes.
   ///
-  // #[ derive( Debug, Clone, Copy, PartialEq ) ]
   pub trait EasingFunction : core::fmt::Debug
   {
+    ///
+    type EasingMethod;
     /// Applies the easing function to a given value `t`.
     ///
     /// The input `t` should be a value in the range [ 0.0, 1.0 ].
     fn apply( &self, time : f32 ) -> f32;
   }
+
+  /// Easing interpolation method that uses two endpoints and tangent vectors
+  pub struct Hermite;
+
+  /// Easing interpolation method that uses control points
+  pub struct Bezier;
 
   /// A trait for a builder of new easing function instance.
   pub trait EasingBuilder< T >
@@ -60,6 +67,8 @@ mod private
 
   impl EasingFunction for Linear
   {
+    type EasingMethod = Bezier;
+
     fn apply( &self, time : f32 ) -> f32
     {
       time
@@ -98,6 +107,8 @@ mod private
 
   impl EasingFunction for Step
   {
+    type EasingMethod = Bezier;
+
     fn apply( &self, time : f32 ) -> f32
     {
       ( time * self.steps ).ceil() / self.steps
@@ -112,6 +123,8 @@ crate::mod_interface!
     EasingBuilder,
     EasingFunction,
     Linear,
-    Step
+    Step,
+    Hermite,
+    Bezier
   };
 }
