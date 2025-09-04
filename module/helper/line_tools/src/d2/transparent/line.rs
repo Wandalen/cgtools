@@ -206,7 +206,7 @@ mod private
     /// Updates the mesh's WebGL resources if any part of the line has changed.
     pub fn mesh_update( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
-      let mesh = self.mesh.as_mut().expect( "Mesh has not been created yet" );
+      let mesh = self.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
 
       if self.points_changed
       {
@@ -309,7 +309,9 @@ mod private
         .shader_type( gl::VERTEX_SHADER )
         .source( vertex_shader )
         .compile( &gl )?;
-        let join_program = gl::ProgramShaders::new( &vertex_shader, j_program.fragment_shader.as_ref().expect( "Fragment shader has not been set" ) ).link( &gl )?;
+        let join_program = gl::ProgramShaders::new( &vertex_shader, j_program.fragment_shader.as_ref()
+        .ok_or( gl::WebglError::Other( "Fragment shader has not been set" ) )? )
+        .link( &gl )?;
         j_program.uniforms_copy_to( gl, &join_program )?;
 
         let j_program = mesh.program_get_mut( "join" );
@@ -373,7 +375,9 @@ mod private
         .shader_type( gl::VERTEX_SHADER )
         .source( vertex_shader )
         .compile( &gl )?;
-        let cap_program = gl::ProgramShaders::new( &vertex_shader, c_program.fragment_shader.as_ref().expect( "Fragment shader has not been set" ) ).link( &gl )?;
+        let cap_program = gl::ProgramShaders::new( &vertex_shader, c_program.fragment_shader.as_ref()
+        .ok_or( gl::WebglError::Other( "Fragment shader has not been set" ) )? )
+        .link( &gl )?;
         mesh.program_get( "join" ).uniforms_copy_to( gl, &cap_program )?;
         c_program.uniforms_copy_to( gl, &cap_program )?;
 
@@ -404,7 +408,7 @@ mod private
     {
 
       self.mesh_update( gl )?;
-      let mesh = self.mesh.as_ref().expect( "Mesh has not been created yet" );
+      let mesh = self.mesh.as_ref().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
 
       if self.points.len() > 1
       {
@@ -422,15 +426,15 @@ mod private
     }
 
     /// Returns a reference to the internal mesh.
-    pub fn mesh_get( &self ) -> &Mesh
+    pub fn mesh_get( &self ) -> Result< &Mesh, gl::WebglError >
     {
-      self.mesh.as_ref().expect( "Mesh has not been created yet" )
+      self.mesh.as_ref().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )
     }   
 
     /// Returns a mutable reference to the internal mesh.
-    pub fn mesh_get_mut( &mut self ) -> &mut Mesh
+    pub fn mesh_get_mut( &mut self ) -> Result< &mut Mesh, gl::WebglError >
     {
-      self.mesh.as_mut().expect( "Mesh has not been created yet" )
+      self.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )
     } 
 
     /// Returns a slice of the line's points.
