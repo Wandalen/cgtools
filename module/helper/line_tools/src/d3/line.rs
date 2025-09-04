@@ -51,11 +51,11 @@ mod private
 
       let ( vertices, indices, uvs ) = helpers::four_piece_rectangle_geometry();
 
-      let points_buffer = gl.create_buffer().expect( "Failed to create a buffer" );
-      let position_buffer = gl.create_buffer().expect( "Failed to create a position_buffer" );
-      let index_buffer = gl.create_buffer().expect( "Failed to create a index_buffer" );
-      let uv_buffer = gl.create_buffer().expect( "Failed to create a uv_buffer" );
-      let color_buffer = gl.create_buffer().expect( "Failed to create a color_buffer" );
+      let points_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to points_buffer" ) )?;
+      let position_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to position_buffer" ) )?;
+      let index_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to index_buffer" ) )?;
+      let uv_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to uv_buffer" ) )?;
+      let color_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to color_buffer" ) )?;
 
       gl::buffer::upload( gl, &position_buffer, &vertices.iter().copied().flatten().collect::< Vec< f32 > >(), gl::STATIC_DRAW );
       gl::buffer::upload( gl, &uv_buffer, &uvs.iter().copied().flatten().collect::< Vec< f32 > >(), gl::STATIC_DRAW );
