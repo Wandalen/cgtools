@@ -206,6 +206,72 @@ mod private
     /// Updates the mesh's WebGL resources if any part of the line has changed.
     pub fn mesh_update( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
+      self.points_change( gl )?;
+      self.join_change( gl )?;
+      self.cap_change( gl )?;
+
+      gl.bind_buffer( gl::ARRAY_BUFFER, None );
+      gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, None );
+
+      Ok( () )
+    }
+
+    /// Update the line and draw it if it has more than one point.
+    pub fn draw( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
+    {
+
+      self.mesh_update( gl )?;
+      let mesh = self.mesh.as_ref().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
+
+      if self.points.len() > 1
+      {
+        mesh.draw( gl, "cap" );
+        mesh.draw( gl, "body_terminal" );
+      }
+      
+      if self.points.len() > 2
+      {
+        mesh.draw( gl, "body" );
+        mesh.draw( gl, "join" );
+      }
+
+      Ok( () )
+    }
+
+    /// Returns a reference to the internal mesh.
+    pub fn mesh_get( &self ) -> Result< &Mesh, gl::WebglError >
+    {
+      self.mesh.as_ref().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )
+    }   
+
+    /// Returns a mutable reference to the internal mesh.
+    pub fn mesh_get_mut( &mut self ) -> Result< &mut Mesh, gl::WebglError >
+    {
+      self.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )
+    } 
+
+    /// Returns a slice of the line's points.
+    pub fn points_get( &self ) -> &[ math::F32x2 ]
+    {
+      &self.points
+    }
+
+    fn recalculate_distances( &mut self )
+    {
+      self.total_distance = 0.0;
+      self.distances.clear();
+      self.distances.push( 0.0 );
+      for i in 1..self.points.len()
+      {
+        let point = self.points[ i ];
+        let last = self.points[ i - 1 ];
+        self.total_distance += ( point - last ).mag() ;
+        self.distances.push( self.total_distance );
+      }
+    }
+
+    fn points_change( &mut self, gl : &gl::WebGl2RenderingContext  ) -> Result< (), gl::WebglError >
+    {
       let mesh = self.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
 
       if self.points_changed
@@ -258,6 +324,13 @@ mod private
 
         self.points_changed = false;
       }
+
+      Ok( () )
+    }
+
+    fn join_change( &mut self, gl : &gl::WebGl2RenderingContext  ) -> Result< (), gl::WebglError >
+    {
+      let mesh = self.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
 
       if self.join_changed
       {
@@ -331,6 +404,13 @@ mod private
         self.join_changed = false;
       }
 
+      Ok( () )
+    }
+
+    fn cap_change( &mut self, gl : &gl::WebGl2RenderingContext  ) -> Result< (), gl::WebglError >
+    {
+      let mesh = self.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
+
       if self.cap_changed
       {
         let cap_buffer = mesh.buffer_get( "cap" );
@@ -397,64 +477,7 @@ mod private
         self.cap_changed = false;
       }
 
-      gl.bind_buffer( gl::ARRAY_BUFFER, None );
-      gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, None );
-
       Ok( () )
-    }
-
-    /// Update the line and draw it if it has more than one point.
-    pub fn draw( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
-    {
-
-      self.mesh_update( gl )?;
-      let mesh = self.mesh.as_ref().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
-
-      if self.points.len() > 1
-      {
-        mesh.draw( gl, "cap" );
-        mesh.draw( gl, "body_terminal" );
-      }
-      
-      if self.points.len() > 2
-      {
-        mesh.draw( gl, "body" );
-        mesh.draw( gl, "join" );
-      }
-
-      Ok( () )
-    }
-
-    /// Returns a reference to the internal mesh.
-    pub fn mesh_get( &self ) -> Result< &Mesh, gl::WebglError >
-    {
-      self.mesh.as_ref().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )
-    }   
-
-    /// Returns a mutable reference to the internal mesh.
-    pub fn mesh_get_mut( &mut self ) -> Result< &mut Mesh, gl::WebglError >
-    {
-      self.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )
-    } 
-
-    /// Returns a slice of the line's points.
-    pub fn points_get( &self ) -> &[ math::F32x2 ]
-    {
-      &self.points
-    }
-
-    fn recalculate_distances( &mut self )
-    {
-      self.total_distance = 0.0;
-      self.distances.clear();
-      self.distances.push( 0.0 );
-      for i in 1..self.points.len()
-      {
-        let point = self.points[ i ];
-        let last = self.points[ i - 1 ];
-        self.total_distance += ( point - last ).mag() ;
-        self.distances.push( self.total_distance );
-      }
     }
   }
 
