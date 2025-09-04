@@ -20,5 +20,5 @@ void main()
   vec2 point = pointA + xBasis * position.x * u_width + yBasis * position.y * u_width;
 
   vec3 view_point = u_view_matrix * vec3( point, 1.0 );
-  gl_Position =  u_projection_matrix * vec4( view_point.xy, 0.0, 1.0 );
+  gl_Position = u_projection_matrix * vec4( view_point.xy, 0.0, 1.0 );
 }

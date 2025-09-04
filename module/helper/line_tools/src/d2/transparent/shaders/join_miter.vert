@@ -99,5 +99,5 @@ void main()
 
   vec2 point = p3 + ( p0 - p3 ) * position.x + ( p1 - p3 ) * position.y + ( p2 - p3 ) * position.z;
   vec3 view_point = u_view_matrix * vec3( point, 1.0 );
-  gl_Position =  u_projection_matrix * vec4( view_point.xy, 0.0, 1.0 );
+  gl_Position = u_projection_matrix * vec4( view_point.xy, 0.0, 1.0 );
 }
