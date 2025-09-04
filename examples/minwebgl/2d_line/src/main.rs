@@ -44,7 +44,14 @@ fn run() -> Result< (), gl::WebglError >
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
 
-  let main_frag = include_str!( "../shaders/main.frag" );
+  #[ cfg( feature = "uv" ) ] 
+  let main_frag = include_str!( "../shaders/main_uv.frag" );
+  #[ cfg( feature = "transparent" ) ] 
+  let main_frag = include_str!( "../shaders/main_transparent.frag" );
+  #[ cfg( feature = "solid" ) ] 
+  let main_frag = include_str!( "../shaders/main_solid.frag" );
+
+
   let background_frag = include_str!( "../shaders/background.frag" );
   let background_vert = include_str!( "../shaders/background.vert" );
 
@@ -58,7 +65,10 @@ fn run() -> Result< (), gl::WebglError >
 
   let mut line = line_tools::d2::Line::default();
   line.cap_set( line_tools::Cap::Butt );
+  #[ cfg( feature = "uv" ) ] 
   line.join_set( line_tools::Join::Miter( 7, 7 ) );
+  #[ cfg( any( feature = "transparent", feature = "solid" ) ) ] 
+  line.join_set( line_tools::Join::Miter );
 
   line.mesh_create( &gl, main_frag )?;
   let mesh = line.mesh_get()?;
@@ -98,9 +108,27 @@ fn run() -> Result< (), gl::WebglError >
         let mut line = line.borrow_mut();
         match value.as_str()
         {
-          "miter" => { line.join_set( line_tools::Join::Miter( 7, 7 ) ); },
-          "bevel" => { line.join_set( line_tools::Join::Bevel( 7, 7 ) ); },
-          "round" => { line.join_set( line_tools::Join::Round( 16, 8 ) ); },
+          "miter" => 
+          { 
+            #[ cfg( feature = "uv" ) ] 
+            line.join_set( line_tools::Join::Miter( 7, 7 ) );
+            #[ cfg( any( feature = "transparent", feature = "solid" ) ) ] 
+            line.join_set( line_tools::Join::Miter );
+          },
+          "bevel" => 
+          { 
+            #[ cfg( feature = "uv" ) ] 
+            line.join_set( line_tools::Join::Bevel( 7, 7 ) );
+            #[ cfg( any( feature = "transparent", feature = "solid" ) ) ] 
+            line.join_set( line_tools::Join::Bevel );
+          },
+          "round" => 
+          { 
+            #[ cfg( feature = "uv" ) ] 
+            line.join_set( line_tools::Join::Round( 16, 8 ) );
+            #[ cfg( any( feature = "transparent", feature = "solid" ) ) ] 
+            line.join_set( line_tools::Join::Round( 16 ) );
+          },
           _ => {}
         }
       }
@@ -160,6 +188,7 @@ fn run() -> Result< (), gl::WebglError >
       update( line.clone(), &canvas, &mut input );
 
       line.borrow().mesh_get().unwrap().upload( &gl, "time", &_time ).unwrap();
+      #[ cfg( feature = "uv" ) ] 
       line.borrow().mesh_get().unwrap().upload( &gl, "totalDistance", &line.borrow().total_distance() ).unwrap();
       //draw
       gl.use_program( Some( &background_program ) );
