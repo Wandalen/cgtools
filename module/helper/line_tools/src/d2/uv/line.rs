@@ -44,15 +44,15 @@ mod private
       .compile( &gl )?;
 
       // Buffers
-      let points_buffer = gl.create_buffer().expect( "Failed to create a points buffer" );
-      let distance_buffer = gl.create_buffer().expect( "Failed to create a distance buffer" );
-      let points_terminal_buffer = gl.create_buffer().expect( "Failed to create a points terminal buffer" );
-      let body_instanced_buffer = gl.create_buffer().expect( "Failed to create a body_instanced_buffer" );
-      let join_instanced_buffer = gl.create_buffer().expect( "Failed to create a join_instanced_buffer" );
-      let join_indices_buffer = gl.create_buffer().expect( "Failed to create a join_indices_buffer" );
-      let join_uv_buffer = gl.create_buffer().expect( "Failed to create a join_uv_buffer" );
-      let cap_instanced_buffer = gl.create_buffer().expect( "Failed to create a cap_instanced_buffer" );
-      let cap_indices_buffer = gl.create_buffer().expect( "Failed to create a cap_indices_buffer" );
+      let points_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to points_buffer" ) )?;
+      let distance_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to distance_buffer" ) )?;
+      let points_terminal_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to points_terminal_buffer" ) )?;
+      let body_instanced_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to body_instanced_buffer" ) )?;
+      let join_instanced_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to join_instanced_buffer" ) )?;
+      let join_indices_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to join_indices_buffer" ) )?;
+      let join_uv_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to join_uv_buffer" ) )?;
+      let cap_instanced_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to cap_instanced_buffer" ) )?;
+      let cap_indices_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to cap_indices_buffer" ) )?;
 
 
       let uv_buffer = gl.create_buffer().expect( "Failed to create a uv_buffer" );
