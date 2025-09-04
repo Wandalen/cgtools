@@ -681,7 +681,7 @@ mod tests
 
     let line = &[ 0.0_f32, 0.0, 1.0, 1.0 ];
 
-    renderer.geometry2d_load( bytemuck::cast_slice( line ), 2, 0 );
+    renderer.geometry2d_load( line, 0 );
 
     _ = renderer.commands_execute
     (
