@@ -8,7 +8,7 @@ mod_interface::mod_interface!
 {
   /// SVG backend adapter for static vector graphics output.
   #[ cfg( any( feature = "adapter-svg-basic", feature = "adapter-svg" ) ) ]
-  exposed use super::private::svg::SvgRenderer;
+  exposed use super::private::svg::{ SvgRenderer, GeometryStyle, ImageFormat };
 
   /// Interactive SVG-in-browser backend adapter with JavaScript interactivity.
   #[ cfg( any( feature = "adapter-svg-browser", feature = "adapter-svg" ) ) ]
@@ -21,6 +21,10 @@ mod_interface::mod_interface!
   /// WebGL backend adapter for hardware-accelerated web rendering.
   #[ cfg( any( feature = "adapter-webgl-context", feature = "adapter-webgl" ) ) ]
   exposed use super::private::webgl::WebGLRenderer;
+
+  /// WebGL backend adapter for hardware-accelerated web rendering.
+  #[ cfg( any( feature = "adapter-webgl" ) ) ]
+  exposed use super::private::webgl::WebGLTileRenderer;
 
   /// WebGPU backend adapter for next-generation GPU computing and rendering.
   #[ cfg( any( feature = "adapter-webgpu-device", feature = "adapter-webgpu" ) ) ]
