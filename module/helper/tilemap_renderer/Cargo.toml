@@ -115,6 +115,10 @@ adapter-webgl = [
   "adapter-webgl-shaders",
   "adapter-webgl-buffers",
   "adapter-webgl-textures",
+  "commands",
+  "serde",
+  "dep:web-sys",
+  "dep:minwebgl",
 ]
 
 adapter-webgpu-device = [
@@ -261,9 +265,13 @@ mod_interface = { workspace = true }
 unilang = { workspace = true, optional = true, features = ["enhanced_repl"] }
 rustyline = { workspace = true, optional = true }
 # Future backend dependencies (will be added when backends are implemented)
-# minwebgl = { path = "../minwebgl", optional = true }
 minwebgpu = { workspace = true, optional = true }
 minwgpu = { workspace = true, optional = true }
+minwebgl = { workspace = true, optional = true }
+web-sys = { workspace = true, optional = true, features = [
+  "WebGlTexture",
+  "WebGlVertexArrayObject",
+] }
 wgpu = { workspace = true, optional = true }
 bytemuck = { workspace = true, optional = true, features = ["derive"] }
 rustc-hash = { workspace = true }

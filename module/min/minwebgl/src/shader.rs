@@ -252,6 +252,7 @@ mod private
   /// A shader program for rendering with WebGL.
   /// This structure encapsulates a WebGL program and provides methods to compile,
   /// link, set uniforms (including matrix uniforms), and draw with the program.
+  #[ derive( Debug ) ]
   pub struct Program
   {
     /// The graphical context.
