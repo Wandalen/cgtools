@@ -28,24 +28,12 @@ include = [
 workspace = true
 
 [features]
-default = ["enabled"]
-
-# Core canvas rendering functionality
-enabled = [
-    "dep:mod_interface",
-    "dep:minwebgl", 
-    "dep:mingl",
-    "dep:web-sys",
-]
-
-# Full feature set
-full = ["enabled"]
+default = []
 
 [dependencies]
-mod_interface = { workspace = true, optional = true }
-minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ], optional = true }
-mingl = { workspace = true, optional = true }
-bytemuck = { workspace = true }
+mod_interface = { workspace = true }
+minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
+mingl = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true

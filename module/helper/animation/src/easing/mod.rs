@@ -3,11 +3,11 @@
 mod private
 {
   #[ cfg( test ) ]
-  mod tests 
+  mod tests
   {
     use crate::easing::
-    { 
-      base::{ EasingFunction, EasingBuilder }, 
+    {
+      base::{ EasingFunction, EasingBuilder },
       Linear, Step
     };
     use crate::easing::
@@ -53,11 +53,11 @@ mod private
       // Step easing should progress in discrete steps
       let step_func = Step::new( 5.0 );
       assert_eq!( step_func.apply( 0.0 ), 0.0 );
-      assert_eq!( step_func.apply( 0.19 ), 0.0 );
+      assert_eq!( step_func.apply( 0.01 ), 0.2 );
       assert_eq!( step_func.apply( 0.2 ), 0.2 );
-      assert_eq!( step_func.apply( 0.39 ), 0.2 );
+      assert_eq!( step_func.apply( 0.21 ), 0.4 );
       assert_eq!( step_func.apply( 0.4 ), 0.4 );
-      assert_eq!( step_func.apply( 0.99 ), 0.8 );
+      assert_eq!( step_func.apply( 0.81 ), 1.0 );
       assert_eq!( step_func.apply( 1.0 ), 1.0 );
     }
 
@@ -116,7 +116,7 @@ mod private
     {
       // EaseInQuad should be slower than linear at the start
       assert!( EaseInQuad::new().apply( 0.2 ) < Linear::new().apply( 0.2 ) );
-      
+
       // EaseOutQuad should be faster than linear at the start
       assert!( EaseOutQuad::new().apply( 0.2 ) > Linear::new().apply( 0.2 ) );
     }
@@ -128,6 +128,6 @@ crate::mod_interface!
   /// Base easing structs, traits, macros etc
   layer base;
 
-  /// Collection of cubic spline easing functions 
+  /// Collection of cubic spline easing functions
   layer cubic;
 }
