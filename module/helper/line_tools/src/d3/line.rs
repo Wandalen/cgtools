@@ -10,11 +10,17 @@ mod private
   {
     /// The series of 3D points that define the line strip.
     points : Vec< math::F32x3 >,
+    /// Colors for the points
+    colors : Vec< math::F32x3 >,
     // The optional `Mesh` object that holds the WebGL resources for rendering.
     /// `None` until `create_mesh` is called.
     mesh : Option< Mesh >,
     /// A flag to indicate whether the line's points have changed since the last update.
-    points_changed : bool
+    points_changed : bool,
+    /// A flag to indicate the colors have been changed
+    colors_changed : bool,
+    /// A flag to set whether to use the vertex color or not. Should be set before the mesh creation
+    use_vertex_color : bool
   }
   
   impl Line
@@ -24,11 +30,23 @@ mod private
     /// This function compiles shaders, generates the line's geometry, creates buffers and a VAO,
     /// and initializes the `Mesh` object. It sets up the vertex attributes for instanced drawing,
     /// where each instance is a segment of the line.
-    pub fn create_mesh( &mut self, gl : &gl::WebGl2RenderingContext, fragment_shader : Option< &str > ) -> Result< (), gl::WebglError >
+    pub fn mesh_create( &mut self, gl : &gl::WebGl2RenderingContext, fragment_shader : Option< &str > ) -> Result< (), gl::WebglError >
     {
+      let fragment_shader_source = fragment_shader.unwrap_or( d3::MAIN_FRAGMENT_SHADER );
+
+      let fragment_shader = 
+      if self.use_vertex_color
+      {
+        fragment_shader_source.replace( "// #include <defines>", "#define USE_VERTEX_COLORS\n" )
+      }
+      else
+      {
+        fragment_shader_source.to_string()
+      };
+
       let fragment_shader = gl::ShaderSource::former()
       .shader_type( gl::FRAGMENT_SHADER )
-      .source( fragment_shader.unwrap_or( d3::MAIN_FRAGMENT_SHADER ) )
+      .source( &fragment_shader )
       .compile( &gl )?;
 
       let ( vertices, indices, uvs ) = helpers::four_piece_rectangle_geometry();
@@ -37,6 +55,7 @@ mod private
       let position_buffer = gl.create_buffer().expect( "Failed to create a position_buffer" );
       let index_buffer = gl.create_buffer().expect( "Failed to create a index_buffer" );
       let uv_buffer = gl.create_buffer().expect( "Failed to create a uv_buffer" );
+      let color_buffer = gl.create_buffer().expect( "Failed to create a color_buffer" );
 
       gl::buffer::upload( gl, &position_buffer, &vertices.iter().copied().flatten().collect::< Vec< f32 > >(), gl::STATIC_DRAW );
       gl::buffer::upload( gl, &uv_buffer, &uvs.iter().copied().flatten().collect::< Vec< f32 > >(), gl::STATIC_DRAW );
@@ -50,9 +69,26 @@ mod private
       gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).divisor( 1 ).attribute_pointer( gl, 2, &points_buffer )?;
       gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 3 ).divisor( 1 ).attribute_pointer( gl, 3, &points_buffer )?;
 
+      if self.use_vertex_color
+      {
+        gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).divisor( 1 ).attribute_pointer( gl, 4, &color_buffer )?;
+        gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 3 ).divisor( 1 ).attribute_pointer( gl, 5, &color_buffer )?;
+      }
+
+      let vertex_shader = 
+      if self.use_vertex_color
+      {
+        d3::MAIN_VERTEX_SHADER.replace( "// #include <defines>", "#define USE_VERTEX_COLORS\n" )
+      }
+      else
+      {
+        d3::MAIN_VERTEX_SHADER.to_string()
+      };
+
+
       let vertex_shader = gl::ShaderSource::former()
       .shader_type( gl::VERTEX_SHADER )
-      .source( d3::MAIN_VERTEX_SHADER )
+      .source( &vertex_shader )
       .compile( &gl )?;
 
       let program = gl::ProgramShaders::new( &vertex_shader, &fragment_shader ).link( &gl )?;
@@ -75,19 +111,22 @@ mod private
       mesh.add_buffer( "position", position_buffer );
       mesh.add_buffer( "points", points_buffer );
       mesh.add_buffer( "uv", uv_buffer );
+      mesh.add_buffer( "colors", color_buffer );
 
       self.mesh = Some( mesh );
 
       self.points_changed = true;
-      self.update_mesh( gl )?;
+      self.colors_changed = true;
+
+      self.mesh_update( gl )?;
 
       Ok( () )
     }
 
     /// Updates the mesh's vertex buffers if the line's points have changed.
-    pub fn update_mesh( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
+    pub fn mesh_update( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
-      let mesh = self.mesh.as_mut().expect( "Mesh has not been created yet" );
+      let mesh = self.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
 
       if self.points_changed
       {
@@ -102,7 +141,23 @@ mod private
         self.points_changed = false;
       }
 
+      if self.colors_changed && self.use_vertex_color
+      {
+        let colors_buffer = mesh.get_buffer( "colors" );
+
+        let colors : Vec< f32 > = self.colors.iter().flat_map( | c | c.to_array() ).collect();
+        gl::buffer::upload( &gl, &colors_buffer, &colors, gl::STATIC_DRAW );
+
+        self.colors_changed = false;
+      }
+
       Ok( () )
+    }
+
+    /// Sets whether the vertex color attribute will be used or not
+    pub fn use_vertex_color( &mut self, value : bool )
+    {
+      self.use_vertex_color = value;
     }
 
     /// Adds a new point to the end of the line strip.
@@ -113,6 +168,16 @@ mod private
 
       self.points.push( point );
       self.points_changed = true;
+    }
+
+    /// Adds the color to a list of colors. Each color belongs to a point with the same index;
+    pub fn color_add< C : gl::VectorIter< f32, 3 > >( &mut self, color : C )
+    {
+      let mut iter = color.vector_iter();
+      let color = gl::F32x3::new( *iter.next().unwrap(), *iter.next().unwrap(), *iter.next().unwrap() );
+
+      self.colors.push( color );
+      self.colors_changed = true;
     }
 
     /// Retrieves the points at the specified position.
@@ -135,24 +200,24 @@ mod private
     /// Draws the line mesh.
     pub fn draw( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
-      self.update_mesh( gl )?;
+      self.mesh_update( gl )?;
 
-      let mesh = self.mesh.as_ref().expect( "Mesh has not been created yet" );
+      let mesh = self.mesh.as_ref().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
       mesh.draw( gl, "body" );
 
       Ok( () )
     }
 
     /// Retrieves a reference to the mesh.
-    pub fn get_mesh( &self ) -> &Mesh
+    pub fn mesh_get( &self ) -> Result< &Mesh, gl::WebglError >
     {
-      self.mesh.as_ref().expect( "Mesh has not been created yet" )
+      self.mesh.as_ref().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )
     }  
 
     /// Retrieves a mutable reference to the mesh.
-    pub fn get_mesh_mut( &mut self ) -> &mut Mesh
+    pub fn mesh_get_mut( &mut self ) -> Result< &mut Mesh, gl::WebglError >
     {
-      self.mesh.as_mut().expect( "Mesh has not been created yet" )
+      self.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )
     }  
 
     /// Retrieves a slice of the line's points.
@@ -165,12 +230,6 @@ mod private
     pub fn num_points( &self ) -> usize
     {
       self.points.len()
-    }
-
-    /// Returns a slice of the line's points.
-    pub fn points_get( &self ) -> &[ math::F32x3 ]
-    {
-      &self.points
     }
   }
 }

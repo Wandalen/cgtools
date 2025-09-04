@@ -1,10 +1,17 @@
 #version 300 es
 precision highp float;
 
+// #include <defines>
+
 layout( location = 0 ) in vec2 position;
 layout( location = 1 ) in vec2 uv;
 layout( location = 2 ) in vec3 inPointA;
 layout( location = 3 ) in vec3 inPointB;
+
+#ifdef USE_VERTEX_COLORS
+  layout( location = 4 ) in vec3 colorA;
+  layout( location = 5 ) in vec3 colorB;
+#endif
 
 uniform mat4 u_world_matrix;
 uniform mat4 u_view_matrix;
@@ -17,6 +24,9 @@ out vec2 vUv;
 out vec3 vViewPos;
 out vec3 vViewA;
 out vec3 vViewB;
+#ifdef USE_VERTEX_COLORS
+  out vec3 vColor;
+#endif
 
 void main() 
 {
@@ -61,6 +71,10 @@ void main()
   vViewPos = viewPos;
   vViewA = viewA;
   vViewB = viewB;
+
+  #ifdef USE_VERTEX_COLORS
+    vColor = mix( colorA, colorB, step( 0.5, position.y ) );
+  #endif  
 
   gl_Position = clip;
 }

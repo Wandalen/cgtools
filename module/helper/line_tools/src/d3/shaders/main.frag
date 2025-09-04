@@ -1,6 +1,8 @@
 #version 300 es
 precision highp float;
 
+// #include <defines>
+
 uniform vec3 u_color;
 uniform float u_width;
 
@@ -8,6 +10,10 @@ in vec2 vUv;
 in vec3 vViewPos;
 in vec3 vViewA;
 in vec3 vViewB;
+
+#ifdef USE_VERTEX_COLORS
+  in vec3 vColor;
+#endif
 
 out vec4 frag_color;
 
@@ -46,5 +52,8 @@ void main()
   if( d == -1.0 ) { discard; }
 
   vec3 col = u_color; 
+  #ifdef USE_VERTEX_COLORS
+    col = vColor;
+  #endif
   frag_color = vec4( col, 1.0 );
 }
