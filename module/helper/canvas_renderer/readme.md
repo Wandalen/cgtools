@@ -44,17 +44,17 @@ Here is a conceptual example demonstrating how to initialize and use the `Canvas
 ```rust
 use canvas_renderer::renderer::CanvasRenderer;
 use minwebgl as gl;
-use renderer::webgl::{ Camera, Node, Scene, Renderer, Texture, TextureInfo, Material, TextureSource };
+use renderer::webgl::{ Camera, Node, Scene, Renderer, Texture, TextureInfo, Material };
 use std::rc::Rc;
 use std::cell::RefCell;
 
 fn set_texture
-( 
+(
   node : &Rc< RefCell< Node > >,
-  mut material_callback : impl FnMut( &mut Material ) 
+  mut material_callback : impl FnMut( &mut Material )
 )
 {
-  if let Object3D::Mesh( ref mesh ) = &node.borrow().object
+  if let renderer::webgl::Object3D::Mesh( ref mesh ) = &node.borrow().object
   {
     for p in &mesh.borrow().primitives
     {
@@ -63,7 +63,16 @@ fn set_texture
   }
 }
 
-fn setup_and_render( gl : &gl::GL ) -> Result< (), gl::WebglError > 
+fn setup_scene() -> Scene
+{
+  let mut scene = Scene::new();
+  let node = Node::default();
+  scene.children.push( Rc::new( RefCell::new( node ) ) );
+
+  scene
+}
+
+fn setup_and_render( gl : &gl::GL ) -> Result< (), gl::WebglError >
 {
   let width = 800;
   let height = 600;
@@ -76,7 +85,19 @@ fn setup_and_render( gl : &gl::GL ) -> Result< (), gl::WebglError >
 
   // In a real application, you would populate `canvas_scene` with 2D elements.
   let mut canvas_scene = Scene::new();
-  let canvas_camera = Camera::new();
+
+  let mut eye = gl::math::F32x3::from( [ 0.0, 0.0, 1.0 ] );
+  let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
+  let center = gl::math::F32x3::from( [ 0.0, 0.0, 0.0 ] );
+
+  let aspect_ratio = width as f32 / height as f32;
+  let fov = 70.0f32.to_radians();
+  let near = 0.1;
+  let far = 10000000.0;
+
+  // Set up the main camera and render the final scene.
+  let canvas_camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
+
   let colors = &[]; // Colors for the 2D elements.
 
   // Render the 2D scene to the CanvasRenderer's texture.
@@ -87,39 +108,40 @@ fn setup_and_render( gl : &gl::GL ) -> Result< (), gl::WebglError >
   // Create the main Renderer for the final output
   let mut main_renderer = Renderer::new( &gl, width, height, 4 )?;
 
-  // For this example, we assume that setup_scene returns 
+  // For this example, we assume that setup_scene returns
   // complete `Scene` struct with 3D objects.
   let mut main_scene = setup_scene();
 
-  // Object for that you want change texture 
-  let object = main_scene.borrow().children.get( 0 ).unwrap().clone();
+  // Object for that you want change texture
+  let object = main_scene.children.get( 0 ).unwrap().clone();
 
   // Create a new `Texture` and set its source to the texture from the CanvasRenderer.
   let canvas_texture = Texture::former()
-  .source( TextureSource::Texture( canvas_texture_handle ) )
+  .source( canvas_texture_handle )
   .end();
 
   set_texture
-  ( 
-    &object, 
-    | m | 
-    { 
+  (
+    &object,
+    | m |
+    {
       m.base_color_texture.as_mut()
       .map
-      ( 
-        | t | 
+      (
+        | t |
         {
           let texture = t.texture.borrow().clone();
           t.texture = Rc::new( RefCell::new( texture ) );
-          t.texture.borrow_mut().source = Some( canvas_texture.clone() );
-        } 
-      ); 
+          t.texture.borrow_mut().source = canvas_texture.clone().source;
+        }
+      );
       m.alpha_mode = renderer::webgl::AlphaMode::Blend;
-    } 
+    }
   );
 
   // Set up the main camera and render the final scene.
-  let main_camera = Camera::new();
+  let main_camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
+
   main_renderer.render( &gl, &mut main_scene, &main_camera )?;
 
   Ok( () )

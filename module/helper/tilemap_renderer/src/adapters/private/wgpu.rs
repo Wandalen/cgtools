@@ -6,6 +6,48 @@ use minwgpu::{ buffer, context, helper, texture };
 use crate::{ commands, ports };
 
 /// The offscreen renderer struct that encapsulates the `wgpu` context and for simple tile rendering.
+///
+/// # Limitations
+///
+/// Resolution of result image should be multiple of 256. So that width and height defined in a providing `RenderContext`
+/// should be multiples of 256.
+///
+/// # Performance
+///
+/// This renderer is sutied for offscreen rendering and not intended for realtime usage.
+///
+/// # Example
+///
+/// ``` rust
+/// use tilemap_renderer::adapters::WGPUTileRenderer;
+/// use tilemap_renderer::{ commands, ports::RenderContext };
+/// use commands::{ Geometry2DCommand, Point2D, RenderCommand, Transform2D };
+///
+/// let renderer = WGPUTileRenderer::new
+/// (
+///   wgpu::Backends::PRIMARY,
+///   RenderContext::new( 256, 256, [ 0.0; 4 ], true, Point2D::new( 0.0, 0.0 ), 1.0 )
+/// );
+///
+/// let line = &[ 0.0_f32, 0.0, 1.0, 1.0 ];
+/// renderer.geometry2d_load( bytemuck::cast_slice( line ), 2, 0 );
+/// let res = renderer.commands_execute
+/// (
+///   &[
+///     RenderCommand::Geometry2DCommand
+///     (
+///       Geometry2DCommand
+///       {
+///         id : 0,
+///         transform : Transform2D::default(),
+///         color: [ 1.0; 3 ],
+///         mode: commands::GeometryMode::Lines
+///       }
+///     )
+///   ]
+/// );
+/// ```
+///
 #[ derive( Debug ) ]
 pub struct WGPUTileRenderer
 {
@@ -363,7 +405,6 @@ impl WGPUTileRenderer
     _ = self.geometry2d.insert( id, ( buf, vertex_count ) );
   }
 
-
   /// Executes a list of render commands and returns the resulting image.
   ///
   /// This function performs an off-screen render pass based on the provided commands
@@ -539,7 +580,7 @@ impl WGPUTileRenderer
     {
       aspect_scale,
       translation : [ pos_x + cam_pos_x, pos_y + cam_pos_y ],
-      rotation_sin_cos : [ command.transform.rotation.sin(), command.transform.rotation.cos() ],
+      rotation_cos_sin : [ command.transform.rotation.cos(), command.transform.rotation.sin() ],
       scale : command.transform.scale,
     };
     renderpass.set_push_constants( wgpu::ShaderStages::VERTEX, 0, bytemuck::bytes_of( &pc ) );
@@ -568,7 +609,7 @@ impl WGPUTileRenderer
     {
       aspect_scale,
       translation : [ pos_x + cam_pos_x, pos_y + cam_pos_y ],
-      rotation_sin_cos : [ command.transform.rotation.sin(), command.transform.rotation.cos() ],
+      rotation_cos_sin : [ command.transform.rotation.cos(), command.transform.rotation.sin() ],
       scale : command.transform.scale,
     };
     renderpass.set_push_constants( wgpu::ShaderStages::VERTEX, 0, bytemuck::bytes_of( &pc ) );
@@ -588,6 +629,74 @@ struct PushConstant
 {
   aspect_scale : [ f32; 2 ],
   translation : [ f32; 2 ],
-  rotation_sin_cos : [ f32; 2 ],
+  rotation_cos_sin : [ f32; 2 ],
   scale : [ f32; 2 ],
+}
+
+#[ cfg( test ) ]
+mod tests
+{
+  use crate::{ commands, ports::RenderContext };
+  use commands::{ Geometry2DCommand, Point2D, RenderCommand, Transform2D };
+  use super::*;
+
+  #[ test ]
+  fn test_context_creation()
+  {
+    let renderer = WGPUTileRenderer::new
+    (
+      wgpu::Backends::PRIMARY,
+      RenderContext::new( 256, 256, [ 0.0; 4 ], true, Point2D::new( 0.0, 0.0 ), 1.0 )
+    );
+    assert!( renderer.is_ok() );
+  }
+
+  #[ test ]
+  fn test_shader_compilation()
+  {
+    let context = context::Context::builder()
+    .backends( wgpu::Backends::PRIMARY )
+    .make_instance()
+    .power_preference( wgpu::PowerPreference::HighPerformance )
+    .request_adapter()
+    .map_err( | e | ports::RenderError::InitializationFailed( format!( "{e}" ) ) ).unwrap()
+    .label( "device" )
+    .required_features( wgpu::Features::PUSH_CONSTANTS )
+    .required_limits( wgpu::Limits { max_push_constant_size : 44, ..Default::default() } )
+    .finish_context()
+    .map_err( | e | ports::RenderError::InitializationFailed( format!( "{e}" ) ) ).unwrap();
+
+    _ = context.get_device().create_shader_module( wgpu::include_wgsl!( "../../../shaders/geom2d.wgsl" ) );
+    _ = context.get_device().create_shader_module( wgpu::include_wgsl!( "../../../shaders/sprite.wgsl" ) );
+  }
+
+  #[ test ]
+  fn test_render_pass()
+  {
+    let mut renderer = WGPUTileRenderer::new
+    (
+      wgpu::Backends::PRIMARY,
+      RenderContext::new( 256, 256, [ 0.0; 4 ], true, Point2D::new( 0.0, 0.0 ), 1.0 )
+    ).unwrap();
+
+    let line = &[ 0.0_f32, 0.0, 1.0, 1.0 ];
+
+    renderer.geometry2d_load( bytemuck::cast_slice( line ), 2, 0 );
+
+    _ = renderer.commands_execute
+    (
+      &[
+        RenderCommand::Geometry2DCommand
+        (
+          Geometry2DCommand
+          {
+            id : 0,
+            transform : Transform2D::default(),
+            color: [ 1.0; 3 ],
+            mode: commands::GeometryMode::Lines
+          }
+        )
+      ]
+    );
+  }
 }
