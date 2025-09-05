@@ -161,11 +161,9 @@ impl< System, Orientation, T > Grid2D< System, Orientation, Option< T > >
   {
     let coord : Coordinate< System, Orientation > = coord.into();
     let i : usize = ( coord.r as i64 - self.min[ 1 ] )
-    .try_into()
-    .expect( "Coordinate out of bound" );
+    .try_into().ok()?;
     let j : usize = ( coord.q as i64 - self.min[ 0 ] )
-    .try_into()
-    .expect( "Coordinate out of bound" );
+    .try_into().ok()?;
     self.data.get( ( i, j ) ).and_then( | o | o.as_ref() )
   }
 
@@ -179,11 +177,9 @@ impl< System, Orientation, T > Grid2D< System, Orientation, Option< T > >
   {
     let coord : Coordinate< System, Orientation > = coord.into();
     let i : usize = ( coord.r as i64 - self.min[ 1 ] )
-    .try_into()
-    .expect( "Coordinate out of bound" );
+    .try_into().ok()?;
     let j : usize = ( coord.q as i64 - self.min[ 0 ] )
-    .try_into()
-    .expect( "Coordinate out of bound" );
+    .try_into().ok()?;
     self.data.get_mut( ( i, j ) ).and_then( | o | o.as_mut() )
   }
 }
@@ -260,5 +256,14 @@ where
     .field( "min", &self.min )
     .field( "_marker", &self._marker )
     .finish()
+  }
+}
+
+impl< System, Orientation, T > PartialEq for Grid2D< System, Orientation, T >
+where T : PartialEq
+{
+  fn eq( &self, other : &Self ) -> bool
+  {
+    self.data == other.data && self.min == other.min
   }
 }
