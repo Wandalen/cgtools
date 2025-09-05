@@ -44,8 +44,10 @@ mod private
   #[ derive( Debug ) ]
   pub struct VertexBuffer< 'a >
   {
-    buffer : wgpu::Buffer,
-    layout : wgpu::VertexBufferLayout< 'a >,
+    /// The raw `wgpu` buffer that stores the vertex data on the GPU.
+    pub buffer : wgpu::Buffer,
+    /// The layout that describes how the vertex data in the buffer is structured.
+    pub layout : wgpu::VertexBufferLayout< 'a >,
   }
 
   impl< 'a > VertexBuffer< 'a >
