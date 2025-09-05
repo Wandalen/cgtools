@@ -11,6 +11,13 @@ license = "MIT"
 [lints]
 workspace = true
 
+[features]
+default = [ "transparent" ]
+
+uv = [ "line_tools/uv" ]
+solid = [ "line_tools/solid" ]
+transparent = [ "line_tools/transparent" ]
+
 [dependencies]
 line_tools = { workspace = true }
 minwebgl = { workspace = true, features = [ "math" ] }

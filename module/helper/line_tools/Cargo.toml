@@ -30,6 +30,14 @@ workspace = true
 [features]
 default = ["enabled"]
 
+# Only one of the following three features can be active at the time
+# Line can only be colored as a solid color
+solid = []
+# Line can be transparent
+transparent = []
+# Line has uv mapping
+uv = []
+
 # Core line rendering functionality
 enabled = [
     "dep:minwebgl",

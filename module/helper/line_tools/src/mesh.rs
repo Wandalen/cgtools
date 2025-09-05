@@ -41,43 +41,43 @@ mod private
     }
 
     /// Uploads a uniform matrix to all programs associated with the mesh.
-    pub fn upload_matrix< D >( &self, gl : &gl::WebGl2RenderingContext, uniform_name : &str, data : &D ) -> Result< (), gl::WebglError >
+    pub fn matrix_upload< D >( &self, gl : &gl::WebGl2RenderingContext, uniform_name : &str, data : &D ) -> Result< (), gl::WebglError >
     where 
       D : gl::UniformMatrixUpload + ?Sized
     {
       for p in self.program_map.values()
       {
-        p.upload_matrix( gl, uniform_name, data )?;
+        p.matrix_upload( gl, uniform_name, data )?;
       }
 
       Ok( () )
     }
 
     /// Uploads a uniform matrix to a single, named program.
-    pub fn upload_matrix_to< D >( &self, gl : &gl::WebGl2RenderingContext, program_name : &str, uniform_name : &str, data : &D ) -> Result< (), gl::WebglError >
+    pub fn matrix_upload_to< D >( &self, gl : &gl::WebGl2RenderingContext, program_name : &str, uniform_name : &str, data : &D ) -> Result< (), gl::WebglError >
     where 
       D : gl::UniformMatrixUpload + ?Sized
     {
       self.program_map.get( program_name ).expect( "Program with a specified name does not exist" )
-      .upload_matrix( gl, uniform_name, data )?;
+      .matrix_upload( gl, uniform_name, data )?;
     
       Ok( () )
     }
 
     /// Adds a new shader program to the mesh's collection.
-    pub fn add_program< T : Into< Box< str > > >( &mut self, name : T, program : Program )
+    pub fn program_add< T : Into< Box< str > > >( &mut self, name : T, program : Program )
     {
       self.program_map.insert( name.into(), program );
     }
 
     /// Retrieves a reference to a program by its name.
-    pub fn get_program( &self, name : &str ) -> &Program
+    pub fn program_get( &self, name : &str ) -> &Program
     {
       self.program_map.get( name ).expect( "Program with the specified name does not exist" )
     }
 
     /// Retrieves a mutable reference to a program by its name.
-    pub fn get_program_mut( &mut self, name : &str ) -> &mut Program
+    pub fn program_get_mut( &mut self, name : &str ) -> &mut Program
     {
       self.program_map.get_mut( name ).expect( "Program with the specified name does not exist" )
     }
@@ -92,7 +92,7 @@ mod private
     }
 
     /// Draws the mesh using all programs in its collection.
-    pub fn draw_all( &self, gl : &gl::WebGl2RenderingContext )
+    pub fn all_draw( &self, gl : &gl::WebGl2RenderingContext )
     {
       for p in self.program_map.values()
       {
@@ -101,13 +101,13 @@ mod private
     }
 
     /// Retrieves a reference to a WebGL buffer by its name.
-    pub fn get_buffer( &self, name : &str ) -> &gl::WebGlBuffer
+    pub fn buffer_get( &self, name : &str ) -> &gl::WebGlBuffer
     {
       self.buffers.get( name ).expect( "Buffer with the specified name does not exist" )
     }
 
     /// Adds a new WebGL buffer to the mesh's collection.
-    pub fn add_buffer< T : Into< Box< str > > >( &mut self, name : T, buffer : gl::WebGlBuffer )
+    pub fn buffer_add< T : Into< Box< str > > >( &mut self, name : T, buffer : gl::WebGlBuffer )
     {
       self.buffers.insert( name.into(), buffer );
     }

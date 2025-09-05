@@ -5,22 +5,29 @@
 
 mod private
 {
-
+  /// Provides method to get mesh geometry from the structure
+  pub trait Geometry
+  {
+    /// Generates the geometry.
+    ///
+    /// This method returns a tuple containing the vertices, indices, uvs, and the number of
+    /// elements for the mesh.
+    fn geometry( &self ) -> ( Vec< f32 >, Vec< u32 >, Vec< f32 >, usize );
+  }
 }
 
 ::mod_interface::mod_interface!
 {
   own use ::mod_interface::mod_interface;
+  own use
+  {
+    Geometry
+  };
 
   /// A layer for 2D graphics-related functionalities.
   layer d2;
   /// A layer for 3D graphics-related functionalities.
   layer d3;
-
-  /// A layer dedicated to line join styles (e.g., miter, bevel, round).
-  layer joins;
-  /// A layer dedicated to line cap styles (e.g., butt, round, square).
-  layer caps;
 
   /// A layer for mesh generation and manipulation.
   layer mesh;

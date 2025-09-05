@@ -2,18 +2,14 @@
 precision highp float;
 
 layout( location = 0 ) in vec2 position;
-layout( location = 1 ) in vec3 inPointA;
-layout( location = 2 ) in vec3 inPointB;
-layout( location = 3 ) in vec3 inPointC;
-layout( location = 4 ) in float currentDistance;
+layout( location = 1 ) in vec2 inPointA;
+layout( location = 2 ) in vec2 inPointB;
+layout( location = 3 ) in vec2 inPointC;
 
 uniform mat3 u_world_matrix;
 uniform mat3 u_view_matrix;
 uniform mat4 u_projection_matrix;
 uniform float u_width;
-uniform float u_total_distance;
-
-out vec2 vUv;
 
 // If points are on parallel lines - returns the second point
 vec2 lineIntersection( vec2 p1, vec2 d1, vec2 p2, vec2 d2 )
@@ -35,9 +31,9 @@ float distanceToLine( vec2 a, vec2 n, vec2 p )
 
 void main() 
 {
-  vec2 pointA = ( u_world_matrix * vec3( inPointA.xy, 1.0 ) ).xy;
-  vec2 pointB = ( u_world_matrix * vec3( inPointB.xy, 1.0 ) ).xy;
-  vec2 pointC = ( u_world_matrix * vec3( inPointC.xy, 1.0 ) ).xy;
+  vec2 pointA = ( u_world_matrix * vec3( inPointA, 1.0 ) ).xy;
+  vec2 pointB = ( u_world_matrix * vec3( inPointB, 1.0 ) ).xy;
+  vec2 pointC = ( u_world_matrix * vec3( inPointC, 1.0 ) ).xy;
 
   vec2 tangent = normalize( normalize( pointC - pointB ) + normalize( pointB - pointA ) );
   vec2 normal = vec2( -tangent.y, tangent.x );
@@ -57,14 +53,8 @@ void main()
   // If segments are parallel
   if( sigma == 0.0 ) { sigma = 1.0; }
 
-  //vUv.x = mix( position.x, 1.0 - position.x, float( gl_InstanceID ) );
-  vUv.y = step( 0.0, position.y );
-  vUv.y = mix( 1.0 - vUv.y, vUv.y, step( 0.0, sigma * curl ) );
-  vUv.y = mix( vUv.y, 1.0 - vUv.y, float( gl_InstanceID ) );
-
   if( position.x == 0.0 )
   {
-    vUv.x = inPointA.z;
     vec2 point = pointA + AB * position.x + normToAB * position.y * u_width;
     vec3 view_point = u_view_matrix * vec3( point, 1.0 );
     gl_Position =  u_projection_matrix * vec4( view_point.xy, 0.0, 1.0 );
@@ -117,8 +107,6 @@ void main()
     }
   }
 
-  vUv.x = mix( inPointA.z, inPointB.z, length( offsetPoint - leftBottomCornerA ) / length( pointB - pointA ) );
-
   if( sign( position.y ) == -sigma )
   {
     vec3 view_point = u_view_matrix * vec3( offsetPoint, 1.0 );
@@ -128,6 +116,6 @@ void main()
   {
     vec2 point = offsetPoint + normToAB * sigma * u_width;
     vec3 view_point = u_view_matrix * vec3( point, 1.0 );
-    gl_Position =  u_projection_matrix * vec4( view_point.xy, 0.0, 1.0 );
+    gl_Position = u_projection_matrix * vec4( view_point.xy, 0.0, 1.0 );
   }
 }

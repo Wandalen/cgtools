@@ -44,7 +44,14 @@ fn run() -> Result< (), gl::WebglError >
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
 
-  let main_frag = include_str!( "../shaders/main.frag" );
+  #[ cfg( feature = "uv" ) ] 
+  let main_frag = include_str!( "../shaders/main_uv.frag" );
+  #[ cfg( feature = "transparent" ) ] 
+  let main_frag = include_str!( "../shaders/main_transparent.frag" );
+  #[ cfg( feature = "solid" ) ] 
+  let main_frag = include_str!( "../shaders/main_solid.frag" );
+
+
   let background_frag = include_str!( "../shaders/background.frag" );
   let background_vert = include_str!( "../shaders/background.vert" );
 
@@ -57,20 +64,19 @@ fn run() -> Result< (), gl::WebglError >
 
 
   let mut line = line_tools::d2::Line::default();
-  line.set_cap( line_tools::Cap::Butt );
-  line.set_join( line_tools::Join::Miter( 7, 7 ) );
+  line.cap_set( line_tools::Cap::Butt );
+  #[ cfg( feature = "uv" ) ] 
+  line.join_set( line_tools::Join::Miter( 7, 7 ) );
+  #[ cfg( any( feature = "transparent", feature = "solid" ) ) ] 
+  line.join_set( line_tools::Join::Miter );
 
-  line.create_mesh( &gl, main_frag )?;
-  let mesh = line.get_mesh();
+  line.mesh_create( &gl, main_frag )?;
+  let mesh = line.mesh_get()?;
 
-  mesh.upload_matrix( &gl, "u_projection_matrix", &projection_matrix.to_array() )?;
-  mesh.upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() )?;
-  mesh.upload_matrix( &gl, "u_view_matrix", &view_matrix.to_array() )?;
+  mesh.matrix_upload( &gl, "u_projection_matrix", &projection_matrix.to_array() )?;
+  mesh.matrix_upload( &gl, "u_world_matrix", &world_matrix.to_array() )?;
+  mesh.matrix_upload( &gl, "u_view_matrix", &view_matrix.to_array() )?;
   mesh.upload( &gl, "u_width", &line_width )?;
-  mesh.upload_to( &gl, "body", "u_color", &[ 1.0, 1.0, 1.0 ] )?;
-  mesh.upload_to( &gl, "body_terminal", "u_color", &[ 1.0, 1.0, 0.0 ] )?;
-  mesh.upload_to( &gl, "join", "u_color", &[ 1.0, 0.0, 0.0 ] )?;
-  mesh.upload_to( &gl, "cap", "u_color", &[ 0.0, 1.0, 0.0 ] )?;
 
   let mut input = browser_input::Input::new
   (
@@ -102,9 +108,27 @@ fn run() -> Result< (), gl::WebglError >
         let mut line = line.borrow_mut();
         match value.as_str()
         {
-          "miter" => { line.set_join( line_tools::Join::Miter( 7, 7 ) ); },
-          "bevel" => { line.set_join( line_tools::Join::Bevel( 7, 7 ) ); },
-          "round" => { line.set_join( line_tools::Join::Round( 16, 8 ) ); },
+          "miter" => 
+          { 
+            #[ cfg( feature = "uv" ) ] 
+            line.join_set( line_tools::Join::Miter( 7, 7 ) );
+            #[ cfg( any( feature = "transparent", feature = "solid" ) ) ] 
+            line.join_set( line_tools::Join::Miter );
+          },
+          "bevel" => 
+          { 
+            #[ cfg( feature = "uv" ) ] 
+            line.join_set( line_tools::Join::Bevel( 7, 7 ) );
+            #[ cfg( any( feature = "transparent", feature = "solid" ) ) ] 
+            line.join_set( line_tools::Join::Bevel );
+          },
+          "round" => 
+          { 
+            #[ cfg( feature = "uv" ) ] 
+            line.join_set( line_tools::Join::Round( 16, 8 ) );
+            #[ cfg( any( feature = "transparent", feature = "solid" ) ) ] 
+            line.join_set( line_tools::Join::Round( 16 ) );
+          },
           _ => {}
         }
       }
@@ -125,9 +149,9 @@ fn run() -> Result< (), gl::WebglError >
         let mut line = line.borrow_mut();
         match value.as_str()
         {
-          "butt" => { line.set_cap( line_tools::Cap::Butt ); },
-          "square" => { line.set_cap( line_tools::Cap::Square ); },
-          "round" => { line.set_cap( line_tools::Cap::Round( 16 ) ); },
+          "butt" => { line.cap_set( line_tools::Cap::Butt ); },
+          "square" => { line.cap_set( line_tools::Cap::Square ); },
+          "round" => { line.cap_set( line_tools::Cap::Round( 16 ) ); },
           _ => {}
         }
       }
@@ -144,7 +168,7 @@ fn run() -> Result< (), gl::WebglError >
       let gl = gl.clone();
       move | value : f32 |
       {
-        line.borrow().get_mesh().upload( &gl, "u_width", &value ).unwrap();
+        line.borrow().mesh_get().unwrap().upload( &gl, "u_width", &value ).unwrap();
       }
     }
   );
@@ -163,8 +187,9 @@ fn run() -> Result< (), gl::WebglError >
 
       update( line.clone(), &canvas, &mut input );
 
-      line.borrow().get_mesh().upload( &gl, "time", &_time ).unwrap();
-      line.borrow().get_mesh().upload( &gl, "totalDistance", &line.borrow().get_total_distance() ).unwrap();
+      line.borrow().mesh_get().unwrap().upload( &gl, "time", &_time ).unwrap();
+      #[ cfg( feature = "uv" ) ] 
+      line.borrow().mesh_get().unwrap().upload( &gl, "totalDistance", &line.borrow().total_distance() ).unwrap();
       //draw
       gl.use_program( Some( &background_program ) );
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );

@@ -2,19 +2,14 @@
 precision highp float;
 
 layout( location = 0 ) in vec2 position;
-layout( location = 1 ) in vec3 inPointA;
-layout( location = 2 ) in vec3 inPointB;
-layout( location = 3 ) in vec3 inPointC;
-layout( location = 4 ) in float inUvX;
-layout( location = 5 ) in float currentDistance;
+layout( location = 1 ) in vec2 inPointA;
+layout( location = 2 ) in vec2 inPointB;
+layout( location = 3 ) in vec2 inPointC;
 
 uniform mat3 u_world_matrix;
 uniform mat3 u_view_matrix;
 uniform mat4 u_projection_matrix;
 uniform float u_width;
-uniform float u_total_distance;
-
-out vec2 vUv;
 
 vec2 lineIntersection( vec2 p1, vec2 d1, vec2 p2, vec2 d2 )
 {
@@ -100,19 +95,7 @@ void main()
   // Right corner
   vec2 p1 = lineIntersection( pointB - normToCB * sigma * u_width * 0.5, CB, p2, normToCB * sigma );
 
-  float uvLeftK = distanceToLine( pointA, normToAB, uvPoint ) / length( pointB - pointA );
-  float uvRightK = distanceToLine( pointC, normToCB, uvPoint ) / length( pointB - pointC );
-
-  float uvLeft = mix( inPointA.z, inPointB.z, uvLeftK ); 
-  float uvRight = mix( inPointC.z, inPointB.z, uvRightK ); 
-
-  vUv.y = mix( 0.0, 1.0, position.x + position.y );
-  vUv.y = mix( 1.0 - vUv.y, vUv.y, step( 0.0, sigma ) );
-  vUv.x = mix( uvLeft, uvRight, inUvX );
-
   vec2 point = p2 + ( p0 - p2 ) * position.x + ( p1 - p2 ) * position.y;
-
   vec3 view_point = u_view_matrix * vec3( point, 1.0 );
-
-  gl_Position =  u_projection_matrix * vec4( view_point.xy, 0.0, 1.0 );
+  gl_Position = u_projection_matrix * vec4( view_point.xy, 0.0, 1.0 );
 }
