@@ -5,7 +5,7 @@ edition = "2021"
 authors = [
   "Kostiantyn Mysnyk <wandalen@obox.systems>",
   "Avramenko Yevhenii <yevhenii.av@obox.systems>",
-  "Bilan Vadym <vadym.b@obox.systems>" 
+  "Bilan Vadym <vadym.b@obox.systems>"
 ]
 
 [lints]
@@ -16,6 +16,7 @@ minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
 renderer = { workspace = true }
+#renderer = { workspace = true, default-features = false, features = [ "enabled" ] }
 animation = { workspace = true }
 skeleton = { workspace = true }
 zune-hdr = { workspace = true }
