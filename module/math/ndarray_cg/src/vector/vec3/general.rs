@@ -42,6 +42,16 @@ mod private
       cross( &self, &rhs )
     }
 
+    /// Calculates vector norm
+    pub fn norm( &self ) -> E
+    {
+      let n = self.x().powi( 2 ) +
+      self.y().powi( 2 ) +
+      self.z().powi( 2 );
+
+      n.sqrt()
+    }
+
     /// Creates homogeneous vector from `self`
     #[ inline ]
     pub fn to_homogenous( self ) -> Vector< E, 4 >

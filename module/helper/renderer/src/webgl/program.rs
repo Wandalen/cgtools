@@ -3,11 +3,11 @@ mod private
   use minwebgl as gl;
   use std::collections::HashMap;
 
-  macro_rules! impl_locations 
+  macro_rules! impl_locations
   {
-    ( $program_type:ty, $( $location_name:literal ),* ) => 
+    ( $program_type:ty, $( $location_name:literal ),* ) =>
     {
-      impl ProgramInfo< $program_type > 
+      impl ProgramInfo< $program_type >
       {
         /// Creates a new `ProgramInfo` instance.
         #[ allow( unused_variables ) ]
@@ -26,7 +26,7 @@ mod private
             locations,
             phantom : std::marker::PhantomData
           }
-        }    
+        }
       }
     };
   }
@@ -38,12 +38,12 @@ mod private
   /// A Physically Based Rendering (PBR) shader.
   pub struct PBRShader;
   /// A Gaussian filter shader
-  /// 
+  ///
   /// This type of shader is commonly used for post-processing effects like
   /// blurring, often as part of a bloom effect.
   pub struct GaussianFilterShader;
   /// An Unreal Bloom shader
-  /// 
+  ///
   /// This shader implements a bloom effect similar to the one used in the
   /// Unreal Engine, which simulates a camera's lens reacting to bright light.
   pub struct UnrealBloomShader;
@@ -111,7 +111,7 @@ mod private
     phantom : std::marker::PhantomData< T >
   }
 
-  impl< T > ProgramInfo< T > 
+  impl< T > ProgramInfo< T >
   {
     /// Returns a reference to the hash map containing uniform locations.
     pub fn get_locations( &self ) -> &HashMap< String, Option< gl::WebGlUniformLocation > >
@@ -131,11 +131,11 @@ mod private
     pub fn bind( &self, gl : &gl::WebGl2RenderingContext )
     {
       gl.use_program( Some( &self.program ) );
-    }   
+    }
   }
 
   impl_locations!
-  ( 
+  (
     PBRShader,
     "cameraPosition",
     "viewMatrix",
@@ -144,6 +144,10 @@ mod private
     // Node uniform locations
     "worldMatrix",
     "normalMatrix",
+
+    // Skeleton uniform locations
+    "inverseMatrices",
+    "inverseMatricesSize",
 
     // Material uniform  locations
     //// Textures uniform locations
@@ -173,7 +177,7 @@ mod private
   );
 
   impl_locations!
-  ( 
+  (
     GaussianFilterShader,
     "sourceTexture",
     "invSize",
@@ -182,7 +186,7 @@ mod private
   );
 
   impl_locations!
-  ( 
+  (
     UnrealBloomShader,
     "blurTexture0",
     "blurTexture1",
@@ -198,12 +202,12 @@ mod private
   );
 
   impl_locations!
-  ( 
+  (
     EmptyShader,
   );
 
   impl_locations!
-  ( 
+  (
     GBufferShader,
     "worldMatrix",
     "viewMatrix",
@@ -217,14 +221,14 @@ mod private
   );
 
   impl_locations!
-  ( 
+  (
     CompositeShader,
     "transparentA",
     "transparentB"
   );
 
   impl_locations!
-  ( 
+  (
     JfaOutlineObjectShader,
     "u_projection",
     "u_view",
@@ -232,13 +236,13 @@ mod private
   );
 
   impl_locations!
-  ( 
+  (
     JfaOutlineInitShader,
     "u_object_texture"
   );
 
   impl_locations!
-  ( 
+  (
     JfaOutlineStepShader,
     "u_jfa_texture",
     "u_resolution",
@@ -246,7 +250,7 @@ mod private
   );
 
   impl_locations!
-  ( 
+  (
     JfaOutlineShader,
     "u_object_texture",
     "u_jfa_texture",
@@ -258,7 +262,7 @@ mod private
   );
 
   impl_locations!
-  ( 
+  (
     NormalDepthOutlineObjectShader,
     "u_projection",
     "u_view",
@@ -269,7 +273,7 @@ mod private
   );
 
   impl_locations!
-  ( 
+  (
     NormalDepthOutlineShader,
     "u_color_texture",
     "u_depth_texture",
@@ -281,7 +285,7 @@ mod private
   );
 
   impl_locations!
-  ( 
+  (
     NormalDepthOutlineBaseShader,
     "sourceTexture",
     "positionTexture",
@@ -293,7 +297,7 @@ mod private
   );
 
   impl_locations!
-  ( 
+  (
     NarrowOutlineShader,
     "sourceTexture",
     "objectColorTexture",
@@ -303,13 +307,13 @@ mod private
   );
 
   impl_locations!
-  ( 
+  (
     WideOutlineInitShader,
     "objectColorTexture"
   );
 
   impl_locations!
-  ( 
+  (
     WideOutlineStepShader,
     "jfaTexture",
     "resolution",
@@ -317,7 +321,7 @@ mod private
   );
 
   impl_locations!
-  ( 
+  (
     WideOutlineShader,
     "sourceTexture",
     "objectColorTexture",
@@ -348,7 +352,7 @@ crate::mod_interface!
     WideOutlineStepShader,
     WideOutlineShader
   };
-  
+
   orphan use
   {
     ProgramInfo

@@ -224,6 +224,62 @@ Self : ScalarMut< Scalar = E > +
   }
 }
 
+impl F32x4x4
+{
+  /// Decompose a transformation matrix to scale, rotation and translation
+  ///
+  /// Source: https://github.com/mrdoob/three.js/blob/27151c8325d1dba520d4abfb5a2e1077dd59de22/src/math/Matrix4.js#L1050
+  pub fn decompose( &self ) -> Option< ( F32x3, QuatF32, F32x3 ) >
+  {
+    let
+    [
+      a, d, g, tx,
+      b, e, h, ty,
+      c, f, i, tz,
+      ..
+    ]
+    = self.transpose().to_array();
+
+    let translation = F32x3::from_array( [ tx, ty, tz ] );
+
+    let mut sx = F32x3::from_array( [ a, b, c ] ).norm();
+    let sy = F32x3::from_array( [ d, e, f ] ).norm();
+    let sz = F32x3::from_array( [ g, h, i ] ).norm();
+
+    let rot_mat = F32x3x3::from_column_major( [ a, b, c, d, e, f, g, h, i ] );
+
+    let det = rot_mat.determinant();
+    if det < 0.0
+    {
+      sx = - sx;
+    }
+
+    if sx == 0.0 || sy == 0.0 || sz == 0.0
+    {
+      return None;
+    }
+
+    let scale = F32x3::from_array( [ sx, sy, sz ] );
+
+    let i_sx = 1.0 / sx;
+    let i_sy = 1.0 / sy;
+    let i_sz = 1.0 / sz;
+
+    let rot_mat = F32x3x3::from_column_major
+    (
+      [
+        a / i_sx, b / i_sx, c / i_sx,
+        d / i_sy, e / i_sy, f / i_sy,
+        g / i_sz, h / i_sz, i / i_sz
+      ]
+    );
+
+    let rotation = QuatF32::from( rot_mat );
+
+    Some( ( translation, rotation, scale ) )
+  }
+}
+
 /// Creates a 4x4 identity matrix.
 pub fn identity< E >() -> Mat4< E, mat::DescriptorOrderColumnMajor >
 where
