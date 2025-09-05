@@ -4,6 +4,7 @@ mod private
   use minwebgl as gl;
   use gl::
   {
+    GL,
     JsCast,
     geometry::BoundingBox,
     F32x4x4
@@ -65,7 +66,8 @@ mod private
   #[ cfg( feature = "animation" ) ]
   async fn load_skeleton
   (
-    skin : Skin< '_ >,
+    gl : &GL,
+    skin : gltf::Skin< '_ >,
     folder_path : &str
   )
   -> Option< Rc< RefCell< Skeleton > > >
@@ -573,12 +575,12 @@ mod private
       #[ cfg( feature = "animation" ) ]
       if let Some( skin ) = gltf_node.skin()
       {
-        if let Object3D::Mesh( mesh ) = node.object
+        if let Object3D::Mesh( mesh ) = &node.object
         {
-          if let Some( skeleton ) = load_skeleton( skin, folder_path ).await
+          if let Some( skeleton ) = load_skeleton( gl, skin, folder_path ).await
           {
-            mesh.borrow_mut().skeleton = skeleton;
-            for primitive in mesh.borrow().primitives
+            mesh.borrow_mut().skeleton = Some( skeleton );
+            for primitive in &mesh.borrow().primitives
             {
               primitive.borrow()
               .geometry.borrow_mut()
@@ -602,7 +604,7 @@ mod private
 
     gl::log::info!( "Nodes: {}", nodes.len() );
 
-    let animations = animation::load( &gltf_file, &nodes );
+    let animations = crate::webgl::animation::load( &gltf_file, folder_path, nodes.as_slice() ).await;
 
     gl::log::info!( "Animations: {}", animations.len() );
 

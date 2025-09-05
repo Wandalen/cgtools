@@ -12,6 +12,7 @@ mod private
   ///
   pub trait EasingFunction : core::fmt::Debug
   {
+    /// Type that can be interpolated by [`EasingFunction`]
     type AnimatableType;
     /// Applies the easing function to a given value `t`.
     ///

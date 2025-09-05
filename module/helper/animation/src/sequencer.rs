@@ -4,12 +4,7 @@ mod private
 {
   use std::collections::HashMap;
   use error_tools::*;
-  use crate::
-  {
-    AnimationState,
-    Animatable,
-    Tween
-  };
+  use crate::AnimationState;
 
   /// Sequencer for managing multiple animations with sequencing and grouping.
   #[ derive( Debug ) ]
@@ -74,13 +69,12 @@ mod private
     }
 
     /// Gets the current value of a named animation.
-    pub fn get_value< T >( &self, name : &str ) -> Option< T >
-    where T : Animatable + 'static
+    pub fn get_value< T >( &self, name : &str ) -> Option< &T >
+    where T : AnimatableValue + 'static
     {
       let tween_box = self.tweens.get( name )?;
       let any_ref = tween_box.as_any();
-      any_ref.downcast_ref::< Tween< T > >()
-      .map( Tween::get_current_value )
+      any_ref.downcast_ref::< T >()
     }
 
     /// Checks if the Sequencer has completed all animations.
@@ -193,10 +187,11 @@ mod private
     NotEnough
   }
 
+  /// Sequence of [`AnimatableValue`]s of one type
   #[ derive( Debug ) ]
   pub struct Sequence< T >
   {
-    /// Sequence of [`AnimatableValue`]s
+    /// Sequence of [`AnimatableValue`]s of one type
     tweens : Vec< T >,
     /// Current [`AnimatableValue`] index
     current : usize,
@@ -213,6 +208,7 @@ mod private
   impl< T > Sequence< T >
   where T : AnimatableValue + 'static
   {
+    /// [`Sequence`] constructor
     pub fn new( mut tweens : Vec< T > ) -> Result< Self, SequenceError >
     {
       if tweens.len() < 2
@@ -247,6 +243,7 @@ mod private
       )
     }
 
+    /// Returns active [`AnimatableValue`] at current elapsed time
     pub fn get_current( &self ) -> Option< &T >
     {
       self.tweens.get( self.current )

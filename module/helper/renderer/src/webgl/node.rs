@@ -2,13 +2,12 @@ mod private
 {
   use std::{ cell::RefCell, collections::HashMap, rc::Rc };
   use minwebgl as gl;
-  use gl::GL;
   use mingl::{ geometry::BoundingBox, F32x3, F32x4x4 };
   use crate::webgl::Mesh;
 
   /// Inverse matrices texture slot
   #[ cfg( feature = "animation" ) ]
-  const INVERSE_MATRICES_SLOT : u32 = 13;
+  pub const INVERSE_MATRICES_SLOT : u32 = 13;
 
   /// Represents a 3D object that can be part of the scene graph.
   pub enum Object3D
@@ -302,13 +301,12 @@ mod private
     )
     {
       #[ cfg( feature = "animation" ) ]
-      if let Object3D::Mesh( mesh ) = self.object
+      if let Object3D::Mesh( mesh ) = &self.object
       {
-        if let Some( skeleton ) = mesh.borrow().skeleton
+        if let Some( skeleton ) = &mesh.borrow().skeleton
         {
           let locs = locations.iter()
-          .map( | ( k, v ) | ( k.into_boxed_str(), v ) )
-          .cloned()
+          .map( | ( k, v ) | ( k.clone().into_boxed_str(), v.clone() ) )
           .collect::< HashMap< _, _ > >();
           skeleton.borrow().upload( gl, locs, INVERSE_MATRICES_SLOT );
         }
@@ -395,7 +393,9 @@ crate::mod_interface!
   orphan use
   {
     Node,
-    Object3D,
-    INVERSE_MATRICES_SLOT
+    Object3D
   };
+
+  #[ cfg( feature = "animation" ) ]
+  orphan use INVERSE_MATRICES_SLOT;
 }

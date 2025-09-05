@@ -28,7 +28,7 @@
 mod private
 {
   use crate::sequencer::AnimatableValue;
-  use crate::easing::base::{ EasingFunction, Linear, EasingBuilder };
+  use crate::easing::base::EasingFunction;
   use minwebgl as gl;
   use gl::
   {
@@ -875,7 +875,7 @@ mod private
   //     let val = tween.update( 1.0 );
   //     assert_eq!( val, 10.0 );
   //   }
-  }
+  //}
 }
 
 crate::mod_interface!

@@ -25,9 +25,7 @@ use renderer::webgl::
     SwapFramebuffer
   },
   Camera,
-  Renderer,
-  Animation,
-  Pose
+  Renderer
 };
 
 // mod lil_gui;
@@ -94,8 +92,8 @@ async fn run() -> Result< (), gl::WebglError >
 
   //gui_setup::setup( renderer.clone() );
 
-  let mut last_time = Rc::new( RefCell::new( 0.0 ) );
-  let animation = gltf.animations[ 0 ];
+  let last_time = Rc::new( RefCell::new( 0.0 ) );
+  let animation = gltf.animations[ 0 ].clone();
 
   // Define the update and draw logic
   let update_and_draw =
@@ -103,10 +101,10 @@ async fn run() -> Result< (), gl::WebglError >
     move | t : f64 |
     {
       let time = t / 1000.0;
-      let mut last_time = last_time.clone();
+      let last_time = last_time.clone();
 
       let delta_time = time - *last_time.borrow();
-      last_time.borrow_mut() = time;
+      *last_time.borrow_mut() = time;
 
       if animation.sequencer.borrow().is_completed()
       {
