@@ -51,7 +51,7 @@ out vec4 vColor_1;
 #endif
 
 #ifdef USE_SKINNING
-  uniform sample2D inverseMatrices;
+  uniform sampler2D inverseMatrices;
   uniform vec2 inverseMatricesSize;
 
   // Retrieves a 4x4 matrix from a texture.
@@ -101,7 +101,7 @@ out vec4 vColor_1;
       skinMatrix += skin_matrix( joints_2, weights_2 );
     #endif
 
-    if skinMatrix == mat4( 0.0 )
+    if ( skinMatrix[ 0 ][ 0 ] == 0.0 )
     {
       skinMatrix = mat4( 1.0 );
     }
