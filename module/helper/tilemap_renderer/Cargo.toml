@@ -106,15 +106,10 @@ adapter-svg-browser = [
   "adapter-svg-browser-animation",
 ]
 
-adapter-webgl-context = ["enabled", "ports", "wasm-bindgen"]
-adapter-webgl-shaders = ["adapter-webgl-context"]
-adapter-webgl-buffers = ["adapter-webgl-context"]
-adapter-webgl-textures = ["adapter-webgl-context"]
 adapter-webgl = [
-  "adapter-webgl-context",
-  "adapter-webgl-shaders",
-  "adapter-webgl-buffers",
-  "adapter-webgl-textures",
+  "enabled",
+  "ports",
+  "wasm-bindgen",
   "commands",
   "serde",
   "dep:web-sys",
@@ -303,10 +298,6 @@ name = "terminal_adapter_test"
 required-features = ["testing"]
 
 [[test]]
-name = "webgl_adapter_test"
-required-features = ["testing"]
-
-[[test]]
 name = "webgpu_adapter_test"
 required-features = ["testing", "adapter-webgpu"]
 
@@ -356,10 +347,6 @@ required-features = ["testing"]
 
 [[example]]
 name = "terminal_simple_demo"
-required-features = ["testing"]
-
-[[example]]
-name = "webgl_demo"
 required-features = ["testing"]
 
 [[example]]
