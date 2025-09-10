@@ -274,7 +274,7 @@ impl SvgRenderer
   {
     let begin_index = self.framebegin_index + "<!--framebegin-->".len();
     self.svg_content.replace_range( begin_index..self.frameend_index, "" );
-    self.frameend_index = begin_index + 1;
+    self.frameend_index = begin_index;
   }
 }
 
