@@ -18,19 +18,19 @@ use crate::{ commands, ports };
 ///
 /// # Example
 ///
-/// ``` rust
+/// ```rust
 /// use tilemap_renderer::adapters::WGPUTileRenderer;
 /// use tilemap_renderer::{ commands, ports::RenderContext };
 /// use commands::{ Geometry2DCommand, Point2D, RenderCommand, Transform2D };
 ///
-/// let renderer = WGPUTileRenderer::new
+/// let mut renderer = WGPUTileRenderer::new
 /// (
 ///   wgpu::Backends::PRIMARY,
 ///   RenderContext::new( 256, 256, [ 0.0; 4 ], true, Point2D::new( 0.0, 0.0 ), 1.0 )
-/// );
+/// ).unwrap();
 ///
 /// let line = &[ 0.0_f32, 0.0, 1.0, 1.0 ];
-/// renderer.geometry2d_load( bytemuck::cast_slice( line ), 2, 0 );
+/// renderer.geometry2d_load( line, 0 );
 /// let res = renderer.commands_execute
 /// (
 ///   &[
@@ -40,14 +40,13 @@ use crate::{ commands, ports };
 ///       {
 ///         id : 0,
 ///         transform : Transform2D::default(),
-///         color: [ 1.0; 3 ],
-///         mode: commands::GeometryMode::Lines
+///         color : [ 1.0; 3 ],
+///         mode : commands::GeometryMode::Lines
 ///       }
 ///     )
 ///   ]
 /// );
 /// ```
-///
 #[ derive( Debug ) ]
 pub struct WGPUTileRenderer
 {
