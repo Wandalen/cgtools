@@ -1,7 +1,10 @@
 mod private
 {
-  /// The vertex shader for the merged line rendering.
-  pub const MERGED_VERTEX_SHADER : &'static str = include_str!( "./d3/shaders/merged.vert" );
+  /// The vertex shader for the line rendering.
+  pub const MAIN_VERTEX_SHADER : &'static str = include_str!( "./d3/shaders/main.vert" );
+
+  /// The fragment shader for the line rendering.
+  pub const MAIN_FRAGMENT_SHADER : &'static str = include_str!( "./d3/shaders/main.frag" );
 }
 
 crate::mod_interface!
@@ -11,6 +14,7 @@ crate::mod_interface!
 
   own use
   {
-    MERGED_VERTEX_SHADER
+    MAIN_VERTEX_SHADER,
+    MAIN_FRAGMENT_SHADER
   };
 }
