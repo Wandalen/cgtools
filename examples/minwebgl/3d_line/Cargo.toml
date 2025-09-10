@@ -17,6 +17,7 @@ minwebgl = { workspace = true, features = [ "math" ] }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 serde = { workspace = true, features = [ "derive" ] }
 serde-wasm-bindgen = { workspace = true }
+fastrand = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true
