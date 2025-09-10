@@ -25,14 +25,12 @@ mod private
   {
     animation::
     {
-      Channel,
-      Interpolation,
-      Property
+      util::ReadOutputs, Channel, Interpolation, Property
     },
     Gltf
   };
-  use mingl as gl;
-  use gl::{ web::file, F32x3, QuatF32 };
+  use minwebgl as gl;
+  use gl::{ F32x3, QuatF32 };
   use crate::webgl::Node;
 
   /// Prefix used for getting [`Node`] translation
@@ -200,68 +198,28 @@ mod private
     }
   }
 
-  async fn decode_accessor( folder_path : &str, accessor : &gltf::Accessor< '_ > ) -> Option< Vec< f32 > >
+  async fn decode_channel< 'a >
+  (
+    channel : Channel< '_ >,
+    buffers : &'a [ Vec< u8 > ],
+  ) -> Option< ( usize, Vec< f32 >, ReadOutputs< 'a > ) >
   {
-    let view = accessor.view()?;
-    let buffer = view.buffer();
-
-    let buffer = match buffer.source()
-    {
-      gltf::buffer::Source::Uri( uri ) =>
-      {
-        let path = format!( "{}/{}", folder_path, uri );
-        let Ok( buffer ) = file::load( &path ).await
-        else
-        {
-          return None;
-        };
-        buffer
-      },
-      _ => return None
-    };
-
-    let start = view.offset() + accessor.offset();
-    let end = start + accessor.count() * accessor.size();
-    let data = &buffer[ start..end ];
-
-    let mut decoded_data = Vec::with_capacity( data.len() / 4 );
-    let mut chunks = data.chunks_exact( 4 );
-    while let Some( chunk ) = chunks.next()
-    {
-      let mut bytes = [ 0u8; 4 ];
-      bytes.copy_from_slice( chunk );
-      decoded_data.push( f32::from_le_bytes( bytes ) );
-    }
-
-    Some( decoded_data )
-  }
-
-  async fn decode_channel( folder_path : &str, channel : Channel< '_ > ) -> Option< ( usize, usize, Vec< f32 >, Vec< f32 > ) >
-  {
-    let target = channel.target();
     let sampler = channel.sampler();
+    let reader = channel.reader
+    (
+      | buffer | Some( buffers[ buffer.index() ].as_slice() )
+    );
 
-    let in_acc = sampler.input();
-    let out_acc = sampler.output();
-
-    let Some( times ) = decode_accessor( folder_path, &in_acc ).await
+    let Some( times ) = reader.read_inputs()
     else
     {
       return None;
     };
 
-    let Some( values ) = decode_accessor( folder_path, &out_acc ).await
+    let Some( values ) = reader.read_outputs()
     else
     {
       return None;
-    };
-
-    let elements = match target.property()
-    {
-      Property::Translation | Property::Scale => 3,
-      Property::Rotation => 4,
-      _ => return None
-      // Property::MorphTargetWeights => todo!(),
     };
 
     let components = if let Interpolation::CubicSpline = sampler.interpolation()
@@ -273,23 +231,41 @@ mod private
       1
     };
 
-    Some( ( elements, components, times, values ) )
+    Some
+    (
+      (
+        components,
+        times.collect::< Vec< _ > >(),
+        values
+      )
+    )
   }
 
-  async fn quat_sequence( folder_path : &str, channel : Channel< '_ > ) -> Option< Sequence< Tween< QuatF32 > > >
+  async fn quat_sequence
+  (
+    channel : Channel< '_ >,
+    buffers : &[ Vec< u8 > ],
+  ) -> Option< Sequence< Tween< QuatF32 > > >
   {
     let Some
     (
-      ( elements, components, times, values )
+      ( components, times, values )
     )
-    = decode_channel( folder_path, channel.clone() ).await
+    = decode_channel( channel.clone(), buffers ).await
     else
     {
       return None;
     };
 
+    let ReadOutputs::Rotations( rotations ) = values
+    else
+    {
+      return None;
+    };
+    let rotations = rotations.into_f32().collect::< Vec< _ > >();
+
     let iter = times.into_iter()
-    .zip( values.chunks( elements * components ) );
+    .zip( rotations.chunks( components ) );
 
     let mut tweens = vec![];
     let mut last_time = None;
@@ -297,8 +273,7 @@ mod private
 
     for ( t2, v ) in iter
     {
-      let items = v.as_chunks::< 4 >().0;
-      let mut items_iter = items.iter();
+      let mut items_iter = v.iter();
 
       let mut in_tangent = None;
       if channel.sampler().interpolation() == Interpolation::CubicSpline
@@ -358,20 +333,36 @@ mod private
     Sequence::new( tweens ).ok()
   }
 
-  async fn vec3_sequence( folder_path : &str, channel : Channel< '_ > ) -> Option< Sequence< Tween< F32x3 > > >
+  async fn vec3_sequence
+  (
+    channel : Channel< '_ >,
+    buffers : &[ Vec< u8 > ],
+  ) -> Option< Sequence< Tween< F32x3 > > >
   {
     let Some
     (
-      ( elements, components, times, values )
+      ( components, times, values )
     )
-    = decode_channel( folder_path, channel.clone() ).await
+    = decode_channel( channel.clone(), buffers ).await
     else
     {
       return None;
     };
 
+    //let mut keyframes = vec![];
+
+    let values = match values
+    {
+      ReadOutputs::Translations( v ) |
+      ReadOutputs::Scales( v ) =>
+      {
+        v.collect::< Vec< _ > >()
+      }
+      _ => { return None; }
+    };
+
     let iter = times.into_iter()
-    .zip( values.chunks( elements * components ) );
+    .zip( values.chunks( components ) );
 
     let mut tweens = vec![];
     let mut last_time = None;
@@ -379,8 +370,7 @@ mod private
 
     for ( t2, v ) in iter
     {
-      let items = v.as_chunks::< 3 >().0;
-      let mut items_iter = items.iter();
+      let mut items_iter = v.iter();
 
       let mut m1 = None;
       if channel.sampler().interpolation() == Interpolation::CubicSpline
@@ -393,7 +383,7 @@ mod private
         m1 = Some( _m1 );
       }
 
-      let Some( [ x2, y2, z2 ] ) = items_iter.next().cloned()
+      let Some( v2 ) = items_iter.next().cloned()
       else
       {
         continue;
@@ -410,7 +400,7 @@ mod private
         m2 = Some( _m2 );
       }
 
-      let v2 = F32x3::from_array( [ x2, y2, z2 ] );
+      let v2 = F32x3::from_array( v2 );
       let t1 = last_time.unwrap_or( t2 );
       let v1 = last_value
       .unwrap_or( v2 );
@@ -434,7 +424,10 @@ mod private
       let tween = Tween::new( v1, v2, duration, easing )
       .with_delay( delay );
       tweens.push( tween );
+      //keyframes.push( ( t1, t2, v1, v2 ) );
     }
+
+    //gl::info!( "Keyframes: {:#?}", keyframes );
 
     Sequence::new( tweens ).ok()
   }
@@ -443,7 +436,7 @@ mod private
   pub async fn load
   (
     gltf_file : &Gltf,
-    folder_path : &str,
+    buffers : &[ Vec< u8 > ],
     nodes : &[ Rc< RefCell< Node > > ]
   )
   -> Vec< Animation >
@@ -469,7 +462,8 @@ mod private
         {
           Property::Translation =>
           {
-            let Some( sequence ) = vec3_sequence( folder_path, channel ).await
+            //gl::info!( "{}{}", name, TRANSLATION_PREFIX );
+            let Some( sequence ) = vec3_sequence( channel, buffers ).await
             else
             {
               continue;
@@ -478,7 +472,8 @@ mod private
           },
           Property::Scale =>
           {
-            let Some( sequence ) = vec3_sequence( folder_path, channel ).await
+            //gl::info!( "{}{}", name, SCALE_PREFIX );
+            let Some( sequence ) = vec3_sequence( channel, buffers ).await
             else
             {
               continue;
@@ -487,7 +482,8 @@ mod private
           }
           Property::Rotation =>
           {
-            let Some( sequence ) = quat_sequence( folder_path, channel ).await
+            //gl::info!( "{}{}", name, ROTATION_PREFIX );
+            let Some( sequence ) = quat_sequence( channel, buffers ).await
             else
             {
               continue;
