@@ -213,6 +213,7 @@ impl SvgRenderer
     );
     self.svg_content.insert_str( self.framebegin_index, &def );
     self.framebegin_index += def.len();
+    self.frameend_index += def.len();
     _ = self.images.insert( id.to_string(), ( width, height ) );
   }
 
@@ -570,6 +571,7 @@ impl PrimitiveRenderer for SvgRenderer
     return Err( RenderError::FeatureNotImplemented( "Particle rendering not supported in SVG backend".to_string() ) );
   }
 }
+
 /// Defines the visual styling for rendering 2D geometry, including fill and stroke properties.
 #[ derive( Debug, Clone, Copy ) ]
 pub struct GeometryStyle
