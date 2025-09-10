@@ -31,6 +31,13 @@ mod private
       }
     }
 
+    /// Returns list of contained [`AnimatableValue`]'s names
+    pub fn keys( &self ) -> Vec< Box< str > >
+    {
+      self.tweens.keys().cloned()
+      .collect::< Vec< _ > >()
+    }
+
     /// Adds a [`AnimatableValue`] to the Sequencer.
     pub fn add< T >( &mut self, name : &str, tween : T )
     where T : AnimatableValue + 'static
@@ -173,6 +180,8 @@ mod private
     fn get_duration( &self ) -> f32;
     /// Returns animation delay
     fn get_delay( &self ) -> f32;
+    /// Gets the progress of the animated value ( 0.0 to 1.0 ).
+    fn progress( &self ) -> f32;
   }
 
     /// Error for handling wrong [`Sequence`] input data
@@ -248,6 +257,12 @@ mod private
     {
       self.tweens.get( self.current )
     }
+
+    /// Returns elapsed time
+    pub fn time( &self ) -> f32
+    {
+      self.elapsed
+    }
   }
 
   impl< T > AnimatableValue for Sequence< T >
@@ -255,42 +270,137 @@ mod private
   {
     fn update( &mut self, delta_time : f32 )
     {
-      let tweens_count = self.tweens.len();
+      if self.state == AnimationState::Completed || self.state == AnimationState::Paused
+      {
+        return;
+      }
+
+      //minwebgl::info!( "0" );
+
+      self.elapsed += delta_time;
+
+      let index = self.tweens.binary_search_by
+      (
+        | t |
+        {
+          t.get_delay().partial_cmp( &self.elapsed ).expect( "Animation keyframes can't be NaN" )
+        }
+      );
+
+      let index = match index
+      {
+        Ok( id ) | Err( id ) => id
+      };
+
+      let mut current_id = index;
+
+      if index >= self.tweens.len()
+      {
+        current_id = self.tweens.len().saturating_sub( 1 );
+      }
+
+      if self.current == current_id
+      {
+        //minwebgl::info!( "1 {} {}", self.tweens.len(), self.current );
+        let Some( current ) = self.tweens.get_mut( self.current )
+        else
+        {
+          return;
+        };
+        //minwebgl::info!( "2" );
+        let old_elapsed = current.get_delay() + ( current.progress() * current.get_duration() );
+        current.update( old_elapsed + delta_time );
+      }
+      else if self.current < current_id
+      {
+        self.current = current_id;
+        let Some( current ) = self.tweens.get_mut( self.current )
+        else
+        {
+          return;
+        };
+        //minwebgl::info!( "3" );
+        current.update( self.elapsed );
+      }
+
+      //minwebgl::info!( "4" );
 
       let Some( current ) = self.tweens.get_mut( self.current )
       else
       {
         return;
       };
-
-      self.elapsed += delta_time;
-      current.update( delta_time );
+      //minwebgl::info!( "5" );
 
       match self.state
       {
-        AnimationState::Pending if self.elapsed > self.delay =>
+        AnimationState::Pending if self.elapsed - current.get_delay() > 0.0 =>
         {
+          //minwebgl::info!( "6" );
           self.state = AnimationState::Running;
         },
-        AnimationState::Running if current.is_completed() =>
+        AnimationState::Running
+        if self.current >= self.tweens.len() - 1 &&
+        self.tweens.get( self.current ).map( | t | t.is_completed() )
+        .unwrap_or( true ) =>
         {
-          self.current += 1;
-
-          let Some( current ) = self.tweens.get_mut( self.current )
-          else
-          {
-            self.state = AnimationState::Completed;
-            return;
-          };
-
-          current.update( self.elapsed - current.get_delay() );
-        },
-        AnimationState::Running if self.current == tweens_count && current.is_completed() =>
-        {
+          //minwebgl::info!( "7" );
           self.state = AnimationState::Completed;
         },
         _ => {}
       }
+
+      // let tweens_count = self.tweens.len();
+
+      // if delta_time > self.duration && self.state == AnimationState::Running
+      // {
+      //   self.state = AnimationState::Completed;
+      //   self.current = tweens_count - 1;
+      //   return;
+      // }
+
+      // let ( is_completed, mut ends ) = {
+      //   let Some( current ) = self.tweens.get_mut( self.current )
+      //   else
+      //   {
+      //     return;
+      //   };
+
+      //   self.elapsed += delta_time;
+      //   current.update( delta_time );
+      //   ( current.is_completed(), current.get_delay() + current.get_duration() )
+      // };
+
+      // match self.state
+      // {
+      //   AnimationState::Pending if self.elapsed > self.delay =>
+      //   {
+      //     self.state = AnimationState::Running;
+      //   },
+      //   AnimationState::Running if self.current >= tweens_count && is_completed =>
+      //   {
+      //     self.state = AnimationState::Completed;
+      //     self.current = tweens_count - 1;
+      //   },
+      //   AnimationState::Running if is_completed =>
+      //   {
+      //     while self.elapsed - ends > 0.0
+      //     {
+      //       self.current += 1;
+
+      //       let Some( current ) = self.tweens.get_mut( self.current )
+      //       else
+      //       {
+      //         self.state = AnimationState::Completed;
+      //         return;
+      //       };
+
+      //       current.update( self.elapsed - current.get_delay() );
+      //       ends = current.get_delay() + current.get_duration();
+      //     }
+      //   },
+      //   _ => {}
+      // }
     }
 
     fn is_completed( &self ) -> bool
@@ -343,6 +453,18 @@ mod private
     fn get_delay( &self ) -> f32
     {
       self.delay
+    }
+
+    fn progress( &self ) -> f32
+    {
+      if self.state == AnimationState::Pending
+      {
+        0.0
+      }
+      else
+      {
+        ( ( self.elapsed - self.delay ) / self.duration ).clamp( 0.0, 1.0 )
+      }
     }
   }
 

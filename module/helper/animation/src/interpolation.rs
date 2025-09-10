@@ -78,6 +78,8 @@ mod private
     state : AnimationState,
     /// Delay before animation starts
     delay : f32,
+    /// Time remains before animation starts
+    remain : f32,
     /// Number of times to repeat ( 0 = no repeat, -1 = infinite )
     repeat_count : i32,
     /// Current repeat iteration
@@ -107,6 +109,7 @@ mod private
         easing,
         state : AnimationState::Pending,
         delay : 0.0,
+        remain : 0.0,
         repeat_count : 0,
         current_repeat : 0,
         yoyo : false,
@@ -117,6 +120,7 @@ mod private
     pub fn with_delay( mut self, delay : f32 ) -> Self
     {
       self.delay = delay.max( 0.0 );
+      self.remain = self.delay;
       self
     }
 
@@ -143,13 +147,13 @@ mod private
       {
         AnimationState::Pending =>
         {
-          if self.delay > 0.0
+          if self.remain > 0.0
           {
-            let delay_consumed = remaining_time.min( self.delay );
-            self.delay -= delay_consumed;
+            let delay_consumed = remaining_time.min( self.remain );
+            self.remain -= delay_consumed;
             remaining_time -= delay_consumed;
 
-            if self.delay <= 0.0
+            if self.remain <= 0.0
             {
               self.state = AnimationState::Running;
             }
@@ -264,6 +268,7 @@ mod private
     {
       self.elapsed = 0.0;
       self.current_repeat = 0;
+      self.remain = self.delay;
       self.state = if self.delay > 0.0
       {
         AnimationState::Pending
@@ -292,17 +297,10 @@ mod private
       self.current_repeat
     }
 
-    /// Gets the progress of the animation ( 0.0 to 1.0 ).
-    pub fn progress( &self ) -> f32
+    /// Gets elapsed time
+    pub fn time( &self ) -> f32
     {
-      if self.state == AnimationState::Pending
-      {
-        0.0
-      }
-      else
-      {
-        (self.elapsed / self.duration).clamp( 0.0, 1.0 )
-      }
+      self.elapsed
     }
   }
 
@@ -347,6 +345,18 @@ mod private
     fn get_delay( &self ) -> f32
     {
       self.delay
+    }
+
+    fn progress( &self ) -> f32
+    {
+      if self.state == AnimationState::Pending
+      {
+        0.0
+      }
+      else
+      {
+        ( ( self.elapsed - self.delay ) / self.duration ).clamp( 0.0, 1.0 )
+      }
     }
   }
 
@@ -415,6 +425,18 @@ mod private
       }
 
       min_delay
+    }
+
+    fn progress( &self ) -> f32
+    {
+      if self[ 0 ].state == AnimationState::Pending
+      {
+        0.0
+      }
+      else
+      {
+        ( ( self[ 0 ].time() - self.get_delay() ) / self.get_duration() ).clamp( 0.0, 1.0 )
+      }
     }
   }
 
