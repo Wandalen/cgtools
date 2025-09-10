@@ -47,25 +47,28 @@ impl WebGLTileRenderer
   ///
   /// This function initializes the WebGL shader programs and sets up the initial state.
   #[ inline ]
-  pub fn new( gl : &gl::GL, render_context : ports::RenderContext ) -> Self
+  pub fn new( gl : &gl::GL, render_context : ports::RenderContext ) -> Result< Self, gl::WebglError >
   {
     let v_main = include_str!( "../../../shaders/main.vert" );
     let f_main = include_str!( "../../../shaders/main.frag" );
-    let geom2d_program = gl::Program::new( gl.clone(), v_main, f_main ).unwrap();
+    let geom2d_program = gl::Program::new( gl.clone(), v_main, f_main )?;
 
     let v_sprite = include_str!( "../../../shaders/sprite.vert" );
     let f_sprite = include_str!( "../../../shaders/sprite.frag" );
-    let sprite_program = gl::Program::new( gl.clone(), v_sprite, f_sprite ).unwrap();
+    let sprite_program = gl::Program::new( gl.clone(), v_sprite, f_sprite )?;
 
-    Self
-    {
-      gl : gl.clone(),
-      geometry2d : rustc_hash::FxHashMap::default(),
-      textures : rustc_hash::FxHashMap::default(),
-      geom2d_program,
-      sprite_program,
-      context : render_context,
-    }
+    Ok
+    (
+      Self
+      {
+        gl : gl.clone(),
+        geometry2d : rustc_hash::FxHashMap::default(),
+        textures : rustc_hash::FxHashMap::default(),
+        geom2d_program,
+        sprite_program,
+        context : render_context,
+      }
+    )
   }
 
   /// Creates a vertex buffer, loads `data` into it, and stores it internally by the provided `id`.
