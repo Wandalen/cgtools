@@ -30,7 +30,7 @@ workspace = true
 [features]
 enabled = [
   "dep:mod_interface",
-  "dep:minwebgl", 
+  "dep:minwebgl",
   "dep:mingl",
   "dep:gltf",
   "dep:asbytes",
@@ -38,8 +38,8 @@ enabled = [
   "dep:uuid",
   "dep:web-sys",
 ]
-default = ["enabled", "animation"]
-full = ["enabled", "webgl"]
+default = ["enabled"]
+full = ["enabled", "webgl", "animation"]
 webgl = []
 animation = [ "dep:animation", "dep:skeleton" ]
 
