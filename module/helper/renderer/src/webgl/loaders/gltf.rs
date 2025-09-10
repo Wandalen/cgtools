@@ -4,10 +4,8 @@ mod private
   use minwebgl as gl;
   use gl::
   {
-    GL,
     JsCast,
     geometry::BoundingBox,
-    F32x4x4
   };
   use crate::webgl::
   {
@@ -30,14 +28,18 @@ mod private
     WrappingMode
   };
   use web_sys::wasm_bindgen::prelude::Closure;
-  use std::collections::HashMap;
 
   #[ cfg( feature = "animation" ) ]
   use
   {
     skeleton::Skeleton,
     crate::webgl::animation::Animation,
-    asbytes::cast_slice
+    std::collections::HashMap,
+    gl::
+    {
+      GL,
+      F32x4x4
+    }
   };
 
   /// Represents a loaded glTF (GL Transmission Format) scene.
@@ -59,64 +61,52 @@ mod private
     /// A list of `Mesh` objects, which represent the geometry of the scene.
     pub meshes : Vec< Rc< RefCell< Mesh > > >,
     /// A list of `Animation` objects, which store `Node`'s tranform change in every time moment.
+    #[ cfg( feature = "animation" ) ]
     pub animations : Vec< Animation >
   }
 
   /// Asynchronously loads [`Skeleton`] for one [`Mesh`]
   #[ cfg( feature = "animation" ) ]
-  async fn load_skeleton
+  async fn load_skeleton< 'a >
   (
     gl : &GL,
     skin : gltf::Skin< '_ >,
-    folder_path : &str
+    buffers : &'a [ Vec< u8 > ],
   )
   -> Option< Rc< RefCell< Skeleton > > >
   {
-    let Some( acc ) = skin.inverse_bind_matrices()
+    let reader = skin.reader
+    (
+      | buffer | Some( buffers[ buffer.index() ].as_slice() )
+    );
+
+    let Some( inverse_bind_matrices_iter ) = reader.read_inverse_bind_matrices()
     else
     {
       return None;
     };
 
-    let mut matrices = vec![];
-
-    let Some( view ) = acc.view()
-    else
-    {
-      return None;
-    };
-
-    let gltf_buffer = view.buffer();
-
-    let mut matrix_buffer_slice : Option< Vec< [ f32; 16 ] > > = None;
-    match gltf_buffer.source()
-    {
-      gltf::buffer::Source::Uri( uri ) =>
+    let matrices = inverse_bind_matrices_iter
+    .map
+    (
+      | m |
       {
-        let path = format!( "{}/{}", folder_path, uri );
-        let buffer = gl::file::load( &path ).await
-        .expect( "Failed to load a buffer" );
-
-        let vl = view.length();
-        let vo = view.offset();
-        let ac = acc.count();
-        let ao = acc.offset();
-
-        let slice = buffer.get( vo..( vo + vl ) )
-        .unwrap()
-        .get( ao..( ao + ( 16 * 4 * ac ) ) )
-        .unwrap();
-        matrix_buffer_slice = Some( cast_slice( slice ).to_vec() );
-      },
-      _ => {}
-    }
-
-    if let Some( slice ) = matrix_buffer_slice
-    {
-      matrices = slice.into_iter()
-      .map( | array | F32x4x4::from_column_major( array ) )
-      .collect::< Vec< _ > >();
-    }
+        F32x4x4::from_column_major
+        (
+          m.iter()
+          .cloned()
+          .flatten()
+          .collect::< Vec< f32 > >()
+          .as_chunks::< 16 >()
+          .0
+          .into_iter()
+          .cloned()
+          .next()
+          .unwrap()
+        )
+      }
+    )
+    .collect::< Vec< _ > >();
 
     let mut joints = HashMap::new();
     for ( joint, matrix ) in skin.joints().zip( matrices )
@@ -126,6 +116,8 @@ mod private
         joints.insert( name.to_string().into_boxed_str(), matrix );
       }
     }
+
+    // gl::info!( "Joints: {:?}", joints );
 
     let skeleton = Skeleton::new( gl, joints )
     .map( | s | Rc::new( RefCell::new( s ) ) );
@@ -183,6 +175,10 @@ mod private
         _ => {}
       }
     }
+
+    let bin_buffers = buffers.iter()
+    .map( | b | b.to_vec() )
+    .collect::< Vec< _ > >();
 
     gl::info!( "Bufffers: {}", buffers.len() );
 
@@ -521,7 +517,6 @@ mod private
               make_attibute_info( &acc, 10 + i ),
               true
             )?;
-
           },
           gltf::Semantic::Weights( i ) =>
           {
@@ -577,7 +572,7 @@ mod private
       {
         if let Object3D::Mesh( mesh ) = &node.object
         {
-          if let Some( skeleton ) = load_skeleton( gl, skin, folder_path ).await
+          if let Some( skeleton ) = load_skeleton( gl, skin, bin_buffers.as_slice() ).await
           {
             mesh.borrow_mut().skeleton = Some( skeleton );
             for primitive in &mesh.borrow().primitives
@@ -604,8 +599,10 @@ mod private
 
     gl::log::info!( "Nodes: {}", nodes.len() );
 
-    let animations = crate::webgl::animation::load( &gltf_file, folder_path, nodes.as_slice() ).await;
+    #[ cfg( feature = "animation" ) ]
+    let animations = crate::webgl::animation::load( &gltf_file, bin_buffers.as_slice(), nodes.as_slice() ).await;
 
+    #[ cfg( feature = "animation" ) ]
     gl::log::info!( "Animations: {}", animations.len() );
 
     let mut scenes = Vec::new();
@@ -631,6 +628,7 @@ mod private
         textures,
         materials,
         meshes,
+        #[ cfg( feature = "animation" ) ]
         animations
       }
     )
