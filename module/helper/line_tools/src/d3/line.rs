@@ -15,12 +15,18 @@ mod private
     // The optional `Mesh` object that holds the WebGL resources for rendering.
     /// `None` until `create_mesh` is called.
     mesh : Option< Mesh >,
+    /// A flag to set whether to use the vertex color or not. Should be set before the mesh creation
+    use_vertex_color : bool,
+    /// A flag to set where to use alpha to coverage blending technique instead of alpha testing 
+    use_alpha_to_coverage : bool,
+    /// Fragment shader source
+    fragment_shader : String,
     /// A flag to indicate whether the line's points have changed since the last update.
     points_changed : bool,
     /// A flag to indicate the colors have been changed
     colors_changed : bool,
-    /// A flag to set whether to use the vertex color or not. Should be set before the mesh creation
-    use_vertex_color : bool
+    /// A flag to indicate any shader defines have been changed
+    defines_changed : bool
   }
   
   impl Line
@@ -32,22 +38,7 @@ mod private
     /// where each instance is a segment of the line.
     pub fn mesh_create( &mut self, gl : &gl::WebGl2RenderingContext, fragment_shader : Option< &str > ) -> Result< (), gl::WebglError >
     {
-      let fragment_shader_source = fragment_shader.unwrap_or( d3::MAIN_FRAGMENT_SHADER );
-
-      let fragment_shader = 
-      if self.use_vertex_color
-      {
-        fragment_shader_source.replace( "// #include <defines>", "#define USE_VERTEX_COLORS\n" )
-      }
-      else
-      {
-        fragment_shader_source.to_string()
-      };
-
-      let fragment_shader = gl::ShaderSource::former()
-      .shader_type( gl::FRAGMENT_SHADER )
-      .source( &fragment_shader )
-      .compile( &gl )?;
+      self.fragment_shader = fragment_shader.unwrap_or( d3::MAIN_FRAGMENT_SHADER ).to_string();
 
       let ( vertices, indices, uvs ) = helpers::four_piece_rectangle_geometry();
 
@@ -75,29 +66,12 @@ mod private
         gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 3 ).divisor( 1 ).attribute_pointer( gl, 5, &color_buffer )?;
       }
 
-      let vertex_shader = 
-      if self.use_vertex_color
-      {
-        d3::MAIN_VERTEX_SHADER.replace( "// #include <defines>", "#define USE_VERTEX_COLORS\n" )
-      }
-      else
-      {
-        d3::MAIN_VERTEX_SHADER.to_string()
-      };
-
-
-      let vertex_shader = gl::ShaderSource::former()
-      .shader_type( gl::VERTEX_SHADER )
-      .source( &vertex_shader )
-      .compile( &gl )?;
-
-      let program = gl::ProgramShaders::new( &vertex_shader, &fragment_shader ).link( &gl )?;
       let program = Program
       {
-        vertex_shader : Some( vertex_shader ),
-        fragment_shader : Some( fragment_shader ),
+        vertex_shader : None,
+        fragment_shader : None,
         vao : vao,
-        program : Some( program ),
+        program : None,
         draw_mode : gl::TRIANGLES,
         instance_count : Some( ( self.points.len() as f32 - 1.0 ).max( 0.0 ) as u32 ),
         index_count : Some( indices.len() as u32 ),
@@ -117,6 +91,7 @@ mod private
 
       self.points_changed = true;
       self.colors_changed = true;
+      self.defines_changed = true;
 
       self.mesh_update( gl )?;
 
@@ -126,10 +101,40 @@ mod private
     /// Updates the mesh's vertex buffers if the line's points have changed.
     pub fn mesh_update( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
-      let mesh = self.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
+      if self.defines_changed
+      {
+        let vertex_shader = d3::MAIN_VERTEX_SHADER.replace( "// #include <defines>", &self.get_defines() );
+        let vertex_shader = gl::ShaderSource::former()
+        .shader_type( gl::VERTEX_SHADER )
+        .source( &vertex_shader )
+        .compile( &gl )?;
+
+        let fragment_shader = self.fragment_shader.replace( "// #include <defines>", &self.get_defines() );
+        let fragment_shader = gl::ShaderSource::former()
+        .shader_type( gl::FRAGMENT_SHADER )
+        .source( &fragment_shader )
+        .compile( &gl )?;
+
+        let program = gl::ProgramShaders::new( &vertex_shader, &fragment_shader ).link( &gl )?;
+
+        let mesh = self.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
+        let b_program = mesh.get_program_mut( "body" );
+        b_program.copy_uniforms_to( gl, &program )?;
+
+        b_program.delete_fragment_shader( gl );
+        b_program.delete_vertex_shader( gl );
+        b_program.delete_program( gl );
+
+        b_program.program = Some( program );
+        b_program.fragment_shader = Some( fragment_shader );
+        b_program.vertex_shader = Some( vertex_shader );
+
+        self.defines_changed = false;
+      }
 
       if self.points_changed
       {
+        let mesh = self.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
         let points_buffer = mesh.get_buffer( "points" );
         
         let points : Vec< f32 > = self.points.iter().flat_map( | p | p.to_array() ).collect();
@@ -143,6 +148,7 @@ mod private
 
       if self.colors_changed && self.use_vertex_color
       {
+        let mesh = self.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
         let colors_buffer = mesh.get_buffer( "colors" );
 
         let colors : Vec< f32 > = self.colors.iter().flat_map( | c | c.to_array() ).collect();
@@ -158,6 +164,14 @@ mod private
     pub fn use_vertex_color( &mut self, value : bool )
     {
       self.use_vertex_color = value;
+      self.defines_changed = true;
+    }
+
+    /// Sets whether the alpha to coverage will be used or not
+    pub fn use_alpha_to_coverage( &mut self, value : bool )
+    {
+      self.use_alpha_to_coverage = value;
+      self.defines_changed = true;
     }
 
     /// Adds a new point to the end of the line strip.
@@ -230,6 +244,23 @@ mod private
     pub fn num_points( &self ) -> usize
     {
       self.points.len()
+    }
+
+    fn get_defines( &self ) -> String
+    {
+      let mut s = String::new();
+      
+      if self.use_vertex_color
+      {
+        s += "#define USE_VERTEX_COLORS\n";
+      }
+
+      if self.use_alpha_to_coverage
+      {
+        s += "#define USE_ALPHA_TO_COVERAGE\n";
+      }
+
+      s
     }
   }
 }

@@ -31,7 +31,9 @@ mod simulation;
 #[ derive( Default, Serialize, Deserialize ) ]
 struct Settings
 {
-  width : f32
+  width : f32,
+  #[ serde( rename = "Alpha to coverage" ) ]
+  alpha_to_coverage : bool
 }
 
 fn run() -> Result< (), gl::WebglError >
@@ -39,6 +41,9 @@ fn run() -> Result< (), gl::WebglError >
   gl::browser::setup( gl::browser::Config::default() );
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas( &canvas )?;
+  //let gl = gl::context::from_canvas_with( &canvas, gl::context::ContexOptions::default().antialias( true ) )?;
+
+  gl::info!("{:?}", gl.get_context_attributes().unwrap().get_antialias() );
 
   #[ allow( clippy::cast_precision_loss ) ]
   let width = canvas.width() as f32;
@@ -75,8 +80,14 @@ fn run() -> Result< (), gl::WebglError >
   let world_matrix = gl::math::mat4x4::identity();
   let projection_matrix = gl::math::mat3x3h::perspective_rh_gl( fov, aspect_ratio, near, far );
 
-  let line_width = 0.01;
+  let line_width = 0.004;
   let num_bodies = 10;
+
+  let settings = Settings
+  {
+    width : line_width,
+    alpha_to_coverage : false
+  };
 
   let mut simulation = Simulation::new( num_bodies );
   let mut lines = Vec::with_capacity( num_bodies );
@@ -91,6 +102,7 @@ fn run() -> Result< (), gl::WebglError >
 
     let mut line = line_tools::d3::Line::default();
     line.use_vertex_color( true );
+    line.use_alpha_to_coverage( settings.alpha_to_coverage );
     line.mesh_create( &gl, None )?;
 
     let mesh = line.mesh_get()?;
@@ -100,16 +112,13 @@ fn run() -> Result< (), gl::WebglError >
     mesh.upload_matrix( &gl, "u_projection_matrix", &projection_matrix.to_array() )?;
     mesh.upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() ).unwrap();
 
-
     lines.push( line );
   }
 
-  let lines = Rc::new( RefCell::new( lines ) );
+  // lines[ 0 ].point_add( [ 0.0, 0.0, 0.0 ] );
+  // lines[ 0 ].point_add( [ 1.0, 1.0, 0.0 ] );
 
-  let settings = Settings
-  {
-    width : line_width
-  };
+  let lines = Rc::new( RefCell::new( lines ) );
 
   let object = serde_wasm_bindgen::to_value( &settings ).unwrap();
   let gui = lil_gui::new_gui();
@@ -133,13 +142,41 @@ fn run() -> Result< (), gl::WebglError >
   lil_gui::on_change( &prop, &callback );
   callback.forget();
 
+  let prop = lil_gui::add_boolean( &gui, &object, "Alpha to coverage" );
+  let callback = Closure::new
+  (
+    {
+      let lines = lines.clone();
+      let gl = gl.clone();
+      move | value : bool |
+      {
+        let mut lines = lines.borrow_mut();
+        for i in 0..lines.len()
+        {
+          lines[ i ].use_alpha_to_coverage( value );
+        }
+
+        if value
+        {
+          gl.enable( gl::SAMPLE_ALPHA_TO_COVERAGE );
+        }
+        else 
+        {    
+          gl.disable( gl::SAMPLE_ALPHA_TO_COVERAGE );
+        }
+      }
+    }
+  );
+  lil_gui::on_change_bool( &prop, &callback );
+  callback.forget();
+
   gl.enable( gl::DEPTH_TEST );
   gl.depth_func( gl::LEQUAL );
 
   // Define the update and draw logic
   let update_and_draw =
   {
-    let add_interval = 0.05;
+    let add_interval = 0.02;
     let mut elapsed_time = 0.0;
     let mut last_time = 0.0;
     #[ allow( clippy::min_ident_chars ) ]
@@ -152,12 +189,12 @@ fn run() -> Result< (), gl::WebglError >
       gl.clear( gl::DEPTH_BUFFER_BIT | gl::COLOR_BUFFER_BIT );
 
       simulation.simulate( delta_time );
-      if elapsed_time > add_interval
+      //if elapsed_time > add_interval
       {
         for i in 0..num_bodies
         {
           let pos = simulation.bodies[ i ].position;
-          let color = base_colors[ i ] * ( pos.mag() * 3.0 ).powf( 2.0 ).min( 1.0 );
+          let color = base_colors[ i ] * ( pos.mag() * 5.0 ).powf( 2.0 ).min( 1.0 );
           lines.borrow_mut()[ i ].point_add( pos );
           lines.borrow_mut()[ i ].color_add( color );
         }
