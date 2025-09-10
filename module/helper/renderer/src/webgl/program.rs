@@ -1,6 +1,7 @@
 mod private
 {
   use minwebgl as gl;
+  use gl::WebGl2RenderingContext as GL;
   use std::collections::HashMap;
 
   macro_rules! impl_locations
@@ -123,6 +124,21 @@ mod private
     pub fn get_locations_mut( &mut self ) ->  &mut HashMap< String, Option< gl::WebGlUniformLocation > >
     {
       &mut self.locations
+    }
+
+    /// Bind UBO to program
+    pub fn bind_ubo
+    (
+      &self,
+      gl : &GL,
+      name : &str,
+      block_point : u32
+    )
+    {
+      let joints_loc = gl.get_uniform_block_index( &self.program, name );
+      gl.uniform_block_binding( &self.program, joints_loc, block_point );
+      // let block_size = gl.get_active_uniform_block_parameter( &self.program, joints_loc, GL::UNIFORM_BLOCK_DATA_SIZE ).unwrap();
+      // gl::info!( "Inverse matrices size: {:?}", block_size );
     }
 
     /// Binds the WebGL program for use.
