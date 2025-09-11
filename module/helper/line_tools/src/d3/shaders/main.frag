@@ -75,5 +75,8 @@ void main()
     col = vColor;
   #endif
 
+  col = vec3( 0.0 );
+  col = vec3( vUv, 0.0 );
+
   frag_color = vec4( col, alpha );
 }

@@ -46,29 +46,56 @@ void main()
   ndcDir.x *= aspect;
   ndcDir = normalize( ndcDir );
 
-  vec3 viewPos = position.y < 0.5 ? viewA : viewB;
-  vec3 viewAB = normalize( viewB - viewA );
-  vec3 midForward = normalize( mix( viewA, viewB, 0.5 ) );
-  vec3 up = normalize( cross( viewAB, midForward ) );
-  vec3 right = normalize( cross( viewAB, up ) );
+  vec4 clip = vec4( 0.0 );
 
-  float halfWith = 0.5 * u_width;
+  #ifdef USE_WORLD_UNITS
+    vec3 viewPos = position.y < 0.5 ? viewA : viewB;
+    vec3 viewAB = normalize( viewB - viewA );
+    vec3 midForward = normalize( mix( viewA, viewB, 0.5 ) );
+    vec3 up = normalize( cross( viewAB, midForward ) );
+    vec3 right = normalize( cross( viewAB, up ) );
 
-  // Protrude vertices to create an illusion of 3d shape in view space
-  viewPos += position.x < 0.0 ? up * halfWith : -up * halfWith;
-  viewPos += position.y < 0.5 ? -halfWith * viewAB : halfWith * viewAB;
-  viewPos += right * halfWith;
-  if( position.y < 0.0 || position.y > 1.0 )
-  {
-    viewPos += 2.0 * -right * halfWith;
-  }
-  
-  vec4 clip = u_projection_matrix * vec4( viewPos, 1.0 );
-  vec3 ndcShift = position.y < 0.5 ? ndcA : ndcB;
-  clip.z = ndcShift.z * clip.w;
+    float halfWith = 0.5 * u_width;
+
+    // Protrude vertices to create an illusion of 3d shape in view space
+    viewPos += position.x < 0.0 ? up * halfWith : -up * halfWith;
+    viewPos += position.y < 0.5 ? -halfWith * viewAB : halfWith * viewAB;
+    viewPos += right * halfWith;
+    if( position.y < 0.0 || position.y > 1.0 )
+    {
+      viewPos += 2.0 * -right * halfWith;
+    }
+    
+    clip = u_projection_matrix * vec4( viewPos, 1.0 );
+    vec3 ndcShift = position.y < 0.5 ? ndcA : ndcB;
+    clip.z = ndcShift.z * clip.w;
+
+    vViewPos = viewPos;
+  #else
+    vec2 ndcOffset = vec2( ndcDir.y, -ndcDir.x );
+    ndcDir.x /= aspect;
+    ndcOffset.x /= aspect;
+
+    if ( position.x < 0.0 ) ndcOffset *= - 1.0;
+
+    if ( position.y < 0.0 ) 
+    {
+      ndcOffset += -ndcDir;
+    } 
+    else if ( position.y > 1.0 ) 
+    {
+      ndcOffset += ndcDir;
+    }
+
+    ndcOffset *= u_width;
+    clip = ( position.y < 0.5 ) ? clipA : clipB;
+    
+    vec2 clipOffset = ndcOffset * clip.w;
+    clip.xy += clipOffset;
+
+  #endif
 
   vUv = uv;
-  vViewPos = viewPos;
   vViewA = viewA;
   vViewB = viewB;
 

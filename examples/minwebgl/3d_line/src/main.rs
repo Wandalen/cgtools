@@ -115,8 +115,8 @@ fn run() -> Result< (), gl::WebglError >
     lines.push( line );
   }
 
-  // lines[ 0 ].point_add( [ 0.0, 0.0, 0.0 ] );
-  // lines[ 0 ].point_add( [ 1.0, 1.0, 0.0 ] );
+  lines[ 0 ].point_add( [ 0.0, 0.0, 0.0 ] );
+  lines[ 0 ].point_add( [ 1.0, 1.0, 0.0 ] );
 
   let lines = Rc::new( RefCell::new( lines ) );
 
@@ -191,14 +191,14 @@ fn run() -> Result< (), gl::WebglError >
       simulation.simulate( delta_time );
       //if elapsed_time > add_interval
       {
-        for i in 0..num_bodies
-        {
-          let pos = simulation.bodies[ i ].position;
-          let color = base_colors[ i ] * ( pos.mag() * 5.0 ).powf( 2.0 ).min( 1.0 );
-          lines.borrow_mut()[ i ].point_add( pos );
-          lines.borrow_mut()[ i ].color_add( color );
-        }
-        elapsed_time -= add_interval;
+        // for i in 0..num_bodies
+        // {
+        //   let pos = simulation.bodies[ i ].position;
+        //   let color = base_colors[ i ] * ( pos.mag() * 5.0 ).powf( 2.0 ).min( 1.0 );
+        //   lines.borrow_mut()[ i ].point_add( pos );
+        //   lines.borrow_mut()[ i ].color_add( color );
+        // }
+        // elapsed_time -= add_interval;
       }
 
       for i in 0..num_bodies

@@ -19,6 +19,8 @@ mod private
     use_vertex_color : bool,
     /// A flag to set where to use alpha to coverage blending technique instead of alpha testing 
     use_alpha_to_coverage : bool,
+    /// A flag to set where to use width in world units, or screen space units
+    use_world_units : bool,
     /// Fragment shader source
     fragment_shader : String,
     /// A flag to indicate whether the line's points have changed since the last update.
@@ -174,6 +176,13 @@ mod private
       self.defines_changed = true;
     }
 
+    /// Sets whether the world units for the line width will be used
+    pub fn use_world_units( &mut self, value : bool )
+    {
+      self.use_world_units = value;
+      self.defines_changed = true;
+    }
+
     /// Adds a new point to the end of the line strip.
     pub fn point_add< P : gl::VectorIter< f32, 3 > >( &mut self, point : P )
     {
@@ -258,6 +267,11 @@ mod private
       if self.use_alpha_to_coverage
       {
         s += "#define USE_ALPHA_TO_COVERAGE\n";
+      }
+
+      if self.use_world_units
+      {
+        s += "#define USE_WORLD_UNITS\n";
       }
 
       s
