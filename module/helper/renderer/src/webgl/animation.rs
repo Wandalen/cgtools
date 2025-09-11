@@ -462,7 +462,6 @@ mod private
         {
           Property::Translation =>
           {
-            //gl::info!( "{}{}", name, TRANSLATION_PREFIX );
             let Some( sequence ) = vec3_sequence( channel, buffers ).await
             else
             {
@@ -472,7 +471,6 @@ mod private
           },
           Property::Scale =>
           {
-            //gl::info!( "{}{}", name, SCALE_PREFIX );
             let Some( sequence ) = vec3_sequence( channel, buffers ).await
             else
             {
@@ -482,7 +480,6 @@ mod private
           }
           Property::Rotation =>
           {
-            //gl::info!( "{}{}", name, ROTATION_PREFIX );
             let Some( sequence ) = quat_sequence( channel, buffers ).await
             else
             {

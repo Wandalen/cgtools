@@ -137,8 +137,6 @@ mod private
     {
       let joints_loc = gl.get_uniform_block_index( &self.program, name );
       gl.uniform_block_binding( &self.program, joints_loc, block_point );
-      // let block_size = gl.get_active_uniform_block_parameter( &self.program, joints_loc, GL::UNIFORM_BLOCK_DATA_SIZE ).unwrap();
-      // gl::info!( "Inverse matrices size: {:?}", block_size );
     }
 
     /// Binds the WebGL program for use.
@@ -162,8 +160,8 @@ mod private
     "normalMatrix",
 
     // Skeleton uniform locations
-    "inverseMatrices",
-    "inverseMatricesSize",
+    "jointMatrices",
+    "jointMatricesSize",
 
     // Material uniform  locations
     //// Textures uniform locations
