@@ -19,8 +19,8 @@ mod_interface::mod_interface!
   exposed use super::private::terminal::TerminalRenderer;
 
   /// WebGL backend adapter for hardware-accelerated web rendering.
-  #[ cfg( any( feature = "adapter-webgl-context", feature = "adapter-webgl" ) ) ]
-  exposed use super::private::webgl::WebGLRenderer;
+  #[ cfg( any( feature = "adapter-webgl" ) ) ]
+  exposed use super::private::webgl::WebGLTileRenderer;
 
   /// WebGPU backend adapter for next-generation GPU computing and rendering.
   #[ cfg( any( feature = "adapter-webgpu-device", feature = "adapter-webgpu" ) ) ]
@@ -41,7 +41,7 @@ mod private
   #[ cfg( any( feature = "adapter-terminal-basic", feature = "adapter-terminal" ) ) ]
   pub mod terminal;
 
-  #[ cfg( any( feature = "adapter-webgl-context", feature = "adapter-webgl" ) ) ]
+  #[ cfg( any( feature = "adapter-webgl" ) ) ]
   pub mod webgl;
 
   #[ cfg( any( feature = "adapter-webgpu-device", feature = "adapter-webgpu" ) ) ]
