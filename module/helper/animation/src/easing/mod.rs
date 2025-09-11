@@ -10,7 +10,7 @@ mod private
       base::{ EasingFunction, EasingBuilder },
       Linear, Step
     };
-    use crate::easing::
+    use crate::easing::cubic::bezier::
     {
       EaseInSine,
       EaseOutSine,
@@ -47,25 +47,31 @@ mod private
       assert_eq!( Linear::new().apply( 0.0, 1.0, 1.0 ), 1.0 );
     }
 
+    fn assert_f_eq( a : f64, b : f64, eps : f64 )
+    {
+      assert!( b - eps < a && a < b + eps );
+    }
+
     #[ test ]
     fn test_step_function()
     {
+      let eps = 0.001;
       // Step easing should progress in discrete steps
       let step_func = Step::new( 5.0 );
       assert_eq!( step_func.apply( 0.0, 1.0, 0.0 ), 0.0 );
-      assert_eq!( step_func.apply( 0.0, 1.0, 0.01 ), 0.2 );
-      assert_eq!( step_func.apply( 0.0, 1.0, 0.2 ), 0.2 );
-      assert_eq!( step_func.apply( 0.0, 1.0, 0.21 ), 0.4 );
-      assert_eq!( step_func.apply( 0.0, 1.0, 0.4 ), 0.4 );
-      assert_eq!( step_func.apply( 0.0, 1.0, 0.81 ), 1.0 );
-      assert_eq!( step_func.apply( 0.0, 1.0, 1.0 ), 1.0 );
+      assert_f_eq( step_func.apply( 0.0, 1.0, 0.01 ), 0.2, eps );
+      assert_f_eq(  step_func.apply( 0.0, 1.0, 0.2 ), 0.2, eps );
+      assert_f_eq( step_func.apply( 0.0, 1.0, 0.21 ), 0.4, eps );
+      assert_f_eq( step_func.apply( 0.0, 1.0, 0.4 ), 0.4, eps );
+      assert_f_eq( step_func.apply( 0.0, 1.0, 0.81 ), 1.0, eps );
+      assert_f_eq( step_func.apply( 0.0, 1.0, 1.0 ), 1.0, eps );
     }
 
     #[ test ]
     fn test_cubic_boundaries_and_properties()
     {
       // A list of all cubic easing functions to test common properties
-      let cubic_functions : Vec< Box< dyn EasingFunction > > = vec!
+      let cubic_functions : Vec< Box< dyn EasingFunction< AnimatableType = f32 > > > = vec!
       [
         EaseInSine::new(),
         EaseOutSine::new(),

@@ -5,6 +5,8 @@ mod private
   use std::collections::HashMap;
   use error_tools::*;
   use crate::AnimationState;
+  #[ allow( unused_imports ) ]
+  use crate::Tween;
 
   /// Sequencer for managing multiple animations with sequencing and grouping.
   #[ derive( Debug ) ]
@@ -275,8 +277,6 @@ mod private
         return;
       }
 
-      //minwebgl::info!( "0" );
-
       self.elapsed += delta_time;
 
       let index = self.tweens.binary_search_by
@@ -301,13 +301,11 @@ mod private
 
       if self.current == current_id
       {
-        //minwebgl::info!( "1 {} {}", self.tweens.len(), self.current );
         let Some( current ) = self.tweens.get_mut( self.current )
         else
         {
           return;
         };
-        //minwebgl::info!( "2" );
         let old_elapsed = current.get_delay() + ( current.progress() * current.get_duration() );
         current.update( old_elapsed + delta_time );
       }
@@ -319,24 +317,19 @@ mod private
         {
           return;
         };
-        //minwebgl::info!( "3" );
         current.update( self.elapsed );
       }
-
-      //minwebgl::info!( "4" );
 
       let Some( current ) = self.tweens.get_mut( self.current )
       else
       {
         return;
       };
-      //minwebgl::info!( "5" );
 
       match self.state
       {
         AnimationState::Pending if self.elapsed - current.get_delay() > 0.0 =>
         {
-          //minwebgl::info!( "6" );
           self.state = AnimationState::Running;
         },
         AnimationState::Running
@@ -344,63 +337,10 @@ mod private
         self.tweens.get( self.current ).map( | t | t.is_completed() )
         .unwrap_or( true ) =>
         {
-          //minwebgl::info!( "7" );
           self.state = AnimationState::Completed;
         },
         _ => {}
       }
-
-      // let tweens_count = self.tweens.len();
-
-      // if delta_time > self.duration && self.state == AnimationState::Running
-      // {
-      //   self.state = AnimationState::Completed;
-      //   self.current = tweens_count - 1;
-      //   return;
-      // }
-
-      // let ( is_completed, mut ends ) = {
-      //   let Some( current ) = self.tweens.get_mut( self.current )
-      //   else
-      //   {
-      //     return;
-      //   };
-
-      //   self.elapsed += delta_time;
-      //   current.update( delta_time );
-      //   ( current.is_completed(), current.get_delay() + current.get_duration() )
-      // };
-
-      // match self.state
-      // {
-      //   AnimationState::Pending if self.elapsed > self.delay =>
-      //   {
-      //     self.state = AnimationState::Running;
-      //   },
-      //   AnimationState::Running if self.current >= tweens_count && is_completed =>
-      //   {
-      //     self.state = AnimationState::Completed;
-      //     self.current = tweens_count - 1;
-      //   },
-      //   AnimationState::Running if is_completed =>
-      //   {
-      //     while self.elapsed - ends > 0.0
-      //     {
-      //       self.current += 1;
-
-      //       let Some( current ) = self.tweens.get_mut( self.current )
-      //       else
-      //       {
-      //         self.state = AnimationState::Completed;
-      //         return;
-      //       };
-
-      //       current.update( self.elapsed - current.get_delay() );
-      //       ends = current.get_delay() + current.get_duration();
-      //     }
-      //   },
-      //   _ => {}
-      // }
     }
 
     fn is_completed( &self ) -> bool
@@ -476,7 +416,7 @@ mod private
     {
       base::EasingBuilder,
       Linear,
-      EaseInSine
+      cubic::bezier::EaseInSine
     };
 
     #[ test ]
@@ -498,8 +438,8 @@ mod private
       assert_eq!( sequencer.time(), 0.5 );
       assert_eq!( sequencer.state(), AnimationState::Running );
 
-      let value = sequencer.get_value::< f32 >( "test" ).unwrap();
-      assert_eq!( value, 5.0 );
+      let value = sequencer.get_value::< Tween< f32 > >( "test" ).unwrap();
+      assert_eq!( value.get_current_value(), 5.0 );
 
       sequencer.update( 0.5 );
       assert_eq!( sequencer.time(), 1.0 );
@@ -542,22 +482,22 @@ mod private
       );
 
       sequencer.update( 0.5 );
-      assert_eq!( sequencer.get_value::< f32 >( "test" ).unwrap(), 5.0 );
+      assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().get_current_value(), 5.0 );
 
       sequencer.pause();
       assert_eq!( sequencer.state(), AnimationState::Paused );
 
       sequencer.update( 0.5 );
-      let value = sequencer.get_value::< f32 >( "test" ).unwrap();
-      assert_eq!( value, 5.0 );
+      let value = sequencer.get_value::< Tween< f32 > >( "test" ).unwrap();
+      assert_eq!( value.get_current_value(), 5.0 );
 
       sequencer.resume();
       assert_eq!( sequencer.state(), AnimationState::Running );
 
       sequencer.update( 0.5 );
       assert!( sequencer.is_completed() );
-      let value = sequencer.get_value::< f32 >( "test" ).unwrap();
-      assert_eq!( value, 10.0 );
+      let value = sequencer.get_value::< Tween< f32 > >( "test" ).unwrap();
+      assert_eq!( value.get_current_value(), 10.0 );
     }
 
     #[ test ]
@@ -572,17 +512,17 @@ mod private
 
       sequencer.update( 0.5 );
       assert_eq!( sequencer.time(), 0.5 );
-      assert_eq!( sequencer.get_value::< f32 >( "test" ).unwrap(), 5.0 );
+      assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().get_current_value(), 5.0 );
 
       sequencer.reset();
 
       assert_eq!( sequencer.time(), 0.0 );
       assert_eq!( sequencer.state(), AnimationState::Running );
-      assert_eq!( sequencer.get_value::< f32 >( "test" ).unwrap(), 0.0 );
+      assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().get_current_value(), 0.0 );
 
       sequencer.update( 1.0 );
       assert!( sequencer.is_completed() );
-      assert_eq!( sequencer.get_value::< f32 >( "test" ).unwrap(), 10.0 );
+      assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().get_current_value(), 10.0 );
     }
 
     #[ test ]
@@ -605,8 +545,8 @@ mod private
       assert!( sequencer.remove( "tween1" ) );
       assert_eq!( sequencer.animation_count(), 1 );
 
-      assert!( sequencer.get_value::< f32 >( "tween1" ).is_none() );
-      assert!( sequencer.get_value::< f32 >( "tween2" ).is_some() );
+      assert!( sequencer.get_value::< Tween< f32 > >( "tween1" ).is_none() );
+      assert!( sequencer.get_value::< Tween< f32 > >( "tween2" ).is_some() );
 
       assert!( !sequencer.remove( "tween1" ) );
     }
@@ -622,9 +562,9 @@ mod private
         Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
       );
 
-      assert!( sequencer.get_value::< i32 >( "float_tween" ).is_none() );
+      assert!( sequencer.get_value::< Tween< i32 > >( "float_tween" ).is_none() );
 
-      assert!( sequencer.get_value::< f32 >( "float_tween" ).is_some() );
+      assert!( sequencer.get_value::< Tween< f32 > >( "float_tween" ).is_some() );
     }
 
     #[ test ]
@@ -640,13 +580,13 @@ mod private
 
       sequencer.update( 0.5 );
 
-      let value = sequencer.get_value::< f32 >( "ease_in_tween" ).unwrap();
-      assert_eq!( value, 1.25 );
+      let value = sequencer.get_value::< Tween< f32 > >( "ease_in_tween" ).unwrap();
+      assert_eq!( value.get_current_value(), 1.25 );
 
       sequencer.update( 0.5 );
       assert!( sequencer.is_completed() );
-      let value = sequencer.get_value::< f32 >( "ease_in_tween" ).unwrap();
-      assert_eq!( value, 10.0 );
+      let value = sequencer.get_value::< Tween< f32 > >( "ease_in_tween" ).unwrap();
+      assert_eq!( value.get_current_value(), 10.0 );
     }
   }
 }
