@@ -60,6 +60,38 @@ mod private
 
     positions
   }
+
+  /// Return positions and uvs for a rectangle, used in 3d line
+  pub fn four_piece_rectangle_geometry() -> ( [ [ f32; 2 ]; 8 ], [ u32; 18 ],  [ [ f32; 2 ]; 8 ] )
+  {
+    let positions = 
+    [
+      [ -1.0, 2.0 ], [ 1.0, 2.0 ],
+      [ -1.0, 1.0 ], [ 1.0, 1.0 ],
+      [ -1.0, 0.0 ], [ 1.0, 0.0 ],
+      [ -1.0, -1.0 ], [ 1.0, -1.0 ],
+    ];
+
+    let uvs = 
+    [
+      [ -1.0, 2.0 ], [ 1.0, 2.0 ],
+      [ -1.0, 1.0 ], [ 1.0, 1.0 ],
+      [ -1.0, -1.0 ], [ 1.0, -1.0 ],
+      [ -1.0, -2.0 ], [ 1.0, -2.0 ],
+    ];
+
+    let indices = 
+    [
+      0, 2, 1, 
+      2, 3, 1, 
+      2, 4, 3, 
+      4, 5, 3, 
+      4, 6, 5, 
+      6, 7, 5
+    ];
+
+    ( positions, indices, uvs )
+  }
 }
 
 crate::mod_interface!
@@ -69,6 +101,8 @@ crate::mod_interface!
     circle_geometry,
     BODY_GEOMETRY,
     circle_left_half_geometry,
-    circle_right_half_geometry
+    circle_right_half_geometry,
+
+    four_piece_rectangle_geometry
   };
 }

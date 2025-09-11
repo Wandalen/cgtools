@@ -40,6 +40,9 @@ mod private
     /// Error when required data is missing.
     #[ error( "Can't find {0}" ) ]
     MissingDataError( &'static str ),
+    /// General error type
+    #[ error( "{0}" ) ]
+    Other( &'static str ),
   }
 
   /// Create a WebGL2 context from a canvas element with default options.
