@@ -38,6 +38,9 @@ extern "C"
   #[ wasm_bindgen( js_name = "getTitle" ) ]
   pub fn set_name( gui : &JsValue, value : &str ) -> JsValue;
 
+  #[ allow( unsafe_code ) ]
+  #[ wasm_bindgen( js_name = "onChange" ) ]
+  pub fn on_change_string( gui : &JsValue, callback : &Closure< dyn FnMut( String ) > ) -> JsValue;
 
   #[ allow( unsafe_code ) ]
   #[ wasm_bindgen( js_name = "hide" ) ]

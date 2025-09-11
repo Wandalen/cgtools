@@ -4,74 +4,86 @@
 use std::{cell::RefCell, rc::Rc};
 
 use minwebgl as gl;
-use renderer::webgl::Renderer;
+use renderer::webgl::Animation;
 use serde::{ Deserialize, Serialize };
 use gl::wasm_bindgen::prelude::*;
+use std::collections::HashMap;
 
-use crate::lil_gui::{add_slider, new_gui, on_change, show};
+use crate::lil_gui::{on_change_string, new_gui, add_dropdown, show};
 
 
 #[ derive( Default, Serialize, Deserialize ) ]
 pub struct Settings
 {
-  #[ serde( rename = "bloomRadius" ) ]
-  bloom_radius : f32,
-  #[ serde( rename = "bloomStrength" ) ]
-  bloom_strength : f32,
-  exposure : f32
+  animation : String,
 }
 
-
-pub fn setup( renderer : Rc< RefCell< Renderer > > )
+pub fn setup
+(
+  animations : Vec< Animation >,
+  current_animation : Rc< RefCell< Animation > >
+)
 {
+  if animations.is_empty()
+  {
+    return;
+  }
+
   let mut settings = Settings::default();
-  settings.bloom_radius = renderer.borrow().get_bloom_radius();
-  settings.bloom_strength = renderer.borrow().get_bloom_strength();
-  settings.exposure = renderer.borrow().get_exposure();
+  if let Some( name ) = &animations[ 0 ].name
+  {
+    settings.animation = name.clone().into_string();
+    *current_animation.borrow_mut() = animations[ 0 ].clone();
+  }
 
   let object = serde_wasm_bindgen::to_value( &settings ).unwrap();
   let gui = new_gui();
 
-  let prop = add_slider( &gui, &object, "bloomRadius", 0.0, 1.0, 0.01 );
-  let callback = Closure::new
+  let animations = animations.into_iter()
+  .filter_map
   (
+    | a |
     {
-      let renderer = renderer.clone();
-      move | value |
-      {
-        renderer.borrow_mut().set_bloom_radius( value );
-      }
+      a.name.clone()
+      .map
+      (
+        | n |
+        {
+          ( n.into_string(), a )
+        }
+      )
     }
-  );
-  on_change( &prop, &callback );
-  callback.forget();
+  )
+  .collect::< HashMap< _, _ > >();
 
-  let prop = add_slider( &gui, &object, "bloomStrength", 0.0, 10.0, 0.1 );
-  let callback = Closure::new
-  (
-    {
-      let renderer = renderer.clone();
-      move | value |
-      {
-        renderer.borrow_mut().set_bloom_strength( value );
-      }
-    }
-  );
-  on_change( &prop, &callback );
-  callback.forget();
+  let animation_names = animations.keys()
+  .cloned()
+  .collect::< Vec< _ > >();
 
-  let prop = add_slider( &gui, &object, "exposure", -10.0, 10.0, 0.1 );
+  // Choose animation
+  let prop = add_dropdown
+  (
+    &gui,
+    &object,
+    "animation",
+    &serde_wasm_bindgen::to_value( animation_names.as_slice() ).unwrap()
+  );
+
   let callback = Closure::new
   (
     {
-      let renderer = renderer.clone();
-      move | value |
+      let current_animation = current_animation.clone();
+      move | value : String |
       {
-        renderer.borrow_mut().set_exposure( value );
+        if let Some( animation ) = animations.get( value.as_str() )
+        {
+          let mut current_animation = current_animation.borrow_mut();
+          *current_animation = animation.clone();
+        }
       }
     }
   );
-  on_change( &prop, &callback );
+  on_change_string( &prop, &callback );
   callback.forget();
 
   std::mem::forget( object );
