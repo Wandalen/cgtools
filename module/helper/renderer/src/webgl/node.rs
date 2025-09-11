@@ -5,10 +5,6 @@ mod private
   use mingl::{ geometry::BoundingBox, F32x3, F32x4x4 };
   use crate::webgl::Mesh;
 
-  // /// Inverse matrices texture slot
-  // #[ cfg( feature = "animation" ) ]
-  // pub const INVERSE_MATRICES_SLOT : u32 = 13;
-
   /// Represents a 3D object that can be part of the scene graph.
   pub enum Object3D
   {
@@ -305,7 +301,7 @@ mod private
       {
         if let Some( skeleton ) = &mesh.borrow().skeleton
         {
-          skeleton.borrow().upload( gl );
+          skeleton.borrow().upload( gl, locations );
         }
       }
 
@@ -392,7 +388,4 @@ crate::mod_interface!
     Node,
     Object3D
   };
-
-  // #[ cfg( feature = "animation" ) ]
-  // orphan use INVERSE_MATRICES_SLOT;
 }

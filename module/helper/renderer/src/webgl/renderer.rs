@@ -739,9 +739,6 @@ mod private
             // Bind the program, upload camera and node matrices, bind the primitive, and draw it.
             program_info.bind( gl );
 
-            #[ cfg( feature = "animation" ) ]
-            program_info.bind_ubo( gl, "Joints", 0 );
-
             node.borrow().upload( gl, locations );
             primitive.bind( gl );
             primitive.draw( gl );
@@ -771,9 +768,6 @@ mod private
         let locations = program_info.get_locations();
 
         program_info.bind( gl );
-
-        #[ cfg( feature = "animation" ) ]
-        program_info.bind_ubo( gl, "InverseMatrices", 0 );
 
         node.upload( gl, locations );
         primitive.bind( gl );

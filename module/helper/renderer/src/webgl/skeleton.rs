@@ -7,83 +7,77 @@ mod private
   {
     GL,
     F32x4x4,
-    WebGlBuffer
+    web_sys::
+    {
+      js_sys::Float32Array,
+      WebGlTexture,
+      WebGlUniformLocation
+    }
   };
   use crate::webgl::Node;
   use std::{ rc::Rc, cell::RefCell };
+  use std::collections::HashMap;
 
-  /// Maximum joints count in skin that can support shader
-  pub const MAX_JOINT_COUNT : i32 = 500;
+  /// Joint matrices texture slot
+  pub const JOINT_MATRICES_SLOT : u32 = 13;
 
-  // /// Creates data texture where every pixel is 4 float values.
-  // /// Used for packing uniform matrices array
-  // fn create_texture_4f
-  // (
-  //   gl : &GL,
-  //   data : &[ f32 ],
-  //   size : [ u32; 2 ],
-  // ) -> Option< WebGlTexture >
-  // {
-  //   // let Ok( _ ) = gl.get_extension( "OES_texture_float" )
-  //   // else
-  //   // {
-  //   //   gl::error!( "skeleton crate: Failed to enable OES_texture_float extension" );
-  //   //   return None;
-  //   // };
+  /// Loads data to data texture where every pixel
+  /// is 4 float values. Used for packing matrices array
+  fn load_texture_data_4f
+  (
+    gl : &GL,
+    texture : &WebGlTexture,
+    data : &[ f32 ],
+    size : [ u32; 2 ],
+  )
+  {
+    gl.active_texture( GL::TEXTURE0 );
+    gl.bind_texture( GL::TEXTURE_2D, Some( texture ) );
 
-  //   let texture = gl.create_texture();
-  //   gl.active_texture( GL::TEXTURE0 );
-  //   gl.bind_texture( GL::TEXTURE_2D, texture.as_ref() );
+    // Create a Float32Array from the Rust slice
+    let js_data = Float32Array::from( data );
 
-  //   // Create a Float32Array from the Rust slice
-  //   let js_data = Float32Array::from( data );
+    let _ = gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_array_buffer_view
+    (
+      GL::TEXTURE_2D,
+      0,
+      GL::RGBA32F as i32,
+      size[ 0 ] as i32,
+      size[ 1 ] as i32,
+      0,
+      GL::RGBA,
+      GL::FLOAT,
+      Some( &js_data ),
+    );
 
-  //   gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_array_buffer_view
-  //   (
-  //     GL::TEXTURE_2D,
-  //     0,
-  //     GL::RGBA32F as i32,
-  //     size[ 0 ] as i32,
-  //     size[ 1 ] as i32,
-  //     0,
-  //     GL::RGBA,
-  //     GL::FLOAT,
-  //     Some( &js_data ),
-  //   )
-  //   .ok()?;
+    gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32 );
+    gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::NEAREST as i32 );
 
-  //   //gl.pixel_storei( GL::UNPACK_ALIGNMENT, 1 );
+    gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE as i32 );
+    gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
+  }
 
-  //   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32 );
-  //   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::NEAREST as i32 );
-
-  //   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE as i32 );
-  //   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
-
-  //   texture
-  // }
-
-  // /// Binds a texture to a texture unit and uploads its location to a uniform.
-  // ///
-  // /// # Arguments
-  // ///
-  // /// * `gl` - The WebGL2 rendering context.
-  // /// * `texture` - The texture to bind.
-  // /// * `location` - The uniform location in the shader for the sampler.
-  // /// * `slot` - The texture unit to bind to ( e.g., `GL::TEXTURE0` ).
-  // fn upload_texture
-  // (
-  //   gl : &GL,
-  //   texture : &WebGlTexture,
-  //   location : Option< WebGlUniformLocation >,
-  //   slot : u32,
-  // )
-  // {
-  //   gl.active_texture( gl::TEXTURE0 + slot );
-  //   gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) );
-  //   // Tell the sampler uniform in the shader which texture unit to use ( 0 for GL_TEXTURE0, 1 for GL_TEXTURE1, etc. )
-  //   gl.uniform1i( location.as_ref(), slot as i32 );
-  // }
+  /// Binds a texture to a texture unit and uploads its location to a uniform.
+  ///
+  /// # Arguments
+  ///
+  /// * `gl` - The WebGL2 rendering context.
+  /// * `texture` - The texture to bind.
+  /// * `location` - The uniform location in the shader for the sampler.
+  /// * `slot` - The texture unit to bind to ( e.g., `GL::TEXTURE0` ).
+  fn upload_texture
+  (
+    gl : &GL,
+    texture : &WebGlTexture,
+    location : Option< WebGlUniformLocation >,
+    slot : u32,
+  )
+  {
+    gl.active_texture( gl::TEXTURE0 + slot );
+    gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) );
+    // Tell the sampler uniform in the shader which texture unit to use ( 0 for GL_TEXTURE0, 1 for GL_TEXTURE1, etc. )
+    gl.uniform1i( location.as_ref(), slot as i32 );
+  }
 
   /// Set of virtual bones used to deform and control the
   /// movement of a 3D models. It's a fundamental concept
@@ -96,12 +90,8 @@ mod private
     /// List of nodes correcting matrices used in nodes
     /// transform for playing skeletal animations
     inverse_bind_matrices :  Vec< F32x4x4 >,
-    // /// Size of [`Skeleton::texture`]
-    // texture_size : [ u32; 2 ],
-    // /// Inverse bind matrices data texture
-    // texture : WebGlTexture
-    /// InverseMatrices storage
-    buffer : WebGlBuffer
+    /// Joint matrices data texture
+    texture : WebGlTexture
   }
 
   impl Skeleton
@@ -128,23 +118,13 @@ mod private
         inverse_bind_matrices.push( matrix );
       }
 
-      //minwebgl::info!( "Inverse bind matrices: {:#?}", inverse_bind_matrices );
-
-      // let a = 4.0_f32.powf( ( data.len() as f32 ).sqrt().log( 4.0 ).ceil() ) as u32;
-      // let texture_size = [ a, a ];
-      // let texture = create_texture_4f( gl, data.as_slice(), texture_size ).unwrap();
-
-      let joints_buffer = gl::buffer::create( &gl ).unwrap();
-
       Some
       (
         Self
         {
           joints : nodes,
           inverse_bind_matrices : inverse_bind_matrices,
-          buffer : joints_buffer
-          // texture_size,
-          // texture
+          texture : gl.create_texture()?,
         }
       )
     }
@@ -153,15 +133,10 @@ mod private
     pub fn upload
     (
       &self,
-      gl : &GL
+      gl : &GL,
+      locations : &HashMap< String, Option< gl::WebGlUniformLocation > >
     )
     {
-      // let inverse_matrices_loc = locations.get( "inverseMatrices" ).unwrap();
-      // let texture_size_loc = locations.get( "inverseMatricesSize" ).unwrap();
-
-      // upload_texture( gl, &self.texture, inverse_matrices_loc.clone(), slot );
-      // gl::uniform::upload( &gl, texture_size_loc.clone(), self.texture_size.as_slice() ).unwrap();
-
       let mut joint_matrices = vec![];
 
       for i in 0..self.inverse_bind_matrices.len()
@@ -172,8 +147,6 @@ mod private
         joint_matrices.push( global_transform * inverse_bind );
       }
 
-      //gl::info!( "joint_matrices: {:#?}", joint_matrices );
-
       let mut data = joint_matrices.iter()
       .map
       (
@@ -182,20 +155,17 @@ mod private
       .flatten()
       .collect::< Vec< _ > >();
 
-      let elements_count = MAX_JOINT_COUNT * 16;
+      let joint_matrices_loc = locations.get( "jointMatrices" ).unwrap();
+      let texture_size_loc = locations.get( "jointMatricesSize" ).unwrap();
 
-      if ( elements_count as usize ) < data.len()
-      {
-        gl::web::error!( "Inverse matrices data is too big for loading as UBO" );
-        return;
-      }
+      let a = 4.0_f32.powf( ( data.len() as f32 ).sqrt().log( 4.0 ).ceil() ) as u32;
+      let texture_size = [ a, a ];
 
-      data.extend( vec![ 0.0; elements_count as usize - data.len() ] );
+      data.extend( vec![ 0.0; ( a * a * 4 ) as usize - data.len() ] );
 
-      gl.bind_buffer_base( GL::UNIFORM_BUFFER, 0, Some( &self.buffer ) );
-      gl.bind_buffer( GL::UNIFORM_BUFFER, Some( &self.buffer ) );
-      gl.buffer_data_with_i32( GL::UNIFORM_BUFFER, elements_count * 4, GL::STATIC_DRAW );
-      gl::ubo::upload( &gl, &self.buffer, 0, &data[ .. ], GL::STATIC_DRAW );
+      load_texture_data_4f( gl, &self.texture, data.as_slice(), texture_size );
+      upload_texture( gl, &self.texture, joint_matrices_loc.clone(), JOINT_MATRICES_SLOT );
+      gl::uniform::upload( &gl, texture_size_loc.clone(), texture_size.as_slice() ).unwrap();
     }
   }
 }
@@ -205,6 +175,6 @@ crate::mod_interface!
   orphan use
   {
     Skeleton,
-    MAX_JOINT_COUNT
+    JOINT_MATRICES_SLOT,
   };
 }

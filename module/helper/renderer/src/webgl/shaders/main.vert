@@ -51,12 +51,8 @@ out vec4 vColor_1;
 #endif
 
 #ifdef USE_SKINNING
-  //uniform sampler2D jointMatrices;
-  //uniform uvec2 jointMatricesSize;
-  layout( std140 ) uniform Joints
-  {
-    mat4 jointMatrices[ 500 ];
-  };
+  uniform sampler2D jointMatrices;
+  uniform uvec2 jointMatricesSize;
 
   // Retrieves a 4x4 matrix from a texture.
   //
@@ -68,16 +64,15 @@ out vec4 vColor_1;
   //
   mat4 get_matrix( int i )
   {
-    return jointMatrices[ i ];
-    // int x_base = ( i * 4 ) % int( jointMatricesSize.x );
-    // int y_base = ( i * 4 ) / int( jointMatricesSize.x );
+    int x_base = ( i * 4 ) % int( jointMatricesSize.x );
+    int y_base = ( i * 4 ) / int( jointMatricesSize.x );
 
-    // vec4 col0 = texelFetch( jointMatrices, ivec2( x_base,     y_base ), 0 );
-    // vec4 col1 = texelFetch( jointMatrices, ivec2( x_base + 1, y_base ), 0 );
-    // vec4 col2 = texelFetch( jointMatrices, ivec2( x_base + 2, y_base ), 0 );
-    // vec4 col3 = texelFetch( jointMatrices, ivec2( x_base + 3, y_base ), 0 );
+    vec4 col0 = texelFetch( jointMatrices, ivec2( x_base,     y_base ), 0 );
+    vec4 col1 = texelFetch( jointMatrices, ivec2( x_base + 1, y_base ), 0 );
+    vec4 col2 = texelFetch( jointMatrices, ivec2( x_base + 2, y_base ), 0 );
+    vec4 col3 = texelFetch( jointMatrices, ivec2( x_base + 3, y_base ), 0 );
 
-    // return mat4( col0, col1, col2, col3 );
+    return mat4( col0, col1, col2, col3 );
   }
 
   mat4 skin_matrix( vec4 joints, vec4 weights )
