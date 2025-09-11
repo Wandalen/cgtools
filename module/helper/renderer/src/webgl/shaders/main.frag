@@ -508,6 +508,4 @@ void main()
   trasnparentA = vec4( color * a_weight, alpha );
   transparentB = a_weight;
   frag_color = vec4( color, alpha );
-
-  frag_color = vec4( vNormal * 0.5 + 0.5, 1.0 );
 }

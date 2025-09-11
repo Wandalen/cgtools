@@ -51,11 +51,11 @@ out vec4 vColor_1;
 #endif
 
 #ifdef USE_SKINNING
-  //uniform sampler2D inverseMatrices;
-  //uniform uvec2 inverseMatricesSize;
-  layout( std140 ) uniform InverseMatrices
+  //uniform sampler2D jointMatrices;
+  //uniform uvec2 jointMatricesSize;
+  layout( std140 ) uniform Joints
   {
-    mat4 joints[ 100 ];
+    mat4 jointMatrices[ 500 ];
   };
 
   // Retrieves a 4x4 matrix from a texture.
@@ -68,14 +68,14 @@ out vec4 vColor_1;
   //
   mat4 get_matrix( int i )
   {
-    return joints[ i ];
-    // int x_base = ( i * 4 ) % int( inverseMatricesSize.x );
-    // int y_base = ( i * 4 ) / int( inverseMatricesSize.x );
+    return jointMatrices[ i ];
+    // int x_base = ( i * 4 ) % int( jointMatricesSize.x );
+    // int y_base = ( i * 4 ) / int( jointMatricesSize.x );
 
-    // vec4 col0 = texelFetch( inverseMatrices, ivec2( x_base,     y_base ), 0 );
-    // vec4 col1 = texelFetch( inverseMatrices, ivec2( x_base + 1, y_base ), 0 );
-    // vec4 col2 = texelFetch( inverseMatrices, ivec2( x_base + 2, y_base ), 0 );
-    // vec4 col3 = texelFetch( inverseMatrices, ivec2( x_base + 3, y_base ), 0 );
+    // vec4 col0 = texelFetch( jointMatrices, ivec2( x_base,     y_base ), 0 );
+    // vec4 col1 = texelFetch( jointMatrices, ivec2( x_base + 1, y_base ), 0 );
+    // vec4 col2 = texelFetch( jointMatrices, ivec2( x_base + 2, y_base ), 0 );
+    // vec4 col3 = texelFetch( jointMatrices, ivec2( x_base + 3, y_base ), 0 );
 
     // return mat4( col0, col1, col2, col3 );
   }
@@ -147,6 +147,4 @@ void main()
   vWorldPos = worldPos.xyz;
 
   gl_Position = projectionMatrix * viewPos;
-
-  vNormal = joints_0.xyz / ( 57.0 - 1.0 ) * 2.0 - 1.0;
 }

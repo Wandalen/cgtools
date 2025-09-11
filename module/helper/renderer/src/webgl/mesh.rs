@@ -4,7 +4,7 @@ mod private
   use mingl::geometry::BoundingBox;
   use crate::webgl::Primitive;
   #[ cfg( feature = "animation" ) ]
-  use skeleton::Skeleton;
+  use crate::webgl::Skeleton;
 
   /// Represents a collection of renderable primitives.
   #[ derive( Default ) ]

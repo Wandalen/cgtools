@@ -32,9 +32,12 @@ mod private
   #[ cfg( feature = "animation" ) ]
   use
   {
-    skeleton::Skeleton,
-    crate::webgl::animation::Animation,
     std::collections::HashMap,
+    crate::webgl::
+    {
+      Skeleton,
+      animation::Animation
+    },
     gl::
     {
       GL,
@@ -71,6 +74,7 @@ mod private
   (
     gl : &GL,
     skin : gltf::Skin< '_ >,
+    nodes : &HashMap< Box< str >, Rc< RefCell< Node > > >,
     buffers : &'a [ Vec< u8 > ],
   )
   -> Option< Rc< RefCell< Skeleton > > >
@@ -108,12 +112,15 @@ mod private
     )
     .collect::< Vec< _ > >();
 
-    let mut joints = HashMap::new();
+    let mut joints = vec![];
     for ( joint, matrix ) in skin.joints().zip( matrices )
     {
       if let Some( name ) = joint.name()
       {
-        joints.insert( name.to_string().into_boxed_str(), matrix );
+        if let Some( node ) = nodes.get( name )
+        {
+          joints.push( ( node.clone(), matrix ) );
+        }
       }
     }
 
@@ -548,6 +555,9 @@ mod private
     gl::log::info!( "Meshes: {}",meshes.len() );
 
     let mut nodes = Vec::new();
+    #[ cfg( feature = "animation" ) ]
+    let mut skinned_nodes = Vec::new();
+
     for gltf_node in gltf_file.nodes()
     {
       let mut node = Node::default();
@@ -567,25 +577,15 @@ mod private
       node.set_rotation( gl::QuatF32::from( rotation ) );
       if let Some( name ) = gltf_node.name() { node.set_name( name ); }
 
+      let node = Rc::new( RefCell::new( node ) );
+
       #[ cfg( feature = "animation" ) ]
       if let Some( skin ) = gltf_node.skin()
       {
-        if let Object3D::Mesh( mesh ) = &node.object
-        {
-          if let Some( skeleton ) = load_skeleton( gl, skin, bin_buffers.as_slice() ).await
-          {
-            mesh.borrow_mut().skeleton = Some( skeleton );
-            for primitive in &mesh.borrow().primitives
-            {
-              primitive.borrow()
-              .geometry.borrow_mut()
-              .defines += "#define USE_SKINNING\n";
-            }
-          }
-        }
+        skinned_nodes.push( ( node.clone(), skin ) );
       }
 
-      nodes.push( Rc::new( RefCell::new( node ) ) );
+      nodes.push( node );
     }
 
     for gltf_node in gltf_file.nodes()
@@ -598,6 +598,48 @@ mod private
     }
 
     gl::log::info!( "Nodes: {}", nodes.len() );
+
+    #[ cfg( feature = "animation" ) ]
+    let nodes_map = nodes.iter()
+    .filter_map
+    (
+      | n |
+      {
+        n.borrow()
+        .get_name()
+        .map
+        (
+          | name |
+          ( name, n.clone() )
+        )
+      }
+    )
+    .collect::< HashMap< _, _ > >();
+
+    #[ cfg( feature = "animation" ) ]
+    for ( node, skin ) in skinned_nodes
+    {
+      if let Object3D::Mesh( mesh ) = &node.borrow().object
+      {
+        if let Some( skeleton ) = load_skeleton
+        (
+          gl,
+          skin,
+          &nodes_map,
+          bin_buffers.as_slice()
+        )
+        .await
+        {
+          mesh.borrow_mut().skeleton = Some( skeleton );
+          for primitive in &mesh.borrow().primitives
+          {
+            primitive.borrow()
+            .geometry.borrow_mut()
+            .defines += "#define USE_SKINNING\n";
+          }
+        }
+      }
+    }
 
     #[ cfg( feature = "animation" ) ]
     let animations = crate::webgl::animation::load( &gltf_file, bin_buffers.as_slice(), nodes.as_slice() ).await;

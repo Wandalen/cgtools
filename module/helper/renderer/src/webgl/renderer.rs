@@ -740,7 +740,7 @@ mod private
             program_info.bind( gl );
 
             #[ cfg( feature = "animation" ) ]
-            program_info.bind_ubo( gl, "InverseMatrices", 0 );
+            program_info.bind_ubo( gl, "Joints", 0 );
 
             node.borrow().upload( gl, locations );
             primitive.bind( gl );

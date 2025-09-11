@@ -15,6 +15,8 @@
 #![ allow( clippy::no_effect_underscore_binding ) ]
 
 use std::{ cell::RefCell, rc::Rc };
+use animation::{ AnimatableValue, Sequence, Tween };
+use mingl::{F32x3, QuatF32};
 use minwebgl as gl;
 use renderer::webgl::
 {
@@ -47,7 +49,7 @@ async fn run() -> Result< (), gl::WebglError >
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
 
-  let gltf_path = "scene.glb";
+  let gltf_path = "gltf/bug_bunny.glb";
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
   let scenes = gltf.scenes;
   scenes[ 0 ].borrow_mut().update_world_matrix();
@@ -90,7 +92,16 @@ async fn run() -> Result< (), gl::WebglError >
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
-  //gui_setup::setup( renderer.clone() );
+  // gui_setup::setup( renderer.clone() );
+
+  for node in &scenes[ 0 ].borrow().children
+  {
+    let mut scale = node.borrow().get_scale();
+    scale.0[ 0 ] *= -1.0;
+    node.borrow_mut().set_scale( scale );
+  }
+
+  camera.get_controls().borrow_mut().eye = F32x3::from_array( [-5.341171e-6, -0.015823878, 0.007656166] );
 
   let last_time = Rc::new( RefCell::new( 0.0 ) );
   let animation = gltf.animations[ 0 ].clone();
@@ -101,18 +112,21 @@ async fn run() -> Result< (), gl::WebglError >
     move | t : f64 |
     {
       let time = t / 1000.0;
-      let last_time = last_time.clone();
 
-      let delta_time = time - *last_time.borrow();
-      *last_time.borrow_mut() = time;
-
-      if animation.sequencer.borrow().is_completed()
       {
-        animation.sequencer.borrow_mut().reset();
-      }
+        let last_time = last_time.clone();
 
-      animation.update( delta_time as f32 );
-      animation.set();
+        let delta_time = time - *last_time.borrow();
+        *last_time.borrow_mut() = time;
+
+        if animation.sequencer.borrow().is_completed()
+        {
+          animation.sequencer.borrow_mut().reset();
+        }
+
+        animation.update( delta_time as f32 );
+        animation.set();
+      }
 
       renderer.borrow_mut().render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
       .expect( "Failed to render" );
