@@ -22,7 +22,6 @@ members = [
 
   # Helper modules
   "module/helper/animation",
-  "module/helper/skeleton",
   "module/helper/browser_input",
   "module/helper/browser_log",
   "module/helper/canvas_renderer",
@@ -107,10 +106,6 @@ many_single_char_names = "allow"
 [workspace.dependencies.animation]
 version = "0.1.0"
 path = "module/helper/animation"
-
-[workspace.dependencies.skeleton]
-version = "0.1.0"
-path = "module/helper/skeleton"
 
 [workspace.dependencies.browser_input]
 version = "0.2.0"
@@ -400,5 +395,5 @@ version = "14.0"
 version = "0.10"
 features = [ "js" ]
 
-[workspace.dependencies.wfc_image] 
+[workspace.dependencies.wfc_image]
 version = "0.12"

@@ -15,10 +15,8 @@ workspace = true
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
-renderer = { workspace = true }
-#renderer = { workspace = true, default-features = false, features = [ "enabled" ] }
+renderer = { workspace = true, features = [ "animation" ] }
 animation = { workspace = true }
-skeleton = { workspace = true }
 zune-hdr = { workspace = true }
 serde = { workspace = true, features = [ "derive" ] }
 serde-wasm-bindgen = { workspace = true }
