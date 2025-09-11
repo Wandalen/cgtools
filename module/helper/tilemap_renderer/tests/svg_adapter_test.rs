@@ -14,12 +14,30 @@
 #![ allow( clippy::implicit_return ) ]
 #![ allow( clippy::float_cmp ) ]
 
+use base64::Engine as _;
 use tilemap_renderer::
 {
-  adapters::SvgRenderer,
-  ports::{ Renderer, RenderContext, RenderError },
+  adapters,
+  commands,
+  ports,
   scene::Scene,
-  commands::{ Point2D, StrokeStyle, FontStyle, TextAnchor, LineCap, LineJoin, RenderCommand, LineCommand, CurveCommand, TextCommand, TilemapCommand },
+};
+use ports::{ RenderContext, RenderError, Renderer };
+use adapters::{ GeometryStyle, ImageFormat, SvgRenderer };
+use commands::
+{
+  CurveCommand,
+  FontStyle,
+  LineCap,
+  LineCommand,
+  LineJoin,
+  Point2D,
+  RenderCommand,
+  StrokeStyle,
+  TextAnchor,
+  TextCommand,
+  TilemapCommand,
+  Transform2D,
 };
 
 /// Tests SVG renderer capabilities.
@@ -393,17 +411,10 @@ fn test_rendering_error_conditions()
   assert!( result.is_err() );
   assert!( matches!( result.unwrap_err(), RenderError::InitializationFailed( _ ) ) );
 
-  // Test output before frame completion
-  // assert!( renderer.begin_frame( &context ).is_ok() );
-  // let result = renderer.output();
-  // assert!( result.is_err() );
-  // assert!( matches!( result.unwrap_err(), RenderError::OutputError( _ ) ) );
-
   // Test rendering without active frame
   assert!( renderer.end_frame().is_ok() );
   let result = renderer.render_scene( &scene );
   assert!( result.is_ok() );
-  // assert!( matches!( result.unwrap_err(), RenderError::RenderFailed( _ ) ) );
 }
 
 /// Tests complex scene rendering.
@@ -482,4 +493,116 @@ fn test_renderer_cleanup()
 
   let second_output = renderer.output().unwrap();
   assert_eq!( first_output, second_output );
+}
+
+fn setup_renderer() -> SvgRenderer
+{
+  let mut renderer = SvgRenderer::new();
+  let context = RenderContext::new
+  (
+    800,
+    600,
+    [ 0.1, 0.2, 0.3, 1.0 ],
+    true,
+    Point2D::new( 0.0, 0.0 ),
+    1.0,
+  );
+  renderer.initialize( &context ).unwrap();
+  renderer
+}
+
+#[test]
+fn test_render_geometry()
+{
+  let mut renderer = setup_renderer();
+  let points = &[ 10.0, 10.0, 100.0, 10.0, 55.0, 100.0 ];
+  let transform = Transform2D::default();
+  let style = GeometryStyle
+  {
+    fill_color: Some( [ 1.0, 0.0, 0.0, 1.0 ] ), // Red
+    stroke_color: Some( [ 0.0, 0.0, 1.0, 1.0 ] ), // Blue
+    stroke_width: 2.0,
+  };
+
+  renderer.render_geometry( points, transform, style );
+
+  let output = renderer.output().unwrap();
+
+  assert!( output.contains( "<polygon" ) );
+  assert!( output.contains( r#"points="10,10 100,10 55,100""# ) );
+  assert!( output.contains( r#"fill="rgb(255,0,0)""# ) );
+  assert!( output.contains( r#"stroke="rgb(0,0,255)""# ) );
+  assert!( output.contains( r#"stroke-width="2""# ) );
+}
+
+#[test]
+fn test_load_image()
+{
+  let mut renderer = setup_renderer();
+  let dummy_bytes = [ 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A ]; // PNG header
+  let image_id = "test_image";
+
+  renderer.load_image( &dummy_bytes, 32, 32, ImageFormat::Png, image_id );
+
+  let output = renderer.output().unwrap();
+  let expected_base64 = base64::prelude::BASE64_STANDARD.encode( &dummy_bytes );
+
+  assert!( output.contains( &format!( r#"<symbol id="{}""#, image_id ) ) );
+  assert!( output.contains( &format!( r#"href="data:image/png;base64,{}""#, expected_base64 ) ) );
+}
+
+#[test]
+fn test_render_image()
+{
+  let mut renderer = setup_renderer();
+  let dummy_bytes = [ 0x00, 0x01, 0x02, 0x03 ];
+  let image_id = "test_image_render";
+
+  // First, load the image
+  renderer.load_image( &dummy_bytes, 50, 50, ImageFormat::Png, image_id );
+
+  // Now, render it
+  let transform = Transform2D
+  {
+    position: [ 150.0, 200.0 ],
+    ..Default::default()
+  };
+  renderer.render_image( image_id, transform );
+
+  let output = renderer.output().unwrap();
+
+  // Check for the <use> element referencing the loaded image
+  assert!( output.contains( &format!( "<use href=\"#{}\"", image_id) ) );
+  assert!( output.contains( r#"width="50""# ) );
+  assert!( output.contains( r#"height="50""# ) );
+}
+
+#[test]
+fn test_clear()
+{
+  let mut renderer = setup_renderer();
+  let points = &[ 0.0, 0.0, 1.0, 1.0, 0.0, 1.0 ];
+  let transform = Transform2D::default();
+  let style = GeometryStyle
+  {
+    fill_color : None,
+    stroke_color : Some( [ 1.0, 1.0, 1.0, 1.0 ] ),
+    stroke_width : 1.0,
+  };
+
+  // Render something
+  renderer.render_geometry( points, transform, style );
+  let output_before_clear = renderer.output().unwrap();
+  assert!( output_before_clear.contains( "<polygon" ) );
+
+  // Clear the frame
+  renderer.clear();
+
+  // Check that the rendered content is gone
+  let output_after_clear = renderer.output().unwrap();
+
+  // The frame markers should be empty
+  assert!( output_after_clear.contains( "<!--framebegin--><!--frameend-->" ) );
+  // The polygon should be gone
+  assert!( !output_after_clear.contains( "<polygon" ) );
 }
