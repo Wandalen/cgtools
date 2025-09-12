@@ -160,9 +160,9 @@ mod private
     "normalMatrix",
 
     // Skeleton uniform locations
-    "inverseMatrices",
-    "globalMatrices",
-    "matricesSize",
+    "inverseBindMatrices",
+    "globalJointTransformMatrices",
+    "matricesTextureSize",
 
     // Material uniform  locations
     //// Textures uniform locations

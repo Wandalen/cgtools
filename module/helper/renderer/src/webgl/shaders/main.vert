@@ -51,12 +51,12 @@ out vec4 vColor_1;
 #endif
 
 #ifdef USE_SKINNING
-  uniform sampler2D inverseMatrices;
-  uniform sampler2D globalMatrices;
-  uniform uvec2 matricesSize;
+  uniform sampler2D inverseBindMatrices;
+  uniform sampler2D globalJointTransformMatrices;
+  uniform uvec2 matricesTextureSize;
 
-  // Retrieves 4x4 matrices from inverseMatrices and
-  // globalMatrices textures and multipy them.
+  // Retrieves 4x4 matrices from inverseBindMatrices and
+  // globalJointTransformMatrices textures and multipy them.
   //
   // The textures are assumed to store matrices as a sequence of pixels,
   // where each matrix is represented by four consecutive pixels (columns).
@@ -65,48 +65,53 @@ out vec4 vColor_1;
   // @return The 4x4 matrices multiplication result
   //         at the specified index.
   //
-  mat4 get_matrix( int i )
+  // Joint matrix calculation source:
+  //  - https://www.khronos.org/files/gltf20-reference-guide.pdf(Page 6, Computing the joint matrices)
+  //  - https://chatgpt.com/share/68c40aca-ac08-8013-bdba-be12e3498bba
+  mat4 joint_matrix( int i )
   {
-    int x_base = ( i * 4 ) % int( matricesSize.x );
-    int y_base = ( i * 4 ) / int( matricesSize.x );
+    int x_base = ( i * 4 ) % int( matricesTextureSize.x );
+    int y_base = ( i * 4 ) / int( matricesTextureSize.x );
 
-    vec4 gcol0 = texelFetch( globalMatrices, ivec2( x_base,     y_base ), 0 );
-    vec4 gcol1 = texelFetch( globalMatrices, ivec2( x_base + 1, y_base ), 0 );
-    vec4 gcol2 = texelFetch( globalMatrices, ivec2( x_base + 2, y_base ), 0 );
-    vec4 gcol3 = texelFetch( globalMatrices, ivec2( x_base + 3, y_base ), 0 );
+    vec4 gcol0 = texelFetch( globalJointTransformMatrices, ivec2( x_base,     y_base ), 0 );
+    vec4 gcol1 = texelFetch( globalJointTransformMatrices, ivec2( x_base + 1, y_base ), 0 );
+    vec4 gcol2 = texelFetch( globalJointTransformMatrices, ivec2( x_base + 2, y_base ), 0 );
+    vec4 gcol3 = texelFetch( globalJointTransformMatrices, ivec2( x_base + 3, y_base ), 0 );
 
-    vec4 icol0 = texelFetch( inverseMatrices, ivec2( x_base,     y_base ), 0 );
-    vec4 icol1 = texelFetch( inverseMatrices, ivec2( x_base + 1, y_base ), 0 );
-    vec4 icol2 = texelFetch( inverseMatrices, ivec2( x_base + 2, y_base ), 0 );
-    vec4 icol3 = texelFetch( inverseMatrices, ivec2( x_base + 3, y_base ), 0 );
+    vec4 icol0 = texelFetch( inverseBindMatrices, ivec2( x_base,     y_base ), 0 );
+    vec4 icol1 = texelFetch( inverseBindMatrices, ivec2( x_base + 1, y_base ), 0 );
+    vec4 icol2 = texelFetch( inverseBindMatrices, ivec2( x_base + 2, y_base ), 0 );
+    vec4 icol3 = texelFetch( inverseBindMatrices, ivec2( x_base + 3, y_base ), 0 );
 
     return mat4( gcol0, gcol1, gcol2, gcol3 ) * mat4( icol0, icol1, icol2, icol3 );
   }
 
-  mat4 skin_matrix( vec4 joints, vec4 weights )
+  // Calculates skin matrix from one vertex attribute pair ( joints_{i}, weights_{i} )
+  mat4 one_attribute_skin_matrix( vec4 joints, vec4 weights )
   {
-    mat4 skinMatrix = weights.x * get_matrix( int( joints.x ) ) +
-    weights.y * get_matrix( int( joints.y ) ) +
-    weights.z * get_matrix( int( joints.z ) ) +
-    weights.w * get_matrix( int( joints.w ) );
+    mat4 skinMatrix = weights.x * joint_matrix( int( joints.x ) ) +
+    weights.y * joint_matrix( int( joints.y ) ) +
+    weights.z * joint_matrix( int( joints.z ) ) +
+    weights.w * joint_matrix( int( joints.w ) );
 
     return skinMatrix;
   }
 
-  mat4 skinning()
+  // Full skin matrix calculation
+  mat4 skin_matrix()
   {
     mat4 skinMatrix = mat4( 0.0 );
 
     #if defined( USE_JOINTS_0 ) && defined( USE_WEIGHTS_0 )
-      skinMatrix += skin_matrix( joints_0, weights_0 );
+      skinMatrix += one_attribute_skin_matrix( joints_0, weights_0 );
     #endif
 
     #if defined( USE_JOINTS_1 ) && defined( USE_WEIGHTS_1 )
-      skinMatrix += skin_matrix( joints_1, weights_1 );
+      skinMatrix += one_attribute_skin_matrix( joints_1, weights_1 );
     #endif
 
     #if defined( USE_JOINTS_2 ) && defined( USE_WEIGHTS_2 )
-      skinMatrix += skin_matrix( joints_2, weights_2 );
+      skinMatrix += one_attribute_skin_matrix( joints_2, weights_2 );
     #endif
 
     if ( skinMatrix[ 0 ][ 0 ] == 0.0 )
@@ -139,8 +144,7 @@ void main()
   vec4 position = vec4( position, 1.0 );
 
   #ifdef USE_SKINNING
-    mat4 skinMatrix = skinning();
-    position = skinMatrix * position;
+    position = skin_matrix() * position;
   #endif
 
   vec4 worldPos = worldMatrix * position;
