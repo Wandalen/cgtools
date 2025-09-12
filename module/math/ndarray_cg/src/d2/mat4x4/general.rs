@@ -242,9 +242,9 @@ impl F32x4x4
 
     let translation = F32x3::from_array( [ tx, ty, tz ] );
 
-    let mut sx = F32x3::from_array( [ a, b, c ] ).norm();
-    let sy = F32x3::from_array( [ d, e, f ] ).norm();
-    let sz = F32x3::from_array( [ g, h, i ] ).norm();
+    let mut sx = F32x3::from_array( [ a, b, c ] ).mag();
+    let sy = F32x3::from_array( [ d, e, f ] ).mag();
+    let sz = F32x3::from_array( [ g, h, i ] ).mag();
 
     let rot_mat = F32x3x3::from_column_major( [ a, b, c, d, e, f, g, h, i ] );
 
