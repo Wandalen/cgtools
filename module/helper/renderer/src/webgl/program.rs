@@ -1,7 +1,6 @@
 mod private
 {
   use minwebgl as gl;
-  use gl::WebGl2RenderingContext as GL;
   use std::collections::HashMap;
 
   macro_rules! impl_locations
@@ -25,6 +24,39 @@ mod private
           {
             program,
             locations,
+            ubo_indices : HashMap::new(),
+            phantom : std::marker::PhantomData
+          }
+        }
+      }
+    };
+    ( $program_type:ty, $( $location_name:literal ),* -- $( $ubo_name:literal ),* ) =>
+    {
+      impl ProgramInfo< $program_type >
+      {
+        /// Creates a new `ProgramInfo` instance.
+        #[ allow( unused_variables ) ]
+        pub fn new( gl : &gl::WebGl2RenderingContext, program : gl::WebGlProgram ) -> Self
+        {
+          #[ allow( unused_mut ) ]
+          let mut locations = HashMap::new();
+
+          #[ allow( unused_mut ) ]
+          let mut ubo_indices = HashMap::new();
+
+          $(
+            locations.insert( $location_name.to_string(), gl.get_uniform_location( &program, $location_name ) );
+          )*
+
+          $(
+            ubo_indices.insert( $ubo_name.to_string(), gl.get_uniform_block_index( &program, $ubo_name ) );
+          )*
+
+          Self
+          {
+            program,
+            locations,
+            ubo_indices,
             phantom : std::marker::PhantomData
           }
         }
@@ -109,6 +141,9 @@ mod private
     /// A hash map storing the locations of uniform variables in the program.
     /// The keys are the names of the uniforms.
     locations : HashMap< String, Option< gl::WebGlUniformLocation > >,
+    /// A hash map storing the locations of UBO variables in the program.
+    /// The keys are the names of the uniform block.
+    ubo_indices : HashMap< String, u32 >,
     phantom : std::marker::PhantomData< T >
   }
 
@@ -126,17 +161,16 @@ mod private
       &mut self.locations
     }
 
-    /// Bind UBO to program
-    pub fn bind_ubo
-    (
-      &self,
-      gl : &GL,
-      name : &str,
-      block_point : u32
-    )
+    /// Returns a reference to the hash map containing UBO indices.
+    pub fn get_ubo_indices( &self ) -> &HashMap< String, u32 >
     {
-      let joints_loc = gl.get_uniform_block_index( &self.program, name );
-      gl.uniform_block_binding( &self.program, joints_loc, block_point );
+      &self.ubo_indices
+    }
+
+    /// Returns a mutable reference to the hash map containing UBO indices.
+    pub fn get_ubo_indices_mut( &mut self ) ->  &mut HashMap< String, u32 >
+    {
+      &mut self.ubo_indices
     }
 
     /// Binds the WebGL program for use.
