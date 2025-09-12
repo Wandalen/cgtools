@@ -7,7 +7,7 @@
 //! # Animation System
 //!
 //! The animation system is built around tweening ( interpolation ) between values
-//! over time. It supports animating positions, rotations, scales, colors, and
+//! over time. It supports animating positions, rotations, scales, and
 //! custom properties with different easing functions.
 //!
 //! ## Core Concepts
@@ -21,7 +21,6 @@
 //!
 //! - Position coordinates ( any coordinate system )
 //! - Floating point values ( scale, rotation, opacity )
-//! - Colors ( RGB, RGBA )
 //! - Custom interpolatable values
 //!
 
@@ -515,73 +514,6 @@ mod private
     }
   }
 
-  /// RGB Color for animations.
-  #[ derive( Debug, Clone, Copy, PartialEq ) ]
-  pub struct Color
-  {
-    /// Red component ( 0.0 to 1.0 )
-    pub red : f32,
-    /// Green component ( 0.0 to 1.0 )
-    pub green : f32,
-    /// Blue component ( 0.0 to 1.0 )
-    pub blue : f32,
-    /// Alpha component ( 0.0 to 1.0 )
-    pub alpha : f32
-  }
-
-  impl Color
-  {
-    /// Creates a new color.
-    pub fn new( red : f32, green : f32, blue : f32, alpha : f32 ) -> Self
-    {
-      Self
-      {
-        red : red.clamp( 0.0, 1.0 ),
-        green : green.clamp( 0.0, 1.0 ),
-        blue : blue.clamp( 0.0, 1.0 ),
-        alpha : alpha.clamp( 0.0, 1.0 ),
-      }
-    }
-
-    /// Creates an RGB color ( alpha = 1.0 ).
-    pub fn rgb( red : f32, green : f32, blue : f32 ) -> Self
-    {
-      Self::new( red, green, blue, 1.0 )
-    }
-
-    /// Creates a white color.
-    pub fn white() -> Self
-    {
-      Self::rgb( 1.0, 1.0, 1.0 )
-    }
-
-    /// Creates a black color.
-    pub fn black() -> Self
-    {
-      Self::rgb( 0.0, 0.0, 0.0 )
-    }
-
-    /// Creates a transparent color.
-    pub fn transparent() -> Self
-    {
-      Self::new( 0.0, 0.0, 0.0, 0.0 )
-    }
-  }
-
-  impl Animatable for Color
-  {
-    fn interpolate( &self, other : &Self, time : f32 ) -> Self
-    {
-      Self
-      {
-        red : self.red.interpolate( &other.red, time ),
-        green : self.green.interpolate( &other.green, time ),
-        blue : self.blue.interpolate( &other.blue, time ),
-        alpha : self.alpha.interpolate( &other.alpha, time ),
-      }
-    }
-  }
-
   #[ cfg( test ) ]
   mod tests
   {
@@ -608,18 +540,6 @@ mod private
       assert_eq!( start.interpolate( &end, 0.0 ), 5 );
       assert_eq!( start.interpolate( &end, 1.0 ), 15 );
       assert_eq!( start.interpolate( &end, 0.5 ), 10 );
-    }
-
-    #[ test ]
-    fn test_color_interpolation()
-    {
-      let red = Color::rgb( 1.0, 0.0, 0.0 );
-      let blue = Color::rgb( 0.0, 0.0, 1.0 );
-      let purple = red.interpolate( &blue, 0.5 );
-      assert_eq!( purple.red, 0.5 );
-      assert_eq!( purple.green, 0.0 );
-      assert_eq!( purple.blue, 0.5 );
-      assert_eq!( purple.alpha, 1.0 );
     }
 
     // --- Tween Core Logic Tests ---

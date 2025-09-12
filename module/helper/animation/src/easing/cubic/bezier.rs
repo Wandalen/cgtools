@@ -84,11 +84,11 @@ use crate::{impl_easing_function, Animatable};
     {
       if time <= 0.0
       {
-        return start.interpolate( &end, 0.0 );
+        return start;
       }
       if time >= 1.0
       {
-        return start.interpolate( &end, 1.0 );
+        return end;
       }
 
       let mut bezier_t = time;
