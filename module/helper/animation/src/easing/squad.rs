@@ -36,6 +36,10 @@ mod private
     }
   }
 
+  /// Sources:
+  ///  - https://math.stackexchange.com/questions/2650188/super-confused-by-squad-algorithm-for-quaternion-interpolation
+  ///  - https://github.com/phuicy/ROBOOP/blob/8bee84036b82362a74c7c5a73fa9aa2ab5cb54f8/source/quaternion.cpp#L722
+  ///  - https://web.mit.edu/2.998/www/QuaternionReport1.pdf ( Section 6.2.1, Page 51 )
   impl< E > EasingFunction for Squad< E >
   where
     E : MatEl + core::fmt::Debug + std::marker::Copy + std::default::Default + NdFloat
