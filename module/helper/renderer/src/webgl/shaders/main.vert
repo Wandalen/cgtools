@@ -51,28 +51,36 @@ out vec4 vColor_1;
 #endif
 
 #ifdef USE_SKINNING
-  uniform sampler2D jointMatrices;
-  uniform uvec2 jointMatricesSize;
+  uniform sampler2D inverseMatrices;
+  uniform sampler2D globalMatrices;
+  uniform uvec2 matricesSize;
 
-  // Retrieves a 4x4 matrix from a texture.
+  // Retrieves 4x4 matrices from inverseMatrices and
+  // globalMatrices textures and multipy them.
   //
-  // The texture is assumed to store matrices as a sequence of pixels,
+  // The textures are assumed to store matrices as a sequence of pixels,
   // where each matrix is represented by four consecutive pixels (columns).
   //
   // @param i The index of the matrix to retrieve.
-  // @return The 4x4 matrix at the specified index.
+  // @return The 4x4 matrices multiplication result
+  //         at the specified index.
   //
   mat4 get_matrix( int i )
   {
-    int x_base = ( i * 4 ) % int( jointMatricesSize.x );
-    int y_base = ( i * 4 ) / int( jointMatricesSize.x );
+    int x_base = ( i * 4 ) % int( matricesSize.x );
+    int y_base = ( i * 4 ) / int( matricesSize.x );
 
-    vec4 col0 = texelFetch( jointMatrices, ivec2( x_base,     y_base ), 0 );
-    vec4 col1 = texelFetch( jointMatrices, ivec2( x_base + 1, y_base ), 0 );
-    vec4 col2 = texelFetch( jointMatrices, ivec2( x_base + 2, y_base ), 0 );
-    vec4 col3 = texelFetch( jointMatrices, ivec2( x_base + 3, y_base ), 0 );
+    vec4 gcol0 = texelFetch( globalMatrices, ivec2( x_base,     y_base ), 0 );
+    vec4 gcol1 = texelFetch( globalMatrices, ivec2( x_base + 1, y_base ), 0 );
+    vec4 gcol2 = texelFetch( globalMatrices, ivec2( x_base + 2, y_base ), 0 );
+    vec4 gcol3 = texelFetch( globalMatrices, ivec2( x_base + 3, y_base ), 0 );
 
-    return mat4( col0, col1, col2, col3 );
+    vec4 icol0 = texelFetch( inverseMatrices, ivec2( x_base,     y_base ), 0 );
+    vec4 icol1 = texelFetch( inverseMatrices, ivec2( x_base + 1, y_base ), 0 );
+    vec4 icol2 = texelFetch( inverseMatrices, ivec2( x_base + 2, y_base ), 0 );
+    vec4 icol3 = texelFetch( inverseMatrices, ivec2( x_base + 3, y_base ), 0 );
+
+    return mat4( gcol0, gcol1, gcol2, gcol3 ) * mat4( icol0, icol1, icol2, icol3 );
   }
 
   mat4 skin_matrix( vec4 joints, vec4 weights )

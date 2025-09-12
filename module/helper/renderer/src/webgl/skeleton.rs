@@ -18,8 +18,10 @@ mod private
   use std::{ rc::Rc, cell::RefCell };
   use std::collections::HashMap;
 
-  /// Joint matrices texture slot
-  pub const JOINT_MATRICES_SLOT : u32 = 13;
+  /// Global transform matrices texture slot
+  pub const GLOBAL_MATRICES_SLOT : u32 = 13;
+  /// Inverse bind matrices texture slot
+  pub const INVERSE_MATRICES_SLOT : u32 = 14;
 
   /// Loads data to data texture where every pixel
   /// is 4 float values. Used for packing matrices array
@@ -89,9 +91,11 @@ mod private
     joints : Vec< Rc< RefCell< Node > > >,
     /// List of nodes correcting matrices used in nodes
     /// transform for playing skeletal animations
-    inverse_bind_matrices :  Vec< F32x4x4 >,
-    /// Joint matrices data texture
-    texture : WebGlTexture
+    _inverse_bind_matrices :  Vec< F32x4x4 >,
+    /// Global matrices data texture
+    global_texture : WebGlTexture,
+    /// Inverse matrices data texture
+    inverse_texture : WebGlTexture
   }
 
   impl Skeleton
@@ -118,13 +122,30 @@ mod private
         inverse_bind_matrices.push( matrix );
       }
 
+      let mut inverse_data = inverse_bind_matrices.iter()
+      .map
+      (
+        | m | m.to_array().to_vec()
+      )
+      .flatten()
+      .collect::< Vec< _ > >();
+
+      let a = 4.0_f32.powf( ( inverse_data.len() as f32 ).sqrt().log( 4.0 ).ceil() ) as u32;
+      let texture_size = [ a, a ];
+
+      inverse_data.extend( vec![ 0.0; ( a * a * 4 ) as usize - inverse_data.len() ] );
+
+      let inverse_texture = gl.create_texture()?;
+      load_texture_data_4f( gl, &inverse_texture, inverse_data.as_slice(), texture_size );
+
       Some
       (
         Self
         {
           joints : nodes,
-          inverse_bind_matrices : inverse_bind_matrices,
-          texture : gl.create_texture()?,
+          _inverse_bind_matrices : inverse_bind_matrices,
+          global_texture : gl.create_texture()?,
+          inverse_texture
         }
       )
     }
@@ -137,17 +158,14 @@ mod private
       locations : &HashMap< String, Option< gl::WebGlUniformLocation > >
     )
     {
-      let mut joint_matrices = vec![];
+      let global_matrices = self.joints.iter()
+      .map
+      (
+        | node | node.borrow().get_world_matrix()
+      )
+      .collect::< Vec< _ > >();
 
-      for i in 0..self.inverse_bind_matrices.len()
-      {
-        let inverse_bind = self.inverse_bind_matrices[ i ];
-        let node = &self.joints[ i ];
-        let global_transform = node.borrow().get_world_matrix();
-        joint_matrices.push( global_transform * inverse_bind );
-      }
-
-      let mut data = joint_matrices.iter()
+      let mut global_data = global_matrices.iter()
       .map
       (
         | m | m.to_array().to_vec()
@@ -155,16 +173,18 @@ mod private
       .flatten()
       .collect::< Vec< _ > >();
 
-      let joint_matrices_loc = locations.get( "jointMatrices" ).unwrap();
-      let texture_size_loc = locations.get( "jointMatricesSize" ).unwrap();
-
-      let a = 4.0_f32.powf( ( data.len() as f32 ).sqrt().log( 4.0 ).ceil() ) as u32;
+      let a = 4.0_f32.powf( ( global_data.len() as f32 ).sqrt().log( 4.0 ).ceil() ) as u32;
       let texture_size = [ a, a ];
 
-      data.extend( vec![ 0.0; ( a * a * 4 ) as usize - data.len() ] );
+      global_data.extend( vec![ 0.0; ( a * a * 4 ) as usize - global_data.len() ] );
 
-      load_texture_data_4f( gl, &self.texture, data.as_slice(), texture_size );
-      upload_texture( gl, &self.texture, joint_matrices_loc.clone(), JOINT_MATRICES_SLOT );
+      let global_matrices_loc = locations.get( "globalMatrices" ).unwrap();
+      let inverse_matrices_loc = locations.get( "inverseMatrices" ).unwrap();
+      let texture_size_loc = locations.get( "matricesSize" ).unwrap();
+
+      load_texture_data_4f( gl, &self.global_texture, global_data.as_slice(), texture_size );
+      upload_texture( gl, &self.global_texture, global_matrices_loc.clone(), GLOBAL_MATRICES_SLOT );
+      upload_texture( gl, &self.inverse_texture, inverse_matrices_loc.clone(), INVERSE_MATRICES_SLOT );
       gl::uniform::upload( &gl, texture_size_loc.clone(), texture_size.as_slice() ).unwrap();
     }
   }
@@ -175,6 +195,7 @@ crate::mod_interface!
   orphan use
   {
     Skeleton,
-    JOINT_MATRICES_SLOT,
+    GLOBAL_MATRICES_SLOT,
+    INVERSE_MATRICES_SLOT
   };
 }
