@@ -30,10 +30,20 @@ mod private
   }
 
   /// Source: https://www.johndcook.com/blog/2025/05/07/quaternions-and-rotation-matrices/
-  impl< E : MatEl + nd::NdFloat > From< F32x3x3 > for Quat< E >
+  impl< E, Descriptor > From< Mat3< E, Descriptor > > for Quat< E >
+  where E : MatEl + nd::NdFloat, Descriptor : mat::Descriptor
   {
-    fn from( value : F32x3x3 ) -> Self
+    fn from( value : Mat3< E, Descriptor > ) -> Self
     {
+      let value = if < Descriptor as mat::Descriptor >::IS_ROW_MAJOR
+      {
+        Mat3::< E, mat::DescriptorOrderColumnMajor >::from_row_major(value.to_array() )
+      }
+      else
+      {
+        Mat3::< E, mat::DescriptorOrderColumnMajor >::from_column_major( value.to_array() )
+      };
+
       let
       [
         r11, r21, r31,
@@ -42,19 +52,19 @@ mod private
       ]
       = value.to_array();
 
-      let n0 = E::one() + E::from( r11 + r22 + r33 ).unwrap();
-      let n1 = E::one() + E::from( r11 - r22 - r33 ).unwrap();
-      let n2 = E::one() + E::from( - r11 + r22 - r33 ).unwrap();
-      let n3 = E::one() + E::from( - r11 - r22 + r33 ).unwrap();
+      let n0 = E::one() + r11 + r22 + r33;
+      let n1 = E::one() + r11 - r22 - r33;
+      let n2 = E::one() - r11 + r22 - r33;
+      let n3 = E::one() - r11 - r22 + r33;
 
       let half = E::from( 0.5 ).unwrap();
 
       let q =
       [
         half * n0.sqrt(),
-        half * n1.sqrt() * E::from( ( r32 - r23 ).signum() ).unwrap(),
-        half * n2.sqrt() * E::from( ( r13 - r31 ).signum() ).unwrap(),
-        half * n3.sqrt() * E::from( ( r21 - r12 ).signum() ).unwrap()
+        half * n1.sqrt() * ( r32 - r23 ).signum(),
+        half * n2.sqrt() * ( r13 - r31 ).signum(),
+        half * n3.sqrt() * ( r21 - r12 ).signum()
       ];
 
       Self( Vector::< E, 4 >::from( q ) )
