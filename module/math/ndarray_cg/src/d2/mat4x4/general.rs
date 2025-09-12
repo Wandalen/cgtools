@@ -224,13 +224,27 @@ Self : ScalarMut< Scalar = E > +
   }
 }
 
-impl F32x4x4
+impl< E, Descriptor > Mat< 4, 4, E, Descriptor >
+where
+E : MatEl + nd::NdFloat,
+Descriptor : mat::Descriptor,
+Self : ScalarMut< Scalar = E > +
+       IndexingMut< Scalar = E, Index = Ix2 >
 {
   /// Decompose a transformation matrix to scale, rotation and translation
   ///
   /// Source: https://github.com/mrdoob/three.js/blob/27151c8325d1dba520d4abfb5a2e1077dd59de22/src/math/Matrix4.js#L1050
-  pub fn decompose( &self ) -> Option< ( F32x3, QuatF32, F32x3 ) >
+  pub fn decompose( &self ) -> Option< ( Vector< E, 3 >, Quat< E >, Vector< E, 3 > ) >
   {
+    let value = if < Descriptor as mat::Descriptor >::IS_ROW_MAJOR
+    {
+      Mat4::< E, mat::DescriptorOrderColumnMajor >::from_row_major(self.to_array() )
+    }
+    else
+    {
+      Mat4::< E, mat::DescriptorOrderColumnMajor >::from_column_major( self.to_array() )
+    };
+
     let
     [
       a, d, g, tx,
@@ -238,34 +252,34 @@ impl F32x4x4
       c, f, i, tz,
       ..
     ]
-    = self.transpose().to_array();
+    = value.transpose().to_array();
 
-    let translation = F32x3::from_array( [ tx, ty, tz ] );
+    let translation = Vector::< E, 3 >::from_array( [ tx, ty, tz ] );
 
-    let mut sx = F32x3::from_array( [ a, b, c ] ).mag();
-    let sy = F32x3::from_array( [ d, e, f ] ).mag();
-    let sz = F32x3::from_array( [ g, h, i ] ).mag();
+    let mut sx = Vector::< E, 3 >::from_array( [ a, b, c ] ).mag();
+    let sy = Vector::< E, 3 >::from_array( [ d, e, f ] ).mag();
+    let sz = Vector::< E, 3 >::from_array( [ g, h, i ] ).mag();
 
-    let rot_mat = F32x3x3::from_column_major( [ a, b, c, d, e, f, g, h, i ] );
+    let rot_mat = Mat3::< E, mat::DescriptorOrderColumnMajor >::from_column_major( [ a, b, c, d, e, f, g, h, i ] );
 
     let det = rot_mat.determinant();
-    if det < 0.0
+    if det < E::zero()
     {
       sx = - sx;
     }
 
-    if sx == 0.0 || sy == 0.0 || sz == 0.0
+    if sx == E::zero() || sy == E::zero() || sz == E::zero()
     {
       return None;
     }
 
-    let scale = F32x3::from_array( [ sx, sy, sz ] );
+    let scale = Vector::< E, 3 >::from_array( [ sx, sy, sz ] );
 
-    let i_sx = 1.0 / sx;
-    let i_sy = 1.0 / sy;
-    let i_sz = 1.0 / sz;
+    let i_sx = E::one() / sx;
+    let i_sy = E::one() / sy;
+    let i_sz = E::one() / sz;
 
-    let rot_mat = F32x3x3::from_column_major
+    let rot_mat = Mat3::< E, mat::DescriptorOrderColumnMajor >::from_column_major
     (
       [
         a / i_sx, b / i_sx, c / i_sx,
@@ -274,7 +288,7 @@ impl F32x4x4
       ]
     );
 
-    let rotation = QuatF32::from( rot_mat );
+    let rotation = Quat::< E >::from( rot_mat );
 
     Some( ( translation, rotation, scale ) )
   }
