@@ -1,5 +1,3 @@
-//!
-
 mod private
 {
   use minwebgl as gl;
@@ -95,7 +93,10 @@ mod private
     /// Global matrices data texture
     global_texture : WebGlTexture,
     /// Inverse matrices data texture
-    inverse_texture : WebGlTexture
+    inverse_texture : WebGlTexture,
+    /// Defines if [`Skeleton`] is recently cloned,
+    /// but not all fields have been cloned too
+    need_clone_inner : bool
   }
 
   impl Skeleton
@@ -145,7 +146,8 @@ mod private
           joints : nodes,
           _inverse_bind_matrices : inverse_bind_matrices,
           global_texture : gl.create_texture()?,
-          inverse_texture
+          inverse_texture,
+          need_clone_inner : false
         }
       )
     }
@@ -153,11 +155,20 @@ mod private
     /// Upload inverse bind matrices texture to current shader program
     pub fn upload
     (
-      &self,
+      &mut self,
       gl : &GL,
       locations : &HashMap< String, Option< gl::WebGlUniformLocation > >
     )
     {
+      if self.need_clone_inner
+      {
+        if let Some( global_texture ) = gl.create_texture()
+        {
+          self.global_texture = global_texture;
+          self.need_clone_inner = false;
+        }
+      }
+
       let global_matrices = self.joints.iter()
       .map
       (
@@ -178,14 +189,31 @@ mod private
 
       global_data.extend( vec![ 0.0; ( a * a * 4 ) as usize - global_data.len() ] );
 
-      let global_matrices_loc = locations.get( "globalMatrices" ).unwrap();
-      let inverse_matrices_loc = locations.get( "inverseMatrices" ).unwrap();
-      let texture_size_loc = locations.get( "matricesSize" ).unwrap();
+      let global_matrices_loc = locations.get( "globalJointTransformMatrices" ).unwrap();
+      let inverse_matrices_loc = locations.get( "inverseBindMatrices" ).unwrap();
+      let texture_size_loc = locations.get( "matricesTextureSize" ).unwrap();
 
       load_texture_data_4f( gl, &self.global_texture, global_data.as_slice(), texture_size );
       upload_texture( gl, &self.global_texture, global_matrices_loc.clone(), GLOBAL_MATRICES_SLOT );
       upload_texture( gl, &self.inverse_texture, inverse_matrices_loc.clone(), INVERSE_MATRICES_SLOT );
       gl::uniform::upload( &gl, texture_size_loc.clone(), texture_size.as_slice() ).unwrap();
+    }
+  }
+
+  impl Clone for Skeleton
+  {
+    fn clone( &self ) -> Self
+    {
+      Self
+      {
+        joints : self.joints.iter()
+        .map( | n | n.borrow().clone_tree() )
+        .collect::< Vec< _ > >(),
+        _inverse_bind_matrices : self._inverse_bind_matrices.clone(),
+        global_texture : self.global_texture.clone(),
+        inverse_texture : self.inverse_texture.clone(),
+        need_clone_inner : true
+      }
     }
   }
 }

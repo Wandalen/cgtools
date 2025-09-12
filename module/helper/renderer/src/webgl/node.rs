@@ -254,7 +254,6 @@ mod private
       if needs_world_matrix_update || self.needs_world_matrix_update
       {
         self.set_world_matrix( parent_mat * self.matrix );
-        //self.set_world_matrix( self.matrix );
         needs_world_matrix_update = true;
       }
 
@@ -301,7 +300,7 @@ mod private
       {
         if let Some( skeleton ) = &mesh.borrow().skeleton
         {
-          skeleton.borrow().upload( gl, locations );
+          skeleton.borrow_mut().upload( gl, locations );
         }
       }
 

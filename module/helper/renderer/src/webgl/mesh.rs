@@ -30,7 +30,16 @@ mod private
           .collect::< Vec< _ > >()
         },
         #[ cfg( feature = "animation" ) ]
-        skeleton : None
+        skeleton : self.skeleton.as_ref()
+        .map
+        (
+          | s |
+          {
+            let clone = s.borrow().clone();
+            *s.borrow_mut() = clone;
+            s.clone()
+          }
+        )
       }
     }
   }
