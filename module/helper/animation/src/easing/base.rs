@@ -22,7 +22,7 @@ mod private
       &self,
       start : Self::AnimatableType,
       end : Self::AnimatableType,
-      time : f32
+      time : f64
     )
     -> Self::AnimatableType;
   }
@@ -78,7 +78,7 @@ mod private
   {
     type AnimatableType = A;
 
-    fn apply( &self, start : Self::AnimatableType, end : Self::AnimatableType, time : f32 ) -> Self::AnimatableType
+    fn apply( &self, start : Self::AnimatableType, end : Self::AnimatableType, time : f64 ) -> Self::AnimatableType
     {
       start.interpolate( &end, time )
     }
@@ -102,7 +102,7 @@ mod private
   where
     A : Animatable,
   {
-    steps : f32,
+    steps : f64,
     _marker : PhantomData< A >
   }
 
@@ -111,7 +111,7 @@ mod private
     A : Animatable,
   {
     /// Init [`Step`] easing function
-    pub fn new( steps : f32 ) -> Self
+    pub fn new( steps : f64 ) -> Self
     {
       Self
       {
@@ -127,7 +127,7 @@ mod private
   {
     type AnimatableType = A;
 
-    fn apply( &self, start : Self::AnimatableType, end : Self::AnimatableType, time : f32 ) -> Self::AnimatableType
+    fn apply( &self, start : Self::AnimatableType, end : Self::AnimatableType, time : f64 ) -> Self::AnimatableType
     {
       let time = ( time * self.steps ).ceil() / self.steps;
       start.interpolate( &end, time )

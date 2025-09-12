@@ -43,7 +43,7 @@ mod private
   {
     type AnimatableType = Vector< E, N >;
 
-    fn apply( &self, start : Vector< E, N >, end : Vector< E, N >, time : f32 ) -> Vector< E, N >
+    fn apply( &self, start : Vector< E, N >, end : Vector< E, N >, time : f64 ) -> Vector< E, N >
     {
       let t = time;
       let t2 = t * t;

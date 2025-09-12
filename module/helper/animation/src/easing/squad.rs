@@ -46,7 +46,7 @@ mod private
   {
     type AnimatableType = Quat< E >;
 
-    fn apply( &self, start : Quat< E >, end : Quat< E >, time : f32 ) -> Quat< E >
+    fn apply( &self, start : Quat< E >, end : Quat< E >, time : f64 ) -> Quat< E >
     {
       let t = E::from( time ).unwrap();
       let b_start = start.slerp( &self.out_tangent, E::from( 1.0 / 3.0 ).unwrap() );

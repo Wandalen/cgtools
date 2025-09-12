@@ -34,6 +34,7 @@ mod private
   use gl::
   {
     NdFloat,
+    F64x3,
     F32x3,
     Quat,
     MatEl
@@ -43,7 +44,7 @@ mod private
   pub trait Animatable : Clone + core::fmt::Debug
   {
     /// Interpolates between two values at time t ( 0.0 to 1.0 ).
-    fn interpolate( &self, other : &Self, t : f32 ) -> Self;
+    fn interpolate( &self, other : &Self, t : f64 ) -> Self;
   }
 
   /// Animation state for tracking tween progress.
@@ -70,17 +71,17 @@ mod private
     /// Target value
     end_value : T,
     /// Animation duration in seconds
-    duration : f32,
+    duration : f64,
     /// Current elapsed time
-    elapsed : f32,
+    elapsed : f64,
     /// Easing function to use
     easing : Box< dyn EasingFunction< AnimatableType = T > >,
     /// Current animation state
     state : AnimationState,
     /// Delay before animation starts
-    delay : f32,
+    delay : f64,
     /// Time remains before animation starts
-    remain : f32,
+    remain : f64,
     /// Number of times to repeat ( 0 = no repeat, -1 = infinite )
     repeat_count : i32,
     /// Current repeat iteration
@@ -97,7 +98,7 @@ mod private
     (
       start : T,
       end : T,
-      duration : f32,
+      duration : f64,
       easing : Box< dyn EasingFunction< AnimatableType = T > >
     ) -> Self
     {
@@ -118,7 +119,7 @@ mod private
     }
 
     /// Sets a delay before the animation starts.
-    pub fn with_delay( mut self, delay : f32 ) -> Self
+    pub fn with_delay( mut self, delay : f64 ) -> Self
     {
       self.delay = delay.max( 0.0 );
       self.remain = self.delay;
@@ -140,7 +141,7 @@ mod private
     }
 
     /// Updates the tween with the elapsed time and returns current value.
-    pub fn update( &mut self, delta_time : f32 ) -> T
+    pub fn update( &mut self, delta_time : f64 ) -> T
     {
       let mut remaining_time = delta_time;
 
@@ -299,7 +300,7 @@ mod private
     }
 
     /// Gets elapsed time
-    pub fn time( &self ) -> f32
+    pub fn time( &self ) -> f64
     {
       self.elapsed
     }
@@ -308,7 +309,7 @@ mod private
   impl< T > AnimatableValue for Tween< T >
   where T : Animatable + 'static
   {
-    fn update( &mut self, delta_time : f32 )
+    fn update( &mut self, delta_time : f64 )
     {
       self.update( delta_time );
     }
@@ -338,17 +339,17 @@ mod private
       self
     }
 
-    fn get_duration( &self ) -> f32
+    fn get_duration( &self ) -> f64
     {
       self.duration
     }
 
-    fn get_delay( &self ) -> f32
+    fn get_delay( &self ) -> f64
     {
       self.delay
     }
 
-    fn progress( &self ) -> f32
+    fn progress( &self ) -> f64
     {
       if self.state == AnimationState::Pending
       {
@@ -364,7 +365,7 @@ mod private
   impl< T, const N : usize > AnimatableValue for [ Tween< T >; N ]
   where T : Animatable + 'static
   {
-    fn update( &mut self, delta_time : f32 )
+    fn update( &mut self, delta_time : f64 )
     {
       for tween in self
       {
@@ -400,7 +401,7 @@ mod private
       self
     }
 
-    fn get_duration( &self ) -> f32
+    fn get_duration( &self ) -> f64
     {
       let mut min_start = 0.0;
       for t in self.iter()
@@ -417,7 +418,7 @@ mod private
       max_end - min_start
     }
 
-    fn get_delay( &self ) -> f32
+    fn get_delay( &self ) -> f64
     {
       let mut min_delay = 0.0;
       for t in self.iter()
@@ -428,7 +429,7 @@ mod private
       min_delay
     }
 
-    fn progress( &self ) -> f32
+    fn progress( &self ) -> f64
     {
       if self[ 0 ].state == AnimationState::Pending
       {
@@ -445,15 +446,15 @@ mod private
 
   impl Animatable for f32
   {
-    fn interpolate( &self, other : &Self, time : f32 ) -> Self
+    fn interpolate( &self, other : &Self, time : f64 ) -> Self
     {
-      self + ( other - self ) * time
+      self + ( other - self ) * time as f32
     }
   }
 
   impl Animatable for f64
   {
-    fn interpolate( &self, other : &Self, time : f32 ) -> Self
+    fn interpolate( &self, other : &Self, time : f64 ) -> Self
     {
       self + ( other - self ) * f64::from( time )
     }
@@ -461,15 +462,26 @@ mod private
 
   impl Animatable for i32
   {
-    fn interpolate( &self, other : &Self, time : f32 ) -> Self
+    fn interpolate( &self, other : &Self, time : f64 ) -> Self
     {
-      ( *self as f32 + ( *other as f32 - *self as f32 ) * time ) as i32
+      ( *self as f64 + ( *other as f64 - *self as f64 ) * time ) as i32
     }
   }
 
   impl Animatable for ( f32, f32 )
   {
-    fn interpolate( &self, other : &Self, time : f32 ) -> Self
+    fn interpolate( &self, other : &Self, time : f64 ) -> Self
+    {
+      (
+        self.0.interpolate( &other.0, time ),
+        self.1.interpolate( &other.1, time ),
+      )
+    }
+  }
+
+  impl Animatable for ( f64, f64 )
+  {
+    fn interpolate( &self, other : &Self, time : f64 ) -> Self
     {
       (
         self.0.interpolate( &other.0, time ),
@@ -480,7 +492,7 @@ mod private
 
   impl Animatable for ( i32, i32 )
   {
-    fn interpolate( &self, other : &Self, time : f32 ) -> Self
+    fn interpolate( &self, other : &Self, time : f64 ) -> Self
     {
       (
         self.0.interpolate( &other.0, time ),
@@ -489,9 +501,24 @@ mod private
     }
   }
 
+  impl Animatable for F64x3
+  {
+    fn interpolate(&self, other : &Self, time : f64 ) -> Self
+    {
+      Self::from
+      (
+        [
+          self.x().interpolate( &other.x(), time ),
+          self.y().interpolate( &other.y(), time ),
+          self.z().interpolate( &other.z(), time )
+        ]
+      )
+    }
+  }
+
   impl Animatable for F32x3
   {
-    fn interpolate(&self, other : &Self, time : f32 ) -> Self
+    fn interpolate(&self, other : &Self, time : f64 ) -> Self
     {
       Self::from
       (
@@ -508,7 +535,7 @@ mod private
   where
     E : MatEl + core::fmt::Debug + NdFloat
   {
-    fn interpolate( &self, other : &Self, time : f32 ) -> Self
+    fn interpolate( &self, other : &Self, time : f64 ) -> Self
     {
       self.slerp( other, E::from( time ).unwrap() )
     }

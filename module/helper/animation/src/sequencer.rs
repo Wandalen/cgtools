@@ -15,7 +15,7 @@ mod private
     /// Map of animation names to their tween data
     tweens : HashMap< Box< str >, Box< dyn AnimatableValue > >,
     /// Current Sequencer time
-    time : f32,
+    time : f64,
     /// Sequencer state
     state : AnimationState,
   }
@@ -52,7 +52,7 @@ mod private
     }
 
     /// Updates all animations in the Sequencer.
-    pub fn update( &mut self, delta_time : f32 )
+    pub fn update( &mut self, delta_time : f64 )
     {
       if self.state != AnimationState::Running
       {
@@ -137,7 +137,7 @@ mod private
     }
 
     /// Gets the current  Sequencer time.
-    pub fn time( &self ) -> f32
+    pub fn time( &self ) -> f64
     {
       self.time
     }
@@ -167,7 +167,7 @@ mod private
   pub trait AnimatableValue : core::fmt::Debug
   {
     /// Updates the animation state based on time.
-    fn update( &mut self, delta_time : f32 );
+    fn update( &mut self, delta_time : f64 );
     /// Returns true if the animation has completed.
     fn is_completed( &self ) -> bool;
     /// Pauses the animation.
@@ -179,11 +179,11 @@ mod private
     /// Returns a type-erased reference to the underlying value.
     fn as_any( &self ) -> &dyn core::any::Any;
     /// Returns animation duration
-    fn get_duration( &self ) -> f32;
+    fn get_duration( &self ) -> f64;
     /// Returns animation delay
-    fn get_delay( &self ) -> f32;
+    fn get_delay( &self ) -> f64;
     /// Gets the progress of the animated value ( 0.0 to 1.0 ).
-    fn progress( &self ) -> f32;
+    fn progress( &self ) -> f64;
   }
 
     /// Error for handling wrong [`Sequence`] input data
@@ -207,13 +207,13 @@ mod private
     /// Current [`AnimatableValue`] index
     current : usize,
     /// Animation duration in seconds
-    duration : f32,
+    duration : f64,
     /// Current elapsed time
-    elapsed : f32,
+    elapsed : f64,
     /// Current animation state
     state : AnimationState,
     /// Delay before animation starts
-    delay : f32,
+    delay : f64,
   }
 
   impl< T > Sequence< T >
@@ -261,7 +261,7 @@ mod private
     }
 
     /// Returns elapsed time
-    pub fn time( &self ) -> f32
+    pub fn time( &self ) -> f64
     {
       self.elapsed
     }
@@ -270,7 +270,7 @@ mod private
   impl< T > AnimatableValue for Sequence< T >
   where T : AnimatableValue + 'static
   {
-    fn update( &mut self, delta_time : f32 )
+    fn update( &mut self, delta_time : f64 )
     {
       if self.state == AnimationState::Completed || self.state == AnimationState::Paused
       {
@@ -385,17 +385,17 @@ mod private
       self
     }
 
-    fn get_duration( &self ) -> f32
+    fn get_duration( &self ) -> f64
     {
       self.duration
     }
 
-    fn get_delay( &self ) -> f32
+    fn get_delay( &self ) -> f64
     {
       self.delay
     }
 
-    fn progress( &self ) -> f32
+    fn progress( &self ) -> f64
     {
       if self.state == AnimationState::Pending
       {

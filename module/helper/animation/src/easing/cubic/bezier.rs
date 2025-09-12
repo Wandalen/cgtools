@@ -19,8 +19,8 @@ use crate::{impl_easing_function, Animatable};
   pub struct CubicBezier< A >
   where A : Animatable
   {
-    in_tangent : [ f32; 2 ],
-    out_tangent : [ f32; 2 ],
+    in_tangent : [ f64; 2 ],
+    out_tangent : [ f64; 2 ],
     iterations : usize,
     _marker : PhantomData< A >
   }
@@ -31,7 +31,7 @@ use crate::{impl_easing_function, Animatable};
     /// Calculates the x-coordinate of the Bezier curve at a given time `t`.
     ///
     /// This is part of the inverse function used to solve for `t`.
-    fn get_x( &self, time : f32 ) -> f32
+    fn get_x( &self, time : f64 ) -> f64
     {
       let one_minus_t = 1.0 - time;
       3.0 * one_minus_t.powi( 2 ) * time * self.in_tangent[ 0 ]
@@ -42,7 +42,7 @@ use crate::{impl_easing_function, Animatable};
     /// Calculates the y-coordinate of the Bezier curve at a given time `t`.
     ///
     /// This represents the final easing value.
-    fn get_y( &self, time : f32 ) -> f32
+    fn get_y( &self, time : f64 ) -> f64
     {
       let one_minus_t = 1.0 - time;
       3.0 * one_minus_t.powi( 2 ) * time * self.in_tangent[ 1 ]
@@ -52,9 +52,9 @@ use crate::{impl_easing_function, Animatable};
 
     /// Creates a new `CubicBezier` easing function with the specified Bezier curve parameters.
     ///
-    /// `parameters` should be an array of four `f32` values representing
+    /// `parameters` should be an array of four `f64` values representing
     /// `[ in_tangent_x, in_tangent_y, out_tangent_x, out_tangent_y ]`.
-    pub fn new( parameters : [ f32; 4 ] ) -> Self
+    pub fn new( parameters : [ f64; 4 ] ) -> Self
     {
       let [ i1, i2, o1, o2 ] = parameters;
       Self
@@ -80,7 +80,7 @@ use crate::{impl_easing_function, Animatable};
   {
     type AnimatableType = A;
 
-    fn apply( &self, start : Self::AnimatableType, end : Self::AnimatableType, time : f32 ) -> Self::AnimatableType
+    fn apply( &self, start : Self::AnimatableType, end : Self::AnimatableType, time : f64 ) -> Self::AnimatableType
     {
       if time <= 0.0
       {

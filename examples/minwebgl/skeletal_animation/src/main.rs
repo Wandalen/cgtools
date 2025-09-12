@@ -74,7 +74,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
-  let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 ) * 1000.0;
+  let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 ) * 10.0;
   let far = near * 100.0f32.powi( exponent.abs() ) / 100.0;
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
@@ -124,7 +124,7 @@ async fn run() -> Result< (), gl::WebglError >
           current_animation.borrow().sequencer.borrow_mut().reset();
         }
 
-        current_animation.borrow().update( delta_time as f32 );
+        current_animation.borrow().update( delta_time );
         current_animation.borrow().set();
       }
 

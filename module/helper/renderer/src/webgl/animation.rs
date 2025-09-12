@@ -30,7 +30,7 @@ mod private
     Gltf
   };
   use minwebgl as gl;
-  use gl::{ F32x3, QuatF32 };
+  use gl::{ F64x3, F32x3, QuatF32, QuatF64 };
   use crate::webgl::Node;
 
   /// Prefix used for getting [`Node`] translation
@@ -44,11 +44,11 @@ mod private
   pub struct Transform
   {
     /// Translation
-    pub translation : F32x3,
+    pub translation : F64x3,
     /// Rotation
-    pub rotation : QuatF32,
+    pub rotation : QuatF64,
     /// Scale
-    pub scale : F32x3,
+    pub scale : F64x3,
   }
 
   /// Use this struct for saving simple 3D transformations
@@ -83,9 +83,9 @@ mod private
 
           let transform = Transform
           {
-            translation : n.borrow().get_translation(),
-            rotation : n.borrow().get_rotation(),
-            scale : n.borrow().get_scale()
+            translation : F64x3::from_array( n.borrow().get_translation().map( | v | v as f64 ) ),
+            rotation : QuatF64::from( n.borrow().get_rotation().0.map( | v | v as f64 ) ),
+            scale : F64x3::from_array( n.borrow().get_scale().map( | v | v as f64 ) )
           };
 
           Some( ( name, transform ) )
@@ -125,9 +125,9 @@ mod private
         {
           let mut node_mut = node.borrow_mut();
 
-          node_mut.set_translation( t.translation );
-          node_mut.set_rotation( t.rotation );
-          node_mut.set_scale( t.scale );
+          node_mut.set_translation( F32x3::from_array( t.translation.0.map( | v | v as f32 ) ) );
+          node_mut.set_rotation( QuatF32::from( t.rotation.0.map( | v | v as f32 ) ) );
+          node_mut.set_scale( F32x3::from_array( t.scale.0.map( | v | v as f32 ) ) );
         }
       }
     }
@@ -148,9 +148,9 @@ mod private
   impl Animation
   {
     /// Updates all [`AnimatableValue`]'s for current [`Animation`]
-    pub fn update( &self, delta_time : f32 )
+    pub fn update( &self, delta_time : f64 )
     {
-      self.sequencer.borrow_mut().update( delta_time );
+      self.sequencer.borrow_mut().update( delta_time.into() );
     }
 
     /// Sets all simple 3D transformations for every
@@ -160,38 +160,41 @@ mod private
       for ( name, node ) in &self.nodes
       {
         if let Some( translation ) = self.sequencer.borrow()
-        .get_value::< Sequence< Tween< F32x3 > > >
+        .get_value::< Sequence< Tween< F64x3 > > >
         (
           &format!( "{}{}", name, TRANSLATION_PREFIX )
         )
         {
           if let Some( translation ) = translation.get_current()
           {
-            node.borrow_mut().set_translation( translation.get_current_value() );
+            let translation = translation.get_current_value().0.map( | v | v as f32 );
+            node.borrow_mut().set_translation( F32x3::from_array( translation ) );
           }
         }
 
         if let Some( rotation ) = self.sequencer.borrow()
-        .get_value::< Sequence< Tween< QuatF32 > > >
+        .get_value::< Sequence< Tween< QuatF64 > > >
         (
           &format!( "{}{}", name, ROTATION_PREFIX )
         )
         {
           if let Some( rotation ) = rotation.get_current()
           {
-            node.borrow_mut().set_rotation( rotation.get_current_value() );
+            let rotation = rotation.get_current_value().0.map( | v | v as f32 );
+            node.borrow_mut().set_rotation( QuatF32::from( rotation ) );
           }
         }
 
         if let Some( scale ) = self.sequencer.borrow()
-        .get_value::< Sequence< Tween< F32x3 > > >
+        .get_value::< Sequence< Tween< F64x3 > > >
         (
           &format!( "{}{}", name, SCALE_PREFIX )
         )
         {
           if let Some( scale ) = scale.get_current()
           {
-            node.borrow_mut().set_scale( scale.get_current_value() );
+            let scale = scale.get_current_value().0.map( | v | v as f32 );
+            node.borrow_mut().set_scale( F32x3::from_array( scale ) );
           }
         }
       }
@@ -202,7 +205,7 @@ mod private
   (
     channel : Channel< '_ >,
     buffers : &'a [ Vec< u8 > ],
-  ) -> Option< ( usize, Vec< f32 >, ReadOutputs< 'a > ) >
+  ) -> Option< ( usize, Vec< f64 >, ReadOutputs< 'a > ) >
   {
     let sampler = channel.sampler();
     let reader = channel.reader
@@ -235,7 +238,7 @@ mod private
     (
       (
         components,
-        times.collect::< Vec< _ > >(),
+        times.map( | t | t as f64 ).collect::< Vec< _ > >(),
         values
       )
     )
@@ -245,7 +248,7 @@ mod private
   (
     channel : Channel< '_ >,
     buffers : &[ Vec< u8 > ],
-  ) -> Option< Sequence< Tween< QuatF32 > > >
+  ) -> Option< Sequence< Tween< QuatF64 > > >
   {
     let Some
     (
@@ -283,7 +286,7 @@ mod private
         {
           continue;
         };
-        in_tangent = Some( _in_tangent );
+        in_tangent = Some( _in_tangent.map( | v | v as f64 ) );
       }
 
       let Some( value ) = items_iter.next().cloned()
@@ -300,22 +303,22 @@ mod private
         {
           continue;
         };
-        out_tangent = Some( _out_tangent );
+        out_tangent = Some( _out_tangent.map( | v | v as f64 ) );
       }
 
-      let r2 = QuatF32::from( value );
+      let r2 = QuatF64::from( value.map( | v | v as f64 ) );
 
       let r1 = last_value.unwrap_or( r2 );
       let t1 = last_time.unwrap_or( t2 );
 
-      let easing : Box< dyn EasingFunction< AnimatableType = QuatF32 > > = match channel.sampler().interpolation()
+      let easing : Box< dyn EasingFunction< AnimatableType = QuatF64 > > = match channel.sampler().interpolation()
       {
         Interpolation::Linear => Linear::new(),
         Interpolation::Step => Box::new( Step::new( 1.0 ) ),
         Interpolation::CubicSpline =>
         {
-          let in_tangent = QuatF32::from( in_tangent.unwrap() );
-          let out_tangent = QuatF32::from( out_tangent.unwrap() );
+          let in_tangent = QuatF64::from( in_tangent.unwrap() );
+          let out_tangent = QuatF64::from( out_tangent.unwrap() );
           Box::new( Squad::new( in_tangent, out_tangent ) )
         },
       };
@@ -325,8 +328,8 @@ mod private
       let duration = t2 - t1;
       let delay = t1;
 
-      let tween = Tween::new( r1, r2, duration, easing )
-      .with_delay( delay );
+      let tween = Tween::new( r1, r2, duration.into(), easing )
+      .with_delay( delay.into() );
       tweens.push( tween );
     }
 
@@ -337,7 +340,7 @@ mod private
   (
     channel : Channel< '_ >,
     buffers : &[ Vec< u8 > ],
-  ) -> Option< Sequence< Tween< F32x3 > > >
+  ) -> Option< Sequence< Tween< F64x3 > > >
   {
     let Some
     (
@@ -348,8 +351,6 @@ mod private
     {
       return None;
     };
-
-    //let mut keyframes = vec![];
 
     let values = match values
     {
@@ -380,7 +381,7 @@ mod private
         {
           continue;
         };
-        m1 = Some( _m1 );
+        m1 = Some( _m1.map( | v | v as f64 ) );
       }
 
       let Some( v2 ) = items_iter.next().cloned()
@@ -397,22 +398,22 @@ mod private
         {
           continue;
         };
-        m2 = Some( _m2 );
+        m2 = Some( _m2.map( | v | v as f64 ) );
       }
 
-      let v2 = F32x3::from_array( v2 );
+      let v2 = F64x3::from_array( v2.map( | v | v as f64 ) );
       let t1 = last_time.unwrap_or( t2 );
       let v1 = last_value
       .unwrap_or( v2 );
 
-      let easing : Box< dyn EasingFunction< AnimatableType = F32x3 > > = match channel.sampler().interpolation()
+      let easing : Box< dyn EasingFunction< AnimatableType = F64x3 > > = match channel.sampler().interpolation()
       {
         Interpolation::Linear => Linear::new(),
         Interpolation::Step => Box::new( Step::new( 1.0 ) ),
         Interpolation::CubicSpline =>
         {
-          let m1 = F32x3::from_array( m1.unwrap() );
-          let m2 = F32x3::from_array( m2.unwrap() );
+          let m1 = F64x3::from_array( m1.unwrap() );
+          let m2 = F64x3::from_array( m2.unwrap() );
           Box::new( CubicHermite::new( m1, m2 ) )
         },
       };
@@ -421,13 +422,10 @@ mod private
       last_value = Some( v2 );
       let duration = t2 - t1;
       let delay = t1;
-      let tween = Tween::new( v1, v2, duration, easing )
-      .with_delay( delay );
+      let tween = Tween::new( v1, v2, duration.into(), easing )
+      .with_delay( delay.into() );
       tweens.push( tween );
-      //keyframes.push( ( t1, t2, v1, v2 ) );
     }
-
-    //gl::info!( "Keyframes: {:#?}", keyframes );
 
     Sequence::new( tweens ).ok()
   }
