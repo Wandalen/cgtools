@@ -524,7 +524,7 @@ fn test_render_geometry()
     stroke_width: 2.0,
   };
 
-  renderer.render_geometry( points, transform, style );
+  renderer.render_geometry( points, transform, style ).unwrap();
 
   let output = renderer.output().unwrap();
 
@@ -545,10 +545,10 @@ fn test_load_image()
   renderer.load_image( &dummy_bytes, 32, 32, ImageFormat::Png, image_id );
 
   let output = renderer.output().unwrap();
-  let expected_base64 = base64::prelude::BASE64_STANDARD.encode( &dummy_bytes );
+  let expected_base64 = base64::prelude::BASE64_STANDARD.encode( dummy_bytes );
 
-  assert!( output.contains( &format!( r#"<symbol id="{}""#, image_id ) ) );
-  assert!( output.contains( &format!( r#"href="data:image/png;base64,{}""#, expected_base64 ) ) );
+  assert!( output.contains( &format!( r#"<symbol id="{image_id}""# ) ) );
+  assert!( output.contains( &format!( r#"href="data:image/png;base64,{expected_base64}""# ) ) );
 }
 
 #[test]
@@ -567,12 +567,12 @@ fn test_render_image()
     position: [ 150.0, 200.0 ],
     ..Default::default()
   };
-  renderer.render_image( image_id, transform );
+  renderer.render_image( image_id, transform ).unwrap();
 
   let output = renderer.output().unwrap();
 
   // Check for the <use> element referencing the loaded image
-  assert!( output.contains( &format!( "<use href=\"#{}\"", image_id) ) );
+  assert!( output.contains( &format!( "<use href=\"#{image_id}\"") ) );
   assert!( output.contains( r#"width="50""# ) );
   assert!( output.contains( r#"height="50""# ) );
 }
@@ -591,7 +591,7 @@ fn test_clear()
   };
 
   // Render something
-  renderer.render_geometry( points, transform, style );
+  renderer.render_geometry( points, transform, style ).unwrap();
   let output_before_clear = renderer.output().unwrap();
   assert!( output_before_clear.contains( "<polygon" ) );
 

@@ -1,8 +1,11 @@
+#![ allow( clippy::implicit_return ) ]
+
 //! SVG backend adapter implementation.
 //!
 //! This adapter renders scenes to SVG format, providing scalable vector output
 //! suitable for web display, printing, and vector graphics workflows.
 
+use core::fmt::Write as _;
 use base64::Engine;
 use rustc_hash::FxHashMap;
 use crate::scene::Scene;
@@ -68,6 +71,7 @@ impl SvgRenderer
   }
 
   #[ inline ]
+  #[ must_use ]
   /// Returns render context
   pub const fn context( &self ) -> Option< &RenderContext >
   {
@@ -76,21 +80,21 @@ impl SvgRenderer
 
   /// Converts a color array to SVG color string.
   #[ inline ]
+  #[ allow( clippy::cast_possible_truncation ) ]
+  #[ allow( clippy::cast_sign_loss ) ]
   fn color_to_svg( color : &[ f32; 4 ] ) -> String
   {
-    let r = ( color[ 0 ] * 255.0 ) as u8;
-    let g = ( color[ 1 ] * 255.0 ) as u8;
-    let b = ( color[ 2 ] * 255.0 ) as u8;
-    let a = color[ 3 ];
+    let red = ( color[ 0 ] * 255.0 ) as u8;
+    let green = ( color[ 1 ] * 255.0 ) as u8;
+    let blue = ( color[ 2 ] * 255.0 ) as u8;
+    let alpha = color[ 3 ];
 
-    if ( a - 1.0 ).abs() < f32::EPSILON
+    if ( alpha - 1.0 ).abs() < f32::EPSILON
     {
-      return format!( "rgb({r},{g},{b})" );
+      return format!( "rgb({red},{green},{blue})" );
     }
-    else
-    {
-      return format!( "rgba({r},{g},{b},{a})" );
-    }
+
+    format!( "rgba({red},{green},{blue},{alpha})" )
   }
 
   /// Converts line cap style to SVG stroke-linecap.
@@ -99,9 +103,9 @@ impl SvgRenderer
   {
     match cap
     {
-      LineCap::Butt => return "butt",
-      LineCap::Round => return "round",
-      LineCap::Square => return "square",
+      LineCap::Butt => "butt",
+      LineCap::Round => "round",
+      LineCap::Square => "square",
     }
   }
 
@@ -111,9 +115,9 @@ impl SvgRenderer
   {
     match join
     {
-      LineJoin::Miter => return "miter",
-      LineJoin::Round => return "round",
-      LineJoin::Bevel => return "bevel",
+      LineJoin::Miter => "miter",
+      LineJoin::Round => "round",
+      LineJoin::Bevel => "bevel",
     }
   }
 
@@ -125,12 +129,12 @@ impl SvgRenderer
   {
     match family_id
     {
-      0 => return "Arial",
-      1 => return "Times New Roman",
-      2 => return "Courier New",
-      3 => return "Helvetica",
-      4 => return "Georgia",
-      _ => return "sans-serif", // Fallback
+      0 => "Arial",
+      1 => "Times New Roman",
+      2 => "Courier New",
+      3 => "Helvetica",
+      4 => "Georgia",
+      _ => "sans-serif", // Fallback
     }
   }
 
@@ -140,20 +144,26 @@ impl SvgRenderer
   /// applies the necessary transformations (including viewport offset, zoom, and centering),
   /// and appends it to the current frame's SVG content.
   ///
-  /// # Arguments
+  /// ## Arguments
+  ///
   /// * `points` - A slice of `f32` representing the polygon's vertices as `[x1, y1, x2, y2, ...]`.
   /// * `transform` - The `Transform2D` to apply to the polygon.
   /// * `style` - The `GeometryStyle` defining the fill, stroke, and stroke width.
+  ///
+  /// ## Errors
+  ///
+  /// Returns error if renderer is not initialized.
   #[ inline ]
-  pub fn render_geometry( &mut self, points : &[ f32 ], mut transform : Transform2D, style : GeometryStyle )
+  #[ allow( clippy::cast_precision_loss ) ]
+  pub fn render_geometry( &mut self, points : &[ f32 ], mut transform : Transform2D, style : GeometryStyle ) -> Result< (), RenderError >
   {
-    if points.len() < 3
+    if points.len() < 6
     {
       // Not a valid polygon, but we can just ignore it.
-      return;
+      return Ok( () );
     }
 
-    let ctx = self.context.unwrap();
+    let ctx = self.context.ok_or( RenderError::RenderFailed( "Render is not initialized".to_owned() ) )?;
 
     transform.position[ 0 ] += ctx.viewport_offset.x;
     transform.position[ 1 ] += ctx.viewport_offset.y;
@@ -164,18 +174,22 @@ impl SvgRenderer
     transform.position[ 1 ] += ctx.height as f32 / 2.0;
 
     transform.rotation = transform.rotation.to_degrees();
-    let zoom = self.context.unwrap().viewport_scale;
+    let zoom = ctx.viewport_scale;
     // Convert the vector of points into an SVG-compatible string
     let mut points_str = String::with_capacity( points.len() * 2 );
-    for c in points.chunks_exact( 2 )
+    for chunk in points.chunks_exact( 2 )
     {
-      points_str.push_str( &format!( "{},{} ", c[ 0 ], c[ 1 ] ) );
+      write!
+      (
+        &mut points_str,
+        "{},{} ", chunk[ 0 ], chunk[ 1 ]
+      ).unwrap(); // this should never panic
     }
     points_str.pop();
 
-    let fill = style.fill_color.map_or( "none".to_string(), | c | Self::color_to_svg( &c ) );
+    let fill = style.fill_color.map_or( "none".to_string(), | col | Self::color_to_svg( &col ) );
 
-    let stroke = style.stroke_color.map_or( "none".to_string(), | c | Self::color_to_svg( &c ) );
+    let stroke = style.stroke_color.map_or( "none".to_string(), | col | Self::color_to_svg( &col ) );
 
     self.push_frame_content
     (
@@ -188,6 +202,8 @@ impl SvgRenderer
         transform.scale[ 0 ], transform.scale[ 1 ]
       )
     );
+
+    Ok( () )
   }
 
   /// Loads image data into the SVG's `<defs>` section as a reusable `<symbol>`.
@@ -195,7 +211,7 @@ impl SvgRenderer
   /// The image data is Base64 encoded and embedded directly into the SVG. This allows the image
   /// to be referenced by its `id` and rendered multiple times without re-uploading the data.
   ///
-  /// # Arguments
+  /// ## Arguments
   ///
   /// * `bytes` - The raw byte data of the image.
   /// * `width` - The width of the image.
@@ -222,14 +238,19 @@ impl SvgRenderer
   /// This method creates an SVG `<use>` element to instance a symbol from the `<defs>` section.
   /// It applies the necessary transformations to position, scale, and rotate the image correctly.
   ///
-  /// # Arguments
+  /// ## Arguments
   ///
   /// * `id` - The string identifier of the image to render.
   /// * `transform` - The `Transform2D` to apply to the image.
+  ///
+  /// ## Errors
+  ///
+  /// Returns error if renderer is not initialized.
   #[ inline ]
-  pub fn render_image( &mut self, id : &str, mut transform : Transform2D )
+  #[ allow( clippy::cast_precision_loss ) ]
+  pub fn render_image( &mut self, id : &str, mut transform : Transform2D ) -> Result< (), RenderError >
   {
-    let ctx = self.context.unwrap();
+    let ctx = self.context.ok_or( RenderError::RenderFailed( "Render is not initialized".to_owned() ) )?;
 
     transform.position[ 0 ] += ctx.viewport_offset.x;
     transform.position[ 1 ] += ctx.viewport_offset.y;
@@ -240,9 +261,9 @@ impl SvgRenderer
     transform.position[ 1 ] += ctx.height as f32 / 2.0;
 
     transform.rotation = transform.rotation.to_degrees();
-    let zoom = self.context.unwrap().viewport_scale;
-    let ( width, height ) = self.images[ id ];
-    let s = format!
+    let zoom = ctx.viewport_scale;
+    let ( width, height ) = self.images.get( id ).ok_or( RenderError::RenderFailed( format!( "Image with id: {id} is not loaded" ) ) )?;
+    let str = format!
     (
       "<g transform=\"scale({}) translate({}, {}) rotate({}) scale({}, {})\"><use href=\"#{id}\" x=\"-{}\" y=\"-{}\" width=\"{width}\" height=\"{height}\"/></g>",
       zoom,
@@ -255,13 +276,15 @@ impl SvgRenderer
       height / 2,
     );
 
-    self.push_frame_content( &s );
+    self.push_frame_content( &str );
+
+    Ok( () )
   }
 
-  fn push_frame_content( &mut self, s : &str )
+  fn push_frame_content( &mut self, str : &str )
   {
-    self.svg_content.insert_str( self.frameend_index, s );
-    self.frameend_index += s.len();
+    self.svg_content.insert_str( self.frameend_index, str );
+    self.frameend_index += str.len();
   }
 
   /// Clears all rendered content from the current frame.
@@ -282,7 +305,7 @@ impl Default for SvgRenderer
   #[ inline ]
   fn default() -> Self
   {
-    return Self::new();
+    Self::new()
   }
 }
 
@@ -293,17 +316,19 @@ impl Renderer for SvgRenderer
   #[ inline ]
   fn capabilities( &self ) -> RendererCapabilities
   {
-    let mut caps = RendererCapabilities::default();
-    caps.backend_name = "SVG".to_string();
-    caps.backend_version = "1.0".to_string();
-    caps.max_texture_size = 0; // SVG doesn't have texture size limits
-    caps.supports_transparency = true;
-    caps.supports_antialiasing = true; // SVG browsers handle this
-    caps.supports_custom_fonts = true;
-    caps.supports_particles = false; // Not implemented for SVG
-    caps.supports_realtime = false; // SVG is static
-    caps.max_scene_complexity = 10000; // Large scenes supported
-    return caps;
+    RendererCapabilities
+    {
+      backend_name : "SVG".to_string(),
+      backend_version : "1.0".to_string(),
+      max_texture_size : 0, // SVG doesn't have texture size limits
+      supports_transparency : true,
+      supports_antialiasing : true, // SVG browsers handle this
+      supports_custom_fonts : true,
+      supports_particles : false, // Not implemented for SVG
+      supports_realtime : false, // SVG is static
+      max_scene_complexity : 10000, // Large scenes supported
+      ..Default::default()
+    }
   }
 
   /// Initializes the SVG renderer with the given context.
@@ -318,32 +343,28 @@ impl Renderer for SvgRenderer
       return Err( RenderError::InitializationFailed( "SVG renderer already initialized".to_string() ) );
     }
 
-    self.context = Some( context.clone() );
+    self.context = Some( *context );
     self.initialized = true;
     self.frame_active = true;
     self.svg_content.clear();
 
     // Start SVG document
-    self.svg_content.push_str
+    write!
     (
-      &format!
-      (
-        r#"<?xml version="1.0" encoding="UTF-8"?> <svg width="{}" height="{}" viewBox="0 0 {} {}" xmlns="http://www.w3.org/2000/svg">"#,
-        context.width, context.height, context.width, context.height
-      )
-    );
+      &mut self.svg_content,
+      r#"<?xml version="1.0" encoding="UTF-8"?> <svg width="{}" height="{}" viewBox="0 0 {} {}" xmlns="http://www.w3.org/2000/svg">"#,
+      context.width, context.height, context.width, context.height
+    ).unwrap(); // this should never ever panic
 
     // Add background if needed
     if context.clear_background
     {
       let bg_color = Self::color_to_svg( &context.background_color );
-      self.svg_content.push_str
+      write!
       (
-        &format!
-        (
-          r#"<rect width="100%" height="100%" fill="{bg_color}"/>"#
-        )
-      );
+        &mut self.svg_content,
+        r#"<rect width="100%" height="100%" fill="{bg_color}"/>"#
+      ).unwrap();
     }
 
     self.svg_content.push_str( "<!--framebegin--><!--frameend-->" );
@@ -352,7 +373,7 @@ impl Renderer for SvgRenderer
     self.framebegin_index = self.svg_content.find( "<!--framebegin-->" ).unwrap();
     self.frameend_index = self.svg_content.find( "<!--frameend-->" ).unwrap();
 
-    return Ok( () );
+    Ok( () )
   }
 
   /// Begins a new rendering frame.
@@ -366,7 +387,7 @@ impl Renderer for SvgRenderer
     {
       return Err( RenderError::InvalidContext( "SVG renderer not initialized".to_string() ) );
     }
-    return Ok( () );
+    Ok( () )
   }
 
   /// Renders a complete scene to the output.
@@ -397,7 +418,7 @@ impl Renderer for SvgRenderer
       }
     }
 
-    return Ok( () );
+    Ok( () )
   }
 
   /// Ends the current rendering frame and finalizes the output.
@@ -412,7 +433,7 @@ impl Renderer for SvgRenderer
       return Err( RenderError::RenderFailed( "No active frame".to_string() ) );
     }
 
-    return Ok( () );
+    Ok( () )
   }
 
   /// Retrieves the rendered output.
@@ -427,7 +448,7 @@ impl Renderer for SvgRenderer
       return Err( RenderError::OutputError( "Renderer not initialized".to_string() ) );
     }
 
-    return Ok( self.svg_content.clone() );
+    Ok( self.svg_content.clone() )
   }
 
   /// Performs cleanup and releases resources.
@@ -441,19 +462,19 @@ impl Renderer for SvgRenderer
     self.frame_active = false;
     self.svg_content.clear();
     self.context = None;
-    return Ok( () );
+    Ok( () )
   }
 
   #[ inline ]
   fn supports_tilemaps( &self ) -> bool
   {
-    return false; // SVG adapter doesn't support tilemaps
+    false // SVG adapter doesn't support tilemaps
   }
 
   #[ inline ]
   fn supports_particles( &self ) -> bool
   {
-    return false; // SVG adapter doesn't support particle effects
+    false // SVG adapter doesn't support particle effects
   }
 }
 
@@ -478,7 +499,7 @@ impl PrimitiveRenderer for SvgRenderer
       line_cap, line_join
     ) );
 
-    return Ok( () );
+    Ok( () )
   }
 
   /// Renders a curve command.
@@ -511,7 +532,7 @@ impl PrimitiveRenderer for SvgRenderer
       )
     );
 
-    return Ok( () );
+    Ok( () )
   }
 
   /// Renders a text command.
@@ -548,7 +569,7 @@ impl PrimitiveRenderer for SvgRenderer
       text_content
     ) );
 
-    return Ok( () );
+    Ok( () )
   }
 
   /// Renders a tilemap command.
@@ -558,7 +579,7 @@ impl PrimitiveRenderer for SvgRenderer
   #[ inline ]
   fn render_tilemap( &mut self, _command: &TilemapCommand ) -> core::result::Result< (), RenderError >
   {
-    return Err( RenderError::FeatureNotImplemented( "Tilemap rendering not supported in SVG backend".to_string() ) );
+    Err( RenderError::FeatureNotImplemented( "Tilemap rendering not supported in SVG backend".to_string() ) )
   }
 
   /// Renders a particle emitter command.
@@ -568,12 +589,13 @@ impl PrimitiveRenderer for SvgRenderer
   #[ inline ]
   fn render_particle_emitter( &mut self, _command: &ParticleEmitterCommand ) -> core::result::Result< (), RenderError >
   {
-    return Err( RenderError::FeatureNotImplemented( "Particle rendering not supported in SVG backend".to_string() ) );
+    Err( RenderError::FeatureNotImplemented( "Particle rendering not supported in SVG backend".to_string() ) )
   }
 }
 
 /// Defines the visual styling for rendering 2D geometry, including fill and stroke properties.
 #[ derive( Debug, Clone, Copy ) ]
+#[ allow( clippy::exhaustive_structs ) ]
 pub struct GeometryStyle
 {
   /// The optional RGBA color used to fill the shape. If `None`, the shape will not be filled.
@@ -586,6 +608,7 @@ pub struct GeometryStyle
 
 /// An enumeration of supported image formats.
 #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
+#[ allow( clippy::exhaustive_enums ) ]
 pub enum ImageFormat
 {
   /// PNG format.
@@ -596,6 +619,7 @@ pub enum ImageFormat
 
 impl AsRef< str > for ImageFormat
 {
+  #[ inline ]
   fn as_ref( &self ) -> &str
   {
     match self
