@@ -17,11 +17,9 @@ mod private
   impl Mesh 
   {
     /// Uploads a uniform value to all programs associated with the mesh.
-    pub fn upload< D >( &self, gl : &gl::WebGl2RenderingContext, uniform_name : &str, data : &D ) -> Result< (), gl::WebglError >
-    where 
-      D : gl::UniformUpload + ?Sized
+    pub fn upload< D : Into< Uniform > + Copy >( &mut self, gl : &gl::WebGl2RenderingContext, uniform_name : &str, data : &D ) -> Result< (), gl::WebglError >
     {
-      for p in self.program_map.values()
+      for p in self.program_map.values_mut()
       {
         p.upload( gl, uniform_name, data )?;
       }
@@ -30,37 +28,11 @@ mod private
     }
 
     /// Uploads a uniform value to a single, named program.
-    pub fn upload_to< D >( &self, gl : &gl::WebGl2RenderingContext, program_name : &str, uniform_name : &str, data : &D ) -> Result< (), gl::WebglError >
-    where 
-      D : gl::UniformUpload + ?Sized
+    pub fn upload_to< D : Into< Uniform > + Copy >( &mut self, gl : &gl::WebGl2RenderingContext, program_name : &str, uniform_name : &str, data : &D ) -> Result< (), gl::WebglError >
     {
-      self.program_map.get( program_name ).expect( "Program with a specified name does not exist" )
+      self.program_map.get_mut( program_name ).ok_or( gl::WebglError::Other( "Program with a specified name does not exist" ) )?
       .upload( gl, uniform_name, data )?;
 
-      Ok( () )
-    }
-
-    /// Uploads a uniform matrix to all programs associated with the mesh.
-    pub fn upload_matrix< D >( &self, gl : &gl::WebGl2RenderingContext, uniform_name : &str, data : &D ) -> Result< (), gl::WebglError >
-    where 
-      D : gl::UniformMatrixUpload + ?Sized
-    {
-      for p in self.program_map.values()
-      {
-        p.upload_matrix( gl, uniform_name, data )?;
-      }
-
-      Ok( () )
-    }
-
-    /// Uploads a uniform matrix to a single, named program.
-    pub fn upload_matrix_to< D >( &self, gl : &gl::WebGl2RenderingContext, program_name : &str, uniform_name : &str, data : &D ) -> Result< (), gl::WebglError >
-    where 
-      D : gl::UniformMatrixUpload + ?Sized
-    {
-      self.program_map.get( program_name ).expect( "Program with a specified name does not exist" )
-      .upload_matrix( gl, uniform_name, data )?;
-    
       Ok( () )
     }
 

@@ -3,15 +3,16 @@ mod private
   use crate::*;
   use minwebgl as gl;
   use ndarray_cg as math;
+  use std::collections::VecDeque;
 
   /// Represents a 3D line strip, composed of a series of points.
   #[ derive( Debug, Clone, Default ) ]
   pub struct Line
   {
     /// The series of 3D points that define the line strip.
-    points : Vec< math::F32x3 >,
+    points : VecDeque< math::F32x3 >,
     /// Colors for the points
-    colors : Vec< math::F32x3 >,
+    colors : VecDeque< math::F32x3 >,
     // The optional `Mesh` object that holds the WebGL resources for rendering.
     /// `None` until `create_mesh` is called.
     mesh : Option< Mesh >,
@@ -78,7 +79,8 @@ mod private
         instance_count : Some( ( self.points.len() as f32 - 1.0 ).max( 0.0 ) as u32 ),
         index_count : Some( indices.len() as u32 ),
         vertex_count : vertices.len() as u32,
-        index_buffer : Some( index_buffer )
+        index_buffer : Some( index_buffer ),
+        uniforms : UniformStorage::default()
       };
 
       let mut mesh = Mesh::default();
@@ -105,13 +107,14 @@ mod private
     {
       if self.defines_changed
       {
-        let vertex_shader = d3::MAIN_VERTEX_SHADER.replace( "// #include <defines>", &self.get_defines() );
+        let defines = self.get_defines();
+        let vertex_shader = d3::MAIN_VERTEX_SHADER.replace( "// #include <defines>", &defines );
         let vertex_shader = gl::ShaderSource::former()
         .shader_type( gl::VERTEX_SHADER )
         .source( &vertex_shader )
         .compile( &gl )?;
 
-        let fragment_shader = self.fragment_shader.replace( "// #include <defines>", &self.get_defines() );
+        let fragment_shader = self.fragment_shader.replace( "// #include <defines>", &defines );
         let fragment_shader = gl::ShaderSource::former()
         .shader_type( gl::FRAGMENT_SHADER )
         .source( &fragment_shader )
@@ -121,7 +124,6 @@ mod private
 
         let mesh = self.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
         let b_program = mesh.get_program_mut( "body" );
-        b_program.copy_uniforms_to( gl, &program )?;
 
         b_program.delete_fragment_shader( gl );
         b_program.delete_vertex_shader( gl );
@@ -130,6 +132,9 @@ mod private
         b_program.program = Some( program );
         b_program.fragment_shader = Some( fragment_shader );
         b_program.vertex_shader = Some( vertex_shader );
+
+        b_program.uniform_locations_clear();
+        b_program.all_uniforms_upload( gl )?;
 
         self.defines_changed = false;
       }
@@ -183,13 +188,51 @@ mod private
       self.defines_changed = true;
     }
 
-    /// Adds a new point to the end of the line strip.
-    pub fn point_add< P : gl::VectorIter< f32, 3 > >( &mut self, point : P )
+    /// Adds a new point to the back of the list.
+    pub fn point_add_back< P : gl::VectorIter< f32, 3 > >( &mut self, point : P )
     {
       let mut iter = point.vector_iter();
       let point = gl::F32x3::new( *iter.next().unwrap(), *iter.next().unwrap(), *iter.next().unwrap() );
 
-      self.points.push( point );
+      self.points.push_back( point );
+      self.points_changed = true;
+    }
+
+    /// Adds a new point to the front of the list.
+    pub fn point_add_front< P : gl::VectorIter< f32, 3 > >( &mut self, point : P )
+    {
+      let mut iter = point.vector_iter();
+      let point = gl::F32x3::new( *iter.next().unwrap(), *iter.next().unwrap(), *iter.next().unwrap() );
+
+      self.points.push_front( point );
+      self.points_changed = true;
+    }
+
+    /// Adds a new point to the back of the list.
+    pub fn points_add_back< P : gl::VectorIter< f32, 3 > >( &mut self, points : &[ P ] )
+    {
+      for i in 0..points.len()
+      {
+        let mut iter = points[ i ].vector_iter();
+        let point = gl::F32x3::new( *iter.next().unwrap(), *iter.next().unwrap(), *iter.next().unwrap() );
+
+        self.points.push_back( point );
+      }
+
+      self.points_changed = true;
+    }
+
+    /// Adds a new point to the front of the list.
+    pub fn points_add_front< P : gl::VectorIter< f32, 3 > >( &mut self, points : &[ P ] )
+    {
+      for i in 0..points.len()
+      {
+        let mut iter = points[ i ].vector_iter();
+        let point = gl::F32x3::new( *iter.next().unwrap(), *iter.next().unwrap(), *iter.next().unwrap() );
+
+        self.points.push_front( point );
+      }
+
       self.points_changed = true;
     }
 
@@ -199,7 +242,7 @@ mod private
       let mut iter = color.vector_iter();
       let color = gl::F32x3::new( *iter.next().unwrap(), *iter.next().unwrap(), *iter.next().unwrap() );
 
-      self.colors.push( color );
+      self.colors.push_back( color );
       self.colors_changed = true;
     }
 
@@ -218,6 +261,52 @@ mod private
       let point = gl::F32x3::new( *iter.next().unwrap(), *iter.next().unwrap(), *iter.next().unwrap() );
       self.points[ index ] = point;
       self.points_changed = true;
+    }
+
+    /// Remove a point at the specified index
+    pub fn point_remove( &mut self, index : usize )
+    {
+      self.points.remove( index );
+      self.colors.remove( index );
+      self.points_changed = true
+    }
+
+    /// Removes a points from the front
+    pub fn point_remove_front( &mut self )
+    {
+      self.points.pop_front();
+      self.colors.pop_front();
+      self.points_changed = true
+    }
+
+    /// Remove a point from the back
+    pub fn point_remove_back( &mut self )
+    {
+      self.points.pop_back();
+      self.colors.pop_back();
+      self.points_changed = true
+    }
+
+    /// Remove the specified amount of points from the front of the list
+    pub fn points_remove_front( &mut self, amount : usize )
+    {
+      for _ in 0..amount
+      {
+        self.points.pop_front();
+        self.colors.pop_front();
+      }
+      self.points_changed = true
+    }
+
+    /// Remove the specified amount of points from the back of the list
+    pub fn points_remove_back( &mut self, amount : usize )
+    {
+      for _ in 0..amount
+      {
+        self.points.pop_back();
+        self.colors.pop_back();
+      }
+      self.points_changed = true
     }
 
     /// Draws the line mesh.
@@ -244,9 +333,10 @@ mod private
     }  
 
     /// Retrieves a slice of the line's points.
-    pub fn get_points( &self ) -> &[ math::F32x3 ]
+    pub fn points_get( &mut self ) -> &[ math::F32x3 ]
     {
-      &self.points
+      self.points.make_contiguous();
+      self.points.as_slices().0
     }  
 
     /// Return the number of points that form this line

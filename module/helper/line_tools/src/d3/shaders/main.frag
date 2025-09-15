@@ -52,31 +52,50 @@ void main()
   float alpha = 1.0;
   vec3 col = u_color; 
 
-  vec3 rayEnd = normalize( vViewPos.xyz ) * 1e5;
-	vec3 lineDir = vViewB - vViewA;
+  #ifdef USE_WORLD_UNITS
+    vec3 rayEnd = normalize( vViewPos.xyz ) * 1e5;
+    vec3 lineDir = vViewB - vViewA;
 
+    vec2 params = closestLineToLine( vViewA, vViewB, vec3( 0.0, 0.0, 0.0 ), rayEnd );
 
-  vec2 params = closestLineToLine( vViewA, vViewB, vec3( 0.0, 0.0, 0.0 ), rayEnd );
+    vec3 p1 = vViewA + lineDir * params.x;
+    vec3 p2 = rayEnd * params.y;
+    vec3 delta = p1 - p2;
+    float len = length( delta );
+    float norm = len / u_width;
 
-  vec3 p1 = vViewA + lineDir * params.x;
-  vec3 p2 = rayEnd * params.y;
-  vec3 delta = p1 - p2;
-  float len = length( delta );
-  float norm = len / u_width;
+    #ifdef USE_ALPHA_TO_COVERAGE
+      float dnorm = fwidth( norm );
+      alpha = 1.0 - smoothstep( 0.5 - dnorm, 0.5 + dnorm, norm );
+    #else
+      if ( norm > 0.5 ) { discard; }
+    #endif
+  #else // Screen space units
+    #ifdef USE_ALPHA_TO_COVERAGE
+      float a = vUv.x;
+      float b = ( vUv.y > 0.0 ) ? vUv.y - 1.0 : vUv.y + 1.0;
+      float len2 = a * a + b * b;
+      float dlen = fwidth( len2 );
 
-  #ifdef USE_ALPHA_TO_COVERAGE
-    float dnorm = fwidth( norm );
-    alpha = 1.0 - smoothstep( 0.5 - dnorm, 0.5 + dnorm, norm );
-  #else
-    if ( norm > 0.5 ) { discard; }
+      if ( abs( vUv.y ) > 1.0 ) 
+      {
+        alpha = 1.0 - smoothstep( 1.0 - dlen, 1.0 + dlen, len2 );
+      }
+    #else
+      if( abs( vUv.y ) > 1.0 )
+      {
+        float a = vUv.x;
+        float b = ( vUv.y > 0.0 ) ? vUv.y - 1.0 : vUv.y + 1.0;
+        float len2 = a * a + b * b;
+
+        if ( len2 > 1.0 ) discard;
+      }
+    #endif
   #endif
 
   #ifdef USE_VERTEX_COLORS
     col = vColor;
   #endif
-
-  col = vec3( 0.0 );
-  col = vec3( vUv, 0.0 );
 
   frag_color = vec4( col, alpha );
 }

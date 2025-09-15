@@ -317,13 +317,14 @@ mod private
         .source( vertex_shader )
         .compile( &gl )?;
         let join_program = gl::ProgramShaders::new( &vertex_shader, j_program.fragment_shader.as_ref().expect( "Fragment shader has not been set" ) ).link( &gl )?;
-        j_program.copy_uniforms_to( gl, &join_program )?;
 
         let j_program = mesh.get_program_mut( "join" );
 
         j_program.delete_vertex_shader( gl );
         j_program.delete_program( gl );
         j_program.delete_vao( gl );
+
+        j_program.all_uniforms_upload( gl )?;
 
         j_program.vao = vao;
         j_program.draw_mode = draw_mode;
@@ -387,14 +388,16 @@ mod private
         .source( vertex_shader )
         .compile( &gl )?;
         let cap_program = gl::ProgramShaders::new( &vertex_shader, c_program.fragment_shader.as_ref().expect( "Fragment shader has not been set" ) ).link( &gl )?;
-        mesh.get_program( "join" ).copy_uniforms_to( gl, &cap_program )?;
-        c_program.copy_uniforms_to( gl, &cap_program )?;
+        // mesh.get_program( "join" ).copy_uniforms_to( gl, &cap_program )?;
+        // c_program.copy_uniforms_to( gl, &cap_program )?;
 
         let c_program = mesh.get_program_mut( "cap" );
 
         c_program.delete_vertex_shader( gl );
         c_program.delete_program( gl );
         c_program.delete_vao( gl );
+
+        c_program.all_uniforms_upload( gl )?;
 
         c_program.vao = vao;
         c_program.vertex_shader = Some( vertex_shader );
@@ -419,7 +422,7 @@ mod private
 
       self.update_mesh( gl )?;
 
-      let mesh = self.mesh.as_ref().expect( "Mesh has not been created yet" );
+      let mesh = self.mesh.as_mut().expect( "Mesh has not been created yet" );
 
       mesh.upload_to( gl, "body", "u_total_distance", &self.total_distance )?;
       mesh.upload_to( gl, "body_terminal", "u_total_distance", &self.total_distance )?;

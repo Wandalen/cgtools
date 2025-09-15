@@ -29,4 +29,7 @@ mod private
 
   /// A layer for helper functions and utilities used by other modules.
   layer helpers;
+  
+  /// Module for handling uniform operations
+  layer uniform;
 }

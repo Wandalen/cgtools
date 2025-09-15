@@ -41,3 +41,16 @@ Self : RawSliceMut< Scalar = E > +
     Some( inverse / det )
   }
 }
+
+impl< E, Descriptor > Mat< 2, 2, E, Descriptor >
+where
+E : MatEl + nd::NdFloat,
+Descriptor : mat::Descriptor,
+Self : RawSlice< Scalar = E >
+{
+  /// Converts the matrix to an array
+  pub fn to_array( &self ) -> [ E; 4 ]
+  {
+    self.raw_slice().try_into().unwrap()
+  }
+}

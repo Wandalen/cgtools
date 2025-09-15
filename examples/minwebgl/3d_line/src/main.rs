@@ -31,9 +31,14 @@ mod simulation;
 #[ derive( Default, Serialize, Deserialize ) ]
 struct Settings
 {
-  width : f32,
+  #[ serde( rename = "World width" ) ]
+  world_width : f32,
+  #[ serde( rename = "Screen width" ) ]
+  screen_width : f32,
   #[ serde( rename = "Alpha to coverage" ) ]
-  alpha_to_coverage : bool
+  alpha_to_coverage : bool,
+  #[ serde( rename = "World units" ) ]
+  world_units : bool
 }
 
 fn run() -> Result< (), gl::WebglError >
@@ -56,7 +61,7 @@ fn run() -> Result< (), gl::WebglError >
   let background_program = gl::ProgramFromSources::new( background_vert, background_frag ).compile_and_link( &gl )?;
 
   // Camera setup
-  let eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] ) * 0.75;
+  let eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] ) * 1.0;
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
   let center = gl::math::F32x3::default();
 
@@ -80,18 +85,23 @@ fn run() -> Result< (), gl::WebglError >
   let world_matrix = gl::math::mat4x4::identity();
   let projection_matrix = gl::math::mat3x3h::perspective_rh_gl( fov, aspect_ratio, near, far );
 
-  let line_width = 0.004;
-  let num_bodies = 10;
+  let screen_width = 5.0;
+  let world_width = 0.002;
+  let num_bodies = 20;
 
   let settings = Settings
   {
-    width : line_width,
-    alpha_to_coverage : false
+    world_width : world_width,
+    screen_width : screen_width,
+    alpha_to_coverage : false,
+    world_units : false
   };
 
   let mut simulation = Simulation::new( num_bodies );
   let mut lines = Vec::with_capacity( num_bodies );
   let mut base_colors = Vec::with_capacity( num_bodies );
+
+  let line_width = if settings.world_units { settings.world_width } else { settings.screen_width };
 
   for _ in 0..num_bodies
   {
@@ -103,38 +113,68 @@ fn run() -> Result< (), gl::WebglError >
     let mut line = line_tools::d3::Line::default();
     line.use_vertex_color( true );
     line.use_alpha_to_coverage( settings.alpha_to_coverage );
+    line.use_world_units( settings.world_units );
     line.mesh_create( &gl, None )?;
 
-    let mesh = line.mesh_get()?;
+    let mesh = line.mesh_get_mut()?;
     mesh.upload( &gl, "u_width", &line_width )?;
-    mesh.upload( &gl, "u_color", &color.to_array() )?;
-    mesh.upload( &gl, "u_resolution", &[ width as f32, height as f32 ] )?;
-    mesh.upload_matrix( &gl, "u_projection_matrix", &projection_matrix.to_array() )?;
-    mesh.upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() ).unwrap();
+    mesh.upload( &gl, "u_color", &color )?;
+    mesh.upload( &gl, "u_resolution", &gl::F32x2::from( [ width as f32, height as f32 ] ) )?;
+    mesh.upload( &gl, "u_projection_matrix", &projection_matrix )?;
+    mesh.upload( &gl, "u_world_matrix", &world_matrix ).unwrap();
 
     lines.push( line );
   }
 
-  lines[ 0 ].point_add( [ 0.0, 0.0, 0.0 ] );
-  lines[ 0 ].point_add( [ 1.0, 1.0, 0.0 ] );
+  // lines[ 0 ].point_add( [ 0.0, 0.0, 0.0 ] );
+  // lines[ 0 ].point_add( [ 15.0, 15.0, 0.0 ] );
 
   let lines = Rc::new( RefCell::new( lines ) );
 
   let object = serde_wasm_bindgen::to_value( &settings ).unwrap();
   let gui = lil_gui::new_gui();
 
-  let prop = lil_gui::add_slider( &gui, &object, "width", 0.0, 0.05, 0.001 );
+  let prop = lil_gui::add_slider( &gui, &object, "World width", 0.0, 0.05, 0.001 );
   let callback = Closure::new
   (
     {
       let lines = lines.clone();
       let gl = gl.clone();
+      let object = object.clone();
       move | value : f32 |
       {
-        let lines = lines.borrow();
-        for i in 0..lines.len()
+        let settings : Settings = serde_wasm_bindgen::from_value( object.clone() ).unwrap();
+        if settings.world_units
         {
-          lines[ i ].mesh_get().unwrap().upload( &gl, "u_width", &value ).unwrap();
+          let mut lines = lines.borrow_mut();
+          for i in 0..lines.len()
+          {
+            lines[ i ].mesh_get_mut().unwrap().upload( &gl, "u_width", &value ).unwrap();
+          }
+        }
+      }
+    }
+  );
+  lil_gui::on_change( &prop, &callback );
+  callback.forget();
+
+  let prop = lil_gui::add_slider( &gui, &object, "Screen width", 0.0, 100.0, 1.0 );
+  let callback = Closure::new
+  (
+    {
+      let lines = lines.clone();
+      let object = object.clone();
+      let gl = gl.clone();
+      move | value : f32 |
+      {
+        let settings : Settings = serde_wasm_bindgen::from_value( object.clone() ).unwrap();
+        if !settings.world_units
+        {
+          let mut lines = lines.borrow_mut();
+          for i in 0..lines.len()
+          {
+            lines[ i ].mesh_get_mut().unwrap().upload( &gl, "u_width", &value ).unwrap();
+          }
         }
       }
     }
@@ -170,8 +210,49 @@ fn run() -> Result< (), gl::WebglError >
   lil_gui::on_change_bool( &prop, &callback );
   callback.forget();
 
+  let prop = lil_gui::add_boolean( &gui, &object, "World units" );
+  let callback = Closure::new
+  (
+    {
+      let lines = lines.clone();
+      let gl = gl.clone();
+      let object = object.clone();
+      move | value : bool |
+      {
+        let settings : Settings = serde_wasm_bindgen::from_value( object.clone() ).unwrap();
+        let mut lines = lines.borrow_mut();
+        for i in 0..lines.len()
+        {
+          lines[ i ].use_world_units( value );
+        }
+
+        if value
+        {
+          for i in 0..lines.len()
+          {
+            lines[ i ].mesh_get_mut().unwrap().upload( &gl, "u_width", &settings.world_width ).unwrap();
+          }
+        }
+        else 
+        {
+          for i in 0..lines.len()
+          {
+            lines[ i ].mesh_get_mut().unwrap().upload( &gl, "u_width", &settings.screen_width ).unwrap();
+          }
+        }
+      }
+    }
+  );
+  lil_gui::on_change_bool( &prop, &callback );
+  callback.forget();
+
   gl.enable( gl::DEPTH_TEST );
   gl.depth_func( gl::LEQUAL );
+
+  if settings.alpha_to_coverage
+  {
+    gl.enable( gl::SAMPLE_ALPHA_TO_COVERAGE );
+  }
 
   // Define the update and draw logic
   let update_and_draw =
@@ -188,22 +269,28 @@ fn run() -> Result< (), gl::WebglError >
 
       gl.clear( gl::DEPTH_BUFFER_BIT | gl::COLOR_BUFFER_BIT );
 
-      simulation.simulate( delta_time );
+      simulation.simulate( 0.005 );
       //if elapsed_time > add_interval
       {
-        // for i in 0..num_bodies
-        // {
-        //   let pos = simulation.bodies[ i ].position;
-        //   let color = base_colors[ i ] * ( pos.mag() * 5.0 ).powf( 2.0 ).min( 1.0 );
-        //   lines.borrow_mut()[ i ].point_add( pos );
-        //   lines.borrow_mut()[ i ].color_add( color );
-        // }
-        // elapsed_time -= add_interval;
+        for i in 0..num_bodies
+        {
+          let pos = simulation.bodies[ i ].position;
+          let color = base_colors[ i ] * ( pos.mag() * 5.0 ).powf( 2.0 ).min( 1.0 );
+          lines.borrow_mut()[ i ].point_add_back( pos );
+          lines.borrow_mut()[ i ].color_add( color );
+
+          let num_points = lines.borrow()[ i ].num_points();
+          if num_points > 300
+          {
+            lines.borrow_mut()[ i ].points_remove_front( num_points - 300 );
+          }
+        }
+        elapsed_time -= add_interval;
       }
 
       for i in 0..num_bodies
       {
-        lines.borrow()[ i ].mesh_get().unwrap().upload_matrix( &gl, "u_view_matrix", &camera.borrow().view().to_array() ).unwrap();
+        lines.borrow_mut()[ i ].mesh_get_mut().unwrap().upload( &gl, "u_view_matrix", &camera.borrow().view() ).unwrap();
       }
 
       gl.use_program( Some( &background_program ) );

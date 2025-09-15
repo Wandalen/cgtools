@@ -28,23 +28,45 @@ out vec3 vViewB;
   out vec3 vColor;
 #endif
 
+void trimSegment( const in vec3 start, inout vec3 end )
+{
+
+  // trim end segment so it terminates between the camera plane and the near plane
+
+  // conservative estimate of the near plane
+  float a = u_projection_matrix[ 2 ][ 2 ]; // 3nd entry in 3th column
+  float b = u_projection_matrix[ 3 ][ 2 ]; // 3nd entry in 4th column
+  float nearEstimate = - 0.5 * b / a;
+
+  float alpha = ( nearEstimate - start.z ) / ( end.z - start.z );
+
+  end = mix( start, end, alpha );
+
+}
+
 void main() 
 {
   vec3 viewA = ( u_view_matrix * u_world_matrix * vec4( inPointA, 1.0 ) ).xyz;
   vec3 viewB = ( u_view_matrix * u_world_matrix * vec4( inPointB, 1.0 ) ).xyz;
 
+  bool perspective = ( u_projection_matrix[ 2 ][ 3 ] == - 1.0 ); // 4th entry in the 3rd column
+
+  if ( perspective ) 
+  {
+    if ( viewA.z < 0.0 && viewB.z >= 0.0 ) 
+    {
+      trimSegment( viewA, viewB );
+    } 
+    else if ( viewB.z < 0.0 && viewA.z >= 0.0 ) 
+    {
+      trimSegment( viewB, viewA );
+    }
+  }
+
   float aspect = u_resolution.x / u_resolution.y;
 
   vec4 clipA = u_projection_matrix * vec4( viewA, 1.0 );
   vec4 clipB = u_projection_matrix * vec4( viewB, 1.0 );
-
-  vec3 ndcA = clipA.xyz / clipA.w;
-  vec3 ndcB = clipB.xyz / clipB.w;
-
-  vec2 ndcDir = normalize( ndcB.xy - ndcA.xy );
-  // Adjust for aspect ratio
-  ndcDir.x *= aspect;
-  ndcDir = normalize( ndcDir );
 
   vec4 clip = vec4( 0.0 );
 
@@ -67,35 +89,39 @@ void main()
     }
     
     clip = u_projection_matrix * vec4( viewPos, 1.0 );
-    vec3 ndcShift = position.y < 0.5 ? ndcA : ndcB;
+    vec3 ndcShift = position.y < 0.5 ? clipA.xyz / clipA.w : clipB.xyz / clipB.w;
     clip.z = ndcShift.z * clip.w;
 
     vViewPos = viewPos;
-  #else
-    vec2 ndcOffset = vec2( ndcDir.y, -ndcDir.x );
-    ndcDir.x /= aspect;
-    ndcOffset.x /= aspect;
+  #else // Screen space units
+    vec2 screenA = u_resolution * ( 0.5 * clipA.xy / clipA.w + 0.5 );
+    vec2 screenB = u_resolution * ( 0.5 * clipB.xy / clipB.w + 0.5 );
 
-    if ( position.x < 0.0 ) ndcOffset *= - 1.0;
+    vec2 xBasis = normalize( screenB - screenA );
+    vec2 yBasis = vec2( -xBasis.y, xBasis.x );
+    yBasis *= position.x;
 
+    vec2 basis = yBasis;
     if ( position.y < 0.0 ) 
     {
-      ndcOffset += -ndcDir;
+      basis -= xBasis;
     } 
-    else if ( position.y > 1.0 ) 
+    else if( position.y > 1.0 )
     {
-      ndcOffset += ndcDir;
+      basis += xBasis;
     }
 
-    ndcOffset *= u_width;
+    vec2 screenP = ( position.y < 0.5 ) ? screenA : screenB;
+    vec2 p = screenP + u_width * basis;
+
+
     clip = ( position.y < 0.5 ) ? clipA : clipB;
     
-    vec2 clipOffset = ndcOffset * clip.w;
-    clip.xy += clipOffset;
+    clip.xy = clip.w * ( 2.0 * p / u_resolution - 1.0 );
 
   #endif
 
-  vUv = uv;
+  vUv =  uv;
   vViewA = viewA;
   vViewB = viewB;
 

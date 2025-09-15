@@ -11,6 +11,7 @@ void main()
 
   vec3 col = vec3( 104.41, 28.19, 28.19 ) / 255.0;
   col *= exp( - length( uv ) );
+  col = vec3( 1.0 * 0.5, 0.0, 0.0 );
   col = vec3( 1.0 );
   frag_color = vec4( col , 1.0 );
 }
