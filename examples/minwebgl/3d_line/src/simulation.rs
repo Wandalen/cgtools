@@ -32,12 +32,11 @@ impl Simulation
     {
       let pos = gl::F32x3::new( fastrand::f32(), fastrand::f32(), fastrand::f32() ) * 2.0 - 1.0;
       let velocity = gl::F32x3::new( fastrand::f32(), fastrand::f32(), fastrand::f32() ) * 2.0 - 1.0;
-      //let pos = pos / 4.0;
 
       let body = Body
       {
         position : pos / 5.0,
-        velocity : gl::F32x3::default(),//velocity.normalize(),
+        velocity : velocity.normalize(),
         mass : fastrand::f32() * 1.0 + 1.0,
         force : gl::F32x3::default()
       };

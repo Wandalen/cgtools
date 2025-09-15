@@ -15,6 +15,7 @@ use mingl::
   camera_orbit_controls::bind_controls_to_input 
 };
 use minwebgl as gl;
+use web_sys::js_sys;
 use std::
 {
   cell::RefCell,
@@ -46,9 +47,8 @@ fn run() -> Result< (), gl::WebglError >
   gl::browser::setup( gl::browser::Config::default() );
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas( &canvas )?;
-  //let gl = gl::context::from_canvas_with( &canvas, gl::context::ContexOptions::default().antialias( true ) )?;
 
-  gl::info!("{:?}", gl.get_context_attributes().unwrap().get_antialias() );
+  fastrand::seed( js_sys::Date::now() as u64 );
 
   #[ allow( clippy::cast_precision_loss ) ]
   let width = canvas.width() as f32;
@@ -61,7 +61,7 @@ fn run() -> Result< (), gl::WebglError >
   let background_program = gl::ProgramFromSources::new( background_vert, background_frag ).compile_and_link( &gl )?;
 
   // Camera setup
-  let eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] ) * 1.0;
+  let eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] ) * 0.6;
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
   let center = gl::math::F32x3::default();
 
@@ -86,8 +86,8 @@ fn run() -> Result< (), gl::WebglError >
   let projection_matrix = gl::math::mat3x3h::perspective_rh_gl( fov, aspect_ratio, near, far );
 
   let screen_width = 5.0;
-  let world_width = 0.002;
-  let num_bodies = 20;
+  let world_width = 0.01;
+  let num_bodies = 10;
 
   let settings = Settings
   {
@@ -105,7 +105,6 @@ fn run() -> Result< (), gl::WebglError >
 
   for _ in 0..num_bodies
   {
-    //let color = base_color * i as f32 / num_bodies as f32;
     let color = gl::F32x3::new( fastrand::f32(), fastrand::f32(), fastrand::f32() );
 
     base_colors.push( color );
@@ -125,9 +124,6 @@ fn run() -> Result< (), gl::WebglError >
 
     lines.push( line );
   }
-
-  // lines[ 0 ].point_add( [ 0.0, 0.0, 0.0 ] );
-  // lines[ 0 ].point_add( [ 15.0, 15.0, 0.0 ] );
 
   let lines = Rc::new( RefCell::new( lines ) );
 
@@ -257,36 +253,32 @@ fn run() -> Result< (), gl::WebglError >
   // Define the update and draw logic
   let update_and_draw =
   {
-    let add_interval = 0.02;
-    let mut elapsed_time = 0.0;
     let mut last_time = 0.0;
     #[ allow( clippy::min_ident_chars ) ]
     move | time_ms : f64 |
     {
       #[ allow( clippy::cast_possible_truncation ) ]
       let time = time_ms as f32 / 1000.0;
-      let delta_time = last_time - time;
+      let _delta_time = last_time - time;
 
       gl.clear( gl::DEPTH_BUFFER_BIT | gl::COLOR_BUFFER_BIT );
 
       simulation.simulate( 0.005 );
-      //if elapsed_time > add_interval
+      
+      for i in 0..num_bodies
       {
-        for i in 0..num_bodies
-        {
-          let pos = simulation.bodies[ i ].position;
-          let color = base_colors[ i ] * ( pos.mag() * 5.0 ).powf( 2.0 ).min( 1.0 );
-          lines.borrow_mut()[ i ].point_add_back( pos );
-          lines.borrow_mut()[ i ].color_add( color );
+        let pos = simulation.bodies[ i ].position;
+        let color = base_colors[ i ] * ( pos.mag() * 4.0 ).powf( 2.0 ).min( 1.0 );
+        lines.borrow_mut()[ i ].point_add_back( pos );
+        lines.borrow_mut()[ i ].color_add( color );
 
-          let num_points = lines.borrow()[ i ].num_points();
-          if num_points > 300
-          {
-            lines.borrow_mut()[ i ].points_remove_front( num_points - 300 );
-          }
+        let num_points = lines.borrow()[ i ].num_points();
+        if num_points > 300
+        {
+          lines.borrow_mut()[ i ].points_remove_front( num_points - 300 );
         }
-        elapsed_time -= add_interval;
       }
+      
 
       for i in 0..num_bodies
       {
@@ -301,7 +293,6 @@ fn run() -> Result< (), gl::WebglError >
         lines.borrow_mut()[ i ].draw( &gl ).unwrap();
       }
 
-      elapsed_time += time;
       last_time = time;
 
       return true
