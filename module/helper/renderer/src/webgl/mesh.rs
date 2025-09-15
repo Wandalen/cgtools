@@ -3,7 +3,6 @@ mod private
   use std::{ cell::RefCell, rc::Rc };
   use mingl::geometry::BoundingBox;
   use crate::webgl::Primitive;
-  #[ cfg( feature = "animation" ) ]
   use crate::webgl::Skeleton;
 
   /// Represents a collection of renderable primitives.
@@ -13,7 +12,6 @@ mod private
     /// A vector holding the primitives that constitute the mesh. Each primitive is shared and mutable.
     pub primitives : Vec< Rc< RefCell< Primitive > > >,
     /// Stores matrices for every [`Node`] for skinning [`Mesh`]
-    #[ cfg( feature = "animation" ) ]
     pub skeleton : Option< Rc< RefCell< Skeleton > > >
   }
 
@@ -29,7 +27,6 @@ mod private
           .map( | p | Rc::new( RefCell::new( p.borrow().clone() ) ) )
           .collect::< Vec< _ > >()
         },
-        #[ cfg( feature = "animation" ) ]
         skeleton : self.skeleton.as_ref()
         .map
         (

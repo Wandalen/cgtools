@@ -29,21 +29,19 @@ mod private
   };
   use web_sys::wasm_bindgen::prelude::Closure;
 
-  #[ cfg( feature = "animation" ) ]
   use
   {
     std::collections::HashMap,
-    crate::webgl::
-    {
-      Skeleton,
-      animation::Animation
-    },
+    crate::webgl::Skeleton,
     gl::
     {
       GL,
       F32x4x4
     }
   };
+
+  #[ cfg( feature = "animation" ) ]
+  use crate::webgl::animation::Animation;
 
   /// Represents a loaded glTF (GL Transmission Format) scene.
   pub struct GLTF
@@ -69,7 +67,6 @@ mod private
   }
 
   /// Asynchronously loads [`Skeleton`] for one [`Mesh`]
-  #[ cfg( feature = "animation" ) ]
   async fn load_skeleton< 'a >
   (
     gl : &GL,
@@ -555,7 +552,6 @@ mod private
     gl::log::info!( "Meshes: {}",meshes.len() );
 
     let mut nodes = Vec::new();
-    #[ cfg( feature = "animation" ) ]
     let mut skinned_nodes = Vec::new();
 
     for gltf_node in gltf_file.nodes()
@@ -579,7 +575,6 @@ mod private
 
       let node = Rc::new( RefCell::new( node ) );
 
-      #[ cfg( feature = "animation" ) ]
       if let Some( skin ) = gltf_node.skin()
       {
         skinned_nodes.push( ( node.clone(), skin ) );
@@ -599,7 +594,6 @@ mod private
 
     gl::log::info!( "Nodes: {}", nodes.len() );
 
-    #[ cfg( feature = "animation" ) ]
     let nodes_map = nodes.iter()
     .filter_map
     (
@@ -616,7 +610,6 @@ mod private
     )
     .collect::< HashMap< _, _ > >();
 
-    #[ cfg( feature = "animation" ) ]
     for ( node, skin ) in skinned_nodes
     {
       if let Object3D::Mesh( mesh ) = &node.borrow().object

@@ -295,7 +295,6 @@ mod private
       locations : &HashMap< String, Option< gl::WebGlUniformLocation > >
     )
     {
-      #[ cfg( feature = "animation" ) ]
       if let Object3D::Mesh( mesh ) = &self.object
       {
         if let Some( skeleton ) = &mesh.borrow().skeleton
