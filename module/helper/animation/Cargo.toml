@@ -32,6 +32,7 @@ default = []
 
 [dependencies]
 mod_interface = { workspace = true }
+error_tools = { workspace = true }
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
 mingl = { workspace = true }
 
