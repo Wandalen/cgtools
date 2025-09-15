@@ -183,7 +183,7 @@ impl SvgRenderer
       (
         &mut points_str,
         "{},{} ", chunk[ 0 ], chunk[ 1 ]
-      ).unwrap(); // this should never panic
+      ).map_err( | e | RenderError::RenderFailed( e.to_string() ) )?; // this should never panic
     }
     points_str.pop();
 
@@ -354,7 +354,7 @@ impl Renderer for SvgRenderer
       &mut self.svg_content,
       r#"<?xml version="1.0" encoding="UTF-8"?> <svg width="{}" height="{}" viewBox="0 0 {} {}" xmlns="http://www.w3.org/2000/svg">"#,
       context.width, context.height, context.width, context.height
-    ).unwrap(); // this should never ever panic
+    ).map_err( | e | RenderError::RenderFailed( e.to_string() ) )?; // this should never ever panic
 
     // Add background if needed
     if context.clear_background
@@ -364,14 +364,14 @@ impl Renderer for SvgRenderer
       (
         &mut self.svg_content,
         r#"<rect width="100%" height="100%" fill="{bg_color}"/>"#
-      ).unwrap();
+      ).map_err( | e | RenderError::RenderFailed( e.to_string() ) )?;
     }
 
-    self.svg_content.push_str( "<!--framebegin--><!--frameend-->" );
+    self.framebegin_index = self.svg_content.len();
+    self.svg_content.push_str( "<!--framebegin-->" );
+    self.frameend_index = self.svg_content.len();
+    self.svg_content.push_str( "<!--frameend-->" );
     self.svg_content.push_str( "</svg>\n" );
-
-    self.framebegin_index = self.svg_content.find( "<!--framebegin-->" ).unwrap();
-    self.frameend_index = self.svg_content.find( "<!--frameend-->" ).unwrap();
 
     Ok( () )
   }
