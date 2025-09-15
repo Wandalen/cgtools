@@ -31,26 +31,27 @@ mod private
 
   /// Source: https://www.johndcook.com/blog/2025/05/07/quaternions-and-rotation-matrices/
   impl< E, Descriptor > From< Mat3< E, Descriptor > > for Quat< E >
-  where E : MatEl + nd::NdFloat, Descriptor : mat::Descriptor
+  where
+  E : MatEl + nd::NdFloat,
+  Descriptor : mat::Descriptor,
+  Mat3< E, Descriptor > : RawSliceMut< Scalar = E > +
+  ScalarMut< Scalar = E, Index = Ix2 > +
+  ConstLayout< Index = Ix2 > +
+  IndexingMut< Scalar = E, Index = Ix2 >
   {
     fn from( value : Mat3< E, Descriptor > ) -> Self
     {
-      let value = if < Descriptor as mat::Descriptor >::IS_ROW_MAJOR
-      {
-        Mat3::< E, mat::DescriptorOrderColumnMajor >::from_row_major(value.to_array() )
-      }
-      else
-      {
-        Mat3::< E, mat::DescriptorOrderColumnMajor >::from_column_major( value.to_array() )
-      };
+      let r11 = *value.scalar_ref( Ix2( 0, 0 ) );
+      let r12 = *value.scalar_ref( Ix2( 0, 1 ) );
+      let r13 = *value.scalar_ref( Ix2( 0, 2 ) );
 
-      let
-      [
-        r11, r21, r31,
-        r12, r22, r32,
-        r13, r23, r33
-      ]
-      = value.to_array();
+      let r21 = *value.scalar_ref( Ix2( 1, 0 ) );
+      let r22 = *value.scalar_ref( Ix2( 1, 1 ) );
+      let r23 = *value.scalar_ref( Ix2( 1, 2 ) );
+
+      let r31 = *value.scalar_ref( Ix2( 2, 0 ) );
+      let r32 = *value.scalar_ref( Ix2( 2, 1 ) );
+      let r33 = *value.scalar_ref( Ix2( 2, 2 ) );
 
       let n0 = E::one() + r11 + r22 + r33;
       let n1 = E::one() + r11 - r22 - r33;

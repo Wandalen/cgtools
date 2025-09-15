@@ -228,31 +228,31 @@ impl< E, Descriptor > Mat< 4, 4, E, Descriptor >
 where
 E : MatEl + nd::NdFloat,
 Descriptor : mat::Descriptor,
-Self : ScalarMut< Scalar = E > +
-       IndexingMut< Scalar = E, Index = Ix2 >
+Self : RawSlice< Scalar = E > +
+ScalarRef< Scalar = E, Index = Ix2 > +
+ConstLayout< Index = Ix2 > +
+IndexingRef< Scalar = E, Index = Ix2 >
 {
   /// Decompose a transformation matrix to scale, rotation and translation
   ///
   /// Source: https://github.com/mrdoob/three.js/blob/27151c8325d1dba520d4abfb5a2e1077dd59de22/src/math/Matrix4.js#L1050
   pub fn decompose( &self ) -> Option< ( Vector< E, 3 >, Quat< E >, Vector< E, 3 > ) >
   {
-    let value = if < Descriptor as mat::Descriptor >::IS_ROW_MAJOR
-    {
-      Mat4::< E, mat::DescriptorOrderColumnMajor >::from_row_major(self.to_array() )
-    }
-    else
-    {
-      Mat4::< E, mat::DescriptorOrderColumnMajor >::from_column_major( self.to_array() )
-    };
+    let a = *self.scalar_ref( Ix2( 0, 0 ) );
+    let b = *self.scalar_ref( Ix2( 1, 0 ) );
+    let c = *self.scalar_ref( Ix2( 2, 0 ) );
 
-    let
-    [
-      a, d, g, tx,
-      b, e, h, ty,
-      c, f, i, tz,
-      ..
-    ]
-    = value.transpose().to_array();
+    let d = *self.scalar_ref( Ix2( 0, 1 ) );
+    let e = *self.scalar_ref( Ix2( 1, 1 ) );
+    let f = *self.scalar_ref( Ix2( 2, 1 ) );
+
+    let g = *self.scalar_ref( Ix2( 0, 2 ) );
+    let h = *self.scalar_ref( Ix2( 1, 2 ) );
+    let i = *self.scalar_ref( Ix2( 2, 2 ) );
+
+    let tx = *self.scalar_ref( Ix2( 0, 3 ) );
+    let ty = *self.scalar_ref( Ix2( 1, 3 ) );
+    let tz = *self.scalar_ref( Ix2( 2, 3 ) );
 
     let translation = Vector::< E, 3 >::from_array( [ tx, ty, tz ] );
 
