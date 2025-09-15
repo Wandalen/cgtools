@@ -348,11 +348,18 @@ fn test_unsupported_commands()
   let mut scene = Scene::new();
 
   // Test tilemap command (unsupported)
-  scene.add( RenderCommand::Tilemap( TilemapCommand::new(
-    Point2D::default(),
-    32.0, 32.0, 2, 2, 0,
-    &[ 1, 2, 3, 4 ]
-  ) ) );
+  scene.add
+  (
+    RenderCommand::Tilemap
+    (
+      TilemapCommand::new
+      (
+        Point2D::default(),
+        32.0, 32.0, 2, 2, 0,
+        &[ 1, 2, 3, 4 ]
+      )
+    )
+  );
 
   assert!( renderer.initialize( &context ).is_ok() );
   assert!( renderer.begin_frame( &context ).is_ok() );
@@ -429,23 +436,23 @@ fn test_complex_scene_rendering()
   // Add multiple command types
   scene.add( RenderCommand::Line( LineCommand
   {
-    start: Point2D { x: 0.0, y: 0.0 },
-    end: Point2D { x: 100.0, y: 100.0 },
-    style: StrokeStyle::default(),
+    start : Point2D { x : 0.0, y : 0.0 },
+    end : Point2D { x : 100.0, y : 100.0 },
+    style : StrokeStyle::default(),
   } ) );
 
   scene.add( RenderCommand::Curve( CurveCommand
   {
-    start: Point2D { x: 100.0, y: 0.0 },
-    control1: Point2D { x: 125.0, y: 25.0 },
-    control2: Point2D { x: 175.0, y: 75.0 },
-    end: Point2D { x: 200.0, y: 100.0 },
-    style: StrokeStyle::default(),
+    start : Point2D { x : 100.0, y : 0.0 },
+    control1 : Point2D { x : 125.0, y : 25.0 },
+    control2 : Point2D { x : 175.0, y : 75.0 },
+    end : Point2D { x : 200.0, y : 100.0 },
+    style : StrokeStyle::default(),
   } ) );
 
   scene.add( RenderCommand::Text( TextCommand::new(
     "Complex Scene",
-    Point2D { x: 150.0, y: 50.0 },
+    Point2D { x : 150.0, y : 50.0 },
     FontStyle::default(),
     TextAnchor::Center
   ) ) );
@@ -564,7 +571,7 @@ fn test_render_image()
   // Now, render it
   let transform = Transform2D
   {
-    position: [ 150.0, 200.0 ],
+    position : [ 150.0, 200.0 ],
     ..Default::default()
   };
   renderer.render_image( image_id, transform ).unwrap();
