@@ -31,6 +31,8 @@ mod private
     /// A flag to indicate any shader defines have been changed
     defines_changed : bool
   }
+
+  impl_basic_line!( Line, f32, 3 );
   
   impl Line
   {
@@ -167,13 +169,6 @@ mod private
       Ok( () )
     }
 
-    /// Sets whether the vertex color attribute will be used or not
-    pub fn use_vertex_color( &mut self, value : bool )
-    {
-      self.use_vertex_color = value;
-      self.defines_changed = true;
-    }
-
     /// Sets whether the alpha to coverage will be used or not
     pub fn use_alpha_to_coverage( &mut self, value : bool )
     {
@@ -188,127 +183,6 @@ mod private
       self.defines_changed = true;
     }
 
-    /// Adds a new point to the back of the list.
-    pub fn point_add_back< P : gl::VectorIter< f32, 3 > >( &mut self, point : P )
-    {
-      let mut iter = point.vector_iter();
-      let point = gl::F32x3::new( *iter.next().unwrap(), *iter.next().unwrap(), *iter.next().unwrap() );
-
-      self.points.push_back( point );
-      self.points_changed = true;
-    }
-
-    /// Adds a new point to the front of the list.
-    pub fn point_add_front< P : gl::VectorIter< f32, 3 > >( &mut self, point : P )
-    {
-      let mut iter = point.vector_iter();
-      let point = gl::F32x3::new( *iter.next().unwrap(), *iter.next().unwrap(), *iter.next().unwrap() );
-
-      self.points.push_front( point );
-      self.points_changed = true;
-    }
-
-    /// Adds a new point to the back of the list.
-    pub fn points_add_back< P : gl::VectorIter< f32, 3 > >( &mut self, points : &[ P ] )
-    {
-      for i in 0..points.len()
-      {
-        let mut iter = points[ i ].vector_iter();
-        let point = gl::F32x3::new( *iter.next().unwrap(), *iter.next().unwrap(), *iter.next().unwrap() );
-
-        self.points.push_back( point );
-      }
-
-      self.points_changed = true;
-    }
-
-    /// Adds a new point to the front of the list.
-    pub fn points_add_front< P : gl::VectorIter< f32, 3 > >( &mut self, points : &[ P ] )
-    {
-      for i in 0..points.len()
-      {
-        let mut iter = points[ i ].vector_iter();
-        let point = gl::F32x3::new( *iter.next().unwrap(), *iter.next().unwrap(), *iter.next().unwrap() );
-
-        self.points.push_front( point );
-      }
-
-      self.points_changed = true;
-    }
-
-    /// Adds the color to a list of colors. Each color belongs to a point with the same index;
-    pub fn color_add< C : gl::VectorIter< f32, 3 > >( &mut self, color : C )
-    {
-      let mut iter = color.vector_iter();
-      let color = gl::F32x3::new( *iter.next().unwrap(), *iter.next().unwrap(), *iter.next().unwrap() );
-
-      self.colors.push_back( color );
-      self.colors_changed = true;
-    }
-
-    /// Retrieves the points at the specified position.
-    /// Will panic if index is out of range
-    pub fn point_get( &self, index : usize ) -> gl::F32x3
-    {
-      self.points[ index ]
-    }
-
-    /// Sets the points at the specified position.
-    /// Will panic if index is out of range
-    pub fn point_set< P : gl::VectorIter< f32, 3 > >( &mut self, point : P, index : usize )
-    {
-      let mut iter = point.vector_iter();
-      let point = gl::F32x3::new( *iter.next().unwrap(), *iter.next().unwrap(), *iter.next().unwrap() );
-      self.points[ index ] = point;
-      self.points_changed = true;
-    }
-
-    /// Remove a point at the specified index
-    pub fn point_remove( &mut self, index : usize )
-    {
-      self.points.remove( index );
-      self.colors.remove( index );
-      self.points_changed = true
-    }
-
-    /// Removes a points from the front
-    pub fn point_remove_front( &mut self )
-    {
-      self.points.pop_front();
-      self.colors.pop_front();
-      self.points_changed = true
-    }
-
-    /// Remove a point from the back
-    pub fn point_remove_back( &mut self )
-    {
-      self.points.pop_back();
-      self.colors.pop_back();
-      self.points_changed = true
-    }
-
-    /// Remove the specified amount of points from the front of the list
-    pub fn points_remove_front( &mut self, amount : usize )
-    {
-      for _ in 0..amount
-      {
-        self.points.pop_front();
-        self.colors.pop_front();
-      }
-      self.points_changed = true
-    }
-
-    /// Remove the specified amount of points from the back of the list
-    pub fn points_remove_back( &mut self, amount : usize )
-    {
-      for _ in 0..amount
-      {
-        self.points.pop_back();
-        self.colors.pop_back();
-      }
-      self.points_changed = true
-    }
-
     /// Draws the line mesh.
     pub fn draw( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
@@ -318,31 +192,6 @@ mod private
       mesh.draw( gl, "body" );
 
       Ok( () )
-    }
-
-    /// Retrieves a reference to the mesh.
-    pub fn mesh_get( &self ) -> Result< &Mesh, gl::WebglError >
-    {
-      self.mesh.as_ref().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )
-    }  
-
-    /// Retrieves a mutable reference to the mesh.
-    pub fn mesh_get_mut( &mut self ) -> Result< &mut Mesh, gl::WebglError >
-    {
-      self.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )
-    }  
-
-    /// Retrieves a slice of the line's points.
-    pub fn points_get( &mut self ) -> &[ math::F32x3 ]
-    {
-      self.points.make_contiguous();
-      self.points.as_slices().0
-    }  
-
-    /// Return the number of points that form this line
-    pub fn num_points( &self ) -> usize
-    {
-      self.points.len()
     }
 
     fn get_defines( &self ) -> String
