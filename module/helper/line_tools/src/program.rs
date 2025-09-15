@@ -32,35 +32,35 @@ mod private
   impl Program 
   {
     /// Deletes the vertex shader from the WebGL context and sets the internal handle to `None`.
-    pub fn delete_vertex_shader( &mut self, gl : &gl::WebGl2RenderingContext )
+    pub fn vertex_shader_delete( &mut self, gl : &gl::WebGl2RenderingContext )
     {
       gl.delete_shader( self.vertex_shader.as_ref() );
       self.vertex_shader = None;
     }
 
     /// Deletes the fragment shader from the WebGL context and sets the internal handle to `None`.
-    pub fn delete_fragment_shader( &mut self, gl : &gl::WebGl2RenderingContext )
+    pub fn fragment_shader_delete( &mut self, gl : &gl::WebGl2RenderingContext )
     {
       gl.delete_shader( self.fragment_shader.as_ref() );
       self.fragment_shader = None;
     }
 
     /// Deletes the main shader program from the WebGL context and sets the internal handle to `None`.
-    pub fn delete_program( &mut self, gl : &gl::WebGl2RenderingContext )
+    pub fn program_delete( &mut self, gl : &gl::WebGl2RenderingContext )
     {
       gl.delete_program( self.program.as_ref() );
       self.program = None;
     }
 
     /// Deletes the Vertex Array Object from the WebGL context and sets the internal handle to `None`.
-    pub fn delete_vao( &mut self, gl : &gl::WebGl2RenderingContext )
+    pub fn vao_delete( &mut self, gl : &gl::WebGl2RenderingContext )
     {
       gl.delete_vertex_array( self.vao.as_ref() );
       self.vao = None;
     }
 
     /// Copies all active uniform values from this program to another program.
-    pub fn copy_uniforms_to_gl( &self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Result< (), gl::WebglError >
+    pub fn uniforms_copy_to_gl( &self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Result< (), gl::WebglError >
     {
       if let Some( own_program ) = self.program.as_ref()
       {
@@ -107,7 +107,7 @@ mod private
     }
 
     /// Copies uniforms from the current program to the other
-    pub fn copy_uniforms_to( &self, gl : &gl::WebGl2RenderingContext, program : &mut Self ) -> Result< (), gl::WebglError >
+    pub fn uniforms_copy_to( &self, gl : &gl::WebGl2RenderingContext, program : &mut Self ) -> Result< (), gl::WebglError >
     {
       self.uniforms.copy_to( &mut program.uniforms );
       program.all_uniforms_upload( gl )?;

@@ -84,12 +84,12 @@ mod private
       };
 
       let mut mesh = Mesh::default();
-      mesh.add_program( "body", program );
+      mesh.program_add( "body", program );
 
-      mesh.add_buffer( "position", position_buffer );
-      mesh.add_buffer( "points", points_buffer );
-      mesh.add_buffer( "uv", uv_buffer );
-      mesh.add_buffer( "colors", color_buffer );
+      mesh.buffer_add( "position", position_buffer );
+      mesh.buffer_add( "points", points_buffer );
+      mesh.buffer_add( "uv", uv_buffer );
+      mesh.buffer_add( "colors", color_buffer );
 
       self.mesh = Some( mesh );
 
@@ -123,11 +123,11 @@ mod private
         let program = gl::ProgramShaders::new( &vertex_shader, &fragment_shader ).link( &gl )?;
 
         let mesh = self.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
-        let b_program = mesh.get_program_mut( "body" );
+        let b_program = mesh.program_get_mut( "body" );
 
-        b_program.delete_fragment_shader( gl );
-        b_program.delete_vertex_shader( gl );
-        b_program.delete_program( gl );
+        b_program.fragment_shader_delete( gl );
+        b_program.vertex_shader_delete( gl );
+        b_program.program_delete( gl );
 
         b_program.program = Some( program );
         b_program.fragment_shader = Some( fragment_shader );
@@ -142,12 +142,12 @@ mod private
       if self.points_changed
       {
         let mesh = self.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
-        let points_buffer = mesh.get_buffer( "points" );
+        let points_buffer = mesh.buffer_get( "points" );
         
         let points : Vec< f32 > = self.points.iter().flat_map( | p | p.to_array() ).collect();
         gl::buffer::upload( &gl, &points_buffer, &points, gl::STATIC_DRAW );
 
-        let b_program = mesh.get_program_mut( "body" );
+        let b_program = mesh.program_get_mut( "body" );
         b_program.instance_count = Some( ( self.points.len() as f32 - 1.0 ).max( 0.0 ) as u32 );
 
         self.points_changed = false;
@@ -156,7 +156,7 @@ mod private
       if self.colors_changed && self.use_vertex_color
       {
         let mesh = self.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
-        let colors_buffer = mesh.get_buffer( "colors" );
+        let colors_buffer = mesh.buffer_get( "colors" );
 
         let colors : Vec< f32 > = self.colors.iter().flat_map( | c | c.to_array() ).collect();
         gl::buffer::upload( &gl, &colors_buffer, &colors, gl::STATIC_DRAW );

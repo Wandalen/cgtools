@@ -2,7 +2,7 @@ mod private
 {
   use std::collections::HashMap;
   use minwebgl::{self as gl, Vector };
-  use gl::{ Mat2, Mat3, Mat4, math::mat::{ DescriptorOrderColumnMajor, DescriptorOrderRowMajor } };
+  use gl::math::mat::{ DescriptorOrderColumnMajor, DescriptorOrderRowMajor, Mat2, Mat3, Mat4 };
 
   macro_rules! impl_from_for_uniform 
   {
@@ -32,9 +32,17 @@ mod private
     {
       impl From< Vector< $primitive_type, $length > > for Uniform
       {
-        fn from( value: Vector< $primitive_type, $length > ) -> Self 
+        fn from( value : Vector< $primitive_type, $length > ) -> Self 
         {
           Self::$uniform_type( value.0 )
+        }
+      }
+
+      impl From< [ $primitive_type; $length ] > for Uniform
+      {
+        fn from( value : [ $primitive_type; $length ] ) -> Self 
+        {
+          Self::$uniform_type( value )
         }
       }
     };

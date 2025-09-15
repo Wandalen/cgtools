@@ -107,22 +107,22 @@ mod private
       cap_program.index_buffer = Some( cap_indices_buffer.clone() );
 
       let mut mesh = Mesh::default();
-      mesh.add_program( "cap", cap_program );
-      mesh.add_program( "join", join_program );
-      mesh.add_program( "body", body_program );
-      mesh.add_program( "body_terminal", body_terminal_program );
+      mesh.program_add( "cap", cap_program );
+      mesh.program_add( "join", join_program );
+      mesh.program_add( "body", body_program );
+      mesh.program_add( "body_terminal", body_terminal_program );
 
-      mesh.add_buffer( "body", body_instanced_buffer );
-      mesh.add_buffer( "cap", cap_instanced_buffer );
-      mesh.add_buffer( "cap_indices", cap_indices_buffer );
-      mesh.add_buffer( "join", join_instanced_buffer );
-      mesh.add_buffer( "join_indices", join_indices_buffer );
-      mesh.add_buffer( "join_uv", join_uv_buffer );
-      mesh.add_buffer( "points", points_buffer );
-      mesh.add_buffer( "points_terminal", points_terminal_buffer );
-      mesh.add_buffer( "distance", distance_buffer );
+      mesh.buffer_add( "body", body_instanced_buffer );
+      mesh.buffer_add( "cap", cap_instanced_buffer );
+      mesh.buffer_add( "cap_indices", cap_indices_buffer );
+      mesh.buffer_add( "join", join_instanced_buffer );
+      mesh.buffer_add( "join_indices", join_indices_buffer );
+      mesh.buffer_add( "join_uv", join_uv_buffer );
+      mesh.buffer_add( "points", points_buffer );
+      mesh.buffer_add( "points_terminal", points_terminal_buffer );
+      mesh.buffer_add( "distance", distance_buffer );
 
-      mesh.add_buffer( "uv", uv_buffer );
+      mesh.buffer_add( "uv", uv_buffer );
 
       self.mesh = Some( mesh );
 
@@ -198,9 +198,9 @@ mod private
 
       if self.points_changed
       {
-        let points_buffer = mesh.get_buffer( "points" );
-        let distance_buffer = mesh.get_buffer( "distance" );
-        let points_terminal_buffer = mesh.get_buffer( "points_terminal" );
+        let points_buffer = mesh.buffer_get( "points" );
+        let distance_buffer = mesh.buffer_get( "distance" );
+        let points_terminal_buffer = mesh.buffer_get( "points_terminal" );
         let points : Vec< f32 > = self.points.iter().zip( self.distances.iter() ).flat_map( | ( p, d ) | [ p.x(), p.y(), *d / self.total_distance ] ).collect();
         let ( points_terminal, uvs_terminal, terminal_instance_count ) = 
         if self.points.len() >= 3
@@ -245,13 +245,13 @@ mod private
         gl::buffer::upload( &gl, &points_terminal_buffer, &points_terminal, gl::STATIC_DRAW );
         gl::buffer::upload( &gl, &distance_buffer, &self.distances, gl::STATIC_DRAW );
 
-        let b_program = mesh.get_program_mut( "body" );
+        let b_program = mesh.program_get_mut( "body" );
         b_program.instance_count = Some( ( self.points.len() as f32 - 3.0 ).max( 0.0 ) as u32 );
 
-        let bt_program = mesh.get_program_mut( "body_terminal" );
+        let bt_program = mesh.program_get_mut( "body_terminal" );
         bt_program.instance_count = Some( terminal_instance_count );
         
-        let j_program = mesh.get_program_mut( "join" );
+        let j_program = mesh.program_get_mut( "join" );
         j_program.instance_count = Some( ( self.points.len() as f32 - 2.0 ).max( 0.0 ) as u32 );
 
         self.points_changed = false;
@@ -259,18 +259,18 @@ mod private
 
       if self.join_changed
       {
-        let points_buffer = mesh.get_buffer( "points" );
-        let join_buffer = mesh.get_buffer( "join" );
-        let join_indices_buffer = mesh.get_buffer( "join_indices" );
-        let join_uv_buffer = mesh.get_buffer( "join_uv" );
-        let distance_buffer = mesh.get_buffer( "distance" );
+        let points_buffer = mesh.buffer_get( "points" );
+        let join_buffer = mesh.buffer_get( "join" );
+        let join_indices_buffer = mesh.buffer_get( "join_indices" );
+        let join_uv_buffer = mesh.buffer_get( "join_uv" );
+        let distance_buffer = mesh.buffer_get( "distance" );
 
         let ( join_geometry_list, join_indices, join_uvs, join_geometry_count ) = self.join.geometry(); 
         gl::buffer::upload( gl, &join_buffer, &join_geometry_list, gl::STATIC_DRAW );
         gl::buffer::upload( gl, &join_uv_buffer, &join_uvs, gl::STATIC_DRAW );
         gl::index::upload( gl, &join_indices_buffer, &join_indices, gl::STATIC_DRAW );
 
-        let j_program = mesh.get_program( "join" );
+        let j_program = mesh.program_get( "join" );
         let vao = gl.create_vertex_array();
         gl.bind_vertex_array( vao.as_ref() ); 
         match self.join
@@ -318,13 +318,11 @@ mod private
         .compile( &gl )?;
         let join_program = gl::ProgramShaders::new( &vertex_shader, j_program.fragment_shader.as_ref().expect( "Fragment shader has not been set" ) ).link( &gl )?;
 
-        let j_program = mesh.get_program_mut( "join" );
+        let j_program = mesh.program_get_mut( "join" );
 
-        j_program.delete_vertex_shader( gl );
-        j_program.delete_program( gl );
-        j_program.delete_vao( gl );
-
-        j_program.all_uniforms_upload( gl )?;
+        j_program.vertex_shader_delete( gl );
+        j_program.program_delete( gl );
+        j_program.vao_delete( gl );
 
         j_program.vao = vao;
         j_program.draw_mode = draw_mode;
@@ -334,21 +332,24 @@ mod private
         j_program.vertex_count = join_geometry_count as u32;
         j_program.index_count = if join_indices.len() > 0 { Some( join_indices.len() as u32 ) } else { None };
 
+        j_program.uniform_locations_clear();
+        j_program.all_uniforms_upload( gl )?;
+
         self.join_changed = false;
         
       }
 
       if self.cap_changed
       {
-        let cap_buffer = mesh.get_buffer( "cap" );
-        let cap_index_buffer = mesh.get_buffer( "cap_indices" );
-        let points_terminal_buffer = mesh.get_buffer( "points_terminal" );
+        let cap_buffer = mesh.buffer_get( "cap" );
+        let cap_index_buffer = mesh.buffer_get( "cap_indices" );
+        let points_terminal_buffer = mesh.buffer_get( "points_terminal" );
 
         let ( cap_geometry_list, cap_indices, cap_geometry_count ) = self.cap.geometry();
         gl::buffer::upload( gl, &cap_buffer, &cap_geometry_list, gl::STATIC_DRAW );
         gl::index::upload( gl, &cap_index_buffer, &cap_indices, gl::STATIC_DRAW );
 
-        let c_program = mesh.get_program( "cap" );
+        let c_program = mesh.program_get( "cap" );
 
         let vao = gl.create_vertex_array();
         gl.bind_vertex_array( vao.as_ref() );
@@ -388,16 +389,12 @@ mod private
         .source( vertex_shader )
         .compile( &gl )?;
         let cap_program = gl::ProgramShaders::new( &vertex_shader, c_program.fragment_shader.as_ref().expect( "Fragment shader has not been set" ) ).link( &gl )?;
-        // mesh.get_program( "join" ).copy_uniforms_to( gl, &cap_program )?;
-        // c_program.copy_uniforms_to( gl, &cap_program )?;
 
-        let c_program = mesh.get_program_mut( "cap" );
+        let c_program = mesh.program_get_mut( "cap" );
 
-        c_program.delete_vertex_shader( gl );
-        c_program.delete_program( gl );
-        c_program.delete_vao( gl );
-
-        c_program.all_uniforms_upload( gl )?;
+        c_program.vertex_shader_delete( gl );
+        c_program.program_delete( gl );
+        c_program.vao_delete( gl );
 
         c_program.vao = vao;
         c_program.vertex_shader = Some( vertex_shader );
@@ -406,6 +403,9 @@ mod private
         c_program.vertex_count = cap_geometry_count as u32;
         c_program.draw_mode = cap_draw_mode;
         c_program.index_count = if cap_indices.len() > 0 { Some( cap_indices.len() as u32 ) } else { None };
+
+        c_program.uniform_locations_clear();
+        c_program.all_uniforms_upload( gl )?;
 
         self.cap_changed = false;
       }
