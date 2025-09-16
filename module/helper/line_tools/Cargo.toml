@@ -44,6 +44,7 @@ full = ["enabled", "serialization"]
 
 # Serialization support for line data
 serialization = ["enabled", "dep:serde"]
+distance = []
 
 [dependencies]
 minwebgl = { workspace = true, optional = true }

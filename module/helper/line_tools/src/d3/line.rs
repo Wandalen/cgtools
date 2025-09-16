@@ -10,12 +10,18 @@ mod private
   pub struct Line
   {
     /// The series of 3D points that define the line strip.
-    points : VecDeque< math::F32x3 >,
+    points : VecDeque< gl::F32x3 >,
     /// Colors for the points
-    colors : VecDeque< math::F32x3 >,
+    colors : VecDeque< gl::F32x3 >,
     // The optional `Mesh` object that holds the WebGL resources for rendering.
     /// `None` until `create_mesh` is called.
     mesh : Option< Mesh >,
+    /// The distance from the beginning of the line to the current point
+    #[ cfg( feature = "distance" ) ]
+    distances : VecDeque< f32 >,
+    /// Total length of the line
+    #[ cfg( feature = "distance" ) ]
+    total_distance : f32,
     /// A flag to set whether to use the vertex color or not. Should be set before the mesh creation
     use_vertex_color : bool,
     /// A flag to set where to use alpha to coverage blending technique instead of alpha testing 
