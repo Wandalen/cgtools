@@ -269,13 +269,14 @@ fn run() -> Result< (), gl::WebglError >
       {
         let pos = simulation.bodies[ i ].position;
         let color = base_colors[ i ] * ( pos.mag() * 4.0 ).powf( 2.0 ).min( 1.0 );
-        lines.borrow_mut()[ i ].point_add_back( pos );
-        lines.borrow_mut()[ i ].color_add( color );
+        lines.borrow_mut()[ i ].point_add_back( &pos );
+        lines.borrow_mut()[ i ].color_add_back( color );
 
         let num_points = lines.borrow()[ i ].num_points();
         if num_points > 300
         {
           lines.borrow_mut()[ i ].points_remove_front( num_points - 300 );
+          lines.borrow_mut()[ i ].colors_remove_front( num_points - 300 );
         }
       }
       

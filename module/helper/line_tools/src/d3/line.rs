@@ -2,7 +2,6 @@ mod private
 {
   use crate::*;
   use minwebgl as gl;
-  use ndarray_cg as math;
   use std::collections::VecDeque;
 
   /// Represents a 3D line strip, composed of a series of points.
