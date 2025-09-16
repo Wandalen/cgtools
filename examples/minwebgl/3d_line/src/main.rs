@@ -39,7 +39,11 @@ struct Settings
   #[ serde( rename = "Alpha to coverage" ) ]
   alpha_to_coverage : bool,
   #[ serde( rename = "World units" ) ]
-  world_units : bool
+  world_units : bool,
+  #[ serde( rename = "Trail length" ) ]
+  trail_length : f32,
+  #[ serde( rename = "Simulation speed" ) ]
+  simulation_speed : f32
 }
 
 fn run() -> Result< (), gl::WebglError >
@@ -87,15 +91,20 @@ fn run() -> Result< (), gl::WebglError >
 
   let screen_width = 5.0;
   let world_width = 0.01;
-  let num_bodies = 10;
+  let num_bodies = 20;
 
   let settings = Settings
   {
     world_width : world_width,
     screen_width : screen_width,
     alpha_to_coverage : false,
-    world_units : false
+    world_units : false,
+    trail_length : 300.0,
+    simulation_speed : 0.003
   };
+
+  let trail_length = Rc::new( RefCell::new( settings.trail_length ) );
+  let simulation_speed = Rc::new( RefCell::new( settings.simulation_speed ) );
 
   let mut simulation = Simulation::new( num_bodies );
   let mut lines = Vec::with_capacity( num_bodies );
@@ -242,6 +251,35 @@ fn run() -> Result< (), gl::WebglError >
   lil_gui::on_change_bool( &prop, &callback );
   callback.forget();
 
+  let prop = lil_gui::add_slider( &gui, &object, "Trail length", 2.0, 500.0, 1.0 );
+  let callback = Closure::new
+  (
+    {
+      let trail_length = trail_length.clone();
+      move | value : f32 |
+      {
+        *trail_length.borrow_mut() = value;
+      }
+    }
+  );
+  lil_gui::on_change( &prop, &callback );
+  callback.forget();
+
+  let prop = lil_gui::add_slider( &gui, &object, "Simulation speed", 0.0, 0.01, 0.00001 );
+  let callback = Closure::new
+  (
+    {
+      let simulation_speed = simulation_speed.clone();
+      move | value : f32 |
+      {
+        *simulation_speed.borrow_mut() = value;
+      }
+    }
+  );
+  lil_gui::on_change( &prop, &callback );
+  callback.forget();
+
+
   gl.enable( gl::DEPTH_TEST );
   gl.depth_func( gl::LEQUAL );
 
@@ -263,7 +301,7 @@ fn run() -> Result< (), gl::WebglError >
 
       gl.clear( gl::DEPTH_BUFFER_BIT | gl::COLOR_BUFFER_BIT );
 
-      simulation.simulate( 0.005 );
+      simulation.simulate( *simulation_speed.borrow() );
       
       for i in 0..num_bodies
       {
@@ -273,10 +311,13 @@ fn run() -> Result< (), gl::WebglError >
         lines.borrow_mut()[ i ].color_add_back( color );
 
         let num_points = lines.borrow()[ i ].num_points();
-        if num_points > 300
+
+        let max_point = *trail_length.borrow() as usize;
+
+        if num_points > max_point
         {
-          lines.borrow_mut()[ i ].points_remove_front( num_points - 300 );
-          lines.borrow_mut()[ i ].colors_remove_front( num_points - 300 );
+          lines.borrow_mut()[ i ].points_remove_front( num_points - max_point );
+          lines.borrow_mut()[ i ].colors_remove_front( num_points - max_point );
         }
       }
       
