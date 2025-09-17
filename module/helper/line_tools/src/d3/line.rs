@@ -15,18 +15,21 @@ mod private
     // The optional `Mesh` object that holds the WebGL resources for rendering.
     /// `None` until `create_mesh` is called.
     mesh : Option< Mesh >,
+    #[ cfg( feature = "distance" ) ]
     /// The distance from the beginning of the line to the current point
-    #[ cfg( feature = "distance" ) ]
     distances : VecDeque< f32 >,
-    /// Total length of the line
     #[ cfg( feature = "distance" ) ]
+    /// Total length of the line
     total_distance : f32,
     /// A flag to set whether to use the vertex color or not. Should be set before the mesh creation
     use_vertex_color : bool,
-    /// A flag to set where to use alpha to coverage blending technique instead of alpha testing 
+    /// A flag to set whether to use alpha to coverage blending technique instead of alpha testing 
     use_alpha_to_coverage : bool,
-    /// A flag to set where to use width in world units, or screen space units
+    /// A flag to set whether to use width in world units, or screen space units
     use_world_units : bool,
+    #[ cfg( feature = "distance" ) ]
+    /// A flag to set whether to use dashed line or not
+    use_dashes : bool,
     /// Fragment shader source
     fragment_shader : String,
     /// A flag to indicate whether the line's points have changed since the last update.
@@ -56,7 +59,8 @@ mod private
       let position_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to position_buffer" ) )?;
       let index_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to index_buffer" ) )?;
       let uv_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to uv_buffer" ) )?;
-      let color_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to color_buffer" ) )?;
+      let colors_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to color_buffer" ) )?;
+      let distances_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to distance_buffer" ) )?;
 
       gl::buffer::upload( gl, &position_buffer, &vertices.iter().copied().flatten().collect::< Vec< f32 > >(), gl::STATIC_DRAW );
       gl::buffer::upload( gl, &uv_buffer, &uvs.iter().copied().flatten().collect::< Vec< f32 > >(), gl::STATIC_DRAW );
@@ -70,10 +74,18 @@ mod private
       gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).divisor( 1 ).attribute_pointer( gl, 2, &points_buffer )?;
       gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 3 ).divisor( 1 ).attribute_pointer( gl, 3, &points_buffer )?;
 
-      if self.use_vertex_color
+
+      //if self.use_vertex_color
       {
-        gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).divisor( 1 ).attribute_pointer( gl, 4, &color_buffer )?;
-        gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 3 ).divisor( 1 ).attribute_pointer( gl, 5, &color_buffer )?;
+        gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).divisor( 1 ).attribute_pointer( gl, 4, &colors_buffer )?;
+        gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 3 ).divisor( 1 ).attribute_pointer( gl, 5, &colors_buffer )?;
+      }
+
+      // #[ cfg( feature = "distance" ) ]
+      // if self.use_dashes
+      {
+        gl::BufferDescriptor::new::< [ f32; 1 ] >().stride( 1 ).offset( 0 ).divisor( 1 ).attribute_pointer( gl, 6, &distances_buffer )?;
+        gl::BufferDescriptor::new::< [ f32; 1 ] >().stride( 1 ).offset( 1 ).divisor( 1 ).attribute_pointer( gl, 7, &distances_buffer )?;
       }
 
       let program = Program
@@ -96,7 +108,8 @@ mod private
       mesh.buffer_add( "position", position_buffer );
       mesh.buffer_add( "points", points_buffer );
       mesh.buffer_add( "uv", uv_buffer );
-      mesh.buffer_add( "colors", color_buffer );
+      mesh.buffer_add( "colors", colors_buffer );
+      mesh.buffer_add( "distances", distances_buffer );
 
       self.mesh = Some( mesh );
 
@@ -154,6 +167,13 @@ mod private
         let points : Vec< f32 > = self.points.iter().flat_map( | p | p.to_array() ).collect();
         gl::buffer::upload( &gl, &points_buffer, &points, gl::STATIC_DRAW );
 
+        #[ cfg( feature = "distance" ) ]
+        {
+          let distances_buffer = mesh.buffer_get( "distances" );
+          let distances : Vec< f32 > = self.distances.iter().copied().collect();
+          gl::buffer::upload( &gl, &distances_buffer, &distances, gl::STATIC_DRAW );
+        }
+
         let b_program = mesh.program_get_mut( "body" );
         b_program.instance_count = Some( ( self.points.len() as f32 - 1.0 ).max( 0.0 ) as u32 );
 
@@ -188,6 +208,14 @@ mod private
       self.defines_changed = true;
     }
 
+    #[ cfg( feature = "distance" ) ]
+    /// Sets whether the world units for the line width will be used
+    pub fn use_dashes( &mut self, value : bool )
+    {
+      self.use_dashes = value;
+      self.defines_changed = true;
+    }
+
     /// Draws the line mesh.
     pub fn draw( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
     {
@@ -216,6 +244,12 @@ mod private
       if self.use_world_units
       {
         s += "#define USE_WORLD_UNITS\n";
+      }
+
+      #[ cfg( feature = "distance" ) ]
+      if self.use_dashes
+      {
+        s += "#define USE_DASHES\n";
       }
 
       s

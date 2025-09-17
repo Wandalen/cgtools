@@ -40,10 +40,18 @@ struct Settings
   alpha_to_coverage : bool,
   #[ serde( rename = "World units" ) ]
   world_units : bool,
+  #[ serde( rename = "Dashes" ) ]
+  dashes : bool,
   #[ serde( rename = "Trail length" ) ]
   trail_length : f32,
   #[ serde( rename = "Simulation speed" ) ]
-  simulation_speed : f32
+  simulation_speed : f32,
+  #[ serde( rename = "Dash offset" ) ]
+  dash_offset : f32,
+  #[ serde( rename = "Dash size" ) ]
+  dash_size : f32,
+  #[ serde( rename = "Dash gap" ) ]
+  dash_gap : f32
 }
 
 fn run() -> Result< (), gl::WebglError >
@@ -65,7 +73,7 @@ fn run() -> Result< (), gl::WebglError >
   let background_program = gl::ProgramFromSources::new( background_vert, background_frag ).compile_and_link( &gl )?;
 
   // Camera setup
-  let eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] ) * 0.6;
+  let eye = gl::math::F32x3::from( [ 0.0, 0.0, 1.0 ] ) * 0.6;
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
   let center = gl::math::F32x3::default();
 
@@ -99,8 +107,12 @@ fn run() -> Result< (), gl::WebglError >
     screen_width : screen_width,
     alpha_to_coverage : false,
     world_units : false,
+    dashes : false,
     trail_length : 300.0,
-    simulation_speed : 0.003
+    simulation_speed : 0.003,
+    dash_offset : 0.0,
+    dash_size : 0.1,
+    dash_gap : 0.1
   };
 
   let trail_length = Rc::new( RefCell::new( settings.trail_length ) );
@@ -122,6 +134,7 @@ fn run() -> Result< (), gl::WebglError >
     line.use_vertex_color( true );
     line.use_alpha_to_coverage( settings.alpha_to_coverage );
     line.use_world_units( settings.world_units );
+    line.use_dashes( settings.dashes );
     line.mesh_create( &gl, None )?;
 
     let mesh = line.mesh_get_mut()?;
@@ -130,10 +143,16 @@ fn run() -> Result< (), gl::WebglError >
     mesh.upload( &gl, "u_resolution", &gl::F32x2::from( [ width as f32, height as f32 ] ) )?;
     mesh.upload( &gl, "u_projection_matrix", &projection_matrix )?;
     mesh.upload( &gl, "u_world_matrix", &world_matrix ).unwrap();
+    mesh.upload( &gl, "u_dash_offset", &settings.dash_offset ).unwrap();
+    mesh.upload( &gl, "u_dash_size", &settings.dash_size ).unwrap();
+    mesh.upload( &gl, "u_dash_gap", &settings.dash_gap ).unwrap();
 
     lines.push( line );
   }
 
+  // lines[ 0 ].point_add_back( &[ 0.0, 0.0, 0.0 ] );
+  // lines[ 0 ].point_add_back( &[ 1.0, 0.0, 0.0 ] );
+ 
   let lines = Rc::new( RefCell::new( lines ) );
 
   let object = serde_wasm_bindgen::to_value( &settings ).unwrap();
@@ -251,6 +270,25 @@ fn run() -> Result< (), gl::WebglError >
   lil_gui::on_change_bool( &prop, &callback );
   callback.forget();
 
+  let prop = lil_gui::add_boolean( &gui, &object, "Dashes" );
+  let callback = Closure::new
+  (
+    {
+      let lines = lines.clone();
+      let gl = gl.clone();
+      move | value : bool |
+      {
+        let mut lines = lines.borrow_mut();
+        for i in 0..lines.len()
+        {
+          lines[ i ].use_dashes( value );
+        }
+      }
+    }
+  );
+  lil_gui::on_change_bool( &prop, &callback );
+  callback.forget();
+
   let prop = lil_gui::add_slider( &gui, &object, "Trail length", 2.0, 500.0, 1.0 );
   let callback = Closure::new
   (
@@ -273,6 +311,63 @@ fn run() -> Result< (), gl::WebglError >
       move | value : f32 |
       {
         *simulation_speed.borrow_mut() = value;
+      }
+    }
+  );
+  lil_gui::on_change( &prop, &callback );
+  callback.forget();
+
+  let prop = lil_gui::add_slider( &gui, &object, "Dash offset", 0.0, 1.0, 0.01 );
+  let callback = Closure::new
+  (
+    {
+      let lines = lines.clone();
+      let gl = gl.clone();
+      move | value : f32 |
+      {
+        let mut lines = lines.borrow_mut();
+        for i in 0..lines.len()
+        {
+          lines[ i ].mesh_get_mut().unwrap().upload( &gl, "u_dash_offset", &value ).unwrap();
+        }
+      }
+    }
+  );
+  lil_gui::on_change( &prop, &callback );
+  callback.forget();
+
+  let prop = lil_gui::add_slider( &gui, &object, "Dash size", 0.0, 1.0, 0.01 );
+  let callback = Closure::new
+  (
+    {
+      let lines = lines.clone();
+      let gl = gl.clone();
+      move | value : f32 |
+      {
+        let mut lines = lines.borrow_mut();
+        for i in 0..lines.len()
+        {
+          lines[ i ].mesh_get_mut().unwrap().upload( &gl, "u_dash_size", &value ).unwrap();
+        }
+      }
+    }
+  );
+  lil_gui::on_change( &prop, &callback );
+  callback.forget();
+
+  let prop = lil_gui::add_slider( &gui, &object, "Dash gap", 0.0, 1.0, 0.01 );
+  let callback = Closure::new
+  (
+    {
+      let lines = lines.clone();
+      let gl = gl.clone();
+      move | value : f32 |
+      {
+        let mut lines = lines.borrow_mut();
+        for i in 0..lines.len()
+        {
+          lines[ i ].mesh_get_mut().unwrap().upload( &gl, "u_dash_gap", &value ).unwrap();
+        }
       }
     }
   );

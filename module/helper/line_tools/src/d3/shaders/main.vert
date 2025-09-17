@@ -13,6 +13,11 @@ layout( location = 3 ) in vec3 inPointB;
   layout( location = 5 ) in vec3 colorB;
 #endif
 
+#ifdef USE_DASHES
+  layout( location = 6 ) in float distanceA;
+  layout( location = 7 ) in float distanceB;
+#endif
+
 uniform mat4 u_world_matrix;
 uniform mat4 u_view_matrix;
 uniform mat4 u_projection_matrix;
@@ -24,8 +29,15 @@ out vec2 vUv;
 out vec3 vViewPos;
 out vec3 vViewA;
 out vec3 vViewB;
+
 #ifdef USE_VERTEX_COLORS
   out vec3 vColor;
+#endif
+
+#ifdef USE_DASHES
+  out float vLineDistance;
+  out float vLineDistanceA;
+  out float vLineDistanceB;
 #endif
 
 void trimSegment( const in vec3 start, inout vec3 end )
@@ -81,12 +93,15 @@ void main()
 
     // Protrude vertices to create an illusion of 3d shape in view space
     viewPos += position.x < 0.0 ? up * halfWith : -up * halfWith;
-    viewPos += position.y < 0.5 ? -halfWith * viewAB : halfWith * viewAB;
-    viewPos += right * halfWith;
-    if( position.y < 0.0 || position.y > 1.0 )
-    {
-      viewPos += 2.0 * -right * halfWith;
-    }
+
+    //#ifndef USE_DASHES
+      viewPos += position.y < 0.5 ? -halfWith * viewAB : halfWith * viewAB;
+      viewPos += right * halfWith;
+      if( position.y < 0.0 || position.y > 1.0 )
+      {
+        viewPos += 2.0 * -right * halfWith;
+      }
+    //#endif
     
     clip = u_projection_matrix * vec4( viewPos, 1.0 );
     vec3 ndcShift = position.y < 0.5 ? clipA.xyz / clipA.w : clipB.xyz / clipB.w;
@@ -119,6 +134,12 @@ void main()
     
     clip.xy = clip.w * ( 2.0 * p / u_resolution - 1.0 );
 
+  #endif
+
+  #ifdef USE_DASHES
+    vLineDistance = position.y < 0.5 ? distanceA : distanceB;
+    vLineDistanceA = distanceA;
+    vLineDistanceB = distanceB;
   #endif
 
   vUv =  uv;

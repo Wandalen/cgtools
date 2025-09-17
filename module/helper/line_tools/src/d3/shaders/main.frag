@@ -6,6 +6,10 @@ precision highp float;
 uniform vec3 u_color;
 uniform float u_width;
 
+uniform float u_dash_offset;
+uniform float u_dash_size;
+uniform float u_dash_gap;
+
 in vec2 vUv;
 in vec3 vViewPos;
 in vec3 vViewA;
@@ -14,6 +18,13 @@ in vec3 vViewB;
 #ifdef USE_VERTEX_COLORS
   in vec3 vColor;
 #endif
+
+#ifdef USE_DASHES
+  in float vLineDistance;
+  in float vLineDistanceA;
+  in float vLineDistanceB;
+#endif
+
 
 out vec4 frag_color;
 
@@ -50,25 +61,94 @@ vec2 closestLineToLine( vec3 p1, vec3 p2, vec3 p3, vec3 p4 )
 void main()
 {
   float alpha = 1.0;
-  vec3 col = u_color; 
+  vec3 col = u_color;
+
+  // #ifdef USE_DASHES
+  //   //if( vUv.y < -1.0 || vUv.y > 1.0 ) { discard; }
+  //   float dashCoverage = mod( vLineDistance + u_dash_offset, u_dash_gap + u_dash_size );
+  //   float distanceA = max( vLineDistanceA, vLineDistance - dashCoverage );
+  //   float distanceB = min( vLineDistanceB, vLineDistance - ( dashCoverage - u_dash_size ) );
+
+  //   if( dashCoverage > u_dash_size )
+  //   {
+  //     distanceA += u_dash_gap + u_dash_size;
+  //     distanceB += u_dash_gap + u_dash_size;
+  //   }
+
+  //   vec3 lineStart = mix( vViewA, vViewB, ( distanceA - vLineDistanceA ) / ( vLineDistanceB - vLineDistanceA ) );
+  //   vec3 lineEnd =  mix( vViewA, vViewB, ( distanceB - vLineDistanceA ) / ( vLineDistanceB - vLineDistanceA ) );
+
+  //   //if( mod( vLineDistance + dashOffset, dashGap + dashSize ) > dashSize ) { discard; }
+  // #else
+    vec3 lineStart = vViewA;
+    vec3 lineEnd = vViewB;
+  //#endif
 
   #ifdef USE_WORLD_UNITS
-    vec3 rayEnd = normalize( vViewPos.xyz ) * 1e5;
-    vec3 lineDir = vViewB - vViewA;
 
-    vec2 params = closestLineToLine( vViewA, vViewB, vec3( 0.0, 0.0, 0.0 ), rayEnd );
+    #ifdef USE_DASHES
+      float viewDirection = sign( dot( vViewPos, vViewB - vViewA ) );
+      //if( viewDirection == 0.0 ) 
+      { viewDirection = 1.0; }
+      float dashCoverage = mod( vLineDistance + u_dash_offset, u_dash_gap + u_dash_size );
 
-    vec3 p1 = vViewA + lineDir * params.x;
-    vec3 p2 = rayEnd * params.y;
-    vec3 delta = p1 - p2;
-    float len = length( delta );
-    float norm = len / u_width;
+      float distanceA1 = clamp( vLineDistance - dashCoverage, vLineDistanceA, vLineDistanceB );
+      float distanceB1 = clamp( vLineDistance - ( dashCoverage - u_dash_size ), vLineDistanceA, vLineDistanceB );
+      vec3 lineStart1 = mix( vViewA, vViewB, ( distanceA1 - vLineDistanceA ) / ( vLineDistanceB - vLineDistanceA ) );
+      vec3 lineEnd1 =  mix( vViewA, vViewB, ( distanceB1 - vLineDistanceA ) / ( vLineDistanceB - vLineDistanceA ) );
 
-    #ifdef USE_ALPHA_TO_COVERAGE
-      float dnorm = fwidth( norm );
-      alpha = 1.0 - smoothstep( 0.5 - dnorm, 0.5 + dnorm, norm );
+      float distanceA2 = clamp( distanceA1 + viewDirection * ( u_dash_size + u_dash_gap ), vLineDistanceA, vLineDistanceB );
+      float distanceB2 = clamp(  distanceB1 + viewDirection * ( u_dash_size + u_dash_gap ), vLineDistanceA, vLineDistanceB );
+      vec3 lineStart2 = mix( vViewA, vViewB, ( distanceA2 - vLineDistanceA ) / ( vLineDistanceB - vLineDistanceA ) );
+      vec3 lineEnd2 =  mix( vViewA, vViewB, ( distanceB2 - vLineDistanceA ) / ( vLineDistanceB - vLineDistanceA ) );
+
+      vec3 rayEnd = normalize( vViewPos ) * 1e5;
+      vec3 lineDir1 = lineEnd1 - lineStart1;
+      vec3 lineDir2 = lineEnd2 - lineStart2;
+
+      vec2 params1 = closestLineToLine( lineStart1, lineEnd1, vec3( 0.0, 0.0, 0.0 ), rayEnd );
+      vec2 params2 = closestLineToLine( lineStart2, lineEnd2, vec3( 0.0, 0.0, 0.0 ), rayEnd );
+
+      vec3 p11 = lineStart1 + lineDir1 * params1.x;
+      vec3 p12 = rayEnd * params1.y;
+      vec3 delta1 = p11 - p12;
+      float len1 = length( delta1 );
+      float norm1 = len1 / u_width;
+
+      vec3 p21 = lineStart2 + lineDir2 * params2.x;
+      vec3 p22 = rayEnd * params2.y;
+      vec3 delta2 = p21 - p22;
+      float len2 = length( delta2 );
+      float norm2 = len2 / u_width;
+
+      float norm = min( norm1, norm2 );
+
+
+      #ifdef USE_ALPHA_TO_COVERAGE
+        float dnorm = fwidth( norm );
+        alpha = 1.0 - smoothstep( 0.5 - dnorm, 0.5 + dnorm, norm );
+      #else
+        if ( norm > 0.5 ) { discard; }
+      #endif
     #else
-      if ( norm > 0.5 ) { discard; }
+      vec3 rayEnd = normalize( vViewPos ) * 1e5;
+      vec3 lineDir = lineEnd - lineStart;
+
+      vec2 params = closestLineToLine( lineStart, lineEnd, vec3( 0.0, 0.0, 0.0 ), rayEnd );
+
+      vec3 p1 = lineStart + lineDir * params.x;
+      vec3 p2 = rayEnd * params.y;
+      vec3 delta = p1 - p2;
+      float len = length( delta );
+      float norm = len / u_width;
+
+
+      #ifdef USE_ALPHA_TO_COVERAGE
+        float dnorm = fwidth( norm );
+        alpha = 1.0 - smoothstep( 0.5 - dnorm, 0.5 + dnorm, norm );
+      #else
+        if ( norm > 0.5 ) { discard; }
+      #endif
     #endif
   #else // Screen space units
     #ifdef USE_ALPHA_TO_COVERAGE
@@ -96,6 +176,8 @@ void main()
   #ifdef USE_VERTEX_COLORS
     col = vColor;
   #endif
+
+  col = vec3( 0.0 );
 
   frag_color = vec4( col, alpha );
 }
