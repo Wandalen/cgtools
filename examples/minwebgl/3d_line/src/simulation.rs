@@ -35,7 +35,7 @@ impl Simulation
 
       let body = Body
       {
-        position : pos.normalize(),
+        position : pos / 5.0,
         velocity : velocity.normalize(),
         mass : fastrand::f32() * 1.0 + 1.0,
         force : gl::F32x3::default()
@@ -73,7 +73,7 @@ impl Simulation
         }
         else 
         {
-          force += 10.0 * dir * other_body.mass * body.mass / ( dist * dist );
+          force += 15.0 * dir * other_body.mass * body.mass / ( dist * dist );
         }
       }
 
@@ -92,11 +92,11 @@ impl Simulation
       let body = &mut self.bodies[ i ];
 
       let acc = body.force / body.mass;
-      body.velocity += acc * delta_time * 10.0;
+      body.velocity += acc * delta_time * 15.0;
       
       if body.velocity.mag() > 1.0 { body.velocity = body.velocity.normalize(); }
 
-      body.position += body.velocity  * delta_time * 10.0;
+      body.position += body.velocity  * delta_time * 15.0;
     }
   }  
 }

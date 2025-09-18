@@ -25,4 +25,5 @@ features = [
   'MouseEvent',
   'PointerEvent',
   'WheelEvent',
+  'WebGlContextAttributes'
 ]
