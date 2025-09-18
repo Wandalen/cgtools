@@ -1,6 +1,5 @@
 mod private
 {
-  use std::collections::HashMap;
   use minwebgl::{self as gl, Vector };
   use gl::math::mat::{ DescriptorOrderColumnMajor, DescriptorOrderRowMajor, Mat2, Mat3, Mat4 };
   use rustc_hash::{ FxHashMap };
