@@ -36,8 +36,8 @@ out vec3 vViewB;
 
 #ifdef USE_DASHES
   out float vLineDistance;
-  out float vLineDistanceA;
-  out float vLineDistanceB;
+  flat out float vLineDistanceA;
+  flat out float vLineDistanceB;
 #endif
 
 void trimSegment( const in vec3 start, inout vec3 end )

@@ -319,7 +319,7 @@ fn run() -> Result< (), gl::WebglError >
   lil_gui::on_change( &prop, &callback );
   callback.forget();
 
-  let prop = lil_gui::add_slider( &gui, &object, "Dash offset", 0.0, 1.0, 0.01 );
+  let prop = lil_gui::add_slider( &gui, &object, "Dash offset", 0.0, 1.0, 0.0001 );
   let callback = Closure::new
   (
     {

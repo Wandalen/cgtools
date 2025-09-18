@@ -23,8 +23,8 @@ in vec3 vViewB;
 
 #ifdef USE_DASHES
   in float vLineDistance;
-  in float vLineDistanceA;
-  in float vLineDistanceB;
+  flat in float vLineDistanceA;
+  flat in float vLineDistanceB;
 #endif
 
 
@@ -65,10 +65,13 @@ vec2 closestLineToLine( vec3 p1, vec3 p2, vec3 p3, vec3 p4 )
   {
     float dashCoverage = mod( vLineDistance + u_dash_offset, u_dash_gap + u_dash_size );
 
-    float distanceA = vLineDistance - dashCoverage + i * ( u_dash_size + u_dash_gap );
-    float distanceB = vLineDistance - ( dashCoverage - u_dash_size ) + i * ( u_dash_size + u_dash_gap );
+    float distanceA = vLineDistance - dashCoverage;
+    float distanceB = distanceA + u_dash_size;
 
-    if( distanceB <= vLineDistanceA || distanceA >= vLineDistanceB ) { return MAX_FLOAT; }
+    distanceA += i * ( u_dash_size + u_dash_gap );
+    distanceB += i * ( u_dash_size + u_dash_gap );
+
+    if( distanceB <= vLineDistanceA + 1e-6 || distanceA >= vLineDistanceB - 1e-6 ) { return MAX_FLOAT; }
 
     vec3 lineStart = mix( vViewA, vViewB, clamp( ( distanceA - vLineDistanceA ) / ( vLineDistanceB - vLineDistanceA ), 0.0, 1.0 ) );
     vec3 lineEnd = mix( vViewA, vViewB, clamp( ( distanceB - vLineDistanceA ) / ( vLineDistanceB - vLineDistanceA ), 0.0, 1.0 ) );
@@ -90,29 +93,7 @@ void main()
   float alpha = 1.0;
   vec3 col = u_color;
 
-  // #ifdef USE_DASHES
-  //   //if( vUv.y < -1.0 || vUv.y > 1.0 ) { discard; }
-  //   float dashCoverage = mod( vLineDistance + u_dash_offset, u_dash_gap + u_dash_size );
-  //   float distanceA = max( vLineDistanceA, vLineDistance - dashCoverage );
-  //   float distanceB = min( vLineDistanceB, vLineDistance - ( dashCoverage - u_dash_size ) );
-
-  //   if( dashCoverage > u_dash_size )
-  //   {
-  //     distanceA += u_dash_gap + u_dash_size;
-  //     distanceB += u_dash_gap + u_dash_size;
-  //   }
-
-  //   vec3 lineStart = mix( vViewA, vViewB, ( distanceA - vLineDistanceA ) / ( vLineDistanceB - vLineDistanceA ) );
-  //   vec3 lineEnd =  mix( vViewA, vViewB, ( distanceB - vLineDistanceA ) / ( vLineDistanceB - vLineDistanceA ) );
-
-  //   //if( mod( vLineDistance + dashOffset, dashGap + dashSize ) > dashSize ) { discard; }
-  // #else
-    vec3 lineStart = vViewA;
-    vec3 lineEnd = vViewB;
-  //#endif
-
   #ifdef USE_WORLD_UNITS
-
     #ifdef USE_DASHES
       vec3 rayEnd = normalize( vViewPos ) * 1e5;
       
@@ -121,6 +102,7 @@ void main()
       float norm3 = getDistanceToDash( rayEnd, 1.0 );
 
       float norm = min( min( norm1, norm2 ), norm3 );
+      //float norm = norm2;
       if( norm == MAX_FLOAT ) { discard; }
 
 
@@ -132,11 +114,11 @@ void main()
       #endif
     #else
       vec3 rayEnd = normalize( vViewPos ) * 1e5;
-      vec3 lineDir = lineEnd - lineStart;
+      vec3 lineDir = vViewB - vViewA;
 
-      vec2 params = closestLineToLine( lineStart, lineEnd, vec3( 0.0, 0.0, 0.0 ), rayEnd );
+      vec2 params = closestLineToLine( vViewA, vViewB, vec3( 0.0, 0.0, 0.0 ), rayEnd );
 
-      vec3 p1 = lineStart + lineDir * params.x;
+      vec3 p1 = vViewA + lineDir * params.x;
       vec3 p2 = rayEnd * params.y;
       vec3 delta = p1 - p2;
       float len = length( delta );
