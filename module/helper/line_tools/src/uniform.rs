@@ -3,6 +3,7 @@ mod private
   use std::collections::HashMap;
   use minwebgl::{self as gl, Vector };
   use gl::math::mat::{ DescriptorOrderColumnMajor, DescriptorOrderRowMajor, Mat2, Mat3, Mat4 };
+  use rustc_hash::{ FxHashMap };
 
   macro_rules! impl_from_for_uniform 
   {
@@ -133,9 +134,9 @@ mod private
   pub struct UniformStorage
   {
     /// Name - Value map of the uniforms
-    uniforms : HashMap< Box< str >, Uniform >,
+    uniforms : FxHashMap< Box< str >, Uniform >,
     /// Name - Location map of the uniforms
-    locations : HashMap< Box< str >, gl::WebGlUniformLocation >
+    locations : FxHashMap< Box< str >, gl::WebGlUniformLocation >
   }
 
   impl UniformStorage 
@@ -213,8 +214,8 @@ mod private
   fn upload_with_cache
   (
     gl : &gl::WebGl2RenderingContext,
-    uniforms : &HashMap< Box< str >, Uniform >,
-    cache : &mut HashMap< Box< str >, gl::WebGlUniformLocation >,
+    uniforms : &FxHashMap< Box< str >, Uniform >,
+    cache : &mut FxHashMap< Box< str >, gl::WebGlUniformLocation >,
     program : &gl::WebGlProgram, 
     name : &str
   ) -> Result< (), gl::WebglError >
@@ -241,7 +242,7 @@ mod private
   fn upload_without_cache
   (
     gl : &gl::WebGl2RenderingContext,
-    uniforms : &HashMap< Box< str >, Uniform >,
+    uniforms : &FxHashMap< Box< str >, Uniform >,
     program : &gl::WebGlProgram, 
     name : &str
   ) -> Result< (), gl::WebglError >
