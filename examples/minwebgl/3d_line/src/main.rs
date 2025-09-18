@@ -105,9 +105,9 @@ fn run() -> Result< (), gl::WebglError >
   {
     world_width : world_width,
     screen_width : screen_width,
-    alpha_to_coverage : false,
-    world_units : false,
-    dashes : false,
+    alpha_to_coverage : true,
+    world_units : true,
+    dashes : true,
     trail_length : 300.0,
     simulation_speed : 0.003,
     dash_offset : 0.0,
@@ -150,8 +150,10 @@ fn run() -> Result< (), gl::WebglError >
     lines.push( line );
   }
 
-  // lines[ 0 ].point_add_back( &[ 0.0, 0.0, 0.0 ] );
-  // lines[ 0 ].point_add_back( &[ 1.0, 0.0, 0.0 ] );
+  lines[ 0 ].point_add_back( &[ 0.0, 0.0, 0.0 ] );
+  lines[ 0 ].point_add_back( &[ 1.0, 0.0, 0.0 ] );
+  lines[ 0 ].point_add_back( &[ 1.0, 1.0, 0.0 ] );
+  lines[ 0 ].point_add_back( &[ 1.0, 1.0, 1.0 ] );
  
   let lines = Rc::new( RefCell::new( lines ) );
 
@@ -396,25 +398,25 @@ fn run() -> Result< (), gl::WebglError >
 
       gl.clear( gl::DEPTH_BUFFER_BIT | gl::COLOR_BUFFER_BIT );
 
-      simulation.simulate( *simulation_speed.borrow() );
+      // simulation.simulate( *simulation_speed.borrow() );
       
-      for i in 0..num_bodies
-      {
-        let pos = simulation.bodies[ i ].position;
-        let color = base_colors[ i ] * ( pos.mag() * 4.0 ).powf( 2.0 ).min( 1.0 );
-        lines.borrow_mut()[ i ].point_add_back( &pos );
-        lines.borrow_mut()[ i ].color_add_back( color );
+      // for i in 0..num_bodies
+      // {
+      //   let pos = simulation.bodies[ i ].position;
+      //   let color = base_colors[ i ] * ( pos.mag() * 4.0 ).powf( 2.0 ).min( 1.0 );
+      //   lines.borrow_mut()[ i ].point_add_back( &pos );
+      //   lines.borrow_mut()[ i ].color_add_back( color );
 
-        let num_points = lines.borrow()[ i ].num_points();
+      //   let num_points = lines.borrow()[ i ].num_points();
 
-        let max_point = *trail_length.borrow() as usize;
+      //   let max_point = *trail_length.borrow() as usize;
 
-        if num_points > max_point
-        {
-          lines.borrow_mut()[ i ].points_remove_front( num_points - max_point );
-          lines.borrow_mut()[ i ].colors_remove_front( num_points - max_point );
-        }
-      }
+      //   if num_points > max_point
+      //   {
+      //     lines.borrow_mut()[ i ].points_remove_front( num_points - max_point );
+      //     lines.borrow_mut()[ i ].colors_remove_front( num_points - max_point );
+      //   }
+      // }
       
 
       for i in 0..num_bodies
