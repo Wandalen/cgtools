@@ -1,10 +1,13 @@
-//! Tools for managing [`AnimatableValue`] playback in every time moment
+//! Tools for managing [`AnimatablePlayer`] playback in every time moment
 
 mod private
 {
   use std::collections::HashMap;
   use error_tools::*;
-  use crate::AnimationState;
+  use crate::
+  {
+    AnimatablePlayer, AnimationState
+  };
   #[ allow( unused_imports ) ]
   use crate::Tween;
 
@@ -12,12 +15,33 @@ mod private
   #[ derive( Debug ) ]
   pub struct Sequencer
   {
-    /// Map of animation names to their tween data
-    tweens : HashMap< Box< str >, Box< dyn AnimatableValue > >,
+    /// Map of animation names to their animation behavior data
+    players : HashMap< Box< str >, Box< dyn AnimatablePlayer > >,
     /// Current Sequencer time
     time : f64,
     /// Sequencer state
     state : AnimationState,
+  }
+
+  impl Clone for Sequencer
+  {
+    fn clone( &self ) -> Self
+    {
+      Self
+      {
+        players : self.players.iter()
+        .map
+        (
+          | ( k, v ) |
+          {
+            ( k.clone(), clone_dyn_types::clone_into_box( v.as_ref() ) )
+          }
+        )
+        .collect::< HashMap< _, _ > >(),
+        time : self.time.clone(),
+        state : self.state.clone()
+      }
+    }
   }
 
   impl Sequencer
@@ -27,25 +51,34 @@ mod private
     {
       Self
       {
-        tweens : HashMap::new(),
+        players : HashMap::new(),
         time : 0.0,
         state : AnimationState::Pending,
       }
     }
 
-    /// Returns list of contained [`AnimatableValue`]'s names
+    /// Gets the current value of a named animation.
+    pub fn get_value< T >( &self, name : &str ) -> Option< &T >
+    where T : AnimatablePlayer + 'static
+    {
+      let player_box = self.players.get( name )?;
+      let any_ref = player_box.as_any();
+      any_ref.downcast_ref::< T >()
+    }
+
+    /// Returns list of contained [`AnimatablePlayer`]'s names
     pub fn keys( &self ) -> Vec< Box< str > >
     {
-      self.tweens.keys().cloned()
+      self.players.keys().cloned()
       .collect::< Vec< _ > >()
     }
 
-    /// Adds a [`AnimatableValue`] to the Sequencer.
+    /// Adds a [`AnimatablePlayer`] to the Sequencer.
     pub fn add< T >( &mut self, name : &str, tween : T )
-    where T : AnimatableValue + 'static
+    where T : AnimatablePlayer + 'static
     {
-      self.tweens.insert( name.to_string().into(), Box::new( tween ) );
-      if self.state == AnimationState::Pending && !self.tweens.is_empty()
+      self.players.insert( name.to_string().into(), Box::new( tween ) );
+      if self.state == AnimationState::Pending && !self.players.is_empty()
       {
         self.state = AnimationState::Running;
       }
@@ -62,7 +95,7 @@ mod private
       self.time += delta_time;
       let mut all_completed = true;
 
-      for tween in self.tweens.values_mut()
+      for tween in self.players.values_mut()
       {
         tween.update( delta_time );
         if !tween.is_completed()
@@ -71,17 +104,17 @@ mod private
         }
       }
 
-      if all_completed && !self.tweens.is_empty()
+      if all_completed && !self.players.is_empty()
       {
         self.state = AnimationState::Completed;
       }
     }
 
     /// Gets the current value of a named animation.
-    pub fn get_value< T >( &self, name : &str ) -> Option< &T >
-    where T : AnimatableValue + 'static
+    pub fn get< T >( &self, name : &str ) -> Option< &T >
+    where T : AnimatablePlayer + 'static
     {
-      let tween_box = self.tweens.get( name )?;
+      let tween_box = self.players.get( name )?;
       let any_ref = tween_box.as_any();
       any_ref.downcast_ref::< T >()
     }
@@ -96,7 +129,7 @@ mod private
     pub fn pause( &mut self )
     {
       self.state = AnimationState::Paused;
-      for tween in self.tweens.values_mut()
+      for tween in self.players.values_mut()
       {
         tween.pause();
       }
@@ -106,7 +139,7 @@ mod private
     pub fn resume( &mut self )
     {
       self.state = AnimationState::Running;
-      for tween in self.tweens.values_mut()
+      for tween in self.players.values_mut()
       {
         tween.resume();
       }
@@ -116,7 +149,7 @@ mod private
     pub fn reset( &mut self )
     {
       self.time = 0.0;
-      self.state = if self.tweens.is_empty()
+      self.state = if self.players.is_empty()
       {
         AnimationState::Pending
       }
@@ -124,7 +157,7 @@ mod private
       {
         AnimationState::Running
       };
-      for tween in self.tweens.values_mut()
+      for tween in self.players.values_mut()
       {
         tween.reset();
       }
@@ -133,7 +166,7 @@ mod private
     /// Removes an animation from the Sequencer.
     pub fn remove( &mut self, name : &str ) -> bool
     {
-      self.tweens.remove( name ).is_some()
+      self.players.remove( name ).is_some()
     }
 
     /// Gets the current  Sequencer time.
@@ -151,7 +184,7 @@ mod private
     /// Gets the number of active animations.
     pub fn animation_count( &self ) -> usize
     {
-      self.tweens.len()
+      self.players.len()
     }
   }
 
@@ -163,30 +196,7 @@ mod private
     }
   }
 
-  /// Trait for type-erased animatable values in Sequencer.
-  pub trait AnimatableValue : core::fmt::Debug
-  {
-    /// Updates the animation state based on time.
-    fn update( &mut self, delta_time : f64 );
-    /// Returns true if the animation has completed.
-    fn is_completed( &self ) -> bool;
-    /// Pauses the animation.
-    fn pause( &mut self );
-    /// Resumes the animation.
-    fn resume( &mut self );
-    /// Resets the animation to its initial state.
-    fn reset( &mut self );
-    /// Returns a type-erased reference to the underlying value.
-    fn as_any( &self ) -> &dyn core::any::Any;
-    /// Returns animation duration
-    fn get_duration( &self ) -> f64;
-    /// Returns animation delay
-    fn get_delay( &self ) -> f64;
-    /// Gets the progress of the animated value ( 0.0 to 1.0 ).
-    fn progress( &self ) -> f64;
-  }
-
-    /// Error for handling wrong [`Sequence`] input data
+  /// Error for handling wrong [`Sequence`] input data
   #[ derive( Debug, error::typed::Error ) ]
   pub enum SequenceError
   {
@@ -198,13 +208,13 @@ mod private
     NotEnough
   }
 
-  /// Sequence of [`AnimatableValue`]s of one type
-  #[ derive( Debug ) ]
+  /// Sequence of [`AnimatablePlayer`]s of one type
+  #[ derive( Debug, Clone ) ]
   pub struct Sequence< T >
   {
-    /// Sequence of [`AnimatableValue`]s of one type
+    /// Sequence of [`AnimatablePlayer`]s of one type
     tweens : Vec< T >,
-    /// Current [`AnimatableValue`] index
+    /// Current [`AnimatablePlayer`] index
     current : usize,
     /// Animation duration in seconds
     duration : f64,
@@ -217,7 +227,7 @@ mod private
   }
 
   impl< T > Sequence< T >
-  where T : AnimatableValue + 'static
+  where T : AnimatablePlayer + 'static
   {
     /// [`Sequence`] constructor
     pub fn new( mut tweens : Vec< T > ) -> Result< Self, SequenceError >
@@ -267,8 +277,8 @@ mod private
     }
   }
 
-  impl< T > AnimatableValue for Sequence< T >
-  where T : AnimatableValue + 'static
+  impl< T > AnimatablePlayer for Sequence< T >
+  where T : AnimatablePlayer + Clone + 'static
   {
     fn update( &mut self, delta_time : f64 )
     {
@@ -380,11 +390,6 @@ mod private
       .for_each( | t | t.reset() );
     }
 
-    fn as_any( &self ) -> &dyn core::any::Any
-    {
-      self
-    }
-
     fn get_duration( &self ) -> f64
     {
       self.duration
@@ -405,6 +410,16 @@ mod private
       {
         ( ( self.elapsed - self.delay ) / self.duration ).clamp( 0.0, 1.0 )
       }
+    }
+
+    fn as_any( &self ) -> &dyn core::any::Any
+    {
+      self
+    }
+
+    fn as_any_mut( &mut self ) -> &mut dyn core::any::Any
+    {
+      self
     }
   }
 
@@ -439,7 +454,7 @@ mod private
       assert_eq!( sequencer.state(), AnimationState::Running );
 
       let value = sequencer.get_value::< Tween< f32 > >( "test" ).unwrap();
-      assert_eq!( value.get_current_value(), 5.0 );
+      assert_eq!( value.get_value(), 5.0 );
 
       sequencer.update( 0.5 );
       assert_eq!( sequencer.time(), 1.0 );
@@ -482,14 +497,14 @@ mod private
       );
 
       sequencer.update( 0.5 );
-      assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().get_current_value(), 5.0 );
+      assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().get_value(), 5.0 );
 
       sequencer.pause();
       assert_eq!( sequencer.state(), AnimationState::Paused );
 
       sequencer.update( 0.5 );
       let value = sequencer.get_value::< Tween< f32 > >( "test" ).unwrap();
-      assert_eq!( value.get_current_value(), 5.0 );
+      assert_eq!( value.get_value(), 5.0 );
 
       sequencer.resume();
       assert_eq!( sequencer.state(), AnimationState::Running );
@@ -497,7 +512,7 @@ mod private
       sequencer.update( 0.5 );
       assert!( sequencer.is_completed() );
       let value = sequencer.get_value::< Tween< f32 > >( "test" ).unwrap();
-      assert_eq!( value.get_current_value(), 10.0 );
+      assert_eq!( value.get_value(), 10.0 );
     }
 
     #[ test ]
@@ -512,17 +527,17 @@ mod private
 
       sequencer.update( 0.5 );
       assert_eq!( sequencer.time(), 0.5 );
-      assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().get_current_value(), 5.0 );
+      assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().get_value(), 5.0 );
 
       sequencer.reset();
 
       assert_eq!( sequencer.time(), 0.0 );
       assert_eq!( sequencer.state(), AnimationState::Running );
-      assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().get_current_value(), 0.0 );
+      assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().get_value(), 0.0 );
 
       sequencer.update( 1.0 );
       assert!( sequencer.is_completed() );
-      assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().get_current_value(), 10.0 );
+      assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().get_value(), 10.0 );
     }
 
     #[ test ]
@@ -581,12 +596,12 @@ mod private
       sequencer.update( 0.5 );
 
       let value = sequencer.get_value::< Tween< f32 > >( "ease_in_tween" ).unwrap();
-      assert_eq!( value.get_current_value(), 1.25 );
+      assert_eq!( value.get_value(), 1.25 );
 
       sequencer.update( 0.5 );
       assert!( sequencer.is_completed() );
       let value = sequencer.get_value::< Tween< f32 > >( "ease_in_tween" ).unwrap();
-      assert_eq!( value.get_current_value(), 10.0 );
+      assert_eq!( value.get_value(), 10.0 );
     }
   }
 }
@@ -595,7 +610,6 @@ crate::mod_interface!
 {
   orphan use
   {
-    AnimatableValue,
     Sequencer,
     Sequence,
     SequenceError

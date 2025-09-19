@@ -4,7 +4,7 @@ mod private
   use mingl::{ MatEl, Vector, Mul, NdFloat };
 
   /// Hermite spline implementation for interpolation
-  #[ derive( Debug ) ]
+  #[ derive( Debug, Clone ) ]
   pub struct CubicHermite< E, const N : usize >
   where E : MatEl + std::default::Default + std::marker::Copy
   {

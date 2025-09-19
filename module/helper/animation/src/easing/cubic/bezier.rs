@@ -15,7 +15,7 @@ use crate::{impl_easing_function, Animatable};
   /// Represents a cubic Bezier curve easing function.
   ///
   /// The curve is defined by two control points: `in_tangent` and `out_tangent`.
-  #[ derive( Debug ) ]
+  #[ derive( Debug, Clone ) ]
   pub struct CubicBezier< A >
   where A : Animatable
   {
