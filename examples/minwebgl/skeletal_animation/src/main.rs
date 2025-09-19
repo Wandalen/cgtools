@@ -119,12 +119,18 @@ async fn run() -> Result< (), gl::WebglError >
         let delta_time = time - *last_time.borrow();
         *last_time.borrow_mut() = time;
 
-        if current_animation.borrow().sequencer.borrow().is_completed()
+        if current_animation.borrow().animation.borrow().as_any()
+        .downcast_ref::< Sequencer >().unwrap().is_completed()
         {
-          current_animation.borrow().sequencer.borrow_mut().reset();
+          current_animation.borrow().animation
+          .borrow_mut()
+          .as_any_mut()
+          .downcast_mut::< Sequencer >()
+          .unwrap()
+          .reset();
         }
 
-        current_animation.borrow().update( delta_time );
+        current_animation.borrow_mut().update( delta_time );
         current_animation.borrow().set();
       }
 
