@@ -25,7 +25,11 @@ mod private
     }
   };
 
+  /// Precision for finding equal floats
+  const EPSILON : f64 = 0.001;
+
   /// Weighted animation blending implementation
+  #[ derive( Clone ) ]
   pub struct Blender
   {
     /// Set of animations that must be blended using weights
@@ -100,6 +104,47 @@ mod private
     {
       self.weighted_animations.remove( &name );
     }
+
+    /// Check if blended animation is completed ( checks if all animations are completed )
+    /// Better use before update
+    pub fn is_completed( &self ) -> bool
+    {
+      let mut animations = self.weighted_animations.values()
+      .map( | ( s, _ ) | s ).collect::< Vec< _ > >();
+
+      animations.sort_by
+      (
+        | a, b |
+        a.time().partial_cmp( &b.time() ).unwrap()
+      );
+      animations.reverse();
+
+      let mut i = 1;
+      while i < animations.len()
+      {
+        if ( animations[ i - 1 ].time() - animations[ i ].time() ).abs() > EPSILON
+        {
+          break;
+        }
+        i += 1;
+      }
+
+      if i == 1
+      {
+        animations[ 0 ].is_completed()
+      }
+      else
+      {
+        false
+      }
+    }
+
+    /// Reset all blended animations
+    pub fn reset( &mut self )
+    {
+      self.weighted_animations.values_mut()
+      .for_each( | ( a, _ ) | a.reset() );
+    }
   }
 
   impl AnimatableComposition for Blender
@@ -109,6 +154,10 @@ mod private
       for ( _, ( animation, _ ) ) in self.weighted_animations.iter_mut()
       {
         animation.update( delta_time );
+        if animation.is_completed()
+        {
+          animation.reset();
+        }
       }
     }
 
