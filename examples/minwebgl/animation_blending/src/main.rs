@@ -15,7 +15,6 @@
 #![ allow( clippy::no_effect_underscore_binding ) ]
 
 use std::{ cell::RefCell, rc::Rc };
-use animation::Sequencer;
 use mingl::F32x3;
 use minwebgl as gl;
 use renderer::webgl::
@@ -49,7 +48,7 @@ async fn run() -> Result< (), gl::WebglError >
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
 
-  let gltf_path = "gltf/bug_bunny.glb";
+  let gltf_path = "gltf/multi_animation.glb";
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
   let scenes = gltf.scenes;
   scenes[ 0 ].borrow_mut().update_world_matrix();
@@ -92,20 +91,12 @@ async fn run() -> Result< (), gl::WebglError >
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
-  for node in &scenes[ 0 ].borrow().children
-  {
-    let mut scale = node.borrow().get_scale();
-    scale.0[ 0 ] *= -1.0;
-    node.borrow_mut().set_scale( scale );
-  }
-
+  camera.get_controls().borrow_mut().up = F32x3::from_array( [ 0.0, -1.0, 0.0 ] );
   camera.get_controls().borrow_mut().eye = F32x3::from_array( [-5.341171e-6, -0.015823878, 0.007656166] );
 
   let last_time = Rc::new( RefCell::new( 0.0 ) );
 
-  let current_animation = Rc::new( RefCell::new( gltf.animations[ 0 ].clone() ) );
-
-  gui_setup::setup( gltf.animations.clone(), current_animation.clone() );
+  let blender = gui_setup::setup( gltf.animations.clone() );
 
   // Define the update and draw logic
   let update_and_draw =
@@ -114,25 +105,15 @@ async fn run() -> Result< (), gl::WebglError >
     {
       let time = t / 1000.0;
 
+      if let Some( blender ) = blender.borrow_mut().as_mut()
       {
         let last_time = last_time.clone();
 
         let delta_time = time - *last_time.borrow();
         *last_time.borrow_mut() = time;
 
-        if current_animation.borrow().animation.borrow().as_any()
-        .downcast_ref::< Sequencer >().unwrap().is_completed()
-        {
-          current_animation.borrow().animation
-          .borrow_mut()
-          .as_any_mut()
-          .downcast_mut::< Sequencer >()
-          .unwrap()
-          .reset();
-        }
-
-        current_animation.borrow_mut().update( delta_time );
-        current_animation.borrow().set();
+        blender.update( delta_time );
+        blender.set();
       }
 
       renderer.borrow_mut().render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
