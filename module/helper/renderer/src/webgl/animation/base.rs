@@ -25,7 +25,7 @@ mod private
 
   /// Gives opportunity to change [`Node`]'s transforms in any way
   /// Interface used in [`Animation`] for using complex animation behaviours.
-  pub trait AnimatableComposition
+  pub trait AnimatableComposition : clone_dyn_types::CloneDyn
   {
     /// Updates all underlying [`animation::AnimatablePlayer`]'s
     fn update( &mut self, delta_time : f64 );
@@ -112,31 +112,74 @@ mod private
     pub scale : F64x3,
   }
 
-  /// Contains data for animating [`Mesh`]
-  #[ derive( Clone ) ]
+  /// Contains data for animating [`crate::webgl::Mesh`]
   pub struct Animation
   {
     /// Animation name
     pub name : Option< Box< str > >,
     /// Animation behavior
-    pub animation : Rc< RefCell< Box< dyn AnimatableComposition > > >,
+    pub animation : Box< dyn AnimatableComposition >,
     /// Related animated [`Node`]'s
     pub nodes : HashMap< Box< str >, Rc< RefCell< Node > > >
   }
 
+  impl Clone for Animation
+  {
+    fn clone( &self ) -> Self
+    {
+      Self
+      {
+        name : self.name.clone(),
+        animation : clone_dyn_types::clone_into_box( &*self.animation ),
+        nodes : self.nodes.clone()
+      }
+    }
+  }
+
   impl Animation
   {
+    /// New [`Animation`] instance
+    pub fn new
+    (
+      name : Option< Box< str > >,
+      animation : Box< dyn AnimatableComposition >,
+      nodes : HashMap< Box< str >, Rc< RefCell< Node > > >
+    )
+    -> Self
+    {
+      Self
+      {
+        name,
+        animation,
+        nodes
+      }
+    }
+
     /// Updates underlying [`AnimatableComposition`] for current [`Animation`]
     pub fn update( &mut self, delta_time : f64 )
     {
-      self.animation.borrow_mut().update( delta_time.into() );
+      self.animation.update( delta_time.into() );
     }
 
     /// Sets all simple 3D transformations for every
     /// [`Node`] related to this [`Animation`]
     pub fn set( &self )
     {
-      self.animation.borrow().set( &self.nodes );
+      self.animation.set( &self.nodes );
+    }
+
+    /// Get reference to inner [`AnimatableComposition`]
+    pub fn get_inner< T >( &self ) -> Option< &T >
+    where T : 'static
+    {
+      self.animation.as_any().downcast_ref::< T >()
+    }
+
+    /// Get mutable reference to inner [`AnimatableComposition`]
+    pub fn get_inner_mut< T >( &mut self ) -> Option< &mut T >
+    where T : 'static
+    {
+      self.animation.as_any_mut().downcast_mut::< T >()
     }
   }
 }

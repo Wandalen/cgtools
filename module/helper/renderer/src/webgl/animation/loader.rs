@@ -334,12 +334,12 @@ mod private
         };
       }
 
-      let animation = Animation
-      {
-        name : animation.name().map( | s | s.to_string().into_boxed_str() ),
-        animation : Rc::new( RefCell::new( Box::new( sequencer ) ) ),
-        nodes : animated_nodes
-      };
+      let animation = Animation::new
+      (
+        animation.name().map( | s | s.to_string().into_boxed_str() ),
+        Box::new( sequencer ),
+        animated_nodes
+      );
 
       animations.push( animation );
     }

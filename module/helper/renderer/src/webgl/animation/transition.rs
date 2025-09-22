@@ -28,6 +28,7 @@ mod private
 
   /// Makes smooth transition between start and and [`Sequencer`]
   /// that can be configured by tween
+  #[ derive( Clone ) ]
   struct Transition
   {
     /// Animation from which transition takes place

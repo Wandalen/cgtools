@@ -38,10 +38,10 @@ enabled = [
   "dep:uuid",
   "dep:web-sys",
 ]
-default = ["enabled"]
-full = ["enabled", "webgl", "animation"]
+default = [ "enabled" ]
+full = [ "enabled", "webgl", "animation" ]
 webgl = []
-animation = [ "dep:animation" ]
+animation = [ "dep:animation", "dep:clone_dyn_types" ]
 
 [dependencies]
 
@@ -51,6 +51,7 @@ mingl = { workspace = true, features = [ "camera_orbit_controls" ], optional = t
 gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ], optional = true }
 animation = { workspace = true, optional = true }
 zune-hdr = { workspace = true }
+clone_dyn_types = { workspace = true, optional = true }
 
 asbytes = { workspace = true, optional = true }
 former = { workspace = true, optional = true }

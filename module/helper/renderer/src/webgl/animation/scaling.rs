@@ -26,6 +26,7 @@ mod private
   };
 
   /// Animation modifier that can scale animation for different groups of related [`Node`]'s
+  #[ derive( Clone ) ]
   pub struct Scaler
   {
     /// Animation that must be scaled
