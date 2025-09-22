@@ -74,10 +74,10 @@ mod private
     }
 
     /// Adds a [`AnimatablePlayer`] to the Sequencer.
-    pub fn add< T >( &mut self, name : &str, tween : T )
+    pub fn add< T >( &mut self, name : &str, player : T )
     where T : AnimatablePlayer + 'static
     {
-      self.players.insert( name.to_string().into(), Box::new( tween ) );
+      self.players.insert( name.to_string().into(), Box::new( player ) );
       if self.state == AnimationState::Pending && !self.players.is_empty()
       {
         self.state = AnimationState::Running;
@@ -95,10 +95,10 @@ mod private
       self.time += delta_time;
       let mut all_completed = true;
 
-      for tween in self.players.values_mut()
+      for player in self.players.values_mut()
       {
-        tween.update( delta_time );
-        if !tween.is_completed()
+        player.update( delta_time );
+        if !player.is_completed()
         {
           all_completed = false;
         }
@@ -114,8 +114,8 @@ mod private
     pub fn get< T >( &self, name : &str ) -> Option< &T >
     where T : AnimatablePlayer + 'static
     {
-      let tween_box = self.players.get( name )?;
-      let any_ref = tween_box.as_any();
+      let player_box = self.players.get( name )?;
+      let any_ref = player_box.as_any();
       any_ref.downcast_ref::< T >()
     }
 
@@ -129,9 +129,9 @@ mod private
     pub fn pause( &mut self )
     {
       self.state = AnimationState::Paused;
-      for tween in self.players.values_mut()
+      for player in self.players.values_mut()
       {
-        tween.pause();
+        player.pause();
       }
     }
 
@@ -139,9 +139,9 @@ mod private
     pub fn resume( &mut self )
     {
       self.state = AnimationState::Running;
-      for tween in self.players.values_mut()
+      for player in self.players.values_mut()
       {
-        tween.resume();
+        player.resume();
       }
     }
 
@@ -157,9 +157,9 @@ mod private
       {
         AnimationState::Running
       };
-      for tween in self.players.values_mut()
+      for player in self.players.values_mut()
       {
-        tween.reset();
+        player.reset();
       }
     }
 
