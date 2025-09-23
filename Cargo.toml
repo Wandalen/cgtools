@@ -397,3 +397,7 @@ features = [ "js" ]
 
 [workspace.dependencies.wfc_image]
 version = "0.12"
+
+[workspace.dependencies.base64]
+version = "0.22.1"
+

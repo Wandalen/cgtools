@@ -23,7 +23,10 @@ use std::
 use gl::wasm_bindgen::prelude::*;
 use serde::{ Deserialize, Serialize };
 
+use crate::simulation::Simulation;
+
 mod lil_gui;
+mod simulation;
 
 #[ derive( Default, Serialize, Deserialize ) ]
 struct Settings
@@ -42,15 +45,13 @@ fn run() -> Result< (), gl::WebglError >
   #[ allow( clippy::cast_precision_loss ) ]
   let height = canvas.height() as f32;
 
-  let main_frag = include_str!( "../shaders/main.frag" );
-
   let background_frag = include_str!( "../shaders/background.frag" );
   let background_vert = include_str!( "../shaders/background.vert" );
 
   let background_program = gl::ProgramFromSources::new( background_vert, background_frag ).compile_and_link( &gl )?;
 
   // Camera setup
-  let eye = gl::math::F32x3::from( [ 0.0, 2.0, 2.0 ] );
+  let eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] ) * 0.75;
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
   let center = gl::math::F32x3::default();
 
@@ -74,19 +75,36 @@ fn run() -> Result< (), gl::WebglError >
   let world_matrix = gl::math::mat4x4::identity();
   let projection_matrix = gl::math::mat3x3h::perspective_rh_gl( fov, aspect_ratio, near, far );
 
-  let line_width = 10.0;
-  let radius = 1.0;
+  let line_width = 0.01;
+  let num_bodies = 10;
 
-  let mut line = line_tools::d3::Line::default();
+  let mut simulation = Simulation::new( num_bodies );
+  let mut lines = Vec::with_capacity( num_bodies );
+  let mut base_colors = Vec::with_capacity( num_bodies );
 
-  line.create_mesh( &gl, 16, main_frag )?;
-  let mesh = line.get_mesh();
-  mesh.upload( &gl, "u_width", &line_width )?;
-  mesh.upload( &gl, "u_resolution", &[ width as f32, height as f32 ] )?;
-  mesh.upload_matrix( &gl, "u_projection_matrix", &projection_matrix.to_array() )?;
-  mesh.upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() ).unwrap();
+  for _ in 0..num_bodies
+  {
+    //let color = base_color * i as f32 / num_bodies as f32;
+    let color = gl::F32x3::new( fastrand::f32(), fastrand::f32(), fastrand::f32() );
 
-  let line = Rc::new( RefCell::new( line ) );
+    base_colors.push( color );
+
+    let mut line = line_tools::d3::Line::default();
+    line.use_vertex_color( true );
+    line.mesh_create( &gl, None )?;
+
+    let mesh = line.mesh_get()?;
+    mesh.upload( &gl, "u_width", &line_width )?;
+    mesh.upload( &gl, "u_color", &color.to_array() )?;
+    mesh.upload( &gl, "u_resolution", &[ width as f32, height as f32 ] )?;
+    mesh.upload_matrix( &gl, "u_projection_matrix", &projection_matrix.to_array() )?;
+    mesh.upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() ).unwrap();
+
+
+    lines.push( line );
+  }
+
+  let lines = Rc::new( RefCell::new( lines ) );
 
   let settings = Settings
   {
@@ -96,57 +114,71 @@ fn run() -> Result< (), gl::WebglError >
   let object = serde_wasm_bindgen::to_value( &settings ).unwrap();
   let gui = lil_gui::new_gui();
 
-  let prop = lil_gui::add_slider( &gui, &object, "width", 0.0, 100.0, 0.01 );
+  let prop = lil_gui::add_slider( &gui, &object, "width", 0.0, 0.05, 0.001 );
   let callback = Closure::new
   (
     {
-      let line = line.clone();
+      let lines = lines.clone();
       let gl = gl.clone();
       move | value : f32 |
       {
-        line.borrow().get_mesh().upload( &gl, "u_width", &value ).unwrap();
+        let lines = lines.borrow();
+        for i in 0..lines.len()
+        {
+          lines[ i ].mesh_get().unwrap().upload( &gl, "u_width", &value ).unwrap();
+        }
       }
     }
   );
   lil_gui::on_change( &prop, &callback );
   callback.forget();
 
+  gl.enable( gl::DEPTH_TEST );
+  gl.depth_func( gl::LEQUAL );
+
   // Define the update and draw logic
   let update_and_draw =
   {
-    let add_interval = 0.2;
+    let add_interval = 0.05;
     let mut elapsed_time = 0.0;
+    let mut last_time = 0.0;
     #[ allow( clippy::min_ident_chars ) ]
     move | time_ms : f64 |
     {
       #[ allow( clippy::cast_possible_truncation ) ]
       let time = time_ms as f32 / 1000.0;
+      let delta_time = last_time - time;
 
-      let x_freq = ( time / 10.0 ).sin() * 3.0;
-      let y_freq = ( time / 10.0 ).cos() * 3.0;
-      let z_freq = ( time / 20.0 ).sin() * 3.0;
+      gl.clear( gl::DEPTH_BUFFER_BIT | gl::COLOR_BUFFER_BIT );
 
-      let x_offset = 0.0;
-      let y_offset = 0.0;
-      let z_offset = 0.0;
-
-      let x = ( x_freq * time + x_offset ).cos() * radius;
-      let y = ( y_freq * time + y_offset ).sin() * radius;
-      let z = ( z_freq * time + z_offset ).sin() * radius;
-
+      simulation.simulate( delta_time );
       if elapsed_time > add_interval
       {
-        line.borrow_mut().add_point( gl::F32x3::new( x, y, z ) );
+        for i in 0..num_bodies
+        {
+          let pos = simulation.bodies[ i ].position;
+          let color = base_colors[ i ] * ( pos.mag() * 3.0 ).powf( 2.0 ).min( 1.0 );
+          lines.borrow_mut()[ i ].point_add( pos );
+          lines.borrow_mut()[ i ].color_add( color );
+        }
         elapsed_time -= add_interval;
       }
 
-      line.borrow().get_mesh().upload_matrix( &gl, "u_view_matrix", &camera.borrow().view().to_array() ).unwrap();
+      for i in 0..num_bodies
+      {
+        lines.borrow()[ i ].mesh_get().unwrap().upload_matrix( &gl, "u_view_matrix", &camera.borrow().view().to_array() ).unwrap();
+      }
 
       gl.use_program( Some( &background_program ) );
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );
-      line.borrow_mut().draw( &gl ).unwrap();
+
+      for i in 0..num_bodies
+      {
+        lines.borrow_mut()[ i ].draw( &gl ).unwrap();
+      }
 
       elapsed_time += time;
+      last_time = time;
 
       return true
     }
