@@ -253,7 +253,7 @@ async fn run() -> Result< (), gl::WebglError >
   {
     for ( part, nodes ) in parts
     {
-      if let Some( group ) = scaler.group_get_mut( part.to_string().as_str() )
+      if let Some( group ) = scaler.group_get_mut( &part )
       {
         *group = nodes;
       }
