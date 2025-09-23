@@ -37,18 +37,18 @@ mod gui_setup;
 
 fn write_tree( node : Rc< RefCell< Node > >, depth : usize, output : &mut String )
 {
-    let name = node
-    .borrow()
-    .get_name()
-    .unwrap_or( "<none>".into() );
+  let name = node
+  .borrow()
+  .get_name()
+  .unwrap_or( "<none>".into() );
 
-    let indent = "-".repeat( depth );
-    output.push_str( &format!("{}{}\n", indent, name ) );
+  let indent = "-".repeat( depth );
+  output.push_str( &format!("{}{}\n", indent, name ) );
 
-    for child in node.borrow().get_children()
-    {
-      write_tree( Rc::clone( child ), depth + 1, output );
-    }
+  for child in node.borrow().get_children()
+  {
+    write_tree( Rc::clone( child ), depth + 1, output );
+  }
 }
 
 fn print_tree( node : Rc< RefCell< Node > > )
