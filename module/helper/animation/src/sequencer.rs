@@ -110,13 +110,21 @@ mod private
       }
     }
 
-    /// Gets the current value of a named animation.
+    /// Gets reference to named player
     pub fn get< T >( &self, name : &str ) -> Option< &T >
     where T : AnimatablePlayer + 'static
     {
       let player_box = self.players.get( name )?;
       let any_ref = player_box.as_any();
       any_ref.downcast_ref::< T >()
+    }
+
+    /// Gets mutable reference to named player
+    pub fn get_mut< T >( &mut self, name : &str ) -> Option< &mut T >
+    where T : AnimatablePlayer + 'static
+    {
+      let player_box = self.players.get_mut( name )?;
+      player_box.as_any_mut().downcast_mut::< T >()
     }
 
     /// Checks if the Sequencer has completed all animations.
@@ -264,10 +272,23 @@ mod private
       )
     }
 
-    /// Returns active [`AnimatableValue`] at current elapsed time
+    /// Returns active [`AnimatablePlayer`] at current elapsed time
     pub fn get_current( &self ) -> Option< &T >
     {
       self.tweens.get( self.current )
+    }
+
+    /// Returns active [`AnimatablePlayer`] index in tweens array
+    pub fn get_current_id( &self ) -> usize
+    {
+      self.current
+    }
+
+    /// Returns all sequence of [`Tween`]'s
+    pub fn get_tweens( &self ) -> Vec< T >
+    where T : Clone
+    {
+      self.tweens.clone()
     }
 
     /// Returns elapsed time
