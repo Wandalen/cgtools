@@ -18,19 +18,19 @@ use crate::{ commands, ports };
 ///
 /// # Example
 ///
-/// ``` rust
+/// ```rust
 /// use tilemap_renderer::adapters::WGPUTileRenderer;
 /// use tilemap_renderer::{ commands, ports::RenderContext };
 /// use commands::{ Geometry2DCommand, Point2D, RenderCommand, Transform2D };
 ///
-/// let renderer = WGPUTileRenderer::new
+/// let mut renderer = WGPUTileRenderer::new
 /// (
 ///   wgpu::Backends::PRIMARY,
 ///   RenderContext::new( 256, 256, [ 0.0; 4 ], true, Point2D::new( 0.0, 0.0 ), 1.0 )
-/// );
+/// ).unwrap();
 ///
 /// let line = &[ 0.0_f32, 0.0, 1.0, 1.0 ];
-/// renderer.geometry2d_load( bytemuck::cast_slice( line ), 2, 0 );
+/// renderer.geometry2d_load( line, 0 );
 /// let res = renderer.commands_execute
 /// (
 ///   &[
@@ -40,14 +40,13 @@ use crate::{ commands, ports };
 ///       {
 ///         id : 0,
 ///         transform : Transform2D::default(),
-///         color: [ 1.0; 3 ],
-///         mode: commands::GeometryMode::Lines
+///         color : [ 1.0; 3 ],
+///         mode : commands::GeometryMode::Lines
 ///       }
 ///     )
 ///   ]
 /// );
 /// ```
-///
 #[ derive( Debug ) ]
 pub struct WGPUTileRenderer
 {
@@ -392,15 +391,16 @@ impl WGPUTileRenderer
   }
 
   /// Creates a vertex buffer, loads `data` into it, and stores it internally by the provided `id`.
+  /// Expects an array of 2D `f32` points.
   ///
   /// The `id` can be used to render the geometry later.
   /// If geometry with the same `id` already exists, it is replaced.
-  pub fn geometry2d_load( &mut self, data : &[ u8 ], vertex_count : u32, id : u32 )
+  pub fn geometry2d_load( &mut self, data : &[ f32 ], id : u32 )
   {
     let buf = buffer::buffer( wgpu::BufferUsages::VERTEX )
     .data( data )
     .build( self.context.get_device() );
-
+    let vertex_count = data.len() as u32 / 2;
     _ = self.geometry2d.insert( id, ( buf, vertex_count ) );
   }
 
@@ -408,6 +408,9 @@ impl WGPUTileRenderer
   ///
   /// This function performs an off-screen render pass based on the provided commands
   /// and the current `RenderContext`, then copies the result from the GPU to a CPU buffer.
+  ///
+  /// Currently supports only `RenderCommand::Geometry2DCommand`, `RenderCommand::SpriteCommand`
+  /// commands. In case of facing an unsupported command in the command buffer just ignores it.
   ///
   /// # Returns
   /// A `Vec<u8>` containing the RGBA8 pixel data of the rendered image.
@@ -508,11 +511,6 @@ impl WGPUTileRenderer
       {
         match command
         {
-          commands::RenderCommand::Line( _command ) => todo!(),
-          commands::RenderCommand::Curve( _command ) => todo!(),
-          commands::RenderCommand::Text( _command ) => todo!(),
-          commands::RenderCommand::Tilemap( _command ) => todo!(),
-          commands::RenderCommand::ParticleEmitter( _command ) => todo!(),
           commands::RenderCommand::Geometry2DCommand( command ) =>
           {
             self.geometry2d_draw( &mut renderpass, &command, camera_pos, aspect_scale )
@@ -521,6 +519,11 @@ impl WGPUTileRenderer
           {
             self.sprite_draw( &mut renderpass, &command, camera_pos, aspect_scale );
           },
+          commands::RenderCommand::Line( _ ) |
+          commands::RenderCommand::Curve( _ ) |
+          commands::RenderCommand::Text( _ ) |
+          commands::RenderCommand::Tilemap( _ ) |
+          commands::RenderCommand::ParticleEmitter( _ ) => {}
         }
       }
     }
@@ -677,7 +680,7 @@ mod tests
 
     let line = &[ 0.0_f32, 0.0, 1.0, 1.0 ];
 
-    renderer.geometry2d_load( bytemuck::cast_slice( line ), 2, 0 );
+    renderer.geometry2d_load( line, 0 );
 
     _ = renderer.commands_execute
     (
