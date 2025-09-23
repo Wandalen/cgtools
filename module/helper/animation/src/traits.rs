@@ -23,7 +23,7 @@ mod private
     /// Returns a type-erased reference to the underlying value.
     fn as_any( &self ) -> &dyn core::any::Any;
     /// Returns a type-erased mutable reference to the underlying value.
-    fn as_any_mut( &mut self ) -> &mut ( dyn core::any::Any + '_ );
+    fn as_any_mut( &mut self ) -> &mut dyn core::any::Any;
     /// Returns animation duration
     fn get_duration( &self ) -> f64;
     /// Returns animation delay
