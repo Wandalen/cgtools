@@ -180,6 +180,8 @@ mod private
               tweens[ i ].end_value = new_end.normalize();
             }
 
+            tweens[ 0 ].start_value = tweens.last().unwrap().end_value;
+
             let mut sequence = Sequence::new( tweens ).unwrap();
             sequence.update( rotation.time() );
             if let Some( tween ) = sequence.current_get()
