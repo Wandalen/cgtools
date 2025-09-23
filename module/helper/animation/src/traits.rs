@@ -25,9 +25,9 @@ mod private
     /// Returns a type-erased mutable reference to the underlying value.
     fn as_any_mut( &mut self ) -> &mut dyn core::any::Any;
     /// Returns animation duration
-    fn get_duration( &self ) -> f64;
+    fn duration_get( &self ) -> f64;
     /// Returns animation delay
-    fn get_delay( &self ) -> f64;
+    fn delay_get( &self ) -> f64;
     /// Gets the progress of the animated value ( 0.0 to 1.0 ).
     fn progress( &self ) -> f64;
   }

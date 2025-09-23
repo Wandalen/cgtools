@@ -67,9 +67,9 @@ mod private
           &format!( "{}{}", name, TRANSLATION_PREFIX )
         )
         {
-          if let Some( translation ) = translation.get_current()
+          if let Some( translation ) = translation.current_get()
           {
-            let translation = translation.get_value().0.map( | v | v as f32 );
+            let translation = translation.value_get().0.map( | v | v as f32 );
             node.borrow_mut().set_translation( F32x3::from_array( translation ) );
           }
         }
@@ -79,9 +79,9 @@ mod private
           &format!( "{}{}", name, ROTATION_PREFIX )
         )
         {
-          if let Some( rotation ) = rotation.get_current()
+          if let Some( rotation ) = rotation.current_get()
           {
-            let rotation = rotation.get_value().0.map( | v | v as f32 );
+            let rotation = rotation.value_get().0.map( | v | v as f32 );
             node.borrow_mut().set_rotation( QuatF32::from( rotation ) );
           }
         }
@@ -91,9 +91,9 @@ mod private
           &format!( "{}{}", name, SCALE_PREFIX )
         )
         {
-          if let Some( scale ) = scale.get_current()
+          if let Some( scale ) = scale.current_get()
           {
-            let scale = scale.get_value().0.map( | v | v as f32 );
+            let scale = scale.value_get().0.map( | v | v as f32 );
             node.borrow_mut().set_scale( F32x3::from_array( scale ) );
           }
         }
@@ -169,14 +169,14 @@ mod private
     }
 
     /// Get reference to inner [`AnimatableComposition`]
-    pub fn get_inner< T >( &self ) -> Option< &T >
+    pub fn inner_get< T >( &self ) -> Option< &T >
     where T : 'static
     {
       self.animation.as_any().downcast_ref::< T >()
     }
 
     /// Get mutable reference to inner [`AnimatableComposition`]
-    pub fn get_inner_mut< T >( &mut self ) -> Option< &mut T >
+    pub fn inner_get_mut< T >( &mut self ) -> Option< &mut T >
     where T : 'static
     {
       self.animation.as_any_mut().downcast_mut::< T >()

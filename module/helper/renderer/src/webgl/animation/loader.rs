@@ -336,7 +336,7 @@ mod private
 
       let animation = Animation::new
       (
-        animation.name().map( | s | s.to_string().into_boxed_str() ),
+        animation.name().map( | s | s.into() ),
         Box::new( sequencer ),
         animated_nodes
       );

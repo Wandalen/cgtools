@@ -64,7 +64,7 @@ pub fn setup
 
   let mut settings = Settings::default();
 
-  let scaler = Scaler::new( animations[ 0 ].get_inner::< Sequencer >().unwrap().clone() );
+  let scaler = Scaler::new( animations[ 0 ].inner_get::< Sequencer >().unwrap().clone() );
   let scaler = Rc::new( RefCell::new( Some( scaler ) ) );
   settings.animation = animations[ 0 ].name.clone().unwrap().to_string();
 
@@ -107,7 +107,7 @@ pub fn setup
         {
           if let Some( scaler_mut ) = scaler.borrow_mut().as_mut()
           {
-            scaler_mut.animation = animation.get_inner::< Sequencer >().unwrap().clone();
+            scaler_mut.animation = animation.inner_get::< Sequencer >().unwrap().clone();
           }
         }
       }
@@ -136,7 +136,7 @@ pub fn setup
         (
           | s |
           {
-            if let Some( scale ) = s.get_scale_mut( part )
+            if let Some( scale ) = s.scale_get_mut( part )
             {
               *scale = gl::F64x3::splat( value as f64 );
             }

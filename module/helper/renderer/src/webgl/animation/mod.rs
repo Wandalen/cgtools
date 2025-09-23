@@ -22,8 +22,8 @@ mod private
   /// Tools for scaling animations amplitude
   layer scaling;
 
-  /// Tools for making smooth transition between animations
-  layer transition;
+  // /// Tools for making smooth transition between animations
+  // layer transition;
 
   // /// Tools for making animations state graph
   // layer graph;

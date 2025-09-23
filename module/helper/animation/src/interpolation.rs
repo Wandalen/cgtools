@@ -193,7 +193,7 @@ mod private
         }
         AnimationState::Paused | AnimationState::Completed =>
         {
-          return self.get_value();
+          return self.value_get();
         }
         AnimationState::Running => {}
       }
@@ -208,7 +208,7 @@ mod private
           // Animation completed this frame
           if self.repeat_count != 0
           {
-            self.handle_repeat();
+            self.repeat_handle();
           }
           else
           {
@@ -218,11 +218,11 @@ mod private
         }
       }
 
-      self.get_value()
+      self.value_get()
     }
 
     /// Returns current interpolated value
-    pub fn get_value( &self ) -> T
+    pub fn value_get( &self ) -> T
     {
       if self.state == AnimationState::Pending
       {
@@ -244,7 +244,7 @@ mod private
     }
 
     /// Handles animation repeat logic.
-    fn handle_repeat( &mut self )
+    fn repeat_handle( &mut self )
     {
       let elapsed_repeats = ( self.elapsed / self.duration ).floor();
       if self.repeat_count == -1
@@ -332,12 +332,12 @@ mod private
       };
     }
 
-    fn get_duration( &self ) -> f64
+    fn duration_get( &self ) -> f64
     {
       self.duration
     }
 
-    fn get_delay( &self ) -> f64
+    fn delay_get( &self ) -> f64
     {
       self.delay
     }
@@ -399,7 +399,7 @@ mod private
       .for_each( | t | t.reset() );
     }
 
-    fn get_duration( &self ) -> f64
+    fn duration_get( &self ) -> f64
     {
       let mut min_start = 0.0;
       for t in self.iter()
@@ -416,7 +416,7 @@ mod private
       max_end - min_start
     }
 
-    fn get_delay( &self ) -> f64
+    fn delay_get( &self ) -> f64
     {
       let mut min_delay = 0.0;
       for t in self.iter()
@@ -435,7 +435,7 @@ mod private
       }
       else
       {
-        ( ( self[ 0 ].time() - self.get_delay() ) / self.get_duration() ).clamp( 0.0, 1.0 )
+        ( ( self[ 0 ].time() - self.delay_get() ) / self.duration_get() ).clamp( 0.0, 1.0 )
       }
     }
 
@@ -632,7 +632,7 @@ mod private
     {
       let mut tween = Tween::new( 0.0_f32, 10.0_f32, 2.0, Linear::new() );
       tween.update( 0.5 ); // Progress to 2.5
-      assert_eq!( tween.get_value(), 2.5 );
+      assert_eq!( tween.value_get(), 2.5 );
 
       tween.pause();
       assert_eq!( tween.state(), AnimationState::Paused );
@@ -691,14 +691,14 @@ mod private
       let val1 = tween.update( 0.5 );
       assert_eq!( val1, 5.0 );
       tween.update( 0.5 );
-      assert_eq!( tween.get_value(), 10.0 );
+      assert_eq!( tween.value_get(), 10.0 );
       assert_eq!( tween.current_repeat, 1 );
 
       // Second loop: 10.0 -> 0.0 (yoyo)
       let val2 = tween.update( 0.5 );
       assert_eq!( val2, 5.0 );
       tween.update( 0.5 );
-      assert_eq!( tween.get_value(), 0.0 );
+      assert_eq!( tween.value_get(), 0.0 );
       assert!( tween.is_completed() );
     }
   }

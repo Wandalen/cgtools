@@ -71,14 +71,14 @@ mod private
     }
 
     /// Get mutable reference to weights of weighted [`Sequencer`] by name
-    pub fn get_weights_mut( &mut self, name : Box< str > ) -> Option< &mut F64x3 >
+    pub fn weights_get_mut( &mut self, name : Box< str > ) -> Option< &mut F64x3 >
     {
       self.weighted_animations.get_mut( &name )
       .map( | ( _, w ) | w )
     }
 
     /// Get weights of weighted [`Sequencer`] by name
-    pub fn get_weights( &self, name : Box< str > ) -> Option< F64x3 >
+    pub fn weights_get( &self, name : Box< str > ) -> Option< F64x3 >
     {
       self.weighted_animations.get( &name )
       .map( | ( _, w ) | w )
@@ -86,14 +86,14 @@ mod private
     }
 
     /// Get reference to weighted [`Sequencer`] by name
-    pub fn get_animation( &self, name : Box< str > ) -> Option< &Sequencer >
+    pub fn animation_get( &self, name : Box< str > ) -> Option< &Sequencer >
     {
       self.weighted_animations.get( &name )
       .map( | ( a, _ ) | a )
     }
 
     /// Get mutable weighted [`Sequencer`] by name
-    pub fn get_animation_mut( &mut self, name : Box< str > ) -> Option< &mut Sequencer >
+    pub fn animation_get_mut( &mut self, name : Box< str > ) -> Option< &mut Sequencer >
     {
       self.weighted_animations.get_mut( &name )
       .map( | ( a, _ ) | a )
@@ -184,13 +184,13 @@ mod private
             &format!( "{}{}", name, TRANSLATION_PREFIX )
           )
           {
-            if let Some( translation ) = translation.get_current()
+            if let Some( translation ) = translation.current_get()
             {
               let weight = weights.x() as f32;
               values.push
               (
                 (
-                  F32x3::from_array( translation.get_value().0.map( | v | v as f32 ) ),
+                  F32x3::from_array( translation.value_get().0.map( | v | v as f32 ) ),
                   weight as f32
                 )
               );
@@ -219,13 +219,13 @@ mod private
             &format!( "{}{}", name, ROTATION_PREFIX )
           )
           {
-            if let Some( rotation ) = rotation.get_current()
+            if let Some( rotation ) = rotation.current_get()
             {
               let weight = weights.y() as f32;
               values.push
               (
                 (
-                  QuatF32::from(rotation.get_value().0.map( | v | v as f32 ) ),
+                  QuatF32::from(rotation.value_get().0.map( | v | v as f32 ) ),
                   weight
                 )
               );
@@ -255,13 +255,13 @@ mod private
             &format!( "{}{}", name, SCALE_PREFIX )
           )
           {
-            if let Some( scale ) = scale.get_current()
+            if let Some( scale ) = scale.current_get()
             {
               let weight = weights.z() as f32;
               values.push
               (
                 (
-                  F32x3::from_array( scale.get_value().0.map( | v | v as f32 ) ),
+                  F32x3::from_array( scale.value_get().0.map( | v | v as f32 ) ),
                   weight
                 )
               );

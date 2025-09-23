@@ -59,25 +59,25 @@ mod private
     }
 
     /// Get reference to underlying start [`Sequencer`] by name
-    pub fn get_start( &self ) -> &Sequencer
+    pub fn start_get( &self ) -> &Sequencer
     {
       &self.start
     }
 
     /// Get mutable reference to underlying start [`Sequencer`] by name
-    pub fn get_start_mut( &mut self ) -> &mut Sequencer
+    pub fn start_get_mut( &mut self ) -> &mut Sequencer
     {
       &mut self.start
     }
 
     /// Get reference to underlying end [`Sequencer`] by name
-    pub fn get_end( &self ) -> &Sequencer
+    pub fn end_get( &self ) -> &Sequencer
     {
       &self.end
     }
 
     /// Get mutable reference to underlying end [`Sequencer`] by name
-    pub fn get_end_mut( &mut self ) -> &mut Sequencer
+    pub fn end_get_mut( &mut self ) -> &mut Sequencer
     {
       &mut self.end
     }

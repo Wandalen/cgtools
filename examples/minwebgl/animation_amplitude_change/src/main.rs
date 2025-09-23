@@ -14,7 +14,7 @@
 #![ allow( clippy::cast_possible_truncation ) ]
 #![ allow( clippy::no_effect_underscore_binding ) ]
 
-use std::collections::{HashMap, HashSet };
+use std::collections::{ HashMap, HashSet };
 use std::{ cell::RefCell, rc::Rc };
 use mingl::F32x3;
 use minwebgl as gl;
@@ -40,7 +40,7 @@ fn write_tree( node : Rc< RefCell< Node > >, depth : usize, output : &mut String
     let name = node
     .borrow()
     .get_name()
-    .unwrap_or( "<none>".to_string().into_boxed_str() );
+    .unwrap_or( "<none>".into() );
 
     let indent = "-".repeat( depth );
     output.push_str( &format!("{}{}\n", indent, name ) );
@@ -85,7 +85,7 @@ fn split_node_names_into_parts
 
   let part_names = HashSet::< Box< str > >::from_iter
   (
-    part_names.iter().map( | n | n.to_string().into_boxed_str() )
+    part_names.iter().map( | n | (*n).into() )
   );
   let mut not_mentioned = HashSet::new();
 
@@ -138,7 +138,7 @@ fn split_node_names_into_parts
 
   parts.insert
   (
-    root.borrow().get_name().unwrap_or( "<none>".to_string().into_boxed_str() ),
+    root.borrow().get_name().unwrap_or( "<none>".into() ),
     not_mentioned.into_iter().collect::< Vec< _ > >()
   );
 
@@ -238,9 +238,9 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut replace_key = | key : &str, new_key : &str |
   {
-    if let Some( nodes ) = parts.remove( &key.to_string().into_boxed_str() )
+    if let Some( nodes ) = parts.remove::< Box< str > >( &key.into() )
     {
-      parts.insert( new_key.to_string().into_boxed_str(), nodes );
+      parts.insert( new_key.into(), nodes );
     }
   };
 
@@ -253,7 +253,7 @@ async fn run() -> Result< (), gl::WebglError >
   {
     for ( part, nodes ) in parts
     {
-      if let Some( group ) = scaler.get_group_mut( part.to_string().as_str() )
+      if let Some( group ) = scaler.group_get_mut( part.to_string().as_str() )
       {
         *group = nodes;
       }

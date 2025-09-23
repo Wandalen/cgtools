@@ -248,15 +248,15 @@ mod private
       let last_delay = 0.0;
       for t in tweens.iter_mut()
       {
-        if last_delay > t.get_delay()
+        if last_delay > t.delay_get()
         {
           return Err( SequenceError::Unsorted );
         }
       }
 
-      let delay = tweens.first().unwrap().get_delay();
+      let delay = tweens.first().unwrap().delay_get();
       let tween = tweens.last().unwrap();
-      let duration = tween.get_delay() + tween.get_duration() - delay;
+      let duration = tween.delay_get() + tween.duration_get() - delay;
 
       Ok
       (
@@ -273,19 +273,19 @@ mod private
     }
 
     /// Returns active [`AnimatablePlayer`] at current elapsed time
-    pub fn get_current( &self ) -> Option< &T >
+    pub fn current_get( &self ) -> Option< &T >
     {
       self.tweens.get( self.current )
     }
 
     /// Returns active [`AnimatablePlayer`] index in tweens array
-    pub fn get_current_id( &self ) -> usize
+    pub fn current_id_get( &self ) -> usize
     {
       self.current
     }
 
     /// Returns all sequence of [`Tween`]'s
-    pub fn get_tweens( &self ) -> Vec< T >
+    pub fn tweens_get( &self ) -> Vec< T >
     where T : Clone
     {
       self.tweens.clone()
@@ -314,7 +314,7 @@ mod private
       (
         | t |
         {
-          t.get_delay().partial_cmp( &self.elapsed ).expect( "Animation keyframes can't be NaN" )
+          t.delay_get().partial_cmp( &self.elapsed ).expect( "Animation keyframes can't be NaN" )
         }
       );
 
@@ -337,7 +337,7 @@ mod private
         {
           return;
         };
-        let old_elapsed = current.get_delay() + ( current.progress() * current.get_duration() );
+        let old_elapsed = current.delay_get() + ( current.progress() * current.duration_get() );
         current.update( old_elapsed + delta_time );
       }
       else if self.current < current_id
@@ -359,7 +359,7 @@ mod private
 
       match self.state
       {
-        AnimationState::Pending if self.elapsed - current.get_delay() > 0.0 =>
+        AnimationState::Pending if self.elapsed - current.delay_get() > 0.0 =>
         {
           self.state = AnimationState::Running;
         },
@@ -411,12 +411,12 @@ mod private
       .for_each( | t | t.reset() );
     }
 
-    fn get_duration( &self ) -> f64
+    fn duration_get( &self ) -> f64
     {
       self.duration
     }
 
-    fn get_delay( &self ) -> f64
+    fn delay_get( &self ) -> f64
     {
       self.delay
     }
@@ -475,7 +475,7 @@ mod private
       assert_eq!( sequencer.state(), AnimationState::Running );
 
       let value = sequencer.get_value::< Tween< f32 > >( "test" ).unwrap();
-      assert_eq!( value.get_value(), 5.0 );
+      assert_eq!( value.value_get(), 5.0 );
 
       sequencer.update( 0.5 );
       assert_eq!( sequencer.time(), 1.0 );
@@ -518,14 +518,14 @@ mod private
       );
 
       sequencer.update( 0.5 );
-      assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().get_value(), 5.0 );
+      assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().value_get(), 5.0 );
 
       sequencer.pause();
       assert_eq!( sequencer.state(), AnimationState::Paused );
 
       sequencer.update( 0.5 );
       let value = sequencer.get_value::< Tween< f32 > >( "test" ).unwrap();
-      assert_eq!( value.get_value(), 5.0 );
+      assert_eq!( value.value_get(), 5.0 );
 
       sequencer.resume();
       assert_eq!( sequencer.state(), AnimationState::Running );
@@ -533,7 +533,7 @@ mod private
       sequencer.update( 0.5 );
       assert!( sequencer.is_completed() );
       let value = sequencer.get_value::< Tween< f32 > >( "test" ).unwrap();
-      assert_eq!( value.get_value(), 10.0 );
+      assert_eq!( value.value_get(), 10.0 );
     }
 
     #[ test ]
@@ -548,17 +548,17 @@ mod private
 
       sequencer.update( 0.5 );
       assert_eq!( sequencer.time(), 0.5 );
-      assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().get_value(), 5.0 );
+      assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().value_get(), 5.0 );
 
       sequencer.reset();
 
       assert_eq!( sequencer.time(), 0.0 );
       assert_eq!( sequencer.state(), AnimationState::Running );
-      assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().get_value(), 0.0 );
+      assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().value_get(), 0.0 );
 
       sequencer.update( 1.0 );
       assert!( sequencer.is_completed() );
-      assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().get_value(), 10.0 );
+      assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().value_get(), 10.0 );
     }
 
     #[ test ]
@@ -617,12 +617,12 @@ mod private
       sequencer.update( 0.5 );
 
       let value = sequencer.get_value::< Tween< f32 > >( "ease_in_tween" ).unwrap();
-      assert_eq!( value.get_value(), 1.25 );
+      assert_eq!( value.value_get(), 1.25 );
 
       sequencer.update( 0.5 );
       assert!( sequencer.is_completed() );
       let value = sequencer.get_value::< Tween< f32 > >( "ease_in_tween" ).unwrap();
-      assert_eq!( value.get_value(), 10.0 );
+      assert_eq!( value.value_get(), 10.0 );
     }
   }
 }

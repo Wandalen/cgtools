@@ -72,25 +72,25 @@ mod private
     }
 
     /// Get reference to group nodes
-    pub fn get_group( &self, group : &str ) -> Option< Vec< Box< str > > >
+    pub fn group_get( &self, group : &str ) -> Option< Vec< Box< str > > >
     {
       self.scaled_nodes.get( group.into() ).map( | ( n, _ ) | n ).cloned()
     }
 
     /// Get mutable reference to group nodes
-    pub fn get_group_mut( &mut self, group : &str ) -> Option< &mut Vec< Box< str > > >
+    pub fn group_get_mut( &mut self, group : &str ) -> Option< &mut Vec< Box< str > > >
     {
       self.scaled_nodes.get_mut( group.into() ).map( | ( n, _ ) | n )
     }
 
     /// Get reference to group scale
-    pub fn get_scale( &self, group : &str ) -> Option< &F64x3 >
+    pub fn scale_get( &self, group : &str ) -> Option< &F64x3 >
     {
       self.scaled_nodes.get( group.into() ).map( | ( _, s ) | s )
     }
 
     /// Get mutable reference to group scale
-    pub fn get_scale_mut( &mut self, group : &str ) -> Option< &mut F64x3 >
+    pub fn scale_get_mut( &mut self, group : &str ) -> Option< &mut F64x3 >
     {
       self.scaled_nodes.get_mut( group.into() ).map( | ( _, s ) | s )
     }
@@ -141,9 +141,9 @@ mod private
           )
           {
             let s = scales.y();
-            let mut tweens = rotation.get_tweens();
+            let mut tweens = rotation.tweens_get();
 
-            let current = rotation.get_current_id();
+            let current = rotation.current_id_get();
 
             for i in 0..( ( current + 1 ).min( tweens.len() ) )
             {
@@ -182,9 +182,9 @@ mod private
 
             let mut sequence = Sequence::new( tweens ).unwrap();
             sequence.update( rotation.time() );
-            if let Some( tween ) = sequence.get_current()
+            if let Some( tween ) = sequence.current_get()
             {
-              let rotation = tween.get_value();
+              let rotation = tween.value_get();
               let rotation = QuatF32::from( rotation.0.map( | v | v as f32 ) );
               node.borrow_mut().set_rotation( rotation );
             }
@@ -201,9 +201,9 @@ mod private
             &format!( "{}{}", name, TRANSLATION_PREFIX )
           )
           {
-            if let Some( translation ) = translation.get_current()
+            if let Some( translation ) = translation.current_get()
             {
-              let translation = translation.get_value().0.map( | v | v as f32 );
+              let translation = translation.value_get().0.map( | v | v as f32 );
               node.borrow_mut().set_translation( F32x3::from_array( translation ) );
             }
           }
@@ -213,9 +213,9 @@ mod private
             &format!( "{}{}", name, ROTATION_PREFIX )
           )
           {
-            if let Some( rotation ) = rotation.get_current()
+            if let Some( rotation ) = rotation.current_get()
             {
-              let rotation = rotation.get_value().0.map( | v | v as f32 );
+              let rotation = rotation.value_get().0.map( | v | v as f32 );
               node.borrow_mut().set_rotation( QuatF32::from( rotation ) );
             }
           }
@@ -225,9 +225,9 @@ mod private
             &format!( "{}{}", name, SCALE_PREFIX )
           )
           {
-            if let Some( scale ) = scale.get_current()
+            if let Some( scale ) = scale.current_get()
             {
-              let scale = scale.get_value().0.map( | v | v as f32 );
+              let scale = scale.value_get().0.map( | v | v as f32 );
               node.borrow_mut().set_scale( F32x3::from_array( scale ) );
             }
           }
