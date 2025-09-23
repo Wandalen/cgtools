@@ -141,6 +141,13 @@ mod private
       self
     }
 
+    /// Sets an animation duration
+    pub fn with_duration( mut self, duration : f64 ) -> Self
+    {
+      self.duration = duration.max( 0.0 );
+      self
+    }
+
     /// Sets the number of times to repeat the animation.
     pub fn with_repeat( mut self, count : i32 ) -> Self
     {
