@@ -160,7 +160,7 @@ mod private
               let angle = 2.0 * w.acos();
               let sin_half = ( 1.0 - w * w ).sqrt();
 
-              let axis = if sin_half.abs() > 1e-9
+              let axis = if sin_half.abs() > std::f32::EPSILON as f64
               {
                 F64x3::new
                 (
