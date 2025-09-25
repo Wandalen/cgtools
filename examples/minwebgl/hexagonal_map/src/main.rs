@@ -40,14 +40,19 @@ mod core_game;
 
 use minwebgl as gl;
 use browser_input::{ keyboard::KeyboardKey, mouse::MouseButton, Action, Event, EventType };
-use gl::{ JsCast as _, GL, I32x2, F32x2, Vector };
-use std::{ cell::RefCell, rc::Rc, str::FromStr };
+use gl::{ JsCast as _, I32x2, F32x2, Vector };
+use tilemap_renderer::{ adapters::WebGLTileRenderer, commands };
+use commands::Transform2D;
+use std::{ cell, rc::Rc, str::FromStr };
+use cell::{ Cell, RefCell };
 use tiles_tools::coordinates::pixel::Pixel;
 use web_sys::HtmlCanvasElement;
 use rustc_hash::FxHashMap;
 use core_game::{ Coord };
 use triaxial::TriAxial;
 use helper::*;
+
+type TexSize =  Rc< Cell< [ u32; 2 ] > >;
 
 fn main()
 {
@@ -71,16 +76,53 @@ async fn run() -> Result< (), gl::WebglError >
   canvas.set_height( height as u32 );
   browser_input::prevent_rightclick( canvas.clone().dyn_into().unwrap() );
 
+  let default = tilemap_renderer::ports::RenderContext::new
+  (
+    0,
+    0,
+    [ 0.0; 4 ],
+    true,
+    tilemap_renderer::commands::Point2D { x : 0.0, y : 0.0  },
+    0.0
+  );
+  let mut renderer = WebGLTileRenderer::new( &gl, default ).unwrap();
+
+  let hexagon_id = 0;
+  let outline_id = 1;
+  let rectangle_id = 2;
+  let rectangle : &[ f32 ] = &
+  [
+    -1.0, -1.0,
+     1.0,  1.0,
+    -1.0,  1.0,
+    -1.0, -1.0,
+     1.0, -1.0,
+     1.0,  1.0,
+  ];
+  let hexagon_mesh = tiles_tools::geometry::hexagon_triangles();
+  let outline_mesh = tiles_tools::geometry::hexagon_lines();
+  renderer.geometry2d_load( &hexagon_mesh, hexagon_id ).unwrap();
+  renderer.geometry2d_load( &outline_mesh, outline_id ).unwrap();
+  renderer.geometry2d_load( rectangle, rectangle_id ).unwrap();
+
   let config = include_str!( "../config.json" );
   let config = serde_json::from_str::< core_game::Config >( config ).unwrap();
-  let player_colors = &config.player_colors
-  .iter()
-  .map( | [ r, g, b ] | [ *r as f32 / 255.0, *g as f32 / 255.0, *b as f32 / 255.0 ] )
-  .collect::< Vec< _ > >();
-  let mut textures = FxHashMap::default();
-  load_textures_from_config( &document, &gl, &config, &mut textures );
+
+  let mut textures = FxHashMap::< String, ( u32, TexSize ) >::default();
+  for object in &config.object_props
+  {
+    let Some( sprite ) = &object.sprite else { continue; };
+    if textures.contains_key( &sprite.source ) { continue; }
+    let id = textures.len() as u32;
+    let size = renderer
+    .texture_load_from_src( &document, &sprite.source, id )
+    .expect( "Failed to load textures" );
+    textures.insert( sprite.source.clone(), ( id, size ) );
+  }
+
   let map = Rc::new( RefCell::new( core_game::Map::default() ) );
   let loaded_map : Rc< RefCell < Option< String > > > = Default::default();
+
   // Setup select elements
   let mode_select_variants = [ EditMode::EditTiles, EditMode::EditRivers ].map( | v | v.as_ref().to_string() );
   let mode_select = setup_select( &document, "edit-mode", mode_select_variants.iter() );
@@ -93,7 +135,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut input = browser_input::Input::new
   (
-    Some( canvas.dyn_into().unwrap() ),
+    Some( canvas.clone().dyn_into().unwrap() ),
     move | e |
     {
       let coord = gl::F64x2::new( e.client_x() as f64, e.client_y() as f64 ) * dpr;
@@ -103,35 +145,20 @@ async fn run() -> Result< (), gl::WebglError >
 
   let water_color = [ 0.1, 0.2, 0.4 ];
 
-  gl.clear_color( water_color[ 0 ], water_color[ 1 ], water_color[ 2 ], 1.0 );
-  gl.viewport( 0, 0, width, height );
-  gl.enable( GL::BLEND );
-  gl.blend_func( GL::SRC_ALPHA, GL::ONE_MINUS_SRC_ALPHA );
-
-  let hexagon = create_hexagon_geometry( &gl )?;
-  let outline = create_line_geometry( &gl )?;
-
-  let hexagon_shader = hexagon_shader( &gl, player_colors.len() )?;
-  let outline_shader = line_shader( &gl )?;
-  let river_shader = river_shader( &gl )?;
-  let sprite_shader = sprite_shader( &gl )?;
-  let river_edge_shader = river_edge_shader( &gl )?;
-
-  hexagon_shader.activate();
-  hexagon_shader.uniform_upload( "u_player_colors", player_colors.as_slice() );
-  river_shader.activate();
-  river_shader.uniform_upload( "u_color", &water_color );
-  river_edge_shader.activate();
-  river_edge_shader.uniform_upload( "u_color", &water_color );
-
-  let mut zoom = 1.0;
+  let mut zoom = 0.1;
   let zoom_factor = 0.75;
   let inv_canvas_size = F32x2::new( 1.0 / width as f32, 1.0 / height as f32 );
-  let aspect = width as f32 / height as f32;
-  let aspect = F32x2::new( 1.0 / aspect, 1.0 );
+  let aspect = if width > height
+  {
+    F32x2::from_array( [ 1.0, ( width as f32 / height as f32 ) ] )
+  }
+  else
+  {
+    F32x2::from_array( [ ( height as f32 / width as f32 ), 1.0 ] )
+  };
   let mut camera_pos = F32x2::default();
-  let mut last_pointer_pos : Option< I32x2 > = None;
 
+  let mut last_pointer_pos : Option< I32x2 > = None;
   let mut river_point1_add = None;
   let mut river_point1_remove = None;
 
@@ -261,69 +288,74 @@ async fn run() -> Result< (), gl::WebglError >
     last_pointer_pos = Some( input.pointer_position() );
     input.clear_events();
 
-    gl.clear( GL::COLOR_BUFFER_BIT );
+    let width = canvas.width();
+    let height = canvas.height();
+    let ctx = tilemap_renderer::ports::RenderContext::new
+    (
+      width,
+      height,
+      [ 0.1, 0.2, 0.3, 1.0 ],
+      true,
+      tilemap_renderer::commands::Point2D { x : camera_pos[ 0 ], y : camera_pos[ 1 ]  },
+      zoom
+    );
+    renderer.context_set( ctx );
 
-    hexagon_shader.activate();
-    hexagon_shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
-    hexagon_shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
+    let mut commands = vec![];
 
-    outline_shader.activate();
-    outline_shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
-    outline_shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
-
-    sprite_shader.activate();
-    sprite_shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
-    sprite_shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
-
-    river_shader.activate();
-    river_shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
-    river_shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
-
-    river_edge_shader.activate();
-    river_edge_shader.uniform_upload( "u_scale", ( zoom * aspect ).as_slice() );
-    river_edge_shader.uniform_upload( "u_camera_pos", camera_pos.as_slice() );
-
-    for tile in map.borrow().tiles.values()
+    for hex in map.borrow().tiles.values()
     {
-      let mut position : Pixel = tile.coord.into();
+      let mut position : Pixel = hex.coord.into();
       position.data[ 1 ] = -position.data[ 1 ];
+      let tr = Transform2D::new( position.data, 0.0, [ 1.0, 1.0 ] );
+      let [ r, g, b ] = config.player_colors[ hex.owner_index.0 as usize ];
+      let color = [ f32::from( r ) / 255.0, f32::from( g ) / 255.0, f32::from( b ) / 255.0 ];
+      let command = commands::Geometry2DCommand
+      {
+        id : hexagon_id,
+        transform : tr,
+        color,
+        mode : commands::GeometryMode::Triangles,
+      };
+      commands.push( commands::RenderCommand::Geometry2DCommand( command ) );
 
-      hexagon.bind( &gl );
-      hexagon_shader.activate();
-      gl.vertex_attrib2fv_with_f32_array( 1, &position.data );
-      gl.vertex_attrib_i4i( 2, tile.owner_index.0 as i32, 0, 0, 0 );
-      hexagon.draw( &gl );
+      let color = [ 0.0_f32; 3 ];
+      let command = commands::Geometry2DCommand
+      {
+        id : outline_id,
+        transform : tr,
+        color,
+        mode : commands::GeometryMode::Lines,
+      };
+      commands.push( commands::RenderCommand::Geometry2DCommand( command ) );
 
-      outline.bind( &gl );
-      outline_shader.activate();
-      gl.vertex_attrib2fv_with_f32_array( 1, &position.data );
-      outline.draw( &gl );
+      let Some( object_index ) = hex.object_index else { continue; };
 
-      gl.bind_vertex_array( None );
+      let object = &config.object_props[ object_index.0 as usize ];
 
-      let Some( object_index ) = tile.object_index else { continue; };
-      let prop = &config.object_props[ object_index.0 as usize ];
-      let Some( sprite ) = &prop.sprite else { continue; };
-      let texture = textures.get( &sprite.source ).unwrap();
-      let size =
+      let Some( sprite ) = &object.sprite else { continue; };
+
+      let ( id, size ) = &textures[ &sprite.source ];
+      let scale = sprite.scale;
+      let scale =
       [
-        texture.size.borrow()[ 0 ] as f32 * 0.5,
-        texture.size.borrow()[ 1 ] as f32 * 0.5
+        scale * 0.5 * size.get()[ 0 ] as f32,
+        scale * 0.5 * size.get()[ 1 ] as f32
       ];
-      gl.bind_texture( GL::TEXTURE_2D, texture.texture.as_ref() );
-      sprite_shader.activate();
-      gl.vertex_attrib2fv_with_f32_array( 0, &position.data );
-      gl.vertex_attrib2fv_with_f32_array( 1, size.as_slice() );
-      gl.vertex_attrib1f( 2, sprite.scale );
-      gl.draw_arrays( GL::TRIANGLE_STRIP, 0, 4 );
+
+      let mut position : Pixel = hex.coord.into();
+      position.data[ 1 ] = -position.data[ 1 ];
+      let tr = Transform2D::new( position.data, 0.0, scale );
+      let c = commands::SpriteCommand
+      {
+        id : *id,
+        transform : tr,
+      };
+      commands.push( commands::RenderCommand::SpriteCommand( c ) );
     }
 
-    gl.bind_vertex_array( None );
-
-    let rivers = &map.borrow().rivers;
     let river_width = 0.1;
-    river_shader.activate();
-    for [ p1, p2 ] in rivers
+    for [ p1, p2 ] in &map.borrow().rivers
     {
       let mut p1 : F32x2 = p1.to_point().into();
       p1[ 1 ] = -p1[ 1 ];
@@ -334,85 +366,26 @@ async fn run() -> Result< (), gl::WebglError >
       let dx = p2.x() - p1.x();
       let dy = p2.y() - p1.y();
       let angle = dy.atan2( dx );
-      let rot = gl::math::d2::mat2x2h::rot( angle );
-      let translate = gl::math::d2::mat2x2h::translate( center );
-      let scale = gl::math::d2::mat2x2h::scale( [ length, river_width ] );
-      let transform = translate * rot * scale;
-      river_shader.uniform_matrix_upload( "u_transform", transform.raw_slice(), true );
-      gl.draw_arrays( GL::TRIANGLE_STRIP, 0, 4 );
-    }
 
-    river_edge_shader.activate();
-    for [ p1, p2 ] in rivers
-    {
-      let neighbors = p1.neighbors();
-      let n1 = neighbors.iter().find( | n | **n != *p2 ).unwrap();
-      let n2 = neighbors.iter().find( | n | **n != *p2 && **n != *n1 ).unwrap();
-
-      let pair1 = [ *n1, *p1 ];
-      let pair2 = [ *n2, *p1 ];
-
-      let [ neighbor, _ ] = if ( rivers.contains( &pair1 ) && rivers.contains( &pair2 ) )
-      || ( !rivers.contains( &pair1 ) && !rivers.contains( &pair2 ) )
+      let tr = Transform2D::new( center, angle, [ length, river_width ].into() );
+      let color = water_color;
+      let command = commands::Geometry2DCommand
       {
-        continue;
-      }
-      else if rivers.contains( &pair1 )
-      {
-        pair1
-      }
-      else
-      {
-        pair2
+        id : rectangle_id,
+        transform : tr,
+        color,
+        mode : commands::GeometryMode::Triangles,
       };
-
-      let common_hexagon = p1.corners_axial()
-      .into_iter()
-      .find
-      (
-        | h | p2.corners_axial().contains( &h )
-        && neighbor.corners_axial().contains( &h )
-      ).unwrap();
-
-      let origin : Pixel = common_hexagon.into();
-      let point : Pixel = p1.to_point().into();
-      let unit_point = point - origin;
-      let angle = unit_point.y().atan2( unit_point.x() );
-      let rot = gl::math::d2::mat2x2h::rot( -angle );
-      let translate = gl::math::d2::mat2x2h::translate( &[ point.x(), -point.y() ] );
-      river_edge_shader.uniform_upload( "u_width", &river_width );
-      river_edge_shader.uniform_matrix_upload( "u_transform", ( translate * rot ).raw_slice(), true );
-      gl.draw_arrays( GL::TRIANGLE_STRIP, 0, 4 );
+      commands.push( commands::RenderCommand::Geometry2DCommand( command ) );
     }
+
+    renderer.commands_execute( &commands );
 
     true
   };
   gl::exec_loop::run( update );
 
   Ok( () )
-}
-
-fn load_textures_from_config
-(
-  document : &web_sys::Document,
-  gl : &GL,
-  config : &core_game::Config,
-  textures : &mut rustc_hash::FxHashMap< String, Texture >
-)
-{
-  textures.clear();
-  for prop in &config.object_props
-  {
-    if let Some( sprite ) = &prop.sprite
-    {
-      if !textures.contains_key( &sprite.source )
-      {
-        let ( texture, size ) = load_texture( &gl, &document, &sprite.source );
-        let texture = Texture { size, texture };
-        textures.insert( sprite.source.clone(), texture );
-      }
-    }
-  }
 }
 
 fn screen_to_world
