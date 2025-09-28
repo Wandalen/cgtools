@@ -8,8 +8,12 @@ export function addFolder(gui, name) {
   return gui.addFolder(name);
 }
 
-export function addSliderController(gui, object, property, min, max, step) {
+export function addController(gui, object, property, min, max, step) {
   return gui.add(object, property, min, max, step);
+}
+
+export function addColorController(gui, object, property) {
+  return gui.addColor(object, property);
 }
 
 export function addDropdownController(gui, object, property, options) {

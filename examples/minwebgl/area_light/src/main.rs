@@ -5,7 +5,7 @@ mod plane;
 mod lil_gui;
 
 use minwebgl as gl;
-use gl::{ math::mat3x3h, JsCast as _, GL, IntoArray as _ };
+use gl::{ math::mat3x3h, JsCast as _, GL, IntoArray as _, AsBytes as _ };
 use renderer::webgl::loaders::gltf;
 use web_sys::{ js_sys::Float32Array, HtmlCanvasElement, WebGlTexture };
 
@@ -20,7 +20,28 @@ async fn run() -> Result< (), gl::WebglError >
   let window = web_sys::window().unwrap();
   let document = window.document().unwrap();
 
+  let params = GuiParams
+  {
+    rot_x : 0.0,
+    rot_y : 0.0,
+    rot_z : 0.0,
+    scale_x : 1.0,
+    scale_y : 1.0,
+    color : [ 1.0; 3 ],
+    intensity : 20.0,
+    two_sided : false,
+  };
+  let params_obj = serde_wasm_bindgen::to_value( &params ).unwrap();
+
   let gui = lil_gui::new_gui();
+  lil_gui::add( &gui, &params_obj, "rot_x", Some( 0.0 ), Some( 180.0 ), Some( 0.1 ) );
+  lil_gui::add( &gui, &params_obj, "rot_y", Some( 0.0 ), Some( 360.0 ), Some( 0.1 ) );
+  lil_gui::add( &gui, &params_obj, "rot_z", Some( 0.0 ), Some( 360.0 ), Some( 0.1 ) );
+  lil_gui::add( &gui, &params_obj, "scale_x", Some( 0.1 ), None, Some( 0.1 ) );
+  lil_gui::add( &gui, &params_obj, "scale_y", Some( 0.1 ), None, Some( 0.1 ) );
+  lil_gui::add( &gui, &params_obj, "intensity", Some( 0.1 ), Some( 500.0 ), Some( 0.1 ) );
+  lil_gui::add_color( &gui, &params_obj, "color" );
+  lil_gui::add( &gui, &params_obj, "two_sided", None, None, None );
 
   let fwidth = window.inner_width().unwrap().as_f64().unwrap();
   let fheight = window.inner_height().unwrap().as_f64().unwrap();
@@ -34,7 +55,6 @@ async fn run() -> Result< (), gl::WebglError >
   canvas.set_width( width as u32 );
   canvas.set_height( height as u32 );
   gl.enable( gl::DEPTH_TEST );
-  gl.enable( gl::CULL_FACE );
   gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
   gl.viewport( 0, 0, width, height );
   gl.get_extension( "EXT_color_buffer_float" ).unwrap().unwrap();
@@ -53,9 +73,7 @@ async fn run() -> Result< (), gl::WebglError >
   area_light_shader.uniform_upload( "u_LTC1", &2 );
   area_light_shader.uniform_upload( "u_LTC2", &3 );
 
-  let light_transform = mat3x3h::translation( [ 0.0, 1.0, 5.0 ] )
-  * mat3x3h::rot( 0.0_f32.to_radians(), 0.0, 0.0 )
-  * mat3x3h::scale( [ 4.0, 1.0, 0.0 ] );
+  let light_position = [ 0.0, 0.0, 7.0 ];
   let mut light = RectangularLight
   {
     vertices :
@@ -73,7 +91,6 @@ async fn run() -> Result< (), gl::WebglError >
     intensity : 20.0,
     two_sided : true,
   };
-  light.apply_transform( &light_transform );
   // gl::info!
   // (
   //   "{:#?}",
@@ -82,16 +99,16 @@ async fn run() -> Result< (), gl::WebglError >
   //   .normalize()
   // );
 
-  let light_body_mesh = light_body_vao( &gl, &light )?;
+  let ( light_body_mesh, light_body_vertex_buffer ) = light_body_vao( &gl, &light )?;
   let plane_mesh = plane::plane_vao( &gl )?;
-  let ( plane_base_color, plane_arm ) = plane::plane_material( &gl, [ 55, 57, 65, 255 ], 1.0, 0.3, 0.3 );
-  let plane_model = mat3x3h::translation( [ 0.0, -1.0, 0.0 ] ) * mat3x3h::scale( [ 10.0, 1.0, 10.0 ] );
+  let ( plane_base_color, plane_arm ) = plane::plane_material( &gl, [ 55, 57, 65, 255 ], 1.0, 0.2, 0.3 );
+  let plane_model = mat3x3h::scale( [ 10.0, 1.0, 10.0 ] );
 
   let ltc1 = load_table( &gl, &precompute::LTC1 );
   let ltc2 = load_table( &gl, &precompute::LTC2 );
 
-  let skull_mesh = gltf::load( &document, "gltf/skull_salazar_downloadable.glb", &gl ).await?;
-  let skull_model = mat3x3h::scale( [ 1.0, 1.0, 1.0 ] );
+  let skull_mesh = gltf::load( &document, "skull_salazar_downloadable.glb", &gl ).await?;
+  let skull_model = mat3x3h::translation( [ 0.0, 1.0, 0.0 ] );
 
   let mut camera = renderer::webgl::Camera::new
   (
@@ -113,6 +130,24 @@ async fn run() -> Result< (), gl::WebglError >
     let view_projection = projection * view;
     let skull_mvp = view_projection * skull_model;
     let plane_mvp = view_projection * plane_model;
+
+    let params : GuiParams = serde_wasm_bindgen::from_value( params_obj.clone() ).unwrap();
+    light.color = params.color;
+    light.two_sided = params.two_sided;
+    light.intensity = params.intensity;
+
+    let pos_rot_y = rotate_point( light_position.into(), gl::F32x3::Y, -params.rot_y.to_radians() );
+    let local_x = rotate_point( gl::F32x3::X, gl::F32x3::Y, -params.rot_y.to_radians() );
+    let pos_rot_x = rotate_point( pos_rot_y, local_x, -params.rot_x.to_radians() );
+    let light_transform = mat3x3h::translation( pos_rot_x )
+    * mat3x3h::rot( 0.0, -params.rot_y.to_radians(), 0.0 )
+    * mat3x3h::rot( -params.rot_x.to_radians(), 0.0, 0.0 )
+    * mat3x3h::rot( 0.0, 0.0, -params.rot_z.to_radians() )
+    * mat3x3h::scale( [ params.scale_x, params.scale_y, 1.0 ] );
+    light.apply_transform( &light_transform );
+
+    gl.bind_buffer( gl::ARRAY_BUFFER, Some( &light_body_vertex_buffer ) );
+    gl.buffer_sub_data_with_f64_and_u8_array( gl::ARRAY_BUFFER, 0.0, light.vertices().as_flattened().as_bytes() );
 
     gl.clear( gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT );
 
@@ -175,14 +210,15 @@ async fn run() -> Result< (), gl::WebglError >
   Ok( () )
 }
 
-fn light_body_vao( gl : &GL, light : &RectangularLight ) -> Result< web_sys::WebGlVertexArrayObject, gl::WebglError >
+fn light_body_vao( gl : &GL, light : &RectangularLight )
+-> Result< ( web_sys::WebGlVertexArrayObject, web_sys::WebGlBuffer ), gl::WebglError >
 {
   let light_body_vao = gl::vao::create( gl )?;
   gl.bind_vertex_array( Some( &light_body_vao ) );
   let vbo = gl::buffer::create( gl )?;
   gl::buffer::upload( gl, &vbo, light.vertices().as_flattened(), gl::DYNAMIC_DRAW );
   gl::BufferDescriptor::new::< [ f32; 3 ] >().attribute_pointer( gl, 0, &vbo )?;
-  Ok( light_body_vao )
+  Ok( ( light_body_vao, vbo ) )
 }
 
 fn load_table( gl : &GL, table : &[ f32 ] ) -> Option< WebGlTexture >
@@ -221,6 +257,14 @@ impl RectangularLight
 {
   fn apply_transform( &mut self, t : &gl::F32x4x4 )
   {
+    self.vertices =
+    [
+      [ -1.0,  1.0, 0.0 ].into(),
+      [  1.0,  1.0, 0.0 ].into(),
+      [ -1.0, -1.0, 0.0 ].into(),
+      [  1.0, -1.0, 0.0 ].into(),
+    ];
+
     self.vertices.iter_mut().for_each
     (
       | v |
@@ -243,12 +287,27 @@ impl RectangularLight
   }
 }
 
+#[ derive( Debug, serde::Serialize, serde::Deserialize ) ]
 struct GuiParams
 {
   rot_x : f32,
   rot_y : f32,
   rot_z : f32,
+  scale_x : f32,
+  scale_y : f32,
   color : [ f32; 3 ],
   intensity : f32,
   two_sided : bool,
+}
+
+fn rotate_point( point : gl::F32x3, axis : gl::F32x3, angle : f32 ) -> gl::F32x3
+{
+  let k = axis.normalize();
+  let cos_theta = angle.cos();
+  let sin_theta = angle.sin();
+
+  // v_rot = v*cos(θ) + (k×v)*sin(θ) + k*(k·v)*(1-cos(θ))
+  point * cos_theta
+  + k.cross( point ) * sin_theta
+  + k * ( k.dot( &point ) * ( 1.0 - cos_theta ) )
 }
