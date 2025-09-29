@@ -52,57 +52,42 @@ vec3 ltc_evaluate( vec3 N, vec3 V, vec3 P, mat3 m_inv, vec3 points[ 4 ], bool tw
     m_inv * ( points[ 3 ] - P )
   );
 
-  vec3 dir1 = P - points[ 0 ];
-  vec3 dir2 = P - points[ 1 ];
-  vec3 dir3 = P - points[ 2 ];
-  vec3 dir4 = P - points[ 3 ];
+  vec3 dir = P - points[ 0 ];
   vec3 light_normal = cross( points[ 1 ] - points[ 0 ], points[ 2 ] - points[ 0 ] );
-  bool is_illuminated = dot( dir1, light_normal ) > 0.0
-  || dot( dir2, light_normal ) > 0.0
-  || dot( dir3, light_normal ) > 0.0
-  || dot( dir4, light_normal ) > 0.0;
+  bool is_illuminated = dot( dir, light_normal ) > 0.0;
 
   float sum;
 
   if ( !is_illuminated && !two_sided )
   {
     sum = 0.0;
-  }
-  else
-  {
-    vec3 vsum = vec3( 0.0 );
-    L[ 0 ] = normalize( L[ 0 ] );
-    L[ 1 ] = normalize( L[ 1 ] );
-    L[ 2 ] = normalize( L[ 2 ] );
-    L[ 3 ] = normalize( L[ 3 ] );
-
-    // vsum += integrate_edge_vec( L[ 1 ], L[ 0 ] );
-    // vsum += integrate_edge_vec( L[ 0 ], L[ 2 ] );
-    // vsum += integrate_edge_vec( L[ 2 ], L[ 3 ] );
-    // vsum += integrate_edge_vec( L[ 3 ], L[ 1 ] );
-
-    vsum += integrate_edge_vec( L[ 0 ], L[ 1 ] );
-    vsum += integrate_edge_vec( L[ 1 ], L[ 3 ] );
-    vsum += integrate_edge_vec( L[ 3 ], L[ 2 ] );
-    vsum += integrate_edge_vec( L[ 2 ], L[ 0 ] );
-
-    float len = length( vsum );
-    float z = vsum.z / len;
-
-    if ( is_illuminated )
-    {
-      z = -z;
-    }
-
-    vec2 texcoord = vec2( z * 0.5f + 0.5f, len );
-    texcoord = texcoord * LUT_SCALE + LUT_BIAS;
-
-    float scale = texture( u_LTC2, texcoord ).w;
-
-    sum = len * scale;
+    return vec3( sum );
   }
 
-  return vec3( sum, sum, sum );
+  vec3 vsum = vec3( 0.0 );
+  L[ 0 ] = normalize( L[ 0 ] );
+  L[ 1 ] = normalize( L[ 1 ] );
+  L[ 2 ] = normalize( L[ 2 ] );
+  L[ 3 ] = normalize( L[ 3 ] );
+
+  vsum += integrate_edge_vec( L[ 1 ], L[ 0 ] );
+  vsum += integrate_edge_vec( L[ 0 ], L[ 2 ] );
+  vsum += integrate_edge_vec( L[ 2 ], L[ 3 ] );
+  vsum += integrate_edge_vec( L[ 3 ], L[ 1 ] );
+
+  float len = length( vsum );
+  float z = vsum.z / len;
+
+  z = float( !is_illuminated ) * -z;
+
+  vec2 texcoord = vec2( z * 0.5f + 0.5f, len );
+  texcoord = texcoord * LUT_SCALE + LUT_BIAS;
+
+  float scale = texture( u_LTC2, texcoord ).w;
+
+  sum = len * scale;
+
+  return vec3( sum );
 }
 
 vec3 to_linear( vec3 v ) { return pow( v, vec3( 2.2 ) ); }
@@ -116,6 +101,7 @@ vec3 f_schlick( float cos_theta, vec3 F0 )
 
 void main()
 {
+  float ambient = 0.02;
   vec3 albedo = to_linear( texture( u_base_color, v_texcoord ).rgb );
   vec4 arm = texture( u_arm, v_texcoord );
 
@@ -163,7 +149,7 @@ void main()
   // We combine this with our material's F0.
   vec3 specular_color = t2.x * f_schlick( 1.0, F0 ) + t2.y;
 
-  vec3 result = diffuse * kd + specular * specular_color;
+  vec3 result = ( diffuse + ambient ) * kd + specular * specular_color;
   result *= ao;
   result *= u_light_color * u_light_intensity;
   result = result / ( result + vec3( 1.0 ) ); // simple reinhard tonemapper to handle bright highlights gracefully

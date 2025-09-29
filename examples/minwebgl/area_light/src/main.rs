@@ -1,13 +1,17 @@
 //! Polygonal light demo
 
-mod precompute;
 mod plane;
 mod lil_gui;
+mod light;
 
+use light::*;
 use minwebgl as gl;
-use gl::{ math::mat3x3h, JsCast as _, GL, IntoArray as _, AsBytes as _ };
+use gl::{ math::mat3x3h, JsCast as _, GL, AsBytes as _ };
 use renderer::webgl::loaders::gltf;
 use web_sys::{ js_sys::Float32Array, HtmlCanvasElement, WebGlTexture };
+
+static LTC1 : &[ u8 ] = include_bytes!( "../ltc1" );
+static LTC2 : &[ u8 ] = include_bytes!( "../ltc2" );
 
 fn main()
 {
@@ -73,39 +77,22 @@ async fn run() -> Result< (), gl::WebglError >
   area_light_shader.uniform_upload( "u_LTC1", &2 );
   area_light_shader.uniform_upload( "u_LTC2", &3 );
 
-  let light_position = [ 0.0, 0.0, 7.0 ];
+  let light_position = [ 0.0, 0.0, -7.0 ];
   let mut light = RectangularLight
   {
-    vertices :
-    [
-      [ -1.0,  1.0, 0.0 ].into(),
-      [  1.0,  1.0, 0.0 ].into(),
-      [ -1.0, -1.0, 0.0 ].into(),
-      [  1.0, -1.0, 0.0 ].into(),
-      // [ -1.0,  1.0, 4.0 ].into(),
-      // [  1.0,  1.0, 4.0 ].into(),
-      // [  1.0, -1.0, 4.0 ].into(),
-      // [ -1.0, -1.0, 4.0 ].into(),
-    ],
+    vertices : Default::default(),
     color : [ 1.0, 0.95, 0.9 ],
     intensity : 20.0,
     two_sided : true,
   };
-  // gl::info!
-  // (
-  //   "{:#?}",
-  //   ( light.vertices[ 1 ] - light.vertices[ 0 ] )
-  //   .cross( light.vertices[ 2 ] - light.vertices[ 0 ] )
-  //   .normalize()
-  // );
 
   let ( light_body_mesh, light_body_vertex_buffer ) = light_body_vao( &gl, &light )?;
   let plane_mesh = plane::plane_vao( &gl )?;
-  let ( plane_base_color, plane_arm ) = plane::plane_material( &gl, [ 55, 57, 65, 255 ], 1.0, 0.2, 0.3 );
+  let ( plane_base_color, plane_arm ) = plane::plane_material( &gl, [ 55, 57, 65, 255 ], 1.0, 0.1, 0.0 );
   let plane_model = mat3x3h::scale( [ 10.0, 1.0, 10.0 ] );
 
-  let ltc1 = load_table( &gl, &precompute::LTC1 );
-  let ltc2 = load_table( &gl, &precompute::LTC2 );
+  let ltc1 = load_table( &gl, LTC1 );
+  let ltc2 = load_table( &gl, LTC2 );
 
   let skull_mesh = gltf::load( &document, "skull_salazar_downloadable.glb", &gl ).await?;
   let skull_model = mat3x3h::translation( [ 0.0, 1.0, 0.0 ] );
@@ -136,13 +123,13 @@ async fn run() -> Result< (), gl::WebglError >
     light.two_sided = params.two_sided;
     light.intensity = params.intensity;
 
-    let pos_rot_y = rotate_point( light_position.into(), gl::F32x3::Y, -params.rot_y.to_radians() );
-    let local_x = rotate_point( gl::F32x3::X, gl::F32x3::Y, -params.rot_y.to_radians() );
-    let pos_rot_x = rotate_point( pos_rot_y, local_x, -params.rot_x.to_radians() );
+    let pos_rot_y = rotate_point( light_position.into(), gl::F32x3::Y, params.rot_y.to_radians() );
+    let local_x = rotate_point( gl::F32x3::X, gl::F32x3::Y, params.rot_y.to_radians() );
+    let pos_rot_x = rotate_point( pos_rot_y, local_x, params.rot_x.to_radians() );
     let light_transform = mat3x3h::translation( pos_rot_x )
-    * mat3x3h::rot( 0.0, -params.rot_y.to_radians(), 0.0 )
-    * mat3x3h::rot( -params.rot_x.to_radians(), 0.0, 0.0 )
-    * mat3x3h::rot( 0.0, 0.0, -params.rot_z.to_radians() )
+    * mat3x3h::rot( 0.0, params.rot_y.to_radians(), 0.0 )
+    * mat3x3h::rot( params.rot_x.to_radians(), 0.0, 0.0 )
+    * mat3x3h::rot( 0.0, 0.0, params.rot_z.to_radians() )
     * mat3x3h::scale( [ params.scale_x, params.scale_y, 1.0 ] );
     light.apply_transform( &light_transform );
 
@@ -165,7 +152,6 @@ async fn run() -> Result< (), gl::WebglError >
 
     gl.enable( gl::CULL_FACE );
     area_light_shader.uniform_matrix_upload( "u_model", skull_model.raw_slice(), true );
-    // object_shader.uniform_matrix_upload( "u_rotation", model.raw_slice(), true );
     area_light_shader.uniform_matrix_upload( "u_mvp", skull_mvp.raw_slice(), true );
     for mesh in &skull_mesh.meshes
     {
@@ -187,7 +173,6 @@ async fn run() -> Result< (), gl::WebglError >
     gl.disable( gl::CULL_FACE );
 
     area_light_shader.uniform_matrix_upload( "u_model", plane_model.raw_slice(), true );
-    // object_shader.uniform_matrix_upload( "u_rotation", model.raw_slice(), true );
     area_light_shader.uniform_matrix_upload( "u_mvp", plane_mvp.raw_slice(), true );
     gl.active_texture( gl::TEXTURE0 );
     gl.bind_texture( GL::TEXTURE_2D, plane_base_color.as_ref() );
@@ -221,8 +206,10 @@ fn light_body_vao( gl : &GL, light : &RectangularLight )
   Ok( ( light_body_vao, vbo ) )
 }
 
-fn load_table( gl : &GL, table : &[ f32 ] ) -> Option< WebGlTexture >
+fn load_table( gl : &GL, table : &[ u8 ] ) -> Option< WebGlTexture >
 {
+  let table = table.to_vec(); // collect to vec because of alignment
+  let table : &[ f32 ] = asbytes::cast_slice( &table );
   let array = Float32Array::new_from_slice( table );
   let texture = gl.create_texture();
   gl.bind_texture( gl::TEXTURE_2D, texture.as_ref() );
@@ -243,61 +230,6 @@ fn load_table( gl : &GL, table : &[ f32 ] ) -> Option< WebGlTexture >
   gl::texture::d2::wrap_clamp( gl );
 
   texture
-}
-
-struct RectangularLight
-{
-  vertices : [ gl::F32x3; 4 ],
-  intensity : f32,
-  color : [ f32; 3 ],
-  two_sided : bool,
-}
-
-impl RectangularLight
-{
-  fn apply_transform( &mut self, t : &gl::F32x4x4 )
-  {
-    self.vertices =
-    [
-      [ -1.0,  1.0, 0.0 ].into(),
-      [  1.0,  1.0, 0.0 ].into(),
-      [ -1.0, -1.0, 0.0 ].into(),
-      [  1.0, -1.0, 0.0 ].into(),
-    ];
-
-    self.vertices.iter_mut().for_each
-    (
-      | v |
-      {
-        let v4 = gl::F32x4::new( v.x(), v.y(), v.z(), 1.0 );
-        let v4 = *t * v4;
-        *v = gl::F32x3::new( v4.x(), v4.y(), v4.z() );
-      }
-    );
-  }
-
-  fn vertices( &self ) -> [ [ f32; 3 ]; 4 ]
-  {
-    self.vertices
-    .into_iter()
-    .map( | v | v.into_array() )
-    .collect::< Vec< _ > >()
-    .try_into()
-    .unwrap()
-  }
-}
-
-#[ derive( Debug, serde::Serialize, serde::Deserialize ) ]
-struct GuiParams
-{
-  rot_x : f32,
-  rot_y : f32,
-  rot_z : f32,
-  scale_x : f32,
-  scale_y : f32,
-  color : [ f32; 3 ],
-  intensity : f32,
-  two_sided : bool,
 }
 
 fn rotate_point( point : gl::F32x3, axis : gl::F32x3, angle : f32 ) -> gl::F32x3
