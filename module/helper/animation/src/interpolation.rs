@@ -509,33 +509,20 @@ mod private
     }
   }
 
-  impl Animatable for F64x3
+  impl< E, const N : usize > Animatable for mingl::Vector< E, N >
+  where E : MatEl + Animatable
   {
     fn interpolate(&self, other : &Self, time : f64 ) -> Self
     {
-      Self::from
+      let v = self.iter().zip( other.iter() )
+      .map
       (
-        [
-          self.x().interpolate( &other.x(), time ),
-          self.y().interpolate( &other.y(), time ),
-          self.z().interpolate( &other.z(), time )
-        ]
+        | ( a, b ) |
+        a.interpolate( b, time )
       )
-    }
-  }
+      .collect::< Vec< _ > >();
 
-  impl Animatable for F32x3
-  {
-    fn interpolate(&self, other : &Self, time : f64 ) -> Self
-    {
-      Self::from
-      (
-        [
-          self.x().interpolate( &other.x(), time ),
-          self.y().interpolate( &other.y(), time ),
-          self.z().interpolate( &other.z(), time )
-        ]
-      )
+      Self::from_slice( v.as_slice() )
     }
   }
 
