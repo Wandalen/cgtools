@@ -134,7 +134,12 @@ async fn run() -> Result< (), gl::WebglError >
     light.apply_transform( &light_transform );
 
     gl.bind_buffer( gl::ARRAY_BUFFER, Some( &light_body_vertex_buffer ) );
-    gl.buffer_sub_data_with_f64_and_u8_array( gl::ARRAY_BUFFER, 0.0, light.vertices().as_flattened().as_bytes() );
+    gl.buffer_sub_data_with_f64_and_u8_array
+    (
+      gl::ARRAY_BUFFER,
+      0.0,
+      light.vertices().as_flattened().as_bytes()
+    );
 
     gl.clear( gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT );
 

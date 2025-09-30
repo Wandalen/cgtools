@@ -78,7 +78,7 @@ This entire process is made efficient by pre-calculating the transformation matr
 
 - [Real-Time Polygonal-Light Shading with Linearly Transformed Cosines](https://eheitzresearch.wordpress.com/415-2/) - The original SIGGRAPH 2016 paper by Eric Heitz, Jonathan Dupuy, Stephen Hill and David Neubelt.
 - [LearnOpenGL - PBR Theory](https://learnopengl.com/PBR/Theory) - An excellent introduction to the theory behind Physically-Based Rendering.
-- [LearnOpenGL - Area-Lights](https://learnopengl.com/Guest-Articles/2022/Area-Lights) - Pracrtical implementation of area-lights.
+- [LearnOpenGL - Area-Lights](https://learnopengl.com/Guest-Articles/2022/Area-Lights) - Practical implementation of area-lights.
 
 ## Use Cases and Applications
 

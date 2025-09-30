@@ -56,12 +56,9 @@ vec3 ltc_evaluate( vec3 N, vec3 V, vec3 P, mat3 m_inv, vec3 points[ 4 ], bool tw
   vec3 light_normal = cross( points[ 1 ] - points[ 0 ], points[ 2 ] - points[ 0 ] );
   bool is_illuminated = dot( dir, light_normal ) > 0.0;
 
-  float sum;
-
   if ( !is_illuminated && !two_sided )
   {
-    sum = 0.0;
-    return vec3( sum );
+    return vec3( 0.0 );
   }
 
   vec3 vsum = vec3( 0.0 );
@@ -78,14 +75,15 @@ vec3 ltc_evaluate( vec3 N, vec3 V, vec3 P, mat3 m_inv, vec3 points[ 4 ], bool tw
   float len = length( vsum );
   float z = vsum.z / len;
 
-  z = float( !is_illuminated ) * -z;
+  // if is two sided but not illuminated then change sign of z
+  z = !is_illuminated ? abs( z ) : z;
 
   vec2 texcoord = vec2( z * 0.5f + 0.5f, len );
   texcoord = texcoord * LUT_SCALE + LUT_BIAS;
 
   float scale = texture( u_LTC2, texcoord ).w;
 
-  sum = len * scale;
+  float sum = len * scale;
 
   return vec3( sum );
 }

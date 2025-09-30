@@ -18,7 +18,15 @@ extern "C"
   pub fn add_folder( gui : &JsValue, name : &str ) -> JsValue;
 
   #[ wasm_bindgen( js_name = "addController" ) ]
-  pub fn add( gui : &JsValue, object : &JsValue, property : &str, min : Option< f64 >, max : Option< f64 >, step : Option< f64 > ) -> JsValue;
+  pub fn add
+  (
+    gui : &JsValue,
+    object : &JsValue,
+    property : &str,
+    min : Option< f64 >,
+    max : Option< f64 >,
+    step : Option< f64 >
+  ) -> JsValue;
 
   #[ wasm_bindgen( js_name = "addColorController" ) ]
   pub fn add_color( gui : &JsValue, object : &JsValue, property : &str ) -> JsValue;
