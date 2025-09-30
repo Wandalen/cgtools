@@ -15,7 +15,8 @@ mod private
       {
         TRANSLATION_PREFIX,
         ROTATION_PREFIX,
-        SCALE_PREFIX
+        SCALE_PREFIX,
+        MORPH_TARGET_PREFIX
       },
       Animation
     }
@@ -274,6 +275,93 @@ mod private
     Sequence::new( tweens ).ok()
   }
 
+  async fn weights_sequence
+  (
+    channel : Channel< '_ >,
+    buffers : &[ Vec< u8 > ],
+  )
+  -> Option< Sequence< Tween< f64 > >>
+  {
+    let Some
+    (
+      ( components, times, values )
+    )
+    = decode_channel( channel.clone(), buffers ).await
+    else
+    {
+      return None;
+    };
+
+    let ReadOutputs::MorphTargetWeights( weights ) = values
+    else
+    {
+      return None;
+    };
+
+    let weights = weights.into_f32().collect::< Vec< _ > >();
+
+    let iter = times.into_iter()
+    .zip( weights.chunks( components ) );
+
+    let mut tweens = vec![];
+    let mut last_time = None;
+    let mut last_value: Option< f64 > = None;
+
+    for ( t2, v ) in iter
+    {
+      let mut items_iter = v.iter();
+
+      let mut m1 = None;
+      if channel.sampler().interpolation() == Interpolation::CubicSpline
+      {
+        let Some( _m1 ) = items_iter.next().cloned()
+        else
+        {
+          continue
+        };
+        m1 = Some( _m1 as f64 );
+      }
+
+      let Some( v2 ) = items_iter.next().cloned().map( | v | v as f64 )
+      else
+      {
+        continue;
+      };
+
+      let mut m2 = None;
+      if channel.sampler().interpolation() == Interpolation::CubicSpline
+      {
+        let Some( _m2 ) = items_iter.next().cloned()
+        else
+        {
+          continue
+        };
+        m2 = Some( _m2 );
+      }
+
+      let v1 = last_value.clone().unwrap_or( v2 );
+      let t1 = last_time.unwrap_or( t2 );
+
+      let easing : Box< dyn EasingFunction< AnimatableType = f64 > > = match channel.sampler().interpolation()
+      {
+        Interpolation::Linear => Linear::new(),
+        Interpolation::Step => Box::new( Step::new( 1.0 ) ),
+        Interpolation::CubicSpline => Box::new( CubicHermite::new( m1.unwrap(), m2.unwrap() ) )
+      };
+
+      last_time = Some( t2 );
+      last_value = Some( v2.clone() );
+      let duration = t2 - t1;
+      let delay = t1;
+
+      let tween = Tween::new( v1, v2, duration.into(), easing )
+      .with_delay( delay.into() );
+      tweens.push( tween );
+    }
+
+    Sequence::new( tweens ).ok()
+  }
+
   /// Load all animations from [`Gltf`] file
   pub async fn load
   (
@@ -329,8 +417,15 @@ mod private
             };
             sequencer.add( &format!( "{}{}", name, ROTATION_PREFIX ), sequence );
           },
-          _ => continue
-          // Property::MorphTargetWeights => todo!(),
+          Property::MorphTargetWeights =>
+          {
+            let Some( sequence ) = weights_sequence( channel, buffers ).await
+            else
+            {
+              continue;
+            };
+            sequencer.add( &format!( "{}{}", name, MORPH_TARGET_PREFIX ), sequence );
+          }
         };
       }
 

@@ -22,6 +22,8 @@ mod private
   pub const ROTATION_PREFIX : &'static str = ".rotation";
   /// Prefix used for getting [`Node`] scale
   pub const SCALE_PREFIX : &'static str = ".scale";
+  /// Prefix used for getting morph target weights
+  pub const MORPH_TARGET_PREFIX : &'static str = ".morph_target";
 
   /// Gives opportunity to change [`Node`]'s transforms in any way
   /// Interface used in [`Animation`] for using complex animation behaviours.
@@ -197,6 +199,7 @@ crate::mod_interface!
   {
     TRANSLATION_PREFIX,
     ROTATION_PREFIX,
-    SCALE_PREFIX
+    SCALE_PREFIX,
+    MORPH_TARGET_PREFIX
   };
 }
