@@ -280,7 +280,7 @@ mod private
     channel : Channel< '_ >,
     buffers : &[ Vec< u8 > ],
   )
-  -> Option< Sequence< Tween< f64 > >>
+  -> Option< Sequence< Tween< mingl::Vector< f64, 1 > > > >
   {
     let Some
     (
@@ -336,23 +336,32 @@ mod private
         {
           continue
         };
-        m2 = Some( _m2 );
+        m2 = Some( _m2 as f64 );
       }
 
       let v1 = last_value.clone().unwrap_or( v2 );
       let t1 = last_time.unwrap_or( t2 );
 
-      let easing : Box< dyn EasingFunction< AnimatableType = f64 > > = match channel.sampler().interpolation()
+      let easing : Box< dyn EasingFunction< AnimatableType = mingl::Vector< f64, 1 > > > = match channel.sampler().interpolation()
       {
         Interpolation::Linear => Linear::new(),
         Interpolation::Step => Box::new( Step::new( 1.0 ) ),
-        Interpolation::CubicSpline => Box::new( CubicHermite::new( m1.unwrap(), m2.unwrap() ) )
+        Interpolation::CubicSpline => Box::new
+        (
+          CubicHermite::new
+          (
+            mingl::Vector::from_array( [ m1.unwrap() ] ),
+            mingl::Vector::from_array( [ m2.unwrap() ] ),
+          )
+        )
       };
 
       last_time = Some( t2 );
       last_value = Some( v2.clone() );
       let duration = t2 - t1;
       let delay = t1;
+      let v1 = mingl::Vector::from_array( [ v1 ] );
+      let v2 = mingl::Vector::from_array( [ v2 ] );
 
       let tween = Tween::new( v1, v2, duration.into(), easing )
       .with_delay( delay.into() );

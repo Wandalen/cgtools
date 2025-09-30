@@ -34,8 +34,6 @@ mod private
   use gl::
   {
     NdFloat,
-    F64x3,
-    F32x3,
     Quat,
     MatEl
   };
