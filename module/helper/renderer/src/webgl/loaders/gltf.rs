@@ -1,7 +1,9 @@
 mod private
 {
-  use std::{ cell::RefCell, rc::Rc };
-  use minwebgl as gl;
+  use std::{ cell::RefCell, cmp::Ordering, rc::Rc };
+  use gltf::mesh::iter::MorphTargets;
+  use mingl::math::mat::Order;
+use minwebgl::{self as gl, geometry::Positions};
   use gl::
   {
     JsCast,
@@ -72,6 +74,8 @@ mod private
     gl : &GL,
     skin : gltf::Skin< '_ >,
     nodes : &HashMap< Box< str >, Rc< RefCell< Node > > >,
+    primitives_morph_targets : &Option< Vec< MorphTargets< '_ > > >,
+    primitives_vertices_count : &[ usize ],
     buffers : &'a [ Vec< u8 > ],
   )
   -> Option< Rc< RefCell< Skeleton > > >
@@ -121,10 +125,120 @@ mod private
       }
     }
 
-    // gl::info!( "Joints: {:?}", joints );
-
-    let skeleton = Skeleton::new( gl, joints )
+    let mut skeleton = Skeleton::new( gl, joints )
     .map( | s | Rc::new( RefCell::new( s ) ) );
+
+    let get_target_array = | acc : gltf::Accessor< '_ > |
+    {
+      gltf::accessor::Iter::< [ f32; 3 ] >::new
+      (
+        acc,
+        | buffer | buffers.get( buffer.index() ).map( | x | &*x.0 )
+      )
+      .map( | iter | iter.collect::< Vec< _ > >() )
+    };
+
+    fn pack_targets
+    (
+      targets_array : Vec< Vec< [ f32; 3 ] > >
+    )
+    -> Vec< [ f32; 3 ] >
+    {
+      let mut packed_array = Vec::with_capacity( targets_array.first().unwrap().len() * targets_array.len() );
+      for i in 0..targets_array.first().unwrap().len()
+      {
+        let mut targets_item = targets_array.iter()
+        .map( | arr | arr[ i ] )
+        .collect::< Vec< _ > >();
+        packed_array.extend( targets_item );
+      }
+    }
+
+    let ( positions, normals, tangents ) = if let Some( primitives_morph_targets ) = primitives_morph_targets
+    {
+      let skin_vertices_count = primitives_vertices_count.iter().sum::< usize >();
+      let mut skin_positions = Vec::with_capacity( skin_vertices_count );
+      let mut skin_normals = Vec::with_capacity( skin_vertices_count );
+      let mut skin_tangents = Vec::with_capacity( skin_vertices_count );
+
+      for ( i, morph_targets ) in primitives_morph_targets.iter().enumerate()
+      {
+        let vertices_count = primitives_vertices_count[ i ];
+        let mut targets_positions = Vec::with_capacity( vertices_count );
+        let mut targets_normals = Vec::with_capacity( vertices_count );
+        let mut targets_tangents = Vec::with_capacity( vertices_count );
+
+        for morph_target in *morph_targets
+        {
+          if let Some( positions ) = morph_target.positions()
+          .map( get_target_array )
+          .flatten()
+          {
+            targets_positions.push( positions );
+          }
+          else
+          {
+            targets_positions.push( vec![ [ 0.0; 3 ]; vertices_count ] );
+          }
+
+          if let Some( normals ) = morph_target.normals()
+          .map( get_target_array )
+          .flatten()
+          {
+            targets_normals.push( normals );
+          }
+          else
+          {
+            targets_normals.push( vec![ [ 0.0; 3 ]; vertices_count ] );
+          }
+
+          if let Some( tangents ) = morph_target.tangents()
+          .map( get_target_array )
+          .flatten()
+          {
+            targets_tangents.push( tangents );
+          }
+          else
+          {
+            targets_tangents.push( vec![ [ 0.0; 3 ]; vertices_count ] );
+          }
+        }
+
+        let primitive_positions = pack_targets( targets_positions );
+        let primitive_normals = pack_targets( targets_normals );
+        let primitive_tangents = pack_targets( targets_tangents );
+
+        skin_positions.extend( primitive_positions );
+        skin_normals.extend( primitive_normals );
+        skin_tangents.extend( primitive_tangents );
+      }
+
+      let optional = | array : Vec< [ f32; 3 ] > |
+      {
+        let is_zero = array.iter()
+        .all( | v | v.partial_cmp( [ 0.0; 3 ] ) == Some( Ordering::Equal ) );
+
+        ( !is_zero ).then_some( array )
+      };
+
+      (
+        optional( skin_positions ),
+        optional( skin_normals ),
+        optional( skin_tangents )
+      )
+    }
+    else
+    {
+      ( None, None, None )
+    };
+
+    if let Some( skeleton ) = skeleton
+    {
+      let skeleton_mut = skeleton.borrow_mut();
+      skeleton_mut.set_displacement( positions, gltf::Semantic::Positions, skin_vertices_count );
+      skeleton_mut.set_displacement( normals, gltf::Semantic::Normals, skin_vertices_count );
+      skeleton_mut.set_displacement( tangents, gltf::Semantic::Tangents, skin_vertices_count );
+    }
 
     skeleton
   }
@@ -436,117 +550,117 @@ mod private
     let mut meshes = Vec::new();
     for gltf_mesh in gltf_file.meshes()
     {
-    let mut mesh = Mesh::default();
+      let mut mesh = Mesh::default();
 
-    for gltf_primitive in gltf_mesh.primitives()
-    {
-      let mut geometry = Geometry::new( gl )?;
-      geometry.draw_mode = gltf_primitive.mode().as_gl_enum();
-
-      // Indices
-      if let Some( acc ) = gltf_primitive.indices()
+      for gltf_primitive in gltf_mesh.primitives()
       {
-        let info = IndexInfo
-        {
-          buffer : gl_buffers[ acc.view().unwrap().index() ].clone(),
-          count : acc.count() as u32,
-          offset : acc.offset() as u32,
-          data_type : acc.data_type().as_gl_enum()
-        };
-        geometry.add_index( gl, info )?;
-      }
+        let mut geometry = Geometry::new( gl )?;
+        geometry.draw_mode = gltf_primitive.mode().as_gl_enum();
 
-      // Attributes
-      for ( sem, acc ) in gltf_primitive.attributes()
-      {
-        if acc.sparse().is_some()
+        // Indices
+        if let Some( acc ) = gltf_primitive.indices()
         {
-          gl::log::info!( "Sparce accessors are not supported yet" );
-          continue;
+          let info = IndexInfo
+          {
+            buffer : gl_buffers[ acc.view().unwrap().index() ].clone(),
+            count : acc.count() as u32,
+            offset : acc.offset() as u32,
+            data_type : acc.data_type().as_gl_enum()
+          };
+          geometry.add_index( gl, info )?;
         }
 
-        match sem
+        // Attributes
+        for ( sem, acc ) in gltf_primitive.attributes()
         {
-          gltf::Semantic::Positions =>
+          if acc.sparse().is_some()
           {
-            geometry.vertex_count = acc.count() as u32;
-            let gltf_box = gltf_primitive.bounding_box();
+            gl::log::info!( "Sparce accessors are not supported yet" );
+            continue;
+          }
 
-            let mut attr_info = make_attibute_info( &acc, 0 );
-            attr_info.bounding_box = BoundingBox::new( gltf_box.min, gltf_box.max );
-            geometry.add_attribute( gl, "positions", attr_info, false )?;
-          },
-          gltf::Semantic::Normals =>
+          match sem
           {
-            geometry.add_attribute( gl, "normals", make_attibute_info( &acc, 1 ), false )?;
-          },
-          gltf::Semantic::TexCoords( i ) =>
-          {
-            assert!( i < 5, "Only 5 types of texture coordinates are supported" );
-            geometry.add_attribute
-            (
-              gl,
-              format!( "texture_coordinates_{}", 2 + i ),
-              make_attibute_info( &acc, 2 + i ),
-              false
-            )?;
-          },
-          gltf::Semantic::Colors( i ) =>
-          {
-            assert!( i < 2, "Only 2 types of color coordinates are supported" );
-            geometry.add_attribute
-            (
-              gl,
-              format!( "colors_{}", 7 + i ),
-              make_attibute_info( &acc, 7 + i ),
-              false
-            )?;
-          },
-          gltf::Semantic::Tangents =>
-          {
-            geometry.add_attribute
-            (
-              gl,
-              "tangents",
-              make_attibute_info( &acc, 9 ),
-              true
-            )?;
-          },
-          gltf::Semantic::Joints( i ) =>
-          {
-            geometry.add_attribute
-            (
-              gl,
-              format!( "joints_{}", i ),
-              make_attibute_info( &acc, 10 + i ),
-              true
-            )?;
-          },
-          gltf::Semantic::Weights( i ) =>
-          {
-            geometry.add_attribute
-            (
-              gl,
-              format!( "weights_{}", i ),
-              make_attibute_info( &acc, 13 + i ),
-              true
-            )?;
-          },
-          //a => { gl::warn!( "Unsupported attribute: {:?}", a ); continue; }
+            gltf::Semantic::Positions =>
+            {
+              geometry.vertex_count = acc.count() as u32;
+              let gltf_box = gltf_primitive.bounding_box();
+
+              let mut attr_info = make_attibute_info( &acc, 0 );
+              attr_info.bounding_box = BoundingBox::new( gltf_box.min, gltf_box.max );
+              geometry.add_attribute( gl, "positions", attr_info, false )?;
+            },
+            gltf::Semantic::Normals =>
+            {
+              geometry.add_attribute( gl, "normals", make_attibute_info( &acc, 1 ), false )?;
+            },
+            gltf::Semantic::TexCoords( i ) =>
+            {
+              assert!( i < 5, "Only 5 types of texture coordinates are supported" );
+              geometry.add_attribute
+              (
+                gl,
+                format!( "texture_coordinates_{}", 2 + i ),
+                make_attibute_info( &acc, 2 + i ),
+                false
+              )?;
+            },
+            gltf::Semantic::Colors( i ) =>
+            {
+              assert!( i < 2, "Only 2 types of color coordinates are supported" );
+              geometry.add_attribute
+              (
+                gl,
+                format!( "colors_{}", 7 + i ),
+                make_attibute_info( &acc, 7 + i ),
+                false
+              )?;
+            },
+            gltf::Semantic::Tangents =>
+            {
+              geometry.add_attribute
+              (
+                gl,
+                "tangents",
+                make_attibute_info( &acc, 9 ),
+                true
+              )?;
+            },
+            gltf::Semantic::Joints( i ) =>
+            {
+              geometry.add_attribute
+              (
+                gl,
+                format!( "joints_{}", i ),
+                make_attibute_info( &acc, 10 + i ),
+                true
+              )?;
+            },
+            gltf::Semantic::Weights( i ) =>
+            {
+              geometry.add_attribute
+              (
+                gl,
+                format!( "weights_{}", i ),
+                make_attibute_info( &acc, 13 + i ),
+                true
+              )?;
+            },
+            //a => { gl::warn!( "Unsupported attribute: {:?}", a ); continue; }
+          };
+        }
+
+        let material_id = gltf_primitive.material().index().unwrap_or( materials.len() - 1 );
+        let primitive = Primitive
+        {
+          geometry : Rc::new( RefCell::new( geometry ) ),
+          material : materials[ material_id ].clone()
         };
+
+        mesh.add_primitive( Rc::new( RefCell::new( primitive ) ) );
       }
 
-      let material_id = gltf_primitive.material().index().unwrap_or( materials.len() - 1 );
-      let primitive = Primitive
-      {
-        geometry : Rc::new( RefCell::new( geometry ) ),
-        material : materials[ material_id ].clone()
-      };
-
-      mesh.add_primitive( Rc::new( RefCell::new( primitive ) ) );
-    }
-
-    meshes.push( Rc::new( RefCell::new( mesh ) ) );
+      meshes.push( Rc::new( RefCell::new( mesh ) ) );
     }
 
     gl::log::info!( "Meshes: {}",meshes.len() );
@@ -577,7 +691,15 @@ mod private
 
       if let Some( skin ) = gltf_node.skin()
       {
-        skinned_nodes.push( ( node.clone(), skin ) );
+        let primitives_morph_targets = if let Some( mesh ) = gltf_node.mesh()
+        {
+          Some( mesh.primitives().map( | p | p.morph_targets() ).collect::< Vec< _ > >() )
+        }
+        else
+        {
+          None
+        };
+        skinned_nodes.push( ( node.clone(), skin, primitives_morph_targets ) );
       }
 
       nodes.push( node );
@@ -610,15 +732,20 @@ mod private
     )
     .collect::< HashMap< _, _ > >();
 
-    for ( node, skin ) in skinned_nodes
+    for ( node, skin, primitives_morph_targets ) in skinned_nodes
     {
       if let Object3D::Mesh( mesh ) = &node.borrow().object
       {
+        let primitives_vertices_count = mesh.borrow().primitives.iter()
+        .map( | p | p.borrow().geometry.borrow().vertex_count as usize )
+        .collect::< Vec< _ > >();
         if let Some( skeleton ) = load_skeleton
         (
           gl,
           skin,
           &nodes_map,
+          &primitives_morph_targets,
+          primitives_vertices_count.as_slice(),
           bin_buffers.as_slice()
         )
         .await

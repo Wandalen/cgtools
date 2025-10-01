@@ -13,13 +13,15 @@ mod private
     }
   };
   use crate::webgl::Node;
-  use std::{ rc::Rc, cell::RefCell };
-  use std::collections::HashMap;
+  use std::{ cell::RefCell, collections::HashSet, rc::Rc };
+  use std::collections::{ HashSet, HashMap };
 
   /// Global transform matrices texture slot
   pub const GLOBAL_MATRICES_SLOT : u32 = 13;
   /// Inverse bind matrices texture slot
   pub const INVERSE_MATRICES_SLOT : u32 = 14;
+  /// Displacements texture slot
+  pub const DISPLACEMENTS_SLOT : u32 = 15;
 
   /// Loads data to data texture where every pixel
   /// is 4 float values. Used for packing matrices array
@@ -96,7 +98,20 @@ mod private
     inverse_texture : WebGlTexture,
     /// Defines if [`Skeleton`] is recently cloned,
     /// but not all fields have been cloned too
-    need_clone_inner : bool
+    need_clone_inner : bool,
+
+    /// Morph targets positions displacements
+    positions_displacements : Option< Vec< [ f32; 3 ] > >,
+    /// Morph targets normals displacements
+    normals_displacements : Option< Vec< [ f32; 3 ] > >,
+    /// Morph targets tangents displacements
+    tangents_displacements : Option< Vec< [ f32; 3 ] > >,
+    /// Morph targets displacements texture
+    displacements_texture : Option< WebGlTexture >,
+    /// Define if need update [`Self::displacements_texture`]
+    need_update_displacement : bool,
+    /// Displacements count. Must be sum of mesh primitives vertices count
+    vertices_count : Option< usize >,
   }
 
   impl Skeleton
@@ -147,12 +162,34 @@ mod private
           _inverse_bind_matrices : inverse_bind_matrices,
           global_texture : gl.create_texture()?,
           inverse_texture,
-          need_clone_inner : false
+          need_clone_inner : false,
+
+          positions_displacements : None,
+          normals_displacements : None,
+          tangents_displacements : None,
+          displacements_texture : None,
+          vertices_count : None,
+          need_update_displacement : false
         }
       )
     }
 
     /// Upload inverse bind matrices texture to current shader program
+    ///
+    /// Displacement texture aligment:
+    ///
+    /// +---------------------------------...---------------...----------------...--------------...-------+
+    /// |                                          Texture row                                            |
+    /// +---------------------------------...---------------...----------------...-------+------...-------+
+    /// |                       One combined vertex multitarget block                    |      ...       |
+    /// +---------------------------------...-------+-------...-------+--------...-------+------...-------+
+    /// |               Positions targets           | Normals targets | Tangents targets |      ...       |
+    /// +--------------------------+---+--...--+----+----+--...--+----+-----+--...--+----+------...-------+
+    /// |        One target        |   |       |    |    |       |    |     |       |    |      ...       |
+    /// +-----+--------------+-----+---+--...--+----+----+--...--+----+-----+--...--+----+------...-------+
+    /// |  X  | Y (4 bytes)  |  Z  |   |       |    |    |       |    |     |       |    |      ...       |
+    /// +-----+--------------+-----+---+--...--+----+----+--...--+----+-----+--...--+----+------...-------+
+    ///
     pub fn upload
     (
       &mut self,
@@ -167,6 +204,18 @@ mod private
           self.global_texture = global_texture;
           self.need_clone_inner = false;
         }
+
+        if let Some( displacements_texture ) = gl.create_texture()
+        {
+          self.displacements_texture = displacements_texture;
+          self.need_clone_inner = false;
+        }
+      }
+
+      if self.need_update_displacement
+      {
+
+        self.need_update_displacement = false;
       }
 
       let global_matrices = self.joints.iter()
@@ -198,6 +247,50 @@ mod private
       upload_texture( gl, &self.inverse_texture, inverse_matrices_loc.clone(), INVERSE_MATRICES_SLOT );
       gl::uniform::upload( &gl, texture_size_loc.clone(), texture_size.as_slice() ).unwrap();
     }
+
+    pub fn set_displacement
+    (
+      &mut self,
+      displacement_array : Option< Vec< [ f32; 3 ] > >,
+      displacement_type : gltf::Semantic,
+      vertices_count : usize
+    )
+    {
+      if Some( vertices_count ) != self.vertices_count && self.vertices_count.is_some()
+      {
+        return;
+      }
+
+      if self.vertices_count.is_none()
+      {
+        self.vertices_count = Some( vertices_count );
+      }
+
+      let positions_len = self.positions_displacements.map( | v | v.len() ).unwrap_or_default();
+      let normals_len = self.normals_displacements.map( | v | v.len() ).unwrap_or_default();
+      let tangents_len = self.tangents_displacements.map( | v | v.len() ).unwrap_or_default();
+      let mut unique = [ displacement_array, positions_len, normals_len, tangents_len ].iter().collect::< HashSet< _ > >();
+      unique.remove( &0 );
+      if unique.len() > 1
+      {
+        return;
+      }
+
+      match displacement_type
+      {
+        gltf::Semantic::Positions => { self.positions_displacements = displacement_array; },
+        gltf::Semantic::Normals => { self.normals_displacements = displacement_array; },
+        gltf::Semantic::Tangents => { self.tangents_displacements = displacement_array; }
+        _ => ()
+      }
+      match displacement_type
+      {
+        gltf::Semantic::Positions |
+        gltf::Semantic::Normals |
+        gltf::Semantic::Tangents => { self.need_update_displacement = true; }
+        _ => ()
+      }
+    }
   }
 
   impl Clone for Skeleton
@@ -212,7 +305,13 @@ mod private
         _inverse_bind_matrices : self._inverse_bind_matrices.clone(),
         global_texture : self.global_texture.clone(),
         inverse_texture : self.inverse_texture.clone(),
-        need_clone_inner : true
+        need_clone_inner : true,
+        positions_displacements : self.positions_displacements.clone(),
+        normals_displacements : self.normals_displacements.clone(),
+        tangents_displacements : self.tangents_displacements.clone(),
+        displacements_texture : self.displacements_texture.clone(),
+        need_update_displacement : self.need_update_displacement.clone(),
+        vertices_count : self.vertices_count
       }
     }
   }
@@ -224,6 +323,7 @@ crate::mod_interface!
   {
     Skeleton,
     GLOBAL_MATRICES_SLOT,
-    INVERSE_MATRICES_SLOT
+    INVERSE_MATRICES_SLOT,
+    DISPLACEMENTS_SLOT
   };
 }
