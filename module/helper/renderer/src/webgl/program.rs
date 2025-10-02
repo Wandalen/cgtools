@@ -197,6 +197,12 @@ mod private
     "inverseBindMatrices",
     "globalJointTransformMatrices",
     "matricesTextureSize",
+    "primitiveOffset",
+    "morphWeights",
+    "displacements",
+    "displacementsTextureSize",
+    "targetsCount",
+    "displacementsOffsets",
 
     // Material uniform  locations
     //// Textures uniform locations
