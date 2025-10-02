@@ -277,7 +277,7 @@ mod private
       buffers
     );
 
-    if skeleton.transforms_as_ref().is_some() || skeleton.displacements_as_ref().is_some()
+    if skeleton.has_skin() || skeleton.has_morph_targets()
     {
       Some( Rc::new( RefCell::new( skeleton ) ) )
     }
@@ -796,14 +796,14 @@ mod private
           mesh.borrow_mut().skeleton = Some( skeleton.clone() );
           for primitive in &mesh.borrow().primitives
           {
-            if skeleton.borrow().transforms_as_ref().is_some()
+            if skeleton.borrow().has_skin()
             {
               primitive.borrow()
               .geometry.borrow_mut()
               .defines += "#define USE_SKINNING\n";
             }
 
-            if skeleton.borrow().displacements_as_ref().is_some()
+            if skeleton.borrow().has_morph_targets()
             {
               primitive.borrow()
               .geometry.borrow_mut()
