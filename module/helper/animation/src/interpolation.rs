@@ -524,6 +524,21 @@ mod private
     }
   }
 
+  impl< E > Animatable for Vec< E >
+  where E : MatEl + Animatable
+  {
+    fn interpolate(&self, other : &Self, time : f64 ) -> Self
+    {
+      self.iter().zip( other.iter() )
+      .map
+      (
+        | ( a, b ) |
+        a.interpolate( b, time )
+      )
+      .collect::< Vec< _ > >()
+    }
+  }
+
   impl< E > Animatable for Quat< E >
   where
     E : MatEl + core::fmt::Debug + NdFloat
