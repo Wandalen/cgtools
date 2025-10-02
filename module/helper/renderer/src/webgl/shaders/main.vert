@@ -57,9 +57,9 @@ out vec4 vColor_1;
 #endif
 
 #ifdef USE_MORPH_TARGET
-  #define MAX_MORPHS 32
+  #define MAX_MORPH_TARGETS 100
 
-  uniform float morphWeights[ MAX_MORPHS ];
+  uniform float morphWeights[ MAX_MORPH_TARGETS ];
   uniform uint primitiveOffset;
   uniform sampler2D displacements;
   uniform uvec2 displacementsTextureSize;
@@ -191,7 +191,7 @@ out vec4 vColor_1;
     if ( displacementsOffsets.x == -1 ) return basePosition;
 
     vec3 pos = basePosition;
-    uint cnt = min( targetsCount, uint( MAX_MORPHS ) );
+    uint cnt = min( targetsCount, uint( MAX_MORPH_TARGETS ) );
 
     for ( uint i = 0u; i < cnt; ++i )
     {
@@ -208,7 +208,7 @@ out vec4 vColor_1;
     if ( displacementsOffsets.y == -1 ) return baseNormal;
 
     vec3 n = baseNormal;
-    uint cnt = min( targetsCount, uint( MAX_MORPHS ) );
+    uint cnt = min( targetsCount, uint( MAX_MORPH_TARGETS ) );
 
     for ( uint i = 0u; i < cnt; ++i )
     {
@@ -225,7 +225,7 @@ out vec4 vColor_1;
     if ( displacementsOffsets.z == -1 ) return baseTangent;
 
     vec3 t = baseTangent;
-    uint cnt = min( targetsCount, uint( MAX_MORPHS ) );
+    uint cnt = min( targetsCount, uint( MAX_MORPH_TARGETS ) );
 
     for ( uint i = 0u; i < cnt; ++i )
     {
@@ -259,7 +259,6 @@ void main()
 
   vec4 position = vec4( position, 1.0 );
 
-  /*
   #ifdef USE_MORPH_TARGET
     if ( displacementsOffsets.x != -1 )
     {
@@ -278,7 +277,6 @@ void main()
       }
     #endif
   #endif
-  */
 
   #ifdef USE_SKINNING
     position = skin_matrix() * position;
