@@ -48,7 +48,7 @@ async fn run() -> Result< (), gl::WebglError >
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
 
-  let gltf_path = "gltf/bug_bunny.glb";
+  let gltf_path = "gltf/zophrac.glb";
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
   let scenes = gltf.scenes;
   scenes[ 0 ].borrow_mut().update_world_matrix();
@@ -119,13 +119,12 @@ async fn run() -> Result< (), gl::WebglError >
         let delta_time = time - *last_time.borrow();
         *last_time.borrow_mut() = time;
 
-        if current_animation.borrow().animation.borrow().as_any()
-        .downcast_ref::< Sequencer >().unwrap().is_completed()
+        if current_animation.borrow().animation.as_any()
+        .downcast_ref::< animation::Sequencer >().unwrap().is_completed()
         {
-          current_animation.borrow().animation
-          .borrow_mut()
+          current_animation.borrow_mut().animation
           .as_any_mut()
-          .downcast_mut::< Sequencer >()
+          .downcast_mut::< animation::Sequencer >()
           .unwrap()
           .reset();
         }
