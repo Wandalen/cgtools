@@ -99,6 +99,26 @@ mod private
             node.borrow_mut().set_scale( F32x3::from_array( scale ) );
           }
         }
+
+        if let Some( weights ) = self.get::< Sequence< Tween< Vec< f64 > > > >
+        (
+          &format!( "{}{}", name, MORPH_TARGET_PREFIX )
+        )
+        {
+          if let Some( weights ) = weights.current_get()
+          {
+            let weights = weights.value_get().iter()
+            .map( | v | *v as f32 )
+            .collect::< Vec< _ > >();
+            if let crate::webgl::Object3D::Mesh( mesh ) = &node.borrow().object
+            {
+              if let Some( skeleton ) = &mesh.borrow().skeleton
+              {
+                *skeleton.borrow().get_morph_weights().borrow_mut() = weights;
+              }
+            }
+          }
+        }
       }
     }
   }

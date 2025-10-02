@@ -10,7 +10,7 @@ mod private
     AnimatablePlayer
   };
   use mingl as gl;
-  use gl::{ F32x3, F64x3, QuatF32, QuatF64 };
+  use gl::{ F32x3, F64x3, F64x4, QuatF32, QuatF64 };
   use crate::webgl::
   {
     Node,
@@ -38,7 +38,8 @@ mod private
     /// - x - transform
     /// - y - rotation
     /// - z - scale
-    scaled_nodes : HashMap< Box< str >, ( Vec< Box< str > >, F64x3 ) >,
+    /// - w - morph targets
+    scaled_nodes : HashMap< Box< str >, ( Vec< Box< str > >, F64x4 ) >,
   }
 
   impl Scaler
@@ -59,7 +60,7 @@ mod private
       &mut self,
       group_name : &str,
       node_names : Vec< Box< str > >,
-      scale : F64x3
+      scale : F64x4
     )
     {
       self.scaled_nodes.insert( group_name.into(), ( node_names, scale ) );
@@ -84,13 +85,13 @@ mod private
     }
 
     /// Get reference to group scale
-    pub fn scale_get( &self, group : &str ) -> Option< &F64x3 >
+    pub fn scale_get( &self, group : &str ) -> Option< &F64x4 >
     {
       self.scaled_nodes.get( group.into() ).map( | ( _, s ) | s )
     }
 
     /// Get mutable reference to group scale
-    pub fn scale_get_mut( &mut self, group : &str ) -> Option< &mut F64x3 >
+    pub fn scale_get_mut( &mut self, group : &str ) -> Option< &mut F64x4 >
     {
       self.scaled_nodes.get_mut( group.into() ).map( | ( _, s ) | s )
     }
@@ -189,6 +190,27 @@ mod private
               let rotation = tween.value_get();
               let rotation = QuatF32::from( rotation.0.map( | v | v as f32 ) );
               node.borrow_mut().set_rotation( rotation );
+            }
+          }
+
+          if let Some( weights ) = self.animation.get::< Sequence< Tween< Vec< f64 > > > >
+          (
+            &format!( "{}{}", name, crate::webgl::animation::base::MORPH_TARGET_PREFIX )
+          )
+          {
+            if let Some( weights ) = weights.current_get()
+            {
+              let s = scales.w();
+              let weights = weights.value_get().iter()
+              .map( | v | ( *v * s ) as f32 )
+              .collect::< Vec< _ > >();
+              if let crate::webgl::Object3D::Mesh( mesh ) = &node.borrow().object
+              {
+                if let Some( skeleton ) = &mesh.borrow().skeleton
+                {
+                  *skeleton.borrow().get_morph_weights().borrow_mut() = weights;
+                }
+              }
             }
           }
         }

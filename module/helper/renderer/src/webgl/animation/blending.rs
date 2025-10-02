@@ -280,6 +280,29 @@ mod private
           scale += s * w;
         }
         node.borrow_mut().set_scale( scale );
+
+        for ( animation, _ ) in self.weighted_animations.values()
+        {
+          if let Some( weights ) = animation.get::< Sequence< Tween< Vec< f64 > > > >
+          (
+            &format!( "{}{}", name, crate::webgl::animation::base::MORPH_TARGET_PREFIX )
+          )
+          {
+            if let Some( weights ) = weights.current_get()
+            {
+              let weights = weights.value_get().iter()
+              .map( | v | *v as f32 )
+              .collect::< Vec< _ > >();
+              if let crate::webgl::Object3D::Mesh( mesh ) = &node.borrow().object
+              {
+                if let Some( skeleton ) = &mesh.borrow().skeleton
+                {
+                  *skeleton.borrow().get_morph_weights().borrow_mut() = weights;
+                }
+              }
+            }
+          }
+        }
       }
     }
   }
