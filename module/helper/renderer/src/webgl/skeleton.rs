@@ -240,7 +240,7 @@ mod private
     /// Morph weights for updating geometry every frame
     morph_weights : Rc< RefCell< Vec< f32 > > >,
     /// Default morph weights
-    default_weights : Vec< f32 >,
+    pub default_weights : Vec< f32 >,
     /// Count of morph targets
     targets_count : usize,
     /// Offsets of each displacement in `One combined vertex multitarget block`
@@ -590,6 +590,18 @@ mod private
     pub fn displacements_as_mut( &mut self ) -> &mut Option< DisplacementsData >
     {
       &mut self.displacements
+    }
+
+    /// Can be used for checking if skin is available at this [`Skeleton`]
+    pub fn has_skin( &self ) -> bool
+    {
+      self.transforms.is_some()
+    }
+
+    /// Can be used for checking if morph targets are available at this [`Skeleton`]
+    pub fn has_morph_targets( &self ) -> bool
+    {
+      self.displacements.is_some()
     }
   }
 }
