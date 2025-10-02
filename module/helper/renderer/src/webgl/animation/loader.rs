@@ -435,7 +435,14 @@ mod private
             {
               continue;
             };
-            let targets = skeleton.borrow().get_morph_weights().borrow().len();
+            let skeleton_ref = skeleton.borrow();
+            let Some( displacements ) = skeleton_ref.displacements_as_ref()
+            else
+            {
+              continue;
+            };
+            let weights = displacements.get_morph_weights();
+            let targets = weights.borrow().len();
             let Some( sequence ) = weights_sequence( channel, buffers, targets ).await
             else
             {

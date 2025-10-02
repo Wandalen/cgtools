@@ -208,7 +208,11 @@ mod private
               {
                 if let Some( skeleton ) = &mesh.borrow().skeleton
                 {
-                  *skeleton.borrow().get_morph_weights().borrow_mut() = weights;
+                  if let Some( displacements ) = skeleton.borrow().displacements_as_ref()
+                  {
+                    let weights_rc = displacements.get_morph_weights();
+                    *weights_rc.borrow_mut() = weights;
+                  }
                 }
               }
             }

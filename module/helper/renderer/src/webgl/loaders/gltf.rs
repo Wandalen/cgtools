@@ -10,7 +10,7 @@ mod private
   };
   use crate::webgl::
   {
-    ToFromGlEnum,
+    skeleton,
     AlphaMode,
     AttributeInfo,
     Geometry,
@@ -26,6 +26,7 @@ mod private
     Scene,
     Texture,
     TextureInfo,
+    ToFromGlEnum,
     WrappingMode
   };
   use web_sys::wasm_bindgen::prelude::Closure;
@@ -34,11 +35,7 @@ mod private
   {
     std::collections::HashMap,
     crate::webgl::Skeleton,
-    gl::
-    {
-      GL,
-      F32x4x4
-    }
+    gl::F32x4x4
   };
 
   #[ cfg( feature = "animation" ) ]
@@ -67,18 +64,13 @@ mod private
     pub animations : Vec< Animation >
   }
 
-  /// Asynchronously loads [`Skeleton`] for one [`Mesh`]
-  async fn load_skeleton< 'a >
+  fn load_skeleton_transforms_data< 'a >
   (
-    gl : &GL,
     skin : gltf::Skin< '_ >,
     nodes : &HashMap< Box< str >, Rc< RefCell< Node > > >,
-    primitives_morph_targets : &Option< Vec< MorphTargets< '_ > > >,
-    primitives_vertices_count : &[ usize ],
-    weights : Option< Vec< f32 > >,
-    buffers : &'a [ Vec< u8 > ],
+    buffers : &'a [ Vec< u8 > ]
   )
-  -> Option< Rc< RefCell< Skeleton > > >
+  -> Option< skeleton::TransformsData >
   {
     let reader = skin.reader
     (
@@ -125,9 +117,18 @@ mod private
       }
     }
 
-    let skeleton = Skeleton::new( gl, joints )
-    .map( | s | Rc::new( RefCell::new( s ) ) );
+    Some( skeleton::TransformsData::new( joints ) )
+  }
 
+  fn load_skeleton_displacements_data< 'a >
+  (
+    primitives_morph_targets : &Option< Vec< MorphTargets< '_ > > >,
+    primitives_vertices_count : &[ usize ],
+    weights : Option< Vec< f32 > >,
+    buffers : &'a [ Vec< u8 > ]
+  )
+  -> Option< skeleton::DisplacementsData >
+  {
     let get_target_array = | acc : gltf::Accessor< '_ > |
     {
       gltf::accessor::Iter::< [ f32; 3 ] >::new
@@ -235,29 +236,55 @@ mod private
     }
     else
     {
-      ( None, None, None )
+      return None;
     };
 
-    //
-gl::info!( "displacements: {:?}", ( positions.as_ref().map( | v | v.len() ), normals.as_ref().map( | v | v.len() ), tangents.as_ref().map( | v | v.len() ) ) );
-    //
-gl::info!( "default weights: {:?}", weights );
+    let mut displacements = skeleton::DisplacementsData::new();
 
-    if let Some( ref skeleton ) = skeleton
+    displacements.set_displacement( positions, gltf::Semantic::Positions, skin_vertices_count );
+    displacements.set_displacement( normals, gltf::Semantic::Normals, skin_vertices_count );
+    displacements.set_displacement( tangents, gltf::Semantic::Tangents, skin_vertices_count );
+    if let Some( weights ) = weights
     {
-      let mut skeleton_mut = skeleton.borrow_mut();
-      skeleton_mut.set_displacement( positions, gltf::Semantic::Positions, skin_vertices_count );
-      skeleton_mut.set_displacement( normals, gltf::Semantic::Normals, skin_vertices_count );
-      skeleton_mut.set_displacement( tangents, gltf::Semantic::Tangents, skin_vertices_count );
-      if let Some( weights ) = weights
-      {
-        let weights_rc = skeleton_mut.get_morph_weights();
-        let mut weights_mut = weights_rc.borrow_mut();
-        *weights_mut = weights;
-      }
+      let weights_rc = displacements.get_morph_weights();
+      *weights_rc.borrow_mut() = weights;
     }
 
-    skeleton
+    Some( displacements )
+  }
+
+  /// Loads [`Skeleton`] for one [`Mesh`]
+  fn load_skeleton< 'a >
+  (
+    skin : Option< gltf::Skin< '_ > >,
+    nodes : &HashMap< Box< str >, Rc< RefCell< Node > > >,
+    primitives_morph_targets : &Option< Vec< MorphTargets< '_ > > >,
+    primitives_vertices_count : &[ usize ],
+    weights : Option< Vec< f32 > >,
+    buffers : &'a [ Vec< u8 > ]
+  )
+  -> Option< Rc< RefCell< Skeleton > > >
+  {
+    let mut skeleton = Skeleton::new();
+
+    *skeleton.transforms_as_mut() = skin
+    .map( | s | load_skeleton_transforms_data( s, nodes, buffers ) ).flatten();
+    *skeleton.displacements_as_mut() = load_skeleton_displacements_data
+    (
+      primitives_morph_targets,
+      primitives_vertices_count,
+      weights,
+      buffers
+    );
+
+    if skeleton.transforms_as_ref().is_some() || skeleton.displacements_as_ref().is_some()
+    {
+      Some( Rc::new( RefCell::new( skeleton ) ) )
+    }
+    else
+    {
+      None
+    }
   }
 
   /// Asynchronously loads a glTF (GL Transmission Format) file and its associated resources.
@@ -683,7 +710,7 @@ gl::info!( "default weights: {:?}", weights );
     gl::log::info!( "Meshes: {}",meshes.len() );
 
     let mut nodes = Vec::new();
-    let mut skinned_nodes = Vec::new();
+    let mut rigged_nodes = Vec::new();
 
     for gltf_node in gltf_file.nodes()
     {
@@ -706,21 +733,18 @@ gl::info!( "default weights: {:?}", weights );
 
       let node = Rc::new( RefCell::new( node ) );
 
-      if let Some( skin ) = gltf_node.skin()
+      let ( primitives_morph_targets, weights ) = if let Some( mesh ) = gltf_node.mesh()
       {
-        let ( primitives_morph_targets, weights ) = if let Some( mesh ) = gltf_node.mesh()
-        {
-          (
-            Some( mesh.primitives().map( | p | p.morph_targets() ).collect::< Vec< _ > >() ),
-            mesh.weights().map( | v | v.to_vec() )
-          )
-        }
-        else
-        {
-          ( None, None )
-        };
-        skinned_nodes.push( ( node.clone(), skin, primitives_morph_targets, weights ) );
+        (
+          Some( mesh.primitives().map( | p | p.morph_targets() ).collect::< Vec< _ > >() ),
+          mesh.weights().map( | v | v.to_vec() )
+        )
       }
+      else
+      {
+        ( None, None )
+      };
+      rigged_nodes.push( ( node.clone(), gltf_node.skin(), primitives_morph_targets, weights ) );
 
       nodes.push( node );
     }
@@ -752,18 +776,15 @@ gl::info!( "default weights: {:?}", weights );
     )
     .collect::< HashMap< _, _ > >();
 
-    for ( node, skin, primitives_morph_targets, weights ) in skinned_nodes
+    for ( node, skin, primitives_morph_targets, weights ) in rigged_nodes
     {
       if let Object3D::Mesh( mesh ) = &node.borrow().object
       {
         let primitives_vertices_count = mesh.borrow().primitives.iter()
         .map( | p | p.borrow().geometry.borrow().vertex_count as usize )
         .collect::< Vec< _ > >();
-        //
-gl::info!( "primitives_vertices_count: {:?}", primitives_vertices_count );
         if let Some( skeleton ) = load_skeleton
         (
-          gl,
           skin,
           &nodes_map,
           &primitives_morph_targets,
@@ -771,16 +792,18 @@ gl::info!( "primitives_vertices_count: {:?}", primitives_vertices_count );
           weights,
           bin_buffers.as_slice()
         )
-        .await
         {
-          mesh.borrow_mut().skeleton = Some( skeleton );
+          mesh.borrow_mut().skeleton = Some( skeleton.clone() );
           for primitive in &mesh.borrow().primitives
           {
-            primitive.borrow()
-            .geometry.borrow_mut()
-            .defines += "#define USE_SKINNING\n";
+            if skeleton.borrow().transforms_as_ref().is_some()
+            {
+              primitive.borrow()
+              .geometry.borrow_mut()
+              .defines += "#define USE_SKINNING\n";
+            }
 
-            if primitives_morph_targets.is_some()
+            if skeleton.borrow().displacements_as_ref().is_some()
             {
               primitive.borrow()
               .geometry.borrow_mut()
