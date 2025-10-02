@@ -5,6 +5,7 @@ mod private
   {
     GL,
     F32x4x4,
+    I32x3,
     web_sys::
     {
       js_sys::Float32Array,
@@ -13,7 +14,7 @@ mod private
     }
   };
   use crate::webgl::Node;
-  use std::{ cell::RefCell, collections::HashSet, rc::Rc };
+  use std::{ cell::RefCell, rc::Rc };
   use std::collections::{ HashSet, HashMap };
 
   /// Global transform matrices texture slot
@@ -108,10 +109,22 @@ mod private
     tangents_displacements : Option< Vec< [ f32; 3 ] > >,
     /// Morph targets displacements texture
     displacements_texture : Option< WebGlTexture >,
-    /// Define if need update [`Self::displacements_texture`]
-    need_update_displacement : bool,
+    /// [`Self::displacements_texture`] size
+    disp_texture_size : Option< [ u32; 2 ] >,
+    /// Morph weights for updating geometry every frame
+    morph_weights : Rc< RefCell< Vec< f32 > > >,
+    /// Default morph weights
+    pub default_weights : Vec< f32 >,
+    /// Count of morph targets
+    targets_count : Option< usize >,
+    /// Offsets of each displacement in `One combined vertex multitarget block`
+    /// (see docs of [`Self::upload`]). If offset is -1 it's, means that it
+    /// doesn't included into [`Self::displacements_texture`] texture
+    disp_offsets : Option< I32x3 >,
     /// Displacements count. Must be sum of mesh primitives vertices count
     vertices_count : Option< usize >,
+    /// Define if need update [`Self::displacements_texture`]
+    need_update_displacement : bool,
   }
 
   impl Skeleton
@@ -168,27 +181,38 @@ mod private
           normals_displacements : None,
           tangents_displacements : None,
           displacements_texture : None,
+          disp_texture_size : None,
+          disp_offsets : None,
+          targets_count : None,
           vertices_count : None,
-          need_update_displacement : false
+          need_update_displacement : false,
+          morph_weights : Rc::new( RefCell::new( vec![] ) ),
+          default_weights : vec![]
         }
       )
+    }
+
+    /// Returns morph weights that is used for updating geometry
+    pub fn get_morph_weights( &self ) -> Rc< RefCell< Vec< f32 > > >
+    {
+      self.morph_weights.clone()
     }
 
     /// Upload inverse bind matrices texture to current shader program
     ///
     /// Displacement texture aligment:
     ///
-    /// +---------------------------------...---------------...----------------...--------------...-------+
-    /// |                                          Texture row                                            |
-    /// +---------------------------------...---------------...----------------...-------+------...-------+
-    /// |                       One combined vertex multitarget block                    |      ...       |
-    /// +---------------------------------...-------+-------...-------+--------...-------+------...-------+
-    /// |               Positions targets           | Normals targets | Tangents targets |      ...       |
-    /// +--------------------------+---+--...--+----+----+--...--+----+-----+--...--+----+------...-------+
-    /// |        One target        |   |       |    |    |       |    |     |       |    |      ...       |
-    /// +-----+--------------+-----+---+--...--+----+----+--...--+----+-----+--...--+----+------...-------+
-    /// |  X  | Y (4 bytes)  |  Z  |   |       |    |    |       |    |     |       |    |      ...       |
-    /// +-----+--------------+-----+---+--...--+----+----+--...--+----+-----+--...--+----+------...-------+
+    /// +--------------------------------...---------------...----------------...--------------...-------+
+    /// |                                         Texture row                                            |
+    /// +--------------------------------...---------------...----------------...-------+------...-------+
+    /// |                      One combined vertex multitarget block                    |      ...       |
+    /// +--------------------------------...-------+-------...-------+--------...-------+------...-------+
+    /// |             Positions targets            | Normals targets | Tangents targets |      ...       |
+    /// +-------------------------+---+--...--+----+----+--...--+----+-----+--...--+----+------...-------+
+    /// |        One target       |   |       |    |    |       |    |     |       |    |      ...       |
+    /// +-----+-------------+-----+---+--...--+----+----+--...--+----+-----+--...--+----+------...-------+
+    /// |  X  | Y (4 bytes) |  Z  |   |       |    |    |       |    |     |       |    |      ...       |
+    /// +-----+-------------+-----+---+--...--+----+----+--...--+----+-----+--...--+----+------...-------+
     ///
     pub fn upload
     (
@@ -205,18 +229,118 @@ mod private
           self.need_clone_inner = false;
         }
 
-        if let Some( displacements_texture ) = gl.create_texture()
+        if self.displacements_texture.is_some()
         {
-          self.displacements_texture = displacements_texture;
-          self.need_clone_inner = false;
+          if let Some( displacements_texture ) = gl.create_texture()
+          {
+            self.displacements_texture = Some( displacements_texture );
+            self.need_clone_inner = false;
+          }
         }
       }
 
       if self.need_update_displacement
       {
+        if self.displacements_texture.is_none()
+        {
+          if let Some( displacements_texture ) = gl.create_texture()
+          {
+            self.displacements_texture = Some( displacements_texture );
+          }
+        }
+
+        let arrays =
+        [
+          &self.positions_displacements,
+          &self.normals_displacements,
+          &self.tangents_displacements
+        ]
+        .iter()
+        .filter( | v | v.is_some() )
+        .map( | v | v.as_ref().unwrap().clone() )
+        .collect::< Vec< _ > >();
+
+        let len = arrays.iter()
+        .map( | v | v.len() )
+        .max()
+        .unwrap_or_default();
+
+        let mut data = ( 0..len )
+        .flat_map( | i | arrays.iter().map( move | arr | arr[ i ] ) )
+        .flat_map( | t | [ t[ 0 ], t[ 1 ], t[ 2 ], 0.0 ] )
+        .collect::< Vec< _ > >();
+
+        let attributes_count = arrays.len();
+        let targets_count = self.vertices_count.map( | vc | len / vc ).unwrap_or_default();
+        let vertex_displacement_len = attributes_count * targets_count;
+        self.targets_count = Some( targets_count );
+        if self.morph_weights.borrow().is_empty()
+        {
+          *self.morph_weights.borrow_mut() = if self.default_weights.len() == targets_count
+          {
+            self.default_weights.clone()
+          }
+          else
+          {
+            vec![ 0.0; targets_count ]
+          };
+        }
+
+        if vertex_displacement_len != 0
+        {
+          let v = vertex_displacement_len as f32;
+
+          let mut i = 0;
+          while ( v * i as f32 ).powf( 2.0 ) < data.len() as f32
+          {
+            i += 1;
+          }
+
+          let a = ( v * i as f32 ) as u32;
+          let b = ( data.len() as f32 / a as f32 ).ceil() as u32;
+          self.disp_texture_size = Some( [ a, b ] );
+          data.extend( vec![ 0.0; ( a * b * 4 ) as usize - data.len() ] );
+          // gl::info!( "DATA: {:?}", data.get( 0..( vertex_displacement_len * 4 ) ) );
+          load_texture_data_4f( gl, self.displacements_texture.as_ref().unwrap(), data.as_slice(), [ a, b ] );
+        }
+
+        let mut offset = 0 as i32;
+        let offsets =
+        [
+          &self.positions_displacements,
+          &self.normals_displacements,
+          &self.tangents_displacements
+        ]
+        .map
+        (
+          | v |
+          {
+            if v.is_some()
+            {
+              let i = offset;
+              offset += 1;
+              i
+            }
+            else
+            {
+              -1
+            }
+          }
+        );
+
+        self.disp_offsets = Some( I32x3::from_array( offsets ) );
 
         self.need_update_displacement = false;
       }
+
+      //
+      gl::info!( "disp_offsets: {:?}", self.disp_offsets );
+      //
+      gl::info!( "disp_texture_size: {:?}", self.disp_texture_size );
+      //
+      gl::info!( "displacements_texture: {:?}", self.displacements_texture.is_some() );
+      //
+      gl::info!( "targets_count: {:?}", self.targets_count );
 
       let global_matrices = self.joints.iter()
       .map
@@ -245,9 +369,49 @@ mod private
       load_texture_data_4f( gl, &self.global_texture, global_data.as_slice(), texture_size );
       upload_texture( gl, &self.global_texture, global_matrices_loc.clone(), GLOBAL_MATRICES_SLOT );
       upload_texture( gl, &self.inverse_texture, inverse_matrices_loc.clone(), INVERSE_MATRICES_SLOT );
-      gl::uniform::upload( &gl, texture_size_loc.clone(), texture_size.as_slice() ).unwrap();
+      gl::uniform::upload( gl, texture_size_loc.clone(), texture_size.as_slice() ).unwrap();
+
+      if self.displacements_texture.is_some()
+      {
+        if let Some( displacements_loc ) = locations.get( "displacements" )
+        {
+          upload_texture( gl, self.displacements_texture.as_ref().unwrap(), displacements_loc.clone(), DISPLACEMENTS_SLOT );
+        }
+        if let Some( morph_weights_loc ) = locations.get( "morphWeights" )
+        {
+          let data = self.morph_weights
+          .borrow()
+          .get( 0..self.targets_count.unwrap() )
+          .map( | v | v.iter().map( | i | [ *i; 1 ] ).collect::< Vec< _ > >() )
+          .unwrap_or( vec![ [ 0.0_f32; 1 ]; self.targets_count.unwrap() ] );
+          gl::uniform::upload
+          (
+            gl,
+            morph_weights_loc.clone(),
+            data.as_slice()
+          )
+          .unwrap();
+          //
+      gl::info!( "{:?}", data );
+        }
+        if let Some( disp_size_loc ) = locations.get( "displacementsTextureSize" )
+        {
+          gl::uniform::upload( gl, disp_size_loc.clone(), self.disp_texture_size.as_slice() ).unwrap();
+        }
+        //
+      gl::info!( "{:?}", self.disp_texture_size );
+        if let Some( targets_count_loc ) = locations.get( "targetsCount" )
+        {
+          gl::uniform::upload( gl, targets_count_loc.clone(), &( self.targets_count.unwrap() as u32 ) ).unwrap();
+        }
+        if let Some( disp_offsets_loc ) = locations.get( "displacementsOffsets" )
+        {
+          gl::uniform::upload( gl, disp_offsets_loc.clone(), &self.disp_offsets.unwrap().to_array()[ .. ] ).unwrap();
+        }
+      }
     }
 
+    /// Sets one morph targets vertex attribute data that will be packed into texture
     pub fn set_displacement
     (
       &mut self,
@@ -256,6 +420,8 @@ mod private
       vertices_count : usize
     )
     {
+      //
+      gl::info!( "{:?}", ( &displacement_type, displacement_array.is_some() ) );
       if Some( vertices_count ) != self.vertices_count && self.vertices_count.is_some()
       {
         return;
@@ -266,15 +432,30 @@ mod private
         self.vertices_count = Some( vertices_count );
       }
 
-      let positions_len = self.positions_displacements.map( | v | v.len() ).unwrap_or_default();
-      let normals_len = self.normals_displacements.map( | v | v.len() ).unwrap_or_default();
-      let tangents_len = self.tangents_displacements.map( | v | v.len() ).unwrap_or_default();
-      let mut unique = [ displacement_array, positions_len, normals_len, tangents_len ].iter().collect::< HashSet< _ > >();
+      let positions_len = self.positions_displacements.as_ref().map( | v | v.len() ).unwrap_or_default();
+      let normals_len = self.normals_displacements.as_ref().map( | v | v.len() ).unwrap_or_default();
+      let tangents_len = self.tangents_displacements.as_ref().map( | v | v.len() ).unwrap_or_default();
+      let mut unique =
+      [
+        displacement_array.as_ref().map( | v | v.len() ).unwrap_or( 0 ),
+        positions_len,
+        normals_len,
+        tangents_len
+      ]
+      .into_iter()
+      .collect::< HashSet< _ > >();
       unique.remove( &0 );
+      /*gl::info!
+      (
+        "Unique: {:?}",
+        unique
+      );*/
       if unique.len() > 1
       {
         return;
       }
+
+      let displacement_is_some = displacement_array.is_some();
 
       match displacement_type
       {
@@ -283,12 +464,16 @@ mod private
         gltf::Semantic::Tangents => { self.tangents_displacements = displacement_array; }
         _ => ()
       }
-      match displacement_type
+
+      if self.displacements_texture.is_some() || displacement_is_some
       {
-        gltf::Semantic::Positions |
-        gltf::Semantic::Normals |
-        gltf::Semantic::Tangents => { self.need_update_displacement = true; }
-        _ => ()
+        match displacement_type
+        {
+          gltf::Semantic::Positions |
+          gltf::Semantic::Normals |
+          gltf::Semantic::Tangents => { self.need_update_displacement = true; }
+          _ => ()
+        }
       }
     }
   }
@@ -311,7 +496,12 @@ mod private
         tangents_displacements : self.tangents_displacements.clone(),
         displacements_texture : self.displacements_texture.clone(),
         need_update_displacement : self.need_update_displacement.clone(),
-        vertices_count : self.vertices_count
+        vertices_count : self.vertices_count,
+        disp_texture_size : self.disp_texture_size.clone(),
+        targets_count : self.targets_count.clone(),
+        disp_offsets : self.disp_offsets.clone(),
+        morph_weights : Rc::new( RefCell::new( self.morph_weights.borrow().clone() ) ),
+        default_weights : self.default_weights.clone()
       }
     }
   }
