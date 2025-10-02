@@ -8,18 +8,16 @@ mod private
   };
   use crate::webgl::
   {
-    Node,
     animation::
     {
       base::
       {
-        TRANSLATION_PREFIX,
-        ROTATION_PREFIX,
-        SCALE_PREFIX,
-        MORPH_TARGET_PREFIX
+        MORPH_TARGET_PREFIX, ROTATION_PREFIX, SCALE_PREFIX, TRANSLATION_PREFIX
       },
       Animation
-    }
+    },
+    Node,
+    Object3D
   };
   use animation::
   {
@@ -40,7 +38,10 @@ mod private
   {
     animation::
     {
-      util::ReadOutputs, Channel, Interpolation, Property
+      util::ReadOutputs,
+      Channel,
+      Interpolation,
+      Property
     },
     Gltf
   };
@@ -259,7 +260,7 @@ mod private
         {
           let m1 = F64x3::from_array( m1.unwrap() );
           let m2 = F64x3::from_array( m2.unwrap() );
-          Box::new( CubicHermite::new( m1, m2 ) )
+          Box::new( CubicHermite::< F64x3 >::new( m1, m2 ) )
         },
       };
 
@@ -279,8 +280,9 @@ mod private
   (
     channel : Channel< '_ >,
     buffers : &[ Vec< u8 > ],
+    targets : usize
   )
-  -> Option< Sequence< Tween< mingl::Vector< f64, 1 > > > >
+  -> Option< Sequence< Tween< Vec< f64 > > > >
   {
     let Some
     (
@@ -305,54 +307,51 @@ mod private
 
     let mut tweens = vec![];
     let mut last_time = None;
-    let mut last_value: Option< f64 > = None;
+    let mut last_value: Option< Vec< f64 > > = None;
 
     for ( t2, v ) in iter
     {
-      let mut items_iter = v.iter();
+      let mut items_iter = v.chunks( targets );
 
       let mut m1 = None;
       if channel.sampler().interpolation() == Interpolation::CubicSpline
       {
-        let Some( _m1 ) = items_iter.next().cloned()
+        let Some( _m1 ) = items_iter.next()
         else
         {
-          continue
+          continue;
         };
-        m1 = Some( _m1 as f64 );
+        m1 = Some( _m1.iter().map( | &x | x as f64 ).collect::< Vec< _ > >() );
       }
 
-      let Some( v2 ) = items_iter.next().cloned().map( | v | v as f64 )
+      let Some( v2 ) = items_iter.next()
       else
       {
         continue;
       };
+      let v2 = v2.iter().map( | v | *v as f64 ).collect::< Vec< _ > >();
 
       let mut m2 = None;
       if channel.sampler().interpolation() == Interpolation::CubicSpline
       {
-        let Some( _m2 ) = items_iter.next().cloned()
+        let Some( _m2 ) = items_iter.next()
         else
         {
           continue
         };
-        m2 = Some( _m2 as f64 );
+        m2 = Some( _m2.iter().map( | &x | x as f64 ).collect::< Vec< _ > >() );
       }
 
-      let v1 = last_value.clone().unwrap_or( v2 );
+      let v1 = last_value.clone().unwrap_or_else( || v2.clone() );
       let t1 = last_time.unwrap_or( t2 );
 
-      let easing : Box< dyn EasingFunction< AnimatableType = mingl::Vector< f64, 1 > > > = match channel.sampler().interpolation()
+      let easing : Box< dyn EasingFunction< AnimatableType = Vec< f64 > > > = match channel.sampler().interpolation()
       {
         Interpolation::Linear => Linear::new(),
         Interpolation::Step => Box::new( Step::new( 1.0 ) ),
         Interpolation::CubicSpline => Box::new
         (
-          CubicHermite::new
-          (
-            mingl::Vector::from_array( [ m1.unwrap() ] ),
-            mingl::Vector::from_array( [ m2.unwrap() ] ),
-          )
+          CubicHermite::< Vec< f64 > >::new( m1.unwrap(), m2.unwrap() )
         )
       };
 
@@ -360,8 +359,6 @@ mod private
       last_value = Some( v2.clone() );
       let duration = t2 - t1;
       let delay = t1;
-      let v1 = mingl::Vector::from_array( [ v1 ] );
-      let v2 = mingl::Vector::from_array( [ v2 ] );
 
       let tween = Tween::new( v1, v2, duration.into(), easing )
       .with_delay( delay.into() );
@@ -395,7 +392,7 @@ mod private
           continue;
         };
 
-        animated_nodes.insert( name.clone(), node );
+        animated_nodes.insert( name.clone(), node.clone() );
 
         match channel.target().property()
         {
@@ -428,7 +425,18 @@ mod private
           },
           Property::MorphTargetWeights =>
           {
-            let Some( sequence ) = weights_sequence( channel, buffers ).await
+            let Object3D::Mesh( ref mesh ) = node.borrow().object
+            else
+            {
+              continue;
+            };
+            let Some( ref skeleton ) = mesh.borrow().skeleton
+            else
+            {
+              continue;
+            };
+            let targets = skeleton.borrow().get_morph_weights().borrow().len();
+            let Some( sequence ) = weights_sequence( channel, buffers, targets ).await
             else
             {
               continue;

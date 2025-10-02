@@ -2,8 +2,7 @@ mod private
 {
   use std::{ cell::RefCell, cmp::Ordering, rc::Rc };
   use gltf::mesh::iter::MorphTargets;
-  use mingl::math::mat::Order;
-use minwebgl::{self as gl, geometry::Positions};
+  use minwebgl as gl;
   use gl::
   {
     JsCast,
@@ -76,6 +75,7 @@ use minwebgl::{self as gl, geometry::Positions};
     nodes : &HashMap< Box< str >, Rc< RefCell< Node > > >,
     primitives_morph_targets : &Option< Vec< MorphTargets< '_ > > >,
     primitives_vertices_count : &[ usize ],
+    weights : Option< Vec< f32 > >,
     buffers : &'a [ Vec< u8 > ],
   )
   -> Option< Rc< RefCell< Skeleton > > >
@@ -125,7 +125,7 @@ use minwebgl::{self as gl, geometry::Positions};
       }
     }
 
-    let mut skeleton = Skeleton::new( gl, joints )
+    let skeleton = Skeleton::new( gl, joints )
     .map( | s | Rc::new( RefCell::new( s ) ) );
 
     let get_target_array = | acc : gltf::Accessor< '_ > |
@@ -133,7 +133,7 @@ use minwebgl::{self as gl, geometry::Positions};
       gltf::accessor::Iter::< [ f32; 3 ] >::new
       (
         acc,
-        | buffer | buffers.get( buffer.index() ).map( | x | &*x.0 )
+        | buffer | buffers.get( buffer.index() ).map( | x | x.as_slice() )
       )
       .map( | iter | iter.collect::< Vec< _ > >() )
     };
@@ -144,19 +144,25 @@ use minwebgl::{self as gl, geometry::Positions};
     )
     -> Vec< [ f32; 3 ] >
     {
+      if targets_array.is_empty()
+      {
+        return vec![];
+      }
       let mut packed_array = Vec::with_capacity( targets_array.first().unwrap().len() * targets_array.len() );
       for i in 0..targets_array.first().unwrap().len()
       {
-        let mut targets_item = targets_array.iter()
+        let targets_item = targets_array.iter()
         .map( | arr | arr[ i ] )
         .collect::< Vec< _ > >();
         packed_array.extend( targets_item );
       }
+
+      packed_array
     }
 
+    let skin_vertices_count = primitives_vertices_count.iter().sum::< usize >();
     let ( positions, normals, tangents ) = if let Some( primitives_morph_targets ) = primitives_morph_targets
     {
-      let skin_vertices_count = primitives_vertices_count.iter().sum::< usize >();
       let mut skin_positions = Vec::with_capacity( skin_vertices_count );
       let mut skin_normals = Vec::with_capacity( skin_vertices_count );
       let mut skin_tangents = Vec::with_capacity( skin_vertices_count );
@@ -168,7 +174,7 @@ use minwebgl::{self as gl, geometry::Positions};
         let mut targets_normals = Vec::with_capacity( vertices_count );
         let mut targets_tangents = Vec::with_capacity( vertices_count );
 
-        for morph_target in *morph_targets
+        for morph_target in morph_targets.clone()
         {
           if let Some( positions ) = morph_target.positions()
           .map( get_target_array )
@@ -216,7 +222,7 @@ use minwebgl::{self as gl, geometry::Positions};
       let optional = | array : Vec< [ f32; 3 ] > |
       {
         let is_zero = array.iter()
-        .all( | v | v.partial_cmp( [ 0.0; 3 ] ) == Some( Ordering::Equal ) );
+        .all( | v | v.partial_cmp( &[ 0.0; 3 ] ) == Some( Ordering::Equal ) );
 
         ( !is_zero ).then_some( array )
       };
@@ -232,12 +238,23 @@ use minwebgl::{self as gl, geometry::Positions};
       ( None, None, None )
     };
 
-    if let Some( skeleton ) = skeleton
+    //
+gl::info!( "displacements: {:?}", ( positions.as_ref().map( | v | v.len() ), normals.as_ref().map( | v | v.len() ), tangents.as_ref().map( | v | v.len() ) ) );
+    //
+gl::info!( "default weights: {:?}", weights );
+
+    if let Some( ref skeleton ) = skeleton
     {
-      let skeleton_mut = skeleton.borrow_mut();
+      let mut skeleton_mut = skeleton.borrow_mut();
       skeleton_mut.set_displacement( positions, gltf::Semantic::Positions, skin_vertices_count );
       skeleton_mut.set_displacement( normals, gltf::Semantic::Normals, skin_vertices_count );
       skeleton_mut.set_displacement( tangents, gltf::Semantic::Tangents, skin_vertices_count );
+      if let Some( weights ) = weights
+      {
+        let weights_rc = skeleton_mut.get_morph_weights();
+        let mut weights_mut = weights_rc.borrow_mut();
+        *weights_mut = weights;
+      }
     }
 
     skeleton
@@ -691,15 +708,18 @@ use minwebgl::{self as gl, geometry::Positions};
 
       if let Some( skin ) = gltf_node.skin()
       {
-        let primitives_morph_targets = if let Some( mesh ) = gltf_node.mesh()
+        let ( primitives_morph_targets, weights ) = if let Some( mesh ) = gltf_node.mesh()
         {
-          Some( mesh.primitives().map( | p | p.morph_targets() ).collect::< Vec< _ > >() )
+          (
+            Some( mesh.primitives().map( | p | p.morph_targets() ).collect::< Vec< _ > >() ),
+            mesh.weights().map( | v | v.to_vec() )
+          )
         }
         else
         {
-          None
+          ( None, None )
         };
-        skinned_nodes.push( ( node.clone(), skin, primitives_morph_targets ) );
+        skinned_nodes.push( ( node.clone(), skin, primitives_morph_targets, weights ) );
       }
 
       nodes.push( node );
@@ -732,13 +752,15 @@ use minwebgl::{self as gl, geometry::Positions};
     )
     .collect::< HashMap< _, _ > >();
 
-    for ( node, skin, primitives_morph_targets ) in skinned_nodes
+    for ( node, skin, primitives_morph_targets, weights ) in skinned_nodes
     {
       if let Object3D::Mesh( mesh ) = &node.borrow().object
       {
         let primitives_vertices_count = mesh.borrow().primitives.iter()
         .map( | p | p.borrow().geometry.borrow().vertex_count as usize )
         .collect::< Vec< _ > >();
+        //
+gl::info!( "primitives_vertices_count: {:?}", primitives_vertices_count );
         if let Some( skeleton ) = load_skeleton
         (
           gl,
@@ -746,6 +768,7 @@ use minwebgl::{self as gl, geometry::Positions};
           &nodes_map,
           &primitives_morph_targets,
           primitives_vertices_count.as_slice(),
+          weights,
           bin_buffers.as_slice()
         )
         .await
@@ -756,6 +779,13 @@ use minwebgl::{self as gl, geometry::Positions};
             primitive.borrow()
             .geometry.borrow_mut()
             .defines += "#define USE_SKINNING\n";
+
+            if primitives_morph_targets.is_some()
+            {
+              primitive.borrow()
+              .geometry.borrow_mut()
+              .defines += "#define USE_MORPH_TARGET\n";
+            }
           }
         }
       }
