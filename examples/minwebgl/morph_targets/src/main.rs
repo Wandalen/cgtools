@@ -26,11 +26,35 @@ use renderer::webgl::
     SwapFramebuffer
   },
   Camera,
-  Renderer
+  Renderer,
+  Node
 };
 
 mod lil_gui;
 mod gui_setup;
+
+fn write_tree( node : Rc< RefCell< Node > >, depth : usize, output : &mut String )
+{
+  let name = node
+  .borrow()
+  .get_name()
+  .unwrap_or( "<none>".into() );
+
+  let indent = "-".repeat( depth );
+  output.push_str( &format!("{}{}\n", indent, name ) );
+
+  for child in node.borrow().get_children()
+  {
+    write_tree( Rc::clone( child ), depth + 1, output );
+  }
+}
+
+fn print_tree( node : Rc< RefCell< Node > > )
+{
+  let mut tree_str = String::new();
+  write_tree( node, 1, &mut tree_str );
+  gl::info!( "{}", tree_str );
+}
 
 async fn run() -> Result< (), gl::WebglError >
 {
@@ -48,15 +72,28 @@ async fn run() -> Result< (), gl::WebglError >
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
 
-  let gltf_path = "gltf/base_mesh_femalemale_morph_target.glb";
+  let gltf_path = "gltf/zophrac.glb";
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
   let scenes = gltf.scenes;
-  scenes[ 0 ].borrow_mut().update_world_matrix();
 
-  for node in &scenes[ 0 ].borrow().children
-  {
-    node.borrow_mut().set_scale( F32x3::splat( 1.0 ) );
-  }
+  let need_rescale = [ "Head_Mesh", "Object_7", "Object_6" ];
+  let _ = scenes[ 0 ].borrow()
+  .traverse
+  (
+    &mut | node |
+    {
+      let name = node.borrow().get_name().unwrap_or( "<none>".into() );
+
+      if need_rescale.contains( &name.to_string().as_str() )
+      {
+        node.borrow_mut().set_scale( F32x3::splat( 68.0 ) );
+      }
+
+      Ok( () )
+    }
+  );
+
+  scenes[ 0 ].borrow_mut().update_world_matrix();
 
   let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
   gl::info!( "Scene boudnig box: {:?}", scene_bounding_box );
@@ -71,8 +108,8 @@ async fn run() -> Result< (), gl::WebglError >
   gl::info!( "Exponent: {:?}", exponent );
 
   // Camera setup
-  let mut eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
-  eye *= dist;
+  let mut eye = gl::math::F32x3::from( [ 0.0, 0.1, 1.0 ] );
+  eye *= dist / 50.0;
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
 
   let center = scene_bounding_box.center();
@@ -103,40 +140,43 @@ async fn run() -> Result< (), gl::WebglError >
     node.borrow_mut().set_scale( scale );
   }
 
-  //camera.get_controls().borrow_mut().eye = F32x3::from_array( [-5.341171e-6, -0.015823878, 0.007656166] );
+  camera.get_controls().borrow_mut().center.0[ 1 ] += -5.5;
+  camera.get_controls().borrow_mut().center.0[ 2 ] += -1.0;
 
-  let last_time = Rc::new( RefCell::new( 0.0 ) );
+  let weights = gltf.meshes.iter()
+  .filter_map
+  (
+    | m |
+    {
+      let Some( ref s ) = m.borrow().skeleton
+      else
+      {
+        return None;
+      };
+      let s_ref = s.borrow();
+      let Some( d ) = s_ref.displacements_as_ref()
+      else
+      {
+        return None;
+      };
+      let weights = d.get_morph_weights();
+      *weights.borrow_mut() = d.default_weights.clone();
+      Some( weights )
+    }
+  )
+  .next()
+  .unwrap();
 
-  let current_animation = Rc::new( RefCell::new( gltf.animations[ 0 ].clone() ) );
+  gui_setup::setup( weights.clone() );
 
-  gui_setup::setup( gltf.animations.clone(), current_animation.clone() );
+  print_tree( scenes[ 0 ].borrow().children[ 0 ].clone() );
 
   // Define the update and draw logic
   let update_and_draw =
   {
     move | t : f64 |
     {
-      let time = t / 1000.0;
-
-      {
-        let last_time = last_time.clone();
-
-        let delta_time = time - *last_time.borrow();
-        *last_time.borrow_mut() = time;
-
-        if current_animation.borrow().animation.as_any()
-        .downcast_ref::< animation::Sequencer >().unwrap().is_completed()
-        {
-          current_animation.borrow_mut().animation
-          .as_any_mut()
-          .downcast_mut::< animation::Sequencer >()
-          .unwrap()
-          .reset();
-        }
-
-        current_animation.borrow_mut().update( delta_time );
-        current_animation.borrow().set();
-      }
+      let _time = t / 1000.0;
 
       renderer.borrow_mut().render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
       .expect( "Failed to render" );
