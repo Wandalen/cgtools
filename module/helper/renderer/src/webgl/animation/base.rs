@@ -117,7 +117,6 @@ mod private
                 if let Some( displacements ) = skeleton.borrow().displacements_as_ref()
                 {
                   let weights_rc = displacements.get_morph_weights();
-                  gl::info!( "{:?}", weights );
                   *weights_rc.borrow_mut() = weights;
                 }
               }
