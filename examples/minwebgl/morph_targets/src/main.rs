@@ -48,10 +48,15 @@ async fn run() -> Result< (), gl::WebglError >
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
 
-  let gltf_path = "gltf/zophrac.glb";
+  let gltf_path = "gltf/base_mesh_femalemale_morph_target.glb";
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
   let scenes = gltf.scenes;
   scenes[ 0 ].borrow_mut().update_world_matrix();
+
+  for node in &scenes[ 0 ].borrow().children
+  {
+    node.borrow_mut().set_scale( F32x3::splat( 1.0 ) );
+  }
 
   let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
   gl::info!( "Scene boudnig box: {:?}", scene_bounding_box );
@@ -74,8 +79,8 @@ async fn run() -> Result< (), gl::WebglError >
 
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
-  let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 ) * 10.0;
-  let far = near * 100.0f32.powi( exponent.abs() ) / 100.0;
+  let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 );
+  let far = near * 100.0f32.powi( exponent.abs() );
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
   camera.set_window_size( [ width, height ].into() );
@@ -98,7 +103,7 @@ async fn run() -> Result< (), gl::WebglError >
     node.borrow_mut().set_scale( scale );
   }
 
-  camera.get_controls().borrow_mut().eye = F32x3::from_array( [-5.341171e-6, -0.015823878, 0.007656166] );
+  //camera.get_controls().borrow_mut().eye = F32x3::from_array( [-5.341171e-6, -0.015823878, 0.007656166] );
 
   let last_time = Rc::new( RefCell::new( 0.0 ) );
 
