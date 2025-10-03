@@ -284,8 +284,8 @@ mod private
       self.current
     }
 
-    /// Returns all sequence of [`Tween`]'s
-    pub fn tweens_get( &self ) -> Vec< T >
+    /// Returns all sequence of players
+    pub fn players_get( &self ) -> Vec< T >
     where T : Clone
     {
       self.tweens.clone()

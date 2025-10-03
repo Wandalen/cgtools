@@ -78,18 +78,18 @@ if let Some( rotation ) = self.animation.get::< Sequence< Tween< QuatF64 > > >
 )
 {
   let s = scales.y();
-  let mut tweens = rotation.tweens_get();
+  let mut players = rotation.players_get();
 
   let current = rotation.current_id_get();
 
-  for i in 0..( ( current + 1 ).min( tweens.len() ) )
+  for i in 0..( ( current + 1 ).min( players.len() ) )
   {
     if s < 1.0 && i > 0
     {
-      tweens[ i ].start_value = tweens[ i - 1 ].end_value;
+      players[ i ].start_value = players[ i - 1 ].end_value;
     }
-    let prev = tweens[ i ].start_value;
-    let curr = tweens[ i ].end_value;
+    let prev = players[ i ].start_value;
+    let curr = players[ i ].end_value;
 
     let delta = prev.conjugate() * curr;
 
@@ -114,12 +114,12 @@ if let Some( rotation ) = self.animation.get::< Sequence< Tween< QuatF64 > > >
     let angle_scaled = angle * s;
     let delta_scaled = QuatF64::from_axis_angle( axis, angle_scaled );
     let new_end = prev * delta_scaled;
-    tweens[ i ].end_value = new_end.normalize();
+    players[ i ].end_value = new_end.normalize();
   }
 
-  tweens[ 0 ].start_value = tweens.last().unwrap().end_value;
+  players[ 0 ].start_value = players.last().unwrap().end_value;
 
-  let mut sequence = Sequence::new( tweens ).unwrap();
+  let mut sequence = Sequence::new( players ).unwrap();
   sequence.update( rotation.time() );
   if let Some( tween ) = sequence.current_get()
   {
