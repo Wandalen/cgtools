@@ -12,7 +12,7 @@ in vec2 vUv_1;
 in vec2 vUv_2;
 in vec2 vUv_3;
 in vec2 vUv_4;
-#ifdef USE_TANGENTS 
+#ifdef USE_TANGENTS
   in vec4 vTangent;
 #endif
 in vec3 vWorldPos;
@@ -118,22 +118,22 @@ float max_value( const in vec3 v )
   return max( v.x, max( v.y, v.z ) );
 }
 
-float pow2( const in float x ) 
+float pow2( const in float x )
 {
   return x*x;
 }
 
-vec3 pow2( const in vec3 x ) 
+vec3 pow2( const in vec3 x )
 {
   return x*x;
 }
 
-float pow3( const in float x ) 
+float pow3( const in float x )
 {
   return x*x*x;
 }
 
-float pow4( const in float x ) 
+float pow4( const in float x )
 {
   float x2 = x*x;
   return x2*x2;
@@ -178,18 +178,18 @@ vec3 LinearToSrgb( const in vec3 color )
 
 // Schilck's version of Fresnel equation, with Spherical Gaussian approximation for the power
 // https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
-vec3 F_Schlick( const in vec3 f0, const in vec3 f90, const in float dotVH ) 
+vec3 F_Schlick( const in vec3 f0, const in vec3 f90, const in float dotVH )
 {
   float fresnel = exp2( ( - 5.55473 * dotVH - 6.98316 ) * dotVH );
   return f0 + ( f90 - f0 ) * fresnel;
 }
 
 vec3 Fd_Barley
-( 
-  const in float alpha, 
-  const in float dotNV, 
-  const in float dotNL, 
-  const in float dotLH 
+(
+  const in float alpha,
+  const in float dotNV,
+  const in float dotNL,
+  const in float dotLH
 )
 {
   vec3 f90 = vec3( 0.5 + 2.0 * alpha * pow2( dotLH ) );
@@ -205,7 +205,7 @@ vec3 Fd_Barley
 // G = G1( L ) * G1( V )
 // G1( L ) = 2dotNL / ( dotNL + sqrt( a2 + ( 1 - a2 ) * dotNL2 ) )
 // The term ( 4 * dotNV * dotNL ) in BRDF cancels out
-float V_GGX_SmithCorrelated( const in float alpha, const in float dotNL, const in float dotNV ) 
+float V_GGX_SmithCorrelated( const in float alpha, const in float dotNL, const in float dotNV )
 {
   float a2 = pow2( alpha );
   float gv = dotNL * sqrt( a2 + ( 1.0 - a2 ) * pow2( dotNV ) );
@@ -214,14 +214,14 @@ float V_GGX_SmithCorrelated( const in float alpha, const in float dotNL, const i
 }
 
 // Normal distribution function
-float D_GGX( const in float alpha, const in float dotNH ) 
+float D_GGX( const in float alpha, const in float dotNH )
 {
   float a2 = pow2( alpha );
   float denom = pow2( dotNH ) * ( a2 - 1.0 ) + 1.0;
   return 0.3183098861837907 * a2 / pow2( denom );
 }
 
-vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 normal, const in PhysicalMaterial material ) 
+vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 normal, const in PhysicalMaterial material )
 {
   float alpha = pow2( material.roughness );
   vec3 halfDir = normalize( lightDir + viewDir );
@@ -241,10 +241,10 @@ vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
 }
 
 void computeDirectLight
-( 
-  const in LightInfo lightInfo, 
-  const in vec3 viewDir, 
-  const in vec3 normal, 
+(
+  const in LightInfo lightInfo,
+  const in vec3 viewDir,
+  const in vec3 normal,
   const in PhysicalMaterial material,
   inout ReflectedLight reflectedLight
 )
@@ -267,7 +267,7 @@ void computeDirectLight
   // Normal distribution function
   float D = D_GGX( alpha, dotNH );
 
-  vec3 irradiance = lightInfo.color * lightInfo.strength * dotNL; 
+  vec3 irradiance = lightInfo.color * lightInfo.strength * dotNL;
   vec3 diffuseColor =  material.diffuseColor * irradiance;
   vec3 specularColor =  D * V * irradiance;
 
@@ -334,7 +334,7 @@ float alpha_weight( float a )
 
     vec3 q1perp = cross( dE2, surf_normal );
 		vec3 q0perp = cross( surf_normal, dE1 );
-    
+
     vec3 T = q1perp * dUv1.x + q0perp * dUv2.x;
 		vec3 B = q1perp * dUv1.y + q0perp * dUv2.y;
 
@@ -345,10 +345,10 @@ float alpha_weight( float a )
   }
 #endif
 
-float adjustRoughnessNormalMap ( const in float roughness, const in vec3 normal ) 
+float adjustRoughnessNormalMap ( const in float roughness, const in vec3 normal )
 {
   float nlen2 = dot (normal, normal );
-  if( nlen2 < 1.0 ) 
+  if( nlen2 < 1.0 )
   {
     float nlen = sqrt( nlen2 );
     float kappa = (3.0 * nlen -  nlen2 * nlen) / (1.0 - nlen2);
@@ -407,7 +407,7 @@ void main()
   #endif
   material.f0 = mix( material.f0, material.diffuseColor, material.metallness );
   material.diffuseColor *= 1.0 - material.metallness;
- 
+
   vec3 normal = normalize( vNormal );
 
   #ifdef USE_NORMAL_TEXTURE
@@ -484,15 +484,15 @@ void main()
     float occlusion = texture( occlusionTexture, vOcclusionUv ).r;
     reflectedLight.indirectDiffuse *= 1.0 + occlusionStrength * ( occlusion - 1.0 );
   #endif
-  
+
   emissive_color = vec4( emissiveFactor, 1.0 );
   #ifdef USE_EMISSION_TEXTURE
     emissive_color.xyz *= SrgbToLinear( texture( emissiveTexture, vEmissionUv ).rgb );
   #endif
 
 
-  color = reflectedLight.indirectDiffuse + 
-  reflectedLight.indirectSpecular + 
+  color = reflectedLight.indirectDiffuse +
+  reflectedLight.indirectSpecular +
   reflectedLight.directDiffuse +
   reflectedLight.directSpecular;
 
