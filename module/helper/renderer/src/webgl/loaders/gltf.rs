@@ -1,6 +1,6 @@
 mod private
 {
-  use std::{ cell::RefCell, cmp::Ordering, rc::Rc };
+  use std::{ cell::RefCell, rc::Rc };
   use gltf::mesh::iter::MorphTargets;
   use minwebgl as gl;
   use gl::
@@ -220,18 +220,23 @@ mod private
         skin_tangents.extend( primitive_tangents );
       }
 
-      let optional = | array : Vec< [ f32; 3 ] > |
-      {
-        let is_zero = array.iter()
-        .all( | v | v.partial_cmp( &[ 0.0; 3 ] ) == Some( Ordering::Equal ) );
+      // fn optional( v : Vec< [ f32; 3 ] > ) -> bool
+      // {
+      //   let eps = 1e-6;
+      //   let is_all_zero = v.iter().flatten().all( | &x | x.abs() < eps );
+      //  ( !is_all_zero ).then_some( v )
+      // }
 
-        ( !is_zero ).then_some( array )
-      };
+      // (
+      //   optional( skin_positions ),
+      //   optional( skin_normals ),
+      //   optional( skin_targets ),
+      // )
 
       (
-        optional( skin_positions ),
-        optional( skin_normals ),
-        optional( skin_tangents )
+        ( !skin_positions.is_empty() ).then_some( skin_positions ),
+        ( !skin_normals.is_empty() ).then_some( skin_normals ),
+        ( !skin_tangents.is_empty() ).then_some( skin_tangents )
       )
     }
     else

@@ -303,7 +303,7 @@ mod private
     let weights = weights.into_f32().collect::< Vec< _ > >();
 
     let iter = times.into_iter()
-    .zip( weights.chunks( components ) );
+    .zip( weights.chunks( components * targets ) );
 
     let mut tweens = vec![];
     let mut last_time = None;
@@ -321,6 +321,7 @@ mod private
         {
           continue;
         };
+
         m1 = Some( _m1.iter().map( | &x | x as f64 ).collect::< Vec< _ > >() );
       }
 

@@ -142,7 +142,7 @@ mod private
           )
           {
             let s = scales.y();
-            let mut tweens = rotation.tweens_get();
+            let mut tweens = rotation.players_get();
 
             let current = rotation.current_id_get();
 
@@ -211,7 +211,11 @@ mod private
                   if let Some( displacements ) = skeleton.borrow().displacements_as_ref()
                   {
                     let weights_rc = displacements.get_morph_weights();
-                    *weights_rc.borrow_mut() = weights;
+                    let mut weights_mut = weights_rc.borrow_mut();
+                    for i in 0..weights.len().min( weights_mut.len() )
+                    {
+                      weights_mut[ i ] = weights[ i ];
+                    }
                   }
                 }
               }
