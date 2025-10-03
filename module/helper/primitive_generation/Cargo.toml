@@ -33,7 +33,7 @@ default = ["enabled"]
 # Core geometry generation functionality
 enabled = [
     "dep:mod_interface",
-    "dep:minwebgl", 
+    "dep:minwebgl",
     "dep:mingl",
     "dep:renderer",
     "dep:web-sys",
@@ -61,7 +61,7 @@ random = ["enabled", "dep:rand", "dep:getrandom"]
 mod_interface = { workspace = true, optional = true }
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ], optional = true }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ], optional = true }
-renderer = { workspace = true, optional = true }
+renderer = { workspace = true, features = [ "full" ], optional = true }
 gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ], optional = true }
 csgrs = { workspace = true, optional = true }
 parry3d = { workspace = true, optional = true }

@@ -19,6 +19,13 @@ crate::mod_interface!
   /// Scene related functionality
   layer scene;
 
+  /// Animation related functionality
+  #[ cfg( feature = "animation" ) ]
+  layer animation;
+
+  /// Skeleton related functionality
+  layer skeleton;
+
   /// Texture related functionality
   layer texture;
 

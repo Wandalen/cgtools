@@ -215,7 +215,7 @@ fn load_table( gl : &GL, table : &[ u8 ] ) -> Option< WebGlTexture >
 {
   let table = table.to_vec(); // collect to vec because of alignment
   let table : &[ f32 ] = asbytes::cast_slice( &table );
-  let array = Float32Array::new_from_slice( table );
+  let array = Float32Array::from( table );
   let texture = gl.create_texture();
   gl.bind_texture( gl::TEXTURE_2D, texture.as_ref() );
   gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_array_buffer_view_and_src_offset

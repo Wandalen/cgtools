@@ -4,23 +4,23 @@ mod private
   use minwebgl as gl;
 
   use crate::webgl::
-  { 
+  {
     post_processing::
     {
-      BlendPass, 
-      Pass, 
-      SwapFramebuffer, 
-      UnrealBloomPass, 
+      BlendPass,
+      Pass,
+      SwapFramebuffer,
+      UnrealBloomPass,
       VS_TRIANGLE
-    }, 
-    program::{ self, CompositeShader }, 
-    AlphaMode, 
-    Camera, 
-    Node, 
-    Object3D, 
+    },
+    program::{ self, CompositeShader },
+    AlphaMode,
+    Camera,
+    Node,
+    Object3D,
     Primitive,
-    ProgramInfo, 
-    Scene, 
+    ProgramInfo,
+    Scene,
     IBL
   };
 
@@ -72,7 +72,7 @@ mod private
     pub depth_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
   }
 
-  impl FramebufferContext 
+  impl FramebufferContext
   {
     /// Creates a new `FramebufferContext` instance, initializing all necessary
     /// WebGL2 framebuffers, renderbuffers, and textures.
@@ -106,10 +106,10 @@ mod private
       // Allocate storage for the depth/stencil renderbuffer with multisampling.
       gl.renderbuffer_storage_multisample
       (
-        gl::RENDERBUFFER, 
-        samples, 
-        gl::DEPTH24_STENCIL8, 
-        width as i32, 
+        gl::RENDERBUFFER,
+        samples,
+        gl::DEPTH24_STENCIL8,
+        width as i32,
         height as i32
       );
 
@@ -121,10 +121,10 @@ mod private
       // Allocate storage for the main color renderbuffer with multisampling.
       gl.renderbuffer_storage_multisample
       (
-        gl::RENDERBUFFER, 
-        samples, 
-        gl::RGBA16F, 
-        width as i32, 
+        gl::RENDERBUFFER,
+        samples,
+        gl::RGBA16F,
+        width as i32,
         height as i32
       );
 
@@ -136,10 +136,10 @@ mod private
       // Allocate storage for the emission color renderbuffer with multisampling.
       gl.renderbuffer_storage_multisample
       (
-        gl::RENDERBUFFER, 
-        samples, 
-        gl::RGBA16F, 
-        width as i32, 
+        gl::RENDERBUFFER,
+        samples,
+        gl::RGBA16F,
+        width as i32,
         height as i32
       );
 
@@ -148,10 +148,10 @@ mod private
       // Allocate storage for the emission color renderbuffer with multisampling.
       gl.renderbuffer_storage_multisample
       (
-        gl::RENDERBUFFER, 
-        samples, 
-        gl::RGBA16F, 
-        width as i32, 
+        gl::RENDERBUFFER,
+        samples,
+        gl::RGBA16F,
+        width as i32,
         height as i32
       );
 
@@ -160,15 +160,15 @@ mod private
       // Allocate storage for the emission color renderbuffer with multisampling.
       gl.renderbuffer_storage_multisample
       (
-        gl::RENDERBUFFER, 
-        samples, 
-        gl::R16F, 
-        width as i32, 
+        gl::RENDERBUFFER,
+        samples,
+        gl::R16F,
+        width as i32,
         height as i32
       );
 
       gl.bind_renderbuffer( gl::RENDERBUFFER, None );
-      
+
 
       // --- Create Resolved Textures ---
       // These textures will store the final, resolved (non-multisampled)
@@ -187,7 +187,7 @@ mod private
       gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width as i32, height  as i32 );
       gl::texture::d2::filter_linear( gl );
       gl::texture::d2::wrap_clamp( gl );
-      
+
       // Configure the emission texture.
       gl.bind_texture( gl::TEXTURE_2D, emission_texture.as_ref() );
       gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width  as i32, height  as i32 );
@@ -199,7 +199,7 @@ mod private
       gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width as i32, height  as i32 );
       gl::texture::d2::filter_linear( gl );
       gl::texture::d2::wrap_clamp( gl );
-      
+
       // Configure the  texture.
       gl.bind_texture( gl::TEXTURE_2D, transparent_revealage_texture.as_ref() );
       gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::R16F, width  as i32, height  as i32 );
@@ -218,7 +218,7 @@ mod private
       gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT2, gl::RENDERBUFFER, multisample_transparent_accumulate_renderbuffer.as_ref() );
       gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT3, gl::RENDERBUFFER, multisample_transparent_revealage_renderbuffer.as_ref() );
       // Specify which color attachments are active for drawing.
-      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] ); 
+      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
 
       // --- Attach Textures to Resolved Framebuffer ---
       // Bind the resolved framebuffer to configure its attachments.
@@ -328,9 +328,9 @@ mod private
       gl.clear_bufferfi( gl::DEPTH_STENCIL, 0, 1.0, 0 );
       gl.blit_framebuffer
       (
-        0, 0, self.texture_width as i32, self.texture_height as i32, 
-        0, 0, self.texture_width as i32, self.texture_height as i32, 
-        gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT, 
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT,
         gl::NEAREST
       );
 
@@ -344,9 +344,9 @@ mod private
       // to the draw framebuffer. The `gl::LINEAR` filter ensures a smooth resolution.
       gl.blit_framebuffer
       (
-        0, 0, self.texture_width as i32, self.texture_height as i32, 
-        0, 0, self.texture_width as i32, self.texture_height as i32, 
-        gl::COLOR_BUFFER_BIT, 
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        gl::COLOR_BUFFER_BIT,
         gl::LINEAR
       );
 
@@ -357,9 +357,9 @@ mod private
         //gl.clear_bufferfv_with_f32_array( gl::COLOR, 1, &[ 0.0, 0.0, 0.0, 0.0 ] );
         gl.blit_framebuffer
         (
-          0, 0, self.texture_width as i32, self.texture_height as i32, 
-          0, 0, self.texture_width as i32, self.texture_height as i32, 
-          gl::COLOR_BUFFER_BIT, 
+          0, 0, self.texture_width as i32, self.texture_height as i32,
+          0, 0, self.texture_width as i32, self.texture_height as i32,
+          gl::COLOR_BUFFER_BIT,
           gl::LINEAR
         );
       }
@@ -369,8 +369,8 @@ mod private
       //gl.clear_bufferfv_with_f32_array( gl::COLOR, 2, &[ 0.0, 0.0, 0.0, 1.0 ] );
       gl.blit_framebuffer
       (
-        0, 0, self.texture_width as i32, self.texture_height as i32, 
-        0, 0, self.texture_width as i32, self.texture_height as i32, 
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        0, 0, self.texture_width as i32, self.texture_height as i32,
         gl::COLOR_BUFFER_BIT, gl::LINEAR
       );
 
@@ -379,8 +379,8 @@ mod private
       //gl.clear_bufferfv_with_f32_array( gl::COLOR, 3, &[ 0.0, 0.0, 0.0, 1.0 ] );
       gl.blit_framebuffer
       (
-        0, 0, self.texture_width as i32, self.texture_height as i32, 
-        0, 0, self.texture_width as i32, self.texture_height as i32, 
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        0, 0, self.texture_width as i32, self.texture_height as i32,
         gl::COLOR_BUFFER_BIT, gl::LINEAR
       );
 
@@ -496,7 +496,7 @@ mod private
     composite_shader : ProgramInfo< CompositeShader >
   }
 
-  impl Renderer 
+  impl Renderer
   {
     /// Creates a new `Renderer` instance with default settings.
     pub fn new( gl : &gl::WebGl2RenderingContext, width : u32, height : u32, samples : i32 ) -> Result< Self, gl::WebglError >
@@ -514,13 +514,13 @@ mod private
       let swap_buffer = SwapFramebuffer::new( gl, width, height );
       let exposure = 0.0;
 
-      let composite_program = gl::ProgramFromSources::new( VS_TRIANGLE, include_str!( "shaders/composite.frag" ) ).compile_and_link( gl )?; 
+      let composite_program = gl::ProgramFromSources::new( VS_TRIANGLE, include_str!( "shaders/composite.frag" ) ).compile_and_link( gl )?;
       let composite_shader = ProgramInfo::< CompositeShader >::new( gl, composite_program );
       let locations = composite_shader.get_locations();
       composite_shader.bind( gl );
       gl.uniform1i( locations.get( "transparentA" ).unwrap().clone().as_ref() , 0 );
       gl.uniform1i( locations.get( "transparentB" ).unwrap().clone().as_ref() , 1 );
-      
+
       Ok
       (
         Self
@@ -537,7 +537,7 @@ mod private
           composite_shader
         }
       )
-    } 
+    }
 
     /// Sets the Image-Based Lighting (IBL) textures to be used for rendering.
     ///
@@ -563,7 +563,7 @@ mod private
     pub fn set_exposure( &mut self, exposure : f32 )
     {
       self.exposure = exposure;
-    } 
+    }
 
     /// Sets the radius of the bloom effect.
     ///
@@ -607,11 +607,11 @@ mod private
     /// * `scene`: A mutable reference to the `Scene` to be rendered.
     /// * `camera`: A reference to the `Camera` defining the viewpoint.
     pub fn render
-    ( 
-      &mut self, 
+    (
+      &mut self,
       gl : &gl::WebGl2RenderingContext,
-      scene : &mut Scene, 
-      camera : &Camera 
+      scene : &mut Scene,
+      camera : &Camera
     ) -> Result< (), gl::WebglError >
     {
       scene.update_world_matrix();
@@ -624,13 +624,13 @@ mod private
       gl.clear_stencil( 0 );
       gl.front_face( gl::CCW );
 
-      if self.use_emission 
+      if self.use_emission
       {
-        self.framebuffer_ctx.enable_emission_texture( gl );    
+        self.framebuffer_ctx.enable_emission_texture( gl );
       }
-      else 
+      else
       {
-        self.framebuffer_ctx.disable_emission_texture( gl );    
+        self.framebuffer_ctx.disable_emission_texture( gl );
       }
 
       self.framebuffer_ctx.bind_multisample( gl );
@@ -655,8 +655,8 @@ mod private
       }
 
       // Define a closure to handle the drawing of each node in the scene.
-      let mut draw_node = 
-      | 
+      let mut draw_node =
+      |
         node : Rc< RefCell< Node > >
       | -> Result< (), gl::WebglError >
       {
@@ -674,10 +674,10 @@ mod private
             let program_id = format!( "{}{}", material.id, vs_defines );
 
             // Retrieve the program info if it already exists, otherwise compile and link a new program.
-            let program_info = 
+            let program_info =
             if let Some( ref program_info ) = self.programs.get( &program_id )
             {
-             program_info 
+             program_info
             }
             else
             {
@@ -693,15 +693,15 @@ mod private
 
               // Compile and link a new WebGL program from the vertex and fragment shaders with the appropriate defines.
               let program = gl::ProgramFromSources::new
-              ( 
-                &format!( "#version 300 es\n{}\n{}", vs_defines, MAIN_VERTEX_SHADER ), 
+              (
+                &format!( "#version 300 es\n{}\n{}", vs_defines, MAIN_VERTEX_SHADER ),
                 &format!
-                ( 
-                  "#version 300 es\n{}\n{}\n{}\n{}", 
-                  vs_defines, 
+                (
+                  "#version 300 es\n{}\n{}\n{}\n{}",
+                  vs_defines,
                   ibl_define,
                   material.get_defines(),
-                  MAIN_FRAGMENT_SHADER ) 
+                  MAIN_FRAGMENT_SHADER )
               ).compile_and_link( gl )?;
               let program_info = ProgramInfo::< program::PBRShader >::new( gl , program );
 
@@ -712,7 +712,7 @@ mod private
               material.configure( gl, locations, IBL_BASE_ACTIVE_TEXTURE );
               material.upload( gl, locations )?;
               camera.upload( gl, locations );
-              if let Some( ref ibl ) = self.ibl 
+              if let Some( ref ibl ) = self.ibl
               {
                 ibl.bind( gl, IBL_BASE_ACTIVE_TEXTURE );
               }
@@ -743,7 +743,7 @@ mod private
             primitive.bind( gl );
             primitive.draw( gl );
           }
-        } 
+        }
 
         Ok( () )
       };
@@ -771,7 +771,7 @@ mod private
 
         node.upload( gl, locations );
         primitive.bind( gl );
-       
+
        Ok( () )
       };
 
@@ -818,7 +818,7 @@ mod private
 
       //   node.upload( gl, locations );
       //   primitive.bind( gl );
-       
+
       //  Ok( () )
       // };
 
@@ -864,7 +864,7 @@ mod private
       gl.active_texture( gl::TEXTURE1 );
       gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.transparent_revealage_texture.as_ref() );
 
-    
+
       gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
       gl.blend_func( gl::ONE, gl::ONE_MINUS_SRC_ALPHA );

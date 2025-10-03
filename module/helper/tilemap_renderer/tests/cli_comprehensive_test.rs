@@ -23,7 +23,6 @@ mod tests
   use std::process::Command;
   use std::fs;
   use std::path::Path;
-  use std::time::Instant;
   use serde_json::Value;
 
   /// Test configuration and utilities
@@ -618,8 +617,11 @@ mod tests
   // CATEGORY 6: Performance Tests (LOW Priority)
   // =============================================================================
 
+  #[ cfg( not( debug_assertions ) ) ]
   #[ test ]
   fn test_cli_601_large_scene_performance() {
+    use std::time::Instant;
+
     let config = setup_test_environment();
 
     // Create commands for large scene
