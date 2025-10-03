@@ -26,35 +26,11 @@ use renderer::webgl::
     SwapFramebuffer
   },
   Camera,
-  Renderer,
-  Node
+  Renderer
 };
 
 mod lil_gui;
 mod gui_setup;
-
-fn write_tree( node : Rc< RefCell< Node > >, depth : usize, output : &mut String )
-{
-  let name = node
-  .borrow()
-  .get_name()
-  .unwrap_or( "<none>".into() );
-
-  let indent = "-".repeat( depth );
-  output.push_str( &format!("{}{}\n", indent, name ) );
-
-  for child in node.borrow().get_children()
-  {
-    write_tree( Rc::clone( child ), depth + 1, output );
-  }
-}
-
-fn print_tree( node : Rc< RefCell< Node > > )
-{
-  let mut tree_str = String::new();
-  write_tree( node, 1, &mut tree_str );
-  gl::info!( "{}", tree_str );
-}
 
 async fn run() -> Result< (), gl::WebglError >
 {
@@ -133,15 +109,8 @@ async fn run() -> Result< (), gl::WebglError >
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
-  for node in &scenes[ 0 ].borrow().children
-  {
-    let mut scale = node.borrow().get_scale();
-    scale.0[ 0 ] *= -1.0;
-    node.borrow_mut().set_scale( scale );
-  }
-
   camera.get_controls().borrow_mut().center.0[ 1 ] += -5.5;
-  camera.get_controls().borrow_mut().center.0[ 2 ] += -1.0;
+  camera.get_controls().borrow_mut().center.0[ 2 ] += -2.0;
 
   let weights = gltf.meshes.iter()
   .filter_map
@@ -167,16 +136,49 @@ async fn run() -> Result< (), gl::WebglError >
   .next()
   .unwrap();
 
-  gui_setup::setup( weights.clone() );
+  let gui_weights = Rc::new( RefCell::new( vec![ 0.0; 60 ] ) );
 
-  print_tree( scenes[ 0 ].borrow().children[ 0 ].clone() );
+  let last_time = Rc::new( RefCell::new( 0.0 ) );
+
+  let current_animation = Rc::new( RefCell::new( gltf.animations[ 0 ].clone() ) );
+
+  gui_setup::setup( gltf.animations.clone(), current_animation.clone(), gui_weights.clone() );
 
   // Define the update and draw logic
   let update_and_draw =
   {
     move | t : f64 |
     {
-      let _time = t / 1000.0;
+      let time = t / 1000.0;
+
+      {
+        let last_time = last_time.clone();
+
+        let delta_time = time - *last_time.borrow();
+        *last_time.borrow_mut() = time;
+
+        if current_animation.borrow().animation.as_any()
+        .downcast_ref::< animation::Sequencer >().unwrap().is_completed()
+        {
+          current_animation.borrow_mut()
+          .inner_get_mut::< animation::Sequencer >()
+          .unwrap()
+          .reset();
+        }
+
+        current_animation.borrow_mut().update( delta_time );
+        current_animation.borrow().set();
+
+        let mut weights_mut = weights.borrow_mut();
+        let gui_weights = gui_weights.borrow().clone();
+        for i in 0..weights_mut.len().min( gui_weights.len() )
+        {
+          if gui_weights[ i ] > 0.0
+          {
+            weights_mut[ i ] = gui_weights[ i ];
+          }
+        }
+      }
 
       renderer.borrow_mut().render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
       .expect( "Failed to render" );

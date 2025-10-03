@@ -9,7 +9,7 @@ use serde::{ Deserialize, Serialize };
 use gl::wasm_bindgen::prelude::*;
 use std::collections::HashMap;
 
-use crate::lil_gui::{on_change_string, new_gui, add_dropdown, show};
+use crate::lil_gui::{ on_change_string, new_gui, add_dropdown, show };
 
 
 #[ derive( Default, Serialize, Deserialize ) ]
