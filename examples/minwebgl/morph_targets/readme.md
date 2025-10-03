@@ -1,6 +1,6 @@
-# Skeletal animation
+# Morph targets
 
-This example demonstrates how to use a renderer for loading animated skinned 3D objects and run their animations. Choosen animation will play in a loop. User can choose any animations using UI control and rotate 3D objects.
+This example demonstrates how to use a renderer crate for playing animations, changing animations amplitude, setup separated groups of skeleton nodes. Example gives user posibility to choose animation and change rotation amplitude scale factor for separated groups of skeleton nodes like head, hands, body, legs.
 
 ![Showcase]( ./showcase.png )
 
@@ -8,106 +8,127 @@ This example demonstrates how to use a renderer for loading animated skinned 3D 
 
 This example showcases several useful techniques and concepts for WebGL2 development:
 
-  * How load skeletal animations of 3D objects from GLTF file.
+  * How split skeleton to meaningful groups of nodes like hands, legs etc.
 
-  * How choose and run smoothly skeletal animations.
+  * How scale amplitude of different parts of choosen animation.
 
-  * How update nodes transformations using updated skeletal animations.
+  * How link UI with animation modificators.
 
 ## How it works
 
-Playing skeletal animation using [renderer](../../../module/helper/renderer/readme.md) crate requires such steps:
+For discovering how skeletal animation works under the hood check this example description: [skeletal_animation](../skeletal_animation/readme.md).
 
-### 1. Load 3D objects with skins from GLTF files.
+Skeletal animation modifications based on trait `AnimatableComposition`, structure `Animation` and crate [animation](../../../module/helper/animation/readme.md).
 
-It's involves such steps:
+### `AnimatableComposition` trait
 
-  * Load 3D objects and bind skin to it.
-  * Bind list of related nodes to skin using `gltf::skin::Skin::joints()`.
-  * Bind list of inverse bind matrices for every related node to skin using this code:
+Trait `AnimatableComposition` contains method for update underlying animatable object state, setup nodes transforms ([base.rs](../../../module/helper/renderer/src/webgl/animation/base.rs)):
 
 ```rust
-let reader = skin.reader
+pub trait AnimatableComposition : clone_dyn_types::CloneDyn
+{
+  /// Updates all underlying [`animation::AnimatablePlayer`]'s
+  fn update( &mut self, delta_time : f64 );
+
+  /// Sets all simple 3D transformations for every
+  /// [`Node`] related to this [`AnimatableComposition`]
+  fn set( &self, nodes : &HashMap< Box< str >, Rc< RefCell< Node > > > );
+
+  /// Returns a type-erased reference to the underlying value.
+  fn as_any( &self ) -> &dyn core::any::Any;
+
+  /// Returns a type-erased mutable reference to the underlying value.
+  fn as_any_mut( &mut self ) -> &mut dyn core::any::Any;
+}
+```
+
+### `Animation` trait
+
+Struct `Animation` uses underlying `AnimatableComposition` object for updating animations and setting related nodes tranformations using `Animation::nodes` field:
+
+```rust
+/// Contains data for animating [`crate::webgl::Mesh`]
+pub struct Animation
+{
+  /// Animation name
+  pub name : Option< Box< str > >,
+  /// Animation behavior
+  pub animation : Box< dyn AnimatableComposition >,
+  /// Related animated [`Node`]'s
+  pub nodes : HashMap< Box< str >, Rc< RefCell< Node > > >
+}
+```
+
+### `animation` crate
+
+Implementors of `AnimatableComposition` trait use primitives from `animation` crate to create certain behavior of related nodes modification and related animations convertation. Main primitives is `Sequencer`, `Sequence`, `Tween` that used for storing animations keyframe and interpolation information.
+
+### `scaling` module
+
+For example `Scaler` struct of module [scaling](../../../module/helper/renderer/src/webgl/animation/scaling.rs) uses one `Sequencer` that represent skeletal animation to modify its rotations in such way that amplitude of nodes movement can be increased or decreased in method `AnimatableComposition::set`.
+
+Scaler stores scaling factors for every named group of modified nodes. Then this factors used for changing quaternion angle distance between all keyframes every frame. This adds to animation more variability.
+
+Every keyframe depends from previous keyframe. Each frame modified relatively to previous from start to end ([<Scaler as AnimatableComposition>::set](../../../module/helper/renderer/src/webgl/animation/scaling.rs)):
+
+```rust
+if let Some( rotation ) = self.animation.get::< Sequence< Tween< QuatF64 > > >
 (
-  | buffer | Some( buffers[ buffer.index() ].as_slice() )
-);
-
-let Some( inverse_bind_matrices_iter ) = reader.read_inverse_bind_matrices()
-else
+  &format!( "{}{}", name, ROTATION_PREFIX )
+)
 {
-  return None;
-};
-```
+  let s = scales.y();
+  let mut players = rotation.players_get();
 
-### 2. Load animations from GLTF files.
+  let current = rotation.current_id_get();
 
-Every animation consist of channels. Every channel is sequence of keyframes for one simple 3D transformation or morph target.
-
-Every keyframe also defines easing function with its parameters. That used for channel value interpolation with previous keyframe.
-
-GLTF support such types of easing functions:
-
-  * linear
-
-  * step
-
-  * cubic spline that is represented by in_tangents and out_tangents parameters for each keyframe.
-
-Every keyframe is decoded from raw GLTF file. Pairs of adjacent keyframes forms `Tween` struct that manages interpolation process and timing when start and finish interpolation. List of `Tween`s formed into `Sequence` structure. `Sequence` can control one channel playing process.
-
-Every animation channel as `Sequence` stored in structure `Sequencer` that controls every channel playing process. It needed for managing channels for every animation. New channels can be added, modified or removed after loading.
-
-### 3. Choose animations for playing.
-
-```rust
-let animation = gltf.animations[ 0 ].clone();
-```
-
-### 4. Update every animation.
-
-Using method `Animation::update()`.
-
-This method update every animation channel with delta_time that is calculated using frame time. When animation updated it contains data for every related nodes 3D transformation for current frame. This data is used for updating nodes transformation.
-
-### 5. Update transformations of every related node for every animation.
-
-Using method `Animation::set()`.
-
-4-5 steps can be presented with this code:
-
-```rust
-let last_time = Rc::new( RefCell::new( 0.0 ) );
-let current_animation = Rc::new( RefCell::new( gltf.animations[ 0 ].clone() ) );
-
-let update_and_draw =
-{
-  move | t : f64 |
+  for i in 0..( ( current + 1 ).min( players.len() ) )
   {
-    let time = t / 1000.0;
-
+    if s < 1.0 && i > 0
     {
-      let last_time = last_time.clone();
-
-      let delta_time = time - *last_time.borrow();
-      *last_time.borrow_mut() = time;
-
-      if current_animation.borrow().sequencer.borrow().is_completed()
-      {
-        current_animation.borrow().sequencer.borrow_mut().reset();
-      }
-
-      current_animation.borrow().update( delta_time as f32 );
-      current_animation.borrow().set();
+      players[ i ].start_value = players[ i - 1 ].end_value;
     }
+    let prev = players[ i ].start_value;
+    let curr = players[ i ].end_value;
 
-    // render stuff
+    let delta = prev.conjugate() * curr;
+
+    let w = delta.0[ 3 ].clamp( -1.0, 1.0 );
+    let angle = 2.0 * w.acos();
+    let sin_half = ( 1.0 - w * w ).sqrt();
+
+    let axis = if sin_half.abs() > std::f32::EPSILON as f64
+    {
+      F64x3::new
+      (
+        delta.0[ 0 ] / sin_half,
+        delta.0[ 1 ] / sin_half,
+        delta.0[ 2 ] / sin_half,
+      )
+    }
+    else
+    {
+      F64x3::new( 1.0, 0.0, 0.0 )
+    };
+
+    let angle_scaled = angle * s;
+    let delta_scaled = QuatF64::from_axis_angle( axis, angle_scaled );
+    let new_end = prev * delta_scaled;
+    players[ i ].end_value = new_end.normalize();
   }
-};
+
+  players[ 0 ].start_value = players.last().unwrap().end_value;
+
+  let mut sequence = Sequence::new( players ).unwrap();
+  sequence.update( rotation.time() );
+  if let Some( tween ) = sequence.current_get()
+  {
+    let rotation = tween.value_get();
+    let rotation = QuatF32::from( rotation.0.map( | v | v as f32 ) );
+    node.borrow_mut().set_rotation( rotation );
+  }
+}
 ```
-
-### 6. Renderer crate vertex shader updates every vertex position using skin.
-
-Every rendered 3D object that contains skin calculates and uploads joint matrices using related nodes global transform and inverse bind matrices. In vertex shader joint matrices, joints and weights attributes of every 3D object vertex are used for calculating every vertex position. Read more in [WebGL Skinning] and [GLTF reference guide].
 
 ## Running
 Ensure you have all the necessary dependencies installed. This example uses trunk for building and serving the WebAssembly application.
@@ -124,28 +145,18 @@ Run the command:
 
 Open your web browser to the address provided by trunk (usually http://127.0.0.1:8080).
 
-The application will load the GLTF model, skeletons, animations and start the rendering loop, displaying animated 3D objects. You can select different animations that contained in GLTF file using the provided UI controls.
+The application will load the GLTF model, skeletons, animations and start the rendering loop, displaying animated 3D objects. You can select different animations that contained in GLTF file using the provided UI controls. Also you can scale skeleton joints rotation amplitude for hands, legs, head and body.
 
-Feel free to replace `bug_bunny.glb` with your own 3D model by modifying path to file in the main.rs file and loading own assets into [folder](../../../assets/gltf/animated/).
+Feel free to replace `multi_animation.glb` with your own 3D model and animations by modifying path to file in the main.rs file and loading own assets into [folder](../../../assets/gltf/animated/). Your skeleton must be compatible with Mixamo skeleton ( consist of similar tree of nodes and with similar names ) for working properly. But you can change UI layout and split skeleton in [main.rs](./src/main.rs) how you want. It can give you opportunity to run properly skeletons with another structure.
 
 ## 📚 References
 
-### Skinning
-- [WebGL Skinning]
-- [GLTF reference guide]
-- [Animation Sampler Interpolation Modes]
-
-### Data texture for uniform matrices
-- [How to use textures as data]
-- [WebGL2 3D - Data Textures]
+### Similar example on another engines or libraries
+- [ThreeJS]
 
 ### Assets
-- [Bug Buggy GLTF asset]
+- [Mixamo]
 
-[WebGL Skinning]: https://webglfundamentals.org/webgl/lessons/webgl-skinning.html
-[GLTF reference guide]: https://www.khronos.org/files/gltf20-reference-guide.pdf
-[Animation Sampler Interpolation Modes]: https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#appendix-c-interpolation
-[How to use textures as data]: https://webgl2fundamentals.org/webgl/lessons/webgl-qna-how-to-use-textures-as-data.html
-[WebGL2 3D - Data Textures]: https://webgl2fundamentals.org/webgl/lessons/webgl-data-textures.html
-[Bug Buggy GLTF asset]: https://skfb.ly/pAD7B
+[ThreeJS]: https://threejs.org/examples/#webgl_animation_skinning_additive_blending
+[Mixamo]: https://www.mixamo.com/#/?page=1&type=Motion%2CMotionPack
 
