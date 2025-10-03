@@ -1,6 +1,6 @@
 # Morph targets
 
-This example demonstrates how to use a renderer crate for playing animations, changing animations amplitude, setup separated groups of skeleton nodes. Example gives user posibility to choose animation and change rotation amplitude scale factor for separated groups of skeleton nodes like head, hands, body, legs.
+This example demonstrates how to use a renderer crate for playing animations, update models morph targets. Example gives user posibility to choose animation and change its morph targets weights values using UI.
 
 ![Showcase]( ./showcase.png )
 
@@ -8,127 +8,37 @@ This example demonstrates how to use a renderer crate for playing animations, ch
 
 This example showcases several useful techniques and concepts for WebGL2 development:
 
-  * How split skeleton to meaningful groups of nodes like hands, legs etc.
+  * How update morph targets weights using available animations.
 
-  * How scale amplitude of different parts of choosen animation.
-
-  * How link UI with animation modificators.
+  * How link UI with morph targets weights.
 
 ## How it works
 
 For discovering how skeletal animation works under the hood check this example description: [skeletal_animation](../skeletal_animation/readme.md).
 
-Skeletal animation modifications based on trait `AnimatableComposition`, structure `Animation` and crate [animation](../../../module/helper/animation/readme.md).
+Working with morph targets includes this steps:
 
-### `AnimatableComposition` trait
+### Loading morph targets displacements
 
-Trait `AnimatableComposition` contains method for update underlying animatable object state, setup nodes transforms ([base.rs](../../../module/helper/renderer/src/webgl/animation/base.rs)):
+Each mesh has own default set of morph targets weights values as array of floats.
 
-```rust
-pub trait AnimatableComposition : clone_dyn_types::CloneDyn
-{
-  /// Updates all underlying [`animation::AnimatablePlayer`]'s
-  fn update( &mut self, delta_time : f64 );
+Also each mesh primitive has morph targets list. Each morph target can have position, normal and tangent buffers with displacements or new values. It in standard glTF2, but other libraries can support also another types of displacements.
 
-  /// Sets all simple 3D transformations for every
-  /// [`Node`] related to this [`AnimatableComposition`]
-  fn set( &self, nodes : &HashMap< Box< str >, Rc< RefCell< Node > > > );
+Current morph target implementation packs all data into one texture for each mesh, that is used in shader as uniform. You can find layout in description of function `DisplacementsData::upload` [here](../../../module/helper/renderer/src/webgl/skeleton.rs). This approach used because of free attributes slots shortage.
 
-  /// Returns a type-erased reference to the underlying value.
-  fn as_any( &self ) -> &dyn core::any::Any;
+### Loading animated weights
 
-  /// Returns a type-erased mutable reference to the underlying value.
-  fn as_any_mut( &mut self ) -> &mut dyn core::any::Any;
-}
-```
+Each animation can have one morph target sequence of keyframes. Each frame is set of weights for each morph target at the certain moment of time. They loaded as joints transform keyframes.
 
-### `Animation` trait
+### Morph targets in renderer under the hood
 
-Struct `Animation` uses underlying `AnimatableComposition` object for updating animations and setting related nodes tranformations using `Animation::nodes` field:
+Packed displacements texture used in renderer vertex shader. In shader displacement texture read offset calculated relatively to vertex offset, targets amount and displacements types count ( position/normal/tangent ). Displacements used in such way, for example for position: given set of displacements for each weight and set of weights current values, then they multiplied by each other then aggregated as sum. This sum added to base vertex position.
 
-```rust
-/// Contains data for animating [`crate::webgl::Mesh`]
-pub struct Animation
-{
-  /// Animation name
-  pub name : Option< Box< str > >,
-  /// Animation behavior
-  pub animation : Box< dyn AnimatableComposition >,
-  /// Related animated [`Node`]'s
-  pub nodes : HashMap< Box< str >, Rc< RefCell< Node > > >
-}
-```
+Displacement usage happens before skin matrix usage.
 
-### `animation` crate
+### Update animated weights
 
-Implementors of `AnimatableComposition` trait use primitives from `animation` crate to create certain behavior of related nodes modification and related animations convertation. Main primitives is `Sequencer`, `Sequence`, `Tween` that used for storing animations keyframe and interpolation information.
-
-### `scaling` module
-
-For example `Scaler` struct of module [scaling](../../../module/helper/renderer/src/webgl/animation/scaling.rs) uses one `Sequencer` that represent skeletal animation to modify its rotations in such way that amplitude of nodes movement can be increased or decreased in method `AnimatableComposition::set`.
-
-Scaler stores scaling factors for every named group of modified nodes. Then this factors used for changing quaternion angle distance between all keyframes every frame. This adds to animation more variability.
-
-Every keyframe depends from previous keyframe. Each frame modified relatively to previous from start to end ([<Scaler as AnimatableComposition>::set](../../../module/helper/renderer/src/webgl/animation/scaling.rs)):
-
-```rust
-if let Some( rotation ) = self.animation.get::< Sequence< Tween< QuatF64 > > >
-(
-  &format!( "{}{}", name, ROTATION_PREFIX )
-)
-{
-  let s = scales.y();
-  let mut players = rotation.players_get();
-
-  let current = rotation.current_id_get();
-
-  for i in 0..( ( current + 1 ).min( players.len() ) )
-  {
-    if s < 1.0 && i > 0
-    {
-      players[ i ].start_value = players[ i - 1 ].end_value;
-    }
-    let prev = players[ i ].start_value;
-    let curr = players[ i ].end_value;
-
-    let delta = prev.conjugate() * curr;
-
-    let w = delta.0[ 3 ].clamp( -1.0, 1.0 );
-    let angle = 2.0 * w.acos();
-    let sin_half = ( 1.0 - w * w ).sqrt();
-
-    let axis = if sin_half.abs() > std::f32::EPSILON as f64
-    {
-      F64x3::new
-      (
-        delta.0[ 0 ] / sin_half,
-        delta.0[ 1 ] / sin_half,
-        delta.0[ 2 ] / sin_half,
-      )
-    }
-    else
-    {
-      F64x3::new( 1.0, 0.0, 0.0 )
-    };
-
-    let angle_scaled = angle * s;
-    let delta_scaled = QuatF64::from_axis_angle( axis, angle_scaled );
-    let new_end = prev * delta_scaled;
-    players[ i ].end_value = new_end.normalize();
-  }
-
-  players[ 0 ].start_value = players.last().unwrap().end_value;
-
-  let mut sequence = Sequence::new( players ).unwrap();
-  sequence.update( rotation.time() );
-  if let Some( tween ) = sequence.current_get()
-  {
-    let rotation = tween.value_get();
-    let rotation = QuatF32::from( rotation.0.map( | v | v as f32 ) );
-    node.borrow_mut().set_rotation( rotation );
-  }
-}
-```
+When all data prepared then rendering loop is started. Then firstly all animation channels updating relatively to current time. At this moment all morph target weights interpolated relatively to keyframes. Next step is write updated morph targets weights to skeleton where displacement data is stored. Then renderer calls [`Skeleton::upload`] method that calls [`DisplacementsData::upload`] that loads related to morph targets uniform variables and displacement texture to shader. Shader uses displacements while rendering next frame. And we can see result on screen.
 
 ## Running
 Ensure you have all the necessary dependencies installed. This example uses trunk for building and serving the WebAssembly application.
@@ -145,9 +55,9 @@ Run the command:
 
 Open your web browser to the address provided by trunk (usually http://127.0.0.1:8080).
 
-The application will load the GLTF model, skeletons, animations and start the rendering loop, displaying animated 3D objects. You can select different animations that contained in GLTF file using the provided UI controls. Also you can scale skeleton joints rotation amplitude for hands, legs, head and body.
+The application will load the GLTF model, skeletons, animations and start the rendering loop, displaying animated 3D objects. You can select different animations that contained in GLTF file using the provided UI controls. Also you can change any morph target weight value in UI.
 
-Feel free to replace `multi_animation.glb` with your own 3D model and animations by modifying path to file in the main.rs file and loading own assets into [folder](../../../assets/gltf/animated/). Your skeleton must be compatible with Mixamo skeleton ( consist of similar tree of nodes and with similar names ) for working properly. But you can change UI layout and split skeleton in [main.rs](./src/main.rs) how you want. It can give you opportunity to run properly skeletons with another structure.
+Feel free to replace `zophrac.glb` with your own 3D model and animations by modifying path to file in the main.rs file and loading own assets into [folder](../../../assets/gltf/animated/morph_targets).
 
 ## 📚 References
 
@@ -155,8 +65,12 @@ Feel free to replace `multi_animation.glb` with your own 3D model and animations
 - [ThreeJS]
 
 ### Assets
-- [Mixamo]
+- [Sketchfab]
 
-[ThreeJS]: https://threejs.org/examples/#webgl_animation_skinning_additive_blending
-[Mixamo]: https://www.mixamo.com/#/?page=1&type=Motion%2CMotionPack
+### How morph targets works
+- [Morph Targets]
+
+[ThreeJS]: https://threejs.org/examples/?q=morph#webgl_morphtargets_face
+[Sketchfab]: https://sketchfab.com/3d-models/zophrac-9fea6ffd67b840cb970f5b4570794709
+[Morph Targets]: https://github.khronos.org/glTF-Tutorials/gltfTutorial/gltfTutorial_018_MorphTargets.html
 
