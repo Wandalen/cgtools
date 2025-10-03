@@ -267,7 +267,7 @@ void main()
 
     if ( displacementsOffsets.y != -1 )
     {
-      vNormal = displace_normal( vNormal );
+      // vNormal = displace_normal( vNormal );
     }
 
     #ifdef USE_TANGENTS
