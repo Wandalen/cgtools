@@ -51,9 +51,9 @@ out vec4 vColor_1;
 #endif
 
 #ifdef USE_SKINNING
-  uniform sampler2D inverseBindMatrices;
-  uniform sampler2D globalJointTransformMatrices;
-  uniform uvec2 matricesTextureSize;
+  uniform sampler2D inverseBindMatricesTexture;
+  uniform sampler2D globalJointTransformMatricesTexture;
+  uniform uvec2 skinMatricesTextureSize;
 #endif
 
 #ifdef USE_MORPH_TARGET
@@ -61,15 +61,15 @@ out vec4 vColor_1;
 
   uniform float morphWeights[ MAX_MORPH_TARGETS ];
   uniform uint primitiveOffset;
-  uniform sampler2D displacements;
+  uniform sampler2D morphTargetsDisplacementsTexture;
   uniform uvec2 displacementsTextureSize;
-  uniform uint targetsCount;
-  uniform ivec3 displacementsOffsets;
+  uniform uint morphTargetsCount;
+  uniform ivec3 morphTargetsDisplacementsOffsets;
 #endif
 
 #ifdef USE_SKINNING
-  // Retrieves 4x4 matrices from inverseBindMatrices and
-  // globalJointTransformMatrices textures and multipy them.
+  // Retrieves 4x4 matrices from inverseBindMatricesTexture and
+  // globalJointTransformMatricesTexture textures and multipy them.
   //
   // The textures are assumed to store matrices as a sequence of pixels,
   // where each matrix is represented by four consecutive pixels (columns).
@@ -83,18 +83,18 @@ out vec4 vColor_1;
   //  - https://chatgpt.com/share/68c40aca-ac08-8013-bdba-be12e3498bba
   mat4 joint_matrix( int i )
   {
-    int x_base = ( i * 4 ) % int( matricesTextureSize.x );
-    int y_base = ( i * 4 ) / int( matricesTextureSize.x );
+    int x_base = ( i * 4 ) % int( skinMatricesTextureSize.x );
+    int y_base = ( i * 4 ) / int( skinMatricesTextureSize.x );
 
-    vec4 gcol0 = texelFetch( globalJointTransformMatrices, ivec2( x_base,     y_base ), 0 );
-    vec4 gcol1 = texelFetch( globalJointTransformMatrices, ivec2( x_base + 1, y_base ), 0 );
-    vec4 gcol2 = texelFetch( globalJointTransformMatrices, ivec2( x_base + 2, y_base ), 0 );
-    vec4 gcol3 = texelFetch( globalJointTransformMatrices, ivec2( x_base + 3, y_base ), 0 );
+    vec4 gcol0 = texelFetch( globalJointTransformMatricesTexture, ivec2( x_base,     y_base ), 0 );
+    vec4 gcol1 = texelFetch( globalJointTransformMatricesTexture, ivec2( x_base + 1, y_base ), 0 );
+    vec4 gcol2 = texelFetch( globalJointTransformMatricesTexture, ivec2( x_base + 2, y_base ), 0 );
+    vec4 gcol3 = texelFetch( globalJointTransformMatricesTexture, ivec2( x_base + 3, y_base ), 0 );
 
-    vec4 icol0 = texelFetch( inverseBindMatrices, ivec2( x_base,     y_base ), 0 );
-    vec4 icol1 = texelFetch( inverseBindMatrices, ivec2( x_base + 1, y_base ), 0 );
-    vec4 icol2 = texelFetch( inverseBindMatrices, ivec2( x_base + 2, y_base ), 0 );
-    vec4 icol3 = texelFetch( inverseBindMatrices, ivec2( x_base + 3, y_base ), 0 );
+    vec4 icol0 = texelFetch( inverseBindMatricesTexture, ivec2( x_base,     y_base ), 0 );
+    vec4 icol1 = texelFetch( inverseBindMatricesTexture, ivec2( x_base + 1, y_base ), 0 );
+    vec4 icol2 = texelFetch( inverseBindMatricesTexture, ivec2( x_base + 2, y_base ), 0 );
+    vec4 icol3 = texelFetch( inverseBindMatricesTexture, ivec2( x_base + 3, y_base ), 0 );
 
     return mat4( gcol0, gcol1, gcol2, gcol3 ) * mat4( icol0, icol1, icol2, icol3 );
   }
@@ -137,67 +137,67 @@ out vec4 vColor_1;
 #endif
 
 #ifdef USE_MORPH_TARGET
-  uint get_components_count()
+  uint get_morph_targets_attributes_count()
   {
     uint c = 0u;
-    c += uint( displacementsOffsets.x != -1 );
-    c += uint( displacementsOffsets.y != -1 );
-    c += uint( displacementsOffsets.z != -1 );
+    c += uint( morphTargetsDisplacementsOffsets.x != -1 );
+    c += uint( morphTargetsDisplacementsOffsets.y != -1 );
+    c += uint( morphTargetsDisplacementsOffsets.z != -1 );
     return c;
   }
 
-  uint get_vertex_base_index()
+  uint get_morph_targets_vertex_data_offset()
   {
-    uint components = get_components_count();
+    uint components = get_morph_targets_attributes_count();
     if ( components == 0u ) return 0u;
-    return ( primitiveOffset + uint( gl_VertexID ) ) * targetsCount * components;
+    return ( primitiveOffset + uint( gl_VertexID ) ) * morphTargetsCount * components;
   }
 
   vec3 get_item_for_target( uint target, uint offset )
   {
-    int i = int( get_vertex_base_index() + ( offset * targetsCount ) + target );
+    int i = int( get_morph_targets_vertex_data_offset() + ( offset * morphTargetsCount ) + target );
 
     int x_base = i % int( displacementsTextureSize.x );
     int y_base = i / int( displacementsTextureSize.x );
 
-    vec3 item = texelFetch( displacements, ivec2( x_base, y_base ), 0 ).xyz;
+    vec3 item = texelFetch( morphTargetsDisplacementsTexture, ivec2( x_base, y_base ), 0 ).xyz;
 
     return item;
   }
 
-  vec3 get_position( uint target )
+  vec3 get_position_displacement( uint target )
   {
-    int off = displacementsOffsets.x;
+    int off = morphTargetsDisplacementsOffsets.x;
     if ( off < 0 ) return vec3( 0.0 );
     return get_item_for_target( target, uint( off ) );
   }
 
-  vec3 get_normal( uint target )
+  vec3 get_normal_displacement( uint target )
   {
-    int off = displacementsOffsets.y;
+    int off = morphTargetsDisplacementsOffsets.y;
     if ( off < 0 ) return vec3( 0.0 );
     return get_item_for_target( target, uint( off ) );
   }
 
-  vec3 get_tangent( uint target )
+  vec3 get_tangent_displacement( uint target )
   {
-    int off = displacementsOffsets.z;
+    int off = morphTargetsDisplacementsOffsets.z;
     if ( off < 0 ) return vec3( 0.0 );
     return get_item_for_target( target, uint( off ) );
   }
 
   vec3 displace_position( vec3 basePosition )
   {
-    if ( displacementsOffsets.x == -1 ) return basePosition;
+    if ( morphTargetsDisplacementsOffsets.x == -1 ) return basePosition;
 
     vec3 pos = basePosition;
-    uint cnt = min( targetsCount, uint( MAX_MORPH_TARGETS ) );
+    uint cnt = min( morphTargetsCount, uint( MAX_MORPH_TARGETS ) );
 
     for ( uint i = 0u; i < cnt; ++i )
     {
       float w = morphWeights[ i ];
       if ( w == 0.0 ) continue;
-      pos += w * get_position( i );
+      pos += w * get_position_displacement( i );
     }
 
     return pos;
@@ -205,16 +205,16 @@ out vec4 vColor_1;
 
   vec3 displace_normal( vec3 baseNormal )
   {
-    if ( displacementsOffsets.y == -1 ) return baseNormal;
+    if ( morphTargetsDisplacementsOffsets.y == -1 ) return baseNormal;
 
     vec3 n = baseNormal;
-    uint cnt = min( targetsCount, uint( MAX_MORPH_TARGETS ) );
+    uint cnt = min( morphTargetsCount, uint( MAX_MORPH_TARGETS ) );
 
     for ( uint i = 0u; i < cnt; ++i )
     {
       float w = morphWeights[ i ];
       if ( w == 0.0 ) continue;
-      n += w * get_normal( i );
+      n += w * get_normal_displacement( i );
     }
 
     return normalize( n );
@@ -222,16 +222,16 @@ out vec4 vColor_1;
 
   vec3 displace_tangent( vec3 baseTangent )
   {
-    if ( displacementsOffsets.z == -1 ) return baseTangent;
+    if ( morphTargetsDisplacementsOffsets.z == -1 ) return baseTangent;
 
     vec3 t = baseTangent;
-    uint cnt = min( targetsCount, uint( MAX_MORPH_TARGETS ) );
+    uint cnt = min( morphTargetsCount, uint( MAX_MORPH_TARGETS ) );
 
     for ( uint i = 0u; i < cnt; ++i )
     {
       float w = morphWeights[i];
       if ( w == 0.0 ) continue;
-      t += w * get_tangent( i );
+      t += w * get_tangent_displacement( i );
     }
 
     return normalize( t );
@@ -260,18 +260,18 @@ void main()
   vec4 position = vec4( position, 1.0 );
 
   #ifdef USE_MORPH_TARGET
-    if ( displacementsOffsets.x != -1 )
+    if ( morphTargetsDisplacementsOffsets.x != -1 )
     {
       position.xyz = displace_position( position.xyz );
     }
 
-    if ( displacementsOffsets.y != -1 )
+    if ( morphTargetsDisplacementsOffsets.y != -1 )
     {
       // vNormal = displace_normal( vNormal );
     }
 
     #ifdef USE_TANGENTS
-      if ( displacementsOffsets.z != -1 )
+      if ( morphTargetsDisplacementsOffsets.z != -1 )
       {
         vTangent.xyz = displace_tangent( vTangent.xyz );
       }

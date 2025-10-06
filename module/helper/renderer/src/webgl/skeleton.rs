@@ -194,9 +194,9 @@ mod private
 
       if self.inverse_texture.is_some() && self.global_texture.is_some()
       {
-        let global_matrices_loc = locations.get( "globalJointTransformMatrices" ).unwrap();
-        let inverse_matrices_loc = locations.get( "inverseBindMatrices" ).unwrap();
-        let texture_size_loc = locations.get( "matricesTextureSize" ).unwrap();
+        let global_matrices_loc = locations.get( "globalJointTransformMatricesTexture" ).unwrap();
+        let inverse_matrices_loc = locations.get( "inverseBindMatricesTexture" ).unwrap();
+        let texture_size_loc = locations.get( "skinMatricesTextureSize" ).unwrap();
 
         load_texture_data_4f( gl, self.global_texture.as_ref().unwrap(), global_data.as_slice(), texture_size );
         upload_texture( gl, self.global_texture.as_ref().unwrap(), global_matrices_loc.clone(), GLOBAL_MATRICES_SLOT );
@@ -407,7 +407,7 @@ mod private
 
       if self.displacements_texture.is_some()
       {
-        if let Some( displacements_loc ) = locations.get( "displacements" )
+        if let Some( displacements_loc ) = locations.get( "morphTargetsDisplacementsTexture" )
         {
           upload_texture( gl, self.displacements_texture.as_ref().unwrap(), displacements_loc.clone(), DISPLACEMENTS_SLOT );
         }
@@ -431,11 +431,11 @@ mod private
         {
           gl::uniform::upload( gl, disp_size_loc.clone(), self.disp_texture_size.as_slice() ).unwrap();
         }
-        if let Some( targets_count_loc ) = locations.get( "targetsCount" )
+        if let Some( targets_count_loc ) = locations.get( "morphTargetsCount" )
         {
           gl::uniform::upload( gl, targets_count_loc.clone(), &( self.targets_count as u32 ) ).unwrap();
         }
-        if let Some( disp_offsets_loc ) = locations.get( "displacementsOffsets" )
+        if let Some( disp_offsets_loc ) = locations.get( "morphTargetsDisplacementsOffsets" )
         {
           gl::uniform::upload( gl, disp_offsets_loc.clone(), &self.disp_offsets.to_array()[ .. ] ).unwrap();
         }

@@ -194,15 +194,15 @@ mod private
     "normalMatrix",
 
     // Skeleton uniform locations
-    "inverseBindMatrices",
-    "globalJointTransformMatrices",
-    "matricesTextureSize",
+    "inverseBindMatricesTexture",
+    "globalJointTransformMatricesTexture",
+    "skinMatricesTextureSize",
     "primitiveOffset",
     "morphWeights",
-    "displacements",
+    "morphTargetsDisplacementsTexture",
     "displacementsTextureSize",
-    "targetsCount",
-    "displacementsOffsets",
+    "morphTargetsCount",
+    "morphTargetsDisplacementsOffsets",
 
     // Material uniform  locations
     //// Textures uniform locations
