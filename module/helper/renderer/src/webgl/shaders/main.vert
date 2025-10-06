@@ -153,37 +153,35 @@ out vec4 vColor_1;
     return ( primitiveOffset + uint( gl_VertexID ) ) * morphTargetsCount * components;
   }
 
-  vec3 get_item_for_target( uint target, uint offset )
+  vec3 get_target_attribute( uint target, uint offset )
   {
     int i = int( get_morph_targets_vertex_data_offset() + ( offset * morphTargetsCount ) + target );
 
     int x_base = i % int( displacementsTextureSize.x );
     int y_base = i / int( displacementsTextureSize.x );
 
-    vec3 item = texelFetch( morphTargetsDisplacementsTexture, ivec2( x_base, y_base ), 0 ).xyz;
-
-    return item;
+    return texelFetch( morphTargetsDisplacementsTexture, ivec2( x_base, y_base ), 0 ).xyz;
   }
 
   vec3 get_position_displacement( uint target )
   {
     int off = morphTargetsDisplacementsOffsets.x;
     if ( off < 0 ) return vec3( 0.0 );
-    return get_item_for_target( target, uint( off ) );
+    return get_target_attribute( target, uint( off ) );
   }
 
   vec3 get_normal_displacement( uint target )
   {
     int off = morphTargetsDisplacementsOffsets.y;
     if ( off < 0 ) return vec3( 0.0 );
-    return get_item_for_target( target, uint( off ) );
+    return get_target_attribute( target, uint( off ) );
   }
 
   vec3 get_tangent_displacement( uint target )
   {
     int off = morphTargetsDisplacementsOffsets.z;
     if ( off < 0 ) return vec3( 0.0 );
-    return get_item_for_target( target, uint( off ) );
+    return get_target_attribute( target, uint( off ) );
   }
 
   vec3 displace_position( vec3 basePosition )
