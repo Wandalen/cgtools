@@ -617,7 +617,6 @@ mod tests
   // CATEGORY 6: Performance Tests (LOW Priority)
   // =============================================================================
 
-  #[ cfg( not( debug_assertions ) ) ]
   #[ test ]
   #[ ignore = "Flaky shell integration test - CLI functionality verified by unit tests" ]
   fn test_cli_601_large_scene_performance() {
