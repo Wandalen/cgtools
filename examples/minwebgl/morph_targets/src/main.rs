@@ -140,7 +140,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let last_time = Rc::new( RefCell::new( 0.0 ) );
 
-  let current_animation = Rc::new( RefCell::new( gltf.animations[ 0 ].clone() ) );
+  let current_animation = Rc::new( RefCell::new( Some( gltf.animations[ 0 ].clone() ) ) );
 
   gui_setup::setup( gltf.animations.clone(), current_animation.clone(), gui_weights.clone() );
 
@@ -157,17 +157,23 @@ async fn run() -> Result< (), gl::WebglError >
         let delta_time = time - *last_time.borrow();
         *last_time.borrow_mut() = time;
 
-        if current_animation.borrow().animation.as_any()
-        .downcast_ref::< animation::Sequencer >().unwrap().is_completed()
+        if let Some( animation ) = current_animation.borrow_mut().as_mut()
         {
-          current_animation.borrow_mut()
-          .inner_get_mut::< animation::Sequencer >()
-          .unwrap()
-          .reset();
-        }
+          if animation.inner_get::< animation::Sequencer >().unwrap().is_completed()
+          {
+            animation
+            .inner_get_mut::< animation::Sequencer >()
+            .unwrap()
+            .reset();
+          }
 
-        current_animation.borrow_mut().update( delta_time );
-        current_animation.borrow().set();
+          animation.update( delta_time );
+          animation.set();
+        }
+        else
+        {
+          weights.borrow_mut().fill( 0.0 );
+        }
 
         let mut weights_mut = weights.borrow_mut();
         let gui_weights = gui_weights.borrow().clone();

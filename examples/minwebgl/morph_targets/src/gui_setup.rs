@@ -80,7 +80,7 @@ pub struct Settings
 pub fn setup
 (
   animations : Vec< Animation >,
-  current_animation : Rc< RefCell< Animation > >,
+  current_animation : Rc< RefCell< Option< Animation > > >,
   weights : Rc< RefCell< Vec< f32 > > >
 )
 {
@@ -89,7 +89,12 @@ pub fn setup
   if let Some( name ) = &animations[ 0 ].name
   {
     settings.animation = name.clone().into_string();
-    *current_animation.borrow_mut() = animations[ 0 ].clone();
+    *current_animation.borrow_mut() = Some( animations[ 0 ].clone() );
+  }
+  else
+  {
+    settings.animation = "<none>".to_string();
+    *current_animation.borrow_mut() = None;
   }
 
   {
@@ -177,9 +182,11 @@ pub fn setup
   )
   .collect::< HashMap< _, _ > >();
 
-  let animation_names = animations.keys()
+  let mut animation_names = animations.keys()
   .cloned()
   .collect::< Vec< _ > >();
+
+  animation_names.insert( 0, "<none>".to_string() );
 
   // Choose animation
   let prop = add_dropdown
@@ -196,11 +203,21 @@ pub fn setup
       let current_animation = current_animation.clone();
       move | value : String |
       {
-        if let Some( animation ) = animations.get( value.as_str() )
+        let mut current_animation = current_animation.borrow_mut();
+        if animations.get( value.as_str() ).is_none()
         {
-          let mut current_animation = current_animation.borrow_mut();
-          *current_animation = animation.clone();
+          current_animation.as_mut()
+          .map
+          (
+            | a |
+            {
+              a.inner_get_mut::< animation::Sequencer >().as_mut()
+              .map( | s | s.reset() );
+              a.set();
+            }
+          );
         }
+        *current_animation = animations.get( value.as_str() ).cloned();
       }
     }
   );

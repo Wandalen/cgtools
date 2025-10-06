@@ -42,7 +42,7 @@ mod private
     // Create a Float32Array from the Rust slice
     let js_data = Float32Array::from( data );
 
-    let _ = gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_array_buffer_view
+    let _ = gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_array_buffer_view_and_src_offset
     (
       GL::TEXTURE_2D,
       0,
@@ -52,7 +52,8 @@ mod private
       0,
       GL::RGBA,
       GL::FLOAT,
-      Some( &js_data ),
+      &js_data,
+      0
     );
 
     gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32 );
@@ -278,7 +279,7 @@ mod private
       }
     }
 
-    ///
+    /// Uploads morph targets data to uniforms
     ///
     /// Displacement texture aligment:
     ///
