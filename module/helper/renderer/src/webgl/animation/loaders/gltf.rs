@@ -47,7 +47,7 @@ mod private
   };
   use mingl::{ F64x3, QuatF64 };
 
-  async fn decode_channel< 'a >
+  fn decode_channel< 'a >
   (
     channel : Channel< '_ >,
     buffers : &'a [ Vec< u8 > ],
@@ -90,7 +90,7 @@ mod private
     )
   }
 
-  async fn quat_sequence
+  fn quat_sequence
   (
     channel : Channel< '_ >,
     buffers : &[ Vec< u8 > ],
@@ -100,7 +100,7 @@ mod private
     (
       ( components, times, values )
     )
-    = decode_channel( channel.clone(), buffers ).await
+    = decode_channel( channel.clone(), buffers )
     else
     {
       return None;
@@ -182,7 +182,7 @@ mod private
     Sequence::new( tweens ).ok()
   }
 
-  async fn vec3_sequence
+  fn vec3_sequence
   (
     channel : Channel< '_ >,
     buffers : &[ Vec< u8 > ],
@@ -192,7 +192,7 @@ mod private
     (
       ( components, times, values )
     )
-    = decode_channel( channel.clone(), buffers ).await
+    = decode_channel( channel.clone(), buffers )
     else
     {
       return None;
@@ -276,7 +276,7 @@ mod private
     Sequence::new( tweens ).ok()
   }
 
-  async fn weights_sequence
+  fn weights_sequence
   (
     channel : Channel< '_ >,
     buffers : &[ Vec< u8 > ],
@@ -288,7 +288,7 @@ mod private
     (
       ( components, times, values )
     )
-    = decode_channel( channel.clone(), buffers ).await
+    = decode_channel( channel.clone(), buffers )
     else
     {
       return None;
@@ -399,7 +399,7 @@ mod private
         {
           Property::Translation =>
           {
-            let Some( sequence ) = vec3_sequence( channel, buffers ).await
+            let Some( sequence ) = vec3_sequence( channel, buffers )
             else
             {
               continue;
@@ -408,7 +408,7 @@ mod private
           },
           Property::Scale =>
           {
-            let Some( sequence ) = vec3_sequence( channel, buffers ).await
+            let Some( sequence ) = vec3_sequence( channel, buffers )
             else
             {
               continue;
@@ -417,7 +417,7 @@ mod private
           }
           Property::Rotation =>
           {
-            let Some( sequence ) = quat_sequence( channel, buffers ).await
+            let Some( sequence ) = quat_sequence( channel, buffers )
             else
             {
               continue;
@@ -444,7 +444,7 @@ mod private
             };
             let weights = displacements.get_morph_weights();
             let targets = weights.borrow().len();
-            let Some( sequence ) = weights_sequence( channel, buffers, targets ).await
+            let Some( sequence ) = weights_sequence( channel, buffers, targets )
             else
             {
               continue;
