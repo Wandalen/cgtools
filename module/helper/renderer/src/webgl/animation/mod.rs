@@ -7,8 +7,8 @@ mod private
 {
   own use ::mod_interface::mod_interface;
 
-  /// Animation loading from Gltf
-  layer loader;
+  /// Animation loading
+  layer loaders;
 
   /// Animation and other base strutures
   layer base;

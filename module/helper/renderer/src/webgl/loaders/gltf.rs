@@ -820,7 +820,7 @@ mod private
     }
 
     #[ cfg( feature = "animation" ) ]
-    let animations = crate::webgl::animation::loader::load( &gltf_file, bin_buffers.as_slice(), nodes.as_slice() ).await;
+    let animations = crate::webgl::animation::loaders::gltf::load( &gltf_file, bin_buffers.as_slice(), nodes.as_slice() ).await;
 
     #[ cfg( feature = "animation" ) ]
     gl::log::info!( "Animations: {}", animations.len() );
