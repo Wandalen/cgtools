@@ -2,10 +2,12 @@
 //! CLI commands of the tool.
 //!
 
+#[ cfg( feature = "cli" ) ]
 /// Internal namespace.
 mod private
 {
   use crate::*;
+  #[ cfg( feature = "cli" ) ]
   use clap::{ Parser, Subcommand, Args };
   use commands::raster ;
   use std::path::PathBuf;
@@ -49,6 +51,7 @@ mod private
   }
 }
 
+#[ cfg( feature = "cli" ) ]
 crate::mod_interface!
 {
   layer raster;

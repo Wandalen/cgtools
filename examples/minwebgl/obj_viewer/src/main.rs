@@ -1,19 +1,29 @@
 //! Just draw a large point in the middle of the screen.
 
+#![ allow( clippy::needless_borrow ) ]
+#![ allow( clippy::arc_with_non_send_sync ) ]
+#![ allow( clippy::unnecessary_unwrap ) ]
+#![ allow( clippy::single_match ) ]
+
 use std::
 {
-  collections::{ HashMap, HashSet }, 
+  collections::{ HashMap, HashSet },
+  rc::Rc, 
+  cell::RefCell,
   sync::{ Arc, Mutex }
 };
 
 use material::{ GLMaterial, TextureType };
 use mesh::GLMesh;
-use mingl::CameraOrbitControls;
+use mingl::
+{ 
+  CameraOrbitControls, 
+  camera_orbit_controls::bind_controls_to_input 
+};
 use minwebgl::{ self as gl, JsCast };
 use web_sys::wasm_bindgen::prelude::Closure;
 
 mod mesh;
-mod camera_controls;
 mod material;
 
 async fn run() -> Result< (), gl::WebglError >
@@ -34,24 +44,24 @@ async fn run() -> Result< (), gl::WebglError >
   let fov = 70.0f32.to_radians();
   let perspective_matrix = gl::math::mat3x3h::perspective_rh_gl
   (
-    fov,  
-    aspect_ratio, 
-    0.1, 
+    fov,
+    aspect_ratio,
+    0.1,
     10000.0
   );
 
   let camera = CameraOrbitControls
   {
-    eye : eye,
-    up : up,
-    center : center,
+    eye,
+    up,
+    center,
     window_size : [ width, height ].into(),
     fov,
     ..Default::default()
   };
-  let camera = Arc::new( Mutex::new( camera ) );
+  let camera = Rc::new( RefCell::new( camera ) );
 
-  camera_controls::setup_controls( &canvas, &camera );
+  bind_controls_to_input( &canvas, &camera );
 
   // You need to provide the full path to the object, and paths to folder that contain textures and mtl
   // Path is relative to "assets", and you cannot move up, so all of your file should be located in "assets" folder
@@ -96,21 +106,22 @@ async fn run() -> Result< (), gl::WebglError >
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();
   for ( name, t_type ) in texture_names.into_iter()
-  {  
+  {
     let path = format!( "static/{}/{}", texture_path, name );
     gl::info!( "{}", path );
 
     let img_element = document.create_element( "img" ).unwrap().dyn_into::< gl::web_sys::HtmlImageElement >().unwrap();
     img_element.style().set_property( "display", "none" ).unwrap();
     let load_texture : Closure< dyn Fn() > = Closure::new
-    ( 
+    (
       {
         let textures = textures.clone();
         let gl = gl.clone();
         let img = img_element.clone();
-        move || 
+        move ||
         {
-          let texture = gl::texture::d2::upload( &gl, &img );
+          let texture = gl.create_texture();
+          gl::texture::d2::upload( &gl, texture.as_ref(), &img );
 
           if texture.is_some()
           {
@@ -149,12 +160,12 @@ async fn run() -> Result< (), gl::WebglError >
 
     match gl_mesh.material().mtl
     {
-      Some( ref mtl ) 
+      Some( ref mtl )
       if  mtl.dissolve.is_some() || mtl.dissolve_texture.is_some() =>
       {
         gl_meshes_transparent.push( gl_mesh );
       },
-      _ => 
+      _ =>
       {
         gl_meshes_opaque.push( gl_mesh );
       }
@@ -177,8 +188,8 @@ async fn run() -> Result< (), gl::WebglError >
     {
       let _time = t as f32 / 1000.0;
 
-      let view_matrix = camera.lock().unwrap().view().to_array();
-      let eye = camera.lock().unwrap().eye().to_array();
+      let view_matrix = camera.borrow().view().to_array();
+      let eye = camera.borrow().eye().to_array();
 
       for m in gl_meshes_opaque.iter()
       {

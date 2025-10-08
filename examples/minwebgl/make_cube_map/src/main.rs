@@ -1,5 +1,8 @@
 //! Just draw a large point in the middle of the screen.
 
+#![ allow( clippy::needless_range_loop ) ]
+#![ allow( clippy::unnecessary_cast ) ]
+
 use minwebgl as gl;
 use gl::GL;
 
@@ -53,16 +56,16 @@ fn get_cube_data() -> &'static [ f32 ]
 
 // The order I took from here
 // https://github.com/mrdoob/three.js/blob/master/src/cameras/CubeCamera.js
-fn make_cube_camera() -> [ glam::Mat4; 6 ]
+fn make_cube_camera() -> [ gl::F32x4x4; 6 ]
 {
-  let px = glam::Mat4::look_at_rh( glam::Vec3::ZERO, glam::Vec3::NEG_X, glam::Vec3::NEG_Y );
-  let nx = glam::Mat4::look_at_rh( glam::Vec3::ZERO, glam::Vec3::X, glam::Vec3::NEG_Y );
+  let px = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::NEG_X, gl::F32x3::NEG_Y );
+  let nx = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::X, gl::F32x3::NEG_Y );
 
-  let py = glam::Mat4::look_at_rh( glam::Vec3::ZERO, glam::Vec3::Y, glam::Vec3::Z );
-  let ny = glam::Mat4::look_at_rh( glam::Vec3::ZERO, glam::Vec3::NEG_Y, glam::Vec3::NEG_Z );
+  let py = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::Y, gl::F32x3::Z );
+  let ny = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::NEG_Y, gl::F32x3::NEG_Z );
 
-  let pz = glam::Mat4::look_at_rh( glam::Vec3::ZERO, glam::Vec3::Z, glam::Vec3::NEG_Y );
-  let nz = glam::Mat4::look_at_rh( glam::Vec3::ZERO, glam::Vec3::NEG_Z, glam::Vec3::NEG_Y );
+  let pz = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::Z, gl::F32x3::NEG_Y );
+  let nz = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::NEG_Z, gl::F32x3::NEG_Y );
 
   [ px, nx, py, ny, pz, nz ]
 }
@@ -128,7 +131,7 @@ async fn run() -> Result< (), gl::WebglError >
     
     max_distance = pos_iter
     .clone()
-    .map( | p | glam::Vec3::new( p[ 0 ], p[ 1 ], p[ 2 ] ).length() )
+    .map( | p | gl::F32x3::new( p[ 0 ], p[ 1 ], p[ 2 ] ).mag() )
     .reduce( f32::max )
     .unwrap();
 
@@ -167,7 +170,7 @@ async fn run() -> Result< (), gl::WebglError >
   // Camera setup
   let cube_camera = make_cube_camera();
 
-  let perspective_matrix = glam::Mat4::perspective_rh_gl
+  let perspective_matrix = gl::math::mat3x3h::perspective_rh_gl
   (
      90.0f32.to_radians(),  
      1.0, 
@@ -175,20 +178,20 @@ async fn run() -> Result< (), gl::WebglError >
      10.0
   );
 
-  let model_matrix = glam::Mat4::from_scale_rotation_translation
+  let model_matrix = gl::F32x4x4::from_scale_rotation_translation
   (
-    glam::Vec3::ONE, 
-    glam::Quat::from_rotation_y( 0.0 ), 
-    glam::Vec3::ZERO
+    gl::F32x3::splat( 1.0 ), 
+    gl::QuatF32::from_angle_y( 0.0 ), 
+    gl::F32x3::ZERO
   );
 
   // You need this in case you want to deform your model is some ways
-  let normal_matrix = glam::Mat3::from_mat4( model_matrix.inverse().transpose() );
+  let normal_matrix = model_matrix.truncate().inverse().unwrap().transpose();
 
   // Update uniform values
-  gl::uniform::matrix_upload( &gl, projection_matrix_location, &perspective_matrix.to_cols_array()[ .. ], true )?;
-  gl::uniform::matrix_upload( &gl, model_matrix_location, &model_matrix.to_cols_array()[ .. ], true )?;
-  gl::uniform::matrix_upload( &gl, normal_matrix_location, &normal_matrix.to_cols_array()[ .. ], true )?;
+  gl::uniform::matrix_upload( &gl, projection_matrix_location, &perspective_matrix.to_array(), true )?;
+  gl::uniform::matrix_upload( &gl, model_matrix_location, &model_matrix.to_array(), true )?;
+  gl::uniform::matrix_upload( &gl, normal_matrix_location, &normal_matrix.to_array(), true )?;
 
   gl::uniform::upload( &gl, max_distance_location, &max_distance )?;
 
@@ -203,7 +206,7 @@ async fn run() -> Result< (), gl::WebglError >
   gl.clear_color( 0.0, 0.0, 0.0, 1.0);
   for i in 0..6
   {
-    let view_matrix = &cube_camera[ i ].to_cols_array()[ .. ];
+    let view_matrix = &cube_camera[ i ].to_array();
     gl::uniform::matrix_upload( &gl, view_matrix_location.clone(), view_matrix, true )?;
     gl.framebuffer_texture_2d
     ( 
@@ -250,10 +253,10 @@ async fn run() -> Result< (), gl::WebglError >
   let width = gl.drawing_buffer_width() as f32;
   let height = gl.drawing_buffer_height() as f32;
 
-  let eye = glam::Vec3::new( 0.0, 0.0, 3.0 );
-  let up = glam::Vec3::Y;
+  let eye = gl::F32x3::new( 0.0, 0.0, 3.0 );
+  let up = gl::F32x3::Y;
 
-  let perspective_matrix = glam::Mat4::perspective_rh_gl
+  let perspective_matrix = gl::math::mat3x3h::perspective_rh_gl
   (
      70.0f32.to_radians(),  
      width / height, 
@@ -261,15 +264,15 @@ async fn run() -> Result< (), gl::WebglError >
      1000.0
   );
 
-  let model_matrix = glam::Mat4::from_scale_rotation_translation
+  let model_matrix = gl::F32x4x4::from_scale_rotation_translation
   (
-    glam::Vec3::ONE * 2.0, 
-    glam::Quat::from_rotation_y( 0.0 ), 
-    glam::Vec3::ZERO
+    gl::F32x3::splat( 1.0 ) * 2.0, 
+    gl::QuatF32::from_angle_y( 0.0 ), 
+    gl::F32x3::ZERO
   );
 
-  gl::uniform::matrix_upload( &gl, projection_matrix_location, &perspective_matrix.to_cols_array()[ .. ], true )?;
-  gl::uniform::matrix_upload( &gl, model_matrix_location, &model_matrix.to_cols_array()[ .. ], true )?;
+  gl::uniform::matrix_upload( &gl, projection_matrix_location, &perspective_matrix.to_array(), true )?;
+  gl::uniform::matrix_upload( &gl, model_matrix_location, &model_matrix.to_array(), true )?;
 
   gl::uniform::upload( &gl, max_distance_location, &max_distance )?;
 
@@ -292,14 +295,14 @@ async fn run() -> Result< (), gl::WebglError >
     move | t : f64 |
     {
       let time = t as f32 / 1000.0;
-      let rotatio_y = glam::Mat3::from_rotation_y( time );
-      let rotatio_z = glam::Mat3::from_rotation_z( time + 5.0 );
-      let rotatio_z2 = glam::Mat3::from_rotation_z( time - 5.0 );
+      let rotatio_y = gl::math::mat3x3::from_angle_y( time );
+      let rotatio_z = gl::math::mat3x3::from_angle_z( time + 5.0 );
+      let rotatio_z2 = gl::math::mat3x3::from_angle_z( time - 5.0 );
       let eye = rotatio_z2 * rotatio_z * rotatio_y * eye;
 
-      let view_matrix = glam::Mat4::look_at_rh( eye, glam::Vec3::ZERO, up );
+      let view_matrix = gl::math::mat3x3h::look_at_rh( eye, gl::F32x3::ZERO, up );
 
-      gl::uniform::matrix_upload( &gl, view_matrix_location.clone(), &view_matrix.to_cols_array()[ .. ], true ).unwrap();
+      gl::uniform::matrix_upload( &gl, view_matrix_location.clone(), &view_matrix.to_array(), true ).unwrap();
 
       gl.clear( gl::COLOR_BUFFER_BIT );
       // Draw cube

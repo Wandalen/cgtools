@@ -3,9 +3,18 @@ name = "hexagonal_grid"
 version = "0.1.0"
 edition = "2024"
 
+[lints]
+workspace = true
+
 [dependencies]
-minwebgl = { workspace = true, features = [ "math" ] }
-mingl = { workspace = true }
-web-sys = { workspace = true, features = [ "DomRect", "MouseEvent" ] }
-derive_tools = { workspace = true }
+minwebgl = { workspace = true, features = ["math"] }
+web-sys = { workspace = true, features = [
+  "DomRect",
+  "MouseEvent",
+  "KeyboardEvent",
+  "HtmlInputElement",
+  "HtmlButtonElement",
+] }
 tiles_tools = { workspace = true }
+pathfinding = { workspace = true }
+browser_input = { workspace = true }

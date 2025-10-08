@@ -487,6 +487,7 @@ mod private
   /// than the provided threshold, then colors are combined by adding `color_sum` and `color_count` of each entry respectively.
   /// Several passes are made, each using averages that are produced by the previous pass. 
   /// The loop terminates when no colors can be combined anymore.
+  #[allow(clippy::single_call_fn)]
   pub fn reduce_colors( mut color_stats : Vec< ( LinSrgb, f32 ) >, config : &Config, report : &mut Report ) -> Vec< ( LinSrgb, f32 ) >
   {
     let mut len_before = color_stats.len();
@@ -563,6 +564,7 @@ mod private
   ///
   /// # Returns
   /// * `Vec<LinSrgb>` - A vector of unique colors (layers) represented in linear RGB space.
+  #[allow(clippy::single_call_fn)]
   pub fn get_layers
   ( 
     img : &visioncortex::ColorImage, 

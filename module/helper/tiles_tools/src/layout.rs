@@ -1,126 +1,180 @@
-use crate::coordinates::{ CoordinateConversion, Pixel };
+//! This module defines a `RectangularGrid` layout, which represents a rectangularly-bounded
+//! area within a hexagonal grid using offset coordinates. It provides methods for iterating
+//! over the coordinates within these bounds and for calculating the layout's center point in pixel space.
 
-/// An enum that represents the orientation of the hexagons (e.g., "pointy-topped" or "flat-topped").
-#[ derive( Debug, Copy, Clone ) ]
-pub enum Orientation
+use crate::coordinates::{ hexagonal, pixel };
+use crate::coordinates::hexagonal::{ Axial, Coordinate, Flat, Offset, Pointy };
+use ndarray_cg::{F32x2, I32x2};
+use pixel::Pixel;
+use std::marker::PhantomData;
+
+/// Represents a rectangularly-bounded area of a hexagonal grid using offset coordinates.
+#[ derive( Debug ) ]
+pub struct RectangularGrid< Parity, Orientation >
 {
-  Pointy,
-  Flat,
+  /// The inclusive minimum and maximum offset coordinates that define the grid's boundaries.
+  pub bounds : [ Coordinate< Offset< Parity >, Orientation >; 2 ],
 }
 
-impl Orientation
+impl< Parity, Orientation > Clone for RectangularGrid< Parity, Orientation >
 {
-  /// Orientation angle of the hexagons in radians.
-  pub fn orientation_angle( &self ) -> f32
+  /// Clones the rectangular grid layout.
+  fn clone( &self ) -> Self
   {
-    match self
+    Self
     {
-      Self::Pointy => 30.0f32.to_radians(),
-      Self::Flat => 0.0f32.to_radians(),
+      bounds : self.bounds,
     }
   }
 }
 
-/// A struct that defines geometric properties of the hexagonal grid layout.
-#[ derive( Debug, Copy, Clone ) ]
-pub struct HexLayout
-{
-  /// The orientation of the hexagons in the grid.
-  pub orientation : Orientation,
-  /// Size of a hexagon, the distance from the center to a corner.
-  pub size : f32, // qqq : naming is not descriptive enough
-}
+impl< Parity, Orientation > Copy for RectangularGrid< Parity, Orientation > {}
 
-impl HexLayout
+impl< Parity, Orientation > RectangularGrid< Parity, Orientation >
 {
-  /// Calculates coordinates of a hexagon that contains the given pixel position.
+  /// Creates a new `RectangularGrid` with the specified offset coordinate bounds.
   ///
-  /// # Parameters
-  /// - `pixel`: The pixel coordinates.
+  /// # Arguments
+  /// * `bounds` - An array containing the minimum and maximum inclusive offset coordinates.
   ///
   /// # Returns
-  /// A coordinate representing the hexagon.
-  pub fn hex_coord< C >( &self, pixel : Pixel ) -> C
-  where
-    C : CoordinateConversion
+  /// A new `RectangularGrid` instance.
+  ///
+  /// # Panics
+  /// Panics if the minimum coordinate is greater than the maximum coordinate on either axis.
+  pub const fn new( bounds : [ Coordinate< Offset< Parity >, Orientation >; 2 ] ) -> Self
   {
-    C::from_pixel( pixel, self.size )
+    assert!( bounds[ 0 ].q <= bounds[ 1 ].q, "Incorrect bounds" );
+    assert!( bounds[ 0 ].r <= bounds[ 1 ].r, "Incorrect bounds" );
+
+    Self { bounds }
   }
 
-  /// Calculates the 2d pixel position of a hexagon center based on its coordinates.
-  ///
-  /// # Parameters
-  /// - `coord`: The coordinates of the hexagon.
-  ///
-  /// # Returns
-  /// A `Pixel` containing the x and y coordinates of the hexagon center.
-  pub fn pixel_coord< C >( &self, coord : C ) -> Pixel
-  where
-    C : CoordinateConversion
+  /// Returns an iterator over all coordinates contained within the rectangular grid.
+  pub fn coordinates( &self ) -> impl Iterator< Item = Coordinate< Offset< Parity >, Orientation > >
   {
-    coord.to_pixel( self.size )
-  }
+    let min = self.bounds[ 0 ];
+    let max = self.bounds[ 1 ];
+    let current = min;
 
-  /// Calculates the horizontal distance between neighbor hexagons in the grid.
-  pub fn horizontal_spacing( &self ) -> f32
-  {
-    match self.orientation
+    RectangularGridIterator::< Parity, Orientation >
     {
-      Orientation::Pointy => pointy_layout_spacings( self.size ).0,
-      Orientation::Flat => flat_layout_spacings( self.size ).0,
+      current : current.into(),
+      max : max.into(),
+      min : min.into(),
+      _marker : PhantomData,
     }
-  }
-
-  /// Calculates the vertical distance between neighbor hexagons in the grid.
-  pub fn vertical_spacing( &self ) -> f32
-  {
-    match self.orientation
-    {
-      Orientation::Pointy => pointy_layout_spacings( self.size ).1,
-      Orientation::Flat => flat_layout_spacings( self.size ).1,
-    }
-  }
-
-  /// Calculates a point that lies right in the center of a grid of hexagons.
-  ///
-  /// # Parameters
-  /// - `coords`: An iterator over the coordinates of the hexagons.
-  /// - `layout`: The layout of the hexagons.
-  ///
-  /// # Returns
-  /// A tuple containing the x and y coordinates of the center of the grid.
-  pub fn grid_center< I, C >( &self, coords : I ) -> [ f32; 2 ]
-  where
-    I : Iterator< Item = C >,
-    C : CoordinateConversion
-  {
-    // TODO: split this function into bounds_calculation and center_calculation based on bounds
-    let mut min_x = f32::INFINITY;
-    let mut max_x = f32::NEG_INFINITY;
-    let mut min_y = f32::INFINITY;
-    let mut max_y = f32::NEG_INFINITY;
-
-    for coord in coords
-    {
-      let Pixel { data : [ x, y ] } = self.pixel_coord::<  >( coord );
-      min_x = min_x.min( x );
-      max_x = max_x.max( x );
-      min_y = min_y.min( y );
-      max_y = max_y.max( y );
-    }
-
-    [ min_x + ( max_x - min_x ) / 2.0, min_y + ( max_y - min_y ) / 2.0]
   }
 }
 
-/// Calculates the horizontal and vertical spacings between neighbor hexagons in a pointy layout.
-fn pointy_layout_spacings( size : f32 ) -> ( f32, f32 )
+impl< Parity > RectangularGrid< Parity, Pointy >
+where
+  Coordinate< Offset< Parity >, Pointy > : Into< Coordinate< Axial, Pointy > >,
 {
-  ( 3.0f32.sqrt() * size , 1.5 * size )
+  /// Calculates the geometric center of the grid in pixel coordinates for a pointy-topped layout.
+  pub fn center( &self ) -> Pixel
+  {
+    let [ min, max ] = self.bounds;
+
+    let min1 : Pixel = Into::< Coordinate< Axial, Pointy > >::into( min ).into();
+    let min_x = if min.r + 1 <= max.r
+    {
+      let min2 = Coordinate::< Offset< Parity >, Pointy >::new( min.q, min.r + 1 );
+      let min2 : Pixel = Into::< Coordinate< Axial, Pointy > >::into( min2 ).into();
+      min1[ 0 ].min( min2[ 0 ] )
+    }
+    else
+    {
+      min1[ 0 ]
+    };
+    let min_y = min1[ 1 ];
+
+    let max1 : Pixel = Into::< Coordinate< Axial, Pointy > >::into( max ).into();
+    let max_x = if max.r - 1 >= min.r
+    {
+      let max2 = Coordinate::< Offset< Parity >, Pointy >::new( max.q, max.r - 1 );
+      let max2 : Pixel = Into::< Coordinate< Axial, Pointy > >::into( max2 ).into();
+      max1[ 0 ].max( max2[ 0 ] )
+    }
+    else
+    {
+      max1[ 0 ]
+    };
+    let max_y = max1[ 1 ];
+
+    Pixel::new( ( min_x + max_x ) / 2.0, ( min_y + max_y ) / 2.0 )
+  }
 }
 
-/// Calculates the horizontal and vertical spacings between neighbor hexagons in a flat layout.
-fn flat_layout_spacings( size : f32 ) -> ( f32, f32 )
+impl< Parity > RectangularGrid< Parity, Flat >
+where
+  Coordinate< Offset< Parity >, Flat > : Into< Coordinate< Axial, Flat > >,
 {
-  ( 1.5 * size, 3.0f32.sqrt() * size )
+  /// Calculates the geometric center of the grid in pixel coordinates for a flat-topped layout.
+  pub fn center( &self ) -> F32x2
+  {
+    let [ min, max ] = self.bounds;
+
+    let min1 : Pixel = Into::< Coordinate< Axial, Flat > >::into( min ).into();
+    let min_y = if min.r + 1 <= max.r
+    {
+      let min2 = Coordinate::< Offset< Parity >, Flat >::new( min.q + 1, min.r );
+      let min2 : Pixel = Into::< Coordinate< Axial, Flat > >::into( min2 ).into();
+      min1[ 1 ].min( min2[ 1 ] )
+    }
+    else
+    {
+      min1[ 1 ]
+    };
+    let min_x = min1[ 0 ];
+
+    let max1 : Pixel = Into::< Coordinate< Axial, Flat > >::into( max ).into();
+    let max_y = if max.r - 1 >= min.r
+    {
+      let max2 = Coordinate::< Offset< Parity >, Flat >::new( max.q - 1, max.r );
+      let max2 : Pixel = Into::< Coordinate< Axial, Flat > >::into( max2 ).into();
+      max1[ 1 ].max( max2[ 1 ] )
+    }
+    else
+    {
+      max1[ 1 ]
+    };
+    let max_x = max1[ 0 ];
+
+    F32x2::new( ( min_x + max_x ) / 2.0, ( min_y + max_y ) / 2.0 )
+  }
+}
+
+/// An iterator that traverses the coordinates within a `RectangularGrid`.
+struct RectangularGridIterator< Parity, Orientation >
+{
+  current : I32x2,
+  max : I32x2,
+  min : I32x2,
+  _marker : PhantomData< Coordinate< Offset< Parity >, Orientation > >,
+}
+
+impl< Parity, Orientation > Iterator for RectangularGridIterator< Parity, Orientation >
+{
+  type Item = Coordinate< Offset< Parity >, Orientation >;
+
+  /// Advances the iterator to the next coordinate in the grid, row by row.
+  fn next( &mut self ) -> Option< Self::Item >
+  {
+    if self.current[ 1 ] <= self.max[ 1 ]
+    {
+      let ret = Coordinate::< Offset< _ >, _ >::new( self.current[ 0 ], self.current[ 1 ] );
+      self.current[ 0 ] += 1;
+      if self.current[ 0 ] > self.max[ 0 ]
+      {
+        self.current[ 0 ] = self.min[ 0 ];
+        self.current[ 1 ] += 1;
+      }
+      return Some( ret );
+    }
+    else
+    {
+      None
+    }
+  }
 }

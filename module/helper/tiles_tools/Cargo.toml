@@ -1,22 +1,173 @@
 [package]
 name = "tiles_tools"
-version = "0.1.0"
-edition = "2024"
+version = "0.2.0"
+edition = "2021"
+rust-version = "1.75.0"
 authors = ["Kostiantyn Mysnyk <wandalen@obox.systems>"]
 license = "MIT"
 repository = "https://github.com/Wandalen/cgtools"
-description = "A library for organizing tiles into grids."
-keywords = ["hexagonal", "grid", "tools"]
+homepage = "https://github.com/Wandalen/cgtools/tree/master/module/helper/tiles_tools"
+documentation = "https://docs.rs/tiles_tools"
+description = "High-performance tile-based game development toolkit with comprehensive coordinate systems (hexagonal, square, triangular, isometric), pathfinding, ECS integration, and grid management."
+readme = "readme.md"
+keywords = ["gamedev", "tiles", "hexagonal", "grid", "ecs"]
+categories = ["game-development", "algorithms", "data-structures", "graphics", "mathematics"]
+include = [
+    "src/**/*",
+    "benches/**/*",
+    "examples/**/*",
+    "tests/**/*",
+    "script/**/*",
+    "Cargo.toml",
+    "readme.md",
+    "license*",
+    "changelog*",
+]
 
 [lints]
 workspace = true
 
 [features]
-default = []
+default = [ "enabled" ]
+
+# Core functionality with all coordinate systems and pathfinding
+enabled = [
+    "dep:error_tools",
+    "dep:former",
+    "dep:mod_interface",
+    "dep:hecs",
+    "dep:pathfinding",
+    "dep:serde",
+    "dep:ndarray_cg",
+    "dep:animation"
+]
+
+# All features enabled for maximum functionality
+full = [ "enabled", "serialization", "ecs-systems" ]
+
+# Serialization support for coordinates and components
+serialization = [ "enabled", "dep:serde", "dep:serde_json", "dep:bincode", "dep:ron" ]
+
+# Enhanced ECS systems and components
+ecs-systems = [ "enabled", "dep:hecs" ]
+
+# Integration tests feature
+integration = []
+
+# Coordinate system features for fine-grained control
+coordinates = []
+hexagonal = [ "coordinates" ]
+square = [ "coordinates" ]
+triangular = [ "coordinates" ]
+isometric = [ "coordinates" ]
+conversions = [ "coordinates" ]
+
+# Individual module features
+pathfinding-algorithms = [ "dep:pathfinding" ]
+grid-collections = [ "dep:ndarray_cg" ]
+field-of-view = [ "enabled" ]
+flow-fields = [ "enabled" ]
 
 [dependencies]
-rustc-hash = "1.1.0"
-ndarray_cg = { workspace = true }
+# Core wTools ecosystem - Error handling and macro support
+error_tools = { workspace = true, optional = true }
+former = { workspace = true, optional = true }
+mod_interface = { workspace = true, optional = true }
+
+# Entity-Component-System architecture
+hecs = { workspace = true, optional = true }
+
+# Animation
+animation = { workspace = true, optional = true }
+
+# Mathematical operations and grid data structures
+ndarray_cg = { workspace = true, optional = true }
+rustc-hash = { workspace = true }
+# Pathfinding algorithms (A*, Dijkstra, etc.)
+pathfinding = { workspace = true, optional = true }
+
+# Serialization support for coordinates and game state
+serde = { workspace = true, features = ["derive"], optional = true }
+
+# Additional serialization dependencies
+serde_json = { version = "1.0", optional = true }
+bincode = { version = "1.3", optional = true }
+ron = { version = "0.8", optional = true }
 
 [dev-dependencies]
+# Testing framework and utilities
 test_tools = { workspace = true }
+
+# JSON serialization for testing coordinate conversions
+serde_json = { workspace = true }
+
+# Additional testing utilities for examples and benchmarks
+rand = { version = "0.8", features = ["std_rng"] }
+criterion = { version = "0.5", features = ["html_reports"] }
+tempfile = { version = "3.0" }
+
+# Examples configuration
+[[example]]
+name = "game_of_life"
+required-features = ["enabled"]
+doc-scrape-examples = true
+
+[[example]]
+name = "stealth_game"
+required-features = ["enabled", "ecs-systems"]
+doc-scrape-examples = true
+
+[[example]]
+name = "tactical_rpg"
+required-features = ["enabled", "ecs-systems", "pathfinding-algorithms"]
+doc-scrape-examples = true
+
+[[example]]
+name = "event_system_demo"
+required-features = ["enabled"]
+doc-scrape-examples = true
+
+[[example]]
+name = "serialization_demo"
+required-features = ["serialization"]
+doc-scrape-examples = true
+
+[[example]]
+name = "debug_demo"
+required-features = ["enabled"]
+doc-scrape-examples = true
+
+[[example]]
+name = "game_systems_demo"
+required-features = ["enabled"]
+doc-scrape-examples = true
+
+# Benchmarks configuration
+[[bench]]
+name = "coordinate_benchmarks"
+harness = false
+required-features = ["enabled"]
+
+[[bench]]
+name = "pathfinding_benchmarks"
+harness = false
+required-features = ["enabled", "pathfinding-algorithms"]
+
+# Metadata for crates.io
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+default-target = "x86_64-unknown-linux-gnu"
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+    "x86_64-apple-darwin",
+    "wasm32-unknown-unknown",
+]
+
+# Cargo.toml maintenance metadata
+[package.metadata.release]
+pre-release-replacements = [
+    { file = "readme.md", search = "tiles_tools = \"[0-9.]+\"", replace = "tiles_tools = \"{{version}}\"" },
+    { file = "changelog.md", search = "## Unreleased", replace = "## Unreleased\n\n## {{version}} - {{date}}" },
+]

@@ -4,7 +4,6 @@
 
 use gl::GL;
 use minwebgl as gl;
-use cgmath::{EuclideanSpace, Rotation3};
 
 static POSITION_DATA: [f32; 6] = [
   -0.86602545, // Left
@@ -67,26 +66,19 @@ fn run() -> Result<(), gl::WebglError> {
   let height = gl.drawing_buffer_height() as f32;
 
   // Camera setup
-  let eye = cgmath::Vector3::new(0.0, 0.0, 1.5);
-  let up = cgmath::Vector3::<f32>::unit_y();
+  let eye = gl::F32x3::new(0.0, 0.0, 1.5);
+  let up = gl::F32x3::Y;
 
   let scale = 1.0;
   let aspect = width / height;
-  let perspective = cgmath::PerspectiveFov {
-    fovy: cgmath::Deg(70.0).into(),
-    aspect,
-    near: 0.1,
-    far: 1000.0,
-  };
+  let projection_matrix = gl::math::mat3x3h::perspective_rh_gl( 70.0f32.to_radians(), aspect, 0.1, 1000.0 );
+  let model_matrix = gl::F32x4x4::from_scale_rotation_translation
+  (
+    gl::F32x3::splat( scale ), 
+    gl::QuatF32::from_angle_y( 180.0f32.to_radians() ),
+    gl::F32x3::ZERO
+  );
 
-  let model_trans = cgmath::Decomposed {
-    scale,
-    rot: cgmath::Basis3::from_angle_y::<cgmath::Rad<f32>>(cgmath::Deg(180.0).into()),
-    disp: cgmath::Vector3::new(0.0, 0.0, 0.0),
-  };
-
-  let model_matrix = cgmath::Matrix4::from(model_trans);
-  let projection_matrix = cgmath::Matrix4::from(perspective);
 
   // Define the update and draw logic
   let update_and_draw = {
@@ -95,15 +87,13 @@ fn run() -> Result<(), gl::WebglError> {
       gl.clear(gl::COLOR_BUFFER_BIT);
 
       let time = t as f32 / 1000.0;
-      let rotation = cgmath::Matrix3::from_angle_z(cgmath::Rad(time));
+      let rotation = gl::math::mat3x3::from_angle_z( time.to_radians() );
       let up = rotation * up;
 
-      let view_matrix = cgmath::Matrix4::look_at_rh(cgmath::Point3::from_vec(eye), cgmath::Point3::origin(), up);
-
+      let view_matrix = gl::math::mat3x3h::look_at_rh( eye, gl::F32x3::ZERO, up );
       let projective_view_matrix = projection_matrix * view_matrix * model_matrix;
-      let projective_view_matrix = &<cgmath::Matrix4<f32> as AsRef<[f32; 16]>>::as_ref(&projective_view_matrix)[..];
 
-      gl::uniform::matrix_upload(&gl, projective_view_location.clone(), projective_view_matrix.as_ref(), true).unwrap();
+      gl::uniform::matrix_upload(&gl, projective_view_location.clone(), &projective_view_matrix.to_array(), true).unwrap();
 
       gl.draw_arrays(GL::TRIANGLES, 0, 3);
       true

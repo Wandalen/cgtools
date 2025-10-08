@@ -15,27 +15,38 @@ mod private
       Self( [ x, y, z ] )
     }
 
+    /// The `x` component of vector
     #[ inline ]
     pub fn x( &self ) -> E
     {
       self.0[ 0 ]
     }
 
+    /// The `y` component of vector
     #[ inline ]
     pub fn y( &self ) -> E
     {
       self.0[ 1 ]
     }
 
+    /// The `z` component of vector
     #[ inline ]
     pub fn z( &self ) -> E
     {
       self.0[ 2 ]
     }
 
+    /// Calculates cross product with another vector
     pub fn cross( self, rhs : Self ) -> Self
     {
       cross( &self, &rhs )
+    }
+
+    /// Creates homogeneous vector from `self`
+    #[ inline ]
+    pub fn to_homogenous( self ) -> Vector< E, 4 >
+    {
+      Vector::< E, 4 >::new( self.x(), self.y(), self.z(), E::one() )
     }
   }
 

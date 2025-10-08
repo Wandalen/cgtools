@@ -1,0 +1,15 @@
+[package]
+name = "area_light"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+minwebgl.workspace = true
+web-sys = { workspace = true, features = ["WebGlTexture"] }
+renderer = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde-wasm-bindgen.workspace = true
+asbytes.workspace = true
+
+[lints]
+workspace = true

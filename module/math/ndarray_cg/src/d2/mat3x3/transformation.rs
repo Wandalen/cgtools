@@ -1,13 +1,38 @@
-use crate::*;
-//use mdmath_core::vector::arithmetics::*;
+//! This module provides functions for creating 3x3 rotation matrices
+//! from various representations, such as Euler angles (per-axis) and axis-angle.
 
-pub fn from_angle_y< E >( angle : f32 ) -> Mat3< E, mat::DescriptorOrderColumnMajor >
+use crate::*;
+
+/// Creates a 3x3 matrix for a rotation around the X-axis.
+///
+/// # Arguments
+/// * `angle` - The rotation angle in radians.
+pub fn from_angle_x< E >( angle : E ) -> Mat3< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl + nd::NdFloat,
   Mat3< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >
 {
-  let s = E::from( angle.sin() ).unwrap();
-  let c = E::from( angle.cos() ).unwrap();
+  let ( s, c ) = angle.sin_cos();
+  Mat3::from_row_major
+  (
+    [
+      E::one(),  E::zero(), E::zero(),
+      E::zero(), c,         -s,
+      E::zero(), s,         c,
+    ]
+  )
+}
+
+/// Creates a 3x3 matrix for a rotation around the Y-axis.
+///
+/// # Arguments
+/// * `angle` - The rotation angle in radians.
+pub fn from_angle_y< E >( angle : E ) -> Mat3< E, mat::DescriptorOrderColumnMajor >
+where
+  E : MatEl + nd::NdFloat,
+  Mat3< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >
+{
+  let ( s, c ) = angle.sin_cos();
   Mat3::from_row_major
   (
     [
@@ -18,6 +43,31 @@ where
   )
 }
 
+/// Creates a 3x3 matrix for a rotation around the Z-axis.
+///
+/// # Arguments
+/// * `angle` - The rotation angle in radians.
+pub fn from_angle_z< E >( angle : E ) -> Mat3< E, mat::DescriptorOrderColumnMajor >
+where
+  E : MatEl + nd::NdFloat,
+  Mat3< E, mat::DescriptorOrderColumnMajor > : RawSliceMut< Scalar = E >
+{
+  let ( s, c ) = angle.sin_cos();
+  Mat3::from_row_major
+  (
+    [
+      c,         -s,        E::zero(),
+      s,         c,         E::zero(),
+      E::zero(), E::zero(), E::one()
+    ]
+  )
+}
+
+/// Creates a 3x3 rotation matrix from an axis and an angle.
+///
+/// # Arguments
+/// * `axis` - The axis of rotation, which should be a normalized 3D vector.
+/// * `angle` - The rotation angle in radians.
 pub fn from_axis_angle< E, Vec3 >( axis : Vec3, angle : f32 ) -> Mat3< E, mat::DescriptorOrderColumnMajor >
 where
   E : MatEl + nd::NdFloat,
@@ -53,5 +103,3 @@ where
     ]
   )
 }
-
-
