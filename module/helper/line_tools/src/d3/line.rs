@@ -21,6 +21,9 @@ mod private
     #[ cfg( feature = "distance" ) ]
     /// Total length of the line
     total_distance : f32,
+    /// Specifies the pattern of the dash, if `use_dash`` is `true``
+    #[ cfg( feature = "distance" ) ]
+    dash_pattern : DashPattern,
     /// A flag to set whether to use the vertex color or not. Should be set before the mesh creation
     use_vertex_color : bool,
     /// A flag to set whether to use alpha to coverage blending technique instead of alpha testing 
@@ -29,7 +32,7 @@ mod private
     use_world_units : bool,
     #[ cfg( feature = "distance" ) ]
     /// A flag to set whether to use dashed line or not
-    use_dashes : bool,
+    use_dash : bool,
     /// Fragment shader source
     fragment_shader : String,
     /// A flag to indicate whether the line's points have changed since the last update.
@@ -82,7 +85,7 @@ mod private
       }
 
       // #[ cfg( feature = "distance" ) ]
-      // if self.use_dashes
+      // if self.use_dash
       {
         gl::BufferDescriptor::new::< [ f32; 1 ] >().stride( 1 ).offset( 0 ).divisor( 1 ).attribute_pointer( gl, 6, &distances_buffer )?;
         gl::BufferDescriptor::new::< [ f32; 1 ] >().stride( 1 ).offset( 1 ).divisor( 1 ).attribute_pointer( gl, 7, &distances_buffer )?;
@@ -154,6 +157,15 @@ mod private
         b_program.vertex_shader = Some( vertex_shader );
 
         b_program.uniform_locations_clear();
+        
+        match self.dash_pattern
+        {
+          DashPattern::V1( v ) => b_program.upload( gl, "u_dash_pattern", &v )?,
+          DashPattern::V2( v ) => b_program.upload( gl, "u_dash_pattern", &v )?,
+          DashPattern::V3( v ) => b_program.upload( gl, "u_dash_pattern", &v )?,
+          DashPattern::V4( v ) => b_program.upload( gl, "u_dash_pattern", &v )?,
+        }
+
         b_program.all_uniforms_upload( gl )?;
 
         self.defines_changed = false;
@@ -194,6 +206,16 @@ mod private
       Ok( () )
     }
 
+    #[ cfg( feature = "distance" ) ]
+    pub fn dash_pattern_set( &mut self, value : DashPattern )
+    {
+      if std::mem::discriminant( &self.dash_pattern ) != std::mem::discriminant( &value )
+      {
+        self.defines_changed = true;
+      }
+      self.dash_pattern = value;
+    }
+
     /// Sets whether the alpha to coverage will be used or not
     pub fn use_alpha_to_coverage( &mut self, value : bool )
     {
@@ -210,9 +232,9 @@ mod private
 
     #[ cfg( feature = "distance" ) ]
     /// Sets whether the world units for the line width will be used
-    pub fn use_dashes( &mut self, value : bool )
+    pub fn use_dash( &mut self, value : bool )
     {
-      self.use_dashes = value;
+      self.use_dash = value;
       self.defines_changed = true;
     }
 
@@ -221,7 +243,21 @@ mod private
     {
       self.mesh_update( gl )?;
 
-      let mesh = self.mesh.as_ref().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
+      let mesh = self.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
+
+      if self.use_dash
+      {
+        let b_program = mesh.program_get_mut( "body" );
+        match self.dash_pattern
+        {
+          DashPattern::V1( v ) => b_program.upload( gl, "u_dash_pattern", &v )?,
+          DashPattern::V2( v ) => b_program.upload( gl, "u_dash_pattern", &v )?,
+          DashPattern::V3( v ) => b_program.upload( gl, "u_dash_pattern", &v )?,
+          DashPattern::V4( v ) => b_program.upload( gl, "u_dash_pattern", &v )?,
+        }
+      }
+
+      
       mesh.draw( gl, "body" );
 
       Ok( () )
@@ -247,12 +283,38 @@ mod private
       }
 
       #[ cfg( feature = "distance" ) ]
-      if self.use_dashes
+      if self.use_dash
       {
-        s += "#define USE_DASHES\n";
+        s += "#define USE_DASH\n";
+        
+        match self.dash_pattern
+        {
+          DashPattern::V1( _ ) => s += "#define USE_DASH_V1\n",
+          DashPattern::V2( _ ) => s += "#define USE_DASH_V2\n",
+          DashPattern::V3( _ ) => s += "#define USE_DASH_V3\n",
+          DashPattern::V4( _ ) => s += "#define USE_DASH_V4\n",
+        }
+
       }
 
       s
+    }
+  }
+
+  #[ derive( Debug, Clone, Copy ) ]
+  pub enum DashPattern
+  {
+    V1( f32 ),
+    V2( [ f32; 2 ] ),
+    V3( [ f32; 3 ] ),
+    V4( [ f32; 4 ] )
+  }
+
+  impl Default for DashPattern
+  {
+    fn default() -> Self 
+    {
+      Self::V1( 0.5 )   
     }
   }
 }
@@ -262,6 +324,7 @@ crate::mod_interface!
 
   orphan use
   {
-    Line
+    Line,
+    DashPattern
   };
 }

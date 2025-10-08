@@ -13,7 +13,7 @@ layout( location = 3 ) in vec3 inPointB;
   layout( location = 5 ) in vec3 colorB;
 #endif
 
-#ifdef USE_DASHES
+#ifdef USE_DASH
   layout( location = 6 ) in float distanceA;
   layout( location = 7 ) in float distanceB;
 #endif
@@ -34,7 +34,7 @@ out vec3 vViewB;
   out vec3 vColor;
 #endif
 
-#ifdef USE_DASHES
+#ifdef USE_DASH
   out float vLineDistance;
   flat out float vLineDistanceA;
   flat out float vLineDistanceB;
@@ -94,7 +94,7 @@ void main()
     // Protrude vertices to create an illusion of 3d shape in view space
     viewPos += position.x < 0.0 ? up * halfWith : -up * halfWith;
 
-    //#ifndef USE_DASHES
+    //#ifndef USE_DASH
       viewPos += position.y < 0.5 ? -halfWith * viewAB : halfWith * viewAB;
       viewPos += right * halfWith;
       if( position.y < 0.0 || position.y > 1.0 )
@@ -136,7 +136,7 @@ void main()
 
   #endif
 
-  #ifdef USE_DASHES
+  #ifdef USE_DASH
     vLineDistance = position.y < 0.5 ? distanceA : distanceB;
     vLineDistanceA = distanceA;
     vLineDistanceB = distanceB;

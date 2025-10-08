@@ -46,12 +46,60 @@ struct Settings
   trail_length : f32,
   #[ serde( rename = "Simulation speed" ) ]
   simulation_speed : f32,
+  #[ serde( rename = "Dash Version" ) ]
+  dash_version : String,
   #[ serde( rename = "Dash offset" ) ]
   dash_offset : f32,
-  #[ serde( rename = "Dash size" ) ]
-  dash_size : f32,
-  #[ serde( rename = "Dash gap" ) ]
-  dash_gap : f32
+  #[ serde( rename = "Dash size 1" ) ]
+  dash_size1 : f32,
+  #[ serde( rename = "Dash gap 1" ) ]
+  dash_gap1 : f32,
+  #[ serde( rename = "Dash size 2" ) ]
+  dash_size2 : f32,
+  #[ serde( rename = "Dash gap 2" ) ]
+  dash_gap2 : f32
+}
+
+fn upload_dash_pattern( lines : Rc< RefCell< Vec< line_tools::d3::Line > > >, settings : &Settings )
+{
+  let mut lines = lines.borrow_mut();
+  gl::info!( "{}", settings.dash_version );
+  match settings.dash_version.as_str()
+  {
+    "V1" => 
+    {
+      let dash_settings = line_tools::d3::DashPattern::V1( settings.dash_size1 );
+      for i in 0..lines.len()
+      {
+        lines[ i ].dash_pattern_set( dash_settings );
+      }
+    },
+    "V2" => 
+    {
+      let dash_settings = line_tools::d3::DashPattern::V2( [ settings.dash_size1, settings.dash_gap1 ] );
+      for i in 0..lines.len()
+      {
+        lines[ i ].dash_pattern_set( dash_settings );
+      }
+    },
+    "V3" => 
+    {
+      let dash_settings = line_tools::d3::DashPattern::V3( [ settings.dash_size1, settings.dash_gap1, settings.dash_size2 ] );
+      for i in 0..lines.len()
+      {
+        lines[ i ].dash_pattern_set( dash_settings );
+      }
+    },
+    "V4" => 
+    {
+      let dash_settings = line_tools::d3::DashPattern::V4( [ settings.dash_size1, settings.dash_gap1, settings.dash_size2, settings.dash_gap2 ] );
+      for i in 0..lines.len()
+      {
+        lines[ i ].dash_pattern_set( dash_settings );
+      }
+    },
+    _ => {}
+  };
 }
 
 fn run() -> Result< (), gl::WebglError >
@@ -110,9 +158,12 @@ fn run() -> Result< (), gl::WebglError >
     dashes : true,
     trail_length : 300.0,
     simulation_speed : 0.003,
+    dash_version : "V2".into(),
     dash_offset : 0.0,
-    dash_size : 0.1,
-    dash_gap : 0.1
+    dash_size1 : 0.1,
+    dash_gap1 : 0.1,
+    dash_size2 : 0.1,
+    dash_gap2 : 0.1,
   };
 
   let trail_length = Rc::new( RefCell::new( settings.trail_length ) );
@@ -134,7 +185,7 @@ fn run() -> Result< (), gl::WebglError >
     line.use_vertex_color( true );
     line.use_alpha_to_coverage( settings.alpha_to_coverage );
     line.use_world_units( settings.world_units );
-    line.use_dashes( settings.dashes );
+    line.use_dash( settings.dashes );
     line.mesh_create( &gl, None )?;
 
     let mesh = line.mesh_get_mut()?;
@@ -144,8 +195,8 @@ fn run() -> Result< (), gl::WebglError >
     mesh.upload( &gl, "u_projection_matrix", &projection_matrix )?;
     mesh.upload( &gl, "u_world_matrix", &world_matrix ).unwrap();
     mesh.upload( &gl, "u_dash_offset", &settings.dash_offset ).unwrap();
-    mesh.upload( &gl, "u_dash_size", &settings.dash_size ).unwrap();
-    mesh.upload( &gl, "u_dash_gap", &settings.dash_gap ).unwrap();
+    // mesh.upload( &gl, "u_dash_size", &settings.dash_size ).unwrap();
+    // mesh.upload( &gl, "u_dash_gap", &settings.dash_gap ).unwrap();
 
     lines.push( line );
   }
@@ -156,6 +207,8 @@ fn run() -> Result< (), gl::WebglError >
   lines[ 0 ].point_add_back( &[ 1.0, 1.0, 1.0 ] );
  
   let lines = Rc::new( RefCell::new( lines ) );
+
+  upload_dash_pattern( lines.clone(), &settings );
 
   let object = serde_wasm_bindgen::to_value( &settings ).unwrap();
   let gui = lil_gui::new_gui();
@@ -283,7 +336,7 @@ fn run() -> Result< (), gl::WebglError >
         let mut lines = lines.borrow_mut();
         for i in 0..lines.len()
         {
-          lines[ i ].use_dashes( value );
+          lines[ i ].use_dash( value );
         }
       }
     }
@@ -319,6 +372,25 @@ fn run() -> Result< (), gl::WebglError >
   lil_gui::on_change( &prop, &callback );
   callback.forget();
 
+  let gui = lil_gui::add_folder( &gui, "Dash settings" );
+
+  let prop = lil_gui::add_dropdown( &gui, &object, "Dash Version", &serde_wasm_bindgen::to_value( &[ "V1", "V2", "V3", "V4" ] ).unwrap() );
+  let callback = Closure::new
+  (
+    {
+      let object = object.clone();
+      let lines = lines.clone();
+      move | value : String |
+      {
+        let mut settings : Settings = serde_wasm_bindgen::from_value( object.clone() ).unwrap();
+        settings.dash_version = value;
+        upload_dash_pattern( lines.clone(), &settings );
+      }
+    }
+  );
+  lil_gui::on_change_string( &prop, &callback );
+  callback.forget();
+
   let prop = lil_gui::add_slider( &gui, &object, "Dash offset", 0.0, 1.0, 0.0001 );
   let callback = Closure::new
   (
@@ -338,38 +410,68 @@ fn run() -> Result< (), gl::WebglError >
   lil_gui::on_change( &prop, &callback );
   callback.forget();
 
-  let prop = lil_gui::add_slider( &gui, &object, "Dash size", 0.0, 1.0, 0.01 );
+  let prop = lil_gui::add_slider( &gui, &object, "Dash size 1", 0.0, 1.0, 0.01 );
   let callback = Closure::new
   (
     {
       let lines = lines.clone();
-      let gl = gl.clone();
+      let object = object.clone();
       move | value : f32 |
       {
-        let mut lines = lines.borrow_mut();
-        for i in 0..lines.len()
-        {
-          lines[ i ].mesh_get_mut().unwrap().upload( &gl, "u_dash_size", &value ).unwrap();
-        }
+        let mut settings : Settings = serde_wasm_bindgen::from_value( object.clone() ).unwrap();
+        settings.dash_size1 = value;
+        upload_dash_pattern( lines.clone(), &settings );
       }
     }
   );
   lil_gui::on_change( &prop, &callback );
   callback.forget();
 
-  let prop = lil_gui::add_slider( &gui, &object, "Dash gap", 0.0, 1.0, 0.01 );
+  let prop = lil_gui::add_slider( &gui, &object, "Dash gap 1", 0.0, 1.0, 0.01 );
   let callback = Closure::new
   (
     {
       let lines = lines.clone();
-      let gl = gl.clone();
+      let object = object.clone();
       move | value : f32 |
       {
-        let mut lines = lines.borrow_mut();
-        for i in 0..lines.len()
-        {
-          lines[ i ].mesh_get_mut().unwrap().upload( &gl, "u_dash_gap", &value ).unwrap();
-        }
+        let mut settings : Settings = serde_wasm_bindgen::from_value( object.clone() ).unwrap();
+        settings.dash_gap1 = value;
+        upload_dash_pattern( lines.clone(), &settings );
+      }
+    }
+  );
+  lil_gui::on_change( &prop, &callback );
+  callback.forget();
+
+   let prop = lil_gui::add_slider( &gui, &object, "Dash size 2", 0.0, 1.0, 0.01 );
+  let callback = Closure::new
+  (
+    {
+      let lines = lines.clone();
+      let object = object.clone();
+      move | value : f32 |
+      {
+        let mut settings : Settings = serde_wasm_bindgen::from_value( object.clone() ).unwrap();
+        settings.dash_size2 = value;
+        upload_dash_pattern( lines.clone(), &settings );
+      }
+    }
+  );
+  lil_gui::on_change( &prop, &callback );
+  callback.forget();
+
+  let prop = lil_gui::add_slider( &gui, &object, "Dash gap 2", 0.0, 1.0, 0.01 );
+  let callback = Closure::new
+  (
+    {
+      let lines = lines.clone();
+      let object = object.clone();
+      move | value : f32 |
+      {
+        let mut settings : Settings = serde_wasm_bindgen::from_value( object.clone() ).unwrap();
+        settings.dash_gap2 = value;
+        upload_dash_pattern( lines.clone(), &settings );
       }
     }
   );

@@ -8,9 +8,21 @@ const float MAX_FLOAT = 3.402823466e+38;
 uniform vec3 u_color;
 uniform float u_width;
 
-uniform float u_dash_offset;
-uniform float u_dash_size;
-uniform float u_dash_gap;
+#ifdef USE_DASH
+  uniform float u_dash_offset;
+  #ifdef USE_DASH_V1
+    uniform float u_dash_pattern;
+  #endif
+  #ifdef USE_DASH_V2
+    uniform vec2 u_dash_pattern;
+  #endif
+  #ifdef USE_DASH_V3
+    uniform vec3 u_dash_pattern;
+  #endif
+  #ifdef USE_DASH_V4
+    uniform vec4 u_dash_pattern;
+  #endif
+#endif
 
 in vec2 vUv;
 in vec3 vViewPos;
@@ -21,7 +33,7 @@ in vec3 vViewB;
   in vec3 vColor;
 #endif
 
-#ifdef USE_DASHES
+#ifdef USE_DASH
   in float vLineDistance;
   flat in float vLineDistanceA;
   flat in float vLineDistanceB;
@@ -60,16 +72,98 @@ vec2 closestLineToLine( vec3 p1, vec3 p2, vec3 p3, vec3 p4 )
 
 }
 
- #ifdef USE_DASHES
+ #ifdef USE_DASH
   float getDistanceToDash( vec3 rayEnd, float i )
   {
-    float dashCoverage = mod( vLineDistance + u_dash_offset, u_dash_gap + u_dash_size );
+    #if !defined( USE_DASH_V3 ) && !defined( USE_DASH_V4 )
+      #ifdef USE_DASH_V1
+        float dashSize = u_dash_pattern;
+        float dashGap = u_dash_pattern;
+      #endif 
+      
+      #ifdef USE_DASH_V2
+        float dashSize = u_dash_pattern.x;
+        float dashGap = u_dash_pattern.y;
+      #endif 
 
-    float distanceA = vLineDistance - dashCoverage;
-    float distanceB = distanceA + u_dash_size;
+      float totalSegmentSize = dashSize + dashGap;  
 
-    distanceA += i * ( u_dash_size + u_dash_gap );
-    distanceB += i * ( u_dash_size + u_dash_gap );
+      float dashCoverage = mod( vLineDistance + u_dash_offset, totalSegmentSize );
+
+      float distanceA = vLineDistance - dashCoverage;
+      float distanceB = distanceA + dashSize;
+
+      distanceA += i * ( totalSegmentSize );
+      distanceB += i * ( totalSegmentSize );
+    #elif defined( USE_DASH_V3 )
+      float dashSize1 = u_dash_pattern.x;
+      float dashGap1 = u_dash_pattern.y;
+      float dashSize2 = u_dash_pattern.z;
+
+      float totalSegmentSize = dashSize1 + dashGap1 + dashSize2;  
+
+      float dashCoverage = mod( vLineDistance + u_dash_offset, totalSegmentSize );
+
+      float distanceA = 0.0;
+      float distanceB = 0.0;
+
+      if( int( floor( ( vLineDistance + u_dash_offset ) / totalSegmentSize ) ) % 2 == 0 )
+      {
+        float k = floor( dashCoverage / ( dashSize1 + dashGap1 ) );
+        distanceA = vLineDistance - dashCoverage + mix( 0.0, dashSize1 + dashGap1, k );
+        distanceB = distanceA + mix( dashSize1, dashSize2, k );
+
+        distanceA += i * mix
+        ( 
+          mix( dashSize2 + dashGap1, dashSize1 + dashGap1, step( 0.0, i ) ), 
+          mix( dashSize1 + dashGap1, dashSize2 + dashSize1, step( 0.0, i ) ), 
+          k 
+        ); 
+
+        distanceB += i * mix
+        ( 
+          mix( dashSize1 + dashSize2, dashSize2 + dashGap1, step( 0.0, i ) ), 
+          mix( dashSize2 + dashGap1, dashSize1 + dashGap1, step( 0.0, i ) ), 
+          k 
+        );
+      }
+      else
+      {
+        distanceA = vLineDistance - dashCoverage + dashSize1;
+        distanceB = distanceA + dashGap1;
+
+        distanceA += i * mix( dashSize1 + dashSize2, dashGap1 + dashSize2, step( 0.0, i ) );
+        distanceB += i * mix( dashSize1 + dashGap1, dashSize2 + dashSize1, step( 0.0, i ) );
+      }
+
+    #elif defined( USE_DASH_V4 )
+      float dashSize1 = u_dash_pattern.x;
+      float dashGap1 = u_dash_pattern.y;
+      float dashSize2 = u_dash_pattern.z;
+      float dashGap2 = u_dash_pattern.w;
+
+      float totalSegmentSize = dashSize1 + dashGap1 + dashSize2 + dashGap2;  
+
+      float dashCoverage = mod( vLineDistance + u_dash_offset, totalSegmentSize );
+      float k = floor( dashCoverage / ( dashSize1 + dashGap1 ) );
+
+      float distanceA = mix( vLineDistance - dashCoverage, vLineDistance - dashCoverage + dashSize1 + dashGap1, k );
+      float distanceB = distanceA + mix( dashSize1, dashSize2, k );
+
+      distanceA += i * mix
+      ( 
+        mix( dashSize2 + dashGap2, dashSize1 + dashGap1, step( 0.0, i ) ), 
+        mix( dashSize1 + dashGap1, dashSize2 + dashGap2, step( 0.0, i ) ), 
+        k 
+      ); 
+
+      distanceB += i * mix
+      ( 
+        mix( dashSize1 + dashGap2, dashSize2 + dashGap1, step( 0.0, i ) ), 
+        mix( dashSize2 + dashGap1, dashSize1 + dashGap2, step( 0.0, i ) ), 
+        k 
+      ); 
+    #endif
 
     if( distanceB <= vLineDistanceA + 1e-6 || distanceA >= vLineDistanceB - 1e-6 ) { return MAX_FLOAT; }
 
@@ -94,7 +188,7 @@ void main()
   vec3 col = u_color;
 
   #ifdef USE_WORLD_UNITS
-    #ifdef USE_DASHES
+    #ifdef USE_DASH
       vec3 rayEnd = normalize( vViewPos ) * 1e5;
       
       float norm1 = getDistanceToDash( rayEnd, -1.0 );
