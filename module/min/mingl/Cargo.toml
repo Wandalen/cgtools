@@ -39,6 +39,7 @@ full = [
 
 math = [ "dep:ndarray_cg" ]
 camera_orbit_controls = []
+character_controls = []
 
 diagnostics = [
   "model_obj"
