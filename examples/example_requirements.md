@@ -6,10 +6,7 @@ This document defines the requirements and standards for creating new examples i
 
 - [Example Structure](#example-structure)
 - [File Requirements](#file-requirements)
-- [README Template Guide](#readme-template-guide)
-- [Code Standards](#code-standards)
-- [Testing Requirements](#testing-requirements)
-- [Submission Checklist](#submission-checklist)
+- [Readme Template Guide](#readme-template-guide)
 
 ---
 
