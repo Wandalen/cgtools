@@ -17,6 +17,8 @@ trunk serve --release
 # Open http://localhost:8080
 ```
 
+More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
+
 ## Math Examples
 
 | | | |
@@ -44,39 +46,10 @@ trunk serve --release
 
 | | | |
 |:-------------------------:|:-------------------------:|:-------------------------:|
-|<img width="500px" src="./minwebgpu/deffered_rendering/showcase.png"><br>[Deffered rendering](./minwebgpu/deffered_rendering/readme.md) |<img width="500px" src="./minwebgpu/hello_triangle/showcase.png"><br>[Hello triangle](./minwebgpu/hello_triangle/readme.md) | |
+|<img width="500px" src="./minwebgpu/deffered_rendering/showcase.jpg"><br>[Deffered rendering](./minwebgpu/deffered_rendering/readme.md) |<img width="500px" src="./minwebgpu/hello_triangle/showcase.jpg"><br>[Hello triangle](./minwebgpu/hello_triangle/readme.md) | |
 
 ## WGPU Examples
 
 | | | |
 |:-------------------------:|:-------------------------:|:-------------------------:|
 |<img width="500px" src="./minwgpu/grid_render/showcase.png"><br>[Grid renderer](./minwgpu/grid_render/readme.md) |<img width="500px" src="./minwgpu/hello_triangle/showcase.png"><br>[Hello triangle](./minwgpu/hello_triangle/readme.md) | |
-
-## Development
-
-```bash
-# Development mode
-trunk serve
-
-# Production build
-trunk build --release
-
-# Clean build
-trunk clean && cargo clean
-```
-
-## Structure
-
-```
-example/
-├── src/main.rs
-├── Cargo.toml
-├── index.html
-└── assets/
-```
-
-## Troubleshooting
-
-- Check browser console for errors
-- Verify WebGL/WebGPU support
-- Use `trunk serve --release` for performance testing
