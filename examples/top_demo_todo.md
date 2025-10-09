@@ -14,7 +14,6 @@
 | The Bells                  | Musical demo combining audio analysis and animation.                     | audio, animation, effects            | Babylon.js       |
 | Clear Coat Demo            | Demonstrates clear coat layer on PBR materials.                          | materials, clearcoat, pbr            | Babylon.js       |
 | Music Visualizer           | Uses real-time audio data to drive shader animation.                     | audio, visualization, shaders        | Babylon.js       |
-
 | Anisotropy Demo            | PBR anisotropy demonstration for brushed metal effects.                  | materials, pbr, anisotropy           | Babylon.js       |
 | Particle Sun               | Particle system demonstration simulating the sun.                        | particles, gpu, effects              | Babylon.js       |
 | NME Glow Layer             | Glow post-processing effect created with Node Material Editor.           | postprocessing, glow, shaders        | Babylon.js       |
