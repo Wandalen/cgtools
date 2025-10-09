@@ -9,7 +9,7 @@ It accumulates color and transparency in separate buffers using floating-point b
 
 This approach works efficiently on modern GPUs and is suitable for real-time scenes such as particle systems, glass objects, and volumetric effects.
 
-[image](path)
+![image](path)
 
 **[How to run](./how_to_run.md)**
 
