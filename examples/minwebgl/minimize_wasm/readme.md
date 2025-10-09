@@ -6,6 +6,8 @@ This demo showcases techniques for minimizing WebAssembly binary size in cgtools
 
 Small WASM binaries improve load times and user experience. This example serves as a reference for production builds requiring minimal download size.
 
+![image](./showcase.gif)
+
 **[How to run](../how_to_run.md)**
 
 **References:**

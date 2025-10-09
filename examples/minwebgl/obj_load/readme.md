@@ -6,7 +6,7 @@ This demo demonstrates loading and parsing Wavefront OBJ files in WebGL2. The OB
 
 This example shows complete OBJ parsing including vertices, normals, texture coordinates, and face indices. It provides a foundation for building 3D content pipelines.
 
-![image](./showcase.png)
+![](./showcase.gif)
 
 **[How to run](../how_to_run.md)**
 

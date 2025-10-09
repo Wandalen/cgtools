@@ -6,7 +6,7 @@ This demo demonstrates a simplified physically-based rendering implementation in
 
 Simple PBR provides realistic materials without full complexity. This example is ideal for learning PBR fundamentals before tackling complete implementations.
 
-![image](./showcase.png)
+![](./showcase.gif)
 
 **[How to run](../how_to_run.md)**
 

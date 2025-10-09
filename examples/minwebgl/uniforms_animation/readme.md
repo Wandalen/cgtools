@@ -6,6 +6,6 @@ This demo demonstrates animating shader uniforms in WebGL2. It shows how to pass
 
 Uniform animation is efficient for procedural effects like pulsing colors, moving patterns, or time-based distortions. This example illustrates proper uniform management and update strategies.
 
-![image](./showcase.png)
+![](./showcase.gif)
 
 **[How to run](../how_to_run.md)**

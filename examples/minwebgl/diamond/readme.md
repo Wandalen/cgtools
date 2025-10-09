@@ -6,7 +6,7 @@ This demo demonstrates rendering a diamond or crystal-like object in WebGL2. It 
 
 This example illustrates complex lighting calculations and material systems needed for rendering transparent, refractive objects with internal reflections.
 
-![image](./showcase.png)
+![](./showcase.gif)
 
 **[How to run](../how_to_run.md)**
 

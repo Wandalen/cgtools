@@ -6,7 +6,7 @@ This demo is a complete OBJ model viewer with interactive camera controls in Web
 
 This example demonstrates practical 3D viewer implementation, suitable for asset inspection, education, or portfolio presentation of 3D models.
 
-![image](showcase.jpg)
+![image](showcase.png)
 
 **[How to run](../how_to_run.md)**
 

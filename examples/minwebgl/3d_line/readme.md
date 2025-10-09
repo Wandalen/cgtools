@@ -6,7 +6,7 @@ This demo demonstrates 3D line rendering with perspective projection in WebGL2. 
 
 This example introduces fundamental 3D graphics concepts including model-view-projection matrices, depth testing, and 3D coordinate systems. It serves as a building block for understanding more complex 3D rendering pipelines.
 
-![image](./showcase.png)
+![image](./showcase.gif)
 
 **[How to run](../how_to_run.md)**
 
