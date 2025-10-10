@@ -9,11 +9,3 @@ This technique is useful for creating water effects, in-game screens or textures
 ![image](showcase.png)
 
 **[How to run](../how_to_run.md)**
-
-**References:**
-
-* []
-* []
-
-[]:
-[]:

@@ -12,8 +12,10 @@ Area lighting is essential for photorealistic rendering, providing natural-looki
 
 **References:**
 
-* []
-* []
+* [Real-Time Polygonal-Light Shading with Linearly Transformed Cosines] - The original SIGGRAPH 2016 paper by Eric Heitz, Jonathan Dupuy, Stephen Hill and David Neubelt.
+* [LearnOpenGL - PBR Theory] - An excellent introduction to the theory behind Physically-Based Rendering.
+* [LearnOpenGL - Area-Lights] - Practical implementation of area-lights.
 
-[]:
-[]:
+[Real-Time Polygonal-Light Shading with Linearly Transformed Cosines]: https://eheitzresearch.wordpress.com/415-2/
+[LearnOpenGL - PBR Theory]: https://learnopengl.com/PBR/Theory
+[LearnOpenGL - Area-Lights]: https://learnopengl.com/Guest-Articles/2022/Area-Lights
