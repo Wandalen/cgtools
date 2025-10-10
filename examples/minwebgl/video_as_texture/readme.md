@@ -6,7 +6,7 @@ This demo demonstrates using video as a texture source in WebGL2. It shows how t
 
 Video textures enable dynamic content integration. This example handles video loading, synchronization, and efficient GPU upload.
 
-![image](./showcase.png)
+![image](./showcase.gif)
 
 **[How to run](../how_to_run.md)**
 
