@@ -17,7 +17,7 @@ This technique is essential for modern game engines and complex lighting scenari
 * [Epic Games Lighting] - Modern game engine lighting
 * [Light Attenuation] - Physically accurate falloff models
 
-[Real-Time Rendering 4th Edition](http://www.realtimerendering.com/)
-[GPU Gems 2 - Deferred Shading](https://developer.nvidia.com/gpugems/gpugems2/part-ii-shading-lighting-and-shadows/chapter-9-deferred-shading-tabula-rasa)
-[Epic Games Lighting](https://blog.selfshadow.com/publications/s2013-shading-course/)
-[Light Attenuation](https://lisyarus.github.io/blog/posts/point-light-attenuation.html)
+[Real-Time Rendering 4th Edition]: http://www.realtimerendering.com/
+[GPU Gems 2 - Deferred Shading]: https://developer.nvidia.com/gpugems/gpugems2/part-ii-shading-lighting-and-shadows/chapter-9-deferred-shading-tabula-rasa
+[Epic Games Lighting]: https://blog.selfshadow.com/publications/s2013-shading-course/
+[Light Attenuation]: https://lisyarus.github.io/blog/posts/point-light-attenuation.html

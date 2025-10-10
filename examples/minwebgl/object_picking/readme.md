@@ -6,7 +6,7 @@ This demo demonstrates object picking techniques in WebGL2. It shows how to dete
 
 Object picking typically uses color-coded rendering or ray casting. This example presents efficient methods for selection detection in complex 3D scenes.
 
-![image](./showcase.png)
+![image](./showcase.gif)
 
 **[How to run](../how_to_run.md)**
 

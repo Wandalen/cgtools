@@ -4,7 +4,7 @@
 
 A comprehensive collection of image filters and post-processing effects implemented entirely on the GPU using WebGL 2.0. Explore various image processing techniques from basic convolution kernels to advanced multi-pass rendering algorithms, all running in real-time.
 
-![image](./showcase.png)
+![image](./showcase.gif)
 
 **[How to run](../how_to_run.md)**
 
@@ -18,7 +18,7 @@ A comprehensive collection of image filters and post-processing effects implemen
 * [GPU Gems Series] - Advanced GPU techniques
 
 [Digital Image Processing - Gonzalez]: https://www.pearson.com/us/higher-education/program/Gonzalez-Digital-Image-Processing-4th-Edition/PGM241446.html
-[Computer Vision: Algorithms and Applications]http://szeliski.org/Book/
+[Computer Vision: Algorithms and Applications]: http://szeliski.org/Book/
 [OpenCV Tutorials]: https://docs.opencv.org/master/d9/df8/tutorial_root.html
 [WebGL2 Fundamentals]: https://webgl2fundamentals.org/
 [The Book of Shaders]: https://thebookofshaders.com/
