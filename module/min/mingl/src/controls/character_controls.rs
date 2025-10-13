@@ -7,6 +7,7 @@ mod private
   use std::{ cell::RefCell, rc::Rc };
   use wasm_bindgen::{ JsCast, prelude::Closure };
   use crate::web::web_sys;
+  use std::ops::Range;
 
   /// Controls for character movement and rotation using WASD and mouse.
   ///
@@ -25,14 +26,18 @@ mod private
     yaw : f64,
     /// Current pitch angle (rotation around X axis) in radians
     pitch : f64,
+    /// Distance between character and camera
+    pub zoom : f64,
     /// Movement speed in units per second
     pub move_speed : f64,
     /// Rotation sensitivity for mouse movement
     pub rotation_sensitivity : f64,
-    /// Minimum pitch angle in radians (looking down)
-    pitch_min : f64,
-    /// Maximum pitch angle in radians (looking up)
-    pitch_max : f64,
+    /// A scaling factor to adjust the sensitivity of camera zooming.
+    pub zoom_speed_scale : f64,
+    /// Minimum and maximum pitch angle in radians (looking down)
+    pitch_range : Range< f64 >,
+    /// Minimum and maximum zoom distance
+    pub zoom_range : Range< f64 >,
   }
 
   impl CharacterControls
@@ -66,8 +71,8 @@ mod private
     /// This is the direction the character is facing.
     pub fn forward( &self ) -> F64x3
     {
-      // Forward is -Z axis in right-handed coordinate system
-      let forward = QuatF64::from( [ 0.0, 0.0, 0.0, -1.0 ] );
+      // Forward is +Z axis
+      let forward = QuatF64::from( [ 0.0, 0.0, 1.0, 0.0 ] );
       let direction = self.rotation * forward * self.rotation.conjugate();
       F64x3::from_slice( &direction.to_array()[ ..3 ] )
     }
@@ -77,8 +82,8 @@ mod private
     /// This is perpendicular to the forward direction, used for strafing.
     pub fn right( &self ) -> F64x3
     {
-      // Right is +X axis in right-handed coordinate system
-      let right = QuatF64::from( [ 0.0, 1.0, 0.0, 0.0 ] );
+      // Right is +X axis
+      let right = QuatF64::from( [ -1.0, 0.0, 0.0, 0.0 ] );
       let direction = self.rotation * right * self.rotation.conjugate();
       F64x3::from_slice( &direction.to_array()[ ..3 ] )
     }
@@ -87,7 +92,7 @@ mod private
     pub fn up( &self ) -> F64x3
     {
       // Up is +Y axis
-      let up = QuatF64::from( [ 0.0, 0.0, 1.0, 0.0 ] );
+      let up = QuatF64::from( [ 0.0, 1.0, 0.0, 0.0 ] );
       let direction = self.rotation * up * self.rotation.conjugate();
       F64x3::from_slice( &direction.to_array()[ ..3 ] )
     }
@@ -106,7 +111,7 @@ mod private
       self.pitch -= delta_y * self.rotation_sensitivity;
 
       // Clamp pitch to prevent over-rotation
-      self.pitch = self.pitch.clamp( self.pitch_min, self.pitch_max );
+      self.pitch = self.pitch.clamp( self.pitch_range.start, self.pitch_range.end );
 
       // Create rotation quaternion from yaw and pitch
       // Order: Yaw around Y axis, then Pitch around X axis
@@ -128,19 +133,27 @@ mod private
       // Calculate movement direction based on input
       if input.move_forward
       {
-        movement += self.forward();
+        let mut forward = self.forward();
+        forward.0[ 1 ] = 0.0;
+        movement += forward;
       }
       if input.move_backward
       {
-        movement -= self.forward();
+        let mut forward = self.forward();
+        forward.0[ 1 ] = 0.0;
+        movement -= forward;
       }
       if input.move_left
       {
-        movement -= self.right();
+        let mut right = self.right();
+        right.0[ 1 ] = 0.0;
+        movement -= right;
       }
       if input.move_right
       {
-        movement += self.right();
+        let mut right = self.right();
+        right.0[ 1 ] = 0.0;
+        movement += right;
       }
 
       // Normalize movement vector to prevent faster diagonal movement
@@ -171,12 +184,28 @@ mod private
     pub fn set_rotation( &mut self, yaw : f64, pitch : f64 )
     {
       self.yaw = yaw;
-      self.pitch = pitch.clamp( self.pitch_min, self.pitch_max );
+      self.pitch = pitch.clamp( self.pitch_range.start, self.pitch_range.end );
 
       let quat_yaw = QuatF64::from_axis_angle( F64x3::from( [ 0.0, 1.0, 0.0 ] ), self.yaw );
       let quat_pitch = QuatF64::from_axis_angle( F64x3::from( [ 1.0, 0.0, 0.0 ] ), self.pitch );
 
       self.rotation = quat_yaw * quat_pitch;
+    }
+
+    /// Zooms the camera in or out along its viewing direction.
+    ///
+    /// # Arguments
+    /// * `delta_y` - The scroll amount, typically from a mouse wheel event.
+    ///   A negative value zooms in, and a positive value zooms out.
+    pub fn zoom
+    (
+      &mut self,
+      mut delta_y : f64
+    )
+    {
+      delta_y *= self.zoom_speed_scale;
+      self.zoom += delta_y;
+      self.zoom = self.zoom.clamp( self.zoom_range.start, self.zoom_range.end );
     }
   }
 
@@ -191,10 +220,12 @@ mod private
         rotation : QuatF64::default(),
         yaw : 0.0,
         pitch : 0.0,
+        zoom : 2.0,
         move_speed : 5.0,
         rotation_sensitivity : 0.002,
-        pitch_min : -std::f64::consts::FRAC_PI_2 + 0.1, // -89 degrees
-        pitch_max : std::f64::consts::FRAC_PI_2 - 0.1,  // +89 degrees
+        zoom_speed_scale : 0.01,
+        pitch_range : -0.5..0.5,
+        zoom_range : 0.5..10.0
       }
     }
   }
@@ -231,15 +262,6 @@ mod private
     }
   }
 
-  /// Represents the current state of the character controls, based on user input.
-  enum CharacterInputState
-  {
-    /// The character is not being manipulated.
-    Idle,
-    /// The user can rotate or move the character.
-    Active
-  }
-
   /// Binds keyboard and mouse events to character controls for interaction.
   ///
   /// This function sets up event listeners on an `HtmlCanvasElement` to handle
@@ -269,9 +291,8 @@ mod private
     input : &Rc< RefCell< CharacterInput > >
   )
   {
-    let state = Rc::new( RefCell::new( CharacterInputState::Idle ) );
+    let is_pointer_locked = Rc::new( RefCell::new( false ) );
 
-    // Key down event - mark key as pressed
     let on_key_down : Closure< dyn Fn( _ ) > = Closure::new
     (
       {
@@ -293,7 +314,6 @@ mod private
       }
     );
 
-    // Key up event - mark key as released
     let on_key_up : Closure< dyn Fn( _ ) > = Closure::new
     (
       {
@@ -319,10 +339,10 @@ mod private
     (
       {
         let controls = controls.clone();
-        let state = state.clone();
+        let is_pointer_locked = is_pointer_locked.clone();
         move | e : web_sys::MouseEvent |
         {
-          if CharacterInputState::Active == *state.borrow()
+          if *is_pointer_locked.borrow()
           {
             let delta_x = e.movement_x() as f64;
             let delta_y = e.movement_y() as f64;
@@ -332,29 +352,22 @@ mod private
       }
     );
 
-    let on_pointer_leave : Closure< dyn Fn() > = Closure::new
+    let on_wheel : Closure< dyn Fn( _ ) > = Closure::new
     (
       {
-        let state = state.clone();
-        move ||
+        let controls = controls.clone();
+        let is_pointer_locked = is_pointer_locked.clone();
+        move | e : web_sys::WheelEvent |
         {
-          *state.borrow_mut() = CharacterInputState::Idle;
+          if *is_pointer_locked.borrow()
+          {
+            let delta_y = e.delta_y();
+            controls.borrow_mut().zoom( delta_y );
+          }
         }
       }
     );
 
-    let on_pointer_enter : Closure< dyn Fn() > = Closure::new
-    (
-      {
-        let state = state.clone();
-        move ||
-        {
-          *state.borrow_mut() = CharacterInputState::Active;
-        }
-      }
-    );
-
-    // Context menu event - prevent default to avoid right-click menu
     let on_context_menu : Closure< dyn Fn( _ ) > = Closure::new
     (
       {
@@ -365,11 +378,52 @@ mod private
       }
     );
 
-    // Make canvas focusable and set tabindex
+    let on_click : Closure< dyn Fn() > = Closure::new
+    (
+      {
+        let canvas = canvas.clone();
+        let is_pointer_locked = is_pointer_locked.clone();
+        move | |
+        {
+          if !*is_pointer_locked.borrow()
+          {
+            let _ = canvas.request_pointer_lock();
+          }
+        }
+      }
+    );
+
+    let on_pointer_lock_change : Closure< dyn Fn() > = Closure::new
+    (
+      {
+        let is_pointer_locked = is_pointer_locked.clone();
+        move | |
+        {
+          if let Some( document ) = web_sys::window().and_then( | w | w.document() )
+          {
+            let locked = document.pointer_lock_element().is_some();
+            *is_pointer_locked.borrow_mut() = locked;
+          }
+        }
+      }
+    );
+
+    let on_pointer_lock_error : Closure< dyn Fn() > = Closure::new
+    (
+      {
+        move | |
+        {
+          crate::web::error!( "Pointer lock error" );
+        }
+      }
+    );
+
     let _ = canvas.set_attribute( "tabindex", "0" );
     let _ = canvas.focus();
 
-    // Attach event listeners
+    let _ = canvas.add_event_listener_with_callback( "click", on_click.as_ref().unchecked_ref() );
+    on_click.forget();
+
     let _ = canvas.add_event_listener_with_callback( "keydown", on_key_down.as_ref().unchecked_ref() );
     on_key_down.forget();
 
@@ -379,14 +433,28 @@ mod private
     let _ = canvas.add_event_listener_with_callback( "mousemove", on_mouse_move.as_ref().unchecked_ref() );
     on_mouse_move.forget();
 
-    let _ = canvas.add_event_listener_with_callback( "pointerleave", on_pointer_leave.as_ref().unchecked_ref() );
-    on_pointer_leave.forget();
-
-    let _ = canvas.add_event_listener_with_callback( "pointerenter", on_pointer_enter.as_ref().unchecked_ref() );
-    on_pointer_enter.forget();
+    let _ = canvas.add_event_listener_with_callback( "wheel", on_wheel.as_ref().unchecked_ref() );
+    on_wheel.forget();
 
     canvas.set_oncontextmenu( Some( on_context_menu.as_ref().unchecked_ref() ) );
     on_context_menu.forget();
+
+    if let Some( document ) = web_sys::window().and_then( | w | w.document() )
+    {
+      let _ = document.add_event_listener_with_callback
+      (
+        "pointerlockchange",
+        on_pointer_lock_change.as_ref().unchecked_ref()
+      );
+      on_pointer_lock_change.forget();
+
+      let _ = document.add_event_listener_with_callback
+      (
+        "pointerlockerror",
+        on_pointer_lock_error.as_ref().unchecked_ref()
+      );
+      on_pointer_lock_error.forget();
+    }
   }
 }
 

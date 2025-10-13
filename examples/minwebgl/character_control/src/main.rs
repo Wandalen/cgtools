@@ -36,7 +36,8 @@ use renderer::webgl::
   },
   Camera,
   Renderer,
-  Scene
+  Scene,
+  Node
 };
 use primitive_generation::
 {
@@ -59,8 +60,33 @@ fn create_plane( gl : &GL, scene : &Rc< RefCell< Scene > > )
     // {
     //   mesh.borrow().primitives.first().unwrap().borrow().material.borrow_mut()
     // };
+    plane.borrow_mut().set_name( "Plane" );
     scene.borrow_mut().children.push( plane.clone() );
   }
+}
+
+/// Finds [`Node`] in [`Scene`] by name
+fn find_node( scene : &Rc< RefCell< Scene > >, substring : &str ) -> Option< Rc< RefCell< Node > > >
+{
+  let mut target_node = None;
+  let _ = scene.borrow().traverse
+  (
+    &mut | node : Rc< RefCell< Node > > |
+    {
+      let name = node.borrow().get_name();
+      if let Some( name ) = name
+      {
+        if name.contains( substring )
+        {
+          target_node = Some( node.clone() );
+        }
+      }
+
+      Ok( () )
+    }
+  );
+
+  target_node
 }
 
 async fn run() -> Result< (), gl::WebglError >
@@ -130,7 +156,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
   camera.set_window_size( [ width, height ].into() );
-  camera.bind_controls( &canvas );
+  // camera.bind_controls( &canvas );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "envMap" ).await );
@@ -147,24 +173,23 @@ async fn run() -> Result< (), gl::WebglError >
 
   create_plane( &gl, &scenes[ 0 ] );
 
-  for node in &scenes[ 0 ].borrow().children
-  {
-    let name = node.borrow().get_name();
-    if let Some( name ) = name
-    {
-      if name.contains( "Armature" )
-      {
-        node.borrow_mut().set_scale( F32x3::splat( 0.1 ) );
-        node.borrow_mut().set_rotation( QuatF32::from_angle_x( f32::consts::PI / 4.0 ).normalize() );
-      }
-    }
-    else
-    {
-      node.borrow_mut().set_scale( F32x3::splat( 100.0 ) );
-      let current_rotation= node.borrow().get_rotation();
-      node.borrow_mut().set_rotation( ( QuatF32::from_angle_x( f32::consts::PI / 2.0 ) * current_rotation ).normalize() );
-    }
-  }
+  let character = find_node( &scenes[ 0 ], "Armature" ).unwrap();
+  let neck = find_node( &scenes[ 0 ], "Neck" ).unwrap();
+  let plane = find_node( &scenes[ 0 ], "Plane" ).unwrap();
+
+  character.borrow_mut().set_scale( F32x3::splat( 0.1 ) );
+  character.borrow_mut().set_rotation( QuatF32::from_angle_x( f32::consts::PI / 4.0 ).normalize() );
+
+  plane.borrow_mut().set_scale( F32x3::splat( 100.0 ) );
+  let current_rotation = plane.borrow().get_rotation();
+  plane.borrow_mut().set_rotation( ( QuatF32::from_angle_x( f32::consts::PI / 2.0 ) * current_rotation ).normalize() );
+
+  let ( center, .. )  = neck.borrow().get_world_matrix().decompose().unwrap();
+  let center = F32x3::from_slice( center.as_slice() );
+
+  camera.get_controls().borrow_mut().center = center;
+  let forward = F32x3::from_array( character_controls.borrow().forward().map( | v | v as f32 ) );
+  camera.get_controls().borrow_mut().eye = center - forward * character_controls.borrow().zoom as f32;
 
   // Define the update and draw logic
   let update_and_draw =
@@ -178,53 +203,21 @@ async fn run() -> Result< (), gl::WebglError >
       let delta_time = time - *last_time.borrow();
       *last_time.borrow_mut() = time;
 
-      // Update character position based on input
       character_controls.borrow_mut().update( &character_input.borrow(), delta_time );
 
-      for node in &scenes[ 0 ].borrow().children
-      {
-        let name = node.borrow().get_name();
-        if let Some( name ) = name
-        {
-          if name.contains( "Armature" )
-          {
-            node.borrow_mut().set_translation( F32x3::from_array(character_controls.borrow().position().map( | v | v as f32 ) ) );
-            node.borrow_mut().set_rotation( QuatF32::from( character_controls.borrow().rotation().0.map( | v | v as f32 ) ) );
-          }
-        }
-      }
+      let mut position = character_controls.borrow().position();
+      position.0[ 1 ] = 0.0;
+      character_controls.borrow_mut().set_position( position );
+      character.borrow_mut().set_translation( F32x3::from_array(character_controls.borrow().position().map( | v | v as f32 ) ) );
+      neck.borrow_mut().set_rotation( QuatF32::from( character_controls.borrow().rotation().0.map( | v | v as f32 ) ) );
+      scenes[ 0 ].borrow_mut().update_world_matrix();
 
-      // // Get character position and rotation
-      // let char_pos = character_controls.borrow().position();
-      // let char_forward = character_controls.borrow().forward();
-      // let char_up = character_controls.borrow().up();
+      let forward = F32x3::from_array( character_controls.borrow().forward().map( | v | v as f32 ) );
+      let camera_local_pos = forward * character_controls.borrow().zoom as f32;
 
-      // // Update camera to follow character (first-person view)
-      // // Camera is at character position, looking in character's forward direction
-      // let camera_pos = F32x3::from(
-      // [
-      //   char_pos.x() as f32,
-      //   char_pos.y() as f32,
-      //   char_pos.z() as f32
-      // ]);
-
-      // let look_target = F32x3::from(
-      // [
-      //   ( char_pos.x() + char_forward.x() ) as f32,
-      //   ( char_pos.y() + char_forward.y() ) as f32,
-      //   ( char_pos.z() + char_forward.z() ) as f32
-      // ]);
-
-      // let camera_up = F32x3::from(
-      // [
-      //   char_up.x() as f32,
-      //   char_up.y() as f32,
-      //   char_up.z() as f32
-      // ]);
-
-      // camera.get_controls().borrow_mut().eye = camera_pos;
-      // camera.get_controls().borrow_mut().center = look_target;
-      // camera.get_controls().borrow_mut().up = camera_up;
+      camera.get_controls().borrow_mut().center = character.borrow().get_translation();
+      camera.get_controls().borrow_mut().eye = center - camera_local_pos;
+      // gl::info!( "{:?}", center );
 
       renderer.borrow_mut().render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
       .expect( "Failed to render" );
