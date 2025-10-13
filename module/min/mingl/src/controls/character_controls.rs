@@ -22,9 +22,9 @@ mod private
     /// Current character rotation as a quaternion
     rotation : QuatF64,
     /// Current yaw angle (rotation around Y axis) in radians
-    pub yaw : f64,
+    yaw : f64,
     /// Current pitch angle (rotation around X axis) in radians
-    pub pitch : f64,
+    pitch : f64,
     /// Movement speed in units per second
     pub move_speed : f64,
     /// Rotation sensitivity for mouse movement
@@ -47,6 +47,18 @@ mod private
     pub fn rotation( &self ) -> QuatF64
     {
       self.rotation
+    }
+
+    /// Returns the current yaw of the character.
+    pub fn yaw( &self ) -> f64
+    {
+      self.yaw
+    }
+
+    /// Returns the current pitch of the character.
+    pub fn pitch( &self ) -> f64
+    {
+      self.pitch
     }
 
     /// Returns the forward direction vector based on current rotation.
@@ -219,6 +231,15 @@ mod private
     }
   }
 
+  /// Represents the current state of the character controls, based on user input.
+  enum CharacterInputState
+  {
+    /// The character is not being manipulated.
+    Idle,
+    /// The user can rotate or move the character.
+    Active
+  }
+
   /// Binds keyboard and mouse events to character controls for interaction.
   ///
   /// This function sets up event listeners on an `HtmlCanvasElement` to handle
@@ -248,7 +269,7 @@ mod private
     input : &Rc< RefCell< CharacterInput > >
   )
   {
-    let is_pointer_locked = Rc::new( RefCell::new( false ) );
+    let state = Rc::new( RefCell::new( CharacterInputState::Idle ) );
 
     // Key down event - mark key as pressed
     let on_key_down : Closure< dyn Fn( _ ) > = Closure::new
@@ -294,15 +315,14 @@ mod private
       }
     );
 
-    // Mouse move event - rotate character when pointer is locked
     let on_mouse_move : Closure< dyn Fn( _ ) > = Closure::new
     (
       {
         let controls = controls.clone();
-        let is_pointer_locked = is_pointer_locked.clone();
+        let state = state.clone();
         move | e : web_sys::MouseEvent |
         {
-          if *is_pointer_locked.borrow()
+          if CharacterInputState::Active == *state.borrow()
           {
             let delta_x = e.movement_x() as f64;
             let delta_y = e.movement_y() as f64;
@@ -312,48 +332,27 @@ mod private
       }
     );
 
-    // // Click event - request pointer lock for mouse control
-    // let on_click : Closure< dyn Fn() > = Closure::new
-    // (
-    //   {
-    //     let canvas = canvas.clone();
-    //     let is_pointer_locked = is_pointer_locked.clone();
-    //     move | |
-    //     {
-    //       if !*is_pointer_locked.borrow()
-    //       {
-    //         let _ = canvas.request_pointer_lock();
-    //       }
-    //     }
-    //   }
-    // );
+    let on_pointer_leave : Closure< dyn Fn() > = Closure::new
+    (
+      {
+        let state = state.clone();
+        move ||
+        {
+          *state.borrow_mut() = CharacterInputState::Idle;
+        }
+      }
+    );
 
-    // // Pointer lock change event - track lock state
-    // let on_pointer_lock_change : Closure< dyn Fn() > = Closure::new
-    // (
-    //   {
-    //     let is_pointer_locked = is_pointer_locked.clone();
-    //     move | |
-    //     {
-    //       if let Some( document ) = web_sys::window().and_then( | w | w.document() )
-    //       {
-    //         let locked = document.pointer_lock_element().is_some();
-    //         *is_pointer_locked.borrow_mut() = locked;
-    //       }
-    //     }
-    //   }
-    // );
-
-    // // Pointer lock error event
-    // let on_pointer_lock_error : Closure< dyn Fn() > = Closure::new
-    // (
-    //   {
-    //     move | |
-    //     {
-    //       web_sys::console::error_1( &"Pointer lock error".into() );
-    //     }
-    //   }
-    // );
+    let on_pointer_enter : Closure< dyn Fn() > = Closure::new
+    (
+      {
+        let state = state.clone();
+        move ||
+        {
+          *state.borrow_mut() = CharacterInputState::Active;
+        }
+      }
+    );
 
     // Context menu event - prevent default to avoid right-click menu
     let on_context_menu : Closure< dyn Fn( _ ) > = Closure::new
@@ -380,29 +379,14 @@ mod private
     let _ = canvas.add_event_listener_with_callback( "mousemove", on_mouse_move.as_ref().unchecked_ref() );
     on_mouse_move.forget();
 
-    // let _ = canvas.add_event_listener_with_callback( "click", on_click.as_ref().unchecked_ref() );
-    // on_click.forget();
+    let _ = canvas.add_event_listener_with_callback( "pointerleave", on_pointer_leave.as_ref().unchecked_ref() );
+    on_pointer_leave.forget();
+
+    let _ = canvas.add_event_listener_with_callback( "pointerenter", on_pointer_enter.as_ref().unchecked_ref() );
+    on_pointer_enter.forget();
 
     canvas.set_oncontextmenu( Some( on_context_menu.as_ref().unchecked_ref() ) );
     on_context_menu.forget();
-
-    // // Attach pointer lock events to document
-    // if let Some( document ) = web_sys::window().and_then( | w | w.document() )
-    // {
-    //   let _ = document.add_event_listener_with_callback
-    //   (
-    //     "pointerlockchange",
-    //     on_pointer_lock_change.as_ref().unchecked_ref()
-    //   );
-    //   on_pointer_lock_change.forget();
-
-    //   let _ = document.add_event_listener_with_callback
-    //   (
-    //     "pointerlockerror",
-    //     on_pointer_lock_error.as_ref().unchecked_ref()
-    //   );
-    //   on_pointer_lock_error.forget();
-    // }
   }
 }
 
