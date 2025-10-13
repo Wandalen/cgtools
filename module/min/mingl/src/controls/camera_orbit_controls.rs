@@ -278,7 +278,7 @@ mod private
         {
           match *state.borrow_mut()
           {
-            CameraState::None => 
+            CameraState::None =>
             {
               let delta_y = e.delta_y() as f32;
               camera.borrow_mut().zoom( delta_y );
@@ -324,19 +324,19 @@ mod private
     canvas.set_oncontextmenu( Some( on_context_menu.as_ref().unchecked_ref() ) );
     on_context_menu.forget();
 
-    canvas.set_onpointerdown( Some( on_pointer_down.as_ref().unchecked_ref() ) );
+    let _ = canvas.add_event_listener_with_callback( "pointerdown", on_pointer_down.as_ref().unchecked_ref() );
     on_pointer_down.forget();
 
-    canvas.set_onmousemove( Some( on_mouse_move.as_ref().unchecked_ref() ) );
+    let _ = canvas.add_event_listener_with_callback( "mousemove", on_mouse_move.as_ref().unchecked_ref() );
     on_mouse_move.forget();
 
-    canvas.set_onwheel( Some( on_wheel.as_ref().unchecked_ref() ) );
+    let _ = canvas.add_event_listener_with_callback( "wheel", on_wheel.as_ref().unchecked_ref() );
     on_wheel.forget();
 
-    canvas.set_onpointerup( Some( on_pointer_up.as_ref().unchecked_ref() ) );
+    let _ = canvas.add_event_listener_with_callback( "pointerup", on_pointer_up.as_ref().unchecked_ref() );
     on_pointer_up.forget();
 
-    canvas.set_onpointerout( Some( on_pointer_out.as_ref().unchecked_ref() ) );
+    let _ = canvas.add_event_listener_with_callback( "pointerout", on_pointer_out.as_ref().unchecked_ref() );
     on_pointer_out.forget();
   }
 }
@@ -344,7 +344,7 @@ mod private
 // This macro exposes the public interface of the module.
 crate::mod_interface!
 {
-  own use 
+  own use
   {
     bind_controls_to_input
   };
