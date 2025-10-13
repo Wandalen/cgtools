@@ -30,9 +30,9 @@ mod private
     /// Rotation sensitivity for mouse movement
     pub rotation_sensitivity : f64,
     /// Minimum pitch angle in radians (looking down)
-    pub pitch_min : f64,
+    pitch_min : f64,
     /// Maximum pitch angle in radians (looking up)
-    pub pitch_max : f64,
+    pitch_max : f64,
   }
 
   impl CharacterControls
