@@ -1,7 +1,6 @@
 mod private
 {
   use std::{ rc::Rc, cell::RefCell };
-  use mingl::controls::character_controls::CharacterControls;
   use std::collections::HashMap;
   use animation::{ Tween, AnimatablePlayer, Sequencer };
   use crate::webgl::
