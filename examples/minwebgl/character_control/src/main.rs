@@ -1,7 +1,13 @@
-//! Renders animated character that can be controled by inputs.
-#![ doc( html_root_url = "https://docs.rs/gltf_viewer/latest/character_control/" ) ]
+//! Renders animated character that can be controlled with WASD + mouse.
+//!
+//! This demo showcases the CharacterControls system:
+//! - WASD keys for movement (W=forward, S=backward, A=strafe left, D=strafe right)
+//! - Mouse movement for rotation (yaw and pitch)
+//! - Click on canvas to enable mouse control
+//! - ESC to release mouse
+#![ doc( html_root_url = "https://docs.rs/character_control/latest/character_control/" ) ]
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
-#![ cfg_attr( not( doc ), doc = "Renders animated character that can be controled by inputs" ) ]
+#![ cfg_attr( not( doc ), doc = "Renders animated character that can be controlled with WASD + mouse" ) ]
 
 #![ allow( clippy::std_instead_of_core ) ]
 #![ allow( clippy::too_many_lines ) ]
@@ -14,10 +20,12 @@
 #![ allow( clippy::cast_possible_truncation ) ]
 #![ allow( clippy::no_effect_underscore_binding ) ]
 
-use std::collections::{ HashMap, HashSet };
+use core::f32;
 use std::{ cell::RefCell, rc::Rc };
-use mingl::F32x3;
+use mingl::{ F32x3, F64x3, QuatF32 };
+use mingl::controls::{ CharacterControls, CharacterInput };
 use minwebgl as gl;
+use gl::GL;
 use renderer::webgl::
 {
   post_processing::
@@ -28,122 +36,32 @@ use renderer::webgl::
   },
   Camera,
   Renderer,
-  Node,
-  animation::AnimatableComposition
+  Scene
+};
+use primitive_generation::
+{
+  primitives_data_to_gltf,
+  plane_to_geometry
 };
 
-// mod lil_gui;
-// mod gui_setup;
-
-// fn write_tree( node : Rc< RefCell< Node > >, depth : usize, output : &mut String )
-// {
-//   let name = node
-//   .borrow()
-//   .get_name()
-//   .unwrap_or( "<none>".into() );
-
-//   let indent = "-".repeat( depth );
-//   output.push_str( &format!("{}{}\n", indent, name ) );
-
-//   for child in node.borrow().get_children()
-//   {
-//     write_tree( Rc::clone( child ), depth + 1, output );
-//   }
-// }
-
-// fn print_tree( node : Rc< RefCell< Node > > )
-// {
-//   let mut tree_str = String::new();
-//   write_tree( node, 1, &mut tree_str );
-//   gl::info!( "{}", tree_str );
-// }
-
-// /// Splits root sub [`Node`]s names into named subtrees
-// /// Not mentioned nodes from root subnodes in parts
-// /// argument list will be added as separated node names group
-// fn split_node_names_into_parts
-// (
-//   root : Rc< RefCell< Node > >,
-//   part_names : &[ &str ]
-// )
-// -> HashMap< Box< str >, Vec< Box< str > > >
-// {
-//   fn collect_names( node : Rc< RefCell< Node > >, out : &mut Vec< Box< str > > )
-//   {
-//     let Some( name ) = node.borrow().get_name()
-//     else
-//     {
-//       return;
-//     };
-
-//     out.push( name );
-//     for child in node.borrow().get_children()
-//     {
-//       collect_names( Rc::clone( &child ), out );
-//     }
-//   }
-
-//   let part_names = HashSet::< Box< str > >::from_iter
-//   (
-//     part_names.iter().map( | n | (*n).into() )
-//   );
-//   let mut not_mentioned = HashSet::new();
-
-//   let mut parts = HashMap::new();
-
-//   let _ = root.borrow()
-//   .traverse
-//   (
-//     &mut | node : Rc< RefCell< Node > > |
-//     {
-//       let Some( name ) = node.borrow().get_name()
-//       else
-//       {
-//         return Ok( () );
-//       };
-
-//       not_mentioned.insert( name );
-
-//       Ok( () )
-//     }
-//   );
-
-//   let _ = root.borrow()
-//   .traverse
-//   (
-//     &mut | node : Rc< RefCell< Node > > |
-//     {
-//       let Some( name ) = node.borrow().get_name()
-//       else
-//       {
-//         return Ok( () );
-//       };
-
-//       let mut part = vec![];
-//       if part_names.contains( &name )
-//       {
-//         collect_names( node, &mut part );
-//       }
-//       else
-//       {
-//         return Ok( ( ) );
-//       }
-
-//       not_mentioned.retain( | n | !part.contains( n ) );
-//       parts.insert( name, part );
-
-//       Ok( () )
-//     }
-//   );
-
-//   parts.insert
-//   (
-//     root.borrow().get_name().unwrap_or( "<none>".into() ),
-//     not_mentioned.into_iter().collect::< Vec< _ > >()
-//   );
-
-//   parts
-// }
+/// Add new plane [`renderer::webgl::Node`] to [`Scene`]
+fn create_plane( gl : &GL, scene : &Rc< RefCell< Scene > > )
+{
+  let Some( plane ) = plane_to_geometry()
+  else
+  {
+    return;
+  };
+  let gltf = primitives_data_to_gltf( gl, vec![ plane ] );
+  if let Some( plane ) = gltf.nodes.first()
+  {
+    // if let Object3D::Mesh( mesh ) = plane.borrow().object
+    // {
+    //   mesh.borrow().primitives.first().unwrap().borrow().material.borrow_mut()
+    // };
+    scene.borrow_mut().children.push( plane.clone() );
+  }
+}
 
 async fn run() -> Result< (), gl::WebglError >
 {
@@ -161,15 +79,15 @@ async fn run() -> Result< (), gl::WebglError >
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
 
-  let gltf_path = "gltf/multi_animation.glb";
+  let gltf_path = "gltf/multi_animation_extended.glb";
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
   let scenes = gltf.scenes;
   scenes[ 0 ].borrow_mut().update_world_matrix();
 
   let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
-  gl::info!( "Scene boudnig box: {:?}", scene_bounding_box );
+  gl::info!( "Scene bounding box: {:?}", scene_bounding_box );
   let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
-  let dist = scene_bounding_box.max.mag();
+  // let dist = scene_bounding_box.max.mag();
   let exponent =
   {
     let bits = diagonal.to_bits();
@@ -178,17 +96,37 @@ async fn run() -> Result< (), gl::WebglError >
   };
   gl::info!( "Exponent: {:?}", exponent );
 
-  // Camera setup
-  let mut eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
-  eye *= dist;
-  let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
+  // Character controls setup
+  let mut character_controls = CharacterControls::default();
 
-  let center = scene_bounding_box.center();
+  // Set initial position behind the character model
+  character_controls.set_position( F64x3::from( [ 0.0, 1.5, 3.0 ] ) );
+  character_controls.set_rotation( 0.0, 0.0 ); // Looking at origin
 
+  // Adjust speeds for smooth movement
+  character_controls.move_speed = 3.0; // units per second
+  character_controls.rotation_sensitivity = 0.003;
+
+  let character_controls = Rc::new( RefCell::new( character_controls ) );
+  let character_input = Rc::new( RefCell::new( CharacterInput::new() ) );
+
+  // Bind character controls to input
+  mingl::controls::character_controls::bind_controls_to_input(
+    &canvas,
+    &character_controls,
+    &character_input
+  );
+
+  // Camera setup - will follow character
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
-  let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 ) * 10.0;
+  let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 ) * 2000.0;
   let far = near * 100.0f32.powi( exponent.abs() ) / 100.0;
+
+  // Initial camera position
+  let eye = F32x3::from( [ 0.0, 1.5, 3.0 ] );
+  let up = F32x3::from( [ 0.0, 1.0, 0.0 ] );
+  let center = F32x3::from( [ 0.0, 1.0, 0.0 ] );
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
   camera.set_window_size( [ width, height ].into() );
@@ -204,59 +142,29 @@ async fn run() -> Result< (), gl::WebglError >
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
-  camera.get_controls().borrow_mut().up = F32x3::from_array( [ 0.0, -1.0, 0.0 ] );
-  camera.get_controls().borrow_mut().eye = F32x3::from_array( [-5.341171e-6, -0.015823878, 0.007656166] );
+  // Track time for delta calculation
+  let last_time = Rc::new( RefCell::new( 0.0 ) );
 
-  // let last_time = Rc::new( RefCell::new( 0.0 ) );
+  create_plane( &gl, &scenes[ 0 ] );
 
-  // let scaler = gui_setup::setup( gltf.animations.clone() );
-  // print_tree( scenes[ 0 ].borrow().children[ 0 ].clone() );
-  // let parts = vec!
-  // [
-  //   "mixamorig:Neck",
-  //   "mixamorig:RightShoulder",
-  //   "mixamorig:LeftShoulder",
-  //   "mixamorig:RightUpLeg",
-  //   "mixamorig:LeftUpLeg"
-  // ];
-
-  // let mut parts = split_node_names_into_parts
-  // (
-  //   scenes[ 0 ].borrow().children[ 0 ].clone(),
-  //   &parts
-  // );
-
-  // let mut hands = parts.remove( "mixamorig:RightShoulder" ).unwrap();
-  // hands.extend( parts.remove( "mixamorig:LeftShoulder" ).unwrap() );
-
-  // parts.insert( "hands".into(), hands );
-
-  // let mut legs = parts.remove( "mixamorig:RightUpLeg" ).unwrap();
-  // legs.extend( parts.remove( "mixamorig:LeftUpLeg" ).unwrap() );
-
-  // parts.insert( "legs".into(), legs );
-
-  // let mut replace_key = | key : &str, new_key : &str |
-  // {
-  //   if let Some( nodes ) = parts.remove::< Box< str > >( &key.into() )
-  //   {
-  //     parts.insert( new_key.into(), nodes );
-  //   }
-  // };
-
-  // replace_key( "mixamorig:Neck", "head" );
-  // replace_key( "Armature", "body" );
-
-  // if let Some( scaler ) = scaler.borrow_mut().as_mut()
-  // {
-  //   for ( part, nodes ) in parts
-  //   {
-  //     if let Some( group ) = scaler.group_get_mut( &part )
-  //     {
-  //       *group = nodes;
-  //     }
-  //   }
-  // }
+  for node in &scenes[ 0 ].borrow().children
+  {
+    let name = node.borrow().get_name();
+    if let Some( name ) = name
+    {
+      if name.contains( "Armature" )
+      {
+        node.borrow_mut().set_scale( F32x3::splat( 0.1 ) );
+        node.borrow_mut().set_rotation( QuatF32::from_angle_x( f32::consts::PI / 4.0 ).normalize() );
+      }
+    }
+    else
+    {
+      node.borrow_mut().set_scale( F32x3::splat( 100.0 ) );
+      let current_rotation= node.borrow().get_rotation();
+      node.borrow_mut().set_rotation( ( QuatF32::from_angle_x( f32::consts::PI / 2.0 ) * current_rotation ).normalize() );
+    }
+  }
 
   // Define the update and draw logic
   let update_and_draw =
@@ -265,21 +173,58 @@ async fn run() -> Result< (), gl::WebglError >
     {
       let time = t / 1000.0;
 
-      // if let Some( scaler ) = scaler.borrow_mut().as_mut()
-      // {
-      //   let last_time = last_time.clone();
+      let last_time = last_time.clone();
 
-      //   let delta_time = time - *last_time.borrow();
-      //   *last_time.borrow_mut() = time;
+      let delta_time = time - *last_time.borrow();
+      *last_time.borrow_mut() = time;
 
-      //   if scaler.animation.is_completed()
-      //   {
-      //     scaler.animation.reset();
-      //   }
+      // Update character position based on input
+      character_controls.borrow_mut().update( &character_input.borrow(), delta_time );
 
-      //   scaler.update( delta_time );
-      //   scaler.set( &gltf.animations[ 0 ].nodes );
-      // }
+      for node in &scenes[ 0 ].borrow().children
+      {
+        let name = node.borrow().get_name();
+        if let Some( name ) = name
+        {
+          if name.contains( "Armature" )
+          {
+            node.borrow_mut().set_translation( F32x3::from_array(character_controls.borrow().position().map( | v | v as f32 ) ) );
+            node.borrow_mut().set_rotation( QuatF32::from( character_controls.borrow().rotation().0.map( | v | v as f32 ) ) );
+          }
+        }
+      }
+
+      // // Get character position and rotation
+      // let char_pos = character_controls.borrow().position();
+      // let char_forward = character_controls.borrow().forward();
+      // let char_up = character_controls.borrow().up();
+
+      // // Update camera to follow character (first-person view)
+      // // Camera is at character position, looking in character's forward direction
+      // let camera_pos = F32x3::from(
+      // [
+      //   char_pos.x() as f32,
+      //   char_pos.y() as f32,
+      //   char_pos.z() as f32
+      // ]);
+
+      // let look_target = F32x3::from(
+      // [
+      //   ( char_pos.x() + char_forward.x() ) as f32,
+      //   ( char_pos.y() + char_forward.y() ) as f32,
+      //   ( char_pos.z() + char_forward.z() ) as f32
+      // ]);
+
+      // let camera_up = F32x3::from(
+      // [
+      //   char_up.x() as f32,
+      //   char_up.y() as f32,
+      //   char_up.z() as f32
+      // ]);
+
+      // camera.get_controls().borrow_mut().eye = camera_pos;
+      // camera.get_controls().borrow_mut().center = look_target;
+      // camera.get_controls().borrow_mut().up = camera_up;
 
       renderer.borrow_mut().render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
       .expect( "Failed to render" );
