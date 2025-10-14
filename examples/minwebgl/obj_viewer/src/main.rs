@@ -8,7 +8,7 @@
 use std::
 {
   collections::{ HashMap, HashSet },
-  rc::Rc, 
+  rc::Rc,
   cell::RefCell,
   sync::{ Arc, Mutex }
 };
@@ -16,9 +16,9 @@ use std::
 use material::{ GLMaterial, TextureType };
 use mesh::GLMesh;
 use mingl::
-{ 
-  CameraOrbitControls, 
-  camera_orbit_controls::bind_controls_to_input 
+{
+  CameraOrbitControls,
+  controls::camera_orbit_controls::bind_controls_to_input
 };
 use minwebgl::{ self as gl, JsCast };
 use web_sys::wasm_bindgen::prelude::Closure;

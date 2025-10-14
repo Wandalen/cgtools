@@ -1,7 +1,7 @@
 mod private
 {
   use std::{ cell::RefCell, collections::HashMap, rc::Rc };
-  use minwebgl::{ self as gl };
+  use minwebgl as gl;
   use mingl::{ geometry::BoundingBox, F32x3, F32x4x4 };
   use crate::webgl::Mesh;
 
@@ -32,7 +32,7 @@ mod private
     parent : Option< Rc< RefCell< Node > > >,
     /// The child nodes of this node.
     children : Vec< Rc< RefCell< Node > > >,
-    /// The 3D object associated with this node.
+    /// The 3D objects associated with this node.
     pub object : Object3D,
     /// The local transformation matrix of the node.
     matrix : gl::F32x4x4,
@@ -59,7 +59,14 @@ mod private
     /// Creates a new `Node` with default values.
     pub fn new() -> Self
     {
-      Self::default()
+      let mut s = Self::default();
+
+      s.world_matrix = gl::math::mat4x4::identity();
+      s.matrix = gl::math::mat4x4::identity();
+      s.normal_matrix = gl::math::mat3x3::identity();
+      s.scale = gl::F32x3::splat( 1.0 );
+
+      s
     }
 
     /// Clones the node and all of its descendants, creating a new independent scene graph subtree.
@@ -191,8 +198,17 @@ mod private
     /// Sets the local transformation matrix for the node.
     pub fn set_local_matrix( &mut self, matrix : F32x4x4 )
     {
+      let Some( ( translation, rotation, scale ) ) = matrix.decompose()
+      else
+      {
+        return;
+      };
+
+      self.set_translation( translation );
+      self.set_rotation( rotation );
+      self.set_scale( scale );
+
       self.matrix = matrix;
-      self.needs_world_matrix_update = true;
       self.needs_local_matrix_update = false;
     }
 
@@ -226,7 +242,7 @@ mod private
         self.rotation,
         self.translation
       );
-      self.matrix = gl::F32x4x4::from_column_major( mat.to_array());
+      self.matrix = gl::F32x4x4::from_column_major( mat.to_array() );
       self.needs_local_matrix_update = false;
       self.needs_world_matrix_update = true;
     }
@@ -245,7 +261,6 @@ mod private
       if needs_world_matrix_update || self.needs_world_matrix_update
       {
         self.set_world_matrix( parent_mat * self.matrix );
-        //self.set_world_matrix(  self.matrix );
         needs_world_matrix_update = true;
       }
 
@@ -287,6 +302,14 @@ mod private
       locations : &HashMap< String, Option< gl::WebGlUniformLocation > >
     )
     {
+      if let Object3D::Mesh( mesh ) = &self.object
+      {
+        if let Some( skeleton ) = &mesh.borrow().skeleton
+        {
+          skeleton.borrow_mut().upload( gl, locations );
+        }
+      }
+
       gl::uniform::matrix_upload
       (
         &gl,

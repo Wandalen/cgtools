@@ -28,7 +28,6 @@ mod private
     {
       self.0[ 1 ]
     }
-
   }
 
 }

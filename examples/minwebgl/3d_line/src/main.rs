@@ -10,9 +10,9 @@
 #![ allow( clippy::std_instead_of_core ) ]
 
 use mingl::
-{ 
-  CameraOrbitControls, 
-  camera_orbit_controls::bind_controls_to_input 
+{
+  CameraOrbitControls,
+  controls::camera_orbit_controls::bind_controls_to_input
 };
 use minwebgl as gl;
 use std::
