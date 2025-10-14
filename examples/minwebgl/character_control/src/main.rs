@@ -125,19 +125,17 @@ async fn run() -> Result< (), gl::WebglError >
   // Character controls setup
   let mut character_controls = CharacterControls::default();
 
-  // Set initial position behind the character model
   character_controls.set_position( F64x3::from( [ 0.0, 1.5, 3.0 ] ) );
-  character_controls.set_rotation( 0.0, 0.0 ); // Looking at origin
+  character_controls.set_rotation( 0.0, 0.0 );
 
-  // Adjust speeds for smooth movement
-  character_controls.move_speed = 3.0; // units per second
   character_controls.rotation_sensitivity = 0.003;
 
   let character_controls = Rc::new( RefCell::new( character_controls ) );
   let character_input = Rc::new( RefCell::new( CharacterInput::new() ) );
 
   // Bind character controls to input
-  mingl::controls::character_controls::bind_controls_to_input(
+  mingl::controls::character_controls::bind_controls_to_input
+  (
     &canvas,
     &character_controls,
     &character_input
@@ -168,7 +166,6 @@ async fn run() -> Result< (), gl::WebglError >
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
-  // Track time for delta calculation
   let last_time = Rc::new( RefCell::new( 0.0 ) );
 
   create_plane( &gl, &scenes[ 0 ] );
@@ -181,15 +178,17 @@ async fn run() -> Result< (), gl::WebglError >
   character.borrow_mut().set_rotation( QuatF32::from_angle_x( f32::consts::PI / 4.0 ).normalize() );
 
   plane.borrow_mut().set_scale( F32x3::splat( 100.0 ) );
-  let current_rotation = plane.borrow().get_rotation();
-  plane.borrow_mut().set_rotation( ( QuatF32::from_angle_x( f32::consts::PI / 2.0 ) * current_rotation ).normalize() );
+  plane.borrow_mut().set_rotation( QuatF32::from_angle_x( f32::consts::PI / 2.0 ).normalize() );
 
-  let ( center, .. )  = neck.borrow().get_world_matrix().decompose().unwrap();
-  let center = F32x3::from_slice( center.as_slice() );
+  scenes[ 0 ].borrow_mut().update_world_matrix();
 
-  camera.get_controls().borrow_mut().center = center;
+  let mut initial_center = character.borrow().get_translation();
+  initial_center.0[ 1 ] += 1.5;
+  camera.get_controls().borrow_mut().center = initial_center;
+
+  character_controls.borrow_mut().set_rotation( 0.0, 0.0 );
   let forward = F32x3::from_array( character_controls.borrow().forward().map( | v | v as f32 ) );
-  camera.get_controls().borrow_mut().eye = center - forward * character_controls.borrow().zoom as f32;
+  camera.get_controls().borrow_mut().eye = initial_center - forward * character_controls.borrow().zoom as f32;
 
   // Define the update and draw logic
   let update_and_draw =
@@ -205,19 +204,26 @@ async fn run() -> Result< (), gl::WebglError >
 
       character_controls.borrow_mut().update( &character_input.borrow(), delta_time );
 
-      let mut position = character_controls.borrow().position();
+      // // let mut position = character_controls.borrow().position();
+      // // position.0[ 1 ] = 0.0;
+      // // character_controls.borrow_mut().set_position( position );
+
+      let mut position = F32x3::from_array( character_controls.borrow().position().map( | v | v as f32 ) );
       position.0[ 1 ] = 0.0;
-      character_controls.borrow_mut().set_position( position );
-      character.borrow_mut().set_translation( F32x3::from_array(character_controls.borrow().position().map( | v | v as f32 ) ) );
+      // // position.0[ 2 ] = 0.0;
+      // character.borrow().
+      character.borrow_mut().set_translation( position );
+
       neck.borrow_mut().set_rotation( QuatF32::from( character_controls.borrow().rotation().0.map( | v | v as f32 ) ) );
-      scenes[ 0 ].borrow_mut().update_world_matrix();
+
+      let mut center = ( character.borrow().get_world_matrix() * character.borrow().get_translation().to_homogenous() ).truncate();
+      center.0[ 1 ] += 1.5;
+      camera.get_controls().borrow_mut().center = center;
 
       let forward = F32x3::from_array( character_controls.borrow().forward().map( | v | v as f32 ) );
-      let camera_local_pos = forward * character_controls.borrow().zoom as f32;
+      camera.get_controls().borrow_mut().eye = center - forward * character_controls.borrow().zoom as f32;
 
-      camera.get_controls().borrow_mut().center = character.borrow().get_translation();
-      camera.get_controls().borrow_mut().eye = center - camera_local_pos;
-      // gl::info!( "{:?}", center );
+      // camera.get_controls().borrow_mut().eye.0[ 1 ] += 0.001;
 
       renderer.borrow_mut().render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
       .expect( "Failed to render" );

@@ -71,7 +71,16 @@ mod private
     /// This is the direction the character is facing.
     pub fn forward( &self ) -> F64x3
     {
-      // Forward is +Z axis
+      // let [ x, y, z, w ] = self.rotation.to_array();
+      // F64x3::from_array
+      // (
+      // [
+      //     2.0 * ( x * z + w * y ),
+      //     2.0 * ( y * z - w * x ),
+      //     1.0 - 2.0 * ( x * x + y * y )
+      //   ]
+      // )
+
       let forward = QuatF64::from( [ 0.0, 0.0, 1.0, 0.0 ] );
       let direction = self.rotation * forward * self.rotation.conjugate();
       F64x3::from_slice( &direction.to_array()[ ..3 ] )
@@ -82,7 +91,16 @@ mod private
     /// This is perpendicular to the forward direction, used for strafing.
     pub fn right( &self ) -> F64x3
     {
-      // Right is +X axis
+      // let [ x, y, z, w ] = self.rotation.to_array();
+      // F64x3::from_array
+      // (
+      // [
+      //     2.0 * ( y * y + z * z ) - 1.0,
+      //     - 2.0 * ( x * y + w * z ),
+      //     - 2.0 * ( x * z - w * y )
+      //   ]
+      // )
+
       let right = QuatF64::from( [ -1.0, 0.0, 0.0, 0.0 ] );
       let direction = self.rotation * right * self.rotation.conjugate();
       F64x3::from_slice( &direction.to_array()[ ..3 ] )
@@ -91,7 +109,16 @@ mod private
     /// Returns the up direction vector based on current rotation.
     pub fn up( &self ) -> F64x3
     {
-      // Up is +Y axis
+      // let [ x, y, z, w ] = self.rotation.to_array();
+      // F64x3::from_array
+      // (
+      // [
+      //     2.0 * ( x * y - w * z ),
+      //     1.0 - 2.0 * ( x * x + z * z ),
+      //     2.0 * ( y * z + w * x )
+      //   ]
+      // )
+
       let up = QuatF64::from( [ 0.0, 1.0, 0.0, 0.0 ] );
       let direction = self.rotation * up * self.rotation.conjugate();
       F64x3::from_slice( &direction.to_array()[ ..3 ] )
@@ -115,10 +142,10 @@ mod private
 
       // Create rotation quaternion from yaw and pitch
       // Order: Yaw around Y axis, then Pitch around X axis
-      let quat_yaw = QuatF64::from_axis_angle( F64x3::from( [ 0.0, 1.0, 0.0 ] ), self.yaw );
-      let quat_pitch = QuatF64::from_axis_angle( F64x3::from( [ 1.0, 0.0, 0.0 ] ), self.pitch );
+      let quat_yaw = QuatF64::from_angle_y( self.yaw ).normalize();
+      let quat_pitch = QuatF64::from_angle_x( self.pitch ).normalize();
 
-      self.rotation = quat_yaw * quat_pitch;
+      self.rotation = ( quat_yaw * quat_pitch ).normalize();
     }
 
     /// Updates character position based on movement input.
@@ -134,25 +161,25 @@ mod private
       if input.move_forward
       {
         let mut forward = self.forward();
-        forward.0[ 1 ] = 0.0;
+        // forward.0[ 1 ] = 0.0;
         movement += forward;
       }
       if input.move_backward
       {
         let mut forward = self.forward();
-        forward.0[ 1 ] = 0.0;
+        // forward.0[ 1 ] = 0.0;
         movement -= forward;
       }
       if input.move_left
       {
         let mut right = self.right();
-        right.0[ 1 ] = 0.0;
+        // right.0[ 1 ] = 0.0;
         movement -= right;
       }
       if input.move_right
       {
         let mut right = self.right();
-        right.0[ 1 ] = 0.0;
+        // right.0[ 1 ] = 0.0;
         movement += right;
       }
 
@@ -186,10 +213,10 @@ mod private
       self.yaw = yaw;
       self.pitch = pitch.clamp( self.pitch_range.start, self.pitch_range.end );
 
-      let quat_yaw = QuatF64::from_axis_angle( F64x3::from( [ 0.0, 1.0, 0.0 ] ), self.yaw );
-      let quat_pitch = QuatF64::from_axis_angle( F64x3::from( [ 1.0, 0.0, 0.0 ] ), self.pitch );
+      let quat_yaw = QuatF64::from_angle_y( self.yaw ).normalize();
+      let quat_pitch = QuatF64::from_angle_x( self.pitch ).normalize();
 
-      self.rotation = quat_yaw * quat_pitch;
+      self.rotation = ( quat_yaw * quat_pitch ).normalize();
     }
 
     /// Zooms the camera in or out along its viewing direction.
@@ -221,7 +248,7 @@ mod private
         yaw : 0.0,
         pitch : 0.0,
         zoom : 2.0,
-        move_speed : 5.0,
+        move_speed : 10.0,
         rotation_sensitivity : 0.002,
         zoom_speed_scale : 0.01,
         pitch_range : -0.5..0.5,
