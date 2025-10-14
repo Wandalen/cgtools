@@ -145,7 +145,7 @@ vec2 closestLineToLine( vec3 p1, vec3 p2, vec3 p3, vec3 p4 )
       float totalSegmentSize = dashSize1 + dashGap1 + dashSize2 + dashGap2;  
 
       float dashCoverage = mod( vLineDistance + u_dash_offset, totalSegmentSize );
-      float k = floor( dashCoverage / ( dashSize1 + dashGap1 ) );
+      float k = min( floor( dashCoverage / ( dashSize1 + dashGap1 ) ), 1.0 );
 
       float distanceA = mix( vLineDistance - dashCoverage, vLineDistance - dashCoverage + dashSize1 + dashGap1, k );
       float distanceB = distanceA + mix( dashSize1, dashSize2, k );
