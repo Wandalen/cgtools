@@ -25,7 +25,7 @@ use std::{ cell::RefCell, rc::Rc };
 use mingl::{ F32x3, F64x3, QuatF32 };
 use mingl::controls::{ CharacterControls, CharacterInput };
 use minwebgl as gl;
-use gl::GL;
+use gl::{ JsCast, web_sys::WebGlTexture, GL, wasm_bindgen::closure::Closure };
 use renderer::webgl::
 {
   post_processing::
@@ -37,7 +37,14 @@ use renderer::webgl::
   Camera,
   Renderer,
   Scene,
-  Node
+  Node,
+  Object3D,
+  TextureInfo,
+  Texture,
+  WrappingMode,
+  MagFilterMode,
+  MinFilterMode,
+  Sampler
 };
 use primitive_generation::
 {
@@ -56,10 +63,12 @@ fn create_plane( gl : &GL, scene : &Rc< RefCell< Scene > > )
   let gltf = primitives_data_to_gltf( gl, vec![ plane ] );
   if let Some( plane ) = gltf.nodes.first()
   {
-    // if let Object3D::Mesh( mesh ) = plane.borrow().object
-    // {
-    //   mesh.borrow().primitives.first().unwrap().borrow().material.borrow_mut()
-    // };
+    if let Object3D::Mesh( mesh ) = &plane.borrow().object
+    {
+      mesh.borrow().primitives.first().unwrap().borrow()
+      .material.borrow_mut()
+      .base_color_texture = create_texture( gl, "textures/chessboard.jpg" );
+    };
     plane.borrow_mut().set_name( "Plane" );
     scene.borrow_mut().children.push( plane.clone() );
   }
@@ -87,6 +96,99 @@ fn find_node( scene : &Rc< RefCell< Scene > >, substring : &str ) -> Option< Rc<
   );
 
   target_node
+}
+
+/// Uploads an image from a URL to a WebGL texture.
+///
+/// This function creates a new `WebGlTexture` and asynchronously loads an image from the provided URL into it.
+/// It uses a `Closure` to handle the `onload` event of an `HtmlImageElement`, ensuring the texture is
+/// uploaded only after the image has finished loading.
+///
+/// # Arguments
+///
+/// * `gl` - The WebGl2RenderingContext.
+/// * `src` - A reference-counted string containing the URL of the image to load.
+///
+/// # Returns
+///
+/// A `WebGlTexture` object.
+fn upload_texture( gl : &GL, src : Rc< String > ) -> WebGlTexture
+{
+  let window = web_sys::window().expect( "Can't get window" );
+  let document =  window.document().expect( "Can't get document" );
+
+  let texture = gl.create_texture().expect( "Failed to create a texture" );
+
+  let img_element = document.create_element( "img" )
+  .expect( "Can't create img" )
+  .dyn_into::< gl::web_sys::HtmlImageElement >()
+  .expect( "Can't convert to gl::web_sys::HtmlImageElement" );
+  img_element.style().set_property( "display", "none" ).expect( "Can't set property" );
+  let load_texture : Closure< dyn Fn() > = Closure::new
+  (
+    {
+      let gl = gl.clone();
+      let img = img_element.clone();
+      let texture = texture.clone();
+      move ||
+      {
+        gl::texture::d2::upload_no_flip( &gl, Some( &texture ), &img );
+        gl.generate_mipmap( gl::TEXTURE_2D );
+        img.remove();
+      }
+    }
+  );
+
+  img_element.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
+  img_element.set_src( &src );
+  load_texture.forget();
+
+  texture
+}
+
+/// Creates a new `TextureInfo` struct with a texture loaded from a file.
+///
+/// This function calls `upload_texture` to load an image, sets up a default `Sampler`
+/// with linear filtering and repeat wrapping, and then combines them into a `TextureInfo`
+/// struct.
+///
+/// # Arguments
+///
+/// * `gl` - The WebGl2RenderingContext.
+/// * `image_path` - The path to the image file, relative to the `static/` directory.
+///
+/// # Returns
+///
+/// An `Option<TextureInfo>` containing the texture data, or `None` if creation fails.
+fn create_texture
+(
+  gl : &GL,
+  image_path : &str
+) -> Option< TextureInfo >
+{
+  let image_path = format!( "static/{image_path}" );
+  let texture_id = upload_texture( gl, Rc::new( image_path ) );
+
+  let sampler = Sampler::former()
+  .min_filter( MinFilterMode::Linear )
+  .mag_filter( MagFilterMode::Linear )
+  .wrap_s( WrappingMode::Repeat )
+  .wrap_t( WrappingMode::Repeat )
+  .end();
+
+  let texture = Texture::former()
+  .target( GL::TEXTURE_2D )
+  .source( texture_id )
+  .sampler( sampler )
+  .end();
+
+  let texture_info = TextureInfo
+  {
+    texture : Rc::new( RefCell::new( texture ) ),
+    uv_position : 0,
+  };
+
+  Some( texture_info )
 }
 
 async fn run() -> Result< (), gl::WebglError >
@@ -170,12 +272,17 @@ async fn run() -> Result< (), gl::WebglError >
 
   create_plane( &gl, &scenes[ 0 ] );
 
-  let character = find_node( &scenes[ 0 ], "Armature" ).unwrap();
+  let armature = find_node( &scenes[ 0 ], "Armature" ).unwrap();
   let neck = find_node( &scenes[ 0 ], "Neck" ).unwrap();
   let plane = find_node( &scenes[ 0 ], "Plane" ).unwrap();
 
-  character.borrow_mut().set_scale( F32x3::splat( 0.1 ) );
-  character.borrow_mut().set_rotation( QuatF32::from_angle_x( f32::consts::PI / 4.0 ).normalize() );
+  armature.borrow_mut().set_scale( F32x3::splat( 0.1 ) );
+  armature.borrow_mut().set_rotation( QuatF32::from_angle_x( f32::consts::PI / 4.0 ).normalize() );
+
+  let character = Rc::new( RefCell::new( Node::new() ) );
+  character.borrow_mut().add_child( armature.clone() );
+  armature.borrow_mut().set_parent( Some( character.clone() ) );
+  scenes[ 0 ].borrow_mut().children.push( character.clone() );
 
   plane.borrow_mut().set_scale( F32x3::splat( 100.0 ) );
   plane.borrow_mut().set_rotation( QuatF32::from_angle_x( f32::consts::PI / 2.0 ).normalize() );
@@ -204,15 +311,11 @@ async fn run() -> Result< (), gl::WebglError >
 
       character_controls.borrow_mut().update( &character_input.borrow(), delta_time );
 
-      // // let mut position = character_controls.borrow().position();
-      // // position.0[ 1 ] = 0.0;
-      // // character_controls.borrow_mut().set_position( position );
-
       let mut position = F32x3::from_array( character_controls.borrow().position().map( | v | v as f32 ) );
       position.0[ 1 ] = 0.0;
-      // // position.0[ 2 ] = 0.0;
-      // character.borrow().
       character.borrow_mut().set_translation( position );
+
+      scenes[ 0 ].borrow_mut().update_world_matrix();
 
       neck.borrow_mut().set_rotation( QuatF32::from( character_controls.borrow().rotation().0.map( | v | v as f32 ) ) );
 
@@ -222,8 +325,6 @@ async fn run() -> Result< (), gl::WebglError >
 
       let forward = F32x3::from_array( character_controls.borrow().forward().map( | v | v as f32 ) );
       camera.get_controls().borrow_mut().eye = center - forward * character_controls.borrow().zoom as f32;
-
-      // camera.get_controls().borrow_mut().eye.0[ 1 ] += 0.001;
 
       renderer.borrow_mut().render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
       .expect( "Failed to render" );
