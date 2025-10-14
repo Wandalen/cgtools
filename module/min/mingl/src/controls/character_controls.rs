@@ -82,8 +82,7 @@ mod private
       // )
 
       let forward = QuatF64::from( [ 0.0, 0.0, 1.0, 0.0 ] );
-      let direction = self.rotation * forward * self.rotation.conjugate();
-      F64x3::from_slice( &direction.to_array()[ ..3 ] )
+      ( self.rotation * forward * self.rotation.conjugate() ).0.truncate()
     }
 
     /// Returns the right direction vector based on current rotation.
@@ -102,8 +101,7 @@ mod private
       // )
 
       let right = QuatF64::from( [ -1.0, 0.0, 0.0, 0.0 ] );
-      let direction = self.rotation * right * self.rotation.conjugate();
-      F64x3::from_slice( &direction.to_array()[ ..3 ] )
+      ( self.rotation * right * self.rotation.conjugate() ).0.truncate()
     }
 
     /// Returns the up direction vector based on current rotation.
@@ -120,8 +118,7 @@ mod private
       // )
 
       let up = QuatF64::from( [ 0.0, 1.0, 0.0, 0.0 ] );
-      let direction = self.rotation * up * self.rotation.conjugate();
-      F64x3::from_slice( &direction.to_array()[ ..3 ] )
+      ( self.rotation * up * self.rotation.conjugate() ).0.truncate()
     }
 
     /// Updates character rotation based on mouse movement delta.
@@ -160,26 +157,22 @@ mod private
       // Calculate movement direction based on input
       if input.move_forward
       {
-        let mut forward = self.forward();
-        // forward.0[ 1 ] = 0.0;
+        let forward = self.forward();
         movement += forward;
       }
       if input.move_backward
       {
-        let mut forward = self.forward();
-        // forward.0[ 1 ] = 0.0;
+        let forward = self.forward();
         movement -= forward;
       }
       if input.move_left
       {
-        let mut right = self.right();
-        // right.0[ 1 ] = 0.0;
+        let right = self.right();
         movement -= right;
       }
       if input.move_right
       {
-        let mut right = self.right();
-        // right.0[ 1 ] = 0.0;
+        let right = self.right();
         movement += right;
       }
 
@@ -251,7 +244,7 @@ mod private
         move_speed : 10.0,
         rotation_sensitivity : 0.002,
         zoom_speed_scale : 0.01,
-        pitch_range : -0.5..0.5,
+        pitch_range : -0.6..0.6,
         zoom_range : 0.5..10.0
       }
     }
