@@ -8,7 +8,7 @@ mod private
   /// Represents a scene containing a hierarchy of nodes.
   #[ derive( Default ) ]
   pub struct Scene
-  { 
+  {
     /// The root-level children of the scene.
     pub children : Vec< Rc< RefCell< Node > > >,
   }
@@ -18,8 +18,8 @@ mod private
     fn clone( &self ) -> Self
     {
       let mut children = Vec::with_capacity( self.children.len() );
-      
-      for child in &self.children 
+
+      for child in &self.children
       {
         children.push( child.borrow().clone_tree() );
       }
@@ -66,11 +66,7 @@ mod private
     pub fn update_world_matrix( &mut self )
     {
       // Initialize an identity matrix for the root nodes' parent world matrix.
-      let mut identity = gl::F32x4x4::default();
-      *identity.scalar_mut( gl::Ix2( 0, 0 ) ) = 1.0;
-      *identity.scalar_mut( gl::Ix2( 1, 1 ) ) = 1.0;
-      *identity.scalar_mut( gl::Ix2( 2, 2 ) ) = 1.0;
-      *identity.scalar_mut( gl::Ix2( 3, 3 ) ) = 1.0;
+      let identity = gl::math::mat4x4::identity();
 
       // Recursively update the world matrix of each root node and its descendants.
       for child in self.children.iter_mut()
