@@ -34,9 +34,9 @@
 #![ allow( clippy::module_name_repetitions ) ]
 
 use mingl::
-{ 
-  AsBytes,  
-  VectorDataType 
+{
+  AsBytes,
+  VectorDataType
 };
 use minwebgl as gl;
 use gl::
@@ -198,13 +198,13 @@ fn upload_framebuffer(
 /// * `offset` - The offset in bytes within the buffer to start uploading data.
 /// * `data` - The `Vec<u8>` containing the data to upload.
 pub fn upload_buffer_data
-( 
-  gl : &gl::WebGl2RenderingContext, 
-  buffer : &WebGlBuffer, 
-  target : u32, 
-  offset : u32, 
-  data : Vec< u8 > 
-) 
+(
+  gl : &gl::WebGl2RenderingContext,
+  buffer : &WebGlBuffer,
+  target : u32,
+  offset : u32,
+  data : Vec< u8 >
+)
 {
   let data = data.into_iter()
   .collect::< Vec< _ > >();
@@ -541,7 +541,8 @@ fn primitives_csgrs_gltf
     images : Rc::new( RefCell::new( vec![] ) ),
     textures : vec![],
     materials : vec![],
-    meshes : vec![]
+    meshes : vec![],
+    animations : vec![],
   };
 
   gltf.scenes.push( Rc::new( RefCell::new( Scene::new() ) ) );
