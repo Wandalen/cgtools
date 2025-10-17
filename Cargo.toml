@@ -207,7 +207,7 @@ version = "0.27.2"
 version = "~0.34.0"
 
 [workspace.dependencies.former]
-version = "~2.30.0"
+version = "~2.31.0"
 
 [workspace.dependencies.error_tools]
 version = "0.22.0"
