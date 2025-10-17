@@ -22,7 +22,7 @@ void main()
 
   uv.x = currentDistance / 800.0;
 
-  vec3 col = vec3( 112.21, 201.45, 94.35 ) / 255.0;
+  vec3 col = vec3( 115.0, 255.0, 100.0 ) / 255.0;
   float stripe = stripes( uv.x  * 10.0 - time );
   frag_color = vec4( col * stripe, stripe * 0.5 );
 }
