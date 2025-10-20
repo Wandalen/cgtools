@@ -63,12 +63,12 @@ fn create_plane( gl : &GL, scene : &Rc< RefCell< Scene > > )
   let gltf = primitives_data_to_gltf( gl, vec![ plane ] );
   if let Some( plane ) = gltf.nodes.first()
   {
-    if let Object3D::Mesh( mesh ) = &plane.borrow().object
-    {
-      mesh.borrow().primitives.first().unwrap().borrow()
-      .material.borrow_mut()
-      .base_color_texture = create_texture( gl, "textures/chessboard.jpg" );
-    };
+    // if let Object3D::Mesh( mesh ) = &plane.borrow().object
+    // {
+    //   mesh.borrow().primitives.first().unwrap().borrow()
+    //   .material.borrow_mut()
+    //   .base_color_texture = create_texture( gl, "textures/chessboard.jpg" );
+    // };
     plane.borrow_mut().set_name( "Plane" );
     scene.borrow_mut().children.push( plane.clone() );
   }
@@ -272,17 +272,12 @@ async fn run() -> Result< (), gl::WebglError >
 
   create_plane( &gl, &scenes[ 0 ] );
 
-  let armature = find_node( &scenes[ 0 ], "Armature" ).unwrap();
+  let character = find_node( &scenes[ 0 ], "Armature" ).unwrap();
   let neck = find_node( &scenes[ 0 ], "Neck" ).unwrap();
   let plane = find_node( &scenes[ 0 ], "Plane" ).unwrap();
 
-  armature.borrow_mut().set_scale( F32x3::splat( 0.1 ) );
-  armature.borrow_mut().set_rotation( QuatF32::from_angle_x( f32::consts::PI / 4.0 ).normalize() );
-
-  let character = Rc::new( RefCell::new( Node::new() ) );
-  character.borrow_mut().add_child( armature.clone() );
-  armature.borrow_mut().set_parent( Some( character.clone() ) );
-  scenes[ 0 ].borrow_mut().children.push( character.clone() );
+  character.borrow_mut().set_scale( F32x3::splat( 0.1 ) );
+  character.borrow_mut().set_rotation( QuatF32::from_angle_x( f32::consts::PI / 4.0 ).normalize() );
 
   plane.borrow_mut().set_scale( F32x3::splat( 100.0 ) );
   plane.borrow_mut().set_rotation( QuatF32::from_angle_x( f32::consts::PI / 2.0 ).normalize() );
@@ -312,7 +307,11 @@ async fn run() -> Result< (), gl::WebglError >
       character_controls.borrow_mut().update( &character_input.borrow(), delta_time );
 
       let mut position = F32x3::from_array( character_controls.borrow().position().map( | v | v as f32 ) );
-      position.0[ 1 ] = 0.0;
+      let rotation = QuatF32::from_angle_x( -3.8_f32.to_radians() );
+      let q_position = QuatF32::from( position.to_homogenous().0 );
+      position = ( rotation * q_position * rotation.conjugate() ).0.truncate();
+      position.0[ 1 ] -= 1.5;
+
       character.borrow_mut().set_translation( position );
 
       scenes[ 0 ].borrow_mut().update_world_matrix();
