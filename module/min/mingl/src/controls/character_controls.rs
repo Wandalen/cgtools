@@ -66,21 +66,27 @@ mod private
       self.pitch
     }
 
+    /// Returns the forward direction vector based on current rotation in XZ plane.
+    pub fn forward_xz( &self ) -> F64x3
+    {
+      let forward = QuatF64::from( [ 0.0, 0.0, 1.0, 0.0 ] );
+      let quat_yaw = QuatF64::from_angle_y( self.yaw ).normalize();
+      ( quat_yaw * forward * quat_yaw.conjugate() ).0.truncate()
+    }
+
+    /// Returns the right direction vector based on current rotation in XZ plane.
+    pub fn right_xz( &self ) -> F64x3
+    {
+      let right = QuatF64::from( [ -1.0, 0.0, 0.0, 0.0 ] );
+      let quat_yaw = QuatF64::from_angle_y( self.yaw ).normalize();
+      ( quat_yaw * right * quat_yaw.conjugate() ).0.truncate()
+    }
+
     /// Returns the forward direction vector based on current rotation.
     ///
     /// This is the direction the character is facing.
     pub fn forward( &self ) -> F64x3
     {
-      // let [ x, y, z, w ] = self.rotation.to_array();
-      // F64x3::from_array
-      // (
-      // [
-      //     2.0 * ( x * z + w * y ),
-      //     2.0 * ( y * z - w * x ),
-      //     1.0 - 2.0 * ( x * x + y * y )
-      //   ]
-      // )
-
       let forward = QuatF64::from( [ 0.0, 0.0, 1.0, 0.0 ] );
       ( self.rotation * forward * self.rotation.conjugate() ).0.truncate()
     }
@@ -90,16 +96,6 @@ mod private
     /// This is perpendicular to the forward direction, used for strafing.
     pub fn right( &self ) -> F64x3
     {
-      // let [ x, y, z, w ] = self.rotation.to_array();
-      // F64x3::from_array
-      // (
-      // [
-      //     2.0 * ( y * y + z * z ) - 1.0,
-      //     - 2.0 * ( x * y + w * z ),
-      //     - 2.0 * ( x * z - w * y )
-      //   ]
-      // )
-
       let right = QuatF64::from( [ -1.0, 0.0, 0.0, 0.0 ] );
       ( self.rotation * right * self.rotation.conjugate() ).0.truncate()
     }
@@ -107,16 +103,6 @@ mod private
     /// Returns the up direction vector based on current rotation.
     pub fn up( &self ) -> F64x3
     {
-      // let [ x, y, z, w ] = self.rotation.to_array();
-      // F64x3::from_array
-      // (
-      // [
-      //     2.0 * ( x * y - w * z ),
-      //     1.0 - 2.0 * ( x * x + z * z ),
-      //     2.0 * ( y * z + w * x )
-      //   ]
-      // )
-
       let up = QuatF64::from( [ 0.0, 1.0, 0.0, 0.0 ] );
       ( self.rotation * up * self.rotation.conjugate() ).0.truncate()
     }
@@ -157,22 +143,22 @@ mod private
       // Calculate movement direction based on input
       if input.move_forward
       {
-        let forward = self.forward();
+        let forward = self.forward_xz();
         movement += forward;
       }
       if input.move_backward
       {
-        let forward = self.forward();
+        let forward = self.forward_xz();
         movement -= forward;
       }
       if input.move_left
       {
-        let right = self.right();
+        let right = self.right_xz();
         movement -= right;
       }
       if input.move_right
       {
-        let right = self.right();
+        let right = self.right_xz();
         movement += right;
       }
 
