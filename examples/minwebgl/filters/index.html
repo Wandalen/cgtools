@@ -12,24 +12,54 @@
       display: flex;
       height: 100vh;
       margin: 0;
-      font-family: Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+      background-color: #f8f9fa;
     }
 
     .sidebar {
-      width: 150px;
-      background-color: #f4f4f4;
-      padding: 10px;
+      width: 200px;
+      /* A bit wider */
+      background-color: #e9ecef;
+      padding: 20px;
       overflow-y: auto;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
+      -ms-overflow-style: none;  /* IE and Edge */
+      scrollbar-width: none;  /* Firefox */
+    }
+
+    .sidebar::-webkit-scrollbar {
+      display: none; /* Chrome, Safari, Opera */
+    }
+
+    .sidebar h3 {
+      text-align: center;
+      color: #495057;
+      margin-bottom: 20px;
     }
 
     .sidebar button {
       display: block;
       width: 100%;
-      padding: 10px;
-      margin-bottom: 5px;
-      background-color: #f0f0f0;
-      border: 1px solid #ccc;
+      padding: 8px 12px;
+      margin-bottom: 6px;
+      background-color: #6c757d;
+      color: white;
+      border: none;
+      border-radius: 5px;
       cursor: pointer;
+      text-align: left;
+      font-size: 12px;
+      transition: background-color 0.2s ease-in-out, transform 0.1s ease;
+    }
+
+    .sidebar button:hover {
+      background-color: #5a6268;
+      transform: translateY(-1px);
+    }
+
+    .sidebar button:active {
+      background-color: #495057;
+      transform: translateY(0);
     }
 
     .canvas-container {
@@ -38,6 +68,14 @@
       flex-direction: column;
       justify-content: center;
       align-items: center;
+      padding: 20px;
+    }
+
+    #canvas {
+      max-width: 100%;
+      max-height: 100%;
+      border-radius: 8px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
     }
   </style>
 
