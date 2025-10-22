@@ -71,7 +71,10 @@ async fn run() -> Result< (), gl::WebglError >
   // Vertex and fragment shaders
   let vertex_shader_src = include_str!( "../shaders/shader.vert" );
   let fragment_shader_src = include_str!( "../shaders/shader.frag" );
+  let background_vertex_shader_src = include_str!( "../shaders/background.vert" );
+  let background_fragment_shader_src = include_str!( "../shaders/background.frag" );
   let program = gl::ProgramFromSources::new( vertex_shader_src, fragment_shader_src ).compile_and_link( &gl )?;
+  let background_program = gl::ProgramFromSources::new( background_vertex_shader_src, background_fragment_shader_src ).compile_and_link( &gl )?;
   gl.use_program( Some( &program ) );
 
   // Load textures
@@ -138,6 +141,8 @@ async fn run() -> Result< (), gl::WebglError >
   let color_absorption_location = gl.get_uniform_location( &program, "colorAbsorption" );
   let camera_position_location = gl.get_uniform_location( &program, "cameraPosition" );
 
+  let background_view_matrix_location = gl.get_uniform_location( &background_program, "viewMatrix" );
+
   let env_map_location = 0;
   let cube_normal_map_location = 1;
 
@@ -181,10 +186,14 @@ async fn run() -> Result< (), gl::WebglError >
   gl.uniform1i( gl.get_uniform_location( &program, "envMap" ).as_ref(), env_map_location );
   gl.uniform1i( gl.get_uniform_location( &program, "cubeNormalMap" ).as_ref(), cube_normal_map_location );
 
+  gl.use_program( Some( &background_program ) );
+  gl.uniform1i( gl.get_uniform_location( &background_program, "envMap" ).as_ref(), env_map_location );
+
   upload_cube_texture( &gl, &env_map, env_map_location as u32 );
   upload_cube_texture( &gl, &cube_normal_map, cube_normal_map_location as u32 );
 
   gl.enable( gl::DEPTH_TEST );
+  gl.depth_func( gl::LEQUAL );
 
   // Define the update and draw logic
   let update_and_draw =
@@ -200,6 +209,12 @@ async fn run() -> Result< (), gl::WebglError >
       let view_matrix = gl::math::mat3x3h::look_at_rh( eye, gl::F32x3::ZERO, up );
       let inverse_model_matrix = model_matrix.inverse().unwrap();
 
+      gl.use_program( Some( &background_program ) );
+      gl::uniform::matrix_upload( &gl, background_view_matrix_location.clone(), &view_matrix.to_array(), true ).unwrap();
+
+      gl.draw_arrays( gl::TRIANGLES, 0, 3 );
+
+      gl.use_program( Some( &program ) );
       gl::uniform::upload( &gl, camera_position_location.clone(), &eye.to_array()[ .. ] ).unwrap();
 
       gl::uniform::matrix_upload( &gl, model_matrix_location.clone(), &model_matrix.to_array(), true ).unwrap();
