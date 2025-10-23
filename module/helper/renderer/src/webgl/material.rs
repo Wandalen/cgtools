@@ -1,7 +1,7 @@
 mod private
 {
   use mingl::Former;
-use minwebgl as gl;
+  use minwebgl as gl;
   use crate::webgl::Texture;
   use std:: { cell::RefCell, collections::HashMap, rc::Rc };
 
@@ -19,7 +19,7 @@ use minwebgl as gl;
   }
 
   /// Stores information about a texture used by the material, including the texture itself and its UV coordinates.
-  /// 
+  ///
   /// You may have several attibutes for the UV coordinates in the shader:
   /// `
   /// layout( location = 0 ) in vec2 uv_0;
@@ -35,7 +35,7 @@ use minwebgl as gl;
     pub uv_position : u32
   }
 
-  impl TextureInfo 
+  impl TextureInfo
   {
     /// Uploads the texture data to the GPU.
     pub fn upload( &self, gl : &gl::WebGl2RenderingContext )
@@ -244,48 +244,48 @@ use minwebgl as gl;
       };
 
       // Base color texture related
-      if use_base_color_texture 
-      { 
-        add_texture( &mut defines, "USE_BASE_COLOR_TEXTURE", "vBaseColorUv", self.base_color_texture.as_ref() ); 
+      if use_base_color_texture
+      {
+        add_texture( &mut defines, "USE_BASE_COLOR_TEXTURE", "vBaseColorUv", self.base_color_texture.as_ref() );
       }
 
       // Metallic roughness texture related
-      if use_metallic_roughness_texture 
-      { 
-        add_texture( &mut defines, "USE_MR_TEXTURE", "vMRUv", self.metallic_roughness_texture.as_ref() ); 
+      if use_metallic_roughness_texture
+      {
+        add_texture( &mut defines, "USE_MR_TEXTURE", "vMRUv", self.metallic_roughness_texture.as_ref() );
       }
 
       // Emission texture related
-      if use_emissive_texture 
-      { 
-        add_texture( &mut defines, "USE_EMISSION_TEXTURE", "vEmissionUv", self.emissive_texture.as_ref() ); 
+      if use_emissive_texture
+      {
+        add_texture( &mut defines, "USE_EMISSION_TEXTURE", "vEmissionUv", self.emissive_texture.as_ref() );
       }
 
       // KHR_Materials_Specular extension related
-      if use_khr_materials_specular 
-      { 
+      if use_khr_materials_specular
+      {
         defines.push_str( "#define USE_KHR_materials_specular\n" );
-        if use_specular_texture 
+        if use_specular_texture
         {
-          add_texture( &mut defines, "USE_SPECULAR_TEXTURE", "vSpecularUv", self.specular_texture.as_ref() ); 
+          add_texture( &mut defines, "USE_SPECULAR_TEXTURE", "vSpecularUv", self.specular_texture.as_ref() );
         }
 
-        if use_specular_color_texture 
+        if use_specular_color_texture
         {
-          add_texture( &mut defines, "USE_SPECULAR_COLOR_TEXTURE", "vSpecularColorUv", self.specular_color_texture.as_ref() ); 
+          add_texture( &mut defines, "USE_SPECULAR_COLOR_TEXTURE", "vSpecularColorUv", self.specular_color_texture.as_ref() );
         }
       }
 
       // Normal texture related
-      if use_normal_texture 
-      { 
-        add_texture( &mut defines, "USE_NORMAL_TEXTURE", "vNormalUv", self.normal_texture.as_ref() ); 
+      if use_normal_texture
+      {
+        add_texture( &mut defines, "USE_NORMAL_TEXTURE", "vNormalUv", self.normal_texture.as_ref() );
       }
 
       // Occlusion texture related
-      if use_occlusion_texture 
-      { 
-        add_texture( &mut defines, "USE_OCCLUSION_TEXTURE", "vOcclusionUv", self.occlusion_texture.as_ref() ); 
+      if use_occlusion_texture
+      {
+        add_texture( &mut defines, "USE_OCCLUSION_TEXTURE", "vOcclusionUv", self.occlusion_texture.as_ref() );
       }
 
       if use_alpha_cutoff

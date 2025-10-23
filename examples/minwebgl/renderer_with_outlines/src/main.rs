@@ -26,12 +26,15 @@
 
 use std::collections::HashMap;
 use mingl::F32x4;
-use minwebgl::
+use minwebgl as gl;
+
+use gl::
 {
-  self as gl,
+  GL,
   JsCast,
   web_sys::
   {
+    WebGlTexture,
     HtmlElement,
     HtmlSelectElement,
     HtmlSpanElement,
@@ -47,6 +50,15 @@ use renderer::webgl::
   geometry::AttributeInfo,
   Camera,
   Renderer,
+  Node,
+  Material,
+  TextureInfo,
+  Texture,
+  Sampler,
+  Object3D,
+  WrappingMode,
+  MagFilterMode,
+  MinFilterMode,
   post_processing::
   {
     self,
@@ -62,9 +74,126 @@ use renderer::webgl::
 use std::rc::Rc;
 use std::cell::RefCell;
 
+/// Uploads an image from a URL to a WebGL texture.
+///
+/// This function creates a new `WebGlTexture` and asynchronously loads an image from the provided URL into it.
+/// It uses a `Closure` to handle the `onload` event of an `HtmlImageElement`, ensuring the texture is
+/// uploaded only after the image has finished loading.
+///
+/// # Arguments
+///
+/// * `gl` - The WebGl2RenderingContext.
+/// * `src` - A reference-counted string containing the URL of the image to load.
+///
+/// # Returns
+///
+/// A `WebGlTexture` object.
+fn upload_texture( gl : &GL, src : &str ) -> WebGlTexture
+{
+  let window = web_sys::window().expect( "Can't get window" );
+  let document =  window.document().expect( "Can't get document" );
+
+  let texture = gl.create_texture().expect( "Failed to create a texture" );
+
+  let img_element = document.create_element( "img" )
+  .expect( "Can't create img" )
+  .dyn_into::< gl::web_sys::HtmlImageElement >()
+  .expect( "Can't convert to gl::web_sys::HtmlImageElement" );
+  img_element.style().set_property( "display", "none" ).expect( "Can't set property" );
+  let load_texture : Closure< dyn Fn() > = Closure::new
+  (
+    {
+      let gl = gl.clone();
+      let img = img_element.clone();
+      let texture = texture.clone();
+      move ||
+      {
+        gl::texture::d2::upload_no_flip( &gl, Some( &texture ), &img );
+        gl.generate_mipmap( gl::TEXTURE_2D );
+        img.remove();
+      }
+    }
+  );
+
+  img_element.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
+  img_element.set_src( &src );
+  load_texture.forget();
+
+  texture
+}
+
+/// Creates a new `TextureInfo` struct with a texture loaded from a file.
+///
+/// This function calls `upload_texture` to load an image, sets up a default `Sampler`
+/// with linear filtering and repeat wrapping, and then combines them into a `TextureInfo`
+/// struct.
+///
+/// # Arguments
+///
+/// * `gl` - The WebGl2RenderingContext.
+/// * `image_path` - The path to the image file, relative to the `static/` directory.
+///
+/// # Returns
+///
+/// An `Option<TextureInfo>` containing the texture data, or `None` if creation fails.
+fn create_texture
+(
+  gl : &GL,
+  image_path : &str
+) -> Option< TextureInfo >
+{
+  let image_path = format!( "static/{image_path}" );
+  let texture_id = upload_texture( gl, image_path.as_str() );
+
+  let sampler = Sampler::former()
+  .min_filter( MinFilterMode::Linear )
+  .mag_filter( MagFilterMode::Linear )
+  .wrap_s( WrappingMode::Repeat )
+  .wrap_t( WrappingMode::Repeat )
+  .end();
+
+  let texture = Texture::former()
+  .target( GL::TEXTURE_2D )
+  .source( texture_id )
+  .sampler( sampler )
+  .end();
+
+  let texture_info = TextureInfo
+  {
+    texture : Rc::new( RefCell::new( texture ) ),
+    uv_position : 0,
+  };
+
+  Some( texture_info )
+}
+
+/// Sets the textures for a `Node` and its primitives using a material callback.
+///
+/// This function iterates through all primitives of a given `Node` (if it's a `Mesh`),
+/// and applies a provided callback function to each primitive's material.
+///
+/// # Arguments
+///
+/// * `node` - A reference to the `Rc<RefCell<Node>>` to modify.
+/// * `material_callback` - A closure that takes a mutable reference to a `Material` and modifies it.
+fn set_texture
+(
+  node : &Rc< RefCell< Node > >,
+  mut material_callback : impl FnMut( &mut Material )
+)
+{
+  if let Object3D::Mesh( ref mesh ) = &node.borrow().object
+  {
+    for p in &mesh.borrow().primitives
+    {
+      material_callback( &mut p.borrow().material.borrow_mut() );
+    }
+  }
+}
+
 fn generate_object_colors( object_count : u32 ) -> Vec< F32x4 >
 {
-  let mut rng = rand::rng();
+  let mut rng = rand::thread_rng();
 
   let range = 0.2..1.0;
   let object_colors = ( 0..object_count )
@@ -75,11 +204,17 @@ fn generate_object_colors( object_count : u32 ) -> Vec< F32x4 >
       F32x4::from_array
       (
         [
-          rng.random_range( range.clone() ),
-          rng.random_range( range.clone() ),
-          rng.random_range( range.clone() ),
+          1.0,
+          0.0,
+          0.0,
           1.0
         ]
+        // [
+        //   rng.gen_range( range.clone() ),
+        //   rng.gen_range( range.clone() ),
+        //   rng.gen_range( range.clone() ),
+        //   1.0
+        // ]
       )
     }
   )
@@ -129,6 +264,48 @@ fn get_html_input_element_by_id( id : &str ) -> HtmlInputElement
   .unwrap()
 }
 
+/// Sets up the main 3D scene by loading a GLTF file and configuring objects.
+///
+/// # Arguments
+///
+/// * `gl` - The `WebGl2RenderingContext`.
+///
+/// # Returns
+///
+/// A `Result` containing the configured `GLTF` scene, or a `gl::WebglError` if loading fails.
+async fn setup_scene( gl : &GL ) -> Result< GLTF, gl::WebglError >
+{
+  let window = web_sys::window().expect( "Can't get window" );
+  let document =  window.document().expect( "Can't get document" );
+
+  let gltf_path = "2017_porsche_911_turbo_s_exclusive_series_991.2.glb";
+  let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
+
+  let car = gltf.scenes[ 0 ].borrow().children.get( 0 )
+  .expect( "Scene is empty" ).clone();
+  let scale = 10.0;
+  car.borrow_mut().set_translation( [ 0.0, 1.0, 0.0 ] );
+  car.borrow_mut().set_scale( [ scale; 3 ] );
+  car.borrow_mut().update_local_matrix();
+
+  let environment_gltf = renderer::webgl::loaders::gltf::load( &document, "gltf/sphere.glb", &gl ).await?;
+  let environment = environment_gltf.scenes[ 0 ].borrow().children.get( 1 )
+  .expect( "Scene is empty" ).clone();
+
+  let texture = create_texture( &gl, "environment_maps/equirectangular_maps/field2.jpg" );
+  set_texture( &environment, | m | { m.base_color_texture = texture.clone(); } );
+  let scale = 100000.0;
+  environment.borrow_mut().set_translation( [ 0.0, 1.0 - scale, 0.0 ] );
+  environment.borrow_mut().set_scale( [ scale; 3 ] );
+  environment.borrow_mut().update_local_matrix();
+
+  gltf.scenes[ 0 ].borrow_mut().children.push( environment );
+
+  gltf.scenes[ 0 ].borrow_mut().update_world_matrix();
+
+  Ok( gltf )
+}
+
 async fn run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
@@ -136,8 +313,6 @@ async fn run() -> Result< (), gl::WebglError >
 
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas_with( &canvas, options )?;
-  let window = gl::web_sys::window().unwrap();
-  let document = window.document().unwrap();
 
   let _ = gl.get_extension( "EXT_color_buffer_float" )
   .expect( "Failed to enable EXT_color_buffer_float extension" );
@@ -148,33 +323,21 @@ async fn run() -> Result< (), gl::WebglError >
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
 
-  let gltf_path = "old_rusty_car.glb";
-  let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
+  let gltf = setup_scene( &gl ).await.unwrap();
   let scenes = gltf.scenes.clone();
-  scenes[ 0 ].borrow_mut().update_world_matrix();
 
   let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
   gl::info!( "Scene boudnig box: {:?}", scene_bounding_box );
-  let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
-  let dist = scene_bounding_box.max.mag();
-  let exponent =
-  {
-    let bits = diagonal.to_bits();
-    let exponent_field = ( ( bits >> 23 ) & 0xFF ) as i32;
-    exponent_field - 127
-  };
-  gl::info!( "Exponent: {:?}", exponent );
 
   // Camera setup
   let mut eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
-  eye *= dist;
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
   let center = scene_bounding_box.center();
 
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
-  let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 );
-  let far = near * 100.0f32.powi( exponent.abs() );
+  let near = 0.01;
+  let far = 1000000.0;
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
   camera.set_window_size( [ width, height ].into() );
@@ -187,6 +350,7 @@ async fn run() -> Result< (), gl::WebglError >
       Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?
     )
   );
+  renderer.borrow_mut().set_ibl( renderer::webgl::loaders::ibl::load( &gl, "environment_maps/gltf_viewer_ibl_unreal/" ).await );
   let renderer1 = renderer.clone();
 
   let attributes = get_attributes( &gltf )?;
