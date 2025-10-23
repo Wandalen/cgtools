@@ -95,6 +95,10 @@ adapter-svg = [
   "adapter-svg-colors",
   "adapter-svg-fonts",
   "adapter-svg-paths",
+  "commands",
+  "ports",
+  "dep:base64",
+  "dep:serde",
 ]
 
 adapter-svg-browser-dom = ["adapter-svg", "wasm-bindgen"]
@@ -106,15 +110,14 @@ adapter-svg-browser = [
   "adapter-svg-browser-animation",
 ]
 
-adapter-webgl-context = ["enabled", "ports", "wasm-bindgen"]
-adapter-webgl-shaders = ["adapter-webgl-context"]
-adapter-webgl-buffers = ["adapter-webgl-context"]
-adapter-webgl-textures = ["adapter-webgl-context"]
 adapter-webgl = [
-  "adapter-webgl-context",
-  "adapter-webgl-shaders",
-  "adapter-webgl-buffers",
-  "adapter-webgl-textures",
+  "enabled",
+  "ports",
+  "wasm-bindgen",
+  "commands",
+  "serde",
+  "dep:web-sys",
+  "dep:minwebgl",
 ]
 
 adapter-webgpu-device = [
@@ -261,12 +264,17 @@ mod_interface = { workspace = true }
 unilang = { workspace = true, optional = true, features = ["enhanced_repl"] }
 rustyline = { workspace = true, optional = true }
 # Future backend dependencies (will be added when backends are implemented)
-# minwebgl = { path = "../minwebgl", optional = true }
 minwebgpu = { workspace = true, optional = true }
 minwgpu = { workspace = true, optional = true }
+minwebgl = { workspace = true, optional = true }
+web-sys = { workspace = true, optional = true, features = [
+  "WebGlTexture",
+  "WebGlVertexArrayObject",
+] }
 wgpu = { workspace = true, optional = true }
 bytemuck = { workspace = true, optional = true, features = ["derive"] }
 rustc-hash = { workspace = true }
+base64 = { workspace = true, optional = true }
 
 [dev-dependencies]
 test_tools = { workspace = true }
@@ -292,10 +300,6 @@ required-features = ["testing"]
 
 [[test]]
 name = "terminal_adapter_test"
-required-features = ["testing"]
-
-[[test]]
-name = "webgl_adapter_test"
 required-features = ["testing"]
 
 [[test]]
@@ -348,10 +352,6 @@ required-features = ["testing"]
 
 [[example]]
 name = "terminal_simple_demo"
-required-features = ["testing"]
-
-[[example]]
-name = "webgl_demo"
 required-features = ["testing"]
 
 [[example]]
