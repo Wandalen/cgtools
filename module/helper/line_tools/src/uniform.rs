@@ -199,7 +199,7 @@ mod private
     /// clear
     pub fn clear_uniforms( &mut self )
     {
-      self.locations.clear();
+      self.uniforms.clear();
     }
 
     /// Clear the locations cache
