@@ -32,6 +32,18 @@ impl< E, const N : usize > ArrayRef< E, N > for [ E ]
   }
 }
 
+impl< E, const N : usize > ArrayRef< E, N > for &[ E ]
+{
+  #[ inline( always ) ]
+  fn array_ref( &self ) -> &[ E ; N ]
+  {
+    assert!( ( *self ).len() >= N, "Slice must have at least {} element", N );
+    // SAFETY: This is safe if the slice has at least 1 element.
+    #[ allow( unsafe_code ) ]
+    unsafe { &*( ( *self ).as_ptr() as *const [ E ; N ] ) }
+  }
+}
+
 impl< E, const N : usize > ArrayMut< E, N > for [ E ]
 {
   #[ inline( always ) ]
