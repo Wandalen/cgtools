@@ -28,6 +28,7 @@ use renderer::webgl::
   Camera,
   Renderer
 };
+use animation::Sequencer;
 
 mod lil_gui;
 mod gui_setup;
@@ -119,13 +120,9 @@ async fn run() -> Result< (), gl::WebglError >
         let delta_time = time - *last_time.borrow();
         *last_time.borrow_mut() = time;
 
-        if current_animation.borrow().animation.borrow().as_any()
-        .downcast_ref::< Sequencer >().unwrap().is_completed()
+        if current_animation.borrow().inner_get::< Sequencer >().unwrap().is_completed()
         {
-          current_animation.borrow().animation
-          .borrow_mut()
-          .as_any_mut()
-          .downcast_mut::< Sequencer >()
+          current_animation.borrow_mut().inner_get_mut::< Sequencer >()
           .unwrap()
           .reset();
         }
