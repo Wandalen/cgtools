@@ -6,7 +6,7 @@ This demo showcases advanced skeletal animation control in WebGL2, allowing real
 
 Animation amplitude control is essential for procedural animation blending, character behavior customization, and adaptive animation systems in games. This example provides a complete implementation of per-bone-group amplitude scaling through quaternion interpolation, enabling developers to create more expressive character animations by emphasizing or dampening specific body movements while maintaining smooth animation playback.
 
-![Showcase](./showcase.png)
+![Showcase](./showcase.gif)
 
 **[How to run](../how_to_run.md)**
 
