@@ -6,74 +6,124 @@ use filters::*;
 use web_sys::
 {
   wasm_bindgen,
-  HtmlButtonElement,
+  HtmlElement,
 };
 use wasm_bindgen::{ prelude::*, JsCast };
 use std::{ cell::RefCell, rc::Rc } ;
 use serde::de::DeserializeOwned;
 
-pub fn setup_ui( filter_renderer : &Rc< RefCell< Renderer > > )
+fn show_apply_cancel_buttons()
 {
+  if let Some( apply_btn ) = web_sys::window()
+    .and_then( | w | w.document() )
+    .and_then( | d | d.get_element_by_id( "apply-btn" ) )
+  {
+    let _ = apply_btn.class_list().add_1( "visible" );
+  }
+  if let Some( cancel_btn ) = web_sys::window()
+    .and_then( | w | w.document() )
+    .and_then( | d | d.get_element_by_id( "cancel-btn" ) )
+  {
+    let _ = cancel_btn.class_list().add_1( "visible" );
+  }
+}
+
+pub fn hide_apply_cancel_buttons()
+{
+  if let Some( apply_btn ) = web_sys::window()
+    .and_then( | w | w.document() )
+    .and_then( | d | d.get_element_by_id( "apply-btn" ) )
+  {
+    let _ = apply_btn.class_list().remove_1( "visible" );
+  }
+  if let Some( cancel_btn ) = web_sys::window()
+    .and_then( | w | w.document() )
+    .and_then( | d | d.get_element_by_id( "cancel-btn" ) )
+  {
+    let _ = cancel_btn.class_list().remove_1( "visible" );
+  }
+}
+
+pub fn setup_ui( filter_renderer : &Rc< RefCell< Renderer > > ) -> Rc< RefCell< String > >
+{
+  let current_filter = Rc::new( RefCell::new( String::from( "none" ) ) );
   let gui = lil_gui::new_gui();
   generate_filter_buttons( &gui );
-  setup_filters_without_gui( filter_renderer );
-  setup_filters_with_gui( &gui, filter_renderer );
+  setup_filters_without_gui( filter_renderer, &current_filter );
+  setup_filters_with_gui( &gui, filter_renderer, &current_filter );
 
-  // Here's called click on original filter button
-  // It is needed to trigger function that
-  // setups proper control panel visibilty for current filter
-  get_element_by_id_unchecked::< HtmlButtonElement >( "original" ).click();
+  // Hide all GUI folders initially
+  show_only( "", &gui );
+
+  current_filter
 }
 
 fn generate_filter_buttons( gui : &JsValue )
 {
-  let buttons =
+  let filters =
   [
-    // id,                title of control to show,       text
-    ( "original",         "",                             "Original"),
-    ( "box-blur",         "Box Blur",                     "Box Blur" ),
-    ( "gaussian-blur",    "Gaussian Blur",                "Gaussian Blur" ),
-    ( "stack-blur",       "Stack Blur",                   "Stack Blur" ),
-    ( "binarize",         "Binarize",                     "Binarize" ),
-    ( "bcgimp",           "BrightnessContrast GIMP",      "Brightness Contrast GIMP" ),
-    ( "bcph",             "BrightnessContrast Photoshop", "Brightness Contrast Photoshop" ),
-    ( "channels",         "Channels",                     "Channels" ),
-    ( "color-transform",  "Color Transform",              "Color Transform" ),
-    ( "desaturate",       "",                             "Desaturate" ),
-    ( "dither",           "Dithering",                    "Dither" ),
-    ( "edge",             "",                             "Edge" ),
-    ( "emboss",           "",                             "Emboss" ),
-    ( "enrich",           "",                             "Enrich" ),
-    ( "flip",             "Flip",                         "Flip" ),
-    ( "gamma",            "Gamma",                        "Gamma" ),
-    ( "grayscale",        "",                             "Grayscale" ),
-    ( "hsl-adjust",       "HSL Adjust",                   "HSL Adjust" ),
-    ( "invert",           "",                             "Invert" ),
-    ( "mosaic",           "Mosaic",                       "Mosaic" ),
-    ( "oil",              "Oil",                          "Oil" ),
-    ( "posterize",        "Posterize",                    "Posterize" ),
-    ( "rescale",          "Rescale",                      "Rescale" ),
-    ( "resize-nn",        "Resize (Nearest)",             "Resize (Nearest Neighbor)" ),
-    ( "resize-bilinear",  "Resize (Bilinear)",            "Resize (Bilinear)" ),
-    ( "sepia",            "",                             "Sepia" ),
-    ( "sharpen",          "Sharpen",                      "Sharpen" ),
-    ( "solarize",         "",                             "Solarize" ),
-    ( "transpose",        "",                             "Transpose" ),
-    ( "twirl",            "Twirl",                        "Twirl" ),
+    // id,                title of control to show,       display name,                     icon
+    ( "box-blur",         "Box Blur",                     "Box Blur",                        "🔲" ),
+    ( "gaussian-blur",    "Gaussian Blur",                "Gaussian Blur",                   "🌫️" ),
+    ( "stack-blur",       "Stack Blur",                   "Stack Blur",                      "📚" ),
+    ( "binarize",         "Binarize",                     "Binarize",                        "⚫" ),
+    ( "bcgimp",           "BrightnessContrast GIMP",      "Brightness (GIMP)",               "☀️" ),
+    ( "bcph",             "BrightnessContrast Photoshop", "Brightness (PS)",                 "💡" ),
+    ( "channels",         "Channels",                     "Channels",                        "🎨" ),
+    ( "color-transform",  "Color Transform",              "Color Transform",                 "🌈" ),
+    ( "desaturate",       "",                             "Desaturate",                      "⚪" ),
+    ( "dither",           "Dithering",                    "Dither",                          "🎲" ),
+    ( "edge",             "",                             "Edge Detect",                     "📐" ),
+    ( "emboss",           "",                             "Emboss",                          "🔨" ),
+    ( "enrich",           "",                             "Enrich",                          "✨" ),
+    ( "flip",             "Flip",                         "Flip",                            "🔄" ),
+    ( "gamma",            "Gamma",                        "Gamma",                           "⚡" ),
+    ( "grayscale",        "",                             "Grayscale",                       "⬜" ),
+    ( "hsl-adjust",       "HSL Adjust",                   "HSL Adjust",                      "🎚️" ),
+    ( "invert",           "",                             "Invert",                          "🔁" ),
+    ( "mosaic",           "Mosaic",                       "Mosaic",                          "🔷" ),
+    ( "oil",              "Oil",                          "Oil Paint",                       "🖌️" ),
+    ( "posterize",        "Posterize",                    "Posterize",                       "🎭" ),
+    ( "rescale",          "Rescale",                      "Rescale",                         "📏" ),
+    ( "resize-nn",        "Resize (Nearest)",             "Resize (NN)",                     "🔍" ),
+    ( "resize-bilinear",  "Resize (Bilinear)",            "Resize (Bilinear)",               "🔎" ),
+    ( "sepia",            "",                             "Sepia",                           "📷" ),
+    ( "sharpen",          "Sharpen",                      "Sharpen",                         "🔪" ),
+    ( "solarize",         "",                             "Solarize",                        "☀️" ),
+    ( "transpose",        "",                             "Transpose",                       "🔀" ),
+    ( "twirl",            "Twirl",                        "Twirl",                           "🌀" ),
   ];
 
   let document = web_sys::window().unwrap().document().unwrap();
-  let buttons_container = document.get_element_by_id( "buttons" ).unwrap();
-  for ( id, control_title, text ) in buttons
+  let grid_container = document.get_element_by_id( "filters-grid" ).unwrap();
+
+  for ( id, control_title, name, icon ) in filters
   {
-    let btn = document.create_element( "button" ).unwrap().dyn_into::< HtmlButtonElement >().unwrap();
-    btn.set_id( id );
-    btn.set_text_content( Some( text ) );
+    // Create filter card
+    let card = document.create_element( "div" ).unwrap();
+    card.set_class_name( "filter-card" );
+    card.set_id( id );
+
+    // Create thumbnail
+    let thumbnail = document.create_element( "div" ).unwrap();
+    thumbnail.set_class_name( "filter-thumbnail" );
+    thumbnail.set_text_content( Some( icon ) );
+
+    // Create name label
+    let label = document.create_element( "div" ).unwrap();
+    label.set_class_name( "filter-name" );
+    label.set_text_content( Some( name ) );
+
+    // Assemble card
+    card.append_child( &thumbnail ).unwrap();
+    card.append_child( &label ).unwrap();
+    grid_container.append_child( &card ).unwrap();
+
+    // Add click handler to show/hide GUI controls
     let gui = gui.clone();
-    let onclik : Closure< dyn Fn() > = Closure::new( move || show_only( control_title, &gui ) );
-    btn.add_event_listener_with_callback( "click", onclik.as_ref().unchecked_ref() ).unwrap();
-    buttons_container.append_child( &btn ).unwrap();
-    onclik.forget();
+    let onclick : Closure< dyn Fn() > = Closure::new( move || show_only( control_title, &gui ) );
+    card.add_event_listener_with_callback( "click", onclick.as_ref().unchecked_ref() ).unwrap();
+    onclick.forget();
   }
 }
 
@@ -93,34 +143,33 @@ fn show_only( target : &str, gui : &JsValue )
   }
 }
 
-fn setup_filters_without_gui( filter_renderer : &Rc< RefCell< Renderer > > )
+fn setup_filters_without_gui( filter_renderer : &Rc< RefCell< Renderer > >, current_filter : &Rc< RefCell< String > > )
 {
-  // These are buttons ids and their respective filters
+  // These are filter card ids and their respective filters
   // It's done for filters that don't contain any parameters
-  let buttons =
+  let filters =
   [
-    ( "original",    make_closure_with_filter( filter_renderer, original::Original ) ),
-    ( "desaturate",  make_closure_with_filter( filter_renderer, desaturate::Desaturate ) ),
-    ( "edge",        make_closure_with_filter( filter_renderer, edge::Edge ) ),
-    ( "emboss",      make_closure_with_filter( filter_renderer, emboss::Emboss ) ),
-    ( "enrich",      make_closure_with_filter( filter_renderer, enrich::Enrich ) ),
-    ( "grayscale",   make_closure_with_filter( filter_renderer, gray_scale::GrayScale ) ),
-    ( "invert",      make_closure_with_filter( filter_renderer, invert::Invert ) ),
-    ( "sepia",       make_closure_with_filter( filter_renderer, sepia::Sepia ) ),
-    ( "solarize",    make_closure_with_filter( filter_renderer, solarize::Solarize ) ),
-    ( "transpose",   make_closure_with_filter( filter_renderer, transpose::Transpose ) ),
+    ( "desaturate",  make_closure_with_filter_tracking( filter_renderer, desaturate::Desaturate, "desaturate", current_filter ) ),
+    ( "edge",        make_closure_with_filter_tracking( filter_renderer, edge::Edge, "edge", current_filter ) ),
+    ( "emboss",      make_closure_with_filter_tracking( filter_renderer, emboss::Emboss, "emboss", current_filter ) ),
+    ( "enrich",      make_closure_with_filter_tracking( filter_renderer, enrich::Enrich, "enrich", current_filter ) ),
+    ( "grayscale",   make_closure_with_filter_tracking( filter_renderer, gray_scale::GrayScale, "grayscale", current_filter ) ),
+    ( "invert",      make_closure_with_filter_tracking( filter_renderer, invert::Invert, "invert", current_filter ) ),
+    ( "sepia",       make_closure_with_filter_tracking( filter_renderer, sepia::Sepia, "sepia", current_filter ) ),
+    ( "solarize",    make_closure_with_filter_tracking( filter_renderer, solarize::Solarize, "solarize", current_filter ) ),
+    ( "transpose",   make_closure_with_filter_tracking( filter_renderer, transpose::Transpose, "transpose", current_filter ) ),
   ];
 
-  // Basically sets draw call on button click with respective filter
-  for ( button_id, closure ) in buttons
+  // Basically sets draw call on card click with respective filter
+  for ( card_id, closure ) in filters
   {
-    let button = get_element_by_id_unchecked::< HtmlButtonElement >( button_id );
-    button.add_event_listener_with_callback( "click", closure.as_ref().unchecked_ref() ).unwrap();
+    let card = get_element_by_id_unchecked::< web_sys::HtmlElement >( card_id );
+    card.add_event_listener_with_callback( "click", closure.as_ref().unchecked_ref() ).unwrap();
     closure.forget();
   }
 }
 
-fn setup_filters_with_gui( gui : &JsValue, filter_renderer : &Rc< RefCell< Renderer > > )
+fn setup_filters_with_gui( gui : &JsValue, filter_renderer : &Rc< RefCell< Renderer > >, current_filter : &Rc< RefCell< String > > )
 {
   // Setup filters that uses sliders for value adjustment
   let filters =
@@ -365,18 +414,24 @@ fn setup_filters_with_gui( gui : &JsValue, filter_renderer : &Rc< RefCell< Rende
       lil_gui::add_slider( &gui, &obj, prop, min, max, step );
     }
     lil_gui::on_finish_change( &gui, closure.as_ref().unchecked_ref() );
-    let filter_button = get_element_by_id_unchecked::< HtmlButtonElement >( button_id );
+    let filter_card = get_element_by_id_unchecked::< HtmlElement >( button_id );
+    let current_filter_clone = current_filter.clone();
+    let button_id_str = button_id.to_string();
+    let filter_renderer_clone = filter_renderer.clone();
     let onclick : Closure< dyn Fn() > = Closure::new
     (
       {
         let obj = obj.clone();
         move ||
         {
+          *current_filter_clone.borrow_mut() = button_id_str.clone();
+          filter_renderer_clone.borrow_mut().save_previous_texture();
           ( onclick )( &obj );
+          show_apply_cancel_buttons();
         }
       }
     );
-    filter_button.add_event_listener_with_callback( "click", onclick.as_ref().unchecked_ref() ).unwrap();
+    filter_card.add_event_listener_with_callback( "click", onclick.as_ref().unchecked_ref() ).unwrap();
     onclick.forget();
     closure.forget();
   }
@@ -389,7 +444,9 @@ fn setup_filters_with_gui( gui : &JsValue, filter_renderer : &Rc< RefCell< Rende
   let options = web_sys::js_sys::Array::of3( &"Red".into(), &"Green".into(), &"Blue".into() );
   lil_gui::add_dropdown( &channels_gui, &obj, "channel", &options.into() );
   lil_gui::on_finish_change( &channels_gui, closure.as_ref().unchecked_ref() );
-  let filter_button = get_element_by_id_unchecked::< HtmlButtonElement >( "channels" );
+  let filter_card = get_element_by_id_unchecked::< HtmlElement >( "channels" );
+  let current_filter_channels = current_filter.clone();
+  let filter_renderer_channels = filter_renderer.clone();
   let onclick : Closure< dyn Fn() > = Closure::new
   (
     {
@@ -397,12 +454,15 @@ fn setup_filters_with_gui( gui : &JsValue, filter_renderer : &Rc< RefCell< Rende
       let filter_renderer = filter_renderer.clone();
       move ||
       {
+        *current_filter_channels.borrow_mut() = String::from( "channels" );
+        filter_renderer_channels.borrow_mut().save_previous_texture();
         let onclick = onclick_closure::< channels::Channels >( &filter_renderer );
         ( onclick )( &obj );
+        show_apply_cancel_buttons();
       }
     }
   );
-  filter_button.add_event_listener_with_callback( "click", onclick.as_ref().unchecked_ref() ).unwrap();
+  filter_card.add_event_listener_with_callback( "click", onclick.as_ref().unchecked_ref() ).unwrap();
   onclick.forget();
   closure.forget();
 
@@ -412,7 +472,9 @@ fn setup_filters_with_gui( gui : &JsValue, filter_renderer : &Rc< RefCell< Rende
   let options = web_sys::js_sys::Array::of3( &"FlipX".into(), &"FlipY".into(), &"FlipXY".into() );
   lil_gui::add_dropdown( &flip_gui, &obj, "flip", &options.into() );
   lil_gui::on_finish_change( &flip_gui, closure.as_ref().unchecked_ref() );
-  let filter_button = get_element_by_id_unchecked::< HtmlButtonElement >( "flip" );
+  let filter_card = get_element_by_id_unchecked::< HtmlElement >( "flip" );
+  let current_filter_flip = current_filter.clone();
+  let filter_renderer_flip = filter_renderer.clone();
   let onclick : Closure< dyn Fn() > = Closure::new
   (
     {
@@ -420,12 +482,15 @@ fn setup_filters_with_gui( gui : &JsValue, filter_renderer : &Rc< RefCell< Rende
       let filter_renderer = filter_renderer.clone();
       move ||
       {
+        *current_filter_flip.borrow_mut() = String::from( "flip" );
+        filter_renderer_flip.borrow_mut().save_previous_texture();
         let onclick = onclick_closure::< flip::Flip >( &filter_renderer );
         ( onclick )( &obj );
+        show_apply_cancel_buttons();
       }
     }
   );
-  filter_button.add_event_listener_with_callback( "click", onclick.as_ref().unchecked_ref() ).unwrap();
+  filter_card.add_event_listener_with_callback( "click", onclick.as_ref().unchecked_ref() ).unwrap();
   onclick.forget();
   closure.forget();
 }
@@ -467,4 +532,25 @@ fn make_closure_with_filter( filter_renderer : &Rc< RefCell< Renderer > >, filte
 {
   let filter_renderer = filter_renderer.clone();
   Closure::new( Box::new( move || filter_renderer.borrow_mut().apply_filter( &filter ) ) )
+}
+
+fn make_closure_with_filter_tracking
+(
+  filter_renderer : &Rc< RefCell< Renderer > >,
+  filter : impl Filter + 'static,
+  filter_name : &str,
+  current_filter : &Rc< RefCell< String > >
+)
+-> Closure< dyn Fn() >
+{
+  let filter_renderer = filter_renderer.clone();
+  let current_filter = current_filter.clone();
+  let filter_name = filter_name.to_string();
+  Closure::new( Box::new( move ||
+  {
+    *current_filter.borrow_mut() = filter_name.clone();
+    filter_renderer.borrow_mut().save_previous_texture();
+    filter_renderer.borrow_mut().apply_filter( &filter );
+    show_apply_cancel_buttons();
+  }))
 }

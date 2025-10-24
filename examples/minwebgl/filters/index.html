@@ -13,53 +13,329 @@
       height: 100vh;
       margin: 0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
-      background-color: #f8f9fa;
+      background: linear-gradient(135deg, #1a1d23 0%, #22252b 50%, #1a1e25 100%);
+      position: relative;
     }
 
     .sidebar {
-      width: 200px;
-      /* A bit wider */
-      background-color: #e9ecef;
+      position: fixed;
+      left: 0;
+      top: 40px;
+      bottom: 40px;
+      width: 380px;
+      background: linear-gradient(135deg, rgba(30, 33, 39, 0.75) 0%, rgba(42, 46, 54, 0.75) 100%);
+      backdrop-filter: blur(10px);
       padding: 20px;
       overflow-y: auto;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
-      -ms-overflow-style: none;  /* IE and Edge */
-      scrollbar-width: none;  /* Firefox */
+      box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+      z-index: 1001;
+      transform: translateX(0);
+      transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+      border-radius: 0 12px 12px 0;
+      border-right: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .sidebar::before {
+      content: '';
+      position: sticky;
+      top: -20px;
+      left: -20px;
+      right: -20px;
+      height: 60px;
+      background: linear-gradient(to bottom,
+        rgba(30, 33, 39, 0.95) 0%,
+        rgba(32, 35, 41, 0.85) 25%,
+        rgba(34, 37, 43, 0.6) 60%,
+        transparent 100%
+      );
+      pointer-events: none;
+      z-index: 10;
+      display: block;
+      margin-bottom: -60px;
+    }
+
+    .sidebar::after {
+      content: '';
+      position: sticky;
+      bottom: -20px;
+      left: -20px;
+      right: -20px;
+      height: 60px;
+      background: linear-gradient(to top,
+        rgba(42, 46, 54, 0.95) 0%,
+        rgba(38, 42, 48, 0.85) 25%,
+        rgba(36, 39, 46, 0.6) 60%,
+        transparent 100%
+      );
+      pointer-events: none;
+      z-index: 10;
+      display: block;
+      margin-top: -60px;
+    }
+
+    .sidebar.hidden {
+      transform: translateX(-100%);
     }
 
     .sidebar::-webkit-scrollbar {
-      display: none; /* Chrome, Safari, Opera */
+      display: none;
     }
 
-    .sidebar h3 {
-      text-align: center;
-      color: #495057;
-      margin-bottom: 20px;
-    }
 
-    .sidebar button {
-      display: block;
-      width: 100%;
-      padding: 8px 12px;
-      margin-bottom: 6px;
-      background-color: #6c757d;
-      color: white;
-      border: none;
-      border-radius: 5px;
+    /* Bottom right buttons */
+    #upload-btn {
+      position: fixed;
+      bottom: 20px;
+      right: 100px;
+      width: 60px;
+      height: 50px;
+      padding: 0;
+      background: linear-gradient(135deg, rgba(80, 90, 120, 0.9) 0%, rgba(60, 70, 100, 0.9) 100%);
+      color: rgba(220, 225, 235, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
       cursor: pointer;
-      text-align: left;
-      font-size: 12px;
-      transition: background-color 0.2s ease-in-out, transform 0.1s ease;
+      text-align: center;
+      font-size: 24px;
+      font-weight: 600;
+      transition: all 0.2s ease-in-out;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.5;
     }
 
-    .sidebar button:hover {
-      background-color: #5a6268;
+    #upload-btn:hover {
+      transform: translateY(-3px) scale(1.05);
+      box-shadow: 0 8px 20px rgba(80, 90, 120, 0.6);
+      opacity: 1;
+      border-color: rgba(120, 130, 160, 0.4);
+    }
+
+    #upload-btn:active {
+      transform: translateY(-1px) scale(1.02);
+    }
+
+    #revert-btn {
+      position: fixed;
+      bottom: 20px;
+      right: 180px;
+      width: 60px;
+      height: 50px;
+      padding: 0;
+      background: linear-gradient(135deg, rgba(140, 100, 70, 0.9) 0%, rgba(110, 80, 60, 0.9) 100%);
+      color: rgba(220, 200, 180, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: center;
+      font-size: 24px;
+      font-weight: 600;
+      transition: all 0.2s ease-in-out;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.5;
+    }
+
+    #revert-btn:hover {
+      transform: translateY(-3px) scale(1.05);
+      box-shadow: 0 8px 20px rgba(140, 100, 70, 0.6);
+      opacity: 1;
+      border-color: rgba(160, 120, 90, 0.4);
+    }
+
+    #revert-btn:active {
+      transform: translateY(-1px) scale(1.02);
+    }
+
+    /* Apply and Cancel buttons - centered, hidden by default */
+    #apply-btn {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-90px);
+      width: 70px;
+      height: 55px;
+      padding: 0;
+      background: linear-gradient(135deg, rgba(70, 110, 80, 0.9) 0%, rgba(50, 85, 60, 0.9) 100%);
+      color: rgba(200, 230, 210, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: center;
+      font-size: 26px;
+      font-weight: 600;
+      transition: all 0.2s ease-in-out;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      z-index: 10000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.5;
+    }
+
+    #apply-btn.visible {
+      display: flex;
+    }
+
+    #apply-btn:hover {
+      transform: translateX(-90px) translateY(-3px) scale(1.05);
+      box-shadow: 0 8px 20px rgba(70, 110, 80, 0.6);
+      opacity: 1;
+      border-color: rgba(100, 140, 110, 0.4);
+    }
+
+    #apply-btn:active {
+      transform: translateX(-90px) translateY(-1px) scale(1.02);
+    }
+
+    #cancel-btn {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(20px);
+      width: 70px;
+      height: 55px;
+      padding: 0;
+      background: linear-gradient(135deg, rgba(120, 70, 70, 0.9) 0%, rgba(95, 55, 55, 0.9) 100%);
+      color: rgba(230, 200, 200, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: center;
+      font-size: 26px;
+      font-weight: 600;
+      transition: all 0.2s ease-in-out;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      z-index: 10000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.5;
+    }
+
+    #cancel-btn.visible {
+      display: flex;
+    }
+
+    #cancel-btn:hover {
+      transform: translateX(20px) translateY(-3px) scale(1.05);
+      box-shadow: 0 8px 20px rgba(120, 70, 70, 0.6);
+      opacity: 1;
+      border-color: rgba(150, 90, 90, 0.4);
+    }
+
+    #cancel-btn:active {
+      transform: translateX(20px) translateY(-1px) scale(1.02);
+    }
+
+    #file-input {
+      display: none;
+    }
+
+    /* Filter Grid */
+    .filters-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      padding: 30px 0;
+    }
+
+    .filter-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: rgba(45, 50, 60, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    }
+
+    .filter-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 16px rgba(80, 90, 120, 0.4);
+      border-color: rgba(100, 110, 140, 0.5);
+      background: rgba(50, 55, 65, 0.7);
+    }
+
+    .filter-card:active {
       transform: translateY(-1px);
     }
 
-    .sidebar button:active {
-      background-color: #495057;
-      transform: translateY(0);
+    .filter-thumbnail {
+      width: 100%;
+      aspect-ratio: 1;
+      background: linear-gradient(135deg, #4a5568 0%, #2d3748 50%, #1a202c 100%);
+      border-radius: 6px;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      color: rgba(255, 255, 255, 0.7);
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .filter-name {
+      font-size: 10px;
+      font-weight: 600;
+      color: rgba(220, 225, 230, 0.9);
+      text-align: center;
+      line-height: 1.2;
+      word-break: break-word;
+    }
+
+    /* Sidebar Toggle Button */
+    .sidebar-toggle {
+      position: fixed;
+      left: 395px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 32px;
+      height: 60px;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1002;
+      transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+      outline: none;
+    }
+
+    .sidebar-toggle:hover .toggle-arrow {
+      border-right-color: #667eea;
+      transform: scale(1.2);
+    }
+
+    .sidebar-toggle.sidebar-hidden {
+      left: 15px;
+    }
+
+    .toggle-arrow {
+      width: 0;
+      height: 0;
+      border-top: 12px solid transparent;
+      border-bottom: 12px solid transparent;
+      border-right: 15px solid rgba(120, 130, 150, 0.8);
+      transition: all 0.3s ease;
+      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+    }
+
+    .sidebar-hidden .toggle-arrow {
+      transform: rotate(180deg);
     }
 
     .canvas-container {
@@ -69,27 +345,291 @@
       justify-content: center;
       align-items: center;
       padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #placeholder-text {
+      font-size: 28px;
+      color: rgba(120, 130, 145, 0.6);
+      font-weight: 300;
+      text-align: center;
+      pointer-events: none;
+      user-select: none;
+      position: absolute;
+    }
+
+    #placeholder-text.hidden {
+      display: none;
+    }
+
+    #canvas-wrapper {
+      position: relative;
+      display: inline-block;
+      transform-origin: center center;
+      transition: transform 0.1s ease-out;
+      cursor: grab;
+    }
+
+    #canvas-wrapper:active {
+      cursor: grabbing;
     }
 
     #canvas {
-      max-width: 100%;
-      max-height: 100%;
+      display: block;
       border-radius: 8px;
       box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    #canvas.hidden {
+      display: none;
+    }
+
+    /* Zoom/Pan Controls */
+    .zoom-controls {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 1000;
+    }
+
+    .zoom-btn {
+      width: 44px;
+      height: 44px;
+      background: rgba(45, 50, 60, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 600;
+      color: rgba(200, 210, 220, 0.8);
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+      user-select: none;
+    }
+
+    .zoom-btn:hover {
+      background: rgba(55, 60, 70, 0.95);
+      border-color: rgba(120, 130, 150, 0.4);
+      color: rgba(220, 230, 240, 0.95);
+      transform: scale(1.1);
+      box-shadow: 0 4px 12px rgba(80, 90, 120, 0.4);
+    }
+
+    .zoom-btn:active {
+      transform: scale(0.95);
+    }
+
+    .zoom-info {
+      position: fixed;
+      bottom: 20px;
+      left: 74px;
+      background: rgba(45, 50, 60, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: rgba(200, 210, 220, 0.8);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+      pointer-events: none;
+      user-select: none;
+    }
+
+    /* Drag and Drop Overlay */
+    #drop-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(30, 35, 45, 0.95);
+      backdrop-filter: blur(4px);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      pointer-events: none;
+      border: 3px dashed rgba(120, 130, 150, 0.5);
+    }
+
+    #drop-overlay.active {
+      display: flex;
+    }
+
+    .drop-message {
+      text-align: center;
+      color: rgba(200, 210, 225, 0.9);
+      font-size: 32px;
+      font-weight: 600;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        transform: scale(1);
+        opacity: 0.9;
+      }
+
+      50% {
+        transform: scale(1.05);
+        opacity: 1;
+      }
+    }
+
+    /* Save Button - SD Card Style */
+    #save-btn {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 60px;
+      height: 50px;
+      background: linear-gradient(135deg, rgba(50, 55, 65, 0.9) 0%, rgba(40, 45, 55, 0.9) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px 6px 6px 2px;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), inset 0 1px 3px rgba(255, 255, 255, 0.05);
+      transition: all 0.2s ease;
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      overflow: visible;
+      opacity: 0.5;
+    }
+
+    #save-btn::before {
+      content: '';
+      position: absolute;
+      top: 3px;
+      right: 3px;
+      width: 10px;
+      height: 10px;
+      background: rgba(30, 35, 40, 0.8);
+      border-radius: 2px;
+      z-index: 1;
+    }
+
+    #save-btn::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 15px;
+      background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.5) 100%);
+      border-radius: 0 0 6px 2px;
+    }
+
+    .save-icon {
+      width: 28px;
+      height: 28px;
+      stroke: rgba(200, 210, 220, 0.8);
+      stroke-width: 2.5;
+      fill: none;
+      filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.7));
+      position: relative;
+      z-index: 2;
+    }
+
+    #save-btn:hover {
+      transform: translateY(-3px) scale(1.05);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6), inset 0 1px 3px rgba(255, 255, 255, 0.1);
+      opacity: 1;
+      border-color: rgba(120, 130, 150, 0.3);
+    }
+
+    #save-btn:active {
+      transform: translateY(-1px) scale(1.02);
+    }
+
+    .sd-label {
+      position: absolute;
+      bottom: 4px;
+      font-size: 8px;
+      color: rgba(236, 240, 241, 0.9);
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      z-index: 2;
+    }
+
+    /* Ensure lil-gui doesn't cover save button */
+    .lil-gui {
+      z-index: 1000;
+    }
+
+    /* Make sure save button is always on top */
+    #save-btn {
+      pointer-events: auto;
     }
   </style>
 
   <script data-trunk type="module" src="gui.js"></script>
+  <script data-trunk type="module" src="zoom_pan.js"></script>
+  <script data-trunk type="module" src="sidebar_toggle.js"></script>
 </head>
 
 <body>
-  <div class="sidebar" id="buttons">
-    <h3>Filters</h3>
+  <div class="sidebar" id="sidebar">
+    <div class="filters-grid" id="filters-grid">
+      <!-- Filter cards will be generated here -->
+    </div>
   </div>
 
+  <!-- Sidebar Toggle Button -->
+  <button class="sidebar-toggle" id="sidebar-toggle">
+    <div class="toggle-arrow"></div>
+  </button>
+
   <div class="canvas-container">
-    <canvas id="canvas"></canvas>
+    <div id="placeholder-text">Drop image here</div>
+    <div id="canvas-wrapper">
+      <canvas id="canvas" class="hidden"></canvas>
+    </div>
   </div>
+
+  <!-- Zoom/Pan Controls -->
+  <div class="zoom-controls">
+    <button class="zoom-btn" id="zoom-in" title="Zoom In (Mouse Wheel)">+</button>
+    <button class="zoom-btn" id="zoom-reset" title="Reset View (Double Click)">⊙</button>
+    <button class="zoom-btn" id="zoom-out" title="Zoom Out (Mouse Wheel)">−</button>
+  </div>
+  <div class="zoom-info" id="zoom-info">100%</div>
+
+  <!-- Drag and Drop Overlay -->
+  <div id="drop-overlay">
+    <div class="drop-message">
+      📸 Drop your image here
+    </div>
+  </div>
+
+  <!-- Save Button (SD Card Style) -->
+  <button id="save-btn" title="Save filtered image">
+    <svg class="save-icon" viewBox="0 0 24 24">
+      <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+      <polyline points="17 21 17 13 7 13 7 21" />
+      <polyline points="7 3 7 8 15 8" />
+    </svg>
+    <!-- <span class="sd-label">SAVE</span> -->
+  </button>
+
+  <!-- Bottom Right Buttons -->
+  <input type="file" id="file-input" accept="image/*" />
+  <button id="upload-btn" title="Upload image">📁</button>
+  <button id="revert-btn" title="Revert to original image">⏮️</button>
+  <button id="apply-btn" title="Apply filter">✅</button>
+  <button id="cancel-btn" title="Cancel filter">❌</button>
 </body>
 
 </html>
