@@ -7,7 +7,7 @@ mod tests
   {
     Tween,
     Animatable,
-    AnimatableValue,
+    AnimatablePlayer,
     AnimationState,
     easing::base::{ EasingBuilder, Linear }
   };
@@ -89,7 +89,7 @@ mod tests
   {
     let mut tween = Tween::new( 0.0_f32, 10.0_f32, 2.0, Linear::new() );
     tween.update( 0.5 ); // Progress to 2.5
-    assert_eq!( tween.get_current_value(), 2.5 );
+    assert_eq!( tween.value_get(), 2.5 );
 
     tween.pause();
     assert_eq!( tween.state(), AnimationState::Paused );
@@ -148,14 +148,14 @@ mod tests
     let val1 = tween.update( 0.5 );
     assert_eq!( val1, 5.0 );
     tween.update( 0.5 );
-    assert_eq!( tween.get_current_value(), 10.0 );
+    assert_eq!( tween.value_get(), 10.0 );
     assert_eq!( tween.current_repeat(), 1 );
 
     // Second loop: 10.0 -> 0.0 (yoyo)
     let val2 = tween.update( 0.5 );
     assert_eq!( val2, 5.0 );
     tween.update( 0.5 );
-    assert_eq!( tween.get_current_value(), 0.0 );
+    assert_eq!( tween.value_get(), 0.0 );
     assert!( tween.is_completed() );
   }
 }
