@@ -131,6 +131,11 @@ mod private
   ///
   /// This shader combines the results of the previous passes to draw the final wide outline.
   pub struct WideOutlineShader;
+  /// A public struct for a color grading shader.
+  ///
+  /// This shader applies color correction operations like white balance,
+  /// lift-gamma-gain, contrast, vibrance, and saturation adjustments.
+  pub struct ColorGradingShader;
 
   /// Stores information about a WebGL program, including the program object and the locations of its uniforms.
   /// This struct is intended for use by the renderer.
@@ -377,6 +382,20 @@ mod private
     "jfaTexture",
     "resolution"
   );
+
+  impl_locations!
+  (
+    ColorGradingShader,
+    "sourceTexture",
+    "temperature",
+    "tint",
+    "exposure",
+    "shadows",
+    "highlights",
+    "contrast",
+    "vibrance",
+    "saturation"
+  );
 }
 
 crate::mod_interface!
@@ -399,7 +418,8 @@ crate::mod_interface!
     NarrowOutlineShader,
     WideOutlineInitShader,
     WideOutlineStepShader,
-    WideOutlineShader
+    WideOutlineShader,
+    ColorGradingShader
   };
 
   orphan use

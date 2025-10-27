@@ -1,0 +1,13 @@
+[package]
+name = "postprocessing"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+minwebgl.workspace = true
+renderer.workspace = true
+serde.workspace = true
+serde-wasm-bindgen.workspace = true
+
+[lints]
+workspace = true
