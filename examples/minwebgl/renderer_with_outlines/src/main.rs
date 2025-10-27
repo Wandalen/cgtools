@@ -43,19 +43,16 @@ use gl::
     wasm_bindgen::closure::Closure
   }
 };
-use rand::Rng;
+// use rand::Rng;
 use renderer::webgl::
 {
   loaders::gltf::GLTF,
   geometry::AttributeInfo,
   Camera,
   Renderer,
-  Node,
-  Material,
   TextureInfo,
   Texture,
   Sampler,
-  Object3D,
   WrappingMode,
   MagFilterMode,
   MinFilterMode,
@@ -167,35 +164,11 @@ fn create_texture
   Some( texture_info )
 }
 
-/// Sets the textures for a `Node` and its primitives using a material callback.
-///
-/// This function iterates through all primitives of a given `Node` (if it's a `Mesh`),
-/// and applies a provided callback function to each primitive's material.
-///
-/// # Arguments
-///
-/// * `node` - A reference to the `Rc<RefCell<Node>>` to modify.
-/// * `material_callback` - A closure that takes a mutable reference to a `Material` and modifies it.
-fn set_texture
-(
-  node : &Rc< RefCell< Node > >,
-  mut material_callback : impl FnMut( &mut Material )
-)
-{
-  if let Object3D::Mesh( ref mesh ) = &node.borrow().object
-  {
-    for p in &mesh.borrow().primitives
-    {
-      material_callback( &mut p.borrow().material.borrow_mut() );
-    }
-  }
-}
-
 fn generate_object_colors( object_count : u32 ) -> Vec< F32x4 >
 {
-  let mut rng = rand::thread_rng();
+  // let mut rng = rand::thread_rng();
 
-  let range = 0.2..1.0;
+  // let range = 0.2..1.0;
   let object_colors = ( 0..object_count )
   .map
   (
@@ -284,24 +257,25 @@ async fn setup_scene( gl : &GL ) -> Result< GLTF, gl::WebglError >
   let car = gltf.scenes[ 0 ].borrow().children.get( 0 )
   .expect( "Scene is empty" ).clone();
   let scale = 10.0;
-  car.borrow_mut().set_translation( [ 0.0, 1.0, 0.0 ] );
+  // car.borrow_mut().set_translation( [ 0.0, 1.0, 0.0 ] );
   car.borrow_mut().set_scale( [ scale; 3 ] );
   car.borrow_mut().update_local_matrix();
 
-  let environment_gltf = renderer::webgl::loaders::gltf::load( &document, "gltf/sphere.glb", &gl ).await?;
-  let environment = environment_gltf.scenes[ 0 ].borrow().children.get( 1 )
-  .expect( "Scene is empty" ).clone();
+  // let environment_gltf = renderer::webgl::loaders::gltf::load( &document, "gltf/sphere.glb", &gl ).await?;
+  // let environment = environment_gltf.scenes[ 0 ].borrow().children.get( 1 )
+  // .expect( "Scene is empty" ).clone();
 
-  let texture = create_texture( &gl, "environment_maps/equirectangular_maps/field2.jpg" );
-  set_texture( &environment, | m | { m.base_color_texture = texture.clone(); } );
-  let scale = 100000.0;
-  environment.borrow_mut().set_translation( [ 0.0, 1.0 - scale, 0.0 ] );
-  environment.borrow_mut().set_scale( [ scale; 3 ] );
-  environment.borrow_mut().update_local_matrix();
+  // let texture = create_texture( &gl, "environment_maps/equirectangular_maps/pink_sunrise.jpg" );
+  // set_texture( &environment, | m | { m.base_color_texture = texture.clone(); } );
+  // let scale = 100000.0;
+  // environment.borrow_mut().set_translation( [ 0.0, 1.0 - scale, 0.0 ] );
+  // environment.borrow_mut().set_scale( [ scale; 3 ] );
+  // // environment.borrow_mut().set_rotation( QuatF32::from_angle_y( 180.0_f32.to_radians() ) );
+  // environment.borrow_mut().update_local_matrix();
 
-  gltf.scenes[ 0 ].borrow_mut().children.push( environment );
+  // gltf.scenes[ 0 ].borrow_mut().children.push( environment );
 
-  gltf.scenes[ 0 ].borrow_mut().update_world_matrix();
+  // gltf.scenes[ 0 ].borrow_mut().update_world_matrix();
 
   Ok( gltf )
 }
@@ -330,7 +304,7 @@ async fn run() -> Result< (), gl::WebglError >
   gl::info!( "Scene boudnig box: {:?}", scene_bounding_box );
 
   // Camera setup
-  let mut eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
+  let eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
   let center = scene_bounding_box.center();
 
@@ -350,7 +324,9 @@ async fn run() -> Result< (), gl::WebglError >
       Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?
     )
   );
-  renderer.borrow_mut().set_ibl( renderer::webgl::loaders::ibl::load( &gl, "environment_maps/gltf_viewer_ibl_unreal/" ).await );
+  renderer.borrow_mut().set_ibl( renderer::webgl::loaders::ibl::load( &gl, "environment_maps/pink_sunrise_4k/" ).await );
+  let skybox = create_texture( &gl, "environment_maps/equirectangular_maps/pink_sunrise.jpg" ).unwrap();
+  renderer.borrow_mut().set_skybox( skybox.texture.borrow().source.clone() );
   let renderer1 = renderer.clone();
 
   let attributes = get_attributes( &gltf )?;

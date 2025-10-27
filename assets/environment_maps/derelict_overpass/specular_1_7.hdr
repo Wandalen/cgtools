@@ -1,0 +1,6 @@
+#?RADIANCE
+# Rust HDR encoder
+FORMAT=32-bit_rle_rgbe
+
+-Y 24 +X 4
+ƒd‚À°†Ëº’€ïâÎ~Á¯„ƒÇ¶‹‚Â²”‹y€™Œlƒ„fƒØÅš‚Ã¹§€¥—uƒÕÂ”ƒÊ¹“‚Èº›“‚ƒ~†ur~ßÆÈ}»²Æ}š–³~‘§~yy–~fl~‡•Ú~}Ž×~mÉ~e{Ã~h‚à~^zÝ~ZwÚ~`ß~„of~Ýµž}«ƒ}—Œ”}ç¾¤}¯‰k}øÉ¦|ÔÂ ~ºœ‹}‚hT}…ud}îØ¤€Ÿ‘’}‚xx}€u[€¨™uÃÅØ“ˆm‚˜s‚¥—uƒSsß~ƒ|m»¬‰‚ê×ª‚NmØ~i†í~¤™ƒùç¿WtÛ~PnØ~œ¡½‡v§¦Â}ÜÐ»~Á²€‘„d‚`k“~”Œy€ÌºŽ‚©™sƒ_hƒåÔ«„k‚·§ƒÇÉØ£™„–‰jƒ¹©‚ƒ¯ªÆ}Ìµ¼}ÿÝÙ}‘€~jr™~qq~Œ† ~™”°~±±¹k}Ç~z‰Ð~†“×~’ŽŠ€a}à~^yÚ~hÞ~
