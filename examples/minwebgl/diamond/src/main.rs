@@ -3,63 +3,74 @@
 #![ allow( clippy::needless_range_loop ) ]
 #![ allow( clippy::needless_borrow ) ]
 
+use std::rc::Rc;
+use web_sys::wasm_bindgen::prelude::Closure;
+
+
 use minwebgl as gl;
 use gl::
 {
   GL,
-  JsValue
+  JsValue,
+  JsCast,
 };
 
-async fn load_cube_texture( name : &str ) -> Result< [ image::RgbaImage; 6 ], JsValue >
+fn load_cube_texture( name : &str, document : &gl::web_sys::Document, gl : &gl::WebGl2RenderingContext ) -> Option< gl::web_sys::WebGlTexture >
 {
-  let px = gl::file::load( &format!( "{}/PX.png", name ) ).await.expect( "Failed to load PX face" );
-  let nx = gl::file::load( &format!( "{}/NX.png", name ) ).await.expect( "Failed to load NX face" );
-
-  let py = gl::file::load( &format!( "{}/PY.png", name ) ).await.expect( "Failed to load PY face" );
-  let ny = gl::file::load( &format!( "{}/NY.png", name ) ).await.expect( "Failed to load NY face" );
-
-  let pz = gl::file::load( &format!( "{}/PZ.png", name ) ).await.expect( "Failed to load PZ face" );
-  let nz = gl::file::load( &format!( "{}/NZ.png", name ) ).await.expect( "Failed to load NZ face" );
-
-  let px = image::load_from_memory( &px ).unwrap().to_rgba8();
-  let nx = image::load_from_memory( &nx ).unwrap().to_rgba8();
-  let py = image::load_from_memory( &py ).unwrap().to_rgba8();
-  let ny = image::load_from_memory( &ny ).unwrap().to_rgba8();
-  let pz = image::load_from_memory( &pz).unwrap().to_rgba8();
-  let nz = image::load_from_memory( &nz ).unwrap().to_rgba8();
-
-  Ok( [ px, nx, py, ny, pz, nz ] )
-}
-
-fn upload_cube_texture( gl : &GL, faces : &[ image::RgbaImage ], location: u32 )
-{
-  let texture = gl.create_texture();
-  gl.active_texture( gl::TEXTURE0 + location );
-  gl.bind_texture( gl::TEXTURE_CUBE_MAP, texture.as_ref() );
-
-  for i in 0..faces.len()
+  let upload_texture = | src : String, texture : Option< gl::web_sys::WebGlTexture >, cube_face : u32 | 
   {
-    let image = &faces[ i ];
-    let ( width, height ) = image.dimensions();
-    gl. tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
+    let img_element = document.create_element( "img" ).unwrap().dyn_into::< gl::web_sys::HtmlImageElement >().unwrap();
+    img_element.style().set_property( "display", "none" ).unwrap();
+    let load_texture : Closure< dyn Fn() > = Closure::new
     (
-      gl::TEXTURE_CUBE_MAP_POSITIVE_X + i as u32,
-      0,
-      gl::RGBA as i32,
-      width as i32,
-      height as i32,
-      0,
-      gl::RGBA,
-      gl::UNSIGNED_BYTE,
-      Some( &image )
-    ).expect( "Failed to upload data to texture" );
-  }
+      {
+        let gl = gl.clone();
+        let img = img_element.clone();
+        move ||
+        {
+          gl.bind_texture( gl::TEXTURE_CUBE_MAP, texture.as_ref() );
+          //gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 1 );
+          gl.tex_image_2d_with_u32_and_u32_and_html_image_element
+          (
+            gl::TEXTURE_CUBE_MAP_POSITIVE_X + cube_face,
+            0,
+            gl::RGBA as i32,
+            gl::RGBA,
+            gl::UNSIGNED_BYTE,
+            &img
+          ).expect( "Failed to upload data to texture" );
+          //gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 0 );
 
-  gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
-  gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32 );
-  gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as i32 );
-  gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32 );
-  gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_R, gl::CLAMP_TO_EDGE as i32 );
+          if cube_face == 5
+          {
+            gl.generate_mipmap( gl::TEXTURE_CUBE_MAP );
+          }
+
+          gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+          gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32 );
+          gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as i32 );
+          gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32 );
+          gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_R, gl::CLAMP_TO_EDGE as i32 );
+
+          img.remove();
+        }
+      }
+    );
+
+    img_element.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
+    img_element.set_src( &src );
+    load_texture.forget();
+  };
+  
+  let texture = gl.create_texture();
+  upload_texture( format!( "static/{name}/PX.png" ), texture.clone(), 0 );
+  upload_texture( format!( "static/{name}/NX.png" ), texture.clone(), 1 );
+  upload_texture( format!( "static/{name}/PY.png" ), texture.clone(), 2 );
+  upload_texture( format!( "static/{name}/NY.png" ), texture.clone(), 3 );
+  upload_texture( format!( "static/{name}/PZ.png" ), texture.clone(), 4 );
+  upload_texture( format!( "static/{name}/NZ.png" ), texture.clone(), 5 );
+
+  texture
 }
 
 
@@ -67,6 +78,8 @@ async fn run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
   let gl = gl::context::retrieve_or_make()?;
+  let window = gl::web_sys::window().unwrap();
+  let document = window.document().unwrap();
 
   // Vertex and fragment shaders
   let vertex_shader_src = include_str!( "../shaders/shader.vert" );
@@ -78,8 +91,8 @@ async fn run() -> Result< (), gl::WebglError >
   gl.use_program( Some( &program ) );
 
   // Load textures
-  let env_map = load_cube_texture( "skybox" ).await.expect( "Failed to load environment map" );
-  let cube_normal_map = load_cube_texture( "normal_cube" ).await.expect( "Failed to load cube normal map" );
+  let env_map = load_cube_texture( "skybox", &document, &gl );
+  let cube_normal_map = load_cube_texture( "normal_cube", &document, &gl );
 
   // Load model
   let obj_buffer = gl::file::load( "diamond.glb" ).await.expect( "Failed to load the model" );
@@ -151,7 +164,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   // Camera setup
 
-  let eye = gl::F32x3::new(  0.0, 3.0, 10.0 );
+  let eye = gl::F32x3::new(  0.0, 5.0, 10.0 );
   let up = gl::F32x3::Y;
 
   let aspect_ratio = width / height;
@@ -189,8 +202,10 @@ async fn run() -> Result< (), gl::WebglError >
   gl.use_program( Some( &background_program ) );
   gl.uniform1i( gl.get_uniform_location( &background_program, "envMap" ).as_ref(), env_map_location );
 
-  upload_cube_texture( &gl, &env_map, env_map_location as u32 );
-  upload_cube_texture( &gl, &cube_normal_map, cube_normal_map_location as u32 );
+  gl.active_texture( gl::TEXTURE0 + env_map_location as u32 );
+  gl.bind_texture( gl::TEXTURE_CUBE_MAP, env_map.as_ref() );
+  gl.active_texture( gl::TEXTURE0 + cube_normal_map_location as u32 );
+  gl.bind_texture( gl::TEXTURE_CUBE_MAP, cube_normal_map.as_ref() );
 
   gl.enable( gl::DEPTH_TEST );
   gl.depth_func( gl::LEQUAL );
@@ -203,7 +218,7 @@ async fn run() -> Result< (), gl::WebglError >
     {
       let time = t as f32 / 1000.0;
       let rotation = gl::math::mat3x3::from_angle_y( time );
-      let eye = rotation * eye;
+      //let eye = rotation * eye;
 
 
       let view_matrix = gl::math::mat3x3h::look_at_rh( eye, gl::F32x3::ZERO, up );
