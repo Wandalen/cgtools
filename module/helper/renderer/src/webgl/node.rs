@@ -2,14 +2,15 @@ mod private
 {
   use std::{ cell::RefCell, collections::HashMap, rc::Rc };
   use minwebgl as gl;
-  use mingl::{ geometry::BoundingBox, F32x3, F32x4x4 };
-  use crate::webgl::Mesh;
+  use gl::{ geometry::BoundingBox, F32x3, F32x4x4 };
+  use crate::webgl::{ Mesh, Light };
 
   /// Represents a 3D object that can be part of the scene graph.
   pub enum Object3D
   {
     /// A mesh object, containing geometry and material information.
     Mesh( Rc< RefCell< Mesh > > ),
+    Light( Light ),
     /// A placeholder for other types of 3D objects.
     Other
   }
@@ -71,6 +72,7 @@ mod private
         {
           Object3D::Mesh( Rc::new( RefCell::new( mesh.borrow().clone() ) ) )
         },
+        Object3D::Light( light ) => Object3D::Light( light.clone() ),
         Object3D::Other => Object3D::Other
       };
 
