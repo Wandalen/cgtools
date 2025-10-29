@@ -55,7 +55,8 @@ vec4 getNormalData( vec3 dir )
 {
   vec4 data = texture( cubeNormalMap, dir );
   data.rgb = normalize( data.rgb * 2.0 - 1.0 );
-  data.a *= MAX_DISTANCE;
+  data.r *= -1.0;
+  //data.a *= MAX_DISTANCE;
   return data;
 }
 
@@ -116,6 +117,7 @@ vec3 intersectSphere( vec3 origin, vec3 direction )
       float x1 = ( -B + disc ) * geometryFactor / A;
       float x2 = ( -B - disc ) * geometryFactor / A;
       float t = ( x1 > x2 ) ? x1 : x2;
+      t = x1;
       direction.y *= squashFactor;
       return vec3( origin + direction * t );
   }
@@ -142,11 +144,12 @@ vec3 intersectDiamond( vec3 rayOrigin, vec3 rayDirection )
   // n.rgb - normal, n.a - distance to the surface
   vec4 normalData = getNormalData( directionToSpherePoint );
   // Flip the normal to point inwards
-  vec3 surfaceNormal = -normalData.rgb;
+  vec3 surfaceNormal = normalData.rgb;
   float surfaceDistance = normalData.a * radius;
 
   // Point on the surface of the diamond
   vec3 pointOnSurface1 = directionToSpherePoint * surfaceDistance;
+  
 
   vec3 planeHitPoint = linePlaneIntersect( rayOrigin, rayDirection, pointOnSurface1, surfaceNormal );
   vec3 directionToPlanePoint = normalize( planeHitPoint );
@@ -266,6 +269,11 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
     vec3 surfaceNormal = normalData.rgb;
     float surfaceDistance = normalData.a;  
 
+    // resultColor = dirOriginToIntersect * 0.5 + 0.5;
+    // //resultColor = dirOriginToIntersect;
+    // //resultColor = dirOriginToIntersect;
+    // break;
+
     // Update the origin position
     vec3 oldOrigin = rayOrigin;
     rayOrigin = dirOriginToIntersect * surfaceDistance;
@@ -291,11 +299,11 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
         newRayDirection = normalize( newRayDirection );
         float cosT = 1.0 - dot( newRayDirection, rayDirection );
 
-        if( TRANSMISSION > 0.0 && cosT < TRANSMISSION )
-        {
-          resultColor += vec3( 1.0 ) * 0.1;
-        }
-        else
+        // if( TRANSMISSION > 0.0 && cosT < TRANSMISSION )
+        // {
+        //   resultColor += vec3( 1.0 ) * 0.1;
+        // }
+        // else
         {
           resultColor += SampleSpecularContribution( newRayDirection ) * attenuationFactor * BOOST_FACTORS * ( vec3( 1.0 ) - min( vec3( 1.0 ), reflectedAmount ) );
         }
@@ -307,12 +315,13 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
       vec3 d1 = normalize( newRefractedDirection );
       float cosT = 1.0 - dot( d1, rayDirection );
 
-      if( TRANSMISSION > 0.0 && cosT < TRANSMISSION )
-      {
-        vec3 specColor = vec3( 1.0 ) * refractedAmount * attenuationFactor;
-        resultColor += specColor;
-      }
-      else
+      //resultColor += vec3( 0.1 ) * float(i) / float(RAY_BOUNCES);
+      // if( TRANSMISSION > 0.0 && cosT < TRANSMISSION )
+      // {
+      //   vec3 specColor = vec3( 1.0 ) * refractedAmount * attenuationFactor;
+      //   resultColor += specColor;
+      // }
+      // else
       {
         vec3 d1 = newRefractedDirection;
         vec3 d2 = refract( newRayDirection, -surfaceNormal, ( n2 + rainbowDelta ) / n1 );
@@ -326,10 +335,11 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
 
         resultColor += specColor;
       }
+
+      vec3 reflectedAmount = EnvBRDFApprox( dot( newReflectedDirection, -surfaceNormal ), F0, 0.0 );
+      attenuationFactor *= reflectedAmount;
     }
 
-    vec3 reflectedAmount = EnvBRDFApprox( dot( newReflectedDirection, -surfaceNormal ), F0, 0.0 );
-    attenuationFactor *= reflectedAmount;
     newRayDirection = newReflectedDirection;
 
 
@@ -377,6 +387,18 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
   return resultColor;
 }
 
+mat3 rotY( float angle )
+{
+  float s = sin(angle);
+  float c = cos(angle);
+
+  return mat3
+  (
+    c, 0.0, s,
+    0.0, 1.0, 0.0,
+    -s, 0.0, c
+  );
+}
 
 void main() 
 {
@@ -395,8 +417,17 @@ void main()
   vec3 colour = diffuseColor * ( refractionColor +  pow( reflectionColor * brdfReflected, vec3( 1.0 / 2.0) ) );
   //colour = refractionColor;
 
+  // vec3 p = ( inverseModelMatrix * vec4( vWorldPosition, 1.0 ) ).xyz;
+  // p = rotY(radians(0.0)) * vWorldPosition;
+
+  // colour = texture( cubeNormalMap, vWorldPosition ).rgb * 2.0 - 1.0;
+  // colour.r *= -1.0;
+  // //colour = normal;
+  // colour = vec3( dot( colour, normal ) );
+
   // Gamma 
-  colour = pow( colour, vec3( 1.0 / 2.2 ) );
+  //colour = pow( colour, vec3( 1.0 / 2.2 ) );
+  //colour = normal;
 
   frag_color = vec4( colour, 1.0 );
 }
