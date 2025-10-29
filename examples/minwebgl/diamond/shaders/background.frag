@@ -4,6 +4,7 @@ precision mediump float;
 
 uniform mat4x4 viewMatrix;
 uniform samplerCube envMap;
+uniform samplerCube cubeNormalMap;
 
 in vec2 vUvs;
 

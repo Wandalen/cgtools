@@ -14,6 +14,7 @@ use gl::
   JsValue,
   JsCast,
 };
+use renderer::webgl::Camera;
 
 fn load_cube_texture( name : &str, document : &gl::web_sys::Document, gl : &gl::WebGl2RenderingContext ) -> Option< gl::web_sys::WebGlTexture >
 {
@@ -77,7 +78,9 @@ fn load_cube_texture( name : &str, document : &gl::web_sys::Document, gl : &gl::
 async fn run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
-  let gl = gl::context::retrieve_or_make()?;
+
+  let canvas = gl::canvas::make()?;
+  let gl = gl::context::from_canvas( &canvas )?;
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();
 
@@ -103,9 +106,12 @@ async fn run() -> Result< (), gl::WebglError >
   let tex_coords : Vec< [ f32; 2 ] >;
   let indices : Vec< u32 >;
 
+  let mut max_dst = 0.0;
   {
     let mesh = document.meshes().next().expect( "No meshes were found" );
     let primitive = mesh.primitives().next().expect( "No primitives were found" );
+    let bb = primitive.bounding_box();
+    max_dst = gl::F32x3::from(bb.min).mag().max(gl::F32x3::from(bb.max).mag());
     let reader = primitive.reader( | buffer | Some( &buffers[ buffer.index() ] ) );
 
     let pos_iter = reader.read_positions().expect( "Failed to read positions" );
@@ -164,10 +170,13 @@ async fn run() -> Result< (), gl::WebglError >
 
   // Camera setup
 
-  let eye = gl::F32x3::new(  0.0, 5.0, 10.0 );
+  let eye = gl::F32x3::new(  0.0, 0.0, 10.0 );
   let up = gl::F32x3::Y;
 
   let aspect_ratio = width / height;
+  let fov = 70.0f32;
+  let near = 0.1;
+  let far = 1000.0;
   let perspective_matrix = gl::math::mat3x3h::perspective_rh_gl
   (
      70.0f32.to_radians(),
@@ -183,16 +192,20 @@ async fn run() -> Result< (), gl::WebglError >
     gl::F32x3::ZERO
   );
 
+  let mut camera = Camera::new( eye, up, gl::F32x3::ZERO, aspect_ratio, fov, near, far );
+  camera.set_window_size( [ width, height ].into() );
+  camera.bind_controls( &canvas );
+
 
   // Update uniform values
   gl::uniform::matrix_upload( &gl, projection_matrix_location, &perspective_matrix.to_array(), true ).unwrap();
 
   gl::uniform::upload( &gl, env_map_intensity_location.clone(), &0.7 ).unwrap();
-  gl::uniform::upload( &gl, rainbow_delta_location.clone(), &0.01 ).unwrap();
-  gl::uniform::upload( &gl, squash_factor_location.clone(), &0.8 ).unwrap();
-  gl::uniform::upload( &gl, radius_location.clone(), &7.0 ).unwrap();
+  gl::uniform::upload( &gl, rainbow_delta_location.clone(), &0.012 ).unwrap();
+  gl::uniform::upload( &gl, squash_factor_location.clone(), &0.98 ).unwrap();
+  gl::uniform::upload( &gl, radius_location.clone(), &max_dst ).unwrap();
   gl::uniform::upload( &gl, geometry_factor_location.clone(), &0.5 ).unwrap();
-  gl::uniform::upload( &gl, absorption_factor_location.clone(), &0.8 ).unwrap();
+  gl::uniform::upload( &gl, absorption_factor_location.clone(), &0.7 ).unwrap();
 
   gl::uniform::upload( &gl, color_absorption_location.clone(), &[ 0.9911, 0.9911, 0.9911 ][ .. ] ).unwrap();
 
@@ -201,6 +214,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   gl.use_program( Some( &background_program ) );
   gl.uniform1i( gl.get_uniform_location( &background_program, "envMap" ).as_ref(), env_map_location );
+  gl.uniform1i( gl.get_uniform_location( &background_program, "cubeNormalMap" ).as_ref(), cube_normal_map_location );
 
   gl.active_texture( gl::TEXTURE0 + env_map_location as u32 );
   gl.bind_texture( gl::TEXTURE_CUBE_MAP, env_map.as_ref() );
@@ -217,11 +231,14 @@ async fn run() -> Result< (), gl::WebglError >
     move | t : f64 |
     {
       let time = t as f32 / 1000.0;
-      let rotation = gl::math::mat3x3::from_angle_y( time );
+      let rotation = gl::math::mat3x3::from_angle_y( time / 5.0 );
+      let eye = camera.get_eye();
       //let eye = rotation * eye;
 
+      //let model_matrix = rotation.to_homogenous() * model_matrix;
 
-      let view_matrix = gl::math::mat3x3h::look_at_rh( eye, gl::F32x3::ZERO, up );
+
+      let view_matrix = camera.get_view_matrix();
       let inverse_model_matrix = model_matrix.inverse().unwrap();
 
       gl.use_program( Some( &background_program ) );
