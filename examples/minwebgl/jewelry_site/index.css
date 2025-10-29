@@ -37,7 +37,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 .footer--container {
   position: fixed;
   display: flex;
-  bottom: 40px;
+  bottom: 70px;
   align-items: flex-end;
   justify-content: center;
   width: 100%;
@@ -72,7 +72,7 @@ table { border-collapse: collapse; border-spacing: 0; }
   transform: translate3d(35%, 0, 0) translateY(10px);
   width: 20px;
   height: 3px;
-  background: #5a3540;
+  background: #000000;
   border-radius: 10px;
   display: block;
 }
@@ -88,14 +88,12 @@ table { border-collapse: collapse; border-spacing: 0; }
 
 .footer--container .gem--menu {
   position: absolute;
-  border: 1px solid;
-  bottom: 90px;
-  background: rgba(255, 255, 255, 0.8784313725);
-  border-radius: 50px;
+  bottom: 55px;
+  height: 60px;
   padding: 20px 30px;
   visibility: hidden;
   opacity: 0;
-  transition: all 0.4s ease-in-out;
+  /* transition: all 0.4s ease-in-out; */
 }
 
 @media (max-width: 600px) {
@@ -124,7 +122,6 @@ table { border-collapse: collapse; border-spacing: 0; }
 }
 
 .footer--container .gem--menu li img {
-  margin-top: 7px;
   transition: all 0.8s ease-in-out;
   user-select: none;
   -webkit-user-select: none;
@@ -132,6 +129,7 @@ table { border-collapse: collapse; border-spacing: 0; }
   -khtml-user-drag: none;
   -moz-user-drag: none;
   -o-user-drag: none;
+  width: 50px;
 }
 
 .footer--container .gem--menu li img:hover {
@@ -141,12 +139,11 @@ table { border-collapse: collapse; border-spacing: 0; }
 
 .footer--container .gem--menu li.active::after {
   content: "";
-  width: 60px;
-  height: 60px;
+  width: 70px;
+  height: 70px;
   border-radius: 50px;
   position: absolute;
-  top: 10px;
-  border: 1px solid #d4b1b1;
+  border: 1px solid #888888;
 }
 
 .footer--container .gem--menu.show {
@@ -158,14 +155,12 @@ table { border-collapse: collapse; border-spacing: 0; }
 
 .footer--container .materials--menu {
   position: absolute;
-  border: 1px solid;
-  bottom: 90px;
-  background: rgba(255, 255, 255, 0.8784313725);
-  border-radius: 50px;
+  bottom: 55px;
+  height: 60px;
   padding: 20px 30px;
   visibility: hidden;
   opacity: 0;
-  transition: all 0.8s ease-in-out;
+  /* transition: all 0.8s ease-in-out; */
 }
 
 @media (max-width: 600px) {
@@ -180,7 +175,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 .footer--container .materials--menu > ul {
   list-style: none;
   display: inline-flex;
-  gap: 3em;
+  gap: 2em;
   margin: 0;
   padding: 0;
 }
@@ -211,12 +206,11 @@ table { border-collapse: collapse; border-spacing: 0; }
 
 .footer--container .materials--menu li.active::after {
   content: "";
-  width: 90px;
-  height: 60px;
+  width: 70px;
+  height: 70px;
   border-radius: 50px;
   position: absolute;
-  top: 7px;
-  border: 1px solid #d4b1b1;
+  border: 1px solid #888888;
 }
 
 .footer--container .materials--menu.show {
@@ -228,14 +222,12 @@ table { border-collapse: collapse; border-spacing: 0; }
 
 .footer--container .rings--menu {
   position: absolute;
-  border: 1px solid;
-  bottom: 90px;
-  background: rgba(255, 255, 255, 0.88);
-  border-radius: 50px;
+  bottom: 40px;
+  height: 60px;
   padding: 20px 30px;
   visibility: hidden;
   opacity: 0;
-  transition: all 0.8s ease-in-out;
+  /* transition: all 0.8s ease-in-out; */
 }
 
 @media (max-width: 600px) {
@@ -250,7 +242,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 .footer--container .rings--menu > ul {
   list-style: none;
   display: inline-flex;
-  gap: 3em;
+  gap: 2em;
   margin: 0;
   padding: 0;
 }
@@ -268,6 +260,9 @@ table { border-collapse: collapse; border-spacing: 0; }
   user-select: none;
   -webkit-user-select: none;
   -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  -o-user-drag: none;
   width: 50px;
 }
 
@@ -278,12 +273,11 @@ table { border-collapse: collapse; border-spacing: 0; }
 
 .footer--container .rings--menu li.active::after {
   content: "";
-  width: 90px;
-  height: 60px;
+  width: 70px;
+  height: 70px;
   border-radius: 50px;
   position: absolute;
-  top: 7px;
-  border: 1px solid #d4b1b1;
+  border: 1px solid #888888;
 }
 
 .footer--container .rings--menu.show {
@@ -340,7 +334,7 @@ table { border-collapse: collapse; border-spacing: 0; }
   transform: translate(-50%, -50%);
   opacity: 1;
   transition: all 0.4s ease;
-  z-index: 999;
+  z-index: 0;
   pointer-events: none;
 }
 
