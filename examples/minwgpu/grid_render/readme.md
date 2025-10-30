@@ -1,40 +1,11 @@
-# Hexagonal grid (WGPU render)
+# Grid Rendering (wgpu)
 
-Example of rendering hexagonal grid with layout with WGPU.
+**Keywords:** wgpu, Rust, Grids, Native Graphics
 
-![WGPU Triangle](showcase.png)
+This demo demonstrates grid rendering using wgpu, the Rust graphics library. It shows how to render grid patterns efficiently in native Rust applications using modern GPU APIs.
 
-## 🚀 Quick Start
+wgpu enables cross-platform native graphics. This example provides a foundation for data visualization, game grids, or technical drawing applications.
 
-### Prerequisites
+![image](showcase.png)
 
-- Rust with native platform target
-
-### Run the Example
-
-``` bash
-cd examples/minwgpu/grid_render
-cargo run
-```
-
-## How to use
-
-You can change path where image is saved:
-
-``` rust
-image::save_buffer( "your/custom/path.png", &data, width, height, image::ColorType::Rgba8 )
-```
-
-Or colors of background, hexagons, outline:
-
-``` rust
-let clear_color = wgpu::Color
-{
-  r : 0.5,
-  g : 0.5,
-  b : 0.5,
-  a : 1.0,
-};
-let hexagon_color = [ 0.0_f32, 0.0, 0.0 ];
-let outline_color = [ 1.0_f32, 1.0, 1.0 ];
-```
+**[How to run](../../how_to_run.md)**

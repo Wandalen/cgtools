@@ -1,5 +1,7 @@
 #![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ]
 
+#![ allow( clippy::implicit_return ) ]
+
 use std::cell::RefCell;
 use minwebgl as gl;
 use gl::
@@ -288,7 +290,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   let clouds = clone( &mut gltf, &earth );
   let texture = create_texture( &gl, "textures/clouds2.png" );
   set_texture
-  ( 
+  (
     &clouds,
     | m |
     {
@@ -353,11 +355,11 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
   {
     transform.translation[ 1 ] -= 1.0;
     let mut text_mesh = text::ufo::text_to_countour_mesh
-    ( 
-      &text, 
-      fonts.get( font_name ).expect( "Can't find font" ), 
-      &transform, 
-      5.0 
+    (
+      &text,
+      fonts.get( font_name ).expect( "Can't find font" ),
+      &transform,
+      5.0
     );
     text_mesh.iter_mut()
     .for_each( | p | p.color = colors[ 0 ].clone() );
@@ -665,7 +667,7 @@ async fn run() -> Result< (), gl::WebglError >
   let ( gl, canvas ) = init_context();
 
   let mut gltf = setup_scene( &gl ).await?;
-  
+
   let ( canvas_gltf, _ ) = setup_canvas_scene( &gl ).await;
   canvas_gltf.scenes[ 0 ].borrow_mut().update_world_matrix();
   let animation = setup_animation( &gl, canvas.height() as usize, canvas.width() as usize );
@@ -753,7 +755,7 @@ async fn run() -> Result< (), gl::WebglError >
 
       swap_buffer.set_output( t );
       swap_buffer.swap();
-    
+
       let _t = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
       .expect( "Failed to render to srgb pass" );
 
@@ -774,10 +776,10 @@ async fn run() -> Result< (), gl::WebglError >
 fn main()
 {
   gl::spawn_local
-  ( 
-    async move 
-    { 
+  (
+    async move
+    {
       run().await.expect( "Program finish work with errors" )
-    } 
+    }
   );
 }

@@ -1,4 +1,3 @@
-use crate::Coord;
 use serde::{ Serialize, Deserialize };
 
 #[ derive( Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize ) ]
@@ -60,44 +59,6 @@ impl TriAxial
       Self::new( a + offset, b, c ),
       Self::new( a, b + offset, c ),
       Self::new( a, b, c + offset ),
-    ]
-  }
-
-  pub fn corners_axial( &self ) -> [ Coord; 3 ]
-  {
-    let corner_points = self.corners_points();
-    corner_points.map
-    (
-      | p |
-      {
-        let pixel : tiles_tools::coordinates::pixel::Pixel = p.into();
-        let axial : Coord = pixel.into();
-        axial
-      }
-    )
-  }
-
-  pub fn corners_points( &self ) -> [ [ f32; 2 ]; 3 ]
-  {
-    self.corners().map
-    (
-      | corner |
-      {
-        corner.to_point()
-      }
-    )
-  }
-
-  pub const fn corners( &self ) -> [ TriAxial; 3 ]
-  {
-    let Self { a, b, c } = *self;
-    let is_right = self.is_right() as i32;
-    let is_left = self.is_left() as i32;
-    let offset = is_right + is_left * -1;
-    [
-      Self::new( offset + a, b, c ),
-      Self::new( a, b, offset + c ),
-      Self::new( a, offset + b, c ),
     ]
   }
 }
