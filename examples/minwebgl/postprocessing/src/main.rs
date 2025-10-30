@@ -1,7 +1,6 @@
 //! Postprocessing demo
 #![ allow( clippy::cast_precision_loss ) ]
 #![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::cast_possible_wrap ) ]
 #![ allow( clippy::default_trait_access ) ]
 #![ allow( clippy::implicit_return ) ]
 
@@ -42,7 +41,7 @@ async fn run() -> Result< (), gl::WebglError >
   scenes[ 0 ].borrow_mut().update_world_matrix();
 
   let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
-  gl::info!( "Scene boudnig box: {scene_bounding_box:?}" );
+  gl::info!( "Scene boundnig box: {scene_bounding_box:?}" );
   let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
   let dist = scene_bounding_box.max.mag();
   let exponent =
