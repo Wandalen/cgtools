@@ -396,5 +396,5 @@ version = "0.10"
 features = [ "js" ]
 
 [workspace.dependencies.spart] 
-git = "https://github.com/Wandalen/spart"
+version = "0.4.1"
 

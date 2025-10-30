@@ -5,14 +5,14 @@ use minwebgl as gl;
 pub struct Point2D( pub gl::F32x2, pub usize );
 
 
-impl spart::kd_tree::KdPoint for Point2D
+impl spart::kdtree::KdPoint for Point2D
 {
   fn dims( &self ) -> usize 
   {
     2
   }
 
-  fn coord( &self, axis: usize ) -> Result< f64, spart::exceptions::SpartError > 
+  fn coord( &self, axis: usize ) -> Result< f64, spart::errors::SpartError > 
   {
     match axis 
     {
@@ -20,7 +20,7 @@ impl spart::kd_tree::KdPoint for Point2D
       1 => Ok( self.0.y() as f64 ),
       _ => Err
       ( 
-        spart::exceptions::SpartError::InvalidDimension 
+        spart::errors::SpartError::InvalidDimension 
         {
           requested: axis,
           available: 2,

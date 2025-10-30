@@ -74,7 +74,7 @@ fn run() -> Result< (), gl::WebglError >
   }
   let mut colors = vec![ gl::F32x3::splat( 0.0 ); NUM_POINTS ];
 
-  let mut kd_tree = spart::kd_tree::KdTree::new();
+  let mut kd_tree = spart::kdtree::KdTree::new();
   kd_tree.insert_bulk( points.clone() ).expect( "Failed to insert bulk" );
 
 
