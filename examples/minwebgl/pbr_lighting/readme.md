@@ -1,10 +1,8 @@
-# glTF Viewer
+# PBR lighting
 
-**Keywords:** glTF, PBR, 3D Models, WebGL2
+**Keywords:** glTF, PBR, light, WebGL2
 
-This demo is a comprehensive glTF 2.0 viewer implementing physically-based rendering (PBR) in WebGL2. It loads and displays 3D models with industry-standard materials, including metallic-roughness workflow, normal mapping, and image-based lighting.
-
-glTF is the standard format for 3D content on the web. This example provides a production-ready viewer with full PBR material support, suitable for e-commerce, education, and 3D asset preview.
+This demo is showcase of point and direct light usage with renderer. User can change light pararmeters like direction, position, strength, color, range using UI. Then renderer will show how light affects on PBR surface of glTF models.
 
 ![image](./showcase.jpg)
 

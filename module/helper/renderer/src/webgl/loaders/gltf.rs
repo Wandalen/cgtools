@@ -140,7 +140,7 @@ use minwebgl as gl;
     let gltf_lights = gltf.extensions()?
     .get_key_value( "KHR_lights_punctual" )?.1
     .get( "lights" )?.as_array()?;
-    let lights = HashMap::new();
+    let mut lights = HashMap::new();
     for ( i, gltf_light ) in gltf_lights.iter().enumerate()
     {
       let Some( light_type ) = gltf_light.get( "type" )
@@ -161,7 +161,7 @@ use minwebgl as gl;
           .map( | i | i.as_array() )
           .flatten()
           .map( | v | v.iter().map( | i | i.as_f64().unwrap() as f32 ).collect::< Vec< _ > >() )
-          .map( | c | F32x3::from_slice( c[ 0..3 ] ) )
+          .map( | c | F32x3::from_slice( &c[ 0..3 ] ) )
           else
           {
             continue;
@@ -186,8 +186,8 @@ use minwebgl as gl;
             {
               position : F32x3::default(),
               color,
-              strength,
-              range
+              strength : strength as f32,
+              range : range as f32,
             }
           )
         },
@@ -197,7 +197,7 @@ use minwebgl as gl;
           .map( | i | i.as_array() )
           .flatten()
           .map( | v | v.iter().map( | i | i.as_f64().unwrap() as f32 ).collect::< Vec< _ > >() )
-          .map( | c | F32x3::from_slice( c[ 0..3 ] ) )
+          .map( | c | F32x3::from_slice( &c[ 0..3 ] ) )
           else
           {
             continue;
@@ -215,7 +215,7 @@ use minwebgl as gl;
             {
               direction : F32x3::default(),
               color,
-              strength
+              strength : strength as f32,
             }
           )
         },
@@ -223,31 +223,31 @@ use minwebgl as gl;
         _ => continue
       };
 
-      lights.insert( i, light )
+      lights.insert( i, light );
     }
     Some( lights )
   }
 
-  fn get_light( gltf_node : &gltf::Node< '_ >, node : &Node, lights : HashMap< usize, Light > ) -> Option< Light >
+  fn get_light( gltf_node : &gltf::Node< '_ >, node : &Node, lights : &HashMap< usize, Light > ) -> Option< Light >
   {
     let light_id = gltf_node.extensions()?
     .get_key_value( "KHR_lights_punctual" )?.1
     .get( "light" )?
     .as_u64()?;
 
-    lights.get( light_id as usize ).cloned()
+    lights.get( &( light_id as usize ) ).cloned()
     .map
     (
       | light |
       {
         match light
         {
-          Light::Point( point_light ) =>
+          Light::Point( mut point_light ) =>
           {
             point_light.position = node.get_translation();
             Light::Point( point_light )
           },
-          Light::Direct( direct_light ) =>
+          Light::Direct( mut direct_light ) =>
           {
             direct_light.direction = node.get_translation();
             Light::Direct( direct_light )
@@ -699,7 +699,7 @@ use minwebgl as gl;
       {
         Object3D::Mesh( meshes[ mesh.index() ].clone() )
       }
-      else if let Some( light ) = get_light( &gltf_node, &node, gltf_lights )
+      else if let Some( light ) = get_light( &gltf_node, &node, &gltf_lights )
       {
         is_light = true;
         Object3D::Light( light )

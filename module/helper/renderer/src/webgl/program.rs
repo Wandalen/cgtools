@@ -185,7 +185,7 @@ mod private
     /// Return inner program
     pub fn get_program( &self ) -> WebGlProgram
     {
-      self.program
+      self.program.clone()
     }
   }
 

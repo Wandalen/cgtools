@@ -10,6 +10,7 @@ mod private
   {
     /// A mesh object, containing geometry and material information.
     Mesh( Rc< RefCell< Mesh > > ),
+    /// A light object
     Light( Light ),
     /// A placeholder for other types of 3D objects.
     Other

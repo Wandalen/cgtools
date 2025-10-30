@@ -2,8 +2,7 @@ mod private
 {
   use std::{ cell::RefCell, collections::HashMap, rc::Rc };
   use minwebgl as gl;
-  use gl::{ GL, F32x3 };
-  use web_sys::WebGlProgram;
+  use gl::GL;
 
   use crate::webgl::
   {
@@ -24,9 +23,7 @@ mod private
     ProgramInfo,
     Scene,
     IBL,
-    Light,
-    PointLight,
-    DirectLight
+    Light
   };
 
   const MAX_POINT_LIGHTS : usize = 8;
@@ -661,7 +658,7 @@ mod private
         node : Rc< RefCell< Node > >
       | -> Result< (), gl::WebglError >
       {
-        if let Object3D::Light( light ) = node.borrow().object
+        if let Object3D::Light( light ) = &node.borrow().object
         {
           let type_ = match light
           {
@@ -671,14 +668,27 @@ mod private
 
           if let Some( ls ) = lights.get_mut( type_ )
           {
-            ls.push( light );
+            ls.push( light.clone() );
           }
           else
           {
-            lights.insert( type_.to_string(), vec![ light ] );
+            lights.insert( type_.to_string(), vec![ light.clone() ] );
           }
         }
+
+        Ok( () )
       };
+
+      scene.traverse( &mut collect_light_sources )?;
+
+      for program in self.programs.values()
+      {
+        let locations = program.get_locations();
+        program.bind( gl );
+        camera.upload( gl, locations );
+        bind_light( gl, &program, &lights );
+        gl::uniform::upload( gl, locations.get( "exposure" ).unwrap().clone(), &self.exposure )?;
+      }
 
       // Define a closure to handle the drawing of each node in the scene.
       let mut draw_node =
@@ -773,17 +783,6 @@ mod private
 
         Ok( () )
       };
-
-      scene.traverse( &mut collect_light_sources )?;
-
-      for program in self.programs.values()
-      {
-        let locations = program.get_locations();
-        program.bind( gl );
-        camera.upload( gl, locations );
-        bind_light( gl, &program, &lights );
-        gl::uniform::upload( gl, locations.get( "exposure" ).unwrap().clone(), &self.exposure )?;
-      }
 
       // Traverse the scene and draw all opaque objects.
       scene.traverse( &mut draw_node )?;
@@ -923,7 +922,7 @@ mod private
 
     for ( type_, one_type_lights ) in lights
     {
-      let max_count = match type_
+      let max_count = match type_.as_str()
       {
         "point" => MAX_POINT_LIGHTS,
         "direct" => MAX_DIRECT_LIGHTS,
@@ -931,14 +930,14 @@ mod private
       };
 
       let count_loc = gl.get_uniform_location( &program.get_program(), format!( "{type_}LightsCount" ).as_str() );
-      gl::uniform::upload( gl, count_loc, &one_type_lights.len().min( max_count ) );
+      let _ = gl::uniform::upload( gl, count_loc, &( one_type_lights.len().min( max_count ) as i32 ) );
     }
 
     'i : for ( type_, one_type_lights ) in lights
     {
       for ( i, light ) in one_type_lights.iter().enumerate()
       {
-        match type_
+        match type_.as_str()
         {
           "point" =>
           {
@@ -958,10 +957,10 @@ mod private
             let strength_loc = gl.get_uniform_location( &program.get_program(), format!( "pointLights[{i}].strength" ).as_str() );
             let range_loc = gl.get_uniform_location( &program.get_program(), format!( "pointLights[{i}].range" ).as_str() );
 
-            gl::uniform::upload( gl, position_loc, light.position.as_slice() );
-            gl::uniform::upload( gl, color_loc, light.color.as_slice() );
-            gl::uniform::upload( gl, strength_loc, &light.strength );
-            gl::uniform::upload( gl, range_loc, &light.range );
+            let _ = gl::uniform::upload( gl, position_loc, light.position.as_slice() );
+            let _ = gl::uniform::upload( gl, color_loc, light.color.as_slice() );
+            let _ = gl::uniform::upload( gl, strength_loc, &light.strength );
+            let _ = gl::uniform::upload( gl, range_loc, &light.range );
           },
           "direct" =>
           {
@@ -980,9 +979,9 @@ mod private
             let color_loc = gl.get_uniform_location( &program.get_program(), format!( "directLights[{i}].color" ).as_str() );
             let strength_loc = gl.get_uniform_location( &program.get_program(), format!( "directLights[{i}].strength" ).as_str() );
 
-            gl::uniform::upload( gl, direction_loc, light.direction.as_slice() );
-            gl::uniform::upload( gl, color_loc, light.color.as_slice() );
-            gl::uniform::upload( gl, strength_loc, &light.strength );
+            let _ = gl::uniform::upload( gl, direction_loc, light.direction.as_slice() );
+            let _ = gl::uniform::upload( gl, color_loc, light.color.as_slice() );
+            let _ = gl::uniform::upload( gl, strength_loc, &light.strength );
           },
           _ => ()
         }

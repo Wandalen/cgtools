@@ -49,8 +49,8 @@ struct ReflectedLight
   vec3 directSpecular;
 };
 
-const uint MAX_POINT_LIGHTS = 8;
-const uint MAX_DIRECT_LIGHTS = 8;
+const int MAX_POINT_LIGHTS = 8;
+const int MAX_DIRECT_LIGHTS = 8;
 
 struct PointLight
 {
@@ -68,10 +68,10 @@ struct DirectLight
 };
 
 uniform PointLight pointLights[ MAX_POINT_LIGHTS ];
-uniform uint pointLightsCount;
+uniform int pointLightsCount;
 
 uniform DirectLight directLights[ MAX_DIRECT_LIGHTS ];
-uniform uint directLightsCount;
+uniform int directLightsCount;
 
 uniform float luminosityThreshold;
 uniform float luminositySmoothWidth;
