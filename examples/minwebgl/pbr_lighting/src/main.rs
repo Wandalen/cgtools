@@ -15,17 +15,31 @@
 #![ allow( clippy::no_effect_underscore_binding ) ]
 
 use std::{ cell::RefCell, rc::Rc };
+use mingl::F32x3;
 use minwebgl as gl;
-
 use renderer::webgl::
 {
-  post_processing::{self, Pass, SwapFramebuffer}, Camera, Renderer
+  post_processing::{self, Pass, SwapFramebuffer},
+  Camera,
+  Scene,
+  DirectLight,
+  PointLight,
+  Light,
+  Node,
+  Object3D,
+  Renderer
 };
 
-mod loaders;
 mod lil_gui;
 mod gui_setup;
 
+fn add_light( scene : &Rc< RefCell< Scene > >, light : Light ) -> Rc< RefCell< Node > >
+{
+  let light_node = Rc::new( RefCell::new( Node::new() ) );
+  light_node.borrow_mut().object = Object3D::Light( light );
+  scene.borrow_mut().children.push( light_node.clone() );
+  light_node
+}
 
 async fn run() -> Result< (), gl::WebglError >
 {
@@ -80,7 +94,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   renderer.set_use_emission( true );
-  renderer.set_ibl( loaders::ibl::load( &gl, "envMap" ).await );
+  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "envMap" ).await );
 
   let renderer = Rc::new( RefCell::new( renderer ) );
 
@@ -90,6 +104,63 @@ async fn run() -> Result< (), gl::WebglError >
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
   gui_setup::setup( renderer.clone() );
+
+  // let d1 = add_light
+  // (
+  //   &scenes[ 0 ],
+  //   Light::Direct
+  //   (
+  //     DirectLight
+  //     {
+  //       direction : F32x3::from_array( [ -1.0, 1.0, 1.0 ] ),
+  //       color : F32x3::from_array( [ 0.0, 0.0, 1.0 ] ),
+  //       strength : 10.0,
+  //     }
+  //   )
+  // );
+
+  // let d2 = add_light
+  // (
+  //   &scenes[ 0 ],
+  //   Light::Direct
+  //   (
+  //     DirectLight
+  //     {
+  //       direction : F32x3::from_array( [ 1.0, 1.0, -1.0 ] ),
+  //       color : F32x3::from_array( [ 0.0, 1.0, 0.0 ] ),
+  //       strength : 10.0,
+  //     }
+  //   )
+  // );
+
+  // let d3 = add_light
+  // (
+  //   &scenes[ 0 ],
+  //   Light::Direct
+  //   (
+  //     DirectLight
+  //     {
+  //       direction : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
+  //       color : F32x3::from_array( [ 1.0, 0.0, 0.0 ] ),
+  //       strength : 10.0,
+  //     }
+  //   )
+  // );
+
+  // let p1 = add_light
+  // (
+  //   &scenes[ 0 ],
+  //   Light::Point
+  //   (
+  //     PointLight
+  //     {
+  //       position : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
+  //       color : F32x3::from_array( [ 1.0, 0.0, 0.0 ] ),
+  //       strength : 1000.0,
+  //       range : 10.0
+  //     }
+  //   )
+  // );
 
   // Define the update and draw logic
   let update_and_draw =
