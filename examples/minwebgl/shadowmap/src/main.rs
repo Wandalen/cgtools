@@ -92,8 +92,8 @@ async fn run() -> Result< (), gl::WebglError >
   gl::texture::d2::wrap_clamp( &gl );
 
   // Use trilinear filtering for smooth mipmap transitions
-  gl.tex_parameter_i32( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR );
-  gl.tex_parameter_i32( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR );
+  gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
+  gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
 
   // Setup shadow baker
   let shadow_baker = shadowmap::ShadowBaker::new( &gl )?;

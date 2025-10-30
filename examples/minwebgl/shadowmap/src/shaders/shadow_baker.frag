@@ -40,13 +40,13 @@ float find_blocker_distance( vec2 shadow_uv, float receiver_depth, float search_
   // Use different angle offset for each pixel to reduce banding
   float angle_offset = interleaved_gradient_noise( gl_FragCoord.xy ) * 6.283185307;
 
-  for( int i = 0; i < num_samples; ++i )
+  for ( int i = 0; i < num_samples; i++ )
   {
     vec2 offset = vogel_disk_sample( i, num_samples, angle_offset ) * search_radius;
     vec2 sample_uv = shadow_uv + offset * texel_size;
 
     // Skip if outside shadow map
-    if( sample_uv.x < 0.0 || sample_uv.x > 1.0 || sample_uv.y < 0.0 || sample_uv.y > 1.0 )
+    if ( sample_uv.x < 0.0 || sample_uv.x > 1.0 || sample_uv.y < 0.0 || sample_uv.y > 1.0 )
     {
       continue;
     }
@@ -54,14 +54,14 @@ float find_blocker_distance( vec2 shadow_uv, float receiver_depth, float search_
     float shadow_depth = texture( u_shadow_map, sample_uv ).r;
 
     // Only consider depths that would block (closer than receiver)
-    if( shadow_depth < receiver_depth )
+    if ( shadow_depth < receiver_depth )
     {
       blocker_sum += shadow_depth;
       blocker_count += 1.0;
     }
   }
 
-  if( blocker_count < 0.1 )
+  if ( blocker_count < 0.1 )
   {
     return -1.0; // No blockers found
   }
@@ -86,12 +86,12 @@ float pcss_shadow_filter( vec2 shadow_uv, float receiver_depth, float filter_rad
 
   float angle_offset = interleaved_gradient_noise( gl_FragCoord.xy ) * 6.283185307;
 
-  for( int i = 0; i < num_samples; ++i )
+  for ( int i = 0; i < num_samples; ++i )
   {
     vec2 offset = vogel_disk_sample( i, num_samples, angle_offset ) * filter_radius;
     vec2 sample_uv = shadow_uv + offset * texel_size;
 
-    if( sample_uv.x < 0.0 || sample_uv.x > 1.0 || sample_uv.y < 0.0 || sample_uv.y > 1.0 )
+    if ( sample_uv.x < 0.0 || sample_uv.x > 1.0 || sample_uv.y < 0.0 || sample_uv.y > 1.0 )
     {
       shadow_sum += 0.0; // Fully lit outside shadow map
       continue;
@@ -109,7 +109,7 @@ float calculate_shadow( vec4 light_space_pos )
 {
   // Calculate light direction based on projection type
   vec3 light_dir_to_use;
-  if( u_is_orthographic > 0.0 )
+  if ( u_is_orthographic > 0.0 )
   {
     // Orthographic: uniform directional light
     light_dir_to_use = u_light_dir;
@@ -127,24 +127,24 @@ float calculate_shadow( vec4 light_space_pos )
   proj_coords = proj_coords * 0.5 + 0.5;
 
   // Check if outside shadow map
-  if( proj_coords.z > 1.0 || proj_coords.z < 0.0 )
+  if ( proj_coords.z > 1.0 || proj_coords.z < 0.0 )
   {
     return 0.0; // No shadow beyond far plane
   }
 
   // Clamp to valid texture coordinates
-  if( proj_coords.x < 0.0 || proj_coords.x > 1.0 || proj_coords.y < 0.0 || proj_coords.y > 1.0 )
-  {
-    return 0.0;
-  }
+  // if( proj_coords.x < 0.0 || proj_coords.x > 1.0 || proj_coords.y < 0.0 || proj_coords.y > 1.0 )
+  // {
+  //   return 0.0;
+  // }
 
   float receiver_depth = proj_coords.z;
 
   // === Step 1: Blocker Search ===
-  const float light_world_size = 30.0;
+  const float light_world_size = 20.0;
 
   float search_radius;
-  if( u_is_orthographic > 0.0 )
+  if ( u_is_orthographic > 0.0 )
   {
     search_radius = light_world_size * 20.0;
   }
@@ -153,7 +153,7 @@ float calculate_shadow( vec4 light_space_pos )
     search_radius = light_world_size * 40.0;
   }
 
-  const int blocker_search_samples = 32;
+  const int blocker_search_samples = 64;
 
   float avg_blocker_depth = find_blocker_distance
   (
@@ -164,7 +164,7 @@ float calculate_shadow( vec4 light_space_pos )
   );
 
   // No blockers found = fully lit
-  if( avg_blocker_depth < 0.0 )
+  if ( avg_blocker_depth < 0.0 )
   {
     return 0.0;
   }
@@ -172,7 +172,7 @@ float calculate_shadow( vec4 light_space_pos )
   // === Step 2: Penumbra Size Estimation ===
   float penumbra_width;
 
-  if( u_is_orthographic > 0.0 )
+  if ( u_is_orthographic > 0.0 )
   {
     penumbra_width = light_world_size * 20.0;
   }
@@ -204,7 +204,5 @@ void main()
   // Calculate shadow value: 0 = lit, 1 = shadowed
   float shadow = calculate_shadow( v_light_space_pos );
 
-  // Output shadow value to lightmap texture
-  // R channel contains shadow (0 = lit, 1 = shadowed)
   frag_color = vec4( shadow, 0.0, 0.0, 1.0 );
 }
