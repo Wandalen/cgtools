@@ -54,7 +54,9 @@ float find_blocker_distance( vec2 shadow_uv, float receiver_depth, float search_
     float shadow_depth = texture( u_shadow_map, sample_uv ).r;
 
     // Only consider depths that would block (closer than receiver)
-    if ( shadow_depth < receiver_depth )
+    // Add small epsilon for floating-point precision tolerance
+    const float blocker_epsilon = 0.00001;
+    if ( shadow_depth < receiver_depth - blocker_epsilon )
     {
       blocker_sum += shadow_depth;
       blocker_count += 1.0;
@@ -83,6 +85,9 @@ float pcss_shadow_filter( vec2 shadow_uv, float receiver_depth, float filter_rad
   float base_bias = mix( 0.001, 0.0002, u_is_orthographic );
   float slope_bias = mix( 0.003, 0.0008, u_is_orthographic );
   float bias = mix( slope_bias, base_bias, cos_theta );
+
+  // Clamp bias to prevent extreme values
+  bias = clamp( bias, 0.00005, 0.005 );
 
   float angle_offset = interleaved_gradient_noise( gl_FragCoord.xy ) * 6.283185307;
 
@@ -146,11 +151,15 @@ float calculate_shadow( vec4 light_space_pos )
   float search_radius;
   if ( u_is_orthographic > 0.0 )
   {
-    search_radius = light_world_size * 20.0;
+    // Orthographic: constant search radius
+    search_radius = light_world_size * 15.0;
   }
   else
   {
-    search_radius = light_world_size * 40.0;
+    // Perspective: scale search radius with depth for better results
+    // Closer objects get tighter search, farther objects get wider search
+    float depth_scale = mix( 1.0, 2.5, clamp( receiver_depth, 0.0, 1.0 ) );
+    search_radius = light_world_size * 30.0 * depth_scale;
   }
 
   const int blocker_search_samples = 64;
@@ -174,10 +183,14 @@ float calculate_shadow( vec4 light_space_pos )
 
   if ( u_is_orthographic > 0.0 )
   {
-    penumbra_width = light_world_size * 20.0;
+    // For orthographic: penumbra still varies with blocker-receiver distance
+    // This produces physically-correct soft shadows for directional lights
+    float blocker_distance = receiver_depth - avg_blocker_depth;
+    penumbra_width = blocker_distance * light_world_size * 25.0;
   }
   else
   {
+    // For perspective: standard PCSS formula
     float blocker_distance = receiver_depth - avg_blocker_depth;
     penumbra_width = blocker_distance * search_radius / max( avg_blocker_depth, 0.01 );
   }
