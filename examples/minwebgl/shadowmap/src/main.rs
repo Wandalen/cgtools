@@ -27,9 +27,14 @@ async fn run() -> Result< (), gl::WebglError >
 
   let gl = gl::context::retrieve_or_make()
   .expect( "Failed to retrieve WebGl context" );
+
+  // Enable extensions for float texture rendering
+  let ext_color_buffer_float = gl.get_extension( "EXT_color_buffer_float" );
+  let ext_float_linear = gl.get_extension( "OES_texture_float_linear" );
+  gl::info!( "{ext_color_buffer_float:?}" );
+  gl::info!( "{ext_float_linear:?}" );
+
   gl.enable( gl::DEPTH_TEST );
-  gl.clear_color( 0.1, 0.1, 0.15, 1.0 );
-  gl.viewport( 0, 0, width, height );
 
   let canvas = gl.canvas()
   .unwrap()
@@ -43,7 +48,7 @@ async fn run() -> Result< (), gl::WebglError >
   (
     [ 0.0, 1.5, 5.0 ].into(),
     [ 0.0, 1.0, 0.0 ].into(),
-    [ 0.0, 1.5, 0.0 ].into(),
+    [ 0.0, 0.5, 0.0 ].into(),
     aspect,
     45.0_f32.to_radians(),
     0.1,
@@ -64,7 +69,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   // Load skull model
   let skull = gltf::load( &document, "skull_salazar_downloadable.glb", &gl ).await?;
-  let skull_model = mat3x3h::translation( [ 0.0, 1.5, 0.0 ] );
+  let skull_model = mat3x3h::translation( [ 0.0, 0.5, 0.0 ] );
 
   // Create plane geometry
   let plane_vao = create_plane_vao( &gl )?;
@@ -74,8 +79,28 @@ async fn run() -> Result< (), gl::WebglError >
   let shadowmap_resolution = 4096;
   let shadowmap = shadowmap::Shadowmap::new( &gl, shadowmap_resolution )?;
 
+  // Setup lightmap for baked shadows
+  let lightmap_resolution = 2048;
+  let plane_lightmap = gl.create_texture();
+  gl.bind_texture( gl::TEXTURE_2D, plane_lightmap.as_ref() );
+
+  // Calculate number of mipmap levels: floor(log2(resolution)) + 1
+  let mip_levels = ( lightmap_resolution as f32 ).log2().floor() as i32 + 1;
+
+  // Allocate texture storage with mipmaps
+  gl.tex_storage_2d( gl::TEXTURE_2D, mip_levels, gl::RGBA16F, lightmap_resolution, lightmap_resolution );
+  gl::texture::d2::wrap_clamp( &gl );
+
+  // Use trilinear filtering for smooth mipmap transitions
+  gl.tex_parameter_i32( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR );
+  gl.tex_parameter_i32( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR );
+
+  // Setup shadow baker
+  let shadow_baker = shadowmap::ShadowBaker::new( &gl )?;
+  shadow_baker.set_target( plane_lightmap.as_ref() );
+
   // Lighting parameters
-  let light_pos = [ 0.0, 4.0, 5.0 ];
+  let light_pos = [ 0.0, 2.0, 3.0 ];
   let light_color = [ 1.0, 1.0, 1.0 ];
   let skull_color = [ 0.9, 0.85, 0.8 ];
   let plane_color = [ 0.3, 0.3, 0.3 ];
@@ -89,25 +114,18 @@ async fn run() -> Result< (), gl::WebglError >
   (
     light_pos.into(),
     light_orientation,
-    mat3x3h::orthographic_rh_gl( -10.0, 10.0, -10.0, 10.0, near, far )
-    // mat3x3h::perspective_rh_gl( 90.0f32.to_radians(), 1.0, near, far )
+    // mat3x3h::orthographic_rh_gl( -10.0, 10.0, -10.0, 10.0, near, far )
+    mat3x3h::perspective_rh_gl( 45.0_f32.to_radians(), 1.0, near, far )
   );
-  let is_orthographic = 1.0f32;
-  let light_dir = gl::F32x3::new( 0.0, 0.0, -1.0 );  // Local forward
-  let rotation_matrix = light_orientation.to_matrix();
-  let light_dir = rotation_matrix * light_dir;
 
   // === Shadow Pass: Render depth from light's perspective ===
-  shadowmap.bind( &gl );
-  gl.viewport( 0, 0, shadowmap_resolution as i32, shadowmap_resolution as i32 );
-  gl.clear( gl::DEPTH_BUFFER_BIT );
-
-  let light_view_projection = light_source.view_projection();
-
+  shadowmap.bind();
   // Render back faces to shadow map to reduce shadow acne
   // This provides natural geometric offset instead of relying only on depth bias
   gl.enable( gl::CULL_FACE );
   gl.cull_face( gl::FRONT );
+
+  let light_view_projection = light_source.view_projection();
 
   // Render skull to shadowmap (closed mesh, safe for back-face rendering)
   shadowmap.upload_mvp( light_view_projection * skull_model );
@@ -120,9 +138,9 @@ async fn run() -> Result< (), gl::WebglError >
       primitive.draw( &gl );
     }
   }
-
   // Plane is single-sided, render it with front faces (or disable culling)
   gl.disable( gl::CULL_FACE );
+
   shadowmap.upload_mvp( light_view_projection * plane_model );
   gl.bind_vertex_array( Some( &plane_vao ) );
   gl.draw_elements_with_i32( gl::TRIANGLES, 6, gl::UNSIGNED_SHORT, 0 );
@@ -130,8 +148,30 @@ async fn run() -> Result< (), gl::WebglError >
   // Reset to normal culling
   gl.cull_face( gl::BACK );
 
+  // === Lightmap Baking Pass: Bake PCSS shadows into lightmap ===
+  shadow_baker.bind( lightmap_resolution as u32 );
+  shadow_baker.upload_model( plane_model );
+  shadow_baker.upload_light_source( &mut light_source );
+  shadow_baker.set_shadow_map_unit( 2 );
+
+  // Bind shadow map texture for sampling
+  gl.active_texture( gl::TEXTURE2 );
+  gl.bind_texture( gl::TEXTURE_2D, shadowmap.depth_texture() );
+
+  // Render plane to bake shadows
+  gl.bind_vertex_array( Some( &plane_vao ) );
+  gl.draw_elements_with_i32( gl::TRIANGLES, 6, gl::UNSIGNED_SHORT, 0 );
+
+  // Unbind framebuffer
   gl.bind_framebuffer( gl::FRAMEBUFFER, None );
+
+  // Generate mipmaps for the lightmap texture
+  gl.bind_texture( gl::TEXTURE_2D, plane_lightmap.as_ref() );
+  gl.generate_mipmap( gl::TEXTURE_2D );
+
+  // Restore viewport and clear color
   gl.viewport( 0, 0, width, height );
+  gl.clear_color( 0.1, 0.1, 0.15, 1.0 );
 
   let update = move | _ |
   {
@@ -144,16 +184,13 @@ async fn run() -> Result< (), gl::WebglError >
 
     shader.activate();
     shader.uniform_upload( "u_light_pos", &light_pos );
-    shader.uniform_upload( "u_light_dir", light_dir.as_slice() );
     shader.uniform_upload( "u_view_pos", camera.get_eye().as_slice() );
     shader.uniform_upload( "u_light_color", &light_color );
-    shader.uniform_matrix_upload( "u_light_view_projection", light_view_projection.raw_slice(), true );
-    shader.uniform_upload( "u_is_orthographic", &is_orthographic );
-    shader.uniform_upload( "u_shadow_map", &2 );
+    // shader.uniform_upload( "u_shadow_map", &2 );
+    shader.uniform_upload( "u_lightmap", &1 );
 
-    // Bind shadow texture
-    gl.active_texture( gl::TEXTURE2 );
-    gl.bind_texture( gl::TEXTURE_2D, shadowmap.depth_texture() );
+    gl.active_texture( gl::TEXTURE1 );
+    gl.bind_texture( gl::TEXTURE_2D, None );
 
     // Render skull
     gl.enable( gl::CULL_FACE );
@@ -172,6 +209,7 @@ async fn run() -> Result< (), gl::WebglError >
     }
     gl.disable( gl::CULL_FACE );
 
+    gl.bind_texture( gl::TEXTURE_2D, plane_lightmap.as_ref() );
     // Render plane
     let plane_mvp = view_projection * plane_model;
     shader.uniform_matrix_upload( "u_mvp", plane_mvp.raw_slice(), true );
@@ -181,7 +219,7 @@ async fn run() -> Result< (), gl::WebglError >
     gl.draw_elements_with_i32( gl::TRIANGLES, 6, gl::UNSIGNED_SHORT, 0 );
     gl.bind_vertex_array( None );
 
-    // === Debug: Visualize shadow map in corner ===
+    // === Debug: Visualize lightmap in corner ===
     // Set viewport to bottom-left corner (quarter size)
     let debug_size = ( width / 4 ).min( height / 4 );
     gl.viewport( 0, 0, debug_size, debug_size );
@@ -191,12 +229,15 @@ async fn run() -> Result< (), gl::WebglError >
 
     debug_shader.activate();
     debug_shader.uniform_upload( "u_depth_texture", &0 );
-    debug_shader.uniform_upload( "u_near", &near );
-    debug_shader.uniform_upload( "u_far", &far );
+    // debug_shader.uniform_upload( "u_near", &near );
+    // debug_shader.uniform_upload( "u_far", &far );
 
-    // Bind shadow map to texture unit 0
+    // Bind lightmap texture to texture unit 0
     gl.active_texture( gl::TEXTURE0 );
-    gl.bind_texture( gl::TEXTURE_2D, shadowmap.depth_texture() );
+    gl.bind_texture( gl::TEXTURE_2D, plane_lightmap.as_ref() );
+
+    // === OLD: Display depth texture ===
+    // gl.bind_texture( gl::TEXTURE_2D, shadowmap.depth_texture() );
 
     // Draw fullscreen triangle (no vertex buffer needed)
     gl.draw_arrays( gl::TRIANGLES, 0, 3 );
@@ -213,18 +254,18 @@ async fn run() -> Result< (), gl::WebglError >
   Ok( () )
 }
 
-/// Creates a simple plane geometry with positions and normals
+/// Creates a simple plane geometry with positions, normals, and UV coordinates
 fn create_plane_vao( gl : &gl::GL ) -> Result< web_sys::WebGlVertexArrayObject, gl::WebglError >
 {
   // Plane vertices: two triangles forming a quad
-  // Each vertex: [x, y, z, nx, ny, nz]
-  let vertices : [ f32; 24 ] =
+  // Each vertex: [x, y, z, nx, ny, nz, u, v]
+  let vertices : [ f32; 32 ] =
   [
-    // First triangle
-    -1.0, 0.0, -1.0,  0.0, 1.0, 0.0, // Bottom-left
-     1.0, 0.0, -1.0,  0.0, 1.0, 0.0, // Bottom-right
-     1.0, 0.0,  1.0,  0.0, 1.0, 0.0, // Top-right
-    -1.0, 0.0,  1.0,  0.0, 1.0, 0.0, // Top-left
+    // Position           Normal           UV
+    -1.0, 0.0, -1.0,  0.0, 1.0, 0.0,  0.0, 0.0, // Bottom-left
+     1.0, 0.0, -1.0,  0.0, 1.0, 0.0,  1.0, 0.0, // Bottom-right
+     1.0, 0.0,  1.0,  0.0, 1.0, 0.0,  1.0, 1.0, // Top-right
+    -1.0, 0.0,  1.0,  0.0, 1.0, 0.0,  0.0, 1.0, // Top-left
   ];
 
   let indices : [ u16; 6 ] = [ 0, 1, 2, 0, 2, 3 ];
@@ -237,13 +278,19 @@ fn create_plane_vao( gl : &gl::GL ) -> Result< web_sys::WebGlVertexArrayObject, 
   gl.bind_buffer( gl::ARRAY_BUFFER, Some( &vbo ) );
   gl.buffer_data_with_u8_array( gl::ARRAY_BUFFER, vertices.as_bytes(), gl::STATIC_DRAW );
 
+  let stride = 32; // 8 floats * 4 bytes = 32 bytes per vertex
+
   // Position attribute (location 0)
-  gl.vertex_attrib_pointer_with_i32( 0, 3, gl::FLOAT, false, 24, 0 );
+  gl.vertex_attrib_pointer_with_i32( 0, 3, gl::FLOAT, false, stride, 0 );
   gl.enable_vertex_attrib_array( 0 );
 
   // Normal attribute (location 1)
-  gl.vertex_attrib_pointer_with_i32( 1, 3, gl::FLOAT, false, 24, 12 );
+  gl.vertex_attrib_pointer_with_i32( 1, 3, gl::FLOAT, false, stride, 12 );
   gl.enable_vertex_attrib_array( 1 );
+
+  // UV attribute (location 2) - for lightmap baking
+  gl.vertex_attrib_pointer_with_i32( 2, 2, gl::FLOAT, false, stride, 24 );
+  gl.enable_vertex_attrib_array( 2 );
 
   // Create and upload index buffer
   let ibo = gl::buffer::create( gl )?;
