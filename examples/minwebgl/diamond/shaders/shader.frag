@@ -4,15 +4,17 @@ precision mediump float;
 
 const float EPSILON = 1e-4;
 // Reflectance of a diamond at light incidence of theta = 0
-//const vec3 F0 = vec3( 0.1724 );
-const vec3 F0 = 1.0 / vec3( 2.407, 2.426, 2.451 );
 // Max distance to the surface in cubeNormalMap
 // This value was calculated during generation of the map
 //const float MAX_DISTANCE = 5.7610855;
 const float MAX_DISTANCE = 1.0;
 const int RAY_BOUNCES = 5;
 const float TRANSMISSION = 0.5;
+const vec3 DIAMOND_COLOR = vec3(1.0);
 const vec3 BOOST_FACTORS = vec3( 0.8920, 0.8920, 0.9860 );
+
+const vec3 ambientColor = vec3(0.7);
+const float ambientint = 0.08;
 
 uniform samplerCube envMap;
 uniform samplerCube cubeNormalMap;
@@ -93,10 +95,10 @@ vec3 sampleEnvFromLocal( vec3 direction )
 vec3 SampleSpecularContribution( vec3 direction ) 
 {
   direction = normalize( direction );
-  direction.x *= -1.;
-  direction.z *= -1.;
+  // direction.x *= -1.;
+  // direction.z *= -1.;
   //return vec3( 1.0, 0.0, 1.0 );
-  return sampleEnvFromLocal( direction ) * 5.0;
+  return sampleEnvFromLocal( direction );
 }
 
 // Finds an intersection points of a given line with a sphere at the origin
@@ -165,60 +167,63 @@ vec3 intersectDiamond( vec3 rayOrigin, vec3 rayDirection )
   return hitPoint;
 }
 
-// Approximates a point of intersection of the diamond with the given ray direction
-// vec3 intersectDiamond( vec3 rayOrigin, vec3 rayDirection ) 
-// {
-//   // Intersect a sphere at the center
-//   vec3 sphereHitPoint = intersectSphere( rayOrigin, rayDirection );
-//   // Direction from the center to the hit point on the sphere
-//   vec3 directionToSpherePoint = normalize( sphereHitPoint );
-//   // Sample the normal of the diamond in that direction
-//   // n.rgb - normal, n.a - distance to the surface
-//   vec4 normalData = getNormalData( directionToSpherePoint );
-//   // Flip the normal to point inwards
-//   vec3 surfaceNormal = -normalData.rgb;
-//   float surfaceDistance = normalData.a;
 
-//   // Point on the surface of the diamond
-//   vec3 pointOnSurface1 = directionToSpherePoint * surfaceDistance;
+struct Lamp
+{
+  vec3 position;
+  vec3 color;
+  float intensity;
+  float attenuation;
+};
 
-//   vec3 planeHitPoint = linePlaneIntersect( rayOrigin, rayDirection, pointOnSurface1, surfaceNormal );
-//   vec3 directionToPlanePoint = normalize( planeHitPoint );
+Lamp lamps[3];
 
-//   normalData = getNormalData( directionToPlanePoint );
-//   surfaceNormal = -normalData.rgb;
-//   surfaceDistance = normalData.a;
+vec3 lampShading(Lamp lamp, vec3 norm, vec3 pos, vec3 ocol, bool inside)
+{
+  const float specint = 0.2;
+  const float specshin = 20.;
 
-//   // Point on the surface of the diamond
-//   vec3 pointOnSurface2 = directionToPlanePoint * surfaceDistance;
+	vec3 pl = normalize(lamp.position - pos);
+  float dlp = distance(lamp.position, pos);
+  vec3 pli = pl/pow(1. + lamp.attenuation*dlp, 2.);
+    
+  vec3 col;
+  
+  // Diffuse shading
+  if (!inside)
+  {
+    float diff = clamp(dot(norm, pli), 0., 1.);
+    col = ocol*normalize(lamp.color)*lamp.intensity*smoothstep(0., 1.04, pow(diff, 0.78));
+  }
+  
+  // Specular shading
 
-//   vec3 hitPoint = linePlaneIntersect( rayOrigin, rayDirection, pointOnSurface2, surfaceNormal );
-//   return hitPoint;
-// }
+  if (dot(norm, lamp.position - pos) > 0.0)
+      col+= normalize(lamp.color)*lamp.intensity*specint*pow(max(0.0, dot(reflect(pl, norm), normalize(pos - cameraPosition))), specshin);
+  
+  return col;
+}
 
-// vec3 getSurfaceNormal(vec4 surfaceInfos) {
-//     vec3 surfaceNormal = surfaceInfos.rgb;
-//     surfaceNormal = surfaceNormal*2.-1.;
-//     return-normalize(surfaceNormal);
-// }
+vec3 lampsShading(vec3 norm, vec3 pos, vec3 ocol, bool inside)
+{
+  vec3 col = vec3(0.);
+  for (int l=0; l<3; l++) // lamps.length()
+      col+= lampShading(lamps[l], norm, pos, ocol, inside);
+  
+  return col;
+}
 
-// vec3 intersect(vec3 rayOrigin, vec3 rayDirection) {
-//     vec3 sphereHitPoint = intersectSphere(rayOrigin, rayDirection);
-//     vec3 direction1 = normalize(sphereHitPoint);
-//     vec4 normalDistanceData1 = getNormalData(direction1);
-//     float distance1 = normalDistanceData1.a*radius;
-//     vec3 pointOnPlane1 = direction1*distance1;
-//     vec3 planeNormal1 = getSurfaceNormal(normalDistanceData1);
-//     vec3 hitPoint1 = linePlaneIntersect(rayOrigin, rayDirection, pointOnPlane1, planeNormal1);
-//     vec3 direction2 = normalize(hitPoint1);
-//     vec4 normalDistanceData2 = getNormalData(direction2);
-//     float distance2 = normalDistanceData2.a*radius;
-//     vec3 pointOnPlane2 = direction2*distance2;
-//     vec3 hitPoint = hitPoint1;
-//     vec3 planeNormal2 = getSurfaceNormal(normalDistanceData2);
-//     hitPoint = linePlaneIntersect(rayOrigin, rayDirection, pointOnPlane2, planeNormal2);
-//     return hitPoint;
-// }
+vec3 shadeObject(vec3 norm, vec3 pos, bool inside)
+{
+  vec3 col = vec3( 0.0 );
+  if(!inside)
+  {
+    col = vec3( 0.0 ) + ambientColor * ambientint;
+  }
+  col = lampsShading(norm, pos, col, inside);
+  return col;
+}
+
 
 // Calculate the color by tracing a ray
 vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNormal ) 
@@ -230,8 +235,11 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
   // Refractive index of a diamond
   const float n2 = 2.42;
 
-  vec3 f0 = vec3( (n2 - n1) / (n2 + n1));
+  //vec3 f0 = vec3( (n2 - n1) / (n2 + n1));
+  vec3 f0 = 1.0 / vec3( 2.407, 2.426, 2.451 );
   f0 *= f0;
+
+  //const vec3 f0 = vec3( 0.1724 );
 
   float iorRatioAtoD = n1 / n2;
   float iorRatioDtoA = n2 / n1;
@@ -254,9 +262,11 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
   // Overall intensity of the light as it goes through the medium
   vec3 attenuationFactor = vec3( 1.0 );
 
-  vec3 reflectedAmount = EnvBRDFApprox( dot( -rayDirection, hitPointNormal ), F0, 0.0 );
+  vec3 reflectedAmount = EnvBRDFApprox( dot( -rayDirection, hitPointNormal ), f0, 0.0 );
   // Only take into account transmitted part
   attenuationFactor *= ( vec3( 1.0 ) - reflectedAmount );
+
+  int c = 0;
 
   for( int i = 0; i < RAY_BOUNCES; i++ ) 
   {
@@ -270,10 +280,6 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
     float surfaceDistance = normalData.a;  
 
     // resultColor = dirOriginToIntersect * 0.5 + 0.5;
-    // //resultColor = dirOriginToIntersect;
-    // //resultColor = dirOriginToIntersect;
-    // break;
-
     // Update the origin position
     vec3 oldOrigin = rayOrigin;
     rayOrigin = dirOriginToIntersect * surfaceDistance;
@@ -281,44 +287,49 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
     float r = length( rayOrigin - oldOrigin ) / radius * absorptionFactor;
     attenuationFactor *= exp( -r * ( 1.0 - colorAbsorption ) );
 
-    //totalDistance += length( rayOrigin - oldOrigin );
 
     // Calculate new rays
-
     vec3 newReflectedDirection = reflect( newRayDirection, -surfaceNormal );
     vec3 newRefractedDirection = refract( newRayDirection, -surfaceNormal, iorRatioDtoA );
 
-    // vec3 FRefracted = freshel( newRefractedDirection, surfaceNormal, F0, 0.0 );
-    // vec3 FReflected = freshel( newReflectedDirection, -surfaceNormal, F0, criticalAngleCosine );
+    // vec3 FRefracted = freshel( newRefractedDirection, surfaceNormal, f0, 0.0 );
+    // vec3 FReflected = freshel( newReflectedDirection, -surfaceNormal, f0, criticalAngleCosine );
 
-    if( dot( newRefractedDirection, newRefractedDirection ) < 1e-2 )
+    if( dot( newRefractedDirection, newRefractedDirection ) < 1e-5 )
     {
+      c++;
+
+      // if( c > 3 )
+      // {
+      //   resultColor = vec3( 0.0, 1.0, 0.0 );
+      //   break;
+      // }
       if ( i == RAY_BOUNCES - 1 ) 
       {
-        vec3 reflectedAmount = EnvBRDFApprox( dot( newRayDirection, surfaceNormal ), F0, 0.0 );
+        vec3 reflectedAmount = EnvBRDFApprox( dot( newRayDirection, surfaceNormal ), f0, 0.0 );
         newRayDirection = normalize( newRayDirection );
         float cosT = 1.0 - dot( newRayDirection, rayDirection );
 
         // if( TRANSMISSION > 0.0 && cosT < TRANSMISSION )
         // {
-        //   resultColor += vec3( 1.0 ) * 0.1;
+        //   resultColor += DIAMOND_COLOR * 0.1;
         // }
         // else
         {
+          //resultColor += vec3( 1.0 ) * attenuationFactor;
           resultColor += SampleSpecularContribution( newRayDirection ) * attenuationFactor * BOOST_FACTORS * ( vec3( 1.0 ) - min( vec3( 1.0 ), reflectedAmount ) );
         }
       }
     }
     else
     {
-      vec3 refractedAmount = vec3( 1.0 ) - min( vec3( 1.0 ), EnvBRDFApprox( dot( newRefractedDirection, surfaceNormal ), F0, 0.0 ) );
+      vec3 refractedAmount = vec3( 1.0 ) - min( vec3( 1.0 ), EnvBRDFApprox( dot( newRefractedDirection, surfaceNormal ), f0, 0.0 ) );
       vec3 d1 = normalize( newRefractedDirection );
       float cosT = 1.0 - dot( d1, rayDirection );
 
-      //resultColor += vec3( 0.1 ) * float(i) / float(RAY_BOUNCES);
       // if( TRANSMISSION > 0.0 && cosT < TRANSMISSION )
       // {
-      //   vec3 specColor = vec3( 1.0 ) * refractedAmount * attenuationFactor;
+      //   vec3 specColor = DIAMOND_COLOR * refractedAmount * attenuationFactor;
       //   resultColor += specColor;
       // }
       // else
@@ -326,62 +337,24 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
         vec3 d1 = newRefractedDirection;
         vec3 d2 = refract( newRayDirection, -surfaceNormal, ( n2 + rainbowDelta ) / n1 );
         vec3 d3 = refract( newRayDirection, -surfaceNormal, ( n2 - rainbowDelta ) / n1 );
-        vec3 specColor = vec3
-        (
-          SampleSpecularContribution( d2 ).r,
-          SampleSpecularContribution( d1 ).g,
-          SampleSpecularContribution( d3 ).b
-        ) * refractedAmount * attenuationFactor;
+        // vec3 specColor = vec3
+        // (
+        //   SampleSpecularContribution( d2 ).r,
+        //   SampleSpecularContribution( d1 ).g,
+        //   SampleSpecularContribution( d3 ).b
+        // ) * attenuationFactor;
+
+        vec3 specColor = SampleSpecularContribution( d1 ) * refractedAmount * attenuationFactor;
 
         resultColor += specColor;
       }
 
-      vec3 reflectedAmount = EnvBRDFApprox( dot( newReflectedDirection, -surfaceNormal ), F0, 0.0 );
+      vec3 reflectedAmount = EnvBRDFApprox( dot( newReflectedDirection, -surfaceNormal ), f0, 0.0 );
       attenuationFactor *= reflectedAmount;
     }
 
     newRayDirection = newReflectedDirection;
 
-
-
-    // float RaydotN = dot( newRayDirection, surfaceNormal );
-    // //Case of total reflection
-    // //Needs more work to be done
-    // if( RaydotN <= criticalAngleCosine ) 
-    // // {
-    // //   vec3 brdfEnvReflected = EnvBRDFApprox( dot( newReflectedDirection, -surfaceNormal ), F0, 0.0 );
-    // //   resultColor += sampleEnvFromLocal( newReflectedDirection ) * brdfEnvReflected * attenuationFactor;
-    // // }
-    // // // Light dispersion that causes a rainbow to appear
-    // // else if( RaydotN < 0.99 ) 
-    // // {
-    // //   vec3 dirGreen = newRefractedDirection;
-    // //   vec3 dirRed = refract( newRayDirection, -surfaceNormal, ( n2 + rainbowDelta ) / n1 );
-    // //   vec3 dirBlue = refract( newRayDirection, -surfaceNormal, ( n2 - rainbowDelta ) / n1 );
-
-    // //   vec3 sampleColor = vec3
-    // //   (
-    // //     sampleEnvFromLocal( dirRed ).r,
-    // //     sampleEnvFromLocal( dirGreen ).g,
-    // //     sampleEnvFromLocal( dirBlue ).b
-    // //   );
-
-    // //   resultColor += sampleColor * ( vec3( 1.0 ) - FRefracted ) * attenuationFactor;
-    // // }
-    // // // Incident angle is 0 degress
-    // // else 
-    // // {
-    // //   vec3 brdfEnvRefracted = EnvBRDFApprox( dot( newRefractedDirection, surfaceNormal ), F0, 0.0 );
-    // //   vec3 sampleColor =  sampleEnvFromLocal( newRefractedDirection );
-    // //   resultColor += sampleColor * ( vec3( 1.0 ) - FRefracted ) * attenuationFactor;
-    // //   break;
-    // // }
-
-    
-
-    // vec3 envBrdf = EnvBRDFApprox( dot( newReflectedDirection, -surfaceNormal ), F0, 0.0 );
-    // attenuationFactor *= envBrdf;
-    // newRayDirection = newReflectedDirection;
   }
 
   return resultColor;
@@ -402,19 +375,24 @@ mat3 rotY( float angle )
 
 void main() 
 {
+  lamps[0] = Lamp(vec3(0., 4.5, 10.), vec3(1., 1., 1.), 15., 0.1);
+  lamps[1] = Lamp(vec3(12., -0.5, 6.), vec3(.7, .8, 1.), 15., 0.1);
+  lamps[2] = Lamp(vec3(-11.3, 0.8, -1.5), vec3(1., .95, .8), 13.5, 0.1);
+
+  const vec3 f0 = vec3( 0.1724 );
   vec3 normal = normalize( vWorldNormal );
   vec3 viewDirection = normalize( vWorldPosition - cameraPosition );
   vec3 reflectedDirection = reflect( viewDirection, normal );
 
   // An approximation of specular reflection from environment
-  vec3 brdfReflected = EnvBRDFApprox( dot( reflectedDirection, normal ), F0, 0.0 );
+  vec3 brdfReflected = EnvBRDFApprox( dot( reflectedDirection, normal ), f0, 0.0 );
   // Sample color from an environment map
   vec3 reflectionColor = sampleSpecularReflection( reflectedDirection ); 
   // The actual diamond calculation
   vec3 refractionColor = getRefractionColor( vWorldPosition, viewDirection, normal );
 
-  vec3 diffuseColor = vec3( 1.0 );
-  vec3 colour = diffuseColor * ( refractionColor +  pow( reflectionColor * brdfReflected, vec3( 1.0 / 2.0) ) );
+  vec3 diffuseColor = DIAMOND_COLOR;
+  vec3 colour = diffuseColor * ( refractionColor +  reflectionColor * brdfReflected );
   //colour = refractionColor;
 
   // vec3 p = ( inverseModelMatrix * vec4( vWorldPosition, 1.0 ) ).xyz;
@@ -425,8 +403,11 @@ void main()
   // //colour = normal;
   // colour = vec3( dot( colour, normal ) );
 
+  //colour = lampsShading(normal, vWorldPosition, vec3( 0.0 ), false );
+
   // Gamma 
-  //colour = pow( colour, vec3( 1.0 / 2.2 ) );
+  colour = tanh( colour );
+  colour = pow( colour, vec3( 1.0 / 2.2 ) );
   //colour = normal;
 
   frag_color = vec4( colour, 1.0 );

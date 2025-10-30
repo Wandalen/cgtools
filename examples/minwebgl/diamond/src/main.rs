@@ -14,7 +14,11 @@ use gl::
   JsValue,
   JsCast,
 };
-use renderer::webgl::Camera;
+use renderer::webgl::
+{
+  post_processing::{self, Pass, SwapFramebuffer}, Camera
+};
+
 
 fn load_cube_texture( name : &str, document : &gl::web_sys::Document, gl : &gl::WebGl2RenderingContext ) -> Option< gl::web_sys::WebGlTexture >
 {
@@ -220,6 +224,7 @@ async fn run() -> Result< (), gl::WebglError >
   gl.bind_texture( gl::TEXTURE_CUBE_MAP, env_map.as_ref() );
   gl.active_texture( gl::TEXTURE0 + cube_normal_map_location as u32 );
   gl.bind_texture( gl::TEXTURE_CUBE_MAP, cube_normal_map.as_ref() );
+
 
   gl.enable( gl::DEPTH_TEST );
   gl.depth_func( gl::LEQUAL );
