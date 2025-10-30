@@ -193,7 +193,7 @@ pub fn setup( renderer : Rc< RefCell< Renderer > >, color_grading : Rc< RefCell<
   let color_folder = add_folder( &cg_folder, "Color Adjustments" );
 
   // Contrast
-  let prop = add_slider( &color_folder, &cg_object, "contrast", 0.0, 1.0, 0.01 );
+  let prop = add_slider( &color_folder, &cg_object, "contrast", -1.0, 1.0, 0.01 );
   let callback = Closure::new
   (
     {
