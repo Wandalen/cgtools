@@ -92,7 +92,7 @@ async fn run() -> Result< (), gl::WebglError >
     mat3x3h::orthographic_rh_gl( -10.0, 10.0, -10.0, 10.0, near, far )
     // mat3x3h::perspective_rh_gl( 90.0f32.to_radians(), 1.0, near, far )
   );
-
+  let is_orthographic = 1.0f32;
   let light_dir = gl::F32x3::new( 0.0, 0.0, -1.0 );  // Local forward
   let rotation_matrix = light_orientation.to_matrix();
   let light_dir = rotation_matrix * light_dir;
@@ -148,6 +148,7 @@ async fn run() -> Result< (), gl::WebglError >
     shader.uniform_upload( "u_view_pos", camera.get_eye().as_slice() );
     shader.uniform_upload( "u_light_color", &light_color );
     shader.uniform_matrix_upload( "u_light_view_projection", light_view_projection.raw_slice(), true );
+    shader.uniform_upload( "u_is_orthographic", &is_orthographic );
     shader.uniform_upload( "u_shadow_map", &2 );
 
     // Bind shadow texture

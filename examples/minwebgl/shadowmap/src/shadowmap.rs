@@ -17,6 +17,9 @@ impl Shadowmap
     gl.bind_texture( gl::TEXTURE_2D, depth_texture.as_ref() );
     gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::DEPTH_COMPONENT24, resolution as i32, resolution as i32 );
     gl::texture::d2::wrap_clamp( gl );
+
+    // Depth textures in WebGL 2.0 only support NEAREST filtering
+    // Softness comes from PCSS multiple samples, not texture filtering
     gl::texture::d2::filter_nearest( gl );
 
     let framebuffer = gl.create_framebuffer();
