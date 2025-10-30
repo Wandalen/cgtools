@@ -1,3 +1,5 @@
+//! This file contains UniformStorage that helps you store and efficiently retrieve uniform data from your webgl program.
+
 mod private
 {
   use minwebgl::{self as gl, Vector };
@@ -187,7 +189,7 @@ mod private
       Ok( () )
     }
 
-    /// Copy uniform to 
+    /// Copy uniform to another UniformStorage
     pub fn copy_to( &self, other : &mut Self )
     {
       for ( name, value ) in self.uniforms.iter()
@@ -196,7 +198,7 @@ mod private
       }
     }
 
-    /// clear
+    /// Clear uniforms
     pub fn clear_uniforms( &mut self )
     {
       self.uniforms.clear();
