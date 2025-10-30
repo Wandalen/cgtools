@@ -2,6 +2,8 @@ mod private
 {
   use std::{ cell::RefCell, collections::HashMap, rc::Rc };
   use minwebgl as gl;
+  use gl::{ GL, F32x3 };
+  use web_sys::WebGlProgram;
 
   use crate::webgl::
   {
@@ -21,8 +23,14 @@ mod private
     Primitive,
     ProgramInfo,
     Scene,
-    IBL
+    IBL,
+    Light,
+    PointLight,
+    DirectLight
   };
+
+  const MAX_POINT_LIGHTS : usize = 8;
+  const MAX_DIRECT_LIGHTS : usize = 8;
 
   /// Manages WebGL2 framebuffers and associated renderbuffers/textures for a rendering
   /// context, specifically designed for multisampling and post-processing effects.
@@ -646,13 +654,31 @@ mod private
       // Clear the list of transparent nodes before each render.
       self.transparent_nodes.clear();
 
-      for program in self.programs.values()
+      let mut lights = HashMap::< String, Vec< Light > >::new();
+
+      let mut collect_light_sources =
+      |
+        node : Rc< RefCell< Node > >
+      | -> Result< (), gl::WebglError >
       {
-        let locations = program.get_locations();
-        program.bind( gl );
-        camera.upload( gl, locations );
-        gl::uniform::upload( gl, locations.get( "exposure" ).unwrap().clone(), &self.exposure )?;
-      }
+        if let Object3D::Light( light ) = node.borrow().object
+        {
+          let type_ = match light
+          {
+            Light::Point( _ ) => "point",
+            Light::Direct( _ ) => "direct"
+          };
+
+          if let Some( ls ) = lights.get_mut( type_ )
+          {
+            ls.push( light );
+          }
+          else
+          {
+            lights.insert( type_.to_string(), vec![ light ] );
+          }
+        }
+      };
 
       // Define a closure to handle the drawing of each node in the scene.
       let mut draw_node =
@@ -747,6 +773,17 @@ mod private
 
         Ok( () )
       };
+
+      scene.traverse( &mut collect_light_sources )?;
+
+      for program in self.programs.values()
+      {
+        let locations = program.get_locations();
+        program.bind( gl );
+        camera.upload( gl, locations );
+        bind_light( gl, &program, &lights );
+        gl::uniform::upload( gl, locations.get( "exposure" ).unwrap().clone(), &self.exposure )?;
+      }
 
       // Traverse the scene and draw all opaque objects.
       scene.traverse( &mut draw_node )?;
@@ -872,6 +909,84 @@ mod private
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );
 
       Ok( () )
+    }
+  }
+
+  fn bind_light< T >
+  (
+    gl : &GL,
+    program : &ProgramInfo< T >,
+    lights : &HashMap< String, Vec< Light > >
+  )
+  {
+    let locations = program.get_locations();
+
+    for ( type_, one_type_lights ) in lights
+    {
+      let max_count = match type_
+      {
+        "point" => MAX_POINT_LIGHTS,
+        "direct" => MAX_DIRECT_LIGHTS,
+        _ => continue
+      };
+
+      let count_loc = gl.get_uniform_location( &program.get_program(), format!( "{type_}LightsCount" ).as_str() );
+      gl::uniform::upload( gl, count_loc, &one_type_lights.len().min( max_count ) );
+    }
+
+    'i : for ( type_, one_type_lights ) in lights
+    {
+      for ( i, light ) in one_type_lights.iter().enumerate()
+      {
+        match type_
+        {
+          "point" =>
+          {
+            if !locations.contains_key( "pointLights" ) || i > MAX_POINT_LIGHTS
+            {
+              continue 'i;
+            }
+
+            let Light::Point( light ) = light
+            else
+            {
+              continue;
+            };
+
+            let position_loc = gl.get_uniform_location( &program.get_program(), format!( "pointLights[{i}].position" ).as_str() );
+            let color_loc = gl.get_uniform_location( &program.get_program(), format!( "pointLights[{i}].color" ).as_str() );
+            let strength_loc = gl.get_uniform_location( &program.get_program(), format!( "pointLights[{i}].strength" ).as_str() );
+            let range_loc = gl.get_uniform_location( &program.get_program(), format!( "pointLights[{i}].range" ).as_str() );
+
+            gl::uniform::upload( gl, position_loc, light.position.as_slice() );
+            gl::uniform::upload( gl, color_loc, light.color.as_slice() );
+            gl::uniform::upload( gl, strength_loc, &light.strength );
+            gl::uniform::upload( gl, range_loc, &light.range );
+          },
+          "direct" =>
+          {
+            if !locations.contains_key( "directLights" ) || i > MAX_DIRECT_LIGHTS
+            {
+              continue 'i;
+            }
+
+            let Light::Direct( light ) = light
+            else
+            {
+              continue;
+            };
+
+            let direction_loc = gl.get_uniform_location( &program.get_program(), format!( "directLights[{i}].direction" ).as_str() );
+            let color_loc = gl.get_uniform_location( &program.get_program(), format!( "directLights[{i}].color" ).as_str() );
+            let strength_loc = gl.get_uniform_location( &program.get_program(), format!( "directLights[{i}].strength" ).as_str() );
+
+            gl::uniform::upload( gl, direction_loc, light.direction.as_slice() );
+            gl::uniform::upload( gl, color_loc, light.color.as_slice() );
+            gl::uniform::upload( gl, strength_loc, &light.strength );
+          },
+          _ => ()
+        }
+      }
     }
   }
 }

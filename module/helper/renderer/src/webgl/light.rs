@@ -1,6 +1,7 @@
 mod private
 {
   use minwebgl as gl;
+  use gl::F32x3;
 
   /// General type for supported light types
   pub enum Light
