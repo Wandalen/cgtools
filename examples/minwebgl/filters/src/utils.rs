@@ -14,23 +14,8 @@ use web_sys::
 use wasm_bindgen::{ prelude::*, JsCast };
 use minwebgl as gl;
 
-/// Provide full path to image like `"static/image.png"`
-pub fn load_image( path : &str, on_load_callback : Box< dyn Fn( &HtmlImageElement ) > )
-{
-  let window = web_sys::window().expect( "Should have a window" );
-  let document = window.document().expect( "Should have a document" );
-  let image = document.create_element( "img" ).unwrap().dyn_into::< HtmlImageElement >().unwrap();
-  let img = image.clone();
-  let on_load_callback : Closure< dyn Fn() > = Closure::new( move || on_load_callback( &img ) );
-  image.set_onload( Some( on_load_callback.as_ref().unchecked_ref() ) );
-  on_load_callback.forget();
-  let origin = window.location().origin().expect( "Should have an origin" );
-  let url = format!( "{origin}/{path}" );
-  image.set_src( &url );
-}
-
 /// Load image from a File object
-pub fn load_image_from_file( file : File, on_load_callback : Box< dyn Fn( &HtmlImageElement ) > )
+pub fn load_image_from_file( file : &File, on_load_callback : Box< dyn Fn( &HtmlImageElement ) > )
 {
   use std::rc::Rc;
 
@@ -282,24 +267,6 @@ pub fn show_canvas()
     .and_then( | d | d.get_element_by_id( "placeholder-text" ) )
   {
     let _ = placeholder.class_list().add_1( "hidden" );
-  }
-}
-
-/// Hide canvas and show placeholder text
-pub fn hide_canvas()
-{
-  if let Some( canvas ) = web_sys::window()
-    .and_then( | w | w.document() )
-    .and_then( | d | d.get_element_by_id( "canvas" ) )
-  {
-    let _ = canvas.class_list().add_1( "hidden" );
-  }
-
-  if let Some( placeholder ) = web_sys::window()
-    .and_then( | w | w.document() )
-    .and_then( | d | d.get_element_by_id( "placeholder-text" ) )
-  {
-    let _ = placeholder.class_list().remove_1( "hidden" );
   }
 }
 

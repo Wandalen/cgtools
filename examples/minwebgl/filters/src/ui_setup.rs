@@ -527,13 +527,6 @@ T : Filter + DeserializeOwned
   )
 }
 
-fn make_closure_with_filter( filter_renderer : &Rc< RefCell< Renderer > >, filter : impl Filter + 'static )
--> Closure< dyn Fn() >
-{
-  let filter_renderer = filter_renderer.clone();
-  Closure::new( Box::new( move || filter_renderer.borrow_mut().apply_filter( &filter ) ) )
-}
-
 fn make_closure_with_filter_tracking
 (
   filter_renderer : &Rc< RefCell< Renderer > >,

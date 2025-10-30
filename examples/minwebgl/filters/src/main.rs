@@ -136,7 +136,7 @@ fn run() -> Result< (), gl::WebglError >
   utils::setup_file_upload( "upload-btn", "file-input", move | file : File |
   {
     let onload = create_image_handler( filter_renderer_upload.clone(), gl_upload.clone() );
-    utils::load_image_from_file( file, onload );
+    utils::load_image_from_file( &file, onload );
   });
 
   // Setup drag and drop
@@ -145,7 +145,7 @@ fn run() -> Result< (), gl::WebglError >
   utils::setup_drag_and_drop( move | file : File |
   {
     let onload = create_image_handler( filter_renderer_drop.clone(), gl_drop.clone() );
-    utils::load_image_from_file( file, onload );
+    utils::load_image_from_file( &file, onload );
   });
 
   // Setup save button
@@ -189,13 +189,13 @@ fn run() -> Result< (), gl::WebglError >
           // Hide apply and cancel buttons
           ui_setup::hide_apply_cancel_buttons();
 
-          web_sys::console::log_1( &"✅ Filter applied! Ready for next filter.".into() );
+          gl::info!( "✅ Filter applied! Ready for next filter." );
         }
       }
     }
     else
     {
-      web_sys::console::warn_1( &"Failed to capture canvas for applying filter".into() );
+      gl::warn!( "Failed to capture canvas for applying filter" );
     }
   });
   apply_btn.set_onclick( Some( onclick_apply.as_ref().unchecked_ref() ) );
@@ -213,7 +213,7 @@ fn run() -> Result< (), gl::WebglError >
     // Hide apply and cancel buttons
     ui_setup::hide_apply_cancel_buttons();
 
-    web_sys::console::log_1( &"❌ Filter cancelled.".into() );
+    gl::info!( "❌ Filter cancelled." );
   });
   cancel_btn.set_onclick( Some( onclick_cancel.as_ref().unchecked_ref() ) );
   onclick_cancel.forget();
@@ -230,7 +230,7 @@ fn run() -> Result< (), gl::WebglError >
     // Hide apply and cancel buttons if they're visible
     ui_setup::hide_apply_cancel_buttons();
 
-    web_sys::console::log_1( &"⏮️ Reverted to original image!".into() );
+    gl::info!( "⏮️ Reverted to original image!" );
   });
   revert_btn.set_onclick( Some( onclick_revert.as_ref().unchecked_ref() ) );
   onclick_revert.forget();
