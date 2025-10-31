@@ -291,14 +291,9 @@ fn run() -> Result< (), gl::WebglError >
   // Define the update and draw logic
   let update_and_draw =
   {
-    let mut last_time = 0.0;
     #[ allow( clippy::min_ident_chars ) ]
-    move | time_ms : f64 |
+    move | _ : f64 |
     {
-      #[ allow( clippy::cast_possible_truncation ) ]
-      let time = time_ms as f32 / 1000.0;
-      let _delta_time = last_time - time;
-
       gl.clear( gl::DEPTH_BUFFER_BIT | gl::COLOR_BUFFER_BIT );
 
       simulation.simulate( *simulation_speed.borrow() );
@@ -334,8 +329,6 @@ fn run() -> Result< (), gl::WebglError >
       {
         lines.borrow_mut()[ i ].draw( &gl ).unwrap();
       }
-
-      last_time = time;
 
       return true
     }
