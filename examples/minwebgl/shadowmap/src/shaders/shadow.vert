@@ -13,7 +13,6 @@ uniform mat4 u_light_view_projection; // Light's view-projection matrix for shad
 out vec3 v_world_pos;
 out vec3 v_normal;
 out vec4 v_light_space_pos;
-out vec2 v_texcoord;
 
 void main()
 {
@@ -24,9 +23,6 @@ void main()
 
   // Calculate light space position for shadow sampling
   v_light_space_pos = u_light_view_projection * world_pos;
-
-  // Pass through texcoords
-  v_texcoord = a_texcoord;
 
   // Position fragment in clip space based on UV coordinates
   // This makes each triangle rasterize to its corresponding lightmap region

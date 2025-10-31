@@ -6,7 +6,7 @@ in vec3 v_world_pos;
 in vec3 v_normal;
 in vec2 v_texcoord;
 
-uniform vec3 u_light_pos;     // Point light position in world space
+uniform vec3 u_light_pos;
 uniform vec3 u_view_pos;
 uniform vec3 u_light_color;
 uniform vec3 u_object_color;
@@ -63,8 +63,9 @@ void main()
   float spec = pow( max( dot( norm, halfway_dir ), 0.0 ), 4.0 );
   vec3 specular = specular_strength * spec * u_light_color * attenuation;
 
-  // Apply shadow (only affects direct lighting, not hemi)
-  vec3 result = ( hemi + ( diffuse + specular ) * ( 1.0 - shadow ) ) * u_object_color;
+  // float s = pow( 1.0 - shadow, 2.2 );
+  float s = ( 1.0 - shadow );
+  vec3 result = ( hemi + ( diffuse + specular ) * ( s ) ) * u_object_color;
 
   // Gamma correction
   frag_color = vec4( pow( result, vec3( 1.0 / 2.2 ) ), 1.0 );

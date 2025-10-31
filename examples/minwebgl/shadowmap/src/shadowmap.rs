@@ -4,26 +4,48 @@ use web_sys::{ WebGlFramebuffer, WebGlTexture };
 
 pub struct Shadowmap
 {
-  framebuffer : Option< WebGlFramebuffer >,
-  depth_texture : Option< WebGlTexture >,
-  program : Program,
-  resolution : i32,
-  gl : GL,
+  framebuffer   : Option< WebGlFramebuffer >,
+  depth_texture : Option< WebGlTexture >, // Now a color texture storing depth values
+  depth_buffer  : Option< WebGlTexture >, // Actual depth buffer for depth testing
+  program       : Program,
+  resolution    : i32,
+  gl            : GL,
 }
 
 impl Shadowmap
 {
   pub fn new( gl : &GL, resolution : u32 ) -> Result< Self, gl::WebglError >
   {
+    let resolution = resolution as i32;
+    // Create color texture to store depth values (workaround for Chrome depth texture sampling issues)
+    let mip_levels = ( resolution as f32 ).log2().floor() as i32 + 1;
+
     let depth_texture = gl.create_texture();
     gl.bind_texture( gl::TEXTURE_2D, depth_texture.as_ref() );
-    gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::DEPTH_COMPONENT24, resolution as i32, resolution as i32 );
+    gl.tex_storage_2d( GL::TEXTURE_2D, mip_levels, gl::R16F, resolution, resolution );
+    gl::texture::d2::wrap_clamp( gl );
+    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
+    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+
+    // Create depth renderbuffer for actual depth testing
+    let depth_buffer = gl.create_texture();
+    gl.bind_texture( gl::TEXTURE_2D, depth_buffer.as_ref() );
+    gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::DEPTH_COMPONENT24, resolution, resolution );
     gl::texture::d2::wrap_clamp( gl );
     gl::texture::d2::filter_nearest( gl );
 
+    // Setup framebuffer with both attachments
     let framebuffer = gl.create_framebuffer();
     gl.bind_framebuffer( gl::FRAMEBUFFER, framebuffer.as_ref() );
-    gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::DEPTH_ATTACHMENT, gl::TEXTURE_2D, depth_texture.as_ref(), 0 );
+    gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, depth_texture.as_ref(), 0 );
+    gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::DEPTH_ATTACHMENT, gl::TEXTURE_2D, depth_buffer.as_ref(), 0 );
+
+    let status = gl.check_framebuffer_status( gl::FRAMEBUFFER );
+    if status != gl::FRAMEBUFFER_COMPLETE
+    {
+      gl::browser::error!( "Framebuffer incomplete: {:?}", status );
+    }
+
     gl.bind_framebuffer( gl::FRAMEBUFFER, None );
 
     let vertex = include_str!( "shaders/shadowmap.vert" );
@@ -36,8 +58,9 @@ impl Shadowmap
       {
         framebuffer,
         depth_texture,
+        depth_buffer,
         program,
-        resolution : resolution as i32,
+        resolution,
         gl : gl.clone()
       }
     )
@@ -45,8 +68,8 @@ impl Shadowmap
 
   pub fn bind( &self )
   {
-    self.gl.viewport( 0, 0, self.resolution, self.resolution );
     self.gl.bind_framebuffer( GL::FRAMEBUFFER, self.framebuffer.as_ref() );
+    self.gl.viewport( 0, 0, self.resolution, self.resolution );
     self.program.activate();
   }
 
@@ -59,99 +82,27 @@ impl Shadowmap
   {
     self.depth_texture.as_ref()
   }
-}
 
-pub struct LightSource
-{
-  position : gl::F32x3,
-  orientation : gl::QuatF32,
-  projection : gl::F32x4x4,
-  mvp : Option< gl::F32x4x4 >,
-}
-
-impl LightSource
-{
-  pub fn new
-  (
-    position : gl::F32x3,
-    orientation : gl::QuatF32,
-    projection : gl::F32x4x4,
-  ) -> Self
+  pub fn depth_buffer( &self ) -> Option< &WebGlTexture >
   {
-    Self { position, orientation, projection, mvp : None }
+    self.depth_buffer.as_ref()
   }
 
-  pub fn position( &self ) -> gl::F32x3
-  {
-    self.position
-  }
-
-  pub fn orientation( &self ) -> gl::QuatF32
-  {
-    self.orientation
-  }
-
-  pub fn projection( &self ) -> gl::F32x4x4
-  {
-    self.projection
-  }
-
-  /// Determines if this light source uses orthographic projection
+  /// Generates mipmaps for the shadow map texture
   ///
-  /// Inspects the projection matrix to detect projection type:
-  /// - Orthographic: `matrix[3][3] == 1.0` (no perspective division)
-  /// - Perspective: `matrix[3][3] == 0.0` (perspective division occurs)
-  pub fn is_orthographic( &self ) -> bool
+  /// Call this after rendering to the shadow map to generate mipmaps for better
+  /// filtering quality when sampling the shadow map at different distances.
+  pub fn generate_mipmaps( &self )
   {
-    // In GL projection matrices:
-    // - Orthographic has [3][3] = 1.0 (bottom-right element)
-    // - Perspective has [3][3] = 0.0
-    let m = self.projection.raw_slice();
-    let w_component = m[ 15 ]; // [3][3] in column-major order
-
-    ( w_component - 1.0 ).abs() < 0.01
+    self.gl.bind_texture( gl::TEXTURE_2D, self.depth_texture.as_ref() );
+    self.gl.generate_mipmap( gl::TEXTURE_2D );
   }
 
-  /// Returns the light direction in world space (forward vector)
-  pub fn direction( &self ) -> gl::F32x3
+  pub fn clear( &self )
   {
-    let local_forward = gl::F32x3::new( 0.0, 0.0, -1.0 );
-    let rotation_matrix = self.orientation.to_matrix();
-    rotation_matrix * local_forward
-  }
-
-  pub fn set_position( &mut self, position : gl::F32x3 )
-  {
-    self.position = position;
-    self.mvp = None;
-  }
-
-  pub fn set_orientation( &mut self, orientation : gl::QuatF32 )
-  {
-    self.orientation = orientation;
-    self.mvp = None;
-  }
-
-  pub fn set_projection( &mut self, projection : gl::F32x4x4 )
-  {
-    self.projection = projection;
-    self.mvp = None;
-  }
-
-  pub fn view_projection( &mut self ) -> gl::F32x4x4
-  {
-    if let Some( mvp ) = self.mvp
-    {
-      mvp
-    }
-    else
-    {
-      let view = self.orientation.invert().to_matrix().to_homogenous() * gl::math::mat3x3h::translation( -self.position );
-      let view_projection = self.projection * view;
-      self.mvp = Some( view_projection );
-
-      view_projection
-    }
+    self.gl.bind_framebuffer( GL::FRAMEBUFFER, self.framebuffer.as_ref() );
+    self.gl.clear_color( 1.0, 1.0, 1.0, 1.0 );
+    self.gl.clear( gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT );
   }
 }
 
@@ -163,14 +114,14 @@ impl LightSource
 ///
 /// Unlike the Shadowmap struct which owns its texture, ShadowBaker uses external textures
 /// that you provide via `set_target()`, allowing flexible reuse for multiple lightmaps.
-pub struct ShadowBaker
+pub struct ShadowRenderer
 {
   framebuffer : Option< WebGlFramebuffer >,
-  program : Program,
-  gl : GL,
+  program     : Program,
+  gl          : GL,
 }
 
-impl ShadowBaker
+impl ShadowRenderer
 {
   /// Creates a new shadow baker
   ///
@@ -185,8 +136,8 @@ impl ShadowBaker
     let framebuffer = gl.create_framebuffer();
 
     // Load shadow baker shaders
-    let vertex = include_str!( "shaders/shadow_baker.vert" );
-    let fragment = include_str!( "shaders/shadow_baker.frag" );
+    let vertex = include_str!( "shaders/shadow.vert" );
+    let fragment = include_str!( "shaders/shadow.frag" );
     let program = gl::Program::new( gl.clone(), vertex, fragment )?;
 
     Ok
@@ -231,8 +182,6 @@ impl ShadowBaker
     {
       gl::browser::error!( "Shadow baker framebuffer incomplete: {:?}", status );
     }
-
-    self.gl.bind_framebuffer( gl::FRAMEBUFFER, None );
   }
 
   /// Binds the shadow baker framebuffer and activates the shader program
@@ -240,10 +189,10 @@ impl ShadowBaker
   ///
   /// # Arguments
   /// * `resolution` - Width and height of the target texture (for viewport)
-  pub fn bind( &self, resolution : u32 )
+  pub fn bind( &self, width : u32, height : u32 )
   {
     self.gl.bind_framebuffer( gl::FRAMEBUFFER, self.framebuffer.as_ref() );
-    self.gl.viewport( 0, 0, resolution as i32, resolution as i32 );
+    self.gl.viewport( 0, 0, width as i32, height as i32 );
     self.program.activate();
   }
 
@@ -253,6 +202,12 @@ impl ShadowBaker
     self.program.uniform_matrix_upload( "u_model", model.raw_slice(), true );
   }
 
+  pub fn set_shadowmap( &self, shadowmap : Option< &WebGlTexture > )
+  {
+    self.gl.active_texture( gl::TEXTURE0 );
+    self.gl.bind_texture( gl::TEXTURE_2D, shadowmap );
+  }
+
   /// Uploads all light-related data from a LightSource
   ///
   /// This method extracts and uploads:
@@ -260,6 +215,7 @@ impl ShadowBaker
   /// - Light direction (world space) - used for orthographic projections
   /// - Light position (world space) - used for perspective projections
   /// - Orthographic/perspective flag
+  /// - Light size (world space) - controls shadow softness/penumbra size
   ///
   /// For perspective projections, the shader calculates per-fragment light direction
   /// based on the light position, simulating a point light source.
@@ -283,12 +239,92 @@ impl ShadowBaker
     // Upload orthographic flag
     let is_ortho = if light_source.is_orthographic() { 1.0f32 } else { 0.0f32 };
     self.program.uniform_upload( "u_is_orthographic", &is_ortho );
+
+    // Upload light size (controls penumbra/shadow softness)
+    let light_size = light_source.light_size();
+    self.program.uniform_upload( "u_light_size", &light_size );
+  }
+}
+
+pub struct LightSource
+{
+  position    : gl::F32x3,
+  orientation : gl::QuatF32,
+  projection  : gl::F32x4x4,
+  light_size  : f32,
+  mvp         : Option< gl::F32x4x4 >,
+}
+
+impl LightSource
+{
+  pub fn new
+  (
+    position : gl::F32x3,
+    orientation : gl::QuatF32,
+    projection : gl::F32x4x4,
+    light_size : f32
+  ) -> Self
+  {
+    Self { position, orientation, projection, light_size, mvp : None,  }
   }
 
-  /// Sets the shadow map texture for shadow calculation
-  /// Call this after binding to specify which texture unit the shadow map is on
-  pub fn set_shadow_map_unit( &self, texture_unit : i32 )
+  pub fn light_size( &self ) -> f32
   {
-    self.program.uniform_upload( "u_shadow_map", &texture_unit );
+    self.light_size
+  }
+
+  pub fn position( &self ) -> gl::F32x3
+  {
+    self.position
+  }
+
+  pub fn orientation( &self ) -> gl::QuatF32
+  {
+    self.orientation
+  }
+
+  pub fn projection( &self ) -> gl::F32x4x4
+  {
+    self.projection
+  }
+
+  /// Determines if this light source uses orthographic projection
+  ///
+  /// Inspects the projection matrix to detect projection type:
+  /// - Orthographic: `matrix[3][3] == 1.0` (no perspective division)
+  /// - Perspective: `matrix[3][3] == 0.0` (perspective division occurs)
+  pub fn is_orthographic( &self ) -> bool
+  {
+    // In GL projection matrices:
+    // - Orthographic has [3][3] = 1.0 (bottom-right element)
+    // - Perspective has [3][3] = 0.0
+    let m = self.projection.raw_slice();
+    let w_component = m[ 15 ]; // [3][3] in column-major order
+
+    ( w_component - 1.0 ).abs() < 0.01
+  }
+
+  /// Returns the light direction in world space (forward vector)
+  pub fn direction( &self ) -> gl::F32x3
+  {
+    let local_forward = gl::F32x3::new( 0.0, 0.0, -1.0 );
+    let rotation_matrix = self.orientation.to_matrix();
+    rotation_matrix * local_forward
+  }
+
+  pub fn view_projection( &mut self ) -> gl::F32x4x4
+  {
+    if let Some( mvp ) = self.mvp
+    {
+      mvp
+    }
+    else
+    {
+      let view = self.orientation.invert().to_matrix().to_homogenous() * gl::math::mat3x3h::translation( -self.position );
+      let view_projection = self.projection * view;
+      self.mvp = Some( view_projection );
+
+      view_projection
+    }
   }
 }

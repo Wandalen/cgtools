@@ -5,21 +5,24 @@ precision highp sampler2D;
 in vec3 v_world_pos;
 in vec3 v_normal;
 in vec4 v_light_space_pos;
-in vec2 v_texcoord;
 
 uniform vec3 u_light_dir;        // Used for orthographic (directional light)
 uniform vec3 u_light_position;   // Used for perspective (point light)
 uniform float u_is_orthographic;
-uniform sampler2D u_shadow_map;
+uniform float u_light_size;      // World-space light size for penumbra control
+uniform sampler2D u_shadow_map;  // Color texture containing depth values (Chrome workaround)
 
 out vec4 frag_color;
+
+// Mathematical constants
+const float TWO_PI = 6.283185307179586;
+const float GOLDEN_ANGLE = 2.399963229728653;
 
 // Vogel disk sampling for better distribution than grid or circular patterns
 vec2 vogel_disk_sample( int sample_index, int num_samples, float angle_offset )
 {
-  const float golden_angle = 2.399963229728653;
   float r = sqrt( float( sample_index ) + 0.5 ) / sqrt( float( num_samples ) );
-  float theta = float( sample_index ) * golden_angle + angle_offset;
+  float theta = float( sample_index ) * GOLDEN_ANGLE + angle_offset;
   return vec2( r * cos( theta ), r * sin( theta ) );
 }
 
@@ -38,7 +41,7 @@ float find_blocker_distance( vec2 shadow_uv, float receiver_depth, float search_
   vec2 texel_size = 1.0 / vec2( textureSize( u_shadow_map, 0 ) );
 
   // Use different angle offset for each pixel to reduce banding
-  float angle_offset = interleaved_gradient_noise( gl_FragCoord.xy ) * 6.283185307;
+  float angle_offset = interleaved_gradient_noise( gl_FragCoord.xy ) * TWO_PI;
 
   for ( int i = 0; i < num_samples; i++ )
   {
@@ -51,6 +54,7 @@ float find_blocker_distance( vec2 shadow_uv, float receiver_depth, float search_
       continue;
     }
 
+    // Sample depth from color texture (stored in R channel)
     float shadow_depth = texture( u_shadow_map, sample_uv ).r;
 
     // Only consider depths that would block (closer than receiver)
@@ -89,19 +93,20 @@ float pcss_shadow_filter( vec2 shadow_uv, float receiver_depth, float filter_rad
   // Clamp bias to prevent extreme values
   bias = clamp( bias, 0.00005, 0.005 );
 
-  float angle_offset = interleaved_gradient_noise( gl_FragCoord.xy ) * 6.283185307;
+  float angle_offset = interleaved_gradient_noise( gl_FragCoord.xy ) * TWO_PI;
 
   for ( int i = 0; i < num_samples; ++i )
   {
     vec2 offset = vogel_disk_sample( i, num_samples, angle_offset ) * filter_radius;
     vec2 sample_uv = shadow_uv + offset * texel_size;
 
+    // Skip samples outside shadow map (treat as fully lit)
     if ( sample_uv.x < 0.0 || sample_uv.x > 1.0 || sample_uv.y < 0.0 || sample_uv.y > 1.0 )
     {
-      shadow_sum += 0.0; // Fully lit outside shadow map
       continue;
     }
 
+    // Sample depth from color texture (stored in R channel)
     float shadow_depth = texture( u_shadow_map, sample_uv ).r;
     shadow_sum += ( receiver_depth - bias ) > shadow_depth ? 1.0 : 0.0;
   }
@@ -125,6 +130,14 @@ float calculate_shadow( vec4 light_space_pos )
     light_dir_to_use = normalize( u_light_position - v_world_pos );
   }
 
+  // Early exit for back-facing surfaces (surface facing away from light)
+  vec3 normal = normalize( v_normal );
+  float n_dot_l = dot( normal, light_dir_to_use );
+  if ( n_dot_l < 0.0 )
+  {
+    return 0.0; // Back-facing, no shadow
+  }
+
   // Perspective divide
   vec3 proj_coords = light_space_pos.xyz / light_space_pos.w;
 
@@ -137,16 +150,14 @@ float calculate_shadow( vec4 light_space_pos )
     return 0.0; // No shadow beyond far plane
   }
 
-  // Clamp to valid texture coordinates
-  // if( proj_coords.x < 0.0 || proj_coords.x > 1.0 || proj_coords.y < 0.0 || proj_coords.y > 1.0 )
-  // {
-  //   return 0.0;
-  // }
+  // Note: XY bounds checking is done per-sample in helper functions
+  // This allows soft shadow edges to extend beyond shadow map boundaries
 
   float receiver_depth = proj_coords.z;
 
   // === Step 1: Blocker Search ===
-  const float light_world_size = 20.0;
+  // Use uniform light size for scene-dependent shadow softness control
+  float light_world_size = u_light_size;
 
   float search_radius;
   if ( u_is_orthographic > 0.0 )
@@ -162,7 +173,7 @@ float calculate_shadow( vec4 light_space_pos )
     search_radius = light_world_size * 30.0 * depth_scale;
   }
 
-  const int blocker_search_samples = 64;
+  const int blocker_search_samples = 32;
 
   float avg_blocker_depth = find_blocker_distance
   (
@@ -198,7 +209,7 @@ float calculate_shadow( vec4 light_space_pos )
   penumbra_width = clamp( penumbra_width, 2.0, 150.0 );
 
   // === Step 3: Percentage Closer Filtering ===
-  const int pcf_samples = 128;
+  const int pcf_samples = 64;
 
   float shadow = pcss_shadow_filter
   (
@@ -209,13 +220,51 @@ float calculate_shadow( vec4 light_space_pos )
     light_dir_to_use
   );
 
+  // === Step 4: Penumbra-based Shadow Intensity ===
+  // Make shadows darker when sharp (contact) and lighter when blurry (edges)
+  // This correlates intensity with softness for more natural appearance
+
+  // Normalize penumbra width to 0-1 range based on our clamp values (2.0 to 150.0)
+  float penumbra_norm = clamp( ( penumbra_width - 2.0 ) / ( 150.0 - 2.0 ), 0.0, 1.0 );
+
+  // Apply power curve for smooth, natural transition
+  // Lower exponent = keeps shadows darker longer before lightening
+  penumbra_norm = pow( penumbra_norm, 0.6 );
+
+  // Map penumbra softness to intensity
+  // Sharp shadows (penumbra_norm ≈ 0) -> dark (intensity ≈ 1.0)
+  // Soft/blurry shadows (penumbra_norm ≈ 1) -> light (intensity ≈ 0.3)
+  float intensity_factor = mix( 1.0, 0.3, penumbra_norm );
+
+  // Apply intensity modulation to shadow
+  shadow *= intensity_factor;
+
+  return shadow;
+}
+
+float get_shadow( vec4 light_space_pos )
+{
+  // Perspective divide to get NDC coordinates [-1, 1]
+  vec3 proj_coords = light_space_pos.xyz / light_space_pos.w;
+  proj_coords = proj_coords * 0.5 + 0.5;
+
+  float closest_depth = texture( u_shadow_map, proj_coords.xy ).r;
+  float current_depth = proj_coords.z;
+
+  float is_outside = float( proj_coords.x < 0.0 || proj_coords.x > 1.0 || proj_coords.y < 0.0 || proj_coords.y > 1.0 );
+
+  float shadow = float( current_depth > closest_depth ) + is_outside;
+  shadow *= float( !( proj_coords.z > 1.0 ) );
+
+  // vec2 texel_size = 1.0 / vec2( textureSize( u_shadow_map, 0 ) );
+
   return shadow;
 }
 
 void main()
 {
   // Calculate shadow value: 0 = lit, 1 = shadowed
-  float shadow = calculate_shadow( v_light_space_pos );
-
+  // float shadow = calculate_shadow( v_light_space_pos );
+  float shadow = get_shadow( v_light_space_pos );
   frag_color = vec4( shadow, 0.0, 0.0, 1.0 );
 }

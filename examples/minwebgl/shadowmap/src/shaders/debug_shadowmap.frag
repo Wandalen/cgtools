@@ -59,21 +59,22 @@ void main()
   // === LIGHTMAP MODE: Display shadow values directly ===
   // Shadow values: 0 = lit (white), 1 = shadowed (black)
   // Invert so lit areas appear bright
-  vec3 color = vec3( 1.0 - depth );
+
 
   // === OLD: Depth visualization (commented out) ===
   // Linearize for better visualization (perspective projection)
-  // float linear_depth = linearize_depth( depth, u_near, u_far );
-  // linear_depth = linear_depth / u_far; // Normalize to [0, 1]
+  float linear_depth = linearize_depth( depth, u_near, u_far );
+  linear_depth = linear_depth / u_far; // Normalize to [0, 1]
+
+  vec3 color;
 
   // Option 1: Grayscale (simple)
-  // vec3 color = vec3( linear_depth );
-
+  color = vec3( linear_depth );
+  color = vec3( 1.0 - depth );
   // Option 2: Color gradient (better depth perception)
-  // vec3 color = depth_to_color( depth );
-
+  // color = depth_to_color( linear_depth );
   // Option 3: Raw depth (for orthographic)
-  // vec3 color = vec3( depth );
+  // color = vec3( depth );
 
   frag_color = vec4( color, 1.0 );
 }
