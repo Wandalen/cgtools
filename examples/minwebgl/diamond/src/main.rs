@@ -16,7 +16,8 @@ use gl::
 };
 use renderer::webgl::
 {
-  post_processing::{self, Pass, SwapFramebuffer}, Camera
+  post_processing::{self, Pass, SwapFramebuffer}, Camera,
+  loaders
 };
 
 
@@ -46,16 +47,21 @@ fn load_cube_texture( name : &str, document : &gl::web_sys::Document, gl : &gl::
           ).expect( "Failed to upload data to texture" );
           //gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 0 );
 
-          if cube_face == 5
+          //if cube_face == 5
           {
             gl.generate_mipmap( gl::TEXTURE_CUBE_MAP );
+            gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+            gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
+            gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as i32 );
+            gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32 );
+            gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_R, gl::CLAMP_TO_EDGE as i32 );
           }
 
-          gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
-          gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32 );
-          gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as i32 );
-          gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32 );
-          gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_R, gl::CLAMP_TO_EDGE as i32 );
+          // gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+          // gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
+          // gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as i32 );
+          // gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32 );
+          // gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_R, gl::CLAMP_TO_EDGE as i32 );
 
           img.remove();
         }
@@ -174,7 +180,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   // Camera setup
 
-  let eye = gl::F32x3::new(  0.0, 0.0, 10.0 );
+  let eye = gl::F32x3::new(  0.0, 5.0, 15.0 );
   let up = gl::F32x3::Y;
 
   let aspect_ratio = width / height;
@@ -200,6 +206,8 @@ async fn run() -> Result< (), gl::WebglError >
   camera.set_window_size( [ width, height ].into() );
   camera.bind_controls( &canvas );
 
+  //let ibl = loaders::ibl::load( &gl, "envMap" ).await;
+
 
   // Update uniform values
   gl::uniform::matrix_upload( &gl, projection_matrix_location, &perspective_matrix.to_array(), true ).unwrap();
@@ -222,6 +230,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   gl.active_texture( gl::TEXTURE0 + env_map_location as u32 );
   gl.bind_texture( gl::TEXTURE_CUBE_MAP, env_map.as_ref() );
+  //gl.bind_texture( gl::TEXTURE_CUBE_MAP, ibl.diffuse_texture.as_ref() );
   gl.active_texture( gl::TEXTURE0 + cube_normal_map_location as u32 );
   gl.bind_texture( gl::TEXTURE_CUBE_MAP, cube_normal_map.as_ref() );
 
@@ -236,14 +245,20 @@ async fn run() -> Result< (), gl::WebglError >
     move | t : f64 |
     {
       let time = t as f32 / 1000.0;
-      let rotation = gl::math::mat3x3::from_angle_y( time / 5.0 );
+      let rotation = gl::math::mat3x3::from_angle_y( time * 0.5 );
+      let rotation = gl::math::mat3x3::from_angle_x( ( time * 0.1 ).sin() * 1.2 ) * rotation;
       let eye = camera.get_eye();
-      //let eye = rotation * eye;
+      let eye = rotation * eye;
+
+      let left = up.cross( eye );
+      let up = eye.cross( left ).normalize();
 
       //let model_matrix = rotation.to_homogenous() * model_matrix;
 
+      let view_matrix = gl::math::mat3x3h::look_at_rh( eye, gl::F32x3::ZERO, up );
 
-      let view_matrix = camera.get_view_matrix();
+
+      //let view_matrix = camera.get_view_matrix();
       let inverse_model_matrix = model_matrix.inverse().unwrap();
 
       gl.use_program( Some( &background_program ) );

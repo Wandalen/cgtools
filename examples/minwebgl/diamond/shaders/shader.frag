@@ -8,9 +8,9 @@ const float EPSILON = 1e-4;
 // This value was calculated during generation of the map
 //const float MAX_DISTANCE = 5.7610855;
 const float MAX_DISTANCE = 1.0;
-const int RAY_BOUNCES = 5;
+const int RAY_BOUNCES = 7;
 const float TRANSMISSION = 0.5;
-const vec3 DIAMOND_COLOR = vec3(1.0);
+const vec3 DIAMOND_COLOR = vec3( .98, 0.95, 0.9 );
 const vec3 BOOST_FACTORS = vec3( 0.8920, 0.8920, 0.9860 );
 
 const vec3 ambientColor = vec3(0.7);
@@ -95,10 +95,9 @@ vec3 sampleEnvFromLocal( vec3 direction )
 vec3 SampleSpecularContribution( vec3 direction ) 
 {
   direction = normalize( direction );
-  // direction.x *= -1.;
-  // direction.z *= -1.;
-  //return vec3( 1.0, 0.0, 1.0 );
-  return sampleEnvFromLocal( direction );
+  direction.x *= -1.;
+  direction.z *= -1.;
+  return sampleEnvFromLocal( direction ).rrr;
 }
 
 // Finds an intersection points of a given line with a sphere at the origin
@@ -226,18 +225,18 @@ vec3 shadeObject(vec3 norm, vec3 pos, bool inside)
 
 
 // Calculate the color by tracing a ray
-vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNormal ) 
+vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNormal, float n2 ) 
 {
   vec3 resultColor = vec3( 0.0 );
 
   // Refractive index of air
   const float n1 = 1.0;
   // Refractive index of a diamond
-  const float n2 = 2.42;
+ //const float n2 = 2.42;
 
-  //vec3 f0 = vec3( (n2 - n1) / (n2 + n1));
-  vec3 f0 = 1.0 / vec3( 2.407, 2.426, 2.451 );
-  f0 *= f0;
+  vec3 f0 = vec3( (n2 - n1) / (n2 + n1) );
+  // vec3 f0 = 1.0 / vec3( 2.407, 2.426, 2.451 );
+  // f0 *= f0;
 
   //const vec3 f0 = vec3( 0.1724 );
 
@@ -285,7 +284,7 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
     rayOrigin = dirOriginToIntersect * surfaceDistance;
 
     float r = length( rayOrigin - oldOrigin ) / radius * absorptionFactor;
-    attenuationFactor *= exp( -r * ( 1.0 - colorAbsorption ) );
+    attenuationFactor *= exp( -r * ( 1.0 - colorAbsorption ) * 1.0 );
 
 
     // Calculate new rays
@@ -295,15 +294,25 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
     // vec3 FRefracted = freshel( newRefractedDirection, surfaceNormal, f0, 0.0 );
     // vec3 FReflected = freshel( newReflectedDirection, -surfaceNormal, f0, criticalAngleCosine );
 
+    // resultColor += lampsShading(surfaceNormal, rayOrigin, resultColor, true );
+    // resultColor *= DIAMOND_COLOR;
+
+    // if( i == RAY_BOUNCES - 1 )
+    // {
+    //   vec3 reflectedAmount = EnvBRDFApprox( dot( newRayDirection, surfaceNormal ), f0, 0.0 );
+    //   resultColor +=  SampleSpecularContribution( newRayDirection ) * DIAMOND_COLOR * attenuationFactor * ( vec3( 1.0 ) - min( vec3( 1.0 ), reflectedAmount ) );
+    //   break;
+    // }
+
+    // if( dot( newRefractedDirection, newRefractedDirection ) > 1e-5 )
+    // {
+    //   vec3 reflectedAmount = EnvBRDFApprox( dot( newRayDirection, surfaceNormal ), f0, 0.0 );
+    //   resultColor +=  SampleSpecularContribution( newRayDirection ) * DIAMOND_COLOR * attenuationFactor * ( vec3( 1.0 ) - min( vec3( 1.0 ), reflectedAmount ) );
+    //   break;
+    // }
+
     if( dot( newRefractedDirection, newRefractedDirection ) < 1e-5 )
     {
-      c++;
-
-      // if( c > 3 )
-      // {
-      //   resultColor = vec3( 0.0, 1.0, 0.0 );
-      //   break;
-      // }
       if ( i == RAY_BOUNCES - 1 ) 
       {
         vec3 reflectedAmount = EnvBRDFApprox( dot( newRayDirection, surfaceNormal ), f0, 0.0 );
@@ -377,7 +386,7 @@ void main()
 {
   lamps[0] = Lamp(vec3(0., 4.5, 10.), vec3(1., 1., 1.), 15., 0.1);
   lamps[1] = Lamp(vec3(12., -0.5, 6.), vec3(.7, .8, 1.), 15., 0.1);
-  lamps[2] = Lamp(vec3(-11.3, 0.8, -1.5), vec3(1., .95, .8), 13.5, 0.1);
+  lamps[2] = Lamp(vec3(-1.3, 0.8, -1.5), vec3(1., .95, .8), 3.5, 0.1);
 
   const vec3 f0 = vec3( 0.1724 );
   vec3 normal = normalize( vWorldNormal );
@@ -389,10 +398,17 @@ void main()
   // Sample color from an environment map
   vec3 reflectionColor = sampleSpecularReflection( reflectedDirection ); 
   // The actual diamond calculation
-  vec3 refractionColor = getRefractionColor( vWorldPosition, viewDirection, normal );
+  //vec3 refractionColor = getRefractionColor( vWorldPosition, viewDirection, normal, 0.0 );
+
+  vec3 refractionColor = vec3
+  (
+    getRefractionColor( vWorldPosition, viewDirection, normal, 2.408 ).r,
+    getRefractionColor( vWorldPosition, viewDirection, normal, 2.424 ).g,
+    getRefractionColor( vWorldPosition, viewDirection, normal, 2.432 ).b
+  );
 
   vec3 diffuseColor = DIAMOND_COLOR;
-  vec3 colour = diffuseColor * ( refractionColor +  reflectionColor * brdfReflected );
+  vec3 colour = diffuseColor * ( refractionColor +  reflectionColor * brdfReflected * 0.5 );
   //colour = refractionColor;
 
   // vec3 p = ( inverseModelMatrix * vec4( vWorldPosition, 1.0 ) ).xyz;
@@ -406,7 +422,7 @@ void main()
   //colour = lampsShading(normal, vWorldPosition, vec3( 0.0 ), false );
 
   // Gamma 
-  colour = tanh( colour );
+  colour = tanh( colour * 8.0 );
   colour = pow( colour, vec3( 1.0 / 2.2 ) );
   //colour = normal;
 
