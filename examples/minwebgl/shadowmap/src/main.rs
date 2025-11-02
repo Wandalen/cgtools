@@ -45,7 +45,7 @@ async fn run() -> Result< (), gl::WebglError >
   (
     [ 0.0, 1.5, 5.0 ].into(),
     [ 0.0, 1.0, 0.0 ].into(),
-    [ 0.0, 0.5, 0.0 ].into(),
+    [ 0.0, 0.2, 0.0 ].into(),
     aspect,
     45.0_f32.to_radians(),
     0.1,
@@ -62,7 +62,7 @@ async fn run() -> Result< (), gl::WebglError >
   let debug_frag_src = include_str!( "shaders/debug_shadowmap.frag" );
   let debug_shader = gl::Program::new( gl.clone(), debug_vert_src, debug_frag_src )?;
 
-  let mesh = gltf::load( &document, "6.glb", &gl ).await?;
+  let mesh = gltf::load( &document, "ring.glb", &gl ).await?;
   let mesh_model = mat3x3h::translation( [ 0.0, 0.2, 0.0 ] );
   gl.bind_vertex_array( None );
 
@@ -72,7 +72,7 @@ async fn run() -> Result< (), gl::WebglError >
   let shadowmap_resolution = 4096;
   let shadowmap = shadowmap::Shadowmap::new( &gl, shadowmap_resolution )?;
 
-  let shadow_baker = shadowmap::ShadowRenderer::new( &gl )?;
+  let shadow_renderer = shadowmap::ShadowRenderer::new( &gl )?;
 
   let lightmap_res = 8192;
   let mip_levels = ( lightmap_res as f32 ).log2().floor() as i32 + 1;
@@ -89,17 +89,17 @@ async fn run() -> Result< (), gl::WebglError >
   let plane_color = [ 0.3, 0.3, 0.3 ];
 
   // Setup light source for shadows
-  let light_pos = [ 0.0, 8.0, 8.0 ];
+  let light_pos = [ 0.0, 8.0, 6.0 ];
   let light_color = [ 1.0, 1.0, 1.0 ];
-  let light_orientation = QuatF32::from_euler_xyz( [ -45.0_f32.to_radians(), 0.0, 0.0 ] );
+  let light_orientation = QuatF32::from_euler_xyz( [ -60.0_f32.to_radians(), 0.0, 0.0 ] );
   let near = 1.0;
-  let far = 40.0;
+  let far = 30.0;
   let mut light_source = shadowmap::LightSource::new
   (
     light_pos.into(),
     light_orientation,
-    mat3x3h::orthographic_rh_gl( -5.0, 5.0, -5.0, 5.0, near, far ),
-    // mat3x3h::perspective_rh_gl( 90.0_f32.to_radians(), 1.0, near, far ),
+    // mat3x3h::orthographic_rh_gl( -5.0, 5.0, -5.0, 5.0, near, far ),
+    mat3x3h::perspective_rh_gl( 45.0_f32.to_radians(), 1.0, near, far ),
     40.0
   );
 
@@ -145,11 +145,11 @@ async fn run() -> Result< (), gl::WebglError >
 
 
   // === Lightmap Baking Pass: Bake PCSS shadows into lightmap ===
-  shadow_baker.bind( lightmap_res as u32, lightmap_res as u32 );
-  shadow_baker.set_shadowmap( shadowmap.depth_texture() );
-  shadow_baker.set_target( plane_lightmap.as_ref() );
-  shadow_baker.upload_model( plane_model );
-  shadow_baker.upload_light_source( &mut light_source );
+  shadow_renderer.bind( lightmap_res as u32, lightmap_res as u32 );
+  shadow_renderer.set_shadowmap( shadowmap.depth_texture() );
+  shadow_renderer.set_target( plane_lightmap.as_ref() );
+  shadow_renderer.upload_model( plane_model );
+  shadow_renderer.upload_light_source( &mut light_source );
 
   for mesh in &cube_mesh.meshes
   {
