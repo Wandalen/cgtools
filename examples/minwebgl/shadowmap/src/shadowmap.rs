@@ -228,6 +228,9 @@ impl ShadowRenderer
     let light_vp = light_source.view_projection();
     self.program.uniform_matrix_upload( "u_light_view_projection", light_vp.raw_slice(), true );
 
+    let light_vp_inv = light_vp.inverse().unwrap();
+    self.program.uniform_matrix_upload( "u_light_view_projection_inv", light_vp_inv.raw_slice(), true );
+
     // Upload light direction (used for orthographic)
     let light_dir = light_source.direction();
     self.program.uniform_upload( "u_light_dir", light_dir.as_slice() );

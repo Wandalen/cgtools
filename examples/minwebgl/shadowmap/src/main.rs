@@ -100,7 +100,7 @@ async fn run() -> Result< (), gl::WebglError >
     light_orientation,
     // mat3x3h::orthographic_rh_gl( -5.0, 5.0, -5.0, 5.0, near, far ),
     mat3x3h::perspective_rh_gl( 45.0_f32.to_radians(), 1.0, near, far ),
-    40.0
+    20.0
   );
 
 
