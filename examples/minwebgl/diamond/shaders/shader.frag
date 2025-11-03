@@ -398,7 +398,7 @@ void main()
   // Sample color from an environment map
   vec3 reflectionColor = sampleSpecularReflection( reflectedDirection ); 
   // The actual diamond calculation
-  //vec3 refractionColor = getRefractionColor( vWorldPosition, viewDirection, normal, 0.0 );
+  //vec3 refractionColor = getRefractionColor( vWorldPosition, viewDirection, normal, 2.4 );
 
   vec3 refractionColor = vec3
   (

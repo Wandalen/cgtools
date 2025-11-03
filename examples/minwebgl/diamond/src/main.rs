@@ -248,7 +248,7 @@ async fn run() -> Result< (), gl::WebglError >
       let rotation = gl::math::mat3x3::from_angle_y( time * 0.5 );
       let rotation = gl::math::mat3x3::from_angle_x( ( time * 0.1 ).sin() * 1.2 ) * rotation;
       let eye = camera.get_eye();
-      let eye = rotation * eye;
+      //let eye = rotation * eye;
 
       let left = up.cross( eye );
       let up = eye.cross( left ).normalize();
@@ -258,7 +258,7 @@ async fn run() -> Result< (), gl::WebglError >
       let view_matrix = gl::math::mat3x3h::look_at_rh( eye, gl::F32x3::ZERO, up );
 
 
-      //let view_matrix = camera.get_view_matrix();
+      let view_matrix = camera.get_view_matrix();
       let inverse_model_matrix = model_matrix.inverse().unwrap();
 
       gl.use_program( Some( &background_program ) );
