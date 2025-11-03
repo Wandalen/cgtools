@@ -793,8 +793,11 @@ use minwebgl as gl;
       {
         scene.add( nodes[ gltf_node.index() ].clone() );
       }
+      scene.update_world_matrix();
       scenes.push(  Rc::new( RefCell::new( scene ) ) );
     }
+
+    gl.bind_vertex_array( None );
 
     Ok
     (

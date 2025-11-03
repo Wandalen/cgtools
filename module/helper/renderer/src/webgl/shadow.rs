@@ -1,11 +1,12 @@
 mod private
 {
   use minwebgl as gl;
-  use gl::{ GL, Program };
+  use gl::{ GL, Program, js_sys, JsValue };
   use web_sys::{ WebGlFramebuffer, WebGlTexture };
   use std::rc::Rc;
   use core::cell::RefCell;
 
+  #[ derive( Debug ) ]
   pub struct ShadowMap
   {
     framebuffer   : Option< WebGlFramebuffer >,
@@ -24,13 +25,23 @@ mod private
       let depth_buffer = gl.create_texture();
       gl.bind_texture( gl::TEXTURE_2D, depth_buffer.as_ref() );
       gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::DEPTH_COMPONENT24, resolution, resolution );
-      gl::texture::d2::wrap_clamp( gl );
       gl::texture::d2::filter_nearest( gl );
+      gl::texture::d2::wrap_clamp( gl );
 
-      // Setup framebuffer with both attachments
       let framebuffer = gl.create_framebuffer();
       gl.bind_framebuffer( gl::FRAMEBUFFER, framebuffer.as_ref() );
-      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::DEPTH_ATTACHMENT, gl::TEXTURE_2D, depth_buffer.as_ref(), 0 );
+      gl.framebuffer_texture_2d
+      (
+        gl::FRAMEBUFFER,
+        gl::DEPTH_ATTACHMENT,
+        gl::TEXTURE_2D,
+        depth_buffer.as_ref(),
+        0
+      );
+
+      let arr = js_sys::Array::from_iter( [ JsValue::from_f64( gl::NONE as f64 ) ].into_iter() );
+      gl.draw_buffers( &arr );
+      gl.read_buffer( gl::NONE );
 
       let status = gl.check_framebuffer_status( gl::FRAMEBUFFER );
       if status != gl::FRAMEBUFFER_COMPLETE
@@ -52,7 +63,7 @@ mod private
           depth_buffer,
           program,
           resolution,
-          gl : gl.clone()
+          gl : gl.clone(),
         }
       )
     }
@@ -60,11 +71,11 @@ mod private
     pub fn bind( &self )
     {
       self.gl.bind_framebuffer( GL::FRAMEBUFFER, self.framebuffer.as_ref() );
-      self.gl.viewport( 0, 0, self.resolution, self.resolution );
       self.program.activate();
       self.gl.enable( gl::DEPTH_TEST );
       self.gl.enable( gl::CULL_FACE );
       self.gl.cull_face( gl::FRONT );
+      self.gl.viewport( 0, 0, self.resolution, self.resolution );
     }
 
     pub fn upload_mvp( &self, mvp : gl::F32x4x4 )
@@ -92,6 +103,7 @@ mod private
   ///
   /// Unlike the Shadowmap struct which owns its texture, ShadowBaker uses external textures
   /// that you provide via `set_target()`, allowing flexible reuse for multiple lightmaps.
+  #[ derive( Debug ) ]
   pub struct ShadowBaker
   {
     framebuffer : Option< WebGlFramebuffer >,
@@ -112,10 +124,8 @@ mod private
     /// Result containing the ShadowBaker or a WebGL error
     pub fn new( gl : &GL ) -> Result< Self, gl::WebglError >
     {
-      // Create framebuffer (texture will be attached later via set_target)
       let framebuffer = gl.create_framebuffer();
 
-      // Load shadow baker shaders
       let vertex = include_str!( "shaders/bake.vert" );
       let fragment = include_str!( "shaders/bake.frag" );
       let program = gl::Program::new( gl.clone(), vertex, fragment )?;
@@ -167,9 +177,9 @@ mod private
     /// Call this before rendering geometry for baking
     pub fn bind( &self )
     {
+      self.program.activate();
       self.gl.bind_framebuffer( gl::FRAMEBUFFER, self.framebuffer.as_ref() );
       self.gl.viewport( 0, 0, self.width, self.height );
-      self.program.activate();
       self.gl.disable( gl::DEPTH_TEST );
       self.gl.disable( gl::CULL_FACE );
     }
@@ -205,9 +215,6 @@ mod private
       // Upload view-projection matrix
       let light_vp = light.view_projection();
       self.program.uniform_matrix_upload( "u_light_view_projection", light_vp.raw_slice(), true );
-
-      let light_vp_inv = light_vp.inverse().unwrap();
-      self.program.uniform_matrix_upload( "u_light_view_projection_inv", light_vp_inv.raw_slice(), true );
 
       // Upload light direction (used for orthographic)
       let light_dir = light.direction();
@@ -347,7 +354,8 @@ mod private
       }
       else
       {
-        let view = self.orientation.invert().to_matrix().to_homogenous() * gl::math::mat3x3h::translation( -self.position );
+        let view = self.orientation.invert().to_matrix().to_homogenous()
+          * gl::math::mat3x3h::translation( -self.position );
         let view_projection = self.projection * view;
         self.view_projection = Some( view_projection );
 
@@ -382,7 +390,6 @@ mod private
     shadowmap_res : u32
   ) -> Result< (), gl::WebglError >
   {
-    // === Phase 1: Render Shadow Map ===
     // Create shadow map and render all shadow casters from light's perspective
     let shadow_map = ShadowMap::new( gl, shadowmap_res )?;
     shadow_map.bind();
@@ -395,13 +402,11 @@ mod private
     {
       let node = node.borrow();
 
-      // Skip nodes that don't cast shadows
       if !node.is_shadow_caster
       {
         return Ok( () );
       }
 
-      // Render mesh to shadow map
       if let crate::webgl::Object3D::Mesh( mesh ) = &node.object
       {
         let model = node.get_world_matrix();
@@ -421,26 +426,23 @@ mod private
 
     gl.bind_framebuffer( gl::FRAMEBUFFER, None );
 
-    // === Phase 2: Bake Lightmaps ===
-    // Use the shadow map to bake PCSS shadows into lightmap textures
-    let mut shadow_baker = ShadowBaker::new( gl )?;
-    shadow_baker.bind();
-    shadow_baker.set_shadowmap( shadow_map.depth_buffer() );
-    shadow_baker.upload_light( light );
     let mip_levels = ( lightmap_res as f32 ).log2().floor() as i32 + 1;
 
-    // Recursively traverse scene and bake shadows for all shadow-receiving meshes
+    let mut shadow_baker = ShadowBaker::new( gl )?;
+    shadow_baker.bind();
+    shadow_baker.upload_light( light );
+    shadow_baker.set_shadowmap( shadow_map.depth_buffer() );
+    gl.active_texture( gl::TEXTURE1 );
+
     scene.traverse( &mut | node |
     {
       let node = node.borrow_mut();
 
-      // Skip nodes that don't receive shadows
       if !node.is_shadow_receiver
       {
         return Ok( () );
       }
 
-      // Bake shadows into mesh lightmaps
       if let crate::webgl::Object3D::Mesh( mesh ) = &node.object
       {
         let model = node.get_world_matrix();
@@ -448,25 +450,18 @@ mod private
 
         for primitive in &mesh.borrow().primitives
         {
-          // Create lightmap texture for this primitive
-          let light_map = gl.create_texture();
-          gl.bind_texture( gl::TEXTURE_2D, light_map.as_ref() );
-          gl.tex_storage_2d( gl::TEXTURE_2D, mip_levels, gl::RGBA16F, lightmap_res as i32, lightmap_res as i32 );
-          gl::texture::d2::wrap_clamp( &gl );
-          gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
-          gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+          let light_map = create_texture(gl, lightmap_res, mip_levels);
 
-          // Render shadows into the lightmap
-          let primitive_ref = primitive.borrow_mut();
           shadow_baker.set_target( light_map.as_ref(), lightmap_res, lightmap_res );
           shadow_baker.bind();
+
+          let primitive_ref = primitive.borrow_mut();
           primitive_ref.geometry.borrow().bind( gl );
           primitive_ref.draw( gl );
 
-          // Generate mipmaps for better quality at different distances
+          gl.bind_texture( gl::TEXTURE_2D, light_map.as_ref() );
           gl.generate_mipmap( gl::TEXTURE_2D );
 
-          // Attach lightmap to the primitive's material
           let texture_info = crate::webgl::TextureInfo
           {
             texture : Rc::new( RefCell::new( crate::webgl::Texture
@@ -486,6 +481,17 @@ mod private
 
     Ok( () )
   }
+
+  fn create_texture( gl : &GL, lightmap_res : u32, mip_levels : i32 ) -> Option< WebGlTexture >
+  {
+    let light_map = gl.create_texture();
+    gl.bind_texture( gl::TEXTURE_2D, light_map.as_ref() );
+    gl.tex_storage_2d( gl::TEXTURE_2D, mip_levels, gl::R16F, lightmap_res as i32, lightmap_res as i32 );
+    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
+    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+    gl::texture::d2::wrap_clamp( &gl );
+    light_map
+  }
 }
 
 
@@ -496,5 +502,6 @@ crate::mod_interface!
     ShadowBaker,
     ShadowMap,
     Light,
+    bake_shadows
   };
 }

@@ -1,7 +1,7 @@
 mod private
 {
   use mingl::Former;
-use minwebgl as gl;
+  use minwebgl as gl;
   use crate::webgl::Texture;
   use std:: { cell::RefCell, collections::HashMap, rc::Rc };
 

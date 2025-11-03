@@ -4,7 +4,7 @@ use minwebgl as gl;
 use gl::{ JsCast as _, math::mat3x3h, QuatF32 };
 use web_sys::HtmlCanvasElement;
 use renderer::webgl::loaders::gltf;
-use renderer::webgl::shadow::*;
+use renderer::webgl::{ Object3D, shadow::* };
 
 fn main()
 {
@@ -24,8 +24,7 @@ async fn run() -> Result< (), gl::WebglError >
   let height = ( fheight * dpr ) as i32;
   let aspect = width as f32 / height as f32;
 
-  let gl = gl::context::retrieve_or_make()
-  .expect( "Failed to retrieve WebGl context" );
+  let gl = gl::context::retrieve_or_make().expect( "Failed to retrieve WebGl context" );
 
   let canvas = gl.canvas()
   .unwrap()
@@ -34,7 +33,6 @@ async fn run() -> Result< (), gl::WebglError >
   canvas.set_width( width as u32 );
   canvas.set_height( height as u32 );
 
-  // Enable extensions for float texture rendering
   let ext_color_buffer_float = gl.get_extension( "EXT_color_buffer_float" );
   let ext_float_linear = gl.get_extension( "OES_texture_float_linear" );
   gl::info!( "{ext_color_buffer_float:?}" );
@@ -44,7 +42,7 @@ async fn run() -> Result< (), gl::WebglError >
   (
     [ 0.0, 1.5, 5.0 ].into(),
     [ 0.0, 1.0, 0.0 ].into(),
-    [ 0.0, 0.2, 0.0 ].into(),
+    [ 0.0, 0.0, 0.0 ].into(),
     aspect,
     45.0_f32.to_radians(),
     0.1,
@@ -57,113 +55,73 @@ async fn run() -> Result< (), gl::WebglError >
   let fragment_src = include_str!( "shaders/main.frag" );
   let shader = gl::Program::new( gl.clone(), vertex_src, fragment_src )?;
 
-  let debug_vert_src = include_str!( "shaders/debug_shadowmap.vert" );
-  let debug_frag_src = include_str!( "shaders/debug_shadowmap.frag" );
-  let debug_shader = gl::Program::new( gl.clone(), debug_vert_src, debug_frag_src )?;
+  // let debug_vert_src = include_str!( "shaders/debug_shadowmap.vert" );
+  // let debug_frag_src = include_str!( "shaders/debug_shadowmap.frag" );
+  // let debug_shader = gl::Program::new( gl.clone(), debug_vert_src, debug_frag_src )?;
 
-  let mesh = gltf::load( &document, "ring.glb", &gl ).await?;
-  let mesh_model = mat3x3h::translation( [ 0.0, 0.2, 0.0 ] );
-  gl.bind_vertex_array( None );
+  let mesh = gltf::load( &document, "skull_salazar_downloadable.glb", &gl ).await?;
 
   let cube_mesh = gltf::load( &document, "cube.glb", &gl ).await?;
-  let plane_model = mat3x3h::translation( [ 0.0, -1.0, 0.0 ] ) * mat3x3h::scale( [ 8.0, 0.5, 8.0 ] );
+  let cube_model = mat3x3h::translation( [ 0.0, -1.0, 0.0 ] )
+    * mat3x3h::scale( [ 8.0, 0.25, 8.0 ] );
 
-  let shadowmap_resolution = 4096;
-  let shadowmap = ShadowMap::new( &gl, shadowmap_resolution )?;
+  let mut main_scene = renderer::webgl::Scene::new();
 
-  let mut shadow_renderer = ShadowBaker::new( &gl )?;
+  for scene in mesh.scenes
+  {
+    let mut scene = scene.borrow_mut();
+    for node in core::mem::take( &mut scene.children )
+    {
+      main_scene.add( node );
+    }
+  }
 
-  let lightmap_res = 8192;
-  let mip_levels = ( lightmap_res as f32 ).log2().floor() as i32 + 1;
-  let plane_lightmap = gl.create_texture();
-  gl.bind_texture( gl::TEXTURE_2D, plane_lightmap.as_ref() );
-  gl.tex_storage_2d( gl::TEXTURE_2D, mip_levels, gl::RGBA16F, lightmap_res, lightmap_res );
-  gl::texture::d2::wrap_clamp( &gl );
-  gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
-  gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+  for scene in cube_mesh.scenes
+  {
+    let mut scene = scene.borrow_mut();
+    for node in core::mem::take( &mut scene.children )
+    {
+      node.borrow_mut().set_world_matrix( cube_model );
+      main_scene.add( node );
+    }
+  }
 
+  _ = main_scene.traverse( &mut | node | {
+    node.borrow_mut().is_shadow_caster = true;
+    node.borrow_mut().is_shadow_receiver = true;
+    Ok( () )
+  } );
 
-  // Lighting parameters
-  let mesh_color = [ 0.9, 0.85, 0.8 ];
-  let plane_color = [ 0.3, 0.3, 0.3 ];
+  let mesh_color = [ 0.8, 0.75, 0.7 ];
 
-  // Setup light source for shadows
-  let light_pos = [ 0.0, 3.0, 5.0 ];
+  let light_pos = [ 0.0, 2.0, 4.0 ];
   let light_color = [ 1.0, 1.0, 1.0 ];
   let light_orientation = QuatF32::from_euler_xyz( [ -30.0_f32.to_radians(), 0.0, 0.0 ] );
-  let near = 1.5;
+  let near = 1.0;
   let far = 30.0;
-  let mut light_source = Light::new
+  let mut light = Light::new
   (
     light_pos.into(),
     light_orientation,
     // mat3x3h::orthographic_rh_gl( -5.0, 5.0, -5.0, 5.0, near, far ),
     mat3x3h::perspective_rh_gl( 30.0_f32.to_radians(), 1.0, near, far ),
-    1.0
+    0.05
   );
 
-  shadowmap.bind();
-  shadowmap.clear();
+  let shadowmap_res = 4096;
+  let lightmap_res = 4096;
+  bake_shadows( &gl, &main_scene, &mut light, lightmap_res, shadowmap_res ).unwrap();
 
-  // Render back faces to shadow map to reduce shadow acne
-  // This provides natural geometric offset instead of relying only on depth bias
-  gl.enable( gl::DEPTH_TEST );
+  gl.active_texture( gl::TEXTURE0 );
   gl.enable( gl::CULL_FACE );
-  gl.cull_face( gl::FRONT );
-  let light_view_projection = light_source.view_projection();
-
-  shadowmap.upload_mvp( light_view_projection * mesh_model );
-  for mesh in &mesh.meshes
-  {
-    for primitive in &mesh.borrow().primitives
-    {
-      let primitive = primitive.borrow();
-      primitive.geometry.borrow().bind( &gl );
-      primitive.draw( &gl );
-    }
-  }
-
-  shadowmap.upload_mvp( light_view_projection * plane_model );
-  for mesh in &cube_mesh.meshes
-  {
-    for primitive in &mesh.borrow().primitives
-    {
-      let primitive = primitive.borrow();
-      primitive.geometry.borrow().bind( &gl );
-      primitive.draw( &gl );
-    }
-  }
-
   gl.cull_face( gl::BACK );
-  gl.disable( gl::CULL_FACE );
+  gl.enable( gl::DEPTH_TEST );
   gl.bind_framebuffer( gl::FRAMEBUFFER, None );
-
-  shadow_renderer.set_target( plane_lightmap.as_ref(), lightmap_res as u32, lightmap_res as u32 );
-  shadow_renderer.bind();
-  shadow_renderer.set_shadowmap( shadowmap.depth_buffer() );
-  shadow_renderer.upload_model( plane_model );
-  shadow_renderer.upload_light( &mut light_source );
-
-  for mesh in &cube_mesh.meshes
-  {
-    for primitive in &mesh.borrow().primitives
-    {
-      let primitive = primitive.borrow();
-      primitive.geometry.borrow().bind( &gl );
-      primitive.draw( &gl );
-    }
-  }
-  gl.bind_framebuffer( gl::FRAMEBUFFER, None );
-
-  gl.bind_texture( gl::TEXTURE_2D, plane_lightmap.as_ref() );
-  gl.generate_mipmap( gl::TEXTURE_2D );
-
   gl.viewport( 0, 0, width, height );
   gl.clear_color( 0.1, 0.1, 0.15, 1.0 );
 
   let update = move | _ |
   {
-    // === Main Pass: Render scene with shadows ===
     gl.clear( gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT );
 
     let view = camera.get_view_matrix();
@@ -175,57 +133,46 @@ async fn run() -> Result< (), gl::WebglError >
     shader.uniform_upload( "u_view_pos", camera.get_eye().as_slice() );
     shader.uniform_upload( "u_light_color", &light_color );
 
-    gl.bind_texture( gl::TEXTURE_2D, None );
+    _ = main_scene.traverse( &mut | node | {
+      let node = node.borrow();
 
-    gl.enable( gl::CULL_FACE );
-
-    let mesh_mvp = view_projection * mesh_model;
-    shader.uniform_matrix_upload( "u_mvp", mesh_mvp.raw_slice(), true );
-    shader.uniform_matrix_upload( "u_model", mesh_model.raw_slice(), true );
-    shader.uniform_upload( "u_object_color", &mesh_color );
-    for mesh in &mesh.meshes
-    {
-      for primitive in &mesh.borrow().primitives
+      if let Object3D::Mesh( mesh ) = &node.object
       {
-        let primitive = primitive.borrow();
-        primitive.geometry.borrow().bind( &gl );
-        primitive.draw( &gl );
-      }
-    }
+        let model = node.get_world_matrix();
+        let mesh_mvp = view_projection * model;
 
-    let plane_mvp = view_projection * plane_model;
-    shader.uniform_matrix_upload( "u_mvp", plane_mvp.raw_slice(), true );
-    shader.uniform_matrix_upload( "u_model", plane_model.raw_slice(), true );
-    shader.uniform_upload( "u_object_color", &plane_color );
-    gl.bind_texture( gl::TEXTURE_2D, plane_lightmap.as_ref() );
-    for mesh in &cube_mesh.meshes
-    {
-      for primitive in &mesh.borrow().primitives
-      {
-        let primitive = primitive.borrow();
-        primitive.geometry.borrow().bind( &gl );
-        primitive.draw( &gl );
-      }
-    }
+        shader.uniform_matrix_upload( "u_mvp", mesh_mvp.raw_slice(), true );
+        shader.uniform_matrix_upload( "u_model", model.raw_slice(), true );
+        shader.uniform_upload( "u_object_color", &mesh_color );
 
-    gl.disable( gl::CULL_FACE );
+        for primitive in &mesh.borrow().primitives
+        {
+          let primitive = primitive.borrow();
+          primitive.material.borrow().light_map.as_ref().unwrap().bind( &gl );
+          primitive.geometry.borrow().bind( &gl );
+          primitive.draw( &gl );
+        }
+      }
+
+      Ok( () )
+    } );
 
     // Set viewport to bottom-left corner (quarter size)
-    let debug_size = ( width / 4 ).min( height / 4 );
-    gl.viewport( 0, 0, debug_size, debug_size );
-    gl.disable( gl::DEPTH_TEST );
+    // let debug_size = ( width / 4 ).min( height / 4 );
+    // gl.viewport( 0, 0, debug_size, debug_size );
+    // gl.disable( gl::DEPTH_TEST );
 
-    debug_shader.activate();
-    debug_shader.uniform_upload( "u_depth_texture", &0 );
-    debug_shader.uniform_upload( "u_near", &near );
-    debug_shader.uniform_upload( "u_far", &far );
+    // debug_shader.activate();
+    // debug_shader.uniform_upload( "u_depth_texture", &0 );
+    // debug_shader.uniform_upload( "u_near", &near );
+    // debug_shader.uniform_upload( "u_far", &far );
 
-    gl.bind_texture( gl::TEXTURE_2D, shadowmap.depth_buffer() );
+    // gl.bind_texture( gl::TEXTURE_2D, shadowmap.depth_buffer() );
     // gl.bind_texture( gl::TEXTURE_2D, plane_lightmap.as_ref() );
-    gl.draw_arrays( gl::TRIANGLES, 0, 3 );
+    // gl.draw_arrays( gl::TRIANGLES, 0, 3 );
 
-    gl.viewport( 0, 0, width, height );
-    gl.enable( gl::DEPTH_TEST );
+    // gl.viewport( 0, 0, width, height );
+    // gl.enable( gl::DEPTH_TEST );
 
     true
   };
