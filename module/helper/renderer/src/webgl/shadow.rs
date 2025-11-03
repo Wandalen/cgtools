@@ -356,6 +356,23 @@ mod private
     }
   }
 
+  /// Bakes shadows from a light source into lightmaps for all shadow-receiving meshes in the scene.
+  ///
+  /// This function performs a two-pass shadow baking process:
+  /// 1. **Shadow Map Pass**: Recursively traverses all shadow-casting nodes and renders them to a depth buffer
+  /// 2. **Lightmap Baking Pass**: Recursively traverses all shadow-receiving nodes and bakes PCSS soft shadows into their lightmaps
+  ///
+  /// The function automatically handles scene graph hierarchies, processing all descendants of root nodes.
+  ///
+  /// # Arguments
+  /// * `gl` - WebGL context
+  /// * `scene` - The scene containing nodes to process
+  /// * `light` - The light source casting shadows (mutable for view-projection caching)
+  /// * `lightmap_res` - Resolution of lightmap textures (e.g., 2048, 4096, 8192)
+  /// * `shadowmap_res` - Resolution of the shadow map depth buffer
+  ///
+  /// # Returns
+  /// Result indicating success or WebGL error
   pub fn bake_shadows
   (
     gl : &GL,
@@ -365,26 +382,32 @@ mod private
     shadowmap_res : u32
   ) -> Result< (), gl::WebglError >
   {
+    // === Phase 1: Render Shadow Map ===
+    // Create shadow map and render all shadow casters from light's perspective
     let shadow_map = ShadowMap::new( gl, shadowmap_res )?;
     shadow_map.bind();
     shadow_map.clear();
 
     let view_projection = light.view_projection();
 
-    for child in &scene.children
+    // Recursively traverse scene and render all shadow-casting meshes
+    scene.traverse( &mut | node |
     {
-      let child = child.borrow();
+      let node = node.borrow();
 
-      if !child.is_shadow_caster
+      // Skip nodes that don't cast shadows
+      if !node.is_shadow_caster
       {
-        continue;
+        return Ok( () );
       }
 
-      if let crate::webgl::Object3D::Mesh( mesh ) = &child.object
+      // Render mesh to shadow map
+      if let crate::webgl::Object3D::Mesh( mesh ) = &node.object
       {
-        let model = child.get_world_matrix();
+        let model = node.get_world_matrix();
         let mvp = view_projection * model;
         shadow_map.upload_mvp( mvp );
+
         for primitive in &mesh.borrow().primitives
         {
           let primitive = primitive.borrow();
@@ -392,30 +415,40 @@ mod private
           primitive.draw( gl );
         }
       }
-    }
+
+      Ok( () )
+    } )?;
 
     gl.bind_framebuffer( gl::FRAMEBUFFER, None );
 
+    // === Phase 2: Bake Lightmaps ===
+    // Use the shadow map to bake PCSS shadows into lightmap textures
     let mut shadow_baker = ShadowBaker::new( gl )?;
     shadow_baker.bind();
     shadow_baker.set_shadowmap( shadow_map.depth_buffer() );
     shadow_baker.upload_light( light );
     let mip_levels = ( lightmap_res as f32 ).log2().floor() as i32 + 1;
 
-    for child in &scene.children
+    // Recursively traverse scene and bake shadows for all shadow-receiving meshes
+    scene.traverse( &mut | node |
     {
-      let child = child.borrow_mut();
-      if !child.is_shadow_receiver
+      let node = node.borrow_mut();
+
+      // Skip nodes that don't receive shadows
+      if !node.is_shadow_receiver
       {
-        continue;
+        return Ok( () );
       }
 
-      if let crate::webgl::Object3D::Mesh( mesh ) = &child.object
+      // Bake shadows into mesh lightmaps
+      if let crate::webgl::Object3D::Mesh( mesh ) = &node.object
       {
-        let model = child.get_world_matrix();
+        let model = node.get_world_matrix();
         shadow_baker.upload_model( model );
+
         for primitive in &mesh.borrow().primitives
         {
+          // Create lightmap texture for this primitive
           let light_map = gl.create_texture();
           gl.bind_texture( gl::TEXTURE_2D, light_map.as_ref() );
           gl.tex_storage_2d( gl::TEXTURE_2D, mip_levels, gl::RGBA16F, lightmap_res as i32, lightmap_res as i32 );
@@ -423,14 +456,18 @@ mod private
           gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
           gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
 
-          let primitive = primitive.borrow_mut();
+          // Render shadows into the lightmap
+          let primitive_ref = primitive.borrow_mut();
           shadow_baker.set_target( light_map.as_ref(), lightmap_res, lightmap_res );
-          primitive.geometry.borrow().bind( gl );
-          primitive.draw( gl );
+          shadow_baker.bind();
+          primitive_ref.geometry.borrow().bind( gl );
+          primitive_ref.draw( gl );
 
+          // Generate mipmaps for better quality at different distances
           gl.generate_mipmap( gl::TEXTURE_2D );
 
-          let t = crate::webgl::TextureInfo
+          // Attach lightmap to the primitive's material
+          let texture_info = crate::webgl::TextureInfo
           {
             texture : Rc::new( RefCell::new( crate::webgl::Texture
             {
@@ -440,10 +477,12 @@ mod private
             } ) ),
             uv_position : 0,
           };
-          primitive.material.borrow_mut().light_map = Some( t );
+          primitive_ref.material.borrow_mut().light_map = Some( texture_info );
         }
       }
-    }
+
+      Ok( () )
+    } )?;
 
     Ok( () )
   }
