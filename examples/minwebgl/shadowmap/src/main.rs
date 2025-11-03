@@ -85,22 +85,22 @@ async fn run() -> Result< (), gl::WebglError >
 
 
   // Lighting parameters
-  let skull_color = [ 0.9, 0.85, 0.8 ];
+  let mesh_color = [ 0.9, 0.85, 0.8 ];
   let plane_color = [ 0.3, 0.3, 0.3 ];
 
   // Setup light source for shadows
-  let light_pos = [ 0.0, 8.0, 6.0 ];
+  let light_pos = [ 0.0, 3.0, 6.0 ];
   let light_color = [ 1.0, 1.0, 1.0 ];
-  let light_orientation = QuatF32::from_euler_xyz( [ -60.0_f32.to_radians(), 0.0, 0.0 ] );
-  let near = 1.0;
+  let light_orientation = QuatF32::from_euler_xyz( [ -30.0_f32.to_radians(), 0.0, 0.0 ] );
+  let near = 0.5;
   let far = 30.0;
   let mut light_source = shadowmap::LightSource::new
   (
     light_pos.into(),
     light_orientation,
     // mat3x3h::orthographic_rh_gl( -5.0, 5.0, -5.0, 5.0, near, far ),
-    mat3x3h::perspective_rh_gl( 45.0_f32.to_radians(), 1.0, near, far ),
-    2.0
+    mat3x3h::perspective_rh_gl( 30.0_f32.to_radians(), 1.0, near, far ),
+    0.8
   );
 
 
@@ -193,7 +193,7 @@ async fn run() -> Result< (), gl::WebglError >
     let mesh_mvp = view_projection * mesh_model;
     shader.uniform_matrix_upload( "u_mvp", mesh_mvp.raw_slice(), true );
     shader.uniform_matrix_upload( "u_model", mesh_model.raw_slice(), true );
-    shader.uniform_upload( "u_object_color", &skull_color );
+    shader.uniform_upload( "u_object_color", &mesh_color );
     for mesh in &mesh.meshes
     {
       for primitive in &mesh.borrow().primitives
@@ -233,8 +233,8 @@ async fn run() -> Result< (), gl::WebglError >
     debug_shader.uniform_upload( "u_far", &far );
 
     // gl.bind_texture( gl::TEXTURE_2D, shadowmap.depth_buffer() );
-    // gl.bind_texture( gl::TEXTURE_2D, shadowmap.depth_texture() );
-    gl.bind_texture( gl::TEXTURE_2D, plane_lightmap.as_ref() );
+    gl.bind_texture( gl::TEXTURE_2D, shadowmap.depth_buffer() );
+    // gl.bind_texture( gl::TEXTURE_2D, plane_lightmap.as_ref() );
     gl.draw_arrays( gl::TRIANGLES, 0, 3 );
 
     gl.viewport( 0, 0, width, height );

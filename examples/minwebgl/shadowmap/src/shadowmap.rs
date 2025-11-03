@@ -246,6 +246,12 @@ impl ShadowRenderer
     // Upload light size (controls penumbra/shadow softness)
     let light_size = light_source.light_size();
     self.program.uniform_upload( "u_light_size", &light_size );
+
+    // Upload near and far planes for depth linearization
+    let near = light_source.near_plane();
+    let far = light_source.far_plane();
+    self.program.uniform_upload( "u_near", &near );
+    self.program.uniform_upload( "u_far", &far );
   }
 }
 
@@ -256,6 +262,8 @@ pub struct LightSource
   projection  : gl::F32x4x4,
   light_size  : f32,
   mvp         : Option< gl::F32x4x4 >,
+  near_plane  : f32,
+  far_plane   : f32,
 }
 
 impl LightSource
@@ -268,12 +276,63 @@ impl LightSource
     light_size : f32
   ) -> Self
   {
-    Self { position, orientation, projection, light_size, mvp : None,  }
+    // Extract near and far planes from projection matrix
+    // Different formulas for perspective vs orthographic
+    let m = projection.raw_slice();
+    let m10 = m[ 10 ];  // [2][2] in column-major
+    let m14 = m[ 14 ];  // [3][2] in column-major
+    let m15 = m[ 15 ];  // [3][3] in column-major
+
+    let ( near_plane, far_plane ) = if ( m15 - 1.0 ).abs() < 0.01
+    {
+      // Orthographic projection: m[15] = 1.0
+      // m[10] = -2 / (far - near)
+      // m[14] = -(far + near) / (far - near)
+      // Solving:
+      //   far = (m[14] - 1) / m[10]
+      //   near = (1 + m[14]) / m[10]
+      let far = ( m14 - 1.0 ) / m10;
+      let near = ( 1.0 + m14 ) / m10;
+      ( near, far )
+    }
+    else
+    {
+      // Perspective projection: m[15] = 0.0
+      // m[10] = -(far + near) / (far - near)
+      // m[14] = -2 * far * near / (far - near)
+      // Solving:
+      //   near = m[14] / (m[10] - 1)
+      //   far = m[14] / (m[10] + 1)
+      let near = m14 / ( m10 - 1.0 );
+      let far = m14 / ( m10 + 1.0 );
+      ( near, far )
+    };
+
+    Self
+    {
+      position,
+      orientation,
+      projection,
+      light_size,
+      mvp : None,
+      near_plane,
+      far_plane,
+    }
   }
 
   pub fn light_size( &self ) -> f32
   {
     self.light_size
+  }
+
+  pub fn near_plane( &self ) -> f32
+  {
+    self.near_plane
+  }
+
+  pub fn far_plane( &self ) -> f32
+  {
+    self.far_plane
   }
 
   pub fn position( &self ) -> gl::F32x3

@@ -6,26 +6,35 @@ in vec3 v_world_pos;
 in vec3 v_normal;
 in vec4 v_light_space_pos;
 
-uniform vec3 u_light_dir;        // Used for orthographic (directional light)
-uniform vec3 u_light_position;   // Used for perspective (point light)
+uniform vec3 u_light_dir;
+uniform vec3 u_light_position;
 uniform float u_is_orthographic;
-uniform float u_light_size;      // World-space light size for penumbra control
-uniform mat4 u_light_view_projection_inv;
-uniform sampler2D u_shadow_map;  // Color texture containing depth values (Chrome workaround)
+uniform float u_light_size;
+uniform float u_near;
+uniform float u_far;
+uniform sampler2D u_shadow_map;
 
 out vec4 frag_color;
 
-const float PI = 3.1415926;
 const float TWO_PI = 6.2831853;
 const float GOLDEN_ANGLE = 2.3999632;
 
-const float NEAR = 1.0;
-const float FAR = 30.0;
+const int BLOCKER_SAMPLES = 128;
+const int PCF_SAMPLES = 128;
 
 float linearize_depth( float depth )
 {
-  float z = depth * 2.0 - 1.0; // Back to NDC
-  return ( 2.0 * NEAR * FAR ) / ( FAR + NEAR - z * ( FAR - NEAR ) );
+  if ( bool( u_is_orthographic ) )
+  {
+    // Orthographic: depth is already linear in [0,1], just remap to [near, far]
+    return depth * ( u_far - u_near ) + u_near;
+  }
+  else
+  {
+    // Perspective: apply inverse perspective transformation
+    float z = depth * 2.0 - 1.0; // [0,1] → [-1,1] NDC
+    return ( 2.0 * u_near * u_far ) / ( u_far + u_near - z * ( u_far - u_near ) );
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -65,13 +74,15 @@ float find_blocker_distance( vec2 shadow_uv, float receiver_depth, float search_
 {
   float blocker_sum = 0.0;
   float blocker_count = 0.0;
+
   vec2 texel_size = 1.0 / vec2( textureSize( u_shadow_map, 0 ) );
 
   // Rotate sampling pattern per-pixel to reduce banding
   float angle_offset = interleaved_gradient_noise( gl_FragCoord.xy ) * TWO_PI;
 
-  // Very small epsilon for blocker detection - prevents false positives
-  const float BLOCKER_EPSILON = 0.0001;
+  // Epsilon for blocker detection in linearized depth space (world units)
+  // Scaled relative to depth range (dynamically based on u_near/u_far)
+  const float BLOCKER_EPSILON = 0.005;
 
   for ( int i = 0; i < num_samples; i++ )
   {
@@ -124,16 +135,15 @@ float pcf_filter( vec2 shadow_uv, float receiver_depth, float filter_radius, int
   vec3 normal = normalize( v_normal );
   float cos_theta = max( dot( normal, light_dir_to_use ), 0.0 );
 
+  // Adaptive bias for linearized depth (world-space units)
+  // Linearized depth range [1.0, 30.0] requires larger bias than NDC [0, 1]
+  float base_bias = mix( 0.01, 0.005, u_is_orthographic );
+  float slope_bias = mix( 0.05, 0.01, u_is_orthographic );
+  float bias = mix( slope_bias, base_bias, cos_theta );
 
-  // float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
-  // Smaller biases for better contact shadows
-  float base_bias = mix(0.0005, 0.0001, u_is_orthographic);
-  float slope_bias = mix(0.002, 0.0005, u_is_orthographic);
-  float bias = mix(slope_bias, base_bias, cos_theta);
-
-  // Clamp to safe range
-  bias = clamp(bias, 0.00005, 0.003);
-  bias = 0.0;
+  // Clamp to safe range (world units)
+  bias = clamp( bias, 0.001, 0.1 );
+  bias = 0.0; // for now disabled
 
   // Rotate pattern per-pixel
   float angle_offset = interleaved_gradient_noise( gl_FragCoord.xy ) * TWO_PI;
@@ -145,16 +155,16 @@ float pcf_filter( vec2 shadow_uv, float receiver_depth, float filter_radius, int
     vec2 sample_uv = shadow_uv + offset * texel_size;
 
     // Out of bounds = treat as lit
-    if (sample_uv.x < 0.0 || sample_uv.x > 1.0 || sample_uv.y < 0.0 || sample_uv.y > 1.0)
+    if ( sample_uv.x < 0.0 || sample_uv.x > 1.0 || sample_uv.y < 0.0 || sample_uv.y > 1.0 )
     {
       continue;
     }
 
     float shadow_depth = linearize_depth( texture( u_shadow_map, sample_uv ).r );
-    shadow_sum += float( (receiver_depth - bias) > shadow_depth );
+    shadow_sum += float( ( receiver_depth - bias) >= shadow_depth );
   }
 
-  return shadow_sum / float(num_samples);
+  return shadow_sum / float( num_samples );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -167,25 +177,25 @@ float pcf_filter( vec2 shadow_uv, float receiver_depth, float filter_radius, int
 //
 // Result: Physically-based soft shadows (sharp near contact, soft farther away)
 //
-float pcss(vec4 light_space_pos)
+float pcss( vec4 light_space_pos )
 {
   // ───────────────────────────────────────────────────────────────────────
   // Setup: Determine light direction and validate surface
   // ───────────────────────────────────────────────────────────────────────
   vec3 light_dir_to_use;
-  if (u_is_orthographic > 0.5)
+  if ( bool( u_is_orthographic ) )
   {
     light_dir_to_use = -u_light_dir;
   }
   else
   {
-    light_dir_to_use = normalize(u_light_position - v_world_pos);
+    light_dir_to_use = normalize( u_light_position - v_world_pos );
   }
 
   // Back-facing surfaces can't receive shadows
-  vec3 normal = normalize(v_normal);
-  float n_dot_l = dot(normal, light_dir_to_use);
-  if (n_dot_l < 0.0)
+  vec3 normal = normalize( v_normal );
+  float n_dot_l = dot( normal, light_dir_to_use );
+  if ( n_dot_l < 0.0 )
   {
     return 0.0;
   }
@@ -195,7 +205,12 @@ float pcss(vec4 light_space_pos)
   proj_coords = proj_coords * 0.5 + 0.5;
 
   // Outside shadow map frustum = no shadow
-  if (proj_coords.z > 1.0 || proj_coords.z < 0.0)
+  if ( proj_coords.z > 1.0 || proj_coords.z < 0.0 )
+  {
+    return 0.0;
+  }
+
+  if ( proj_coords.x > 1.0 || proj_coords.x < 0.0 || proj_coords.y > 1.0 || proj_coords.y < 0.0 )
   {
     return 0.0;
   }
@@ -203,28 +218,26 @@ float pcss(vec4 light_space_pos)
   float receiver_depth = linearize_depth( proj_coords.z );
 
   // ╔══════════════════════════════════════════════════════════════════════╗
-  // ║ PHASE 1: BLOCKER SEARCH                                             ║
+  // ║ PHASE 1: BLOCKER SEARCH                                              ║
   // ╚══════════════════════════════════════════════════════════════════════╝
 
   float light_world_size = u_light_size;
 
   // Calculate search radius based on projection type
+  // Multipliers adjusted for linearized depth (world-space units)
   float search_radius;
-  if (u_is_orthographic > 0.5)
+  if ( bool( u_is_orthographic ) )
   {
     // Directional light: constant search radius
-    search_radius = light_world_size * 20.0;
+    search_radius = light_world_size * 100.0;
   }
   else
   {
     // Point/spot light: scale with depth
-    float normalized_depth = (receiver_depth - NEAR) / (FAR - NEAR);
-    float depth_scale = mix(1.0, 3.0, clamp(normalized_depth, 0.0, 1.0));
-    search_radius = light_world_size * 40.0 * depth_scale;
+    float normalized_depth = ( receiver_depth - u_near ) / ( u_far - u_near );
+    float depth_scale = mix( 3.0, 1.0, normalized_depth );
+    search_radius = light_world_size * 200.0 * depth_scale;
   }
-
-  // Quality: 64 samples for blocker search (good balance)
-  const int BLOCKER_SAMPLES = 128;
 
   float avg_blocker_depth = find_blocker_distance
   (
@@ -235,41 +248,42 @@ float pcss(vec4 light_space_pos)
   );
 
   // No blockers = fully lit (early exit)
-  if (avg_blocker_depth < 0.0)
+  if ( avg_blocker_depth < 0.0 )
   {
     return 0.0;
   }
 
   // ╔══════════════════════════════════════════════════════════════════════╗
-  // ║ PHASE 2: PENUMBRA ESTIMATION                                        ║
+  // ║ PHASE 2: PENUMBRA ESTIMATION                                         ║
   // ╚══════════════════════════════════════════════════════════════════════╝
 
   // Distance from blocker to receiver
   float blocker_distance = receiver_depth - avg_blocker_depth;
   float penumbra_width;
 
-  if (u_is_orthographic > 0.5)
+  if ( bool( u_is_orthographic ) )
   {
     // Directional light: penumbra proportional to blocker distance
-    penumbra_width = blocker_distance * light_world_size * 30.0;
+    // Multiplier adjusted for linearized depth (world-space units)
+    penumbra_width = blocker_distance * light_world_size * 300.0;
   }
   else
   {
     // Point/spot light: standard PCSS formula
     // penumbra = (receiver - blocker) * lightSize / blocker
-    penumbra_width = ( blocker_distance * search_radius ) / max( avg_blocker_depth, 0.001 );
+    float perspective_scale = 200.0;
+    penumbra_width = ( blocker_distance * light_world_size * perspective_scale ) / avg_blocker_depth;
   }
 
   // Clamp to reasonable range (in texels)
-  penumbra_width = clamp(penumbra_width, 1.0, 250.0);
+  float min_penumbra = 1.0;
+  float max_penumbra = 300.0;
+
+  penumbra_width = clamp( penumbra_width, min_penumbra, max_penumbra );
 
   // ╔══════════════════════════════════════════════════════════════════════╗
-  // ║ PHASE 3: PERCENTAGE CLOSER FILTERING                                ║
+  // ║ PHASE 3: PERCENTAGE CLOSER FILTERING                                 ║
   // ╚══════════════════════════════════════════════════════════════════════╝
-
-  // Quality: 128 samples for PCF (very smooth shadows)
-  const int PCF_SAMPLES = 128;
-
   float shadow = pcf_filter
   (
     proj_coords.xy,
@@ -280,17 +294,27 @@ float pcss(vec4 light_space_pos)
   );
 
   // ╔══════════════════════════════════════════════════════════════════════╗
-  // ║ OPTIONAL: INTENSITY MODULATION                                      ║
+  // ║ OPTIONAL: INTENSITY MODULATION                                       ║
   // ╚══════════════════════════════════════════════════════════════════════╝
-  // Softer/distant shadows are lighter (artistic & physical approximation)
+  // Physics-based intensity:
+  // - Contact shadows (small blocker-receiver distance) = dark
+  // - Distant shadows (large blocker-receiver distance) = lighter
+  // - Larger light sources scatter more light = lighter soft shadows
 
   // Normalize penumbra to [0, 1]
-  float penumbra_norm = clamp( ( penumbra_width - 1.0 ) / ( 250.0 - 1.0 ), 0.0, 1.0 );
+  float penumbra_norm = ( penumbra_width - min_penumbra ) / ( max_penumbra - min_penumbra );
 
-  // Smooth falloff curve
-  penumbra_norm = pow( penumbra_norm, 0.7 );
+  // Adaptive falloff based on light size
+  // Larger lights = faster fade (more light scattering), smaller lights = slower fade
+  // Exponent < 1.0 = aggressive fade (lighter sooner), > 1.0 = slower fade (darker longer)
+  float light_size_normalized = clamp( light_world_size / 0.3, 0.0, 1.0 );
+  float fade_exponent = mix( 1.5, 0.5, light_size_normalized );
+  penumbra_norm = pow( penumbra_norm, fade_exponent );
 
-  // Sharp shadows = dark (1.0), Soft shadows = lighter (0.35)
+  // Larger lights also raise the minimum intensity (even blurry shadows have some light)
+  // float min_shadow_intensity = mix( 0.0, 0.2, light_size_normalized );
+
+  // Contact shadows = dark (1.0), Distant/blurry shadows = lighter (min_shadow_intensity)
   float intensity_factor = mix( 1.0, 0.0, penumbra_norm );
   shadow *= intensity_factor;
 
@@ -299,9 +323,8 @@ float pcss(vec4 light_space_pos)
 
 void main()
 {
-  // Calculate PCSS shadow with contact-hardening
   float shadow = pcss( v_light_space_pos );
 
-  // Output: R channel = shadow (0 = lit, 1 = shadowed)
+  // (0 = lit, 1 = shadowed)
   frag_color = vec4( shadow, 0.0, 0.0, 1.0 );
 }

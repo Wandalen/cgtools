@@ -70,7 +70,7 @@ void main()
 
   // Option 1: Grayscale (simple)
   color = vec3( linear_depth );
-  color = vec3( 1.0 - depth );
+  // color = vec3( 1.0 - depth );
   // Option 2: Color gradient (better depth perception)
   // color = depth_to_color( linear_depth );
   // Option 3: Raw depth (for orthographic)
