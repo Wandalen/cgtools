@@ -1,20 +1,19 @@
 #version 300 es
 precision highp float;
-precision highp sampler2D;
 
 in vec3 v_world_pos;
 in vec3 v_normal;
 in vec4 v_light_space_pos;
 
-uniform vec3 u_light_dir;
-uniform vec3 u_light_position;
-uniform float u_is_orthographic;
-uniform float u_light_size;
-uniform float u_near;
-uniform float u_far;
+uniform vec3      u_light_dir;
+uniform vec3      u_light_position;
+uniform float     u_is_orthographic;
+uniform float     u_light_size;
+uniform float     u_near;
+uniform float     u_far;
 uniform sampler2D u_shadow_map;
 
-out vec4 frag_color;
+out float frag_color;
 
 const int BLOCKER_SAMPLES = 128;
 const int PCF_SAMPLES = 128;
@@ -67,9 +66,9 @@ float find_blocker_distance( vec2 shadow_uv, float receiver_depth, float search_
   // Rotate sampling pattern per-pixel to reduce banding
   float angle_offset = interleaved_gradient_noise( gl_FragCoord.xy ) * TWO_PI;
 
-  // Epsilon for blocker detection in linearized depth space (world units)
-  // Scaled relative to depth range (dynamically based on u_near/u_far)
-  const float BLOCKER_EPSILON = 0.005;
+  float depth_range = u_far - u_near;
+  float blocker_epsilon = depth_range * 0.0002; // 0.02% of depth range - small but sufficient
+  blocker_epsilon = 0.0;
 
   for ( int i = 0; i < num_samples; i++ )
   {
@@ -83,7 +82,7 @@ float find_blocker_distance( vec2 shadow_uv, float receiver_depth, float search_
 
     float shadow_depth = linearize_depth( texture( u_shadow_map, sample_uv ).r );
 
-    if ( shadow_depth < receiver_depth - BLOCKER_EPSILON )
+    if ( shadow_depth < receiver_depth - blocker_epsilon )
     {
       blocker_sum += shadow_depth;
       blocker_count += 1.0;
@@ -108,19 +107,22 @@ float pcf_filter( vec2 shadow_uv, float receiver_depth, float filter_radius, int
   float shadow_sum = 0.0;
   vec2 texel_size = 1.0 / vec2( textureSize( u_shadow_map, 0 ) );
 
-  // Surfaces at steep angles need more bias than flat surfaces
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PCF DEPTH BIAS: Comparison threshold for shadow test
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Since we've already applied receiver bias in proj_coords.z, we only need
+  // a minimal additional bias here for the depth comparison during PCF sampling.
+  // Too much bias will cause peter panning.
+  //
   vec3 normal = normalize( v_normal );
   float cos_theta = max( dot( normal, light_dir_to_use ), 0.0 );
 
-  // Adaptive bias for linearized depth (world-space units)
-  // Linearized depth range [1.0, 30.0] requires larger bias than NDC [0, 1]
-  float base_bias = mix( 0.01, 0.005, u_is_orthographic );
-  float slope_bias = mix( 0.05, 0.01, u_is_orthographic );
-  float bias = mix( slope_bias, base_bias, cos_theta );
-
-  // Clamp to safe range
-  bias = clamp( bias, 0.001, 0.1 );
-  bias = 0.0; // for now disabled
+  // Very small bias - most offset is handled by receiver bias
+  float depth_range = u_far - u_near;
+  float base_bias = depth_range * 0.0001; // 0.01% of depth range
+  float slope_factor = sqrt( 1.0 - cos_theta * cos_theta );
+  float bias = base_bias * ( 1.0 + slope_factor * 1.5 );
+  bias = 0.0;
 
   // Rotate pattern per-pixel
   float angle_offset = interleaved_gradient_noise( gl_FragCoord.xy ) * TWO_PI;
@@ -138,7 +140,7 @@ float pcf_filter( vec2 shadow_uv, float receiver_depth, float filter_radius, int
     }
 
     float shadow_depth = linearize_depth( texture( u_shadow_map, sample_uv ).r );
-    shadow_sum += float( ( receiver_depth - bias ) >= shadow_depth );
+    shadow_sum += float( ( receiver_depth - bias ) > shadow_depth );
   }
 
   return shadow_sum / float( num_samples );
@@ -168,17 +170,13 @@ float pcss( vec4 light_space_pos )
     return 0.0;
   }
 
-  // Transform to shadow map space [0, 1]
   vec3 proj_coords = light_space_pos.xyz / light_space_pos.w;
   proj_coords = proj_coords * 0.5 + 0.5;
 
   // Outside shadow map frustum = no shadow
-  if ( proj_coords.z > 1.0 || proj_coords.z < 0.0 )
-  {
-    return 0.0;
-  }
-
-  if ( proj_coords.x > 1.0 || proj_coords.x < 0.0 || proj_coords.y > 1.0 || proj_coords.y < 0.0 )
+  if ( proj_coords.x > 1.0 || proj_coords.x < 0.0
+    || proj_coords.y > 1.0 || proj_coords.y < 0.0
+    || proj_coords.z > 1.0 || proj_coords.z < 0.0 )
   {
     return 0.0;
   }
@@ -187,8 +185,6 @@ float pcss( vec4 light_space_pos )
 
   float light_world_size = u_light_size;
 
-  // Calculate search radius based on projection type
-  // Multipliers adjusted for linearized depth (world-space units)
   float search_radius;
   if ( bool( u_is_orthographic ) )
   {
@@ -196,10 +192,16 @@ float pcss( vec4 light_space_pos )
   }
   else
   {
-    // Scale with depth
     float normalized_depth = ( receiver_depth - u_near ) / ( u_far - u_near );
     float depth_scale = mix( 3.0, 1.0, normalized_depth );
     search_radius = light_world_size * 200.0 * depth_scale;
+  }
+
+  float blocker_depth = linearize_depth( texture( u_shadow_map, proj_coords.xy ).r );
+
+  if ( receiver_depth > blocker_depth )
+  {
+    return 1.0;
   }
 
   float avg_blocker_depth = find_blocker_distance
@@ -210,13 +212,46 @@ float pcss( vec4 light_space_pos )
     BLOCKER_SAMPLES
   );
 
-  if ( avg_blocker_depth < 0.0 )
-  {
-    return 0.0;
-  }
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CONTACT POINT DETECTION: Force shadows when receiver is very close to blocker
+  // ═══════════════════════════════════════════════════════════════════════════
+  // When no blockers are found OR blocker is extremely close, we're likely at
+  // a contact point or very near one. In this case, force a hard contact shadow
+  // rather than treating it as fully lit.
+  //
 
+  // if ( avg_blocker_depth < 0.0 )
+  // {
+  //   // No blockers found in initial search - but we might be at a contact point
+  //   // Sample the shadow map directly beneath this point to check
+  //   float direct_depth = linearize_depth( texture( u_shadow_map, proj_coords.xy ).r );
+  //   float depth_diff = receiver_depth - direct_depth;
+
+  //   // If there's geometry very close (within threshold), it's a contact point
+  //   // TUNE: Decrease if shadows appear too far from contact, increase if gaps persist
+  //   float contact_threshold = ( u_far - u_near ) * 0.01; // 1% of depth range [TUNE: 0.005-0.02]
+
+  //   if ( depth_diff > 0.0 && depth_diff < contact_threshold )
+  //   {
+  //     // Contact point detected - return a hard shadow
+  //     return 1.0;
+  //   }
+
+  //   // Otherwise, genuinely no shadow
+  //   return 0.0;
+  // }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PENUMBRA ESTIMATION: Calculate shadow softness based on geometry
+  // ═══════════════════════════════════════════════════════════════════════════
   // Distance from blocker to receiver
-  float blocker_distance = max( receiver_depth - avg_blocker_depth, 0.0 );
+  float blocker_distance = receiver_depth - avg_blocker_depth;
+
+  // At contact points, blocker_distance can be very small or even negative due to
+  // floating point precision. Clamp to a minimum to prevent instability.
+  float min_blocker_dist = ( u_far - u_near ) * 0.002; // 0.2% of depth range
+  blocker_distance = max( blocker_distance, min_blocker_dist );
+
   float penumbra_width;
 
   if ( bool( u_is_orthographic ) )
@@ -230,7 +265,7 @@ float pcss( vec4 light_space_pos )
     // Point/spot light: standard PCSS formula
     // penumbra = (receiver - blocker) * lightSize / blocker
     float perspective_scale = 200.0;
-    penumbra_width = ( blocker_distance * light_world_size * perspective_scale ) / avg_blocker_depth;
+    penumbra_width = ( blocker_distance * light_world_size * perspective_scale ) / max( avg_blocker_depth, 0.01 );
   }
 
   // Clamp to reasonable range (in texels)
@@ -278,5 +313,5 @@ void main()
   float shadow = pcss( v_light_space_pos );
 
   // (0 = lit, 1 = shadowed)
-  frag_color = vec4( shadow, 0.0, 0.0, 1.0 );
+  frag_color = shadow;
 }
