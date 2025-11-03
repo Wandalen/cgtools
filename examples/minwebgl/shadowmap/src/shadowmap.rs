@@ -22,10 +22,11 @@ impl Shadowmap
 
     let depth_texture = gl.create_texture();
     gl.bind_texture( gl::TEXTURE_2D, depth_texture.as_ref() );
-    gl.tex_storage_2d( GL::TEXTURE_2D, mip_levels, gl::R16F, resolution, resolution );
+    gl.tex_storage_2d( GL::TEXTURE_2D, 1, gl::R16F, resolution, resolution );
     gl::texture::d2::wrap_clamp( gl );
-    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
-    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+    gl::texture::d2::filter_nearest( gl );
+    // gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
+    // gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
 
     // Create depth renderbuffer for actual depth testing
     let depth_buffer = gl.create_texture();

@@ -92,7 +92,7 @@ async fn run() -> Result< (), gl::WebglError >
   let light_pos = [ 0.0, 3.0, 5.0 ];
   let light_color = [ 1.0, 1.0, 1.0 ];
   let light_orientation = QuatF32::from_euler_xyz( [ -30.0_f32.to_radians(), 0.0, 0.0 ] );
-  let near = 0.5;
+  let near = 1.5;
   let far = 30.0;
   let mut light_source = shadowmap::LightSource::new
   (
@@ -100,7 +100,7 @@ async fn run() -> Result< (), gl::WebglError >
     light_orientation,
     // mat3x3h::orthographic_rh_gl( -5.0, 5.0, -5.0, 5.0, near, far ),
     mat3x3h::perspective_rh_gl( 30.0_f32.to_radians(), 1.0, near, far ),
-    0.8
+    1.0
   );
 
 
@@ -140,9 +140,6 @@ async fn run() -> Result< (), gl::WebglError >
   gl.cull_face( gl::BACK );
   gl.disable( gl::CULL_FACE );
   gl.bind_framebuffer( gl::FRAMEBUFFER, None );
-
-  shadowmap.generate_mipmaps();
-
 
   // === Lightmap Baking Pass: Bake PCSS shadows into lightmap ===
   shadow_renderer.bind( lightmap_res as u32, lightmap_res as u32 );
