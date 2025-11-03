@@ -100,7 +100,7 @@ async fn run() -> Result< (), gl::WebglError >
     light_orientation,
     // mat3x3h::orthographic_rh_gl( -5.0, 5.0, -5.0, 5.0, near, far ),
     mat3x3h::perspective_rh_gl( 45.0_f32.to_radians(), 1.0, near, far ),
-    20.0
+    2.0
   );
 
 
@@ -146,7 +146,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   // === Lightmap Baking Pass: Bake PCSS shadows into lightmap ===
   shadow_renderer.bind( lightmap_res as u32, lightmap_res as u32 );
-  shadow_renderer.set_shadowmap( shadowmap.depth_texture() );
+  shadow_renderer.set_shadowmap( shadowmap.depth_buffer() );
   shadow_renderer.set_target( plane_lightmap.as_ref() );
   shadow_renderer.upload_model( plane_model );
   shadow_renderer.upload_light_source( &mut light_source );
