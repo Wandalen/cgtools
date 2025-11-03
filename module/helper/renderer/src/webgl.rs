@@ -55,5 +55,8 @@ crate::mod_interface!
 
   /// File loaders
   layer loaders;
+
+  /// Useful functions
+  layer helpers;
 }
 

@@ -7,7 +7,7 @@ mod private
   use gl::{ F32x4, GL, VectorDataType, drawbuffers::drawbuffers };
   use crate::webgl::
   { 
-    AttributeInfo, program, Camera, Node, Object3D, ProgramInfo, Scene
+    AttributeInfo, Camera, Material, Node, Object3D, ProgramInfo, Scene, material::PBRMaterial, program
   };
 
   /// The source code for the gbuffer vertex shader.
@@ -369,11 +369,13 @@ mod private
           for primitive_rc in mesh.borrow().primitives.iter()
           {
             let primitive = primitive_rc.borrow();
+            let material = primitive.material.borrow();
+            let material = ( material.as_ref() as &dyn std::any::Any  ).downcast_ref::< PBRMaterial >().expect( "GBuffer only supports PBRMaterial" );
 
             if self.attachment_buffers.contains_key( &GBufferAttachment::Albedo ) 
             && self.attachment_buffers.contains_key( &GBufferAttachment::PbrInfo )
             {
-              let albedo_texture = primitive.material.borrow().base_color_texture.as_ref()
+              let albedo_texture = material.base_color_texture.as_ref()
               .map( | t | t.texture.borrow().source.clone() ).flatten();
 
               if let Some( albedo_texture ) = albedo_texture
@@ -384,7 +386,7 @@ mod private
 
             if self.attachment_buffers.contains_key( &GBufferAttachment::PbrInfo )
             {
-              let material_id = &primitive.material.borrow().id.to_fields_le().0;
+              let material_id = &material.get_id().to_fields_le().0;
               gl::uniform::upload( &gl, material_id_loc.as_ref().cloned(), material_id ).unwrap();
             }
 

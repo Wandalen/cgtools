@@ -1,6 +1,6 @@
 mod private
 {
-  use std::collections::HashMap;
+  use rustc_hash::FxHashMap;
   use mingl::geometry::BoundingBox;
   use minwebgl as gl;
 
@@ -59,7 +59,7 @@ mod private
     /// Optional information about the index buffer, if the geometry uses indexed drawing.
     index_info : Option< IndexInfo >,
     /// A hash map storing attribute information, where the key is the attribute name (e.g., "positions", "normals").
-    attributes : HashMap< Box< str >, AttributeInfo >
+    attributes : FxHashMap< Box< str >, AttributeInfo >
   }
 
   impl Geometry
@@ -68,7 +68,7 @@ mod private
     pub fn new( gl : &gl::WebGl2RenderingContext ) -> Result< Self, gl::WebglError >
     {
       let vao = gl::vao::create( gl )?;
-      let attributes = HashMap::new();
+      let attributes = FxHashMap::default();
       let draw_mode = gl::TRIANGLES;
       let vertex_count = 0;
       let index_info = None;
@@ -204,8 +204,8 @@ mod private
       }
     }
 
-    /// Returns a reference to the `HashMap` containing the attribute information.
-    pub fn get_attributes( &self ) -> &HashMap< Box< str >, AttributeInfo >
+    /// Returns a reference to the `FxHashMap` containing the attribute information.
+    pub fn get_attributes( &self ) -> &FxHashMap< Box< str >, AttributeInfo >
     {
       &self.attributes
     }

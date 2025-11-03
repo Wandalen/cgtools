@@ -9,23 +9,11 @@ mod private
   };
   use crate::webgl::
   {
-    ToFromGlEnum,
-    AlphaMode,
-    AttributeInfo,
-    Geometry,
-    IndexInfo,
-    MagFilterMode,
-    Mesh,
-    MinFilterMode,
-    Node,
-    Object3D,
-    Primitive,
-    Sampler,
-    Scene,
-    Texture,
-    TextureInfo,
-    WrappingMode,
-    material::PBRMaterial
+    AlphaMode, AttributeInfo, Geometry, IndexInfo, 
+    MagFilterMode, Material, Mesh, MinFilterMode, Node, 
+    Object3D, Primitive, Sampler, Scene, Texture, TextureInfo, 
+    ToFromGlEnum, WrappingMode, material::PBRMaterial,
+    helpers
   };
   use web_sys::wasm_bindgen::prelude::Closure;
 
@@ -58,12 +46,22 @@ mod private
     /// additional metadata like sampler information.
     pub textures : Vec< Rc< RefCell< Texture > > >,
     /// A collection of `PBRMaterial` objects, defining how the surfaces of the meshes should be shaded.
-    pub materials : Vec< Rc< RefCell< PBRMaterial > > >,
+    pub materials : Vec< Rc< RefCell< Box< dyn Material > > > >,
     /// A list of `Mesh` objects, which represent the geometry of the scene.
     pub meshes : Vec< Rc< RefCell< Mesh > > >,
     /// A list of `Animation` objects, which store `Node`'s tranform change in every time moment.
     #[ cfg( feature = "animation" ) ]
     pub animations : Vec< Animation >
+  }
+
+  impl GLTF
+  {
+    /// Casts the trait object to a specific `PBRMaterial`
+    pub fn material_get< 'a >( &'a self, id : usize ) -> std::cell::Ref< 'a, PBRMaterial >
+    {
+      let material = self.materials[ id ].borrow();
+      helpers::cast_unchecked_material_to_ref( material )
+    }
   }
 
   /// Asynchronously loads [`Skeleton`] for one [`Mesh`]
@@ -349,7 +347,7 @@ mod private
       })
     };
 
-    let mut materials = Vec::new();
+    let mut materials : Vec< Rc< RefCell< Box< dyn Material > > > > = Vec::new();
     for gltf_m in gltf_file.materials()
     {
       let pbr = gltf_m.pbr_metallic_roughness();
@@ -401,10 +399,10 @@ mod private
         });
       }
 
-      materials.push( Rc::new( RefCell::new( material ) ) );
+      materials.push( Rc::new( RefCell::new( Box::new( material ) ) ) );
     }
 
-    materials.push( Rc::new( RefCell::new( PBRMaterial::default() ) ) );
+    //materials.push( Rc::new( RefCell::new( PBRMaterial::default() ) ) );
 
     gl::log::info!( "PBRMaterials: {}",materials.len() );
     let make_attibute_info = | acc : &gltf::Accessor< '_ >, slot |

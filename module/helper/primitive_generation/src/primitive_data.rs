@@ -31,16 +31,7 @@ mod private
   use std::rc::Rc;
   use renderer::webgl::
   {
-    Node,
-    Object3D,
-    Scene,
-    Material,
-    Mesh,
-    Primitive,
-    loaders::gltf::GLTF,
-    Geometry,
-    IndexInfo,
-    AttributeInfo
+    AttributeInfo, Geometry, IndexInfo, Material, Mesh, Node, Object3D, Primitive, Scene, loaders::gltf::GLTF, material::PBRMaterial
   };
 
   /// 3D transformation data including translation, rotation, and scale components.
@@ -150,7 +141,7 @@ mod private
     let mut gl_buffers = vec![];
     let mut meshes = vec![];
 
-    let material = Rc::new( RefCell::new( Material::default() ) );
+    let material : Rc< RefCell< Box< dyn Material > > > = Rc::new( RefCell::new( Box::new( PBRMaterial::default() ) ) );
     let materials = vec![ material.clone() ];
 
     scenes.push( Rc::new( RefCell::new( Scene::new() ) ) );

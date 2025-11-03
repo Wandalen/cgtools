@@ -12,7 +12,7 @@ mod private
     /// The geometry of the primitive.
     pub geometry : Rc< RefCell< Geometry > >,
     /// The material of the primitive.
-    pub material : Rc< RefCell< Material > >
+    pub material : Rc< RefCell< Box< dyn Material > > >
   }
 
   impl Clone for Primitive
@@ -22,7 +22,7 @@ mod private
       Self 
       { 
         geometry : self.geometry.clone(), 
-        material : Rc::new( RefCell::new( self.material.borrow().clone() ) ) 
+        material : Rc::new( RefCell::new( self.material.borrow().dyn_clone() ) ) 
       }
     }
   }

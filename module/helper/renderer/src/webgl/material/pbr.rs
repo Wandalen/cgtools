@@ -6,6 +6,11 @@ mod private
   use mingl::Former;
   use rustc_hash::FxHashMap;
 
+    /// The source code for the main vertex shader.
+  const MAIN_VERTEX_SHADER : &'static str = include_str!( "../shaders/main.vert" );
+  /// The source code for the main fragment shader.
+  const MAIN_FRAGMENT_SHADER : &'static str = include_str!( "../shaders/main.frag" );
+
   /// Represents the visual properties of a surface.
   #[ derive( Clone, Former, Debug ) ]
   pub struct PBRMaterial
@@ -55,10 +60,10 @@ mod private
     pub double_sided : bool
   }
 
-  impl PBRMaterial
+  impl Material for PBRMaterial
   {
     /// Returns the unique identifier of the material.
-    pub fn get_id( &self ) -> uuid::Uuid
+    fn get_id( &self ) -> uuid::Uuid
     {
       self.id
     }
@@ -68,7 +73,7 @@ mod private
     /// * `gl`: The `WebGl2RenderingContext`.
     /// * `locations`: A hash map of uniform locations.
     /// * `ibl_base_location`: The starting texture unit index for Image-Based Lighting (IBL) textures.
-    pub fn configure
+    fn configure
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
@@ -95,7 +100,7 @@ mod private
     ///
     /// * `gl`: The `WebGl2RenderingContext`.
     /// * `locations`: A hash map of uniform locations in the shader program.
-    pub fn upload
+    fn upload
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
@@ -138,7 +143,7 @@ mod private
     }
 
     /// Uploads the texture data of all used textures to the GPU.
-    pub fn upload_textures( &self, gl : &gl::WebGl2RenderingContext )
+    fn upload_textures( &self, gl : &gl::WebGl2RenderingContext )
     {
       if let Some( ref t ) = self.metallic_roughness_texture { t.upload( gl ); }
       if let Some( ref t ) = self.base_color_texture { t.upload( gl ); }
@@ -152,7 +157,7 @@ mod private
     /// Binds all used textures to their respective texture units.
     ///
     /// * `gl`: The `WebGl2RenderingContext`.
-    pub fn bind( &self, gl : &gl::WebGl2RenderingContext )
+    fn bind( &self, gl : &gl::WebGl2RenderingContext )
     {
       let bind = | texture : &Option< TextureInfo >, i |
       {
@@ -173,7 +178,7 @@ mod private
     }
 
     /// Generates `#define` directives to be inserted into the fragment shader based on the material's properties.
-    pub fn get_defines( &self ) -> String
+    fn get_defines( &self ) -> String
     {
       let use_base_color_texture = self.base_color_texture.is_some();
       let use_metallic_roughness_texture = self.metallic_roughness_texture.is_some();
@@ -250,6 +255,21 @@ mod private
       }
 
       defines
+    }
+
+    fn get_fragment_shader( &self ) -> String 
+    {
+      MAIN_FRAGMENT_SHADER.into()
+    }
+
+    fn get_vertex_shader( &self ) -> String 
+    {
+      MAIN_VERTEX_SHADER.into()
+    }
+
+    fn dyn_clone( &self ) -> Box< dyn Material > 
+    {
+      Box::new( self.clone() )
     }
   }
 
