@@ -89,7 +89,7 @@ async fn run() -> Result< (), gl::WebglError >
   let plane_color = [ 0.3, 0.3, 0.3 ];
 
   // Setup light source for shadows
-  let light_pos = [ 0.0, 3.0, 6.0 ];
+  let light_pos = [ 0.0, 3.0, 5.0 ];
   let light_color = [ 1.0, 1.0, 1.0 ];
   let light_orientation = QuatF32::from_euler_xyz( [ -30.0_f32.to_radians(), 0.0, 0.0 ] );
   let near = 0.5;
