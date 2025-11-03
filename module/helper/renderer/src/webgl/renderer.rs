@@ -1,7 +1,8 @@
 mod private
 {
   use std::{ cell::RefCell, collections::HashMap, rc::Rc };
-  use minwebgl as gl;
+  use mingl::F32x3;
+use minwebgl as gl;
 
   use crate::webgl::
   {
@@ -493,7 +494,9 @@ mod private
     /// Swap buffer to control rendering of the effects
     swap_buffer : SwapFramebuffer,
     exposure : f32,
-    composite_shader : ProgramInfo< CompositeShader >
+    composite_shader : ProgramInfo< CompositeShader >,
+    /// Clear color
+    clear_color : F32x3
   }
 
   impl Renderer
@@ -534,7 +537,8 @@ mod private
           bloom_effect,
           swap_buffer,
           exposure,
-          composite_shader
+          composite_shader,
+          clear_color : F32x3::splat( 0.0 )
         }
       )
     }
@@ -551,6 +555,12 @@ mod private
     pub fn set_use_emission( &mut self, use_emission : bool )
     {
       self.use_emission = use_emission;
+    }
+
+    /// Sets clear color
+    pub fn set_clear_color( &mut self, color : F32x3 )
+    {
+      self.clear_color = color;
     }
 
     /// Returns the current exposure value.
@@ -635,7 +645,8 @@ mod private
 
       self.framebuffer_ctx.bind_multisample( gl );
       gl::drawbuffers::drawbuffers( gl, &[ 0, 1, 2, 3 ] );
-      gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ 0.0, 0.0, 0.0, 1.0 ] );
+      let [ r, b, g ] = self.clear_color.0;
+      gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ r, b, g, 1.0 ] );
       gl.clear_bufferfv_with_f32_array( gl::COLOR, 1, &[ 0.0, 0.0, 0.0, 0.0 ] );
       gl.clear_bufferfv_with_f32_array( gl::COLOR, 2, &[ 0.0, 0.0, 0.0, 1.0 ] );
       gl.clear_bufferfv_with_f32_array( gl::COLOR, 3, &[ 0.0, 0.0, 0.0, 1.0 ] );

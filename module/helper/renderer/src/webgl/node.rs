@@ -59,7 +59,14 @@ mod private
     /// Creates a new `Node` with default values.
     pub fn new() -> Self
     {
-      Self::default()
+      let mut s = Self::default();
+
+      s.world_matrix = gl::math::mat4x4::identity();
+      s.matrix = gl::math::mat4x4::identity();
+      s.normal_matrix = gl::math::mat3x3::identity();
+      s.scale = gl::F32x3::splat( 1.0 );
+
+      s
     }
 
     /// Clones the node and all of its descendants, creating a new independent scene graph subtree.
