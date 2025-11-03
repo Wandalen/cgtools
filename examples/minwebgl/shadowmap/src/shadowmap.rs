@@ -5,7 +5,6 @@ use web_sys::{ WebGlFramebuffer, WebGlTexture };
 pub struct Shadowmap
 {
   framebuffer   : Option< WebGlFramebuffer >,
-  depth_texture : Option< WebGlTexture >, // Now a color texture storing depth values
   depth_buffer  : Option< WebGlTexture >, // Actual depth buffer for depth testing
   program       : Program,
   resolution    : i32,
@@ -20,11 +19,11 @@ impl Shadowmap
     // Create color texture to store depth values (workaround for Chrome depth texture sampling issues)
     let mip_levels = ( resolution as f32 ).log2().floor() as i32 + 1;
 
-    let depth_texture = gl.create_texture();
-    gl.bind_texture( gl::TEXTURE_2D, depth_texture.as_ref() );
-    gl.tex_storage_2d( GL::TEXTURE_2D, 1, gl::R16F, resolution, resolution );
-    gl::texture::d2::wrap_clamp( gl );
-    gl::texture::d2::filter_nearest( gl );
+    // let depth_texture = gl.create_texture();
+    // gl.bind_texture( gl::TEXTURE_2D, depth_texture.as_ref() );
+    // gl.tex_storage_2d( GL::TEXTURE_2D, 1, gl::R16F, resolution, resolution );
+    // gl::texture::d2::wrap_clamp( gl );
+    // gl::texture::d2::filter_nearest( gl );
     // gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
     // gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
 
@@ -38,7 +37,7 @@ impl Shadowmap
     // Setup framebuffer with both attachments
     let framebuffer = gl.create_framebuffer();
     gl.bind_framebuffer( gl::FRAMEBUFFER, framebuffer.as_ref() );
-    gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, depth_texture.as_ref(), 0 );
+    // gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, depth_texture.as_ref(), 0 );
     gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::DEPTH_ATTACHMENT, gl::TEXTURE_2D, depth_buffer.as_ref(), 0 );
 
     let status = gl.check_framebuffer_status( gl::FRAMEBUFFER );
@@ -58,7 +57,6 @@ impl Shadowmap
       Self
       {
         framebuffer,
-        depth_texture,
         depth_buffer,
         program,
         resolution,
@@ -79,24 +77,14 @@ impl Shadowmap
     self.program.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
   }
 
-  pub fn depth_texture( &self ) -> Option< &WebGlTexture >
-  {
-    self.depth_texture.as_ref()
-  }
+  // pub fn depth_texture( &self ) -> Option< &WebGlTexture >
+  // {
+  //   self.depth_texture.as_ref()
+  // }
 
   pub fn depth_buffer( &self ) -> Option< &WebGlTexture >
   {
     self.depth_buffer.as_ref()
-  }
-
-  /// Generates mipmaps for the shadow map texture
-  ///
-  /// Call this after rendering to the shadow map to generate mipmaps for better
-  /// filtering quality when sampling the shadow map at different distances.
-  pub fn generate_mipmaps( &self )
-  {
-    self.gl.bind_texture( gl::TEXTURE_2D, self.depth_texture.as_ref() );
-    self.gl.generate_mipmap( gl::TEXTURE_2D );
   }
 
   pub fn clear( &self )

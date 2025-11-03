@@ -55,5 +55,6 @@ crate::mod_interface!
 
   /// File loaders
   layer loaders;
-}
 
+  layer shadow;
+}
