@@ -1,6 +1,7 @@
 mod private
 {
-  use std::{ cell::RefCell, collections::HashMap, rc::Rc };
+  use std::{ cell::RefCell, rc::Rc };
+  use rustc_hash::FxHashMap;
   use mingl::geometry::BoundingBox;
   use minwebgl as gl;
   use crate::webgl::{ Geometry, Material };
@@ -36,7 +37,7 @@ mod private
     ( 
       &self,
       gl : &gl::WebGl2RenderingContext,
-      locations : &HashMap< String, Option< gl::WebGlUniformLocation > > 
+      locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > > 
     ) -> Result< (), gl::WebglError >
     {
       self.material.borrow().upload( gl, locations )?;

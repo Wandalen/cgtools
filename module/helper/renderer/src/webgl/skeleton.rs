@@ -14,7 +14,7 @@ mod private
   };
   use crate::webgl::Node;
   use std::{ rc::Rc, cell::RefCell };
-  use std::collections::HashMap;
+  use rustc_hash::FxHashMap;
 
   /// Global transform matrices texture slot
   pub const GLOBAL_MATRICES_SLOT : u32 = 13;
@@ -157,7 +157,7 @@ mod private
     (
       &mut self,
       gl : &GL,
-      locations : &HashMap< String, Option< gl::WebGlUniformLocation > >
+      locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
     )
     {
       if self.need_clone_inner

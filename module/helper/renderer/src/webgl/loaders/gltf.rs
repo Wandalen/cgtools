@@ -15,7 +15,6 @@ mod private
     Geometry,
     IndexInfo,
     MagFilterMode,
-    Material,
     Mesh,
     MinFilterMode,
     Node,
@@ -25,13 +24,14 @@ mod private
     Scene,
     Texture,
     TextureInfo,
-    WrappingMode
+    WrappingMode,
+    material::PBRMaterial
   };
   use web_sys::wasm_bindgen::prelude::Closure;
 
+  use rustc_hash::FxHashMap;
   use
   {
-    std::collections::HashMap,
     crate::webgl::Skeleton,
     gl::
     {
@@ -57,8 +57,8 @@ mod private
     /// A list of `Texture` objects, which wrap the raw WebGL textures and may contain
     /// additional metadata like sampler information.
     pub textures : Vec< Rc< RefCell< Texture > > >,
-    /// A collection of `Material` objects, defining how the surfaces of the meshes should be shaded.
-    pub materials : Vec< Rc< RefCell< Material > > >,
+    /// A collection of `PBRMaterial` objects, defining how the surfaces of the meshes should be shaded.
+    pub materials : Vec< Rc< RefCell< PBRMaterial > > >,
     /// A list of `Mesh` objects, which represent the geometry of the scene.
     pub meshes : Vec< Rc< RefCell< Mesh > > >,
     /// A list of `Animation` objects, which store `Node`'s tranform change in every time moment.
@@ -71,7 +71,7 @@ mod private
   (
     gl : &GL,
     skin : gltf::Skin< '_ >,
-    nodes : &HashMap< Box< str >, Rc< RefCell< Node > > >,
+    nodes : &FxHashMap< Box< str >, Rc< RefCell< Node > > >,
     buffers : &'a [ Vec< u8 > ],
   )
   -> Option< Rc< RefCell< Skeleton > > >
@@ -354,7 +354,7 @@ mod private
     {
       let pbr = gltf_m.pbr_metallic_roughness();
 
-      let mut material = Material::default();
+      let mut material = PBRMaterial::default();
       material.alpha_mode = match gltf_m.alpha_mode()
       {
         gltf::material::AlphaMode::Blend => AlphaMode::Blend,
@@ -404,9 +404,9 @@ mod private
       materials.push( Rc::new( RefCell::new( material ) ) );
     }
 
-    materials.push( Rc::new( RefCell::new( Material::default() ) ) );
+    materials.push( Rc::new( RefCell::new( PBRMaterial::default() ) ) );
 
-    gl::log::info!( "Materials: {}",materials.len() );
+    gl::log::info!( "PBRMaterials: {}",materials.len() );
     let make_attibute_info = | acc : &gltf::Accessor< '_ >, slot |
     {
       let data_type = match acc.data_type()
@@ -608,7 +608,7 @@ mod private
         )
       }
     )
-    .collect::< HashMap< _, _ > >();
+    .collect::< FxHashMap< _, _ > >();
 
     for ( node, skin ) in skinned_nodes
     {

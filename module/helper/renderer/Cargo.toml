@@ -52,6 +52,7 @@ mingl = { workspace = true, features = [ "camera_orbit_controls" ], optional = t
 gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ], optional = true }
 animation = { workspace = true, optional = true }
 zune-hdr = { workspace = true }
+rustc-hash = { workspace = true }
 
 asbytes = { workspace = true, optional = true }
 former = { workspace = true, optional = true }

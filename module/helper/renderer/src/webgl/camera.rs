@@ -1,7 +1,8 @@
 mod private
 {
   use minwebgl as gl;
-  use std::{ cell::RefCell, collections::HashMap, rc::Rc };
+  use std::{ cell::RefCell, rc::Rc };
+  use rustc_hash::FxHashMap;
   use mingl::
   { 
     CameraOrbitControls, 
@@ -91,12 +92,12 @@ mod private
     /// 
     /// # Arguments
     /// * `gl` - The WebGL2 rendering context.
-    /// * `locations` - A `HashMap` containing the uniform locations for the shader program.
+    /// * `locations` - A `FxHashMap` containing the uniform locations for the shader program.
     pub fn upload
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      locations : &HashMap< String, Option< gl::WebGlUniformLocation > >
+      locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
     )
     {
       let view_matrix = self.get_view_matrix().to_array();
