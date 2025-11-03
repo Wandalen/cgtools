@@ -1,11 +1,10 @@
 //! Simple skull rendering with basic lighting and shadowmapping
 
-mod shadowmap;
-
 use minwebgl as gl;
 use gl::{ JsCast as _, math::mat3x3h, QuatF32 };
 use web_sys::HtmlCanvasElement;
 use renderer::webgl::loaders::gltf;
+use renderer::webgl::shadow::*;
 
 fn main()
 {
@@ -70,9 +69,9 @@ async fn run() -> Result< (), gl::WebglError >
   let plane_model = mat3x3h::translation( [ 0.0, -1.0, 0.0 ] ) * mat3x3h::scale( [ 8.0, 0.5, 8.0 ] );
 
   let shadowmap_resolution = 4096;
-  let shadowmap = shadowmap::Shadowmap::new( &gl, shadowmap_resolution )?;
+  let shadowmap = ShadowMap::new( &gl, shadowmap_resolution )?;
 
-  let shadow_renderer = shadowmap::ShadowRenderer::new( &gl )?;
+  let mut shadow_renderer = ShadowBaker::new( &gl )?;
 
   let lightmap_res = 8192;
   let mip_levels = ( lightmap_res as f32 ).log2().floor() as i32 + 1;
@@ -94,7 +93,7 @@ async fn run() -> Result< (), gl::WebglError >
   let light_orientation = QuatF32::from_euler_xyz( [ -30.0_f32.to_radians(), 0.0, 0.0 ] );
   let near = 1.5;
   let far = 30.0;
-  let mut light_source = shadowmap::LightSource::new
+  let mut light_source = Light::new
   (
     light_pos.into(),
     light_orientation,
@@ -103,13 +102,11 @@ async fn run() -> Result< (), gl::WebglError >
     1.0
   );
 
-
-  // === Shadow Pass: Render depth from light's perspective ===
-  // Render back faces to shadow map to reduce shadow acne
-  // This provides natural geometric offset instead of relying only on depth bias
   shadowmap.bind();
   shadowmap.clear();
 
+  // Render back faces to shadow map to reduce shadow acne
+  // This provides natural geometric offset instead of relying only on depth bias
   gl.enable( gl::DEPTH_TEST );
   gl.enable( gl::CULL_FACE );
   gl.cull_face( gl::FRONT );
@@ -141,10 +138,9 @@ async fn run() -> Result< (), gl::WebglError >
   gl.disable( gl::CULL_FACE );
   gl.bind_framebuffer( gl::FRAMEBUFFER, None );
 
-  // === Lightmap Baking Pass: Bake PCSS shadows into lightmap ===
-  shadow_renderer.bind( lightmap_res as u32, lightmap_res as u32 );
+  shadow_renderer.set_target( plane_lightmap.as_ref(), lightmap_res as u32, lightmap_res as u32 );
+  shadow_renderer.bind();
   shadow_renderer.set_shadowmap( shadowmap.depth_buffer() );
-  shadow_renderer.set_target( plane_lightmap.as_ref() );
   shadow_renderer.upload_model( plane_model );
   shadow_renderer.upload_light_source( &mut light_source );
 
@@ -159,12 +155,9 @@ async fn run() -> Result< (), gl::WebglError >
   }
   gl.bind_framebuffer( gl::FRAMEBUFFER, None );
 
-
-  // Generate mipmaps for the lightmap texture
   gl.bind_texture( gl::TEXTURE_2D, plane_lightmap.as_ref() );
   gl.generate_mipmap( gl::TEXTURE_2D );
 
-  // Restore viewport and clear color
   gl.viewport( 0, 0, width, height );
   gl.clear_color( 0.1, 0.1, 0.15, 1.0 );
 
@@ -184,7 +177,6 @@ async fn run() -> Result< (), gl::WebglError >
 
     gl.bind_texture( gl::TEXTURE_2D, None );
 
-    // Render skull
     gl.enable( gl::CULL_FACE );
 
     let mesh_mvp = view_projection * mesh_model;
@@ -218,7 +210,6 @@ async fn run() -> Result< (), gl::WebglError >
 
     gl.disable( gl::CULL_FACE );
 
-    // === Debug: Visualize lightmap in corner ===
     // Set viewport to bottom-left corner (quarter size)
     let debug_size = ( width / 4 ).min( height / 4 );
     gl.viewport( 0, 0, debug_size, debug_size );
@@ -229,7 +220,6 @@ async fn run() -> Result< (), gl::WebglError >
     debug_shader.uniform_upload( "u_near", &near );
     debug_shader.uniform_upload( "u_far", &far );
 
-    // gl.bind_texture( gl::TEXTURE_2D, shadowmap.depth_buffer() );
     gl.bind_texture( gl::TEXTURE_2D, shadowmap.depth_buffer() );
     // gl.bind_texture( gl::TEXTURE_2D, plane_lightmap.as_ref() );
     gl.draw_arrays( gl::TRIANGLES, 0, 3 );
