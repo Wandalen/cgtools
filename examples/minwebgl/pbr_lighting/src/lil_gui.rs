@@ -15,10 +15,6 @@ extern "C"
   pub fn new_gui() -> JsValue;
 
   #[ allow( unsafe_code ) ]
-  #[ wasm_bindgen( js_name = "addFolder" ) ]
-  pub fn add_folder( gui : &JsValue, name : &str ) -> JsValue;
-
-  #[ allow( unsafe_code ) ]
   #[ wasm_bindgen( js_name = "addSliderController" ) ]
   pub fn add_slider( gui : &JsValue, object : &JsValue, property : &str, min : f64, max : f64, step : f64 ) -> JsValue;
 
@@ -46,4 +42,16 @@ extern "C"
   #[ allow( unsafe_code ) ]
   #[ wasm_bindgen( js_name = "show" ) ]
   pub fn show( gui : &JsValue ) -> JsValue;
+
+  #[ allow( unsafe_code ) ]
+  #[ wasm_bindgen( js_name = "addCheckboxController" ) ]
+  pub fn add_checkbox( gui : &JsValue, object : &JsValue, property : &str ) -> JsValue;
+
+  #[ allow( unsafe_code ) ]
+  #[ wasm_bindgen( js_name = "addColorController" ) ]
+  pub fn add_color( gui : &JsValue, object : &JsValue, property : &str ) -> JsValue;
+
+  #[ allow( unsafe_code ) ]
+  #[ wasm_bindgen( js_name = "onBoolChange" ) ]
+  pub fn on_bool_change( controller : &JsValue, callback : &Closure< dyn FnMut( bool ) > ) -> JsValue;
 }

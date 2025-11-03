@@ -33,6 +33,30 @@ use renderer::webgl::
 mod lil_gui;
 mod gui_setup;
 
+fn to_spherical( decart : F32x3 ) -> ( f32, f32, f32 )
+{
+  let radius = decart.distance( &F32x3::splat( 0.0 ) );
+  let theta = ( decart.0[ 2 ] / radius ).acos();
+  let [ x, _y, z ] = decart.0;
+  let phi = z.signum() * ( x / ( x * x + z * z ).sqrt() ).acos();
+
+  return ( radius, theta, phi );
+}
+
+fn to_decart( radius : f32, theta : f32, phi : f32 ) -> F32x3
+{
+  let sin_phi = phi.sin();
+
+  F32x3::from_array
+  (
+    [
+      radius * sin_phi * theta.cos(),
+      radius * sin_phi * theta.sin(),
+      radius * phi.cos()
+    ]
+  )
+}
+
 fn add_light( scene : &Rc< RefCell< Scene > >, light : Light ) -> Rc< RefCell< Node > >
 {
   let light_node = Rc::new( RefCell::new( Node::new() ) );
@@ -103,64 +127,63 @@ async fn run() -> Result< (), gl::WebglError >
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
-  gui_setup::setup( renderer.clone() );
+  let mut lights = vec![];
 
-  // let d1 = add_light
-  // (
-  //   &scenes[ 0 ],
-  //   Light::Direct
-  //   (
-  //     DirectLight
-  //     {
-  //       direction : F32x3::from_array( [ -1.0, 1.0, 1.0 ] ),
-  //       color : F32x3::from_array( [ 0.0, 0.0, 1.0 ] ),
-  //       strength : 10.0,
-  //     }
-  //   )
-  // );
+  for _ in 0..3
+  {
+    let d = add_light
+    (
+      &scenes[ 0 ],
+      Light::Direct
+      (
+        DirectLight
+        {
+          direction : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
+          color : F32x3::from_array( [ 0.0, 0.0, 0.0 ] ),
+          strength : 100.0
+        }
+      )
+    );
 
-  // let d2 = add_light
-  // (
-  //   &scenes[ 0 ],
-  //   Light::Direct
-  //   (
-  //     DirectLight
-  //     {
-  //       direction : F32x3::from_array( [ 1.0, 1.0, -1.0 ] ),
-  //       color : F32x3::from_array( [ 0.0, 1.0, 0.0 ] ),
-  //       strength : 10.0,
-  //     }
-  //   )
-  // );
+    lights.push( d );
+  }
 
-  // let d3 = add_light
-  // (
-  //   &scenes[ 0 ],
-  //   Light::Direct
-  //   (
-  //     DirectLight
-  //     {
-  //       direction : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
-  //       color : F32x3::from_array( [ 1.0, 0.0, 0.0 ] ),
-  //       strength : 10.0,
-  //     }
-  //   )
-  // );
+  for _ in 0..3
+  {
+    let p = add_light
+    (
+      &scenes[ 0 ],
+      Light::Point
+      (
+        PointLight
+        {
+          position : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
+          color : F32x3::from_array( [ 0.0, 0.0, 0.0 ] ),
+          strength : 100.0,
+          range : 10.0
+        }
+      )
+    );
 
-  // let p1 = add_light
-  // (
-  //   &scenes[ 0 ],
-  //   Light::Point
-  //   (
-  //     PointLight
-  //     {
-  //       position : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
-  //       color : F32x3::from_array( [ 1.0, 0.0, 0.0 ] ),
-  //       strength : 1000.0,
-  //       range : 10.0
-  //     }
-  //   )
-  // );
+    lights.push( p );
+  }
+
+  let controlable_light = add_light
+  (
+    &scenes[ 0 ],
+    Light::Direct
+    (
+      DirectLight
+      {
+        direction : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
+        color : F32x3::from_array( [ 0.0, 0.0, 0.0 ] ),
+        strength : 100.0
+      }
+    )
+  );
+  controlable_light.borrow_mut().set_name( "controlable" );
+
+  let _settings = gui_setup::setup( renderer.clone(), lights.clone(), controlable_light.clone() ).unwrap();
 
   // Define the update and draw logic
   let update_and_draw =

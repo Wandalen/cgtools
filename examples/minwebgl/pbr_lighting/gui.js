@@ -5,11 +5,6 @@ export function newGui()
   return new GUI();
 }
 
-export function addFolder( gui, name ) 
-{
-  return gui.addFolder( name );
-}
-
 export function addSliderController( gui, object, property, min, max, step ) 
 {
   return gui.add(object, property, min, max, step);
@@ -40,7 +35,22 @@ export function hide( gui )
   return gui.hide();
 }
 
-export function show( gui ) 
+export function show( gui )
 {
   return gui.show();
+}
+
+export function addCheckboxController( gui, object, property )
+{
+  return gui.add( object, property );
+}
+
+export function addColorController( gui, object, property )
+{
+  return gui.addColor( object, property );
+}
+
+export function onBoolChange( controller, callback )
+{
+  return controller.onChange( callback );
 }
