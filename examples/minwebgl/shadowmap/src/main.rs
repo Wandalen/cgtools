@@ -142,7 +142,7 @@ async fn run() -> Result< (), gl::WebglError >
   shadow_renderer.bind();
   shadow_renderer.set_shadowmap( shadowmap.depth_buffer() );
   shadow_renderer.upload_model( plane_model );
-  shadow_renderer.upload_light_source( &mut light_source );
+  shadow_renderer.upload_light( &mut light_source );
 
   for mesh in &cube_mesh.meshes
   {

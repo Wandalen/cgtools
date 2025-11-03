@@ -3,6 +3,8 @@ mod private
   use minwebgl as gl;
   use gl::{ GL, Program };
   use web_sys::{ WebGlFramebuffer, WebGlTexture };
+  use std::rc::Rc;
+  use core::cell::RefCell;
 
   pub struct ShadowMap
   {
@@ -60,6 +62,9 @@ mod private
       self.gl.bind_framebuffer( GL::FRAMEBUFFER, self.framebuffer.as_ref() );
       self.gl.viewport( 0, 0, self.resolution, self.resolution );
       self.program.activate();
+      self.gl.enable( gl::DEPTH_TEST );
+      self.gl.enable( gl::CULL_FACE );
+      self.gl.cull_face( gl::FRONT );
     }
 
     pub fn upload_mvp( &self, mvp : gl::F32x4x4 )
@@ -75,8 +80,7 @@ mod private
     pub fn clear( &self )
     {
       self.gl.bind_framebuffer( GL::FRAMEBUFFER, self.framebuffer.as_ref() );
-      self.gl.clear_color( 1.0, 1.0, 1.0, 1.0 );
-      self.gl.clear( gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT );
+      self.gl.clear( gl::DEPTH_BUFFER_BIT );
     }
   }
 
@@ -166,6 +170,8 @@ mod private
       self.gl.bind_framebuffer( gl::FRAMEBUFFER, self.framebuffer.as_ref() );
       self.gl.viewport( 0, 0, self.width, self.height );
       self.program.activate();
+      self.gl.disable( gl::DEPTH_TEST );
+      self.gl.disable( gl::CULL_FACE );
     }
 
     /// Uploads the model matrix for the geometry being baked
@@ -194,33 +200,33 @@ mod private
     ///
     /// # Arguments
     /// * `light_source` - Reference to the light source (mutable for view_projection caching)
-    pub fn upload_light_source( &self, light_source : &mut Light )
+    pub fn upload_light( &self, light : &mut Light )
     {
       // Upload view-projection matrix
-      let light_vp = light_source.view_projection();
+      let light_vp = light.view_projection();
       self.program.uniform_matrix_upload( "u_light_view_projection", light_vp.raw_slice(), true );
 
       let light_vp_inv = light_vp.inverse().unwrap();
       self.program.uniform_matrix_upload( "u_light_view_projection_inv", light_vp_inv.raw_slice(), true );
 
       // Upload light direction (used for orthographic)
-      let light_dir = light_source.direction();
+      let light_dir = light.direction();
       self.program.uniform_upload( "u_light_dir", light_dir.as_slice() );
 
       // Upload light position (used for perspective)
-      let light_pos = light_source.position();
+      let light_pos = light.position();
       self.program.uniform_upload( "u_light_position", light_pos.as_slice() );
 
       // Upload orthographic flag
-      let is_ortho = if light_source.is_orthographic() { 1.0f32 } else { 0.0f32 };
+      let is_ortho = if light.is_orthographic() { 1.0f32 } else { 0.0f32 };
       self.program.uniform_upload( "u_is_orthographic", &is_ortho );
 
       // Upload light size (controls penumbra/shadow softness)
-      let light_size = light_source.light_size();
+      let light_size = light.light_size();
       self.program.uniform_upload( "u_light_size", &light_size );
 
       // Upload near and far planes for depth linearization
-      let ( near, far ) = light_source.near_far_planes();
+      let ( near, far ) = light.near_far_planes();
 
       self.program.uniform_upload( "u_near", &near );
       self.program.uniform_upload( "u_far", &far );
@@ -349,7 +355,100 @@ mod private
       }
     }
   }
+
+  pub fn bake_shadows
+  (
+    gl : &GL,
+    scene : &crate::webgl::Scene,
+    light : &mut Light,
+    lightmap_res : u32,
+    shadowmap_res : u32
+  ) -> Result< (), gl::WebglError >
+  {
+    let shadow_map = ShadowMap::new( gl, shadowmap_res )?;
+    shadow_map.bind();
+    shadow_map.clear();
+
+    let view_projection = light.view_projection();
+
+    for child in &scene.children
+    {
+      let child = child.borrow();
+
+      if !child.is_shadow_caster
+      {
+        continue;
+      }
+
+      if let crate::webgl::Object3D::Mesh( mesh ) = &child.object
+      {
+        let model = child.get_world_matrix();
+        let mvp = view_projection * model;
+        shadow_map.upload_mvp( mvp );
+        for primitive in &mesh.borrow().primitives
+        {
+          let primitive = primitive.borrow();
+          primitive.geometry.borrow().bind( gl );
+          primitive.draw( gl );
+        }
+      }
+    }
+
+    gl.bind_framebuffer( gl::FRAMEBUFFER, None );
+
+    let mut shadow_baker = ShadowBaker::new( gl )?;
+    shadow_baker.bind();
+    shadow_baker.set_shadowmap( shadow_map.depth_buffer() );
+    shadow_baker.upload_light( light );
+    let mip_levels = ( lightmap_res as f32 ).log2().floor() as i32 + 1;
+
+    for child in &scene.children
+    {
+      let child = child.borrow_mut();
+      if !child.is_shadow_receiver
+      {
+        continue;
+      }
+
+      if let crate::webgl::Object3D::Mesh( mesh ) = &child.object
+      {
+        let model = child.get_world_matrix();
+        shadow_baker.upload_model( model );
+        for primitive in &mesh.borrow().primitives
+        {
+          let light_map = gl.create_texture();
+          gl.bind_texture( gl::TEXTURE_2D, light_map.as_ref() );
+          gl.tex_storage_2d( gl::TEXTURE_2D, mip_levels, gl::RGBA16F, lightmap_res as i32, lightmap_res as i32 );
+          gl::texture::d2::wrap_clamp( &gl );
+          gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
+          gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+
+          let primitive = primitive.borrow_mut();
+          shadow_baker.set_target( light_map.as_ref(), lightmap_res, lightmap_res );
+          primitive.geometry.borrow().bind( gl );
+          primitive.draw( gl );
+
+          gl.generate_mipmap( gl::TEXTURE_2D );
+
+          let t = crate::webgl::TextureInfo
+          {
+            texture : Rc::new( RefCell::new( crate::webgl::Texture
+            {
+              target : gl::TEXTURE_2D,
+              source : light_map,
+              sampler : crate::webgl::Sampler::default(),
+            } ) ),
+            uv_position : 0,
+          };
+          primitive.material.borrow_mut().light_map = Some( t );
+        }
+      }
+    }
+
+    Ok( () )
+  }
 }
+
 
 crate::mod_interface!
 {
