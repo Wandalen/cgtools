@@ -1,0 +1,64 @@
+<html lang="en">
+  <head>
+    <title>Jewels</title>
+    <meta name="keywords" content="HTML, CSS, JavaScript">
+    <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cardo:ital,wght@0,400;0,700;1,400&family=Henny+Penny&family=Parisienne&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./index.css">
+    <link data-trunk rel="copy-dir" href="../../../assets/gltf/jewelry/" data-target-path="static/gltf"/>
+    <link data-trunk rel="copy-dir" href="../../../assets/images/" data-target-path="static/images"/>
+  </head>
+
+  <body style="overflow-y: hidden; cursor: grab;">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
+    <!-- <script src="/index.js"></script> -->
+
+    <div class="header--container" style="display: flex;">
+      <h3 class="customize--title">Ring selector</h3>
+      <svg class="night--mode" width="24" height="24" viewBox="0 0 24 24">
+          <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+              <g fill="#000000" fill-rule="nonzero">
+                  <path d="M12,22 C17.5228475,22 22,17.5228475 22,12 C22,6.4771525 17.5228475,2 12,2 C6.4771525,2 2,6.4771525 2,12 C2,17.5228475 6.4771525,22 12,22 Z M12,20.5 L12,3.5 C16.6944204,3.5 20.5,7.30557963 20.5,12 C20.5,16.6944204 16.6944204,20.5 12,20.5 Z">
+                  </path>
+              </g>
+          </g>
+      </svg>
+    </div>
+
+    <div class="footer--container" style="display: flex;">
+      <div class="footer--menu" style="transform: translate(0px, 0%); opacity: 1;">
+        <ul>
+          <li class="config--gem">Diamond</li>
+          <li class="config--material">Metal</li>
+          <li class="config--ring">Ring</li>
+        </ul>
+      </div>
+      <div class="gem--menu">
+        <ul class="colors--list">
+          <li class="white active"><img alt="White crystal" width="40" src="./static/images/jewelry_site/icons/white.png"></li>
+          <li class="ruby"><img alt="Ruby crystal" width="40" src="./static/images/jewelry_site/icons/ruby.png"></li>
+          <li class="emerald"><img alt="Emerald crystal" width="40" src="./static/images/jewelry_site/icons/emerald.png"></li>
+          <li class="close-gems"><svg width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM15 9l-6 6M9 9l6 6" stroke="#888888" stroke-linecap="round" stroke-linejoin="round"></path></svg></li>
+        </ul>
+      </div>
+      <div class="materials--menu">
+        <ul class="materials--list">
+          <li class="silver active"><img alt="Silver material" width="40" src="./static/images/jewelry_site/icons/silver.png"></li>
+          <li class="copper"><img alt="Copper material" width="40" src="./static/images/jewelry_site/icons/copper.png"></li>
+          <li class="gold"><img alt="Gold material" width="40" src="./static/images/jewelry_site/icons/gold.png"></li>
+          <li class="close-materials"><svg width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM15 9l-6 6M9 9l6 6" stroke="#888888" stroke-linecap="round" stroke-linejoin="round"></path></svg></li>
+        </ul>
+      </div>
+      <div class="rings--menu">
+        <ul class="rings--list">
+          <li class="ring0 active"><img alt="0" width="40" src="./static/images/jewelry_site/icons/0.png"></li>
+          <li class="ring1"><img alt="1" width="40" src="./static/images/jewelry_site/icons/1.png"></li>
+          <li class="ring2"><img alt="2" width="40" src="./static/images/jewelry_site/icons/2.png"></li>
+          <li class="close-rings"><svg width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM15 9l-6 6M9 9l6 6" stroke="#888888" stroke-linecap="round" stroke-linejoin="round"></path></svg></li>
+        </ul>
+      </div>
+    </div>
+  </body>
+</html>
