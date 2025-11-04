@@ -7,13 +7,14 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cardo:ital,wght@0,400;0,700;1,400&family=Henny+Penny&family=Parisienne&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./index.css">
+    <link data-trunk rel="copy-file" href="./index.css" data-target-path="" />
     <link data-trunk rel="copy-dir" href="../../../assets/gltf/jewelry/" data-target-path="static/gltf"/>
     <link data-trunk rel="copy-dir" href="../../../assets/images/" data-target-path="static/images"/>
   </head>
 
   <body style="overflow-y: hidden; cursor: grab;">
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
-    <!-- <script src="/index.js"></script> -->
+    <script data-trunk type="module" src="./index.js"></script>
 
     <div class="header--container" style="display: flex;">
       <h3 class="customize--title">Ring selector</h3>

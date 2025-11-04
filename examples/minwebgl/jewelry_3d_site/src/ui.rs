@@ -2,12 +2,12 @@ use minwebgl as gl;
 use gl::wasm_bindgen::{ self, prelude::* };
 use serde::{ Serialize, Deserialize };
 
-#[ derive( Default, Serialize, Deserialize ) ]
+#[ derive( Debug, Default, Serialize, Deserialize ) ]
 pub struct UiState
 {
   #[ serde( rename = "lightMode" ) ]
   pub light_mode : String,
-  pub diamond : String,
+  pub gem : String,
   pub metal : String,
   pub ring : u32,
   pub changed : Vec< String >
@@ -23,7 +23,7 @@ pub fn is_changed() -> bool
   _is_changed().as_bool().unwrap()
 }
 
-#[ wasm_bindgen( module = "/ui.js" ) ]
+#[ wasm_bindgen( module = "/index.js" ) ]
 extern "C"
 {
   #[ allow( unsafe_code ) ]

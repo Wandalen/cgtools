@@ -1,4 +1,32 @@
-import uiState from "./ui.js";
+export let uiState =
+{
+  lightMode : "light",
+  gem : "white",
+  metal : "silver",
+  ring : 0,
+  changed :
+  [
+    "lightMode",
+    "gem",
+    "metal",
+    "ring"
+  ]
+};
+
+export function getUiState()
+{
+  return uiState;
+}
+
+export function isChanged()
+{
+  return uiState.changed.length > 0;
+}
+
+export function clearChanged()
+{
+  uiState.changed.length = 0;
+}
 
 document.addEventListener("DOMContentLoaded", () => {
     const headerContainer = document.querySelector('.header--container')
@@ -42,6 +70,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 "--bg-color-outer": outer_dark_color
             });
             nightMode = true
+            uiState["lightMode"] = "dark";
         } else{
             footerMenu.classList.remove('night--mode--filter')
             headerContainer.classList.remove('night--mode--filter')
@@ -51,7 +80,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 "--bg-color-outer": outer_light_color
             });
             nightMode = false
+            uiState["lightMode"] = "light";
         }
+        uiState.changed.push("lightMode");
     }
 
     // GEM MENU
@@ -158,10 +189,7 @@ document.addEventListener("DOMContentLoaded", () => {
         li.addEventListener("click", () => {
           setActive(li, groupSelector);
           uiState[type] = valueGetter(li);
-
-          if (!uiState.changed.includes(type)) {
-            uiState.changed.push(type);
-          }
+          uiState.changed.push(type);
         });
       });
     }
@@ -170,20 +198,20 @@ document.addEventListener("DOMContentLoaded", () => {
       if (li.classList.contains("ruby")) return "red";
       if (li.classList.contains("white")) return "white";
       if (li.classList.contains("emerald")) return "green";
-      return state.gem;
+      return uiState.gem;
     });
 
     bindSelector(".materials--list", "metal", li => {
       if (li.classList.contains("silver")) return "silver";
       if (li.classList.contains("gold")) return "gold";
       if (li.classList.contains("copper")) return "copper";
-      return state.metal;
+      return uiState.metal;
     });
 
     bindSelector(".rings--list", "ring", li => {
       if (li.classList.contains("ring0")) return 0;
       if (li.classList.contains("ring1")) return 1;
       if (li.classList.contains("ring2")) return 2;
-      return state.ring;
+      return uiState.ring;
     });
 });

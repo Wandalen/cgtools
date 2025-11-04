@@ -16,7 +16,17 @@
 
 use std::{ cell::RefCell, rc::Rc };
 use minwebgl as gl;
-use gl::F32x3;
+use gl::
+{
+  GL,
+  F32x3,
+  JsCast,
+  web_sys::
+  {
+    HtmlCanvasElement,
+    wasm_bindgen::closure::Closure
+  }
+};
 use std::collections::HashSet;
 
 use renderer::webgl::
@@ -30,6 +40,99 @@ use renderer::webgl::
 };
 
 mod ui;
+
+// /// Uploads an image from a URL to a WebGL texture.
+// ///
+// /// This function creates a new `WebGlTexture` and asynchronously loads an image from the provided URL into it.
+// /// It uses a `Closure` to handle the `onload` event of an `HtmlImageElement`, ensuring the texture is
+// /// uploaded only after the image has finished loading.
+// ///
+// /// # Arguments
+// ///
+// /// * `gl` - The WebGl2RenderingContext.
+// /// * `src` - A reference-counted string containing the URL of the image to load.
+// ///
+// /// # Returns
+// ///
+// /// A `WebGlTexture` object.
+// fn upload_texture( gl : &GL, src : &str ) -> WebGlTexture
+// {
+//   let window = web_sys::window().expect( "Can't get window" );
+//   let document =  window.document().expect( "Can't get document" );
+
+//   let texture = gl.create_texture().expect( "Failed to create a texture" );
+
+//   let img_element = document.create_element( "img" )
+//   .expect( "Can't create img" )
+//   .dyn_into::< gl::web_sys::HtmlImageElement >()
+//   .expect( "Can't convert to gl::web_sys::HtmlImageElement" );
+//   img_element.style().set_property( "display", "none" ).expect( "Can't set property" );
+//   let load_texture : Closure< dyn Fn() > = Closure::new
+//   (
+//     {
+//       let gl = gl.clone();
+//       let img = img_element.clone();
+//       let texture = texture.clone();
+//       move ||
+//       {
+//         gl::texture::d2::upload_no_flip( &gl, Some( &texture ), &img );
+//         gl.generate_mipmap( gl::TEXTURE_2D );
+//         img.remove();
+//       }
+//     }
+//   );
+
+//   img_element.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
+//   img_element.set_src( &src );
+//   load_texture.forget();
+
+//   texture
+// }
+
+// /// Creates a new `TextureInfo` struct with a texture loaded from a file.
+// ///
+// /// This function calls `upload_texture` to load an image, sets up a default `Sampler`
+// /// with linear filtering and repeat wrapping, and then combines them into a `TextureInfo`
+// /// struct.
+// ///
+// /// # Arguments
+// ///
+// /// * `gl` - The WebGl2RenderingContext.
+// /// * `image_path` - The path to the image file, relative to the `static/` directory.
+// ///
+// /// # Returns
+// ///
+// /// An `Option<TextureInfo>` containing the texture data, or `None` if creation fails.
+// fn create_texture
+// (
+//   gl : &GL,
+//   image_path : &str
+// ) -> Option< TextureInfo >
+// {
+//   let image_path = format!( "static/{image_path}" );
+//   let texture_id = upload_texture( gl, image_path.as_str() );
+
+//   let sampler = Sampler::former()
+//   .min_filter( MinFilterMode::Linear )
+//   .mag_filter( MagFilterMode::Linear )
+//   .wrap_s( WrappingMode::Repeat )
+//   .wrap_t( WrappingMode::Repeat )
+//   .end();
+
+//   let texture = Texture::former()
+//   .target( GL::TEXTURE_2D )
+//   .source( texture_id )
+//   .sampler( sampler )
+//   .end();
+
+//   let texture_info = TextureInfo
+//   {
+//     texture : Rc::new( RefCell::new( texture ) ),
+//     uv_position : 0,
+//   };
+
+//   Some( texture_info )
+// }
 
 fn get_node( scene : &Rc< RefCell< Scene > >, name : String ) -> Option< Rc< RefCell< Node > > >
 {
@@ -56,9 +159,9 @@ fn get_node( scene : &Rc< RefCell< Scene > >, name : String ) -> Option< Rc< Ref
   target
 }
 
-fn set_diamond_color( diamond_node : &Rc< RefCell< Node > >, color : F32x3 )
+fn set_gem_color( gem_node : &Rc< RefCell< Node > >, color : F32x3 )
 {
-  let Object3D::Mesh( mesh ) = &diamond_node.borrow().object
+  let Object3D::Mesh( mesh ) = &gem_node.borrow().object
   else
   {
     return;
@@ -68,10 +171,12 @@ fn set_diamond_color( diamond_node : &Rc< RefCell< Node > >, color : F32x3 )
   {
     let material = &primitive.borrow().material;
     let mut material = material.borrow_mut();
+    // material.base_color_texture = None;
     for i in 0..3
     {
       material.base_color_factor.0[ i ] = color.0[ i ];
     }
+    material.base_color_factor.0[ 3 ] = 1.0;
   }
 }
 
@@ -114,6 +219,32 @@ fn set_metal_color( ring_node : &Rc< RefCell< Node > >, filter : &HashSet< Strin
 fn remove_node_from_scene( root : &Rc< RefCell< Scene > >, node : &Rc< RefCell< Node > > )
 {
   let name = node.borrow().get_name().unwrap();
+
+  let remove_child_ids = root.borrow().children
+  .iter()
+  .enumerate()
+  .filter
+  (
+    | ( _, n ) |
+    {
+      if let Some( current_name ) = n.borrow().get_name()
+      {
+        *current_name.clone().into_string() == *name
+      }
+      else
+      {
+        false
+      }
+    }
+  )
+  .map( | ( i, _ ) | i )
+  .collect::< Vec< _ > >();
+
+  for i in remove_child_ids.iter().rev()
+  {
+    let _ = root.borrow_mut().children.remove( *i );
+  }
+
   let _ = root.borrow_mut().traverse
   (
     &mut | node : Rc< RefCell< Node > > |
@@ -185,6 +316,35 @@ fn _remove_node_from_node( root : &Rc< RefCell< Node > >, node : &Rc< RefCell< N
   );
 }
 
+// fn add_resize_callback( gl : &GL, renderer : Rc< RefCell< Renderer > >, canvas : HtmlCanvasElement )
+// {
+//   let canvas = canvas.clone();
+//   let gl = gl.clone();
+//   let resize_closure =
+//   Closure::wrap
+//   (
+//     Box::new
+//     (
+//       move | _ : web_sys::Event |
+//       {
+//         let width = canvas.client_width() as u32;
+//         let height = canvas.client_height() as u32;
+
+//         canvas.set_width( width );
+//         canvas.set_height( height );
+
+//         *renderer.borrow_mut() = Renderer::new( &gl, canvas.width(), canvas.height(), 4 ).unwrap();
+//       }
+//     ) as Box< dyn FnMut( _ ) >
+//   );
+
+//   gl::web_sys::window()
+//   .unwrap()
+//   .add_event_listener_with_callback("resize", resize_closure.as_ref().unchecked_ref())
+//   .unwrap();
+//   resize_closure.forget();
+// }
+
 async fn run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
@@ -203,7 +363,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let scene = Rc::new( RefCell::new( Scene::new() ) );
   let mut rings : Vec< Rc< RefCell< Node > > > = vec![];
-  let mut diamonds : Vec< Rc< RefCell< Node > > > = vec![];
+  let mut gems : Vec< Rc< RefCell< Node > > > = vec![];
   let mut filters : Vec< HashSet< String > > = vec![];
 
   for i in 0..3
@@ -214,27 +374,33 @@ async fn run() -> Result< (), gl::WebglError >
     {
       0 =>
       {
-        let diamond = get_node( &gltf.scenes[ 0 ], "Object_2".to_string() ).unwrap();
+        let gem = get_node( &gltf.scenes[ 0 ], "Object_2".to_string() ).unwrap();
+        gem.borrow_mut().set_name( "gem0" );
         let ring = get_node( &gltf.scenes[ 0 ], "Sketchfab_model".to_string() ).unwrap();
-        diamonds.push( diamond.clone() );
+        ring.borrow_mut().set_name( "ring0" );
+        gems.push( gem.clone() );
         rings.push( ring.clone() );
-        filters.push( HashSet::from( [ "Object_2".to_string() ] ) );
+        filters.push( HashSet::from( [ "gem0".to_string() ] ) );
       },
       1 =>
       {
-        let diamond = get_node( &gltf.scenes[ 0 ], "object_2_Vien KC Lon_0".to_string() ).unwrap();
+        let gem = get_node( &gltf.scenes[ 0 ], "object_2_Vien KC Lon_0".to_string() ).unwrap();
+        gem.borrow_mut().set_name( "gem1" );
         let ring = get_node( &gltf.scenes[ 0 ], "Sketchfab_model".to_string() ).unwrap();
-        diamonds.push( diamond.clone() );
+        ring.borrow_mut().set_name( "ring1" );
+        gems.push( gem.clone() );
         rings.push( ring.clone() );
-        filters.push( HashSet::from( [ "object_2_Vien KC Lon_0".to_string() ] ) );
+        filters.push( HashSet::from( [ "gem1".to_string() ] ) );
       },
       2 =>
       {
-        let diamond = get_node( &gltf.scenes[ 0 ], "Object_2".to_string() ).unwrap();
+        let gem = get_node( &gltf.scenes[ 0 ], "Object_2".to_string() ).unwrap();
+        gem.borrow_mut().set_name( "gem2" );
         let ring = get_node( &gltf.scenes[ 0 ], "Sketchfab_model".to_string() ).unwrap();
-        diamonds.push( diamond.clone() );
+        ring.borrow_mut().set_name( "ring2" );
+        gems.push( gem.clone() );
         rings.push( ring.clone() );
-        filters.push( HashSet::from( [ "Object_2".to_string() ] ) );
+        filters.push( HashSet::from( [ "gem2".to_string() ] ) );
       },
       _ => ()
     }
@@ -243,19 +409,31 @@ async fn run() -> Result< (), gl::WebglError >
   let ui_state = ui::get_ui_state().unwrap();
   ui::clear_changed();
 
-  let mut current_ring = rings[ 2 ].clone();
-  let mut current_diamond = diamonds[ 2 ].clone();
-
-  // let mut current_ring = rings[ ui_state.ring as usize ].clone();
-  // let mut current_diamond = diamonds[ ui_state.ring as usize ].clone();
+  let mut current_ring = rings[ ui_state.ring as usize ].clone();
+  let mut current_gem = gems[ ui_state.ring as usize ].clone();
 
   scene.borrow_mut().add( current_ring.clone() );
   scene.borrow_mut().update_world_matrix();
 
+  match ui_state.gem.as_str()
+  {
+    "white" => set_gem_color( &current_gem, F32x3::from_array( [ 1.0, 1.0, 1.0 ] ) ),
+    "red" => set_gem_color( &current_gem, F32x3::from_array( [ 1.0, 0.0, 0.0 ] ) ),
+    "green" => set_gem_color( &current_gem, F32x3::from_array( [ 0.0, 1.0, 0.0 ] ) ),
+    _ => ()
+  }
+  match ui_state.metal.as_str()
+  {
+    "silver" => set_metal_color( &current_ring, &filters[ ui_state.ring as usize ], F32x3::from_array( [ 0.753, 0.753, 0.753 ] ) ),
+    "copper" => set_metal_color( &current_ring, &filters[ ui_state.ring as usize ], F32x3::from_array( [ 0.722, 0.451, 0.2 ] ) ),
+    "gold" => set_metal_color( &current_ring, &filters[ ui_state.ring as usize ], F32x3::from_array( [ 1.0, 0.843, 0.0 ] ) ),
+    _ => ()
+  }
+
   let scene_bounding_box = scene.borrow().bounding_box();
 
   // Camera setup
-  let eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
+  let eye = gl::math::F32x3::from( [ 0.0, 0.0, 35.0 ] );
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
 
   let center = scene_bounding_box.center();
@@ -279,7 +457,9 @@ async fn run() -> Result< (), gl::WebglError >
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
-  renderer.borrow_mut().set_clear_color( F32x3::splat( 0.8 ) );
+  renderer.borrow_mut().set_clear_color( F32x3::splat( 1.0 ) );
+
+  // add_resize_callback( &gl, renderer.clone(), canvas.clone() );
 
   // Define the update and draw logic
   let update_and_draw =
@@ -294,9 +474,9 @@ async fn run() -> Result< (), gl::WebglError >
 
           if ring_changed
           {
-            if let Some( new_diamond ) = diamonds.get( ui_state.ring as usize ).cloned()
+            if let Some( new_gem ) = gems.get( ui_state.ring as usize ).cloned()
             {
-              current_diamond = new_diamond;
+              current_gem = new_gem;
             }
             if let Some( new_ring ) = rings.get( ui_state.ring as usize ).cloned()
             {
@@ -311,19 +491,19 @@ async fn run() -> Result< (), gl::WebglError >
           {
             match ui_state.light_mode.as_str()
             {
-              "light" => renderer.borrow_mut().set_clear_color( F32x3::splat( 0.8 ) ),
+              "light" => renderer.borrow_mut().set_clear_color( F32x3::splat( 1.0 ) ),
               "dark" => renderer.borrow_mut().set_clear_color( F32x3::splat( 0.2 ) ),
               _ => ()
             }
           }
 
-          if ui_state.changed.contains( &"diamond".to_string() ) || ring_changed
+          if ui_state.changed.contains( &"gem".to_string() ) || ring_changed
           {
-            match ui_state.diamond.as_str()
+            match ui_state.gem.as_str()
             {
-              "white" => set_diamond_color( &current_diamond, F32x3::from_array( [ 1.0, 1.0, 1.0 ] ) ),
-              "ruby" => set_diamond_color( &current_diamond, F32x3::from_array( [ 1.0, 0.0, 0.0 ] ) ),
-              "emerald" => set_diamond_color( &current_diamond, F32x3::from_array( [ 0.0, 1.0, 0.0 ] ) ),
+              "white" => set_gem_color( &current_gem, F32x3::from_array( [ 1.0, 1.0, 1.0 ] ) ),
+              "red" => set_gem_color( &current_gem, F32x3::from_array( [ 1.0, 0.0, 0.0 ] ) ),
+              "green" => set_gem_color( &current_gem, F32x3::from_array( [ 0.0, 1.0, 0.0 ] ) ),
               _ => ()
             }
           }
