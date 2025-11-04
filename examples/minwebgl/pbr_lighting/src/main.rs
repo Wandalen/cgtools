@@ -40,11 +40,15 @@ fn to_spherical( decart : F32x3 ) -> ( f32, f32, f32 )
   let [ x, _y, z ] = decart.0;
   let phi = z.signum() * ( x / ( x * x + z * z ).sqrt() ).acos();
 
+  let phi = phi.to_degrees();
+  let theta = theta.to_degrees();
   return ( radius, theta, phi );
 }
 
 fn to_decart( radius : f32, theta : f32, phi : f32 ) -> F32x3
 {
+  let phi = phi.to_radians();
+  let theta = theta.to_radians();
   let sin_phi = phi.sin();
 
   F32x3::from_array
