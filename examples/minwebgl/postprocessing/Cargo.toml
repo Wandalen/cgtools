@@ -1,0 +1,9 @@
+[package]
+name = "postprocessing"
+version = "0.1.0"
+edition = "2021"
+authors = [
+  "Kostiantyn Mysnyk <wandalen@obox.systems>",
+  "Bilan Vadym <vadym.b@obox.systems>"
+]
+license = "MIT"

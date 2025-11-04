@@ -6,7 +6,7 @@ This demo demonstrates basic 2D line rendering in WebGL2. It shows how to draw s
 
 This example is ideal for beginners learning WebGL2 fundamentals, covering vertex attribute setup, buffer management, and the minimal shader pipeline required for 2D line rendering. It provides a stepping stone to understanding more advanced rendering techniques.
 
-![image](./showcase.png)
+![image](./showcase.gif)
 
 **[How to run](../how_to_run.md)**
 
