@@ -60,6 +60,8 @@ async fn run() -> Result< (), gl::WebglError >
   // let debug_shader = gl::Program::new( gl.clone(), debug_vert_src, debug_frag_src )?;
 
   let mesh = gltf::load( &document, "skull_salazar_downloadable.glb", &gl ).await?;
+  // let mesh_model = mat3x3h::translation( [ 0.0, 0.0, 0.0 ] );
+    // * mat3x3h::scale( [ 0.1, 0.1, 0.1 ] );
 
   let cube_mesh = gltf::load( &document, "cube.glb", &gl ).await?;
   let cube_model = mat3x3h::translation( [ 0.0, -1.0, 0.0 ] )
@@ -75,6 +77,7 @@ async fn run() -> Result< (), gl::WebglError >
       main_scene.add( node );
     }
   }
+  main_scene.update_world_matrix();
 
   for scene in cube_mesh.scenes
   {
@@ -87,14 +90,19 @@ async fn run() -> Result< (), gl::WebglError >
   }
 
   _ = main_scene.traverse( &mut | node | {
-    node.borrow_mut().is_shadow_caster = true;
-    node.borrow_mut().is_shadow_receiver = true;
+    let node = node.borrow();
+    if let Object3D::Mesh( mesh ) = &node.object
+    {
+      let mut mesh = mesh.borrow_mut();
+      mesh.is_shadow_caster = true;
+      mesh.is_shadow_receiver = true;
+    }
     Ok( () )
   } );
 
   let mesh_color = [ 0.8, 0.75, 0.7 ];
 
-  let light_pos = [ 0.0, 2.0, 4.0 ];
+  let light_pos = [ 0.0, 3.0, 4.0 ];
   let light_color = [ 1.0, 1.0, 1.0 ];
   let light_orientation = QuatF32::from_euler_xyz( [ -30.0_f32.to_radians(), 0.0, 0.0 ] );
   let near = 1.0;
@@ -103,13 +111,12 @@ async fn run() -> Result< (), gl::WebglError >
   (
     light_pos.into(),
     light_orientation,
-    // mat3x3h::orthographic_rh_gl( -5.0, 5.0, -5.0, 5.0, near, far ),
-    mat3x3h::perspective_rh_gl( 30.0_f32.to_radians(), 1.0, near, far ),
-    0.05
+    mat3x3h::perspective_rh_gl( 45.0_f32.to_radians(), 1.0, near, far ),
+    0.7
   );
 
   let shadowmap_res = 4096;
-  let lightmap_res = 4096;
+  let lightmap_res = 8192;
   bake_shadows( &gl, &main_scene, &mut light, lightmap_res, shadowmap_res ).unwrap();
 
   gl.active_texture( gl::TEXTURE0 );

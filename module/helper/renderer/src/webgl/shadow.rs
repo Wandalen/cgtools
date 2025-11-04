@@ -1,3 +1,5 @@
+//! Module
+
 mod private
 {
   use minwebgl as gl;
@@ -6,6 +8,7 @@ mod private
   use std::rc::Rc;
   use core::cell::RefCell;
 
+  /// Shadow map for rendering depth from light's perspective
   #[ derive( Debug ) ]
   pub struct ShadowMap
   {
@@ -18,6 +21,7 @@ mod private
 
   impl ShadowMap
   {
+    /// Creates shadow map with specified resolution
     pub fn new( gl : &GL, resolution : u32 ) -> Result< Self, gl::WebglError >
     {
       let resolution = resolution as i32;
@@ -68,6 +72,7 @@ mod private
       )
     }
 
+    /// Activates shadow map for depth rendering
     pub fn bind( &self )
     {
       self.gl.bind_framebuffer( GL::FRAMEBUFFER, self.framebuffer.as_ref() );
@@ -78,16 +83,19 @@ mod private
       self.gl.viewport( 0, 0, self.resolution, self.resolution );
     }
 
+    /// Sets model-view-projection matrix
     pub fn upload_mvp( &self, mvp : gl::F32x4x4 )
     {
       self.program.uniform_matrix_upload( "u_mvp", mvp.raw_slice(), true );
     }
 
+    /// Returns depth texture for sampling
     pub fn depth_buffer( &self ) -> Option< &WebGlTexture >
     {
       self.depth_buffer.as_ref()
     }
 
+    /// Clears depth buffer
     pub fn clear( &self )
     {
       self.gl.bind_framebuffer( GL::FRAMEBUFFER, self.framebuffer.as_ref() );
@@ -95,14 +103,7 @@ mod private
     }
   }
 
-  /// Shadow baker for pre-computing PCSS shadows into a lightmap texture
-  ///
-  /// This struct manages the baking process where geometry is rendered with UV-based positioning
-  /// so that each triangle rasterizes to its corresponding lightmap region. The fragment shader
-  /// calculates high-quality PCSS shadows and outputs shadow values (0 = lit, 1 = shadowed).
-  ///
-  /// Unlike the Shadowmap struct which owns its texture, ShadowBaker uses external textures
-  /// that you provide via `set_target()`, allowing flexible reuse for multiple lightmaps.
+  /// Bakes PCSS shadows into lightmap textures
   #[ derive( Debug ) ]
   pub struct ShadowBaker
   {
@@ -115,13 +116,7 @@ mod private
 
   impl ShadowBaker
   {
-    /// Creates a new shadow baker
-    ///
-    /// # Arguments
-    /// * `gl` - WebGL context
-    ///
-    /// # Returns
-    /// Result containing the ShadowBaker or a WebGL error
+    /// Creates shadow baker
     pub fn new( gl : &GL ) -> Result< Self, gl::WebglError >
     {
       let framebuffer = gl.create_framebuffer();
@@ -143,13 +138,7 @@ mod private
       )
     }
 
-    /// Sets the target texture to render shadows into
-    ///
-    /// # Arguments
-    /// * `texture` - The lightmap texture to render into
-    ///
-    /// The texture must be created and sized before calling this method.
-    /// Shadow values are stored in the R channel (0 = lit, 1 = shadowed).
+    /// Sets target lightmap texture and dimensions
     pub fn set_target( &mut self, texture : Option< &WebGlTexture >, width : u32, height : u32 )
     {
       self.width = width as i32;
@@ -173,8 +162,7 @@ mod private
       }
     }
 
-    /// Binds the shadow baker framebuffer and activates the shader program
-    /// Call this before rendering geometry for baking
+    /// Activates baker for rendering
     pub fn bind( &self )
     {
       self.program.activate();
@@ -184,32 +172,20 @@ mod private
       self.gl.disable( gl::CULL_FACE );
     }
 
-    /// Uploads the model matrix for the geometry being baked
+    /// Sets model matrix for geometry
     pub fn upload_model( &self, model : gl::F32x4x4 )
     {
       self.program.uniform_matrix_upload( "u_model", model.raw_slice(), true );
     }
 
+    /// Binds shadow map for sampling
     pub fn set_shadowmap( &self, shadowmap : Option< &WebGlTexture > )
     {
       self.gl.active_texture( gl::TEXTURE0 );
       self.gl.bind_texture( gl::TEXTURE_2D, shadowmap );
     }
 
-    /// Uploads all light-related data from a LightSource
-    ///
-    /// This method extracts and uploads:
-    /// - Light view-projection matrix
-    /// - Light direction (world space) - used for orthographic projections
-    /// - Light position (world space) - used for perspective projections
-    /// - Orthographic/perspective flag
-    /// - Light size (world space) - controls shadow softness/penumbra size
-    ///
-    /// For perspective projections, the shader calculates per-fragment light direction
-    /// based on the light position, simulating a point light source.
-    ///
-    /// # Arguments
-    /// * `light_source` - Reference to the light source (mutable for view_projection caching)
+    /// Uploads light parameters to shader
     pub fn upload_light( &self, light : &mut Light )
     {
       // Upload view-projection matrix
@@ -225,7 +201,7 @@ mod private
       self.program.uniform_upload( "u_light_position", light_pos.as_slice() );
 
       // Upload orthographic flag
-      let is_ortho = if light.is_orthographic() { 1.0f32 } else { 0.0f32 };
+      let is_ortho = light.is_orthographic() as i32;
       self.program.uniform_upload( "u_is_orthographic", &is_ortho );
 
       // Upload light size (controls penumbra/shadow softness)
@@ -240,6 +216,7 @@ mod private
     }
   }
 
+  /// Light source for shadow casting
   #[ derive( Debug, Clone, Copy ) ]
   pub struct Light
   {
@@ -252,6 +229,7 @@ mod private
 
   impl Light
   {
+    /// Creates light with position, orientation, projection, and size
     pub fn new
     (
       position : gl::F32x3,
@@ -270,11 +248,13 @@ mod private
       }
     }
 
+    /// Returns light size (controls shadow softness)
     pub fn light_size( &self ) -> f32
     {
       self.light_size
     }
 
+    /// Extracts near and far planes from projection matrix
     pub fn near_far_planes( &self ) -> ( f32, f32 )
     {
       let m = self.projection.raw_slice();
@@ -307,38 +287,33 @@ mod private
       }
     }
 
+    /// Returns light position
     pub fn position( &self ) -> gl::F32x3
     {
       self.position
     }
 
+    /// Returns light orientation
     pub fn orientation( &self ) -> gl::QuatF32
     {
       self.orientation
     }
 
+    /// Returns projection matrix
     pub fn projection( &self ) -> gl::F32x4x4
     {
       self.projection
     }
 
-    /// Determines if this light source uses orthographic projection
-    ///
-    /// Inspects the projection matrix to detect projection type:
-    /// - Orthographic: `matrix[3][3] == 1.0` (no perspective division)
-    /// - Perspective: `matrix[3][3] == 0.0` (perspective division occurs)
+    /// Returns true if using orthographic projection (checks matrix[3][3] == 1.0)
     pub fn is_orthographic( &self ) -> bool
     {
-      // In GL projection matrices:
-      // - Orthographic has [3][3] = 1.0 (bottom-right element)
-      // - Perspective has [3][3] = 0.0
       let m = self.projection.raw_slice();
       let w_component = m[ 15 ]; // [3][3] in column-major order
-
       ( w_component - 1.0 ).abs() < 0.01
     }
 
-    /// Returns the light direction in world space (forward vector)
+    /// Returns light direction (forward vector)
     pub fn direction( &self ) -> gl::F32x3
     {
       let local_forward = gl::F32x3::new( 0.0, 0.0, -1.0 );
@@ -346,6 +321,7 @@ mod private
       rotation_matrix * local_forward
     }
 
+    /// Returns cached view-projection matrix
     pub fn view_projection( &mut self ) -> gl::F32x4x4
     {
       if let Some( mvp ) = self.view_projection
@@ -364,23 +340,7 @@ mod private
     }
   }
 
-  /// Bakes shadows from a light source into lightmaps for all shadow-receiving meshes in the scene.
-  ///
-  /// This function performs a two-pass shadow baking process:
-  /// 1. **Shadow Map Pass**: Recursively traverses all shadow-casting nodes and renders them to a depth buffer
-  /// 2. **Lightmap Baking Pass**: Recursively traverses all shadow-receiving nodes and bakes PCSS soft shadows into their lightmaps
-  ///
-  /// The function automatically handles scene graph hierarchies, processing all descendants of root nodes.
-  ///
-  /// # Arguments
-  /// * `gl` - WebGL context
-  /// * `scene` - The scene containing nodes to process
-  /// * `light` - The light source casting shadows (mutable for view-projection caching)
-  /// * `lightmap_res` - Resolution of lightmap textures (e.g., 2048, 4096, 8192)
-  /// * `shadowmap_res` - Resolution of the shadow map depth buffer
-  ///
-  /// # Returns
-  /// Result indicating success or WebGL error
+  /// Bakes shadows into lightmaps via two-pass rendering: depth map, then PCSS lightmap baking
   pub fn bake_shadows
   (
     gl : &GL,
@@ -402,13 +362,13 @@ mod private
     {
       let node = node.borrow();
 
-      if !node.is_shadow_caster
-      {
-        return Ok( () );
-      }
-
       if let crate::webgl::Object3D::Mesh( mesh ) = &node.object
       {
+        if !mesh.borrow().is_shadow_caster
+        {
+          return Ok( () );
+        }
+
         let model = node.get_world_matrix();
         let mvp = view_projection * model;
         shadow_map.upload_mvp( mvp );
@@ -438,14 +398,15 @@ mod private
     {
       let node = node.borrow_mut();
 
-      if !node.is_shadow_receiver
-      {
-        return Ok( () );
-      }
-
       if let crate::webgl::Object3D::Mesh( mesh ) = &node.object
       {
+        if !mesh.borrow().is_shadow_receiver
+        {
+          return Ok( () );
+        }
+
         let model = node.get_world_matrix();
+        shadow_baker.bind();
         shadow_baker.upload_model( model );
 
         for primitive in &mesh.borrow().primitives
@@ -459,6 +420,7 @@ mod private
           primitive_ref.geometry.borrow().bind( gl );
           primitive_ref.draw( gl );
 
+          // Generate mipmaps after dilation for smooth filtering
           gl.bind_texture( gl::TEXTURE_2D, light_map.as_ref() );
           gl.generate_mipmap( gl::TEXTURE_2D );
 
@@ -490,6 +452,7 @@ mod private
     gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
     gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
     gl::texture::d2::wrap_clamp( &gl );
+
     light_map
   }
 }

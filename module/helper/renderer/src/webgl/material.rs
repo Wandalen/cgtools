@@ -90,9 +90,8 @@ mod private
     pub specular_color_factor : Option< gl::F32x3 >,
     /// Optional texture providing the specular color. (KHR_materials_specular extension)
     pub specular_color_texture : Option< TextureInfo >,
-
+    /// Optional lightmap texture containing pre-baked lighting (shadows)
     pub light_map : Option< TextureInfo >,
-
     /// Alpha cutoff value for mask mode. Fragments with alpha below this value are discarded.
     pub alpha_cutoff : f32,
     /// The alpha blending mode for the material. Defaults to `Opaque`.

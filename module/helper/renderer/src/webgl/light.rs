@@ -38,6 +38,22 @@ mod private
     /// Light strength
     pub strength : f32
   }
+
+  /// Point light source description
+  #[ derive( Clone ) ]
+  pub struct SpotLight
+  {
+    /// Light position
+    pub position : F32x3,
+    /// Light color
+    pub color : F32x3,
+    /// Light strength
+    pub strength : f32,
+    /// Light range
+    pub range : f32,
+    /// Cast shadow
+    pub is_shadow_caster : bool,
+  }
 }
 
 crate::mod_interface!
@@ -46,6 +62,7 @@ crate::mod_interface!
   {
     Light,
     PointLight,
-    DirectLight
+    DirectLight,
+    SpotLight
   };
 }

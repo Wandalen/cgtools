@@ -54,8 +54,6 @@ mod private
     needs_world_matrix_update : bool,
     /// The bounding box of the node's object in world space.
     bounding_box : BoundingBox,
-    pub is_shadow_caster : bool,
-    pub is_shadow_receiver : bool,
   }
 
   impl Node
@@ -94,8 +92,6 @@ mod private
         needs_local_matrix_update : self.needs_local_matrix_update,
         needs_world_matrix_update : self.needs_world_matrix_update,
         bounding_box : self.bounding_box,
-        is_shadow_caster : self.is_shadow_caster,
-        is_shadow_receiver : self.is_shadow_receiver,
       };
 
       let clone_rc = Rc::new( RefCell::new( clone ) );
