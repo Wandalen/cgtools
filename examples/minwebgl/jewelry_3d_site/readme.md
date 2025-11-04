@@ -2,6 +2,8 @@
 
 **Keywords:** Web, Jewelry
 
+**Technologies:** HTML, CSS, JS, glTF, WebGL2, GSAP, CGTools
+
 This demo demonstrates jewelry site example for product ready 3D jewelry configurator.
 
 ![image](./showcase.png)

@@ -2,6 +2,8 @@
 
 **Keywords:** Animation, Skeletal Animation, glTF, WebGL2, Skinning
 
+**Technologies:** glTF, WebGL2, CGTools, Skining, GPU data storage, Skeletal animations
+
 This demo demonstrates skeletal animation implementation in WebGL2, featuring animated skinned 3D models loaded from glTF files. It showcases smooth skeletal animation playback with interpolation between keyframes, supporting multiple animation sequences that can be selected through an interactive UI. The viewer handles joint transformations, inverse bind matrices, and vertex skinning in real-time.
 
 Skeletal animation is fundamental for character animation in games and interactive 3D applications. This example provides a complete implementation of the glTF animation pipeline, including channel interpolation (linear, step, cubic spline), joint hierarchy management, and GPU-accelerated vertex skinning, making it suitable for character-driven applications and animation previews.

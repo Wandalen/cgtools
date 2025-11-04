@@ -2,6 +2,8 @@
 
 **Keywords:** glTF, PBR, light, WebGL2
 
+**Technologies:** glTF, PBR, WebGL, CGTools
+
 This demo is showcase of point and direct light usage with renderer. User can change light pararmeters like direction, position, strength, color, range using UI. Then renderer will show how light affects on PBR surface of glTF models.
 
 ![image](./showcase.png)

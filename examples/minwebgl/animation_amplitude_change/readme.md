@@ -2,6 +2,8 @@
 
 **Keywords:** Animation, Skeletal Animation, glTF, WebGL2, Skinning, Amplitude Scaling, Interactive UI
 
+**Technologies:** glTF, WebGL2, CGTools, Skining, GPU data storage, Animation blending, Skeletal animations
+
 This demo showcases advanced skeletal animation control in WebGL2, allowing real-time manipulation of animation amplitude for different body parts. Users can select from multiple animation sequences and independently scale the rotation amplitude for grouped skeleton nodes (head, hands, body, legs), providing fine-grained control over character movement intensity. The implementation demonstrates skeleton grouping, quaternion-based rotation scaling, and dynamic keyframe modification.
 
 Animation amplitude control is essential for procedural animation blending, character behavior customization, and adaptive animation systems in games. This example provides a complete implementation of per-bone-group amplitude scaling through quaternion interpolation, enabling developers to create more expressive character animations by emphasizing or dampening specific body movements while maintaining smooth animation playback.
