@@ -51,20 +51,33 @@ struct ReflectedLight
 
 const int MAX_POINT_LIGHTS = 8;
 const int MAX_DIRECT_LIGHTS = 8;
+const int MAX_SPOT_LIGHTS = 8;
 
 struct PointLight
 {
-  vec3 position;
-  vec3 color;
-  float strength;
-  float range;
+  vec3    position;
+  vec3    color;
+  float   strength;
+  float   range;
 };
 
 struct DirectLight
 {
-  vec3 direction;
-  vec3 color;
-  float strength;
+  vec3    direction;
+  vec3    color;
+  float   strength;
+};
+
+struct SpotLight
+{
+  vec3    position;
+  vec3    direction;
+  vec3    color;
+  float   strength;
+  float   range;
+  float   innerConeAngle;
+  float   outerConeAngle;
+  bool    useLightMap;
 };
 
 uniform PointLight pointLights[ MAX_POINT_LIGHTS ];
@@ -72,6 +85,9 @@ uniform int pointLightsCount;
 
 uniform DirectLight directLights[ MAX_DIRECT_LIGHTS ];
 uniform int directLightsCount;
+
+uniform SpotLight spotLights[ MAX_SPOT_LIGHTS ];
+uniform int spotLightsCount;
 
 uniform float luminosityThreshold;
 uniform float luminositySmoothWidth;
@@ -128,6 +144,11 @@ uniform float occlusionStrength; // Default: 1
 #endif
 uniform vec3 emissiveFactor;
 
+
+// vLightMapUv
+#ifdef USE_LIGHT_MAP
+  uniform sampler2D lightMap;
+#endif
 
 
 float max_value( const in vec3 v )
@@ -334,6 +355,62 @@ void computePointLight
   reflectedLight.directSpecular += Fs * specularColor;
 }
 
+void computeSpotLight
+(
+  SpotLight light,
+  const in vec3 viewDir,
+  const in vec3 normal,
+  const in PhysicalMaterial material,
+  inout ReflectedLight reflectedLight
+)
+{
+  vec3 lightDir = light.position - vWorldPos;
+  float distance_ = length( lightDir );
+  lightDir = normalize( lightDir );
+
+  // Distance attenuation
+  float attenuation = pow( clamp( 1.0 - distance_ / light.range, 0.0, 1.0 ), 2.0 ) / ( distance_ * distance_ + 1.0 );
+
+  // Angular attenuation (spotlight cone)
+  float angle = acos( dot( -lightDir, light.direction ) ); // light.direction assumed to be normalized on cpu side
+  float innerAngle = light.innerConeAngle;
+  float outerAngle = light.outerConeAngle;
+  float angularAttenuation = smoothstep( outerAngle, innerAngle, angle );
+
+  attenuation *= angularAttenuation * light.strength;
+
+  // Apply lightmap if enabled
+  #ifdef USE_LIGHT_MAP
+    if( light.useLightMap )
+    {
+      float shadowFactor = 1.0 - texture( lightMap, vLightMapUv ).r;
+      attenuation *= shadowFactor;
+      // specularColor *= shadowFactor;
+    }
+  #endif
+
+  float dotNL = clamp( dot( normal, lightDir ), 0.0, 1.0 );
+
+  float alpha = pow2( material.roughness );
+  vec3 halfDir = normalize( lightDir + viewDir );
+  float dotNV = clamp( dot( normal, viewDir ), 0.0, 1.0 );
+  float dotNH = clamp( dot( normal, halfDir ), 0.0, 1.0 );
+  float dotVH = clamp( dot( viewDir, halfDir ), 0.0, 1.0 );
+  float dotLH = clamp( dot( lightDir, halfDir ), 0.0, 1.0 );
+
+  vec3 Fs = F_Schlick( material.f0, material.f90, dotVH );
+  vec3 Fd = Fd_Barley( alpha, dotNV, dotNL, dotLH );
+  float V = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
+  float D = D_GGX( alpha, dotNH );
+
+  vec3 irradiance = light.color * attenuation * dotNL;
+  vec3 diffuseColor = material.diffuseColor * irradiance;
+  vec3 specularColor = D * V * irradiance;
+
+  reflectedLight.directDiffuse += Fd * diffuseColor;
+  reflectedLight.directSpecular += Fs * specularColor;
+}
+
 void computeLights
 (
   const in vec3 viewDir,
@@ -360,6 +437,17 @@ void computeLights
     if ( dotNL > 0.0 )
     {
       computeDirectLight( directLights[ i ], viewDir, normal, material, reflectedLight );
+    }
+  }
+
+  for( int i = 0; i < min( spotLightsCount, MAX_SPOT_LIGHTS ); i++ )
+  {
+    vec3 lightDir = normalize( spotLights[ i ].position - vWorldPos );
+    float dotNL = clamp( dot( normal, lightDir ), 0.0, 1.0 );
+
+    if ( dotNL > 0.0 )
+    {
+      computeSpotLight( spotLights[ i ], viewDir, normal, material, reflectedLight );
     }
   }
 }
@@ -562,6 +650,7 @@ void main()
   //alpha = 0.9;
   //color = material.diffuseColor;
   //color = normal;
+  // color = vec3( 1.0 - texture( lightMap, vUv_0 ).r );
   float a_weight = alpha * alpha_weight( alpha );
   trasnparentA = vec4( color * a_weight, alpha );
   transparentB = a_weight;

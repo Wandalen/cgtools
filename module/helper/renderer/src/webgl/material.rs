@@ -130,6 +130,7 @@ mod private
       gl.uniform1i( locations.get( "emissiveTexture" ).unwrap().clone().as_ref() , 4 );
       gl.uniform1i( locations.get( "specularTexture" ).unwrap().clone().as_ref() , 5 );
       gl.uniform1i( locations.get( "specularColorTexture" ).unwrap().clone().as_ref() , 6 );
+      gl.uniform1i( locations.get( "lightMap" ).unwrap().clone().as_ref() , 7 );
 
       gl.uniform1i( locations.get( "irradianceTexture" ).unwrap().clone().as_ref() , ibl_base_location );
       gl.uniform1i( locations.get( "prefilterEnvMap" ).unwrap().clone().as_ref() , ibl_base_location + 1 );
@@ -192,6 +193,7 @@ mod private
       if let Some( ref t ) = self.emissive_texture { t.upload( gl ); }
       if let Some( ref t ) = self.specular_texture { t.upload( gl ); }
       if let Some( ref t ) = self.specular_color_texture { t.upload( gl ); }
+      if let Some( ref t ) = self.light_map { t.upload( gl ); }
     }
 
     /// Binds all used textures to their respective texture units.
@@ -215,6 +217,7 @@ mod private
       bind( &self.emissive_texture, 4 );
       bind( &self.specular_texture, 5 );
       bind( &self.specular_color_texture, 6 );
+      bind( &self.light_map, 7 );
     }
 
     /// Generates `#define` directives to be inserted into the fragment shader based on the material's properties.
@@ -236,6 +239,8 @@ mod private
       let use_normal_texture = self.normal_texture.is_some();
       let use_occlusion_texture = self.occlusion_texture.is_some();
       let use_alpha_cutoff = self.alpha_mode == AlphaMode::Mask;
+
+      let use_light_map = self.light_map.is_some();
 
       let mut defines = String::new();
       let add_texture = | defines : &mut String, name : &str, uv_name : &str, info : Option< &TextureInfo > |
@@ -292,6 +297,11 @@ mod private
       if use_alpha_cutoff
       {
         defines.push_str( "#define USE_ALPHA_CUTOFF\n" );
+      }
+
+      if use_light_map
+      {
+        add_texture( &mut defines, "USE_LIGHT_MAP", "vLightMapUv", self.light_map.as_ref() )
       }
 
       defines

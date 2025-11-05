@@ -3,7 +3,7 @@
 mod private
 {
   use minwebgl as gl;
-  use gl::{ GL, Program, js_sys, JsValue };
+  use gl::{ GL, Program, js_sys, JsValue, math::mat3x3h };
   use web_sys::{ WebGlFramebuffer, WebGlTexture };
   use std::rc::Rc;
   use core::cell::RefCell;
@@ -221,7 +221,7 @@ mod private
   pub struct Light
   {
     position        : gl::F32x3,
-    orientation     : gl::QuatF32,
+    direction       : gl::F32x3,
     projection      : gl::F32x4x4,
     light_size      : f32,
     view_projection : Option< gl::F32x4x4 >,
@@ -229,11 +229,11 @@ mod private
 
   impl Light
   {
-    /// Creates light with position, orientation, projection, and size
+    /// Creates light with position, direction, projection, and size
     pub fn new
     (
       position : gl::F32x3,
-      orientation : gl::QuatF32,
+      direction : gl::F32x3,
       projection : gl::F32x4x4,
       light_size : f32
     ) -> Self
@@ -241,7 +241,7 @@ mod private
       Self
       {
         position,
-        orientation,
+        direction : direction.normalize(),
         projection,
         light_size,
         view_projection : None,
@@ -293,10 +293,10 @@ mod private
       self.position
     }
 
-    /// Returns light orientation
-    pub fn orientation( &self ) -> gl::QuatF32
+    /// Returns light direction
+    pub fn direction( &self ) -> gl::F32x3
     {
-      self.orientation
+      self.direction
     }
 
     /// Returns projection matrix
@@ -313,14 +313,6 @@ mod private
       ( w_component - 1.0 ).abs() < 0.01
     }
 
-    /// Returns light direction (forward vector)
-    pub fn direction( &self ) -> gl::F32x3
-    {
-      let local_forward = gl::F32x3::new( 0.0, 0.0, -1.0 );
-      let rotation_matrix = self.orientation.to_matrix();
-      rotation_matrix * local_forward
-    }
-
     /// Returns cached view-projection matrix
     pub fn view_projection( &mut self ) -> gl::F32x4x4
     {
@@ -330,13 +322,34 @@ mod private
       }
       else
       {
-        let view = self.orientation.invert().to_matrix().to_homogenous()
-          * gl::math::mat3x3h::translation( -self.position );
+        let view = mat3x3h::look_to_rh( self.position(), self.direction, gl::F32x3::Y );
         let view_projection = self.projection * view;
         self.view_projection = Some( view_projection );
 
         view_projection
       }
+    }
+  }
+
+  impl From< crate::webgl::SpotLight > for Light
+  {
+    fn from( spot : crate::webgl::SpotLight ) -> Self
+    {
+      // Use outer cone angle for FOV
+      let fov = spot.outer_cone_angle * 2.0;
+      let near = 0.1;
+      let far = spot.range;
+
+      // Light size affects shadow softness - derive from cone angle
+      // Smaller angles = tighter beam = smaller physical size
+      let radius = spot.outer_cone_angle * 2.0;
+      let max_radius = 135.0_f32.to_radians();
+
+      let light_size = ( ( radius / max_radius ).min( 1.0 ) * 1.7 ).min( 0.01 );
+
+      let projection = gl::math::mat3x3h::perspective_rh_gl( fov, 1.0, near, far );
+
+      Self::new( spot.position, spot.direction, projection, light_size )
     }
   }
 
@@ -411,7 +424,7 @@ mod private
 
         for primitive in &mesh.borrow().primitives
         {
-          let light_map = create_texture(gl, lightmap_res, mip_levels);
+          let light_map = create_texture( gl, lightmap_res, mip_levels );
 
           shadow_baker.set_target( light_map.as_ref(), lightmap_res, lightmap_res );
           shadow_baker.bind();
@@ -456,7 +469,6 @@ mod private
     light_map
   }
 }
-
 
 crate::mod_interface!
 {

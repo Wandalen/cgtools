@@ -29,7 +29,8 @@ use minwebgl as gl;
     WrappingMode,
     Light,
     PointLight,
-    DirectLight
+    DirectLight,
+    SpotLight
   };
   use web_sys::wasm_bindgen::prelude::Closure;
 
@@ -219,7 +220,58 @@ use minwebgl as gl;
             }
           )
         },
-        "spot" => continue,
+        "spot" =>
+        {
+          let Some( color ) = gltf_light.get( "color" )
+          .map( | i | i.as_array() )
+          .flatten()
+          .map( | v | v.iter().map( | i | i.as_f64().unwrap() as f32 ).collect::< Vec< _ > >() )
+          .map( | c | F32x3::from_slice( &c[ 0..3 ] ) )
+          else
+          {
+            continue;
+          };
+          let Some( strength ) = gltf_light.get( "intensity" )
+          .map( | i | i.as_f64() )
+          .flatten()
+          else
+          {
+            continue;
+          };
+          let Some( range ) = gltf_light.get( "range" )
+          .map( | i | i.as_f64() )
+          .flatten()
+          else
+          {
+            continue;
+          };
+
+          // Parse spot light specific fields
+          let spot_obj = gltf_light.get( "spot" );
+          let inner_cone_angle = spot_obj
+            .and_then( | s | s.get( "innerConeAngle" ) )
+            .and_then( | a | a.as_f64() )
+            .unwrap_or( 0.0 ) as f32;
+          let outer_cone_angle = spot_obj
+            .and_then( | s | s.get( "outerConeAngle" ) )
+            .and_then( | a | a.as_f64() )
+            .unwrap_or( std::f64::consts::PI / 4.0 ) as f32;
+
+          Light::Spot
+          (
+            SpotLight
+            {
+              position : F32x3::default(),
+              direction : F32x3::default(),
+              color,
+              strength : strength as f32,
+              range : range as f32,
+              inner_cone_angle,
+              outer_cone_angle,
+              use_light_map : false,
+            }
+          )
+        },
         _ => continue
       };
 
@@ -251,6 +303,12 @@ use minwebgl as gl;
           {
             direct_light.direction = node.get_translation();
             Light::Direct( direct_light )
+          },
+          Light::Spot( mut spot_light ) =>
+          {
+            spot_light.position = node.get_translation();
+            spot_light.direction = node.get_translation();
+            Light::Spot( spot_light )
           }
         }
       }

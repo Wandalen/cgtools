@@ -210,6 +210,8 @@ mod private
     "pointLightsCount",
     "directLights",
     "directLightsCount",
+    "spotLights",
+    "spotLightsCount",
 
     // Material uniform  locations
     //// Textures uniform locations
@@ -220,6 +222,7 @@ mod private
     "emissiveTexture",
     "specularTexture",
     "specularColorTexture",
+    "lightMap",
     //// IBL uniform locations
     "irradianceTexture",
     "prefilterEnvMap",

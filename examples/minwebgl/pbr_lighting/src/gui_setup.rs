@@ -139,6 +139,7 @@ pub fn setup
       settings.light_strength = direct_light.strength;
       settings.light_color = direct_light.color.0;
     }
+    Light::Spot( _ ) => {}
   }
 
   let object = serde_wasm_bindgen::to_value( &settings ).unwrap();
@@ -235,6 +236,10 @@ pub fn setup
                   {
                     point.strength = 0.0;
                   },
+                  Light::Spot( spot ) =>
+                  {
+                    spot.strength = 0.0;
+                  },
                 }
               }
 
@@ -263,6 +268,10 @@ pub fn setup
                   Light::Point( point ) =>
                   {
                     point.strength = 0.0;
+                  },
+                  Light::Spot( spot ) =>
+                  {
+                    spot.strength = 0.0;
                   },
                 }
               }
@@ -341,6 +350,10 @@ pub fn setup
             {
               point.position = crate::to_decart( settings.borrow().light_distance, settings.borrow().light_pitch, settings.borrow().light_yaw );
             },
+            Light::Spot( _spot ) =>
+            {
+              // TODO: add later
+            },
           }
         }
       }
@@ -371,6 +384,10 @@ pub fn setup
             {
               point.position = crate::to_decart( settings.borrow().light_distance, settings.borrow().light_pitch, settings.borrow().light_yaw );
             },
+            Light::Spot( _spot ) =>
+            {
+              // TODO: add later
+            }
           }
         }
       }
@@ -400,6 +417,10 @@ pub fn setup
             Light::Point( point ) =>
             {
               point.position = crate::to_decart( settings.borrow().light_distance, settings.borrow().light_pitch, settings.borrow().light_yaw );
+            },
+            Light::Spot( spot ) =>
+            {
+              spot.position = crate::to_decart( settings.borrow().light_distance, settings.borrow().light_pitch, settings.borrow().light_yaw );
             },
           }
         }
@@ -433,6 +454,10 @@ pub fn setup
               {
                 point.color = F32x3::from_array( color );
               },
+              Light::Spot( spot ) =>
+              {
+                spot.color = F32x3::from_array( color );
+              },
             }
           }
         }
@@ -463,6 +488,10 @@ pub fn setup
             Light::Point( point ) =>
             {
               point.strength = value;
+            },
+            Light::Spot( spot ) =>
+            {
+              spot.strength = value;
             },
           }
         }

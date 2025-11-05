@@ -1,10 +1,12 @@
-//! Simple skull rendering with basic lighting and shadowmapping
+//! Simple rendering with PBR lighting and shadowmapping
 
 use minwebgl as gl;
-use gl::{ JsCast as _, math::mat3x3h, QuatF32 };
+use gl::{ JsCast as _, math::mat3x3h };
 use web_sys::HtmlCanvasElement;
-use renderer::webgl::loaders::gltf;
-use renderer::webgl::{ Object3D, shadow::* };
+use std::rc::Rc;
+use core::cell::RefCell;
+use renderer::webgl::{ Light, SpotLight, Node, loaders::gltf, Object3D, post_processing, shadow };
+use post_processing::{ Pass, SwapFramebuffer };
 
 fn main()
 {
@@ -51,17 +53,12 @@ async fn run() -> Result< (), gl::WebglError >
   camera.set_window_size( [ width as f32, height as f32 ].into() );
   camera.bind_controls( &canvas );
 
-  let vertex_src = include_str!( "shaders/main.vert" );
-  let fragment_src = include_str!( "shaders/main.frag" );
-  let shader = gl::Program::new( gl.clone(), vertex_src, fragment_src )?;
-
-  // let debug_vert_src = include_str!( "shaders/debug_shadowmap.vert" );
-  // let debug_frag_src = include_str!( "shaders/debug_shadowmap.frag" );
-  // let debug_shader = gl::Program::new( gl.clone(), debug_vert_src, debug_frag_src )?;
+  let mut renderer = renderer::webgl::Renderer::new( &gl, width as u32, height as u32, 4 )?;
+  let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
+  let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
+  let mut swap_buffer = SwapFramebuffer::new( &gl, width as u32, height as u32 );
 
   let mesh = gltf::load( &document, "skull_salazar_downloadable.glb", &gl ).await?;
-  // let mesh_model = mat3x3h::translation( [ 0.0, 0.0, 0.0 ] );
-    // * mat3x3h::scale( [ 0.1, 0.1, 0.1 ] );
 
   let cube_mesh = gltf::load( &document, "cube.glb", &gl ).await?;
   let cube_model = mat3x3h::translation( [ 0.0, -1.0, 0.0 ] )
@@ -89,6 +86,22 @@ async fn run() -> Result< (), gl::WebglError >
     }
   }
 
+  let light_pos = gl::F32x3::from_array( [ 0.0, 3.0, 3.0 ] );
+  let light_dir = gl::F32x3::from_array( [ 0.0, -1.0, -1.0 ] ).normalize();
+
+  let mut node = Node::new();
+  node.object = Object3D::Light( Light::Spot( SpotLight {
+    position : light_pos,
+    direction : light_dir,
+    color : [ 1.0, 1.0, 1.0 ].into(),
+    strength : 300.0,
+    range : 100.0,
+    inner_cone_angle : 40.0_f32.to_radians(),
+    outer_cone_angle : 60.0_f32.to_radians(),
+    use_light_map : true
+  } ) );
+  main_scene.add( Rc::new( RefCell::new( node ) ) );
+
   _ = main_scene.traverse( &mut | node | {
     let node = node.borrow();
     if let Object3D::Mesh( mesh ) = &node.object
@@ -100,86 +113,36 @@ async fn run() -> Result< (), gl::WebglError >
     Ok( () )
   } );
 
-  let mesh_color = [ 0.8, 0.75, 0.7 ];
-
-  let light_pos = [ 0.0, 3.0, 4.0 ];
-  let light_color = [ 1.0, 1.0, 1.0 ];
-  let light_orientation = QuatF32::from_euler_xyz( [ -30.0_f32.to_radians(), 0.0, 0.0 ] );
-  let near = 1.0;
+  let near = 0.1;
   let far = 30.0;
-  let mut light = Light::new
+  let mut light = shadow::Light::new
   (
-    light_pos.into(),
-    light_orientation,
-    mat3x3h::perspective_rh_gl( 45.0_f32.to_radians(), 1.0, near, far ),
-    0.7
+    light_pos,
+    light_dir,
+    mat3x3h::perspective_rh_gl( 120.0_f32.to_radians(), 1.0, near, far ),
+    0.5
   );
 
   let shadowmap_res = 4096;
   let lightmap_res = 8192;
-  bake_shadows( &gl, &main_scene, &mut light, lightmap_res, shadowmap_res ).unwrap();
-
-  gl.active_texture( gl::TEXTURE0 );
-  gl.enable( gl::CULL_FACE );
-  gl.cull_face( gl::BACK );
-  gl.enable( gl::DEPTH_TEST );
-  gl.bind_framebuffer( gl::FRAMEBUFFER, None );
-  gl.viewport( 0, 0, width, height );
-  gl.clear_color( 0.1, 0.1, 0.15, 1.0 );
+  shadow::bake_shadows( &gl, &main_scene, &mut light, lightmap_res, shadowmap_res ).unwrap();
 
   let update = move | _ |
   {
-    gl.clear( gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT );
+    renderer.render( &gl, &mut main_scene, &camera ).expect( "Failed to render" );
 
-    let view = camera.get_view_matrix();
-    let projection = camera.get_projection_matrix();
-    let view_projection = projection * view;
+    swap_buffer.reset();
+    swap_buffer.bind( &gl );
+    swap_buffer.set_input( renderer.get_main_texture() );
 
-    shader.activate();
-    shader.uniform_upload( "u_light_pos", &light_pos );
-    shader.uniform_upload( "u_view_pos", camera.get_eye().as_slice() );
-    shader.uniform_upload( "u_light_color", &light_color );
+    let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+    .expect( "Failed to render tonemapping pass" );
 
-    _ = main_scene.traverse( &mut | node | {
-      let node = node.borrow();
+    swap_buffer.set_output( t );
+    swap_buffer.swap();
 
-      if let Object3D::Mesh( mesh ) = &node.object
-      {
-        let model = node.get_world_matrix();
-        let mesh_mvp = view_projection * model;
-
-        shader.uniform_matrix_upload( "u_mvp", mesh_mvp.raw_slice(), true );
-        shader.uniform_matrix_upload( "u_model", model.raw_slice(), true );
-        shader.uniform_upload( "u_object_color", &mesh_color );
-
-        for primitive in &mesh.borrow().primitives
-        {
-          let primitive = primitive.borrow();
-          primitive.material.borrow().light_map.as_ref().unwrap().bind( &gl );
-          primitive.geometry.borrow().bind( &gl );
-          primitive.draw( &gl );
-        }
-      }
-
-      Ok( () )
-    } );
-
-    // Set viewport to bottom-left corner (quarter size)
-    // let debug_size = ( width / 4 ).min( height / 4 );
-    // gl.viewport( 0, 0, debug_size, debug_size );
-    // gl.disable( gl::DEPTH_TEST );
-
-    // debug_shader.activate();
-    // debug_shader.uniform_upload( "u_depth_texture", &0 );
-    // debug_shader.uniform_upload( "u_near", &near );
-    // debug_shader.uniform_upload( "u_far", &far );
-
-    // gl.bind_texture( gl::TEXTURE_2D, shadowmap.depth_buffer() );
-    // gl.bind_texture( gl::TEXTURE_2D, plane_lightmap.as_ref() );
-    // gl.draw_arrays( gl::TRIANGLES, 0, 3 );
-
-    // gl.viewport( 0, 0, width, height );
-    // gl.enable( gl::DEPTH_TEST );
+    let _ = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+    .expect( "Failed to render ToSrgbPass" );
 
     true
   };

@@ -28,6 +28,7 @@ mod private
 
   const MAX_POINT_LIGHTS : usize = 8;
   const MAX_DIRECT_LIGHTS : usize = 8;
+  const MAX_SPOT_LIGHTS : usize = 8;
 
   /// Manages WebGL2 framebuffers and associated renderbuffers/textures for a rendering
   /// context, specifically designed for multisampling and post-processing effects.
@@ -663,7 +664,8 @@ mod private
           let type_ = match light
           {
             Light::Point( _ ) => "point",
-            Light::Direct( _ ) => "direct"
+            Light::Direct( _ ) => "direct",
+            Light::Spot( _ ) => "spot"
           };
 
           if let Some( ls ) = lights.get_mut( type_ )
@@ -926,6 +928,7 @@ mod private
       {
         "point" => MAX_POINT_LIGHTS,
         "direct" => MAX_DIRECT_LIGHTS,
+        "spot" => MAX_SPOT_LIGHTS,
         _ => continue
       };
 
@@ -982,6 +985,39 @@ mod private
             let _ = gl::uniform::upload( gl, direction_loc, light.direction.as_slice() );
             let _ = gl::uniform::upload( gl, color_loc, light.color.as_slice() );
             let _ = gl::uniform::upload( gl, strength_loc, &light.strength );
+          },
+          "spot" =>
+          {
+            if !locations.contains_key( "spotLights" ) || i > MAX_SPOT_LIGHTS
+            {
+              continue 'i;
+            }
+
+            let Light::Spot( light ) = light
+            else
+            {
+              continue;
+            };
+
+            let position_loc = gl.get_uniform_location( &program.get_program(), format!( "spotLights[{i}].position" ).as_str() );
+            let direction_loc = gl.get_uniform_location( &program.get_program(), format!( "spotLights[{i}].direction" ).as_str() );
+            let color_loc = gl.get_uniform_location( &program.get_program(), format!( "spotLights[{i}].color" ).as_str() );
+            let strength_loc = gl.get_uniform_location( &program.get_program(), format!( "spotLights[{i}].strength" ).as_str() );
+            let range_loc = gl.get_uniform_location( &program.get_program(), format!( "spotLights[{i}].range" ).as_str() );
+            let inner_angle_loc = gl.get_uniform_location( &program.get_program(), format!( "spotLights[{i}].innerConeAngle" ).as_str() );
+            let outer_angle_loc = gl.get_uniform_location( &program.get_program(), format!( "spotLights[{i}].outerConeAngle" ).as_str() );
+            let use_lightmap_loc = gl.get_uniform_location( &program.get_program(), format!( "spotLights[{i}].useLightMap" ).as_str() );
+
+            let _ = gl::uniform::upload( gl, position_loc, light.position.as_slice() );
+            let _ = gl::uniform::upload( gl, direction_loc, light.direction.as_slice() );
+            let _ = gl::uniform::upload( gl, color_loc, light.color.as_slice() );
+            let _ = gl::uniform::upload( gl, strength_loc, &light.strength );
+            let _ = gl::uniform::upload( gl, range_loc, &light.range );
+            let _ = gl::uniform::upload( gl, inner_angle_loc, &light.inner_cone_angle );
+            let _ = gl::uniform::upload( gl, outer_angle_loc, &light.outer_cone_angle );
+
+            let use_lightmap_int = light.use_light_map as i32;
+            let _ = gl::uniform::upload( gl, use_lightmap_loc, &use_lightmap_int );
           },
           _ => ()
         }
