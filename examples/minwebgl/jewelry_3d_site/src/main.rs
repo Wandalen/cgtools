@@ -15,17 +15,14 @@
 #![ allow( clippy::no_effect_underscore_binding ) ]
 
 use std::{ cell::RefCell, rc::Rc };
+use mingl::QuatF32;
 use minwebgl as gl;
 use gl::
 {
   GL,
   F32x3,
   JsCast,
-  web_sys::
-  {
-    HtmlCanvasElement,
-    wasm_bindgen::closure::Closure
-  }
+  web_sys::wasm_bindgen::closure::Closure
 };
 use std::collections::HashSet;
 
@@ -147,6 +144,7 @@ fn get_node( scene : &Rc< RefCell< Scene > >, name : String ) -> Option< Rc< Ref
       }
       if let Some( current_name ) = node.borrow().get_name()
       {
+        gl::info!( "{:?}", current_name );
         if name == current_name.clone().into_string()
         {
           target = Some( node.clone() );
@@ -159,7 +157,13 @@ fn get_node( scene : &Rc< RefCell< Scene > >, name : String ) -> Option< Rc< Ref
   target
 }
 
-fn set_gem_color( gem_node : &Rc< RefCell< Node > >, color : F32x3 )
+fn set_gem_color
+(
+  gl : &GL,
+  renderer : &Rc< RefCell< Renderer > >,
+  gem_node : &Rc< RefCell< Node > >,
+  color : F32x3
+)
 {
   let Object3D::Mesh( mesh ) = &gem_node.borrow().object
   else
@@ -170,17 +174,26 @@ fn set_gem_color( gem_node : &Rc< RefCell< Node > >, color : F32x3 )
   for primitive in &mesh.borrow().primitives
   {
     let material = &primitive.borrow().material;
-    let mut material = material.borrow_mut();
-    // material.base_color_texture = None;
-    for i in 0..3
     {
-      material.base_color_factor.0[ i ] = color.0[ i ];
+      let mut material = material.borrow_mut();
+      for i in 0..3
+      {
+        material.base_color_factor.0[ i ] = color.0[ i ];
+      }
+      material.base_color_factor.0[ 3 ] = 1.0;
     }
-    material.base_color_factor.0[ 3 ] = 1.0;
+    renderer.borrow().update_material_uniforms( gl, primitive );
   }
 }
 
-fn set_metal_color( ring_node : &Rc< RefCell< Node > >, filter : &HashSet< String >, color : F32x3 )
+fn set_metal_color
+(
+  gl : &GL,
+  renderer : &Rc< RefCell< Renderer > >,
+  ring_node : &Rc< RefCell< Node > >,
+  filter : &HashSet< String >,
+  color : F32x3
+)
 {
   let _ = ring_node.borrow().traverse
   (
@@ -194,7 +207,7 @@ fn set_metal_color( ring_node : &Rc< RefCell< Node > >, filter : &HashSet< Strin
         }
       }
 
-      let Object3D::Mesh( mesh ) = &ring_node.borrow().object
+      let Object3D::Mesh( mesh ) = &node.borrow().object
       else
       {
         return Ok( () );
@@ -203,11 +216,17 @@ fn set_metal_color( ring_node : &Rc< RefCell< Node > >, filter : &HashSet< Strin
       for primitive in &mesh.borrow().primitives
       {
         let material = &primitive.borrow().material;
-        let mut material = material.borrow_mut();
-        for i in 0..3
         {
-          material.base_color_factor.0[ i ] = color.0[ i ];
+          let mut material = material.borrow_mut();
+          material.base_color_texture = None;
+          material.roughness_factor = 0.0;
+          for i in 0..3
+          {
+            material.base_color_factor.0[ i ] = color.0[ i ];
+          }
+          material.base_color_factor.0[ 3 ] = 1.0;
         }
+        renderer.borrow().update_material_uniforms( gl, primitive );
       }
 
       Ok( () )
@@ -316,34 +335,31 @@ fn _remove_node_from_node( root : &Rc< RefCell< Node > >, node : &Rc< RefCell< N
   );
 }
 
-// fn add_resize_callback( gl : &GL, renderer : Rc< RefCell< Renderer > >, canvas : HtmlCanvasElement )
-// {
-//   let canvas = canvas.clone();
-//   let gl = gl.clone();
-//   let resize_closure =
-//   Closure::wrap
-//   (
-//     Box::new
-//     (
-//       move | _ : web_sys::Event |
-//       {
-//         let width = canvas.client_width() as u32;
-//         let height = canvas.client_height() as u32;
+fn add_resize_callback() -> Rc< RefCell< bool > >
+{
+  let is_resized = Rc::new( RefCell::new( false ) );
+  let _is_resized = is_resized.clone();
 
-//         canvas.set_width( width );
-//         canvas.set_height( height );
+  let resize_closure =
+  Closure::wrap
+  (
+    Box::new
+    (
+      move | _ : web_sys::Event |
+      {
+        *_is_resized.borrow_mut() = true;
+      }
+    ) as Box< dyn FnMut( _ ) >
+  );
 
-//         *renderer.borrow_mut() = Renderer::new( &gl, canvas.width(), canvas.height(), 4 ).unwrap();
-//       }
-//     ) as Box< dyn FnMut( _ ) >
-//   );
+  gl::web_sys::window()
+  .unwrap()
+  .add_event_listener_with_callback("resize", resize_closure.as_ref().unchecked_ref())
+  .unwrap();
+  resize_closure.forget();
 
-//   gl::web_sys::window()
-//   .unwrap()
-//   .add_event_listener_with_callback("resize", resize_closure.as_ref().unchecked_ref())
-//   .unwrap();
-//   resize_closure.forget();
-// }
+  is_resized
+}
 
 async fn run() -> Result< (), gl::WebglError >
 {
@@ -384,10 +400,15 @@ async fn run() -> Result< (), gl::WebglError >
       },
       1 =>
       {
-        let gem = get_node( &gltf.scenes[ 0 ], "object_2_Vien KC Lon_0".to_string() ).unwrap();
+        let gem = get_node( &gltf.scenes[ 0 ], "Cylinder.007_Material.004_0".to_string() ).unwrap();
         gem.borrow_mut().set_name( "gem1" );
         let ring = get_node( &gltf.scenes[ 0 ], "Sketchfab_model".to_string() ).unwrap();
         ring.borrow_mut().set_name( "ring1" );
+        let mut rotation = ring.borrow().get_rotation();
+        rotation = rotation.multiply( &QuatF32::from_angle_z( 90.0_f32.to_radians() ) );
+        ring.borrow_mut().set_rotation( rotation );
+        // ring.borrow_mut().set_translation( F32x3::splat( 0.0 ) );
+        ring.borrow_mut().set_scale( F32x3::splat( 0.4 ) );
         gems.push( gem.clone() );
         rings.push( ring.clone() );
         filters.push( HashSet::from( [ "gem1".to_string() ] ) );
@@ -398,6 +419,10 @@ async fn run() -> Result< (), gl::WebglError >
         gem.borrow_mut().set_name( "gem2" );
         let ring = get_node( &gltf.scenes[ 0 ], "Sketchfab_model".to_string() ).unwrap();
         ring.borrow_mut().set_name( "ring2" );
+        let mut translation = ring.borrow_mut().get_translation();
+        translation.0[ 1 ] += 11.0;
+        ring.borrow_mut().set_translation( translation );
+        ring.borrow_mut().set_scale( F32x3::splat( 5.0 ) );
         gems.push( gem.clone() );
         rings.push( ring.clone() );
         filters.push( HashSet::from( [ "gem2".to_string() ] ) );
@@ -415,21 +440,6 @@ async fn run() -> Result< (), gl::WebglError >
   scene.borrow_mut().add( current_ring.clone() );
   scene.borrow_mut().update_world_matrix();
 
-  match ui_state.gem.as_str()
-  {
-    "white" => set_gem_color( &current_gem, F32x3::from_array( [ 1.0, 1.0, 1.0 ] ) ),
-    "red" => set_gem_color( &current_gem, F32x3::from_array( [ 1.0, 0.0, 0.0 ] ) ),
-    "green" => set_gem_color( &current_gem, F32x3::from_array( [ 0.0, 1.0, 0.0 ] ) ),
-    _ => ()
-  }
-  match ui_state.metal.as_str()
-  {
-    "silver" => set_metal_color( &current_ring, &filters[ ui_state.ring as usize ], F32x3::from_array( [ 0.753, 0.753, 0.753 ] ) ),
-    "copper" => set_metal_color( &current_ring, &filters[ ui_state.ring as usize ], F32x3::from_array( [ 0.722, 0.451, 0.2 ] ) ),
-    "gold" => set_metal_color( &current_ring, &filters[ ui_state.ring as usize ], F32x3::from_array( [ 1.0, 0.843, 0.0 ] ) ),
-    _ => ()
-  }
-
   let scene_bounding_box = scene.borrow().bounding_box();
 
   // Camera setup
@@ -445,10 +455,12 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
   camera.set_window_size( [ width, height ].into() );
+  camera.get_controls().borrow_mut().block_pan = true;
   camera.bind_controls( &canvas );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "envMap" ).await );
+  let ibl = renderer::webgl::loaders::ibl::load( &gl, "envMap" ).await;
+  renderer.set_ibl( ibl.clone() );
 
   let renderer = Rc::new( RefCell::new( renderer ) );
 
@@ -458,14 +470,57 @@ async fn run() -> Result< (), gl::WebglError >
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
   renderer.borrow_mut().set_clear_color( F32x3::splat( 1.0 ) );
+  renderer.borrow_mut().set_exposure( 1.5 );
 
-  // add_resize_callback( &gl, renderer.clone(), canvas.clone() );
+  match ui_state.gem.as_str()
+  {
+    "white" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 1.0, 1.0, 1.0 ] ) ),
+    "red" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 1.0, 0.0, 0.0 ] ) ),
+    "green" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 0.0, 1.0, 0.0 ] ) ),
+    _ => ()
+  }
+  match ui_state.metal.as_str()
+  {
+    "silver" => set_metal_color( &gl, &renderer, &current_ring, &filters[ ui_state.ring as usize ], F32x3::from_array( [ 0.753, 0.753, 0.753 ] ) ),
+    "copper" => set_metal_color( &gl, &renderer, &current_ring, &filters[ ui_state.ring as usize ], F32x3::from_array( [ 1.0, 0.4, 0.2 ] ) ),
+    "gold" => set_metal_color( &gl, &renderer, &current_ring, &filters[ ui_state.ring as usize ], F32x3::from_array( [ 1.0, 0.443, 0.0 ] ) ),
+    _ => ()
+  }
+
+  let is_resized = add_resize_callback();
 
   // Define the update and draw logic
   let update_and_draw =
   {
     move | t : f64 |
     {
+      if *is_resized.borrow()
+      {
+        if let Ok( r ) = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )
+        {
+          let mut renderer_mut = renderer.borrow_mut();
+          *renderer_mut = r;
+          renderer_mut.set_ibl( ibl.clone() );
+          renderer_mut.set_exposure( 1.5 );
+
+          match ui::get_ui_state().unwrap().light_mode.as_str()
+          {
+            "light" => renderer_mut.set_clear_color( F32x3::splat( 1.0 ) ),
+            "dark" => renderer_mut.set_clear_color( F32x3::splat( 0.2 ) ),
+            _ => ()
+          }
+
+          swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
+
+          camera.set_window_size( [ canvas.width() as f32, canvas.height() as f32 ].into() );
+          let aspect = canvas.width() as f32 / canvas.height() as f32;
+          let perspective = gl::math::d2::mat3x3h::perspective_rh_gl( 70.0f32.to_radians(), aspect, 0.1, 1000.0 );
+          camera.set_projection_matrix( perspective );
+
+          *is_resized.borrow_mut() = false;
+        }
+      }
+
       if ui::is_changed()
       {
         if let Some( ui_state ) = ui::get_ui_state()
@@ -501,9 +556,9 @@ async fn run() -> Result< (), gl::WebglError >
           {
             match ui_state.gem.as_str()
             {
-              "white" => set_gem_color( &current_gem, F32x3::from_array( [ 1.0, 1.0, 1.0 ] ) ),
-              "red" => set_gem_color( &current_gem, F32x3::from_array( [ 1.0, 0.0, 0.0 ] ) ),
-              "green" => set_gem_color( &current_gem, F32x3::from_array( [ 0.0, 1.0, 0.0 ] ) ),
+              "white" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 1.0, 1.0, 1.0 ] ) ),
+              "red" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 1.0, 0.0, 0.0 ] ) ),
+              "green" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 0.0, 1.0, 0.0 ] ) ),
               _ => ()
             }
           }
@@ -512,9 +567,9 @@ async fn run() -> Result< (), gl::WebglError >
           {
             match ui_state.metal.as_str()
             {
-              "silver" => set_metal_color( &current_ring, &filters[ ui_state.ring as usize ], F32x3::from_array( [ 0.753, 0.753, 0.753 ] ) ),
-              "copper" => set_metal_color( &current_ring, &filters[ ui_state.ring as usize ], F32x3::from_array( [ 0.722, 0.451, 0.2 ] ) ),
-              "gold" => set_metal_color( &current_ring, &filters[ ui_state.ring as usize ], F32x3::from_array( [ 1.0, 0.843, 0.0 ] ) ),
+              "silver" => set_metal_color( &gl, &renderer, &current_ring, &filters[ ui_state.ring as usize ], F32x3::from_array( [ 0.753, 0.753, 0.753 ] ) ),
+              "copper" => set_metal_color( &gl, &renderer, &current_ring, &filters[ ui_state.ring as usize ], F32x3::from_array( [ 1.0, 0.4, 0.2 ] ) ),
+              "gold" => set_metal_color( &gl, &renderer, &current_ring, &filters[ ui_state.ring as usize ], F32x3::from_array( [ 1.0, 0.443, 0.0 ] ) ),
               _ => ()
             }
           }
@@ -526,8 +581,7 @@ async fn run() -> Result< (), gl::WebglError >
       // If textures are of different size, gl.view_port needs to be called
       let _time = t as f32 / 1000.0;
 
-      renderer.borrow_mut().render( &gl, &mut scene.borrow_mut(), &camera )
-      .expect( "Failed to render" );
+      renderer.borrow_mut().render( &gl, &mut scene.borrow_mut(), &camera ).expect( "Failed to render" );
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );

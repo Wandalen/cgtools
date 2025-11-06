@@ -29,7 +29,9 @@ mod private
     /// A scaling factor to adjust the sensitivity of camera zooming.
     pub zoom_speed_scale : f32,
     /// The vertical field of view of the camera, in radians.
-    pub fov : f32
+    pub fov : f32,
+    /// Defines allow pan or not
+    pub block_pan : bool
   }
 
   impl CameraOrbitControls
@@ -115,6 +117,11 @@ mod private
       screen_d : [ f32; 2 ]
     )
     {
+      if self.block_pan
+      {
+        return;
+      }
+
       // Convert to cgmath Vectors
       // let up = cgmath::Vector3::from( self.up );
       // let mut center_prev = cgmath::Vector3::from( self.center );
@@ -186,7 +193,8 @@ mod private
         window_size : F32x2::from( [ 1000.0, 1000.0 ] ),
         rotation_speed_scale : 500.0,
         zoom_speed_scale : 1000.0,
-        fov : 70f32.to_radians()
+        fov : 70f32.to_radians(),
+        block_pan : false
       }
     }
   }
@@ -278,7 +286,7 @@ mod private
         {
           match *state.borrow_mut()
           {
-            CameraState::None => 
+            CameraState::None =>
             {
               let delta_y = e.delta_y() as f32;
               camera.borrow_mut().zoom( delta_y );
@@ -344,7 +352,7 @@ mod private
 // This macro exposes the public interface of the module.
 crate::mod_interface!
 {
-  own use 
+  own use
   {
     bind_controls_to_input
   };
