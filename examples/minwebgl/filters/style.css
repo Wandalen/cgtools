@@ -275,6 +275,14 @@
    color: rgba(255, 255, 255, 0.7);
    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
    border: 1px solid rgba(255, 255, 255, 0.05);
+   overflow: hidden;
+ }
+
+ .filter-thumbnail-img {
+   width: 100%;
+   height: 100%;
+   object-fit: cover;
+   object-position: left center;
  }
 
  .filter-name {

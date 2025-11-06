@@ -104,10 +104,54 @@ fn generate_filter_buttons( gui : &JsValue )
     card.set_class_name( "filter-card" );
     card.set_id( id );
 
-    // Create thumbnail
+    // Create thumbnail container
     let thumbnail = document.create_element( "div" ).unwrap();
     thumbnail.set_class_name( "filter-thumbnail" );
-    thumbnail.set_text_content( Some( icon ) );
+
+    // Create img element
+    let img = document.create_element( "img" ).unwrap();
+    let img_element = img.dyn_into::< web_sys::HtmlImageElement >().unwrap();
+
+    // Map filter ID to thumbnail filename
+    let thumbnail_name = match id
+    {
+      "box-blur" => "boxblur",
+      "gaussian-blur" => "gaussianblur",
+      "stack-blur" => "stackblur",
+      "binarize" => "binarize",
+      "bcgimp" => "brightnessgimp",
+      "bcph" => "brightnessps",
+      "channels" => "channels",
+      "color-transform" => "colortransform",
+      "desaturate" => "desaturate",
+      "dither" => "dither",
+      "edge" => "edgedetection",
+      "emboss" => "emboss",
+      "enrich" => "enrich",
+      "flip" => "flip",
+      "gamma" => "gamma",
+      "grayscale" => "grayscale",
+      "hsl-adjust" => "hsl",
+      "invert" => "invert",
+      "mosaic" => "mosaic",
+      "oil" => "oil",
+      "posterize" => "posterize",
+      "rescale" => "rescale",
+      "resize-nn" => "resizenn",
+      "resize-bilinear" => "resizebillinear",
+      "sepia" => "sepia",
+      "sharpen" => "sharpen",
+      "solarize" => "solarize",
+      "transpose" => "transpose",
+      "twirl" => "twirl",
+      _ => id,
+    };
+    let thumbnail_path = format!( "/assets/thumbnails/{}.png", thumbnail_name );
+    img_element.set_src( &thumbnail_path );
+    img_element.set_alt( name );
+    img_element.set_class_name( "filter-thumbnail-img" );
+
+    thumbnail.append_child( &img_element ).unwrap();
 
     // Create name label
     let label = document.create_element( "div" ).unwrap();
