@@ -6,6 +6,7 @@ mod private
   use crate::webgl::{ Geometry, Material };
 
   /// Represents a renderable object composed of geometry and material.
+  #[ derive( Debug ) ]
   pub struct Primitive
   {
     /// The geometry of the primitive.
@@ -16,12 +17,12 @@ mod private
 
   impl Clone for Primitive
   {
-    fn clone( &self ) -> Self 
+    fn clone( &self ) -> Self
     {
-      Self 
-      { 
-        geometry : self.geometry.clone(), 
-        material : Rc::new( RefCell::new( self.material.borrow().clone() ) ) 
+      Self
+      {
+        geometry : self.geometry.clone(),
+        material : Rc::new( RefCell::new( self.material.borrow().clone() ) )
       }
     }
   }
@@ -33,10 +34,10 @@ mod private
     /// * `gl`: The `WebGl2RenderingContext` to use for uploading.
     /// * `locations`: A hash map of uniform locations in the shader program.
     pub fn upload
-    ( 
+    (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      locations : &HashMap< String, Option< gl::WebGlUniformLocation > > 
+      locations : &HashMap< String, Option< gl::WebGlUniformLocation > >
     ) -> Result< (), gl::WebglError >
     {
       self.material.borrow().upload( gl, locations )?;
@@ -71,7 +72,7 @@ mod private
     pub fn bounding_box( &self ) -> BoundingBox
     {
       self.geometry.borrow().bounding_box()
-    } 
+    }
   }
 }
 

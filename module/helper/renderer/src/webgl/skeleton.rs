@@ -83,6 +83,7 @@ mod private
   /// movement of a 3D models. It's a fundamental concept
   /// in skeletal animation, the most common method for
   /// rigging and animating complex models.
+  #[ derive( Debug ) ]
   pub struct Skeleton
   {
     /// List of nodes name that is part of skeleton

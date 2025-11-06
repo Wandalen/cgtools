@@ -7,6 +7,14 @@ mod private
   {
     ( $program_type:ty, $( $location_name:literal ),* ) =>
     {
+      impl Clone for $program_type
+      {
+        fn clone( &self ) -> Self
+        {
+          Self
+        }
+      }
+
       impl ProgramInfo< $program_type >
       {
         /// Creates a new `ProgramInfo` instance.
@@ -32,6 +40,14 @@ mod private
     };
     ( $program_type:ty, $( $location_name:literal ),* -- $( $ubo_name:literal ),* ) =>
     {
+      impl Clone for $program_type
+      {
+        fn clone( &self ) -> Self
+        {
+          Self
+        }
+      }
+
       impl ProgramInfo< $program_type >
       {
         /// Creates a new `ProgramInfo` instance.
@@ -134,7 +150,8 @@ mod private
 
   /// Stores information about a WebGL program, including the program object and the locations of its uniforms.
   /// This struct is intended for use by the renderer.
-  pub struct ProgramInfo< T >
+  #[ derive( Clone ) ]
+  pub struct ProgramInfo< T : Clone >
   {
     /// The WebGL program object.
     program : gl::WebGlProgram,
@@ -147,7 +164,7 @@ mod private
     phantom : std::marker::PhantomData< T >
   }
 
-  impl< T > ProgramInfo< T >
+  impl< T : Clone > ProgramInfo< T >
   {
     /// Returns a reference to the hash map containing uniform locations.
     pub fn get_locations( &self ) -> &HashMap< String, Option< gl::WebGlUniformLocation > >

@@ -6,6 +6,7 @@ mod private
   use crate::webgl::Mesh;
 
   /// Represents a 3D object that can be part of the scene graph.
+  #[ derive( Debug ) ]
   pub enum Object3D
   {
     /// A mesh object, containing geometry and material information.
@@ -23,7 +24,7 @@ mod private
   }
 
   /// Represents a node in the scene graph. Each node can have children, an associated 3D object, and transformations.
-  #[ derive( Default ) ]
+  #[ derive( Debug, Default ) ]
   pub struct Node
   {
     /// The name of the node.

@@ -6,7 +6,7 @@ mod private
   use crate::webgl::Skeleton;
 
   /// Represents a collection of renderable primitives.
-  #[ derive( Default ) ]
+  #[ derive( Debug, Default ) ]
   pub struct Mesh
   {
     /// A vector holding the primitives that constitute the mesh. Each primitive is shared and mutable.

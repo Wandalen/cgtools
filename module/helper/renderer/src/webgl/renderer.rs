@@ -2,7 +2,8 @@ mod private
 {
   use std::{ cell::RefCell, collections::HashMap, rc::Rc };
   use mingl::F32x3;
-use minwebgl as gl;
+  use minwebgl as gl;
+  use gl::GL;
 
   use crate::webgl::
   {
@@ -611,6 +612,25 @@ use minwebgl as gl;
       self.framebuffer_ctx.main_texture.clone()
     }
 
+    /// Updates [`Primitive`]'s material uniform for related [`ProgramInfo`]
+    pub fn update_material_uniforms( &self, gl : &GL, primitive : &Rc< RefCell< Primitive > > )
+    {
+      let primitive = primitive.borrow();
+      let geometry = primitive.geometry.borrow();
+      let material = primitive.material.borrow();
+      let vs_defines = geometry.get_defines();
+      let material_id = material.id;
+      let program_id = format!( "{}{}", material_id, vs_defines );
+      for ( id, program_info ) in &self.programs
+      {
+        if *id == program_id
+        {
+          program_info.bind( gl );
+          let _ = material.upload( gl, program_info.get_locations() );
+        }
+      }
+    }
+
     /// Renders the scene using the provided camera.
     ///
     /// * `gl`: The `WebGl2RenderingContext` to use for rendering.
@@ -686,7 +706,7 @@ use minwebgl as gl;
 
             // Retrieve the program info if it already exists, otherwise compile and link a new program.
             let program_info =
-            if let Some( ref program_info ) = self.programs.get( &program_id )
+            if let Some( program_info ) = self.programs.get( &program_id )
             {
              program_info
             }
