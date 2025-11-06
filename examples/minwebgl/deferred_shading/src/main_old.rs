@@ -70,213 +70,10 @@ pub struct GuiParams
   pub intensity : f32,
 }
 
-/// Shader programs used for rendering
-struct Shaders
-{
-  light : gl::shader::Program,
-  object : gl::shader::Program,
-  screen : gl::shader::Program,
-  light_sphere : gl::shader::Program,
-}
-
-/// Framebuffers and render targets
-struct Framebuffers
-{
-  gbuffer : Option< WebGlFramebuffer >,
-  position_gbuffer : Option< WebGlTexture >,
-  normal_gbuffer : Option< WebGlTexture >,
-  color_gbuffer : Option< WebGlTexture >,
-  depthbuffer : Option< WebGlRenderbuffer >,
-  offscreen_buffer : Option< WebGlFramebuffer >,
-  offscreen_color : Option< WebGlTexture >,
-}
-
-/// Light system data
-#[ allow( dead_code ) ]
-struct LightSystem
-{
-  translations : Vec< [ f32; 3 ] >,
-  translation_buffer : gl::WebGlBuffer,
-  radii : Rc< RefCell< Vec< f32 > > >,
-  radius_buffer : gl::WebGlBuffer,
-  orbits : Vec< EllipticalOrbit >,
-  offsets : Vec< f32 >,
-  prev_radius_range : Rc< RefCell< ( f32, f32 ) > >,
-  max_count : usize,
-}
-
-/// Geometry for rendering
-struct RenderGeometry
-{
-  light_volume : renderer::webgl::Geometry,
-  light_sphere : Rc< RefCell< renderer::webgl::Geometry > >,
-}
-
 fn main()
 {
   gl::browser::setup( Default::default() );
   gl::spawn_local( async move { gl::info!( "{:?}", run().await ) } );
-}
-
-/// Load all shader programs
-fn load_shaders( gl : &GL ) -> Result< Shaders, gl::WebglError >
-{
-  let vert = include_str!( "../shaders/light_volume.vert" );
-  let frag = include_str!( "../shaders/deferred.frag" );
-  let light = gl::shader::Program::new( gl.clone(), vert, frag )?;
-
-  let vert = include_str!( "../shaders/main.vert" );
-  let frag = include_str!( "../shaders/gbuffer.frag" );
-  let object = gl::shader::Program::new( gl.clone(), vert, frag )?;
-
-  let vert = include_str!( "../shaders/big_triangle.vert" );
-  let frag = include_str!( "../shaders/screen_texture.frag" );
-  let screen = gl::shader::Program::new( gl.clone(), vert, frag )?;
-
-  let vert = include_str!( "../shaders/light_sphere.vert" );
-  let frag = include_str!( "../shaders/light_sphere.frag" );
-  let light_sphere = gl::shader::Program::new( gl.clone(), vert, frag )?;
-
-  Ok( Shaders { light, object, screen, light_sphere } )
-}
-
-/// Create framebuffers for deferred rendering
-fn create_framebuffers( gl : &GL, width : i32, height : i32 ) -> Framebuffers
-{
-  let ( gbuffer, position_gbuffer, normal_gbuffer, color_gbuffer, depthbuffer ) =
-    gbuffer( gl, width, height );
-
-  let offscreen_color = tex_storage_2d( gl, GL::RGBA8, width, height );
-  let offscreen_buffer = gl.create_framebuffer();
-  gl.bind_framebuffer( GL::FRAMEBUFFER, offscreen_buffer.as_ref() );
-  gl.framebuffer_texture_2d
-  (
-    GL::FRAMEBUFFER,
-    GL::COLOR_ATTACHMENT0,
-    GL::TEXTURE_2D,
-    offscreen_color.as_ref(),
-    0
-  );
-
-  Framebuffers
-  {
-    gbuffer,
-    position_gbuffer,
-    normal_gbuffer,
-    color_gbuffer,
-    depthbuffer,
-    offscreen_buffer,
-    offscreen_color,
-  }
-}
-
-/// Initialize the light system with random orbits and positions
-fn create_light_system
-(
-  gl : &GL,
-  max_count : usize,
-  min_radius : f32,
-  max_radius : f32
-) -> Result< LightSystem, gl::WebglError >
-{
-  // Generate random elliptical orbits
-  let orbits = ( 0..max_count ).map
-  (
-    | _ |
-    EllipticalOrbit
-    {
-      center : F32x3::new
-      (
-        rand::random_range( -30.0..=30.0 ),
-        rand::random_range( -30.0..=30.0 ),
-        rand::random_range( -110.0..=-90.0 )
-      ),
-      ..EllipticalOrbit::random()
-    }
-  ).collect::< Vec< _ > >();
-
-  let offsets = ( 0..max_count )
-    .map( | _ | rand::random_range( 0.0..=( f32::consts::PI * 2.0 ) ) )
-    .collect::< Vec< _ > >();
-
-  // Generate radii
-  let mut radii : Vec< f32 > = ( 0..max_count )
-    .map( | _ | rand::random_range( min_radius..=max_radius ) )
-    .collect();
-  radii[ 0 ] = 100.0; // First light is global
-
-  let radii = Rc::new( RefCell::new( radii ) );
-
-  // Initialize translations
-  let mut translations = vec![ [ 0.0f32, 0.0, 0.0 ]; max_count ];
-  translations[ 0 ] = [ 0.0, 0.0, -100.0 ];
-
-  // Create buffers
-  let translation_buffer = gl::buffer::create( gl )?;
-  gl::buffer::upload( gl, &translation_buffer, &translations, GL::DYNAMIC_DRAW );
-
-  let radius_buffer = gl::buffer::create( gl )?;
-  gl::buffer::upload( gl, &radius_buffer, radii.borrow().as_slice(), GL::DYNAMIC_DRAW );
-
-  let prev_radius_range = Rc::new( RefCell::new( ( min_radius, max_radius ) ) );
-
-  Ok( LightSystem
-  {
-    translations,
-    translation_buffer,
-    radii,
-    radius_buffer,
-    orbits,
-    offsets,
-    prev_radius_range,
-    max_count,
-  })
-}
-
-/// Setup geometry for light volumes and visualization spheres
-fn create_geometry
-(
-  gl : &GL,
-  sphere : &gltf::GLTF,
-  translation_buffer : &gl::WebGlBuffer,
-  radius_buffer : &gl::WebGlBuffer,
-) -> Result< RenderGeometry, gl::WebglError >
-{
-  let mut light_volume = light_volume( gl )?;
-
-  let translation_attribute = AttributeInfo
-  {
-    slot : 1,
-    buffer : translation_buffer.clone(),
-    descriptor : BufferDescriptor::new::< [ f32; 3 ] >().divisor( 1 ),
-    bounding_box : BoundingBox::default(),
-  };
-  light_volume.add_attribute( gl, "a_translation", translation_attribute, false )?;
-
-  let radius_attribute = AttributeInfo
-  {
-    slot : 2,
-    buffer : radius_buffer.clone(),
-    descriptor : BufferDescriptor::new::< f32 >().divisor( 1 ),
-    bounding_box : BoundingBox::default(),
-  };
-  light_volume.add_attribute( gl, "a_radius", radius_attribute, false )?;
-
-  // Setup sphere geometry
-  let sphere_mesh = &sphere.meshes[ 0 ];
-  let sphere_primitive = &sphere_mesh.borrow().primitives[ 0 ];
-  let light_sphere = sphere_primitive.borrow().geometry.clone();
-
-  let sphere_translation_attribute = AttributeInfo
-  {
-    slot : 1,
-    buffer : translation_buffer.clone(),
-    descriptor : BufferDescriptor::new::< [ f32; 3 ] >().divisor( 1 ),
-    bounding_box : BoundingBox::default(),
-  };
-  light_sphere.borrow_mut().add_attribute( gl, "a_translation", sphere_translation_attribute, false )?;
-
-  Ok( RenderGeometry { light_volume, light_sphere } )
 }
 
 async fn run() -> Result< (), gl::WebglError >
@@ -314,15 +111,33 @@ async fn run() -> Result< (), gl::WebglError >
   gl::info!( "Scene bounding box: {:?}", scene_bounding_box );
 
   // Configure initial WebGL state
-  gl.viewport( 0, 0, width, height );
-  gl.enable( GL::DEPTH_TEST );
-  gl.enable( GL::CULL_FACE );
-  gl.cull_face( GL::BACK );
-  gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
-  gl.blend_func( gl::ONE, gl::ONE );
+  gl.viewport( 0, 0, width, height ); // Set the viewport
+  gl.enable( GL::DEPTH_TEST ); // Enable depth testing
+  gl.enable( GL::CULL_FACE ); // Enable face culling
+  gl.cull_face( GL::BACK ); // Cull back faces
+  gl.clear_color( 0.0, 0.0, 0.0, 1.0 ); // Set clear color
+  gl.blend_func( gl::ONE, gl::ONE ); // Set blending function for additive blending
 
-  // Load all shaders
-  let shaders = load_shaders( &gl )?;
+  // Load shaders
+  // Shader for rendering light volumes (lighting pass)
+  let vert = include_str!( "../shaders/light_volume.vert" );
+  let frag = include_str!( "../shaders/deferred.frag" );
+  let light_shader = gl::shader::Program::new( gl.clone(), vert, frag )?;
+
+  // Shader for rendering scene objects (geometry pass)
+  let vert = include_str!( "../shaders/main.vert" );
+  let frag = include_str!( "../shaders/gbuffer.frag" );
+  let object_shader = gl::shader::Program::new( gl.clone(), vert, frag )?;
+
+  // Shader for drawing the final result to the screen
+  let vert = include_str!( "../shaders/big_triangle.vert" );
+  let frag = include_str!( "../shaders/screen_texture.frag" );
+  let screen_shader = gl::shader::Program::new( gl.clone(), vert, frag )?;
+
+  // Shader for visualizing light source positions
+  let vert = include_str!( "../shaders/light_sphere.vert" );
+  let frag = include_str!( "../shaders/light_sphere.frag" );
+  let light_sphere_shader = gl::shader::Program::new( gl.clone(), vert, frag )?;
 
   // Setup scene transformations
   let rotation = mat3x3h::rot( 10.0f32.to_radians(), 0.0, 0.0 )
@@ -371,8 +186,28 @@ async fn run() -> Result< (), gl::WebglError >
   camera.set_window_size( [ width as f32, height as f32 ].into() );
   camera.bind_controls( &canvas );
 
-  // Create framebuffers
-  let fb = create_framebuffers( &gl, width, height );
+  // Create the G-buffer framebuffer and its textures (position, normal, color) and depth buffer
+  let
+  (
+    gbuffer,
+    position_gbuffer,
+    normal_gbuffer,
+    color_gbuffer,
+    depthbuffer,
+  ) = gbuffer( &gl, width, height );
+
+  // Create an offscreen framebuffer for the final rendered image
+  let offscreen_color = tex_storage_2d( &gl, GL::RGBA8, width, height );
+  let offscreen_buffer = gl.create_framebuffer();
+  gl.bind_framebuffer( GL::FRAMEBUFFER, offscreen_buffer.as_ref() );
+  gl.framebuffer_texture_2d
+  (
+    GL::FRAMEBUFFER,
+    GL::COLOR_ATTACHMENT0,
+    GL::TEXTURE_2D,
+    offscreen_color.as_ref(),
+    0
+  );
 
   // Setup GUI parameters
   let params = GuiParams
@@ -393,22 +228,92 @@ async fn run() -> Result< (), gl::WebglError >
   lil_gui::add( &gui, &params_obj, "max_radius", Some( 1.0 ), Some( 100.0 ), Some( 0.1 ) );
   lil_gui::add( &gui, &params_obj, "intensity", Some( 0.1 ), Some( 5.0 ), Some( 0.1 ) );
 
-  // Create light system
+  // Light setup
   let max_light_count = 5000;
-  let mut lights = create_light_system( &gl, max_light_count, params.min_radius, params.max_radius )?;
 
-  // Function to generate radii (needs max_count captured)
+  // Generate random elliptical orbits for light sources movement
+  let light_orbits = ( 0..max_light_count ).map
+  (
+    | _ |
+    EllipticalOrbit
+    {
+      center : F32x3::new
+      (
+        rand::random_range( -30.0..=30.0 ),
+        rand::random_range( -30.0..=30.0 ),
+        rand::random_range( -110.0..=-90.0 )
+      ),
+      ..EllipticalOrbit::random()
+    }
+  ).collect::< Vec< _ > >();
+  // Generate random offsets to make elliptical movement more diverse
+  let offsets = ( 0..max_light_count )
+  .map( | _ | rand::random_range( 0.0..=( f32::consts::PI * 2.0 ) ) ).collect::< Vec< _ > >();
+
+  // Function to generate random radii for light volumes based on min/max range
   let generate_radii = move | min : f32, max : f32 | -> Vec< f32 >
   {
     let mut radii = ( 0..max_light_count )
-      .map( | _ | rand::random_range( min..=max ) )
-      .collect::< Vec< _ > >();
+    .map( | _ | rand::random_range( min..=max ) ).collect::< Vec< _ > >();
+    // Set the first light as a large global light
     radii[ 0 ] = 100.0;
     radii
   };
 
-  // Create geometry
-  let geom = create_geometry( &gl, &sphere, &lights.translation_buffer, &lights.radius_buffer )?;
+  // Generate initial random radii for light volumes
+  let light_radii = Rc::new( RefCell::new( generate_radii( params.min_radius, params.max_radius ) ) );
+  // Initialize light translations (positions)
+  let mut light_translations = vec![ [ 0.0f32, 0.0, 0.0 ]; max_light_count as usize ];
+  // Set the first light as a large global light
+  light_translations[ 0 ] = [ 0.0, 0.0, -100.0 ];
+
+  // Track previous radius range to detect changes
+  let prev_radius_range = Rc::new( RefCell::new( ( params.min_radius, params.max_radius ) ) );
+
+  // Create the geometry for the light volume (a cube)
+  let mut light_volume = light_volume( &gl )?;
+
+  // Create and upload the buffer for light translations (used for instancing)
+  let translation_buffer = gl::buffer::create( &gl )?;
+  gl::buffer::upload( &gl, &translation_buffer, &light_translations, GL::DYNAMIC_DRAW );
+  // Add the translation attribute to the light volume geometry
+  let translation_attribute = AttributeInfo
+  {
+    slot : 1, // Attribute slot 1
+    buffer : translation_buffer.clone(),
+    descriptor : BufferDescriptor::new::< [ f32; 3 ] >().divisor( 1 ), // Instanced attribute
+    bounding_box : BoundingBox::default(),
+  };
+  light_volume.add_attribute( &gl, "a_translation", translation_attribute, false )?;
+
+  // Create and upload the buffer for light radii (used for instancing)
+  let light_radius_buffer = gl::buffer::create( &gl )?;
+  gl::buffer::upload( &gl, &light_radius_buffer, light_radii.borrow().as_slice(), GL::DYNAMIC_DRAW );
+  // Add the radius attribute to the light volume geometry
+  let radius_attribute = AttributeInfo
+  {
+    slot : 2, // Attribute slot 2
+    buffer : light_radius_buffer.clone(),
+    descriptor : BufferDescriptor::new::< f32 >().divisor( 1 ), // Instanced attribute
+    bounding_box : BoundingBox::default(),
+  };
+  light_volume.add_attribute( &gl, "a_radius", radius_attribute, false )?;
+
+  // Setup sphere geometry for light visualization
+  // Extract the first mesh from the sphere GLTF
+  let sphere_mesh = &sphere.meshes[ 0 ];
+  let sphere_primitive = &sphere_mesh.borrow().primitives[ 0 ];
+  let light_sphere_geometry = sphere_primitive.borrow().geometry.clone();
+
+  // Add the translation attribute to the sphere geometry for instancing
+  let sphere_translation_attribute = AttributeInfo
+  {
+    slot : 1, // Attribute slot 1
+    buffer : translation_buffer.clone(),
+    descriptor : BufferDescriptor::new::< [ f32; 3 ] >().divisor( 1 ), // Instanced attribute
+    bounding_box : BoundingBox::default(),
+  };
+  light_sphere_geometry.borrow_mut().add_attribute( &gl, "a_translation", sphere_translation_attribute, false )?;
 
   // Get UI elements
   let fps_counter = document.get_element_by_id( "fps-counter" ).unwrap();
@@ -441,40 +346,39 @@ async fn run() -> Result< (), gl::WebglError >
     }
 
     // Check if radius range has changed and regenerate radii if needed
-    let mut prev_range = lights.prev_radius_range.borrow_mut();
+    let mut prev_range = prev_radius_range.borrow_mut();
     if prev_range.0 != params.min_radius || prev_range.1 != params.max_radius
     {
       // Regenerate light radii with new range (now guaranteed min <= max)
       let new_radii = generate_radii( params.min_radius, params.max_radius );
-      *lights.radii.borrow_mut() = new_radii;
+      *light_radii.borrow_mut() = new_radii;
       // Update the radius buffer
-      gl.bind_buffer( GL::ARRAY_BUFFER, Some( &lights.radius_buffer ) );
+      gl.bind_buffer( GL::ARRAY_BUFFER, Some( &light_radius_buffer ) );
       gl.buffer_sub_data_with_i32_and_u8_array
       (
         GL::ARRAY_BUFFER,
         0,
-        lights.radii.borrow().as_bytes()
+        light_radii.borrow().as_bytes()
       );
       // Update prev range
       *prev_range = ( params.min_radius, params.max_radius );
     }
     drop( prev_range );
-
     // Update light positions based on their elliptical orbits
-    lights.orbits[ 1..light_count ].iter().zip( lights.offsets[ 1..light_count ].iter() ).enumerate()
+    // Start from index 1 because the first light is static (global)
+    light_orbits[ 1..light_count ].iter().zip( offsets[ 1..light_count ].iter() ).enumerate()
     .for_each
     (
       | ( i, ( orbit, offset ) ) |
-      lights.translations[ i + 1 ] = orbit.position_at_angle( 0.3 * current_time + *offset ).0
+      light_translations[ i + 1 ] = orbit.position_at_angle( 0.3 * current_time + *offset ).0
     );
-
     // Update the translation buffer with the new light positions
-    gl.bind_buffer( GL::ARRAY_BUFFER, Some( &lights.translation_buffer ) );
+    gl.bind_buffer( GL::ARRAY_BUFFER, Some( &translation_buffer ) );
     gl.buffer_sub_data_with_i32_and_u8_array_and_src_offset
     (
       GL::ARRAY_BUFFER,
-      size_of::< [ f32; 3 ] >() as i32,
-      lights.translations[ 1..light_count ].as_bytes(),
+      size_of::< [ f32; 3 ] >() as i32, // Offset to skip the first light source's data
+      light_translations[ 1..light_count ].as_bytes(),
       0
     );
 
@@ -489,24 +393,24 @@ async fn run() -> Result< (), gl::WebglError >
     gl.depth_func( GL::LESS ); // Set depth function
 
     // Bind the G-buffer framebuffer
-    gl.bind_framebuffer( GL::FRAMEBUFFER, fb.gbuffer.as_ref() );
+    gl.bind_framebuffer( GL::FRAMEBUFFER, gbuffer.as_ref() );
     // Attach the depth buffer to the G-buffer framebuffer
     gl.framebuffer_renderbuffer
     (
       GL::FRAMEBUFFER,
       GL::DEPTH_ATTACHMENT,
       GL::RENDERBUFFER,
-      fb.depthbuffer.as_ref()
+      depthbuffer.as_ref()
     );
     // Specify which color attachments to draw to
     gl::drawbuffers::drawbuffers( &gl, &[ 0, 1, 2 ] );
-    gl.clear( GL::DEPTH_BUFFER_BIT );
+    gl.clear( GL::DEPTH_BUFFER_BIT ); // Clear only the depth buffer
 
     // Activate the object shader and set uniforms
-    shaders.object.activate();
-    shaders.object.uniform_matrix_upload( "u_model", scene_transform.raw_slice(), true );
-    shaders.object.uniform_matrix_upload( "u_rotation", rotation.raw_slice(), true );
-    shaders.object.uniform_matrix_upload( "u_mvp", scene_mvp.raw_slice(), true );
+    object_shader.activate();
+    object_shader.uniform_matrix_upload( "u_model", scene_transform.raw_slice(), true );
+    object_shader.uniform_matrix_upload( "u_rotation", rotation.raw_slice(), true );
+    object_shader.uniform_matrix_upload( "u_mvp", scene_mvp.raw_slice(), true );
 
     // Draw the Sponza model
     for mesh in &sponza.meshes
@@ -536,35 +440,39 @@ async fn run() -> Result< (), gl::WebglError >
     gl.depth_mask( false ); // Disable depth writing
 
     // Bind the offscreen framebuffer for the lighting result
-    gl.bind_framebuffer( GL::FRAMEBUFFER, fb.offscreen_buffer.as_ref() );
+    gl.bind_framebuffer( GL::FRAMEBUFFER, offscreen_buffer.as_ref() );
+    // Attach the depth buffer from the G-buffer to the offscreen framebuffer
     gl.framebuffer_renderbuffer
     (
       GL::FRAMEBUFFER,
       GL::DEPTH_ATTACHMENT,
       GL::RENDERBUFFER,
-      fb.depthbuffer.as_ref()
+      depthbuffer.as_ref()
     );
+    // Specify which color attachment to draw to (only the first one for the final color)
     gl::drawbuffers::drawbuffers( &gl, &[ 0 ] );
-    gl.clear( gl::COLOR_BUFFER_BIT );
+    gl.clear( gl::COLOR_BUFFER_BIT ); // Clear the color buffer
 
     // Bind the G-buffer textures to texture units
     gl.active_texture( GL::TEXTURE0 );
-    gl.bind_texture( GL::TEXTURE_2D, fb.position_gbuffer.as_ref() );
+    gl.bind_texture( GL::TEXTURE_2D, position_gbuffer.as_ref() );
     gl.active_texture( GL::TEXTURE1 );
-    gl.bind_texture( GL::TEXTURE_2D, fb.normal_gbuffer.as_ref() );
+    gl.bind_texture( GL::TEXTURE_2D, normal_gbuffer.as_ref() );
     gl.active_texture( GL::TEXTURE2 );
-    gl.bind_texture( GL::TEXTURE_2D, fb.color_gbuffer.as_ref() );
+    gl.bind_texture( GL::TEXTURE_2D, color_gbuffer.as_ref() );
 
     // Bind the light volume geometry and activate the light shader
-    geom.light_volume.bind( &gl );
-    shaders.light.activate();
-    shaders.light.uniform_matrix_upload( "u_mvp", ( projection * view ).raw_slice(), true );
-    shaders.light.uniform_upload( "u_camera_position", camera.get_eye().as_slice() );
-    shaders.light.uniform_upload( "u_screen_size", [ width as f32, height as f32 ].as_slice() );
-    shaders.light.uniform_upload( "u_positions", &0 );
-    shaders.light.uniform_upload( "u_normals", &1 );
-    shaders.light.uniform_upload( "u_colors", &2 );
-
+    light_volume.bind( &gl );
+    light_shader.activate();
+    // Set uniforms for the light shader
+    light_shader.uniform_matrix_upload( "u_mvp", ( projection * view ).raw_slice(), true );
+    light_shader.uniform_upload( "u_camera_position", camera.get_eye().as_slice() );
+    light_shader.uniform_upload( "u_screen_size", [ width as f32, height as f32 ].as_slice() );
+    // Set texture uniforms to the correct texture units
+    light_shader.uniform_upload( "u_positions", &0 );
+    light_shader.uniform_upload( "u_normals", &1 );
+    light_shader.uniform_upload( "u_colors", &2 );
+    // Set light color and intensity from GUI
     let light_color_with_intensity =
     [
       params.light_color[ 0 ] * params.intensity,
@@ -574,7 +482,7 @@ async fn run() -> Result< (), gl::WebglError >
     gl.vertex_attrib3f( 3, light_color_with_intensity[ 0 ], light_color_with_intensity[ 1 ], light_color_with_intensity[ 2 ] );
 
     // Draw the light volumes instanced
-    geom.light_volume.draw_instanced( &gl, light_count as i32 );
+    light_volume.draw_instanced( &gl, light_count as i32 );
 
     // --- Light Source Visualization Pass ---
     // Draw small spheres at light positions to visualize light sources
@@ -586,33 +494,39 @@ async fn run() -> Result< (), gl::WebglError >
     gl.cull_face( GL::BACK ); // Reset culling face
 
     // Keep offscreen_buffer bound and attach depth buffer for occlusion
-    gl.bind_framebuffer( GL::FRAMEBUFFER, fb.offscreen_buffer.as_ref() );
+    gl.bind_framebuffer( GL::FRAMEBUFFER, offscreen_buffer.as_ref() );
     gl.framebuffer_renderbuffer
     (
       GL::FRAMEBUFFER,
       GL::DEPTH_ATTACHMENT,
       GL::RENDERBUFFER,
-      fb.depthbuffer.as_ref()
+      depthbuffer.as_ref()
     );
 
     // Bind the sphere geometry
-    geom.light_sphere.borrow().bind( &gl );
-    shaders.light_sphere.activate();
-    shaders.light_sphere.uniform_matrix_upload( "u_view_projection", ( projection * view ).raw_slice(), true );
-    shaders.light_sphere.uniform_upload( "u_scale", &0.2_f32 );
-    shaders.light_sphere.uniform_upload( "u_color", params.light_color.as_slice() );
+    light_sphere_geometry.borrow().bind( &gl );
+    // Activate the light sphere shader
+    light_sphere_shader.activate();
+    // Set uniforms
+    light_sphere_shader.uniform_matrix_upload( "u_view_projection", ( projection * view ).raw_slice(), true );
+    light_sphere_shader.uniform_upload( "u_scale", &0.2_f32 ); // Small sphere scale
+    light_sphere_shader.uniform_upload( "u_color", params.light_color.as_slice() );
 
     // Draw the spheres instanced at each light position
-    geom.light_sphere.borrow().draw_instanced( &gl, light_count as i32 );
+    light_sphere_geometry.borrow().draw_instanced( &gl, light_count as i32 );
 
     // Disable depth test for the final screen pass
     gl.disable( GL::DEPTH_TEST );
 
     // --- Final Screen Pass ---
+    // Bind the default framebuffer (the canvas)
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+    // Bind the offscreen color texture to texture unit 0
     gl.active_texture( GL::TEXTURE0 );
-    gl.bind_texture( GL::TEXTURE_2D, fb.offscreen_color.as_ref() );
-    shaders.screen.activate();
+    gl.bind_texture( GL::TEXTURE_2D, offscreen_color.as_ref() );
+    // Activate the screen shader
+    screen_shader.activate();
+    // Draw a big triangle that covers the entire screen to display the offscreen texture
     gl.draw_arrays( GL::TRIANGLES, 0, 3 );
 
     true // Continue the render loop
