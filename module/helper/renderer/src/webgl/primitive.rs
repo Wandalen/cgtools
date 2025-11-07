@@ -12,7 +12,7 @@ mod private
     /// The geometry of the primitive.
     pub geometry : Rc< RefCell< Geometry > >,
     /// The material of the primitive.
-    pub material : Rc< RefCell< Material > >
+    pub material : Rc< RefCell< Material > >,
   }
 
   impl Clone for Primitive

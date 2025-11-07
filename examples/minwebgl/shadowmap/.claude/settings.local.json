@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/Admin/Documents/repos/cgtools/**)",
+      "Bash(cargo check:*)",
+      "WebFetch(domain:developer.nvidia.com)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

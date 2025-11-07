@@ -1,6 +1,7 @@
 mod private
 {
   use minwebgl as gl;
+  use web_sys::WebGlProgram;
   use std::collections::HashMap;
 
   macro_rules! impl_locations
@@ -197,6 +198,12 @@ mod private
     {
       gl.use_program( Some( &self.program ) );
     }
+
+    /// Return inner program
+    pub fn get_program( &self ) -> WebGlProgram
+    {
+      self.program.clone()
+    }
   }
 
   impl_locations!
@@ -215,6 +222,14 @@ mod private
     "globalJointTransformMatrices",
     "matricesTextureSize",
 
+    // Light uniform locations
+    "pointLights",
+    "pointLightsCount",
+    "directLights",
+    "directLightsCount",
+    "spotLights",
+    "spotLightsCount",
+
     // Material uniform  locations
     //// Textures uniform locations
     "metallicRoughnessTexture",
@@ -224,6 +239,7 @@ mod private
     "emissiveTexture",
     "specularTexture",
     "specularColorTexture",
+    "lightMap",
     //// IBL uniform locations
     "irradianceTexture",
     "prefilterEnvMap",

@@ -1,7 +1,7 @@
 mod private
 {
   use mingl::Former;
-use minwebgl as gl;
+  use minwebgl as gl;
   use crate::webgl::Texture;
   use std:: { cell::RefCell, collections::HashMap, rc::Rc };
 
@@ -19,7 +19,7 @@ use minwebgl as gl;
   }
 
   /// Stores information about a texture used by the material, including the texture itself and its UV coordinates.
-  /// 
+  ///
   /// You may have several attibutes for the UV coordinates in the shader:
   /// `
   /// layout( location = 0 ) in vec2 uv_0;
@@ -35,7 +35,7 @@ use minwebgl as gl;
     pub uv_position : u32
   }
 
-  impl TextureInfo 
+  impl TextureInfo
   {
     /// Uploads the texture data to the GPU.
     pub fn upload( &self, gl : &gl::WebGl2RenderingContext )
@@ -90,7 +90,8 @@ use minwebgl as gl;
     pub specular_color_factor : Option< gl::F32x3 >,
     /// Optional texture providing the specular color. (KHR_materials_specular extension)
     pub specular_color_texture : Option< TextureInfo >,
-
+    /// Optional lightmap texture containing pre-baked lighting (shadows)
+    pub light_map : Option< TextureInfo >,
     /// Alpha cutoff value for mask mode. Fragments with alpha below this value are discarded.
     pub alpha_cutoff : f32,
     /// The alpha blending mode for the material. Defaults to `Opaque`.
@@ -129,6 +130,7 @@ use minwebgl as gl;
       gl.uniform1i( locations.get( "emissiveTexture" ).unwrap().clone().as_ref() , 4 );
       gl.uniform1i( locations.get( "specularTexture" ).unwrap().clone().as_ref() , 5 );
       gl.uniform1i( locations.get( "specularColorTexture" ).unwrap().clone().as_ref() , 6 );
+      gl.uniform1i( locations.get( "lightMap" ).unwrap().clone().as_ref() , 7 );
 
       gl.uniform1i( locations.get( "irradianceTexture" ).unwrap().clone().as_ref() , ibl_base_location );
       gl.uniform1i( locations.get( "prefilterEnvMap" ).unwrap().clone().as_ref() , ibl_base_location + 1 );
@@ -191,6 +193,7 @@ use minwebgl as gl;
       if let Some( ref t ) = self.emissive_texture { t.upload( gl ); }
       if let Some( ref t ) = self.specular_texture { t.upload( gl ); }
       if let Some( ref t ) = self.specular_color_texture { t.upload( gl ); }
+      if let Some( ref t ) = self.light_map { t.upload( gl ); }
     }
 
     /// Binds all used textures to their respective texture units.
@@ -214,6 +217,7 @@ use minwebgl as gl;
       bind( &self.emissive_texture, 4 );
       bind( &self.specular_texture, 5 );
       bind( &self.specular_color_texture, 6 );
+      bind( &self.light_map, 7 );
     }
 
     /// Generates `#define` directives to be inserted into the fragment shader based on the material's properties.
@@ -236,6 +240,8 @@ use minwebgl as gl;
       let use_occlusion_texture = self.occlusion_texture.is_some();
       let use_alpha_cutoff = self.alpha_mode == AlphaMode::Mask;
 
+      let use_light_map = self.light_map.is_some();
+
       let mut defines = String::new();
       let add_texture = | defines : &mut String, name : &str, uv_name : &str, info : Option< &TextureInfo > |
       {
@@ -244,53 +250,58 @@ use minwebgl as gl;
       };
 
       // Base color texture related
-      if use_base_color_texture 
-      { 
-        add_texture( &mut defines, "USE_BASE_COLOR_TEXTURE", "vBaseColorUv", self.base_color_texture.as_ref() ); 
+      if use_base_color_texture
+      {
+        add_texture( &mut defines, "USE_BASE_COLOR_TEXTURE", "vBaseColorUv", self.base_color_texture.as_ref() );
       }
 
       // Metallic roughness texture related
-      if use_metallic_roughness_texture 
-      { 
-        add_texture( &mut defines, "USE_MR_TEXTURE", "vMRUv", self.metallic_roughness_texture.as_ref() ); 
+      if use_metallic_roughness_texture
+      {
+        add_texture( &mut defines, "USE_MR_TEXTURE", "vMRUv", self.metallic_roughness_texture.as_ref() );
       }
 
       // Emission texture related
-      if use_emissive_texture 
-      { 
-        add_texture( &mut defines, "USE_EMISSION_TEXTURE", "vEmissionUv", self.emissive_texture.as_ref() ); 
+      if use_emissive_texture
+      {
+        add_texture( &mut defines, "USE_EMISSION_TEXTURE", "vEmissionUv", self.emissive_texture.as_ref() );
       }
 
       // KHR_Materials_Specular extension related
-      if use_khr_materials_specular 
-      { 
+      if use_khr_materials_specular
+      {
         defines.push_str( "#define USE_KHR_materials_specular\n" );
-        if use_specular_texture 
+        if use_specular_texture
         {
-          add_texture( &mut defines, "USE_SPECULAR_TEXTURE", "vSpecularUv", self.specular_texture.as_ref() ); 
+          add_texture( &mut defines, "USE_SPECULAR_TEXTURE", "vSpecularUv", self.specular_texture.as_ref() );
         }
 
-        if use_specular_color_texture 
+        if use_specular_color_texture
         {
-          add_texture( &mut defines, "USE_SPECULAR_COLOR_TEXTURE", "vSpecularColorUv", self.specular_color_texture.as_ref() ); 
+          add_texture( &mut defines, "USE_SPECULAR_COLOR_TEXTURE", "vSpecularColorUv", self.specular_color_texture.as_ref() );
         }
       }
 
       // Normal texture related
-      if use_normal_texture 
-      { 
-        add_texture( &mut defines, "USE_NORMAL_TEXTURE", "vNormalUv", self.normal_texture.as_ref() ); 
+      if use_normal_texture
+      {
+        add_texture( &mut defines, "USE_NORMAL_TEXTURE", "vNormalUv", self.normal_texture.as_ref() );
       }
 
       // Occlusion texture related
-      if use_occlusion_texture 
-      { 
-        add_texture( &mut defines, "USE_OCCLUSION_TEXTURE", "vOcclusionUv", self.occlusion_texture.as_ref() ); 
+      if use_occlusion_texture
+      {
+        add_texture( &mut defines, "USE_OCCLUSION_TEXTURE", "vOcclusionUv", self.occlusion_texture.as_ref() );
       }
 
       if use_alpha_cutoff
       {
         defines.push_str( "#define USE_ALPHA_CUTOFF\n" );
+      }
+
+      if use_light_map
+      {
+        add_texture( &mut defines, "USE_LIGHT_MAP", "vLightMapUv", self.light_map.as_ref() )
       }
 
       defines
@@ -323,6 +334,8 @@ use minwebgl as gl;
       let specular_color_factor = Default::default();
       let specular_color_texture = Default::default();
 
+      let light_map = Default::default();
+
       let alpha_mode = AlphaMode::default();
       let alpha_cutoff = 0.5;
       let double_sided = false;
@@ -347,7 +360,8 @@ use minwebgl as gl;
         specular_color_texture,
         alpha_mode,
         alpha_cutoff,
-        double_sided
+        double_sided,
+        light_map,
       };
     }
   }
