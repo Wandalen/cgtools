@@ -60,16 +60,16 @@ use renderer::webgl::
   post_processing::
   {
     self, Pass, SwapFramebuffer
-  }, 
-  MinFilterMode, 
-  MagFilterMode, 
-  WrappingMode, 
-  Camera, 
-  Object3D, 
-  Renderer, 
-  Scene, 
-  Texture, 
-  TextureInfo, 
+  },
+  MinFilterMode,
+  MagFilterMode,
+  WrappingMode,
+  Camera,
+  Object3D,
+  Renderer,
+  Scene,
+  Texture,
+  TextureInfo,
   Sampler,
   Material,
   Node
@@ -124,7 +124,7 @@ fn upload_texture( gl : &WebGl2RenderingContext, src : Rc< String > ) -> WebGlTe
   texture
 }
 
-async fn create_texture( 
+async fn create_texture(
   gl : &WebGl2RenderingContext,
   image_path : &str
 ) -> Option< TextureInfo >
@@ -194,7 +194,7 @@ fn init_camera( canvas : &HtmlCanvasElement, scenes : &[ Rc< RefCell< Scene > > 
   camera
 }
 
-fn clone( gltf : &mut GLTF, node : &Rc< RefCell< Node > > ) -> Rc< RefCell< Node > > 
+fn clone( gltf : &mut GLTF, node : &Rc< RefCell< Node > > ) -> Rc< RefCell< Node > >
 {
   let clone = node.borrow().clone_tree();
   gltf.nodes.push( clone.clone() );
@@ -213,9 +213,9 @@ fn clone( gltf : &mut GLTF, node : &Rc< RefCell< Node > > ) -> Rc< RefCell< Node
 }
 
 fn set_texture
-( 
+(
   node : &Rc< RefCell< Node > >,
-  mut material_callback : impl FnMut( &mut Material ) 
+  mut material_callback : impl FnMut( &mut Material )
 )
 {
   if let Object3D::Mesh( ref mesh ) = &node.borrow().object
@@ -240,12 +240,12 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 
   let clouds = clone( &mut gltf, &earth );
   let texture = create_texture( &gl, "textures/clouds2.png" ).await;
-  set_texture( &clouds, 
-    | m | 
-    { 
-      m.base_color_texture = texture.clone(); 
+  set_texture( &clouds,
+    | m |
+    {
+      m.base_color_texture = texture.clone();
       m.alpha_mode = renderer::webgl::AlphaMode::Blend;
-    } 
+    }
   );
   let scale = 1.005;
   clouds.borrow_mut().set_translation( [ 0.0, 1.0 - scale, 0.0 ] );
@@ -278,7 +278,7 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
   let font_names = [ "Roboto-Regular" ];
   let fonts = text::ufo::load_fonts( &font_names ).await;
 
-  let colors = 
+  let colors =
   [
     F32x4::from_array( [ 1.0, 0.0, 0.0, 1.0 ] ),
     F32x4::from_array( [ 1.0, 1.0, 1.0, 1.0 ] ),
@@ -291,7 +291,7 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
   transform.translation.0[ 1 ] += ( font_names.len() as f32 + 1.0 ) / 2.0 + 0.5;
   for font_name in font_names
   {
-    transform.translation[ 1 ] -= 1.0; 
+    transform.translation[ 1 ] -= 1.0;
     let mut text_mesh = text::ufo::text_to_countour_mesh( &text, fonts.get( font_name ).unwrap(), &transform, 5.0 );
     text_mesh.iter_mut()
     .for_each( | p | p.color = colors[ 0 ].clone() );
@@ -310,8 +310,8 @@ async fn run() -> Result< (), gl::WebglError >
 {
   let ( gl, canvas ) = init_context();
 
-  let mut gltf = setup_scene( &gl ).await?; 
-  
+  let mut gltf = setup_scene( &gl ).await?;
+
   let ( canvas_gltf, colors ) = setup_canvas_scene( &gl ).await;
 
   let canvas_camera = init_camera( &canvas, &canvas_gltf.scenes );
@@ -332,22 +332,22 @@ async fn run() -> Result< (), gl::WebglError >
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 ).unwrap().clone();
   let canvas_sphere = clone( &mut gltf, &earth );
   set_texture
-  ( 
-    &canvas_sphere, 
-    | m | 
-    { 
+  (
+    &canvas_sphere,
+    | m |
+    {
       m.base_color_texture.as_mut()
       .map
-      ( 
-        | t | 
+      (
+        | t |
         {
           let texture = t.texture.borrow().clone();
           t.texture = Rc::new( RefCell::new( texture ) );
           t.texture.borrow_mut().source = Some( canvas_texture.clone() );
-        } 
-      ); 
+        }
+      );
       m.alpha_mode = renderer::webgl::AlphaMode::Blend;
-    } 
+    }
   );
   let scale = 1.01;
   canvas_sphere.borrow_mut().set_translation( [ 0.0, 1.0 - scale, 0.0 ] );
@@ -359,12 +359,12 @@ async fn run() -> Result< (), gl::WebglError >
 
   let camera = init_camera( &canvas, &scenes );
   camera.bind_controls( &canvas );
-  let eye = gl::math::mat3x3h::rot( 0.0, - 76.0_f32.to_radians(), - 20.0_f32.to_radians() ) 
+  let eye = gl::math::mat3x3h::rot( 0.0, - 76.0_f32.to_radians(), - 20.0_f32.to_radians() )
   * F32x4::from_array([ 0.0, 1.7, 1.7, 1.0 ] );
   camera.get_controls().borrow_mut().eye = [ eye.x(), eye.y(), eye.z() ].into();
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "environment_maps/gltf_viewer_ibl_unreal/" ).await );
+  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "environment_maps/gltf_viewer_ibl_unreal/", None ).await );
 
   let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
 
@@ -394,7 +394,7 @@ async fn run() -> Result< (), gl::WebglError >
 
       swap_buffer.set_output( t );
       swap_buffer.swap();
-    
+
       let _t = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
       .expect( "Failed to render to srgb pass" );
 
