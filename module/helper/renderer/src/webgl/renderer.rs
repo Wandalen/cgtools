@@ -949,6 +949,7 @@ mod private
     program : &ProgramInfo< T >,
     lights : &HashMap< String, Vec< Light > >
   )
+  where T : Clone
   {
     let locations = program.get_locations();
 

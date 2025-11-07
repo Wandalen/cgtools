@@ -27,103 +27,10 @@ use std::collections::HashSet;
 
 use renderer::webgl::
 {
-  Camera, Node, Object3D, Renderer, Scene, post_processing::{ self, Pass, SwapFramebuffer }
+  Camera, Light, Node, Object3D, Renderer, Scene, SpotLight, post_processing::{ self, Pass, SwapFramebuffer }
 };
 
 mod ui;
-
-// /// Uploads an image from a URL to a WebGL texture.
-// ///
-// /// This function creates a new `WebGlTexture` and asynchronously loads an image from the provided URL into it.
-// /// It uses a `Closure` to handle the `onload` event of an `HtmlImageElement`, ensuring the texture is
-// /// uploaded only after the image has finished loading.
-// ///
-// /// # Arguments
-// ///
-// /// * `gl` - The WebGl2RenderingContext.
-// /// * `src` - A reference-counted string containing the URL of the image to load.
-// ///
-// /// # Returns
-// ///
-// /// A `WebGlTexture` object.
-// fn upload_texture( gl : &GL, src : &str ) -> WebGlTexture
-// {
-//   let window = web_sys::window().expect( "Can't get window" );
-//   let document =  window.document().expect( "Can't get document" );
-
-//   let texture = gl.create_texture().expect( "Failed to create a texture" );
-
-//   let img_element = document.create_element( "img" )
-//   .expect( "Can't create img" )
-//   .dyn_into::< gl::web_sys::HtmlImageElement >()
-//   .expect( "Can't convert to gl::web_sys::HtmlImageElement" );
-//   img_element.style().set_property( "display", "none" ).expect( "Can't set property" );
-//   let load_texture : Closure< dyn Fn() > = Closure::new
-//   (
-//     {
-//       let gl = gl.clone();
-//       let img = img_element.clone();
-//       let texture = texture.clone();
-//       move ||
-//       {
-//         gl::texture::d2::upload_no_flip( &gl, Some( &texture ), &img );
-//         gl.generate_mipmap( gl::TEXTURE_2D );
-//         img.remove();
-//       }
-//     }
-//   );
-
-//   img_element.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
-//   img_element.set_src( &src );
-//   load_texture.forget();
-
-//   texture
-// }
-
-// /// Creates a new `TextureInfo` struct with a texture loaded from a file.
-// ///
-// /// This function calls `upload_texture` to load an image, sets up a default `Sampler`
-// /// with linear filtering and repeat wrapping, and then combines them into a `TextureInfo`
-// /// struct.
-// ///
-// /// # Arguments
-// ///
-// /// * `gl` - The WebGl2RenderingContext.
-// /// * `image_path` - The path to the image file, relative to the `static/` directory.
-// ///
-// /// # Returns
-// ///
-// /// An `Option<TextureInfo>` containing the texture data, or `None` if creation fails.
-// fn create_texture
-// (
-//   gl : &GL,
-//   image_path : &str
-// ) -> Option< TextureInfo >
-// {
-//   let image_path = format!( "static/{image_path}" );
-//   let texture_id = upload_texture( gl, image_path.as_str() );
-
-//   let sampler = Sampler::former()
-//   .min_filter( MinFilterMode::Linear )
-//   .mag_filter( MagFilterMode::Linear )
-//   .wrap_s( WrappingMode::Repeat )
-//   .wrap_t( WrappingMode::Repeat )
-//   .end();
-
-//   let texture = Texture::former()
-//   .target( GL::TEXTURE_2D )
-//   .source( texture_id )
-//   .sampler( sampler )
-//   .end();
-
-//   let texture_info = TextureInfo
-//   {
-//     texture : Rc::new( RefCell::new( texture ) ),
-//     uv_position : 0,
-//   };
-
-//   Some( texture_info )
-// }
 
 fn get_node( scene : &Rc< RefCell< Scene > >, name : String ) -> Option< Rc< RefCell< Node > > >
 {
@@ -163,6 +70,8 @@ fn set_gem_color
   {
     return;
   };
+
+  mesh.borrow_mut().is_shadow_caster = true;
 
   for primitive in &mesh.borrow().primitives
   {
@@ -205,6 +114,8 @@ fn set_metal_color
       {
         return Ok( () );
       };
+
+      mesh.borrow_mut().is_shadow_caster = true;
 
       for primitive in &mesh.borrow().primitives
       {
@@ -371,7 +282,42 @@ async fn run() -> Result< (), gl::WebglError >
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
 
-  let scene = Rc::new( RefCell::new( Scene::new() ) );
+  let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/cube.glb" ).as_str(), &gl ).await?;
+
+  let scene = gltf.scenes[ 0 ].clone(); // Rc::new( RefCell::new( Scene::new() ) );
+
+  let node = Rc::new( RefCell::new( Node::new() ) );
+  let spot = SpotLight
+  {
+    position : F32x3::from_array( [ 0.0, 20.0, 20.0 ] ),
+    direction : F32x3::from_array( [ 0.0, -1.0, -1.0 ] ).normalize(),
+    color : F32x3::splat( 1.0 ),
+    strength : 20000.0,
+    range : 200.0,
+    inner_cone_angle : 30_f32.to_radians(),
+    outer_cone_angle : 50_f32.to_radians(),
+    use_light_map : true
+  };
+
+  node.borrow_mut().object = Object3D::Light( Light::Spot( spot.clone() ) );
+  scene.borrow_mut().add( node );
+
+  let surface = get_node( &scene, "Cube".to_string() ).unwrap();
+  surface.borrow_mut().set_translation( F32x3::from_array( [ 0.0, -20.0, 0.0 ] ) );
+  surface.borrow_mut().set_scale( F32x3::from_array( [ 200.0, 0.1, 200.0 ] ) );
+
+  if let Object3D::Mesh( mesh ) = &surface.borrow().object
+  {
+    mesh.borrow_mut().is_shadow_receiver = true;
+    mesh.borrow_mut().is_shadow_caster = true;
+    for primitives in &mesh.borrow().primitives
+    {
+      let material = &primitives.borrow().material;
+      material.borrow_mut().base_color_texture = None;
+      material.borrow_mut().base_color_factor.0[ 3 ] = 0.0;
+    }
+  }
+
   let mut rings : Vec< Rc< RefCell< Node > > > = vec![];
   let mut gems : Vec< Rc< RefCell< Node > > > = vec![];
   let mut filters : Vec< HashSet< String > > = vec![];
@@ -463,7 +409,7 @@ async fn run() -> Result< (), gl::WebglError >
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
   renderer.borrow_mut().set_clear_color( F32x3::splat( 1.0 ) );
-  renderer.borrow_mut().set_exposure( 1.5 );
+  renderer.borrow_mut().set_exposure( 1.0 );
 
   match ui_state.gem.as_str()
   {
@@ -488,6 +434,18 @@ async fn run() -> Result< (), gl::WebglError >
     _ => ()
   }
 
+  let mut shadow_light = renderer::webgl::shadow::Light::new
+  (
+    spot.position,
+    spot.direction,
+    gl::math::mat3x3h::perspective_rh_gl( 100.0_f32.to_radians(), 1.0, 0.1, 100.0 ),
+    0.7
+  );
+
+  let shadowmap_res = 4096;
+  let lightmap_res = 8192;
+  renderer::webgl::shadow::bake_shadows( &gl, &*scene.borrow(), &mut shadow_light, lightmap_res, shadowmap_res ).unwrap();
+
   let is_resized = add_resize_callback();
 
   // Define the update and draw logic
@@ -502,19 +460,19 @@ async fn run() -> Result< (), gl::WebglError >
           let mut renderer_mut = renderer.borrow_mut();
           *renderer_mut = r;
           renderer_mut.set_ibl( ibl.clone() );
-          renderer_mut.set_exposure( 1.5 );
+          renderer_mut.set_exposure( 1.0 );
 
           match ui::get_ui_state().unwrap().light_mode.as_str()
           {
             "light" =>
             {
               renderer_mut.set_clear_color( F32x3::splat( 1.0 ) );
-              renderer.borrow_mut().set_exposure( 1.5 );
+              renderer_mut.set_exposure( 1.0 );
             },
             "dark" =>
             {
               renderer_mut.set_clear_color( F32x3::splat( 0.2 ) );
-              renderer.borrow_mut().set_exposure( 0.5 );
+              renderer_mut.set_exposure( 0.5 );
             }
             _ => ()
           }
@@ -558,7 +516,7 @@ async fn run() -> Result< (), gl::WebglError >
               "light" =>
               {
                 renderer.borrow_mut().set_clear_color( F32x3::splat( 1.0 ) );
-                renderer.borrow_mut().set_exposure( 1.5 );
+                renderer.borrow_mut().set_exposure( 1.0 );
               },
               "dark" =>
               {
