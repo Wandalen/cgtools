@@ -15,7 +15,6 @@
 #![ allow( clippy::no_effect_underscore_binding ) ]
 
 use std::{ cell::RefCell, rc::Rc };
-use mingl::QuatF32;
 use minwebgl as gl;
 use gl::
 {
@@ -28,12 +27,7 @@ use std::collections::HashSet;
 
 use renderer::webgl::
 {
-  post_processing::{ self, Pass, SwapFramebuffer },
-  Camera,
-  Renderer,
-  Node,
-  Object3D,
-  Scene
+  Camera, Node, Object3D, Renderer, Scene, post_processing::{ self, Pass, SwapFramebuffer }
 };
 
 mod ui;
@@ -144,7 +138,6 @@ fn get_node( scene : &Rc< RefCell< Scene > >, name : String ) -> Option< Rc< Ref
       }
       if let Some( current_name ) = node.borrow().get_name()
       {
-        gl::info!( "{:?}", current_name );
         if name == current_name.clone().into_string()
         {
           target = Some( node.clone() );
@@ -218,6 +211,7 @@ fn set_metal_color
         let material = &primitive.borrow().material;
         {
           let mut material = material.borrow_mut();
+          material.double_sided = true;
           material.base_color_texture = None;
           material.roughness_factor = 0.0;
           for i in 0..3
@@ -400,15 +394,14 @@ async fn run() -> Result< (), gl::WebglError >
       },
       1 =>
       {
-        let gem = get_node( &gltf.scenes[ 0 ], "Cylinder.007_Material.004_0".to_string() ).unwrap();
+        let gem = get_node( &gltf.scenes[ 0 ], "Object_11".to_string() ).unwrap();
         gem.borrow_mut().set_name( "gem1" );
-        let ring = get_node( &gltf.scenes[ 0 ], "Sketchfab_model".to_string() ).unwrap();
+        let ring = get_node( &gltf.scenes[ 0 ], "Empty.001_6".to_string() ).unwrap();
         ring.borrow_mut().set_name( "ring1" );
-        let mut rotation = ring.borrow().get_rotation();
-        rotation = rotation.multiply( &QuatF32::from_angle_z( 90.0_f32.to_radians() ) );
-        ring.borrow_mut().set_rotation( rotation );
-        // ring.borrow_mut().set_translation( F32x3::splat( 0.0 ) );
-        ring.borrow_mut().set_scale( F32x3::splat( 0.4 ) );
+        let mut translation = ring.borrow_mut().get_translation();
+        translation.0[ 1 ] -= 11.0;
+        ring.borrow_mut().set_translation( translation );
+        ring.borrow_mut().set_scale( F32x3::splat( 5.0 ) );
         gems.push( gem.clone() );
         rings.push( ring.clone() );
         filters.push( HashSet::from( [ "gem1".to_string() ] ) );
@@ -459,7 +452,7 @@ async fn run() -> Result< (), gl::WebglError >
   camera.bind_controls( &canvas );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  let ibl = renderer::webgl::loaders::ibl::load( &gl, "envMap" ).await;
+  let ibl = renderer::webgl::loaders::ibl::load( &gl, "envMap", Some( 0..0 ) ).await;
   renderer.set_ibl( ibl.clone() );
 
   let renderer = Rc::new( RefCell::new( renderer ) );
@@ -475,15 +468,23 @@ async fn run() -> Result< (), gl::WebglError >
   match ui_state.gem.as_str()
   {
     "white" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 1.0, 1.0, 1.0 ] ) ),
+    "black" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 0.0, 0.0, 0.0 ] ) ),
     "red" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 1.0, 0.0, 0.0 ] ) ),
+    "orange" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 1.0, 0.5, 0.0 ] ) ),
+    "yellow" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 1.0, 1.0, 0.0 ] ) ),
     "green" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 0.0, 1.0, 0.0 ] ) ),
+    "turquoise" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 0.25, 0.88, 0.82 ] ) ),
+    "light_blue" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 0.53, 0.81, 0.92 ] ) ),
+    "blue" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 0.0, 0.0, 1.0 ] ) ),
+    "violet" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 0.5, 0.0, 0.5 ] ) ),
+    "pink" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 1.0, 0.41, 0.71 ] ) ),
     _ => ()
   }
   match ui_state.metal.as_str()
   {
     "silver" => set_metal_color( &gl, &renderer, &current_ring, &filters[ ui_state.ring as usize ], F32x3::from_array( [ 0.753, 0.753, 0.753 ] ) ),
     "copper" => set_metal_color( &gl, &renderer, &current_ring, &filters[ ui_state.ring as usize ], F32x3::from_array( [ 1.0, 0.4, 0.2 ] ) ),
-    "gold" => set_metal_color( &gl, &renderer, &current_ring, &filters[ ui_state.ring as usize ], F32x3::from_array( [ 1.0, 0.443, 0.0 ] ) ),
+    "gold" => set_metal_color( &gl, &renderer, &current_ring, &filters[ ui_state.ring as usize ], F32x3::from_array( [ 1.0, 0.65, 0.02 ] ) ),
     _ => ()
   }
 
@@ -505,8 +506,16 @@ async fn run() -> Result< (), gl::WebglError >
 
           match ui::get_ui_state().unwrap().light_mode.as_str()
           {
-            "light" => renderer_mut.set_clear_color( F32x3::splat( 1.0 ) ),
-            "dark" => renderer_mut.set_clear_color( F32x3::splat( 0.2 ) ),
+            "light" =>
+            {
+              renderer_mut.set_clear_color( F32x3::splat( 1.0 ) );
+              renderer.borrow_mut().set_exposure( 1.5 );
+            },
+            "dark" =>
+            {
+              renderer_mut.set_clear_color( F32x3::splat( 0.2 ) );
+              renderer.borrow_mut().set_exposure( 0.5 );
+            }
             _ => ()
           }
 
@@ -544,10 +553,18 @@ async fn run() -> Result< (), gl::WebglError >
 
           if ui_state.changed.contains( &"lightMode".to_string() )
           {
-            match ui_state.light_mode.as_str()
+            match ui::get_ui_state().unwrap().light_mode.as_str()
             {
-              "light" => renderer.borrow_mut().set_clear_color( F32x3::splat( 1.0 ) ),
-              "dark" => renderer.borrow_mut().set_clear_color( F32x3::splat( 0.2 ) ),
+              "light" =>
+              {
+                renderer.borrow_mut().set_clear_color( F32x3::splat( 1.0 ) );
+                renderer.borrow_mut().set_exposure( 1.5 );
+              },
+              "dark" =>
+              {
+                renderer.borrow_mut().set_clear_color( F32x3::splat( 0.2 ) );
+                renderer.borrow_mut().set_exposure( 0.5 );
+              }
               _ => ()
             }
           }
@@ -557,8 +574,16 @@ async fn run() -> Result< (), gl::WebglError >
             match ui_state.gem.as_str()
             {
               "white" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 1.0, 1.0, 1.0 ] ) ),
+              "black" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 0.0, 0.0, 0.0 ] ) ),
               "red" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 1.0, 0.0, 0.0 ] ) ),
+              "orange" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 1.0, 0.5, 0.0 ] ) ),
+              "yellow" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 1.0, 1.0, 0.0 ] ) ),
               "green" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 0.0, 1.0, 0.0 ] ) ),
+              "turquoise" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 0.25, 0.88, 0.82 ] ) ),
+              "light_blue" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 0.53, 0.81, 0.92 ] ) ),
+              "blue" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 0.0, 0.0, 1.0 ] ) ),
+              "violet" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 0.5, 0.0, 0.5 ] ) ),
+              "pink" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 1.0, 0.41, 0.71 ] ) ),
               _ => ()
             }
           }
@@ -569,7 +594,7 @@ async fn run() -> Result< (), gl::WebglError >
             {
               "silver" => set_metal_color( &gl, &renderer, &current_ring, &filters[ ui_state.ring as usize ], F32x3::from_array( [ 0.753, 0.753, 0.753 ] ) ),
               "copper" => set_metal_color( &gl, &renderer, &current_ring, &filters[ ui_state.ring as usize ], F32x3::from_array( [ 1.0, 0.4, 0.2 ] ) ),
-              "gold" => set_metal_color( &gl, &renderer, &current_ring, &filters[ ui_state.ring as usize ], F32x3::from_array( [ 1.0, 0.443, 0.0 ] ) ),
+              "gold" => set_metal_color( &gl, &renderer, &current_ring, &filters[ ui_state.ring as usize ], F32x3::from_array( [ 1.0, 0.65, 0.02 ] ) ),
               _ => ()
             }
           }
