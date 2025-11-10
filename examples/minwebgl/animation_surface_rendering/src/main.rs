@@ -290,6 +290,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   .expect( "Scene is empty" ).clone();
   let texture = create_texture( &gl, "textures/earth2.jpg" );
   set_texture( &earth, | m | { m.base_color_texture = texture.clone(); } );
+    
   earth.borrow_mut().update_local_matrix();
 
   let clouds = clone( &mut gltf, &earth );

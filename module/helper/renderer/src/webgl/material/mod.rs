@@ -50,6 +50,7 @@ mod private
     }
   }
 
+  /// A trait representin a generic material
   pub trait Material : std::any::Any
   {
     /// Returns the unique identifier of the material.

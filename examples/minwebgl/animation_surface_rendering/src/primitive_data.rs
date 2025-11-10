@@ -15,7 +15,9 @@ mod private
   use std::rc::Rc;
   use renderer::webgl::
   {
-    Geometry, IndexInfo, Material, Mesh, Node, Object3D, Primitive, Scene, loaders::gltf::GLTF, material::PBRMaterial
+    Geometry, IndexInfo, Material, Mesh, Node, 
+    Object3D, Primitive, Scene, loaders::gltf::GLTF, 
+    material::PBRMaterial
   };
   use primitive_generation::primitive_data::
   {
