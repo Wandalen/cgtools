@@ -133,7 +133,14 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut lights = vec![];
 
-  for _ in 0..3
+  let colors =
+  [
+    F32x3::from_array( [ 1.0, 0.0, 0.0 ] ),
+    F32x3::from_array( [ 0.0, 1.0, 0.0 ] ),
+    F32x3::from_array( [ 0.0, 0.0, 1.0 ] ),
+  ];
+
+  for i in 0..3
   {
     let d = add_light
     (
@@ -143,8 +150,8 @@ async fn run() -> Result< (), gl::WebglError >
         DirectLight
         {
           direction : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
-          color : F32x3::from_array( [ 0.0, 0.0, 0.0 ] ),
-          strength : 100.0
+          color : colors[ i ],
+          strength : 0.0
         }
       )
     );
@@ -152,7 +159,7 @@ async fn run() -> Result< (), gl::WebglError >
     lights.push( d );
   }
 
-  for _ in 0..3
+  for i in 0..3
   {
     let p = add_light
     (
@@ -162,8 +169,8 @@ async fn run() -> Result< (), gl::WebglError >
         PointLight
         {
           position : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
-          color : F32x3::from_array( [ 0.0, 0.0, 0.0 ] ),
-          strength : 100.0,
+          color : colors[ i ],
+          strength : 0.0,
           range : 10.0
         }
       )
@@ -180,8 +187,8 @@ async fn run() -> Result< (), gl::WebglError >
       DirectLight
       {
         direction : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
-        color : F32x3::from_array( [ 0.0, 0.0, 0.0 ] ),
-        strength : 100.0
+        color : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
+        strength : 0.0
       }
     )
   );
@@ -189,11 +196,40 @@ async fn run() -> Result< (), gl::WebglError >
 
   let _settings = gui_setup::setup( renderer.clone(), lights.clone(), controlable_light.clone() ).unwrap();
 
+  let light_radius = 1.0;
+  let light_speed = 50.0;
+
   // Define the update and draw logic
   let update_and_draw =
   {
     move | t : f64 |
     {
+      for ( i, light ) in lights.iter().enumerate()
+      {
+        if let Some( name ) = light.borrow().get_name()
+        {
+          if name.to_string().as_str() == "controlable"
+          {
+            continue;
+          }
+        }
+        if let Object3D::Light( light ) = &mut light.borrow_mut().object
+        {
+          match light
+          {
+            Light::Direct( direct ) =>
+            {
+              direct.direction = to_decart( light_radius, i as f32 * 120.0 + ( t as f32 * light_speed / 1000.0 ), 45.0 );
+            },
+            Light::Point( point ) =>
+            {
+              point.position = to_decart( light_radius, i as f32 * 120.0 + ( t as f32 * light_speed / 1000.0 ), 45.0 );
+            },
+            _ => ()
+          }
+        }
+      }
+
       // If textures are of different size, gl.view_port needs to be called
       let _time = t as f32 / 1000.0;
 

@@ -105,10 +105,10 @@ pub fn setup
   let controlable_name = controlable_light.borrow().get_name().unwrap();
   lights.retain( | n | n.borrow().get_name() != Some( controlable_name.clone() ) );
   let points = lights.iter().cloned()
-  .filter( | n | if let Object3D::Light( Light::Point( _ ) ) = n.borrow().object { false } else { true } )
+  .filter( | n | if let Object3D::Light( Light::Point( _ ) ) = n.borrow().object { true } else { false } )
   .collect::< Vec< _ > >();
   let directs = lights.iter().cloned()
-  .filter( | n | if let Object3D::Light( Light::Direct( _ ) ) = n.borrow().object { false } else { true } )
+  .filter( | n | if let Object3D::Light( Light::Direct( _ ) ) = n.borrow().object { true } else { false } )
   .collect::< Vec< _ > >();
 
   let mut settings = Settings::default();
@@ -222,7 +222,6 @@ pub fn setup
           {
             LightMode::Direct =>
             {
-
               if let Object3D::Light( light ) = &mut controlable_light.borrow_mut().object
               {
                 match light
@@ -234,7 +233,20 @@ pub fn setup
                   Light::Point( point ) =>
                   {
                     point.strength = 0.0;
+                    point.range = 0.0;
                   },
+                }
+              }
+
+              for point in &points
+              {
+                if let Object3D::Light( light ) = &mut point.borrow_mut().object
+                {
+                  if let Light::Point( point ) = light
+                  {
+                    point.strength = 0.0;
+                    point.range = 0.0;
+                  }
                 }
               }
 
@@ -244,7 +256,7 @@ pub fn setup
                 {
                   if let Light::Direct( direct ) = light
                   {
-                    direct.strength = 100.0;
+                    direct.strength = 50.0;
                   }
                 }
               }
@@ -263,7 +275,19 @@ pub fn setup
                   Light::Point( point ) =>
                   {
                     point.strength = 0.0;
+                    point.range = 0.0;
                   },
+                }
+              }
+
+              for direct in &directs
+              {
+                if let Object3D::Light( light ) = &mut direct.borrow_mut().object
+                {
+                  if let Light::Direct( direct ) = light
+                  {
+                    direct.strength = 0.0;
+                  }
                 }
               }
 
@@ -274,6 +298,7 @@ pub fn setup
                   if let Light::Point( point ) = light
                   {
                     point.strength = 100.0;
+                    point.range = 10.0;
                   }
                 }
               }
@@ -281,6 +306,30 @@ pub fn setup
             LightMode::ControlableDirect =>
             {
               settings.borrow_mut().light_mode = LightMode::ControlableDirect;
+
+              for direct in &directs
+              {
+                if let Object3D::Light( light ) = &mut direct.borrow_mut().object
+                {
+                  if let Light::Direct( direct ) = light
+                  {
+                    direct.strength = 0.0;
+                  }
+                }
+              }
+
+              for point in &points
+              {
+                if let Object3D::Light( light ) = &mut point.borrow_mut().object
+                {
+                  if let Light::Point( point ) = light
+                  {
+                    point.strength = 0.0;
+                    point.range = 0.0;
+                  }
+                }
+              }
+
               if let Object3D::Light( light ) = &mut controlable_light.borrow_mut().object
               {
                 *light = Light::Direct
@@ -297,6 +346,30 @@ pub fn setup
             LightMode::ControlablePoint =>
             {
               settings.borrow_mut().light_mode = LightMode::ControlablePoint;
+
+              for direct in &directs
+              {
+                if let Object3D::Light( light ) = &mut direct.borrow_mut().object
+                {
+                  if let Light::Direct( direct ) = light
+                  {
+                    direct.strength = 0.0;
+                  }
+                }
+              }
+
+              for point in &points
+              {
+                if let Object3D::Light( light ) = &mut point.borrow_mut().object
+                {
+                  if let Light::Point( point ) = light
+                  {
+                    point.strength = 0.0;
+                    point.range = 0.0;
+                  }
+                }
+              }
+
               if let Object3D::Light( light ) = &mut controlable_light.borrow_mut().object
               {
                 *light = Light::Point
