@@ -124,7 +124,7 @@ fn set_metal_color
           let mut material = material.borrow_mut();
           material.double_sided = true;
           material.base_color_texture = None;
-          material.roughness_factor = 0.0;
+          // material.roughness_factor = 0.0;
           for i in 0..3
           {
             material.base_color_factor.0[ i ] = color.0[ i ];
@@ -398,7 +398,7 @@ async fn run() -> Result< (), gl::WebglError >
   camera.bind_controls( &canvas );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  let ibl = renderer::webgl::loaders::ibl::load( &gl, "envMap", Some( 0..0 ) ).await;
+  let ibl = renderer::webgl::loaders::ibl::load( &gl, "environment_maps/christmas_photo_studio_07_4k", Some( 0..0 ) ).await;
   renderer.set_ibl( ibl.clone() );
 
   let renderer = Rc::new( RefCell::new( renderer ) );
