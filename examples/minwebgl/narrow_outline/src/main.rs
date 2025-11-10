@@ -58,22 +58,12 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use renderer::webgl::
 {
-  camera::Camera,
-  loaders::gltf::{ load, GLTF },
-  node::{ Node, Object3D },
-  program::
+  AttributeInfo, Geometry, IndexInfo, Material, Mesh, Primitive, camera::Camera, loaders::gltf::{ GLTF, load }, material::PBRMaterial, node::{ Node, Object3D }, program::
   {
     NormalDepthOutlineObjectShader,
     NormalDepthOutlineShader,
     ProgramInfo
-  },
-  scene::Scene,
-  AttributeInfo,
-  IndexInfo,
-  Geometry,
-  Material,
-  Mesh,
-  Primitive
+  }, scene::Scene
 };
 use ndarray_cg::
 {
@@ -280,7 +270,7 @@ pub fn add_attributes
     {
       let primitive = primitive.borrow();
       let mut geometry = primitive.geometry.borrow_mut();
-      let _ = geometry.add_attribute( gl, "object_ids", object_id_info.clone(), false );
+      let _ = geometry.add_attribute( gl, "object_ids", object_id_info.clone() );
     }
   }
 
@@ -569,7 +559,7 @@ fn primitives_csgrs_gltf
 
   let primitives = get_primitives_and_transform();
 
-  let material = Rc::new( RefCell::new( Material::default() ) );
+  let material = Rc::new( RefCell::new( Box::new( PBRMaterial::default() ) as Box< dyn Material > ) );
   gltf.materials.push( material.clone() );
 
   let attribute_infos =
@@ -648,7 +638,7 @@ fn primitives_csgrs_gltf
 
     for ( name, info ) in &attribute_infos
     {
-      geometry.add_attribute( gl, *name, info.clone(), false ).unwrap();
+      geometry.add_attribute( gl, *name, info.clone() ).unwrap();
     }
 
     geometry.add_index( gl, index_info.clone() ).unwrap();
