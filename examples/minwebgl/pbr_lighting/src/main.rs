@@ -122,7 +122,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   renderer.set_use_emission( true );
-  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "envMap" ).await );
+  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "envMap", Some( 0..0 ) ).await );
 
   let renderer = Rc::new( RefCell::new( renderer ) );
 
