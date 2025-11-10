@@ -285,7 +285,7 @@ void computeDirectLight
     float dotNV = clamp( dot( N, V ), 0.0, 1.0 );
 
     const float MAX_LOD = 9.0;
-    //if( dotNV > 0.0 )
+    if( dotNV > 0.05 )
     {
       vec3 Fs = F_Schlick( material.f0, material.f90, dotNV );
       vec3 R = reflect( -V, N );
@@ -300,6 +300,10 @@ void computeDirectLight
 
       reflectedLight.indirectDiffuse += diffuseBRDF;
       reflectedLight.indirectSpecular += specularBRDF;
+    }
+    else
+    {
+      reflectedLight.indirectDiffuse += material.diffuseColor;
     }
   }
 #endif
