@@ -12,7 +12,7 @@ mod private
   const MAIN_FRAGMENT_SHADER : &'static str = include_str!( "../shaders/main.frag" );
 
   /// Represents the visual properties of a surface.
-  #[ derive( Clone, Former, Debug ) ]
+  #[ derive( Former, Debug ) ]
   pub struct PBRMaterial
   {
     /// A unique identifier for the material.
@@ -270,6 +270,40 @@ mod private
     fn dyn_clone( &self ) -> Box< dyn Material > 
     {
       Box::new( self.clone() )
+    }
+
+    fn get_alpha_mode( &self ) -> AlphaMode 
+    {
+      self.alpha_mode
+    }
+  }
+
+  impl Clone for PBRMaterial
+  {
+    fn clone( &self ) -> Self 
+    {
+      PBRMaterial 
+      { 
+        id : uuid::Uuid::new_v4(), 
+        base_color_factor : self.base_color_factor, 
+        base_color_texture : self.base_color_texture.clone(), 
+        metallic_factor : self.metallic_factor, 
+        roughness_factor : self.roughness_factor, 
+        metallic_roughness_texture : self.metallic_roughness_texture.clone(), 
+        normal_scale : self.normal_scale, 
+        normal_texture : self.normal_texture.clone(), 
+        occlusion_strength : self.occlusion_strength, 
+        occlusion_texture : self.occlusion_texture.clone(), 
+        emissive_texture : self.emissive_texture.clone(), 
+        emissive_factor : self.emissive_factor, 
+        specular_factor : self.specular_factor, 
+        specular_texture : self.specular_texture.clone(), 
+        specular_color_factor : self.specular_color_factor, 
+        specular_color_texture : self.specular_color_texture.clone(), 
+        alpha_cutoff : self.alpha_cutoff, 
+        alpha_mode : self.alpha_mode, 
+        double_sided : self.double_sided 
+      }
     }
   }
 

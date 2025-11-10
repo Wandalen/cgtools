@@ -21,7 +21,7 @@ mod private
     {
       Self 
       { 
-        geometry : self.geometry.clone(), 
+        geometry : Rc::new( RefCell::new( self.geometry.borrow().clone() ) ) , 
         material : Rc::new( RefCell::new( self.material.borrow().dyn_clone() ) ) 
       }
     }

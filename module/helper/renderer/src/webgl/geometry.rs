@@ -5,7 +5,7 @@ mod private
   use minwebgl as gl;
 
   /// Represents information about a single vertex attribute.
-  #[ derive( Clone ) ]
+  #[ derive( Debug, Clone ) ]
   pub struct AttributeInfo
   {
     /// The attribute slot index in the shader program.
@@ -45,6 +45,7 @@ mod private
   }
 
   /// Represents a geometric object to be rendered.
+  #[ derive( Debug, Clone ) ]
   pub struct Geometry
   {
     /// A string containing preprocessor definitions (`#define`) that can be used in the shader program

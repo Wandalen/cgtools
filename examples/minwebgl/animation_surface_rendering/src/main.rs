@@ -229,7 +229,9 @@ fn clone( gltf : &mut GLTF, node : &Rc< RefCell< Node > > ) -> Rc< RefCell< Node
     let mesh = Rc::new( RefCell::new( mesh.borrow().clone() ) );
     for p in mesh.borrow().primitives.iter()
     {
-      gltf.materials.push( p.borrow().material.clone() );
+      //let m = Rc::new( RefCell::new( p.borrow().material.borrow().dyn_clone() ) );
+      let m = p.borrow().material.clone();
+      gltf.materials.push( m );
     }
     gltf.meshes.push( mesh );
   }
@@ -310,22 +312,22 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   clouds.borrow_mut().set_rotation( gl::Quat::from_angle_y( 90.0 ) );
   clouds.borrow_mut().update_local_matrix();
 
-  let moon = clone( &mut gltf, &earth );
-  let texture = create_texture( &gl, "textures/moon2.jpg" );
-  set_texture( &moon, | m | { m.base_color_texture = texture.clone(); } );
-  let scale = 0.25;
-  let distance = 7.0;// 30.0 * 1.0;
-  moon.borrow_mut().set_translation( [ distance, ( 1.0 - scale ), 0.0 ] );
-  moon.borrow_mut().set_scale( [ scale; 3 ] );
-  moon.borrow_mut().update_local_matrix();
+  // let moon = clone( &mut gltf, &earth );
+  // let texture = create_texture( &gl, "textures/moon2.jpg" );
+  // set_texture( &moon, | m | { m.base_color_texture = texture.clone(); } );
+  // let scale = 0.25;
+  // let distance = 7.0;// 30.0 * 1.0;
+  // moon.borrow_mut().set_translation( [ distance, ( 1.0 - scale ), 0.0 ] );
+  // moon.borrow_mut().set_scale( [ scale; 3 ] );
+  // moon.borrow_mut().update_local_matrix();
 
-  let environment = clone( &mut gltf, &earth );
-  let texture = create_texture( &gl, "environment_maps/equirectangular_maps/space3.png" );
-  set_texture( &environment, | m | { m.base_color_texture = texture.clone(); } );
-  let scale = 100000.0;
-  environment.borrow_mut().set_translation( [ 0.0, 1.0 - scale, 0.0 ] );
-  environment.borrow_mut().set_scale( [ scale; 3 ] );
-  environment.borrow_mut().update_local_matrix();
+  // let environment = clone( &mut gltf, &earth );
+  // let texture = create_texture( &gl, "environment_maps/equirectangular_maps/space3.png" );
+  // set_texture( &environment, | m | { m.base_color_texture = texture.clone(); } );
+  // let scale = 100000.0;
+  // environment.borrow_mut().set_translation( [ 0.0, 1.0 - scale, 0.0 ] );
+  // environment.borrow_mut().set_scale( [ scale; 3 ] );
+  // environment.borrow_mut().update_local_matrix();
 
   Ok( gltf )
 }
