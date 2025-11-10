@@ -21,16 +21,126 @@ use gl::
   GL,
   F32x3,
   JsCast,
-  web_sys::wasm_bindgen::closure::Closure
+  web_sys::
+  {
+    WebGlTexture,
+    wasm_bindgen::closure::Closure
+  }
 };
 use std::collections::HashSet;
 
 use renderer::webgl::
 {
-  Camera, Light, Node, Object3D, Renderer, Scene, SpotLight, post_processing::{ self, Pass, SwapFramebuffer }
+  Camera,
+  Light,
+  Node,
+  Object3D,
+  Renderer,
+  Scene,
+  SpotLight,
+  TextureInfo,
+  Texture,
+  WrappingMode,
+  MinFilterMode,
+  MagFilterMode,
+  Sampler,
+  post_processing::{ self, Pass, SwapFramebuffer }
 };
 
 mod ui;
+
+/// Uploads an image from a URL to a WebGL texture.
+///
+/// This function creates a new `WebGlTexture` and asynchronously loads an image from the provided URL into it.
+/// It uses a `Closure` to handle the `onload` event of an `HtmlImageElement`, ensuring the texture is
+/// uploaded only after the image has finished loading.
+///
+/// # Arguments
+///
+/// * `gl` - The WebGl2RenderingContext.
+/// * `src` - A reference-counted string containing the URL of the image to load.
+///
+/// # Returns
+///
+/// A `WebGlTexture` object.
+fn upload_texture( gl : &GL, src : &str ) -> WebGlTexture
+{
+  let window = web_sys::window().expect( "Can't get window" );
+  let document =  window.document().expect( "Can't get document" );
+
+  let texture = gl.create_texture().expect( "Failed to create a texture" );
+
+  let img_element = document.create_element( "img" )
+  .expect( "Can't create img" )
+  .dyn_into::< gl::web_sys::HtmlImageElement >()
+  .expect( "Can't convert to gl::web_sys::HtmlImageElement" );
+  img_element.style().set_property( "display", "none" ).expect( "Can't set property" );
+  let load_texture : Closure< dyn Fn() > = Closure::new
+  (
+    {
+      let gl = gl.clone();
+      let img = img_element.clone();
+      let texture = texture.clone();
+      move ||
+      {
+        gl::texture::d2::upload_no_flip( &gl, Some( &texture ), &img );
+        gl.generate_mipmap( gl::TEXTURE_2D );
+        img.remove();
+      }
+    }
+  );
+
+  img_element.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
+  img_element.set_src( &src );
+  load_texture.forget();
+
+  texture
+}
+
+/// Creates a new `TextureInfo` struct with a texture loaded from a file.
+///
+/// This function calls `upload_texture` to load an image, sets up a default `Sampler`
+/// with linear filtering and repeat wrapping, and then combines them into a `TextureInfo`
+/// struct.
+///
+/// # Arguments
+///
+/// * `gl` - The WebGl2RenderingContext.
+/// * `image_path` - The path to the image file, relative to the `static/` directory.
+///
+/// # Returns
+///
+/// An `Option<TextureInfo>` containing the texture data, or `None` if creation fails.
+fn create_texture
+(
+  gl : &GL,
+  image_path : &str
+) -> Option< TextureInfo >
+{
+  let image_path = format!( "static/{image_path}" );
+  let texture_id = upload_texture( gl, image_path.as_str() );
+
+  let sampler = Sampler::former()
+  .min_filter( MinFilterMode::Linear )
+  .mag_filter( MagFilterMode::Linear )
+  .wrap_s( WrappingMode::Repeat )
+  .wrap_t( WrappingMode::Repeat )
+  .end();
+
+  let texture = Texture::former()
+  .target( GL::TEXTURE_2D )
+  .source( texture_id )
+  .sampler( sampler )
+  .end();
+
+  let texture_info = TextureInfo
+  {
+    texture : Rc::new( RefCell::new( texture ) ),
+    uv_position : 0,
+  };
+
+  Some( texture_info )
+}
 
 fn get_node( scene : &Rc< RefCell< Scene > >, name : String ) -> Option< Rc< RefCell< Node > > >
 {
@@ -122,9 +232,8 @@ fn set_metal_color
         let material = &primitive.borrow().material;
         {
           let mut material = material.borrow_mut();
-          material.double_sided = true;
           material.base_color_texture = None;
-          // material.roughness_factor = 0.0;
+          material.roughness_factor = 0.2;
           for i in 0..3
           {
             material.base_color_factor.0[ i ] = color.0[ i ];
@@ -402,6 +511,8 @@ async fn run() -> Result< (), gl::WebglError >
   renderer.set_ibl( ibl.clone() );
 
   let renderer = Rc::new( RefCell::new( renderer ) );
+  let skybox = create_texture( &gl, "environment_maps/equirectangular_maps/christmas_photo_studio_07.webp" ).unwrap();
+  renderer.borrow_mut().set_skybox( skybox.texture.borrow().source.clone() );
 
   let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
 
@@ -512,6 +623,7 @@ async fn run() -> Result< (), gl::WebglError >
           let mut renderer_mut = renderer.borrow_mut();
           *renderer_mut = r;
           renderer_mut.set_ibl( ibl.clone() );
+          renderer_mut.set_skybox( skybox.texture.borrow().source.clone() );
           renderer_mut.set_exposure( 1.0 );
 
           match ui::get_ui_state().unwrap().light_mode.as_str()
