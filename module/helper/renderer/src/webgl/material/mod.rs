@@ -3,7 +3,7 @@ mod private
   use minwebgl as gl;
   use crate::webgl::Texture;
   use std:: { cell::RefCell, rc::Rc };
-  use rustc_hash::FxHashMap;
+  use rustc_hash::{ FxHashMap, FxHasher};
 
   /// Represents the alpha blending mode of the material.
   #[ derive( Default, Clone, Copy, PartialEq, Eq, Debug ) ]
@@ -16,6 +16,42 @@ mod private
     Mask,
     /// The material uses standard alpha blending.
     Blend
+  }
+
+  /// Represents the cull mode for the material
+  #[ derive( Default, Clone, Copy, PartialEq, Eq, Debug ) ]
+  pub enum CullMode
+  {
+    /// Cull front face
+    Front,
+    /// Cull back face
+    #[ default ]
+    Back,
+    /// Cull back and front face
+    FrontAndBack
+  }
+
+  /// Represents the depth function
+  #[ derive( Default, Clone, Copy, PartialEq, Eq, Debug ) ]
+  pub enum DepthFunc
+  {
+    /// Never pass
+    Never,
+    /// Pass if the incoming value is less than the depth buffer value
+    #[ default ]
+    Less,
+    /// Pass if the incoming value equals the depth buffer value
+    Equal,
+    /// Pass if the incoming value is less than or equal to the depth buffer value
+    LEqual,
+    /// Pass if the incoming value is greater than the depth buffer value
+    Greater,
+    /// Pass if the incoming value is not equal to the depth buffer value
+    NotEqual,
+    /// Pass if the incoming value is greater than or equal to the depth buffer value
+    GEqual,
+    /// Always pass
+    ALWAYS
   }
 
   /// Stores information about a texture used by the material, including the texture itself and its UV coordinates.
@@ -56,6 +92,15 @@ mod private
     /// Returns the unique identifier of the material.
     fn get_id( &self ) -> uuid::Uuid;
 
+    /// Returns a human-readable name for the material (for debugging/editor).
+    fn get_name( &self ) -> Option< &str > 
+    {
+      None
+    }
+
+    /// Returns the material type identifier (e.g., "PBR", "Unlit", "Custom").
+    fn get_type_name(&self) -> &'static str;
+
     /// Returns the vertex shader of the material
     fn get_vertex_shader( &self ) -> String;
 
@@ -78,6 +123,19 @@ mod private
     fn get_fragment_defines_str( &self ) -> String
     {
       String::new()
+    }
+
+    /// Returns a hash representing the current shader configuration.
+    /// Used for shader caching and variant management.
+    fn get_shader_hash( &self ) -> u64 
+    {
+      use std::hash::{ Hash, Hasher };
+
+      let mut hasher = FxHasher::default();
+      self.get_vertex_shader().hash( &mut hasher );
+      self.get_fragment_shader().hash( &mut hasher );
+      self.get_defines_str().hash( &mut hasher );
+      hasher.finish()
     }
 
     /// Configures the position of the uniform texture samplers in the shader program.
@@ -119,6 +177,41 @@ mod private
     fn get_alpha_mode( &self ) -> AlphaMode
     {
       AlphaMode::Opaque
+    }
+
+    /// Returns the face culling mode.
+    fn get_cull_mode( &self ) -> CullMode 
+    {
+      CullMode::default()
+    }
+
+    /// Returns whether depth testing is enabled.
+    fn is_depth_test_enabled(&self) -> bool {
+      true
+    }
+
+    /// Returns whether depth writing is enabled.
+    fn is_depth_write_enabled(&self) -> bool {
+      true
+    }
+
+    /// Returns the depth comparison function.
+    fn get_depth_func( &self ) -> DepthFunc 
+    {
+      DepthFunc::default()
+    }
+
+    /// Returns the color write mask (R, G, B, A).
+    fn get_color_write_mask(&self) -> ( bool, bool, bool, bool ) 
+    {
+      ( true, true, true, true )
+    }
+
+    /// Returns whether this material is transparent and should be rendered
+    /// in the transparency pass.
+    fn is_transparent( &self ) -> bool 
+    {
+      matches!( self.get_alpha_mode(), AlphaMode::Blend )
     }
   }
 
