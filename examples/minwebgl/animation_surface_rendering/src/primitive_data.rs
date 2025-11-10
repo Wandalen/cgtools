@@ -15,15 +15,7 @@ mod private
   use std::rc::Rc;
   use renderer::webgl::
   {
-    Node,
-    Object3D,
-    Scene,
-    Material,
-    Mesh,
-    Primitive,
-    loaders::gltf::GLTF,
-    Geometry,
-    IndexInfo
+    Geometry, IndexInfo, Material, Mesh, Node, Object3D, Primitive, Scene, loaders::gltf::GLTF, material::PBRMaterial
   };
   use primitive_generation::primitive_data::
   {
@@ -97,7 +89,7 @@ mod private
   /// This function takes a collection of `PrimitiveData` objects, each representing
   /// a single graphical primitive, and converts them into a `GLTF` format suitable for rendering.
   /// It aggregates all position and index data into global buffers, creates the
-  /// corresponding `Node`, `Mesh`, `Primitive`, `Geometry`, and `Material` objects,
+  /// corresponding `Node`, `Mesh`, `Primitive`, `Geometry`, and `PBRMaterial` objects,
   /// and constructs the scene graph hierarchy.
   ///
   /// # Arguments
@@ -119,7 +111,7 @@ mod private
     let mut gl_buffers = vec![];
     let mut meshes = vec![];
 
-    let material = Rc::new( RefCell::new( Material::default() ) );
+    let material = Rc::new( RefCell::new( Box::new( PBRMaterial::default() )  as Box< dyn Material > ) );
     let materials = vec![ material.clone() ];
 
     scenes.push( Rc::new( RefCell::new( Scene::new() ) ) );
