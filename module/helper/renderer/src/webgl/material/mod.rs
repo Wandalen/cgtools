@@ -62,8 +62,20 @@ mod private
     /// Return the fragment shader of the material
     fn get_fragment_shader( &self ) -> String;
 
-    /// Generates `#define` directives to be inserted into the fragment shader based on the material's properties.
-    fn get_defines( &self ) -> String
+    /// Return a string containing combined version of the vertex and fragment defines
+    fn get_defines_str( &self ) -> String
+    {
+      String::new()
+    }
+
+    /// Returns a string containing vertex shader related defines
+    fn get_vertex_defines_str( &self ) -> String
+    {
+      String::new()
+    }
+
+    /// Returns a string containing fragment shader related defines
+    fn get_fragment_defines_str( &self ) -> String
     {
       String::new()
     }
@@ -103,6 +115,7 @@ mod private
     /// Dyn safe clone method
     fn dyn_clone( &self ) -> Box< dyn Material >;
 
+    /// Returns an alpha mode for the current materials
     fn get_alpha_mode( &self ) -> AlphaMode
     {
       AlphaMode::Opaque
@@ -114,6 +127,7 @@ mod private
 
 crate::mod_interface!
 {
+  /// PBR Material
   layer pbr;
 
   orphan use

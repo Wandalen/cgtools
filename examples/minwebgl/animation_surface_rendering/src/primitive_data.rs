@@ -176,7 +176,7 @@ mod private
 
         for ( name, info ) in &attribute_infos
         {
-          geometry.add_attribute( gl, *name, info.clone(), false ).unwrap();
+          geometry.add_attribute( gl, *name, info.clone() ).unwrap();
         }
 
         geometry.add_index( gl, index_info.clone() ).unwrap();

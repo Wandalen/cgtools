@@ -665,7 +665,7 @@ mod private
             let primitive = primitive_rc.borrow();
             let material = primitive.material.borrow();
             let geometry = primitive.geometry.borrow();
-            let defines = material.get_defines();
+            let defines = material.get_defines_str();
             // Generate a unique ID for the program based on the material ID and vertex shader defines.
             let program_id = format!( "{}{}", material.get_id(), defines );
 
@@ -756,9 +756,7 @@ mod private
       {
         let primitive = primitive;
         let material = primitive.material.borrow();
-        let geometry = primitive.geometry.borrow();
-        let vs_defines = geometry.get_defines();
-        let program_info = self.programs.get( &format!( "{}{}",  material.get_id(), vs_defines ) ).unwrap();
+        let program_info = self.programs.get( &format!( "{}{}",  material.get_id(), material.get_defines_str() ) ).unwrap();
 
         let locations = program_info.get_locations();
 

@@ -48,9 +48,6 @@ mod private
   #[ derive( Debug, Clone ) ]
   pub struct Geometry
   {
-    /// A string containing preprocessor definitions (`#define`) that can be used in the shader program
-    /// based on the geometry's attributes.
-    pub defines : String,
     /// The WebGL Vertex Array Object that stores the state for attribute bindings.
     pub vao : gl::WebGlVertexArrayObject,
     /// The primitive drawing mode (e.g., `gl::TRIANGLES`, `gl::LINES`).
@@ -73,13 +70,11 @@ mod private
       let draw_mode = gl::TRIANGLES;
       let vertex_count = 0;
       let index_info = None;
-      let defines = String::new();
 
       Ok
       (
         Self
         {
-          defines,
           vao,
           draw_mode,
           vertex_count,
@@ -102,17 +97,12 @@ mod private
       &mut self,
       gl : &gl::WebGl2RenderingContext,
       name : Name,
-      info : AttributeInfo,
-      as_define : bool
+      info : AttributeInfo
     ) -> Result< (), gl::WebglError >
     {
       let name = name.into();
       if !self.attributes.contains_key( &name )
       {
-        if as_define
-        {
-          self.defines.push_str( &format!( "#define USE_{}\n", name.to_uppercase() ) );
-        }
         self.bind( gl );
         info.upload( gl )?;
         self.attributes.insert( name, info );
@@ -161,13 +151,7 @@ mod private
 
       Ok( () )
     }
-
-    /// Returns a reference to the `defines` string containing shader preprocessor definitions.
-    pub fn get_defines( &self ) -> &str
-    {
-      &self.defines
-    }
-
+    
     /// Returns the center point of the geometry's bounding box, assuming a "positions" attribute exists.
     ///
     /// It panics if the "positions" attribute is not found.
