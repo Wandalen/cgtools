@@ -282,41 +282,41 @@ async fn run() -> Result< (), gl::WebglError >
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
 
-  let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/cube.glb" ).as_str(), &gl ).await?;
+  let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/plane.glb" ).as_str(), &gl ).await?;
 
-  let scene = gltf.scenes[ 0 ].clone(); // Rc::new( RefCell::new( Scene::new() ) );
+  let scene = gltf.scenes[ 0 ].clone();
 
-  let node = Rc::new( RefCell::new( Node::new() ) );
-  let spot = SpotLight
-  {
-    position : F32x3::from_array( [ 0.0, 20.0, 20.0 ] ),
-    direction : F32x3::from_array( [ 0.0, -1.0, -1.0 ] ).normalize(),
-    color : F32x3::splat( 1.0 ),
-    strength : 20000.0,
-    range : 200.0,
-    inner_cone_angle : 30_f32.to_radians(),
-    outer_cone_angle : 50_f32.to_radians(),
-    use_light_map : true
-  };
-
-  node.borrow_mut().object = Object3D::Light( Light::Spot( spot.clone() ) );
-  scene.borrow_mut().add( node );
-
-  let surface = get_node( &scene, "Cube".to_string() ).unwrap();
+  let surface = get_node( &scene, "Plane".to_string() ).unwrap();
   surface.borrow_mut().set_translation( F32x3::from_array( [ 0.0, -20.0, 0.0 ] ) );
-  surface.borrow_mut().set_scale( F32x3::from_array( [ 200.0, 0.1, 200.0 ] ) );
+  surface.borrow_mut().set_scale( F32x3::from_array( [ 1000.0, 0.1, 1000.0 ] ) );
 
-  if let Object3D::Mesh( mesh ) = &surface.borrow().object
+  let ( surface_material, surface_primitive ) =
   {
+    let Object3D::Mesh( mesh ) = &surface.borrow().object
+    else
+    {
+      unreachable!();
+    };
+
     mesh.borrow_mut().is_shadow_receiver = true;
     mesh.borrow_mut().is_shadow_caster = true;
-    for primitives in &mesh.borrow().primitives
+
+    let primitives = &mesh.borrow().primitives;
+    let primitive = primitives.first().unwrap();
+    let surface_primitive = primitive.clone();
+    let primitive = primitive.borrow();
+    let surface_material = primitive.material.clone();
+
     {
-      let material = &primitives.borrow().material;
-      material.borrow_mut().base_color_texture = None;
-      material.borrow_mut().base_color_factor.0[ 3 ] = 0.0;
+      let mut material = surface_material.borrow_mut();
+      material.base_color_texture = None;
+      material.roughness_factor = 1.0;
+      material.specular_factor = Some( 0.0 );
+      material.metallic_factor = 0.0;
     }
-  }
+
+    ( surface_material, surface_primitive )
+  };
 
   let mut rings : Vec< Rc< RefCell< Node > > > = vec![];
   let mut gems : Vec< Rc< RefCell< Node > > > = vec![];
@@ -411,6 +411,50 @@ async fn run() -> Result< (), gl::WebglError >
   renderer.borrow_mut().set_clear_color( F32x3::splat( 1.0 ) );
   renderer.borrow_mut().set_exposure( 1.0 );
 
+  let node = Rc::new( RefCell::new( Node::new() ) );
+  let spot = SpotLight
+  {
+    position : F32x3::from_array( [ 20.0, 40.0, 20.0 ] ),
+    direction : F32x3::from_array( [ -1.0, -2.0, -1.0 ] ).normalize(),
+    color : F32x3::splat( 1.0 ),
+    strength : 20000.0,
+    range : 200.0,
+    inner_cone_angle : 30_f32.to_radians(),
+    outer_cone_angle : 50_f32.to_radians(),
+    use_light_map : true
+  };
+
+  node.borrow_mut().object = Object3D::Light( Light::Spot( spot.clone() ) );
+  scene.borrow_mut().add( node );
+
+  let mut shadow_light = renderer::webgl::shadow::Light::new
+  (
+    spot.position,
+    spot.direction,
+    gl::math::mat3x3h::perspective_rh_gl( 100.0_f32.to_radians(), 1.0, 0.1, 100.0 ),
+    0.01
+  );
+
+  let shadowmap_res = 4096;
+  let lightmap_res = 8192;
+  let mut light_maps = vec![];
+  let mut current = current_ring.clone();
+  for i in ( 0..rings.len() ).rev()
+  {
+    let new_ring = rings.get( i ).unwrap();
+    remove_node_from_scene( &scene, &current );
+    current = new_ring.clone();
+    set_gem_color( &gl, &renderer, &gems[ i ], F32x3::from_array( [ 1.0, 1.0, 1.0 ] ) );
+    set_metal_color( &gl, &renderer, &current, &filters[ i ], F32x3::from_array( [ 0.753, 0.753, 0.753 ] ) );
+    scene.borrow_mut().add( current.clone() );
+    scene.borrow_mut().update_world_matrix();
+
+    renderer::webgl::shadow::bake_shadows( &gl, &*scene.borrow(), &mut shadow_light, lightmap_res, shadowmap_res ).unwrap();
+    light_maps.push( surface_material.borrow().light_map.clone() );
+  }
+  renderer.borrow().update_material_uniforms( &gl, &surface_primitive );
+  light_maps.reverse();
+
   match ui_state.gem.as_str()
   {
     "white" => set_gem_color( &gl, &renderer, &current_gem, F32x3::from_array( [ 1.0, 1.0, 1.0 ] ) ),
@@ -434,18 +478,6 @@ async fn run() -> Result< (), gl::WebglError >
     _ => ()
   }
 
-  let mut shadow_light = renderer::webgl::shadow::Light::new
-  (
-    spot.position,
-    spot.direction,
-    gl::math::mat3x3h::perspective_rh_gl( 100.0_f32.to_radians(), 1.0, 0.1, 100.0 ),
-    0.7
-  );
-
-  let shadowmap_res = 4096;
-  let lightmap_res = 8192;
-  renderer::webgl::shadow::bake_shadows( &gl, &*scene.borrow(), &mut shadow_light, lightmap_res, shadowmap_res ).unwrap();
-
   let is_resized = add_resize_callback();
 
   // Define the update and draw logic
@@ -453,6 +485,26 @@ async fn run() -> Result< (), gl::WebglError >
   {
     move | t : f64 |
     {
+      let camera_controls = camera.get_controls();
+      let distance = camera_controls.borrow().eye.distance( &F32x3::default() );
+      if distance > 50.0
+      {
+        camera_controls.borrow_mut().eye /= distance / 50.0;
+      }
+
+      if camera_controls.borrow().eye.y() < -20.0
+      {
+        surface_material.borrow_mut().base_color_factor.0[ 3 ] = 0.0;
+        surface_material.borrow_mut().alpha_mode = renderer::webgl::AlphaMode::Blend;
+        renderer.borrow().update_material_uniforms( &gl, &surface_primitive );
+      }
+      else
+      {
+        surface_material.borrow_mut().base_color_factor.0[ 3 ] = 1.0;
+        surface_material.borrow_mut().alpha_mode = renderer::webgl::AlphaMode::Opaque;
+        renderer.borrow().update_material_uniforms( &gl, &surface_primitive );
+      }
+
       if *is_resized.borrow()
       {
         if let Ok( r ) = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )
@@ -506,6 +558,9 @@ async fn run() -> Result< (), gl::WebglError >
               current_ring = new_ring;
               scene.borrow_mut().add( current_ring.clone() );
               scene.borrow_mut().update_world_matrix();
+
+              surface_material.borrow_mut().light_map = light_maps[ ui_state.ring as usize ].clone();
+              renderer.borrow().update_material_uniforms( &gl, &surface_primitive );
             }
           }
 
