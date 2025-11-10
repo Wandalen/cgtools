@@ -55,7 +55,7 @@ zune-hdr = { workspace = true }
 
 asbytes = { workspace = true, optional = true }
 former = { workspace = true, optional = true }
-uuid = { workspace = true, optional = true }
+uuid = { version = "1.12.1", features = ["v4", "js"], optional = true }
 
 [dependencies.web-sys]
 workspace = true

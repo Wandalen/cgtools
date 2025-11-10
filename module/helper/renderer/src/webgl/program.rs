@@ -87,6 +87,8 @@ mod private
   pub struct EmptyShader;
   /// A Physically Based Rendering (PBR) shader.
   pub struct PBRShader;
+  /// Shader used for drawing background from equirectangular map
+  pub struct SkyboxShader;
   /// A Gaussian filter shader
   ///
   /// This type of shader is commonly used for post-processing effects like
@@ -260,6 +262,14 @@ mod private
 
   impl_locations!
   (
+    SkyboxShader,
+    "uEquirectMap",
+    "uInvProjection",
+    "uInvView"
+  );
+
+  impl_locations!
+  (
     GaussianFilterShader,
     "sourceTexture",
     "invSize",
@@ -420,6 +430,7 @@ crate::mod_interface!
     GaussianFilterShader,
     UnrealBloomShader,
     PBRShader,
+    SkyboxShader,
     GBufferShader,
     CompositeShader,
     JfaOutlineObjectShader,

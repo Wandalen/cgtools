@@ -4,6 +4,7 @@ mod private
   use mingl::F32x3;
   use minwebgl as gl;
   use gl::GL;
+  use web_sys::WebGlTexture;
 
   use crate::webgl::
   {
@@ -15,7 +16,7 @@ mod private
       UnrealBloomPass,
       VS_TRIANGLE
     },
-    program::{ self, CompositeShader },
+    program::{ self, CompositeShader, SkyboxShader },
     AlphaMode,
     Camera,
     Node,
@@ -77,6 +78,10 @@ mod private
     pub transparent_revealage_texture : Option< gl::web_sys::WebGlTexture >,
     #[ allow( dead_code ) ]
     pub depth_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
+    /// The framebuffer used for rendering skybox
+    pub skybox_framebuffer : Option< gl::web_sys::WebGlFramebuffer >,
+    /// Texture with equirectangular map
+    pub skybox_texture : Option< gl::web_sys::WebGlTexture >,
   }
 
   impl FramebufferContext
@@ -105,6 +110,7 @@ mod private
       // Create the core framebuffer objects.
       let multisample_framebuffer = gl.create_framebuffer();
       let resolved_framebuffer = gl.create_framebuffer();
+      let skybox_framebuffer = gl.create_framebuffer();
 
       // --- Setup Depth/Stencil Renderbuffer ---
       // Create and bind a renderbuffer for depth and stencil information.
@@ -176,7 +182,6 @@ mod private
 
       gl.bind_renderbuffer( gl::RENDERBUFFER, None );
 
-
       // --- Create Resolved Textures ---
       // These textures will store the final, resolved (non-multisampled)
       // color information after blitting.
@@ -201,13 +206,13 @@ mod private
       gl::texture::d2::filter_linear( gl );
       gl::texture::d2::wrap_clamp( gl );
 
-      // Configure the  texture.
+      // Configure the transparent accumulate texture.
       gl.bind_texture( gl::TEXTURE_2D, transparent_accumulate_texture.as_ref() );
       gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width as i32, height  as i32 );
       gl::texture::d2::filter_linear( gl );
       gl::texture::d2::wrap_clamp( gl );
 
-      // Configure the  texture.
+      // Configure the transparent revealage texture.
       gl.bind_texture( gl::TEXTURE_2D, transparent_revealage_texture.as_ref() );
       gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::R16F, width  as i32, height  as i32 );
       gl::texture::d2::filter_linear( gl );
@@ -240,6 +245,12 @@ mod private
       // these will typically be written to via `blit_framebuffer`).
       gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
 
+      // --- Attach Main Texture to Skybox Framebuffer ---
+      gl.bind_framebuffer( gl::FRAMEBUFFER, skybox_framebuffer.as_ref() );
+      // gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, main_texture.as_ref(), 0 );
+      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, multisample_main_renderbuffer.as_ref() );
+      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
+
       // Unbind all resources to clean up the global WebGL state.
       gl.bind_texture( gl::TEXTURE_2D, None );
       gl.bind_renderbuffer( gl::RENDERBUFFER, None );
@@ -253,6 +264,7 @@ mod private
         texture_height,
         texture_width,
         resolved_framebuffer,
+        skybox_framebuffer,
         multisample_framebuffer,
         multisample_depth_renderbuffer,
         multisample_emission_renderbuffer,
@@ -263,7 +275,8 @@ mod private
         main_texture,
         emission_texture,
         transparent_accumulate_texture,
-        transparent_revealage_texture
+        transparent_revealage_texture,
+        skybox_texture : None
       }
     }
 
@@ -502,7 +515,9 @@ mod private
     exposure : f32,
     composite_shader : ProgramInfo< CompositeShader >,
     /// Clear color
-    clear_color : F32x3
+    clear_color : F32x3,
+    /// Shader for drawing background
+    skybox_shader : ProgramInfo< SkyboxShader >
   }
 
   impl Renderer
@@ -530,6 +545,14 @@ mod private
       gl.uniform1i( locations.get( "transparentA" ).unwrap().clone().as_ref() , 0 );
       gl.uniform1i( locations.get( "transparentB" ).unwrap().clone().as_ref() , 1 );
 
+      let skybox_program = gl::ProgramFromSources::new
+      (
+        VS_TRIANGLE,
+        include_str!( "shaders/skybox.frag" )
+      )
+      .compile_and_link( gl )?;
+      let skybox_shader = ProgramInfo::< SkyboxShader >::new( gl, skybox_program );
+
       Ok
       (
         Self
@@ -544,7 +567,8 @@ mod private
           swap_buffer,
           exposure,
           composite_shader,
-          clear_color : F32x3::splat( 0.0 )
+          clear_color : F32x3::splat( 0.0 ),
+          skybox_shader
         }
       )
     }
@@ -573,6 +597,12 @@ mod private
     pub fn get_exposure( &self ) -> f32
     {
       self.exposure
+    }
+
+    /// Sets a new exposure value.
+    pub fn set_skybox( &mut self, texture : Option< WebGlTexture > )
+    {
+      self.framebuffer_ctx.skybox_texture = texture;
     }
 
     /// Sets a new exposure value.
@@ -636,6 +666,38 @@ mod private
       }
     }
 
+    /// Draw equirectangular skybox
+    pub fn draw_skybox
+    (
+      &self,
+      gl : &gl::WebGl2RenderingContext,
+      camera : &Camera,
+    )
+    {
+      self.skybox_shader.bind( gl );
+
+      gl.bind_framebuffer( gl::FRAMEBUFFER, self.framebuffer_ctx.skybox_framebuffer.as_ref() );
+      gl.viewport( 0, 0, self.framebuffer_ctx.texture_width as i32, self.framebuffer_ctx.texture_height as i32 );
+      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
+
+      let locations = self.skybox_shader.get_locations();
+
+      let equirect_map_loc = locations.get( "uEquirectMap" ).unwrap();
+      let inv_projection_loc = locations.get( "uInvProjection" ).unwrap();
+      let inv_view_loc = locations.get( "uInvView" ).unwrap();
+
+      gl.active_texture( gl::TEXTURE0 );
+      gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.skybox_texture.as_ref() );
+      gl.uniform1i( equirect_map_loc.as_ref(), 0 as i32 );
+      gl::uniform::matrix_upload( gl, inv_projection_loc.clone(), &camera.get_projection_matrix().inverse().unwrap().to_array(), true ).unwrap();
+      gl::uniform::matrix_upload( gl, inv_view_loc.clone(), &camera.get_view_matrix().inverse().unwrap().to_array(), true ).unwrap();
+
+      gl.draw_arrays( gl::TRIANGLES, 0, 3 );
+
+      gl.bind_framebuffer( gl::FRAMEBUFFER, None );
+      gl.use_program( None );
+    }
+
     /// Renders the scene using the provided camera.
     ///
     /// * `gl`: The `WebGl2RenderingContext` to use for rendering.
@@ -678,6 +740,11 @@ mod private
       gl.clear( gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT );
       gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
 
+      self.framebuffer_ctx.unbind_multisample( gl );
+
+      self.draw_skybox( gl, camera );
+
+      self.framebuffer_ctx.bind_multisample( gl );
 
       // Clear the list of transparent nodes before each render.
       self.transparent_nodes.clear();
@@ -854,7 +921,6 @@ mod private
 
       self.framebuffer_ctx.resolve( gl, self.use_emission );
       self.framebuffer_ctx.unbind_multisample( gl );
-
 
       // self.transparent_nodes.sort_by( | a, b |
       // {

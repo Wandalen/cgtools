@@ -62,7 +62,6 @@ mod private
     }
     gl.bind_texture( gl::TEXTURE_CUBE_MAP, None );
 
-
     IBL
     {
       diffuse_texture,
