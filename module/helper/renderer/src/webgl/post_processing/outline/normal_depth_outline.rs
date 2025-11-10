@@ -28,17 +28,17 @@ mod private
     height : u32
   }
 
-  impl NormalDepthOutlinePass 
+  impl NormalDepthOutlinePass
   {
     /// Creates a new `NormalDepthOutlinePass` instance.
-    pub fn new( 
-      gl : &gl::WebGl2RenderingContext, 
+    pub fn new(
+      gl : &gl::WebGl2RenderingContext,
       position_texture : Option< gl::web_sys::WebGlTexture >,
       normal_texture : Option< gl::web_sys::WebGlTexture >,
       object_color_texture : Option< gl::web_sys::WebGlTexture >,
       outline_thickness : f32,
-      width : u32, 
-      height : u32 
+      width : u32,
+      height : u32
     ) -> Result< Self, gl::WebglError >
     {
       let fs_shader = include_str!( "../../shaders/post_processing/outline/normal_depth_outline.frag" );
@@ -73,7 +73,7 @@ mod private
       };
 
       Ok( pass )
-    }    
+    }
 
     /// Sets the thickness of the outline.
     pub fn set_outline_thickness( &mut self, new_value : f32 )
@@ -84,18 +84,18 @@ mod private
 
   impl Pass for NormalDepthOutlinePass
   {
-    fn renders_to_input( &self ) -> bool 
+    fn renders_to_input( &self ) -> bool
     {
       false
     }
-    
+
     fn render
     (
       &self,
       gl : &minwebgl::WebGl2RenderingContext,
       input_texture : Option< minwebgl::web_sys::WebGlTexture >,
       output_texture : Option< minwebgl::web_sys::WebGlTexture >
-    ) -> Result< Option< minwebgl::web_sys::WebGlTexture >, minwebgl::WebglError > 
+    ) -> Result< Option< minwebgl::web_sys::WebGlTexture >, minwebgl::WebglError >
     {
       self.program_info.bind( gl );
 
@@ -109,16 +109,16 @@ mod private
 
       gl.framebuffer_texture_2d
       (
-        gl::FRAMEBUFFER, 
-        gl::COLOR_ATTACHMENT0, 
-        gl::TEXTURE_2D, 
-        output_texture.as_ref(), 
+        gl::FRAMEBUFFER,
+        gl::COLOR_ATTACHMENT0,
+        gl::TEXTURE_2D,
+        output_texture.as_ref(),
         0
-      );  
+      );
 
       gl.active_texture( gl::TEXTURE0 );
       gl.bind_texture( gl::TEXTURE_2D, input_texture.as_ref() );
-      
+
       gl.active_texture( gl::TEXTURE1 );
       gl.bind_texture( gl::TEXTURE_2D, self.position_texture.as_ref() );
 
