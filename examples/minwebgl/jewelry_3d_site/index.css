@@ -19,9 +19,6 @@ body {
   font-family: "Cardo", serif;
   scroll-behavior: smooth;
   width: 100vw;
-  --bg-color-inner: "#FFFFFF";
-  --bg-color-outer: "#DDDDDD";
-  background: radial-gradient(circle, var(--bg-color-inner), var(--bg-color-outer));
 }
 
 body::-webkit-scrollbar { display: none; }

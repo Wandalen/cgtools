@@ -5,8 +5,6 @@ use serde::{ Serialize, Deserialize };
 #[ derive( Debug, Clone, Default, Serialize, Deserialize ) ]
 pub struct UiState
 {
-  #[ serde( rename = "lightMode" ) ]
-  pub light_mode : String,
   pub gem : String,
   pub metal : String,
   pub ring : u32,

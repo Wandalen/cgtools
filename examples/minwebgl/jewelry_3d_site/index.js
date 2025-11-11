@@ -1,12 +1,10 @@
 export let uiState =
 {
-  lightMode : "light",
   gem : "white",
   metal : "silver",
   ring : 0,
   changed :
   [
-    "lightMode",
     "gem",
     "metal",
     "ring"
@@ -44,63 +42,6 @@ document.addEventListener
     const configRing = document.querySelector( '.config--ring' )
     const closeConfigGem = document.querySelector( '.close-gems' )
     const closeConfigRing = document.querySelector( '.close-rings' )
-
-    let nightMode = false
-
-    // NIGHT MODE
-    document.querySelector( '.night--mode' )?.addEventListener( 'click', () => { toggleNightMode() } )
-
-    let inner_light_color = "#FFFFFF";
-    let outer_light_color = "#DDDDDD";
-    let inner_dark_color = "#777777";
-    let outer_dark_color = "#000000";
-
-    gsap.to
-    (
-      document.body,
-      {
-        duration : 0.75,
-        "--bg-color-inner" : inner_light_color,
-        "--bg-color-outer" : outer_light_color
-      }
-    );
-
-    function toggleNightMode()
-    {
-      if( !nightMode )
-      {
-        footerMenu.classList.add( 'night--mode--filter' )
-        headerContainer.classList.add( 'night--mode--filter' )
-        gsap.to
-        (
-          document.body,
-          {
-            duration : 0.75,
-            "--bg-color-inner" : inner_dark_color,
-            "--bg-color-outer" : outer_dark_color
-          }
-        );
-        nightMode = true
-        uiState["lightMode"] = "dark";
-      }
-      else
-      {
-        footerMenu.classList.remove( 'night--mode--filter' )
-        headerContainer.classList.remove( 'night--mode--filter' )
-        gsap.to
-        (
-          document.body,
-          {
-            duration : 0.75,
-            "--bg-color-inner" : inner_light_color,
-            "--bg-color-outer" : outer_light_color
-          }
-        );
-        nightMode = false
-        uiState[ "lightMode" ] = "light";
-      }
-      uiState.changed.push( "lightMode" );
-    }
 
     // GEM MENU
     configGem.addEventListener

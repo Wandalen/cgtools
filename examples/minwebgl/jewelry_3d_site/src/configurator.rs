@@ -195,20 +195,7 @@ impl Configurator
       renderer_mut.set_skybox( None );
     }
 
-    match get_ui_state().unwrap().light_mode.as_str()
-    {
-      "light" =>
-      {
-        renderer_mut.set_clear_color( F32x3::splat( 1.0 ) );
-        renderer_mut.set_exposure( 1.0 );
-      },
-      "dark" =>
-      {
-        renderer_mut.set_clear_color( F32x3::splat( 0.2 ) );
-        renderer_mut.set_exposure( 0.5 );
-      }
-      _ => ()
-    }
+    renderer_mut.set_exposure( 1.0 );
   }
 
   fn setup_light( &mut self, gl : &GL )
@@ -243,22 +230,31 @@ impl Configurator
     let shadowmap_res = 4096;
     let lightmap_res = 8192;
     let mut light_maps = vec![];
-    let mut current = self.rings.current_ring.clone();
+    let last_ring = self.rings.current_ring.clone();
+    let last_gem = self.rings.current_gem.clone();
     for i in ( 0..self.rings.rings.len() ).rev()
     {
       let new_ring = self.rings.rings.get( i ).unwrap();
-      remove_node_from_scene( &self.scene, &current );
-      current = new_ring.clone();
+      let new_gem = self.rings.gems.get( i ).unwrap();
+      remove_node_from_scene( &self.scene, &self.rings.current_ring );
+      self.rings.current_ring = new_ring.clone();
+      self.rings.current_gem = new_gem.clone();
       self.set_gem_color( &gl, F32x3::from_array( [ 1.0, 1.0, 1.0 ] ) );
       self.set_metal_color( &gl, F32x3::from_array( [ 0.753, 0.753, 0.753 ] ) );
-      self.scene.borrow_mut().add( current.clone() );
+      self.scene.borrow_mut().add( self.rings.current_ring.clone() );
       self.scene.borrow_mut().update_world_matrix();
 
       renderer::webgl::shadow::bake_shadows( &gl, &*self.scene.borrow(), &mut shadow_light, lightmap_res, shadowmap_res ).unwrap();
       light_maps.push( self.surface_material.borrow().light_map.clone().unwrap() );
+      self.renderer.borrow().update_material_uniforms( &gl, &self.surface_primitive );
     }
-    self.renderer.borrow().update_material_uniforms( &gl, &self.surface_primitive );
     light_maps.reverse();
+
+    remove_node_from_scene( &self.scene, &self.rings.current_ring );
+    self.rings.current_ring = last_ring;
+    self.rings.current_gem = last_gem;
+    self.scene.borrow_mut().add( self.rings.current_ring.clone() );
+    self.scene.borrow_mut().update_world_matrix();
 
     self.rings.light_maps = light_maps;
   }
