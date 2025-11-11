@@ -16,7 +16,7 @@ use minwebgl as gl;
     Geometry,
     IndexInfo,
     MagFilterMode,
-    Material,
+    material::PBRMaterial,
     Mesh,
     MinFilterMode,
     Node,
@@ -30,13 +30,14 @@ use minwebgl as gl;
     Light,
     PointLight,
     DirectLight,
-    SpotLight
+    SpotLight,
+    helpers
   };
   use web_sys::wasm_bindgen::prelude::Closure;
 
+  use rustc_hash::FxHashMap;
   use
   {
-    std::collections::HashMap,
     crate::webgl::Skeleton,
     gl::
     {
@@ -62,8 +63,8 @@ use minwebgl as gl;
     /// A list of `Texture` objects, which wrap the raw WebGL textures and may contain
     /// additional metadata like sampler information.
     pub textures : Vec< Rc< RefCell< Texture > > >,
-    /// A collection of `Material` objects, defining how the surfaces of the meshes should be shaded.
-    pub materials : Vec< Rc< RefCell< Material > > >,
+    /// A collection of `PBRMaterial` objects, defining how the surfaces of the meshes should be shaded.
+    pub materials : Vec< Rc< RefCell< Box< dyn Material > > > >,
     /// A list of `Mesh` objects, which represent the geometry of the scene.
     pub meshes : Vec< Rc< RefCell< Mesh > > >,
     /// List of [`Node`]s that represent light sources
@@ -73,12 +74,22 @@ use minwebgl as gl;
     pub animations : Vec< Animation >,
   }
 
+  impl GLTF
+  {
+    /// Casts the trait object to a specific `PBRMaterial`
+    pub fn material_get< 'a >( &'a self, id : usize ) -> std::cell::Ref< 'a, PBRMaterial >
+    {
+      let material = self.materials[ id ].borrow();
+      helpers::cast_unchecked_material_to_ref( material )
+    }
+  }
+
   /// Asynchronously loads [`Skeleton`] for one [`Mesh`]
   async fn load_skeleton< 'a >
   (
     gl : &GL,
     skin : gltf::Skin< '_ >,
-    nodes : &HashMap< Box< str >, Rc< RefCell< Node > > >,
+    nodes : &FxHashMap< Box< str >, Rc< RefCell< Node > > >,
     buffers : &'a [ Vec< u8 > ],
   )
   -> Option< Rc< RefCell< Skeleton > > >
@@ -535,12 +546,15 @@ use minwebgl as gl;
       })
     };
 
-    let mut materials = Vec::new();
+    let mut materials : Vec< Rc< RefCell< Box< dyn Material > > > > = Vec::new();
+    let mut material_variation_map : FxHashMap< uuid::Uuid, Vec< Rc< RefCell< Box< dyn Material > > > > > = FxHashMap::default();
+    let mut used_materials : Vec< Rc< RefCell< Box< dyn Material > > > > = Vec::new();
+
     for gltf_m in gltf_file.materials()
     {
       let pbr = gltf_m.pbr_metallic_roughness();
 
-      let mut material = Material::default();
+      let mut material = PBRMaterial::default();
       material.alpha_mode = match gltf_m.alpha_mode()
       {
         gltf::material::AlphaMode::Blend => AlphaMode::Blend,
@@ -587,12 +601,13 @@ use minwebgl as gl;
         });
       }
 
-      materials.push( Rc::new( RefCell::new( material ) ) );
+      material_variation_map.insert( material.get_id(), Vec::new() );
+      materials.push( Rc::new( RefCell::new( Box::new( material ) ) ) );
     }
 
-    materials.push( Rc::new( RefCell::new( Material::default() ) ) );
+    materials.push( Rc::new( RefCell::new( Box::new( PBRMaterial::default() ) ) ) );
 
-    gl::log::info!( "Materials: {}",materials.len() );
+    gl::log::info!( "PBRMaterials: {}",materials.len() );
     let make_attibute_info = | acc : &gltf::Accessor< '_ >, slot |
     {
       let data_type = match acc.data_type()
@@ -622,117 +637,152 @@ use minwebgl as gl;
     let mut meshes = Vec::new();
     for gltf_mesh in gltf_file.meshes()
     {
-    let mut mesh = Mesh::default();
+      let mut mesh = Mesh::default();
 
-    for gltf_primitive in gltf_mesh.primitives()
-    {
-      let mut geometry = Geometry::new( gl )?;
-      geometry.draw_mode = gltf_primitive.mode().as_gl_enum();
 
-      // Indices
-      if let Some( acc ) = gltf_primitive.indices()
+      for gltf_primitive in gltf_mesh.primitives()
       {
-        let info = IndexInfo
+        let mut geometry = Geometry::new( gl )?;
+        geometry.draw_mode = gltf_primitive.mode().as_gl_enum();
+
+        let material_id = gltf_primitive.material().index().unwrap_or( materials.len() - 1 );
+        let mut dummy_material = PBRMaterial::default();
+        let gltf_material = materials[ material_id ].clone();
+
+        let mut add_define = | name : &str |
         {
-          buffer : gl_buffers[ acc.view().unwrap().index() ].clone(),
-          count : acc.count() as u32,
-          offset : acc.offset() as u32,
-          data_type : acc.data_type().as_gl_enum()
+          dummy_material.add_define( format!( "USE_{}", name.to_uppercase() ), String::new() );
         };
-        geometry.add_index( gl, info )?;
-      }
 
-      // Attributes
-      for ( sem, acc ) in gltf_primitive.attributes()
-      {
-        if acc.sparse().is_some()
+        // Indices
+        if let Some( acc ) = gltf_primitive.indices()
         {
-          gl::log::info!( "Sparce accessors are not supported yet" );
-          continue;
+          let info = IndexInfo
+          {
+            buffer : gl_buffers[ acc.view().unwrap().index() ].clone(),
+            count : acc.count() as u32,
+            offset : acc.offset() as u32,
+            data_type : acc.data_type().as_gl_enum()
+          };
+          geometry.add_index( gl, info )?;
         }
 
-        match sem
+        // Attributes
+        for ( sem, acc ) in gltf_primitive.attributes()
         {
-          gltf::Semantic::Positions =>
+          if acc.sparse().is_some()
           {
-            geometry.vertex_count = acc.count() as u32;
-            let gltf_box = gltf_primitive.bounding_box();
+            gl::log::info!( "Sparce accessors are not supported yet" );
+            continue;
+          }
 
-            let mut attr_info = make_attibute_info( &acc, 0 );
-            attr_info.bounding_box = BoundingBox::new( gltf_box.min, gltf_box.max );
-            geometry.add_attribute( gl, "positions", attr_info, false )?;
-          },
-          gltf::Semantic::Normals =>
+          match sem
           {
-            geometry.add_attribute( gl, "normals", make_attibute_info( &acc, 1 ), false )?;
-          },
-          gltf::Semantic::TexCoords( i ) =>
+            gltf::Semantic::Positions =>
+            {
+              geometry.vertex_count = acc.count() as u32;
+              let gltf_box = gltf_primitive.bounding_box();
+
+              let mut attr_info = make_attibute_info( &acc, 0 );
+              attr_info.bounding_box = BoundingBox::new( gltf_box.min, gltf_box.max );
+              geometry.add_attribute( gl, "positions", attr_info )?;
+            },
+            gltf::Semantic::Normals =>
+            {
+              geometry.add_attribute( gl, "normals", make_attibute_info( &acc, 1 ) )?;
+            },
+            gltf::Semantic::TexCoords( i ) =>
+            {
+              assert!( i < 5, "Only 5 types of texture coordinates are supported" );
+              geometry.add_attribute
+              (
+                gl,
+                format!( "texture_coordinates_{}", 2 + i ),
+                make_attibute_info( &acc, 2 + i )
+              )?;
+            },
+            gltf::Semantic::Colors( i ) =>
+            {
+              assert!( i < 2, "Only 2 types of color coordinates are supported" );
+              geometry.add_attribute
+              (
+                gl,
+                format!( "colors_{}", 7 + i ),
+                make_attibute_info( &acc, 7 + i )
+              )?;
+            },
+            gltf::Semantic::Tangents =>
+            {
+              add_define( "tangents" );
+              geometry.add_attribute
+              (
+                gl,
+                "tangents",
+                make_attibute_info( &acc, 9 )
+              )?;
+            },
+            gltf::Semantic::Joints( i ) =>
+            {
+              let name = format!( "joints_{}", i );
+              add_define( &name );
+              geometry.add_attribute
+              (
+                gl,
+                name,
+                make_attibute_info( &acc, 10 + i ),
+              )?;
+            },
+            gltf::Semantic::Weights( i ) =>
+            {
+              let name = format!( "weights_{}", i );
+              add_define( &name );
+              geometry.add_attribute
+              (
+                gl,
+              name,
+                make_attibute_info( &acc, 13 + i )
+              )?;
+            },
+            //a => { gl::warn!( "Unsupported attribute: {:?}", a ); continue; }
+          };
+        }
+
+
+        // Amongst different materials with the same uuid, find the one that has the same vertex defines
+        let variations = material_variation_map .get( &gltf_material.borrow().get_id() ).unwrap();
+
+        let new_material = if let Some( material ) = variations
+        .iter()
+        .find( | m | m.borrow().get_vertex_defines_str() == dummy_material.get_vertex_defines_str() )
+        {
+          material.clone()
+        }
+        else
+        {
+          let material = Rc::new( RefCell::new( gltf_material.borrow().dyn_clone() ) );
+          let mut m = helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >( material.borrow_mut() );
+
+          for ( name, value ) in dummy_material.get_vertex_defines()
           {
-            assert!( i < 5, "Only 5 types of texture coordinates are supported" );
-            geometry.add_attribute
-            (
-              gl,
-              format!( "texture_coordinates_{}", 2 + i ),
-              make_attibute_info( &acc, 2 + i ),
-              false
-            )?;
-          },
-          gltf::Semantic::Colors( i ) =>
-          {
-            assert!( i < 2, "Only 2 types of color coordinates are supported" );
-            geometry.add_attribute
-            (
-              gl,
-              format!( "colors_{}", 7 + i ),
-              make_attibute_info( &acc, 7 + i ),
-              false
-            )?;
-          },
-          gltf::Semantic::Tangents =>
-          {
-            geometry.add_attribute
-            (
-              gl,
-              "tangents",
-              make_attibute_info( &acc, 9 ),
-              true
-            )?;
-          },
-          gltf::Semantic::Joints( i ) =>
-          {
-            geometry.add_attribute
-            (
-              gl,
-              format!( "joints_{}", i ),
-              make_attibute_info( &acc, 10 + i ),
-              true
-            )?;
-          },
-          gltf::Semantic::Weights( i ) =>
-          {
-            geometry.add_attribute
-            (
-              gl,
-              format!( "weights_{}", i ),
-              make_attibute_info( &acc, 13 + i ),
-              true
-            )?;
-          },
-          //a => { gl::warn!( "Unsupported attribute: {:?}", a ); continue; }
+            m.add_vertex_define( name.clone(), value );
+          }
+
+          std::mem::drop( m );
+          used_materials.push( material.clone() );
+
+          material
         };
+
+        let primitive = Primitive
+        {
+          geometry : Rc::new( RefCell::new( geometry ) ),
+          material : new_material
+        };
+
+        mesh.add_primitive( Rc::new( RefCell::new( primitive ) ) );
       }
 
-      let material_id = gltf_primitive.material().index().unwrap_or( materials.len() - 1 );
-      let primitive = Primitive
-      {
-        geometry : Rc::new( RefCell::new( geometry ) ),
-        material : materials[ material_id ].clone()
-      };
-
-      mesh.add_primitive( Rc::new( RefCell::new( primitive ) ) );
-    }
-
-    meshes.push( Rc::new( RefCell::new( mesh ) ) );
+      meshes.push( Rc::new( RefCell::new( mesh ) ) );
     }
 
     gl::log::info!( "Meshes: {}",meshes.len() );
@@ -810,7 +860,7 @@ use minwebgl as gl;
         )
       }
     )
-    .collect::< HashMap< _, _ > >();
+    .collect::< FxHashMap< _, _ > >();
 
     for ( node, skin ) in skinned_nodes
     {
@@ -828,9 +878,9 @@ use minwebgl as gl;
           mesh.borrow_mut().skeleton = Some( skeleton );
           for primitive in &mesh.borrow().primitives
           {
-            primitive.borrow()
-            .geometry.borrow_mut()
-            .defines += "#define USE_SKINNING\n";
+            let p = primitive.borrow();
+            let mut mat_mut = helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >(  p.material.borrow_mut() );
+            mat_mut.add_define( "USE_SKINNING", String::new() );
           }
         }
       }
@@ -866,7 +916,7 @@ use minwebgl as gl;
         gl_buffers,
         images,
         textures,
-        materials,
+        materials : used_materials,
         meshes,
         lights,
         #[ cfg( feature = "animation" ) ]

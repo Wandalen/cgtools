@@ -1,58 +1,18 @@
 mod private
 {
-  use mingl::Former;
+  use crate::webgl::material::*;
   use minwebgl as gl;
-  use crate::webgl::Texture;
-  use std:: { cell::RefCell, collections::HashMap, rc::Rc };
+  use mingl::Former;
+  use rustc_hash::FxHashMap;
 
-  /// Represents the alpha blending mode of the material.
-  #[ derive( Default, Clone, Copy, PartialEq, Eq, Debug ) ]
-  pub enum AlphaMode
-  {
-    /// The material is fully opaque.
-    #[ default ]
-    Opaque,
-    /// The material uses a mask based on an alpha cutoff value.
-    Mask,
-    /// The material uses standard alpha blending.
-    Blend
-  }
-
-  /// Stores information about a texture used by the material, including the texture itself and its UV coordinates.
-  ///
-  /// You may have several attibutes for the UV coordinates in the shader:
-  /// `
-  /// layout( location = 0 ) in vec2 uv_0;
-  /// layout( location = 1 ) in vec2 uv_1;
-  /// `
-  /// uv_position will defines which UV to use
-  #[ derive( Default, Clone, Debug ) ]
-  pub struct TextureInfo
-  {
-    /// The texture object.
-    pub texture : Rc< RefCell< Texture > >,
-    /// The UV coordinate set index to use for this texture.
-    pub uv_position : u32
-  }
-
-  impl TextureInfo
-  {
-    /// Uploads the texture data to the GPU.
-    pub fn upload( &self, gl : &gl::WebGl2RenderingContext )
-    {
-      self.texture.borrow().upload( gl );
-    }
-
-    /// Binds the texture to a texture unit.
-    pub fn bind( &self, gl : &gl::WebGl2RenderingContext )
-    {
-      self.texture.borrow().bind( gl );
-    }
-  }
+    /// The source code for the main vertex shader.
+  const MAIN_VERTEX_SHADER : &'static str = include_str!( "../shaders/main.vert" );
+  /// The source code for the main fragment shader.
+  const MAIN_FRAGMENT_SHADER : &'static str = include_str!( "../shaders/main.frag" );
 
   /// Represents the visual properties of a surface.
-  #[ derive( Clone, Former, Debug ) ]
-  pub struct Material
+  #[ derive( Former, Debug ) ]
+  pub struct PBRMaterial
   {
     /// A unique identifier for the material.
     pub id : uuid::Uuid,
@@ -90,138 +50,48 @@ mod private
     pub specular_color_factor : Option< gl::F32x3 >,
     /// Optional texture providing the specular color. (KHR_materials_specular extension)
     pub specular_color_texture : Option< TextureInfo >,
+
     /// Optional lightmap texture containing pre-baked lighting (shadows)
     pub light_map : Option< TextureInfo >,
+
     /// Alpha cutoff value for mask mode. Fragments with alpha below this value are discarded.
     pub alpha_cutoff : f32,
     /// The alpha blending mode for the material. Defaults to `Opaque`.
     pub alpha_mode : AlphaMode,
     /// Determines wheter to draw both or one side of the primitive
-    pub double_sided : bool
+    pub double_sided : bool,
+
+    /// Hash map of defines in (value, name) format
+    pub vertex_defines : FxHashMap< Box< str >, String >,
+    /// Hash map of defines in (value, name) format
+    pub fragment_defines : FxHashMap< Box< str >, String >
   }
 
-  impl Material
+  impl PBRMaterial
   {
-    /// Returns the unique identifier of the material.
-    pub fn get_id( &self ) -> uuid::Uuid
+    /// Added the specified name and value is #define directive to the material
+    pub fn add_vertex_define< A : Into< Box< str > >, B : Into< String > >( &mut self, name : A, value : B )
     {
-      self.id
+      self.vertex_defines.insert( name.into(), value.into() );
     }
 
-    /// Configures the position of the uniform texture samplers in the shader program.
-    ///
-    /// * `gl`: The `WebGl2RenderingContext`.
-    /// * `locations`: A hash map of uniform locations.
-    /// * `ibl_base_location`: The starting texture unit index for Image-Based Lighting (IBL) textures.
-    pub fn configure
-    (
-      &self,
-      gl : &gl::WebGl2RenderingContext,
-      locations : &HashMap< String, Option< gl::WebGlUniformLocation > >,
-      ibl_base_location : u32,
-    )
+    /// Added the specified name and value is #define directive to the material
+    pub fn add_fragment_define< A : Into< Box< str > >, B : Into< String > >( &mut self, name : A, value : B )
     {
-      let ibl_base_location = ibl_base_location as i32;
-      // Assign a texture unit for each type of texture
-      gl.uniform1i( locations.get( "metallicRoughnessTexture" ).unwrap().clone().as_ref() , 0 );
-      gl.uniform1i( locations.get( "baseColorTexture" ).unwrap().clone().as_ref() , 1 );
-      gl.uniform1i( locations.get( "normalTexture" ).unwrap().clone().as_ref() , 2 );
-      gl.uniform1i( locations.get( "occlusionTexture" ).unwrap().clone().as_ref() , 3 );
-      gl.uniform1i( locations.get( "emissiveTexture" ).unwrap().clone().as_ref() , 4 );
-      gl.uniform1i( locations.get( "specularTexture" ).unwrap().clone().as_ref() , 5 );
-      gl.uniform1i( locations.get( "specularColorTexture" ).unwrap().clone().as_ref() , 6 );
-      gl.uniform1i( locations.get( "lightMap" ).unwrap().clone().as_ref() , 7 );
-
-      gl.uniform1i( locations.get( "irradianceTexture" ).unwrap().clone().as_ref() , ibl_base_location );
-      gl.uniform1i( locations.get( "prefilterEnvMap" ).unwrap().clone().as_ref() , ibl_base_location + 1 );
-      gl.uniform1i( locations.get( "integrateBRDF" ).unwrap().clone().as_ref() , ibl_base_location + 2 );
+      self.fragment_defines.insert( name.into(), value.into() );
     }
 
-    /// Uploads the material properties to the GPU as uniforms.
-    ///
-    /// * `gl`: The `WebGl2RenderingContext`.
-    /// * `locations`: A hash map of uniform locations in the shader program.
-    pub fn upload
-    (
-      &self,
-      gl : &gl::WebGl2RenderingContext,
-      locations : &HashMap< String, Option< gl::WebGlUniformLocation > >
-    ) -> Result< (), gl::WebglError >
+    /// Added the specified name and value is #define directive to the material
+    pub fn add_define< A : Into< Box< str > >, B : Into< String > >( &mut self, name : A, value : B )
     {
-      let upload = | loc, value : Option< f32 > | -> Result< (), gl::WebglError >
-      {
-        if let Some( v ) = value
-        {
-          gl::uniform::upload( gl, locations.get( loc ).unwrap().clone(), &v )?;
-        }
-        Ok( () )
-      };
-
-      let upload_array = | loc, value : Option< &[ f32 ] > | -> Result< (), gl::WebglError >
-      {
-        if let Some( v ) = value
-        {
-          gl::uniform::upload( gl, locations.get( loc ).unwrap().clone(), v )?;
-        }
-        Ok( () )
-      };
-
-      upload( "specularFactor", self.specular_factor )?;
-
-      gl::uniform::upload( gl, locations.get( "baseColorFactor" ).unwrap().clone(), self.base_color_factor.as_slice() )?;
-      gl::uniform::upload( gl, locations.get( "metallicFactor" ).unwrap().clone(), &self.metallic_factor )?;
-      gl::uniform::upload( gl, locations.get( "roughnessFactor" ).unwrap().clone(), &self.roughness_factor )?;
-      gl::uniform::upload( gl, locations.get( "normalScale" ).unwrap().clone(), &self.normal_scale )?;
-      gl::uniform::upload( gl, locations.get( "occlusionStrength" ).unwrap().clone(), &self.occlusion_strength )?;
-      gl::uniform::upload( gl, locations.get( "alphaCutoff" ).unwrap().clone(), &self.alpha_cutoff )?;
-      gl::uniform::upload( gl, locations.get( "emissiveFactor" ).unwrap().clone(), self.emissive_factor.as_slice() )?;
-
-      upload_array( "specularColorFactor", self.specular_color_factor.as_ref().map( | v | v.as_slice() ) )?;
-
-      self.upload_textures( gl );
-
-      Ok( () )
-    }
-
-    /// Uploads the texture data of all used textures to the GPU.
-    pub fn upload_textures( &self, gl : &gl::WebGl2RenderingContext )
-    {
-      if let Some( ref t ) = self.metallic_roughness_texture { t.upload( gl ); }
-      if let Some( ref t ) = self.base_color_texture { t.upload( gl ); }
-      if let Some( ref t ) = self.normal_texture { t.upload( gl ); }
-      if let Some( ref t ) = self.occlusion_texture { t.upload( gl ); }
-      if let Some( ref t ) = self.emissive_texture { t.upload( gl ); }
-      if let Some( ref t ) = self.specular_texture { t.upload( gl ); }
-      if let Some( ref t ) = self.specular_color_texture { t.upload( gl ); }
-      if let Some( ref t ) = self.light_map { t.upload( gl ); }
-    }
-
-    /// Binds all used textures to their respective texture units.
-    ///
-    /// * `gl`: The `WebGl2RenderingContext`.
-    pub fn bind( &self, gl : &gl::WebGl2RenderingContext )
-    {
-      let bind = | texture : &Option< TextureInfo >, i |
-      {
-        if let Some( ref t ) = texture
-        {
-          gl.active_texture( gl::TEXTURE0 + i );
-          t.bind( gl );
-        }
-      };
-
-      bind( &self.metallic_roughness_texture, 0 );
-      bind( &self.base_color_texture, 1 );
-      bind( &self.normal_texture, 2 );
-      bind( &self.occlusion_texture, 3 );
-      bind( &self.emissive_texture, 4 );
-      bind( &self.specular_texture, 5 );
-      bind( &self.specular_color_texture, 6 );
-      bind( &self.light_map, 7 );
+      let name = name.into();
+      let value = value.into();
+      self.add_vertex_define( name.clone(), value.clone() );
+      self.add_fragment_define( name, value );
     }
 
     /// Generates `#define` directives to be inserted into the fragment shader based on the material's properties.
-    pub fn get_defines( &self ) -> String
+    fn get_local_defines( &self ) -> String
     {
       let use_base_color_texture = self.base_color_texture.is_some();
       let use_metallic_roughness_texture = self.metallic_roughness_texture.is_some();
@@ -239,8 +109,6 @@ mod private
       let use_normal_texture = self.normal_texture.is_some();
       let use_occlusion_texture = self.occlusion_texture.is_some();
       let use_alpha_cutoff = self.alpha_mode == AlphaMode::Mask;
-
-      let use_light_map = self.light_map.is_some();
 
       let mut defines = String::new();
       let add_texture = | defines : &mut String, name : &str, uv_name : &str, info : Option< &TextureInfo > |
@@ -306,9 +174,239 @@ mod private
 
       defines
     }
+
+    /// Returns an immutable reference to the local vertex defines map
+    pub fn get_vertex_defines( &self ) -> &FxHashMap< Box< str >, String >
+    {
+      &self.vertex_defines
+    }
+
+    /// Returns an immutable reference to the local fragment defines map
+    pub fn get_fragment_defines( &self ) -> &FxHashMap< Box< str >, String >
+    {
+      &self.fragment_defines
+    }
   }
 
-  impl Default for Material
+  impl Material for PBRMaterial
+  {
+    /// Returns the unique identifier of the material.
+    fn get_id( &self ) -> uuid::Uuid
+    {
+      self.id
+    }
+
+    /// Configures the position of the uniform texture samplers in the shader program.
+    ///
+    /// * `gl`: The `WebGl2RenderingContext`.
+    /// * `locations`: A hash map of uniform locations.
+    /// * `ibl_base_location`: The starting texture unit index for Image-Based Lighting (IBL) textures.
+    fn configure
+    (
+      &self,
+      gl : &gl::WebGl2RenderingContext,
+      locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >,
+      ibl_base_location : u32,
+    )
+    {
+      let ibl_base_location = ibl_base_location as i32;
+      // Assign a texture unit for each type of texture
+      gl.uniform1i( locations.get( "metallicRoughnessTexture" ).unwrap().clone().as_ref() , 0 );
+      gl.uniform1i( locations.get( "baseColorTexture" ).unwrap().clone().as_ref() , 1 );
+      gl.uniform1i( locations.get( "normalTexture" ).unwrap().clone().as_ref() , 2 );
+      gl.uniform1i( locations.get( "occlusionTexture" ).unwrap().clone().as_ref() , 3 );
+      gl.uniform1i( locations.get( "emissiveTexture" ).unwrap().clone().as_ref() , 4 );
+      gl.uniform1i( locations.get( "specularTexture" ).unwrap().clone().as_ref() , 5 );
+      gl.uniform1i( locations.get( "specularColorTexture" ).unwrap().clone().as_ref() , 6 );
+      gl.uniform1i( locations.get( "lightMap" ).unwrap().clone().as_ref() , 7 );
+
+      gl.uniform1i( locations.get( "irradianceTexture" ).unwrap().clone().as_ref() , ibl_base_location );
+      gl.uniform1i( locations.get( "prefilterEnvMap" ).unwrap().clone().as_ref() , ibl_base_location + 1 );
+      gl.uniform1i( locations.get( "integrateBRDF" ).unwrap().clone().as_ref() , ibl_base_location + 2 );
+    }
+
+    /// Uploads the material properties to the GPU as uniforms.
+    ///
+    /// * `gl`: The `WebGl2RenderingContext`.
+    /// * `locations`: A hash map of uniform locations in the shader program.
+    fn upload
+    (
+      &self,
+      gl : &gl::WebGl2RenderingContext,
+      locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
+    ) -> Result< (), gl::WebglError >
+    {
+      let upload = | loc, value : Option< f32 > | -> Result< (), gl::WebglError >
+      {
+        if let Some( v ) = value
+        {
+          gl::uniform::upload( gl, locations.get( loc ).unwrap().clone(), &v )?;
+        }
+        Ok( () )
+      };
+
+      let upload_array = | loc, value : Option< &[ f32 ] > | -> Result< (), gl::WebglError >
+      {
+        if let Some( v ) = value
+        {
+          gl::uniform::upload( gl, locations.get( loc ).unwrap().clone(), v )?;
+        }
+        Ok( () )
+      };
+
+      upload( "specularFactor", self.specular_factor )?;
+
+      gl::uniform::upload( gl, locations.get( "baseColorFactor" ).unwrap().clone(), self.base_color_factor.as_slice() )?;
+      gl::uniform::upload( gl, locations.get( "metallicFactor" ).unwrap().clone(), &self.metallic_factor )?;
+      gl::uniform::upload( gl, locations.get( "roughnessFactor" ).unwrap().clone(), &self.roughness_factor )?;
+      gl::uniform::upload( gl, locations.get( "normalScale" ).unwrap().clone(), &self.normal_scale )?;
+      gl::uniform::upload( gl, locations.get( "occlusionStrength" ).unwrap().clone(), &self.occlusion_strength )?;
+      gl::uniform::upload( gl, locations.get( "alphaCutoff" ).unwrap().clone(), &self.alpha_cutoff )?;
+      gl::uniform::upload( gl, locations.get( "emissiveFactor" ).unwrap().clone(), self.emissive_factor.as_slice() )?;
+
+      upload_array( "specularColorFactor", self.specular_color_factor.as_ref().map( | v | v.as_slice() ) )?;
+
+      self.upload_textures( gl );
+
+      Ok( () )
+    }
+
+    /// Uploads the texture data of all used textures to the GPU.
+    fn upload_textures( &self, gl : &gl::WebGl2RenderingContext )
+    {
+      if let Some( ref t ) = self.metallic_roughness_texture { t.upload( gl ); }
+      if let Some( ref t ) = self.base_color_texture { t.upload( gl ); }
+      if let Some( ref t ) = self.normal_texture { t.upload( gl ); }
+      if let Some( ref t ) = self.occlusion_texture { t.upload( gl ); }
+      if let Some( ref t ) = self.emissive_texture { t.upload( gl ); }
+      if let Some( ref t ) = self.specular_texture { t.upload( gl ); }
+      if let Some( ref t ) = self.specular_color_texture { t.upload( gl ); }
+      if let Some( ref t ) = self.light_map { t.upload( gl ); }
+    }
+
+    /// Binds all used textures to their respective texture units.
+    ///
+    /// * `gl`: The `WebGl2RenderingContext`.
+    fn bind( &self, gl : &gl::WebGl2RenderingContext )
+    {
+      let bind = | texture : &Option< TextureInfo >, i |
+      {
+        if let Some( ref t ) = texture
+        {
+          gl.active_texture( gl::TEXTURE0 + i );
+          t.bind( gl );
+        }
+      };
+
+      bind( &self.metallic_roughness_texture, 0 );
+      bind( &self.base_color_texture, 1 );
+      bind( &self.normal_texture, 2 );
+      bind( &self.occlusion_texture, 3 );
+      bind( &self.emissive_texture, 4 );
+      bind( &self.specular_texture, 5 );
+      bind( &self.specular_color_texture, 6 );
+    }
+
+    fn get_defines_str( &self ) -> String
+    {
+      let mut result = self.get_local_defines();
+
+      for ( name, value ) in self.vertex_defines.iter()
+      {
+        result.push_str( &format!( "#define {} {}", name, value ) );
+      }
+
+      for ( name, value ) in self.fragment_defines.iter()
+      {
+        result.push_str( &format!( "#define {} {}", name, value ) );
+      }
+
+      result
+    }
+
+    fn get_vertex_defines_str( &self ) -> String
+    {
+      let mut result = String::new();
+
+      for ( name, value ) in self.vertex_defines.iter()
+      {
+        result.push_str( &format!( "#define {} {}", name, value ) );
+      }
+
+      result
+    }
+
+    fn get_fragment_defines_str( &self ) -> String
+    {
+      let mut result = self.get_local_defines();
+
+      for ( name, value ) in self.fragment_defines.iter()
+      {
+        result.push_str( &format!( "#define {} {}", name, value ) );
+      }
+
+      result
+    }
+
+    fn get_fragment_shader( &self ) -> String
+    {
+      MAIN_FRAGMENT_SHADER.into()
+    }
+
+    fn get_vertex_shader( &self ) -> String
+    {
+      MAIN_VERTEX_SHADER.into()
+    }
+
+    fn dyn_clone( &self ) -> Box< dyn Material >
+    {
+      Box::new( self.clone() )
+    }
+
+    fn get_alpha_mode( &self ) -> AlphaMode
+    {
+      self.alpha_mode
+    }
+
+    fn get_type_name(&self) -> &'static str
+    {
+      "PBRMaterial"
+    }
+  }
+
+  impl Clone for PBRMaterial
+  {
+    fn clone( &self ) -> Self
+    {
+      PBRMaterial
+      {
+        id : uuid::Uuid::new_v4(),
+        base_color_factor : self.base_color_factor,
+        base_color_texture : self.base_color_texture.clone(),
+        metallic_factor : self.metallic_factor,
+        roughness_factor : self.roughness_factor,
+        metallic_roughness_texture : self.metallic_roughness_texture.clone(),
+        normal_scale : self.normal_scale,
+        normal_texture : self.normal_texture.clone(),
+        occlusion_strength : self.occlusion_strength,
+        occlusion_texture : self.occlusion_texture.clone(),
+        emissive_texture : self.emissive_texture.clone(),
+        emissive_factor : self.emissive_factor,
+        specular_factor : self.specular_factor,
+        specular_texture : self.specular_texture.clone(),
+        specular_color_factor : self.specular_color_factor,
+        specular_color_texture : self.specular_color_texture.clone(),
+        alpha_cutoff : self.alpha_cutoff,
+        alpha_mode : self.alpha_mode,
+        double_sided : self.double_sided,
+        light_map : self.light_map.clone(),
+        vertex_defines : self.vertex_defines.clone(),
+        fragment_defines : self.fragment_defines.clone()
+      }
+    }
+  }
+
+  impl Default for PBRMaterial
   {
     fn default() -> Self
     {
@@ -339,6 +437,8 @@ mod private
       let alpha_mode = AlphaMode::default();
       let alpha_cutoff = 0.5;
       let double_sided = false;
+      let vertex_defines = FxHashMap::default();
+      let fragment_defines = FxHashMap::default();
 
       return Self
       {
@@ -362,18 +462,17 @@ mod private
         alpha_cutoff,
         double_sided,
         light_map,
+        vertex_defines,
+        fragment_defines
       };
     }
   }
 }
 
-
 crate::mod_interface!
 {
   orphan use
   {
-    AlphaMode,
-    TextureInfo,
-    Material
+    PBRMaterial
   };
 }

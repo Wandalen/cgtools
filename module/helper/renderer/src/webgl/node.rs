@@ -1,6 +1,7 @@
 mod private
 {
-  use std::{ cell::RefCell, collections::HashMap, rc::Rc };
+  use std::{ cell::RefCell, rc::Rc };
+  use rustc_hash::FxHashMap;
   use minwebgl as gl;
   use gl::{ geometry::BoundingBox, F32x3, F32x4x4 };
   use crate::webgl::{ Mesh, Light };
@@ -303,7 +304,7 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      locations : &HashMap< String, Option< gl::WebGlUniformLocation > >
+      locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
     )
     {
       if let Object3D::Mesh( mesh ) = &self.object

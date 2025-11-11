@@ -1,12 +1,13 @@
 mod private
 {
-  use std::{ cell::RefCell, collections::{ HashMap, HashSet }, rc::Rc };
+  use std::{ cell::RefCell, rc::Rc };
+  use rustc_hash::{ FxHashMap, FxHashSet };
   use minwebgl as gl;
   use web_sys::{ WebGlTexture, WebGlBuffer, WebGlFramebuffer, WebGlUniformLocation, WebGlVertexArrayObject };
   use gl::{ F32x4, GL, VectorDataType, drawbuffers::drawbuffers };
   use crate::webgl::
   { 
-    AttributeInfo, program, Camera, Node, Object3D, ProgramInfo, Scene
+    AttributeInfo, Camera, Material, Node, Object3D, ProgramInfo, Scene, material::PBRMaterial, program
   };
 
   /// The source code for the gbuffer vertex shader.
@@ -119,7 +120,7 @@ mod private
     }
   }
 
-  fn into_defines( attachments : &HashSet< GBufferAttachment > ) -> String
+  fn into_defines( attachments : &FxHashSet< GBufferAttachment > ) -> String
   {
     let mut defines = String::new();
 
@@ -157,7 +158,7 @@ mod private
   ( 
     gl : &gl::WebGl2RenderingContext, 
     camera : &Camera,
-    locations : &HashMap< String, Option< WebGlUniformLocation > >
+    locations : &FxHashMap< String, Option< WebGlUniformLocation > >
   )
   {
     camera.upload( gl, locations );
@@ -175,12 +176,12 @@ mod private
   pub struct GBuffer
   {
     program_info : ProgramInfo< program::GBufferShader >,
-    attachment_buffers: HashMap< GBufferAttachment, Vec< WebGlBuffer > >,
+    attachment_buffers: FxHashMap< GBufferAttachment, Vec< WebGlBuffer > >,
     vao : WebGlVertexArrayObject,
     width : u32,
     height : u32,
     framebuffer : WebGlFramebuffer,
-    textures: HashMap< String, WebGlTexture >,
+    textures: FxHashMap< String, WebGlTexture >,
     color_attachments : Vec< u32 >
   }
 
@@ -192,12 +193,12 @@ mod private
       gl : &gl::WebGl2RenderingContext, 
       width : u32, 
       height : u32, 
-      attachment_buffers: HashMap< GBufferAttachment, Vec< WebGlBuffer > >
+      attachment_buffers: FxHashMap< GBufferAttachment, Vec< WebGlBuffer > >
     ) -> Result< Self, gl::WebglError >
     {
       let attachments_set = attachment_buffers.iter()
       .map( | ( a, _ ) | *a )
-      .collect::< HashSet< _ > >();
+      .collect::< FxHashSet< _ > >();
       let defines = into_defines( &attachments_set );
       let program = gl::ProgramFromSources::new
       ( 
@@ -217,7 +218,7 @@ mod private
         }
       }
 
-      let mut textures = HashMap::new();
+      let mut textures = FxHashMap::default();
  
       let framebuffer = gl.create_framebuffer().ok_or( gl::WebglError::FailedToAllocateResource( "Framebuffer" ) )?;
       gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &framebuffer ) );
@@ -368,11 +369,13 @@ mod private
           for primitive_rc in mesh.borrow().primitives.iter()
           {
             let primitive = primitive_rc.borrow();
+            let material = primitive.material.borrow();
+            let material = ( material.as_ref() as &dyn std::any::Any  ).downcast_ref::< PBRMaterial >().expect( "GBuffer only supports PBRMaterial" );
 
             if self.attachment_buffers.contains_key( &GBufferAttachment::Albedo ) 
             && self.attachment_buffers.contains_key( &GBufferAttachment::PbrInfo )
             {
-              let albedo_texture = primitive.material.borrow().base_color_texture.as_ref()
+              let albedo_texture = material.base_color_texture.as_ref()
               .map( | t | t.texture.borrow().source.clone() ).flatten();
 
               if let Some( albedo_texture ) = albedo_texture
@@ -383,7 +386,7 @@ mod private
 
             if self.attachment_buffers.contains_key( &GBufferAttachment::PbrInfo )
             {
-              let material_id = &primitive.material.borrow().id.to_fields_le().0;
+              let material_id = &material.get_id().to_fields_le().0;
               gl::uniform::upload( &gl, material_id_loc.as_ref().cloned(), material_id ).unwrap();
             }
 

@@ -1,6 +1,6 @@
 mod private
 {
-  use std::collections::HashMap;
+  use rustc_hash::FxHashMap;
   use mingl::geometry::BoundingBox;
   use minwebgl as gl;
 
@@ -45,12 +45,9 @@ mod private
   }
 
   /// Represents a geometric object to be rendered.
-  #[ derive( Debug ) ]
+  #[ derive( Debug, Clone ) ]
   pub struct Geometry
   {
-    /// A string containing preprocessor definitions (`#define`) that can be used in the shader program
-    /// based on the geometry's attributes.
-    pub defines : String,
     /// The WebGL Vertex Array Object that stores the state for attribute bindings.
     pub vao : gl::WebGlVertexArrayObject,
     /// The primitive drawing mode (e.g., `gl::TRIANGLES`, `gl::LINES`).
@@ -60,7 +57,7 @@ mod private
     /// Optional information about the index buffer, if the geometry uses indexed drawing.
     index_info : Option< IndexInfo >,
     /// A hash map storing attribute information, where the key is the attribute name (e.g., "positions", "normals").
-    attributes : HashMap< Box< str >, AttributeInfo >
+    attributes : FxHashMap< Box< str >, AttributeInfo >
   }
 
   impl Geometry
@@ -69,17 +66,15 @@ mod private
     pub fn new( gl : &gl::WebGl2RenderingContext ) -> Result< Self, gl::WebglError >
     {
       let vao = gl::vao::create( gl )?;
-      let attributes = HashMap::new();
+      let attributes = FxHashMap::default();
       let draw_mode = gl::TRIANGLES;
       let vertex_count = 0;
       let index_info = None;
-      let defines = String::new();
 
       Ok
       (
         Self
         {
-          defines,
           vao,
           draw_mode,
           vertex_count,
@@ -102,17 +97,12 @@ mod private
       &mut self,
       gl : &gl::WebGl2RenderingContext,
       name : Name,
-      info : AttributeInfo,
-      as_define : bool
+      info : AttributeInfo
     ) -> Result< (), gl::WebglError >
     {
       let name = name.into();
       if !self.attributes.contains_key( &name )
       {
-        if as_define
-        {
-          self.defines.push_str( &format!( "#define USE_{}\n", name.to_uppercase() ) );
-        }
         self.bind( gl );
         info.upload( gl )?;
         self.attributes.insert( name, info );
@@ -162,12 +152,6 @@ mod private
       Ok( () )
     }
 
-    /// Returns a reference to the `defines` string containing shader preprocessor definitions.
-    pub fn get_defines( &self ) -> &str
-    {
-      &self.defines
-    }
-
     /// Returns the center point of the geometry's bounding box, assuming a "positions" attribute exists.
     ///
     /// It panics if the "positions" attribute is not found.
@@ -205,8 +189,8 @@ mod private
       }
     }
 
-    /// Returns a reference to the `HashMap` containing the attribute information.
-    pub fn get_attributes( &self ) -> &HashMap< Box< str >, AttributeInfo >
+    /// Returns a reference to the `FxHashMap` containing the attribute information.
+    pub fn get_attributes( &self ) -> &FxHashMap< Box< str >, AttributeInfo >
     {
       &self.attributes
     }

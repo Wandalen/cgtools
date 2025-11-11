@@ -2,7 +2,7 @@ mod private
 {
   use minwebgl as gl;
   use web_sys::WebGlProgram;
-  use std::collections::HashMap;
+  use rustc_hash::FxHashMap;
 
   macro_rules! impl_locations
   {
@@ -23,7 +23,7 @@ mod private
         pub fn new( gl : &gl::WebGl2RenderingContext, program : gl::WebGlProgram ) -> Self
         {
           #[ allow( unused_mut ) ]
-          let mut locations = HashMap::new();
+          let mut locations = FxHashMap::default();
 
           $(
             locations.insert( $location_name.to_string(), gl.get_uniform_location( &program, $location_name ) );
@@ -33,7 +33,7 @@ mod private
           {
             program,
             locations,
-            ubo_indices : HashMap::new(),
+            ubo_indices : FxHashMap::default(),
             phantom : std::marker::PhantomData
           }
         }
@@ -56,10 +56,10 @@ mod private
         pub fn new( gl : &gl::WebGl2RenderingContext, program : gl::WebGlProgram ) -> Self
         {
           #[ allow( unused_mut ) ]
-          let mut locations = HashMap::new();
+          let mut locations = FxHashMap::default();
 
           #[ allow( unused_mut ) ]
-          let mut ubo_indices = HashMap::new();
+          let mut ubo_indices = FxHashMap::default();
 
           $(
             locations.insert( $location_name.to_string(), gl.get_uniform_location( &program, $location_name ) );
@@ -160,35 +160,35 @@ mod private
     program : gl::WebGlProgram,
     /// A hash map storing the locations of uniform variables in the program.
     /// The keys are the names of the uniforms.
-    locations : HashMap< String, Option< gl::WebGlUniformLocation > >,
+    locations : FxHashMap< String, Option< gl::WebGlUniformLocation > >,
     /// A hash map storing the locations of UBO variables in the program.
     /// The keys are the names of the uniform block.
-    ubo_indices : HashMap< String, u32 >,
+    ubo_indices : FxHashMap< String, u32 >,
     phantom : std::marker::PhantomData< T >
   }
 
   impl< T : Clone > ProgramInfo< T >
   {
     /// Returns a reference to the hash map containing uniform locations.
-    pub fn get_locations( &self ) -> &HashMap< String, Option< gl::WebGlUniformLocation > >
+    pub fn get_locations( &self ) -> &FxHashMap< String, Option< gl::WebGlUniformLocation > >
     {
       &self.locations
     }
 
     /// Returns a mutable reference to the hash map containing uniform locations.
-    pub fn get_locations_mut( &mut self ) ->  &mut HashMap< String, Option< gl::WebGlUniformLocation > >
+    pub fn get_locations_mut( &mut self ) ->  &mut FxHashMap< String, Option< gl::WebGlUniformLocation > >
     {
       &mut self.locations
     }
 
     /// Returns a reference to the hash map containing UBO indices.
-    pub fn get_ubo_indices( &self ) -> &HashMap< String, u32 >
+    pub fn get_ubo_indices( &self ) -> &FxHashMap< String, u32 >
     {
       &self.ubo_indices
     }
 
     /// Returns a mutable reference to the hash map containing UBO indices.
-    pub fn get_ubo_indices_mut( &mut self ) ->  &mut HashMap< String, u32 >
+    pub fn get_ubo_indices_mut( &mut self ) ->  &mut FxHashMap< String, u32 >
     {
       &mut self.ubo_indices
     }

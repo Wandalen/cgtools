@@ -24,7 +24,6 @@
 #![ allow( clippy::ignored_unit_patterns ) ]
 #![ allow( clippy::cast_sign_loss ) ]
 
-use std::collections::HashMap;
 use mingl::F32x4;
 use minwebgl::
 {
@@ -59,6 +58,7 @@ use renderer::webgl::
     SwapFramebuffer
   }
 };
+use rustc_hash::FxHashMap;
 use std::rc::Rc;
 use std::cell::RefCell;
 
@@ -88,7 +88,7 @@ fn generate_object_colors( object_count : u32 ) -> Vec< F32x4 >
   object_colors
 }
 
-fn get_attributes( gltf : &GLTF ) -> Result< HashMap< Box< str >, AttributeInfo >, gl::WebglError >
+fn get_attributes( gltf : &GLTF ) -> Result< FxHashMap< Box< str >, AttributeInfo >, gl::WebglError >
 {
   for mesh in &gltf.meshes
   {
@@ -195,16 +195,13 @@ async fn run() -> Result< (), gl::WebglError >
 
   let get_buffer = | name | attributes.get( name ).unwrap().buffer.clone();
 
-  let attachments = HashMap::from(
-    [
-      ( GBufferAttachment::Position, vec![ get_buffer( "positions" ) ] ),
-      ( GBufferAttachment::Albedo, vec![] ),
-      ( GBufferAttachment::Uv1, vec![] ),
-      ( GBufferAttachment::Normal, vec![ get_buffer( "normals" ) ] ),
-      ( GBufferAttachment::PbrInfo, vec![ get_buffer( "texture_coordinates_2" ) ] ),
-      ( GBufferAttachment::ObjectColor, vec![] )
-    ]
-  );
+  let mut attachments = FxHashMap::default();
+  attachments.insert( GBufferAttachment::Position, vec![ get_buffer( "positions" ) ] );
+  attachments.insert( GBufferAttachment::Albedo, vec![] );
+  attachments.insert( GBufferAttachment::Uv1, vec![] );
+  attachments.insert( GBufferAttachment::Normal, vec![ get_buffer( "normals" ) ] );
+  attachments.insert( GBufferAttachment::PbrInfo, vec![ get_buffer( "texture_coordinates_2" ) ] );
+  attachments.insert( GBufferAttachment::ObjectColor, vec![] );
 
   let gbuffer = Rc::new
   (

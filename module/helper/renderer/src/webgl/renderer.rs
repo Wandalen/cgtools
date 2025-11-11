@@ -1,7 +1,8 @@
 mod private
 {
-  use std::{ cell::RefCell, collections::HashMap, rc::Rc };
   use mingl::F32x3;
+  use std::{ cell::RefCell, rc::Rc };
+  use rustc_hash::FxHashMap;
   use minwebgl as gl;
   use gl::GL;
   use web_sys::WebGlTexture;
@@ -485,16 +486,11 @@ mod private
     }
   }
 
-  /// The source code for the main vertex shader.
-  const MAIN_VERTEX_SHADER : &'static str = include_str!( "shaders/main.vert" );
-  /// The source code for the main fragment shader.
-  const MAIN_FRAGMENT_SHADER : &'static str = include_str!( "shaders/main.frag" );
-
   /// Manages the rendering process, including program management, IBL setup, and drawing objects in the scene.
   pub struct Renderer
   {
     /// A map of compiled WebGL programs, keyed by a combination of the material ID and vertex shader defines.
-    programs : HashMap< String, ProgramInfo< program::PBRShader > >,
+    programs : FxHashMap< String, ProgramInfo< program::PBRShader > >,
     /// Holds the precomputed textures used for Image-Based Lighting.
     ibl : Option< IBL >,
     /// A list of nodes with transparent primitives, sorted by distance to the camera for correct rendering order.
@@ -527,7 +523,7 @@ mod private
     {
       let framebuffer_ctx = FramebufferContext::new( gl, width, height, samples );
       let use_emission = false;
-      let programs = HashMap::new();
+      let programs = FxHashMap::default();
       let ibl = None;
       let transparent_nodes = Vec::new();
       let bloom_effect = UnrealBloomPass::new( gl, width, height, gl::RGBA16F )?;
@@ -803,10 +799,9 @@ mod private
           {
             let primitive = primitive_rc.borrow();
             let material = primitive.material.borrow();
-            let geometry = primitive.geometry.borrow();
-            let vs_defines = geometry.get_defines();
+            let defines = material.get_defines_str();
             // Generate a unique ID for the program based on the material ID and vertex shader defines.
-            let program_id = format!( "{}{}", material.id, vs_defines );
+            let program_id = format!( "{}{}", material.get_id(), defines );
 
             // Retrieve the program info if it already exists, otherwise compile and link a new program.
             let program_info =
@@ -829,14 +824,13 @@ mod private
               // Compile and link a new WebGL program from the vertex and fragment shaders with the appropriate defines.
               let program = gl::ProgramFromSources::new
               (
-                &format!( "#version 300 es\n{}\n{}", vs_defines, MAIN_VERTEX_SHADER ),
+                &format!( "#version 300 es\n{}\n{}", defines, material.get_vertex_shader() ),
                 &format!
                 (
-                  "#version 300 es\n{}\n{}\n{}\n{}",
-                  vs_defines,
+                  "#version 300 es\n{}\n{}\n{}",
+                  defines,
                   ibl_define,
-                  material.get_defines(),
-                  MAIN_FRAGMENT_SHADER )
+                  material.get_fragment_shader() )
               ).compile_and_link( gl )?;
               let program_info = ProgramInfo::< program::PBRShader >::new( gl , program );
 
@@ -858,7 +852,7 @@ mod private
             };
 
             // Handle transparent objects by adding them to a separate list for later rendering.
-            match material.alpha_mode
+            match material.get_alpha_mode()
             {
               AlphaMode::Blend | AlphaMode::Mask =>
               {
@@ -896,9 +890,7 @@ mod private
       {
         let primitive = primitive;
         let material = primitive.material.borrow();
-        let geometry = primitive.geometry.borrow();
-        let vs_defines = geometry.get_defines();
-        let program_info = self.programs.get( &format!( "{}{}",  material.id, vs_defines ) ).unwrap();
+        let program_info = self.programs.get( &format!( "{}{}",  material.get_id(), material.get_defines_str() ) ).unwrap();
 
         let locations = program_info.get_locations();
 

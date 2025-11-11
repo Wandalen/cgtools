@@ -35,7 +35,7 @@ use renderer::webgl::
   Texture,
   TextureInfo,
   Sampler,
-  Material,
+  material::PBRMaterial,
   Node
 };
 use std::rc::Rc;
@@ -229,7 +229,9 @@ fn clone( gltf : &mut GLTF, node : &Rc< RefCell< Node > > ) -> Rc< RefCell< Node
     let mesh = Rc::new( RefCell::new( mesh.borrow().clone() ) );
     for p in mesh.borrow().primitives.iter()
     {
-      gltf.materials.push( p.borrow().material.clone() );
+      //let m = Rc::new( RefCell::new( p.borrow().material.borrow().dyn_clone() ) );
+      let m = p.borrow().material.clone();
+      gltf.materials.push( m );
     }
     gltf.meshes.push( mesh );
   }
@@ -250,14 +252,19 @@ fn clone( gltf : &mut GLTF, node : &Rc< RefCell< Node > > ) -> Rc< RefCell< Node
 fn set_texture
 (
   node : &Rc< RefCell< Node > >,
-  mut material_callback : impl FnMut( &mut Material )
+  mut material_callback : impl FnMut( &mut PBRMaterial )
 )
 {
   if let Object3D::Mesh( ref mesh ) = &node.borrow().object
   {
     for p in &mesh.borrow().primitives
     {
-      material_callback( &mut p.borrow().material.borrow_mut() );
+      let p = p.borrow();
+      let mut mat = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >
+      (
+        p.material.borrow_mut()
+      );
+      material_callback( &mut mat );
     }
   }
 }
@@ -285,6 +292,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   .expect( "Scene is empty" ).clone();
   let texture = create_texture( &gl, "textures/earth2.jpg" );
   set_texture( &earth, | m | { m.base_color_texture = texture.clone(); } );
+    
   earth.borrow_mut().update_local_matrix();
 
   let clouds = clone( &mut gltf, &earth );

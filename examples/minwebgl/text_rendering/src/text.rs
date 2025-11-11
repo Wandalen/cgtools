@@ -26,6 +26,11 @@ pub mod ufo
   { 
     AttributesData, PrimitiveData, Transform 
   };
+  use renderer::webgl::
+  {
+    Material,
+    material::PBRMaterial
+  };
 
   #[ derive( Clone ) ]
   struct Glyph
@@ -377,7 +382,7 @@ pub mod ufo
                 } 
               ) 
             ), 
-            material : Rc::new( RefCell::new( Default::default() ) ), 
+            material :  Rc::new( RefCell::new( Box::new( PBRMaterial::default() ) as Box< dyn Material > ) ),
             transform : Default::default() 
           },
           bounding_box : BoundingBox::default()
@@ -657,7 +662,7 @@ pub mod ufo
     let primitive_data = PrimitiveData 
     { 
       attributes : Rc::new( RefCell::new( attributes ) ),
-      material : Rc::new( RefCell::new( renderer::webgl::Material::default() ) ), 
+      material :  Rc::new( RefCell::new( Box::new( PBRMaterial::default() ) as Box< dyn Material > ) ),
       transform : Transform::default()  
     };
 
@@ -807,6 +812,11 @@ pub mod ttf
   use std::rc::Rc;
   use std::cell::RefCell;
   use std::collections::HashMap;
+  use renderer::webgl::
+  {
+    Material,
+    material::PBRMaterial
+  };
 
   #[ derive( Clone ) ]
   struct Glyph3D
@@ -879,7 +889,7 @@ pub mod ttf
       let data = PrimitiveData 
       { 
         attributes : Rc::new( RefCell::new( attributes ) ),
-        material : Rc::new( RefCell::new( renderer::webgl::Material::default() ) ), 
+        material : Rc::new( RefCell::new( Box::new( PBRMaterial::default() ) as Box< dyn Material > ) ),
         transform : Transform::default()  
       };
 
