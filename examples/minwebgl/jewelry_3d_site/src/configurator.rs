@@ -5,22 +5,26 @@ use gl::
 {
   GL,
   F32x3,
-  WebglError,
+  WebglError
 };
 use std::collections::HashSet;
 use renderer::webgl::
 {
   Camera,
+  IBL,
   Light,
+  Material,
   Node,
   Object3D,
   Renderer,
   Scene,
-  TextureInfo,
   SpotLight,
-  Material,
-  Primitive,
-  IBL
+  TextureInfo,
+  material::
+  {
+    PBRMaterial,
+    GemMaterial
+  }
 };
 use crate::{ helpers::*, ui::{ UiState, get_ui_state, clear_changed } };
 
@@ -30,10 +34,10 @@ pub struct Configurator
   pub camera : Camera,
   pub ibl : IBL,
   pub skybox : Option< TextureInfo >,
-  pub surface_material : Rc< RefCell< Material > >,
-  pub surface_primitive : Rc< RefCell< Primitive > >,
+  pub surface_material : Rc< RefCell< Box< dyn Material > > >,
   pub scene : Rc< RefCell< Scene > >,
   pub rings : RingsInfo,
+  pub _cube_normal_map_texture : Option< TextureInfo >,
   pub ui_state : UiState
 }
 
@@ -41,19 +45,26 @@ impl Configurator
 {
   pub async fn new( gl : &GL, canvas : &canvas::HtmlCanvasElement ) -> Result< Self, WebglError >
   {
-    let scene = init_scene( gl ).await;
-    let surface = get_node( &scene, "Plane".to_string() ).unwrap();
-    let ( surface_material, surface_primitive ) = setup_surface( surface );
+    let window = gl::web_sys::window().unwrap();
+    let document = window.document().unwrap();
 
-    let rings = setup_rings( gl ).await?;
+    let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/plane.glb" ).as_str(), &gl ).await?;
+
+    let scene = gltf.scenes[ 0 ].clone();
+    let surface = get_node( &scene, "Plane".to_string() ).unwrap();
+    let surface_material = setup_surface( surface );
+
+    let _cube_normal_map_texture = load_cube_texture( "normal_cube", &document, &gl );
+    let ibl = renderer::webgl::loaders::ibl::load( gl, "environment_maps/christmas_photo_studio_07_4k", Some( 0..0 ) ).await;
+    let skybox = create_texture( gl, "environment_maps/equirectangular_maps/christmas_photo_studio_07.webp" );
+
+    let rings = setup_rings( gl, &skybox, &_cube_normal_map_texture ).await?;
 
     scene.borrow_mut().add( rings.current_ring.clone() );
     scene.borrow_mut().update_world_matrix();
 
     let renderer = Renderer::new( gl, canvas.width(), canvas.height(), 4 )?;
     let renderer = Rc::new( RefCell::new( renderer ) );
-    let ibl = renderer::webgl::loaders::ibl::load( gl, "environment_maps/christmas_photo_studio_07_4k", Some( 0..0 ) ).await;
-    let skybox = create_texture( gl, "environment_maps/equirectangular_maps/christmas_photo_studio_07.webp" );
 
     let camera = setup_camera( &scene, &canvas );
 
@@ -66,9 +77,9 @@ impl Configurator
       ibl,
       skybox,
       surface_material,
-      surface_primitive,
       scene,
       rings,
+      _cube_normal_map_texture,
       ui_state
     };
 
@@ -122,14 +133,14 @@ impl Configurator
     {
       let material = &primitive.borrow().material;
       {
-        let mut material = material.borrow_mut();
+        let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< GemMaterial >( material.borrow_mut() );
         for i in 0..3
         {
-          material.base_color_factor.0[ i ] = color.0[ i ];
+          material.color.0[ i ] = color.0[ i ];
         }
-        material.base_color_factor.0[ 3 ] = 1.0;
+        material.color.0[ 3 ] = 1.0;
       }
-      self.renderer.borrow().update_material_uniforms( gl, primitive );
+      self.renderer.borrow().update_material_uniforms( gl, &material );
     }
   }
 
@@ -165,7 +176,7 @@ impl Configurator
         {
           let material = &primitive.borrow().material;
           {
-            let mut material = material.borrow_mut();
+            let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >( material.borrow_mut() );
             material.base_color_texture = None;
             material.roughness_factor = 0.2;
             for i in 0..3
@@ -174,7 +185,7 @@ impl Configurator
             }
             material.base_color_factor.0[ 3 ] = 1.0;
           }
-          self.renderer.borrow().update_material_uniforms( gl, primitive );
+          self.renderer.borrow().update_material_uniforms( gl, &material );
         }
 
         Ok( () )
@@ -245,8 +256,9 @@ impl Configurator
       self.scene.borrow_mut().update_world_matrix();
 
       renderer::webgl::shadow::bake_shadows( &gl, &*self.scene.borrow(), &mut shadow_light, lightmap_res, shadowmap_res ).unwrap();
-      light_maps.push( self.surface_material.borrow().light_map.clone().unwrap() );
-      self.renderer.borrow().update_material_uniforms( &gl, &self.surface_primitive );
+      let material = renderer::webgl::helpers::cast_unchecked_material_to_ref::< PBRMaterial >( self.surface_material.borrow() );
+      light_maps.push( material.light_map.clone().unwrap() );
+      self.renderer.borrow().update_material_uniforms( &gl, &self.surface_material );
     }
     light_maps.reverse();
 
@@ -260,21 +272,11 @@ impl Configurator
   }
 }
 
-async fn init_scene( gl : &GL ) -> Rc< RefCell< Scene > >
-{
-  let window = gl::web_sys::window().unwrap();
-  let document = window.document().unwrap();
-
-  let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/plane.glb" ).as_str(), &gl ).await.unwrap();
-
-  gltf.scenes[ 0 ].clone()
-}
-
 fn setup_surface
 (
   surface : Rc< RefCell< Node > >
 )
--> ( Rc< RefCell< Material > >, Rc< RefCell< Primitive > > )
+-> Rc< RefCell< Box< dyn Material > > >
 {
   surface.borrow_mut().set_translation( F32x3::from_array( [ 0.0, -20.0, 0.0 ] ) );
   surface.borrow_mut().set_scale( F32x3::from_array( [ 1000.0, 0.1, 1000.0 ] ) );
@@ -290,19 +292,18 @@ fn setup_surface
 
   let primitives = &mesh.borrow().primitives;
   let primitive = primitives.first().unwrap();
-  let surface_primitive = primitive.clone();
   let primitive = primitive.borrow();
   let surface_material = primitive.material.clone();
 
   {
-    let mut material = surface_material.borrow_mut();
+    let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >( surface_material.borrow_mut() );
     material.base_color_texture = None;
     material.roughness_factor = 1.0;
     material.specular_factor = Some( 0.0 );
     material.metallic_factor = 0.0;
   }
 
-  ( surface_material, surface_primitive )
+  surface_material
 }
 
 pub struct RingsInfo
@@ -315,7 +316,12 @@ pub struct RingsInfo
   pub current_gem : Rc< RefCell< Node > >,
 }
 
-async fn setup_rings( gl : &GL ) -> Result< RingsInfo, WebglError >
+async fn setup_rings
+(
+  gl : &GL,
+  environment_texture : &Option< TextureInfo >,
+  cube_normal_map_texture : &Option< TextureInfo >,
+) -> Result< RingsInfo, WebglError >
 {
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();
@@ -334,6 +340,7 @@ async fn setup_rings( gl : &GL ) -> Result< RingsInfo, WebglError >
       {
         let gem = get_node( &gltf.scenes[ 0 ], "Object_2".to_string() ).unwrap();
         gem.borrow_mut().set_name( "gem0" );
+        setup_gem_material( &gem, environment_texture, cube_normal_map_texture );
         let ring = get_node( &gltf.scenes[ 0 ], "Sketchfab_model".to_string() ).unwrap();
         ring.borrow_mut().set_name( "ring0" );
         gems.push( gem.clone() );
@@ -344,6 +351,7 @@ async fn setup_rings( gl : &GL ) -> Result< RingsInfo, WebglError >
       {
         let gem = get_node( &gltf.scenes[ 0 ], "Object_11".to_string() ).unwrap();
         gem.borrow_mut().set_name( "gem1" );
+        setup_gem_material( &gem, environment_texture, cube_normal_map_texture );
         let ring = get_node( &gltf.scenes[ 0 ], "Empty.001_6".to_string() ).unwrap();
         ring.borrow_mut().set_name( "ring1" );
         let mut translation = ring.borrow_mut().get_translation();
@@ -358,6 +366,7 @@ async fn setup_rings( gl : &GL ) -> Result< RingsInfo, WebglError >
       {
         let gem = get_node( &gltf.scenes[ 0 ], "Object_2".to_string() ).unwrap();
         gem.borrow_mut().set_name( "gem2" );
+        setup_gem_material( &gem, environment_texture, cube_normal_map_texture );
         let ring = get_node( &gltf.scenes[ 0 ], "Sketchfab_model".to_string() ).unwrap();
         ring.borrow_mut().set_name( "ring2" );
         let mut translation = ring.borrow_mut().get_translation();
@@ -415,4 +424,25 @@ fn setup_camera( scene : &Rc< RefCell< Scene > >, canvas : &web_sys::HtmlCanvasE
   camera.bind_controls( &canvas );
 
   camera
+}
+
+fn setup_gem_material
+(
+  gem_node : &Rc< RefCell< Node > >,
+  environment_texture : &Option< TextureInfo >,
+  cube_normal_map_texture : &Option< TextureInfo >
+)
+{
+  if let Object3D::Mesh( mesh ) = &gem_node.borrow().object
+  {
+    let primitives = &mesh.borrow().primitives;
+    let mut gem_material = GemMaterial::default();
+    gem_material.cube_normal_map_texture = cube_normal_map_texture.clone();
+    gem_material.environment_texture = environment_texture.clone();
+    for primitive in primitives
+    {
+      let material = &primitive.borrow().material;
+      *material.borrow_mut() = gem_material.dyn_clone();
+    }
+  }
 }
