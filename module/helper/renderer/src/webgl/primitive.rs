@@ -1,6 +1,7 @@
 mod private
 {
-  use std::{ cell::RefCell, collections::HashMap, rc::Rc };
+  use std::{ cell::RefCell, rc::Rc };
+  use rustc_hash::FxHashMap;
   use mingl::geometry::BoundingBox;
   use minwebgl as gl;
   use crate::webgl::{ Geometry, Material };
@@ -11,7 +12,7 @@ mod private
     /// The geometry of the primitive.
     pub geometry : Rc< RefCell< Geometry > >,
     /// The material of the primitive.
-    pub material : Rc< RefCell< Material > >
+    pub material : Rc< RefCell< Box< dyn Material > > >
   }
 
   impl Clone for Primitive
@@ -20,8 +21,8 @@ mod private
     {
       Self 
       { 
-        geometry : self.geometry.clone(), 
-        material : Rc::new( RefCell::new( self.material.borrow().clone() ) ) 
+        geometry : Rc::new( RefCell::new( self.geometry.borrow().clone() ) ) , 
+        material : Rc::new( RefCell::new( self.material.borrow().dyn_clone() ) ) 
       }
     }
   }
@@ -36,7 +37,7 @@ mod private
     ( 
       &self,
       gl : &gl::WebGl2RenderingContext,
-      locations : &HashMap< String, Option< gl::WebGlUniformLocation > > 
+      locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > > 
     ) -> Result< (), gl::WebglError >
     {
       self.material.borrow().upload( gl, locations )?;

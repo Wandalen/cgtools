@@ -31,7 +31,7 @@
 mod elliptical_orbit;
 
 use elliptical_orbit::EllipticalOrbit;
-use renderer::webgl::{ loaders::gltf, AttributeInfo, IndexInfo };
+use renderer::webgl::{ AttributeInfo, IndexInfo, loaders::gltf, material::PBRMaterial };
 use std::{ cell::RefCell, f32, rc::Rc };
 use minwebgl as gl;
 use gl::
@@ -192,7 +192,7 @@ async fn run() -> Result< (), gl::WebglError >
     descriptor : BufferDescriptor::new::< [ f32; 3 ] >().divisor( 1 ), // Instanced attribute
     bounding_box : BoundingBox::default(),
   };
-  light_volume.add_attribute( &gl, "a_translation", translation_attribute, false )?;
+  light_volume.add_attribute( &gl, "a_translation", translation_attribute )?;
 
   // Create and upload the buffer for light radii (used for instancing)
   let light_radius_buffer = gl::buffer::create( &gl )?;
@@ -205,7 +205,7 @@ async fn run() -> Result< (), gl::WebglError >
     descriptor : BufferDescriptor::new::< f32 >().divisor( 1 ), // Instanced attribute
     bounding_box : BoundingBox::default(),
   };
-  light_volume.add_attribute( &gl, "a_radius", radius_attribute, false )?;
+  light_volume.add_attribute( &gl, "a_radius", radius_attribute )?;
 
   // Get UI elements
   let fps_counter = document.get_element_by_id( "fps-counter" ).unwrap();
@@ -313,6 +313,7 @@ async fn run() -> Result< (), gl::WebglError >
       {
         let primitive = primitive.borrow();
         let material = primitive.material.borrow();
+        let material = renderer::webgl::helpers::cast_unchecked_material_to_ref::< PBRMaterial >( material );
         // Bind the base color texture if it exists
         let Some( base_color ) = material.base_color_texture.as_ref() else
         {
@@ -499,7 +500,7 @@ fn light_volume( gl : &GL ) -> Result< renderer::webgl::Geometry, WebglError >
     descriptor : BufferDescriptor::new::< [ f32; 3 ] >(), // Non-instanced attribute
     bounding_box : BoundingBox::default(),
   };
-  light_volume.add_attribute( &gl, "position", attribute, false )?;
+  light_volume.add_attribute( &gl, "position", attribute )?;
 
   // Create and upload the index buffer
   let index_buffer = gl::buffer::create( gl )?;

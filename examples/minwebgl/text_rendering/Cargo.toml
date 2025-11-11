@@ -15,7 +15,7 @@ workspace = true
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
-renderer = { workspace = true }
+renderer = { workspace = true, features = [ "animation" ] }
 csgrs = { workspace = true, features = [ "truetype-text" ] }
 parry3d = { workspace = true }
 norad = { workspace = true }

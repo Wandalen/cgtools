@@ -60,7 +60,8 @@ use renderer::webgl::
   Material,
   Primitive,
   Renderer,
-  Scene
+  Scene,
+  material::PBRMaterial
 };
 use std::rc::Rc;
 use std::any::type_name_of_val;
@@ -153,7 +154,7 @@ struct AttributesData
 struct PrimitiveData
 {
   attributes : Rc< RefCell< AttributesData > >,
-  material : Rc< RefCell< Material > >,
+  material : Rc< RefCell< Box< dyn Material > > >,
   transform : Transform
 }
 
@@ -161,7 +162,7 @@ fn primitives_data_to_gltf
 (
   gl : &GL,
   primitives_data : Vec< PrimitiveData >,
-  materials : Vec< Rc< RefCell< Material > > >
+  materials : Vec< Rc< RefCell< Box< dyn Material > > > >
 ) -> GLTF
 {
   let mut scenes = vec![];
@@ -247,7 +248,7 @@ fn primitives_data_to_gltf
 
     for ( name, info ) in &attribute_infos
     {
-      geometry.add_attribute( gl, *name, info.clone(), false ).unwrap();
+      geometry.add_attribute( gl, *name, info.clone() ).unwrap();
     }
 
     geometry.add_index( gl, index_info.clone() ).unwrap();
@@ -340,7 +341,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let text = "CGTools".to_string();
 
-  let material = Rc::new( RefCell::new( Material::default() ) );
+  let material = Rc::new( RefCell::new( Box::new( PBRMaterial::default() ) as Box< dyn Material > ) );
   let materials = vec![ material.clone() ];
 
   let mut primitives_data = vec![];
