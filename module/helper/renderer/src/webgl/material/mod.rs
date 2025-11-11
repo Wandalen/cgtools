@@ -2,7 +2,7 @@ mod private
 {
   use minwebgl as gl;
   use crate::webgl::Texture;
-  use std:: { cell::RefCell, rc::Rc };
+  use std:: { cell::RefCell, fmt::Debug, rc::Rc };
   use rustc_hash::{ FxHashMap, FxHasher};
 
   /// Represents the alpha blending mode of the material.
@@ -55,7 +55,7 @@ mod private
   }
 
   /// Stores information about a texture used by the material, including the texture itself and its UV coordinates.
-  /// 
+  ///
   /// You may have several attibutes for the UV coordinates in the shader:
   /// `
   /// layout( location = 0 ) in vec2 uv_0;
@@ -71,7 +71,7 @@ mod private
     pub uv_position : u32
   }
 
-  impl TextureInfo 
+  impl TextureInfo
   {
     /// Uploads the texture data to the GPU.
     pub fn upload( &self, gl : &gl::WebGl2RenderingContext )
@@ -87,13 +87,13 @@ mod private
   }
 
   /// A trait representin a generic material
-  pub trait Material : std::any::Any
+  pub trait Material : std::any::Any + Debug
   {
     /// Returns the unique identifier of the material.
     fn get_id( &self ) -> uuid::Uuid;
 
     /// Returns a human-readable name for the material (for debugging/editor).
-    fn get_name( &self ) -> Option< &str > 
+    fn get_name( &self ) -> Option< &str >
     {
       None
     }
@@ -127,7 +127,7 @@ mod private
 
     /// Returns a hash representing the current shader configuration.
     /// Used for shader caching and variant management.
-    fn get_shader_hash( &self ) -> u64 
+    fn get_shader_hash( &self ) -> u64
     {
       use std::hash::{ Hash, Hasher };
 
@@ -180,7 +180,7 @@ mod private
     }
 
     /// Returns the face culling mode.
-    fn get_cull_mode( &self ) -> CullMode 
+    fn get_cull_mode( &self ) -> CullMode
     {
       CullMode::default()
     }
@@ -196,20 +196,20 @@ mod private
     }
 
     /// Returns the depth comparison function.
-    fn get_depth_func( &self ) -> DepthFunc 
+    fn get_depth_func( &self ) -> DepthFunc
     {
       DepthFunc::default()
     }
 
     /// Returns the color write mask (R, G, B, A).
-    fn get_color_write_mask(&self) -> ( bool, bool, bool, bool ) 
+    fn get_color_write_mask(&self) -> ( bool, bool, bool, bool )
     {
       ( true, true, true, true )
     }
 
     /// Returns whether this material is transparent and should be rendered
     /// in the transparency pass.
-    fn is_transparent( &self ) -> bool 
+    fn is_transparent( &self ) -> bool
     {
       matches!( self.get_alpha_mode(), AlphaMode::Blend )
     }
@@ -222,6 +222,9 @@ crate::mod_interface!
 {
   /// PBR Material
   layer pbr;
+
+  /// Gem Material
+  layer gem;
 
   orphan use
   {

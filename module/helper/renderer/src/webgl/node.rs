@@ -323,6 +323,17 @@ mod private
         true
       ).unwrap();
 
+      if let Some( inverse_world_matrix_loc ) = locations.get( "inverseWorldMatrix" )
+      {
+        let _ = gl::uniform::matrix_upload
+        (
+          &gl,
+          inverse_world_matrix_loc.clone(),
+          self.world_matrix.inverse().unwrap().to_array().as_slice(),
+          true
+        );
+      }
+
       gl::uniform::matrix_upload
       (
         &gl,

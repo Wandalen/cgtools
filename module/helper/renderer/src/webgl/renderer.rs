@@ -2,6 +2,7 @@ mod private
 {
   use mingl::F32x3;
   use std::{ cell::RefCell, rc::Rc };
+  use std::collections::HashMap;
   use rustc_hash::FxHashMap;
   use minwebgl as gl;
   use gl::GL;
@@ -23,6 +24,7 @@ mod private
     Node,
     Object3D,
     Primitive,
+    Material,
     ProgramInfo,
     Scene,
     IBL,
@@ -644,14 +646,10 @@ mod private
     }
 
     /// Updates [`Primitive`]'s material uniform for related [`ProgramInfo`]
-    pub fn update_material_uniforms( &self, gl : &GL, primitive : &Rc< RefCell< Primitive > > )
+    pub fn update_material_uniforms( &self, gl : &GL, material : &Rc< RefCell< Box< dyn Material > > > )
     {
-      let primitive = primitive.borrow();
-      let geometry = primitive.geometry.borrow();
-      let material = primitive.material.borrow();
-      let vs_defines = geometry.get_defines();
-      let material_id = material.id;
-      let program_id = format!( "{}{}", material_id, vs_defines );
+      let material = material.borrow();
+      let program_id = format!( "{}{}", material.get_id(), material.get_defines_str() );
       for ( id, program_info ) in &self.programs
       {
         if *id == program_id

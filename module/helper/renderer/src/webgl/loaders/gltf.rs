@@ -1,8 +1,9 @@
 mod private
 {
   use std::{ cell::RefCell, rc::Rc };
+  use std::collections::HashMap;
   use mingl::F32x3;
-use minwebgl as gl;
+  use minwebgl as gl;
   use gl::
   {
     JsCast,
@@ -17,6 +18,7 @@ use minwebgl as gl;
     IndexInfo,
     MagFilterMode,
     material::PBRMaterial,
+    Material,
     Mesh,
     MinFilterMode,
     Node,

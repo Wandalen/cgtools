@@ -24,8 +24,7 @@ use gl::
 use web_sys::HtmlCanvasElement;
 use renderer::webgl::
 {
-  Renderer,
-  post_processing::{ self, Pass, SwapFramebuffer }
+  Renderer, material::PBRMaterial, post_processing::{ self, Pass, SwapFramebuffer }
 };
 
 mod configurator;
@@ -46,18 +45,18 @@ fn handle_camera_position( gl : &GL, configurator : &Configurator )
     camera_controls.borrow_mut().eye /= distance / MAX_DISTANCE;
   }
 
+  let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >( configurator.surface_material.borrow_mut() );
   if camera_controls.borrow().eye.y() < -20.0
   {
-    configurator.surface_material.borrow_mut().base_color_factor.0[ 3 ] = 0.0;
-    configurator.surface_material.borrow_mut().alpha_mode = renderer::webgl::AlphaMode::Blend;
-    configurator.renderer.borrow().update_material_uniforms( &gl, &configurator.surface_primitive );
+    material.base_color_factor.0[ 3 ] = 0.0;
+    material.alpha_mode = renderer::webgl::AlphaMode::Blend;
   }
   else
   {
-    configurator.surface_material.borrow_mut().base_color_factor.0[ 3 ] = 1.0;
-    configurator.surface_material.borrow_mut().alpha_mode = renderer::webgl::AlphaMode::Opaque;
-    configurator.renderer.borrow().update_material_uniforms( &gl, &configurator.surface_primitive );
+    material.base_color_factor.0[ 3 ] = 1.0;
+    material.alpha_mode = renderer::webgl::AlphaMode::Opaque;
   }
+  configurator.renderer.borrow().update_material_uniforms( &gl, &configurator.surface_material );
 }
 
 fn handle_resize
@@ -113,8 +112,9 @@ fn handle_ui_change( gl: &GL, configurator : &mut Configurator )
           configurator.scene.borrow_mut().add( configurator.rings.current_ring.clone() );
           configurator.scene.borrow_mut().update_world_matrix();
 
-          configurator.surface_material.borrow_mut().light_map = Some( configurator.rings.light_maps[ ui_state.ring as usize ].clone() );
-          configurator.renderer.borrow().update_material_uniforms( &gl, &configurator.surface_primitive );
+          let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >( configurator.surface_material.borrow_mut() );
+          material.light_map = Some( configurator.rings.light_maps[ ui_state.ring as usize ].clone() );
+          configurator.renderer.borrow().update_material_uniforms( &gl, &configurator.surface_material );
         }
       }
 

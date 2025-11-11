@@ -8,6 +8,8 @@ mod private
   use std::rc::Rc;
   use core::cell::RefCell;
 
+use crate::webgl::{helpers, material::PBRMaterial};
+
   /// Shadow map for rendering depth from light's perspective
   #[ derive( Debug ) ]
   pub struct ShadowMap
@@ -447,7 +449,11 @@ mod private
             } ) ),
             uv_position : 0,
           };
-          primitive_ref.material.borrow_mut().light_map = Some( texture_info );
+          helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >
+          (
+            primitive_ref.material.borrow_mut()
+          )
+          .light_map = Some( texture_info );
         }
       }
 

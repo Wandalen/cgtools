@@ -5,7 +5,7 @@ mod private
   use mingl::Former;
   use rustc_hash::FxHashMap;
 
-    /// The source code for the main vertex shader.
+  /// The source code for the main vertex shader.
   const MAIN_VERTEX_SHADER : &'static str = include_str!( "../shaders/main.vert" );
   /// The source code for the main fragment shader.
   const MAIN_FRAGMENT_SHADER : &'static str = include_str!( "../shaders/main.frag" );
@@ -105,6 +105,8 @@ mod private
       || self.specular_color_factor.is_some()
       || use_specular_texture
       || use_specular_color_texture;
+
+      let use_light_map = self.light_map.is_some();
 
       let use_normal_texture = self.normal_texture.is_some();
       let use_occlusion_texture = self.occlusion_texture.is_some();

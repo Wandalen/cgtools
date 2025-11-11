@@ -1,6 +1,6 @@
 mod private
 {
-  use std::{ cell::RefCell, rc::Rc };
+  use std::{ cell::RefCell, fmt::Debug, rc::Rc };
   use rustc_hash::FxHashMap;
   use mingl::geometry::BoundingBox;
   use minwebgl as gl;
