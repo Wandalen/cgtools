@@ -24,7 +24,14 @@ vec2 dirToEquirectUV( vec3 dir )
 {
   float phi = atan( -dir.z, dir.x );
   float theta = asin( dir.y );
-  return vec2( 0.5 + phi / ( 2.0 * PI ), 0.5 - theta / PI );
+  vec2 uv = vec2( 0.5 + phi / ( 2.0 * PI ), 0.5 - theta / PI );
+
+  if ( uv.x < 0.0005 || uv.x > 0.9995 )
+  {
+    uv = vec2( 0.0001, uv.y );
+  }
+
+  return uv;
 }
 
 void main()
@@ -33,12 +40,5 @@ void main()
   dir.z = -dir.z;
   vec2 uv = dirToEquirectUV( dir );
 
-  if (uv.x > 0.0005 && uv.x < 0.9995)
-  {
-    FragColor = texture( uEquirectMap, uv );
-  }
-  else
-  {
-    FragColor = texture( uEquirectMap, vec2( 0.0001, uv.y ) );
-  }
+  FragColor = texture( uEquirectMap, uv );
 }
