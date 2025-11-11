@@ -1,0 +1,422 @@
+use std::{ cell::RefCell, rc::Rc };
+use mingl::web::canvas;
+use minwebgl as gl;
+use gl::
+{
+  GL,
+  F32x3,
+  WebglError,
+};
+use std::collections::HashSet;
+use renderer::webgl::
+{
+  Camera,
+  Light,
+  Node,
+  Object3D,
+  Renderer,
+  Scene,
+  TextureInfo,
+  SpotLight,
+  Material,
+  Primitive,
+  IBL
+};
+use crate::{ helpers::*, ui::{ UiState, get_ui_state, clear_changed } };
+
+pub struct Configurator
+{
+  pub renderer : Rc< RefCell< Renderer > >,
+  pub camera : Camera,
+  pub ibl : IBL,
+  pub skybox : Option< TextureInfo >,
+  pub surface_material : Rc< RefCell< Material > >,
+  pub surface_primitive : Rc< RefCell< Primitive > >,
+  pub scene : Rc< RefCell< Scene > >,
+  pub rings : RingsInfo,
+  pub ui_state : UiState
+}
+
+impl Configurator
+{
+  pub async fn new( gl : &GL, canvas : &canvas::HtmlCanvasElement ) -> Result< Self, WebglError >
+  {
+    let scene = init_scene( gl ).await;
+    let surface = get_node( &scene, "Plane".to_string() ).unwrap();
+    let ( surface_material, surface_primitive ) = setup_surface( surface );
+
+    let rings = setup_rings( gl ).await?;
+
+    scene.borrow_mut().add( rings.current_ring.clone() );
+    scene.borrow_mut().update_world_matrix();
+
+    let renderer = Renderer::new( gl, canvas.width(), canvas.height(), 4 )?;
+    let renderer = Rc::new( RefCell::new( renderer ) );
+    let ibl = renderer::webgl::loaders::ibl::load( gl, "environment_maps/christmas_photo_studio_07_4k", Some( 0..0 ) ).await;
+    let skybox = create_texture( gl, "environment_maps/equirectangular_maps/christmas_photo_studio_07.webp" );
+
+    let camera = setup_camera( &scene, &canvas );
+
+    let ui_state = get_ui_state().unwrap();
+
+    let mut configurator = Configurator
+    {
+      renderer,
+      camera,
+      ibl,
+      skybox,
+      surface_material,
+      surface_primitive,
+      scene,
+      rings,
+      ui_state
+    };
+
+    configurator.setup_renderer();
+    configurator.setup_light( &gl );
+
+    Ok( configurator )
+  }
+
+  pub fn update_gem_color( &self, gl : &GL )
+  {
+    match self.ui_state.gem.as_str()
+    {
+      "white" => self.set_gem_color( &gl, F32x3::from_array( [ 1.0, 1.0, 1.0 ] ) ),
+      "black" => self.set_gem_color( &gl, F32x3::from_array( [ 0.0, 0.0, 0.0 ] ) ),
+      "red" => self.set_gem_color( &gl, F32x3::from_array( [ 1.0, 0.0, 0.0 ] ) ),
+      "orange" => self.set_gem_color( &gl, F32x3::from_array( [ 1.0, 0.5, 0.0 ] ) ),
+      "yellow" => self.set_gem_color( &gl, F32x3::from_array( [ 1.0, 1.0, 0.0 ] ) ),
+      "green" => self.set_gem_color( &gl, F32x3::from_array( [ 0.0, 1.0, 0.0 ] ) ),
+      "turquoise" => self.set_gem_color( &gl, F32x3::from_array( [ 0.25, 0.88, 0.82 ] ) ),
+      "light_blue" => self.set_gem_color( &gl, F32x3::from_array( [ 0.53, 0.81, 0.92 ] ) ),
+      "blue" => self.set_gem_color( &gl, F32x3::from_array( [ 0.0, 0.0, 1.0 ] ) ),
+      "violet" => self.set_gem_color( &gl, F32x3::from_array( [ 0.5, 0.0, 0.5 ] ) ),
+      "pink" => self.set_gem_color( &gl, F32x3::from_array( [ 1.0, 0.41, 0.71 ] ) ),
+      _ => ()
+    }
+  }
+
+  pub fn update_metal_color( &self, gl : &GL )
+  {
+    match self.ui_state.metal.as_str()
+    {
+      "silver" => self.set_metal_color( &gl, F32x3::from_array( [ 0.753, 0.753, 0.753 ] ) ),
+      "copper" => self.set_metal_color( &gl, F32x3::from_array( [ 1.0, 0.4, 0.2 ] ) ),
+      "gold" => self.set_metal_color( &gl, F32x3::from_array( [ 1.0, 0.65, 0.02 ] ) ),
+      _ => ()
+    }
+  }
+
+  pub fn set_gem_color( &self, gl : &GL, color : F32x3 )
+  {
+    let Object3D::Mesh( mesh ) = &self.rings.current_gem.borrow().object
+    else
+    {
+      return;
+    };
+
+    mesh.borrow_mut().is_shadow_caster = true;
+
+    for primitive in &mesh.borrow().primitives
+    {
+      let material = &primitive.borrow().material;
+      {
+        let mut material = material.borrow_mut();
+        for i in 0..3
+        {
+          material.base_color_factor.0[ i ] = color.0[ i ];
+        }
+        material.base_color_factor.0[ 3 ] = 1.0;
+      }
+      self.renderer.borrow().update_material_uniforms( gl, primitive );
+    }
+  }
+
+  pub fn set_metal_color
+  (
+    &self,
+    gl : &GL,
+    color : F32x3
+  )
+  {
+    let filter = self.rings.filters.get( self.ui_state.ring as usize ).unwrap();
+    let _ = self.rings.current_ring.borrow().traverse
+    (
+      &mut | node : Rc< RefCell< Node > > |
+      {
+        if let Some( name ) = node.borrow().get_name()
+        {
+          if filter.contains( &name.clone().into_string() )
+          {
+            return Ok( () );
+          }
+        }
+
+        let Object3D::Mesh( mesh ) = &node.borrow().object
+        else
+        {
+          return Ok( () );
+        };
+
+        mesh.borrow_mut().is_shadow_caster = true;
+
+        for primitive in &mesh.borrow().primitives
+        {
+          let material = &primitive.borrow().material;
+          {
+            let mut material = material.borrow_mut();
+            material.base_color_texture = None;
+            material.roughness_factor = 0.2;
+            for i in 0..3
+            {
+              material.base_color_factor.0[ i ] = color.0[ i ];
+            }
+            material.base_color_factor.0[ 3 ] = 1.0;
+          }
+          self.renderer.borrow().update_material_uniforms( gl, primitive );
+        }
+
+        Ok( () )
+      }
+    );
+  }
+
+  pub fn setup_renderer( &self )
+  {
+    let mut renderer_mut = self.renderer.borrow_mut();
+    renderer_mut.set_ibl( self.ibl.clone() );
+    if let Some( skybox ) = &self.skybox
+    {
+      renderer_mut.set_skybox( skybox.texture.borrow().source.clone() );
+    }
+    else
+    {
+      renderer_mut.set_skybox( None );
+    }
+
+    match get_ui_state().unwrap().light_mode.as_str()
+    {
+      "light" =>
+      {
+        renderer_mut.set_clear_color( F32x3::splat( 1.0 ) );
+        renderer_mut.set_exposure( 1.0 );
+      },
+      "dark" =>
+      {
+        renderer_mut.set_clear_color( F32x3::splat( 0.2 ) );
+        renderer_mut.set_exposure( 0.5 );
+      }
+      _ => ()
+    }
+  }
+
+  fn setup_light( &mut self, gl : &GL )
+  {
+    self.scene.borrow_mut().add( self.rings.current_ring.clone() );
+    self.scene.borrow_mut().update_world_matrix();
+
+    let node = Rc::new( RefCell::new( Node::new() ) );
+    let spot = SpotLight
+    {
+      position : F32x3::from_array( [ 20.0, 40.0, 20.0 ] ),
+      direction : F32x3::from_array( [ -1.0, -2.0, -1.0 ] ).normalize(),
+      color : F32x3::splat( 1.0 ),
+      strength : 20000.0,
+      range : 200.0,
+      inner_cone_angle : 30_f32.to_radians(),
+      outer_cone_angle : 50_f32.to_radians(),
+      use_light_map : true
+    };
+
+    node.borrow_mut().object = Object3D::Light( Light::Spot( spot.clone() ) );
+    self.scene.borrow_mut().add( node );
+
+    let mut shadow_light = renderer::webgl::shadow::Light::new
+    (
+      spot.position,
+      spot.direction,
+      gl::math::mat3x3h::perspective_rh_gl( 100.0_f32.to_radians(), 1.0, 0.1, 100.0 ),
+      0.01
+    );
+
+    let shadowmap_res = 4096;
+    let lightmap_res = 8192;
+    let mut light_maps = vec![];
+    let mut current = self.rings.current_ring.clone();
+    for i in ( 0..self.rings.rings.len() ).rev()
+    {
+      let new_ring = self.rings.rings.get( i ).unwrap();
+      remove_node_from_scene( &self.scene, &current );
+      current = new_ring.clone();
+      self.set_gem_color( &gl, F32x3::from_array( [ 1.0, 1.0, 1.0 ] ) );
+      self.set_metal_color( &gl, F32x3::from_array( [ 0.753, 0.753, 0.753 ] ) );
+      self.scene.borrow_mut().add( current.clone() );
+      self.scene.borrow_mut().update_world_matrix();
+
+      renderer::webgl::shadow::bake_shadows( &gl, &*self.scene.borrow(), &mut shadow_light, lightmap_res, shadowmap_res ).unwrap();
+      light_maps.push( self.surface_material.borrow().light_map.clone().unwrap() );
+    }
+    self.renderer.borrow().update_material_uniforms( &gl, &self.surface_primitive );
+    light_maps.reverse();
+
+    self.rings.light_maps = light_maps;
+  }
+}
+
+async fn init_scene( gl : &GL ) -> Rc< RefCell< Scene > >
+{
+  let window = gl::web_sys::window().unwrap();
+  let document = window.document().unwrap();
+
+  let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/plane.glb" ).as_str(), &gl ).await.unwrap();
+
+  gltf.scenes[ 0 ].clone()
+}
+
+fn setup_surface
+(
+  surface : Rc< RefCell< Node > >
+)
+-> ( Rc< RefCell< Material > >, Rc< RefCell< Primitive > > )
+{
+  surface.borrow_mut().set_translation( F32x3::from_array( [ 0.0, -20.0, 0.0 ] ) );
+  surface.borrow_mut().set_scale( F32x3::from_array( [ 1000.0, 0.1, 1000.0 ] ) );
+
+  let Object3D::Mesh( mesh ) = &surface.borrow().object
+  else
+  {
+    unreachable!();
+  };
+
+  mesh.borrow_mut().is_shadow_receiver = true;
+  mesh.borrow_mut().is_shadow_caster = true;
+
+  let primitives = &mesh.borrow().primitives;
+  let primitive = primitives.first().unwrap();
+  let surface_primitive = primitive.clone();
+  let primitive = primitive.borrow();
+  let surface_material = primitive.material.clone();
+
+  {
+    let mut material = surface_material.borrow_mut();
+    material.base_color_texture = None;
+    material.roughness_factor = 1.0;
+    material.specular_factor = Some( 0.0 );
+    material.metallic_factor = 0.0;
+  }
+
+  ( surface_material, surface_primitive )
+}
+
+pub struct RingsInfo
+{
+  pub rings : Vec< Rc< RefCell< Node > > >,
+  pub gems : Vec< Rc< RefCell< Node > > >,
+  pub filters : Vec< HashSet< String > >,
+  pub light_maps : Vec< TextureInfo >,
+  pub current_ring : Rc< RefCell< Node > >,
+  pub current_gem : Rc< RefCell< Node > >,
+}
+
+async fn setup_rings( gl : &GL ) -> Result< RingsInfo, WebglError >
+{
+  let window = gl::web_sys::window().unwrap();
+  let document = window.document().unwrap();
+
+  let mut rings : Vec< Rc< RefCell< Node > > > = vec![];
+  let mut gems : Vec< Rc< RefCell< Node > > > = vec![];
+  let mut filters : Vec< HashSet< String > > = vec![];
+
+  for i in 0..3
+  {
+    let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/{i}.glb" ).as_str(), &gl ).await?;
+
+    match i
+    {
+      0 =>
+      {
+        let gem = get_node( &gltf.scenes[ 0 ], "Object_2".to_string() ).unwrap();
+        gem.borrow_mut().set_name( "gem0" );
+        let ring = get_node( &gltf.scenes[ 0 ], "Sketchfab_model".to_string() ).unwrap();
+        ring.borrow_mut().set_name( "ring0" );
+        gems.push( gem.clone() );
+        rings.push( ring.clone() );
+        filters.push( HashSet::from( [ "gem0".to_string() ] ) );
+      },
+      1 =>
+      {
+        let gem = get_node( &gltf.scenes[ 0 ], "Object_11".to_string() ).unwrap();
+        gem.borrow_mut().set_name( "gem1" );
+        let ring = get_node( &gltf.scenes[ 0 ], "Empty.001_6".to_string() ).unwrap();
+        ring.borrow_mut().set_name( "ring1" );
+        let mut translation = ring.borrow_mut().get_translation();
+        translation.0[ 1 ] -= 11.0;
+        ring.borrow_mut().set_translation( translation );
+        ring.borrow_mut().set_scale( F32x3::splat( 5.0 ) );
+        gems.push( gem.clone() );
+        rings.push( ring.clone() );
+        filters.push( HashSet::from( [ "gem1".to_string() ] ) );
+      },
+      2 =>
+      {
+        let gem = get_node( &gltf.scenes[ 0 ], "Object_2".to_string() ).unwrap();
+        gem.borrow_mut().set_name( "gem2" );
+        let ring = get_node( &gltf.scenes[ 0 ], "Sketchfab_model".to_string() ).unwrap();
+        ring.borrow_mut().set_name( "ring2" );
+        let mut translation = ring.borrow_mut().get_translation();
+        translation.0[ 1 ] += 11.0;
+        ring.borrow_mut().set_translation( translation );
+        ring.borrow_mut().set_scale( F32x3::splat( 5.0 ) );
+        gems.push( gem.clone() );
+        rings.push( ring.clone() );
+        filters.push( HashSet::from( [ "gem2".to_string() ] ) );
+      },
+      _ => ()
+    }
+  }
+
+  let ui_state = get_ui_state().unwrap();
+  clear_changed();
+
+  let current_ring = rings[ ui_state.ring as usize ].clone();
+  let current_gem = gems[ ui_state.ring as usize ].clone();
+
+  Ok
+  (
+    RingsInfo
+    {
+      rings,
+      gems,
+      filters,
+      light_maps : vec![],
+      current_ring,
+      current_gem
+    }
+  )
+}
+
+fn setup_camera( scene : &Rc< RefCell< Scene > >, canvas : &web_sys::HtmlCanvasElement ) -> Camera
+{
+  let width = canvas.width() as f32;
+  let height = canvas.height() as f32;
+
+  let scene_bounding_box = scene.borrow().bounding_box();
+
+  let eye = gl::math::F32x3::from( [ 0.0, 0.0, 35.0 ] );
+  let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
+
+  let center = scene_bounding_box.center();
+
+  let aspect_ratio = width / height;
+  let fov = 70.0f32.to_radians();
+  let near = 0.1;
+  let far = 1000.0;
+
+  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
+  camera.set_window_size( [ width, height ].into() );
+  camera.get_controls().borrow_mut().block_pan = true;
+  camera.bind_controls( &canvas );
+
+  camera
+}

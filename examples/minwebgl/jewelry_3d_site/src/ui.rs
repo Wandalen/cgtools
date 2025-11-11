@@ -2,7 +2,7 @@ use minwebgl as gl;
 use gl::wasm_bindgen::{ self, prelude::* };
 use serde::{ Serialize, Deserialize };
 
-#[ derive( Debug, Default, Serialize, Deserialize ) ]
+#[ derive( Debug, Clone, Default, Serialize, Deserialize ) ]
 pub struct UiState
 {
   #[ serde( rename = "lightMode" ) ]
