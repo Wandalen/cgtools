@@ -33,5 +33,12 @@ void main()
   dir.z = -dir.z;
   vec2 uv = dirToEquirectUV( dir );
 
-  FragColor = texture( uEquirectMap, uv );
+  if (uv.x > 0.001 && uv.x < 0.999)
+  {
+    FragColor = texture( uEquirectMap, uv );
+  }
+  else
+  {
+    FragColor = texture( uEquirectMap, vec2( 0.0001, uv.y ) );
+  }
 }
