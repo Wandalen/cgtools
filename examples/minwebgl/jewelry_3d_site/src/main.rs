@@ -118,24 +118,6 @@ fn handle_ui_change( gl: &GL, configurator : &mut Configurator )
         }
       }
 
-      if ui_state.changed.contains( &"lightMode".to_string() )
-      {
-        match ui::get_ui_state().unwrap().light_mode.as_str()
-        {
-          "light" =>
-          {
-            configurator.renderer.borrow_mut().set_clear_color( F32x3::splat( 1.0 ) );
-            configurator.renderer.borrow_mut().set_exposure( 1.0 );
-          },
-          "dark" =>
-          {
-            configurator.renderer.borrow_mut().set_clear_color( F32x3::splat( 0.2 ) );
-            configurator.renderer.borrow_mut().set_exposure( 0.5 );
-          }
-          _ => ()
-        }
-      }
-
       if ui_state.changed.contains( &"gem".to_string() ) || ring_changed
       {
         configurator.update_gem_color( gl );
