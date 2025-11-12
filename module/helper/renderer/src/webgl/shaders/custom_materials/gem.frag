@@ -1,7 +1,6 @@
-#version 300 es
-
 precision mediump float;
 
+const float PI = 3.1415926535897932384626433;
 const float EPSILON = 1e-4;
 // Reflectance of a diamond at light incidence of theta = 0
 // Max distance to the surface in cubeNormalMap
