@@ -2,8 +2,10 @@ mod private
 {
   use crate::webgl::material::*;
   use minwebgl as gl;
+  use gl::GL;
   use mingl::Former;
   use rustc_hash::FxHashMap;
+  use crate::webgl::program::{ ProgramInfo, ShaderProgram, PBRShader };
 
   /// The source code for the main vertex shader.
   const MAIN_VERTEX_SHADER : &'static str = include_str!( "../shaders/main.vert" );
@@ -196,6 +198,12 @@ mod private
     fn get_id( &self ) -> uuid::Uuid
     {
       self.id
+    }
+
+    /// Returns [`ProgramInfo`] with shader locations and used [`ShaderProgram`]
+    fn get_program_info( &self, gl : &GL, program : &gl::WebGlProgram ) -> ProgramInfo
+    {
+      ProgramInfo::new( gl, program, PBRShader.dyn_clone() )
     }
 
     /// Configures the position of the uniform texture samplers in the shader program.

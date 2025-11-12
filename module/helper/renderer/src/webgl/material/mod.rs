@@ -1,9 +1,10 @@
 mod private
 {
   use minwebgl as gl;
-  use crate::webgl::Texture;
+  use gl::GL;
+  use crate::webgl::{ ProgramInfo, Texture };
   use std:: { cell::RefCell, fmt::Debug, rc::Rc };
-  use rustc_hash::{ FxHashMap, FxHasher};
+  use rustc_hash::{ FxHashMap, FxHasher };
 
   /// Represents the alpha blending mode of the material.
   #[ derive( Default, Clone, Copy, PartialEq, Eq, Debug ) ]
@@ -51,7 +52,7 @@ mod private
     /// Pass if the incoming value is greater than or equal to the depth buffer value
     GEqual,
     /// Always pass
-    ALWAYS
+    Always
   }
 
   /// Stores information about a texture used by the material, including the texture itself and its UV coordinates.
@@ -97,6 +98,9 @@ mod private
     {
       None
     }
+
+    /// Returns [`ProgramInfo`] with shader locations and used [`ShaderProgram`]
+    fn get_program_info( &self, gl : &GL, program : &gl::WebGlProgram ) -> ProgramInfo;
 
     /// Returns the material type identifier (e.g., "PBR", "Unlit", "Custom").
     fn get_type_name(&self) -> &'static str;

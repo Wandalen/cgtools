@@ -18,7 +18,7 @@ mod private
       UnrealBloomPass,
       VS_TRIANGLE
     },
-    program::{ self, CompositeShader, SkyboxShader },
+    program::{ CompositeShader, SkyboxShader },
     AlphaMode,
     Camera,
     Node,
@@ -26,6 +26,7 @@ mod private
     Primitive,
     Material,
     ProgramInfo,
+    ShaderProgram,
     Scene,
     IBL,
     Light
@@ -492,7 +493,7 @@ mod private
   pub struct Renderer
   {
     /// A map of compiled WebGL programs, keyed by a combination of the material ID and vertex shader defines.
-    programs : FxHashMap< String, ProgramInfo< program::PBRShader > >,
+    programs : FxHashMap< String, ProgramInfo >,
     /// Holds the precomputed textures used for Image-Based Lighting.
     ibl : Option< IBL >,
     /// A list of nodes with transparent primitives, sorted by distance to the camera for correct rendering order.
@@ -511,11 +512,11 @@ mod private
     /// Swap buffer to control rendering of the effects
     swap_buffer : SwapFramebuffer,
     exposure : f32,
-    composite_shader : ProgramInfo< CompositeShader >,
+    composite_shader : ProgramInfo,
     /// Clear color
     clear_color : F32x3,
     /// Shader for drawing background
-    skybox_shader : ProgramInfo< SkyboxShader >
+    skybox_shader : ProgramInfo
   }
 
   impl Renderer
@@ -537,7 +538,7 @@ mod private
       let exposure = 0.0;
 
       let composite_program = gl::ProgramFromSources::new( VS_TRIANGLE, include_str!( "shaders/composite.frag" ) ).compile_and_link( gl )?;
-      let composite_shader = ProgramInfo::< CompositeShader >::new( gl, composite_program );
+      let composite_shader = ProgramInfo::new( gl, &composite_program, CompositeShader.dyn_clone() );
       let locations = composite_shader.get_locations();
       composite_shader.bind( gl );
       gl.uniform1i( locations.get( "transparentA" ).unwrap().clone().as_ref() , 0 );
@@ -549,7 +550,7 @@ mod private
         include_str!( "shaders/skybox.frag" )
       )
       .compile_and_link( gl )?;
-      let skybox_shader = ProgramInfo::< SkyboxShader >::new( gl, skybox_program );
+      let skybox_shader = ProgramInfo::new( gl, &skybox_program, SkyboxShader.dyn_clone() );
 
       Ok
       (
@@ -830,7 +831,7 @@ mod private
                   ibl_define,
                   material.get_fragment_shader() )
               ).compile_and_link( gl )?;
-              let program_info = ProgramInfo::< program::PBRShader >::new( gl , program );
+              let program_info = material.get_program_info( gl, &program );
 
               // Configure and upload material properties and IBL textures for the new program.
               let locations = program_info.get_locations();
@@ -999,13 +1000,12 @@ mod private
     }
   }
 
-  fn bind_light< T >
+  fn bind_light
   (
     gl : &GL,
-    program : &ProgramInfo< T >,
+    program : &ProgramInfo,
     lights : &HashMap< String, Vec< Light > >
   )
-  where T : Clone
   {
     let locations = program.get_locations();
 

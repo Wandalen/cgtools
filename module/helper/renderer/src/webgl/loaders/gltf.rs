@@ -749,13 +749,16 @@ mod private
           };
         }
 
-
         // Amongst different materials with the same uuid, find the one that has the same vertex defines
-        let variations = material_variation_map .get( &gltf_material.borrow().get_id() ).unwrap();
-
-        let new_material = if let Some( material ) = variations
-        .iter()
-        .find( | m | m.borrow().get_vertex_defines_str() == dummy_material.get_vertex_defines_str() )
+        let new_material = if let Some( material ) = material_variation_map
+        .get( &gltf_material.borrow().get_id() )
+        .map
+        (
+          | m |
+          m.iter()
+          .find( | m | m.borrow().get_vertex_defines_str() == dummy_material.get_vertex_defines_str() )
+        )
+        .flatten()
         {
           material.clone()
         }

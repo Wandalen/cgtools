@@ -4,7 +4,7 @@ mod private
   use minwebgl as gl;
   use crate::webgl::
   {
-    post_processing::{ Pass, VS_TRIANGLE }, program, ProgramInfo
+    ProgramInfo, ShaderProgram, post_processing::{ Pass, VS_TRIANGLE }, program
   };
 
   // Defines the number of mipmap levels to use for the blur effect.
@@ -22,9 +22,9 @@ mod private
     vertical_targets : Vec< Option< gl::web_sys::WebGlTexture > >,
     /// A collection of `GaussianFilterShader` for blurring. There's one program for
     /// each mip level, with different kernel radii.
-    blur_materials : Vec< ProgramInfo< program::GaussianFilterShader > >,
+    blur_materials : Vec< ProgramInfo >,
     /// Composites all the blurred mipmap levels together to create the final bloom effect.
-    composite_material : ProgramInfo< program::UnrealBloomShader >,
+    composite_material : ProgramInfo,
     /// The width of the texture to blur
     width : u32,
     /// The hegiht of the textuer to blur
@@ -33,8 +33,8 @@ mod private
     bloom_strength : f32
   }
 
-  impl UnrealBloomPass 
-  { 
+  impl UnrealBloomPass
+  {
     /// Creates a new `UnrealBloomPass` instance, initializing all the
     /// necessary WebGL resources for the bloom effect.
     ///
@@ -50,8 +50,8 @@ mod private
     /// * `format` - The internal format of the textures to be created (e.g., `gl::RGBA16F`).
     ///   This should match the format of the input texture.
     pub fn new
-    ( 
-      gl : &gl::WebGl2RenderingContext, 
+    (
+      gl : &gl::WebGl2RenderingContext,
       width : u32,
       height : u32,
       format : u32
@@ -71,7 +71,7 @@ mod private
 
       // Define the kernel radii for the Gaussian blur at each mip level.
       let kernel_radius = [ 3, 5, 7, 9, 11 ];
-      
+
       // Start with half resolution for the first mip.
       // Generate textures for blur passes at different mipmap levels.
       // The blur process will typically involve two passes: horizontal then vertical.
@@ -107,7 +107,7 @@ mod private
         // Dynamically inject the KERNEL_RADIUS define into the shader for the current mip.
         let fs_shader = format!( "#version 300 es\n#define KERNEL_RADIUS {}\n{}", kernel_radius[ i ], fs_shader );
         let blur_material = gl::ProgramFromSources::new( VS_TRIANGLE, &fs_shader ).compile_and_link( gl )?;
-        let blur_material = ProgramInfo::< program::GaussianFilterShader >::new( gl, blur_material );
+        let blur_material = ProgramInfo::new( gl, &blur_material, program::GaussianFilterShader.dyn_clone() );
 
         let locations = blur_material.get_locations();
         // Calculate Gaussian coefficients based on the kernel radius.
@@ -129,14 +129,14 @@ mod private
       // Dynamically inject the NUM_MIPS define into the bloom composite shader.
       let fs_shader = format!( "#version 300 es\n#define NUM_MIPS {}\n{}", MIPS, fs_shader );
       let composite_material = gl::ProgramFromSources::new( VS_TRIANGLE, &fs_shader ).compile_and_link( gl )?;
-      let composite_material = ProgramInfo::< program::UnrealBloomShader >::new( gl, composite_material );
+      let composite_material = ProgramInfo::new( gl, &composite_material, program::UnrealBloomShader.dyn_clone() );
 
       // Define bloom factors and tint colors for each mip level.
       const BLOOM_FACTORS : [ f32; 5 ] = [ 1.0, 0.8, 0.6, 0.4, 0.2 ];
       const BLOOM_TINT : [ [ f32; 3 ]; 5 ] = [ [ 1.0; 3 ]; 5 ];
       let locations = composite_material.get_locations();
       composite_material.bind( gl );
-      
+
       gl.uniform1fv_with_f32_array( locations.get( "bloomFactors" ).unwrap().as_ref(), &BLOOM_FACTORS[ .. ] );
       gl.uniform3fv_with_f32_array( locations.get( "bloomTintColors" ).unwrap().as_ref(), BLOOM_TINT.as_flattened() );
       // Assign texture units to the blur textures.
@@ -151,8 +151,8 @@ mod private
 
       Ok
       (
-        Self 
-        { 
+        Self
+        {
           horizontal_targets,
           vertical_targets,
           blur_materials,
@@ -192,7 +192,7 @@ mod private
 
   impl Pass for UnrealBloomPass
   {
-    fn renders_to_input( &self ) -> bool 
+    fn renders_to_input( &self ) -> bool
     {
       false
     }
@@ -226,11 +226,11 @@ mod private
         gl::uniform::upload( gl, locations.get( "blurDir" ).unwrap().clone(), gl::F32x2::X.as_slice() )?;
         gl.bind_texture( gl::TEXTURE_2D, blur_input );
         gl.framebuffer_texture_2d
-        ( 
-          gl::FRAMEBUFFER, 
-          gl::COLOR_ATTACHMENT0, 
-          gl::TEXTURE_2D, 
-          self.horizontal_targets[ i ].as_ref(), 
+        (
+          gl::FRAMEBUFFER,
+          gl::COLOR_ATTACHMENT0,
+          gl::TEXTURE_2D,
+          self.horizontal_targets[ i ].as_ref(),
           0
         );
         gl.clear( gl::COLOR_BUFFER_BIT );
@@ -240,11 +240,11 @@ mod private
         gl::uniform::upload( gl, locations.get( "blurDir" ).unwrap().clone(), gl::F32x2::Y.as_slice() )?;
         gl.bind_texture( gl::TEXTURE_2D, self.horizontal_targets[ i ].as_ref() );
         gl.framebuffer_texture_2d
-        ( 
-          gl::FRAMEBUFFER, 
-          gl::COLOR_ATTACHMENT0, 
-          gl::TEXTURE_2D, 
-          self.vertical_targets[ i ].as_ref(), 
+        (
+          gl::FRAMEBUFFER,
+          gl::COLOR_ATTACHMENT0,
+          gl::TEXTURE_2D,
+          self.vertical_targets[ i ].as_ref(),
           0
         );
         gl.clear( gl::COLOR_BUFFER_BIT );
@@ -271,11 +271,11 @@ mod private
       gl::uniform::upload( gl, locations.get( "bloomStrength" ).unwrap().clone(), &self.bloom_strength )?;
       gl::uniform::upload( gl, locations.get( "bloomRadius" ).unwrap().clone(), &self.bloom_radius )?;
       gl.framebuffer_texture_2d
-      ( 
-        gl::FRAMEBUFFER, 
-        gl::COLOR_ATTACHMENT0, 
-        gl::TEXTURE_2D, 
-        output_texture.as_ref(), 
+      (
+        gl::FRAMEBUFFER,
+        gl::COLOR_ATTACHMENT0,
+        gl::TEXTURE_2D,
+        output_texture.as_ref(),
         0
       );
       gl.clear( gl::COLOR_BUFFER_BIT );
@@ -284,7 +284,7 @@ mod private
       // Unbind the attachment
       gl::clean::texture_2d_array( gl, 0..MIPS );
       gl::clean::framebuffer_texture_2d( gl );
-      
+
       Ok( output_texture )
     }
   }

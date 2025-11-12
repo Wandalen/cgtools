@@ -133,12 +133,15 @@ impl Configurator
     {
       let material = &primitive.borrow().material;
       {
+        if material.borrow().get_type_name() != "GemMaterial"
+        {
+          continue;
+        }
         let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< GemMaterial >( material.borrow_mut() );
         for i in 0..3
         {
           material.color.0[ i ] = color.0[ i ];
         }
-        material.color.0[ 3 ] = 1.0;
       }
       self.renderer.borrow().update_material_uniforms( gl, &material );
     }
@@ -176,6 +179,10 @@ impl Configurator
         {
           let material = &primitive.borrow().material;
           {
+            if material.borrow().get_type_name() != "PBRMaterial"
+            {
+              continue;
+            }
             let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >( material.borrow_mut() );
             material.base_color_texture = None;
             material.roughness_factor = 0.2;
@@ -256,8 +263,14 @@ impl Configurator
       self.scene.borrow_mut().update_world_matrix();
 
       renderer::webgl::shadow::bake_shadows( &gl, &*self.scene.borrow(), &mut shadow_light, lightmap_res, shadowmap_res ).unwrap();
-      let material = renderer::webgl::helpers::cast_unchecked_material_to_ref::< PBRMaterial >( self.surface_material.borrow() );
-      light_maps.push( material.light_map.clone().unwrap() );
+      if self.surface_material.borrow().get_type_name() != "PBRMaterial"
+      {
+        continue;
+      }
+      {
+        let material = renderer::webgl::helpers::cast_unchecked_material_to_ref::< PBRMaterial >( self.surface_material.borrow() );
+        light_maps.push( material.light_map.clone().unwrap() );
+      }
       self.renderer.borrow().update_material_uniforms( &gl, &self.surface_material );
     }
     light_maps.reverse();
@@ -295,6 +308,7 @@ fn setup_surface
   let primitive = primitive.borrow();
   let surface_material = primitive.material.clone();
 
+  if surface_material.borrow().get_type_name() != "PBRMaterial"
   {
     let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >( surface_material.borrow_mut() );
     material.base_color_texture = None;

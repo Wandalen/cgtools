@@ -38,6 +38,7 @@ enabled = [
   "dep:former",
   "dep:uuid",
   "dep:web-sys",
+  "dep:clone_dyn_types"
 ]
 default = ["enabled"]
 full = ["enabled", "webgl", "animation"]
@@ -56,6 +57,7 @@ rustc-hash = { workspace = true }
 
 asbytes = { workspace = true, optional = true }
 former = { workspace = true, optional = true }
+clone_dyn_types = { workspace = true, optional = true }
 uuid = { version = "1.12.1", features = ["v4", "js"], optional = true }
 
 [dependencies.web-sys]

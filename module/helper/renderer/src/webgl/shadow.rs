@@ -449,11 +449,15 @@ use crate::webgl::{helpers, material::PBRMaterial};
             } ) ),
             uv_position : 0,
           };
-          helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >
-          (
-            primitive_ref.material.borrow_mut()
-          )
-          .light_map = Some( texture_info );
+
+          if primitive_ref.material.borrow().get_type_name() == "PBRMaterial"
+          {
+            helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >
+            (
+              primitive_ref.material.borrow_mut()
+            )
+            .light_map = Some( texture_info );
+          }
         }
       }
 

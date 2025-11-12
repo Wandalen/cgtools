@@ -48,6 +48,7 @@ use renderer::webgl::
   program::
   {
     ProgramInfo,
+    ShaderProgram,
     JfaOutlineObjectShader,
     JfaOutlineInitShader,
     JfaOutlineStepShader,
@@ -73,8 +74,8 @@ fn upload_texture
   slot : u32,
 )
 {
-  gl.active_texture( slot ); 
-  gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) ); 
+  gl.active_texture( slot );
+  gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) );
   // Tell the sampler uniform in the shader which texture unit to use ( 0 for GL_TEXTURE0, 1 for GL_TEXTURE1, etc. )
   gl.uniform1i( Some( location ), ( slot - GL::TEXTURE0 ) as i32 );
 }
@@ -96,7 +97,7 @@ fn create_framebuffer
   gl : &gl::WebGl2RenderingContext,
   size : ( i32, i32 ),
   color_attachment : u32
-) 
+)
 -> Option< ( WebGlFramebuffer, WebGlTexture ) >
 {
   let color = gl.create_texture()?;
@@ -136,10 +137,10 @@ fn upload_framebuffer(
 
 struct Programs
 {
-  object : ProgramInfo< JfaOutlineObjectShader >,
-  jfa_init : ProgramInfo< JfaOutlineInitShader >,
-  jfa_step : ProgramInfo< JfaOutlineStepShader >,
-  outline : ProgramInfo< JfaOutlineShader >
+  object : ProgramInfo,
+  jfa_init : ProgramInfo,
+  jfa_step : ProgramInfo,
+  outline : ProgramInfo
 }
 
 impl Programs
@@ -161,10 +162,10 @@ impl Programs
     let jfa_step_program = gl::ProgramFromSources::new( fullscreen_vs_src, jfa_step_fs_src ).compile_and_link( gl ).unwrap();
     let outline_program = gl::ProgramFromSources::new( fullscreen_vs_src, outline_fs_src ).compile_and_link( gl ).unwrap();
 
-    let object = ProgramInfo::< JfaOutlineObjectShader >::new( gl, object_program );
-    let jfa_init = ProgramInfo::< JfaOutlineInitShader >::new( gl, jfa_init_program );
-    let jfa_step = ProgramInfo::< JfaOutlineStepShader >::new( gl, jfa_step_program );
-    let outline = ProgramInfo::< JfaOutlineShader >::new( gl, outline_program );
+    let object = ProgramInfo::new( gl, &object_program, JfaOutlineObjectShader.dyn_clone() );
+    let jfa_init = ProgramInfo::new( gl, &jfa_init_program, JfaOutlineInitShader.dyn_clone() );
+    let jfa_step = ProgramInfo::new( gl, &jfa_step_program, JfaOutlineStepShader.dyn_clone() );
+    let outline = ProgramInfo::new( gl, &outline_program, JfaOutlineShader.dyn_clone() );
 
     Self
     {
@@ -302,19 +303,19 @@ impl Renderer
     let locations = self.programs.object.get_locations();
 
     let u_projection_loc = locations.get( "u_projection" ).unwrap().clone().unwrap();
-    let u_view_loc = locations.get( "u_view" ).unwrap().clone().unwrap(); 
+    let u_view_loc = locations.get( "u_view" ).unwrap().clone().unwrap();
     let u_model_loc = locations.get( "u_model" ).unwrap().clone().unwrap();
 
     upload_framebuffer( gl, object_fb, self.viewport );
 
-    gl.clear_color( 0.0, 0.0, 0.0, 0.0 ); 
+    gl.clear_color( 0.0, 0.0, 0.0, 0.0 );
     gl.clear_depth( 1.0 );
     gl.clear( GL::COLOR_BUFFER_BIT | GL::DEPTH_BUFFER_BIT );
     gl.enable( GL::DEPTH_TEST );
 
     // Define a closure to handle the drawing of each node in the scene.
-    let mut draw_node = 
-    | 
+    let mut draw_node =
+    |
       node : Rc< RefCell< Node > >
     | -> Result< (), gl::WebglError >
     {
@@ -335,7 +336,7 @@ impl Renderer
           primitive.bind( gl );
           primitive.draw( gl );
         }
-      } 
+      }
 
       Ok( () )
     };
@@ -453,7 +454,7 @@ impl Renderer
     let u_outline_thickness = locations.get( "u_outline_thickness" ).unwrap().clone().unwrap();
     let u_outline_color = locations.get( "u_outline_color" ).unwrap().clone().unwrap();
     let u_object_color = locations.get( "u_object_color" ).unwrap().clone().unwrap();
-    let u_background_color = locations.get( "u_background_color" ).unwrap().clone().unwrap();    
+    let u_background_color = locations.get( "u_background_color" ).unwrap().clone().unwrap();
 
     // Define outline parameters ( thickness animated with time )
     let outline_thickness = 30.0;

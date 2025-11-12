@@ -1,10 +1,10 @@
 mod private
 {
-  use crate::webgl::material::*;
+  use crate::webgl::{ShaderProgram, material::*};
   use minwebgl as gl;
-  use gl::GL;
-  use mingl::{F32x3, Former};
+  use gl::{ GL, F32x3, Former };
   use rustc_hash::FxHashMap;
+  use crate::webgl::program::{ ProgramInfo, GemShader };
 
   /// The source code for the gem vertex shader.
   const GEM_VERTEX_SHADER : &'static str = include_str!( "../shaders/custom_materials/gem.vert" );
@@ -48,6 +48,12 @@ mod private
     fn get_id( &self ) -> uuid::Uuid
     {
       self.id
+    }
+
+    /// Returns [`ProgramInfo`] with shader locations and used [`ShaderProgram`]
+    fn get_program_info( &self, gl : &GL, program : &gl::WebGlProgram ) -> ProgramInfo
+    {
+      ProgramInfo::new( gl, program, GemShader.dyn_clone() )
     }
 
     fn get_type_name( &self ) -> &'static str

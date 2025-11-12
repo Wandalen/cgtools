@@ -62,8 +62,11 @@ use renderer::webgl::
   {
     NormalDepthOutlineObjectShader,
     NormalDepthOutlineShader,
-    ProgramInfo
-  }, scene::Scene
+    ProgramInfo,
+    ShaderProgram
+
+  },
+  scene::Scene
 };
 use ndarray_cg::
 {
@@ -681,9 +684,9 @@ fn primitives_csgrs_gltf
 struct Programs
 {
   /// The shader program for the initial object rendering pass.
-  object : ProgramInfo< NormalDepthOutlineObjectShader >,
+  object : ProgramInfo,
   /// The shader program for the final outline pass.
-  outline : ProgramInfo< NormalDepthOutlineShader >,
+  outline : ProgramInfo,
   /// The raw WebGL program for the outline shader.
   outline_program : WebGlProgram
 }
@@ -712,8 +715,8 @@ impl Programs
     let object_program = gl::ProgramFromSources::new( object_vs_src, object_fs_src ).compile_and_link( gl ).unwrap();
     let outline_program = gl::ProgramFromSources::new( fullscreen_vs_src, outline_fs_src ).compile_and_link( gl ).unwrap();
 
-    let object = ProgramInfo::< NormalDepthOutlineObjectShader >::new( gl, object_program );
-    let outline = ProgramInfo::< NormalDepthOutlineShader >::new( gl, outline_program.clone() );
+    let object = ProgramInfo::new( gl, &object_program, NormalDepthOutlineObjectShader.dyn_clone() );
+    let outline = ProgramInfo::new( gl, &outline_program, NormalDepthOutlineShader.dyn_clone() );
 
     Self
     {
