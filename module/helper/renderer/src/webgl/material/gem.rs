@@ -20,7 +20,7 @@ mod private
     /// Ray bounces inside gem count
     pub ray_bounces : i32,
     /// Gem color
-    pub color : F32x3,
+    pub color : gl::F32x4,
     ///
     pub boost_factors : F32x3,
     ///
@@ -179,7 +179,7 @@ mod private
       {
         id : uuid::Uuid::new_v4(),
         ray_bounces : 7,
-        color : F32x3::from_array( [ 0.98, 0.95, 0.9 ] ),
+        color : gl::F32x4::from_array( [ 0.98, 0.95, 0.9, 1.0 ] ),
         boost_factors : F32x3::from_array( [ 0.8920, 0.8920, 0.9860 ] ),
         env_map_intensity : 0.7,
         rainbow_delta : 0.012,

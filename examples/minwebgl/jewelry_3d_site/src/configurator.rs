@@ -5,6 +5,7 @@ use gl::
 {
   GL,
   F32x3,
+  F32x4,
   WebglError
 };
 use std::collections::HashSet;
@@ -93,17 +94,17 @@ impl Configurator
   {
     match self.ui_state.gem.as_str()
     {
-      "white" => self.set_gem_color( &gl, F32x3::from_array( [ 1.0, 1.0, 1.0 ] ) ),
-      "black" => self.set_gem_color( &gl, F32x3::from_array( [ 0.0, 0.0, 0.0 ] ) ),
-      "red" => self.set_gem_color( &gl, F32x3::from_array( [ 1.0, 0.0, 0.0 ] ) ),
-      "orange" => self.set_gem_color( &gl, F32x3::from_array( [ 1.0, 0.5, 0.0 ] ) ),
-      "yellow" => self.set_gem_color( &gl, F32x3::from_array( [ 1.0, 1.0, 0.0 ] ) ),
-      "green" => self.set_gem_color( &gl, F32x3::from_array( [ 0.0, 1.0, 0.0 ] ) ),
-      "turquoise" => self.set_gem_color( &gl, F32x3::from_array( [ 0.25, 0.88, 0.82 ] ) ),
-      "light_blue" => self.set_gem_color( &gl, F32x3::from_array( [ 0.53, 0.81, 0.92 ] ) ),
-      "blue" => self.set_gem_color( &gl, F32x3::from_array( [ 0.0, 0.0, 1.0 ] ) ),
-      "violet" => self.set_gem_color( &gl, F32x3::from_array( [ 0.5, 0.0, 0.5 ] ) ),
-      "pink" => self.set_gem_color( &gl, F32x3::from_array( [ 1.0, 0.41, 0.71 ] ) ),
+      "white" => self.set_gem_color( &gl, F32x4::from_array( [ 1.0, 1.0, 1.0, 0.9 ] ) ),
+      "black" => self.set_gem_color( &gl, F32x4::from_array( [ 0.1, 0.1, 0.1, 0.9 ] ) ),
+      "red" => self.set_gem_color( &gl, F32x4::from_array( [ 1.0, 0.0, 0.0, 0.9 ] ) ),
+      "orange" => self.set_gem_color( &gl, F32x4::from_array( [ 1.0, 0.5, 0.0, 0.9 ] ) ),
+      "yellow" => self.set_gem_color( &gl, F32x4::from_array( [ 1.0, 1.0, 0.0, 0.9 ] ) ),
+      "green" => self.set_gem_color( &gl, F32x4::from_array( [ 0.0, 1.0, 0.0, 0.9 ] ) ),
+      "turquoise" => self.set_gem_color( &gl, F32x4::from_array( [ 0.25, 0.88, 0.82, 0.9 ] ) ),
+      "light_blue" => self.set_gem_color( &gl, F32x4::from_array( [ 0.53, 0.81, 0.92, 0.9 ] ) ),
+      "blue" => self.set_gem_color( &gl, F32x4::from_array( [ 0.0, 0.0, 1.0, 0.9 ] ) ),
+      "violet" => self.set_gem_color( &gl, F32x4::from_array( [ 0.5, 0.0, 0.5, 0.9 ] ) ),
+      "pink" => self.set_gem_color( &gl, F32x4::from_array( [ 1.0, 0.41, 0.71, 0.9 ] ) ),
       _ => ()
     }
   }
@@ -119,7 +120,7 @@ impl Configurator
     }
   }
 
-  pub fn set_gem_color( &self, gl : &GL, color : F32x3 )
+  pub fn set_gem_color( &self, gl : &GL, color : F32x4 )
   {
     let Object3D::Mesh( mesh ) = &self.rings.current_gem.borrow().object
     else
@@ -138,10 +139,7 @@ impl Configurator
           continue;
         }
         let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< GemMaterial >( material.borrow_mut() );
-        for i in 0..3
-        {
-          material.color.0[ i ] = color.0[ i ];
-        }
+        material.color = color;
       }
       self.renderer.borrow().update_material_uniforms( gl, &material );
     }
@@ -214,6 +212,7 @@ impl Configurator
     }
 
     renderer_mut.set_exposure( 1.0 );
+    renderer_mut.set_use_emission( true );
   }
 
   fn setup_light( &mut self, gl : &GL )
@@ -257,7 +256,7 @@ impl Configurator
       remove_node_from_scene( &self.scene, &self.rings.current_ring );
       self.rings.current_ring = new_ring.clone();
       self.rings.current_gem = new_gem.clone();
-      self.set_gem_color( &gl, F32x3::from_array( [ 1.0, 1.0, 1.0 ] ) );
+      self.set_gem_color( &gl, F32x4::from_array( [ 1.0, 1.0, 1.0, 0.75 ] ) );
       self.set_metal_color( &gl, F32x3::from_array( [ 0.753, 0.753, 0.753 ] ) );
       self.scene.borrow_mut().add( self.rings.current_ring.clone() );
       self.scene.borrow_mut().update_world_matrix();
@@ -330,6 +329,8 @@ pub struct RingsInfo
   pub current_gem : Rc< RefCell< Node > >,
 }
 
+const DELTA_Y : f32 = -2.0;
+
 async fn setup_rings
 (
   gl : &GL,
@@ -357,6 +358,11 @@ async fn setup_rings
         setup_gem_material( &gem, environment_texture, cube_normal_map_texture );
         let ring = get_node( &gltf.scenes[ 0 ], "Sketchfab_model".to_string() ).unwrap();
         ring.borrow_mut().set_name( "ring0" );
+
+        let mut translation = ring.borrow_mut().get_translation();
+        translation.0[ 1 ] += DELTA_Y;
+        ring.borrow_mut().set_translation( translation );
+
         gems.push( gem.clone() );
         rings.push( ring.clone() );
         filters.push( HashSet::from( [ "gem0".to_string() ] ) );
@@ -371,6 +377,11 @@ async fn setup_rings
         let mut translation = ring.borrow_mut().get_translation();
         translation.0[ 1 ] -= 11.0;
         ring.borrow_mut().set_translation( translation );
+
+        let mut translation = ring.borrow_mut().get_translation();
+        translation.0[ 1 ] += DELTA_Y;
+        ring.borrow_mut().set_translation( translation );
+
         ring.borrow_mut().set_scale( F32x3::splat( 5.0 ) );
         gems.push( gem.clone() );
         rings.push( ring.clone() );
@@ -386,6 +397,11 @@ async fn setup_rings
         let mut translation = ring.borrow_mut().get_translation();
         translation.0[ 1 ] += 11.0;
         ring.borrow_mut().set_translation( translation );
+
+        let mut translation = ring.borrow_mut().get_translation();
+        translation.0[ 1 ] += DELTA_Y;
+        ring.borrow_mut().set_translation( translation );
+
         ring.borrow_mut().set_scale( F32x3::splat( 5.0 ) );
         gems.push( gem.clone() );
         rings.push( ring.clone() );

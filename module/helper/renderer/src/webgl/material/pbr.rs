@@ -200,6 +200,12 @@ mod private
       self.id
     }
 
+    /// Can or not use this material IBL
+    fn can_use_ibl( &self ) -> bool
+    {
+      true
+    }
+
     /// Returns [`ProgramInfo`] with shader locations and used [`ShaderProgram`]
     fn get_program_info( &self, gl : &GL, program : &gl::WebGlProgram ) -> ProgramInfo
     {
