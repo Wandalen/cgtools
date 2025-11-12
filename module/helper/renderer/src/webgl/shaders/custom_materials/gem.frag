@@ -22,7 +22,7 @@ uniform mat4x4 worldMatrix;
 uniform mat4x4 inverseWorldMatrix;
 
 uniform int rayBounces;
-uniform vec3 color;
+uniform vec4 color;
 uniform vec3 boostFactors;
 
 uniform float envMapIntensity;
@@ -39,7 +39,15 @@ in vec3 vWorldNormal;
 in vec3 vWorldPosition;
 in vec3 vViewPosition;
 
-out vec4 frag_color;
+layout( location = 0 ) out vec4 frag_color;
+layout( location = 1 ) out vec4 emissive_color;
+layout( location = 2 ) out vec4 trasnparentA;
+layout( location = 3 ) out float transparentB;
+
+float alpha_weight( float a )
+{
+  return clamp( pow( min( 1.0, a * 10.0 ) + 0.01, 3.0 ) * 1e8 * pow( 1.0 - gl_FragCoord.z * 0.9, 3.0 ), 1e-2, 3e3 );
+}
 
 // https://github.com/mrdoob/three.js/blob/dev/src/nodes/functions/BSDF/DFGApprox.js
 vec3 EnvBRDFApprox( const in float NdotV, const in vec3 specularColor, const in float roughness )
@@ -424,7 +432,7 @@ void main()
     getRefractionColor( vWorldPosition, viewDirection, normal, 2.432 ).b
   );
 
-  vec3 diffuseColor = color;
+  vec3 diffuseColor = color.rgb;
   vec3 colour = diffuseColor * ( refractionColor +  reflectionColor * brdfReflected * 0.5 );
   //colour = refractionColor;
 
@@ -443,5 +451,10 @@ void main()
   colour = pow( colour, vec3( 1.0 / 2.2 ) );
   //colour = normal;
 
-  frag_color = vec4( colour, 1.0 );
+  float a_weight = color.a * alpha_weight( color.a );
+
+  emissive_color = vec4( vec3( 0.0 ), color.a );
+  trasnparentA = vec4( color.rgb * a_weight, color.a );
+  transparentB = a_weight;
+  frag_color = vec4( colour, color.a );
 }

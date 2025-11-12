@@ -81,7 +81,7 @@ pub fn load_cube_texture( name : &str, document : &gl::web_sys::Document, gl : &
   .end();
 
   let texture = Texture::former()
-  .target( GL::TEXTURE_2D )
+  .target( GL::TEXTURE_CUBE_MAP )
   .source( texture? )
   .sampler( sampler )
   .end();

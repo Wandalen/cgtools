@@ -781,7 +781,10 @@ mod private
         program.bind( gl );
         camera.upload( gl, locations );
         bind_light( gl, &program, &lights );
-        gl::uniform::upload( gl, locations.get( "exposure" ).unwrap().clone(), &self.exposure )?;
+        if let Some( exposure_loc ) = locations.get( "exposure" )
+        {
+          gl::uniform::upload( gl, exposure_loc.clone(), &self.exposure )?;
+        }
       }
 
       // Define a closure to handle the drawing of each node in the scene.
@@ -840,9 +843,12 @@ mod private
               material.configure( gl, locations, IBL_BASE_ACTIVE_TEXTURE );
               material.upload( gl, locations )?;
               camera.upload( gl, locations );
-              if let Some( ref ibl ) = self.ibl
+              if material.can_use_ibl()
               {
-                ibl.bind( gl, IBL_BASE_ACTIVE_TEXTURE );
+                if let Some( ref ibl ) = self.ibl
+                {
+                  ibl.bind( gl, IBL_BASE_ACTIVE_TEXTURE );
+                }
               }
 
               // Store the new program info in the cache.
