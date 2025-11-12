@@ -315,13 +315,16 @@ mod private
         }
       }
 
-      gl::uniform::matrix_upload
-      (
-        &gl,
-        locations.get( "worldMatrix" ).unwrap().clone(),
-        self.world_matrix.to_array().as_slice(),
-        true
-      ).unwrap();
+      if let Some( world_matrix_loc ) = locations.get( "worldMatrix" )
+      {
+        gl::uniform::matrix_upload
+        (
+          &gl,
+          world_matrix_loc.clone(),
+          self.world_matrix.to_array().as_slice(),
+          true
+        ).unwrap();
+      }
 
       if let Some( inverse_world_matrix_loc ) = locations.get( "inverseWorldMatrix" )
       {
@@ -334,13 +337,16 @@ mod private
         );
       }
 
-      gl::uniform::matrix_upload
-      (
-        &gl,
-        locations.get( "normalMatrix" ).unwrap().clone(),
-        self.normal_matrix.to_array().as_slice(),
-        true
-      ).unwrap();
+      if let Some( normal_matrix_loc ) = locations.get( "normalMatrix" )
+      {
+        gl::uniform::matrix_upload
+        (
+          &gl,
+          normal_matrix_loc.clone(),
+          self.normal_matrix.to_array().as_slice(),
+          true
+        ).unwrap();
+      }
     }
 
     /// Traverses the node and its descendants, calling the provided callback function for each node.
