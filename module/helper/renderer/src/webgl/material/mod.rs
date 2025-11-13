@@ -99,6 +99,12 @@ mod private
       None
     }
 
+    /// Returns answer need use IBL for current material instance or not
+    fn need_use_ibl( &self ) -> bool
+    {
+      false
+    }
+
     /// Can or not use this material IBL
     fn can_use_ibl( &self ) -> bool
     {

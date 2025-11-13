@@ -66,7 +66,10 @@ mod private
     /// Hash map of defines in (value, name) format
     pub vertex_defines : FxHashMap< Box< str >, String >,
     /// Hash map of defines in (value, name) format
-    pub fragment_defines : FxHashMap< Box< str >, String >
+    pub fragment_defines : FxHashMap< Box< str >, String >,
+
+    /// Returns answer need use IBL for current material instance or not
+    pub _need_use_ibl : bool
   }
 
   impl PBRMaterial
@@ -198,6 +201,12 @@ mod private
     fn get_id( &self ) -> uuid::Uuid
     {
       self.id
+    }
+
+    /// Returns answer need use IBL for current material instance or not
+    fn need_use_ibl( &self ) -> bool
+    {
+      self.can_use_ibl() && self._need_use_ibl
     }
 
     /// Can or not use this material IBL
@@ -417,7 +426,8 @@ mod private
         double_sided : self.double_sided,
         light_map : self.light_map.clone(),
         vertex_defines : self.vertex_defines.clone(),
-        fragment_defines : self.fragment_defines.clone()
+        fragment_defines : self.fragment_defines.clone(),
+        _need_use_ibl : self._need_use_ibl
       }
     }
   }
@@ -456,6 +466,8 @@ mod private
       let vertex_defines = FxHashMap::default();
       let fragment_defines = FxHashMap::default();
 
+      let _need_use_ibl = true;
+
       return Self
       {
         id,
@@ -479,7 +491,8 @@ mod private
         double_sided,
         light_map,
         vertex_defines,
-        fragment_defines
+        fragment_defines,
+        _need_use_ibl
       };
     }
   }

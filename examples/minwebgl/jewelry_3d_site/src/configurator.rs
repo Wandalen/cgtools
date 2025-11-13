@@ -66,6 +66,7 @@ impl Configurator
 
     let renderer = Renderer::new( gl, canvas.width(), canvas.height(), 4 )?;
     let renderer = Rc::new( RefCell::new( renderer ) );
+    renderer.borrow().update_material_uniforms( gl, &surface_material );
 
     let camera = setup_camera( &scene, &canvas );
 
@@ -314,6 +315,7 @@ fn setup_surface
     material.roughness_factor = 1.0;
     material.specular_factor = Some( 0.0 );
     material.metallic_factor = 0.0;
+    material._need_use_ibl = false;
   }
 
   surface_material
@@ -336,7 +338,8 @@ async fn setup_rings
   gl : &GL,
   environment_texture : &Option< TextureInfo >,
   cube_normal_map_texture : &Option< TextureInfo >,
-) -> Result< RingsInfo, WebglError >
+)
+-> Result< RingsInfo, WebglError >
 {
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();

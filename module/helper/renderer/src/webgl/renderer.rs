@@ -843,7 +843,7 @@ mod private
               material.configure( gl, locations, IBL_BASE_ACTIVE_TEXTURE );
               material.upload( gl, locations )?;
               camera.upload( gl, locations );
-              if material.can_use_ibl()
+              if material.need_use_ibl()
               {
                 if let Some( ref ibl ) = self.ibl
                 {
