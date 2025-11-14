@@ -5,7 +5,8 @@ edition = "2021"
 authors = [
   "Kostiantyn Mysnyk <wandalen@obox.systems>",
   "Avramenko Yevhenii <yevhenii.av@obox.systems>",
-  "Bilan Vadym <vadym.b@obox.systems>"
+  "Bilan Vadym <vadym.b@obox.systems>",
+  "Oleksandr Zaharevskyi <oleksandr.z@obox.systems>",
 ]
 
 [lints]
