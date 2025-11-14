@@ -27,6 +27,7 @@ use renderer::webgl::
   Renderer, material::PBRMaterial, post_processing::{ self, Pass, SwapFramebuffer }
 };
 
+mod cube_normal_map_generator;
 mod gem;
 mod configurator;
 mod helpers;

@@ -25,13 +25,14 @@ use renderer::webgl::
 };
 use crate::
 {
-  gem::GemMaterial,
-  helpers::*,
-  ui::{ UiState, get_ui_state, clear_changed }
+  cube_normal_map_generator::CubeNormalMapGenerator,
+  gem::GemMaterial, helpers::*,
+  ui::{ UiState, clear_changed, get_ui_state }
 };
 
 pub struct Configurator
 {
+  pub _cube_normal_map_generator : CubeNormalMapGenerator,
   pub renderer : Rc< RefCell< Renderer > >,
   pub camera : Camera,
   pub ibl : IBL,
@@ -39,7 +40,6 @@ pub struct Configurator
   pub surface_material : Rc< RefCell< Box< dyn Material > > >,
   pub scene : Rc< RefCell< Scene > >,
   pub rings : RingsInfo,
-  pub _cube_normal_map_texture : Option< TextureInfo >,
   pub ui_state : UiState
 }
 
@@ -56,11 +56,13 @@ impl Configurator
     let surface = get_node( &scene, "Plane".to_string() ).unwrap();
     let surface_material = setup_surface( surface );
 
-    let _cube_normal_map_texture = load_cube_texture( "normal_cube", &document, &gl );
+    let mut _cube_normal_map_generator = CubeNormalMapGenerator::new( gl )?;
+    _cube_normal_map_generator.set_texture_size( gl, 512, 512 );
+
     let ibl = renderer::webgl::loaders::ibl::load( gl, "environment_maps/christmas_photo_studio_07_4k", Some( 0..0 ) ).await;
     let skybox = create_texture( gl, "environment_maps/equirectangular_maps/christmas_photo_studio_07.webp" );
 
-    let rings = setup_rings( gl, &skybox, &_cube_normal_map_texture ).await?;
+    let rings = setup_rings( gl, &skybox, &_cube_normal_map_generator ).await?;
 
     scene.borrow_mut().add( rings.current_ring.clone() );
     scene.borrow_mut().update_world_matrix();
@@ -75,6 +77,7 @@ impl Configurator
 
     let mut configurator = Configurator
     {
+      _cube_normal_map_generator,
       renderer,
       camera,
       ibl,
@@ -82,7 +85,6 @@ impl Configurator
       surface_material,
       scene,
       rings,
-      _cube_normal_map_texture,
       ui_state
     };
 
@@ -338,7 +340,7 @@ async fn setup_rings
 (
   gl : &GL,
   environment_texture : &Option< TextureInfo >,
-  cube_normal_map_texture : &Option< TextureInfo >,
+  cube_normal_map_generator : &CubeNormalMapGenerator
 )
 -> Result< RingsInfo, WebglError >
 {
@@ -359,7 +361,8 @@ async fn setup_rings
       {
         let gem = get_node( &gltf.scenes[ 0 ], "Object_2".to_string() ).unwrap();
         gem.borrow_mut().set_name( "gem0" );
-        setup_gem_material( &gem, environment_texture, cube_normal_map_texture );
+        let cube_normal_map_texture = Some( cube_normal_map_generator.generate( gl, &gem ).unwrap() );
+        setup_gem_material( &gem, environment_texture, &cube_normal_map_texture );
         let ring = get_node( &gltf.scenes[ 0 ], "Sketchfab_model".to_string() ).unwrap();
         ring.borrow_mut().set_name( "ring0" );
 
@@ -375,7 +378,8 @@ async fn setup_rings
       {
         let gem = get_node( &gltf.scenes[ 0 ], "Object_11".to_string() ).unwrap();
         gem.borrow_mut().set_name( "gem1" );
-        setup_gem_material( &gem, environment_texture, cube_normal_map_texture );
+        let cube_normal_map_texture = Some( cube_normal_map_generator.generate( gl, &gem ).unwrap() );
+        setup_gem_material( &gem, environment_texture, &cube_normal_map_texture );
         let ring = get_node( &gltf.scenes[ 0 ], "Empty.001_6".to_string() ).unwrap();
         ring.borrow_mut().set_name( "ring1" );
         let mut translation = ring.borrow_mut().get_translation();
@@ -395,7 +399,8 @@ async fn setup_rings
       {
         let gem = get_node( &gltf.scenes[ 0 ], "Object_2".to_string() ).unwrap();
         gem.borrow_mut().set_name( "gem2" );
-        setup_gem_material( &gem, environment_texture, cube_normal_map_texture );
+        let cube_normal_map_texture = Some( cube_normal_map_generator.generate( gl, &gem ).unwrap() );
+        setup_gem_material( &gem, environment_texture, &cube_normal_map_texture );
         let ring = get_node( &gltf.scenes[ 0 ], "Sketchfab_model".to_string() ).unwrap();
         ring.borrow_mut().set_name( "ring2" );
         let mut translation = ring.borrow_mut().get_translation();
