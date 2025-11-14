@@ -28,6 +28,17 @@ mod private
   /// Precision for finding equal floats
   const EPSILON : f64 = 0.001;
 
+  /// Normalize weights of blended animation values
+  fn normalize_weights< T >( values : &mut [ ( T, f32 ) ] )
+  {
+    let sum = values.iter().map( | ( _, w ) | w ).sum::< f32 >();
+    if sum > 0.0
+    {
+      let scale_factor = 1.0 / sum;
+      values.iter_mut().for_each( | ( _, w ) | { *w *= scale_factor; } );
+    }
+  }
+
   /// Weighted animation blending implementation
   #[ derive( Clone ) ]
   pub struct Blender
@@ -149,6 +160,7 @@ mod private
 
   impl AnimatableComposition for Blender
   {
+    /// Updates all underlying [`animation::AnimatablePlayer`]'s
     fn update( &mut self, delta_time : f64 )
     {
       for ( _, ( animation, _ ) ) in self.weighted_animations.iter_mut()
@@ -161,16 +173,20 @@ mod private
       }
     }
 
+    /// Returns a type-erased reference to the underlying value
     fn as_any( &self ) -> &dyn core::any::Any
     {
       self
     }
 
+    /// Returns a type-erased mutable reference to the underlying value
     fn as_any_mut( &mut self ) -> &mut dyn core::any::Any
     {
       self
     }
 
+    /// Sets all simple 3D transformations for every
+    /// [`Node`] related to this [`AnimatableComposition`]
     fn set( &self, nodes : &HashMap< Box< str >, Rc< RefCell< Node > > > )
     {
       for ( name, node ) in nodes
@@ -200,8 +216,7 @@ mod private
 
         if self.normalize
         {
-          let scale_factor = 1.0 / values.iter().map( | ( _, w ) | w ).sum::< f32 >();
-          values.iter_mut().for_each( | ( _, w ) | { *w *= scale_factor; } );
+          normalize_weights( &mut values );
         }
         let mut translation = F32x3::default();
         for ( t, w ) in values
@@ -235,8 +250,7 @@ mod private
 
         if self.normalize
         {
-          let scale_factor = 1.0 / values.iter().map( | ( _, w ) | w ).sum::< f32 >();
-          values.iter_mut().for_each( | ( _, w ) | { *w *= scale_factor; } );
+          normalize_weights( &mut values );
         }
         // NLERP
         let mut rotation = QuatF32::default();
@@ -271,8 +285,7 @@ mod private
 
         if self.normalize
         {
-          let scale_factor = 1.0 / values.iter().map( | ( _, w ) | w ).sum::< f32 >();
-          values.iter_mut().for_each( | ( _, w ) | { *w *= scale_factor; } );
+          normalize_weights( &mut values );
         }
         let mut scale = F32x3::default();
         for ( s, w ) in values

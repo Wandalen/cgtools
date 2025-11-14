@@ -104,21 +104,26 @@ mod private
 
   impl AnimatableComposition for Scaler
   {
+    /// Updates all underlying [`animation::AnimatablePlayer`]'s
     fn update( &mut self, delta_time : f64 )
     {
       self.animation.update( delta_time );
     }
 
+    /// Returns a type-erased reference to the underlying value
     fn as_any( &self ) -> &dyn core::any::Any
     {
       self
     }
 
+    /// Returns a type-erased mutable reference to the underlying value
     fn as_any_mut( &mut self ) -> &mut dyn core::any::Any
     {
       self
     }
 
+    /// Sets all simple 3D transformations for every
+    /// [`Node`] related to this [`AnimatableComposition`]
     fn set( &self, nodes : &HashMap< Box< str >, Rc< RefCell< Node > > > )
     {
       let mut used_nodes = HashSet::< Box< str > >::new();

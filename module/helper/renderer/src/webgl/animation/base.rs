@@ -24,7 +24,7 @@ mod private
   pub const SCALE_PREFIX : &'static str = ".scale";
 
   /// Gives opportunity to change [`Node`]'s transforms in any way
-  /// Interface used in [`Animation`] for using complex animation behaviours.
+  /// Interface used in [`Animation`] for using complex animation behaviours
   pub trait AnimatableComposition : clone_dyn_types::CloneDyn
   {
     /// Updates all underlying [`animation::AnimatablePlayer`]'s
@@ -34,30 +34,35 @@ mod private
     /// [`Node`] related to this [`AnimatableComposition`]
     fn set( &self, nodes : &HashMap< Box< str >, Rc< RefCell< Node > > > );
 
-    /// Returns a type-erased reference to the underlying value.
+    /// Returns a type-erased reference to the underlying value
     fn as_any( &self ) -> &dyn core::any::Any;
 
-    /// Returns a type-erased mutable reference to the underlying value.
+    /// Returns a type-erased mutable reference to the underlying value
     fn as_any_mut( &mut self ) -> &mut dyn core::any::Any;
   }
 
   impl AnimatableComposition for Sequencer
   {
+    /// Updates all underlying [`animation::AnimatablePlayer`]'s
     fn update( &mut self, delta_time : f64 )
     {
       Sequencer::update( self, delta_time );
     }
 
+    /// Returns a type-erased reference to the underlying value
     fn as_any( &self ) -> &dyn core::any::Any
     {
       self
     }
 
+    /// Returns a type-erased mutable reference to the underlying value
     fn as_any_mut( &mut self ) -> &mut dyn core::any::Any
     {
       self
     }
 
+    /// Sets all simple 3D transformations for every
+    /// [`Node`] related to this [`AnimatableComposition`]
     fn set( &self, nodes : &HashMap< Box< str >, Rc< RefCell< Node > > > )
     {
       for ( name, node ) in nodes
