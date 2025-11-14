@@ -187,8 +187,6 @@ mod private
   ///
   /// This shader combines the results of the previous passes to draw the final wide outline.
   pub struct WideOutlineShader;
-  /// Gem shader
-  pub struct GemShader;
 
   /// Stores information about a WebGL program, including the program object and the locations of its uniforms.
   /// This struct is intended for use by the renderer.
@@ -326,31 +324,6 @@ mod private
     // Luminosity
     "alphaCutoff",
     "exposure"
-  );
-
-  impl_locations!
-  (
-    GemShader,
-    "worldMatrix",
-    "inverseWorldMatrix",
-    "viewMatrix",
-    "projectionMatrix",
-
-    "envMap",
-    "cubeNormalMap",
-
-    "rayBounces",
-    "color",
-    "boostFactors",
-
-    "envMapIntensity",
-    "rainbowDelta",
-    "squashFactor",
-    "radius",
-    "geometryFactor",
-    "absorptionFactor",
-    "colorAbsorption",
-    "cameraPosition"
   );
 
   impl_locations!
@@ -536,8 +509,7 @@ crate::mod_interface!
     NarrowOutlineShader,
     WideOutlineInitShader,
     WideOutlineStepShader,
-    WideOutlineShader,
-    GemShader
+    WideOutlineShader
   };
 
   orphan use

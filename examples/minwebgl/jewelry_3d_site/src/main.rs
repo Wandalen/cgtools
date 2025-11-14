@@ -27,6 +27,7 @@ use renderer::webgl::
   Renderer, material::PBRMaterial, post_processing::{ self, Pass, SwapFramebuffer }
 };
 
+mod gem;
 mod configurator;
 mod helpers;
 mod ui;

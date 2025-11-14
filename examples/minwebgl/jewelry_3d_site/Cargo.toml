@@ -20,6 +20,9 @@ renderer = { workspace = true }
 zune-hdr = { workspace = true }
 serde = { workspace = true, features = [ "derive" ] }
 serde-wasm-bindgen = { workspace = true }
+uuid = { version = "1.12.1", features = ["v4", "js"] }
+rustc-hash = { workspace = true }
+former = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true

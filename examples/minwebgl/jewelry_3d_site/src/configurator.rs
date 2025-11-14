@@ -21,13 +21,14 @@ use renderer::webgl::
   Scene,
   SpotLight,
   TextureInfo,
-  material::
-  {
-    PBRMaterial,
-    GemMaterial
-  }
+  material::PBRMaterial
 };
-use crate::{ helpers::*, ui::{ UiState, get_ui_state, clear_changed } };
+use crate::
+{
+  gem::GemMaterial,
+  helpers::*,
+  ui::{ UiState, get_ui_state, clear_changed }
+};
 
 pub struct Configurator
 {

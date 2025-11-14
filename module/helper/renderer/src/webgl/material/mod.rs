@@ -239,9 +239,6 @@ crate::mod_interface!
   /// PBR Material
   layer pbr;
 
-  /// Gem Material
-  layer gem;
-
   orphan use
   {
     AlphaMode,
