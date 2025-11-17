@@ -383,6 +383,22 @@ mod private
       }
     }
 
+    /// Sets [`Node`] position to coordinate system origin
+    pub fn set_center_to_origin( &mut self )
+    {
+      self.set_world_matrix
+      (
+        gl::F32x4x4::from_scale_rotation_translation
+        (
+          gl::F32x3::splat( 1.0 ),
+          gl::QuatF32::from_angle_y( 0.0 ),
+          -self.bounding_box().center()
+        )
+        *
+        self.get_world_matrix()
+      );
+    }
+
     /// Computes the hierarchical bounding box for the node and all of its children.
     ///
     /// This function starts with the node's own bounding box and then recursively

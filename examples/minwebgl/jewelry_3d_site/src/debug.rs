@@ -156,23 +156,9 @@ pub async fn debug_run() -> Result< (), gl::WebglError >
   let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/{model_id}.glb" ).as_str(), &gl ).await?;
   let gem = helpers::get_node( &gltf.scenes[ 0 ], "Object_2".to_string() ).unwrap();
 
-  let bb = gem.borrow().bounding_box().center();
-
-  let world_matrix = gem.borrow().get_world_matrix();
-
   let camera = setup_camera( &canvas );
 
-  gem.borrow_mut().set_world_matrix
-  (
-    gl::F32x4x4::from_scale_rotation_translation
-    (
-      gl::F32x3::splat( 1.0 ),
-      gl::QuatF32::from_angle_y( 0.0 ),
-      -bb
-    )
-    *
-    world_matrix
-  );
+  gem.borrow_mut().set_center_to_origin();
 
   let generator = CubeNormalMapGenerator::new( &gl ).unwrap();
 

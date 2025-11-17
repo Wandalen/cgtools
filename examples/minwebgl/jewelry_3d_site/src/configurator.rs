@@ -363,15 +363,7 @@ async fn setup_rings
         gem.borrow_mut().set_name( "gem0" );
 
         let gem_clone = gem.borrow().clone_tree();
-        gem_clone.borrow_mut().set_world_matrix
-        (
-          gl::F32x4x4::from_scale_rotation_translation
-          (
-            gl::F32x3::splat( 13.0 ),
-            gl::QuatF32::from_angle_y( 0.0 ),
-            gl::F32x3::ZERO - gl::F32x3::from_array( [ 0.0, 0.0, 13.15 * 13.0 ] )
-          )
-        );
+        gem_clone.borrow_mut().set_center_to_origin();
         let cube_normal_map_texture = Some( cube_normal_map_generator.generate( gl, &gem_clone ).unwrap() );
         setup_gem_material( &gem, environment_texture, &cube_normal_map_texture );
         let ring = get_node( &gltf.scenes[ 0 ], "Sketchfab_model".to_string() ).unwrap();
@@ -391,15 +383,7 @@ async fn setup_rings
         gem.borrow_mut().set_name( "gem1" );
 
         let gem_clone = gem.borrow().clone_tree();
-        gem_clone.borrow_mut().set_world_matrix
-        (
-          gl::F32x4x4::from_scale_rotation_translation
-          (
-            gl::F32x3::splat( 26.0 ),
-            gl::QuatF32::from_angle_y( 0.0 ),
-            gl::F32x3::ZERO
-          )
-        );
+        gem_clone.borrow_mut().set_center_to_origin();
         let cube_normal_map_texture = Some( cube_normal_map_generator.generate( gl, &gem_clone ).unwrap() );
         setup_gem_material( &gem, environment_texture, &cube_normal_map_texture );
         let ring = get_node( &gltf.scenes[ 0 ], "Empty.001_6".to_string() ).unwrap();
@@ -423,15 +407,7 @@ async fn setup_rings
         gem.borrow_mut().set_name( "gem2" );
 
         let gem_clone = gem.borrow().clone_tree();
-        gem_clone.borrow_mut().set_world_matrix
-        (
-          gl::F32x4x4::from_scale_rotation_translation
-          (
-            gl::F32x3::splat( 43.0 ),
-            gl::QuatF32::from_angle_y( 0.0 ),
-            gl::F32x3::ZERO - gl::F32x3::from_array( [ 0.0, 0.0, 0.2 * 43.0 ] )
-          )
-        );
+        gem_clone.borrow_mut().set_center_to_origin();
         let cube_normal_map_texture = Some( cube_normal_map_generator.generate( gl, &gem_clone ).unwrap() );
         setup_gem_material( &gem, environment_texture, &cube_normal_map_texture );
         let ring = get_node( &gltf.scenes[ 0 ], "Sketchfab_model".to_string() ).unwrap();
