@@ -737,7 +737,10 @@ mod private
 
       self.framebuffer_ctx.unbind_multisample( gl );
 
-      self.draw_skybox( gl, camera );
+      if self.framebuffer_ctx.skybox_texture.is_some()
+      {
+        self.draw_skybox( gl, camera );
+      }
 
       self.framebuffer_ctx.bind_multisample( gl );
 

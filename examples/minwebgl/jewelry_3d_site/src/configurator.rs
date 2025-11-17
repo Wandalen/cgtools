@@ -53,8 +53,6 @@ impl Configurator
     let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/plane.glb" ).as_str(), &gl ).await?;
 
     let scene = gltf.scenes[ 0 ].clone();
-    let surface = get_node( &scene, "Plane".to_string() ).unwrap();
-    let surface_material = setup_surface( surface );
 
     let mut _cube_normal_map_generator = CubeNormalMapGenerator::new( gl )?;
     _cube_normal_map_generator.set_texture_size( gl, 512, 512 );
@@ -69,7 +67,9 @@ impl Configurator
 
     let renderer = Renderer::new( gl, canvas.width(), canvas.height(), 4 )?;
     let renderer = Rc::new( RefCell::new( renderer ) );
-    renderer.borrow().update_material_uniforms( gl, &surface_material );
+
+    let surface = get_node( &scene, "Plane".to_string() ).unwrap();
+    let surface_material = setup_surface( gl, &renderer, surface );
 
     let camera = setup_camera( &scene, &canvas );
 
@@ -81,7 +81,7 @@ impl Configurator
       renderer,
       camera,
       ibl,
-      skybox,
+      skybox : None,
       surface_material,
       scene,
       rings,
@@ -133,6 +133,7 @@ impl Configurator
     };
 
     mesh.borrow_mut().is_shadow_caster = true;
+    mesh.borrow_mut().is_shadow_receiver = true;
 
     for primitive in &mesh.borrow().primitives
     {
@@ -176,6 +177,7 @@ impl Configurator
         };
 
         mesh.borrow_mut().is_shadow_caster = true;
+        mesh.borrow_mut().is_shadow_receiver = true;
 
         for primitive in &mesh.borrow().primitives
         {
@@ -206,6 +208,7 @@ impl Configurator
   {
     let mut renderer_mut = self.renderer.borrow_mut();
     renderer_mut.set_ibl( self.ibl.clone() );
+
     if let Some( skybox ) = &self.skybox
     {
       renderer_mut.set_skybox( skybox.texture.borrow().source.clone() );
@@ -213,6 +216,7 @@ impl Configurator
     else
     {
       renderer_mut.set_skybox( None );
+      renderer_mut.set_clear_color( F32x3::splat( 1.0 ) );
     }
 
     renderer_mut.set_exposure( 1.0 );
@@ -290,6 +294,8 @@ impl Configurator
 
 fn setup_surface
 (
+  gl : &GL,
+  renderer : &Rc< RefCell< Renderer > >,
   surface : Rc< RefCell< Node > >
 )
 -> Rc< RefCell< Box< dyn Material > > >
@@ -311,7 +317,7 @@ fn setup_surface
   let primitive = primitive.borrow();
   let surface_material = primitive.material.clone();
 
-  if surface_material.borrow().get_type_name() != "PBRMaterial"
+  if surface_material.borrow().get_type_name() == "PBRMaterial"
   {
     let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >( surface_material.borrow_mut() );
     material.base_color_texture = None;
@@ -320,6 +326,7 @@ fn setup_surface
     material.metallic_factor = 0.0;
     material._need_use_ibl = false;
   }
+  renderer.borrow().update_material_uniforms( gl, &surface_material );
 
   surface_material
 }
