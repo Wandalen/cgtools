@@ -1,9 +1,8 @@
 #![ allow( dead_code ) ]
 
-use std::{ rc::Rc, cell::RefCell };
 use minwebgl as gl;
 use gl::{ GL, web_sys::{ WebGlProgram, WebGlTexture } };
-use renderer::webgl::{ Scene, Camera };
+use renderer::webgl::Camera;
 use crate::cube_normal_map_generator::CubeNormalMapGenerator;
 use crate::helpers;
 
@@ -186,15 +185,12 @@ pub async fn debug_run() -> Result< (), gl::WebglError >
   let vertex_count = cube_attr.len() / 5;
   let program = prepare( &gl, max_distance, texture.unwrap().texture.borrow().source.clone() ).unwrap();
 
-  let eye = gl::F32x3::new( 0.0, 0.0, 3.0 );
-  let up = gl::F32x3::Y;
-
   let view_matrix_location = gl.get_uniform_location( &program, "viewMatrix" );
 
   // Define the update and draw logic
   let update_and_draw =
   {
-    move | t : f64 |
+    move | _t : f64 |
     {
       let view_matrix = camera.get_view_matrix();
 

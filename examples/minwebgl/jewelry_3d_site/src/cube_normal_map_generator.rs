@@ -196,8 +196,8 @@ impl CubeNormalMapGenerator
         let primitive_ref = primitive.borrow();
         let geometry_ref = primitive_ref.geometry.borrow();
         geometry_ref.upload( gl ).ok()?;
-        geometry_ref.bind( gl );
         geometry_ref.draw( gl );
+        gl.bind_vertex_array( None );
       }
     }
 
