@@ -1,7 +1,9 @@
 #![ allow( dead_code ) ]
 
+use std::{ rc::Rc, cell::RefCell };
 use minwebgl as gl;
 use gl::{ GL, web_sys::{ WebGlProgram, WebGlTexture } };
+use renderer::webgl::{ Scene, Camera };
 use crate::cube_normal_map_generator::CubeNormalMapGenerator;
 use crate::helpers;
 
@@ -115,6 +117,28 @@ fn prepare( gl : &GL, max_distance : f32, cube_texture : Option< WebGlTexture > 
   Ok( program )
 }
 
+fn setup_camera( canvas : &web_sys::HtmlCanvasElement ) -> Camera
+{
+  let width = canvas.width() as f32;
+  let height = canvas.height() as f32;
+
+  let eye = gl::math::F32x3::from( [ 0.0, 0.0, 1.0 ] );
+  let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
+
+  let center = gl::math::F32x3::from( [ 0.0, 0.0, 0.0 ] );
+
+  let aspect_ratio = width / height;
+  let fov = 70.0f32.to_radians();
+  let near = 0.1;
+  let far = 1000.0;
+
+  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
+  camera.set_window_size( [ width, height ].into() );
+  camera.bind_controls( &canvas );
+
+  camera
+}
+
 pub async fn debug_run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
@@ -133,46 +157,23 @@ pub async fn debug_run() -> Result< (), gl::WebglError >
   let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/{model_id}.glb" ).as_str(), &gl ).await?;
   let gem = helpers::get_node( &gltf.scenes[ 0 ], "Object_2".to_string() ).unwrap();
 
-  match model_id
-  {
-    0 =>
-    {
-      gem.borrow_mut().set_world_matrix
-      (
-        gl::F32x4x4::from_scale_rotation_translation
-        (
-          gl::F32x3::splat( 13.0 ),
-          gl::QuatF32::from_angle_y( 0.0 ),
-          gl::F32x3::ZERO - gl::F32x3::from_array( [ 0.0, 0.0, 13.15 * 13.0 ] )
-        )
-      );
-    },
-    1 =>
-    {
-      gem.borrow_mut().set_world_matrix
-      (
-        gl::F32x4x4::from_scale_rotation_translation
-        (
-          gl::F32x3::splat( 26.0 ),
-          gl::QuatF32::from_angle_y( 0.0 ),
-          gl::F32x3::ZERO
-        )
-      );
-    },
-    2 =>
-    {
-      gem.borrow_mut().set_world_matrix
-      (
-        gl::F32x4x4::from_scale_rotation_translation
-        (
-          gl::F32x3::splat( 43.0 ),
-          gl::QuatF32::from_angle_y( 0.0 ),
-          gl::F32x3::ZERO - gl::F32x3::from_array( [ 0.0, 0.0, 0.2 * 43.0 ] )
-        )
-      );
-    },
-    _ => unreachable!()
-  }
+  let bb = gem.borrow().bounding_box().center();
+
+  let world_matrix = gem.borrow().get_world_matrix();
+
+  let camera = setup_camera( &canvas );
+
+  gem.borrow_mut().set_world_matrix
+  (
+    gl::F32x4x4::from_scale_rotation_translation
+    (
+      gl::F32x3::splat( 1.0 ),
+      gl::QuatF32::from_angle_y( 0.0 ),
+      -bb
+    )
+    *
+    world_matrix
+  );
 
   let generator = CubeNormalMapGenerator::new( &gl ).unwrap();
 
@@ -195,13 +196,7 @@ pub async fn debug_run() -> Result< (), gl::WebglError >
   {
     move | t : f64 |
     {
-      let time = t as f32 / 1000.0;
-      let rotatio_y = gl::math::mat3x3::from_angle_y( time );
-      let rotatio_z = gl::math::mat3x3::from_angle_z( time + 5.0 );
-      let rotatio_z2 = gl::math::mat3x3::from_angle_z( time - 5.0 );
-      let eye = rotatio_z2 * rotatio_z * rotatio_y * eye;
-
-      let view_matrix = gl::math::mat3x3h::look_at_rh( eye, gl::F32x3::ZERO, up );
+      let view_matrix = camera.get_view_matrix();
 
       gl::uniform::matrix_upload( &gl, view_matrix_location.clone(), &view_matrix.to_array(), true ).unwrap();
 

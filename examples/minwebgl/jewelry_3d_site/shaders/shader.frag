@@ -10,8 +10,16 @@ in vec3 vPosition;
 
 out vec4 frag_color;
 
-void main() 
-{ 
-  frag_color = texture( cube_map, vPosition );
+// Extract the data from the normal map
+vec4 getNormalData( vec3 dir )
+{
+  vec4 data = texture( cube_map, dir );
+  data.rgb = normalize( data.rgb * 2.0 - 1.0 );
+  return data;
+}
+
+void main()
+{
+  frag_color = getNormalData( vPosition );
 }
 
