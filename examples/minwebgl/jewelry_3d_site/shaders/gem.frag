@@ -407,6 +407,11 @@ mat3 rotY( float angle )
   );
 }
 
+vec3 remap( vec3 v, float inMin, float inMax, float outMin, float outMax )
+{
+  return outMin + ( v - inMin ) * ( outMax - outMin ) / ( inMax - inMin );
+}
+
 void main()
 {
   lamps[0] = Lamp(vec3(0., 4.5, 10.), vec3(1., 1., 1.), 15., 0.1);
@@ -433,7 +438,8 @@ void main()
   );
 
   vec3 diffuseColor = color.rgb;
-  vec3 colour = diffuseColor * ( refractionColor +  reflectionColor * brdfReflected * 0.5 );
+  vec3 lighting = ( refractionColor +  reflectionColor * brdfReflected * 0.5 );
+  vec3 colour = diffuseColor * lighting;
   //colour = refractionColor;
 
   // vec3 p = ( inverseWorldMatrix * vec4( vWorldPosition, 1.0 ) ).xyz;
@@ -453,7 +459,20 @@ void main()
 
   float a_weight = color.a * alpha_weight( color.a );
 
-  emissive_color = vec4( vec3( 0.0 ), color.a );
+  lighting = tanh( lighting * 8.0 );
+  lighting = pow( lighting, vec3( 1.0 / 2.2 ) );
+  float lighting_min = min( lighting.x, min( lighting.y, lighting.z ) );
+
+  if ( lighting_min > 0.9 )
+  {
+    vec3 c = remap( colour, 0.0, 1.0, 0.5, 1.0 );
+    emissive_color = vec4( c, color.a );
+  }
+  else
+  {
+    emissive_color = vec4( vec3( 0.0 ), color.a );
+  }
+
   trasnparentA = vec4( color.rgb * a_weight, color.a );
   transparentB = a_weight;
   frag_color = vec4( colour, color.a );
