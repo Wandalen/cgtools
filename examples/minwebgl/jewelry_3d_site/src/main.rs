@@ -19,9 +19,9 @@ use minwebgl as gl;
 use gl::
 {
   GL,
-  F32x3
+  F32x3,
+  web_sys::HtmlCanvasElement
 };
-use web_sys::HtmlCanvasElement;
 use renderer::webgl::
 {
   Renderer, material::PBRMaterial, post_processing::{ self, Pass, SwapFramebuffer }
@@ -32,6 +32,7 @@ mod gem;
 mod configurator;
 mod helpers;
 mod ui;
+mod debug;
 
 use helpers::*;
 use configurator::*;
@@ -199,5 +200,13 @@ async fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap() } );
+  #[ cfg( debug_assertions ) ]
+  {
+    gl::spawn_local( async move { debug::debug_run().await.unwrap(); } );
+  }
+
+  #[ cfg( not( debug_assertions ) ) ]
+  {
+    gl::spawn_local( async move { run().await.unwrap(); } );
+  }
 }

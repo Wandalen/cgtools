@@ -41,14 +41,14 @@ impl_locations!
 // https://github.com/mrdoob/three.js/blob/master/src/cameras/CubeCamera.js
 fn make_cube_camera() -> [ gl::F32x4x4; 6 ]
 {
-  let px = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::NEG_X, gl::F32x3::NEG_Y );
-  let nx = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::X, gl::F32x3::NEG_Y );
+  let px = gl::math::mat3x3h::look_at_rh( gl::F32x3::NEG_X * 20.0, gl::F32x3::ZERO, gl::F32x3::NEG_Y );
+  let nx = gl::math::mat3x3h::look_at_rh( gl::F32x3::X * 20.0, gl::F32x3::ZERO, gl::F32x3::NEG_Y );
 
-  let py = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::Y, gl::F32x3::Z );
-  let ny = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::NEG_Y, gl::F32x3::NEG_Z );
+  let py = gl::math::mat3x3h::look_at_rh( gl::F32x3::Y * 20.0, gl::F32x3::ZERO, gl::F32x3::Z );
+  let ny = gl::math::mat3x3h::look_at_rh( gl::F32x3::NEG_Y * 20.0, gl::F32x3::ZERO, gl::F32x3::NEG_Z );
 
-  let pz = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::Z, gl::F32x3::NEG_Y );
-  let nz = gl::math::mat3x3h::look_at_rh( gl::F32x3::ZERO, gl::F32x3::NEG_Z, gl::F32x3::NEG_Y );
+  let pz = gl::math::mat3x3h::look_at_rh( gl::F32x3::Z * 20.0, gl::F32x3::ZERO, gl::F32x3::NEG_Y );
+  let nz = gl::math::mat3x3h::look_at_rh( gl::F32x3::NEG_Z * 20.0, gl::F32x3::ZERO, gl::F32x3::NEG_Y );
 
   [ px, nx, py, ny, pz, nz ]
 }
@@ -112,7 +112,7 @@ impl CubeNormalMapGenerator
     let framebuffer = gl.create_framebuffer().ok_or( WebglError::FailedToAllocateResource( "Framebuffer" ) )?;
     gl.bind_framebuffer( gl::FRAMEBUFFER, Some( &framebuffer ) );
     gl.viewport( 0, 0, 512, 512 );
-    gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
+    gl.clear_color( 1.0, 0.0, 0.0, 1.0 );
     gl.bind_framebuffer( gl::FRAMEBUFFER , None );
 
     let cube_camera = make_cube_camera();
@@ -149,15 +149,16 @@ impl CubeNormalMapGenerator
       return None;
     };
 
+    let bb = node.borrow().bounding_box();
+    let max_distance = bb.min.mag().max( bb.max.mag() );
+
     let perspective_matrix = gl::math::mat3x3h::perspective_rh_gl
     (
       90.0f32.to_radians(),
       1.0,
       0.1,
-      10.0
+      max_distance * 16.0
     );
-    let bb = node.borrow().bounding_box();
-    let max_distance = bb.min.mag().max( bb.max.mag() );
 
     let locations = self.program.get_locations();
     let projection_matrix_location = locations.get( "projectionMatrix" ).unwrap().clone();
