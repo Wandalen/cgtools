@@ -24,7 +24,6 @@ mod private
     Node,
     Object3D,
     Primitive,
-    Material,
     ProgramInfo,
     ShaderProgram,
     Scene,
@@ -251,7 +250,6 @@ mod private
 
       // --- Attach Main Texture to Skybox Framebuffer ---
       gl.bind_framebuffer( gl::FRAMEBUFFER, skybox_framebuffer.as_ref() );
-      // gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, main_texture.as_ref(), 0 );
       gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, multisample_main_renderbuffer.as_ref() );
       gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
@@ -635,7 +633,7 @@ mod private
     }
 
     /// Gets the strength (intensity) of the bloom effect.
-    pub fn get_bloom_strength( &self  ) -> f32
+    pub fn get_bloom_strength( &self ) -> f32
     {
       self.bloom_effect.get_bloom_strength()
     }
@@ -644,21 +642,6 @@ mod private
     pub fn get_main_texture( &self ) -> Option< gl::web_sys::WebGlTexture >
     {
       self.framebuffer_ctx.main_texture.clone()
-    }
-
-    /// Updates [`Primitive`]'s material uniform for related [`ProgramInfo`]
-    pub fn update_material_uniforms( &self, gl : &GL, material : &Rc< RefCell< Box< dyn Material > > > )
-    {
-      let material = material.borrow();
-      let program_id = format!( "{}{}", material.get_id(), material.get_defines_str() );
-      for ( id, program_info ) in &self.programs
-      {
-        if *id == program_id
-        {
-          program_info.bind( gl );
-          let _ = material.upload( gl, program_info.get_locations() );
-        }
-      }
     }
 
     /// Draw equirectangular skybox
@@ -808,11 +791,13 @@ mod private
             // Generate a unique ID for the program based on the material ID and vertex shader defines.
             let program_id = format!( "{}{}", material.get_id(), defines );
 
+            let program_cached = self.programs.contains_key( &program_id );
+
             // Retrieve the program info if it already exists, otherwise compile and link a new program.
             let program_info =
             if let Some( program_info ) = self.programs.get( &program_id )
             {
-             program_info
+              program_info
             }
             else
             {
@@ -846,7 +831,7 @@ mod private
               material.configure( gl, locations, IBL_BASE_ACTIVE_TEXTURE );
               material.upload( gl, locations )?;
               camera.upload( gl, locations );
-              if material.need_use_ibl()
+              if material.is_need_use_ibl()
               {
                 if let Some( ref ibl ) = self.ibl
                 {
@@ -875,6 +860,11 @@ mod private
 
             // Bind the program, upload camera and node matrices, bind the primitive, and draw it.
             program_info.bind( gl );
+
+            if material.is_need_update() && program_cached
+            {
+              let _ = material.upload( gl, program_info.get_locations() );
+            }
 
             node.borrow().upload( gl, locations );
             primitive.bind( gl );
