@@ -2,7 +2,7 @@ mod private
 {
   use minwebgl as gl;
   use gl::GL;
-  use crate::webgl::{ ProgramInfo, Texture };
+  use crate::webgl::{ ProgramInfo, Texture, Node };
   use std:: { cell::RefCell, fmt::Debug, rc::Rc };
   use rustc_hash::{ FxHashMap, FxHasher };
 
@@ -175,6 +175,7 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
+      node : Rc< RefCell< Node > >,
       locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
     ) -> Result< (), gl::WebglError >;
 

@@ -7,6 +7,7 @@ layout( location = 2 ) in vec2 uv;
 uniform mat4x4 worldMatrix;
 uniform mat4x4 viewMatrix;
 uniform mat4x4 projectionMatrix;
+uniform mat3x3 normalMatrix;
 
 out vec2 vUvs;
 out vec3 vWorldNormal;
@@ -19,7 +20,7 @@ void main()
   vec4 viewPos = viewMatrix * worldPos;
 
   vUvs = uv;
-  vWorldNormal = normalize( mat3x3( worldMatrix ) * normal );
+  vWorldNormal = normalize( mat3x3( normalMatrix ) * normal );
   vWorldPosition = worldPos.xyz;
   vViewPosition = viewPos.xyz;
   gl_Position = projectionMatrix * viewPos;

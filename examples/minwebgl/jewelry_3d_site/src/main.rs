@@ -61,7 +61,7 @@ fn handle_camera_position( gl : &GL, configurator : &Configurator )
       material.alpha_mode = renderer::webgl::AlphaMode::Opaque;
     }
   }
-  configurator.renderer.borrow().update_material_uniforms( &gl, &configurator.surface_material );
+  configurator.renderer.borrow().update_material_uniforms( &gl, &configurator.surface_material, configurator.rings.current_ring.clone() );
 }
 
 fn handle_resize
@@ -113,7 +113,7 @@ fn handle_ui_change( gl: &GL, configurator : &mut Configurator )
         if let Some( new_ring ) = configurator.rings.rings.get( ui_state.ring as usize ).cloned()
         {
           remove_node_from_scene( &configurator.scene, &configurator.rings.current_ring );
-          configurator.rings.current_ring = new_ring;
+          configurator.rings.current_ring = new_ring.clone();
           configurator.scene.borrow_mut().add( configurator.rings.current_ring.clone() );
           configurator.scene.borrow_mut().update_world_matrix();
 
@@ -122,7 +122,7 @@ fn handle_ui_change( gl: &GL, configurator : &mut Configurator )
             let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >( configurator.surface_material.borrow_mut() );
             material.light_map = Some( configurator.rings.light_maps[ ui_state.ring as usize ].clone() );
           }
-          configurator.renderer.borrow().update_material_uniforms( &gl, &configurator.surface_material );
+          configurator.renderer.borrow().update_material_uniforms( &gl, &configurator.surface_material, new_ring.clone() );
         }
       }
 
@@ -179,11 +179,11 @@ async fn run() -> Result< (), gl::WebglError >
       swap_buffer.bind( &gl );
       swap_buffer.set_input( configurator.renderer.borrow().get_main_texture() );
 
-      let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
-      .expect( "Failed to render tonemapping pass" );
+      // let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      // .expect( "Failed to render tonemapping pass" );
 
-      swap_buffer.set_output( t );
-      swap_buffer.swap();
+      // swap_buffer.set_output( t );
+      // swap_buffer.swap();
 
       let _ = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
       .expect( "Failed to render ToSrgbPass" );

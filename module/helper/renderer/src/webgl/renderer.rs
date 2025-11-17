@@ -647,7 +647,7 @@ mod private
     }
 
     /// Updates [`Primitive`]'s material uniform for related [`ProgramInfo`]
-    pub fn update_material_uniforms( &self, gl : &GL, material : &Rc< RefCell< Box< dyn Material > > > )
+    pub fn update_material_uniforms( &self, gl : &GL, material : &Rc< RefCell< Box< dyn Material > > >, node : Rc< RefCell< Node > > )
     {
       let material = material.borrow();
       let program_id = format!( "{}{}", material.get_id(), material.get_defines_str() );
@@ -656,7 +656,7 @@ mod private
         if *id == program_id
         {
           program_info.bind( gl );
-          let _ = material.upload( gl, program_info.get_locations() );
+          let _ = material.upload( gl, node.clone(), program_info.get_locations() );
         }
       }
     }
@@ -835,7 +835,8 @@ mod private
                   "#version 300 es\n{}\n{}\n{}",
                   defines,
                   ibl_define,
-                  material.get_fragment_shader() )
+                  material.get_fragment_shader() 
+                )
               ).compile_and_link( gl )?;
               let program_info = material.get_program_info( gl, &program );
 
@@ -844,7 +845,7 @@ mod private
               program_info.bind( gl );
               const IBL_BASE_ACTIVE_TEXTURE : u32 = 10;
               material.configure( gl, locations, IBL_BASE_ACTIVE_TEXTURE );
-              material.upload( gl, locations )?;
+              material.upload( gl, node.clone(), locations )?;
               camera.upload( gl, locations );
               if material.need_use_ibl()
               {

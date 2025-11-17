@@ -5,7 +5,8 @@ mod private
   use gl::GL;
   use mingl::Former;
   use rustc_hash::FxHashMap;
-  use crate::webgl::program::{ ProgramInfo, ShaderProgram, PBRShader };
+  use crate::webgl::{ Node, program::{ ProgramInfo, ShaderProgram, PBRShader } };
+  use std:: { cell::RefCell, rc::Rc };
 
   /// The source code for the main vertex shader.
   const MAIN_VERTEX_SHADER : &'static str = include_str!( "../shaders/main.vert" );
@@ -258,6 +259,7 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
+      _node : Rc< RefCell< Node > >,
       locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
     ) -> Result< (), gl::WebglError >
     {

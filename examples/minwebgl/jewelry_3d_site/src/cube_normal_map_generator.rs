@@ -150,7 +150,8 @@ impl CubeNormalMapGenerator
     };
 
     let bb = node.borrow().bounding_box();
-    let max_distance = bb.min.mag().max( bb.max.mag() );
+    let c = bb.center();
+    let max_distance = ( bb.max - c ).mag().max( ( bb.min - c ).mag() );
 
     let perspective_matrix = gl::math::mat3x3h::perspective_rh_gl
     (

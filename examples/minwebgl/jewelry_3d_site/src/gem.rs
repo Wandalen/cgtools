@@ -1,9 +1,10 @@
-use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo };
+use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo, Node };
 use renderer::impl_locations;
 use minwebgl as gl;
 use gl::{ GL, F32x3, Former };
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
+use std:: { cell::RefCell, rc::Rc };
 
 /// Gem shader
 pub struct GemShader;
@@ -15,12 +16,14 @@ impl_locations!
   "inverseWorldMatrix",
   "viewMatrix",
   "projectionMatrix",
+  "normalMatrix",
+  "offsetMatrix",
 
   "envMap",
   "cubeNormalMap",
 
   "rayBounces",
-  "color",
+  "diamondColor",
   "boostFactors",
 
   "envMapIntensity",
@@ -30,7 +33,8 @@ impl_locations!
   "geometryFactor",
   "absorptionFactor",
   "colorAbsorption",
-  "cameraPosition"
+  "cameraPosition",
+  "maxDistance"
 );
 
 /// The source code for the gem vertex shader.
@@ -47,7 +51,7 @@ pub struct GemMaterial
   /// Ray bounces inside gem count
   pub ray_bounces : i32,
   /// Gem color
-  pub color : gl::F32x4,
+  pub color : gl::F32x3,
   ///
   pub boost_factors : F32x3,
   ///
@@ -114,6 +118,7 @@ impl Material for GemMaterial
   (
     &self,
     gl : &GL,
+    node : Rc< RefCell< Node > >,
     locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
   )
   -> Result< (), gl::WebglError >
@@ -132,16 +137,27 @@ impl Material for GemMaterial
 
     gl::uniform::upload( gl, locations.get( "rayBounces" ).unwrap().clone(), &self.ray_bounces )?;
 
+    let bb = node.borrow().bounding_box();
+    let c = bb.center();
+    let max_distance = ( bb.max - c ).mag().max( ( bb.min - c ).mag() );
+
     upload( "envMapIntensity", self.env_map_intensity )?;
     upload( "rainbowDelta", self.rainbow_delta )?;
     upload( "squashFactor", self.squash_factor )?;
     upload( "radius", self.radius )?;
     upload( "geometryFactor", self.geometry_factor )?;
     upload( "absorptionFactor", self.absorption_factor )?;
+    upload( "maxDistance", max_distance )?;
 
-    upload_array( "color", self.color.0.as_slice() )?;
+    upload_array( "diamondColor", self.color.0.as_slice() )?;
     upload_array( "boostFactors", self.boost_factors.0.as_slice() )?;
     upload_array( "colorAbsorption", self.color_absorption.0.as_slice() )?;
+
+    let node = node.borrow();
+    let offset_mat = gl::math::mat3x3h::translation( -node.bounding_box().center() );
+    //offset_mat = offset_mat * node.get_world_matrix();
+
+    gl::uniform::matrix_upload( gl, locations.get( "offsetMatrix" ).unwrap().clone(), offset_mat.raw_slice(), true )?;
 
     self.upload_textures( gl );
 
@@ -206,7 +222,7 @@ impl Default for GemMaterial
     {
       id : Uuid::new_v4(),
       ray_bounces : 7,
-      color : gl::F32x4::from_array( [ 0.98, 0.95, 0.9, 1.0 ] ),
+      color : gl::F32x3::from_array( [ 0.98, 0.95, 0.9 ] ),
       boost_factors : F32x3::from_array( [ 0.8920, 0.8920, 0.9860 ] ),
       env_map_intensity : 0.7,
       rainbow_delta : 0.012,

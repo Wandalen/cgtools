@@ -4,7 +4,7 @@ mod private
   use rustc_hash::FxHashMap;
   use mingl::geometry::BoundingBox;
   use minwebgl as gl;
-  use crate::webgl::{ Geometry, Material };
+  use crate::webgl::{ Geometry, Material, Node };
 
   /// Represents a renderable object composed of geometry and material.
   #[ derive( Debug ) ]
@@ -38,10 +38,11 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
+      node : Rc< RefCell< Node > >,
       locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
     ) -> Result< (), gl::WebglError >
     {
-      self.material.borrow().upload( gl, locations )?;
+      self.material.borrow().upload( gl, node, locations )?;
       self.geometry.borrow().upload( gl )?;
 
       Ok( () )
