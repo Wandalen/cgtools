@@ -281,7 +281,7 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
 
   vec3 newRayDirection = refract( rayDirection, hitPointNormal, iorRatioAtoD );
   // Convert data to local space
-  newRayDirection = ( offsetMatrix * vec4( newRayDirection, 0.0 ) ).xyz;
+  newRayDirection = ( vec4( newRayDirection, 0.0 ) ).xyz;
   newRayDirection = normalize( newRayDirection );
   vec3 rayOrigin =  ( offsetMatrix * vec4( rayHitPoint, 1.0 ) ).xyz;
 
