@@ -179,11 +179,11 @@ async fn run() -> Result< (), gl::WebglError >
       swap_buffer.bind( &gl );
       swap_buffer.set_input( configurator.renderer.borrow().get_main_texture() );
 
-      // let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
-      // .expect( "Failed to render tonemapping pass" );
+      let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      .expect( "Failed to render tonemapping pass" );
 
-      // swap_buffer.set_output( t );
-      // swap_buffer.swap();
+      swap_buffer.set_output( t );
+      swap_buffer.swap();
 
       let _ = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
       .expect( "Failed to render ToSrgbPass" );

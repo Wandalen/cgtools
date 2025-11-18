@@ -64,12 +64,12 @@ fn gen_cube_texture( gl : &GL, width: i32, height: i32 ) -> Option< gl::web_sys:
     (
       gl::TEXTURE_CUBE_MAP_POSITIVE_X + i as u32,
       0,
-      gl::RGBA as i32,
+      gl::RGBA16F as i32,
       width as i32,
       height as i32,
       0,
       gl::RGBA,
-      gl::UNSIGNED_BYTE,
+      gl::FLOAT,
       None
     ).expect( "Failed to upload data to texture" );
   }

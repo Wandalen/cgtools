@@ -20,6 +20,11 @@ use renderer::webgl::
   Renderer,
   Scene,
   SpotLight,
+  MinFilterMode,
+  MagFilterMode,
+  WrappingMode,
+  Sampler,
+  Texture,
   TextureInfo,
   material::PBRMaterial
 };
@@ -57,15 +62,39 @@ impl Configurator
     let mut _cube_normal_map_generator = CubeNormalMapGenerator::new( gl )?;
     _cube_normal_map_generator.set_texture_size( gl, 512, 512 );
 
-    let ibl = renderer::webgl::loaders::ibl::load( gl, "environment_maps/christmas_photo_studio_07_4k", Some( 0..0 ) ).await;
+    //let ibl = renderer::webgl::loaders::ibl::load( gl, "environment_maps/christmas_photo_studio_07_4k", Some( 0..0 ) ).await;
+    let ibl = renderer::webgl::loaders::ibl::load( gl, "environment_maps/studio", Some( 0..0 ) ).await;
     let skybox = create_texture( gl, "environment_maps/equirectangular_maps/christmas_photo_studio_07.webp" );
 
-    let rings = setup_rings( gl, &skybox, &_cube_normal_map_generator ).await?;
+    let sampler = Sampler::former()
+    .min_filter( MinFilterMode::Linear )
+    .mag_filter( MagFilterMode::Linear )
+    .wrap_s( WrappingMode::Repeat )
+    .wrap_t( WrappingMode::Repeat )
+    .end();
+
+    let texture = Texture::former()
+    .target( GL::TEXTURE_CUBE_MAP )
+    .source( ibl.specular_1_texture.clone().unwrap() )
+    .sampler( sampler )
+    .end();
+
+    let texture_info = TextureInfo
+    {
+      texture : Rc::new( RefCell::new( texture ) ),
+      uv_position : 0,
+    };
+
+
+    let rings = setup_rings( gl, &Some(texture_info), &_cube_normal_map_generator ).await?;
 
     scene.borrow_mut().add( rings.current_ring.clone() );
     scene.borrow_mut().update_world_matrix();
 
-    let renderer = Renderer::new( gl, canvas.width(), canvas.height(), 4 )?;
+    let mut renderer = Renderer::new( gl, canvas.width(), canvas.height(), 4 )?;
+    renderer.set_use_emission( true ); 
+    renderer.set_bloom_strength( 10.0 );
+    renderer.set_bloom_radius( 0.1 );
     let renderer = Rc::new( RefCell::new( renderer ) );
 
     let surface = get_node( &scene, "Plane".to_string() ).unwrap();
@@ -146,7 +175,7 @@ impl Configurator
         let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< GemMaterial >( material.borrow_mut() );
         material.color = color;
       }
-      //self.renderer.borrow().update_material_uniforms( gl, &material, self.rings.current_gem.clone() );
+      self.renderer.borrow().update_material_uniforms( gl, &material, self.rings.current_gem.clone() );
     }
   }
 
@@ -358,7 +387,7 @@ async fn setup_rings
   let mut gems : Vec< Rc< RefCell< Node > > > = vec![];
   let mut filters : Vec< HashSet< String > > = vec![];
 
-  for i in 0..1
+  for i in 0..3
   {
     let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/{i}.glb" ).as_str(), &gl ).await?;
 

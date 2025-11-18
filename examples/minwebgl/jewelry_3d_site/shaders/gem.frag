@@ -15,12 +15,13 @@ const float EPSILON = 1e-4;
 const vec3 ambientColor = vec3(0.7);
 const float ambientint = 0.08;
 
-uniform sampler2D envMap;
+uniform samplerCube envMap;
 uniform samplerCube cubeNormalMap;
 
 uniform mat4x4 worldMatrix;
 uniform mat4x4 inverseWorldMatrix;
 uniform mat4x4 offsetMatrix;
+uniform mat4x4 inverseOffsetMatrix;
 
 uniform int rayBounces;
 uniform vec3 diamondColor;
@@ -73,7 +74,7 @@ vec4 getNormalData( vec3 dir )
   data.rgb = normalize( data.rgb * 2.0 - 1.0 );
   //data.r *= -1.0;
   //data.a *= MAX_DISTANCE;
-  data.a *= maxDistance;
+  //data.a *= maxDistance;
   return data;
 }
 
@@ -106,18 +107,20 @@ vec2 dirToEquirectUV( vec3 dir )
 
 vec3 sampleSpecularReflection( vec3 direction )
 {
-  vec3 sample_value = texture( envMap, dirToEquirectUV( direction ) ).rgb;
+ // vec3 sample_value = texture( envMap, dirToEquirectUV( direction ) ).rgb;
+  vec3 sample_value = texture( envMap, direction, 0.0 ).xyz;
   return envMapIntensity * pow( sample_value, vec3( 2.2 ) );
 }
 
 vec3 convertDirLocalToWorld( vec3 direction )
 {
-  return  mat3x3( worldMatrix ) * direction;
+  return  mat3x3( inverseOffsetMatrix ) * direction;
 }
 
 vec3 sampleEnvFromLocal( vec3 direction )
 {
-  vec3 sample_value = texture( envMap, dirToEquirectUV( convertDirLocalToWorld( direction ) ) ).rgb;
+ // vec3 sample_value = texture( envMap, dirToEquirectUV( convertDirLocalToWorld( direction ) ) ).rgb;
+  vec3 sample_value = texture( envMap, convertDirLocalToWorld( direction ), 0.0 ).rgb;
   return envMapIntensity * pow( sample_value, vec3( 2.2 ) );
 }
 
@@ -411,6 +414,11 @@ mat3 rotY( float angle )
   );
 }
 
+float luminosity( vec3 color )
+{
+  return 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
+}
+
 void main()
 {
   lamps[0] = Lamp(vec3(0., 4.5, 10.), vec3(1., 1., 1.), 15., 0.1);
@@ -427,13 +435,13 @@ void main()
   // Sample color from an environment map
   vec3 reflectionColor = sampleSpecularReflection( reflectedDirection );
   // The actual diamond calculation
-  vec3 refractionColor = getRefractionColor( vWorldPosition, viewDirection, normal, 2.4 );
-  // vec3 refractionColor = vec3
-  // (
-  //   getRefractionColor( pos, viewDirection, normal, 2.408 ).r,
-  //   getRefractionColor( pos, viewDirection, normal, 2.424 ).g,
-  //   getRefractionColor( pos, viewDirection, normal, 2.432 ).b
-  // );
+  //vec3 refractionColor = getRefractionColor( vWorldPosition, viewDirection, normal, 2.4 );
+  vec3 refractionColor = vec3
+  (
+    getRefractionColor( vWorldPosition, viewDirection, normal, 2.408 ).r,
+    getRefractionColor( vWorldPosition, viewDirection, normal, 2.424 ).g,
+    getRefractionColor( vWorldPosition, viewDirection, normal, 2.432 ).b
+  );
 
   vec3 diffuseColor = diamondColor;
   vec3 colour = diffuseColor * ( refractionColor +  reflectionColor * brdfReflected * 0.5 );
@@ -451,14 +459,29 @@ void main()
 
   // Gamma
   //colour = tanh( colour * 8.0 );
+  float alpha = 1.0;
+
+  if (luminosity( colour ) > 150.0 )
+  {
+    emissive_color = vec4( tanh(colour), alpha );
+  }
+  else
+  {
+    emissive_color = vec4( 0.0 );
+  }
+
+  colour *= 5.0;
+  //colour *= pow( tanh( colour ) + vec3(1.05), vec3(16.0) );
   //colour = pow( colour, vec3( 1.0 / 2.2 ) );
   // vec3 pos = ( offsetMatrix * vec4( vWorldPosition, 1.0 ) ).xyz;
   // colour = getNormalData(pos).rgb;
 
-  float alpha = 1.0;
   float a_weight = alpha * alpha_weight( alpha );
+  
 
-  emissive_color = vec4( vec3( 0.0 ), alpha );
+  // vec3 emissive = step(  vec3(0.9), colour ) * 1.0;
+  // emissive_color = vec4( emissive, alpha );
+
   trasnparentA = vec4( colour * a_weight, alpha );
   transparentB = a_weight;
   frag_color = vec4( colour, alpha );

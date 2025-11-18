@@ -18,6 +18,7 @@ impl_locations!
   "projectionMatrix",
   "normalMatrix",
   "offsetMatrix",
+  "inverseOffsetMatrix",
 
   "envMap",
   "cubeNormalMap",
@@ -144,7 +145,7 @@ impl Material for GemMaterial
     upload( "envMapIntensity", self.env_map_intensity )?;
     upload( "rainbowDelta", self.rainbow_delta )?;
     upload( "squashFactor", self.squash_factor )?;
-    upload( "radius", self.radius )?;
+    upload( "radius", max_distance )?;
     upload( "geometryFactor", self.geometry_factor )?;
     upload( "absorptionFactor", self.absorption_factor )?;
     upload( "maxDistance", max_distance )?;
@@ -158,6 +159,7 @@ impl Material for GemMaterial
     //offset_mat = offset_mat * node.get_world_matrix();
 
     gl::uniform::matrix_upload( gl, locations.get( "offsetMatrix" ).unwrap().clone(), offset_mat.raw_slice(), true )?;
+    gl::uniform::matrix_upload( gl, locations.get( "inverseOffsetMatrix" ).unwrap().clone(), offset_mat.inverse().unwrap().raw_slice(), true )?;
 
     self.upload_textures( gl );
 
