@@ -129,7 +129,7 @@ vec3 SampleSpecularContribution( vec3 direction )
   direction = normalize( direction );
   direction.x *= -1.;
   direction.z *= -1.;
-  return sampleEnvFromLocal( direction ).rrr;
+  return sampleEnvFromLocal( direction ).rgb;
 }
 
 // Finds an intersection points of a given line with a sphere at the origin
@@ -461,7 +461,7 @@ void main()
   //colour = tanh( colour * 8.0 );
   float alpha = 1.0;
 
-  if (luminosity( colour ) > 150.0 )
+  if (luminosity( colour ) > 25.0 )
   {
     emissive_color = vec4( tanh(colour), alpha );
   }
@@ -470,7 +470,7 @@ void main()
     emissive_color = vec4( 0.0 );
   }
 
-  colour *= 5.0;
+  //colour *= 5.0;
   //colour *= pow( tanh( colour ) + vec3(1.05), vec3(16.0) );
   //colour = pow( colour, vec3( 1.0 / 2.2 ) );
   // vec3 pos = ( offsetMatrix * vec4( vWorldPosition, 1.0 ) ).xyz;

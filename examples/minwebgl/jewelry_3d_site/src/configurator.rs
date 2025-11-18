@@ -248,7 +248,7 @@ impl Configurator
     }
 
     renderer_mut.set_use_emission( true ); 
-    renderer_mut.set_bloom_strength( 10.0 );
+    renderer_mut.set_bloom_strength( 5.0 );
     renderer_mut.set_bloom_radius( 0.1 );
   }
 
