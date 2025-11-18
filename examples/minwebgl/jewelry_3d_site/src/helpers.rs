@@ -36,7 +36,7 @@ use renderer::webgl::
 /// # Returns
 ///
 /// A `WebGlTexture` object.
-pub fn upload_texture( gl : &GL, src : &str ) -> WebGlTexture
+pub fn _upload_texture( gl : &GL, src : &str ) -> WebGlTexture
 {
   let window = web_sys::window().expect( "Can't get window" );
   let document =  window.document().expect( "Can't get document" );
@@ -84,14 +84,14 @@ pub fn upload_texture( gl : &GL, src : &str ) -> WebGlTexture
 /// # Returns
 ///
 /// An `Option<TextureInfo>` containing the texture data, or `None` if creation fails.
-pub fn create_texture
+pub fn _create_texture
 (
   gl : &GL,
   image_path : &str
 ) -> Option< TextureInfo >
 {
   let image_path = format!( "static/{image_path}" );
-  let texture_id = upload_texture( gl, image_path.as_str() );
+  let texture_id = _upload_texture( gl, image_path.as_str() );
 
   let sampler = Sampler::former()
   .min_filter( MinFilterMode::Linear )
