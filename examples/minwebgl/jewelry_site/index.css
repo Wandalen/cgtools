@@ -54,7 +54,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 	width: 100%;
 	height: 100%;
 	z-index: 10;
-	background-color: #E6BFBE;
+	background-color: #000000;
 	align-items: center;
 	justify-content: center;
 	flex-direction: column;
@@ -65,7 +65,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 		top: 60%;
 		width: 50%;
 		height: 1px;
-		background: #52322B;
+		background: #000000;
 		transform: scaleX(0);
 		transition: transform 1s;
 		transform-origin: left;
@@ -92,7 +92,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 			justify-content: center;
 		}
 		.header--brand{
-			color: #52322B;
+			color: #000000;
 			font-family: "Cardo", serif;
 			font-weight: 200;
 			font-size: 25px;
@@ -111,7 +111,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 			}
 			li{
 				padding: 10px 30px;
-				color: #52322B;
+				color: #000000;
 				cursor: pointer;
 				transition: all .4s ease-in-out;
 				pointer-events: all;
@@ -125,10 +125,10 @@ table { border-collapse: collapse; border-spacing: 0; }
 					}
 				}
 				&:hover{
-					color: #BB4C33;
+					color: #000000;
 					svg{
 						path{
-							stroke: #BB4C33;
+							stroke: #000000;
 						}
 					}
 				}
@@ -163,7 +163,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 			li {
 				display: block;
 				border-radius: 50%;
-				background: #FFFFFF;
+				background: #000000;
 				width: 6px;
 				height: 6px;
 				margin: 8px 0;
@@ -224,6 +224,24 @@ table { border-collapse: collapse; border-spacing: 0; }
 	overflow: hidden;
 }
 
+.hero--image{
+	display: flex;
+  align-items: center;
+	justify-content: flex-end;
+}
+
+.forever--image{
+	display: flex;
+  align-items: center;
+	justify-content: flex-end;
+}
+
+/* .emotions--image{
+  position: absolute;
+  bottom: 0;
+  right: 0;
+} */
+
 .hero--container{
 	display: flex;
 	align-items: center;
@@ -265,7 +283,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 			font-size: 124px;
 			line-height: 87%;
 			letter-spacing: -0.04em;
-			color: #52322B;
+			color: #000000;
 			text-align: right;
 			margin-bottom: 40px;
 			@media (max-width: 600px) {
@@ -292,7 +310,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 			background-color: transparent;
 			width: 155px;
 			height: 60px;
-			border: 1px solid #52322B;
+			border: 1px solid #000000;
 			border-radius: 58px;
 			display: flex;
 			align-items: center;
@@ -300,7 +318,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 			font-weight: 200;
 			font-size: 0.9375rem;
 			letter-spacing: -0.04em;
-			color: #52322B;
+			color: #000000;
 			float: right;
 			cursor: pointer;
 			transition: all 0.8s ease-in-out;
@@ -319,12 +337,12 @@ table { border-collapse: collapse; border-spacing: 0; }
 				}
 			}
 			&:hover{
-				border-color: #BB4C33;
-				color: #BB4C33;
+				border-color: #000000;
+				color: #000000;
 				transform: translateY(-3px);
 				svg{
 					path{
-						stroke: #BB4C33
+						stroke: #000000
 					}
 				}
 			}
@@ -347,7 +365,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 		cursor: pointer;
 		.hero--scroller--text{
 			font-size: 9px;
-			color: #52322B;
+			color: #000000;
 			letter-spacing: normal;
 			margin-bottom: 8px;
 			transition: all 0.8s ease-in-out;
@@ -364,9 +382,9 @@ table { border-collapse: collapse; border-spacing: 0; }
 			}
 		}
 		&:hover{
-			.hero--scroller--text{color: #BB4C33;}
+			.hero--scroller--text{color: #000000;}
 			.bounce{
-				path{stroke: #BB4C33;}
+				path{stroke: #000000;}
 			}
 		}
 	}
@@ -450,7 +468,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 		font-size: 533px;
 		line-height: 100%;
 		letter-spacing: -0.04em;
-		color: #CB6B56;
+		color: #000000;
 		opacity: 0;
 		position: absolute;
 		top: 50%;
@@ -523,7 +541,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 			background-color: #FFFFFF;
 			width: 164px;
 			height: 50px;
-			border: 1px solid #52322B;
+			border: 1px solid #000000;
 			border-radius: 58px;
 			display: inline-flex;
 			align-items: center;
@@ -531,7 +549,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 			font-weight: 200;
 			font-size: 15px;
 			letter-spacing: -0.04em;;
-			color: #52322B;
+			color: #000000;
 			padding: 0 10px;
 			cursor: pointer;
 			transition: all 0.8s ease-in-out;
@@ -544,7 +562,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 				}
 			}
 			&:hover{
-				box-shadow: inset 0 0 60px #c04040;
+				box-shadow: inset 0 0 60px #000000;
 				color: #FFFFFF;
 				transform: translateY(-3px);
 				svg{
@@ -561,7 +579,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 		font-size: 533px;
 		line-height: 50%;
 		letter-spacing: -0.04em;
-		color: #CB6B56;
+		color: #000000;
 		opacity: 0;
 		position: absolute;
 		top: 0;
