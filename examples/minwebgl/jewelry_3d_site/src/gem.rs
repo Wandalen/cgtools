@@ -73,6 +73,8 @@ pub struct GemMaterial
   pub environment_texture : Option< TextureInfo >,
   /// Cube normal map texture
   pub cube_normal_map_texture : Option< TextureInfo >,
+  /// Signal for updating material uniforms
+  pub need_update : bool
 }
 
 impl Material for GemMaterial
@@ -80,6 +82,12 @@ impl Material for GemMaterial
   fn get_id( &self ) -> Uuid
   {
     self.id
+  }
+
+  /// Signal for updating material uniforms
+  fn is_need_update( &self ) -> bool
+  {
+    self.need_update
   }
 
   /// Returns [`ProgramInfo`] with shader locations and used [`ShaderProgram`]
@@ -212,6 +220,7 @@ impl Clone for GemMaterial
       color_absorption : self.color_absorption,
       environment_texture : self.environment_texture.clone(),
       cube_normal_map_texture : self.cube_normal_map_texture.clone(),
+      need_update : self.need_update
     }
   }
 }
@@ -234,7 +243,8 @@ impl Default for GemMaterial
       absorption_factor : 0.7,
       color_absorption : F32x3::from_array( [ 0.9911, 0.9911, 0.9911 ] ),
       environment_texture : None,
-      cube_normal_map_texture : None
+      cube_normal_map_texture : None,
+      need_update : true
     };
   }
 }

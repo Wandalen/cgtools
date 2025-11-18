@@ -39,7 +39,7 @@ use configurator::*;
 
 const MAX_DISTANCE : f32 = 50.0;
 
-fn handle_camera_position( gl : &GL, configurator : &Configurator )
+fn handle_camera_position( configurator : &Configurator )
 {
   let camera_controls = configurator.camera.get_controls();
   let distance = camera_controls.borrow().eye.distance( &F32x3::default() );
@@ -60,6 +60,7 @@ fn handle_camera_position( gl : &GL, configurator : &Configurator )
       material.base_color_factor.0[ 3 ] = 1.0;
       material.alpha_mode = renderer::webgl::AlphaMode::Opaque;
     }
+    material.need_update = true;
   }
   configurator.renderer.borrow().update_material_uniforms( &gl, &configurator.surface_material, configurator.rings.current_ring.clone() );
 }
@@ -95,7 +96,7 @@ fn handle_resize
   }
 }
 
-fn handle_ui_change( gl: &GL, configurator : &mut Configurator )
+fn handle_ui_change( configurator : &mut Configurator )
 {
   if ui::is_changed()
   {
@@ -121,6 +122,7 @@ fn handle_ui_change( gl: &GL, configurator : &mut Configurator )
           {
             let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >( configurator.surface_material.borrow_mut() );
             material.light_map = Some( configurator.rings.light_maps[ ui_state.ring as usize ].clone() );
+            material.need_update = true;
           }
           configurator.renderer.borrow().update_material_uniforms( &gl, &configurator.surface_material, new_ring.clone() );
         }
@@ -128,12 +130,12 @@ fn handle_ui_change( gl: &GL, configurator : &mut Configurator )
 
       if ui_state.changed.contains( &"gem".to_string() ) || ring_changed
       {
-        configurator.update_gem_color( gl );
+        configurator.update_gem_color();
       }
 
       if ui_state.changed.contains( &"metal".to_string() ) || ring_changed
       {
-        configurator.update_metal_color( gl );
+        configurator.update_metal_color();
       }
 
       ui::clear_changed();
@@ -166,9 +168,9 @@ async fn run() -> Result< (), gl::WebglError >
   {
     move | t : f64 |
     {
-      handle_camera_position( &gl, &configurator );
+      handle_camera_position( &configurator );
       handle_resize( &gl, &mut configurator, &mut swap_buffer, &canvas, &is_resized );
-      handle_ui_change( &gl, &mut configurator );
+      handle_ui_change( &mut configurator );
 
       // If textures are of different size, gl.view_port needs to be called
       let _time = t as f32 / 1000.0;

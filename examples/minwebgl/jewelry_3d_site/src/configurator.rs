@@ -64,7 +64,9 @@ impl Configurator
 
     //let ibl = renderer::webgl::loaders::ibl::load( gl, "environment_maps/christmas_photo_studio_07_4k", Some( 0..0 ) ).await;
     let ibl = renderer::webgl::loaders::ibl::load( gl, "environment_maps/studio", Some( 0..0 ) ).await;
-    let skybox = create_texture( gl, "environment_maps/equirectangular_maps/christmas_photo_studio_07.webp" );
+    // let skybox = create_texture( gl, "environment_maps/equirectangular_maps/christmas_photo_studio_07.webp" );
+    // let ibl = renderer::webgl::loaders::ibl::load( gl, "environment_maps/dancing_hall_4k", Some( 0..0 ) ).await;
+    let skybox = create_texture( gl, "environment_maps/equirectangular_maps/dancing_hall.webp" );
 
     let sampler = Sampler::former()
     .min_filter( MinFilterMode::Linear )
@@ -98,11 +100,13 @@ impl Configurator
     let renderer = Rc::new( RefCell::new( renderer ) );
 
     let surface = get_node( &scene, "Plane".to_string() ).unwrap();
-    let surface_material = setup_surface( gl, &renderer, surface );
+    let surface_material = setup_surface( surface );
 
     let camera = setup_camera( &scene, &canvas );
 
     let ui_state = get_ui_state().unwrap();
+
+    // let skybox = None;
 
     let mut configurator = Configurator
     {
@@ -110,7 +114,7 @@ impl Configurator
       renderer,
       camera,
       ibl,
-      skybox : None,
+      skybox,
       surface_material,
       scene,
       rings,
@@ -123,7 +127,7 @@ impl Configurator
     Ok( configurator )
   }
 
-  pub fn update_gem_color( &self, gl : &GL )
+  pub fn update_gem_color( &self )
   {
     match self.ui_state.gem.as_str()
     {
@@ -142,13 +146,13 @@ impl Configurator
     }
   }
 
-  pub fn update_metal_color( &self, gl : &GL )
+  pub fn update_metal_color( &self )
   {
     match self.ui_state.metal.as_str()
     {
-      "silver" => self.set_metal_color( &gl, F32x3::from_array( [ 0.753, 0.753, 0.753 ] ) ),
-      "copper" => self.set_metal_color( &gl, F32x3::from_array( [ 1.0, 0.4, 0.2 ] ) ),
-      "gold" => self.set_metal_color( &gl, F32x3::from_array( [ 1.0, 0.65, 0.02 ] ) ),
+      "silver" => self.set_metal_color( F32x3::from_array( [ 0.753, 0.753, 0.753 ] ) ),
+      "copper" => self.set_metal_color( F32x3::from_array( [ 1.0, 0.4, 0.2 ] ) ),
+      "gold" => self.set_metal_color( F32x3::from_array( [ 1.0, 0.65, 0.02 ] ) ),
       _ => ()
     }
   }
@@ -174,6 +178,7 @@ impl Configurator
         }
         let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< GemMaterial >( material.borrow_mut() );
         material.color = color;
+        material.need_update = true;
       }
       self.renderer.borrow().update_material_uniforms( gl, &material, self.rings.current_gem.clone() );
     }
@@ -182,7 +187,6 @@ impl Configurator
   pub fn set_metal_color
   (
     &self,
-    gl : &GL,
     color : F32x3
   )
   {
@@ -224,6 +228,7 @@ impl Configurator
               material.base_color_factor.0[ i ] = color.0[ i ];
             }
             material.base_color_factor.0[ 3 ] = 1.0;
+            material.need_update = true;
           }
           self.renderer.borrow().update_material_uniforms( gl, &material, node.clone() );
         }
@@ -248,6 +253,8 @@ impl Configurator
       renderer_mut.set_clear_color( F32x3::splat( 1.0 ) );
     }
 
+    renderer_mut.set_bloom_radius( 0.05 );
+    renderer_mut.set_bloom_strength( 1.5 );
     renderer_mut.set_exposure( 1.0 );
     renderer_mut.set_use_emission( true );
   }
@@ -304,7 +311,8 @@ impl Configurator
         continue;
       }
       {
-        let material = renderer::webgl::helpers::cast_unchecked_material_to_ref::< PBRMaterial >( self.surface_material.borrow() );
+        let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >( self.surface_material.borrow_mut() );
+        material.need_update = true;
         light_maps.push( material.light_map.clone().unwrap() );
       }
       self.renderer.borrow().update_material_uniforms( &gl, &self.surface_material, node.clone() );
@@ -323,8 +331,6 @@ impl Configurator
 
 fn setup_surface
 (
-  gl : &GL,
-  renderer : &Rc< RefCell< Renderer > >,
   surface : Rc< RefCell< Node > >
 )
 -> Rc< RefCell< Box< dyn Material > > >
@@ -353,7 +359,8 @@ fn setup_surface
     material.roughness_factor = 1.0;
     material.specular_factor = Some( 0.0 );
     material.metallic_factor = 0.0;
-    material._need_use_ibl = false;
+    material.need_use_ibl = false;
+    material.need_update = true;
   }
   renderer.borrow().update_material_uniforms( gl, &surface_material,surface.clone() );
 

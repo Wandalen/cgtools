@@ -70,7 +70,9 @@ mod private
     pub fragment_defines : FxHashMap< Box< str >, String >,
 
     /// Returns answer need use IBL for current material instance or not
-    pub _need_use_ibl : bool
+    pub need_use_ibl : bool,
+    /// Signal for updating material uniforms
+    pub need_update : bool
   }
 
   impl PBRMaterial
@@ -204,10 +206,16 @@ mod private
       self.id
     }
 
-    /// Returns answer need use IBL for current material instance or not
-    fn need_use_ibl( &self ) -> bool
+    /// Signal for updating material uniforms
+    fn is_need_update( &self ) -> bool
     {
-      self.can_use_ibl() && self._need_use_ibl
+      self.need_update
+    }
+
+    /// Returns answer need use IBL for current material instance or not
+    fn is_need_use_ibl( &self ) -> bool
+    {
+      self.can_use_ibl() && self.need_use_ibl
     }
 
     /// Can or not use this material IBL
@@ -429,7 +437,8 @@ mod private
         light_map : self.light_map.clone(),
         vertex_defines : self.vertex_defines.clone(),
         fragment_defines : self.fragment_defines.clone(),
-        _need_use_ibl : self._need_use_ibl
+        need_use_ibl : self.need_use_ibl,
+        need_update : self.need_update
       }
     }
   }
@@ -468,7 +477,7 @@ mod private
       let vertex_defines = FxHashMap::default();
       let fragment_defines = FxHashMap::default();
 
-      let _need_use_ibl = true;
+      let need_use_ibl = true;
 
       return Self
       {
@@ -494,7 +503,8 @@ mod private
         light_map,
         vertex_defines,
         fragment_defines,
-        _need_use_ibl
+        need_use_ibl,
+        need_update : true
       };
     }
   }
