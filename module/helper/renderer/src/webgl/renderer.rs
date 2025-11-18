@@ -644,21 +644,6 @@ mod private
       self.framebuffer_ctx.main_texture.clone()
     }
 
-    /// Updates [`Primitive`]'s material uniform for related [`ProgramInfo`]
-    pub fn update_material_uniforms( &self, gl : &GL, material : &Rc< RefCell< Box< dyn Material > > >, node : Rc< RefCell< Node > > )
-    {
-      let material = material.borrow();
-      let program_id = format!( "{}{}", material.get_id(), material.get_defines_str() );
-      for ( id, program_info ) in &self.programs
-      {
-        if *id == program_id
-        {
-          program_info.bind( gl );
-          let _ = material.upload( gl, node.clone(), program_info.get_locations() );
-        }
-      }
-    }
-
     /// Draw equirectangular skybox
     pub fn draw_skybox
     (
@@ -879,7 +864,7 @@ mod private
 
             if material.is_need_update() && program_cached
             {
-              let _ = material.upload( gl, program_info.get_locations() );
+              let _ = material.upload( gl, node.clone(), program_info.get_locations() );
             }
 
             node.borrow().upload( gl, locations );

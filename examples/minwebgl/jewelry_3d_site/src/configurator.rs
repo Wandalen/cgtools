@@ -5,7 +5,6 @@ use gl::
 {
   GL,
   F32x3,
-  F32x4,
   WebglError
 };
 use std::collections::HashSet;
@@ -93,10 +92,7 @@ impl Configurator
     scene.borrow_mut().add( rings.current_ring.clone() );
     scene.borrow_mut().update_world_matrix();
 
-    let mut renderer = Renderer::new( gl, canvas.width(), canvas.height(), 4 )?;
-    renderer.set_use_emission( true ); 
-    renderer.set_bloom_strength( 10.0 );
-    renderer.set_bloom_radius( 0.1 );
+    let renderer = Renderer::new( gl, canvas.width(), canvas.height(), 4 )?;
     let renderer = Rc::new( RefCell::new( renderer ) );
 
     let surface = get_node( &scene, "Plane".to_string() ).unwrap();
@@ -131,17 +127,17 @@ impl Configurator
   {
     match self.ui_state.gem.as_str()
     {
-      "white" => self.set_gem_color( &gl, F32x3::from_array( [ 1.0, 1.0, 1.0 ] ) ),
-      "black" => self.set_gem_color( &gl, F32x3::from_array( [ 0.1, 0.1, 0.1 ] ) ),
-      "red" => self.set_gem_color( &gl, F32x3::from_array( [ 1.0, 0.0, 0.0 ] ) ),
-      "orange" => self.set_gem_color( &gl, F32x3::from_array( [ 1.0, 0.5, 0.0 ] ) ),
-      "yellow" => self.set_gem_color( &gl, F32x3::from_array( [ 1.0, 1.0, 0.0 ] ) ),
-      "green" => self.set_gem_color( &gl, F32x3::from_array( [ 0.0, 1.0, 0.0 ] ) ),
-      "turquoise" => self.set_gem_color( &gl, F32x3::from_array( [ 0.25, 0.88, 0.82 ] ) ),
-      "light_blue" => self.set_gem_color( &gl, F32x3::from_array( [ 0.53, 0.81, 0.92 ] ) ),
-      "blue" => self.set_gem_color( &gl, F32x3::from_array( [ 0.0, 0.0, 1.0 ] ) ),
-      "violet" => self.set_gem_color( &gl, F32x3::from_array( [ 0.5, 0.0, 0.5 ] ) ),
-      "pink" => self.set_gem_color( &gl, F32x3::from_array( [ 1.0, 0.41, 0.71 ] ) ),
+      "white" => self.set_gem_color( F32x3::from_array( [ 1.0, 1.0, 1.0 ] ) ),
+      "black" => self.set_gem_color( F32x3::from_array( [ 0.1, 0.1, 0.1 ] ) ),
+      "red" => self.set_gem_color( F32x3::from_array( [ 1.0, 0.0, 0.0 ] ) ),
+      "orange" => self.set_gem_color( F32x3::from_array( [ 1.0, 0.5, 0.0 ] ) ),
+      "yellow" => self.set_gem_color( F32x3::from_array( [ 1.0, 1.0, 0.0 ] ) ),
+      "green" => self.set_gem_color( F32x3::from_array( [ 0.0, 1.0, 0.0 ] ) ),
+      "turquoise" => self.set_gem_color( F32x3::from_array( [ 0.25, 0.88, 0.82 ] ) ),
+      "light_blue" => self.set_gem_color( F32x3::from_array( [ 0.53, 0.81, 0.92 ] ) ),
+      "blue" => self.set_gem_color( F32x3::from_array( [ 0.0, 0.0, 1.0 ] ) ),
+      "violet" => self.set_gem_color( F32x3::from_array( [ 0.5, 0.0, 0.5 ] ) ),
+      "pink" => self.set_gem_color( F32x3::from_array( [ 1.0, 0.41, 0.71 ] ) ),
       _ => ()
     }
   }
@@ -157,7 +153,7 @@ impl Configurator
     }
   }
 
-  pub fn set_gem_color( &self, gl : &GL, color : F32x3 )
+  pub fn set_gem_color( &self, color : F32x3 )
   {
     let Object3D::Mesh( mesh ) = &self.rings.current_gem.borrow().object
     else
@@ -180,7 +176,6 @@ impl Configurator
         material.color = color;
         material.need_update = true;
       }
-      self.renderer.borrow().update_material_uniforms( gl, &material, self.rings.current_gem.clone() );
     }
   }
 
@@ -230,7 +225,6 @@ impl Configurator
             material.base_color_factor.0[ 3 ] = 1.0;
             material.need_update = true;
           }
-          self.renderer.borrow().update_material_uniforms( gl, &material, node.clone() );
         }
 
         Ok( () )
@@ -253,10 +247,9 @@ impl Configurator
       renderer_mut.set_clear_color( F32x3::splat( 1.0 ) );
     }
 
-    renderer_mut.set_bloom_radius( 0.05 );
-    renderer_mut.set_bloom_strength( 1.5 );
-    renderer_mut.set_exposure( 1.0 );
-    renderer_mut.set_use_emission( true );
+    renderer_mut.set_use_emission( true ); 
+    renderer_mut.set_bloom_strength( 10.0 );
+    renderer_mut.set_bloom_radius( 0.1 );
   }
 
   fn setup_light( &mut self, gl : &GL )
@@ -300,8 +293,8 @@ impl Configurator
       remove_node_from_scene( &self.scene, &self.rings.current_ring );
       self.rings.current_ring = new_ring.clone();
       self.rings.current_gem = new_gem.clone();
-      self.set_gem_color( &gl, F32x3::from_array( [ 1.0, 1.0, 1.0 ] ) );
-      self.set_metal_color( &gl, F32x3::from_array( [ 0.753, 0.753, 0.753 ] ) );
+      self.set_gem_color( F32x3::from_array( [ 1.0, 1.0, 1.0 ] ) );
+      self.set_metal_color( F32x3::from_array( [ 0.753, 0.753, 0.753 ] ) );
       self.scene.borrow_mut().add( self.rings.current_ring.clone() );
       self.scene.borrow_mut().update_world_matrix();
 
@@ -315,7 +308,6 @@ impl Configurator
         material.need_update = true;
         light_maps.push( material.light_map.clone().unwrap() );
       }
-      self.renderer.borrow().update_material_uniforms( &gl, &self.surface_material, node.clone() );
     }
     light_maps.reverse();
 
@@ -362,7 +354,6 @@ fn setup_surface
     material.need_use_ibl = false;
     material.need_update = true;
   }
-  renderer.borrow().update_material_uniforms( gl, &surface_material,surface.clone() );
 
   surface_material
 }

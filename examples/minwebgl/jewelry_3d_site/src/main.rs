@@ -62,7 +62,6 @@ fn handle_camera_position( configurator : &Configurator )
     }
     material.need_update = true;
   }
-  configurator.renderer.borrow().update_material_uniforms( &gl, &configurator.surface_material, configurator.rings.current_ring.clone() );
 }
 
 fn handle_resize
@@ -124,7 +123,6 @@ fn handle_ui_change( configurator : &mut Configurator )
             material.light_map = Some( configurator.rings.light_maps[ ui_state.ring as usize ].clone() );
             material.need_update = true;
           }
-          configurator.renderer.borrow().update_material_uniforms( &gl, &configurator.surface_material, new_ring.clone() );
         }
       }
 
