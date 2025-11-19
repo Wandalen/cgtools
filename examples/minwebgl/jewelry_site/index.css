@@ -758,6 +758,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 
 .footer--container .gem--menu li.active::after {
   content: "";
+  top: 20px;
   width: 70px;
   height: 70px;
   border-radius: 50px;
@@ -770,7 +771,14 @@ table { border-collapse: collapse; border-spacing: 0; }
   opacity: 1;
 }
 
-.footer--container .close-gems { margin-top: 5px; }
+.footer--container .close-gems {
+  margin-top: 10px;
+}
+
+.footer--container li.close-gems.active::after {
+  transform: translate(-23px, 0%);
+}
+
 
 .footer--container .materials--menu {
   position: absolute;
@@ -825,6 +833,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 
 .footer--container .materials--menu li.active::after {
   content: "";
+  top: 20px;
   width: 70px;
   height: 70px;
   border-radius: 50px;
@@ -837,7 +846,13 @@ table { border-collapse: collapse; border-spacing: 0; }
   opacity: 1;
 }
 
-.footer--container .close-materials { margin-top: 5px; }
+.footer--container .close-materials {
+  margin-top: 10px;
+}
+
+.footer--container li.close-materials.active::after {
+  transform: translate(-23px, 0%);
+}
 
 .footer--container .rings--menu {
   position: absolute;
@@ -905,7 +920,11 @@ table { border-collapse: collapse; border-spacing: 0; }
 }
 
 .footer--container .close-rings {
-  margin-top: 5px;
+  margin-top: 0px;
+}
+
+.footer--container li.close-rings.active::after {
+  transform: translate(-23px, 0px);
 }
 
 .header--container {
