@@ -45,6 +45,10 @@ table { border-collapse: collapse; border-spacing: 0; }
   filter: invert(1);
 }
 
+.night--mode--filter img {
+  filter: invert(1);
+}
+
 /* -- MAIN PAGE -- */
 
 /* LOADER */
@@ -597,11 +601,11 @@ table { border-collapse: collapse; border-spacing: 0; }
     width: 100%;
     align-content: center;
     top: 5%;
-	align-items: center;
+	  align-items: center;
     justify-content: space-between;
     position: fixed;
     z-index: 3;
-    pointer-events: none;
+    /* pointer-events: none; */
 	.customize--title{
 		margin-left: 5%;
 		margin-top: -8px;
@@ -651,6 +655,18 @@ table { border-collapse: collapse; border-spacing: 0; }
 }
 
 /* -- CONFIGURATOR -- */
+
+svg.night--mode--2 {
+  path{
+    transition: all .4s ease-in-out;
+  }
+  &:hover{
+    color: #000000;
+    path{
+      stroke: #000000;
+    }
+  }
+}
 
 /* Footer */
 .footer--container {
