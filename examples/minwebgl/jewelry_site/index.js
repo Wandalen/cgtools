@@ -14,7 +14,6 @@ async function setupMainPage()
   const camView2 = document.querySelector('.cam-view-2')
   const camView3 = document.querySelector('.cam-view-3')
   const emotionsImage = document.querySelector('.emotions--image')
-  // const loaderElement = document.querySelector('.loader')
 
   const previewContainer = document.querySelector(".preview--image");
   const exitContainer = document.querySelector('.exit--container')
@@ -30,21 +29,17 @@ async function setupMainPage()
   const materialsMenu = document.querySelector('.materials--menu')
   const ringsMenu = document.querySelector('.rings--menu')
 
-  // importer.addEventListener("onProgress", (ev) => {
-  //     const progressRatio = (ev.loaded / ev.total)
-  //     document.querySelector('.progress')?.setAttribute('style',`transform: scaleX(${progressRatio})`)
-  // })
-
-  window.addEventListener("load", (ev) => {
-    if ( firstLoad )
+  window.addEventListener
+  (
+    "load",
+    ( ev ) =>
     {
-      introAnimation()
+      if ( firstLoad )
+      {
+        introAnimation()
+      }
     }
-    // else
-    // {
-    //   gsap.to('.loader', {x: '100%', duration: 0.8, ease: "power4.inOut", delay: 1})
-    // }
-  })
+  )
 
   window.scrollTo(0,0)
 
@@ -53,7 +48,6 @@ async function setupMainPage()
     firstLoad = false
     const introTL = gsap.timeline()
     introTL
-    // .to( '.loader', { x: '100%', duration : 0.8, ease : "power4.inOut", delay : 1 } )
     .fromTo( position, { x : 3, y : -0.8, z : 1.2 }, { x : 1.28, y : -1.7, z : 5.86, duration : 4 }, '-=0.8' )
     .fromTo( target, { x : 2.5, y : -0.07, z : -0.1 }, { x : 0.91, y: 0.03, z : -0.25, duration : 4 }, '-=4' )
     .fromTo( '.header--container', { opacity : 0, y : '-100%' }, {opacity : 1, y : '0%', ease : "power1.inOut", duration : 0.8 }, '-=1' )
@@ -80,48 +74,6 @@ async function setupMainPage()
     (
       target, { x : -0.78, y : -0.03, z : -0.12, scrollTrigger : { trigger : ".cam-view-2",  start : "top bottom", end : "top top", scrub : true, immediateRender : false } }
     )
-    // .to
-    // (
-    //   ring.rotation,
-    //   {
-    //     x : ( ringModel == 1 ) ? 0 : -Math.PI / 3, y : ( ringModel == 1 ) ? 0 : -0.92, z : ( ringModel == 1 ) ? Math.PI / 2 : 0,
-    //     scrollTrigger : { trigger : ".cam-view-2",  start : "top bottom", end : "top top", scrub : true, immediateRender : false }
-    //   }
-    // )
-    // .fromTo
-    // (
-    //   colorLerpValue,
-    //   { x : 0 },
-    //   {
-    //     x : 1,
-    //     scrollTrigger : { trigger : ".cam-view-2",  start : "top bottom", end : "top top", scrub : true, immediateRender : false },
-    //     onUpdate :
-    //     function()
-    //     {
-    //       // if( !usingCustomColors )
-    //       // {
-    //       //   silver.material.color.lerpColors( new Color( 0xfefefe ).convertSRGBToLinear(), new Color( 0xd28b8b ).convertSRGBToLinear(), colorLerpValue.x )
-    //       //   gold.material.color.lerpColors( new Color( 0xe2bf7f ).convertSRGBToLinear(), new Color( 0xd28b8b ).convertSRGBToLinear(), colorLerpValue.x )
-    //       //   for ( const o of diamondObjects )
-    //       //   {
-    //       //     o.material.color.lerpColors(new Color( 0xffffff ).convertSRGBToLinear(), new Color( 0x39cffe ).convertSRGBToLinear(), colorLerpValue.x )
-    //       //   }
-    //       // }
-    //     }
-    //   }
-    // )
-
-    // .to
-    // (
-    //   '.hero--image',
-    //   {
-    //     opacity: 0,
-    //     y : '70%',
-    //     xPercent : '-100',
-    //     scrollTrigger: { trigger: ".cam-view-2", start: "top bottom", end: "top top", scrub : true, immediateRender : false }
-    //   }
-    // )
-
     .to
     (
       '.hero--scroller',
@@ -145,12 +97,6 @@ async function setupMainPage()
         opacity : 0.1, ease : "power4.inOut", scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : 'top top', scrub : true, immediateRender : false }
       }
     )
-    // .fromTo
-    // (
-    //   '.forever--image',
-    //   { opacity : 0, x : '200%' },
-    //   { opacity : 1, x : '72%', ease : "power4.inOut", scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : 'top top', scrub : true, immediateRender : false } }
-    // )
     .fromTo
     (
       '.forever--container',
@@ -173,34 +119,6 @@ async function setupMainPage()
       target,
       { x : -0.01, y : 0.9, z : 0.07, scrollTrigger : { trigger : ".cam-view-3",  start : "top bottom", end : "top top", scrub : true, immediateRender : false } }
     )
-    // .to
-    // (
-    //   ring.rotation,
-    //   {
-    //     x : ( ringModel == 1 ) ? 0 : 0.92 , y : ( ringModel == 1 ) ? 0 : 0.92, z : ( ringModel == 1 ) ? -Math.PI / 2 : Math.PI / 3,
-    //     scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : "top top", scrub : true, immediateRender : false }
-    //   }
-    // )
-    // .fromTo
-    // (
-    //   colorLerpValue2,
-    //   { x : 0 },
-    //   {
-    //     x : 1, scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : "top top", scrub : true, immediateRender : false },
-    //     onUpdate : function()
-    //     {
-    //       // if( !usingCustomColors )
-    //       // {
-    //       //   silver.material.color.lerpColors( new Color( 0xd28b8b ).convertSRGBToLinear(), new Color( 0xf7c478 ).convertSRGBToLinear(), colorLerpValue2.x )
-    //       //   gold.material.color.lerpColors( new Color( 0xd28b8b ).convertSRGBToLinear(), new Color( 0xf7c478 ).convertSRGBToLinear(), colorLerpValue2.x )
-    //       //   for ( const o of diamondObjects )
-    //       //   {
-    //       //     o.material.color.lerpColors( new Color( 0x39cffe ).convertSRGBToLinear(), new Color( 0xf70db1 ).convertSRGBToLinear(), colorLerpValue2.x )
-    //       //   }
-    //       // }
-    //     }
-    //   }
-    // )
     .to
     (
       '.forever--container',
@@ -251,14 +169,6 @@ async function setupMainPage()
         scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : 'top top', scrub : true, immediateRender : false }
       }
     )
-    // .to
-    // (
-    //   '.side-bar .unique',
-    //   {
-    //     opacity : 1, scale : 1.5, ease : "power4.inOut", duration : 2,
-    //     scrollTrigger : { trigger : ".cam-view-1", start : "top bottom", end : 'top top', scrub : true, immediateRender : false }
-    //   }
-    // )
     .to
     (
       '.side-bar .forever',
@@ -304,7 +214,6 @@ async function setupMainPage()
     tlExplore
     .to( position, { x : -0.17, y : -0.25, z : 8.5, duration : 2.5 } )
     .to( target, { x : 0, y : 0, z : 0, duration : 2.5 }, '-=2.5' )
-    // .to( ring.rotation, { x : ( ringModel == 1 ) ? -Math.PI / 2 : 0, y : 0, z : ( ringModel == 1 ) ? -Math.PI / 2 : 0, duration : 2.5 }, '-=2.5' )
     .to( '.emotions--content', { opacity : 0, x : '200%', duration : 1.5, ease : "power4.out", onComplete : onCompleteConfigAnimation }, '-=2.5' )
     .to( '.emotions--text-bg', { opacity : 0, x : '200%', duration : 1.5, ease : "power4.out" }, '-=2.5' )
     .to( '.emotions--image', { opacity : 0, y : '100%', duration : 1.5, ease : "power4.out" }, '-=2.5' )
@@ -319,9 +228,6 @@ async function setupMainPage()
     )
     .fromTo( '.footer--menu', { opacity : 0, y : '150%' }, { opacity : 1, y : '0%', duration : 1.5 } )
   }
-
-  // let colorLerpValue = { x : 0 }
-  // let colorLerpValue2 = { x : 0 }
 
   function onCompleteConfigAnimation()
   {
@@ -342,16 +248,6 @@ async function setupMainPage()
     closeConfigGem.style.display = "flex"
     closeConfigRing.style.display = "flex"
     footerContainer.style.display = "flex"
-    // if(camera.controls)
-    //   {
-    //     camera.controls.enabled = true
-    //     camera.controls.autoRotate = true
-    //     camera.controls.minDistance = 5
-    //     camera.controls.maxDistance = 13
-    //     camera.controls.enablePan = false
-    //     camera.controls.screenSpacePanning = false
-    // }
-    // dof.pass!.passObject.enabled = false
   }
 
   document.querySelector( '.button--exit' )?.addEventListener
@@ -380,13 +276,10 @@ async function setupMainPage()
       footerContainer.style.display = "none"
 
       exploreView.style.pointerEvents = "all"
-      // canvasView.style.pointerEvents = "none"
       document.body.style.overflowY = "auto"
       document.body.style.cursor = "auto"
       sidebar.style.display = "block"
       exitConfigAnimation()
-
-      // customScrollingEnabled = true;
     }
   )
 
@@ -396,16 +289,6 @@ async function setupMainPage()
   function exitConfigAnimation()
   {
     let innerLightColor = "#FFFFFF";
-
-    // if ( camera.controls )
-    // {
-    //   camera.controls.enabled = true
-    //   camera.controls.autoRotate = false
-    //   camera.controls.minDistance = 0
-    //   camera.controls.maxDistance = Infinity
-    // }
-
-    // dof.pass!.passObject.enabled = true
 
     gemMenu.classList.remove( 'show' )
     materialsMenu.classList.remove( 'show' )
@@ -417,10 +300,9 @@ async function setupMainPage()
 
     tlExit.to( position, { x : -0.06, y : -1.15, z : 4.42, duration : 1.2, ease : "power4.out" } )
     .to( target, { x : -0.01, y : 0.9, z : 0.07, duration : 1.2, ease : "power4.out" }, '-=1.2' )
-    // .to( ring.rotation, { x : ( ringModel == 1 ) ? 0 : 0.92 , y : ( ringModel == 1 ) ? 0 : 0.92, z : ( ringModel == 1 ) ? -Math.PI / 2 : Math.PI / 3 }, '-=1.2' )
     .to( '.footer--menu', { opacity : 0, y : '150%' }, '-=1.2' )
     .to( '.emotions--content', { opacity : 1, x : '0%', duration : 0.5, ease : "power4.out" }, '-=1.2' )
-    .to( '.emotions--image', { opacity : 1, duration : 0.5, ease : "power4.inOut" }, '-=1.2' )
+    .fromTo( '.emotions--image', { opacity : 0, y : '100%'}, { opacity : 1, y : '50%', duration : 0.5, ease : "power4.inOut" }, '-=1.2' )
     .to(
       document.body,
       {
