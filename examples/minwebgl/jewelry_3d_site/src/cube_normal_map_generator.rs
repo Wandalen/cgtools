@@ -205,10 +205,11 @@ impl CubeNormalMapGenerator
     gl.bind_framebuffer( gl::FRAMEBUFFER , None );
 
     let sampler = Sampler::former()
-    .min_filter( MinFilterMode::Linear )
-    .mag_filter( MagFilterMode::Linear )
-    .wrap_s( WrappingMode::Repeat )
-    .wrap_t( WrappingMode::Repeat )
+    .min_filter( MinFilterMode::Nearest )
+    .mag_filter( MagFilterMode::Nearest )
+    .wrap_r( WrappingMode::Repeat )
+    .wrap_s( WrappingMode::ClampToEdge )
+    .wrap_t( WrappingMode::ClampToEdge )
     .end();
 
     let texture = Texture::former()

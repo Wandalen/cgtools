@@ -62,7 +62,7 @@ impl Configurator
     _cube_normal_map_generator.set_texture_size( gl, 512, 512 );
 
     //let ibl = renderer::webgl::loaders::ibl::load( gl, "environment_maps/christmas_photo_studio_07_4k", Some( 0..0 ) ).await;
-    let ibl = renderer::webgl::loaders::ibl::load( gl, "environment_maps/studio", Some( 0..0 ) ).await;
+    let ibl = renderer::webgl::loaders::ibl::load( gl, "environment_maps/studio", Some( 0..9 ) ).await;
     // let skybox = create_texture( gl, "environment_maps/equirectangular_maps/christmas_photo_studio_07.webp" );
     // let ibl = renderer::webgl::loaders::ibl::load( gl, "environment_maps/dancing_hall_4k", Some( 0..0 ) ).await;
     let skybox = create_texture( gl, "environment_maps/equirectangular_maps/dancing_hall.webp" );
@@ -247,7 +247,7 @@ impl Configurator
       renderer_mut.set_clear_color( F32x3::splat( 1.0 ) );
     }
 
-    renderer_mut.set_use_emission( true ); 
+    renderer_mut.set_use_emission( false ); 
     renderer_mut.set_bloom_strength( 5.0 );
     renderer_mut.set_bloom_radius( 0.1 );
   }
@@ -385,7 +385,7 @@ async fn setup_rings
   let mut gems : Vec< Rc< RefCell< Node > > > = vec![];
   let mut filters : Vec< HashSet< String > > = vec![];
 
-  for i in 0..3
+  for i in 0..1
   {
     let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/{i}.glb" ).as_str(), &gl ).await?;
 
@@ -490,10 +490,10 @@ fn setup_camera( scene : &Rc< RefCell< Scene > >, canvas : &web_sys::HtmlCanvasE
 
   let scene_bounding_box = scene.borrow().bounding_box();
 
-  let eye = gl::math::F32x3::from( [ 0.0, 0.0, 35.0 ] );
-  let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
+  let eye = gl::math::F32x3::from( [ 0.0, 15.0, 0.0 ] );
+  let up = gl::math::F32x3::from( [ 1.0, 0.0, 0.0 ] );
 
-  let center = scene_bounding_box.center();
+  let center = scene_bounding_box.center() + gl::math::F32x3::from( [ 0.0, 10.0, 0.0 ] );
 
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();

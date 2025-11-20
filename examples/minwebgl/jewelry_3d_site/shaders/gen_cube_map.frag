@@ -11,7 +11,8 @@ out vec4 frag_color;
 
 void main()
 {
-  vec3 normal = vNormal * 0.5 + 0.5;
+  vec3 normal = normalize(vNormal);
+  normal = normal * 0.5 + 0.5;
   // We store normal in range from 0.0 to 1.0 in rgb channels
   // And store the normalized distance from the origin to the surface in alpha channel
   frag_color = vec4( normal, length( vPosition ) / maxDistance );

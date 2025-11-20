@@ -19,6 +19,7 @@ uniform samplerCube envMap;
 uniform samplerCube cubeNormalMap;
 
 uniform mat4x4 worldMatrix;
+uniform mat4x4 viewMatrix;
 uniform mat4x4 inverseWorldMatrix;
 uniform mat4x4 offsetMatrix;
 uniform mat4x4 inverseOffsetMatrix;
@@ -108,7 +109,7 @@ vec2 dirToEquirectUV( vec3 dir )
 vec3 sampleSpecularReflection( vec3 direction )
 {
  // vec3 sample_value = texture( envMap, dirToEquirectUV( direction ) ).rgb;
-  vec3 sample_value = texture( envMap, direction, 0.0 ).xyz;
+  vec3 sample_value = texture( envMap,  direction, 0.0 ).xyz;
   return envMapIntensity * pow( sample_value, vec3( 2.2 ) );
 }
 
@@ -120,15 +121,18 @@ vec3 convertDirLocalToWorld( vec3 direction )
 vec3 sampleEnvFromLocal( vec3 direction )
 {
  // vec3 sample_value = texture( envMap, dirToEquirectUV( convertDirLocalToWorld( direction ) ) ).rgb;
-  vec3 sample_value = texture( envMap, convertDirLocalToWorld( direction ), 0.0 ).rgb;
-  return envMapIntensity * pow( sample_value, vec3( 2.2 ) );
+  vec3 world_dir = convertDirLocalToWorld( direction );
+  world_dir.xz *= -1.0;
+  world_dir = mat3(viewMatrix) * world_dir;
+  vec3 sample_value = texture( envMap, world_dir, 0.0 ).rgb;
+  return envMapIntensity * sample_value;
 }
 
 vec3 SampleSpecularContribution( vec3 direction )
 {
   direction = normalize( direction );
-  direction.x *= -1.;
-  direction.z *= -1.;
+  // direction.x *= -1.;
+  // direction.z *= -1.;
   return sampleEnvFromLocal( direction ).rgb;
 }
 
@@ -298,8 +302,9 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
   attenuationFactor *= ( vec3( 1.0 ) - reflectedAmount );
 
   int c = 0;
+  int v = 5;
 
-  for( int i = 0; i < rayBounces; i++ )
+  for( int i = 0; i < v; i++ )
   {
     // Intersection point on the diamond surface
     vec3 intersectPos = intersectDiamond( rayOrigin, newRayDirection );
@@ -316,36 +321,17 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
     rayOrigin = dirOriginToIntersect * surfaceDistance;
 
     float r = length( rayOrigin - oldOrigin ) / radius * absorptionFactor;
-    attenuationFactor *= exp( -r * ( 1.0 - colorAbsorption ) * 1.0 );
+    attenuationFactor *= exp( -r * 0.1 * 1.0 );
 
 
     // Calculate new rays
     vec3 newReflectedDirection = reflect( newRayDirection, -surfaceNormal );
     vec3 newRefractedDirection = refract( newRayDirection, -surfaceNormal, iorRatioDtoA );
 
-    // vec3 FRefracted = freshel( newRefractedDirection, surfaceNormal, f0, 0.0 );
-    // vec3 FReflected = freshel( newReflectedDirection, -surfaceNormal, f0, criticalAngleCosine );
-
-    // resultColor += lampsShading(surfaceNormal, rayOrigin, resultColor, true );
-    // resultColor *= DIAMOND_COLOR;
-
-    // if( i == RAY_BOUNCES - 1 )
-    // {
-    //   vec3 reflectedAmount = EnvBRDFApprox( dot( newRayDirection, surfaceNormal ), f0, 0.0 );
-    //   resultColor +=  SampleSpecularContribution( newRayDirection ) * DIAMOND_COLOR * attenuationFactor * ( vec3( 1.0 ) - min( vec3( 1.0 ), reflectedAmount ) );
-    //   break;
-    // }
-
-    // if( dot( newRefractedDirection, newRefractedDirection ) > 1e-5 )
-    // {
-    //   vec3 reflectedAmount = EnvBRDFApprox( dot( newRayDirection, surfaceNormal ), f0, 0.0 );
-    //   resultColor +=  SampleSpecularContribution( newRayDirection ) * DIAMOND_COLOR * attenuationFactor * ( vec3( 1.0 ) - min( vec3( 1.0 ), reflectedAmount ) );
-    //   break;
-    // }
 
     if( dot( newRefractedDirection, newRefractedDirection ) < 1e-5 )
     {
-      if ( i == rayBounces - 1 )
+      if ( i == v - 1 )
       {
         vec3 reflectedAmount = EnvBRDFApprox( dot( newRayDirection, surfaceNormal ), f0, 0.0 );
         newRayDirection = normalize( newRayDirection );
@@ -378,14 +364,14 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
         vec3 d1 = newRefractedDirection;
         vec3 d2 = refract( newRayDirection, -surfaceNormal, ( n2 + rainbowDelta ) / n1 );
         vec3 d3 = refract( newRayDirection, -surfaceNormal, ( n2 - rainbowDelta ) / n1 );
-        // vec3 specColor = vec3
-        // (
-        //   SampleSpecularContribution( d2 ).r,
-        //   SampleSpecularContribution( d1 ).g,
-        //   SampleSpecularContribution( d3 ).b
-        // ) * attenuationFactor;
+        vec3 specColor = vec3
+        (
+          SampleSpecularContribution( d2 ).r,
+          SampleSpecularContribution( d1 ).g,
+          SampleSpecularContribution( d3 ).b
+        ) * attenuationFactor;
 
-        vec3 specColor = SampleSpecularContribution( d1 ) * refractedAmount * attenuationFactor;
+        //vec3 specColor = SampleSpecularContribution( d1 ) * refractedAmount * attenuationFactor;
 
         resultColor += specColor;
       }
@@ -434,17 +420,18 @@ void main()
   vec3 brdfReflected = EnvBRDFApprox( dot( reflectedDirection, normal ), f0, 0.0 );
   // Sample color from an environment map
   vec3 reflectionColor = sampleSpecularReflection( reflectedDirection );
+  reflectionColor = vec3(0.0);
   // The actual diamond calculation
-  //vec3 refractionColor = getRefractionColor( vWorldPosition, viewDirection, normal, 2.4 );
-  vec3 refractionColor = vec3
-  (
-    getRefractionColor( vWorldPosition, viewDirection, normal, 2.408 ).r,
-    getRefractionColor( vWorldPosition, viewDirection, normal, 2.424 ).g,
-    getRefractionColor( vWorldPosition, viewDirection, normal, 2.432 ).b
-  );
+  vec3 refractionColor = getRefractionColor( vWorldPosition, viewDirection, normal, 2.4 );
+  // vec3 refractionColor = vec3
+  // (
+  //   getRefractionColor( vWorldPosition, viewDirection, normal, 2.408 ).r,
+  //   getRefractionColor( vWorldPosition, viewDirection, normal, 2.424 ).g,
+  //   getRefractionColor( vWorldPosition, viewDirection, normal, 2.432 ).b
+  // );
 
   vec3 diffuseColor = diamondColor;
-  vec3 colour = diffuseColor * ( refractionColor +  reflectionColor * brdfReflected * 0.5 );
+  vec3 colour = diffuseColor * ( refractionColor +  reflectionColor * brdfReflected );
   //colour = refractionColor;
 
   // vec3 p = ( inverseWorldMatrix * vec4( vWorldPosition, 1.0 ) ).xyz;
@@ -459,9 +446,10 @@ void main()
 
   // Gamma
   //colour = tanh( colour * 8.0 );
+  //colour *= 5.0;
   float alpha = 1.0;
 
-  if (luminosity( colour ) > 25.0 )
+  if (luminosity( colour ) > 15.0 )
   {
     emissive_color = vec4( tanh(colour), alpha );
   }
