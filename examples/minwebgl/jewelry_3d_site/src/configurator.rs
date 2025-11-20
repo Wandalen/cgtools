@@ -370,6 +370,12 @@ pub struct RingsInfo
 
 const DELTA_Y : f32 = -2.0;
 
+fn get_offset_matrix( node : &Rc< RefCell< Node > >, percent : f32 ) -> gl::F32x4x4
+{
+  let bb = node.borrow().bounding_box();
+  gl::math::mat3x3h::translation( - ( bb.center() + ( bb.max - bb.center() ) * percent ) )
+}
+
 async fn setup_rings
 (
   gl : &GL,
@@ -385,7 +391,9 @@ async fn setup_rings
   let mut gems : Vec< Rc< RefCell< Node > > > = vec![];
   let mut filters : Vec< HashSet< String > > = vec![];
 
-  for i in 0..3
+  let mut material_3 = None;
+
+  for i in 0..4
   {
     let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/{i}.glb" ).as_str(), &gl ).await?;
 
@@ -397,6 +405,9 @@ async fn setup_rings
         gem.borrow_mut().set_name( "gem0" );
 
         let gem_clone = gem.borrow().clone_tree();
+
+        // let offset_matrix = get_offset_matrix( &gem_clone, 0.1 ) * gem_clone.borrow().get_world_matrix();
+        // gem_clone.borrow_mut().set_world_matrix( offset_matrix );
         gem_clone.borrow_mut().set_center_to_origin();
         let cube_normal_map_texture = Some( cube_normal_map_generator.generate( gl, &gem_clone ).unwrap() );
         setup_gem_material( &gem, environment_texture, &cube_normal_map_texture );
@@ -458,6 +469,64 @@ async fn setup_rings
         gems.push( gem.clone() );
         rings.push( ring.clone() );
         filters.push( HashSet::from( [ "gem2".to_string() ] ) );
+
+        let metal = get_node( &gltf.scenes[ 0 ], "Object_3".to_string() ).unwrap();
+        let metal_ref = metal.borrow();
+        if let Object3D::Mesh( mesh ) = &metal_ref.object
+        {
+          let primitives = &mesh.borrow().primitives;
+          let primitive = primitives.first().unwrap();
+          let material = primitive.borrow().material.clone();
+          material_3 = Some( material );
+        }
+      },
+      3 =>
+      {
+        let gem = get_node( &gltf.scenes[ 0 ], "Diamond_Round".to_string() ).unwrap();
+        gem.borrow_mut().set_name( "gem3" );
+
+        let gem_clone = gem.borrow().clone_tree();
+        let offset_matrix = get_offset_matrix( &gem_clone, 0.1 ) * gem_clone.borrow().get_world_matrix();
+        gem_clone.borrow_mut().set_world_matrix( offset_matrix );
+        // gem_clone.borrow_mut().set_center_to_origin();
+        let cube_normal_map_texture = Some( cube_normal_map_generator.generate( gl, &gem_clone ).unwrap() );
+
+        let ring = get_node( &gltf.scenes[ 0 ], "Sketchfab_model".to_string() ).unwrap();
+        ring.borrow_mut().set_name( "ring3" );
+        // let mut translation = ring.borrow_mut().get_translation();
+        // translation.0[ 1 ] += 11.0;
+        // ring.borrow_mut().set_translation( translation );
+
+        // let mut translation = ring.borrow_mut().get_translation();
+        // translation.0[ 1 ] += DELTA_Y;
+        // ring.borrow_mut().set_translation( translation );
+
+        // ring.borrow_mut().set_scale( F32x3::splat( 5.0 ) );
+        gems.push( gem.clone() );
+        rings.push( ring.clone() );
+        filters.push( HashSet::from( [ "gem3".to_string() ] ) );
+
+        let _ = ring.borrow().traverse
+        (
+          &mut
+          |
+            node : Rc< RefCell< Node > >
+          |
+          -> Result< (), gl::WebglError >
+          {
+            if let Object3D::Mesh( mesh ) = &node.borrow().object
+            {
+              for primitive in &mesh.borrow().primitives
+              {
+                primitive.borrow_mut().material = Rc::new( RefCell::new( material_3.clone().unwrap().borrow().dyn_clone() ) );
+              }
+            }
+
+            Ok( () )
+          }
+        );
+
+        setup_gem_material( &gem, environment_texture, &cube_normal_map_texture );
       },
       _ => ()
     }
