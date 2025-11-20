@@ -43,6 +43,12 @@ const GEM_VERTEX_SHADER : &'static str = include_str!( "../shaders/gem.vert" );
 /// The source code for the gem fragment shader.
 const GEM_FRAGMENT_SHADER : &'static str = include_str!( "../shaders/gem.frag" );
 
+fn get_offset_matrix( node : &Rc< RefCell< Node > >, percent : f32 ) -> gl::F32x4x4
+{
+  let bb = node.borrow().bounding_box();
+  gl::math::mat3x3h::translation( - ( bb.center() + ( bb.max - bb.center() ) * percent ) )
+}
+
 /// Represents the visual properties of a gem surface.
 #[ derive( Former, Debug ) ]
 pub struct GemMaterial
@@ -162,9 +168,8 @@ impl Material for GemMaterial
     upload_array( "boostFactors", self.boost_factors.0.as_slice() )?;
     upload_array( "colorAbsorption", self.color_absorption.0.as_slice() )?;
 
-    let node = node.borrow();
-    let offset_mat = gl::math::mat3x3h::translation( -node.bounding_box().center() );
-    //offset_mat = offset_mat * node.get_world_matrix();
+    let offset_mat = gl::math::mat3x3h::translation( -node.borrow().bounding_box().center() );
+    // let offset_mat = get_offset_matrix( &node, 0.3 );
 
     gl::uniform::matrix_upload( gl, locations.get( "offsetMatrix" ).unwrap().clone(), offset_mat.raw_slice(), true )?;
     gl::uniform::matrix_upload( gl, locations.get( "inverseOffsetMatrix" ).unwrap().clone(), offset_mat.inverse().unwrap().raw_slice(), true )?;
@@ -232,7 +237,7 @@ impl Default for GemMaterial
     return Self
     {
       id : Uuid::new_v4(),
-      ray_bounces : 7,
+      ray_bounces : 5,
       color : gl::F32x3::from_array( [ 0.98, 0.95, 0.9 ] ),
       boost_factors : F32x3::from_array( [ 0.8920, 0.8920, 0.9860 ] ),
       env_map_intensity : 0.7,

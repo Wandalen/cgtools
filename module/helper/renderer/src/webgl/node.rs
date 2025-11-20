@@ -388,12 +388,7 @@ mod private
     {
       self.set_world_matrix
       (
-        gl::F32x4x4::from_scale_rotation_translation
-        (
-          gl::F32x3::splat( 1.0 ),
-          gl::QuatF32::from_angle_y( 0.0 ),
-          -self.bounding_box().center()
-        )
+        gl::math::mat3x3h::translation( -self.bounding_box().center() )
         *
         self.get_world_matrix()
       );
