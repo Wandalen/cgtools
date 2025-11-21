@@ -122,10 +122,10 @@ vec3 sampleEnvFromLocal( vec3 direction )
 {
  // vec3 sample_value = texture( envMap, dirToEquirectUV( convertDirLocalToWorld( direction ) ) ).rgb;
   vec3 world_dir = convertDirLocalToWorld( direction );
-  world_dir.xz *= -1.0;
   world_dir = mat3(viewMatrix) * world_dir;
+  world_dir.xz *= -1.0;
   vec3 sample_value = texture( envMap, world_dir, 0.0 ).rgb;
-  return envMapIntensity * sample_value;
+  return 1.0 * sample_value;
 }
 
 vec3 SampleSpecularContribution( vec3 direction )
@@ -362,8 +362,8 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
       // else
       {
         vec3 d1 = newRefractedDirection;
-        vec3 d2 = refract( newRayDirection, -surfaceNormal, ( n2 + rainbowDelta ) / n1 );
-        vec3 d3 = refract( newRayDirection, -surfaceNormal, ( n2 - rainbowDelta ) / n1 );
+        vec3 d2 = refract( newRayDirection, -surfaceNormal, ( n2 + 0.02 ) / n1 );
+        vec3 d3 = refract( newRayDirection, -surfaceNormal, ( n2 - 0.02 ) / n1 );
         vec3 specColor = vec3
         (
           SampleSpecularContribution( d2 ).r,
