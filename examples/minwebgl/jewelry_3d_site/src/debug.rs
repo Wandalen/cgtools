@@ -138,12 +138,6 @@ fn setup_camera( canvas : &web_sys::HtmlCanvasElement ) -> Camera
   camera
 }
 
-fn get_offset_matrix( node : &std::rc::Rc< std::cell::RefCell< renderer::webgl::Node > >, percent : f32 ) -> gl::F32x4x4
-{
-  let bb = node.borrow().bounding_box();
-  gl::math::mat3x3h::translation( - ( bb.center() + ( bb.max - bb.center() ) * percent ) )
-}
-
 pub async fn debug_run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
@@ -164,8 +158,6 @@ pub async fn debug_run() -> Result< (), gl::WebglError >
 
   let camera = setup_camera( &canvas );
 
-  // let offset_matrix = get_offset_matrix( &gem, 0.3 ) * gem.borrow().get_world_matrix();
-  // gem.borrow_mut().set_world_matrix( offset_matrix );
   gem.borrow_mut().set_center_to_origin();
 
   let generator = CubeNormalMapGenerator::new( &gl ).unwrap();

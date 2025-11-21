@@ -370,12 +370,6 @@ pub struct RingsInfo
 
 const DELTA_Y : f32 = -2.0;
 
-fn get_offset_matrix( node : &Rc< RefCell< Node > >, percent : f32 ) -> gl::F32x4x4
-{
-  let bb = node.borrow().bounding_box();
-  gl::math::mat3x3h::translation( - ( bb.center() + ( bb.max - bb.center() ) * percent ) )
-}
-
 async fn setup_rings
 (
   gl : &GL,
@@ -406,8 +400,6 @@ async fn setup_rings
 
         let gem_clone = gem.borrow().clone_tree();
 
-        // let offset_matrix = get_offset_matrix( &gem_clone, 0.1 ) * gem_clone.borrow().get_world_matrix();
-        // gem_clone.borrow_mut().set_world_matrix( offset_matrix );
         gem_clone.borrow_mut().set_center_to_origin();
         let cube_normal_map_texture = Some( cube_normal_map_generator.generate( gl, &gem_clone ).unwrap() );
         setup_gem_material( &gem, environment_texture, &cube_normal_map_texture );
@@ -486,22 +478,12 @@ async fn setup_rings
         gem.borrow_mut().set_name( "gem3" );
 
         let gem_clone = gem.borrow().clone_tree();
-        let offset_matrix = get_offset_matrix( &gem_clone, 0.1 ) * gem_clone.borrow().get_world_matrix();
-        gem_clone.borrow_mut().set_world_matrix( offset_matrix );
-        // gem_clone.borrow_mut().set_center_to_origin();
+        gem_clone.borrow_mut().set_center_to_origin();
         let cube_normal_map_texture = Some( cube_normal_map_generator.generate( gl, &gem_clone ).unwrap() );
 
         let ring = get_node( &gltf.scenes[ 0 ], "Sketchfab_model".to_string() ).unwrap();
         ring.borrow_mut().set_name( "ring3" );
-        // let mut translation = ring.borrow_mut().get_translation();
-        // translation.0[ 1 ] += 11.0;
-        // ring.borrow_mut().set_translation( translation );
 
-        // let mut translation = ring.borrow_mut().get_translation();
-        // translation.0[ 1 ] += DELTA_Y;
-        // ring.borrow_mut().set_translation( translation );
-
-        // ring.borrow_mut().set_scale( F32x3::splat( 5.0 ) );
         gems.push( gem.clone() );
         rings.push( ring.clone() );
         filters.push( HashSet::from( [ "gem3".to_string() ] ) );
