@@ -195,6 +195,9 @@ async function setupMainPage()
     }
   )
 
+  outerLightColor = innerLightColor
+  outerDarkColor = innerDarkColor
+
   document.querySelector( '.btn-customize' )?.addEventListener
   (
     'click',
@@ -208,28 +211,18 @@ async function setupMainPage()
       document.body.style.cursor = "grab"
       sidebar.style.display = "none"
       headerContainer.style.display = "none"
-      footerContainer.style.display = "flex"
       configAnimation()
     }
   )
 
-  const tlExplore = gsap.timeline()
-
   function configAnimation()
   {
-    tlExplore
-    .to( '.emotions--content', { opacity : 0, x : '200%', duration : 1.5, ease : "power4.out", onComplete : onCompleteConfigAnimation }, '-=2.5' )
+    nightMode = toggleNightMode( !nightMode )
+
+    gsap.timeline()
+    .to( '.emotions--content', { opacity : 0, x : '200%', duration : 1.5, ease : "power4.out", onComplete : onCompleteConfigAnimation } ) // , '-=2.5'
     .to( '.emotions--text-bg', { opacity : 0, x : '200%', duration : 1.5, ease : "power4.out" }, '-=2.5' )
-    .to( '.emotions--image', { opacity : 0, y : '100%', duration : 1.5, ease : "power4.out" }, '-=2.5' )
-    .to(
-      document.body,
-      {
-        duration: 0.75,
-        "--bg-color-inner" : nightMode ? innerDarkColor : innerLightColor,
-        "--bg-color-outer" : nightMode ? outerDarkColor : outerLightColor
-      },
-      '-=2.5'
-    )
+    .to( '.emotions--image', { opacity : 0, y : '100%', duration : 1.5, ease : "power4.out" }, '-=1.5' )
     .fromTo( '.footer--menu', { opacity : 0, y : '150%' }, { opacity : 1, y : '0%', duration : 1.5 } )
   }
 
@@ -242,8 +235,8 @@ async function setupMainPage()
 
     previewContainer.style.display = "flex"
     exitContainer.style.display = "flex"
-    exitContainer.style.pointerEvents = "auto";
-    nightModeButton2.style.pointerEvents = "auto";
+    exitContainer.style.pointerEvents = "all";
+    nightModeButton2.style.pointerEvents = "all";
     gemMenu.style.display = "flex"
     footerMenu.style.display = "flex"
     materialsMenu.style.display = "flex"
@@ -270,7 +263,7 @@ async function setupMainPage()
       camView3.style.display = "flex"
       headerContainer.style.display = "flex"
       emotionsImage.style.display = "flex"
-      nightModeButton.style.pointerEvents = "auto";
+      nightModeButton.style.pointerEvents = "all";
 
       previewContainer.style.display = "none"
       exitContainer.style.display = "none"
@@ -296,8 +289,6 @@ async function setupMainPage()
     }
   )
 
-  const tlExit = gsap.timeline()
-
   // EXIT EVENT
   function exitConfigAnimation()
   {
@@ -309,25 +300,17 @@ async function setupMainPage()
       document.querySelector( '.footer--menu li.active' )?.classList.remove( 'active' )
     }
 
-    tlExit
-    .to( '.footer--menu', { opacity : 0, y : '150%' }, '-=1.2' )
+    nightMode = toggleNightMode( !nightMode )
+
+    gsap.timeline().to( '.footer--menu', { opacity : 0, y : '150%' } ) // , '-=1.2'
     .to( '.emotions--content', { opacity : 1, x : '0%', duration : 0.5, ease : "power4.out" }, '-=1.2' )
     .fromTo( '.emotions--image', { opacity : 0, y : '100%'}, { opacity : 1, y : '50%', duration : 0.5, ease : "power4.inOut" }, '-=1.2' )
-    .to(
-      document.body,
-      {
-        duration: 0.25,
-        "--bg-color-inner" : nightMode ? innerDarkColor : innerLightColor,
-        "--bg-color-outer" : nightMode ? outerDarkColor : outerLightColor
-      },
-      '-=1.2'
-    )
   }
 
   // NIGHT MODE
-  function toggleNightMode()
+  function toggleNightMode( _nightMode )
   {
-    if ( !nightMode )
+    if ( !_nightMode )
     {
       headerContainer.classList.add( 'night--mode--filter' )
       camView1.classList.add( 'night--mode--filter' )
@@ -345,7 +328,7 @@ async function setupMainPage()
           "--bg-color-outer" : outerDarkColor
         }
       );
-      nightMode = true
+      _nightMode = true
     }
     else
     {
@@ -365,18 +348,20 @@ async function setupMainPage()
           "--bg-color-outer" : outerLightColor
         }
       );
-      nightMode = false
+      _nightMode = false
     }
+
+    return _nightMode
   }
 
   document.querySelector('.night--mode')?.addEventListener
   (
-    'click', () => { toggleNightMode() }
+    'click', () => { nightMode = toggleNightMode( nightMode ) }
   )
 
   document.querySelector('.night--mode--2')?.addEventListener
   (
-    'click', () => { toggleNightMode() }
+    'click', () => { nightMode = toggleNightMode( nightMode ) }
   )
 }
 
