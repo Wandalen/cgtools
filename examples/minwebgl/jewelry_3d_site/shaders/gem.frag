@@ -110,7 +110,7 @@ vec3 sampleSpecularReflection( vec3 direction )
 {
  // vec3 sample_value = texture( envMap, dirToEquirectUV( direction ) ).rgb;
   vec3 sample_value = texture( envMap,  direction, 0.0 ).xyz;
-  return envMapIntensity * pow( sample_value, vec3( 2.2 ) );
+  return envMapIntensity * sample_value;
 }
 
 vec3 convertDirLocalToWorld( vec3 direction )
@@ -420,7 +420,7 @@ void main()
   vec3 brdfReflected = EnvBRDFApprox( dot( reflectedDirection, normal ), f0, 0.0 );
   // Sample color from an environment map
   vec3 reflectionColor = sampleSpecularReflection( reflectedDirection );
-  reflectionColor = vec3(0.0);
+  //reflectionColor = vec3(0.0);
   // The actual diamond calculation
   vec3 refractionColor = getRefractionColor( vWorldPosition, viewDirection, normal, 2.4 );
   // vec3 refractionColor = vec3
@@ -431,7 +431,7 @@ void main()
   // );
 
   vec3 diffuseColor = diamondColor;
-  vec3 colour = diffuseColor * ( refractionColor +  reflectionColor * brdfReflected );
+  vec3 colour = diffuseColor * ( refractionColor * ( vec3( 1.0 - brdfReflected ) ) +  reflectionColor * brdfReflected );
   //colour = refractionColor;
 
   // vec3 p = ( inverseWorldMatrix * vec4( vWorldPosition, 1.0 ) ).xyz;
