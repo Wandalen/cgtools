@@ -2,6 +2,32 @@ let firstLoad = true
 
 // -- MAIN PAGE --
 
+async function replaceSVG( svgPath, selector )
+{
+  let svg = document.querySelector( selector );
+  if ( !svg ) return;
+
+  const response = await fetch( svgPath );
+  const svgText = await response.text();
+
+  const parser = new DOMParser();
+  const newSvgDoc = parser.parseFromString( svgText, 'image/svg+xml' );
+  const newSvg = newSvgDoc.documentElement;
+
+  if ( svg.hasAttribute( 'width' ) )
+  {
+    newSvg.setAttribute('width', svg.getAttribute( 'width' ) );
+  }
+  if ( svg.hasAttribute( 'height' ) )
+  {
+    newSvg.setAttribute( 'height', svg.getAttribute( 'height' ) );
+  }
+
+  svg.classList.forEach( cls => newSvg.classList.add( cls ) );
+
+  svg.outerHTML = newSvg.outerHTML;
+}
+
 async function setupMainPage()
 {
   const exploreView = document.querySelector( '.cam-view-3' )
@@ -34,6 +60,12 @@ async function setupMainPage()
   let outerLightColor = "#DDDDDD";
   let innerDarkColor = "#777777";
   let outerDarkColor = "#000000";
+
+  replaceSVG( "./assets/icons/moon.svg", ".image--moon" )
+  replaceSVG( "./assets/icons/moon.svg", ".image--moon--2" )
+  replaceSVG( "./assets/icons/gem.svg", ".image--gem" )
+  replaceSVG( "./assets/icons/metal.svg", ".image--material" )
+  replaceSVG( "./assets/icons/ring.svg", ".image--ring" )
 
   window.addEventListener
   (

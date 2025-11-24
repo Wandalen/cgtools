@@ -114,7 +114,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 				display: none;
 			}
 			li{
-				padding: 10px 30px;
+				padding: 0px 0px;
 				color: #000000;
 				cursor: pointer;
 				transition: all .4s ease-in-out;
@@ -130,6 +130,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 				}
 				&:hover{
 					color: #000000;
+          transform: scale(1.1);
 					svg{
 						path{
 							stroke: #000000;
@@ -240,12 +241,6 @@ table { border-collapse: collapse; border-spacing: 0; }
 	justify-content: flex-end;
 }
 
-/* .emotions--image{
-  position: absolute;
-  bottom: 0;
-  right: 0;
-} */
-
 .hero--container{
 	display: flex;
 	align-items: center;
@@ -282,11 +277,11 @@ table { border-collapse: collapse; border-spacing: 0; }
 		h1{
 			position: relative;
 			left: -12px;
-			font-family: 'Playfair Display SC', serif;
+			font-family: 'Cardo', serif;
 			font-weight: 400;
 			font-size: 124px;
 			line-height: 87%;
-			letter-spacing: -0.04em;
+			letter-spacing: 0.0em;
 			color: #000000;
 			text-align: right;
 			margin-bottom: 40px;
@@ -311,8 +306,9 @@ table { border-collapse: collapse; border-spacing: 0; }
 			}
 		}
 		.button{
+      padding: 10px 10px;
 			background-color: transparent;
-			width: 155px;
+			width: 180px;
 			height: 60px;
 			border: 1px solid #000000;
 			border-radius: 58px;
@@ -321,7 +317,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 			justify-content: flex-end;
 			font-weight: 200;
 			font-size: 0.9375rem;
-			letter-spacing: -0.04em;
+			/* letter-spacing: -0.04em; */
 			color: #000000;
 			float: right;
 			cursor: pointer;
@@ -368,7 +364,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 		opacity: 0;
 		cursor: pointer;
 		.hero--scroller--text{
-			font-size: 9px;
+			font-size: 12px;
 			color: #000000;
 			letter-spacing: normal;
 			margin-bottom: 8px;
@@ -432,11 +428,11 @@ table { border-collapse: collapse; border-spacing: 0; }
 		h1{
 			position: relative;
 			left: -4px;
-			font-family: 'Playfair Display SC', serif;
+			font-family: 'Cardo', serif;
 			font-weight: 400;
 			font-size: 124px;
 			line-height: 69%;
-			letter-spacing: -0.04em;
+			letter-spacing: 0.0em;
 			margin-bottom: 40px;
 			@media (max-width: 600px) {
 				font-size: 80px;
@@ -446,7 +442,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 		h2 {
 			margin-bottom: -16px;
 			font-weight: 400;
-			font-family: 'Qwitcher Grypen', cursive;
+			font-family: 'Great Vibes', cursive;
 			font-size: 56px;
 			line-height: 100%;
 			letter-spacing: -0.04em;
@@ -468,8 +464,8 @@ table { border-collapse: collapse; border-spacing: 0; }
 	}
 	.forever--text-bg{
 		font-weight: 400;
-		font-family: 'Qwitcher Grypen', cursive;
-		font-size: 533px;
+		font-family: 'Great Vibes', cursive;
+		font-size: 300px;
 		line-height: 100%;
 		letter-spacing: -0.04em;
 		color: #000000;
@@ -512,11 +508,11 @@ table { border-collapse: collapse; border-spacing: 0; }
 				margin-top: 30px;
 			}
 			h1{
-				font-family: 'Playfair Display SC', serif;
+				font-family: 'Cardo', serif;
 				font-weight: 400;
 				font-size: 114px;
 				line-height: 100%;
-				letter-spacing: -0.04em;
+				/* letter-spacing: -0.04em; */
 				margin-bottom: 20px;
 				@media (max-width: 600px) {
 					font-size: 65px;
@@ -525,7 +521,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 			h2{
 				margin-bottom: -16px;
 				font-weight: 400;
-				font-family: 'Qwitcher Grypen', cursive;
+				font-family: 'Great Vibes', cursive;
 				font-size: 40px;
 				line-height: 100%;
 				letter-spacing: -0.04em;
@@ -579,15 +575,15 @@ table { border-collapse: collapse; border-spacing: 0; }
 	}
 	.emotions--text-bg{
 		font-weight: 400;
-		font-family: 'Qwitcher Grypen', cursive;
-		font-size: 533px;
+		font-family: 'Great Vibes', cursive;
+		font-size: 300px;
 		line-height: 50%;
 		letter-spacing: -0.04em;
 		color: #000000;
 		opacity: 0;
 		position: absolute;
-		top: 0;
-		left: 50%;
+		top: 90px;
+		left: 47%;
 		transform: translateX(-50%);
 		pointer-events: none;
 		@media (max-width: 600px){
@@ -607,10 +603,11 @@ table { border-collapse: collapse; border-spacing: 0; }
     z-index: 3;
     /* pointer-events: none; */
 	.customize--title{
-		margin-left: 5%;
+		margin-left: 10%;
 		margin-top: -8px;
-		font-family: 'Qwitcher Grypen', cursive;
-		font-size: 40px;
+		font-family: 'Cardo', serif;
+		font-size: 27px;
+    font-weight: 400;
 		flex-grow: 0.9;
 		@media (max-width: 600px) {
 			font-size: 2px;
@@ -656,14 +653,36 @@ table { border-collapse: collapse; border-spacing: 0; }
 
 /* -- CONFIGURATOR -- */
 
-svg.night--mode--2 {
-  path{
-    transition: all .4s ease-in-out;
-  }
-  &:hover{
-    color: #000000;
-    path{
-      stroke: #000000;
+.exit--container{
+  .exit--menu {
+    display: inline-flex;
+    gap: 1em;
+    align-items: center;
+    @media (max-width: 600px) {
+      display: none;
+    }
+    li.night--mode--2{
+      padding: 0px 0px;
+      color: #000000;
+      cursor: pointer;
+      transition: all .4s ease-in-out;
+      pointer-events: all;
+      -moz-user-select: none;
+      -webkit-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+      svg {
+        path{
+          transition: all .4s ease-in-out;
+        }
+        &:hover{
+          color: #000000;
+          transform: scale(1.1);
+          path{
+            stroke: #000000;
+          }
+        }
+      }
     }
   }
 }
