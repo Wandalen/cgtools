@@ -126,12 +126,22 @@ vec3 sampleEnvFromLocal( vec3 direction )
   return 1.0 * sample_value;
 }
 
+vec3 sampleEnv( vec3 direction )
+{
+  direction.xyz *= -1.0;
+  vec3 sample_value = texture( envMap, direction, 0.0 ).rgb;
+  return sample_value;
+}
+
 vec3 SampleSpecularContribution( vec3 direction )
 {
+  direction = mat3( inverseOffsetMatrix ) * direction;
+  direction = mat3( viewMatrix ) * direction;
   direction = normalize( direction );
-  // direction.x *= -1.;
-  // direction.z *= -1.;
-  return sampleEnvFromLocal( direction ).rgb;
+  direction.x *= -1.;
+  direction.z *= -1.;
+  float envMapIntencity = 1.0;
+  return envMapIntencity * sampleEnv( direction ).rgb;
 }
 
 // Finds an intersection points of a given line with a sphere at the origin
@@ -208,6 +218,13 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
 {
   vec3 resultColor = vec3( 0.0 );
 
+  const float _absorptionFactor = 1.0;
+  const vec3 _absorptionColor = vec3( 1.0 );
+  const vec3 _boostFactors = vec3( 1.0 );
+  const vec3 _colorCorrection = vec3( 1.0 );
+  const float _rIndexDelta = 0.0120;
+  const float refractiveIndex = 2.6;
+
   // Refractive index of air
   const float n1 = 1.0;
 
@@ -215,12 +232,11 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
   f0 *= f0;
   // vec3 f0 = 1.0 / vec3( 2.407, 2.426, 2.451 );
 
+  n2 = refractiveIndex;
+
   float iorRatioAtoD = n1 / n2;
   float iorRatioDtoA = n2 / n1;
 
-  vec3 lightAbsorption = vec3( 0.8 );
-
-  //resultColor = max(0.0, dot(normalize(vec3(1.0)), hitPointNormal)) * vec3( 1.0 );
 
   // Angle of total refleciton
   float criticalAngleCosine = sqrt( max( 0.0, 1.0 - (iorRatioAtoD * iorRatioAtoD) ) );
@@ -258,68 +274,46 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
     vec3 oldOrigin = rayOrigin;
     rayOrigin = dirOriginToIntersect * surfaceDistance;
 
-    float r = length( rayOrigin - oldOrigin ) / radius * absorptionFactor;
-    attenuationFactor *= exp( -r * 0.1 * 1.0 );
+    float r = length( rayOrigin - oldOrigin ) / radius * _absorptionFactor;
+    attenuationFactor *= exp( -r *( vec3(1.0) - _absorptionColor) );
 
 
     // Calculate new rays
     vec3 newReflectedDirection = reflect( newRayDirection, -surfaceNormal );
     vec3 newRefractedDirection = refract( newRayDirection, -surfaceNormal, iorRatioDtoA );
 
-
-    if( dot( newRefractedDirection, newRefractedDirection ) < 1e-5 )
+    if( dot( newRefractedDirection, newRefractedDirection ) < 1e-4 )
     {
       if ( i == v - 1 )
       {
-        vec3 reflectedAmount = EnvBRDFApprox( dot( newRayDirection, surfaceNormal ), f0, 0.0 );
-        newRayDirection = normalize( newRayDirection );
-        float cosT = 1.0 - dot( newRayDirection, rayDirection );
-
-        // if( TRANSMISSION > 0.0 && cosT < TRANSMISSION )
-        // {
-        //   resultColor += DIAMOND_COLOR * 0.1;
-        // }
-        // else
-        {
-          //resultColor += vec3( 1.0 ) * attenuationFactor;
-          resultColor += SampleSpecularContribution( newRayDirection ) * attenuationFactor * boostFactors * ( vec3( 1.0 ) - min( vec3( 1.0 ), reflectedAmount ) );
-        }
+        vec3 reflectedAmount = EnvBRDFApprox( abs( dot( newRayDirection, surfaceNormal ) ), f0, 0.0 );
+        resultColor += SampleSpecularContribution( newRayDirection ) * attenuationFactor * _boostFactors * _colorCorrection * ( vec3( 1.0 ) - reflectedAmount );
       }
     }
     else
     {
-      vec3 refractedAmount = vec3( 1.0 ) - min( vec3( 1.0 ), EnvBRDFApprox( dot( newRefractedDirection, surfaceNormal ), f0, 0.0 ) );
+      vec3 refractedAmount = vec3( 1.0 ) - EnvBRDFApprox( abs( dot( newRefractedDirection, surfaceNormal ) ), f0, 0.0 );
       vec3 d1 = normalize( newRefractedDirection );
-      float cosT = 1.0 - dot( d1, rayDirection );
 
-      // if( TRANSMISSION > 0.0 && cosT < TRANSMISSION )
-      // {
-      //   vec3 specColor = DIAMOND_COLOR * refractedAmount * attenuationFactor;
-      //   resultColor += specColor;
-      // }
-      // else
       {
         vec3 d1 = newRefractedDirection;
-        vec3 d2 = refract( newRayDirection, -surfaceNormal, ( n2 + 0.02 ) / n1 );
-        vec3 d3 = refract( newRayDirection, -surfaceNormal, ( n2 - 0.02 ) / n1 );
+        vec3 d2 = refract( newRayDirection, -surfaceNormal, ( n2 + _rIndexDelta ) / n1 );
+        vec3 d3 = refract( newRayDirection, -surfaceNormal, ( n2 - _rIndexDelta ) / n1 );
         vec3 specColor = vec3
         (
           SampleSpecularContribution( d2 ).r,
           SampleSpecularContribution( d1 ).g,
           SampleSpecularContribution( d3 ).b
-        ) * attenuationFactor;
-
-        //vec3 specColor = SampleSpecularContribution( d1 ) * refractedAmount * attenuationFactor;
+        ) * attenuationFactor * refractedAmount * _boostFactors * _colorCorrection;
 
         resultColor += specColor;
       }
 
-      vec3 reflectedAmount = EnvBRDFApprox( dot( newReflectedDirection, -surfaceNormal ), f0, 0.0 );
-      attenuationFactor *= reflectedAmount;
+      vec3 reflectedAmount = EnvBRDFApprox( abs( dot( newReflectedDirection, -surfaceNormal ) ), f0, 0.0 );
+      attenuationFactor *= reflectedAmount * _boostFactors;
     }
 
     newRayDirection = newReflectedDirection;
-
   }
 
   return resultColor;
