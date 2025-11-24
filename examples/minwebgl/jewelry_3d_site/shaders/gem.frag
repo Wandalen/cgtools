@@ -15,7 +15,8 @@ const float EPSILON = 1e-4;
 const vec3 ambientColor = vec3(0.7);
 const float ambientint = 0.08;
 
-uniform samplerCube envMap;
+//uniform samplerCube envMap;
+uniform sampler2D envMap;
 uniform samplerCube cubeNormalMap;
 
 uniform mat4x4 worldMatrix;
@@ -77,60 +78,43 @@ vec4 getNormalData( vec3 dir )
   return data;
 }
 
-// Schlick ver.
-vec3 freshel( vec3 viewDir, vec3 halfway, vec3 f0, float criticalAngleCosine )
-{
-  float VdotH = dot( viewDir, halfway );
-  // Case of full reflection
-  if( VdotH < criticalAngleCosine )
-  {
-    return vec3( 1.0 );
-  }
-
-  return f0 + ( 1.0 - f0 ) * pow( ( 1.0 - dot( viewDir, halfway ) ), 5.0 );
-}
-
-vec2 dirToEquirectUV( vec3 dir )
-{
-  float phi = atan( -dir.z, dir.x );
-  float theta = asin( dir.y );
-  vec2 uv = vec2( 0.5 + phi / ( 2.0 * PI ), 0.5 - theta / PI );
-
-  if ( uv.x < 0.0005 || uv.x > 0.9995 )
-  {
-    uv = vec2( 0.0001, uv.y );
-  }
-
-  return uv;
-}
-
-vec3 sampleSpecularReflection( vec3 direction )
-{
- // vec3 sample_value = texture( envMap, dirToEquirectUV( direction ) ).rgb;
-  vec3 sample_value = texture( envMap,  direction, 0.0 ).xyz;
-  return envMapIntensity * sample_value;
-}
-
 vec3 convertDirLocalToWorld( vec3 direction )
 {
   return  mat3x3( inverseOffsetMatrix ) * direction;
 }
 
-vec3 sampleEnvFromLocal( vec3 direction )
+vec2 cartesianToPolar( vec3 d )
 {
- // vec3 sample_value = texture( envMap, dirToEquirectUV( convertDirLocalToWorld( direction ) ) ).rgb;
-  vec3 world_dir = convertDirLocalToWorld( direction );
-  world_dir = mat3(viewMatrix) * world_dir;
-  world_dir.xz *= -1.0;
-  vec3 sample_value = texture( envMap, world_dir, 0.0 ).rgb;
-  return 1.0 * sample_value;
+  // in range from -pi to pi
+  float latitude = atan(d.z, d.x);
+  // in range from -pi / 2.0 to pi / 2.0
+  float longitude = asin(d.y);
+
+  const float INV_2_PI = 0.15915;
+  const float INV_PI = 0.3183;
+
+  latitude *= INV_2_PI;
+  longitude *= INV_PI;
+
+  latitude += 0.5;
+  longitude += 0.5;
+
+  return vec2( latitude, longitude );
 }
 
 vec3 sampleEnv( vec3 direction )
 {
   direction.xyz *= -1.0;
-  vec3 sample_value = texture( envMap, direction, 0.0 ).rgb;
+  vec3 sample_value = texture( envMap, cartesianToPolar(direction) ).rgb;
   return sample_value;
+}
+
+vec3 sampleSpecularReflection( vec3 direction )
+{
+  direction = mat3( viewMatrix ) * direction;
+  float envMapIntencity = 1.0;
+  vec3 sample_value = sampleEnv( direction );
+  return envMapIntensity * sample_value;
 }
 
 vec3 SampleSpecularContribution( vec3 direction )
@@ -230,7 +214,6 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
 
   vec3 f0 = vec3( (n2 - n1) / (n2 + n1) );
   f0 *= f0;
-  // vec3 f0 = 1.0 / vec3( 2.407, 2.426, 2.451 );
 
   n2 = refractiveIndex;
 
@@ -337,66 +320,53 @@ float luminosity( vec3 color )
   return 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
 }
 
+vec3 aces_tone_map( vec3 hdr )
+{
+  mat3x3 m1 = mat3x3
+  (
+    0.59719, 0.07600, 0.02840,
+    0.35458, 0.90834, 0.13383,
+    0.04823, 0.01566, 0.83777
+  );
+  mat3x3 m2 = mat3x3
+  (
+    1.60475, -0.10208, -0.00327,
+    -0.53108,  1.10813, -0.07276,
+    -0.07367, -0.00605,  1.07602
+  );
+
+  vec3 v = m1 * hdr;
+  vec3 a = v * ( v + 0.0245786 ) - 0.000090537;
+  vec3 b = v * ( 0.983729 * v + 0.4329510 ) + 0.238081;
+
+  return clamp( m2 * ( a / b ), vec3( 0.0 ), vec3( 1.0 ) );
+}
+
 void main()
 {
-  const vec3 f0 = vec3( 0.1724 );
   vec3 normal = normalize( vWorldNormal );
   vec3 viewDirection = normalize( vWorldPosition - cameraPosition );
   vec3 reflectedDirection = reflect( viewDirection, normal );
 
+  float f0 = ( 2.4 - 1.0 ) / ( 2.4 + 1.0 );
+  f0 *= f0;
+
   // An approximation of specular reflection from environment
-  vec3 brdfReflected = EnvBRDFApprox( dot( reflectedDirection, normal ), f0, 0.0 );
+  vec3 brdfReflected = EnvBRDFApprox( dot( reflectedDirection, normal ), vec3( f0 ), 0.0 );
   // Sample color from an environment map
-  vec3 reflectionColor = sampleSpecularReflection( reflectedDirection );
-  //reflectionColor = vec3(0.0);
+  vec3 reflectionColor = brdfReflected * sampleSpecularReflection( reflectedDirection );
   // The actual diamond calculation
   vec3 refractionColor = getRefractionColor( vWorldPosition, viewDirection, normal, 2.4 );
-  // vec3 refractionColor = vec3
-  // (
-  //   getRefractionColor( vWorldPosition, viewDirection, normal, 2.408 ).r,
-  //   getRefractionColor( vWorldPosition, viewDirection, normal, 2.424 ).g,
-  //   getRefractionColor( vWorldPosition, viewDirection, normal, 2.432 ).b
-  // );
 
   vec3 diffuseColor = diamondColor;
-  vec3 colour = diffuseColor * ( refractionColor * ( vec3( 1.0 - brdfReflected ) ) +  reflectionColor * brdfReflected );
-  colour = refractionColor;
-  //colour = EnvBRDFApprox(abs(dot(normal, -viewDirection)), f0, 0.0);
+  vec3 colour = diffuseColor * ( refractionColor +  reflectionColor );
+  vec3 toneMappedColour = aces_tone_map( colour );
+  float emission_factor = smoothstep( 0.9, 0.91, luminosity( toneMappedColour ) );
+  emissive_color = vec4( toneMappedColour * emission_factor, 0.0 );
 
-  // vec3 p = ( inverseWorldMatrix * vec4( vWorldPosition, 1.0 ) ).xyz;
-  // p = rotY(radians(0.0)) * vWorldPosition;
-
-  // colour = texture( cubeNormalMap, vWorldPosition ).rgb * 2.0 - 1.0;
-  // colour.r *= -1.0;
-  // //colour = normal;
-  // colour = vec3( dot( colour, normal ) );
-
-  // Gamma
-  //colour = tanh( colour * 8.0 );
-  //colour *= 5.0;
   float alpha = 1.0;
 
-  // if (luminosity( colour ) > 15.0 )
-  // {
-  //   emissive_color = vec4( tanh(colour), alpha );
-  // }
-  // else
-  {
-    emissive_color = vec4( 0.0 );
-  }
-
-  //colour *= 5.0;
-  //colour *= pow( tanh( colour ) + vec3(1.05), vec3(16.0) );
-  //colour = pow( colour, vec3( 1.0 / 2.2 ) );
-  // vec3 pos = ( offsetMatrix * vec4( vWorldPosition, 1.0 ) ).xyz;
-  // colour = getNormalData(pos).rgb;
-
   float a_weight = alpha * alpha_weight( alpha );
-  
-
-  // vec3 emissive = step(  vec3(0.9), colour ) * 1.0;
-  // emissive_color = vec4( emissive, alpha );
-
   trasnparentA = vec4( colour * a_weight, alpha );
   transparentB = a_weight;
   frag_color = vec4( colour, alpha );

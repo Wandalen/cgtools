@@ -63,6 +63,9 @@ impl Configurator
 
     //let ibl = renderer::webgl::loaders::ibl::load( gl, "environment_maps/christmas_photo_studio_07_4k", Some( 0..0 ) ).await;
     let ibl = renderer::webgl::loaders::ibl::load( gl, "environment_maps/studio", Some( 0..9 ) ).await;
+
+    let gem_env_map = gl.create_texture();
+    renderer::webgl::loaders::hdr_texture::load_to_mip_d2( gl, gem_env_map.as_ref(), 0, "environment_maps/studio3/env-gem-4.hdr").await;
     // let skybox = create_texture( gl, "environment_maps/equirectangular_maps/christmas_photo_studio_07.webp" );
     // let ibl = renderer::webgl::loaders::ibl::load( gl, "environment_maps/dancing_hall_4k", Some( 0..0 ) ).await;
     let skybox = create_texture( gl, "environment_maps/equirectangular_maps/dancing_hall.webp" );
@@ -70,13 +73,14 @@ impl Configurator
     let sampler = Sampler::former()
     .min_filter( MinFilterMode::Linear )
     .mag_filter( MagFilterMode::Linear )
+    .wrap_r( WrappingMode::Repeat )
     .wrap_s( WrappingMode::Repeat )
     .wrap_t( WrappingMode::Repeat )
     .end();
 
     let texture = Texture::former()
-    .target( GL::TEXTURE_CUBE_MAP )
-    .source( ibl.specular_1_texture.clone().unwrap() )
+    .target( GL::TEXTURE_2D )
+    .source( gem_env_map.clone().unwrap() )
     .sampler( sampler )
     .end();
 
@@ -247,8 +251,8 @@ impl Configurator
       renderer_mut.set_clear_color( F32x3::splat( 1.0 ) );
     }
 
-    renderer_mut.set_use_emission( false ); 
-    renderer_mut.set_bloom_strength( 5.0 );
+    renderer_mut.set_use_emission( true ); 
+    renderer_mut.set_bloom_strength( 2.0 );
     renderer_mut.set_bloom_radius( 0.1 );
   }
 
