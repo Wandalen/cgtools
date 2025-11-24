@@ -203,63 +203,6 @@ vec3 intersectDiamond( vec3 rayOrigin, vec3 rayDirection )
 }
 
 
-struct Lamp
-{
-  vec3 position;
-  vec3 color;
-  float intensity;
-  float attenuation;
-};
-
-Lamp lamps[3];
-
-vec3 lampShading(Lamp lamp, vec3 norm, vec3 pos, vec3 ocol, bool inside)
-{
-  const float specint = 0.2;
-  const float specshin = 20.;
-
-	vec3 pl = normalize(lamp.position - pos);
-  float dlp = distance(lamp.position, pos);
-  vec3 pli = pl/pow(1. + lamp.attenuation*dlp, 2.);
-
-  vec3 col;
-
-  // Diffuse shading
-  if (!inside)
-  {
-    float diff = clamp(dot(norm, pli), 0., 1.);
-    col = ocol*normalize(lamp.color)*lamp.intensity*smoothstep(0., 1.04, pow(diff, 0.78));
-  }
-
-  // Specular shading
-
-  if (dot(norm, lamp.position - pos) > 0.0)
-      col+= normalize(lamp.color)*lamp.intensity*specint*pow(max(0.0, dot(reflect(pl, norm), normalize(pos - cameraPosition))), specshin);
-
-  return col;
-}
-
-vec3 lampsShading(vec3 norm, vec3 pos, vec3 ocol, bool inside)
-{
-  vec3 col = vec3(0.);
-  for (int l=0; l<3; l++) // lamps.length()
-      col+= lampShading(lamps[l], norm, pos, ocol, inside);
-
-  return col;
-}
-
-vec3 shadeObject(vec3 norm, vec3 pos, bool inside)
-{
-  vec3 col = vec3( 0.0 );
-  if(!inside)
-  {
-    col = vec3( 0.0 ) + ambientColor * ambientint;
-  }
-  col = lampsShading(norm, pos, col, inside);
-  return col;
-}
-
-
 // Calculate the color by tracing a ray
 vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNormal, float n2 )
 {
@@ -402,10 +345,6 @@ float luminosity( vec3 color )
 
 void main()
 {
-  lamps[0] = Lamp(vec3(0., 4.5, 10.), vec3(1., 1., 1.), 15., 0.1);
-  lamps[1] = Lamp(vec3(12., -0.5, 6.), vec3(.7, .8, 1.), 15., 0.1);
-  lamps[2] = Lamp(vec3(-1.3, 0.8, -1.5), vec3(1., .95, .8), 3.5, 0.1);
-
   const vec3 f0 = vec3( 0.1724 );
   vec3 normal = normalize( vWorldNormal );
   vec3 viewDirection = normalize( vWorldPosition - cameraPosition );
@@ -437,8 +376,6 @@ void main()
   // colour.r *= -1.0;
   // //colour = normal;
   // colour = vec3( dot( colour, normal ) );
-
-  //colour = lampsShading(normal, vWorldPosition, vec3( 0.0 ), false );
 
   // Gamma
   //colour = tanh( colour * 8.0 );
