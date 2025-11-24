@@ -73,9 +73,7 @@ vec4 getNormalData( vec3 dir )
 {
   vec4 data = texture( cubeNormalMap, dir );
   data.rgb = normalize( data.rgb * 2.0 - 1.0 );
-  //data.r *= -1.0;
-  //data.a *= MAX_DISTANCE;
-  //data.a *= maxDistance;
+  data.a *= radius;
   return data;
 }
 
@@ -140,7 +138,9 @@ vec3 SampleSpecularContribution( vec3 direction )
 // and picks the father of the two possible solutions
 vec3 intersectSphere( vec3 origin, vec3 direction )
 {
-  direction.y /= squashFactor;
+  float sqFactor = 0.98;
+  float gmFactor = 0.5;
+  direction.y /= sqFactor;
 
   // Having parametric equation for the line in 'direction'
   // Solve the quadratic equation for 't' using sphere equation
@@ -151,11 +151,11 @@ vec3 intersectSphere( vec3 origin, vec3 direction )
   if( disc > 0.0 )
   {
       disc = sqrt( disc );
-      float x1 = ( -B + disc ) * geometryFactor / A;
-      float x2 = ( -B - disc ) * geometryFactor / A;
+      float x1 = ( -B + disc ) * gmFactor / A;
+      float x2 = ( -B - disc ) * gmFactor / A;
       float t = ( x1 > x2 ) ? x1 : x2;
-      t = x1;
-      direction.y *= squashFactor;
+      //t = x1;
+      direction.y *= sqFactor;
       return vec3( origin + direction * t );
   }
 
@@ -182,23 +182,23 @@ vec3 intersectDiamond( vec3 rayOrigin, vec3 rayDirection )
   vec4 normalData = getNormalData( directionToSpherePoint );
   // Flip the normal to point inwards
   vec3 surfaceNormal = normalData.rgb;
-  float surfaceDistance = normalData.a * radius;
+  float surfaceDistance = normalData.a;
 
   // Point on the surface of the diamond
   vec3 pointOnSurface1 = directionToSpherePoint * surfaceDistance;
 
 
-  vec3 planeHitPoint = linePlaneIntersect( rayOrigin, rayDirection, pointOnSurface1, surfaceNormal );
+  vec3 planeHitPoint = linePlaneIntersect( rayOrigin, rayDirection, pointOnSurface1, -surfaceNormal );
   vec3 directionToPlanePoint = normalize( planeHitPoint );
 
   normalData = getNormalData( directionToPlanePoint );
-  surfaceNormal = -normalData.rgb;
-  surfaceDistance = normalData.a * radius;
+  surfaceNormal = normalData.rgb;
+  surfaceDistance = normalData.a;
 
   // Point on the surface of the diamond
   vec3 pointOnSurface2 = directionToPlanePoint * surfaceDistance;
 
-  vec3 hitPoint = linePlaneIntersect( rayOrigin, rayDirection, pointOnSurface2, surfaceNormal );
+  vec3 hitPoint = linePlaneIntersect( rayOrigin, rayDirection, pointOnSurface2, -surfaceNormal );
   return hitPoint;
 }
 
@@ -267,14 +267,10 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
 
   // Refractive index of air
   const float n1 = 1.0;
-  // Refractive index of a diamond
- //const float n2 = 2.42;
 
   vec3 f0 = vec3( (n2 - n1) / (n2 + n1) );
+  f0 *= f0;
   // vec3 f0 = 1.0 / vec3( 2.407, 2.426, 2.451 );
-  // f0 *= f0;
-
-  //const vec3 f0 = vec3( 0.1724 );
 
   float iorRatioAtoD = n1 / n2;
   float iorRatioDtoA = n2 / n1;
@@ -293,11 +289,10 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
   vec3 rayOrigin =  ( offsetMatrix * vec4( rayHitPoint, 1.0 ) ).xyz;
 
   float totalDistance = 0.0;
-  vec3 diffuseColor = vec3( 1.0 );
   // Overall intensity of the light as it goes through the medium
   vec3 attenuationFactor = vec3( 1.0 );
 
-  vec3 reflectedAmount = EnvBRDFApprox( dot( -rayDirection, hitPointNormal ), f0, 0.0 );
+  vec3 reflectedAmount = EnvBRDFApprox( abs(dot( -rayDirection, hitPointNormal )), f0, 0.0 );
   // Only take into account transmitted part
   attenuationFactor *= ( vec3( 1.0 ) - reflectedAmount );
 
@@ -432,7 +427,8 @@ void main()
 
   vec3 diffuseColor = diamondColor;
   vec3 colour = diffuseColor * ( refractionColor * ( vec3( 1.0 - brdfReflected ) ) +  reflectionColor * brdfReflected );
-  //colour = refractionColor;
+  colour = refractionColor;
+  //colour = EnvBRDFApprox(abs(dot(normal, -viewDirection)), f0, 0.0);
 
   // vec3 p = ( inverseWorldMatrix * vec4( vWorldPosition, 1.0 ) ).xyz;
   // p = rotY(radians(0.0)) * vWorldPosition;
@@ -449,11 +445,11 @@ void main()
   //colour *= 5.0;
   float alpha = 1.0;
 
-  if (luminosity( colour ) > 15.0 )
-  {
-    emissive_color = vec4( tanh(colour), alpha );
-  }
-  else
+  // if (luminosity( colour ) > 15.0 )
+  // {
+  //   emissive_color = vec4( tanh(colour), alpha );
+  // }
+  // else
   {
     emissive_color = vec4( 0.0 );
   }
