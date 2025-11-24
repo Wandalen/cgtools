@@ -61,7 +61,7 @@ impl Configurator
     let mut _cube_normal_map_generator = CubeNormalMapGenerator::new( gl )?;
     _cube_normal_map_generator.set_texture_size( gl, 512, 512 );
 
-    let ibl_ring = renderer::webgl::loaders::ibl::load( gl, "environment_maps/dancing_hall_4k", Some( 0..1 ) ).await;
+    let ibl_ring = renderer::webgl::loaders::ibl::load( gl, "environment_maps/dancing_hall_4k", Some( 0..2 ) ).await;
     let ibl_gem = renderer::webgl::loaders::ibl::load( gl, "environment_maps/studio", None ).await;
 
     let sampler = Sampler::former()
@@ -281,8 +281,8 @@ impl Configurator
       0.01
     );
 
-    let shadowmap_res = 4096;
-    let lightmap_res = 8192;
+    let shadowmap_res = 1024; //4096;
+    let lightmap_res = 2048; //8192;
     let mut light_maps = vec![];
     let last_ring = self.rings.current_ring.clone();
     let last_gem = self.rings.current_gem.clone();
