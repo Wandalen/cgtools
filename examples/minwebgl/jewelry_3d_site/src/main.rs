@@ -26,6 +26,7 @@ use renderer::webgl::
 {
   Renderer, material::PBRMaterial, post_processing::{ self, Pass, SwapFramebuffer }
 };
+use std::ops::Range;
 
 mod cube_normal_map_generator;
 mod gem;
@@ -37,15 +38,19 @@ mod debug;
 use helpers::*;
 use configurator::*;
 
-const MAX_DISTANCE : f32 = 50.0;
+const DISTANCE_RANGE : Range< f32 > = 14.0..50.0;
 
 fn handle_camera_position( configurator : &Configurator )
 {
   let camera_controls = configurator.camera.get_controls();
   let distance = camera_controls.borrow().eye.distance( &F32x3::default() );
-  if distance > MAX_DISTANCE
+  if distance > DISTANCE_RANGE.end
   {
-    camera_controls.borrow_mut().eye /= distance / MAX_DISTANCE;
+    camera_controls.borrow_mut().eye /= distance / DISTANCE_RANGE.end;
+  }
+  else if distance < DISTANCE_RANGE.start
+  {
+    camera_controls.borrow_mut().eye /= distance / DISTANCE_RANGE.start;
   }
 
   {
@@ -166,6 +171,28 @@ async fn run() -> Result< (), gl::WebglError >
   {
     move | t : f64 |
     {
+      {
+        let controls = configurator.camera.get_controls();
+        let distance = controls.borrow().center.distance( &controls.borrow().eye );
+        let range = if distance < DISTANCE_RANGE.start
+        {
+          0..0
+        }
+        else if distance > DISTANCE_RANGE.start && distance < DISTANCE_RANGE.end
+        {
+          let r = DISTANCE_RANGE.end - DISTANCE_RANGE.start;
+          let amplitude = ( distance - DISTANCE_RANGE.start ) / r;
+          let max = ( amplitude * 3.0 ).round() as u32;
+          max.saturating_sub( 1 )..max
+        }
+        else
+        {
+          0..2
+        };
+
+        configurator.ibl.set_mip_range( &gl, range );
+      }
+
       handle_camera_position( &configurator );
       handle_resize( &gl, &mut configurator, &mut swap_buffer, &canvas, &is_resized );
       handle_ui_change( &mut configurator );
