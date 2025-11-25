@@ -62,11 +62,10 @@ impl Configurator
     _cube_normal_map_generator.set_texture_size( gl, 512, 512 );
 
 
-    let ibl = renderer::webgl::loaders::ibl::load( gl, "environment_maps/studio", Some( 0..9 ) ).await;
+    let ibl_ring = renderer::webgl::loaders::ibl::load( gl, "environment_maps/studio", Some( 0..9 ) ).await;
     let gem_env_map = gl.create_texture();
     renderer::webgl::loaders::hdr_texture::load_to_mip_d2( gl, gem_env_map.as_ref(), 0, "environment_maps/studio3/env-gem-4.hdr").await;
-    let skybox = create_texture( gl, "environment_maps/equirectangular_maps/dancing_hall.webp" );
-    let ibl_ring = renderer::webgl::loaders::ibl::load( gl, "environment_maps/dancing_hall_4k", None ).await;
+    //let ibl_ring = renderer::webgl::loaders::ibl::load( gl, "environment_maps/dancing_hall_4k", None ).await;
 
     let sampler = Sampler::former()
     .min_filter( MinFilterMode::Linear )
@@ -221,7 +220,8 @@ impl Configurator
             }
             let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >( material.borrow_mut() );
             material.base_color_texture = None;
-            material.roughness_factor = 0.2;
+            material.metallic_factor = 1.0;
+            material.roughness_factor = 0.0;
             for i in 0..3
             {
               material.base_color_factor.0[ i ] = color.0[ i ];
