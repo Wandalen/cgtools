@@ -30,7 +30,6 @@ body {
   overflow-y: scroll;
   font-family: "Cardo", serif;
   scroll-behavior: smooth;
-  /*color: #52322B;*/
   width: 100vw;
   --bg-color-inner: "#FFFFFF";
   --bg-color-outer: "#DDDDDD";
@@ -295,7 +294,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 		}
 		p{
 			font-weight: 200;
-			font-size: 13px;
+			font-size: 15px;
 			line-height: 180%;
 			text-align: right;
 			margin-bottom: 30px;
@@ -317,7 +316,6 @@ table { border-collapse: collapse; border-spacing: 0; }
 			justify-content: flex-end;
 			font-weight: 200;
 			font-size: 0.9375rem;
-			/* letter-spacing: -0.04em; */
 			color: #000000;
 			float: right;
 			cursor: pointer;
@@ -512,7 +510,6 @@ table { border-collapse: collapse; border-spacing: 0; }
 				font-weight: 400;
 				font-size: 114px;
 				line-height: 100%;
-				/* letter-spacing: -0.04em; */
 				margin-bottom: 20px;
 				@media (max-width: 600px) {
 					font-size: 65px;
@@ -601,7 +598,6 @@ table { border-collapse: collapse; border-spacing: 0; }
     justify-content: space-between;
     position: fixed;
     z-index: 3;
-    /* pointer-events: none; */
 	.customize--title{
 		margin-left: 10%;
 		margin-top: -8px;
@@ -747,7 +743,6 @@ table { border-collapse: collapse; border-spacing: 0; }
   padding: 20px 30px;
   visibility: hidden;
   opacity: 0;
-  /* transition: all 0.4s ease-in-out; */
 }
 
 @media (max-width: 600px) {
@@ -976,7 +971,6 @@ table { border-collapse: collapse; border-spacing: 0; }
 
 .header--container .customize--title {
   margin-left: 10%;
-  /* margin-top: -8px; */
   font-family: "Cardo", serif;
   font-weight: 400;
   font-style: italic;
