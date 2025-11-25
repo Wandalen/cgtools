@@ -294,7 +294,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 		}
 		p{
 			font-weight: 200;
-			font-size: 15px;
+			font-size: 14px;
 			line-height: 180%;
 			text-align: right;
 			margin-bottom: 30px;
@@ -453,7 +453,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 		}
 		p{
 			font-weight: 200;
-			font-size: 13px;
+			font-size: 14px;
 			line-height: 180%;
 			@media (max-width: 600px){
 				text-align: center;
@@ -526,7 +526,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 			p{
 				width: 70%;
 				font-weight: 200;
-				font-size: 13px;
+				font-size: 14px;
 				line-height: 180%;
 				text-align: center;
 				margin: 0 auto 40px;
