@@ -99,6 +99,7 @@ uniform vec4 baseColorFactor; // Default: [1, 1, 1, 1]
   uniform samplerCube irradianceTexture;
   uniform samplerCube prefilterEnvMap;
   uniform sampler2D integrateBRDF;
+  uniform vec2 mipmapDistanceRange;
 #endif
 #ifdef USE_KHR_materials_specular
   uniform float specularFactor;
@@ -453,23 +454,32 @@ void computeLights
 }
 
 #ifdef USE_IBL
-  void sampleEnvIrradiance( const in vec3 N, const in vec3 V, const in PhysicalMaterial material, inout ReflectedLight reflectedLight )
+  float remapClamped( float value, float inMin, float inMax, float outMin, float outMax )
+  {
+      float t = clamp( ( value - inMin ) / ( inMax - inMin ), 0.0, 1.0 );
+      return mix( outMin, outMax, t );
+  }
+
+  void sampleEnvIrradiance( const in vec3 N, const in vec3 V, float viewDistance, const in PhysicalMaterial material, inout ReflectedLight reflectedLight )
   {
     float alpha = pow2( material.roughness );
     float dotNV = clamp( dot( N, V ), 0.0, 1.0 );
 
     const float MAX_LOD = 9.0;
 
-    if( dotNV < 0.2 )
+    if( dotNV < 0.005 )
     {
-      dotNV = 0.2;
+      dotNV = 0.005;
     }
 
     vec3 Fs = F_Schlick( material.f0, material.f90, dotNV );
     vec3 R = reflect( -V, N );
 
+    vec2 d = mipmapDistanceRange;
+    float lod = remapClamped( viewDistance, d.x, d.y, 0.0, MAX_LOD );
+
     vec3 diffuse = texture( irradianceTexture, N ).xyz * pow( 2.0, exposure );
-    vec3 prefilter = texture( prefilterEnvMap, R, material.roughness * MAX_LOD ).xyz * pow( 2.0, exposure );
+    vec3 prefilter = textureLod( prefilterEnvMap, R, material.roughness * lod ).xyz * pow( 2.0, exposure );
     vec2 envBrdf = texture( integrateBRDF, vec2( dotNV, material.roughness ) ).xy;
 
     vec3 diffuseBRDF = diffuse * material.diffuseColor;
@@ -609,6 +619,7 @@ void main()
 
   vec3 color = vec3( 0.0 );
   vec3 viewDir = normalize( cameraPosition - vWorldPos );
+  float viewDistance = distance( cameraPosition, vWorldPos );
   // vec3 lightDirs[] = vec3[]
   // (
   //   vec3( 1.0, 0.0, 0.0 ),
@@ -623,7 +634,7 @@ void main()
 
   // Ambient color
   #if defined( USE_IBL )
-    sampleEnvIrradiance( normal, viewDir, material, reflectedLight );
+    sampleEnvIrradiance( normal, viewDir, viewDistance, material, reflectedLight );
   #else
     reflectedLight.indirectDiffuse += 0.1 * material.diffuseColor;
   #endif

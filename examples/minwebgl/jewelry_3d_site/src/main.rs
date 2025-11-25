@@ -26,6 +26,7 @@ use renderer::webgl::
 {
   Renderer, material::PBRMaterial, post_processing::{ self, Pass, SwapFramebuffer }
 };
+use std::ops::Range;
 
 mod cube_normal_map_generator;
 mod gem;
@@ -37,15 +38,19 @@ mod debug;
 use helpers::*;
 use configurator::*;
 
-const MAX_DISTANCE : f32 = 50.0;
+const DISTANCE_RANGE : Range< f32 > = 14.0..50.0;
 
 fn handle_camera_position( configurator : &Configurator )
 {
   let camera_controls = configurator.camera.get_controls();
   let distance = camera_controls.borrow().eye.distance( &F32x3::default() );
-  if distance > MAX_DISTANCE
+  if distance > DISTANCE_RANGE.end
   {
-    camera_controls.borrow_mut().eye /= distance / MAX_DISTANCE;
+    camera_controls.borrow_mut().eye /= distance / DISTANCE_RANGE.end;
+  }
+  else if distance < DISTANCE_RANGE.start
+  {
+    camera_controls.borrow_mut().eye /= distance / DISTANCE_RANGE.start;
   }
 
   {

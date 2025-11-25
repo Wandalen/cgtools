@@ -64,6 +64,9 @@ mod private
     /// Determines wheter to draw both or one side of the primitive
     pub double_sided : bool,
 
+    /// Range of distances in which environment map's mipmap switching is applied
+    pub mipmap_distance_range : std::ops::Range< f32 >,
+
     /// Hash map of defines in (value, name) format
     pub vertex_defines : FxHashMap< Box< str >, String >,
     /// Hash map of defines in (value, name) format
@@ -298,6 +301,11 @@ mod private
       gl::uniform::upload( gl, locations.get( "occlusionStrength" ).unwrap().clone(), &self.occlusion_strength )?;
       gl::uniform::upload( gl, locations.get( "alphaCutoff" ).unwrap().clone(), &self.alpha_cutoff )?;
       gl::uniform::upload( gl, locations.get( "emissiveFactor" ).unwrap().clone(), self.emissive_factor.as_slice() )?;
+      if let Some( mipmap_distance_range_loc ) = locations.get( "mipmapDistanceRange" )
+      {
+        let r = &self.mipmap_distance_range;
+        gl::uniform::upload( gl, mipmap_distance_range_loc.clone(), &[ r.start, r.end ] )?;
+      }
 
       upload_array( "specularColorFactor", self.specular_color_factor.as_ref().map( | v | v.as_slice() ) )?;
 
@@ -434,6 +442,7 @@ mod private
         alpha_cutoff : self.alpha_cutoff,
         alpha_mode : self.alpha_mode,
         double_sided : self.double_sided,
+        mipmap_distance_range : self.mipmap_distance_range.clone(),
         light_map : self.light_map.clone(),
         vertex_defines : self.vertex_defines.clone(),
         fragment_defines : self.fragment_defines.clone(),
@@ -474,6 +483,9 @@ mod private
       let alpha_mode = AlphaMode::default();
       let alpha_cutoff = 0.5;
       let double_sided = false;
+
+      let mipmap_distance_range = 0.0..200.0;
+
       let vertex_defines = FxHashMap::default();
       let fragment_defines = FxHashMap::default();
 
@@ -500,6 +512,7 @@ mod private
         alpha_mode,
         alpha_cutoff,
         double_sided,
+        mipmap_distance_range,
         light_map,
         vertex_defines,
         fragment_defines,

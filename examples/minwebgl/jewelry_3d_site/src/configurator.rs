@@ -61,14 +61,12 @@ impl Configurator
     let mut _cube_normal_map_generator = CubeNormalMapGenerator::new( gl )?;
     _cube_normal_map_generator.set_texture_size( gl, 512, 512 );
 
-    //let ibl = renderer::webgl::loaders::ibl::load( gl, "environment_maps/christmas_photo_studio_07_4k", Some( 0..0 ) ).await;
-    let ibl = renderer::webgl::loaders::ibl::load( gl, "environment_maps/studio", Some( 0..9 ) ).await;
 
+    let ibl = renderer::webgl::loaders::ibl::load( gl, "environment_maps/studio", Some( 0..9 ) ).await;
     let gem_env_map = gl.create_texture();
     renderer::webgl::loaders::hdr_texture::load_to_mip_d2( gl, gem_env_map.as_ref(), 0, "environment_maps/studio3/env-gem-4.hdr").await;
-    // let skybox = create_texture( gl, "environment_maps/equirectangular_maps/christmas_photo_studio_07.webp" );
-    // let ibl = renderer::webgl::loaders::ibl::load( gl, "environment_maps/dancing_hall_4k", Some( 0..0 ) ).await;
     let skybox = create_texture( gl, "environment_maps/equirectangular_maps/dancing_hall.webp" );
+    let ibl_ring = renderer::webgl::loaders::ibl::load( gl, "environment_maps/dancing_hall_4k", None ).await;
 
     let sampler = Sampler::former()
     .min_filter( MinFilterMode::Linear )
@@ -84,14 +82,16 @@ impl Configurator
     .sampler( sampler )
     .end();
 
-    let texture_info = TextureInfo
-    {
-      texture : Rc::new( RefCell::new( texture ) ),
-      uv_position : 0,
-    };
+    let env_map = Some
+    (
+      TextureInfo
+      {
+        texture : Rc::new( RefCell::new( texture ) ),
+        uv_position : 0,
+      }
+    );
 
-
-    let rings = setup_rings( gl, &Some(texture_info), &_cube_normal_map_generator ).await?;
+    let rings = setup_rings( gl, &env_map, &_cube_normal_map_generator ).await?;
 
     scene.borrow_mut().add( rings.current_ring.clone() );
     scene.borrow_mut().update_world_matrix();
@@ -106,14 +106,14 @@ impl Configurator
 
     let ui_state = get_ui_state().unwrap();
 
-    // let skybox = None;
+    let skybox = None;
 
     let mut configurator = Configurator
     {
       _cube_normal_map_generator,
       renderer,
       camera,
-      ibl,
+      ibl : ibl_ring,
       skybox,
       surface_material,
       scene,
@@ -132,16 +132,16 @@ impl Configurator
     match self.ui_state.gem.as_str()
     {
       "white" => self.set_gem_color( F32x3::from_array( [ 1.0, 1.0, 1.0 ] ) ),
-      "black" => self.set_gem_color( F32x3::from_array( [ 0.1, 0.1, 0.1 ] ) ),
-      "red" => self.set_gem_color( F32x3::from_array( [ 1.0, 0.0, 0.0 ] ) ),
-      "orange" => self.set_gem_color( F32x3::from_array( [ 1.0, 0.5, 0.0 ] ) ),
-      "yellow" => self.set_gem_color( F32x3::from_array( [ 1.0, 1.0, 0.0 ] ) ),
-      "green" => self.set_gem_color( F32x3::from_array( [ 0.0, 1.0, 0.0 ] ) ),
-      "turquoise" => self.set_gem_color( F32x3::from_array( [ 0.25, 0.88, 0.82 ] ) ),
-      "light_blue" => self.set_gem_color( F32x3::from_array( [ 0.53, 0.81, 0.92 ] ) ),
-      "blue" => self.set_gem_color( F32x3::from_array( [ 0.0, 0.0, 1.0 ] ) ),
-      "violet" => self.set_gem_color( F32x3::from_array( [ 0.5, 0.0, 0.5 ] ) ),
-      "pink" => self.set_gem_color( F32x3::from_array( [ 1.0, 0.41, 0.71 ] ) ),
+      "black" => self.set_gem_color( F32x3::from_array( [ 0.05, 0.05, 0.05 ] ) ),
+      "red" => self.set_gem_color( F32x3::from_array( [ 1.0, 0.05, 0.05 ] ) ),
+      "orange" => self.set_gem_color( F32x3::from_array( [ 1.0, 0.3, 0.05 ] ) ),
+      "yellow" => self.set_gem_color( F32x3::from_array( [ 1.0, 0.7, 0.05 ] ) ),
+      "green" => self.set_gem_color( F32x3::from_array( [ 0.1, 0.4, 0.1 ] ) ),
+      "turquoise" => self.set_gem_color( F32x3::from_array( [ 0.2, 0.78, 0.72 ] ) ),
+      "light_blue" => self.set_gem_color( F32x3::from_array( [ 0.05, 0.4, 1.0 ] ) ),
+      "blue" => self.set_gem_color( F32x3::from_array( [ 0.05, 0.25, 1.0 ] ) ),
+      "violet" => self.set_gem_color( F32x3::from_array( [ 0.8, 0.2, 0.8 ] ) ),
+      "pink" => self.set_gem_color( F32x3::from_array( [ 1.0, 0.31, 0.71 ] ) ),
       _ => ()
     }
   }
@@ -152,7 +152,7 @@ impl Configurator
     {
       "silver" => self.set_metal_color( F32x3::from_array( [ 0.753, 0.753, 0.753 ] ) ),
       "copper" => self.set_metal_color( F32x3::from_array( [ 1.0, 0.4, 0.2 ] ) ),
-      "gold" => self.set_metal_color( F32x3::from_array( [ 1.0, 0.65, 0.02 ] ) ),
+      "gold" => self.set_metal_color( F32x3::from_array( [ 1.0, 0.55, 0.02 ] ) ),
       _ => ()
     }
   }
@@ -248,11 +248,12 @@ impl Configurator
     else
     {
       renderer_mut.set_skybox( None );
-      renderer_mut.set_clear_color( F32x3::splat( 1.0 ) );
+      renderer_mut.set_clear_color( F32x3::splat( 4.0 ) );
     }
 
     renderer_mut.set_use_emission( true ); 
     renderer_mut.set_bloom_strength( 2.0 );
+    renderer_mut.set_exposure( 1.5 );
     renderer_mut.set_bloom_radius( 0.1 );
   }
 
@@ -285,8 +286,8 @@ impl Configurator
       0.01
     );
 
-    let shadowmap_res = 4096;
-    let lightmap_res = 8192;
+    let shadowmap_res = 1024; //4096;
+    let lightmap_res = 2048; //8192;
     let mut light_maps = vec![];
     let last_ring = self.rings.current_ring.clone();
     let last_gem = self.rings.current_gem.clone();
@@ -389,9 +390,9 @@ async fn setup_rings
   let mut gems : Vec< Rc< RefCell< Node > > > = vec![];
   let mut filters : Vec< HashSet< String > > = vec![];
 
-  
+  let mut material_3 = None;
 
-  for i in 4..5
+  for i in 0..5
   {
     let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/{i}.glb" ).as_str(), &gl ).await?;
 
@@ -403,6 +404,7 @@ async fn setup_rings
         gem.borrow_mut().set_name( "gem0" );
 
         let gem_clone = gem.borrow().clone_tree();
+
         gem_clone.borrow_mut().set_center_to_origin();
         let cube_normal_map_texture = Some( cube_normal_map_generator.generate( gl, &gem_clone ).unwrap() );
         setup_gem_material( &gem, environment_texture, &cube_normal_map_texture );
@@ -464,6 +466,54 @@ async fn setup_rings
         gems.push( gem.clone() );
         rings.push( ring.clone() );
         filters.push( HashSet::from( [ "gem2".to_string() ] ) );
+
+        let metal = get_node( &gltf.scenes[ 0 ], "Object_3".to_string() ).unwrap();
+        let metal_ref = metal.borrow();
+        if let Object3D::Mesh( mesh ) = &metal_ref.object
+        {
+          let primitives = &mesh.borrow().primitives;
+          let primitive = primitives.first().unwrap();
+          let material = primitive.borrow().material.clone();
+          material_3 = Some( material );
+        }
+      },
+      3 =>
+      {
+        let gem = get_node( &gltf.scenes[ 0 ], "Diamond_Round".to_string() ).unwrap();
+        gem.borrow_mut().set_name( "gem3" );
+
+        let gem_clone = gem.borrow().clone_tree();
+        gem_clone.borrow_mut().set_center_to_origin();
+        let cube_normal_map_texture = Some( cube_normal_map_generator.generate( gl, &gem_clone ).unwrap() );
+
+        let ring = get_node( &gltf.scenes[ 0 ], "Sketchfab_model".to_string() ).unwrap();
+        ring.borrow_mut().set_name( "ring3" );
+
+        gems.push( gem.clone() );
+        rings.push( ring.clone() );
+        filters.push( HashSet::from( [ "gem3".to_string() ] ) );
+
+        let _ = ring.borrow().traverse
+        (
+          &mut
+          |
+            node : Rc< RefCell< Node > >
+          |
+          -> Result< (), gl::WebglError >
+          {
+            if let Object3D::Mesh( mesh ) = &node.borrow().object
+            {
+              for primitive in &mesh.borrow().primitives
+              {
+                primitive.borrow_mut().material = Rc::new( RefCell::new( material_3.clone().unwrap().borrow().dyn_clone() ) );
+              }
+            }
+
+            Ok( () )
+          }
+        );
+
+        setup_gem_material( &gem, environment_texture, &cube_normal_map_texture );
       },
       4 =>
       {

@@ -162,9 +162,7 @@ impl Material for GemMaterial
     upload_array( "boostFactors", self.boost_factors.0.as_slice() )?;
     upload_array( "colorAbsorption", self.color_absorption.0.as_slice() )?;
 
-    let node = node.borrow();
-    let offset_mat = gl::math::mat3x3h::translation( -node.bounding_box().center() );
-    //offset_mat = offset_mat * node.get_world_matrix();
+    let offset_mat = gl::math::mat3x3h::translation( -node.borrow().bounding_box().center() );
 
     gl::uniform::matrix_upload( gl, locations.get( "offsetMatrix" ).unwrap().clone(), offset_mat.raw_slice(), true )?;
     gl::uniform::matrix_upload( gl, locations.get( "inverseOffsetMatrix" ).unwrap().clone(), offset_mat.inverse().unwrap().raw_slice(), true )?;
@@ -232,7 +230,7 @@ impl Default for GemMaterial
     return Self
     {
       id : Uuid::new_v4(),
-      ray_bounces : 7,
+      ray_bounces : 5,
       color : gl::F32x3::from_array( [ 0.98, 0.95, 0.9 ] ),
       boost_factors : F32x3::from_array( [ 0.8920, 0.8920, 0.9860 ] ),
       env_map_intensity : 0.7,
