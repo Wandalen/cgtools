@@ -220,8 +220,7 @@ impl Configurator
             }
             let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >( material.borrow_mut() );
             material.base_color_texture = None;
-            material.metallic_factor = 1.0;
-            material.roughness_factor = 0.0;
+            material.roughness_factor = 0.2;
             for i in 0..3
             {
               material.base_color_factor.0[ i ] = color.0[ i ];
@@ -251,7 +250,7 @@ impl Configurator
       renderer_mut.set_clear_color( F32x3::splat( 4.0 ) );
     }
 
-    renderer_mut.set_use_emission( true ); 
+    renderer_mut.set_use_emission( true );
     renderer_mut.set_bloom_strength( 2.0 );
     renderer_mut.set_exposure( 1.5 );
     renderer_mut.set_bloom_radius( 0.1 );
