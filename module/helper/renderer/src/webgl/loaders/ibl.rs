@@ -60,7 +60,6 @@ mod private
       gl.tex_parameteri(gl::TEXTURE_CUBE_MAP, gl::TEXTURE_BASE_LEVEL, mip_range.start as i32 );
       gl.tex_parameteri(gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MAX_LEVEL, mip_range.end as i32 );
     }
-    gl.generate_mipmap( gl::TEXTURE_2D );
     gl.bind_texture( gl::TEXTURE_CUBE_MAP, None );
 
     IBL

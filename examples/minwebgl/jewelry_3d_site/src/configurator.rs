@@ -61,7 +61,7 @@ impl Configurator
     let mut _cube_normal_map_generator = CubeNormalMapGenerator::new( gl )?;
     _cube_normal_map_generator.set_texture_size( gl, 512, 512 );
 
-    let ibl_ring = renderer::webgl::loaders::ibl::load( gl, "environment_maps/dancing_hall_4k", Some( 0..2 ) ).await;
+    let ibl_ring = renderer::webgl::loaders::ibl::load( gl, "environment_maps/dancing_hall_4k", None ).await;
     let ibl_gem = renderer::webgl::loaders::ibl::load( gl, "environment_maps/studio", None ).await;
 
     let sampler = Sampler::former()
