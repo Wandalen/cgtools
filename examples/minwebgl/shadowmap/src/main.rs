@@ -61,8 +61,9 @@ async fn run() -> Result< (), gl::WebglError >
   let mesh = gltf::load( &document, "skull_salazar_downloadable.glb", &gl ).await?;
 
   let cube_mesh = gltf::load( &document, "cube.glb", &gl ).await?;
+  let cube_mesh = gltf::load( &document, "plane.glb", &gl ).await?;
   let cube_model = mat3x3h::translation( [ 0.0, -1.0, 0.0 ] )
-    * mat3x3h::scale( [ 8.0, 0.25, 8.0 ] );
+    * mat3x3h::scale( [ 8.0, 1.0, 8.0 ] );
 
   let mut main_scene = renderer::webgl::Scene::new();
 
