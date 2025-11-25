@@ -391,7 +391,7 @@ async fn setup_rings
 
   
 
-  for i in 3..4
+  for i in 4..5
   {
     let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/{i}.glb" ).as_str(), &gl ).await?;
 
