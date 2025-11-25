@@ -220,7 +220,8 @@ impl Configurator
             }
             let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >( material.borrow_mut() );
             material.base_color_texture = None;
-            material.roughness_factor = 0.2;
+            material.roughness_factor = 0.0;
+            material.metallic_factor = 1.0;
             for i in 0..3
             {
               material.base_color_factor.0[ i ] = color.0[ i ];
@@ -391,7 +392,7 @@ async fn setup_rings
 
   let mut material_3 = None;
 
-  for i in 0..5
+  for i in 0..1
   {
     let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/{i}.glb" ).as_str(), &gl ).await?;
 
