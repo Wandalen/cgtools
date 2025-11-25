@@ -95,7 +95,7 @@ impl Configurator
     scene.borrow_mut().add( rings.current_ring.clone() );
     scene.borrow_mut().update_world_matrix();
 
-    let renderer = Renderer::new( gl, canvas.width(), canvas.height(), 4 )?;
+    let renderer = Renderer::new( gl, canvas.width(), canvas.height(), 1 )?;
     let renderer = Rc::new( RefCell::new( renderer ) );
 
     let surface = get_node( &scene, "Plane".to_string() ).unwrap();
@@ -248,7 +248,7 @@ impl Configurator
     else
     {
       renderer_mut.set_skybox( None );
-      renderer_mut.set_clear_color( F32x3::splat( 4.0 ) );
+      renderer_mut.set_clear_color( F32x3::splat( 0.0 ) );
     }
 
     renderer_mut.set_use_emission( true );
@@ -353,7 +353,8 @@ fn setup_surface
   {
     let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >( surface_material.borrow_mut() );
     material.base_color_texture = None;
-    material.roughness_factor = 1.0;
+    material.base_color_factor = gl::F32x4::new( 0.0, 0.0, 0.0, 0.0 );
+    material.roughness_factor = 0.0;
     material.specular_factor = Some( 0.0 );
     material.metallic_factor = 0.0;
     material.need_use_ibl = false;

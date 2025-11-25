@@ -55,11 +55,20 @@ mod private
 
     gl.bind_texture( gl::TEXTURE_CUBE_MAP, specular_1_texture.as_ref() );
     gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
-    if let Some( mip_range ) = mip_range
-    {
-      gl.tex_parameteri(gl::TEXTURE_CUBE_MAP, gl::TEXTURE_BASE_LEVEL, mip_range.start as i32 );
-      gl.tex_parameteri(gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MAX_LEVEL, mip_range.end as i32 );
-    }
+    gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+
+    gl.bind_texture( gl::TEXTURE_2D, specular_2_texture.as_ref() );
+    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32 );
+    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32 );
+
+    gl.bind_texture( gl::TEXTURE_CUBE_MAP, diffuse_texture.as_ref() );
+    gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32 );
+    gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+    // if let Some( mip_range ) = mip_range
+    // {
+    //   gl.tex_parameteri(gl::TEXTURE_CUBE_MAP, gl::TEXTURE_BASE_LEVEL, mip_range.start as i32 );
+    //   gl.tex_parameteri(gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MAX_LEVEL, mip_range.end as i32 );
+    // }
     gl.bind_texture( gl::TEXTURE_CUBE_MAP, None );
 
     IBL

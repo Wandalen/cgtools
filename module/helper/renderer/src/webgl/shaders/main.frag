@@ -467,27 +467,29 @@ void computeLights
 
     const float MAX_LOD = 9.0;
 
-    if( dotNV < 0.005 )
-    {
-      dotNV = 0.005;
-    }
+    // if( dotNV < 0.005 )
+    // {
+    //   dotNV = 0.005;
+    // }
 
     vec3 Fs = F_Schlick( material.f0, material.f90, dotNV );
     vec3 R = reflect( -V, N );
 
     vec2 d = mipmapDistanceRange;
     float lod = remapClamped( viewDistance, d.x, d.y, 0.0, MAX_LOD );
+    lod = MAX_LOD;
 
     vec3 diffuse = texture( irradianceTexture, N ).xyz * pow( 2.0, exposure );
-    vec3 prefilter = textureLod( prefilterEnvMap, R, material.roughness * lod ).xyz * pow( 2.0, exposure );
+    vec3 prefilter = textureLod( prefilterEnvMap, R, material.roughness * MAX_LOD ).xyz * pow( 2.0, exposure );
     vec2 envBrdf = texture( integrateBRDF, vec2( dotNV, material.roughness ) ).xy;
 
     vec3 diffuseBRDF = diffuse * material.diffuseColor;
-    vec3 specularBRDF = prefilter * ( material.f0 * envBrdf.x + envBrdf.y );
+    vec3 specularBRDF = prefilter* material.f0;// * ( material.f0 * envBrdf.x + envBrdf.y );
+    specularBRDF = vec3( envBrdf, 0.0 );
     //vec3 specularBRDF = prefilter * ( Fs * envBrdf.x + envBrdf.y );
 
-    reflectedLight.indirectDiffuse += diffuseBRDF;
-    reflectedLight.indirectSpecular += specularBRDF;
+    //reflectedLight.indirectDiffuse += diffuseBRDF;
+    reflectedLight.indirectSpecular = specularBRDF;
   }
 #endif
 
@@ -630,7 +632,7 @@ void main()
   //   vec3( 0.0, 0.0, -1.0 )
   // );
 
-  computeLights( viewDir, normal, material, reflectedLight );
+  //computeLights( viewDir, normal, material, reflectedLight );
 
   // Ambient color
   #if defined( USE_IBL )
