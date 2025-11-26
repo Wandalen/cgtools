@@ -57,7 +57,7 @@ impl Configurator
     renderer::webgl::loaders::hdr_texture::load_to_mip_d2
     (
       gl,
-      env_map.as_ref().unwrap().texture.borrow().source.clone(),
+      env_map.as_ref().unwrap().texture.borrow().source.as_ref(),
       0,
       "environment_maps/studio3/env-gem-4.hdr"
     )
@@ -87,6 +87,7 @@ impl Configurator
 
     configurator.setup_renderer();
     configurator.update_gem_color();
+    configurator.update_metal_color();
     configurator.setup_surface( gl ).await?;
 
     Ok( configurator )
@@ -240,6 +241,8 @@ impl Configurator
               material.base_color_factor.0[ i ] = color.0[ i ];
             }
             material.base_color_factor.0[ 3 ] = 1.0;
+            material.roughness_factor = 0.05;
+            material.metallic_factor = 1.0;
             material.need_update = true;
           }
         }
@@ -266,7 +269,7 @@ impl Configurator
 
     renderer_mut.set_use_emission( true );
     renderer_mut.set_bloom_strength( 2.0 );
-    renderer_mut.set_exposure( 1.0 );
+    renderer_mut.set_exposure( -1.0 );
     renderer_mut.set_bloom_radius( 0.1 );
   }
 }
@@ -360,7 +363,7 @@ fn setup_camera( canvas : &web_sys::HtmlCanvasElement ) -> Camera
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
 
-  let eye = crate::helpers::to_decart( 6.0, -45.0, 65.0 );
+  let eye = crate::helpers::to_decart( 6.0, 135.0, 65.0 );
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
   let center = gl::math::F32x3::from( [ 0.0, 0.0, 0.0 ] );
 
