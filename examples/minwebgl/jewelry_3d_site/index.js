@@ -26,6 +26,32 @@ export function clearChanged()
   uiState.changed.length = 0;
 }
 
+async function replaceSVG( svgPath, selector )
+{
+  let svg = document.querySelector( selector );
+  if ( !svg ) return;
+
+  const response = await fetch( svgPath );
+  const svgText = await response.text();
+
+  const parser = new DOMParser();
+  const newSvgDoc = parser.parseFromString( svgText, 'image/svg+xml' );
+  const newSvg = newSvgDoc.documentElement;
+
+  if ( svg.hasAttribute( 'width' ) )
+  {
+    newSvg.setAttribute('width', svg.getAttribute( 'width' ) );
+  }
+  if ( svg.hasAttribute( 'height' ) )
+  {
+    newSvg.setAttribute( 'height', svg.getAttribute( 'height' ) );
+  }
+
+  svg.classList.forEach( cls => newSvg.classList.add( cls ) );
+
+  svg.outerHTML = newSvg.outerHTML;
+}
+
 document.addEventListener
 (
   "DOMContentLoaded", () =>
@@ -42,6 +68,10 @@ document.addEventListener
     const configRing = document.querySelector( '.config--ring' )
     const closeConfigGem = document.querySelector( '.close-gems' )
     const closeConfigRing = document.querySelector( '.close-rings' )
+
+    replaceSVG( "./static/images/jewelry_site/icons/gem.svg", ".image--gem" )
+    replaceSVG( "./static/images/jewelry_site/icons/metal.svg", ".image--material" )
+    replaceSVG( "./static/images/jewelry_site/icons/ring.svg", ".image--ring" )
 
     // GEM MENU
     configGem.addEventListener
