@@ -383,8 +383,7 @@ async fn setup_rings
       }
       else
       {
-        let gem_clone = gem.borrow().clone_tree();
-        let normal_map = cube_normal_map_generator.generate( gl, &gem_clone ).unwrap();
+        let normal_map = cube_normal_map_generator.generate( gl, &gem ).unwrap();
         normal_maps.insert( name.clone(), normal_map.clone() );
         normal_map
       };

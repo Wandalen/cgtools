@@ -33,6 +33,7 @@ impl_locations!
   "normalMatrix",
   "viewMatrix",
   "projectionMatrix",
+  "offsetMatrix",
 
   "maxDistance"
 );
@@ -153,6 +154,7 @@ impl CubeNormalMapGenerator
     let c = bb.center();
     let max_distance = ( bb.max - c ).mag().max( ( bb.min - c ).mag() );
 
+    let offset_matrix = gl::math::mat3x3h::translation( -c );
     let perspective_matrix = gl::math::mat3x3h::perspective_rh_gl
     (
       90.0f32.to_radians(),
@@ -165,11 +167,13 @@ impl CubeNormalMapGenerator
     let projection_matrix_location = locations.get( "projectionMatrix" ).unwrap().clone();
     let view_matrix_location = locations.get( "viewMatrix" ).unwrap();
     let max_distance_location = locations.get( "maxDistance" ).unwrap().clone();
+    let offset_matrix_location = locations.get( "offsetMatrix" ).unwrap().clone();
 
     self.program.bind( gl );
 
     node.borrow().upload( gl, locations );
     gl::uniform::matrix_upload( &gl, projection_matrix_location, &perspective_matrix.to_array(), true ).ok()?;
+    gl::uniform::matrix_upload( &gl, offset_matrix_location, &offset_matrix.to_array(), true ).ok()?;
     gl::uniform::upload( &gl, max_distance_location, &max_distance ).ok()?;
 
     let cube_texture = gen_cube_texture( &gl, self.texture_width as i32, self.texture_height as i32 );
