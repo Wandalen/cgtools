@@ -53,21 +53,6 @@ fn handle_camera_position( configurator : &Configurator )
   {
     camera_controls.borrow_mut().eye /= distance / DISTANCE_RANGE.start;
   }
-
-  // {
-  //   let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >( configurator.surface_material.borrow_mut() );
-  //   if camera_controls.borrow().eye.y() < -20.0
-  //   {
-  //     material.base_color_factor.0[ 3 ] = 0.0;
-  //     material.alpha_mode = renderer::webgl::AlphaMode::Blend;
-  //   }
-  //   else
-  //   {
-  //     material.base_color_factor.0[ 3 ] = 1.0;
-  //     material.alpha_mode = renderer::webgl::AlphaMode::Opaque;
-  //   }
-  //   material.need_update = true;
-  // }
 }
 
 fn handle_resize
@@ -194,13 +179,5 @@ async fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  #[ cfg( debug_assertions ) ]
-  {
-    gl::spawn_local( async move { debug::debug_run().await.unwrap(); } );
-  }
-
-  #[ cfg( not( debug_assertions ) ) ]
-  {
-    gl::spawn_local( async move { run().await.unwrap(); } );
-  }
+  gl::spawn_local( async move { run().await.unwrap(); } );
 }
