@@ -81,6 +81,7 @@ impl Configurator
     };
 
     configurator.setup_renderer();
+    configurator.update_gem_color();
     // configurator.setup_light( &gl );
 
     Ok( configurator )
@@ -108,7 +109,7 @@ impl Configurator
     {
       "silver" => self.set_metal_color( F32x3::from_array( [ 0.753, 0.753, 0.753 ] ) ),
       "copper" => self.set_metal_color( F32x3::from_array( [ 1.0, 0.4, 0.2 ] ) ),
-      "gold" => self.set_metal_color( F32x3::from_array( [ 1.0, 0.55, 0.02 ] ) ),
+      "gold" => self.set_metal_color( F32x3::from_array( [ 1.0, 0.55, 0.1 ] ) ),
       _ => ()
     }
   }
@@ -212,7 +213,7 @@ impl Configurator
 
     renderer_mut.set_use_emission( true );
     renderer_mut.set_bloom_strength( 2.0 );
-    renderer_mut.set_exposure( 1.5 );
+    renderer_mut.set_exposure( 1.0 );
     renderer_mut.set_bloom_radius( 0.1 );
   }
 
@@ -363,6 +364,7 @@ async fn setup_rings
     for node in &gltf.scenes[ 0 ].borrow().children
     {
       node.borrow_mut().set_center_to_origin();
+      node.borrow_mut().normalize_scale();
     }
 
     rings.push( gltf.scenes[ 0 ].clone() );
@@ -377,15 +379,18 @@ async fn setup_rings
     let mut normal_maps = HashMap::< String, TextureInfo >::new();
     for ( name, gem ) in &ring_gems
     {
-      let cube_normal_map_texture = if let Some( normal_map ) = normal_maps.get( &remove_numbers( name.as_str() ) )
+      let root_name = remove_numbers( name.as_str() );
+      let cube_normal_map_texture = if let Some( normal_map ) = normal_maps.get( &root_name )
       {
+        // gl::info!( "Use existing map for: {:?}", ( name.as_str(), remove_numbers( name.as_str() ) ) );
         normal_map.clone()
       }
       else
       {
+        // gl::info!( "Generate new map for: {:?}", ( name.as_str(), remove_numbers( name.as_str() ) ) );
         let gem_clone = gem.borrow().clone_tree();
         let normal_map = cube_normal_map_generator.generate( gl, &gem_clone ).unwrap();
-        normal_maps.insert( name.clone(), normal_map.clone() );
+        normal_maps.insert( root_name, normal_map.clone() );
         normal_map
       };
       setup_gem_material( &gem, environment_texture, &Some( cube_normal_map_texture ) );

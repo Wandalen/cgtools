@@ -394,6 +394,22 @@ mod private
       );
     }
 
+    /// Calculates max coord of [`Node`]'s bounding box min/max
+    /// and then normalize world matrix scale with it
+    pub fn normalize_scale( &mut self )
+    {
+      let bb = self.bounding_box_hierarchical();
+      let min = bb.min.0.iter().cloned().reduce( f32::max ).unwrap();
+      let max = bb.max.0.iter().cloned().reduce( f32::max ).unwrap();
+      let max_scale = min.max( max );
+      self.set_world_matrix
+      (
+        gl::math::mat3x3h::scale( F32x3::splat( 1.0 / max_scale ) )
+        *
+        self.get_world_matrix()
+      );
+    }
+
     /// Computes the hierarchical bounding box for the node and all of its children.
     ///
     /// This function starts with the node's own bounding box and then recursively
