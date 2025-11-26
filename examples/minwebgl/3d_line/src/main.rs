@@ -60,15 +60,13 @@ fn run() -> Result< (), gl::WebglError >
   let near = 0.0001f32;
   let far = 100.0f32;
 
-  let camera = CameraOrbitControls
-  {
-    eye : eye,
-    up : up,
-    center : center,
-    window_size : [ width, height ].into(),
-    fov,
-    ..Default::default()
-  };
+  let mut camera = CameraOrbitControls::default();
+  camera.eye = eye;
+  camera.up = up;
+  camera.center = center;
+  camera.fov = fov;
+  camera.window_size = [ width, height ].into();
+
   let camera = Rc::new( RefCell::new( camera ) );
   bind_controls_to_input( &canvas, &camera );
 

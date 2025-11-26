@@ -52,15 +52,12 @@ mod private
         far
       );
 
-      let controls = CameraOrbitControls
-      {
-        eye : eye,
-        up : up,
-        center : look_at,
-        fov,
-        rotation_speed_scale : 200.0,
-        ..Default::default()
-      };
+      let mut controls = CameraOrbitControls::default();
+      controls.eye = eye;
+      controls.up = up;
+      controls.center = look_at;
+      controls.fov = fov;
+      controls.rotation_speed_scale = 200.0;
 
       let controls = Rc::new( RefCell::new( controls ) );
 
@@ -129,6 +126,12 @@ mod private
         projection_matrix.to_array().as_slice(),
         true
       ).unwrap();
+    }
+
+    /// Updates the state of the camera controls
+    pub fn update( &mut self, delta_time : f64 )
+    {
+      self.controls.borrow_mut().update( delta_time );
     }
 
     /// Sets the window size for the camera controls.

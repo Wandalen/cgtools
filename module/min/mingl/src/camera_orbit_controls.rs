@@ -31,7 +31,16 @@ mod private
     /// The vertical field of view of the camera, in radians.
     pub fov : f32,
     /// Defines allow pan or not
-    pub block_pan : bool
+    pub block_pan : bool,
+    /// Sets whether to `rotation_decay` is applied or not
+    pub use_rotation_easing : bool,
+    /// Determines how fast rotation is going to decrease after dragging is stopped.
+    /// In range from 0.0 to 1.0
+    pub rotation_decay : f32,
+    /// Accumulated speed based on mouse movement
+    rotation_speed : F32x2,
+    /// Current angle of rotation for the camera
+    rotation_angle : F32x2
   }
 
   impl CameraOrbitControls
@@ -79,17 +88,31 @@ mod private
       mut screen_d : [ f32; 2 ]
     )
     {
-      screen_d[ 0 ] /= self.rotation_speed_scale;
-      screen_d[ 1 ] /= self.rotation_speed_scale;
+      let mut screen_d = F32x2::from( screen_d );
+      screen_d /= self.rotation_speed_scale;
 
+
+      if !self.use_rotation_easing
+      {
+        self.rotation_angle = screen_d;
+        self.apply_rotation();
+      }
+      else 
+      {
+        self.rotation_speed += screen_d;
+      }
+    }
+
+    fn apply_rotation( &mut self )
+    {
       let dir = ( self.center - self.eye ).normalize();
       let x = dir.cross( self.up ).normalize();
 
       // We rotate aroung the y axis based on the movement in x direction.
       // And we rotate aroung the axix perpendicular to the current up and direction vectors
       // based on the movement in y direction
-      let rot_y = math::mat3x3::from_angle_y( -screen_d[ 0 ] );
-      let rot_x = math::mat3x3::from_axis_angle( x, -screen_d[ 1 ] );
+      let rot_y = math::mat3x3::from_angle_y( -self.rotation_angle.x() );
+      let rot_x = math::mat3x3::from_axis_angle( x, -self.rotation_angle.y());
       // Combine two rotations
       let rot = rot_y * rot_x;
 
@@ -102,7 +125,6 @@ mod private
 
       self.eye = eye_new;
       self.up = up_new;
-
     }
 
     /// Pans the camera by moving both its position and its center point in a plane.
@@ -178,6 +200,26 @@ mod private
 
       self.eye = eye_new;
     }
+
+    /// Updates the state of the controls
+    pub fn update
+    (
+      &mut self,
+      delta_time : f64
+    )
+    {
+      // Decays self.rotation_decay% every 100 milliseconds
+      let mut decay_percentage = self.rotation_decay * delta_time as f32 / 10.0; 
+      decay_percentage = decay_percentage.min( 1.0 );
+      // decay_percentage = self.rotation_decay;
+
+      if self.use_rotation_easing
+      {
+        self.rotation_angle = self.rotation_speed * delta_time as f32 / 1000.0;
+        self.apply_rotation();
+        self.rotation_speed *= 1.0 - decay_percentage;
+      }
+    }
   }
 
   impl Default for CameraOrbitControls
@@ -194,7 +236,11 @@ mod private
         rotation_speed_scale : 500.0,
         zoom_speed_scale : 1000.0,
         fov : 70f32.to_radians(),
-        block_pan : false
+        block_pan : false,
+        rotation_speed : F32x2::default(),
+        rotation_angle : F32x2::default(),
+        use_rotation_easing : false,
+        rotation_decay : 0.05
       }
     }
   }
