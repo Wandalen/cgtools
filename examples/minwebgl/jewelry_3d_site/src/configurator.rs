@@ -208,7 +208,7 @@ impl Configurator
     else
     {
       renderer_mut.set_skybox( None );
-      renderer_mut.set_clear_color( F32x3::splat( 4.0 ) );
+      renderer_mut.set_clear_color( F32x3::splat( 2.0 ) );
     }
 
     renderer_mut.set_use_emission( true );
@@ -382,7 +382,6 @@ async fn setup_rings
       let root_name = remove_numbers( name.as_str() );
       let cube_normal_map_texture = if let Some( normal_map ) = normal_maps.get( &root_name )
       {
-        // gl::info!( "Use existing map for: {:?}", ( name.as_str(), remove_numbers( name.as_str() ) ) );
         normal_map.clone()
       }
       else
@@ -431,7 +430,8 @@ fn setup_camera( canvas : &web_sys::HtmlCanvasElement ) -> Camera
   camera.set_window_size( [ width, height ].into() );
   camera.get_controls().borrow_mut().block_pan = true;
   camera.get_controls().borrow_mut().use_rotation_easing = true;
-  camera.get_controls().borrow_mut().rotation_speed_scale = 50.0;
+  camera.get_controls().borrow_mut().rotation_speed_scale = 10.0;
+  camera.get_controls().borrow_mut().rotation_decay = 0.075;
   camera.bind_controls( &canvas );
 
   camera
