@@ -24,6 +24,36 @@ use renderer::webgl::
   Sampler
 };
 
+pub async fn create_empty_texture( gl : &GL ) -> Option< TextureInfo >
+{
+  let texture = gl.create_texture();
+
+  let sampler = Sampler::former()
+  .min_filter( MinFilterMode::Linear )
+  .mag_filter( MagFilterMode::Linear )
+  .wrap_r( WrappingMode::Repeat )
+  .wrap_s( WrappingMode::Repeat )
+  .wrap_t( WrappingMode::Repeat )
+  .end();
+
+  let texture = Texture::former()
+  .target( GL::TEXTURE_2D )
+  .source( texture.clone().unwrap() )
+  .sampler( sampler )
+  .end();
+
+  let texture = Some
+  (
+    TextureInfo
+    {
+      texture : Rc::new( RefCell::new( texture ) ),
+      uv_position : 0,
+    }
+  );
+
+  texture
+}
+
 /// Uploads an image from a URL to a WebGL texture.
 ///
 /// This function creates a new `WebGlTexture` and asynchronously loads an image from the provided URL into it.
@@ -38,7 +68,7 @@ use renderer::webgl::
 /// # Returns
 ///
 /// A `WebGlTexture` object.
-pub fn _upload_texture( gl : &GL, src : &str ) -> WebGlTexture
+pub fn upload_texture( gl : &GL, src : &str ) -> WebGlTexture
 {
   let window = web_sys::window().expect( "Can't get window" );
   let document =  window.document().expect( "Can't get document" );
@@ -86,14 +116,14 @@ pub fn _upload_texture( gl : &GL, src : &str ) -> WebGlTexture
 /// # Returns
 ///
 /// An `Option<TextureInfo>` containing the texture data, or `None` if creation fails.
-pub fn _create_texture
+pub fn create_texture
 (
   gl : &GL,
   image_path : &str
 ) -> Option< TextureInfo >
 {
   let image_path = format!( "static/{image_path}" );
-  let texture_id = _upload_texture( gl, image_path.as_str() );
+  let texture_id = upload_texture( gl, image_path.as_str() );
 
   let sampler = Sampler::former()
   .min_filter( MinFilterMode::Linear )
@@ -172,106 +202,6 @@ pub fn get_node( scene : &Rc< RefCell< Scene > >, name : String ) -> Option< Rc<
     }
   );
   target
-}
-
-pub fn _remove_node_from_scene( root : &Rc< RefCell< Scene > >, node : &Rc< RefCell< Node > > )
-{
-  let name = node.borrow().get_name().unwrap();
-
-  let remove_child_ids = root.borrow().children
-  .iter()
-  .enumerate()
-  .filter
-  (
-    | ( _, n ) |
-    {
-      if let Some( current_name ) = n.borrow().get_name()
-      {
-        *current_name.clone().into_string() == *name
-      }
-      else
-      {
-        false
-      }
-    }
-  )
-  .map( | ( i, _ ) | i )
-  .collect::< Vec< _ > >();
-
-  for i in remove_child_ids.iter().rev()
-  {
-    let _ = root.borrow_mut().children.remove( *i );
-  }
-
-  let _ = root.borrow_mut().traverse
-  (
-    &mut | node : Rc< RefCell< Node > > |
-    {
-      let remove_child_ids = node.borrow().get_children()
-      .iter()
-      .enumerate()
-      .filter
-      (
-        | ( _, n ) |
-        {
-          if let Some( current_name ) = n.borrow().get_name()
-          {
-            *current_name.clone().into_string() == *name
-          }
-          else
-          {
-            false
-          }
-        }
-      )
-      .map( | ( i, _ ) | i )
-      .collect::< Vec< _ > >();
-
-      for i in remove_child_ids.iter().rev()
-      {
-        let _ = node.borrow_mut().remove_child( *i );
-      }
-
-      Ok( () )
-    }
-  );
-}
-
-pub fn _remove_node_from_node( root : &Rc< RefCell< Node > >, node : &Rc< RefCell< Node > > )
-{
-  let name = node.borrow().get_name().unwrap();
-  let _ = root.borrow_mut().traverse
-  (
-    &mut | node : Rc< RefCell< Node > > |
-    {
-      let remove_child_ids = node.borrow().get_children()
-      .iter()
-      .enumerate()
-      .filter
-      (
-        | ( _, n ) |
-        {
-          if let Some( current_name ) = n.borrow().get_name()
-          {
-            *current_name.clone().into_string() == *name
-          }
-          else
-          {
-            false
-          }
-        }
-      )
-      .map( | ( i, _ ) | i )
-      .collect::< Vec< _ > >();
-
-      for i in remove_child_ids.iter().rev()
-      {
-        let _ = node.borrow_mut().remove_child( *i );
-      }
-
-      Ok( () )
-    }
-  );
 }
 
 pub fn add_resize_callback() -> Rc< RefCell< bool > >

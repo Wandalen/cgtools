@@ -40,7 +40,6 @@ pub struct Configurator
   pub camera : Camera,
   pub ibl : IBL,
   pub skybox : Option< TextureInfo >,
-  // pub surface_material : Rc< RefCell< Box< dyn Material > > >,
   pub rings : RingsInfo,
   pub ui_state : UiState
 }
@@ -49,13 +48,20 @@ impl Configurator
 {
   pub async fn new( gl : &GL, canvas : &canvas::HtmlCanvasElement ) -> Result< Self, WebglError >
   {
-
-
     let mut _cube_normal_map_generator = CubeNormalMapGenerator::new( gl )?;
     _cube_normal_map_generator.set_texture_size( gl, 512, 512 );
 
     let ibl = renderer::webgl::loaders::ibl::load( gl, "environment_maps/studio", None ).await;
-    let env_map = load_env_map( &gl ).await;
+
+    let env_map = create_empty_texture( &gl ).await;
+    renderer::webgl::loaders::hdr_texture::load_to_mip_d2
+    (
+      gl,
+      env_map.as_ref().unwrap().texture.borrow().source.clone(),
+      0,
+      "environment_maps/studio3/env-gem-4.hdr"
+    )
+    .await;
 
     let rings = setup_rings( gl, &env_map, &_cube_normal_map_generator ).await?;
 
@@ -75,7 +81,6 @@ impl Configurator
       camera,
       ibl,
       skybox,
-      // surface_material,
       rings,
       ui_state
     };
@@ -83,7 +88,6 @@ impl Configurator
     configurator.setup_renderer();
     configurator.update_gem_color();
     configurator.setup_surface( gl ).await?;
-    // configurator.setup_light( &gl );
 
     Ok( configurator )
   }
@@ -146,39 +150,11 @@ impl Configurator
   }
 
 
-  async fn setup_surface( &self, gl : &GL, ) -> Result< (), gl::WebglError >
+  async fn setup_surface( &self, gl : &GL ) -> Result< (), gl::WebglError >
   {
     let window = gl::web_sys::window().unwrap();
     let document = window.document().unwrap();
     let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/plane.glb" ).as_str(), &gl ).await?;
-    let lightmap_4 = _upload_texture( gl, "static/4.png" );
-    let lightmap_5 = _upload_texture( gl, "static/5.png" );
-    let sampler = Sampler::former()
-    .min_filter( MinFilterMode::Linear )
-    .mag_filter( MagFilterMode::Linear )
-    .wrap_r( WrappingMode::ClampToEdge )
-    .wrap_s( WrappingMode::ClampToEdge )
-    .wrap_t( WrappingMode::ClampToEdge )
-    .end();
-
-    let texture_4 = TextureInfo
-    {
-      texture : Rc::new( RefCell::new( Texture::former()
-      .target( GL::TEXTURE_2D )
-      .source( lightmap_4 )
-      .sampler( sampler.clone() )
-      .end() ) ),
-      uv_position : 0,
-    };
-    let texture_5 = TextureInfo
-    {
-      texture : Rc::new( RefCell::new( Texture::former()
-      .target( GL::TEXTURE_2D )
-      .source( lightmap_5 )
-      .sampler( sampler )
-      .end() ) ),
-      uv_position : 0,
-    };
     let surface = get_node( &gltf.scenes[ 0 ], "Plane".to_string() ).unwrap();
 
     for ( i, ring ) in self.rings.rings.iter().enumerate()
@@ -197,14 +173,14 @@ impl Configurator
         let primitives = &mesh.borrow().primitives;
         let primitive = primitives.first().unwrap();
 
-        let texture = if i == 0 { texture_5.clone() } else { texture_4.clone() };
+        let texture = self.rings.shadows[ i ].clone();
 
         // Create custom surface material
         let surface_material = SurfaceMaterial
         {
           id : uuid::Uuid::new_v4(),
           color : F32x3::splat( 2.0 ),
-          texture: Some( texture ),
+          texture,
           need_update : false
         };
         let surface_material_boxed : Rc< RefCell< Box< dyn Material > > > = Rc::new( RefCell::new( Box::new( surface_material ) ) );
@@ -214,14 +190,12 @@ impl Configurator
 
       clone.borrow_mut().set_translation( F32x3::from_array( [ 0.0, min_y, 0.0 ] ) );
       clone.borrow_mut().set_rotation( mingl::Quat::from_angle_y( 90.0_f32.to_radians() ) );
-      clone.borrow_mut().set_scale( F32x3::from_array( [ 6.0, 1.0, 6.0 ] ) );
+      clone.borrow_mut().set_scale( F32x3::from_array( [ 5.0, 1.0, 5.0 ] ) );
       ring.borrow_mut().add( clone );
-
     }
 
     Ok( () )
   }
-
 
   pub fn set_metal_color
   (
@@ -295,125 +269,13 @@ impl Configurator
     renderer_mut.set_exposure( 1.0 );
     renderer_mut.set_bloom_radius( 0.1 );
   }
-
-  // fn setup_light( &mut self, gl : &GL )
-  // {
-  //   self.scene.borrow_mut().add( self.rings.current_ring.clone() );
-  //   self.scene.borrow_mut().update_world_matrix();
-
-  //   let node = Rc::new( RefCell::new( Node::new() ) );
-  //   let spot = SpotLight
-  //   {
-  //     position : F32x3::from_array( [ 20.0, 40.0, 20.0 ] ),
-  //     direction : F32x3::from_array( [ -1.0, -2.0, -1.0 ] ).normalize(),
-  //     color : F32x3::splat( 1.0 ),
-  //     strength : 20000.0,
-  //     range : 200.0,
-  //     inner_cone_angle : 30_f32.to_radians(),
-  //     outer_cone_angle : 50_f32.to_radians(),
-  //     use_light_map : true
-  //   };
-
-  //   node.borrow_mut().object = Object3D::Light( Light::Spot( spot.clone() ) );
-  //   self.scene.borrow_mut().add( node.clone() );
-
-  //   let mut shadow_light = renderer::webgl::shadow::Light::new
-  //   (
-  //     spot.position,
-  //     spot.direction,
-  //     gl::math::mat3x3h::perspective_rh_gl( 100.0_f32.to_radians(), 1.0, 0.1, 100.0 ),
-  //     0.01
-  //   );
-
-  //   let shadowmap_res = 1024; //4096;
-  //   let lightmap_res = 2048; //8192;
-  //   let mut light_maps = vec![];
-  //   let last_ring = self.rings.current_ring.clone();
-  //   let last_gem = self.rings.current_gem.clone();
-  //   for i in ( 0..self.rings.rings.len() ).rev()
-  //   {
-  //     let new_ring = self.rings.rings.get( i ).unwrap();
-  //     let new_gem = self.rings.gems.get( i ).unwrap();
-  //     remove_node_from_scene( &self.scene, &self.rings.current_ring );
-  //     self.rings.current_ring = new_ring.clone();
-  //     self.rings.current_gem = new_gem.clone();
-  //     self.set_gem_color( F32x3::from_array( [ 1.0, 1.0, 1.0 ] ) );
-  //     self.set_metal_color( F32x3::from_array( [ 0.753, 0.753, 0.753 ] ) );
-  //     self.scene.borrow_mut().add( self.rings.current_ring.clone() );
-  //     self.scene.borrow_mut().update_world_matrix();
-
-  //     renderer::webgl::shadow::bake_shadows( &gl, &*self.scene.borrow(), &mut shadow_light, lightmap_res, shadowmap_res ).unwrap();
-  //     if self.surface_material.borrow().get_type_name() != "PBRMaterial"
-  //     {
-  //       continue;
-  //     }
-  //     {
-  //       let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >( self.surface_material.borrow_mut() );
-  //       material.need_update = true;
-  //       light_maps.push( material.light_map.clone().unwrap() );
-  //     }
-  //   }
-  //   light_maps.reverse();
-
-  //   remove_node_from_scene( &self.scene, &self.rings.current_ring );
-  //   self.rings.current_ring = last_ring;
-  //   self.rings.current_gem = last_gem;
-  //   self.scene.borrow_mut().add( self.rings.current_ring.clone() );
-  //   self.scene.borrow_mut().update_world_matrix();
-
-  //   self.rings.light_maps = light_maps;
-  // }
 }
-
-// fn setup_surface
-// (
-//   surface : Rc< RefCell< Node > >
-// )
-// -> Rc< RefCell< Box< dyn Material > > >
-// {
-//   surface.borrow_mut().set_translation( F32x3::from_array( [ 0.0, -20.0, 0.0 ] ) );
-//   surface.borrow_mut().set_scale( F32x3::from_array( [ 1000.0, 0.1, 1000.0 ] ) );
-
-//   let Object3D::Mesh( mesh ) = &surface.borrow().object
-//   else
-//   {
-//     unreachable!();
-//   };
-
-//   mesh.borrow_mut().is_shadow_receiver = true;
-//   mesh.borrow_mut().is_shadow_caster = true;
-
-//   let primitives = &mesh.borrow().primitives;
-//   let primitive = primitives.first().unwrap();
-//   let primitive = primitive.borrow();
-//   let surface_material = primitive.material.clone();
-
-//   if surface_material.borrow().get_type_name() == "PBRMaterial"
-//   {
-//     let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >( surface_material.borrow_mut() );
-//     material.base_color_texture = None;
-//     material.roughness_factor = 1.0;
-//     material.specular_factor = Some( 0.0 );
-//     material.metallic_factor = 0.0;
-//     material.need_use_ibl = false;
-//     material.need_update = true;
-//   }
-
-//   surface_material
-// }
-
-// if configurator.surface_material.borrow().get_type_name() == "PBRMaterial"
-// {
-//   let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >( configurator.surface_material.borrow_mut() );
-//   material.light_map = Some( configurator.rings.light_maps[ ui_state.ring as usize ].clone() );
-//   material.need_update = true;
-// }
 
 pub struct RingsInfo
 {
   pub rings : Vec< Rc< RefCell< Scene > > >,
   pub gems : Vec< HashMap< String, Rc< RefCell< Node > > > >,
-  pub light_maps : Vec< TextureInfo >,
+  pub shadows : Vec< Option< TextureInfo > >,
   pub current_ring : usize
 }
 
@@ -435,6 +297,7 @@ async fn setup_rings
 
   let mut rings : Vec< Rc< RefCell< Scene > > > = vec![];
   let mut gems : Vec< HashMap< String, Rc< RefCell< Node > > > > = vec![];
+  let mut shadows : Vec< Option< TextureInfo > > = vec![];
 
   for i in 0..2
   {
@@ -473,6 +336,7 @@ async fn setup_rings
     }
 
     gems.push( ring_gems );
+    shadows.push( create_texture( gl, format!( "textures/shadow_{i}.png" ).as_str() ) );
   }
 
   let ui_state = get_ui_state().unwrap();
@@ -485,7 +349,7 @@ async fn setup_rings
     {
       rings,
       gems,
-      light_maps : vec![],
+      shadows,
       current_ring
     }
   )
@@ -534,42 +398,4 @@ fn setup_gem_material
       *material.borrow_mut() = gem_material.dyn_clone();
     }
   }
-}
-
-async fn load_env_map( gl : &GL ) -> Option< TextureInfo >
-{
-  let env_map = gl.create_texture();
-  renderer::webgl::loaders::hdr_texture::load_to_mip_d2
-  (
-    gl,
-    env_map.as_ref(),
-    0,
-    "environment_maps/studio3/env-gem-4.hdr"
-  )
-  .await;
-
-  let sampler = Sampler::former()
-  .min_filter( MinFilterMode::Linear )
-  .mag_filter( MagFilterMode::Linear )
-  .wrap_r( WrappingMode::Repeat )
-  .wrap_s( WrappingMode::Repeat )
-  .wrap_t( WrappingMode::Repeat )
-  .end();
-
-  let texture = Texture::former()
-  .target( GL::TEXTURE_2D )
-  .source( env_map.clone().unwrap() )
-  .sampler( sampler )
-  .end();
-
-  let env_map = Some
-  (
-    TextureInfo
-    {
-      texture : Rc::new( RefCell::new( texture ) ),
-      uv_position : 0,
-    }
-  );
-
-  env_map
 }
