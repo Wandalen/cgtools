@@ -233,7 +233,7 @@ impl Default for GemMaterial
       ray_bounces : 5,
       color : gl::F32x3::from_array( [ 0.98, 0.95, 0.9 ] ),
       boost_factors : F32x3::from_array( [ 0.8920, 0.8920, 0.9860 ] ),
-      env_map_intensity : 0.7,
+      env_map_intensity : 1.0,
       rainbow_delta : 0.012,
       squash_factor : 0.98,
       radius : 1000.0,

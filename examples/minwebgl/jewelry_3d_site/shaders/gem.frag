@@ -359,7 +359,7 @@ void main()
   vec3 refractionColor = getRefractionColor( vWorldPosition, viewDirection, normal, 2.4 );
 
   vec3 diffuseColor = diamondColor;
-  vec3 colour = diffuseColor * ( refractionColor +  reflectionColor );
+  vec3 colour = diffuseColor * ( refractionColor + reflectionColor );
   vec3 toneMappedColour = aces_tone_map( colour );
   float emission_factor = smoothstep( 0.9, 0.91, luminosity( toneMappedColour ) );
   emissive_color = vec4( toneMappedColour * emission_factor, 0.0 );

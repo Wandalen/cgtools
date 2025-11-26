@@ -430,8 +430,7 @@ fn setup_camera( canvas : &web_sys::HtmlCanvasElement ) -> Camera
   camera.set_window_size( [ width, height ].into() );
   camera.get_controls().borrow_mut().block_pan = true;
   camera.get_controls().borrow_mut().use_rotation_easing = true;
-  camera.get_controls().borrow_mut().rotation_speed_scale = 10.0;
-  camera.get_controls().borrow_mut().rotation_decay = 0.075;
+  camera.get_controls().borrow_mut().rotation_speed_scale = 50.0;
   camera.bind_controls( &canvas );
 
   camera
