@@ -7,23 +7,16 @@ use gl::
   F32x3,
   WebglError
 };
-use std::collections::{ HashMap, HashSet };
+use std::collections::HashMap;
 use renderer::webgl::
 {
   Camera,
   IBL,
-  Light,
   Material,
   Node,
   Object3D,
   Renderer,
   Scene,
-  SpotLight,
-  MinFilterMode,
-  MagFilterMode,
-  WrappingMode,
-  Sampler,
-  Texture,
   TextureInfo,
   material::PBRMaterial
 };

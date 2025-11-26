@@ -85,7 +85,7 @@ mod private
     pub fn rotate
     (
       &mut self,
-      mut screen_d : [ f32; 2 ]
+      screen_d : [ f32; 2 ]
     )
     {
       let mut screen_d = F32x2::from( screen_d );
@@ -97,7 +97,7 @@ mod private
         self.rotation_angle = screen_d;
         self.apply_rotation();
       }
-      else 
+      else
       {
         self.rotation_speed += screen_d;
       }
@@ -209,7 +209,7 @@ mod private
     )
     {
       // Decays self.rotation_decay% every 100 milliseconds
-      let mut decay_percentage = self.rotation_decay * delta_time as f32 / 10.0; 
+      let mut decay_percentage = self.rotation_decay * delta_time as f32 / 10.0;
       decay_percentage = decay_percentage.min( 1.0 );
       // decay_percentage = self.rotation_decay;
 
