@@ -127,7 +127,7 @@ fn setup_camera( canvas : &web_sys::HtmlCanvasElement ) -> Camera
   let center = gl::math::F32x3::from( [ 0.0, 0.0, 0.0 ] );
 
   let aspect_ratio = width / height;
-  let fov = 70.0f32.to_radians();
+  let fov = 40.0f32.to_radians();
   let near = 0.1;
   let far = 1000.0;
 
@@ -154,7 +154,7 @@ pub async fn debug_run() -> Result< (), gl::WebglError >
 
   let model_id = 0;
   let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/{model_id}.glb" ).as_str(), &gl ).await?;
-  let gem = helpers::get_node( &gltf.scenes[ 0 ], "Object_2".to_string() ).unwrap();
+  let gem = helpers::get_node( &gltf.scenes[ 0 ], "Diamond_Cushion_Square".to_string() ).unwrap();
 
   let camera = setup_camera( &canvas );
 
