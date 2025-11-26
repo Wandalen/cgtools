@@ -154,37 +154,38 @@ impl Configurator
     let lightmap_4 = _upload_texture( gl, "static/4.png" );
     let lightmap_5 = _upload_texture( gl, "static/5.png" );
     let sampler = Sampler::former()
-       .min_filter( MinFilterMode::Linear )
-       .mag_filter( MagFilterMode::Linear )
-       .wrap_r( WrappingMode::ClampToEdge )
-       .wrap_s( WrappingMode::ClampToEdge )
-       .wrap_t( WrappingMode::ClampToEdge )
-       .end();
+    .min_filter( MinFilterMode::Linear )
+    .mag_filter( MagFilterMode::Linear )
+    .wrap_r( WrappingMode::ClampToEdge )
+    .wrap_s( WrappingMode::ClampToEdge )
+    .wrap_t( WrappingMode::ClampToEdge )
+    .end();
 
     let texture_4 = TextureInfo
-       {
-         texture : Rc::new( RefCell::new( Texture::former()
-           .target( GL::TEXTURE_2D )
-           .source( lightmap_4 )
-           .sampler( sampler.clone() )
-           .end() ) ),
-         uv_position : 0,
-       };
+    {
+      texture : Rc::new( RefCell::new( Texture::former()
+      .target( GL::TEXTURE_2D )
+      .source( lightmap_4 )
+      .sampler( sampler.clone() )
+      .end() ) ),
+      uv_position : 0,
+    };
     let texture_5 = TextureInfo
     {
       texture : Rc::new( RefCell::new( Texture::former()
-        .target( GL::TEXTURE_2D )
-        .source( lightmap_5 )
-        .sampler( sampler )
-        .end() ) ),
+      .target( GL::TEXTURE_2D )
+      .source( lightmap_5 )
+      .sampler( sampler )
+      .end() ) ),
       uv_position : 0,
     };
     let surface = get_node( &gltf.scenes[ 0 ], "Plane".to_string() ).unwrap();
 
     for ( i, ring ) in self.rings.rings.iter().enumerate()
     {
-
       let clone = surface.borrow().clone_tree();
+
+      let min_y = ring.borrow().bounding_box().min.y();
 
       {
         let Object3D::Mesh( mesh ) = &clone.borrow().object
@@ -202,10 +203,8 @@ impl Configurator
         let surface_material = SurfaceMaterial
         {
           id : uuid::Uuid::new_v4(),
-          color : F32x3::from_array( [ 0.854, 0.854, 0.854 ] ),
-          // color : F32x3::from_array( [ 1.0, 0.0, 0.0 ] ),
+          color : F32x3::splat( 2.0 ),
           texture: Some( texture ),
-          // texture: None,
           need_update : false
         };
         let surface_material_boxed : Rc< RefCell< Box< dyn Material > > > = Rc::new( RefCell::new( Box::new( surface_material ) ) );
@@ -213,8 +212,9 @@ impl Configurator
 
       }
 
-      clone.borrow_mut().set_translation( F32x3::from_array( [ 0.0, -20.0, 0.0 ] ) );
-      clone.borrow_mut().set_scale( F32x3::from_array( [ 8.0, 1.0, 8.0 ] ) );
+      clone.borrow_mut().set_translation( F32x3::from_array( [ 0.0, min_y, 0.0 ] ) );
+      clone.borrow_mut().set_rotation( mingl::Quat::from_angle_y( 90.0_f32.to_radians() ) );
+      clone.borrow_mut().set_scale( F32x3::from_array( [ 6.0, 1.0, 6.0 ] ) );
       ring.borrow_mut().add( clone );
 
     }
