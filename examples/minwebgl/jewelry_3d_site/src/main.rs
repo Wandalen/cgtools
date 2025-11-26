@@ -24,7 +24,7 @@ use gl::
 };
 use renderer::webgl::
 {
-  Renderer, material::PBRMaterial, post_processing::{ self, Pass, SwapFramebuffer }
+  Renderer, post_processing::{ self, Pass, SwapFramebuffer }
 };
 use std::ops::Range;
 
@@ -38,7 +38,7 @@ mod debug;
 use helpers::*;
 use configurator::*;
 
-const DISTANCE_RANGE : Range< f32 > = 14.0..50.0;
+const DISTANCE_RANGE : Range< f32 > = 2.0..6.0;
 
 fn handle_camera_position( configurator : &Configurator )
 {
@@ -53,20 +53,20 @@ fn handle_camera_position( configurator : &Configurator )
     camera_controls.borrow_mut().eye /= distance / DISTANCE_RANGE.start;
   }
 
-  {
-    let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >( configurator.surface_material.borrow_mut() );
-    if camera_controls.borrow().eye.y() < -20.0
-    {
-      material.base_color_factor.0[ 3 ] = 0.0;
-      material.alpha_mode = renderer::webgl::AlphaMode::Blend;
-    }
-    else
-    {
-      material.base_color_factor.0[ 3 ] = 1.0;
-      material.alpha_mode = renderer::webgl::AlphaMode::Opaque;
-    }
-    material.need_update = true;
-  }
+  // {
+  //   let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >( configurator.surface_material.borrow_mut() );
+  //   if camera_controls.borrow().eye.y() < -20.0
+  //   {
+  //     material.base_color_factor.0[ 3 ] = 0.0;
+  //     material.alpha_mode = renderer::webgl::AlphaMode::Blend;
+  //   }
+  //   else
+  //   {
+  //     material.base_color_factor.0[ 3 ] = 1.0;
+  //     material.alpha_mode = renderer::webgl::AlphaMode::Opaque;
+  //   }
+  //   material.need_update = true;
+  // }
 }
 
 fn handle_resize
@@ -111,24 +111,7 @@ fn handle_ui_change( configurator : &mut Configurator )
 
       if ring_changed
       {
-        if let Some( new_gem ) = configurator.rings.gems.get( ui_state.ring as usize ).cloned()
-        {
-          configurator.rings.current_gem = new_gem;
-        }
-        if let Some( new_ring ) = configurator.rings.rings.get( ui_state.ring as usize ).cloned()
-        {
-          remove_node_from_scene( &configurator.scene, &configurator.rings.current_ring );
-          configurator.rings.current_ring = new_ring.clone();
-          configurator.scene.borrow_mut().add( configurator.rings.current_ring.clone() );
-          configurator.scene.borrow_mut().update_world_matrix();
-
-          if configurator.surface_material.borrow().get_type_name() == "PBRMaterial"
-          {
-            let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >( configurator.surface_material.borrow_mut() );
-            material.light_map = Some( configurator.rings.light_maps[ ui_state.ring as usize ].clone() );
-            material.need_update = true;
-          }
-        }
+        configurator.rings.current_ring = ui_state.ring as usize;
       }
 
       if ui_state.changed.contains( &"gem".to_string() ) || ring_changed
@@ -174,7 +157,7 @@ async fn run() -> Result< (), gl::WebglError >
     {
       let delta_time = t - prev_time;
       prev_time = t;
-      //handle_camera_position( &configurator );
+      handle_camera_position( &configurator );
       handle_resize( &gl, &mut configurator, &mut swap_buffer, &canvas, &is_resized );
       handle_ui_change( &mut configurator );
       configurator.camera.update( delta_time );
@@ -182,7 +165,8 @@ async fn run() -> Result< (), gl::WebglError >
       // If textures are of different size, gl.view_port needs to be called
       let _time = t as f32 / 1000.0;
 
-      configurator.renderer.borrow_mut().render( &gl, &mut configurator.scene.borrow_mut(), &configurator.camera ).expect( "Failed to render" );
+      let scene = &configurator.rings.rings[ configurator.rings.current_ring ];
+      configurator.renderer.borrow_mut().render( &gl, &mut scene.borrow_mut(), &configurator.camera ).expect( "Failed to render" );
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );
