@@ -344,28 +344,25 @@ vec3 aces_tone_map( vec3 hdr )
 
 void main()
 {
-  // vec3 normal = normalize( vWorldNormal );
-  // vec3 viewDirection = normalize( vWorldPosition - cameraPosition );
-  // vec3 reflectedDirection = reflect( viewDirection, normal );
+  vec3 normal = normalize( vWorldNormal );
+  vec3 viewDirection = normalize( vWorldPosition - cameraPosition );
+  vec3 reflectedDirection = reflect( viewDirection, normal );
 
-  // float f0 = ( 2.4 - 1.0 ) / ( 2.4 + 1.0 );
-  // f0 *= f0;
+  float f0 = ( 2.4 - 1.0 ) / ( 2.4 + 1.0 );
+  f0 *= f0;
 
-  // // An approximation of specular reflection from environment
-  // vec3 brdfReflected = EnvBRDFApprox( dot( reflectedDirection, normal ), vec3( f0 ), 0.0 );
-  // // Sample color from an environment map
-  // vec3 reflectionColor = brdfReflected * sampleSpecularReflection( reflectedDirection );
-  // // The actual diamond calculation
-  // vec3 refractionColor = getRefractionColor( vWorldPosition, viewDirection, normal, 2.4 );
+  // An approximation of specular reflection from environment
+  vec3 brdfReflected = EnvBRDFApprox( dot( reflectedDirection, normal ), vec3( f0 ), 0.0 );
+  // Sample color from an environment map
+  vec3 reflectionColor = brdfReflected * sampleSpecularReflection( reflectedDirection );
+  // The actual diamond calculation
+  vec3 refractionColor = getRefractionColor( vWorldPosition, viewDirection, normal, 2.4 );
 
-  // vec3 diffuseColor = diamondColor;
-  // vec3 colour = diffuseColor * ( refractionColor +  reflectionColor );
-  // vec3 toneMappedColour = aces_tone_map( colour );
-  // float emission_factor = smoothstep( 0.9, 0.91, luminosity( toneMappedColour ) );
-  // emissive_color = vec4( toneMappedColour * emission_factor, 0.0 );
-
-  vec3 colour = vec3( 1.0, 0.0, 0.0 );
-  emissive_color = vec4( 0.0 );
+  vec3 diffuseColor = diamondColor;
+  vec3 colour = diffuseColor * ( refractionColor +  reflectionColor );
+  vec3 toneMappedColour = aces_tone_map( colour );
+  float emission_factor = smoothstep( 0.9, 0.91, luminosity( toneMappedColour ) );
+  emissive_color = vec4( toneMappedColour * emission_factor, 0.0 );
 
   float alpha = 1.0;
 
