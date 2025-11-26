@@ -4,12 +4,14 @@ use gl::
 {
   GL,
   JsCast,
+  F32x3,
   web_sys::
   {
     WebGlTexture,
     wasm_bindgen::closure::Closure
   }
 };
+use std::collections::HashMap;
 use renderer::webgl::
 {
   Node,
@@ -115,6 +117,38 @@ pub fn _create_texture
   Some( texture_info )
 }
 
+pub fn filter_nodes( scene : &Rc< RefCell< Scene > >, mut substring : String, case_sensitive : bool ) -> HashMap< String, Rc< RefCell< Node > > >
+{
+  if !case_sensitive
+  {
+    substring = substring.to_lowercase();
+  }
+  let mut filtered = HashMap::new();
+  let _ = scene.borrow_mut().traverse
+  (
+    &mut | node : Rc< RefCell< Node > > |
+    {
+      if let Some( current_name ) = node.borrow().get_name()
+      {
+        let modified_current_name = if !case_sensitive
+        {
+          current_name.to_lowercase()
+        }
+        else
+        {
+          current_name.to_string()
+        };
+        if modified_current_name.contains( &substring )
+        {
+          filtered.insert( current_name.to_string(), node.clone() );
+        }
+      }
+      Ok( () )
+    }
+  );
+  filtered
+}
+
 pub fn get_node( scene : &Rc< RefCell< Scene > >, name : String ) -> Option< Rc< RefCell< Node > > >
 {
   let mut target = None;
@@ -140,7 +174,7 @@ pub fn get_node( scene : &Rc< RefCell< Scene > >, name : String ) -> Option< Rc<
   target
 }
 
-pub fn remove_node_from_scene( root : &Rc< RefCell< Scene > >, node : &Rc< RefCell< Node > > )
+pub fn _remove_node_from_scene( root : &Rc< RefCell< Scene > >, node : &Rc< RefCell< Node > > )
 {
   let name = node.borrow().get_name().unwrap();
 
@@ -264,4 +298,20 @@ pub fn add_resize_callback() -> Rc< RefCell< bool > >
   resize_closure.forget();
 
   is_resized
+}
+
+pub fn to_decart( radius : f32, theta : f32, phi : f32 ) -> F32x3
+{
+  let phi = phi.to_radians();
+  let theta = theta.to_radians();
+  let cos_phi = phi.cos();
+
+  F32x3::from
+  (
+    [
+      radius * cos_phi * theta.cos(),
+      radius * phi.sin(),
+      radius * cos_phi * theta.sin(),
+    ]
+  )
 }
