@@ -169,11 +169,15 @@ async fn run() -> Result< (), gl::WebglError >
   // Define the update and draw logic
   let update_and_draw =
   {
+    let mut prev_time = 0.0;
     move | t : f64 |
     {
+      let delta_time = t - prev_time;
+      prev_time = t;
       //handle_camera_position( &configurator );
       handle_resize( &gl, &mut configurator, &mut swap_buffer, &canvas, &is_resized );
       handle_ui_change( &mut configurator );
+      configurator.camera.update( delta_time );
 
       // If textures are of different size, gl.view_port needs to be called
       let _time = t as f32 / 1000.0;
