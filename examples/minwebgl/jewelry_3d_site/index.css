@@ -84,7 +84,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 
 .footer--container .gem--menu {
   position: absolute;
-  bottom: 55px;
+  bottom: 65px;
   height: 60px;
   padding: 20px 30px;
   visibility: hidden;
@@ -151,7 +151,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 
 .footer--container .materials--menu {
   position: absolute;
-  bottom: 55px;
+  bottom: 65px;
   height: 60px;
   padding: 20px 30px;
   visibility: hidden;
@@ -218,7 +218,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 
 .footer--container .rings--menu {
   position: absolute;
-  bottom: 40px;
+  bottom: 50px;
   height: 60px;
   padding: 20px 30px;
   visibility: hidden;
@@ -299,7 +299,6 @@ table { border-collapse: collapse; border-spacing: 0; }
 
 .header--container .customize--title {
   margin-left: 10%;
-  /* margin-top: -8px; */
   font-family: "Cardo", serif;
   font-weight: 400;
   font-style: italic;
