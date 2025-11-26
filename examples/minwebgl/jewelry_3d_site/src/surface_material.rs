@@ -1,0 +1,150 @@
+use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo, Node };
+use renderer::impl_locations;
+use minwebgl as gl;
+use gl::{ GL, F32x3, Former };
+use rustc_hash::FxHashMap;
+use uuid::Uuid;
+use std::{ cell::RefCell, rc::Rc };
+
+/// Surface shader locations
+pub struct SurfaceShader;
+
+impl_locations!
+(
+  SurfaceShader,
+  "worldMatrix",
+  "viewMatrix",
+  "projectionMatrix",
+  "normalMatrix",
+  "surfaceColor",
+  "surfaceTexture"
+);
+
+/// The source code for the surface vertex shader.
+const SURFACE_VERTEX_SHADER : &'static str = include_str!( "../shaders/surface.vert" );
+/// The source code for the surface fragment shader.
+const SURFACE_FRAGMENT_SHADER : &'static str = include_str!( "../shaders/surface.frag" );
+
+/// Represents the visual properties of a surface.
+#[ derive( Former, Debug ) ]
+pub struct SurfaceMaterial
+{
+  /// A unique identifier for the material.
+  pub id : Uuid,
+  /// Surface RGB color
+  pub color : F32x3,
+  /// Surface texture
+  pub texture : Option< TextureInfo >,
+  /// Signal for updating material uniforms
+  pub need_update : bool
+}
+
+impl Material for SurfaceMaterial
+{
+  fn get_id( &self ) -> Uuid
+  {
+    self.id
+  }
+
+  /// Signal for updating material uniforms
+  fn is_need_update( &self ) -> bool
+  {
+    self.need_update
+  }
+
+  /// Returns [`ProgramInfo`] with shader locations and used [`ShaderProgram`]
+  fn get_program_info( &self, gl : &GL, program : &gl::WebGlProgram ) -> ProgramInfo
+  {
+    ProgramInfo::new( gl, program, SurfaceShader.dyn_clone() )
+  }
+
+  fn get_type_name( &self ) -> &'static str
+  {
+    "SurfaceMaterial"
+  }
+
+  fn get_vertex_shader( &self ) -> String
+  {
+    SURFACE_VERTEX_SHADER.into()
+  }
+
+  fn get_fragment_shader( &self ) -> String
+  {
+    SURFACE_FRAGMENT_SHADER.into()
+  }
+
+  fn configure
+  (
+    &self,
+    gl : &gl::WebGl2RenderingContext,
+    locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >,
+    _ibl_base_location : u32,
+  )
+  {
+    gl.uniform1i( locations.get( "surfaceTexture" ).unwrap().clone().as_ref(), 0 );
+  }
+
+  fn upload
+  (
+    &self,
+    gl : &GL,
+    _node : Rc< RefCell< Node > >,
+    locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
+  )
+  -> Result< (), gl::WebglError >
+  {
+    gl::uniform::upload( gl, locations.get( "surfaceColor" ).unwrap().clone(), self.color.0.as_slice() )?;
+    self.upload_textures( gl );
+    Ok( () )
+  }
+
+  fn upload_textures( &self, gl : &GL )
+  {
+    if let Some( ref t ) = self.texture
+    {
+      t.upload( gl );
+    }
+  }
+
+  fn bind( &self, gl : &GL )
+  {
+    if let Some( ref t ) = self.texture
+    {
+      gl.active_texture( gl::TEXTURE0 );
+      t.bind( gl );
+    }
+  }
+
+  fn dyn_clone( &self ) -> Box< dyn Material >
+  {
+    Box::new( self.clone() )
+  }
+}
+
+impl Clone for SurfaceMaterial
+{
+  fn clone( &self ) -> Self
+  {
+    SurfaceMaterial
+    {
+      id : Uuid::new_v4(),
+      color : self.color,
+      texture : self.texture.clone(),
+      need_update : self.need_update
+    }
+  }
+}
+
+impl Default for SurfaceMaterial
+{
+  fn default() -> Self
+  {
+    Self
+    {
+      id : Uuid::new_v4(),
+      color : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
+      texture : None,
+      need_update : true
+    }
+  }
+}

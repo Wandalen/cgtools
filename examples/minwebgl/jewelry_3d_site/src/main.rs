@@ -34,6 +34,7 @@ mod configurator;
 mod helpers;
 mod ui;
 mod debug;
+mod surface_material;
 
 use helpers::*;
 use configurator::*;
