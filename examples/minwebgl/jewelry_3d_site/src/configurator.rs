@@ -179,7 +179,7 @@ impl Configurator
         let surface_material = SurfaceMaterial
         {
           id : uuid::Uuid::new_v4(),
-          color : F32x3::splat( 2.0 ),
+          color : F32x3::splat( 0.854 ),
           texture,
           need_update : false
         };
@@ -261,7 +261,7 @@ impl Configurator
     else
     {
       renderer_mut.set_skybox( None );
-      renderer_mut.set_clear_color( F32x3::splat( 2.0 ) );
+      renderer_mut.set_clear_color( F32x3::splat( 0.854 ) );
     }
 
     renderer_mut.set_use_emission( true );
