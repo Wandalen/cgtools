@@ -82,6 +82,7 @@ impl Configurator
     configurator.update_gem_color();
     configurator.update_metal_color();
     configurator.setup_surface( gl ).await?;
+    // configurator.setup_light();
 
     Ok( configurator )
   }
@@ -90,15 +91,35 @@ impl Configurator
   {
     match self.ui_state.gem.as_str()
     {
-      "white" => self.set_gem_color( F32x3::from_array( [ 1.0, 1.0, 1.0 ] ) ),
-      "red" => self.set_gem_color( F32x3::from_array( [ 1.0, 0.05, 0.05 ] ) ),
-      "orange" => self.set_gem_color( F32x3::from_array( [ 1.0, 0.3, 0.05 ] ) ),
-      "yellow" => self.set_gem_color( F32x3::from_array( [ 1.0, 0.7, 0.05 ] ) ),
-      "green" => self.set_gem_color( F32x3::from_array( [ 0.1, 0.4, 0.1 ] ) ),
-      "turquoise" => self.set_gem_color( F32x3::from_array( [ 0.2, 0.78, 0.72 ] ) ),
-      "blue" => self.set_gem_color( F32x3::from_array( [ 0.05, 0.25, 1.0 ] ) ),
-      "pink" => self.set_gem_color( F32x3::from_array( [ 1.0, 0.31, 0.71 ] ) ),
+      "white" => self.set_gem_color( F32x3::from_array( [ 1.2, 1.2, 1.2 ] ) ),
+      "red" => self.set_gem_color( F32x3::from_array( [ 0.8, 0.05, 0.05 ] ) ),
+      "orange" => self.set_gem_color( F32x3::from_array( [ 1.0, 0.3, 0.05 ] ) * 2.0 ),
+      "yellow" => self.set_gem_color( F32x3::from_array( [ 1.7, 1.0, 0.15 ] ) ),
+      "green" => self.set_gem_color( F32x3::from_array( [ 0.1, 0.45, 0.15 ] ) ),
+      "turquoise" => self.set_gem_color( F32x3::from_array( [ 0.25, 0.83, 0.77 ] ) * 1.2 ),
+      "blue" => self.set_gem_color( F32x3::from_array( [ 0.1, 0.3, 1.0 ] ) * 1.2 ),
+      "pink" => self.set_gem_color( F32x3::from_array( [ 1.0, 0.41, 0.81 ] ) * 2.0 ),
       _ => ()
+    }
+  }
+
+  fn _setup_light( &self )
+  {
+    let light =
+    renderer::webgl::Light::Direct
+    (
+      renderer::webgl::DirectLight
+      {
+        direction : to_decart( 1.0, 30.0, 65.0 ),
+        color : F32x3::splat( 1.0 ),
+        strength : 40000.0
+      }
+    );
+    let light_node = Rc::new( RefCell::new( Node::new() ) );
+    light_node.borrow_mut().object = Object3D::Light( light );
+    for scene in &self.rings.rings
+    {
+      scene.borrow_mut().add( light_node.clone() );
     }
   }
 
@@ -106,9 +127,9 @@ impl Configurator
   {
     match self.ui_state.metal.as_str()
     {
-      "silver" => self.set_metal_color( F32x3::from_array( [ 0.753, 0.753, 0.753 ] ) ),
-      "copper" => self.set_metal_color( F32x3::from_array( [ 1.0, 0.4, 0.2 ] ) ),
-      "gold" => self.set_metal_color( F32x3::from_array( [ 1.0, 0.55, 0.1 ] ) ),
+      "silver" => self.set_metal_color( F32x3::from_array( [ 0.753, 0.753, 0.753 ] ) * 1.2 ),
+      "copper" => self.set_metal_color( F32x3::from_array( [ 1.0, 0.4, 0.2 ] ) * 1.8 ),
+      "gold" => self.set_metal_color( F32x3::from_array( [ 1.0, 0.5, 0.1 ] ) * 2.0 ),
       _ => ()
     }
   }
@@ -234,7 +255,7 @@ impl Configurator
               material.base_color_factor.0[ i ] = color.0[ i ];
             }
             material.base_color_factor.0[ 3 ] = 1.0;
-            material.roughness_factor = 0.05;
+            material.roughness_factor = 0.04;
             material.metallic_factor = 1.0;
             material.need_update = true;
           }
