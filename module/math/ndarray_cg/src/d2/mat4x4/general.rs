@@ -174,14 +174,15 @@ Self : ScalarMut< Scalar = E > +
        IndexingMut< Scalar = E, Index = Ix2 >
 {
   /// Creates a transformation matrix from scale, rotation and translation
-  pub fn from_scale_rotation_translation< Vec, Q >
+  pub fn from_scale_rotation_translation< S, Q, T >
   (
-    scale : Vec,
+    scale : S,
     rotation : Q,
-    translation : Vec
+    translation : T
   ) -> Self
   where
-    Vec : VectorIter< E, 3 >,
+    S : VectorIter< E, 3 >,
+    T : VectorIter< E, 3 >,
     Q : Into< Quat< E > >
   {
     let rot = rotation.into().to_matrix();
