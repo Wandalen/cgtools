@@ -801,6 +801,7 @@ mod private
     for gltf_node in gltf_file.nodes()
     {
       let mut node = Node::default();
+      node.set_visibility( true, true );
       let mut is_light = false;
 
       let ( translation, rotation, scale ) = gltf_node.transform().decomposed();

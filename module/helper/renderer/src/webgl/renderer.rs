@@ -779,6 +779,11 @@ mod private
         node : Rc< RefCell< Node > >
       | -> Result< (), gl::WebglError >
       {
+        if !node.borrow().is_visible()
+        {
+          return Ok( () );
+        }
+
         // If the node contains a mesh...
         if let Object3D::Mesh( ref mesh ) = node.borrow().object
         {
@@ -820,7 +825,7 @@ mod private
                   "#version 300 es\n{}\n{}\n{}",
                   defines,
                   ibl_define,
-                  material.get_fragment_shader() 
+                  material.get_fragment_shader()
                 )
               ).compile_and_link( gl )?;
               let program_info = material.get_program_info( gl, &program );
