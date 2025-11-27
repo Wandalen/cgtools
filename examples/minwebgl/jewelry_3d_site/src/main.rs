@@ -53,6 +53,17 @@ fn handle_camera_position( configurator : &Configurator )
   {
     camera_controls.borrow_mut().eye /= distance / DISTANCE_RANGE.start;
   }
+
+  let current_scene = &configurator.rings.rings[ configurator.rings.current_ring ];
+  let plane = get_node( &current_scene, "Plane".to_string() ).unwrap();
+  if camera_controls.borrow().eye.0[ 1 ] <= plane.borrow().get_translation()[ 1 ] + 0.1
+  {
+    plane.borrow_mut().set_visibility( false, false );
+  }
+  else
+  {
+    plane.borrow_mut().set_visibility( true, false );
+  }
 }
 
 fn handle_resize
