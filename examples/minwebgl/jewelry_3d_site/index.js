@@ -49,7 +49,14 @@ async function replaceSVG( svgPath, selector )
 
   svg.classList.forEach( cls => newSvg.classList.add( cls ) );
 
-  svg.outerHTML = newSvg.outerHTML;
+  try
+  {
+    svg.outerHTML = newSvg.outerHTML;
+  }
+  catch
+  {
+
+  }
 }
 
 document.addEventListener
