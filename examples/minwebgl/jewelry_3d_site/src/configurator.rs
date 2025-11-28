@@ -99,6 +99,25 @@ impl Configurator
       "turquoise" => self.set_gem_color( F32x3::from_array( [ 0.25, 0.83, 0.77 ] ) * 1.2 ),
       "blue" => self.set_gem_color( F32x3::from_array( [ 0.1, 0.3, 1.0 ] ) * 1.2 ),
       "pink" => self.set_gem_color( F32x3::from_array( [ 1.0, 0.41, 0.81 ] ) * 2.0 ),
+      "custom" =>
+      {
+        #[ cfg( debug_assertions ) ]
+        {
+          if self.ui_state.gem_custom_color.len() >= 3
+          {
+            let base_color = F32x3::from_array
+            (
+              [
+                self.ui_state.gem_custom_color[ 0 ],
+                self.ui_state.gem_custom_color[ 1 ],
+                self.ui_state.gem_custom_color[ 2 ]
+              ]
+            );
+            let final_color = base_color * self.ui_state.gem_multiplier;
+            self.set_gem_color( final_color );
+          }
+        }
+      },
       _ => ()
     }
   }
@@ -130,6 +149,25 @@ impl Configurator
       "silver" => self.set_metal_color( F32x3::from_array( [ 0.753, 0.753, 0.753 ] ) * 1.2 ),
       "copper" => self.set_metal_color( F32x3::from_array( [ 1.0, 0.4, 0.2 ] ) * 1.8 ),
       "gold" => self.set_metal_color( F32x3::from_array( [ 1.0, 0.5, 0.1 ] ) * 2.0 ),
+      "custom" =>
+      {
+        #[ cfg( debug_assertions ) ]
+        {
+          if self.ui_state.metal_custom_color.len() >= 3
+          {
+            let base_color = F32x3::from_array
+            (
+              [
+                self.ui_state.metal_custom_color[ 0 ],
+                self.ui_state.metal_custom_color[ 1 ],
+                self.ui_state.metal_custom_color[ 2 ]
+              ]
+            );
+            let final_color = base_color * self.ui_state.metal_multiplier;
+            self.set_metal_color( final_color );
+          }
+        }
+      },
       _ => ()
     }
   }

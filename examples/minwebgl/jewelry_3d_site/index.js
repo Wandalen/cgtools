@@ -3,6 +3,10 @@ export let uiState =
   gem : "white",
   metal : "silver",
   ring : 0,
+  gemCustomColor : [ 1.0, 1.0, 1.0 ],
+  gemMultiplier : 1.0,
+  metalCustomColor : [ 0.753, 0.753, 0.753 ],
+  metalMultiplier : 1.2,
   changed :
   [
     "gem",
@@ -24,6 +28,95 @@ export function isChanged()
 export function clearChanged()
 {
   uiState.changed.length = 0;
+}
+
+export function enableDebugControls()
+{
+  const colorControls = document.querySelector( '.color-controls--container' );
+  if ( colorControls )
+  {
+    colorControls.style.display = 'flex';
+
+    // Setup event listeners now that controls are visible
+    setupColorPickerListeners();
+  }
+}
+
+function setupColorPickerListeners()
+{
+  // Helper function to convert hex color to RGB array
+  function hexToRgb( hex )
+  {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec( hex );
+    return result ?
+    [
+      parseInt( result[1], 16 ) / 255,
+      parseInt( result[2], 16 ) / 255,
+      parseInt( result[3], 16 ) / 255
+    ] : [ 1.0, 1.0, 1.0 ];
+  }
+
+  // Gem color picker
+  const gemColorPicker = document.getElementById( 'gem-color-picker' );
+  const gemMultiplier = document.getElementById( 'gem-multiplier' );
+  const gemMultiplierValue = document.getElementById( 'gem-multiplier-value' );
+
+  if ( gemColorPicker && gemMultiplier && gemMultiplierValue )
+  {
+    gemColorPicker.addEventListener
+    (
+      'input',
+      ( e ) =>
+      {
+        const rgb = hexToRgb( e.target.value );
+        uiState.gemCustomColor = rgb;
+        uiState.gem = "custom";
+        uiState.changed.push( "gem" );
+      }
+    );
+
+    gemMultiplier.addEventListener
+    (
+      'input',
+      ( e ) =>
+      {
+        uiState.gemMultiplier = parseFloat( e.target.value );
+        gemMultiplierValue.textContent = uiState.gemMultiplier.toFixed( 1 );
+        uiState.changed.push( "gem" );
+      }
+    );
+  }
+
+  // Metal color picker
+  const metalColorPicker = document.getElementById( 'metal-color-picker' );
+  const metalMultiplier = document.getElementById( 'metal-multiplier' );
+  const metalMultiplierValue = document.getElementById( 'metal-multiplier-value' );
+
+  if ( metalColorPicker && metalMultiplier && metalMultiplierValue )
+  {
+    metalColorPicker.addEventListener
+    (
+      'input',
+      ( e ) =>
+      {
+        const rgb = hexToRgb( e.target.value );
+        uiState.metalCustomColor = rgb;
+        uiState.metal = "custom";
+        uiState.changed.push( "metal" );
+      }
+    );
+
+    metalMultiplier.addEventListener
+    (
+      'input',
+      ( e ) =>
+      {
+        uiState.metalMultiplier = parseFloat( e.target.value );
+        metalMultiplierValue.textContent = uiState.metalMultiplier.toFixed( 1 );
+        uiState.changed.push( "metal" );
+      }
+    );
+  }
 }
 
 async function replaceSVG( svgPath, selector )

@@ -137,6 +137,9 @@ async fn run() -> Result< (), gl::WebglError >
   let _ = gl.get_extension( "EXT_color_buffer_float" ).expect( "Failed to enable EXT_color_buffer_float extension" );
   let _ = gl.get_extension( "EXT_shader_image_load_store" ).expect( "Failed to enable EXT_shader_image_load_store  extension" );
 
+  // Enable debug controls if in debug mode
+  ui::enable_debug_controls_if_needed();
+
   let mut configurator = Configurator::new( &gl, &canvas ).await.unwrap();
 
   let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );

@@ -22,7 +22,32 @@
     <script data-trunk type="module" src="./index.js"></script>
 
     <div class="header--container" style="display: flex;">
-      <h3 class="customize--title">Ring selector</h3>
+      <h3 class="customize--title">Jewel Shop</h3>
+    </div>
+
+    <div class="color-controls--container" style="display: none;">
+      <div class="color-control">
+        <label class="control-label">Gem Color</label>
+        <div class="control-inputs">
+          <input type="color" id="gem-color-picker" value="#ffffff" />
+          <div class="multiplier-control">
+            <label for="gem-multiplier">Intensity</label>
+            <input type="range" id="gem-multiplier" min="0.0" max="5" step="0.1" value="1.0" />
+            <span id="gem-multiplier-value">1.0</span>
+          </div>
+        </div>
+      </div>
+      <div class="color-control">
+        <label class="control-label">Metal Color</label>
+        <div class="control-inputs">
+          <input type="color" id="metal-color-picker" value="#c0c0c0" />
+          <div class="multiplier-control">
+            <label for="metal-multiplier">Intensity</label>
+            <input type="range" id="metal-multiplier" min="0.0" max="5" step="0.1" value="1.2" />
+            <span id="metal-multiplier-value">1.2</span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="footer--container" style="display: flex;">
