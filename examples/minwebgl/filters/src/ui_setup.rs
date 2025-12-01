@@ -1,4 +1,6 @@
+//! UI setup for filter controls
 #![ allow( clippy::if_not_else ) ]
+
 
 use crate::*;
 use utils::*;
@@ -10,94 +12,68 @@ use web_sys::
 };
 use wasm_bindgen::{ prelude::*, JsCast };
 use std::{ cell::RefCell, rc::Rc } ;
-use serde::de::DeserializeOwned;
 
-fn show_apply_cancel_buttons()
+fn show_controls_bar()
 {
-  if let Some( apply_btn ) = web_sys::window()
-    .and_then( | w | w.document() )
-    .and_then( | d | d.get_element_by_id( "apply-btn" ) )
-  {
-    let _ = apply_btn.class_list().add_1( "visible" );
-  }
-  if let Some( cancel_btn ) = web_sys::window()
-    .and_then( | w | w.document() )
-    .and_then( | d | d.get_element_by_id( "cancel-btn" ) )
-  {
-    let _ = cancel_btn.class_list().add_1( "visible" );
-  }
+  controls::show();
 }
 
-pub fn hide_apply_cancel_buttons()
+pub fn hide_controls_bar()
 {
-  if let Some( apply_btn ) = web_sys::window()
-    .and_then( | w | w.document() )
-    .and_then( | d | d.get_element_by_id( "apply-btn" ) )
-  {
-    let _ = apply_btn.class_list().remove_1( "visible" );
-  }
-  if let Some( cancel_btn ) = web_sys::window()
-    .and_then( | w | w.document() )
-    .and_then( | d | d.get_element_by_id( "cancel-btn" ) )
-  {
-    let _ = cancel_btn.class_list().remove_1( "visible" );
-  }
+  controls::hide();
+  controls::clear_controls();
 }
 
 pub fn setup_ui( filter_renderer : &Rc< RefCell< Renderer > > ) -> Rc< RefCell< String > >
 {
   let current_filter = Rc::new( RefCell::new( String::from( "none" ) ) );
-  let gui = lil_gui::new_gui();
-  generate_filter_buttons( &gui );
-  setup_filters_without_gui( filter_renderer, &current_filter );
-  setup_filters_with_gui( &gui, filter_renderer, &current_filter );
-
-  // Hide all GUI folders initially
-  show_only( "", &gui );
+  generate_filter_buttons();
+  setup_filters_without_controls( filter_renderer, &current_filter );
+  setup_filters_with_controls( filter_renderer, &current_filter );
 
   current_filter
 }
 
-fn generate_filter_buttons( gui : &JsValue )
+fn generate_filter_buttons()
 {
   let filters =
   [
-    // id,                title of control to show,       display name,                     icon
-    ( "box-blur",         "Box Blur",                     "Box Blur",                        "🔲" ),
-    ( "gaussian-blur",    "Gaussian Blur",                "Gaussian Blur",                   "🌫️" ),
-    ( "stack-blur",       "Stack Blur",                   "Stack Blur",                      "📚" ),
-    ( "binarize",         "Binarize",                     "Binarize",                        "⚫" ),
-    ( "bcgimp",           "BrightnessContrast GIMP",      "Brightness (GIMP)",               "☀️" ),
-    ( "bcph",             "BrightnessContrast Photoshop", "Brightness (PS)",                 "💡" ),
-    ( "channels",         "Channels",                     "Channels",                        "🎨" ),
-    ( "color-transform",  "Color Transform",              "Color Transform",                 "🌈" ),
-    ( "desaturate",       "",                             "Desaturate",                      "⚪" ),
-    ( "dither",           "Dithering",                    "Dither",                          "🎲" ),
-    ( "edge",             "",                             "Edge Detect",                     "📐" ),
-    ( "emboss",           "",                             "Emboss",                          "🔨" ),
-    ( "enrich",           "",                             "Enrich",                          "✨" ),
-    ( "flip",             "Flip",                         "Flip",                            "🔄" ),
-    ( "gamma",            "Gamma",                        "Gamma",                           "⚡" ),
-    ( "grayscale",        "",                             "Grayscale",                       "⬜" ),
-    ( "hsl-adjust",       "HSL Adjust",                   "HSL Adjust",                      "🎚️" ),
-    ( "invert",           "",                             "Invert",                          "🔁" ),
-    ( "mosaic",           "Mosaic",                       "Mosaic",                          "🔷" ),
-    ( "oil",              "Oil",                          "Oil Paint",                       "🖌️" ),
-    ( "posterize",        "Posterize",                    "Posterize",                       "🎭" ),
-    ( "rescale",          "Rescale",                      "Rescale",                         "📏" ),
-    ( "resize-nn",        "Resize (Nearest)",             "Resize (NN)",                     "🔍" ),
-    ( "resize-bilinear",  "Resize (Bilinear)",            "Resize (Bilinear)",               "🔎" ),
-    ( "sepia",            "",                             "Sepia",                           "📷" ),
-    ( "sharpen",          "Sharpen",                      "Sharpen",                         "🔪" ),
-    ( "solarize",         "",                             "Solarize",                        "☀️" ),
-    ( "transpose",        "",                             "Transpose",                       "🔀" ),
-    ( "twirl",            "Twirl",                        "Twirl",                           "🌀" ),
+    // id,                display name
+    ( "box-blur",         "Box Blur" ),
+    ( "gaussian-blur",    "Gaussian Blur" ),
+    ( "stack-blur",       "Stack Blur" ),
+    ( "binarize",         "Binarize" ),
+    ( "bcgimp",           "Brightness (GIMP)" ),
+    ( "bcph",             "Brightness (PS)" ),
+    ( "channels",         "Channels" ),
+    ( "color-transform",  "Color Transform" ),
+    ( "desaturate",       "Desaturate" ),
+    ( "dither",           "Dither" ),
+    ( "edge",             "Edge Detect" ),
+    ( "emboss",           "Emboss" ),
+    ( "enrich",           "Enrich" ),
+    ( "flip",             "Flip" ),
+    ( "gamma",            "Gamma" ),
+    ( "grayscale",        "Grayscale" ),
+    ( "hsl-adjust",       "HSL Adjust" ),
+    ( "invert",           "Invert" ),
+    ( "mosaic",           "Mosaic" ),
+    ( "oil",              "Oil Paint" ),
+    ( "posterize",        "Posterize" ),
+    ( "rescale",          "Rescale" ),
+    ( "resize-nn",        "Resize (NN)" ),
+    ( "resize-bilinear",  "Resize (Bilinear)" ),
+    ( "sepia",            "Sepia" ),
+    ( "sharpen",          "Sharpen" ),
+    ( "solarize",         "Solarize" ),
+    ( "transpose",        "Transpose" ),
+    ( "twirl",            "Twirl" ),
   ];
 
   let document = web_sys::window().unwrap().document().unwrap();
   let grid_container = document.get_element_by_id( "filters-grid" ).unwrap();
 
-  for ( id, control_title, name, icon ) in filters
+  for ( id, name ) in filters
   {
     // Create filter card
     let card = document.create_element( "div" ).unwrap();
@@ -162,35 +138,12 @@ fn generate_filter_buttons( gui : &JsValue )
     card.append_child( &thumbnail ).unwrap();
     card.append_child( &label ).unwrap();
     grid_container.append_child( &card ).unwrap();
-
-    // Add click handler to show/hide GUI controls
-    let gui = gui.clone();
-    let onclick : Closure< dyn Fn() > = Closure::new( move || show_only( control_title, &gui ) );
-    card.add_event_listener_with_callback( "click", onclick.as_ref().unchecked_ref() ).unwrap();
-    onclick.forget();
   }
 }
 
-fn show_only( target : &str, gui : &JsValue )
+fn setup_filters_without_controls( filter_renderer : &Rc< RefCell< Renderer > >, current_filter : &Rc< RefCell< String > > )
 {
-  let folders = lil_gui::get_folders( gui );
-  for folder in folders
-  {
-    if lil_gui::get_title( &folder ) != target
-    {
-      lil_gui::hide( &folder );
-    }
-    else
-    {
-      lil_gui::show( &folder );
-    }
-  }
-}
-
-fn setup_filters_without_gui( filter_renderer : &Rc< RefCell< Renderer > >, current_filter : &Rc< RefCell< String > > )
-{
-  // These are filter card ids and their respective filters
-  // It's done for filters that don't contain any parameters
+  // Filters that don't have parameters
   let filters =
   [
     ( "desaturate",  make_closure_with_filter_tracking( filter_renderer, desaturate::Desaturate, "desaturate", current_filter ) ),
@@ -204,7 +157,6 @@ fn setup_filters_without_gui( filter_renderer : &Rc< RefCell< Renderer > >, curr
     ( "transpose",   make_closure_with_filter_tracking( filter_renderer, transpose::Transpose, "transpose", current_filter ) ),
   ];
 
-  // Basically sets draw call on card click with respective filter
   for ( card_id, closure ) in filters
   {
     let card = get_element_by_id_unchecked::< web_sys::HtmlElement >( card_id );
@@ -213,362 +165,478 @@ fn setup_filters_without_gui( filter_renderer : &Rc< RefCell< Renderer > >, curr
   }
 }
 
-fn setup_filters_with_gui( gui : &JsValue, filter_renderer : &Rc< RefCell< Renderer > >, current_filter : &Rc< RefCell< String > > )
-{
-  // Setup filters that uses sliders for value adjustment
-  let filters =
-  [
-    (
-      "Box Blur",                                                                   // title of the gui
-      onchange_closure::< blur::Blur< blur::Box > >( filter_renderer ),             // onchange callback
-      serde_wasm_bindgen::to_value( &blur::Blur::new( 1, blur::Box ) ).unwrap(),    // object that holds values
-      vec![ ( "size", 1.0, 80.0, 1.0 ) ],                                           // slider data: property, min, max, step
-      "box-blur",                                                                   // id of button that triggers filter
-      onclick_closure::< blur::Blur< blur::Box > >( filter_renderer )               // button's onclick callback
-    ),
-    (
-      "Gaussian Blur",
-      onchange_closure::< blur::Blur< blur::Gaussian > >( filter_renderer ),
-      serde_wasm_bindgen::to_value( &blur::Blur::new( 1, blur::Gaussian ) ).unwrap(),
-      vec![ ( "size", 1.0, 50.0, 1.0 ) ],
-      "gaussian-blur",
-      onclick_closure::< blur::Blur< blur::Gaussian > >( filter_renderer )
-    ),
-    (
-      "Stack Blur",
-      onchange_closure::< blur::Blur< blur::Stack > >( filter_renderer ),
-      serde_wasm_bindgen::to_value( &blur::Blur::new( 1, blur::Stack ) ).unwrap(),
-      vec![ ( "size", 1.0, 80.0, 1.0 ) ],
-      "stack-blur",
-      onclick_closure::< blur::Blur< blur::Stack > >( filter_renderer )
-    ),
-    (
-      "Binarize",
-      onchange_closure::< binarize::Binarize >( filter_renderer ),
-      serde_wasm_bindgen::to_value( &binarize::Binarize { threshold: 0.5 } ).unwrap(),
-      vec![ ( "threshold", 0.0, 1.0, 0.001 ) ],
-      "binarize",
-      onclick_closure::< binarize::Binarize >( filter_renderer )
-    ),
-    (
-      "Rescale",
-      onchange_closure::< rescale::Rescale >( filter_renderer ),
-      serde_wasm_bindgen::to_value( &rescale::Rescale { scale: 1.0 } ).unwrap(),
-      vec![ ( "scale", 0.0, 10.0, 0.001 ) ],
-      "rescale",
-      onclick_closure::< rescale::Rescale >( filter_renderer )
-    ),
-    (
-      "Resize (Nearest)",
-      onchange_closure::< resize::Resize< resize::Nearest > >( filter_renderer ),
-      serde_wasm_bindgen::to_value( &resize::Resize::new( 1.0, resize::Nearest ) ).unwrap(),
-      vec![ ( "scale", 0.0, 10.0, 0.001 ) ],
-      "resize-nn",
-      onclick_closure::< resize::Resize< resize::Nearest > >( filter_renderer )
-    ),
-    (
-      "Resize (Bilinear)",
-      onchange_closure::< resize::Resize< resize::Bilinear > >( filter_renderer ),
-      serde_wasm_bindgen::to_value( &resize::Resize::new( 1.0, resize::Bilinear ) ).unwrap(),
-      vec![ ( "scale", 0.0, 10.0, 0.001 ) ],
-      "resize-bilinear",
-      onclick_closure::< resize::Resize< resize::Bilinear > >( filter_renderer )
-    ),
-    (
-      "Sharpen",
-      onchange_closure::< sharpen::Sharpen >( filter_renderer ),
-      serde_wasm_bindgen::to_value( &sharpen::Sharpen { factor: 1.0 } ).unwrap(),
-      vec![ ( "factor", 1.0, 10.0, 1.0 ) ],
-      "sharpen",
-      onclick_closure::< sharpen::Sharpen >( filter_renderer )
-    ),
-    (
-      "Dithering",
-      onchange_closure::< dithering::Dithering >( filter_renderer ),
-      serde_wasm_bindgen::to_value( &dithering::Dithering { levels: 2 } ).unwrap(),
-      vec![ ( "levels", 2.0, 20.0, 1.0 ) ],
-      "dither",
-      onclick_closure::< dithering::Dithering >( filter_renderer )
-    ),
-    (
-      "Posterize",
-      onchange_closure::< posterize::Posterize >( filter_renderer ),
-      serde_wasm_bindgen::to_value( &posterize::Posterize { levels: 2 } ).unwrap(),
-      vec![ ( "levels", 2.0, 20.0, 1.0 ) ],
-      "posterize",
-      onclick_closure::< posterize::Posterize >( filter_renderer )
-    ),
-    (
-      "Gamma",
-      onchange_closure::< gamma::Gamma >( filter_renderer ),
-      serde_wasm_bindgen::to_value( &gamma::Gamma { gamma: 1.0 } ).unwrap(),
-      vec![ ( "gamma", 0.0, 5.0, 0.001 ) ],
-      "gamma",
-      onclick_closure::< gamma::Gamma >( filter_renderer )
-    ),
-    (
-      "Mosaic",
-      onchange_closure::< mosaic::Mosaic >( filter_renderer ),
-      serde_wasm_bindgen::to_value( &mosaic::Mosaic { scale: 1 } ).unwrap(),
-      vec![ ( "scale", 1.0, 100.0, 1.0 ) ],
-      "mosaic",
-      onclick_closure::< mosaic::Mosaic >( filter_renderer )
-    ),
-    (
-      "BrightnessContrast GIMP",
-      onchange_closure::
-      < brightness_contrast::BrightnessContrast< brightness_contrast::GIMP > >( filter_renderer ),
-      serde_wasm_bindgen::to_value
-      (
-        &brightness_contrast::BrightnessContrast::new
-        (
-          0.0,
-          0.0,
-          brightness_contrast::GIMP
-        )
-      ).unwrap(),
-      vec!
-      [
-        ( "brightness", -100.0, 100.0, 1.0 ),
-        ( "contrast", -100.0, 100.0, 1.0 ),
-      ],
-      "bcgimp",
-      onclick_closure::
-      < brightness_contrast::BrightnessContrast< brightness_contrast::GIMP > >( filter_renderer )
-    ),
-    (
-      "BrightnessContrast Photoshop",
-      onchange_closure::
-      < brightness_contrast::BrightnessContrast< brightness_contrast::Photoshop > >( filter_renderer ),
-      serde_wasm_bindgen::to_value
-      (
-        &brightness_contrast::BrightnessContrast::new
-        (
-          0.0,
-          0.0,
-          brightness_contrast::Photoshop
-        )
-      ).unwrap(),
-      vec!
-      [
-        ( "brightness", -1.0, 1.0, 0.001 ),
-        ( "contrast", -1.0, 1.0, 0.001 ),
-      ],
-      "bcph",
-      onclick_closure::
-      < brightness_contrast::BrightnessContrast< brightness_contrast::Photoshop > >( filter_renderer )
-    ),
-    (
-      "Color Transform",
-      onchange_closure::< color_transform::ColorTransform >( filter_renderer ),
-      serde_wasm_bindgen::to_value
-      (
-        &color_transform::ColorTransform
-        {
-          red_multiplier: 1.0,
-          green_multiplier: 1.0,
-          blue_multiplier: 1.0,
-          red_offset: 0.0,
-          green_offset: 0.0,
-          blue_offset: 0.0,
-        }
-      ).unwrap(),
-      vec!
-      [
-        ( "redMultiplier", 0.0, 10.0, 0.001 ),
-        ( "greenMultiplier", 0.0, 10.0, 0.001 ),
-        ( "blueMultiplier", 0.0, 10.0, 0.001 ),
-        ( "redOffset", -1.0, 1.0, 0.001 ),
-        ( "greenOffset", -1.0, 1.0, 0.001 ),
-        ( "blueOffset", -1.0, 1.0, 0.001 ),
-      ],
-      "color-transform",
-      onclick_closure::< color_transform::ColorTransform >( filter_renderer )
-    ),
-    (
-      "HSL Adjust",
-      onchange_closure::< hsl_adjustment::HSLAdjustment >( filter_renderer ),
-      serde_wasm_bindgen::to_value
-      (
-        &hsl_adjustment::HSLAdjustment
-        {
-          hue: 0.0,
-          saturation: 0.0,
-          lightness: 0.0,
-        }
-      ).unwrap(),
-      vec!
-      [
-        ( "hue", -1.0, 1.0, 0.001 ),
-        ( "saturation", -1.0, 1.0, 0.001 ),
-        ( "lightness", -1.0, 1.0, 0.001 ),
-      ],
-      "hsl-adjust",
-      onclick_closure::< hsl_adjustment::HSLAdjustment >( filter_renderer )
-    ),
-    (
-      "Oil",
-      onchange_closure::< oil::Oil >( filter_renderer ),
-      serde_wasm_bindgen::to_value
-      (
-        &oil::Oil
-        {
-          levels: 2,
-          range: 1,
-        }
-      ).unwrap(),
-      vec!
-      [
-        ( "levels", 2.0, 50.0, 1.0 ),
-        ( "range", 1.0, 15.0, 1.0 ),
-      ],
-      "oil",
-      onclick_closure::< oil::Oil >( filter_renderer )
-    ),
-    (
-      "Twirl",
-      onchange_closure::< twirl::Twirl >( filter_renderer ),
-      serde_wasm_bindgen::to_value
-      (
-        &twirl::Twirl
-        {
-          center_x: 0.5,
-          center_y: 0.5,
-          radius: 0.1,
-          strength: 1.0,
-        }
-      ).unwrap(),
-      vec!
-      [
-        ( "centerX", 0.0, 1.0, 0.001 ),
-        ( "centerY", 0.0, 1.0, 0.001 ),
-        ( "radius", 0.0, 2.0, 0.001 ),
-        ( "strength", -200.0, 200.0, 0.1 ),
-      ],
-      "twirl",
-      onclick_closure::< twirl::Twirl >( filter_renderer )
-    ),
-  ];
-
-  for ( title, closure, obj, sliders, button_id, onclick ) in filters
-  {
-    let gui = lil_gui::add_folder( &gui, title );
-    for ( prop, min, max, step ) in sliders
+// Macro to reduce repetition in filter setup
+macro_rules! setup_filter_with_sliders {
+  (
+    $filter_renderer:expr,
+    $current_filter:expr,
+    $card_id:expr,
+    $filter_type:ty,
+    $initial_value:expr,
+    [ $( ($label:expr, $prop:expr, $min:expr, $max:expr, $step:expr) ),+ ]
+  ) => {{
+    let filter_renderer_clone = $filter_renderer.clone();
+    let current_filter_clone = $current_filter.clone();
+    let onclick : Closure< dyn Fn() > = Closure::new( move ||
     {
-      lil_gui::add_slider( &gui, &obj, prop, min, max, step );
-    }
-    lil_gui::on_finish_change( &gui, closure.as_ref().unchecked_ref() );
-    let filter_card = get_element_by_id_unchecked::< HtmlElement >( button_id );
-    let current_filter_clone = current_filter.clone();
-    let button_id_str = button_id.to_string();
-    let filter_renderer_clone = filter_renderer.clone();
-    let onclick : Closure< dyn Fn() > = Closure::new
-    (
+      *current_filter_clone.borrow_mut() = String::from( $card_id );
+      filter_renderer_clone.borrow_mut().save_previous_texture();
+
+      // Clear and setup controls
+      controls::clear_controls();
+
+      // Add sliders
+      $(
+        let initial_val = serde_wasm_bindgen::to_value( &$initial_value ).unwrap();
+        let obj_map = initial_val.dyn_into::< web_sys::js_sys::Object >().unwrap();
+        let val = web_sys::js_sys::Reflect::get( &obj_map, &JsValue::from_str( $prop ) ).unwrap();
+        let num_val = val.as_f64().unwrap_or( $min );
+        controls::add_slider( $label, $prop, num_val, $min, $max, $step );
+      )+
+
+      // Apply initial filter
+      filter_renderer_clone.borrow_mut().apply_filter( &$initial_value );
+
+      // Setup onChange callback
+      let fr = filter_renderer_clone.clone();
+      let callback : Closure< dyn Fn( JsValue ) > = Closure::new( move | values : JsValue |
       {
-        let obj = obj.clone();
-        move ||
-        {
-          *current_filter_clone.borrow_mut() = button_id_str.clone();
-          filter_renderer_clone.borrow_mut().save_previous_texture();
-          ( onclick )( &obj );
-          show_apply_cancel_buttons();
-        }
-      }
-    );
-    filter_card.add_event_listener_with_callback( "click", onclick.as_ref().unchecked_ref() ).unwrap();
+        let filter : $filter_type = serde_wasm_bindgen::from_value( values ).unwrap();
+        fr.borrow_mut().apply_filter( &filter );
+      });
+      controls::on_change( callback.as_ref().unchecked_ref() );
+      callback.forget();
+
+      show_controls_bar();
+    });
+
+    let card = get_element_by_id_unchecked::< HtmlElement >( $card_id );
+    card.add_event_listener_with_callback( "click", onclick.as_ref().unchecked_ref() ).unwrap();
     onclick.forget();
-    closure.forget();
-  }
-
-  // These two filters use dropdowns instead of sliders so they are setup manually
-
-  let channels_gui = lil_gui::add_folder( &gui, "Channels" );
-  let closure = onchange_closure::< channels::Channels >( filter_renderer );
-  let obj = serde_wasm_bindgen::to_value( &channels::Channels { channel: channels::Channel::Red } ).unwrap();
-  let options = web_sys::js_sys::Array::of3( &"Red".into(), &"Green".into(), &"Blue".into() );
-  lil_gui::add_dropdown( &channels_gui, &obj, "channel", &options.into() );
-  lil_gui::on_finish_change( &channels_gui, closure.as_ref().unchecked_ref() );
-  let filter_card = get_element_by_id_unchecked::< HtmlElement >( "channels" );
-  let current_filter_channels = current_filter.clone();
-  let filter_renderer_channels = filter_renderer.clone();
-  let onclick : Closure< dyn Fn() > = Closure::new
-  (
-    {
-      let obj = obj.clone();
-      let filter_renderer = filter_renderer.clone();
-      move ||
-      {
-        *current_filter_channels.borrow_mut() = String::from( "channels" );
-        filter_renderer_channels.borrow_mut().save_previous_texture();
-        let onclick = onclick_closure::< channels::Channels >( &filter_renderer );
-        ( onclick )( &obj );
-        show_apply_cancel_buttons();
-      }
-    }
-  );
-  filter_card.add_event_listener_with_callback( "click", onclick.as_ref().unchecked_ref() ).unwrap();
-  onclick.forget();
-  closure.forget();
-
-  let flip_gui = lil_gui::add_folder( &gui, "Flip" );
-  let closure = onchange_closure::< flip::Flip >( filter_renderer );
-  let obj = serde_wasm_bindgen::to_value( &flip::Flip { flip: flip::FlipDirection::FlipX } ).unwrap();
-  let options = web_sys::js_sys::Array::of3( &"FlipX".into(), &"FlipY".into(), &"FlipXY".into() );
-  lil_gui::add_dropdown( &flip_gui, &obj, "flip", &options.into() );
-  lil_gui::on_finish_change( &flip_gui, closure.as_ref().unchecked_ref() );
-  let filter_card = get_element_by_id_unchecked::< HtmlElement >( "flip" );
-  let current_filter_flip = current_filter.clone();
-  let filter_renderer_flip = filter_renderer.clone();
-  let onclick : Closure< dyn Fn() > = Closure::new
-  (
-    {
-      let obj = obj.clone();
-      let filter_renderer = filter_renderer.clone();
-      move ||
-      {
-        *current_filter_flip.borrow_mut() = String::from( "flip" );
-        filter_renderer_flip.borrow_mut().save_previous_texture();
-        let onclick = onclick_closure::< flip::Flip >( &filter_renderer );
-        ( onclick )( &obj );
-        show_apply_cancel_buttons();
-      }
-    }
-  );
-  filter_card.add_event_listener_with_callback( "click", onclick.as_ref().unchecked_ref() ).unwrap();
-  onclick.forget();
-  closure.forget();
+  }};
 }
 
-fn onchange_closure< T >( filter_renderer : &Rc< RefCell< Renderer > > )
--> Closure< dyn Fn( JsValue ) >
+// Helper for blur filters (they have generic type parameters)
+fn setup_blur_filter< T : 'static + Clone >
+(
+  filter_renderer : &Rc< RefCell< Renderer > >,
+  current_filter : &Rc< RefCell< String > >,
+  card_id : &str,
+  _label : &str,
+  blur_type : T,
+  max : f64
+)
 where
-T : Filter + DeserializeOwned
+blur::Blur< T > : Filter
 {
-  let filter_renderer = filter_renderer.clone();
-  Closure::new
-  (
-    move | obj : JsValue |
+  let filter_renderer_clone = filter_renderer.clone();
+  let current_filter_clone = current_filter.clone();
+  let card_id_str = card_id.to_string();
+  let blur_type_init = blur_type.clone();
+
+  let onclick : Closure< dyn Fn() > = Closure::new( move ||
+  {
+    *current_filter_clone.borrow_mut() = card_id_str.clone();
+    filter_renderer_clone.borrow_mut().save_previous_texture();
+
+    controls::clear_controls();
+    controls::add_slider( "Size", "size", 5.0, 1.0, max, 1.0 );
+
+    let initial = blur::Blur::new( 5, blur_type_init.clone() );
+    filter_renderer_clone.borrow_mut().apply_filter( &initial );
+
+    let fr = filter_renderer_clone.clone();
+    let blur_type_change = blur_type_init.clone();
+    let callback : Closure< dyn Fn( JsValue ) > = Closure::new( move | values : JsValue |
     {
-      let filter : T = serde_wasm_bindgen::from_value( obj ).unwrap();
-      filter_renderer.borrow_mut().apply_filter( &filter );
-    }
-  )
+      let obj = values.dyn_into::< web_sys::js_sys::Object >().unwrap();
+      let val = web_sys::js_sys::Reflect::get( &obj, &JsValue::from_str( "size" ) ).unwrap();
+      let size = val.as_f64().unwrap() as i32;
+
+      let filter = blur::Blur::new( size, blur_type_change.clone() );
+      fr.borrow_mut().apply_filter( &filter );
+    });
+    controls::on_change( callback.as_ref().unchecked_ref() );
+    callback.forget();
+
+    show_controls_bar();
+  });
+
+  let card = get_element_by_id_unchecked::< HtmlElement >( card_id );
+  card.add_event_listener_with_callback( "click", onclick.as_ref().unchecked_ref() ).unwrap();
+  onclick.forget();
 }
 
-fn onclick_closure< T >( filter_renderer : &Rc< RefCell< Renderer > > )
--> Box < dyn Fn( &JsValue ) >
+// Helper for resize filters (they have generic type parameters)
+fn setup_resize_filter< T : 'static + Clone >
+(
+  filter_renderer : &Rc< RefCell< Renderer > >,
+  current_filter : &Rc< RefCell< String > >,
+  card_id : &str,
+  _label : &str,
+  resize_type : T
+)
 where
-T : Filter + DeserializeOwned
+resize::Resize< T > : Filter
 {
-  let filter_renderer = filter_renderer.clone();
-  Box::new
-  (
-    move | obj : &JsValue |
+  let filter_renderer_clone = filter_renderer.clone();
+  let current_filter_clone = current_filter.clone();
+  let card_id_str = card_id.to_string();
+  let resize_type_init = resize_type.clone();
+
+  let onclick : Closure< dyn Fn() > = Closure::new( move ||
+  {
+    *current_filter_clone.borrow_mut() = card_id_str.clone();
+    filter_renderer_clone.borrow_mut().save_previous_texture();
+
+    controls::clear_controls();
+    controls::add_slider( "Scale", "scale", 1.0, 0.1, 10.0, 0.01 );
+
+    let initial = resize::Resize::new( 1.0_f32, resize_type_init.clone() );
+    filter_renderer_clone.borrow_mut().apply_filter( &initial );
+
+    let fr = filter_renderer_clone.clone();
+    let resize_type_change = resize_type_init.clone();
+    let callback : Closure< dyn Fn( JsValue ) > = Closure::new( move | values : JsValue |
     {
-      let filter : T = serde_wasm_bindgen::from_value( obj.clone() ).unwrap();
-      filter_renderer.borrow_mut().apply_filter( &filter );
-    }
-  )
+      let obj = values.dyn_into::< web_sys::js_sys::Object >().unwrap();
+      let val = web_sys::js_sys::Reflect::get( &obj, &JsValue::from_str( "scale" ) ).unwrap();
+      let scale = val.as_f64().unwrap() as f32;
+
+      let filter = resize::Resize::new( scale, resize_type_change.clone() );
+      fr.borrow_mut().apply_filter( &filter );
+    });
+    controls::on_change( callback.as_ref().unchecked_ref() );
+    callback.forget();
+
+    show_controls_bar();
+  });
+
+  let card = get_element_by_id_unchecked::< HtmlElement >( card_id );
+  card.add_event_listener_with_callback( "click", onclick.as_ref().unchecked_ref() ).unwrap();
+  onclick.forget();
+}
+
+// Helper for brightness/contrast filters (they have generic type parameters)
+fn setup_brightness_contrast_filter< T : 'static + Clone >
+(
+  filter_renderer : &Rc< RefCell< Renderer > >,
+  current_filter : &Rc< RefCell< String > >,
+  card_id : &str,
+  _label : &str,
+  bc_type : T,
+  min : f64,
+  max : f64,
+  step : f64
+)
+where
+brightness_contrast::BrightnessContrast< T > : Filter
+{
+  let filter_renderer_clone = filter_renderer.clone();
+  let current_filter_clone = current_filter.clone();
+  let card_id_str = card_id.to_string();
+  let bc_type_init = bc_type.clone();
+
+  let onclick : Closure< dyn Fn() > = Closure::new( move ||
+  {
+    *current_filter_clone.borrow_mut() = card_id_str.clone();
+    filter_renderer_clone.borrow_mut().save_previous_texture();
+
+    controls::clear_controls();
+    controls::add_slider( "Brightness", "brightness", 0.0, min, max, step );
+    controls::add_slider( "Contrast", "contrast", 0.0, min, max, step );
+
+    let initial = brightness_contrast::BrightnessContrast::new( 0.0, 0.0, bc_type_init.clone() );
+    filter_renderer_clone.borrow_mut().apply_filter( &initial );
+
+    let fr = filter_renderer_clone.clone();
+    let bc_type_change = bc_type_init.clone();
+    let callback : Closure< dyn Fn( JsValue ) > = Closure::new( move | values : JsValue |
+    {
+      let obj = values.dyn_into::< web_sys::js_sys::Object >().unwrap();
+      let brightness_val = web_sys::js_sys::Reflect::get( &obj, &JsValue::from_str( "brightness" ) ).unwrap();
+      let contrast_val = web_sys::js_sys::Reflect::get( &obj, &JsValue::from_str( "contrast" ) ).unwrap();
+      let brightness = brightness_val.as_f64().unwrap();
+      let contrast = contrast_val.as_f64().unwrap();
+
+      let filter = brightness_contrast::BrightnessContrast::new( brightness as f32, contrast as f32, bc_type_change.clone() );
+      fr.borrow_mut().apply_filter( &filter );
+    });
+    controls::on_change( callback.as_ref().unchecked_ref() );
+    callback.forget();
+
+    show_controls_bar();
+  });
+
+  let card = get_element_by_id_unchecked::< HtmlElement >( card_id );
+  card.add_event_listener_with_callback( "click", onclick.as_ref().unchecked_ref() ).unwrap();
+  onclick.forget();
+}
+
+fn setup_filters_with_controls( filter_renderer : &Rc< RefCell< Renderer > >, current_filter : &Rc< RefCell< String > > )
+{
+  // Blur filters need manual setup due to generic type parameters
+  setup_blur_filter( filter_renderer, current_filter, "box-blur", "Box Blur", blur::Box, 80.0 );
+  setup_blur_filter( filter_renderer, current_filter, "gaussian-blur", "Gaussian Blur", blur::Gaussian, 50.0 );
+  setup_blur_filter( filter_renderer, current_filter, "stack-blur", "Stack Blur", blur::Stack, 80.0 );
+
+  // Binarize
+  setup_filter_with_sliders!(
+    filter_renderer,
+    current_filter,
+    "binarize",
+    binarize::Binarize,
+    binarize::Binarize { threshold: 0.5 },
+    [ ("Threshold", "threshold", 0.0, 1.0, 0.001) ]
+  );
+
+  // Rescale
+  setup_filter_with_sliders!(
+    filter_renderer,
+    current_filter,
+    "rescale",
+    rescale::Rescale,
+    rescale::Rescale { scale: 1.0 },
+    [ ("Scale", "scale", 0.1, 10.0, 0.01) ]
+  );
+
+  // Resize filters need manual setup due to generic type parameters
+  setup_resize_filter( filter_renderer, current_filter, "resize-nn", "Resize (NN)", resize::Nearest );
+  setup_resize_filter( filter_renderer, current_filter, "resize-bilinear", "Resize (Bilinear)", resize::Bilinear );
+
+  // Sharpen
+  setup_filter_with_sliders!(
+    filter_renderer,
+    current_filter,
+    "sharpen",
+    sharpen::Sharpen,
+    sharpen::Sharpen { factor: 1.0 },
+    [ ("Factor", "factor", 1.0, 10.0, 0.1) ]
+  );
+
+  // Dithering
+  setup_filter_with_sliders!(
+    filter_renderer,
+    current_filter,
+    "dither",
+    dithering::Dithering,
+    dithering::Dithering { levels: 4 },
+    [ ("Levels", "levels", 2.0, 20.0, 1.0) ]
+  );
+
+  // Posterize
+  setup_filter_with_sliders!(
+    filter_renderer,
+    current_filter,
+    "posterize",
+    posterize::Posterize,
+    posterize::Posterize { levels: 4 },
+    [ ("Levels", "levels", 2.0, 20.0, 1.0) ]
+  );
+
+  // Gamma
+  setup_filter_with_sliders!(
+    filter_renderer,
+    current_filter,
+    "gamma",
+    gamma::Gamma,
+    gamma::Gamma { gamma: 1.0 },
+    [ ("Gamma", "gamma", 0.1, 5.0, 0.01) ]
+  );
+
+  // Mosaic
+  setup_filter_with_sliders!(
+    filter_renderer,
+    current_filter,
+    "mosaic",
+    mosaic::Mosaic,
+    mosaic::Mosaic { scale: 10 },
+    [ ("Scale", "scale", 1.0, 100.0, 1.0) ]
+  );
+
+  // BrightnessContrast filters need manual setup due to generic type parameters
+  setup_brightness_contrast_filter( filter_renderer, current_filter, "bcgimp", "BC (GIMP)", brightness_contrast::GIMP, -100.0, 100.0, 1.0 );
+  setup_brightness_contrast_filter( filter_renderer, current_filter, "bcph", "BC (PS)", brightness_contrast::Photoshop, -1.0, 1.0, 0.01 );
+
+  // Color Transform
+  setup_filter_with_sliders!(
+    filter_renderer,
+    current_filter,
+    "color-transform",
+    color_transform::ColorTransform,
+    color_transform::ColorTransform
+    {
+      red_multiplier: 1.0,
+      green_multiplier: 1.0,
+      blue_multiplier: 1.0,
+      red_offset: 0.0,
+      green_offset: 0.0,
+      blue_offset: 0.0,
+    },
+    [
+      ("Red Mult", "redMultiplier", 0.0, 2.0, 0.01),
+      ("Green Mult", "greenMultiplier", 0.0, 2.0, 0.01),
+      ("Blue Mult", "blueMultiplier", 0.0, 2.0, 0.01),
+      ("Red Offset", "redOffset", -1.0, 1.0, 0.01),
+      ("Green Offset", "greenOffset", -1.0, 1.0, 0.01),
+      ("Blue Offset", "blueOffset", -1.0, 1.0, 0.01)
+    ]
+  );
+
+  // HSL Adjust
+  setup_filter_with_sliders!(
+    filter_renderer,
+    current_filter,
+    "hsl-adjust",
+    hsl_adjustment::HSLAdjustment,
+    hsl_adjustment::HSLAdjustment
+    {
+      hue: 0.0,
+      saturation: 0.0,
+      lightness: 0.0,
+    },
+    [
+      ("Hue", "hue", -1.0, 1.0, 0.01),
+      ("Saturation", "saturation", -1.0, 1.0, 0.01),
+      ("Lightness", "lightness", -1.0, 1.0, 0.01)
+    ]
+  );
+
+  // Oil
+  setup_filter_with_sliders!(
+    filter_renderer,
+    current_filter,
+    "oil",
+    oil::Oil,
+    oil::Oil { levels: 10, range: 3 },
+    [
+      ("Levels", "levels", 2.0, 50.0, 1.0),
+      ("Range", "range", 1.0, 15.0, 1.0)
+    ]
+  );
+
+  // Twirl
+  setup_filter_with_sliders!(
+    filter_renderer,
+    current_filter,
+    "twirl",
+    twirl::Twirl,
+    twirl::Twirl
+    {
+      center_x: 0.5,
+      center_y: 0.5,
+      radius: 0.3,
+      strength: 10.0,
+    },
+    [
+      ("Center X", "centerX", 0.0, 1.0, 0.01),
+      ("Center Y", "centerY", 0.0, 1.0, 0.01),
+      ("Radius", "radius", 0.0, 1.0, 0.01),
+      ("Strength", "strength", -200.0, 200.0, 1.0)
+    ]
+  );
+
+  // Channels (dropdown)
+  setup_channels_filter( filter_renderer, current_filter );
+
+  // Flip (dropdown)
+  setup_flip_filter( filter_renderer, current_filter );
+}
+
+fn setup_channels_filter( filter_renderer : &Rc< RefCell< Renderer > >, current_filter : &Rc< RefCell< String > > )
+{
+  let filter_renderer_clone = filter_renderer.clone();
+  let current_filter_clone = current_filter.clone();
+  let onclick : Closure< dyn Fn() > = Closure::new( move ||
+  {
+    *current_filter_clone.borrow_mut() = String::from( "channels" );
+    filter_renderer_clone.borrow_mut().save_previous_texture();
+
+    controls::clear_controls();
+
+    let options = web_sys::js_sys::Array::of3( &"Red".into(), &"Green".into(), &"Blue".into() );
+    controls::add_dropdown( "Channel", "channel", "Red", &options.into() );
+
+    let initial = channels::Channels { channel: channels::Channel::Red };
+    filter_renderer_clone.borrow_mut().apply_filter( &initial );
+
+    let fr = filter_renderer_clone.clone();
+    let callback : Closure< dyn Fn( JsValue ) > = Closure::new( move | values : JsValue |
+    {
+      // Get the channel value from the values object
+      let obj = values.dyn_into::< web_sys::js_sys::Object >().unwrap();
+      let val = web_sys::js_sys::Reflect::get( &obj, &JsValue::from_str( "channel" ) ).unwrap();
+      let channel_str = val.as_string().unwrap();
+
+      // Parse string to enum
+      let channel = match channel_str.as_str()
+      {
+        "Red" => channels::Channel::Red,
+        "Green" => channels::Channel::Green,
+        "Blue" => channels::Channel::Blue,
+        _ => channels::Channel::Red,
+      };
+
+      let filter = channels::Channels { channel };
+      fr.borrow_mut().apply_filter( &filter );
+    });
+    controls::on_change( callback.as_ref().unchecked_ref() );
+    callback.forget();
+
+    show_controls_bar();
+  });
+
+  let card = get_element_by_id_unchecked::< HtmlElement >( "channels" );
+  card.add_event_listener_with_callback( "click", onclick.as_ref().unchecked_ref() ).unwrap();
+  onclick.forget();
+}
+
+fn setup_flip_filter( filter_renderer : &Rc< RefCell< Renderer > >, current_filter : &Rc< RefCell< String > > )
+{
+  let filter_renderer_clone = filter_renderer.clone();
+  let current_filter_clone = current_filter.clone();
+  let onclick : Closure< dyn Fn() > = Closure::new( move ||
+  {
+    *current_filter_clone.borrow_mut() = String::from( "flip" );
+    filter_renderer_clone.borrow_mut().save_previous_texture();
+
+    controls::clear_controls();
+
+    let options = web_sys::js_sys::Array::of3( &"FlipX".into(), &"FlipY".into(), &"FlipXY".into() );
+    controls::add_dropdown( "Direction", "flip", "FlipX", &options.into() );
+
+    let initial = flip::Flip { flip: flip::FlipDirection::FlipX };
+    filter_renderer_clone.borrow_mut().apply_filter( &initial );
+
+    let fr = filter_renderer_clone.clone();
+    let callback : Closure< dyn Fn( JsValue ) > = Closure::new( move | values : JsValue |
+    {
+      // Get the flip value from the values object
+      let obj = values.dyn_into::< web_sys::js_sys::Object >().unwrap();
+      let val = web_sys::js_sys::Reflect::get( &obj, &JsValue::from_str( "flip" ) ).unwrap();
+      let flip_str = val.as_string().unwrap();
+
+      // Parse string to enum
+      let flip = match flip_str.as_str()
+      {
+        "FlipX" => flip::FlipDirection::FlipX,
+        "FlipY" => flip::FlipDirection::FlipY,
+        "FlipXY" => flip::FlipDirection::FlipXY,
+        _ => flip::FlipDirection::FlipX,
+      };
+
+      let filter = flip::Flip { flip };
+      fr.borrow_mut().apply_filter( &filter );
+    });
+    controls::on_change( callback.as_ref().unchecked_ref() );
+    callback.forget();
+
+    show_controls_bar();
+  });
+
+  let card = get_element_by_id_unchecked::< HtmlElement >( "flip" );
+  card.add_event_listener_with_callback( "click", onclick.as_ref().unchecked_ref() ).unwrap();
+  onclick.forget();
 }
 
 fn make_closure_with_filter_tracking
@@ -587,7 +655,8 @@ fn make_closure_with_filter_tracking
   {
     *current_filter.borrow_mut() = filter_name.clone();
     filter_renderer.borrow_mut().save_previous_texture();
+    controls::clear_controls();
     filter_renderer.borrow_mut().apply_filter( &filter );
-    show_apply_cancel_buttons();
+    show_controls_bar();
   }))
 }

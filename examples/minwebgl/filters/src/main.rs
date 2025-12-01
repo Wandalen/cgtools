@@ -35,7 +35,7 @@ mod utils;
 mod filters;
 mod framebuffer;
 mod renderer;
-mod lil_gui;
+mod controls;
 mod zoom_pan;
 mod sidebar_toggle;
 
@@ -186,8 +186,8 @@ fn run() -> Result< (), gl::WebglError >
           // Re-render with original filter to show the applied result
           filter_renderer_apply.borrow_mut().apply_filter( &filters::original::Original );
 
-          // Hide apply and cancel buttons
-          ui_setup::hide_apply_cancel_buttons();
+          // Hide controls bar
+          ui_setup::hide_controls_bar();
 
           gl::info!( "✅ Filter applied! Ready for next filter." );
         }
@@ -210,8 +210,8 @@ fn run() -> Result< (), gl::WebglError >
     filter_renderer_cancel.borrow_mut().restore_previous_texture();
     filter_renderer_cancel.borrow_mut().apply_filter( &filters::original::Original );
 
-    // Hide apply and cancel buttons
-    ui_setup::hide_apply_cancel_buttons();
+    // Hide controls bar
+    ui_setup::hide_controls_bar();
 
     gl::info!( "❌ Filter cancelled." );
   });
@@ -227,8 +227,8 @@ fn run() -> Result< (), gl::WebglError >
     filter_renderer_revert.borrow_mut().restore_original_texture();
     filter_renderer_revert.borrow_mut().apply_filter( &filters::original::Original );
 
-    // Hide apply and cancel buttons if they're visible
-    ui_setup::hide_apply_cancel_buttons();
+    // Hide controls bar if visible
+    ui_setup::hide_controls_bar();
 
     gl::info!( "⏮️ Reverted to original image!" );
   });

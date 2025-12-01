@@ -8,7 +8,7 @@
   <link data-trunk rel="copy-dir" href="../../../assets/filters_demo/" data-target-path="static" />
   <link data-trunk rel="copy-dir" href="assets/thumbnails/" data-target-path="assets/thumbnails" />
   <link data-trunk rel="css" href="style.css">
-  <script data-trunk type="module" src="gui.js"></script>
+  <script data-trunk type="module" src="controls.js"></script>
   <script data-trunk type="module" src="zoom_pan.js"></script>
   <script data-trunk type="module" src="sidebar_toggle.js"></script>
 </head>
@@ -57,12 +57,35 @@
     <!-- <span class="sd-label">SAVE</span> -->
   </button>
 
+  <!-- Bottom Controls Bar -->
+  <div class="bottom-controls" id="bottom-controls">
+    <div class="controls-container" id="controls-container">
+      <!-- Dynamic controls will be inserted here -->
+    </div>
+  </div>
+
+  <!-- Apply and Cancel buttons - outside the panel -->
+  <button id="cancel-btn" title="Cancel filter">
+    <svg class="cancel-icon" viewBox="0 0 24 24">
+      <line x1="18" y1="6" x2="6" y2="18"></line>
+      <line x1="6" y1="6" x2="18" y2="18"></line>
+    </svg>
+  </button>
+  <button id="apply-btn" title="Apply filter">
+    <svg class="apply-icon" viewBox="0 0 24 24">
+      <polyline points="20 6 9 17 4 12"></polyline>
+    </svg>
+  </button>
+
   <!-- Bottom Right Buttons -->
   <input type="file" id="file-input" accept="image/*" />
   <button id="upload-btn" title="Upload image">📁</button>
-  <button id="revert-btn" title="Revert to original image">⏮️</button>
-  <button id="apply-btn" title="Apply filter">✅</button>
-  <button id="cancel-btn" title="Cancel filter">❌</button>
+  <button id="revert-btn" title="Revert to original image">
+    <svg class="revert-icon" viewBox="0 0 24 24">
+      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
+      <path d="M21 3v5h-5"></path>
+    </svg>
+  </button>
 </body>
 
 </html>
