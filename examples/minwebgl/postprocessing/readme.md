@@ -11,6 +11,16 @@ lighting, and detailed Color Grading.
 
 ![image](showcase.png)
 
+## UI Controls
+
+**Renderer:**
+- Exposure, Bloom Radius, Bloom Strength
+
+**Color Grading:**
+- White Balance: Temperature, Tint
+- Tone Controls: Exposure, Shadows, Highlights
+- Color Adjustments: Contrast, Vibrance, Saturation
+
 **[How to run](../../how_to_run.md)**
 
 **References:**
