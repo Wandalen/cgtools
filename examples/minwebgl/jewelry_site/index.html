@@ -3,6 +3,25 @@
     <title>Jewelry Shop</title>
     <meta name="keywords" content="HTML, CSS, JavaScript">
     <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy"
+      content="
+        default-src 'self';
+        script-src
+          'self'
+          https://cdn.jsdelivr.net
+          'sha384-HOvlOYPIs/zjoIkWUGXkVmXsjr8GuZLV+Q+rcPwmJOVZVpvTSXQChiN4t9Euv9Vc'
+          'sha384-P8VzCVnT9NBUkMrpcIZrJbA7EBjJvh/fJS6PmP+4nLIM284DtsImIv8D0fFjIkeh';
+        style-src
+          'self'
+          'unsafe-inline'
+          https://fonts.googleapis.com;
+        font-src
+          'self'
+          https://fonts.gstatic.com;
+        img-src 'self' data:;
+        connect-src 'self';
+        base-uri 'self';
+    ">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cardo:ital,wght@0,400;0,700;1,400&family=Great+Vibes&display=swap" rel="stylesheet">
@@ -10,8 +29,8 @@
   </head>
 
   <body style="overflow-y: hidden; cursor: grab;">
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/ScrollTrigger.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js" integrity="sha384-HOvlOYPIs/zjoIkWUGXkVmXsjr8GuZLV+Q+rcPwmJOVZVpvTSXQChiN4t9Euv9Vc" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/ScrollTrigger.min.js" integrity="sha384-P8VzCVnT9NBUkMrpcIZrJbA7EBjJvh/fJS6PmP+4nLIM284DtsImIv8D0fFjIkeh" crossorigin="anonymous"></script>
     <script src="/index.js"></script>
 
     <section class="header">
