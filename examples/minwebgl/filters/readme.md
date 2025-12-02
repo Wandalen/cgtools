@@ -4,7 +4,7 @@
 
 A comprehensive collection of image filters and post-processing effects implemented entirely on the GPU using WebGL 2.0. Explore various image processing techniques from basic convolution kernels to advanced multi-pass rendering algorithms, all running in real-time.
 
-![image](./showcase.gif)
+![image](./showcase.png)
 
 **[How to run](../how_to_run.md)**
 
