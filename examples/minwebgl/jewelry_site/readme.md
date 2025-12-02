@@ -8,4 +8,10 @@ This demo demonstrates jewelry site example for product ready 3D jewelry configu
 
 ## How to run
 
-Run any web server that host index.html and related files. Then go to site link like: `http://localhost:8000/`
+Run any web server that host index.html and related files. For example:
+
+```bash
+python -m http.server 8000
+```
+
+Then go to site link like: `http://localhost:8000/`
