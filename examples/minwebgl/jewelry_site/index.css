@@ -234,7 +234,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 	justify-content: flex-end;
 }
 
-.forever--image{
+.brilliant--image{
 	display: flex;
   align-items: center;
 	justify-content: flex-end;
@@ -389,9 +389,9 @@ table { border-collapse: collapse; border-spacing: 0; }
 }
 
 
-/* FOREVER SECTION */
+/* BRILLIANT SECTION */
 
-.forever--container{
+.brilliant--container{
 	display: flex;
 	align-items: center;
 	justify-content: flex-start;
@@ -411,7 +411,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 		position: fixed;
 		top: 50%
 	}
-	.forever--content{
+	.brilliant--content{
 		width: 320px;
 		margin-left: 20%;
 
@@ -460,7 +460,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 			}
 		}
 	}
-	.forever--text-bg{
+	.brilliant--text-bg{
 		font-weight: 400;
 		font-family: 'Great Vibes', cursive;
 		font-size: 300px;
@@ -482,15 +482,15 @@ table { border-collapse: collapse; border-spacing: 0; }
 	}
 }
 
-/* EMOTIONS SECTION */
+/* CHOOSE SECTION */
 
-.emotions--container{
+.choose--container{
 	display: flex;
 	align-items: center;
 	flex-direction: column;
 	justify-content: flex-start;
 	height: 100vh;
-	.emotions--content{
+	.choose--content{
 		display: flex;
 		justify-content: center;
 		flex-direction: column;
@@ -499,7 +499,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 			justify-content: space-between;
 			height: 100vh;
 		}
-		.emotions--text{
+		.choose--text{
 			margin-top: 80px;
 			text-align: center;
 			@media (max-width: 600px) {
@@ -570,7 +570,7 @@ table { border-collapse: collapse; border-spacing: 0; }
 			}
 		}
 	}
-	.emotions--text-bg{
+	.choose--text-bg{
 		font-weight: 400;
 		font-family: 'Great Vibes', cursive;
 		font-size: 300px;

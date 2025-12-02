@@ -36,7 +36,7 @@ async function setupMainPage()
   const camView1 = document.querySelector( '.cam-view-1' )
   const camView2 = document.querySelector( '.cam-view-2' )
   const camView3 = document.querySelector( '.cam-view-3' )
-  const emotionsImage = document.querySelector( '.emotions--image' )
+  const chooseImage = document.querySelector( '.choose--image' )
 
   const previewContainer = document.querySelector( '.preview--image' )
   const exitContainer = document.querySelector( '.exit--container' )
@@ -100,7 +100,7 @@ async function setupMainPage()
 
     const tl = gsap.timeline( { default : { ease: 'none' } } )
 
-    // FOREVER
+    // BRILLIANT
     tl
     .to
     (
@@ -120,26 +120,26 @@ async function setupMainPage()
     )
     .to
     (
-      '.forever--text-bg',
+      '.brilliant--text-bg',
       {
         opacity : 0.1, ease : "power4.inOut", scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : 'top top', scrub : true, immediateRender : false }
       }
     )
     .fromTo
     (
-      '.forever--container',
+      '.brilliant--container',
       { opacity : 0, x : '-110%' },
       { opacity : 1, x : '0%', ease : "power4.inOut", scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : 'top top', scrub : true, immediateRender : false } }
     )
     .addLabel( "Forever" )
     .to( '.side-bar .unique', { opacity : 1, scale : 1.5, ease : "power4.inOut", duration : 2, scrollTrigger : { trigger : ".cam-view-1", start : "top bottom", end : 'top top', scrub : true, immediateRender : false } } )
     .to( '.side-bar .unique', { opacity : 0.5, scale : 1, ease : "power4.inOut", duration : 2, scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : 'top top', scrub : true, immediateRender : false } } )
-    .to( '.side-bar .forever', { opacity : 1, scale : 1.5, ease : "power4.inOut", duration : 2, scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : 'top top', scrub : true, immediateRender : false } } )
+    .to( '.side-bar .brilliant', { opacity : 1, scale : 1.5, ease : "power4.inOut", duration : 2, scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : 'top top', scrub : true, immediateRender : false } } )
 
-    // // EMOTIONS SECTION
+    // // CHOOSE SECTION
     .to
     (
-      '.forever--container',
+      '.brilliant--container',
       {
         opacity : 0, x : '-110%', ease : "power4.inOut",
         scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : 'top top', scrub : true, immediateRender : false }
@@ -147,7 +147,7 @@ async function setupMainPage()
     )
     .to
     (
-      '.emotions--text-bg',
+      '.choose--text-bg',
       {
         opacity : 0.1, ease : "power4.inOut",
         scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : 'top top', scrub : true, immediateRender : false }
@@ -155,7 +155,7 @@ async function setupMainPage()
     )
     .to
     (
-      '.emotions--image',
+      '.choose--image',
       {
         opacity : 1.0, ease : "power4.inOut",
         scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : 'top top', scrub : true, immediateRender : false }
@@ -163,7 +163,7 @@ async function setupMainPage()
     )
     .fromTo
     (
-      '.emotions--content',
+      '.choose--content',
       { opacity : 0, x : '200%', y : '130%' },
       {
         opacity : 1, x : '-75%', y : '0%', duration : 0.5, ease : "power4.inOut",
@@ -173,7 +173,7 @@ async function setupMainPage()
     .addLabel( "Emotions" )
     .to
     (
-      '.side-bar .forever',
+      '.side-bar .brilliant',
       {
         opacity : 0.5, scale : 1, ease : "power4.inOut", duration : 2,
         scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : 'top top', scrub : true, immediateRender : false }
@@ -181,7 +181,7 @@ async function setupMainPage()
     )
     .to
     (
-      '.side-bar .emotions',
+      '.side-bar .choose',
       {
         opacity : 1, scale : 1.5, ease : "power4.inOut", duration : 2,
         scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : 'top top', scrub : true, immediateRender : false }
@@ -189,7 +189,7 @@ async function setupMainPage()
     )
     .to
     (
-      '.side-bar .forever',
+      '.side-bar .brilliant',
       {
         opacity : 0.5, scale : 1, ease : "power4.inOut", duration : 2,
         scrollTrigger : { trigger : ".cam-view-1", start : "top bottom", end : 'top top', scrub : true, immediateRender : false }
@@ -207,7 +207,7 @@ async function setupMainPage()
     }
   )
 
-  document.querySelector( '.forever' )?.addEventListener
+  document.querySelector( '.brilliant' )?.addEventListener
   (
     'click',
     () =>
@@ -252,9 +252,9 @@ async function setupMainPage()
     nightMode = toggleNightMode( !nightMode )
 
     gsap.timeline()
-    .to( '.emotions--content', { opacity : 0, x : '200%', duration : 1.5, ease : "power4.out", onComplete : onCompleteConfigAnimation } ) // , '-=2.5'
-    .to( '.emotions--text-bg', { opacity : 0, x : '200%', duration : 1.5, ease : "power4.out" }, '-=2.5' )
-    .to( '.emotions--image', { opacity : 0, y : '100%', duration : 1.5, ease : "power4.out" }, '-=1.5' )
+    .to( '.choose--content', { opacity : 0, x : '200%', duration : 1.5, ease : "power4.out", onComplete : onCompleteConfigAnimation } ) // , '-=2.5'
+    .to( '.choose--text-bg', { opacity : 0, x : '200%', duration : 1.5, ease : "power4.out" }, '-=2.5' )
+    .to( '.choose--image', { opacity : 0, y : '100%', duration : 1.5, ease : "power4.out" }, '-=1.5' )
     .fromTo( '.footer--menu', { opacity : 0, y : '150%' }, { opacity : 1, y : '0%', duration : 1.5 } )
   }
 
@@ -294,7 +294,7 @@ async function setupMainPage()
       camView2.style.display = "flex"
       camView3.style.display = "flex"
       headerContainer.style.display = "flex"
-      emotionsImage.style.display = "flex"
+      chooseImage.style.display = "flex"
       nightModeButton.style.pointerEvents = "all";
 
       previewContainer.style.display = "none"
@@ -335,8 +335,8 @@ async function setupMainPage()
     nightMode = toggleNightMode( !nightMode )
 
     gsap.timeline().to( '.footer--menu', { opacity : 0, y : '150%' } ) // , '-=1.2'
-    .to( '.emotions--content', { opacity : 1, x : '0%', duration : 0.5, ease : "power4.out" }, '-=1.2' )
-    .fromTo( '.emotions--image', { opacity : 0, y : '100%'}, { opacity : 1, y : '50%', duration : 0.5, ease : "power4.inOut" }, '-=1.2' )
+    .to( '.choose--content', { opacity : 1, x : '0%', duration : 0.5, ease : "power4.out" }, '-=1.2' )
+    .fromTo( '.choose--image', { opacity : 0, y : '100%'}, { opacity : 1, y : '50%', duration : 0.5, ease : "power4.inOut" }, '-=1.2' )
   }
 
   // NIGHT MODE
