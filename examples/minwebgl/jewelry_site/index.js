@@ -1,3 +1,12 @@
+const NIGHT_MODE_COLORS =
+{
+  innerLightColor : "#FFFFFF",
+  outerLightColor : "#DDDDDD",
+  innerDarkColor : "#777777",
+  outerDarkColor : "#000000"
+};
+const PREVIEW_TIMEOUT_MS = 2500;
+
 let firstLoad = true
 
 // -- MAIN PAGE --
@@ -56,10 +65,10 @@ async function setupMainPage()
 
   let nightMode = false
 
-  let innerLightColor = "#FFFFFF";
-  let outerLightColor = "#DDDDDD";
-  let innerDarkColor = "#777777";
-  let outerDarkColor = "#000000";
+  let innerLightColor = NIGHT_MODE_COLORS.innerLightColor;
+  let outerLightColor = NIGHT_MODE_COLORS.outerLightColor;
+  let innerDarkColor = NIGHT_MODE_COLORS.innerDarkColor;
+  let outerDarkColor = NIGHT_MODE_COLORS.outerDarkColor;
 
   replaceSVG( "./assets/icons/moon.svg", ".image--moon" )
   replaceSVG( "./assets/icons/moon.svg", ".image--moon--2" )
@@ -586,7 +595,7 @@ function setupConfigurator()
   function updatePreview()
   {
     const { metal, gem, ring } = state;
-    const imagePath = `/assets/jewelry/${metal}_${gem}_${ring}.png`;
+    const imagePath = `./assets/jewelry/${metal}_${gem}_${ring}.png`;
 
     previewImage.src = imagePath;
     previewContainer.classList.add( "show" );
@@ -598,7 +607,7 @@ function setupConfigurator()
       {
         previewContainer.classList.remove( "show" );
       },
-      2500
+      PREVIEW_TIMEOUT_MS
     );
   }
 
