@@ -308,7 +308,7 @@ version = "1.47.1"
 version = "1.4"
 
 [workspace.dependencies.csgrs]
-version = "0.19.1"
+version = "0.20.1"
 default-features = false
 features = ["f64", "delaunay"]
 
