@@ -36,8 +36,8 @@ fn generate_points( num_points : usize ) -> Vec< impls::Point2D >
   points
 }
 
-/// Apply apsect ration to the provided value
-fn apply_aspect_ration( x : f32, aspect : f32 ) -> f32
+/// Apply apsect ratio to the provided value
+fn apply_aspect_ratio( x : f32, aspect : f32 ) -> f32
 {
   let x = x * 2.0 - 1.0;
   let x = x * aspect;
@@ -76,7 +76,7 @@ fn run() -> Result< (), gl::WebglError >
   let mut points = generate_points( NUM_POINTS );
   for p in points.iter_mut()
   {
-    p.0.0[ 0 ] = apply_aspect_ration( p.0.0[ 0 ], aspect );
+    p.0.0[ 0 ] = apply_aspect_ratio( p.0.0[ 0 ], aspect );
   }
   let mut colors = vec![ gl::F32x3::splat( 0.0 ); NUM_POINTS ];
 
@@ -192,7 +192,7 @@ fn run() -> Result< (), gl::WebglError >
       let mouse_pos = input.pointer_position();
       let mut mouse_pos = gl::F32x2::new( mouse_pos.0[ 0 ] as f32, height - mouse_pos.0[ 1 ] as f32 ) / gl::F32x2::new( width, height );
 
-      mouse_pos.0[ 0 ] = apply_aspect_ration( mouse_pos.0[ 0 ], aspect );
+      mouse_pos.0[ 0 ] = apply_aspect_ratio( mouse_pos.0[ 0 ], aspect );
 
       let neighbours = 
       match settings.borrow().search.as_str()
