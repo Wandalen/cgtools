@@ -13,11 +13,22 @@ use post_processing::{ Pass, SwapFramebuffer };
 use std::rc::Rc;
 use core::cell::RefCell;
 
+/// Entry point for the post-processing demo.
+///
+/// Demonstrates a multi-pass post-processing pipeline including HDR tone mapping,
+/// color grading, and gamma correction applied to a 3D model.
 fn main()
 {
   gl::spawn_local( async { run().await.unwrap() } );
 }
 
+/// Sets up and runs the post-processing demo with interactive controls.
+///
+/// Creates a WebGL context, loads a GLTF model, configures the camera based on scene bounds,
+/// and establishes a post-processing pipeline with three passes:
+/// 1. Tone mapping (HDR to LDR conversion using ACES)
+/// 2. Color grading (adjustable color correction in LDR space)
+/// 3. Gamma correction (final sRGB conversion for display)
 async fn run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
@@ -42,8 +53,13 @@ async fn run() -> Result< (), gl::WebglError >
 
   let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
 
+  // Calculate scene dimensions to automatically scale camera parameters
+  // diagonal: full diagonal length of the bounding box for scale reference
   let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
   let dist = scene_bounding_box.max.mag();
+
+  // Extract IEEE 754 exponent to determine scale order of magnitude
+  // This helps dynamically adjust near/far planes based on scene size
   let exponent =
   {
     let bits = diagonal.to_bits();
@@ -51,16 +67,20 @@ async fn run() -> Result< (), gl::WebglError >
     exponent_field - 127
   };
 
-  // Camera setup
+  // Camera setup: position eye along diagonal direction at calculated distance
+  // Eye is positioned at (0,1,1) direction scaled by distance to fit the scene
   let mut eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
   eye *= dist;
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
 
   let center = scene_bounding_box.center();
 
+  // Camera projection parameters scaled to scene size
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
+  // Near plane: scaled by 10^exponent but clamped to minimum of 1.0
   let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 );
+  // Far plane: extends 100^|exponent| times beyond near plane for large scale range
   let far = near * 100.0f32.powi( exponent.abs() );
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
@@ -93,21 +113,26 @@ async fn run() -> Result< (), gl::WebglError >
     swap_buffer.bind( &gl );
     swap_buffer.set_input( renderer.borrow().get_main_texture() );
 
-    // 1. Tone mapping (HDR → LDR)
+    // Post-processing pipeline - order matters for correct visual output:
+
+    // Pass 1: Tone mapping (HDR → LDR conversion using ACES algorithm)
+    // Must be first to compress HDR values into displayable LDR range (0-1)
     let res = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
     .expect( "Failed to render tonemapping pass" );
 
     swap_buffer.set_output( res );
     swap_buffer.swap();
 
-    // 2. Color grading (adjust colors in LDR space)
+    // Pass 2: Color grading (adjusts hue, saturation, brightness in LDR space)
+    // Applied after tone mapping to work with perceptually linear LDR colors
     let res = color_grading.borrow().render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
     .expect( "Failed to render color grading pass" );
 
     swap_buffer.set_output( res );
     swap_buffer.swap();
 
-    // 3. Gamma correction (final output to screen)
+    // Pass 3: Gamma correction (linear → sRGB for final display)
+    // Must be last to ensure correct gamma for monitor display
     let _ = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
     .expect( "Failed to render ToSrgbPass" );
 
