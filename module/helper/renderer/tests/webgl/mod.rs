@@ -1,4 +1,8 @@
 use renderer::webgl as the_module;
 use mingl::math;
 
-mod node_tests;
+/// Node related tests
+mod node;
+
+/// Scene related tests
+mod scene;
