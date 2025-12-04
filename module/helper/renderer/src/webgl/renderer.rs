@@ -867,7 +867,7 @@ mod private
             // Bind the program, upload camera and node matrices, bind the primitive, and draw it.
             program_info.bind( gl );
 
-            if material.is_need_update() && program_cached
+            if material.needs_update() && program_cached
             {
               let _ = material.upload( gl, node.clone(), program_info.get_locations() );
             }

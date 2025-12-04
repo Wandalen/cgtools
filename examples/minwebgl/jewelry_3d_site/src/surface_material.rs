@@ -47,7 +47,7 @@ impl Material for SurfaceMaterial
   }
 
   /// Signal for updating material uniforms
-  fn is_need_update( &self ) -> bool
+  fn needs_update( &self ) -> bool
   {
     self.need_update
   }
