@@ -139,7 +139,7 @@ mod private
       screen_d : [ f32; 2 ]
     )
     {
-      if self.block_pan
+      if !self.use_pan
       {
         return;
       }
