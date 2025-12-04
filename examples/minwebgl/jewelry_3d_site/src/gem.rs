@@ -1,7 +1,7 @@
 use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo, Node };
 use renderer::impl_locations;
 use minwebgl as gl;
-use gl::{ GL, F32x3, Former };
+use gl::{ GL, Former };
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
 use std:: { cell::RefCell, rc::Rc };
@@ -25,17 +25,10 @@ impl_locations!
 
   "rayBounces",
   "diamondColor",
-  "boostFactors",
 
   "envMapIntensity",
-  "rainbowDelta",
-  "squashFactor",
   "radius",
-  "geometryFactor",
-  "absorptionFactor",
-  "colorAbsorption",
-  "cameraPosition",
-  "maxDistance"
+  "cameraPosition"
 );
 
 /// The source code for the gem vertex shader.
@@ -54,21 +47,9 @@ pub struct GemMaterial
   /// Gem color
   pub color : gl::F32x3,
   ///
-  pub boost_factors : F32x3,
-  ///
   pub env_map_intensity : f32,
   ///
-  pub rainbow_delta : f32,
-  ///
-  pub squash_factor : f32,
-  ///
   pub radius : f32,
-  ///
-  pub geometry_factor : f32,
-  ///
-  pub absorption_factor : f32,
-  ///
-  pub color_absorption : F32x3,
   /// Equirectangular environment texture
   pub environment_texture : Option< TextureInfo >,
   /// Cube normal map texture
@@ -151,16 +132,9 @@ impl Material for GemMaterial
     let max_distance = ( bb.max - c ).mag().max( ( bb.min - c ).mag() );
 
     upload( "envMapIntensity", self.env_map_intensity )?;
-    upload( "rainbowDelta", self.rainbow_delta )?;
-    upload( "squashFactor", self.squash_factor )?;
     upload( "radius", max_distance )?;
-    upload( "geometryFactor", self.geometry_factor )?;
-    upload( "absorptionFactor", self.absorption_factor )?;
-    upload( "maxDistance", max_distance )?;
 
     upload_array( "diamondColor", self.color.0.as_slice() )?;
-    upload_array( "boostFactors", self.boost_factors.0.as_slice() )?;
-    upload_array( "colorAbsorption", self.color_absorption.0.as_slice() )?;
 
     let offset_mat = gl::math::mat3x3h::translation( -node.borrow().bounding_box().center() );
 
@@ -208,14 +182,8 @@ impl Clone for GemMaterial
       id : Uuid::new_v4(),
       ray_bounces : self.ray_bounces,
       color : self.color.clone(),
-      boost_factors : self.boost_factors.clone(),
       env_map_intensity : self.env_map_intensity,
-      rainbow_delta : self.rainbow_delta,
-      squash_factor : self.squash_factor,
       radius : self.radius,
-      geometry_factor : self.geometry_factor,
-      absorption_factor : self.absorption_factor,
-      color_absorption : self.color_absorption,
       environment_texture : self.environment_texture.clone(),
       cube_normal_map_texture : self.cube_normal_map_texture.clone(),
       need_update : self.need_update
@@ -232,14 +200,8 @@ impl Default for GemMaterial
       id : Uuid::new_v4(),
       ray_bounces : 5,
       color : gl::F32x3::from_array( [ 0.98, 0.95, 0.9 ] ),
-      boost_factors : F32x3::from_array( [ 0.8920, 0.8920, 0.9860 ] ),
       env_map_intensity : 1.0,
-      rainbow_delta : 0.012,
-      squash_factor : 0.98,
       radius : 1000.0,
-      geometry_factor : 0.5,
-      absorption_factor : 0.7,
-      color_absorption : F32x3::from_array( [ 0.9911, 0.9911, 0.9911 ] ),
       environment_texture : None,
       cube_normal_map_texture : None,
       need_update : true
