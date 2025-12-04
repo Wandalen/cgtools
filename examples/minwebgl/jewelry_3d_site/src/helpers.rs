@@ -147,6 +147,9 @@ pub fn create_texture
   Some( texture_info )
 }
 
+/// Finds [`Node`]'s in [`Scene`]. [`Node`] name must be
+/// available ( not [`None`] ), contain substring sensitive
+/// or not to case relatively to case_sensitive bool
 pub fn filter_nodes( scene : &Rc< RefCell< Scene > >, mut substring : String, case_sensitive : bool ) -> HashMap< String, Rc< RefCell< Node > > >
 {
   if !case_sensitive
