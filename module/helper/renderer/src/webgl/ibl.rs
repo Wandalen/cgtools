@@ -43,14 +43,6 @@ mod private
       gl.active_texture( gl::TEXTURE0 + base_active_texture + 2 );
       gl.bind_texture( gl::TEXTURE_2D, self.specular_2_texture.as_ref() );
     }
-
-    /// Sets gl::TEXTURE_BASE_LEVEL and gl::TEXTURE_MAX_LEVEL
-    pub fn set_mip_range( &self, gl : &gl::WebGl2RenderingContext, mip_range : Range< u32 > )
-    {
-      gl.bind_texture( gl::TEXTURE_CUBE_MAP, self.specular_1_texture.as_ref() );
-      gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_BASE_LEVEL, mip_range.start as i32 );
-      gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MAX_LEVEL, mip_range.end as i32 );
-    }
   }
 }
 
