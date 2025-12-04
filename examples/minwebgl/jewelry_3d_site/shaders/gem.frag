@@ -2,20 +2,10 @@ precision mediump float;
 
 const float PI = 3.1415926535897932384626433;
 const float EPSILON = 1e-4;
-// Reflectance of a diamond at light incidence of theta = 0
-// Max distance to the surface in cubeNormalMap
-// This value was calculated during generation of the map
-//const float MAX_DISTANCE = 5.7610855;
-// const float MAX_DISTANCE = 1.0;
-// const int RAY_BOUNCES = 7;
-// const float TRANSMISSION = 0.5;
-// const vec3 DIAMOND_COLOR = vec3( .98, 0.95, 0.9 );
-// const vec3 BOOST_FACTORS = vec3( 0.8920, 0.8920, 0.9860 );
 
 const vec3 ambientColor = vec3(0.7);
 const float ambientint = 0.08;
 
-//uniform samplerCube envMap;
 uniform sampler2D envMap;
 uniform samplerCube cubeNormalMap;
 
@@ -27,18 +17,10 @@ uniform mat4x4 inverseOffsetMatrix;
 
 uniform int rayBounces;
 uniform vec3 diamondColor;
-uniform vec3 boostFactors;
 
 uniform float envMapIntensity;
-uniform float rainbowDelta;
-uniform float squashFactor;
 uniform float radius;
-uniform float geometryFactor;
-uniform float absorptionFactor;
-uniform vec3 colorAbsorption;
 uniform vec3 cameraPosition;
-
-uniform float maxDistance;
 
 in vec2 vUvs;
 in vec3 vWorldNormal;
