@@ -229,13 +229,10 @@ impl Configurator
         let texture = self.rings.shadows[ i ].clone();
 
         // Create custom surface material
-        let surface_material = SurfaceMaterial
-        {
-          id : uuid::Uuid::new_v4(),
-          color : F32x3::splat( 0.854 ),
-          texture,
-          need_update : false
-        };
+        let mut surface_material = SurfaceMaterial::new( &gl );
+        surface_material.color = F32x3::splat( 0.854 );
+        surface_material.texture = texture;
+        surface_material.need_update = false;
         let surface_material_boxed : Rc< RefCell< Box< dyn Material > > > = Rc::new( RefCell::new( Box::new( surface_material ) ) );
         primitive.borrow_mut().material = surface_material_boxed.clone();
 
@@ -387,7 +384,7 @@ async fn setup_rings
         normal_maps.insert( name.clone(), normal_map.clone() );
         normal_map
       };
-      setup_gem_material( &gem, environment_texture, &Some( cube_normal_map_texture ) );
+      setup_gem_material( gl, &gem, environment_texture, &Some( cube_normal_map_texture ) );
     }
 
     gems.push( ring_gems );
@@ -436,6 +433,7 @@ fn setup_camera( canvas : &web_sys::HtmlCanvasElement ) -> Camera
 
 fn setup_gem_material
 (
+  gl : &GL,
   gem_node : &Rc< RefCell< Node > >,
   environment_texture : &Option< TextureInfo >,
   cube_normal_map_texture : &Option< TextureInfo >
@@ -444,7 +442,7 @@ fn setup_gem_material
   if let Object3D::Mesh( mesh ) = &gem_node.borrow().object
   {
     let primitives = &mesh.borrow().primitives;
-    let mut gem_material = GemMaterial::default();
+    let mut gem_material = GemMaterial::new( &gl );
     gem_material.cube_normal_map_texture = cube_normal_map_texture.clone();
     gem_material.environment_texture = environment_texture.clone();
     for primitive in primitives

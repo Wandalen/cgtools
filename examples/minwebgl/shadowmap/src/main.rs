@@ -8,7 +8,7 @@
 use minwebgl as gl;
 use gl::{ JsCast as _, math::mat3x3h };
 use web_sys::HtmlCanvasElement;
-use std::alloc::Rc;
+use std::rc::Rc;
 use core::cell::RefCell;
 use renderer::webgl::{ Light, SpotLight, Node, loaders::gltf, Object3D, post_processing, shadow };
 use post_processing::{ Pass, SwapFramebuffer };

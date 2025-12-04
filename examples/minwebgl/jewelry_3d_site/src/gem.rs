@@ -42,6 +42,8 @@ pub struct GemMaterial
 {
   /// A unique identifier for the material.
   pub id : Uuid,
+  /// Shader program info
+  program : ProgramInfo,
   /// Ray bounces inside gem count
   pub ray_bounces : i32,
   /// Gem color
@@ -58,6 +60,31 @@ pub struct GemMaterial
   pub need_update : bool
 }
 
+impl GemMaterial
+{
+  pub fn new( gl : &GL ) -> Self
+  {
+    let vertex_shader_src = GEM_VERTEX_SHADER;
+    let fragment_shader_src = GEM_FRAGMENT_SHADER;
+    let program = gl::ProgramFromSources::new( vertex_shader_src, fragment_shader_src )
+    .compile_and_link( &gl )
+    .unwrap();
+
+    Self
+    {
+      id : Uuid::new_v4(),
+      program : ProgramInfo::new( gl, &program, GemShader.dyn_clone() ),
+      ray_bounces : 5,
+      color : gl::F32x3::from_array( [ 0.98, 0.95, 0.9 ] ),
+      env_map_intensity : 1.0,
+      radius : 1000.0,
+      environment_texture : None,
+      cube_normal_map_texture : None,
+      need_update : true
+    }
+  }
+}
+
 impl Material for GemMaterial
 {
   fn get_id( &self ) -> Uuid
@@ -70,9 +97,14 @@ impl Material for GemMaterial
     self.need_update
   }
 
-  fn get_program_info( &self, gl : &GL, program : &gl::WebGlProgram ) -> ProgramInfo
+  fn get_program_info( &self ) -> &ProgramInfo
   {
-    ProgramInfo::new( gl, program, GemShader.dyn_clone() )
+    &self.program
+  }
+
+  fn get_program_info_mut( &mut self ) -> &mut ProgramInfo
+  {
+    &mut self.program
   }
 
   fn get_type_name( &self ) -> &'static str
@@ -184,25 +216,8 @@ impl Clone for GemMaterial
       radius : self.radius,
       environment_texture : self.environment_texture.clone(),
       cube_normal_map_texture : self.cube_normal_map_texture.clone(),
-      need_update : self.need_update
+      need_update : self.need_update,
+      program : self.program.clone()
     }
-  }
-}
-
-impl Default for GemMaterial
-{
-  fn default() -> Self
-  {
-    return Self
-    {
-      id : Uuid::new_v4(),
-      ray_bounces : 5,
-      color : gl::F32x3::from_array( [ 0.98, 0.95, 0.9 ] ),
-      env_map_intensity : 1.0,
-      radius : 1000.0,
-      environment_texture : None,
-      cube_normal_map_texture : None,
-      need_update : true
-    };
   }
 }

@@ -19,6 +19,8 @@ mod private
   {
     /// A unique identifier for the material.
     pub id : uuid::Uuid,
+    /// Shader program info
+    program : ProgramInfo,
     /// The base color factor, multiplied with the base color texture. Defaults to white (1, 1, 1, 1).
     pub base_color_factor : gl::F32x4,
     /// Optional texture providing the base color.
@@ -80,6 +82,82 @@ mod private
 
   impl PBRMaterial
   {
+    /// Creates new [`PBRMaterial`] with predefined optimal parameters
+    pub fn new( gl : &GL ) -> Self
+    {
+      let vertex_shader_src = MAIN_VERTEX_SHADER;
+      let fragment_shader_src = MAIN_FRAGMENT_SHADER;
+      let program = gl::ProgramFromSources::new( vertex_shader_src, fragment_shader_src )
+      .compile_and_link( &gl )
+      .unwrap();
+
+      let id = uuid::Uuid::new_v4();
+      let program = ProgramInfo::new( gl, &program, PBRShader.dyn_clone() );
+      let base_color_factor = gl::F32x4::from( [ 1.0, 1.0, 1.0, 1.0 ] );
+
+      let base_color_texture = Default::default();
+      let metallic_factor = 1.0;
+      let roughness_factor = 1.0;
+      let metallic_roughness_texture = Default::default();
+
+      let normal_scale = 1.0;
+      let normal_texture = Default::default();
+
+      let occlusion_strength = 1.0;
+      let occlusion_texture = Default::default();
+
+      let emissive_texture = Default::default();
+      let emissive_factor = gl::F32x3::from( [ 0.0, 0.0, 0.0 ] );
+
+      let specular_factor = Default::default();
+      let specular_texture = Default::default();
+      let specular_color_factor = Default::default();
+      let specular_color_texture = Default::default();
+
+      let light_map = Default::default();
+
+      let alpha_mode = AlphaMode::default();
+      let alpha_cutoff = 0.5;
+      let double_sided = false;
+
+      let mipmap_distance_range = 0.0..200.0;
+
+      let vertex_defines = FxHashMap::default();
+      let fragment_defines = FxHashMap::default();
+
+      let need_use_ibl = true;
+
+      return Self
+      {
+        id,
+        program,
+        base_color_factor,
+        base_color_texture,
+        metallic_factor,
+        roughness_factor,
+        metallic_roughness_texture,
+        normal_scale,
+        normal_texture,
+        occlusion_strength,
+        occlusion_texture,
+        emissive_texture,
+        emissive_factor,
+        specular_factor,
+        specular_texture,
+        specular_color_factor,
+        specular_color_texture,
+        alpha_mode,
+        alpha_cutoff,
+        double_sided,
+        mipmap_distance_range,
+        light_map,
+        vertex_defines,
+        fragment_defines,
+        need_use_ibl,
+        need_update : true
+      };
+    }
+
     /// Added the specified name and value is #define directive to the material
     pub fn add_vertex_define< A : Into< Box< str > >, B : Into< String > >( &mut self, name : A, value : B )
     {
@@ -223,9 +301,14 @@ mod private
       true
     }
 
-    fn get_program_info( &self, gl : &GL, program : &gl::WebGlProgram ) -> ProgramInfo
+    fn get_program_info( &self ) -> &ProgramInfo
     {
-      ProgramInfo::new( gl, program, PBRShader.dyn_clone() )
+      &self.program
+    }
+
+    fn get_program_info_mut( &mut self ) -> &mut ProgramInfo
+    {
+      &mut self.program
     }
 
     fn configure
@@ -406,6 +489,7 @@ mod private
       PBRMaterial
       {
         id : uuid::Uuid::new_v4(),
+        program : self.program.clone(),
         base_color_factor : self.base_color_factor,
         base_color_texture : self.base_color_texture.clone(),
         metallic_factor : self.metallic_factor,
@@ -431,76 +515,6 @@ mod private
         need_use_ibl : self.need_use_ibl,
         need_update : self.need_update
       }
-    }
-  }
-
-  impl Default for PBRMaterial
-  {
-    fn default() -> Self
-    {
-      let id = uuid::Uuid::new_v4();
-      let base_color_factor = gl::F32x4::from( [ 1.0, 1.0, 1.0, 1.0 ] );
-
-      let base_color_texture = Default::default();
-      let metallic_factor = 1.0;
-      let roughness_factor = 1.0;
-      let metallic_roughness_texture = Default::default();
-
-      let normal_scale = 1.0;
-      let normal_texture = Default::default();
-
-      let occlusion_strength = 1.0;
-      let occlusion_texture = Default::default();
-
-      let emissive_texture = Default::default();
-      let emissive_factor = gl::F32x3::from( [ 0.0, 0.0, 0.0 ] );
-
-      let specular_factor = Default::default();
-      let specular_texture = Default::default();
-      let specular_color_factor = Default::default();
-      let specular_color_texture = Default::default();
-
-      let light_map = Default::default();
-
-      let alpha_mode = AlphaMode::default();
-      let alpha_cutoff = 0.5;
-      let double_sided = false;
-
-      let mipmap_distance_range = 0.0..200.0;
-
-      let vertex_defines = FxHashMap::default();
-      let fragment_defines = FxHashMap::default();
-
-      let need_use_ibl = true;
-
-      return Self
-      {
-        id,
-        base_color_factor,
-        base_color_texture,
-        metallic_factor,
-        roughness_factor,
-        metallic_roughness_texture,
-        normal_scale,
-        normal_texture,
-        occlusion_strength,
-        occlusion_texture,
-        emissive_texture,
-        emissive_factor,
-        specular_factor,
-        specular_texture,
-        specular_color_factor,
-        specular_color_texture,
-        alpha_mode,
-        alpha_cutoff,
-        double_sided,
-        mipmap_distance_range,
-        light_map,
-        vertex_defines,
-        fragment_defines,
-        need_use_ibl,
-        need_update : true
-      };
     }
   }
 }

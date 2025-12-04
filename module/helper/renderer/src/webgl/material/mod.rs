@@ -1,7 +1,6 @@
 mod private
 {
   use minwebgl as gl;
-  use gl::GL;
   use crate::webgl::{ ProgramInfo, Texture, Node };
   use std:: { cell::RefCell, fmt::Debug, rc::Rc };
   use rustc_hash::{ FxHashMap, FxHasher };
@@ -114,8 +113,11 @@ mod private
       false
     }
 
-    /// Returns [`ProgramInfo`] with shader locations and used [`ShaderProgram`]
-    fn get_program_info( &self, gl : &GL, program : &gl::WebGlProgram ) -> ProgramInfo;
+    /// Returns reference to [`ProgramInfo`] with shader locations and used [`ShaderProgram`]
+    fn get_program_info( &self ) -> &ProgramInfo;
+
+    /// Returns mutable reference to [`ProgramInfo`] with shader locations and used [`ShaderProgram`]
+    fn get_program_info_mut( &mut self ) -> &mut ProgramInfo;
 
     /// Returns the material type identifier (e.g., "PBR", "Unlit", "Custom").
     fn get_type_name(&self) -> &'static str;

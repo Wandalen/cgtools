@@ -337,12 +337,12 @@ async fn run() -> Result< (), gl::WebglError >
     "Parisienne-Regular".to_string()
   ];
 
-  let fonts_ufo_3d = text::ufo::load_fonts_3d( font_names.as_slice() ).await;
-  let fonts_ttf_3d = text::ttf::load_fonts_3d( font_names.as_slice() ).await;
+  let fonts_ufo_3d = text::ufo::load_fonts_3d( &gl, font_names.as_slice() ).await;
+  let fonts_ttf_3d = text::ttf::load_fonts_3d( &gl, font_names.as_slice() ).await;
 
   let text = "CGTools".to_string();
 
-  let material = Rc::new( RefCell::new( Box::new( PBRMaterial::default() ) as Box< dyn Material > ) );
+  let material = Rc::new( RefCell::new( Box::new( PBRMaterial::new( &gl ) ) as Box< dyn Material > ) );
   let materials = vec![ material.clone() ];
 
   let mut primitives_data = vec![];

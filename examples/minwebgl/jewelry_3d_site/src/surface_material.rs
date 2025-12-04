@@ -31,12 +31,35 @@ pub struct SurfaceMaterial
 {
   /// A unique identifier for the material.
   pub id : Uuid,
+  /// Shader program info
+  program : ProgramInfo,
   /// Surface RGB color
   pub color : F32x3,
   /// Surface texture
   pub texture : Option< TextureInfo >,
   /// Signal for updating material uniforms
   pub need_update : bool
+}
+
+impl SurfaceMaterial
+{
+  pub fn new( gl : &GL ) -> Self
+  {
+    let vertex_shader_src = SURFACE_VERTEX_SHADER;
+    let fragment_shader_src = SURFACE_FRAGMENT_SHADER;
+    let program = gl::ProgramFromSources::new( vertex_shader_src, fragment_shader_src )
+    .compile_and_link( &gl )
+    .unwrap();
+
+    Self
+    {
+      id : Uuid::new_v4(),
+      program : ProgramInfo::new( gl, &program, SurfaceShader.dyn_clone() ),
+      color : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
+      texture : None,
+      need_update : true
+    }
+  }
 }
 
 impl Material for SurfaceMaterial
@@ -51,9 +74,14 @@ impl Material for SurfaceMaterial
     self.need_update
   }
 
-  fn get_program_info( &self, gl : &GL, program : &gl::WebGlProgram ) -> ProgramInfo
+  fn get_program_info( &self ) -> &ProgramInfo
   {
-    ProgramInfo::new( gl, program, SurfaceShader.dyn_clone() )
+    &self.program
+  }
+
+  fn get_program_info_mut( &mut self ) -> &mut ProgramInfo
+  {
+    &mut self.program
   }
 
   fn get_type_name( &self ) -> &'static str
@@ -131,21 +159,8 @@ impl Clone for SurfaceMaterial
       id : Uuid::new_v4(),
       color : self.color,
       texture : self.texture.clone(),
-      need_update : self.need_update
-    }
-  }
-}
-
-impl Default for SurfaceMaterial
-{
-  fn default() -> Self
-  {
-    Self
-    {
-      id : Uuid::new_v4(),
-      color : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
-      texture : None,
-      need_update : true
+      need_update : self.need_update,
+      program : self.program.clone()
     }
   }
 }

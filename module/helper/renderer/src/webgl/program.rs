@@ -204,6 +204,18 @@ mod private
     shader : Box< dyn ShaderProgram >
   }
 
+  impl core::fmt::Debug for ProgramInfo
+  {
+    fn fmt( &self, f: &mut std::fmt::Formatter< '_ > ) -> std::fmt::Result
+    {
+      f.debug_struct( "ProgramInfo" )
+      .field( "shader", &self.shader.get_type_name() )
+      .field( "locations", &self.locations.keys().collect::< Vec< _ > >() )
+      .field( "ubo_indices", &self.ubo_indices )
+      .finish()
+    }
+  }
+
   impl ProgramInfo
   {
     /// Creates a new `ProgramInfo` instance.
@@ -257,6 +269,12 @@ mod private
     pub fn get_program( &self ) -> WebGlProgram
     {
       self.program.clone()
+    }
+
+    /// Changes inner [`WebGlProgram`] can be replaced only to modified original [`WebGlProgram`]
+    pub fn set_program( &mut self, program : WebGlProgram )
+    {
+      self.program = program;
     }
   }
 

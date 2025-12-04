@@ -1,7 +1,6 @@
 mod private
 {
   use minwebgl as gl;
-  use std::ops::Range;
 
   /// Holds three precomputed textures used for Image-Based Lighting (IBL) calculations.
   ///

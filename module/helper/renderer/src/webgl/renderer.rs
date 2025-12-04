@@ -791,10 +791,9 @@ mod private
           for primitive_rc in mesh.borrow().primitives.iter()
           {
             let primitive = primitive_rc.borrow();
-            let material = primitive.material.borrow();
-            let defines = material.get_defines_str();
+            let defines = primitive.material.borrow().get_defines_str();
             // Generate a unique ID for the program based on the material ID and vertex shader defines.
-            let program_id = format!( "{}{}", material.get_id(), defines );
+            let program_id = format!( "{}{}", primitive.material.borrow().get_id(), defines );
 
             let program_cached = self.programs.contains_key( &program_id );
 
@@ -806,6 +805,7 @@ mod private
             }
             else
             {
+              let mut material = primitive.material.borrow_mut();
               let ibl_define = if self.ibl.is_some()
               {
                 "#define USE_IBL\n"
@@ -828,7 +828,8 @@ mod private
                   material.get_fragment_shader()
                 )
               ).compile_and_link( gl )?;
-              let program_info = material.get_program_info( gl, &program );
+              material.get_program_info_mut().set_program( program );
+              let program_info = material.get_program_info();
 
               // Configure and upload material properties and IBL textures for the new program.
               let locations = program_info.get_locations();
@@ -846,9 +847,11 @@ mod private
               }
 
               // Store the new program info in the cache.
-              self.programs.insert( program_id.clone(), program_info );
+              self.programs.insert( program_id.clone(), program_info.clone() );
               self.programs.get( &program_id ).unwrap()
             };
+
+            let material = primitive.material.borrow();
 
             // Handle transparent objects by adding them to a separate list for later rendering.
             match material.get_alpha_mode()

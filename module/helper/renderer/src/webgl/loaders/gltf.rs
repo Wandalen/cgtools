@@ -548,7 +548,7 @@ mod private
     {
       let pbr = gltf_m.pbr_metallic_roughness();
 
-      let mut material = PBRMaterial::default();
+      let mut material = PBRMaterial::new( &gl );
       material.alpha_mode = match gltf_m.alpha_mode()
       {
         gltf::material::AlphaMode::Blend => AlphaMode::Blend,
@@ -599,7 +599,7 @@ mod private
       materials.push( Rc::new( RefCell::new( Box::new( material ) ) ) );
     }
 
-    materials.push( Rc::new( RefCell::new( Box::new( PBRMaterial::default() ) ) ) );
+    materials.push( Rc::new( RefCell::new( Box::new( PBRMaterial::new( &gl ) ) ) ) );
 
     gl::log::info!( "PBRMaterials: {}",materials.len() );
     let make_attibute_info = | acc : &gltf::Accessor< '_ >, slot |
@@ -640,7 +640,7 @@ mod private
         geometry.draw_mode = gltf_primitive.mode().as_gl_enum();
 
         let material_id = gltf_primitive.material().index().unwrap_or( materials.len() - 1 );
-        let mut dummy_material = PBRMaterial::default();
+        let mut dummy_material = PBRMaterial::new( &gl );
         let gltf_material = materials[ material_id ].clone();
 
         let mut add_define = | name : &str |

@@ -141,7 +141,7 @@ mod private
     let mut gl_buffers = vec![];
     let mut meshes = vec![];
 
-    let material : Rc< RefCell< Box< dyn Material > > > = Rc::new( RefCell::new( Box::new( PBRMaterial::default() ) ) );
+    let material : Rc< RefCell< Box< dyn Material > > > = Rc::new( RefCell::new( Box::new( PBRMaterial::new( &gl ) ) ) );
     let materials = vec![ material.clone() ];
 
     scenes.push( Rc::new( RefCell::new( Scene::new() ) ) );

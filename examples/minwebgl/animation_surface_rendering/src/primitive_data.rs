@@ -15,8 +15,8 @@ mod private
   use std::rc::Rc;
   use renderer::webgl::
   {
-    Geometry, IndexInfo, Material, Mesh, Node, 
-    Object3D, Primitive, Scene, loaders::gltf::GLTF, 
+    Geometry, IndexInfo, Material, Mesh, Node,
+    Object3D, Primitive, Scene, loaders::gltf::GLTF,
     material::PBRMaterial
   };
   use primitive_generation::primitive_data::
@@ -113,7 +113,7 @@ mod private
     let mut gl_buffers = vec![];
     let mut meshes = vec![];
 
-    let material = Rc::new( RefCell::new( Box::new( PBRMaterial::default() )  as Box< dyn Material > ) );
+    let material = Rc::new( RefCell::new( Box::new( PBRMaterial::new( &gl ) )  as Box< dyn Material > ) );
     let materials = vec![ material.clone() ];
 
     scenes.push( Rc::new( RefCell::new( Scene::new() ) ) );

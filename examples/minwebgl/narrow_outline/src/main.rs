@@ -567,7 +567,7 @@ fn primitives_csgrs_gltf
 
   let primitives = get_primitives_and_transform();
 
-  let material = Rc::new( RefCell::new( Box::new( PBRMaterial::default() ) as Box< dyn Material > ) );
+  let material = Rc::new( RefCell::new( Box::new( PBRMaterial::new( gl ) ) as Box< dyn Material > ) );
   gltf.materials.push( material.clone() );
 
   let attribute_infos =
