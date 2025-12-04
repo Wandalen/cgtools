@@ -272,8 +272,10 @@ mod private
     }
 
     /// Changes inner [`WebGlProgram`] can be replaced only to modified original [`WebGlProgram`]
-    pub fn set_program( &mut self, program : WebGlProgram )
+    pub fn set_program( &mut self, gl : &GL, program : WebGlProgram )
     {
+      self.locations = self.shader.get_locations( gl, &program );
+      self.ubo_indices = self.shader.get_ubo_indices( gl, &program );
       self.program = program;
     }
   }

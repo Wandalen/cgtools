@@ -828,7 +828,7 @@ mod private
                   material.get_fragment_shader()
                 )
               ).compile_and_link( gl )?;
-              material.get_program_info_mut().set_program( program );
+              material.get_program_info_mut().set_program( gl, program );
               let program_info = material.get_program_info();
 
               // Configure and upload material properties and IBL textures for the new program.

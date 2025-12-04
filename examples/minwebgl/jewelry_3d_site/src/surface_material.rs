@@ -45,10 +45,12 @@ impl SurfaceMaterial
 {
   pub fn new( gl : &GL ) -> Self
   {
-    let vertex_shader_src = SURFACE_VERTEX_SHADER;
-    let fragment_shader_src = SURFACE_FRAGMENT_SHADER;
-    let program = gl::ProgramFromSources::new( vertex_shader_src, fragment_shader_src )
-    .compile_and_link( &gl )
+    // Compile and link a new WebGL program from the vertex and fragment shaders with the appropriate defines.
+    let program = gl::ProgramFromSources::new
+    (
+      &format!( "#version 300 es\n{}", SURFACE_VERTEX_SHADER ),
+      &format!( "#version 300 es\n{}", SURFACE_FRAGMENT_SHADER )
+    ).compile_and_link( gl )
     .unwrap();
 
     Self

@@ -85,10 +85,14 @@ mod private
     /// Creates new [`PBRMaterial`] with predefined optimal parameters
     pub fn new( gl : &GL ) -> Self
     {
-      let vertex_shader_src = MAIN_VERTEX_SHADER;
-      let fragment_shader_src = MAIN_FRAGMENT_SHADER;
-      let program = gl::ProgramFromSources::new( vertex_shader_src, fragment_shader_src )
-      .compile_and_link( &gl )
+      let ibl_define = "#define USE_IBL\n";
+
+      // Compile and link a new WebGL program from the vertex and fragment shaders with the appropriate defines.
+      let program = gl::ProgramFromSources::new
+      (
+        &format!( "#version 300 es\n{}\n{}", ibl_define, MAIN_VERTEX_SHADER ),
+        &format!( "#version 300 es\n{}\n{}", ibl_define, MAIN_FRAGMENT_SHADER )
+      ).compile_and_link( gl )
       .unwrap();
 
       let id = uuid::Uuid::new_v4();
