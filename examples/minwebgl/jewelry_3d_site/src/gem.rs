@@ -46,9 +46,9 @@ pub struct GemMaterial
   pub ray_bounces : i32,
   /// Gem color
   pub color : gl::F32x3,
-  ///
+  /// Defines how fluent envMap on reflected light
   pub env_map_intensity : f32,
-  ///
+  /// Participates in calculation of point on the surface
   pub radius : f32,
   /// Equirectangular environment texture
   pub environment_texture : Option< TextureInfo >,
@@ -66,7 +66,7 @@ impl Material for GemMaterial
   }
 
   /// Signal for updating material uniforms
-  fn is_need_update( &self ) -> bool
+  fn needs_update( &self ) -> bool
   {
     self.need_update
   }
