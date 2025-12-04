@@ -837,7 +837,7 @@ mod private
               material.configure( gl, locations, IBL_BASE_ACTIVE_TEXTURE );
               material.upload( gl, node.clone(), locations )?;
               camera.upload( gl, locations );
-              if material.is_need_use_ibl()
+              if material.needs_ibl()
               {
                 if let Some( ref ibl ) = self.ibl
                 {

@@ -213,7 +213,7 @@ mod private
       self.need_update
     }
 
-    fn is_need_use_ibl( &self ) -> bool
+    fn needs_ibl( &self ) -> bool
     {
       self.can_use_ibl() && self.need_use_ibl
     }

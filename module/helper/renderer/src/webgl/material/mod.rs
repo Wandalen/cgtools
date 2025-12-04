@@ -102,8 +102,8 @@ mod private
     /// Signal for updating material uniforms
     fn needs_update( &self ) -> bool;
 
-    /// Returns answer need use IBL for current material instance or not
-    fn is_need_use_ibl( &self ) -> bool
+    /// Defines if current material instance uses IBL now
+    fn needs_ibl( &self ) -> bool
     {
       false
     }
