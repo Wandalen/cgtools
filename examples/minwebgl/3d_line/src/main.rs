@@ -8,6 +8,8 @@
 #![ allow( clippy::cast_possible_truncation ) ]
 #![ allow( clippy::redundant_field_names ) ]
 #![ allow( clippy::std_instead_of_core ) ]
+#![ allow( clippy::too_many_lines ) ]
+#![ allow( clippy::needless_range_loop ) ]
 
 use mingl::
 { 

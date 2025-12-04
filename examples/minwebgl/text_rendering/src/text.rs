@@ -799,7 +799,6 @@ pub mod ufo
 pub mod ttf
 {
   use crate::{ PrimitiveData, AttributesData, Transform };
-  use csgrs::CSG;
   use minwebgl as gl;
   use gl::
   {
@@ -817,6 +816,10 @@ pub mod ttf
     Material,
     material::PBRMaterial
   };
+  use csgrs::traits::CSG;
+
+  type Sketch = csgrs::sketch::Sketch<()>;
+  type ProcedureMesh = csgrs::mesh::Mesh<()>;
 
   #[ derive( Clone ) ]
   struct Glyph3D
@@ -831,7 +834,7 @@ pub mod ttf
     fn from_ttf( ttf_bytes : &[ u8 ], character : char ) -> Self
     {
       let c = character.to_string();
-      let mut csg : CSG< () > = CSG::text( &c, ttf_bytes, 1.0, None )
+      let mut csg : ProcedureMesh = Sketch::text( &c, ttf_bytes, 1.0, None )
       .extrude( 0.5 );
 
       let m = csg.bounding_box().mins;

@@ -1,4 +1,4 @@
-//! Integration tests related to EasingFunction and EasingBuilder
+//! Integration tests related to `EasingFunction` and `EasingBuilder`
 //! traits and structs that implements them
 
 #[ cfg( test ) ]
@@ -41,14 +41,14 @@ mod tests
   fn test_linear_function()
   {
     // Linear easing should return the input value directly
-    assert_eq!( Linear::new().apply( 0.0, 1.0, 0.5 ), 0.5 );
-    assert_eq!( Linear::new().apply( 0.0, 1.0, 0.0 ), 0.0 );
-    assert_eq!( Linear::new().apply( 0.0, 1.0, 1.0 ), 1.0 );
+    assert_eq!( Linear::new().apply( 0.0, 1.0, 0.5 ), 0.5_f32 );
+    assert_eq!( Linear::new().apply( 0.0, 1.0, 0.0 ), 0.0_f32 );
+    assert_eq!( Linear::new().apply( 0.0, 1.0, 1.0 ), 1.0_f32 );
   }
 
-  fn assert_f_eq( a : f64, b : f64, eps : f64 )
+  fn assert_f_eq( first : f64, second : f64, eps : f64 )
   {
-    assert!( b - eps < a && a < b + eps );
+    assert!( second - eps < first && first < second + eps );
   }
 
   #[ test ]
@@ -57,7 +57,7 @@ mod tests
     let eps = 0.001;
     // Step easing should progress in discrete steps
     let step_func = Step::new( 5.0 );
-    assert_eq!( step_func.apply( 0.0, 1.0, 0.0 ), 0.0 );
+    assert_eq!( step_func.apply( 0.0, 1.0, 0.0 ), 0.0_f64 );
     assert_f_eq( step_func.apply( 0.0, 1.0, 0.01 ), 0.2, eps );
     assert_f_eq(  step_func.apply( 0.0, 1.0, 0.2 ), 0.2, eps );
     assert_f_eq( step_func.apply( 0.0, 1.0, 0.21 ), 0.4, eps );
@@ -101,8 +101,8 @@ mod tests
     // All cubic functions should return 0.0 at t = 0.0 and 1.0 at t = 1.0
     for easing_function in cubic_functions
     {
-      assert_eq!( easing_function.apply( 0.0, 1.0, 0.0 ), 0.0, "{:?} should start at 0.0", easing_function );
-      assert_eq!( easing_function.apply( 0.0, 1.0, 1.0 ), 1.0, "{:?} should end at 1.0", easing_function );
+      assert_eq!( easing_function.apply( 0.0, 1.0, 0.0 ), 0.0, "{easing_function:?} should start at 0.0" );
+      assert_eq!( easing_function.apply( 0.0, 1.0, 1.0 ), 1.0, "{easing_function:?} should end at 1.0" );
     }
   }
 

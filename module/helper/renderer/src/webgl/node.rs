@@ -27,7 +27,8 @@ mod private
   }
 
   /// Represents a node in the scene graph. Each node can have children, an associated 3D object, and transformations.
-  #[ derive( Debug, Default ) ]
+  #[ allow( clippy::used_underscore_binding ) ]
+  #[ derive( Debug ) ]
   pub struct Node
   {
     /// The name of the node.
@@ -60,20 +61,37 @@ mod private
     _is_visible : bool
   }
 
+  impl Default for Node
+  {
+    fn default() -> Self
+    {
+      Self
+      {
+        matrix : gl::math::mat4x4::identity(),
+        world_matrix : gl::math::mat4x4::identity(),
+        normal_matrix : gl::math::mat3x3::identity(),
+        scale : gl::F32x3::splat( 1.0 ),
+        _is_visible : true,
+        name : Default::default(),
+        parent : Default::default(),
+        children : Default::default(),
+        object : Default::default(),
+        translation : Default::default(),
+        rotation : Default::default(),
+        needs_local_matrix_update : Default::default(),
+        needs_world_matrix_update : Default::default(),
+        bounding_box : Default::default(),
+      }
+    }
+  }
+
+  #[ allow( clippy::used_underscore_binding ) ]
   impl Node
   {
     /// Creates a new `Node` with default values.
     pub fn new() -> Self
     {
-      let mut s = Self::default();
-
-      s.world_matrix = gl::math::mat4x4::identity();
-      s.matrix = gl::math::mat4x4::identity();
-      s.normal_matrix = gl::math::mat3x3::identity();
-      s.scale = gl::F32x3::splat( 1.0 );
-      s._is_visible = true;
-
-      s
+      Self::default()
     }
 
     /// Clones the node and all of its descendants, creating a new independent scene graph subtree.

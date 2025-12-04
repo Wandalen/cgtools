@@ -84,13 +84,14 @@ mod private
   /// in skeletal animation, the most common method for
   /// rigging and animating complex models.
   #[ derive( Debug ) ]
+  #[ allow( clippy::used_underscore_binding ) ]
   pub struct Skeleton
   {
     /// List of nodes name that is part of skeleton
     joints : Vec< Rc< RefCell< Node > > >,
     /// List of nodes correcting matrices used in nodes
     /// transform for playing skeletal animations
-    _inverse_bind_matrices :  Vec< F32x4x4 >,
+    _inverse_bind_matrices : Vec< F32x4x4 >,
     /// Global matrices data texture
     global_texture : WebGlTexture,
     /// Inverse matrices data texture
@@ -127,7 +128,7 @@ mod private
       let mut inverse_data = inverse_bind_matrices.iter()
       .map
       (
-        | m | m.to_array().to_vec()
+        | m : &F32x4x4 | m.to_array().to_vec()
       )
       .flatten()
       .collect::< Vec< _ > >();

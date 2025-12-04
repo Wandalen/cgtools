@@ -1,5 +1,18 @@
 //! Polygonal light demo
 
+#![ allow( clippy::similar_names ) ]
+#![ allow( clippy::implicit_return ) ]
+#![ allow( clippy::cast_possible_wrap ) ]
+#![ allow( clippy::needless_borrow ) ]
+#![ allow( clippy::cast_possible_truncation ) ]
+#![ allow( clippy::cast_sign_loss ) ]
+#![ allow( clippy::cast_lossless ) ]
+#![ allow( clippy::default_trait_access ) ]
+#![ allow( clippy::cast_precision_loss ) ]
+#![ allow( clippy::too_many_lines ) ]
+#![ allow( clippy::min_ident_chars ) ]
+#![ allow( clippy::wildcard_imports ) ]
+
 mod plane;
 mod lil_gui;
 mod light;

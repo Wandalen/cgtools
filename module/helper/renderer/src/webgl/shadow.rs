@@ -7,8 +7,7 @@ mod private
   use web_sys::{ WebGlFramebuffer, WebGlTexture };
   use std::rc::Rc;
   use core::cell::RefCell;
-
-use crate::webgl::{helpers, material::PBRMaterial};
+  use crate::webgl::{ helpers, material::PBRMaterial };
 
   /// Shadow map for rendering depth from light's perspective
   #[ derive( Debug ) ]
@@ -45,7 +44,7 @@ use crate::webgl::{helpers, material::PBRMaterial};
         0
       );
 
-      let arr = js_sys::Array::from_iter( [ JsValue::from_f64( gl::NONE as f64 ) ].into_iter() );
+      let arr = js_sys::Array::from_iter( [ JsValue::from_f64( gl::NONE as f64 ) ] );
       gl.draw_buffers( &arr );
       gl.read_buffer( gl::NONE );
 
@@ -207,7 +206,7 @@ use crate::webgl::{helpers, material::PBRMaterial};
       self.program.uniform_upload( "u_is_orthographic", &is_ortho );
 
       // Upload light size (controls penumbra/shadow softness)
-      let light_size = light.light_size();
+      let light_size = light.size();
       self.program.uniform_upload( "u_light_size", &light_size );
 
       // Upload near and far planes for depth linearization
@@ -225,7 +224,7 @@ use crate::webgl::{helpers, material::PBRMaterial};
     position        : gl::F32x3,
     direction       : gl::F32x3,
     projection      : gl::F32x4x4,
-    light_size      : f32,
+    size      : f32,
     view_projection : Option< gl::F32x4x4 >,
   }
 
@@ -237,7 +236,7 @@ use crate::webgl::{helpers, material::PBRMaterial};
       position : gl::F32x3,
       direction : gl::F32x3,
       projection : gl::F32x4x4,
-      light_size : f32
+      size : f32
     ) -> Self
     {
       Self
@@ -245,15 +244,15 @@ use crate::webgl::{helpers, material::PBRMaterial};
         position,
         direction : direction.normalize(),
         projection,
-        light_size,
+        size,
         view_projection : None,
       }
     }
 
     /// Returns light size (controls shadow softness)
-    pub fn light_size( &self ) -> f32
+    pub fn size( &self ) -> f32
     {
-      self.light_size
+      self.size
     }
 
     /// Extracts near and far planes from projection matrix

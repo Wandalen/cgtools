@@ -1,4 +1,5 @@
 #![ doc = "../readme.md" ]
+#![ allow( clippy::too_many_lines ) ]
 
 fn main()
 {

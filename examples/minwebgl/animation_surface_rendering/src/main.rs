@@ -198,7 +198,7 @@ fn init_camera( canvas : &HtmlCanvasElement, scenes : &[ Rc< RefCell< Scene > > 
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
   let near = 0.1;
-  let far = 10000000.0;
+  let far = 10_000_000.0;
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
 
@@ -324,7 +324,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   let environment = clone( &mut gltf, &earth );
   let texture = create_texture( &gl, "environment_maps/equirectangular_maps/space3.png" );
   set_texture( &environment, | m | { m.base_color_texture = texture.clone(); } );
-  let scale = 100000.0;
+  let scale = 100_000.0;
   environment.borrow_mut().set_translation( [ 0.0, 1.0 - scale, 0.0 ] );
   environment.borrow_mut().set_scale( [ scale; 3 ] );
   environment.borrow_mut().update_local_matrix();

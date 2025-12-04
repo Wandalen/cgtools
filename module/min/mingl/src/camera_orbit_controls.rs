@@ -92,14 +92,14 @@ mod private
       screen_d /= self.rotation_speed_scale;
 
 
-      if !self.use_rotation_easing
+      if self.use_rotation_easing
       {
-        self.rotation_angle = screen_d;
-        self.apply_rotation();
+        self.rotation_speed += screen_d;
       }
       else
       {
-        self.rotation_speed += screen_d;
+        self.rotation_angle = screen_d;
+        self.apply_rotation();
       }
     }
 
@@ -317,7 +317,7 @@ mod private
             {
               camera.borrow_mut().pan( delta );
             }
-            _ => {}
+            CameraState::None => {}
           }
         }
       }
@@ -330,14 +330,10 @@ mod private
         let camera = camera.clone();
         move | e : web_sys::WheelEvent |
         {
-          match *state.borrow_mut()
+          if let CameraState::None = *state.borrow_mut()
           {
-            CameraState::None =>
-            {
-              let delta_y = e.delta_y() as f32;
-              camera.borrow_mut().zoom( delta_y );
-            },
-            _ => {}
+            let delta_y = e.delta_y() as f32;
+            camera.borrow_mut().zoom( delta_y );
           }
         }
       }

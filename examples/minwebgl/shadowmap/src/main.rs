@@ -1,16 +1,21 @@
 //! Simple rendering with PBR lighting and shadowmapping
+#![ allow( clippy::implicit_return ) ]
+#![ allow( clippy::too_many_lines ) ]
+#![ allow( clippy::cast_possible_truncation ) ]
+#![ allow( clippy::cast_precision_loss ) ]
+#![ allow( clippy::cast_sign_loss ) ]
 
 use minwebgl as gl;
 use gl::{ JsCast as _, math::mat3x3h };
 use web_sys::HtmlCanvasElement;
-use std::rc::Rc;
+use std::alloc::Rc;
 use core::cell::RefCell;
 use renderer::webgl::{ Light, SpotLight, Node, loaders::gltf, Object3D, post_processing, shadow };
 use post_processing::{ Pass, SwapFramebuffer };
 
 fn main()
 {
-  gl::browser::setup( Default::default() );
+  gl::browser::setup( gl::browser::Config::default() );
   gl::spawn_local( async { gl::info!( "{:?}", run().await ) } );
 }
 

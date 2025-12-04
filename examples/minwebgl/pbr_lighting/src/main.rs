@@ -13,6 +13,15 @@
 #![ allow( clippy::cast_possible_wrap ) ]
 #![ allow( clippy::cast_possible_truncation ) ]
 #![ allow( clippy::no_effect_underscore_binding ) ]
+#![ allow( clippy::std_instead_of_alloc ) ]
+#![ allow( clippy::match_like_matches_macro ) ]
+#![ allow( clippy::iter_cloned_collect ) ]
+#![ allow( clippy::collapsible_if ) ]
+#![ allow( clippy::needless_range_loop ) ]
+#![ allow( clippy::needless_return ) ]
+#![ allow( clippy::match_wildcard_for_single_variants ) ]
+#![ allow( clippy::iter_overeager_cloned ) ]
+#![ allow( clippy::collapsible_match ) ]
 
 use std::{ cell::RefCell, rc::Rc };
 use mingl::F32x3;

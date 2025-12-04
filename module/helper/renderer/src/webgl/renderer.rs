@@ -666,7 +666,7 @@ mod private
 
       gl.active_texture( gl::TEXTURE0 );
       gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.skybox_texture.as_ref() );
-      gl.uniform1i( equirect_map_loc.as_ref(), 0 as i32 );
+      gl.uniform1i( equirect_map_loc.as_ref(), 0_i32 );
       gl::uniform::matrix_upload( gl, inv_projection_loc.clone(), &camera.get_projection_matrix().inverse().unwrap().to_array(), true ).unwrap();
       gl::uniform::matrix_upload( gl, inv_view_loc.clone(), &camera.get_view_matrix().inverse().unwrap().to_array(), true ).unwrap();
 

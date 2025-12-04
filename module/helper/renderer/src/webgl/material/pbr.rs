@@ -182,7 +182,7 @@ mod private
 
       if use_light_map
       {
-        add_texture( &mut defines, "USE_LIGHT_MAP", "vLightMapUv", self.light_map.as_ref() )
+        add_texture( &mut defines, "USE_LIGHT_MAP", "vLightMapUv", self.light_map.as_ref() );
       }
 
       defines

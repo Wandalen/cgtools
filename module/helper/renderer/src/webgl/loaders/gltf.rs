@@ -79,7 +79,7 @@ mod private
   impl GLTF
   {
     /// Casts the trait object to a specific `PBRMaterial`
-    pub fn material_get< 'a >( &'a self, id : usize ) -> std::cell::Ref< 'a, PBRMaterial >
+    pub fn material_get( &self, id : usize ) -> std::cell::Ref< '_, PBRMaterial >
     {
       let material = self.materials[ id ].borrow();
       helpers::cast_unchecked_material_to_ref( material )
@@ -87,12 +87,12 @@ mod private
   }
 
   /// Asynchronously loads [`Skeleton`] for one [`Mesh`]
-  async fn load_skeleton< 'a >
+  fn load_skeleton
   (
     gl : &GL,
     skin : gltf::Skin< '_ >,
     nodes : &FxHashMap< Box< str >, Rc< RefCell< Node > > >,
-    buffers : &'a [ Vec< u8 > ],
+    buffers : &[ Vec< u8 > ],
   )
   -> Option< Rc< RefCell< Skeleton > > >
   {
@@ -101,11 +101,7 @@ mod private
       | buffer | Some( buffers[ buffer.index() ].as_slice() )
     );
 
-    let Some( inverse_bind_matrices_iter ) = reader.read_inverse_bind_matrices()
-    else
-    {
-      return None;
-    };
+    let inverse_bind_matrices_iter = reader.read_inverse_bind_matrices()?;
 
     let matrices = inverse_bind_matrices_iter
     .map
@@ -120,7 +116,7 @@ mod private
           .collect::< Vec< f32 > >()
           .as_chunks::< 16 >()
           .0
-          .into_iter()
+          .iter()
           .cloned()
           .next()
           .unwrap()
@@ -141,12 +137,8 @@ mod private
       }
     }
 
-    // gl::info!( "Joints: {:?}", joints );
-
-    let skeleton = Skeleton::new( gl, joints )
-    .map( | s | Rc::new( RefCell::new( s ) ) );
-
-    skeleton
+    Skeleton::new( gl, joints )
+    .map( | s | Rc::new( RefCell::new( s ) ) )
   }
 
   fn get_light_list( gltf : &gltf::Gltf ) -> Option< HashMap< usize, Light > >
@@ -879,7 +871,6 @@ mod private
           &nodes_map,
           bin_buffers.as_slice()
         )
-        .await
         {
           mesh.borrow_mut().skeleton = Some( skeleton );
           for primitive in &mesh.borrow().primitives
