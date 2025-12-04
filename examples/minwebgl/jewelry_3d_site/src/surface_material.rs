@@ -46,13 +46,11 @@ impl Material for SurfaceMaterial
     self.id
   }
 
-  /// Signal for updating material uniforms
   fn needs_update( &self ) -> bool
   {
     self.need_update
   }
 
-  /// Returns [`ProgramInfo`] with shader locations and used [`ShaderProgram`]
   fn get_program_info( &self, gl : &GL, program : &gl::WebGlProgram ) -> ProgramInfo
   {
     ProgramInfo::new( gl, program, SurfaceShader.dyn_clone() )

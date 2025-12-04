@@ -203,41 +203,31 @@ mod private
 
   impl Material for PBRMaterial
   {
-    /// Returns the unique identifier of the material.
     fn get_id( &self ) -> uuid::Uuid
     {
       self.id
     }
 
-    /// Signal for updating material uniforms
     fn needs_update( &self ) -> bool
     {
       self.need_update
     }
 
-    /// Returns answer need use IBL for current material instance or not
     fn is_need_use_ibl( &self ) -> bool
     {
       self.can_use_ibl() && self.need_use_ibl
     }
 
-    /// Can or not use this material IBL
     fn can_use_ibl( &self ) -> bool
     {
       true
     }
 
-    /// Returns [`ProgramInfo`] with shader locations and used [`ShaderProgram`]
     fn get_program_info( &self, gl : &GL, program : &gl::WebGlProgram ) -> ProgramInfo
     {
       ProgramInfo::new( gl, program, PBRShader.dyn_clone() )
     }
 
-    /// Configures the position of the uniform texture samplers in the shader program.
-    ///
-    /// * `gl`: The `WebGl2RenderingContext`.
-    /// * `locations`: A hash map of uniform locations.
-    /// * `ibl_base_location`: The starting texture unit index for Image-Based Lighting (IBL) textures.
     fn configure
     (
       &self,
@@ -262,10 +252,6 @@ mod private
       gl.uniform1i( locations.get( "integrateBRDF" ).unwrap().clone().as_ref() , ibl_base_location + 2 );
     }
 
-    /// Uploads the material properties to the GPU as uniforms.
-    ///
-    /// * `gl`: The `WebGl2RenderingContext`.
-    /// * `locations`: A hash map of uniform locations in the shader program.
     fn upload
     (
       &self,
@@ -314,7 +300,6 @@ mod private
       Ok( () )
     }
 
-    /// Uploads the texture data of all used textures to the GPU.
     fn upload_textures( &self, gl : &gl::WebGl2RenderingContext )
     {
       if let Some( ref t ) = self.metallic_roughness_texture { t.upload( gl ); }
@@ -327,9 +312,6 @@ mod private
       if let Some( ref t ) = self.light_map { t.upload( gl ); }
     }
 
-    /// Binds all used textures to their respective texture units.
-    ///
-    /// * `gl`: The `WebGl2RenderingContext`.
     fn bind( &self, gl : &gl::WebGl2RenderingContext )
     {
       let bind = | texture : &Option< TextureInfo >, i |
