@@ -348,9 +348,9 @@ mod private
   impl_locations!
   (
     SkyboxShader,
-    "uEquirectMap",
-    "uInvProjection",
-    "uInvView"
+    "equirectMap",
+    "invProjection",
+    "invView"
   );
 
   impl_locations!

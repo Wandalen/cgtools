@@ -660,9 +660,9 @@ mod private
 
       let locations = self.skybox_shader.get_locations();
 
-      let equirect_map_loc = locations.get( "uEquirectMap" ).unwrap();
-      let inv_projection_loc = locations.get( "uInvProjection" ).unwrap();
-      let inv_view_loc = locations.get( "uInvView" ).unwrap();
+      let equirect_map_loc = locations.get( "equirectMap" ).unwrap();
+      let inv_projection_loc = locations.get( "invProjection" ).unwrap();
+      let inv_view_loc = locations.get( "invView" ).unwrap();
 
       gl.active_texture( gl::TEXTURE0 );
       gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.skybox_texture.as_ref() );

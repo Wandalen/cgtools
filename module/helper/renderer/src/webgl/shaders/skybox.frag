@@ -4,19 +4,19 @@ precision highp float;
 in vec2 vUv;
 out vec4 FragColor;
 
-uniform sampler2D uEquirectMap;
-uniform mat4 uInvProjection;
-uniform mat4 uInvView;
+uniform sampler2D equirectMap;
+uniform mat4 invProjection;
+uniform mat4 invView;
 
 const float PI = 3.1415926535897932384626433;
 
 vec3 getWorldDir( vec2 uv )
 {
   vec4 clip = vec4( uv * 2.0 - 1.0, -1.0, 1.0 );
-  vec4 view = uInvProjection * clip;
+  vec4 view = invProjection * clip;
   view /= view.w;
   view.w = 0.0;
-  vec3 worldDir = ( uInvView * view ).xyz;
+  vec3 worldDir = ( invView * view ).xyz;
   return normalize( worldDir );
 }
 
@@ -40,5 +40,5 @@ void main()
   dir.z = -dir.z;
   vec2 uv = dirToEquirectUV( dir );
 
-  FragColor = texture( uEquirectMap, uv );
+  FragColor = texture( equirectMap, uv );
 }
