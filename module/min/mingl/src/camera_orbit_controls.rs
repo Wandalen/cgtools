@@ -30,8 +30,8 @@ mod private
     pub zoom_speed_scale : f32,
     /// The vertical field of view of the camera, in radians.
     pub fov : f32,
-    /// Defines allow pan or not
-    pub block_pan : bool,
+    /// Enables or disables panning
+    pub use_pan : bool,
     /// Sets whether to `rotation_decay` is applied or not
     pub use_rotation_easing : bool,
     /// Determines how fast rotation is going to decrease after dragging is stopped.
@@ -236,7 +236,7 @@ mod private
         rotation_speed_scale : 500.0,
         zoom_speed_scale : 1000.0,
         fov : 70f32.to_radians(),
-        block_pan : false,
+        use_pan : true,
         rotation_speed : F32x2::default(),
         rotation_angle : F32x2::default(),
         use_rotation_easing : false,
