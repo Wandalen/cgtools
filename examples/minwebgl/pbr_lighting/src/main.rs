@@ -224,8 +224,7 @@ async fn run() -> Result< (), gl::WebglError >
             Light::Point( point ) =>
             {
               point.position = to_decart( light_radius, i as f32 * 120.0 + ( t as f32 * light_speed / 1000.0 ), 45.0 );
-            },
-            _ => ()
+            }
           }
         }
       }
