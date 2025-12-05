@@ -204,6 +204,7 @@ mod private
     shader : Box< dyn ShaderProgram >
   }
 
+  #[ allow( clippy::missing_fields_in_debug ) ]
   impl core::fmt::Debug for ProgramInfo
   {
     fn fmt( &self, f: &mut std::fmt::Formatter< '_ > ) -> std::fmt::Result

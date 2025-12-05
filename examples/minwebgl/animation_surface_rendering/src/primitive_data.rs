@@ -1,3 +1,6 @@
+#![ allow( clippy::std_instead_of_alloc ) ]
+#![ allow( clippy::too_many_lines ) ]
+
 mod private
 {
   use minwebgl::
@@ -11,7 +14,7 @@ mod private
     WebGl2RenderingContext,
     VectorDataType
   };
-  use std::cell::RefCell;
+  use core::cell::RefCell;
   use std::rc::Rc;
   use renderer::webgl::
   {
@@ -25,7 +28,7 @@ mod private
     AttributesData,
     make_buffer_attribute_info
   };
-  use std::ops::Range;
+  use core::ops::Range;
 
   /// Defines the dynamic behavior of a primitive, including animation, repetition, and color.
   #[ derive( Debug, Clone ) ]
@@ -43,8 +46,8 @@ mod private
     {
       Self
       {
-        animated_transform : Default::default(),
-        repeater : Default::default(),
+        animated_transform : Option::default(),
+        repeater : Option::default(),
         brush : interpoli::Brush::Fixed( peniko::Brush::default() ),
         frames : 0.0..0.0
       }
@@ -105,7 +108,7 @@ mod private
   pub fn primitives_data_to_gltf
   (
     gl : &WebGl2RenderingContext,
-    primitives_data : Vec< PrimitiveData >
+    primitives_data : &[ PrimitiveData ]
   ) -> GLTF
   {
     let mut scenes = vec![];
@@ -113,7 +116,7 @@ mod private
     let mut gl_buffers = vec![];
     let mut meshes = vec![];
 
-    let material = Rc::new( RefCell::new( Box::new( PBRMaterial::new( &gl ) )  as Box< dyn Material > ) );
+    let material = Rc::new( RefCell::new( Box::new( PBRMaterial::new( gl ) )  as Box< dyn Material > ) );
     let materials = vec![ material.clone() ];
 
     scenes.push( Rc::new( RefCell::new( Scene::new() ) ) );
@@ -154,7 +157,7 @@ mod private
     let mut positions = vec![];
     let mut indices = vec![];
 
-    for primitive_data in &primitives_data
+    for primitive_data in primitives_data
     {
       let object = if let Some( attributes ) = &primitive_data.attributes
       {
@@ -215,8 +218,8 @@ mod private
       }
     }
 
-    gl::buffer::upload( &gl, &position_buffer, &positions, GL::STATIC_DRAW );
-    gl::index::upload( &gl, &index_buffer, &indices, GL::STATIC_DRAW );
+    gl::buffer::upload( gl, &position_buffer, &positions, GL::STATIC_DRAW );
+    gl::index::upload( gl, &index_buffer, &indices, GL::STATIC_DRAW );
 
     let node_iter = nodes.iter()
     .zip( primitives_data.iter().map( | p | p.parent ) );

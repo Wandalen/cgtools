@@ -1,6 +1,8 @@
 //! Integration tests related to `EasingFunction` and `EasingBuilder`
 //! traits and structs that implements them
 
+#![ allow( clippy::float_cmp ) ]
+
 #[ cfg( test ) ]
 mod tests
 {

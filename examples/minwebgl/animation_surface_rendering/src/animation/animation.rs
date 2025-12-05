@@ -1,5 +1,12 @@
-#[ allow( unused ) ]
-#[ allow( clippy::question_mark ) ]
+#![ allow( unused ) ]
+#![ allow( clippy::question_mark ) ]
+#![ allow( clippy::manual_map ) ]
+#![ allow( clippy::default_trait_access ) ]
+#![ allow( clippy::used_underscore_binding ) ]
+#![ allow( clippy::cast_lossless ) ]
+#![ allow( clippy::let_and_return ) ]
+#![ allow( clippy::too_many_lines ) ]
+
 mod private
 {
   use interpoli::
@@ -17,7 +24,7 @@ mod private
   use renderer::webgl::loaders::gltf::GLTF;
   use std::collections::HashMap;
   use minwebgl::{ self as gl, F32x4, F32x4x4, GL };
-  use std::cell::RefCell;
+  use core::cell::RefCell;
   use std::rc::Rc;
   use crate::primitive_data::primitives_data_to_gltf;
 
@@ -55,7 +62,7 @@ mod private
   }
 
   /// Converts an `interpoli::Brush` to an `F32x4` color vector for a given frame.
-  fn brush_to_color< 'a >( brush : &'a interpoli::Brush, frame : f64 ) -> F32x4
+  fn brush_to_color( brush : &interpoli::Brush, frame : f64 ) -> F32x4
   {
     let color = match brush.evaluate( 1.0, frame ).into_owned()
     {
@@ -158,36 +165,33 @@ mod private
             },
             Shape::Geometry( geometry ) =>
             {
-              let primitive = match geometry
-              {
-                Geometry::Spline
-                (
-                  Spline
-                  {
-                    values,
-                    ..
-                  }
-                ) =>
+              let primitive = if let Geometry::Spline
+              (
+                Spline
                 {
-                  if let Some( path ) = values.get( 0 )
-                  {
-                    let contour = path.into_iter()
-                    .map( | p | [ p.x as f32, p.y as f32 ] )
-                    .collect::< Vec< _ > >();
-                    crate::primitive::curve_to_geometry( contour.as_slice(), stroke_width )
-                  }
-                  else
-                  {
-                    None
-                  }
-                },
-                _ =>
-                {
-                  let mut path = vec![];
-                  geometry.evaluate( 0.0, &mut path );
-                  let contours = crate::primitive::path_to_points( path );
-                  crate::primitive::contours_to_fill_geometry( &[ contours ] )
+                  values,
+                  ..
                 }
+              ) = geometry
+              {
+                if let Some( path ) = values.first()
+                {
+                  let contour = path.iter()
+                  .map( | p | [ p.x as f32, p.y as f32 ] )
+                  .collect::< Vec< _ > >();
+                  crate::primitive::curve_to_geometry( contour.as_slice(), stroke_width )
+                }
+                else
+                {
+                  None
+                }
+              }
+              else
+              {
+                let mut path = vec![];
+                geometry.evaluate( 0.0, &mut path );
+                let contours = crate::primitive::path_to_points( path );
+                crate::primitive::contours_to_fill_geometry( &[ contours ] )
               };
               if let Some( mut primitive ) = primitive
               {
@@ -299,7 +303,7 @@ mod private
       )
       .collect::< HashMap< _, _ > >();
 
-      let gltf = primitives_data_to_gltf( gl, primitives_data );
+      let gltf = primitives_data_to_gltf( gl, primitives_data.as_slice() );
 
       Self
       {
@@ -516,7 +520,7 @@ mod private
     /// Returns a new scene and a list of colors for a specific animation frame.
     pub fn frame( &self, frame : f64 ) -> Option< ( Scene, Vec< F32x4 > ) >
     {
-      let Some( scene ) = self.gltf.scenes.get( 0 )
+      let Some( scene ) = self.gltf.scenes.first()
       else
       {
         return None;
@@ -538,7 +542,7 @@ mod private
     {
       for scene in &self.gltf.scenes
       {
-        for child in scene.borrow().children.iter()
+        for child in &scene.borrow().children
         {
           child.borrow_mut().update_world_matrix( world_matrix, true );
         }

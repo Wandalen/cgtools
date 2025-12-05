@@ -4,6 +4,13 @@
 #![ allow( clippy::cast_possible_truncation ) ]
 #![ allow( clippy::cast_precision_loss ) ]
 #![ allow( clippy::cast_sign_loss ) ]
+#![ allow( clippy::std_instead_of_alloc ) ]
+#![ allow( clippy::semicolon_if_nothing_returned ) ]
+#![ allow( clippy::cast_possible_truncation ) ]
+#![ allow( clippy::cast_possible_wrap ) ]
+#![ allow( clippy::must_use_candidate ) ]
+#![ allow( clippy::needless_for_each ) ]
+#![ allow( clippy::min_ident_chars ) ]
 
 use minwebgl as gl;
 use gl::{ JsCast as _, math::mat3x3h };
