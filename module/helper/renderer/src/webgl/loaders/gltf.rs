@@ -2,7 +2,7 @@ mod private
 {
   use std::{ cell::RefCell, rc::Rc };
   use mingl::F32x3;
-use minwebgl as gl;
+  use minwebgl as gl;
   use gl::
   {
     JsCast,
@@ -43,6 +43,8 @@ use minwebgl as gl;
       F32x4x4
     }
   };
+
+  const DIRECTION_LIGHT_MIN_MAGNITUDE : f32 = 0.01;
 
   #[ cfg( feature = "animation" ) ]
   use crate::webgl::animation::Animation;
@@ -249,7 +251,13 @@ use minwebgl as gl;
           },
           Light::Direct( mut direct_light ) =>
           {
-            direct_light.direction = node.get_translation();
+            direct_light.direction = node.get_translation().normalize();
+            if direct_light.direction.mag() < DIRECTION_LIGHT_MIN_MAGNITUDE
+            {
+              let forward = gl::F32x3::from_array( [ 0.0, 0.0, -1.0 ] );
+              let rot_matrix = gl::math::d2::F32x3x3::from_quat( node.get_rotation() );
+              direct_light.direction = rot_matrix * forward;
+            }
             Light::Direct( direct_light )
           }
         }
