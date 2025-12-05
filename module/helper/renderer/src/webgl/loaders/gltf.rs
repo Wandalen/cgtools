@@ -251,13 +251,14 @@ mod private
           },
           Light::Direct( mut direct_light ) =>
           {
-            direct_light.direction = node.get_translation().normalize();
+            direct_light.direction = node.get_translation();
             if direct_light.direction.mag() < DIRECTION_LIGHT_MIN_MAGNITUDE
             {
               let forward = gl::F32x3::from_array( [ 0.0, 0.0, -1.0 ] );
               let rot_matrix = gl::math::d2::F32x3x3::from_quat( node.get_rotation() );
               direct_light.direction = rot_matrix * forward;
             }
+            direct_light.direction = direct_light.direction.normalize();
             Light::Direct( direct_light )
           }
         }
