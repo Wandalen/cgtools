@@ -5,7 +5,7 @@ use mingl::mod_interface;
 mod private
 {
   /// The primary error type for all fallible operations within the crate.
-  #[ derive( Debug, error_tools::Error ) ]
+  #[ derive( Debug, thiserror::Error ) ]
   #[ non_exhaustive ]
   pub enum Error
   {
