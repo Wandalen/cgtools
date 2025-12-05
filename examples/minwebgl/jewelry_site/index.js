@@ -7,7 +7,7 @@ const NIGHT_MODE_COLORS =
 };
 const PREVIEW_TIMEOUT_MS = 2500;
 
-let firstLoad = true
+let firstLoad = true;
 
 // -- MAIN PAGE --
 
