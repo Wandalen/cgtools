@@ -1,6 +1,50 @@
 #version 300 es
 precision highp float;
 
+//! Color Grading Post-Processing Shader
+//!
+//! Implements standard color grading operations for cinematic look development.
+//!
+//! ## Technical References
+//!
+//! ### Luminance Calculation (line 121)
+//! - **ITU-R Recommendation BT.709** (Rec. 709)
+//!   Luma coefficients: Y = 0.2126*R + 0.7152*G + 0.0722*B
+//!   Standard for HDTV color space and widely used in digital imaging
+//!   https://www.itu.int/rec/R-REC-BT.709/
+//!
+//! ### Tone Curves (line 92)
+//! - **Smoothstep S-curve**: f(x) = 3x² - 2x³
+//!   Standard sigmoid function for smooth interpolation
+//!   Provides filmic look with lifted shadows and rolled-off highlights
+//!   Reference: Ken Perlin, "Improving Noise" (2002)
+//!   https://mrl.cs.nyu.edu/~perlin/paper445.pdf
+//!
+//! ### White Balance
+//! - Temperature/tint adjustment using simple RGB multipliers
+//!   Common technique in digital photography and color grading
+//!   Reference: "Digital Color Management" by Edward Giorgianni & Thomas Madden
+//!
+//! ### Vibrance vs Saturation
+//! - **Saturation**: Uniform adjustment of all color channels (standard technique)
+//! - **Vibrance**: Smart saturation affecting less-saturated colors more
+//!   Preserves skin tones better than uniform saturation
+//!   Implementation based on Adobe Photoshop's vibrance algorithm principles
+//!
+//! ### Exposure and Tonal Adjustments
+//! - Exponential exposure: 2^exposure for natural brightness scaling
+//! - Shadow/highlight masking: Squared masks for smooth falloff
+//!   Common technique in HDR tone mapping and color grading
+//!   Reference: Reinhard et al., "Photographic Tone Reproduction for Digital Images" (2002)
+//!
+//! ## Implementation Notes
+//!
+//! All parameters designed for -1.0 to 1.0 range with 0.0 as neutral.
+//! Shader remaps these to appropriate internal ranges to prevent over-sensitivity.
+//!
+//! Techniques are standard industry practices combined with original parameter
+//! mapping designed for this implementation.
+
 uniform sampler2D sourceTexture;
 
 // Color grading parameters (all designed for -1.0 to 1.0 range with 0.0 as neutral)
