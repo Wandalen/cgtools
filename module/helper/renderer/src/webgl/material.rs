@@ -175,7 +175,7 @@ use minwebgl as gl;
       gl::uniform::upload( gl, locations.get( "emissiveFactor" ).unwrap().clone(), self.emissive_factor.as_slice() )?;
       if let Some( mipmap_distance_range_loc ) = locations.get( "mipmapDistanceRange" )
       {
-        gl::uniform::upload( gl, mipmap_distance_range_loc.clone(), &[ 0, 9 ] )?;
+        gl::uniform::upload( gl, mipmap_distance_range_loc.clone(), &[ 0.0, 9.0 ] )?;
       }
 
       upload_array( "specularColorFactor", self.specular_color_factor.as_ref().map( | v | v.as_slice() ) )?;
