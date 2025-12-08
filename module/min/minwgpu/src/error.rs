@@ -4,7 +4,8 @@ use mingl::mod_interface;
 
 mod private
 {
-  use thiserror::Error;
+  use error_tools::Error;
+  use error_tools::dependency::thiserror;
 
   /// The primary error type for all fallible operations within the crate.
   #[ derive( Debug, Error ) ]
