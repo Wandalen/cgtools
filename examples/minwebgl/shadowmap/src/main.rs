@@ -60,7 +60,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mesh = gltf::load( &document, "skull_salazar_downloadable.glb", &gl ).await?;
 
-  let cube_mesh = gltf::load( &document, "cube.glb", &gl ).await?;
+  // let cube_mesh = gltf::load( &document, "cube.glb", &gl ).await?;
   let cube_mesh = gltf::load( &document, "plane.glb", &gl ).await?;
   let cube_model = mat3x3h::translation( [ 0.0, -1.0, 0.0 ] )
     * mat3x3h::scale( [ 8.0, 1.0, 8.0 ] );
@@ -91,28 +91,39 @@ async fn run() -> Result< (), gl::WebglError >
   let light_dir = gl::F32x3::from_array( [ 0.0, -1.0, -1.0 ] ).normalize();
 
   let mut node = Node::new();
-  node.object = Object3D::Light( Light::Spot( SpotLight {
-    position : light_pos,
-    direction : light_dir,
-    color : [ 1.0, 1.0, 1.0 ].into(),
-    strength : 300.0,
-    range : 100.0,
-    inner_cone_angle : 40.0_f32.to_radians(),
-    outer_cone_angle : 60.0_f32.to_radians(),
-    use_light_map : true
-  } ) );
+  node.object = Object3D::Light
+  (
+    Light::Spot
+    (
+      SpotLight
+      {
+        position : light_pos,
+        direction : light_dir,
+        color : [ 1.0, 1.0, 1.0 ].into(),
+        strength : 300.0,
+        range : 100.0,
+        inner_cone_angle : 40.0_f32.to_radians(),
+        outer_cone_angle : 60.0_f32.to_radians(),
+        use_light_map : true
+      }
+    )
+  );
   main_scene.add( Rc::new( RefCell::new( node ) ) );
 
-  _ = main_scene.traverse( &mut | node | {
-    let node = node.borrow();
-    if let Object3D::Mesh( mesh ) = &node.object
+  _ = main_scene.traverse
+  (
+    &mut | node |
     {
-      let mut mesh = mesh.borrow_mut();
-      mesh.is_shadow_caster = true;
-      mesh.is_shadow_receiver = true;
+      let node = node.borrow();
+      if let Object3D::Mesh( mesh ) = &node.object
+      {
+        let mut mesh = mesh.borrow_mut();
+        mesh.is_shadow_caster = true;
+        mesh.is_shadow_receiver = true;
+      }
+      Ok( () )
     }
-    Ok( () )
-  } );
+  );
 
   let near = 0.1;
   let far = 30.0;
@@ -120,12 +131,12 @@ async fn run() -> Result< (), gl::WebglError >
   (
     light_pos,
     light_dir,
-    mat3x3h::perspective_rh_gl( 120.0_f32.to_radians(), 1.0, near, far ),
+    mat3x3h::perspective_rh_gl( 60.0_f32.to_radians(), 1.0, near, far ),
     0.5
   );
 
-  let shadowmap_res = 4096;
-  let lightmap_res = 8192;
+  let shadowmap_res = 2048;
+  let lightmap_res = 2048;
   shadow::bake_shadows( &gl, &main_scene, &mut light, lightmap_res, shadowmap_res ).unwrap();
 
   let update = move | _ |

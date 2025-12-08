@@ -206,6 +206,7 @@ mod private
 
       self.matrix = matrix;
       self.needs_local_matrix_update = false;
+      self.needs_world_matrix_update = true;
     }
 
     /// Sets the world transformation matrix for the node.
