@@ -80,6 +80,7 @@ uniform vec4 baseColorFactor; // Default: [1, 1, 1, 1]
   uniform samplerCube irradianceTexture;
   uniform samplerCube prefilterEnvMap;
   uniform sampler2D integrateBRDF;
+  uniform vec2 mipmapDistanceRange;
 #endif
 #ifdef USE_KHR_materials_specular
   uniform float specularFactor;
