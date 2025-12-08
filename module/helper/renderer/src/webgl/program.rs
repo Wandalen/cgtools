@@ -1,64 +1,118 @@
 mod private
 {
   use minwebgl as gl;
-  use std::collections::HashMap;
+  use gl::GL;
+  use web_sys::WebGlProgram;
+  use rustc_hash::FxHashMap;
 
+  /// Shader program generalization for getting access to used shader locations
+  pub trait ShaderProgram : clone_dyn_types::CloneDyn
+  {
+    /// Returns a reference to the hash map containing uniform locations
+    fn get_locations( &self, gl : &GL, program : &gl::WebGlProgram ) -> FxHashMap< String, Option< gl::WebGlUniformLocation > >;
+
+    /// Returns a reference to the hash map containing UBO indices
+    fn get_ubo_indices( &self, gl : &GL, program : &gl::WebGlProgram ) -> FxHashMap< String, u32 >;
+
+    /// Get [`ShaderProgram`] type name
+    fn get_type_name( &self ) -> &'static str;
+
+    /// Create new boxed clone of self
+    fn dyn_clone( &self ) -> Box< dyn ShaderProgram >;
+  }
+
+  /// Macros for simplified [`ShaderProgram`] implementation
+  #[ macro_export ]
   macro_rules! impl_locations
   {
     ( $program_type:ty, $( $location_name:literal ),* ) =>
     {
-      impl ProgramInfo< $program_type >
+      impl Clone for $program_type
       {
-        /// Creates a new `ProgramInfo` instance.
+        fn clone( &self ) -> Self
+        {
+          Self
+        }
+      }
+
+      impl ShaderProgram for $program_type
+      {
         #[ allow( unused_variables ) ]
-        pub fn new( gl : &gl::WebGl2RenderingContext, program : gl::WebGlProgram ) -> Self
+        fn get_locations( &self, gl : &GL, program : &gl::WebGlProgram ) -> FxHashMap< String, Option< gl::WebGlUniformLocation > >
         {
           #[ allow( unused_mut ) ]
-          let mut locations = HashMap::new();
+          let mut locations = FxHashMap::default();
 
           $(
-            locations.insert( $location_name.to_string(), gl.get_uniform_location( &program, $location_name ) );
+            locations.insert( $location_name.to_string(), gl.get_uniform_location( program, $location_name ) );
           )*
 
-          Self
-          {
-            program,
-            locations,
-            ubo_indices : HashMap::new(),
-            phantom : std::marker::PhantomData
-          }
+          locations
+        }
+
+        #[ allow( unused_variables ) ]
+        fn get_ubo_indices( &self, _gl : &GL, _program : &gl::WebGlProgram ) -> FxHashMap< String, u32 >
+        {
+          FxHashMap::default()
+        }
+
+        fn get_type_name( &self ) -> &'static str
+        {
+          stringify!( $program_type )
+        }
+
+        fn dyn_clone( &self ) -> Box< dyn ShaderProgram >
+        {
+          Box::new( self.clone() )
         }
       }
     };
     ( $program_type:ty, $( $location_name:literal ),* -- $( $ubo_name:literal ),* ) =>
     {
-      impl ProgramInfo< $program_type >
+      impl Clone for $program_type
       {
-        /// Creates a new `ProgramInfo` instance.
+        fn clone( &self ) -> Self
+        {
+          Self
+        }
+      }
+
+      impl ShaderProgram for $program_type
+      {
         #[ allow( unused_variables ) ]
-        pub fn new( gl : &gl::WebGl2RenderingContext, program : gl::WebGlProgram ) -> Self
+        fn get_locations( &self, gl : &GL, program : &gl::WebGlProgram ) -> FxHashMap< String, Option< gl::WebGlUniformLocation > >
         {
           #[ allow( unused_mut ) ]
-          let mut locations = HashMap::new();
+          let mut locations = FxHashMap::default();
 
+          $(
+            locations.insert( $location_name.to_string(), gl.get_uniform_location( program, $location_name ) );
+          )*
+
+          locations
+        }
+
+        #[ allow( unused_variables ) ]
+        fn get_ubo_indices( &self, gl : &GL, program : &gl::WebGlProgram ) -> FxHashMap< String, u32 >
+        {
           #[ allow( unused_mut ) ]
-          let mut ubo_indices = HashMap::new();
+          let mut ubo_indices = FxHashMap::default();
 
           $(
-            locations.insert( $location_name.to_string(), gl.get_uniform_location( &program, $location_name ) );
+            ubo_indices.insert( $ubo_name.to_string(), gl.get_uniform_block_index( program, $ubo_name ) );
           )*
 
-          $(
-            ubo_indices.insert( $ubo_name.to_string(), gl.get_uniform_block_index( &program, $ubo_name ) );
-          )*
+          ubo_indices
+        }
 
-          Self
-          {
-            program,
-            locations,
-            ubo_indices,
-            phantom : std::marker::PhantomData
-          }
+        fn get_type_name( &self ) -> &'static str
+        {
+          stringify!( $program_type )
+        }
+
+        fn dyn_clone( &self ) -> Box< dyn ShaderProgram >
+        {
+          Box::new( self.clone() )
         }
       }
     };
@@ -136,41 +190,70 @@ mod private
 
   /// Stores information about a WebGL program, including the program object and the locations of its uniforms.
   /// This struct is intended for use by the renderer.
-  pub struct ProgramInfo< T >
+  pub struct ProgramInfo
   {
     /// The WebGL program object.
     program : gl::WebGlProgram,
     /// A hash map storing the locations of uniform variables in the program.
     /// The keys are the names of the uniforms.
-    locations : HashMap< String, Option< gl::WebGlUniformLocation > >,
+    locations : FxHashMap< String, Option< gl::WebGlUniformLocation > >,
     /// A hash map storing the locations of UBO variables in the program.
     /// The keys are the names of the uniform block.
-    ubo_indices : HashMap< String, u32 >,
-    phantom : std::marker::PhantomData< T >
+    ubo_indices : FxHashMap< String, u32 >,
+    /// ShaderProgram instace
+    shader : Box< dyn ShaderProgram >
   }
 
-  impl< T > ProgramInfo< T >
+  #[ allow( clippy::missing_fields_in_debug ) ]
+  impl core::fmt::Debug for ProgramInfo
   {
+    fn fmt( &self, f: &mut std::fmt::Formatter< '_ > ) -> std::fmt::Result
+    {
+      f.debug_struct( "ProgramInfo" )
+      .field( "shader", &self.shader.get_type_name() )
+      .field( "locations", &self.locations.keys().collect::< Vec< _ > >() )
+      .field( "ubo_indices", &self.ubo_indices )
+      .finish()
+    }
+  }
+
+  impl ProgramInfo
+  {
+    /// Creates a new `ProgramInfo` instance.
+    pub fn new( gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram, shader : Box< dyn ShaderProgram > ) -> Self
+    {
+      let locations = shader.get_locations( gl, program );
+      let ubo_indices = shader.get_ubo_indices( gl, program );
+
+      Self
+      {
+        program : program.clone(),
+        locations,
+        ubo_indices,
+        shader
+      }
+    }
+
     /// Returns a reference to the hash map containing uniform locations.
-    pub fn get_locations( &self ) -> &HashMap< String, Option< gl::WebGlUniformLocation > >
+    pub fn get_locations( &self ) -> &FxHashMap< String, Option< gl::WebGlUniformLocation > >
     {
       &self.locations
     }
 
     /// Returns a mutable reference to the hash map containing uniform locations.
-    pub fn get_locations_mut( &mut self ) ->  &mut HashMap< String, Option< gl::WebGlUniformLocation > >
+    pub fn get_locations_mut( &mut self ) ->  &mut FxHashMap< String, Option< gl::WebGlUniformLocation > >
     {
       &mut self.locations
     }
 
     /// Returns a reference to the hash map containing UBO indices.
-    pub fn get_ubo_indices( &self ) -> &HashMap< String, u32 >
+    pub fn get_ubo_indices( &self ) -> &FxHashMap< String, u32 >
     {
       &self.ubo_indices
     }
 
     /// Returns a mutable reference to the hash map containing UBO indices.
-    pub fn get_ubo_indices_mut( &mut self ) ->  &mut HashMap< String, u32 >
+    pub fn get_ubo_indices_mut( &mut self ) ->  &mut FxHashMap< String, u32 >
     {
       &mut self.ubo_indices
     }
@@ -181,6 +264,34 @@ mod private
     pub fn bind( &self, gl : &gl::WebGl2RenderingContext )
     {
       gl.use_program( Some( &self.program ) );
+    }
+
+    /// Return inner program
+    pub fn get_program( &self ) -> WebGlProgram
+    {
+      self.program.clone()
+    }
+
+    /// Changes inner [`WebGlProgram`] can be replaced only to modified original [`WebGlProgram`]
+    pub fn set_program( &mut self, gl : &GL, program : WebGlProgram )
+    {
+      self.locations = self.shader.get_locations( gl, &program );
+      self.ubo_indices = self.shader.get_ubo_indices( gl, &program );
+      self.program = program;
+    }
+  }
+
+  impl Clone for ProgramInfo
+  {
+    fn clone( &self ) -> Self
+    {
+      Self
+      {
+        program : self.program.clone(),
+        locations : self.locations.clone(),
+        ubo_indices : self.ubo_indices.clone(),
+        shader : clone_dyn_types::clone_into_box( &*self.shader )
+      }
     }
   }
 
@@ -200,6 +311,14 @@ mod private
     "globalJointTransformMatrices",
     "matricesTextureSize",
 
+    // Light uniform locations
+    "pointLights",
+    "pointLightsCount",
+    "directLights",
+    "directLightsCount",
+    "spotLights",
+    "spotLightsCount",
+
     // Material uniform  locations
     //// Textures uniform locations
     "metallicRoughnessTexture",
@@ -209,10 +328,12 @@ mod private
     "emissiveTexture",
     "specularTexture",
     "specularColorTexture",
+    "lightMap",
     //// IBL uniform locations
     "irradianceTexture",
     "prefilterEnvMap",
     "integrateBRDF",
+    "mipmapDistanceRange",
     //// Scalers uniform locations
     "baseColorFactor",
     "metallicFactor",
@@ -230,9 +351,9 @@ mod private
   impl_locations!
   (
     SkyboxShader,
-    "uEquirectMap",
-    "uInvProjection",
-    "uInvView"
+    "equirectMap",
+    "invProjection",
+    "invView"
   );
 
   impl_locations!
@@ -415,6 +536,7 @@ crate::mod_interface!
 
   orphan use
   {
+    ShaderProgram,
     ProgramInfo
   };
 }

@@ -365,7 +365,7 @@ impl Renderer for TerminalRenderer
     }
 
     self.frame_active = true;
-    self.context = Some( context.clone() );
+    self.context = Some( *context );
     self.clear_buffer();
     Ok( () )
   }

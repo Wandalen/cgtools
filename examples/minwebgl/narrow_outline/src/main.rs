@@ -58,22 +58,15 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use renderer::webgl::
 {
-  camera::Camera,
-  loaders::gltf::{ load, GLTF },
-  node::{ Node, Object3D },
-  program::
+  AttributeInfo, Geometry, IndexInfo, Material, Mesh, Primitive, camera::Camera, loaders::gltf::{ GLTF, load }, material::PBRMaterial, node::{ Node, Object3D }, program::
   {
     NormalDepthOutlineObjectShader,
     NormalDepthOutlineShader,
-    ProgramInfo
+    ProgramInfo,
+    ShaderProgram
+
   },
-  scene::Scene,
-  AttributeInfo,
-  IndexInfo,
-  Geometry,
-  Material,
-  Mesh,
-  Primitive
+  scene::Scene
 };
 use ndarray_cg::
 {
@@ -82,9 +75,12 @@ use ndarray_cg::
   F32x3
 };
 use std::collections::HashMap;
-use csgrs::CSG;
 use rand::Rng;
 use std::any::type_name_of_val;
+use csgrs::traits::CSG;
+
+type Sketch = csgrs::sketch::Sketch<()>;
+type ProcedureMesh = csgrs::mesh::Mesh< () >;
 
 const MAX_OBJECT_COUNT : usize = 1024;
 
@@ -280,7 +276,7 @@ pub fn add_attributes
     {
       let primitive = primitive.borrow();
       let mut geometry = primitive.geometry.borrow_mut();
-      let _ = geometry.add_attribute( gl, "object_ids", object_id_info.clone(), false );
+      let _ = geometry.add_attribute( gl, "object_ids", object_id_info.clone() );
     }
   }
 
@@ -352,7 +348,7 @@ fn make_buffer_attribute_info
 /// * `vertex_offset` - A mutable reference to the current vertex offset, which is updated.
 pub fn add_primitive
 (
-  primitive : CSG< () >,
+  primitive : ProcedureMesh,
   positions: &mut Vec< [ f32; 3 ] >,
   normals: &mut Vec< [ f32; 3 ] >,
   object_ids: &mut Vec< f32 >,
@@ -421,15 +417,15 @@ pub fn add_primitive
 ///
 /// # Returns
 ///
-/// A `Vec<(CSG<()>, [f32; 9])>` where each tuple contains a primitive and an array of
+/// A `Vec<(ProcedureMesh, [f32; 9])>` where each tuple contains a primitive and an array of
 /// 9 floats representing its translation, rotation, and scale.
-fn get_primitives_and_transform() -> Vec< ( CSG< () >, [ f32; 9 ] ) >
+fn get_primitives_and_transform() -> Vec< ( ProcedureMesh, [ f32; 9 ] ) >
 {
-  let meshes: Vec< CSG< () > > = vec![
+  let meshes: Vec< ProcedureMesh > = vec![
     {
       // Cone is constructed using frustum with one radius near zero.
       // Parameters: radius1, radius2, height, segments
-      CSG::frustum( 1.0, 0.001, 2.0, 32, None )
+      ProcedureMesh::frustum( 1.0, 0.001, 2.0, 32, None )
     },
     {
       // Torus is constructed by revolving a 2D circle.
@@ -439,27 +435,28 @@ fn get_primitives_and_transform() -> Vec< ( CSG< () >, [ f32; 9 ] ) >
       let segments = 32; // Segments for the circle cross-section
       let revolve_segments = 64; // Segments for the revolution
 
-      let circle_2d = CSG::circle( minor_radius, segments, None );
+      let circle_2d = Sketch::circle( minor_radius, segments, None );
       // Translate the circle away from the origin to define the major radius.
       // The `rotate_extrude` revolves around the Y-axis.
       circle_2d
       .translate_vector( [ major_radius, 0.0, 0.0 ].into() )
-      .rotate_extrude( 360.0, revolve_segments )
+      .revolve( 360.0, revolve_segments )
+      .unwrap()
     },
     {
       // Direct cylinder primitive.
       // Parameters: radius, height, segments
-      CSG::cylinder( 1.0, 2.0, 32, None )
+      ProcedureMesh::cylinder( 1.0, 2.0, 32, None )
     },
     {
       // Direct sphere primitive.
       // Parameters: radius, segments, stacks
-      CSG::sphere( 1.0, 32, 16, None )
+      ProcedureMesh::sphere( 1.0, 32, 16, None )
     },
     {
       // Direct cube/cuboid primitive.
       // Parameters: width, length, height
-      CSG::cube( 1.0, None )
+      ProcedureMesh::cube( 1.0, None )
     },
     {
       // Capsule3d is constructed by unioning a cylinder with two hemispheres (spheres).
@@ -468,10 +465,10 @@ fn get_primitives_and_transform() -> Vec< ( CSG< () >, [ f32; 9 ] ) >
       let segments = 32;
       let stacks = 16;
 
-      let cylinder = CSG::cylinder( radius, height, segments, None );
-      let top_sphere = CSG::sphere( radius, segments, stacks, None )
+      let cylinder = ProcedureMesh::cylinder( radius, height, segments, None );
+      let top_sphere = ProcedureMesh::sphere( radius, segments, stacks, None )
       .translate_vector( [ 0.0, 0.0, height ].into() );
-      let bottom_sphere = CSG::sphere( radius, segments, stacks, None );
+      let bottom_sphere = ProcedureMesh::sphere( radius, segments, stacks, None );
 
       cylinder.union( &top_sphere )
       .union( &bottom_sphere )
@@ -514,7 +511,7 @@ fn get_primitives_and_transform() -> Vec< ( CSG< () >, [ f32; 9 ] ) >
       ( meshes[ i ].clone(), t )
     }
   )
-  .collect::< Vec<( CSG< () >, [ f32; 9 ] ) > >();
+  .collect::< Vec<( ProcedureMesh, [ f32; 9 ] ) > >();
 
   primitives
 }
@@ -543,6 +540,7 @@ fn primitives_csgrs_gltf
     materials : vec![],
     meshes : vec![],
     animations : vec![],
+    lights : vec![]
   };
 
   gltf.scenes.push( Rc::new( RefCell::new( Scene::new() ) ) );
@@ -569,7 +567,7 @@ fn primitives_csgrs_gltf
 
   let primitives = get_primitives_and_transform();
 
-  let material = Rc::new( RefCell::new( Material::default() ) );
+  let material = Rc::new( RefCell::new( Box::new( PBRMaterial::new( gl ) ) as Box< dyn Material > ) );
   gltf.materials.push( material.clone() );
 
   let attribute_infos =
@@ -648,7 +646,7 @@ fn primitives_csgrs_gltf
 
     for ( name, info ) in &attribute_infos
     {
-      geometry.add_attribute( gl, *name, info.clone(), false ).unwrap();
+      geometry.add_attribute( gl, *name, info.clone() ).unwrap();
     }
 
     geometry.add_index( gl, index_info.clone() ).unwrap();
@@ -690,9 +688,9 @@ fn primitives_csgrs_gltf
 struct Programs
 {
   /// The shader program for the initial object rendering pass.
-  object : ProgramInfo< NormalDepthOutlineObjectShader >,
+  object : ProgramInfo,
   /// The shader program for the final outline pass.
-  outline : ProgramInfo< NormalDepthOutlineShader >,
+  outline : ProgramInfo,
   /// The raw WebGL program for the outline shader.
   outline_program : WebGlProgram
 }
@@ -721,8 +719,8 @@ impl Programs
     let object_program = gl::ProgramFromSources::new( object_vs_src, object_fs_src ).compile_and_link( gl ).unwrap();
     let outline_program = gl::ProgramFromSources::new( fullscreen_vs_src, outline_fs_src ).compile_and_link( gl ).unwrap();
 
-    let object = ProgramInfo::< NormalDepthOutlineObjectShader >::new( gl, object_program );
-    let outline = ProgramInfo::< NormalDepthOutlineShader >::new( gl, outline_program.clone() );
+    let object = ProgramInfo::new( gl, &object_program, NormalDepthOutlineObjectShader.dyn_clone() );
+    let outline = ProgramInfo::new( gl, &outline_program, NormalDepthOutlineShader.dyn_clone() );
 
     Self
     {

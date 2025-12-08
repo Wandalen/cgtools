@@ -3,14 +3,14 @@ mod private
 {
   use minwebgl as gl;
   use gl::GL;
-  use crate::webgl::{ post_processing::{ Pass, VS_TRIANGLE }, program::NormalDepthOutlineBaseShader, ProgramInfo };
+  use crate::webgl::{ ProgramInfo, ShaderProgram, post_processing::{ Pass, VS_TRIANGLE }, program::NormalDepthOutlineBaseShader };
 
   /// A struct representing a rendering pass for creating outlines based on normal and depth information.
   pub struct NormalDepthOutlinePass
   {
     /// Holds the WebGL program and its uniform/attribute locations. The `NormalDepthOutlineBaseShader`
     /// type parameter ensures that the correct shader is used.
-    program_info : ProgramInfo< NormalDepthOutlineBaseShader >,
+    program_info : ProgramInfo,
     /// The texture containing per-pixel position data, typically from a G-Buffer. This is
     /// used to calculate depth differences between pixels.
     position_texture : Option< gl::web_sys::WebGlTexture >,
@@ -43,7 +43,7 @@ mod private
     {
       let fs_shader = include_str!( "../../shaders/post_processing/outline/normal_depth_outline.frag" );
       let program = gl::ProgramFromSources::new( VS_TRIANGLE, fs_shader ).compile_and_link( gl )?;
-      let program_info = ProgramInfo::< NormalDepthOutlineBaseShader >::new( gl, program.clone() );
+      let program_info = ProgramInfo::new( gl, &program, NormalDepthOutlineBaseShader.dyn_clone() );
 
       {
         program_info.bind( gl );

@@ -8,6 +8,7 @@ mod private
   /// A struct that bundles a `wgpu::Texture` with its associated view, sampler, and extent.
   ///
   /// This provides a convenient way to manage all the components of a texture as a single unit.
+  #[ non_exhaustive ]
   #[ derive( Debug, Clone ) ]
   pub struct Texture
   {
@@ -30,6 +31,8 @@ mod private
     /// * `extend` - The dimensions of the texture.
     /// * `view` - A pre-created `wgpu::TextureView` for the texture.
     /// * `sampler` - A pre-created `wgpu::Sampler` for the texture.
+    #[ must_use ]
+    #[ inline ]
     pub fn new
     (
       texture : wgpu::Texture,

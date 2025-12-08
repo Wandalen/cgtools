@@ -1,8 +1,12 @@
 mod private
 {
-  use std::{ cell::RefCell, collections::HashMap, rc::Rc };
+  use mingl::F32x3;
+  use std::{ cell::RefCell, rc::Rc };
+  use std::collections::HashMap;
+  use rustc_hash::FxHashMap;
   use minwebgl as gl;
-use web_sys::WebGlTexture;
+  use gl::GL;
+  use web_sys::WebGlTexture;
 
   use crate::webgl::
   {
@@ -14,16 +18,22 @@ use web_sys::WebGlTexture;
       UnrealBloomPass,
       VS_TRIANGLE
     },
-    program::{ self, CompositeShader, SkyboxShader },
+    program::{ CompositeShader, SkyboxShader },
     AlphaMode,
     Camera,
     Node,
     Object3D,
     Primitive,
     ProgramInfo,
+    ShaderProgram,
     Scene,
-    IBL
+    IBL,
+    Light
   };
+
+  const MAX_POINT_LIGHTS : usize = 8;
+  const MAX_DIRECT_LIGHTS : usize = 8;
+  const MAX_SPOT_LIGHTS : usize = 8;
 
   /// Manages WebGL2 framebuffers and associated renderbuffers/textures for a rendering
   /// context, specifically designed for multisampling and post-processing effects.
@@ -240,7 +250,6 @@ use web_sys::WebGlTexture;
 
       // --- Attach Main Texture to Skybox Framebuffer ---
       gl.bind_framebuffer( gl::FRAMEBUFFER, skybox_framebuffer.as_ref() );
-      // gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, main_texture.as_ref(), 0 );
       gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, multisample_main_renderbuffer.as_ref() );
       gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
@@ -478,16 +487,11 @@ use web_sys::WebGlTexture;
     }
   }
 
-  /// The source code for the main vertex shader.
-  const MAIN_VERTEX_SHADER : &'static str = include_str!( "shaders/main.vert" );
-  /// The source code for the main fragment shader.
-  const MAIN_FRAGMENT_SHADER : &'static str = include_str!( "shaders/main.frag" );
-
   /// Manages the rendering process, including program management, IBL setup, and drawing objects in the scene.
   pub struct Renderer
   {
     /// A map of compiled WebGL programs, keyed by a combination of the material ID and vertex shader defines.
-    programs : HashMap< String, ProgramInfo< program::PBRShader > >,
+    programs : FxHashMap< String, ProgramInfo >,
     /// Holds the precomputed textures used for Image-Based Lighting.
     ibl : Option< IBL >,
     /// A list of nodes with transparent primitives, sorted by distance to the camera for correct rendering order.
@@ -506,9 +510,11 @@ use web_sys::WebGlTexture;
     /// Swap buffer to control rendering of the effects
     swap_buffer : SwapFramebuffer,
     exposure : f32,
-    composite_shader : ProgramInfo< CompositeShader >,
+    composite_shader : ProgramInfo,
+    /// Clear color
+    clear_color : F32x3,
     /// Shader for drawing background
-    skybox_shader : ProgramInfo< SkyboxShader >
+    skybox_shader : ProgramInfo
   }
 
   impl Renderer
@@ -518,7 +524,7 @@ use web_sys::WebGlTexture;
     {
       let framebuffer_ctx = FramebufferContext::new( gl, width, height, samples );
       let use_emission = false;
-      let programs = HashMap::new();
+      let programs = FxHashMap::default();
       let ibl = None;
       let transparent_nodes = Vec::new();
       let bloom_effect = UnrealBloomPass::new( gl, width, height, gl::RGBA16F )?;
@@ -530,7 +536,7 @@ use web_sys::WebGlTexture;
       let exposure = 0.0;
 
       let composite_program = gl::ProgramFromSources::new( VS_TRIANGLE, include_str!( "shaders/composite.frag" ) ).compile_and_link( gl )?;
-      let composite_shader = ProgramInfo::< CompositeShader >::new( gl, composite_program );
+      let composite_shader = ProgramInfo::new( gl, &composite_program, CompositeShader.dyn_clone() );
       let locations = composite_shader.get_locations();
       composite_shader.bind( gl );
       gl.uniform1i( locations.get( "transparentA" ).unwrap().clone().as_ref() , 0 );
@@ -542,7 +548,7 @@ use web_sys::WebGlTexture;
         include_str!( "shaders/skybox.frag" )
       )
       .compile_and_link( gl )?;
-      let skybox_shader = ProgramInfo::< SkyboxShader >::new( gl, skybox_program );
+      let skybox_shader = ProgramInfo::new( gl, &skybox_program, SkyboxShader.dyn_clone() );
 
       Ok
       (
@@ -558,6 +564,7 @@ use web_sys::WebGlTexture;
           swap_buffer,
           exposure,
           composite_shader,
+          clear_color : F32x3::splat( 0.0 ),
           skybox_shader
         }
       )
@@ -575,6 +582,12 @@ use web_sys::WebGlTexture;
     pub fn set_use_emission( &mut self, use_emission : bool )
     {
       self.use_emission = use_emission;
+    }
+
+    /// Sets clear color
+    pub fn set_clear_color( &mut self, color : F32x3 )
+    {
+      self.clear_color = color;
     }
 
     /// Returns the current exposure value.
@@ -620,7 +633,7 @@ use web_sys::WebGlTexture;
     }
 
     /// Gets the strength (intensity) of the bloom effect.
-    pub fn get_bloom_strength( &self  ) -> f32
+    pub fn get_bloom_strength( &self ) -> f32
     {
       self.bloom_effect.get_bloom_strength()
     }
@@ -647,13 +660,13 @@ use web_sys::WebGlTexture;
 
       let locations = self.skybox_shader.get_locations();
 
-      let equirect_map_loc = locations.get( "uEquirectMap" ).unwrap();
-      let inv_projection_loc = locations.get( "uInvProjection" ).unwrap();
-      let inv_view_loc = locations.get( "uInvView" ).unwrap();
+      let equirect_map_loc = locations.get( "equirectMap" ).unwrap();
+      let inv_projection_loc = locations.get( "invProjection" ).unwrap();
+      let inv_view_loc = locations.get( "invView" ).unwrap();
 
       gl.active_texture( gl::TEXTURE0 );
       gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.skybox_texture.as_ref() );
-      gl.uniform1i( equirect_map_loc.as_ref(), 0 as i32 );
+      gl.uniform1i( equirect_map_loc.as_ref(), 0_i32 );
       gl::uniform::matrix_upload( gl, inv_projection_loc.clone(), &camera.get_projection_matrix().inverse().unwrap().to_array(), true ).unwrap();
       gl::uniform::matrix_upload( gl, inv_view_loc.clone(), &camera.get_view_matrix().inverse().unwrap().to_array(), true ).unwrap();
 
@@ -697,7 +710,8 @@ use web_sys::WebGlTexture;
 
       self.framebuffer_ctx.bind_multisample( gl );
       gl::drawbuffers::drawbuffers( gl, &[ 0, 1, 2, 3 ] );
-      gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ 0.0, 0.0, 0.0, 1.0 ] );
+      let [ r, b, g ] = self.clear_color.0;
+      gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ r, b, g, 1.0 ] );
       gl.clear_bufferfv_with_f32_array( gl::COLOR, 1, &[ 0.0, 0.0, 0.0, 0.0 ] );
       gl.clear_bufferfv_with_f32_array( gl::COLOR, 2, &[ 0.0, 0.0, 0.0, 1.0 ] );
       gl.clear_bufferfv_with_f32_array( gl::COLOR, 3, &[ 0.0, 0.0, 0.0, 1.0 ] );
@@ -706,19 +720,57 @@ use web_sys::WebGlTexture;
 
       self.framebuffer_ctx.unbind_multisample( gl );
 
-      self.draw_skybox( gl, camera );
+      if self.framebuffer_ctx.skybox_texture.is_some()
+      {
+        self.draw_skybox( gl, camera );
+      }
 
       self.framebuffer_ctx.bind_multisample( gl );
 
       // Clear the list of transparent nodes before each render.
       self.transparent_nodes.clear();
 
+      let mut lights = HashMap::< String, Vec< Light > >::new();
+
+      let mut collect_light_sources =
+      |
+        node : Rc< RefCell< Node > >
+      | -> Result< (), gl::WebglError >
+      {
+        if let Object3D::Light( light ) = &node.borrow().object
+        {
+          let type_ = match light
+          {
+            Light::Point( _ ) => "point",
+            Light::Direct( _ ) => "direct",
+            Light::Spot( _ ) => "spot"
+          };
+
+          if let Some( ls ) = lights.get_mut( type_ )
+          {
+            ls.push( light.clone() );
+          }
+          else
+          {
+            lights.insert( type_.to_string(), vec![ light.clone() ] );
+          }
+        }
+
+        Ok( () )
+      };
+
+      scene.traverse( &mut collect_light_sources )?;
+
       for program in self.programs.values()
       {
         let locations = program.get_locations();
         program.bind( gl );
         camera.upload( gl, locations );
-        gl::uniform::upload( gl, locations.get( "exposure" ).unwrap().clone(), &self.exposure )?;
+        bind_light( gl, &program, &lights );
+        if let Some( exposure_loc ) = locations.get( "exposure" )
+        {
+          gl::uniform::upload( gl, exposure_loc.clone(), &self.exposure )?;
+        }
       }
 
       // Define a closure to handle the drawing of each node in the scene.
@@ -727,6 +779,11 @@ use web_sys::WebGlTexture;
         node : Rc< RefCell< Node > >
       | -> Result< (), gl::WebglError >
       {
+        if !node.borrow().is_visible()
+        {
+          return Ok( () );
+        }
+
         // If the node contains a mesh...
         if let Object3D::Mesh( ref mesh ) = node.borrow().object
         {
@@ -734,20 +791,21 @@ use web_sys::WebGlTexture;
           for primitive_rc in mesh.borrow().primitives.iter()
           {
             let primitive = primitive_rc.borrow();
-            let material = primitive.material.borrow();
-            let geometry = primitive.geometry.borrow();
-            let vs_defines = geometry.get_defines();
+            let defines = primitive.material.borrow().get_defines_str();
             // Generate a unique ID for the program based on the material ID and vertex shader defines.
-            let program_id = format!( "{}{}", material.id, vs_defines );
+            let program_id = format!( "{}{}", primitive.material.borrow().get_id(), defines );
+
+            let program_cached = self.programs.contains_key( &program_id );
 
             // Retrieve the program info if it already exists, otherwise compile and link a new program.
             let program_info =
-            if let Some( ref program_info ) = self.programs.get( &program_id )
+            if let Some( program_info ) = self.programs.get( &program_id )
             {
-             program_info
+              program_info
             }
             else
             {
+              let mut material = primitive.material.borrow_mut();
               let ibl_define = if self.ibl.is_some()
               {
                 "#define USE_IBL\n"
@@ -761,36 +819,42 @@ use web_sys::WebGlTexture;
               // Compile and link a new WebGL program from the vertex and fragment shaders with the appropriate defines.
               let program = gl::ProgramFromSources::new
               (
-                &format!( "#version 300 es\n{}\n{}", vs_defines, MAIN_VERTEX_SHADER ),
+                &format!( "#version 300 es\n{}\n{}", defines, material.get_vertex_shader() ),
                 &format!
                 (
-                  "#version 300 es\n{}\n{}\n{}\n{}",
-                  vs_defines,
+                  "#version 300 es\n{}\n{}\n{}",
+                  defines,
                   ibl_define,
-                  material.get_defines(),
-                  MAIN_FRAGMENT_SHADER )
+                  material.get_fragment_shader()
+                )
               ).compile_and_link( gl )?;
-              let program_info = ProgramInfo::< program::PBRShader >::new( gl , program );
+              material.get_program_info_mut().set_program( gl, program );
+              let program_info = material.get_program_info();
 
               // Configure and upload material properties and IBL textures for the new program.
               let locations = program_info.get_locations();
               program_info.bind( gl );
               const IBL_BASE_ACTIVE_TEXTURE : u32 = 10;
               material.configure( gl, locations, IBL_BASE_ACTIVE_TEXTURE );
-              material.upload( gl, locations )?;
+              material.upload( gl, node.clone(), locations )?;
               camera.upload( gl, locations );
-              if let Some( ref ibl ) = self.ibl
+              if material.needs_ibl()
               {
-                ibl.bind( gl, IBL_BASE_ACTIVE_TEXTURE );
+                if let Some( ref ibl ) = self.ibl
+                {
+                  ibl.bind( gl, IBL_BASE_ACTIVE_TEXTURE );
+                }
               }
 
               // Store the new program info in the cache.
-              self.programs.insert( program_id.clone(), program_info );
+              self.programs.insert( program_id.clone(), program_info.clone() );
               self.programs.get( &program_id ).unwrap()
             };
 
+            let material = primitive.material.borrow();
+
             // Handle transparent objects by adding them to a separate list for later rendering.
-            match material.alpha_mode
+            match material.get_alpha_mode()
             {
               AlphaMode::Blend | AlphaMode::Mask =>
               {
@@ -805,6 +869,11 @@ use web_sys::WebGlTexture;
 
             // Bind the program, upload camera and node matrices, bind the primitive, and draw it.
             program_info.bind( gl );
+
+            if material.needs_update() && program_cached
+            {
+              let _ = material.upload( gl, node.clone(), program_info.get_locations() );
+            }
 
             node.borrow().upload( gl, locations );
             primitive.bind( gl );
@@ -828,9 +897,7 @@ use web_sys::WebGlTexture;
       {
         let primitive = primitive;
         let material = primitive.material.borrow();
-        let geometry = primitive.geometry.borrow();
-        let vs_defines = geometry.get_defines();
-        let program_info = self.programs.get( &format!( "{}{}",  material.id, vs_defines ) ).unwrap();
+        let program_info = self.programs.get( &format!( "{}{}",  material.get_id(), material.get_defines_str() ) ).unwrap();
 
         let locations = program_info.get_locations();
 
@@ -937,12 +1004,119 @@ use web_sys::WebGlTexture;
       gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, self.framebuffer_ctx.main_texture.as_ref(), 0 );
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );
 
-      // if self.framebuffer_ctx.skybox_texture.is_some()
-      // {
-      //   self.draw_skybox( gl, camera );
-      // }
-
       Ok( () )
+    }
+  }
+
+  fn bind_light
+  (
+    gl : &GL,
+    program : &ProgramInfo,
+    lights : &HashMap< String, Vec< Light > >
+  )
+  {
+    let locations = program.get_locations();
+
+    for ( type_, one_type_lights ) in lights
+    {
+      let max_count = match type_.as_str()
+      {
+        "point" => MAX_POINT_LIGHTS,
+        "direct" => MAX_DIRECT_LIGHTS,
+        "spot" => MAX_SPOT_LIGHTS,
+        _ => continue
+      };
+
+      let count_loc = gl.get_uniform_location( &program.get_program(), format!( "{type_}LightsCount" ).as_str() );
+      let _ = gl::uniform::upload( gl, count_loc, &( one_type_lights.len().min( max_count ) as i32 ) );
+    }
+
+    'i : for ( type_, one_type_lights ) in lights
+    {
+      for ( i, light ) in one_type_lights.iter().enumerate()
+      {
+        match type_.as_str()
+        {
+          "point" =>
+          {
+            if !locations.contains_key( "pointLights" ) || i > MAX_POINT_LIGHTS
+            {
+              continue 'i;
+            }
+
+            let Light::Point( light ) = light
+            else
+            {
+              continue;
+            };
+
+            let position_loc = gl.get_uniform_location( &program.get_program(), format!( "pointLights[{i}].position" ).as_str() );
+            let color_loc = gl.get_uniform_location( &program.get_program(), format!( "pointLights[{i}].color" ).as_str() );
+            let strength_loc = gl.get_uniform_location( &program.get_program(), format!( "pointLights[{i}].strength" ).as_str() );
+            let range_loc = gl.get_uniform_location( &program.get_program(), format!( "pointLights[{i}].range" ).as_str() );
+
+            let _ = gl::uniform::upload( gl, position_loc, light.position.as_slice() );
+            let _ = gl::uniform::upload( gl, color_loc, light.color.as_slice() );
+            let _ = gl::uniform::upload( gl, strength_loc, &light.strength );
+            let _ = gl::uniform::upload( gl, range_loc, &light.range );
+          },
+          "direct" =>
+          {
+            if !locations.contains_key( "directLights" ) || i > MAX_DIRECT_LIGHTS
+            {
+              continue 'i;
+            }
+
+            let Light::Direct( light ) = light
+            else
+            {
+              continue;
+            };
+
+            let direction_loc = gl.get_uniform_location( &program.get_program(), format!( "directLights[{i}].direction" ).as_str() );
+            let color_loc = gl.get_uniform_location( &program.get_program(), format!( "directLights[{i}].color" ).as_str() );
+            let strength_loc = gl.get_uniform_location( &program.get_program(), format!( "directLights[{i}].strength" ).as_str() );
+
+            let _ = gl::uniform::upload( gl, direction_loc, light.direction.as_slice() );
+            let _ = gl::uniform::upload( gl, color_loc, light.color.as_slice() );
+            let _ = gl::uniform::upload( gl, strength_loc, &light.strength );
+          },
+          "spot" =>
+          {
+            if !locations.contains_key( "spotLights" ) || i > MAX_SPOT_LIGHTS
+            {
+              continue 'i;
+            }
+
+            let Light::Spot( light ) = light
+            else
+            {
+              continue;
+            };
+
+            let position_loc = gl.get_uniform_location( &program.get_program(), format!( "spotLights[{i}].position" ).as_str() );
+            let direction_loc = gl.get_uniform_location( &program.get_program(), format!( "spotLights[{i}].direction" ).as_str() );
+            let color_loc = gl.get_uniform_location( &program.get_program(), format!( "spotLights[{i}].color" ).as_str() );
+            let strength_loc = gl.get_uniform_location( &program.get_program(), format!( "spotLights[{i}].strength" ).as_str() );
+            let range_loc = gl.get_uniform_location( &program.get_program(), format!( "spotLights[{i}].range" ).as_str() );
+            let inner_angle_loc = gl.get_uniform_location( &program.get_program(), format!( "spotLights[{i}].innerConeAngle" ).as_str() );
+            let outer_angle_loc = gl.get_uniform_location( &program.get_program(), format!( "spotLights[{i}].outerConeAngle" ).as_str() );
+            let use_lightmap_loc = gl.get_uniform_location( &program.get_program(), format!( "spotLights[{i}].useLightMap" ).as_str() );
+
+            let _ = gl::uniform::upload( gl, position_loc, light.position.as_slice() );
+            let _ = gl::uniform::upload( gl, direction_loc, light.direction.as_slice() );
+            let _ = gl::uniform::upload( gl, color_loc, light.color.as_slice() );
+            let _ = gl::uniform::upload( gl, strength_loc, &light.strength );
+            let _ = gl::uniform::upload( gl, range_loc, &light.range );
+            let _ = gl::uniform::upload( gl, inner_angle_loc, &light.inner_cone_angle );
+            let _ = gl::uniform::upload( gl, outer_angle_loc, &light.outer_cone_angle );
+
+            let use_lightmap_int = light.use_light_map as i32;
+            let _ = gl::uniform::upload( gl, use_lightmap_loc, &use_lightmap_int );
+          },
+          _ => ()
+        }
+      }
     }
   }
 }

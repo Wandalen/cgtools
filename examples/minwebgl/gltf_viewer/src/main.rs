@@ -56,7 +56,6 @@ async fn run() -> Result< (), gl::WebglError >
   //let gltf_path = "dae_crib_-_tommys_garage.glb";
   //let gltf_path = "low_poly_kids_playground.glb";
   //let gltf_path = "watchman_of_doom_2.0_special.glb";
-  let gltf_path = "DamagedHelmet.glb";
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
   let scenes = gltf.scenes;
   scenes[ 0 ].borrow_mut().update_world_matrix();
@@ -92,7 +91,7 @@ async fn run() -> Result< (), gl::WebglError >
   camera.bind_controls( &canvas );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_use_emission( true );
+  //renderer.set_use_emission( true );
   renderer.set_ibl( loaders::ibl::load( &gl, "envMap" ).await );
 
   let renderer = Rc::new( RefCell::new( renderer ) );

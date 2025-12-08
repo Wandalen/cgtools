@@ -8,7 +8,7 @@ mod private
   /// Represents a scene containing a hierarchy of nodes.
   #[ derive( Default ) ]
   pub struct Scene
-  { 
+  {
     /// The root-level children of the scene.
     pub children : Vec< Rc< RefCell< Node > > >,
   }
@@ -18,8 +18,8 @@ mod private
     fn clone( &self ) -> Self
     {
       let mut children = Vec::with_capacity( self.children.len() );
-      
-      for child in &self.children 
+
+      for child in &self.children
       {
         children.push( child.borrow().clone_tree() );
       }

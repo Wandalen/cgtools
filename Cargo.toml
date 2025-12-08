@@ -308,7 +308,7 @@ version = "1.47.1"
 version = "1.4"
 
 [workspace.dependencies.csgrs]
-version = "0.19.1"
+version = "0.20.1"
 default-features = false
 features = ["f64", "delaunay"]
 
@@ -318,10 +318,7 @@ version = "0.22.1"
 [workspace.dependencies.norad]
 default-features = false
 features = ["kurbo"]
-version = "0.16.0"
-
-[workspace.dependencies.parley]
-version = "0.5.0"
+version = "0.15.0"
 
 [workspace.dependencies.kurbo]
 version = "0.11.3"

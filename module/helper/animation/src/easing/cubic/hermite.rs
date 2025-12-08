@@ -4,9 +4,10 @@ mod private
   use mingl::{ MatEl, Vector, Mul, NdFloat };
 
   /// Hermite spline implementation for interpolation
+  #[ non_exhaustive ]
   #[ derive( Debug ) ]
   pub struct CubicHermite< E, const N : usize >
-  where E : MatEl + std::default::Default + std::marker::Copy
+  where E : MatEl + core::default::Default + core::marker::Copy
   {
     /// Tangent start
     pub m1 : Vector< E, N >,
@@ -15,7 +16,7 @@ mod private
   }
 
   impl< E, const N : usize > CubicHermite< E, N >
-  where E : MatEl + std::default::Default + std::marker::Copy
+  where E : MatEl + core::default::Default + core::marker::Copy
   {
     /// [`CubicHermite`] constructor
     pub fn new
@@ -36,8 +37,8 @@ mod private
   impl< E, const N : usize > EasingFunction for CubicHermite< E, N >
   where
     E : MatEl +
-    std::default::Default +
-    std::marker::Copy +
+    core::default::Default +
+    core::marker::Copy +
     Mul< Vector< E, N >, Output = Vector< E, N > > +
     NdFloat
   {
@@ -45,12 +46,11 @@ mod private
 
     fn apply( &self, start : Vector< E, N >, end : Vector< E, N >, time : f64 ) -> Vector< E, N >
     {
-      let t = time;
-      let t2 = t * t;
-      let t3 = t2 * t;
+      let t2 = time * time;
+      let t3 = t2 * time;
 
       Vector::splat( E::from( 2.0 * t3 - 3.0 * t2 + 1.0 ).unwrap() ) * start +
-      Vector::splat( E::from( t3 - 2.0 * t2 + t ).unwrap() ) * self.m1 +
+      Vector::splat( E::from( t3 - 2.0 * t2 + time ).unwrap() ) * self.m1 +
       Vector::splat( E::from( -2.0 * t3 + 3.0 * t2 ).unwrap() ) * end +
       Vector::splat( E::from( t3 - t2 ).unwrap() ) * self.m2
     }

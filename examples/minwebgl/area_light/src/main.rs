@@ -1,5 +1,18 @@
 //! Polygonal light demo
 
+#![ allow( clippy::similar_names ) ]
+#![ allow( clippy::implicit_return ) ]
+#![ allow( clippy::cast_possible_wrap ) ]
+#![ allow( clippy::needless_borrow ) ]
+#![ allow( clippy::cast_possible_truncation ) ]
+#![ allow( clippy::cast_sign_loss ) ]
+#![ allow( clippy::cast_lossless ) ]
+#![ allow( clippy::default_trait_access ) ]
+#![ allow( clippy::cast_precision_loss ) ]
+#![ allow( clippy::too_many_lines ) ]
+#![ allow( clippy::min_ident_chars ) ]
+#![ allow( clippy::wildcard_imports ) ]
+
 mod plane;
 mod lil_gui;
 mod light;
@@ -7,7 +20,7 @@ mod light;
 use light::*;
 use minwebgl as gl;
 use gl::{ math::mat3x3h, JsCast as _, GL, AsBytes as _ };
-use renderer::webgl::loaders::gltf;
+use renderer::webgl::{ loaders::gltf, helpers, material::PBRMaterial };
 use web_sys::{ js_sys::Float32Array, HtmlCanvasElement, WebGlTexture };
 
 static LTC1 : &[ u8 ] = include_bytes!( "../ltc1" );
@@ -164,6 +177,7 @@ async fn run() -> Result< (), gl::WebglError >
       {
         let primitive = primitive.borrow();
         let material = primitive.material.borrow();
+        let material = helpers::cast_unchecked_material_to_ref::< PBRMaterial >( material );
 
         let base_color = material.base_color_texture.as_ref().unwrap();
         let metallic_roughness = material.metallic_roughness_texture.as_ref().unwrap();
