@@ -42,10 +42,10 @@ void main()
 
   if (uv.x > 0.001 && uv.x < 0.999)
   {
-    FragColor = texture( uEquirectMap, uv );
+    FragColor = texture( equirectMap, uv );
   }
   else
   {
-    FragColor = texture( uEquirectMap, vec2( 0.0001, uv.y ) );
+    FragColor = texture( equirectMap, vec2( 0.0001, uv.y ) );
   }
 }
