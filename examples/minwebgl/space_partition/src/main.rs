@@ -108,7 +108,7 @@ fn run() -> Result< (), gl::WebglError >
   let mut input = browser_input::Input::new
   (
     Some( canvas.clone().dyn_into().unwrap() ),
-    browser_input::SCREEN,
+    browser_input::CLIENT,
   );
 
   let settings = Settings
