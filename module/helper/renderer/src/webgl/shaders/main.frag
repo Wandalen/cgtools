@@ -49,9 +49,6 @@ struct ReflectedLight
   vec3 directSpecular;
 };
 
-const int MAX_POINT_LIGHTS = 8;
-const int MAX_DIRECT_LIGHTS = 8;
-
 struct PointLight
 {
   vec3 position;
@@ -365,32 +362,35 @@ void computeLights
 }
 
 #ifdef USE_IBL
-  void sampleEnvIrradiance( const in vec3 N, const in vec3 V, const in PhysicalMaterial material, inout ReflectedLight reflectedLight )
+  float remapClamped( float value, float inMin, float inMax, float outMin, float outMax )
+  {
+      float t = clamp( ( value - inMin ) / ( inMax - inMin ), 0.0, 1.0 );
+      return mix( outMin, outMax, t );
+  }
+
+  void sampleEnvIrradiance( const in vec3 N, const in vec3 V, float viewDistance, const in PhysicalMaterial material, inout ReflectedLight reflectedLight )
   {
     float alpha = pow2( material.roughness );
     float dotNV = clamp( dot( N, V ), 0.0, 1.0 );
 
     const float MAX_LOD = 9.0;
-    if( dotNV > 0.05 )
-    {
-      vec3 Fs = F_Schlick( material.f0, material.f90, dotNV );
-      vec3 R = reflect( -V, N );
 
-      vec3 diffuse = texture( irradianceTexture, N ).xyz * pow( 2.0, exposure );
-      vec3 prefilter = texture( prefilterEnvMap, R, material.roughness * MAX_LOD ).xyz * pow( 2.0, exposure );
-      vec2 envBrdf = texture( integrateBRDF, vec2( dotNV, material.roughness ) ).xy;
+    vec3 Fs = F_Schlick( material.f0, material.f90, dotNV );
+    vec3 R = reflect( -V, N );
 
-      vec3 diffuseBRDF = diffuse * material.diffuseColor;
-      vec3 specularBRDF = prefilter * ( material.f0 * envBrdf.x + envBrdf.y );
-      //vec3 specularBRDF = prefilter * ( Fs * envBrdf.x + envBrdf.y );
+    vec2 d = mipmapDistanceRange;
+    float lod = remapClamped( viewDistance, d.x, d.y, 0.0, MAX_LOD );
+    lod = material.roughness * MAX_LOD;
 
-      reflectedLight.indirectDiffuse += diffuseBRDF;
-      reflectedLight.indirectSpecular += specularBRDF;
-    }
-    else
-    {
-      reflectedLight.indirectDiffuse += material.diffuseColor;
-    }
+    vec3 diffuse = texture( irradianceTexture, N ).xyz * pow( 2.0, exposure );
+    vec3 prefilter = textureLod( prefilterEnvMap, R, lod ).xyz * pow( 2.0, exposure );
+    vec2 envBrdf = texture( integrateBRDF, vec2( dotNV, material.roughness ) ).xy;
+
+    vec3 diffuseBRDF = diffuse * material.diffuseColor;
+    vec3 specularBRDF = prefilter * ( material.f0 * envBrdf.x + envBrdf.y );
+
+    reflectedLight.indirectDiffuse += diffuseBRDF;
+    reflectedLight.indirectSpecular += specularBRDF;
   }
 #endif
 
@@ -522,6 +522,7 @@ void main()
 
   vec3 color = vec3( 0.0 );
   vec3 viewDir = normalize( cameraPosition - vWorldPos );
+  float viewDistance = distance( cameraPosition, vWorldPos );
   // vec3 lightDirs[] = vec3[]
   // (
   //   vec3( 1.0, 0.0, 0.0 ),
@@ -536,7 +537,7 @@ void main()
 
   // Ambient color
   #if defined( USE_IBL )
-    sampleEnvIrradiance( normal, viewDir, material, reflectedLight );
+    sampleEnvIrradiance( normal, viewDir, viewDistance, material, reflectedLight );
   #else
     reflectedLight.indirectDiffuse += 0.1 * material.diffuseColor;
   #endif
@@ -566,8 +567,10 @@ void main()
   //alpha = 0.9;
   //color = material.diffuseColor;
   //color = normal;
+  // color = vec3( 1.0 - texture( lightMap, vUv_0 ).r );
   float a_weight = alpha * alpha_weight( alpha );
   trasnparentA = vec4( color * a_weight, alpha );
   transparentB = a_weight;
   frag_color = vec4( color, alpha );
 }
+
