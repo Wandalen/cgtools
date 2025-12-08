@@ -49,6 +49,7 @@ use renderer::webgl::
   {
     ProgramInfo,
     ShaderProgram,
+    SkyboxShader,
     JfaOutlineObjectShader,
     JfaOutlineInitShader,
     JfaOutlineStepShader,
@@ -137,6 +138,7 @@ fn upload_framebuffer(
 
 struct Programs
 {
+  skybox : ProgramInfo,
   object : ProgramInfo,
   jfa_init : ProgramInfo,
   jfa_step : ProgramInfo,
@@ -149,6 +151,7 @@ impl Programs
   {
     // --- Load and Compile Shaders ---
 
+    let skybox_fs_src = include_str!( "../resources/shaders/skybox.frag" );
     let object_vs_src = include_str!( "../resources/shaders/object.vert" );
     let object_fs_src = include_str!( "../resources/shaders/object.frag" );
     let fullscreen_vs_src = include_str!( "../resources/shaders/fullscreen.vert" );
@@ -157,11 +160,13 @@ impl Programs
     let outline_fs_src = include_str!( "../resources/shaders/outline.frag" );
 
     // Compile and link shader programs and store them
+    let skybox_program = gl::ProgramFromSources::new( fullscreen_vs_src, skybox_fs_src ).compile_and_link( gl ).unwrap();
     let object_program = gl::ProgramFromSources::new( object_vs_src, object_fs_src ).compile_and_link( gl ).unwrap();
     let jfa_init_program = gl::ProgramFromSources::new( fullscreen_vs_src, jfa_init_fs_src ).compile_and_link( gl ).unwrap();
     let jfa_step_program = gl::ProgramFromSources::new( fullscreen_vs_src, jfa_step_fs_src ).compile_and_link( gl ).unwrap();
     let outline_program = gl::ProgramFromSources::new( fullscreen_vs_src, outline_fs_src ).compile_and_link( gl ).unwrap();
 
+    let skybox = ProgramInfo::new( gl, &skybox_program, SkyboxShader.dyn_clone() );
     let object = ProgramInfo::new( gl, &object_program, JfaOutlineObjectShader.dyn_clone() );
     let jfa_init = ProgramInfo::new( gl, &jfa_init_program, JfaOutlineInitShader.dyn_clone() );
     let jfa_step = ProgramInfo::new( gl, &jfa_step_program, JfaOutlineStepShader.dyn_clone() );
@@ -169,6 +174,7 @@ impl Programs
 
     Self
     {
+      skybox,
       object,
       jfa_init,
       jfa_step,
@@ -239,6 +245,8 @@ impl Renderer
 
     // --- Create Framebuffers and Textures ---
 
+    // Framebuffer for rendering the skybox
+    let ( skybox_fb, skybox_fb_color ) = create_framebuffer( gl, viewport, 0 ).unwrap();
     // Framebuffer for rendering the initial object silhouette
     let ( object_fb, object_fb_color ) = create_framebuffer( gl, viewport, 0 ).unwrap();
     // Framebuffer for the JFA initialization pass
@@ -248,12 +256,14 @@ impl Renderer
     let ( jfa_step_fb_1, jfa_step_fb_color_1 ) = create_framebuffer( gl, viewport, 0 ).unwrap();
 
     // Store the color attachment textures
+    renderer.textures.insert( "skybox_fb_color".to_string(), skybox_fb_color );
     renderer.textures.insert( "object_fb_color".to_string(), object_fb_color );
     renderer.textures.insert( "jfa_init_fb_color".to_string(), jfa_init_fb_color );
     renderer.textures.insert( "jfa_step_fb_color_0".to_string(), jfa_step_fb_color_0 );
     renderer.textures.insert( "jfa_step_fb_color_1".to_string(), jfa_step_fb_color_1 );
 
     // Store the framebuffers
+    renderer.framebuffers.insert( "skybox_fb".to_string(), skybox_fb );
     renderer.framebuffers.insert( "object_fb".to_string(), object_fb );
     renderer.framebuffers.insert( "jfa_init_fb".to_string(), jfa_init_fb );
     renderer.framebuffers.insert( "jfa_step_fb_0".to_string(), jfa_step_fb_0 );
@@ -269,12 +279,14 @@ impl Renderer
   /// * `t` - The current time in milliseconds ( used for animation ).
   fn render( &self, scene : Rc< RefCell< Scene > >, t : f64 )
   {
-    // 1. Object Rendering Pass: Render the object silhouette to a texture
+    // 1. Skybox Pass: Render skybox
+    self.skybox_pass();
+    // 2. Object Rendering Pass: Render the object silhouette to a texture
     let _ = self.object_pass( scene );
-    // 2. JFA Initialization Pass: Initialize JFA texture from the silhouette
+    // 3. JFA Initialization Pass: Initialize JFA texture from the silhouette
     self.jfa_init_pass();
 
-    // 3. JFA Step Passes: Perform Jump Flooding Algorithm steps
+    // 4. JFA Step Passes: Perform Jump Flooding Algorithm steps
     // The number of passes required is log2( max( width, height ) ).
     let num_passes = 4;
     for i in 0..num_passes
@@ -286,6 +298,12 @@ impl Renderer
     self.outline_pass( num_passes );
   }
 
+  /// Renders the skybox before object pass.
+  fn skybox_pass( &self )
+  {
+
+  }
+
   /// Renders the 3D object silhouette to the `object_fb`.
   ///
   /// Sets up the model-view-projection matrices and draws the loaded mesh.
@@ -294,7 +312,7 @@ impl Renderer
   /// # Arguments
   ///
   /// * `t` - The current time in milliseconds ( used for rotating the camera/view ).
-  fn object_pass( &self, scene : Rc< RefCell< Scene > > ) -> Result<(), WebglError >
+  fn object_pass( &self, scene : Rc< RefCell< Scene > > ) -> Result< (), WebglError >
   {
     let gl = &self.gl;
 
