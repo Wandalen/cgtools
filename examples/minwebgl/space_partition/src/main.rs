@@ -36,7 +36,7 @@ fn generate_points( num_points : usize ) -> Vec< impls::Point2D >
   points
 }
 
-/// Apply apsect ratio to the provided value
+/// Apply aspect ratio to the provided value
 fn apply_aspect_ratio( x : f32, aspect : f32 ) -> f32
 {
   let x = x * 2.0 - 1.0;
