@@ -179,7 +179,7 @@ mod private
         self.rotation,
         self.translation
       );
-      self.matrix = gl::F32x4x4::from_column_major( mat.to_array() );
+      self.matrix = mat;
       self.needs_local_matrix_update = false;
       self.needs_update_child_world_matrix = true;
     }

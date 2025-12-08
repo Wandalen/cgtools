@@ -260,7 +260,7 @@ mod private
         self.rotation,
         self.translation
       );
-      self.matrix = gl::F32x4x4::from_column_major( mat.to_array() );
+      self.matrix = mat;
       self.needs_local_matrix_update = false;
       self.needs_world_matrix_update = true;
     }
