@@ -45,13 +45,37 @@ The current zoom level is displayed in the bottom-right corner (e.g., "100%").
 - Useful for maximizing canvas space when inspecting filtered images
 
 ### Filter Application
+The example includes 29+ filters, each with a visual thumbnail preview in the sidebar:
 - **Filter Cards**: Click any filter thumbnail in the sidebar to preview it
 - **Apply Button** (✓): Commit the current filter to the image
 - **Cancel Button** (✗): Discard the current filter and return to previous state
-- **Dynamic Controls**: Some filters expose adjustable parameters in the bottom control panel
+- **Dynamic Controls**: Some filters expose adjustable parameters (sliders, dropdowns) in the bottom control panel using a custom JavaScript-based control system
 
 ### Save Image
 - **Save Button** (💾): Download the current filtered image as a PNG file
+
+## Technical Architecture
+
+### Custom Control System
+The example uses a custom JavaScript-based control system (`controls.js`) interfaced through Rust via `wasm_bindgen`. This lightweight solution replaced the previous lil-gui dependency, providing:
+
+- **Slider controls**: For continuous numeric parameters (brightness, contrast, blur radius, etc.)
+- **Dropdown controls**: For discrete choices (filter modes, resize algorithms, etc.)
+- **Dynamic updates**: Real-time parameter changes trigger immediate filter re-rendering
+- **Minimal footprint**: Reduces bundle size and external dependencies
+
+The control system is exposed through the `controls` module with functions like `add_slider()`, `add_dropdown()`, `on_change()`, and `get_values()`.
+
+### Modular UI Setup
+The UI initialization code is organized into specialized modules for maintainability:
+- `ui_setup::filter_buttons` - Generates filter thumbnail cards
+- `ui_setup::filter_setup_simple` - Configures filters without parameters
+- `ui_setup::filter_setup_advanced` - Configures filters with adjustable controls
+- `ui_setup::filter_setup_helpers` - Shared utility functions
+- `ui_setup::event_handlers` - Event handling logic
+
+### Asset Organization
+Filter thumbnails (29+ PNG files) are located in `assets/thumbnails/` and loaded dynamically based on filter name conventions.
 
 **References:**
 
