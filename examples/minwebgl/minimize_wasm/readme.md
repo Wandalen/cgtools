@@ -1,58 +1,17 @@
-# WASM build size optimization
+# Minimized WASM Build
 
-A little optimization for decrease builded wasm file.
+**Keywords:** WASM, Optimization, Binary Size, WebGL2
 
-Results:
+This demo showcases techniques for minimizing WebAssembly binary size in cgtools applications. It demonstrates optimization strategies including dead code elimination, LTO, and size-focused compilation.
 
-- WASM size before optimization: 123.5 KB
-- wee_alloc stage: 117.3 KB
-- wasm-opt stage: 79,6 KB
-- wasm-strip stage: 79,4 KB
-- WASM size after optimization: 79.4 KB
+Small WASM binaries improve load times and user experience. This example serves as a reference for production builds requiring minimal download size.
 
-## How it works
+![image](./showcase.gif)
 
-### wasm-opt
+**[How to run](../how_to_run.md)**
 
-Added line of code to _index.html_:
+**References:**
 
-```html
-<link data-trunk rel="rust" data-wasm-opt="s" />
-```
+* [Shrinking .wasm Code Size]
 
-When we build the example with _trunk_ (in release mode), it uses _wasm-opt_ with _s_-level optimization.
-
-Size optimization levels of _wasm-opt_:
-
-- S-level: base size opt.
-- Z-level: most aggressively, but at further potential speed costs.
-
-Shrink methods of _wasm-opt_:
-
-- removing redurant code
-- reducing size of instructions
-- minimizing the number of sections and metadata
-
-### wasm-strip
-
-### wee_alloc
-
-_wee_alloc_ crate is used - an allocator for WASM that reduces the binary size.
-Set _wee_alloc_ as global allocator instead of _std::alloc_ as the latter is for general purpose.
-
-```rust
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-```
-
-The _wee_alloc_ reducing the total amount of allocated memory used by the application and minimizing the use of redundant functions that may not be needed in Wasm environments.
-
-## Building
-
-```bash
-make build
-```
-
-# Spinning triangle
-
-![](./spinning_triangle.gif)
+[Shrinking .wasm Code Size]: https://rustwasm.github.io/book/reference/code-size.html

@@ -1,23 +1,23 @@
-//! This module provides a set of tools for working with 3D primitives 
-//! and transforming them into a GLTF scene graph for rendering. It 
+//! This module provides a set of tools for working with 3D primitives
+//! and transforming them into a GLTF scene graph for rendering. It
 //! defines essential data structures:
-//! 
-//! - `Transform` for manipulating an object's position, rotation, 
+//!
+//! - `Transform` for manipulating an object's position, rotation,
 //! and scale.
-//! 
-//! - `AttributesData` and `PrimitiveData` for holding vertex and index 
-//! data along with other primitive properties. 
-//! 
-//! The core functionality is encapsulated in `primitives_data_to_gltf`, 
-//! which takes a collection of `PrimitiveData` and constructs a complete 
-//! `GLTF` object, including all necessary WebGL buffers, geometries 
+//!
+//! - `AttributesData` and `PrimitiveData` for holding vertex and index
+//! data along with other primitive properties.
+//!
+//! The core functionality is encapsulated in `primitives_data_to_gltf`,
+//! which takes a collection of `PrimitiveData` and constructs a complete
+//! `GLTF` object, including all necessary WebGL buffers, geometries
 //! and a scene hierarchy.
 mod private
 {
   use minwebgl::
-  { 
-    self as gl, 
-    BufferDescriptor 
+  {
+    self as gl,
+    BufferDescriptor
   };
   use gl::
   {
@@ -58,14 +58,14 @@ mod private
   impl Default for Transform
   {
     /// Returns a new `Transform` with default values: translation and rotation are zero, and scale is one.
-    fn default() -> Self 
+    fn default() -> Self
     {
-      Self 
-      { 
-        translation : [ 0.0; 3 ].into(), 
-        rotation : [ 0.0; 3 ].into(), 
-        scale : [ 1.0; 3 ].into() 
-      }     
+      Self
+      {
+        translation : [ 0.0; 3 ].into(),
+        rotation : [ 0.0; 3 ].into(),
+        scale : [ 1.0; 3 ].into()
+      }
     }
   }
 
@@ -85,7 +85,7 @@ mod private
       node_mut.update_local_matrix();
     }
   }
-  
+
   /// Mesh attribute data containing vertex positions and triangle indices.
   #[ derive( Debug ) ]
   pub struct AttributesData
@@ -98,7 +98,7 @@ mod private
 
   /// Complete primitive data including geometry attributes, color, and transform.
   #[ derive( Clone ) ]
-  pub struct PrimitiveData 
+  pub struct PrimitiveData
   {
     /// Shared mesh attribute data.
     pub attributes : Rc< RefCell< AttributesData > >,
@@ -110,11 +110,11 @@ mod private
 
   /// Creates an `AttributeInfo` object using one function call for a WebGL buffer.
   pub fn make_buffer_attribute_info
-  ( 
+  (
     buffer : &web_sys::WebGlBuffer,
-    descriptor : gl::BufferDescriptor, 
-    offset : i32, 
-    stride : i32, 
+    descriptor : gl::BufferDescriptor,
+    offset : i32,
+    stride : i32,
     slot : u32,
     normalized : bool,
     vector: gl::VectorDataType
@@ -140,14 +140,14 @@ mod private
 
   /// Converts a collection of primitive data into a GLTF scene for WebGL rendering.
   pub fn primitives_data_to_gltf
-  ( 
+  (
     gl : &WebGl2RenderingContext,
     primitives_data : Vec< PrimitiveData >
   ) -> GLTF
   {
     let mut scenes = vec![];
     let mut nodes = vec![];
-    let mut gl_buffers = vec![]; 
+    let mut gl_buffers = vec![];
     let mut meshes = vec![];
 
     let material = Rc::new( RefCell::new( Material::default() ) );
@@ -159,19 +159,19 @@ mod private
 
     gl_buffers.push( position_buffer.clone() );
 
-    let attribute_infos = 
+    let attribute_infos =
     [
-      ( 
-        "positions", 
-        make_buffer_attribute_info( 
-          &position_buffer, 
+      (
+        "positions",
+        make_buffer_attribute_info(
+          &position_buffer,
           BufferDescriptor::new::< [ f32; 3 ] >(),
-          0, 
-          3, 
-          0, 
+          0,
+          3,
+          0,
           false,
           VectorDataType::new( mingl::DataType::F32, 3, 1 )
-        ).unwrap() 
+        ).unwrap()
       ),
     ];
 
@@ -235,7 +235,7 @@ mod private
 
     gl::buffer::upload( &gl, &position_buffer, &positions, GL::STATIC_DRAW );
     gl::index::upload( &gl, &index_buffer, &indices, GL::STATIC_DRAW );
-    
+
     GLTF
     {
       scenes,
@@ -244,7 +244,8 @@ mod private
       images : Rc::new( RefCell::new( vec![] ) ),
       textures : vec![],
       materials,
-      meshes
+      meshes,
+      animations : vec![]
     }
   }
 }

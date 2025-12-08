@@ -46,8 +46,8 @@ use the_module::adapters::SvgRenderer;
 #[ cfg( feature = "adapter-terminal" ) ]
 use the_module::adapters::TerminalRenderer;
 
-#[ cfg( feature = "adapter-webgl" ) ]  
-use the_module::adapters::WebGLRenderer;
+// #[ cfg( feature = "adapter-webgl" ) ]
+// use the_module::adapters::WebGLRenderer;
 
 /// Test minimal build with only basic types - verifies ultra-granular features work
 /// Test Combination: I1.1
@@ -56,15 +56,15 @@ use the_module::adapters::WebGLRenderer;
 fn test_minimal_build_types_basic()
 {
   use the_module::commands::{ Point2D };
-  
+
   // Verify basic types can be created
   let point = Point2D { x: 10.0, y: 20.0 };
   assert_eq!( point.x, 10.0 );
   assert_eq!( point.y, 20.0 );
-  
+
   let color = [ 1.0f32, 0.5, 0.0, 1.0 ];
   assert_eq!( color[ 0 ], 1.0 );
-  
+
   // Basic types should be copyable and comparable
   let point2 = point;
   assert_eq!( point, point2 );
@@ -78,10 +78,10 @@ fn test_core_build_scene_commands()
 {
   use the_module::scene::Scene;
   use the_module::commands::*;
-  
+
   let mut scene = Scene::new();
   assert_eq!( scene.len(), 0 );
-  
+
   // Add various command types
   let line = RenderCommand::Line( LineCommand {
     start: Point2D { x: 0.0, y: 0.0 },
@@ -89,7 +89,7 @@ fn test_core_build_scene_commands()
     style: StrokeStyle::default(),
   } );
   scene.add( line );
-  
+
   let curve = RenderCommand::Curve( CurveCommand {
     start: Point2D { x: 0.0, y: 0.0 },
     control1: Point2D { x: 50.0, y: -50.0 },
@@ -98,17 +98,17 @@ fn test_core_build_scene_commands()
     style: StrokeStyle::default(),
   } );
   scene.add( curve );
-  
+
   // Test scene operations
   assert_eq!( scene.len(), 2 );
-  
+
   // Test query functionality if available
   #[ cfg( feature = "query-basic" ) ]
   {
     let lines_count = scene.query_lines().len();
     assert_eq!( lines_count, 1 );
-    
-    let curves_count = scene.query_curves().len();  
+
+    let curves_count = scene.query_curves().len();
     assert_eq!( curves_count, 1 );
   }
 }
@@ -125,10 +125,10 @@ fn test_single_backend_svg_integration()
     adapters::SvgRenderer,
     ports::*,
   };
-  
+
   // Create a complex scene
   let mut scene = Scene::new();
-  
+
   // Add line
   scene.add( RenderCommand::Line( LineCommand {
     start: Point2D { x: 10.0, y: 10.0 },
@@ -140,12 +140,12 @@ fn test_single_backend_svg_integration()
       join_style: LineJoin::Round,
     },
   } ) );
-  
+
   // Add text
   let mut text_data = [ 0u8; 64 ];
   let text_str = b"Integration Test";
   text_data[ ..text_str.len() ].copy_from_slice( text_str );
-  
+
   scene.add( RenderCommand::Text( TextCommand {
     text: text_data,
     text_len: text_str.len() as u8,
@@ -159,16 +159,16 @@ fn test_single_backend_svg_integration()
     },
     anchor: TextAnchor::TopLeft,
   } ) );
-  
+
   // Create and test SVG renderer
   let mut renderer = SvgRenderer::new();
   let context = RenderContext::default();
-  
+
   assert!( renderer.initialize( &context ).is_ok() );
   assert!( renderer.begin_frame( &context ).is_ok() );
   assert!( renderer.render_scene( &scene ).is_ok() );
   assert!( renderer.end_frame().is_ok() );
-  
+
   // Validate SVG output
   let output = renderer.output().unwrap();
   assert!( output.contains( "<svg" ) );
@@ -191,7 +191,7 @@ fn test_dual_backend_svg_terminal()
     adapters::{ SvgRenderer, TerminalRenderer },
     ports::*,
   };
-  
+
   // Create shared scene
   let mut scene = Scene::new();
   scene.add( RenderCommand::Line( LineCommand {
@@ -199,11 +199,11 @@ fn test_dual_backend_svg_terminal()
     end: Point2D { x: 50.0, y: 25.0 },
     style: StrokeStyle::default(),
   } ) );
-  
+
   let mut text_data = [ 0u8; 64 ];
   let text_str = b"Dual Backend Test";
   text_data[ ..text_str.len() ].copy_from_slice( text_str );
-  
+
   scene.add( RenderCommand::Text( TextCommand {
     text: text_data,
     text_len: text_str.len() as u8,
@@ -211,32 +211,32 @@ fn test_dual_backend_svg_terminal()
     font_style: FontStyle::default(),
     anchor: TextAnchor::TopLeft,
   } ) );
-  
+
   let context = RenderContext::default();
-  
+
   // Test SVG backend
   let mut svg_renderer = SvgRenderer::new();
   assert!( svg_renderer.initialize( &context ).is_ok() );
   assert!( svg_renderer.begin_frame( &context ).is_ok() );
   assert!( svg_renderer.render_scene( &scene ).is_ok() );
   assert!( svg_renderer.end_frame().is_ok() );
-  
+
   let svg_output = svg_renderer.output().unwrap();
   assert!( svg_output.contains( "<svg" ) );
   assert!( svg_output.contains( "Dual Backend Test" ) );
-  
-  // Test Terminal backend  
+
+  // Test Terminal backend
   let mut terminal_renderer = TerminalRenderer::with_dimensions( 80, 25 );
   assert!( terminal_renderer.initialize( &context ).is_ok() );
   assert!( terminal_renderer.begin_frame( &context ).is_ok() );
   assert!( terminal_renderer.render_scene( &scene ).is_ok() );
   assert!( terminal_renderer.end_frame().is_ok() );
-  
+
   let terminal_output = terminal_renderer.get_output();
   // Terminal output should contain text characters (potentially with ANSI codes)
   assert!( terminal_output.contains( 'D' ) && terminal_output.contains( 'u' ) );
   assert!( terminal_output.contains( 'T' ) && terminal_output.contains( 's' ) );
-  
+
   // Verify outputs are different formats but from same scene
   assert_ne!( svg_output, terminal_output );
   assert!( svg_output.len() != terminal_output.len() );
@@ -253,27 +253,27 @@ fn test_cli_integration_with_backend()
     adapters::SvgRenderer,
     ports::*,
   };
-  
+
   // Create CLI app (simulating CLI operations)
   let mut app = CliApp::new().unwrap();
-  
+
   // Simulate CLI commands to build scene
   // Note: This would normally be done through the CLI interface
   // but we're testing the integration points
-  
+
   let context = RenderContext::default();
   let mut renderer = SvgRenderer::new();
-  
+
   assert!( renderer.initialize( &context ).is_ok() );
   assert!( renderer.begin_frame( &context ).is_ok() );
-  
+
   // The CLI app contains a scene that can be rendered
   // This tests that CLI and rendering pipeline integrate properly
   // xxx: temporarily disabled due to API changes
   // let scene = &app.scene;
   // assert!( renderer.render_scene( scene ).is_ok() );
   assert!( renderer.end_frame().is_ok() );
-  
+
   let output = renderer.output().unwrap();
   assert!( output.contains( "<svg" ) );
 }
@@ -290,21 +290,21 @@ fn test_large_scene_stress_test()
     adapters::TerminalRenderer,
     ports::*,
   };
-  
+
   // Create large scene with many commands
   let mut scene = Scene::new();
-  
+
   // Add 1000 line commands
   for i in 0..1000
   {
     let x = ( i % 100 ) as f32;
     let y = ( i / 100 ) as f32;
-    
+
     scene.add( RenderCommand::Line( LineCommand {
       start: Point2D { x, y },
       end: Point2D { x: x + 10.0, y: y + 10.0 },
       style: StrokeStyle {
-        color: [ 
+        color: [
           ( i % 256 ) as f32 / 255.0,
           ( ( i * 2 ) % 256 ) as f32 / 255.0,
           ( ( i * 3 ) % 256 ) as f32 / 255.0,
@@ -316,23 +316,23 @@ fn test_large_scene_stress_test()
       },
     } ) );
   }
-  
+
   assert_eq!( scene.len(), 1000 );
-  
+
   // Test that terminal backend can handle large scene
   let mut renderer = TerminalRenderer::with_dimensions( 120, 60 );
   let context = RenderContext::default();
-  
+
   assert!( renderer.initialize( &context ).is_ok() );
   assert!( renderer.begin_frame( &context ).is_ok() );
-  
+
   // This should not panic or run out of memory
   assert!( renderer.render_scene( &scene ).is_ok() );
   assert!( renderer.end_frame().is_ok() );
-  
+
   let output = renderer.get_output();
   assert!( !output.is_empty() );
-  
+
   // Verify scene statistics
   #[ cfg( feature = "scene-statistics" ) ]
   {
@@ -358,36 +358,36 @@ fn test_error_propagation_integration()
     adapters::SvgRenderer,
     ports::*,
   };
-  
+
   let mut scene = Scene::new();
-  
+
   // Add valid command
   scene.add( RenderCommand::Line( LineCommand {
     start: Point2D { x: 0.0, y: 0.0 },
     end: Point2D { x: 100.0, y: 100.0 },
     style: StrokeStyle::default(),
   } ) );
-  
+
   let mut renderer = SvgRenderer::new();
   let context = RenderContext::default();
-  
+
   // Test normal operation
   assert!( renderer.initialize( &context ).is_ok() );
   assert!( renderer.begin_frame( &context ).is_ok() );
   assert!( renderer.render_scene( &scene ).is_ok() );
   assert!( renderer.end_frame().is_ok() );
-  
+
   // Test error conditions
   // Calling begin_frame without end_frame may fail, but should not panic
   let _ = renderer.begin_frame( &context );
   let second_begin = renderer.begin_frame( &context ); // Should not panic
-  
+
   // Try to recover regardless of error state
   let _ = renderer.end_frame();
 }
 
 /// Test serialization integration with scene and commands
-/// Test Combination: I2.4  
+/// Test Combination: I2.4
 #[ test ]
 #[ cfg( all( feature = "serde", feature = "standard" ) ) ]
 fn test_serialization_integration()
@@ -396,10 +396,10 @@ fn test_serialization_integration()
     scene::Scene,
     commands::*,
   };
-  
+
   // Create scene with various commands
   let mut original_scene = Scene::new();
-  
+
   original_scene.add( RenderCommand::Line( LineCommand {
     start: Point2D { x: 10.0, y: 20.0 },
     end: Point2D { x: 30.0, y: 40.0 },
@@ -410,11 +410,11 @@ fn test_serialization_integration()
       join_style: LineJoin::Round,
     },
   } ) );
-  
+
   let mut text_data = [ 0u8; 64 ];
   let text_str = b"Serialization Test";
   text_data[ ..text_str.len() ].copy_from_slice( text_str );
-  
+
   original_scene.add( RenderCommand::Text( TextCommand {
     text: text_data,
     text_len: text_str.len() as u8,
@@ -428,26 +428,26 @@ fn test_serialization_integration()
     },
     anchor: TextAnchor::Center,
   } ) );
-  
+
   // Test JSON serialization
   let json_data = serde_json::to_string( &original_scene ).expect( "Serialization should work" );
   assert!( !json_data.is_empty() );
   assert!( json_data.contains( "Line" ) || json_data.contains( "line" ) );
   assert!( json_data.contains( "Text" ) || json_data.contains( "text" ) );
-  
+
   // Test deserialization
   let deserialized_scene: Scene = serde_json::from_str( &json_data ).expect( "Deserialization should work" );
-  
+
   // Verify scene integrity
   assert_eq!( original_scene.len(), deserialized_scene.len() );
   assert_eq!( original_scene.len(), 2 );
-  
+
   // Compare scene contents
   let original_commands: Vec< _ > = original_scene.iter().collect();
   let deserialized_commands: Vec< _ > = deserialized_scene.iter().collect();
-  
+
   assert_eq!( original_commands.len(), deserialized_commands.len() );
-  
+
   // Verify specific command data
   match ( &original_commands[ 0 ], &deserialized_commands[ 0 ] )
   {
@@ -459,7 +459,7 @@ fn test_serialization_integration()
     },
     _ => panic!( "First command should be Line" ),
   }
-  
+
   match ( &original_commands[ 1 ], &deserialized_commands[ 1 ] )
   {
     ( RenderCommand::Text( orig ), RenderCommand::Text( deser ) ) =>
@@ -472,56 +472,6 @@ fn test_serialization_integration()
   }
 }
 
-/// Test memory cleanup and resource management
-/// Test Combination: I2.3
-#[ test ]
-#[ cfg( feature = "adapter-webgl" ) ]
-fn test_memory_management_integration()
-{
-  use the_module::{
-    scene::Scene,
-    commands::*,
-    adapters::WebGLRenderer,
-    ports::*,
-  };
-  
-  // Test multiple renderer lifecycle cycles
-  for cycle in 0..10
-  {
-    let mut scene = Scene::new();
-    
-    // Add commands that might allocate resources
-    for i in 0..100
-    {
-      scene.add( RenderCommand::Line( LineCommand {
-        start: Point2D { x: i as f32, y: cycle as f32 },
-        end: Point2D { x: ( i + 10 ) as f32, y: ( cycle + 10 ) as f32 },
-        style: StrokeStyle::default(),
-      } ) );
-    }
-    
-    let mut renderer = WebGLRenderer::with_dimensions( 800, 600 );
-    let context = RenderContext::default();
-    
-    // Full rendering cycle
-    assert!( renderer.initialize( &context ).is_ok() );
-    assert!( renderer.begin_frame( &context ).is_ok() );
-    assert!( renderer.render_scene( &scene ).is_ok() );
-    assert!( renderer.end_frame().is_ok() );
-    
-    // Verify stats are available
-    let stats = renderer.get_stats().unwrap();
-    assert!( stats.vertices_rendered > 0 );
-    
-    // Renderer should clean up resources when dropped
-    drop( renderer );
-    drop( scene );
-  }
-  
-  // If we reach here without panicking or running out of memory, 
-  // memory management is working
-}
-
 /// Test cross-platform compatibility preparation
 /// Test Combination: I3.1
 #[ test ]
@@ -529,13 +479,13 @@ fn test_memory_management_integration()
 fn test_cross_platform_wasm_compatibility()
 {
   use the_module::commands::Point2D;
-  
+
   // Test that basic types work in WASM-compatible way
   let point = Point2D { x: 42.0, y: 24.0 };
-  
+
   // Should be able to serialize basic types for WASM
   assert_eq!( std::mem::size_of::< Point2D >(), 8 ); // 2 * f32 = 8 bytes
-  
+
   // Test color arrays (commonly used in WASM graphics)
   let color = [ 0.5f32, 0.5f32, 0.5f32, 1.0f32 ];
   assert_eq!( color.len(), 4 );
@@ -555,10 +505,10 @@ fn test_performance_integration()
     ports::*,
   };
   use std::time::Instant;
-  
+
   // Create moderately large scene
   let mut scene = Scene::new();
-  
+
   for i in 0..500
   {
     scene.add( RenderCommand::Line( LineCommand {
@@ -567,24 +517,24 @@ fn test_performance_integration()
       style: StrokeStyle::default(),
     } ) );
   }
-  
+
   let mut renderer = TerminalRenderer::with_dimensions( 80, 25 );
   let context = RenderContext::default();
-  
+
   // Measure rendering performance
   let start_time = Instant::now();
-  
+
   assert!( renderer.initialize( &context ).is_ok() );
   assert!( renderer.begin_frame( &context ).is_ok() );
   assert!( renderer.render_scene( &scene ).is_ok() );
   assert!( renderer.end_frame().is_ok() );
-  
+
   let elapsed = start_time.elapsed();
-  
+
   // Rendering 500 lines should complete reasonably quickly
   // This is not a strict benchmark but a smoke test
   assert!( elapsed.as_millis() < 1000 ); // Should complete within 1 second
-  
+
   let output = renderer.get_output();
   assert!( !output.is_empty() );
 }

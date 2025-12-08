@@ -254,6 +254,9 @@ version = "0.2.19"
 [workspace.dependencies.wasm-bindgen-futures]
 version = "0.4.50"
 
+[workspace.dependencies.wasm-bindgen-test]
+version = "0.3"
+
 # [workspace.dependencies.generic-array]
 # version = "1.1.0"
 

@@ -1,4 +1,4 @@
-//! Just draw a large point in the middle of the screen.
+//! Draws diamond figure that reflects cube map texture
 
 #![ allow( clippy::needless_range_loop ) ]
 #![ allow( clippy::needless_borrow ) ]
@@ -37,7 +37,7 @@ fn upload_cube_texture( gl : &GL, faces : &[ image::RgbaImage ], location: u32 )
   gl.active_texture( gl::TEXTURE0 + location );
   gl.bind_texture( gl::TEXTURE_CUBE_MAP, texture.as_ref() );
 
-  for i in 0..faces.len() 
+  for i in 0..faces.len()
   {
     let image = &faces[ i ];
     let ( width, height ) = image.dimensions();
@@ -74,7 +74,7 @@ async fn run() -> Result< (), gl::WebglError >
   let program = gl::ProgramFromSources::new( vertex_shader_src, fragment_shader_src ).compile_and_link( &gl )?;
   gl.use_program( Some( &program ) );
 
-  // Load textures 
+  // Load textures
   let env_map = load_cube_texture( "skybox" ).await.expect( "Failed to load environment map" );
   let cube_normal_map = load_cube_texture( "normal_cube" ).await.expect( "Failed to load cube normal map" );
 
@@ -145,23 +145,23 @@ async fn run() -> Result< (), gl::WebglError >
   let height = gl.drawing_buffer_height() as f32;
 
   // Camera setup
-  
+
   let eye = gl::F32x3::new(  0.0, 3.0, 10.0 );
   let up = gl::F32x3::Y;
 
   let aspect_ratio = width / height;
   let perspective_matrix = gl::math::mat3x3h::perspective_rh_gl
   (
-     70.0f32.to_radians(),  
-     aspect_ratio, 
-     0.1, 
+     70.0f32.to_radians(),
+     aspect_ratio,
+     0.1,
      1000.0
   );
 
   let model_matrix = gl::F32x4x4::from_scale_rotation_translation
   (
-    gl::F32x3::splat( 1.0 ), 
-    gl::QuatF32::from_angle_y( 0.0 ), 
+    gl::F32x3::splat( 1.0 ),
+    gl::QuatF32::from_angle_y( 0.0 ),
     gl::F32x3::ZERO
   );
 

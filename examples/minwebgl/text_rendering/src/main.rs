@@ -283,7 +283,8 @@ fn primitives_data_to_gltf
     images : Rc::new( RefCell::new( vec![] ) ),
     textures : vec![],
     materials,
-    meshes
+    meshes,
+    animations : vec![]
   }
 }
 

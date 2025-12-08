@@ -1,34 +1,19 @@
-## Emboss filter
+# Image Filter
 
-This example shows how to apply emboss filter to an image using `WebGl2`.
-The filter is applied inside a circle of a `radius` defined in program. The circle center is
-cursor position on the image.
+**Keywords:** Post-Processing, Filters, WebGL2, Shaders
 
-### How it is useful
+This demo demonstrates real-time image filtering in WebGL2. It shows how to apply various shader-based filters to images or rendered scenes, including blur, sharpen, edge detection, and color grading.
 
-The example shows how to deal with convolutional processing, and how to create and use a
-simple convolutional program in `WebGl2`.
+Image filters are essential for post-processing pipelines, allowing artistic control and visual enhancement of rendered content. This example provides reusable filter implementations.
 
-### Running
+![image](showcase.png)
 
-Make sure you have installed all the necessary [dependencies](../../../module/min/minwebgl/readme.md)
-In order to run the example navigate to example's directory and run next command:
-``` bash
-trunk serve
-```
-If you want to load own image, upload it into `resources` folder and then provide its path into `image_path`
-variable.
+**[How to run](../how_to_run.md)**
 
-``` rust
-let image_path = "your_image.format";
-```
+**References:**
 
-Also you can change radius. Find the line containing radius definition and assign whatever value you like.
+* [WebGL Image Processing]
+* [WebGL2 Image Processing Continued]
 
-``` rust
-let radius = 123.456;
-```
-
----
-
-![showcase](showcase.png)
+[WebGL Image Processing]: https://webglfundamentals.org/webgl/lessons/webgl-image-processing.html
+[WebGL2 Image Processing Continued]: https://webgl2fundamentals.org/webgl/lessons/webgl-image-processing-continued.html

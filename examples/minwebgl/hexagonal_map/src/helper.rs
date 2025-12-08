@@ -1,14 +1,10 @@
 use minwebgl as gl;
-use gl::{ GL, BufferDescriptor };
-use renderer::webgl::{ AttributeInfo, Geometry };
 use tiles_tools::coordinates::hexagonal::Coordinate;
 use std::{ cell::RefCell, fmt::Debug, rc::Rc };
 use strum::{ AsRefStr, EnumIter, EnumString, VariantArray };
 use web_sys::
 {
   wasm_bindgen::prelude::*,
-  WebGlTexture,
-  HtmlImageElement,
   HtmlButtonElement,
   HtmlOptionElement,
   HtmlSelectElement,
@@ -20,12 +16,6 @@ pub enum EditMode
 {
   EditTiles,
   EditRivers,
-}
-
-pub struct Texture
-{
-  pub size : Rc< RefCell< gl::U32x2 > >,
-  pub texture : Option< web_sys::WebGlTexture >
 }
 
 pub fn setup_select< 'a, I >( document : &web_sys::Document, id : &str, variants : I ) -> HtmlSelectElement
@@ -169,127 +159,6 @@ fn upload_json_map( file : web_sys::File, map_json : Rc< RefCell< Option< String
 
   reader.set_onloadend( Some( onload.as_ref().unchecked_ref() ) );
   onload.forget();
-}
-
-pub fn load_texture
-(
-  gl : &GL,
-  document : &web_sys::Document,
-  src : &str,
-) -> ( Option< WebGlTexture >, Rc< RefCell< gl::U32x2 > > )
-{
-  let img = document.create_element( "img" )
-  .unwrap()
-  .dyn_into::< HtmlImageElement >()
-  .unwrap();
-  img.style().set_property( "display", "none" ).unwrap();
-  let texture = gl.create_texture();
-  let size = Rc::new( RefCell::new( gl::U32x2::default() ) );
-
-  let on_load : Closure< dyn Fn() > = Closure::new
-  ({
-    let gl = gl.clone();
-    let img = img.clone();
-    let texture = texture.clone();
-    let size = size.clone();
-    move ||
-    {
-      let width = img.natural_width();
-      let height = img.natural_height();
-      *size.borrow_mut() = [ width, height ].into();
-      gl::texture::d2::upload( &gl, texture.as_ref(), &img );
-      gl::texture::d2::filter_linear( &gl );
-      gl::texture::d2::wrap_clamp( &gl );
-      img.remove();
-    }
-  });
-
-  img.set_onload( Some( on_load.as_ref().unchecked_ref() ) );
-  img.set_src( &src );
-  on_load.forget();
-
-  ( texture, size )
-}
-
-pub fn create_hexagon_geometry( gl : &GL ) -> Result< Geometry, gl::WebglError >
-{
-  let positions = tiles_tools::geometry::hexagon_triangles();
-
-  let position_buffer = gl::buffer::create( &gl )?;
-  gl::buffer::upload( &gl, &position_buffer, positions.as_slice(), GL::STATIC_DRAW );
-  let pos_info = AttributeInfo
-  {
-    slot : 0,
-    buffer : position_buffer,
-    descriptor : BufferDescriptor::new::< [ f32; 2 ] >(),
-    bounding_box : Default::default(),
-  };
-
-  let mut geometry = Geometry::new( &gl )?;
-  geometry.vertex_count = positions.len() as u32 / 2;
-  geometry.add_attribute( &gl, "position", pos_info, false )?;
-
-  gl.bind_vertex_array( None );
-
-  Ok( geometry )
-}
-
-pub fn create_line_geometry( gl : &GL ) -> Result< Geometry, gl::WebglError >
-{
-  let positions = tiles_tools::geometry::hexagon_lines();
-  let position_buffer = gl::buffer::create( &gl )?;
-  gl::buffer::upload( &gl, &position_buffer, positions.as_slice(), GL::STATIC_DRAW );
-  let pos_info = AttributeInfo
-  {
-    slot : 0,
-    buffer : position_buffer,
-    descriptor : BufferDescriptor::new::< [ f32; 2 ] >(),
-    bounding_box : Default::default(),
-  };
-
-  let mut geometry = Geometry::new( &gl )?;
-  geometry.draw_mode = GL::LINES;
-  geometry.vertex_count = positions.len() as u32 / 2;
-  geometry.add_attribute( &gl, "position", pos_info, false )?;
-  gl.bind_vertex_array( None );
-
-  Ok( geometry )
-}
-
-pub fn hexagon_shader( gl : &GL, player_count : usize ) -> Result< gl::shader::Program, gl::WebglError >
-{
-  let vert = include_str!( "../shaders/main.vert" );
-  let frag = include_str!( "../shaders/main.frag" );
-  let frag = frag.replace( "#define PLAYER_COUNT 1", &format!( "#define PLAYER_COUNT {player_count}" ) );
-  gl::shader::Program::new( gl.clone(), vert, &frag )
-}
-
-pub fn line_shader( gl : &GL ) -> Result< gl::shader::Program, gl::WebglError >
-{
-  let vert = include_str!( "../shaders/main.vert" );
-  let frag = include_str!( "../shaders/line.frag" );
-  gl::shader::Program::new( gl.clone(), vert, frag )
-}
-
-pub fn river_shader( gl : &GL ) -> Result< gl::shader::Program, gl::WebglError >
-{
-  let vert = include_str!( "../shaders/river.vert" );
-  let frag = include_str!( "../shaders/river.frag" );
-  gl::shader::Program::new( gl.clone(), vert, frag )
-}
-
-pub fn sprite_shader( gl : &GL ) -> Result< gl::shader::Program, gl::WebglError >
-{
-  let vert = include_str!( "../shaders/sprite.vert" );
-  let frag = include_str!( "../shaders/sprite.frag" );
-  gl::shader::Program::new( gl.clone(), vert, frag )
-}
-
-pub fn river_edge_shader( gl : &GL ) -> Result< gl::shader::Program, gl::WebglError >
-{
-  let vert = include_str!( "../shaders/river_edge.vert" );
-  let frag = include_str!( "../shaders/river.frag" );
-  gl::shader::Program::new( gl.clone(), vert, frag )
 }
 
 pub fn calculate_map_size( map : &crate::core_game::Map ) -> [ i64; 2 ]

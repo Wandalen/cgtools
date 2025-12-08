@@ -1,7 +1,12 @@
 mod private
 {
   use std::{ cell::RefCell, rc::Rc };
-  use minwebgl::{ self as gl, JsCast, geometry::BoundingBox };
+  use minwebgl as gl;
+  use gl::
+  {
+    JsCast,
+    geometry::BoundingBox,
+  };
   use crate::webgl::
   {
     ToFromGlEnum,
@@ -24,6 +29,20 @@ mod private
   };
   use web_sys::wasm_bindgen::prelude::Closure;
 
+  use
+  {
+    std::collections::HashMap,
+    crate::webgl::Skeleton,
+    gl::
+    {
+      GL,
+      F32x4x4
+    }
+  };
+
+  #[ cfg( feature = "animation" ) ]
+  use crate::webgl::animation::Animation;
+
   /// Represents a loaded glTF (GL Transmission Format) scene.
   pub struct GLTF
   {
@@ -41,7 +60,73 @@ mod private
     /// A collection of `Material` objects, defining how the surfaces of the meshes should be shaded.
     pub materials : Vec< Rc< RefCell< Material > > >,
     /// A list of `Mesh` objects, which represent the geometry of the scene.
-    pub meshes : Vec< Rc< RefCell< Mesh > > >
+    pub meshes : Vec< Rc< RefCell< Mesh > > >,
+    /// A list of `Animation` objects, which store `Node`'s tranform change in every time moment.
+    #[ cfg( feature = "animation" ) ]
+    pub animations : Vec< Animation >
+  }
+
+  /// Asynchronously loads [`Skeleton`] for one [`Mesh`]
+  async fn load_skeleton< 'a >
+  (
+    gl : &GL,
+    skin : gltf::Skin< '_ >,
+    nodes : &HashMap< Box< str >, Rc< RefCell< Node > > >,
+    buffers : &'a [ Vec< u8 > ],
+  )
+  -> Option< Rc< RefCell< Skeleton > > >
+  {
+    let reader = skin.reader
+    (
+      | buffer | Some( buffers[ buffer.index() ].as_slice() )
+    );
+
+    let Some( inverse_bind_matrices_iter ) = reader.read_inverse_bind_matrices()
+    else
+    {
+      return None;
+    };
+
+    let matrices = inverse_bind_matrices_iter
+    .map
+    (
+      | m |
+      {
+        F32x4x4::from_column_major
+        (
+          m.iter()
+          .cloned()
+          .flatten()
+          .collect::< Vec< f32 > >()
+          .as_chunks::< 16 >()
+          .0
+          .into_iter()
+          .cloned()
+          .next()
+          .unwrap()
+        )
+      }
+    )
+    .collect::< Vec< _ > >();
+
+    let mut joints = vec![];
+    for ( joint, matrix ) in skin.joints().zip( matrices )
+    {
+      if let Some( name ) = joint.name()
+      {
+        if let Some( node ) = nodes.get( name )
+        {
+          joints.push( ( node.clone(), matrix ) );
+        }
+      }
+    }
+
+    // gl::info!( "Joints: {:?}", joints );
+
+    let skeleton = Skeleton::new( gl, joints )
+    .map( | s | Rc::new( RefCell::new( s ) ) );
+
+    skeleton
   }
 
   /// Asynchronously loads a glTF (GL Transmission Format) file and its associated resources.
@@ -94,6 +179,10 @@ mod private
         _ => {}
       }
     }
+
+    let bin_buffers = buffers.iter()
+    .map( | b | b.to_vec() )
+    .collect::< Vec< _ > >();
 
     gl::info!( "Bufffers: {}", buffers.len() );
 
@@ -280,7 +369,7 @@ mod private
       material.metallic_roughness_texture = make_texture_info( pbr.metallic_roughness_texture() );
       material.emissive_texture = make_texture_info( gltf_m.emissive_texture() );
       material.emissive_factor = gl::F32x3::from( gltf_m.emissive_factor() );
-  
+
       // KHR_materials_specular
       if let Some( s ) = gltf_m.specular()
       {
@@ -423,7 +512,27 @@ mod private
               true
             )?;
           },
-          a => { gl::warn!( "Unsupported attribute: {:?}", a ); continue; }
+          gltf::Semantic::Joints( i ) =>
+          {
+            geometry.add_attribute
+            (
+              gl,
+              format!( "joints_{}", i ),
+              make_attibute_info( &acc, 10 + i ),
+              true
+            )?;
+          },
+          gltf::Semantic::Weights( i ) =>
+          {
+            geometry.add_attribute
+            (
+              gl,
+              format!( "weights_{}", i ),
+              make_attibute_info( &acc, 13 + i ),
+              true
+            )?;
+          },
+          //a => { gl::warn!( "Unsupported attribute: {:?}", a ); continue; }
         };
       }
 
@@ -443,6 +552,8 @@ mod private
     gl::log::info!( "Meshes: {}",meshes.len() );
 
     let mut nodes = Vec::new();
+    let mut skinned_nodes = Vec::new();
+
     for gltf_node in gltf_file.nodes()
     {
       let mut node = Node::default();
@@ -462,7 +573,14 @@ mod private
       node.set_rotation( gl::QuatF32::from( rotation ) );
       if let Some( name ) = gltf_node.name() { node.set_name( name ); }
 
-      nodes.push( Rc::new( RefCell::new( node ) ) );
+      let node = Rc::new( RefCell::new( node ) );
+
+      if let Some( skin ) = gltf_node.skin()
+      {
+        skinned_nodes.push( ( node.clone(), skin ) );
+      }
+
+      nodes.push( node );
     }
 
     for gltf_node in gltf_file.nodes()
@@ -475,6 +593,52 @@ mod private
     }
 
     gl::log::info!( "Nodes: {}", nodes.len() );
+
+    let nodes_map = nodes.iter()
+    .filter_map
+    (
+      | n |
+      {
+        n.borrow()
+        .get_name()
+        .map
+        (
+          | name |
+          ( name, n.clone() )
+        )
+      }
+    )
+    .collect::< HashMap< _, _ > >();
+
+    for ( node, skin ) in skinned_nodes
+    {
+      if let Object3D::Mesh( mesh ) = &node.borrow().object
+      {
+        if let Some( skeleton ) = load_skeleton
+        (
+          gl,
+          skin,
+          &nodes_map,
+          bin_buffers.as_slice()
+        )
+        .await
+        {
+          mesh.borrow_mut().skeleton = Some( skeleton );
+          for primitive in &mesh.borrow().primitives
+          {
+            primitive.borrow()
+            .geometry.borrow_mut()
+            .defines += "#define USE_SKINNING\n";
+          }
+        }
+      }
+    }
+
+    #[ cfg( feature = "animation" ) ]
+    let animations = crate::webgl::animation::load( &gltf_file, bin_buffers.as_slice(), nodes.as_slice() ).await;
+
+    #[ cfg( feature = "animation" ) ]
+    gl::log::info!( "Animations: {}", animations.len() );
 
     let mut scenes = Vec::new();
 
@@ -498,7 +662,9 @@ mod private
         images,
         textures,
         materials,
-        meshes
+        meshes,
+        #[ cfg( feature = "animation" ) ]
+        animations
       }
     )
   }

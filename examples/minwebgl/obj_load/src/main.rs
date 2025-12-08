@@ -79,7 +79,7 @@ async fn run() -> Result< (), gl::WebglError >
   let projection_matrix = gl::math::mat3x3h::perspective_rh_gl( 70.0f32.to_radians(), aspect, 0.1, 1000.0 );
   let model_matrix = gl::F32x4x4::from_scale_rotation_translation
   (
-    gl::F32x3::splat( scale ) * 8.0, 
+    gl::F32x3::splat( scale ) * 8.0,
     gl::QuatF32::from_angle_y( 180.0f32.to_radians() ),
     gl::F32x3::ZERO
   );
@@ -93,7 +93,7 @@ async fn run() -> Result< (), gl::WebglError >
     move | t : f64 |
     {
       let time = t as f32 / 1000.0;
-      let rotation = gl::math::mat3x3::from_angle_y( time.to_radians() );
+      let rotation = gl::math::mat3x3::from_angle_y( time.to_radians() * 10.0 );
       let eye = rotation * eye;
 
       let view_matrix = gl::math::mat3x3h::look_at_rh( eye, gl::F32x3::ZERO, up );

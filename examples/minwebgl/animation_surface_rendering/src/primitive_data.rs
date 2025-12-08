@@ -223,7 +223,7 @@ mod private
 
     gl::buffer::upload( &gl, &position_buffer, &positions, GL::STATIC_DRAW );
     gl::index::upload( &gl, &index_buffer, &indices, GL::STATIC_DRAW );
-    
+
     let node_iter = nodes.iter()
     .zip( primitives_data.iter().map( | p | p.parent ) );
 
@@ -250,7 +250,8 @@ mod private
       images : Rc::new( RefCell::new( vec![] ) ),
       textures : vec![],
       materials,
-      meshes
+      meshes,
+      animations : vec![]
     }
   }
 }
