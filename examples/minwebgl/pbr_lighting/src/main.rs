@@ -35,8 +35,8 @@ mod gui_setup;
 
 fn to_spherical( decart : F32x3 ) -> ( f32, f32, f32 )
 {
-  let radius = decart.distance( &F32x3::splat( 0.0 ) );
-  let theta = ( decart.0[ 2 ] / radius ).acos();
+  let radius = decart.mag();
+  let theta = ( decart.z() / radius ).acos();
   let [ x, _y, z ] = decart.0;
   let phi = z.signum() * ( x / ( x * x + z * z ).sqrt() ).acos();
 
@@ -179,7 +179,7 @@ async fn run() -> Result< (), gl::WebglError >
     lights.push( p );
   }
 
-  let controlable_light = add_light
+  let controllable_light = add_light
   (
     &scenes[ 0 ],
     Light::Direct
@@ -192,9 +192,9 @@ async fn run() -> Result< (), gl::WebglError >
       }
     )
   );
-  controlable_light.borrow_mut().set_name( "controlable" );
+  controllable_light.borrow_mut().set_name( "controllable" );
 
-  let _settings = gui_setup::setup( renderer.clone(), lights.clone(), controlable_light.clone() ).unwrap();
+  let _settings = gui_setup::setup( renderer.clone(), lights.clone(), controllable_light.clone() ).unwrap();
 
   let light_radius = 1.0;
   let light_speed = 50.0;
@@ -208,7 +208,7 @@ async fn run() -> Result< (), gl::WebglError >
       {
         if let Some( name ) = light.borrow().get_name()
         {
-          if name.to_string().as_str() == "controlable"
+          if name.to_string().as_str() == "controllable"
           {
             continue;
           }
