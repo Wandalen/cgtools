@@ -26,25 +26,25 @@
 //!
 //! # Examples
 //!
-//! `
+//! ```
 //! use behaviour_tree::*;
-//! use tiles_tools::ecs::*;
-//! use tiles_tools::coordinates::square::{ Coordinate, FourConnected };
 //!
-//! // Create a simple patrol behavior
+//! // Create a simple patrol behavior using blackboard values
 //! let mut patrol_tree = BehaviorTreeBuilder::new()
 //!     .sequence(vec![
-//!         Box::new(MoveToAction::new(Coordinate::<FourConnected>::new(10, 10))),
-//!         Box::new(WaitAction::new(2.0)), // Wait 2 seconds
-//!         Box::new(MoveToAction::new(Coordinate::<FourConnected>::new(5, 5))),
-//!         Box::new(WaitAction::new(2.0)),
+//!         set_blackboard("target_x", 10),
+//!         set_blackboard("target_y", 10),
+//!         wait(2.0), // Wait 2 seconds
+//!         set_blackboard("target_x", 5),
+//!         set_blackboard("target_y", 5),
+//!         wait(2.0),
 //!     ])
 //!     .build();
 //!
 //! // Execute the behavior tree
 //! let mut context = BehaviorContext::new();
 //! let status = patrol_tree.execute(&mut context);
-//! `
+//! ```
 
 #![ allow( clippy::doc_markdown ) ]
 #![ allow( clippy::exhaustive_enums ) ]
