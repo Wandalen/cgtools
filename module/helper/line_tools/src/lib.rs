@@ -109,7 +109,7 @@ mod private
             };
 
             self.geometry.total_distance += distance;
-            self.geometry.distances.push_back( self.total_distance );
+            self.geometry.distances.push_back( self.geometry.total_distance );
           }
 
           self.geometry.points.push_back( point );
@@ -122,9 +122,11 @@ mod private
           let mut iter = point.vector_iter();
           let point = splat_vector!( *iter.next().unwrap(), $primitive_type, $dimensions );
 
+          let geometry = &mut self.geometry;
+
           #[ cfg( feature = "distance" ) ]
           {
-            let distance = if let Some( last ) = self.points.front().copied()
+            let distance = if let Some( last ) = geometry.points.front().copied()
             {
               if ( last - point ).mag2() <= std::$primitive_type::EPSILON 
               {
@@ -138,16 +140,16 @@ mod private
               0.0
             };
 
-            for d in self.distances.iter_mut()
+            for d in geometry.distances.iter_mut()
             {
               *d += distance;
             }
 
-            self.total_distance += distance;
-            self.distances.push_front( 0.0 );
+            geometry.total_distance += distance;
+            geometry.distances.push_front( 0.0 );
           }
 
-          self.geometry.points.push_front( point );
+          geometry.points.push_front( point );
           self.change_state.points_changed = true;
         }
 
@@ -254,19 +256,20 @@ mod private
         /// Removes a points from the front
         pub fn point_remove_front( &mut self ) -> Option< dim_to_vec!( $primitive_type, $dimensions ) >
         {
+          let geometry = &mut self.geometry;
           #[ cfg( feature = "distance" ) ]
           {
-            if self.distances.len() > 1
+            if geometry.distances.len() > 1
             {
-              let delta_dist = self.distances[ 1 ];
-              for d in self.distances.iter_mut().skip( 1 )
+              let delta_dist = geometry.distances[ 1 ];
+              for d in geometry.distances.iter_mut().skip( 1 )
               {
                 *d -= delta_dist;
               }
             }
-            self.distances.pop_front();
+            geometry.distances.pop_front();
           }
-          let point = self.geometry.points.pop_front();
+          let point = geometry.points.pop_front();
           self.change_state.points_changed = true;
 
           point
@@ -284,17 +287,18 @@ mod private
         /// Remove a point from the back
         pub fn point_remove_back( &mut self ) -> Option< dim_to_vec!( $primitive_type, $dimensions ) >
         {
+          let geometry = &mut self.geometry;
           #[ cfg( feature = "distance" ) ]
           {
-            if self.distances.len() > 0
+            if geometry.distances.len() > 0
             {
-              let delta_dist = self.geometry.distances.back().unwrap();
-              self.geometry.total_distance -= delta_dist;
-              self.geometry.distances.pop_back();
+              let delta_dist = geometry.distances.back().unwrap();
+              geometry.total_distance -= delta_dist;
+              geometry.distances.pop_back();
             }
           }
 
-          let point = self.geometry.points.pop_back();
+          let point = geometry.points.pop_back();
           self.change_state.points_changed = true;
 
           point
@@ -403,11 +407,11 @@ mod private
           self.geometry.total_distance = 0.0;
           self.geometry.distances.clear();
           self.geometry.distances.push_back( 0.0 );
-          for ( i, p ) in self.points.iter().skip( 1 ).enumerate()
+          for ( i, p ) in self.geometry.points.iter().skip( 1 ).enumerate()
           {
             let dist = ( *p - *self.geometry.points.get( i ).unwrap() ).mag();
             self.geometry.total_distance += dist;
-            self.geometry.distances.push_back( self.total_distance );
+            self.geometry.distances.push_back( self.geometry.total_distance );
           } 
         }
 
