@@ -55,15 +55,18 @@ pub fn create_light_system
 
   let prev_radius_range = Rc::new( RefCell::new( ( min_radius, max_radius ) ) );
 
-  Ok( LightSystem
-  {
-    translations,
-    translation_buffer,
-    radii,
-    radius_buffer,
-    orbits,
-    offsets,
-    prev_radius_range,
-    max_count,
-  })
+  Ok
+  (
+    LightSystem
+    {
+      translations,
+      translation_buffer,
+      radii,
+      radius_buffer,
+      orbits,
+      offsets,
+      prev_radius_range,
+      max_count,
+    }
+  )
 }

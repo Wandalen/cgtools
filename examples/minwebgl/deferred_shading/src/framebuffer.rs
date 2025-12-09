@@ -2,14 +2,13 @@
 
 use minwebgl as gl;
 use gl::GL;
-use web_sys::{ WebGlFramebuffer, WebGlRenderbuffer, WebGlTexture };
-use crate::types::Framebuffers;
+use web_sys::WebGlTexture;
+use crate::types::{ Framebuffers, GBuffer };
 
 /// Create framebuffers for deferred rendering
 pub fn create_framebuffers( gl : &GL, width : i32, height : i32 ) -> Framebuffers
 {
-  let ( gbuffer, position_gbuffer, normal_gbuffer, color_gbuffer, depthbuffer ) =
-    create_gbuffer( gl, width, height );
+  let gbuffer = create_gbuffer( gl, width, height );
 
   let offscreen_color = tex_storage_2d( gl, GL::RGBA8, width, height );
   let offscreen_buffer = gl.create_framebuffer();
@@ -26,10 +25,6 @@ pub fn create_framebuffers( gl : &GL, width : i32, height : i32 ) -> Framebuffer
   Framebuffers
   {
     gbuffer,
-    position_gbuffer,
-    normal_gbuffer,
-    color_gbuffer,
-    depthbuffer,
     offscreen_buffer,
     offscreen_color,
   }
@@ -37,40 +32,31 @@ pub fn create_framebuffers( gl : &GL, width : i32, height : i32 ) -> Framebuffer
 
 /// Creates and configures the G-buffer framebuffer and its associated textures
 /// (position, normal, color) and depth renderbuffer.
-pub fn create_gbuffer( gl : &GL, width : i32, height : i32 )
-->
-(
-  Option< WebGlFramebuffer >,
-  Option< WebGlTexture >,
-  Option< WebGlTexture >,
-  Option< WebGlTexture >,
-  Option< WebGlRenderbuffer >
-)
+pub fn create_gbuffer( gl : &GL, width : i32, height : i32 ) -> GBuffer
 {
   // Create textures for position, normal, and color
   // RGBA16F for position and normal to store floating-point data
-  let position_gbuffer = tex_storage_2d( gl, GL::RGBA16F, width, height );
-  let normal_gbuffer = tex_storage_2d( gl, GL::RGBA16F, width, height );
+  let position = tex_storage_2d( gl, GL::RGBA16F, width, height );
+  let normal = tex_storage_2d( gl, GL::RGBA16F, width, height );
   // RGBA8 for color (standard 8-bit per channel)
-  let color_gbuffer = tex_storage_2d( gl, GL::RGBA8, width, height );
+  let color = tex_storage_2d( gl, GL::RGBA8, width, height );
 
   // Create a renderbuffer for depth
-  let depthbuffer = gl.create_renderbuffer();
-  gl.bind_renderbuffer( GL::RENDERBUFFER, depthbuffer.as_ref() );
+  let depth = gl.create_renderbuffer();
+  gl.bind_renderbuffer( GL::RENDERBUFFER, depth.as_ref() );
   gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH_COMPONENT24, width, height );
 
   // Create the framebuffer
-  let gbuffer = gl.create_framebuffer();
-  gl.bind_framebuffer( GL::FRAMEBUFFER, gbuffer.as_ref() );
+  let framebuffer = gl.create_framebuffer();
+  gl.bind_framebuffer( GL::FRAMEBUFFER, framebuffer.as_ref() );
 
   // Attach the textures and depth buffer to the framebuffer's attachment points
-  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, position_gbuffer.as_ref(), 0 );
-  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, normal_gbuffer.as_ref(), 0 );
-  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT2, GL::TEXTURE_2D, color_gbuffer.as_ref(), 0 );
-  gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::RENDERBUFFER, depthbuffer.as_ref() );
+  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, position.as_ref(), 0 );
+  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, normal.as_ref(), 0 );
+  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT2, GL::TEXTURE_2D, color.as_ref(), 0 );
+  gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::RENDERBUFFER, depth.as_ref() );
 
-  // Return the created framebuffer and attachments
-  ( gbuffer, position_gbuffer, normal_gbuffer, color_gbuffer, depthbuffer )
+  GBuffer { framebuffer, position, normal, color, depth }
 }
 
 /// Helper function to create a 2D texture with specified format, width, and height,

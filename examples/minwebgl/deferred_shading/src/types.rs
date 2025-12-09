@@ -30,14 +30,20 @@ pub struct Shaders
   pub light_sphere : gl::shader::Program,
 }
 
+/// G-buffer with its textures and depth renderbuffer
+pub struct GBuffer
+{
+  pub framebuffer : Option< WebGlFramebuffer >,
+  pub position : Option< WebGlTexture >,
+  pub normal : Option< WebGlTexture >,
+  pub color : Option< WebGlTexture >,
+  pub depth : Option< WebGlRenderbuffer >,
+}
+
 /// Framebuffers and render targets
 pub struct Framebuffers
 {
-  pub gbuffer : Option< WebGlFramebuffer >,
-  pub position_gbuffer : Option< WebGlTexture >,
-  pub normal_gbuffer : Option< WebGlTexture >,
-  pub color_gbuffer : Option< WebGlTexture >,
-  pub depthbuffer : Option< WebGlRenderbuffer >,
+  pub gbuffer : GBuffer,
   pub offscreen_buffer : Option< WebGlFramebuffer >,
   pub offscreen_color : Option< WebGlTexture >,
 }
