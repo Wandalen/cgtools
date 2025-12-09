@@ -62,6 +62,22 @@ pub struct Settings
   pub light_range : f32,
 }
 
+impl Settings
+{
+  fn get_controllable_light_position( &self ) -> F32x3
+  {
+    F32x3::from_spherical
+    (
+      mingl::Spherical
+      {
+        radius : self.light_distance,
+        theta : self.light_pitch,
+        phi : self.light_yaw
+      }
+    )
+  }
+}
+
 impl Default for Settings
 {
   fn default() -> Self
@@ -128,7 +144,7 @@ pub fn setup
   {
     Light::Point( point_light ) =>
     {
-      let ( r, pitch, yaw ) = crate::to_spherical( point_light.position );
+      let mingl::Spherical{ radius : r, theta : pitch, phi : yaw } = F32x3::to_spherical( point_light.position );
       settings.light_mode = LightMode::ControllablePoint;
       settings.light_distance = r;
       settings.light_pitch = pitch;
@@ -139,7 +155,7 @@ pub fn setup
     },
     Light::Direct( direct_light ) =>
     {
-      let ( r, pitch, yaw ) = crate::to_spherical( direct_light.direction );
+      let mingl::Spherical{ radius : r, theta : pitch, phi : yaw } = F32x3::to_spherical( direct_light.direction );
       settings.light_mode = LightMode::ControllableDirect;
       settings.light_distance = r;
       settings.light_pitch = pitch;
@@ -344,7 +360,7 @@ pub fn setup
                 (
                   DirectLight
                   {
-                    direction : crate::to_decart( settings.borrow().light_distance, settings.borrow().light_pitch, settings.borrow().light_yaw ),
+                    direction : settings.borrow().get_controllable_light_position(),
                     color : F32x3::from_array( settings.borrow().light_color ),
                     strength : settings.borrow().light_strength
                   }
@@ -384,7 +400,7 @@ pub fn setup
                 (
                   PointLight
                   {
-                    position : crate::to_decart( settings.borrow().light_distance, settings.borrow().light_pitch, settings.borrow().light_yaw ),
+                    position : settings.borrow().get_controllable_light_position(),
                     color : F32x3::from_array( settings.borrow().light_color ),
                     strength : settings.borrow().light_strength,
                     range : settings.borrow().light_range
@@ -416,11 +432,11 @@ pub fn setup
           {
             Light::Direct( direct ) =>
             {
-              direct.direction = crate::to_decart( settings.borrow().light_distance, settings.borrow().light_pitch, settings.borrow().light_yaw );
+              direct.direction = settings.borrow().get_controllable_light_position();
             },
             Light::Point( point ) =>
             {
-              point.position = crate::to_decart( settings.borrow().light_distance, settings.borrow().light_pitch, settings.borrow().light_yaw );
+              point.position = settings.borrow().get_controllable_light_position();
             },
           }
         }
@@ -446,11 +462,11 @@ pub fn setup
           {
             Light::Direct( direct ) =>
             {
-              direct.direction = crate::to_decart( settings.borrow().light_distance, settings.borrow().light_pitch, settings.borrow().light_yaw );
+              direct.direction = settings.borrow().get_controllable_light_position();
             },
             Light::Point( point ) =>
             {
-              point.position = crate::to_decart( settings.borrow().light_distance, settings.borrow().light_pitch, settings.borrow().light_yaw );
+              point.position = settings.borrow().get_controllable_light_position();
             },
           }
         }
@@ -476,11 +492,11 @@ pub fn setup
           {
             Light::Direct( direct ) =>
             {
-              direct.direction = crate::to_decart( settings.borrow().light_distance, settings.borrow().light_pitch, settings.borrow().light_yaw );
+              direct.direction = settings.borrow().get_controllable_light_position();
             },
             Light::Point( point ) =>
             {
-              point.position = crate::to_decart( settings.borrow().light_distance, settings.borrow().light_pitch, settings.borrow().light_yaw );
+              point.position = settings.borrow().get_controllable_light_position();
             },
           }
         }

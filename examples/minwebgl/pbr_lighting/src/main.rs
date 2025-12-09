@@ -42,34 +42,6 @@ use renderer::webgl::
 mod lil_gui;
 mod gui_setup;
 
-fn to_spherical( decart : F32x3 ) -> ( f32, f32, f32 )
-{
-  let radius = decart.mag();
-  let theta = ( decart.z() / radius ).acos();
-  let [ x, _y, z ] = decart.0;
-  let phi = z.signum() * ( x / ( x * x + z * z ).sqrt() ).acos();
-
-  let phi = phi.to_degrees();
-  let theta = theta.to_degrees();
-  return ( radius, theta, phi );
-}
-
-fn to_decart( radius : f32, theta : f32, phi : f32 ) -> F32x3
-{
-  let phi = phi.to_radians();
-  let theta = theta.to_radians();
-  let sin_phi = phi.sin();
-
-  F32x3::from_array
-  (
-    [
-      radius * sin_phi * theta.cos(),
-      radius * sin_phi * theta.sin(),
-      radius * phi.cos()
-    ]
-  )
-}
-
 fn add_light( scene : &Rc< RefCell< Scene > >, light : Light ) -> Rc< RefCell< Node > >
 {
   let light_node = Rc::new( RefCell::new( Node::new() ) );
@@ -228,11 +200,27 @@ async fn run() -> Result< (), gl::WebglError >
           {
             Light::Direct( direct ) =>
             {
-              direct.direction = to_decart( light_radius, i as f32 * 120.0 + ( t as f32 * light_speed / 1000.0 ), 45.0 );
+              direct.direction = F32x3::from_spherical
+              (
+                mingl::Spherical
+                {
+                  radius : light_radius,
+                  theta : i as f32 * 120.0 + ( t as f32 * light_speed / 1000.0 ),
+                  phi : 45.0
+                }
+              );
             },
             Light::Point( point ) =>
             {
-              point.position = to_decart( light_radius, i as f32 * 120.0 + ( t as f32 * light_speed / 1000.0 ), 45.0 );
+              point.position = F32x3::from_spherical
+              (
+                mingl::Spherical
+                {
+                  radius : light_radius,
+                  theta : i as f32 * 120.0 + ( t as f32 * light_speed / 1000.0 ),
+                  phi : 45.0
+                }
+              );
             }
           }
         }
