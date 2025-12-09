@@ -44,8 +44,7 @@ mod private
         0
       );
 
-      let arr = js_sys::Array::from_iter( [ JsValue::from_f64( gl::NONE as f64 ) ] );
-      gl.draw_buffers( &arr );
+      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
       gl.read_buffer( gl::NONE );
 
       let status = gl.check_framebuffer_status( gl::FRAMEBUFFER );
