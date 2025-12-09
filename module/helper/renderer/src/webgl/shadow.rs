@@ -3,7 +3,7 @@
 mod private
 {
   use minwebgl as gl;
-  use gl::{ GL, Program, js_sys, JsValue, math::mat3x3h };
+  use gl::{ GL, Program, math::mat3x3h };
   use web_sys::{ WebGlFramebuffer, WebGlTexture };
   use std::rc::Rc;
   use core::cell::RefCell;

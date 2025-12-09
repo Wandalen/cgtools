@@ -89,7 +89,7 @@ impl Material for SurfaceMaterial
 
   fn type_name( &self ) -> &'static str
   {
-    "SurfaceMaterial"
+    stringify!( SurfaceMaterial )
   }
 
   fn get_vertex_shader( &self ) -> String
@@ -106,10 +106,11 @@ impl Material for SurfaceMaterial
   (
     &self,
     gl : &gl::WebGl2RenderingContext,
-    locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >,
     _ibl_base_location : u32,
   )
   {
+    self.program.bind( gl );
+    let locations = self.program.locations();
     gl.uniform1i( locations.get( "surfaceTexture" ).unwrap().clone().as_ref(), 0 );
   }
 
@@ -117,11 +118,12 @@ impl Material for SurfaceMaterial
   (
     &self,
     gl : &GL,
-    _node : Rc< RefCell< Node > >,
-    locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
+    _node : Rc< RefCell< Node > >
   )
   -> Result< (), gl::WebglError >
   {
+    self.program.bind( gl );
+    let locations = self.program.locations();
     gl::uniform::upload( gl, locations.get( "surfaceColor" ).unwrap().clone(), self.color.0.as_slice() )?;
     self.upload_textures( gl );
     Ok( () )

@@ -314,10 +314,11 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >,
       ibl_base_location : u32,
     )
     {
+      self.program.bind( gl );
+      let locations = self.program.locations();
       let ibl_base_location = ibl_base_location as i32;
       // Assign a texture unit for each type of texture
       gl.uniform1i( locations.get( "metallicRoughnessTexture" ).unwrap().clone().as_ref() , 0 );
@@ -338,10 +339,10 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      _node : Rc< RefCell< Node > >,
-      locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
+      _node : Rc< RefCell< Node > >
     ) -> Result< (), gl::WebglError >
     {
+      let locations = self.program.locations();
       let upload = | loc, value : Option< f32 > | -> Result< (), gl::WebglError >
       {
         if let Some( v ) = value
@@ -475,9 +476,9 @@ mod private
       self.alpha_mode
     }
 
-    fn type_name(&self) -> &'static str
+    fn type_name( &self ) -> &'static str
     {
-      "PBRMaterial"
+      stringify!( PBRMaterial )
     }
   }
 

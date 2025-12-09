@@ -112,7 +112,7 @@ impl Material for GemMaterial
 
   fn type_name( &self ) -> &'static str
   {
-    "GemMaterial"
+    stringify!( GemMaterial )
   }
 
   fn get_vertex_shader( &self ) -> String
@@ -129,10 +129,11 @@ impl Material for GemMaterial
   (
     &self,
     gl : &gl::WebGl2RenderingContext,
-    locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >,
     _ibl_base_location : u32,
   )
   {
+    self.program.bind( gl );
+    let locations = self.program.locations();
     gl.uniform1i( locations.get( "envMap" ).unwrap().clone().as_ref() , 0 );
     gl.uniform1i( locations.get( "cubeNormalMap" ).unwrap().clone().as_ref() , 1 );
   }
@@ -141,11 +142,12 @@ impl Material for GemMaterial
   (
     &self,
     gl : &GL,
-    node : Rc< RefCell< Node > >,
-    locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
+    node : Rc< RefCell< Node > >
   )
   -> Result< (), gl::WebglError >
   {
+    self.program.bind( gl );
+    let locations = self.program.locations();
     let upload = | loc, value : f32 | -> Result< (), gl::WebglError >
     {
       gl::uniform::upload( gl, locations.get( loc ).unwrap().clone(), &value )?;

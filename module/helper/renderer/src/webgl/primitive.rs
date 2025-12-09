@@ -1,7 +1,6 @@
 mod private
 {
   use std::{ cell::RefCell, fmt::Debug, rc::Rc };
-  use rustc_hash::FxHashMap;
   use mingl::geometry::BoundingBox;
   use minwebgl as gl;
   use crate::webgl::{ Geometry, Material, Node };
@@ -38,11 +37,10 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      node : Rc< RefCell< Node > >,
-      locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
+      node : Rc< RefCell< Node > >
     ) -> Result< (), gl::WebglError >
     {
-      self.material.borrow().upload( gl, node, locations )?;
+      self.material.borrow().upload( gl, node )?;
       self.geometry.borrow().upload( gl )?;
 
       Ok( () )

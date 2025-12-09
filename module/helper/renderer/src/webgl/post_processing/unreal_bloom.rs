@@ -4,7 +4,7 @@ mod private
   use minwebgl as gl;
   use crate::webgl::
   {
-    ShaderProgram, post_processing::{ Pass, VS_TRIANGLE }, program::{self, CompositeShader}
+    ShaderProgram, post_processing::{ Pass, VS_TRIANGLE }, program::{ self, UnrealBloomShader }
   };
 
   // Defines the number of mipmap levels to use for the blur effect.
@@ -24,12 +24,14 @@ mod private
     /// each mip level, with different kernel radii.
     blur_materials : Vec< program::GaussianFilterShader >,
     /// Composites all the blurred mipmap levels together to create the final bloom effect.
-    composite_material : CompositeShader,
+    composite_material : UnrealBloomShader,
     /// The width of the texture to blur
     width : u32,
     /// The hegiht of the textuer to blur
     height : u32,
+    /// Bloom radius
     bloom_radius : f32,
+    /// Bloom strength
     bloom_strength : f32
   }
 
@@ -129,7 +131,7 @@ mod private
       // Dynamically inject the NUM_MIPS define into the bloom composite shader.
       let fs_shader = format!( "#version 300 es\n#define NUM_MIPS {}\n{}", MIPS, fs_shader );
       let composite_material = gl::ProgramFromSources::new( VS_TRIANGLE, &fs_shader ).compile_and_link( gl )?;
-      let composite_material = CompositeShader::new( gl, &composite_material );
+      let composite_material = UnrealBloomShader::new( gl, &composite_material );
 
       // Define bloom factors and tint colors for each mip level.
       const BLOOM_FACTORS : [ f32; 5 ] = [ 1.0, 0.8, 0.6, 0.4, 0.2 ];

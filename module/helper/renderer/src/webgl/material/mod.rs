@@ -3,7 +3,7 @@ mod private
   use minwebgl as gl;
   use crate::webgl::{ Node, ShaderProgram, Texture };
   use std:: { cell::RefCell, fmt::Debug, rc::Rc };
-  use rustc_hash::{ FxHashMap, FxHasher };
+  use rustc_hash::FxHasher;
 
   /// Represents the alpha blending mode of the material.
   #[ derive( Default, Clone, Copy, PartialEq, Eq, Debug ) ]
@@ -162,7 +162,6 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >,
       ibl_base_location : u32,
     );
 
@@ -174,8 +173,7 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      node : Rc< RefCell< Node > >,
-      locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
+      node : Rc< RefCell< Node > >
     ) -> Result< (), gl::WebglError >;
 
     /// Uploads the texture data of all used textures to the GPU.

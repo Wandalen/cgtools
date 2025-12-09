@@ -827,15 +827,15 @@ mod private
                   material.get_fragment_shader()
                 )
               ).compile_and_link( gl )?;
-              *material.shader_mut().program_mut() = program;
+              material.shader_mut().set_program( gl, &program );
               let shader_program = material.shader();
 
               // Configure and upload material properties and IBL textures for the new program.
-              let locations = shader_program.locations();
               shader_program.bind( gl );
               const IBL_BASE_ACTIVE_TEXTURE : u32 = 10;
-              material.configure( gl, locations, IBL_BASE_ACTIVE_TEXTURE );
-              material.upload( gl, node.clone(), locations )?;
+              material.configure( gl, IBL_BASE_ACTIVE_TEXTURE );
+              material.upload( gl, node.clone() )?;
+              let locations = shader_program.locations();
               camera.upload( gl, locations );
               if material.needs_ibl()
               {
@@ -871,7 +871,7 @@ mod private
 
             if material.needs_update() && program_cached
             {
-              let _ = material.upload( gl, node.clone(), shader_program.locations() );
+              let _ = material.upload( gl, node.clone() );
             }
 
             node.borrow().upload( gl, locations );
