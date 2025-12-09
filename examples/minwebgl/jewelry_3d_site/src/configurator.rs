@@ -190,7 +190,7 @@ impl Configurator
       {
         let material = &primitive.borrow().material;
         {
-          if material.borrow().get_type_name() != "GemMaterial"
+          if material.borrow().type_name() != "GemMaterial"
           {
             continue;
           }
@@ -280,7 +280,7 @@ impl Configurator
         {
           let material = &primitive.borrow().material;
           {
-            if material.borrow().get_type_name() != "PBRMaterial"
+            if material.borrow().type_name() != "PBRMaterial"
             {
               continue;
             }

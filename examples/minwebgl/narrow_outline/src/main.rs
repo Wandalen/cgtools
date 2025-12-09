@@ -62,7 +62,6 @@ use renderer::webgl::
   {
     NormalDepthOutlineObjectShader,
     NormalDepthOutlineShader,
-    ProgramInfo,
     ShaderProgram
 
   },
@@ -688,9 +687,9 @@ fn primitives_csgrs_gltf
 struct Programs
 {
   /// The shader program for the initial object rendering pass.
-  object : ProgramInfo,
+  object : NormalDepthOutlineObjectShader,
   /// The shader program for the final outline pass.
-  outline : ProgramInfo,
+  outline : NormalDepthOutlineShader,
   /// The raw WebGL program for the outline shader.
   outline_program : WebGlProgram
 }
@@ -719,8 +718,8 @@ impl Programs
     let object_program = gl::ProgramFromSources::new( object_vs_src, object_fs_src ).compile_and_link( gl ).unwrap();
     let outline_program = gl::ProgramFromSources::new( fullscreen_vs_src, outline_fs_src ).compile_and_link( gl ).unwrap();
 
-    let object = ProgramInfo::new( gl, &object_program, NormalDepthOutlineObjectShader.dyn_clone() );
-    let outline = ProgramInfo::new( gl, &outline_program, NormalDepthOutlineShader.dyn_clone() );
+    let object = NormalDepthOutlineObjectShader::new( gl, &object_program );
+    let outline = NormalDepthOutlineShader::new( gl, &outline_program );
 
     Self
     {
@@ -878,7 +877,7 @@ impl Renderer
 
     let object_fb = self.framebuffers.get( "object_fb" ).unwrap();
 
-    let locations = self.programs.object.get_locations();
+    let locations = self.programs.object.locations();
 
     let u_projection_loc = locations.get( "u_projection" ).unwrap().clone().unwrap();
     let u_view_loc = locations.get( "u_view" ).unwrap().clone().unwrap();
@@ -958,7 +957,7 @@ impl Renderer
     let object_fb_norm = self.textures.get( "object_fb_norm" ).unwrap();
 
     self.programs.outline.bind( gl );
-    let locations = self.programs.outline.get_locations();
+    let locations = self.programs.outline.locations();
 
     let u_color_texture_loc = locations.get( "u_color_texture" ).unwrap().clone().unwrap();
     let u_depth_texture_loc = locations.get( "u_depth_texture" ).unwrap().clone().unwrap();

@@ -2,14 +2,14 @@
 mod private
 {
   use minwebgl as gl;
-  use crate::webgl::{ ProgramInfo, ShaderProgram, post_processing::{Pass, VS_TRIANGLE}, program::EmptyShader };
+  use crate::webgl::{ ShaderProgram, post_processing::{Pass, VS_TRIANGLE}, program::EmptyShader };
 
   /// A post-processing pass responsible for converting a linear color space texture
   /// to the sRGB color space.
   pub struct ToSrgbPass
   {
     /// The WebGL program used for the sRGB conversion.
-    material : ProgramInfo,
+    material : EmptyShader,
     /// A boolean flag indicating whether the output of this pass should be
     /// rendered directly to the screen's default framebuffer or
     /// to an offscreen `output_texture`.
@@ -29,7 +29,7 @@ mod private
     {
       let fs_shader = include_str!( "../shaders/post_processing/to_srgb.frag" );
       let material = gl::ProgramFromSources::new( VS_TRIANGLE, fs_shader ).compile_and_link( gl )?;
-      let material = ProgramInfo::new( gl, &material, EmptyShader.dyn_clone() );
+      let material = EmptyShader::new( gl, &material );
 
       Ok
       (

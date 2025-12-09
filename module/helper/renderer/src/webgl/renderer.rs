@@ -24,7 +24,6 @@ mod private
     Node,
     Object3D,
     Primitive,
-    ProgramInfo,
     ShaderProgram,
     Scene,
     IBL,
@@ -491,7 +490,7 @@ mod private
   pub struct Renderer
   {
     /// A map of compiled WebGL programs, keyed by a combination of the material ID and vertex shader defines.
-    programs : FxHashMap< String, ProgramInfo >,
+    programs : FxHashMap< String, Box< dyn ShaderProgram > >,
     /// Holds the precomputed textures used for Image-Based Lighting.
     ibl : Option< IBL >,
     /// A list of nodes with transparent primitives, sorted by distance to the camera for correct rendering order.
@@ -510,11 +509,11 @@ mod private
     /// Swap buffer to control rendering of the effects
     swap_buffer : SwapFramebuffer,
     exposure : f32,
-    composite_shader : ProgramInfo,
+    composite_shader : CompositeShader,
     /// Clear color
     clear_color : F32x3,
     /// Shader for drawing background
-    skybox_shader : ProgramInfo
+    skybox_shader : SkyboxShader
   }
 
   impl Renderer
@@ -536,8 +535,8 @@ mod private
       let exposure = 0.0;
 
       let composite_program = gl::ProgramFromSources::new( VS_TRIANGLE, include_str!( "shaders/composite.frag" ) ).compile_and_link( gl )?;
-      let composite_shader = ProgramInfo::new( gl, &composite_program, CompositeShader.dyn_clone() );
-      let locations = composite_shader.get_locations();
+      let composite_shader = CompositeShader::new( gl, &composite_program );
+      let locations = composite_shader.locations();
       composite_shader.bind( gl );
       gl.uniform1i( locations.get( "transparentA" ).unwrap().clone().as_ref() , 0 );
       gl.uniform1i( locations.get( "transparentB" ).unwrap().clone().as_ref() , 1 );
@@ -548,7 +547,7 @@ mod private
         include_str!( "shaders/skybox.frag" )
       )
       .compile_and_link( gl )?;
-      let skybox_shader = ProgramInfo::new( gl, &skybox_program, SkyboxShader.dyn_clone() );
+      let skybox_shader = SkyboxShader::new( gl, &skybox_program );
 
       Ok
       (
@@ -658,7 +657,7 @@ mod private
       gl.viewport( 0, 0, self.framebuffer_ctx.texture_width as i32, self.framebuffer_ctx.texture_height as i32 );
       gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
-      let locations = self.skybox_shader.get_locations();
+      let locations = self.skybox_shader.locations();
 
       let equirect_map_loc = locations.get( "equirectMap" ).unwrap();
       let inv_projection_loc = locations.get( "invProjection" ).unwrap();
@@ -763,10 +762,10 @@ mod private
 
       for program in self.programs.values()
       {
-        let locations = program.get_locations();
+        let locations = program.locations();
         program.bind( gl );
         camera.upload( gl, locations );
-        bind_light( gl, &program, &lights );
+        bind_lights( gl, &program, &lights );
         if let Some( exposure_loc ) = locations.get( "exposure" )
         {
           gl::uniform::upload( gl, exposure_loc.clone(), &self.exposure )?;
@@ -798,10 +797,10 @@ mod private
             let program_cached = self.programs.contains_key( &program_id );
 
             // Retrieve the program info if it already exists, otherwise compile and link a new program.
-            let program_info =
-            if let Some( program_info ) = self.programs.get( &program_id )
+            let shader_program =
+            if let Some( shader_program ) = self.programs.get( &program_id )
             {
-              program_info
+              shader_program
             }
             else
             {
@@ -828,12 +827,12 @@ mod private
                   material.get_fragment_shader()
                 )
               ).compile_and_link( gl )?;
-              material.get_program_info_mut().set_program( gl, program );
-              let program_info = material.get_program_info();
+              *material.shader_mut().program_mut() = program;
+              let shader_program = material.shader();
 
               // Configure and upload material properties and IBL textures for the new program.
-              let locations = program_info.get_locations();
-              program_info.bind( gl );
+              let locations = shader_program.locations();
+              shader_program.bind( gl );
               const IBL_BASE_ACTIVE_TEXTURE : u32 = 10;
               material.configure( gl, locations, IBL_BASE_ACTIVE_TEXTURE );
               material.upload( gl, node.clone(), locations )?;
@@ -847,7 +846,7 @@ mod private
               }
 
               // Store the new program info in the cache.
-              self.programs.insert( program_id.clone(), program_info.clone() );
+              self.programs.insert( program_id.clone(), shader_program.dyn_clone() );
               self.programs.get( &program_id ).unwrap()
             };
 
@@ -865,14 +864,14 @@ mod private
             }
 
             // Get the uniform locations for the current program.
-            let locations = program_info.get_locations();
+            let locations = shader_program.locations();
 
             // Bind the program, upload camera and node matrices, bind the primitive, and draw it.
-            program_info.bind( gl );
+            shader_program.bind( gl );
 
             if material.needs_update() && program_cached
             {
-              let _ = material.upload( gl, node.clone(), program_info.get_locations() );
+              let _ = material.upload( gl, node.clone(), shader_program.locations() );
             }
 
             node.borrow().upload( gl, locations );
@@ -897,11 +896,11 @@ mod private
       {
         let primitive = primitive;
         let material = primitive.material.borrow();
-        let program_info = self.programs.get( &format!( "{}{}",  material.get_id(), material.get_defines_str() ) ).unwrap();
+        let shader_program = self.programs.get( &format!( "{}{}",  material.get_id(), material.get_defines_str() ) ).unwrap();
 
-        let locations = program_info.get_locations();
+        let locations = shader_program.locations();
 
-        program_info.bind( gl );
+        shader_program.bind( gl );
 
         node.upload( gl, locations );
         primitive.bind( gl );
@@ -943,11 +942,11 @@ mod private
       //   let material = primitive.material.borrow();
       //   let geometry = primitive.geometry.borrow();
       //   let vs_defines = geometry.get_defines();
-      //   let program_info = self.programs.get( &format!( "{}{}",  material.id, vs_defines ) ).unwrap();
+      //   let shader_program = self.programs.get( &format!( "{}{}",  material.id, vs_defines ) ).unwrap();
 
-      //   let locations = program_info.get_locations();
+      //   let locations = shader_program.locations();
 
-      //   program_info.bind( gl );
+      //   shader_program.bind( gl );
 
       //   node.upload( gl, locations );
       //   primitive.bind( gl );
@@ -1008,14 +1007,14 @@ mod private
     }
   }
 
-  fn bind_light
+  fn bind_lights
   (
     gl : &GL,
-    program : &ProgramInfo,
+    program : &Box< dyn ShaderProgram >,
     lights : &HashMap< String, Vec< Light > >
   )
   {
-    let locations = program.get_locations();
+    let locations = program.locations();
 
     for ( type_, one_type_lights ) in lights
     {
@@ -1027,7 +1026,7 @@ mod private
         _ => continue
       };
 
-      let count_loc = gl.get_uniform_location( &program.get_program(), format!( "{type_}LightsCount" ).as_str() );
+      let count_loc = gl.get_uniform_location( program.program(), format!( "{type_}LightsCount" ).as_str() );
       let _ = gl::uniform::upload( gl, count_loc, &( one_type_lights.len().min( max_count ) as i32 ) );
     }
 
@@ -1050,10 +1049,10 @@ mod private
               continue;
             };
 
-            let position_loc = gl.get_uniform_location( &program.get_program(), format!( "pointLights[{i}].position" ).as_str() );
-            let color_loc = gl.get_uniform_location( &program.get_program(), format!( "pointLights[{i}].color" ).as_str() );
-            let strength_loc = gl.get_uniform_location( &program.get_program(), format!( "pointLights[{i}].strength" ).as_str() );
-            let range_loc = gl.get_uniform_location( &program.get_program(), format!( "pointLights[{i}].range" ).as_str() );
+            let position_loc = gl.get_uniform_location( program.program(), format!( "pointLights[{i}].position" ).as_str() );
+            let color_loc = gl.get_uniform_location( program.program(), format!( "pointLights[{i}].color" ).as_str() );
+            let strength_loc = gl.get_uniform_location( program.program(), format!( "pointLights[{i}].strength" ).as_str() );
+            let range_loc = gl.get_uniform_location( program.program(), format!( "pointLights[{i}].range" ).as_str() );
 
             let _ = gl::uniform::upload( gl, position_loc, light.position.as_slice() );
             let _ = gl::uniform::upload( gl, color_loc, light.color.as_slice() );
@@ -1073,9 +1072,9 @@ mod private
               continue;
             };
 
-            let direction_loc = gl.get_uniform_location( &program.get_program(), format!( "directLights[{i}].direction" ).as_str() );
-            let color_loc = gl.get_uniform_location( &program.get_program(), format!( "directLights[{i}].color" ).as_str() );
-            let strength_loc = gl.get_uniform_location( &program.get_program(), format!( "directLights[{i}].strength" ).as_str() );
+            let direction_loc = gl.get_uniform_location( program.program(), format!( "directLights[{i}].direction" ).as_str() );
+            let color_loc = gl.get_uniform_location( program.program(), format!( "directLights[{i}].color" ).as_str() );
+            let strength_loc = gl.get_uniform_location( program.program(), format!( "directLights[{i}].strength" ).as_str() );
 
             let _ = gl::uniform::upload( gl, direction_loc, light.direction.as_slice() );
             let _ = gl::uniform::upload( gl, color_loc, light.color.as_slice() );
@@ -1094,14 +1093,14 @@ mod private
               continue;
             };
 
-            let position_loc = gl.get_uniform_location( &program.get_program(), format!( "spotLights[{i}].position" ).as_str() );
-            let direction_loc = gl.get_uniform_location( &program.get_program(), format!( "spotLights[{i}].direction" ).as_str() );
-            let color_loc = gl.get_uniform_location( &program.get_program(), format!( "spotLights[{i}].color" ).as_str() );
-            let strength_loc = gl.get_uniform_location( &program.get_program(), format!( "spotLights[{i}].strength" ).as_str() );
-            let range_loc = gl.get_uniform_location( &program.get_program(), format!( "spotLights[{i}].range" ).as_str() );
-            let inner_angle_loc = gl.get_uniform_location( &program.get_program(), format!( "spotLights[{i}].innerConeAngle" ).as_str() );
-            let outer_angle_loc = gl.get_uniform_location( &program.get_program(), format!( "spotLights[{i}].outerConeAngle" ).as_str() );
-            let use_lightmap_loc = gl.get_uniform_location( &program.get_program(), format!( "spotLights[{i}].useLightMap" ).as_str() );
+            let position_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].position" ).as_str() );
+            let direction_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].direction" ).as_str() );
+            let color_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].color" ).as_str() );
+            let strength_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].strength" ).as_str() );
+            let range_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].range" ).as_str() );
+            let inner_angle_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].innerConeAngle" ).as_str() );
+            let outer_angle_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].outerConeAngle" ).as_str() );
+            let use_lightmap_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].useLightMap" ).as_str() );
 
             let _ = gl::uniform::upload( gl, position_loc, light.position.as_slice() );
             let _ = gl::uniform::upload( gl, direction_loc, light.direction.as_slice() );

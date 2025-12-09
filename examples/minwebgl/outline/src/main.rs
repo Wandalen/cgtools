@@ -47,7 +47,6 @@ use renderer::webgl::
   node::{ Node, Object3D },
   program::
   {
-    ProgramInfo,
     ShaderProgram,
     JfaOutlineObjectShader,
     JfaOutlineInitShader,
@@ -137,10 +136,10 @@ fn upload_framebuffer(
 
 struct Programs
 {
-  object : ProgramInfo,
-  jfa_init : ProgramInfo,
-  jfa_step : ProgramInfo,
-  outline : ProgramInfo
+  object : JfaOutlineObjectShader,
+  jfa_init : JfaOutlineInitShader,
+  jfa_step : JfaOutlineStepShader,
+  outline : JfaOutlineShader
 }
 
 impl Programs
@@ -162,10 +161,10 @@ impl Programs
     let jfa_step_program = gl::ProgramFromSources::new( fullscreen_vs_src, jfa_step_fs_src ).compile_and_link( gl ).unwrap();
     let outline_program = gl::ProgramFromSources::new( fullscreen_vs_src, outline_fs_src ).compile_and_link( gl ).unwrap();
 
-    let object = ProgramInfo::new( gl, &object_program, JfaOutlineObjectShader.dyn_clone() );
-    let jfa_init = ProgramInfo::new( gl, &jfa_init_program, JfaOutlineInitShader.dyn_clone() );
-    let jfa_step = ProgramInfo::new( gl, &jfa_step_program, JfaOutlineStepShader.dyn_clone() );
-    let outline = ProgramInfo::new( gl, &outline_program, JfaOutlineShader.dyn_clone() );
+    let object = JfaOutlineObjectShader::new( gl, &object_program );
+    let jfa_init = JfaOutlineInitShader::new( gl, &jfa_init_program );
+    let jfa_step = JfaOutlineStepShader::new( gl, &jfa_step_program );
+    let outline = JfaOutlineShader::new( gl, &outline_program );
 
     Self
     {
@@ -300,7 +299,7 @@ impl Renderer
 
     let object_fb = self.framebuffers.get( "object_fb" ).unwrap();
 
-    let locations = self.programs.object.get_locations();
+    let locations = self.programs.object.locations();
 
     let u_projection_loc = locations.get( "u_projection" ).unwrap().clone().unwrap();
     let u_view_loc = locations.get( "u_view" ).unwrap().clone().unwrap();
@@ -358,7 +357,7 @@ impl Renderer
     let object_fb_color = self.textures.get( "object_fb_color" ).unwrap();
 
     self.programs.jfa_init.bind( gl );
-    let locations = self.programs.jfa_init.get_locations();
+    let locations = self.programs.jfa_init.locations();
 
     let u_object_texture = locations.get( "u_object_texture" ).unwrap().clone().unwrap();
 
@@ -390,7 +389,7 @@ impl Renderer
     let jfa_step_fb_color_1 = self.textures.get( "jfa_step_fb_color_1" ).unwrap(); // Color texture for FB 1
 
     self.programs.jfa_step.bind( gl );
-    let locations = self.programs.jfa_step.get_locations();
+    let locations = self.programs.jfa_step.locations();
 
     let u_resolution = locations.get( "u_resolution" ).unwrap().clone().unwrap();
     let u_step_size = locations.get( "u_step_size" ).unwrap().clone().unwrap();
@@ -446,7 +445,7 @@ impl Renderer
     let jfa_step_fb_color_1 = self.textures.get( "jfa_step_fb_color_1" ).unwrap(); // JFA ping-pong texture 1
 
     self.programs.outline.bind( gl );
-    let locations = self.programs.outline.get_locations();
+    let locations = self.programs.outline.locations();
 
     let outline_u_object_texture = locations.get( "u_object_texture" ).unwrap().clone().unwrap();
     let u_jfa_step_texture = locations.get( "u_jfa_texture" ).unwrap().clone().unwrap();

@@ -4,7 +4,7 @@ mod private
   use minwebgl as gl;
   use crate::webgl::
   {
-    ProgramInfo, ShaderProgram, post_processing::{ Pass, VS_TRIANGLE }, program::EmptyShader
+    ShaderProgram, post_processing::{ Pass, VS_TRIANGLE }, program::EmptyShader
   };
 
   /// Represents the ACES (Academy Color Encoding System) tone mapping algorithm.
@@ -14,7 +14,7 @@ mod private
   pub struct ToneMappingPass< T >
   {
     /// The WebGL program used for the tone mapping operation.
-    material : ProgramInfo,
+    material : EmptyShader,
     phantom : std::marker::PhantomData< T >
   }
 
@@ -77,7 +77,7 @@ mod private
     {
       let fs_shader = include_str!( "../shaders/tonemapping/aces.frag" );
       let material = gl::ProgramFromSources::new(  VS_TRIANGLE, fs_shader ).compile_and_link( gl )?;
-      let material = ProgramInfo::new( gl, &material, EmptyShader.dyn_clone() );
+      let material = EmptyShader::new( gl, &material );
 
       Ok
       (

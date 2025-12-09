@@ -41,21 +41,37 @@
 mod private
 {
   use minwebgl as gl;
-  use gl::GL;
   use web_sys::WebGlProgram;
   use rustc_hash::FxHashMap;
 
   /// Shader program generalization for getting access to used shader locations
   pub trait ShaderProgram : clone_dyn_types::CloneDyn
   {
-    /// Returns a reference to the hash map containing uniform locations
-    fn get_locations( &self, gl : &GL, program : &gl::WebGlProgram ) -> FxHashMap< String, Option< gl::WebGlUniformLocation > >;
+    /// Returns a reference to the [`WebGlProgram`]
+    fn program( &self ) -> &WebGlProgram;
 
-    /// Returns a reference to the hash map containing UBO indices
-    fn get_ubo_indices( &self, gl : &GL, program : &gl::WebGlProgram ) -> FxHashMap< String, u32 >;
+    /// Returns a mutable reference to the hash map containing uniform locations.
+    fn program_mut( &mut self ) ->  &mut WebGlProgram;
+
+    /// Returns a reference to the hash map containing uniform locations.
+    fn locations( &self ) -> &FxHashMap< String, Option< gl::WebGlUniformLocation > >;
+
+    /// Returns a mutable reference to the hash map containing uniform locations.
+    fn locations_mut( &mut self ) ->  &mut FxHashMap< String, Option< gl::WebGlUniformLocation > >;
+
+    /// Returns a reference to the hash map containing UBO indices.
+    fn ubo_indices( &self ) -> &FxHashMap< String, u32 >;
+
+    /// Returns a mutable reference to the hash map containing UBO indices.
+    fn ubo_indices_mut( &mut self ) ->  &mut FxHashMap< String, u32 >;
+
+    /// Binds the WebGL program for use.
+    ///
+    /// * `gl`: The `WebGl2RenderingContext`.
+    fn bind( &self, gl : &gl::WebGl2RenderingContext );
 
     /// Get [`ShaderProgram`] type name
-    fn get_type_name( &self ) -> &'static str;
+    fn type_name( &self ) -> &'static str;
 
     /// Create new boxed clone of self
     fn dyn_clone( &self ) -> Box< dyn ShaderProgram >;
@@ -67,18 +83,11 @@ mod private
   {
     ( $program_type:ty, $( $location_name:literal ),* ) =>
     {
-      impl Clone for $program_type
+      #[ allow( unused_variables ) ]
+      impl $program_type
       {
-        fn clone( &self ) -> Self
-        {
-          Self
-        }
-      }
-
-      impl ShaderProgram for $program_type
-      {
-        #[ allow( unused_variables ) ]
-        fn get_locations( &self, gl : &GL, program : &gl::WebGlProgram ) -> FxHashMap< String, Option< gl::WebGlUniformLocation > >
+        /// Creates a new shader instance.
+        pub fn new( gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Self
         {
           #[ allow( unused_mut ) ]
           let mut locations = FxHashMap::default();
@@ -87,16 +96,64 @@ mod private
             locations.insert( $location_name.to_string(), gl.get_uniform_location( program, $location_name ) );
           )*
 
-          locations
+          Self
+          (
+            ProgramInfo
+            {
+              program : program.clone(),
+              locations,
+              ubo_indices : FxHashMap::default()
+            }
+          )
         }
+      }
 
-        #[ allow( unused_variables ) ]
-        fn get_ubo_indices( &self, _gl : &GL, _program : &gl::WebGlProgram ) -> FxHashMap< String, u32 >
+      impl Clone for $program_type
+      {
+        fn clone( &self ) -> Self
         {
-          FxHashMap::default()
+          Self( self.0.clone() )
+        }
+      }
+
+      impl ShaderProgram for $program_type
+      {
+        fn program( &self ) -> &WebGlProgram
+        {
+          &self.0.program
         }
 
-        fn get_type_name( &self ) -> &'static str
+        fn program_mut( &mut self ) ->  &mut WebGlProgram
+        {
+          &mut self.0.program
+        }
+
+        fn locations( &self ) -> &FxHashMap< String, Option< gl::WebGlUniformLocation > >
+        {
+          &self.0.locations
+        }
+
+        fn locations_mut( &mut self ) ->  &mut FxHashMap< String, Option< gl::WebGlUniformLocation > >
+        {
+          &mut self.0.locations
+        }
+
+        fn ubo_indices( &self ) -> &FxHashMap< String, u32 >
+        {
+          &self.0.ubo_indices
+        }
+
+        fn ubo_indices_mut( &mut self ) ->  &mut FxHashMap< String, u32 >
+        {
+          &mut self.0.ubo_indices
+        }
+
+        fn bind( &self, gl : &gl::WebGl2RenderingContext )
+        {
+          self.0.bind( gl );
+        }
+
+        fn type_name( &self ) -> &'static str
         {
           stringify!( $program_type )
         }
@@ -109,43 +166,83 @@ mod private
     };
     ( $program_type:ty, $( $location_name:literal ),* -- $( $ubo_name:literal ),* ) =>
     {
-      impl Clone for $program_type
+      #[ allow( unused_variables ) ]
+      impl $program_type
       {
-        fn clone( &self ) -> Self
-        {
-          Self
-        }
-      }
-
-      impl ShaderProgram for $program_type
-      {
-        #[ allow( unused_variables ) ]
-        fn get_locations( &self, gl : &GL, program : &gl::WebGlProgram ) -> FxHashMap< String, Option< gl::WebGlUniformLocation > >
+        /// Creates a new shader instance.
+        pub fn new( gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Self
         {
           #[ allow( unused_mut ) ]
           let mut locations = FxHashMap::default();
+          #[ allow( unused_mut ) ]
+          let mut ubo_indices = FxHashMap::default();
 
           $(
             locations.insert( $location_name.to_string(), gl.get_uniform_location( program, $location_name ) );
           )*
 
-          locations
-        }
-
-        #[ allow( unused_variables ) ]
-        fn get_ubo_indices( &self, gl : &GL, program : &gl::WebGlProgram ) -> FxHashMap< String, u32 >
-        {
-          #[ allow( unused_mut ) ]
-          let mut ubo_indices = FxHashMap::default();
-
           $(
             ubo_indices.insert( $ubo_name.to_string(), gl.get_uniform_block_index( program, $ubo_name ) );
           )*
 
-          ubo_indices
+          Self
+          (
+            ProgramInfo
+            {
+              program : program.clone(),
+              locations,
+              ubo_indices
+            }
+          )
+        }
+      }
+
+      impl Clone for $program_type
+      {
+        fn clone( &self ) -> Self
+        {
+          Self( self.0.clone() )
+        }
+      }
+
+      impl ShaderProgram for $program_type
+      {
+        fn program( &self ) -> &WebGlProgram
+        {
+          &self.0.program
         }
 
-        fn get_type_name( &self ) -> &'static str
+        fn program_mut( &mut self ) ->  &mut WebGlProgram
+        {
+          &mut self.0.program
+        }
+
+        fn locations( &self ) -> &FxHashMap< String, Option< gl::WebGlUniformLocation > >
+        {
+          &self.0.locations
+        }
+
+        fn locations_mut( &mut self ) ->  &mut FxHashMap< String, Option< gl::WebGlUniformLocation > >
+        {
+          &mut self.0.locations
+        }
+
+        fn ubo_indices( &self ) -> &FxHashMap< String, u32 >
+        {
+          &self.0.ubo_indices
+        }
+
+        fn ubo_indices_mut( &mut self ) ->  &mut FxHashMap< String, u32 >
+        {
+          &mut self.0.ubo_indices
+        }
+
+        fn bind( &self, gl : &gl::WebGl2RenderingContext )
+        {
+          self.0.bind( gl );
+        }
+
+        fn type_name( &self ) -> &'static str
         {
           stringify!( $program_type )
         }
@@ -161,92 +258,109 @@ mod private
   /// An empty shader program.
   ///
   /// This is typically used as a placeholder or for a simple pass-through rendering pipeline.
-  pub struct EmptyShader;
+  #[ derive( Debug ) ]
+  pub struct EmptyShader( ProgramInfo );
   /// A Physically Based Rendering (PBR) shader.
-  pub struct PBRShader;
+  #[ derive( Debug ) ]
+  pub struct PBRShader( ProgramInfo );
   /// Shader used for drawing background from equirectangular map
-  pub struct SkyboxShader;
+  #[ derive( Debug ) ]
+  pub struct SkyboxShader( ProgramInfo );
   /// A Gaussian filter shader
   ///
   /// This type of shader is commonly used for post-processing effects like
   /// blurring, often as part of a bloom effect.
-  pub struct GaussianFilterShader;
+  #[ derive( Debug ) ]
+  pub struct GaussianFilterShader( ProgramInfo );
   /// An Unreal Bloom shader
   ///
   /// This shader implements a bloom effect similar to the one used in the
   /// Unreal Engine, which simulates a camera's lens reacting to bright light.
-  pub struct UnrealBloomShader;
+  #[ derive( Debug ) ]
+  pub struct UnrealBloomShader( ProgramInfo );
   /// A public struct for a Geometry Buffer (GBuffer) shader.
-  pub struct GBufferShader;
+  #[ derive( Debug ) ]
+  pub struct GBufferShader( ProgramInfo );
   /// A public struct for a composite shader.
-  pub struct CompositeShader;
+  #[ derive( Debug ) ]
+  pub struct CompositeShader( ProgramInfo );
   /// A public struct for an outline shader that uses Jump Flood Algorithm (JFA)
   /// to draw outlines around objects.
   ///
   /// This shader is part of a multi-pass JFA outlining technique.
-  pub struct JfaOutlineObjectShader;
+  #[ derive( Debug ) ]
+  pub struct JfaOutlineObjectShader( ProgramInfo );
   /// A public struct for the initialization step of a JFA outline.
   ///
   /// This shader is the first pass of the JFA, which sets up the initial
   /// state for the algorithm.
-  pub struct JfaOutlineInitShader;
+  #[ derive( Debug ) ]
+  pub struct JfaOutlineInitShader( ProgramInfo );
   /// A public struct for the stepping pass of a JFA outline.
   ///
   /// This shader is used in the iterative step of the JFA to propagate
   /// information and find the nearest edge.
-  pub struct JfaOutlineStepShader;
+  #[ derive( Debug ) ]
+  pub struct JfaOutlineStepShader( ProgramInfo );
   /// A public struct representing the final JFA outline shader.
   ///
   /// This shader combines the results of the JFA passes to draw the final outline.
-  pub struct JfaOutlineShader;
+  #[ derive( Debug ) ]
+  pub struct JfaOutlineShader( ProgramInfo );
   /// A public struct for an outline shader based on normal and depth buffers.
   ///
   /// This shader is used to render an object's outline by comparing the normal
   /// and depth values of adjacent pixels.
-  pub struct NormalDepthOutlineObjectShader;
+  #[ derive( Debug ) ]
+  pub struct NormalDepthOutlineObjectShader( ProgramInfo );
   /// A public struct representing the final Normal/Depth outline shader.
   ///
   /// This shader uses the Normal and Depth buffers to create the final outline.
-  pub struct NormalDepthOutlineShader;
+  #[ derive( Debug ) ]
+  pub struct NormalDepthOutlineShader( ProgramInfo );
   /// A public struct for the base Normal/Depth outline shader.
   ///
   /// This is likely the first pass that generates the necessary data for the final
   /// Normal/Depth outline.
-  pub struct NormalDepthOutlineBaseShader;
+  #[ derive( Debug ) ]
+  pub struct NormalDepthOutlineBaseShader( ProgramInfo );
   /// A public struct for a shader that draws narrow outlines.
-  pub struct NarrowOutlineShader;
+  #[ derive( Debug ) ]
+  pub struct NarrowOutlineShader( ProgramInfo );
   /// A public struct for the initialization step of a wide outline.
   ///
   /// This shader is part of a multi-pass technique to create thick, wide outlines.
-  pub struct WideOutlineInitShader;
+  #[ derive( Debug ) ]
+  pub struct WideOutlineInitShader( ProgramInfo );
   /// A public struct for the stepping pass of a wide outline.
   ///
   /// This is the iterative pass that propagates information for a wide outline.
-  pub struct WideOutlineStepShader;
+  #[ derive( Debug ) ]
+  pub struct WideOutlineStepShader( ProgramInfo );
   /// A public struct representing the final wide outline shader.
   ///
   /// This shader combines the results of the previous passes to draw the final wide outline.
-  pub struct WideOutlineShader;
+  #[ derive( Debug ) ]
+  pub struct WideOutlineShader( ProgramInfo );
   /// A public struct for a color grading shader.
   ///
   /// This shader applies color correction operations like white balance,
   /// lift-gamma-gain, contrast, vibrance, and saturation adjustments.
-  pub struct ColorGradingShader;
+  #[ derive( Debug ) ]
+  pub struct ColorGradingShader( ProgramInfo );
 
   /// Stores information about a WebGL program, including the program object and the locations of its uniforms.
   /// This struct is intended for use by the renderer.
   pub struct ProgramInfo
   {
     /// The WebGL program object.
-    program : gl::WebGlProgram,
+    pub program : gl::WebGlProgram,
     /// A hash map storing the locations of uniform variables in the program.
     /// The keys are the names of the uniforms.
-    locations : FxHashMap< String, Option< gl::WebGlUniformLocation > >,
+    pub locations : FxHashMap< String, Option< gl::WebGlUniformLocation > >,
     /// A hash map storing the locations of UBO variables in the program.
     /// The keys are the names of the uniform block.
-    ubo_indices : FxHashMap< String, u32 >,
-    /// ShaderProgram instace
-    shader : Box< dyn ShaderProgram >
+    pub ubo_indices : FxHashMap< String, u32 >,
   }
 
   #[ allow( clippy::missing_fields_in_debug ) ]
@@ -255,7 +369,6 @@ mod private
     fn fmt( &self, f: &mut std::fmt::Formatter< '_ > ) -> std::fmt::Result
     {
       f.debug_struct( "ProgramInfo" )
-      .field( "shader", &self.shader.get_type_name() )
       .field( "locations", &self.locations.keys().collect::< Vec< _ > >() )
       .field( "ubo_indices", &self.ubo_indices )
       .finish()
@@ -264,65 +377,12 @@ mod private
 
   impl ProgramInfo
   {
-    /// Creates a new `ProgramInfo` instance.
-    pub fn new( gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram, shader : Box< dyn ShaderProgram > ) -> Self
-    {
-      let locations = shader.get_locations( gl, program );
-      let ubo_indices = shader.get_ubo_indices( gl, program );
-
-      Self
-      {
-        program : program.clone(),
-        locations,
-        ubo_indices,
-        shader
-      }
-    }
-
-    /// Returns a reference to the hash map containing uniform locations.
-    pub fn get_locations( &self ) -> &FxHashMap< String, Option< gl::WebGlUniformLocation > >
-    {
-      &self.locations
-    }
-
-    /// Returns a mutable reference to the hash map containing uniform locations.
-    pub fn get_locations_mut( &mut self ) ->  &mut FxHashMap< String, Option< gl::WebGlUniformLocation > >
-    {
-      &mut self.locations
-    }
-
-    /// Returns a reference to the hash map containing UBO indices.
-    pub fn get_ubo_indices( &self ) -> &FxHashMap< String, u32 >
-    {
-      &self.ubo_indices
-    }
-
-    /// Returns a mutable reference to the hash map containing UBO indices.
-    pub fn get_ubo_indices_mut( &mut self ) ->  &mut FxHashMap< String, u32 >
-    {
-      &mut self.ubo_indices
-    }
-
     /// Binds the WebGL program for use.
     ///
     /// * `gl`: The `WebGl2RenderingContext`.
     pub fn bind( &self, gl : &gl::WebGl2RenderingContext )
     {
       gl.use_program( Some( &self.program ) );
-    }
-
-    /// Return inner program
-    pub fn get_program( &self ) -> WebGlProgram
-    {
-      self.program.clone()
-    }
-
-    /// Changes inner [`WebGlProgram`] can be replaced only to modified original [`WebGlProgram`]
-    pub fn set_program( &mut self, gl : &GL, program : WebGlProgram )
-    {
-      self.locations = self.shader.get_locations( gl, &program );
-      self.ubo_indices = self.shader.get_ubo_indices( gl, &program );
-      self.program = program;
     }
   }
 
@@ -334,8 +394,7 @@ mod private
       {
         program : self.program.clone(),
         locations : self.locations.clone(),
-        ubo_indices : self.ubo_indices.clone(),
-        shader : clone_dyn_types::clone_into_box( &*self.shader )
+        ubo_indices : self.ubo_indices.clone()
       }
     }
   }

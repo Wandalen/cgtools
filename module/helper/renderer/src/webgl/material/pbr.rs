@@ -5,7 +5,7 @@ mod private
   use gl::GL;
   use mingl::Former;
   use rustc_hash::FxHashMap;
-  use crate::webgl::{ Node, program::{ ProgramInfo, ShaderProgram, PBRShader } };
+  use crate::webgl::{ Node, program::{ ShaderProgram, PBRShader } };
   use std:: { cell::RefCell, rc::Rc };
 
   /// The source code for the main vertex shader.
@@ -20,7 +20,7 @@ mod private
     /// A unique identifier for the material.
     pub id : uuid::Uuid,
     /// Shader program info
-    program : ProgramInfo,
+    program : PBRShader,
     /// The base color factor, multiplied with the base color texture. Defaults to white (1, 1, 1, 1).
     pub base_color_factor : gl::F32x4,
     /// Optional texture providing the base color.
@@ -96,7 +96,7 @@ mod private
       .unwrap();
 
       let id = uuid::Uuid::new_v4();
-      let program = ProgramInfo::new( gl, &program, PBRShader.dyn_clone() );
+      let program = PBRShader::new( gl, &program );
       let base_color_factor = gl::F32x4::from( [ 1.0, 1.0, 1.0, 1.0 ] );
 
       let base_color_texture = Default::default();
@@ -300,12 +300,12 @@ mod private
       self.need_use_ibl
     }
 
-    fn get_program_info( &self ) -> &ProgramInfo
+    fn shader( &self ) -> &dyn ShaderProgram
     {
       &self.program
     }
 
-    fn get_program_info_mut( &mut self ) -> &mut ProgramInfo
+    fn shader_mut( &mut self ) -> &mut dyn ShaderProgram
     {
       &mut self.program
     }
@@ -475,7 +475,7 @@ mod private
       self.alpha_mode
     }
 
-    fn get_type_name(&self) -> &'static str
+    fn type_name(&self) -> &'static str
     {
       "PBRMaterial"
     }

@@ -1,13 +1,14 @@
 use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo, Node };
 use renderer::impl_locations;
 use minwebgl as gl;
-use gl::{ GL, F32x3, Former };
+use gl::{ GL, F32x3, Former, WebGlProgram };
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
 use std::{ cell::RefCell, rc::Rc };
 
 /// Surface shader locations
-pub struct SurfaceShader;
+#[ derive( Debug ) ]
+pub struct SurfaceShader( ProgramInfo );
 
 impl_locations!
 (
@@ -32,7 +33,7 @@ pub struct SurfaceMaterial
   /// A unique identifier for the material.
   pub id : Uuid,
   /// Shader program info
-  program : ProgramInfo,
+  program : SurfaceShader,
   /// Surface RGB color
   pub color : F32x3,
   /// Surface texture
@@ -56,7 +57,7 @@ impl SurfaceMaterial
     Self
     {
       id : Uuid::new_v4(),
-      program : ProgramInfo::new( gl, &program, SurfaceShader.dyn_clone() ),
+      program : SurfaceShader::new( gl, &program ),
       color : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
       texture : None,
       needs_update : true
@@ -76,17 +77,17 @@ impl Material for SurfaceMaterial
     self.needs_update
   }
 
-  fn get_program_info( &self ) -> &ProgramInfo
+  fn shader( &self ) -> &dyn ShaderProgram
   {
     &self.program
   }
 
-  fn get_program_info_mut( &mut self ) -> &mut ProgramInfo
+  fn shader_mut( &mut self ) -> &mut dyn ShaderProgram
   {
     &mut self.program
   }
 
-  fn get_type_name( &self ) -> &'static str
+  fn type_name( &self ) -> &'static str
   {
     "SurfaceMaterial"
   }

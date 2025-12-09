@@ -1,13 +1,14 @@
 use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo, Node };
 use renderer::impl_locations;
 use minwebgl as gl;
-use gl::{ GL, Former };
+use gl::{ GL, Former, WebGlProgram };
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
 use std:: { cell::RefCell, rc::Rc };
 
 /// Gem shader
-pub struct GemShader;
+#[ derive( Debug ) ]
+pub struct GemShader( ProgramInfo );
 
 impl_locations!
 (
@@ -43,7 +44,7 @@ pub struct GemMaterial
   /// A unique identifier for the material.
   pub id : Uuid,
   /// Shader program info
-  program : ProgramInfo,
+  program : GemShader,
   /// Ray bounces inside gem count
   pub ray_bounces : i32,
   /// Gem color
@@ -75,7 +76,7 @@ impl GemMaterial
     Self
     {
       id : Uuid::new_v4(),
-      program : ProgramInfo::new( gl, &program, GemShader.dyn_clone() ),
+      program : GemShader::new( gl, &program ),
       ray_bounces : 5,
       color : gl::F32x3::from_array( [ 0.98, 0.95, 0.9 ] ),
       env_map_intensity : 1.0,
@@ -99,17 +100,17 @@ impl Material for GemMaterial
     self.needs_update
   }
 
-  fn get_program_info( &self ) -> &ProgramInfo
+  fn shader( &self ) -> &dyn ShaderProgram
   {
     &self.program
   }
 
-  fn get_program_info_mut( &mut self ) -> &mut ProgramInfo
+  fn shader_mut( &mut self ) -> &mut dyn ShaderProgram
   {
     &mut self.program
   }
 
-  fn get_type_name( &self ) -> &'static str
+  fn type_name( &self ) -> &'static str
   {
     "GemMaterial"
   }

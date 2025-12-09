@@ -449,7 +449,7 @@ mod private
             uv_position : 0,
           };
 
-          if primitive_ref.material.borrow().get_type_name() == "PBRMaterial"
+          if primitive_ref.material.borrow().type_name() == "PBRMaterial"
           {
             helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >
             (
