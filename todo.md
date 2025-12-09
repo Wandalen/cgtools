@@ -54,3 +54,6 @@ Math operations need to be implemented for `i32`, `i64`, `u32`, `u64`
   /// A 4-dimensional vector of `u64`s.
   pub type U64x4 = Vector< u64, 4 >;
 ```
+
+# GLTF loader
+The loader, at the end of proccessing the gltf file, needs to compute everything the scene needs - bounding box of each node, world matrices, etc.
