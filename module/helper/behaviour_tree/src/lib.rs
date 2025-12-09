@@ -31,15 +31,19 @@
 //!
 //! // Create a simple patrol behavior using blackboard values
 //! let mut patrol_tree = BehaviorTreeBuilder::new()
-//!     .sequence( vec![
-//!         set_blackboard( "target_x", 10 ),
-//!         set_blackboard( "target_y", 10 ),
-//!         wait( 2.0 ), // Wait 2 seconds
-//!         set_blackboard( "target_x", 5 ),
-//!         set_blackboard( "target_y", 5 ),
-//!         wait( 2.0 ),
-//!     ] )
-//!     .build();
+//! .sequence
+//! (
+//!   vec!
+//!   [
+//!     set_blackboard( "target_x", 10 ),
+//!     set_blackboard( "target_y", 10 ),
+//!     wait( 2.0 ), // Wait 2 seconds
+//!     set_blackboard( "target_x", 5 ),
+//!     set_blackboard( "target_y", 5 ),
+//!     wait( 2.0 ),
+//!   ]
+//! )
+//! .build();
 //!
 //! // Execute the behavior tree
 //! let mut context = BehaviorContext::new();
@@ -49,7 +53,6 @@
 use std::collections::HashMap;
 use core::time::Duration;
 use std::time::Instant;
-// use crate::coordinates::Distance;
 
 /// Status returned by behavior tree nodes during execution.
 #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
@@ -1066,4 +1069,251 @@ pub fn condition< T : Into< BehaviorValue > >( key : &str, expected : T ) -> Box
 pub fn set_blackboard< T : Into< BehaviorValue > >( key : &str, value : T ) -> Box< dyn BehaviorNode >
 {
   Box::new( SetBlackboardAction::new( key, value ) )
+}
+#[ cfg( test ) ]
+mod tests
+{
+  use super::*;
+  use std::time::Duration;
+
+  #[ test ]
+  fn test_behavior_context_creation()
+  {
+    let context = BehaviorContext::new();
+    assert!( context.entity_id.is_none() );
+    assert!( context.blackboard.is_empty() );
+    assert!( context.properties.is_empty() );
+  }
+
+  #[ test ]
+  fn test_behavior_context_blackboard()
+  {
+    let mut context = BehaviorContext::new();
+    context.set_blackboard( "health", 100 );
+    context.set_blackboard( "position", ( 5, 10 ) );
+
+    assert_eq!( context.get_blackboard( "health" ), Some( &BehaviorValue::Int( 100 ) ) );
+    assert_eq!( context.get_blackboard( "position" ), Some( &BehaviorValue::Position2D { x : 5, y : 10 } ) );
+    assert_eq!( context.get_blackboard( "missing" ), None );
+  }
+
+  #[ test ]
+  fn test_sequence_node_success()
+  {
+    let mut sequence = SequenceNode::new
+    (
+      vec!
+      [
+        Box::new( SetBlackboardAction::new( "step1", true ) ),
+        Box::new( SetBlackboardAction::new( "step2", true ) ),
+      ]
+    );
+
+    let mut context = BehaviorContext::new();
+    let status = sequence.execute( &mut context );
+
+    assert_eq!( status, BehaviorStatus::Success );
+    assert_eq!( context.get_blackboard( "step1" ), Some( &BehaviorValue::Bool( true ) ) );
+    assert_eq!( context.get_blackboard( "step2" ), Some( &BehaviorValue::Bool( true ) ) );
+  }
+
+  #[ test ]
+  fn test_sequence_node_running()
+  {
+    let mut sequence = SequenceNode::new
+    (
+      vec!
+      [
+        Box::new( SetBlackboardAction::new( "step1", true ) ),
+        Box::new( WaitAction::new( 1.0 ) ), // This will be running
+      ]
+    );
+
+    let mut context = BehaviorContext::new();
+    let status = sequence.execute( &mut context );
+
+    assert_eq!( status, BehaviorStatus::Running );
+    assert_eq!( context.get_blackboard( "step1" ), Some( &BehaviorValue::Bool( true ) ) );
+  }
+
+  #[ test ]
+  fn test_selector_node()
+  {
+    let mut selector = SelectorNode::new
+    (
+      vec!
+      [
+        Box::new( BlackboardCondition::new( "should_fail", true ) ), // This will fail
+        Box::new( SetBlackboardAction::new( "executed", true ) ),    // This should execute
+      ]
+    );
+
+    let mut context = BehaviorContext::new();
+    context.set_blackboard( "should_fail", false ); // Make first condition fail
+
+    let status = selector.execute( &mut context );
+
+    assert_eq!( status, BehaviorStatus::Success );
+    assert_eq!( context.get_blackboard( "executed" ), Some( &BehaviorValue::Bool( true ) ) );
+  }
+
+  #[ test ]
+  fn test_parallel_node()
+  {
+    let mut parallel = ParallelNode::new
+    (
+      vec!
+      [
+        Box::new( SetBlackboardAction::new( "action1", true ) ),
+        Box::new( SetBlackboardAction::new( "action2", true ) ),
+      ]
+    );
+
+    let mut context = BehaviorContext::new();
+    let status = parallel.execute( &mut context );
+
+    assert_eq!( status, BehaviorStatus::Success );
+    assert_eq!( context.get_blackboard( "action1" ), Some( &BehaviorValue::Bool( true ) ) );
+    assert_eq!( context.get_blackboard( "action2" ), Some( &BehaviorValue::Bool( true ) ) );
+  }
+
+  #[ test ]
+  fn test_repeat_node()
+  {
+    let mut repeat = RepeatNode::times
+    (
+      Box::new( SetBlackboardAction::new( "counter", 1 ) ),
+      3
+    );
+
+    let mut context = BehaviorContext::new();
+    let status = repeat.execute( &mut context );
+
+    assert_eq!( status, BehaviorStatus::Success );
+    // The action would have been executed 3 times, but since it just sets the same value,
+    // we can't easily verify the count without more sophisticated tracking
+  }
+
+  #[ test ]
+  fn test_invert_node()
+  {
+    let mut invert = InvertNode::new
+    (
+      Box::new( BlackboardCondition::new( "should_succeed", true ) )
+    );
+
+    let mut context = BehaviorContext::new();
+    context.set_blackboard( "should_succeed", false ); // Make condition fail
+
+    let status = invert.execute( &mut context );
+    assert_eq!( status, BehaviorStatus::Success ); // Inverted failure becomes success
+  }
+
+  #[ test ]
+  fn test_wait_action()
+  {
+    let mut wait = WaitAction::new( 0.1 ); // 100ms wait
+    let mut context = BehaviorContext::new();
+
+    // First execution should return Running
+    let status1 = wait.execute( &mut context );
+    assert_eq!( status1, BehaviorStatus::Running );
+
+    // Simulate time passing
+    std::thread::sleep( Duration::from_millis( 150 ) );
+    context.update( Duration::from_millis( 150 ) );
+
+    // Second execution should return Success
+    let status2 = wait.execute( &mut context );
+    assert_eq!( status2, BehaviorStatus::Success );
+  }
+
+  #[ test ]
+  fn test_blackboard_condition()
+  {
+    let mut condition = BlackboardCondition::new( "health_low", true );
+    let mut context = BehaviorContext::new();
+
+    // Condition should fail when value doesn't exist
+    assert_eq!( condition.execute( &mut context ), BehaviorStatus::Failure );
+
+    // Condition should fail when value doesn't match
+    context.set_blackboard( "health_low", false );
+    assert_eq!( condition.execute( &mut context ), BehaviorStatus::Failure );
+
+    // Condition should succeed when value matches
+    context.set_blackboard( "health_low", true );
+    assert_eq!( condition.execute( &mut context ), BehaviorStatus::Success );
+  }
+
+  #[ test ]
+  fn test_behavior_tree_builder()
+  {
+    let tree = BehaviorTreeBuilder::new()
+    .sequence
+    (
+      vec!
+      [
+        Box::new( SetBlackboardAction::new( "step1", true ) ),
+        Box::new( SetBlackboardAction::new( "step2", true ) ),
+      ]
+    )
+    .build_named( "TestTree".to_string() );
+
+    assert_eq!( tree.name(), "TestTree" );
+  }
+
+  #[ test ]
+  fn test_convenience_functions()
+  {
+    let node = sequence
+    (
+      vec!
+      [
+        set_blackboard( "init", true ),
+        selector
+        (
+          vec!
+          [
+            condition( "enemy_near", true ),
+            wait( 1.0 ),
+          ]
+        ),
+        invert( condition( "health_full", false ) ),
+      ]
+    );
+
+    let mut context = BehaviorContext::new();
+    context.set_blackboard( "enemy_near", false );
+    context.set_blackboard( "health_full", false );
+
+    // We can't easily test the full execution without more setup,
+    // but we can verify the node was created
+    assert_eq!( node.name(), "Sequence" );
+  }
+
+  #[ test ]
+  fn test_cooldown_node()
+  {
+    let mut cooldown = CooldownNode::new
+    (
+      Box::new( SetBlackboardAction::new( "executed", true ) ),
+      Duration::from_millis( 100 )
+    );
+    let mut context = BehaviorContext::new();
+
+    // First execution should succeed
+    let status1 = cooldown.execute( &mut context );
+    assert_eq!( status1, BehaviorStatus::Success );
+
+    // Immediate second execution should fail (cooldown active)
+    let status2 = cooldown.execute( &mut context );
+    assert_eq!( status2, BehaviorStatus::Failure );
+
+    // After cooldown period, should succeed again
+    std::thread::sleep( Duration::from_millis( 150 ) );
+    context.update( Duration::from_millis( 150 ) );
+    let status3 = cooldown.execute( &mut context );
+    assert_eq!( status3, BehaviorStatus::Success );
+  }
 }
