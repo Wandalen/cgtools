@@ -94,3 +94,4 @@ Below is a list of all available examples, each demonstrating a unique WebGL con
 | `color_space_conversions` | An interactive tool to visualize real-time conversions between numerous color spaces. |
 | **Optimization** | |
 | `minimize_wasm` | A guide and example for optimizing the size of WebAssembly builds using `wee_alloc` and `wasm-opt`. |
+| `space_partition` | Showcases the usage of k-d tree, KNN and range searches using the cgtools rendering library |
