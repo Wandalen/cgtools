@@ -10,6 +10,18 @@ mod private
   pub struct Vector< E, const LEN : usize >( pub [ E; LEN ] )
   where E : MatEl;
 
+  /// Spherical coords
+  pub struct Spherical< E >
+  where E : MatEl
+  {
+    /// Distance between center and point on sphere
+    pub radius : E,
+    /// Angle in plane XZ
+    pub theta : E,
+    /// Angle in plane XY or ZY
+    pub phi : E
+  }
+
   /// A 1-dimensional vector of `f32`s.
   pub type F32x1 = Vector< f32, 1 >;
   /// A 2-dimensional vector of `f32`s.
@@ -89,6 +101,8 @@ crate::mod_interface!
   {
 
     Vector,
+
+    Spherical,
 
     F32x1,
     F32x2,

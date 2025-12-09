@@ -1,6 +1,6 @@
 mod private
 {
-  use crate::*;
+  use crate::{vector::private::Spherical, *};
   use vector::{ cross };
 
   impl< E > Vector< E, 3 >
@@ -47,6 +47,42 @@ mod private
     pub fn to_homogenous( self ) -> Vector< E, 4 >
     {
       Vector::< E, 4 >::new( self.x(), self.y(), self.z(), E::one() )
+    }
+
+    /// Converts spherical coords to decart
+    pub fn from_spherical( s : Spherical< E > ) -> Self
+    {
+      let phi = s.phi.to_radians();
+      let theta = s.theta.to_radians();
+      let sin_phi = s.phi.sin();
+
+      Self
+      (
+        [
+          s.radius * sin_phi * theta.cos(),
+          s.radius * sin_phi * theta.sin(),
+          s.radius * phi.cos()
+        ]
+      )
+    }
+
+    /// Converts decart coords to spherical
+    pub fn to_spherical( self ) -> Spherical< E >
+    {
+      let radius = self.mag();
+      let theta = ( self.z() / radius ).acos();
+      let [ x, _y, z ] = self.0;
+      let phi = z.signum() * ( x / ( x * x + z * z ).sqrt() ).acos();
+
+      let phi = phi.to_degrees();
+      let theta = theta.to_degrees();
+
+      Spherical
+      {
+        radius,
+        theta,
+        phi
+      }
     }
   }
 
