@@ -38,7 +38,7 @@ pub struct SurfaceMaterial
   /// Surface texture
   pub texture : Option< TextureInfo >,
   /// Signal for updating material uniforms
-  pub need_update : bool
+  pub needs_update : bool
 }
 
 impl SurfaceMaterial
@@ -59,7 +59,7 @@ impl SurfaceMaterial
       program : ProgramInfo::new( gl, &program, SurfaceShader.dyn_clone() ),
       color : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
       texture : None,
-      need_update : true
+      needs_update : true
     }
   }
 }
@@ -73,7 +73,7 @@ impl Material for SurfaceMaterial
 
   fn needs_update( &self ) -> bool
   {
-    self.need_update
+    self.needs_update
   }
 
   fn get_program_info( &self ) -> &ProgramInfo
@@ -161,7 +161,7 @@ impl Clone for SurfaceMaterial
       id : Uuid::new_v4(),
       color : self.color,
       texture : self.texture.clone(),
-      need_update : self.need_update,
+      needs_update : self.needs_update,
       program : self.program.clone()
     }
   }

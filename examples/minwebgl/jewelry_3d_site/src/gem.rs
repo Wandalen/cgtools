@@ -57,7 +57,7 @@ pub struct GemMaterial
   /// Cube normal map texture
   pub cube_normal_map_texture : Option< TextureInfo >,
   /// Signal for updating material uniforms
-  pub need_update : bool
+  pub needs_update : bool
 }
 
 impl GemMaterial
@@ -82,7 +82,7 @@ impl GemMaterial
       radius : 1000.0,
       environment_texture : None,
       cube_normal_map_texture : None,
-      need_update : true
+      needs_update : true
     }
   }
 }
@@ -96,7 +96,7 @@ impl Material for GemMaterial
 
   fn needs_update( &self ) -> bool
   {
-    self.need_update
+    self.needs_update
   }
 
   fn get_program_info( &self ) -> &ProgramInfo
@@ -218,7 +218,7 @@ impl Clone for GemMaterial
       radius : self.radius,
       environment_texture : self.environment_texture.clone(),
       cube_normal_map_texture : self.cube_normal_map_texture.clone(),
-      need_update : self.need_update,
+      needs_update : self.needs_update,
       program : self.program.clone()
     }
   }

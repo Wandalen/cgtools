@@ -196,7 +196,7 @@ impl Configurator
           }
           let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< GemMaterial >( material.borrow_mut() );
           material.color = color;
-          material.need_update = true;
+          material.needs_update = true;
         }
       }
     }
@@ -232,7 +232,7 @@ impl Configurator
         let mut surface_material = SurfaceMaterial::new( &gl );
         surface_material.color = F32x3::splat( 0.854 );
         surface_material.texture = texture;
-        surface_material.need_update = false;
+        surface_material.needs_update = false;
         let surface_material_boxed : Rc< RefCell< Box< dyn Material > > > = Rc::new( RefCell::new( Box::new( surface_material ) ) );
         primitive.borrow_mut().material = surface_material_boxed.clone();
 
@@ -292,7 +292,7 @@ impl Configurator
             material.base_color_factor.0[ 3 ] = 1.0;
             material.roughness_factor = 0.04;
             material.metallic_factor = 1.0;
-            material.need_update = true;
+            material.needs_update = true;
           }
         }
 
