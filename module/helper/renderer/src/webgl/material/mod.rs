@@ -107,12 +107,6 @@ mod private
       false
     }
 
-    /// Can or not use this material IBL
-    fn can_use_ibl( &self ) -> bool
-    {
-      false
-    }
-
     /// Returns reference to [`ProgramInfo`] with shader locations and used [`ShaderProgram`]
     fn get_program_info( &self ) -> &ProgramInfo;
 

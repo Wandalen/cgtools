@@ -77,7 +77,7 @@ mod private
     /// Returns answer need use IBL for current material instance or not
     pub need_use_ibl : bool,
     /// Signal for updating material uniforms
-    pub need_update : bool
+    pub needs_update : bool
   }
 
   impl PBRMaterial
@@ -158,7 +158,7 @@ mod private
         vertex_defines,
         fragment_defines,
         need_use_ibl,
-        need_update : true
+        needs_update : true
       };
     }
 
@@ -292,17 +292,12 @@ mod private
 
     fn needs_update( &self ) -> bool
     {
-      self.need_update
+      self.needs_update
     }
 
     fn needs_ibl( &self ) -> bool
     {
-      self.can_use_ibl() && self.need_use_ibl
-    }
-
-    fn can_use_ibl( &self ) -> bool
-    {
-      true
+      self.need_use_ibl
     }
 
     fn get_program_info( &self ) -> &ProgramInfo
@@ -517,7 +512,7 @@ mod private
         vertex_defines : self.vertex_defines.clone(),
         fragment_defines : self.fragment_defines.clone(),
         need_use_ibl : self.need_use_ibl,
-        need_update : self.need_update
+        needs_update : self.needs_update
       }
     }
   }
