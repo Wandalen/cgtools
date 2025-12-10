@@ -107,6 +107,7 @@ fn test_compute1()
   assert_abs_diff_eq!( bb.max, F32x3::new( 1.0, 1.0, 1.0 ) );
 }
 
+#[ test ]
 fn test_compute2()
 {
   let points = 
