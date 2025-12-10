@@ -478,6 +478,7 @@ mod private
   (
     JfaOutlineShader,
     "u_object_texture",
+    "u_normal_texture",
     "u_jfa_texture",
     "u_equirect_map",
     "u_resolution",

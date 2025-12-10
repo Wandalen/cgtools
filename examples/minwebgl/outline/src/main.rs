@@ -46,7 +46,8 @@ use renderer::webgl::
   loaders::gltf::load,
   scene::Scene,
   camera::Camera,
-  node::{ Node, Object3D },
+  Node,
+  Object3D,
   program::
   {
     ProgramInfo,
@@ -208,11 +209,12 @@ fn create_framebuffer
 (
   gl : &gl::WebGl2RenderingContext,
   size : ( i32, i32 ),
-  color_attachment : u32
+  enable_normal_target : bool
 )
--> Option< ( WebGlFramebuffer, WebGlTexture ) >
+-> Option< ( WebGlFramebuffer, WebGlTexture, Option< WebGlTexture > ) >
 {
   let color = gl.create_texture()?;
+
   gl.bind_texture( GL::TEXTURE_2D, Some( &color ) );
   // Use tex_storage_2d for immutable texture storage ( WebGL2 )
   gl.tex_storage_2d( GL::TEXTURE_2D, 1, gl::RGBA8, size.0, size.1 );
@@ -221,13 +223,41 @@ fn create_framebuffer
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::REPEAT as i32 );
   gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::REPEAT as i32 );
 
+  let ( normal, depthbuffer ) = if enable_normal_target
+  {
+    let depthbuffer = gl.create_renderbuffer();
+    gl.bind_renderbuffer( GL::RENDERBUFFER, depthbuffer.as_ref() );
+    gl.renderbuffer_storage( GL::RENDERBUFFER, GL::DEPTH_COMPONENT24, size.0, size.1 );
+
+    let normal = gl.create_texture()?;
+    gl.bind_texture( GL::TEXTURE_2D, Some( &normal ) );
+    // Use tex_storage_2d for immutable texture storage ( WebGL2 )
+    gl.tex_storage_2d( GL::TEXTURE_2D, 1, gl::RGBA16F, size.0, size.1 );
+    // Configure texture parameters (filtering, wrapping)
+    gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::LINEAR as i32 );
+    gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::REPEAT as i32 );
+    gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::REPEAT as i32 );
+    ( Some( normal ), depthbuffer )
+  }
+  else
+  {
+    ( None, None )
+  };
+
   let framebuffer = gl.create_framebuffer()?;
   gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &framebuffer ) );
   // Attach the texture to the framebuffer's color attachment point
-  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0 + color_attachment, GL::TEXTURE_2D, Some( &color ), 0 );
+  gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, Some( &color ), 0 );
+  if enable_normal_target
+  {
+    gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT1, GL::TEXTURE_2D, normal.as_ref(), 0 );
+    gl.framebuffer_renderbuffer( GL::FRAMEBUFFER, GL::DEPTH_ATTACHMENT, GL::RENDERBUFFER, depthbuffer.as_ref() );
+  }
+  gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
+  gl.viewport( 0, 0, size.0, size.1 );
   gl.bind_framebuffer( gl::FRAMEBUFFER, None );
 
-  Some( ( framebuffer, color ) )
+  Some( ( framebuffer, color, normal ) )
 }
 
 /// Binds a framebuffer for rendering and sets the viewport to its size.
@@ -310,22 +340,24 @@ impl Renderer
     let canvas = gl::canvas::make().unwrap();
     let gl = gl::context::from_canvas( &canvas ).unwrap();
 
+    let _ = gl.get_extension( "EXT_color_buffer_float" ).unwrap();
+
     // --- Initialization ---
 
     let viewport = ( gl.drawing_buffer_width(), gl.drawing_buffer_height() );
 
-    let eye = F32x3::from_array( [ 0.0, 1.4, 2.5 ] ) * 1.5;
+    let eye = F32x3::from_array( [ 0.0, 1.0, 1.0 ] );
     let up = F32x3::Y;
 
     let aspect_ratio = viewport.0 as f32 / viewport.1 as f32;
     let fov =  70.0f32.to_radians();
-    let near = 0.1;
+    let near = 0.0001;
     let far = 1000.0;
 
     let camera = Camera::new(
       eye,
       up,
-      F32x3::new( 0.0, 0.4, 0.0 ),
+      F32x3::new( 0.0, 0.0, 0.0 ),
       aspect_ratio,
       fov,
       near,
@@ -352,15 +384,16 @@ impl Renderer
     // --- Create Framebuffers and Textures ---
 
     // Framebuffer for rendering the initial object silhouette
-    let ( object_fb, object_fb_color ) = create_framebuffer( gl, viewport, 0 ).unwrap();
+    let ( object_fb, object_fb_color, object_fb_normal ) = create_framebuffer( gl, viewport, true ).unwrap();
     // Framebuffer for the JFA initialization pass
-    let ( jfa_init_fb, jfa_init_fb_color ) = create_framebuffer( gl, viewport, 0 ).unwrap();
+    let ( jfa_init_fb, jfa_init_fb_color, _ ) = create_framebuffer( gl, viewport, false ).unwrap();
     // Framebuffers for the JFA step passes ( ping-pong )
-    let ( jfa_step_fb_0, jfa_step_fb_color_0 ) = create_framebuffer( gl, viewport, 0 ).unwrap();
-    let ( jfa_step_fb_1, jfa_step_fb_color_1 ) = create_framebuffer( gl, viewport, 0 ).unwrap();
+    let ( jfa_step_fb_0, jfa_step_fb_color_0, _ ) = create_framebuffer( gl, viewport, false ).unwrap();
+    let ( jfa_step_fb_1, jfa_step_fb_color_1, _ ) = create_framebuffer( gl, viewport, false ).unwrap();
 
     // Store the color attachment textures
     renderer.textures.insert( "object_fb_color".to_string(), object_fb_color );
+    renderer.textures.insert( "object_fb_normal".to_string(), object_fb_normal.unwrap() );
     renderer.textures.insert( "jfa_init_fb_color".to_string(), jfa_init_fb_color );
     renderer.textures.insert( "jfa_step_fb_color_0".to_string(), jfa_step_fb_color_0 );
     renderer.textures.insert( "jfa_step_fb_color_1".to_string(), jfa_step_fb_color_1 );
@@ -421,10 +454,16 @@ impl Renderer
 
     upload_framebuffer( gl, object_fb, self.viewport );
 
-    gl.clear_color( 0.0, 0.0, 0.0, 0.0 );
-    gl.clear_depth( 1.0 );
-    gl.clear( GL::COLOR_BUFFER_BIT | GL::DEPTH_BUFFER_BIT );
+    gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
+    gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ 0.0, 0.0, 0.0, 0.0 ] );
+    gl.clear_bufferfv_with_f32_array( gl::COLOR, 1, &[ 0.0, 0.0, 0.0, 0.0 ] );
     gl.enable( GL::DEPTH_TEST );
+    gl.clear( GL::DEPTH_BUFFER_BIT );
+    gl.depth_mask( true );
+    gl.depth_func( GL::LEQUAL );
+    // gl.front_face( GL::CW );
+
+    self.programs.object.bind( gl );
 
     // Define a closure to handle the drawing of each node in the scene.
     let mut draw_node =
@@ -432,6 +471,7 @@ impl Renderer
       node : Rc< RefCell< Node > >
     | -> Result< (), gl::WebglError >
     {
+      node.borrow().upload( gl, self.programs.object.get_locations() );
       // If the node contains a mesh...
       if let Object3D::Mesh( ref mesh ) = node.borrow().object
       {
@@ -439,8 +479,6 @@ impl Renderer
         for primitive_rc in mesh.borrow().primitives.iter()
         {
           let primitive = primitive_rc.borrow();
-
-          self.programs.object.bind( gl );
 
           gl::uniform::matrix_upload( gl, Some( u_projection_loc.clone() ), &self.camera.get_projection_matrix().to_array(), true ).unwrap();
           gl::uniform::matrix_upload( gl, Some( u_view_loc.clone() ), &self.camera.get_view_matrix().to_array(), true ).unwrap();
@@ -455,7 +493,12 @@ impl Renderer
     };
 
     // Traverse the scene and draw all opaque objects.
-    scene.borrow().traverse( &mut draw_node )
+    let _ = scene.borrow().traverse( &mut draw_node )?;
+
+    gl.use_program( None );
+    gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+
+    Ok( () )
   }
 
   /// Performs the JFA initialization pass.
@@ -555,6 +598,7 @@ impl Renderer
     let gl = &self.gl;
 
     let object_fb_color = self.textures.get( "object_fb_color" ).unwrap(); // Original silhouette
+    let object_fb_normal = self.textures.get( "object_fb_normal" ).unwrap(); // Normal buffer
     let jfa_step_fb_color_0 = self.textures.get( "jfa_step_fb_color_0" ).unwrap(); // JFA ping-pong texture 0
     let jfa_step_fb_color_1 = self.textures.get( "jfa_step_fb_color_1" ).unwrap(); // JFA ping-pong texture 1
     let equirect_map = self.textures.get( "equirect_map" ).unwrap(); // Skybox equirectangular texture
@@ -562,7 +606,8 @@ impl Renderer
     self.programs.outline.bind( gl );
     let locations = self.programs.outline.get_locations();
 
-    let outline_u_object_texture = locations.get( "u_object_texture" ).unwrap().clone().unwrap();
+    let u_object_texture = locations.get( "u_object_texture" ).unwrap().clone().unwrap();
+    let u_normal_texture = locations.get( "u_normal_texture" ).unwrap().clone().unwrap();
     let u_jfa_step_texture = locations.get( "u_jfa_texture" ).unwrap().clone().unwrap();
     let u_resolution = locations.get( "u_resolution" ).unwrap().clone().unwrap();
     let u_outline_thickness = locations.get( "u_outline_thickness" ).unwrap().clone().unwrap();
@@ -575,7 +620,7 @@ impl Renderer
     // Define outline parameters ( thickness animated with time )
     let outline_thickness = 30.0;
     let outline_color = [ 1.0, 1.0, 1.0, 1.0 ]; // White outline
-    let object_color = [ 0.5, 0.5, 0.5, 1.0 ]; // Grey object
+    let object_color = [ 1.0, 1.0, 0.0, 1.0 ]; // Grey object
 
     // Bind the default framebuffer ( render to canvas )
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );
@@ -606,16 +651,17 @@ impl Renderer
     .unwrap();
 
     upload_texture( gl, equirect_map, &u_equirect_map, GL::TEXTURE0 );
-    upload_texture( gl, object_fb_color, &outline_u_object_texture, GL::TEXTURE1 );
+    upload_texture( gl, object_fb_color, &u_object_texture, GL::TEXTURE1 );
+    upload_texture( gl, object_fb_normal, &u_normal_texture, GL::TEXTURE2 );
 
     // The final JFA result is in jfa_step_fb_color_0 if num_passes is even, otherwise in jfa_step_fb_color_1
     if num_passes % 2 == 0
     {
-      upload_texture( gl, jfa_step_fb_color_0, &u_jfa_step_texture, GL::TEXTURE2 );
+      upload_texture( gl, jfa_step_fb_color_0, &u_jfa_step_texture, GL::TEXTURE3 );
     }
     else
     {
-      upload_texture( gl, jfa_step_fb_color_1, &u_jfa_step_texture, GL::TEXTURE2 );
+      upload_texture( gl, jfa_step_fb_color_1, &u_jfa_step_texture, GL::TEXTURE3 );
     }
 
     gl.draw_arrays( GL::TRIANGLES, 0, 3 );
@@ -637,10 +683,19 @@ async fn run() -> Result< (), gl::WebglError >
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();
 
-  let gltf_path = "bike.glb";
+  let gltf_path = "2017_porsche_911_turbo_s_exclusive_series_991.2.glb";
   let gltf = load( &document, gltf_path, &renderer.gl ).await?;
   let scenes = gltf.scenes.clone();
   remove_node_from_scene_by_name( &scenes[ 0 ], "Mesh_0153.rip__0" );
+  remove_node_from_scene_by_name( &scenes[ 0 ], "Mesh_0162.rip__0" );
+  for node in &scenes[ 0 ].borrow().children
+  {
+    node.borrow_mut().set_center_to_origin();
+    node.borrow_mut().normalize_scale();
+    let scale = node.borrow().get_scale();
+    node.borrow_mut().set_scale( scale * 30.0 );
+  }
+
   scenes[ 0 ].borrow_mut().update_world_matrix();
 
   let update_and_draw =
