@@ -3,7 +3,8 @@ precision highp float;
 
 in vec2 vUv;
 
-out vec4 FragColor;
+layout( location = 0 ) out vec4 frag_color;
+layout( location = 1 ) out vec4 emissive_color;
 
 uniform sampler2D equirectMap;
 uniform mat4 invProjection;
@@ -50,4 +51,5 @@ void main()
   {
     FragColor = texture( equirectMap, vec2( 0.0001, uv.y ) );
   }
+  emissive_color = vec4( 0.0 );
 }
