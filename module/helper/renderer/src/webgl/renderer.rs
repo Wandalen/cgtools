@@ -918,8 +918,7 @@ mod private
       let max_count = match type_
       {
         LightType::Point => MAX_POINT_LIGHTS,
-        LightType::Direct => MAX_DIRECT_LIGHTS,
-        _ => continue
+        LightType::Direct => MAX_DIRECT_LIGHTS
       };
 
       let Some( count_loc ) = locations.get( format!( "{type_}LightsCount" ).as_str() )
@@ -979,8 +978,7 @@ mod private
             let _ = gl::uniform::upload( gl, direction_loc, light.direction.as_slice() );
             let _ = gl::uniform::upload( gl, color_loc, light.color.as_slice() );
             let _ = gl::uniform::upload( gl, strength_loc, &light.strength );
-          },
-          _ => ()
+          }
         }
       }
     }

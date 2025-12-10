@@ -35,14 +35,14 @@ mod private
     Direct( DirectLight )
   }
 
-  impl From< Light > for LightType
+  impl From< &Light > for LightType
   {
-    fn from( value : Light ) -> Self
+    fn from( value : &Light ) -> Self
     {
       match value
       {
-        Light::Point => LightType::Point,
-        Light::Direct => LightType::Direct
+        Light::Point( _ ) => LightType::Point,
+        Light::Direct( _ ) => LightType::Direct
       }
     }
   }
