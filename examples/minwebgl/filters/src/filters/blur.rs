@@ -3,8 +3,11 @@
 use super::*;
 use serde::{ Serialize, Deserialize };
 
+#[ derive( Clone ) ]
 pub struct Box;
+#[ derive( Clone ) ]
 pub struct Gaussian;
+#[ derive( Clone ) ]
 pub struct Stack;
 
 #[ derive( Debug, Serialize, Deserialize ) ]
