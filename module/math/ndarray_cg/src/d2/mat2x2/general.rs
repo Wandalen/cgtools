@@ -54,7 +54,7 @@ Self : RawSlice< Scalar = E >
     self.raw_slice().try_into().unwrap()
   }
 
-  /// Converts the matrix to a 4x4 homogenous matrix
+  /// Converts the matrix to a 3x3 homogenous matrix
   pub fn to_homogenous( &self ) -> Mat3< E, Descriptor >
   where
     Mat3< E, Descriptor > : RawSliceMut< Scalar = E >
