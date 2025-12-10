@@ -479,11 +479,13 @@ mod private
     JfaOutlineShader,
     "u_object_texture",
     "u_jfa_texture",
+    "u_equirect_map",
     "u_resolution",
     "u_outline_thickness",
     "u_outline_color",
     "u_object_color",
-    "u_background_color"
+    "u_inv_projection",
+    "u_inv_view"
   );
 
   impl_locations!

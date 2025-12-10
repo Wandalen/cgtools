@@ -29,6 +29,8 @@ use gl::
 {
   WebglError,
   GL,
+  JsCast,
+  wasm_bindgen::closure::Closure,
   web_sys::
   {
     WebGl2RenderingContext,
@@ -49,7 +51,6 @@ use renderer::webgl::
   {
     ProgramInfo,
     ShaderProgram,
-    SkyboxShader,
     JfaOutlineObjectShader,
     JfaOutlineInitShader,
     JfaOutlineStepShader,
@@ -58,6 +59,116 @@ use renderer::webgl::
 };
 use ndarray_cg::F32x3;
 use std::collections::HashMap;
+
+/// Removes node from [`Scene`] by name
+fn remove_node_from_scene_by_name( root : &Rc< RefCell< Scene > >, name : &str )
+{
+  let remove_child_ids = root.borrow().children
+  .iter()
+  .enumerate()
+  .filter
+  (
+    | ( _, n ) |
+    {
+      if let Some( current_name ) = n.borrow().get_name()
+      {
+        *current_name == *name
+      }
+      else
+      {
+        false
+      }
+    }
+  )
+  .map( | ( i, _ ) | i )
+  .collect::< Vec< _ > >();
+
+  for i in remove_child_ids.iter().rev()
+  {
+    let _ = root.borrow_mut().children.remove( *i );
+  }
+
+  let _ = root.borrow_mut().traverse
+  (
+    &mut | node : Rc< RefCell< Node > > |
+    {
+      let remove_child_ids = node.borrow().get_children()
+      .iter()
+      .enumerate()
+      .filter
+      (
+        | ( _, n ) |
+        {
+          if let Some( current_name ) = n.borrow().get_name()
+          {
+            *current_name == *name
+          }
+          else
+          {
+            false
+          }
+        }
+      )
+      .map( | ( i, _ ) | i )
+      .collect::< Vec< _ > >();
+
+      for i in remove_child_ids.iter().rev()
+      {
+        let _ = node.borrow_mut().remove_child( *i );
+      }
+
+      Ok( () )
+    }
+  );
+}
+
+/// Loads an image from a URL to a WebGL texture.
+///
+/// This function creates a new `WebGlTexture` and asynchronously loads an image from the provided URL into it.
+/// It uses a `Closure` to handle the `onload` event of an `HtmlImageElement`, ensuring the texture is
+/// uploaded only after the image has finished loading.
+///
+/// # Arguments
+///
+/// * `gl` - The WebGl2RenderingContext.
+/// * `src` - A reference-counted string containing the URL of the image to load.
+///
+/// # Returns
+///
+/// A `WebGlTexture` object.
+fn load_texture( gl : &GL, src : &str ) -> WebGlTexture
+{
+  let window = web_sys::window().expect( "Can't get window" );
+  let document =  window.document().expect( "Can't get document" );
+
+  let texture = gl.create_texture().expect( "Failed to create a texture" );
+
+  let img_element = document.create_element( "img" )
+  .expect( "Can't create img" )
+  .dyn_into::< gl::web_sys::HtmlImageElement >()
+  .expect( "Can't convert to gl::web_sys::HtmlImageElement" );
+  img_element.style().set_property( "display", "none" ).expect( "Can't set property" );
+  let load_texture : Closure< dyn Fn() > = Closure::new
+  (
+    {
+      let gl = gl.clone();
+      let img = img_element.clone();
+      let texture = texture.clone();
+      move ||
+      {
+        gl::texture::d2::upload_no_flip( &gl, Some( &texture ), &img );
+        gl.generate_mipmap( gl::TEXTURE_2D );
+        img.remove();
+      }
+    }
+  );
+
+  img_element.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
+  img_element.set_src( &src );
+  load_texture.forget();
+
+  texture
+}
 
 /// Binds a texture to a texture unit and uploads its location to a uniform.
 ///
@@ -138,7 +249,6 @@ fn upload_framebuffer(
 
 struct Programs
 {
-  skybox : ProgramInfo,
   object : ProgramInfo,
   jfa_init : ProgramInfo,
   jfa_step : ProgramInfo,
@@ -151,7 +261,6 @@ impl Programs
   {
     // --- Load and Compile Shaders ---
 
-    let skybox_fs_src = include_str!( "../resources/shaders/skybox.frag" );
     let object_vs_src = include_str!( "../resources/shaders/object.vert" );
     let object_fs_src = include_str!( "../resources/shaders/object.frag" );
     let fullscreen_vs_src = include_str!( "../resources/shaders/fullscreen.vert" );
@@ -160,13 +269,11 @@ impl Programs
     let outline_fs_src = include_str!( "../resources/shaders/outline.frag" );
 
     // Compile and link shader programs and store them
-    let skybox_program = gl::ProgramFromSources::new( fullscreen_vs_src, skybox_fs_src ).compile_and_link( gl ).unwrap();
     let object_program = gl::ProgramFromSources::new( object_vs_src, object_fs_src ).compile_and_link( gl ).unwrap();
     let jfa_init_program = gl::ProgramFromSources::new( fullscreen_vs_src, jfa_init_fs_src ).compile_and_link( gl ).unwrap();
     let jfa_step_program = gl::ProgramFromSources::new( fullscreen_vs_src, jfa_step_fs_src ).compile_and_link( gl ).unwrap();
     let outline_program = gl::ProgramFromSources::new( fullscreen_vs_src, outline_fs_src ).compile_and_link( gl ).unwrap();
 
-    let skybox = ProgramInfo::new( gl, &skybox_program, SkyboxShader.dyn_clone() );
     let object = ProgramInfo::new( gl, &object_program, JfaOutlineObjectShader.dyn_clone() );
     let jfa_init = ProgramInfo::new( gl, &jfa_init_program, JfaOutlineInitShader.dyn_clone() );
     let jfa_step = ProgramInfo::new( gl, &jfa_step_program, JfaOutlineStepShader.dyn_clone() );
@@ -174,7 +281,6 @@ impl Programs
 
     Self
     {
-      skybox,
       object,
       jfa_init,
       jfa_step,
@@ -245,8 +351,6 @@ impl Renderer
 
     // --- Create Framebuffers and Textures ---
 
-    // Framebuffer for rendering the skybox
-    let ( skybox_fb, skybox_fb_color ) = create_framebuffer( gl, viewport, 0 ).unwrap();
     // Framebuffer for rendering the initial object silhouette
     let ( object_fb, object_fb_color ) = create_framebuffer( gl, viewport, 0 ).unwrap();
     // Framebuffer for the JFA initialization pass
@@ -256,14 +360,13 @@ impl Renderer
     let ( jfa_step_fb_1, jfa_step_fb_color_1 ) = create_framebuffer( gl, viewport, 0 ).unwrap();
 
     // Store the color attachment textures
-    renderer.textures.insert( "skybox_fb_color".to_string(), skybox_fb_color );
     renderer.textures.insert( "object_fb_color".to_string(), object_fb_color );
     renderer.textures.insert( "jfa_init_fb_color".to_string(), jfa_init_fb_color );
     renderer.textures.insert( "jfa_step_fb_color_0".to_string(), jfa_step_fb_color_0 );
     renderer.textures.insert( "jfa_step_fb_color_1".to_string(), jfa_step_fb_color_1 );
+    renderer.textures.insert( "equirect_map".to_string(), load_texture( gl, "static/skybox/pink_sunrise.jpg" ) );
 
     // Store the framebuffers
-    renderer.framebuffers.insert( "skybox_fb".to_string(), skybox_fb );
     renderer.framebuffers.insert( "object_fb".to_string(), object_fb );
     renderer.framebuffers.insert( "jfa_init_fb".to_string(), jfa_init_fb );
     renderer.framebuffers.insert( "jfa_step_fb_0".to_string(), jfa_step_fb_0 );
@@ -279,8 +382,6 @@ impl Renderer
   /// * `t` - The current time in milliseconds ( used for animation ).
   fn render( &self, scene : Rc< RefCell< Scene > >, t : f64 )
   {
-    // 1. Skybox Pass: Render skybox
-    self.skybox_pass();
     // 2. Object Rendering Pass: Render the object silhouette to a texture
     let _ = self.object_pass( scene );
     // 3. JFA Initialization Pass: Initialize JFA texture from the silhouette
@@ -296,12 +397,6 @@ impl Renderer
 
     // 4. Outline Pass: Generate and render the final scene with the outline
     self.outline_pass( num_passes );
-  }
-
-  /// Renders the skybox before object pass.
-  fn skybox_pass( &self )
-  {
-
   }
 
   /// Renders the 3D object silhouette to the `object_fb`.
@@ -462,6 +557,7 @@ impl Renderer
     let object_fb_color = self.textures.get( "object_fb_color" ).unwrap(); // Original silhouette
     let jfa_step_fb_color_0 = self.textures.get( "jfa_step_fb_color_0" ).unwrap(); // JFA ping-pong texture 0
     let jfa_step_fb_color_1 = self.textures.get( "jfa_step_fb_color_1" ).unwrap(); // JFA ping-pong texture 1
+    let equirect_map = self.textures.get( "equirect_map" ).unwrap(); // Skybox equirectangular texture
 
     self.programs.outline.bind( gl );
     let locations = self.programs.outline.get_locations();
@@ -472,35 +568,54 @@ impl Renderer
     let u_outline_thickness = locations.get( "u_outline_thickness" ).unwrap().clone().unwrap();
     let u_outline_color = locations.get( "u_outline_color" ).unwrap().clone().unwrap();
     let u_object_color = locations.get( "u_object_color" ).unwrap().clone().unwrap();
-    let u_background_color = locations.get( "u_background_color" ).unwrap().clone().unwrap();
+    let u_equirect_map = locations.get( "u_equirect_map" ).unwrap().clone().unwrap();
+    let u_inv_projection = locations.get( "u_inv_projection" ).unwrap().clone().unwrap();
+    let u_inv_view = locations.get( "u_inv_view" ).unwrap().clone().unwrap();
 
     // Define outline parameters ( thickness animated with time )
     let outline_thickness = 30.0;
     let outline_color = [ 1.0, 1.0, 1.0, 1.0 ]; // White outline
     let object_color = [ 0.5, 0.5, 0.5, 1.0 ]; // Grey object
-    let background_color = [ 0.0, 0.0, 0.0, 1.0 ]; // Black background
 
     // Bind the default framebuffer ( render to canvas )
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );
 
-    gl.clear_color( background_color[ 0 ], background_color[ 1 ], background_color[ 2 ], background_color[ 3 ] );
+    gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
     gl.clear( GL::COLOR_BUFFER_BIT );
 
     gl::uniform::upload( gl, Some( u_resolution.clone() ), &[ self.viewport.0 as f32, self.viewport.1 as f32 ] ).unwrap();
     gl::uniform::upload( gl, Some( u_outline_thickness.clone() ), &outline_thickness ).unwrap();
     gl::uniform::upload( gl, Some( u_outline_color.clone() ), &outline_color ).unwrap();
     gl::uniform::upload( gl, Some( u_object_color.clone() ), &object_color ).unwrap();
-    gl::uniform::upload( gl, Some( u_background_color.clone() ), &background_color ).unwrap();
 
-    upload_texture( gl, object_fb_color, &outline_u_object_texture, GL::TEXTURE0 );
+    gl::uniform::matrix_upload
+    (
+      gl,
+      Some( u_inv_projection.clone() ),
+      &self.camera.get_projection_matrix().inverse().unwrap().to_array(),
+      true
+    )
+    .unwrap();
+    gl::uniform::matrix_upload
+    (
+      gl,
+      Some( u_inv_view.clone() ),
+      &self.camera.get_view_matrix().inverse().unwrap().to_array(),
+      true
+    )
+    .unwrap();
+
+    upload_texture( gl, equirect_map, &u_equirect_map, GL::TEXTURE0 );
+    upload_texture( gl, object_fb_color, &outline_u_object_texture, GL::TEXTURE1 );
+
     // The final JFA result is in jfa_step_fb_color_0 if num_passes is even, otherwise in jfa_step_fb_color_1
     if num_passes % 2 == 0
     {
-      upload_texture( gl, jfa_step_fb_color_0, &u_jfa_step_texture, GL::TEXTURE1 );
+      upload_texture( gl, jfa_step_fb_color_0, &u_jfa_step_texture, GL::TEXTURE2 );
     }
     else
     {
-      upload_texture( gl, jfa_step_fb_color_1, &u_jfa_step_texture, GL::TEXTURE1 );
+      upload_texture( gl, jfa_step_fb_color_1, &u_jfa_step_texture, GL::TEXTURE2 );
     }
 
     gl.draw_arrays( GL::TRIANGLES, 0, 3 );
@@ -525,6 +640,7 @@ async fn run() -> Result< (), gl::WebglError >
   let gltf_path = "bike.glb";
   let gltf = load( &document, gltf_path, &renderer.gl ).await?;
   let scenes = gltf.scenes.clone();
+  remove_node_from_scene_by_name( &scenes[ 0 ], "Mesh_0153.rip__0" );
   scenes[ 0 ].borrow_mut().update_world_matrix();
 
   let update_and_draw =
