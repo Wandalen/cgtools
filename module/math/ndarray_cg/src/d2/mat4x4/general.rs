@@ -295,6 +295,20 @@ IndexingRef< Scalar = E, Index = Ix2 >
   }
 }
 
+impl< E, Descriptor > Mat< 4, 4, E, Descriptor >
+where
+E : MatEl + nd::NdFloat,
+Descriptor : mat::Descriptor,
+Self : RawSliceMut< Scalar = E >
+{
+  /// Creates a 4x4 identity matrix.
+  pub fn identity() -> Self
+  {
+    let mat = Self::default();
+    mat.raw_set( identity().to_array() )
+  }
+}
+
 /// Creates a 4x4 identity matrix.
 pub fn identity< E >() -> Mat4< E, mat::DescriptorOrderColumnMajor >
 where

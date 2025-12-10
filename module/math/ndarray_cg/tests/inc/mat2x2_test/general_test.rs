@@ -4,9 +4,11 @@ use the_module::
   Ix2,
   RawSliceMut,
   ScalarMut,
+  RawSlice,
   ConstLayout,
   IndexingMut,
   Mat2,
+  Mat3,
   mat
 };
 
@@ -76,4 +78,62 @@ fn test_inverse_row_major()
 fn test_inverse_column_major()
 {
   test_inverse_generic::< mat::DescriptorOrderColumnMajor >();
+}
+
+fn test_identity_generic< Descriptor : mat::Descriptor >()
+where 
+  Mat2< f32, Descriptor > : 
+    RawSlice< Scalar = f32 > +
+    RawSliceMut< Scalar = f32 >
+{
+  let exp = &[ 1.0, 0.0, 0.0, 1.0 ];
+
+  let mat = the_module::mat2x2::identity::< f32 >();
+  assert_eq!( mat.raw_slice(), exp );
+
+  let mat = Mat2::< f32, Descriptor >::identity();
+  assert_eq!( mat.raw_slice(), exp );
+}
+
+#[ test ]
+fn test_identity_row_major()
+{
+  test_identity_generic::< mat::DescriptorOrderRowMajor >();
+}
+
+#[ test ]
+fn test_identity_column_major()
+{
+  test_identity_generic::< mat::DescriptorOrderColumnMajor >();
+}
+
+fn test_to_homogenous_generic< Descriptor : mat::Descriptor >()
+where
+  Mat3< f32, Descriptor > :
+    RawSliceMut< Scalar = f32 >,
+  Mat2< f32, Descriptor > : 
+    RawSlice< Scalar = f32 > +
+    RawSliceMut< Scalar = f32 >
+{
+  let exp = [ 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0 ];
+  let mat = Mat2::< f32, Descriptor >::from_row_major( [ 1.0, 0.0, 0.0, 1.0 ] );
+  let mat = mat.to_homogenous();
+  assert_eq!( mat.to_array(), exp );
+
+  let exp = Mat3::< f32, Descriptor >::from_row_major( [ 1.0, 2.0, 0.0, 3.0, 4.0, 0.0, 0.0, 0.0, 1.0 ] );
+  let mat = Mat2::< f32, Descriptor >::from_row_major( [ 1.0, 2.0, 3.0, 4.0 ] );
+  let mat = mat.to_homogenous();
+  assert_eq!( mat.to_array(), exp.to_array() );
+}
+
+#[ test ]
+fn test_to_homogenous_row_major()
+{
+  test_to_homogenous_generic::< mat::DescriptorOrderRowMajor >();
+}
+
+#[ test ]
+fn test_to_homogenous_column_major()
+{
+  test_to_homogenous_generic::< mat::DescriptorOrderColumnMajor >();
 }

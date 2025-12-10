@@ -209,6 +209,20 @@ Self : RawSliceMut< Scalar = E >
   }
 }
 
+impl< E, Descriptor > Mat< 3, 3, E, Descriptor >
+where
+E : MatEl + nd::NdFloat,
+Descriptor : mat::Descriptor,
+Self : RawSliceMut< Scalar = E >
+{
+  /// Creates a 3x3 identity matrix.
+  pub fn identity() -> Self
+  {
+    let mat = Self::default();
+    mat.raw_set( identity().to_array() )
+  }
+}
+
 /// Creates a 3x3 identity matrix
 pub fn identity< E >() -> Mat3< E, mat::DescriptorOrderColumnMajor >
 where
