@@ -3,9 +3,7 @@ mod private
   use minwebgl as gl;
   use crate::webgl::
   {
-    post_processing::{ Pass, VS_TRIANGLE },
-    program::ColorGradingShader,
-    ProgramInfo
+    ProgramInfo, ShaderProgram, post_processing::{ Pass, VS_TRIANGLE }, program::ColorGradingShader
   };
 
   /// Parameters for color grading adjustments.
@@ -94,7 +92,7 @@ mod private
   pub struct ColorGradingPass
   {
     /// The WebGL program used for color grading.
-    material : ProgramInfo< ColorGradingShader >,
+    material : ProgramInfo,
     /// Color grading parameters
     pub params : ColorGradingParams,
   }
@@ -110,7 +108,7 @@ mod private
     {
       let fs_shader = include_str!( "../shaders/post_processing/color_grading.frag" );
       let material = gl::ProgramFromSources::new( VS_TRIANGLE, fs_shader ).compile_and_link( gl )?;
-      let material = ProgramInfo::< ColorGradingShader >::new( gl, material );
+      let material = ProgramInfo::new( gl, &material, ColorGradingShader.dyn_clone() );
 
       Ok
       (
