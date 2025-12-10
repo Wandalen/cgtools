@@ -41,6 +41,7 @@ mod private
   /// A container for a `wgpu::Buffer` and its corresponding `wgpu::VertexBufferLayout`.
   ///
   /// This struct pairs a buffer with the layout description required by a render pipeline.
+  #[ non_exhaustive ]
   #[ derive( Debug ) ]
   pub struct VertexBuffer< 'a >
   {

@@ -58,22 +58,15 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use renderer::webgl::
 {
-  camera::Camera,
-  loaders::gltf::{ load, GLTF },
-  node::{ Node, Object3D },
-  program::
+  AttributeInfo, Geometry, IndexInfo, Material, Mesh, Primitive, camera::Camera, loaders::gltf::{ GLTF, load }, material::PBRMaterial, node::{ Node, Object3D }, program::
   {
     NormalDepthOutlineObjectShader,
     NormalDepthOutlineShader,
-    ProgramInfo
+    ProgramInfo,
+    ShaderProgram
+
   },
-  scene::Scene,
-  AttributeInfo,
-  IndexInfo,
-  Geometry,
-  Material,
-  Mesh,
-  Primitive
+  scene::Scene
 };
 use ndarray_cg::
 {
@@ -90,6 +83,68 @@ type Sketch = csgrs::sketch::Sketch<()>;
 type ProcedureMesh = csgrs::mesh::Mesh< () >;
 
 const MAX_OBJECT_COUNT : usize = 1024;
+
+/// Removes node from [`Scene`] by name
+fn remove_node_from_scene_by_name( root : &Rc< RefCell< Scene > >, name : &str )
+{
+  let remove_child_ids = root.borrow().children
+  .iter()
+  .enumerate()
+  .filter
+  (
+    | ( _, n ) |
+    {
+      if let Some( current_name ) = n.borrow().get_name()
+      {
+        *current_name == *name
+      }
+      else
+      {
+        false
+      }
+    }
+  )
+  .map( | ( i, _ ) | i )
+  .collect::< Vec< _ > >();
+
+  for i in remove_child_ids.iter().rev()
+  {
+    let _ = root.borrow_mut().children.remove( *i );
+  }
+
+  let _ = root.borrow_mut().traverse
+  (
+    &mut | node : Rc< RefCell< Node > > |
+    {
+      let remove_child_ids = node.borrow().get_children()
+      .iter()
+      .enumerate()
+      .filter
+      (
+        | ( _, n ) |
+        {
+          if let Some( current_name ) = n.borrow().get_name()
+          {
+            *current_name == *name
+          }
+          else
+          {
+            false
+          }
+        }
+      )
+      .map( | ( i, _ ) | i )
+      .collect::< Vec< _ > >();
+
+      for i in remove_child_ids.iter().rev()
+      {
+        let _ = node.borrow_mut().remove_child( *i );
+      }
+
+      Ok( () )
+    }
+  );
+}
 
 /// Binds a texture to a texture unit and uploads its location to a uniform.
 ///
@@ -283,7 +338,7 @@ pub fn add_attributes
     {
       let primitive = primitive.borrow();
       let mut geometry = primitive.geometry.borrow_mut();
-      let _ = geometry.add_attribute( gl, "object_ids", object_id_info.clone(), false );
+      let _ = geometry.add_attribute( gl, "object_ids", object_id_info.clone() );
     }
   }
 
@@ -547,6 +602,7 @@ fn primitives_csgrs_gltf
     materials : vec![],
     meshes : vec![],
     animations : vec![],
+    lights : vec![]
   };
 
   gltf.scenes.push( Rc::new( RefCell::new( Scene::new() ) ) );
@@ -573,7 +629,7 @@ fn primitives_csgrs_gltf
 
   let primitives = get_primitives_and_transform();
 
-  let material = Rc::new( RefCell::new( Material::default() ) );
+  let material = Rc::new( RefCell::new( Box::new( PBRMaterial::new( gl ) ) as Box< dyn Material > ) );
   gltf.materials.push( material.clone() );
 
   let attribute_infos =
@@ -652,7 +708,7 @@ fn primitives_csgrs_gltf
 
     for ( name, info ) in &attribute_infos
     {
-      geometry.add_attribute( gl, *name, info.clone(), false ).unwrap();
+      geometry.add_attribute( gl, *name, info.clone() ).unwrap();
     }
 
     geometry.add_index( gl, index_info.clone() ).unwrap();
@@ -694,9 +750,9 @@ fn primitives_csgrs_gltf
 struct Programs
 {
   /// The shader program for the initial object rendering pass.
-  object : ProgramInfo< NormalDepthOutlineObjectShader >,
+  object : ProgramInfo,
   /// The shader program for the final outline pass.
-  outline : ProgramInfo< NormalDepthOutlineShader >,
+  outline : ProgramInfo,
   /// The raw WebGL program for the outline shader.
   outline_program : WebGlProgram
 }
@@ -725,8 +781,8 @@ impl Programs
     let object_program = gl::ProgramFromSources::new( object_vs_src, object_fs_src ).compile_and_link( gl ).unwrap();
     let outline_program = gl::ProgramFromSources::new( fullscreen_vs_src, outline_fs_src ).compile_and_link( gl ).unwrap();
 
-    let object = ProgramInfo::< NormalDepthOutlineObjectShader >::new( gl, object_program );
-    let outline = ProgramInfo::< NormalDepthOutlineShader >::new( gl, outline_program.clone() );
+    let object = ProgramInfo::new( gl, &object_program, NormalDepthOutlineObjectShader.dyn_clone() );
+    let outline = ProgramInfo::new( gl, &outline_program, NormalDepthOutlineShader.dyn_clone() );
 
     Self
     {
@@ -969,7 +1025,6 @@ impl Renderer
     let u_color_texture_loc = locations.get( "u_color_texture" ).unwrap().clone().unwrap();
     let u_depth_texture_loc = locations.get( "u_depth_texture" ).unwrap().clone().unwrap();
     let u_norm_texture_loc = locations.get( "u_norm_texture" ).unwrap().clone().unwrap();
-    //let u_projection_loc = locations.get( "u_projection" ).unwrap().clone().unwrap();
     let u_resolution_loc = locations.get( "u_resolution" ).unwrap().clone().unwrap();
     let u_outline_thickness_loc = locations.get( "u_outline_thickness" ).unwrap().clone().unwrap();
     let u_background_color_loc = locations.get( "u_background_color" ).unwrap().clone().unwrap();
@@ -1018,6 +1073,8 @@ async fn run() -> Result< (), gl::WebglError >
 
   let scenes = gltf.scenes.clone();
   scenes[ 0 ].borrow_mut().update_world_matrix();
+  remove_node_from_scene_by_name( &scenes[ 0 ], "Mesh_0153.rip__0" );
+  remove_node_from_scene_by_name( &scenes[ 0 ], "Mesh_0162.rip__0" );
 
   let primitive_gltf = primitives_csgrs_gltf( &renderer.gl );
   let primitive_scenes = primitive_gltf.scenes.clone();

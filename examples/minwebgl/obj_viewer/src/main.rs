@@ -50,15 +50,13 @@ async fn run() -> Result< (), gl::WebglError >
     10000.0
   );
 
-  let camera = CameraOrbitControls
-  {
-    eye,
-    up,
-    center,
-    window_size : [ width, height ].into(),
-    fov,
-    ..Default::default()
-  };
+  let mut camera = CameraOrbitControls::default();
+  camera.eye = eye;
+  camera.up = up;
+  camera.center = center;
+  camera.fov = fov;
+  camera.window_size = [ width, height ].into();
+
   let camera = Rc::new( RefCell::new( camera ) );
 
   bind_controls_to_input( &canvas, &camera );

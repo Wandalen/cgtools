@@ -44,21 +44,21 @@ Here is a conceptual example demonstrating how to initialize and use the `Canvas
 ```rust
 use canvas_renderer::renderer::CanvasRenderer;
 use minwebgl as gl;
-use renderer::webgl::{ Camera, Node, Scene, Renderer, Texture, TextureInfo, Material };
+use renderer::webgl::{ Camera, Node, Scene, Renderer, Texture, TextureInfo, material::PBRMaterial, Material };
 use std::rc::Rc;
 use std::cell::RefCell;
 
 fn set_texture
 (
   node : &Rc< RefCell< Node > >,
-  mut material_callback : impl FnMut( &mut Material )
+  mut material_callback : impl FnMut( &Rc< RefCell< Box< dyn Material > > > )
 )
 {
   if let renderer::webgl::Object3D::Mesh( ref mesh ) = &node.borrow().object
   {
     for p in &mesh.borrow().primitives
     {
-      material_callback( &mut p.borrow().material.borrow_mut() );
+      material_callback( &p.borrow().material );
     }
   }
 }
@@ -125,6 +125,10 @@ fn setup_and_render( gl : &gl::GL ) -> Result< (), gl::WebglError >
     &object,
     | m |
     {
+      let mut m = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >
+      (
+        m.borrow_mut()
+      );
       m.base_color_texture.as_mut()
       .map
       (

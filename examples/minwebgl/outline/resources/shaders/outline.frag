@@ -5,27 +5,98 @@ precision highp float;
 in vec2 v_tex_coord;
 // Output fragment color to the default framebuffer ( screen ).
 out vec4 FragColor;
+// Input: The skybox equirectangular map
+uniform sampler2D u_equirect_map;
 // Input: The texture containing the original rendered object silhouette.
 uniform sampler2D u_object_texture;
+// Input: The texture containing world-space normals for reflection calculation.
+uniform sampler2D u_normal_texture;
 // Input: The final JFA result texture ( contains nearest seed coordinates for all pixels ).
 uniform sampler2D u_jfa_texture;
 // Uniforms for parameters needed for outlining.
 uniform vec2 u_resolution;           // Screen/texture size in pixels
 uniform float u_outline_thickness;   // Outline thickness in pixels
 uniform vec4 u_outline_color;        // Color of the outline
-uniform vec4 u_object_color;         // Fill color for the object itself
-uniform vec4 u_background_color;     // Background color
+uniform vec4 u_object_color;
+uniform mat4 u_inv_projection;          // Inverse projection matrix
+uniform mat4 u_inv_view;                // Inverse view matrix
+
+const float PI = 3.1415926535897932384626433;
+const float FRAC_1_PI = 1.0 / PI;
+const float FRAC_1_2PI = FRAC_1_PI / 2.0;
+
+vec3 getWorldDir( vec2 uv )
+{
+  vec4 clip = vec4( uv * 2.0 - 1.0, -1.0, 1.0 );
+  vec4 view = u_inv_projection * clip;
+  view /= view.w;
+  view.w = 0.0;
+  vec3 worldDir = ( u_inv_view * view ).xyz;
+  return normalize( worldDir );
+}
+
+vec2 dirToEquirectUV( vec3 dir )
+{
+  float phi = atan( dir.z, dir.x );
+  float theta = asin( dir.y );
+  vec2 uv = vec2( 0.5 + phi * FRAC_1_2PI, 0.5 - theta * FRAC_1_PI );
+
+  return uv;
+}
+
+vec4 skybox()
+{
+  vec3 dir = getWorldDir( v_tex_coord );
+  vec2 uv = dirToEquirectUV( dir );
+
+  if ( uv.x > 0.001 && uv.x < 0.999 )
+  {
+    return texture( u_equirect_map, uv );
+  }
+  else
+  {
+    return texture( u_equirect_map, vec2( 0.0001, uv.y ) );
+  }
+}
+
+vec4 sampleReflection()
+{
+  // Get the view direction (from camera to surface)
+  vec3 viewDir = getWorldDir( v_tex_coord );
+
+  // Sample the world-space normal from the normal texture
+  // Normals are stored in [0,1] range, convert back to [-1,1]
+  vec3 normal = texture( u_normal_texture, v_tex_coord ).xyz;
+  normal = normalize( normal );
+
+  // Calculate the reflection direction
+  // reflect() expects the incident vector (pointing towards the surface)
+  vec3 reflectionDir = reflect( viewDir, normal );
+
+  // Convert reflection direction to equirectangular UV coordinates
+  vec2 uv = dirToEquirectUV( reflectionDir );
+
+  // Sample the environment map
+  if ( uv.x > 0.001 && uv.x < 0.999 )
+  {
+    return texture( u_equirect_map, uv );
+  }
+  else
+  {
+    return texture( u_equirect_map, vec2( 0.0001, uv.y ) );
+  }
+}
 
 void main()
 {
   // Check if the current pixel belongs to the original object silhouette.
   // Sample the silhouette texture. Object pixels are white ( r=1.0 ).
-  float object_present = texture(u_object_texture, v_tex_coord).r;
+  float object_present = texture( u_object_texture, v_tex_coord ).r;
 
   if ( object_present > 0.01 ) // Use a small tolerance for float comparisons
   {
-    // If the pixel is part of the object silhouette, draw it with the object color.
-    FragColor = u_object_color;
+    // If the pixel is part of the object silhouette, draw it with environment reflections.
+    FragColor = u_object_color * sampleReflection();
   }
   else
   {
@@ -52,7 +123,7 @@ void main()
         else
         {
           // If the distance is greater than the outline thickness, draw the background color.
-          FragColor = u_background_color;
+          FragColor = skybox();
         }
     }
     else
@@ -60,7 +131,7 @@ void main()
       // If the sampled JFA coordinate was the sentinel ( -1.0, -1.0 ), it means
       // the JFA process didn't find any seed ( object pixel ) nearby within the
       // maximum jump distance. This pixel is far background.
-      FragColor = u_background_color;
+      FragColor = skybox();
     }
   }
 }

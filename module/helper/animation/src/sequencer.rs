@@ -3,7 +3,7 @@
 mod private
 {
   use std::collections::HashMap;
-  use error_tools::*;
+  use error_tools::error;
   use crate::AnimationState;
   #[ allow( unused_imports ) ]
   use crate::Tween;
@@ -186,7 +186,8 @@ mod private
     fn progress( &self ) -> f64;
   }
 
-    /// Error for handling wrong [`Sequence`] input data
+  /// Error for handling wrong [`Sequence`] input data
+  #[ non_exhaustive ]
   #[ derive( Debug, error::typed::Error ) ]
   pub enum SequenceError
   {
@@ -220,6 +221,8 @@ mod private
   where T : AnimatableValue + 'static
   {
     /// [`Sequence`] constructor
+    #[ allow( clippy::missing_errors_doc ) ]
+    #[ allow( clippy::missing_panics_doc ) ]
     pub fn new( mut tweens : Vec< T > ) -> Result< Self, SequenceError >
     {
       if tweens.len() < 2
@@ -228,9 +231,9 @@ mod private
       }
 
       let last_delay = 0.0;
-      for t in tweens.iter_mut()
+      for tween in &mut tweens
       {
-        if last_delay > t.get_delay()
+        if last_delay > tween.get_delay()
         {
           return Err( SequenceError::Unsorted );
         }
@@ -281,9 +284,9 @@ mod private
 
       let index = self.tweens.binary_search_by
       (
-        | t |
+        | tween |
         {
-          t.get_delay().partial_cmp( &self.elapsed ).expect( "Animation keyframes can't be NaN" )
+          tween.get_delay().partial_cmp( &self.elapsed ).expect( "Animation keyframes can't be NaN" )
         }
       );
 
@@ -299,6 +302,7 @@ mod private
         current_id = self.tweens.len().saturating_sub( 1 );
       }
 
+      #[ allow( clippy::else_if_without_else ) ]
       if self.current == current_id
       {
         let Some( current ) = self.tweens.get_mut( self.current )
@@ -334,8 +338,7 @@ mod private
         },
         AnimationState::Running
         if self.current >= self.tweens.len() - 1 &&
-        self.tweens.get( self.current ).map( | t | t.is_completed() )
-        .unwrap_or( true ) =>
+        self.tweens.get( self.current ).map_or( true, AnimatableValue::is_completed ) =>
         {
           self.state = AnimationState::Completed;
         },
@@ -355,8 +358,7 @@ mod private
         self.state = AnimationState::Paused;
       }
 
-      self.tweens.iter_mut()
-      .for_each( | t | t.pause() );
+      for tween in &mut self.tweens { tween.pause() }
     }
 
     fn resume( &mut self )
@@ -366,8 +368,7 @@ mod private
         self.state = AnimationState::Running;
       }
 
-      self.tweens.iter_mut()
-      .for_each( | t | t.resume() );
+      for tween in &mut self.tweens { tween.resume() }
     }
 
     fn reset( &mut self )
@@ -376,8 +377,7 @@ mod private
       self.state = AnimationState::Pending;
       self.elapsed = 0.0;
 
-      self.tweens.iter_mut()
-      .for_each( | t | t.reset() );
+      for tween in &mut self.tweens { tween.reset() }
     }
 
     fn as_any( &self ) -> &dyn core::any::Any

@@ -2,7 +2,7 @@
 mod private
 {
   use minwebgl as gl;
-  use crate::webgl::{ post_processing::{ Pass, VS_TRIANGLE }, program::EmptyShader, ProgramInfo };
+  use crate::webgl::{ ProgramInfo, ShaderProgram, post_processing::{ Pass, VS_TRIANGLE }, program::EmptyShader };
 
   /// A post-processing pass designed to blend a source texture (`blend_texture`)
   /// onto a destination texture (`output_texture`) using specified blending parameters.
@@ -15,12 +15,12 @@ mod private
     /// The blending equation, specifying how source and destination components are combined.
     pub equation : u32,
     /// The WebGL program used for the blending operation.
-    material : ProgramInfo< EmptyShader >,
+    material : ProgramInfo,
     /// The texture that will be blended onto the `output_texture`. This is the source
     pub blend_texture : Option< gl::web_sys::WebGlTexture >
   }
 
-  impl BlendPass 
+  impl BlendPass
   {
     /// Set the blending texture of the pass
     pub fn set_blend_texture( &mut self, texture : Option< gl::web_sys::WebGlTexture > )
@@ -41,8 +41,8 @@ mod private
 
       let fs_shader = include_str!( "../shaders/copy.frag" );
       let material = gl::ProgramFromSources::new( VS_TRIANGLE, fs_shader ).compile_and_link( gl )?;
-      let material = ProgramInfo::< EmptyShader >::new( gl, material );
-      
+      let material = ProgramInfo::new( gl, &material, EmptyShader.dyn_clone() );
+
       Ok
       (
         Self
@@ -54,12 +54,12 @@ mod private
           blend_texture
         }
       )
-    }    
+    }
   }
 
-  impl Pass for BlendPass 
+  impl Pass for BlendPass
   {
-    fn renders_to_input( &self ) -> bool 
+    fn renders_to_input( &self ) -> bool
     {
       true
     }
@@ -71,7 +71,7 @@ mod private
         gl : &minwebgl::WebGl2RenderingContext,
         _input_texture : Option< minwebgl::web_sys::WebGlTexture >,
         output_texture : Option< minwebgl::web_sys::WebGlTexture >
-    ) -> Result< Option< minwebgl::web_sys::WebGlTexture >, minwebgl::WebglError > 
+    ) -> Result< Option< minwebgl::web_sys::WebGlTexture >, minwebgl::WebglError >
     {
       gl.disable( gl::DEPTH_TEST );
       gl.enable( gl::BLEND );
@@ -84,10 +84,10 @@ mod private
       gl.bind_texture( gl::TEXTURE_2D, self.blend_texture.as_ref() );
       gl.framebuffer_texture_2d
       (
-        gl::FRAMEBUFFER, 
-        gl::COLOR_ATTACHMENT0, 
-        gl::TEXTURE_2D, 
-        output_texture.as_ref(), 
+        gl::FRAMEBUFFER,
+        gl::COLOR_ATTACHMENT0,
+        gl::TEXTURE_2D,
+        output_texture.as_ref(),
         0
       );
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );
@@ -101,7 +101,7 @@ mod private
       (
         output_texture
       )
-    }    
+    }
   }
 }
 

@@ -29,7 +29,18 @@ mod private
     /// A scaling factor to adjust the sensitivity of camera zooming.
     pub zoom_speed_scale : f32,
     /// The vertical field of view of the camera, in radians.
-    pub fov : f32
+    pub fov : f32,
+    /// Enables or disables panning
+    pub use_pan : bool,
+    /// Sets whether to `rotation_decay` is applied or not
+    pub use_rotation_easing : bool,
+    /// Determines how fast rotation is going to decrease after dragging is stopped.
+    /// In range from 0.0 to 1.0
+    pub rotation_decay : f32,
+    /// Accumulated speed based on mouse movement
+    rotation_speed : F32x2,
+    /// Current angle of rotation for the camera
+    rotation_angle : F32x2
   }
 
   impl CameraOrbitControls
@@ -74,20 +85,34 @@ mod private
     pub fn rotate
     (
       &mut self,
-      mut screen_d : [ f32; 2 ]
+      screen_d : [ f32; 2 ]
     )
     {
-      screen_d[ 0 ] /= self.rotation_speed_scale;
-      screen_d[ 1 ] /= self.rotation_speed_scale;
+      let mut screen_d = F32x2::from( screen_d );
+      screen_d /= self.rotation_speed_scale;
 
+
+      if self.use_rotation_easing
+      {
+        self.rotation_speed += screen_d;
+      }
+      else
+      {
+        self.rotation_angle = screen_d;
+        self.apply_rotation();
+      }
+    }
+
+    fn apply_rotation( &mut self )
+    {
       let dir = ( self.center - self.eye ).normalize();
       let x = dir.cross( self.up ).normalize();
 
       // We rotate aroung the y axis based on the movement in x direction.
       // And we rotate aroung the axix perpendicular to the current up and direction vectors
       // based on the movement in y direction
-      let rot_y = math::mat3x3::from_angle_y( -screen_d[ 0 ] );
-      let rot_x = math::mat3x3::from_axis_angle( x, -screen_d[ 1 ] );
+      let rot_y = math::mat3x3::from_angle_y( -self.rotation_angle.x() );
+      let rot_x = math::mat3x3::from_axis_angle( x, -self.rotation_angle.y());
       // Combine two rotations
       let rot = rot_y * rot_x;
 
@@ -100,7 +125,6 @@ mod private
 
       self.eye = eye_new;
       self.up = up_new;
-
     }
 
     /// Pans the camera by moving both its position and its center point in a plane.
@@ -115,6 +139,11 @@ mod private
       screen_d : [ f32; 2 ]
     )
     {
+      if !self.use_pan
+      {
+        return;
+      }
+
       // Convert to cgmath Vectors
       // let up = cgmath::Vector3::from( self.up );
       // let mut center_prev = cgmath::Vector3::from( self.center );
@@ -171,6 +200,26 @@ mod private
 
       self.eye = eye_new;
     }
+
+    /// Updates the state of the controls
+    pub fn update
+    (
+      &mut self,
+      delta_time : f64
+    )
+    {
+      // Decays self.rotation_decay% every 100 milliseconds
+      let mut decay_percentage = self.rotation_decay * delta_time as f32 / 10.0;
+      decay_percentage = decay_percentage.min( 1.0 );
+      // decay_percentage = self.rotation_decay;
+
+      if self.use_rotation_easing
+      {
+        self.rotation_angle = self.rotation_speed * delta_time as f32 / 1000.0;
+        self.apply_rotation();
+        self.rotation_speed *= 1.0 - decay_percentage;
+      }
+    }
   }
 
   impl Default for CameraOrbitControls
@@ -186,7 +235,12 @@ mod private
         window_size : F32x2::from( [ 1000.0, 1000.0 ] ),
         rotation_speed_scale : 500.0,
         zoom_speed_scale : 1000.0,
-        fov : 70f32.to_radians()
+        fov : 70f32.to_radians(),
+        use_pan : true,
+        rotation_speed : F32x2::default(),
+        rotation_angle : F32x2::default(),
+        use_rotation_easing : false,
+        rotation_decay : 0.05
       }
     }
   }
@@ -263,7 +317,7 @@ mod private
             {
               camera.borrow_mut().pan( delta );
             }
-            _ => {}
+            CameraState::None => {}
           }
         }
       }
@@ -276,14 +330,10 @@ mod private
         let camera = camera.clone();
         move | e : web_sys::WheelEvent |
         {
-          match *state.borrow_mut()
+          if let CameraState::None = *state.borrow_mut()
           {
-            CameraState::None => 
-            {
-              let delta_y = e.delta_y() as f32;
-              camera.borrow_mut().zoom( delta_y );
-            },
-            _ => {}
+            let delta_y = e.delta_y() as f32;
+            camera.borrow_mut().zoom( delta_y );
           }
         }
       }
@@ -344,7 +394,7 @@ mod private
 // This macro exposes the public interface of the module.
 crate::mod_interface!
 {
-  own use 
+  own use
   {
     bind_controls_to_input
   };

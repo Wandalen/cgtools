@@ -1,5 +1,7 @@
 //! Integration tests related to Sequencer struct
 
+#![ allow( clippy::float_cmp ) ]
+
 #[ cfg( test ) ]
 mod tests
 {

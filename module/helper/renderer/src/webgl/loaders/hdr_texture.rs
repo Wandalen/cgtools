@@ -1,5 +1,5 @@
 mod private
-{ 
+{
   use minwebgl as gl;
 
   /// Loads an HDR image from a file path, decodes it, and uploads it to a specific mipmap level of a WebGL cube map texture.
@@ -45,13 +45,13 @@ mod private
     {
       // +Y and -Y need to be swapped
       let mut i2 = i;
-      if i == 2 
-      { 
-        i2 = 3; 
+      if i == 2
+      {
+        i2 = 3;
       }
-      if i == 3 
-      { 
-        i2 = 2; 
+      if i == 3
+      {
+        i2 = 2;
       }
 
       gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_array_buffer_view_and_src_offset

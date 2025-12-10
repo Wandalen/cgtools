@@ -375,25 +375,22 @@ mod private
 
     fn is_completed( &self ) -> bool
     {
-      self.iter().all( | t | t.is_completed() )
+      self.iter().all( Tween::is_completed )
     }
 
     fn pause( &mut self )
     {
-      self.iter_mut()
-      .for_each( | t | t.pause() );
+      for tween in self.iter_mut() { tween.pause(); }
     }
 
     fn resume( &mut self )
     {
-      self.iter_mut()
-      .for_each( | t | t.resume() );
+      for tween in self.iter_mut() { tween.resume(); }
     }
 
     fn reset( &mut self )
     {
-      self.iter_mut()
-      .for_each( | t | t.reset() );
+      for tween in self.iter_mut() { tween.reset(); }
     }
 
     fn as_any( &self ) -> &dyn core::any::Any
@@ -404,15 +401,15 @@ mod private
     fn get_duration( &self ) -> f64
     {
       let mut min_start = 0.0;
-      for t in self.iter()
+      for tween in self
       {
-        min_start = t.delay.max( min_start );
+        min_start = tween.delay.max( min_start );
       }
 
       let mut max_end = 0.0;
-      for t in self.iter()
+      for tween in self
       {
-        max_end = ( t.delay + t.duration ).max( max_end );
+        max_end = ( tween.delay + tween.duration ).max( max_end );
       }
 
       max_end - min_start
@@ -421,9 +418,9 @@ mod private
     fn get_delay( &self ) -> f64
     {
       let mut min_delay = 0.0;
-      for t in self.iter()
+      for tween in self
       {
-        min_delay = t.delay.min( min_delay );
+        min_delay = tween.delay.min( min_delay );
       }
 
       min_delay
@@ -456,7 +453,7 @@ mod private
   {
     fn interpolate( &self, other : &Self, time : f64 ) -> Self
     {
-      self + ( other - self ) * f64::from( time )
+      self + ( other - self ) * time
     }
   }
 
@@ -464,7 +461,7 @@ mod private
   {
     fn interpolate( &self, other : &Self, time : f64 ) -> Self
     {
-      ( *self as f64 + ( *other as f64 - *self as f64 ) * time ) as i32
+      ( f64::from( *self ) + ( f64::from( *other ) - f64::from( *self ) ) * time ) as i32
     }
   }
 

@@ -169,6 +169,7 @@ mod private
   }
 
   /// Specifies the rendering mode for 2D geometry.
+  #[ non_exhaustive ]
   #[ derive( Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize ) ]
   pub enum GeometryMode
   {

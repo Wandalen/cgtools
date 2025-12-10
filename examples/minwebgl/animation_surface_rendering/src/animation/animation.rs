@@ -1,14 +1,22 @@
-#[ allow( unused ) ]
+#![ allow( unused ) ]
+#![ allow( clippy::question_mark ) ]
+#![ allow( clippy::manual_map ) ]
+#![ allow( clippy::default_trait_access ) ]
+#![ allow( clippy::used_underscore_binding ) ]
+#![ allow( clippy::cast_lossless ) ]
+#![ allow( clippy::let_and_return ) ]
+#![ allow( clippy::too_many_lines ) ]
+
 mod private
 {
   use interpoli::
-  { 
-    Composition, 
-    Content, 
-    Draw, 
-    Geometry, 
-    Shape, 
-    Stroke, 
+  {
+    Composition,
+    Content,
+    Draw,
+    Geometry,
+    Shape,
+    Stroke,
     Brush,
     animated::Spline
   };
@@ -16,7 +24,7 @@ mod private
   use renderer::webgl::loaders::gltf::GLTF;
   use std::collections::HashMap;
   use minwebgl::{ self as gl, F32x4, F32x4x4, GL };
-  use std::cell::RefCell;
+  use core::cell::RefCell;
   use std::rc::Rc;
   use crate::primitive_data::primitives_data_to_gltf;
 
@@ -33,15 +41,15 @@ mod private
     let [ a, b, c, d , e, f ] = affine.as_coeffs();
 
     let mut matrix = gl::math::mat4x4::identity();
-    
+
     {
       let matrix_mut : &mut [ f32 ] = matrix.as_raw_slice_mut();
-      let mut set_elem = 
-      | i : usize, j : usize, v : f32 | 
+      let mut set_elem =
+      | i : usize, j : usize, v : f32 |
       {
         matrix_mut[ i * 4 + j ] = v;
       };
-      
+
       set_elem( 0, 0, a as f32 );
       set_elem( 0, 1, b as f32 );
       set_elem( 1, 0, c as f32 );
@@ -54,7 +62,7 @@ mod private
   }
 
   /// Converts an `interpoli::Brush` to an `F32x4` color vector for a given frame.
-  fn brush_to_color< 'a >( brush : &'a interpoli::Brush, frame : f64 ) -> F32x4
+  fn brush_to_color( brush : &interpoli::Brush, frame : f64 ) -> F32x4
   {
     let color = match brush.evaluate( 1.0, frame ).into_owned()
     {
@@ -66,8 +74,8 @@ mod private
     {
       let [ r, g, b, a ] = color.to_rgba8().to_u8_array();
       let color = F32x4::from_array
-      ( 
-        [ r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, a as f32 / 255.0 ] 
+      (
+        [ r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, a as f32 / 255.0 ]
       );
       color
     }
@@ -88,7 +96,7 @@ mod private
   }
 
   impl Animation
-  { 
+  {
     /// Creates a new `Animation` instance from a composition and a WebGL context.
     pub fn new( gl : &GL, composition : impl Into< Composition > ) -> Self
     {
@@ -99,7 +107,7 @@ mod private
 
       let mut layers = composition.layers.clone();
 
-      let mut i = 0; 
+      let mut i = 0;
       while i < layers.len()
       {
         let layer = layers[ i ].clone();
@@ -112,7 +120,7 @@ mod private
         let mut layer_primitives = vec![];
 
         let mut brush = Brush::Fixed( interpoli::fixed::Brush::Solid( color::AlphaColor::from_rgba8( 0, 0, 0, 0 ) ) );
-        
+
         let mut stroke_width = 1.0;
 
         let layer_base = PrimitiveData
@@ -120,9 +128,9 @@ mod private
           name : Some( format!( "{i}" ).into_boxed_str() ),
           attributes : None,
           parent : layer.parent,
-          behavior : Behavior 
-          { 
-            animated_transform : Some( layer.transform.clone() ), 
+          behavior : Behavior
+          {
+            animated_transform : Some( layer.transform.clone() ),
             repeater : None,
             brush : brush.clone(),
             frames : layer.frames.clone()
@@ -139,7 +147,7 @@ mod private
         {
           match shape
           {
-            Shape::Group( shapes, group_transform ) => 
+            Shape::Group( shapes, group_transform ) =>
             {
               let mut sublayer = layer.clone();
               sublayer.content = Content::Shape( shapes );
@@ -155,38 +163,35 @@ mod private
                 repeaters.push( ( layers.len() - 1, 0..0, repeater.clone() ) );
               }
             },
-            Shape::Geometry( geometry ) => 
+            Shape::Geometry( geometry ) =>
             {
-              let primitive = match geometry
-              {
-                Geometry::Spline
-                ( 
-                  Spline
-                  {
-                    values,
-                    ..
-                  } 
-                ) => 
+              let primitive = if let Geometry::Spline
+              (
+                Spline
                 {
-                  if let Some( path ) = values.get( 0 )
-                  {
-                    let contour = path.into_iter()
-                    .map( | p | [ p.x as f32, p.y as f32 ] )
-                    .collect::< Vec< _ > >();
-                    crate::primitive::curve_to_geometry( contour.as_slice(), stroke_width )
-                  }
-                  else
-                  {
-                    None
-                  }
-                },
-                _ => 
-                {
-                  let mut path = vec![];
-                  geometry.evaluate( 0.0, &mut path );
-                  let contours = crate::primitive::path_to_points( path );
-                  crate::primitive::contours_to_fill_geometry( &[ contours ] )
+                  values,
+                  ..
                 }
+              ) = geometry
+              {
+                if let Some( path ) = values.first()
+                {
+                  let contour = path.iter()
+                  .map( | p | [ p.x as f32, p.y as f32 ] )
+                  .collect::< Vec< _ > >();
+                  crate::primitive::curve_to_geometry( contour.as_slice(), stroke_width )
+                }
+                else
+                {
+                  None
+                }
+              }
+              else
+              {
+                let mut path = vec![];
+                geometry.evaluate( 0.0, &mut path );
+                let contours = crate::primitive::path_to_points( path );
+                crate::primitive::contours_to_fill_geometry( &[ contours ] )
               };
               if let Some( mut primitive ) = primitive
               {
@@ -201,14 +206,14 @@ mod private
               }
             },
             Shape::Draw
-            ( 
+            (
               Draw
               {
                 stroke,
                 brush : _brush,
                 ..
-              } 
-            ) => 
+              }
+            ) =>
             {
               if let Some( Stroke::Fixed( stroke ) ) = stroke
               {
@@ -249,7 +254,7 @@ mod private
       let layer_iter = composition.layers.iter().enumerate()
       .zip( primitives.iter_mut() );
 
-      let mut last_element_id = 0; 
+      let mut last_element_id = 0;
       let mut parent_layer_to_primitive_id = HashMap::new();
       for ( ( i, layer ), primitives ) in layer_iter
       {
@@ -283,13 +288,13 @@ mod private
 
       let behaviors = primitives_data.iter()
       .filter_map
-      ( 
-        | p | 
+      (
+        | p |
         {
           if let Some( name ) = &p.name
           {
-            Some( ( name.clone(), p.behavior.clone() ) ) 
-          } 
+            Some( ( name.clone(), p.behavior.clone() ) )
+          }
           else
           {
             None
@@ -298,7 +303,7 @@ mod private
       )
       .collect::< HashMap< _, _ > >();
 
-      let gltf = primitives_data_to_gltf( gl, primitives_data );
+      let gltf = primitives_data_to_gltf( gl, primitives_data.as_slice() );
 
       Self
       {
@@ -313,17 +318,17 @@ mod private
     {
       let mut nodes_to_insert = vec![];
 
-      let mut update = 
-      | 
+      let mut update =
+      |
         node : Rc< RefCell< Node > >
       | -> Result< (), gl::WebglError >
       {
         let Some( node_name ) = node.borrow().get_name()
         else
         {
-          return Ok( () ); 
+          return Ok( () );
         };
-        
+
         if let Some( behaviour ) = self.behaviors.get( &node_name )
         {
           if let Some( animated_transform ) = &behaviour.animated_transform
@@ -364,7 +369,7 @@ mod private
           let matrix = node.borrow_mut().get_local_matrix();
 
           let mut ids_and_children = vec![];
-          
+
           for i in ( 0..repeater.copies ).rev()
           {
             let node_clone = node.borrow().clone_tree();
@@ -373,7 +378,7 @@ mod private
             node_clone.borrow_mut().set_local_matrix( matrix * transform );
             node_clone.borrow_mut().set_parent( Some( parent.clone() ) );
             ids_and_children.push( ( id + 1, node_clone.clone() ) );
-          } 
+          }
 
           nodes_to_insert.push( ( parent.clone(), ids_and_children ) );
         }
@@ -385,7 +390,7 @@ mod private
 
       for ( parent, ids_and_children ) in nodes_to_insert.into_iter().rev()
       {
-        for ( i, child ) in ids_and_children.into_iter().rev() 
+        for ( i, child ) in ids_and_children.into_iter().rev()
         {
           parent.borrow_mut().insert_child( i, child );
         }
@@ -397,13 +402,13 @@ mod private
     {
       let mut nodes_to_remove = HashMap::new();
 
-      let mut get_nodes_to_remove = 
-      | 
+      let mut get_nodes_to_remove =
+      |
         node : Rc< RefCell< Node > >
       | -> Result< (), gl::WebglError >
       {
         let Some( name ) = node.borrow_mut().get_name()
-        else 
+        else
         {
           return Ok( () );
         };
@@ -424,14 +429,14 @@ mod private
       scene.children
       .retain
       (
-        | n | 
+        | n |
         {
           let Some( name ) = n.borrow().get_name()
           else
           {
             return false;
           };
-          !nodes_to_remove.contains_key( &name ) 
+          !nodes_to_remove.contains_key( &name )
         }
       );
 
@@ -455,13 +460,13 @@ mod private
           {
             continue;
           };
-          if nodes_to_remove.contains_key( &name ) 
+          if nodes_to_remove.contains_key( &name )
           {
             id_to_remove.push( i );
           }
         }
 
-        for i in id_to_remove.iter().rev() 
+        for i in id_to_remove.iter().rev()
         {
           if node.borrow().get_children().get( *i ).is_none()
           {
@@ -482,13 +487,13 @@ mod private
     {
       let mut colors = vec![];
 
-      let mut add_color = 
-      | 
+      let mut add_color =
+      |
         node : Rc< RefCell< Node > >
       | -> Result< (), gl::WebglError >
       {
         let Some( name ) = node.borrow_mut().get_name()
-        else 
+        else
         {
           return Ok( () );
         };
@@ -515,7 +520,7 @@ mod private
     /// Returns a new scene and a list of colors for a specific animation frame.
     pub fn frame( &self, frame : f64 ) -> Option< ( Scene, Vec< F32x4 > ) >
     {
-      let Some( scene ) = self.gltf.scenes.get( 0 )
+      let Some( scene ) = self.gltf.scenes.first()
       else
       {
         return None;
@@ -537,7 +542,7 @@ mod private
     {
       for scene in &self.gltf.scenes
       {
-        for child in scene.borrow().children.iter()
+        for child in &scene.borrow().children
         {
           child.borrow_mut().update_world_matrix( world_matrix, true );
         }

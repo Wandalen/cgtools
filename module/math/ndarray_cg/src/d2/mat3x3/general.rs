@@ -128,10 +128,10 @@ Self : RawSlice< Scalar = E >
     rs[ 10 ] = s[ 8 ];
     rs[ 11 ] = E::zero();
 
-    rs[ 11 ] = E::zero();
     rs[ 12 ] = E::zero();
     rs[ 13 ] = E::zero();
-    rs[ 14 ] = E::one();
+    rs[ 14 ] = E::zero();
+    rs[ 15 ] = E::one();
 
     mat
   }

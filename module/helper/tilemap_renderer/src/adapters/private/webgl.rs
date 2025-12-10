@@ -7,6 +7,8 @@
 #![ allow( clippy::field_reassign_with_default ) ]
 #![ allow( clippy::cast_possible_truncation ) ]
 #![ allow( clippy::cast_sign_loss ) ]
+#![ allow( clippy::cast_precision_loss ) ]
+#![ allow( clippy::cast_possible_wrap ) ]
 #![ allow( clippy::similar_names ) ]
 #![ allow( clippy::missing_docs_in_private_items ) ]
 #![ allow( clippy::unreadable_literal ) ]
@@ -16,6 +18,9 @@
 #![ allow( clippy::needless_borrow ) ]
 #![ allow( clippy::unnecessary_wraps ) ]
 #![ allow( clippy::no_effect_underscore_binding ) ]
+#![ allow( clippy::semicolon_if_nothing_returned ) ]
+#![ allow( clippy::std_instead_of_core ) ]
+#![ allow( clippy::std_instead_of_alloc ) ]
 
 use minwebgl as gl;
 use gl::JsCast as _;
@@ -46,6 +51,10 @@ impl WebGLTileRenderer
   /// Creates a new renderer instance.
   ///
   /// This function initializes the WebGL shader programs and sets up the initial state.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if shader program compilation or linking fails.
   #[ inline ]
   pub fn new( gl : &gl::GL, render_context : ports::RenderContext ) -> Result< Self, gl::WebglError >
   {
@@ -75,6 +84,10 @@ impl WebGLTileRenderer
   ///
   /// Expects a slice of `f32` representing 2D points. The `id` can be used to render the geometry later.
   /// If geometry with the same `id` already exists, it is replaced.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if VAO creation, buffer creation, or attribute pointer setup fails.
   #[ inline ]
   pub fn geometry2d_load( &mut self, data : &[ f32 ], id : u32 ) -> Result< (), gl::WebglError >
   {
@@ -100,6 +113,14 @@ impl WebGLTileRenderer
   ///
   /// A `Result` containing a shared reference to the texture's dimensions, which will be populated
   /// once the image loads.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if texture creation fails.
+  ///
+  /// # Panics
+  ///
+  /// Panics if the document element creation fails or image element casting fails.
   #[ inline ]
   pub fn texture_load_from_src( &mut self, document : &web_sys::Document, src : &str, id : u32 )
   -> Result< rc::Rc< cell::Cell< [ u32; 2 ] > >, gl::WebglError >
