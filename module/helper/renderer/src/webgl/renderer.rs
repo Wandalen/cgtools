@@ -81,8 +81,6 @@ mod private
     pub transparent_revealage_texture : Option< gl::web_sys::WebGlTexture >,
     #[ allow( dead_code ) ]
     pub depth_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
-    /// The framebuffer used for rendering skybox
-    pub skybox_framebuffer : Option< gl::web_sys::WebGlFramebuffer >,
     /// Texture with equirectangular map
     pub skybox_texture : Option< gl::web_sys::WebGlTexture >,
   }
@@ -113,7 +111,6 @@ mod private
       // Create the core framebuffer objects.
       let multisample_framebuffer = gl.create_framebuffer();
       let resolved_framebuffer = gl.create_framebuffer();
-      let skybox_framebuffer = gl.create_framebuffer();
 
       // --- Setup Depth/Stencil Renderbuffer ---
       // Create and bind a renderbuffer for depth and stencil information.
@@ -248,11 +245,6 @@ mod private
       // these will typically be written to via `blit_framebuffer`).
       gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
 
-      // --- Attach Main Texture to Skybox Framebuffer ---
-      gl.bind_framebuffer( gl::FRAMEBUFFER, skybox_framebuffer.as_ref() );
-      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, multisample_main_renderbuffer.as_ref() );
-      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
-
       // Unbind all resources to clean up the global WebGL state.
       gl.bind_texture( gl::TEXTURE_2D, None );
       gl.bind_renderbuffer( gl::RENDERBUFFER, None );
@@ -266,7 +258,6 @@ mod private
         texture_height,
         texture_width,
         resolved_framebuffer,
-        skybox_framebuffer,
         multisample_framebuffer,
         multisample_depth_renderbuffer,
         multisample_emission_renderbuffer,
@@ -654,10 +645,6 @@ mod private
     {
       self.skybox_shader.bind( gl );
 
-      gl.bind_framebuffer( gl::FRAMEBUFFER, self.framebuffer_ctx.skybox_framebuffer.as_ref() );
-      gl.viewport( 0, 0, self.framebuffer_ctx.texture_width as i32, self.framebuffer_ctx.texture_height as i32 );
-      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
-
       let locations = self.skybox_shader.get_locations();
 
       let equirect_map_loc = locations.get( "equirectMap" ).unwrap();
@@ -670,9 +657,13 @@ mod private
       gl::uniform::matrix_upload( gl, inv_projection_loc.clone(), &camera.get_projection_matrix().inverse().unwrap().to_array(), true ).unwrap();
       gl::uniform::matrix_upload( gl, inv_view_loc.clone(), &camera.get_view_matrix().inverse().unwrap().to_array(), true ).unwrap();
 
+      gl.enable( gl::DEPTH_TEST );
+      gl.depth_mask( false );
+      gl.depth_func( GL::LEQUAL );
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );
 
-      gl.bind_framebuffer( gl::FRAMEBUFFER, None );
+      gl.depth_mask( true );
+      gl.depth_func( GL::LESS );
       gl.use_program( None );
     }
 
@@ -718,14 +709,10 @@ mod private
       gl.clear( gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT );
       gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
 
-      self.framebuffer_ctx.unbind_multisample( gl );
-
       if self.framebuffer_ctx.skybox_texture.is_some()
       {
         self.draw_skybox( gl, camera );
       }
-
-      self.framebuffer_ctx.bind_multisample( gl );
 
       // Clear the list of transparent nodes before each render.
       self.transparent_nodes.clear();
