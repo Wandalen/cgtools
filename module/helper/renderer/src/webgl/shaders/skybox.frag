@@ -30,11 +30,6 @@ vec2 dirToEquirectUV( vec3 dir )
   float theta = asin( dir.y );
   vec2 uv = vec2( 0.5 + phi * FRAC_1_2PI, 0.5 - theta * FRAC_1_PI );
 
-  if ( uv.x < 0.0005 || uv.x > 0.9995 )
-  {
-    uv = vec2( 0.0001, uv.y );
-  }
-
   return uv;
 }
 
@@ -43,13 +38,13 @@ void main()
   vec3 dir = getWorldDir( vUv );
   vec2 uv = dirToEquirectUV( dir );
 
-  if (uv.x > 0.001 && uv.x < 0.999)
+  if ( uv.x > 0.001 && uv.x < 0.999 )
   {
-    FragColor = texture( equirectMap, uv );
+    frag_color = texture( equirectMap, uv );
   }
   else
   {
-    FragColor = texture( equirectMap, vec2( 0.0001, uv.y ) );
+    frag_color = texture( equirectMap, vec2( 0.0001, uv.y ) );
   }
   emissive_color = vec4( 0.0 );
 }
