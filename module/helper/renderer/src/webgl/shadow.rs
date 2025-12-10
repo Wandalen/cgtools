@@ -3,7 +3,7 @@
 mod private
 {
   use minwebgl as gl;
-  use gl::{ GL, Program, math::mat3x3h };
+  use gl::{ GL, Program, js_sys, JsValue, math::mat3x3h };
   use web_sys::{ WebGlFramebuffer, WebGlTexture };
   use std::rc::Rc;
   use core::cell::RefCell;
@@ -44,7 +44,8 @@ mod private
         0
       );
 
-      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
+      let arr = js_sys::Array::from_iter( [ JsValue::from_f64( gl::NONE as f64 ) ] );
+      gl.draw_buffers( &arr );
       gl.read_buffer( gl::NONE );
 
       let status = gl.check_framebuffer_status( gl::FRAMEBUFFER );
