@@ -10,9 +10,7 @@ mod private
     /// Point light source type
     Point,
     /// Directional light source type
-    Direct,
-    /// Spot light source type
-    Spot
+    Direct
   }
 
   impl std::fmt::Display for LightType
@@ -22,8 +20,7 @@ mod private
       match self
       {
         LightType::Point => write!( f, "Point" ),
-        LightType::Direct => write!( f, "Direct" ),
-        LightType::Spot => write!( f, "Spot" ),
+        LightType::Direct => write!( f, "Direct" )
       }
     }
   }
@@ -36,6 +33,18 @@ mod private
     Point( PointLight ),
     /// Direct light source
     Direct( DirectLight )
+  }
+
+  impl From< Light > for LightType
+  {
+    fn from( value : Light ) -> Self
+    {
+      match value
+      {
+        Light::Point => LightType::Point,
+        Light::Direct => LightType::Direct
+      }
+    }
   }
 
   /// Point light source description

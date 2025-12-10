@@ -661,20 +661,9 @@ mod private
       {
         if let Object3D::Light( light ) = &node.borrow().object
         {
-          let type_ = match light
-          {
-            Light::Point( _ ) => LightType::Point,
-            Light::Direct( _ ) => LightType::Direct
-          };
+          let type_ : LightType = light.into();
 
-          if let Some( ls ) = lights.get_mut( &type_ )
-          {
-            ls.push( light.clone() );
-          }
-          else
-          {
-            lights.insert( type_, vec![ light.clone() ] );
-          }
+          lights.entry( type_ ).or_default().push( light.clone() );
         }
 
         Ok( () )
