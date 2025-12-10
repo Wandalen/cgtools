@@ -380,13 +380,13 @@ version = "0.4.0"
 version = "0.10"
 
 [workspace.dependencies.wgpu]
-version = "26.0.1"
+version = "27.0.1"
 
 [workspace.dependencies.pollster]
 version = "0.4.0"
 
 [workspace.dependencies.unilang]
-version = "0.11.0"
+version = "0.26.0"
 
 [workspace.dependencies.rustyline]
 version = "14.0"
@@ -395,7 +395,7 @@ version = "14.0"
 version = "0.10"
 features = [ "js" ]
 
-[workspace.dependencies.spart] 
+[workspace.dependencies.spart]
 version = "0.4.1"
 
 [workspace.dependencies.wfc_image]

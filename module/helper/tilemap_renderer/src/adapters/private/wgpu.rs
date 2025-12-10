@@ -548,7 +548,7 @@ impl WGPUTileRenderer
 
     let buffer_slice = output_buffer.slice( .. );
     buffer_slice.map_async( wgpu::MapMode::Read, | _ | {} );
-    self.context.get_device().poll( wgpu::PollType::Wait ).expect( "Failed to render an image" );
+    self.context.get_device().poll( wgpu::PollType::Wait { submission_index : None, timeout : None } ).expect( "Failed to render an image" );
 
     let data = buffer_slice.get_mapped_range();
     data.to_owned()
