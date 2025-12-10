@@ -10,6 +10,8 @@ uniform mat4 invProjection;
 uniform mat4 invView;
 
 const float PI = 3.1415926535897932384626433;
+const float FRAC_1_PI = 1.0 / PI;
+const float FRAC_1_2PI = FRAC_1_PI / 2.0;
 
 vec3 getWorldDir( vec2 uv )
 {
@@ -25,7 +27,7 @@ vec2 dirToEquirectUV( vec3 dir )
 {
   float phi = atan( dir.z, dir.x );
   float theta = asin( dir.y );
-  vec2 uv = vec2( 0.5 + phi / ( 2.0 * PI ), 0.5 - theta / PI );
+  vec2 uv = vec2( 0.5 + phi * FRAC_1_2PI, 0.5 - theta * FRAC_1_PI );
 
   if ( uv.x < 0.0005 || uv.x > 0.9995 )
   {
