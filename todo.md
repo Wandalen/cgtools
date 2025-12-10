@@ -57,3 +57,4 @@ Math operations need to be implemented for `i32`, `i64`, `u32`, `u64`
 
 # GLTF loader
 The loader, at the end of processing the gltf file, needs to compute everything the scene needs - bounding box of each node, world matrices, etc.
+
