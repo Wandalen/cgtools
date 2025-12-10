@@ -2,6 +2,7 @@
 precision highp float;
 
 in vec2 vUv;
+
 out vec4 FragColor;
 
 uniform sampler2D equirectMap;
@@ -22,7 +23,7 @@ vec3 getWorldDir( vec2 uv )
 
 vec2 dirToEquirectUV( vec3 dir )
 {
-  float phi = atan( -dir.z, dir.x );
+  float phi = atan( dir.z, dir.x );
   float theta = asin( dir.y );
   vec2 uv = vec2( 0.5 + phi / ( 2.0 * PI ), 0.5 - theta / PI );
 
@@ -37,8 +38,14 @@ vec2 dirToEquirectUV( vec3 dir )
 void main()
 {
   vec3 dir = getWorldDir( vUv );
-  dir.z = -dir.z;
   vec2 uv = dirToEquirectUV( dir );
 
-  FragColor = texture( equirectMap, uv );
+  if (uv.x > 0.001 && uv.x < 0.999)
+  {
+    FragColor = texture( equirectMap, uv );
+  }
+  else
+  {
+    FragColor = texture( equirectMap, vec2( 0.0001, uv.y ) );
+  }
 }
