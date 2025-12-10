@@ -1,7 +1,7 @@
 mod private
 {
   use std::{ cell::RefCell, rc::Rc };
-  use mingl::{ geometry::BoundingBox };
+  use mingl::geometry::BoundingBox;
   use minwebgl as gl;
   use crate::webgl::Node;
 
