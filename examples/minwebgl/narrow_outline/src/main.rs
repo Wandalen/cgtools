@@ -84,6 +84,68 @@ type ProcedureMesh = csgrs::mesh::Mesh< () >;
 
 const MAX_OBJECT_COUNT : usize = 1024;
 
+/// Removes node from [`Scene`] by name
+fn remove_node_from_scene_by_name( root : &Rc< RefCell< Scene > >, name : &str )
+{
+  let remove_child_ids = root.borrow().children
+  .iter()
+  .enumerate()
+  .filter
+  (
+    | ( _, n ) |
+    {
+      if let Some( current_name ) = n.borrow().get_name()
+      {
+        *current_name == *name
+      }
+      else
+      {
+        false
+      }
+    }
+  )
+  .map( | ( i, _ ) | i )
+  .collect::< Vec< _ > >();
+
+  for i in remove_child_ids.iter().rev()
+  {
+    let _ = root.borrow_mut().children.remove( *i );
+  }
+
+  let _ = root.borrow_mut().traverse
+  (
+    &mut | node : Rc< RefCell< Node > > |
+    {
+      let remove_child_ids = node.borrow().get_children()
+      .iter()
+      .enumerate()
+      .filter
+      (
+        | ( _, n ) |
+        {
+          if let Some( current_name ) = n.borrow().get_name()
+          {
+            *current_name == *name
+          }
+          else
+          {
+            false
+          }
+        }
+      )
+      .map( | ( i, _ ) | i )
+      .collect::< Vec< _ > >();
+
+      for i in remove_child_ids.iter().rev()
+      {
+        let _ = node.borrow_mut().remove_child( *i );
+      }
+
+      Ok( () )
+    }
+  );
+}
+
 /// Binds a texture to a texture unit and uploads its location to a uniform.
 ///
 /// # Arguments
@@ -963,7 +1025,6 @@ impl Renderer
     let u_color_texture_loc = locations.get( "u_color_texture" ).unwrap().clone().unwrap();
     let u_depth_texture_loc = locations.get( "u_depth_texture" ).unwrap().clone().unwrap();
     let u_norm_texture_loc = locations.get( "u_norm_texture" ).unwrap().clone().unwrap();
-    //let u_projection_loc = locations.get( "u_projection" ).unwrap().clone().unwrap();
     let u_resolution_loc = locations.get( "u_resolution" ).unwrap().clone().unwrap();
     let u_outline_thickness_loc = locations.get( "u_outline_thickness" ).unwrap().clone().unwrap();
     let u_background_color_loc = locations.get( "u_background_color" ).unwrap().clone().unwrap();
@@ -1012,6 +1073,8 @@ async fn run() -> Result< (), gl::WebglError >
 
   let scenes = gltf.scenes.clone();
   scenes[ 0 ].borrow_mut().update_world_matrix();
+  remove_node_from_scene_by_name( &scenes[ 0 ], "Mesh_0153.rip__0" );
+  remove_node_from_scene_by_name( &scenes[ 0 ], "Mesh_0162.rip__0" );
 
   let primitive_gltf = primitives_csgrs_gltf( &renderer.gl );
   let primitive_scenes = primitive_gltf.scenes.clone();

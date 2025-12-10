@@ -61,68 +61,6 @@ use renderer::webgl::
 use ndarray_cg::F32x3;
 use std::collections::HashMap;
 
-/// Removes node from [`Scene`] by name
-fn remove_node_from_scene_by_name( root : &Rc< RefCell< Scene > >, name : &str )
-{
-  let remove_child_ids = root.borrow().children
-  .iter()
-  .enumerate()
-  .filter
-  (
-    | ( _, n ) |
-    {
-      if let Some( current_name ) = n.borrow().get_name()
-      {
-        *current_name == *name
-      }
-      else
-      {
-        false
-      }
-    }
-  )
-  .map( | ( i, _ ) | i )
-  .collect::< Vec< _ > >();
-
-  for i in remove_child_ids.iter().rev()
-  {
-    let _ = root.borrow_mut().children.remove( *i );
-  }
-
-  let _ = root.borrow_mut().traverse
-  (
-    &mut | node : Rc< RefCell< Node > > |
-    {
-      let remove_child_ids = node.borrow().get_children()
-      .iter()
-      .enumerate()
-      .filter
-      (
-        | ( _, n ) |
-        {
-          if let Some( current_name ) = n.borrow().get_name()
-          {
-            *current_name == *name
-          }
-          else
-          {
-            false
-          }
-        }
-      )
-      .map( | ( i, _ ) | i )
-      .collect::< Vec< _ > >();
-
-      for i in remove_child_ids.iter().rev()
-      {
-        let _ = node.borrow_mut().remove_child( *i );
-      }
-
-      Ok( () )
-    }
-  );
-}
-
 /// Loads an image from a URL to a WebGL texture.
 ///
 /// This function creates a new `WebGlTexture` and asynchronously loads an image from the provided URL into it.
@@ -686,8 +624,6 @@ async fn run() -> Result< (), gl::WebglError >
   let gltf_path = "2017_porsche_911_turbo_s_exclusive_series_991.2.glb";
   let gltf = load( &document, gltf_path, &renderer.gl ).await?;
   let scenes = gltf.scenes.clone();
-  remove_node_from_scene_by_name( &scenes[ 0 ], "Mesh_0153.rip__0" );
-  remove_node_from_scene_by_name( &scenes[ 0 ], "Mesh_0162.rip__0" );
   for node in &scenes[ 0 ].borrow().children
   {
     node.borrow_mut().set_center_to_origin();
