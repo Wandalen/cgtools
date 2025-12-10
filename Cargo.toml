@@ -395,6 +395,9 @@ version = "14.0"
 version = "0.10"
 features = [ "js" ]
 
+[workspace.dependencies.spart] 
+version = "0.4.1"
+
 [workspace.dependencies.wfc_image]
 version = "0.12"
 

@@ -20,16 +20,11 @@ pub mod ufo
   use std::rc::Rc;
   use std::cell::RefCell;
   use minwebgl as gl;
-  use gl::{ GL, F32x3, math::vector::cross };
+  use gl::{ F32x3, math::vector::cross };
   use quick_xml::{ Reader, events::Event };
   use crate::
   {
     AttributesData, PrimitiveData, Transform
-  };
-  use renderer::webgl::
-  {
-    Material,
-    material::PBRMaterial
   };
 
   #[ derive( Clone ) ]
@@ -361,11 +356,11 @@ pub mod ufo
     bounding_box : BoundingBox
   }
 
-  impl Glyph3D
+  impl From< Glyph > for Glyph3D
   {
-    fn from_glyph( gl : &GL, glyph : Glyph ) -> Self
+    fn from( glyph : Glyph ) -> Self
     {
-      let Some( primitive_data ) = contours_to_mesh( gl, &glyph.contours )
+      let Some( primitive_data ) = contours_to_mesh( &glyph.contours )
       else
       {
         return Self
@@ -382,7 +377,7 @@ pub mod ufo
                 }
               )
             ),
-            material :  Rc::new( RefCell::new( Box::new( PBRMaterial::new( &gl ) ) as Box< dyn Material > ) ),
+            material : Rc::new( RefCell::new( Default::default() ) ),
             transform : Default::default()
           },
           bounding_box : BoundingBox::default()
@@ -406,7 +401,7 @@ pub mod ufo
     }
   }
 
-  fn contours_to_mesh( gl : &GL, contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
+  fn contours_to_mesh( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
   {
     if contours.is_empty()
     {
@@ -662,7 +657,7 @@ pub mod ufo
     let primitive_data = PrimitiveData
     {
       attributes : Rc::new( RefCell::new( attributes ) ),
-      material :  Rc::new( RefCell::new( Box::new( PBRMaterial::new( &gl ) ) as Box< dyn Material > ) ),
+      material : Rc::new( RefCell::new( renderer::webgl::Material::default() ) ),
       transform : Transform::default()
     };
 
@@ -675,15 +670,15 @@ pub mod ufo
     max_size : BoundingBox
   }
 
-  impl Font3D
+  impl From< Font > for Font3D
   {
-    fn from_font( gl : &GL, font : Font ) -> Self
+    fn from( font : Font ) -> Self
     {
       let mut glyphs = HashMap::< char, Glyph3D >::new();
 
       for ( char, glyph ) in font.glyphs
       {
-        glyphs.insert( char, Glyph3D::from_glyph( gl, glyph ) );
+        glyphs.insert( char, glyph.into() );
       }
 
       let mut min = F32x3::MAX;
@@ -725,12 +720,12 @@ pub mod ufo
     fonts
   }
 
-  pub async fn load_fonts_3d( gl : &GL, font_names : &[ String ] ) -> HashMap< String, Font3D >
+  pub async fn load_fonts_3d( font_names : &[ String ] ) -> HashMap< String, Font3D >
   {
     load_fonts( font_names )
     .await
     .iter()
-    .map( | ( n, f ) | ( n.clone(), Font3D::from_font( gl, f.clone() ) ) )
+    .map( | ( n, f ) | ( n.clone(), f.clone().into() ) )
     .collect::< HashMap< _, Font3D > >()
   }
 
@@ -802,7 +797,6 @@ pub mod ttf
   use minwebgl as gl;
   use gl::
   {
-    GL,
     geometry::BoundingBox,
     web::file,
     math::vector::cross,
@@ -812,11 +806,6 @@ pub mod ttf
   use std::rc::Rc;
   use std::cell::RefCell;
   use std::collections::HashMap;
-  use renderer::webgl::
-  {
-    Material,
-    material::PBRMaterial
-  };
   use csgrs::traits::CSG;
 
   type Sketch = csgrs::sketch::Sketch<()>;
@@ -832,7 +821,7 @@ pub mod ttf
 
   impl Glyph3D
   {
-    fn from_ttf( gl : &GL, ttf_bytes : &[ u8 ], character : char ) -> Self
+    fn from_ttf( ttf_bytes : &[ u8 ], character : char ) -> Self
     {
       let c = character.to_string();
       let mut csg : ProcedureMesh = Sketch::text( &c, ttf_bytes, 1.0, None )
@@ -893,7 +882,7 @@ pub mod ttf
       let data = PrimitiveData
       {
         attributes : Rc::new( RefCell::new( attributes ) ),
-        material : Rc::new( RefCell::new( Box::new( PBRMaterial::new( &gl ) ) as Box< dyn Material > ) ),
+        material : Rc::new( RefCell::new( renderer::webgl::Material::default() ) ),
         transform : Transform::default()
       };
 
@@ -928,7 +917,7 @@ pub mod ttf
 
   impl Font3D
   {
-    async fn new( gl : &GL, path : &str ) -> Self
+    async fn new( path : &str ) -> Self
     {
       let ttf_bytes = file::load( path ).await
       .expect( "Failed to load ttf file" );
@@ -937,7 +926,7 @@ pub mod ttf
 
       for c in [ 'C', 'G', 'T', 'o', 'l', 's' ]
       {
-        glyphs.insert( c, Glyph3D::from_ttf( gl, &ttf_bytes, c as char ) );
+        glyphs.insert( c, Glyph3D::from_ttf( &ttf_bytes, c as char ) );
       }
 
       let [ mut max_x, mut max_y ] = [ 0.0, 0.0 ];
@@ -989,14 +978,14 @@ pub mod ttf
     }
   }
 
-  pub async fn load_fonts_3d( gl : &GL, font_names : &[ String ] ) -> HashMap< String, Font3D >
+  pub async fn load_fonts_3d( font_names : &[ String ] ) -> HashMap< String, Font3D >
   {
     let mut fonts = HashMap::< String, Font3D >::new();
 
     for font_name in font_names
     {
       let font_path = format!( "/fonts/ttf/{}.ttf", font_name );
-      fonts.insert( font_name.to_string(), Font3D::new( gl, &font_path ).await );
+      fonts.insert( font_name.to_string(), Font3D::new( &font_path ).await );
     }
 
     fonts
