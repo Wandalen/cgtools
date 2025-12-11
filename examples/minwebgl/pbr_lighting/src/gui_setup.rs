@@ -92,7 +92,7 @@ impl Default for Settings
       light_yaw : 0.0,
       light_distance : 1.0,
       light_color : [ 1.0, 1.0, 1.0 ],
-      light_strength : 1.0,
+      light_strength : 10.0,
       light_range : 10.0,
     }
   }
@@ -477,7 +477,7 @@ pub fn setup
   callback.forget();
 
   // Controllable light distance slider
-  let prop = add_slider( &gui, &object, "lightDistance", 1.0, 100.0, 0.1 );
+  let prop = add_slider( &gui, &object, "lightDistance", 0.01, 5.0, 0.01 );
   let callback = Closure::new
   (
     {
