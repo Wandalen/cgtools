@@ -68,12 +68,9 @@ impl Settings
   {
     F32x3::from_spherical
     (
-      mingl::Spherical
-      {
-        radius : self.light_distance,
-        theta : self.light_pitch,
-        phi : self.light_yaw
-      }
+      self.light_distance,
+      self.light_pitch,
+      self.light_yaw
     )
   }
 }
@@ -144,7 +141,7 @@ pub fn setup
   {
     Light::Point( point_light ) =>
     {
-      let mingl::Spherical{ radius : r, theta : pitch, phi : yaw } = F32x3::to_spherical( point_light.position );
+      let ( r, pitch, yaw ) = F32x3::to_spherical( point_light.position );
       settings.light_mode = LightMode::ControllablePoint;
       settings.light_distance = r;
       settings.light_pitch = pitch;
@@ -155,7 +152,7 @@ pub fn setup
     },
     Light::Direct( direct_light ) =>
     {
-      let mingl::Spherical{ radius : r, theta : pitch, phi : yaw } = F32x3::to_spherical( direct_light.direction );
+      let ( r, pitch, yaw ) = F32x3::to_spherical( direct_light.direction );
       settings.light_mode = LightMode::ControllableDirect;
       settings.light_distance = r;
       settings.light_pitch = pitch;

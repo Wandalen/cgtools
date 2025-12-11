@@ -1,6 +1,6 @@
 mod private
 {
-  use crate::{vector::private::Spherical, *};
+  use crate::*;
   use vector::{ cross };
 
   impl< E > Vector< E, 3 >
@@ -50,24 +50,24 @@ mod private
     }
 
     /// Converts spherical coords to decart
-    pub fn from_spherical( s : Spherical< E > ) -> Self
+    pub fn from_spherical( radius : E, theta : E, phi : E ) -> Self
     {
-      let phi = s.phi.to_radians();
-      let theta = s.theta.to_radians();
+      let phi = phi.to_radians();
+      let theta = theta.to_radians();
       let cos_phi = phi.cos();
 
       Self
       (
         [
-          s.radius * cos_phi * theta.sin(),
-          s.radius * phi.sin(),
-          s.radius * cos_phi * theta.cos(),
+          radius * cos_phi * theta.sin(),
+          radius * phi.sin(),
+          radius * cos_phi * theta.cos(),
         ]
       )
     }
 
-    /// Converts decart coords to spherical
-    pub fn to_spherical( self ) -> Spherical< E >
+    /// Converts decart coords to spherical and returns ( radius, theta, phi )
+    pub fn to_spherical( self ) -> ( E, E, E )
     {
       let radius = self.mag();
       let [ x, y, z ] = self.0;
@@ -77,12 +77,7 @@ mod private
       let phi = phi.to_degrees();
       let theta = theta.to_degrees();
 
-      Spherical
-      {
-        radius,
-        theta,
-        phi
-      }
+      ( radius, theta, phi )
     }
   }
 

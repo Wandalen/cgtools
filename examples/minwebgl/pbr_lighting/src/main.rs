@@ -255,12 +255,9 @@ async fn run() -> Result< (), gl::WebglError >
             {
               let direction = F32x3::from_spherical
               (
-                mingl::Spherical
-                {
-                  radius : light_radius,
-                  theta : i as f32 * 120.0 + ( t as f32 * light_speed / 1000.0 ),
-                  phi : 45.0
-                }
+                light_radius,
+                i as f32 * 120.0 + ( t as f32 * light_speed / 1000.0 ),
+                45.0
               );
 
               direct.direction = direction;
@@ -270,12 +267,9 @@ async fn run() -> Result< (), gl::WebglError >
             {
               let position = F32x3::from_spherical
               (
-                mingl::Spherical
-                {
-                  radius : light_radius,
-                  theta : i as f32 * 120.0 + ( t as f32 * light_speed / 1000.0 ),
-                  phi : 45.0
-                }
+                light_radius,
+                i as f32 * 120.0 + ( t as f32 * light_speed / 1000.0 ),
+                45.0
               );
 
               point.position = position;
