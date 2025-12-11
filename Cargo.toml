@@ -39,6 +39,10 @@ members = [
   "module/math/ndarray_cg",
 
   # Examples
+  #
+  # Symbol `*` usage requires that every example must contain crate.
+  # If your example not related with Rust, but you need leave it one
+  # one of this folders, then create empty crate and build will be successful.
   "examples/minwebgl/*",
   "examples/minwebgpu/*",
   "examples/minwgpu/*",

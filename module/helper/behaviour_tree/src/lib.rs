@@ -50,6 +50,18 @@
 //! let status = patrol_tree.execute( &mut context );
 //! ```
 
+#![allow(clippy::doc_markdown)]
+#![allow(clippy::exhaustive_enums)]
+#![allow(clippy::exhaustive_structs)]
+#![allow(clippy::std_instead_of_core)]
+#![allow(clippy::must_use_candidate)]
+#![allow(clippy::missing_inline_in_public_items)]
+#![allow(clippy::implicit_return)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::collapsible_if)]
+#![allow(clippy::return_self_not_must_use)]
+#![allow(clippy::missing_panics_doc)]
+
 use std::collections::HashMap;
 use core::time::Duration;
 use std::time::Instant;
