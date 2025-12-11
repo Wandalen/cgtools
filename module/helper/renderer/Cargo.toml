@@ -79,6 +79,7 @@ features = [
 wasm-bindgen-test = { workspace = true }
 wasm-bindgen-futures = { workspace = true }
 test_tools = { workspace = true }
+approx = { workspace = true, features = [] }
 
 # Metadata for crates.io
 [package.metadata.docs.rs]
