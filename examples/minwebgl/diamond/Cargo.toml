@@ -10,9 +10,8 @@ authors = [
 [dependencies]
 
 minwebgl = { workspace = true, features = [ "future", "math" ] }
+renderer = { workspace = true }
 gltf = { version = "1.4.1", features = [ "import" ] }
-image = "0.25.6"
-# qqq : for Yevhen : rid of this crate
 
 [dependencies.web-sys]
 workspace = true

@@ -292,7 +292,7 @@ async fn run() -> Result< (), gl::WebGPUError >
         let render_pass = encoder.begin_render_pass
         (
           &gl::RenderPassDescriptor::new()
-          .color_attachment( gl::ColorAttachment::new( &albedo_view ))
+          .color_attachment( gl::ColorAttachment::new( &albedo_view ) )
           .color_attachment( gl::ColorAttachment::new( &pos_view ))
           .color_attachment( gl::ColorAttachment::new( &normal_view ))
           .depth_stencil_attachment( gl::DepthStencilAttachment::new( &depth_view ) )

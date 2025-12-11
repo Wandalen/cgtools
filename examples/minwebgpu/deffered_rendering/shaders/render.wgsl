@@ -48,20 +48,22 @@ fn fs_main( @builtin( position ) coords : vec4f ) -> @location( 0 ) vec4f
   let uv = vec2< u32 >( floor( coords.xy ) );
   let depth = textureLoad( depth_texture, uv, 0 );
 
-  if depth >= 1.0 { discard; }
+  const BACKGROUND_LIGHT : vec3f = vec3f( 1.0 );
+
+  if depth >= 1.0 { return vec4f( BACKGROUND_LIGHT, 1.0 ); }
 
   let albedo = textureLoad( albedo_texture, uv, 0 ).rgb;
   let position = textureLoad( pos_texture, uv, 0 ).rgb;
   let normal = normalize( textureLoad( normal_texture, uv, 0 ).rgb );
 
   let view_dir = normalize( uniforms.camera_pos - position );
-  var color = vec3f( 0.0 );
+  var color = BACKGROUND_LIGHT * 0.25;
   for( var i : u32 = 0; i < arrayLength( &lights ); i += u32( 1 ) )
   {
     let light = lights[ i ];
 
     let dist = length( light.position - position );
-    let radius = 15.0;
+    let radius = 16.0;
     let norm_dist = dist / radius;
 
     if norm_dist > 1.0 { continue; }
