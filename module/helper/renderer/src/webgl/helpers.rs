@@ -9,7 +9,10 @@ mod private
   /// Will panic if cast is not possible
   pub fn cast_unchecked_material_to_ref< T : 'static >( material :  Ref< '_, Box< dyn Material > > ) -> Ref< '_, T >
   {
-    Ref::map( material, | r |
+    Ref::map
+    (
+      material,
+      | r |
       {
         ( r.as_ref() as &dyn std::any::Any  ).downcast_ref::< T >()
         .expect( "Cannot cast the material to the specified type" )
