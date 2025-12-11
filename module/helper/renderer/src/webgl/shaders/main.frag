@@ -516,15 +516,6 @@ void main()
   vec3 color = vec3( 0.0 );
   vec3 viewDir = normalize( cameraPosition - vWorldPos );
   float viewDistance = distance( cameraPosition, vWorldPos );
-  // vec3 lightDirs[] = vec3[]
-  // (
-  //   vec3( 1.0, 0.0, 0.0 ),
-  //   vec3( 0.0, 1.0, 0.0 ),
-  //   vec3( 0.0, 0.0, 1.0 ),
-  //   vec3( -1.0, 0.0, 0.0 ),
-  //   vec3( 0.0, -1.0, 0.0 ),
-  //   vec3( 0.0, 0.0, -1.0 )
-  // );
 
   computeLights( viewDir, normal, material, reflectedLight );
 
