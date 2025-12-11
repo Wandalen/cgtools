@@ -1,6 +1,7 @@
 mod private
 {
-  use std::{ cell::RefCell, collections::HashMap, rc::Rc };
+  use std::{ cell::RefCell, rc::Rc };
+  use rustc_hash::FxHashMap;
   use minwebgl as gl;
   use gl::GL;
 
@@ -480,7 +481,7 @@ mod private
   pub struct Renderer
   {
     /// A map of compiled WebGL programs, keyed by a combination of the material ID and vertex shader defines.
-    programs : HashMap< String, ProgramInfo< program::PBRShader > >,
+    programs : FxHashMap< String, ProgramInfo< program::PBRShader > >,
     /// Holds the precomputed textures used for Image-Based Lighting.
     ibl : Option< IBL >,
     /// A list of nodes with transparent primitives, sorted by distance to the camera for correct rendering order.
@@ -509,7 +510,7 @@ mod private
     {
       let framebuffer_ctx = FramebufferContext::new( gl, width, height, samples );
       let use_emission = false;
-      let programs = HashMap::new();
+      let programs = FxHashMap::default();
       let ibl = None;
       let transparent_nodes = Vec::new();
       let bloom_effect = UnrealBloomPass::new( gl, width, height, gl::RGBA16F )?;
@@ -652,7 +653,7 @@ mod private
       // Clear the list of transparent nodes before each render.
       self.transparent_nodes.clear();
 
-      let mut lights = HashMap::< LightType, Vec< Light > >::new();
+      let mut lights = FxHashMap::< LightType, Vec< Light > >::default();
 
       let mut collect_light_sources =
       |
@@ -908,7 +909,7 @@ mod private
   (
     gl : &GL,
     program : &ProgramInfo< T >,
-    lights : &HashMap< LightType, Vec< Light > >
+    lights : &FxHashMap< LightType, Vec< Light > >
   )
   {
     let locations = program.get_locations();
