@@ -26,7 +26,7 @@ mod private
   }
 
   /// General type for supported light types
-  #[ derive( Clone ) ]
+  #[ derive( Debug, Clone ) ]
   pub enum Light
   {
     /// Point light source
@@ -48,7 +48,7 @@ mod private
   }
 
   /// Point light source description
-  #[ derive( Clone ) ]
+  #[ derive( Debug, Clone ) ]
   pub struct PointLight
   {
     /// Light position
@@ -62,7 +62,7 @@ mod private
   }
 
   /// Direct light source description
-  #[ derive( Clone ) ]
+  #[ derive( Debug, Clone ) ]
   pub struct DirectLight
   {
     /// Light direction

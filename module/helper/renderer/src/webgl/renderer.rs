@@ -921,7 +921,7 @@ mod private
         LightType::Direct => MAX_DIRECT_LIGHTS
       };
 
-      let Some( count_loc ) = locations.get( format!( "{type_}LightsCount" ).as_str() )
+      let Some( count_loc ) = locations.get( format!( "{}LightsCount", type_.to_string().to_lowercase() ).as_str() )
       else
       {
         continue;
