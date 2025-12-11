@@ -62,7 +62,6 @@ unsafe-code = "warn"
 # Individual restriction lints (not as a group per clippy recommendations)
 # Common useful restriction lints
 wildcard_imports = "warn"
-implicit_return = "warn"
 missing_inline_in_public_items = "warn"
 exhaustive_enums = "warn"
 exhaustive_structs = "warn"
@@ -395,7 +394,7 @@ version = "14.0"
 version = "0.10"
 features = [ "js" ]
 
-[workspace.dependencies.spart] 
+[workspace.dependencies.spart]
 version = "0.4.1"
 
 [workspace.dependencies.wfc_image]
