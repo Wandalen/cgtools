@@ -254,6 +254,9 @@ version = "0.2.19"
 [workspace.dependencies.wasm-bindgen-futures]
 version = "0.4.50"
 
+[workspace.dependencies.wasm-bindgen-test]
+version = "0.3"
+
 # [workspace.dependencies.generic-array]
 # version = "1.1.0"
 
@@ -305,7 +308,7 @@ version = "1.47.1"
 version = "1.4"
 
 [workspace.dependencies.csgrs]
-version = "0.19.1"
+version = "0.20.1"
 default-features = false
 features = ["f64", "delaunay"]
 
@@ -315,10 +318,7 @@ version = "0.22.1"
 [workspace.dependencies.norad]
 default-features = false
 features = ["kurbo"]
-version = "0.16.0"
-
-[workspace.dependencies.parley]
-version = "0.5.0"
+version = "0.15.0"
 
 [workspace.dependencies.kurbo]
 version = "0.11.3"
@@ -394,6 +394,9 @@ version = "14.0"
 [workspace.dependencies.wfc]
 version = "0.10"
 features = [ "js" ]
+
+[workspace.dependencies.spart] 
+version = "0.4.1"
 
 [workspace.dependencies.wfc_image]
 version = "0.12"

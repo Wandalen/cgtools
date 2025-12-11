@@ -5,7 +5,8 @@ edition = "2021"
 rust-version = "1.75.0"
 authors = [
   "Kostiantyn Mysnyk <wandalen@obox.systems>",
-  "Avramenko Yevhenii <yevhenii.av@obox.systems>"
+  "Avramenko Yevhenii <yevhenii.av@obox.systems>",
+  "Vadym Bilan <vadym.b@obox.systems>"
 ]
 license = "MIT"
 repository = "https://github.com/Wandalen/cgtools"
@@ -30,17 +31,18 @@ workspace = true
 [features]
 enabled = [
   "dep:mod_interface",
-  "dep:minwebgl", 
+  "dep:minwebgl",
   "dep:mingl",
   "dep:gltf",
   "dep:asbytes",
   "dep:former",
   "dep:uuid",
-  "dep:web-sys"
+  "dep:web-sys",
 ]
 default = ["enabled"]
-full = ["enabled", "webgl"]
+full = ["enabled", "webgl", "animation"]
 webgl = []
+animation = [ "dep:animation" ]
 
 [dependencies]
 
@@ -48,6 +50,7 @@ mod_interface = { workspace = true, optional = true }
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ], optional = true }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ], optional = true }
 gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ], optional = true }
+animation = { workspace = true, optional = true }
 zune-hdr = { workspace = true }
 
 asbytes = { workspace = true, optional = true }
@@ -73,6 +76,8 @@ features = [
 ]
 
 [dev-dependencies]
+wasm-bindgen-test = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
 test_tools = { workspace = true }
 
 # Metadata for crates.io
