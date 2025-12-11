@@ -137,7 +137,7 @@ mod private
     skeleton
   }
 
-  fn get_light_list_from_document( gltf : &gltf::Gltf ) -> Option< HashMap< usize, Light > >
+  fn get_light_list( gltf : &gltf::Gltf ) -> Option< HashMap< usize, Light > >
   {
     let mut lights = HashMap::new();
     for ( i, gltf_light ) in gltf.lights()?.enumerate()
@@ -182,113 +182,6 @@ mod private
     }
 
     Some( lights )
-  }
-
-  fn get_light_list_from_extension( gltf : &gltf::Gltf ) -> Option< HashMap< usize, Light > >
-  {
-    let gltf_lights = gltf.extensions()?
-    .get_key_value( "KHR_lights_punctual" )?.1
-    .get( "lights" )?.as_array()?;
-    let mut lights = HashMap::new();
-    for ( i, gltf_light ) in gltf_lights.iter().enumerate()
-    {
-      let Some( light_type ) = gltf_light.get( "type" )
-      else
-      {
-        continue;
-      };
-      let Some( light_type ) = light_type.as_str()
-      else
-      {
-        continue;
-      };
-      let light =  match light_type
-      {
-        "point" =>
-        {
-          let Some( color ) = gltf_light.get( "color" )
-          .map( | i | i.as_array() )
-          .flatten()
-          .map( | v | v.iter().map( | i | i.as_f64().unwrap() as f32 ).collect::< Vec< _ > >() )
-          .map( | c | F32x3::from_slice( &c[ 0..3 ] ) )
-          else
-          {
-            continue;
-          };
-          let Some( strength ) = gltf_light.get( "intensity" )
-          .map( | i | i.as_f64() )
-          .flatten()
-          else
-          {
-            continue;
-          };
-          let Some( range ) = gltf_light.get( "range" )
-          .map( | i | i.as_f64() )
-          .flatten()
-          else
-          {
-            continue;
-          };
-          Light::Point
-          (
-            PointLight
-            {
-              position : F32x3::default(),
-              color,
-              strength : strength as f32,
-              range : range as f32,
-            }
-          )
-        },
-        "directional" =>
-        {
-          let Some( color ) = gltf_light.get( "color" )
-          .map( | i | i.as_array() )
-          .flatten()
-          .map( | v | v.iter().map( | i | i.as_f64().unwrap() as f32 ).collect::< Vec< _ > >() )
-          .map( | c | F32x3::from_slice( &c[ 0..3 ] ) )
-          else
-          {
-            continue;
-          };
-          let Some( strength ) = gltf_light.get( "intensity" )
-          .map( | i | i.as_f64() )
-          .flatten()
-          else
-          {
-            continue;
-          };
-          Light::Direct
-          (
-            DirectLight
-            {
-              direction : F32x3::default(),
-              color,
-              strength : strength as f32,
-            }
-          )
-        },
-        "spot" => continue,
-        _ => continue
-      };
-
-      lights.insert( i, light );
-    }
-
-    Some( lights )
-  }
-
-  fn get_light_list( gltf : &gltf::Gltf ) -> Option< HashMap< usize, Light > >
-  {
-    if let Some( false ) = gltf.extensions()
-    .map( | m | m.contains_key( "KHR_lights_punctual" ) )
-    {
-      get_light_list_from_document( gltf )
-    }
-    else
-    {
-      get_light_list_from_extension( gltf )
-    }
   }
 
   fn get_light( gltf_node : &gltf::Node< '_ >, node : &Node, lights : &HashMap< usize, Light > ) -> Option< Light >
