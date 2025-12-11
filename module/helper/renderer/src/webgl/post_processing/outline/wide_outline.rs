@@ -30,18 +30,50 @@ mod private
     {
       WebGlUniformLocation,
       WebGlTexture,
-      WebGlFramebuffer
+      WebGlFramebuffer,
+      WebGlProgram
     }
   };
   use crate::webgl::
   {
-    ShaderProgram, post_processing::{ Pass, VS_TRIANGLE },
-    program::
-    {
-      WideOutlineInitShader, WideOutlineShader, WideOutlineStepShader
-    }
+    ShaderProgram,
+    ProgramInfo,
+    post_processing::{ Pass, VS_TRIANGLE },
   };
-  use std::collections::HashMap;
+  use crate::webgl::impl_locations;
+  use rustc_hash::FxHashMap;
+
+  // A public struct for the initialization step of a wide outline.
+  //
+  // This shader is part of a multi-pass technique to create thick, wide outlines.
+  impl_locations!
+  (
+    WideOutlineInitShader,
+    "objectColorTexture"
+  );
+
+  // A public struct for the stepping pass of a wide outline.
+  //
+  // This is the iterative pass that propagates information for a wide outline.
+  impl_locations!
+  (
+    WideOutlineStepShader,
+    "jfaTexture",
+    "resolution",
+    "stepSize"
+  );
+
+  // A public struct representing the final wide outline shader.
+  //
+  // This shader combines the results of the previous passes to draw the final wide outline.
+  impl_locations!
+  (
+    WideOutlineShader,
+    "sourceTexture",
+    "objectColorTexture",
+    "jfaTexture",
+    "resolution"
+  );
 
   /// Binds a texture to a texture unit and uploads its location to a uniform.
   ///
@@ -191,11 +223,11 @@ mod private
     shader_programs : ShaderPrograms,
     /// A hash map to manage multiple WebGL framebuffers. These are used to render
     /// to different textures in each pass of the algorithm.
-    framebuffers : HashMap< String, WebGlFramebuffer >,
+    framebuffers : FxHashMap< String, WebGlFramebuffer >,
     /// A hash map to store the textures used by the different passes. This includes
     /// the initial data texture and the textures used to store intermediate distance
     /// field results.
-    textures : HashMap< String, WebGlTexture >,
+    textures : FxHashMap< String, WebGlTexture >,
     /// The desired thickness of the final outline. This value influences the number
     /// of passes and the final rendering stage.
     outline_thickness : f32,
@@ -231,7 +263,7 @@ mod private
       let ( jfa_step_fb_1, jfa_step_fb_color_1 ) = create_framebuffer( gl, width as i32, height as i32, None ).unwrap();
       let ( outline_fb, output_color ) = create_framebuffer( gl, width as i32, height as i32, None ).unwrap();
 
-      let mut textures = HashMap::new();
+      let mut textures = FxHashMap::default();
 
       // Store the color attachment textures
       textures.insert( "object_color".to_string(), object_color_texture );
@@ -240,7 +272,7 @@ mod private
       textures.insert( "jfa_step_fb_color_1".to_string(), jfa_step_fb_color_1 );
       textures.insert( "output_color".to_string(), output_color );
 
-      let mut framebuffers = HashMap::new();
+      let mut framebuffers = FxHashMap::default();
 
       // Store the framebuffers
       framebuffers.insert( "jfa_init_fb".to_string(), jfa_init_fb );

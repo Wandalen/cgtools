@@ -3,7 +3,26 @@ mod private
 {
   use minwebgl as gl;
   use gl::GL;
-  use crate::webgl::{ ShaderProgram, post_processing::{ Pass, VS_TRIANGLE }, program::NormalDepthOutlineBaseShader };
+  use gl::web_sys::WebGlProgram;
+  use rustc_hash::FxHashMap;
+  use crate::webgl::{ ShaderProgram, post_processing::{ Pass, VS_TRIANGLE }, ProgramInfo };
+  use crate::webgl::impl_locations;
+
+  // A public struct for the base Normal/Depth outline shader.
+  //
+  // This is likely the first pass that generates the necessary data for the final
+  // Normal/Depth outline.
+  impl_locations!
+  (
+    NormalDepthOutlineBaseShader,
+    "sourceTexture",
+    "positionTexture",
+    "normalTexture",
+    "objectColorTexture",
+    "projection",
+    "resolution",
+    "outlineThickness"
+  );
 
   /// A struct representing a rendering pass for creating outlines based on normal and depth information.
   pub struct NormalDepthOutlinePass

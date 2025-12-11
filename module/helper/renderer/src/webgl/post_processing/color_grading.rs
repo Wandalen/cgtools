@@ -1,10 +1,31 @@
 mod private
 {
   use minwebgl as gl;
+  use gl::web_sys::WebGlProgram;
+  use rustc_hash::FxHashMap;
   use crate::webgl::
   {
-    ShaderProgram, post_processing::{ Pass, VS_TRIANGLE }, program::ColorGradingShader
+    ShaderProgram, ProgramInfo, post_processing::{ Pass, VS_TRIANGLE }
   };
+  use crate::webgl::impl_locations;
+
+  // A public struct for a color grading shader.
+  //
+  // This shader applies color correction operations like white balance,
+  // lift-gamma-gain, contrast, vibrance, and saturation adjustments.
+  impl_locations!
+  (
+    ColorGradingShader,
+    "sourceTexture",
+    "temperature",
+    "tint",
+    "exposure",
+    "shadows",
+    "highlights",
+    "contrast",
+    "vibrance",
+    "saturation"
+  );
 
   /// Parameters for color grading adjustments.
   ///

@@ -3,12 +3,21 @@ mod private
   use std::{ cell::RefCell, rc::Rc };
   use rustc_hash::{ FxHashMap, FxHashSet };
   use minwebgl as gl;
-  use web_sys::{ WebGlTexture, WebGlBuffer, WebGlFramebuffer, WebGlUniformLocation, WebGlVertexArrayObject };
+  use web_sys::{ WebGlTexture, WebGlBuffer, WebGlFramebuffer, WebGlUniformLocation, WebGlVertexArrayObject, WebGlProgram };
   use gl::{ F32x4, GL, VectorDataType, drawbuffers::drawbuffers };
   use crate::webgl::
   {
-    AttributeInfo, Camera, Material, Node, Object3D, Scene, ShaderProgram, material::PBRMaterial, program::{self, GBufferShader}
+    AttributeInfo,
+    Camera,
+    Material,
+    Node,
+    Object3D,
+    Scene,
+    ShaderProgram,
+    material::PBRMaterial,
+    ProgramInfo
   };
+  use crate::webgl::impl_locations;
 
   /// The source code for the gbuffer vertex shader.
   const GBUFFER_VERTEX_SHADER : &'static str = include_str!( "../shaders/post_processing/gbuffer.vert" );
@@ -24,6 +33,21 @@ mod private
     GBufferAttachment::PbrInfo,
     GBufferAttachment::ObjectColor
   ];
+
+  // A public struct for a Geometry Buffer (GBuffer) shader.
+  impl_locations!
+  (
+    GBufferShader,
+    "worldMatrix",
+    "viewMatrix",
+    "projectionMatrix",
+    "normalMatrix",
+    "near_far",
+    "albedoTexture",
+    "objectId",
+    "materialId",
+    "objectColor"
+  );
 
   #[ derive( Debug, Copy, Clone, Eq, PartialEq, Hash ) ]
   pub enum GBufferAttachment
@@ -205,7 +229,7 @@ mod private
         &format!( "#version 300 es\n{}\n{}", &defines, GBUFFER_VERTEX_SHADER ),
         &format!( "#version 300 es\n{}\n{}", &defines, GBUFFER_FRAGMENT_SHADER ),
       ).compile_and_link( gl )?;
-      let shader_program = program::GBufferShader::new( gl, &program );
+      let shader_program = GBufferShader::new( gl, &program );
 
       let vao = gl.create_vertex_array().ok_or( gl::WebglError::FailedToAllocateResource( "VAO" ) )?;
       gl.bind_vertex_array( Some( &vao ) );

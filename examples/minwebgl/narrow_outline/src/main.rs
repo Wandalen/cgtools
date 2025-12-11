@@ -58,12 +58,20 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use renderer::webgl::
 {
-  AttributeInfo, Geometry, IndexInfo, Material, Mesh, Primitive, camera::Camera, loaders::gltf::{ GLTF, load }, material::PBRMaterial, node::{ Node, Object3D }, program::
+  AttributeInfo,
+  Geometry,
+  IndexInfo,
+  Material,
+  Mesh,
+  Primitive,
+  camera::Camera,
+  loaders::gltf::{ GLTF, load },
+  material::PBRMaterial,
+  node::{ Node, Object3D },
+  program::
   {
-    NormalDepthOutlineObjectShader,
-    NormalDepthOutlineShader,
+    ProgramInfo,
     ShaderProgram
-
   },
   scene::Scene
 };
@@ -73,15 +81,62 @@ use ndarray_cg::
   F32x4,
   F32x3
 };
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use rand::Rng;
 use std::any::type_name_of_val;
 use csgrs::traits::CSG;
+use renderer::impl_locations;
 
 type Sketch = csgrs::sketch::Sketch<()>;
 type ProcedureMesh = csgrs::mesh::Mesh< () >;
 
 const MAX_OBJECT_COUNT : usize = 1024;
+
+// A public struct for an outline shader based on normal and depth buffers.
+//
+// This shader is used to render an object's outline by comparing the normal
+// and depth values of adjacent pixels.
+impl_locations!
+(
+  NormalDepthOutlineObjectShader,
+  "u_projection",
+  "u_view",
+  "u_model",
+  "u_normal_matrix",
+  "near",
+  "far"
+);
+
+// A public struct representing the final Normal/Depth outline shader.
+//
+// This shader uses the Normal and Depth buffers to create the final outline.
+impl_locations!
+(
+  NormalDepthOutlineShader,
+  "u_color_texture",
+  "u_depth_texture",
+  "u_norm_texture",
+  "u_projection",
+  "u_resolution",
+  "u_outline_thickness",
+  "u_background_color"
+);
+
+// A public struct for the base Normal/Depth outline shader.
+//
+// This is likely the first pass that generates the necessary data for the final
+// Normal/Depth outline.
+impl_locations!
+(
+  NormalDepthOutlineBaseShader,
+  "sourceTexture",
+  "positionTexture",
+  "normalTexture",
+  "objectColorTexture",
+  "projection",
+  "resolution",
+  "outlineThickness"
+);
 
 /// Binds a texture to a texture unit and uploads its location to a uniform.
 ///
@@ -738,11 +793,11 @@ struct Renderer
   /// The compiled and linked shader programs.
   programs : Programs,
   /// A hash map to store WebGL buffers by name.
-  buffers : HashMap< String, WebGlBuffer >,
+  buffers : FxHashMap< String, WebGlBuffer >,
   /// A hash map to store WebGL textures by name.
-  textures : HashMap< String, WebGlTexture >,
+  textures : FxHashMap< String, WebGlTexture >,
   /// A hash map to store WebGL framebuffers by name.
-  framebuffers : HashMap< String, WebGlFramebuffer >,
+  framebuffers : FxHashMap< String, WebGlFramebuffer >,
   /// The current viewport size ( width, height ).
   viewport : ( i32, i32 ),
   /// The main camera for the scene.
@@ -792,9 +847,9 @@ impl Renderer
     {
       gl,
       programs,
-      buffers : HashMap::new(),
-      textures : HashMap::new(),
-      framebuffers : HashMap::new(),
+      buffers : FxHashMap::default(),
+      textures : FxHashMap::default(),
+      framebuffers : FxHashMap::default(),
       viewport,
       camera,
       object_colors : vec![]

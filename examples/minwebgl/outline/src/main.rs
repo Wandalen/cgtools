@@ -34,7 +34,8 @@ use gl::
     WebGl2RenderingContext,
     WebGlUniformLocation,
     WebGlTexture,
-    WebGlFramebuffer
+    WebGlFramebuffer,
+    WebGlProgram
   }
 };
 use std::rc::Rc;
@@ -48,14 +49,61 @@ use renderer::webgl::
   program::
   {
     ShaderProgram,
-    JfaOutlineObjectShader,
-    JfaOutlineInitShader,
-    JfaOutlineStepShader,
-    JfaOutlineShader
+    ProgramInfo
   }
 };
+use renderer::impl_locations;
 use ndarray_cg::F32x3;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
+
+// A public struct for an outline shader that uses Jump Flood Algorithm (JFA)
+// to draw outlines around objects.
+//
+// This shader is part of a multi-pass JFA outlining technique.
+impl_locations!
+(
+  JfaOutlineObjectShader,
+  "u_projection",
+  "u_view",
+  "u_model"
+);
+
+// A public struct for the initialization step of a JFA outline.
+//
+// This shader is the first pass of the JFA, which sets up the initial
+// state for the algorithm.
+impl_locations!
+(
+  JfaOutlineInitShader,
+  "u_object_texture"
+);
+
+// A public struct for the stepping pass of a JFA outline.
+//
+// This shader is used in the iterative step of the JFA to propagate
+// information and find the nearest edge.
+impl_locations!
+(
+  JfaOutlineStepShader,
+  "u_jfa_texture",
+  "u_resolution",
+  "u_step_size"
+);
+
+// A public struct representing the final JFA outline shader.
+//
+// This shader combines the results of the JFA passes to draw the final outline.
+impl_locations!
+(
+  JfaOutlineShader,
+  "u_object_texture",
+  "u_jfa_texture",
+  "u_resolution",
+  "u_outline_thickness",
+  "u_outline_color",
+  "u_object_color",
+  "u_background_color"
+);
 
 /// Binds a texture to a texture unit and uploads its location to a uniform.
 ///
@@ -181,8 +229,8 @@ struct Renderer
 {
   gl : WebGl2RenderingContext,
   programs : Programs,
-  textures : HashMap< String, WebGlTexture >,
-  framebuffers : HashMap< String, WebGlFramebuffer >,
+  textures : FxHashMap< String, WebGlTexture >,
+  framebuffers : FxHashMap< String, WebGlFramebuffer >,
   viewport : ( i32, i32 ),
   camera : Camera
 }
@@ -228,8 +276,8 @@ impl Renderer
     {
       gl,
       programs,
-      textures : HashMap::new(),
-      framebuffers : HashMap::new(),
+      textures : FxHashMap::default(),
+      framebuffers : FxHashMap::default(),
       viewport,
       camera
     };

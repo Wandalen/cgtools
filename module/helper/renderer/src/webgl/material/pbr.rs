@@ -2,16 +2,71 @@ mod private
 {
   use crate::webgl::material::*;
   use minwebgl as gl;
-  use gl::GL;
+  use gl::{ GL, WebGlProgram };
   use mingl::Former;
   use rustc_hash::FxHashMap;
-  use crate::webgl::{ Node, program::{ ShaderProgram, PBRShader } };
+  use crate::webgl::{ Node, program::{ ShaderProgram, ProgramInfo } };
   use std:: { cell::RefCell, rc::Rc };
+  use crate::webgl::program::impl_locations;
 
   /// The source code for the main vertex shader.
   const MAIN_VERTEX_SHADER : &'static str = include_str!( "../shaders/main.vert" );
   /// The source code for the main fragment shader.
   const MAIN_FRAGMENT_SHADER : &'static str = include_str!( "../shaders/main.frag" );
+
+  // A Physically Based Rendering (PBR) shader.
+  impl_locations!
+  (
+    PBRShader,
+    "cameraPosition",
+    "viewMatrix",
+    "projectionMatrix",
+
+    // Node uniform locations
+    "worldMatrix",
+    "normalMatrix",
+
+    // Skeleton uniform locations
+    "inverseBindMatrices",
+    "globalJointTransformMatrices",
+    "matricesTextureSize",
+
+    // Light uniform locations
+    "pointLights",
+    "pointLightsCount",
+    "directLights",
+    "directLightsCount",
+    "spotLights",
+    "spotLightsCount",
+
+    // Material uniform  locations
+    //// Textures uniform locations
+    "metallicRoughnessTexture",
+    "baseColorTexture",
+    "normalTexture",
+    "occlusionTexture",
+    "emissiveTexture",
+    "specularTexture",
+    "specularColorTexture",
+    "lightMap",
+    //// IBL uniform locations
+    "irradianceTexture",
+    "prefilterEnvMap",
+    "integrateBRDF",
+    "mipmapDistanceRange",
+    //// Scalers uniform locations
+    "baseColorFactor",
+    "metallicFactor",
+    "roughnessFactor",
+    "normalScale",
+    "occlusionStrength",
+    "specularFactor",
+    "specularColorFactor",
+    "emissiveFactor",
+    // Luminosity
+    "alphaCutoff",
+    "exposure"
+  );
 
   /// Represents the visual properties of a surface.
   #[ derive( Former, Debug ) ]
@@ -523,6 +578,7 @@ crate::mod_interface!
 {
   orphan use
   {
+    PBRShader,
     PBRMaterial
   };
 }

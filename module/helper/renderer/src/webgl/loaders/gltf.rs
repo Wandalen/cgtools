@@ -1,7 +1,6 @@
 mod private
 {
   use std::{ cell::RefCell, rc::Rc };
-  use std::collections::HashMap;
   use mingl::F32x3;
   use minwebgl as gl;
   use gl::
@@ -141,12 +140,12 @@ mod private
     .map( | s | Rc::new( RefCell::new( s ) ) )
   }
 
-  fn get_light_list( gltf : &gltf::Gltf ) -> Option< HashMap< usize, Light > >
+  fn get_light_list( gltf : &gltf::Gltf ) -> Option< FxHashMap< usize, Light > >
   {
     let gltf_lights = gltf.extensions()?
     .get_key_value( "KHR_lights_punctual" )?.1
     .get( "lights" )?.as_array()?;
-    let mut lights = HashMap::new();
+    let mut lights = FxHashMap::default();
     for ( i, gltf_light ) in gltf_lights.iter().enumerate()
     {
       let Some( light_type ) = gltf_light.get( "type" )
@@ -285,7 +284,7 @@ mod private
     Some( lights )
   }
 
-  fn get_light( gltf_node : &gltf::Node< '_ >, node : &Node, lights : &HashMap< usize, Light > ) -> Option< Light >
+  fn get_light( gltf_node : &gltf::Node< '_ >, node : &Node, lights : &FxHashMap< usize, Light > ) -> Option< Light >
   {
     let light_id = gltf_node.extensions()?
     .get_key_value( "KHR_lights_punctual" )?.1

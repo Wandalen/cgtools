@@ -2,13 +2,49 @@
 mod private
 {
   use minwebgl as gl;
+  use gl::web_sys::WebGlProgram;
+  use rustc_hash::FxHashMap;
   use crate::webgl::
   {
-    ShaderProgram, post_processing::{ Pass, VS_TRIANGLE }, program::{ self, UnrealBloomShader }
+    ShaderProgram, post_processing::{ Pass, VS_TRIANGLE }, ProgramInfo
   };
+  use crate::webgl::impl_locations;
 
   // Defines the number of mipmap levels to use for the blur effect.
   const MIPS : usize = 5;
+
+  // A Gaussian filter shader
+  //
+  // This type of shader is commonly used for post-processing effects like
+  // blurring, often as part of a bloom effect.
+  impl_locations!
+  (
+    GaussianFilterShader,
+    "sourceTexture",
+    "invSize",
+    "blurDir",
+    "kernel"
+  );
+
+  // An Unreal Bloom shader
+  //
+  // This shader implements a bloom effect similar to the one used in the
+  // Unreal Engine, which simulates a camera's lens reacting to bright light.
+  impl_locations!
+  (
+    UnrealBloomShader,
+    "blurTexture0",
+    "blurTexture1",
+    "blurTexture2",
+    "blurTexture3",
+    "blurTexture4",
+
+    "bloomStrength",
+    "bloomRadius",
+
+    "bloomFactors",
+    "bloomTintColors"
+  );
 
   /// Implements an Unreal Bloom post-processing effect from here:
   /// https://github.com/mrdoob/three.js/blob/master/examples/jsm/postprocessing/UnrealBloomPass.js
@@ -22,7 +58,7 @@ mod private
     vertical_targets : Vec< Option< gl::web_sys::WebGlTexture > >,
     /// A collection of `GaussianFilterShader` for blurring. There's one program for
     /// each mip level, with different kernel radii.
-    blur_materials : Vec< program::GaussianFilterShader >,
+    blur_materials : Vec< GaussianFilterShader >,
     /// Composites all the blurred mipmap levels together to create the final bloom effect.
     composite_material : UnrealBloomShader,
     /// The width of the texture to blur
@@ -109,7 +145,7 @@ mod private
         // Dynamically inject the KERNEL_RADIUS define into the shader for the current mip.
         let fs_shader = format!( "#version 300 es\n#define KERNEL_RADIUS {}\n{}", kernel_radius[ i ], fs_shader );
         let blur_material = gl::ProgramFromSources::new( VS_TRIANGLE, &fs_shader ).compile_and_link( gl )?;
-        let blur_material = program::GaussianFilterShader::new( gl, &blur_material );
+        let blur_material = GaussianFilterShader::new( gl, &blur_material );
 
         let locations = blur_material.locations();
         // Calculate Gaussian coefficients based on the kernel radius.

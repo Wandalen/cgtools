@@ -2,8 +2,21 @@
 mod private
 {
   use minwebgl as gl;
-  use gl::GL;
-  use crate::webgl::{ ShaderProgram, post_processing::{ Pass, VS_TRIANGLE }, program::NarrowOutlineShader };
+  use gl::{ GL, web_sys::WebGlProgram };
+  use crate::webgl::{ ShaderProgram, post_processing::{ Pass, VS_TRIANGLE }, ProgramInfo };
+  use crate::webgl::impl_locations;
+  use rustc_hash::FxHashMap;
+
+  // A public struct for a shader that draws narrow outlines.
+  impl_locations!
+  (
+    NarrowOutlineShader,
+    "sourceTexture",
+    "objectColorTexture",
+    "positionTexture",
+    "resolution",
+    "outlineThickness"
+  );
 
   /// A struct representing a rendering pass for drawing narrow outlines.
   pub struct NarrowOutlinePass

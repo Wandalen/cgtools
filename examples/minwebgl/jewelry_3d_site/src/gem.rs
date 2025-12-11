@@ -6,10 +6,7 @@ use rustc_hash::FxHashMap;
 use uuid::Uuid;
 use std:: { cell::RefCell, rc::Rc };
 
-/// Gem shader
-#[ derive( Debug ) ]
-pub struct GemShader( ProgramInfo );
-
+// Gem shader
 impl_locations!
 (
   GemShader,

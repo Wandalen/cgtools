@@ -6,10 +6,7 @@ use rustc_hash::FxHashMap;
 use uuid::Uuid;
 use std::{ cell::RefCell, rc::Rc };
 
-/// Surface shader locations
-#[ derive( Debug ) ]
-pub struct SurfaceShader( ProgramInfo );
-
+// Surface shader locations
 impl_locations!
 (
   SurfaceShader,

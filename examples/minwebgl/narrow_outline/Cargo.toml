@@ -20,6 +20,7 @@ rand = { workspace = true }
 getrandom = { workspace = true, features = [ "wasm_js" ] }
 csgrs = { workspace = true }
 parry3d = { workspace = true }
+rustc-hash = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true

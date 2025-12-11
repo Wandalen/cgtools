@@ -24,9 +24,7 @@ use renderer::impl_locations;
 use rustc_hash::FxHashMap;
 use web_sys::WebGlFramebuffer;
 
-/// CubeNormalMapGenerator shader program
-pub struct CubeNormalMapGeneratorShader( ProgramInfo );
-
+// CubeNormalMapGenerator shader program
 impl_locations!
 (
   CubeNormalMapGeneratorShader,

@@ -2,7 +2,6 @@ mod private
 {
   use mingl::F32x3;
   use std::{ cell::RefCell, rc::Rc };
-  use std::collections::HashMap;
   use rustc_hash::FxHashMap;
   use minwebgl as gl;
   use gl::GL;
@@ -18,7 +17,7 @@ mod private
       UnrealBloomPass,
       VS_TRIANGLE
     },
-    program::{ CompositeShader, SkyboxShader },
+    program::{ SkyboxShader, CompositeShader },
     AlphaMode,
     Camera,
     Node,
@@ -716,7 +715,7 @@ mod private
       // Clear the list of transparent nodes before each render.
       self.transparent_nodes.clear();
 
-      let mut lights = HashMap::< String, Vec< Light > >::new();
+      let mut lights = FxHashMap::< String, Vec< Light > >::default();
 
       let mut collect_light_sources =
       |
@@ -998,7 +997,7 @@ mod private
   (
     gl : &GL,
     program : &Box< dyn ShaderProgram >,
-    lights : &HashMap< String, Vec< Light > >
+    lights : &FxHashMap< String, Vec< Light > >
   )
   {
     let locations = program.locations();
