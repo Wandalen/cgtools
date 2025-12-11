@@ -3,7 +3,9 @@
 use super::*;
 use serde::{ Serialize, Deserialize };
 
+#[ derive( Clone ) ]
 pub struct Photoshop;
+#[ derive( Clone ) ]
 pub struct GIMP;
 
 #[ derive( Debug, Serialize, Deserialize ) ]
