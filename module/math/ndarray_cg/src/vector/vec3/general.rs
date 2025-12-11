@@ -54,14 +54,14 @@ mod private
     {
       let phi = s.phi.to_radians();
       let theta = s.theta.to_radians();
-      let sin_phi = s.phi.sin();
+      let cos_phi = phi.cos();
 
       Self
       (
         [
-          s.radius * sin_phi * theta.cos(),
-          s.radius * sin_phi * theta.sin(),
-          s.radius * phi.cos()
+          s.radius * cos_phi * theta.sin(),
+          s.radius * phi.sin(),
+          s.radius * cos_phi * theta.cos(),
         ]
       )
     }
@@ -70,9 +70,9 @@ mod private
     pub fn to_spherical( self ) -> Spherical< E >
     {
       let radius = self.mag();
-      let theta = ( self.z() / radius ).acos();
-      let [ x, _y, z ] = self.0;
-      let phi = z.signum() * ( x / ( x * x + z * z ).sqrt() ).acos();
+      let [ x, y, z ] = self.0;
+      let phi = y.atan2( ( x * x + z * z ).sqrt() );
+      let theta = x.atan2( z );
 
       let phi = phi.to_degrees();
       let theta = theta.to_degrees();
