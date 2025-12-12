@@ -86,30 +86,6 @@ mod private
     is_visible : bool
   }
 
-  impl Default for Node
-  {
-    fn default() -> Self
-    {
-      Self
-      {
-        matrix : gl::math::mat4x4::identity(),
-        world_matrix : gl::math::mat4x4::identity(),
-        normal_matrix : gl::math::mat3x3::identity(),
-        scale : gl::F32x3::splat( 1.0 ),
-        is_visible : true,
-        name : Default::default(),
-        parent : Default::default(),
-        children : Default::default(),
-        object : Default::default(),
-        translation : Default::default(),
-        rotation : Default::default(),
-        needs_local_matrix_update : Default::default(),
-        needs_world_matrix_update : Default::default(),
-        bounding_box : Default::default(),
-      }
-    }
-  }
-
   #[ allow( clippy::used_underscore_binding ) ]
   impl Node
   {
