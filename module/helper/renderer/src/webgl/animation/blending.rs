@@ -156,6 +156,124 @@ mod private
       self.weighted_animations.values_mut()
       .for_each( | ( a, _ ) | a.reset() );
     }
+
+    /// Blend translation values from all weighted animations for a specific node
+    fn blend_translation( &self, name : &str, node : &Rc< RefCell< Node > > )
+    {
+      let mut values = vec![];
+
+      for ( animation, weights ) in self.weighted_animations.values()
+      {
+        if let Some( translation ) = animation.get::< Sequence< Tween< F64x3 > > >
+        (
+          &format!( "{}{}", name, TRANSLATION_PREFIX )
+        )
+        {
+          if let Some( translation ) = translation.current_get()
+          {
+            let weight = weights.x() as f32;
+            values.push
+            (
+              (
+                F32x3::from_array( translation.value_get().0.map( | v | v as f32 ) ),
+                weight
+              )
+            );
+          }
+        }
+      }
+
+      if self.normalize
+      {
+        normalize_weights( &mut values );
+      }
+
+      let mut translation = F32x3::default();
+      for ( t, w ) in values
+      {
+        translation += t * w;
+      }
+      node.borrow_mut().set_translation( translation );
+    }
+
+    /// Blend rotation values from all weighted animations for a specific node
+    fn blend_rotation( &self, name : &str, node : &Rc< RefCell< Node > > )
+    {
+      let mut values = vec![];
+
+      for ( animation, weights ) in self.weighted_animations.values()
+      {
+        if let Some( rotation ) = animation.get::< Sequence< Tween< QuatF64 > > >
+        (
+          &format!( "{}{}", name, ROTATION_PREFIX )
+        )
+        {
+          if let Some( rotation ) = rotation.current_get()
+          {
+            let weight = weights.y() as f32;
+            values.push
+            (
+              (
+                QuatF32::from( rotation.value_get().0.map( | v | v as f32 ) ),
+                weight
+              )
+            );
+          }
+        }
+      }
+
+      if self.normalize
+      {
+        normalize_weights( &mut values );
+      }
+
+      // NLERP
+      let mut rotation = QuatF32::default();
+      for ( r, w ) in values
+      {
+        rotation += r * w;
+      }
+      node.borrow_mut().set_rotation( rotation.normalize() );
+    }
+
+    /// Blend scale values from all weighted animations for a specific node
+    fn blend_scale( &self, name : &str, node : &Rc< RefCell< Node > > )
+    {
+      let mut values = vec![];
+
+      for ( animation, weights ) in self.weighted_animations.values()
+      {
+        if let Some( scale ) = animation.get::< Sequence< Tween< F64x3 > > >
+        (
+          &format!( "{}{}", name, SCALE_PREFIX )
+        )
+        {
+          if let Some( scale ) = scale.current_get()
+          {
+            let weight = weights.z() as f32;
+            values.push
+            (
+              (
+                F32x3::from_array( scale.value_get().0.map( | v | v as f32 ) ),
+                weight
+              )
+            );
+          }
+        }
+      }
+
+      if self.normalize
+      {
+        normalize_weights( &mut values );
+      }
+
+      let mut scale = F32x3::default();
+      for ( s, w ) in values
+      {
+        scale += s * w;
+      }
+      node.borrow_mut().set_scale( scale );
+    }
   }
 
   impl AnimatableComposition for Blender
@@ -191,108 +309,9 @@ mod private
     {
       for ( name, node ) in nodes
       {
-        let mut values = vec![];
-
-        for ( animation, weights ) in self.weighted_animations.values()
-        {
-          if let Some( translation ) = animation.get::< Sequence< Tween< F64x3 > > >
-          (
-            &format!( "{}{}", name, TRANSLATION_PREFIX )
-          )
-          {
-            if let Some( translation ) = translation.current_get()
-            {
-              let weight = weights.x() as f32;
-              values.push
-              (
-                (
-                  F32x3::from_array( translation.value_get().0.map( | v | v as f32 ) ),
-                  weight as f32
-                )
-              );
-            }
-          }
-        }
-
-        if self.normalize
-        {
-          normalize_weights( &mut values );
-        }
-        let mut translation = F32x3::default();
-        for ( t, w ) in values
-        {
-          translation += t * w;
-        }
-        node.borrow_mut().set_translation( translation );
-
-        let mut values = vec![];
-
-        for ( animation, weights ) in self.weighted_animations.values()
-        {
-          if let Some( rotation ) = animation.get::< Sequence< Tween< QuatF64 > > >
-          (
-            &format!( "{}{}", name, ROTATION_PREFIX )
-          )
-          {
-            if let Some( rotation ) = rotation.current_get()
-            {
-              let weight = weights.y() as f32;
-              values.push
-              (
-                (
-                  QuatF32::from(rotation.value_get().0.map( | v | v as f32 ) ),
-                  weight
-                )
-              );
-            }
-          }
-        }
-
-        if self.normalize
-        {
-          normalize_weights( &mut values );
-        }
-        // NLERP
-        let mut rotation = QuatF32::default();
-        for ( r, w ) in values
-        {
-          rotation += r * w;
-        }
-        node.borrow_mut().set_rotation( rotation.normalize() );
-
-        let mut values = vec![];
-
-        for ( animation, weights ) in self.weighted_animations.values()
-        {
-          if let Some( scale ) = animation.get::< Sequence< Tween< F64x3 > > >
-          (
-            &format!( "{}{}", name, SCALE_PREFIX )
-          )
-          {
-            if let Some( scale ) = scale.current_get()
-            {
-              let weight = weights.z() as f32;
-              values.push
-              (
-                (
-                  F32x3::from_array( scale.value_get().0.map( | v | v as f32 ) ),
-                  weight
-                )
-              );
-            }
-          }
-        }
-
-        if self.normalize
-        {
-          normalize_weights( &mut values );
-        }
-        let mut scale = F32x3::default();
-        for ( s, w ) in values
-        {
-          scale += s * w;
-        }
-        node.borrow_mut().set_scale( scale );
+        self.blend_translation( name, node );
+        self.blend_rotation( name, node );
+        self.blend_scale( name, node );
       }
     }
   }
