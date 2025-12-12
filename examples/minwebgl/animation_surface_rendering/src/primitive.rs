@@ -62,7 +62,7 @@ mod private
 
     curve.windows( 2 )
     .for_each
-    ( 
+    (
       | w |
       {
         let start_point = F32x2::from_array( w[ 0 ] );
@@ -118,7 +118,7 @@ mod private
       {
         continue;
       }
-      
+
       let ( mut x1, mut y1, mut x2, mut y2 ) = ( f32::MAX, f32::MAX, f32::MIN, f32::MIN );
       for [ x, y ] in contour
       {

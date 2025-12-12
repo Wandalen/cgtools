@@ -15,6 +15,8 @@ crate::mod_interface!
   layer composer;
   /// Tomapping post-processing
   layer tonemapping;
+  /// Color grading post-processing
+  layer color_grading;
   /// Convert to srgb
   layer to_srgb;
   /// Blend post-processing
