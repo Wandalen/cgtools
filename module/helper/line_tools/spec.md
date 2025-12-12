@@ -103,6 +103,7 @@ src/
 ├── helpers.rs
 ├── mesh.rs
 ├── program.rs
+├── uniform.rs
 ├── d2/
     └── line.rs
 └── d3/
@@ -141,6 +142,9 @@ mod private
 
   /// A layer for helper functions and utilities used by other modules.
   layer helpers;
+
+  /// Module for handling uniform operations
+  layer uniform;
 }
 ```
 
