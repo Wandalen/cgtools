@@ -245,7 +245,8 @@ mod private
       textures : vec![],
       materials,
       meshes,
-      animations : vec![]
+      animations : vec![],
+      lights : vec![]
     }
   }
 }

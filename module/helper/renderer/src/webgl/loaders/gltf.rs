@@ -1,6 +1,7 @@
 mod private
 {
   use std::{ cell::RefCell, rc::Rc };
+  use mingl::F32x3;
   use minwebgl as gl;
   use gl::
   {
@@ -25,7 +26,10 @@ mod private
     Scene,
     Texture,
     TextureInfo,
-    WrappingMode
+    WrappingMode,
+    Light,
+    PointLight,
+    DirectLight
   };
   use web_sys::wasm_bindgen::prelude::Closure;
 
@@ -39,6 +43,8 @@ mod private
       F32x4x4
     }
   };
+
+  const DIRECTION_LIGHT_MIN_MAGNITUDE : f32 = 0.01;
 
   #[ cfg( feature = "animation" ) ]
   use crate::webgl::animation::Animation;
@@ -61,9 +67,11 @@ mod private
     pub materials : Vec< Rc< RefCell< Material > > >,
     /// A list of `Mesh` objects, which represent the geometry of the scene.
     pub meshes : Vec< Rc< RefCell< Mesh > > >,
+    /// List of [`Node`]s that represent light sources
+    pub lights : Vec< Rc< RefCell< Node > > >,
     /// A list of `Animation` objects, which store `Node`'s tranform change in every time moment.
     #[ cfg( feature = "animation" ) ]
-    pub animations : Vec< Animation >
+    pub animations : Vec< Animation >,
   }
 
   /// Asynchronously loads [`Skeleton`] for one [`Mesh`]
@@ -127,6 +135,89 @@ mod private
     .map( | s | Rc::new( RefCell::new( s ) ) );
 
     skeleton
+  }
+
+  fn get_light_list( gltf : &gltf::Gltf ) -> Option< HashMap< usize, Light > >
+  {
+    let mut lights = HashMap::new();
+    for ( i, gltf_light ) in gltf.lights()?.enumerate()
+    {
+      let light_type = gltf_light.kind();
+      let light =  match light_type
+      {
+        gltf::khr_lights_punctual::Kind::Point =>
+        {
+          let Some( range ) = gltf_light.range()
+          else
+          {
+            continue;
+          };
+          Light::Point
+          (
+            PointLight
+            {
+              position : F32x3::default(),
+              color : F32x3::from_slice( &gltf_light.color() ),
+              strength : gltf_light.intensity(),
+              range
+            }
+          )
+        },
+        gltf::khr_lights_punctual::Kind::Directional =>
+        {
+          Light::Direct
+          (
+            DirectLight
+            {
+              direction : F32x3::default(),
+              color : F32x3::from_slice( &gltf_light.color() ),
+              strength : gltf_light.intensity(),
+            }
+          )
+        },
+        _ => continue
+      };
+
+      lights.insert( i, light );
+    }
+
+    Some( lights )
+  }
+
+  fn get_light( gltf_node : &gltf::Node< '_ >, node : &Node, lights : &HashMap< usize, Light > ) -> Option< Light >
+  {
+    let light_id = gltf_node.extensions()?
+    .get_key_value( "KHR_lights_punctual" )?.1
+    .get( "light" )?
+    .as_u64()?;
+
+    lights.get( &( light_id as usize ) ).cloned()
+    .map
+    (
+      | light |
+      {
+        match light
+        {
+          Light::Point( mut point_light ) =>
+          {
+            point_light.position = node.get_translation();
+            Light::Point( point_light )
+          },
+          Light::Direct( mut direct_light ) =>
+          {
+            direct_light.direction = node.get_translation();
+            if direct_light.direction.mag() < DIRECTION_LIGHT_MIN_MAGNITUDE
+            {
+              let forward = gl::F32x3::from_array( [ 0.0, 0.0, -1.0 ] );
+              let rot_matrix = gl::math::d2::F32x3x3::from_quat( node.get_rotation() );
+              direct_light.direction = rot_matrix * forward;
+            }
+            direct_light.direction = direct_light.direction.normalize();
+            Light::Direct( direct_light )
+          }
+        }
+      }
+    )
   }
 
   /// Asynchronously loads a glTF (GL Transmission Format) file and its associated resources.
@@ -551,26 +642,37 @@ mod private
 
     gl::log::info!( "Meshes: {}",meshes.len() );
 
+    let gltf_lights = get_light_list( &gltf_file ).unwrap_or_default();
+
     let mut nodes = Vec::new();
+    let mut lights = Vec::new();
     let mut skinned_nodes = Vec::new();
 
     for gltf_node in gltf_file.nodes()
     {
       let mut node = Node::default();
+      let mut is_light = false;
+
+      let ( translation, rotation, scale ) = gltf_node.transform().decomposed();
+      node.set_scale( scale );
+      node.set_translation( translation );
+      node.set_rotation( gl::QuatF32::from( rotation ) );
 
       node.object = if let Some( mesh ) = gltf_node.mesh()
       {
         Object3D::Mesh( meshes[ mesh.index() ].clone() )
+      }
+      else if let Some( light ) = get_light( &gltf_node, &node, &gltf_lights )
+      {
+        is_light = true;
+        Object3D::Light( light )
       }
       else
       {
         Object3D::Other
       };
 
-      let ( translation, rotation, scale ) = gltf_node.transform().decomposed();
-      node.set_scale( scale );
-      node.set_translation( translation );
-      node.set_rotation( gl::QuatF32::from( rotation ) );
+
       if let Some( name ) = gltf_node.name() { node.set_name( name ); }
 
       let node = Rc::new( RefCell::new( node ) );
@@ -578,6 +680,11 @@ mod private
       if let Some( skin ) = gltf_node.skin()
       {
         skinned_nodes.push( ( node.clone(), skin ) );
+      }
+
+      if is_light
+      {
+        lights.push( node.clone() );
       }
 
       nodes.push( node );
@@ -663,6 +770,7 @@ mod private
         textures,
         materials,
         meshes,
+        lights,
         #[ cfg( feature = "animation" ) ]
         animations
       }
