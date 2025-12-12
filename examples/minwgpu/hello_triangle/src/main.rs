@@ -185,7 +185,7 @@ fn run()
   let buffer_slice = output_buffer.slice( .. );
   buffer_slice.map_async( wgpu::MapMode::Read, | _ | {} );
 
-  device.poll( wgpu::PollType::Wait ).expect( "Failed to render an image" );
+  device.poll( wgpu::PollType::Wait { submission_index : None, timeout : None } ).expect( "Failed to render an image" );
 
   let data = buffer_slice.get_mapped_range();
   image::save_buffer( "triangle.png", &data, width, height, image::ColorType::Rgba8 )

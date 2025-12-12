@@ -210,7 +210,7 @@ version = "0.27.2"
 version = "~0.34.0"
 
 [workspace.dependencies.former]
-version = "~2.27.0"
+version = "~2.31.0"
 
 [workspace.dependencies.error_tools]
 version = "0.22.0"
@@ -383,13 +383,13 @@ version = "0.4.0"
 version = "0.10"
 
 [workspace.dependencies.wgpu]
-version = "26.0.1"
+version = "27.0.1"
 
 [workspace.dependencies.pollster]
 version = "0.4.0"
 
 [workspace.dependencies.unilang]
-version = "0.11.0"
+version = "0.26.0"
 
 [workspace.dependencies.rustyline]
 version = "14.0"
