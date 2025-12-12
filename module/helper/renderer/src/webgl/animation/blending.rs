@@ -29,7 +29,7 @@ mod private
   const EPSILON : f64 = 0.001;
 
   /// Normalize weights of blended animation values
-  fn normalize_weights< T >( values : &mut [ ( T, f32 ) ] )
+  pub fn normalize_weights< T >( values : &mut [ ( T, f32 ) ] )
   {
     let sum = values.iter().map( | ( _, w ) | w ).sum::< f32 >();
     if sum > 0.0
@@ -321,6 +321,7 @@ crate::mod_interface!
 {
   orphan use
   {
+    normalize_weights,
     Blender
   };
 }
