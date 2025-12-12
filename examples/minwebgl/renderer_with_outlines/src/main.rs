@@ -98,9 +98,8 @@ pub fn upload_texture( gl : &GL, src : &str ) -> WebGlTexture
       let texture = texture.clone();
       move ||
       {
-        gl::texture::d2::upload_no_flip( &gl, Some( &texture ), &img );
-        gl::texture::d2::wrap_clamp( &gl );
-        gl.generate_mipmap( gl::TEXTURE_2D );
+        gl::texture::d2::upload( &gl, Some( &texture ), &img );
+        gl::texture::d2::filter_linear( &gl );
         img.remove();
       }
     }

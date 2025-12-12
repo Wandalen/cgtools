@@ -17,17 +17,12 @@ vec2 dirToEquirectUV( vec3 dir )
   vec3 d = normalize( dir );
   float phi = atan( d.z, d.x );
   float theta = asin( d.y );
-  return vec2( 0.5 + phi * INV_2PI, 0.5 - theta * INV_PI );
+  return vec2( 0.5 + phi * INV_2PI, theta * INV_PI + 0.5 );
 }
 
 void main()
 {
   vec2 uv = dirToEquirectUV( vDir );
-
-  if ( uv.x < 0.001 || uv.x > 0.999 )
-  {
-    uv.x = 0.0001;
-  }
 
   frag_color = texture( equirectMap, uv );
   emissive_color = vec4( 0.0 );
