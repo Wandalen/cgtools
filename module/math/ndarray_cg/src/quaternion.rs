@@ -8,9 +8,19 @@ mod private
   /// Represents a quaternion using a 4D vector for its components `[x, y, z, w]`.
   ///
   /// The `w` component is the scalar part, and `(x, y, z)` is the vector part.
-  #[ derive( Clone, Copy, Debug, Default, PartialEq, PartialOrd ) ]
+  #[ derive( Clone, Copy, Debug, PartialEq, PartialOrd ) ]
   pub struct Quat< E >( pub Vector< E, 4 > )
   where E : MatEl;
+
+  impl< E > Default for Quat< E >
+  where
+    E : MatEl + NdFloat
+  {
+    fn default() -> Self 
+    {
+      Quat( Vector( [ E::zero(), E::zero(), E::zero(), E::one() ] ) )
+    } 
+  }
 
   /// A type alias for a quaternion with `f32` components.
   pub type QuatF32 = Quat< f32 >;

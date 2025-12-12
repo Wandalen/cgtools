@@ -24,8 +24,32 @@ mod private
     }
   }
 
+  impl Default for Node
+  {
+    fn default() -> Self 
+    {
+      let identity_matrix = gl::math::mat4x4::identity();
+
+      Node
+      {
+        name : None,
+        parent : None,
+        children : Vec::new(),
+        object : Object3D::default(),
+        matrix : identity_matrix,
+        world_matrix : identity_matrix,
+        normal_matrix : identity_matrix.truncate(),
+        scale : gl::F32x3::splat( 1.0 ),
+        translation : gl::F32x3::default(),
+        rotation : gl::Quat::default(),
+        needs_local_matrix_update : false,
+        needs_world_matrix_update : false,
+        bounding_box : BoundingBox::default()
+      }
+    }
+  }
+
   /// Represents a node in the scene graph. Each node can have children, an associated 3D object, and transformations.
-  #[ derive( Default ) ]
   pub struct Node
   {
     /// The name of the node.
@@ -206,10 +230,11 @@ mod private
 
       self.matrix = matrix;
       self.needs_local_matrix_update = false;
+      self.needs_world_matrix_update = true;
     }
 
     /// Sets the world transformation matrix for the node.
-    pub fn set_world_matrix( &mut self, matrix : F32x4x4 )
+    fn set_world_matrix( &mut self, matrix : F32x4x4 )
     {
       self.world_matrix = matrix;
       self.normal_matrix = matrix.truncate().inverse().unwrap().transpose();
@@ -238,7 +263,7 @@ mod private
         self.rotation,
         self.translation
       );
-      self.matrix = gl::F32x4x4::from_column_major( mat.to_array());
+      self.matrix = mat;
       self.needs_local_matrix_update = false;
       self.needs_world_matrix_update = true;
     }

@@ -808,7 +808,7 @@ pub mod ttf
   use std::collections::HashMap;
   use csgrs::traits::CSG;
 
-  type Sketch = csgrs::sketch::Sketch<()>;
+  type Sketch = csgrs::sketch::Sketch< () >;
   type ProcedureMesh = csgrs::mesh::Mesh< () >;
 
   #[ derive( Clone ) ]
