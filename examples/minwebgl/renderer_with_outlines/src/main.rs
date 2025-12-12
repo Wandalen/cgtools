@@ -99,6 +99,7 @@ pub fn upload_texture( gl : &GL, src : &str ) -> WebGlTexture
       move ||
       {
         gl::texture::d2::upload_no_flip( &gl, Some( &texture ), &img );
+        gl::texture::d2::wrap_clamp( &gl );
         gl.generate_mipmap( gl::TEXTURE_2D );
         img.remove();
       }

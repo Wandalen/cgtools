@@ -533,7 +533,7 @@ mod private
 
       let skybox_program = gl::ProgramFromSources::new
       (
-        VS_TRIANGLE,
+        include_str!( "shaders/skybox.vert" ),
         include_str!( "shaders/skybox.frag" )
       )
       .compile_and_link( gl )?;
