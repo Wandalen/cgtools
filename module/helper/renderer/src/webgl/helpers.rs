@@ -26,7 +26,10 @@ mod private
   /// Will panic if cast is not possible
   pub fn cast_unchecked_material_to_ref_mut< T : 'static >( material :  RefMut< '_, Box< dyn Material > > ) -> RefMut< '_, T >
   {
-    RefMut::map( material, | r |
+    RefMut::map
+    (
+      material,
+      | r |
       {
         ( r.as_mut() as &mut dyn std::any::Any  ).downcast_mut::< T >()
         .expect( "Cannot cast the material to the specified type" )
