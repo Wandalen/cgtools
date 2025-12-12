@@ -2,14 +2,16 @@ mod private
 {
   use std::{ cell::RefCell, collections::HashMap, rc::Rc };
   use minwebgl as gl;
-  use mingl::{ geometry::BoundingBox, F32x3, F32x4x4 };
-  use crate::webgl::Mesh;
+  use gl::{ geometry::BoundingBox, F32x3, F32x4x4 };
+  use crate::webgl::{ Mesh, Light };
 
   /// Represents a 3D object that can be part of the scene graph.
   pub enum Object3D
   {
     /// A mesh object, containing geometry and material information.
     Mesh( Rc< RefCell< Mesh > > ),
+    /// A light object
+    Light( Light ),
     /// A placeholder for other types of 3D objects.
     Other
   }
@@ -75,7 +77,7 @@ mod private
     /// A flag indicating whether the world matrix needs to be updated.
     needs_world_matrix_update : bool,
     /// The bounding box of the node's object in world space.
-    bounding_box : BoundingBox
+    bounding_box : BoundingBox,
   }
 
   impl Node
@@ -95,6 +97,7 @@ mod private
         {
           Object3D::Mesh( Rc::new( RefCell::new( mesh.borrow().clone() ) ) )
         },
+        Object3D::Light( light ) => Object3D::Light( light.clone() ),
         Object3D::Other => Object3D::Other
       };
 
@@ -112,7 +115,7 @@ mod private
         rotation : self.rotation,
         needs_local_matrix_update : self.needs_local_matrix_update,
         needs_world_matrix_update : self.needs_world_matrix_update,
-        bounding_box : self.bounding_box
+        bounding_box : self.bounding_box,
       };
 
       let clone_rc = Rc::new( RefCell::new( clone ) );

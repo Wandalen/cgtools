@@ -547,6 +547,7 @@ fn primitives_csgrs_gltf
     materials : vec![],
     meshes : vec![],
     animations : vec![],
+    lights : vec![]
   };
 
   gltf.scenes.push( Rc::new( RefCell::new( Scene::new() ) ) );

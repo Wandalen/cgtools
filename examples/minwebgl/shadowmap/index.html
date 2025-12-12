@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <style>
+      body,
+      html {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        box-sizing: border-box;
+      }
+
+      #canvas {
+        display: block;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        box-sizing: border-box;
+      }
+    </style>
+    <meta charset="UTF-8" />
+    <title>Soft shadow</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no"
+    />
+    <link
+      data-trunk
+      rel="copy-file"
+      href="../../../assets/gltf/skull_salazar_downloadable.glb"
+      data-target-path="static"
+    />
+    <link
+      data-trunk
+      rel="copy-file"
+      href="../../../assets/gltf/plane.glb"
+      data-target-path="static"
+    />
+  </head>
+
+  <body>
+    <canvas id="canvas"></canvas>
+  </body>
+</html>

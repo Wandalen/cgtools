@@ -284,7 +284,8 @@ fn primitives_data_to_gltf
     textures : vec![],
     materials,
     meshes,
-    animations : vec![]
+    animations : vec![],
+    lights : vec![]
   }
 }
 
