@@ -23,8 +23,8 @@ pub mod ufo
   use gl::{ F32x3, math::vector::cross };
   use quick_xml::{ Reader, events::Event };
   use crate::
-  { 
-    AttributesData, PrimitiveData, Transform 
+  {
+    AttributesData, PrimitiveData, Transform
   };
 
   #[ derive( Clone ) ]
@@ -41,14 +41,14 @@ pub mod ufo
     {
       let mut contours = contours.into_iter()
       .map
-      ( 
-        | v | 
+      (
+        | v |
         v.into_iter()
         .map
-        ( 
-          | [ a, b ] | [ a as f32, b as f32 ] 
+        (
+          | [ a, b ] | [ a as f32, b as f32 ]
         )
-        .collect::< Vec< _ > >() 
+        .collect::< Vec< _ > >()
       )
       .collect::< Vec< _ > >();
 
@@ -79,7 +79,7 @@ pub mod ufo
         min : [ ( x1 + offsetx ) as f32, ( y1 + offsety ) as f32, 0.0 ].into(),
         max : [ ( x2 + offsetx ) as f32, ( y2 + offsety ) as f32, 0.0 ].into()
       };
-      
+
       Self
       {
         character,
@@ -89,7 +89,7 @@ pub mod ufo
     }
 
     fn scale( &mut self, scale : f32)
-    { 
+    {
       let [ x1, y1 ] = [ self.bounding_box.left(), self.bounding_box.down() ];
       let [ x2, y2 ] = [ self.bounding_box.right(), self.bounding_box.up() ];
 
@@ -116,14 +116,14 @@ pub mod ufo
       let mut contour_points = vec![];
       let mut typ = PointType::Move;
 
-      loop 
+      loop
       {
         let event = reader.read_event();
         match event
-        { 
-          Ok( Event::Empty( e ) ) if e.starts_with( b"point" ) => 
+        {
+          Ok( Event::Empty( e ) ) if e.starts_with( b"point" ) =>
           {
-            let element = e.clone(); 
+            let element = e.clone();
 
             let mut x = None;
             let mut y = None;
@@ -132,13 +132,13 @@ pub mod ufo
             for attr in element.attributes()
             {
               let Ok( attr ) = attr
-              else 
+              else
               {
                 continue;
               };
 
               let Ok( value ) = String::from_utf8( attr.value.to_vec() )
-              else 
+              else
               {
                 continue;
               };
@@ -147,7 +147,7 @@ pub mod ufo
               {
                 b"x" => x = value.parse::< f64 >().ok(),
                 b"y" => y = value.parse::< f64 >().ok(),
-                b"typ" => 
+                b"typ" =>
                 {
                   let Ok( t ) = PointType::from_str( &value )
                   else
@@ -169,14 +169,14 @@ pub mod ufo
               ContourPoint::new(
                 x.unwrap(),
                 y.unwrap(),
-                typ,
+                typ.clone(),
                 smooth,
                 None,
                 None
               )
             )
           },
-          Ok( Event::End( e ) ) if e.starts_with( b"contour" ) => 
+          Ok( Event::End( e ) ) if e.starts_with( b"contour" ) =>
           {
             typ = PointType::Move;
             let mut contour = Contour::default();
@@ -193,30 +193,30 @@ pub mod ufo
       for contour in _contours
       {
         let mut path = vec![];
-        let Ok( bez_path ) = contour.to_kurbo() 
+        let Ok( bez_path ) = contour.to_kurbo()
         else
         {
           return None;
         };
 
-        flatten( 
-          bez_path.elements().iter().cloned(), 
-          0.25, 
-          | p | path.push( p ) 
+        flatten(
+          bez_path.elements().iter().cloned(),
+          0.25,
+          | p | path.push( p )
         );
 
         let mut contour = vec![];
 
         path.iter()
         .for_each
-        ( 
+        (
           | p |
           {
             match p
             {
               kurbo::PathEl::MoveTo( point ) |
               kurbo::PathEl::LineTo( point ) => contour.push( [ point.x, point.y ] ),
-              kurbo::PathEl::ClosePath => 
+              kurbo::PathEl::ClosePath =>
               {
                 contours.push( contour.clone() );
                 contour.clear();
@@ -254,7 +254,7 @@ pub mod ufo
       let mut glyphs = HashMap::< char, Glyph >::new();
       let glyphs_path = path.to_string() + "/glyphs";
 
-      for c in b'a'..=b'z' 
+      for c in b'a'..=b'z'
       {
         let glyph_path = format!( "{}/{}.glif", glyphs_path, c as char );
         let glif_bytes = gl::file::load( &glyph_path ).await
@@ -265,7 +265,7 @@ pub mod ufo
         }
       }
 
-      for c in b'A'..=b'Z' 
+      for c in b'A'..=b'Z'
       {
         let glyph_path = format!( "{}/{}_.glif", glyphs_path, c as char );
         let glif_bytes = gl::file::load( &glyph_path ).await
@@ -276,7 +276,7 @@ pub mod ufo
         }
       }
 
-      for ( c, name ) in 
+      for ( c, name ) in
       [
         ( '0', "zero" ),
         ( '1', "one" ),
@@ -322,8 +322,8 @@ pub mod ufo
         glyph.scale( scale / max_y );
       }
 
-      let mut min = F32x3::MAX; 
-      let mut max = F32x3::MIN; 
+      let mut min = F32x3::MAX;
+      let mut max = F32x3::MIN;
       for ( _, glyph ) in &glyphs
       {
         if min > glyph.bounding_box.min
@@ -339,10 +339,10 @@ pub mod ufo
       Self
       {
         glyphs,
-        _max_size : BoundingBox 
-        { 
-          min, 
-          max  
+        _max_size : BoundingBox
+        {
+          min,
+          max
         }
       }
     }
@@ -358,7 +358,7 @@ pub mod ufo
 
   impl From< Glyph > for Glyph3D
   {
-    fn from( glyph : Glyph ) -> Self 
+    fn from( glyph : Glyph ) -> Self
     {
       let Some( primitive_data ) = contours_to_mesh( &glyph.contours )
       else
@@ -366,19 +366,19 @@ pub mod ufo
         return Self
         {
           _character : ' ',
-          data : PrimitiveData { 
-            attributes : Rc::new( 
-              RefCell::new( 
-                AttributesData 
-                { 
-                  positions: vec![], 
-                  normals: vec![], 
-                  indices: vec![] 
-                } 
-              ) 
-            ), 
-            material : Rc::new( RefCell::new( Default::default() ) ), 
-            transform : Default::default() 
+          data : PrimitiveData {
+            attributes : Rc::new(
+              RefCell::new(
+                AttributesData
+                {
+                  positions: vec![],
+                  normals: vec![],
+                  indices: vec![]
+                }
+              )
+            ),
+            material : Rc::new( RefCell::new( Default::default() ) ),
+            transform : Default::default()
           },
           bounding_box : BoundingBox::default()
         };
@@ -386,10 +386,10 @@ pub mod ufo
 
       let a = glyph.bounding_box.min.0;
       let b = glyph.bounding_box.max.0;
-      let bounding_box = BoundingBox 
-      { 
-        min : [ a[ 0 ], a[ 1 ], -0.5 ].into(), 
-        max : [ b[ 0 ], b[ 1 ], 0.5 ].into() 
+      let bounding_box = BoundingBox
+      {
+        min : [ a[ 0 ], a[ 1 ], -0.5 ].into(),
+        max : [ b[ 0 ], b[ 1 ], 0.5 ].into()
       };
 
       Self
@@ -431,7 +431,7 @@ pub mod ufo
     }
 
     let body_bounding_box = BoundingBox::compute2d
-    ( 
+    (
       contours.get( body_id ).unwrap()
       .iter()
       .flatten()
@@ -450,12 +450,12 @@ pub mod ufo
       }
 
       let bounding_box = BoundingBox::compute2d
-      ( 
+      (
         contour
         .iter()
         .flatten()
         .cloned()
-        .collect::< Vec< _ > >() 
+        .collect::< Vec< _ > >()
         .as_slice()
       );
 
@@ -488,36 +488,36 @@ pub mod ufo
       let mut flat_positions: Vec< f64 > = Vec::new();
       let mut hole_indices: Vec< usize > = Vec::new();
 
-      if let Some( outer_contour ) = contours.get( 0 ) 
+      if let Some( outer_contour ) = contours.get( 0 )
       {
-        if outer_contour.is_empty() 
+        if outer_contour.is_empty()
         {
           return None;
         }
-        for &[ x, y ] in outer_contour 
+        for &[ x, y ] in outer_contour
         {
           flat_positions.push( x as f64 );
           flat_positions.push( y as f64 );
         }
-      } 
-      else 
+      }
+      else
       {
         return None;
       }
 
       // Process holes (remaining contours)
       // Their winding order must be opposite to the outer (e.g., CW for holes)
-      for i in 1..contours.len() 
+      for i in 1..contours.len()
       {
         let hole_contour = &contours[ i ];
-        if hole_contour.is_empty() 
+        if hole_contour.is_empty()
         {
           continue;
         }
 
         hole_indices.push( flat_positions.len() / 2 );
 
-        for &[ x, y ] in hole_contour 
+        for &[ x, y ] in hole_contour
         {
           flat_positions.push( x as f64 );
           flat_positions.push( y as f64 );
@@ -525,7 +525,7 @@ pub mod ufo
       }
 
       // Perform triangulation
-      let Ok( body_indices ) = earcutr::earcut( &flat_positions, &hole_indices, 2 ) 
+      let Ok( body_indices ) = earcutr::earcut( &flat_positions, &hole_indices, 2 )
       else
       {
         return None;
@@ -561,7 +561,7 @@ pub mod ufo
       .map( | i | i + vertex_count )
       .collect::< Vec< _ > >();
 
-      body_indices.extend( second_surface_indices );  
+      body_indices.extend( second_surface_indices );
 
       // Add border to glyph mesh
       let vc1 = body_positions.len() as u32;
@@ -581,27 +581,27 @@ pub mod ufo
       for c in contours.iter()
       {
         let mut contour_edges = vec![];
-        for ( i, _ ) in c.iter().enumerate() 
+        for ( i, _ ) in c.iter().enumerate()
         {
-          contour_edges.push( [ i as u32 + offset + vc1, i as u32 + offset + vc2 ] ); 
+          contour_edges.push( [ i as u32 + offset + vc1, i as u32 + offset + vc2 ] );
         }
         offset += c.len() as u32;
 
         edges.push( contour_edges );
       }
 
-      for ce in &edges 
+      for ce in &edges
       {
         if ce.len() > 2
         {
-          let mut i = 0; 
+          let mut i = 0;
           while i < ce.len() - 1
           {
             // Counter clockwise ↺
             // [ i + 1 ] c *---* d
             //             |\  |
             //             | \ |
-            //             |  \|        
+            //             |  \|
             // [   i   ] a *---* b
             let [ a, b ] = [ ce[ i ][ 0 ], ce[ i ][ 1 ] ];
             let [ c, d ] = [ ce[ i + 1 ][ 0 ], ce[ i + 1 ][ 1 ] ];
@@ -622,17 +622,17 @@ pub mod ufo
       let positions_count = positions.len();
       positions.extend( body_positions );
       indices.extend
-      ( 
+      (
         body_indices.iter()
-        .map( | i | i + positions_count as u32 ) 
+        .map( | i | i + positions_count as u32 )
       );
     }
 
     let mut normals = vec![ [ 0.0; 3 ]; positions.len() ];
     indices.chunks( 3 )
     .for_each
-    ( 
-      | ids | 
+    (
+      | ids |
       {
         let a = F32x3::from( positions[ ids[ 0 ] as usize ] );
         let b = F32x3::from( positions[ ids[ 1 ] as usize ] );
@@ -649,16 +649,16 @@ pub mod ufo
 
     let attributes = AttributesData
     {
-      positions, 
-      normals, 
-      indices, 
+      positions,
+      normals,
+      indices,
     };
 
-    let primitive_data = PrimitiveData 
-    { 
+    let primitive_data = PrimitiveData
+    {
       attributes : Rc::new( RefCell::new( attributes ) ),
-      material : Rc::new( RefCell::new( renderer::webgl::Material::default() ) ), 
-      transform : Transform::default()  
+      material : Rc::new( RefCell::new( renderer::webgl::Material::default() ) ),
+      transform : Transform::default()
     };
 
     Some( primitive_data )
@@ -672,17 +672,17 @@ pub mod ufo
 
   impl From< Font > for Font3D
   {
-    fn from( font : Font ) -> Self 
+    fn from( font : Font ) -> Self
     {
       let mut glyphs = HashMap::< char, Glyph3D >::new();
 
-      for ( char, glyph ) in font.glyphs 
+      for ( char, glyph ) in font.glyphs
       {
         glyphs.insert( char, glyph.into() );
       }
 
-      let mut min = F32x3::MAX; 
-      let mut max = F32x3::MIN; 
+      let mut min = F32x3::MAX;
+      let mut max = F32x3::MIN;
       for ( _, glyph ) in glyphs.iter_mut()
       {
         if min > glyph.bounding_box.min
@@ -698,10 +698,10 @@ pub mod ufo
       Self
       {
         glyphs,
-        max_size : BoundingBox 
-        { 
-          min, 
-          max  
+        max_size : BoundingBox
+        {
+          min,
+          max
         }
       }
     }
@@ -716,7 +716,7 @@ pub mod ufo
       let font_path = format!( "/fonts/ufo/{}.ufo", font_name );
       fonts.insert( font_name.to_string(), Font::new( &font_path ).await );
     }
-    
+
     fonts
   }
 
@@ -731,7 +731,7 @@ pub mod ufo
 
   pub fn text_to_mesh( text : &str, font : &Font3D, transform : &Transform ) -> Vec< PrimitiveData >
   {
-    let mut mesh = vec![]; 
+    let mut mesh = vec![];
 
     let start_transform = transform.clone();
     let mut transform = start_transform.clone();
@@ -745,7 +745,7 @@ pub mod ufo
       let Some( glyph ) = font.glyphs.get( &char )
       else
       {
-        transform.translation[ 0 ] -= halfx / 2.0; 
+        transform.translation[ 0 ] -= halfx / 2.0;
         continue;
       };
 
@@ -762,10 +762,10 @@ pub mod ufo
 
     for char in text.chars()
     {
-      let Some( mut glyph ) = font.glyphs.get( &char ).cloned() 
+      let Some( mut glyph ) = font.glyphs.get( &char ).cloned()
       else
       {
-        transform.translation[ 0 ] += halfx; 
+        transform.translation[ 0 ] += halfx;
         continue;
       };
 
@@ -791,10 +791,9 @@ pub mod ufo
   }
 }
 
-pub mod ttf 
+pub mod ttf
 {
   use crate::{ PrimitiveData, AttributesData, Transform };
-  use csgrs::CSG;
   use minwebgl as gl;
   use gl::
   {
@@ -807,6 +806,10 @@ pub mod ttf
   use std::rc::Rc;
   use std::cell::RefCell;
   use std::collections::HashMap;
+  use csgrs::traits::CSG;
+
+  type Sketch = csgrs::sketch::Sketch<()>;
+  type ProcedureMesh = csgrs::mesh::Mesh<()>;
 
   #[ derive( Clone ) ]
   struct Glyph3D
@@ -821,7 +824,7 @@ pub mod ttf
     fn from_ttf( ttf_bytes : &[ u8 ], character : char ) -> Self
     {
       let c = character.to_string();
-      let mut csg : CSG< () > = CSG::text( &c, ttf_bytes, 1.0, None )
+      let mut csg : ProcedureMesh = Sketch::text( &c, ttf_bytes, 1.0, None )
       .extrude( 0.5 );
 
       let m = csg.bounding_box().mins;
@@ -836,7 +839,7 @@ pub mod ttf
       let max = [ max.x as f32, max.y as f32, max.z as f32 ];
 
       let bounding_box = BoundingBox::new( min, max );
-      
+
       let mesh = csg.to_trimesh().unwrap();
 
       let positions = mesh.vertices()
@@ -853,8 +856,8 @@ pub mod ttf
       let mut normals = vec![ [ 0.0; 3 ]; positions.len() ];
       indices.chunks( 3 )
       .for_each
-      ( 
-        | ids | 
+      (
+        | ids |
         {
           let a = F32x3::from( positions[ ids[ 0 ] as usize ] );
           let b = F32x3::from( positions[ ids[ 1 ] as usize ] );
@@ -871,16 +874,16 @@ pub mod ttf
 
       let attributes = AttributesData
       {
-        positions : positions, 
-        normals, 
-        indices, 
+        positions : positions,
+        normals,
+        indices,
       };
 
-      let data = PrimitiveData 
-      { 
+      let data = PrimitiveData
+      {
         attributes : Rc::new( RefCell::new( attributes ) ),
-        material : Rc::new( RefCell::new( renderer::webgl::Material::default() ) ), 
-        transform : Transform::default()  
+        material : Rc::new( RefCell::new( renderer::webgl::Material::default() ) ),
+        transform : Transform::default()
       };
 
       Self
@@ -892,7 +895,7 @@ pub mod ttf
     }
 
     fn scale( &mut self, scale : [ f32; 3 ] )
-    { 
+    {
       for position in self.data.attributes.borrow_mut().positions.iter_mut()
       {
         position[ 0 ] *= scale[ 0 ];
@@ -949,8 +952,8 @@ pub mod ttf
         glyph.scale( [ scale / max_y, scale / max_y, 1.0 ] );
       }
 
-      let mut min = F32x3::MAX; 
-      let mut max = F32x3::MIN; 
+      let mut min = F32x3::MAX;
+      let mut max = F32x3::MIN;
       for ( _, glyph ) in &glyphs
       {
         if min > glyph.bounding_box.min
@@ -966,10 +969,10 @@ pub mod ttf
       Self
       {
         glyphs,
-        max_size : BoundingBox 
-        { 
-          min, 
-          max  
+        max_size : BoundingBox
+        {
+          min,
+          max
         }
       }
     }
@@ -984,13 +987,13 @@ pub mod ttf
       let font_path = format!( "/fonts/ttf/{}.ttf", font_name );
       fonts.insert( font_name.to_string(), Font3D::new( &font_path ).await );
     }
-    
+
     fonts
   }
 
   pub fn text_to_mesh( text : &str, font : &Font3D, transform : &Transform ) -> Vec< PrimitiveData >
   {
-    let mut mesh = vec![]; 
+    let mut mesh = vec![];
 
     let start_transform = transform.clone();
     let mut transform = start_transform.clone();
@@ -1004,7 +1007,7 @@ pub mod ttf
       let Some( glyph ) = font.glyphs.get( &char )
       else
       {
-        transform.translation[ 0 ] -= halfx / 2.0; 
+        transform.translation[ 0 ] -= halfx / 2.0;
         continue;
       };
 
@@ -1021,10 +1024,10 @@ pub mod ttf
 
     for char in text.chars()
     {
-      let Some( mut glyph ) = font.glyphs.get( &char ).cloned() 
+      let Some( mut glyph ) = font.glyphs.get( &char ).cloned()
       else
       {
-        transform.translation[ 0 ] += halfx; 
+        transform.translation[ 0 ] += halfx;
         continue;
       };
 
