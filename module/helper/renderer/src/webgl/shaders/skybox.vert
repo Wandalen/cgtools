@@ -11,12 +11,10 @@ void main()
 
   vec2 uv = vec2( x, y ) * 2.0;
 
-  gl_Position = vec4( x * 4.0 - 1.0, y * 4.0 - 1.0, 0.0, 1.0 );
+  gl_Position = vec4( x * 4.0 - 1.0, y * 4.0 - 1.0, 1.0, 1.0 );
 
-  vec4 clip = vec4( uv * 2.0 - 1.0, -1.0, 1.0 );
+  vec4 clip = vec4( uv * 2.0 - 1.0, 1.0, 1.0 );
   vec4 view = invProjection * clip;
-  view /= view.w;
-  view.w = 0.0;
 
   vDir = ( invView * view ).xyz;
 }

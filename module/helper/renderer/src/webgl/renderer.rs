@@ -707,11 +707,6 @@ mod private
       gl.clear( gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT );
       gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
 
-      if self.framebuffer_ctx.skybox_texture.is_some()
-      {
-        self.draw_skybox( gl, camera );
-      }
-
       // Clear the list of transparent nodes before each render.
       self.transparent_nodes.clear();
 
@@ -871,6 +866,11 @@ mod private
 
       // Traverse the scene and draw all opaque objects.
       scene.traverse( &mut draw_node )?;
+
+      if self.framebuffer_ctx.skybox_texture.is_some()
+      {
+        self.draw_skybox( gl, camera );
+      }
 
       gl::drawbuffers::drawbuffers( gl, &[ 2, 3 ] );
       gl.enable( gl::BLEND );
