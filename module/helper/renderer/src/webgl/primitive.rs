@@ -1,27 +1,28 @@
 mod private
 {
-  use std::{ cell::RefCell, collections::HashMap, rc::Rc };
+  use std::{ cell::RefCell, fmt::Debug, rc::Rc };
   use mingl::geometry::BoundingBox;
   use minwebgl as gl;
-  use crate::webgl::{ Geometry, Material };
+  use crate::webgl::{ Geometry, Material, Node };
 
   /// Represents a renderable object composed of geometry and material.
+  #[ derive( Debug ) ]
   pub struct Primitive
   {
     /// The geometry of the primitive.
     pub geometry : Rc< RefCell< Geometry > >,
     /// The material of the primitive.
-    pub material : Rc< RefCell< Material > >
+    pub material : Rc< RefCell< Box< dyn Material > > >
   }
 
   impl Clone for Primitive
   {
-    fn clone( &self ) -> Self 
+    fn clone( &self ) -> Self
     {
-      Self 
-      { 
-        geometry : self.geometry.clone(), 
-        material : Rc::new( RefCell::new( self.material.borrow().clone() ) ) 
+      Self
+      {
+        geometry : Rc::new( RefCell::new( self.geometry.borrow().clone() ) ) ,
+        material : Rc::new( RefCell::new( self.material.borrow().dyn_clone() ) )
       }
     }
   }
@@ -33,13 +34,13 @@ mod private
     /// * `gl`: The `WebGl2RenderingContext` to use for uploading.
     /// * `locations`: A hash map of uniform locations in the shader program.
     pub fn upload
-    ( 
+    (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      locations : &HashMap< String, Option< gl::WebGlUniformLocation > > 
+      node : Rc< RefCell< Node > >
     ) -> Result< (), gl::WebglError >
     {
-      self.material.borrow().upload( gl, locations )?;
+      self.material.borrow().upload( gl, node )?;
       self.geometry.borrow().upload( gl )?;
 
       Ok( () )
@@ -71,7 +72,7 @@ mod private
     pub fn bounding_box( &self ) -> BoundingBox
     {
       self.geometry.borrow().bounding_box()
-    } 
+    }
   }
 }
 

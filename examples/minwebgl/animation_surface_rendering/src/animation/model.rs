@@ -1,5 +1,10 @@
 
-#![ allow(dead_code ) ]
+#![ allow( dead_code ) ]
+#![ allow( clippy::large_enum_variant ) ]
+#![ allow( clippy::type_complexity ) ]
+#![ allow( clippy::cast_sign_loss ) ]
+#![ allow( clippy::used_underscore_binding ) ]
+#![ allow( clippy::default_trait_access ) ]
 
 mod private
 {
@@ -18,7 +23,7 @@ mod private
     Vec2
   };
   use crate::primitive::points_to_path;
-  use std::ops::Range;
+  use core::ops::Range;
 
   /// Creates a fixed `Value` that holds a single, constant value.
   ///
@@ -111,9 +116,9 @@ mod private
   }
 
   /// Converts a `Transform` into an `interpoli::animated::Transform`.
-  impl Into< interpoli::animated::Transform > for Transform
+  impl From< Transform > for interpoli::animated::Transform
   {
-    fn into( self ) -> interpoli::animated::Transform
+    fn from( val: Transform ) -> Self
     {
       let Transform
       {
@@ -124,7 +129,7 @@ mod private
         skew,
         skew_angle,
       }
-      = self;
+      = val;
 
       interpoli::animated::Transform
       {
@@ -171,20 +176,20 @@ mod private
   }
 
   /// Converts a `Repeater` into an `interpoli::animated::Repeater`.
-  impl Into< interpoli::animated::Repeater > for Repeater
+  impl From< Repeater > for interpoli::animated::Repeater
   {
-    fn into( self ) -> interpoli::animated::Repeater
+    fn from( val : Repeater ) -> Self
     {
       interpoli::animated::Repeater
       {
-        copies : Value::Fixed( self.copies ),
-        offset : self.offset.clone(),
-        anchor_point : self.anchor_point.clone(),
-        position : self.position.clone(),
-        rotation : self.rotation.clone(),
-        scale : self.scale.clone(),
-        start_opacity : self.start_opacity.clone(),
-        end_opacity : self.end_opacity.clone()
+        copies : Value::Fixed( val.copies ),
+        offset : val.offset.clone(),
+        anchor_point : val.anchor_point.clone(),
+        position : val.position.clone(),
+        rotation : val.rotation.clone(),
+        scale : val.scale.clone(),
+        start_opacity : val.start_opacity.clone(),
+        end_opacity : val.end_opacity.clone()
       }
     }
   }
@@ -329,7 +334,7 @@ mod private
               )
             )
           },
-          Shape::Repeater( repeater ) => interpoli::Shape::Repeater( repeater.into() ),
+          Shape::Repeater( repeater ) => interpoli::Shape::Repeater( repeater ),
         };
 
         _shapes.push( shape );
@@ -362,35 +367,35 @@ mod private
   }
 
   /// Converts a `Layer` into an `interpoli::Layer`.
-  impl Into< interpoli::Layer > for Layer
+  impl From< Layer > for interpoli::Layer
   {
-    fn into( self ) -> interpoli::Layer
+    fn from( val : Layer ) -> Self
     {
-      let parent = if self.parent == -1
+      let parent = if val.parent == -1
       {
         None
       }
       else
       {
-        Some( self.parent as usize )
+        Some( val.parent as usize )
       };
 
       interpoli::Layer
       {
         name : String::new(),
         parent,
-        transform : self.transform,
+        transform : val.transform,
         opacity : Value::Fixed( 1.0 ),
         width : 0.0,
         height : 0.0,
         blend_mode : None,
-        frames : self.frames.clone(),
+        frames : val.frames.clone(),
         stretch : 1.0,
-        start_frame : self.start_frame,
+        start_frame : val.start_frame,
         masks : vec![],
         is_mask : false,
         mask_layer : None,
-        content : Shape::into_content( self.content.clone() )
+        content : Shape::into_content( val.content.clone() )
       }
     }
   }
@@ -415,20 +420,20 @@ mod private
   }
 
   /// Converts a `Model` into an `interpoli::Composition`.
-  impl Into< Composition > for Model
+  impl From< Model > for Composition
   {
-    fn into( self ) -> Composition
+    fn from( val : Model ) -> Self
     {
       Composition
       {
-        frames : self.frames.clone(),
+        frames : val.frames.clone(),
         frame_rate : 60.0,
-        width : self.width,
-        height : self.height,
+        width : val.width,
+        height : val.height,
         assets : Default::default(),
-        layers : self.layers.clone()
+        layers : val.layers.clone()
         .into_iter()
-        .map( | l | l.into() )
+        .map( minwebgl::Into::into )
         .collect::< Vec< interpoli::Layer > >()
       }
     }

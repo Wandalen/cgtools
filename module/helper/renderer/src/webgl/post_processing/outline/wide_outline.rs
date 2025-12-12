@@ -28,24 +28,52 @@ mod private
     GL,
     web_sys::
     {
-      WebGlProgram,
       WebGlUniformLocation,
       WebGlTexture,
-      WebGlFramebuffer
+      WebGlFramebuffer,
+      WebGlProgram
     }
   };
   use crate::webgl::
-  { 
-    post_processing::{ Pass, VS_TRIANGLE }, 
-    program::
-    {
-      WideOutlineInitShader,
-      WideOutlineStepShader,
-      WideOutlineShader
-    }, 
-    ProgramInfo 
+  {
+    ShaderProgram,
+    ProgramInfo,
+    post_processing::{ Pass, VS_TRIANGLE },
   };
-  use std::collections::HashMap;
+  use crate::webgl::impl_locations;
+  use rustc_hash::FxHashMap;
+
+  // A public struct for the initialization step of a wide outline.
+  //
+  // This shader is part of a multi-pass technique to create thick, wide outlines.
+  impl_locations!
+  (
+    WideOutlineInitShader,
+    "objectColorTexture"
+  );
+
+  // A public struct for the stepping pass of a wide outline.
+  //
+  // This is the iterative pass that propagates information for a wide outline.
+  impl_locations!
+  (
+    WideOutlineStepShader,
+    "jfaTexture",
+    "resolution",
+    "stepSize"
+  );
+
+  // A public struct representing the final wide outline shader.
+  //
+  // This shader combines the results of the previous passes to draw the final wide outline.
+  impl_locations!
+  (
+    WideOutlineShader,
+    "sourceTexture",
+    "objectColorTexture",
+    "jfaTexture",
+    "resolution"
+  );
 
   /// Binds a texture to a texture unit and uploads its location to a uniform.
   ///
@@ -63,8 +91,8 @@ mod private
     slot : u32,
   )
   {
-    gl.active_texture( slot ); 
-    gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) ); 
+    gl.active_texture( slot );
+    gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) );
     // Tell the sampler uniform in the shader which texture unit to use ( 0 for GL_TEXTURE0, 1 for GL_TEXTURE1, etc. )
     gl.uniform1i( Some( location ), ( slot - GL::TEXTURE0 ) as i32 );
   }
@@ -84,10 +112,10 @@ mod private
   fn create_framebuffer
   (
     gl : &gl::WebGl2RenderingContext,
-    width : i32, 
+    width : i32,
     height : i32,
     color_texture : Option< WebGlTexture >
-  ) 
+  )
   -> Option< ( WebGlFramebuffer, WebGlTexture ) >
   {
     let color = if let Some( color ) = color_texture
@@ -121,7 +149,7 @@ mod private
     gl : &gl::WebGl2RenderingContext,
     framebuffer : &WebGlFramebuffer,
     color_texture : Option< WebGlTexture >
-  ) 
+  )
   {
     gl.bind_framebuffer( GL::FRAMEBUFFER, Some( framebuffer ) );
     // Attach the texture to the framebuffer's color attachment point
@@ -139,7 +167,7 @@ mod private
   fn upload_framebuffer(
     gl : &gl::WebGl2RenderingContext,
     framebuffer : &WebGlFramebuffer,
-    width : i32, 
+    width : i32,
     height : i32
   )
   {
@@ -147,14 +175,14 @@ mod private
     gl.viewport( 0, 0, width, height );
   }
 
-  struct ProgramInfos
+  struct ShaderPrograms
   {
-    jfa_init : ( WebGlProgram, ProgramInfo< WideOutlineInitShader > ),
-    jfa_step : ( WebGlProgram, ProgramInfo< WideOutlineStepShader > ),
-    outline : ( WebGlProgram, ProgramInfo< WideOutlineShader > )
+    jfa_init : WideOutlineInitShader,
+    jfa_step : WideOutlineStepShader,
+    outline : WideOutlineShader
   }
 
-  impl ProgramInfos
+  impl ShaderPrograms
   {
     fn new( gl : &gl::WebGl2RenderingContext ) -> Self
     {
@@ -169,21 +197,21 @@ mod private
       let jfa_step_program = gl::ProgramFromSources::new( VS_TRIANGLE, jfa_step_fs_src ).compile_and_link( gl ).unwrap();
       let outline_program = gl::ProgramFromSources::new( VS_TRIANGLE, outline_fs_src ).compile_and_link( gl ).unwrap();
 
-      let jfa_init = ProgramInfo::< WideOutlineInitShader >::new( gl, jfa_init_program.clone() );
-      let jfa_step = ProgramInfo::< WideOutlineStepShader >::new( gl, jfa_step_program.clone() );
-      let outline = ProgramInfo::< WideOutlineShader >::new( gl, outline_program.clone() );
+      let jfa_init = WideOutlineInitShader::new( gl, &jfa_init_program );
+      let jfa_step = WideOutlineStepShader::new( gl, &jfa_step_program );
+      let outline = WideOutlineShader::new( gl, &outline_program );
 
       Self
       {
-        jfa_init : ( jfa_init_program, jfa_init ),
-        jfa_step : ( jfa_step_program, jfa_step ),
-        outline : ( outline_program, outline )
+        jfa_init,
+        jfa_step,
+        outline
       }
     }
   }
 
   /// A struct representing a multi-pass rendering technique for creating wide outlines.
-  /// 
+  ///
   /// This pass uses an algorithm like the Jump Flood Algorithm (JFA) to generate
   /// a distance field, which allows for rendering thick, smooth outlines. Because
   /// this is a multi-pass process, it requires multiple framebuffers and textures
@@ -192,14 +220,14 @@ mod private
   {
     /// A collection of WebGL program information structs, one for each shader used
     /// in the multi-pass process (e.g., initialization, stepping, and final rendering).
-    program_infos : ProgramInfos,
+    shader_programs : ShaderPrograms,
     /// A hash map to manage multiple WebGL framebuffers. These are used to render
     /// to different textures in each pass of the algorithm.
-    framebuffers : HashMap< String, WebGlFramebuffer >,
+    framebuffers : FxHashMap< String, WebGlFramebuffer >,
     /// A hash map to store the textures used by the different passes. This includes
     /// the initial data texture and the textures used to store intermediate distance
     /// field results.
-    textures : HashMap< String, WebGlTexture >,
+    textures : FxHashMap< String, WebGlTexture >,
     /// The desired thickness of the final outline. This value influences the number
     /// of passes and the final rendering stage.
     outline_thickness : f32,
@@ -213,18 +241,18 @@ mod private
     num_passes : u32
   }
 
-  impl WideOutlinePass 
+  impl WideOutlinePass
   {
     /// Creates a new `NarrowOutlinePass` instance.
-    pub fn new( 
-      gl : &gl::WebGl2RenderingContext, 
+    pub fn new(
+      gl : &gl::WebGl2RenderingContext,
       object_color_texture : WebGlTexture,
       outline_thickness : f32,
-      width : u32, 
-      height : u32 
+      width : u32,
+      height : u32
     ) -> Result< Self, gl::WebglError >
     {
-      let program_infos = ProgramInfos::new( gl );
+      let shader_programs = ShaderPrograms::new( gl );
 
       // --- Create Framebuffers and Textures ---
 
@@ -235,7 +263,7 @@ mod private
       let ( jfa_step_fb_1, jfa_step_fb_color_1 ) = create_framebuffer( gl, width as i32, height as i32, None ).unwrap();
       let ( outline_fb, output_color ) = create_framebuffer( gl, width as i32, height as i32, None ).unwrap();
 
-      let mut textures = HashMap::new();
+      let mut textures = FxHashMap::default();
 
       // Store the color attachment textures
       textures.insert( "object_color".to_string(), object_color_texture );
@@ -244,7 +272,7 @@ mod private
       textures.insert( "jfa_step_fb_color_1".to_string(), jfa_step_fb_color_1 );
       textures.insert( "output_color".to_string(), output_color );
 
-      let mut framebuffers = HashMap::new();
+      let mut framebuffers = FxHashMap::default();
 
       // Store the framebuffers
       framebuffers.insert( "jfa_init_fb".to_string(), jfa_init_fb );
@@ -256,7 +284,7 @@ mod private
 
       let pass = Self
       {
-        program_infos,
+        shader_programs,
         framebuffers,
         textures,
         outline_thickness,
@@ -266,7 +294,7 @@ mod private
       };
 
       Ok( pass )
-    }    
+    }
 
     /// Sets the thickness of the outline.
     pub fn set_outline_thickness( &mut self, new_value : f32 )
@@ -287,15 +315,15 @@ mod private
     /// `jfa_init_fb`.
     fn jfa_init_pass( &self, gl : &gl::WebGl2RenderingContext )
     {
-      let jfa_init_program = &self.program_infos.jfa_init.0;
+      let jfa_init = &self.shader_programs.jfa_init;
       let jfa_init_fb = self.framebuffers.get( "jfa_init_fb" ).unwrap();
       let object_color = self.textures.get( "object_color" ).unwrap();
 
-      let jfa_init_locs = self.program_infos.jfa_init.1.get_locations();
+      let jfa_init_locs = self.shader_programs.jfa_init.locations();
 
       let object_color_loc = jfa_init_locs.get( "objectColorTexture" ).unwrap().clone().unwrap();
 
-      gl.use_program( Some( jfa_init_program ) );
+      jfa_init.bind( gl );
 
       upload_framebuffer( gl, jfa_init_fb, self.width as i32, self.height as i32 );
 
@@ -316,20 +344,20 @@ mod private
     ///            directly to the default framebuffer ( screen ) for debugging.
     fn jfa_step_pass( &self, gl : &gl::WebGl2RenderingContext, i : u32 )
     {
-      let jfa_step_program = &self.program_infos.jfa_step.0;
+      let jfa_step = &self.shader_programs.jfa_step;
       let jfa_step_fb_0 = self.framebuffers.get( "jfa_step_fb_0" ).unwrap();
       let jfa_step_fb_1 = self.framebuffers.get( "jfa_step_fb_1" ).unwrap();
       let jfa_init_fb_color = self.textures.get( "jfa_init_fb_color" ).unwrap(); // Initial JFA texture
       let jfa_step_fb_color_0 = self.textures.get( "jfa_step_fb_color_0" ).unwrap(); // Color texture for FB 0
       let jfa_step_fb_color_1 = self.textures.get( "jfa_step_fb_color_1" ).unwrap(); // Color texture for FB 1
 
-      let jfa_step_locs = self.program_infos.jfa_step.1.get_locations();
+      let jfa_step_locs = self.shader_programs.jfa_step.locations();
 
       let resolution = jfa_step_locs.get( "resolution" ).unwrap().clone().unwrap();
       let u_step_size = jfa_step_locs.get( "stepSize" ).unwrap().clone().unwrap();
       let jfa_init_loc = jfa_step_locs.get( "jfaTexture" ).unwrap().clone().unwrap();
 
-      gl.use_program( Some( jfa_step_program ) );
+      jfa_step.bind( gl );
 
       // Ping-pong rendering: Determine input texture and output framebuffer based on step index `i`
       if i == 0 // First step uses the initialization result
@@ -373,21 +401,21 @@ mod private
     ///                which of the ping-pong textures ( `jfa_step_fb_color_0` or `jfa_step_fb_color_1` )
     ///                holds the final JFA result.
     fn outline_pass
-    ( 
-      &self, 
-      gl : &gl::WebGl2RenderingContext, 
+    (
+      &self,
+      gl : &gl::WebGl2RenderingContext,
       input_texture : Option< minwebgl::web_sys::WebGlTexture >,
-      output_texture : Option< minwebgl::web_sys::WebGlTexture > 
+      output_texture : Option< minwebgl::web_sys::WebGlTexture >
     )
     {
-      let outline_program = &self.program_infos.outline.0;
+      let outline = &self.shader_programs.outline;
       let outline_fb = self.framebuffers.get( "outline_fb" ).unwrap();
       let source = input_texture.unwrap();
       let object_color = self.textures.get( "object_color" ).unwrap();
       let jfa_step_fb_color_0 = self.textures.get( "jfa_step_fb_color_0" ).unwrap(); // JFA ping-pong texture 0
       let jfa_step_fb_color_1 = self.textures.get( "jfa_step_fb_color_1" ).unwrap(); // JFA ping-pong texture 1
 
-      let outline_locs = self.program_infos.outline.1.get_locations();
+      let outline_locs = self.shader_programs.outline.locations();
 
       let source_loc = outline_locs.get( "sourceTexture" ).unwrap().clone().unwrap();
       let object_color_loc = outline_locs.get( "objectColorTexture" ).unwrap().clone().unwrap();
@@ -396,7 +424,7 @@ mod private
 
       set_framebuffer_color( gl, &outline_fb, Some( output_texture.unwrap() ) );
 
-      gl.use_program( Some( outline_program ) );
+      outline.bind( gl );
 
       // Bind the default framebuffer ( render to canvas )
       gl.bind_framebuffer( GL::FRAMEBUFFER, Some( outline_fb ) );
@@ -421,18 +449,18 @@ mod private
 
   impl Pass for WideOutlinePass
   {
-    fn renders_to_input( &self ) -> bool 
+    fn renders_to_input( &self ) -> bool
     {
       false
     }
-    
+
     fn render
     (
       &self,
       gl : &minwebgl::WebGl2RenderingContext,
       input_texture : Option< minwebgl::web_sys::WebGlTexture >,
       output_texture : Option< minwebgl::web_sys::WebGlTexture >
-    ) -> Result< Option< minwebgl::web_sys::WebGlTexture >, minwebgl::WebglError > 
+    ) -> Result< Option< minwebgl::web_sys::WebGlTexture >, minwebgl::WebglError >
     {
       // 2. JFA Initialization Pass: Initialize JFA texture from the silhouette
       self.jfa_init_pass( gl );

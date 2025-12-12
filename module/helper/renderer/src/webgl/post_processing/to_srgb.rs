@@ -2,21 +2,21 @@
 mod private
 {
   use minwebgl as gl;
-  use crate::webgl::{ post_processing::{Pass, VS_TRIANGLE}, program::EmptyShader, ProgramInfo };
+  use crate::webgl::{ ShaderProgram, post_processing::{Pass, VS_TRIANGLE}, program::EmptyShader };
 
   /// A post-processing pass responsible for converting a linear color space texture
   /// to the sRGB color space.
   pub struct ToSrgbPass
   {
     /// The WebGL program used for the sRGB conversion.
-    material : ProgramInfo< EmptyShader >,
+    material : EmptyShader,
     /// A boolean flag indicating whether the output of this pass should be
     /// rendered directly to the screen's default framebuffer or
     /// to an offscreen `output_texture`.
     render_to_screen : bool
   }
 
-  impl ToSrgbPass 
+  impl ToSrgbPass
   {
     /// Sets whether the pass should render its output directly to the screen.
     pub fn set_render_to_screen( &mut self, render_to_screen : bool )
@@ -29,7 +29,7 @@ mod private
     {
       let fs_shader = include_str!( "../shaders/post_processing/to_srgb.frag" );
       let material = gl::ProgramFromSources::new( VS_TRIANGLE, fs_shader ).compile_and_link( gl )?;
-      let material = ProgramInfo::< EmptyShader >::new( gl, material );
+      let material = EmptyShader::new( gl, &material );
 
       Ok
       (
@@ -39,23 +39,23 @@ mod private
           render_to_screen
         }
       )
-    }    
+    }
   }
 
   impl Pass for ToSrgbPass
   {
-    fn renders_to_input( &self ) -> bool 
+    fn renders_to_input( &self ) -> bool
     {
       false
     }
-    
+
     fn render
     (
       &self,
       gl : &minwebgl::WebGl2RenderingContext,
       input_texture : Option< minwebgl::web_sys::WebGlTexture >,
       output_texture : Option< minwebgl::web_sys::WebGlTexture >
-    ) -> Result< Option< minwebgl::web_sys::WebGlTexture >, minwebgl::WebglError > 
+    ) -> Result< Option< minwebgl::web_sys::WebGlTexture >, minwebgl::WebglError >
     {
       // Disable depth testing
       gl.disable( gl::DEPTH_TEST );
@@ -66,22 +66,22 @@ mod private
       self.material.bind( gl );
       gl.active_texture( gl::TEXTURE0 );
       gl.bind_texture( gl::TEXTURE_2D, input_texture.as_ref() );
-      
+
       // Determine the rendering target: screen or offscreen texture.
       if self.render_to_screen
       {
         gl.bind_framebuffer( gl::FRAMEBUFFER, None );
       }
-      else 
+      else
       {
         gl.framebuffer_texture_2d
         (
-          gl::FRAMEBUFFER, 
-          gl::COLOR_ATTACHMENT0, 
-          gl::TEXTURE_2D, 
-          output_texture.as_ref(), 
+          gl::FRAMEBUFFER,
+          gl::COLOR_ATTACHMENT0,
+          gl::TEXTURE_2D,
+          output_texture.as_ref(),
           0
-        );    
+        );
       }
 
       // Clear the color buffer of the currently bound framebuffer.

@@ -159,11 +159,11 @@ fn run() -> Result< (), gl::WebglError >
   {
     move | t : f64 |
     {
-      let _time = t as f32 / 1000.0;
+      let time = t as f32 / 1000.0;
 
       update( line.clone(), &canvas, &mut input );
 
-      line.borrow().get_mesh().upload( &gl, "time", &_time ).unwrap();
+      line.borrow().get_mesh().upload( &gl, "time", &time ).unwrap();
       line.borrow().get_mesh().upload( &gl, "totalDistance", &line.borrow().get_total_distance() ).unwrap();
       //draw
       gl.use_program( Some( &background_program ) );

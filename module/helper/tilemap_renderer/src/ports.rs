@@ -45,6 +45,7 @@ mod private
   /// Rendering context information for frame rendering.
   #[ derive( Debug, Clone, Copy, PartialEq ) ]
   #[ non_exhaustive ]
+  #[ allow( clippy::must_use_candidate ) ]
   pub struct RenderContext
   {
     /// Output width in pixels.
@@ -64,6 +65,7 @@ mod private
   impl RenderContext
   {
     /// Constructs new `RenderContext`
+    #[must_use]
     pub fn new
     (
       width : u32,

@@ -1,4 +1,7 @@
 #![ doc = "../readme.md" ]
+#![ allow( clippy::implicit_return ) ]
+#![ allow( clippy::cast_possible_truncation ) ]
+#![ allow( clippy::too_many_lines ) ]
 
 use tiles_tools::coordinates::{ hexagonal, pixel::Pixel, Neighbors as _ };
 use hexagonal::{ Axial, Coordinate, Flat };
@@ -95,8 +98,7 @@ fn run() -> Result< (), minwgpu::Error >
   let instance_count = hexagon_coordinates.len() as u32;
   let positions : Vec< f32 > = hexagon_coordinates
   .into_iter()
-  .map( | c | Pixel::from( c ).data )
-  .flatten()
+  .flat_map( | coord | Pixel::from( coord ).data )
   .collect();
   let attributes = &[ helper::attr( wgpu::VertexFormat::Float32x2, 0, 1 ) ];
   let position_buffer = buffer::vertex_buffer()
@@ -219,7 +221,7 @@ fn run() -> Result< (), minwgpu::Error >
   .create_command_encoder( &wgpu::CommandEncoderDescriptor { label : Some( "encoder" ) } );
 
   {
-    let mut render_pass = encoder.begin_render_pass( &render_pass_desc );
+    let mut render_pass = encoder.begin_render_pass( render_pass_desc );
     render_pass.set_pipeline( &hexagon_fill_pipeline );
     // Hexagon color
     render_pass.set_push_constants

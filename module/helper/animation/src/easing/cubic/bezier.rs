@@ -1,6 +1,6 @@
 mod private
 {
-  use std::marker::PhantomData;
+  use core::marker::PhantomData;
 
 use crate::{impl_easing_function, Animatable};
   use crate::easing::

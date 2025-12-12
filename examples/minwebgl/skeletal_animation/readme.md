@@ -32,11 +32,7 @@ let reader = skin.reader
   | buffer | Some( buffers[ buffer.index() ].as_slice() )
 );
 
-let Some( inverse_bind_matrices_iter ) = reader.read_inverse_bind_matrices()
-else
-{
-  return None;
-};
+let inverse_bind_matrices_iter = reader.read_inverse_bind_matrices()?;
 ```
 
 ### 2. Load animations from GLTF files.

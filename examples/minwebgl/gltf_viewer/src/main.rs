@@ -22,10 +22,8 @@ use renderer::webgl::
   post_processing::{self, Pass, SwapFramebuffer}, Camera, Renderer
 };
 
-mod loaders;
 mod lil_gui;
 mod gui_setup;
-
 
 async fn run() -> Result< (), gl::WebglError >
 {
@@ -92,7 +90,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   //renderer.set_use_emission( true );
-  renderer.set_ibl( loaders::ibl::load( &gl, "envMap" ).await );
+  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "envMap", None ).await );
 
   let renderer = Rc::new( RefCell::new( renderer ) );
 

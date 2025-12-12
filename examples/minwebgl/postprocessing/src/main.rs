@@ -92,7 +92,7 @@ async fn run() -> Result< (), gl::WebglError >
   renderer.set_bloom_strength( 0.5 );
   renderer.set_bloom_radius( 0.5 );
   renderer.set_exposure( 1.0 );
-  renderer.set_ibl( loaders::ibl::load( &gl, "envMap" ).await );
+  renderer.set_ibl( loaders::ibl::load( &gl, "envMap", None ).await );
   let renderer = Rc::new( RefCell::new( renderer ) );
 
   let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );

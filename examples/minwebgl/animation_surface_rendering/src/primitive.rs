@@ -1,8 +1,15 @@
+#![ allow( clippy::cast_possible_truncation ) ]
+#![ allow( clippy::needless_range_loop ) ]
+#![ allow( clippy::unnecessary_wraps ) ]
+#![ allow( clippy::cast_lossless ) ]
+#![ allow( clippy::std_instead_of_alloc ) ]
+#![ allow( clippy::too_many_lines ) ]
+
 mod private
 {
   use minwebgl as gl;
   use gl::{ F32x2, geometry::BoundingBox };
-  use std::cell::RefCell;
+  use core::cell::RefCell;
   use std::rc::Rc;
   use primitive_generation::AttributesData;
   use kurbo::PathEl;
@@ -25,7 +32,7 @@ mod private
   ///
   /// A `GeometryData` struct containing the 3D vertex positions and triangle indices
   /// that form the rectangular segments of the path. The Z-coordinate is always 0.0.
-  pub fn curve_to_geometry< 'a >( curve : &'a [ [ f32; 2 ] ], width : f32 ) -> Option< PrimitiveData >
+  pub fn curve_to_geometry( curve : &[ [ f32; 2 ] ], width : f32 ) -> Option< PrimitiveData >
   {
     let mut positions = Vec::new();
     let mut indices = Vec::new();
@@ -51,11 +58,11 @@ mod private
       positions.push( [ p2.x(), p2.y(), 0.0 ] );
       positions.push( [ p3.x(), p3.y(), 0.0 ] );
 
-      indices.push( base_idx + 0 );
+      indices.push( base_idx );
       indices.push( base_idx + 1 );
       indices.push( base_idx + 2 );
 
-      indices.push( base_idx + 0 );
+      indices.push( base_idx );
       indices.push( base_idx + 2 );
       indices.push( base_idx + 3 );
     };
@@ -96,14 +103,14 @@ mod private
   /// # Arguments
   ///
   /// * `contours` - A slice of vectors, where each inner vector represents a
-  /// contour as a series of 2D points. The first contour is the outer body,
-  /// subsequent ones are holes.
+  ///   contour as a series of 2D points. The first contour is the outer body,
+  ///   subsequent ones are holes.
   ///
   /// # Returns
   ///
   /// An `Option<PrimitiveData>` containing the triangulated geometry for the
   /// filled shape. Returns `None` if the input is empty or invalid.
-  pub fn contours_to_fill_geometry< 'a >( contours : &'a [ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
+  pub fn contours_to_fill_geometry( contours : &[ Vec< [ f32; 2 ] > ] ) -> Option< PrimitiveData >
   {
     if contours.is_empty()
     {
@@ -160,7 +167,7 @@ mod private
         contour
         .iter()
         .flatten()
-        .cloned()
+        .copied()
         .collect::< Vec< _ > >()
         .as_slice()
       );
@@ -194,7 +201,7 @@ mod private
       let mut flat_positions: Vec< f64 > = Vec::new();
       let mut hole_indices: Vec< usize > = Vec::new();
 
-      if let Some( outer_contour ) = contours.get( 0 )
+      if let Some( outer_contour ) = contours.first()
       {
         if outer_contour.is_empty()
         {
@@ -291,9 +298,9 @@ mod private
 
     if let Some( el ) = points.get_mut( 0 )
     {
-      if let PathEl::LineTo( p ) = el.clone()
+      if let PathEl::LineTo( p ) = el
       {
-        *el = PathEl::MoveTo( p );
+        *el = PathEl::MoveTo( *p );
       }
     }
 

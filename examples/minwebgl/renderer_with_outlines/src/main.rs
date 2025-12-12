@@ -24,11 +24,11 @@
 #![ allow( clippy::ignored_unit_patterns ) ]
 #![ allow( clippy::cast_sign_loss ) ]
 
-use std::collections::HashMap;
 use mingl::F32x4;
 use minwebgl::
 {
   self as gl,
+  GL,
   JsCast,
   web_sys::
   {
@@ -36,6 +36,7 @@ use minwebgl::
     HtmlSelectElement,
     HtmlSpanElement,
     HtmlInputElement,
+    WebGlTexture,
     window,
     wasm_bindgen::closure::Closure
   }
@@ -59,8 +60,57 @@ use renderer::webgl::
     SwapFramebuffer
   }
 };
+use rustc_hash::FxHashMap;
 use std::rc::Rc;
 use std::cell::RefCell;
+
+/// Uploads an image from a URL to a WebGL texture.
+///
+/// This function creates a new `WebGlTexture` and asynchronously loads an image from the provided URL into it.
+/// It uses a `Closure` to handle the `onload` event of an `HtmlImageElement`, ensuring the texture is
+/// uploaded only after the image has finished loading.
+///
+/// # Arguments
+///
+/// * `gl` - The WebGl2RenderingContext.
+/// * `src` - A reference-counted string containing the URL of the image to load.
+///
+/// # Returns
+///
+/// A `WebGlTexture` object.
+pub fn upload_texture( gl : &GL, src : &str ) -> WebGlTexture
+{
+  let window = web_sys::window().expect( "Can't get window" );
+  let document =  window.document().expect( "Can't get document" );
+
+  let texture = gl.create_texture().expect( "Failed to create a texture" );
+
+  let img_element = document.create_element( "img" )
+  .expect( "Can't create img" )
+  .dyn_into::< gl::web_sys::HtmlImageElement >()
+  .expect( "Can't convert to gl::web_sys::HtmlImageElement" );
+  img_element.style().set_property( "display", "none" ).expect( "Can't set property" );
+  let load_texture : Closure< dyn Fn() > = Closure::new
+  (
+    {
+      let gl = gl.clone();
+      let img = img_element.clone();
+      let texture = texture.clone();
+      move ||
+      {
+        gl::texture::d2::upload( &gl, Some( &texture ), &img );
+        gl::texture::d2::filter_linear( &gl );
+        img.remove();
+      }
+    }
+  );
+
+  img_element.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
+  img_element.set_src( &src );
+  load_texture.forget();
+
+  texture
+}
 
 fn generate_object_colors( object_count : u32 ) -> Vec< F32x4 >
 {
@@ -88,7 +138,7 @@ fn generate_object_colors( object_count : u32 ) -> Vec< F32x4 >
   object_colors
 }
 
-fn get_attributes( gltf : &GLTF ) -> Result< HashMap< Box< str >, AttributeInfo >, gl::WebglError >
+fn get_attributes( gltf : &GLTF ) -> Result< FxHashMap< Box< str >, AttributeInfo >, gl::WebglError >
 {
   for mesh in &gltf.meshes
   {
@@ -187,6 +237,9 @@ async fn run() -> Result< (), gl::WebglError >
       Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?
     )
   );
+
+  let skybox = upload_texture( &gl, "static/skybox/pink_sunrise.jpg" );
+  renderer.borrow_mut().set_skybox( Some( skybox ) );
   let renderer1 = renderer.clone();
 
   let attributes = get_attributes( &gltf )?;
@@ -195,16 +248,13 @@ async fn run() -> Result< (), gl::WebglError >
 
   let get_buffer = | name | attributes.get( name ).unwrap().buffer.clone();
 
-  let attachments = HashMap::from(
-    [
-      ( GBufferAttachment::Position, vec![ get_buffer( "positions" ) ] ),
-      ( GBufferAttachment::Albedo, vec![] ),
-      ( GBufferAttachment::Uv1, vec![] ),
-      ( GBufferAttachment::Normal, vec![ get_buffer( "normals" ) ] ),
-      ( GBufferAttachment::PbrInfo, vec![ get_buffer( "texture_coordinates_2" ) ] ),
-      ( GBufferAttachment::ObjectColor, vec![] )
-    ]
-  );
+  let mut attachments = FxHashMap::default();
+  attachments.insert( GBufferAttachment::Position, vec![ get_buffer( "positions" ) ] );
+  attachments.insert( GBufferAttachment::Albedo, vec![] );
+  attachments.insert( GBufferAttachment::Uv1, vec![] );
+  attachments.insert( GBufferAttachment::Normal, vec![ get_buffer( "normals" ) ] );
+  attachments.insert( GBufferAttachment::PbrInfo, vec![ get_buffer( "texture_coordinates_2" ) ] );
+  attachments.insert( GBufferAttachment::ObjectColor, vec![] );
 
   let gbuffer = Rc::new
   (
