@@ -7,6 +7,7 @@ use the_module::
   Ix2,
   RawSliceMut,
   ScalarMut,
+  RawSlice,
   ConstLayout,
   IndexingMut,
   Mat3,
@@ -267,4 +268,37 @@ fn test_from_scale_rotation_translation_row_major()
 fn test_from_scale_rotation_translation_column_major()
 {
   test_from_scale_rotation_translation_generic::< mat::DescriptorOrderColumnMajor >();
+}
+
+fn test_identity_generic< Descriptor : mat::Descriptor >()
+where 
+  Mat4< f32, Descriptor > : 
+    RawSlice< Scalar = f32 > +
+    RawSliceMut< Scalar = f32 >
+{
+  let exp = &
+  [ 
+    1.0, 0.0, 0.0, 0.0, 
+    0.0, 1.0, 0.0, 0.0, 
+    0.0, 0.0, 1.0, 0.0, 
+    0.0, 0.0, 0.0, 1.0, 
+  ];
+
+  let mat = the_module::mat4x4::identity::< f32 >();
+  assert_eq!( mat.raw_slice(), exp );
+
+  let mat = Mat4::< f32, Descriptor >::identity();
+  assert_eq!( mat.raw_slice(), exp );
+}
+
+#[ test ]
+fn test_identity_row_major()
+{
+  test_identity_generic::< mat::DescriptorOrderRowMajor >();
+}
+
+#[ test ]
+fn test_identity_column_major()
+{
+  test_identity_generic::< mat::DescriptorOrderColumnMajor >();
 }
