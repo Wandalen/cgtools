@@ -4,7 +4,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use minwebgl as gl;
-use renderer::webgl::Animation;
+use renderer::webgl::animation::Animation;
 use serde::{ Deserialize, Serialize };
 use gl::wasm_bindgen::prelude::*;
 use std::collections::HashMap;
