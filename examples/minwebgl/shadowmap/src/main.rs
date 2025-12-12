@@ -82,7 +82,7 @@ async fn run() -> Result< (), gl::WebglError >
     let mut scene = scene.borrow_mut();
     for node in core::mem::take( &mut scene.children )
     {
-      node.borrow_mut().set_world_matrix( cube_model );
+      node.borrow_mut().set_local_matrix( cube_model );
       main_scene.add( node );
     }
   }

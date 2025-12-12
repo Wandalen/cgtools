@@ -303,6 +303,10 @@ pub fn setup
                     point.strength = 0.0;
                     point.range = 0.0;
                   },
+                  Light::Spot( _ ) =>
+                  {
+
+                  }
                 }
               }
 
@@ -510,7 +514,7 @@ pub fn setup
             },
             Light::Spot( spot ) =>
             {
-              spot.position = crate::to_decart( settings.borrow().light_distance, settings.borrow().light_pitch, settings.borrow().light_yaw );
+              spot.position = settings.borrow().get_controllable_light_position();
             },
           }
         }

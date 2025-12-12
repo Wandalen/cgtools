@@ -200,6 +200,7 @@ async fn run() -> Result< (), gl::WebglError >
       {
         Light::Point( point_light ) => point_light.position,
         Light::Direct( direct_light ) => direct_light.direction,
+        Light::Spot( spot_light ) => spot_light.direction,
       };
 
       let sphere_clone = sphere.borrow().clone_tree();
@@ -233,6 +234,7 @@ async fn run() -> Result< (), gl::WebglError >
         {
           Light::Point( point_light ) => point_light.position,
           Light::Direct( direct_light ) => direct_light.direction,
+          Light::Spot( spot_light ) => spot_light.direction,
         };
 
         controllable_sphere.borrow_mut().set_translation( position );
@@ -274,7 +276,19 @@ async fn run() -> Result< (), gl::WebglError >
 
               point.position = position;
               spheres[ i ].borrow_mut().set_translation( position );
-            }
+            },
+            Light::Spot( spot_light ) =>
+            {
+              let position = F32x3::from_spherical
+              (
+                light_radius,
+                i as f32 * 120.0 + ( t as f32 * light_speed / 1000.0 ),
+                45.0
+              );
+
+              spot_light.position = position;
+              spheres[ i ].borrow_mut().set_translation( position );
+            },
           }
         }
       }

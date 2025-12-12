@@ -176,42 +176,13 @@ mod private
             }
           )
         },
-        "spot" =>
+        gltf::khr_lights_punctual::Kind::Spot { inner_cone_angle, outer_cone_angle } =>
         {
-          let Some( color ) = gltf_light.get( "color" )
-          .map( | i | i.as_array() )
-          .flatten()
-          .map( | v | v.iter().map( | i | i.as_f64().unwrap() as f32 ).collect::< Vec< _ > >() )
-          .map( | c | F32x3::from_slice( &c[ 0..3 ] ) )
-          else
-          {
-            continue;
-          };
-          let Some( strength ) = gltf_light.get( "intensity" )
-          .map( | i | i.as_f64() )
-          .flatten()
-          else
-          {
-            continue;
-          };
-          let Some( range ) = gltf_light.get( "range" )
-          .map( | i | i.as_f64() )
-          .flatten()
-          else
-          {
-            continue;
-          };
-
-          // Parse spot light specific fields
-          let spot_obj = gltf_light.get( "spot" );
-          let inner_cone_angle = spot_obj
-            .and_then( | s | s.get( "innerConeAngle" ) )
-            .and_then( | a | a.as_f64() )
-            .unwrap_or( 0.0 ) as f32;
-          let outer_cone_angle = spot_obj
-            .and_then( | s | s.get( "outerConeAngle" ) )
-            .and_then( | a | a.as_f64() )
-            .unwrap_or( std::f64::consts::PI / 4.0 ) as f32;
+          let color = gltf_light.color();
+          let strength = gltf_light.intensity();
+          let range = gltf_light.range().unwrap_or( 10.0 );
+          // let inner_cone_angle = inner_cone_angle;
+          // let outer_cone_angle = outer_cone_angle;
 
           Light::Spot
           (
@@ -219,7 +190,7 @@ mod private
             {
               position : F32x3::default(),
               direction : F32x3::default(),
-              color,
+              color: color.into(),
               strength : strength as f32,
               range : range as f32,
               inner_cone_angle,
@@ -228,7 +199,6 @@ mod private
             }
           )
         },
-        _ => continue
       };
 
       lights.insert( i, light );

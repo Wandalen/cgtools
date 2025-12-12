@@ -920,7 +920,7 @@ mod private
       let max_count = match type_
       {
         LightType::Point => MAX_POINT_LIGHTS,
-        LightType::Direct => MAX_DIRECT_LIGHTS
+        LightType::Direct => MAX_DIRECT_LIGHTS,
         LightType::Spot => MAX_SPOT_LIGHTS
       };
 
@@ -982,7 +982,7 @@ mod private
             let _ = gl::uniform::upload( gl, color_loc, light.color.as_slice() );
             let _ = gl::uniform::upload( gl, strength_loc, &light.strength );
           },
-          "spot" =>
+          LightType::Spot =>
           {
             if !locations.contains_key( "spotLights" ) || i > MAX_SPOT_LIGHTS
             {
@@ -1015,7 +1015,6 @@ mod private
             let use_lightmap_int = light.use_light_map as i32;
             let _ = gl::uniform::upload( gl, use_lightmap_loc, &use_lightmap_int );
           },
-          _ => ()
         }
       }
     }
