@@ -228,9 +228,9 @@ mod private
     }
 
     /// Return inner program
-    pub fn get_program( &self ) -> WebGlProgram
+    pub fn get_program( &self ) -> &WebGlProgram
     {
-      self.program.clone()
+      &self.program
     }
   }
 
@@ -272,6 +272,7 @@ mod private
     "irradianceTexture",
     "prefilterEnvMap",
     "integrateBRDF",
+    "mipmapDistanceRange",
     //// Scalers uniform locations
     "baseColorFactor",
     "metallicFactor",

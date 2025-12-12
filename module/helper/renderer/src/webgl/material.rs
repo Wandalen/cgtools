@@ -1,7 +1,7 @@
 mod private
 {
   use mingl::Former;
-  use minwebgl as gl;
+use minwebgl as gl;
   use crate::webgl::Texture;
   use std:: { cell::RefCell, collections::HashMap, rc::Rc };
 
@@ -90,8 +90,7 @@ mod private
     pub specular_color_factor : Option< gl::F32x3 >,
     /// Optional texture providing the specular color. (KHR_materials_specular extension)
     pub specular_color_texture : Option< TextureInfo >,
-    /// Optional lightmap texture containing pre-baked lighting (shadows)
-    pub light_map : Option< TextureInfo >,
+
     /// Alpha cutoff value for mask mode. Fragments with alpha below this value are discarded.
     pub alpha_cutoff : f32,
     /// The alpha blending mode for the material. Defaults to `Opaque`.
@@ -130,7 +129,6 @@ mod private
       gl.uniform1i( locations.get( "emissiveTexture" ).unwrap().clone().as_ref() , 4 );
       gl.uniform1i( locations.get( "specularTexture" ).unwrap().clone().as_ref() , 5 );
       gl.uniform1i( locations.get( "specularColorTexture" ).unwrap().clone().as_ref() , 6 );
-      gl.uniform1i( locations.get( "lightMap" ).unwrap().clone().as_ref() , 7 );
 
       gl.uniform1i( locations.get( "irradianceTexture" ).unwrap().clone().as_ref() , ibl_base_location );
       gl.uniform1i( locations.get( "prefilterEnvMap" ).unwrap().clone().as_ref() , ibl_base_location + 1 );
@@ -175,6 +173,10 @@ mod private
       gl::uniform::upload( gl, locations.get( "occlusionStrength" ).unwrap().clone(), &self.occlusion_strength )?;
       gl::uniform::upload( gl, locations.get( "alphaCutoff" ).unwrap().clone(), &self.alpha_cutoff )?;
       gl::uniform::upload( gl, locations.get( "emissiveFactor" ).unwrap().clone(), self.emissive_factor.as_slice() )?;
+      if let Some( mipmap_distance_range_loc ) = locations.get( "mipmapDistanceRange" )
+      {
+        gl::uniform::upload( gl, mipmap_distance_range_loc.clone(), &[ 0.0, 9.0 ] )?;
+      }
 
       upload_array( "specularColorFactor", self.specular_color_factor.as_ref().map( | v | v.as_slice() ) )?;
 
@@ -193,7 +195,6 @@ mod private
       if let Some( ref t ) = self.emissive_texture { t.upload( gl ); }
       if let Some( ref t ) = self.specular_texture { t.upload( gl ); }
       if let Some( ref t ) = self.specular_color_texture { t.upload( gl ); }
-      if let Some( ref t ) = self.light_map { t.upload( gl ); }
     }
 
     /// Binds all used textures to their respective texture units.
@@ -217,7 +218,6 @@ mod private
       bind( &self.emissive_texture, 4 );
       bind( &self.specular_texture, 5 );
       bind( &self.specular_color_texture, 6 );
-      bind( &self.light_map, 7 );
     }
 
     /// Generates `#define` directives to be inserted into the fragment shader based on the material's properties.
@@ -239,8 +239,6 @@ mod private
       let use_normal_texture = self.normal_texture.is_some();
       let use_occlusion_texture = self.occlusion_texture.is_some();
       let use_alpha_cutoff = self.alpha_mode == AlphaMode::Mask;
-
-      let use_light_map = self.light_map.is_some();
 
       let mut defines = String::new();
       let add_texture = | defines : &mut String, name : &str, uv_name : &str, info : Option< &TextureInfo > |
@@ -299,11 +297,6 @@ mod private
         defines.push_str( "#define USE_ALPHA_CUTOFF\n" );
       }
 
-      if use_light_map
-      {
-        add_texture( &mut defines, "USE_LIGHT_MAP", "vLightMapUv", self.light_map.as_ref() )
-      }
-
       defines
     }
   }
@@ -334,8 +327,6 @@ mod private
       let specular_color_factor = Default::default();
       let specular_color_texture = Default::default();
 
-      let light_map = Default::default();
-
       let alpha_mode = AlphaMode::default();
       let alpha_cutoff = 0.5;
       let double_sided = false;
@@ -360,8 +351,7 @@ mod private
         specular_color_texture,
         alpha_mode,
         alpha_cutoff,
-        double_sided,
-        light_map,
+        double_sided
       };
     }
   }

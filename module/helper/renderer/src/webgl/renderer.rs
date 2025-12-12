@@ -1,6 +1,7 @@
 mod private
 {
-  use std::{ cell::RefCell, collections::HashMap, rc::Rc };
+  use std::{ cell::RefCell, rc::Rc };
+  use rustc_hash::FxHashMap;
   use minwebgl as gl;
   use gl::GL;
 
@@ -14,6 +15,7 @@ mod private
       UnrealBloomPass,
       VS_TRIANGLE
     },
+    LightType,
     program::{ self, CompositeShader },
     AlphaMode,
     Camera,
@@ -480,7 +482,7 @@ mod private
   pub struct Renderer
   {
     /// A map of compiled WebGL programs, keyed by a combination of the material ID and vertex shader defines.
-    programs : HashMap< String, ProgramInfo< program::PBRShader > >,
+    programs : FxHashMap< String, ProgramInfo< program::PBRShader > >,
     /// Holds the precomputed textures used for Image-Based Lighting.
     ibl : Option< IBL >,
     /// A list of nodes with transparent primitives, sorted by distance to the camera for correct rendering order.
@@ -509,7 +511,7 @@ mod private
     {
       let framebuffer_ctx = FramebufferContext::new( gl, width, height, samples );
       let use_emission = false;
-      let programs = HashMap::new();
+      let programs = FxHashMap::default();
       let ibl = None;
       let transparent_nodes = Vec::new();
       let bloom_effect = UnrealBloomPass::new( gl, width, height, gl::RGBA16F )?;
@@ -652,7 +654,7 @@ mod private
       // Clear the list of transparent nodes before each render.
       self.transparent_nodes.clear();
 
-      let mut lights = HashMap::< String, Vec< Light > >::new();
+      let mut lights = FxHashMap::< LightType, Vec< Light > >::default();
 
       let mut collect_light_sources =
       |
@@ -661,21 +663,9 @@ mod private
       {
         if let Object3D::Light( light ) = &node.borrow().object
         {
-          let type_ = match light
-          {
-            Light::Point( _ ) => "point",
-            Light::Direct( _ ) => "direct",
-            Light::Spot( _ ) => "spot"
-          };
+          let type_ : LightType = light.into();
 
-          if let Some( ls ) = lights.get_mut( type_ )
-          {
-            ls.push( light.clone() );
-          }
-          else
-          {
-            lights.insert( type_.to_string(), vec![ light.clone() ] );
-          }
+          lights.entry( type_ ).or_default().push( light.clone() );
         }
 
         Ok( () )
@@ -688,9 +678,12 @@ mod private
         let locations = program.get_locations();
         program.bind( gl );
         camera.upload( gl, locations );
-        bind_light( gl, &program, &lights );
+        bind_lights( gl, &program, &lights );
         gl::uniform::upload( gl, locations.get( "exposure" ).unwrap().clone(), &self.exposure )?;
       }
+
+      let light_defines = format!( "#define MAX_POINT_LIGHTS {MAX_POINT_LIGHTS}\n#define MAX_DIRECT_LIGHTS {MAX_DIRECT_LIGHTS}\n" );
+      let light_defines = light_defines.as_str();
 
       // Define a closure to handle the drawing of each node in the scene.
       let mut draw_node =
@@ -728,15 +721,15 @@ mod private
                 ""
               };
 
-
               // Compile and link a new WebGL program from the vertex and fragment shaders with the appropriate defines.
               let program = gl::ProgramFromSources::new
               (
                 &format!( "#version 300 es\n{}\n{}", vs_defines, MAIN_VERTEX_SHADER ),
                 &format!
                 (
-                  "#version 300 es\n{}\n{}\n{}\n{}",
+                  "#version 300 es\n{}\n{}\n{}\n{}\n{}",
                   vs_defines,
+                  light_defines,
                   ibl_define,
                   material.get_defines(),
                   MAIN_FRAGMENT_SHADER )
@@ -913,36 +906,39 @@ mod private
     }
   }
 
-  fn bind_light< T >
+  fn bind_lights< T >
   (
     gl : &GL,
     program : &ProgramInfo< T >,
-    lights : &HashMap< String, Vec< Light > >
+    lights : &FxHashMap< LightType, Vec< Light > >
   )
   {
     let locations = program.get_locations();
 
     for ( type_, one_type_lights ) in lights
     {
-      let max_count = match type_.as_str()
+      let max_count = match type_
       {
-        "point" => MAX_POINT_LIGHTS,
-        "direct" => MAX_DIRECT_LIGHTS,
-        "spot" => MAX_SPOT_LIGHTS,
-        _ => continue
+        LightType::Point => MAX_POINT_LIGHTS,
+        LightType::Direct => MAX_DIRECT_LIGHTS
+        LightType::Spot => MAX_SPOT_LIGHTS
       };
 
-      let count_loc = gl.get_uniform_location( &program.get_program(), format!( "{type_}LightsCount" ).as_str() );
-      let _ = gl::uniform::upload( gl, count_loc, &( one_type_lights.len().min( max_count ) as i32 ) );
+      let Some( count_loc ) = locations.get( format!( "{}LightsCount", type_.to_string().to_lowercase() ).as_str() )
+      else
+      {
+        continue;
+      };
+      let _ = gl::uniform::upload( gl, count_loc.clone(), &( one_type_lights.len().min( max_count ) as i32 ) );
     }
 
     'i : for ( type_, one_type_lights ) in lights
     {
       for ( i, light ) in one_type_lights.iter().enumerate()
       {
-        match type_.as_str()
+        match type_
         {
-          "point" =>
+          LightType::Point =>
           {
             if !locations.contains_key( "pointLights" ) || i > MAX_POINT_LIGHTS
             {
@@ -965,7 +961,7 @@ mod private
             let _ = gl::uniform::upload( gl, strength_loc, &light.strength );
             let _ = gl::uniform::upload( gl, range_loc, &light.range );
           },
-          "direct" =>
+          LightType::Direct =>
           {
             if !locations.contains_key( "directLights" ) || i > MAX_DIRECT_LIGHTS
             {
