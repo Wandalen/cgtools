@@ -181,8 +181,6 @@ mod private
           let color = gltf_light.color();
           let strength = gltf_light.intensity();
           let range = gltf_light.range().unwrap_or( 10.0 );
-          // let inner_cone_angle = inner_cone_angle;
-          // let outer_cone_angle = outer_cone_angle;
 
           Light::Spot
           (

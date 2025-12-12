@@ -682,7 +682,12 @@ mod private
         gl::uniform::upload( gl, locations.get( "exposure" ).unwrap().clone(), &self.exposure )?;
       }
 
-      let light_defines = format!( "#define MAX_POINT_LIGHTS {MAX_POINT_LIGHTS}\n#define MAX_DIRECT_LIGHTS {MAX_DIRECT_LIGHTS}\n" );
+      let light_defines = format!
+      (
+        "#define MAX_POINT_LIGHTS {MAX_POINT_LIGHTS}
+        #define MAX_DIRECT_LIGHTS {MAX_DIRECT_LIGHTS}
+        #define MAX_SPOT_LIGHTS {MAX_SPOT_LIGHTS}"
+      );
       let light_defines = light_defines.as_str();
 
       // Define a closure to handle the drawing of each node in the scene.

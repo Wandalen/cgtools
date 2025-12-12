@@ -1,11 +1,11 @@
 //! Simple rendering with PBR lighting and shadowmapping
 
 use minwebgl as gl;
-use gl::{ JsCast as _, math::mat3x3h };
+use gl::{ JsCast as _, math::mat3x3h, GL };
 use web_sys::HtmlCanvasElement;
 use std::rc::Rc;
 use core::cell::RefCell;
-use renderer::webgl::{ Light, SpotLight, Node, loaders::gltf, Object3D, post_processing, shadow };
+use renderer::webgl::{ Light, Node, Object3D, SpotLight, loaders::gltf, post_processing, shadow::{self, ShadowBaker, ShadowMap} };
 use post_processing::{ Pass, SwapFramebuffer };
 
 fn main()
@@ -119,7 +119,7 @@ async fn run() -> Result< (), gl::WebglError >
       {
         let mut mesh = mesh.borrow_mut();
         mesh.is_shadow_caster = true;
-        mesh.is_shadow_receiver = true;
+        // mesh.is_shadow_receiver = true;
       }
       Ok( () )
     }
@@ -127,7 +127,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let near = 0.1;
   let far = 30.0;
-  let mut light = shadow::Light::new
+  let light = shadow::Light::new
   (
     light_pos,
     light_dir,
@@ -137,7 +137,12 @@ async fn run() -> Result< (), gl::WebglError >
 
   let shadowmap_res = 2048;
   let lightmap_res = 2048;
-  shadow::bake_shadows( &gl, &main_scene, &mut light, lightmap_res, shadowmap_res ).unwrap();
+  let shadowmap = ShadowMap::new( &gl, shadowmap_res )?;
+  shadowmap.render_shadow_map( &main_scene, light )?;
+
+  let shadow_baker = ShadowBaker::new( &gl )?;
+  // shadow_baker.render_soft_shadow_texture( node, texture, width, height, shadowmap, light);
+  // shadow::render_soft_shadow_texture( &gl, &main_scene, &mut light, lightmap_res, shadowmap_res ).unwrap();
 
   let update = move | _ |
   {
@@ -162,4 +167,17 @@ async fn run() -> Result< (), gl::WebglError >
   gl::exec_loop::run( update );
 
   Ok( () )
+}
+
+fn create_texture( gl : &GL, lightmap_res : u32, mip_levels : i32 ) -> Option< web_sys::WebGlTexture >
+{
+  let light_map = gl.create_texture();
+  gl.bind_texture( gl::TEXTURE_2D, light_map.as_ref() );
+  gl.tex_storage_2d( gl::TEXTURE_2D, mip_levels, gl::R16F, lightmap_res as i32, lightmap_res as i32 );
+  gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
+  gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+  gl::texture::d2::wrap_clamp( &gl );
+
+
+  light_map
 }
