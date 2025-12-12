@@ -66,7 +66,7 @@ use renderer::webgl::
   Primitive,
   camera::Camera,
   loaders::gltf::{ GLTF, load },
-  material::PBRMaterial,
+  material::PbrMaterial,
   node::{ Node, Object3D },
   program::
   {
@@ -621,7 +621,7 @@ fn primitives_csgrs_gltf
 
   let primitives = get_primitives_and_transform();
 
-  let material = Rc::new( RefCell::new( Box::new( PBRMaterial::new( gl ) ) as Box< dyn Material > ) );
+  let material = Rc::new( RefCell::new( Box::new( PbrMaterial::new( gl ) ) as Box< dyn Material > ) );
   gltf.materials.push( material.clone() );
 
   let attribute_infos =

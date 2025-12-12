@@ -14,7 +14,7 @@ mod private
     Object3D,
     Scene,
     ShaderProgram,
-    material::PBRMaterial,
+    material::PbrMaterial,
     ProgramInfo
   };
   use crate::webgl::impl_locations;
@@ -394,7 +394,7 @@ mod private
           {
             let primitive = primitive_rc.borrow();
             let material = primitive.material.borrow();
-            let material = ( material.as_ref() as &dyn std::any::Any  ).downcast_ref::< PBRMaterial >().expect( "GBuffer only supports PBRMaterial" );
+            let material = ( material.as_ref() as &dyn std::any::Any  ).downcast_ref::< PbrMaterial >().expect( "GBuffer only supports PbrMaterial" );
 
             if self.attachment_buffers.contains_key( &GBufferAttachment::Albedo )
             && self.attachment_buffers.contains_key( &GBufferAttachment::PbrInfo )

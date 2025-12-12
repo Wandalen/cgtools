@@ -44,7 +44,7 @@ Here is a conceptual example demonstrating how to initialize and use the `Canvas
 ```rust
 use canvas_renderer::renderer::CanvasRenderer;
 use minwebgl as gl;
-use renderer::webgl::{ Camera, Node, Scene, Renderer, Texture, TextureInfo, material::PBRMaterial, Material };
+use renderer::webgl::{ Camera, Node, Scene, Renderer, Texture, TextureInfo, material::PbrMaterial, Material };
 use std::rc::Rc;
 use std::cell::RefCell;
 
@@ -125,7 +125,7 @@ fn setup_and_render( gl : &gl::GL ) -> Result< (), gl::WebglError >
     &object,
     | m |
     {
-      let mut m = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >
+      let mut m = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >
       (
         m.borrow_mut()
       );

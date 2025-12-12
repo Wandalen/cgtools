@@ -29,7 +29,7 @@ pub mod ufo
   use renderer::webgl::
   {
     Material,
-    material::PBRMaterial
+    material::PbrMaterial
   };
 
   #[ derive( Clone ) ]
@@ -382,7 +382,7 @@ pub mod ufo
                 }
               )
             ),
-            material :  Rc::new( RefCell::new( Box::new( PBRMaterial::new( &gl ) ) as Box< dyn Material > ) ),
+            material :  Rc::new( RefCell::new( Box::new( PbrMaterial::new( &gl ) ) as Box< dyn Material > ) ),
             transform : Default::default()
           },
           bounding_box : BoundingBox::default()
@@ -662,7 +662,7 @@ pub mod ufo
     let primitive_data = PrimitiveData
     {
       attributes : Rc::new( RefCell::new( attributes ) ),
-      material :  Rc::new( RefCell::new( Box::new( PBRMaterial::new( &gl ) ) as Box< dyn Material > ) ),
+      material :  Rc::new( RefCell::new( Box::new( PbrMaterial::new( &gl ) ) as Box< dyn Material > ) ),
       transform : Transform::default()
     };
 
@@ -815,7 +815,7 @@ pub mod ttf
   use renderer::webgl::
   {
     Material,
-    material::PBRMaterial
+    material::PbrMaterial
   };
   use csgrs::traits::CSG;
 
@@ -893,7 +893,7 @@ pub mod ttf
       let data = PrimitiveData
       {
         attributes : Rc::new( RefCell::new( attributes ) ),
-        material : Rc::new( RefCell::new( Box::new( PBRMaterial::new( &gl ) ) as Box< dyn Material > ) ),
+        material : Rc::new( RefCell::new( Box::new( PbrMaterial::new( &gl ) ) as Box< dyn Material > ) ),
         transform : Transform::default()
       };
 

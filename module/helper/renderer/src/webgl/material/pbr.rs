@@ -70,7 +70,7 @@ mod private
 
   /// Represents the visual properties of a surface.
   #[ derive( Former, Debug ) ]
-  pub struct PBRMaterial
+  pub struct PbrMaterial
   {
     /// A unique identifier for the material.
     pub id : uuid::Uuid,
@@ -135,9 +135,9 @@ mod private
     pub needs_update : bool
   }
 
-  impl PBRMaterial
+  impl PbrMaterial
   {
-    /// Creates new [`PBRMaterial`] with predefined optimal parameters
+    /// Creates new [`PbrMaterial`] with predefined optimal parameters
     pub fn new( gl : &GL ) -> Self
     {
       let ibl_define = "#define USE_IBL\n";
@@ -338,7 +338,7 @@ mod private
     }
   }
 
-  impl Material for PBRMaterial
+  impl Material for PbrMaterial
   {
     fn get_id( &self ) -> uuid::Uuid
     {
@@ -533,15 +533,15 @@ mod private
 
     fn type_name( &self ) -> &'static str
     {
-      stringify!( PBRMaterial )
+      stringify!( PbrMaterial )
     }
   }
 
-  impl Clone for PBRMaterial
+  impl Clone for PbrMaterial
   {
     fn clone( &self ) -> Self
     {
-      PBRMaterial
+      PbrMaterial
       {
         id : uuid::Uuid::new_v4(),
         program : self.program.clone(),
@@ -579,6 +579,6 @@ crate::mod_interface!
   orphan use
   {
     PBRShader,
-    PBRMaterial
+    PbrMaterial
   };
 }

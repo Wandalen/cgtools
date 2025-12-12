@@ -16,7 +16,7 @@ mod private
     Geometry,
     IndexInfo,
     MagFilterMode,
-    material::PBRMaterial,
+    material::PbrMaterial,
     Material,
     Mesh,
     MinFilterMode,
@@ -64,7 +64,7 @@ mod private
     /// A list of `Texture` objects, which wrap the raw WebGL textures and may contain
     /// additional metadata like sampler information.
     pub textures : Vec< Rc< RefCell< Texture > > >,
-    /// A collection of `PBRMaterial` objects, defining how the surfaces of the meshes should be shaded.
+    /// A collection of `PbrMaterial` objects, defining how the surfaces of the meshes should be shaded.
     pub materials : Vec< Rc< RefCell< Box< dyn Material > > > >,
     /// A list of `Mesh` objects, which represent the geometry of the scene.
     pub meshes : Vec< Rc< RefCell< Mesh > > >,
@@ -77,8 +77,8 @@ mod private
 
   impl GLTF
   {
-    /// Casts the trait object to a specific `PBRMaterial`
-    pub fn material_get( &self, id : usize ) -> std::cell::Ref< '_, PBRMaterial >
+    /// Casts the trait object to a specific `PbrMaterial`
+    pub fn material_get( &self, id : usize ) -> std::cell::Ref< '_, PbrMaterial >
     {
       let material = self.materials[ id ].borrow();
       helpers::cast_unchecked_material_to_ref( material )
@@ -547,7 +547,7 @@ mod private
     {
       let pbr = gltf_m.pbr_metallic_roughness();
 
-      let mut material = PBRMaterial::new( &gl );
+      let mut material = PbrMaterial::new( &gl );
       material.alpha_mode = match gltf_m.alpha_mode()
       {
         gltf::material::AlphaMode::Blend => AlphaMode::Blend,
@@ -598,9 +598,9 @@ mod private
       materials.push( Rc::new( RefCell::new( Box::new( material ) ) ) );
     }
 
-    materials.push( Rc::new( RefCell::new( Box::new( PBRMaterial::new( &gl ) ) ) ) );
+    materials.push( Rc::new( RefCell::new( Box::new( PbrMaterial::new( &gl ) ) ) ) );
 
-    gl::log::info!( "PBRMaterials: {}",materials.len() );
+    gl::log::info!( "PbrMaterials: {}",materials.len() );
     let make_attibute_info = | acc : &gltf::Accessor< '_ >, slot |
     {
       let data_type = match acc.data_type()
@@ -639,7 +639,7 @@ mod private
         geometry.draw_mode = gltf_primitive.mode().as_gl_enum();
 
         let material_id = gltf_primitive.material().index().unwrap_or( materials.len() - 1 );
-        let mut dummy_material = PBRMaterial::new( &gl );
+        let mut dummy_material = PbrMaterial::new( &gl );
         let gltf_material = materials[ material_id ].clone();
 
         let mut add_define = | name : &str |
@@ -756,7 +756,7 @@ mod private
         else
         {
           let material = Rc::new( RefCell::new( gltf_material.borrow().dyn_clone() ) );
-          let mut m = helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >( material.borrow_mut() );
+          let mut m = helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
 
           for ( name, value ) in dummy_material.get_vertex_defines()
           {
@@ -875,7 +875,7 @@ mod private
           for primitive in &mesh.borrow().primitives
           {
             let p = primitive.borrow();
-            let mut mat_mut = helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >(  p.material.borrow_mut() );
+            let mut mat_mut = helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >(  p.material.borrow_mut() );
             mat_mut.add_define( "USE_SKINNING", String::new() );
           }
         }

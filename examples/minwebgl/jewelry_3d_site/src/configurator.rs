@@ -18,7 +18,7 @@ use renderer::webgl::
   Renderer,
   Scene,
   TextureInfo,
-  material::PBRMaterial
+  material::PbrMaterial
 };
 use crate::
 {
@@ -280,11 +280,11 @@ impl Configurator
         {
           let material = &primitive.borrow().material;
           {
-            if material.borrow().type_name() != "PBRMaterial"
+            if material.borrow().type_name() != "PbrMaterial"
             {
               continue;
             }
-            let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >( material.borrow_mut() );
+            let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
             for i in 0..3
             {
               material.base_color_factor.0[ i ] = color.0[ i ];
