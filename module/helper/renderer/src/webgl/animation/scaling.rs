@@ -41,6 +41,38 @@ mod private
     scaled_nodes : HashMap< Box< str >, ( Vec< Box< str > >, F64x3 ) >,
   }
 
+  /// Converts a quaternion delta to axis-angle representation.
+  ///
+  /// # Arguments
+  ///
+  /// * `delta` - The quaternion representing the rotation difference
+  ///
+  /// # Returns
+  ///
+  /// A tuple of (axis, angle) where axis is a normalized F64x3 and angle is in radians
+  fn quat_to_axis_angle( delta : QuatF64 ) -> ( F64x3, f64 )
+  {
+    let w = delta.0[ 3 ].clamp( -1.0, 1.0 );
+    let angle = 2.0 * w.acos();
+    let sin_half = ( 1.0 - w * w ).sqrt();
+
+    let axis = if sin_half.abs() > std::f32::EPSILON as f64
+    {
+      F64x3::new
+      (
+        delta.0[ 0 ] / sin_half,
+        delta.0[ 1 ] / sin_half,
+        delta.0[ 2 ] / sin_half,
+      )
+    }
+    else
+    {
+      F64x3::new( 1.0, 0.0, 0.0 )
+    };
+
+    ( axis, angle )
+  }
+
   impl Scaler
   {
     /// Create new [`Scaler`]
@@ -100,6 +132,114 @@ mod private
     {
       self.scaled_nodes.clear();
     }
+
+    /// Applies scaled rotation to a node based on the animation and scaling factor.
+    ///
+    /// # Arguments
+    ///
+    /// * `node` - The node to apply the rotation to
+    /// * `name` - The name identifier for the node's rotation animation
+    /// * `scale` - The scaling factor to apply to the rotation angle
+    fn apply_scaled_rotation
+    (
+      &self,
+      node : Rc< RefCell< Node > >,
+      name : &str,
+      scale : f64
+    )
+    {
+      let Some( rotation ) = self.animation.get::< Sequence< Tween< QuatF64 > > >
+      (
+        &format!( "{}{}", name, ROTATION_PREFIX )
+      )
+      else
+      {
+        return;
+      };
+
+      let mut tweens = rotation.tweens_get();
+      let current = rotation.current_id_get();
+
+      for i in 0..( ( current + 1 ).min( tweens.len() ) )
+      {
+        if scale < 1.0 && i > 0
+        {
+          tweens[ i ].start_value = tweens[ i - 1 ].end_value;
+        }
+
+        let prev = tweens[ i ].start_value;
+        let curr = tweens[ i ].end_value;
+        let delta = prev.conjugate() * curr;
+
+        let ( axis, angle ) = quat_to_axis_angle( delta );
+        let angle_scaled = angle * scale;
+        let delta_scaled = QuatF64::from_axis_angle( axis, angle_scaled );
+        let new_end = prev * delta_scaled;
+        tweens[ i ].end_value = new_end.normalize();
+      }
+
+      tweens[ 0 ].start_value = tweens.last().unwrap().end_value;
+
+      let mut sequence = Sequence::new( tweens ).unwrap();
+      sequence.update( rotation.time() );
+
+      if let Some( tween ) = sequence.current_get()
+      {
+        let rotation = tween.value_get();
+        let rotation = QuatF32::from( rotation.0.map( | v | v as f32 ) );
+        node.borrow_mut().set_rotation( rotation );
+      }
+    }
+
+    /// Applies unscaled transforms (translation, rotation, scale) to a node.
+    ///
+    /// # Arguments
+    ///
+    /// * `node` - The node to apply transforms to
+    /// * `name` - The name identifier for the node's animations
+    fn apply_unscaled_transforms
+    (
+      &self,
+      node : Rc< RefCell< Node > >,
+      name : &str
+    )
+    {
+      if let Some( translation ) = self.animation.get::< Sequence< Tween< F64x3 > > >
+      (
+        &format!( "{}{}", name, TRANSLATION_PREFIX )
+      )
+      {
+        if let Some( translation ) = translation.current_get()
+        {
+          let translation = translation.value_get().0.map( | v | v as f32 );
+          node.borrow_mut().set_translation( F32x3::from_array( translation ) );
+        }
+      }
+
+      if let Some( rotation ) = self.animation.get::< Sequence< Tween< QuatF64 > > >
+      (
+        &format!( "{}{}", name, ROTATION_PREFIX )
+      )
+      {
+        if let Some( rotation ) = rotation.current_get()
+        {
+          let rotation = rotation.value_get().0.map( | v | v as f32 );
+          node.borrow_mut().set_rotation( QuatF32::from( rotation ) );
+        }
+      }
+
+      if let Some( scale ) = self.animation.get::< Sequence< Tween< F64x3 > > >
+      (
+        &format!( "{}{}", name, SCALE_PREFIX )
+      )
+      {
+        if let Some( scale ) = scale.current_get()
+        {
+          let scale = scale.value_get().0.map( | v | v as f32 );
+          node.borrow_mut().set_scale( F32x3::from_array( scale ) );
+        }
+      }
+    }
   }
 
   impl AnimatableComposition for Scaler
@@ -128,6 +268,7 @@ mod private
     {
       let mut used_nodes = HashSet::< Box< str > >::new();
 
+      // Apply scaled rotation to nodes in scaled groups
       for ( node_names, scales ) in self.scaled_nodes.values()
       {
         for name in node_names
@@ -139,105 +280,16 @@ mod private
           };
 
           used_nodes.insert( name.clone() );
-
-          if let Some( rotation ) = self.animation.get::< Sequence< Tween< QuatF64 > > >
-          (
-            &format!( "{}{}", name, ROTATION_PREFIX )
-          )
-          {
-            let s = scales.y();
-            let mut tweens = rotation.tweens_get();
-
-            let current = rotation.current_id_get();
-
-            for i in 0..( ( current + 1 ).min( tweens.len() ) )
-            {
-              if s < 1.0 && i > 0
-              {
-                tweens[ i ].start_value = tweens[ i - 1 ].end_value;
-              }
-              let prev = tweens[ i ].start_value;
-              let curr = tweens[ i ].end_value;
-
-              let delta = prev.conjugate() * curr;
-
-              let w = delta.0[ 3 ].clamp( -1.0, 1.0 );
-              let angle = 2.0 * w.acos();
-              let sin_half = ( 1.0 - w * w ).sqrt();
-
-              let axis = if sin_half.abs() > std::f32::EPSILON as f64
-              {
-                F64x3::new
-                (
-                  delta.0[ 0 ] / sin_half,
-                  delta.0[ 1 ] / sin_half,
-                  delta.0[ 2 ] / sin_half,
-                )
-              }
-              else
-              {
-                F64x3::new( 1.0, 0.0, 0.0 )
-              };
-
-              let angle_scaled = angle * s;
-              let delta_scaled = QuatF64::from_axis_angle( axis, angle_scaled );
-              let new_end = prev * delta_scaled;
-              tweens[ i ].end_value = new_end.normalize();
-            }
-
-            tweens[ 0 ].start_value = tweens.last().unwrap().end_value;
-
-            let mut sequence = Sequence::new( tweens ).unwrap();
-            sequence.update( rotation.time() );
-            if let Some( tween ) = sequence.current_get()
-            {
-              let rotation = tween.value_get();
-              let rotation = QuatF32::from( rotation.0.map( | v | v as f32 ) );
-              node.borrow_mut().set_rotation( rotation );
-            }
-          }
+          self.apply_scaled_rotation( node.clone(), name, scales.y() );
         }
       }
 
+      // Apply unscaled transforms to remaining nodes
       for ( name, node ) in nodes
       {
         if !used_nodes.contains( name )
         {
-          if let Some( translation ) = self.animation.get::< Sequence< Tween< F64x3 > > >
-          (
-            &format!( "{}{}", name, TRANSLATION_PREFIX )
-          )
-          {
-            if let Some( translation ) = translation.current_get()
-            {
-              let translation = translation.value_get().0.map( | v | v as f32 );
-              node.borrow_mut().set_translation( F32x3::from_array( translation ) );
-            }
-          }
-
-          if let Some( rotation ) = self.animation.get::< Sequence< Tween< QuatF64 > > >
-          (
-            &format!( "{}{}", name, ROTATION_PREFIX )
-          )
-          {
-            if let Some( rotation ) = rotation.current_get()
-            {
-              let rotation = rotation.value_get().0.map( | v | v as f32 );
-              node.borrow_mut().set_rotation( QuatF32::from( rotation ) );
-            }
-          }
-
-          if let Some( scale ) = self.animation.get::< Sequence< Tween< F64x3 > > >
-          (
-            &format!( "{}{}", name, SCALE_PREFIX )
-          )
-          {
-            if let Some( scale ) = scale.current_get()
-            {
-              let scale = scale.value_get().0.map( | v | v as f32 );
-              node.borrow_mut().set_scale( F32x3::from_array( scale ) );
-            }
-          }
+          self.apply_unscaled_transforms( node.clone(), name );
         }
       }
     }
