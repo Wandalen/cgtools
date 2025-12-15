@@ -262,9 +262,9 @@ impl Coordinate< FlatTopped >
   {
     Self::new_unchecked
     (
-      ( (  1.0 * x - SQRT_3 / 3.0 * y ) / edge_length ).ceil()  as i32,
-      ( (      SQRT_3 * 2.0 / 3.0 * y ) / edge_length ).floor() as i32 + 1,
-      ( ( -1.0 * x - SQRT_3 / 3.0 * y ) / edge_length ).ceil()  as i32,
+      ( (   x - SQRT_3 / 3.0 * y ) / edge_length ).ceil()  as i32,
+      ( (       SQRT_3 * 2.0 / 3.0 * y ) / edge_length ).floor() as i32 + 1,
+      ( ( - x - SQRT_3 / 3.0 * y ) / edge_length ).ceil()  as i32,
     )
   }
 

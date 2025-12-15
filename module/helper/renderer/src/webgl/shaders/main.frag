@@ -49,10 +49,6 @@ struct ReflectedLight
   vec3 directSpecular;
 };
 
-// const int MAX_POINT_LIGHTS = 8;
-// const int MAX_DIRECT_LIGHTS = 8;
-// const int MAX_SPOT_LIGHTS = 8;
-
 struct PointLight
 {
   vec3    position;

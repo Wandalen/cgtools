@@ -58,22 +58,22 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use renderer::webgl::
 {
+  AttributeInfo,
+  Geometry,
+  IndexInfo,
+  Material,
+  Mesh,
+  Primitive,
   camera::Camera,
-  loaders::gltf::{ load, GLTF },
+  loaders::gltf::{ GLTF, load },
+  material::PbrMaterial,
   node::{ Node, Object3D },
   program::
   {
-    NormalDepthOutlineObjectShader,
-    NormalDepthOutlineShader,
-    ProgramInfo
+    ProgramInfo,
+    ShaderProgram
   },
-  scene::Scene,
-  AttributeInfo,
-  IndexInfo,
-  Geometry,
-  Material,
-  Mesh,
-  Primitive
+  scene::Scene
 };
 use ndarray_cg::
 {
@@ -81,15 +81,62 @@ use ndarray_cg::
   F32x4,
   F32x3
 };
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use rand::Rng;
 use std::any::type_name_of_val;
 use csgrs::traits::CSG;
+use renderer::impl_locations;
 
 type Sketch = csgrs::sketch::Sketch<()>;
 type ProcedureMesh = csgrs::mesh::Mesh< () >;
 
 const MAX_OBJECT_COUNT : usize = 1024;
+
+// A public struct for an outline shader based on normal and depth buffers.
+//
+// This shader is used to render an object's outline by comparing the normal
+// and depth values of adjacent pixels.
+impl_locations!
+(
+  NormalDepthOutlineObjectShader,
+  "u_projection",
+  "u_view",
+  "u_model",
+  "u_normal_matrix",
+  "near",
+  "far"
+);
+
+// A public struct representing the final Normal/Depth outline shader.
+//
+// This shader uses the Normal and Depth buffers to create the final outline.
+impl_locations!
+(
+  NormalDepthOutlineShader,
+  "u_color_texture",
+  "u_depth_texture",
+  "u_norm_texture",
+  "u_projection",
+  "u_resolution",
+  "u_outline_thickness",
+  "u_background_color"
+);
+
+// A public struct for the base Normal/Depth outline shader.
+//
+// This is likely the first pass that generates the necessary data for the final
+// Normal/Depth outline.
+impl_locations!
+(
+  NormalDepthOutlineBaseShader,
+  "sourceTexture",
+  "positionTexture",
+  "normalTexture",
+  "objectColorTexture",
+  "projection",
+  "resolution",
+  "outlineThickness"
+);
 
 /// Binds a texture to a texture unit and uploads its location to a uniform.
 ///
@@ -283,7 +330,7 @@ pub fn add_attributes
     {
       let primitive = primitive.borrow();
       let mut geometry = primitive.geometry.borrow_mut();
-      let _ = geometry.add_attribute( gl, "object_ids", object_id_info.clone(), false );
+      let _ = geometry.add_attribute( gl, "object_ids", object_id_info.clone() );
     }
   }
 
@@ -574,7 +621,7 @@ fn primitives_csgrs_gltf
 
   let primitives = get_primitives_and_transform();
 
-  let material = Rc::new( RefCell::new( Material::default() ) );
+  let material = Rc::new( RefCell::new( Box::new( PbrMaterial::new( gl ) ) as Box< dyn Material > ) );
   gltf.materials.push( material.clone() );
 
   let attribute_infos =
@@ -653,7 +700,7 @@ fn primitives_csgrs_gltf
 
     for ( name, info ) in &attribute_infos
     {
-      geometry.add_attribute( gl, *name, info.clone(), false ).unwrap();
+      geometry.add_attribute( gl, *name, info.clone() ).unwrap();
     }
 
     geometry.add_index( gl, index_info.clone() ).unwrap();
@@ -695,9 +742,9 @@ fn primitives_csgrs_gltf
 struct Programs
 {
   /// The shader program for the initial object rendering pass.
-  object : ProgramInfo< NormalDepthOutlineObjectShader >,
+  object : NormalDepthOutlineObjectShader,
   /// The shader program for the final outline pass.
-  outline : ProgramInfo< NormalDepthOutlineShader >,
+  outline : NormalDepthOutlineShader,
   /// The raw WebGL program for the outline shader.
   outline_program : WebGlProgram
 }
@@ -726,8 +773,8 @@ impl Programs
     let object_program = gl::ProgramFromSources::new( object_vs_src, object_fs_src ).compile_and_link( gl ).unwrap();
     let outline_program = gl::ProgramFromSources::new( fullscreen_vs_src, outline_fs_src ).compile_and_link( gl ).unwrap();
 
-    let object = ProgramInfo::< NormalDepthOutlineObjectShader >::new( gl, object_program );
-    let outline = ProgramInfo::< NormalDepthOutlineShader >::new( gl, outline_program.clone() );
+    let object = NormalDepthOutlineObjectShader::new( gl, &object_program );
+    let outline = NormalDepthOutlineShader::new( gl, &outline_program );
 
     Self
     {
@@ -746,11 +793,11 @@ struct Renderer
   /// The compiled and linked shader programs.
   programs : Programs,
   /// A hash map to store WebGL buffers by name.
-  buffers : HashMap< String, WebGlBuffer >,
+  buffers : FxHashMap< String, WebGlBuffer >,
   /// A hash map to store WebGL textures by name.
-  textures : HashMap< String, WebGlTexture >,
+  textures : FxHashMap< String, WebGlTexture >,
   /// A hash map to store WebGL framebuffers by name.
-  framebuffers : HashMap< String, WebGlFramebuffer >,
+  framebuffers : FxHashMap< String, WebGlFramebuffer >,
   /// The current viewport size ( width, height ).
   viewport : ( i32, i32 ),
   /// The main camera for the scene.
@@ -800,9 +847,9 @@ impl Renderer
     {
       gl,
       programs,
-      buffers : HashMap::new(),
-      textures : HashMap::new(),
-      framebuffers : HashMap::new(),
+      buffers : FxHashMap::default(),
+      textures : FxHashMap::default(),
+      framebuffers : FxHashMap::default(),
       viewport,
       camera,
       object_colors : vec![]
@@ -885,7 +932,7 @@ impl Renderer
 
     let object_fb = self.framebuffers.get( "object_fb" ).unwrap();
 
-    let locations = self.programs.object.get_locations();
+    let locations = self.programs.object.locations();
 
     let u_projection_loc = locations.get( "u_projection" ).unwrap().clone().unwrap();
     let u_view_loc = locations.get( "u_view" ).unwrap().clone().unwrap();
@@ -965,7 +1012,7 @@ impl Renderer
     let object_fb_norm = self.textures.get( "object_fb_norm" ).unwrap();
 
     self.programs.outline.bind( gl );
-    let locations = self.programs.outline.get_locations();
+    let locations = self.programs.outline.locations();
 
     let u_color_texture_loc = locations.get( "u_color_texture" ).unwrap().clone().unwrap();
     let u_depth_texture_loc = locations.get( "u_depth_texture" ).unwrap().clone().unwrap();

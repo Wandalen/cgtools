@@ -159,14 +159,15 @@ fn run() -> Result< (), gl::WebglError >
   {
     move | t : f64 |
     {
-      let _time = t as f32 / 1000.0;
+      let time = t as f32 / 1000.0;
 
       update( line.clone(), &canvas, &mut input );
 
       let distance = line.borrow().get_total_distance();
 
-      line.borrow_mut().get_mesh_mut().upload( &gl, "time", &_time ).unwrap();
+      line.borrow_mut().get_mesh_mut().upload( &gl, "time", &time ).unwrap();
       line.borrow_mut().get_mesh_mut().upload( &gl, "totalDistance", &distance ).unwrap();
+
       //draw
       gl.use_program( Some( &background_program ) );
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );

@@ -12,7 +12,7 @@ mod private
     /// Directional light source type
     Direct,
     /// Spot light source type
-    Spot,
+    Spot
   }
 
   impl std::fmt::Display for LightType
@@ -23,7 +23,7 @@ mod private
       {
         LightType::Point => write!( f, "Point" ),
         LightType::Direct => write!( f, "Direct" ),
-        LightType::Spot => write!( f, "Spot" ),
+        LightType::Spot => write!( f, "Spot" )
       }
     }
   }
@@ -48,7 +48,7 @@ mod private
       {
         Light::Point( _ ) => LightType::Point,
         Light::Direct( _ ) => LightType::Direct,
-        Light::Spot( _ ) => LightType::Spot,
+        Light::Spot( _ ) => LightType::Spot
       }
     }
   }
