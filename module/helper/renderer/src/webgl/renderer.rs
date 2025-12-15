@@ -792,8 +792,8 @@ mod private
                 &format!( "#version 300 es\n{}\n{}", defines, material.get_vertex_shader() ),
                 &format!
                 (
-                  "#version 300 es\n{}\n{}\n{}\n{}\n{}",
-                  vs_defines,
+                  "#version 300 es\n{}\n{}\n{}\n{}",
+                  defines,
                   light_defines,
                   ibl_define,
                   material.get_fragment_shader()

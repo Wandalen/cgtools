@@ -165,7 +165,7 @@ fn run() -> Result< (), gl::WebglError >
 
       let distance = line.borrow().get_total_distance();
 
-      line.borrow_mut().get_mesh_mut().upload( &gl, "time", &_time ).unwrap();
+      line.borrow_mut().get_mesh_mut().upload( &gl, "time", &time ).unwrap();
       line.borrow_mut().get_mesh_mut().upload( &gl, "totalDistance", &distance ).unwrap();
 
       //draw

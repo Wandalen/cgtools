@@ -514,7 +514,7 @@ pub fn setup
             },
             Light::Spot( spot ) =>
             {
-              spot.position = crate::to_decart( settings.borrow().light_distance, settings.borrow().light_pitch, settings.borrow().light_yaw );
+              spot.position = F32x3::from_spherical( settings.borrow().light_distance, settings.borrow().light_pitch, settings.borrow().light_yaw );
             },
           }
         }

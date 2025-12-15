@@ -29,7 +29,7 @@ mod private
     pub uniforms : UniformStorage
   }
 
-  impl Program 
+  impl Program
   {
     /// Deletes the vertex shader from the WebGL context and sets the internal handle to `None`.
     pub fn vertex_shader_delete( &mut self, gl : &gl::WebGl2RenderingContext )
@@ -79,19 +79,19 @@ mod private
           match active_uniform.type_()
           {
             // Scalars
-            gl::FLOAT 
+            gl::FLOAT
             =>  gl::uniform::upload( gl, location, &( value.as_f64().unwrap() as f32 )  )?,
-            gl::INT 
+            gl::INT
             =>  gl::uniform::upload( gl, location, &( value.as_f64().unwrap() as i32 )  )?,
-            gl::UNSIGNED_INT 
+            gl::UNSIGNED_INT
             =>  gl::uniform::upload( gl, location, &( value.as_f64().unwrap() as u32 )  )?,
 
             // Vectors
-            gl::FLOAT_VEC2 | gl::FLOAT_VEC3 | gl::FLOAT_VEC4 
+            gl::FLOAT_VEC2 | gl::FLOAT_VEC3 | gl::FLOAT_VEC4
             => { gl::uniform::upload( gl, location, gl::js_sys::Float32Array::from( value ).to_vec().as_slice() )? },
-            gl::INT_VEC2 | gl::INT_VEC3 | gl::INT_VEC4 
+            gl::INT_VEC2 | gl::INT_VEC3 | gl::INT_VEC4
             => gl::uniform::upload( gl, location, gl::js_sys::Int32Array::from( value ).to_vec().as_slice() )?,
-            gl::UNSIGNED_INT_VEC2 | gl::UNSIGNED_INT_VEC3 | gl::UNSIGNED_INT_VEC4 
+            gl::UNSIGNED_INT_VEC2 | gl::UNSIGNED_INT_VEC3 | gl::UNSIGNED_INT_VEC4
             => gl::uniform::upload( gl, location, gl::js_sys::Uint32Array::from( value ).to_vec().as_slice() )?,
 
             // Matrices
@@ -126,6 +126,17 @@ mod private
       Ok( () )
     }
 
+    /// Uploads a uniform matrix to the current program.
+    pub fn upload_matrix< D >( &self, gl : &gl::WebGl2RenderingContext, name : &str, data : &D  ) -> Result< (), gl::WebglError >
+    where
+      D : gl::UniformMatrixUpload + ?Sized
+    {
+      gl.use_program( self.program.as_ref() );
+      gl::uniform::matrix_upload( gl, gl.get_uniform_location( self.program.as_ref().expect( "Cannot upload, because the program is not set" ), name ), data, true )?;
+
+      Ok( () )
+    }
+
     /// Binds the program, VAO, and index buffer to the WebGL context.
     pub fn bind( &self, gl : &gl::WebGl2RenderingContext )
     {
@@ -145,18 +156,18 @@ mod private
         {
           gl.draw_elements_instanced_with_i32( self.draw_mode, index_count as i32, gl::UNSIGNED_INT, 0, instance_count as i32 );
         }
-        else 
+        else
         {
           gl.draw_elements_with_i32( self.draw_mode, index_count as i32, gl::UNSIGNED_INT, 0 );
         }
       }
-      else 
+      else
       {
         if let Some( instance_count ) = self.instance_count
         {
           gl.draw_arrays_instanced( self.draw_mode, 0, self.vertex_count as i32, instance_count as i32 );
         }
-        else 
+        else
         {
           gl.draw_arrays( self.draw_mode, 0, self.vertex_count as i32 );
         }
@@ -186,12 +197,12 @@ mod private
       Ok( () )
     }
   }
-    
+
 }
 
 crate::mod_interface!
 {
-  orphan use 
+  orphan use
   {
     Program
   };

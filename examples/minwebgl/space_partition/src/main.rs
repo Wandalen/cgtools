@@ -194,7 +194,7 @@ fn run() -> Result< (), gl::WebglError >
 
       mouse_pos.0[ 0 ] = apply_aspect_ratio( mouse_pos.0[ 0 ], aspect );
 
-      let neighbours = 
+      let neighbours =
       match settings.borrow().search.as_str()
       {
         "KNN" => {  kd_tree.knn_search::< spart::geometry::EuclideanDistance >( &impls::Point2D( mouse_pos, 0 ), settings.borrow().k_neighbours ) },
@@ -213,7 +213,7 @@ fn run() -> Result< (), gl::WebglError >
             line.set_cap( line_tools::Cap::Round( 16 ) );
             line.create_mesh( &gl, line_frag ).expect( "Failed to create a line" );
 
-            line.get_mesh().upload( &gl, "u_width", &0.01 ).unwrap();
+            line.get_mesh_mut().upload( &gl, "u_width", &0.01 ).unwrap();
             line.get_mesh().upload_matrix( &gl, "u_projection_matrix", &projection_matrix.to_array() ).unwrap();
             line.get_mesh().upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() ).unwrap();
             line.get_mesh().upload_matrix( &gl, "u_view_matrix", &view_matrix.to_array() ).unwrap();
@@ -244,7 +244,7 @@ fn run() -> Result< (), gl::WebglError >
 
       match settings.borrow().search.as_str()
       {
-        "KNN" => 
+        "KNN" =>
         {
           // Draw lines
           for i in 0..neighbours.len()

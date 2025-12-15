@@ -144,7 +144,7 @@ mod private
 
   fn get_light_list( gltf : &gltf::Gltf ) -> Option< FxHashMap< usize, Light > >
   {
-    let mut lights = HashMap::new();
+    let mut lights = FxHashMap::default();
     for ( i, gltf_light ) in gltf.lights()?.enumerate()
     {
       let light_type = gltf_light.kind();
