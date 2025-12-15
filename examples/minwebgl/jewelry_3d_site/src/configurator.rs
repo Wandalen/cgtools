@@ -1,4 +1,5 @@
 use std::{ cell::RefCell, rc::Rc };
+
 use mingl::web::canvas;
 use minwebgl as gl;
 use gl::
@@ -7,7 +8,7 @@ use gl::
   F32x3,
   WebglError
 };
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use renderer::webgl::
 {
   Camera,
@@ -20,11 +21,15 @@ use renderer::webgl::
   TextureInfo,
   material::PbrMaterial
 };
+use animation::{ AnimatableValue, Sequencer, Tween, easing::{ Linear, EasingBuilder } };
 use crate::
 {
   cube_normal_map_generator::CubeNormalMapGenerator, gem::GemMaterial, helpers::*, ui::{ UiState, clear_changed, get_ui_state },
   surface_material::SurfaceMaterial,
 };
+
+/// Duration of color transition animation in milliseconds (MS)
+const TRANSITION_DURATION_MS : f64 = 1500.0;
 
 pub struct Configurator
 {
@@ -34,7 +39,8 @@ pub struct Configurator
   pub ibl : IBL,
   pub skybox : Option< TextureInfo >,
   pub rings : RingsInfo,
-  pub ui_state : UiState
+  pub ui_state : UiState,
+  pub animation_state : AnimationState
 }
 
 impl Configurator
@@ -67,7 +73,7 @@ impl Configurator
 
     let skybox = None;
 
-    let configurator = Configurator
+    let mut configurator = Configurator
     {
       _cube_normal_map_generator,
       renderer,
@@ -75,7 +81,8 @@ impl Configurator
       ibl,
       skybox,
       rings,
-      ui_state
+      ui_state,
+      animation_state : AnimationState::new()
     };
 
     configurator.setup_renderer();
@@ -87,7 +94,7 @@ impl Configurator
     Ok( configurator )
   }
 
-  pub fn update_gem_color( &self )
+  pub fn update_gem_color( &mut self )
   {
     match self.ui_state.gem.as_str()
     {
@@ -142,7 +149,7 @@ impl Configurator
     }
   }
 
-  pub fn update_metal_color( &self )
+  pub fn update_metal_color( &mut self )
   {
     match self.ui_state.metal.as_str()
     {
@@ -172,8 +179,17 @@ impl Configurator
     }
   }
 
-  pub fn set_gem_color( &self, color : F32x3 )
+  pub fn set_gem_color( &mut self, color : F32x3 )
   {
+    let delay = self.animation_state.animations.time();
+    let get_player = | old_color : F32x3 |
+    {
+      let mut tween = Tween::new( old_color, color, TRANSITION_DURATION_MS, Linear::new() )
+      .with_delay( delay );
+      tween.update( delay );
+      tween
+    };
+
     let current_ring = self.rings.current_ring;
     for ( _, gem ) in &self.rings.gems[ current_ring ]
     {
@@ -189,15 +205,28 @@ impl Configurator
       for primitive in &mesh.borrow().primitives
       {
         let material = &primitive.borrow().material;
-        {
-          if material.borrow().type_name() != "GemMaterial"
+
+        self.animation_state.add_material_animation
+        (
+          material,
+          get_player( get_color( material ) ),
+          | player : &dyn AnimatableValue, material : &Rc< RefCell< Box< dyn Material > > > |
           {
-            continue;
+            if material.borrow().type_name() != "GemMaterial"
+            {
+              return;
+            }
+            let Some( player ) = player.as_any().downcast_ref::< Tween< F32x3 > >()
+            else
+            {
+              return;
+            };
+            let color = player.get_current_value();
+            let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< GemMaterial >( material.borrow_mut() );
+            material.color = color;
+            material.needs_update = true;
           }
-          let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< GemMaterial >( material.borrow_mut() );
-          material.color = color;
-          material.needs_update = true;
-        }
+        );
       }
     }
   }
@@ -249,12 +278,22 @@ impl Configurator
 
   pub fn set_metal_color
   (
-    &self,
+    &mut self,
     color : F32x3
   )
   {
     let current_ring = self.rings.current_ring;
     let gems = &self.rings.gems[ current_ring ];
+
+    let delay = self.animation_state.animations.time();
+    let get_player = | old_color : F32x3 |
+    {
+      let mut tween = Tween::new( old_color, color, TRANSITION_DURATION_MS, Linear::new() )
+      .with_delay( delay );
+      tween.update( delay );
+      tween
+    };
+
     let _ = self.rings.rings[ current_ring ].borrow().traverse
     (
       &mut | node : Rc< RefCell< Node > > |
@@ -279,21 +318,34 @@ impl Configurator
         for primitive in &mesh.borrow().primitives
         {
           let material = &primitive.borrow().material;
-          {
-            if material.borrow().type_name() != "PbrMaterial"
+
+          self.animation_state.add_material_animation
+          (
+            material,
+            get_player( get_color( material ) ),
+            | player : &dyn AnimatableValue, material : &Rc< RefCell< Box< dyn Material > > > |
             {
-              continue;
+              if material.borrow().type_name() != "PbrMaterial"
+              {
+                return;
+              }
+              let Some( player ) = player.as_any().downcast_ref::< Tween< F32x3 > >()
+              else
+              {
+                return;
+              };
+              let color = player.get_current_value();
+              let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
+              for i in 0..3
+              {
+                material.base_color_factor.0[ i ] = color.0[ i ];
+              }
+              material.base_color_factor.0[ 3 ] = 1.0;
+              material.roughness_factor = 0.04;
+              material.metallic_factor = 1.0;
+              material.needs_update = true;
             }
-            let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
-            for i in 0..3
-            {
-              material.base_color_factor.0[ i ] = color.0[ i ];
-            }
-            material.base_color_factor.0[ 3 ] = 1.0;
-            material.roughness_factor = 0.04;
-            material.metallic_factor = 1.0;
-            material.needs_update = true;
-          }
+          );
         }
 
         Ok( () )
@@ -323,12 +375,133 @@ impl Configurator
   }
 }
 
+/// Controls and updates animations and then applies interpolated values to materials using callbacks
+pub struct AnimationState
+{
+  /// Animation storage, player and state manager
+  animations : Sequencer,
+  /// Material updated in callbacks
+  materials: FxHashMap< String, Rc< RefCell< Box< dyn Material > > > >,
+  /// Callbacks triggered when animations are updated in [`AnimationState::animations`].
+  /// Callbacks can update values inside material
+  material_callbacks : FxHashMap< String, fn ( &dyn AnimatableValue, &Rc< RefCell< Box< dyn Material > > > ) >
+}
+
+impl AnimationState
+{
+  /// Creates a new instance
+  pub fn new() -> Self
+  {
+    let mut animations = Sequencer::new();
+    animations.resume();
+
+    Self
+    {
+      animations,
+      materials : FxHashMap::default(),
+      material_callbacks : FxHashMap::default()
+    }
+  }
+
+  /// Updates animations, calls callbacks and removes completed animations
+  pub fn update( &mut self, delta_time : f64 )
+  {
+    self.animations.resume();
+    self.animations.update( delta_time );
+
+    for name in self.animations.keys()
+    {
+      let name = name.as_ref();
+      let Some( callback ) = self.material_callbacks.get( name )
+      else
+      {
+        continue;
+      };
+
+      let Some( material ) = self.materials.get( name )
+      else
+      {
+        continue;
+      };
+
+      if let Some( player ) = self.animations.get_dyn_value( name.as_ref() )
+      {
+        callback( player, material );
+      }
+    }
+
+    for name in self.animations.keys()
+    {
+      let completed = if let Some( player ) = self.animations.get_dyn_value( name.as_ref() )
+      {
+        player.is_completed()
+      }
+      else
+      {
+        continue;
+      };
+
+      if completed
+      {
+        self.animations.remove( name.as_ref() );
+        self.materials.remove( name.as_ref() );
+        self.material_callbacks.remove( name.as_ref() );
+      }
+    }
+  }
+
+  /// Adds new animations with callbacks
+  pub fn add_material_animation< P >
+  (
+    &mut self,
+    material : &Rc< RefCell< Box< dyn Material > > >,
+    player : P,
+    callback : fn ( &dyn AnimatableValue, &Rc< RefCell< Box< dyn Material > > > )
+  )
+  where P : AnimatableValue + 'static
+  {
+    let name = material.borrow().get_id().to_string();
+
+    self.animations.add::< P >( &name, player );
+    if self.animations.is_completed()
+    {
+      self.animations.resume();
+    }
+    self.materials.insert( name.clone(), material.clone() );
+    self.material_callbacks.insert( name, callback );
+  }
+}
+
 pub struct RingsInfo
 {
   pub rings : Vec< Rc< RefCell< Scene > > >,
-  pub gems : Vec< HashMap< String, Rc< RefCell< Node > > > >,
+  pub gems : Vec< FxHashMap< String, Rc< RefCell< Node > > > >,
   pub shadows : Vec< Option< TextureInfo > >,
   pub current_ring : usize
+}
+
+fn get_color( material : &Rc< RefCell< Box< dyn Material > > > ) -> F32x3
+{
+  let type_name =
+  {
+    let m = material.borrow();
+    m.type_name()
+  };
+
+  match type_name
+  {
+    "PbrMaterial" =>
+    {
+      let material = renderer::webgl::helpers::cast_unchecked_material_to_ref::< PbrMaterial >( material.borrow() );
+      material.base_color_factor.truncate()
+    },
+    "GemMaterial" =>
+    {
+      let material = renderer::webgl::helpers::cast_unchecked_material_to_ref::< GemMaterial >( material.borrow() );
+      material.color
+    },
+    _ => F32x3::splat( 1.0 )
+  }
 }
 
 fn remove_numbers( s : &str ) -> String
@@ -348,7 +521,7 @@ async fn setup_rings
   let document = window.document().unwrap();
 
   let mut rings : Vec< Rc< RefCell< Scene > > > = vec![];
-  let mut gems : Vec< HashMap< String, Rc< RefCell< Node > > > > = vec![];
+  let mut gems : Vec< FxHashMap< String, Rc< RefCell< Node > > > > = vec![];
   let mut shadows : Vec< Option< TextureInfo > > = vec![];
 
   for i in 0..2
@@ -363,14 +536,14 @@ async fn setup_rings
 
     rings.push( gltf.scenes[ 0 ].clone() );
 
-    let mut ring_gems = HashMap::new();
+    let mut ring_gems = FxHashMap::default();
     for substring in [ "gem", "diamond", "crystal" ]
     {
       let nodes = filter_nodes( &gltf.scenes[ 0 ], substring.to_string(), false );
       ring_gems.extend( nodes );
     }
 
-    let mut normal_maps = HashMap::< String, TextureInfo >::new();
+    let mut normal_maps = FxHashMap::< String, TextureInfo >::default();
     for ( name, gem ) in &ring_gems
     {
       let root_name = remove_numbers( name.as_str() );

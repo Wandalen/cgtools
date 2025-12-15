@@ -86,6 +86,13 @@ mod private
       any_ref.downcast_ref::< T >()
     }
 
+    /// Gets the current value of a named animation as dyn ref.
+    pub fn get_dyn_value( &self, name : &str ) -> Option< &dyn AnimatableValue >
+    {
+      let tween_box = self.tweens.get( name )?;
+      Some( tween_box.as_ref() )
+    }
+
     /// Checks if the Sequencer has completed all animations.
     pub fn is_completed( &self ) -> bool
     {
@@ -184,6 +191,8 @@ mod private
     fn get_delay( &self ) -> f64;
     /// Gets the progress of the animated value ( 0.0 to 1.0 ).
     fn progress( &self ) -> f64;
+    /// Gets inner type
+    fn inner_type( &self ) -> core::any::TypeId;
   }
 
   /// Error for handling wrong [`Sequence`] input data
@@ -405,6 +414,11 @@ mod private
       {
         ( ( self.elapsed - self.delay ) / self.duration ).clamp( 0.0, 1.0 )
       }
+    }
+
+    fn inner_type( &self ) -> core::any::TypeId
+    {
+      core::any::TypeId::of::< T >()
     }
   }
 }
