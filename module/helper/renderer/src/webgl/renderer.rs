@@ -8,6 +8,12 @@ mod private
 
   use crate::webgl::
   {
+    material::pbr::
+    {
+      MAX_POINT_LIGHTS,
+      MAX_DIRECT_LIGHTS,
+      MAX_SPOT_LIGHTS
+    },
     post_processing::
     {
       BlendPass,
@@ -28,10 +34,6 @@ mod private
     IBL,
     Light
   };
-
-  const MAX_POINT_LIGHTS : usize = 8;
-  const MAX_DIRECT_LIGHTS : usize = 8;
-  const MAX_SPOT_LIGHTS : usize = 8;
 
   /// Manages WebGL2 framebuffers and associated renderbuffers/textures for a rendering
   /// context, specifically designed for multisampling and post-processing effects.
@@ -741,9 +743,6 @@ mod private
         }
       }
 
-      let light_defines = format!( "#define MAX_POINT_LIGHTS {MAX_POINT_LIGHTS}\n#define MAX_DIRECT_LIGHTS {MAX_DIRECT_LIGHTS}\n" );
-      let light_defines = light_defines.as_str();
-
       // Define a closure to handle the drawing of each node in the scene.
       let mut draw_node =
       |
@@ -792,9 +791,8 @@ mod private
                 &format!( "#version 300 es\n{}\n{}", defines, material.get_vertex_shader() ),
                 &format!
                 (
-                  "#version 300 es\n{}\n{}\n{}\n{}",
+                  "#version 300 es\n{}\n{}\n{}",
                   defines,
-                  light_defines,
                   ibl_define,
                   material.get_fragment_shader()
                 )

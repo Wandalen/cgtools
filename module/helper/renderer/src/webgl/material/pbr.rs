@@ -14,6 +14,13 @@ mod private
   /// The source code for the main fragment shader.
   const MAIN_FRAGMENT_SHADER : &'static str = include_str!( "../shaders/main.frag" );
 
+  /// Max point light sources count
+  pub const MAX_POINT_LIGHTS : usize = 8;
+  /// Max direct light sources count
+  pub const MAX_DIRECT_LIGHTS : usize = 8;
+  /// Max spot light sources count
+  pub const MAX_SPOT_LIGHTS : usize = 8;
+
   // A Physically Based Rendering (PBR) shader.
   impl_locations!
   (
@@ -140,12 +147,25 @@ mod private
     {
       let ibl_define = "#define USE_IBL\n";
 
+      let mut defines = String::new();
+
+      defines.push_str( format!( "#define MAX_POINT_LIGHTS {MAX_POINT_LIGHTS}\n" ).as_str() );
+      defines.push_str( format!( "#define MAX_DIRECT_LIGHTS {MAX_DIRECT_LIGHTS}\n" ).as_str() );
+      defines.push_str( format!( "#define MAX_SPOT_LIGHTS {MAX_SPOT_LIGHTS}\n" ).as_str() );
+
       // Compile and link a new WebGL program from the vertex and fragment shaders with the appropriate defines.
       let program = gl::ProgramFromSources::new
       (
-        &format!( "#version 300 es\n{}\n{}", ibl_define, MAIN_VERTEX_SHADER ),
-        &format!( "#version 300 es\n{}\n{}", ibl_define, MAIN_FRAGMENT_SHADER )
-      ).compile_and_link( gl )
+        &format!( "#version 300 es\n{}\n{}", defines, MAIN_VERTEX_SHADER ),
+        &format!
+        (
+          "#version 300 es\n{}\n{}\n{}",
+          defines,
+          ibl_define,
+          MAIN_FRAGMENT_SHADER
+        )
+      )
+      .compile_and_link( gl )
       .unwrap();
 
       let id = uuid::Uuid::new_v4();
@@ -259,6 +279,11 @@ mod private
       let use_alpha_cutoff = self.alpha_mode == AlphaMode::Mask;
 
       let mut defines = String::new();
+
+      defines.push_str( format!( "#define MAX_POINT_LIGHTS {MAX_POINT_LIGHTS}\n" ).as_str() );
+      defines.push_str( format!( "#define MAX_DIRECT_LIGHTS {MAX_DIRECT_LIGHTS}\n" ).as_str() );
+      defines.push_str( format!( "#define MAX_SPOT_LIGHTS {MAX_SPOT_LIGHTS}\n" ).as_str() );
+
       let add_texture = | defines : &mut String, name : &str, uv_name : &str, info : Option< &TextureInfo > |
       {
         defines.push_str( &format!( "#define {}\n", name ) );
@@ -576,6 +601,9 @@ crate::mod_interface!
 {
   orphan use
   {
+    MAX_POINT_LIGHTS,
+    MAX_DIRECT_LIGHTS,
+    MAX_SPOT_LIGHTS,
     PBRShader,
     PbrMaterial
   };
