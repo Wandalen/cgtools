@@ -3,7 +3,7 @@
 mod private
 {
   use minwebgl as gl;
-  use gl::{ GL, Program, js_sys, JsValue, math::mat3x3h };
+  use gl::{ GL, Program, math::mat3x3h };
   use web_sys::{ WebGlFramebuffer, WebGlTexture };
   use crate::webgl::Node;
 
@@ -101,7 +101,7 @@ mod private
     }
 
     /// Renders shadow map from light's perspective
-    pub fn render_shadow_map
+    pub fn render
     (
       &self,
       scene : &crate::webgl::Scene,
@@ -247,11 +247,11 @@ mod private
     }
 
     /// Bakes shadows into lightmaps via two-pass rendering: depth map, then PCSS lightmap baking
-    pub fn render_soft_shadow_texture
+    pub fn render_soft_shadow
     (
       &self,
       node : &Node,
-      texture : Option< &WebGlTexture >,
+      target : Option< &WebGlTexture >,
       width: i32,
       height : i32,
       shadowmap : &ShadowMap,
@@ -259,11 +259,11 @@ mod private
     ) -> Result< (), gl::WebglError >
     {
       self.bind( width, height );
+      self.set_target( target );
       self.upload_light( &mut light );
       self.set_shadowmap( shadowmap.depth_buffer() );
       let model = node.get_world_matrix();
       self.upload_model( model );
-      self.set_target( texture );
 
       if let crate::webgl::Object3D::Mesh( mesh ) = &node.object
       {

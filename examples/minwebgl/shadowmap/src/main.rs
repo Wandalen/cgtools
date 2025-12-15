@@ -138,7 +138,7 @@ async fn run() -> Result< (), gl::WebglError >
   let shadowmap_res = 2048;
   let lightmap_res = 2048;
   let shadowmap = ShadowMap::new( &gl, shadowmap_res )?;
-  shadowmap.render_shadow_map( &main_scene, light )?;
+  shadowmap.render( &main_scene, light )?;
 
   let shadow_baker = ShadowBaker::new( &gl )?;
   // shadow_baker.render_soft_shadow_texture( node, texture, width, height, shadowmap, light);
