@@ -38,7 +38,9 @@ enabled = [
   "dep:former",
   "dep:uuid",
   "dep:web-sys",
-  "dep:clone_dyn_types"
+  "dep:clone_dyn_types",
+  "dep:zune-hdr",
+  "dep:rustc-hash"
 ]
 default = ["enabled"]
 full = ["enabled", "webgl", "animation"]
@@ -52,8 +54,8 @@ minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ], o
 mingl = { workspace = true, features = [ "camera_orbit_controls" ], optional = true }
 gltf = { workspace = true, features = [ "import", "extensions", "KHR_materials_specular", "KHR_lights_punctual" ], optional = true }
 animation = { workspace = true, optional = true }
-zune-hdr = { workspace = true }
-rustc-hash = { workspace = true }
+zune-hdr = { workspace = true, optional = true }
+rustc-hash = { workspace = true, optional = true }
 
 asbytes = { workspace = true, optional = true }
 former = { workspace = true, optional = true }

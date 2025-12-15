@@ -49,7 +49,6 @@ async fn run() -> Result< (), gl::WebglError >
   //let gltf_path = "transparent_cubes_oit_rendering_test_model.glb";
   //let gltf_path = "model.glb";
   //let gltf_path = "untitled.glb";
-  //let gltf_path = "astro_carrier_2.0.glb";
   //let gltf_path = "av-8b_harrier_ii.glb";
   //let gltf_path = "dae_crib_-_tommys_garage.glb";
   //let gltf_path = "low_poly_kids_playground.glb";

@@ -1,4 +1,7 @@
 #version 300 es
+// Renders 3d line, supporting both screen space and world space units.
+// Allows for anti-aliasing with alpha-to-coverage enabled.
+// Has an optional color attribute for the points of the line.
 precision highp float;
 
 // #include <defines>
@@ -28,47 +31,100 @@ out vec3 vViewB;
   out vec3 vColor;
 #endif
 
+void trimSegment( const in vec3 start, inout vec3 end )
+{
+
+  // trim end segment so it terminates between the camera plane and the near plane
+
+  // conservative estimate of the near plane
+  float a = u_projection_matrix[ 2 ][ 2 ]; // 3nd entry in 3th column
+  float b = u_projection_matrix[ 3 ][ 2 ]; // 3nd entry in 4th column
+  float nearEstimate = - 0.5 * b / a;
+
+  float alpha = ( nearEstimate - start.z ) / ( end.z - start.z );
+
+  end = mix( start, end, alpha );
+
+}
+
 void main() 
 {
   vec3 viewA = ( u_view_matrix * u_world_matrix * vec4( inPointA, 1.0 ) ).xyz;
   vec3 viewB = ( u_view_matrix * u_world_matrix * vec4( inPointB, 1.0 ) ).xyz;
+
+  bool perspective = ( u_projection_matrix[ 2 ][ 3 ] == - 1.0 ); // 4th entry in the 3rd column
+
+  if ( perspective ) 
+  {
+    if ( viewA.z < 0.0 && viewB.z >= 0.0 ) 
+    {
+      trimSegment( viewA, viewB );
+    } 
+    else if ( viewB.z < 0.0 && viewA.z >= 0.0 ) 
+    {
+      trimSegment( viewB, viewA );
+    }
+  }
 
   float aspect = u_resolution.x / u_resolution.y;
 
   vec4 clipA = u_projection_matrix * vec4( viewA, 1.0 );
   vec4 clipB = u_projection_matrix * vec4( viewB, 1.0 );
 
-  vec3 ndcA = clipA.xyz / clipA.w;
-  vec3 ndcB = clipB.xyz / clipB.w;
+  vec4 clip = vec4( 0.0 );
 
-  vec2 ndcDir = normalize( ndcB.xy - ndcA.xy );
-  // Adjust for aspect ratio
-  ndcDir.x *= aspect;
-  ndcDir = normalize( ndcDir );
+  #ifdef USE_WORLD_UNITS
+    vec3 viewPos = position.y < 0.5 ? viewA : viewB;
+    vec3 viewAB = normalize( viewB - viewA );
+    vec3 midForward = normalize( mix( viewA, viewB, 0.5 ) );
+    vec3 up = normalize( cross( viewAB, midForward ) );
+    vec3 right = normalize( cross( viewAB, up ) );
 
-  vec3 viewPos = position.y < 0.5 ? viewA : viewB;
-  vec3 viewAB = normalize( viewB - viewA );
-  vec3 midForward = normalize( mix( viewA, viewB, 0.5 ) );
-  vec3 up = normalize( cross( viewAB, midForward ) );
-  vec3 right = normalize( cross( viewAB, up ) );
+    float halfWith = 0.5 * u_width;
 
-  float halfWith = 0.5 * u_width;
+    // Protrude vertices to create an illusion of 3d shape in view space
+    viewPos += position.x < 0.0 ? up * halfWith : -up * halfWith;
+    viewPos += position.y < 0.5 ? -halfWith * viewAB : halfWith * viewAB;
+    viewPos += right * halfWith;
+    if( position.y < 0.0 || position.y > 1.0 )
+    {
+      viewPos += 2.0 * -right * halfWith;
+    }
+    
+    clip = u_projection_matrix * vec4( viewPos, 1.0 );
+    vec3 ndcShift = position.y < 0.5 ? clipA.xyz / clipA.w : clipB.xyz / clipB.w;
+    clip.z = ndcShift.z * clip.w;
 
-  // Protrude vertices to create an illusion of 3d shape in view space
-  viewPos += position.x < 0.0 ? up * halfWith : -up * halfWith;
-  viewPos += position.y < 0.5 ? -halfWith * viewAB : halfWith * viewAB;
-  viewPos += right * halfWith;
-  if( position.y < 0.0 || position.y > 1.0 )
-  {
-    viewPos += 2.0 * -right * halfWith;
-  }
-  
-  vec4 clip = u_projection_matrix * vec4( viewPos, 1.0 );
-  vec3 ndcShift = position.y < 0.5 ? ndcA : ndcB;
-  clip.z = ndcShift.z * clip.w;
+    vViewPos = viewPos;
+  #else // Screen space units
+    vec2 screenA = u_resolution * ( 0.5 * clipA.xy / clipA.w + 0.5 );
+    vec2 screenB = u_resolution * ( 0.5 * clipB.xy / clipB.w + 0.5 );
 
-  vUv = uv;
-  vViewPos = viewPos;
+    vec2 xBasis = normalize( screenB - screenA );
+    vec2 yBasis = vec2( -xBasis.y, xBasis.x );
+    yBasis *= position.x;
+
+    vec2 basis = yBasis;
+    if ( position.y < 0.0 ) 
+    {
+      basis -= xBasis;
+    } 
+    else if( position.y > 1.0 )
+    {
+      basis += xBasis;
+    }
+
+    vec2 screenP = ( position.y < 0.5 ) ? screenA : screenB;
+    vec2 p = screenP + u_width * basis;
+
+
+    clip = ( position.y < 0.5 ) ? clipA : clipB;
+    
+    clip.xy = clip.w * ( 2.0 * p / u_resolution - 1.0 );
+
+  #endif
+
+  vUv =  uv;
   vViewA = viewA;
   vViewB = viewB;
 

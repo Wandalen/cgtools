@@ -47,6 +47,8 @@ mod private
     }
   };
 
+  const DIRECTION_LIGHT_MIN_MAGNITUDE : f32 = 0.01;
+
   #[ cfg( feature = "animation" ) ]
   use crate::webgl::animation::Animation;
 
@@ -142,45 +144,15 @@ mod private
 
   fn get_light_list( gltf : &gltf::Gltf ) -> Option< FxHashMap< usize, Light > >
   {
-    let gltf_lights = gltf.extensions()?
-    .get_key_value( "KHR_lights_punctual" )?.1
-    .get( "lights" )?.as_array()?;
-    let mut lights = FxHashMap::default();
-    for ( i, gltf_light ) in gltf_lights.iter().enumerate()
+    let mut lights = HashMap::new();
+    for ( i, gltf_light ) in gltf.lights()?.enumerate()
     {
-      let Some( light_type ) = gltf_light.get( "type" )
-      else
-      {
-        continue;
-      };
-      let Some( light_type ) = light_type.as_str()
-      else
-      {
-        continue;
-      };
+      let light_type = gltf_light.kind();
       let light =  match light_type
       {
-        "point" =>
+        gltf::khr_lights_punctual::Kind::Point =>
         {
-          let Some( color ) = gltf_light.get( "color" )
-          .map( | i | i.as_array() )
-          .flatten()
-          .map( | v | v.iter().map( | i | i.as_f64().unwrap() as f32 ).collect::< Vec< _ > >() )
-          .map( | c | F32x3::from_slice( &c[ 0..3 ] ) )
-          else
-          {
-            continue;
-          };
-          let Some( strength ) = gltf_light.get( "intensity" )
-          .map( | i | i.as_f64() )
-          .flatten()
-          else
-          {
-            continue;
-          };
-          let Some( range ) = gltf_light.get( "range" )
-          .map( | i | i.as_f64() )
-          .flatten()
+          let Some( range ) = gltf_light.range()
           else
           {
             continue;
@@ -190,97 +162,55 @@ mod private
             PointLight
             {
               position : F32x3::default(),
-              color,
-              strength : strength as f32,
-              range : range as f32,
+              color : F32x3::from_slice( &gltf_light.color() ),
+              strength : gltf_light.intensity(),
+              range
             }
           )
         },
-        "directional" =>
+        gltf::khr_lights_punctual::Kind::Directional =>
         {
-          let Some( color ) = gltf_light.get( "color" )
-          .map( | i | i.as_array() )
-          .flatten()
-          .map( | v | v.iter().map( | i | i.as_f64().unwrap() as f32 ).collect::< Vec< _ > >() )
-          .map( | c | F32x3::from_slice( &c[ 0..3 ] ) )
-          else
-          {
-            continue;
-          };
-          let Some( strength ) = gltf_light.get( "intensity" )
-          .map( | i | i.as_f64() )
-          .flatten()
-          else
-          {
-            continue;
-          };
           Light::Direct
           (
             DirectLight
             {
               direction : F32x3::default(),
-              color,
-              strength : strength as f32,
+              color : F32x3::from_slice( &gltf_light.color() ),
+              strength : gltf_light.intensity(),
             }
           )
         },
-        "spot" =>
+        gltf::khr_lights_punctual::Kind::Spot
         {
-          let Some( color ) = gltf_light.get( "color" )
-          .map( | i | i.as_array() )
-          .flatten()
-          .map( | v | v.iter().map( | i | i.as_f64().unwrap() as f32 ).collect::< Vec< _ > >() )
-          .map( | c | F32x3::from_slice( &c[ 0..3 ] ) )
+          inner_cone_angle,
+          outer_cone_angle,
+        } =>
+        {
+          let Some( range ) = gltf_light.range()
           else
           {
             continue;
           };
-          let Some( strength ) = gltf_light.get( "intensity" )
-          .map( | i | i.as_f64() )
-          .flatten()
-          else
-          {
-            continue;
-          };
-          let Some( range ) = gltf_light.get( "range" )
-          .map( | i | i.as_f64() )
-          .flatten()
-          else
-          {
-            continue;
-          };
-
-          // Parse spot light specific fields
-          let spot_obj = gltf_light.get( "spot" );
-          let inner_cone_angle = spot_obj
-            .and_then( | s | s.get( "innerConeAngle" ) )
-            .and_then( | a | a.as_f64() )
-            .unwrap_or( 0.0 ) as f32;
-          let outer_cone_angle = spot_obj
-            .and_then( | s | s.get( "outerConeAngle" ) )
-            .and_then( | a | a.as_f64() )
-            .unwrap_or( std::f64::consts::PI / 4.0 ) as f32;
-
           Light::Spot
           (
             SpotLight
             {
               position : F32x3::default(),
               direction : F32x3::default(),
-              color,
-              strength : strength as f32,
-              range : range as f32,
+              color : F32x3::from_slice( &gltf_light.color() ),
+              strength : gltf_light.intensity(),
+              range,
               inner_cone_angle,
               outer_cone_angle,
               use_light_map : false,
             }
           )
-        },
-        _ => continue
+        }
       };
 
       lights.insert( i, light );
     }
+
     Some( lights )
   }
 
@@ -306,6 +236,13 @@ mod private
           Light::Direct( mut direct_light ) =>
           {
             direct_light.direction = node.get_translation();
+            if direct_light.direction.mag() < DIRECTION_LIGHT_MIN_MAGNITUDE
+            {
+              let forward = gl::F32x3::from_array( [ 0.0, 0.0, -1.0 ] );
+              let rot_matrix = gl::math::d2::F32x3x3::from_quat( node.get_rotation() );
+              direct_light.direction = rot_matrix * forward;
+            }
+            direct_light.direction = direct_light.direction.normalize();
             Light::Direct( direct_light )
           },
           Light::Spot( mut spot_light ) =>
