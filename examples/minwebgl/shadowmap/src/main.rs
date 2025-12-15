@@ -5,8 +5,9 @@ use gl::{ JsCast as _, math::mat3x3h, GL };
 use web_sys::HtmlCanvasElement;
 use std::rc::Rc;
 use core::cell::RefCell;
-use renderer::webgl::{ Light, Node, Object3D, SpotLight, loaders::gltf, post_processing, shadow::{self, ShadowBaker, ShadowMap} };
-use post_processing::{ Pass, SwapFramebuffer };
+use renderer::webgl::{ Light, Node, Object3D, SpotLight, Texture, TextureInfo, loaders::gltf, post_processing, shadow };
+use post_processing::{ Pass, SwapFramebuffer, ShadowToColorPass };
+use shadow::{ ShadowBaker, ShadowMap };
 
 fn main()
 {
@@ -60,10 +61,8 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mesh = gltf::load( &document, "skull_salazar_downloadable.glb", &gl ).await?;
 
-  // let cube_mesh = gltf::load( &document, "cube.glb", &gl ).await?;
   let cube_mesh = gltf::load( &document, "plane.glb", &gl ).await?;
-  let cube_model = mat3x3h::translation( [ 0.0, -1.0, 0.0 ] )
-    * mat3x3h::scale( [ 8.0, 1.0, 8.0 ] );
+  let cube_model = mat3x3h::translation( [ 0.0, -1.0, 0.0 ] ) * mat3x3h::scale( [ 8.0, 1.0, 8.0 ] );
 
   let mut main_scene = renderer::webgl::Scene::new();
 
@@ -75,17 +74,11 @@ async fn run() -> Result< (), gl::WebglError >
       main_scene.add( node );
     }
   }
-  main_scene.update_world_matrix();
 
-  for scene in cube_mesh.scenes
-  {
-    let mut scene = scene.borrow_mut();
-    for node in core::mem::take( &mut scene.children )
-    {
-      node.borrow_mut().set_local_matrix( cube_model );
-      main_scene.add( node );
-    }
-  }
+  let floor_node = cube_mesh.scenes[ 0 ].borrow().children[ 0 ].clone();
+  main_scene.add( floor_node.clone() );
+  floor_node.borrow_mut().set_local_matrix( cube_model );
+  main_scene.update_world_matrix();
 
   let light_pos = gl::F32x3::from_array( [ 0.0, 3.0, 3.0 ] );
   let light_dir = gl::F32x3::from_array( [ 0.0, -1.0, -1.0 ] ).normalize();
@@ -119,7 +112,6 @@ async fn run() -> Result< (), gl::WebglError >
       {
         let mut mesh = mesh.borrow_mut();
         mesh.is_shadow_caster = true;
-        // mesh.is_shadow_receiver = true;
       }
       Ok( () )
     }
@@ -139,10 +131,36 @@ async fn run() -> Result< (), gl::WebglError >
   let lightmap_res = 2048;
   let shadowmap = ShadowMap::new( &gl, shadowmap_res )?;
   shadowmap.render( &main_scene, light )?;
-
+  let shadow_texture = create_texture( &gl, lightmap_res, 1 );
   let shadow_baker = ShadowBaker::new( &gl )?;
-  // shadow_baker.render_soft_shadow_texture( node, texture, width, height, shadowmap, light);
-  // shadow::render_soft_shadow_texture( &gl, &main_scene, &mut light, lightmap_res, shadowmap_res ).unwrap();
+  shadow_baker.render_soft_shadow( &floor_node.borrow(), shadow_texture.as_ref(), lightmap_res, lightmap_res, &shadowmap, light )?;
+
+  // Convert shadow texture to colored base color texture
+  let base_color = [ 0.8, 0.8, 0.8 ]; // Light gray color
+  let shadow_to_color_pass = ShadowToColorPass::new( &gl, base_color )?;
+  let colored_texture = create_texture_rgb( &gl, lightmap_res, 1 );
+
+  // Create a framebuffer for rendering
+  let framebuffer = gl.create_framebuffer();
+  gl.bind_framebuffer( gl::FRAMEBUFFER, framebuffer.as_ref() );
+
+  // Apply the shadow-to-color conversion
+  shadow_to_color_pass.render( &gl, shadow_texture.clone(), colored_texture.clone() )?;
+
+  // Unbind framebuffer
+  gl.bind_framebuffer( gl::FRAMEBUFFER, None );
+
+  if let Object3D::Mesh( mesh ) = &floor_node.borrow_mut().object
+  {
+    let mut texture = Texture::new();
+    texture.source = colored_texture;
+    let texture_info = TextureInfo
+    {
+      texture : Rc::new( RefCell::new( texture ) ),
+      uv_position : 0,
+    };
+    mesh.borrow_mut().primitives[ 0 ].borrow_mut().material.borrow_mut().base_color_texture = Some( texture_info );
+  }
 
   let update = move | _ |
   {
@@ -169,15 +187,26 @@ async fn run() -> Result< (), gl::WebglError >
   Ok( () )
 }
 
-fn create_texture( gl : &GL, lightmap_res : u32, mip_levels : i32 ) -> Option< web_sys::WebGlTexture >
+fn create_texture( gl : &GL, res : u32, mip_levels : i32 ) -> Option< web_sys::WebGlTexture >
 {
-  let light_map = gl.create_texture();
-  gl.bind_texture( gl::TEXTURE_2D, light_map.as_ref() );
-  gl.tex_storage_2d( gl::TEXTURE_2D, mip_levels, gl::R16F, lightmap_res as i32, lightmap_res as i32 );
-  gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
-  gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+  let ret = gl.create_texture();
+  gl.bind_texture( gl::TEXTURE_2D, ret.as_ref() );
+  gl.tex_storage_2d( gl::TEXTURE_2D, mip_levels, gl::R8, res as i32, res as i32 );
+  gl::texture::d2::filter_linear( gl );
+  // gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
+  // gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
   gl::texture::d2::wrap_clamp( &gl );
 
+  ret
+}
 
-  light_map
+fn create_texture_rgb( gl : &GL, res : u32, mip_levels : i32 ) -> Option< web_sys::WebGlTexture >
+{
+  let ret = gl.create_texture();
+  gl.bind_texture( gl::TEXTURE_2D, ret.as_ref() );
+  gl.tex_storage_2d( gl::TEXTURE_2D, mip_levels, gl::RGB8, res as i32, res as i32 );
+  gl::texture::d2::filter_linear( gl );
+  gl::texture::d2::wrap_clamp( &gl );
+
+  ret
 }

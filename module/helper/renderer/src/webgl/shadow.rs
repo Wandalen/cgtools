@@ -252,13 +252,13 @@ mod private
       &self,
       node : &Node,
       target : Option< &WebGlTexture >,
-      width: i32,
-      height : i32,
+      width: u32,
+      height : u32,
       shadowmap : &ShadowMap,
       mut light : Light,
     ) -> Result< (), gl::WebglError >
     {
-      self.bind( width, height );
+      self.bind( width as i32, height as i32 );
       self.set_target( target );
       self.upload_light( &mut light );
       self.set_shadowmap( shadowmap.depth_buffer() );
