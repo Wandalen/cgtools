@@ -29,7 +29,7 @@ use crate::
 };
 
 /// Duration of color transition animation in milliseconds (MS)
-const TRANSITION_DURATION_MS : f64 = 1500.0;
+const TRANSITION_DURATION_MS : f64 = 1000.0;
 
 pub struct Configurator
 {
