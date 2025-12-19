@@ -360,11 +360,6 @@ mod private
         ( ( self.elapsed - self.delay ) / self.duration ).clamp( 0.0, 1.0 )
       }
     }
-
-    fn inner_type( &self ) -> core::any::TypeId
-    {
-      core::any::TypeId::of::< T >()
-    }
   }
 
   impl< T, const N : usize > AnimatableValue for [ Tween< T >; N ]
@@ -441,11 +436,6 @@ mod private
       {
         ( ( self[ 0 ].time() - self.get_delay() ) / self.get_duration() ).clamp( 0.0, 1.0 )
       }
-    }
-
-    fn inner_type( &self ) -> core::any::TypeId
-    {
-      core::any::TypeId::of::< T >()
     }
   }
 
