@@ -14,7 +14,7 @@ mod private
     pub buffers : HashMap< Box< str >, gl::WebGlBuffer >
   }
 
-  impl Mesh 
+  impl Mesh
   {
     /// Uploads a uniform value to all programs associated with the mesh.
     pub fn upload< D : Into< Uniform > + Copy >( &mut self, gl : &gl::WebGl2RenderingContext, uniform_name : &str, data : &D ) -> Result< (), gl::WebglError >
@@ -84,12 +84,12 @@ mod private
       self.buffers.insert( name.into(), buffer );
     }
   }
-    
+
 }
 
 crate::mod_interface!
 {
-  orphan use 
+  orphan use
   {
     Mesh
   };

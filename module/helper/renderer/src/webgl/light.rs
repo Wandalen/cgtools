@@ -10,7 +10,9 @@ mod private
     /// Point light source type
     Point,
     /// Directional light source type
-    Direct
+    Direct,
+    /// Spot light source type
+    Spot
   }
 
   impl std::fmt::Display for LightType
@@ -20,7 +22,8 @@ mod private
       match self
       {
         LightType::Point => write!( f, "Point" ),
-        LightType::Direct => write!( f, "Direct" )
+        LightType::Direct => write!( f, "Direct" ),
+        LightType::Spot => write!( f, "Spot" )
       }
     }
   }
@@ -32,7 +35,9 @@ mod private
     /// Point light source
     Point( PointLight ),
     /// Direct light source
-    Direct( DirectLight )
+    Direct( DirectLight ),
+    /// Spot light source
+    Spot( SpotLight )
   }
 
   impl From< &Light > for LightType
@@ -42,7 +47,8 @@ mod private
       match value
       {
         Light::Point( _ ) => LightType::Point,
-        Light::Direct( _ ) => LightType::Direct
+        Light::Direct( _ ) => LightType::Direct,
+        Light::Spot( _ ) => LightType::Spot
       }
     }
   }
@@ -72,6 +78,28 @@ mod private
     /// Light strength
     pub strength : f32
   }
+
+  /// Spot light source description
+  #[ derive( Debug, Clone ) ]
+  pub struct SpotLight
+  {
+    /// Light position
+    pub position : F32x3,
+    /// Light direction (unit vector)
+    pub direction : F32x3,
+    /// Light color
+    pub color : F32x3,
+    /// Light strength
+    pub strength : f32,
+    /// Light range
+    pub range : f32,
+    /// Inner cone angle in radians (full brightness)
+    pub inner_cone_angle : f32,
+    /// Outer cone angle in radians (defines edge of light cone)
+    pub outer_cone_angle : f32,
+    /// Whether to use lightmap for this light
+    pub use_light_map : bool,
+  }
 }
 
 crate::mod_interface!
@@ -81,6 +109,7 @@ crate::mod_interface!
     LightType,
     Light,
     PointLight,
-    DirectLight
+    DirectLight,
+    SpotLight
   };
 }

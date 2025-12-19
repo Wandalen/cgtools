@@ -14,6 +14,7 @@ mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 renderer = { workspace = true }
 ndarray_cg = { workspace = true }
 gltf = "1.4"
+rustc-hash = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true

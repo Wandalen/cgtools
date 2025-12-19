@@ -93,9 +93,9 @@ struct ApplicationState
 /// # Arguments
 ///
 /// * `path`: The path relative to the `/static/` directory, used to construct
-/// the image URL and set the element's ID.
+///   the image URL and set the element's ID.
 /// * `on_load_callback`: A closure that will be invoked with a reference to
-/// the loaded `HtmlImageElement` when the browser's `load` event fires for the image.
+///   the loaded `HtmlImageElement` when the browser's `load` event fires for the image.
 ///
 /// # Returns
 ///
@@ -565,18 +565,15 @@ fn set_pattern( tmx_content : &str, app_state : &mut ApplicationState )
 
   let layer = elem.get_child( "layer", None ).unwrap();
   let width = layer.attributes.get( &( "width".to_string(), None ) )
-  .clone()
   .unwrap()
   .parse::< u32 >()
   .unwrap();
   let height = layer.attributes.get( &( "height".to_string(), None ) )
-  .clone()
   .unwrap()
   .parse::< u32 >()
   .unwrap();
   let data = layer.get_children( "data", None )
-  .filter(| ch | ch.attributes.get( &( "encoding".to_string(), None ) ) == Some( &"csv".to_string() ) )
-  .next()
+  .find(| ch | ch.attributes.get( &( "encoding".to_string(), None ) ) == Some( &"csv".to_string() ) )
   .unwrap();
 
   let pattern_raw = data.content_str().split( "," )
@@ -616,7 +613,7 @@ fn generate_map_wfc_image( app_state : &mut ApplicationState )
   };
 
   let map_raw : Vec<u8> = map_img.to_luma8().into_raw();
-  let map = map_raw.chunks( SIZE as usize )
+  let map = map_raw.chunks( SIZE )
   .map( | row | row.to_vec() )
   .collect::< Vec< Vec< _ > > >();
 

@@ -108,7 +108,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   renderer.set_use_emission( true );
-  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "envMap" ).await );
+  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "envMap", Some( 0..0 ) ).await );
 
   let renderer = Rc::new( RefCell::new( renderer ) );
 
@@ -200,6 +200,7 @@ async fn run() -> Result< (), gl::WebglError >
       {
         Light::Point( point_light ) => point_light.position,
         Light::Direct( direct_light ) => direct_light.direction,
+        _ => return None
       };
 
       let sphere_clone = sphere.borrow().clone_tree();
@@ -229,13 +230,15 @@ async fn run() -> Result< (), gl::WebglError >
     {
       if let Object3D::Light( light ) = &controllable_light.borrow().object
       {
-        let position = match light
+        if let Some( position ) = match light
         {
-          Light::Point( point_light ) => point_light.position,
-          Light::Direct( direct_light ) => direct_light.direction,
-        };
-
-        controllable_sphere.borrow_mut().set_translation( position );
+          Light::Point( point_light ) => Some( point_light.position ),
+          Light::Direct( direct_light ) => Some( direct_light.direction ),
+          _ => None
+        }
+        {
+          controllable_sphere.borrow_mut().set_translation( position );
+        }
       }
 
       for ( i, light ) in lights.iter().enumerate()
@@ -275,6 +278,7 @@ async fn run() -> Result< (), gl::WebglError >
               point.position = position;
               spheres[ i ].borrow_mut().set_translation( position );
             }
+            _ => ()
           }
         }
       }

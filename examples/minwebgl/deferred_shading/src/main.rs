@@ -37,7 +37,11 @@ mod light;
 mod shader;
 
 use minwebgl as gl;
-use renderer::webgl::loaders::gltf;
+use renderer::webgl::
+{
+  loaders::gltf,
+  material::PbrMaterial
+};
 use types::GuiParams;
 use gl::
 {
@@ -92,7 +96,7 @@ fn render_geometry_pass
     for primitive in &mesh.borrow().primitives
     {
       let primitive = primitive.borrow();
-      let material = primitive.material.borrow();
+      let material = renderer::webgl::helpers::cast_unchecked_material_to_ref::< PbrMaterial >( primitive.material.borrow() );
       let Some( base_color ) = material.base_color_texture.as_ref() else
       {
         continue;
