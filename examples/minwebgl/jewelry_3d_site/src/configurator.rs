@@ -1,4 +1,9 @@
 use std::{ cell::RefCell, rc::Rc };
+use renderer::webgl::
+{
+  shadow::{ ShadowBaker, ShadowMap },
+  Texture
+};
 
 use mingl::web::canvas;
 use minwebgl as gl;
@@ -88,7 +93,6 @@ impl Configurator
     configurator.setup_renderer();
     configurator.update_gem_color();
     configurator.update_metal_color();
-    configurator.setup_surface( gl ).await?;
     // configurator.setup_light();
 
     Ok( configurator )
@@ -200,7 +204,7 @@ impl Configurator
       };
 
       mesh.borrow_mut().is_shadow_caster = true;
-      mesh.borrow_mut().is_shadow_receiver = true;
+      // mesh.borrow_mut().is_shadow_receiver = true;
 
       for primitive in &mesh.borrow().primitives
       {
@@ -231,50 +235,6 @@ impl Configurator
     }
   }
 
-
-  async fn setup_surface( &self, gl : &GL ) -> Result< (), gl::WebglError >
-  {
-    let window = gl::web_sys::window().unwrap();
-    let document = window.document().unwrap();
-    let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/plane.glb" ).as_str(), &gl ).await?;
-    let surface = get_node( &gltf.scenes[ 0 ], "Plane".to_string() ).unwrap();
-
-    for ( i, ring ) in self.rings.rings.iter().enumerate()
-    {
-      let clone = surface.borrow().clone_tree();
-
-      let min_y = ring.borrow().bounding_box().min.y();
-
-      {
-        let Object3D::Mesh( mesh ) = &clone.borrow().object
-        else
-        {
-          unreachable!();
-        };
-
-        let primitives = &mesh.borrow().primitives;
-        let primitive = primitives.first().unwrap();
-
-        let texture = self.rings.shadows[ i ].clone();
-
-        // Create custom surface material
-        let mut surface_material = SurfaceMaterial::new( &gl );
-        surface_material.color = F32x3::splat( 0.854 );
-        surface_material.texture = texture;
-        surface_material.needs_update = false;
-        let surface_material_boxed : Rc< RefCell< Box< dyn Material > > > = Rc::new( RefCell::new( Box::new( surface_material ) ) );
-        primitive.borrow_mut().material = surface_material_boxed.clone();
-
-      }
-
-      clone.borrow_mut().set_translation( F32x3::from_array( [ 0.0, min_y, 0.0 ] ) );
-      clone.borrow_mut().set_rotation( mingl::Quat::from_angle_y( 90.0_f32.to_radians() ) );
-      clone.borrow_mut().set_scale( F32x3::from_array( [ 5.0, 1.0, 5.0 ] ) );
-      ring.borrow_mut().add( clone );
-    }
-
-    Ok( () )
-  }
 
   pub fn set_metal_color
   (
@@ -313,7 +273,7 @@ impl Configurator
         };
 
         mesh.borrow_mut().is_shadow_caster = true;
-        mesh.borrow_mut().is_shadow_receiver = true;
+        // mesh.borrow_mut().is_shadow_receiver = true;
 
         for primitive in &mesh.borrow().primitives
         {
@@ -509,6 +469,20 @@ fn remove_numbers( s : &str ) -> String
   s.chars().filter( | c | !c.is_ascii_digit() ).collect()
 }
 
+fn create_shadow_texture( gl : &GL, res : u32, mip_levels : i32 ) -> Option< web_sys::WebGlTexture >
+{
+  let ret = gl.create_texture();
+  gl.bind_texture( gl::TEXTURE_2D, ret.as_ref() );
+  gl.tex_storage_2d( gl::TEXTURE_2D, mip_levels, gl::R8, res as i32, res as i32 );
+
+  // Используем mipmap фильтрацию
+  gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
+  gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+  gl::texture::d2::wrap_clamp( &gl );
+
+  ret
+}
+
 async fn setup_rings
 (
   gl : &GL,
@@ -524,15 +498,113 @@ async fn setup_rings
   let mut gems : Vec< FxHashMap< String, Rc< RefCell< Node > > > > = vec![];
   let mut shadows : Vec< Option< TextureInfo > > = vec![];
 
-  for i in 0..2
+  let plane_gltf = renderer::webgl::loaders::gltf::load( &document, "gltf/plane.glb", &gl ).await?;
+  let plane_template = get_node( &plane_gltf.scenes[ 0 ], "Plane".to_string() ).unwrap();
+
+  let shadowmap_res = 2048;
+  let lightmap_res = 2048;
+
+  let light_pos = F32x3::from_array( [ 3.0, 3.0, 3.0 ] );
+  let light_dir = F32x3::from_array( [ -1.0, -1.0, -1.0 ] ).normalize();
+
+  let light = renderer::webgl::shadow::Light::new
+  (
+    light_pos,
+    light_dir,
+    gl::math::mat3x3h::perspective_rh_gl( 30.0_f32.to_radians(), 1.0, 0.1, 10.0 ),
+    0.5
+  );
+
+  let shadowmap = ShadowMap::new( &gl, shadowmap_res )?;
+  let shadow_baker = ShadowBaker::new( &gl )?;
+
+  for i in 0..5
   {
     let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/{i}.glb" ).as_str(), &gl ).await?;
 
     for node in &gltf.scenes[ 0 ].borrow().children
     {
-      node.borrow_mut().set_center_to_origin();
       node.borrow_mut().normalize_scale();
+
+      let bb = node.borrow().bounding_box_hierarchical();
+
+      let size = bb.max - bb.min;
+      let max_dimension = size.x().max( size.y() ).max( size.z() );
+      let scale_factor = 1.0 / max_dimension;
+
+      let offset = bb.min.y() * scale_factor;
+      node.borrow_mut().set_translation( F32x3::new( 0.0, -offset, 0.0 ) );
     }
+
+    let plane_node = plane_template.borrow().clone_tree();
+    plane_node.borrow_mut().set_translation( F32x3::from_array( [ 0.0, 0.0, 0.0 ] ) );
+    plane_node.borrow_mut().set_scale( F32x3::from_array( [ 2.5, 1.0, 2.5 ] ) );
+    gltf.scenes[ 0 ].borrow_mut().add( plane_node.clone() );
+
+    let _ = gltf.scenes[ 0 ].borrow().traverse
+    (
+      &mut | node |
+      {
+        if let Object3D::Mesh( mesh ) = &node.borrow().object
+        {
+          mesh.borrow_mut().is_shadow_caster = true;
+        }
+        Ok( () )
+      }
+    );
+
+    gltf.scenes[ 0 ].borrow_mut().update_world_matrix();
+
+    shadowmap.render( &gltf.scenes[ 0 ].borrow(), light )?;
+
+    let mip_levels = ( ( lightmap_res as f32 ).log2().floor() as i32 ) + 1;
+    let shadow_texture = create_shadow_texture( &gl, lightmap_res, mip_levels );
+
+    shadow_baker.render_soft_shadow
+    (
+      &plane_node.borrow(),
+      shadow_texture.as_ref(),
+      lightmap_res,
+      lightmap_res,
+      &shadowmap,
+      light
+    )?;
+
+    gl.active_texture( gl::TEXTURE0 );
+    gl.bind_texture( gl::TEXTURE_2D, shadow_texture.as_ref() );
+    gl.generate_mipmap( gl::TEXTURE_2D );
+
+    if let Object3D::Mesh( mesh ) = &plane_node.borrow().object
+    {
+      let primitives = &mesh.borrow().primitives;
+      let primitive = primitives.first().unwrap();
+
+      let mut texture = Texture::new();
+      texture.source = shadow_texture;
+      let texture_info = TextureInfo
+      {
+        texture : Rc::new( RefCell::new( texture ) ),
+        uv_position : 0,
+      };
+
+      let mut surface_material = SurfaceMaterial::new( &gl );
+      surface_material.color = F32x3::splat( 0.854 );
+      surface_material.texture = Some( texture_info.clone() );
+      surface_material.needs_update = false;
+      let surface_material_boxed : Rc< RefCell< Box< dyn Material > > > = Rc::new( RefCell::new( Box::new( surface_material ) ) );
+      primitive.borrow_mut().material = surface_material_boxed.clone();
+
+      shadows.push( Some( texture_info ) );
+    }
+
+    gl.disable( gl::DEPTH_TEST );
+    gl.disable( gl::CULL_FACE );
+    // gl.cull_face( gl::FRONT );
+    // gl.enable( gl::DEPTH_TEST );
+    // gl.enable( gl::CULL_FACE );
+    // gl.disable( gl::CULL_FACE );
+    // gl.enable( gl::CULL_FACE );
+    // gl.cull_face( gl::BACK );
 
     rings.push( gltf.scenes[ 0 ].clone() );
 
@@ -561,7 +633,6 @@ async fn setup_rings
     }
 
     gems.push( ring_gems );
-    shadows.push( create_texture( gl, format!( "textures/shadow_{i}.png" ).as_str() ) );
   }
 
   let ui_state = get_ui_state().unwrap();
