@@ -179,15 +179,16 @@ async fn run() -> Result< (), gl::WebglError >
     let mut prev_time = 0.0;
     move | t : f64 |
     {
+      // If textures are of different size, gl.view_port needs to be called
+      let _time = t as f32 / 1000.0;
+
       let delta_time = t - prev_time;
       prev_time = t;
       handle_camera_position( &configurator );
       handle_resize( &gl, &mut configurator, &mut swap_buffer, &canvas, &is_resized );
       handle_ui_change( &mut configurator );
       configurator.camera.update( delta_time );
-
-      // If textures are of different size, gl.view_port needs to be called
-      let _time = t as f32 / 1000.0;
+      configurator.animation_state.update( delta_time );
 
       let scene = &configurator.rings.rings[ configurator.rings.current_ring ];
       configurator.renderer.borrow_mut().render( &gl, &mut scene.borrow_mut(), &configurator.camera ).expect( "Failed to render" );
