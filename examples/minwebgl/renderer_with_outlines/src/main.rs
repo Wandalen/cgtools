@@ -34,7 +34,6 @@ use gl::
   JsCast,
   web_sys::
   {
-    WebGlTexture,
     HtmlElement,
     HtmlSelectElement,
     HtmlSpanElement,

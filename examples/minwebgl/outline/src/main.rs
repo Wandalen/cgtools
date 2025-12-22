@@ -100,12 +100,15 @@ impl_locations!
 (
   JfaOutlineShader,
   "u_object_texture",
+  "u_normal_texture",
   "u_jfa_texture",
+  "u_equirect_map",
   "u_resolution",
   "u_outline_thickness",
   "u_outline_color",
   "u_object_color",
-  "u_background_color"
+  "u_inv_projection",
+  "u_inv_view"
 );
 
 /// Loads an image from a URL to a WebGL texture.
@@ -142,8 +145,8 @@ fn load_texture( gl : &GL, src : &str ) -> WebGlTexture
       let texture = texture.clone();
       move ||
       {
-        gl::texture::d2::upload_no_flip( &gl, Some( &texture ), &img );
-        gl.generate_mipmap( gl::TEXTURE_2D );
+        gl::texture::d2::upload( &gl, Some( &texture ), &img );
+        gl::texture::d2::filter_linear( &gl );
         img.remove();
       }
     }
@@ -281,13 +284,14 @@ impl Programs
     let fullscreen_vs_src = include_str!( "../resources/shaders/fullscreen.vert" );
     let jfa_init_fs_src = include_str!( "../resources/shaders/jfa_init.frag" );
     let jfa_step_fs_src = include_str!( "../resources/shaders/jfa_step.frag" );
+    let outline_vs_src = include_str!( "../resources/shaders/outline.vert" );
     let outline_fs_src = include_str!( "../resources/shaders/outline.frag" );
 
     // Compile and link shader programs and store them
     let object_program = gl::ProgramFromSources::new( object_vs_src, object_fs_src ).compile_and_link( gl ).unwrap();
     let jfa_init_program = gl::ProgramFromSources::new( fullscreen_vs_src, jfa_init_fs_src ).compile_and_link( gl ).unwrap();
     let jfa_step_program = gl::ProgramFromSources::new( fullscreen_vs_src, jfa_step_fs_src ).compile_and_link( gl ).unwrap();
-    let outline_program = gl::ProgramFromSources::new( fullscreen_vs_src, outline_fs_src ).compile_and_link( gl ).unwrap();
+    let outline_program = gl::ProgramFromSources::new( outline_vs_src, outline_fs_src ).compile_and_link( gl ).unwrap();
 
     let object = JfaOutlineObjectShader::new( gl, &object_program );
     let jfa_init = JfaOutlineInitShader::new( gl, &jfa_init_program );
@@ -456,7 +460,7 @@ impl Renderer
       node : Rc< RefCell< Node > >
     | -> Result< (), gl::WebglError >
     {
-      node.borrow().upload( gl, self.programs.object.get_locations() );
+      node.borrow().upload( gl, self.programs.object.locations() );
       // If the node contains a mesh...
       if let Object3D::Mesh( ref mesh ) = node.borrow().object
       {
