@@ -2,25 +2,87 @@ mod private
 {
   use crate::webgl::material::*;
   use minwebgl as gl;
-  use gl::GL;
+  use gl::{ GL, WebGlProgram };
   use mingl::Former;
   use rustc_hash::FxHashMap;
-  use crate::webgl::{ Node, program::{ ProgramInfo, ShaderProgram, PBRShader } };
+  use crate::webgl::{ Node, program::{ ShaderProgram, ProgramInfo } };
   use std:: { cell::RefCell, rc::Rc };
+  use crate::webgl::program::impl_locations;
 
   /// The source code for the main vertex shader.
   const MAIN_VERTEX_SHADER : &'static str = include_str!( "../shaders/main.vert" );
   /// The source code for the main fragment shader.
   const MAIN_FRAGMENT_SHADER : &'static str = include_str!( "../shaders/main.frag" );
 
+  /// Max point light sources count
+  pub const MAX_POINT_LIGHTS : usize = 8;
+  /// Max direct light sources count
+  pub const MAX_DIRECT_LIGHTS : usize = 8;
+  /// Max spot light sources count
+  pub const MAX_SPOT_LIGHTS : usize = 8;
+
+  // A Physically Based Rendering (PBR) shader.
+  impl_locations!
+  (
+    PBRShader,
+    "cameraPosition",
+    "viewMatrix",
+    "projectionMatrix",
+
+    // Node uniform locations
+    "worldMatrix",
+    "normalMatrix",
+
+    // Skeleton uniform locations
+    "inverseBindMatrices",
+    "globalJointTransformMatrices",
+    "matricesTextureSize",
+
+    // Light uniform locations
+    "pointLights",
+    "pointLightsCount",
+    "directLights",
+    "directLightsCount",
+    "spotLights",
+    "spotLightsCount",
+
+    // Material uniform  locations
+    //// Textures uniform locations
+    "metallicRoughnessTexture",
+    "baseColorTexture",
+    "normalTexture",
+    "occlusionTexture",
+    "emissiveTexture",
+    "specularTexture",
+    "specularColorTexture",
+    "lightMap",
+    //// IBL uniform locations
+    "irradianceTexture",
+    "prefilterEnvMap",
+    "integrateBRDF",
+    "mipmapDistanceRange",
+    //// Scalers uniform locations
+    "baseColorFactor",
+    "metallicFactor",
+    "roughnessFactor",
+    "normalScale",
+    "occlusionStrength",
+    "specularFactor",
+    "specularColorFactor",
+    "emissiveFactor",
+    // Luminosity
+    "alphaCutoff",
+    "exposure"
+  );
+
   /// Represents the visual properties of a surface.
   #[ derive( Former, Debug ) ]
-  pub struct PBRMaterial
+  pub struct PbrMaterial
   {
     /// A unique identifier for the material.
     pub id : uuid::Uuid,
     /// Shader program info
-    program : ProgramInfo,
+    program : PBRShader,
     /// The base color factor, multiplied with the base color texture. Defaults to white (1, 1, 1, 1).
     pub base_color_factor : gl::F32x4,
     /// Optional texture providing the base color.
@@ -55,10 +117,8 @@ mod private
     pub specular_color_factor : Option< gl::F32x3 >,
     /// Optional texture providing the specular color. (KHR_materials_specular extension)
     pub specular_color_texture : Option< TextureInfo >,
-
     /// Optional lightmap texture containing pre-baked lighting (shadows)
     pub light_map : Option< TextureInfo >,
-
     /// Alpha cutoff value for mask mode. Fragments with alpha below this value are discarded.
     pub alpha_cutoff : f32,
     /// The alpha blending mode for the material. Defaults to `Opaque`.
@@ -77,26 +137,39 @@ mod private
     /// Returns answer need use IBL for current material instance or not
     pub need_use_ibl : bool,
     /// Signal for updating material uniforms
-    pub need_update : bool
+    pub needs_update : bool
   }
 
-  impl PBRMaterial
+  impl PbrMaterial
   {
-    /// Creates new [`PBRMaterial`] with predefined optimal parameters
+    /// Creates new [`PbrMaterial`] with predefined optimal parameters
     pub fn new( gl : &GL ) -> Self
     {
       let ibl_define = "#define USE_IBL\n";
 
+      let mut defines = String::new();
+
+      defines.push_str( format!( "#define MAX_POINT_LIGHTS {MAX_POINT_LIGHTS}\n" ).as_str() );
+      defines.push_str( format!( "#define MAX_DIRECT_LIGHTS {MAX_DIRECT_LIGHTS}\n" ).as_str() );
+      defines.push_str( format!( "#define MAX_SPOT_LIGHTS {MAX_SPOT_LIGHTS}\n" ).as_str() );
+
       // Compile and link a new WebGL program from the vertex and fragment shaders with the appropriate defines.
       let program = gl::ProgramFromSources::new
       (
-        &format!( "#version 300 es\n{}\n{}", ibl_define, MAIN_VERTEX_SHADER ),
-        &format!( "#version 300 es\n{}\n{}", ibl_define, MAIN_FRAGMENT_SHADER )
-      ).compile_and_link( gl )
+        &format!( "#version 300 es\n{}\n{}", defines, MAIN_VERTEX_SHADER ),
+        &format!
+        (
+          "#version 300 es\n{}\n{}\n{}",
+          defines,
+          ibl_define,
+          MAIN_FRAGMENT_SHADER
+        )
+      )
+      .compile_and_link( gl )
       .unwrap();
 
       let id = uuid::Uuid::new_v4();
-      let program = ProgramInfo::new( gl, &program, PBRShader.dyn_clone() );
+      let program = PBRShader::new( gl, &program );
       let base_color_factor = gl::F32x4::from( [ 1.0, 1.0, 1.0, 1.0 ] );
 
       let base_color_texture = Default::default();
@@ -158,7 +231,7 @@ mod private
         vertex_defines,
         fragment_defines,
         need_use_ibl,
-        need_update : true
+        needs_update : true
       };
     }
 
@@ -206,6 +279,11 @@ mod private
       let use_alpha_cutoff = self.alpha_mode == AlphaMode::Mask;
 
       let mut defines = String::new();
+
+      defines.push_str( format!( "#define MAX_POINT_LIGHTS {MAX_POINT_LIGHTS}\n" ).as_str() );
+      defines.push_str( format!( "#define MAX_DIRECT_LIGHTS {MAX_DIRECT_LIGHTS}\n" ).as_str() );
+      defines.push_str( format!( "#define MAX_SPOT_LIGHTS {MAX_SPOT_LIGHTS}\n" ).as_str() );
+
       let add_texture = | defines : &mut String, name : &str, uv_name : &str, info : Option< &TextureInfo > |
       {
         defines.push_str( &format!( "#define {}\n", name ) );
@@ -283,7 +361,7 @@ mod private
     }
   }
 
-  impl Material for PBRMaterial
+  impl Material for PbrMaterial
   {
     fn get_id( &self ) -> uuid::Uuid
     {
@@ -292,25 +370,20 @@ mod private
 
     fn needs_update( &self ) -> bool
     {
-      self.need_update
+      self.needs_update
     }
 
     fn needs_ibl( &self ) -> bool
     {
-      self.can_use_ibl() && self.need_use_ibl
+      self.need_use_ibl
     }
 
-    fn can_use_ibl( &self ) -> bool
-    {
-      true
-    }
-
-    fn get_program_info( &self ) -> &ProgramInfo
+    fn shader( &self ) -> &dyn ShaderProgram
     {
       &self.program
     }
 
-    fn get_program_info_mut( &mut self ) -> &mut ProgramInfo
+    fn shader_mut( &mut self ) -> &mut dyn ShaderProgram
     {
       &mut self.program
     }
@@ -319,10 +392,11 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >,
       ibl_base_location : u32,
     )
     {
+      self.program.bind( gl );
+      let locations = self.program.locations();
       let ibl_base_location = ibl_base_location as i32;
       // Assign a texture unit for each type of texture
       gl.uniform1i( locations.get( "metallicRoughnessTexture" ).unwrap().clone().as_ref() , 0 );
@@ -343,10 +417,10 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      _node : Rc< RefCell< Node > >,
-      locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
+      _node : Rc< RefCell< Node > >
     ) -> Result< (), gl::WebglError >
     {
+      let locations = self.program.locations();
       let upload = | loc, value : Option< f32 > | -> Result< (), gl::WebglError >
       {
         if let Some( v ) = value
@@ -480,17 +554,17 @@ mod private
       self.alpha_mode
     }
 
-    fn get_type_name(&self) -> &'static str
+    fn type_name( &self ) -> &'static str
     {
-      "PBRMaterial"
+      stringify!( PbrMaterial )
     }
   }
 
-  impl Clone for PBRMaterial
+  impl Clone for PbrMaterial
   {
     fn clone( &self ) -> Self
     {
-      PBRMaterial
+      PbrMaterial
       {
         id : uuid::Uuid::new_v4(),
         program : self.program.clone(),
@@ -517,7 +591,7 @@ mod private
         vertex_defines : self.vertex_defines.clone(),
         fragment_defines : self.fragment_defines.clone(),
         need_use_ibl : self.need_use_ibl,
-        need_update : self.need_update
+        needs_update : self.needs_update
       }
     }
   }
@@ -527,6 +601,10 @@ crate::mod_interface!
 {
   orphan use
   {
-    PBRMaterial
+    MAX_POINT_LIGHTS,
+    MAX_DIRECT_LIGHTS,
+    MAX_SPOT_LIGHTS,
+    PBRShader,
+    PbrMaterial
   };
 }

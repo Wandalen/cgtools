@@ -61,11 +61,11 @@ fn run() -> Result< (), gl::WebglError >
   line.set_join( line_tools::Join::Miter( 7, 7 ) );
 
   line.create_mesh( &gl, main_frag )?;
-  let mesh = line.get_mesh();
+  let mesh = line.get_mesh_mut();
 
-  mesh.upload_matrix( &gl, "u_projection_matrix", &projection_matrix.to_array() )?;
-  mesh.upload_matrix( &gl, "u_world_matrix", &world_matrix.to_array() )?;
-  mesh.upload_matrix( &gl, "u_view_matrix", &view_matrix.to_array() )?;
+  mesh.upload( &gl, "u_projection_matrix", &projection_matrix )?;
+  mesh.upload( &gl, "u_world_matrix", &world_matrix )?;
+  mesh.upload( &gl, "u_view_matrix", &view_matrix )?;
   mesh.upload( &gl, "u_width", &line_width )?;
   mesh.upload_to( &gl, "body", "u_color", &[ 1.0, 1.0, 1.0 ] )?;
   mesh.upload_to( &gl, "body_terminal", "u_color", &[ 1.0, 1.0, 0.0 ] )?;
@@ -144,7 +144,7 @@ fn run() -> Result< (), gl::WebglError >
       let gl = gl.clone();
       move | value : f32 |
       {
-        line.borrow().get_mesh().upload( &gl, "u_width", &value ).unwrap();
+        line.borrow_mut().get_mesh_mut().upload( &gl, "u_width", &value ).unwrap();
       }
     }
   );
@@ -163,8 +163,11 @@ fn run() -> Result< (), gl::WebglError >
 
       update( line.clone(), &canvas, &mut input );
 
-      line.borrow().get_mesh().upload( &gl, "time", &time ).unwrap();
-      line.borrow().get_mesh().upload( &gl, "totalDistance", &line.borrow().get_total_distance() ).unwrap();
+      let distance = line.borrow().get_total_distance();
+
+      line.borrow_mut().get_mesh_mut().upload( &gl, "time", &time ).unwrap();
+      line.borrow_mut().get_mesh_mut().upload( &gl, "totalDistance", &distance ).unwrap();
+
       //draw
       gl.use_program( Some( &background_program ) );
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );

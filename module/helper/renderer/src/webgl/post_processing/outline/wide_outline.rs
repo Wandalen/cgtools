@@ -30,17 +30,50 @@ mod private
     {
       WebGlUniformLocation,
       WebGlTexture,
-      WebGlFramebuffer
+      WebGlFramebuffer,
+      WebGlProgram
     }
   };
   use crate::webgl::
   {
-    ProgramInfo, ShaderProgram, post_processing::{ Pass, VS_TRIANGLE }, program::
-    {
-      WideOutlineInitShader, WideOutlineShader, WideOutlineStepShader
-    }
+    ShaderProgram,
+    ProgramInfo,
+    post_processing::{ Pass, VS_TRIANGLE },
   };
-  use std::collections::HashMap;
+  use crate::webgl::impl_locations;
+  use rustc_hash::FxHashMap;
+
+  // A public struct for the initialization step of a wide outline.
+  //
+  // This shader is part of a multi-pass technique to create thick, wide outlines.
+  impl_locations!
+  (
+    WideOutlineInitShader,
+    "objectColorTexture"
+  );
+
+  // A public struct for the stepping pass of a wide outline.
+  //
+  // This is the iterative pass that propagates information for a wide outline.
+  impl_locations!
+  (
+    WideOutlineStepShader,
+    "jfaTexture",
+    "resolution",
+    "stepSize"
+  );
+
+  // A public struct representing the final wide outline shader.
+  //
+  // This shader combines the results of the previous passes to draw the final wide outline.
+  impl_locations!
+  (
+    WideOutlineShader,
+    "sourceTexture",
+    "objectColorTexture",
+    "jfaTexture",
+    "resolution"
+  );
 
   /// Binds a texture to a texture unit and uploads its location to a uniform.
   ///
@@ -142,14 +175,14 @@ mod private
     gl.viewport( 0, 0, width, height );
   }
 
-  struct ProgramInfos
+  struct ShaderPrograms
   {
-    jfa_init : ProgramInfo,
-    jfa_step : ProgramInfo,
-    outline : ProgramInfo
+    jfa_init : WideOutlineInitShader,
+    jfa_step : WideOutlineStepShader,
+    outline : WideOutlineShader
   }
 
-  impl ProgramInfos
+  impl ShaderPrograms
   {
     fn new( gl : &gl::WebGl2RenderingContext ) -> Self
     {
@@ -164,9 +197,9 @@ mod private
       let jfa_step_program = gl::ProgramFromSources::new( VS_TRIANGLE, jfa_step_fs_src ).compile_and_link( gl ).unwrap();
       let outline_program = gl::ProgramFromSources::new( VS_TRIANGLE, outline_fs_src ).compile_and_link( gl ).unwrap();
 
-      let jfa_init = ProgramInfo::new( gl, &jfa_init_program, WideOutlineInitShader.dyn_clone() );
-      let jfa_step = ProgramInfo::new( gl, &jfa_step_program, WideOutlineStepShader.dyn_clone() );
-      let outline = ProgramInfo::new( gl, &outline_program, WideOutlineShader.dyn_clone() );
+      let jfa_init = WideOutlineInitShader::new( gl, &jfa_init_program );
+      let jfa_step = WideOutlineStepShader::new( gl, &jfa_step_program );
+      let outline = WideOutlineShader::new( gl, &outline_program );
 
       Self
       {
@@ -187,14 +220,14 @@ mod private
   {
     /// A collection of WebGL program information structs, one for each shader used
     /// in the multi-pass process (e.g., initialization, stepping, and final rendering).
-    program_infos : ProgramInfos,
+    shader_programs : ShaderPrograms,
     /// A hash map to manage multiple WebGL framebuffers. These are used to render
     /// to different textures in each pass of the algorithm.
-    framebuffers : HashMap< String, WebGlFramebuffer >,
+    framebuffers : FxHashMap< String, WebGlFramebuffer >,
     /// A hash map to store the textures used by the different passes. This includes
     /// the initial data texture and the textures used to store intermediate distance
     /// field results.
-    textures : HashMap< String, WebGlTexture >,
+    textures : FxHashMap< String, WebGlTexture >,
     /// The desired thickness of the final outline. This value influences the number
     /// of passes and the final rendering stage.
     outline_thickness : f32,
@@ -219,7 +252,7 @@ mod private
       height : u32
     ) -> Result< Self, gl::WebglError >
     {
-      let program_infos = ProgramInfos::new( gl );
+      let shader_programs = ShaderPrograms::new( gl );
 
       // --- Create Framebuffers and Textures ---
 
@@ -230,7 +263,7 @@ mod private
       let ( jfa_step_fb_1, jfa_step_fb_color_1 ) = create_framebuffer( gl, width as i32, height as i32, None ).unwrap();
       let ( outline_fb, output_color ) = create_framebuffer( gl, width as i32, height as i32, None ).unwrap();
 
-      let mut textures = HashMap::new();
+      let mut textures = FxHashMap::default();
 
       // Store the color attachment textures
       textures.insert( "object_color".to_string(), object_color_texture );
@@ -239,7 +272,7 @@ mod private
       textures.insert( "jfa_step_fb_color_1".to_string(), jfa_step_fb_color_1 );
       textures.insert( "output_color".to_string(), output_color );
 
-      let mut framebuffers = HashMap::new();
+      let mut framebuffers = FxHashMap::default();
 
       // Store the framebuffers
       framebuffers.insert( "jfa_init_fb".to_string(), jfa_init_fb );
@@ -251,7 +284,7 @@ mod private
 
       let pass = Self
       {
-        program_infos,
+        shader_programs,
         framebuffers,
         textures,
         outline_thickness,
@@ -282,15 +315,15 @@ mod private
     /// `jfa_init_fb`.
     fn jfa_init_pass( &self, gl : &gl::WebGl2RenderingContext )
     {
-      let jfa_init_program = &self.program_infos.jfa_init.get_program();
+      let jfa_init = &self.shader_programs.jfa_init;
       let jfa_init_fb = self.framebuffers.get( "jfa_init_fb" ).unwrap();
       let object_color = self.textures.get( "object_color" ).unwrap();
 
-      let jfa_init_locs = self.program_infos.jfa_init.get_locations();
+      let jfa_init_locs = self.shader_programs.jfa_init.locations();
 
       let object_color_loc = jfa_init_locs.get( "objectColorTexture" ).unwrap().clone().unwrap();
 
-      gl.use_program( Some( jfa_init_program ) );
+      jfa_init.bind( gl );
 
       upload_framebuffer( gl, jfa_init_fb, self.width as i32, self.height as i32 );
 
@@ -311,20 +344,20 @@ mod private
     ///            directly to the default framebuffer ( screen ) for debugging.
     fn jfa_step_pass( &self, gl : &gl::WebGl2RenderingContext, i : u32 )
     {
-      let jfa_step_program = &self.program_infos.jfa_step.get_program();
+      let jfa_step = &self.shader_programs.jfa_step;
       let jfa_step_fb_0 = self.framebuffers.get( "jfa_step_fb_0" ).unwrap();
       let jfa_step_fb_1 = self.framebuffers.get( "jfa_step_fb_1" ).unwrap();
       let jfa_init_fb_color = self.textures.get( "jfa_init_fb_color" ).unwrap(); // Initial JFA texture
       let jfa_step_fb_color_0 = self.textures.get( "jfa_step_fb_color_0" ).unwrap(); // Color texture for FB 0
       let jfa_step_fb_color_1 = self.textures.get( "jfa_step_fb_color_1" ).unwrap(); // Color texture for FB 1
 
-      let jfa_step_locs = self.program_infos.jfa_step.get_locations();
+      let jfa_step_locs = self.shader_programs.jfa_step.locations();
 
       let resolution = jfa_step_locs.get( "resolution" ).unwrap().clone().unwrap();
       let u_step_size = jfa_step_locs.get( "stepSize" ).unwrap().clone().unwrap();
       let jfa_init_loc = jfa_step_locs.get( "jfaTexture" ).unwrap().clone().unwrap();
 
-      gl.use_program( Some( jfa_step_program ) );
+      jfa_step.bind( gl );
 
       // Ping-pong rendering: Determine input texture and output framebuffer based on step index `i`
       if i == 0 // First step uses the initialization result
@@ -375,14 +408,14 @@ mod private
       output_texture : Option< minwebgl::web_sys::WebGlTexture >
     )
     {
-      let outline_program = &self.program_infos.outline.get_program();
+      let outline = &self.shader_programs.outline;
       let outline_fb = self.framebuffers.get( "outline_fb" ).unwrap();
       let source = input_texture.unwrap();
       let object_color = self.textures.get( "object_color" ).unwrap();
       let jfa_step_fb_color_0 = self.textures.get( "jfa_step_fb_color_0" ).unwrap(); // JFA ping-pong texture 0
       let jfa_step_fb_color_1 = self.textures.get( "jfa_step_fb_color_1" ).unwrap(); // JFA ping-pong texture 1
 
-      let outline_locs = self.program_infos.outline.get_locations();
+      let outline_locs = self.shader_programs.outline.locations();
 
       let source_loc = outline_locs.get( "sourceTexture" ).unwrap().clone().unwrap();
       let object_color_loc = outline_locs.get( "objectColorTexture" ).unwrap().clone().unwrap();
@@ -391,7 +424,7 @@ mod private
 
       set_framebuffer_color( gl, &outline_fb, Some( output_texture.unwrap() ) );
 
-      gl.use_program( Some( outline_program ) );
+      outline.bind( gl );
 
       // Bind the default framebuffer ( render to canvas )
       gl.bind_framebuffer( GL::FRAMEBUFFER, Some( outline_fb ) );

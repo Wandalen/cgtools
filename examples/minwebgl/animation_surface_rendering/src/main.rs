@@ -47,7 +47,7 @@ use renderer::webgl::
   Texture,
   TextureInfo,
   Sampler,
-  material::PBRMaterial,
+  material::PbrMaterial,
   Node
 };
 use std::rc::Rc;
@@ -264,7 +264,7 @@ fn clone( gltf : &mut GLTF, node : &Rc< RefCell< Node > > ) -> Rc< RefCell< Node
 fn set_texture
 (
   node : &Rc< RefCell< Node > >,
-  mut material_callback : impl FnMut( &mut PBRMaterial )
+  mut material_callback : impl FnMut( &mut PbrMaterial )
 )
 {
   if let Object3D::Mesh( ref mesh ) = &node.borrow().object
@@ -272,7 +272,7 @@ fn set_texture
     for p in &mesh.borrow().primitives
     {
       let p = p.borrow();
-      let mut mat = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >
+      let mut mat = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >
       (
         p.material.borrow_mut()
       );

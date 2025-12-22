@@ -2,14 +2,27 @@
 mod private
 {
   use minwebgl as gl;
-  use gl::GL;
-  use crate::webgl::{ ProgramInfo, ShaderProgram, post_processing::{ Pass, VS_TRIANGLE }, program::NarrowOutlineShader };
+  use gl::{ GL, web_sys::WebGlProgram };
+  use crate::webgl::{ ShaderProgram, post_processing::{ Pass, VS_TRIANGLE }, ProgramInfo };
+  use crate::webgl::impl_locations;
+  use rustc_hash::FxHashMap;
+
+  // A public struct for a shader that draws narrow outlines.
+  impl_locations!
+  (
+    NarrowOutlineShader,
+    "sourceTexture",
+    "objectColorTexture",
+    "positionTexture",
+    "resolution",
+    "outlineThickness"
+  );
 
   /// A struct representing a rendering pass for drawing narrow outlines.
   pub struct NarrowOutlinePass
   {
     /// `ProgramInfo` holds the WebGL program and its uniform/attribute locations.
-    program_info : ProgramInfo,
+    shader_program : NarrowOutlineShader,
     /// The texture containing position data from the G-Buffer.
     position_texture : Option< gl::web_sys::WebGlTexture >,
     /// The texture containing object color or ID data from the G-Buffer.
@@ -36,11 +49,11 @@ mod private
     {
       let fs_shader = include_str!( "../../shaders/post_processing/outline/narrow_outline.frag" );
       let program = gl::ProgramFromSources::new( VS_TRIANGLE, fs_shader ).compile_and_link( gl )?;
-      let program_info = ProgramInfo::new( gl, &program, NarrowOutlineShader.dyn_clone() );
+      let shader_program = NarrowOutlineShader::new( gl, &program );
 
       {
-        program_info.bind( gl );
-        let locations = program_info.get_locations();
+        shader_program.bind( gl );
+        let locations = shader_program.locations();
 
         let source_texture_loc = locations.get( "sourceTexture" ).unwrap().clone();
         let position_texture_loc = locations.get( "positionTexture" ).unwrap().clone();
@@ -54,7 +67,7 @@ mod private
 
       let pass = Self
       {
-        program_info,
+        shader_program,
         position_texture,
         object_color_texture,
         outline_thickness,
@@ -87,9 +100,9 @@ mod private
       output_texture : Option< minwebgl::web_sys::WebGlTexture >
     ) -> Result< Option< minwebgl::web_sys::WebGlTexture >, minwebgl::WebglError >
     {
-      self.program_info.bind( gl );
+      self.shader_program.bind( gl );
 
-      let locations = self.program_info.get_locations();
+      let locations = self.shader_program.locations();
 
       let resolution_loc = locations.get( "resolution" ).unwrap().clone();
       let outline_thickness_loc = locations.get( "outlineThickness" ).unwrap().clone();

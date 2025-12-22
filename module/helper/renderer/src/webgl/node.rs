@@ -26,8 +26,33 @@ mod private
     }
   }
 
+  impl Default for Node
+  {
+    fn default() -> Self
+    {
+      let identity_matrix = gl::math::mat4x4::identity();
+
+      Node
+      {
+        name : None,
+        parent : None,
+        children : Vec::new(),
+        object : Object3D::default(),
+        matrix : identity_matrix,
+        world_matrix : identity_matrix,
+        normal_matrix : identity_matrix.truncate(),
+        scale : gl::F32x3::splat( 1.0 ),
+        translation : gl::F32x3::default(),
+        rotation : gl::Quat::default(),
+        needs_local_matrix_update : false,
+        needs_world_matrix_update : false,
+        bounding_box : BoundingBox::default(),
+        is_visible : true
+      }
+    }
+  }
+
   /// Represents a node in the scene graph. Each node can have children, an associated 3D object, and transformations.
-  #[ allow( clippy::used_underscore_binding ) ]
   #[ derive( Debug ) ]
   pub struct Node
   {
@@ -58,31 +83,7 @@ mod private
     /// The bounding box of the node's object in world space.
     bounding_box : BoundingBox,
     /// Sets render [`Node`] and its children or not
-    _is_visible : bool
-  }
-
-  impl Default for Node
-  {
-    fn default() -> Self
-    {
-      Self
-      {
-        matrix : gl::math::mat4x4::identity(),
-        world_matrix : gl::math::mat4x4::identity(),
-        normal_matrix : gl::math::mat3x3::identity(),
-        scale : gl::F32x3::splat( 1.0 ),
-        _is_visible : true,
-        name : Default::default(),
-        parent : Default::default(),
-        children : Default::default(),
-        object : Default::default(),
-        translation : Default::default(),
-        rotation : Default::default(),
-        needs_local_matrix_update : Default::default(),
-        needs_world_matrix_update : Default::default(),
-        bounding_box : Default::default(),
-      }
-    }
+    is_visible : bool
   }
 
   #[ allow( clippy::used_underscore_binding ) ]
@@ -122,7 +123,7 @@ mod private
         needs_local_matrix_update : self.needs_local_matrix_update,
         needs_world_matrix_update : self.needs_world_matrix_update,
         bounding_box : self.bounding_box,
-        _is_visible : self._is_visible
+        is_visible : self.is_visible
       };
 
       let clone_rc = Rc::new( RefCell::new( clone ) );
@@ -144,13 +145,13 @@ mod private
     /// Gets [`Node::is_visible`]
     pub fn is_visible( &self ) -> bool
     {
-      self._is_visible
+      self.is_visible
     }
 
     /// Sets [`Node::is_visible`] for [`Node`] and its children if only_root is false
     pub fn set_visibility( &mut self, visibility : bool, only_root : bool )
     {
-      self._is_visible = visibility;
+      self.is_visible = visibility;
       if !only_root
       {
         let _ = self.traverse
@@ -160,7 +161,7 @@ mod private
             node : Rc< RefCell< Node > >
           | -> Result< (), gl::WebglError >
           {
-            node.borrow_mut()._is_visible = visibility;
+            node.borrow_mut().is_visible = visibility;
             Ok( () )
           }
         );
@@ -263,10 +264,11 @@ mod private
 
       self.matrix = matrix;
       self.needs_local_matrix_update = false;
+      self.needs_world_matrix_update = true;
     }
 
     /// Sets the world transformation matrix for the node.
-    pub fn set_world_matrix( &mut self, matrix : F32x4x4 )
+    fn set_world_matrix( &mut self, matrix : F32x4x4 )
     {
       self.world_matrix = matrix;
       self.normal_matrix = matrix.truncate().inverse().unwrap().transpose();
@@ -295,7 +297,7 @@ mod private
         self.rotation,
         self.translation
       );
-      self.matrix = gl::F32x4x4::from_column_major( mat.to_array());
+      self.matrix = mat;
       self.needs_local_matrix_update = false;
       self.needs_world_matrix_update = true;
     }

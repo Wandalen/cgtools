@@ -39,6 +39,7 @@ use gl::
     HtmlSelectElement,
     HtmlSpanElement,
     HtmlInputElement,
+    WebGlTexture,
     window,
     wasm_bindgen::closure::Closure
   }
@@ -105,8 +106,8 @@ fn upload_texture( gl : &GL, src : &str ) -> WebGlTexture
       let texture = texture.clone();
       move ||
       {
-        gl::texture::d2::upload_no_flip( &gl, Some( &texture ), &img );
-        gl.generate_mipmap( gl::TEXTURE_2D );
+        gl::texture::d2::upload( &gl, Some( &texture ), &img );
+        gl::texture::d2::filter_linear( &gl );
         img.remove();
       }
     }
@@ -308,6 +309,7 @@ async fn run() -> Result< (), gl::WebglError >
       Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?
     )
   );
+
   renderer.borrow_mut().set_ibl( renderer::webgl::loaders::ibl::load( &gl, "environment_maps/pink_sunrise_4k/", None ).await );
   let skybox = create_texture( &gl, "environment_maps/equirectangular_maps/pink_sunrise.jpg" ).unwrap();
   renderer.borrow_mut().set_skybox( skybox.texture.borrow().source.clone() );

@@ -3,12 +3,21 @@ mod private
   use std::{ cell::RefCell, rc::Rc };
   use rustc_hash::{ FxHashMap, FxHashSet };
   use minwebgl as gl;
-  use web_sys::{ WebGlTexture, WebGlBuffer, WebGlFramebuffer, WebGlUniformLocation, WebGlVertexArrayObject };
+  use web_sys::{ WebGlTexture, WebGlBuffer, WebGlFramebuffer, WebGlUniformLocation, WebGlVertexArrayObject, WebGlProgram };
   use gl::{ F32x4, GL, VectorDataType, drawbuffers::drawbuffers };
   use crate::webgl::
   {
-    AttributeInfo, Camera, Material, Node, Object3D, ProgramInfo, Scene, ShaderProgram, material::PBRMaterial, program
+    AttributeInfo,
+    Camera,
+    Material,
+    Node,
+    Object3D,
+    Scene,
+    ShaderProgram,
+    material::PbrMaterial,
+    ProgramInfo
   };
+  use crate::webgl::impl_locations;
 
   /// The source code for the gbuffer vertex shader.
   const GBUFFER_VERTEX_SHADER : &'static str = include_str!( "../shaders/post_processing/gbuffer.vert" );
@@ -24,6 +33,21 @@ mod private
     GBufferAttachment::PbrInfo,
     GBufferAttachment::ObjectColor
   ];
+
+  // A public struct for a Geometry Buffer (GBuffer) shader.
+  impl_locations!
+  (
+    GBufferShader,
+    "worldMatrix",
+    "viewMatrix",
+    "projectionMatrix",
+    "normalMatrix",
+    "near_far",
+    "albedoTexture",
+    "objectId",
+    "materialId",
+    "objectColor"
+  );
 
   #[ derive( Debug, Copy, Clone, Eq, PartialEq, Hash ) ]
   pub enum GBufferAttachment
@@ -175,7 +199,7 @@ mod private
 
   pub struct GBuffer
   {
-    program_info : ProgramInfo,
+    shader_program : GBufferShader,
     attachment_buffers: FxHashMap< GBufferAttachment, Vec< WebGlBuffer > >,
     vao : WebGlVertexArrayObject,
     width : u32,
@@ -205,7 +229,7 @@ mod private
         &format!( "#version 300 es\n{}\n{}", &defines, GBUFFER_VERTEX_SHADER ),
         &format!( "#version 300 es\n{}\n{}", &defines, GBUFFER_FRAGMENT_SHADER ),
       ).compile_and_link( gl )?;
-      let program_info = ProgramInfo::new( gl, &program, program::GBufferShader.dyn_clone() );
+      let shader_program = GBufferShader::new( gl, &program );
 
       let vao = gl.create_vertex_array().ok_or( gl::WebglError::FailedToAllocateResource( "VAO" ) )?;
       gl.bind_vertex_array( Some( &vao ) );
@@ -266,7 +290,7 @@ mod private
 
       let gbuffer = Self
       {
-        program_info,
+        shader_program,
         attachment_buffers,
         vao,
         width,
@@ -282,7 +306,7 @@ mod private
     /// Binds the gbuffer's program, VAO, framebuffer and set drawbuffers
     pub fn bind( &self, gl : &gl::WebGl2RenderingContext )
     {
-      self.program_info.bind( gl );
+      self.shader_program.bind( gl );
       gl.bind_vertex_array( Some( &self.vao ) );
       gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &self.framebuffer ) );
       gl.viewport( 0, 0, self.width as i32, self.height as i32 );
@@ -305,7 +329,7 @@ mod private
     {
       self.bind( gl );
 
-      let locations = self.program_info.get_locations();
+      let locations = self.shader_program.locations();
 
       gl.enable( gl::DEPTH_TEST );
       gl.disable( gl::BLEND );
@@ -324,16 +348,16 @@ mod private
 
       upload_camera( gl, &camera, locations );
 
-      let albedo_texture_loc = &self.program_info.get_locations()
+      let albedo_texture_loc = &self.shader_program.locations()
       .get( "albedoTexture" ).unwrap().clone().unwrap();
 
-      let object_id_loc = &self.program_info.get_locations()
+      let object_id_loc = &self.shader_program.locations()
       .get( "objectId" ).unwrap().clone();
 
-      let material_id_loc = &self.program_info.get_locations()
+      let material_id_loc = &self.shader_program.locations()
       .get( "materialId" ).unwrap().clone();
 
-      let object_color_loc = &self.program_info.get_locations()
+      let object_color_loc = &self.shader_program.locations()
       .get( "objectColor" ).unwrap().clone();
 
       let object_id = Rc::new( RefCell::new( 1_u32 ) );
@@ -370,7 +394,7 @@ mod private
           {
             let primitive = primitive_rc.borrow();
             let material = primitive.material.borrow();
-            let material = ( material.as_ref() as &dyn std::any::Any  ).downcast_ref::< PBRMaterial >().expect( "GBuffer only supports PBRMaterial" );
+            let material = ( material.as_ref() as &dyn std::any::Any  ).downcast_ref::< PbrMaterial >().expect( "GBuffer only supports PbrMaterial" );
 
             if self.attachment_buffers.contains_key( &GBufferAttachment::Albedo )
             && self.attachment_buffers.contains_key( &GBufferAttachment::PbrInfo )

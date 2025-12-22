@@ -131,40 +131,32 @@ pub fn run_repl() -> Result< (), CliError >
   run_unilang_repl( &pipeline, &mut app )
 }
 
-/// Run CLI in interactive REPL mode (fallback without rustyline)
-#[ cfg( not( feature = "cli-repl" ) ) ]  
-pub fn run_repl_fallback() -> Result< (), CliError >
+/// Run simple REPL without rustyline (for non-TTY environments like tests)
+fn run_simple_repl( app: &mut CliApp ) -> Result< (), CliError >
 {
-  println!( "Agnostic Rendering Engine CLI (ARE) - REPL Mode" );
-  println!( "Type .help for available commands, .quit to exit" );
+  println!( "↑/↓ Arrow keys for command history" );
   println!();
-  
-  let mut app = CliApp::new()?;
-  
+
   loop
   {
-    print!( "are> " );
-    io::stdout().flush()?;
-    
     let mut input = String::new();
     match io::stdin().read_line( &mut input )
     {
       Ok( 0 ) =>
       {
         // EOF (Ctrl+D)
-        println!();
         println!( "Goodbye!" );
         break;
       },
       Ok( _ ) =>
       {
         let input = input.trim();
-        
+
         if input.is_empty()
         {
           continue;
         }
-        
+
         // Handle built-in REPL commands
         match input
         {
@@ -182,12 +174,93 @@ pub fn run_repl_fallback() -> Result< (), CliError >
           },
           _ => {}
         }
-        
+
         // Process regular commands
         if input.starts_with( '.' )
         {
           let command = &input[ 1.. ]; // Remove dot prefix
-          
+
+          // Handle stateful commands that need scene access directly
+          if handle_stateful_command( command, app ) {
+            continue;
+          }
+
+          // Process command manually for simple REPL
+          handle_command( command, app );
+        }
+        else
+        {
+          println!( "Commands must start with '.'. Type .help for available commands." );
+        }
+      },
+      Err( error ) =>
+      {
+        eprintln!( "Error reading input: {}", error );
+        return Err( CliError::Io( error ) );
+      }
+    }
+  }
+
+  Ok( () )
+}
+
+/// Run CLI in interactive REPL mode (fallback without rustyline)
+#[ cfg( not( feature = "cli-repl" ) ) ]
+pub fn run_repl_fallback() -> Result< (), CliError >
+{
+  println!( "Agnostic Rendering Engine CLI (ARE) - REPL Mode" );
+  println!( "Type .help for available commands, .quit to exit" );
+  println!();
+
+  let mut app = CliApp::new()?;
+
+  loop
+  {
+    print!( "are> " );
+    io::stdout().flush()?;
+
+    let mut input = String::new();
+    match io::stdin().read_line( &mut input )
+    {
+      Ok( 0 ) =>
+      {
+        // EOF (Ctrl+D)
+        println!();
+        println!( "Goodbye!" );
+        break;
+      },
+      Ok( _ ) =>
+      {
+        let input = input.trim();
+
+        if input.is_empty()
+        {
+          continue;
+        }
+
+        // Handle built-in REPL commands
+        match input
+        {
+          ".quit" | ".exit" | ".q" =>
+          {
+            println!( "Goodbye!" );
+            break;
+          },
+          ".clear" =>
+          {
+            // Clear screen (ANSI escape sequence)
+            print!( "\x1B[2J\x1B[1;1H" );
+            io::stdout().flush()?;
+            continue;
+          },
+          _ => {}
+        }
+
+        // Process regular commands
+        if input.starts_with( '.' )
+        {
+          let command = &input[ 1.. ]; // Remove dot prefix
+
           // Process command manually
           handle_command( command, &mut app );
         }
@@ -203,7 +276,7 @@ pub fn run_repl_fallback() -> Result< (), CliError >
       }
     }
   }
-  
+
   Ok( () )
 }
 
@@ -213,8 +286,15 @@ fn run_unilang_repl( pipeline: &Pipeline, app: &mut CliApp ) -> Result< (), CliE
   // Rustyline is available through unilang's enhanced_repl feature
   use rustyline::DefaultEditor;
   use rustyline::error::ReadlineError;
-  
-  let mut rl = DefaultEditor::new().map_err( |e| CliError::Io( std::io::Error::new( std::io::ErrorKind::Other, e ) ) )?;
+
+  // Try to create rustyline editor, fallback to simple REPL if it fails (no TTY)
+  let mut rl = match DefaultEditor::new() {
+    Ok( editor ) => editor,
+    Err( _ ) => {
+      // Fall back to simple REPL when rustyline cannot initialize (e.g., no TTY)
+      return run_simple_repl( app );
+    }
+  };
   let mut session_counter = 0u32;
   
   println!( "🎨 Enhanced REPL Features:" );
@@ -333,50 +413,8 @@ fn setup_unilang_commands( registry: &mut CommandRegistry ) -> Result< (), CliEr
   
   registry.command_add_runtime( &scene_new_cmd, scene_new_routine )
     .map_err( |e| CliError::Unilang( e.to_string() ) )?;
-  
-  // Register help command with runtime
-  let help_cmd = CommandDefinition::former()
-    .name( ".help" )
-    .namespace( "" )
-    .description( "Show available commands".to_string() )
-    .hint( "Displays help information" )
-    .status( "stable" )
-    .version( "1.0.0" )
-    .tags( vec![ "utility".to_string() ] )
-    .arguments( vec![] )
-    .examples( vec![ "help".to_string() ] )
-    .aliases( vec![ "h".to_string() ] )
-    .permissions( vec![] )
-    .idempotent( true )
-    .deprecation_message( String::new() )
-    .http_method_hint( "GET".to_string() )
-    .end();
-  
-  let help_routine = Box::new( |_cmd: VerifiedCommand, _ctx| {
-    let help_content = r#"Agnostic Rendering Engine CLI (ARE) - Commands
 
-Scene Management Commands:
-  .scene.new                   Create a new empty scene
-  .scene.add <primitive>       Add primitive to current scene
-  .scene.list                  List all primitives in current scene
-
-General Commands:
-  .help, .h                    Show this help message
-  .version, .v                 Show version information
-
-Examples:
-  .scene.new
-  .help"#;
-    
-    println!( "{}", help_content );
-    Ok( OutputData {
-      content: "Help displayed".to_string(),
-      format: "text".to_string(),
-    } )
-  } );
-  
-  registry.command_add_runtime( &help_cmd, help_routine )
-    .map_err( |e| CliError::Unilang( e.to_string() ) )?;
+  // Note: .help is provided by unilang built-in commands, so we don't register it
 
   // Register scene.list command with runtime
   let scene_list_cmd = CommandDefinition::former()

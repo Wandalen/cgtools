@@ -42,34 +42,6 @@ use renderer::webgl::
 mod lil_gui;
 mod gui_setup;
 
-fn to_spherical( decart : F32x3 ) -> ( f32, f32, f32 )
-{
-  let radius = decart.distance( &F32x3::splat( 0.0 ) );
-  let theta = ( decart.0[ 2 ] / radius ).acos();
-  let [ x, _y, z ] = decart.0;
-  let phi = z.signum() * ( x / ( x * x + z * z ).sqrt() ).acos();
-
-  let phi = phi.to_degrees();
-  let theta = theta.to_degrees();
-  return ( radius, theta, phi );
-}
-
-fn to_decart( radius : f32, theta : f32, phi : f32 ) -> F32x3
-{
-  let phi = phi.to_radians();
-  let theta = theta.to_radians();
-  let sin_phi = phi.sin();
-
-  F32x3::from_array
-  (
-    [
-      radius * sin_phi * theta.cos(),
-      radius * sin_phi * theta.sin(),
-      radius * phi.cos()
-    ]
-  )
-}
-
 fn add_light( scene : &Rc< RefCell< Scene > >, light : Light ) -> Rc< RefCell< Node > >
 {
   let light_node = Rc::new( RefCell::new( Node::new() ) );
@@ -96,13 +68,19 @@ async fn run() -> Result< (), gl::WebglError >
 
   let gltf_path = "2017_porsche_911_turbo_s_exclusive_series_991.2.glb";
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
-  let scenes = gltf.scenes;
-  scenes[ 0 ].borrow_mut().update_world_matrix();
+  let scene = gltf.scenes[ 0 ].clone();
+  scene.borrow_mut().update_world_matrix();
 
-  let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
+  for node in &scene.borrow().children
+  {
+    let scale = node.borrow_mut().get_scale();
+    node.borrow_mut().set_scale( scale * 40.0 );
+  }
+
+  let scene_bounding_box = scene.borrow().bounding_box();
   gl::info!( "Scene boudnig box: {:?}", scene_bounding_box );
   let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
-  let dist = scene_bounding_box.max.mag();
+  let dist = scene_bounding_box.max.mag() * 40.0;
   let exponent =
   {
     let bits = diagonal.to_bits();
@@ -118,7 +96,6 @@ async fn run() -> Result< (), gl::WebglError >
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
 
   let center = scene_bounding_box.center();
-
 
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
@@ -140,6 +117,9 @@ async fn run() -> Result< (), gl::WebglError >
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
+  let sphere_gltf = renderer::webgl::loaders::gltf::load( &document, "sphere.glb", &gl ).await?;
+  let sphere = sphere_gltf.scenes[ 0 ].borrow().children.last().cloned().unwrap();
+
   let mut lights = vec![];
 
   let colors =
@@ -153,7 +133,7 @@ async fn run() -> Result< (), gl::WebglError >
   {
     let d = add_light
     (
-      &scenes[ 0 ],
+      &scene,
       Light::Direct
       (
         DirectLight
@@ -172,7 +152,7 @@ async fn run() -> Result< (), gl::WebglError >
   {
     let p = add_light
     (
-      &scenes[ 0 ],
+      &scene,
       Light::Point
       (
         PointLight
@@ -188,9 +168,9 @@ async fn run() -> Result< (), gl::WebglError >
     lights.push( p );
   }
 
-  let controlable_light = add_light
+  let controllable_light = add_light
   (
-    &scenes[ 0 ],
+    &scene,
     Light::Direct
     (
       DirectLight
@@ -201,9 +181,44 @@ async fn run() -> Result< (), gl::WebglError >
       }
     )
   );
-  controlable_light.borrow_mut().set_name( "controlable" );
+  controllable_light.borrow_mut().set_name( "controllable" );
 
-  let _settings = gui_setup::setup( renderer.clone(), lights.clone(), controlable_light.clone() ).unwrap();
+  sphere.borrow_mut().set_scale( F32x3::splat( 0.02 ) );
+
+  let spheres = lights.iter()
+  .filter_map
+  (
+    | node |
+    {
+      let node = node.borrow();
+      let Object3D::Light( light ) = &node.object
+      else
+      {
+        return None;
+      };
+      let position = match light
+      {
+        Light::Point( point_light ) => point_light.position,
+        Light::Direct( direct_light ) => direct_light.direction,
+        _ => return None
+      };
+
+      let sphere_clone = sphere.borrow().clone_tree();
+      sphere_clone.borrow_mut().set_translation( position );
+
+      Some( sphere_clone )
+    }
+  )
+  .collect::< Vec< _ > >();
+
+  let controllable_sphere = sphere.borrow().clone_tree();
+  controllable_sphere.borrow_mut().set_translation( F32x3::splat( 1.0 ) );
+
+  scene.borrow_mut().children.extend_from_slice( &lights );
+  scene.borrow_mut().children.extend_from_slice( &spheres );
+  scene.borrow_mut().add( controllable_sphere.clone() );
+
+  let _settings = gui_setup::setup( renderer.clone(), lights.clone(), controllable_light.clone() ).unwrap();
 
   let light_radius = 1.0;
   let light_speed = 50.0;
@@ -213,11 +228,24 @@ async fn run() -> Result< (), gl::WebglError >
   {
     move | t : f64 |
     {
+      if let Object3D::Light( light ) = &controllable_light.borrow().object
+      {
+        if let Some( position ) = match light
+        {
+          Light::Point( point_light ) => Some( point_light.position ),
+          Light::Direct( direct_light ) => Some( direct_light.direction ),
+          _ => None
+        }
+        {
+          controllable_sphere.borrow_mut().set_translation( position );
+        }
+      }
+
       for ( i, light ) in lights.iter().enumerate()
       {
         if let Some( name ) = light.borrow().get_name()
         {
-          if name.to_string().as_str() == "controlable"
+          if name.to_string().as_str() == "controllable"
           {
             continue;
           }
@@ -228,12 +256,28 @@ async fn run() -> Result< (), gl::WebglError >
           {
             Light::Direct( direct ) =>
             {
-              direct.direction = to_decart( light_radius, i as f32 * 120.0 + ( t as f32 * light_speed / 1000.0 ), 45.0 );
+              let direction = F32x3::from_spherical
+              (
+                light_radius,
+                i as f32 * 120.0 + ( t as f32 * light_speed / 1000.0 ),
+                45.0
+              );
+
+              direct.direction = direction;
+              spheres[ i ].borrow_mut().set_translation( direction );
             },
             Light::Point( point ) =>
             {
-              point.position = to_decart( light_radius, i as f32 * 120.0 + ( t as f32 * light_speed / 1000.0 ), 45.0 );
-            },
+              let position = F32x3::from_spherical
+              (
+                light_radius,
+                i as f32 * 120.0 + ( t as f32 * light_speed / 1000.0 ),
+                45.0
+              );
+
+              point.position = position;
+              spheres[ i ].borrow_mut().set_translation( position );
+            }
             _ => ()
           }
         }
@@ -242,7 +286,7 @@ async fn run() -> Result< (), gl::WebglError >
       // If textures are of different size, gl.view_port needs to be called
       let _time = t as f32 / 1000.0;
 
-      renderer.borrow_mut().render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
+      renderer.borrow_mut().render( &gl, &mut scene.borrow_mut(), &camera )
       .expect( "Failed to render" );
 
       swap_buffer.reset();

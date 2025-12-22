@@ -61,7 +61,7 @@ use renderer::webgl::
   Primitive,
   Renderer,
   Scene,
-  material::PBRMaterial
+  material::PbrMaterial
 };
 use std::rc::Rc;
 use std::any::type_name_of_val;
@@ -342,7 +342,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let text = "CGTools".to_string();
 
-  let material = Rc::new( RefCell::new( Box::new( PBRMaterial::new( &gl ) ) as Box< dyn Material > ) );
+  let material = Rc::new( RefCell::new( Box::new( PbrMaterial::new( &gl ) ) as Box< dyn Material > ) );
   let materials = vec![ material.clone() ];
 
   let mut primitives_data = vec![];

@@ -7,7 +7,7 @@ mod private
   use web_sys::{ WebGlFramebuffer, WebGlTexture };
   use std::rc::Rc;
   use core::cell::RefCell;
-  use crate::webgl::{ helpers, material::PBRMaterial };
+  use crate::webgl::{ helpers, material::PbrMaterial };
 
   /// Shadow map for rendering depth from light's perspective
   #[ derive( Debug ) ]
@@ -449,9 +449,9 @@ mod private
             uv_position : 0,
           };
 
-          if primitive_ref.material.borrow().get_type_name() == "PBRMaterial"
+          if primitive_ref.material.borrow().type_name() == "PbrMaterial"
           {
-            helpers::cast_unchecked_material_to_ref_mut::< PBRMaterial >
+            helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >
             (
               primitive_ref.material.borrow_mut()
             )

@@ -2,13 +2,49 @@
 mod private
 {
   use minwebgl as gl;
+  use gl::web_sys::WebGlProgram;
+  use rustc_hash::FxHashMap;
   use crate::webgl::
   {
-    ProgramInfo, ShaderProgram, post_processing::{ Pass, VS_TRIANGLE }, program
+    ShaderProgram, post_processing::{ Pass, VS_TRIANGLE }, ProgramInfo
   };
+  use crate::webgl::impl_locations;
 
   // Defines the number of mipmap levels to use for the blur effect.
   const MIPS : usize = 5;
+
+  // A Gaussian filter shader
+  //
+  // This type of shader is commonly used for post-processing effects like
+  // blurring, often as part of a bloom effect.
+  impl_locations!
+  (
+    GaussianFilterShader,
+    "sourceTexture",
+    "invSize",
+    "blurDir",
+    "kernel"
+  );
+
+  // An Unreal Bloom shader
+  //
+  // This shader implements a bloom effect similar to the one used in the
+  // Unreal Engine, which simulates a camera's lens reacting to bright light.
+  impl_locations!
+  (
+    UnrealBloomShader,
+    "blurTexture0",
+    "blurTexture1",
+    "blurTexture2",
+    "blurTexture3",
+    "blurTexture4",
+
+    "bloomStrength",
+    "bloomRadius",
+
+    "bloomFactors",
+    "bloomTintColors"
+  );
 
   /// Implements an Unreal Bloom post-processing effect from here:
   /// https://github.com/mrdoob/three.js/blob/master/examples/jsm/postprocessing/UnrealBloomPass.js
@@ -22,14 +58,16 @@ mod private
     vertical_targets : Vec< Option< gl::web_sys::WebGlTexture > >,
     /// A collection of `GaussianFilterShader` for blurring. There's one program for
     /// each mip level, with different kernel radii.
-    blur_materials : Vec< ProgramInfo >,
+    blur_materials : Vec< GaussianFilterShader >,
     /// Composites all the blurred mipmap levels together to create the final bloom effect.
-    composite_material : ProgramInfo,
+    composite_material : UnrealBloomShader,
     /// The width of the texture to blur
     width : u32,
     /// The hegiht of the textuer to blur
     height : u32,
+    /// Bloom radius
     bloom_radius : f32,
+    /// Bloom strength
     bloom_strength : f32
   }
 
@@ -107,9 +145,9 @@ mod private
         // Dynamically inject the KERNEL_RADIUS define into the shader for the current mip.
         let fs_shader = format!( "#version 300 es\n#define KERNEL_RADIUS {}\n{}", kernel_radius[ i ], fs_shader );
         let blur_material = gl::ProgramFromSources::new( VS_TRIANGLE, &fs_shader ).compile_and_link( gl )?;
-        let blur_material = ProgramInfo::new( gl, &blur_material, program::GaussianFilterShader.dyn_clone() );
+        let blur_material = GaussianFilterShader::new( gl, &blur_material );
 
-        let locations = blur_material.get_locations();
+        let locations = blur_material.locations();
         // Calculate Gaussian coefficients based on the kernel radius.
         let coefficients = get_gaussian_coefficients( kernel_radius[ i ] );
         let inv_size = [ 1.0 / size[ 0 ] as f32, 1.0 / size[ 1 ] as f32 ];
@@ -129,12 +167,12 @@ mod private
       // Dynamically inject the NUM_MIPS define into the bloom composite shader.
       let fs_shader = format!( "#version 300 es\n#define NUM_MIPS {}\n{}", MIPS, fs_shader );
       let composite_material = gl::ProgramFromSources::new( VS_TRIANGLE, &fs_shader ).compile_and_link( gl )?;
-      let composite_material = ProgramInfo::new( gl, &composite_material, program::UnrealBloomShader.dyn_clone() );
+      let composite_material = UnrealBloomShader::new( gl, &composite_material );
 
       // Define bloom factors and tint colors for each mip level.
       const BLOOM_FACTORS : [ f32; 5 ] = [ 1.0, 0.8, 0.6, 0.4, 0.2 ];
       const BLOOM_TINT : [ [ f32; 3 ]; 5 ] = [ [ 1.0; 3 ]; 5 ];
-      let locations = composite_material.get_locations();
+      let locations = composite_material.locations();
       composite_material.bind( gl );
 
       gl.uniform1fv_with_f32_array( locations.get( "bloomFactors" ).unwrap().as_ref(), &BLOOM_FACTORS[ .. ] );
@@ -218,7 +256,7 @@ mod private
 
         let mat = &self.blur_materials[ i ];
         mat.bind( gl );
-        let locations = mat.get_locations();
+        let locations = mat.locations();
 
         gl.active_texture( gl::TEXTURE0 );
 
@@ -261,7 +299,7 @@ mod private
 
       // --- Bloom Composite Pass ---
       gl.viewport( 0, 0, self.width as i32, self.height as i32 );
-      let locations = self.composite_material.get_locations();
+      let locations = self.composite_material.locations();
       self.composite_material.bind( gl );
       for i in 0..MIPS
       {

@@ -4,7 +4,8 @@ use gl::
 {
   GL,
   WebglError,
-  F32x4x4
+  F32x4x4,
+  WebGlProgram
 };
 use renderer::webgl::
 {
@@ -12,20 +13,18 @@ use renderer::webgl::
   MinFilterMode,
   Node,
   Object3D,
-  ProgramInfo,
   Sampler,
   TextureInfo,
   Texture,
   ShaderProgram,
-  WrappingMode
+  WrappingMode,
+  ProgramInfo
 };
 use renderer::impl_locations;
 use rustc_hash::FxHashMap;
 use web_sys::WebGlFramebuffer;
 
-/// CubeNormalMapGenerator shader program
-pub struct CubeNormalMapGeneratorShader;
-
+// CubeNormalMapGenerator shader program
 impl_locations!
 (
   CubeNormalMapGeneratorShader,
@@ -89,7 +88,7 @@ fn gen_cube_texture( gl : &GL, width: i32, height: i32 ) -> Option< gl::web_sys:
 pub struct CubeNormalMapGenerator
 {
   /// Generator shader program info
-  program : ProgramInfo,
+  program : CubeNormalMapGeneratorShader,
   /// Framebuffer used for rendering cube maps
   framebuffer : WebGlFramebuffer,
   /// View matrices for each side of renderer cube map
@@ -108,7 +107,7 @@ impl CubeNormalMapGenerator
     let vertex_shader_src = include_str!( "../shaders/gen_cube_map.vert" );
     let fragment_shader_src = include_str!( "../shaders/gen_cube_map.frag" );
     let program = gl::ProgramFromSources::new( vertex_shader_src, fragment_shader_src ).compile_and_link( &gl )?;
-    let program = ProgramInfo::new( gl, &program, CubeNormalMapGeneratorShader.dyn_clone() );
+    let program = CubeNormalMapGeneratorShader::new( gl, &program );
 
     let framebuffer = gl.create_framebuffer().ok_or( WebglError::FailedToAllocateResource( "Framebuffer" ) )?;
     gl.bind_framebuffer( gl::FRAMEBUFFER, Some( &framebuffer ) );
@@ -163,7 +162,7 @@ impl CubeNormalMapGenerator
       max_distance * 16.0
     );
 
-    let locations = self.program.get_locations();
+    let locations = self.program.locations();
     let projection_matrix_location = locations.get( "projectionMatrix" ).unwrap().clone();
     let view_matrix_location = locations.get( "viewMatrix" ).unwrap();
     let max_distance_location = locations.get( "maxDistance" ).unwrap().clone();

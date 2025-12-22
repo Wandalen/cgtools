@@ -1,0 +1,6 @@
+//! Empty crate
+
+fn main()
+{
+
+}

@@ -1,10 +1,31 @@
 mod private
 {
   use minwebgl as gl;
+  use gl::web_sys::WebGlProgram;
+  use rustc_hash::FxHashMap;
   use crate::webgl::
   {
-    ProgramInfo, ShaderProgram, post_processing::{ Pass, VS_TRIANGLE }, program::ColorGradingShader
+    ShaderProgram, ProgramInfo, post_processing::{ Pass, VS_TRIANGLE }
   };
+  use crate::webgl::impl_locations;
+
+  // A public struct for a color grading shader.
+  //
+  // This shader applies color correction operations like white balance,
+  // lift-gamma-gain, contrast, vibrance, and saturation adjustments.
+  impl_locations!
+  (
+    ColorGradingShader,
+    "sourceTexture",
+    "temperature",
+    "tint",
+    "exposure",
+    "shadows",
+    "highlights",
+    "contrast",
+    "vibrance",
+    "saturation"
+  );
 
   /// Parameters for color grading adjustments.
   ///
@@ -92,7 +113,7 @@ mod private
   pub struct ColorGradingPass
   {
     /// The WebGL program used for color grading.
-    material : ProgramInfo,
+    material : ColorGradingShader,
     /// Color grading parameters
     pub params : ColorGradingParams,
   }
@@ -107,8 +128,8 @@ mod private
     pub fn new( gl : &gl::WebGl2RenderingContext ) -> Result< Self, gl::WebglError >
     {
       let fs_shader = include_str!( "../shaders/post_processing/color_grading.frag" );
-      let material = gl::ProgramFromSources::new( VS_TRIANGLE, fs_shader ).compile_and_link( gl )?;
-      let material = ProgramInfo::new( gl, &material, ColorGradingShader.dyn_clone() );
+      let program = gl::ProgramFromSources::new( VS_TRIANGLE, fs_shader ).compile_and_link( gl )?;
+      let material = ColorGradingShader::new( gl, &program );
 
       Ok
       (
@@ -161,7 +182,7 @@ mod private
 
       // Bind the color grading shader program
       self.material.bind( gl );
-      let locations = self.material.get_locations();
+      let locations = self.material.locations();
 
       // Upload all uniforms
       gl::uniform::upload( gl, locations.get( "temperature" ).unwrap().clone(), &self.params.temperature )?;

@@ -36,7 +36,8 @@ use gl::
     WebGl2RenderingContext,
     WebGlUniformLocation,
     WebGlTexture,
-    WebGlFramebuffer
+    WebGlFramebuffer,
+    WebGlProgram
   }
 };
 use std::rc::Rc;
@@ -50,16 +51,62 @@ use renderer::webgl::
   Object3D,
   program::
   {
-    ProgramInfo,
     ShaderProgram,
-    JfaOutlineObjectShader,
-    JfaOutlineInitShader,
-    JfaOutlineStepShader,
-    JfaOutlineShader
+    ProgramInfo
   }
 };
+use renderer::impl_locations;
 use ndarray_cg::F32x3;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
+
+// A public struct for an outline shader that uses Jump Flood Algorithm (JFA)
+// to draw outlines around objects.
+//
+// This shader is part of a multi-pass JFA outlining technique.
+impl_locations!
+(
+  JfaOutlineObjectShader,
+  "u_projection",
+  "u_view",
+  "u_model"
+);
+
+// A public struct for the initialization step of a JFA outline.
+//
+// This shader is the first pass of the JFA, which sets up the initial
+// state for the algorithm.
+impl_locations!
+(
+  JfaOutlineInitShader,
+  "u_object_texture"
+);
+
+// A public struct for the stepping pass of a JFA outline.
+//
+// This shader is used in the iterative step of the JFA to propagate
+// information and find the nearest edge.
+impl_locations!
+(
+  JfaOutlineStepShader,
+  "u_jfa_texture",
+  "u_resolution",
+  "u_step_size"
+);
+
+// A public struct representing the final JFA outline shader.
+//
+// This shader combines the results of the JFA passes to draw the final outline.
+impl_locations!
+(
+  JfaOutlineShader,
+  "u_object_texture",
+  "u_jfa_texture",
+  "u_resolution",
+  "u_outline_thickness",
+  "u_outline_color",
+  "u_object_color",
+  "u_background_color"
+);
 
 /// Loads an image from a URL to a WebGL texture.
 ///
@@ -217,10 +264,10 @@ fn upload_framebuffer(
 
 struct Programs
 {
-  object : ProgramInfo,
-  jfa_init : ProgramInfo,
-  jfa_step : ProgramInfo,
-  outline : ProgramInfo
+  object : JfaOutlineObjectShader,
+  jfa_init : JfaOutlineInitShader,
+  jfa_step : JfaOutlineStepShader,
+  outline : JfaOutlineShader
 }
 
 impl Programs
@@ -242,10 +289,10 @@ impl Programs
     let jfa_step_program = gl::ProgramFromSources::new( fullscreen_vs_src, jfa_step_fs_src ).compile_and_link( gl ).unwrap();
     let outline_program = gl::ProgramFromSources::new( fullscreen_vs_src, outline_fs_src ).compile_and_link( gl ).unwrap();
 
-    let object = ProgramInfo::new( gl, &object_program, JfaOutlineObjectShader.dyn_clone() );
-    let jfa_init = ProgramInfo::new( gl, &jfa_init_program, JfaOutlineInitShader.dyn_clone() );
-    let jfa_step = ProgramInfo::new( gl, &jfa_step_program, JfaOutlineStepShader.dyn_clone() );
-    let outline = ProgramInfo::new( gl, &outline_program, JfaOutlineShader.dyn_clone() );
+    let object = JfaOutlineObjectShader::new( gl, &object_program );
+    let jfa_init = JfaOutlineInitShader::new( gl, &jfa_init_program );
+    let jfa_step = JfaOutlineStepShader::new( gl, &jfa_step_program );
+    let outline = JfaOutlineShader::new( gl, &outline_program );
 
     Self
     {
@@ -262,8 +309,8 @@ struct Renderer
 {
   gl : WebGl2RenderingContext,
   programs : Programs,
-  textures : HashMap< String, WebGlTexture >,
-  framebuffers : HashMap< String, WebGlFramebuffer >,
+  textures : FxHashMap< String, WebGlTexture >,
+  framebuffers : FxHashMap< String, WebGlFramebuffer >,
   viewport : ( i32, i32 ),
   camera : Camera
 }
@@ -311,8 +358,8 @@ impl Renderer
     {
       gl,
       programs,
-      textures : HashMap::new(),
-      framebuffers : HashMap::new(),
+      textures : FxHashMap::default(),
+      framebuffers : FxHashMap::default(),
       viewport,
       camera
     };
@@ -384,7 +431,7 @@ impl Renderer
 
     let object_fb = self.framebuffers.get( "object_fb" ).unwrap();
 
-    let locations = self.programs.object.get_locations();
+    let locations = self.programs.object.locations();
 
     let u_projection_loc = locations.get( "u_projection" ).unwrap().clone().unwrap();
     let u_view_loc = locations.get( "u_view" ).unwrap().clone().unwrap();
@@ -452,7 +499,7 @@ impl Renderer
     let object_fb_color = self.textures.get( "object_fb_color" ).unwrap();
 
     self.programs.jfa_init.bind( gl );
-    let locations = self.programs.jfa_init.get_locations();
+    let locations = self.programs.jfa_init.locations();
 
     let u_object_texture = locations.get( "u_object_texture" ).unwrap().clone().unwrap();
 
@@ -484,7 +531,7 @@ impl Renderer
     let jfa_step_fb_color_1 = self.textures.get( "jfa_step_fb_color_1" ).unwrap(); // Color texture for FB 1
 
     self.programs.jfa_step.bind( gl );
-    let locations = self.programs.jfa_step.get_locations();
+    let locations = self.programs.jfa_step.locations();
 
     let u_resolution = locations.get( "u_resolution" ).unwrap().clone().unwrap();
     let u_step_size = locations.get( "u_step_size" ).unwrap().clone().unwrap();
@@ -542,7 +589,7 @@ impl Renderer
     let equirect_map = self.textures.get( "equirect_map" ).unwrap(); // Skybox equirectangular texture
 
     self.programs.outline.bind( gl );
-    let locations = self.programs.outline.get_locations();
+    let locations = self.programs.outline.locations();
 
     let u_object_texture = locations.get( "u_object_texture" ).unwrap().clone().unwrap();
     let u_normal_texture = locations.get( "u_normal_texture" ).unwrap().clone().unwrap();

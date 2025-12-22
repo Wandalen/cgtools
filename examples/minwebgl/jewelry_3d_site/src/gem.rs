@@ -1,14 +1,12 @@
 use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo, Node };
 use renderer::impl_locations;
 use minwebgl as gl;
-use gl::{ GL, Former };
+use gl::{ GL, Former, WebGlProgram };
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
 use std:: { cell::RefCell, rc::Rc };
 
-/// Gem shader
-pub struct GemShader;
-
+// Gem shader
 impl_locations!
 (
   GemShader,
@@ -43,7 +41,7 @@ pub struct GemMaterial
   /// A unique identifier for the material.
   pub id : Uuid,
   /// Shader program info
-  program : ProgramInfo,
+  program : GemShader,
   /// Ray bounces inside gem count
   pub ray_bounces : i32,
   /// Gem color
@@ -57,7 +55,7 @@ pub struct GemMaterial
   /// Cube normal map texture
   pub cube_normal_map_texture : Option< TextureInfo >,
   /// Signal for updating material uniforms
-  pub need_update : bool
+  pub needs_update : bool
 }
 
 impl GemMaterial
@@ -75,14 +73,14 @@ impl GemMaterial
     Self
     {
       id : Uuid::new_v4(),
-      program : ProgramInfo::new( gl, &program, GemShader.dyn_clone() ),
+      program : GemShader::new( gl, &program ),
       ray_bounces : 5,
       color : gl::F32x3::from_array( [ 0.98, 0.95, 0.9 ] ),
       env_map_intensity : 1.0,
       radius : 1000.0,
       environment_texture : None,
       cube_normal_map_texture : None,
-      need_update : true
+      needs_update : true
     }
   }
 }
@@ -96,22 +94,22 @@ impl Material for GemMaterial
 
   fn needs_update( &self ) -> bool
   {
-    self.need_update
+    self.needs_update
   }
 
-  fn get_program_info( &self ) -> &ProgramInfo
+  fn shader( &self ) -> &dyn ShaderProgram
   {
     &self.program
   }
 
-  fn get_program_info_mut( &mut self ) -> &mut ProgramInfo
+  fn shader_mut( &mut self ) -> &mut dyn ShaderProgram
   {
     &mut self.program
   }
 
-  fn get_type_name( &self ) -> &'static str
+  fn type_name( &self ) -> &'static str
   {
-    "GemMaterial"
+    stringify!( GemMaterial )
   }
 
   fn get_vertex_shader( &self ) -> String
@@ -128,10 +126,11 @@ impl Material for GemMaterial
   (
     &self,
     gl : &gl::WebGl2RenderingContext,
-    locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >,
     _ibl_base_location : u32,
   )
   {
+    self.program.bind( gl );
+    let locations = self.program.locations();
     gl.uniform1i( locations.get( "envMap" ).unwrap().clone().as_ref() , 0 );
     gl.uniform1i( locations.get( "cubeNormalMap" ).unwrap().clone().as_ref() , 1 );
   }
@@ -140,11 +139,12 @@ impl Material for GemMaterial
   (
     &self,
     gl : &GL,
-    node : Rc< RefCell< Node > >,
-    locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
+    node : Rc< RefCell< Node > >
   )
   -> Result< (), gl::WebglError >
   {
+    self.program.bind( gl );
+    let locations = self.program.locations();
     let upload = | loc, value : f32 | -> Result< (), gl::WebglError >
     {
       gl::uniform::upload( gl, locations.get( loc ).unwrap().clone(), &value )?;
@@ -218,7 +218,7 @@ impl Clone for GemMaterial
       radius : self.radius,
       environment_texture : self.environment_texture.clone(),
       cube_normal_map_texture : self.cube_normal_map_texture.clone(),
-      need_update : self.need_update,
+      needs_update : self.needs_update,
       program : self.program.clone()
     }
   }

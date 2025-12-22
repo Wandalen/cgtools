@@ -1,4 +1,7 @@
 #version 300 es
+// Renders 3d line, supporting both screen space and world space units.
+// Allows for anti-aliasing with alpha-to-coverage enabled.
+// Has an optional color attribute for the points of the line.
 precision highp float;
 
 // #include <defines>
@@ -17,45 +20,85 @@ in vec3 vViewB;
 
 out vec4 frag_color;
 
-float capIntersect( in vec3 ro, in vec3 rd, in vec3 pa, in vec3 pb, in float ra )
+vec2 closestLineToLine( vec3 p1, vec3 p2, vec3 p3, vec3 p4 ) 
 {
-  vec3  ba = pb - pa;
-  vec3  oa = ro - pa;
-  float baba = dot( ba, ba );
-  float bard = dot( ba, rd );
-  float baoa = dot( ba, oa );
-  float rdoa = dot( rd, oa );
-  float oaoa = dot( oa, oa );
-  float a = baba      - bard * bard;
-  float b = baba * rdoa - baoa * bard;
-  float c = baba * oaoa - baoa * baoa - ra * ra * baba;
-  float h = b * b - a * c;
 
-  if( h >= 0.0 )
-  {
-    float t = ( -b - sqrt( h ) ) / a;
-    float y = baoa + t * bard;
-    // body
-    if( y > 0.0 && y < baba ) return t;
-    // caps
-    vec3 oc = ( y <= 0.0 ) ? oa : ro - pb;
-    b = dot( rd, oc );
-    c = dot( oc, oc ) - ra * ra;
-    h = b * b - c;
-    if( h > 0.0 ) return -b - sqrt( h );
-  }
-  
-  return -1.0;
+  float mua;
+  float mub;
+
+  vec3 p13 = p1 - p3;
+  vec3 p43 = p4 - p3;
+
+  vec3 p21 = p2 - p1;
+
+  float d1343 = dot( p13, p43 );
+  float d4321 = dot( p43, p21 );
+  float d1321 = dot( p13, p21 );
+  float d4343 = dot( p43, p43 );
+  float d2121 = dot( p21, p21 );
+
+  float denom = d2121 * d4343 - d4321 * d4321;
+
+  float numer = d1343 * d4321 - d1321 * d4343;
+
+  mua = numer / denom;
+  mua = clamp( mua, 0.0, 1.0 );
+  mub = ( d1343 + d4321 * ( mua ) ) / d4343;
+  mub = clamp( mub, 0.0, 1.0 );
+
+  return vec2( mua, mub );
+
 }
 
 void main()
 {
-  float d = capIntersect( vec3( 0.0 ), normalize( vViewPos ), vViewA, vViewB, u_width / 2.0 );
-  if( d == -1.0 ) { discard; }
-
+  float alpha = 1.0;
   vec3 col = u_color; 
+
+  #ifdef USE_WORLD_UNITS
+    vec3 rayEnd = normalize( vViewPos.xyz ) * 1e5;
+    vec3 lineDir = vViewB - vViewA;
+
+    vec2 params = closestLineToLine( vViewA, vViewB, vec3( 0.0, 0.0, 0.0 ), rayEnd );
+
+    vec3 p1 = vViewA + lineDir * params.x;
+    vec3 p2 = rayEnd * params.y;
+    vec3 delta = p1 - p2;
+    float len = length( delta );
+    float norm = len / u_width;
+
+    #ifdef USE_ALPHA_TO_COVERAGE
+      float dnorm = fwidth( norm );
+      alpha = 1.0 - smoothstep( 0.5 - dnorm, 0.5 + dnorm, norm );
+    #else
+      if ( norm > 0.5 ) { discard; }
+    #endif
+  #else // Screen space units
+    #ifdef USE_ALPHA_TO_COVERAGE
+      float a = vUv.x;
+      float b = ( vUv.y > 0.0 ) ? vUv.y - 1.0 : vUv.y + 1.0;
+      float len2 = a * a + b * b;
+      float dlen = fwidth( len2 );
+
+      if ( abs( vUv.y ) > 1.0 ) 
+      {
+        alpha = 1.0 - smoothstep( 1.0 - dlen, 1.0 + dlen, len2 );
+      }
+    #else
+      if( abs( vUv.y ) > 1.0 )
+      {
+        float a = vUv.x;
+        float b = ( vUv.y > 0.0 ) ? vUv.y - 1.0 : vUv.y + 1.0;
+        float len2 = a * a + b * b;
+
+        if ( len2 > 1.0 ) discard;
+      }
+    #endif
+  #endif
+
   #ifdef USE_VERTEX_COLORS
     col = vColor;
   #endif
-  frag_color = vec4( col, 1.0 );
+
+  frag_color = vec4( col, alpha );
 }

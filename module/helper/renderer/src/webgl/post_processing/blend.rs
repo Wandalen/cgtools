@@ -2,7 +2,7 @@
 mod private
 {
   use minwebgl as gl;
-  use crate::webgl::{ ProgramInfo, ShaderProgram, post_processing::{ Pass, VS_TRIANGLE }, program::EmptyShader };
+  use crate::webgl::{ ShaderProgram, post_processing::{ Pass, VS_TRIANGLE }, program::EmptyShader };
 
   /// A post-processing pass designed to blend a source texture (`blend_texture`)
   /// onto a destination texture (`output_texture`) using specified blending parameters.
@@ -15,7 +15,7 @@ mod private
     /// The blending equation, specifying how source and destination components are combined.
     pub equation : u32,
     /// The WebGL program used for the blending operation.
-    material : ProgramInfo,
+    material : EmptyShader,
     /// The texture that will be blended onto the `output_texture`. This is the source
     pub blend_texture : Option< gl::web_sys::WebGlTexture >
   }
@@ -41,7 +41,7 @@ mod private
 
       let fs_shader = include_str!( "../shaders/copy.frag" );
       let material = gl::ProgramFromSources::new( VS_TRIANGLE, fs_shader ).compile_and_link( gl )?;
-      let material = ProgramInfo::new( gl, &material, EmptyShader.dyn_clone() );
+      let material = EmptyShader::new( gl, &material );
 
       Ok
       (

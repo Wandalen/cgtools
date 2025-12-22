@@ -1,9 +1,9 @@
 mod private
 {
   use minwebgl as gl;
-  use crate::webgl::{ ProgramInfo, Texture, Node };
+  use crate::webgl::{ Node, ShaderProgram, Texture };
   use std:: { cell::RefCell, fmt::Debug, rc::Rc };
-  use rustc_hash::{ FxHashMap, FxHasher };
+  use rustc_hash::FxHasher;
 
   /// Represents the alpha blending mode of the material.
   #[ derive( Default, Clone, Copy, PartialEq, Eq, Debug ) ]
@@ -107,20 +107,14 @@ mod private
       false
     }
 
-    /// Can or not use this material IBL
-    fn can_use_ibl( &self ) -> bool
-    {
-      false
-    }
-
     /// Returns reference to [`ProgramInfo`] with shader locations and used [`ShaderProgram`]
-    fn get_program_info( &self ) -> &ProgramInfo;
+    fn shader( &self ) -> &dyn ShaderProgram;
 
     /// Returns mutable reference to [`ProgramInfo`] with shader locations and used [`ShaderProgram`]
-    fn get_program_info_mut( &mut self ) -> &mut ProgramInfo;
+    fn shader_mut( &mut self ) -> &mut dyn ShaderProgram;
 
     /// Returns the material type identifier (e.g., "PBR", "Unlit", "Custom").
-    fn get_type_name(&self) -> &'static str;
+    fn type_name(&self) -> &'static str;
 
     /// Returns the vertex shader of the material
     fn get_vertex_shader( &self ) -> String;
@@ -168,7 +162,6 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >,
       ibl_base_location : u32,
     );
 
@@ -180,8 +173,7 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      node : Rc< RefCell< Node > >,
-      locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
+      node : Rc< RefCell< Node > >
     ) -> Result< (), gl::WebglError >;
 
     /// Uploads the texture data of all used textures to the GPU.
