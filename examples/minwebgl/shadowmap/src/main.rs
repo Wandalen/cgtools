@@ -17,7 +17,8 @@ use gl::{ JsCast as _, math::mat3x3h, GL };
 use web_sys::HtmlCanvasElement;
 use std::rc::Rc;
 use core::cell::RefCell;
-use renderer::webgl::{ Light, Node, Object3D, SpotLight, Texture, TextureInfo, loaders::gltf, post_processing, shadow };
+use renderer::webgl::{ Light, Node, Object3D, SpotLight, Texture, TextureInfo, loaders::gltf, post_processing, shadow, cast_unchecked_material_to_ref_mut };
+use renderer::webgl::material::PbrMaterial;
 use post_processing::{ Pass, SwapFramebuffer, ShadowToColorPass };
 use shadow::{ ShadowBaker, ShadowMap };
 
@@ -162,7 +163,7 @@ async fn run() -> Result< (), gl::WebglError >
   // Unbind framebuffer
   gl.bind_framebuffer( gl::FRAMEBUFFER, None );
 
-  if let Object3D::Mesh( mesh ) = &floor_node.borrow_mut().object
+  if let Object3D::Mesh( mesh ) = &floor_node.borrow().object
   {
     let mut texture = Texture::new();
     texture.source = colored_texture;
@@ -171,7 +172,12 @@ async fn run() -> Result< (), gl::WebglError >
       texture : Rc::new( RefCell::new( texture ) ),
       uv_position : 0,
     };
-    mesh.borrow_mut().primitives[ 0 ].borrow_mut().material.borrow_mut().base_color_texture = Some( texture_info );
+    let mesh_borrow = mesh.borrow_mut();
+    let primitive = &mesh_borrow.primitives[ 0 ];
+    let primitive_borrow = primitive.borrow_mut();
+    let material_ref = primitive_borrow.material.borrow_mut();
+    let mut pbr_material = cast_unchecked_material_to_ref_mut::< PbrMaterial >( material_ref );
+    pbr_material.base_color_texture = Some( texture_info );
   }
 
   let update = move | _ |

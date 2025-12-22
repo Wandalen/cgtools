@@ -2,7 +2,16 @@
 mod private
 {
   use minwebgl as gl;
-  use crate::webgl::{ post_processing::{ Pass, VS_TRIANGLE }, program::EmptyShader, ProgramInfo };
+  use gl::web_sys::WebGlProgram;
+  use rustc_hash::FxHashMap;
+  use crate::webgl::
+  {
+    ShaderProgram, ProgramInfo, post_processing::{ Pass, VS_TRIANGLE }
+  };
+  use crate::webgl::impl_locations;
+
+  // Define a custom shader with "color" uniform location
+  impl_locations!( ShadowToColorShader, "color" );
 
   /// A post-processing pass that converts shadow texture (R8 format) to a colored base color texture.
   ///
@@ -11,11 +20,9 @@ mod private
   pub struct ShadowToColorPass
   {
     /// The WebGL program used for the shadow-to-color conversion.
-    material : ProgramInfo< EmptyShader >,
+    material : ShadowToColorShader,
     /// The color to multiply with the inverted shadow value.
     color : [ f32; 3 ],
-    /// Location of the color uniform in the shader.
-    color_location : Option< gl::web_sys::WebGlUniformLocation >
   }
 
   impl ShadowToColorPass
@@ -30,8 +37,7 @@ mod private
     {
       let fs_shader = include_str!( "../shaders/post_processing/shadow_to_color.frag" );
       let program = gl::ProgramFromSources::new( VS_TRIANGLE, fs_shader ).compile_and_link( gl )?;
-      let color_location = gl.get_uniform_location( &program, "color" );
-      let material = ProgramInfo::< EmptyShader >::new( gl, program );
+      let material = ShadowToColorShader::new( gl, &program );
 
       Ok
       (
@@ -39,7 +45,6 @@ mod private
         {
           material,
           color,
-          color_location
         }
       )
     }
@@ -70,18 +75,23 @@ mod private
       output_texture : Option< minwebgl::web_sys::WebGlTexture >
     ) -> Result< Option< minwebgl::web_sys::WebGlTexture >, minwebgl::WebglError >
     {
+      // Disable depth testing and blending
       gl.disable( gl::DEPTH_TEST );
       gl.disable( gl::BLEND );
-      gl.disable( gl::CULL_FACE );
       gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
 
+      // Bind the shader program
       self.material.bind( gl );
+      let locations = self.material.locations();
 
-      gl::uniform::upload( gl, self.color_location.clone(), &self.color )?;
+      // Upload the color uniform
+      gl::uniform::upload( gl, locations.get( "color" ).unwrap().clone(), &self.color )?;
 
+      // Bind the input texture (shadow texture)
       gl.active_texture( gl::TEXTURE0 );
       gl.bind_texture( gl::TEXTURE_2D, input_texture.as_ref() );
 
+      // Bind the output framebuffer
       gl.framebuffer_texture_2d
       (
         gl::FRAMEBUFFER,
@@ -91,9 +101,11 @@ mod private
         0
       );
 
+      // Clear and draw
       gl.clear( gl::COLOR_BUFFER_BIT );
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );
 
+      // Cleanup
       gl::clean::texture_2d( gl );
       gl::clean::framebuffer_texture_2d( gl );
 
