@@ -141,58 +141,30 @@ impl_locations!
 /// Removes node from [`Scene`] by name
 fn remove_node_from_scene_by_name( root : &Rc< RefCell< Scene > >, name : &str )
 {
-  let remove_child_ids = root.borrow().children
-  .iter()
-  .enumerate()
-  .filter
-  (
-    | ( _, n ) |
+  for i in ( 0..root.borrow().children.len() ).rev()
+  {
+    if let Some( current_name ) = root.borrow().children[ i ].borrow().get_name()
     {
-      if let Some( current_name ) = n.borrow().get_name()
+      if *current_name == *name
       {
-        *current_name == *name
-      }
-      else
-      {
-        false
+        let _ = root.borrow_mut().remove_child( i );
       }
     }
-  )
-  .map( | ( i, _ ) | i )
-  .collect::< Vec< _ > >();
-
-  for i in remove_child_ids.iter().rev()
-  {
-    let _ = root.borrow_mut().children.remove( *i );
   }
 
   let _ = root.borrow_mut().traverse
   (
     &mut | node : Rc< RefCell< Node > > |
     {
-      let remove_child_ids = node.borrow().get_children()
-      .iter()
-      .enumerate()
-      .filter
-      (
-        | ( _, n ) |
+      for i in ( 0..node.borrow().get_children().len() ).rev()
+      {
+        if let Some( current_name ) = node.borrow().get_children()[ i ].borrow().get_name()
         {
-          if let Some( current_name ) = n.borrow().get_name()
+          if *current_name == *name
           {
-            *current_name == *name
-          }
-          else
-          {
-            false
+            let _ = node.borrow_mut().remove_child( i );
           }
         }
-      )
-      .map( | ( i, _ ) | i )
-      .collect::< Vec< _ > >();
-
-      for i in remove_child_ids.iter().rev()
-      {
-        let _ = node.borrow_mut().remove_child( *i );
       }
 
       Ok( () )
