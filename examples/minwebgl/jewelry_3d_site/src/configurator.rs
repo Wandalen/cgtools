@@ -273,7 +273,6 @@ impl Configurator
         };
 
         mesh.borrow_mut().is_shadow_caster = true;
-        // mesh.borrow_mut().is_shadow_receiver = true;
 
         for primitive in &mesh.borrow().primitives
         {
@@ -296,6 +295,7 @@ impl Configurator
               };
               let color = player.get_current_value();
               let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
+              material.alpha_mode = renderer::webgl::AlphaMode::Opaque;
               for i in 0..3
               {
                 material.base_color_factor.0[ i ] = color.0[ i ];
@@ -436,7 +436,6 @@ pub struct RingsInfo
 {
   pub rings : Vec< Rc< RefCell< Scene > > >,
   pub gems : Vec< FxHashMap< String, Rc< RefCell< Node > > > >,
-  pub shadows : Vec< Option< TextureInfo > >,
   pub current_ring : usize
 }
 
@@ -597,15 +596,6 @@ async fn setup_rings
       shadows.push( Some( texture_info ) );
     }
 
-    gl.disable( gl::DEPTH_TEST );
-    gl.disable( gl::CULL_FACE );
-    // gl.cull_face( gl::FRONT );
-    // gl.enable( gl::DEPTH_TEST );
-    // gl.enable( gl::CULL_FACE );
-    // gl.disable( gl::CULL_FACE );
-    // gl.enable( gl::CULL_FACE );
-    // gl.cull_face( gl::BACK );
-
     rings.push( gltf.scenes[ 0 ].clone() );
 
     let mut ring_gems = FxHashMap::default();
@@ -645,7 +635,6 @@ async fn setup_rings
     {
       rings,
       gems,
-      shadows,
       current_ring
     }
   )
