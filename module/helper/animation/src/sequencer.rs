@@ -172,6 +172,7 @@ mod private
 
   /// Trait for type-erased animatable values in Sequencer.
   pub trait AnimatableValue : core::fmt::Debug
+  where Self: 'static
   {
     /// Updates the animation state based on time.
     fn update( &mut self, delta_time : f64 );
@@ -192,7 +193,10 @@ mod private
     /// Gets the progress of the animated value ( 0.0 to 1.0 ).
     fn progress( &self ) -> f64;
     /// Gets inner type
-    fn inner_type( &self ) -> core::any::TypeId;
+    fn inner_type( &self ) -> core::any::TypeId
+    {
+      core::any::TypeId::of::< Self >()
+    }
   }
 
   /// Error for handling wrong [`Sequence`] input data
@@ -414,11 +418,6 @@ mod private
       {
         ( ( self.elapsed - self.delay ) / self.duration ).clamp( 0.0, 1.0 )
       }
-    }
-
-    fn inner_type( &self ) -> core::any::TypeId
-    {
-      core::any::TypeId::of::< T >()
     }
   }
 }
