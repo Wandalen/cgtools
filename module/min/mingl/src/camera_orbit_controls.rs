@@ -32,6 +32,10 @@ mod private
     pub fov : f32,
     /// Enables or disables panning
     pub use_pan : bool,
+    /// Enables or disables rotation
+    pub use_rotation : bool,
+    /// Enables or disables zoom
+    pub use_zoom : bool,
     /// Sets whether to `rotation_decay` is applied or not
     pub use_rotation_easing : bool,
     /// Determines how fast rotation is going to decrease after dragging is stopped.
@@ -88,6 +92,11 @@ mod private
       screen_d : [ f32; 2 ]
     )
     {
+      if !self.use_rotation
+      {
+        return;
+      }
+
       let mut screen_d = F32x2::from( screen_d );
       screen_d /= self.rotation_speed_scale;
 
@@ -144,11 +153,6 @@ mod private
         return;
       }
 
-      // Convert to cgmath Vectors
-      // let up = cgmath::Vector3::from( self.up );
-      // let mut center_prev = cgmath::Vector3::from( self.center );
-      // let mut eye_prev = cgmath::Vector3::from( self.eye );
-
       // Here we get the x and y direction vectors based on camera's orientation and direction.
       // Both vectors line in the plane that the dir vector is perpendicular to.
       let dir = self.center - self.eye;
@@ -183,11 +187,12 @@ mod private
       mut delta_y : f32
     )
     {
-      delta_y /= self.zoom_speed_scale;
+      if !self.use_zoom
+      {
+        return;
+      }
 
-      //Convert to cgmath Vectors
-      // let center = cgmath::Vector3::from( self.center );
-      // let mut eye_prev = cgmath::Vector3::from( self.eye );
+      delta_y /= self.zoom_speed_scale;
 
       // If scroll is up (-) then zoom in
       // If scroll is down (+) then zoom out
@@ -211,7 +216,6 @@ mod private
       // Decays self.rotation_decay% every 100 milliseconds
       let mut decay_percentage = self.rotation_decay * delta_time as f32 / 10.0;
       decay_percentage = decay_percentage.min( 1.0 );
-      // decay_percentage = self.rotation_decay;
 
       if self.use_rotation_easing
       {
@@ -237,6 +241,8 @@ mod private
         zoom_speed_scale : 1000.0,
         fov : 70f32.to_radians(),
         use_pan : true,
+        use_rotation : true,
+        use_zoom : true,
         rotation_speed : F32x2::default(),
         rotation_angle : F32x2::default(),
         use_rotation_easing : false,
