@@ -1,0 +1,97 @@
+<html lang="en">
+  <head>
+    <title>Jewels</title>
+    <meta name="keywords" content="HTML, CSS, JavaScript">
+    <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cardo:ital,wght@0,400;0,700;1,400&family=Henny+Penny&family=Parisienne&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./index.css">
+    <link data-trunk rel="copy-file" href="./index.css" data-target-path="" />
+    <link data-trunk rel="copy-file" href="../../../assets/gltf/plane.glb" data-target-path="static/gltf"/>
+    <link data-trunk rel="copy-dir" href="../../../assets/gltf/jewelry/" data-target-path="static/gltf"/>
+    <link data-trunk rel="copy-dir" href="../../../assets/images/" data-target-path="static/images"/>
+    <link data-trunk rel="copy-dir" href="../../../assets/environment_maps/studio3/" data-target-path="static/environment_maps/studio3"/>
+    <link data-trunk rel="copy-dir" href="../../../assets/environment_maps/studio4/" data-target-path="static/environment_maps/studio"/>
+    <link data-trunk rel="copy-file" href="../../../assets/textures/shadow_0.png" data-target-path="static/textures"/>
+    <link data-trunk rel="copy-file" href="../../../assets/textures/shadow_1.png" data-target-path="static/textures"/>
+  </head>
+
+  <body style="overflow-y: hidden; cursor: grab;">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
+    <script data-trunk type="module" src="./index.js"></script>
+
+    <div class="header--container" style="display: flex;">
+      <h3 class="customize--title">Jewel Shop</h3>
+    </div>
+
+    <div class="color-controls--container" style="display: none;">
+      <div class="color-control">
+        <label class="control-label">Gem Color</label>
+        <div class="control-inputs">
+          <input type="color" id="gem-color-picker" value="#ffffff" />
+          <div class="multiplier-control">
+            <label for="gem-multiplier">Intensity</label>
+            <input type="range" id="gem-multiplier" min="0.0" max="5" step="0.1" value="1.0" />
+            <span id="gem-multiplier-value">1.0</span>
+          </div>
+        </div>
+      </div>
+      <div class="color-control">
+        <label class="control-label">Metal Color</label>
+        <div class="control-inputs">
+          <input type="color" id="metal-color-picker" value="#c0c0c0" />
+          <div class="multiplier-control">
+            <label for="metal-multiplier">Intensity</label>
+            <input type="range" id="metal-multiplier" min="0.0" max="5" step="0.1" value="1.2" />
+            <span id="metal-multiplier-value">1.2</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer--container" style="display: flex;">
+      <div class="footer--menu" style="transform: translate(0px, 0%); opacity: 1;">
+        <ul>
+          <li class="config--gem">
+            <svg class="image--gem" width="40px" height="40px"></svg>
+          </li>
+          <li class="config--material">
+            <svg class="image--material" width="40px" height="40px"></svg>
+          </li>
+          <li class="config--ring">
+            <svg class="image--ring" width="40px" height="40px"></svg>
+          </li>
+        </ul>
+      </div>
+      <div class="gem--menu">
+        <ul class="colors--list">
+          <li class="white active"><img alt="White crystal" width="40" src="./static/images/jewelry_site/icons/white.png"></li>
+          <li class="red"><img alt="Ruby crystal" width="40" src="./static/images/jewelry_site/icons/red.png"></li>
+          <li class="orange"><img alt="Topaz crystal" width="40" src="./static/images/jewelry_site/icons/orange.png"></li>
+          <li class="yellow"><img alt="Yellow crystal" width="40" src="./static/images/jewelry_site/icons/yellow.png"></li>
+          <li class="green"><img alt="Emerald crystal" width="40" src="./static/images/jewelry_site/icons/green.png"></li>
+          <li class="turquoise"><img alt="Turquoise crystal" width="40" src="./static/images/jewelry_site/icons/turquoise.png"></li>
+          <li class="blue"><img alt="Blue crystal" width="40" src="./static/images/jewelry_site/icons/blue.png"></li>
+          <li class="pink"><img alt="Pink crystal" width="40" src="./static/images/jewelry_site/icons/pink.png"></li>
+          <li class="close-gems"><svg width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM15 9l-6 6M9 9l6 6" stroke="#888888" stroke-linecap="round" stroke-linejoin="round"></path></svg></li>
+        </ul>
+      </div>
+      <div class="materials--menu">
+        <ul class="materials--list">
+          <li class="silver active"><img alt="Silver material" width="40" src="./static/images/jewelry_site/icons/silver.png"></li>
+          <li class="copper"><img alt="Copper material" width="40" src="./static/images/jewelry_site/icons/copper.png"></li>
+          <li class="gold"><img alt="Gold material" width="40" src="./static/images/jewelry_site/icons/gold.png"></li>
+          <li class="close-materials"><svg width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM15 9l-6 6M9 9l6 6" stroke="#888888" stroke-linecap="round" stroke-linejoin="round"></path></svg></li>
+        </ul>
+      </div>
+      <div class="rings--menu">
+        <ul class="rings--list">
+          <li class="ring0 active"><img alt="0" width="40" src="./static/images/jewelry_site/icons/0.png"></li>
+          <li class="ring1"><img alt="1" width="40" src="./static/images/jewelry_site/icons/1.png"></li>
+          <li class="close-rings"><svg width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM15 9l-6 6M9 9l6 6" stroke="#888888" stroke-linecap="round" stroke-linejoin="round"></path></svg></li>
+        </ul>
+      </div>
+    </div>
+  </body>
+</html>

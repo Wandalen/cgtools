@@ -2,6 +2,21 @@
 //! It encapsulates the `wgpu` context, rendering pipelines, and resource management for textures and geometry,
 //! executing a command-based rendering workflow.
 
+#![ allow( clippy::min_ident_chars ) ]
+#![ allow( clippy::missing_inline_in_public_items ) ]
+#![ allow( clippy::implicit_return ) ]
+#![ allow( clippy::cast_precision_loss ) ]
+#![ allow( clippy::single_call_fn ) ]
+#![ allow( clippy::ref_patterns ) ]
+#![ allow( clippy::single_char_lifetime_names ) ]
+#![ allow( clippy::too_many_lines ) ]
+#![ allow( clippy::cloned_ref_to_slice_refs ) ]
+#![ allow( clippy::cast_possible_truncation ) ]
+#![ allow( clippy::must_use_candidate ) ]
+#![ allow( clippy::cast_lossless ) ]
+#![ allow( clippy::needless_borrow ) ]
+#![ allow( clippy::semicolon_if_nothing_returned ) ]
+
 use minwgpu::{ buffer, context, helper, texture };
 use crate::{ commands, ports };
 
@@ -548,7 +563,7 @@ impl WGPUTileRenderer
 
     let buffer_slice = output_buffer.slice( .. );
     buffer_slice.map_async( wgpu::MapMode::Read, | _ | {} );
-    self.context.get_device().poll( wgpu::PollType::Wait ).expect( "Failed to render an image" );
+    self.context.get_device().poll( wgpu::PollType::Wait { submission_index : None, timeout : None } ).expect( "Failed to render an image" );
 
     let data = buffer_slice.get_mapped_range();
     data.to_owned()

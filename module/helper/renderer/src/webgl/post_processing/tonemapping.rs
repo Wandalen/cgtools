@@ -3,10 +3,8 @@ mod private
   use std::marker::PhantomData;
   use minwebgl as gl;
   use crate::webgl::
-  { 
-    post_processing::{ Pass, VS_TRIANGLE }, 
-    program::EmptyShader,
-    ProgramInfo 
+  {
+    ShaderProgram, post_processing::{ Pass, VS_TRIANGLE }, program::EmptyShader
   };
 
   /// Represents the ACES (Academy Color Encoding System) tone mapping algorithm.
@@ -16,24 +14,24 @@ mod private
   pub struct ToneMappingPass< T >
   {
     /// The WebGL program used for the tone mapping operation.
-    material : ProgramInfo< EmptyShader >,
+    material : EmptyShader,
     phantom : std::marker::PhantomData< T >
   }
 
   impl< T > Pass for ToneMappingPass< T >
   {
-    fn renders_to_input( &self ) -> bool 
+    fn renders_to_input( &self ) -> bool
     {
       false
     }
-    
+
     fn render
     (
       &self,
       gl : &minwebgl::WebGl2RenderingContext,
       input_texture : Option< minwebgl::web_sys::WebGlTexture >,
       output_texture : Option< minwebgl::web_sys::WebGlTexture >
-    ) -> Result< Option< minwebgl::web_sys::WebGlTexture >, minwebgl::WebglError > 
+    ) -> Result< Option< minwebgl::web_sys::WebGlTexture >, minwebgl::WebglError >
     {
       // Disable depth testing.
       gl.disable( gl::DEPTH_TEST );
@@ -46,10 +44,10 @@ mod private
       gl.bind_texture( gl::TEXTURE_2D, input_texture.as_ref() );
       gl.framebuffer_texture_2d
       (
-        gl::FRAMEBUFFER, 
-        gl::COLOR_ATTACHMENT0, 
-        gl::TEXTURE_2D, 
-        output_texture.as_ref(), 
+        gl::FRAMEBUFFER,
+        gl::COLOR_ATTACHMENT0,
+        gl::TEXTURE_2D,
+        output_texture.as_ref(),
         0
       );
 
@@ -65,7 +63,7 @@ mod private
     }
   }
 
-  impl ToneMappingPass< ToneMappingAces > 
+  impl ToneMappingPass< ToneMappingAces >
   {
     // Creates a new `ToneMappingPass` specifically configured for **ACES tone mapping**.
     ///
@@ -79,17 +77,17 @@ mod private
     {
       let fs_shader = include_str!( "../shaders/tonemapping/aces.frag" );
       let material = gl::ProgramFromSources::new(  VS_TRIANGLE, fs_shader ).compile_and_link( gl )?;
-      let material = ProgramInfo::< EmptyShader >::new( gl, material );
+      let material = EmptyShader::new( gl, &material );
 
       Ok
-      ( 
+      (
         Self
         {
           material,
           phantom : PhantomData
         }
       )
-    }    
+    }
   }
 }
 

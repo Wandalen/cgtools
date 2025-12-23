@@ -153,14 +153,17 @@ mod cli_tests
       .expect( "Failed to start CLI REPL" );
 
     // Send .quit to exit REPL
-    if let Some( stdin ) = child.stdin.take()
+    if let Some( mut stdin ) = child.stdin.take()
     {
       use std::io::Write;
-      let mut stdin = stdin;
       writeln!( stdin, ".quit" ).expect( "Failed to write to CLI stdin" );
+      stdin.flush().expect( "Failed to flush stdin" );
+      drop( stdin ); // Explicitly close stdin to signal EOF
     }
 
     let output = child.wait_with_output().expect( "Failed to wait for CLI" );
+    println!( ".{}.", output.status.success() );
+    println!( ".{:?}.", output );
     assert!( output.status.success(), "CLI REPL mode failed" );
 
     let stdout = String::from_utf8_lossy( &output.stdout );

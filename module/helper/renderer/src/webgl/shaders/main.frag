@@ -49,12 +49,41 @@ struct ReflectedLight
   vec3 directSpecular;
 };
 
-struct LightInfo
+struct PointLight
 {
-  vec3 direction;
-  vec3 color;
-  float strength;
+  vec3    position;
+  vec3    color;
+  float   strength;
+  float   range;
 };
+
+struct DirectLight
+{
+  vec3    direction;
+  vec3    color;
+  float   strength;
+};
+
+struct SpotLight
+{
+  vec3    position;
+  vec3    direction;
+  vec3    color;
+  float   strength;
+  float   range;
+  float   innerConeAngle;
+  float   outerConeAngle;
+  bool    useLightMap;
+};
+
+uniform PointLight pointLights[ MAX_POINT_LIGHTS ];
+uniform int pointLightsCount;
+
+uniform DirectLight directLights[ MAX_DIRECT_LIGHTS ];
+uniform int directLightsCount;
+
+uniform SpotLight spotLights[ MAX_SPOT_LIGHTS ];
+uniform int spotLightsCount;
 
 uniform float luminosityThreshold;
 uniform float luminositySmoothWidth;
@@ -66,6 +95,7 @@ uniform vec4 baseColorFactor; // Default: [1, 1, 1, 1]
   uniform samplerCube irradianceTexture;
   uniform samplerCube prefilterEnvMap;
   uniform sampler2D integrateBRDF;
+  uniform vec2 mipmapDistanceRange;
 #endif
 #ifdef USE_KHR_materials_specular
   uniform float specularFactor;
@@ -111,6 +141,11 @@ uniform float occlusionStrength; // Default: 1
 #endif
 uniform vec3 emissiveFactor;
 
+
+// vLightMapUv
+#ifdef USE_LIGHT_MAP
+  uniform sampler2D lightMap;
+#endif
 
 
 float max_value( const in vec3 v )
@@ -240,67 +275,202 @@ vec4 BRDF_GGX( const in vec3 lightDir, const in vec3 viewDir, const in vec3 norm
   return vec4( F, G * D ) ;
 }
 
-void computeDirectLight
+void applyLightContribution
 (
-  const in LightInfo lightInfo,
+  const in vec3 lightDir,
   const in vec3 viewDir,
   const in vec3 normal,
   const in PhysicalMaterial material,
+  const in vec3 lightColor,
+  const in float lightIntensity,
   inout ReflectedLight reflectedLight
 )
 {
   float alpha = pow2( material.roughness );
-  vec3 halfDir = normalize( lightInfo.direction + viewDir );
+  vec3 halfDir = normalize( lightDir + viewDir );
 
-  float dotNL = clamp( dot( normal, lightInfo.direction ), 0.0, 1.0 );
+  float dotNL = clamp( dot( normal, lightDir ), 0.0, 1.0 );
   float dotNV = clamp( dot( normal, viewDir ), 0.0, 1.0 );
   float dotNH = clamp( dot( normal, halfDir ), 0.0, 1.0 );
   float dotVH = clamp( dot( viewDir, halfDir ), 0.0, 1.0 );
-  float dotLH = clamp( dot( lightInfo.direction, halfDir ), 0.0, 1.0 );
+  float dotLH = clamp( dot( lightDir, halfDir ), 0.0, 1.0 );
 
   // Fresnel
   vec3 Fs = F_Schlick( material.f0, material.f90, dotVH );
-  //float Fd = max_value( Fs );
+  // Diffuse BRDF (Burley)
   vec3 Fd = Fd_Barley( alpha, dotNV, dotNL, dotLH );
   // Visibility Geometry function
   float V = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
   // Normal distribution function
   float D = D_GGX( alpha, dotNH );
 
-  vec3 irradiance = lightInfo.color * lightInfo.strength * dotNL;
-  vec3 diffuseColor =  material.diffuseColor * irradiance;
-  vec3 specularColor =  D * V * irradiance;
+  vec3 irradiance = lightColor * lightIntensity * dotNL;
+  vec3 diffuseColor = material.diffuseColor * irradiance;
+  vec3 specularColor = D * V * irradiance;
 
-  // Diffuse BRDF( Lambert )
   reflectedLight.directDiffuse += Fd * diffuseColor;
-
-  // Specular BRDF
   reflectedLight.directSpecular += Fs * specularColor;
 }
 
+void computeDirectLight
+(
+  DirectLight light,
+  const in vec3 viewDir,
+  const in vec3 normal,
+  const in PhysicalMaterial material,
+  inout ReflectedLight reflectedLight
+)
+{
+  applyLightContribution( light.direction, viewDir, normal, material, light.color, light.strength, reflectedLight );
+}
+
+void computePointLight
+(
+  PointLight light,
+  const in vec3 viewDir,
+  const in vec3 normal,
+  const in PhysicalMaterial material,
+  inout ReflectedLight reflectedLight
+)
+{
+  vec3 lightDir = light.position - vWorldPos;
+  float distance_ = length( lightDir );
+  lightDir = normalize( lightDir );
+
+  // float attenuation = 1.0 / ( 1.0 + pow( distance_ / light.range, 4.0 ) );
+  float attenuation = pow( clamp( 1.0 - distance_ / light.range, 0.0, 1.0 ), 2.0 ) / ( distance_ * distance_ + 1.0 );
+  attenuation *= light.strength;
+
+  applyLightContribution( lightDir, viewDir, normal, material, light.color, attenuation, reflectedLight );
+}
+
+void computeSpotLight
+(
+  SpotLight light,
+  const in vec3 viewDir,
+  const in vec3 normal,
+  const in PhysicalMaterial material,
+  inout ReflectedLight reflectedLight
+)
+{
+  vec3 lightDir = light.position - vWorldPos;
+  float distance_ = length( lightDir );
+  lightDir = normalize( lightDir );
+
+  // Distance attenuation
+  float attenuation = pow( clamp( 1.0 - distance_ / light.range, 0.0, 1.0 ), 2.0 ) / ( distance_ * distance_ + 1.0 );
+
+  // Angular attenuation (spotlight cone)
+  float angle = acos( dot( -lightDir, light.direction ) ); // light.direction assumed to be normalized on cpu side
+  float innerAngle = light.innerConeAngle;
+  float outerAngle = light.outerConeAngle;
+  float angularAttenuation = smoothstep( outerAngle, innerAngle, angle );
+
+  attenuation *= angularAttenuation * light.strength;
+
+  // Apply lightmap if enabled
+  #ifdef USE_LIGHT_MAP
+    if( light.useLightMap )
+    {
+      float shadowFactor = 1.0 - texture( lightMap, vLightMapUv ).r;
+      attenuation *= shadowFactor;
+      // specularColor *= shadowFactor;
+    }
+  #endif
+
+  float dotNL = clamp( dot( normal, lightDir ), 0.0, 1.0 );
+
+  float alpha = pow2( material.roughness );
+  vec3 halfDir = normalize( lightDir + viewDir );
+  float dotNV = clamp( dot( normal, viewDir ), 0.0, 1.0 );
+  float dotNH = clamp( dot( normal, halfDir ), 0.0, 1.0 );
+  float dotVH = clamp( dot( viewDir, halfDir ), 0.0, 1.0 );
+  float dotLH = clamp( dot( lightDir, halfDir ), 0.0, 1.0 );
+
+  vec3 Fs = F_Schlick( material.f0, material.f90, dotVH );
+  vec3 Fd = Fd_Barley( alpha, dotNV, dotNL, dotLH );
+  float V = V_GGX_SmithCorrelated( alpha, dotNL, dotNV );
+  float D = D_GGX( alpha, dotNH );
+
+  vec3 irradiance = light.color * attenuation * dotNL;
+  vec3 diffuseColor = material.diffuseColor * irradiance;
+  vec3 specularColor = D * V * irradiance;
+
+  reflectedLight.directDiffuse += Fd * diffuseColor;
+  reflectedLight.directSpecular += Fs * specularColor;
+}
+
+void computeLights
+(
+  const in vec3 viewDir,
+  const in vec3 normal,
+  const in PhysicalMaterial material,
+  inout ReflectedLight reflectedLight
+)
+{
+  for( int i = 0; i < min( pointLightsCount, MAX_POINT_LIGHTS ); i++ )
+  {
+    vec3 lightDir = pointLights[ i ].position - vWorldPos;
+    float dotNL = clamp( dot( normal, lightDir ), 0.0, 1.0 );
+
+    if ( dotNL > 0.0 )
+    {
+      computePointLight( pointLights[ i ], viewDir, normal, material, reflectedLight );
+    }
+  }
+
+  for( int i = 0; i < min( directLightsCount, MAX_DIRECT_LIGHTS ); i++ )
+  {
+    float dotNL = clamp( dot( normal, directLights[ i ].direction ), 0.0, 1.0 );
+
+    if ( dotNL > 0.0 )
+    {
+      computeDirectLight( directLights[ i ], viewDir, normal, material, reflectedLight );
+    }
+  }
+
+  for( int i = 0; i < min( spotLightsCount, MAX_SPOT_LIGHTS ); i++ )
+  {
+    vec3 lightDir = normalize( spotLights[ i ].position - vWorldPos );
+    float dotNL = clamp( dot( normal, lightDir ), 0.0, 1.0 );
+
+    if ( dotNL > 0.0 )
+    {
+      computeSpotLight( spotLights[ i ], viewDir, normal, material, reflectedLight );
+    }
+  }
+}
+
 #ifdef USE_IBL
-  void sampleEnvIrradiance( const in vec3 N, const in vec3 V, const in PhysicalMaterial material, inout ReflectedLight reflectedLight )
+  float remapClamped( float value, float inMin, float inMax, float outMin, float outMax )
+  {
+      float t = clamp( ( value - inMin ) / ( inMax - inMin ), 0.0, 1.0 );
+      return mix( outMin, outMax, t );
+  }
+
+  void sampleEnvIrradiance( const in vec3 N, const in vec3 V, float viewDistance, const in PhysicalMaterial material, inout ReflectedLight reflectedLight )
   {
     float alpha = pow2( material.roughness );
     float dotNV = clamp( dot( N, V ), 0.0, 1.0 );
 
     const float MAX_LOD = 9.0;
-    //if( dotNV > 0.0 )
-    {
-      vec3 Fs = F_Schlick( material.f0, material.f90, dotNV );
-      vec3 R = reflect( -V, N );
 
-      vec3 diffuse = texture( irradianceTexture, N ).xyz * pow( 2.0, exposure );
-      vec3 prefilter = texture( prefilterEnvMap, R, material.roughness * MAX_LOD ).xyz * pow( 2.0, exposure );
-      vec2 envBrdf = texture( integrateBRDF, vec2( dotNV, material.roughness ) ).xy;
+    vec3 Fs = F_Schlick( material.f0, material.f90, dotNV );
+    vec3 R = reflect( -V, N );
 
-      vec3 diffuseBRDF = diffuse * material.diffuseColor;
-      vec3 specularBRDF = prefilter * ( material.f0 * envBrdf.x + envBrdf.y );
-      //vec3 specularBRDF = prefilter * ( Fs * envBrdf.x + envBrdf.y );
+    vec2 d = mipmapDistanceRange;
+    float lod = remapClamped( viewDistance, d.x, d.y, 0.0, MAX_LOD );
+    lod = material.roughness * MAX_LOD;
 
-      reflectedLight.indirectDiffuse += diffuseBRDF;
-      reflectedLight.indirectSpecular += specularBRDF;
-    }
+    vec3 diffuse = texture( irradianceTexture, N ).xyz * pow( 2.0, exposure );
+    vec3 prefilter = textureLod( prefilterEnvMap, R, lod ).xyz * pow( 2.0, exposure );
+    vec2 envBrdf = texture( integrateBRDF, vec2( dotNV, material.roughness ) ).xy;
+
+    vec3 diffuseBRDF = diffuse * material.diffuseColor;
+    vec3 specularBRDF = prefilter * ( material.f0 * envBrdf.x + envBrdf.y );
+
+    reflectedLight.indirectDiffuse += diffuseBRDF;
+    reflectedLight.indirectSpecular += specularBRDF;
   }
 #endif
 
@@ -432,49 +602,13 @@ void main()
 
   vec3 color = vec3( 0.0 );
   vec3 viewDir = normalize( cameraPosition - vWorldPos );
-  // vec3 lightDirs[] = vec3[]
-  // (
-  //   vec3( 1.0, 0.0, 0.0 ),
-  //   vec3( 0.0, 1.0, 0.0 ),
-  //   vec3( 0.0, 0.0, 1.0 ),
-  //   vec3( -1.0, 0.0, 0.0 ),
-  //   vec3( 0.0, -1.0, 0.0 ),
-  //   vec3( 0.0, 0.0, -1.0 )
-  // );
+  float viewDistance = distance( cameraPosition, vWorldPos );
 
-  #if !defined( USE_IBL )
-    vec3 lightDirs[] = vec3[]
-    (
-      vec3( 1.0, 1.0, 1.0 ),
-      vec3( -1.0, 1.0, 1.0 ),
-      vec3( 1.0, -1.0, 1.0 ),
-      vec3( -1.0, -1.0, 1.0 ),
-      vec3( 1.0, 1.0, -1.0 ),
-      vec3( 1.0, -1.0, -1.0 ),
-      vec3( -1.0, 1.0, -1.0 ),
-      vec3( -1.0, -1.0, -1.0 )
-    );
-
-    LightInfo lightInfo;
-    lightInfo.strength = 2.0;
-    lightInfo.color = vec3( 1.0 );
-    float dotVN = clamp( dot( viewDir, normal ), 0.0, 1.0 );
-
-    for( int i = 0; i < 8; i++ )
-    {
-      lightInfo.direction = normalize( lightDirs[ i ] );
-      float dotNL = clamp( dot( normal, lightInfo.direction ), 0.0, 1.0 );
-
-      if( dotNL > 0.0 )
-      {
-        computeDirectLight( lightInfo, viewDir, normal, material, reflectedLight );
-      }
-    }
-  #endif
+  computeLights( viewDir, normal, material, reflectedLight );
 
   // Ambient color
   #if defined( USE_IBL )
-    sampleEnvIrradiance( normal, viewDir, material, reflectedLight );
+    sampleEnvIrradiance( normal, viewDir, viewDistance, material, reflectedLight );
   #else
     reflectedLight.indirectDiffuse += 0.1 * material.diffuseColor;
   #endif
@@ -504,8 +638,10 @@ void main()
   //alpha = 0.9;
   //color = material.diffuseColor;
   //color = normal;
+  // color = vec3( 1.0 - texture( lightMap, vUv_0 ).r );
   float a_weight = alpha * alpha_weight( alpha );
   trasnparentA = vec4( color * a_weight, alpha );
   transparentB = a_weight;
   frag_color = vec4( color, alpha );
 }
+
