@@ -180,24 +180,6 @@ float pcss( vec4 light_space_pos )
     BLOCKER_SAMPLES
   );
 
-  // if ( avg_blocker_depth < 0.0 )
-  // {
-  //   float direct_depth = linearize_depth( texture( u_shadow_map, proj_coords.xy ).r );
-  //   float depth_diff = abs( receiver_depth - direct_depth );
-
-  //   // If there's geometry very close (within threshold), it's a contact point
-  //   // TUNE: Decrease if shadows appear too far from contact, increase if gaps persist
-  //   float contact_threshold = ( u_far - u_near ) * 0.0002; // 1% of depth range [TUNE: 0.005-0.02]
-
-  //   if ( depth_diff > 0.0 && depth_diff < contact_threshold )
-  //   {
-  //     // Contact point detected - return a hard shadow
-  //     return 1.0;
-  //   }
-
-  //   return 0.0;
-  // }
-
   float blocker_distance = receiver_depth - avg_blocker_depth;
   float min_blocker_dist = ( u_far - u_near ) * 0.002; // 0.2% of depth range
   blocker_distance = max( blocker_distance, min_blocker_dist );

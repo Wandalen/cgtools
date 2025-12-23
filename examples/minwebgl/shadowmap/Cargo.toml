@@ -6,7 +6,6 @@ edition = "2024"
 [dependencies]
 minwebgl = { workspace = true, features = [ "math" ] }
 web-sys = { workspace = true, features = [ "WebGlFramebuffer", "WebGlRenderbuffer", "WebGlTexture" ] }
-# gltf.workspace = true
 renderer.workspace = true
 
 [lints]

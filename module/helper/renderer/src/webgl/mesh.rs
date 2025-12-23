@@ -15,8 +15,6 @@ mod private
     pub skeleton : Option< Rc< RefCell< Skeleton > > >,
     /// Whether this node casts shadows
     pub is_shadow_caster : bool,
-    /// Whether this node receives shadows
-    pub is_shadow_receiver : bool,
   }
 
   impl Clone for Mesh
@@ -42,7 +40,6 @@ mod private
           }
         ),
         is_shadow_caster : self.is_shadow_caster,
-        is_shadow_receiver : self.is_shadow_receiver,
       }
     }
   }

@@ -449,15 +449,10 @@ mod private
     pub fn normalize_scale( &mut self )
     {
       let bb = self.bounding_box_hierarchical();
-      let min = bb.min.0.iter().cloned().reduce( f32::max ).unwrap();
-      let max = bb.max.0.iter().cloned().reduce( f32::max ).unwrap();
-      let max_scale = min.max( max );
-      self.set_world_matrix
-      (
-        gl::math::mat3x3h::scale( F32x3::splat( 1.0 / max_scale ) )
-        *
-        self.get_world_matrix()
-      );
+      let size = bb.max - bb.min;
+      let max_dimension = size.x().max( size.y() ).max( size.z() );
+      let scale_factor = 1.0 / max_dimension;
+      self.set_scale( F32x3::splat( scale_factor ) );
     }
 
     /// Computes the hierarchical bounding box for the node and all of its children.
