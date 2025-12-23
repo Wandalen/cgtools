@@ -130,7 +130,6 @@ vec3 intersectSphere( vec3 origin, vec3 direction )
       float x1 = ( -B + disc ) * gmFactor / A;
       float x2 = ( -B - disc ) * gmFactor / A;
       float t = ( x1 > x2 ) ? x1 : x2;
-      //t = x1;
       direction.y *= sqFactor;
       return vec3( origin + direction * t );
   }
@@ -208,7 +207,7 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
 
   vec3 newRayDirection = refract( rayDirection, hitPointNormal, iorRatioAtoD );
   // Convert data to local space
-  newRayDirection = ( vec4( newRayDirection, 0.0 ) ).xyz;
+  newRayDirection = mat3x3( offsetMatrix ) * newRayDirection;
   newRayDirection = normalize( newRayDirection );
   vec3 rayOrigin =  ( offsetMatrix * vec4( rayHitPoint, 1.0 ) ).xyz;
 
@@ -234,7 +233,6 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
     vec3 surfaceNormal = normalData.rgb;
     float surfaceDistance = normalData.a;
 
-    // resultColor = dirOriginToIntersect * 0.5 + 0.5;
     // Update the origin position
     vec3 oldOrigin = rayOrigin;
     rayOrigin = dirOriginToIntersect * surfaceDistance;
@@ -345,7 +343,7 @@ void main()
   vec3 toneMappedColour = aces_tone_map( colour );
   float emission_factor = smoothstep( 0.9, 0.91, luminosity( toneMappedColour ) );
   emissive_color = vec4( toneMappedColour * emission_factor, 0.0 );
-
+  
   float alpha = 1.0;
 
   float a_weight = alpha * alpha_weight( alpha );
