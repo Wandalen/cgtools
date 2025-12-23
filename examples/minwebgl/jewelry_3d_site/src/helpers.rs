@@ -2,14 +2,11 @@ use std::{ cell::RefCell, rc::Rc };
 use minwebgl as gl;
 use gl::
 {
+  texture::d2::upload_image_by_path,
   GL,
   JsCast,
   F32x3,
-  web_sys::
-  {
-    WebGlTexture,
-    wasm_bindgen::closure::Closure
-  }
+  web_sys::wasm_bindgen::closure::Closure
 };
 use std::collections::HashMap;
 use renderer::webgl::
@@ -54,54 +51,6 @@ pub async fn create_empty_texture( gl : &GL ) -> Option< TextureInfo >
   texture
 }
 
-/// Uploads an image from a URL to a WebGL texture.
-///
-/// This function creates a new `WebGlTexture` and asynchronously loads an image from the provided URL into it.
-/// It uses a `Closure` to handle the `onload` event of an `HtmlImageElement`, ensuring the texture is
-/// uploaded only after the image has finished loading.
-///
-/// # Arguments
-///
-/// * `gl` - The WebGl2RenderingContext.
-/// * `src` - A reference-counted string containing the URL of the image to load.
-///
-/// # Returns
-///
-/// A `WebGlTexture` object.
-pub fn upload_texture( gl : &GL, src : &str ) -> WebGlTexture
-{
-  let window = web_sys::window().expect( "Can't get window" );
-  let document =  window.document().expect( "Can't get document" );
-
-  let texture = gl.create_texture().expect( "Failed to create a texture" );
-
-  let img_element = document.create_element( "img" )
-  .expect( "Can't create img" )
-  .dyn_into::< gl::web_sys::HtmlImageElement >()
-  .expect( "Can't convert to gl::web_sys::HtmlImageElement" );
-  img_element.style().set_property( "display", "none" ).expect( "Can't set property" );
-  let load_texture : Closure< dyn Fn() > = Closure::new
-  (
-    {
-      let gl = gl.clone();
-      let img = img_element.clone();
-      let texture = texture.clone();
-      move ||
-      {
-        gl::texture::d2::upload_no_flip( &gl, Some( &texture ), &img );
-        gl.generate_mipmap( gl::TEXTURE_2D );
-        img.remove();
-      }
-    }
-  );
-
-  img_element.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
-  img_element.set_src( &src );
-  load_texture.forget();
-
-  texture
-}
-
 /// Creates a new `TextureInfo` struct with a texture loaded from a file.
 ///
 /// This function calls `upload_texture` to load an image, sets up a default `Sampler`
@@ -123,7 +72,7 @@ pub fn create_texture
 ) -> Option< TextureInfo >
 {
   let image_path = format!( "static/{image_path}" );
-  let texture_id = upload_texture( gl, image_path.as_str() );
+  let texture_id = upload_image_by_path( gl, &image_path );
 
   let sampler = Sampler::former()
   .min_filter( MinFilterMode::Linear )

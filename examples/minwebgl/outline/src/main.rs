@@ -29,8 +29,6 @@ use gl::
 {
   WebglError,
   GL,
-  JsCast,
-  wasm_bindgen::closure::Closure,
   web_sys::
   {
     WebGl2RenderingContext,
@@ -110,54 +108,6 @@ impl_locations!
   "u_inv_projection",
   "u_inv_view"
 );
-
-/// Loads an image from a URL to a WebGL texture.
-///
-/// This function creates a new `WebGlTexture` and asynchronously loads an image from the provided URL into it.
-/// It uses a `Closure` to handle the `onload` event of an `HtmlImageElement`, ensuring the texture is
-/// uploaded only after the image has finished loading.
-///
-/// # Arguments
-///
-/// * `gl` - The WebGl2RenderingContext.
-/// * `src` - A reference-counted string containing the URL of the image to load.
-///
-/// # Returns
-///
-/// A `WebGlTexture` object.
-fn load_texture( gl : &GL, src : &str ) -> WebGlTexture
-{
-  let window = web_sys::window().expect( "Can't get window" );
-  let document =  window.document().expect( "Can't get document" );
-
-  let texture = gl.create_texture().expect( "Failed to create a texture" );
-
-  let img_element = document.create_element( "img" )
-  .expect( "Can't create img" )
-  .dyn_into::< gl::web_sys::HtmlImageElement >()
-  .expect( "Can't convert to gl::web_sys::HtmlImageElement" );
-  img_element.style().set_property( "display", "none" ).expect( "Can't set property" );
-  let load_texture : Closure< dyn Fn() > = Closure::new
-  (
-    {
-      let gl = gl.clone();
-      let img = img_element.clone();
-      let texture = texture.clone();
-      move ||
-      {
-        gl::texture::d2::upload( &gl, Some( &texture ), &img );
-        gl::texture::d2::filter_linear( &gl );
-        img.remove();
-      }
-    }
-  );
-
-  img_element.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
-  img_element.set_src( &src );
-  load_texture.forget();
-
-  texture
-}
 
 /// Binds a texture to a texture unit and uploads its location to a uniform.
 ///
@@ -386,7 +336,7 @@ impl Renderer
     renderer.textures.insert( "jfa_init_fb_color".to_string(), jfa_init_fb_color );
     renderer.textures.insert( "jfa_step_fb_color_0".to_string(), jfa_step_fb_color_0 );
     renderer.textures.insert( "jfa_step_fb_color_1".to_string(), jfa_step_fb_color_1 );
-    renderer.textures.insert( "equirect_map".to_string(), load_texture( gl, "static/skybox/pink_sunrise.jpg" ) );
+    renderer.textures.insert( "equirect_map".to_string(),   gl::texture::d2::upload_image_by_path( gl, "static/skybox/pink_sunrise.jpg" ) );
 
     // Store the framebuffers
     renderer.framebuffers.insert( "object_fb".to_string(), object_fb );

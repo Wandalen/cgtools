@@ -44,15 +44,10 @@ use mingl::F32x4;
 use minwebgl as gl;
 use gl::
 {
-  JsCast,
+  texture::d2::upload_image_by_path,
   GL,
   WebGl2RenderingContext,
-  web_sys::
-  {
-    HtmlCanvasElement,
-    wasm_bindgen::closure::Closure,
-    WebGlTexture
-  }
+  web_sys::HtmlCanvasElement,
 };
 use renderer::webgl::
 {
@@ -78,59 +73,13 @@ use std::rc::Rc;
 use canvas_renderer::renderer::*;
 use primitive_generation::*;
 
-fn upload_texture( gl : &WebGl2RenderingContext, src : Rc< String > ) -> WebGlTexture
-{
-  let window = web_sys::window().unwrap();
-  let document =  window.document().unwrap();
-
-  let texture = gl.create_texture().expect( "Failed to create a texture" );
-
-  let img_element = document.create_element( "img" ).unwrap()
-  .dyn_into::< gl::web_sys::HtmlImageElement >().unwrap();
-  img_element.style().set_property( "display", "none" ).unwrap();
-  let load_texture : Closure< dyn Fn() > = Closure::new
-  (
-    {
-      let gl = gl.clone();
-      let img = img_element.clone();
-      let texture = texture.clone();
-      let src = src.clone();
-      move ||
-      {
-        gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
-        gl.tex_image_2d_with_u32_and_u32_and_html_image_element
-        (
-          gl::TEXTURE_2D,
-          0,
-          gl::RGBA as i32,
-          gl::RGBA,
-          gl::UNSIGNED_BYTE,
-          &img
-        ).expect( "Failed to upload data to texture" );
-
-        gl.generate_mipmap( gl::TEXTURE_2D );
-
-        //match
-        gl::web_sys::Url::revoke_object_url( &src ).unwrap();
-        img.remove();
-      }
-    }
-  );
-
-  img_element.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
-  img_element.set_src( &src );
-  load_texture.forget();
-
-  texture
-}
-
 async fn create_texture(
   gl : &WebGl2RenderingContext,
   image_path : &str
 ) -> Option< TextureInfo >
 {
   let image_path = format!( "static/{image_path}" );
-  let texture_id = upload_texture( gl, Rc::new( image_path ) );
+  let texture_id = upload_image_by_path( gl, &image_path );
 
   let sampler = Sampler::former()
   .min_filter( MinFilterMode::Linear )
