@@ -23,7 +23,7 @@ type GL = web_sys::WebGl2RenderingContext;
 /// # Returns
 ///
 /// A `WebGlTexture` object.
-pub fn upload_image_by_path( gl : &GL, src : &str ) -> WebGlTexture
+pub fn upload_image_by_path( gl : &GL, src : &str, flip : bool ) -> WebGlTexture
 {
   let window = window().expect( "Can't get window" );
   let document =  window.document().expect( "Can't get document" );
@@ -43,7 +43,15 @@ pub fn upload_image_by_path( gl : &GL, src : &str ) -> WebGlTexture
       let texture = texture.clone();
       move ||
       {
-        crate::texture::d2::upload( &gl, Some( &texture ), &img );
+        if flip
+        {
+          crate::texture::d2::upload( &gl, Some( &texture ), &img );
+        }
+        else
+        {
+          crate::texture::d2::upload_no_flip( &gl, Some( &texture ), &img );
+        }
+
         crate::texture::d2::filter_linear( &gl );
         img.remove();
       }

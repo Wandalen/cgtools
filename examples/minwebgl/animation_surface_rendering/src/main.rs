@@ -77,7 +77,7 @@ fn create_texture
 ) -> Option< TextureInfo >
 {
   let image_path = format!( "static/{image_path}" );
-  let texture_id = upload_image_by_path( gl, &image_path );
+  let texture_id = upload_image_by_path( gl, &image_path, false );
 
   let sampler = Sampler::former()
   .min_filter( MinFilterMode::Linear )
