@@ -162,7 +162,7 @@ impl CubeNormalMapGenerator
 
     bb.apply_transform_mut( inv_world );
     let c = bb.center();
-    let max_distance = ( bb.max - c ).mag().max( ( bb.min - c ).mag() );
+    let max_distance = ( ( bb.max - bb.min ) * 0.5 ).mag();
 
     let offset_matrix = gl::math::mat3x3h::translation( -c );
     let perspective_matrix = gl::math::mat3x3h::perspective_rh_gl
