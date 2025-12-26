@@ -18,7 +18,7 @@ use core::cell::RefCell;
 use minwebgl as gl;
 use gl::
 {
-  texture::d2::upload_image_by_path,
+  texture::d2::upload_image_from_path,
   F32x4,
   math::mat4x4::identity,
   GL,
@@ -77,7 +77,7 @@ fn create_texture
 ) -> Option< TextureInfo >
 {
   let image_path = format!( "static/{image_path}" );
-  let texture_id = upload_image_by_path( gl, &image_path, false );
+  let texture_id = upload_image_from_path( gl, &image_path, false );
 
   let sampler = Sampler::former()
   .min_filter( MinFilterMode::Linear )

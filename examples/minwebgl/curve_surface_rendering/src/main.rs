@@ -44,7 +44,7 @@ use mingl::F32x4;
 use minwebgl as gl;
 use gl::
 {
-  texture::d2::upload_image_by_path,
+  texture::d2::upload_image_from_path,
   GL,
   WebGl2RenderingContext,
   web_sys::HtmlCanvasElement,
@@ -79,7 +79,7 @@ async fn create_texture(
 ) -> Option< TextureInfo >
 {
   let image_path = format!( "static/{image_path}" );
-  let texture_id = upload_image_by_path( gl, &image_path, false );
+  let texture_id = upload_image_from_path( gl, &image_path, false );
 
   let sampler = Sampler::former()
   .min_filter( MinFilterMode::Linear )

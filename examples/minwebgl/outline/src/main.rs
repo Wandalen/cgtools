@@ -336,7 +336,7 @@ impl Renderer
     renderer.textures.insert( "jfa_init_fb_color".to_string(), jfa_init_fb_color );
     renderer.textures.insert( "jfa_step_fb_color_0".to_string(), jfa_step_fb_color_0 );
     renderer.textures.insert( "jfa_step_fb_color_1".to_string(), jfa_step_fb_color_1 );
-    renderer.textures.insert( "equirect_map".to_string(), gl::texture::d2::upload_image_by_path( gl, "static/skybox/pink_sunrise.jpg", true ) );
+    renderer.textures.insert( "equirect_map".to_string(), gl::texture::d2::upload_image_from_path( gl, "static/skybox/pink_sunrise.jpg", true ) );
 
     // Store the framebuffers
     renderer.framebuffers.insert( "object_fb".to_string(), object_fb );

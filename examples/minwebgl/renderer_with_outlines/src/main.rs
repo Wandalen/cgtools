@@ -30,7 +30,7 @@ use minwebgl as gl;
 
 use gl::
 {
-  texture::d2::upload_image_by_path,
+  texture::d2::upload_image_from_path,
   GL,
   JsCast,
   web_sys::
@@ -92,7 +92,7 @@ fn create_texture
 ) -> Option< TextureInfo >
 {
   let image_path = format!( "static/{image_path}" );
-  let texture_id = upload_image_by_path( gl, &image_path, true );
+  let texture_id = upload_image_from_path( gl, &image_path, true );
 
   let sampler = Sampler::former()
   .min_filter( MinFilterMode::Linear )

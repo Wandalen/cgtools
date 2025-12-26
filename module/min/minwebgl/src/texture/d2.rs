@@ -23,7 +23,7 @@ type GL = web_sys::WebGl2RenderingContext;
 /// # Returns
 ///
 /// A `WebGlTexture` object.
-pub fn upload_image_by_path( gl : &GL, src : &str, flip : bool ) -> WebGlTexture
+pub fn upload_image_from_path( gl : &GL, src : &str, flip : bool ) -> WebGlTexture
 {
   let window = window().expect( "Can't get window" );
   let document =  window.document().expect( "Can't get document" );
