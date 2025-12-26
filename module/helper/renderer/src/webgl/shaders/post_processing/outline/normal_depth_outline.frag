@@ -42,8 +42,10 @@ float outline_stencil_normal()
   {
     for( int x = 0; x < 5; x++ )
     {
-      pix[ y * 5 + x ] = length(
-        texture(
+      pix[ y * 5 + x ] = length
+      (
+        texture
+        (
           normalTexture,
           vUv + vec2( float( x - 2 ), float( y - 2 ) ) * outlineThickness / resolution
         )
@@ -82,7 +84,8 @@ float outline_stencil_depth()
   {
     for( int x = 0; x < 5; x++ )
     {
-      depths[ y * 5 + x ] = 1.0 - texture(
+      depths[ y * 5 + x ] = 1.0 - texture
+      (
         positionTexture,
         vUv + vec2( float( x - 2 ), float( y - 2 ) ) * outlineThickness / resolution
       ).w;
@@ -122,7 +125,8 @@ vec4 outline_color()
   {
     for( int x = 0; x < 5; x++ )
     {
-      colors[ y * 5 + x ] = texture(
+      colors[ y * 5 + x ] = texture
+      (
         objectColorTexture,
         vUv + vec2( float( x - 2 ), float( y - 2 ) ) * outlineThickness / resolution
       );
@@ -134,7 +138,8 @@ vec4 outline_color()
   {
     for( int x = 0; x < 5; x++ )
     {
-      depths[ y * 5 + x ] = 1.0 - texture(
+      depths[ y * 5 + x ] = 1.0 - texture
+      (
         positionTexture,
         vUv + vec2( float( x - 2 ), float( y - 2 ) ) * outlineThickness / resolution
       ).w;
