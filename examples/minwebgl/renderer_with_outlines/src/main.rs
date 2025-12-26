@@ -134,12 +134,6 @@ fn generate_object_colors( object_count : u32 ) -> Vec< F32x4 >
           0.0,
           1.0
         ]
-        // [
-        //   rng.gen_range( range.clone() ),
-        //   rng.gen_range( range.clone() ),
-        //   rng.gen_range( range.clone() ),
-        //   1.0
-        // ]
       )
     }
   )
