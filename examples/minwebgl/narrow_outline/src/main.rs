@@ -138,40 +138,6 @@ impl_locations!
   "outlineThickness"
 );
 
-/// Removes node from [`Scene`] by name
-fn remove_node_from_scene_by_name( root : &Rc< RefCell< Scene > >, name : &str )
-{
-  for i in ( 0..root.borrow().children.len() ).rev()
-  {
-    if let Some( current_name ) = root.borrow().children[ i ].borrow().get_name()
-    {
-      if *current_name == *name
-      {
-        let _ = root.borrow_mut().remove_child( i );
-      }
-    }
-  }
-
-  let _ = root.borrow_mut().traverse
-  (
-    &mut | node : Rc< RefCell< Node > > |
-    {
-      for i in ( 0..node.borrow().get_children().len() ).rev()
-      {
-        if let Some( current_name ) = node.borrow().get_children()[ i ].borrow().get_name()
-        {
-          if *current_name == *name
-          {
-            let _ = node.borrow_mut().remove_child( i );
-          }
-        }
-      }
-
-      Ok( () )
-    }
-  );
-}
-
 /// Binds a texture to a texture unit and uploads its location to a uniform.
 ///
 /// # Arguments
@@ -1099,8 +1065,6 @@ async fn run() -> Result< (), gl::WebglError >
 
   let scenes = gltf.scenes.clone();
   scenes[ 0 ].borrow_mut().update_world_matrix();
-  remove_node_from_scene_by_name( &scenes[ 0 ], "Mesh_0153.rip__0" );
-  remove_node_from_scene_by_name( &scenes[ 0 ], "Mesh_0162.rip__0" );
 
   let primitive_gltf = primitives_csgrs_gltf( &renderer.gl );
   let primitive_scenes = primitive_gltf.scenes.clone();
