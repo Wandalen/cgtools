@@ -117,7 +117,7 @@ fn find_node( scene : &Rc< RefCell< Scene > >, substring : &str ) -> Option< Rc<
 /// # Returns
 ///
 /// A `WebGlTexture` object.
-fn upload_texture( gl : &GL, src : Rc< String > ) -> WebGlTexture
+fn _upload_texture( gl : &GL, src : Rc< String > ) -> WebGlTexture
 {
   let window = web_sys::window().expect( "Can't get window" );
   let document =  window.document().expect( "Can't get document" );
@@ -165,14 +165,14 @@ fn upload_texture( gl : &GL, src : Rc< String > ) -> WebGlTexture
 /// # Returns
 ///
 /// An `Option<TextureInfo>` containing the texture data, or `None` if creation fails.
-fn create_texture
+fn _create_texture
 (
   gl : &GL,
   image_path : &str
 ) -> Option< TextureInfo >
 {
   let image_path = format!( "static/{image_path}" );
-  let texture_id = upload_texture( gl, Rc::new( image_path ) );
+  let texture_id = _upload_texture( gl, Rc::new( image_path ) );
 
   let sampler = Sampler::former()
   .min_filter( MinFilterMode::Linear )
@@ -221,24 +221,13 @@ async fn setup_scene( gl : &GL ) -> Result< GLTF, WebglError >
   Ok( gltf )
 }
 
-fn setup_camera( scene : &Rc< RefCell< Scene > >, width : f32, height : f32 ) -> Camera
+fn setup_camera( width : f32, height : f32 ) -> Camera
 {
-  let scene_bounding_box = scene.borrow().bounding_box();
-  gl::info!( "Scene bounding box: {:?}", scene_bounding_box );
-  let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
-  let exponent =
-  {
-    let bits = diagonal.to_bits();
-    let exponent_field = ( ( bits >> 23 ) & 0xFF ) as i32;
-    exponent_field - 127
-  };
-  gl::info!( "Exponent: {:?}", exponent );
-
   // Camera setup - will follow character
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
-  let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 ) * 2000.0;
-  let far = near * 100.0f32.powi( exponent.abs() ) / 100.0;
+  let near = 0.1;
+  let far = 1000.0;
 
   // Initial camera position
   let eye = F32x3::from( [ 0.0, 1.5, 3.0 ] );
@@ -280,13 +269,13 @@ fn setup_graph( animations : Vec< Animation > ) -> AnimationGraph
   let mut graph = AnimationGraph::new( &animations[ 0 ].nodes );
 
   let animations = animations.into_iter()
-  .filter_map( | a | Some( ( a.name?, a.animation.as_any().downcast_ref::< Sequencer >().unwrap().clone() ) ) )
-  .collect::< FxHashMap< Box< str >, Sequencer > >();
+  .filter_map( | a | Some( ( a.name?.into_string(), a.animation.as_any().downcast_ref::< Sequencer >().unwrap().clone() ) ) )
+  .collect::< FxHashMap< String, Sequencer > >();
 
-  // graph.node_add( "idle", animations. );
+  graph.node_add( "idle".into(), animations.get( "happy_idle" ).unwrap().clone() );
   // graph.node_add( "walk",  );
 
-  // graph.edge_add(a, b, name, tween, condition);
+  // graph.edge_add( a, b, name, tween, condition );
 
   graph
 }
@@ -308,7 +297,7 @@ async fn run() -> Result< (), gl::WebglError >
   let gltf = setup_scene( &gl ).await?;
   let scene = gltf.scenes[ 0 ].clone();
   let ( character_controls, character_input ) = setup_input( &canvas );
-  let camera = setup_camera( &scene, width, height );
+  let camera = setup_camera( width, height );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "envMap", None ).await );
@@ -333,7 +322,7 @@ async fn run() -> Result< (), gl::WebglError >
   let forward = F32x3::from_array( character_controls.borrow().forward().map( | v | v as f32 ) );
   camera.get_controls().borrow_mut().eye = initial_center - forward * character_controls.borrow().zoom as f32;
 
-  // let mut graph = setup_graph( gltf.animations.clone() );
+  let mut graph = setup_graph( gltf.animations.clone() );
 
   // Define the update and draw logic
   let update_and_draw =
@@ -347,8 +336,8 @@ async fn run() -> Result< (), gl::WebglError >
       let delta_time = time - *last_time.borrow();
       *last_time.borrow_mut() = time;
 
-      // graph.update( delta_time );
-      // graph.set( graph.animated_nodes_get() );
+      graph.update( delta_time );
+      graph.set( graph.animated_nodes_get() );
 
       character_controls.borrow_mut().update( &character_input.borrow(), delta_time );
 
