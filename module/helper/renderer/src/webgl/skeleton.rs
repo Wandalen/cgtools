@@ -15,7 +15,7 @@ mod private
   };
   use crate::webgl::Node;
   use std::{ cell::RefCell, rc::Rc };
-  use std::collections::{ HashSet, HashMap };
+  use rustc_hash::{ FxHashSet, FxHashMap };
 
   /// Global transform matrices texture slot
   pub const GLOBAL_MATRICES_SLOT : u32 = 13;
@@ -86,6 +86,7 @@ mod private
   }
 
   /// Skin joints transforms related data
+  #[ derive( Debug ) ]
   pub struct TransformsData
   {
     /// List of nodes name that is part of skeleton
@@ -118,7 +119,6 @@ mod private
         inverse_bind_matrices.push( matrix );
       }
 
-
       Self
       {
         joints : nodes,
@@ -135,7 +135,7 @@ mod private
     (
       &mut self,
       gl : &GL,
-      locations : &HashMap< String, Option< gl::WebGlUniformLocation > >
+      locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
     )
     {
       if self.need_clone_inner
@@ -191,6 +191,11 @@ mod private
 
         inverse_data.extend( vec![ 0.0; ( a * a * 4 ) as usize - inverse_data.len() ] );
         load_texture_data_4f( gl, self.inverse_texture.as_ref().unwrap(), inverse_data.as_slice(), texture_size );
+
+        if self.inverse_texture.is_some() && self.global_texture.is_some()
+        {
+          self.need_update_inverse = false;
+        }
       }
 
       if self.inverse_texture.is_some() && self.global_texture.is_some()
@@ -226,6 +231,7 @@ mod private
   }
 
   /// Skin morph targets related data
+  #[ derive( Debug ) ]
   pub struct DisplacementsData
   {
     /// Morph targets positions displacements
@@ -299,7 +305,7 @@ mod private
     (
       &mut self,
       gl : &GL,
-      locations : &HashMap< String, Option< gl::WebGlUniformLocation > >
+      locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
     )
     {
       if self.need_clone_inner
@@ -476,7 +482,7 @@ mod private
         tangents_len
       ]
       .into_iter()
-      .collect::< HashSet< _ > >();
+      .collect::< FxHashSet< _ > >();
       unique.remove( &0 );
       if unique.len() > 1
       {
@@ -536,7 +542,7 @@ mod private
   /// This implementation conserns that skeleton is combination
   /// of joints transform data and morph targets dispalcements
   /// data
-  #[ derive( Clone ) ]
+  #[ derive( Debug, Clone ) ]
   pub struct Skeleton
   {
     /// Data related to joint transforms
@@ -562,7 +568,7 @@ mod private
     (
       &mut self,
       gl : &GL,
-      locations : &HashMap< String, Option< gl::WebGlUniformLocation > >
+      locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
     )
     {
       self.transforms.as_mut().map( | t | { t.upload( gl, locations ); } );

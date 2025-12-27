@@ -1,15 +1,19 @@
 mod private
 {
-  use std::{ cell::RefCell, collections::HashMap, rc::Rc };
+  use std::{ cell::RefCell, rc::Rc };
+  use rustc_hash::FxHashMap;
   use minwebgl as gl;
-  use mingl::{ geometry::BoundingBox, F32x3, F32x4x4 };
-  use crate::webgl::Mesh;
+  use gl::{ geometry::BoundingBox, F32x3, F32x4x4 };
+  use crate::webgl::{ Mesh, Light };
 
   /// Represents a 3D object that can be part of the scene graph.
+  #[ derive( Debug ) ]
   pub enum Object3D
   {
     /// A mesh object, containing geometry and material information.
     Mesh( Rc< RefCell< Mesh > > ),
+    /// A light object
+    Light( Light ),
     /// A placeholder for other types of 3D objects.
     Other
   }
@@ -22,8 +26,34 @@ mod private
     }
   }
 
+  impl Default for Node
+  {
+    fn default() -> Self
+    {
+      let identity_matrix = gl::math::mat4x4::identity();
+
+      Node
+      {
+        name : None,
+        parent : None,
+        children : Vec::new(),
+        object : Object3D::default(),
+        matrix : identity_matrix,
+        world_matrix : identity_matrix,
+        normal_matrix : identity_matrix.truncate(),
+        scale : gl::F32x3::splat( 1.0 ),
+        translation : gl::F32x3::default(),
+        rotation : gl::Quat::default(),
+        needs_local_matrix_update : false,
+        needs_world_matrix_update : false,
+        bounding_box : BoundingBox::default(),
+        is_visible : true
+      }
+    }
+  }
+
   /// Represents a node in the scene graph. Each node can have children, an associated 3D object, and transformations.
-  #[ derive( Default ) ]
+  #[ derive( Debug ) ]
   pub struct Node
   {
     /// The name of the node.
@@ -51,9 +81,12 @@ mod private
     /// A flag indicating whether the world matrix needs to be updated.
     needs_world_matrix_update : bool,
     /// The bounding box of the node's object in world space.
-    bounding_box : BoundingBox
+    bounding_box : BoundingBox,
+    /// Sets render [`Node`] and its children or not
+    is_visible : bool
   }
 
+  #[ allow( clippy::used_underscore_binding ) ]
   impl Node
   {
     /// Creates a new `Node` with default values.
@@ -78,6 +111,7 @@ mod private
         {
           Object3D::Mesh( Rc::new( RefCell::new( mesh.borrow().clone() ) ) )
         },
+        Object3D::Light( light ) => Object3D::Light( light.clone() ),
         Object3D::Other => Object3D::Other
       };
 
@@ -95,7 +129,8 @@ mod private
         rotation : self.rotation,
         needs_local_matrix_update : self.needs_local_matrix_update,
         needs_world_matrix_update : self.needs_world_matrix_update,
-        bounding_box : self.bounding_box
+        bounding_box : self.bounding_box,
+        is_visible : self.is_visible
       };
 
       let clone_rc = Rc::new( RefCell::new( clone ) );
@@ -112,6 +147,32 @@ mod private
       );
 
       clone_rc
+    }
+
+    /// Gets [`Node::is_visible`]
+    pub fn is_visible( &self ) -> bool
+    {
+      self.is_visible
+    }
+
+    /// Sets [`Node::is_visible`] for [`Node`] and its children if only_root is false
+    pub fn set_visibility( &mut self, visibility : bool, only_root : bool )
+    {
+      self.is_visible = visibility;
+      if !only_root
+      {
+        let _ = self.traverse
+        (
+          &mut
+          |
+            node : Rc< RefCell< Node > >
+          | -> Result< (), gl::WebglError >
+          {
+            node.borrow_mut().is_visible = visibility;
+            Ok( () )
+          }
+        );
+      }
     }
 
     /// Sets the name of the node.
@@ -210,10 +271,11 @@ mod private
 
       self.matrix = matrix;
       self.needs_local_matrix_update = false;
+      self.needs_world_matrix_update = true;
     }
 
     /// Sets the world transformation matrix for the node.
-    pub fn set_world_matrix( &mut self, matrix : F32x4x4 )
+    fn set_world_matrix( &mut self, matrix : F32x4x4 )
     {
       self.world_matrix = matrix;
       self.normal_matrix = matrix.truncate().inverse().unwrap().transpose();
@@ -242,7 +304,7 @@ mod private
         self.rotation,
         self.translation
       );
-      self.matrix = gl::F32x4x4::from_column_major( mat.to_array() );
+      self.matrix = mat;
       self.needs_local_matrix_update = false;
       self.needs_world_matrix_update = true;
     }
@@ -299,7 +361,7 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      locations : &HashMap< String, Option< gl::WebGlUniformLocation > >
+      locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
     )
     {
       if let Object3D::Mesh( mesh ) = &self.object
@@ -310,21 +372,38 @@ mod private
         }
       }
 
-      gl::uniform::matrix_upload
-      (
-        &gl,
-        locations.get( "worldMatrix" ).unwrap().clone(),
-        self.world_matrix.to_array().as_slice(),
-        true
-      ).unwrap();
+      if let Some( world_matrix_loc ) = locations.get( "worldMatrix" )
+      {
+        gl::uniform::matrix_upload
+        (
+          &gl,
+          world_matrix_loc.clone(),
+          self.world_matrix.to_array().as_slice(),
+          true
+        ).unwrap();
+      }
 
-      gl::uniform::matrix_upload
-      (
-        &gl,
-        locations.get( "normalMatrix" ).unwrap().clone(),
-        self.normal_matrix.to_array().as_slice(),
-        true
-      ).unwrap();
+      if let Some( inverse_world_matrix_loc ) = locations.get( "inverseWorldMatrix" )
+      {
+        let _ = gl::uniform::matrix_upload
+        (
+          &gl,
+          inverse_world_matrix_loc.clone(),
+          self.world_matrix.inverse().unwrap().to_array().as_slice(),
+          true
+        );
+      }
+
+      if let Some( normal_matrix_loc ) = locations.get( "normalMatrix" )
+      {
+        gl::uniform::matrix_upload
+        (
+          &gl,
+          normal_matrix_loc.clone(),
+          self.normal_matrix.to_array().as_slice(),
+          true
+        ).unwrap();
+      }
     }
 
     /// Traverses the node and its descendants, calling the provided callback function for each node.
@@ -359,6 +438,33 @@ mod private
         },
         _ => {}
       }
+    }
+
+    /// Sets [`Node`] position to coordinate system origin
+    pub fn set_center_to_origin( &mut self )
+    {
+      self.set_world_matrix
+      (
+        gl::math::mat3x3h::translation( -self.bounding_box().center() )
+        *
+        self.get_world_matrix()
+      );
+    }
+
+    /// Calculates max coord of [`Node`]'s bounding box min/max
+    /// and then normalize world matrix scale with it
+    pub fn normalize_scale( &mut self )
+    {
+      let bb = self.bounding_box_hierarchical();
+      let min = bb.min.0.iter().cloned().reduce( f32::max ).unwrap();
+      let max = bb.max.0.iter().cloned().reduce( f32::max ).unwrap();
+      let max_scale = min.max( max );
+      self.set_world_matrix
+      (
+        gl::math::mat3x3h::scale( F32x3::splat( 1.0 / max_scale ) )
+        *
+        self.get_world_matrix()
+      );
     }
 
     /// Computes the hierarchical bounding box for the node and all of its children.

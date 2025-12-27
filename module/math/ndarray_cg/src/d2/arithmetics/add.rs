@@ -10,19 +10,21 @@ where
   A : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
   B : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
 {
-  let rdim = r.dim();
-  let adim = a.dim();
-  let bdim = b.dim();
-
-  // Check if dimensions are compatible for addition
   #[ cfg( debug_assertions ) ]
-  if adim != bdim || rdim != adim
   {
-    panic!
-    (
-      "Incompatible dimensions for matrix addition: a: {:?}, b: {:?}, r: {:?}",
-      adim, bdim, rdim
-    );
+    let rdim = r.dim();
+    let adim = a.dim();
+    let bdim = b.dim();
+
+    // Check if dimensions are compatible for addition
+    if adim != bdim || rdim != adim
+    {
+      panic!
+      (
+        "Incompatible dimensions for matrix addition: a: {:?}, b: {:?}, r: {:?}",
+        adim, bdim, rdim
+      );
+    }
   }
 
   // println!( "a: {:?}, b: {:?}, r: {:?}", adim, bdim, rdim );

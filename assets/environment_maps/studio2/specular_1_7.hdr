@@ -1,0 +1,6 @@
+#?RADIANCE
+# Rust HDR encoder
+FORMAT=32-bit_rle_rgbe
+
+-Y 24 +X 4
+＃䜩技紒殮殎爞殚閬い帋巵晹搨杂觼槝榿媼媮垏唫扇莵殮殎弿弫湝渷换粊鴣牋爞晻晛膊瞾䜩珎殮殎换粊垐垈荡硞＃怂藖墘墏隘畟いЁΖⅱ热葋行衼栽詠怂藖倐倐憫憘晻晜墘墏Ζ贩穫缓簜珎卑瘋瓊瀭媺垈増垈唴厒礻閬邢蝸屯蛠技紒珌牋爜Ζ牋爜櫃檨摀搧构箓烫虃舷蝹浇紓瞧苽咿輦咿輦晾纻研蟼忄迋渍觽兜磦婆膫汕苽还穫！爞敂攣晻晛枛杹枛杹帋巵憫憗拻拋憫憗帋巵敂攣晻晛拻拋悙悂晻晛槝榿櫃檨

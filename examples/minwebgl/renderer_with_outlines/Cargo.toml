@@ -19,6 +19,7 @@ renderer = { workspace = true }
 zune-hdr = { workspace = true }
 rand = { workspace = true }
 getrandom = { workspace = true, features = [ "wasm_js" ] }
+rustc-hash = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true

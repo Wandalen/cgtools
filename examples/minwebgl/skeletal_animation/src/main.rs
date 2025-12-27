@@ -28,6 +28,7 @@ use renderer::webgl::
   Camera,
   Renderer
 };
+use animation::Sequencer;
 
 mod lil_gui;
 mod gui_setup;
@@ -82,7 +83,7 @@ async fn run() -> Result< (), gl::WebglError >
   camera.bind_controls( &canvas );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "envMap" ).await );
+  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "envMap", None ).await );
 
   let renderer = Rc::new( RefCell::new( renderer ) );
 
@@ -98,7 +99,7 @@ async fn run() -> Result< (), gl::WebglError >
     node.borrow_mut().set_scale( scale );
   }
 
-  camera.get_controls().borrow_mut().eye = F32x3::from_array( [-5.341171e-6, -0.015823878, 0.007656166] );
+  camera.get_controls().borrow_mut().eye = F32x3::from_array( [-5.341_171e-6, -0.015_823_878, 0.007_656_166] );
 
   let last_time = Rc::new( RefCell::new( 0.0 ) );
 
@@ -119,12 +120,9 @@ async fn run() -> Result< (), gl::WebglError >
         let delta_time = time - *last_time.borrow();
         *last_time.borrow_mut() = time;
 
-        if current_animation.borrow().animation.as_any()
-        .downcast_ref::< animation::Sequencer >().unwrap().is_completed()
+        if current_animation.borrow().inner_get::< Sequencer >().unwrap().is_completed()
         {
-          current_animation.borrow_mut().animation
-          .as_any_mut()
-          .downcast_mut::< animation::Sequencer >()
+          current_animation.borrow_mut().inner_get_mut::< Sequencer >()
           .unwrap()
           .reset();
         }
