@@ -13,9 +13,10 @@
 
 pub mod ufo
 {
-  use std::{collections::HashMap, str::FromStr};
+  use rustc_hash::FxHashMap;
+  use std::str::FromStr;
   use kurbo::flatten;
-  use mingl::{geometry::BoundingBox, IntoArray};
+  use mingl::{ geometry::BoundingBox, IntoArray };
   use norad::{ PointType, ContourPoint, Contour };
   use std::rc::Rc;
   use std::cell::RefCell;
@@ -248,7 +249,7 @@ pub mod ufo
   #[ derive( Clone ) ]
   pub struct Font
   {
-    glyphs : HashMap< char, Glyph >,
+    glyphs : FxHashMap< char, Glyph >,
     _max_size : BoundingBox
   }
 
@@ -256,7 +257,7 @@ pub mod ufo
   {
     async fn new( path : &str ) -> Self
     {
-      let mut glyphs = HashMap::< char, Glyph >::new();
+      let mut glyphs = FxHashMap::< char, Glyph >::default();
       let glyphs_path = path.to_string() + "/glyphs";
 
       for c in b'a'..=b'z'
@@ -671,7 +672,7 @@ pub mod ufo
 
   pub struct Font3D
   {
-    glyphs : HashMap< char, Glyph3D >,
+    glyphs : FxHashMap< char, Glyph3D >,
     max_size : BoundingBox
   }
 
@@ -679,7 +680,7 @@ pub mod ufo
   {
     fn from_font( gl : &GL, font : Font ) -> Self
     {
-      let mut glyphs = HashMap::< char, Glyph3D >::new();
+      let mut glyphs = FxHashMap::< char, Glyph3D >::default();
 
       for ( char, glyph ) in font.glyphs
       {
@@ -712,9 +713,9 @@ pub mod ufo
     }
   }
 
-  pub async fn load_fonts( font_names : &[ String ] ) -> HashMap< String, Font >
+  pub async fn load_fonts( font_names : &[ String ] ) -> FxHashMap< String, Font >
   {
-    let mut fonts = HashMap::< String, Font >::new();
+    let mut fonts = FxHashMap::< String, Font >::default();
 
     for font_name in font_names
     {
@@ -725,13 +726,13 @@ pub mod ufo
     fonts
   }
 
-  pub async fn load_fonts_3d( gl : &GL, font_names : &[ String ] ) -> HashMap< String, Font3D >
+  pub async fn load_fonts_3d( gl : &GL, font_names : &[ String ] ) -> FxHashMap< String, Font3D >
   {
     load_fonts( font_names )
     .await
     .iter()
     .map( | ( n, f ) | ( n.clone(), Font3D::from_font( gl, f.clone() ) ) )
-    .collect::< HashMap< _, Font3D > >()
+    .collect::< FxHashMap< _, Font3D > >()
   }
 
   pub fn text_to_mesh( text : &str, font : &Font3D, transform : &Transform ) -> Vec< PrimitiveData >
@@ -811,7 +812,7 @@ pub mod ttf
   };
   use std::rc::Rc;
   use std::cell::RefCell;
-  use std::collections::HashMap;
+  use rustc_hash::FxHashMap;
   use renderer::webgl::
   {
     Material,
@@ -922,7 +923,7 @@ pub mod ttf
 
   pub struct Font3D
   {
-    glyphs : HashMap< char, Glyph3D >,
+    glyphs : FxHashMap< char, Glyph3D >,
     max_size : BoundingBox
   }
 
@@ -933,7 +934,7 @@ pub mod ttf
       let ttf_bytes = file::load( path ).await
       .expect( "Failed to load ttf file" );
 
-      let mut glyphs = HashMap::< char, Glyph3D >::new();
+      let mut glyphs = FxHashMap::< char, Glyph3D >::default();
 
       for c in [ 'C', 'G', 'T', 'o', 'l', 's' ]
       {
@@ -989,9 +990,9 @@ pub mod ttf
     }
   }
 
-  pub async fn load_fonts_3d( gl : &GL, font_names : &[ String ] ) -> HashMap< String, Font3D >
+  pub async fn load_fonts_3d( gl : &GL, font_names : &[ String ] ) -> FxHashMap< String, Font3D >
   {
-    let mut fonts = HashMap::< String, Font3D >::new();
+    let mut fonts = FxHashMap::< String, Font3D >::default();
 
     for font_name in font_names
     {

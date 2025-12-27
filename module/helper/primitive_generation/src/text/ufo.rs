@@ -15,7 +15,8 @@ mod private
 {
   use std::rc::Rc;
   use std::cell::RefCell;
-  use std::{collections::HashMap, str::FromStr};
+  use rustc_hash::FxHashMap;
+  use std::str::FromStr;
   use kurbo::flatten;
   use mingl::geometry::BoundingBox;
   use norad::{ PointType, ContourPoint, Contour };
@@ -263,7 +264,7 @@ mod private
   pub struct Font
   {
     /// A map of characters to their corresponding glyphs.
-    glyphs : HashMap< char, Glyph >,
+    glyphs : FxHashMap< char, Glyph >,
     /// The maximum bounding box of glyph in the font.
     max_size : BoundingBox
   }
@@ -273,7 +274,7 @@ mod private
     /// Asynchronously loads a new `Font` from a UFO directory path.
     async fn new( path : &str ) -> Self
     {
-      let mut glyphs = HashMap::< char, Glyph >::new();
+      let mut glyphs = FxHashMap::< char, Glyph >::default();
       let glyphs_path = path.to_string() + "/glyphs";
 
       for c in b'a'..=b'z'
@@ -542,9 +543,9 @@ mod private
   }
 
   /// Asynchronously loads multiple fonts from a list of font names.
-  pub async fn load_fonts( font_names : &[ &str ] ) -> HashMap< String, Font >
+  pub async fn load_fonts( font_names : &[ &str ] ) -> FxHashMap< String, Font >
   {
-    let mut fonts = HashMap::< String, Font >::new();
+    let mut fonts = FxHashMap::< String, Font >::default();
 
     for font_name in font_names
     {

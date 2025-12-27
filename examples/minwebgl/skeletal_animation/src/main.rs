@@ -1,4 +1,4 @@
-//! Renders GLTF files using postprocess effects.
+//! Renders skeletal animation from GLTF files.
 #![ doc( html_root_url = "https://docs.rs/gltf_viewer/latest/skeletal_animation/" ) ]
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 #![ cfg_attr( not( doc ), doc = "Renders skeleton animation from GLTF files" ) ]
@@ -28,6 +28,7 @@ use renderer::webgl::
   Camera,
   Renderer
 };
+use animation::Sequencer;
 
 mod lil_gui;
 mod gui_setup;
@@ -119,12 +120,14 @@ async fn run() -> Result< (), gl::WebglError >
         let delta_time = time - *last_time.borrow();
         *last_time.borrow_mut() = time;
 
-        if current_animation.borrow().sequencer.borrow().is_completed()
+        if current_animation.borrow().inner_get::< Sequencer >().unwrap().is_completed()
         {
-          current_animation.borrow().sequencer.borrow_mut().reset();
+          current_animation.borrow_mut().inner_get_mut::< Sequencer >()
+          .unwrap()
+          .reset();
         }
 
-        current_animation.borrow().update( delta_time );
+        current_animation.borrow_mut().update( delta_time );
         current_animation.borrow().set();
       }
 

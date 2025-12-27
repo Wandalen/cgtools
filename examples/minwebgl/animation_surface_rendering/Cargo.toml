@@ -2,10 +2,10 @@
 name = "animation_surface_rendering"
 version = "0.1.0"
 edition = "2021"
-authors = [ 
+authors = [
   "Kostiantyn Mysnyk <wandalen@obox.systems>",
   "Avramenko Yevhenii <yevhenii.av@obox.systems>",
-  "Bilan Vadym <vadym.b@obox.systems>" 
+  "Bilan Vadym <vadym.b@obox.systems>"
 ]
 
 [lints]
@@ -26,6 +26,7 @@ peniko = { workspace = true }
 color = { workspace = true }
 earcutr = { workspace = true }
 former = { workspace = true }
+rustc-hash = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true

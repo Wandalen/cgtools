@@ -757,6 +757,7 @@ mod private
         // If the node contains a mesh...
         if let Object3D::Mesh( ref mesh ) = node.borrow().object
         {
+          let mut primitive_offset = 0;
           // Iterate over each primitive in the mesh.
           for primitive_rc in mesh.borrow().primitives.iter()
           {
@@ -842,6 +843,12 @@ mod private
             if material.needs_update() && program_cached
             {
               let _ = material.upload( gl, node.clone() );
+            }
+
+            if let Some( primitive_offset_loc ) = locations.get( "primitiveOffset" )
+            {
+              gl::uniform::upload( &gl, primitive_offset_loc.clone(), &primitive_offset ).unwrap();
+              primitive_offset += primitive.geometry.borrow().vertex_count;
             }
 
             node.borrow().upload( gl, locations );

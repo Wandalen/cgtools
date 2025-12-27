@@ -30,7 +30,7 @@ mod private
 
   impl Default for Scene
   {
-    fn default() -> Self 
+    fn default() -> Self
     {
       let identity_matrix = gl::math::mat4x4::identity();
 

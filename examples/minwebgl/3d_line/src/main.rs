@@ -12,9 +12,9 @@
 #![ allow( clippy::needless_range_loop ) ]
 
 use mingl::
-{ 
-  CameraOrbitControls, 
-  camera_orbit_controls::bind_controls_to_input 
+{
+  CameraOrbitControls,
+  controls::camera_orbit_controls::bind_controls_to_input
 };
 use minwebgl as gl;
 use web_sys::js_sys;

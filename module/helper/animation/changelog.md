@@ -18,3 +18,12 @@ Deprecation:
 Migration:
 
 If you have used Color up to this point then implement your own analog. If you have used TweenBuilder or AnimationBuilder up to this point then you need now use Animation, Sequencer, Sequence, Tween for animation creation. New framework makes wider opportunities to create and use animations.
+
+## 24.10.2025
+
+Changes:
+
+- Moved traits to new module
+- Added methods current_id_get, tweens_get to Sequencer
+- Added Clone trait for Sequencer, Sequence and all EasingFunctions impls
+- Added methods get_mut, get_value to Tween
