@@ -133,14 +133,14 @@ mod private
       }
     }
 
-    /// Get [`HashMap`] of related [`Node`]'s
-    pub fn nodes_get( &self ) -> &HashMap< Box< str >, Rc< RefCell< Node > > >
+    /// Get [`FxHashMap`] of related [`Node`]'s
+    pub fn nodes_get( &self ) -> &FxHashMap< Box< str >, Rc< RefCell< Node > > >
     {
       &self.nodes
     }
 
-    /// Get [`HashMap`] of related animated properties
-    pub fn state_get( &self ) -> &HashMap< Box< str >, AnimationProperty >
+    /// Get [`FxHashMap`] of related animated properties
+    pub fn state_get( &self ) -> &FxHashMap< Box< str >, AnimationProperty >
     {
       &self.animatables
     }
@@ -163,7 +163,7 @@ mod private
       self
     }
 
-    fn set( &self, nodes : &HashMap< Box< str >, Rc< RefCell< Node > > > )
+    fn set( &self, nodes : &FxHashMap< Box< str >, Rc< RefCell< Node > > > )
     {
       for ( name, node ) in nodes
       {

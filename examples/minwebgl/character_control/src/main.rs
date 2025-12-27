@@ -274,11 +274,7 @@ fn setup_input( canvas : &HtmlCanvasElement ) -> ( Rc< RefCell< CharacterControl
 
 fn setup_graph( animations : Vec< Animation > ) -> AnimationGraph
 {
-
-
-  let mut graph = AnimationGraph::new( nodes );
-
-
+  let mut graph = AnimationGraph::new( &animations[ 0 ].nodes );
 
   graph
 }

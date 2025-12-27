@@ -1,7 +1,7 @@
 mod private
 {
   use std::{ rc::Rc, cell::RefCell };
-  use std::collections::HashMap;
+  use rustc_hash::FxHashMap;
   use animation::{ Tween, AnimatablePlayer, Sequencer };
   use crate::webgl::
   {
@@ -102,7 +102,7 @@ mod private
     /// controls also transition process to next [`AnimationNode`].
     in_process : Option< Rc< RefCell< AnimationEdge > > >,
     /// List of [`AnimationEdge`]'s for transition from one [`AnimationNode`] to another
-    edges : HashMap< Box< str >, Rc< RefCell< AnimationEdge > > >
+    edges : FxHashMap< Box< str >, Rc< RefCell< AnimationEdge > > >
   }
 
   /// Directed graph that controls animation state of some [`crate::webgl::Skeleton`]
@@ -113,10 +113,10 @@ mod private
     /// cycle for related [`crate::webgl::Skeleton`]
     current : Option< Rc< RefCell< AnimationNode > > >,
     /// [`Node`]'s animated by this [`AnimationGraph`]
-    nodes : HashMap< Box< str >, Rc< RefCell< Node > > >,
+    nodes : FxHashMap< Box< str >, Rc< RefCell< Node > > >,
     /// List of [`AnimationNode`] that is part of animation
     /// state update process
-    animation_nodes : HashMap< Box< str >, Rc< RefCell< AnimationNode > > >,
+    animation_nodes : FxHashMap< Box< str >, Rc< RefCell< AnimationNode > > >,
     /// Last [`Pose`] of related [`crate::webgl::Skeleton`]
     last_pose : Option< Pose >
   }
@@ -124,13 +124,13 @@ mod private
   impl AnimationGraph
   {
     /// Creates new [`AnimationGraph`]
-    pub fn new( nodes : &HashMap< Box< str >, Rc< RefCell< Node > > > ) -> Self
+    pub fn new( nodes : &FxHashMap< Box< str >, Rc< RefCell< Node > > > ) -> Self
     {
       Self
       {
         current : None,
         nodes : nodes.clone(),
-        animation_nodes : HashMap::new(),
+        animation_nodes : FxHashMap::default(),
         last_pose : None
       }
     }
@@ -155,7 +155,7 @@ mod private
         name : name.clone(),
         animation,
         in_process : None,
-        edges : HashMap::new(),
+        edges : FxHashMap::default(),
       };
       self.animation_nodes.insert( name, Rc::new( RefCell::new( node ) ) );
     }
@@ -220,7 +220,7 @@ mod private
     }
 
     /// Gets map of animated [`Node`]'s
-    pub fn animated_nodes_get( &self ) -> &HashMap< Box< str >, Rc< RefCell< Node > > >
+    pub fn animated_nodes_get( &self ) -> &FxHashMap< Box< str >, Rc< RefCell< Node > > >
     {
       &self.nodes
     }
@@ -305,7 +305,7 @@ mod private
       self
     }
 
-    fn set( &self, nodes : &HashMap< Box< str >, Rc< RefCell< Node > > > )
+    fn set( &self, nodes : &FxHashMap< Box< str >, Rc< RefCell< Node > > > )
     {
       if let Some( current ) = &self.current
       {

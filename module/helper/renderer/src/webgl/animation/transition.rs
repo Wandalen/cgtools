@@ -1,6 +1,6 @@
 mod private
 {
-  use std::collections::HashMap;
+  use rustc_hash::FxHashMap;
   use std::{ rc::Rc, cell::RefCell };
   use animation::
   {
@@ -129,7 +129,7 @@ mod private
 
     /// Sets all simple 3D transformations for every
     /// [`Node`] related to this [`AnimatableComposition`]
-    fn set( &self, nodes : &HashMap< Box< str >, Rc< RefCell< Node > > > )
+    fn set( &self, nodes : &FxHashMap< Box< str >, Rc< RefCell< Node > > > )
     {
       let t = self.tween.value_get();
 
