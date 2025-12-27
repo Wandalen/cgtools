@@ -1,6 +1,6 @@
 mod private
 {
-  use std::collections::HashMap;
+  use rustc_hash::FxHashMap;
   use std::{ rc::Rc, cell::RefCell };
   use animation::
   {
@@ -48,7 +48,7 @@ mod private
     /// - x - transform
     /// - y - rotation
     /// - z - scale
-    weighted_animations : HashMap< Box< str >, ( Sequencer, F64x3 ) >,
+    weighted_animations : FxHashMap< Box< str >, ( Sequencer, F64x3 ) >,
     /// Flag that choose need normalize ( reduce to 1.0 ) sum of animation weights or not
     pub normalize : bool
   }
@@ -60,7 +60,7 @@ mod private
     {
       Self
       {
-        weighted_animations : HashMap::new(),
+        weighted_animations : FxHashMap::default(),
         normalize : false
       }
     }
@@ -305,7 +305,7 @@ mod private
 
     /// Sets all simple 3D transformations for every
     /// [`Node`] related to this [`AnimatableComposition`]
-    fn set( &self, nodes : &HashMap< Box< str >, Rc< RefCell< Node > > > )
+    fn set( &self, nodes : &FxHashMap< Box< str >, Rc< RefCell< Node > > > )
     {
       for ( name, node ) in nodes
       {

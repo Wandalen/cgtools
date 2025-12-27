@@ -1,9 +1,9 @@
 mod private
 {
+  use rustc_hash::FxHashMap;
   use std::
   {
     cell::RefCell,
-    collections::HashMap,
     rc::Rc
   };
   use minwebgl as gl;
@@ -41,9 +41,9 @@ mod private
   pub struct Pose
   {
     /// Stores [`AnimationProperty`]'ies for every [`Node`]. Represents state of [`Pose`]
-    animatables : HashMap< Box< str >, AnimationProperty >,
+    animatables : FxHashMap< Box< str >, AnimationProperty >,
     /// Stores links to [`Node`]'s
-    nodes : HashMap< Box< str >, Rc< RefCell< Node > > >
+    nodes : FxHashMap< Box< str >, Rc< RefCell< Node > > >
   }
 
   impl Pose
@@ -108,7 +108,7 @@ mod private
         }
       )
       .flatten()
-      .collect::< HashMap< Box< str >, AnimationProperty > >();
+      .collect::< FxHashMap< Box< str >, AnimationProperty > >();
 
       let nodes = _nodes.iter()
       .filter_map
@@ -124,7 +124,7 @@ mod private
           Some( ( name, n.clone() ) )
         }
       )
-      .collect::< HashMap< _, _ > >();
+      .collect::< FxHashMap< _, _ > >();
 
       Self
       {

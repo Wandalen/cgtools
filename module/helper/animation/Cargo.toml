@@ -36,6 +36,7 @@ error_tools = { workspace = true }
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
 mingl = { workspace = true }
 clone_dyn_types = { workspace = true }
+rustc-hash = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true
