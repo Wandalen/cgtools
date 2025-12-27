@@ -34,6 +34,7 @@ animation = { workspace = true }
 ```rust
 use animation::interpolation::Tween;
 use animation::easing::{ EasingBuilder, Linear };
+use animation::AnimatablePlayer;
 
 let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
 .with_repeat( 1 ).with_yoyo( true );
@@ -41,13 +42,13 @@ let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
 // First loop: 0.0 -> 10.0
 let val1 = tween.update( 0.5 ); // 5.0
 tween.update( 0.5 );
-tween.get_value(); // 10.0
+tween.value_get(); // 10.0
 tween.current_repeat(); // 1
 
 // Second loop: 10.0 -> 0.0 (yoyo)
 let val2 = tween.update( 0.5 ); // 5.0
 tween.update( 0.5 );
-tween.get_value(); // 0.0
+tween.value_get(); // 0.0
 tween.is_completed(); // true
 ```
 
@@ -57,6 +58,7 @@ tween.is_completed(); // true
 use animation::interpolation::Tween;
 use animation::sequencer::Sequencer;
 use animation::easing::{ Linear, EasingBuilder };
+use animation::AnimatablePlayer;
 
 let mut sequencer = Sequencer::new();
 sequencer.add

@@ -5,7 +5,8 @@ edition = "2021"
 rust-version = "1.75.0"
 authors = [
   "Kostiantyn Mysnyk <wandalen@obox.systems>",
-  "Avramenko Yevhenii <yevhenii.av@obox.systems>"
+  "Avramenko Yevhenii <yevhenii.av@obox.systems>",
+  "Vadym Bilan <vadym.b@obox.systems>"
 ]
 license = "MIT"
 repository = "https://github.com/Wandalen/cgtools"
@@ -37,6 +38,9 @@ enabled = [
   "dep:former",
   "dep:uuid",
   "dep:web-sys",
+  "dep:clone_dyn_types",
+  "dep:zune-hdr",
+  "dep:rustc-hash"
 ]
 default = [ "enabled" ]
 full = [ "enabled", "webgl", "animation" ]
@@ -48,14 +52,15 @@ animation = [ "dep:animation", "dep:clone_dyn_types" ]
 mod_interface = { workspace = true, optional = true }
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ], optional = true }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ], optional = true }
-gltf = { workspace = true, features = [ "import", "KHR_materials_specular", "utils" ], optional = true }
+gltf = { workspace = true, features = [ "import", "extensions", "KHR_materials_specular", "KHR_lights_punctual", "utils" ], optional = true }
 animation = { workspace = true, optional = true }
-zune-hdr = { workspace = true }
+zune-hdr = { workspace = true, optional = true }
+rustc-hash = { workspace = true, optional = true }
 clone_dyn_types = { workspace = true, optional = true }
 
 asbytes = { workspace = true, optional = true }
 former = { workspace = true, optional = true }
-uuid = { workspace = true, optional = true }
+uuid = { version = "1.12.1", features = ["v4", "js"], optional = true }
 
 [dependencies.web-sys]
 workspace = true
@@ -76,7 +81,10 @@ features = [
 ]
 
 [dev-dependencies]
+wasm-bindgen-test = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
 test_tools = { workspace = true }
+approx = { workspace = true, features = [] }
 
 # Metadata for crates.io
 [package.metadata.docs.rs]

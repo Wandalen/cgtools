@@ -3,11 +3,12 @@
 mod private
 {
   use std::collections::HashMap;
-  use error_tools::*;
   use crate::
   {
     AnimatablePlayer, AnimationState
   };
+  use error_tools::error;
+
   #[ allow( unused_imports ) ]
   use crate::Tween;
 
@@ -127,6 +128,13 @@ mod private
       player_box.as_any_mut().downcast_mut::< T >()
     }
 
+    /// Gets the current value of a named animation as dyn ref.
+    pub fn get_dyn_value( &self, name : &str ) -> Option< &dyn AnimatablePlayer >
+    {
+      let player_box = self.players.get( name )?;
+      Some( player_box.as_ref() )
+    }
+
     /// Checks if the Sequencer has completed all animations.
     pub fn is_completed( &self ) -> bool
     {
@@ -238,6 +246,8 @@ mod private
   where T : AnimatablePlayer + 'static
   {
     /// [`Sequence`] constructor
+    #[ allow( clippy::missing_errors_doc ) ]
+    #[ allow( clippy::missing_panics_doc ) ]
     pub fn new( mut tweens : Vec< T > ) -> Result< Self, SequenceError >
     {
       if tweens.len() < 2
@@ -246,9 +256,9 @@ mod private
       }
 
       let last_delay = 0.0;
-      for t in tweens.iter_mut()
+      for tween in &mut tweens
       {
-        if last_delay > t.delay_get()
+        if last_delay > tween.delay_get()
         {
           return Err( SequenceError::Unsorted );
         }
@@ -312,9 +322,9 @@ mod private
 
       let index = self.tweens.binary_search_by
       (
-        | t |
+        | tween |
         {
-          t.delay_get().partial_cmp( &self.elapsed ).expect( "Animation keyframes can't be NaN" )
+          tween.delay_get().partial_cmp( &self.elapsed ).expect( "Animation keyframes can't be NaN" )
         }
       );
 
@@ -330,6 +340,7 @@ mod private
         current_id = self.tweens.len().saturating_sub( 1 );
       }
 
+      #[ allow( clippy::else_if_without_else ) ]
       if self.current == current_id
       {
         let Some( current ) = self.tweens.get_mut( self.current )
@@ -365,8 +376,7 @@ mod private
         },
         AnimationState::Running
         if self.current >= self.tweens.len() - 1 &&
-        self.tweens.get( self.current ).map( | t | t.is_completed() )
-        .unwrap_or( true ) =>
+        self.tweens.get( self.current ).map_or( true, AnimatablePlayer::is_completed ) =>
         {
           self.state = AnimationState::Completed;
         },
@@ -386,8 +396,7 @@ mod private
         self.state = AnimationState::Paused;
       }
 
-      self.tweens.iter_mut()
-      .for_each( | t | t.pause() );
+      for tween in &mut self.tweens { tween.pause() }
     }
 
     fn resume( &mut self )
@@ -397,8 +406,7 @@ mod private
         self.state = AnimationState::Running;
       }
 
-      self.tweens.iter_mut()
-      .for_each( | t | t.resume() );
+      for tween in &mut self.tweens { tween.resume() }
     }
 
     fn reset( &mut self )
@@ -407,8 +415,7 @@ mod private
       self.state = AnimationState::Pending;
       self.elapsed = 0.0;
 
-      self.tweens.iter_mut()
-      .for_each( | t | t.reset() );
+      for tween in &mut self.tweens { tween.reset() }
     }
 
     fn duration_get( &self ) -> f64
@@ -441,188 +448,6 @@ mod private
     fn as_any_mut( &mut self ) -> &mut dyn core::any::Any
     {
       self
-    }
-  }
-
-  #[ cfg( test ) ]
-  mod tests
-  {
-    use super::*;
-    use crate::easing::
-    {
-      base::EasingBuilder,
-      Linear,
-      cubic::bezier::EaseInSine
-    };
-
-    #[ test ]
-    fn test_sequencer_basic_flow()
-    {
-      let mut sequencer = Sequencer::new();
-
-      assert_eq!( sequencer.state(), AnimationState::Pending );
-      assert_eq!( sequencer.animation_count(), 0 );
-
-      let float_tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() );
-      sequencer.add( "test", float_tween );
-
-      assert_eq!( sequencer.state(), AnimationState::Running );
-      assert_eq!( sequencer.animation_count(), 1 );
-      assert!( !sequencer.is_completed() );
-
-      sequencer.update( 0.5 );
-      assert_eq!( sequencer.time(), 0.5 );
-      assert_eq!( sequencer.state(), AnimationState::Running );
-
-      let value = sequencer.get_value::< Tween< f32 > >( "test" ).unwrap();
-      assert_eq!( value.value_get(), 5.0 );
-
-      sequencer.update( 0.5 );
-      assert_eq!( sequencer.time(), 1.0 );
-
-      assert!( sequencer.is_completed() );
-      assert_eq!( sequencer.state(), AnimationState::Completed );
-    }
-
-    #[ test ]
-    fn test_sequencer_multiple_tweens()
-    {
-      let mut sequencer = Sequencer::new();
-
-      let tween1 = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() );
-      let tween2 = Tween::new( 0.0_f32, 10.0_f32, 2.0, Linear::new() );
-      sequencer.add( "short_tween", tween1 );
-      sequencer.add( "long_tween", tween2 );
-
-      sequencer.update( 1.5 );
-
-      assert!( !sequencer.is_completed() );
-      assert_eq!( sequencer.state(), AnimationState::Running );
-      assert_eq!( sequencer.time(), 1.5 );
-
-      sequencer.update( 0.5 );
-
-      assert!( sequencer.is_completed() );
-      assert_eq!( sequencer.time(), 2.0 );
-      assert_eq!( sequencer.state(), AnimationState::Completed );
-    }
-
-    #[ test ]
-    fn test_sequencer_pause_resume()
-    {
-      let mut sequencer = Sequencer::new();
-      sequencer.add
-      (
-        "test",
-        Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
-      );
-
-      sequencer.update( 0.5 );
-      assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().value_get(), 5.0 );
-
-      sequencer.pause();
-      assert_eq!( sequencer.state(), AnimationState::Paused );
-
-      sequencer.update( 0.5 );
-      let value = sequencer.get_value::< Tween< f32 > >( "test" ).unwrap();
-      assert_eq!( value.value_get(), 5.0 );
-
-      sequencer.resume();
-      assert_eq!( sequencer.state(), AnimationState::Running );
-
-      sequencer.update( 0.5 );
-      assert!( sequencer.is_completed() );
-      let value = sequencer.get_value::< Tween< f32 > >( "test" ).unwrap();
-      assert_eq!( value.value_get(), 10.0 );
-    }
-
-    #[ test ]
-    fn test_sequencer_reset()
-    {
-      let mut sequencer = Sequencer::new();
-      sequencer.add
-      (
-        "test",
-        Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
-      );
-
-      sequencer.update( 0.5 );
-      assert_eq!( sequencer.time(), 0.5 );
-      assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().value_get(), 5.0 );
-
-      sequencer.reset();
-
-      assert_eq!( sequencer.time(), 0.0 );
-      assert_eq!( sequencer.state(), AnimationState::Running );
-      assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().value_get(), 0.0 );
-
-      sequencer.update( 1.0 );
-      assert!( sequencer.is_completed() );
-      assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().value_get(), 10.0 );
-    }
-
-    #[ test ]
-    fn test_sequencer_remove()
-    {
-      let mut sequencer = Sequencer::new();
-
-      sequencer.add
-      (
-        "tween1",
-        Tween::new( 0.0_f32, 1.0_f32, 1.0, Linear::new() )
-      );
-      sequencer.add
-      (
-        "tween2",
-        Tween::new( 0.0_f32, 1.0_f32, 1.0, Linear::new() )
-      );
-      assert_eq!( sequencer.animation_count(), 2 );
-
-      assert!( sequencer.remove( "tween1" ) );
-      assert_eq!( sequencer.animation_count(), 1 );
-
-      assert!( sequencer.get_value::< Tween< f32 > >( "tween1" ).is_none() );
-      assert!( sequencer.get_value::< Tween< f32 > >( "tween2" ).is_some() );
-
-      assert!( !sequencer.remove( "tween1" ) );
-    }
-
-    #[ test ]
-    fn test_sequencer_get_value_wrong_type()
-    {
-      let mut sequencer = Sequencer::new();
-
-      sequencer.add
-      (
-        "float_tween",
-        Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
-      );
-
-      assert!( sequencer.get_value::< Tween< i32 > >( "float_tween" ).is_none() );
-
-      assert!( sequencer.get_value::< Tween< f32 > >( "float_tween" ).is_some() );
-    }
-
-    #[ test ]
-    fn test_sequencer_ease_in()
-    {
-      let mut sequencer = Sequencer::new();
-
-      sequencer.add
-      (
-        "ease_in_tween",
-        Tween::new( 0.0_f32, 10.0_f32, 1.0, EaseInSine::new() )
-      );
-
-      sequencer.update( 0.5 );
-
-      let value = sequencer.get_value::< Tween< f32 > >( "ease_in_tween" ).unwrap();
-      assert_eq!( value.value_get(), 1.25 );
-
-      sequencer.update( 0.5 );
-      assert!( sequencer.is_completed() );
-      let value = sequencer.get_value::< Tween< f32 > >( "ease_in_tween" ).unwrap();
-      assert_eq!( value.value_get(), 10.0 );
     }
   }
 }

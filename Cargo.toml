@@ -39,6 +39,10 @@ members = [
   "module/math/ndarray_cg",
 
   # Examples
+  #
+  # Symbol `*` usage requires that every example must contain crate.
+  # If your example not related with Rust, but you need leave it one
+  # one of this folders, then create empty crate and build will be successful.
   "examples/minwebgl/*",
   "examples/minwebgpu/*",
   "examples/minwgpu/*",
@@ -62,7 +66,6 @@ unsafe-code = "warn"
 # Individual restriction lints (not as a group per clippy recommendations)
 # Common useful restriction lints
 wildcard_imports = "warn"
-implicit_return = "warn"
 missing_inline_in_public_items = "warn"
 exhaustive_enums = "warn"
 exhaustive_structs = "warn"
@@ -207,7 +210,7 @@ version = "0.27.2"
 version = "~0.34.0"
 
 [workspace.dependencies.former]
-version = "~2.27.0"
+version = "~2.31.0"
 
 [workspace.dependencies.error_tools]
 version = "0.22.0"
@@ -253,6 +256,9 @@ version = "0.2.19"
 
 [workspace.dependencies.wasm-bindgen-futures]
 version = "0.4.50"
+
+[workspace.dependencies.wasm-bindgen-test]
+version = "0.3"
 
 # [workspace.dependencies.generic-array]
 # version = "1.1.0"
@@ -305,7 +311,7 @@ version = "1.47.1"
 version = "1.4"
 
 [workspace.dependencies.csgrs]
-version = "0.19.1"
+version = "0.20.1"
 default-features = false
 features = ["f64", "delaunay"]
 
@@ -315,10 +321,7 @@ version = "0.22.1"
 [workspace.dependencies.norad]
 default-features = false
 features = ["kurbo"]
-version = "0.16.0"
-
-[workspace.dependencies.parley]
-version = "0.5.0"
+version = "0.15.0"
 
 [workspace.dependencies.kurbo]
 version = "0.11.3"
@@ -380,13 +383,13 @@ version = "0.4.0"
 version = "0.10"
 
 [workspace.dependencies.wgpu]
-version = "26.0.1"
+version = "27.0.1"
 
 [workspace.dependencies.pollster]
 version = "0.4.0"
 
 [workspace.dependencies.unilang]
-version = "0.11.0"
+version = "0.26.0"
 
 [workspace.dependencies.rustyline]
 version = "14.0"
@@ -394,6 +397,9 @@ version = "14.0"
 [workspace.dependencies.wfc]
 version = "0.10"
 features = [ "js" ]
+
+[workspace.dependencies.spart]
+version = "0.4.1"
 
 [workspace.dependencies.wfc_image]
 version = "0.12"

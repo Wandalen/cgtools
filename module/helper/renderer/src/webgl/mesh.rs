@@ -6,13 +6,17 @@ mod private
   use crate::webgl::Skeleton;
 
   /// Represents a collection of renderable primitives.
-  #[ derive( Default ) ]
+  #[ derive( Debug, Default ) ]
   pub struct Mesh
   {
     /// A vector holding the primitives that constitute the mesh. Each primitive is shared and mutable.
     pub primitives : Vec< Rc< RefCell< Primitive > > >,
     /// Stores matrices for every [`Node`] for skinning [`Mesh`]
-    pub skeleton : Option< Rc< RefCell< Skeleton > > >
+    pub skeleton : Option< Rc< RefCell< Skeleton > > >,
+    /// Whether this node casts shadows
+    pub is_shadow_caster : bool,
+    /// Whether this node receives shadows
+    pub is_shadow_receiver : bool,
   }
 
   impl Clone for Mesh
@@ -36,7 +40,9 @@ mod private
             *s.borrow_mut() = clone;
             s.clone()
           }
-        )
+        ),
+        is_shadow_caster : self.is_shadow_caster,
+        is_shadow_receiver : self.is_shadow_receiver,
       }
     }
   }

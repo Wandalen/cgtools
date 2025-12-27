@@ -17,4 +17,10 @@ mod tests
   /// Contains tests specifically related to `ndarray` functionalities.
   mod nd_test;
 
+  /// Tests for bounding box calculations
+  mod bounding_box;
+
+  /// Tests for bounding sphere calculations
+  mod bounding_sphere;
+
 }

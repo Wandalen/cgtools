@@ -2,6 +2,7 @@ mod private
 {
   use std::{ cell::RefCell, rc::Rc };
   use gltf::mesh::iter::MorphTargets;
+  use mingl::F32x3;
   use minwebgl as gl;
   use gl::
   {
@@ -16,6 +17,7 @@ mod private
     Geometry,
     IndexInfo,
     MagFilterMode,
+    material::PbrMaterial,
     Material,
     Mesh,
     MinFilterMode,
@@ -27,16 +29,23 @@ mod private
     Texture,
     TextureInfo,
     ToFromGlEnum,
-    WrappingMode
+    WrappingMode,
+    Light,
+    PointLight,
+    DirectLight,
+    SpotLight,
+    helpers
   };
   use web_sys::wasm_bindgen::prelude::Closure;
 
+  use rustc_hash::FxHashMap;
   use
   {
-    std::collections::HashMap,
     crate::webgl::Skeleton,
     gl::F32x4x4
   };
+
+  const DIRECTION_LIGHT_MIN_MAGNITUDE : f32 = 0.01;
 
   #[ cfg( feature = "animation" ) ]
   use crate::webgl::animation::Animation;
@@ -55,19 +64,31 @@ mod private
     /// A list of `Texture` objects, which wrap the raw WebGL textures and may contain
     /// additional metadata like sampler information.
     pub textures : Vec< Rc< RefCell< Texture > > >,
-    /// A collection of `Material` objects, defining how the surfaces of the meshes should be shaded.
-    pub materials : Vec< Rc< RefCell< Material > > >,
+    /// A collection of `PbrMaterial` objects, defining how the surfaces of the meshes should be shaded.
+    pub materials : Vec< Rc< RefCell< Box< dyn Material > > > >,
     /// A list of `Mesh` objects, which represent the geometry of the scene.
     pub meshes : Vec< Rc< RefCell< Mesh > > >,
+    /// List of [`Node`]s that represent light sources
+    pub lights : Vec< Rc< RefCell< Node > > >,
     /// A list of `Animation` objects, which store `Node`'s tranform change in every time moment.
     #[ cfg( feature = "animation" ) ]
-    pub animations : Vec< Animation >
+    pub animations : Vec< Animation >,
+  }
+
+  impl GLTF
+  {
+    /// Casts the trait object to a specific `PbrMaterial`
+    pub fn material_get( &self, id : usize ) -> std::cell::Ref< '_, PbrMaterial >
+    {
+      let material = self.materials[ id ].borrow();
+      helpers::cast_unchecked_material_to_ref( material )
+    }
   }
 
   fn load_skeleton_transforms_data< 'a >
   (
     skin : gltf::Skin< '_ >,
-    nodes : &HashMap< Box< str >, Rc< RefCell< Node > > >,
+    nodes : &FxHashMap< Box< str >, Rc< RefCell< Node > > >,
     buffers : &'a [ Vec< u8 > ]
   )
   -> Option< skeleton::TransformsData >
@@ -77,11 +98,7 @@ mod private
       | buffer | Some( buffers[ buffer.index() ].as_slice() )
     );
 
-    let Some( inverse_bind_matrices_iter ) = reader.read_inverse_bind_matrices()
-    else
-    {
-      return None;
-    };
+    let inverse_bind_matrices_iter = reader.read_inverse_bind_matrices()?;
 
     let matrices = inverse_bind_matrices_iter
     .map
@@ -96,7 +113,7 @@ mod private
           .collect::< Vec< f32 > >()
           .as_chunks::< 16 >()
           .0
-          .into_iter()
+          .iter()
           .cloned()
           .next()
           .unwrap()
@@ -262,7 +279,7 @@ mod private
   fn load_skeleton< 'a >
   (
     skin : Option< gltf::Skin< '_ > >,
-    nodes : &HashMap< Box< str >, Rc< RefCell< Node > > >,
+    nodes : &FxHashMap< Box< str >, Rc< RefCell< Node > > >,
     primitives_morph_targets : &Option< Vec< MorphTargets< '_ > > >,
     primitives_vertices_count : &[ usize ],
     weights : Option< Vec< f32 > >,
@@ -290,6 +307,120 @@ mod private
     {
       None
     }
+  }
+
+    fn get_light_list( gltf : &gltf::Gltf ) -> Option< FxHashMap< usize, Light > >
+  {
+    let mut lights = FxHashMap::default();
+    for ( i, gltf_light ) in gltf.lights()?.enumerate()
+    {
+      let light_type = gltf_light.kind();
+      let light =  match light_type
+      {
+        gltf::khr_lights_punctual::Kind::Point =>
+        {
+          let Some( range ) = gltf_light.range()
+          else
+          {
+            continue;
+          };
+          Light::Point
+          (
+            PointLight
+            {
+              position : F32x3::default(),
+              color : F32x3::from_slice( &gltf_light.color() ),
+              strength : gltf_light.intensity(),
+              range
+            }
+          )
+        },
+        gltf::khr_lights_punctual::Kind::Directional =>
+        {
+          Light::Direct
+          (
+            DirectLight
+            {
+              direction : F32x3::default(),
+              color : F32x3::from_slice( &gltf_light.color() ),
+              strength : gltf_light.intensity(),
+            }
+          )
+        },
+        gltf::khr_lights_punctual::Kind::Spot
+        {
+          inner_cone_angle,
+          outer_cone_angle,
+        } =>
+        {
+          let Some( range ) = gltf_light.range()
+          else
+          {
+            continue;
+          };
+          Light::Spot
+          (
+            SpotLight
+            {
+              position : F32x3::default(),
+              direction : F32x3::default(),
+              color : F32x3::from_slice( &gltf_light.color() ),
+              strength : gltf_light.intensity(),
+              range,
+              inner_cone_angle,
+              outer_cone_angle,
+              use_light_map : false,
+            }
+          )
+        }
+      };
+
+      lights.insert( i, light );
+    }
+
+    Some( lights )
+  }
+
+  fn get_light( gltf_node : &gltf::Node< '_ >, node : &Node, lights : &FxHashMap< usize, Light > ) -> Option< Light >
+  {
+    let light_id = gltf_node.extensions()?
+    .get_key_value( "KHR_lights_punctual" )?.1
+    .get( "light" )?
+    .as_u64()?;
+
+    lights.get( &( light_id as usize ) ).cloned()
+    .map
+    (
+      | light |
+      {
+        match light
+        {
+          Light::Point( mut point_light ) =>
+          {
+            point_light.position = node.get_translation();
+            Light::Point( point_light )
+          },
+          Light::Direct( mut direct_light ) =>
+          {
+            direct_light.direction = node.get_translation();
+            if direct_light.direction.mag() < DIRECTION_LIGHT_MIN_MAGNITUDE
+            {
+              let forward = gl::F32x3::from_array( [ 0.0, 0.0, -1.0 ] );
+              let rot_matrix = gl::math::d2::F32x3x3::from_quat( node.get_rotation() );
+              direct_light.direction = rot_matrix * forward;
+            }
+            direct_light.direction = direct_light.direction.normalize();
+            Light::Direct( direct_light )
+          },
+          Light::Spot( mut spot_light ) =>
+          {
+            spot_light.position = node.get_translation();
+            spot_light.direction = node.get_translation();
+            Light::Spot( spot_light )
+          }
+        }
+      }
+    )
   }
 
   /// Asynchronously loads a glTF (GL Transmission Format) file and its associated resources.
@@ -512,12 +643,15 @@ mod private
       })
     };
 
-    let mut materials = Vec::new();
+    let mut materials : Vec< Rc< RefCell< Box< dyn Material > > > > = Vec::new();
+    let mut material_variation_map : FxHashMap< uuid::Uuid, Vec< Rc< RefCell< Box< dyn Material > > > > > = FxHashMap::default();
+    let mut used_materials : Vec< Rc< RefCell< Box< dyn Material > > > > = Vec::new();
+
     for gltf_m in gltf_file.materials()
     {
       let pbr = gltf_m.pbr_metallic_roughness();
 
-      let mut material = Material::default();
+      let mut material = PbrMaterial::new( &gl );
       material.alpha_mode = match gltf_m.alpha_mode()
       {
         gltf::material::AlphaMode::Blend => AlphaMode::Blend,
@@ -564,12 +698,13 @@ mod private
         });
       }
 
-      materials.push( Rc::new( RefCell::new( material ) ) );
+      material_variation_map.insert( material.get_id(), Vec::new() );
+      materials.push( Rc::new( RefCell::new( Box::new( material ) ) ) );
     }
 
-    materials.push( Rc::new( RefCell::new( Material::default() ) ) );
+    materials.push( Rc::new( RefCell::new( Box::new( PbrMaterial::new( &gl ) ) ) ) );
 
-    gl::log::info!( "Materials: {}",materials.len() );
+    gl::log::info!( "PbrMaterials: {}",materials.len() );
     let make_attibute_info = | acc : &gltf::Accessor< '_ >, slot |
     {
       let data_type = match acc.data_type()
@@ -606,6 +741,15 @@ mod private
         let mut geometry = Geometry::new( gl )?;
         geometry.draw_mode = gltf_primitive.mode().as_gl_enum();
 
+        let material_id = gltf_primitive.material().index().unwrap_or( materials.len() - 1 );
+        let mut dummy_material = PbrMaterial::new( &gl );
+        let gltf_material = materials[ material_id ].clone();
+
+        let mut add_define = | name : &str |
+        {
+          dummy_material.add_define( format!( "USE_{}", name.to_uppercase() ), String::new() );
+        };
+
         // Indices
         if let Some( acc ) = gltf_primitive.indices()
         {
@@ -637,11 +781,11 @@ mod private
 
               let mut attr_info = make_attibute_info( &acc, 0 );
               attr_info.bounding_box = BoundingBox::new( gltf_box.min, gltf_box.max );
-              geometry.add_attribute( gl, "positions", attr_info, false )?;
+              geometry.add_attribute( gl, "positions", attr_info )?;
             },
             gltf::Semantic::Normals =>
             {
-              geometry.add_attribute( gl, "normals", make_attibute_info( &acc, 1 ), false )?;
+              geometry.add_attribute( gl, "normals", make_attibute_info( &acc, 1 ) )?;
             },
             gltf::Semantic::TexCoords( i ) =>
             {
@@ -650,8 +794,7 @@ mod private
               (
                 gl,
                 format!( "texture_coordinates_{}", 2 + i ),
-                make_attibute_info( &acc, 2 + i ),
-                false
+                make_attibute_info( &acc, 2 + i )
               )?;
             },
             gltf::Semantic::Colors( i ) =>
@@ -661,49 +804,78 @@ mod private
               (
                 gl,
                 format!( "colors_{}", 7 + i ),
-                make_attibute_info( &acc, 7 + i ),
-                false
+                make_attibute_info( &acc, 7 + i )
               )?;
             },
             gltf::Semantic::Tangents =>
             {
+              add_define( "tangents" );
               geometry.add_attribute
               (
                 gl,
                 "tangents",
-                make_attibute_info( &acc, 9 ),
-                true
+                make_attibute_info( &acc, 9 )
               )?;
             },
             gltf::Semantic::Joints( i ) =>
             {
+              let name = format!( "joints_{}", i );
+              add_define( &name );
               geometry.add_attribute
               (
                 gl,
-                format!( "joints_{}", i ),
+                name,
                 make_attibute_info( &acc, 10 + i ),
-                true
               )?;
             },
             gltf::Semantic::Weights( i ) =>
             {
+              let name = format!( "weights_{}", i );
+              add_define( &name );
               geometry.add_attribute
               (
                 gl,
-                format!( "weights_{}", i ),
-                make_attibute_info( &acc, 13 + i ),
-                true
+                name,
+                make_attibute_info( &acc, 13 + i )
               )?;
             },
             //a => { gl::warn!( "Unsupported attribute: {:?}", a ); continue; }
           };
         }
 
-        let material_id = gltf_primitive.material().index().unwrap_or( materials.len() - 1 );
+        // Amongst different materials with the same uuid, find the one that has the same vertex defines
+        let new_material = if let Some( material ) = material_variation_map
+        .get( &gltf_material.borrow().get_id() )
+        .map
+        (
+          | m |
+          m.iter()
+          .find( | m | m.borrow().get_vertex_defines_str() == dummy_material.get_vertex_defines_str() )
+        )
+        .flatten()
+        {
+          material.clone()
+        }
+        else
+        {
+          let material = Rc::new( RefCell::new( gltf_material.borrow().dyn_clone() ) );
+          let mut m = helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
+
+          for ( name, value ) in dummy_material.get_vertex_defines()
+          {
+            m.add_vertex_define( name.clone(), value );
+          }
+
+          std::mem::drop( m );
+          used_materials.push( material.clone() );
+
+          material
+        };
+
         let primitive = Primitive
         {
           geometry : Rc::new( RefCell::new( geometry ) ),
-          material : materials[ material_id ].clone()
+          material : new_material
         };
 
         mesh.add_primitive( Rc::new( RefCell::new( primitive ) ) );
@@ -714,26 +886,38 @@ mod private
 
     gl::log::info!( "Meshes: {}",meshes.len() );
 
+    let gltf_lights = get_light_list( &gltf_file ).unwrap_or_default();
+
     let mut nodes = Vec::new();
     let mut rigged_nodes = Vec::new();
+    let mut lights = Vec::new();
 
     for gltf_node in gltf_file.nodes()
     {
       let mut node = Node::default();
+      node.set_visibility( true, true );
+      let mut is_light = false;
+
+      let ( translation, rotation, scale ) = gltf_node.transform().decomposed();
+      node.set_scale( scale );
+      node.set_translation( translation );
+      node.set_rotation( gl::QuatF32::from( rotation ) );
 
       node.object = if let Some( mesh ) = gltf_node.mesh()
       {
         Object3D::Mesh( meshes[ mesh.index() ].clone() )
+      }
+      else if let Some( light ) = get_light( &gltf_node, &node, &gltf_lights )
+      {
+        is_light = true;
+        Object3D::Light( light )
       }
       else
       {
         Object3D::Other
       };
 
-      let ( translation, rotation, scale ) = gltf_node.transform().decomposed();
-      node.set_scale( scale );
-      node.set_translation( translation );
-      node.set_rotation( gl::QuatF32::from( rotation ) );
+
       if let Some( name ) = gltf_node.name() { node.set_name( name ); }
 
       let node = Rc::new( RefCell::new( node ) );
@@ -750,6 +934,11 @@ mod private
         ( None, None )
       };
       rigged_nodes.push( ( node.clone(), gltf_node.skin(), primitives_morph_targets, weights ) );
+
+      if is_light
+      {
+        lights.push( node.clone() );
+      }
 
       nodes.push( node );
     }
@@ -779,7 +968,7 @@ mod private
         )
       }
     )
-    .collect::< HashMap< _, _ > >();
+    .collect::< FxHashMap< _, _ > >();
 
     for ( node, skin, primitives_morph_targets, weights ) in rigged_nodes
     {
@@ -801,18 +990,17 @@ mod private
           mesh.borrow_mut().skeleton = Some( skeleton.clone() );
           for primitive in &mesh.borrow().primitives
           {
+            let p = primitive.borrow();
+            let mut mat_mut = helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >(  p.material.borrow_mut() );
+
             if skeleton.borrow().has_skin()
             {
-              primitive.borrow()
-              .geometry.borrow_mut()
-              .defines += "#define USE_SKINNING\n";
+              mat_mut.add_define( "USE_SKINNING", String::new() );
             }
 
             if skeleton.borrow().has_morph_targets()
             {
-              primitive.borrow()
-              .geometry.borrow_mut()
-              .defines += "#define USE_MORPH_TARGET\n";
+              mat_mut.add_define( "USE_MORPH_TARGET", String::new() );
             }
           }
         }
@@ -834,8 +1022,11 @@ mod private
       {
         scene.add( nodes[ gltf_node.index() ].clone() );
       }
+      scene.update_world_matrix();
       scenes.push(  Rc::new( RefCell::new( scene ) ) );
     }
+
+    gl.bind_vertex_array( None );
 
     Ok
     (
@@ -846,8 +1037,9 @@ mod private
         gl_buffers,
         images,
         textures,
-        materials,
+        materials : used_materials,
         meshes,
+        lights,
         #[ cfg( feature = "animation" ) ]
         animations
       }

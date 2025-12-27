@@ -1,3 +1,4 @@
+#[ allow( clippy::question_mark ) ]
 mod private
 {
   use std::
@@ -59,17 +60,9 @@ mod private
       | buffer | Some( buffers[ buffer.index() ].as_slice() )
     );
 
-    let Some( times ) = reader.read_inputs()
-    else
-    {
-      return None;
-    };
+    let times = reader.read_inputs()?;
 
-    let Some( values ) = reader.read_outputs()
-    else
-    {
-      return None;
-    };
+    let values = reader.read_outputs()?;
 
     let components = if let Interpolation::CubicSpline = sampler.interpolation()
     {
@@ -96,15 +89,7 @@ mod private
     buffers : &[ Vec< u8 > ],
   ) -> Option< Sequence< Tween< QuatF64 > > >
   {
-    let Some
-    (
-      ( components, times, values )
-    )
-    = decode_channel( channel.clone(), buffers )
-    else
-    {
-      return None;
-    };
+    let ( components, times, values ) = decode_channel( channel.clone(), buffers )?;
 
     let ReadOutputs::Rotations( rotations ) = values
     else
@@ -174,8 +159,8 @@ mod private
       let duration = t2 - t1;
       let delay = t1;
 
-      let tween = Tween::new( r1, r2, duration.into(), easing )
-      .with_delay( delay.into() );
+      let tween = Tween::new( r1, r2, duration, easing )
+      .with_delay( delay );
       tweens.push( tween );
     }
 
@@ -188,15 +173,7 @@ mod private
     buffers : &[ Vec< u8 > ],
   ) -> Option< Sequence< Tween< F64x3 > > >
   {
-    let Some
-    (
-      ( components, times, values )
-    )
-    = decode_channel( channel.clone(), buffers )
-    else
-    {
-      return None;
-    };
+    let ( components, times, values ) = decode_channel( channel.clone(), buffers )?;
 
     let values = match values
     {
@@ -268,8 +245,8 @@ mod private
       last_value = Some( v2 );
       let duration = t2 - t1;
       let delay = t1;
-      let tween = Tween::new( v1, v2, duration.into(), easing )
-      .with_delay( delay.into() );
+      let tween = Tween::new( v1, v2, duration, easing )
+      .with_delay( delay );
       tweens.push( tween );
     }
 
