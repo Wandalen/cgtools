@@ -5,7 +5,8 @@ precision highp float;
 in vec2 v_tex_coord;
 out vec4 FragColor;
 
-const uint IDS[ 13 ] = uint[ 13 ](
+const uint IDS[ 13 ] = uint[ 13 ]
+(
   2u,
   6u,
   7u,
@@ -44,7 +45,8 @@ float outline_stencil_normal()
     {
       pix[ y * 5 + x ] = length
       (
-        texture(
+        texture
+        (
           u_norm_texture,
           v_tex_coord + vec2( float( x - 2 ), float( y - 2 ) ) * u_outline_thickness / u_resolution
         )
@@ -85,7 +87,8 @@ float outline_stencil_depth()
     {
       pix[ y * 5 + x ] = length
       (
-        texture(
+        texture
+        (
           u_depth_texture,
           v_tex_coord + vec2( float( x - 2 ), float( y - 2 ) ) * u_outline_thickness / u_resolution
         )

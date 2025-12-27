@@ -6,7 +6,8 @@ precision mediump usampler2D;
 in vec2 vUv;
 out vec4 FragColor;
 
-const uint IDS[ 13 ] = uint[ 13 ](
+const uint IDS[ 13 ] = uint[ 13 ]
+(
   2u,
   6u,
   7u,
