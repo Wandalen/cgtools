@@ -1017,7 +1017,6 @@ impl Renderer
     let u_color_texture_loc = locations.get( "u_color_texture" ).unwrap().clone().unwrap();
     let u_depth_texture_loc = locations.get( "u_depth_texture" ).unwrap().clone().unwrap();
     let u_norm_texture_loc = locations.get( "u_norm_texture" ).unwrap().clone().unwrap();
-    //let u_projection_loc = locations.get( "u_projection" ).unwrap().clone().unwrap();
     let u_resolution_loc = locations.get( "u_resolution" ).unwrap().clone().unwrap();
     let u_outline_thickness_loc = locations.get( "u_outline_thickness" ).unwrap().clone().unwrap();
     let u_background_color_loc = locations.get( "u_background_color" ).unwrap().clone().unwrap();
