@@ -1,10 +1,10 @@
 #[ allow( clippy::question_mark ) ]
 mod private
 {
+  use rustc_hash::FxHashMap;
   use std::
   {
     cell::RefCell,
-    collections::HashMap,
     rc::Rc
   };
   use crate::webgl::
@@ -358,7 +358,7 @@ mod private
     let mut animations = Vec::new();
     for animation in gltf_file.animations()
     {
-      let mut animated_nodes = HashMap::new();
+      let mut animated_nodes = FxHashMap::default();
       let mut sequencer = Sequencer::new();
 
       for channel in animation.channels()

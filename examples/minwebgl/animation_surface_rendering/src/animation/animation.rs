@@ -22,7 +22,7 @@ mod private
   };
   use kurbo::Affine;
   use renderer::webgl::loaders::gltf::GLTF;
-  use std::collections::HashMap;
+  use rustc_hash::FxHashMap;
   use minwebgl::{ self as gl, F32x4, F32x4x4, GL };
   use core::cell::RefCell;
   use std::rc::Rc;
@@ -91,7 +91,7 @@ mod private
   pub struct Animation
   {
     gltf : GLTF,
-    behaviors : HashMap< Box< str >, Behavior >,
+    behaviors : FxHashMap< Box< str >, Behavior >,
     _composition : Composition
   }
 
@@ -255,7 +255,7 @@ mod private
       .zip( primitives.iter_mut() );
 
       let mut last_element_id = 0;
-      let mut parent_layer_to_primitive_id = HashMap::new();
+      let mut parent_layer_to_primitive_id = FxHashMap::default();
       for ( ( i, layer ), primitives ) in layer_iter
       {
         parent_layer_to_primitive_id.insert( i, last_element_id );
@@ -301,7 +301,7 @@ mod private
           }
         }
       )
-      .collect::< HashMap< _, _ > >();
+      .collect::< FxHashMap< _, _ > >();
 
       let gltf = primitives_data_to_gltf( gl, primitives_data.as_slice() );
 
@@ -400,7 +400,7 @@ mod private
     /// Filters and removes nodes from the scene that are outside of their defined frame range.
     fn filter_nodes( &self, scene : &mut Scene, frame : f64 )
     {
-      let mut nodes_to_remove = HashMap::new();
+      let mut nodes_to_remove = FxHashMap::default();
 
       let mut get_nodes_to_remove =
       |

@@ -1,9 +1,9 @@
 mod private
 {
+  use rustc_hash::FxHashMap;
   use std::
   {
     cell::RefCell,
-    collections::HashMap,
     rc::Rc
   };
   use animation::
@@ -34,7 +34,7 @@ mod private
 
     /// Sets all simple 3D transformations for every
     /// [`Node`] related to this [`AnimatableComposition`]
-    fn set( &self, nodes : &HashMap< Box< str >, Rc< RefCell< Node > > > );
+    fn set( &self, nodes : &FxHashMap< Box< str >, Rc< RefCell< Node > > > );
 
     /// Returns a type-erased reference to the underlying value
     fn as_any( &self ) -> &dyn core::any::Any;
@@ -65,7 +65,7 @@ mod private
 
     /// Sets all simple 3D transformations for every
     /// [`Node`] related to this [`AnimatableComposition`]
-    fn set( &self, nodes : &HashMap< Box< str >, Rc< RefCell< Node > > > )
+    fn set( &self, nodes : &FxHashMap< Box< str >, Rc< RefCell< Node > > > )
     {
       for ( name, node ) in nodes
       {
@@ -155,7 +155,7 @@ mod private
     /// Animation behavior
     pub animation : Box< dyn AnimatableComposition >,
     /// Related animated [`Node`]'s
-    pub nodes : HashMap< Box< str >, Rc< RefCell< Node > > >
+    pub nodes : FxHashMap< Box< str >, Rc< RefCell< Node > > >
   }
 
   impl Clone for Animation
@@ -178,7 +178,7 @@ mod private
     (
       name : Option< Box< str > >,
       animation : Box< dyn AnimatableComposition >,
-      nodes : HashMap< Box< str >, Rc< RefCell< Node > > >
+      nodes : FxHashMap< Box< str >, Rc< RefCell< Node > > >
     )
     -> Self
     {

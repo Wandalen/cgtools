@@ -3,14 +3,14 @@
 #![ allow( clippy::needless_pass_by_value ) ]
 #![ allow( clippy::field_reassign_with_default ) ]
 
-use std::{ cell::RefCell, collections::HashMap, rc::Rc };
-
+use std::{ cell::RefCell, rc::Rc };
 use animation::Sequencer;
 use minwebgl as gl;
 use renderer::webgl::animation::{ Animation, Scaler };
 use serde::{ Deserialize, Serialize };
 use gl::wasm_bindgen::prelude::*;
 use crate::lil_gui::{ add_dropdown, add_slider, new_gui, on_change, on_change_string, show };
+use rustc_hash::FxHashMap;
 
 const PART_NAMES : [ &str; 4 ] =
 [
@@ -95,7 +95,7 @@ pub fn setup
   let animations = animations
   .into_iter()
   .filter_map( | a | a.name.clone().map( | n | ( n, a ) ) )
-  .collect::< HashMap< _, _ > >();
+  .collect::< FxHashMap< _, _ > >();
 
   let callback = Closure::new
   (

@@ -1,9 +1,16 @@
 //! Tests for animation modifier Blender
 
-use renderer::webgl::animation::{ AnimatableComposition, Blender, normalize_weights };
+use std::{ rc::Rc, cell::RefCell };
+use renderer::webgl::
+{
+  Node,
+  animation::{ AnimatableComposition, Blender, normalize_weights }
+};
 use animation::{ Tween, Sequence, Sequencer, easing::{ EasingBuilder, Linear } };
 use mingl::{ F64x3, QuatF64 };
+use core::f64;
 use std::f64::consts::PI;
+use rustc_hash::FxHashMap;
 
 const TRANSLATION_PREFIX: &str = "_translation";
 const ROTATION_PREFIX: &str = "_rotation";
@@ -99,12 +106,23 @@ fn test_normalize_weights_zero_sum()
 fn test_blender_weights_get_mut()
 {
   let mut blender = Blender::new();
-  let sequencer = Sequencer::new();
+  let mut sequencer = Sequencer::new();
+  sequencer.add
+  (
+    format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
+    create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
+  );
 
   blender.add( "anim1".into(), sequencer, F64x3::new( 0.5, 0.5, 0.5 ) );
 
   let weights = blender.weights_get_mut( "anim1".into() ).unwrap();
   *weights = F64x3::new( 1.0, 1.0, 1.0 );
+
+  let mut nodes = FxHashMap::default();
+  let node = Rc::new( RefCell::new( Node::new() ) );
+  node.borrow_mut().set_name( "node1" );
+  nodes.insert( "node1".to_string().into_boxed_str(), node );
+  blender.set( &nodes );
 
   let new_weights = blender.weights_get( "anim1".into() ).unwrap();
   assert_eq!( new_weights.x(), 1.0 );
@@ -146,6 +164,12 @@ fn test_blender_multiple_animations_with_different_weights()
   blender.add( "anim1".into(), seq1, F64x3::new( 0.7, 0.0, 0.0 ) );
   blender.add( "anim2".into(), seq2, F64x3::new( 0.3, 0.0, 0.0 ) );
 
+  let mut nodes = FxHashMap::default();
+  let node = Rc::new( RefCell::new( Node::new() ) );
+  node.borrow_mut().set_name( "node1" );
+  nodes.insert( "node1".to_string().into_boxed_str(), node );
+  blender.set( &nodes );
+
   let weights1 = blender.weights_get( "anim1".into() ).unwrap();
   let weights2 = blender.weights_get( "anim2".into() ).unwrap();
 
@@ -176,6 +200,12 @@ fn test_blender_normalization_enabled()
   // Weights don't sum to 1.0
   blender.add( "anim1".into(), seq1, F64x3::new( 0.6, 0.0, 0.0 ) );
   blender.add( "anim2".into(), seq2, F64x3::new( 0.6, 0.0, 0.0 ) );
+
+  let mut nodes = FxHashMap::default();
+  let node = Rc::new( RefCell::new( Node::new() ) );
+  node.borrow_mut().set_name( "node1" );
+  nodes.insert( "node1".to_string().into_boxed_str(), node );
+  blender.set( &nodes );
 
   assert!( blender.normalize, "Normalization should be enabled" );
 }
@@ -211,6 +241,12 @@ fn test_blender_independent_transform_blend()
   let weights = F64x3::new( 0.5, 0.7, 0.3 );
   blender.add( "anim1".into(), seq1, weights );
 
+  let mut nodes = FxHashMap::default();
+  let node = Rc::new( RefCell::new( Node::new() ) );
+  node.borrow_mut().set_name( "node1" );
+  nodes.insert( "node1".to_string().into_boxed_str(), node );
+  blender.set( &nodes );
+
   let retrieved_weights = blender.weights_get( "anim1".into() ).unwrap();
   assert_eq!( retrieved_weights.x(), 0.5, "Translation weight should be 0.5" );
   assert_eq!( retrieved_weights.y(), 0.7, "Rotation weight should be 0.7" );
@@ -238,6 +274,12 @@ fn test_blender_scale_blend_independence()
 
   blender.add( "anim1".into(), seq1, F64x3::new( 0.0, 0.0, 0.6 ) );
   blender.add( "anim2".into(), seq2, F64x3::new( 0.0, 0.0, 0.4 ) );
+
+  let mut nodes = FxHashMap::default();
+  let node = Rc::new( RefCell::new( Node::new() ) );
+  node.borrow_mut().set_name( "node1" );
+  nodes.insert( "node1".to_string().into_boxed_str(), node );
+  blender.set( &nodes );
 
   let weights1 = blender.weights_get( "anim1".into() ).unwrap();
   let weights2 = blender.weights_get( "anim2".into() ).unwrap();
