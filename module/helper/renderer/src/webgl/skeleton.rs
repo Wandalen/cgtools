@@ -191,6 +191,11 @@ mod private
 
         inverse_data.extend( vec![ 0.0; ( a * a * 4 ) as usize - inverse_data.len() ] );
         load_texture_data_4f( gl, self.inverse_texture.as_ref().unwrap(), inverse_data.as_slice(), texture_size );
+
+        if self.inverse_texture.is_some() && self.global_texture.is_some()
+        {
+          self.need_update_inverse = false;
+        }
       }
 
       if self.inverse_texture.is_some() && self.global_texture.is_some()
