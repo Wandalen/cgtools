@@ -10,6 +10,40 @@ mod private
   use wasm_bindgen::{ JsCast, prelude::Closure };
   use crate::web::web_sys;
 
+  /// Tracks the functionality camera is going to use
+  pub struct CameraUseState
+  {
+    /// Enables or disables panning
+    pub use_pan : bool,
+    /// Enables or disables rotation
+    pub use_rotation : bool,
+    /// Enables or disables zoom
+    pub use_zoom : bool,
+    /// Sets whether to `rotation_decay` is applied or not
+    pub use_rotation_easing : bool,
+  }
+
+  /// State of the camera that controls its rotation
+  pub struct CameraRotationState
+  {
+    /// A scaling factor to adjust the sensitivity of camera rotation.
+    pub rotation_speed_scale : f32,
+    /// Determines how fast rotation is going to decrease after dragging is stopped.
+    /// In range from 0.0 to 1.0
+    pub rotation_decay : f32,
+    /// Accumulated speed based on mouse movement
+    rotation_speed : F32x2,
+    /// Current angle of rotation for the camera
+    rotation_angle : F32x2
+  }
+
+  /// State of the camera that controls its zoom
+  pub struct CameraZoomState
+  {
+    /// A scaling factor to adjust the sensitivity of camera zooming.
+    pub zoom_speed_scale : f32,
+  }
+
   /// Provides an orbit-style camera controller for 3D scenes.
   ///
   /// This camera rotates around a central `center` point, can pan across the view plane,
@@ -24,27 +58,14 @@ mod private
     pub center : F32x3,
     /// The size of the rendering window or viewport, used for panning calculations.
     pub window_size : F32x2,
-    /// A scaling factor to adjust the sensitivity of camera rotation.
-    pub rotation_speed_scale : f32,
-    /// A scaling factor to adjust the sensitivity of camera zooming.
-    pub zoom_speed_scale : f32,
     /// The vertical field of view of the camera, in radians.
     pub fov : f32,
-    /// Enables or disables panning
-    pub use_pan : bool,
-    /// Enables or disables rotation
-    pub use_rotation : bool,
-    /// Enables or disables zoom
-    pub use_zoom : bool,
-    /// Sets whether to `rotation_decay` is applied or not
-    pub use_rotation_easing : bool,
-    /// Determines how fast rotation is going to decrease after dragging is stopped.
-    /// In range from 0.0 to 1.0
-    pub rotation_decay : f32,
-    /// Accumulated speed based on mouse movement
-    rotation_speed : F32x2,
-    /// Current angle of rotation for the camera
-    rotation_angle : F32x2
+    /// Properties to control camera's rotation
+    pub rotation_state : CameraRotationState,
+    /// Properties to control camera's zoom
+    pub zoom_state : CameraZoomState,
+    /// Properties that track camera's enabled functionality
+    pub use_state : CameraUseState
   }
 
   impl CameraOrbitControls
@@ -92,22 +113,22 @@ mod private
       screen_d : [ f32; 2 ]
     )
     {
-      if !self.use_rotation
+      if !self.use_state.use_rotation
       {
         return;
       }
 
       let mut screen_d = F32x2::from( screen_d );
-      screen_d /= self.rotation_speed_scale;
+      screen_d /= self.rotation_state.rotation_speed_scale;
 
 
-      if self.use_rotation_easing
+      if self.use_state.use_rotation_easing
       {
-        self.rotation_speed += screen_d;
+        self.rotation_state.rotation_speed += screen_d;
       }
       else
       {
-        self.rotation_angle = screen_d;
+        self.rotation_state.rotation_angle = screen_d;
         self.apply_rotation();
       }
     }
@@ -120,8 +141,8 @@ mod private
       // We rotate aroung the y axis based on the movement in x direction.
       // And we rotate aroung the axix perpendicular to the current up and direction vectors
       // based on the movement in y direction
-      let rot_y = math::mat3x3::from_angle_y( -self.rotation_angle.x() );
-      let rot_x = math::mat3x3::from_axis_angle( x, -self.rotation_angle.y());
+      let rot_y = math::mat3x3::from_angle_y( -self.rotation_state.rotation_angle.x() );
+      let rot_x = math::mat3x3::from_axis_angle( x, -self.rotation_state.rotation_angle.y());
       // Combine two rotations
       let rot = rot_y * rot_x;
 
@@ -148,7 +169,7 @@ mod private
       screen_d : [ f32; 2 ]
     )
     {
-      if !self.use_pan
+      if !self.use_state.use_pan
       {
         return;
       }
@@ -187,12 +208,12 @@ mod private
       mut delta_y : f32
     )
     {
-      if !self.use_zoom
+      if !self.use_state.use_zoom
       {
         return;
       }
 
-      delta_y /= self.zoom_speed_scale;
+      delta_y /= self.zoom_state.zoom_speed_scale;
 
       // If scroll is up (-) then zoom in
       // If scroll is down (+) then zoom out
@@ -214,14 +235,14 @@ mod private
     )
     {
       // Decays self.rotation_decay% every 100 milliseconds
-      let mut decay_percentage = self.rotation_decay * delta_time as f32 / 10.0;
+      let mut decay_percentage = self.rotation_state.rotation_decay * delta_time as f32 / 10.0;
       decay_percentage = decay_percentage.min( 1.0 );
 
-      if self.use_rotation_easing
+      if self.use_state.use_rotation_easing
       {
-        self.rotation_angle = self.rotation_speed * delta_time as f32 / 1000.0;
+        self.rotation_state.rotation_angle = self.rotation_state.rotation_speed * delta_time as f32 / 1000.0;
         self.apply_rotation();
-        self.rotation_speed *= 1.0 - decay_percentage;
+        self.rotation_state.rotation_speed *= 1.0 - decay_percentage;
       }
     }
   }
@@ -237,16 +258,25 @@ mod private
         up : F32x3::from( [ 0.0, 1.0, 0.0 ] ),
         center : F32x3::from( [ 0.0, 0.0, 0.0 ] ),
         window_size : F32x2::from( [ 1000.0, 1000.0 ] ),
-        rotation_speed_scale : 500.0,
-        zoom_speed_scale : 1000.0,
         fov : 70f32.to_radians(),
-        use_pan : true,
-        use_rotation : true,
-        use_zoom : true,
-        rotation_speed : F32x2::default(),
-        rotation_angle : F32x2::default(),
-        use_rotation_easing : false,
-        rotation_decay : 0.05
+        zoom_state : CameraZoomState
+        {
+          zoom_speed_scale : 1000.0
+        },
+        rotation_state : CameraRotationState
+        {
+          rotation_speed_scale : 500.0,
+          rotation_speed : F32x2::default(),
+          rotation_angle : F32x2::default(),
+          rotation_decay : 0.05
+        },
+        use_state : CameraUseState
+        {
+          use_pan : true,
+          use_rotation : true,
+          use_zoom : true,
+          use_rotation_easing : false,
+        }
       }
     }
   }
