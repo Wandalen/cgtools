@@ -449,13 +449,9 @@ mod private
     /// Computes the bounding box in the local space for the current node based on its `Object3D` type.
     pub fn compute_local_bounding_box( &mut self )
     {
-      match self.object
+      if let Object3D::Mesh( ref mesh ) = self.object
       {
-        Object3D::Mesh( ref mesh ) =>
-        {
-          self.local_bounding_box = mesh.borrow().bounding_box().apply_transform( self.matrix );
-        },
-        _ => {}
+        self.local_bounding_box = mesh.borrow().bounding_box().apply_transform( self.matrix );
       }
     }
 
