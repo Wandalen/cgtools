@@ -8,7 +8,7 @@ mod private
 
   /// A quaternion interpolation easing function.
   #[ non_exhaustive ]
-  #[ derive( Debug ) ]
+  #[ derive( Debug, Clone ) ]
   pub struct Squad< E >
   where
     E : MatEl + core::fmt::Debug + core::marker::Copy + core::default::Default

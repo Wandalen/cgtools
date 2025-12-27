@@ -26,7 +26,7 @@
 
 mod private
 {
-  use crate::sequencer::AnimatableValue;
+  use crate::traits::{ Animatable, AnimatablePlayer };
   #[ allow( unused_imports ) ]
   use crate::easing::base::EasingBuilder;
   use crate::easing::base::EasingFunction;
@@ -39,13 +39,6 @@ mod private
     Quat,
     MatEl
   };
-
-  /// Trait for types that can be animated ( interpolated ).
-  pub trait Animatable : Clone + core::fmt::Debug
-  {
-    /// Interpolates between two values at time t ( 0.0 to 1.0 ).
-    fn interpolate( &self, other : &Self, t : f64 ) -> Self;
-  }
 
   /// Animation state for tracking tween progress.
   #[ non_exhaustive ]
@@ -67,9 +60,9 @@ mod private
   pub struct Tween< T >
   {
     /// Starting value
-    start_value : T,
+    pub start_value : T,
     /// Target value
-    end_value : T,
+    pub end_value : T,
     /// Animation duration in seconds
     duration : f64,
     /// Current elapsed time
@@ -90,8 +83,30 @@ mod private
     yoyo : bool,
   }
 
+  impl< T > Clone for Tween< T >
+  where T : Animatable + Clone + 'static
+  {
+    fn clone( &self ) -> Self
+    {
+      Self
+      {
+        start_value : self.start_value.clone(),
+        end_value : self.end_value.clone(),
+        duration : self.duration.clone(),
+        elapsed : self.elapsed.clone(),
+        easing : clone_dyn_types::clone_into_box( &*self.easing ) ,
+        state : self.state.clone(),
+        delay : self.delay.clone(),
+        remain : self.remain.clone(),
+        repeat_count : self.repeat_count.clone(),
+        current_repeat : self.current_repeat.clone(),
+        yoyo : self.yoyo.clone()
+      }
+    }
+  }
+
   impl< T > Tween< T >
-  where T : Animatable
+  where T : Animatable + 'static
   {
     /// Creates a new tween animation.
     pub fn new
@@ -123,6 +138,13 @@ mod private
     {
       self.delay = delay.max( 0.0 );
       self.remain = self.delay;
+      self
+    }
+
+    /// Sets an animation duration
+    pub fn with_duration( mut self, duration : f64 ) -> Self
+    {
+      self.duration = duration.max( 0.0 );
       self
     }
 
@@ -171,7 +193,7 @@ mod private
         }
         AnimationState::Paused | AnimationState::Completed =>
         {
-          return self.get_current_value();
+          return self.value_get();
         }
         AnimationState::Running => {}
       }
@@ -186,7 +208,7 @@ mod private
           // Animation completed this frame
           if self.repeat_count != 0
           {
-            self.handle_repeat();
+            self.repeat_handle();
           }
           else
           {
@@ -196,11 +218,11 @@ mod private
         }
       }
 
-      self.get_current_value()
+      self.value_get()
     }
 
-    /// Gets the current interpolated value without updating time.
-    pub fn get_current_value( &self ) -> T
+    /// Returns current interpolated value
+    pub fn value_get( &self ) -> T
     {
       if self.state == AnimationState::Pending
       {
@@ -222,7 +244,7 @@ mod private
     }
 
     /// Handles animation repeat logic.
-    fn handle_repeat( &mut self )
+    fn repeat_handle( &mut self )
     {
       let elapsed_repeats = ( self.elapsed / self.duration ).floor();
       if self.repeat_count == -1
@@ -247,46 +269,6 @@ mod private
       }
     }
 
-    /// Pauses the animation.
-    pub fn pause( &mut self )
-    {
-      if self.state == AnimationState::Running
-      {
-        self.state = AnimationState::Paused;
-      }
-    }
-
-    /// Resumes a paused animation.
-    pub fn resume( &mut self )
-    {
-      if self.state == AnimationState::Paused
-      {
-        self.state = AnimationState::Running;
-      }
-    }
-
-    /// Resets the animation to its starting state.
-    pub fn reset( &mut self )
-    {
-      self.elapsed = 0.0;
-      self.current_repeat = 0;
-      self.remain = self.delay;
-      self.state = if self.delay > 0.0
-      {
-        AnimationState::Pending
-      }
-      else
-      {
-        AnimationState::Running
-      };
-    }
-
-    /// Checks if the animation is completed.
-    pub fn is_completed( &self ) -> bool
-    {
-      self.state == AnimationState::Completed
-    }
-
     /// Gets the current animation state.
     pub fn state( &self ) -> AnimationState
     {
@@ -306,8 +288,8 @@ mod private
     }
   }
 
-  impl< T > AnimatableValue for Tween< T >
-  where T : Animatable + 'static
+  impl< T > AnimatablePlayer for Tween< T >
+  where T : Animatable + Clone + 'static
   {
     fn update( &mut self, delta_time : f64 )
     {
@@ -316,35 +298,46 @@ mod private
 
     fn is_completed( &self ) -> bool
     {
-      self.is_completed()
+      self.state == AnimationState::Completed
     }
 
     fn pause( &mut self )
     {
-      self.pause();
+      if self.state == AnimationState::Running
+      {
+        self.state = AnimationState::Paused;
+      }
     }
 
     fn resume( &mut self )
     {
-      self.resume();
+      if self.state == AnimationState::Paused
+      {
+        self.state = AnimationState::Running;
+      }
     }
 
     fn reset( &mut self )
     {
-      self.reset();
+      self.elapsed = 0.0;
+      self.current_repeat = 0;
+      self.remain = self.delay;
+      self.state = if self.delay > 0.0
+      {
+        AnimationState::Pending
+      }
+      else
+      {
+        AnimationState::Running
+      };
     }
 
-    fn as_any( &self ) -> &dyn core::any::Any
-    {
-      self
-    }
-
-    fn get_duration( &self ) -> f64
+    fn duration_get( &self ) -> f64
     {
       self.duration
     }
 
-    fn get_delay( &self ) -> f64
+    fn delay_get( &self ) -> f64
     {
       self.delay
     }
@@ -360,10 +353,20 @@ mod private
         ( ( self.elapsed - self.delay ) / self.duration ).clamp( 0.0, 1.0 )
       }
     }
+
+    fn as_any( &self ) -> &dyn core::any::Any
+    {
+      self
+    }
+
+    fn as_any_mut( &mut self ) -> &mut dyn core::any::Any
+    {
+      self
+    }
   }
 
-  impl< T, const N : usize > AnimatableValue for [ Tween< T >; N ]
-  where T : Animatable + 'static
+  impl< T, const N : usize > AnimatablePlayer for [ Tween< T >; N ]
+  where T : Animatable + Clone + 'static
   {
     fn update( &mut self, delta_time : f64 )
     {
@@ -393,12 +396,7 @@ mod private
       for tween in self.iter_mut() { tween.reset(); }
     }
 
-    fn as_any( &self ) -> &dyn core::any::Any
-    {
-      self
-    }
-
-    fn get_duration( &self ) -> f64
+    fn duration_get( &self ) -> f64
     {
       let mut min_start = 0.0;
       for tween in self
@@ -415,7 +413,7 @@ mod private
       max_end - min_start
     }
 
-    fn get_delay( &self ) -> f64
+    fn delay_get( &self ) -> f64
     {
       let mut min_delay = 0.0;
       for tween in self
@@ -434,8 +432,18 @@ mod private
       }
       else
       {
-        ( ( self[ 0 ].time() - self.get_delay() ) / self.get_duration() ).clamp( 0.0, 1.0 )
+        ( ( self[ 0 ].time() - self.delay_get() ) / self.duration_get() ).clamp( 0.0, 1.0 )
       }
+    }
+
+    fn as_any( &self ) -> &dyn core::any::Any
+    {
+      self
+    }
+
+    fn as_any_mut( &mut self ) -> &mut dyn core::any::Any
+    {
+      self
     }
   }
 
@@ -544,7 +552,6 @@ crate::mod_interface!
   orphan use
   {
     AnimationState,
-    Tween,
-    Animatable
+    Tween
   };
 }
