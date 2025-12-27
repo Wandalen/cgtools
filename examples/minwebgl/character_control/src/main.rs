@@ -24,7 +24,7 @@ use core::f32;
 use std::{ cell::RefCell, rc::Rc };
 use mingl::{ F32x3, F64x3, QuatF32 };
 use mingl::controls::{ CharacterControls, CharacterInput };
-use minwebgl as gl;
+use minwebgl::{self as gl, WebglError};
 use gl::{ JsCast, web_sys::WebGlTexture, GL, wasm_bindgen::closure::Closure };
 use renderer::webgl::
 {
@@ -34,6 +34,8 @@ use renderer::webgl::
     Pass,
     SwapFramebuffer
   },
+  loaders::gltf::GLTF,
+  animation::{ Animation, AnimationGraph },
   Camera,
   Renderer,
   Scene,
@@ -50,6 +52,7 @@ use primitive_generation::
   primitives_data_to_gltf,
   plane_to_geometry
 };
+use web_sys::HtmlCanvasElement;
 
 /// Add new plane [`renderer::webgl::Node`] to [`Scene`]
 fn create_plane( gl : &GL, scene : &Rc< RefCell< Scene > > )
@@ -190,31 +193,36 @@ fn create_texture
   Some( texture_info )
 }
 
-async fn run() -> Result< (), gl::WebglError >
+async fn setup_scene( gl : &GL ) -> Result< GLTF, WebglError >
 {
-  gl::browser::setup( Default::default() );
-  let options = gl::context::ContexOptions::default().antialias( false );
-
-  let canvas = gl::canvas::make()?;
-  let gl = gl::context::from_canvas_with( &canvas, options )?;
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();
 
-  let _ = gl.get_extension( "EXT_color_buffer_float" ).expect( "Failed to enable EXT_color_buffer_float extension" );
-  let _ = gl.get_extension( "EXT_shader_image_load_store" ).expect( "Failed to enable EXT_shader_image_load_store  extension" );
-
-  let width = canvas.width() as f32;
-  let height = canvas.height() as f32;
-
   let gltf_path = "gltf/multi_animation_extended.glb";
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
-  let scenes = gltf.scenes;
-  scenes[ 0 ].borrow_mut().update_world_matrix();
+  gltf.scenes[ 0 ].borrow_mut().update_world_matrix();
 
-  let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
+  create_plane( &gl, &gltf.scenes[ 0 ] );
+
+  let character = find_node( &gltf.scenes[ 0 ], "Armature" ).unwrap();
+  let plane = find_node( &gltf.scenes[ 0 ], "Plane" ).unwrap();
+
+  character.borrow_mut().set_scale( F32x3::splat( 0.1 ) );
+  character.borrow_mut().set_rotation( QuatF32::from_angle_x( f32::consts::PI / 4.0 ).normalize() );
+
+  plane.borrow_mut().set_scale( F32x3::splat( 100.0 ) );
+  plane.borrow_mut().set_rotation( QuatF32::from_angle_x( f32::consts::PI / 2.0 ).normalize() );
+
+  gltf.scenes[ 0 ].borrow_mut().update_world_matrix();
+
+  Ok( gltf )
+}
+
+fn setup_camera( scene : &Rc< RefCell< Scene > >, width : f32, height : f32 ) -> Camera
+{
+  let scene_bounding_box = scene.borrow().bounding_box();
   gl::info!( "Scene bounding box: {:?}", scene_bounding_box );
   let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
-  // let dist = scene_bounding_box.max.mag();
   let exponent =
   {
     let bits = diagonal.to_bits();
@@ -223,6 +231,25 @@ async fn run() -> Result< (), gl::WebglError >
   };
   gl::info!( "Exponent: {:?}", exponent );
 
+  // Camera setup - will follow character
+  let aspect_ratio = width / height;
+  let fov = 70.0f32.to_radians();
+  let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 ) * 2000.0;
+  let far = near * 100.0f32.powi( exponent.abs() ) / 100.0;
+
+  // Initial camera position
+  let eye = F32x3::from( [ 0.0, 1.5, 3.0 ] );
+  let up = F32x3::from( [ 0.0, 1.0, 0.0 ] );
+  let center = F32x3::from( [ 0.0, 1.0, 0.0 ] );
+
+  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
+  camera.set_window_size( [ width, height ].into() );
+
+  camera
+}
+
+fn setup_input( canvas : &HtmlCanvasElement ) -> ( Rc< RefCell< CharacterControls > >, Rc< RefCell< CharacterInput > > )
+{
   // Character controls setup
   let mut character_controls = CharacterControls::default();
 
@@ -242,20 +269,38 @@ async fn run() -> Result< (), gl::WebglError >
     &character_input
   );
 
-  // Camera setup - will follow character
-  let aspect_ratio = width / height;
-  let fov = 70.0f32.to_radians();
-  let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 ) * 2000.0;
-  let far = near * 100.0f32.powi( exponent.abs() ) / 100.0;
+  ( character_controls, character_input )
+}
 
-  // Initial camera position
-  let eye = F32x3::from( [ 0.0, 1.5, 3.0 ] );
-  let up = F32x3::from( [ 0.0, 1.0, 0.0 ] );
-  let center = F32x3::from( [ 0.0, 1.0, 0.0 ] );
+fn setup_graph( animations : Vec< Animation > ) -> AnimationGraph
+{
 
-  let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
-  camera.set_window_size( [ width, height ].into() );
-  // camera.bind_controls( &canvas );
+
+  let mut graph = AnimationGraph::new( nodes );
+
+
+
+  graph
+}
+
+async fn run() -> Result< (), gl::WebglError >
+{
+  gl::browser::setup( Default::default() );
+  let options = gl::context::ContexOptions::default().antialias( false );
+
+  let canvas = gl::canvas::make()?;
+  let gl = gl::context::from_canvas_with( &canvas, options )?;
+
+  let _ = gl.get_extension( "EXT_color_buffer_float" ).expect( "Failed to enable EXT_color_buffer_float extension" );
+  let _ = gl.get_extension( "EXT_shader_image_load_store" ).expect( "Failed to enable EXT_shader_image_load_store  extension" );
+
+  let width = canvas.width() as f32;
+  let height = canvas.height() as f32;
+
+  let gltf = setup_scene( &gl ).await?;
+  let scene = gltf.scenes[ 0 ].clone();
+  let ( character_controls, character_input ) = setup_input( &canvas );
+  let camera = setup_camera( &scene, width, height );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "envMap", None ).await );
@@ -269,19 +314,8 @@ async fn run() -> Result< (), gl::WebglError >
 
   let last_time = Rc::new( RefCell::new( 0.0 ) );
 
-  create_plane( &gl, &scenes[ 0 ] );
-
-  let character = find_node( &scenes[ 0 ], "Armature" ).unwrap();
-  let neck = find_node( &scenes[ 0 ], "Neck" ).unwrap();
-  let plane = find_node( &scenes[ 0 ], "Plane" ).unwrap();
-
-  character.borrow_mut().set_scale( F32x3::splat( 0.1 ) );
-  character.borrow_mut().set_rotation( QuatF32::from_angle_x( f32::consts::PI / 4.0 ).normalize() );
-
-  plane.borrow_mut().set_scale( F32x3::splat( 100.0 ) );
-  plane.borrow_mut().set_rotation( QuatF32::from_angle_x( f32::consts::PI / 2.0 ).normalize() );
-
-  scenes[ 0 ].borrow_mut().update_world_matrix();
+  let character = find_node( &scene, "Armature" ).unwrap();
+  let neck = find_node( &scene, "Neck" ).unwrap();
 
   let mut initial_center = character.borrow().get_translation();
   initial_center.0[ 1 ] += 1.5;
@@ -290,6 +324,8 @@ async fn run() -> Result< (), gl::WebglError >
   character_controls.borrow_mut().set_rotation( 0.0, 0.0 );
   let forward = F32x3::from_array( character_controls.borrow().forward().map( | v | v as f32 ) );
   camera.get_controls().borrow_mut().eye = initial_center - forward * character_controls.borrow().zoom as f32;
+
+  let mut graph = setup_graph( gltf.animations.clone() );
 
   // Define the update and draw logic
   let update_and_draw =
@@ -313,7 +349,7 @@ async fn run() -> Result< (), gl::WebglError >
 
       character.borrow_mut().set_translation( position );
 
-      scenes[ 0 ].borrow_mut().update_world_matrix();
+      scene.borrow_mut().update_world_matrix();
 
       neck.borrow_mut().set_rotation( QuatF32::from( character_controls.borrow().rotation().0.map( | v | v as f32 ) ) );
 
@@ -324,7 +360,7 @@ async fn run() -> Result< (), gl::WebglError >
       let forward = F32x3::from_array( character_controls.borrow().forward().map( | v | v as f32 ) );
       camera.get_controls().borrow_mut().eye = center - forward * character_controls.borrow().zoom as f32;
 
-      renderer.borrow_mut().render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
+      renderer.borrow_mut().render( &gl, &mut scene.borrow_mut(), &camera )
       .expect( "Failed to render" );
 
       swap_buffer.reset();
