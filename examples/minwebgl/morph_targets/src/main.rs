@@ -62,7 +62,7 @@ async fn run() -> Result< (), gl::WebglError >
 
       if need_rescale.contains( &name.to_string().as_str() )
       {
-        node.borrow_mut().set_scale( F32x3::splat( 1.05 ) );
+        node.borrow_mut().set_scale( F32x3::splat( 68.0 ) );
       }
 
       Ok( () )
