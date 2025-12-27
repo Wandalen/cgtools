@@ -21,11 +21,14 @@
 #![ allow( clippy::no_effect_underscore_binding ) ]
 
 use core::f32;
+use rustc_hash::FxHashMap;
 use std::{ cell::RefCell, rc::Rc };
+use animation::Sequencer;
 use mingl::{ F32x3, F64x3, QuatF32 };
 use mingl::controls::{ CharacterControls, CharacterInput };
 use minwebgl::{self as gl, WebglError};
 use gl::{ JsCast, web_sys::WebGlTexture, GL, wasm_bindgen::closure::Closure };
+use renderer::webgl::animation::AnimatableComposition;
 use renderer::webgl::
 {
   post_processing::
@@ -276,6 +279,15 @@ fn setup_graph( animations : Vec< Animation > ) -> AnimationGraph
 {
   let mut graph = AnimationGraph::new( &animations[ 0 ].nodes );
 
+  let animations = animations.into_iter()
+  .filter_map( | a | Some( ( a.name?, a.animation.as_any().downcast_ref::< Sequencer >().unwrap().clone() ) ) )
+  .collect::< FxHashMap< Box< str >, Sequencer > >();
+
+  // graph.node_add( "idle", animations. );
+  // graph.node_add( "walk",  );
+
+  // graph.edge_add(a, b, name, tween, condition);
+
   graph
 }
 
@@ -321,7 +333,7 @@ async fn run() -> Result< (), gl::WebglError >
   let forward = F32x3::from_array( character_controls.borrow().forward().map( | v | v as f32 ) );
   camera.get_controls().borrow_mut().eye = initial_center - forward * character_controls.borrow().zoom as f32;
 
-  let mut graph = setup_graph( gltf.animations.clone() );
+  // let mut graph = setup_graph( gltf.animations.clone() );
 
   // Define the update and draw logic
   let update_and_draw =
@@ -334,6 +346,9 @@ async fn run() -> Result< (), gl::WebglError >
 
       let delta_time = time - *last_time.borrow();
       *last_time.borrow_mut() = time;
+
+      // graph.update( delta_time );
+      // graph.set( graph.animated_nodes_get() );
 
       character_controls.borrow_mut().update( &character_input.borrow(), delta_time );
 
