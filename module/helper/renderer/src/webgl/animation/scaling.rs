@@ -1,6 +1,6 @@
 mod private
 {
-  use std::collections::{ HashMap, HashSet };
+  use rustc_hash::{ FxHashMap, FxHashSet };
   use std::{ rc::Rc, cell::RefCell };
   use animation::
   {
@@ -38,7 +38,7 @@ mod private
     /// - x - transform
     /// - y - rotation
     /// - z - scale
-    scaled_nodes : HashMap< Box< str >, ( Vec< Box< str > >, F64x3 ) >,
+    scaled_nodes : FxHashMap< Box< str >, ( Vec< Box< str > >, F64x3 ) >,
   }
 
   /// Converts a quaternion delta to axis-angle representation.
@@ -81,7 +81,7 @@ mod private
       Self
       {
         animation,
-        scaled_nodes : HashMap::new()
+        scaled_nodes : FxHashMap::default()
       }
     }
 
@@ -264,9 +264,9 @@ mod private
 
     /// Sets all simple 3D transformations for every
     /// [`Node`] related to this [`AnimatableComposition`]
-    fn set( &self, nodes : &HashMap< Box< str >, Rc< RefCell< Node > > > )
+    fn set( &self, nodes : &FxHashMap< Box< str >, Rc< RefCell< Node > > > )
     {
-      let mut used_nodes = HashSet::< Box< str > >::new();
+      let mut used_nodes = FxHashSet::< Box< str > >::default();
 
       // Apply scaled rotation to nodes in scaled groups
       for ( node_names, scales ) in self.scaled_nodes.values()

@@ -2,7 +2,7 @@
 
 mod private
 {
-  use std::collections::HashMap;
+  use rustc_hash::FxHashMap;
   use crate::
   {
     AnimatablePlayer, AnimationState
@@ -17,7 +17,7 @@ mod private
   pub struct Sequencer
   {
     /// Map of animation names to their animation behavior data
-    players : HashMap< Box< str >, Box< dyn AnimatablePlayer > >,
+    players : FxHashMap< Box< str >, Box< dyn AnimatablePlayer > >,
     /// Current Sequencer time
     time : f64,
     /// Sequencer state
@@ -38,7 +38,7 @@ mod private
             ( k.clone(), clone_dyn_types::clone_into_box( v.as_ref() ) )
           }
         )
-        .collect::< HashMap< _, _ > >(),
+        .collect::< FxHashMap< _, _ > >(),
         time : self.time.clone(),
         state : self.state.clone()
       }
@@ -52,7 +52,7 @@ mod private
     {
       Self
       {
-        players : HashMap::new(),
+        players : FxHashMap::default(),
         time : 0.0,
         state : AnimationState::Pending,
       }

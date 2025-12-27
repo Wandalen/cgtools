@@ -1,6 +1,6 @@
 //! Tests for animation modifier Scaler
 
-use renderer::webgl::animation::Scaler;
+use renderer::webgl::animation::{ Scaler, AnimatableComposition };
 use animation::{ Sequence, Sequencer, Tween, easing::{ EasingBuilder, Linear } };
 use mingl::{ F64x3, QuatF64 };
 use std::f64::consts::PI;
@@ -145,7 +145,6 @@ fn test_animatable_composition_update()
   let mut scaler = Scaler::new( sequencer );
 
   // Update should not panic
-  use renderer::webgl::animation::AnimatableComposition;
   scaler.update( 0.5 );
 }
 
