@@ -157,7 +157,13 @@ mod private
         in_process : None,
         edges : FxHashMap::default(),
       };
-      self.animation_nodes.insert( name, Rc::new( RefCell::new( node ) ) );
+      let node = Rc::new( RefCell::new( node ) );
+      self.animation_nodes.insert( name, node.clone() );
+
+      if self.current.is_none()
+      {
+        self.current = Some( node );
+      }
     }
 
     /// Remove [`AnimationNode`]
@@ -261,7 +267,7 @@ mod private
       let mut is_transited = false;
       if let Some( current ) = &self.current
       {
-        if let Some( edge ) = &current.borrow().in_process
+        if let Some( edge ) = current.borrow().in_process.clone()
         {
           if edge.borrow().transition_as_ref().tween_get().is_completed()
           {
