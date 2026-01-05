@@ -507,7 +507,7 @@ mod private
   impl< E, const N : usize > Animatable for mingl::Vector< E, N >
   where E : MatEl + Animatable
   {
-    fn interpolate(&self, other : &Self, time : f64 ) -> Self
+    fn interpolate( &self, other : &Self, time : f64 ) -> Self
     {
       let v = self.iter().zip( other.iter() )
       .map
@@ -524,7 +524,7 @@ mod private
   impl< E > Animatable for Vec< E >
   where E : MatEl + Animatable
   {
-    fn interpolate(&self, other : &Self, time : f64 ) -> Self
+    fn interpolate( &self, other : &Self, time : f64 ) -> Self
     {
       self.iter().zip( other.iter() )
       .map
