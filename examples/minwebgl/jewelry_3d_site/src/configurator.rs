@@ -9,6 +9,7 @@ use mingl::web::canvas;
 use minwebgl as gl;
 use gl::
 {
+  math::mat3x3h,
   GL,
   F32x3,
   WebglError
@@ -473,7 +474,6 @@ fn create_shadow_texture( gl : &GL, res : u32, mip_levels : i32 ) -> Option< web
   gl.bind_texture( gl::TEXTURE_2D, ret.as_ref() );
   gl.tex_storage_2d( gl::TEXTURE_2D, mip_levels, gl::R8, res as i32, res as i32 );
 
-  // Используем mipmap фильтрацию
   gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
   gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
   gl::texture::d2::wrap_clamp( &gl );
@@ -502,14 +502,14 @@ async fn setup_rings
   let shadowmap_res = 2048;
   let lightmap_res = 2048;
 
-  let light_pos = F32x3::from_array( [ 3.0, 3.0, 3.0 ] );
+  let light_pos = F32x3::from_array( [ 5.0, 5.0, 5.0 ] );
   let light_dir = F32x3::from_array( [ -1.0, -1.0, -1.0 ] ).normalize();
 
   let light = renderer::webgl::shadow::Light::new
   (
     light_pos,
     light_dir,
-    gl::math::mat3x3h::perspective_rh_gl( 30.0_f32.to_radians(), 1.0, 0.1, 10.0 ),
+    gl::math::mat3x3h::perspective_rh_gl( 30.0_f32.to_radians(), 1.0, 0.1, 15.0 ),
     0.5
   );
 
@@ -522,21 +522,18 @@ async fn setup_rings
 
     for node in &gltf.scenes[ 0 ].borrow().children
     {
-      node.borrow_mut().normalize_scale();
-
-      let bb = node.borrow().bounding_box_hierarchical();
-
-      let size = bb.max - bb.min;
-      let max_dimension = size.x().max( size.y() ).max( size.z() );
-      let scale_factor = 1.0 / max_dimension;
-
-      let offset = bb.min.y() * scale_factor;
-      node.borrow_mut().set_translation( F32x3::new( 0.0, -offset, 0.0 ) );
+      let mut node = node.borrow_mut();
+      node.normalize_scale();
+      node.compute_local_bounding_box();
+      let bb = node.local_bounding_box_hierarchical();
+      let t = mat3x3h::translation( [ 0.0, -bb.min.y(), 0.0 ] );
+      let m = t * node.get_local_matrix();
+      node.set_local_matrix( m );
     }
 
     let plane_node = plane_template.borrow().clone_tree();
     plane_node.borrow_mut().set_translation( F32x3::from_array( [ 0.0, 0.0, 0.0 ] ) );
-    plane_node.borrow_mut().set_scale( F32x3::from_array( [ 2.5, 1.0, 2.5 ] ) );
+    plane_node.borrow_mut().set_scale( F32x3::from_array( [ 3.0, 1.0, 3.0 ] ) );
     gltf.scenes[ 0 ].borrow_mut().add( plane_node.clone() );
 
     let _ = gltf.scenes[ 0 ].borrow().traverse

@@ -17,8 +17,20 @@ use gl::{ JsCast as _, math::mat3x3h, GL };
 use web_sys::HtmlCanvasElement;
 use std::rc::Rc;
 use core::cell::RefCell;
-use renderer::webgl::{ Light, Node, Object3D, SpotLight, Texture, TextureInfo, loaders::gltf, post_processing, shadow, cast_unchecked_material_to_ref_mut };
-use renderer::webgl::material::PbrMaterial;
+use renderer::webgl::
+{
+  Light,
+  Node,
+  Object3D,
+  SpotLight,
+  Texture,
+  TextureInfo,
+  loaders::gltf,
+  post_processing,
+  shadow,
+  cast_unchecked_material_to_ref_mut,
+  material::PbrMaterial
+};
 use post_processing::{ Pass, SwapFramebuffer, ShadowToColorPass };
 use shadow::{ ShadowBaker, ShadowMap };
 
@@ -48,11 +60,6 @@ async fn run() -> Result< (), gl::WebglError >
   .unwrap();
   canvas.set_width( width as u32 );
   canvas.set_height( height as u32 );
-
-  let ext_color_buffer_float = gl.get_extension( "EXT_color_buffer_float" );
-  let ext_float_linear = gl.get_extension( "OES_texture_float_linear" );
-  gl::info!( "{ext_color_buffer_float:?}" );
-  gl::info!( "{ext_float_linear:?}" );
 
   let mut camera = renderer::webgl::Camera::new
   (
@@ -144,14 +151,14 @@ async fn run() -> Result< (), gl::WebglError >
   let lightmap_res = 2048;
   let shadowmap = ShadowMap::new( &gl, shadowmap_res )?;
   shadowmap.render( &main_scene, light )?;
-  let shadow_texture = create_texture( &gl, lightmap_res, 1 );
+  let shadow_texture = create_texture( &gl, lightmap_res, gl::R8 );
   let shadow_baker = ShadowBaker::new( &gl )?;
   shadow_baker.render_soft_shadow( &floor_node.borrow(), shadow_texture.as_ref(), lightmap_res, lightmap_res, &shadowmap, light )?;
 
   // Convert shadow texture to colored base color texture
-  let base_color = [ 0.8, 0.8, 0.8 ]; // Light gray color
+  let base_color = [ 0.8, 0.8, 0.8 ];
   let shadow_to_color_pass = ShadowToColorPass::new( &gl, base_color )?;
-  let colored_texture = create_texture_rgb( &gl, lightmap_res, 1 );
+  let colored_texture = create_texture( &gl, lightmap_res, gl::RGB8 );
 
   // Create a framebuffer for rendering
   let framebuffer = gl.create_framebuffer();
@@ -205,24 +212,11 @@ async fn run() -> Result< (), gl::WebglError >
   Ok( () )
 }
 
-fn create_texture( gl : &GL, res : u32, mip_levels : i32 ) -> Option< web_sys::WebGlTexture >
+fn create_texture( gl : &GL, res : u32, format : u32 ) -> Option< web_sys::WebGlTexture >
 {
   let ret = gl.create_texture();
   gl.bind_texture( gl::TEXTURE_2D, ret.as_ref() );
-  gl.tex_storage_2d( gl::TEXTURE_2D, mip_levels, gl::R8, res as i32, res as i32 );
-  gl::texture::d2::filter_linear( gl );
-  // gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
-  // gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
-  gl::texture::d2::wrap_clamp( &gl );
-
-  ret
-}
-
-fn create_texture_rgb( gl : &GL, res : u32, mip_levels : i32 ) -> Option< web_sys::WebGlTexture >
-{
-  let ret = gl.create_texture();
-  gl.bind_texture( gl::TEXTURE_2D, ret.as_ref() );
-  gl.tex_storage_2d( gl::TEXTURE_2D, mip_levels, gl::RGB8, res as i32, res as i32 );
+  gl.tex_storage_2d( gl::TEXTURE_2D, 1, format, res as i32, res as i32 );
   gl::texture::d2::filter_linear( gl );
   gl::texture::d2::wrap_clamp( &gl );
 

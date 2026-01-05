@@ -47,6 +47,7 @@ mod private
         needs_local_matrix_update : false,
         needs_world_matrix_update : false,
         bounding_box : BoundingBox::default(),
+        local_bounding_box : BoundingBox::default(),
         is_visible : true
       }
     }
@@ -82,6 +83,8 @@ mod private
     needs_world_matrix_update : bool,
     /// The bounding box of the node's object in world space.
     bounding_box : BoundingBox,
+    /// The bounding box of the node's object in local space.
+    local_bounding_box : BoundingBox,
     /// Sets render [`Node`] and its children or not
     is_visible : bool
   }
@@ -123,6 +126,7 @@ mod private
         needs_local_matrix_update : self.needs_local_matrix_update,
         needs_world_matrix_update : self.needs_world_matrix_update,
         bounding_box : self.bounding_box,
+        local_bounding_box : self.local_bounding_box,
         is_visible : self.is_visible
       };
 
@@ -263,6 +267,7 @@ mod private
       self.set_scale( scale );
 
       self.matrix = matrix;
+      self.compute_local_bounding_box();
       self.needs_local_matrix_update = false;
       self.needs_world_matrix_update = true;
     }
@@ -298,6 +303,7 @@ mod private
         self.translation
       );
       self.matrix = mat;
+      self.compute_local_bounding_box();
       self.needs_local_matrix_update = false;
       self.needs_world_matrix_update = true;
     }
@@ -414,13 +420,20 @@ mod private
       Ok( () )
     }
 
-    /// Returns the pre-computed bounding box of the node.
+    /// Returns the pre-computed bounding box of the node in the world space.
     pub fn bounding_box( &self ) -> BoundingBox
     {
       self.bounding_box
     }
 
-    /// Computes the bounding box for the current node based on its `Object3D` type.
+    /// Returns the pre-computed bounding box of the node in the local space.
+    pub fn local_bounding_box( &self ) -> BoundingBox
+    {
+      self.local_bounding_box
+    }
+
+
+    /// Computes the bounding box in the world space for the current node based on its `Object3D` type.
     pub fn compute_bounding_box( &mut self )
     {
       match self.object
@@ -433,26 +446,45 @@ mod private
       }
     }
 
-    /// Sets [`Node`] position to coordinate system origin
+    /// Computes the bounding box in the local space for the current node based on its `Object3D` type.
+    pub fn compute_local_bounding_box( &mut self )
+    {
+      if let Object3D::Mesh( ref mesh ) = self.object
+      {
+        self.local_bounding_box = mesh.borrow().bounding_box().apply_transform( self.matrix );
+      }
+    }
+
+    /// Sets [`Node`] position to coordinate system origin in node's local space
     pub fn set_center_to_origin( &mut self )
     {
-      self.set_world_matrix
+      self.set_local_matrix
       (
-        gl::math::mat3x3h::translation( -self.bounding_box().center() )
+        gl::math::mat3x3h::translation( -self.local_bounding_box().center() )
         *
-        self.get_world_matrix()
+        self.get_local_matrix()
       );
     }
 
     /// Calculates max coord of [`Node`]'s bounding box min/max
-    /// and then normalize world matrix scale with it
+    /// and then normalize local matrix scale with it
     pub fn normalize_scale( &mut self )
     {
-      let bb = self.bounding_box_hierarchical();
-      let size = bb.max - bb.min;
-      let max_dimension = size.x().max( size.y() ).max( size.z() );
-      let scale_factor = 1.0 / max_dimension;
-      self.set_scale( F32x3::splat( scale_factor ) );
+      let bb = self.local_bounding_box_hierarchical();
+      let center = bb.center();
+      let radius = ( ( bb.max - bb.min ) * 0.5 ).mag();
+
+      // self.set_scale( F32x3::splat( 1.0 / radius ) );
+      self.set_local_matrix
+      (
+        gl::math::mat3x3h::translation( center )
+        *
+        gl::math::mat3x3h::scale( F32x3::splat( 1.0 / radius ) )
+        *
+        gl::math::mat3x3h::translation( -center )
+        *
+        self.get_local_matrix()
+      );
     }
 
     /// Computes the hierarchical bounding box for the node and all of its children.
@@ -472,10 +504,31 @@ mod private
       bbox
     }
 
-    /// Returns the center point of the node's pre-computed bounding box.
+    /// Computes the hierarchical bounding box for the node and all of its children in the local space of the node.
+    ///
+    /// This function starts with the node's own bounding box and then recursively
+    /// combines the hierarchical bounding boxes of all its children. This creates a
+    /// single bounding box that encapsulates the entire sub-tree.
+    pub fn local_bounding_box_hierarchical( &self ) -> BoundingBox
+    {
+      let mut bbox = self.bounding_box_hierarchical();
+
+      bbox.apply_transform_mut( self.get_world_matrix().inverse().unwrap() );
+      bbox.apply_transform_mut( self.get_local_matrix() );
+
+      bbox
+    }
+
+    /// Returns the center point of the node's pre-computed bounding box in the world space.
     pub fn center( &self ) -> F32x3
     {
       self.bounding_box().center()
+    }
+
+    /// Returns the center point of the node's pre-computed bounding box in the local space.
+    pub fn local_center( &self ) -> F32x3
+    {
+      self.local_bounding_box().center()
     }
   }
 }
