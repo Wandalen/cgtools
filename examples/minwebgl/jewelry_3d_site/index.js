@@ -472,9 +472,6 @@ document.addEventListener
       {
         if ( li.classList.contains( "ring0" ) ) return 0;
         if ( li.classList.contains( "ring1" ) ) return 1;
-        if ( li.classList.contains( "ring2" ) ) return 2;
-        if ( li.classList.contains( "ring3" ) ) return 3;
-        if ( li.classList.contains( "ring4" ) ) return 4;
         return uiState.ring;
       }
     );
