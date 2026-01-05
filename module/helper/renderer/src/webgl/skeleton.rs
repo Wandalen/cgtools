@@ -375,13 +375,7 @@ mod private
         if vertex_displacement_len != 0
         {
           let v = vertex_displacement_len as f32;
-
-          let mut i = 0;
-          while ( v * i as f32 ).powf( 2.0 ) < data.len() as f32
-          {
-            i += 1;
-          }
-
+          let i = ( data.len().sqrt() / v ).floor();
           let a = ( v * i as f32 ) as u32;
           let b = ( data.len() as f32 / a as f32 ).ceil() as u32;
           self.disp_texture_size = [ a, b ];
