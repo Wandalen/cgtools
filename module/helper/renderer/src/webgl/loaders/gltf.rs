@@ -85,11 +85,11 @@ mod private
     }
   }
 
-  fn load_skeleton_transforms_data< 'a >
+  fn load_skeleton_transforms_data
   (
     skin : gltf::Skin< '_ >,
     nodes : &FxHashMap< Box< str >, Rc< RefCell< Node > > >,
-    buffers : &'a [ Vec< u8 > ]
+    buffers : &[ Vec< u8 > ]
   )
   -> Option< skeleton::TransformsData >
   {
@@ -137,12 +137,12 @@ mod private
     Some( skeleton::TransformsData::new( joints ) )
   }
 
-  fn load_skeleton_displacements_data< 'a >
+  fn load_skeleton_displacements_data
   (
     primitives_morph_targets : &Option< Vec< MorphTargets< '_ > > >,
     primitives_vertices_count : &[ usize ],
     weights : Option< Vec< f32 > >,
-    buffers : &'a [ Vec< u8 > ]
+    buffers : &[ Vec< u8 > ]
   )
   -> Option< skeleton::DisplacementsData >
   {
@@ -263,14 +263,14 @@ mod private
   }
 
   /// Loads [`Skeleton`] for one [`Mesh`]
-  fn load_skeleton< 'a >
+  fn load_skeleton
   (
     skin : Option< gltf::Skin< '_ > >,
     nodes : &FxHashMap< Box< str >, Rc< RefCell< Node > > >,
     primitives_morph_targets : &Option< Vec< MorphTargets< '_ > > >,
     primitives_vertices_count : &[ usize ],
     weights : Option< Vec< f32 > >,
-    buffers : &'a [ Vec< u8 > ]
+    buffers : &[ Vec< u8 > ]
   )
   -> Option< Rc< RefCell< Skeleton > > >
   {
