@@ -509,15 +509,11 @@ mod private
   {
     fn interpolate( &self, other : &Self, time : f64 ) -> Self
     {
-      let v = self.iter().zip( other.iter() )
-      .map
-      (
-        | ( a, b ) |
-        a.interpolate( b, time )
-      )
-      .collect::< Vec< _ > >();
+      let mut copy = *self;
+      copy.iter_mut().zip( other.iter() )
+      .for_each( | ( a, b ) | *a = a.interpolate( b, time ) );
 
-      Self::from_slice( v.as_slice() )
+      copy
     }
   }
 
