@@ -18,7 +18,7 @@ A general purpose library for working with animatable values. Functionality incl
 
 ### 🎞️ **Sequencer**
 - **Sequencer** - Core system for animations playback
-- **AnimatableValue** - trait for types that can be used in [`Sequencer`]
+- **AnimatablePlayer** - trait for types that can be used in [`Sequencer`]
 
 ## 📦 Installation
 
@@ -34,6 +34,7 @@ animation = { workspace = true }
 ```rust
 use animation::interpolation::Tween;
 use animation::easing::{ EasingBuilder, Linear };
+use animation::AnimatablePlayer;
 
 let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
 .with_repeat( 1 ).with_yoyo( true );
@@ -41,13 +42,13 @@ let mut tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
 // First loop: 0.0 -> 10.0
 let val1 = tween.update( 0.5 ); // 5.0
 tween.update( 0.5 );
-tween.get_current_value(); // 10.0
+tween.value_get(); // 10.0
 tween.current_repeat(); // 1
 
 // Second loop: 10.0 -> 0.0 (yoyo)
 let val2 = tween.update( 0.5 ); // 5.0
 tween.update( 0.5 );
-tween.get_current_value(); // 0.0
+tween.value_get(); // 0.0
 tween.is_completed(); // true
 ```
 
@@ -57,6 +58,7 @@ tween.is_completed(); // true
 use animation::interpolation::Tween;
 use animation::sequencer::Sequencer;
 use animation::easing::{ Linear, EasingBuilder };
+use animation::AnimatablePlayer;
 
 let mut sequencer = Sequencer::new();
 sequencer.add
@@ -111,7 +113,7 @@ let value = f.apply( 0.0, 1.0, 0.5 );
 | Component | Purpose | Key Methods |
 |-----------|---------|-------------|
 | `Sequencer` | Complex values player | `new()`, `add()`, `update()`, `get_value()` |
-| `Tween` | One value interpolation player | `new()`, `update()`, `get_current_value()`, `progress()` |
+| `Tween` | One value interpolation player | `new()`, `update()`, `get_value()`, `progress()` |
 | `EasingFunction` | Easing function trait | `apply()` |
 
 ## 🎯 Use Cases

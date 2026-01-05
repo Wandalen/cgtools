@@ -4,10 +4,10 @@
 use std::{cell::RefCell, rc::Rc};
 
 use minwebgl as gl;
-use renderer::webgl::Animation;
+use renderer::webgl::animation::Animation;
 use serde::{ Deserialize, Serialize };
 use gl::wasm_bindgen::prelude::*;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 use crate::lil_gui::{on_change_string, new_gui, add_dropdown, show};
 
@@ -54,7 +54,7 @@ pub fn setup
       )
     }
   )
-  .collect::< HashMap< _, _ > >();
+  .collect::< FxHashMap< _, _ > >();
 
   let animation_names = animations.keys()
   .cloned()

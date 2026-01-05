@@ -1,7 +1,7 @@
 # Tiles Tools Engine Specification
 
-**Name:** Tiles Tools Engine  
-**Version:** 1.1 (Rulebook Compliant)  
+**Name:** Tiles Tools Engine
+**Version:** 1.1 (Rulebook Compliant)
 **Date:** 2025-08-08
 
 ## Table of Contents
@@ -83,11 +83,11 @@ use tiles_tools::{
 struct Character { movement_range: u32, position: HexCoord }
 type HexCoord = Coordinate<Axial, Pointy>;
 
-fn valid_moves(character: &Character, obstacles: &Grid2D<Axial, Pointy, bool>) 
-    -> Vec<HexCoord> 
+fn valid_moves(character: &Character, obstacles: &Grid2D<Axial, Pointy, bool>)
+    -> Vec<HexCoord>
 {
     let mut valid_positions = Vec::new();
-    
+
     // Check all positions within movement range
     for candidate in hex_spiral_range(character.position, character.movement_range) {
         if let Some((path, cost)) = astar(
@@ -138,7 +138,7 @@ impl DungeonGenerator {
             }
         }
     }
-    
+
     fn connect_rooms(&mut self, room1: SquareCoord, room2: SquareCoord) {
         if let Some((path, _)) = astar(&room1, &room2, |_| true, |_| 1) {
             for pos in path {
@@ -170,20 +170,20 @@ struct CityPlanner {
 impl CityPlanner {
     fn calculate_land_value(&self, position: IsoCoord) -> f32 {
         let mut value = 100.0;
-        
+
         // Distance to commercial zones increases residential value
         if let Some(commercial_distance) = self.nearest_zone_distance(position, ZoneType::Commercial) {
             value += (10.0 / (commercial_distance as f32 + 1.0)) * 50.0;
         }
-        
+
         // Distance to industrial zones decreases residential value
         if let Some(industrial_distance) = self.nearest_zone_distance(position, ZoneType::Industrial) {
             value -= (10.0 / (industrial_distance as f32 + 1.0)) * 30.0;
         }
-        
+
         // Traffic accessibility increases commercial value
         value += self.traffic_flow.accessibility_at(position) * 25.0;
-        
+
         value
     }
 }
@@ -222,7 +222,7 @@ impl RTSGameState {
             |pos| !self.obstacles[*pos], // Passable terrain
             |_| 1, // Unit cost
         );
-        
+
         // Move all units towards target using flow field
         for unit in &mut self.units {
             if let Some(next_position) = flow_field.best_move_from(unit.position) {
@@ -230,11 +230,11 @@ impl RTSGameState {
             }
         }
     }
-    
+
     fn group_move(&mut self, units: &[u32], formation: Formation, target: RTSCoord) {
         // Calculate formation positions around target
         let formation_positions = formation.calculate_positions(target, units.len());
-        
+
         // Assign each unit to its formation position
         for (unit_id, formation_pos) in units.iter().zip(formation_positions) {
             if let Some(unit) = self.units.iter_mut().find(|u| u.id == *unit_id) {
@@ -262,7 +262,7 @@ impl RTSGameState {
 ## 5. Deliverables
 
 1. **Published Rust Crate**: Compliant with workspace dependency management
-2. **Source Code**: Following strict codestyle and design rulebooks  
+2. **Source Code**: Following strict codestyle and design rulebooks
 3. **Comprehensive Tests**: All in `tests/` directory with 100% compliance
 4. **API Documentation**: Generated via `cargo doc` with complete coverage
 5. **Integration Examples**: Demonstrating real-world usage patterns
@@ -377,7 +377,7 @@ error_tools = { workspace = true }
 former = { workspace = true }
 mod_interface = { workspace = true }
 
-# ECS and core functionality  
+# ECS and core functionality
 hecs = { workspace = true }
 ndarray_cg = { workspace = true }
 pathfinding = { workspace = true }
@@ -396,7 +396,7 @@ src/
 │   ├── hexagonal.rs       # Coordinate<System, Orientation> with full impl
 │   └── pixel.rs           # Pixel coordinate with conversions
 ├── collection.rs          # Grid2D generic storage container
-├── pathfind.rs           # Generic A* pathfinding implementation  
+├── pathfind.rs           # Generic A* pathfinding implementation
 ├── geometry.rs           # Hexagonal mesh generation utilities
 └── layout.rs             # Grid layout definitions (if enabled)
 ```
@@ -433,11 +433,11 @@ mod private
 {
   pub struct Entity(hecs::Entity);
   pub struct World(hecs::World);
-  
+
   impl World
   {
     pub fn entity_create(&mut self) -> Entity { /* ... */ }
-    pub fn component_add<C>(&mut self, entity: Entity, component: C) 
+    pub fn component_add<C>(&mut self, entity: Entity, component: C)
     -> error_tools::Result<()> { /* ... */ }
   }
 }
@@ -480,7 +480,7 @@ impl std::fmt::Display for TilesError
 impl std::error::Error for TilesError {}
 
 // Usage
-fn pathfinding_calculate(from: Coordinate, to: Coordinate) 
+fn pathfinding_calculate(from: Coordinate, to: Coordinate)
 -> error_tools::Result<Vec<Coordinate>>
 {
   // ... pathfinding logic
@@ -552,7 +552,7 @@ fn test_grid_creation_hexagonal()
     .height(10)
     .topology(GridTopology::Hexagonal)
     .form();
-    
+
   let result = Grid::builder_create(config);
   assert!(result.is_ok());
 }
@@ -563,7 +563,7 @@ fn test_grid_creation_hexagonal()
 [features]
 default = ["enabled"]
 enabled = ["dep:hecs", "dep:pathfinding", "dep:serde"]
-full = ["enabled"] 
+full = ["enabled"]
 integration = []
 ```
 
@@ -584,7 +584,7 @@ integration = []
 - ✅ **Testing Mandatory**: All code changes include comprehensive tests
 - ✅ **Tests in Directory**: All tests in `tests/` directory, not `src/`
 
-### Codestyle Rulebook Compliance  
+### Codestyle Rulebook Compliance
 - ✅ **Universal Applicability**: All Rust code follows codestyle rules
 - ✅ **File Naming**: All files use snake_case lowercase
 - ✅ **Entity Naming**: All functions follow noun-verb order
@@ -599,7 +599,7 @@ integration = []
 ### Current Implementation Status
 - ✅ **Hexagonal Coordinates**: Full implementation with Axial/Offset systems
 - ✅ **Type Safety**: Generic Coordinate<System, Orientation> design
-- ✅ **Serde Support**: Serialization for all coordinate types  
+- ✅ **Serde Support**: Serialization for all coordinate types
 - ✅ **Grid Storage**: Generic Grid2D container with coordinate indexing
 - ✅ **Pathfinding**: Generic A* algorithm for any coordinate system
 - ✅ **Geometry**: Hexagonal mesh generation and transformations
@@ -666,7 +666,7 @@ impl TacticalRPG {
             .filter(|pos| self.units.get(*pos).is_some())
             .collect()
     }
-    
+
     fn execute_turn(&mut self, unit_pos: HexCoord, action: Action) {
         match action {
             Action::Move(target) => {
@@ -695,10 +695,10 @@ use tiles_tools::{
 struct CityBuilder {
     // Logical grid for zoning and simulation
     logical_grid: Grid2D<FourConnected, ZoneData>,
-    
+
     // Visual grid for rendering (isometric)
     visual_grid: Grid2D<Isometric, RenderData>,
-    
+
     // Utility networks (separate grids)
     power_grid: Grid2D<FourConnected, PowerNode>,
     water_grid: Grid2D<FourConnected, WaterNode>,
@@ -719,7 +719,7 @@ impl CityBuilder {
             zone.population = (zone.population as f32 * growth_rate) as u32;
         }
     }
-    
+
     fn update_visual_representation(&mut self) {
         for (logical_coord, zone_data) in self.logical_grid.indexed_iter() {
             let iso_coord = self.logical_to_isometric(logical_coord);
@@ -763,18 +763,18 @@ impl Roguelike {
         // Use WFC for coherent dungeon generation
         let tileset = load_dungeon_tileset(level);
         let generator = WaveFunction::new(100, 100, tileset);
-        
+
         if let Ok(solution) = generator.solve() {
             self.dungeon = solution.to_grid();
         }
-        
+
         // Add noise-based details
         self.add_environmental_details();
-        
+
         // Place player and entities
         self.place_player_and_entities();
     }
-    
+
     fn update_visibility(&mut self) {
         let vision_calculator = VisionCalculator::new(&self.dungeon);
         self.visible_tiles = vision_calculator.calculate_fov(
@@ -782,11 +782,11 @@ impl Roguelike {
             8, // Vision range
             |tile| !tile.blocks_sight,
         );
-        
+
         // Add newly visible tiles to explored set
         self.explored_tiles.extend(&self.visible_tiles);
     }
-    
+
     fn handle_player_input(&mut self, input: Input) {
         match input {
             Input::Move(direction) => {
