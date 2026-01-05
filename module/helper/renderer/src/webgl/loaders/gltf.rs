@@ -148,7 +148,7 @@ mod private
   {
     let get_target_array = | acc : gltf::Accessor< '_ > |
     {
-      gltf::accessor::Iter::< [ f32; 3 ] >::new
+      gltf::mesh::util::ReadPositionDisplacements::new
       (
         acc,
         | buffer | buffers.get( buffer.index() ).map( | x | x.as_slice() )
@@ -236,19 +236,6 @@ mod private
         skin_normals.extend( primitive_normals );
         skin_tangents.extend( primitive_tangents );
       }
-
-      // fn optional( v : Vec< [ f32; 3 ] > ) -> bool
-      // {
-      //   let eps = 1e-6;
-      //   let is_all_zero = v.iter().flatten().all( | &x | x.abs() < eps );
-      //  ( !is_all_zero ).then_some( v )
-      // }
-
-      // (
-      //   optional( skin_positions ),
-      //   optional( skin_normals ),
-      //   optional( skin_targets ),
-      // )
 
       (
         ( !skin_positions.is_empty() ).then_some( skin_positions ),
