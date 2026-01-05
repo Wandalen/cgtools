@@ -503,10 +503,12 @@ mod private
     {
       let mut result = self.get_local_defines();
 
-      let mut defines = self.vertex_defines.clone();
-      defines.extend( self.fragment_defines.clone() );
+      for ( name, value ) in self.vertex_defines.iter()
+      {
+        result.push_str( &format!( "#define {} {}\n", name, value ) );
+      }
 
-      for ( name, value ) in defines
+      for ( name, value ) in self.fragment_defines.iter()
       {
         result.push_str( &format!( "#define {} {}\n", name, value ) );
       }
