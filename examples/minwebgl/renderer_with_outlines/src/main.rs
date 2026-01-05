@@ -43,7 +43,6 @@ use gl::
     wasm_bindgen::closure::Closure
   }
 };
-// use rand::Rng;
 use renderer::webgl::
 {
   loaders::gltf::GLTF,
@@ -118,9 +117,6 @@ fn create_texture
 
 fn generate_object_colors( object_count : u32 ) -> Vec< F32x4 >
 {
-  // let mut rng = rand::thread_rng();
-
-  // let range = 0.2..1.0;
   let object_colors = ( 0..object_count )
   .map
   (
