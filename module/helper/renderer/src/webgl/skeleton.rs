@@ -375,7 +375,7 @@ mod private
         if vertex_displacement_len != 0
         {
           let v = vertex_displacement_len as f32;
-          let i = ( data.len().sqrt() / v ).floor();
+          let i = ( ( data.len() as f32 ).sqrt() / v ).floor();
           let a = ( v * i as f32 ) as u32;
           let b = ( data.len() as f32 / a as f32 ).ceil() as u32;
           self.disp_texture_size = [ a, b ];
@@ -426,6 +426,9 @@ mod private
           .map( | v | v.iter().map( | i | [ *i; 1 ] ).collect::< Vec< _ > >() )
           .unwrap_or( vec![ [ 0.0_f32; 1 ]; self.targets_count ] );
           data.extend( vec![ [ 0.0; 1 ]; MAX_MORPH_TARGETS.saturating_sub( data.len() ) ] );
+          // .map( | v | v.iter().copied().collect::< Vec< _ > >() )
+          // .unwrap_or( vec![ 0.0_f32; self.targets_count ] );
+          // data.extend( vec![ 0.0; MAX_MORPH_TARGETS.saturating_sub( data.len() ) ] );
           gl::uniform::upload
           (
             gl,
