@@ -1,6 +1,6 @@
-//! This module contains the implementation for offscreen 
-//! rendering to a texture using WebGL2. It includes a utility 
-//! function to create a framebuffer and the `CanvasRenderer` 
+//! This module contains the implementation for offscreen
+//! rendering to a texture using WebGL2. It includes a utility
+//! function to create a framebuffer and the `CanvasRenderer`
 //! struct for managing the rendering process.
 
 mod private
@@ -13,8 +13,8 @@ mod private
     GL,
     web_sys::
     {
-      WebGlFramebuffer, 
-      WebGlProgram, 
+      WebGlFramebuffer,
+      WebGlProgram,
       WebGlTexture
     }
   };
@@ -25,7 +25,7 @@ mod private
     Camera,
     Scene
   };
-  use std::collections::HashMap;
+  use rustc_hash::FxHashMap;
   use std::cell::RefCell;
   use std::rc::Rc;
 
@@ -45,7 +45,7 @@ mod private
     gl : &gl::GL,
     width : u32,
     height : u32
-  ) 
+  )
   -> Option< ( WebGlFramebuffer, WebGlTexture ) >
   {
     let color = gl.create_texture()?;
@@ -81,7 +81,7 @@ mod private
     /// The WebGL program used for rendering.
     program : WebGlProgram,
     /// A map storing the locations of uniform variables in the program.
-    uniforms : HashMap< String, Option< gl::WebGlUniformLocation > >,
+    uniforms : FxHashMap< String, Option< gl::WebGlUniformLocation > >,
     /// The WebGL framebuffer used for offscreen rendering.
     framebuffer : WebGlFramebuffer,
     /// The texture attached to the framebuffer, where the rendering results are stored.
@@ -90,7 +90,7 @@ mod private
     width : u32,
     /// The height of the framebuffer and its output texture.
     height : u32
-  } 
+  }
 
   impl CanvasRenderer
   {
@@ -115,14 +115,14 @@ mod private
       let program = gl::ProgramFromSources::new( vertex_shader_src, fragment_shader_src )
       .compile_and_link( &gl )?;
 
-      let mut uniforms = HashMap::new(); 
-      let mut add_location = 
-      | name : &str | 
+      let mut uniforms = FxHashMap::default();
+      let mut add_location =
+      | name : &str |
       {
         uniforms.insert
-        ( 
-          name.to_string(), 
-          gl.get_uniform_location( &program, name ) 
+        (
+          name.to_string(),
+          gl.get_uniform_location( &program, name )
         )
       };
 
@@ -154,19 +154,19 @@ mod private
     fn upload_camera( &self, gl : &GL, camera : &Camera )
     {
       gl::uniform::matrix_upload
-      ( 
+      (
         &gl,
         self.uniforms.get( "viewMatrix" ).unwrap().clone(),
-        &camera.get_view_matrix().to_array(), 
-        true 
+        &camera.get_view_matrix().to_array(),
+        true
       ).unwrap();
 
       gl::uniform::matrix_upload
-      ( 
+      (
         &gl,
         self.uniforms.get( "projectionMatrix" ).unwrap().clone(),
-        &camera.get_projection_matrix().to_array(), 
-        true 
+        &camera.get_projection_matrix().to_array(),
+        true
       ).unwrap();
     }
 
@@ -210,10 +210,10 @@ mod private
     ///
     /// Returns `Ok(())` on successful rendering, or `Err(WebglError)` if rendering fails.
     pub fn render
-    ( 
-      &self, 
-      gl : &GL, 
-      scene : &mut Scene, 
+    (
+      &self,
+      gl : &GL,
+      scene : &mut Scene,
       camera : &Camera,
       colors : &[ F32x4 ]
     ) -> Result< (), gl::WebglError >
@@ -235,12 +235,12 @@ mod private
 
       gl.use_program( Some( &self.program ) );
 
-      let mut i = 0; 
-      let default_color = F32x4::from_array( [ 1.0, 0.0, 1.0, 1.0 ] ); 
-      
+      let mut i = 0;
+      let default_color = F32x4::from_array( [ 1.0, 0.0, 1.0, 1.0 ] );
+
       // Define a closure to handle the drawing of each node in the scene.
-      let mut draw_node = 
-      | 
+      let mut draw_node =
+      |
         node : Rc< RefCell< Node > >
       | -> Result< (), gl::WebglError >
       {
@@ -265,7 +265,7 @@ mod private
             primitive.geometry.borrow().bind( gl );
             primitive.draw( gl );
           }
-        } 
+        }
 
         i += 1;
 
@@ -288,10 +288,10 @@ mod private
     /// * `gl` - The WebGL2 rendering context
     /// * `output_texture` - The new texture to use as the color attachment
     pub fn set_texture
-    ( 
-      &mut self, 
-      gl : &GL, 
-      output_texture : WebGlTexture 
+    (
+      &mut self,
+      gl : &GL,
+      output_texture : WebGlTexture
     )
     {
       gl.bind_framebuffer( GL::FRAMEBUFFER, Some( &self.framebuffer ) );

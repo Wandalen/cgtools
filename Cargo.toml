@@ -219,7 +219,7 @@ version = "0.22.0"
 version = "~0.16.0"
 
 [workspace.dependencies.clone_dyn_types]
-version = "~0.36.0"
+version = "~0.31.0"
 
 [workspace.dependencies.asbytes]
 version = "0.2.0"
@@ -406,3 +406,4 @@ version = "0.12"
 
 [workspace.dependencies.base64]
 version = "0.22.1"
+

@@ -38,7 +38,7 @@ mod tests
     assert_eq!( sequencer.state(), AnimationState::Running );
 
     let value = sequencer.get_value::< Tween< f32 > >( "test" ).unwrap();
-    assert_eq!( value.get_current_value(), 5.0 );
+    assert_eq!( value.value_get(), 5.0 );
 
     sequencer.update( 0.5 );
     assert_eq!( sequencer.time(), 1.0 );
@@ -81,14 +81,14 @@ mod tests
     );
 
     sequencer.update( 0.5 );
-    assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().get_current_value(), 5.0 );
+    assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().value_get(), 5.0 );
 
     sequencer.pause();
     assert_eq!( sequencer.state(), AnimationState::Paused );
 
     sequencer.update( 0.5 );
     let value = sequencer.get_value::< Tween< f32 > >( "test" ).unwrap();
-    assert_eq!( value.get_current_value(), 5.0 );
+    assert_eq!( value.value_get(), 5.0 );
 
     sequencer.resume();
     assert_eq!( sequencer.state(), AnimationState::Running );
@@ -96,7 +96,7 @@ mod tests
     sequencer.update( 0.5 );
     assert!( sequencer.is_completed() );
     let value = sequencer.get_value::< Tween< f32 > >( "test" ).unwrap();
-    assert_eq!( value.get_current_value(), 10.0 );
+    assert_eq!( value.value_get(), 10.0 );
   }
 
   #[ test ]
@@ -111,17 +111,17 @@ mod tests
 
     sequencer.update( 0.5 );
     assert_eq!( sequencer.time(), 0.5 );
-    assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().get_current_value(), 5.0 );
+    assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().value_get(), 5.0 );
 
     sequencer.reset();
 
     assert_eq!( sequencer.time(), 0.0 );
     assert_eq!( sequencer.state(), AnimationState::Running );
-    assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().get_current_value(), 0.0 );
+    assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().value_get(), 0.0 );
 
     sequencer.update( 1.0 );
     assert!( sequencer.is_completed() );
-    assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().get_current_value(), 10.0 );
+    assert_eq!( sequencer.get_value::< Tween< f32 > >( "test" ).unwrap().value_get(), 10.0 );
   }
 
   #[ test ]
@@ -180,11 +180,11 @@ mod tests
     sequencer.update( 0.5 );
 
     let value = sequencer.get_value::< Tween< f32 > >( "ease_in_tween" ).unwrap();
-    assert_eq!( value.get_current_value(), 1.25 );
+    assert_eq!( value.value_get(), 1.25 );
 
     sequencer.update( 0.5 );
     assert!( sequencer.is_completed() );
     let value = sequencer.get_value::< Tween< f32 > >( "ease_in_tween" ).unwrap();
-    assert_eq!( value.get_current_value(), 10.0 );
+    assert_eq!( value.value_get(), 10.0 );
   }
 }
