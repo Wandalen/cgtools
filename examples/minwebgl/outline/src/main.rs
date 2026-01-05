@@ -559,7 +559,7 @@ impl Renderer
     // Define outline parameters ( thickness animated with time )
     let outline_thickness = 30.0;
     let outline_color = [ 1.0, 1.0, 1.0, 1.0 ]; // White outline
-    let object_color = [ 1.0, 1.0, 0.0, 1.0 ]; // Grey object
+    let object_color = [ 1.0, 1.0, 0.0, 1.0 ]; // Yellow object
 
     // Bind the default framebuffer ( render to canvas )
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );
