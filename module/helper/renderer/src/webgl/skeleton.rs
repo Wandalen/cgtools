@@ -165,6 +165,12 @@ mod private
       .flatten()
       .collect::< Vec< _ > >();
 
+      // Nodes global transform data texture and inverse bind matrices texture size are calculated with such way:
+      // 1. Get teoretical square filled with data with rational non integer length.
+      // 2. Then apply log and power to make always texture resolution multiple of 4.
+      //    We need this to ensure that one matrix inside the texture can't be splited
+      //    between two rows and all matrices have grid aligment.
+      // 3. Ceil we need to get smalles side length integer that fit all data.
       let a = 4.0_f32.powf( ( global_data.len() as f32 ).sqrt().log( 4.0 ).ceil() ) as u32;
       let texture_size = [ a, a ];
 
