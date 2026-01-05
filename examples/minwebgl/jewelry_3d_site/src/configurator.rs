@@ -524,7 +524,7 @@ async fn setup_rings
   let mut gems : Vec< FxHashMap< String, Rc< RefCell< Node > > > > = vec![];
   let mut shadows : Vec< Option< TextureInfo > > = vec![];
 
-  for i in 0..2
+  for i in 0..5
   {
     let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/{i}.glb" ).as_str(), &gl ).await?;
 
@@ -561,7 +561,10 @@ async fn setup_rings
     }
 
     gems.push( ring_gems );
-    shadows.push( create_texture( gl, format!( "textures/shadow_{i}.png" ).as_str() ) );
+
+    // Use shadow_1.png for rings that don't have their own shadow texture
+    let shadow_index = if i <= 1 { i } else { 1 };
+    shadows.push( create_texture( gl, format!( "textures/shadow_{shadow_index}.png" ).as_str() ) );
   }
 
   let ui_state = get_ui_state().unwrap();
