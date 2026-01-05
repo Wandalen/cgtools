@@ -204,7 +204,6 @@ impl Configurator
       };
 
       mesh.borrow_mut().is_shadow_caster = true;
-      // mesh.borrow_mut().is_shadow_receiver = true;
 
       for primitive in &mesh.borrow().primitives
       {
@@ -517,7 +516,7 @@ async fn setup_rings
   let shadowmap = ShadowMap::new( &gl, shadowmap_res )?;
   let shadow_baker = ShadowBaker::new( &gl )?;
 
-  for i in 0..5
+  for i in 0..2
   {
     let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/{i}.glb" ).as_str(), &gl ).await?;
 
