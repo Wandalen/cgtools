@@ -483,7 +483,7 @@ async fn setup_rings
   let mut gems : Vec< FxHashMap< String, Rc< RefCell< Node > > > > = vec![];
 
   let plane_gltf = renderer::webgl::loaders::gltf::load( &document, "gltf/plane.glb", &gl ).await?;
-  let plane_template = get_node( &plane_gltf.scenes[ 0 ], "Plane".to_string() ).unwrap();
+  let plane_template = plane_gltf.scenes[ 0 ].borrow().get_node( "Plane" ).unwrap();
 
   let shadowmap_res = 2048;
   let lightmap_res = 2048;
@@ -513,8 +513,7 @@ async fn setup_rings
       node.compute_local_bounding_box();
       let bb = node.local_bounding_box_hierarchical();
       let t = mat3x3h::translation( [ 0.0, -bb.min.y(), 0.0 ] );
-      let m = t * node.get_local_matrix();
-      node.set_local_matrix( m );
+      node.apply_matrix( t );
     }
 
     let plane_node = plane_template.borrow().clone_tree();

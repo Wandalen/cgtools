@@ -85,31 +85,6 @@ pub fn filter_nodes( scene : &Rc< RefCell< Scene > >, mut substring : String, ca
   filtered
 }
 
-pub fn get_node( scene : &Rc< RefCell< Scene > >, name : String ) -> Option< Rc< RefCell< Node > > >
-{
-  let mut target = None;
-  let _ = scene.borrow_mut().traverse
-  (
-    &mut | node : Rc< RefCell< Node > > |
-    {
-      if target.is_some()
-      {
-        return Ok( () );
-      }
-      if let Some( current_name ) = node.borrow().get_name()
-      {
-        if name == current_name.clone().into_string()
-        {
-          target = Some( node.clone() );
-          return Err( gl::WebglError::Other( "" ) );
-        }
-      }
-      Ok( () )
-    }
-  );
-  target
-}
-
 pub fn add_resize_callback() -> Rc< RefCell< bool > >
 {
   let is_resized = Rc::new( RefCell::new( false ) );

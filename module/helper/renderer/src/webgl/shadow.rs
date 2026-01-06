@@ -54,7 +54,7 @@ mod private
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
 
       let vertex = include_str!( "shaders/depth.vert" );
-      let fragment = include_str!( "shaders/depth.frag" );
+      let fragment = include_str!( "shaders/empty.frag" );
       let program = gl::Program::new( gl.clone(), vertex, fragment )?;
 
       Ok
