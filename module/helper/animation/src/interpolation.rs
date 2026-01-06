@@ -507,24 +507,20 @@ mod private
   impl< E, const N : usize > Animatable for mingl::Vector< E, N >
   where E : MatEl + Animatable
   {
-    fn interpolate(&self, other : &Self, time : f64 ) -> Self
+    fn interpolate( &self, other : &Self, time : f64 ) -> Self
     {
-      let v = self.iter().zip( other.iter() )
-      .map
-      (
-        | ( a, b ) |
-        a.interpolate( b, time )
-      )
-      .collect::< Vec< _ > >();
+      let mut copy = *self;
+      copy.iter_mut().zip( other.iter() )
+      .for_each( | ( a, b ) | *a = a.interpolate( b, time ) );
 
-      Self::from_slice( v.as_slice() )
+      copy
     }
   }
 
   impl< E > Animatable for Vec< E >
   where E : MatEl + Animatable
   {
-    fn interpolate(&self, other : &Self, time : f64 ) -> Self
+    fn interpolate( &self, other : &Self, time : f64 ) -> Self
     {
       self.iter().zip( other.iter() )
       .map

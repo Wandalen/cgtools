@@ -165,6 +165,12 @@ mod private
       .flatten()
       .collect::< Vec< _ > >();
 
+      // Nodes global transform data texture and inverse bind matrices texture size are calculated with such way:
+      // 1. Get teoretical square filled with data with rational non integer length.
+      // 2. Then apply log and power to make always texture resolution multiple of 4.
+      //    We need this to ensure that one matrix inside the texture can't be splited
+      //    between two rows and all matrices have grid aligment.
+      // 3. Ceil we need to get smalles side length integer that fit all data.
       let a = 4.0_f32.powf( ( global_data.len() as f32 ).sqrt().log( 4.0 ).ceil() ) as u32;
       let texture_size = [ a, a ];
 
@@ -369,13 +375,7 @@ mod private
         if vertex_displacement_len != 0
         {
           let v = vertex_displacement_len as f32;
-
-          let mut i = 0;
-          while ( v * i as f32 ).powf( 2.0 ) < data.len() as f32
-          {
-            i += 1;
-          }
-
+          let i = ( ( data.len() as f32 ).sqrt() / v ).floor();
           let a = ( v * i as f32 ) as u32;
           let b = ( data.len() as f32 / a as f32 ).ceil() as u32;
           self.disp_texture_size = [ a, b ];
@@ -426,6 +426,9 @@ mod private
           .map( | v | v.iter().map( | i | [ *i; 1 ] ).collect::< Vec< _ > >() )
           .unwrap_or( vec![ [ 0.0_f32; 1 ]; self.targets_count ] );
           data.extend( vec![ [ 0.0; 1 ]; MAX_MORPH_TARGETS.saturating_sub( data.len() ) ] );
+          // .map( | v | v.iter().copied().collect::< Vec< _ > >() )
+          // .unwrap_or( vec![ 0.0_f32; self.targets_count ] );
+          // data.extend( vec![ 0.0; MAX_MORPH_TARGETS.saturating_sub( data.len() ) ] );
           gl::uniform::upload
           (
             gl,

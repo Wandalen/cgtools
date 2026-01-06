@@ -845,10 +845,13 @@ mod private
               let _ = material.upload( gl, node.clone() );
             }
 
-            if let Some( primitive_offset_loc ) = locations.get( "primitiveOffset" )
+            if material.type_name() == "PbrMaterial"
             {
-              gl::uniform::upload( &gl, primitive_offset_loc.clone(), &primitive_offset ).unwrap();
-              primitive_offset += primitive.geometry.borrow().vertex_count;
+              if let Some( primitive_offset_loc ) = locations.get( "primitiveOffset" )
+              {
+                gl::uniform::upload( &gl, primitive_offset_loc.clone(), &primitive_offset ).unwrap();
+                primitive_offset += primitive.geometry.borrow().vertex_count;
+              }
             }
 
             node.borrow().upload( gl, locations );

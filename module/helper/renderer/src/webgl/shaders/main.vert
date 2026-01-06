@@ -258,21 +258,11 @@ void main()
   vec4 position = vec4( position, 1.0 );
 
   #ifdef USE_MORPH_TARGET
-    if ( morphTargetsDisplacementsOffsets.x != -1 )
-    {
-      position.xyz = displace_position( position.xyz );
-    }
-
-    if ( morphTargetsDisplacementsOffsets.y != -1 )
-    {
-      // vNormal = displace_normal( vNormal );
-    }
+    position.xyz = displace_position( position.xyz );
+    // vNormal = displace_normal( vNormal );
 
     #ifdef USE_TANGENTS
-      if ( morphTargetsDisplacementsOffsets.z != -1 )
-      {
-        vTangent.xyz = displace_tangent( vTangent.xyz );
-      }
+      vTangent.xyz = displace_tangent( vTangent.xyz );
     #endif
   #endif
 
