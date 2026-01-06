@@ -57,33 +57,39 @@ mod private
     }
 
     /// Get reference to underlying start [`Sequencer`]
-    pub fn start_as_ref( &self ) -> &Sequencer
+    pub fn start_ref( &self ) -> &Sequencer
     {
       &self.start
     }
 
     /// Get mutable reference to underlying start [`Sequencer`]
-    pub fn start_as_mut( &mut self ) -> &mut Sequencer
+    pub fn start_mut( &mut self ) -> &mut Sequencer
     {
       &mut self.start
     }
 
     /// Get reference to underlying end [`Sequencer`]
-    pub fn end_as_ref( &self ) -> &Sequencer
+    pub fn end_ref( &self ) -> &Sequencer
     {
       &self.end
     }
 
     /// Get mutable reference to underlying end [`Sequencer`]
-    pub fn end_as_mut( &mut self ) -> &mut Sequencer
+    pub fn end_mut( &mut self ) -> &mut Sequencer
     {
       &mut self.end
     }
 
     /// Get reference to underlying [`Tween< f64 >`]
-    pub fn tween_get( &self ) -> &Tween< f64 >
+    pub fn tween( &self ) -> &Tween< f64 >
     {
       &self.tween
+    }
+
+    /// Get mutable reference to underlying [`Tween< f64 >`]
+    pub fn tween_mut( &mut self ) -> &Tween< f64 >
+    {
+      &mut self.tween
     }
 
     /// Reset [`Transition`]

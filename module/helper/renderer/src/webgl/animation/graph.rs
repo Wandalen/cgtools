@@ -255,7 +255,7 @@ mod private
         if let Some( edge ) = triggered_edge.as_ref()
         {
           let time = current.borrow().animation.time();
-          edge.borrow_mut().transition.start_as_mut().update( time );
+          edge.borrow_mut().transition.start_mut().update( time );
         }
 
         current.borrow_mut().animation.reset();
@@ -270,7 +270,7 @@ mod private
         let in_process = current.borrow().in_process.clone();
         if let Some( edge ) = in_process
         {
-          if edge.borrow().transition_as_ref().tween_get().is_completed()
+          if edge.borrow().transition_as_ref().tween().is_completed()
           {
             is_transited = true;
           }
@@ -294,7 +294,7 @@ mod private
       {
         let old = self.current.as_ref().unwrap().clone();
         let next = self.current.as_ref().unwrap().borrow().in_process.as_ref().unwrap().borrow().next_get();
-        let time = old.borrow().in_process.as_ref().unwrap().borrow().transition_as_ref().end_as_ref().time();
+        let time = old.borrow().in_process.as_ref().unwrap().borrow().transition_as_ref().end_ref().time();
         next.borrow_mut().animation.update( time );
         self.current = Some( next );
         old.borrow().in_process.as_ref().unwrap().borrow_mut().transition_as_mut().reset();
