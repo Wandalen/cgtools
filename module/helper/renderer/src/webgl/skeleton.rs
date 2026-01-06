@@ -426,9 +426,6 @@ mod private
           .map( | v | v.iter().map( | i | [ *i; 1 ] ).collect::< Vec< _ > >() )
           .unwrap_or( vec![ [ 0.0_f32; 1 ]; self.targets_count ] );
           data.extend( vec![ [ 0.0; 1 ]; MAX_MORPH_TARGETS.saturating_sub( data.len() ) ] );
-          // .map( | v | v.iter().copied().collect::< Vec< _ > >() )
-          // .unwrap_or( vec![ 0.0_f32; self.targets_count ] );
-          // data.extend( vec![ 0.0; MAX_MORPH_TARGETS.saturating_sub( data.len() ) ] );
           gl::uniform::upload
           (
             gl,
