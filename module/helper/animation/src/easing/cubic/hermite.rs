@@ -5,7 +5,7 @@ mod private
 
   /// Hermite spline implementation for interpolation
   #[ non_exhaustive ]
-  #[ derive( Debug ) ]
+  #[ derive( Debug, Clone ) ]
   pub struct CubicHermite< E, const N : usize >
   where E : MatEl + core::default::Default + core::marker::Copy
   {
