@@ -468,19 +468,6 @@ fn remove_numbers( s : &str ) -> String
   s.chars().filter( | c | !c.is_ascii_digit() ).collect()
 }
 
-fn create_shadow_texture( gl : &GL, res : u32, mip_levels : i32 ) -> Option< web_sys::WebGlTexture >
-{
-  let ret = gl.create_texture();
-  gl.bind_texture( gl::TEXTURE_2D, ret.as_ref() );
-  gl.tex_storage_2d( gl::TEXTURE_2D, mip_levels, gl::R8, res as i32, res as i32 );
-
-  gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
-  gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
-  gl::texture::d2::wrap_clamp( &gl );
-
-  ret
-}
-
 async fn setup_rings
 (
   gl : &GL,
@@ -494,7 +481,6 @@ async fn setup_rings
 
   let mut rings : Vec< Rc< RefCell< Scene > > > = vec![];
   let mut gems : Vec< FxHashMap< String, Rc< RefCell< Node > > > > = vec![];
-  let mut shadows : Vec< Option< TextureInfo > > = vec![];
 
   let plane_gltf = renderer::webgl::loaders::gltf::load( &document, "gltf/plane.glb", &gl ).await?;
   let plane_template = get_node( &plane_gltf.scenes[ 0 ], "Plane".to_string() ).unwrap();
@@ -536,61 +522,9 @@ async fn setup_rings
     plane_node.borrow_mut().set_scale( F32x3::from_array( [ 3.0, 1.0, 3.0 ] ) );
     gltf.scenes[ 0 ].borrow_mut().add( plane_node.clone() );
 
-    let _ = gltf.scenes[ 0 ].borrow().traverse
-    (
-      &mut | node |
-      {
-        if let Object3D::Mesh( mesh ) = &node.borrow().object
-        {
-          mesh.borrow_mut().is_shadow_caster = true;
-        }
-        Ok( () )
-      }
-    );
-
     gltf.scenes[ 0 ].borrow_mut().update_world_matrix();
 
-    shadowmap.render( &gltf.scenes[ 0 ].borrow(), light )?;
-
-    let mip_levels = ( ( lightmap_res as f32 ).log2().floor() as i32 ) + 1;
-    let shadow_texture = create_shadow_texture( &gl, lightmap_res, mip_levels );
-
-    shadow_baker.render_soft_shadow
-    (
-      &plane_node.borrow(),
-      shadow_texture.as_ref(),
-      lightmap_res,
-      lightmap_res,
-      &shadowmap,
-      light
-    )?;
-
-    gl.active_texture( gl::TEXTURE0 );
-    gl.bind_texture( gl::TEXTURE_2D, shadow_texture.as_ref() );
-    gl.generate_mipmap( gl::TEXTURE_2D );
-
-    if let Object3D::Mesh( mesh ) = &plane_node.borrow().object
-    {
-      let primitives = &mesh.borrow().primitives;
-      let primitive = primitives.first().unwrap();
-
-      let mut texture = Texture::new();
-      texture.source = shadow_texture;
-      let texture_info = TextureInfo
-      {
-        texture : Rc::new( RefCell::new( texture ) ),
-        uv_position : 0,
-      };
-
-      let mut surface_material = SurfaceMaterial::new( &gl );
-      surface_material.color = F32x3::splat( 0.854 );
-      surface_material.texture = Some( texture_info.clone() );
-      surface_material.needs_update = false;
-      let surface_material_boxed : Rc< RefCell< Box< dyn Material > > > = Rc::new( RefCell::new( Box::new( surface_material ) ) );
-      primitive.borrow_mut().material = surface_material_boxed.clone();
-
-      shadows.push( Some( texture_info ) );
-    }
+    bake_plane_shadow(gl, lightmap_res, light, &shadowmap, &shadow_baker, &gltf, plane_node)?;
 
     rings.push( gltf.scenes[ 0 ].clone() );
 
@@ -634,6 +568,84 @@ async fn setup_rings
       current_ring
     }
   )
+}
+
+fn bake_plane_shadow
+(
+  gl: &GL,
+  lightmap_res: u32,
+  light: renderer::webgl::shadow::Light,
+  shadowmap: &ShadowMap,
+  shadow_baker: &ShadowBaker,
+  gltf: &renderer::webgl::loaders::gltf::GLTF,
+  plane_node: Rc< RefCell< Node > >
+) -> Result< (), WebglError >
+{
+  let _ = gltf.scenes[ 0 ].borrow().traverse
+  (
+    &mut | node |
+    {
+      if let Object3D::Mesh( mesh ) = &node.borrow().object
+      {
+        mesh.borrow_mut().is_shadow_caster = true;
+      }
+      Ok( () )
+    }
+  );
+
+  shadowmap.render( &gltf.scenes[ 0 ].borrow(), light )?;
+
+  let mip_levels = ( ( lightmap_res as f32 ).log2().floor() as i32 ) + 1;
+  let shadow_texture = create_shadow_texture( &gl, lightmap_res, mip_levels );
+  shadow_baker.render_soft_shadow
+  (
+    &plane_node.borrow(),
+    shadow_texture.as_ref(),
+    lightmap_res,
+    lightmap_res,
+    shadowmap,
+    light
+  )?;
+
+  gl.active_texture( gl::TEXTURE0 );
+  gl.bind_texture( gl::TEXTURE_2D, shadow_texture.as_ref() );
+  gl.generate_mipmap( gl::TEXTURE_2D );
+
+  if let Object3D::Mesh( mesh ) = &plane_node.borrow().object
+  {
+    let primitives = &mesh.borrow().primitives;
+    let primitive = primitives.first().unwrap();
+
+    let mut texture = Texture::new();
+    texture.source = shadow_texture;
+    let texture_info = TextureInfo
+    {
+      texture : Rc::new( RefCell::new( texture ) ),
+      uv_position : 0,
+    };
+
+    let mut surface_material = SurfaceMaterial::new( &gl );
+    surface_material.color = F32x3::splat( 0.854 );
+    surface_material.texture = Some( texture_info.clone() );
+    surface_material.needs_update = false;
+    let surface_material_boxed : Rc< RefCell< Box< dyn Material > > > = Rc::new( RefCell::new( Box::new( surface_material ) ) );
+    primitive.borrow_mut().material = surface_material_boxed;
+  }
+
+  Ok( () )
+}
+
+fn create_shadow_texture( gl : &GL, res : u32, mip_levels : i32 ) -> Option< web_sys::WebGlTexture >
+{
+  let ret = gl.create_texture();
+  gl.bind_texture( gl::TEXTURE_2D, ret.as_ref() );
+  gl.tex_storage_2d( gl::TEXTURE_2D, mip_levels, gl::R8, res as i32, res as i32 );
+
+  gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
+  gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+  gl::texture::d2::wrap_clamp( &gl );
+
+  ret
 }
 
 fn setup_camera( canvas : &web_sys::HtmlCanvasElement ) -> Camera
