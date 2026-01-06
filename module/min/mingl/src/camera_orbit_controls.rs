@@ -31,6 +31,14 @@ mod private
     /// Determines how fast rotation is going to decrease after dragging is stopped.
     /// In range from 0.0 to 1.0
     pub rotation_decay : f32,
+    /// The base longitude angle in degrees in range [0, 360], from which bound are calculated
+    pub initial_longitude : f32,
+    /// Specifies the radius in degrees around the initial_longitude. Should be in range [0, 180]
+    pub longitude_range : Option< f32 >,
+    /// The base latitude angle in degrees in range [-180, 180], from which the bounds are calculated
+    pub initial_latitude : f32,
+    /// Specifies the radius in degrees around the initial_latitude. Should be in range [0, 180]. The rotation will be clamped at poles
+    pub latitude_range : Option< f32 >,
     /// Accumulated speed based on mouse movement
     rotation_speed : F32x2,
     /// Current angle of rotation for the camera
@@ -138,11 +146,80 @@ mod private
       let dir = ( self.center - self.eye ).normalize();
       let x = dir.cross( self.up ).normalize();
 
+
       // We rotate aroung the y axis based on the movement in x direction.
       // And we rotate aroung the axix perpendicular to the current up and direction vectors
       // based on the movement in y direction
-      let rot_y = math::mat3x3::from_angle_y( -self.rotation_state.rotation_angle.x() );
-      let rot_x = math::mat3x3::from_axis_angle( x, -self.rotation_state.rotation_angle.y());
+      let mut longitude_angle = -self.rotation_state.rotation_angle.x();
+      let mut latitude_angle = -self.rotation_state.rotation_angle.y();
+
+      if let Some( longitude_range ) = self.rotation_state.longitude_range
+      {
+        let angle_range = longitude_range.to_radians();
+        let mut base_angle = self.rotation_state.initial_longitude.to_radians();
+        if base_angle > std::f32::consts::PI
+        {
+          base_angle -= 2.0 * std::f32::consts::PI;
+        }
+        // Minus is to make the rotation counter-clockwise
+        base_angle = -base_angle;
+        let min_angle = base_angle - angle_range;
+        let max_angle = base_angle + angle_range;
+
+        let current_angle = dir.z().atan2( dir.x() );
+        // longitude_angle rotates clockwise, while angles are groiwn counter-clockwise, so we need to subtract
+        let mut new_angle = current_angle - longitude_angle;
+
+        if new_angle < min_angle || new_angle > max_angle
+        {
+          let delta_min_correction = min_angle - new_angle;
+          let delta_max_correction = new_angle - max_angle;
+
+          if delta_max_correction > delta_min_correction
+          {
+            new_angle -= delta_max_correction;
+          }
+          else 
+          {
+            new_angle += delta_min_correction;
+          }
+        }
+        
+        longitude_angle = current_angle - new_angle;
+      }
+
+      if let Some( latitude_range ) = self.rotation_state.latitude_range
+      {
+        let angle_range = latitude_range.to_radians();
+        // Minus is needed to make the rotation counter-clockwise
+        let base_angle = -self.rotation_state.initial_latitude.to_radians();
+        let min_angle = ( base_angle - angle_range ).max( -std::f32::consts::FRAC_PI_2 );
+        let max_angle = ( base_angle + angle_range ).min( std::f32::consts::FRAC_PI_2 );
+
+        let current_angle = dir.y().asin();
+        let mut new_angle = current_angle + latitude_angle;
+
+        if new_angle < min_angle || new_angle > max_angle
+        {
+          let delta_min_correction = min_angle - new_angle;
+          let delta_max_correction = new_angle - max_angle;
+
+          if delta_max_correction > delta_min_correction
+          {
+            new_angle -= delta_max_correction;
+          }
+          else 
+          {
+            new_angle += delta_min_correction;
+          }
+        }
+        
+        latitude_angle = new_angle - current_angle;
+      }
+      
+
+      let rot_x = math::mat3x3::from_axis_angle( x, latitude_angle );
+      let rot_y = math::mat3x3::from_angle_y( longitude_angle );
       // Combine two rotations
       let rot = rot_y * rot_x;
 
@@ -268,7 +345,11 @@ mod private
           rotation_speed_scale : 500.0,
           rotation_speed : F32x2::default(),
           rotation_angle : F32x2::default(),
-          rotation_decay : 0.05
+          rotation_decay : 0.05,
+          initial_latitude : 0.0,
+          initial_longitude : 0.0,
+          latitude_range : None,
+          longitude_range : None
         },
         use_state : CameraUseState
         {
