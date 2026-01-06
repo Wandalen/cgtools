@@ -21,14 +21,17 @@
 #![ allow( clippy::no_effect_underscore_binding ) ]
 
 use core::f32;
+use animation::easing::{ EasingBuilder, Linear };
+// use renderer::webgl::cast_unchecked_material_to_ref_mut;
+// use renderer::webgl::material::PbrMaterial;
 use rustc_hash::FxHashMap;
 use std::{ cell::RefCell, rc::Rc };
-use animation::Sequencer;
+use animation::{Sequencer, Tween};
 use mingl::{ F32x3, F64x3, QuatF32 };
 use mingl::controls::{ CharacterControls, CharacterInput };
-use minwebgl::{self as gl, WebglError};
+use minwebgl::{ self as gl, WebglError };
 use gl::{ JsCast, web_sys::WebGlTexture, GL, wasm_bindgen::closure::Closure };
-use renderer::webgl::animation::AnimatableComposition;
+use renderer::webgl::animation::{ Pose, AnimatableComposition, Animation, AnimationGraph };
 use renderer::webgl::
 {
   post_processing::
@@ -38,8 +41,8 @@ use renderer::webgl::
     SwapFramebuffer
   },
   loaders::gltf::GLTF,
-  animation::{ Animation, AnimationGraph },
   Camera,
+  // Object3D,
   Renderer,
   Scene,
   Node,
@@ -70,9 +73,15 @@ fn create_plane( gl : &GL, scene : &Rc< RefCell< Scene > > )
   {
     // if let Object3D::Mesh( mesh ) = &plane.borrow().object
     // {
-    //   mesh.borrow().primitives.first().unwrap().borrow()
-    //   .material.borrow_mut()
-    //   .base_color_texture = create_texture( gl, "textures/chessboard.jpg" );
+    //   let mesh_ref = mesh.borrow();
+    //   let primitive_ref = mesh_ref.primitives.first().unwrap().borrow();
+    //   let mut material = cast_unchecked_material_to_ref_mut::< PbrMaterial >
+    //   (
+    //     primitive_ref.material.borrow_mut()
+    //   );
+
+    //   material.base_color_texture = Some( create_texture( gl, "textures/chessboard.jpg" ).unwrap() );
+    //   material.needs_update = true;
     // };
     plane.borrow_mut().set_name( "Plane" );
     scene.borrow_mut().children.push( plane.clone() );
@@ -137,8 +146,7 @@ fn _upload_texture( gl : &GL, src : Rc< String > ) -> WebGlTexture
       let texture = texture.clone();
       move ||
       {
-        gl::texture::d2::upload_no_flip( &gl, Some( &texture ), &img );
-        gl.generate_mipmap( gl::TEXTURE_2D );
+        gl::texture::d2::upload( &gl, Some( &texture ), &img );
         img.remove();
       }
     }
@@ -273,7 +281,31 @@ fn setup_graph( animations : Vec< Animation > ) -> AnimationGraph
   .collect::< FxHashMap< String, Sequencer > >();
 
   graph.node_add( "idle".into(), animations.get( "happy_idle" ).unwrap().clone() );
-  // graph.node_add( "walk",  );
+  graph.node_add( "jump".into(), animations.get( "standing_jump" ).unwrap().clone() );
+
+  let tween = Tween::new( 0.0, 1.0, 10.0, Linear::new() ).with_delay( 3.0 );
+  let condition = | _p1 : &Pose, _p2 : &Pose |
+  {
+    true
+  };
+  graph.edge_add( "idle".into(), "jump".into(), "idle_to_jump".into(), tween, condition );
+
+
+  // graph.node_add( "walk".into(), animations.get( "female_walk" ).unwrap().clone() );
+  // graph.node_add( "walk_backward".into(), animations.get( "running_backward" ).unwrap().clone() );
+  // graph.node_add( "walk_left".into(), animations.get( "walk_strafe_left" ).unwrap().clone() );
+  // // graph.node_add( "walk_right".into(), animations.get( "walk_strafe_left" ).unwrap().clone() );
+  // graph.node_add( "stop_walk".into(), animations.get( "female_stop_walking" ).unwrap().clone() );
+
+  // graph.node_add( "run".into(), animations.get( "run_forward" ).unwrap().clone() );
+  // graph.node_add( "run_backward".into(), animations.get( "running_backward" ).unwrap().clone() );
+  // graph.node_add( "run_jump".into(), animations.get( "running_jump" ).unwrap().clone() );
+  // graph.node_add( "stop_run".into(), animations.get( "female_stop_walking" ).unwrap().clone() );
+
+  // graph.node_add( "idle_to_fight_idle".into(), animations.get( "standing_idle_to_fight_idle" ).unwrap().clone() );
+  // graph.node_add( "idle_to_fight".into(), animations.get( "standing_idle_to_fight_idle" ).unwrap().clone() );
+  // graph.node_add( "arm_kick".into(), animations.get( "punching" ).unwrap().clone() );
+  // graph.node_add( "leg_kick".into(), animations.get( "mma_kick" ).unwrap().clone() );
 
   // graph.edge_add( a, b, name, tween, condition );
 
