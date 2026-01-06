@@ -1,6 +1,6 @@
 mod private
 {
-  use std::{ rc::Rc, cell::RefCell };
+  use std::{ cell::RefCell, rc::Rc };
   use rustc_hash::FxHashMap;
   use animation::{ Tween, AnimatablePlayer, Sequencer };
   use crate::webgl::
@@ -267,7 +267,8 @@ mod private
       let mut is_transited = false;
       if let Some( current ) = &self.current
       {
-        if let Some( edge ) = current.borrow().in_process.clone()
+        let in_process = current.borrow().in_process.clone();
+        if let Some( edge ) = in_process
         {
           if edge.borrow().transition_as_ref().tween_get().is_completed()
           {
