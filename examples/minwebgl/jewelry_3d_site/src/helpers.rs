@@ -2,6 +2,7 @@ use std::{ cell::RefCell, rc::Rc };
 use minwebgl as gl;
 use gl::
 {
+  texture::d2::upload_image_from_path,
   GL,
   JsCast,
   F32x3,
