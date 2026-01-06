@@ -1,12 +1,11 @@
 mod private
 {
-  use crate::webgl::material::*;
+  use crate::webgl::{Object3D, material::*};
   use minwebgl as gl;
   use gl::{ GL, WebGlProgram };
   use mingl::Former;
   use rustc_hash::FxHashMap;
-  use crate::webgl::{ Node, program::{ ShaderProgram, ProgramInfo } };
-  use std:: { cell::RefCell, rc::Rc };
+  use crate::webgl::{ NodeContext, program::{ ShaderProgram, ProgramInfo } };
   use crate::webgl::program::impl_locations;
 
   /// The source code for the main vertex shader.
@@ -419,14 +418,57 @@ mod private
       gl.uniform1i( locations.get( "integrateBRDF" ).unwrap().clone().as_ref() , ibl_base_location + 2 );
     }
 
+    fn regular_upload
+    (
+      &self,
+      gl : &gl::WebGl2RenderingContext,
+      node_context : &NodeContext
+    )
+    -> Result< (), gl::WebglError >
+    {
+      if let Some( current_primitive_id ) = node_context.primitive_id
+      {
+        if let Object3D::Mesh( mesh ) = &node_context.node.borrow().object
+        {
+          let primitive_offset = mesh.borrow().primitives
+          .iter()
+          .enumerate()
+          .map_while
+          (
+            | ( i, p ) |
+            if i < current_primitive_id
+            {
+              Some( p.borrow().geometry.borrow().vertex_count as u32 )
+            }
+            else
+            {
+              None
+            }
+          )
+          .sum::< u32 >();
+
+          let locations = self.program.locations();
+
+          if let Some( primitive_offset_loc ) = locations.get( "primitiveOffset" )
+          {
+            gl::uniform::upload( gl, primitive_offset_loc.clone(), &primitive_offset )?;
+          }
+        }
+      }
+
+      Ok( () )
+    }
+
     fn upload
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      _node : Rc< RefCell< Node > >
-    ) -> Result< (), gl::WebglError >
+      node_context : &NodeContext
+    )
+    -> Result< (), gl::WebglError >
     {
       let locations = self.program.locations();
+
       let upload = | loc, value : Option< f32 > | -> Result< (), gl::WebglError >
       {
         if let Some( v ) = value
@@ -444,6 +486,8 @@ mod private
         }
         Ok( () )
       };
+
+      let _ = self.regular_upload( gl, node_context );
 
       upload( "specularFactor", self.specular_factor )?;
 

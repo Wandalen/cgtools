@@ -1,7 +1,7 @@
 mod private
 {
   use minwebgl as gl;
-  use crate::webgl::{ Node, ShaderProgram, Texture };
+  use crate::webgl::{ ShaderProgram, Texture, NodeContext };
   use std:: { cell::RefCell, fmt::Debug, rc::Rc };
   use rustc_hash::FxHasher;
 
@@ -173,8 +173,24 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      node : Rc< RefCell< Node > >
-    ) -> Result< (), gl::WebglError >;
+      node_context : &NodeContext
+    )
+    -> Result< (), gl::WebglError >;
+
+    /// Uploads the material properties that need update every frame to the GPU.
+    ///
+    /// * `gl`: The `WebGl2RenderingContext`.
+    /// * `locations`: A hash map of uniform locations in the shader program.
+    fn regular_upload
+    (
+      &self,
+      _gl : &gl::WebGl2RenderingContext,
+      _node_context : &NodeContext
+    )
+    -> Result< (), gl::WebglError >
+    {
+      Ok( () )
+    }
 
     /// Uploads the texture data of all used textures to the GPU.
     fn upload_textures( &self, gl : &gl::WebGl2RenderingContext );
