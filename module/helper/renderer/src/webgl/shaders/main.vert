@@ -194,7 +194,6 @@ out vec4 vColor_1;
     for ( uint i = 0u; i < cnt; ++i )
     {
       float w = morphWeights[ i ];
-      if ( w == 0.0 ) continue;
       pos += w * get_position_displacement( i );
     }
 
@@ -211,7 +210,6 @@ out vec4 vColor_1;
     for ( uint i = 0u; i < cnt; ++i )
     {
       float w = morphWeights[ i ];
-      if ( w == 0.0 ) continue;
       n += w * get_normal_displacement( i );
     }
 
@@ -228,7 +226,6 @@ out vec4 vColor_1;
     for ( uint i = 0u; i < cnt; ++i )
     {
       float w = morphWeights[i];
-      if ( w == 0.0 ) continue;
       t += w * get_tangent_displacement( i );
     }
 
