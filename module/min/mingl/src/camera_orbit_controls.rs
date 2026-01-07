@@ -10,22 +10,13 @@ mod private
   use wasm_bindgen::{ JsCast, prelude::Closure };
   use crate::web::web_sys;
 
-  /// Tracks the functionality camera is going to use
-  pub struct CameraUseState
-  {
-    /// Enables or disables panning
-    pub use_pan : bool,
-    /// Enables or disables rotation
-    pub use_rotation : bool,
-    /// Enables or disables zoom
-    pub use_zoom : bool,
-    /// Sets whether to `rotation_decay` is applied or not
-    pub use_rotation_easing : bool,
-  }
-
   /// State of the camera that controls its rotation
   pub struct CameraRotationState
   {
+    /// Enables or disables rotation
+    pub enabled : bool,
+    /// Sets whether to `rotation_decay` is applied or not
+    pub use_rotation_easing : bool,
     /// A scaling factor to adjust the sensitivity of camera rotation.
     pub rotation_speed_scale : f32,
     /// Determines how fast rotation is going to decrease after dragging is stopped.
@@ -48,12 +39,21 @@ mod private
   /// State of the camera that controls its zoom
   pub struct CameraZoomState
   {
+    /// Enables or disables zoom
+    pub enabled : bool,
     /// A scaling factor to adjust the sensitivity of camera zooming.
     pub zoom_speed_scale : f32,
     /// The minimum distance from the camera view center
     pub min_distance : Option< f32 >,
     /// The maximum distance from the camera view center
     pub max_distance : Option< f32>
+  }
+
+  /// State of the camera that controls panning
+  pub struct CameraPanState
+  {
+    /// Enables or disables panning
+    pub enabled : bool
   }
 
   /// Provides an orbit-style camera controller for 3D scenes.
@@ -77,7 +77,7 @@ mod private
     /// Properties to control camera's zoom
     pub zoom_state : CameraZoomState,
     /// Properties that track camera's enabled functionality
-    pub use_state : CameraUseState
+    pub pan_state : CameraPanState
   }
 
   impl CameraOrbitControls
@@ -125,7 +125,7 @@ mod private
       screen_d : [ f32; 2 ]
     )
     {
-      if !self.use_state.use_rotation
+      if !self.rotation_state.enabled
       {
         return;
       }
@@ -134,7 +134,7 @@ mod private
       screen_d /= self.rotation_state.rotation_speed_scale;
 
 
-      if self.use_state.use_rotation_easing
+      if self.rotation_state.use_rotation_easing
       {
         self.rotation_state.rotation_speed += screen_d;
       }
@@ -250,7 +250,7 @@ mod private
       screen_d : [ f32; 2 ]
     )
     {
-      if !self.use_state.use_pan
+      if !self.pan_state.enabled
       {
         return;
       }
@@ -289,7 +289,7 @@ mod private
       mut delta_y : f32
     )
     {
-      if !self.use_state.use_zoom
+      if !self.zoom_state.enabled
       {
         return;
       }
@@ -338,7 +338,7 @@ mod private
       let mut decay_percentage = self.rotation_state.rotation_decay * delta_time as f32 / 10.0;
       decay_percentage = decay_percentage.min( 1.0 );
 
-      if self.use_state.use_rotation_easing
+      if self.rotation_state.use_rotation_easing
       {
         self.rotation_state.rotation_angle = self.rotation_state.rotation_speed * delta_time as f32 / 1000.0;
         self.apply_rotation();
@@ -361,12 +361,15 @@ mod private
         fov : 70f32.to_radians(),
         zoom_state : CameraZoomState
         {
+          enabled : true,
           zoom_speed_scale : 1000.0,
           max_distance : None,
           min_distance : None
         },
         rotation_state : CameraRotationState
         {
+          enabled : true,
+          use_rotation_easing : false,
           rotation_speed_scale : 500.0,
           rotation_speed : F32x2::default(),
           rotation_angle : F32x2::default(),
@@ -376,12 +379,9 @@ mod private
           latitude_range : None,
           longitude_range : None
         },
-        use_state : CameraUseState
+        pan_state : CameraPanState
         {
-          use_pan : true,
-          use_rotation : true,
-          use_zoom : true,
-          use_rotation_easing : false,
+          enabled : true
         }
       }
     }
