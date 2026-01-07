@@ -31,9 +31,9 @@ mod private
     /// Specifies the radius in degrees around the base_latitude. Should be in range [0, 180]. The rotation will be clamped at poles
     pub latitude_range : Option< f32 >,
     /// Accumulated speed based on mouse movement
-    rotation_speed : F32x2,
+    current_angular_speed : F32x2,
     /// Current angle of rotation for the camera
-    rotation_angle : F32x2
+    current_rotation_angle : F32x2
   }
 
   /// State of the camera that controls its zoom
@@ -42,7 +42,7 @@ mod private
     /// Enables or disables zoom
     pub enabled : bool,
     /// A scaling factor to adjust the sensitivity of camera zooming.
-    pub zoom_speed_scale : f32,
+    pub speed : f32,
     /// The minimum distance from the camera view center
     pub min_distance : Option< f32 >,
     /// The maximum distance from the camera view center
@@ -136,11 +136,11 @@ mod private
 
       if self.rotation.movement_smoothing_enabled
       {
-        self.rotation.rotation_speed += screen_d;
+        self.rotation.current_angular_speed += screen_d;
       }
       else
       {
-        self.rotation.rotation_angle = screen_d;
+        self.rotation.current_rotation_angle = screen_d;
         self.apply_rotation();
       }
     }
@@ -154,8 +154,8 @@ mod private
       // We rotate aroung the y axis based on the movement in x direction.
       // And we rotate aroung the axix perpendicular to the current up and direction vectors
       // based on the movement in y direction
-      let mut longitude_angle = -self.rotation.rotation_angle.x();
-      let mut latitude_angle = -self.rotation.rotation_angle.y();
+      let mut longitude_angle = -self.rotation.current_rotation_angle.x();
+      let mut latitude_angle = -self.rotation.current_rotation_angle.y();
 
       if let Some( longitude_range ) = self.rotation.longitude_range
       {
@@ -294,7 +294,7 @@ mod private
         return;
       }
 
-      delta_y /= self.zoom.zoom_speed_scale;
+      delta_y /= self.zoom.speed;
 
       // If scroll is up (-) then zoom in
       // If scroll is down (+) then zoom out
@@ -340,9 +340,9 @@ mod private
 
       if self.rotation.movement_smoothing_enabled
       {
-        self.rotation.rotation_angle = self.rotation.rotation_speed * delta_time as f32 / 1000.0;
+        self.rotation.current_rotation_angle = self.rotation.current_angular_speed * delta_time as f32 / 1000.0;
         self.apply_rotation();
-        self.rotation.rotation_speed *= 1.0 - decay_percentage;
+        self.rotation.current_angular_speed *= 1.0 - decay_percentage;
       }
     }
   }
@@ -362,7 +362,7 @@ mod private
         zoom : CameraZoomState
         {
           enabled : true,
-          zoom_speed_scale : 1000.0,
+          speed : 1000.0,
           max_distance : None,
           min_distance : None
         },
@@ -371,8 +371,8 @@ mod private
           enabled : true,
           movement_smoothing_enabled : false,
           speed : 500.0,
-          rotation_speed : F32x2::default(),
-          rotation_angle : F32x2::default(),
+          current_angular_speed : F32x2::default(),
+          current_rotation_angle : F32x2::default(),
           movement_decay : 0.05,
           base_latitude : 0.0,
           base_longitude : 0.0,
