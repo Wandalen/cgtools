@@ -683,13 +683,9 @@ mod private
     {
       scene.update_world_matrix();
 
-      gl.enable( gl::DEPTH_TEST );
-      gl.disable( gl::CULL_FACE );
-      gl.disable( gl::BLEND );
-      gl.depth_mask( true );
       gl.clear_depth( 1.0 );
       gl.clear_stencil( 0 );
-      gl.front_face( gl::CCW );
+      gl.disable( gl::BLEND );
 
       if self.use_emission
       {
@@ -869,13 +865,29 @@ mod private
       gl.blend_equation( gl::FUNC_ADD );
       gl.blend_func_separate( gl::ONE, gl::ONE, gl::ZERO, gl::ONE_MINUS_SRC_ALPHA );
 
+      gl.enable( gl::DEPTH_TEST );
+      gl.depth_mask( false );
+      gl.depth_func( gl::LESS );
+
       let bind = | node : std::cell::Ref< '_, Node >, primitive : std::cell::Ref< '_, Primitive > | -> Result< (), gl::WebglError >
       {
         let primitive = primitive;
         let material = primitive.material.borrow();
 
-        enable_material_properties( gl, &material );
-        gl.depth_mask( false );
+        let cull_mode = material.get_cull_mode();
+        let front_face = material.get_front_face() as u32;
+
+        if let Some( cull_mode ) = cull_mode
+        {
+          gl.enable( gl::CULL_FACE );
+          gl.cull_face( cull_mode as u32 );
+        }
+        else
+        {
+          gl.disable( gl::CULL_FACE );
+        }
+
+        gl.front_face( front_face );
 
         let shader_program = self.programs.get( &format!( "{}{}",  material.get_id(), material.get_defines_str() ) ).unwrap();
 
@@ -897,6 +909,9 @@ mod private
         bind( node, std::cell::Ref::clone( &primitive ) )?;
         primitive.draw( gl );
       }
+
+      gl.disable( gl::CULL_FACE );
+      gl.depth_mask( true );
 
       self.framebuffer_ctx.resolve( gl, self.use_emission );
       self.framebuffer_ctx.unbind_multisample( gl );
