@@ -15,13 +15,13 @@ mod private
   {
     /// Enables or disables rotation
     pub enabled : bool,
-    /// Sets whether to `rotation_decay` is applied or not
-    pub use_rotation_easing : bool,
+    /// Sets whether `movement_decay` is applied or not
+    pub movement_smoothing_enabled : bool,
     /// A scaling factor to adjust the sensitivity of camera rotation.
     pub rotation_speed_scale : f32,
     /// Determines how fast rotation is going to decrease after dragging is stopped.
     /// In range from 0.0 to 1.0
-    pub rotation_decay : f32,
+    pub movement_decay : f32,
     /// The base longitude angle in degrees in range [0, 360], from which bound are calculated
     pub base_longitude : f32,
     /// Specifies the radius in degrees around the base_longitude. Should be in range [0, 180]
@@ -134,7 +134,7 @@ mod private
       screen_d /= self.rotation_state.rotation_speed_scale;
 
 
-      if self.rotation_state.use_rotation_easing
+      if self.rotation_state.movement_smoothing_enabled
       {
         self.rotation_state.rotation_speed += screen_d;
       }
@@ -334,11 +334,11 @@ mod private
       delta_time : f64
     )
     {
-      // Decays self.rotation_decay% every 100 milliseconds
-      let mut decay_percentage = self.rotation_state.rotation_decay * delta_time as f32 / 10.0;
+      // Decays self.movement_decay% every 100 milliseconds
+      let mut decay_percentage = self.rotation_state.movement_decay * delta_time as f32 / 10.0;
       decay_percentage = decay_percentage.min( 1.0 );
 
-      if self.rotation_state.use_rotation_easing
+      if self.rotation_state.movement_smoothing_enabled
       {
         self.rotation_state.rotation_angle = self.rotation_state.rotation_speed * delta_time as f32 / 1000.0;
         self.apply_rotation();
@@ -369,11 +369,11 @@ mod private
         rotation_state : CameraRotationState
         {
           enabled : true,
-          use_rotation_easing : false,
+          movement_smoothing_enabled : false,
           rotation_speed_scale : 500.0,
           rotation_speed : F32x2::default(),
           rotation_angle : F32x2::default(),
-          rotation_decay : 0.05,
+          movement_decay : 0.05,
           base_latitude : 0.0,
           base_longitude : 0.0,
           latitude_range : None,
