@@ -272,7 +272,7 @@ fn setup_input( canvas : &HtmlCanvasElement ) -> ( Rc< RefCell< CharacterControl
   ( character_controls, character_input )
 }
 
-fn setup_graph( animations : Vec< Animation > ) -> AnimationGraph
+fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_input::Input > > ) -> AnimationGraph
 {
   let mut graph = AnimationGraph::new( &animations[ 0 ].nodes );
 
@@ -283,10 +283,11 @@ fn setup_graph( animations : Vec< Animation > ) -> AnimationGraph
   graph.node_add( "idle".into(), animations.get( "happy_idle" ).unwrap().clone() );
   graph.node_add( "jump".into(), animations.get( "standing_jump" ).unwrap().clone() );
 
+  let input = input_.clone();
   let tween = Tween::new( 0.0, 1.0, 10.0, Linear::new() ).with_delay( 3.0 );
-  let condition = | _p1 : &Pose, _p2 : &Pose |
+  let condition = move | _p1 : &Pose, _p2 : &Pose |
   {
-    true
+    input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::Space )
   };
   graph.edge_add( "idle".into(), "jump".into(), "idle_to_jump".into(), tween, condition );
 
@@ -354,13 +355,16 @@ async fn run() -> Result< (), gl::WebglError >
   let forward = F32x3::from_array( character_controls.borrow().forward().map( | v | v as f32 ) );
   camera.get_controls().borrow_mut().eye = initial_center - forward * character_controls.borrow().zoom as f32;
 
-  let mut graph = setup_graph( gltf.animations.clone() );
+  let mut input = Rc::new( RefCell::new( browser_input::Input::new( Some( canvas.clone().dyn_into().unwrap() ), browser_input::CLIENT ) ) );
+  let mut graph = setup_graph( gltf.animations.clone(), &input );
 
   // Define the update and draw logic
   let update_and_draw =
   {
     move | t : f64 |
     {
+      input.borrow_mut().update_state();
+
       let time = t / 1000.0;
 
       let last_time = last_time.clone();
