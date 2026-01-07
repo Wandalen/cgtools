@@ -171,7 +171,7 @@ mod private
         let max_angle = base_angle + angle_range;
 
         let current_angle = dir.z().atan2( dir.x() );
-        // longitude_angle rotates clockwise, while angles are groiwn counter-clockwise, so we need to subtract
+        // longitude_angle rotates clockwise, while angles are groiwing counter-clockwise, so we need to subtract
         let mut new_angle = current_angle - longitude_angle;
 
         if new_angle < min_angle || new_angle > max_angle
