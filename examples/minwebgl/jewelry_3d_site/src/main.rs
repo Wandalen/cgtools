@@ -43,14 +43,12 @@ use minwebgl as gl;
 use gl::
 {
   GL,
-  F32x3,
   web_sys::HtmlCanvasElement
 };
 use renderer::webgl::
 {
   Renderer, post_processing::{ self, Pass, SwapFramebuffer }
 };
-use std::ops::Range;
 
 mod cube_normal_map_generator;
 mod gem;
@@ -63,21 +61,9 @@ mod surface_material;
 use helpers::*;
 use configurator::*;
 
-const DISTANCE_RANGE : Range< f32 > = 2.0..6.0;
-
 fn handle_camera_position( configurator : &Configurator )
 {
   let camera_controls = configurator.camera.get_controls();
-  let distance = camera_controls.borrow().eye.distance( &F32x3::default() );
-  if distance > DISTANCE_RANGE.end
-  {
-    camera_controls.borrow_mut().eye /= distance / DISTANCE_RANGE.end;
-  }
-  else if distance < DISTANCE_RANGE.start
-  {
-    camera_controls.borrow_mut().eye /= distance / DISTANCE_RANGE.start;
-  }
-
   let current_scene = &configurator.rings.rings[ configurator.rings.current_ring ];
   let plane = get_node( &current_scene, "Plane".to_string() ).unwrap();
   if camera_controls.borrow().eye.y() <= plane.borrow().get_translation().y() + 0.1

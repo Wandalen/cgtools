@@ -50,6 +50,10 @@ mod private
   {
     /// A scaling factor to adjust the sensitivity of camera zooming.
     pub zoom_speed_scale : f32,
+    /// The minimum distance from the camera view center
+    pub min_distance : Option< f32 >,
+    /// The maximum distance from the camera view center
+    pub max_distance : Option< f32>
   }
 
   /// Provides an orbit-style camera controller for 3D scenes.
@@ -301,6 +305,25 @@ mod private
       eye_new /= k;
       eye_new += self.center;
 
+      let length = eye_new.mag();
+
+      if let Some( min_distance ) = self.zoom_state.min_distance
+      {
+        if length < min_distance
+        {
+          eye_new = eye_new.normalize() * min_distance;
+        }
+      }
+
+      if let Some( max_distance ) = self.zoom_state.max_distance
+      {
+        if length > max_distance
+        {
+          eye_new = eye_new.normalize() * max_distance;
+        }
+      }
+
+
       self.eye = eye_new;
     }
 
@@ -338,7 +361,9 @@ mod private
         fov : 70f32.to_radians(),
         zoom_state : CameraZoomState
         {
-          zoom_speed_scale : 1000.0
+          zoom_speed_scale : 1000.0,
+          max_distance : None,
+          min_distance : None
         },
         rotation_state : CameraRotationState
         {
