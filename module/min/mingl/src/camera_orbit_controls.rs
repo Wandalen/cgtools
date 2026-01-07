@@ -17,8 +17,8 @@ mod private
     pub enabled : bool,
     /// Sets whether `movement_decay` is applied or not
     pub movement_smoothing_enabled : bool,
-    /// A scaling factor to adjust the sensitivity of camera rotation.
-    pub rotation_speed_scale : f32,
+    /// Specifies how many radians the camera rotates per pixel.
+    pub speed : f32,
     /// Determines how fast rotation is going to decrease after dragging is stopped.
     /// In range from 0.0 to 1.0
     pub movement_decay : f32,
@@ -73,11 +73,11 @@ mod private
     /// The vertical field of view of the camera, in radians.
     pub fov : f32,
     /// Properties to control camera's rotation
-    pub rotation_state : CameraRotationState,
+    pub rotation : CameraRotationState,
     /// Properties to control camera's zoom
-    pub zoom_state : CameraZoomState,
+    pub zoom : CameraZoomState,
     /// Properties that track camera's enabled functionality
-    pub pan_state : CameraPanState
+    pub pan : CameraPanState
   }
 
   impl CameraOrbitControls
@@ -125,22 +125,22 @@ mod private
       screen_d : [ f32; 2 ]
     )
     {
-      if !self.rotation_state.enabled
+      if !self.rotation.enabled
       {
         return;
       }
 
       let mut screen_d = F32x2::from( screen_d );
-      screen_d /= self.rotation_state.rotation_speed_scale;
+      screen_d /= self.rotation.speed;
 
 
-      if self.rotation_state.movement_smoothing_enabled
+      if self.rotation.movement_smoothing_enabled
       {
-        self.rotation_state.rotation_speed += screen_d;
+        self.rotation.rotation_speed += screen_d;
       }
       else
       {
-        self.rotation_state.rotation_angle = screen_d;
+        self.rotation.rotation_angle = screen_d;
         self.apply_rotation();
       }
     }
@@ -154,13 +154,13 @@ mod private
       // We rotate aroung the y axis based on the movement in x direction.
       // And we rotate aroung the axix perpendicular to the current up and direction vectors
       // based on the movement in y direction
-      let mut longitude_angle = -self.rotation_state.rotation_angle.x();
-      let mut latitude_angle = -self.rotation_state.rotation_angle.y();
+      let mut longitude_angle = -self.rotation.rotation_angle.x();
+      let mut latitude_angle = -self.rotation.rotation_angle.y();
 
-      if let Some( longitude_range ) = self.rotation_state.longitude_range
+      if let Some( longitude_range ) = self.rotation.longitude_range
       {
         let angle_range = longitude_range.to_radians();
-        let mut base_angle = self.rotation_state.base_longitude.to_radians();
+        let mut base_angle = self.rotation.base_longitude.to_radians();
         if base_angle > std::f32::consts::PI
         {
           base_angle -= 2.0 * std::f32::consts::PI;
@@ -192,11 +192,11 @@ mod private
         longitude_angle = current_angle - new_angle;
       }
 
-      if let Some( latitude_range ) = self.rotation_state.latitude_range
+      if let Some( latitude_range ) = self.rotation.latitude_range
       {
         let angle_range = latitude_range.to_radians();
         // Minus is needed to make the rotation counter-clockwise
-        let base_angle = -self.rotation_state.base_latitude.to_radians();
+        let base_angle = -self.rotation.base_latitude.to_radians();
         let min_angle = ( base_angle - angle_range ).max( -std::f32::consts::FRAC_PI_2 );
         let max_angle = ( base_angle + angle_range ).min( std::f32::consts::FRAC_PI_2 );
 
@@ -250,7 +250,7 @@ mod private
       screen_d : [ f32; 2 ]
     )
     {
-      if !self.pan_state.enabled
+      if !self.pan.enabled
       {
         return;
       }
@@ -289,12 +289,12 @@ mod private
       mut delta_y : f32
     )
     {
-      if !self.zoom_state.enabled
+      if !self.zoom.enabled
       {
         return;
       }
 
-      delta_y /= self.zoom_state.zoom_speed_scale;
+      delta_y /= self.zoom.zoom_speed_scale;
 
       // If scroll is up (-) then zoom in
       // If scroll is down (+) then zoom out
@@ -307,7 +307,7 @@ mod private
 
       let length = eye_new.mag();
 
-      if let Some( min_distance ) = self.zoom_state.min_distance
+      if let Some( min_distance ) = self.zoom.min_distance
       {
         if length < min_distance
         {
@@ -315,7 +315,7 @@ mod private
         }
       }
 
-      if let Some( max_distance ) = self.zoom_state.max_distance
+      if let Some( max_distance ) = self.zoom.max_distance
       {
         if length > max_distance
         {
@@ -335,14 +335,14 @@ mod private
     )
     {
       // Decays self.movement_decay% every 100 milliseconds
-      let mut decay_percentage = self.rotation_state.movement_decay * delta_time as f32 / 10.0;
+      let mut decay_percentage = self.rotation.movement_decay * delta_time as f32 / 10.0;
       decay_percentage = decay_percentage.min( 1.0 );
 
-      if self.rotation_state.movement_smoothing_enabled
+      if self.rotation.movement_smoothing_enabled
       {
-        self.rotation_state.rotation_angle = self.rotation_state.rotation_speed * delta_time as f32 / 1000.0;
+        self.rotation.rotation_angle = self.rotation.rotation_speed * delta_time as f32 / 1000.0;
         self.apply_rotation();
-        self.rotation_state.rotation_speed *= 1.0 - decay_percentage;
+        self.rotation.rotation_speed *= 1.0 - decay_percentage;
       }
     }
   }
@@ -359,18 +359,18 @@ mod private
         center : F32x3::from( [ 0.0, 0.0, 0.0 ] ),
         window_size : F32x2::from( [ 1000.0, 1000.0 ] ),
         fov : 70f32.to_radians(),
-        zoom_state : CameraZoomState
+        zoom : CameraZoomState
         {
           enabled : true,
           zoom_speed_scale : 1000.0,
           max_distance : None,
           min_distance : None
         },
-        rotation_state : CameraRotationState
+        rotation : CameraRotationState
         {
           enabled : true,
           movement_smoothing_enabled : false,
-          rotation_speed_scale : 500.0,
+          speed : 500.0,
           rotation_speed : F32x2::default(),
           rotation_angle : F32x2::default(),
           movement_decay : 0.05,
@@ -379,7 +379,7 @@ mod private
           latitude_range : None,
           longitude_range : None
         },
-        pan_state : CameraPanState
+        pan : CameraPanState
         {
           enabled : true
         }
