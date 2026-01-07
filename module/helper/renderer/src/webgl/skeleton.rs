@@ -332,8 +332,8 @@ mod private
         let arrays =
         [
           &self.positions_displacements,
-          &self.normals_displacements,
-          &self.tangents_displacements
+          // &self.normals_displacements,
+          // &self.tangents_displacements
         ]
         .iter()
         .filter( | v | v.is_some() )
@@ -347,7 +347,7 @@ mod private
 
         let mut data = ( 0..len )
         .flat_map( | i | arrays.iter().map( move | arr | arr[ i ] ) )
-        .flat_map( | t | [ t[ 0 ], t[ 1 ], t[ 2 ], 0.0 ] )
+        .flat_map( | t | [ t[ 0 ], t[ 1 ], t[ 2 ], 1.0 ] )
         .collect::< Vec< _ > >();
 
         let attributes_count = arrays.len();
@@ -387,8 +387,8 @@ mod private
         let offsets =
         [
           &self.positions_displacements,
-          &self.normals_displacements,
-          &self.tangents_displacements
+          &None,//self.normals_displacements,
+          &None//self.tangents_displacements
         ]
         .map
         (
