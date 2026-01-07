@@ -23,12 +23,12 @@ mod private
     /// In range from 0.0 to 1.0
     pub rotation_decay : f32,
     /// The base longitude angle in degrees in range [0, 360], from which bound are calculated
-    pub initial_longitude : f32,
-    /// Specifies the radius in degrees around the initial_longitude. Should be in range [0, 180]
+    pub base_longitude : f32,
+    /// Specifies the radius in degrees around the base_longitude. Should be in range [0, 180]
     pub longitude_range : Option< f32 >,
     /// The base latitude angle in degrees in range [-180, 180], from which the bounds are calculated
-    pub initial_latitude : f32,
-    /// Specifies the radius in degrees around the initial_latitude. Should be in range [0, 180]. The rotation will be clamped at poles
+    pub base_latitude : f32,
+    /// Specifies the radius in degrees around the base_latitude. Should be in range [0, 180]. The rotation will be clamped at poles
     pub latitude_range : Option< f32 >,
     /// Accumulated speed based on mouse movement
     rotation_speed : F32x2,
@@ -160,7 +160,7 @@ mod private
       if let Some( longitude_range ) = self.rotation_state.longitude_range
       {
         let angle_range = longitude_range.to_radians();
-        let mut base_angle = self.rotation_state.initial_longitude.to_radians();
+        let mut base_angle = self.rotation_state.base_longitude.to_radians();
         if base_angle > std::f32::consts::PI
         {
           base_angle -= 2.0 * std::f32::consts::PI;
@@ -196,7 +196,7 @@ mod private
       {
         let angle_range = latitude_range.to_radians();
         // Minus is needed to make the rotation counter-clockwise
-        let base_angle = -self.rotation_state.initial_latitude.to_radians();
+        let base_angle = -self.rotation_state.base_latitude.to_radians();
         let min_angle = ( base_angle - angle_range ).max( -std::f32::consts::FRAC_PI_2 );
         let max_angle = ( base_angle + angle_range ).min( std::f32::consts::FRAC_PI_2 );
 
@@ -374,8 +374,8 @@ mod private
           rotation_speed : F32x2::default(),
           rotation_angle : F32x2::default(),
           rotation_decay : 0.05,
-          initial_latitude : 0.0,
-          initial_longitude : 0.0,
+          base_latitude : 0.0,
+          base_longitude : 0.0,
           latitude_range : None,
           longitude_range : None
         },
