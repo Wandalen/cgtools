@@ -210,7 +210,7 @@ out vec4 vColor_1;
     for ( uint i = 0u; i < cnt; ++i )
     {
       float w = morphWeights[ i ];
-      n += w * get_normal_displacement( i );
+      n += w * get_normal_displacement( i ) * 0.35;
     }
 
     return normalize( n );
@@ -256,7 +256,7 @@ void main()
 
   #ifdef USE_MORPH_TARGET
     position.xyz = displace_position( position.xyz );
-    // vNormal = displace_normal( vNormal );
+    vNormal = displace_normal( vNormal );
 
     #ifdef USE_TANGENTS
       vTangent.xyz = displace_tangent( vTangent.xyz );
