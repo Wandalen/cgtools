@@ -654,7 +654,7 @@ fn setup_camera( canvas : &web_sys::HtmlCanvasElement ) -> Camera
 
   let eye = crate::helpers::to_decart( 6.0, 135.0, 65.0 );
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
-  let center = gl::math::F32x3::from( [ 0.0, 0.0, 0.0 ] );
+  let center = gl::math::F32x3::from( [ 0.0, 0.6, 0.0 ] );
 
   let aspect_ratio = width / height;
   let fov = 40.0f32.to_radians();
