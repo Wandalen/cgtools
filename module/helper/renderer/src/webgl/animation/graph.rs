@@ -26,7 +26,7 @@ mod private
     /// Condition closure that manages when apply transition. This implementation
     /// assumes that transition may happen when [`Node`] or [`CharacterControls`]
     /// change theirs state that can be identified by past and present [`Node`]'s [`Pose`].
-    condition : fn( &Pose, &Pose ) -> bool
+    condition : Rc< RefCell< dyn Fn( &Pose, &Pose ) -> bool > >
   }
 
   impl AnimationEdge
@@ -37,7 +37,7 @@ mod private
       name : Box< str >,
       next : &Rc< RefCell< AnimationNode > >,
       transition : Transition,
-      condition : fn( &Pose, &Pose ) -> bool
+      condition : impl Fn( &Pose, &Pose ) -> bool + 'static
     )
     -> Self
     {
@@ -46,7 +46,7 @@ mod private
         name,
         next : next.clone(),
         transition : transition.clone(),
-        condition
+        condition : Rc::new( RefCell::new( condition ) )
       }
     }
 
@@ -59,7 +59,7 @@ mod private
     /// Check if [`Self::condition`] returns true
     fn is_triggered( &self, past : &Pose, current : &Pose ) -> bool
     {
-      ( self.condition )( past, current )
+      ( self.condition.borrow() )( past, current )
     }
 
     /// Get [`Self::transition`] as reference
@@ -84,7 +84,7 @@ mod private
         name : self.name.clone(),
         next : self.next.clone(),
         transition : self.transition.clone(),
-        condition : self.condition
+        condition : self.condition.clone()
       }
     }
   }
@@ -180,7 +180,7 @@ mod private
       b : Box< str >,
       name : Box< str >,
       tween : Tween< f64 >,
-      condition : fn( &Pose, &Pose ) -> bool
+      condition : impl Fn( &Pose, &Pose ) -> bool + 'static
     )
     {
       let Some( a ) = self.animation_nodes.get( &a )
@@ -300,6 +300,14 @@ mod private
         old.borrow().in_process.as_ref().unwrap().borrow_mut().transition_as_mut().reset();
         old.borrow_mut().in_process = None;
       }
+
+      // if let Some( current ) = &self.current
+      // {
+      //   if current.borrow().animation.is_completed()
+      //   {
+      //     current.borrow_mut().animation.reset();
+      //   }
+      // }
     }
 
     fn as_any( &self ) -> &dyn core::any::Any
