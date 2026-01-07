@@ -332,8 +332,8 @@ mod private
         let arrays =
         [
           &self.positions_displacements,
-          // &self.normals_displacements,
-          // &self.tangents_displacements
+          &self.normals_displacements,
+          &self.tangents_displacements
         ]
         .iter()
         .filter( | v | v.is_some() )
@@ -345,12 +345,8 @@ mod private
         .max()
         .unwrap_or_default();
 
-        let mut data = ( 0..len )
-        .flat_map( | i | arrays.iter().map( move | arr | arr[ i ] ) )
-        .flat_map( | t | [ t[ 0 ], t[ 1 ], t[ 2 ], 1.0 ] )
-        .collect::< Vec< _ > >();
-
         let attributes_count = arrays.len();
+
         self.targets_count = if self.vertices_count > 0
         {
           len / self.vertices_count
@@ -359,6 +355,29 @@ mod private
         {
           0
         };
+
+        let mut data = Vec::with_capacity
+        (
+          self.vertices_count
+          * attributes_count
+          * self.targets_count
+          * 4
+        );
+
+        for v in 0..self.vertices_count
+        {
+          let vertex_base = v * self.targets_count;
+
+          for arr in &arrays
+          {
+            for t in 0..self.targets_count
+            {
+              let d = arr[ vertex_base + t ];
+              data.extend_from_slice( &[ d[ 0 ], d[ 1 ], d[ 2 ], 1.0 ] );
+            }
+          }
+        }
+
         let vertex_displacement_len = attributes_count * self.targets_count;
         if self.morph_weights.borrow().is_empty()
         {
@@ -387,8 +406,8 @@ mod private
         let offsets =
         [
           &self.positions_displacements,
-          &None,//self.normals_displacements,
-          &None//self.tangents_displacements
+          &self.normals_displacements,
+          &self.tangents_displacements
         ]
         .map
         (
