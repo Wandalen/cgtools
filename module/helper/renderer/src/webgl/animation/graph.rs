@@ -15,7 +15,7 @@ mod private
   };
 
   /// Controls transition process from one [`AnimationNode`] to another
-  struct AnimationEdge
+  pub struct AnimationEdge
   {
     /// Edge name
     name : Box< str >,
@@ -26,7 +26,7 @@ mod private
     /// Condition closure that manages when apply transition. This implementation
     /// assumes that transition may happen when [`Node`] or [`CharacterControls`]
     /// change theirs state that can be identified by past and present [`Node`]'s [`Pose`].
-    condition : Rc< RefCell< dyn Fn( &Pose, &Pose ) -> bool > >
+    condition : Rc< RefCell< dyn Fn( &AnimationEdge, &Pose, &Pose ) -> bool > >
   }
 
   impl AnimationEdge
@@ -37,7 +37,7 @@ mod private
       name : Box< str >,
       next : &Rc< RefCell< AnimationNode > >,
       transition : Transition,
-      condition : impl Fn( &Pose, &Pose ) -> bool + 'static
+      condition : impl Fn( &AnimationEdge, &Pose, &Pose ) -> bool + 'static
     )
     -> Self
     {
@@ -57,13 +57,13 @@ mod private
     }
 
     /// Check if [`Self::condition`] returns true
-    fn is_triggered( &self, past : &Pose, current : &Pose ) -> bool
+    pub fn is_triggered( &self, past : &Pose, current : &Pose ) -> bool
     {
-      ( self.condition.borrow() )( past, current )
+      ( self.condition.borrow() )( self, past, current )
     }
 
     /// Get [`Self::transition`] as reference
-    fn transition_as_ref( &self ) -> &Transition
+    pub fn transition_as_ref( &self ) -> &Transition
     {
       &self.transition
     }
@@ -180,7 +180,7 @@ mod private
       b : Box< str >,
       name : Box< str >,
       tween : Tween< f64 >,
-      condition : impl Fn( &Pose, &Pose ) -> bool + 'static
+      condition : impl Fn( &AnimationEdge, &Pose, &Pose ) -> bool + 'static
     )
     {
       let Some( a ) = self.animation_nodes.get( &a )
@@ -341,6 +341,7 @@ crate::mod_interface!
 {
   orphan use
   {
-    AnimationGraph
+    AnimationGraph,
+    AnimationEdge
   };
 }

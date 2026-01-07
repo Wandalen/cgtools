@@ -31,7 +31,7 @@ use mingl::{ F32x3, F64x3, QuatF32 };
 use mingl::controls::{ CharacterControls, CharacterInput };
 use minwebgl::{ self as gl, WebglError };
 use gl::{ JsCast, web_sys::WebGlTexture, GL, wasm_bindgen::closure::Closure };
-use renderer::webgl::animation::{ Pose, AnimatableComposition, Animation, AnimationGraph };
+use renderer::webgl::animation::{ Pose, AnimatableComposition, Animation, AnimationGraph, AnimationEdge };
 use renderer::webgl::
 {
   post_processing::
@@ -285,11 +285,19 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
 
   let input = input_.clone();
   let tween = Tween::new( 0.0, 1.0, 10.0, Linear::new() ).with_delay( 3.0 );
-  let condition = move | _p1 : &Pose, _p2 : &Pose |
+  let condition = move | edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
   {
     input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::Space )
   };
   graph.edge_add( "idle".into(), "jump".into(), "idle_to_jump".into(), tween, condition );
+
+  let input = input_.clone();
+  let tween = Tween::new( 0.0, 1.0, 10.0, Linear::new() ).with_delay( 3.0 );
+  let condition = move | edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
+  {
+    edge.transition_as_ref().end_ref().is_completed()
+  };
+  graph.edge_add( "jump".into(), "idle".into(), "jump_to_idle".into(), tween, condition );
 
 
   // graph.node_add( "walk".into(), animations.get( "female_walk" ).unwrap().clone() );
