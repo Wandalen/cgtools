@@ -91,7 +91,7 @@ async fn run() -> Result< (), gl::WebglError >
   let center = scene_bounding_box.center();
 
   let aspect_ratio = width / height;
-  let fov = 70.0f32.to_radians();
+  let fov = 40.0f32.to_radians();
   let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 );
   let far = near * 100.0f32.powi( exponent.abs() );
 

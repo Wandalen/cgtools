@@ -6,6 +6,16 @@ mod private
   use gl::{ geometry::BoundingBox, F32x3, F32x4x4 };
   use crate::webgl::{ Mesh, Light };
 
+  /// Used to get additional information for material upload
+  #[ derive( Debug, Clone ) ]
+  pub struct NodeContext
+  {
+    /// current processed [`Node`]
+    pub node : Rc< RefCell< Node > >,
+    /// id of current processed primitive of inner mesh
+    pub primitive_id : Option< usize >
+  }
+
   /// Represents a 3D object that can be part of the scene graph.
   #[ derive( Debug ) ]
   pub enum Object3D
@@ -497,6 +507,7 @@ crate::mod_interface!
   orphan use
   {
     Node,
+    NodeContext,
     Object3D
   };
 }

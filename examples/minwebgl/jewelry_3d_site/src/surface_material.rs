@@ -1,10 +1,9 @@
-use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo, Node };
+use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo, NodeContext };
 use renderer::impl_locations;
 use minwebgl as gl;
 use gl::{ GL, F32x3, Former, WebGlProgram };
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
-use std::{ cell::RefCell, rc::Rc };
 
 // Surface shader locations
 impl_locations!
@@ -115,7 +114,7 @@ impl Material for SurfaceMaterial
   (
     &self,
     gl : &GL,
-    _node : Rc< RefCell< Node > >
+    _node_context : &NodeContext
   )
   -> Result< (), gl::WebglError >
   {

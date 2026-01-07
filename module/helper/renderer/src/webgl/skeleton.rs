@@ -165,12 +165,12 @@ mod private
       .flatten()
       .collect::< Vec< _ > >();
 
-      // Nodes global transform data texture and inverse bind matrices texture size are calculated with such way:
-      // 1. Get teoretical square filled with data with rational non integer length.
-      // 2. Then apply log and power to make always texture resolution multiple of 4.
-      //    We need this to ensure that one matrix inside the texture can't be splited
-      //    between two rows and all matrices have grid aligment.
-      // 3. Ceil we need to get smalles side length integer that fit all data.
+      // Nodes' global transform data texture and inverse bind matrices texture sizes are calculated in the following way:
+      // 1. Get a theoretical square with sides of rational non integer length filled with data.
+      // 2. Then apply log and power to make the texture resolution to be always a multiple of 4.
+      //    We need this to ensure that a single matrix inside of the texture can't be split
+      //    between two rows and all matrices have grid alignment.
+      // 3. The ceil is needed to get the smallest integer side length that fits all the data.
       let a = 4.0_f32.powf( ( global_data.len() as f32 ).sqrt().log( 4.0 ).ceil() ) as u32;
       let texture_size = [ a, a ];
 
@@ -345,12 +345,8 @@ mod private
         .max()
         .unwrap_or_default();
 
-        let mut data = ( 0..len )
-        .flat_map( | i | arrays.iter().map( move | arr | arr[ i ] ) )
-        .flat_map( | t | [ t[ 0 ], t[ 1 ], t[ 2 ], 0.0 ] )
-        .collect::< Vec< _ > >();
-
         let attributes_count = arrays.len();
+
         self.targets_count = if self.vertices_count > 0
         {
           len / self.vertices_count
@@ -359,6 +355,29 @@ mod private
         {
           0
         };
+
+        let mut data = Vec::with_capacity
+        (
+          self.vertices_count
+          * attributes_count
+          * self.targets_count
+          * 4
+        );
+
+        for v in 0..self.vertices_count
+        {
+          let vertex_base = v * self.targets_count;
+
+          for arr in &arrays
+          {
+            for t in 0..self.targets_count
+            {
+              let d = arr[ vertex_base + t ];
+              data.extend_from_slice( &[ d[ 0 ], d[ 1 ], d[ 2 ], 1.0 ] );
+            }
+          }
+        }
+
         let vertex_displacement_len = attributes_count * self.targets_count;
         if self.morph_weights.borrow().is_empty()
         {
@@ -426,9 +445,6 @@ mod private
           .map( | v | v.iter().map( | i | [ *i; 1 ] ).collect::< Vec< _ > >() )
           .unwrap_or( vec![ [ 0.0_f32; 1 ]; self.targets_count ] );
           data.extend( vec![ [ 0.0; 1 ]; MAX_MORPH_TARGETS.saturating_sub( data.len() ) ] );
-          // .map( | v | v.iter().copied().collect::< Vec< _ > >() )
-          // .unwrap_or( vec![ 0.0_f32; self.targets_count ] );
-          // data.extend( vec![ 0.0; MAX_MORPH_TARGETS.saturating_sub( data.len() ) ] );
           gl::uniform::upload
           (
             gl,
