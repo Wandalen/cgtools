@@ -1,10 +1,9 @@
-use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo, Node };
+use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo, NodeContext };
 use renderer::impl_locations;
 use minwebgl as gl;
 use gl::{ GL, Former, WebGlProgram };
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
-use std:: { cell::RefCell, rc::Rc };
 
 // Gem shader
 impl_locations!
@@ -139,7 +138,7 @@ impl Material for GemMaterial
   (
     &self,
     gl : &GL,
-    node : Rc< RefCell< Node > >
+    node_context : &NodeContext
   )
   -> Result< (), gl::WebglError >
   {
@@ -159,7 +158,7 @@ impl Material for GemMaterial
 
     gl::uniform::upload( gl, locations.get( "rayBounces" ).unwrap().clone(), &self.ray_bounces )?;
 
-    let bb = node.borrow().bounding_box();
+    let bb = node_context.node.borrow().bounding_box();
     let c = bb.center();
     let max_distance = ( bb.max - c ).mag().max( ( bb.min - c ).mag() );
 
@@ -168,7 +167,7 @@ impl Material for GemMaterial
 
     upload_array( "diamondColor", self.color.0.as_slice() )?;
 
-    let offset_mat = gl::math::mat3x3h::translation( -node.borrow().bounding_box().center() );
+    let offset_mat = gl::math::mat3x3h::translation( -node_context.node.borrow().bounding_box().center() );
 
     gl::uniform::matrix_upload( gl, locations.get( "offsetMatrix" ).unwrap().clone(), offset_mat.raw_slice(), true )?;
     gl::uniform::matrix_upload( gl, locations.get( "inverseOffsetMatrix" ).unwrap().clone(), offset_mat.inverse().unwrap().raw_slice(), true )?;

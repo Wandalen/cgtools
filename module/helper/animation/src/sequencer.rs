@@ -13,7 +13,7 @@ mod private
   use crate::Tween;
 
   /// Sequencer for managing multiple animations with sequencing and grouping.
-  #[ derive( Debug ) ]
+  // #[ derive( Debug ) ]
   pub struct Sequencer
   {
     /// Map of animation names to their animation behavior data
@@ -22,6 +22,18 @@ mod private
     time : f64,
     /// Sequencer state
     state : AnimationState,
+  }
+
+  impl std::fmt::Debug for Sequencer
+  {
+    fn fmt( &self, f : &mut std::fmt::Formatter< '_ > ) -> std::fmt::Result
+    {
+      f.debug_struct( "Sequencer" )
+      .field("players", &self.players.len() )
+      .field( "time", &self.time )
+      .field( "state", &self.state )
+      .finish()
+    }
   }
 
   impl Clone for Sequencer
@@ -59,7 +71,7 @@ mod private
     }
 
     /// Gets the current value of a named animation.
-    pub fn get_value< T >( &self, name : &str ) -> Option< &T >
+    pub fn value_get< T >( &self, name : &str ) -> Option< &T >
     where T : AnimatablePlayer + 'static
     {
       let player_box = self.players.get( name )?;
@@ -202,6 +214,43 @@ mod private
     {
       self.players.len()
     }
+
+    /// Progress of [`Sequencer`]
+    pub fn progress( &self ) -> f64
+    {
+      if self.state == AnimationState::Pending
+      {
+        0.0
+      }
+      else
+      {
+        ( ( self.time() - self.delay_get() ) / self.duration_get() ).clamp( 0.0, 1.0 )
+      }
+    }
+
+    /// Get max delay of [`Self::players`]
+    pub fn duration_get( &self ) -> f64
+    {
+      let mut max_duration = 0.0;
+      for ( _, p ) in &self.players
+      {
+        max_duration = p.duration_get().max( max_duration );
+      }
+
+      max_duration
+    }
+
+    /// Get smallest delay of [`Self::players`]
+    pub fn delay_get( &self ) -> f64
+    {
+      let mut min_delay = f64::MAX;
+      for ( _, p ) in &self.players
+      {
+        min_delay = p.delay_get().max( min_delay );
+      }
+
+      min_delay
+    }
   }
 
   impl Default for Sequencer
@@ -294,8 +343,8 @@ mod private
       self.current
     }
 
-    /// Returns all sequence of [`Tween`]'s
-    pub fn tweens_get( &self ) -> Vec< T >
+    /// Returns all sequence of players
+    pub fn players_get( &self ) -> Vec< T >
     where T : Clone
     {
       self.tweens.clone()

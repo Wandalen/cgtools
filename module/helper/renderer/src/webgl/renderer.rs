@@ -27,6 +27,7 @@ mod private
     AlphaMode,
     Camera,
     Node,
+    NodeContext,
     Object3D,
     Primitive,
     ShaderProgram,
@@ -757,9 +758,16 @@ mod private
         // If the node contains a mesh...
         if let Object3D::Mesh( ref mesh ) = node.borrow().object
         {
-          // Iterate over each primitive in the mesh.
-          for primitive_rc in mesh.borrow().primitives.iter()
+          let mut node_context = NodeContext
           {
+            node : node.clone(),
+            primitive_id : Some( 0 )
+          };
+
+          // Iterate over each primitive in the mesh.
+          for ( i, primitive_rc ) in mesh.borrow().primitives.iter().enumerate()
+          {
+            node_context.primitive_id = Some( i );
             let primitive = primitive_rc.borrow();
             let defines = primitive.material.borrow().get_defines_str();
             // Generate a unique ID for the program based on the material ID and vertex shader defines.
@@ -804,7 +812,7 @@ mod private
               shader_program.bind( gl );
               const IBL_BASE_ACTIVE_TEXTURE : u32 = 10;
               material.configure( gl, IBL_BASE_ACTIVE_TEXTURE );
-              material.upload( gl, node.clone() )?;
+              material.upload( gl, &node_context )?;
               let locations = shader_program.locations();
               camera.upload( gl, locations );
               if material.needs_ibl()
@@ -841,7 +849,11 @@ mod private
 
             if material.needs_update() && program_cached
             {
-              let _ = material.upload( gl, node.clone() );
+              let _ = material.upload( gl, &node_context );
+            }
+            else
+            {
+              let _ = material.regular_upload( gl, &node_context );
             }
 
             node.borrow().upload( gl, locations );

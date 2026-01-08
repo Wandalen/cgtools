@@ -6,6 +6,16 @@ mod private
   use gl::{ geometry::BoundingBox, F32x3, F32x4x4 };
   use crate::webgl::{ Mesh, Light };
 
+  /// Used to get additional information for material upload
+  #[ derive( Debug, Clone ) ]
+  pub struct NodeContext
+  {
+    /// current processed [`Node`]
+    pub node : Rc< RefCell< Node > >,
+    /// id of current processed primitive of inner mesh
+    pub primitive_id : Option< usize >
+  }
+
   /// Represents a 3D object that can be part of the scene graph.
   #[ derive( Debug ) ]
   pub enum Object3D
@@ -95,7 +105,14 @@ mod private
     /// Creates a new `Node` with default values.
     pub fn new() -> Self
     {
-      Self::default()
+      let mut s = Self::default();
+
+      s.world_matrix = gl::math::mat4x4::identity();
+      s.matrix = gl::math::mat4x4::identity();
+      s.normal_matrix = gl::math::mat3x3::identity();
+      s.scale = gl::F32x3::splat( 1.0 );
+
+      s
     }
 
     /// Clones the node and all of its descendants, creating a new independent scene graph subtree.
@@ -544,6 +561,7 @@ crate::mod_interface!
   orphan use
   {
     Node,
+    NodeContext,
     Object3D
   };
 }
