@@ -94,7 +94,6 @@ impl Configurator
     configurator.setup_renderer();
     configurator.update_gem_color();
     configurator.update_metal_color();
-    // configurator.setup_light();
 
     Ok( configurator )
   }
@@ -301,8 +300,8 @@ impl Configurator
                 material.base_color_factor.0[ i ] = color.0[ i ];
               }
               material.base_color_factor.0[ 3 ] = 1.0;
-              material.roughness_factor = 0.04;
-              material.metallic_factor = 1.0;
+              material.roughness_factor = 0.1;
+              material.metallic_factor = 0.9;
               material.needs_update = true;
             }
           );
@@ -330,7 +329,7 @@ impl Configurator
 
     renderer_mut.set_use_emission( true );
     renderer_mut.set_bloom_strength( 2.0 );
-    renderer_mut.set_exposure( -1.0 );
+    renderer_mut.set_exposure( 0.0 );
     renderer_mut.set_bloom_radius( 0.1 );
   }
 }
