@@ -657,6 +657,7 @@ mod private
       gl::uniform::matrix_upload( gl, inv_projection_loc.clone(), &camera.get_projection_matrix().inverse().unwrap().to_array(), true ).unwrap();
       gl::uniform::matrix_upload( gl, inv_view_loc.clone(), &camera.get_view_matrix().inverse().unwrap().to_array(), true ).unwrap();
 
+      gl.disable( gl::CULL_FACE );
       gl.enable( gl::DEPTH_TEST );
       gl.depth_mask( false );
       gl.depth_func( GL::LEQUAL );
@@ -682,13 +683,9 @@ mod private
     {
       scene.update_world_matrix();
 
-      gl.enable( gl::DEPTH_TEST );
-      gl.disable( gl::CULL_FACE );
-      gl.disable( gl::BLEND );
-      gl.depth_mask( true );
       gl.clear_depth( 1.0 );
       gl.clear_stencil( 0 );
-      gl.front_face( gl::CCW );
+      gl.disable( gl::BLEND );
 
       if self.use_emission
       {
@@ -833,6 +830,8 @@ mod private
               _ => {}
             }
 
+            enable_material_properties( gl, &material );
+
             // Get the uniform locations for the current program.
             let locations = shader_program.locations();
 
@@ -863,14 +862,33 @@ mod private
 
       gl::drawbuffers::drawbuffers( gl, &[ 2, 3 ] );
       gl.enable( gl::BLEND );
-      gl.depth_mask( false );
       gl.blend_equation( gl::FUNC_ADD );
       gl.blend_func_separate( gl::ONE, gl::ONE, gl::ZERO, gl::ONE_MINUS_SRC_ALPHA );
+
+      gl.enable( gl::DEPTH_TEST );
+      gl.depth_mask( false );
+      gl.depth_func( gl::LESS );
 
       let bind = | node : std::cell::Ref< '_, Node >, primitive : std::cell::Ref< '_, Primitive > | -> Result< (), gl::WebglError >
       {
         let primitive = primitive;
         let material = primitive.material.borrow();
+
+        let cull_mode = material.get_cull_mode();
+        let front_face = material.get_front_face() as u32;
+
+        if let Some( cull_mode ) = cull_mode
+        {
+          gl.enable( gl::CULL_FACE );
+          gl.cull_face( cull_mode as u32 );
+        }
+        else
+        {
+          gl.disable( gl::CULL_FACE );
+        }
+
+        gl.front_face( front_face );
+
         let shader_program = self.programs.get( &format!( "{}{}",  material.get_id(), material.get_defines_str() ) ).unwrap();
 
         let locations = shader_program.locations();
@@ -891,6 +909,9 @@ mod private
         bind( node, std::cell::Ref::clone( &primitive ) )?;
         primitive.draw( gl );
       }
+
+      gl.disable( gl::CULL_FACE );
+      gl.depth_mask( true );
 
       self.framebuffer_ctx.resolve( gl, self.use_emission );
       self.framebuffer_ctx.unbind_multisample( gl );
@@ -980,6 +1001,39 @@ mod private
 
       Ok( () )
     }
+  }
+
+  fn enable_material_properties( gl : &GL, material : &std::cell::Ref< '_, Box< dyn crate::webgl::Material > > )
+  {
+    let cull_mode = material.get_cull_mode();
+    let front_face = material.get_front_face() as u32;
+    let depth_func = material.get_depth_func() as u32;
+    let depth_test = material.is_depth_test_enabled();
+    let depth_write = material.is_depth_write_enabled();
+
+    if let Some( cull_mode ) = cull_mode
+    {
+      gl.enable( gl::CULL_FACE );
+      gl.cull_face( cull_mode as u32 );
+    }
+    else
+    {
+      gl.disable( gl::CULL_FACE );
+    }
+
+    gl.front_face( front_face );
+    gl.depth_func( depth_func );
+
+    if depth_test
+    {
+      gl.enable( gl::DEPTH_TEST );
+    }
+    else
+    {
+      gl.disable( gl::DEPTH_TEST );
+    }
+
+    gl.depth_mask( depth_write );
   }
 
   fn bind_lights
