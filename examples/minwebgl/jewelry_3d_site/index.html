@@ -3,14 +3,15 @@
     <title>Jewel Shop</title>
     <meta name="keywords" content="HTML, CSS, JavaScript">
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy"
+    <!-- <meta http-equiv="Content-Security-Policy"
       content="
         default-src 'self';
         script-src
           'self'
+          'unsafe-inline'
           https://cdn.jsdelivr.net
           'sha384-HOvlOYPIs/zjoIkWUGXkVmXsjr8GuZLV+Q+rcPwmJOVZVpvTSXQChiN4t9Euv9Vc'
-          'sha384-P8VzCVnT9NBUkMrpcIZrJbA7EBjJvh/fJS6PmP+4nLIM284DtsImIv8D0fFjIkeh';
+          'sha384-xNHNOfrykny9oFwnmpfNbkSc6isny38d1GZvTRVuFV0l9fTMIZKhULvomyQJSMRl';
         style-src
           'self'
           'unsafe-inline'
@@ -21,7 +22,7 @@
         img-src 'self' data:;
         connect-src 'self';
         base-uri 'self';
-    ">
+    "> -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cardo:ital,wght@0,400;0,700;1,400&family=Great+Vibes&display=swap" rel="stylesheet">
@@ -36,7 +37,7 @@
 
   <body style="overflow-y: hidden; cursor: grab;">
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js" integrity="sha384-HOvlOYPIs/zjoIkWUGXkVmXsjr8GuZLV+Q+rcPwmJOVZVpvTSXQChiN4t9Euv9Vc" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/ScrollTrigger.min.js" integrity="sha384-P8VzCVnT9NBUkMrpcIZrJbA7EBjJvh/fJS6PmP+4nLIM284DtsImIv8D0fFjIkeh" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/ScrollTrigger.min.js" integrity="sha384-xNHNOfrykny9oFwnmpfNbkSc6isny38d1GZvTRVuFV0l9fTMIZKhULvomyQJSMRl" crossorigin="anonymous"></script>
     <script data-trunk type="module" src="./index.js"></script>
 
     <section class="header">
@@ -61,9 +62,9 @@
     </div>
 
     <section class="section cam-view-1">
-      <div class="hero--image" style="transform: translate(-72%, 0%); opacity: 0;">
+      <!-- <div class="hero--image" style="transform: translate(-72%, 0%); opacity: 0;">
         <img alt="1" width="500" src="./assets/jewelry/silver_white_1.png">
-      </div>
+      </div> -->
 
       <div class="hero--container" style="transform: translate(100%, 0%) translate(0%, 0px); opacity: 0;">
         <div class="hero--content">
@@ -92,9 +93,9 @@
     </section>
 
     <section class="section cam-view-2">
-      <div class="brilliant--image" style="transform: translate(72%, 0%); scale: 110%; opacity: 1;">
+      <!-- <div class="brilliant--image" style="transform: translate(72%, 0%); scale: 110%; opacity: 1;">
         <img alt="1" width="500" src="./assets/jewelry/gold_white_2.png">
-      </div>
+      </div> -->
 
       <div class="brilliant--container" style="transform: translate(-110%, 0px); opacity: 0;">
         <div class="brilliant--text-bg" style="opacity: 0.1;">Brilliant</div>
@@ -108,9 +109,9 @@
     </section>
 
     <section class="section cam-view-3">
-      <div class="choose--image" style="transform: translate(30%, 50%); opacity: 0;">
+      <!-- <div class="choose--image" style="transform: translate(30%, 50%); opacity: 0;">
         <img alt="1" width="1000" src="./assets/jewelry/copper_white_3.png">
-      </div>
+      </div> -->
 
       <div class="choose--container">
         <div class="choose--text-bg" style="opacity: 0;">Choose</div>
@@ -171,10 +172,6 @@
         </li>
       </ul> -->
       <button tabindex="-1" class="button--secondary button--exit">Exit</button>
-    </div>
-
-    <div class="preview--image">
-      <img src="./assets/jewelry/silver_white_1.png" alt="Preview">
     </div>
 
     <div class="footer--container" style="display: flex;">

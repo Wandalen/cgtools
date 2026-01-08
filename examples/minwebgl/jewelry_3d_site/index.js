@@ -4,9 +4,8 @@ const headerContainer = document.querySelector( '.header--container' )
 const camView1 = document.querySelector( '.cam-view-1' )
 const camView2 = document.querySelector( '.cam-view-2' )
 const camView3 = document.querySelector( '.cam-view-3' )
-const chooseImage = document.querySelector( '.choose--image' )
+// const chooseImage = document.querySelector( '.choose--image' )
 
-const previewContainer = document.querySelector( '.preview--image' )
 const exitContainer = document.querySelector( '.exit--container' )
 const footerMenu = document.querySelector( '.footer--menu' )
 const configMaterial = document.querySelector( '.config--material' )
@@ -21,7 +20,6 @@ const materialsMenu = document.querySelector( '.materials--menu' )
 const ringsMenu = document.querySelector( '.rings--menu' )
 // const nightModeButton = document.querySelector( '.night--mode' )
 // const nightModeButton2 = document.querySelector( '.night--mode--2' )
-const previewImage = previewContainer.querySelector( "img" );
 
 const NIGHT_MODE_COLORS =
 {
@@ -202,7 +200,7 @@ function introAnimation()
 
   gsap.timeline()
   .fromTo( '.header--container', { opacity : 0, y : '-100%' }, {opacity : 1, y : '0%', ease : "power1.inOut", duration : 0.8 }) // , '-=1'
-  .fromTo( '.hero--image', { opacity : 0, x : '-200%' }, {opacity : 1, x : '-72%', ease : "power1.inOut", duration : 1.8 }, '-=0.5' ) // , '-=1'
+  // .fromTo( '.hero--image', { opacity : 0, x : '-200%' }, {opacity : 1, x : '-72%', ease : "power1.inOut", duration : 1.8 }, '-=0.5' ) // , '-=1'
   .fromTo( '.hero--scroller', { opacity : 0, y : '150%' }, { opacity : 1, y : '0%', ease : "power4.inOut", duration : 1 }, '-=1' )
   .fromTo( '.hero--container', { opacity : 0, x : '100%' }, { opacity : 1, x : '0%', ease : "power4.inOut", duration : 1.8, onComplete : setupScrollAnimation }, '-=1' )
   .fromTo( '.side-bar', { opacity : 0.0, x : '50%' }, { opacity : 1, x : '0%', ease : "power4.inOut", duration : 2 }, '-=1' )
@@ -268,14 +266,14 @@ function setupScrollAnimation()
       scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : 'top top', scrub : true, immediateRender : false }
     }
   )
-  .to
-  (
-    '.choose--image',
-    {
-      opacity : 1.0, ease : "power4.inOut",
-      scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : 'top top', scrub : true, immediateRender : false }
-    }
-  )
+  // .to
+  // (
+  //   '.choose--image',
+  //   {
+  //     opacity : 1.0, ease : "power4.inOut",
+  //     scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : 'top top', scrub : true, immediateRender : false }
+  //   }
+  // )
   .fromTo
   (
     '.choose--content',
@@ -317,12 +315,11 @@ function onCompleteConfigAnimation()
   camView1.style.display = "none"
   camView2.style.display = "none"
   camView3.style.display = "none"
-  nightModeButton.style.pointerEvents = "none";
+  // nightModeButton.style.pointerEvents = "none";
 
-  previewContainer.style.display = "flex"
   exitContainer.style.display = "flex"
   exitContainer.style.pointerEvents = "all";
-  nightModeButton2.style.pointerEvents = "all";
+  // nightModeButton2.style.pointerEvents = "all";
   gemMenu.style.display = "flex"
   footerMenu.style.display = "flex"
   materialsMenu.style.display = "flex"
@@ -338,12 +335,12 @@ function onCompleteConfigAnimation()
 
 function configAnimation()
 {
-  nightMode = toggleNightMode( !nightMode )
+  // nightMode = toggleNightMode( !nightMode )
 
   gsap.timeline()
   .to( '.choose--content', { opacity : 0, x : '200%', duration : 1.5, ease : "power4.out", onComplete : onCompleteConfigAnimation } ) // , '-=2.5'
   .to( '.choose--text-bg', { opacity : 0, x : '200%', duration : 1.5, ease : "power4.out" }, '-=2.5' )
-  .to( '.choose--image', { opacity : 0, y : '100%', duration : 1.5, ease : "power4.out" }, '-=1.5' )
+  // .to( '.choose--image', { opacity : 0, y : '100%', duration : 1.5, ease : "power4.out" }, '-=1.5' )
   .fromTo( '.footer--menu', { opacity : 0, y : '150%' }, { opacity : 1, y : '0%', duration : 1.5 } )
 }
 
@@ -358,11 +355,11 @@ function exitConfigAnimation()
     document.querySelector( '.footer--menu li.active' )?.classList.remove( 'active' )
   }
 
-  nightMode = toggleNightMode( !nightMode )
+  // nightMode = toggleNightMode( !nightMode )
 
   gsap.timeline().to( '.footer--menu', { opacity : 0, y : '150%' } ) // , '-=1.2'
   .to( '.choose--content', { opacity : 1, x : '0%', duration : 0.5, ease : "power4.out" }, '-=1.2' )
-  .fromTo( '.choose--image', { opacity : 0, y : '100%'}, { opacity : 1, y : '50%', duration : 0.5, ease : "power4.inOut" }, '-=1.2' )
+  // .fromTo( '.choose--image', { opacity : 0, y : '100%'}, { opacity : 1, y : '50%', duration : 0.5, ease : "power4.inOut" }, '-=1.2' )
 }
 
 // // NIGHT MODE
@@ -471,13 +468,12 @@ document.querySelector( '.button--exit' )?.addEventListener
     camView2.style.display = "flex"
     camView3.style.display = "flex"
     headerContainer.style.display = "flex"
-    chooseImage.style.display = "flex"
-    nightModeButton.style.pointerEvents = "all";
+    // chooseImage.style.display = "flex"
+    // nightModeButton.style.pointerEvents = "all";
 
-    previewContainer.style.display = "none"
     exitContainer.style.display = "none"
     exitContainer.style.pointerEvents = "none";
-    nightModeButton2.style.pointerEvents = "none";
+    // nightModeButton2.style.pointerEvents = "none";
     gemMenu.style.display = "none"
     footerMenu.style.display = "none"
     materialsMenu.style.display = "none"
@@ -849,7 +845,6 @@ function setupConfigurator()
     }
   );
 
-  previewContainer.style.display = "none"
   exitContainer.style.display = "none"
   gemMenu.style.display = "none"
   footerMenu.style.display = "none"
