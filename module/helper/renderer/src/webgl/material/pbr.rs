@@ -422,13 +422,13 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      node_context : &NodeContext
+      node_context : &NodeContext< '_ >
     )
     -> Result< (), gl::WebglError >
     {
-      if let Some( current_primitive_id ) = node_context.primitive_id
+      if let Some( current_primitive_id ) = node_context.primitive_id()
       {
-        if let Object3D::Mesh( mesh ) = &node_context.node.borrow().object
+        if let Object3D::Mesh( mesh ) = &node_context.node().object
         {
           let primitive_offset = mesh.borrow().primitives
           .iter()
@@ -463,7 +463,7 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      node_context : &NodeContext
+      node_context : &NodeContext< '_ >
     )
     -> Result< (), gl::WebglError >
     {

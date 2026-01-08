@@ -758,16 +758,11 @@ mod private
         // If the node contains a mesh...
         if let Object3D::Mesh( ref mesh ) = node.borrow().object
         {
-          let mut node_context = NodeContext
-          {
-            node : node.clone(),
-            primitive_id : Some( 0 )
-          };
-
           // Iterate over each primitive in the mesh.
           for ( i, primitive_rc ) in mesh.borrow().primitives.iter().enumerate()
           {
-            node_context.primitive_id = Some( i );
+            let node_ref = node.borrow();
+            let node_context = NodeContext::new( &node_ref, Some( i ) );
             let primitive = primitive_rc.borrow();
             let defines = primitive.material.borrow().get_defines_str();
             // Generate a unique ID for the program based on the material ID and vertex shader defines.

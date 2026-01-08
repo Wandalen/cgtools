@@ -8,12 +8,37 @@ mod private
 
   /// Used to get additional information for material upload
   #[ derive( Debug, Clone ) ]
-  pub struct NodeContext
+  pub struct NodeContext<'a>
   {
     /// current processed [`Node`]
-    pub node : Rc< RefCell< Node > >,
+    node : &'a Node,
     /// id of current processed primitive of inner mesh
-    pub primitive_id : Option< usize >
+    primitive_id : Option< usize >
+  }
+
+  impl< 'a > NodeContext< 'a >
+  {
+    /// Creates a new [`NodeContext`] instance
+    pub fn new( node : &'a Node, primitive_id : Option< usize > ) -> Self
+    {
+      Self
+      {
+        node,
+        primitive_id
+      }
+    }
+
+    /// Gets stored node reference
+    pub fn node( &self ) -> &Node
+    {
+      self.node
+    }
+
+    /// Gets stored primitive id
+    pub fn primitive_id( &self ) -> Option< usize >
+    {
+      self.primitive_id
+    }
   }
 
   /// Represents a 3D object that can be part of the scene graph.

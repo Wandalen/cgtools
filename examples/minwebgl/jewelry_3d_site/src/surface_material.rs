@@ -114,7 +114,7 @@ impl Material for SurfaceMaterial
   (
     &self,
     gl : &GL,
-    _node_context : &NodeContext
+    _node_context : &NodeContext< '_ >
   )
   -> Result< (), gl::WebglError >
   {

@@ -37,7 +37,7 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      node_context : &NodeContext
+      node_context : &NodeContext< '_ >
     ) -> Result< (), gl::WebglError >
     {
       self.material.borrow().upload( gl, node_context )?;

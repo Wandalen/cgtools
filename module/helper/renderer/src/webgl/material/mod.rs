@@ -173,7 +173,7 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      node_context : &NodeContext
+      node_context : &NodeContext< '_ >
     )
     -> Result< (), gl::WebglError >;
 
@@ -185,7 +185,7 @@ mod private
     (
       &self,
       _gl : &gl::WebGl2RenderingContext,
-      _node_context : &NodeContext
+      _node_context : &NodeContext< '_ >
     )
     -> Result< (), gl::WebglError >
     {
