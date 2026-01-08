@@ -62,8 +62,4 @@ pub fn enable_debug_controls_if_needed()
     gl::debug!( "Debug mode detected, enabling color controls from Rust" );
     _enable_debug_controls();
   }
-  #[ cfg( not( debug_assertions ) ) ]
-  {
-    gl::info!( "Release mode, color controls will not be enabled" );
-  }
 }
