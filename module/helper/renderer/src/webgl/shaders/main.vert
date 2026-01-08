@@ -246,21 +246,22 @@ void main()
   #ifdef USE_TANGENTS
     vTangent = tangent;
   #endif
-  vNormal = normalize( normalMatrix * normal );
-  //vNormal = vec3( -1.0, -1.0)
-  //vNormal *= -1.0;
-  //vNormal = normalize( mat3x3( worldMatrix ) * normal );
-  //vNormal = normal;
 
   vec4 position = vec4( position, 1.0 );
 
   #ifdef USE_MORPH_TARGET
     position.xyz = displace_position( position.xyz );
-    vNormal = displace_normal( vNormal );
+    vNormal = normalize( normalMatrix * displace_normal( normal ) );
 
     #ifdef USE_TANGENTS
       vTangent.xyz = displace_tangent( vTangent.xyz );
     #endif
+  #else
+    vNormal = normalize( normalMatrix * normal );
+    //vNormal = vec3( -1.0, -1.0)
+    //vNormal *= -1.0;
+    //vNormal = normalize( mat3x3( worldMatrix ) * normal );
+    //vNormal = normal;
   #endif
 
   #ifdef USE_SKINNING
