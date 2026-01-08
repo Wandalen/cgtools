@@ -849,11 +849,11 @@ mod private
 
             if material.needs_update() && program_cached
             {
-              let _ = material.upload( gl, &node_context );
+              material.upload( gl, &node_context )?;
             }
             else
             {
-              let _ = material.regular_upload( gl, &node_context );
+              material.regular_upload( gl, &node_context )?;
             }
 
             node.borrow().upload( gl, locations );
