@@ -20,22 +20,21 @@ const ringsMenu = document.querySelector( '.rings--menu' )
 // const nightModeButton = document.querySelector( '.night--mode' )
 // const nightModeButton2 = document.querySelector( '.night--mode--2' )
 
-const NIGHT_MODE_COLORS =
-{
-  innerLightColor : "#FFFFFF",
-  outerLightColor : "#DDDDDD",
-  innerDarkColor : "#777777",
-  outerDarkColor : "#000000"
-};
-const PREVIEW_TIMEOUT_MS = 2500;
+// const NIGHT_MODE_COLORS =
+// {
+//   innerLightColor : "#FFFFFF",
+//   outerLightColor : "#DDDDDD",
+//   innerDarkColor : "#777777",
+//   outerDarkColor : "#000000"
+// };
 
 let firstLoad = true;
-let nightMode = false;
+// let nightMode = false;
 
-let innerLightColor = NIGHT_MODE_COLORS.innerLightColor;
-let outerLightColor = NIGHT_MODE_COLORS.outerLightColor;
-let innerDarkColor = NIGHT_MODE_COLORS.innerDarkColor;
-let outerDarkColor = NIGHT_MODE_COLORS.outerDarkColor;
+// let innerLightColor = NIGHT_MODE_COLORS.innerLightColor;
+// let outerLightColor = NIGHT_MODE_COLORS.outerLightColor;
+// let innerDarkColor = NIGHT_MODE_COLORS.innerDarkColor;
+// let outerDarkColor = NIGHT_MODE_COLORS.outerDarkColor;
 
 // Configuration state
 export let uiState =
@@ -43,6 +42,10 @@ export let uiState =
   gem : "white",
   metal : "silver",
   ring : 0,
+  state : "hero",
+  position : [ 0.0, 0.0, 0.0 ],
+  target : [ 0.0, 0.0, 0.0 ],
+  rotation : [ 0.0, 0.0, 0.0 ],
   gemCustomColor : [ 1.0, 1.0, 1.0 ],
   gemMultiplier : 1.0,
   metalCustomColor : [ 0.753, 0.753, 0.753 ],
@@ -51,7 +54,8 @@ export let uiState =
   [
     "gem",
     "metal",
-    "ring"
+    "ring",
+    "state"
   ]
 };
 
@@ -204,6 +208,8 @@ function introAnimation()
   .fromTo( '.hero--container', { opacity : 0, x : '100%' }, { opacity : 1, x : '0%', ease : "power4.inOut", duration : 1.8, onComplete : setupScrollAnimation }, '-=1' )
   .fromTo( '.side-bar', { opacity : 0.0, x : '50%' }, { opacity : 1, x : '0%', ease : "power4.inOut", duration : 2 }, '-=1' )
   .to( '.side-bar .unique', { opacity : 1, scale : 1.5, ease : "power4.inOut", duration : 2 }, '-=1' )
+  .fromTo( uiState.position, { 0 : 3, 1 : -0.8, 2 : 1.2 }, { 0 : 1.28, 1 : -1.7, 2 : 5.86, duration : 4, onUpdate: () => { !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) } }, '-=0.8')
+  .fromTo( uiState.target, { 0 : 2.5, 1 : -0.07, 2 : -0.1 }, { 0 : 0.91, 1 : 0.03, 2 : -0.25, duration : 4, onUpdate: () => { !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) } }, '-=4' )
 }
 
 function setupScrollAnimation()
@@ -243,6 +249,39 @@ function setupScrollAnimation()
     { opacity : 0, x : '-110%' },
     { opacity : 1, x : '0%', ease : "power4.inOut", scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : 'top top', scrub : true, immediateRender : false } }
   )
+  .to
+  (
+    uiState.position,
+    {
+      0 : -1.83,
+      1 : -0.14,
+      2 : 6.15,
+      scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : "top top", scrub : true, immediateRender : false },
+      onUpdate: () => { !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) }
+    }
+  )
+  .to
+  (
+    uiState.target,
+    {
+      0 : -0.78,
+      1 : 1.5,
+      2 : -0.12,
+      scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : "top top", scrub : true, immediateRender : false },
+      onUpdate: () => { !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) }
+    }
+  )
+  .to
+  (
+    uiState.rotation,
+    {
+      0 : - Math.PI / 3,
+      1 : -0.92 ,
+      2 : Math.PI / 2,
+      scrollTrigger: { trigger : ".cam-view-2", start : "top bottom", end : "top top", scrub : true, immediateRender : false },
+      onUpdate: () => { !uiState.changed.includes( "rotation" ) && uiState.changed.push( "rotation" ) }
+    }
+  )
   .addLabel( "Brilliant" )
   .to( '.side-bar .unique', { opacity : 1, scale : 1.5, ease : "power4.inOut", duration : 2, scrollTrigger : { trigger : ".cam-view-1", start : "top bottom", end : 'top top', scrub : true, immediateRender : false } } )
   .to( '.side-bar .unique', { opacity : 0.5, scale : 1, ease : "power4.inOut", duration : 2, scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : 'top top', scrub : true, immediateRender : false } } )
@@ -278,8 +317,41 @@ function setupScrollAnimation()
     '.choose--content',
     { opacity : 0, x : '200%', y : '130%' },
     {
-      opacity : 1, x : '-75%', y : '0%', duration : 0.5, ease : "power4.inOut",
+      opacity : 1, x : '0%', y : '0%', duration : 0.5, ease : "power4.inOut",
       scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : "top top", scrub : true, immediateRender : false }
+    }
+  )
+  .to
+  (
+    uiState.position,
+    {
+      0 : -0.06,
+      1 : -1.15,
+      2 : 4.42,
+      scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : "top top", scrub : true, immediateRender : false },
+      onUpdate: () => { !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) }
+    }
+  )
+  .to
+  (
+    uiState.target,
+    {
+      0 : -0.01,
+      1 : 0.9,
+      2 : 0.07,
+      scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : "top top", scrub : true, immediateRender : false },
+      onUpdate: () => { !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) }
+    }
+  )
+  .to
+  (
+    uiState.rotation,
+    {
+      0 : - Math.PI / 3,
+      1 : - 0.92 ,
+      2 : Math.PI / 2,
+      scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : "top top", scrub : true, immediateRender : false },
+      onUpdate: () => { !uiState.changed.includes( "rotation" ) && uiState.changed.push( "rotation" ) }
     }
   )
   .addLabel( "Choose" )
@@ -311,10 +383,16 @@ function setupScrollAnimation()
 
 function onCompleteConfigAnimation()
 {
+  let canvas = document.querySelector( '.canvas' )
+
   camView1.style.display = "none"
   camView2.style.display = "none"
   camView3.style.display = "none"
   // nightModeButton.style.pointerEvents = "none";
+
+  canvas.style.pointerEvents = "all";
+  uiState.state = "configurator";
+  uiState.changed.push( "state" );
 
   exitContainer.style.display = "flex"
   exitContainer.style.pointerEvents = "all";
@@ -341,6 +419,9 @@ function configAnimation()
   .to( '.choose--text-bg', { opacity : 0, x : '200%', duration : 1.5, ease : "power4.out" }, '-=2.5' )
   // .to( '.choose--image', { opacity : 0, y : '100%', duration : 1.5, ease : "power4.out" }, '-=1.5' )
   .fromTo( '.footer--menu', { opacity : 0, y : '150%' }, { opacity : 1, y : '0%', duration : 1.5 } )
+  .to( uiState.position, { 0 : -0.17, 1 : -0.25, 2 : 8.5, duration : 2.5, onUpdate: () => { !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) } } )
+  .to( uiState.target, { 0 : 0, 1 : 0, 2 : 0, duration : 2.5, onUpdate: () => { !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) } }, '-=2.5' )
+  .to( uiState.rotation, { 0 : -Math.PI / 2, 1 : 0, 2 : -Math.PI / 2, duration : 2.5, onUpdate: () => { !uiState.changed.includes( "rotation" ) && uiState.changed.push( "rotation" ) } }, '-=2.5' )
 }
 
 // EXIT EVENT
@@ -356,9 +437,13 @@ function exitConfigAnimation()
 
   // nightMode = toggleNightMode( !nightMode )
 
-  gsap.timeline().to( '.footer--menu', { opacity : 0, y : '150%' } ) // , '-=1.2'
+  gsap.timeline()
+  .to( '.footer--menu', { opacity : 0, y : '150%' } ) // , '-=1.2'
   .to( '.choose--content', { opacity : 1, x : '0%', duration : 0.5, ease : "power4.out" }, '-=1.2' )
   // .fromTo( '.choose--image', { opacity : 0, y : '100%'}, { opacity : 1, y : '50%', duration : 0.5, ease : "power4.inOut" }, '-=1.2' )
+  .to( uiState.position, { 0 : -0.06, 1 : -1.15, 2 : 4.42, duration : 1.2, ease : "power4.out", onUpdate: () => { !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) } } )
+  .to( uiState.target, { 0 : -0.01, 1 : 0.9, 2 : 0.07, duration : 1.2, ease : "power4.out", onUpdate: () => { !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) } }, '-=1.2' )
+  .to( uiState.rotation, { 0 : 0.92, 1 : 0.92, 2 : Math.PI / 3, onUpdate: () => { !uiState.changed.includes( "rotation" ) && uiState.changed.push( "rotation" ) } }, '-=1.2' )
 }
 
 // // NIGHT MODE
@@ -443,8 +528,8 @@ document.querySelector( '.btn-customize' )?.addEventListener
   'click',
   () =>
   {
-    outerLightColor = "#DDDDDD";
-    outerDarkColor = "#000000";
+    // outerLightColor = "#DDDDDD";
+    // outerDarkColor = "#000000";
 
     exploreView.style.pointerEvents = "none"
     document.body.style.overflowY = "hidden"
@@ -460,14 +545,20 @@ document.querySelector( '.button--exit' )?.addEventListener
   'click',
   () =>
   {
-    outerLightColor = innerLightColor
-    outerDarkColor = innerDarkColor
+    let canvas = document.querySelector( '.canvas' )
+
+    // outerLightColor = innerLightColor
+    // outerDarkColor = innerDarkColor
 
     camView1.style.display = "flex"
     camView2.style.display = "flex"
     camView3.style.display = "flex"
     headerContainer.style.display = "flex"
     // nightModeButton.style.pointerEvents = "all";
+
+    canvas.style.pointerEvents = "none";
+    uiState.state = "hero";
+    uiState.changed.push( "state" );
 
     exitContainer.style.display = "none"
     exitContainer.style.pointerEvents = "none";
@@ -502,6 +593,11 @@ document.querySelector( '.button--exit' )?.addEventListener
 //   'click', () => { nightMode = toggleNightMode( nightMode ) }
 // )
 
+// function setup_renderer()
+// {
+//   canvas.
+// }
+
 async function setupMainPage()
 {
   // replaceSVG( "./assets/icons/moon.svg", ".image--moon" )
@@ -509,6 +605,8 @@ async function setupMainPage()
   replaceSVG( "./static/images/jewelry_site/icons/gem.svg", ".image--gem" )
   replaceSVG( "./static/images/jewelry_site/icons/metal.svg", ".image--material" )
   replaceSVG( "./static/images/jewelry_site/icons/ring.svg", ".image--ring" )
+
+  // setup_renderer()
 
   window.addEventListener
   (
@@ -524,8 +622,8 @@ async function setupMainPage()
 
   window.scrollTo(0,0)
 
-  outerLightColor = innerLightColor
-  outerDarkColor = innerDarkColor
+  // outerLightColor = innerLightColor
+  // outerDarkColor = innerDarkColor
 }
 
 // -- CONFIGURATOR --
