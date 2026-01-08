@@ -528,6 +528,12 @@ mod private
     {
       self.local_bounding_box().center()
     }
+
+    /// Multiplies `mat` with local matrix and sets result as local matrix
+    pub fn apply_matrix( &mut self, mat : F32x4x4 )
+    {
+      self.set_local_matrix( mat * self.get_local_matrix() );
+    }
   }
 }
 

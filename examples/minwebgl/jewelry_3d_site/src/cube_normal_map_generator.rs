@@ -191,7 +191,7 @@ impl CubeNormalMapGenerator
     // Render to our cube texture using custom frame buffer
     // All the needed buffers were setup above
     gl.bind_framebuffer( gl::FRAMEBUFFER , Some( &self.framebuffer ) );
-
+    gl.viewport( 0, 0, self.texture_width as i32, self.texture_height as i32 );
     for i in 0..6
     {
       let view_matrix = &self.cube_camera[ i ].to_array();

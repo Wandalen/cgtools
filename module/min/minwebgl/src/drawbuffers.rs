@@ -18,16 +18,17 @@ mod private
   ///
   pub fn drawbuffers( gl : &GL, attachments : &[ u32 ] )
   {
-    let mut buffers = [ GL::NONE; MAX_COLOR_ATTACHMENTS ];
+    let mut buffers = [ gl::NONE; MAX_COLOR_ATTACHMENTS ];
     for attachment in attachments
     {
       let index = *attachment as usize;
       let attachment = attachment
-      .checked_add( GL::COLOR_ATTACHMENT0 )
+      .checked_add( gl::COLOR_ATTACHMENT0 )
       .expect( &format!( "Invalid color attachment {}", *attachment ) );
       buffers[ index ] = attachment;
     }
-    let last = buffers.iter().rposition( | item | *item != GL::NONE ).map_or( 0, | i | i + 1 );
+
+    let last = buffers.iter().rposition( | item | *item != gl::NONE ).map_or( 1, | i | i + 1 );
     let array = js_sys::Array::from_iter
     (
       buffers[ .. last ].iter().map( | item | JsValue::from_f64( *item as f64 ) )
