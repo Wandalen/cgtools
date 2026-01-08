@@ -258,10 +258,6 @@ void main()
     #endif
   #else
     vNormal = normalize( normalMatrix * normal );
-    //vNormal = vec3( -1.0, -1.0)
-    //vNormal *= -1.0;
-    //vNormal = normalize( mat3x3( worldMatrix ) * normal );
-    //vNormal = normal;
   #endif
 
   #ifdef USE_SKINNING
