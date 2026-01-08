@@ -846,13 +846,10 @@ mod private
             // Bind the program, upload camera and node matrices, bind the primitive, and draw it.
             shader_program.bind( gl );
 
+            material.upload( gl, &material_upload_context )?;
             if material.needs_update() && program_cached
             {
               material.upload_on_state_change( gl, &material_upload_context )?;
-            }
-            else
-            {
-              material.upload( gl, &material_upload_context )?;
             }
 
             node.borrow().upload( gl, locations );
