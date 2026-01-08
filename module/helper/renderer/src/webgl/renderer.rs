@@ -773,7 +773,7 @@ mod private
             else
             {
               let mut material = primitive.material.borrow_mut();
-              let ibl_define = if self.ibl.is_some()
+              let ibl_define = if self.ibl.is_some() && material.needs_ibl()
               {
                 "#define USE_IBL\n"
               }
@@ -799,8 +799,8 @@ mod private
 
               // Configure and upload material properties and IBL textures for the new program.
               shader_program.bind( gl );
-              const IBL_BASE_ACTIVE_TEXTURE : u32 = 10;
-              material.configure( gl, IBL_BASE_ACTIVE_TEXTURE );
+              let ibl_base_texture_unit = material.get_ibl_base_texture_unit();
+              material.configure( gl, ibl_base_texture_unit );
               material.upload( gl, node.clone() )?;
               let locations = shader_program.locations();
               camera.upload( gl, locations );
@@ -808,7 +808,7 @@ mod private
               {
                 if let Some( ref ibl ) = self.ibl
                 {
-                  ibl.bind( gl, IBL_BASE_ACTIVE_TEXTURE );
+                  ibl.bind( gl, ibl_base_texture_unit );
                 }
               }
 

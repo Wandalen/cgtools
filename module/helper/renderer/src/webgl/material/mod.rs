@@ -121,6 +121,13 @@ mod private
       false
     }
 
+    /// Returns the base texture unit for IBL textures.
+    /// Override this if your material uses more texture units before IBL.
+    fn get_ibl_base_texture_unit( &self ) -> u32
+    {
+      10
+    }
+
     /// Returns reference to [`ProgramInfo`] with shader locations and used [`ShaderProgram`]
     fn shader( &self ) -> &dyn ShaderProgram;
 
