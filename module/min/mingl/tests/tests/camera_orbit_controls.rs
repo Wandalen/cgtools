@@ -144,3 +144,73 @@ fn test_latitude_range_clamps_correctly()
   assert_abs_diff_eq!( exp_center, controls.center );
 }
 
+#[ test ]
+fn test_zoom_min_distance_enforced()
+{
+  let mut controls = the_module::camera_orbit_controls::CameraOrbitControls::default();
+  controls.eye = F32x3::new( 1.0, 0.0, 0.0 );
+  controls.up = F32x3::new( 0.0, 1.0, 0.0 );
+  controls.center = F32x3::new( 0.0, 0.0, 0.0 );
+  controls.zoom.min_distance_set( 0.2 );
+  controls.zoom.speed = 1.0;
+
+  controls.zoom( -9.0 );
+
+  let exp_eye =  0.2 * F32x3::new( 1.0, 0.0, 0.0 );
+  let exp_up = F32x3::new( 0.0, 1.0, 0.0 );
+  let exp_center = F32x3::new( 0.0, 0.0, 0.0 );
+
+  assert_abs_diff_eq!( exp_eye, controls.eye );
+  assert_abs_diff_eq!( exp_up, controls.up );
+  assert_abs_diff_eq!( exp_center, controls.center );
+}
+
+#[ test ]
+fn test_zoom_max_distance_enforced()
+{
+  let mut controls = the_module::camera_orbit_controls::CameraOrbitControls::default();
+  controls.eye = F32x3::new( 1.0, 0.0, 0.0 );
+  controls.up = F32x3::new( 0.0, 1.0, 0.0 );
+  controls.center = F32x3::new( 0.0, 0.0, 0.0 );
+  controls.zoom.max_distance_set( 2.0 );
+  controls.zoom.speed = 1.0;
+
+  controls.zoom( 0.6 );
+
+  let exp_eye =  2.0 * F32x3::new( 1.0, 0.0, 0.0 );
+  let exp_up = F32x3::new( 0.0, 1.0, 0.0 );
+  let exp_center = F32x3::new( 0.0, 0.0, 0.0 );
+
+  assert_abs_diff_eq!( exp_eye, controls.eye );
+  assert_abs_diff_eq!( exp_up, controls.up );
+  assert_abs_diff_eq!( exp_center, controls.center );
+}
+
+
+#[ test ]
+fn test_zoom_invalid_bounds()
+{
+  let mut controls = the_module::camera_orbit_controls::CameraOrbitControls::default();
+  controls.eye = F32x3::new( 1.0, 0.0, 0.0 );
+  controls.up = F32x3::new( 0.0, 1.0, 0.0 );
+  controls.center = F32x3::new( 0.0, 0.0, 0.0 );
+  controls.zoom.speed = 1.0;
+
+  controls.zoom.max_distance_set( 0.5 );
+  controls.zoom.min_distance_set( 2.0 );
+
+  controls.zoom( -4.0 );
+
+  let exp_eye =  0.5 * F32x3::new( 1.0, 0.0, 0.0 );
+  assert_abs_diff_eq!( exp_eye, controls.eye );
+
+  controls.eye = F32x3::new( 1.0, 0.0, 0.0 );
+  controls.zoom.min_distance_set( -2.0 );
+
+  controls.zoom( -4.0 );
+
+  let exp_eye =  0.2 * F32x3::new( 1.0, 0.0, 0.0 );
+  assert_abs_diff_eq!( exp_eye, controls.eye );
+}
+
+

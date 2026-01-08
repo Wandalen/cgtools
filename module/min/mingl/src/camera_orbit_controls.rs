@@ -52,9 +52,50 @@ mod private
     /// A scaling factor to adjust the sensitivity of camera zooming.
     pub speed : f32,
     /// The minimum distance from the camera view center
-    pub min_distance : Option< f32 >,
+    min_distance : Option< f32 >,
     /// The maximum distance from the camera view center
-    pub max_distance : Option< f32>
+    max_distance : Option< f32>
+  }
+
+  impl CameraZoomState
+  {
+    /// Sets the minimum zoom distance from the camera center
+    /// If d < 0.0 - clamp to 0.0
+    /// If d > max_distance - clamp to max_distance
+    pub fn min_distance_set( &mut self, mut d : f32 )
+    {
+      d = d.max( 0.0 ); 
+      if let Some( max_distance ) = self.max_distance
+      {
+        d = d.min( max_distance );
+      }
+      self.min_distance = Some( d );
+    }
+
+    /// Sets the minimum zoom distance from the camera center
+    /// If d < 0.0 - clamp to 0.0
+    /// If d < min_distance - clamp to min_distance
+    pub fn max_distance_set( &mut self, mut d : f32 )
+    {
+      d = d.max( 0.0 ); 
+      if let Some( min_distance ) = self.min_distance
+      {
+        d = d.max( min_distance );
+      }
+      self.max_distance = Some( d );
+    }
+
+    /// Get minimun zoom distance
+    pub fn min_distance_get( &self ) -> Option< f32 >
+    {
+      self.min_distance
+    }
+
+    /// Get maximum zoom distance
+    pub fn max_distance_get( &self ) -> Option< f32 >
+    {
+      self.max_distance
+    }
   }
 
   /// State of the camera that controls panning
@@ -141,7 +182,6 @@ mod private
       let mut screen_d = F32x2::from( screen_d );
       screen_d /= self.rotation.speed;
 
-
       if self.rotation.movement_smoothing_enabled
       {
         self.rotation.current_angular_speed += screen_d;
@@ -157,7 +197,6 @@ mod private
     {
       let dir = ( self.eye - self.center ).normalize();
       let x = dir.cross( self.up ).normalize();
-
 
       // We rotate aroung the y axis based on the movement in x direction.
       // And we rotate aroung the axix perpendicular to the current up and direction vectors
@@ -453,7 +492,7 @@ mod private
         {
           let prev_pos = *prev_screen_pos.borrow_mut();
           let new_pos = [ e.screen_x() as f32, e.screen_y() as f32 ];
-          let delta = [ prev_pos[ 0 ] - new_pos[ 0 ], prev_pos[ 1 ] - new_pos[ 1 ] ];
+          let delta = [ prev_pos[ 0 ] - new_pos[ 0 ], new_pos[ 1 ] - prev_pos[ 1 ] ];
           *prev_screen_pos.borrow_mut() = new_pos;
           match *state.borrow_mut()
           {
