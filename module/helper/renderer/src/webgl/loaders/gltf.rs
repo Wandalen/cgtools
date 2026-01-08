@@ -334,26 +334,21 @@ mod private
             }
           )
         },
-        gltf::khr_lights_punctual::Kind::Spot
+        gltf::khr_lights_punctual::Kind::Spot { inner_cone_angle, outer_cone_angle } =>
         {
-          inner_cone_angle,
-          outer_cone_angle,
-        } =>
-        {
-          let Some( range ) = gltf_light.range()
-          else
-          {
-            continue;
-          };
+          let color = gltf_light.color();
+          let strength = gltf_light.intensity();
+          let range = gltf_light.range().unwrap_or( 10.0 );
+
           Light::Spot
           (
             SpotLight
             {
               position : F32x3::default(),
               direction : F32x3::default(),
-              color : F32x3::from_slice( &gltf_light.color() ),
-              strength : gltf_light.intensity(),
-              range,
+              color: color.into(),
+              strength : strength as f32,
+              range : range as f32,
               inner_cone_angle,
               outer_cone_angle,
               use_light_map : false,

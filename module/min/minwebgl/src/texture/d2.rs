@@ -1,18 +1,81 @@
 use crate::*;
+use crate::web_sys::
+{
+  window,
+  HtmlImageElement,
+  WebGlTexture,
+  wasm_bindgen::closure::Closure
+};
 
 type GL = web_sys::WebGl2RenderingContext;
+
+/// Uploads an image from a URL to a WebGL texture.
+///
+/// This function creates a new `WebGlTexture` and asynchronously loads an image from the provided URL into it.
+/// It uses a `Closure` to handle the `onload` event of an `HtmlImageElement`, ensuring the texture is
+/// uploaded only after the image has finished loading.
+///
+/// # Arguments
+///
+/// * `gl` - The WebGl2RenderingContext.
+/// * `src` - A reference-counted string containing the URL of the image to load.
+///
+/// # Returns
+///
+/// A `WebGlTexture` object.
+pub fn upload_image_from_path( gl : &GL, src : &str, flip : bool ) -> WebGlTexture
+{
+  let window = window().expect( "Can't get window" );
+  let document =  window.document().expect( "Can't get document" );
+
+  let texture = gl.create_texture().expect( "Failed to create a texture" );
+
+  let img_element = document.create_element( "img" )
+  .expect( "Can't create img" )
+  .dyn_into::< HtmlImageElement >()
+  .expect( "Can't convert to HtmlImageElement" );
+  img_element.style().set_property( "display", "none" ).expect( "Can't set property" );
+  let load_texture : Closure< dyn Fn() > = Closure::new
+  (
+    {
+      let gl = gl.clone();
+      let img = img_element.clone();
+      let texture = texture.clone();
+      move ||
+      {
+        if flip
+        {
+          crate::texture::d2::upload( &gl, Some( &texture ), &img );
+        }
+        else
+        {
+          crate::texture::d2::upload_no_flip( &gl, Some( &texture ), &img );
+        }
+
+        crate::texture::d2::filter_linear( &gl );
+        img.remove();
+      }
+    }
+  );
+
+  img_element.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
+  img_element.set_src( &src );
+  load_texture.forget();
+
+  texture
+}
 
 /// Uploads an image from HtmlImageElement to a 2D texture.
 /// Image format and internal format are assumed to be RGBA unsigned bytes.
 /// Flips the texture in Y direction.
-/// 
-/// Using HtmlImageElement is recommended, as it is the most natural 
+///
+/// Using HtmlImageElement is recommended, as it is the most natural
 /// and the least expensive way to parse images on the web.
 pub fn upload
 (
-  gl : &GL, 
+  gl : &GL,
   texture : Option< &web_sys::WebGlTexture >,
-  img : &web_sys::HtmlImageElement 
+  img : &web_sys::HtmlImageElement
 )
 {
   gl.bind_texture( GL::TEXTURE_2D, texture );
@@ -29,7 +92,7 @@ pub fn upload
   gl.pixel_storei( GL::UNPACK_FLIP_Y_WEBGL, 0 );
 }
 /// Represents a sprite sheet containing multiple sprites arranged in rows and columns.
-/// 
+///
 /// A sprite sheet is commonly used in 2D game development to manage and optimize
 /// rendering of animations or multiple images by storing them in a single texture.
 pub struct SpriteSheet
@@ -51,8 +114,8 @@ pub struct SpriteSheet
 /// Image format and internal format are assumed to be RGBA unsigned bytes.
 /// Flips the texture in Y direction.
 /// Returns created texture.
-/// 
-/// Using HtmlImageElement is recommended, as it is the most natural 
+///
+/// Using HtmlImageElement is recommended, as it is the most natural
 /// and the least expensive way to parse images on the web.
 pub fn create_and_upload( gl : &GL, img : &web_sys::HtmlImageElement ) -> Option< web_sys::WebGlTexture >
 {
@@ -81,10 +144,10 @@ pub fn create_and_upload( gl : &GL, img : &web_sys::HtmlImageElement ) -> Option
 /// Does not flip the texture in Y direction.
 /// Returns created texture.
 pub fn upload_no_flip
-( 
-  gl : &GL, 
+(
+  gl : &GL,
   texture : Option< &web_sys::WebGlTexture >,
-  img : &web_sys::HtmlImageElement 
+  img : &web_sys::HtmlImageElement
 )
 {
   gl.bind_texture( GL::TEXTURE_2D, texture );
@@ -127,11 +190,11 @@ pub fn create_and_upload_no_flip( gl : &GL, img : &web_sys::HtmlImageElement ) -
 /// - `gl`: Reference to the WebGL rendering context
 /// - `texture`: The WebGL texture to update
 /// - `video_element`: The HTML video element to source the texture from
-/// 
+///
 /// # Behavior
 /// - Binds the texture to the current WebGL context
 /// - Uploads the current video frame to the texture
-/// 
+///
 /// # When it useful
 /// - Playing video as a texture
 /// - Updating video every frame
@@ -158,16 +221,16 @@ pub fn update_video( gl : &GL, texture : &web_sys::WebGlTexture, video_element :
 /// # Parameters
 /// - `gl`: Reference to the WebGL rendering context
 /// - `img`: The HTML image element containing the sprite sheet
-/// 
+///
 /// # Returns
 /// A `Result` containing the created WebGL texture or a `WebglError`
-/// 
+///
 /// # Behavior
 /// - Creates a WebGL texture array
 /// - Loads image data using a temporary canvas
 /// - Splits sprite sheet into individual sprite textures
 /// - Configures texture parameters and mipmapping
-/// 
+///
 /// # When it useful
 /// - Loading sprites
 /// - Working with texture arrays

@@ -5,11 +5,7 @@ use gl::
   GL,
   JsCast,
   F32x3,
-  web_sys::
-  {
-    WebGlTexture,
-    wasm_bindgen::closure::Closure
-  }
+  web_sys::wasm_bindgen::closure::Closure
 };
 use std::collections::HashMap;
 use renderer::webgl::
@@ -54,99 +50,6 @@ pub async fn create_empty_texture( gl : &GL ) -> Option< TextureInfo >
   texture
 }
 
-/// Uploads an image from a URL to a WebGL texture.
-///
-/// This function creates a new `WebGlTexture` and asynchronously loads an image from the provided URL into it.
-/// It uses a `Closure` to handle the `onload` event of an `HtmlImageElement`, ensuring the texture is
-/// uploaded only after the image has finished loading.
-///
-/// # Arguments
-///
-/// * `gl` - The WebGl2RenderingContext.
-/// * `src` - A reference-counted string containing the URL of the image to load.
-///
-/// # Returns
-///
-/// A `WebGlTexture` object.
-pub fn upload_texture( gl : &GL, src : &str ) -> WebGlTexture
-{
-  let window = web_sys::window().expect( "Can't get window" );
-  let document =  window.document().expect( "Can't get document" );
-
-  let texture = gl.create_texture().expect( "Failed to create a texture" );
-
-  let img_element = document.create_element( "img" )
-  .expect( "Can't create img" )
-  .dyn_into::< gl::web_sys::HtmlImageElement >()
-  .expect( "Can't convert to gl::web_sys::HtmlImageElement" );
-  img_element.style().set_property( "display", "none" ).expect( "Can't set property" );
-  let load_texture : Closure< dyn Fn() > = Closure::new
-  (
-    {
-      let gl = gl.clone();
-      let img = img_element.clone();
-      let texture = texture.clone();
-      move ||
-      {
-        gl::texture::d2::upload_no_flip( &gl, Some( &texture ), &img );
-        gl.generate_mipmap( gl::TEXTURE_2D );
-        img.remove();
-      }
-    }
-  );
-
-  img_element.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
-  img_element.set_src( &src );
-  load_texture.forget();
-
-  texture
-}
-
-/// Creates a new `TextureInfo` struct with a texture loaded from a file.
-///
-/// This function calls `upload_texture` to load an image, sets up a default `Sampler`
-/// with linear filtering and repeat wrapping, and then combines them into a `TextureInfo`
-/// struct.
-///
-/// # Arguments
-///
-/// * `gl` - The WebGl2RenderingContext.
-/// * `image_path` - The path to the image file, relative to the `static/` directory.
-///
-/// # Returns
-///
-/// An `Option<TextureInfo>` containing the texture data, or `None` if creation fails.
-pub fn create_texture
-(
-  gl : &GL,
-  image_path : &str
-) -> Option< TextureInfo >
-{
-  let image_path = format!( "static/{image_path}" );
-  let texture_id = upload_texture( gl, image_path.as_str() );
-
-  let sampler = Sampler::former()
-  .min_filter( MinFilterMode::Linear )
-  .mag_filter( MagFilterMode::Linear )
-  .wrap_s( WrappingMode::Repeat )
-  .wrap_t( WrappingMode::Repeat )
-  .end();
-
-  let texture = Texture::former()
-  .target( GL::TEXTURE_2D )
-  .source( texture_id )
-  .sampler( sampler )
-  .end();
-
-  let texture_info = TextureInfo
-  {
-    texture : Rc::new( RefCell::new( texture ) ),
-    uv_position : 0,
-  };
-
-  Some( texture_info )
-}
-
 /// Finds [`Node`]'s in [`Scene`]. [`Node`] name must be
 /// available ( not [`None`] ), contain substring sensitive
 /// or not to case relatively to case_sensitive bool
@@ -180,31 +83,6 @@ pub fn filter_nodes( scene : &Rc< RefCell< Scene > >, mut substring : String, ca
     }
   );
   filtered
-}
-
-pub fn get_node( scene : &Rc< RefCell< Scene > >, name : String ) -> Option< Rc< RefCell< Node > > >
-{
-  let mut target = None;
-  let _ = scene.borrow_mut().traverse
-  (
-    &mut | node : Rc< RefCell< Node > > |
-    {
-      if target.is_some()
-      {
-        return Ok( () );
-      }
-      if let Some( current_name ) = node.borrow().get_name()
-      {
-        if name == current_name.clone().into_string()
-        {
-          target = Some( node.clone() );
-          return Err( gl::WebglError::Other( "" ) );
-        }
-      }
-      Ok( () )
-    }
-  );
-  target
 }
 
 pub fn add_resize_callback() -> Rc< RefCell< bool > >
