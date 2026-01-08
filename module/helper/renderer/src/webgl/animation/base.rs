@@ -22,6 +22,8 @@ mod private
   pub const ROTATION_PREFIX : &'static str = ".rotation";
   /// Prefix used for getting [`Node`] scale
   pub const SCALE_PREFIX : &'static str = ".scale";
+  /// Prefix used for getting morph target weights
+  pub const MORPH_TARGET_PREFIX : &'static str = ".morph_target";
 
   /// Gives opportunity to change [`Node`]'s transforms in any way
   /// Interface used in [`Animation`] for using complex animation behaviours
@@ -100,6 +102,34 @@ mod private
           {
             let scale = scale.value_get().0.map( | v | v as f32 );
             node.borrow_mut().set_scale( F32x3::from_array( scale ) );
+          }
+        }
+
+        if let Some( weights ) = self.get::< Sequence< Tween< Vec< f64 > > > >
+        (
+          &format!( "{}{}", name, MORPH_TARGET_PREFIX )
+        )
+        {
+          if let Some( weights ) = weights.current_get()
+          {
+            let weights = weights.value_get().iter()
+            .map( | v | *v as f32 )
+            .collect::< Vec< _ > >();
+            if let crate::webgl::Object3D::Mesh( mesh ) = &node.borrow().object
+            {
+              if let Some( skeleton ) = &mesh.borrow().skeleton
+              {
+                if let Some( displacements ) = skeleton.borrow().displacements_as_ref()
+                {
+                  let weights_rc = displacements.get_morph_weights();
+                  let mut weights_mut = weights_rc.borrow_mut();
+                  for i in 0..weights.len().min( weights_mut.len() )
+                  {
+                    weights_mut[ i ] = weights[ i ];
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -202,6 +232,7 @@ crate::mod_interface!
   {
     TRANSLATION_PREFIX,
     ROTATION_PREFIX,
-    SCALE_PREFIX
+    SCALE_PREFIX,
+    MORPH_TARGET_PREFIX
   };
 }

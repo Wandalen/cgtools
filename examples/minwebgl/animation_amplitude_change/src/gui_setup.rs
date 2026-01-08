@@ -72,7 +72,7 @@ pub fn setup
   {
     for part in PART_NAMES
     {
-      scaler.add( part, vec![], gl::F64x3::splat( 1.0 ) )
+      scaler.add( part, vec![], gl::F64x4::splat( 1.0 ) )
     }
   }
 
@@ -138,7 +138,7 @@ pub fn setup
           {
             if let Some( scale ) = s.scale_get_mut( part )
             {
-              *scale = gl::F64x3::splat( value as f64 );
+              *scale = gl::F64x4::splat( value as f64 );
             }
             s.animation.reset();
           }
