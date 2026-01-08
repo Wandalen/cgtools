@@ -6,9 +6,17 @@
 mod private
 {
   use crate::{ F32x3, F32x2, math };
-  use std::{ cell::RefCell, rc::Rc };
-  use wasm_bindgen::{ JsCast, prelude::Closure };
-  use crate::web::web_sys;
+
+  #[ cfg( feature = "web" ) ]
+  pub mod web_imports
+  {
+    pub use std::{ cell::RefCell, rc::Rc };
+    pub use wasm_bindgen::{ JsCast, prelude::Closure };
+    pub use crate::web::web_sys;
+  }
+
+  #[ cfg( feature = "web" ) ]
+  use web_imports::*;
 
   /// State of the camera that controls its rotation
   pub struct CameraRotationState
@@ -388,6 +396,7 @@ mod private
   }
 
   /// Represents the current state of the camera controls, based on user input.
+  #[ cfg( feature = "web" ) ]
   enum CameraState
   {
     /// The camera is not being manipulated.
@@ -410,6 +419,7 @@ mod private
   /// * `canvas` - A reference to the HTML canvas element where the events will be bound.
   /// * `camera` - A reference-counted, mutable reference to the `CameraOrbitControls`
   ///   instance that will be manipulated by the user input.
+  #[ cfg( feature = "web" ) ]
   pub fn bind_controls_to_input
   (
     canvas : &web_sys::HtmlCanvasElement,
@@ -536,6 +546,7 @@ mod private
 // This macro exposes the public interface of the module.
 crate::mod_interface!
 {
+  #[ cfg( feature = "web" ) ]
   own use
   {
     bind_controls_to_input

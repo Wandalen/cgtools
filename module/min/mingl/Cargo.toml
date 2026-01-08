@@ -93,7 +93,10 @@ web-sys = { workspace = true, optional = true, features = [
   'Location',
   'DomTokenList',
   'HtmlVideoElement',
-  'HtmlImageElement'
+  'HtmlImageElement',
+  'PointerEvent',
+  'MouseEvent',
+  'WheelEvent'
 ]}
 
 [dev-dependencies]

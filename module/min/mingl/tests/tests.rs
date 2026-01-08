@@ -23,4 +23,6 @@ mod tests
   /// Tests for bounding sphere calculations
   mod bounding_sphere;
 
+  /// Tests for camera orbit controls
+  mod camera_orbit_controls;
 }
