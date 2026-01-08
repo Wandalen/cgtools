@@ -4,7 +4,6 @@ const headerContainer = document.querySelector( '.header--container' )
 const camView1 = document.querySelector( '.cam-view-1' )
 const camView2 = document.querySelector( '.cam-view-2' )
 const camView3 = document.querySelector( '.cam-view-3' )
-// const chooseImage = document.querySelector( '.choose--image' )
 
 const exitContainer = document.querySelector( '.exit--container' )
 const footerMenu = document.querySelector( '.footer--menu' )
@@ -468,7 +467,6 @@ document.querySelector( '.button--exit' )?.addEventListener
     camView2.style.display = "flex"
     camView3.style.display = "flex"
     headerContainer.style.display = "flex"
-    // chooseImage.style.display = "flex"
     // nightModeButton.style.pointerEvents = "all";
 
     exitContainer.style.display = "none"
@@ -531,7 +529,6 @@ async function setupMainPage()
 }
 
 // -- CONFIGURATOR --
-
 function setActive( target, groupSelector )
 {
   document.querySelectorAll( `${groupSelector} li.active` )
