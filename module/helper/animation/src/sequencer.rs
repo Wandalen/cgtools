@@ -13,7 +13,7 @@ mod private
   use crate::Tween;
 
   /// Sequencer for managing multiple animations with sequencing and grouping.
-  #[ derive( Debug ) ]
+  // #[ derive( Debug ) ]
   pub struct Sequencer
   {
     /// Map of animation names to their animation behavior data
@@ -22,6 +22,18 @@ mod private
     time : f64,
     /// Sequencer state
     state : AnimationState,
+  }
+
+  impl std::fmt::Debug for Sequencer
+  {
+    fn fmt( &self, f : &mut std::fmt::Formatter< '_ > ) -> std::fmt::Result
+    {
+      f.debug_struct( "Sequencer" )
+      .field("players", &self.players.len() )
+      .field( "time", &self.time )
+      .field( "state", &self.state )
+      .finish()
+    }
   }
 
   impl Clone for Sequencer

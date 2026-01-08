@@ -242,24 +242,26 @@ mod private
 
       if let Some( current ) = &self.current
       {
-        let mut triggered_edge = None;
-        for ( _, edge ) in &current.borrow().edges
+        if current.borrow().in_process.is_none()
         {
-          if edge.borrow().is_triggered( self.last_pose.as_ref().unwrap_or( &current_pose ), &current_pose )
+          let mut triggered_edge = None;
+          for ( _, edge ) in &current.borrow().edges
           {
-            triggered_edge = Some( edge.clone() );
-            break;
+            if edge.borrow().is_triggered( self.last_pose.as_ref().unwrap_or( &current_pose ), &current_pose )
+            {
+              triggered_edge = Some( edge.clone() );
+              break;
+            }
           }
-        }
 
-        if let Some( edge ) = triggered_edge.as_ref()
-        {
-          let time = current.borrow().animation.time();
-          edge.borrow_mut().transition.start_mut().update( time );
-        }
+          if let Some( edge ) = triggered_edge.as_ref()
+          {
+            let time = current.borrow().animation.time();
+            edge.borrow_mut().transition.start_mut().update( time );
+          }
 
-        current.borrow_mut().animation.reset();
-        current.borrow_mut().in_process = triggered_edge;
+          current.borrow_mut().in_process = triggered_edge;
+        }
       }
 
       self.last_pose = Some( current_pose );
@@ -301,13 +303,15 @@ mod private
         old.borrow_mut().in_process = None;
       }
 
-      // if let Some( current ) = &self.current
-      // {
-      //   if current.borrow().animation.is_completed()
-      //   {
-      //     current.borrow_mut().animation.reset();
-      //   }
-      // }
+      if let Some( current ) = &self.current
+      {
+        let mut is_completed = false;
+        if let Some( edge ) = &current.borrow().in_process
+        {
+          is_completed = edge.borrow().transition.tween().is_completed();
+        }
+        minwebgl::info!( "{:?}", ( current.borrow().name.clone(), is_completed ) );
+      }
     }
 
     fn as_any( &self ) -> &dyn core::any::Any

@@ -70,7 +70,7 @@ mod private
     pub fn forward_xz( &self ) -> F64x3
     {
       let forward = QuatF64::from( [ 0.0, 0.0, 1.0, 0.0 ] );
-      let quat_yaw = QuatF64::from_angle_y( self.yaw ).normalize();
+      let quat_yaw = QuatF64::from_angle_y( self.yaw );
       ( quat_yaw * forward * quat_yaw.conjugate() ).0.truncate()
     }
 
@@ -78,7 +78,7 @@ mod private
     pub fn right_xz( &self ) -> F64x3
     {
       let right = QuatF64::from( [ -1.0, 0.0, 0.0, 0.0 ] );
-      let quat_yaw = QuatF64::from_angle_y( self.yaw ).normalize();
+      let quat_yaw = QuatF64::from_angle_y( self.yaw );
       ( quat_yaw * right * quat_yaw.conjugate() ).0.truncate()
     }
 
@@ -125,10 +125,10 @@ mod private
 
       // Create rotation quaternion from yaw and pitch
       // Order: Yaw around Y axis, then Pitch around X axis
-      let quat_yaw = QuatF64::from_angle_y( self.yaw ).normalize();
-      let quat_pitch = QuatF64::from_angle_x( self.pitch ).normalize();
+      let quat_yaw = QuatF64::from_angle_y( self.yaw );
+      let quat_pitch = QuatF64::from_angle_x( self.pitch );
 
-      self.rotation = ( quat_yaw * quat_pitch ).normalize();
+      self.rotation = quat_yaw * quat_pitch;
     }
 
     /// Updates character position based on movement input.
@@ -192,10 +192,10 @@ mod private
       self.yaw = yaw;
       self.pitch = pitch.clamp( self.pitch_range.start, self.pitch_range.end );
 
-      let quat_yaw = QuatF64::from_angle_y( self.yaw ).normalize();
-      let quat_pitch = QuatF64::from_angle_x( self.pitch ).normalize();
+      let quat_yaw = QuatF64::from_angle_y( self.yaw );
+      let quat_pitch = QuatF64::from_angle_x( self.pitch );
 
-      self.rotation = ( quat_yaw * quat_pitch ).normalize();
+      self.rotation = quat_yaw * quat_pitch;
     }
 
     /// Zooms the camera in or out along its viewing direction.
