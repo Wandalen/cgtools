@@ -155,15 +155,15 @@ mod private
 
     fn apply_rotation( &mut self )
     {
-      let dir = ( self.center - self.eye ).normalize();
+      let dir = ( self.eye - self.center ).normalize();
       let x = dir.cross( self.up ).normalize();
 
 
       // We rotate aroung the y axis based on the movement in x direction.
       // And we rotate aroung the axix perpendicular to the current up and direction vectors
       // based on the movement in y direction
-      let mut longitude_angle = -self.rotation.current_rotation_angle.x();
-      let mut latitude_angle = -self.rotation.current_rotation_angle.y();
+      let mut longitude_angle = self.rotation.current_rotation_angle.x();
+      let mut latitude_angle = self.rotation.current_rotation_angle.y();
 
       if let Some( longitude_range ) = self.rotation.longitude_range
       {
@@ -173,14 +173,11 @@ mod private
         {
           base_angle -= 2.0 * std::f32::consts::PI;
         }
-        // Minus is to make the rotation counter-clockwise
-        base_angle = -base_angle;
         let min_angle = base_angle - angle_range;
         let max_angle = base_angle + angle_range;
 
-        let current_angle = dir.z().atan2( dir.x() );
-        // longitude_angle rotates clockwise, while angles are groiwing counter-clockwise, so we need to subtract
-        let mut new_angle = current_angle - longitude_angle;
+        let current_angle = ( -dir.z() ).atan2( dir.x() );
+        let mut new_angle = current_angle + longitude_angle;
 
         if new_angle < min_angle || new_angle > max_angle
         {
@@ -197,14 +194,13 @@ mod private
           }
         }
         
-        longitude_angle = current_angle - new_angle;
+        longitude_angle = new_angle - current_angle;
       }
 
       if let Some( latitude_range ) = self.rotation.latitude_range
       {
         let angle_range = latitude_range.to_radians();
-        // Minus is needed to make the rotation counter-clockwise
-        let base_angle = -self.rotation.base_latitude.to_radians();
+        let base_angle = self.rotation.base_latitude.to_radians();
         let min_angle = ( base_angle - angle_range ).max( -std::f32::consts::FRAC_PI_2 );
         let max_angle = ( base_angle + angle_range ).min( std::f32::consts::FRAC_PI_2 );
 
@@ -457,7 +453,7 @@ mod private
         {
           let prev_pos = *prev_screen_pos.borrow_mut();
           let new_pos = [ e.screen_x() as f32, e.screen_y() as f32 ];
-          let delta = [ new_pos[ 0 ] - prev_pos[ 0 ], new_pos[ 1 ] - prev_pos[ 1 ] ];
+          let delta = [ prev_pos[ 0 ] - new_pos[ 0 ], prev_pos[ 1 ] - new_pos[ 1 ] ];
           *prev_screen_pos.borrow_mut() = new_pos;
           match *state.borrow_mut()
           {

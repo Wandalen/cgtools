@@ -21,3 +21,126 @@ fn test_rotation_disabled_prevents_rotation()
   assert_abs_diff_eq!( exp_up, controls.up );
   assert_abs_diff_eq!( exp_center, controls.center );
 }
+
+#[ test ]
+fn test_zoom_disabled_prevents_zoom()
+{
+  let mut controls = the_module::camera_orbit_controls::CameraOrbitControls::default();
+  controls.eye = F32x3::new( 1.0, 0.0, 0.0 );
+  controls.up = F32x3::new( 0.0, 1.0, 0.0 );
+  controls.center = F32x3::new( 0.0, 0.0, 0.0 );
+  controls.zoom.enabled = false;
+
+  controls.zoom( 50.0 );
+
+  let exp_eye =  F32x3::new( 1.0, 0.0, 0.0 );
+  let exp_up = F32x3::new( 0.0, 1.0, 0.0 );
+  let exp_center = F32x3::new( 0.0, 0.0, 0.0 );
+
+  assert_abs_diff_eq!( exp_eye, controls.eye );
+  assert_abs_diff_eq!( exp_up, controls.up );
+  assert_abs_diff_eq!( exp_center, controls.center );
+}
+
+#[ test ]
+fn test_pan_disabled_prevents_pan()
+{
+  let mut controls = the_module::camera_orbit_controls::CameraOrbitControls::default();
+  controls.eye = F32x3::new( 1.0, 0.0, 0.0 );
+  controls.up = F32x3::new( 0.0, 1.0, 0.0 );
+  controls.center = F32x3::new( 0.0, 0.0, 0.0 );
+  controls.pan.enabled = false;
+
+  controls.pan( [ 50.0, 50.0 ] );
+
+  let exp_eye =  F32x3::new( 1.0, 0.0, 0.0 );
+  let exp_up = F32x3::new( 0.0, 1.0, 0.0 );
+  let exp_center = F32x3::new( 0.0, 0.0, 0.0 );
+
+  assert_abs_diff_eq!( exp_eye, controls.eye );
+  assert_abs_diff_eq!( exp_up, controls.up );
+  assert_abs_diff_eq!( exp_center, controls.center );
+}
+
+#[ test ]
+fn test_longitude_range_clamps_correctly()
+{
+  let mut controls = the_module::camera_orbit_controls::CameraOrbitControls::default();
+  controls.eye = F32x3::new( 1.0, 0.0, 0.0 );
+  controls.up = F32x3::new( 0.0, 1.0, 0.0 );
+  controls.center = F32x3::new( 0.0, 0.0, 0.0 );
+  controls.rotation.longitude_range = Some( 90.0 );
+  controls.rotation.speed = 1.0;
+
+  // Counter-clockwise
+  controls.rotate( [ std::f32::consts::PI, 0.0 ] );
+
+  let rot_mat = the_module::math::mat3x3::from_angle_y( 90.0f32.to_radians() );
+
+  let exp_eye =  rot_mat * F32x3::new( 1.0, 0.0, 0.0 );
+  let exp_up = F32x3::new( 0.0, 1.0, 0.0 );
+  let exp_center = F32x3::new( 0.0, 0.0, 0.0 );
+
+  assert_abs_diff_eq!( exp_eye, controls.eye );
+  assert_abs_diff_eq!( exp_up, controls.up );
+  assert_abs_diff_eq!( exp_center, controls.center );
+
+  // Clockwise
+  controls.eye = F32x3::new( 1.0, 0.0, 0.0 );
+  controls.up = F32x3::new( 0.0, 1.0, 0.0 );
+  controls.center = F32x3::new( 0.0, 0.0, 0.0 );
+
+  controls.rotate( [ -std::f32::consts::PI, 0.0 ] );
+
+  let rot_mat = the_module::math::mat3x3::from_angle_y( -90.0f32.to_radians() );
+
+  let exp_eye =  rot_mat * F32x3::new( 1.0, 0.0, 0.0 );
+  let exp_up = F32x3::new( 0.0, 1.0, 0.0 );
+  let exp_center = F32x3::new( 0.0, 0.0, 0.0 );
+
+  assert_abs_diff_eq!( exp_eye, controls.eye );
+  assert_abs_diff_eq!( exp_up, controls.up );
+  assert_abs_diff_eq!( exp_center, controls.center );
+}
+
+#[ test ]
+fn test_latitude_range_clamps_correctly()
+{
+  let mut controls = the_module::camera_orbit_controls::CameraOrbitControls::default();
+  controls.eye = F32x3::new( 1.0, 0.0, 0.0 );
+  controls.up = F32x3::new( 0.0, 1.0, 0.0 );
+  controls.center = F32x3::new( 0.0, 0.0, 0.0 );
+  controls.rotation.latitude_range = Some( 45.0 );
+  controls.rotation.speed = 1.0;
+
+  // Counter-clockwise
+  controls.rotate( [ 0.0, std::f32::consts::PI * 0.5 ] );
+
+  let rot_mat = the_module::math::mat3x3::from_angle_z( 45.0f32.to_radians() );
+
+  let exp_eye =  rot_mat * F32x3::new( 1.0, 0.0, 0.0 );
+  let exp_up = rot_mat * F32x3::new( 0.0, 1.0, 0.0 );
+  let exp_center = F32x3::new( 0.0, 0.0, 0.0 );
+
+  assert_abs_diff_eq!( exp_eye, controls.eye );
+  assert_abs_diff_eq!( exp_up, controls.up );
+  assert_abs_diff_eq!( exp_center, controls.center );
+
+  // Clockwise
+  controls.eye = F32x3::new( 1.0, 0.0, 0.0 );
+  controls.up = F32x3::new( 0.0, 1.0, 0.0 );
+  controls.center = F32x3::new( 0.0, 0.0, 0.0 );
+
+  controls.rotate( [ 0.0, -std::f32::consts::PI * 0.5 ] );
+
+  let rot_mat = the_module::math::mat3x3::from_angle_z( -45.0f32.to_radians() );
+
+  let exp_eye =  rot_mat * F32x3::new( 1.0, 0.0, 0.0 );
+  let exp_up = rot_mat * F32x3::new( 0.0, 1.0, 0.0 );
+  let exp_center = F32x3::new( 0.0, 0.0, 0.0 );
+
+  assert_abs_diff_eq!( exp_eye, controls.eye );
+  assert_abs_diff_eq!( exp_up, controls.up );
+  assert_abs_diff_eq!( exp_center, controls.center );
+}
+
