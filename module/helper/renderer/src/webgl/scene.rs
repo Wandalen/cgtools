@@ -30,7 +30,7 @@ mod private
 
   impl Default for Scene
   {
-    fn default() -> Self 
+    fn default() -> Self
     {
       let identity_matrix = gl::math::mat4x4::identity();
 
@@ -241,6 +241,33 @@ mod private
       }
 
       bbox
+    }
+
+    /// Gets node by `name`
+    pub fn get_node( &self, name : &str ) -> Option< Rc< RefCell< Node > > >
+    {
+      let mut target = None;
+      let _ = self.traverse
+      (
+        &mut | node : Rc< RefCell< Node > > |
+        {
+          if target.is_some()
+          {
+            return Ok( () );
+          }
+          if let Some( current_name ) = node.borrow().get_name()
+          {
+            if *name == *current_name
+            {
+              target = Some( node.clone() );
+              return Err( gl::WebglError::Other( "" ) );
+            }
+          }
+          Ok( () )
+        }
+      );
+
+      target
     }
   }
 }
