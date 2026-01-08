@@ -1,4 +1,4 @@
-use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo, NodeContext };
+use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo, MaterialUploadContext };
 use renderer::impl_locations;
 use minwebgl as gl;
 use gl::{ GL, F32x3, Former, WebGlProgram };
@@ -114,7 +114,7 @@ impl Material for SurfaceMaterial
   (
     &self,
     gl : &GL,
-    _node_context : &NodeContext< '_ >
+    _context : &MaterialUploadContext< '_ >
   )
   -> Result< (), gl::WebglError >
   {

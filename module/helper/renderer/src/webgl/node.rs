@@ -8,37 +8,12 @@ mod private
 
   /// Used to get additional information for material upload
   #[ derive( Debug, Clone ) ]
-  pub struct NodeContext<'a>
+  pub struct MaterialUploadContext<'a>
   {
     /// current processed [`Node`]
-    node : &'a Node,
+    pub node : &'a Node,
     /// id of current processed primitive of inner mesh
-    primitive_id : Option< usize >
-  }
-
-  impl< 'a > NodeContext< 'a >
-  {
-    /// Creates a new [`NodeContext`] instance
-    pub fn new( node : &'a Node, primitive_id : Option< usize > ) -> Self
-    {
-      Self
-      {
-        node,
-        primitive_id
-      }
-    }
-
-    /// Gets stored node reference
-    pub fn node( &self ) -> &Node
-    {
-      self.node
-    }
-
-    /// Gets stored primitive id
-    pub fn primitive_id( &self ) -> Option< usize >
-    {
-      self.primitive_id
-    }
+    pub primitive_id : Option< usize >
   }
 
   /// Represents a 3D object that can be part of the scene graph.
@@ -525,7 +500,7 @@ crate::mod_interface!
   orphan use
   {
     Node,
-    NodeContext,
+    MaterialUploadContext,
     Object3D
   };
 }

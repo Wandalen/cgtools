@@ -1,7 +1,7 @@
 mod private
 {
   use minwebgl as gl;
-  use crate::webgl::{ ShaderProgram, Texture, NodeContext };
+  use crate::webgl::{ ShaderProgram, Texture, MaterialUploadContext };
   use std:: { cell::RefCell, fmt::Debug, rc::Rc };
   use rustc_hash::FxHasher;
 
@@ -173,7 +173,7 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      node_context : &NodeContext< '_ >
+      context : &MaterialUploadContext< '_ >
     )
     -> Result< (), gl::WebglError >;
 
@@ -185,7 +185,7 @@ mod private
     (
       &self,
       _gl : &gl::WebGl2RenderingContext,
-      _node_context : &NodeContext< '_ >
+      _context : &MaterialUploadContext< '_ >
     )
     -> Result< (), gl::WebglError >
     {

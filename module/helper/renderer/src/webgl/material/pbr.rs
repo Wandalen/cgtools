@@ -5,7 +5,7 @@ mod private
   use gl::{ GL, WebGlProgram };
   use mingl::Former;
   use rustc_hash::FxHashMap;
-  use crate::webgl::{ NodeContext, program::{ ShaderProgram, ProgramInfo } };
+  use crate::webgl::{ MaterialUploadContext, program::{ ShaderProgram, ProgramInfo } };
   use crate::webgl::program::impl_locations;
 
   /// The source code for the main vertex shader.
@@ -422,13 +422,13 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      node_context : &NodeContext< '_ >
+      context : &MaterialUploadContext< '_ >
     )
     -> Result< (), gl::WebglError >
     {
-      if let Some( current_primitive_id ) = node_context.primitive_id()
+      if let Some( current_primitive_id ) = context.primitive_id
       {
-        if let Object3D::Mesh( mesh ) = &node_context.node().object
+        if let Object3D::Mesh( mesh ) = &context.node.object
         {
           let mut primitive_offset : u32 = 0;
           for ( i, primitive ) in mesh.borrow().primitives.iter().enumerate()
@@ -453,7 +453,7 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      node_context : &NodeContext< '_ >
+      context : &MaterialUploadContext< '_ >
     )
     -> Result< (), gl::WebglError >
     {
@@ -477,7 +477,7 @@ mod private
         Ok( () )
       };
 
-      let _ = self.upload( gl, node_context );
+      let _ = self.upload( gl, context );
 
       upload( "specularFactor", self.specular_factor )?;
 
