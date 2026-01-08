@@ -210,7 +210,7 @@ out vec4 vColor_1;
     for ( uint i = 0u; i < cnt; ++i )
     {
       float w = morphWeights[ i ];
-      n += w * get_normal_displacement( i ) * 0.35;
+      n += w * get_normal_displacement( i );
     }
 
     return normalize( n );
