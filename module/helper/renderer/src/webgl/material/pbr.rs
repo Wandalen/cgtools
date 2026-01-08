@@ -430,22 +430,12 @@ mod private
       {
         if let Object3D::Mesh( mesh ) = &node_context.node().object
         {
-          let primitive_offset = mesh.borrow().primitives
-          .iter()
-          .enumerate()
-          .map_while
-          (
-            | ( i, p ) |
-            if i < current_primitive_id
-            {
-              Some( p.borrow().geometry.borrow().vertex_count as u32 )
-            }
-            else
-            {
-              None
-            }
-          )
-          .sum::< u32 >();
+          let mut primitive_offset : u32 = 0;
+          for ( i, primitive ) in mesh.borrow().primitives.iter().enumerate()
+          {
+            if i >= current_primitive_id { break; }
+            primitive_offset += primitive.borrow().geometry.borrow().vertex_count;
+          }
 
           let locations = self.program.locations();
 
