@@ -165,11 +165,11 @@ mod private
       ibl_base_location : u32,
     );
 
-    /// Uploads the material properties to the GPU as uniforms.
+    /// Uploads the material properties to the GPU as uniforms. Use this when material state is changed.
     ///
     /// * `gl`: The `WebGl2RenderingContext`.
     /// * `locations`: A hash map of uniform locations in the shader program.
-    fn upload
+    fn upload_on_state_change
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
@@ -181,7 +181,7 @@ mod private
     ///
     /// * `gl`: The `WebGl2RenderingContext`.
     /// * `locations`: A hash map of uniform locations in the shader program.
-    fn regular_upload
+    fn upload
     (
       &self,
       _gl : &gl::WebGl2RenderingContext,

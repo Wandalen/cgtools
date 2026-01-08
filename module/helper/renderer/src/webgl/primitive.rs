@@ -40,7 +40,7 @@ mod private
       node_context : &NodeContext< '_ >
     ) -> Result< (), gl::WebglError >
     {
-      self.material.borrow().upload( gl, node_context )?;
+      self.material.borrow().upload_on_state_change( gl, node_context )?;
       self.geometry.borrow().upload( gl )?;
 
       Ok( () )

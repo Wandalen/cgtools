@@ -134,7 +134,7 @@ impl Material for GemMaterial
     gl.uniform1i( locations.get( "cubeNormalMap" ).unwrap().clone().as_ref() , 1 );
   }
 
-  fn upload
+  fn upload_on_state_change
   (
     &self,
     gl : &GL,

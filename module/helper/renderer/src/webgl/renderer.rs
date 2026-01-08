@@ -807,7 +807,7 @@ mod private
               shader_program.bind( gl );
               const IBL_BASE_ACTIVE_TEXTURE : u32 = 10;
               material.configure( gl, IBL_BASE_ACTIVE_TEXTURE );
-              material.upload( gl, &node_context )?;
+              material.upload_on_state_change( gl, &node_context )?;
               let locations = shader_program.locations();
               camera.upload( gl, locations );
               if material.needs_ibl()
@@ -844,11 +844,11 @@ mod private
 
             if material.needs_update() && program_cached
             {
-              material.upload( gl, &node_context )?;
+              material.upload_on_state_change( gl, &node_context )?;
             }
             else
             {
-              material.regular_upload( gl, &node_context )?;
+              material.upload( gl, &node_context )?;
             }
 
             node.borrow().upload( gl, locations );

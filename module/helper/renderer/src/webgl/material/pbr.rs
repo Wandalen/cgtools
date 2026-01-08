@@ -418,7 +418,7 @@ mod private
       gl.uniform1i( locations.get( "integrateBRDF" ).unwrap().clone().as_ref() , ibl_base_location + 2 );
     }
 
-    fn regular_upload
+    fn upload
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
@@ -459,7 +459,7 @@ mod private
       Ok( () )
     }
 
-    fn upload
+    fn upload_on_state_change
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
@@ -487,7 +487,7 @@ mod private
         Ok( () )
       };
 
-      let _ = self.regular_upload( gl, node_context );
+      let _ = self.upload( gl, node_context );
 
       upload( "specularFactor", self.specular_factor )?;
 
