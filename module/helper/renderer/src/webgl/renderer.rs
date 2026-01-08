@@ -830,7 +830,7 @@ mod private
               _ => {}
             }
 
-            enable_material_properties( gl, &material );
+            enable_material_properties( gl, &**material );
 
             // Get the uniform locations for the current program.
             let locations = shader_program.locations();
@@ -1003,7 +1003,15 @@ mod private
     }
   }
 
-  fn enable_material_properties( gl : &GL, material : &std::cell::Ref< '_, Box< dyn crate::webgl::Material > > )
+  /// Applies material rendering properties to the WebGL context.
+  ///
+  /// Configures face culling, front face winding order, depth testing,
+  /// depth comparison function, and depth write mask based on the
+  /// material's property values.
+  ///
+  /// * `gl`: The WebGL2 rendering context.
+  /// * `material`: The material whose properties should be applied.
+  fn enable_material_properties( gl : &GL, material : &dyn crate::webgl::Material )
   {
     let cull_mode = material.get_cull_mode();
     let front_face = material.get_front_face() as u32;
