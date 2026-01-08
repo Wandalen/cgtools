@@ -21,7 +21,7 @@ use renderer::webgl::
   TextureInfo,
   material::PbrMaterial
 };
-use animation::{ AnimatableValue, Sequencer, Tween, easing::{ Linear, EasingBuilder } };
+use animation::{ AnimatablePlayer, Sequencer, Tween, easing::{ Linear, EasingBuilder } };
 use crate::
 {
   cube_normal_map_generator::CubeNormalMapGenerator, gem::GemMaterial, helpers::*, ui::{ UiState, clear_changed, get_ui_state },
@@ -29,7 +29,7 @@ use crate::
 };
 
 /// Duration of color transition animation in milliseconds (MS)
-const TRANSITION_DURATION_MS : f64 = 1500.0;
+const TRANSITION_DURATION_MS : f64 = 1000.0;
 
 pub struct Configurator
 {
@@ -210,7 +210,7 @@ impl Configurator
         (
           material,
           get_player( get_color( material ) ),
-          | player : &dyn AnimatableValue, material : &Rc< RefCell< Box< dyn Material > > > |
+          | player : &dyn AnimatablePlayer, material : &Rc< RefCell< Box< dyn Material > > > |
           {
             if material.borrow().type_name() != "GemMaterial"
             {
@@ -221,7 +221,7 @@ impl Configurator
             {
               return;
             };
-            let color = player.get_current_value();
+            let color = player.value_get();
             let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< GemMaterial >( material.borrow_mut() );
             material.color = color;
             material.needs_update = true;
@@ -323,7 +323,7 @@ impl Configurator
           (
             material,
             get_player( get_color( material ) ),
-            | player : &dyn AnimatableValue, material : &Rc< RefCell< Box< dyn Material > > > |
+            | player : &dyn AnimatablePlayer, material : &Rc< RefCell< Box< dyn Material > > > |
             {
               if material.borrow().type_name() != "PbrMaterial"
               {
@@ -334,7 +334,7 @@ impl Configurator
               {
                 return;
               };
-              let color = player.get_current_value();
+              let color = player.value_get();
               let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
               for i in 0..3
               {
@@ -384,7 +384,7 @@ pub struct AnimationState
   materials: FxHashMap< String, Rc< RefCell< Box< dyn Material > > > >,
   /// Callbacks triggered when animations are updated in [`AnimationState::animations`].
   /// Callbacks can update values inside material
-  material_callbacks : FxHashMap< String, fn ( &dyn AnimatableValue, &Rc< RefCell< Box< dyn Material > > > ) >
+  material_callbacks : FxHashMap< String, fn ( &dyn AnimatablePlayer, &Rc< RefCell< Box< dyn Material > > > ) >
 }
 
 impl AnimationState
@@ -456,9 +456,9 @@ impl AnimationState
     &mut self,
     material : &Rc< RefCell< Box< dyn Material > > >,
     player : P,
-    callback : fn ( &dyn AnimatableValue, &Rc< RefCell< Box< dyn Material > > > )
+    callback : fn ( &dyn AnimatablePlayer, &Rc< RefCell< Box< dyn Material > > > )
   )
-  where P : AnimatableValue + 'static
+  where P : AnimatablePlayer + 'static
   {
     let name = material.borrow().get_id().to_string();
 

@@ -36,30 +36,6 @@ mod private
       Ok( () )
     }
 
-    /// Uploads a uniform matrix to all programs associated with the mesh.
-    pub fn upload_matrix< D >( &self, gl : &gl::WebGl2RenderingContext, uniform_name : &str, data : &D ) -> Result< (), gl::WebglError >
-    where
-      D : gl::UniformMatrixUpload + ?Sized
-    {
-      for p in self.program_map.values()
-      {
-        p.upload_matrix( gl, uniform_name, data )?;
-      }
-
-      Ok( () )
-    }
-
-    /// Uploads a uniform matrix to a single, named program.
-    pub fn upload_matrix_to< D >( &self, gl : &gl::WebGl2RenderingContext, program_name : &str, uniform_name : &str, data : &D ) -> Result< (), gl::WebglError >
-    where
-      D : gl::UniformMatrixUpload + ?Sized
-    {
-      self.program_map.get( program_name ).expect( "Program with a specified name does not exist" )
-      .upload_matrix( gl, uniform_name, data )?;
-
-      Ok( () )
-    }
-
     /// Adds a new shader program to the mesh's collection.
     pub fn program_add< T : Into< Box< str > > >( &mut self, name : T, program : Program )
     {
