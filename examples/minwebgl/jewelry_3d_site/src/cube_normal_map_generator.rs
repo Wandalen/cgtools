@@ -83,6 +83,13 @@ fn gen_cube_texture( gl : &GL, width: i32, height: i32 ) -> Option< gl::web_sys:
   texture
 }
 
+#[derive(Default, Clone, Debug)]
+pub struct CubeNormalData
+{
+  pub texture : Option< TextureInfo >,
+  pub max_distance : f32
+}
+
 /// Cube normal map generator. This maps can be used for
 /// generating realistic reflections inside gem geometry
 pub struct CubeNormalMapGenerator
@@ -141,24 +148,28 @@ impl CubeNormalMapGenerator
   }
 
   /// Generates cube normal maps only for [`Node`]'s that have [`Mesh`] as [`Node::object`]
-  pub fn generate( &self, gl : &GL, node : &Rc< RefCell< Node > > ) -> Option< TextureInfo >
+  pub fn generate( &self, gl : &GL, node : &Rc< RefCell< Node > > ) -> Result< CubeNormalData, gl::WebglError >
   {
     let Object3D::Mesh( mesh ) = &node.borrow().object
     else
     {
-      return None;
+      return Ok(CubeNormalData::default());
     };
 
-    let bb = node.borrow().bounding_box();
+    let inv_world = node.borrow().get_world_matrix().inverse().unwrap();
+
+    let mut bb = node.borrow().bounding_box();
+
+    bb.apply_transform_mut( inv_world );
     let c = bb.center();
-    let max_distance = ( bb.max - c ).mag().max( ( bb.min - c ).mag() );
+    let max_distance = ( ( bb.max - bb.min ) * 0.5 ).mag();
 
     let offset_matrix = gl::math::mat3x3h::translation( -c );
     let perspective_matrix = gl::math::mat3x3h::perspective_rh_gl
     (
       90.0f32.to_radians(),
       1.0,
-      0.01,
+      0.0001,
       max_distance * 16.0
     );
 
@@ -171,9 +182,9 @@ impl CubeNormalMapGenerator
     self.program.bind( gl );
 
     node.borrow().upload( gl, locations );
-    gl::uniform::matrix_upload( &gl, projection_matrix_location, &perspective_matrix.to_array(), true ).ok()?;
-    gl::uniform::matrix_upload( &gl, offset_matrix_location, &offset_matrix.to_array(), true ).ok()?;
-    gl::uniform::upload( &gl, max_distance_location, &max_distance ).ok()?;
+    gl::uniform::matrix_upload( &gl, projection_matrix_location, &perspective_matrix.to_array(), true )?;
+    gl::uniform::matrix_upload( &gl, offset_matrix_location, &offset_matrix.to_array(), true )?;
+    gl::uniform::upload( &gl, max_distance_location, &max_distance )?;
 
     let cube_texture = gen_cube_texture( &gl, self.texture_width as i32, self.texture_height as i32 );
 
@@ -184,7 +195,7 @@ impl CubeNormalMapGenerator
     for i in 0..6
     {
       let view_matrix = &self.cube_camera[ i ].to_array();
-      gl::uniform::matrix_upload( &gl, view_matrix_location.clone(), view_matrix, true ).ok()?;
+      gl::uniform::matrix_upload( &gl, view_matrix_location.clone(), view_matrix, true )?;
       gl.framebuffer_texture_2d
       (
         gl::FRAMEBUFFER,
@@ -199,7 +210,7 @@ impl CubeNormalMapGenerator
       {
         let primitive_ref = primitive.borrow();
         let geometry_ref = primitive_ref.geometry.borrow();
-        geometry_ref.upload( gl ).ok()?;
+        geometry_ref.upload( gl )?;
         geometry_ref.draw( gl );
         gl.bind_vertex_array( None );
       }
@@ -217,7 +228,7 @@ impl CubeNormalMapGenerator
 
     let texture = Texture::former()
     .target( GL::TEXTURE_CUBE_MAP )
-    .source( cube_texture? )
+    .source( cube_texture.unwrap() )
     .sampler( sampler )
     .end();
 
@@ -227,6 +238,13 @@ impl CubeNormalMapGenerator
       uv_position : 0,
     };
 
-    Some( texture_info )
+    Ok
+    (
+      CubeNormalData
+      {
+        texture :  Some( texture_info ),
+        max_distance : max_distance
+      }
+    )
   }
 }

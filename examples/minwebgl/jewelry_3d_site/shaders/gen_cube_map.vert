@@ -16,9 +16,9 @@ out vec3 vPosition;
 
 void main()
 {
-  vec4 worldPos = offsetMatrix * worldMatrix * vec4( position, 1.0 );
+  vec4 worldPos = offsetMatrix * vec4( position, 1.0 );
 
-  vNormal = normalize( normalMatrix * normal );
+  vNormal = normalize( normal );
   vPosition = worldPos.xyz;
   gl_Position = projectionMatrix * viewMatrix * worldPos;
 }
