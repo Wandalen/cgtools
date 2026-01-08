@@ -1,7 +1,7 @@
 mod private
 {
   use minwebgl as gl;
-  use crate::webgl::{ ShaderProgram, Texture, MaterialUploadContext };
+  use crate::webgl::{ ShaderProgram, Texture, Node };
   use std:: { cell::RefCell, fmt::Debug, rc::Rc };
   use rustc_hash::FxHasher;
 
@@ -84,6 +84,16 @@ mod private
     {
       self.texture.borrow().bind( gl );
     }
+  }
+
+  /// Used to get additional information for material upload
+  #[ derive( Debug, Clone ) ]
+  pub struct MaterialUploadContext<'a>
+  {
+    /// current processed [`Node`]
+    pub node : &'a Node,
+    /// id of current processed primitive of inner mesh
+    pub primitive_id : Option< usize >
   }
 
   /// A trait representin a generic material
@@ -257,6 +267,7 @@ crate::mod_interface!
   {
     AlphaMode,
     TextureInfo,
+    MaterialUploadContext,
     Material
   };
 }
