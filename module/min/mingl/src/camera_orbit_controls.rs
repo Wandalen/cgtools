@@ -30,11 +30,15 @@ mod private
     /// Determines how fast rotation is going to decrease after dragging is stopped.
     /// In range from 0.0 to 1.0
     pub movement_decay : f32,
-    /// The base longitude angle in degrees in range [0, 360], from which bound are calculated
+    /// The base longitude angle in degrees in range [0, 360], from which bound are calculated. Has no effect when `longitude_range` is `None`.
+    /// 0 degrees points in +X diraction and everything else is specified in counter-clockwise rotation around the Y axis:
+    /// 90 = -Z
+    /// 180 = -X
+    /// 270 = +Z
     pub base_longitude : f32,
     /// Specifies the radius in degrees around the base_longitude. Should be in range [0, 180]
     pub longitude_range : Option< f32 >,
-    /// The base latitude angle in degrees in range [-180, 180], from which the bounds are calculated
+    /// The base latitude angle in degrees in range [-180, 180], from which the bounds are calculated. Has no effect when `latitude_range` is `None`.
     pub base_latitude : f32,
     /// Specifies the radius in degrees around the base_latitude. Should be in range [0, 180]. The rotation will be clamped at poles
     pub latitude_range : Option< f32 >,
@@ -109,6 +113,14 @@ mod private
   ///
   /// This camera rotates around a central `center` point, can pan across the view plane,
   /// and zoom in and out. It's suitable for inspecting 3D models or scenes.
+  /// 
+  /// # Example: Constrain camera to hemisphere view
+  /// ```
+  /// camera.rotation.base_longitude = 0.0;
+  /// camera.rotation.longitude_range = Some( 90.0 ); +- 90 degrees
+  /// camera.zoom.min_distancce = Some( 2.0 );
+  /// camera.zoom.max_distance = Some( 10.0 );
+  /// ```
   pub struct CameraOrbitControls
   {
     /// The position of the camera in 3D space.
@@ -207,6 +219,7 @@ mod private
       if let Some( longitude_range ) = self.rotation.longitude_range
       {
         let angle_range = longitude_range.to_radians();
+        // Pivoting angle around which constaints are enforced
         let mut base_angle = self.rotation.base_longitude.to_radians();
         if base_angle > std::f32::consts::PI
         {
