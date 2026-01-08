@@ -13,12 +13,26 @@
 #![ allow( clippy::min_ident_chars ) ]
 
 use minwebgl as gl;
-use gl::{ JsCast as _, math::mat3x3h };
+use gl::{ JsCast as _, math::mat3x3h, GL };
 use web_sys::HtmlCanvasElement;
 use std::rc::Rc;
 use core::cell::RefCell;
-use renderer::webgl::{ Light, SpotLight, Node, loaders::gltf, Object3D, post_processing, shadow };
-use post_processing::{ Pass, SwapFramebuffer };
+use renderer::webgl::
+{
+  Light,
+  Node,
+  Object3D,
+  SpotLight,
+  Texture,
+  TextureInfo,
+  loaders::gltf,
+  post_processing,
+  shadow,
+  cast_unchecked_material_to_ref_mut,
+  material::PbrMaterial
+};
+use post_processing::{ Pass, SwapFramebuffer, ShadowToColorPass };
+use shadow::{ ShadowBaker, ShadowMap };
 
 fn main()
 {
@@ -47,11 +61,6 @@ async fn run() -> Result< (), gl::WebglError >
   canvas.set_width( width as u32 );
   canvas.set_height( height as u32 );
 
-  let ext_color_buffer_float = gl.get_extension( "EXT_color_buffer_float" );
-  let ext_float_linear = gl.get_extension( "OES_texture_float_linear" );
-  gl::info!( "{ext_color_buffer_float:?}" );
-  gl::info!( "{ext_float_linear:?}" );
-
   let mut camera = renderer::webgl::Camera::new
   (
     [ 0.0, 1.5, 5.0 ].into(),
@@ -72,9 +81,8 @@ async fn run() -> Result< (), gl::WebglError >
 
   let mesh = gltf::load( &document, "skull_salazar_downloadable.glb", &gl ).await?;
 
-  let cube_mesh = gltf::load( &document, "cube.glb", &gl ).await?;
-  let cube_model = mat3x3h::translation( [ 0.0, -1.0, 0.0 ] )
-    * mat3x3h::scale( [ 8.0, 0.25, 8.0 ] );
+  let cube_mesh = gltf::load( &document, "plane.glb", &gl ).await?;
+  let cube_model = mat3x3h::translation( [ 0.0, -1.0, 0.0 ] ) * mat3x3h::scale( [ 8.0, 1.0, 8.0 ] );
 
   let mut main_scene = renderer::webgl::Scene::new();
 
@@ -86,58 +94,98 @@ async fn run() -> Result< (), gl::WebglError >
       main_scene.add( node );
     }
   }
-  main_scene.update_world_matrix();
 
-  for scene in cube_mesh.scenes
-  {
-    let mut scene = scene.borrow_mut();
-    for node in core::mem::take( &mut scene.children )
-    {
-      node.borrow_mut().update_world_matrix( cube_model, true );
-      main_scene.add( node );
-    }
-  }
+  let floor_node = cube_mesh.scenes[ 0 ].borrow().children[ 0 ].clone();
+  main_scene.add( floor_node.clone() );
+  floor_node.borrow_mut().set_local_matrix( cube_model );
+  main_scene.update_world_matrix();
 
   let light_pos = gl::F32x3::from_array( [ 0.0, 3.0, 3.0 ] );
   let light_dir = gl::F32x3::from_array( [ 0.0, -1.0, -1.0 ] ).normalize();
 
   let mut node = Node::new();
-  node.object = Object3D::Light( Light::Spot( SpotLight {
-    position : light_pos,
-    direction : light_dir,
-    color : [ 1.0, 1.0, 1.0 ].into(),
-    strength : 300.0,
-    range : 100.0,
-    inner_cone_angle : 40.0_f32.to_radians(),
-    outer_cone_angle : 60.0_f32.to_radians(),
-    use_light_map : true
-  } ) );
+  node.object = Object3D::Light
+  (
+    Light::Spot
+    (
+      SpotLight
+      {
+        position : light_pos,
+        direction : light_dir,
+        color : [ 1.0, 1.0, 1.0 ].into(),
+        strength : 300.0,
+        range : 100.0,
+        inner_cone_angle : 40.0_f32.to_radians(),
+        outer_cone_angle : 60.0_f32.to_radians(),
+        use_light_map : true
+      }
+    )
+  );
   main_scene.add( Rc::new( RefCell::new( node ) ) );
 
-  _ = main_scene.traverse( &mut | node | {
-    let node = node.borrow();
-    if let Object3D::Mesh( mesh ) = &node.object
+  _ = main_scene.traverse
+  (
+    &mut | node |
     {
-      let mut mesh = mesh.borrow_mut();
-      mesh.is_shadow_caster = true;
-      mesh.is_shadow_receiver = true;
+      let node = node.borrow();
+      if let Object3D::Mesh( mesh ) = &node.object
+      {
+        let mut mesh = mesh.borrow_mut();
+        mesh.is_shadow_caster = true;
+      }
+      Ok( () )
     }
-    Ok( () )
-  } );
+  );
 
   let near = 0.1;
   let far = 30.0;
-  let mut light = shadow::Light::new
+  let light = shadow::Light::new
   (
     light_pos,
     light_dir,
-    mat3x3h::perspective_rh_gl( 120.0_f32.to_radians(), 1.0, near, far ),
+    mat3x3h::perspective_rh_gl( 60.0_f32.to_radians(), 1.0, near, far ),
     0.5
   );
 
-  let shadowmap_res = 4096;
-  let lightmap_res = 8192;
-  shadow::bake_shadows( &gl, &main_scene, &mut light, lightmap_res, shadowmap_res ).unwrap();
+  let shadowmap_res = 2048;
+  let lightmap_res = 2048;
+  let shadowmap = ShadowMap::new( &gl, shadowmap_res )?;
+  shadowmap.render( &main_scene, light )?;
+  let shadow_texture = create_texture( &gl, lightmap_res, gl::R8 );
+  let shadow_baker = ShadowBaker::new( &gl )?;
+  shadow_baker.render_soft_shadow( &floor_node.borrow(), shadow_texture.as_ref(), lightmap_res, lightmap_res, &shadowmap, light )?;
+
+  // Convert shadow texture to colored base color texture
+  let base_color = [ 0.8, 0.8, 0.8 ];
+  let shadow_to_color_pass = ShadowToColorPass::new( &gl, base_color )?;
+  let colored_texture = create_texture( &gl, lightmap_res, gl::RGB8 );
+
+  // Create a framebuffer for rendering
+  let framebuffer = gl.create_framebuffer();
+  gl.bind_framebuffer( gl::FRAMEBUFFER, framebuffer.as_ref() );
+
+  // Apply the shadow-to-color conversion
+  shadow_to_color_pass.render( &gl, shadow_texture.clone(), colored_texture.clone() )?;
+
+  // Unbind framebuffer
+  gl.bind_framebuffer( gl::FRAMEBUFFER, None );
+
+  if let Object3D::Mesh( mesh ) = &floor_node.borrow().object
+  {
+    let mut texture = Texture::new();
+    texture.source = colored_texture;
+    let texture_info = TextureInfo
+    {
+      texture : Rc::new( RefCell::new( texture ) ),
+      uv_position : 0,
+    };
+    let mesh_borrow = mesh.borrow_mut();
+    let primitive = &mesh_borrow.primitives[ 0 ];
+    let primitive_borrow = primitive.borrow_mut();
+    let material_ref = primitive_borrow.material.borrow_mut();
+    let mut pbr_material = cast_unchecked_material_to_ref_mut::< PbrMaterial >( material_ref );
+    pbr_material.base_color_texture = Some( texture_info );
+  }
 
   let update = move | _ |
   {
@@ -162,4 +210,15 @@ async fn run() -> Result< (), gl::WebglError >
   gl::exec_loop::run( update );
 
   Ok( () )
+}
+
+fn create_texture( gl : &GL, res : u32, format : u32 ) -> Option< web_sys::WebGlTexture >
+{
+  let ret = gl.create_texture();
+  gl.bind_texture( gl::TEXTURE_2D, ret.as_ref() );
+  gl.tex_storage_2d( gl::TEXTURE_2D, 1, format, res as i32, res as i32 );
+  gl::texture::d2::filter_linear( gl );
+  gl::texture::d2::wrap_clamp( &gl );
+
+  ret
 }
