@@ -2,7 +2,7 @@ mod private
 {
   use minwebgl as gl;
   use crate::webgl::{ Node, ShaderProgram, Texture };
-  use std:: { cell::RefCell, fmt::Debug, rc::Rc };
+  use std::{ cell::RefCell, fmt::Debug, rc::Rc };
   use rustc_hash::FxHasher;
 
   /// Represents the alpha blending mode of the material.
@@ -15,43 +15,57 @@ mod private
     /// The material uses a mask based on an alpha cutoff value.
     Mask,
     /// The material uses standard alpha blending.
-    Blend
+    Blend,
   }
 
   /// Represents the cull mode for the material
   #[ derive( Default, Clone, Copy, PartialEq, Eq, Debug ) ]
+  #[ repr( u32 ) ]
   pub enum CullMode
   {
     /// Cull front face
-    Front,
+    Front = gl::FRONT,
     /// Cull back face
     #[ default ]
-    Back,
+    Back = gl::BACK,
     /// Cull back and front face
-    FrontAndBack
+    FrontAndBack = gl::FRONT_AND_BACK
+  }
+
+  /// Defines order in which faces will be treated as front faces
+  #[ derive( Default, Clone, Copy, PartialEq, Eq, Debug ) ]
+  #[ repr( u32 ) ]
+  pub enum FrontFace
+  {
+    /// Clockwise face order
+    Cw = gl::CW,
+    /// Counter clockwise face order
+    #[ default ]
+    Ccw = gl::CCW,
   }
 
   /// Represents the depth function
   #[ derive( Default, Clone, Copy, PartialEq, Eq, Debug ) ]
+  #[ repr( u32 ) ]
   pub enum DepthFunc
   {
     /// Never pass
-    Never,
+    Never = gl::NEVER,
     /// Pass if the incoming value is less than the depth buffer value
     #[ default ]
-    Less,
+    Less = gl::LESS,
     /// Pass if the incoming value equals the depth buffer value
-    Equal,
+    Equal = gl::EQUAL,
     /// Pass if the incoming value is less than or equal to the depth buffer value
-    LEqual,
+    LEqual = gl::LEQUAL,
     /// Pass if the incoming value is greater than the depth buffer value
-    Greater,
+    Greater = gl::GREATER,
     /// Pass if the incoming value is not equal to the depth buffer value
-    NotEqual,
+    NotEqual = gl::NOTEQUAL,
     /// Pass if the incoming value is greater than or equal to the depth buffer value
-    GEqual,
+    GEqual = gl::GEQUAL,
     /// Always pass
-    Always
+    Always = gl::ALWAYS
   }
 
   /// Stores information about a texture used by the material, including the texture itself and its UV coordinates.
@@ -114,7 +128,7 @@ mod private
     fn shader_mut( &mut self ) -> &mut dyn ShaderProgram;
 
     /// Returns the material type identifier (e.g., "PBR", "Unlit", "Custom").
-    fn type_name(&self) -> &'static str;
+    fn type_name( &self ) -> &'static str;
 
     /// Returns the vertex shader of the material
     fn get_vertex_shader( &self ) -> String;
@@ -194,18 +208,26 @@ mod private
     }
 
     /// Returns the face culling mode.
-    fn get_cull_mode( &self ) -> CullMode
+    fn get_cull_mode( &self ) -> Option< CullMode >
     {
-      CullMode::default()
+      None
+    }
+
+    /// Returns the front face order
+    fn get_front_face( &self ) -> FrontFace
+    {
+      FrontFace::default()
     }
 
     /// Returns whether depth testing is enabled.
-    fn is_depth_test_enabled(&self) -> bool {
+    fn is_depth_test_enabled( &self ) -> bool
+    {
       true
     }
 
     /// Returns whether depth writing is enabled.
-    fn is_depth_write_enabled(&self) -> bool {
+    fn is_depth_write_enabled( &self ) -> bool
+    {
       true
     }
 
@@ -216,7 +238,7 @@ mod private
     }
 
     /// Returns the color write mask (R, G, B, A).
-    fn get_color_write_mask(&self) -> ( bool, bool, bool, bool )
+    fn get_color_write_mask( &self ) -> ( bool, bool, bool, bool )
     {
       ( true, true, true, true )
     }
@@ -231,6 +253,7 @@ mod private
 
 }
 
+// visibility
 
 crate::mod_interface!
 {
@@ -240,6 +263,9 @@ crate::mod_interface!
   orphan use
   {
     AlphaMode,
+    CullMode,
+    DepthFunc,
+    FrontFace,
     TextureInfo,
     Material
   };
