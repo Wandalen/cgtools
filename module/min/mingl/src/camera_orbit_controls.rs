@@ -115,7 +115,7 @@ mod private
   /// and zoom in and out. It's suitable for inspecting 3D models or scenes.
   /// 
   /// # Example: Constrain camera to hemisphere view
-  /// ```
+  /// ```rust,ignore
   /// camera.rotation.base_longitude = 0.0;
   /// camera.rotation.longitude_range = Some( 90.0 ); +- 90 degrees
   /// camera.zoom.min_distancce = Some( 2.0 );
@@ -359,7 +359,6 @@ mod private
       // We need the center to be at the origin before we can apply zoom
       let mut eye_new = self.eye - self.center;
       eye_new /= k;
-      eye_new += self.center;
 
       let length = eye_new.mag();
 
@@ -379,6 +378,7 @@ mod private
         }
       }
 
+      eye_new += self.center;
 
       self.eye = eye_new;
     }
