@@ -36,6 +36,8 @@ use crate::
 
 /// Duration of color transition animation in milliseconds (MS)
 const TRANSITION_DURATION_MS : f64 = 1000.0;
+// const CLEAR_COLOR : F32x3 = F32x3::splat( 0.854 );
+const CLEAR_COLOR : F32x3 = F32x3::splat( 2.0 );
 
 pub struct Configurator
 {
@@ -325,12 +327,12 @@ impl Configurator
     else
     {
       renderer_mut.set_skybox( None );
-      renderer_mut.set_clear_color( F32x3::splat( 0.854 ) );
+      renderer_mut.set_clear_color( CLEAR_COLOR );
     }
 
     renderer_mut.set_use_emission( true );
     renderer_mut.set_bloom_strength( 2.0 );
-    renderer_mut.set_exposure( -1.0 );
+    renderer_mut.set_exposure( -0.5 );
     renderer_mut.set_bloom_radius( 0.1 );
   }
 }
@@ -624,7 +626,7 @@ fn bake_plane_shadow
     };
 
     let mut surface_material = SurfaceMaterial::new( &gl );
-    surface_material.color = F32x3::splat( 0.854 );
+    surface_material.color = CLEAR_COLOR;
     surface_material.texture = Some( texture_info.clone() );
     surface_material.needs_update = false;
     let surface_material_boxed : Rc< RefCell< Box< dyn Material > > > = Rc::new( RefCell::new( Box::new( surface_material ) ) );

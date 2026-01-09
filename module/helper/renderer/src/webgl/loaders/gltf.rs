@@ -261,7 +261,7 @@ mod private
   {
     let path = std::path::Path::new( gltf_path );
     let folder_path = path.parent().map_or( "", | p | p.to_str().expect( "Path is not UTF-8 encoded" ) );
-    gl::info!( "Folder: {}\nFile: {}", folder_path, gltf_path );
+    gl::debug!( "Folder: {}\nFile: {}", folder_path, gltf_path );
 
     // let gltf_slice= gl::file::load( &format!( "{}/scene.gltf", gltf_path ) )
     // .await.expect( "Failed to load gltf file" );
@@ -274,7 +274,7 @@ mod private
     if let Some( blob ) = gltf_file.blob.as_mut()
     {
       let blob = std::mem::take( blob );
-      gl::log::info!( "The gltf binary payload is present: {}", blob.len() );
+      gl::debug!( "The gltf binary payload is present: {}", blob.len() );
       buffers.push( blob.as_slice().into() );
     }
 
@@ -288,7 +288,7 @@ mod private
           let buffer = gl::file::load( &path ).await
           .expect( "Failed to load a buffer" );
 
-          gl::log::info!
+          gl::debug!
           (
             "Buffer path: {}\n
             \tBuffer length: {}",
@@ -306,7 +306,7 @@ mod private
     .map( | b | b.to_vec() )
     .collect::< Vec< _ > >();
 
-    gl::info!( "Bufffers: {}", buffers.len() );
+    gl::debug!( "Bufffers: {}", buffers.len() );
 
     // Upload images
     let images = Rc::new( RefCell::new( Vec::new() ) );
@@ -343,12 +343,7 @@ mod private
 
             gl.generate_mipmap( gl::TEXTURE_2D );
 
-            //match
             gl::web_sys::Url::revoke_object_url( &src ).unwrap();
-            // {
-            //   Ok( _ ) => { gl::info!( "Remove object url: {}", &src ) },
-            //   Err( _ ) => { gl::info!( "Not an object url: {}", &src ) }
-            // }
 
             img.remove();
           }
@@ -391,7 +386,7 @@ mod private
       }
     }
 
-    gl::info!( "Images: {}", images.borrow().len() );
+    gl::debug!( "Images: {}", images.borrow().len() );
 
     // Upload buffer to the GPU
     let mut gl_buffers = Vec::new();
@@ -427,7 +422,7 @@ mod private
       gl_buffers.push( buffer );
     }
 
-    gl::info!( "GL Buffers: {}", gl_buffers.len() );
+    gl::debug!( "GL Buffers: {}", gl_buffers.len() );
 
     // Create textures
     let mut textures = Vec::new();
@@ -532,7 +527,7 @@ mod private
 
     materials.push( Rc::new( RefCell::new( Box::new( PbrMaterial::new( &gl ) ) ) ) );
 
-    gl::log::info!( "PbrMaterials: {}",materials.len() );
+    gl::debug!( "PbrMaterials: {}",materials.len() );
     let make_attibute_info = | acc : &gltf::Accessor< '_ >, slot |
     {
       let data_type = match acc.data_type()
@@ -597,7 +592,7 @@ mod private
         {
           if acc.sparse().is_some()
           {
-            gl::log::info!( "Sparce accessors are not supported yet" );
+            gl::debug!( "Sparce accessors are not supported yet" );
             continue;
           }
 
@@ -713,7 +708,7 @@ mod private
       meshes.push( Rc::new( RefCell::new( mesh ) ) );
     }
 
-    gl::log::info!( "Meshes: {}",meshes.len() );
+    gl::debug!( "Meshes: {}",meshes.len() );
 
     let gltf_lights = get_light_list( &gltf_file ).unwrap_or_default();
 
@@ -773,7 +768,7 @@ mod private
       }
     }
 
-    gl::log::info!( "Nodes: {}", nodes.len() );
+    gl::debug!( "Nodes: {}", nodes.len() );
 
     let nodes_map = nodes.iter()
     .filter_map
@@ -818,7 +813,7 @@ mod private
     let animations = crate::webgl::animation::loader::load( &gltf_file, bin_buffers.as_slice(), nodes.as_slice() ).await;
 
     #[ cfg( feature = "animation" ) ]
-    gl::log::info!( "Animations: {}", animations.len() );
+    gl::debug!( "Animations: {}", animations.len() );
 
     let mut scenes = Vec::new();
 

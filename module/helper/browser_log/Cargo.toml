@@ -39,7 +39,7 @@ wasm-bindgen = { workspace = true, optional = true }
 web-sys = { workspace = true, optional = true, features = [
   'console',
 ]}
-log = { workspace = true, optional = true, features = [ "std" ] }
+log = { workspace = true, optional = true, features = [ "std", "release_max_level_info" ] }
 mod_interface = { workspace = true, optional = true }
 
 [dev-dependencies]
