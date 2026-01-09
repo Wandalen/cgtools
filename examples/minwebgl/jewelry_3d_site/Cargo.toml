@@ -15,7 +15,7 @@ workspace = true
 [dependencies]
 
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
-mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
+mingl = { workspace = true, features = [ "web", "camera_orbit_controls" ] }
 gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
 renderer = { workspace = true }
 zune-hdr = { workspace = true }

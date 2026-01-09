@@ -57,7 +57,7 @@ mod private
       controls.up = up;
       controls.center = look_at;
       controls.fov = fov;
-      controls.rotation_speed_scale = 200.0;
+      controls.rotation.speed = 200.0;
 
       let controls = Rc::new( RefCell::new( controls ) );
 
