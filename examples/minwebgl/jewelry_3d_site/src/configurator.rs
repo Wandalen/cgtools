@@ -143,7 +143,7 @@ impl Configurator
     (
       renderer::webgl::DirectLight
       {
-        direction : to_decart( 1.0, 30.0, 65.0 ),
+        direction : F32x3::from_spherical( 1.0, 30.0, 65.0 ),
         color : F32x3::splat( 1.0 ),
         strength : 40000.0
       }
@@ -654,9 +654,9 @@ fn setup_camera( canvas : &web_sys::HtmlCanvasElement ) -> Camera
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
 
-  let eye = crate::helpers::to_decart( 6.0, 135.0, 65.0 );
+  let eye = gl::math::F32x3::from( [ 0.6373576, 1.1441559, -0.9127405 ] );
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
-  let center = gl::math::F32x3::from( [ 0.0, 0.6, 0.0 ] );
+  let center = gl::math::F32x3::from( [ 0.55595696, 0.55741394, -1.0331136 ] );
 
   let aspect_ratio = width / height;
   let fov = 40.0f32.to_radians();

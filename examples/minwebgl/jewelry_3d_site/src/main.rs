@@ -39,7 +39,6 @@
 #![ allow( clippy::if_not_else ) ]
 
 use std::{ cell::RefCell, rc::Rc };
-use mingl::Quat;
 use minwebgl as gl;
 use gl::
 {
@@ -81,7 +80,7 @@ fn handle_camera_position( configurator : &Configurator )
 
   let current_scene = &configurator.rings.rings[ configurator.rings.current_ring ];
   let plane = current_scene.borrow().get_node( "Plane" ).unwrap();
-  if camera_controls.borrow().eye.y() <= plane.borrow().get_translation().y() + 0.1
+  if camera_controls.borrow().eye.y() <= plane.borrow().get_translation().y() + 0.1 || configurator.ui_state.state == "hero"
   {
     plane.borrow_mut().set_visibility( false, false );
   }
@@ -128,7 +127,7 @@ fn handle_ui_change( configurator : &mut Configurator )
   {
     if let Some( ui_state ) = ui::get_ui_state()
     {
-      gl::info!( "{:?}", ui_state );
+      // gl::info!( "{:?}", ui_state );
 
       configurator.ui_state = ui_state.clone();
       let ring_changed = ui_state.changed.contains( &"ring".to_string() );
@@ -148,32 +147,18 @@ fn handle_ui_change( configurator : &mut Configurator )
         configurator.update_metal_color();
       }
 
-      if ui_state.state == "hero"
-      {
-        if ui_state.changed.contains( &"position".to_string() ) ||
-        ui_state.changed.contains( &"center".to_string() ) ||
-        ui_state.changed.contains( &"rotation".to_string() )
-        {
-          let controls = configurator.camera.get_controls();
-          controls.borrow_mut().center = F32x3::from_array( ui_state.center );
-          controls.borrow_mut().eye = F32x3::from_array( ui_state.eye );
-          let ring_scene = configurator.rings.rings[ configurator.rings.current_ring ].borrow();
-          if let Some( ring ) = ring_scene.children.first()
-          {
-            ring.borrow_mut().set_rotation( Quat::from_euler_xyz( ui_state.rotation ) );
-          }
-        }
-      }
-      else if ui_state.changed.contains( &"state".to_string() ) && ui_state.state == "configurator"
+      if ui_state.changed.contains( &"position".to_string() ) ||
+      ui_state.changed.contains( &"center".to_string() ) // ||
       {
         let controls = configurator.camera.get_controls();
-        controls.borrow_mut().center = F32x3::from( [ 0.0, 0.6, 0.0 ] );
-        controls.borrow_mut().eye = crate::helpers::to_decart( 6.0, 135.0, 65.0 );
-        let ring_scene = configurator.rings.rings[ configurator.rings.current_ring ].borrow();
-        if let Some( ring ) = ring_scene.children.first()
-        {
-          ring.borrow_mut().set_rotation( Quat::from_euler_xyz( [ 0.0; 3 ] ) );
-        }
+        controls.borrow_mut().up = F32x3::from_array( [ 0.0, 1.0, 0.0 ] );
+        controls.borrow_mut().center = F32x3::from_array( ui_state.center );
+        controls.borrow_mut().eye = F32x3::from_array( ui_state.eye );
+        // let ring_scene = configurator.rings.rings[ configurator.rings.current_ring ].borrow();
+        // if let Some( ring ) = ring_scene.children.first()
+        // {
+        //   ring.borrow_mut().set_rotation( Quat::from_euler_xyz( ui_state.rotation ) );
+        // }
       }
 
       ui::clear_changed();

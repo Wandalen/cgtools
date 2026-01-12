@@ -29,6 +29,7 @@ const ringsMenu = document.querySelector( '.rings--menu' )
 // };
 
 let firstLoad = true;
+let skipScrollAnimation = true;
 // let nightMode = false;
 
 // let innerLightColor = NIGHT_MODE_COLORS.innerLightColor;
@@ -43,8 +44,8 @@ export let uiState =
   metal : "silver",
   ring : 0,
   state : "hero",
-  position : [ 0.0, 0.0, 0.0 ],
-  target : [ 0.0, 0.0, 0.0 ],
+  position : [ 0.6373576, 1.1441559, -0.9127405 ],
+  target : [ 0.55595696, 0.55741394, -1.0331136 ],
   rotation : [ 0.0, 0.0, 0.0 ],
   gemCustomColor : [ 1.0, 1.0, 1.0 ],
   gemMultiplier : 1.0,
@@ -202,24 +203,36 @@ function introAnimation()
   firstLoad = false
 
   gsap.timeline()
+  .fromTo( uiState.position, { 0 : 0.6373576, 1 : 1.1441559, 2 : -0.9127405 }, { 0 : 0.6858612, 1 : 2.7440538, 2 : -0.026622068, duration : 4, onUpdate: () => { console.log("intro"); !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) } }, '-=0.8')
+  .fromTo( uiState.target, { 0 : 0.55595696, 1 : 0.55741394, 2 : -1.0331136 }, { 0 : 0.36420232, 1 : 0.8480059, 2 : -0.36873266, duration : 4, onUpdate: () => { console.log("intro"); !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) } }, '-=4' )
   .fromTo( '.header--container', { opacity : 0, y : '-100%' }, {opacity : 1, y : '0%', ease : "power1.inOut", duration : 0.8 }) // , '-=1'
   // .fromTo( '.hero--image', { opacity : 0, x : '-200%' }, {opacity : 1, x : '-72%', ease : "power1.inOut", duration : 1.8 }, '-=0.5' ) // , '-=1'
   .fromTo( '.hero--scroller', { opacity : 0, y : '150%' }, { opacity : 1, y : '0%', ease : "power4.inOut", duration : 1 }, '-=1' )
   .fromTo( '.hero--container', { opacity : 0, x : '100%' }, { opacity : 1, x : '0%', ease : "power4.inOut", duration : 1.8, onComplete : setupScrollAnimation }, '-=1' )
   .fromTo( '.side-bar', { opacity : 0.0, x : '50%' }, { opacity : 1, x : '0%', ease : "power4.inOut", duration : 2 }, '-=1' )
   .to( '.side-bar .unique', { opacity : 1, scale : 1.5, ease : "power4.inOut", duration : 2 }, '-=1' )
-  .fromTo( uiState.position, { 0 : 3, 1 : -0.8, 2 : 1.2 }, { 0 : 1.28, 1 : -1.7, 2 : 5.86, duration : 4, onUpdate: () => { !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) } }, '-=0.8')
-  .fromTo( uiState.target, { 0 : 2.5, 1 : -0.07, 2 : -0.1 }, { 0 : 0.91, 1 : 0.03, 2 : -0.25, duration : 4, onUpdate: () => { !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) } }, '-=4' )
+}
+
+function enableScrollAnimationOnUserScroll()
+{
+  const onScroll = () =>
+  {
+    skipScrollAnimation = false;
+    window.removeEventListener( "scroll", onScroll );
+  };
+
+  window.addEventListener( "scroll", onScroll, { passive : true } );
 }
 
 function setupScrollAnimation()
 {
+  enableScrollAnimationOnUserScroll();
   document.body.style.overflowY = "scroll"
 
-  const tl = gsap.timeline( { default : { ease: 'none' } } )
+  const scrollAnimation = gsap.timeline( { default : { ease: 'none' } } )
 
   // BRILLIANT
-  tl
+  scrollAnimation
   .to
   (
     '.hero--scroller',
@@ -249,39 +262,37 @@ function setupScrollAnimation()
     { opacity : 0, x : '-110%' },
     { opacity : 1, x : '0%', ease : "power4.inOut", scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : 'top top', scrub : true, immediateRender : false } }
   )
-  .to
+  .fromTo
   (
     uiState.position,
+    { 0 : 0.6858612, 1 : 2.7440538, 2 : -0.026622068 },
     {
-      0 : -1.83,
-      1 : -0.14,
-      2 : 6.15,
+      0 : -0.40259048, 1 : 2.6242757, 2 : -0.18104002,
       scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : "top top", scrub : true, immediateRender : false },
-      onUpdate: () => { !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) }
+      onUpdate: () => { !skipScrollAnimation && console.log("brilliant"); !skipScrollAnimation && !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) }
     }
   )
-  .to
+  .fromTo
   (
     uiState.target,
+    { 0 : 0.36420232, 1 : 0.8480059, 2 : -0.36873266 },
     {
-      0 : -0.78,
-      1 : 1.5,
-      2 : -0.12,
+      0 : -0.23794234, 1 : 0.49070162, 2 : -0.32702705,
       scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : "top top", scrub : true, immediateRender : false },
-      onUpdate: () => { !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) }
+      onUpdate: () => { !skipScrollAnimation && console.log("brilliant"); !skipScrollAnimation && !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) }
     }
   )
-  .to
-  (
-    uiState.rotation,
-    {
-      0 : - Math.PI / 3,
-      1 : -0.92 ,
-      2 : Math.PI / 2,
-      scrollTrigger: { trigger : ".cam-view-2", start : "top bottom", end : "top top", scrub : true, immediateRender : false },
-      onUpdate: () => { !uiState.changed.includes( "rotation" ) && uiState.changed.push( "rotation" ) }
-    }
-  )
+  // .to
+  // (
+  //   uiState.rotation,
+  //   {
+  //     0 : - Math.PI / 3,
+  //     1 : -0.92 ,
+  //     2 : Math.PI / 2,
+  //     scrollTrigger: { trigger : ".cam-view-2", start : "top bottom", end : "top top", scrub : true, immediateRender : false },
+  //     onUpdate: () => { !uiState.changed.includes( "rotation" ) && uiState.changed.push( "rotation" ) }
+  //   }
+  // )
   .addLabel( "Brilliant" )
   .to( '.side-bar .unique', { opacity : 1, scale : 1.5, ease : "power4.inOut", duration : 2, scrollTrigger : { trigger : ".cam-view-1", start : "top bottom", end : 'top top', scrub : true, immediateRender : false } } )
   .to( '.side-bar .unique', { opacity : 0.5, scale : 1, ease : "power4.inOut", duration : 2, scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : 'top top', scrub : true, immediateRender : false } } )
@@ -321,39 +332,37 @@ function setupScrollAnimation()
       scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : "top top", scrub : true, immediateRender : false }
     }
   )
-  .to
+  .fromTo
   (
     uiState.position,
+    { 0 : -0.40259048, 1 : 2.6242757, 2 : -0.18104002 },
     {
-      0 : -0.06,
-      1 : -1.15,
-      2 : 4.42,
+      0 : -0.39456308, 1 : 2.431139, 2 : 0.23367776,
       scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : "top top", scrub : true, immediateRender : false },
-      onUpdate: () => { !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) }
+      onUpdate: () => { !skipScrollAnimation && console.log("choose"); !skipScrollAnimation && !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) }
     }
   )
-  .to
+  .fromTo
   (
     uiState.target,
+    { 0 : -0.23794234, 1 : 0.49070162, 2 : -0.32702705 },
     {
-      0 : -0.01,
-      1 : 0.9,
-      2 : 0.07,
+      0 : 0.2921338, 1 : 0.9732934, 2 : -0.18001612,
       scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : "top top", scrub : true, immediateRender : false },
-      onUpdate: () => { !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) }
+      onUpdate: () => { !skipScrollAnimation && console.log("choose"); !skipScrollAnimation && !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) }
     }
   )
-  .to
-  (
-    uiState.rotation,
-    {
-      0 : - Math.PI / 3,
-      1 : - 0.92 ,
-      2 : Math.PI / 2,
-      scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : "top top", scrub : true, immediateRender : false },
-      onUpdate: () => { !uiState.changed.includes( "rotation" ) && uiState.changed.push( "rotation" ) }
-    }
-  )
+  // .to
+  // (
+  //   uiState.rotation,
+  //   {
+  //     0 : - Math.PI / 3,
+  //     1 : - 0.92,
+  //     2 : Math.PI / 2,
+  //     scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : "top top", scrub : true, immediateRender : false },
+  //     onUpdate: () => { !uiState.changed.includes( "rotation" ) && uiState.changed.push( "rotation" ) }
+  //   }
+  // )
   .addLabel( "Choose" )
   .to
   (
@@ -415,13 +424,31 @@ function configAnimation()
   // nightMode = toggleNightMode( !nightMode )
 
   gsap.timeline()
-  .to( '.choose--content', { opacity : 0, x : '200%', duration : 1.5, ease : "power4.out", onComplete : onCompleteConfigAnimation } ) // , '-=2.5'
+  .fromTo
+  (
+    uiState.position,
+    { 0 : -0.39456308, 1 : 2.431139, 2 : 0.23367776 },
+    {
+      0 : -1.2621417, 1 : 4.005461, 2 : 1.2621417,
+      duration : 2.5,
+      onUpdate: () => { console.log("config"); !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) }
+    }
+  )
+  .fromTo
+  (
+    uiState.target,
+    { 0 : 0.2921338, 1 : 0.9732934, 2 : -0.18001612 },
+    {
+      0 : 0, 1 : 0.6, 2 : 0, duration : 2.5,
+      onUpdate: () => { console.log("config"); !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) }
+    },
+    '-=2.5'
+  )
+  //.to( uiState.rotation, { 0 : -Math.PI / 2, 1 : 0, 2 : -Math.PI / 2, duration : 2.5, onUpdate: () => { !uiState.changed.includes( "rotation" ) && uiState.changed.push( "rotation" ) } }, '-=2.5' )
+  .to( '.choose--content', { opacity : 0, x : '200%', duration : 1.5, ease : "power4.out", onComplete : onCompleteConfigAnimation }, '-=2.5' )
   .to( '.choose--text-bg', { opacity : 0, x : '200%', duration : 1.5, ease : "power4.out" }, '-=2.5' )
   // .to( '.choose--image', { opacity : 0, y : '100%', duration : 1.5, ease : "power4.out" }, '-=1.5' )
   .fromTo( '.footer--menu', { opacity : 0, y : '150%' }, { opacity : 1, y : '0%', duration : 1.5 } )
-  .to( uiState.position, { 0 : -0.17, 1 : -0.25, 2 : 8.5, duration : 2.5, onUpdate: () => { !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) } } )
-  .to( uiState.target, { 0 : 0, 1 : 0, 2 : 0, duration : 2.5, onUpdate: () => { !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) } }, '-=2.5' )
-  .to( uiState.rotation, { 0 : -Math.PI / 2, 1 : 0, 2 : -Math.PI / 2, duration : 2.5, onUpdate: () => { !uiState.changed.includes( "rotation" ) && uiState.changed.push( "rotation" ) } }, '-=2.5' )
 }
 
 // EXIT EVENT
@@ -438,12 +465,14 @@ function exitConfigAnimation()
   // nightMode = toggleNightMode( !nightMode )
 
   gsap.timeline()
+  .to( uiState.position, { 0 : 0.6858612, 1 : 2.7440538, 2 : -0.026622068, duration : 1.2, ease : "power4.out", onUpdate: () => { console.log("exitConfig"); !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) } } )
+  .to( uiState.target, { 0 : 0.36420232, 1 : 0.8480059, 2 : -0.36873266, duration : 1.2, ease : "power4.out", onUpdate: () => { console.log("exitConfig"); !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) } }, '-=1.2' )
+  //.to( uiState.rotation, { 0 : 0.92, 1 : 0.92, 2 : Math.PI / 3, onUpdate: () => { !uiState.changed.includes( "rotation" ) && uiState.changed.push( "rotation" ) } }, '-=1.2' )
   .to( '.footer--menu', { opacity : 0, y : '150%' } ) // , '-=1.2'
   .to( '.choose--content', { opacity : 1, x : '0%', duration : 0.5, ease : "power4.out" }, '-=1.2' )
   // .fromTo( '.choose--image', { opacity : 0, y : '100%'}, { opacity : 1, y : '50%', duration : 0.5, ease : "power4.inOut" }, '-=1.2' )
-  .to( uiState.position, { 0 : -0.06, 1 : -1.15, 2 : 4.42, duration : 1.2, ease : "power4.out", onUpdate: () => { !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) } } )
-  .to( uiState.target, { 0 : -0.01, 1 : 0.9, 2 : 0.07, duration : 1.2, ease : "power4.out", onUpdate: () => { !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) } }, '-=1.2' )
-  .to( uiState.rotation, { 0 : 0.92, 1 : 0.92, 2 : Math.PI / 3, onUpdate: () => { !uiState.changed.includes( "rotation" ) && uiState.changed.push( "rotation" ) } }, '-=1.2' )
+
+  skipScrollAnimation = false
 }
 
 // // NIGHT MODE
@@ -531,6 +560,10 @@ document.querySelector( '.btn-customize' )?.addEventListener
     // outerLightColor = "#DDDDDD";
     // outerDarkColor = "#000000";
 
+    skipScrollAnimation = true
+
+    uiState.state = "configurator";
+    uiState.changed.push( "state" );
     exploreView.style.pointerEvents = "none"
     document.body.style.overflowY = "hidden"
     document.body.style.cursor = "grab"
@@ -620,7 +653,7 @@ async function setupMainPage()
     }
   )
 
-  window.scrollTo(0,0)
+  window.scrollTo( 0, 0 )
 
   // outerLightColor = innerLightColor
   // outerDarkColor = innerDarkColor
@@ -728,8 +761,8 @@ document.querySelector( '.red' )?.addEventListener
   'click',
   () =>
   {
-    document.querySelector( '.colors--list li.active')?.classList.remove('active')
-    document.querySelector( '.red')?.classList.add('active')
+    document.querySelector( '.colors--list li.active' )?.classList.remove( 'active' )
+    document.querySelector( '.red' )?.classList.add( 'active' )
   }
 )
 
@@ -738,8 +771,8 @@ document.querySelector( '.green' )?.addEventListener
   'click',
   () =>
   {
-    document.querySelector( '.colors--list li.active')?.classList.remove('active')
-    document.querySelector( '.green')?.classList.add('active')
+    document.querySelector( '.colors--list li.active' )?.classList.remove( 'active' )
+    document.querySelector( '.green' )?.classList.add( 'active')
   }
 )
 
@@ -748,8 +781,8 @@ document.querySelector( '.turquoise' )?.addEventListener
   'click',
   () =>
   {
-    document.querySelector( '.colors--list li.active')?.classList.remove('active')
-    document.querySelector( '.turquoise')?.classList.add('active')
+    document.querySelector( '.colors--list li.active' )?.classList.remove( 'active' )
+    document.querySelector( '.turquoise' )?.classList.add( 'active' )
   }
 )
 
@@ -758,8 +791,8 @@ document.querySelector( '.yellow' )?.addEventListener
   'click',
   () =>
   {
-    document.querySelector( '.colors--list li.active')?.classList.remove('active')
-    document.querySelector( '.yellow')?.classList.add('active')
+    document.querySelector( '.colors--list li.active' )?.classList.remove( 'active' )
+    document.querySelector( '.yellow' )?.classList.add( 'active' )
   }
 )
 
@@ -768,8 +801,8 @@ document.querySelector( '.blue' )?.addEventListener
   'click',
   () =>
   {
-    document.querySelector( '.colors--list li.active')?.classList.remove('active')
-    document.querySelector( '.blue')?.classList.add('active')
+    document.querySelector( '.colors--list li.active' )?.classList.remove( 'active' )
+    document.querySelector( '.blue' )?.classList.add( 'active' )
   }
 )
 
@@ -778,8 +811,8 @@ document.querySelector( '.orange' )?.addEventListener
   'click',
   () =>
   {
-    document.querySelector( '.colors--list li.active')?.classList.remove('active')
-    document.querySelector( '.orange')?.classList.add('active')
+    document.querySelector( '.colors--list li.active' )?.classList.remove( 'active' )
+    document.querySelector( '.orange' )?.classList.add( 'active' )
   }
 )
 
@@ -788,8 +821,8 @@ document.querySelector( '.pink' )?.addEventListener
   'click',
   () =>
   {
-    document.querySelector( '.colors--list li.active')?.classList.remove('active')
-    document.querySelector( '.pink')?.classList.add('active')
+    document.querySelector( '.colors--list li.active' )?.classList.remove( 'active' )
+    document.querySelector( '.pink' )?.classList.add( 'active' )
   }
 )
 
@@ -798,8 +831,8 @@ document.querySelector( '.white' )?.addEventListener
   'click',
   () =>
   {
-    document.querySelector( '.colors--list li.active')?.classList.remove('active')
-    document.querySelector( '.white')?.classList.add('active')
+    document.querySelector( '.colors--list li.active' )?.classList.remove( 'active' )
+    document.querySelector( '.white' )?.classList.add( 'active' )
   }
 )
 

@@ -1103,6 +1103,7 @@ table { border-collapse: collapse; border-spacing: 0; }
   background: linear-gradient(to right, #ddd 0%, #888 100%);
   outline: none;
   -webkit-appearance: none;
+  appearance: none;
   cursor: pointer;
 }
 

@@ -4,7 +4,6 @@ use gl::
 {
   GL,
   JsCast,
-  F32x3,
   web_sys::wasm_bindgen::closure::Closure
 };
 use std::collections::HashMap;
@@ -109,20 +108,4 @@ pub fn add_resize_callback() -> Rc< RefCell< bool > >
   resize_closure.forget();
 
   is_resized
-}
-
-pub fn to_decart( radius : f32, theta : f32, phi : f32 ) -> F32x3
-{
-  let phi = phi.to_radians();
-  let theta = theta.to_radians();
-  let cos_phi = phi.cos();
-
-  F32x3::from
-  (
-    [
-      radius * cos_phi * theta.cos(),
-      radius * phi.sin(),
-      radius * cos_phi * theta.sin(),
-    ]
-  )
 }
