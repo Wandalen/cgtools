@@ -46,7 +46,6 @@ export let uiState =
   state : "hero",
   position : [ 0.6373576, 1.1441559, -0.9127405 ],
   target : [ 0.55595696, 0.55741394, -1.0331136 ],
-  rotation : [ 0.0, 0.0, 0.0 ],
   gemCustomColor : [ 1.0, 1.0, 1.0 ],
   gemMultiplier : 1.0,
   metalCustomColor : [ 0.753, 0.753, 0.753 ],
@@ -203,10 +202,9 @@ function introAnimation()
   firstLoad = false
 
   gsap.timeline()
-  .fromTo( uiState.position, { 0 : 0.6373576, 1 : 1.1441559, 2 : -0.9127405 }, { 0 : 0.6858612, 1 : 2.7440538, 2 : -0.026622068, duration : 4, onUpdate: () => { console.log("intro"); !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) } }, '-=0.8')
-  .fromTo( uiState.target, { 0 : 0.55595696, 1 : 0.55741394, 2 : -1.0331136 }, { 0 : 0.36420232, 1 : 0.8480059, 2 : -0.36873266, duration : 4, onUpdate: () => { console.log("intro"); !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) } }, '-=4' )
+  .fromTo( uiState.position, { 0 : 0.6373576, 1 : 1.1441559, 2 : -0.9127405 }, { 0 : 0.6858612, 1 : 2.7440538, 2 : -0.026622068, duration : 4, onUpdate: () => { !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) } }, '-=0.8')
+  .fromTo( uiState.target, { 0 : 0.55595696, 1 : 0.55741394, 2 : -1.0331136 }, { 0 : 0.36420232, 1 : 0.8480059, 2 : -0.36873266, duration : 4, onUpdate: () => { !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) } }, '-=4' )
   .fromTo( '.header--container', { opacity : 0, y : '-100%' }, {opacity : 1, y : '0%', ease : "power1.inOut", duration : 0.8 }) // , '-=1'
-  // .fromTo( '.hero--image', { opacity : 0, x : '-200%' }, {opacity : 1, x : '-72%', ease : "power1.inOut", duration : 1.8 }, '-=0.5' ) // , '-=1'
   .fromTo( '.hero--scroller', { opacity : 0, y : '150%' }, { opacity : 1, y : '0%', ease : "power4.inOut", duration : 1 }, '-=1' )
   .fromTo( '.hero--container', { opacity : 0, x : '100%' }, { opacity : 1, x : '0%', ease : "power4.inOut", duration : 1.8, onComplete : setupScrollAnimation }, '-=1' )
   .fromTo( '.side-bar', { opacity : 0.0, x : '50%' }, { opacity : 1, x : '0%', ease : "power4.inOut", duration : 2 }, '-=1' )
@@ -269,7 +267,7 @@ function setupScrollAnimation()
     {
       0 : -0.40259048, 1 : 2.6242757, 2 : -0.18104002,
       scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : "top top", scrub : true, immediateRender : false },
-      onUpdate: () => { !skipScrollAnimation && console.log("brilliant"); !skipScrollAnimation && !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) }
+      onUpdate: () => { !skipScrollAnimation && !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) }
     }
   )
   .fromTo
@@ -279,20 +277,9 @@ function setupScrollAnimation()
     {
       0 : -0.23794234, 1 : 0.49070162, 2 : -0.32702705,
       scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : "top top", scrub : true, immediateRender : false },
-      onUpdate: () => { !skipScrollAnimation && console.log("brilliant"); !skipScrollAnimation && !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) }
+      onUpdate: () => { !skipScrollAnimation && !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) }
     }
   )
-  // .to
-  // (
-  //   uiState.rotation,
-  //   {
-  //     0 : - Math.PI / 3,
-  //     1 : -0.92 ,
-  //     2 : Math.PI / 2,
-  //     scrollTrigger: { trigger : ".cam-view-2", start : "top bottom", end : "top top", scrub : true, immediateRender : false },
-  //     onUpdate: () => { !uiState.changed.includes( "rotation" ) && uiState.changed.push( "rotation" ) }
-  //   }
-  // )
   .addLabel( "Brilliant" )
   .to( '.side-bar .unique', { opacity : 1, scale : 1.5, ease : "power4.inOut", duration : 2, scrollTrigger : { trigger : ".cam-view-1", start : "top bottom", end : 'top top', scrub : true, immediateRender : false } } )
   .to( '.side-bar .unique', { opacity : 0.5, scale : 1, ease : "power4.inOut", duration : 2, scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : 'top top', scrub : true, immediateRender : false } } )
@@ -311,18 +298,10 @@ function setupScrollAnimation()
   (
     '.choose--text-bg',
     {
-      opacity : 0.1, ease : "power4.inOut",
+      opacity : 0.1, x : '0%', ease : "power4.inOut",
       scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : 'top top', scrub : true, immediateRender : false }
     }
   )
-  // .to
-  // (
-  //   '.choose--image',
-  //   {
-  //     opacity : 1.0, ease : "power4.inOut",
-  //     scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : 'top top', scrub : true, immediateRender : false }
-  //   }
-  // )
   .fromTo
   (
     '.choose--content',
@@ -339,7 +318,7 @@ function setupScrollAnimation()
     {
       0 : -0.39456308, 1 : 2.431139, 2 : 0.23367776,
       scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : "top top", scrub : true, immediateRender : false },
-      onUpdate: () => { !skipScrollAnimation && console.log("choose"); !skipScrollAnimation && !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) }
+      onUpdate: () => { !skipScrollAnimation && !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) }
     }
   )
   .fromTo
@@ -349,20 +328,9 @@ function setupScrollAnimation()
     {
       0 : 0.2921338, 1 : 0.9732934, 2 : -0.18001612,
       scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : "top top", scrub : true, immediateRender : false },
-      onUpdate: () => { !skipScrollAnimation && console.log("choose"); !skipScrollAnimation && !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) }
+      onUpdate: () => { !skipScrollAnimation && !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) }
     }
   )
-  // .to
-  // (
-  //   uiState.rotation,
-  //   {
-  //     0 : - Math.PI / 3,
-  //     1 : - 0.92,
-  //     2 : Math.PI / 2,
-  //     scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : "top top", scrub : true, immediateRender : false },
-  //     onUpdate: () => { !uiState.changed.includes( "rotation" ) && uiState.changed.push( "rotation" ) }
-  //   }
-  // )
   .addLabel( "Choose" )
   .to
   (
@@ -431,7 +399,7 @@ function configAnimation()
     {
       0 : -1.2621417, 1 : 4.005461, 2 : 1.2621417,
       duration : 2.5,
-      onUpdate: () => { console.log("config"); !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) }
+      onUpdate: () => { !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) }
     }
   )
   .fromTo
@@ -440,14 +408,12 @@ function configAnimation()
     { 0 : 0.2921338, 1 : 0.9732934, 2 : -0.18001612 },
     {
       0 : 0, 1 : 0.6, 2 : 0, duration : 2.5,
-      onUpdate: () => { console.log("config"); !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) }
+      onUpdate: () => { !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) }
     },
     '-=2.5'
   )
-  //.to( uiState.rotation, { 0 : -Math.PI / 2, 1 : 0, 2 : -Math.PI / 2, duration : 2.5, onUpdate: () => { !uiState.changed.includes( "rotation" ) && uiState.changed.push( "rotation" ) } }, '-=2.5' )
   .to( '.choose--content', { opacity : 0, x : '200%', duration : 1.5, ease : "power4.out", onComplete : onCompleteConfigAnimation }, '-=2.5' )
   .to( '.choose--text-bg', { opacity : 0, x : '200%', duration : 1.5, ease : "power4.out" }, '-=2.5' )
-  // .to( '.choose--image', { opacity : 0, y : '100%', duration : 1.5, ease : "power4.out" }, '-=1.5' )
   .fromTo( '.footer--menu', { opacity : 0, y : '150%' }, { opacity : 1, y : '0%', duration : 1.5 } )
 }
 
@@ -465,12 +431,10 @@ function exitConfigAnimation()
   // nightMode = toggleNightMode( !nightMode )
 
   gsap.timeline()
-  .to( uiState.position, { 0 : 0.6858612, 1 : 2.7440538, 2 : -0.026622068, duration : 1.2, ease : "power4.out", onUpdate: () => { console.log("exitConfig"); !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) } } )
-  .to( uiState.target, { 0 : 0.36420232, 1 : 0.8480059, 2 : -0.36873266, duration : 1.2, ease : "power4.out", onUpdate: () => { console.log("exitConfig"); !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) } }, '-=1.2' )
-  //.to( uiState.rotation, { 0 : 0.92, 1 : 0.92, 2 : Math.PI / 3, onUpdate: () => { !uiState.changed.includes( "rotation" ) && uiState.changed.push( "rotation" ) } }, '-=1.2' )
+  .to( uiState.position, { 0 : 0.6858612, 1 : 2.7440538, 2 : -0.026622068, duration : 1.2, ease : "power4.out", onUpdate: () => { !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) } } )
+  .to( uiState.target, { 0 : 0.36420232, 1 : 0.8480059, 2 : -0.36873266, duration : 1.2, ease : "power4.out", onUpdate: () => { !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) } }, '-=1.2' )
   .to( '.footer--menu', { opacity : 0, y : '150%' } ) // , '-=1.2'
   .to( '.choose--content', { opacity : 1, x : '0%', duration : 0.5, ease : "power4.out" }, '-=1.2' )
-  // .fromTo( '.choose--image', { opacity : 0, y : '100%'}, { opacity : 1, y : '50%', duration : 0.5, ease : "power4.inOut" }, '-=1.2' )
 
   skipScrollAnimation = false
 }
@@ -522,13 +486,18 @@ function exitConfigAnimation()
 //   return _nightMode
 // }
 
-document.querySelector('.button-scroll')?.addEventListener
+document.querySelector( '.button-scroll' )?.addEventListener
 (
   'click',
   () =>
   {
-    const element = document.querySelector( '.cam-view-2' )
-    window.scrollTo( { top : element?.getBoundingClientRect().top, left : 0, behavior : 'smooth' } )
+    const element = document.querySelector( '.cam-view-2' );
+    if ( element )
+    {
+      const top = element.getBoundingClientRect().top + window.scrollY;
+      window.scrollTo( { top, left : 0, behavior : 'smooth' } );
+      skipScrollAnimation = false
+    }
   }
 )
 
@@ -646,7 +615,7 @@ async function setupMainPage()
     "load",
     ( ev ) =>
     {
-      if ( firstLoad )
+      if ( firstLoad && uiState.state == "hero" )
       {
         introAnimation()
       }

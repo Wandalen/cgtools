@@ -147,18 +147,13 @@ fn handle_ui_change( configurator : &mut Configurator )
         configurator.update_metal_color();
       }
 
-      if ui_state.changed.contains( &"position".to_string() ) ||
-      ui_state.changed.contains( &"center".to_string() ) // ||
+      if ( ui_state.changed.contains( &"position".to_string() ) ||
+      ui_state.changed.contains( &"center".to_string() ) ) && !ui_state.changed.contains( &"state".to_string() )
       {
         let controls = configurator.camera.get_controls();
         controls.borrow_mut().up = F32x3::from_array( [ 0.0, 1.0, 0.0 ] );
         controls.borrow_mut().center = F32x3::from_array( ui_state.center );
         controls.borrow_mut().eye = F32x3::from_array( ui_state.eye );
-        // let ring_scene = configurator.rings.rings[ configurator.rings.current_ring ].borrow();
-        // if let Some( ring ) = ring_scene.children.first()
-        // {
-        //   ring.borrow_mut().set_rotation( Quat::from_euler_xyz( ui_state.rotation ) );
-        // }
       }
 
       ui::clear_changed();

@@ -21,8 +21,6 @@ pub struct UiState
   /// Camera center
   #[ serde( rename = "target" ) ]
   pub center : [ f32; 3 ],
-  /// Ring rotation
-  pub rotation : [ f32; 3 ],
   /// Debug mode custom gem color
   #[ serde( rename = "gemCustomColor" ) ]
   pub gem_custom_color : Vec< f32 >,
