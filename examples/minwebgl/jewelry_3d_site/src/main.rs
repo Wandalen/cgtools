@@ -127,8 +127,6 @@ fn handle_ui_change( configurator : &mut Configurator )
   {
     if let Some( ui_state ) = ui::get_ui_state()
     {
-      // gl::info!( "{:?}", ui_state );
-
       configurator.ui_state = ui_state.clone();
       let ring_changed = ui_state.changed.contains( &"ring".to_string() );
 
