@@ -1,4 +1,5 @@
 //! Tests for animation modifier Blender
+#![ cfg( feature = "animation" ) ]
 
 use std::{ rc::Rc, cell::RefCell };
 use renderer::webgl::
