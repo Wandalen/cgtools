@@ -39,6 +39,7 @@
 #![ allow( clippy::if_not_else ) ]
 
 use std::{ cell::RefCell, rc::Rc };
+use mingl::Quat;
 use minwebgl as gl;
 use gl::
 {
@@ -127,6 +128,8 @@ fn handle_ui_change( configurator : &mut Configurator )
   {
     if let Some( ui_state ) = ui::get_ui_state()
     {
+      gl::info!( "{:?}", ui_state );
+
       configurator.ui_state = ui_state.clone();
       let ring_changed = ui_state.changed.contains( &"ring".to_string() );
 
@@ -143,6 +146,34 @@ fn handle_ui_change( configurator : &mut Configurator )
       if ui_state.changed.contains( &"metal".to_string() ) || ring_changed
       {
         configurator.update_metal_color();
+      }
+
+      if ui_state.state == "hero"
+      {
+        if ui_state.changed.contains( &"position".to_string() ) ||
+        ui_state.changed.contains( &"center".to_string() ) ||
+        ui_state.changed.contains( &"rotation".to_string() )
+        {
+          let controls = configurator.camera.get_controls();
+          controls.borrow_mut().center = F32x3::from_array( ui_state.center );
+          controls.borrow_mut().eye = F32x3::from_array( ui_state.eye );
+          let ring_scene = configurator.rings.rings[ configurator.rings.current_ring ].borrow();
+          if let Some( ring ) = ring_scene.children.first()
+          {
+            ring.borrow_mut().set_rotation( Quat::from_euler_xyz( ui_state.rotation ) );
+          }
+        }
+      }
+      else if ui_state.changed.contains( &"state".to_string() ) && ui_state.state == "configurator"
+      {
+        let controls = configurator.camera.get_controls();
+        controls.borrow_mut().center = F32x3::from( [ 0.0, 0.6, 0.0 ] );
+        controls.borrow_mut().eye = crate::helpers::to_decart( 6.0, 135.0, 65.0 );
+        let ring_scene = configurator.rings.rings[ configurator.rings.current_ring ].borrow();
+        if let Some( ring ) = ring_scene.children.first()
+        {
+          ring.borrow_mut().set_rotation( Quat::from_euler_xyz( [ 0.0; 3 ] ) );
+        }
       }
 
       ui::clear_changed();
@@ -186,9 +217,9 @@ async fn run() -> Result< (), gl::WebglError >
       prev_time = t;
       handle_camera_position( &configurator );
       handle_resize( &gl, &mut configurator, &mut swap_buffer, &canvas, &is_resized );
-      handle_ui_change( &mut configurator );
       configurator.camera.update( delta_time );
       configurator.animation_state.update( delta_time );
+      handle_ui_change( &mut configurator );
 
       let scene = &configurator.rings.rings[ configurator.rings.current_ring ];
       configurator.renderer.borrow_mut().render( &gl, &mut scene.borrow_mut(), &configurator.camera ).expect( "Failed to render" );
