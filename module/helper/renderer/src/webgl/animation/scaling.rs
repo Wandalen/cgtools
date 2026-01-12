@@ -33,11 +33,12 @@ mod private
     /// Animation that must be scaled
     pub animation : Sequencer,
     /// Set of grouped [`Node`]'s with their scaling weights for
-    /// each simple 3D transofrmation. Weights vector consist of
+    /// each simple 3D transformation. Weights vector consist of
     /// such components:
     /// - x - transform
     /// - y - rotation
     /// - z - scale
+    /// - w - morph targets
     scaled_nodes : FxHashMap< Box< str >, ( Vec< Box< str > >, F64x4 ) >,
   }
 
