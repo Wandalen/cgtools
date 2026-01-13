@@ -89,13 +89,13 @@ mod private
     gl.uniform1i( location.as_ref(), slot as i32 );
   }
 
-  // Nodes' global transform data texture and inverse bind matrices texture
-  // sizes are calculated using this function in the following way:
-  // 1. Get a theoretical square with sides of rational non integer length filled with data.
-  // 2. Then apply log and power to make the texture resolution to be always a multiple of 4.
-  //    We need this to ensure that a single matrix inside of the texture can't be split
-  //    between two rows and all matrices have grid alignment.
-  // 3. The ceil is needed to get the smallest integer side length that fits all the data.
+  /// Nodes' global transform data texture and inverse bind matrices texture
+  /// sizes are calculated using this function in the following way:
+  /// 1. Get a theoretical square with sides of rational non integer length filled with data.
+  /// 2. Then apply log and power to make the texture resolution to be always a multiple of 4.
+  ///    We need this to ensure that a single matrix inside of the texture can't be split
+  ///    between two rows and all matrices have grid alignment.
+  /// 3. The ceil is needed to get the smallest integer side length that fits all the data.
   pub fn calculate_data_texture_size( data_size : usize ) -> u32
   {
     4.0_f32.powf( ( data_size as f32 ).sqrt().log( 4.0 ).ceil() ) as u32
@@ -301,6 +301,7 @@ mod private
       }
     }
 
+    /// Returns binded attributes count
     pub fn attributes_count( &self ) -> usize
     {
       [
