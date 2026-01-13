@@ -480,8 +480,6 @@ mod private
       let bb = self.local_bounding_box_hierarchical();
       let center = bb.center();
       let radius = ( ( bb.max - bb.min ) * 0.5 ).mag();
-
-      // self.set_scale( F32x3::splat( 1.0 / radius ) );
       self.set_local_matrix
       (
         gl::math::mat3x3h::translation( center )

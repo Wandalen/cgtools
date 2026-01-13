@@ -57,7 +57,7 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn set_displacement_another_new_displacement_size_test()
   {
-    let skeleton = init_skeleton_test( "../../../../assets/gltf/animated/morph_targets/zolphrac.glb" ).await;
+    let skeleton = init_skeleton_test( "../../../../assets/gltf/animated/morph_targets/zophrac.glb" ).await;
 
     assert!
     (
@@ -74,7 +74,7 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn skeleton_clone_test()
   {
-    let skeleton = init_skeleton_test( "../../../../assets/gltf/animated/morph_targets/zolphrac.glb" ).await;
+    let skeleton = init_skeleton_test( "../../../../assets/gltf/animated/morph_targets/zophrac.glb" ).await;
 
     let skeleton_clone = skeleton.clone();
 
@@ -86,7 +86,7 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn skeleton_load_displacement_test()
   {
-    let skeleton = init_skeleton_test( "../../../../assets/gltf/animated/morph_targets/zolphrac.glb" ).await;
+    let skeleton = init_skeleton_test( "../../../../assets/gltf/animated/morph_targets/zophrac.glb" ).await;
 
     assert!( skeleton.displacements_as_ref().is_some() );
   }
@@ -94,7 +94,7 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn skeleton_load_transform_test()
   {
-    let skeleton = init_skeleton_test( "../../../../assets/gltf/animated/morph_targets/zolphrac.glb" ).await;
+    let skeleton = init_skeleton_test( "../../../../assets/gltf/animated/morph_targets/zophrac.glb" ).await;
 
     assert!( skeleton.transforms_as_ref().is_some() );
   }
