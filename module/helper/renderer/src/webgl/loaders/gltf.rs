@@ -250,9 +250,9 @@ mod private
 
     let mut displacements = skeleton::DisplacementsData::new();
 
-    displacements.set_displacement( positions, gltf::Semantic::Positions, skin_vertices_count );
-    displacements.set_displacement( normals, gltf::Semantic::Normals, skin_vertices_count );
-    displacements.set_displacement( tangents, gltf::Semantic::Tangents, skin_vertices_count );
+    let _ = displacements.set_displacement( positions, gltf::Semantic::Positions, skin_vertices_count );
+    let _ = displacements.set_displacement( normals, gltf::Semantic::Normals, skin_vertices_count );
+    let _ = displacements.set_displacement( tangents, gltf::Semantic::Tangents, skin_vertices_count );
     if let Some( weights ) = weights
     {
       let weights_rc = displacements.get_morph_weights();
@@ -296,7 +296,7 @@ mod private
     }
   }
 
-    fn get_light_list( gltf : &gltf::Gltf ) -> Option< FxHashMap< usize, Light > >
+  fn get_light_list( gltf : &gltf::Gltf ) -> Option< FxHashMap< usize, Light > >
   {
     let mut lights = FxHashMap::default();
     for ( i, gltf_light ) in gltf.lights()?.enumerate()
