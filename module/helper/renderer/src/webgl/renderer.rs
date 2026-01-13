@@ -833,7 +833,9 @@ mod private
               _ => {}
             }
 
-            enable_material_properties( gl, &material );
+            enable_material_depth_properties( gl, &**material );
+            enable_material_face_properties( gl, &**material );
+            enable_material_color_mask( gl, &**material );
 
             // Get the uniform locations for the current program.
             let locations = shader_program.locations();
@@ -877,20 +879,8 @@ mod private
         let primitive = primitive;
         let material = primitive.material.borrow();
 
-        let cull_mode = material.get_cull_mode();
-        let front_face = material.get_front_face() as u32;
-
-        if let Some( cull_mode ) = cull_mode
-        {
-          gl.enable( gl::CULL_FACE );
-          gl.cull_face( cull_mode as u32 );
-        }
-        else
-        {
-          gl.disable( gl::CULL_FACE );
-        }
-
-        gl.front_face( front_face );
+        enable_material_face_properties( gl, &**material );
+        enable_material_color_mask( gl, &**material );
 
         let shader_program = self.programs.get( &format!( "{}{}",  material.get_id(), material.get_defines_str() ) ).unwrap();
 
@@ -1006,13 +996,13 @@ mod private
     }
   }
 
-  fn enable_material_properties( gl : &GL, material : &std::cell::Ref< '_, Box< dyn crate::webgl::Material > > )
+  /// Configures face culling and front face order from material.
+  fn enable_material_face_properties( gl : &GL, material : &dyn crate::webgl::Material )
   {
     let cull_mode = material.get_cull_mode();
     let front_face = material.get_front_face() as u32;
-    let depth_func = material.get_depth_func() as u32;
-    let depth_test = material.is_depth_test_enabled();
-    let depth_write = material.is_depth_write_enabled();
+
+    gl.front_face( front_face );
 
     if let Some( cull_mode ) = cull_mode
     {
@@ -1023,8 +1013,15 @@ mod private
     {
       gl.disable( gl::CULL_FACE );
     }
+  }
 
-    gl.front_face( front_face );
+  /// Configures depth testing, function, and write mask from material.
+  fn enable_material_depth_properties( gl : &GL, material : &dyn crate::webgl::Material )
+  {
+    let depth_func = material.get_depth_func() as u32;
+    let depth_test = material.is_depth_test_enabled();
+    let depth_write = material.is_depth_write_enabled();
+
     gl.depth_func( depth_func );
 
     if depth_test
@@ -1037,6 +1034,14 @@ mod private
     }
 
     gl.depth_mask( depth_write );
+  }
+
+  /// Sets RGBA color write mask from material.
+  fn enable_material_color_mask( gl : &GL, material : &dyn crate::webgl::Material )
+  {
+    let ( red, green, blue, alpha ) = material.get_color_write_mask();
+
+    gl.color_mask( red, green, blue, alpha );
   }
 
   fn bind_lights
