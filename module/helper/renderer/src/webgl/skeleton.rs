@@ -536,7 +536,10 @@ mod private
         return false;
       }
 
-      self.vertices_count = vertices_count;
+      if displacement_array.is_some()
+      {
+        self.vertices_count = vertices_count;
+      }
 
       let positions_len = self.positions_displacements.as_ref().map( | v | v.len() ).unwrap_or_default();
       let normals_len = self.normals_displacements.as_ref().map( | v | v.len() ).unwrap_or_default();
