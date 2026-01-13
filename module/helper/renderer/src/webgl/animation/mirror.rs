@@ -41,7 +41,7 @@ mod private
           {
             if key.ends_with( TRANSLATION_PREFIX )
             {
-              if let Some( sequence ) = animation.get_mut::< Sequence< Tween< F32x3 > > >( &key )
+              if let Some( sequence ) = animation.get_mut::< Sequence< Tween< F64x3 > > >( &key )
               {
                 for player in sequence.players_mut()
                 {
@@ -52,7 +52,7 @@ mod private
             }
             else if key.ends_with( ROTATION_PREFIX )
             {
-              if let Some( sequence ) = animation.get_mut::< Sequence< Tween< QuatF32 > > >( &key )
+              if let Some( sequence ) = animation.get_mut::< Sequence< Tween< QuatF64 > > >( &key )
               {
                 for player in sequence.players_mut()
                 {

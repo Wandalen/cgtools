@@ -26,7 +26,7 @@ use animation::easing::{ EasingBuilder, Linear };
 // use renderer::webgl::material::PbrMaterial;
 use rustc_hash::FxHashMap;
 use std::{ cell::RefCell, rc::Rc };
-use animation::{ Sequencer, Tween };
+use animation::{ Sequencer, Sequence, Tween };
 use mingl::{ F32x3, F64x3, Quat, QuatF32 };
 use mingl::controls::{ CharacterControls, CharacterInput };
 use minwebgl::{ self as gl, WebglError };
@@ -282,7 +282,7 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
 
   let leave_global_translation =
   [
-    "standing_jump"
+    "standing_jump",
   ];
 
   for ( name, animation ) in &mut animations
@@ -290,6 +290,20 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
     if !leave_global_translation.contains( &name.as_str() )
     {
       animation.remove( "mixamorig:Hips.translation" );
+    }
+  }
+
+  if let Some( run_jump ) = animations.get_mut( "running_jump" )
+  {
+    if let Some( sequence ) = run_jump.get_mut::< Sequence< Tween< F64x3 > > >( "mixamorig:Hips.translation" )
+    {
+      for player in sequence.players_mut()
+      {
+        player.start_value.0[ 0 ] = - player.start_value.x();
+        player.end_value.0[ 0 ] = - player.end_value.x();
+        player.start_value.0[ 2 ] = - player.start_value.z();
+        player.end_value.0[ 2 ] = - player.end_value.z();
+      }
     }
   }
 
@@ -312,14 +326,9 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
 
   graph.edge_add( "jump".into(), "idle".into(), "jump_to_idle".into(), instant_tween.clone(), true_condition.clone() );
 
-  let walk = animations.get( "female_walk" ).unwrap().clone();
-  graph.node_add( "walk".into(), walk );
-
-  let walk_backward = animations.get( "running_backward" ).unwrap().clone();
-  graph.node_add( "walk_backward".into(), walk_backward );
-
-  let walk_left = animations.get( "walk_strafe_left" ).unwrap().clone();
-  graph.node_add( "walk_left".into(), walk_left );
+  graph.node_add( "walk".into(), animations.get( "female_walk" ).unwrap().clone() );
+  graph.node_add( "walk_backward".into(), animations.get( "running_backward" ).unwrap().clone() );
+  graph.node_add( "walk_left".into(), animations.get( "walk_strafe_left" ).unwrap().clone() );
 
   let mut walk_right = animations.get( "walk_strafe_left" ).unwrap().clone();
   walk_right = Mirror::along_plane( &walk_right, MirrorPlane::YZ );
@@ -387,14 +396,21 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
   };
   graph.edge_add( "walk_right".into(), "idle".into(), "walk_right_to_idle".into(), instant_tween.clone(), condition );
 
-  let run = animations.get( "run_forward" ).unwrap().clone();
-  graph.node_add( "run".into(), run );
+  graph.node_add( "run".into(), animations.get( "run_forward" ).unwrap().clone() );
+  graph.node_add( "run_backward".into(), animations.get( "running_backward" ).unwrap().clone() );
+  graph.node_add( "run_jump".into(), animations.get( "running_jump" ).unwrap().clone() );
 
-  let run_backward = animations.get( "running_backward" ).unwrap().clone();
-  graph.node_add( "run_backward".into(), run_backward );
+  let input = input_.clone();
+  let tween = Tween::new( 1.0, 1.0, 0.9, Linear::new() );
+  let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
+  {
+    input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyW ) &&
+    input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::ShiftLeft ) &&
+    input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::Space )
+  };
+  graph.edge_add( "run".into(), "run_jump".into(), "run_to_run_jump".into(), tween, condition );
 
-  // graph.node_add( "run_jump".into(), animations.get( "running_jump" ).unwrap().clone() );
-  // graph.node_add( "stop_run".into(), animations.get( "female_stop_walking" ).unwrap().clone() );
+  graph.edge_add( "run_jump".into(), "run".into(), "run_jump_to_run".into(), instant_tween.clone(), true_condition.clone() );
 
   let input = input_.clone();
   let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
@@ -439,14 +455,60 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
   };
   graph.edge_add( "run_backward".into(), "idle".into(), "run_backward_to_idle".into(), instant_tween.clone(), condition );
 
-  // graph.node_add( "idle_to_fight_idle".into(), animations.get( "standing_idle_to_fight_idle" ).unwrap().clone() );
-  // graph.node_add( "idle_to_fight".into(), animations.get( "standing_idle_to_fight_idle" ).unwrap().clone() );
-  // graph.node_add( "arm_kick".into(), animations.get( "punching" ).unwrap().clone() );
-  // graph.node_add( "leg_kick".into(), animations.get( "mma_kick" ).unwrap().clone() );
+  graph.node_add( "idle_to_fight".into(), animations.get( "standing_idle_to_fight_idle" ).unwrap().clone() );
+  graph.node_add( "fight_to_idle".into(), animations.get( "fight_idle_to_standing_idle" ).unwrap().clone() );
+  graph.node_add( "arm_kick".into(), animations.get( "punching" ).unwrap().clone() );
+  graph.node_add( "leg_kick".into(), animations.get( "mma_kick" ).unwrap().clone() );
 
-  // graph.edge_add( a, b, name, tween, condition );
+  let input = input_.clone();
+  let tween = Tween::new( 1.0, 1.0, 1.0, Linear::new() );
+  let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
+  {
+    input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyE ) ||
+    input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyQ )
+  };
+  graph.edge_add( "idle".into(), "idle_to_fight".into(), "idle_to_idle_to_fight".into(), tween.clone(), condition );
 
-  // gl::info!( "{:?}", walk.keys() );
+  let tween = Tween::new( 0.0, 0.0, 1.0, Linear::new() );
+  graph.edge_add( "fight_to_idle".into(), "idle".into(), "fight_to_idle_to_idle".into(), tween.clone(), true_condition.clone() );
+
+  let input = input_.clone();
+  let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
+  {
+    input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyE )
+  };
+  graph.edge_add( "idle_to_fight".into(), "arm_kick".into(), "idle_to_fight_to_arm_kick".into(), instant_tween.clone(), condition );
+
+  let input = input_.clone();
+  let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
+  {
+    input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyQ )
+  };
+  graph.edge_add( "idle_to_fight".into(), "leg_kick".into(), "idle_to_fight_to_leg_kick".into(), instant_tween.clone(), condition );
+
+  let input = input_.clone();
+  let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
+  {
+    !input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyE )
+  };
+  graph.edge_add( "arm_kick".into(), "fight_to_idle".into(), "arm_kick_to_fight_to_idle".into(), instant_tween.clone(), condition );
+
+  let input = input_.clone();
+  let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
+  {
+    !input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyQ )
+  };
+  graph.edge_add( "leg_kick".into(), "fight_to_idle".into(), "leg_kick_to_fight_to_idle".into(), instant_tween.clone(), condition );
+
+  let input = input_.clone();
+  let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
+  {
+    !input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyE ) &&
+    !input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyQ )
+  };
+  // let tween = Tween::new( 1.0, 1.0, 1.0, Linear::new() );
+  graph.edge_add( "idle_to_fight".into(), "fight_to_idle".into(), "idle_to_fight_to_fight_to_idle".into(), instant_tween.clone(), condition );
+
 
   graph
 }

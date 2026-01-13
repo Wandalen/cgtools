@@ -303,15 +303,16 @@ mod private
         old.borrow_mut().in_process = None;
       }
 
-      if let Some( current ) = &self.current
-      {
-        let mut is_completed = false;
-        if let Some( edge ) = &current.borrow().in_process
-        {
-          is_completed = edge.borrow().transition.tween().is_completed();
-        }
-        minwebgl::info!( "{:?}", ( current.borrow().name.clone(), is_completed ) );
-      }
+      // Use this code to debug graph animation transitions:
+      // if let Some( current ) = &self.current
+      // {
+      //   let mut is_completed = false;
+      //   if let Some( edge ) = &current.borrow().in_process
+      //   {
+      //     is_completed = edge.borrow().transition.tween().is_completed();
+      //   }
+      //   minwebgl::info!( "{:?}", ( current.borrow().name.clone(), is_completed ) );
+      // }
     }
 
     fn as_any( &self ) -> &dyn core::any::Any
