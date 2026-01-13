@@ -7,7 +7,7 @@ mod private
     Sequencer
   };
   use mingl as gl;
-  use gl::{ F32x3, QuatF32 };
+  use gl::{ F64x3, QuatF64 };
   use crate::webgl::animation::base::{ ROTATION_PREFIX, TRANSLATION_PREFIX };
 
   /// Defines mirror plane
@@ -60,12 +60,6 @@ mod private
                   player.start_value.0[ 1 ] = - player.start_value.y();
                   player.end_value.0[ 0 ] = - player.end_value.x();
                   player.end_value.0[ 1 ] = - player.end_value.y();
-
-                  // let [ x, y, z ] = player.start_value.to_euler_xyz().0;
-                  // player.start_value = QuatF32::from_euler_xyz( [ x, y, z ] );
-
-                  // let [ x, y, z ] = player.end_value.to_euler_xyz().0;
-                  // player.end_value = QuatF32::from_euler_xyz( [ x, y + 180_f32.to_radians(), z ] );
                 }
               }
             }
@@ -77,7 +71,7 @@ mod private
           {
             if key.ends_with( TRANSLATION_PREFIX )
             {
-              if let Some( sequence ) = animation.get_mut::< Sequence< Tween< F32x3 > > >( &key )
+              if let Some( sequence ) = animation.get_mut::< Sequence< Tween< F64x3 > > >( &key )
               {
                 for player in sequence.players_mut()
                 {
@@ -88,7 +82,7 @@ mod private
             }
             else if key.ends_with( ROTATION_PREFIX )
             {
-              if let Some( sequence ) = animation.get_mut::< Sequence< Tween< QuatF32 > > >( &key )
+              if let Some( sequence ) = animation.get_mut::< Sequence< Tween< QuatF64 > > >( &key )
               {
                 for player in sequence.players_mut()
                 {
@@ -96,6 +90,7 @@ mod private
                   player.start_value.0[ 2 ] = - player.start_value.z();
                   player.end_value.0[ 1 ] = - player.end_value.y();
                   player.end_value.0[ 2 ] = - player.end_value.z();
+
                 }
               }
             }
@@ -107,7 +102,7 @@ mod private
           {
             if key.ends_with( TRANSLATION_PREFIX )
             {
-              if let Some( sequence ) = animation.get_mut::< Sequence< Tween< F32x3 > > >( &key )
+              if let Some( sequence ) = animation.get_mut::< Sequence< Tween< F64x3 > > >( &key )
               {
                 for player in sequence.players_mut()
                 {
@@ -118,7 +113,7 @@ mod private
             }
             else if key.ends_with( ROTATION_PREFIX )
             {
-              if let Some( sequence ) = animation.get_mut::< Sequence< Tween< QuatF32 > > >( &key )
+              if let Some( sequence ) = animation.get_mut::< Sequence< Tween< QuatF64 > > >( &key )
               {
                 for player in sequence.players_mut()
                 {
