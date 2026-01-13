@@ -26,12 +26,12 @@ use animation::easing::{ EasingBuilder, Linear };
 // use renderer::webgl::material::PbrMaterial;
 use rustc_hash::FxHashMap;
 use std::{ cell::RefCell, rc::Rc };
-use animation::{Sequencer, Tween};
+use animation::{ Sequencer, Tween };
 use mingl::{ F32x3, F64x3, Quat, QuatF32 };
 use mingl::controls::{ CharacterControls, CharacterInput };
 use minwebgl::{ self as gl, WebglError };
 use gl::{ JsCast, web_sys::WebGlTexture, GL, wasm_bindgen::closure::Closure };
-use renderer::webgl::animation::{ Pose, AnimatableComposition, Animation, AnimationGraph, AnimationEdge };
+use renderer::webgl::animation::{ Pose, AnimatableComposition, Animation, AnimationGraph, AnimationEdge, Mirror, MirrorPlane };
 use renderer::webgl::
 {
   post_processing::
@@ -276,9 +276,22 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
 {
   let mut graph = AnimationGraph::new( &animations[ 0 ].nodes );
 
-  let animations = animations.into_iter()
+  let mut animations = animations.into_iter()
   .filter_map( | a | Some( ( a.name?.into_string(), a.animation.as_any().downcast_ref::< Sequencer >().unwrap().clone() ) ) )
   .collect::< FxHashMap< String, Sequencer > >();
+
+  let leave_global_translation =
+  [
+    "standing_jump"
+  ];
+
+  for ( name, animation ) in &mut animations
+  {
+    if !leave_global_translation.contains( &name.as_str() )
+    {
+      animation.remove( "mixamorig:Hips.translation" );
+    }
+  }
 
   let instant_tween = Tween::new( 1.0, 1.0, 0.0, Linear::new() );
   let true_condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
@@ -300,19 +313,20 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
   graph.edge_add( "jump".into(), "idle".into(), "jump_to_idle".into(), instant_tween.clone(), true_condition.clone() );
 
   let mut walk = animations.get( "female_walk" ).unwrap().clone();
-  walk.remove( "mixamorig:Hips.translation" );
   graph.node_add( "walk".into(), walk );
+
   let mut walk_backward = animations.get( "running_backward" ).unwrap().clone();
-  walk_backward.remove( "mixamorig:Hips.translation" );
   graph.node_add( "walk_backward".into(), walk_backward );
+
   let mut walk_left = animations.get( "walk_strafe_left" ).unwrap().clone();
-  walk_left.remove( "mixamorig:Hips.translation" );
   graph.node_add( "walk_left".into(), walk_left );
+
   let mut walk_right = animations.get( "walk_strafe_left" ).unwrap().clone();
-  walk_right.remove( "mixamorig:Hips.translation" );
+  walk_right = Mirror::along_plane( &walk_right, MirrorPlane::XY );
   graph.node_add( "walk_right".into(), walk_right );
 
-  // graph.node_add( "stop_walk".into(), animations.get( "female_stop_walking" ).unwrap().clone() );
+  let mut stop_walk = animations.get( "female_stop_walking" ).unwrap().clone();
+  graph.node_add( "stop_walk".into(), animations.get( "female_stop_walking" ).unwrap().clone() );
 
   let input = input_.clone();
   let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
@@ -322,11 +336,14 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
   graph.edge_add( "idle".into(), "walk".into(), "idle_to_walk".into(), instant_tween.clone(), condition );
 
   let input = input_.clone();
+  let tween = Tween::new( 1.0, 1.0, 1.55, Linear::new() );
   let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
   {
     !input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyW )
   };
-  graph.edge_add( "walk".into(), "idle".into(), "walk_to_idle".into(), instant_tween.clone(), condition );
+  graph.edge_add( "walk".into(), "stop_walk".into(), "walk_to_stop_walk".into(), tween, condition );
+
+  graph.edge_add( "stop_walk".into(), "idle".into(), "stop_walk_to_idle".into(), instant_tween.clone(), true_condition.clone() );
 
   let input = input_.clone();
   let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
@@ -343,11 +360,11 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
   graph.edge_add( "walk_backward".into(), "idle".into(), "walk_backward_to_idle".into(), instant_tween.clone(), condition );
 
   let mut run = animations.get( "run_forward" ).unwrap().clone();
-  run.remove( "mixamorig:Hips.translation" );
   graph.node_add( "run".into(), run );
+
   let mut run_backward = animations.get( "running_backward" ).unwrap().clone();
-  run_backward.remove( "mixamorig:Hips.translation" );
   graph.node_add( "run_backward".into(), run_backward );
+
   // graph.node_add( "run_jump".into(), animations.get( "running_jump" ).unwrap().clone() );
   // graph.node_add( "stop_run".into(), animations.get( "female_stop_walking" ).unwrap().clone() );
 
@@ -366,11 +383,12 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
   graph.edge_add( "run".into(), "walk".into(), "run_to_walk".into(), instant_tween.clone(), condition );
 
   let input = input_.clone();
+  let tween = Tween::new( 1.0, 1.0, 1.55, Linear::new() );
   let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
   {
     !input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyW )
   };
-  graph.edge_add( "run".into(), "idle".into(), "run_to_idle".into(), instant_tween.clone(), condition );
+  graph.edge_add( "run".into(), "stop_walk".into(), "run_to_stop_walk".into(), tween, condition );
 
   let input = input_.clone();
   let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
@@ -408,7 +426,7 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
 async fn run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
-  let options = gl::context::ContexOptions::default().antialias( false );
+  let options = gl::context::ContextOptions::default().antialias( false );
 
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas_with( &canvas, options )?;
