@@ -28,8 +28,8 @@ mod private
   /// Tools for making animations state graph
   layer graph;
 
-  // /// Tools for mirroring animations
-  // layer mirror;
+  /// Tools for mirroring animations
+  layer mirror;
 }
 
 
