@@ -426,7 +426,7 @@ impl AnimationState
   {
     let name = material.borrow().get_id().to_string();
 
-    self.animations.add::< P >( &name, player );
+    self.animations.insert::< P >( &name, player );
     if self.animations.is_completed()
     {
       self.animations.resume();

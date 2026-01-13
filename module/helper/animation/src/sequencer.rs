@@ -86,8 +86,8 @@ mod private
       .collect::< Vec< _ > >()
     }
 
-    /// Adds a [`AnimatablePlayer`] to the Sequencer.
-    pub fn add< T >( &mut self, name : &str, player : T )
+    /// Inserts a [`AnimatablePlayer`] to the Sequencer.
+    pub fn insert< T >( &mut self, name : &str, player : T )
     where T : AnimatablePlayer + 'static
     {
       self.players.insert( name.to_string().into(), Box::new( player ) );
@@ -188,6 +188,20 @@ mod private
       for player in self.players.values_mut()
       {
         player.reset();
+      }
+    }
+
+    /// Renames an player in the Sequencer.
+    pub fn rename_player( &mut self, current_name : &str, new_name : &str ) -> bool
+    {
+      if let Some( ( _, value ) ) = self.players.remove_entry( current_name.into() )
+      {
+        self.players.insert( new_name.into(), value );
+        true
+      }
+      else
+      {
+        false
       }
     }
 

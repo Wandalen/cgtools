@@ -27,7 +27,7 @@ mod tests
     assert_eq!( sequencer.animation_count(), 0 );
 
     let float_tween = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() );
-    sequencer.add( "test", float_tween );
+    sequencer.insert( "test", float_tween );
 
     assert_eq!( sequencer.state(), AnimationState::Running );
     assert_eq!( sequencer.animation_count(), 1 );
@@ -54,8 +54,8 @@ mod tests
 
     let tween1 = Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() );
     let tween2 = Tween::new( 0.0_f32, 10.0_f32, 2.0, Linear::new() );
-    sequencer.add( "short_tween", tween1 );
-    sequencer.add( "long_tween", tween2 );
+    sequencer.insert( "short_tween", tween1 );
+    sequencer.insert( "long_tween", tween2 );
 
     sequencer.update( 1.5 );
 
@@ -74,7 +74,7 @@ mod tests
   fn test_sequencer_pause_resume()
   {
     let mut sequencer = Sequencer::new();
-    sequencer.add
+    sequencer.insert
     (
       "test",
       Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
@@ -103,7 +103,7 @@ mod tests
   fn test_sequencer_reset()
   {
     let mut sequencer = Sequencer::new();
-    sequencer.add
+    sequencer.insert
     (
       "test",
       Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
@@ -129,12 +129,12 @@ mod tests
   {
     let mut sequencer = Sequencer::new();
 
-    sequencer.add
+    sequencer.insert
     (
       "tween1",
       Tween::new( 0.0_f32, 1.0_f32, 1.0, Linear::new() )
     );
-    sequencer.add
+    sequencer.insert
     (
       "tween2",
       Tween::new( 0.0_f32, 1.0_f32, 1.0, Linear::new() )
@@ -155,7 +155,7 @@ mod tests
   {
     let mut sequencer = Sequencer::new();
 
-    sequencer.add
+    sequencer.insert
     (
       "float_tween",
       Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
@@ -171,7 +171,7 @@ mod tests
   {
     let mut sequencer = Sequencer::new();
 
-    sequencer.add
+    sequencer.insert
     (
       "ease_in_tween",
       Tween::new( 0.0_f32, 10.0_f32, 1.0, EaseInSine::new() )
