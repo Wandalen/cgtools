@@ -531,7 +531,7 @@ mod private
     )
     -> bool
     {
-      if vertices_count != self.vertices_count && self.vertices_count > 0
+      if vertices_count != self.vertices_count && self.vertices_count > 0 && displacement_array.is_some()
       {
         return false;
       }

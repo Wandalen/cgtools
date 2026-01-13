@@ -136,6 +136,17 @@ async fn run() -> Result< (), gl::WebglError >
   .next()
   .unwrap();
 
+  for mesh in &gltf.meshes
+  {
+    if let Some( skeleton ) = &mesh.borrow().skeleton
+    {
+      if let Some( d ) = skeleton.borrow_mut().displacements_as_mut()
+      {
+        d.set_displacement( None, gltf::Semantic::Normals, 0 );
+      }
+    }
+  }
+
   let gui_weights = Rc::new( RefCell::new( vec![ 0.0; 60 ] ) );
 
   let last_time = Rc::new( RefCell::new( 0.0 ) );
