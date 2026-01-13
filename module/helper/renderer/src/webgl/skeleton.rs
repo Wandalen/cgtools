@@ -641,6 +641,7 @@ crate::mod_interface!
     Skeleton,
     GLOBAL_MATRICES_SLOT,
     INVERSE_MATRICES_SLOT,
-    DISPLACEMENTS_SLOT
+    DISPLACEMENTS_SLOT,
+    MAX_MORPH_TARGETS
   };
 }

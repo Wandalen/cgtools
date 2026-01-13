@@ -57,6 +57,8 @@ out vec4 vColor_1;
 #endif
 
 #ifdef USE_MORPH_TARGET
+  // Covers 99% of use cases, most models have <20 targets,
+  // but some can have 60 and more
   #define MAX_MORPH_TARGETS 100
 
   uniform float morphWeights[ MAX_MORPH_TARGETS ];
@@ -153,6 +155,14 @@ out vec4 vColor_1;
     return ( primitiveOffset + uint( gl_VertexID ) ) * morphTargetsCount * components;
   }
 
+  /// Retrieves displacement vector for a specific morph target and vertex attribute.
+  ///
+  /// @param target Target index (0 to morphTargetsCount-1)
+  /// @param offset Attribute offset
+  /// @return Displacement vector (xyz) for the target/attribute pair
+  ///
+  /// Index calculation matches CPU texture packing order:
+  /// For each vertex: [T0_POS, T1_POS, ..., T0_NORM, T1_NORM, ..., T0_TAN, T1_TAN, ...]
   vec3 get_target_attribute( uint target, uint offset )
   {
     int i = int( get_morph_targets_vertex_data_offset() + ( offset * morphTargetsCount ) + target );
