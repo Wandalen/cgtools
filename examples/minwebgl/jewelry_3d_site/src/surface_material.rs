@@ -103,7 +103,6 @@ impl Material for SurfaceMaterial
   (
     &self,
     gl : &gl::WebGl2RenderingContext,
-    _ibl_base_location : u32,
   )
   {
     self.program.bind( gl );

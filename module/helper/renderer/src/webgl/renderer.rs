@@ -773,7 +773,7 @@ mod private
             else
             {
               let mut material = primitive.material.borrow_mut();
-              let ibl_define = if self.ibl.is_some() && material.needs_ibl()
+              let ibl_define = if self.ibl.is_some() && material.get_ibl_base_texture_unit().is_some()
               {
                 "#define USE_IBL\n"
               }
@@ -798,17 +798,20 @@ mod private
               let shader_program = material.shader();
 
               // Configure and upload material properties and IBL textures for the new program.
-              shader_program.bind( gl );
-              let ibl_base_texture_unit = material.get_ibl_base_texture_unit();
-              material.configure( gl, ibl_base_texture_unit );
-              material.upload( gl, node.clone() )?;
               let locations = shader_program.locations();
+              shader_program.bind( gl );
+              material.configure( gl );
+              material.upload( gl, node.clone() )?;
               camera.upload( gl, locations );
-              if material.needs_ibl()
+
+              if let Some( ref ibl ) = self.ibl
               {
-                if let Some( ref ibl ) = self.ibl
+                if let Some( ibl_base_texture_unit ) = material.get_ibl_base_texture_unit()
                 {
                   ibl.bind( gl, ibl_base_texture_unit );
+                  gl.uniform1i( locations.get( "irradianceTexture" ).unwrap().clone().as_ref(), ibl_base_texture_unit as i32 );
+                  gl.uniform1i( locations.get( "prefilterEnvMap" ).unwrap().clone().as_ref(), ibl_base_texture_unit as i32 + 1 );
+                  gl.uniform1i( locations.get( "integrateBRDF" ).unwrap().clone().as_ref(), ibl_base_texture_unit as i32 + 2 );
                 }
               }
 

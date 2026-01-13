@@ -373,9 +373,9 @@ mod private
       self.needs_update
     }
 
-    fn needs_ibl( &self ) -> bool
+    fn get_ibl_base_texture_unit( &self ) -> Option< u32 >
     {
-      self.need_use_ibl
+      Some( 10 )
     }
 
     fn shader( &self ) -> &dyn ShaderProgram
@@ -392,12 +392,11 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      ibl_base_location : u32,
     )
     {
       self.program.bind( gl );
       let locations = self.program.locations();
-      let ibl_base_location = ibl_base_location as i32;
+
       // Assign a texture unit for each type of texture
       gl.uniform1i( locations.get( "metallicRoughnessTexture" ).unwrap().clone().as_ref() , 0 );
       gl.uniform1i( locations.get( "baseColorTexture" ).unwrap().clone().as_ref() , 1 );
@@ -407,10 +406,6 @@ mod private
       gl.uniform1i( locations.get( "specularTexture" ).unwrap().clone().as_ref() , 5 );
       gl.uniform1i( locations.get( "specularColorTexture" ).unwrap().clone().as_ref() , 6 );
       gl.uniform1i( locations.get( "lightMap" ).unwrap().clone().as_ref() , 7 );
-
-      gl.uniform1i( locations.get( "irradianceTexture" ).unwrap().clone().as_ref() , ibl_base_location );
-      gl.uniform1i( locations.get( "prefilterEnvMap" ).unwrap().clone().as_ref() , ibl_base_location + 1 );
-      gl.uniform1i( locations.get( "integrateBRDF" ).unwrap().clone().as_ref() , ibl_base_location + 2 );
     }
 
     fn upload
