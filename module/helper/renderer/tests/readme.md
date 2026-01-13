@@ -8,4 +8,5 @@
 | blender_tests.rs | Tests animation blending |
 | color_grading_test.rs | Tests color grading pipeline |
 | scaler_tests.rs | Tests animation scaling |
+| skeleton_tests.rs | Tests skeleton stuff |
 | tests.rs | Connects test modules into root |
