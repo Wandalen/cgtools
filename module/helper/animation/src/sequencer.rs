@@ -265,11 +265,11 @@ mod private
   #[ derive( Debug, error::typed::Error ) ]
   pub enum SequenceError
   {
-    /// Input tweens aren't sorted in time
-    #[ error( "Input tweens aren't sorted by delay" ) ]
+    /// Input players aren't sorted in time
+    #[ error( "Input players aren't sorted by delay" ) ]
     Unsorted,
-    /// Input tweens count isn't enough for animation
-    #[ error( "Input tweens count isn't enough for animation" ) ]
+    /// Input players count isn't enough for animation
+    #[ error( "Input players count isn't enough for animation" ) ]
     NotEnough
   }
 
@@ -278,7 +278,7 @@ mod private
   pub struct Sequence< T >
   {
     /// Sequence of [`AnimatablePlayer`]s of one type
-    tweens : Vec< T >,
+    players : Vec< T >,
     /// Current [`AnimatablePlayer`] index
     current : usize,
     /// Animation duration in seconds
@@ -297,31 +297,31 @@ mod private
     /// [`Sequence`] constructor
     #[ allow( clippy::missing_errors_doc ) ]
     #[ allow( clippy::missing_panics_doc ) ]
-    pub fn new( mut tweens : Vec< T > ) -> Result< Self, SequenceError >
+    pub fn new( mut players : Vec< T > ) -> Result< Self, SequenceError >
     {
-      if tweens.len() < 2
+      if players.len() < 2
       {
         return Err( SequenceError::NotEnough );
       }
 
       let last_delay = 0.0;
-      for tween in &mut tweens
+      for player in &mut players
       {
-        if last_delay > tween.delay_get()
+        if last_delay > player.delay_get()
         {
           return Err( SequenceError::Unsorted );
         }
       }
 
-      let delay = tweens.first().unwrap().delay_get();
-      let tween = tweens.last().unwrap();
-      let duration = tween.delay_get() + tween.duration_get() - delay;
+      let delay = players.first().unwrap().delay_get();
+      let player = players.last().unwrap();
+      let duration = player.delay_get() + player.duration_get() - delay;
 
       Ok
       (
         Self
         {
-          tweens,
+          players,
           current : 0,
           duration,
           elapsed : 0.0,
@@ -334,20 +334,25 @@ mod private
     /// Returns active [`AnimatablePlayer`] at current elapsed time
     pub fn current_get( &self ) -> Option< &T >
     {
-      self.tweens.get( self.current )
+      self.players.get( self.current )
     }
 
-    /// Returns active [`AnimatablePlayer`] index in tweens array
+    /// Returns active [`AnimatablePlayer`] index in players array
     pub fn current_id_get( &self ) -> usize
     {
       self.current
     }
 
-    /// Returns all sequence of players
-    pub fn players_get( &self ) -> Vec< T >
-    where T : Clone
+    /// Returns reference to all sequence of players
+    pub fn players( &self ) -> &[ T ]
     {
-      self.tweens.clone()
+      &self.players
+    }
+
+    /// Returns mutable reference to all sequence of players
+    pub fn players_mut( &mut self ) -> &mut Vec< T >
+    {
+      &mut self.players
     }
 
     /// Returns elapsed time
@@ -369,11 +374,11 @@ mod private
 
       self.elapsed += delta_time;
 
-      let index = self.tweens.binary_search_by
+      let index = self.players.binary_search_by
       (
-        | tween |
+        | player |
         {
-          tween.delay_get().partial_cmp( &self.elapsed ).expect( "Animation keyframes can't be NaN" )
+          player.delay_get().partial_cmp( &self.elapsed ).expect( "Animation keyframes can't be NaN" )
         }
       );
 
@@ -384,15 +389,15 @@ mod private
 
       let mut current_id = index;
 
-      if index >= self.tweens.len()
+      if index >= self.players.len()
       {
-        current_id = self.tweens.len().saturating_sub( 1 );
+        current_id = self.players.len().saturating_sub( 1 );
       }
 
       #[ allow( clippy::else_if_without_else ) ]
       if self.current == current_id
       {
-        let Some( current ) = self.tweens.get_mut( self.current )
+        let Some( current ) = self.players.get_mut( self.current )
         else
         {
           return;
@@ -403,7 +408,7 @@ mod private
       else if self.current < current_id
       {
         self.current = current_id;
-        let Some( current ) = self.tweens.get_mut( self.current )
+        let Some( current ) = self.players.get_mut( self.current )
         else
         {
           return;
@@ -411,7 +416,7 @@ mod private
         current.update( self.elapsed );
       }
 
-      let Some( current ) = self.tweens.get_mut( self.current )
+      let Some( current ) = self.players.get_mut( self.current )
       else
       {
         return;
@@ -424,8 +429,8 @@ mod private
           self.state = AnimationState::Running;
         },
         AnimationState::Running
-        if self.current >= self.tweens.len() - 1 &&
-        self.tweens.get( self.current ).map_or( true, AnimatablePlayer::is_completed ) =>
+        if self.current >= self.players.len() - 1 &&
+        self.players.get( self.current ).map_or( true, AnimatablePlayer::is_completed ) =>
         {
           self.state = AnimationState::Completed;
         },
@@ -445,7 +450,7 @@ mod private
         self.state = AnimationState::Paused;
       }
 
-      for tween in &mut self.tweens { tween.pause() }
+      for player in &mut self.players { player.pause() }
     }
 
     fn resume( &mut self )
@@ -455,7 +460,7 @@ mod private
         self.state = AnimationState::Running;
       }
 
-      for tween in &mut self.tweens { tween.resume() }
+      for player in &mut self.players { player.resume() }
     }
 
     fn reset( &mut self )
@@ -464,7 +469,7 @@ mod private
       self.state = AnimationState::Pending;
       self.elapsed = 0.0;
 
-      for tween in &mut self.tweens { tween.reset() }
+      for player in &mut self.players { player.reset() }
     }
 
     fn duration_get( &self ) -> f64
