@@ -43,7 +43,7 @@ mod tests
   #[ wasm_bindgen_test( async ) ]
   async fn test_morph_target_animation_loading()
   {
-    let gltf = init_animation_test( "../../../../assets/gltf/animated/morph_targets/zolphrac.glb" ).await;
+    let gltf = init_animation_test( "../../../../assets/gltf/animated/morph_targets/zophrac.glb" ).await;
 
     assert_eq!( gltf.animations.len(), 1 );
 
