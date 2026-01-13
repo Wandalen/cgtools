@@ -5,7 +5,7 @@ mod private
   use gl::{ GL, WebGlProgram };
   use mingl::Former;
   use rustc_hash::FxHashMap;
-  use crate::webgl::{ NodeContext, program::{ ShaderProgram, ProgramInfo } };
+  use crate::webgl::{ MaterialUploadContext, program::{ ShaderProgram, ProgramInfo } };
   use crate::webgl::program::impl_locations;
 
   /// The source code for the main vertex shader.
@@ -418,34 +418,24 @@ mod private
       gl.uniform1i( locations.get( "integrateBRDF" ).unwrap().clone().as_ref() , ibl_base_location + 2 );
     }
 
-    fn regular_upload
+    fn upload
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      node_context : &NodeContext
+      context : &MaterialUploadContext< '_ >
     )
     -> Result< (), gl::WebglError >
     {
-      if let Some( current_primitive_id ) = node_context.primitive_id
+      if let Some( current_primitive_id ) = context.primitive_id
       {
-        if let Object3D::Mesh( mesh ) = &node_context.node.borrow().object
+        if let Object3D::Mesh( mesh ) = &context.node.object
         {
-          let primitive_offset = mesh.borrow().primitives
-          .iter()
-          .enumerate()
-          .map_while
-          (
-            | ( i, p ) |
-            if i < current_primitive_id
-            {
-              Some( p.borrow().geometry.borrow().vertex_count as u32 )
-            }
-            else
-            {
-              None
-            }
-          )
-          .sum::< u32 >();
+          let mut primitive_offset : u32 = 0;
+          for ( i, primitive ) in mesh.borrow().primitives.iter().enumerate()
+          {
+            if i >= current_primitive_id { break; }
+            primitive_offset += primitive.borrow().geometry.borrow().vertex_count;
+          }
 
           let locations = self.program.locations();
 
@@ -459,11 +449,11 @@ mod private
       Ok( () )
     }
 
-    fn upload
+    fn upload_on_state_change
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      node_context : &NodeContext
+      context : &MaterialUploadContext< '_ >
     )
     -> Result< (), gl::WebglError >
     {
@@ -487,7 +477,7 @@ mod private
         Ok( () )
       };
 
-      let _ = self.regular_upload( gl, node_context );
+      let _ = self.upload( gl, context );
 
       upload( "specularFactor", self.specular_factor )?;
 

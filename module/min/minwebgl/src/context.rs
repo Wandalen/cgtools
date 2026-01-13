@@ -48,11 +48,11 @@ mod private
   /// Create a WebGL2 context from a canvas element with default options.
   pub fn from_canvas( canvas : &HtmlCanvasElement ) -> Result< GL, Error >
   {
-    from_canvas_with( canvas, ContexOptions::default() )
+    from_canvas_with( canvas, ContextOptions::default() )
   }
 
   /// Create a WebGL2 context from a canvas.
-  pub fn from_canvas_with( canvas: &HtmlCanvasElement, o : ContexOptions ) -> Result< GL, Error >
+  pub fn from_canvas_with( canvas: &HtmlCanvasElement, o : ContextOptions ) -> Result< GL, Error >
   {
     if o.remove_dpr_scaling
     {
@@ -100,17 +100,17 @@ mod private
 
   // aaa : explain difference between similar functions
   /// Retrieves a WebGL2 context from an existing canvas or creates a new canvas if none is found,
-  /// applying the specified `ContexOptions`.
+  /// applying the specified `ContextOptions`.
   ///
   /// # Arguments
-  /// - `o`: A `ContexOptions` instance to configure the behavior of the canvas, such as
+  /// - `o`: A `ContextOptions` instance to configure the behavior of the canvas, such as
   ///   reducing device pixel ratio scaling.
   ///
   /// # Errors
   /// - Returns an error if the canvas cannot be found, created, or if the WebGL2 context cannot
   ///   be retrieved.
   // aaa : use o instead of long name in such cases
-  pub fn retrieve_or_make_with( o : ContexOptions ) -> Result< GL, Error >
+  pub fn retrieve_or_make_with( o : ContextOptions ) -> Result< GL, Error >
   {
     let canvas = canvas::retrieve_or_make()?;
     // aaa : no, opposite retrieve_or_make is shortcut for retrieve_or_make_with
@@ -144,10 +144,10 @@ mod private
     }
   }
 
-  /// `ContexOptions` is a configuration struct used to customize the behavior of canvas creation
+  /// `ContextOptions` is a configuration struct used to customize the behavior of canvas creation
   /// and WebGL2 context retrieval.
   #[ derive( Debug, Clone ) ]
-  pub struct ContexOptions
+  pub struct ContextOptions
   {
     /// If set to true, the canvas will be scaled down by the device's pixel ratio, which can help
     /// in achieving consistent rendering across devices with different pixel densities.
@@ -192,7 +192,7 @@ mod private
     pub desynchronized : bool,
   }
 
-  impl ContexOptions
+  impl ContextOptions
   {
     /// Set whether to remove device pixel ratio scaling.
     pub fn remove_dpr_scaling( mut self, val : bool ) -> Self
@@ -265,8 +265,8 @@ mod private
     }
   }
 
-  /// Provides a default implementation for `ContexOptions`.
-  impl Default for ContexOptions
+  /// Provides a default implementation for `ContextOptions`.
+  impl Default for ContextOptions
   {
     fn default() -> Self
     {
@@ -286,8 +286,8 @@ mod private
     }
   }
 
-  /// Converts `ContexOptions` into a `js_sys::Object` for use with JavaScript.
-  impl Into< js_sys::Object > for ContexOptions
+  /// Converts `ContextOptions` into a `js_sys::Object` for use with JavaScript.
+  impl Into< js_sys::Object > for ContextOptions
   {
     fn into( self ) -> js_sys::Object
     {
@@ -325,7 +325,7 @@ crate::mod_interface!
     retrieve_or_make,
     from_canvas_2d,
     retrieve_or_make_with,
-    ContexOptions,
+    ContextOptions,
     PowerPreference,
   };
 

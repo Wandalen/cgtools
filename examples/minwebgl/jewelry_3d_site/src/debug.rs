@@ -4,7 +4,6 @@ use minwebgl as gl;
 use gl::{ GL, web_sys::{ WebGlProgram, WebGlTexture } };
 use renderer::webgl::Camera;
 use crate::cube_normal_map_generator::CubeNormalMapGenerator;
-use crate::helpers;
 
 fn get_cube_data() -> &'static [ f32 ]
 {
@@ -141,7 +140,7 @@ fn setup_camera( canvas : &web_sys::HtmlCanvasElement ) -> Camera
 pub async fn debug_run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
-  let options = gl::context::ContexOptions::default().antialias( false );
+  let options = gl::context::ContextOptions::default().antialias( false );
 
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas_with( &canvas, options )?;
@@ -154,7 +153,7 @@ pub async fn debug_run() -> Result< (), gl::WebglError >
 
   let model_id = 0;
   let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/{model_id}.glb" ).as_str(), &gl ).await?;
-  let gem = helpers::get_node( &gltf.scenes[ 0 ], "Diamond_Cushion_Square".to_string() ).unwrap();
+  let gem = gltf.scenes[ 0 ].borrow().get_node( "Diamond_Cushion_Square" ).unwrap();
 
   let camera = setup_camera( &canvas );
 

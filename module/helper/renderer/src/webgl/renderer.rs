@@ -27,7 +27,7 @@ mod private
     AlphaMode,
     Camera,
     Node,
-    NodeContext,
+    MaterialUploadContext,
     Object3D,
     Primitive,
     ShaderProgram,
@@ -758,16 +758,15 @@ mod private
         // If the node contains a mesh...
         if let Object3D::Mesh( ref mesh ) = node.borrow().object
         {
-          let mut node_context = NodeContext
-          {
-            node : node.clone(),
-            primitive_id : Some( 0 )
-          };
-
           // Iterate over each primitive in the mesh.
           for ( i, primitive_rc ) in mesh.borrow().primitives.iter().enumerate()
           {
-            node_context.primitive_id = Some( i );
+            let node_ref = node.borrow();
+            let material_upload_context = MaterialUploadContext
+            {
+              node : &node_ref,
+              primitive_id : Some( i )
+            };
             let primitive = primitive_rc.borrow();
             let defines = primitive.material.borrow().get_defines_str();
             // Generate a unique ID for the program based on the material ID and vertex shader defines.
@@ -812,7 +811,7 @@ mod private
               shader_program.bind( gl );
               const IBL_BASE_ACTIVE_TEXTURE : u32 = 10;
               material.configure( gl, IBL_BASE_ACTIVE_TEXTURE );
-              material.upload( gl, &node_context )?;
+              material.upload_on_state_change( gl, &material_upload_context )?;
               let locations = shader_program.locations();
               camera.upload( gl, locations );
               if material.needs_ibl()
@@ -847,13 +846,10 @@ mod private
             // Bind the program, upload camera and node matrices, bind the primitive, and draw it.
             shader_program.bind( gl );
 
+            material.upload( gl, &material_upload_context )?;
             if material.needs_update() && program_cached
             {
-              let _ = material.upload( gl, &node_context );
-            }
-            else
-            {
-              let _ = material.regular_upload( gl, &node_context );
+              material.upload_on_state_change( gl, &material_upload_context )?;
             }
 
             node.borrow().upload( gl, locations );

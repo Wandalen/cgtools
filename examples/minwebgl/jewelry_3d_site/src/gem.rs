@@ -1,4 +1,4 @@
-use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo, NodeContext };
+use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo, MaterialUploadContext };
 use renderer::impl_locations;
 use minwebgl as gl;
 use gl::{ GL, Former, WebGlProgram };
@@ -134,11 +134,11 @@ impl Material for GemMaterial
     gl.uniform1i( locations.get( "cubeNormalMap" ).unwrap().clone().as_ref() , 1 );
   }
 
-  fn upload
+  fn upload_on_state_change
   (
     &self,
     gl : &GL,
-    node_context : &NodeContext
+    context : &MaterialUploadContext< '_ >
   )
   -> Result< (), gl::WebglError >
   {
@@ -158,7 +158,7 @@ impl Material for GemMaterial
 
     gl::uniform::upload( gl, locations.get( "rayBounces" ).unwrap().clone(), &self.ray_bounces )?;
 
-    let bb = node_context.node.borrow().bounding_box();
+    let bb = context.node.bounding_box();
     let c = bb.center();
     let max_distance = ( bb.max - c ).mag().max( ( bb.min - c ).mag() );
 
@@ -167,7 +167,7 @@ impl Material for GemMaterial
 
     upload_array( "diamondColor", self.color.0.as_slice() )?;
 
-    let offset_mat = gl::math::mat3x3h::translation( -node_context.node.borrow().bounding_box().center() );
+    let offset_mat = gl::math::mat3x3h::translation( -context.node.bounding_box().center() );
 
     gl::uniform::matrix_upload( gl, locations.get( "offsetMatrix" ).unwrap().clone(), offset_mat.raw_slice(), true )?;
     gl::uniform::matrix_upload( gl, locations.get( "inverseOffsetMatrix" ).unwrap().clone(), offset_mat.inverse().unwrap().raw_slice(), true )?;

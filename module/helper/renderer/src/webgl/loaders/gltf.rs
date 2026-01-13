@@ -250,9 +250,9 @@ mod private
 
     let mut displacements = skeleton::DisplacementsData::new();
 
-    displacements.set_displacement( positions, gltf::Semantic::Positions, skin_vertices_count );
-    displacements.set_displacement( normals, gltf::Semantic::Normals, skin_vertices_count );
-    displacements.set_displacement( tangents, gltf::Semantic::Tangents, skin_vertices_count );
+    let _ = displacements.set_displacement( positions, gltf::Semantic::Positions, skin_vertices_count );
+    let _ = displacements.set_displacement( normals, gltf::Semantic::Normals, skin_vertices_count );
+    let _ = displacements.set_displacement( tangents, gltf::Semantic::Tangents, skin_vertices_count );
     if let Some( weights ) = weights
     {
       let weights_rc = displacements.get_morph_weights();
@@ -296,7 +296,7 @@ mod private
     }
   }
 
-    fn get_light_list( gltf : &gltf::Gltf ) -> Option< FxHashMap< usize, Light > >
+  fn get_light_list( gltf : &gltf::Gltf ) -> Option< FxHashMap< usize, Light > >
   {
     let mut lights = FxHashMap::default();
     for ( i, gltf_light ) in gltf.lights()?.enumerate()
@@ -334,26 +334,21 @@ mod private
             }
           )
         },
-        gltf::khr_lights_punctual::Kind::Spot
+        gltf::khr_lights_punctual::Kind::Spot { inner_cone_angle, outer_cone_angle } =>
         {
-          inner_cone_angle,
-          outer_cone_angle,
-        } =>
-        {
-          let Some( range ) = gltf_light.range()
-          else
-          {
-            continue;
-          };
+          let color = gltf_light.color();
+          let strength = gltf_light.intensity();
+          let range = gltf_light.range().unwrap_or( 10.0 );
+
           Light::Spot
           (
             SpotLight
             {
               position : F32x3::default(),
               direction : F32x3::default(),
-              color : F32x3::from_slice( &gltf_light.color() ),
-              strength : gltf_light.intensity(),
-              range,
+              color: color.into(),
+              strength : strength as f32,
+              range : range as f32,
               inner_cone_angle,
               outer_cone_angle,
               use_light_map : false,
@@ -995,7 +990,7 @@ mod private
     }
 
     #[ cfg( feature = "animation" ) ]
-    let animations = crate::webgl::animation::loaders::gltf::load( &gltf_file, bin_buffers.as_slice(), nodes.as_slice() ).await;
+    let animations = crate::webgl::animation::loaders::gltf::load( &gl, &gltf_file, bin_buffers.as_slice(), nodes.as_slice() ).await;
 
     #[ cfg( feature = "animation" ) ]
     gl::log::info!( "Animations: {}", animations.len() );

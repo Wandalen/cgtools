@@ -3,7 +3,7 @@ mod private
   use std::{ cell::RefCell, fmt::Debug, rc::Rc };
   use mingl::geometry::BoundingBox;
   use minwebgl as gl;
-  use crate::webgl::{ Geometry, Material, NodeContext };
+  use crate::webgl::{ Geometry, Material, MaterialUploadContext };
 
   /// Represents a renderable object composed of geometry and material.
   #[ derive( Debug ) ]
@@ -37,10 +37,10 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      node_context : &NodeContext
+      context : &MaterialUploadContext< '_ >
     ) -> Result< (), gl::WebglError >
     {
-      self.material.borrow().upload( gl, node_context )?;
+      self.material.borrow().upload_on_state_change( gl, context )?;
       self.geometry.borrow().upload( gl )?;
 
       Ok( () )

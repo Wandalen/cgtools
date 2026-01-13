@@ -79,7 +79,7 @@ fn handle_camera_position( configurator : &Configurator )
   }
 
   let current_scene = &configurator.rings.rings[ configurator.rings.current_ring ];
-  let plane = get_node( &current_scene, "Plane".to_string() ).unwrap();
+  let plane = current_scene.borrow().get_node( "Plane" ).unwrap();
   if camera_controls.borrow().eye.y() <= plane.borrow().get_translation().y() + 0.1
   {
     plane.borrow_mut().set_visibility( false, false );
@@ -153,7 +153,7 @@ fn handle_ui_change( configurator : &mut Configurator )
 async fn run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
-  let options = gl::context::ContexOptions::default().antialias( false );
+  let options = gl::context::ContextOptions::default().antialias( false );
 
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas_with( &canvas, options )?;

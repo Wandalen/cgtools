@@ -23,6 +23,8 @@ crate::mod_interface!
   layer blend;
   /// Creates an outline
   layer outline;
+  /// Converts shadow texture to colored base color
+  layer shadow_to_color;
 
   own use
   {

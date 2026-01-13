@@ -1,7 +1,7 @@
 mod private
 {
   use minwebgl as gl;
-  use crate::webgl::{ ShaderProgram, Texture, NodeContext };
+  use crate::webgl::{ ShaderProgram, Texture, Node };
   use std:: { cell::RefCell, fmt::Debug, rc::Rc };
   use rustc_hash::FxHasher;
 
@@ -86,6 +86,16 @@ mod private
     }
   }
 
+  /// Used to get additional information for material upload
+  #[ derive( Debug, Clone ) ]
+  pub struct MaterialUploadContext<'a>
+  {
+    /// current processed [`Node`]
+    pub node : &'a Node,
+    /// id of current processed primitive of inner mesh
+    pub primitive_id : Option< usize >
+  }
+
   /// A trait representin a generic material
   pub trait Material : std::any::Any + Debug
   {
@@ -165,15 +175,15 @@ mod private
       ibl_base_location : u32,
     );
 
-    /// Uploads the material properties to the GPU as uniforms.
+    /// Uploads the material properties to the GPU as uniforms. Use this when material state is changed.
     ///
     /// * `gl`: The `WebGl2RenderingContext`.
     /// * `locations`: A hash map of uniform locations in the shader program.
-    fn upload
+    fn upload_on_state_change
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      node_context : &NodeContext
+      context : &MaterialUploadContext< '_ >
     )
     -> Result< (), gl::WebglError >;
 
@@ -181,11 +191,11 @@ mod private
     ///
     /// * `gl`: The `WebGl2RenderingContext`.
     /// * `locations`: A hash map of uniform locations in the shader program.
-    fn regular_upload
+    fn upload
     (
       &self,
       _gl : &gl::WebGl2RenderingContext,
-      _node_context : &NodeContext
+      _context : &MaterialUploadContext< '_ >
     )
     -> Result< (), gl::WebglError >
     {
@@ -257,6 +267,7 @@ crate::mod_interface!
   {
     AlphaMode,
     TextureInfo,
+    MaterialUploadContext,
     Material
   };
 }

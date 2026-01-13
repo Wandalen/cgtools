@@ -57,6 +57,8 @@ out vec4 vColor_1;
 #endif
 
 #ifdef USE_MORPH_TARGET
+  // Covers 99% of use cases, most models have <20 targets,
+  // but some can have 60 and more
   #define MAX_MORPH_TARGETS 100
 
   uniform float morphWeights[ MAX_MORPH_TARGETS ];
@@ -153,6 +155,14 @@ out vec4 vColor_1;
     return ( primitiveOffset + uint( gl_VertexID ) ) * morphTargetsCount * components;
   }
 
+  /// Retrieves displacement vector for a specific morph target and vertex attribute.
+  ///
+  /// @param target Target index (0 to morphTargetsCount-1)
+  /// @param offset Attribute offset
+  /// @return Displacement vector (xyz) for the target/attribute pair
+  ///
+  /// Index calculation matches CPU texture packing order:
+  /// For each vertex: [T0_POS, T1_POS, ..., T0_NORM, T1_NORM, ..., T0_TAN, T1_TAN, ...]
   vec3 get_target_attribute( uint target, uint offset )
   {
     int i = int( get_morph_targets_vertex_data_offset() + ( offset * morphTargetsCount ) + target );
@@ -210,7 +220,7 @@ out vec4 vColor_1;
     for ( uint i = 0u; i < cnt; ++i )
     {
       float w = morphWeights[ i ];
-      n += w * get_normal_displacement( i ) * 0.35;
+      n += w * get_normal_displacement( i );
     }
 
     return normalize( n );
@@ -246,21 +256,18 @@ void main()
   #ifdef USE_TANGENTS
     vTangent = tangent;
   #endif
-  vNormal = normalize( normalMatrix * normal );
-  //vNormal = vec3( -1.0, -1.0)
-  //vNormal *= -1.0;
-  //vNormal = normalize( mat3x3( worldMatrix ) * normal );
-  //vNormal = normal;
 
   vec4 position = vec4( position, 1.0 );
 
   #ifdef USE_MORPH_TARGET
     position.xyz = displace_position( position.xyz );
-    vNormal = displace_normal( vNormal );
+    vNormal = normalize( normalMatrix * displace_normal( normal ) );
 
     #ifdef USE_TANGENTS
       vTangent.xyz = displace_tangent( vTangent.xyz );
     #endif
+  #else
+    vNormal = normalize( normalMatrix * normal );
   #endif
 
   #ifdef USE_SKINNING

@@ -1,4 +1,4 @@
-use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo, NodeContext };
+use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo, MaterialUploadContext };
 use renderer::impl_locations;
 use minwebgl as gl;
 use gl::{ GL, F32x3, Former, WebGlProgram };
@@ -110,11 +110,11 @@ impl Material for SurfaceMaterial
     gl.uniform1i( locations.get( "surfaceTexture" ).unwrap().clone().as_ref(), 0 );
   }
 
-  fn upload
+  fn upload_on_state_change
   (
     &self,
     gl : &GL,
-    _node_context : &NodeContext
+    _context : &MaterialUploadContext< '_ >
   )
   -> Result< (), gl::WebglError >
   {

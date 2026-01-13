@@ -9,16 +9,13 @@ mod private
   };
   use crate::webgl::
   {
-    animation::
+    Node, Object3D, animation::
     {
-      base::
+      Animation, base::
       {
         MORPH_TARGET_PREFIX, ROTATION_PREFIX, SCALE_PREFIX, TRANSLATION_PREFIX
-      },
-      Animation
-    },
-    Node,
-    Object3D
+      }
+    }
   };
   use animation::
   {
@@ -47,6 +44,7 @@ mod private
     Gltf
   };
   use mingl::{ F64x3, QuatF64 };
+  use minwebgl::GL;
 
   fn decode_channel< 'a >
   (
@@ -349,12 +347,23 @@ mod private
   /// Load all animations from [`Gltf`] file
   pub async fn load
   (
+    gl : &GL,
     gltf_file : &Gltf,
     buffers : &[ Vec< u8 > ],
     nodes : &[ Rc< RefCell< Node > > ]
   )
   -> Vec< Animation >
   {
+    let max_components = gl.get_parameter( minwebgl::MAX_COMBINED_VERTEX_UNIFORM_COMPONENTS )
+    .ok()
+    .map( | v | v.as_f64() )
+    .flatten()
+    .unwrap_or( 0.0 ) as usize;
+    if max_components < crate::webgl::skeleton::MAX_MORPH_TARGETS
+    {
+      minwebgl::warn!( "Max uniform components is smaller then max morph targets for this device." );
+    }
+
     let mut animations = Vec::new();
     for animation in gltf_file.animations()
     {

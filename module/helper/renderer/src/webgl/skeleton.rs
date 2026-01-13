@@ -1,6 +1,6 @@
 mod private
 {
-  use minwebgl as gl;
+  use minwebgl::{self as gl, WebglError};
   use gl::
   {
     GL,
@@ -28,13 +28,14 @@ mod private
 
   /// Loads data to data texture where every pixel
   /// is 4 float values. Used for packing matrices array
-  fn load_texture_data_4f
+  pub fn load_texture_data_4f
   (
     gl : &GL,
     texture : &WebGlTexture,
     data : &[ f32 ],
     size : [ u32; 2 ],
   )
+  -> Result< (), WebglError >
   {
     gl.active_texture( GL::TEXTURE0 );
     gl.bind_texture( GL::TEXTURE_2D, Some( texture ) );
@@ -42,7 +43,7 @@ mod private
     // Create a Float32Array from the Rust slice
     let js_data = Float32Array::from( data );
 
-    let _ = gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_array_buffer_view_and_src_offset
+    gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_array_buffer_view_and_src_offset
     (
       GL::TEXTURE_2D,
       0,
@@ -54,13 +55,16 @@ mod private
       GL::FLOAT,
       &js_data,
       0
-    );
+    )
+    .map_err( | _ | WebglError::Other( "Can't write to data texture" ) )?;
 
     gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MIN_FILTER, GL::NEAREST as i32 );
     gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_MAG_FILTER, GL::NEAREST as i32 );
 
     gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE as i32 );
     gl.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
+
+    Ok( () )
   }
 
   /// Binds a texture to a texture unit and uploads its location to a uniform.
@@ -83,6 +87,18 @@ mod private
     gl.bind_texture( GL::TEXTURE_2D, Some( &texture ) );
     // Tell the sampler uniform in the shader which texture unit to use ( 0 for GL_TEXTURE0, 1 for GL_TEXTURE1, etc. )
     gl.uniform1i( location.as_ref(), slot as i32 );
+  }
+
+  /// Nodes' global transform data texture and inverse bind matrices texture
+  /// sizes are calculated using this function in the following way:
+  /// 1. Get a theoretical square with sides of rational non integer length filled with data.
+  /// 2. Then apply log and power to make the texture resolution to be always a multiple of 4.
+  ///    We need this to ensure that a single matrix inside of the texture can't be split
+  ///    between two rows and all matrices have grid alignment.
+  /// 3. The ceil is needed to get the smallest integer side length that fits all the data.
+  pub fn calculate_data_texture_size( data_size : usize ) -> u32
+  {
+    4.0_f32.powf( ( data_size as f32 ).sqrt().log( 4.0 ).ceil() ) as u32
   }
 
   /// Skin joints transforms related data
@@ -165,13 +181,7 @@ mod private
       .flatten()
       .collect::< Vec< _ > >();
 
-      // Nodes' global transform data texture and inverse bind matrices texture sizes are calculated in the following way:
-      // 1. Get a theoretical square with sides of rational non integer length filled with data.
-      // 2. Then apply log and power to make the texture resolution to be always a multiple of 4.
-      //    We need this to ensure that a single matrix inside of the texture can't be split
-      //    between two rows and all matrices have grid alignment.
-      // 3. The ceil is needed to get the smallest integer side length that fits all the data.
-      let a = 4.0_f32.powf( ( global_data.len() as f32 ).sqrt().log( 4.0 ).ceil() ) as u32;
+      let a = calculate_data_texture_size(global_data.len() );
       let texture_size = [ a, a ];
 
       global_data.extend( vec![ 0.0; ( a * a * 4 ) as usize - global_data.len() ] );
@@ -196,7 +206,7 @@ mod private
         .collect::< Vec< _ > >();
 
         inverse_data.extend( vec![ 0.0; ( a * a * 4 ) as usize - inverse_data.len() ] );
-        load_texture_data_4f( gl, self.inverse_texture.as_ref().unwrap(), inverse_data.as_slice(), texture_size );
+        let _ = load_texture_data_4f( gl, self.inverse_texture.as_ref().unwrap(), inverse_data.as_slice(), texture_size );
 
         if self.inverse_texture.is_some() && self.global_texture.is_some()
         {
@@ -210,7 +220,7 @@ mod private
         let inverse_matrices_loc = locations.get( "inverseBindMatricesTexture" ).unwrap();
         let texture_size_loc = locations.get( "skinMatricesTextureSize" ).unwrap();
 
-        load_texture_data_4f( gl, self.global_texture.as_ref().unwrap(), global_data.as_slice(), texture_size );
+        let _ = load_texture_data_4f( gl, self.global_texture.as_ref().unwrap(), global_data.as_slice(), texture_size );
         upload_texture( gl, self.global_texture.as_ref().unwrap(), global_matrices_loc.clone(), GLOBAL_MATRICES_SLOT );
         upload_texture( gl, self.inverse_texture.as_ref().unwrap(), inverse_matrices_loc.clone(), INVERSE_MATRICES_SLOT );
         gl::uniform::upload( gl, texture_size_loc.clone(), texture_size.as_slice() ).unwrap();
@@ -291,8 +301,20 @@ mod private
       }
     }
 
-    /// Uploads morph targets data to uniforms
-    ///
+    /// Returns binded attributes count
+    pub fn attributes_count( &self ) -> usize
+    {
+      [
+        &self.positions_displacements,
+        &self.normals_displacements,
+        &self.tangents_displacements
+      ]
+      .iter()
+      .filter( | v | v.is_some() )
+      .count()
+    }
+
+    /// Packs displacement data into texture.
     /// Displacement texture aligment:
     ///
     /// +--------------------------------...---------------...----------------...--------------...-------+
@@ -307,6 +329,61 @@ mod private
     /// |  X  | Y (4 bytes) |  Z  |   |       |    |    |       |    |     |       |    |      ...       |
     /// +-----+-------------+-----+---+--...--+----+----+--...--+----+-----+--...--+----+------...-------+
     ///
+    pub fn pack_displacements_data( &mut self ) -> Vec< f32 >
+    {
+      let arrays =
+      [
+        &self.positions_displacements,
+        &self.normals_displacements,
+        &self.tangents_displacements
+      ]
+      .iter()
+      .filter( | v | v.is_some() )
+      .map( | v | v.as_ref().unwrap().clone() )
+      .collect::< Vec< _ > >();
+
+      let len = arrays.iter()
+      .map( | v | v.len() )
+      .max()
+      .unwrap_or_default();
+
+      let attributes_count = arrays.len();
+
+      self.targets_count = if self.vertices_count > 0
+      {
+        len / self.vertices_count
+      }
+      else
+      {
+        0
+      };
+
+      let mut data = Vec::with_capacity
+      (
+        self.vertices_count
+        * attributes_count
+        * self.targets_count
+        * 4
+      );
+
+      for v in 0..self.vertices_count
+      {
+        let vertex_base = v * self.targets_count;
+
+        for arr in &arrays
+        {
+          for t in 0..self.targets_count
+          {
+            let d = arr[ vertex_base + t ];
+            data.extend_from_slice( &[ d[ 0 ], d[ 1 ], d[ 2 ], 1.0 ] );
+          }
+        }
+      }
+
+      data
+    }
+
+    /// Uploads morph targets data to uniforms
     fn upload
     (
       &mut self,
@@ -329,56 +406,9 @@ mod private
           self.displacements_texture = gl.create_texture();
         }
 
-        let arrays =
-        [
-          &self.positions_displacements,
-          &self.normals_displacements,
-          &self.tangents_displacements
-        ]
-        .iter()
-        .filter( | v | v.is_some() )
-        .map( | v | v.as_ref().unwrap().clone() )
-        .collect::< Vec< _ > >();
+        let mut data = self.pack_displacements_data();
 
-        let len = arrays.iter()
-        .map( | v | v.len() )
-        .max()
-        .unwrap_or_default();
-
-        let attributes_count = arrays.len();
-
-        self.targets_count = if self.vertices_count > 0
-        {
-          len / self.vertices_count
-        }
-        else
-        {
-          0
-        };
-
-        let mut data = Vec::with_capacity
-        (
-          self.vertices_count
-          * attributes_count
-          * self.targets_count
-          * 4
-        );
-
-        for v in 0..self.vertices_count
-        {
-          let vertex_base = v * self.targets_count;
-
-          for arr in &arrays
-          {
-            for t in 0..self.targets_count
-            {
-              let d = arr[ vertex_base + t ];
-              data.extend_from_slice( &[ d[ 0 ], d[ 1 ], d[ 2 ], 1.0 ] );
-            }
-          }
-        }
-
-        let vertex_displacement_len = attributes_count * self.targets_count;
+        let vertex_displacement_len = self.attributes_count() * self.targets_count;
         if self.morph_weights.borrow().is_empty()
         {
           *self.morph_weights.borrow_mut() = if self.default_weights.len() == self.targets_count
@@ -397,9 +427,26 @@ mod private
           let i = ( ( data.len() as f32 ).sqrt() / v ).floor();
           let a = ( v * i as f32 ) as u32;
           let b = ( data.len() as f32 / a as f32 ).ceil() as u32;
+
+          let max_size = gl.get_parameter( gl::MAX_TEXTURE_SIZE )
+          .ok()
+          .map( | v | v.as_f64() )
+          .flatten()
+          .unwrap_or( 0.0 ) as u32;
+          if a.max( b ) > max_size
+          {
+            gl::web::error!
+            (
+              "Displacement texture size exceeded max WebGL texture size: {:?} > {:?}",
+              ( a, b ),
+              ( max_size, max_size )
+            );
+            return;
+          }
+
           self.disp_texture_size = [ a, b ];
           data.extend( vec![ 0.0; ( a * b * 4 ) as usize - data.len() ] );
-          load_texture_data_4f( gl, self.displacements_texture.as_ref().unwrap(), data.as_slice(), [ a, b ] );
+          let _ = load_texture_data_4f( gl, self.displacements_texture.as_ref().unwrap(), data.as_slice(), [ a, b ] );
         }
 
         let mut offset = 0 as i32;
@@ -482,10 +529,11 @@ mod private
       displacement_type : gltf::Semantic,
       vertices_count : usize
     )
+    -> bool
     {
       if vertices_count != self.vertices_count && self.vertices_count > 0
       {
-        return;
+        return false;
       }
 
       self.vertices_count = vertices_count;
@@ -505,7 +553,7 @@ mod private
       unique.remove( &0 );
       if unique.len() > 1
       {
-        return;
+        return false;
       }
 
       let displacement_is_some = displacement_array.is_some();
@@ -515,7 +563,7 @@ mod private
         gltf::Semantic::Positions => { self.positions_displacements = displacement_array; },
         gltf::Semantic::Normals => { self.normals_displacements = displacement_array; },
         gltf::Semantic::Tangents => { self.tangents_displacements = displacement_array; }
-        _ => ()
+        _ => return false
       }
 
       if self.displacements_texture.is_some() || displacement_is_some
@@ -525,9 +573,11 @@ mod private
           gltf::Semantic::Positions |
           gltf::Semantic::Normals |
           gltf::Semantic::Tangents => { self.need_update_displacement = true; }
-          _ => ()
+          _ => return false
         }
       }
+
+      true
     }
   }
 
@@ -636,11 +686,14 @@ crate::mod_interface!
 {
   orphan use
   {
+    load_texture_data_4f,
+    calculate_data_texture_size,
     TransformsData,
     DisplacementsData,
     Skeleton,
     GLOBAL_MATRICES_SLOT,
     INVERSE_MATRICES_SLOT,
-    DISPLACEMENTS_SLOT
+    DISPLACEMENTS_SLOT,
+    MAX_MORPH_TARGETS
   };
 }
