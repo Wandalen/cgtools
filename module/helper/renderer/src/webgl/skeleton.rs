@@ -397,6 +397,23 @@ mod private
           let i = ( ( data.len() as f32 ).sqrt() / v ).floor();
           let a = ( v * i as f32 ) as u32;
           let b = ( data.len() as f32 / a as f32 ).ceil() as u32;
+
+          let max_size = gl.get_parameter( gl::MAX_TEXTURE_SIZE )
+          .ok()
+          .map( | v | v.as_f64() )
+          .flatten()
+          .unwrap_or( 0.0 ) as u32;
+          if a.max( b ) > max_size
+          {
+            gl::web::error!
+            (
+              "Displacement texture size exceeded max WebGL texture size: {:?} > {:?}",
+              ( a, b ),
+              ( max_size, max_size )
+            );
+            return;
+          }
+
           self.disp_texture_size = [ a, b ];
           data.extend( vec![ 0.0; ( a * b * 4 ) as usize - data.len() ] );
           load_texture_data_4f( gl, self.displacements_texture.as_ref().unwrap(), data.as_slice(), [ a, b ] );
