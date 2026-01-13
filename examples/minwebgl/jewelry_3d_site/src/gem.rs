@@ -5,6 +5,7 @@ use gl::{ GL, Former, WebGlProgram };
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
 use std:: { cell::RefCell, rc::Rc };
+use crate::cube_normal_map_generator::CubeNormalData;
 
 // Gem shader
 impl_locations!
@@ -53,7 +54,7 @@ pub struct GemMaterial
   /// Equirectangular environment texture
   pub environment_texture : Option< TextureInfo >,
   /// Cube normal map texture
-  pub cube_normal_map_texture : Option< TextureInfo >,
+  pub cube_normal_map_texture : CubeNormalData,
   /// Signal for updating material uniforms
   pub needs_update : bool
 }
@@ -79,7 +80,7 @@ impl GemMaterial
       env_map_intensity : 1.0,
       radius : 1000.0,
       environment_texture : None,
-      cube_normal_map_texture : None,
+      cube_normal_map_texture : CubeNormalData::default(),
       needs_update : true
     }
   }
@@ -158,16 +159,19 @@ impl Material for GemMaterial
 
     gl::uniform::upload( gl, locations.get( "rayBounces" ).unwrap().clone(), &self.ray_bounces )?;
 
-    let bb = node.borrow().bounding_box();
+    let inv_world = node.borrow().get_world_matrix().inverse().unwrap();
+
+    let mut bb = node.borrow().bounding_box();
+
+    bb.apply_transform_mut( inv_world );
     let c = bb.center();
-    let max_distance = ( bb.max - c ).mag().max( ( bb.min - c ).mag() );
 
     upload( "envMapIntensity", self.env_map_intensity )?;
-    upload( "radius", max_distance )?;
+    upload( "radius", self.cube_normal_map_texture.max_distance )?;
 
     upload_array( "diamondColor", self.color.0.as_slice() )?;
 
-    let offset_mat = gl::math::mat3x3h::translation( -node.borrow().bounding_box().center() );
+    let offset_mat = gl::math::mat3x3h::translation( -c ) * inv_world;
 
     gl::uniform::matrix_upload( gl, locations.get( "offsetMatrix" ).unwrap().clone(), offset_mat.raw_slice(), true )?;
     gl::uniform::matrix_upload( gl, locations.get( "inverseOffsetMatrix" ).unwrap().clone(), offset_mat.inverse().unwrap().raw_slice(), true )?;
@@ -180,7 +184,7 @@ impl Material for GemMaterial
   fn upload_textures( &self, gl : &GL )
   {
     if let Some( ref t ) = self.environment_texture { t.upload( gl ); }
-    if let Some( ref t ) = self.cube_normal_map_texture { t.upload( gl ); }
+    if let Some( ref t ) = self.cube_normal_map_texture.texture { t.upload( gl ); }
   }
 
   fn bind( &self, gl : &GL )
@@ -195,7 +199,7 @@ impl Material for GemMaterial
     };
 
     bind( &self.environment_texture, 0 );
-    bind( &self.cube_normal_map_texture, 1 );
+    bind( &self.cube_normal_map_texture.texture, 1 );
   }
 
   fn dyn_clone( &self ) -> Box< dyn Material >
