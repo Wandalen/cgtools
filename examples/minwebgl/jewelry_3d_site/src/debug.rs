@@ -140,7 +140,7 @@ fn setup_camera( canvas : &web_sys::HtmlCanvasElement ) -> Camera
 pub async fn debug_run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
-  let options = gl::context::ContexOptions::default().antialias( false );
+  let options = gl::context::ContextOptions::default().antialias( false );
 
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas_with( &canvas, options )?;

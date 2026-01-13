@@ -106,7 +106,7 @@ async fn create_texture(
 fn init_context() -> ( WebGl2RenderingContext, HtmlCanvasElement )
 {
   gl::browser::setup( Default::default() );
-  let options = gl::context::ContexOptions::default().antialias( false );
+  let options = gl::context::ContextOptions::default().antialias( false );
 
   let canvas = gl::canvas::make().unwrap();
   let gl = gl::context::from_canvas_with( &canvas, options ).unwrap();
