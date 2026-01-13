@@ -312,21 +312,21 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
 
   graph.edge_add( "jump".into(), "idle".into(), "jump_to_idle".into(), instant_tween.clone(), true_condition.clone() );
 
-  let mut walk = animations.get( "female_walk" ).unwrap().clone();
+  let walk = animations.get( "female_walk" ).unwrap().clone();
   graph.node_add( "walk".into(), walk );
 
-  let mut walk_backward = animations.get( "running_backward" ).unwrap().clone();
+  let walk_backward = animations.get( "running_backward" ).unwrap().clone();
   graph.node_add( "walk_backward".into(), walk_backward );
 
-  let mut walk_left = animations.get( "walk_strafe_left" ).unwrap().clone();
+  let walk_left = animations.get( "walk_strafe_left" ).unwrap().clone();
   graph.node_add( "walk_left".into(), walk_left );
 
   let mut walk_right = animations.get( "walk_strafe_left" ).unwrap().clone();
-  walk_right = Mirror::along_plane( &walk_right, MirrorPlane::XY );
+  walk_right = Mirror::along_plane( &walk_right, MirrorPlane::YZ );
   graph.node_add( "walk_right".into(), walk_right );
 
-  let mut stop_walk = animations.get( "female_stop_walking" ).unwrap().clone();
-  graph.node_add( "stop_walk".into(), animations.get( "female_stop_walking" ).unwrap().clone() );
+  let stop_walk = animations.get( "female_stop_walking" ).unwrap().clone();
+  graph.node_add( "stop_walk".into(), stop_walk );
 
   let input = input_.clone();
   let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
@@ -359,10 +359,38 @@ fn setup_graph( animations : Vec< Animation >, input_ : &Rc< RefCell< browser_in
   };
   graph.edge_add( "walk_backward".into(), "idle".into(), "walk_backward_to_idle".into(), instant_tween.clone(), condition );
 
-  let mut run = animations.get( "run_forward" ).unwrap().clone();
+  let input = input_.clone();
+  let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
+  {
+    input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyA )
+  };
+  graph.edge_add( "idle".into(), "walk_left".into(), "idle_to_walk_left".into(), instant_tween.clone(), condition );
+
+  let input = input_.clone();
+  let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
+  {
+    !input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyA )
+  };
+  graph.edge_add( "walk_left".into(), "idle".into(), "walk_left_to_idle".into(), instant_tween.clone(), condition );
+
+  let input = input_.clone();
+  let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
+  {
+    input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyD )
+  };
+  graph.edge_add( "idle".into(), "walk_right".into(), "idle_to_walk_right".into(), instant_tween.clone(), condition );
+
+  let input = input_.clone();
+  let condition = move | _edge : &AnimationEdge, _p1 : &Pose, _p2 : &Pose |
+  {
+    !input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyD )
+  };
+  graph.edge_add( "walk_right".into(), "idle".into(), "walk_right_to_idle".into(), instant_tween.clone(), condition );
+
+  let run = animations.get( "run_forward" ).unwrap().clone();
   graph.node_add( "run".into(), run );
 
-  let mut run_backward = animations.get( "running_backward" ).unwrap().clone();
+  let run_backward = animations.get( "running_backward" ).unwrap().clone();
   graph.node_add( "run_backward".into(), run_backward );
 
   // graph.node_add( "run_jump".into(), animations.get( "running_jump" ).unwrap().clone() );
@@ -497,7 +525,10 @@ async fn run() -> Result< (), gl::WebglError >
       center.0[ 1 ] += 1.5;
       camera.get_controls().borrow_mut().center = center;
 
-      if input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyW ) || input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyS )
+      if input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyW ) ||
+      input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyS ) ||
+      input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyA ) ||
+      input.borrow().is_key_down( browser_input::keyboard::KeyboardKey::KeyD )
       {
         character.borrow_mut().set_rotation( Quat::from_angle_y( character_controls.borrow().yaw() as f32 / 2.0 ) );
       }
