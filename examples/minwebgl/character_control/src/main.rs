@@ -45,7 +45,6 @@ use renderer::webgl::
   // Object3D,
   Renderer,
   Scene,
-  Node,
   TextureInfo,
   Texture,
   WrappingMode,
@@ -86,30 +85,6 @@ fn create_plane( gl : &GL, scene : &Rc< RefCell< Scene > > )
     plane.borrow_mut().set_name( "Plane" );
     scene.borrow_mut().children.push( plane.clone() );
   }
-}
-
-/// Finds [`Node`] in [`Scene`] by name
-fn find_node( scene : &Rc< RefCell< Scene > >, substring : &str ) -> Option< Rc< RefCell< Node > > >
-{
-  let mut target_node = None;
-  let _ = scene.borrow().traverse
-  (
-    &mut | node : Rc< RefCell< Node > > |
-    {
-      let name = node.borrow().get_name();
-      if let Some( name ) = name
-      {
-        if name.contains( substring )
-        {
-          target_node = Some( node.clone() );
-        }
-      }
-
-      Ok( () )
-    }
-  );
-
-  target_node
 }
 
 /// Uploads an image from a URL to a WebGL texture.
@@ -215,8 +190,8 @@ async fn setup_scene( gl : &GL ) -> Result< GLTF, WebglError >
 
   create_plane( &gl, &gltf.scenes[ 0 ] );
 
-  let character = find_node( &gltf.scenes[ 0 ], "Armature" ).unwrap();
-  let plane = find_node( &gltf.scenes[ 0 ], "Plane" ).unwrap();
+  let character = gltf.scenes[ 0 ].borrow().get_node( "Armature" ).unwrap();
+  let plane = gltf.scenes[ 0 ].borrow().get_node( "Plane" ).unwrap();
 
   character.borrow_mut().set_scale( F32x3::splat( 0.1 ) );
   character.borrow_mut().set_rotation( QuatF32::from_angle_y( 0.0 ) );
@@ -542,7 +517,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let last_time = Rc::new( RefCell::new( 0.0 ) );
 
-  let character = find_node( &scene, "Armature" ).unwrap();
+  let character = scene.borrow().get_node( "Armature" ).unwrap();
 
   let mut initial_center = character.borrow().get_translation();
   initial_center.0[ 1 ] += 1.5;
