@@ -18,14 +18,6 @@ mod private
   /// - Mouse: Rotate the character (yaw and pitch)
   pub struct CharacterControls
   {
-    /// Current character position in world space
-    position : F64x3,
-    /// Current character rotation as a quaternion
-    rotation : QuatF64,
-    /// Current yaw angle (rotation around Y axis) in radians
-    yaw : f64,
-    /// Current pitch angle (rotation around X axis) in radians
-    pitch : f64,
     /// Distance between character and camera
     pub zoom : f64,
     /// Movement speed in units per second
@@ -38,6 +30,14 @@ mod private
     pitch_range : Range< f64 >,
     /// Minimum and maximum zoom distance
     pub zoom_range : Range< f64 >,
+    /// Current character position in world space
+    position : F64x3,
+    /// Current character rotation as a quaternion
+    rotation : QuatF64,
+    /// Current yaw angle (rotation around Y axis) in radians
+    yaw : f64,
+    /// Current pitch angle (rotation around X axis) in radians
+    pitch : f64,
   }
 
   impl CharacterControls
