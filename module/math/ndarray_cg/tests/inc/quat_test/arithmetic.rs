@@ -1,4 +1,4 @@
-use ndarray_cg::approx::assert_abs_diff_eq;
+use ndarray_cg::{F64x3, approx::assert_abs_diff_eq};
 
 use super::*;
 
@@ -134,4 +134,37 @@ fn test_from_euler_xyz()
   let q = QuatF64::from_euler_xyz( [ -23.0, 123.0, 0.53 ] );
   let exp = QuatF64::from( [ 0.0769801414111575, -0.5074489930731315, -0.7909288495020033, 0.3331683242489008 ] );
   assert_abs_diff_eq!( q, exp );
+}
+
+#[ test ]
+fn test_to_euler_xyz()
+{
+  use the_module::
+  {
+    QuatF64,
+  };
+
+  let test_cases =
+  [
+    ( [ 1.0, 2.0, 3.0 ], [ 1.0, 2.0, 3.0 ] ),
+    ( [ 0.0, 0.0, 0.0 ], [ 0.0, 0.0, 0.0 ] ),
+    ( [ 0.01, 0.01, 0.01 ], [ 0.01, 0.01, 0.01 ] ),
+    ( [ -90_f64.to_radians(); 3 ], [ 270_f64.to_radians(); 3 ] ),
+    ( [ -360_f64.to_radians(), 0_f64.to_radians(), 360_f64.to_radians() ], [ 0.0, 0.0, 0.0 ] ),
+    ( [ f64::MAX; 3 ], [ 0.0, 0.0, 0.0 ] ),
+    ( [ f64::MIN; 3 ], [ 0.0, 0.0, 0.0 ] )
+  ];
+
+  for ( input, output ) in test_cases
+  {
+    let q = QuatF64::from_euler_xyz( input );
+    let result = q.to_euler_xyz();
+
+    let diff = *( result - F64x3::from_array( output ) )
+    .iter()
+    .max_by( | a, b | a.partial_cmp( b ).unwrap_or( std::cmp::Ordering::Equal ) )
+    .unwrap_or( &f64::MAX );
+
+    assert!( diff < 0.01_f64, "{:?} != {:?}\nMax diff: {diff}", result.0, output );
+  }
 }
