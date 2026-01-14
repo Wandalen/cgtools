@@ -112,7 +112,7 @@ fn create_texture
 fn init_context() -> ( WebGl2RenderingContext, HtmlCanvasElement )
 {
   gl::browser::setup( gl::browser::Config::default() );
-  let options = gl::context::ContexOptions::default().antialias( false );
+  let options = gl::context::ContextOptions::default().antialias( false );
 
   let canvas = gl::canvas::make()
   .expect( "Can't create canvas" );

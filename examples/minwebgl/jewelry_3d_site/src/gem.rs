@@ -1,10 +1,9 @@
-use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo, Node };
+use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo, MaterialUploadContext };
 use renderer::impl_locations;
 use minwebgl as gl;
 use gl::{ GL, Former, WebGlProgram };
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
-use std:: { cell::RefCell, rc::Rc };
 use crate::cube_normal_map_generator::CubeNormalData;
 
 // Gem shader
@@ -136,11 +135,11 @@ impl Material for GemMaterial
     gl.uniform1i( locations.get( "cubeNormalMap" ).unwrap().clone().as_ref() , 1 );
   }
 
-  fn upload
+  fn upload_on_state_change
   (
     &self,
     gl : &GL,
-    node : Rc< RefCell< Node > >
+    context : &MaterialUploadContext< '_ >
   )
   -> Result< (), gl::WebglError >
   {
@@ -160,9 +159,9 @@ impl Material for GemMaterial
 
     gl::uniform::upload( gl, locations.get( "rayBounces" ).unwrap().clone(), &self.ray_bounces )?;
 
-    let inv_world = node.borrow().get_world_matrix().inverse().unwrap();
+    let inv_world = context.node.get_world_matrix().inverse().unwrap();
 
-    let mut bb = node.borrow().bounding_box();
+    let mut bb = context.node.bounding_box();
 
     bb.apply_transform_mut( inv_world );
     let c = bb.center();
