@@ -301,10 +301,13 @@ impl Configurator
               let color = player.value_get();
               let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
               material.alpha_mode = renderer::webgl::AlphaMode::Opaque;
+
               for i in 0..3
               {
                 material.base_color_factor.0[ i ] = color.0[ i ];
               }
+              material.specular_factor = Some( 0.0 );
+              material.specular_color_factor = Some( F32x3::splat( 1.0 ) );
               material.base_color_factor.0[ 3 ] = 1.0;
               // Roughness 0.1 provides visually pleasing subtle surface variation
               // (0.04 appeared too mirror-like for realistic jewelry rendering)
