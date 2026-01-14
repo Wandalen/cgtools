@@ -190,8 +190,8 @@ async fn setup_scene( gl : &GL ) -> Result< GLTF, WebglError >
 
   create_plane( &gl, &gltf.scenes[ 0 ] );
 
-  let character = gltf.scenes[ 0 ].borrow().get_node( "Armature" ).unwrap();
-  let plane = gltf.scenes[ 0 ].borrow().get_node( "Plane" ).unwrap();
+  let character = gltf.scenes[ 0 ].borrow().get_node_by_substring( "Armature" ).unwrap();
+  let plane = gltf.scenes[ 0 ].borrow().get_node_by_substring( "Plane" ).unwrap();
 
   character.borrow_mut().set_scale( F32x3::splat( 0.1 ) );
   character.borrow_mut().set_rotation( QuatF32::from_angle_y( 0.0 ) );
@@ -517,7 +517,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let last_time = Rc::new( RefCell::new( 0.0 ) );
 
-  let character = scene.borrow().get_node( "Armature" ).unwrap();
+  let character = scene.borrow().get_node_by_substring( "Armature" ).unwrap();
 
   let mut initial_center = character.borrow().get_translation();
   initial_center.0[ 1 ] += 1.5;
