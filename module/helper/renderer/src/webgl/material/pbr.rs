@@ -380,7 +380,14 @@ mod private
 
     fn get_ibl_base_texture_unit( &self ) -> Option< u32 >
     {
-      Some( 10 )
+      if self.need_use_ibl
+      {
+        Some( 10 )
+      }
+      else
+      {
+        None
+      }
     }
 
     fn shader( &self ) -> &dyn ShaderProgram
