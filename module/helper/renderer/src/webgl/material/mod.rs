@@ -100,6 +100,16 @@ mod private
     }
   }
 
+  /// Used to get additional information for material upload
+  #[ derive( Debug, Clone ) ]
+  pub struct MaterialUploadContext<'a>
+  {
+    /// current processed [`Node`]
+    pub node : &'a Node,
+    /// id of current processed primitive of inner mesh
+    pub primitive_id : Option< usize >
+  }
+
   /// A trait representin a generic material
   pub trait Material : std::any::Any + Debug
   {
@@ -179,16 +189,32 @@ mod private
       ibl_base_location : u32,
     );
 
-    /// Uploads the material properties to the GPU as uniforms.
+    /// Uploads the material properties to the GPU as uniforms. Use this when material state is changed.
+    ///
+    /// * `gl`: The `WebGl2RenderingContext`.
+    /// * `locations`: A hash map of uniform locations in the shader program.
+    fn upload_on_state_change
+    (
+      &self,
+      gl : &gl::WebGl2RenderingContext,
+      context : &MaterialUploadContext< '_ >
+    )
+    -> Result< (), gl::WebglError >;
+
+    /// Uploads the material properties that need update every frame to the GPU.
     ///
     /// * `gl`: The `WebGl2RenderingContext`.
     /// * `locations`: A hash map of uniform locations in the shader program.
     fn upload
     (
       &self,
-      gl : &gl::WebGl2RenderingContext,
-      node : Rc< RefCell< Node > >
-    ) -> Result< (), gl::WebglError >;
+      _gl : &gl::WebGl2RenderingContext,
+      _context : &MaterialUploadContext< '_ >
+    )
+    -> Result< (), gl::WebglError >
+    {
+      Ok( () )
+    }
 
     /// Uploads the texture data of all used textures to the GPU.
     fn upload_textures( &self, gl : &gl::WebGl2RenderingContext );
@@ -267,6 +293,7 @@ crate::mod_interface!
     DepthFunc,
     FrontFace,
     TextureInfo,
+    MaterialUploadContext,
     Material
   };
 }

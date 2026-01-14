@@ -1,6 +1,7 @@
 mod private
 {
   use std::{ cell::RefCell, rc::Rc };
+  use gltf::mesh::iter::MorphTargets;
   use mingl::F32x3;
   use minwebgl as gl;
   use gl::
@@ -10,7 +11,7 @@ mod private
   };
   use crate::webgl::
   {
-    ToFromGlEnum,
+    skeleton,
     AlphaMode,
     AttributeInfo,
     Geometry,
@@ -27,6 +28,7 @@ mod private
     Scene,
     Texture,
     TextureInfo,
+    ToFromGlEnum,
     WrappingMode,
     Light,
     PointLight,
@@ -40,11 +42,7 @@ mod private
   use
   {
     crate::webgl::Skeleton,
-    gl::
-    {
-      GL,
-      F32x4x4
-    }
+    gl::F32x4x4
   };
 
   const DIRECTION_LIGHT_MIN_MAGNITUDE : f32 = 0.01;
@@ -87,15 +85,13 @@ mod private
     }
   }
 
-  /// Asynchronously loads [`Skeleton`] for one [`Mesh`]
-  fn load_skeleton
+  fn load_skeleton_transforms_data
   (
-    gl : &GL,
     skin : gltf::Skin< '_ >,
     nodes : &FxHashMap< Box< str >, Rc< RefCell< Node > > >,
-    buffers : &[ Vec< u8 > ],
+    buffers : &[ Vec< u8 > ]
   )
-  -> Option< Rc< RefCell< Skeleton > > >
+  -> Option< skeleton::TransformsData >
   {
     let reader = skin.reader
     (
@@ -138,8 +134,166 @@ mod private
       }
     }
 
-    Skeleton::new( gl, joints )
-    .map( | s | Rc::new( RefCell::new( s ) ) )
+    Some( skeleton::TransformsData::new( joints ) )
+  }
+
+  fn load_skeleton_displacements_data
+  (
+    primitives_morph_targets : &Option< Vec< MorphTargets< '_ > > >,
+    primitives_vertices_count : &[ usize ],
+    weights : Option< Vec< f32 > >,
+    buffers : &[ Vec< u8 > ]
+  )
+  -> Option< skeleton::DisplacementsData >
+  {
+    let get_target_array = | acc : gltf::Accessor< '_ > |
+    {
+      gltf::mesh::util::ReadPositionDisplacements::new
+      (
+        acc,
+        | buffer | buffers.get( buffer.index() ).map( | x | x.as_slice() )
+      )
+      .map( | iter | iter.collect::< Vec< _ > >() )
+    };
+
+    fn pack_targets
+    (
+      targets_array : Vec< Vec< [ f32; 3 ] > >
+    )
+    -> Vec< [ f32; 3 ] >
+    {
+      if targets_array.is_empty()
+      {
+        return vec![];
+      }
+      let mut packed_array = Vec::with_capacity( targets_array.first().unwrap().len() * targets_array.len() );
+      for i in 0..targets_array.first().unwrap().len()
+      {
+        let targets_item = targets_array.iter()
+        .map( | arr | arr[ i ] )
+        .collect::< Vec< _ > >();
+        packed_array.extend( targets_item );
+      }
+
+      packed_array
+    }
+
+    let skin_vertices_count = primitives_vertices_count.iter().sum::< usize >();
+    let ( positions, normals, tangents ) = if let Some( primitives_morph_targets ) = primitives_morph_targets
+    {
+      let mut skin_positions = Vec::with_capacity( skin_vertices_count );
+      let mut skin_normals = Vec::with_capacity( skin_vertices_count );
+      let mut skin_tangents = Vec::with_capacity( skin_vertices_count );
+
+      for ( i, morph_targets ) in primitives_morph_targets.iter().enumerate()
+      {
+        let vertices_count = primitives_vertices_count[ i ];
+        let mut targets_positions = Vec::with_capacity( vertices_count );
+        let mut targets_normals = Vec::with_capacity( vertices_count );
+        let mut targets_tangents = Vec::with_capacity( vertices_count );
+
+        for morph_target in morph_targets.clone()
+        {
+          if let Some( positions ) = morph_target.positions()
+          .map( get_target_array )
+          .flatten()
+          {
+            targets_positions.push( positions );
+          }
+          else
+          {
+            targets_positions.push( vec![ [ 0.0; 3 ]; vertices_count ] );
+          }
+
+          if let Some( normals ) = morph_target.normals()
+          .map( get_target_array )
+          .flatten()
+          {
+            targets_normals.push( normals );
+          }
+          else
+          {
+            targets_normals.push( vec![ [ 0.0; 3 ]; vertices_count ] );
+          }
+
+          if let Some( tangents ) = morph_target.tangents()
+          .map( get_target_array )
+          .flatten()
+          {
+            targets_tangents.push( tangents );
+          }
+          else
+          {
+            targets_tangents.push( vec![ [ 0.0; 3 ]; vertices_count ] );
+          }
+        }
+
+        let primitive_positions = pack_targets( targets_positions );
+        let primitive_normals = pack_targets( targets_normals );
+        let primitive_tangents = pack_targets( targets_tangents );
+
+        skin_positions.extend( primitive_positions );
+        skin_normals.extend( primitive_normals );
+        skin_tangents.extend( primitive_tangents );
+      }
+
+      (
+        ( !skin_positions.is_empty() ).then_some( skin_positions ),
+        ( !skin_normals.is_empty() ).then_some( skin_normals ),
+        ( !skin_tangents.is_empty() ).then_some( skin_tangents )
+      )
+    }
+    else
+    {
+      return None;
+    };
+
+    let mut displacements = skeleton::DisplacementsData::new();
+
+    let _ = displacements.set_displacement( positions, gltf::Semantic::Positions, skin_vertices_count );
+    let _ = displacements.set_displacement( normals, gltf::Semantic::Normals, skin_vertices_count );
+    let _ = displacements.set_displacement( tangents, gltf::Semantic::Tangents, skin_vertices_count );
+    if let Some( weights ) = weights
+    {
+      let weights_rc = displacements.get_morph_weights();
+      *weights_rc.borrow_mut() = weights;
+    }
+
+    Some( displacements )
+  }
+
+  /// Loads [`Skeleton`] for one [`Mesh`]
+  fn load_skeleton
+  (
+    skin : Option< gltf::Skin< '_ > >,
+    nodes : &FxHashMap< Box< str >, Rc< RefCell< Node > > >,
+    primitives_morph_targets : &Option< Vec< MorphTargets< '_ > > >,
+    primitives_vertices_count : &[ usize ],
+    weights : Option< Vec< f32 > >,
+    buffers : &[ Vec< u8 > ]
+  )
+  -> Option< Rc< RefCell< Skeleton > > >
+  {
+    let mut skeleton = Skeleton::new();
+
+    *skeleton.transforms_as_mut() = skin
+    .map( | s | load_skeleton_transforms_data( s, nodes, buffers ) ).flatten();
+    *skeleton.displacements_as_mut() = load_skeleton_displacements_data
+    (
+      primitives_morph_targets,
+      primitives_vertices_count,
+      weights,
+      buffers
+    );
+
+    if skeleton.has_skin() || skeleton.has_morph_targets()
+    {
+      Some( Rc::new( RefCell::new( skeleton ) ) )
+    }
+    else
+    {
+      None
+    }
   }
 
   fn get_light_list( gltf : &gltf::Gltf ) -> Option< FxHashMap< usize, Light > >
@@ -306,7 +460,7 @@ mod private
     .map( | b | b.to_vec() )
     .collect::< Vec< _ > >();
 
-    gl::info!( "Bufffers: {}", buffers.len() );
+    gl::info!( "Buffers: {}", buffers.len() );
 
     // Upload images
     let images = Rc::new( RefCell::new( Vec::new() ) );
@@ -564,7 +718,6 @@ mod private
     {
       let mut mesh = Mesh::default();
 
-
       for gltf_primitive in gltf_mesh.primitives()
       {
         let mut geometry = Geometry::new( gl )?;
@@ -664,7 +817,7 @@ mod private
               geometry.add_attribute
               (
                 gl,
-              name,
+                name,
                 make_attibute_info( &acc, 13 + i )
               )?;
             },
@@ -718,8 +871,8 @@ mod private
     let gltf_lights = get_light_list( &gltf_file ).unwrap_or_default();
 
     let mut nodes = Vec::new();
+    let mut rigged_nodes = Vec::new();
     let mut lights = Vec::new();
-    let mut skinned_nodes = Vec::new();
 
     for gltf_node in gltf_file.nodes()
     {
@@ -751,10 +904,18 @@ mod private
 
       let node = Rc::new( RefCell::new( node ) );
 
-      if let Some( skin ) = gltf_node.skin()
+      let ( primitives_morph_targets, weights ) = if let Some( mesh ) = gltf_node.mesh()
       {
-        skinned_nodes.push( ( node.clone(), skin ) );
+        (
+          Some( mesh.primitives().map( | p | p.morph_targets() ).collect::< Vec< _ > >() ),
+          mesh.weights().map( | v | v.to_vec() )
+        )
       }
+      else
+      {
+        ( None, None )
+      };
+      rigged_nodes.push( ( node.clone(), gltf_node.skin(), primitives_morph_targets, weights ) );
 
       if is_light
       {
@@ -791,31 +952,45 @@ mod private
     )
     .collect::< FxHashMap< _, _ > >();
 
-    for ( node, skin ) in skinned_nodes
+    for ( node, skin, primitives_morph_targets, weights ) in rigged_nodes
     {
       if let Object3D::Mesh( mesh ) = &node.borrow().object
       {
+        let primitives_vertices_count = mesh.borrow().primitives.iter()
+        .map( | p | p.borrow().geometry.borrow().vertex_count as usize )
+        .collect::< Vec< _ > >();
         if let Some( skeleton ) = load_skeleton
         (
-          gl,
           skin,
           &nodes_map,
+          &primitives_morph_targets,
+          primitives_vertices_count.as_slice(),
+          weights,
           bin_buffers.as_slice()
         )
         {
-          mesh.borrow_mut().skeleton = Some( skeleton );
+          mesh.borrow_mut().skeleton = Some( skeleton.clone() );
           for primitive in &mesh.borrow().primitives
           {
             let p = primitive.borrow();
             let mut mat_mut = helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >(  p.material.borrow_mut() );
-            mat_mut.add_define( "USE_SKINNING", String::new() );
+
+            if skeleton.borrow().has_skin()
+            {
+              mat_mut.add_define( "USE_SKINNING", String::new() );
+            }
+
+            if skeleton.borrow().has_morph_targets()
+            {
+              mat_mut.add_define( "USE_MORPH_TARGET", String::new() );
+            }
           }
         }
       }
     }
 
     #[ cfg( feature = "animation" ) ]
-    let animations = crate::webgl::animation::loader::load( &gltf_file, bin_buffers.as_slice(), nodes.as_slice() ).await;
+    let animations = crate::webgl::animation::loaders::gltf::load( &gl, &gltf_file, bin_buffers.as_slice(), nodes.as_slice() ).await;
 
     #[ cfg( feature = "animation" ) ]
     gl::log::info!( "Animations: {}", animations.len() );

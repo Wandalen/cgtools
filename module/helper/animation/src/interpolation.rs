@@ -34,8 +34,6 @@ mod private
   use gl::
   {
     NdFloat,
-    F64x3,
-    F32x3,
     Quat,
     MatEl
   };
@@ -506,33 +504,31 @@ mod private
     }
   }
 
-  impl Animatable for F64x3
+  impl< E, const N : usize > Animatable for mingl::Vector< E, N >
+  where E : MatEl + Animatable
   {
-    fn interpolate(&self, other : &Self, time : f64 ) -> Self
+    fn interpolate( &self, other : &Self, time : f64 ) -> Self
     {
-      Self::from
-      (
-        [
-          self.x().interpolate( &other.x(), time ),
-          self.y().interpolate( &other.y(), time ),
-          self.z().interpolate( &other.z(), time )
-        ]
-      )
+      let mut copy = *self;
+      copy.iter_mut().zip( other.iter() )
+      .for_each( | ( a, b ) | *a = a.interpolate( b, time ) );
+
+      copy
     }
   }
 
-  impl Animatable for F32x3
+  impl< E > Animatable for Vec< E >
+  where E : MatEl + Animatable
   {
-    fn interpolate(&self, other : &Self, time : f64 ) -> Self
+    fn interpolate( &self, other : &Self, time : f64 ) -> Self
     {
-      Self::from
+      self.iter().zip( other.iter() )
+      .map
       (
-        [
-          self.x().interpolate( &other.x(), time ),
-          self.y().interpolate( &other.y(), time ),
-          self.z().interpolate( &other.z(), time )
-        ]
+        | ( a, b ) |
+        a.interpolate( b, time )
       )
+      .collect::< Vec< _ > >()
     }
   }
 
