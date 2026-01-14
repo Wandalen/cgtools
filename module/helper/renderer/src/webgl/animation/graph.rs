@@ -253,12 +253,12 @@ mod private
     }
 
     /// Returns [`Transition`] from [`AnimationEdge`] by start node name ( `a` ) and edge name ( `name` )
-    pub fn edge_get( &self, a : &str, name : &str ) -> Option< Transition >
+    pub fn edge_get( &self, node_name : &str, name : &str ) -> Option< Transition >
     {
-      let a = a.to_string().into_boxed_str();
+      let node_name = node_name.to_string().into_boxed_str();
       let name = name.to_string().into_boxed_str();
 
-      let start_node = self.animation_nodes.get( &a )?;
+      let start_node = self.animation_nodes.get( &node_name )?;
       let start_node_ref = start_node.borrow();
       let edge = start_node_ref.edges.get( &name )?;
       let edge_ref = edge.borrow();
