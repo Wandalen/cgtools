@@ -808,7 +808,7 @@ mod private
               let locations = shader_program.locations();
               shader_program.bind( gl );
               material.configure( gl );
-              material.upload( gl, node.clone() )?;
+              material.upload( gl, &material_upload_context )?;
               camera.upload( gl, locations );
 
               if let Some( ref ibl ) = self.ibl
