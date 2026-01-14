@@ -27,7 +27,7 @@ export let uiState =
 {
   gem : "white",
   metal : "silver",
-  ring : 4,
+  ring : 0,
   state : "hero",
   position : [ 0.6373576, 1.1441559, -0.9127405 ],
   target : [ 0.55595696, 0.55741394, -1.0331136 ],
@@ -488,7 +488,7 @@ document.querySelector( '.button--exit' )?.addEventListener
 
     uiState.gem = "white"
     uiState.metal = "silver"
-    uiState.ring = 4
+    uiState.ring = 0
     uiState.changed.push( "gem" )
     uiState.changed.push( "metal" )
     uiState.changed.push( "ring" )

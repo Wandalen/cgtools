@@ -340,7 +340,7 @@ impl Configurator
     renderer_mut.set_bloom_strength( 2.0 );
     // Exposure 0.0 provides optimal brightness for jewelry visibility
     // (previous -1.0 value made models too dark in studio lighting)
-    renderer_mut.set_exposure( 0.0 );
+    renderer_mut.set_exposure( -0.5 );
     renderer_mut.set_bloom_radius( 0.1 );
   }
 }
