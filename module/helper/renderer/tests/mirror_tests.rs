@@ -3,7 +3,18 @@
 
 use animation::{ Sequence, Sequencer, Tween, easing::{ EasingBuilder, Linear } };
 use mingl::{ F64x3, QuatF64 };
-use renderer::webgl::animation::{Mirror, MirrorPlane, base::{ MORPH_TARGET_PREFIX, ROTATION_PREFIX, SCALE_PREFIX, TRANSLATION_PREFIX }};
+use renderer::webgl::animation::
+{
+  Mirror,
+  MirrorPlane,
+  base::
+  {
+    MORPH_TARGET_PREFIX,
+    ROTATION_PREFIX,
+    SCALE_PREFIX,
+    TRANSLATION_PREFIX
+  }
+};
 
 fn create_animation() -> Sequencer
 {

@@ -142,14 +142,15 @@ mod private
     }
 
     /// Sets current [`AnimationNode`]
-    pub fn current_set( &mut self, name : Box< str > )
+    pub fn current_set( &mut self, name : &str )
     {
-      self.current = self.animation_nodes.get( &name ).map( | n | n.clone() );
+      self.current = self.animation_nodes.get( &name.to_string().into_boxed_str() ).map( | n | n.clone() );
     }
 
     /// Add new [`AnimationNode`]
-    pub fn node_add( &mut self, name : Box< str >, animation : Sequencer )
+    pub fn node_add( &mut self, name : &str, animation : Sequencer )
     {
+      let name = name.to_string().into_boxed_str();
       let node = AnimationNode
       {
         name : name.clone(),
@@ -167,8 +168,9 @@ mod private
     }
 
     /// Remove [`AnimationNode`]
-    pub fn node_remove( &mut self, name : Box< str > )
+    pub fn node_remove( &mut self, name : &str )
     {
+      let name = name.to_string().into_boxed_str();
       self.animation_nodes.remove( &name );
     }
 
@@ -176,13 +178,16 @@ mod private
     pub fn edge_add
     (
       &self,
-      a : Box< str >,
-      b : Box< str >,
-      name : Box< str >,
+      a : &str,
+      b : &str,
+      name : &str,
       tween : Tween< f64 >,
       condition : impl Fn( &AnimationEdge, &Pose, &Pose ) -> bool + 'static
     )
     {
+      let a = a.to_string().into_boxed_str();
+      let b = b.to_string().into_boxed_str();
+      let name = name.to_string().into_boxed_str();
       let Some( a ) = self.animation_nodes.get( &a )
       else
       {
@@ -214,8 +219,10 @@ mod private
     }
 
     /// Remove [`AnimationEdge`]
-    pub fn edge_remove( &self, node_name : Box< str >, name : Box< str > )
+    pub fn edge_remove( &self, node_name : &str, name : &str )
     {
+      let node_name = node_name.to_string().into_boxed_str();
+      let name = name.to_string().into_boxed_str();
       let Some( node ) = self.animation_nodes.get( &node_name )
       else
       {
@@ -229,6 +236,34 @@ mod private
     pub fn animated_nodes_get( &self ) -> &FxHashMap< Box< str >, Rc< RefCell< Node > > >
     {
       &self.nodes
+    }
+
+    /// Returns [`Sequencer`] from [`AnimationNode`] by node name
+    pub fn node_get( &self, name : &str ) -> Option< Sequencer >
+    {
+      let name = name.to_string().into_boxed_str();
+      self.animation_nodes.get( &name )
+      .map
+      (
+        | n |
+        {
+          n.borrow().animation.clone()
+        }
+      )
+    }
+
+    /// Returns [`Transition`] from [`AnimationEdge`] by start node name ( `a` ) and edge name ( `name` )
+    pub fn edge_get( &self, a : &str, name : &str ) -> Option< Transition >
+    {
+      let a = a.to_string().into_boxed_str();
+      let name = name.to_string().into_boxed_str();
+
+      let start_node = self.animation_nodes.get( &a )?;
+      let start_node_ref = start_node.borrow();
+      let edge = start_node_ref.edges.get( &name )?;
+      let edge_ref = edge.borrow();
+
+      Some( edge_ref.transition.clone() )
     }
   }
 
