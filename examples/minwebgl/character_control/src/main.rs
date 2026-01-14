@@ -30,7 +30,7 @@ use animation::{ Sequencer, Sequence, Tween };
 use mingl::{ F32x3, F64x3, Quat, QuatF32 };
 use mingl::controls::{ CharacterControls, CharacterInput };
 use minwebgl::{ self as gl, WebglError };
-use gl::{ JsCast, web_sys::WebGlTexture, GL, wasm_bindgen::closure::Closure };
+use gl::{ JsCast, GL };
 use renderer::webgl::animation::{ Pose, AnimatableComposition, Animation, AnimationGraph, AnimationEdge, Mirror, MirrorPlane };
 use renderer::webgl::
 {
@@ -42,15 +42,8 @@ use renderer::webgl::
   },
   loaders::gltf::GLTF,
   Camera,
-  // Object3D,
   Renderer,
-  Scene,
-  TextureInfo,
-  Texture,
-  WrappingMode,
-  MagFilterMode,
-  MinFilterMode,
-  Sampler
+  Scene
 };
 use primitive_generation::
 {
