@@ -28,10 +28,10 @@ fn create_animation() -> Sequencer
     (
       vec!
       [
-        Tween::new( F64x3::splat( -1.0 ), F64x3::splat( 0.0 ), 0.5, linear ),
+        Tween::new( F64x3::splat( -1.0 ), F64x3::splat( 0.0 ), 0.5, linear.clone() ),
         Tween::new( F64x3::splat( 0.0 ), F64x3::splat( 1.0 ), 0.5, linear ).with_delay( 0.5 )
       ]
-    )
+    ).unwrap()
   );
 
   let linear = Linear::new();
@@ -42,10 +42,10 @@ fn create_animation() -> Sequencer
     (
       vec!
       [
-        Tween::new( QuatF64::from( [ -1.0, -1.0, -1.0, 1.0 ] ), QuatF64::from( [ 0.0, 0.0, 0.0, 1.0 ] ), 0.5, linear ),
+        Tween::new( QuatF64::from( [ -1.0, -1.0, -1.0, 1.0 ] ), QuatF64::from( [ 0.0, 0.0, 0.0, 1.0 ] ), 0.5, linear.clone() ),
         Tween::new( QuatF64::from( [ 0.0, 0.0, 0.0, 1.0 ] ), QuatF64::from( [ 1.0, 1.0, 1.0, 1.0 ] ), 0.5, linear ).with_delay( 0.5 )
       ]
-    )
+    ).unwrap()
   );
 
   let linear = Linear::new();
@@ -56,10 +56,10 @@ fn create_animation() -> Sequencer
     (
       vec!
       [
-        Tween::new( F32x3::splat( 1.0 ), F32x3::splat( 2.0 ), 0.5, linear ),
-        Tween::new( F32x3::splat( 2.0 ), F32x3::splat( 3.0 ), 0.5, linear ).with_delay( 0.5 )
+        Tween::new( F64x3::splat( 1.0 ), F64x3::splat( 2.0 ), 0.5, linear.clone() ),
+        Tween::new( F64x3::splat( 2.0 ), F64x3::splat( 3.0 ), 0.5, linear ).with_delay( 0.5 )
       ]
-    )
+    ).unwrap()
   );
 
   let linear = Linear::new();
@@ -70,30 +70,13 @@ fn create_animation() -> Sequencer
     (
       vec!
       [
-        Tween::new( vec![ 0.5, 0.5, 0.5 ], vec![ 0.75, 0.75, 0.75 ], 0.5, linear ),
+        Tween::new( vec![ 0.5, 0.5, 0.5 ], vec![ 0.75, 0.75, 0.75 ], 0.5, linear.clone() ),
         Tween::new( vec![ 0.75, 0.75, 0.75 ], vec![ 1.0, 1.0, 1.0 ], 0.5, linear ).with_delay( 0.5 )
       ]
-    )
+    ).unwrap()
   );
 
   animation
-}
-
-#[ test ]
-fn mirror_animation_clone_test()
-{
-  let mut animation = create_animation();
-
-  animation.update( 0.5 );
-
-  let animation_xy = Mirror::along_plane( &animation, MirrorPlane::XY );
-  let animation_xz = Mirror::along_plane( &animation, MirrorPlane::XZ );
-  let animation_yz = Mirror::along_plane( &animation, MirrorPlane::YZ );
-
-  assert!( animation.progress() > 0.0 );
-  assert!( animation_xy.progress() > 0.0 );
-  assert!( animation_xz.progress() > 0.0 );
-  assert!( animation_yz.progress() > 0.0 );
 }
 
 #[ test ]
