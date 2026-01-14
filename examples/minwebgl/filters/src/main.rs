@@ -65,7 +65,7 @@ fn main()
 fn run() -> Result< (), gl::WebglError >
 {
   // Create GL context with preserveDrawingBuffer enabled for saving
-  let context_options = gl::context::ContexOptions
+  let context_options = gl::context::ContextOptions
   {
     preserve_drawing_buffer : true,
     ..Default::default()

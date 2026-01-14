@@ -1,8 +1,9 @@
 //! Tests for animation modifier Scaler
+#![ cfg( feature = "animation" ) ]
 
 use renderer::webgl::animation::{ Scaler, AnimatableComposition };
 use animation::{ Sequence, Sequencer, Tween, easing::{ EasingBuilder, Linear } };
-use mingl::{ F64x3, QuatF64 };
+use mingl::{ F64x3, F64x4, QuatF64 };
 use std::f64::consts::PI;
 
 const TRANSLATION_PREFIX: &str = "_translation";
@@ -47,7 +48,7 @@ fn test_scaler_add_group()
   let mut scaler = Scaler::new( sequencer );
 
   let nodes = vec![ "node1".into(), "node2".into() ];
-  let scale = F64x3::new( 0.5, 0.5, 1.0 );
+  let scale = F64x4::new( 0.5, 0.5, 1.0, 1.0 );
 
   scaler.add( "group1", nodes.clone(), scale );
 
@@ -61,7 +62,7 @@ fn test_scaler_remove_group()
   let sequencer = Sequencer::new();
   let mut scaler = Scaler::new( sequencer );
 
-  scaler.add( "group1", vec![ "node1".into() ], F64x3::splat( 0.5 ) );
+  scaler.add( "group1", vec![ "node1".into() ], F64x4::splat( 0.5 ) );
   assert!( scaler.group_get( "group1" ).is_some(), "Group should exist" );
 
   scaler.remove( "group1".into() );
@@ -74,10 +75,10 @@ fn test_scaler_scale_get_mut()
   let sequencer = Sequencer::new();
   let mut scaler = Scaler::new( sequencer );
 
-  scaler.add( "group1", vec![ "node1".into() ], F64x3::new( 0.5, 0.5, 1.0 ) );
+  scaler.add( "group1", vec![ "node1".into() ], F64x4::new( 0.5, 0.5, 1.0, 1.0 ) );
 
   let scale = scaler.scale_get_mut( "group1" ).unwrap();
-  *scale = F64x3::new( 1.0, 1.0, 1.0 );
+  *scale = F64x4::new( 1.0, 1.0, 1.0, 1.0 );
 
   let new_scale = scaler.scale_get( "group1" ).unwrap();
   assert_eq!( new_scale.x(), 1.0 );
@@ -91,8 +92,8 @@ fn test_scaler_clear()
   let sequencer = Sequencer::new();
   let mut scaler = Scaler::new( sequencer );
 
-  scaler.add( "group1", vec![ "node1".into() ], F64x3::splat( 0.5 ) );
-  scaler.add( "group2", vec![ "node2".into() ], F64x3::splat( 0.8 ) );
+  scaler.add( "group1", vec![ "node1".into() ], F64x4::splat( 0.5 ) );
+  scaler.add( "group2", vec![ "node2".into() ], F64x4::splat( 0.8 ) );
   assert!( scaler.group_get( "group1" ).is_some() );
   assert!( scaler.group_get( "group2" ).is_some() );
 
@@ -120,8 +121,8 @@ fn test_grouped_nodes_independence()
   let mut scaler = Scaler::new( sequencer );
 
   // Add two groups with different scaling factors
-  scaler.add( "group1", vec![ "node1".into() ], F64x3::new( 1.0, 0.5, 1.0 ) ); // 50% rotation scaling
-  scaler.add( "group2", vec![ "node2".into() ], F64x3::new( 1.0, 0.25, 1.0 ) ); // 25% rotation scaling
+  scaler.add( "group1", vec![ "node1".into() ], F64x4::new( 1.0, 0.5, 1.0, 1.0 ) ); // 50% rotation scaling
+  scaler.add( "group2", vec![ "node2".into() ], F64x4::new( 1.0, 0.25, 1.0, 1.0 ) ); // 25% rotation scaling
 
   // Verify groups are independent
   let group1_scale = scaler.scale_get( "group1" ).unwrap();
@@ -155,7 +156,7 @@ fn test_scaler_weights_structure()
   let mut scaler = Scaler::new( sequencer );
 
   // Test that weights have three components: translation (x), rotation (y), scale (z)
-  scaler.add( "group1", vec![ "node1".into() ], F64x3::new( 0.5, 0.7, 0.3 ) );
+  scaler.add( "group1", vec![ "node1".into() ], F64x4::new( 0.5, 0.7, 0.3, 1.0 ) );
 
   let weights = scaler.scale_get( "group1" ).unwrap();
   assert_eq!( weights.x(), 0.5, "X component should be translation weight" );
