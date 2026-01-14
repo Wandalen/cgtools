@@ -272,6 +272,7 @@ mod private
 
   /// Stores information about a WebGL program, including the program object and the locations of its uniforms.
   /// This struct is intended for use by the renderer.
+  #[ derive( Clone ) ]
   pub struct ProgramInfo
   {
     /// The WebGL program object.
@@ -304,19 +305,6 @@ mod private
     pub fn bind( &self, gl : &gl::WebGl2RenderingContext )
     {
       gl.use_program( Some( &self.program ) );
-    }
-  }
-
-  impl Clone for ProgramInfo
-  {
-    fn clone( &self ) -> Self
-    {
-      Self
-      {
-        program : self.program.clone(),
-        locations : self.locations.clone(),
-        ubo_indices : self.ubo_indices.clone()
-      }
     }
   }
 

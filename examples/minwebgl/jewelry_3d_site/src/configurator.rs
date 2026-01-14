@@ -30,7 +30,11 @@ use renderer::webgl::
 use animation::{ AnimatablePlayer, Sequencer, Tween, easing::{ Linear, EasingBuilder } };
 use crate::
 {
-  cube_normal_map_generator::CubeNormalMapGenerator, gem::GemMaterial, helpers::*, ui::{ UiState, clear_changed, get_ui_state },
+  cube_normal_map_generator::
+  {
+    CubeNormalMapGenerator,
+    CubeNormalData
+  }, gem::GemMaterial, helpers::*, ui::{ UiState, clear_changed, get_ui_state },
   surface_material::SurfaceMaterial,
 };
 
@@ -96,7 +100,6 @@ impl Configurator
     configurator.setup_renderer();
     configurator.update_gem_color();
     configurator.update_metal_color();
-    // configurator.setup_light();
 
     Ok( configurator )
   }
@@ -303,8 +306,11 @@ impl Configurator
                 material.base_color_factor.0[ i ] = color.0[ i ];
               }
               material.base_color_factor.0[ 3 ] = 1.0;
-              material.roughness_factor = 0.04;
-              material.metallic_factor = 1.0;
+              // Roughness 0.1 provides visually pleasing subtle surface variation
+              // (0.04 appeared too mirror-like for realistic jewelry rendering)
+              material.roughness_factor = 0.1;
+              // Metallic 0.9 prevents oversaturation while maintaining metal appearance
+              material.metallic_factor = 0.9;
               material.needs_update = true;
             }
           );
@@ -332,7 +338,9 @@ impl Configurator
 
     renderer_mut.set_use_emission( true );
     renderer_mut.set_bloom_strength( 2.0 );
-    renderer_mut.set_exposure( -0.5 );
+    // Exposure 0.0 provides optimal brightness for jewelry visibility
+    // (previous -1.0 value made models too dark in studio lighting)
+    renderer_mut.set_exposure( 0.0 );
     renderer_mut.set_bloom_radius( 0.1 );
   }
 }
@@ -504,7 +512,7 @@ async fn setup_rings
   let shadowmap = ShadowMap::new( &gl, shadowmap_res )?;
   let shadow_baker = ShadowBaker::new( &gl )?;
 
-  for i in 0..2
+  for i in 0..5
   {
     let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/{i}.glb" ).as_str(), &gl ).await?;
 
@@ -536,7 +544,7 @@ async fn setup_rings
       ring_gems.extend( nodes );
     }
 
-    let mut normal_maps = FxHashMap::< String, TextureInfo >::default();
+    let mut normal_maps = FxHashMap::< String, CubeNormalData >::default();
     for ( name, gem ) in &ring_gems
     {
       let root_name = remove_numbers( name.as_str() );
@@ -546,11 +554,11 @@ async fn setup_rings
       }
       else
       {
-        let normal_map = cube_normal_map_generator.generate( gl, &gem ).unwrap();
+        let normal_map = cube_normal_map_generator.generate( gl, &gem )?;
         normal_maps.insert( name.clone(), normal_map.clone() );
         normal_map
       };
-      setup_gem_material( gl, &gem, environment_texture, &Some( cube_normal_map_texture ) );
+      setup_gem_material( gl, &gem, environment_texture, &cube_normal_map_texture );
     }
 
     gems.push( ring_gems );
@@ -678,7 +686,7 @@ fn setup_gem_material
   gl : &GL,
   gem_node : &Rc< RefCell< Node > >,
   environment_texture : &Option< TextureInfo >,
-  cube_normal_map_texture : &Option< TextureInfo >
+  cube_normal_map_texture : &CubeNormalData
 )
 {
   if let Object3D::Mesh( mesh ) = &gem_node.borrow().object
