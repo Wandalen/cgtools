@@ -17,32 +17,17 @@ const footerContainer = document.querySelector( '.footer--container' )
 const gemMenu = document.querySelector( '.gem--menu' )
 const materialsMenu = document.querySelector( '.materials--menu' )
 const ringsMenu = document.querySelector( '.rings--menu' )
-// const nightModeButton = document.querySelector( '.night--mode' )
-// const nightModeButton2 = document.querySelector( '.night--mode--2' )
 
-// const NIGHT_MODE_COLORS =
-// {
-//   innerLightColor : "#FFFFFF",
-//   outerLightColor : "#DDDDDD",
-//   innerDarkColor : "#777777",
-//   outerDarkColor : "#000000"
-// };
-
+let colorControlsEnabled = false
 let firstLoad = true;
 let skipScrollAnimation = true;
-// let nightMode = false;
-
-// let innerLightColor = NIGHT_MODE_COLORS.innerLightColor;
-// let outerLightColor = NIGHT_MODE_COLORS.outerLightColor;
-// let innerDarkColor = NIGHT_MODE_COLORS.innerDarkColor;
-// let outerDarkColor = NIGHT_MODE_COLORS.outerDarkColor;
 
 // Configuration state
 export let uiState =
 {
   gem : "white",
   metal : "silver",
-  ring : 0,
+  ring : 4,
   state : "hero",
   position : [ 0.6373576, 1.1441559, -0.9127405 ],
   target : [ 0.55595696, 0.55741394, -1.0331136 ],
@@ -76,9 +61,10 @@ export function clearChanged()
 
 export function enableDebugControls()
 {
-  const colorControls = document.querySelector( '.color-controls--container' );
+  const colorControls = document.querySelector( '.color-controls--container' )
   if ( colorControls )
   {
+    colorControlsEnabled = true
     colorControls.style.display = 'flex';
 
     // Setup event listeners now that controls are visible
@@ -360,20 +346,24 @@ function setupScrollAnimation()
 
 function onCompleteConfigAnimation()
 {
-  let canvas = document.querySelector( '.canvas' )
+  const canvas = document.querySelector( '.canvas' )
+  const colorControls = document.querySelector( '.color-controls--container' )
 
   camView1.style.display = "none"
   camView2.style.display = "none"
   camView3.style.display = "none"
-  // nightModeButton.style.pointerEvents = "none";
 
   canvas.style.pointerEvents = "all";
   uiState.state = "configurator";
   uiState.changed.push( "state" );
 
+  if ( colorControls && colorControlsEnabled )
+  {
+    colorControls.style.display = "flex"
+    colorControls.style.pointerEvents = "all";
+  }
   exitContainer.style.display = "flex"
   exitContainer.style.pointerEvents = "all";
-  // nightModeButton2.style.pointerEvents = "all";
   gemMenu.style.display = "flex"
   footerMenu.style.display = "flex"
   materialsMenu.style.display = "flex"
@@ -389,8 +379,6 @@ function onCompleteConfigAnimation()
 
 function configAnimation()
 {
-  // nightMode = toggleNightMode( !nightMode )
-
   gsap.timeline()
   .fromTo
   (
@@ -428,8 +416,6 @@ function exitConfigAnimation()
     document.querySelector( '.footer--menu li.active' )?.classList.remove( 'active' )
   }
 
-  // nightMode = toggleNightMode( !nightMode )
-
   gsap.timeline()
   .to( uiState.position, { 0 : 0.6858612, 1 : 2.7440538, 2 : -0.026622068, duration : 1.2, ease : "power4.out", onUpdate: () => { !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) } } )
   .to( uiState.target, { 0 : 0.36420232, 1 : 0.8480059, 2 : -0.36873266, duration : 1.2, ease : "power4.out", onUpdate: () => { !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) } }, '-=1.2' )
@@ -438,53 +424,6 @@ function exitConfigAnimation()
 
   skipScrollAnimation = false
 }
-
-// // NIGHT MODE
-// function toggleNightMode( _nightMode )
-// {
-//   if ( !_nightMode )
-//   {
-//     headerContainer.classList.add( 'night--mode--filter' )
-//     camView1.classList.add( 'night--mode--filter' )
-//     camView2.classList.add( 'night--mode--filter' )
-//     camView3.classList.add( 'night--mode--filter' )
-//     exitContainer.classList.add( 'night--mode--filter' )
-//     sidebar.classList.add( 'night--mode--filter' )
-//     footerMenu.classList.add( 'night--mode--filter' )
-//     gsap.to
-//     (
-//       document.body,
-//       {
-//         duration: 0.75,
-//         "--bg-color-inner" : innerDarkColor,
-//         "--bg-color-outer" : outerDarkColor
-//       }
-//     );
-//     _nightMode = true
-//   }
-//   else
-//   {
-//     headerContainer.classList.remove( 'night--mode--filter' )
-//     camView1.classList.remove( 'night--mode--filter' )
-//     camView2.classList.remove( 'night--mode--filter' )
-//     camView3.classList.remove( 'night--mode--filter' )
-//     footerMenu.classList.remove( 'night--mode--filter' )
-//     exitContainer.classList.remove( 'night--mode--filter' )
-//     sidebar.classList.remove( 'night--mode--filter' )
-//     gsap.to
-//     (
-//       document.body,
-//       {
-//         duration: 0.75,
-//         "--bg-color-inner" : innerLightColor,
-//         "--bg-color-outer" : outerLightColor
-//       }
-//     );
-//     _nightMode = false
-//   }
-
-//   return _nightMode
-// }
 
 document.querySelector( '.button-scroll' )?.addEventListener
 (
@@ -526,9 +465,6 @@ document.querySelector( '.btn-customize' )?.addEventListener
   'click',
   () =>
   {
-    // outerLightColor = "#DDDDDD";
-    // outerDarkColor = "#000000";
-
     skipScrollAnimation = true
 
     uiState.state = "configurator";
@@ -547,24 +483,32 @@ document.querySelector( '.button--exit' )?.addEventListener
   'click',
   () =>
   {
-    let canvas = document.querySelector( '.canvas' )
+    const canvas = document.querySelector( '.canvas' )
+    const colorControls = document.querySelector( '.color-controls--container' )
 
-    // outerLightColor = innerLightColor
-    // outerDarkColor = innerDarkColor
+    uiState.gem = "white"
+    uiState.metal = "silver"
+    uiState.ring = 4
+    uiState.changed.push( "gem" )
+    uiState.changed.push( "metal" )
+    uiState.changed.push( "ring" )
 
     camView1.style.display = "flex"
     camView2.style.display = "flex"
     camView3.style.display = "flex"
     headerContainer.style.display = "flex"
-    // nightModeButton.style.pointerEvents = "all";
 
     canvas.style.pointerEvents = "none";
     uiState.state = "hero";
     uiState.changed.push( "state" );
 
+    if ( colorControls && colorControlsEnabled )
+    {
+      colorControls.style.display = "none"
+      colorControls.style.pointerEvents = "none";
+    }
     exitContainer.style.display = "none"
     exitContainer.style.pointerEvents = "none";
-    // nightModeButton2.style.pointerEvents = "none";
     gemMenu.style.display = "none"
     footerMenu.style.display = "none"
     materialsMenu.style.display = "none"
@@ -585,30 +529,11 @@ document.querySelector( '.button--exit' )?.addEventListener
   }
 )
 
-// document.querySelector('.night--mode')?.addEventListener
-// (
-//   'click', () => { nightMode = toggleNightMode( nightMode ) }
-// )
-
-// document.querySelector('.night--mode--2')?.addEventListener
-// (
-//   'click', () => { nightMode = toggleNightMode( nightMode ) }
-// )
-
-// function setup_renderer()
-// {
-//   canvas.
-// }
-
 async function setupMainPage()
 {
-  // replaceSVG( "./assets/icons/moon.svg", ".image--moon" )
-  // replaceSVG( "./assets/icons/moon.svg", ".image--moon--2" )
   replaceSVG( "./static/images/jewelry_site/icons/gem.svg", ".image--gem" )
   replaceSVG( "./static/images/jewelry_site/icons/metal.svg", ".image--material" )
   replaceSVG( "./static/images/jewelry_site/icons/ring.svg", ".image--ring" )
-
-  // setup_renderer()
 
   window.addEventListener
   (
@@ -623,9 +548,6 @@ async function setupMainPage()
   )
 
   window.scrollTo( 0, 0 )
-
-  // outerLightColor = innerLightColor
-  // outerDarkColor = innerDarkColor
 }
 
 // -- CONFIGURATOR --
@@ -938,6 +860,10 @@ function setupConfigurator()
     {
       if ( li.classList.contains( "ring0" ) ) return 0;
       if ( li.classList.contains( "ring1" ) ) return 1;
+      if ( li.classList.contains( "ring2" ) ) return 2;
+      if ( li.classList.contains( "ring3" ) ) return 3;
+      if ( li.classList.contains( "ring4" ) ) return 4;
+
       return uiState.ring;
     }
   );
