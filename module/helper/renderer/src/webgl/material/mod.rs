@@ -125,10 +125,25 @@ mod private
     /// Signal for updating material uniforms
     fn needs_update( &self ) -> bool;
 
-    /// Defines if current material instance uses IBL now
-    fn needs_ibl( &self ) -> bool
+    /// Returns the base texture unit for IBL textures.
+    ///
+    /// Enables IBL usage for the material if this returns `Some`.
+    /// Also your shader must contain these texture uniforms:
+    ///
+    /// ```glsl
+    /// uniform samplerCube irradianceTexture;
+    /// uniform samplerCube prefilterEnvMap;
+    /// uniform sampler2D integrateBRDF;
+    /// ```
+    ///
+    /// You can put them under `#ifdef USE_IBL` for conditional compilation.
+    ///
+    /// IBL will use 3 consequtive texture units based on what is returned by this function,
+    /// for example, if this function returns `Some(4)`, then it will use texture units `4`, `5`, and `6`
+    /// for the aforementioned texture uniforms.
+    fn get_ibl_base_texture_unit( &self ) -> Option< u32 >
     {
-      false
+      None
     }
 
     /// Returns reference to [`ProgramInfo`] with shader locations and used [`ShaderProgram`]
@@ -180,13 +195,10 @@ mod private
     /// Configures the position of the uniform texture samplers in the shader program.
     ///
     /// * `gl`: The `WebGl2RenderingContext`.
-    /// * `locations`: A hash map of uniform locations.
-    /// * `ibl_base_location`: The starting texture unit index for Image-Based Lighting (IBL) textures.
     fn configure
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      ibl_base_location : u32,
     );
 
     /// Uploads the material properties to the GPU as uniforms. Use this when material state is changed.

@@ -102,7 +102,6 @@ impl Material for SurfaceMaterial
   (
     &self,
     gl : &gl::WebGl2RenderingContext,
-    _ibl_base_location : u32,
   )
   {
     self.program.bind( gl );
@@ -138,8 +137,6 @@ impl Material for SurfaceMaterial
   {
     if let Some( ref t ) = self.texture
     {
-      // gl.enable( gl::CULL_FACE );
-      // gl.cull_face( gl::BACK );
       gl.active_texture( gl::TEXTURE0 );
       t.bind( gl );
     }
