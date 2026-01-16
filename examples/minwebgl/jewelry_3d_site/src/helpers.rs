@@ -19,6 +19,7 @@ use renderer::webgl::
   Sampler
 };
 
+/// Creates template for [`TextureInfo`] with texture without data
 pub async fn create_empty_texture( gl : &GL ) -> Option< TextureInfo >
 {
   let texture = gl.create_texture();
@@ -84,6 +85,7 @@ pub fn filter_nodes( scene : &Rc< RefCell< Scene > >, mut substring : String, ca
   filtered
 }
 
+/// Adds callback and returns bool to signal other program components about [`web_sys::HtmlCanvasElement`] size change
 pub fn add_resize_callback() -> Rc< RefCell< bool > >
 {
   let is_resized = Rc::new( RefCell::new( false ) );
