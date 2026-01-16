@@ -111,12 +111,12 @@ fn test_grouped_nodes_independence()
   let rot1_start = QuatF64::from( [ 0.0, 0.0, 0.0, 1.0 ] );
   let rot1_end = QuatF64::from_axis_angle( F64x3::new( 0.0, 0.0, 1.0 ), PI / 2.0 );
   let seq1 = create_rotation_sequence( rot1_start, rot1_end, 1.0 );
-  sequencer.add( format!( "node1{}", ROTATION_PREFIX ).as_str(), seq1 );
+  sequencer.insert( format!( "node1{}", ROTATION_PREFIX ).as_str(), seq1 );
 
   let rot2_start = QuatF64::from( [ 0.0, 0.0, 0.0, 1.0 ] );
   let rot2_end = QuatF64::from_axis_angle( F64x3::new( 1.0, 0.0, 0.0 ), PI );
   let seq2 = create_rotation_sequence( rot2_start, rot2_end, 1.0 );
-  sequencer.add( format!( "node2{}", ROTATION_PREFIX ).as_str(), seq2 );
+  sequencer.insert( format!( "node2{}", ROTATION_PREFIX ).as_str(), seq2 );
 
   let mut scaler = Scaler::new( sequencer );
 
@@ -141,7 +141,7 @@ fn test_animatable_composition_update()
   let start = F64x3::new( 0.0, 0.0, 0.0 );
   let end = F64x3::new( 1.0, 1.0, 1.0 );
   let seq = create_translation_sequence( start, end, 1.0 );
-  sequencer.add( format!( "node1{}", TRANSLATION_PREFIX ).as_str(), seq );
+  sequencer.insert( format!( "node1{}", TRANSLATION_PREFIX ).as_str(), seq );
 
   let mut scaler = Scaler::new( sequencer );
 

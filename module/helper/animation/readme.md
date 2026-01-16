@@ -61,7 +61,7 @@ use animation::easing::{ Linear, EasingBuilder };
 use animation::AnimatablePlayer;
 
 let mut sequencer = Sequencer::new();
-sequencer.add
+sequencer.insert
 (
   "test",
   Tween::new( 0.0_f32, 10.0_f32, 1.0, Linear::new() )
@@ -69,13 +69,13 @@ sequencer.add
 
 sequencer.update( 0.5 );
 sequencer.time(); // 0.5
-sequencer.get_value::< Tween< f32 > >( "test" ).unwrap(); // 5.0
+sequencer.get::< Tween< f32 > >( "test" ).unwrap().value_get(); // 5.0
 
 sequencer.reset();
 
 sequencer.time(); // 0.0
 sequencer.state(); // AnimationState::Running
-sequencer.get_value::< Tween< f32 > >( "test" ).unwrap(); // 0.0
+sequencer.get::< Tween< f32 > >( "test" ).unwrap().value_get(); // 0.0
 
 sequencer.update( 1.0 );
 sequencer.is_completed(); // true

@@ -1,4 +1,4 @@
-//! Renders GLTF files using postprocess effects.
+//! Renders skeletal animation from GLTF files.
 #![ doc( html_root_url = "https://docs.rs/gltf_viewer/latest/skeletal_animation/" ) ]
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 #![ cfg_attr( not( doc ), doc = "Renders skeleton animation from GLTF files" ) ]

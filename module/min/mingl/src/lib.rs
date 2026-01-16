@@ -73,9 +73,9 @@ mod private {}
   /// Memory-related entities.
   layer mem;
 
-  /// Provides an orbit-style camera controller.
-  #[ cfg( all( feature = "math", feature = "camera_orbit_controls" ) ) ]
-  layer camera_orbit_controls;
+  /// Provides controllers with different purposes that
+  /// connect inputs with objects on scene
+  layer controls;
 
   /// Includes diagnostic tools.
   #[ cfg( all( feature = "math", feature = "diagnostics" ) ) ]

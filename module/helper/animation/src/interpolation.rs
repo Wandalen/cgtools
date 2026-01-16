@@ -92,7 +92,7 @@ mod private
         end_value : self.end_value.clone(),
         duration : self.duration.clone(),
         elapsed : self.elapsed.clone(),
-        easing : clone_dyn_types::clone_into_box( &*self.easing ) ,
+        easing : clone_dyn_types::clone_into_box( &*self.easing ),
         state : self.state.clone(),
         delay : self.delay.clone(),
         remain : self.remain.clone(),

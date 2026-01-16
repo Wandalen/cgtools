@@ -1,7 +1,7 @@
-//! Renders GLTF files using postprocess effects.
+//! Renders skeletal animations with morph targets.
 #![ doc( html_root_url = "https://docs.rs/gltf_viewer/latest/skeletal_animation/" ) ]
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
-#![ cfg_attr( not( doc ), doc = "Renders skeleton animation from GLTF files" ) ]
+#![ cfg_attr( not( doc ), doc = "Renders skeletal animations with morph targets" ) ]
 
 #![ allow( clippy::std_instead_of_core ) ]
 #![ allow( clippy::too_many_lines ) ]
@@ -135,6 +135,17 @@ async fn run() -> Result< (), gl::WebglError >
   )
   .next()
   .unwrap();
+
+  for mesh in &gltf.meshes
+  {
+    if let Some( skeleton ) = &mesh.borrow().skeleton
+    {
+      if let Some( d ) = skeleton.borrow_mut().displacements_as_mut()
+      {
+        d.set_displacement( None, gltf::Semantic::Normals, 0 );
+      }
+    }
+  }
 
   let gui_weights = Rc::new( RefCell::new( vec![ 0.0; 60 ] ) );
 

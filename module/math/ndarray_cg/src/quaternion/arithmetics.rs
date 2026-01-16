@@ -236,6 +236,44 @@ mod private
 
       q
     }
+
+    /// Converts a quaternion to Euler angles in XYZ order (radians)
+    pub fn to_euler_xyz( &self ) -> Vector< E, 3 >
+    {
+      let q = self.normalize();
+
+      let x = q.x();
+      let y = q.y();
+      let z = q.z();
+      let w = q.w();
+
+      let two = E::one() + E::one();
+
+      // --- X axis rotation ---
+      let sinr_cosp = two * ( w * x + y * z );
+      let cosr_cosp = E::one() - two * ( x * x + y * y );
+      let rx = sinr_cosp.atan2( cosr_cosp );
+
+      // --- Y axis rotation ---
+      let sinp = two * ( w * y - z * x );
+
+      let ry = if sinp.abs() >= E::one()
+      {
+        // Gimbal lock
+        sinp.signum() * ( E::from( std::f64::consts::PI ).unwrap() / two )
+      }
+      else
+      {
+        sinp.asin()
+      };
+
+      // --- Z axis rotation ---
+      let siny_cosp = two * ( w * z + x * y );
+      let cosy_cosp = E::one() - two * ( y * y + z * z );
+      let rz = siny_cosp.atan2( cosy_cosp );
+
+      [ rx, ry, rz ].into()
+    }
   }
 }
 

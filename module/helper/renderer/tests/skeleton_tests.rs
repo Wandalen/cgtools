@@ -1,4 +1,5 @@
 //! Tests for Skeleton structure and related stuff
+#![ cfg( feature = "animation" ) ]
 
 #[ cfg( target_arch = "wasm32" ) ]
 #[ cfg( test ) ]
