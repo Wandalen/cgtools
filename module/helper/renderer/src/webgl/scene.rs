@@ -243,31 +243,26 @@ mod private
       bbox
     }
 
-    /// Gets node by `substring`
-    pub fn get_node_by_substring( &self, substring : &str ) -> Option< Rc< RefCell< Node > > >
+    /// Gets [`Node`]s by `substring`
+    pub fn get_nodes_by_substring( &self, substring : &str ) -> Vec< Rc< RefCell< Node > > >
     {
-      let mut target = None;
+      let mut nodes = vec![];
       let _ = self.traverse
       (
         &mut | node : Rc< RefCell< Node > > |
         {
-          if target.is_some()
-          {
-            return Ok( () );
-          }
           if let Some( current_name ) = node.borrow().get_name()
           {
             if current_name.contains( substring )
             {
-              target = Some( node.clone() );
-              return Err( gl::WebglError::Other( "" ) );
+              nodes.push( node.clone() );
             }
           }
           Ok( () )
         }
       );
 
-      target
+      nodes
     }
 
     /// Gets node by `name`
