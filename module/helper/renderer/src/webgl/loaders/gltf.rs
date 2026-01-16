@@ -460,7 +460,7 @@ mod private
     .map( | b | b.to_vec() )
     .collect::< Vec< _ > >();
 
-    gl::debug!( "Bufffers: {}", buffers.len() );
+    gl::debug!( "Buffers: {}", buffers.len() );
 
     // Upload images
     let images = Rc::new( RefCell::new( Vec::new() ) );
