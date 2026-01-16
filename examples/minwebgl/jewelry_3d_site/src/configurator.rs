@@ -40,23 +40,48 @@ use crate::
 
 /// Duration of color transition animation in milliseconds (MS)
 const TRANSITION_DURATION_MS : f64 = 1000.0;
-// const CLEAR_COLOR : F32x3 = F32x3::splat( 0.854 );
+/// Default clear color used for background and floor color.
 const CLEAR_COLOR : F32x3 = F32x3::splat( 2.0 );
 
+/// High-level scene configurator responsible for:
+/// - Renderer and camera setup
+/// - Ring and gem scene management
+/// - UI-driven material updates
+/// - Color transition animations
 pub struct Configurator
 {
+  /// Generates cube normal maps for gem refraction/reflection
   pub _cube_normal_map_generator : CubeNormalMapGenerator,
+
+  /// Shared WebGL renderer instance
   pub renderer : Rc< RefCell< Renderer > >,
+
+  /// Scene camera with user controls
   pub camera : Camera,
+
+  /// Image-based lighting configuration
   pub ibl : IBL,
+
+  /// Optional skybox texture
   pub skybox : Option< TextureInfo >,
+
+  /// Loaded ring scenes and gem node mappings
   pub rings : RingsInfo,
+
+  /// Current UI state (colors, ring index, etc.)
   pub ui_state : UiState,
+
+  /// Animation controller for material transitions
   pub animation_state : AnimationState
 }
 
 impl Configurator
 {
+  /// Creates and initializes the entire rendering pipeline:
+  /// - Loads environment maps
+  /// - Initializes renderer and camera
+  /// - Loads ring scenes and gems
+  /// - Applies initial UI-driven material states
   pub async fn new( gl : &GL, canvas : &canvas::HtmlCanvasElement ) -> Result< Self, WebglError >
   {
     let mut _cube_normal_map_generator = CubeNormalMapGenerator::new( gl )?;
@@ -104,6 +129,8 @@ impl Configurator
     Ok( configurator )
   }
 
+  /// Updates gem material color based on current UI selection.
+  /// Uses animated transitions when applicable.
   pub fn update_gem_color( &mut self )
   {
     match self.ui_state.gem.as_str()
@@ -139,6 +166,8 @@ impl Configurator
     }
   }
 
+  /// (Optional) Sets up a direct light source for all ring scenes.
+  /// Currently unused but kept for manual lighting experiments.
   fn _setup_light( &self )
   {
     let light =
@@ -159,6 +188,8 @@ impl Configurator
     }
   }
 
+  /// Updates metal (ring body) material color from UI state.
+  /// Applies physically-based parameters suitable for jewelry.
   pub fn update_metal_color( &mut self )
   {
     match self.ui_state.metal.as_str()
@@ -189,6 +220,8 @@ impl Configurator
     }
   }
 
+  /// Animates and applies a new gem color to all gem materials
+  /// in the currently selected ring.
   pub fn set_gem_color( &mut self, color : F32x3 )
   {
     let delay = self.animation_state.animations.time();
@@ -240,7 +273,8 @@ impl Configurator
     }
   }
 
-
+  /// Animates and applies a new metal color to all non-gem meshes
+  /// in the current ring scene.
   pub fn set_metal_color
   (
     &mut self,
@@ -324,6 +358,10 @@ impl Configurator
     );
   }
 
+  /// Configures renderer state:
+  /// - IBL and skybox
+  /// - Clear color
+  /// - Bloom and exposure
   pub fn setup_renderer( &self )
   {
     let mut renderer_mut = self.renderer.borrow_mut();
@@ -445,13 +483,21 @@ impl AnimationState
   }
 }
 
+/// Container for all loaded ring scenes and their gem mappings.
 pub struct RingsInfo
 {
+  /// One scene per ring variant
   pub rings : Vec< Rc< RefCell< Scene > > >,
+
+  /// Per-ring map of gem node names to nodes
   pub gems : Vec< FxHashMap< String, Rc< RefCell< Node > > > >,
+
+  /// Index of the currently selected ring
   pub current_ring : usize
 }
 
+/// Extracts the base color from a material, handling both
+/// PBR metal materials and custom gem materials.
 fn get_color( material : &Rc< RefCell< Box< dyn Material > > > ) -> F32x3
 {
   let type_name =
@@ -476,11 +522,15 @@ fn get_color( material : &Rc< RefCell< Box< dyn Material > > > ) -> F32x3
   }
 }
 
+/// Removes numeric characters from a string.
+/// Used to group gem instances sharing the same base name.
 fn remove_numbers( s : &str ) -> String
 {
   s.chars().filter( | c | !c.is_ascii_digit() ).collect()
 }
 
+/// Loads ring scenes, detects gem nodes, generates cube normal maps,
+/// bakes plane shadows, and initializes gem materials.
 async fn setup_rings
 (
   gl : &GL,
@@ -582,6 +632,8 @@ async fn setup_rings
   )
 }
 
+/// Renders and bakes a soft shadow texture for the ground plane
+/// using a shadow map and shadow baker.
 fn bake_plane_shadow
 (
   gl: &GL,
@@ -647,6 +699,8 @@ fn bake_plane_shadow
   Ok( () )
 }
 
+/// Creates a single-channel shadow texture with mipmaps
+/// for soft shadow rendering.
 fn create_shadow_texture( gl : &GL, res : u32, mip_levels : i32 ) -> Option< web_sys::WebGlTexture >
 {
   let ret = gl.create_texture();
@@ -660,6 +714,8 @@ fn create_shadow_texture( gl : &GL, res : u32, mip_levels : i32 ) -> Option< web
   ret
 }
 
+/// Initializes a perspective camera with orbit controls
+/// configured for jewelry inspection.
 fn setup_camera( canvas : &web_sys::HtmlCanvasElement ) -> Camera
 {
   let width = canvas.width() as f32;
@@ -684,6 +740,8 @@ fn setup_camera( canvas : &web_sys::HtmlCanvasElement ) -> Camera
   camera
 }
 
+/// Replaces all materials on a gem mesh with a configured
+/// `GemMaterial`, including environment and cube normal maps.
 fn setup_gem_material
 (
   gl : &GL,
