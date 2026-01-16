@@ -65,6 +65,7 @@ use configurator::*;
 
 const DISTANCE_RANGE : Range< f32 > = 2.0..6.0;
 
+/// Changes floor visibility and limits camera position relatively to [`renderer::webgl::Camera`] state
 fn handle_camera_position( configurator : &Configurator )
 {
   let camera_controls = configurator.camera.get_controls();
@@ -80,7 +81,7 @@ fn handle_camera_position( configurator : &Configurator )
 
   let current_scene = &configurator.rings.rings[ configurator.rings.current_ring ];
   let plane = current_scene.borrow().get_node( "Plane" ).unwrap();
-  if camera_controls.borrow().eye.y() <= plane.borrow().get_translation().y() + 0.1
+  if camera_controls.borrow().eye.y() <= plane.borrow().get_translation().y() + 0.1 || configurator.ui_state.state == "hero"
   {
     plane.borrow_mut().set_visibility( false, false );
   }
@@ -90,6 +91,7 @@ fn handle_camera_position( configurator : &Configurator )
   }
 }
 
+/// Resets [`Renderer`] and updates [`renderer::webgl::Camera`] when [`HtmlCanvasElement`] is resized
 fn handle_resize
 (
   gl : &GL,
@@ -121,6 +123,7 @@ fn handle_resize
   }
 }
 
+/// Check changed fields of [`ui::UiState`] and updates depended [`Configutator`] features
 fn handle_ui_change( configurator : &mut Configurator )
 {
   if ui::is_changed()
@@ -145,11 +148,21 @@ fn handle_ui_change( configurator : &mut Configurator )
         configurator.update_metal_color();
       }
 
+      if ( ui_state.changed.contains( &"position".to_string() ) ||
+      ui_state.changed.contains( &"center".to_string() ) ) && !ui_state.changed.contains( &"state".to_string() )
+      {
+        let controls = configurator.camera.get_controls();
+        controls.borrow_mut().up = F32x3::from_array( [ 0.0, 1.0, 0.0 ] );
+        controls.borrow_mut().center = F32x3::from_array( ui_state.center );
+        controls.borrow_mut().eye = F32x3::from_array( ui_state.eye );
+      }
+
       ui::clear_changed();
     }
   }
 }
 
+/// Inits configurator and starts render loop
 async fn run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
@@ -186,9 +199,9 @@ async fn run() -> Result< (), gl::WebglError >
       prev_time = t;
       handle_camera_position( &configurator );
       handle_resize( &gl, &mut configurator, &mut swap_buffer, &canvas, &is_resized );
-      handle_ui_change( &mut configurator );
       configurator.camera.update( delta_time );
       configurator.animation_state.update( delta_time );
+      handle_ui_change( &mut configurator );
 
       let scene = &configurator.rings.rings[ configurator.rings.current_ring ];
       configurator.renderer.borrow_mut().render( &gl, &mut scene.borrow_mut(), &configurator.camera ).expect( "Failed to render" );

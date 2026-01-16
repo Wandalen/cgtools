@@ -4,7 +4,6 @@ use gl::
 {
   GL,
   JsCast,
-  F32x3,
   web_sys::wasm_bindgen::closure::Closure
 };
 use std::collections::HashMap;
@@ -20,6 +19,7 @@ use renderer::webgl::
   Sampler
 };
 
+/// Creates template for [`TextureInfo`] with texture without data
 pub async fn create_empty_texture( gl : &GL ) -> Option< TextureInfo >
 {
   let texture = gl.create_texture();
@@ -85,6 +85,7 @@ pub fn filter_nodes( scene : &Rc< RefCell< Scene > >, mut substring : String, ca
   filtered
 }
 
+/// Adds callback and returns bool to signal other program components about [`web_sys::HtmlCanvasElement`] size change
 pub fn add_resize_callback() -> Rc< RefCell< bool > >
 {
   let is_resized = Rc::new( RefCell::new( false ) );
@@ -109,20 +110,4 @@ pub fn add_resize_callback() -> Rc< RefCell< bool > >
   resize_closure.forget();
 
   is_resized
-}
-
-pub fn to_decart( radius : f32, theta : f32, phi : f32 ) -> F32x3
-{
-  let phi = phi.to_radians();
-  let theta = theta.to_radians();
-  let cos_phi = phi.cos();
-
-  F32x3::from
-  (
-    [
-      radius * cos_phi * theta.cos(),
-      radius * phi.sin(),
-      radius * cos_phi * theta.sin(),
-    ]
-  )
 }
