@@ -65,6 +65,7 @@ use configurator::*;
 
 const DISTANCE_RANGE : Range< f32 > = 2.0..6.0;
 
+/// Changes floor visibility and limits camera position relatively to [`renderer::webgl::Camera`] state
 fn handle_camera_position( configurator : &Configurator )
 {
   let camera_controls = configurator.camera.get_controls();
@@ -90,6 +91,7 @@ fn handle_camera_position( configurator : &Configurator )
   }
 }
 
+/// Resets [`Renderer`] and updates [`renderer::webgl::Camera`] when [`HtmlCanvasElement`] is resized
 fn handle_resize
 (
   gl : &GL,
@@ -121,6 +123,7 @@ fn handle_resize
   }
 }
 
+/// Check changed fields of [`ui::UiState`] and updates depended [`Configutator`] features
 fn handle_ui_change( configurator : &mut Configurator )
 {
   if ui::is_changed()
@@ -159,6 +162,7 @@ fn handle_ui_change( configurator : &mut Configurator )
   }
 }
 
+/// Inits configurator and starts render loop
 async fn run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
