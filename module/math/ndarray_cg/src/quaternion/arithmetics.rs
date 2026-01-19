@@ -5,6 +5,12 @@ mod private
 {
   use crate::{ mat::DescriptorOrderColumnMajor, * };
 
+  #[ inline ]
+  fn wrap_pi< E : MatEl + NdFloat >( a : E ) -> E
+  {
+    a.sin().atan2( a.cos() )
+  }
+
   impl< E > Quat< E >
   where E : MatEl + NdFloat
   {
@@ -248,31 +254,32 @@ mod private
       let w = q.w();
 
       let two = E::one() + E::one();
+      let one = E::one();
+      let eps = E::from( 1e-6 ).unwrap();
 
-      // --- X axis rotation ---
-      let sinr_cosp = two * ( w * x + y * z );
-      let cosr_cosp = E::one() - two * ( x * x + y * y );
-      let rx = sinr_cosp.atan2( cosr_cosp );
-
-      // --- Y axis rotation ---
+      // Pitch ( Y )
       let sinp = two * ( w * y - z * x );
+      let sinp = sinp.max( - one ).min( one );
+      let pitch = sinp.asin();
 
-      let ry = if sinp.abs() >= E::one()
+      // Gimbal lock handling
+      if ( sinp.abs() - one ).abs() < eps
       {
-        // Gimbal lock
-        sinp.signum() * ( E::from( std::f64::consts::PI ).unwrap() / two )
+        // Collapse roll into yaw
+        let yaw = two * ( x * y + w * z ).atan2( one - two * ( y * y + z * z ) );
+        return [ E::zero(), pitch, wrap_pi( yaw ) ].into();
       }
-      else
-      {
-        sinp.asin()
-      };
 
-      // --- Z axis rotation ---
-      let siny_cosp = two * ( w * z + x * y );
-      let cosy_cosp = E::one() - two * ( y * y + z * z );
-      let rz = siny_cosp.atan2( cosy_cosp );
+      // Roll ( X )
+      let mut roll = ( two * ( w * x + y * z ) ).atan2( one - two * ( x * x + y * y ) );
 
-      [ rx, ry, rz ].into()
+      // Yaw ( Z )
+      let mut yaw = ( two * ( w * z + x * y ) ).atan2( one - two * ( y * y + z * z ) );
+
+      roll = wrap_pi( roll );
+      yaw  = wrap_pi( yaw );
+
+      [ roll, pitch, yaw ].into()
     }
   }
 }
