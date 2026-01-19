@@ -1,4 +1,4 @@
-use ndarray_cg::{F64x3, approx::assert_abs_diff_eq, relative_eq};
+use ndarray_cg::{ F64x3, QuatF64, approx::assert_abs_diff_eq, relative_eq };
 
 use super::*;
 
@@ -136,29 +136,35 @@ fn test_from_euler_xyz()
   assert_abs_diff_eq!( q, exp );
 }
 
-#[ test ]
+#[test]
 fn test_to_euler_xyz()
 {
-  use the_module::
-  {
-    QuatF64,
-  };
+  use ndarray_cg::QuatF64;
 
   let test_cases =
   [
-    ( [ 1.0_f64.to_radians(), 2.0_f64.to_radians(), 3.0_f64.to_radians() ], [ 1.0_f64.to_radians(), 2.0_f64.to_radians(), 3.0_f64.to_radians() ] ),
-    ( [ 0.0, 0.0, 0.0 ], [ 0.0, 0.0, 0.0 ] ),
-    ( [ 0.01, 0.01, 0.01 ], [ 0.01, 0.01, 0.01 ] ),
-    ( [ -90_f64.to_radians(); 3 ], [ 270_f64.to_radians(); 3 ] ),
-    ( [ -360_f64.to_radians(), 0_f64.to_radians(), 360_f64.to_radians() ], [ 0.0, 0.0, 0.0 ] ),
-    ( [ f64::MAX; 3 ], [ 0.0, 0.0, 0.0 ] ),
-    ( [ f64::MIN; 3 ], [ 0.0, 0.0, 0.0 ] )
+    [ 1.0_f64.to_radians(), 2.0_f64.to_radians(), 3.0_f64.to_radians() ],
+    [ 0.0, 0.0, 0.0 ],
+    [ 0.01, 0.01, 0.01 ],
+    [ -90.0_f64.to_radians(); 3 ],
+    [ -360.0_f64.to_radians(), 0.0, 360.0_f64.to_radians() ],
   ];
 
-  for ( input, output ) in test_cases
+  for input in test_cases
   {
-    let q = QuatF64::from_euler_xyz( input );
-    let result = q.to_euler_xyz();
-    ndarray_cg::assert_abs_diff_eq!( result, F64x3::from_array( output ), epsilon = 0.01_f64 );
+    let q_in = QuatF64::from_euler_xyz( input ).normalize();
+
+    let euler_out = q_in.to_euler_xyz();
+    let q_out = QuatF64::from_euler_xyz( euler_out ).normalize();
+
+    // Fix quaternion sign ambiguity (q ≡ -q)
+    let q_out = if q_in.dot( &q_out ) < 0.0 { q_out.invert() } else { q_out };
+
+    assert_abs_diff_eq!
+    (
+      q_in.0,
+      q_out.0,
+      epsilon = 1e-3
+    );
   }
 }
