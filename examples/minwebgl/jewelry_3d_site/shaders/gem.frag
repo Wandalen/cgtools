@@ -9,8 +9,8 @@ uniform samplerCube cubeNormalMap;
 uniform mat4x4 worldMatrix;
 uniform mat4x4 viewMatrix;
 uniform mat4x4 inverseWorldMatrix;
-uniform mat4x4 offsetMatrix;
-uniform mat4x4 inverseOffsetMatrix;
+uniform mat4x4 restMatrix;
+uniform mat4x4 inverseRestMatrix;
 
 uniform int rayBounces;
 uniform vec3 diamondColor;
@@ -59,7 +59,7 @@ vec4 getNormalData( vec3 dir )
 
 vec3 convertDirLocalToWorld( vec3 direction )
 {
-  return  mat3x3( inverseOffsetMatrix ) * direction;
+  return  mat3x3( inverseRestMatrix ) * direction;
 }
 
 vec2 cartesianToPolar( vec3 d )
@@ -98,7 +98,7 @@ vec3 sampleSpecularReflection( vec3 direction )
 
 vec3 SampleSpecularContribution( vec3 direction )
 {
-  direction = mat3( inverseOffsetMatrix ) * direction;
+  direction = mat3( inverseRestMatrix ) * direction;
   direction = mat3( viewMatrix ) * direction;
   direction = normalize( direction );
   direction.x *= -1.;
@@ -195,9 +195,9 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
 
   vec3 newRayDirection = refract( rayDirection, hitPointNormal, iorRatioAtoD );
   // Convert data to local space
-  newRayDirection = mat3x3( offsetMatrix ) * newRayDirection;
+  newRayDirection = mat3x3( restMatrix ) * newRayDirection;
   newRayDirection = normalize( newRayDirection );
-  vec3 rayOrigin =  ( offsetMatrix * vec4( rayHitPoint, 1.0 ) ).xyz;
+  vec3 rayOrigin =  ( restMatrix * vec4( rayHitPoint, 1.0 ) ).xyz;
 
   float totalDistance = 0.0;
   // Overall intensity of the light as it goes through the medium
@@ -318,8 +318,8 @@ void main()
   // The actual diamond calculation
   vec3 refractionColor = getRefractionColor( vWorldPosition, viewDirection, normal, n1, n2 );
 
-  vec3 diffuseColor = diamondColor;
-  vec3 colour = diffuseColor * ( refractionColor + reflectionColor );
+
+  vec3 colour = diamondColor * ( refractionColor + reflectionColor );
   vec3 toneMappedColour = aces_tone_map( colour );
   float emission_factor = smoothstep( 0.9, 0.91, luminosity( toneMappedColour ) );
   emissive_color = vec4( toneMappedColour * emission_factor, 0.0 );

@@ -15,8 +15,8 @@ impl_locations!
   "viewMatrix",
   "projectionMatrix",
   "normalMatrix",
-  "offsetMatrix",
-  "inverseOffsetMatrix",
+  "restMatrix",
+  "inverseRestMatrix",
 
   "envMap",
   "cubeNormalMap",
@@ -170,10 +170,10 @@ impl Material for GemMaterial
 
     upload_array( "diamondColor", self.color.0.as_slice() )?;
 
-    let offset_mat = gl::math::mat3x3h::translation( -c ) * inv_world;
+    let rest_mat = gl::math::mat3x3h::translation( -c ) * inv_world;
 
-    gl::uniform::matrix_upload( gl, locations.get( "offsetMatrix" ).unwrap().clone(), offset_mat.raw_slice(), true )?;
-    gl::uniform::matrix_upload( gl, locations.get( "inverseOffsetMatrix" ).unwrap().clone(), offset_mat.inverse().unwrap().raw_slice(), true )?;
+    gl::uniform::matrix_upload( gl, locations.get( "restMatrix" ).unwrap().clone(), rest_mat.raw_slice(), true )?;
+    gl::uniform::matrix_upload( gl, locations.get( "inverseRestMatrix" ).unwrap().clone(), rest_mat.inverse().unwrap().raw_slice(), true )?;
 
     self.upload_textures( gl );
 
