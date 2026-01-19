@@ -3,9 +3,6 @@ precision mediump float;
 const float PI = 3.1415926535897932384626433;
 const float EPSILON = 1e-4;
 
-const vec3 ambientColor = vec3(0.7);
-const float ambientint = 0.08;
-
 uniform sampler2D envMap;
 uniform samplerCube cubeNormalMap;
 
@@ -179,21 +176,15 @@ vec3 intersectDiamond( vec3 rayOrigin, vec3 rayDirection )
 
 
 // Calculate the color by tracing a ray
-vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNormal, float n2 )
+vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNormal, float n1, float n2 )
 {
   vec3 resultColor = vec3( 0.0 );
 
   const float distanceAttenuationSpeed = 0.1;
   const float _rIndexDelta = 0.0120;
-  const float refractiveIndex = 2.6;
-
-  // Refractive index of air
-  const float n1 = 1.0;
 
   vec3 f0 = vec3( (n2 - n1) / (n2 + n1) );
   f0 *= f0;
-
-  n2 = refractiveIndex;
 
   float iorRatioAtoD = n1 / n2;
   float iorRatioDtoA = n2 / n1;
@@ -279,19 +270,6 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
   return resultColor;
 }
 
-mat3 rotY( float angle )
-{
-  float s = sin(angle);
-  float c = cos(angle);
-
-  return mat3
-  (
-    c, 0.0, s,
-    0.0, 1.0, 0.0,
-    -s, 0.0, c
-  );
-}
-
 float luminosity( vec3 color )
 {
   return 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
@@ -325,7 +303,12 @@ void main()
   vec3 viewDirection = normalize( vWorldPosition - cameraPosition );
   vec3 reflectedDirection = reflect( viewDirection, normal );
 
-  float f0 = ( 2.4 - 1.0 ) / ( 2.4 + 1.0 );
+  // Refractive index of air
+  const float n1 = 1.0;
+  // Refractive index of diamond
+  const float n2 = 2.6;
+
+  float f0 = ( n2 - n1 ) / ( n2 + n1 );
   f0 *= f0;
 
   // An approximation of specular reflection from environment
@@ -333,7 +316,7 @@ void main()
   // Sample color from an environment map
   vec3 reflectionColor = brdfReflected * sampleSpecularReflection( reflectedDirection );
   // The actual diamond calculation
-  vec3 refractionColor = getRefractionColor( vWorldPosition, viewDirection, normal, 2.4 );
+  vec3 refractionColor = getRefractionColor( vWorldPosition, viewDirection, normal, n1, n2 );
 
   vec3 diffuseColor = diamondColor;
   vec3 colour = diffuseColor * ( refractionColor + reflectionColor );
