@@ -183,10 +183,7 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
 {
   vec3 resultColor = vec3( 0.0 );
 
-  const float _absorptionFactor = 1.0;
-  const vec3 _absorptionColor = vec3( 1.0 );
-  const vec3 _boostFactors = vec3( 1.0 );
-  const vec3 _colorCorrection = vec3( 1.0 );
+  const float distanceAttenuationSpeed = 0.1;
   const float _rIndexDelta = 0.0120;
   const float refractiveIndex = 2.6;
 
@@ -237,8 +234,8 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
     vec3 oldOrigin = rayOrigin;
     rayOrigin = dirOriginToIntersect * surfaceDistance;
 
-    float r = length( rayOrigin - oldOrigin ) / radius * _absorptionFactor;
-    attenuationFactor *= exp( -r *( vec3(1.0) - _absorptionColor) );
+    float r = length( rayOrigin - oldOrigin ) / radius;
+    attenuationFactor *= exp( -r * distanceAttenuationSpeed );
 
 
     // Calculate new rays
@@ -250,7 +247,7 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
       if ( i == v - 1 )
       {
         vec3 reflectedAmount = EnvBRDFApprox( abs( dot( newRayDirection, surfaceNormal ) ), f0, 0.0 );
-        resultColor += SampleSpecularContribution( newRayDirection ) * attenuationFactor * _boostFactors * _colorCorrection * ( vec3( 1.0 ) - reflectedAmount );
+        resultColor += SampleSpecularContribution( newRayDirection ) * attenuationFactor * ( vec3( 1.0 ) - reflectedAmount );
       }
     }
     else
@@ -267,13 +264,13 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
           SampleSpecularContribution( d2 ).r,
           SampleSpecularContribution( d1 ).g,
           SampleSpecularContribution( d3 ).b
-        ) * attenuationFactor * refractedAmount * _boostFactors * _colorCorrection;
+        ) * attenuationFactor * refractedAmount;
 
         resultColor += specColor;
       }
 
       vec3 reflectedAmount = EnvBRDFApprox( abs( dot( newReflectedDirection, -surfaceNormal ) ), f0, 0.0 );
-      attenuationFactor *= reflectedAmount * _boostFactors;
+      attenuationFactor *= reflectedAmount;
     }
 
     newRayDirection = newReflectedDirection;
