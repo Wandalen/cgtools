@@ -22,6 +22,11 @@ let colorControlsEnabled = false
 let firstLoad = true;
 let skipScrollAnimation = true;
 
+if ( history.scrollRestoration )
+{
+  history.scrollRestoration = 'manual';
+}
+
 // Configuration state
 export let uiState =
 {
@@ -540,14 +545,21 @@ async function setupMainPage()
     "load",
     ( ev ) =>
     {
-      if ( firstLoad && uiState.state == "hero" )
+      window.scrollTo( 0, 0 )
+
+      if ( firstLoad && scrollY == 0 )
       {
-        introAnimation()
+        if ( uiState.state == "hero" )
+        {
+          introAnimation()
+        }
+      }
+      else
+      {
+        setupScrollAnimation()
       }
     }
   )
-
-  window.scrollTo( 0, 0 )
 }
 
 // -- CONFIGURATOR --
