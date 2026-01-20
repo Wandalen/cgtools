@@ -48,7 +48,7 @@ use gl::
 };
 use renderer::webgl::
 {
-  Renderer, post_processing::{ self, Pass, SwapFramebuffer }
+  post_processing::{ self, Pass, SwapFramebuffer }
 };
 use std::ops::Range;
 
@@ -91,6 +91,18 @@ fn handle_camera_position( configurator : &Configurator )
   }
 }
 
+/// Limits canvas size to prevent context loose if canvas is too big
+fn clamp_canvas_size( canvas : &HtmlCanvasElement )
+{
+  let aspect = canvas.client_width() as f32 / canvas.client_height() as f32;
+
+  if canvas.width() > 1920 || canvas.height() > 1080
+  {
+    canvas.set_width( ( 1080.0 * aspect ) as u32 );
+    canvas.set_height( 1080 );
+  }
+}
+
 /// Resets [`Renderer`] and updates [`renderer::webgl::Camera`] when [`HtmlCanvasElement`] is resized
 fn handle_resize
 (
@@ -103,31 +115,13 @@ fn handle_resize
 {
   if *is_resized.borrow()
   {
-    if let Ok( r ) = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )
-    {
-      {
-        let mut renderer_mut = configurator.renderer.borrow_mut();
-        *renderer_mut = r;
-      }
-      configurator.setup_renderer();
+    clamp_canvas_size( canvas );
 
+    if configurator.renderer.borrow_mut().resize( gl, canvas.width(), canvas.height(), 4 ).is_ok()
+    {
       *swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
 
-      let mut width = canvas.width() as f32;
-
-      if width > 1920.0
-      {
-        width = 1920.0;
-      }
-
-      let mut height = canvas.width() as f32;
-
-      if height > 1080.0
-      {
-        height = 1080.0;
-      }
-
-      configurator.camera.set_window_size( [ width, height ].into() );
+      configurator.camera.set_window_size( [ canvas.width() as f32, canvas.height() as f32 ].into() );
       let aspect = canvas.width() as f32 / canvas.height() as f32;
       let perspective = gl::math::d2::mat3x3h::perspective_rh_gl( 40.0f32.to_radians(), aspect, 0.1, 1000.0 );
       configurator.camera.set_projection_matrix( perspective );
@@ -184,6 +178,8 @@ async fn run() -> Result< (), gl::WebglError >
 
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas_with( &canvas, options )?;
+
+  clamp_canvas_size( &canvas );
 
   let _ = gl.get_extension( "EXT_color_buffer_float" ).expect( "Failed to enable EXT_color_buffer_float extension" );
   let _ = gl.get_extension( "EXT_shader_image_load_store" ).expect( "Failed to enable EXT_shader_image_load_store  extension" );

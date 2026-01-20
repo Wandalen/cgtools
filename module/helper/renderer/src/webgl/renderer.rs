@@ -562,6 +562,15 @@ mod private
       )
     }
 
+    /// Resize [`Renderer`]
+    pub fn resize( &mut self, gl : &gl::GL, width : u32, height : u32, samples : i32 ) -> Result< (), gl::WebglError >
+    {
+      self.framebuffer_ctx = FramebufferContext::new( gl, width, height, samples );
+      self.bloom_effect = UnrealBloomPass::new( gl, width, height, gl::RGBA16F )?;
+      self.swap_buffer = SwapFramebuffer::new( gl, width, height );
+      Ok( () )
+    }
+
     /// Sets the Image-Based Lighting (IBL) textures to be used for rendering.
     ///
     /// * `ibl`: The `IBL` struct containing the diffuse and specular environment maps and the BRDF integration texture.
