@@ -25,6 +25,12 @@ time, mark, audio, video {
 	overscroll-behavior: none;
 }
 
+html, body {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+}
+
 canvas {
   position: fixed;
   inset: 0;
@@ -32,6 +38,10 @@ canvas {
   height: 100vh;
   z-index: 0;
   pointer-events: none;
+  display: block;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
 }
 
 body {
@@ -39,7 +49,6 @@ body {
   overflow-y: scroll;
   font-family: "Cardo", serif;
   scroll-behavior: smooth;
-  width: 100vw;
   --bg-color-inner: "#FFFFFF";
   --bg-color-outer: "#DDDDDD";
   background: radial-gradient(circle, var(--bg-color-inner), var(--bg-color-outer));
