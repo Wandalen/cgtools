@@ -79,7 +79,10 @@ fn handle_camera_position( configurator : &Configurator )
     camera_controls.borrow_mut().eye /= distance / DISTANCE_RANGE.start;
   }
 
-  let current_scene = &configurator.rings.rings[ configurator.rings.current_ring ];
+  let Some( ringg ) = configurator.rings.get_ring() else { return; };
+  let current_scene = ringg.scene.clone();
+  // ring.
+
   let plane = current_scene.borrow().get_node( "Plane" ).unwrap();
   if camera_controls.borrow().eye.y() <= plane.borrow().get_translation().y() + 0.1 || configurator.ui_state.state == "hero"
   {
@@ -203,7 +206,8 @@ async fn run() -> Result< (), gl::WebglError >
       configurator.animation_state.update( delta_time );
       handle_ui_change( &mut configurator );
 
-      let scene = &configurator.rings.rings[ configurator.rings.current_ring ];
+      let Some( ring ) = configurator.rings.get_ring() else { return true; };
+      let scene = ring.scene.clone();
       configurator.renderer.borrow_mut().render( &gl, &mut scene.borrow_mut(), &configurator.camera ).expect( "Failed to render" );
 
       swap_buffer.reset();
