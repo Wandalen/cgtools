@@ -168,7 +168,17 @@ async fn run() -> Result< (), gl::WebglError >
   gl::browser::setup( Default::default() );
   let options = gl::context::ContextOptions::default().antialias( false );
 
+  let window = web_sys::window().unwrap();
+  let fwidth = window.inner_width().unwrap().as_f64().unwrap();
+  let fheight = window.inner_height().unwrap().as_f64().unwrap();
+  let dpr = window.device_pixel_ratio();
+  let width = ( fwidth * dpr ) as i32;
+  let height = ( fheight * dpr ) as i32;
+
   let canvas = gl::canvas::make()?;
+  canvas.set_width( width as u32 );
+  canvas.set_height( height as u32 );
+
   let gl = gl::context::from_canvas_with( &canvas, options )?;
 
   let _ = gl.get_extension( "EXT_color_buffer_float" ).expect( "Failed to enable EXT_color_buffer_float extension" );
