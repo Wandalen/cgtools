@@ -531,7 +531,7 @@ async fn setup_rings
 
     gltf.scenes[ 0 ].borrow_mut().update_world_matrix();
 
-    bake_plane_shadow(gl, lightmap_res, light, &shadowmap, &shadow_baker, &gltf, plane_node)?;
+    bake_plane_shadow( gl, lightmap_res, light, &shadowmap, &shadow_baker, &gltf, plane_node )?;
 
     rings.push( gltf.scenes[ 0 ].clone() );
 

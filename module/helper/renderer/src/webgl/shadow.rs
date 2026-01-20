@@ -12,7 +12,7 @@ mod private
   pub struct ShadowMap
   {
     framebuffer   : Option< WebGlFramebuffer >,
-    depth_buffer  : Option< WebGlTexture >,
+    depth_texture : Option< WebGlTexture >,
     program       : Program,
     resolution    : i32,
     gl            : GL,
@@ -25,8 +25,8 @@ mod private
     {
       let resolution = resolution as i32;
 
-      let depth_buffer = gl.create_texture();
-      gl.bind_texture( gl::TEXTURE_2D, depth_buffer.as_ref() );
+      let depth_texture = gl.create_texture();
+      gl.bind_texture( gl::TEXTURE_2D, depth_texture.as_ref() );
       gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::DEPTH_COMPONENT24, resolution, resolution );
       gl::texture::d2::filter_nearest( gl );
       gl::texture::d2::wrap_clamp( gl );
@@ -38,7 +38,7 @@ mod private
         gl::FRAMEBUFFER,
         gl::DEPTH_ATTACHMENT,
         gl::TEXTURE_2D,
-        depth_buffer.as_ref(),
+        depth_texture.as_ref(),
         0
       );
 
@@ -62,7 +62,7 @@ mod private
         Self
         {
           framebuffer,
-          depth_buffer,
+          depth_texture,
           program,
           resolution,
           gl : gl.clone(),
@@ -90,7 +90,7 @@ mod private
     /// Returns depth texture for sampling
     pub fn depth_buffer( &self ) -> Option< &WebGlTexture >
     {
-      self.depth_buffer.as_ref()
+      self.depth_texture.as_ref()
     }
 
     /// Clears depth buffer
@@ -146,6 +146,17 @@ mod private
       Ok( () )
     }
   }
+
+  impl Drop for ShadowMap
+  {
+    fn drop( &mut self )
+    {
+      self.gl.delete_texture( self.depth_texture.as_ref() );
+      _ = self.depth_texture.take();
+      self.gl.delete_framebuffer( self.framebuffer.as_ref() );
+      _ = self.framebuffer.take();
+    }
+}
 
   /// Bakes PCSS shadows into lightmap textures
   #[ derive( Debug ) ]
