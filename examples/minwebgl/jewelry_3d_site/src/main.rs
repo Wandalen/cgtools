@@ -113,7 +113,21 @@ fn handle_resize
 
       *swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
 
-      configurator.camera.set_window_size( [ canvas.width() as f32, canvas.height() as f32 ].into() );
+      let mut width = canvas.width() as f32;
+
+      if width > 1920.0
+      {
+        width = 1920.0;
+      }
+
+      let mut height = canvas.width() as f32;
+
+      if height > 1080.0
+      {
+        height = 1080.0;
+      }
+
+      configurator.camera.set_window_size( [ width, height ].into() );
       let aspect = canvas.width() as f32 / canvas.height() as f32;
       let perspective = gl::math::d2::mat3x3h::perspective_rh_gl( 40.0f32.to_radians(), aspect, 0.1, 1000.0 );
       configurator.camera.set_projection_matrix( perspective );
