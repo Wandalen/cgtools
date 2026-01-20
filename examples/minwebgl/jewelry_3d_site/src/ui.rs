@@ -1,6 +1,10 @@
 use minwebgl as gl;
 use gl::wasm_bindgen::{ self, prelude::* };
 use serde::{ Serialize, Deserialize };
+use std::sync::Mutex;
+
+/// Signal for render load check on JS side
+pub static RENDERER_LOADED: Mutex< bool > = Mutex::new( false );
 
 /// Shared between JS and Rust ui state of configurator.
 /// Used to change gem, metal, ring type etc
@@ -54,6 +58,18 @@ pub fn is_changed() -> bool
 pub fn is_debug_mode() -> bool
 {
   cfg!( debug_assertions )
+}
+
+/// Check if renderer is loaded ( on JS side )
+#[ wasm_bindgen(js_name = "isRendererLoaded") ]
+pub fn is_renderer_loaded() -> bool
+{
+  if let Ok( renderer_loaded ) = RENDERER_LOADED.try_lock()
+  {
+    return *renderer_loaded;
+  }
+
+  false
 }
 
 #[ wasm_bindgen( module = "/index.js" ) ]

@@ -196,6 +196,11 @@ async fn run() -> Result< (), gl::WebglError >
 
   let is_resized = add_resize_callback();
 
+  if let Ok( mut renderer_loaded ) = ui::RENDERER_LOADED.lock()
+  {
+    *renderer_loaded = true;
+  }
+
   // Define the update and draw logic
   let update_and_draw =
   {
@@ -211,6 +216,7 @@ async fn run() -> Result< (), gl::WebglError >
       handle_resize( &gl, &mut configurator, &mut swap_buffer, &canvas, &is_resized );
       configurator.camera.update( delta_time );
       configurator.animation_state.update( delta_time );
+
       handle_ui_change( &mut configurator );
 
       let scene = &configurator.rings.rings[ configurator.rings.current_ring ];

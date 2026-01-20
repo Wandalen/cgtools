@@ -545,19 +545,30 @@ async function setupMainPage()
     "load",
     ( ev ) =>
     {
-      window.scrollTo( 0, 0 )
-
-      if ( firstLoad && scrollY == 0 )
+      const start = () =>
       {
-        if ( uiState.state == "hero" )
+        if ( typeof wasmBindings !== "undefined" && wasmBindings.isRendererLoaded() )
         {
-          introAnimation()
+          window.scrollTo( 0, 0 )
+
+          if ( firstLoad && scrollY == 0 )
+          {
+            if ( uiState.state == "hero" )
+            {
+              introAnimation()
+            }
+          }
+          else
+          {
+            setupScrollAnimation()
+          }
         }
-      }
-      else
-      {
-        setupScrollAnimation()
-      }
+        else
+        {
+          requestAnimationFrame( start );
+        }
+      };
+      start();
     }
   )
 }
