@@ -57,11 +57,6 @@ vec4 getNormalData( vec3 dir )
   return data;
 }
 
-vec3 convertDirLocalToWorld( vec3 direction )
-{
-  return  mat3x3( inverseRestMatrix ) * direction;
-}
-
 vec2 cartesianToPolar( vec3 d )
 {
   // in range from -pi to pi
@@ -83,38 +78,25 @@ vec2 cartesianToPolar( vec3 d )
 
 vec3 sampleEnv( vec3 direction )
 {
-  direction.xyz *= -1.0;
-  vec3 sample_value = texture( envMap, cartesianToPolar(direction) ).rgb;
-  return sample_value;
-}
-
-vec3 sampleSpecularReflection( vec3 direction )
-{
   direction = mat3( viewMatrix ) * direction;
-  float envMapIntencity = 1.0;
-  vec3 sample_value = sampleEnv( direction );
+  vec3 sample_value = texture( envMap, cartesianToPolar(direction) ).rgb;
   return envMapIntensity * sample_value;
 }
 
-vec3 SampleSpecularContribution( vec3 direction )
+
+vec3 sampleReflection( vec3 direction )
 {
   direction = mat3( inverseRestMatrix ) * direction;
-  direction = mat3( viewMatrix ) * direction;
   direction = normalize( direction );
   direction.x *= -1.;
   direction.z *= -1.;
-  float envMapIntencity = 1.0;
-  return envMapIntencity * sampleEnv( direction ).rgb;
+  return sampleEnv( direction ).rgb;
 }
 
 // Finds an intersection points of a given line with a sphere at the origin
 // and picks the father of the two possible solutions
 vec3 intersectSphere( vec3 origin, vec3 direction )
 {
-  float sqFactor = 0.98;
-  float gmFactor = 0.5;
-  direction.y /= sqFactor;
-
   // Having parametric equation for the line in 'direction'
   // Solve the quadratic equation for 't' using sphere equation
   float A = dot( direction, direction );
@@ -124,10 +106,9 @@ vec3 intersectSphere( vec3 origin, vec3 direction )
   if( disc > 0.0 )
   {
       disc = sqrt( disc );
-      float x1 = ( -B + disc ) * gmFactor / A;
-      float x2 = ( -B - disc ) * gmFactor / A;
+      float x1 = ( -B + disc ) / A;
+      float x2 = ( -B - disc ) / A;
       float t = ( x1 > x2 ) ? x1 : x2;
-      direction.y *= sqFactor;
       return vec3( origin + direction * t );
   }
 
@@ -207,10 +188,7 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
   // Only take into account transmitted part
   attenuationFactor *= ( vec3( 1.0 ) - reflectedAmount );
 
-  int c = 0;
-  int v = 5;
-
-  for( int i = 0; i < v; i++ )
+  for( int i = 0; i < rayBounces; i++ )
   {
     // Intersection point on the diamond surface
     vec3 intersectPos = intersectDiamond( rayOrigin, newRayDirection );
@@ -235,10 +213,10 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
 
     if( dot( newRefractedDirection, newRefractedDirection ) < 1e-4 )
     {
-      if ( i == v - 1 )
+      if ( i == rayBounces - 1 )
       {
         vec3 reflectedAmount = EnvBRDFApprox( abs( dot( newRayDirection, surfaceNormal ) ), f0, 0.0 );
-        resultColor += SampleSpecularContribution( newRayDirection ) * attenuationFactor * ( vec3( 1.0 ) - reflectedAmount );
+        resultColor += sampleReflection( newRayDirection ) * attenuationFactor * ( vec3( 1.0 ) - reflectedAmount );
       }
     }
     else
@@ -252,9 +230,9 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
         vec3 d3 = refract( newRayDirection, -surfaceNormal, ( n2 - _rIndexDelta ) / n1 );
         vec3 specColor = vec3
         (
-          SampleSpecularContribution( d2 ).r,
-          SampleSpecularContribution( d1 ).g,
-          SampleSpecularContribution( d3 ).b
+          sampleReflection( d2 ).r,
+          sampleReflection( d1 ).g,
+          sampleReflection( d3 ).b
         ) * attenuationFactor * refractedAmount;
 
         resultColor += specColor;
@@ -314,7 +292,7 @@ void main()
   // An approximation of specular reflection from environment
   vec3 brdfReflected = EnvBRDFApprox( dot( reflectedDirection, normal ), vec3( f0 ), 0.0 );
   // Sample color from an environment map
-  vec3 reflectionColor = brdfReflected * sampleSpecularReflection( reflectedDirection );
+  vec3 reflectionColor = brdfReflected * sampleEnv( reflectedDirection );
   // The actual diamond calculation
   vec3 refractionColor = getRefractionColor( vWorldPosition, viewDirection, normal, n1, n2 );
 
