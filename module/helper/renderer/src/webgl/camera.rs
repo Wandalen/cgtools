@@ -4,9 +4,9 @@ mod private
   use std::{ cell::RefCell, rc::Rc };
   use rustc_hash::FxHashMap;
   use mingl::
-  { 
-    CameraOrbitControls, 
-    camera_orbit_controls::bind_controls_to_input 
+  {
+    CameraOrbitControls,
+    controls::camera_orbit_controls::bind_controls_to_input
   };
 
   /// A struct representing a 3D camera with orbit controls.
@@ -73,12 +73,12 @@ mod private
     }
 
     /// Binds mouse and pointer events to the camera controls for interaction.
-    /// 
+    ///
     /// # Arguments
     /// * `canvas` - A reference to the HTML canvas element where the events will be bound.
     pub fn bind_controls
     (
-      &self, 
+      &self,
       canvas : &web_sys::HtmlCanvasElement
     )
     {
@@ -86,7 +86,7 @@ mod private
     }
 
     /// Uploads the camera's matrices and position to a WebGL2 shader program.
-    /// 
+    ///
     /// # Arguments
     /// * `gl` - The WebGL2 rendering context.
     /// * `locations` - A `FxHashMap` containing the uniform locations for the shader program.
