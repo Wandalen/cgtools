@@ -21,6 +21,7 @@ uniform vec3 cameraPosition;
 
 uniform float n2;
 uniform float rainbowDelta;
+uniform float distanceAttenuationSpeed;
 
 in vec2 vUvs;
 in vec3 vWorldNormal;
@@ -163,8 +164,6 @@ vec3 intersectDiamond( vec3 rayOrigin, vec3 rayDirection )
 vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNormal, float n1 )
 {
   vec3 resultColor = vec3( 0.0 );
-
-  const float distanceAttenuationSpeed = 0.1;
 
   float n2r = n2 + rainbowDelta;
   float n2b = n2 - rainbowDelta;

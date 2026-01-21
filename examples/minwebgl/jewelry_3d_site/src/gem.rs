@@ -29,7 +29,8 @@ impl_locations!
   "cameraPosition",
 
   "n2",
-  "rainbowDelta"
+  "rainbowDelta",
+  "distanceAttenuationSpeed"
 );
 
 /// The source code for the gem vertex shader.
@@ -64,7 +65,9 @@ pub struct GemMaterial
   /// Refractive index delta difference for red and blue color relative to n2
   /// r = n2 + rainbow_delta
   /// b = n2 - rainbow_delta
-  pub rainbow_delta : f32
+  pub rainbow_delta : f32,
+  /// How fast light is absorbed inside of the medium
+  pub distance_attenuation_speed : f32
 }
 
 impl GemMaterial
@@ -91,7 +94,8 @@ impl GemMaterial
       cube_normal_map_texture : CubeNormalData::default(),
       needs_update : true,
       n2 : 2.62,
-      rainbow_delta : 0.02
+      rainbow_delta : 0.02,
+      distance_attenuation_speed : 0.1
     }
   }
 }
@@ -180,6 +184,7 @@ impl Material for GemMaterial
     upload( "radius", self.cube_normal_map_texture.max_distance )?;
     upload( "n2", self.n2 )?;
     upload( "rainbowDelta", self.rainbow_delta )?;
+    upload( "distanceAttenuationSpeed", self.distance_attenuation_speed )?;
     upload_array( "diamondColor", self.color.0.as_slice() )?;
 
     let rest_mat = gl::math::mat3x3h::translation( -c ) * inv_world;
@@ -235,7 +240,8 @@ impl Clone for GemMaterial
       needs_update : self.needs_update,
       program : self.program.clone(),
       n2 : self.n2,
-      rainbow_delta : self.rainbow_delta
+      rainbow_delta : self.rainbow_delta,
+      distance_attenuation_speed : self.distance_attenuation_speed
     }
   }
 }
