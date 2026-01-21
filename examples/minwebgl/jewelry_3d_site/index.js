@@ -56,6 +56,10 @@ function getMaxScroll() {
   return document.documentElement.scrollHeight - window.innerHeight
 }
 
+// Firefox uses async scroll, so we need to handle it differently
+const isFirefox = navigator.userAgent.includes("Firefox") &&
+  !navigator.userAgent.includes("Seamonkey");
+
 function onWheel(e) {
   if (scrolled) {
     scrolled = false
@@ -78,9 +82,11 @@ function onWheel(e) {
   }
 }
 
-window.addEventListener("scroll", () => {
-  scrolled = true
-})
+if (!isFirefox) {
+  window.addEventListener("scroll", () => {
+    scrolled = true
+  })
+}
 
 export function getUiState() {
   return uiState;
@@ -224,7 +230,9 @@ function enableScrollAnimationOnUserScroll() {
     window.removeEventListener("scroll", onScroll);
   };
 
-  window.addEventListener("wheel", onWheel, { passive: true });
+  if (!isFirefox) {
+    window.addEventListener("wheel", onWheel, { passive: true });
+  }
   window.addEventListener("scroll", onScroll, { passive: true });
 }
 
@@ -438,7 +446,9 @@ function exitConfigAnimation() {
       0: 0.36420232, 1: 0.8480059, 2: -0.36873266, duration: 1.2, ease: "power4.out",
       onUpdate: () => { window.scrollTo(0, 0); !uiState.changed.includes("target") && uiState.changed.push("target") },
       onComplete: () => {
-        window.addEventListener("wheel", onWheel, { passive: true });
+        if (!isFirefox) {
+          window.addEventListener("wheel", onWheel, { passive: true });
+        }
         skipScrollAnimation = false
         document.body.style.overflowY = "scroll"
       }
@@ -485,7 +495,9 @@ document.querySelector('.btn-customize')?.addEventListener
     'click',
     () => {
       skipScrollAnimation = true
-      window.removeEventListener("wheel", onWheel, { passive: true })
+      if (!isFirefox) {
+        window.removeEventListener("wheel", onWheel, { passive: true })
+      }
 
       uiState.state = "configurator";
       uiState.changed.push("state");
