@@ -26,7 +26,10 @@ impl_locations!
 
   "envMapIntensity",
   "radius",
-  "cameraPosition"
+  "cameraPosition",
+
+  "n2",
+  "rainbowDelta"
 );
 
 /// The source code for the gem vertex shader.
@@ -55,7 +58,13 @@ pub struct GemMaterial
   /// Cube normal map texture
   pub cube_normal_map_texture : CubeNormalData,
   /// Signal for updating material uniforms
-  pub needs_update : bool
+  pub needs_update : bool,
+  /// Refraction index of the diamond
+  pub n2 : f32,
+  /// Refractive index delta difference for red and blue color relative to n2
+  /// r = n2 + rainbow_delta
+  /// b = n2 - rainbow_delta
+  pub rainbow_delta : f32
 }
 
 impl GemMaterial
@@ -80,7 +89,9 @@ impl GemMaterial
       radius : 1000.0,
       environment_texture : None,
       cube_normal_map_texture : CubeNormalData::default(),
-      needs_update : true
+      needs_update : true,
+      n2 : 2.62,
+      rainbow_delta : 0.02
     }
   }
 }
@@ -164,10 +175,11 @@ impl Material for GemMaterial
 
     bb.apply_transform_mut( inv_world );
     let c = bb.center();
-
+    
     upload( "envMapIntensity", self.env_map_intensity )?;
     upload( "radius", self.cube_normal_map_texture.max_distance )?;
-
+    upload( "n2", self.n2 )?;
+    upload( "rainbowDelta", self.rainbow_delta )?;
     upload_array( "diamondColor", self.color.0.as_slice() )?;
 
     let rest_mat = gl::math::mat3x3h::translation( -c ) * inv_world;
@@ -221,7 +233,9 @@ impl Clone for GemMaterial
       environment_texture : self.environment_texture.clone(),
       cube_normal_map_texture : self.cube_normal_map_texture.clone(),
       needs_update : self.needs_update,
-      program : self.program.clone()
+      program : self.program.clone(),
+      n2 : self.n2,
+      rainbow_delta : self.rainbow_delta
     }
   }
 }

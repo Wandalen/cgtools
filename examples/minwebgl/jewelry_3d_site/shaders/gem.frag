@@ -19,6 +19,9 @@ uniform float envMapIntensity;
 uniform float radius;
 uniform vec3 cameraPosition;
 
+uniform float n2;
+uniform float rainbowDelta;
+
 in vec2 vUvs;
 in vec3 vWorldNormal;
 in vec3 vWorldPosition;
@@ -157,12 +160,14 @@ vec3 intersectDiamond( vec3 rayOrigin, vec3 rayDirection )
 
 
 // Calculate the color by tracing a ray
-vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNormal, float n1, float n2 )
+vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNormal, float n1 )
 {
   vec3 resultColor = vec3( 0.0 );
 
   const float distanceAttenuationSpeed = 0.1;
-  const float _rIndexDelta = 0.0120;
+
+  float n2r = n2 + rainbowDelta;
+  float n2b = n2 - rainbowDelta;
 
   vec3 f0 = vec3( (n2 - n1) / (n2 + n1) );
   f0 *= f0;
@@ -226,8 +231,8 @@ vec3 getRefractionColor( vec3 rayHitPoint, vec3 rayDirection, vec3 hitPointNorma
 
       {
         vec3 d1 = newRefractedDirection;
-        vec3 d2 = refract( newRayDirection, -surfaceNormal, ( n2 + _rIndexDelta ) / n1 );
-        vec3 d3 = refract( newRayDirection, -surfaceNormal, ( n2 - _rIndexDelta ) / n1 );
+        vec3 d2 = refract( newRayDirection, -surfaceNormal, n2r / n1 );
+        vec3 d3 = refract( newRayDirection, -surfaceNormal, n2b / n1 );
         vec3 specColor = vec3
         (
           sampleReflection( d2 ).r,
@@ -283,9 +288,6 @@ void main()
 
   // Refractive index of air
   const float n1 = 1.0;
-  // Refractive index of diamond
-  const float n2 = 2.6;
-
   float f0 = ( n2 - n1 ) / ( n2 + n1 );
   f0 *= f0;
 
@@ -294,7 +296,7 @@ void main()
   // Sample color from an environment map
   vec3 reflectionColor = brdfReflected * sampleEnv( reflectedDirection );
   // The actual diamond calculation
-  vec3 refractionColor = getRefractionColor( vWorldPosition, viewDirection, normal, n1, n2 );
+  vec3 refractionColor = getRefractionColor( vWorldPosition, viewDirection, normal, n1 );
 
 
   vec3 colour = diamondColor * ( refractionColor + reflectionColor );
