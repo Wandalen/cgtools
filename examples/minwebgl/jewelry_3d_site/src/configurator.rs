@@ -1,9 +1,4 @@
 use std::{ cell::RefCell, rc::Rc };
-use renderer::webgl::
-{
-  Texture, loaders::gltf::GLTF, shadow::{ ShadowBaker, ShadowMap }
-};
-
 use mingl::web::canvas;
 use minwebgl as gl;
 use gl::
@@ -13,7 +8,6 @@ use gl::
   F32x3,
   WebglError
 };
-use rustc_hash::FxHashMap;
 use renderer::webgl::
 {
   Camera,
@@ -24,18 +18,25 @@ use renderer::webgl::
   Renderer,
   Scene,
   TextureInfo,
-  material::PbrMaterial
+  material::PbrMaterial,
+  Texture,
+  loaders::gltf,
+  shadow,
 };
-use animation::{ AnimatablePlayer, Sequencer, Tween, easing::{ Linear, EasingBuilder } };
 use crate::
 {
-  cube_normal_map_generator::
-  {
-    CubeNormalMapGenerator,
-    CubeNormalData
-  }, gem::GemMaterial, helpers::*, ui::{ UiState, clear_changed, get_ui_state },
+  cube_normal_map_generator,
+  gem::GemMaterial,
+  helpers::*,
+  ui,
   surface_material::SurfaceMaterial,
 };
+use shadow::{ ShadowBaker, ShadowMap };
+use cube_normal_map_generator::{ CubeNormalMapGenerator, CubeNormalData };
+use ui::{ UiState, clear_changed, get_ui_state };
+use animation::{ AnimatablePlayer, Sequencer, Tween, easing::{ Linear, EasingBuilder } };
+use gltf::GLTF;
+use rustc_hash::FxHashMap;
 
 /// Duration of color transition animation in milliseconds (MS)
 const TRANSITION_DURATION_MS : f64 = 1000.0;
@@ -85,8 +86,8 @@ impl Configurator
   /// - Applies initial UI-driven material states
   pub async fn new( gl : &GL, canvas : &canvas::HtmlCanvasElement ) -> Result< Self, WebglError >
   {
-    let mut _cube_normal_map_generator = CubeNormalMapGenerator::new( gl )?;
-    _cube_normal_map_generator.set_texture_size( gl, 512, 512 );
+    let mut cube_normal_map_generator = CubeNormalMapGenerator::new( gl )?;
+    cube_normal_map_generator.set_texture_size( gl, 512, 512 );
 
     let ibl = renderer::webgl::loaders::ibl::load( gl, "environment_maps/studio", None ).await;
 
@@ -100,7 +101,7 @@ impl Configurator
     )
     .await;
 
-    let rings = setup_rings( gl, env_map, _cube_normal_map_generator ).await?;
+    let rings = setup_rings( gl, env_map, cube_normal_map_generator ).await?;
 
     let renderer = Renderer::new( gl, canvas.width(), canvas.height(), 4 )?;
     let renderer = Rc::new( RefCell::new( renderer ) );
@@ -113,7 +114,6 @@ impl Configurator
 
     let mut configurator = Configurator
     {
-      // _cube_normal_map_generator,
       renderer,
       camera,
       ibl,
@@ -247,7 +247,7 @@ impl Configurator
         continue;
       };
 
-      mesh.borrow_mut().is_shadow_caster = true;
+      // mesh.borrow_mut().is_shadow_caster = true;
 
       for primitive in &mesh.borrow().primitives
       {
@@ -528,21 +528,23 @@ impl RingsInfo
       {
         if !self.loaded_rings.borrow().contains( &self.current_ring )
         {
-          let index = self.current_ring;
           let gl = self.gl.clone();
+          let index = self.current_ring;
           let loader = self.ring_loader.clone();
 
           let future = async move
           {
             let window = gl::web_sys::window().unwrap();
             let document = window.document().unwrap();
-            let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/{index}.glb" ).as_str(), &gl ).await.unwrap();
+
+            let gltf = gltf::load( &document, format!( "./gltf/{index}.glb" ).as_str(), &gl ).await.unwrap();
+
             ( loader )( gltf, index );
           };
 
-          gl::spawn_local( future );
-
           self.loaded_rings.borrow_mut().push( self.current_ring );
+
+          gl::spawn_local( future );
         }
 
         None
@@ -600,7 +602,7 @@ async fn setup_rings
 
   let rings : RcVec< Option< Ring > > = Rc::new( RefCell::new( vec![ None; RINGS_NUMBER ] ) );
 
-  let plane_gltf = renderer::webgl::loaders::gltf::load( &document, "gltf/plane.glb", &gl ).await?;
+  let plane_gltf = gltf::load( &document, "gltf/plane.glb", &gl ).await?;
   let plane_template = plane_gltf.scenes[ 0 ].borrow().get_node( "Plane" ).unwrap();
 
   let shadowmap_res = 2048;
@@ -627,7 +629,6 @@ async fn setup_rings
 
     move | gltf : GLTF, index : usize |
     {
-      gl::info!( "loading {index}" );
       for node in &gltf.scenes[ 0 ].borrow().children
       {
         let mut node = node.borrow_mut();
@@ -642,7 +643,6 @@ async fn setup_rings
       plane_node.borrow_mut().set_translation( F32x3::from_array( [ 0.0, 0.0, 0.0 ] ) );
       plane_node.borrow_mut().set_scale( F32x3::from_array( [ 3.0, 1.0, 3.0 ] ) );
       gltf.scenes[ 0 ].borrow_mut().add( plane_node.clone() );
-
       gltf.scenes[ 0 ].borrow_mut().update_world_matrix();
 
       bake_plane_shadow( &gl, lightmap_res, light, &shadowmap, &shadow_baker, &gltf, plane_node ).unwrap();
@@ -672,6 +672,15 @@ async fn setup_rings
         setup_gem_material( &gl, &gem, &environment_texture, &cube_normal_map_texture );
       }
 
+      gltf.scenes[ 0 ].borrow().traverse
+      (
+        &mut | node |
+        {
+          gl::info!( "{:?}", node.borrow().get_name() );
+          Ok( () )
+        }
+      ).unwrap();
+
       let ring = Ring { scene : gltf.scenes[ 0 ].clone(), gems : ring_gems };
       rings.borrow_mut()[ index ] = Some( ring );
     }
@@ -686,7 +695,6 @@ async fn setup_rings
     RingsInfo
     {
       rings,
-      // gems : Default::default(),
       current_ring,
       loaded_rings : RefCell::new( vec![] ),
       ring_loader : Rc::new( ring_loader ),
@@ -704,7 +712,7 @@ fn bake_plane_shadow
   light: renderer::webgl::shadow::Light,
   shadowmap: &ShadowMap,
   shadow_baker: &ShadowBaker,
-  gltf: &renderer::webgl::loaders::gltf::GLTF,
+  gltf: &gltf::GLTF,
   plane_node: Rc< RefCell< Node > >
 ) -> Result< (), WebglError >
 {

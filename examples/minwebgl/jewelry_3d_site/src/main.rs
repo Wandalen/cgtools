@@ -38,6 +38,14 @@
 #![ allow( clippy::field_reassign_with_default ) ]
 #![ allow( clippy::if_not_else ) ]
 
+mod cube_normal_map_generator;
+mod gem;
+mod configurator;
+mod helpers;
+mod ui;
+mod debug;
+mod surface_material;
+
 use std::{ cell::RefCell, rc::Rc };
 use minwebgl as gl;
 use gl::
@@ -51,15 +59,6 @@ use renderer::webgl::
   Renderer, post_processing::{ self, Pass, SwapFramebuffer }
 };
 use std::ops::Range;
-
-mod cube_normal_map_generator;
-mod gem;
-mod configurator;
-mod helpers;
-mod ui;
-mod debug;
-mod surface_material;
-
 use helpers::*;
 use configurator::*;
 
@@ -81,7 +80,6 @@ fn handle_camera_position( configurator : &Configurator )
 
   let Some( ringg ) = configurator.rings.get_ring() else { return; };
   let current_scene = ringg.scene.clone();
-  // ring.
 
   let plane = current_scene.borrow().get_node( "Plane" ).unwrap();
   if camera_controls.borrow().eye.y() <= plane.borrow().get_translation().y() + 0.1 || configurator.ui_state.state == "hero"
@@ -207,7 +205,7 @@ async fn run() -> Result< (), gl::WebglError >
       handle_ui_change( &mut configurator );
 
       let Some( ring ) = configurator.rings.get_ring() else { return true; };
-      let scene = ring.scene.clone();
+      let scene = &ring.scene;
       configurator.renderer.borrow_mut().render( &gl, &mut scene.borrow_mut(), &configurator.camera ).expect( "Failed to render" );
 
       swap_buffer.reset();
