@@ -10,6 +10,7 @@ use gl::
 };
 use renderer::webgl::
 {
+  AlphaMode,
   Camera,
   IBL,
   Material,
@@ -17,11 +18,12 @@ use renderer::webgl::
   Object3D,
   Renderer,
   Scene,
-  TextureInfo,
-  material::PbrMaterial,
   Texture,
+  TextureInfo,
+  helpers,
   loaders::gltf,
-  shadow,
+  material::PbrMaterial,
+  shadow
 };
 use crate::
 {
@@ -247,8 +249,6 @@ impl Configurator
         continue;
       };
 
-      // mesh.borrow_mut().is_shadow_caster = true;
-
       for primitive in &mesh.borrow().primitives
       {
         let material = &primitive.borrow().material;
@@ -269,7 +269,7 @@ impl Configurator
               return;
             };
             let color = player.value_get();
-            let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< GemMaterial >( material.borrow_mut() );
+            let mut material = helpers::cast_unchecked_material_to_ref_mut::< GemMaterial >( material.borrow_mut() );
             material.color = color;
             material.needs_update = true;
           }
@@ -317,8 +317,6 @@ impl Configurator
           return Ok( () );
         };
 
-        mesh.borrow_mut().is_shadow_caster = true;
-
         for primitive in &mesh.borrow().primitives
         {
           let material = &primitive.borrow().material;
@@ -338,23 +336,14 @@ impl Configurator
               {
                 return;
               };
+
               let color = player.value_get();
-              let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
-              material.alpha_mode = renderer::webgl::AlphaMode::Opaque;
+              let mut material = helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
 
               for i in 0..3
               {
                 material.base_color_factor.0[ i ] = color.0[ i ];
               }
-              material.specular_factor = Some( 0.0 );
-              material.specular_color_factor = Some( F32x3::splat( 1.0 ) );
-              material.base_color_factor.0[ 3 ] = 1.0;
-              // Roughness 0.1 provides visually pleasing subtle surface variation
-              // (0.04 appeared too mirror-like for realistic jewelry rendering)
-              material.roughness_factor = 0.1;
-              // Metallic 0.9 prevents oversaturation while maintaining metal appearance
-              material.metallic_factor = 0.9;
-              material.needs_update = true;
             }
           );
         }
@@ -567,12 +556,12 @@ fn get_color( material : &Rc< RefCell< Box< dyn Material > > > ) -> F32x3
   {
     "PbrMaterial" =>
     {
-      let material = renderer::webgl::helpers::cast_unchecked_material_to_ref::< PbrMaterial >( material.borrow() );
+      let material = helpers::cast_unchecked_material_to_ref::< PbrMaterial >( material.borrow() );
       material.base_color_factor.truncate()
     },
     "GemMaterial" =>
     {
-      let material = renderer::webgl::helpers::cast_unchecked_material_to_ref::< GemMaterial >( material.borrow() );
+      let material = helpers::cast_unchecked_material_to_ref::< GemMaterial >( material.borrow() );
       material.color
     },
     _ => F32x3::splat( 1.0 )
@@ -629,6 +618,40 @@ async fn setup_rings
 
     move | gltf : GLTF, index : usize |
     {
+      gltf.scenes[ 0 ].borrow().traverse
+      (
+        &mut | node |
+        {
+          let node = node.borrow();
+          let Object3D::Mesh( mesh ) = &node.object else { return Ok( () ); };
+
+          for primitive in &mesh.borrow().primitives
+          {
+            let material = &primitive.borrow().material;
+            if material.borrow().type_name() != "PbrMaterial"
+            {
+              continue;
+            }
+            let mut material = helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
+
+            material.alpha_mode = AlphaMode::Opaque;
+
+            let color = F32x3::from_array( [ 1.2, 1.2, 1.2 ] ).to_homogenous();
+            material.base_color_factor = color;
+            material.specular_factor = Some( 0.0 );
+            material.specular_color_factor = Some( F32x3::splat( 1.0 ) );
+            // Roughness 0.1 provides visually pleasing subtle surface variation
+            // (0.04 appeared too mirror-like for realistic jewelry rendering)
+            material.roughness_factor = 0.1;
+            // Metallic 0.9 prevents oversaturation while maintaining metal appearance
+            material.metallic_factor = 0.9;
+            material.needs_update = true;
+          }
+
+          Ok( () )
+        }
+      ).unwrap();
+
       for node in &gltf.scenes[ 0 ].borrow().children
       {
         let mut node = node.borrow_mut();
@@ -671,15 +694,6 @@ async fn setup_rings
 
         setup_gem_material( &gl, &gem, &environment_texture, &cube_normal_map_texture );
       }
-
-      gltf.scenes[ 0 ].borrow().traverse
-      (
-        &mut | node |
-        {
-          gl::info!( "{:?}", node.borrow().get_name() );
-          Ok( () )
-        }
-      ).unwrap();
 
       let ring = Ring { scene : gltf.scenes[ 0 ].clone(), gems : ring_gems };
       rings.borrow_mut()[ index ] = Some( ring );
