@@ -133,19 +133,47 @@ fn handle_ui_change( configurator : &mut Configurator )
     {
       configurator.ui_state = ui_state.clone();
       let ring_changed = ui_state.changed.contains( &"ring".to_string() );
+      let gem_changed = ui_state.changed.contains( &"gem".to_string() );
+      let metal_changed = ui_state.changed.contains( &"metal".to_string() );
 
       if ring_changed
       {
         configurator.rings.current_ring = ui_state.ring as usize;
+
+        // When switching rings, load the ring's saved colors (unless user also changed color)
+        if !gem_changed
+        {
+          configurator.load_gem_from_ring();
+          ui::update_selection_highlight( "gem", &configurator.ui_state.gem );
+        }
+        if !metal_changed
+        {
+          configurator.load_metal_from_ring();
+          ui::update_selection_highlight( "metal", &configurator.ui_state.metal );
+        }
       }
 
-      if ui_state.changed.contains( &"gem".to_string() ) || ring_changed
+      if gem_changed
       {
+        // Save the new gem color to the current ring
+        configurator.save_gem_to_ring();
+        configurator.update_gem_color();
+      }
+      else if ring_changed
+      {
+        // Apply the loaded gem color for the new ring
         configurator.update_gem_color();
       }
 
-      if ui_state.changed.contains( &"metal".to_string() ) || ring_changed
+      if metal_changed
       {
+        // Save the new metal color to the current ring
+        configurator.save_metal_to_ring();
+        configurator.update_metal_color();
+      }
+      else if ring_changed
+      {
+        // Apply the loaded metal color for the new ring
         configurator.update_metal_color();
       }
 

@@ -132,6 +132,42 @@ impl Configurator
     Ok( configurator )
   }
 
+  /// Saves current UI gem color to the current ring's context.
+  pub fn save_gem_to_ring( &mut self )
+  {
+    if let Some( colors ) = self.rings.ring_colors.get_mut( self.rings.current_ring )
+    {
+      colors.gem = self.ui_state.gem.clone();
+    }
+  }
+
+  /// Saves current UI metal color to the current ring's context.
+  pub fn save_metal_to_ring( &mut self )
+  {
+    if let Some( colors ) = self.rings.ring_colors.get_mut( self.rings.current_ring )
+    {
+      colors.metal = self.ui_state.metal.clone();
+    }
+  }
+
+  /// Loads gem color from the current ring's context into UI state.
+  pub fn load_gem_from_ring( &mut self )
+  {
+    if let Some( colors ) = self.rings.ring_colors.get( self.rings.current_ring )
+    {
+      self.ui_state.gem = colors.gem.clone();
+    }
+  }
+
+  /// Loads metal color from the current ring's context into UI state.
+  pub fn load_metal_from_ring( &mut self )
+  {
+    if let Some( colors ) = self.rings.ring_colors.get( self.rings.current_ring )
+    {
+      self.ui_state.metal = colors.metal.clone();
+    }
+  }
+
   /// Updates gem material color based on current UI selection.
   /// Uses animated transitions when applicable.
   pub fn update_gem_color( &mut self )
@@ -486,7 +522,27 @@ pub type RcVec< T > = Rc< RefCell< Vec< T > > >;
 pub struct Ring
 {
   pub scene : RcScene,
-  gems : FxHashMap< String, RcNode >
+  gems : FxHashMap< String, RcNode >,
+}
+
+/// Per-ring color selection (stored separately from Ring for lazy loading support)
+#[ derive( Clone ) ]
+pub struct RingColors
+{
+  pub gem : String,
+  pub metal : String,
+}
+
+impl Default for RingColors
+{
+  fn default() -> Self
+  {
+    Self
+    {
+      gem : "white".to_string(),
+      metal : "silver".to_string(),
+    }
+  }
 }
 
 /// Container for all loaded ring scenes and their gem mappings.
@@ -495,8 +551,8 @@ pub struct RingsInfo
   /// One scene per ring variant
   pub rings : RcVec< Option< Ring > >,
 
-  /// Per-ring map of gem node names to nodes
-  // pub gems : RcVec< FxHashMap< String, RcNode > >,
+  /// Per-ring color selections (available even for unloaded rings)
+  pub ring_colors : Vec< RingColors >,
 
   /// Index of the currently selected ring
   pub current_ring : usize,
@@ -695,7 +751,11 @@ async fn setup_rings
         setup_gem_material( &gl, &gem, &environment_texture, &cube_normal_map_texture );
       }
 
-      let ring = Ring { scene : gltf.scenes[ 0 ].clone(), gems : ring_gems };
+      let ring = Ring
+      {
+        scene : gltf.scenes[ 0 ].clone(),
+        gems : ring_gems,
+      };
       rings.borrow_mut()[ index ] = Some( ring );
     }
   };
@@ -704,11 +764,17 @@ async fn setup_rings
   clear_changed();
   let current_ring = ui_state.ring as usize;
 
+  // Initialize color selections for all rings with defaults
+  let ring_colors : Vec< RingColors > = ( 0..RINGS_NUMBER )
+    .map( | _ | RingColors::default() )
+    .collect();
+
   Ok
   (
     RingsInfo
     {
       rings,
+      ring_colors,
       current_ring,
       loaded_rings : RefCell::new( vec![] ),
       ring_loader : Rc::new( ring_loader ),

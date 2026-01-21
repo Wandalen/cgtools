@@ -78,6 +78,11 @@ extern "C"
   #[ allow( unsafe_code ) ]
   #[ wasm_bindgen( js_name = "enableDebugControls" ) ]
   fn _enable_debug_controls();
+
+  /// Updates UI selection highlight for gem or metal
+  #[ allow( unsafe_code ) ]
+  #[ wasm_bindgen( js_name = "updateSelectionHighlight" ) ]
+  pub fn update_selection_highlight( selection_type : &str, value : &str );
 }
 
 /// Checks if debug is enabled if true enables debug on JS side
