@@ -62,6 +62,7 @@ mod surface_material;
 
 use helpers::*;
 use configurator::*;
+use crate::ui::set_renderer_loaded;
 
 const DISTANCE_RANGE : Range< f32 > = 2.0..6.0;
 
@@ -196,10 +197,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let is_resized = add_resize_callback();
 
-  if let Ok( mut renderer_loaded ) = ui::RENDERER_LOADED.lock()
-  {
-    *renderer_loaded = true;
-  }
+  set_renderer_loaded();
 
   // Define the update and draw logic
   let update_and_draw =
