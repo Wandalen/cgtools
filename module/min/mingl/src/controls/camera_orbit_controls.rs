@@ -137,7 +137,7 @@ mod private
     /// If d > max_distance - clamp to max_distance
     pub fn min_distance_set( &mut self, mut d : f32 )
     {
-      d = d.max( 0.0 ); 
+      d = d.max( 0.0 );
       if let Some( max_distance ) = self.max_distance
       {
         d = d.min( max_distance );
@@ -158,7 +158,7 @@ mod private
       self.max_distance = Some( d );
     }
 
-    /// Get minimun zoom distance
+    /// Get minimum zoom distance
     pub fn min_distance_get( &self ) -> Option< f32 >
     {
       self.min_distance
@@ -314,7 +314,7 @@ mod private
           {
             new_angle -= delta_max_correction;
           }
-          else 
+          else
           {
             new_angle += delta_min_correction;
           }
