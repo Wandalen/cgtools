@@ -31,7 +31,7 @@ mod private
     pub speed : f32,
     /// Determines how fast rotation is going to decrease after dragging is stopped.
     /// In range from 0.0 to 1.0
-    pub movement_decay : f32,
+    movement_decay : f32,
     /// The base longitude angle in degrees in range [0, 360], from which bound are calculated. Has no effect when `longitude_range` is `None`.
     /// 0 degrees points in +X diraction and everything else is specified in counter-clockwise rotation around the Y axis:
     /// 90 = -Z
@@ -52,6 +52,18 @@ mod private
 
   impl CameraRotationState
   {
+    /// Sets the movement_decay and clamps the value in range [0.0, 1.0]
+    pub fn movement_decay_set( &mut self, v : f32 )
+    {
+      self.movement_decay = v.clamp( 0.0, 1.0 );
+    }
+
+    /// Gets the movement_decay
+    pub fn movement_decay_get( &self ) -> f32
+    {
+      self.movement_decay
+    }
+
     /// Sets the base longitude. Clamps the value in range [0, 360] degress 
     pub fn base_longitude_set( &mut self, angle : f32 )
     {
