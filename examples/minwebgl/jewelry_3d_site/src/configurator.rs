@@ -25,6 +25,7 @@ use renderer::webgl::
   material::PbrMaterial,
   shadow
 };
+use web_sys::WebGlFramebuffer;
 use crate::
 {
   cube_normal_map_generator,
@@ -54,9 +55,6 @@ const RINGS_NUMBER : usize = 5;
 /// - Color transition animations
 pub struct Configurator
 {
-  /// Generates cube normal maps for gem refraction/reflection
-  // pub _cube_normal_map_generator : CubeNormalMapGenerator,
-
   /// Shared WebGL renderer instance
   pub renderer : Rc< RefCell< Renderer > >,
 
@@ -203,28 +201,6 @@ impl Configurator
       },
       _ => ()
     }
-  }
-
-  /// (Optional) Sets up a direct light source for all ring scenes.
-  /// Currently unused but kept for manual lighting experiments.
-  fn _setup_light( &self )
-  {
-    // let light =
-    // renderer::webgl::Light::Direct
-    // (
-    //   renderer::webgl::DirectLight
-    //   {
-    //     direction : F32x3::from_spherical( 1.0, 30.0, 65.0 ),
-    //     color : F32x3::splat( 1.0 ),
-    //     strength : 40000.0
-    //   }
-    // );
-    // let light_node = Rc::new( RefCell::new( Node::new() ) );
-    // light_node.borrow_mut().object = Object3D::Light( light );
-    // for scene in &self.rings.rings
-    // {
-    //   scene.borrow_mut().add( light_node.clone() );
-    // }
   }
 
   /// Updates metal (ring body) material color from UI state.
@@ -564,6 +540,28 @@ pub struct RingsInfo
 
 impl RingsInfo
 {
+  fn new< F >
+  (
+    gl : &GL,
+    rings : RcVec< Option< Ring > >,
+    ring_colors : Vec< RingColors >,
+    current_ring : usize,
+    ring_loader : F
+  ) -> Self
+  where
+    F : Fn( GLTF, usize ) + 'static
+  {
+    RingsInfo
+    {
+      rings,
+      ring_colors,
+      current_ring,
+      loaded_rings : RefCell::new( vec![] ),
+      ring_loader : Rc::new( ring_loader ),
+      gl : gl.clone(),
+    }
+  }
+
   pub fn get_ring( &self ) -> Option< Ring >
   {
     match &self.rings.borrow()[ self.current_ring ]
@@ -671,6 +669,7 @@ async fn setup_rings
   {
     let rings = rings.clone();
     let gl = gl.clone();
+    let gpu_sync = GpuSync::new( &gl );
 
     move | gltf : GLTF, index : usize |
     {
@@ -756,30 +755,21 @@ async fn setup_rings
         scene : gltf.scenes[ 0 ].clone(),
         gems : ring_gems,
       };
-      rings.borrow_mut()[ index ] = Some( ring );
+
+      gpu_sync.sync();
+      rings.borrow_mut()[ index ] = Some( ring.clone() );
     }
   };
 
-  let ui_state = get_ui_state().unwrap();
+  let current_ring = get_ui_state().map_or( 0, | inner | inner.ring ) as usize;
   clear_changed();
-  let current_ring = ui_state.ring as usize;
 
   // Initialize color selections for all rings with defaults
-  let ring_colors : Vec< RingColors > = ( 0..RINGS_NUMBER )
-    .map( | _ | RingColors::default() )
-    .collect();
+  let ring_colors : Vec< RingColors > = ( 0..RINGS_NUMBER ).map( | _ | RingColors::default() ).collect();
 
   Ok
   (
-    RingsInfo
-    {
-      rings,
-      ring_colors,
-      current_ring,
-      loaded_rings : RefCell::new( vec![] ),
-      ring_loader : Rc::new( ring_loader ),
-      gl,
-    }
+    RingsInfo::new( &gl, rings, ring_colors, current_ring, ring_loader )
   )
 }
 
@@ -912,5 +902,55 @@ fn setup_gem_material
       let material = &primitive.borrow().material;
       *material.borrow_mut() = gem_material.dyn_clone();
     }
+  }
+}
+
+struct GpuSync
+{
+  fbo: Option< WebGlFramebuffer >,
+  gl : GL,
+}
+
+impl GpuSync
+{
+  fn new( gl : &GL ) -> Self
+  {
+    let tmp_tex = gl.create_texture();
+    gl.bind_texture( gl::TEXTURE_2D, tmp_tex.as_ref() );
+    gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA8, 1, 1 );
+    gl::texture::d2::filter_nearest( &gl );
+
+    let fbo = gl.create_framebuffer();
+    gl.bind_framebuffer( gl::FRAMEBUFFER, fbo.as_ref() );
+    gl.framebuffer_texture_2d
+    (
+      gl::FRAMEBUFFER,
+      gl::COLOR_ATTACHMENT0,
+      gl::TEXTURE_2D,
+      tmp_tex.as_ref(),
+      0,
+    );
+
+    gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+    assert_eq!( gl.check_framebuffer_status( gl::FRAMEBUFFER ), gl::FRAMEBUFFER_COMPLETE );
+
+    Self { fbo, gl : gl.clone() }
+  }
+
+  fn sync( &self )
+  {
+    let mut pixel = [ 1u8; 4 ];
+
+    self.gl.bind_framebuffer( GL::READ_FRAMEBUFFER, self.fbo.as_ref() );
+    self.gl.read_pixels_with_opt_u8_array
+    (
+      0,
+      0,
+      1,
+      1,
+      gl::RGBA,
+      gl::UNSIGNED_BYTE,
+      Some( &mut pixel ),
+    ).unwrap();
   }
 }
