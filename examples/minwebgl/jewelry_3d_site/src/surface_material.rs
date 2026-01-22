@@ -1,10 +1,9 @@
-use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo, Node };
+use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo, MaterialUploadContext };
 use renderer::impl_locations;
 use minwebgl as gl;
 use gl::{ GL, F32x3, Former, WebGlProgram };
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
-use std::{ cell::RefCell, rc::Rc };
 
 // Surface shader locations
 impl_locations!
@@ -103,7 +102,6 @@ impl Material for SurfaceMaterial
   (
     &self,
     gl : &gl::WebGl2RenderingContext,
-    _ibl_base_location : u32,
   )
   {
     self.program.bind( gl );
@@ -111,11 +109,11 @@ impl Material for SurfaceMaterial
     gl.uniform1i( locations.get( "surfaceTexture" ).unwrap().clone().as_ref(), 0 );
   }
 
-  fn upload
+  fn upload_on_state_change
   (
     &self,
     gl : &GL,
-    _node : Rc< RefCell< Node > >
+    _context : &MaterialUploadContext< '_ >
   )
   -> Result< (), gl::WebglError >
   {
@@ -139,8 +137,6 @@ impl Material for SurfaceMaterial
   {
     if let Some( ref t ) = self.texture
     {
-      // gl.enable( gl::CULL_FACE );
-      // gl.cull_face( gl::BACK );
       gl.active_texture( gl::TEXTURE0 );
       t.bind( gl );
     }

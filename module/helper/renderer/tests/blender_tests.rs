@@ -1,4 +1,5 @@
 //! Tests for animation modifier Blender
+#![ cfg( feature = "animation" ) ]
 
 use std::{ rc::Rc, cell::RefCell };
 use renderer::webgl::
@@ -107,7 +108,7 @@ fn test_blender_weights_get_mut()
 {
   let mut blender = Blender::new();
   let mut sequencer = Sequencer::new();
-  sequencer.add
+  sequencer.insert
   (
     format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
@@ -148,14 +149,14 @@ fn test_blender_multiple_animations_with_different_weights()
   let mut blender = Blender::new();
 
   let mut seq1 = Sequencer::new();
-  seq1.add
+  seq1.insert
   (
     format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 
   let mut seq2 = Sequencer::new();
-  seq2.add
+  seq2.insert
   (
     format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 1.0, 0.0 ), 1.0 )
@@ -184,14 +185,14 @@ fn test_blender_normalization_enabled()
   blender.normalize = true;
 
   let mut seq1 = Sequencer::new();
-  seq1.add
+  seq1.insert
   (
     format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 2.0, 0.0, 0.0 ), 1.0 )
   );
 
   let mut seq2 = Sequencer::new();
-  seq2.add
+  seq2.insert
   (
     format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 2.0, 0.0 ), 1.0 )
@@ -216,12 +217,12 @@ fn test_blender_independent_transform_blend()
   let mut blender = Blender::new();
 
   let mut seq1 = Sequencer::new();
-  seq1.add
+  seq1.insert
   (
     format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
-  seq1.add
+  seq1.insert
   (
     format!( "node1{}", ROTATION_PREFIX ).as_str(),
     create_rotation_sequence
@@ -231,7 +232,7 @@ fn test_blender_independent_transform_blend()
       1.0
     )
   );
-  seq1.add
+  seq1.insert
   (
     format!( "node1{}", SCALE_PREFIX ).as_str(),
     create_scale_sequence( F64x3::new( 1.0, 1.0, 1.0 ), F64x3::new( 2.0, 2.0, 2.0 ), 1.0 )
@@ -259,14 +260,14 @@ fn test_blender_scale_blend_independence()
   let mut blender = Blender::new();
 
   let mut seq1 = Sequencer::new();
-  seq1.add
+  seq1.insert
   (
     format!( "node1{}", SCALE_PREFIX ).as_str(),
     create_scale_sequence( F64x3::new( 1.0, 1.0, 1.0 ), F64x3::new( 2.0, 2.0, 2.0 ), 1.0 )
   );
 
   let mut seq2 = Sequencer::new();
-  seq2.add
+  seq2.insert
   (
     format!( "node1{}", SCALE_PREFIX ).as_str(),
     create_scale_sequence( F64x3::new( 1.0, 1.0, 1.0 ), F64x3::new( 0.5, 0.5, 0.5 ), 1.0 )
@@ -294,7 +295,7 @@ fn test_blender_reset()
   let mut blender = Blender::new();
   let mut sequencer = Sequencer::new();
 
-  sequencer.add
+  sequencer.insert
   (
     format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
@@ -315,7 +316,7 @@ fn test_blender_update()
   let mut blender = Blender::new();
   let mut sequencer = Sequencer::new();
 
-  sequencer.add
+  sequencer.insert
   (
     format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
@@ -342,7 +343,7 @@ fn test_is_completed_single_animation_not_completed()
   let mut blender = Blender::new();
   let mut sequencer = Sequencer::new();
 
-  sequencer.add
+  sequencer.insert
   (
     format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
@@ -362,7 +363,7 @@ fn test_is_completed_single_animation_completed()
   let mut blender = Blender::new();
   let mut sequencer = Sequencer::new();
 
-  sequencer.add
+  sequencer.insert
   (
     format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
@@ -382,14 +383,14 @@ fn test_is_completed_multiple_animations_same_time_not_completed()
   let mut blender = Blender::new();
 
   let mut seq1 = Sequencer::new();
-  seq1.add
+  seq1.insert
   (
     format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 
   let mut seq2 = Sequencer::new();
-  seq2.add
+  seq2.insert
   (
     format!( "node2{}", TRANSLATION_PREFIX ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 1.0, 0.0 ), 1.0 )
@@ -410,14 +411,14 @@ fn test_is_completed_multiple_animations_same_time_completed()
   let mut blender = Blender::new();
 
   let mut seq1 = Sequencer::new();
-  seq1.add
+  seq1.insert
   (
     format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 
   let mut seq2 = Sequencer::new();
-  seq2.add
+  seq2.insert
   (
     format!( "node2{}", TRANSLATION_PREFIX ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 1.0, 0.0 ), 1.0 )
@@ -438,14 +439,14 @@ fn test_is_completed_multiple_animations_different_times()
   let mut blender = Blender::new();
 
   let mut seq1 = Sequencer::new();
-  seq1.add
+  seq1.insert
   (
     format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 
   let mut seq2 = Sequencer::new();
-  seq2.add
+  seq2.insert
   (
     format!( "node2{}", TRANSLATION_PREFIX ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 1.0, 0.0 ), 2.0 )
@@ -466,14 +467,14 @@ fn test_is_completed_multiple_animations_different_durations()
   let mut blender = Blender::new();
 
   let mut seq1 = Sequencer::new();
-  seq1.add
+  seq1.insert
   (
     format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )
   );
 
   let mut seq2 = Sequencer::new();
-  seq2.add
+  seq2.insert
   (
     format!( "node2{}", TRANSLATION_PREFIX ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 0.0, 1.0, 0.0 ), 2.0 )
@@ -495,7 +496,7 @@ fn test_is_completed_after_reset()
   let mut blender = Blender::new();
   let mut sequencer = Sequencer::new();
 
-  sequencer.add
+  sequencer.insert
   (
     format!( "node1{}", TRANSLATION_PREFIX ).as_str(),
     create_translation_sequence( F64x3::new( 0.0, 0.0, 0.0 ), F64x3::new( 1.0, 0.0, 0.0 ), 1.0 )

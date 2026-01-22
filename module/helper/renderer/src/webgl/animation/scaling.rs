@@ -10,7 +10,7 @@ mod private
     AnimatablePlayer
   };
   use mingl as gl;
-  use gl::{ F32x3, F64x3, QuatF32, QuatF64 };
+  use gl::{ F32x3, F64x3, F64x4, QuatF32, QuatF64 };
   use crate::webgl::
   {
     Node,
@@ -33,12 +33,13 @@ mod private
     /// Animation that must be scaled
     pub animation : Sequencer,
     /// Set of grouped [`Node`]'s with their scaling weights for
-    /// each simple 3D transofrmation. Weights vector consist of
+    /// each simple 3D transformation. Weights vector consist of
     /// such components:
     /// - x - transform
     /// - y - rotation
     /// - z - scale
-    scaled_nodes : FxHashMap< Box< str >, ( Vec< Box< str > >, F64x3 ) >,
+    /// - w - morph targets
+    scaled_nodes : FxHashMap< Box< str >, ( Vec< Box< str > >, F64x4 ) >,
   }
 
   /// Converts a quaternion delta to axis-angle representation.
@@ -91,7 +92,7 @@ mod private
       &mut self,
       group_name : &str,
       node_names : Vec< Box< str > >,
-      scale : F64x3
+      scale : F64x4
     )
     {
       self.scaled_nodes.insert( group_name.into(), ( node_names, scale ) );
@@ -116,13 +117,13 @@ mod private
     }
 
     /// Get reference to group scale
-    pub fn scale_get( &self, group : &str ) -> Option< &F64x3 >
+    pub fn scale_get( &self, group : &str ) -> Option< &F64x4 >
     {
       self.scaled_nodes.get( group.into() ).map( | ( _, s ) | s )
     }
 
     /// Get mutable reference to group scale
-    pub fn scale_get_mut( &mut self, group : &str ) -> Option< &mut F64x3 >
+    pub fn scale_get_mut( &mut self, group : &str ) -> Option< &mut F64x4 >
     {
       self.scaled_nodes.get_mut( group.into() ).map( | ( _, s ) | s )
     }
@@ -157,7 +158,7 @@ mod private
         return;
       };
 
-      let mut tweens = rotation.tweens_get();
+      let mut tweens = rotation.players().to_vec();
       let current = rotation.current_id_get();
 
       for i in 0..( ( current + 1 ).min( tweens.len() ) )
@@ -180,7 +181,7 @@ mod private
 
       tweens[ 0 ].start_value = tweens.last().unwrap().end_value;
 
-      let mut sequence = Sequence::new( tweens ).unwrap();
+      let mut sequence= Sequence::new( tweens ).unwrap();
       sequence.update( rotation.time() );
 
       if let Some( tween ) = sequence.current_get()

@@ -4,7 +4,7 @@ mod private
   use gl::F32x3;
 
   /// Defines light type that supported by Renderer
-  #[ derive( Debug, PartialOrd, Ord, PartialEq, Eq, Hash ) ]
+  #[ derive( Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Clone, Copy ) ]
   pub enum LightType
   {
     /// Point light source type
@@ -29,7 +29,7 @@ mod private
   }
 
   /// General type for supported light types
-  #[ derive( Debug, Clone ) ]
+  #[ derive( Debug, Clone, Copy ) ]
   pub enum Light
   {
     /// Point light source
@@ -54,7 +54,7 @@ mod private
   }
 
   /// Point light source description
-  #[ derive( Debug, Clone ) ]
+  #[ derive( Debug, Clone, Copy ) ]
   pub struct PointLight
   {
     /// Light position
@@ -68,7 +68,7 @@ mod private
   }
 
   /// Direct light source description
-  #[ derive( Debug, Clone ) ]
+  #[ derive( Debug, Clone, Copy ) ]
   pub struct DirectLight
   {
     /// Light direction
@@ -80,7 +80,7 @@ mod private
   }
 
   /// Spot light source description
-  #[ derive( Debug, Clone ) ]
+  #[ derive( Debug, Clone, Copy ) ]
   pub struct SpotLight
   {
     /// Light position

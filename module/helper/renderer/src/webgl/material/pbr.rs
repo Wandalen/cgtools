@@ -1,12 +1,11 @@
 mod private
 {
-  use crate::webgl::material::*;
+  use crate::webgl::{Object3D, material::*};
   use minwebgl as gl;
   use gl::{ GL, WebGlProgram };
   use mingl::Former;
   use rustc_hash::FxHashMap;
-  use crate::webgl::{ Node, program::{ ShaderProgram, ProgramInfo } };
-  use std:: { cell::RefCell, rc::Rc };
+  use crate::webgl::{ MaterialUploadContext, program::{ ShaderProgram, ProgramInfo } };
   use crate::webgl::program::impl_locations;
 
   /// The source code for the main vertex shader.
@@ -34,9 +33,15 @@ mod private
     "normalMatrix",
 
     // Skeleton uniform locations
-    "inverseBindMatrices",
-    "globalJointTransformMatrices",
-    "matricesTextureSize",
+    "inverseBindMatricesTexture",
+    "globalJointTransformMatricesTexture",
+    "skinMatricesTextureSize",
+    "primitiveOffset",
+    "morphWeights",
+    "morphTargetsDisplacementsTexture",
+    "displacementsTextureSize",
+    "morphTargetsCount",
+    "morphTargetsDisplacementsOffsets",
 
     // Light uniform locations
     "pointLights",
@@ -373,9 +378,16 @@ mod private
       self.needs_update
     }
 
-    fn needs_ibl( &self ) -> bool
+    fn get_ibl_base_texture_unit( &self ) -> Option< u32 >
     {
-      self.need_use_ibl
+      if self.need_use_ibl
+      {
+        Some( 10 )
+      }
+      else
+      {
+        None
+      }
     }
 
     fn shader( &self ) -> &dyn ShaderProgram
@@ -392,12 +404,11 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      ibl_base_location : u32,
     )
     {
       self.program.bind( gl );
       let locations = self.program.locations();
-      let ibl_base_location = ibl_base_location as i32;
+
       // Assign a texture unit for each type of texture
       gl.uniform1i( locations.get( "metallicRoughnessTexture" ).unwrap().clone().as_ref() , 0 );
       gl.uniform1i( locations.get( "baseColorTexture" ).unwrap().clone().as_ref() , 1 );
@@ -407,20 +418,49 @@ mod private
       gl.uniform1i( locations.get( "specularTexture" ).unwrap().clone().as_ref() , 5 );
       gl.uniform1i( locations.get( "specularColorTexture" ).unwrap().clone().as_ref() , 6 );
       gl.uniform1i( locations.get( "lightMap" ).unwrap().clone().as_ref() , 7 );
-
-      gl.uniform1i( locations.get( "irradianceTexture" ).unwrap().clone().as_ref() , ibl_base_location );
-      gl.uniform1i( locations.get( "prefilterEnvMap" ).unwrap().clone().as_ref() , ibl_base_location + 1 );
-      gl.uniform1i( locations.get( "integrateBRDF" ).unwrap().clone().as_ref() , ibl_base_location + 2 );
     }
 
     fn upload
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      _node : Rc< RefCell< Node > >
-    ) -> Result< (), gl::WebglError >
+      context : &MaterialUploadContext< '_ >
+    )
+    -> Result< (), gl::WebglError >
+    {
+      if let Some( current_primitive_id ) = context.primitive_id
+      {
+        if let Object3D::Mesh( mesh ) = &context.node.object
+        {
+          let mut primitive_offset : u32 = 0;
+          for ( i, primitive ) in mesh.borrow().primitives.iter().enumerate()
+          {
+            if i >= current_primitive_id { break; }
+            primitive_offset += primitive.borrow().geometry.borrow().vertex_count;
+          }
+
+          let locations = self.program.locations();
+
+          if let Some( primitive_offset_loc ) = locations.get( "primitiveOffset" )
+          {
+            gl::uniform::upload( gl, primitive_offset_loc.clone(), &primitive_offset )?;
+          }
+        }
+      }
+
+      Ok( () )
+    }
+
+    fn upload_on_state_change
+    (
+      &self,
+      gl : &gl::WebGl2RenderingContext,
+      context : &MaterialUploadContext< '_ >
+    )
+    -> Result< (), gl::WebglError >
     {
       let locations = self.program.locations();
+
       let upload = | loc, value : Option< f32 > | -> Result< (), gl::WebglError >
       {
         if let Some( v ) = value
@@ -438,6 +478,8 @@ mod private
         }
         Ok( () )
       };
+
+      let _ = self.upload( gl, context );
 
       upload( "specularFactor", self.specular_factor )?;
 
@@ -499,12 +541,12 @@ mod private
 
       for ( name, value ) in self.vertex_defines.iter()
       {
-        result.push_str( &format!( "#define {} {}", name, value ) );
+        result.push_str( &format!( "#define {} {}\n", name, value ) );
       }
 
       for ( name, value ) in self.fragment_defines.iter()
       {
-        result.push_str( &format!( "#define {} {}", name, value ) );
+        result.push_str( &format!( "#define {} {}\n", name, value ) );
       }
 
       result
@@ -516,7 +558,7 @@ mod private
 
       for ( name, value ) in self.vertex_defines.iter()
       {
-        result.push_str( &format!( "#define {} {}", name, value ) );
+        result.push_str( &format!( "#define {} {}\n", name, value ) );
       }
 
       result
@@ -528,7 +570,7 @@ mod private
 
       for ( name, value ) in self.fragment_defines.iter()
       {
-        result.push_str( &format!( "#define {} {}", name, value ) );
+        result.push_str( &format!( "#define {} {}\n", name, value ) );
       }
 
       result

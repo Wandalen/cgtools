@@ -1,7 +1,7 @@
-//! Renders GLTF files using postprocess effects.
+//! Renders skeletal animations with opportunity to change its amplitude.
 #![ doc( html_root_url = "https://docs.rs/gltf_viewer/latest/skeletal_animation/" ) ]
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
-#![ cfg_attr( not( doc ), doc = "Renders skeleton animation from GLTF files" ) ]
+#![ cfg_attr( not( doc ), doc = "Renders skeletal animations with opportunity to change its amplitude" ) ]
 
 #![ allow( clippy::std_instead_of_core ) ]
 #![ allow( clippy::too_many_lines ) ]
@@ -148,7 +148,7 @@ fn split_node_names_into_parts
 async fn run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
-  let options = gl::context::ContexOptions::default().antialias( false );
+  let options = gl::context::ContextOptions::default().antialias( false );
 
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas_with( &canvas, options )?;
