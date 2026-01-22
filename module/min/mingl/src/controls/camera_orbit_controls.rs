@@ -127,7 +127,7 @@ mod private
       self.min_distance = Some( d );
     }
 
-    /// Sets the minimum zoom distance from the camera center
+    /// Sets the maximum zoom distance from the camera center
     /// If d < 0.0 - clamp to 0.0
     /// If d < min_distance - clamp to min_distance
     pub fn max_distance_set( &mut self, mut d : f32 )
