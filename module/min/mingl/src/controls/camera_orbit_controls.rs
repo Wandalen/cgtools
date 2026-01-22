@@ -171,10 +171,10 @@ mod private
   /// 
   /// # Example: Constrain camera to hemisphere view
   /// ```rust,ignore
-  /// camera.rotation.base_longitude = 0.0;
-  /// camera.rotation.longitude_range = Some( 90.0 ); +- 90 degrees
-  /// camera.zoom.min_distancce = Some( 2.0 );
-  /// camera.zoom.max_distance = Some( 10.0 );
+  /// camera.rotation.base_longitude_set( 0.0 );
+  /// camera.rotation.longitude_range_set( 90.0 )
+  /// camera.zoom.min_distance_set(2.0);
+  /// camera.zoom.max_distance_set(10.0);
   /// ```
   pub struct CameraOrbitControls
   {
