@@ -235,6 +235,11 @@ mod private
     ///
     /// # Arguments
     /// * `screen_d` - The change in screen coordinates `[dx, dy]` from a mouse movement event.
+    /// 
+    /// # Preconditions
+    /// - `eye` must not equal `center` (direction vector must be non-zero)
+    /// - `up` must not be parallel to the view direction
+    /// Violating these conditions results in undefined behavior (NaN or panic).
     pub fn rotate
     (
       &mut self,
