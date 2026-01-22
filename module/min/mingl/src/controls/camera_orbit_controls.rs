@@ -284,8 +284,8 @@ mod private
       let dir = ( self.eye - self.center ).normalize();
       let x = dir.cross( self.up ).normalize();
 
-      // We rotate aroung the y axis based on the movement in x direction.
-      // And we rotate aroung the axix perpendicular to the current up and direction vectors
+      // We rotate around the y axis based on the movement in x direction.
+      // And we rotate around the axis perpendicular to the current up and direction vectors
       // based on the movement in y direction
       let mut longitude_angle = self.rotation.current_rotation_angle.x();
       let mut latitude_angle = self.rotation.current_rotation_angle.y();
@@ -293,7 +293,7 @@ mod private
       if let Some( longitude_range ) = self.rotation.longitude_range
       {
         let angle_range = longitude_range.to_radians();
-        // Pivoting angle around which constaints are enforced
+        // Pivoting angle around which constraints are enforced
         let mut base_angle = self.rotation.base_longitude.to_radians();
         if base_angle > std::f32::consts::PI
         {
