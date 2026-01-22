@@ -51,6 +51,10 @@ export let uiState =
 let currentScroll = window.scrollY
 let isTicking = false
 let scrolled = false
+let isRendererLoaded = false
+let resized = false
+
+ScrollTrigger.normalizeScroll(true);
 
 function getMaxScroll() {
   return document.documentElement.scrollHeight - window.innerHeight
@@ -68,6 +72,7 @@ function onWheel(e) {
 
   currentScroll = window.scrollY + e.deltaY
   currentScroll = Math.max(0, Math.min(currentScroll, getMaxScroll()))
+  resized = false
 
   if (!isTicking) {
     isTicking = true
@@ -77,6 +82,7 @@ function onWheel(e) {
         () => {
           window.scrollTo(0, currentScroll)
           isTicking = false
+          resized = false
         }
       )
   }
@@ -86,6 +92,17 @@ if (!isFirefox) {
   window.addEventListener("scroll", () => {
     scrolled = true
   })
+}
+
+window.addEventListener("resize", () => {
+  if (window.scrollY == 0){
+    resized = true
+  }
+})
+
+export function setRendererLoaded()
+{
+  isRendererLoaded = true;
 }
 
 export function getUiState() {
@@ -222,8 +239,6 @@ function introAnimation() {
     .to('.side-bar .unique', { opacity: 1, scale: 1.5, ease: "power4.inOut", duration: 2 }, '-=1')
 }
 
-// 
-
 function enableScrollAnimationOnUserScroll() {
   const onScroll = () => {
     skipScrollAnimation = false;
@@ -281,7 +296,7 @@ function setupScrollAnimation() {
       {
         0: -0.40259048, 1: 2.6242757, 2: -0.18104002,
         scrollTrigger: { trigger: ".cam-view-2", start: "top bottom", end: "top top", scrub: true, invalidateOnRefresh: true, immediateRender: false },
-        onUpdate: () => { !skipScrollAnimation && !uiState.changed.includes("position") && uiState.changed.push("position") }
+        onUpdate: () => { !resized && (() => { resized = false; return true; })() && !skipScrollAnimation && !uiState.changed.includes("position") && uiState.changed.push("position") }
       }
     )
     .fromTo
@@ -291,7 +306,7 @@ function setupScrollAnimation() {
       {
         0: -0.23794234, 1: 0.49070162, 2: -0.32702705,
         scrollTrigger: { trigger: ".cam-view-2", start: "top bottom", end: "top top", scrub: true, invalidateOnRefresh: true, immediateRender: false },
-        onUpdate: () => { !skipScrollAnimation && !uiState.changed.includes("target") && uiState.changed.push("target") }
+        onUpdate: () => { !resized && (() => { resized = false; return true; })() && !skipScrollAnimation && !uiState.changed.includes("target") && uiState.changed.push("target") }
       }
     )
     .addLabel("Brilliant")
@@ -332,7 +347,7 @@ function setupScrollAnimation() {
       {
         0: -0.39456308, 1: 2.431139, 2: 0.23367776,
         scrollTrigger: { trigger: ".cam-view-3", start: "top bottom", end: "top top", scrub: true, invalidateOnRefresh: true, immediateRender: false },
-        onUpdate: () => { !skipScrollAnimation && !uiState.changed.includes("position") && uiState.changed.push("position") }
+        onUpdate: () => { !resized && (() => { resized = false; return true; })() && !skipScrollAnimation && !uiState.changed.includes("position") && uiState.changed.push("position") }
       }
     )
     .fromTo
@@ -342,7 +357,7 @@ function setupScrollAnimation() {
       {
         0: 0.2921338, 1: 0.9732934, 2: -0.18001612,
         scrollTrigger: { trigger: ".cam-view-3", start: "top bottom", end: "top top", scrub: true, invalidateOnRefresh: true, immediateRender: false },
-        onUpdate: () => { !skipScrollAnimation && !uiState.changed.includes("target") && uiState.changed.push("target") }
+        onUpdate: () => { !resized && (() => { resized = false; return true; })() && !skipScrollAnimation && !uiState.changed.includes("target") && uiState.changed.push("target") }
       }
     )
     .addLabel("Choose")
@@ -569,7 +584,7 @@ async function setupMainPage() {
       "load",
       (ev) => {
         const start = () => {
-          if (typeof wasmBindings !== "undefined" && wasmBindings.isRendererLoaded()) {
+          if (isRendererLoaded) {
             window.scrollTo(0, 0)
 
             if (firstLoad && scrollY == 0) {
