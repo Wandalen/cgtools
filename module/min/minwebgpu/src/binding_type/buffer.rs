@@ -3,18 +3,29 @@ mod private
 {
   use crate::*;
 
-  #[ derive( Default ) ]
+  /// Represents the layout of a single buffer binding within a WebGPU bind group.
+  #[ derive( Default, Clone ) ]
   pub struct BufferBindingLayout
   {
+    /// The type of the buffer binding.
     /// Defaults to `uniform`
     b_type : Option< GpuBufferBindingType >,
-    /// Defaults to `false`
+    /// Indicates whether dynamic offsets are enabled for this buffer binding.
+    /// 
+    /// When `true`, the offset into the buffer can be specified dynamically when
+    /// the bind group is used, which is useful for rendering multiple objects with
+    /// a single draw call. Defaults to `false`.
     has_dynamic_offset : Option< bool >,
-    /// Default to `0`
+    /// The minimum size, in bytes, that the buffer must have.
+    ///
+    /// This is used by WebGPU for validation. A value of `0` indicates no minimum
+    /// size requirement. Defaults to `0`.
     min_binding_size : Option< f64 >
   }
 
-  impl BufferBindingLayout {
+  impl BufferBindingLayout 
+  {
+    /// Creates a new `BufferBindingLayout` with default values.
     pub fn new() -> Self
     {
       Self::default()
@@ -66,14 +77,6 @@ mod private
   impl From< BufferBindingLayout > for web_sys::GpuBufferBindingLayout
   {
     fn from( value: BufferBindingLayout ) -> Self 
-    {
-      ( &value ).into()
-    }
-  }
-
-  impl From< &BufferBindingLayout > for web_sys::GpuBufferBindingLayout
-  {
-    fn from( value: &BufferBindingLayout ) -> Self 
     {
       let layout = web_sys::GpuBufferBindingLayout::new();
 

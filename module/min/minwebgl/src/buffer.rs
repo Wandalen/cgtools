@@ -42,7 +42,7 @@ mod private
   }
 
   /// Describes the attributes of a WebGL buffer.
-  #[ derive( Debug ) ]
+  #[ derive( Debug, Clone, Copy ) ]
   pub struct BufferDescriptor
   {
     /// The vector data type.
@@ -57,6 +57,8 @@ mod private
     /// A divisor of 1 means that the entire primitive shares the same attribute value.
     /// A divisor of 2 or more specifies that the attribute value is shared across multiple primitives.
     pub divisor : usize,
+    /// Specifies whether integer data values should be normalized when converted to float
+    pub normalized : bool
   }
 
   impl BufferDescriptor
@@ -75,7 +77,15 @@ mod private
         offset : 0,
         stride : 0,
         divisor : 0,
+        normalized : false
       }
+    }
+
+    /// Sets whether the buffer attribute should be normalized.
+    pub fn normalized( mut self, normalized : bool ) -> Self
+    {
+      self.normalized = normalized;
+      self
     }
 
     /// Sets the vector data type.
@@ -122,24 +132,24 @@ mod private
     /// # Returns
     ///
     /// * `Result<(), WebglError>` - A result indicating success or failure.
-    pub fn attribute_pointer( self, gl : &GL, slot : u32, gl_buffer : &WebGlBuffer ) -> Result< u32, WebglError >
+    pub fn attribute_pointer( &self, gl : &GL, slot : u32, gl_buffer : &WebGlBuffer ) -> Result< u32, WebglError >
     {
       let sz = self.vector.scalar.byte_size();
       gl.bind_buffer( GL::ARRAY_BUFFER, Some( gl_buffer ) );
 
-      if self.vector.element_len() > 1
+      if self.vector.nelements() > 1
       {
 
-        let slots = ( self.vector.len() / self.vector.element_len() ) as u32;
+        let slots = ( self.vector.natoms() / self.vector.nelements() ) as u32;
         for i in 0 .. slots
         {
-          let element_offset = ( i as i32 ) * sz * self.vector.element_len();
+          let element_offset = ( i as i32 ) * sz * self.vector.nelements();
           gl.vertex_attrib_pointer_with_i32
           (
             slot + i,
-            self.vector.element_len(),
+            self.vector.nelements(),
             *Const::try_from( self.vector.scalar )?, // data type
-            false, // normalization
+            self.normalized, // normalization
             self.stride * sz,
             self.offset * sz + element_offset,
           );
@@ -155,9 +165,9 @@ mod private
         gl.vertex_attrib_pointer_with_i32
         (
           slot,
-          self.vector.len(),
+          self.vector.natoms(),
           *Const::try_from( self.vector.scalar )?, // data type
-          false, // normalization
+          self.normalized, // normalization
           self.stride * sz,
           self.offset * sz,
         );

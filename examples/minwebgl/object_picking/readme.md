@@ -1,18 +1,23 @@
-## Object picking
+# Object Picking
 
-This exaple shows implementation of the object picking technique with GPU.
-You can pick an object just by clicking on any pixel that represents this object.
+**Keywords:** Interaction, Mouse Picking, WebGL2, Selection
 
-### How it is useful
+This demo demonstrates object picking techniques in WebGL2. It shows how to determine which 3D object the user clicked on, essential for interactive 3D applications and games.
 
-The demo describes rendering and reading arbitrary data into and from a texture.
+Object picking typically uses color-coded rendering or ray casting. This example presents efficient methods for selection detection in complex 3D scenes.
 
-### How to run
+![image](./showcase.gif)
 
-Make sure you have installed all the necessary [dependencies](../../../module/min/minwebgl/readme.md)
-In order to run the example navigate to example's directory and run next command:
-``` bash
-trunk serve --release
-```
+**[How to run](../how_to_run.md)**
 
-![alt text](showcase.png)
+**References:**
+
+* [WebGL Object Picking] - Comprehensive picking tutorial
+* [GPU Gems - Selection Techniques] - Advanced selection methods
+* [Real-Time Rendering] - Interactive graphics theory
+* [OpenGL Superbible] - Low-level graphics programming
+
+[WebGL Object Picking]: https://webglfundamentals.org/webgl/lessons/webgl-picking.html
+[GPU Gems - Selection Techniques]: https://developer.nvidia.com/gpugems/gpugems2/part-iii-high-quality-rendering/chapter-22-hardware-occlusion-queries-made-useful
+[Real-Time Rendering]: http://www.realtimerendering.com/
+[OpenGL Superbible]: https://www.openglsuperbible.com/

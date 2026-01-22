@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MapData",
+  "type": "object",
+  "required": [
+    "tiles",
+    "rivers"
+  ],
+  "properties": {
+    "tiles": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 2,
+        "items": [
+          {
+            "type": "object",
+            "required": [
+              "q",
+              "r"
+            ],
+            "properties": {
+              "q": {
+                "type": "integer"
+              },
+              "r": {
+                "type": "integer"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "value",
+              "owner"
+            ],
+            "properties": {
+              "value": {
+                "type": "string",
+                "enum": [
+                  "Empty",
+                  "Capital",
+                  "Castle",
+                  "Pine",
+                  "Palm",
+                  "Peasant",
+                  "Spearman",
+                  "Knight",
+                  "Baron"
+                ]
+              },
+              "owner": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 5
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "rivers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "a",
+          "b",
+          "c"
+        ],
+        "properties": {
+          "a": {
+            "type": "integer"
+          },
+          "b": {
+            "type": "integer"
+          },
+          "c": {
+            "type": "integer"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

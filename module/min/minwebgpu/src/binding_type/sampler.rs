@@ -3,15 +3,19 @@ mod private
 {
   use crate::*;
 
-  #[ derive( Default ) ]
+  /// Represents the layout for a WebGPU sampler binding.
+  #[ derive( Default, Clone ) ]
   pub struct SamplerBindingLayout
   {
+    /// The type of sampler binding.
+    /// 
     /// Defaults to `Filtering`
     s_type : Option< GpuSamplerBindingType >,
   }
 
   impl SamplerBindingLayout
   {
+    /// Creates a new `SamplerBindingLayout` with default values.
     pub fn new() -> Self
     {
       Self::default()
@@ -49,14 +53,6 @@ mod private
   impl From< SamplerBindingLayout > for web_sys::GpuSamplerBindingLayout
   {
     fn from( value: SamplerBindingLayout ) -> Self 
-    {
-      ( &value ).into()
-    }
-  }
-
-  impl From< &SamplerBindingLayout > for web_sys::GpuSamplerBindingLayout
-  {
-    fn from( value: &SamplerBindingLayout ) -> Self 
     {
       let layout = web_sys::GpuSamplerBindingLayout::new();
 

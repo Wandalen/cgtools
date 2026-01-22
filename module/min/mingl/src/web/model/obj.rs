@@ -9,15 +9,15 @@ mod private
 
   impl< 'model, 'mtl > Display for ForBrowser< obj::ReportObjModel< 'model, 'mtl > >
   {
-    fn fmt( &self, f: &mut std::fmt::Formatter< '_ > ) -> std::fmt::Result 
+    fn fmt( &self, f: &mut std::fmt::Formatter< '_ > ) -> std::fmt::Result
     {
       fn format_vec3( v : [ f32; 3 ] ) -> String
       {
         format!
         (
-          "( {}, {}, {} )", 
-          v[ 0 ], 
-          v[ 1 ], 
+          "( {}, {}, {} )",
+          v[ 0 ],
+          v[ 1 ],
           v[ 2 ]
         )
       }
@@ -28,7 +28,7 @@ mod private
         .iter()
         .map( | v | v.to_string() )
         .collect::< Vec< _ > >()
-        .join( ", " ); 
+        .join( ", " );
         format!( "{{ {} }}", res)
       }
 
@@ -38,8 +38,8 @@ mod private
       let arities_set = format_set( &self.report.num_of_arities );
 
       write!
-      ( 
-        f, 
+      (
+        f,
         "\
         === Model Report ===\n\
         Name: {ModelName}\n\
@@ -74,9 +74,9 @@ mod private
         Indices = self.report.num_indices,
         Tx_Indicies = self.report.num_texcoords_indicies,
         N_Indicies = self.report.num_normal_indicies,
-        BoxMin = box_min, 
-        BoxMax = box_max, 
-        Center = sphere_center, 
+        BoxMin = box_min,
+        BoxMax = box_max,
+        Center = sphere_center,
         Radius = self.report.bounding_sphere.radius
       )?;
 
@@ -84,7 +84,7 @@ mod private
       {
         write!( f, "Material: None" )
       }
-      else 
+      else
       {
         let m = self.report.material.unwrap().clone();
         let ambient = m.ambient.map_or_else( || String::from( "None" ), | v | format_vec3( v ) );
@@ -124,9 +124,9 @@ mod private
           \x20 • Illumination model: {IllumModel} \n\
           \x20 • Unknown parameters: {Other} \n\
           ",
-          Name = m.name, 
-          Ambient = ambient, 
-          Diffuse = diffuse, 
+          Name = m.name,
+          Ambient = ambient,
+          Diffuse = diffuse,
           Specular = specular,
           Shininess = shininess,
           Dissolve = dissolve,
@@ -144,25 +144,48 @@ mod private
     }
   }
 
+  /// Generates model reports and wraps them for browser-side usage.
+  ///
+  /// This function first creates detailed `ReportObjModel` instances from the provided
+  /// models and materials, and then converts them into a `ForBrowser` format,
+  /// likely to facilitate their use in a WebAssembly environment.
+  ///
+  /// # Arguments
+  /// * `models`: A slice of `tobj::Model` instances to be reported on.
+  /// * `materials`: A slice of `tobj::Material` instances that the models may reference.
   pub fn make_reports< 'model, 'mtl >
-  ( 
-    models : &'model [ Model ], 
-    materials : &'mtl [ Material ] 
-  ) 
+  (
+    models : &'model [ Model ],
+    materials : &'mtl [ Material ]
+  )
   -> Vec< ForBrowser< obj::ReportObjModel< 'model, 'mtl > > >
-  {   
-    let reports = obj::make_reports( models, materials );  
+  {
+    let reports = obj::make_reports( models, materials );
     ForBrowser::from_reports( reports )
   }
 
+  /// Asynchronously loads a 3D model from a byte slice, resolving its materials from a web path.
+  ///
+  /// This function parses an OBJ model from an in-memory buffer. When it encounters a material
+  /// library (`.mtl` file) reference, it asynchronously attempts to fetch that file from the
+  /// provided `material_folder` path using web APIs.
+  ///
+  /// # Arguments
+  /// * `obj_buffer`: The byte slice containing the OBJ model data.
+  /// * `material_folder`: The base URL or path from which to load material files.
+  /// * `load_options`: Configuration options for loading the OBJ model, such as triangulation.
+  ///
+  /// # Returns
+  /// A `tobj::LoadResult` containing the loaded models and materials, or an error if loading fails.
   pub async fn load_model_from_slice
-  ( 
-    mut obj_buffer : &[ u8 ], 
-    material_folder : &str, 
-    load_options : &tobj::LoadOptions 
-  ) 
+  (
+    mut obj_buffer : &[ u8 ],
+    material_folder : &str,
+    load_options : &tobj::LoadOptions
+  )
   -> tobj::LoadResult
   {
+    #[ allow( deprecated ) ]
     tobj::load_obj_buf_async
     (
       &mut obj_buffer,
@@ -189,7 +212,7 @@ mod private
 crate::mod_interface!
 {
 
-  orphan use 
+  orphan use
   {
     make_reports,
     load_model_from_slice

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>draw_lang demos</title>
+    <link data-trunk rel="copy-file" href="../../../assets/environment_maps/equirectangular_maps/pink_sunrise.jpg" data-target-path="static/environment_maps/equirectangular_maps"/>
+    <link data-trunk rel="copy-file" href="../../../assets/gltf/2017_porsche_911_turbo_s_exclusive_series_991.2.glb" data-target-path="static"/>
+    <link data-trunk rel="copy-dir" href="../../../assets/environment_maps/pink_sunrise_4k/" data-target-path="static/environment_maps/pink_sunrise_4k/"/>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      html
+      {
+        width: 100%;
+        height: 100%;
+        background-color: black;
+      }
+      body
+      {
+        font-family: 'Inter', sans-serif;
+        background-color: black;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        box-sizing: border-box;
+        position: relative;
+      }
+      .fps-counter
+      {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        background-color: #334155; /* Dark slate */
+        color: #ffffff;
+        padding: 8px 12px;
+        border-radius: 8px;
+        font-family: 'monospace', sans-serif;
+        font-size: 1.1rem;
+        z-index: 10;
+      }
+      .dropdown-area
+      {
+        position: absolute;
+        top: 80px;
+        left: 20px;
+        width: 250px;
+        z-index: 9;
+      }
+      .slider-area /* New style for slider container */
+      {
+        position: absolute;
+        top: 137px;
+        left: 20px;
+        width: 250px;
+        background-color: #334155;
+        color: #ffffff;
+        padding: 10px 12px;
+        border-radius: 8px;
+        z-index: 8;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .slider-area label
+      {
+        font-size: 0.9rem;
+        color: #cbd5e1; /* Lighter text for label */
+      }
+      .slider-area input[type="range"]
+      {
+        width: 100%;
+        -webkit-appearance: none;
+        height: 8px;
+        background: #4b5563; /* Darker track */
+        border-radius: 5px;
+        outline: none;
+      }
+      .slider-area input[type="range"]::-webkit-slider-thumb
+      {
+        -webkit-appearance: none;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #3b82f6; /* Blue thumb */
+        cursor: pointer;
+        margin-top: -6px; /* Center thumb vertically */
+      }
+      .slider-area input[type="range"]::-moz-range-thumb
+      {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #3b82f6;
+        cursor: pointer;
+      }
+
+      @media (max-width: 640px)
+      {
+        .fps-counter
+        {
+          top: 10px;
+          left: 10px;
+          padding: 6px 10px;
+          font-size: 0.9rem;
+        }
+        .dropdown-area
+        {
+          top: 60px;
+          left: 10px;
+          width: calc(100% - 20px);
+          max-width: 250px;
+        }
+        .slider-area
+        {
+          top: 130px;
+          left: 10px;
+          width: calc(100% - 20px);
+          max-width: 250px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="fpsCounter" class="fps-counter">
+      FPS: <span id="fpsValue">0</span>
+    </div>
+
+    <div class="dropdown-area">
+      <div class="relative">
+        <select id="displayOption" name="displayOption" class="block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 text-sm appearance-none bg-white pr-8 cursor-pointer">
+          <option value="-">-</option>
+          <option value="position">Позиція</option>
+          <option value="normal">Нормаль</option>
+          <option value="albedo">Альбедо</option>
+          <option value="object_color">Колір об'єкта</option>
+          <option value="narrow_outline">Narrow outline</option>
+          <option value="normal_depth_outline">Normal-depth outline</option>
+          <option value="wide_outline2">JFA outline ( 2 steps )</option>
+          <option value="wide_outline3">JFA outline ( 3 steps )</option>
+          <option value="wide_outline4">JFA outline ( 4 steps )</option>
+          <option value="wide_outline5">JFA outline ( 5 steps )</option>
+          <option value="wide_outline6">JFA outline ( 6 steps )</option>
+          <option value="wide_outline7">JFA outline ( 7 steps )</option>
+          <option value="wide_outline8">JFA outline ( 8 steps )</option>
+          <option value="wide_outline9">JFA outline ( 9 steps )</option>
+        </select>
+        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+          <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="slider-area">
+      <label for="outlineThicknessSlider" class="text-white text-sm">Outline Thickness: <span id="outlineThicknessValue">5.0</span></label>
+      <input type="range" id="outlineThicknessSlider" min="0.0" max="20.0" step="0.1" value="5.0" class="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-700">
+    </div>
+  </body>
+</html>

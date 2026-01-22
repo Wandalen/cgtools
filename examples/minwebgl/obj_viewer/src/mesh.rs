@@ -1,6 +1,9 @@
+#![ allow( clippy::let_and_return ) ]
+#![ allow( clippy::needless_borrow ) ]
+
 use std::
 {
-  collections::HashMap, 
+  collections::HashMap,
   sync::{ Arc, Mutex }
 };
 
@@ -16,7 +19,7 @@ pub struct GLMesh
   indices_amount : i32
 }
 
-impl GLMesh 
+impl GLMesh
 {
   pub fn material( &self ) -> &GLMaterial
   {
@@ -24,22 +27,22 @@ impl GLMesh
   }
 
   pub fn from_tobj_model
-  ( 
-    gl : &GL, 
-    model : &tobj::Model, 
-    materials : &[ GLMaterial ] 
-  ) 
+  (
+    gl : &GL,
+    model : &tobj::Model,
+    materials : &[ GLMaterial ]
+  )
   -> Result< Self, gl::WebglError >
   {
     // Get the material or generate a standart one
-    let material = 
-    match model.mesh.material_id 
+    let material =
+    match model.mesh.material_id
     {
-      Some( id ) if id < materials.len() => 
-      { 
-        materials[ id ].clone() 
+      Some( id ) if id < materials.len() =>
+      {
+        materials[ id ].clone()
       }
-      _ => 
+      _ =>
       {
         let mtl = GLMaterial::new_simple( gl )?;
         mtl
@@ -75,55 +78,55 @@ impl GLMesh
     Ok( mesh_gl )
   }
 
-  pub fn set_perpsective( &self, gl : &GL, perspective_matrix : &glam::Mat4 )
+  pub fn set_perpsective( &self, gl : &GL, perspective_matrix : &gl::math::F32x4x4 )
   {
     gl.use_program( Some( &self.material.program ) );
 
     gl::uniform::matrix_upload
-    ( 
-      &gl, 
-      gl.get_uniform_location( &self.material.program, "projectionMatrix" ), 
-      &perspective_matrix.to_cols_array()[ .. ], 
-      true 
+    (
+      &gl,
+      gl.get_uniform_location( &self.material.program, "projectionMatrix" ),
+      perspective_matrix.to_array().as_slice(),
+      true
     ).unwrap();
   }
 
   pub fn update
-  ( 
-    &self, 
-    gl : &GL, 
-    camera_position : &[ f32; 3 ], 
-    view_matrix : &[ f32; 16 ] 
+  (
+    &self,
+    gl : &GL,
+    camera_position : &[ f32; 3 ],
+    view_matrix : &[ f32; 16 ]
   )
   {
     gl.use_program( Some( &self.material.program ) );
 
     gl::uniform::upload
     (
-      &gl, 
-      gl.get_uniform_location( &self.material.program, "cameraPosition" ), 
+      &gl,
+      gl.get_uniform_location( &self.material.program, "cameraPosition" ),
       &camera_position[ .. ]
     ).unwrap();
 
     gl::uniform::matrix_upload
-    ( 
-      &gl, 
-      gl.get_uniform_location( &self.material.program, "viewMatrix" ), 
-      &view_matrix[ .. ], 
-      true 
+    (
+      &gl,
+      gl.get_uniform_location( &self.material.program, "viewMatrix" ),
+      &view_matrix[ .. ],
+      true
     ).unwrap();
   }
   pub fn render
-  ( 
-    &self, 
-    gl : &GL, 
+  (
+    &self,
+    gl : &GL,
     textures : &
-    Arc< 
-      Mutex< 
-        HashMap< 
+    Arc<
+      Mutex<
+        HashMap<
           String, gl::web_sys::WebGlTexture
-        > 
-      > 
+        >
+      >
     >
   )
   {

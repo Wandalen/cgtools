@@ -1,7 +1,7 @@
 //! Just draw a large point in the middle of the screen.
 
 use minwebgl as gl;
-use gl::{ GL, nd, nd::array, DebugLog };
+use gl::{ GL, math::nd, math::nd::array, DebugLog };
 use std::
 {
   cell::RefCell,
@@ -94,7 +94,7 @@ fn run() -> Result< (), gl::WebglError >
 
   let trans_slot = 2;
   let trans_buffer = gl::buffer::create( &gl )?;
-  gl::buffer::upload( &gl, &trans_buffer, &trans_data, GL::STATIC_DRAW );
+  gl::buffer::upload( &gl, &trans_buffer, trans_data.as_slice().unwrap(), GL::STATIC_DRAW );
 
   // Create vao.
   // And set attributes.

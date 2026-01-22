@@ -1,8 +1,12 @@
+#![ allow( clippy::unused_self ) ]
+
 use super::*;
 use std::marker::PhantomData;
 use serde::{ Serialize, Deserialize };
 
+#[ derive( Clone ) ]
 pub struct Bilinear;
+#[ derive( Clone ) ]
 pub struct Nearest;
 
 #[ derive( Debug, Serialize, Deserialize ) ]

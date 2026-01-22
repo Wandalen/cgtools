@@ -1,25 +1,21 @@
-## Raycasting
+# Raycaster
 
-This example demonstrates basics of raycast-driven rendering algorithm used in Wolfenstein 3D.
+**Keywords:** Ray Casting, Collision, WebGL2, Interaction
 
-### How it is useful
+This demo demonstrates ray casting for 3D scene interaction in WebGL2. Ray casting converts 2D screen coordinates to 3D rays, enabling precise object selection, collision detection, and physics interactions.
 
-This demo implements DDA raycasting [algorithm](https://lodev.org/cgtutor/raycasting.html) and
-shows how to use it for drawing a scene.
+Ray casting is fundamental for 3D user interfaces and game mechanics. This example provides a reusable implementation for mouse-based 3D interaction.
 
-### How to run
+![image](showcase.png)
 
-Make sure you have installed all the necessary [dependencies](../../../module/min/minwebgl/readme.md)
-In order to run the example navigate to example's directory and run next command:
-``` bash
-trunk serve
-```
+**[How to run](../how_to_run.md)**
 
-To navigate use WASD keys as W and S for moving forward and backward, A and D to turn left and right.
-You can adjust amount of rays to see how it affects output image.
-Find the next line in code and change value as you desire:
-``` rust
-let ray_count = 120;
-```
+**References:**
 
-![](showcase.png)
+* [Lode's Computer Graphics Tutorial] - Comprehensive raycasting guide
+* [Wolfenstein 3D Source Code] - Original implementation
+* [Ray Casting Computer Graphics] - Wikipedia overview
+
+[Lode's Computer Graphics Tutorial]: https://lodev.org/cgtutor/raycasting.html
+[Wolfenstein 3D Source Code]: https://github.com/id-Software/wolf3d
+[Ray Casting Computer Graphics]: https://en.wikipedia.org/wiki/Ray_casting

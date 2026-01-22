@@ -1,36 +1,42 @@
+//! This crate serves as a facade for common web-related functionalities,
+//! designed for use in WebAssembly applications. It re-exports essential web-sys
+//! and js-sys types and organizes features into distinct layers, which can be
+//! enabled via feature flags.
+
+/// Internal namespace for implementation details.
 mod private
 {
-
 }
 
-
+// This macro organizes and exposes the public API of the module.
 crate::mod_interface!
 {
+  // Re-exports of core WebAssembly and JavaScript interop crates and types.
   own use ::wasm_bindgen;
   own use ::web_sys;
   own use ::js_sys;
   own use ::wasm_bindgen::JsValue;
 
-
-  /// Main loop.
+  /// Provides utilities for creating and managing the main application/render loop.
   layer exec_loop;
-  /// Operations on canvas.
+  /// Contains functions for interacting with the HTML5 Canvas element.
   layer canvas;
-  /// Operations on DOM elements.
+  /// Includes helpers for manipulating the Document Object Model (DOM).
   layer dom;
 
-  /// Utils for handling rust's futures
-  #[ cfg( feature = "webFuture"  ) ]
+  /// Provides utilities for working with Rust Futures in a `wasm-bindgen` context.
+  #[ cfg( feature = "web_future"  ) ]
   layer future;
 
-  /// File processing.
-  #[ cfg( all( feature = "webFuture", feature = "webFile" ) ) ]
+  /// Offers tools for file handling, such as loading files from a web server.
+  #[ cfg( all( feature = "web_future", feature = "web_file" ) ) ]
   layer file;
 
-  /// Web utilities related to different models 
-  #[ cfg( all( feature = "webFuture", feature = "webFile" ) ) ]
+  /// Contains web-specific utilities for handling and reporting on 3D models.
+  #[ cfg( all( feature = "math", feature = "web_future", feature = "web_file" ) ) ]
   layer model;
 
-  #[ cfg( feature = "webLog"  ) ]
+  /// Provides integration with the `console.log` API for logging from Rust.
+  #[ cfg( feature = "web_log"  ) ]
   layer log;
 }

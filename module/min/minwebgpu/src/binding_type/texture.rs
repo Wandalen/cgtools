@@ -3,18 +3,26 @@ mod private
 {
   use crate::*;
 
-  #[ derive( Default ) ]
+  /// Represents the layout for a WebGPU texture binding.
+  #[ derive( Default, Clone ) ]
   pub struct TextureBindingLayout
   {
+    /// Indicates whether the texture is multisampled.
+    /// 
     /// Defaults to `false`
     multisampled : Option< bool >,
+    /// The type of data stored in the texture samples.
+    /// 
     /// Defaults to `float`
     sample_type : Option< GpuTextureSampleType >,
+    /// The dimension of the texture view.
+    ///
     /// Defaults to `2d`
     view_dimension : Option< GpuTextureViewDimension >
   }
 
   impl TextureBindingLayout {
+    /// Creates a new `TextureBindingLayout` with default values.
     pub fn new() -> Self
     {
       Self::default()
@@ -122,14 +130,6 @@ mod private
   impl From< TextureBindingLayout > for web_sys::GpuTextureBindingLayout
   {
     fn from( value: TextureBindingLayout ) -> Self 
-    {
-      ( &value ).into()
-    }
-  }
-
-  impl From< &TextureBindingLayout > for web_sys::GpuTextureBindingLayout
-  {
-    fn from( value: &TextureBindingLayout ) -> Self 
     {
       let layout = web_sys::GpuTextureBindingLayout::new();
 

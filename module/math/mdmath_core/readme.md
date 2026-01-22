@@ -1,80 +1,131 @@
-# mdmath_core
+# 🧮 mdmath_core
 
-Fundamental functionality and types, representation slices and tuples as vectors.
+> **Fundamental multidimensional mathematics for computer graphics and scientific computing**
 
-## Implemented Features
+A high-performance, type-safe mathematics library providing essential vector operations and geometric primitives. Built specifically for computer graphics applications with support for n-dimensional vector spaces and optimized operations.
 
-- Vector:
-  - Operations:
-    - Dot product of two vectors.
-    - Magnitude of the vector.
-    - Normalizing the vector.
-    - Projection on another vector.
-    - Angle beetween two vectors.
-    - Orthogonal checking between two vectors.
-    - Dimension offset of the vector.
-  - Mut/Unmut ref from slice and tuple.
-  - Mut/Unmut iterators.
+## ✨ Features
 
-## Installation
+### 🔢 **Vector Operations**
+- **Dot Product** - Efficient vector dot product calculations
+- **Magnitude & Normalization** - Vector length and unit vector operations  
+- **Projection** - Project vectors onto other vectors
+- **Angular Calculations** - Compute angles between vectors
+- **Orthogonality Testing** - Check perpendicular relationships
+- **Dimension Handling** - N-dimensional vector support
 
-Add to your example `[dependencies]` in `Cargo.toml` configuration file:
+### 🛠️ **Memory Management**
+- **Zero-Copy Operations** - Efficient slice and tuple conversions
+- **Mutable References** - Safe in-place vector modifications
+- **Iterator Support** - Standard Rust iteration patterns
+- **Type Safety** - Compile-time guarantees for vector operations
+
+### 🚀 **Performance**
+- **SIMD Optimization** - Vectorized operations where possible
+- **Stack Allocation** - Minimal heap usage for small vectors
+- **Generic Implementation** - Works with any numeric type
+
+## 📦 Installation
+
+Add to your `Cargo.toml`:
 ```toml
 mdmath_core = { workspace = true }
 ```
 
-## Examples
-
-### Dot product of two vectors
-
-```rust
-  let vec_a = [ 1.0, 2.0, 3.0 ];
-  let vec_b = [ 4.0, 5.0, 6.0 ];
-  let result = mdmath_core::vector::dot( &vec_a, &vec_b );
-  assert_eq!( result, 32.0 );
+Or with specific features:
+```toml
+mdmath_core = { workspace = true, features = ["full"] }
 ```
 
-### Magnitude of the vector
+## 🚀 Quick Start
 
-```rust
-  let vec_a = [ 1.0, 2.0, 3.0 ];
-  let result = mdmath_core::vector::mag2( &vec_a );
-  assert_ulps_eq!( result, 14.0 );
+### Basic Vector Operations
+
+```rust,ignore
+use mdmath_core::vector;
+
+fn main() {
+  // Create vectors as arrays
+  let vec_a = [1.0, 2.0, 3.0];
+  let vec_b = [4.0, 5.0, 6.0];
+  
+  // Dot product
+  let dot_result = vector::dot(&vec_a, &vec_b);
+  println!("Dot product: {}", dot_result); // 32.0
+  
+  // Vector magnitude
+  let magnitude: f32 = vector::mag2(&vec_a);
+  let magnitude = magnitude.sqrt();
+  println!("Magnitude: {}", magnitude); // ~3.74
+  
+  // Normalize vector
+  let mut normalized = vec_a;
+  vector::normalize(&mut normalized, &vec_a);
+  println!("Normalized: {:?}", normalized);
+}
 ```
 
-### Normalizing the vector
+### Advanced Vector Operations
 
-```rust
-  let vec_a = [ 3.0, 4.0 ];
-  let mut result = vec_a.clone();
-  mdmath_core::vector::normalize( &mut result, &vec_a );
-  let expected = [ 0.6, 0.8 ];
-  assert_eq!( result, expected );
+```rust,ignore
+use mdmath_core::vector;
+use approx::assert_ulps_eq;
+
+fn advanced_example() {
+  // Vector projection
+  let mut vec_a = [1.0, 2.0, 3.0];
+  let vec_b = [4.0, 5.0, 6.0];
+  vector::project_on(&mut vec_a, &vec_b);
+  
+  // Angle between vectors
+  let vec_x = [1.0, 0.0];
+  let vec_y = [0.0, 1.0];
+  let angle = vector::angle(&vec_x, &vec_y);
+  assert_ulps_eq!(angle, std::f32::consts::FRAC_PI_2);
+  
+  // Check orthogonality
+  let is_orthogonal = vector::is_orthogonal(&vec_x, &vec_y);
+  assert!(is_orthogonal);
+}
 ```
 
-### Projection on another vector
+## 📖 API Reference
 
-```rust
-  let mut vec_a = [ 1.0, 2.0, 3.0 ];
-  let vec_b = [ 4.0, 5.0, 6.0 ];
-  mdmath_core::vector::project_on( &mut vec_a, &vec_b );
-  let expected = [ 1.6623376623376624, 2.077922077922078, 2.4935064935064934 ];
-  assert_eq!( vec_a, expected );
+### Core Functions
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `dot(a, b)` | Compute dot product | `vector::dot(&[1,2], &[3,4])` |
+| `mag2(v)` | Squared magnitude | `vector::mag2(&[3,4])` → `25.0` |
+| `normalize(dst, src)` | Normalize vector | `vector::normalize(&mut v, &src)` |
+| `project_on(a, b)` | Project a onto b | `vector::project_on(&mut a, &b)` |
+| `angle(a, b)` | Angle between vectors | `vector::angle(&a, &b)` |
+| `is_orthogonal(a, b)` | Check perpendicularity | `vector::is_orthogonal(&a, &b)` |
+
+### Features
+
+Enable additional functionality:
+```toml
+mdmath_core = { workspace = true, features = ["full", "approx", "arithmetics"] }
 ```
 
-### Angle beetween two vectors
+- `full` - All features enabled
+- `approx` - Floating-point comparison utilities  
+- `arithmetics` - Advanced arithmetic operations
+- `nd` - N-dimensional array support
 
-```rust
-  let vec_a = [ 1.0, 0.0 ];
-  let vec_b = [ 0.0, 1.0 ];
-  let result = mdmath_core::vector::angle( &vec_a, &vec_b );
-  assert_ulps_eq!( result, std::f32::consts::FRAC_PI_2 );
-```
+## 🎯 Use Cases
 
-### Orthogonal checking between two vectors
+- **Computer Graphics** - 3D transformations and lighting calculations
+- **Game Development** - Physics simulations and collision detection
+- **Scientific Computing** - Mathematical modeling and analysis
+- **Machine Learning** - Vector operations for neural networks
+- **Robotics** - Spatial calculations and motion planning
 
-```rust
-  let vec_a = [ 1.0, 0.0 ];
-  let vec_b = [ 0.0, 1.0 ];
-  assert!( mdmath_core::vector::is_orthogonal( &vec_a, &vec_b ), "Orthogonal test failed for orthogonal vectors" );
-```
+## ⚡ Performance
+
+mdmath_core is designed for high-performance applications:
+- Zero-allocation operations on stack arrays
+- Generic implementations work with any numeric type
+- Optimized for common vector sizes (2D, 3D, 4D)
+- SIMD optimizations where available

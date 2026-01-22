@@ -12,6 +12,8 @@
 /.vscode
 /_*
 /.
+/.roo
+/.roomodes
 
 .env
 _key
@@ -31,3 +33,6 @@ Cargo.lock
 .warchive*
 -*
 rustc-ice-*.txt
+.mastermind
+.claude
+CLAUDE.md

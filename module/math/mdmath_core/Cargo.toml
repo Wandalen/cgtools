@@ -1,16 +1,63 @@
 [package]
 name = "mdmath_core"
-version = "0.2.0"
+version = "0.4.0"
 edition = "2021"
-authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
+rust-version = "1.75.0"
+authors = ["Kostiantyn Mysnyk <wandalen@obox.systems>"]
 license = "MIT"
-repository = "https://github.com/Wandalen/cg_tools"
+repository = "https://github.com/Wandalen/cgtools"
+homepage = "https://github.com/Wandalen/cgtools/tree/master/module/math/mdmath_core"
+documentation = "https://docs.rs/mdmath_core"
 readme = "readme.md"
-description = "Multidimensional math, fundamental functionality and types."
-keywords = [ "math" ]
+description = "Core multidimensional mathematics library with fundamental types, traits, and operations"
+keywords = ["math", "multidimensional", "linear-algebra", "traits", "core"]
+categories = ["mathematics", "no-std", "science", "api-bindings"]
+include = [
+    "src/**/*",
+    "tests/**/*",
+    "Cargo.toml",
+    "readme.md",
+    "license*",
+    "changelog*",
+]
 
 [lints]
-workspace = true
+# Custom lints for mdmath_core (inherits most from workspace but allows mathematical conventions)
+
+[lints.rust]
+# Inherit workspace rust lints
+rust_2018_idioms = { level = "deny", priority = -1 }
+future_incompatible = "warn"
+missing_docs = "warn"
+unsafe-code = "warn"
+
+[lints.clippy]
+# Inherit key workspace clippy lints
+pedantic = { level = "warn", priority = -1 }
+undocumented_unsafe_blocks = "deny"
+std_instead_of_core = "warn"
+
+# Allow specific lints for mathematical code
+min_ident_chars = "allow"
+too_many_arguments = "allow"
+missing_panics_doc = "allow"
+missing_errors_doc = "allow"
+extra_unused_lifetimes = "allow"
+wrong_self_convention = "allow"
+
+# Allow workspace exceptions
+single_call_fn = "allow"
+inline_always = "allow"
+module_name_repetitions = "allow"
+absolute_paths = "allow"
+pub_use = "allow"
+mod_module_files = "allow"
+self_named_module_files = "allow"
+allow_attributes = "allow"
+allow_attributes_without_reason = "allow"
+arbitrary_source_item_ordering = "allow"
+missing_docs_in_private_items = "allow"
+many_single_char_names = "allow"
 
 # [lints.rust]
 # # Encourages documentation for public items.
@@ -31,7 +78,7 @@ full = [
   "default",
   "index",
   "nd",
-  "inner_product",
+  "arithmetics",
   "general",
 ]
 
@@ -39,7 +86,7 @@ index = [ "dep:ndarray" ]
 nd = [ "dep:ndarray" ]
 float = [ "nd", "dep:num-traits" ]
 approx = [ "float", "dep:approx" ]
-inner_product = [ "float" ]
+arithmetics = [ "float" ]
 general = []
 
 [dependencies]
@@ -51,3 +98,22 @@ num-traits = { workspace = true, optional = true, features = [] }
 
 [dev-dependencies]
 test_tools = { workspace = true }
+
+# Metadata for crates.io
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+default-target = "x86_64-unknown-linux-gnu"
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+    "x86_64-apple-darwin",
+    "wasm32-unknown-unknown",
+]
+
+# Cargo.toml maintenance metadata
+[package.metadata.release]
+pre-release-replacements = [
+    { file = "readme.md", search = "mdmath_core = \"[0-9.]+\"", replace = "mdmath_core = \"{{version}}\"" },
+    { file = "changelog.md", search = "## Unreleased", replace = "## Unreleased\n\n## {{version}} - {{date}}" },
+]

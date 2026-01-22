@@ -1,3 +1,5 @@
+#![ allow( clippy::needless_borrow ) ]
+
 use minwebgl as gl;
 use gl::GL;
 use web_sys::
@@ -10,7 +12,6 @@ pub struct ObjectShader
 {
   pub program : WebGlProgram,
   pub model : Option< WebGlUniformLocation >,
-  pub norm_mat : Option< WebGlUniformLocation >,
   pub projection_view : Option< WebGlUniformLocation >,
 }
 
@@ -24,14 +25,12 @@ impl ObjectShader
     .compile_and_link( &gl )
     .unwrap();
     let model = gl.get_uniform_location( &program, "u_model" );
-    let norm_mat = gl.get_uniform_location( &program, "u_norm_mat" );
     let projection_view = gl.get_uniform_location( &program, "u_projection_view" );
 
     Self
     {
       program,
       model,
-      norm_mat,
       projection_view,
     }
   }

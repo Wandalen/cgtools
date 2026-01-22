@@ -2,20 +2,31 @@
 name = "minwebgpu_deffered_rendering"
 version = "0.1.0"
 edition = "2021"
-authors = [ 
+authors = [
   "Kostiantyn Mysnyk <wandalen@obox.systems>",
-  "Avramenko Yevhenii <yevhenii.av@obox.systems>" 
+  "Avramenko Yevhenii <yevhenii.av@obox.systems>"
 ]
 license = "MIT"
 
-[dependencies]
-tobj =  { workspace = true }
+[lints]
+workspace = true
 
-[dependencies.minwebgpu]
+# Only include WebGPU and related dependencies for wasm32 targets
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+tobj =  { workspace = true }
+bytemuck = { workspace = true, features = [ "derive" ] }
+rand = { workspace = true }
+getrandom = { workspace = true, features = [ "wasm_js" ] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.minwebgpu]
 workspace = true
 features = [
-    'future',
-    'file',
-    'objModel'
+  'future',
+  'file',
+  'model_obj',
+  'math'
 ]
 
+# No dependencies needed for native targets
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# Stub dependencies for compilation

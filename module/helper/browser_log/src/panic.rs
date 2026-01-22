@@ -51,7 +51,7 @@ mod private
   /// [`std::panic::set_hook`](https://doc.rust-lang.org/nightly/std/panic/fn.set_hook.html).
   /// It logs panic messages to `console.error` in WebAssembly environments.
   /// For non-WASM targets, it outputs the panic to standard error.
-  pub fn hook( info : &panic::PanicInfo< '_ >, config : &Config )
+  pub fn hook( info : &panic::PanicHookInfo< '_ >, config : &Config )
   {
     hook_impl( info, config );
   }
@@ -95,7 +95,8 @@ mod private
   #[ cfg( target_arch = "wasm32" ) ]
   mod imp
   {
-    use super::*;
+    use super::Config;
+    use std::panic;
 
     // extern crate wasm_bindgen;
     use wasm_bindgen::prelude::*;
@@ -105,17 +106,17 @@ mod private
     {
       type Error;
 
-      #[ wasm_bindgen( js_namespace = console ) ]
-      fn error( msg: String );
+      #[wasm_bindgen( js_namespace = console )]
+      fn error( msg : String );
 
-      #[ wasm_bindgen( constructor ) ]
+      #[wasm_bindgen( constructor )]
       fn new() -> Error;
 
-      #[ wasm_bindgen( structural, method, getter ) ]
+      #[wasm_bindgen( structural, method, getter )]
       fn stack( error : &Error ) -> String;
     }
 
-    pub fn hook_impl( info : &panic::PanicInfo< '_ >, config : &Config )
+    pub fn hook_impl( info : &panic::PanicHookInfo< '_ >, config : &Config )
     {
       use std::fmt::Write;
 
@@ -151,12 +152,12 @@ mod private
   #[ cfg( not( target_arch = "wasm32" ) ) ]
   mod imp
   {
-    use super::*;
+    use super::Config;
     use std::io::{ self, Write };
 
-    pub fn hook_impl( info : &panic::PanicInfo< '_ >, _config : &Config )
+    pub fn hook_impl( info : &std::panic::PanicHookInfo< '_ >, _config : &Config )
     {
-      let _ = writeln!( io::stderr(), "{}", info );
+      let _ = writeln!( io::stderr(), "{info}" );
     }
   }
 

@@ -5,53 +5,87 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Filters</title>
-  <link data-trunk rel="copy-dir" href="resources" data-target-path="static" />
-
-  <style>
-    body {
-      display: flex;
-      height: 100vh;
-      margin: 0;
-      font-family: Arial, sans-serif;
-    }
-
-    .sidebar {
-      width: 150px;
-      background-color: #f4f4f4;
-      padding: 10px;
-      overflow-y: auto;
-    }
-
-    .sidebar button {
-      display: block;
-      width: 100%;
-      padding: 10px;
-      margin-bottom: 5px;
-      background-color: #f0f0f0;
-      border: 1px solid #ccc;
-      cursor: pointer;
-    }
-
-    .canvas-container {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-    }
-  </style>
-
-  <script data-trunk type="module" src="gui.js"></script>
+  <link data-trunk rel="copy-dir" href="../../../assets/filters_demo/" data-target-path="static" />
+  <link data-trunk rel="copy-dir" href="assets/thumbnails/" data-target-path="assets/thumbnails" />
+  <link data-trunk rel="css" href="style.css">
+  <script data-trunk type="module" src="controls.js"></script>
+  <script data-trunk type="module" src="zoom_pan.js"></script>
+  <script data-trunk type="module" src="sidebar_toggle.js"></script>
 </head>
 
 <body>
-  <div class="sidebar" id="buttons">
-    <h3>Filters</h3>
+  <div class="sidebar" id="sidebar">
+    <div class="filters-grid" id="filters-grid">
+      <!-- Filter cards will be generated here -->
+    </div>
   </div>
 
+  <!-- Sidebar Toggle Button -->
+  <button class="sidebar-toggle" id="sidebar-toggle">
+    <div class="toggle-arrow"></div>
+  </button>
+
   <div class="canvas-container">
-    <canvas id="canvas"></canvas>
+    <div id="placeholder-text">Drop image here</div>
+    <div id="canvas-wrapper">
+      <canvas id="canvas" class="hidden"></canvas>
+    </div>
   </div>
+
+  <!-- Zoom/Pan Controls -->
+  <div class="zoom-controls">
+    <button class="zoom-btn" id="zoom-in" title="Zoom In (Mouse Wheel)">+</button>
+    <button class="zoom-btn" id="zoom-reset" title="Reset View (Double Click)">⊙</button>
+    <button class="zoom-btn" id="zoom-out" title="Zoom Out (Mouse Wheel)">−</button>
+  </div>
+  <div class="zoom-info" id="zoom-info">100%</div>
+
+  <!-- Drag and Drop Overlay -->
+  <div id="drop-overlay">
+    <div class="drop-message">
+      📸 Drop your image here
+    </div>
+  </div>
+
+  <!-- Save Button (SD Card Style) -->
+  <button id="save-btn" title="Save filtered image">
+    <svg class="save-icon" viewBox="0 0 24 24">
+      <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+      <polyline points="17 21 17 13 7 13 7 21" />
+      <polyline points="7 3 7 8 15 8" />
+    </svg>
+    <!-- <span class="sd-label">SAVE</span> -->
+  </button>
+
+  <!-- Bottom Controls Bar -->
+  <div class="bottom-controls" id="bottom-controls">
+    <div class="controls-container" id="controls-container">
+      <!-- Dynamic controls will be inserted here -->
+    </div>
+  </div>
+
+  <!-- Apply and Cancel buttons - outside the panel -->
+  <button id="cancel-btn" title="Cancel filter">
+    <svg class="cancel-icon" viewBox="0 0 24 24">
+      <line x1="18" y1="6" x2="6" y2="18"></line>
+      <line x1="6" y1="6" x2="18" y2="18"></line>
+    </svg>
+  </button>
+  <button id="apply-btn" title="Apply filter">
+    <svg class="apply-icon" viewBox="0 0 24 24">
+      <polyline points="20 6 9 17 4 12"></polyline>
+    </svg>
+  </button>
+
+  <!-- Bottom Right Buttons -->
+  <input type="file" id="file-input" accept="image/*" />
+  <button id="upload-btn" title="Upload image">📁</button>
+  <button id="revert-btn" title="Revert to original image">
+    <svg class="revert-icon" viewBox="0 0 24 24" style="transform: scaleX(-1);">
+      <polyline points="23 4 23 10 17 10"></polyline>
+      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+    </svg>
+  </button>
 </body>
 
 </html>

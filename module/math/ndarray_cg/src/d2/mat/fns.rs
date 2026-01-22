@@ -1,3 +1,5 @@
+//! Matrix-related functions and trait implementations for 2D ndarray types, including formatting and transposition.
+
 mod private
 {
   use crate::*;
@@ -12,7 +14,7 @@ mod private
   {
     fn fmt( &self, f : &mut fmt::Formatter<'_> ) -> fmt::Result
     {
-      let raw_slice = self.raw_slice();
+      let _raw_slice = self.raw_slice();
       write!
       (
         f,
@@ -21,7 +23,7 @@ mod private
         Descriptor::coords_str()
       )?;
 
-      
+
       for row in 0..ROWS
       {
         write!( f, "  [ " )?;

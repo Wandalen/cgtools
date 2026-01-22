@@ -7,6 +7,7 @@ mod private
 
 // mod rotation;
 mod transformation;
+mod general;
 
 crate::mod_interface!
 {
@@ -24,4 +25,8 @@ crate::mod_interface!
     reflect_y,
   };
 
+  own use general::
+  {
+    identity
+  };
 }

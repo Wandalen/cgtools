@@ -3,18 +3,34 @@ mod private
 {
   use crate::*;
 
+  /// A builder for creating a `web_sys::GpuRenderPassDescriptor`.
+  #[ derive( Clone ) ]
   pub struct RenderPassDescriptor< 'a >
   {
+    /// A list of color attachments for the render pass.
+    /// Each attachment specifies a texture to render into.
     color_attachments : Vec< web_sys::GpuRenderPassColorAttachment >,
-    /// Defaults to `None`
+    /// An optional depth-stencil attachment. This is used for depth testing
+    /// and stencil operations during rendering.
+    ///
+    /// Defaults to `None`.
     depth_stencil_attachment : Option< web_sys::GpuRenderPassDepthStencilAttachment >,
-    /// Defaults to `None`
+    /// An optional label for the render pass. This is useful for debugging
+    /// and profiling in GPU tools.
+    ///
+    /// Defaults to `None`.
     label : Option< &'a str >,
-    /// Defaults to `50000000`
+    /// An optional maximum number of draw calls that can be issued
+    /// within this render pass. This can be used for performance
+    /// optimization or error checking.
+    ///
+    /// Defaults to `None`/ 50000000.
     max_draw_count : Option< f64 >
   }
 
-  impl< 'a > RenderPassDescriptor< 'a > {
+  impl< 'a > RenderPassDescriptor< 'a > 
+  {
+    /// Creates a new `RenderPassDescriptor` with default values.
     pub fn new() -> Self
     {
       let color_attachments = Vec::new();
@@ -31,6 +47,7 @@ mod private
       }
     }
 
+    /// Adds a color attachment to the descriptor.
     pub fn color_attachment
     ( 
       mut self, 
@@ -41,6 +58,7 @@ mod private
       self
     }
 
+    /// Sets the depth-stencil attachment for the descriptor.
     pub fn depth_stencil_attachment
     ( 
       mut self, 
@@ -51,12 +69,14 @@ mod private
       self
     }
 
+    /// Sets the debug label for the render pass.
     pub fn label( mut self, label : &'a str ) -> Self
     {
       self.label = Some( label );
       self
     }
 
+    /// Sets the maximum draw count for the render pass.
     pub fn max_draw_count( mut self, count : f64 ) -> Self
     {
       self.max_draw_count = Some( count );

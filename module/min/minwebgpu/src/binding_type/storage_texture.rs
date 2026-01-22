@@ -3,17 +3,26 @@ mod private
 {
   use crate::*;
 
+  /// Represents the layout for a WebGPU storage texture binding.
+  #[ derive( Clone ) ]
   pub struct StorageTextureBindingLayout
   {
+    /// The texture format that the storage texture must have.
+    ///
     /// Defaults to `Rgba8unormSrgb`
     format : GpuTextureFormat,
+    /// The access mode for the storage texture.
+    ///
     /// Defaults to `WriteOnly`
     access : Option< GpuStorageTextureAccess >,
+    /// The dimension of the texture view.
+    /// 
     /// Defaults to `2d`
     view_dimension : Option< GpuTextureViewDimension >
   }
 
   impl StorageTextureBindingLayout {
+    /// Creates a new `StorageTextureBindingLayout` with default values.
     pub fn new() -> Self
     {
       let format = GpuTextureFormat::Rgba8unormSrgb;
@@ -109,14 +118,6 @@ mod private
   impl From< StorageTextureBindingLayout > for web_sys::GpuStorageTextureBindingLayout
   {
     fn from( value: StorageTextureBindingLayout ) -> Self 
-    {
-      ( &value ).into()
-    }
-  }
-
-  impl From< &StorageTextureBindingLayout > for web_sys::GpuStorageTextureBindingLayout
-  {
-    fn from( value: &StorageTextureBindingLayout ) -> Self 
     {
       let layout = web_sys::GpuStorageTextureBindingLayout::new( value.format );
 

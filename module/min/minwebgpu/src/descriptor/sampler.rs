@@ -3,35 +3,66 @@ mod private
 {
   use crate::*;
 
-  #[ derive( Default ) ]
+  /// A builder for creating a `web_sys::GpuSamplerDescriptor`.
+  #[ derive( Default, Clone ) ]
   pub struct SamplerDescriptor< 'a >
   {
-    ///Defaults to `None`
+    /// An optional debug label for the sampler.
+    ///
+    /// Defaults to `None`.
     label : Option< &'a str >,
+    /// The wrapping mode for the texture coordinates in the U direction.
+    ///
     /// Defaults to `ClampToEdge`
     address_mode_u : Option< GpuAddressMode >,
+    /// The wrapping mode for the texture coordinates in the V direction.
+    ///
     /// Defaults to `ClampToEdge`
     address_mode_v : Option< GpuAddressMode >,
+    /// The wrapping mode for the texture coordinates in the W direction.
+    ///
     /// Defaults to `ClampToEdge`
     address_mode_w : Option< GpuAddressMode >,
-    /// If specified, the sampler will be a comparison sampler of the specified type
+    /// The comparison function for a comparison sampler.
+    ///
+    /// If this value is specified, the sampler becomes a comparison sampler.
+    /// Comparison samplers are used for shadow maps and other techniques
+    /// that require comparing sampled values against a reference value.
+    ///
+    /// Defaults to `None`.
     compare : Option< GpuCompareFunction >,
-    /// Defaults to `Nearest`
+    /// The filter mode for minification (when the texture is scaled down).
+    ///
+    /// Defaults to `GpuFilterMode::Nearest`.
     min_filter : Option< GpuFilterMode >,
-    /// Defaults to `Nearest`
+    /// The filter mode for magnification (when the texture is scaled up).
+    ///
+    /// Defaults to `GpuFilterMode::Nearest`.
     mag_filter : Option< GpuFilterMode >,
-    /// Defaults to `Nearest`
+    /// The filter mode used for selecting between mipmap levels.
+    ///
+    /// Defaults to `GpuMipmapFilterMode::Nearest`.
     mipmap_filter : Option< GpuMipmapFilterMode >,
-    /// Defaults to 0
+    /// The minimum level of detail (LOD) to use.
+    ///
+    /// Defaults to 0.
     lod_min : Option< f32 >,
-    /// Defaults to 32
+     /// The maximum level of detail (LOD) to use.
+    ///
+    /// Defaults to 32.
     lod_max : Option< f32 >,
-    /// Defaults to 1
+    /// The maximum anisotropy value for anisotropic filtering.
+    ///
+    /// A value greater than 1 enables anisotropic filtering, which improves
+    /// the quality of textures viewed at a shallow angle.
+    ///
+    /// Defaults to 1.
     anisotropy_max : Option< u16 >
   }
 
   impl< 'a > SamplerDescriptor< 'a >
   {
+    /// Creates a new `SamplerDescriptor` with default values.
     pub fn new() -> Self
     {
       Self::default()
@@ -224,14 +255,6 @@ mod private
   impl From< SamplerDescriptor< '_ > > for web_sys::GpuSamplerDescriptor 
   {
     fn from( value: SamplerDescriptor< '_ > ) -> Self 
-    {
-      ( &value ).into()
-    }
-  }
-
-  impl From< &SamplerDescriptor< '_ > > for web_sys::GpuSamplerDescriptor 
-  {
-    fn from( value: &SamplerDescriptor< '_ > ) -> Self 
     {
       let descriptor = web_sys::GpuSamplerDescriptor::new();
 

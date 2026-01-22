@@ -1,3 +1,6 @@
+#[ cfg( debug_assertions ) ]
+use std::mem::{ align_of_val, size_of_val };
+
 use super::*;
 
 // = 1
@@ -12,12 +15,21 @@ impl< E > ConstLength for ( E, )
   const LEN : usize = 1;
 }
 
-impl< E > VectorRef< E, 1 > for ( E, )
+impl< E > IntoArray< E, 1 > for ( E, )
+{
+  #[ inline ]
+  fn into_array( self ) -> [ E ; 1 ]
+  {
+    [ self.0 ]
+  }
+}
+
+impl< E > ArrayRef< E, 1 > for ( E, )
 {
   #[ inline( always ) ]
-  fn vector_ref( &self ) -> &[ E ; 1 ]
+  fn array_ref( &self ) -> &[ E ; 1 ]
   {
-    use std::mem::{ align_of_val, size_of_val, transmute };
+    use std::mem::transmute;
 
     // SAFETY: We are using `transmute` to convert a reference to a tuple `(E,)`
     // into a reference to an array `[E; 1]`. This is safe because:
@@ -44,12 +56,12 @@ impl< E > VectorRef< E, 1 > for ( E, )
   }
 }
 
-impl< E > VectorMut< E, 1 > for ( E, )
+impl< E > ArrayMut< E, 1 > for ( E, )
 {
   #[ inline( always ) ]
   fn vector_mut( &mut self ) -> &mut [ E ; 1 ]
   {
-    use std::mem::{ align_of_val, size_of_val, transmute };
+    use std::mem::transmute;
 
     // Store layout information in temporary variables
     #[ cfg( debug_assertions ) ]
@@ -88,15 +100,15 @@ impl< E > VectorMut< E, 1 > for ( E, )
 }
 
 #[ derive( Clone ) ]
-struct Tuple1Iter< 'a, E >
+struct Tuple1Iter< 'tuple_ref, E >
 {
-  tuple : &'a ( E, ),
+  tuple : &'tuple_ref ( E, ),
   index : usize,
 }
 
-impl< 'a, E > Iterator for Tuple1Iter< 'a, E >
+impl< 'tuple_ref, E > Iterator for Tuple1Iter< 'tuple_ref, E >
 {
-  type Item = &'a E;
+  type Item = &'tuple_ref E;
 
   fn next( &mut self ) -> Option< Self::Item >
   {
@@ -115,9 +127,9 @@ impl< 'a, E > Iterator for Tuple1Iter< 'a, E >
   }
 }
 
-impl< 'a, E > ExactSizeIterator for Tuple1Iter< 'a, E > {}
+impl< 'tuple_ref, E > ExactSizeIterator for Tuple1Iter< 'tuple_ref, E > {}
 
-impl< 'a, E > DoubleEndedIterator for Tuple1Iter< 'a, E >
+impl< 'tuple_ref, E > DoubleEndedIterator for Tuple1Iter< 'tuple_ref, E >
 {
   fn next_back( &mut self ) -> Option< Self::Item >
   {
@@ -130,15 +142,15 @@ impl< 'a, E > DoubleEndedIterator for Tuple1Iter< 'a, E >
   }
 }
 
-struct Tuple1IterMut< 'a, E >
+struct Tuple1IterMut< 'tuple_ref, E >
 {
-  tuple : &'a mut ( E, ),
+  tuple : &'tuple_ref mut ( E, ),
   index : usize,
 }
 
-impl< 'a, E > Iterator for Tuple1IterMut< 'a, E >
+impl< 'tuple_ref, E > Iterator for Tuple1IterMut< 'tuple_ref, E >
 {
-  type Item = &'a mut E;
+  type Item = &'tuple_ref mut E;
 
   fn next( &mut self ) -> Option< Self::Item >
   {
@@ -167,9 +179,9 @@ impl< 'a, E > Iterator for Tuple1IterMut< 'a, E >
   }
 }
 
-impl< 'a, E > ExactSizeIterator for Tuple1IterMut< 'a, E > {}
+impl< 'tuple_ref, E > ExactSizeIterator for Tuple1IterMut< 'tuple_ref, E > {}
 
-impl< 'a, E > DoubleEndedIterator for Tuple1IterMut< 'a, E >
+impl< 'tuple_ref, E > DoubleEndedIterator for Tuple1IterMut< 'tuple_ref, E >
 {
   fn next_back( &mut self ) -> Option< Self::Item >
   {
@@ -191,9 +203,9 @@ impl< 'a, E > DoubleEndedIterator for Tuple1IterMut< 'a, E >
 
 impl< E: Clone > VectorIter< E, 1 > for ( E, )
 {
-  fn vector_iter< 'a >( &'a self ) -> impl VectorIteratorRef< 'a, &'a E >
+  fn vector_iter< 'tuple_ref >( &'tuple_ref self ) -> impl VectorIteratorRef< 'tuple_ref, &'tuple_ref E >
   where
-    E : 'a,
+    E : 'tuple_ref,
   {
     Tuple1Iter
     {
@@ -205,9 +217,9 @@ impl< E: Clone > VectorIter< E, 1 > for ( E, )
 
 impl< E: Clone > VectorIterMut< E, 1 > for ( E, )
 {
-  fn vector_iter_mut< 'a >( &'a mut self ) -> impl VectorIterator< 'a, &'a mut E >
+  fn vector_iter_mut< 'tuple_ref >( &'tuple_ref mut self ) -> impl VectorIterator< 'tuple_ref, &'tuple_ref mut E >
   where
-    E : 'a,
+    E : 'tuple_ref,
   {
     Tuple1IterMut
     {

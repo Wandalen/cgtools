@@ -1,16 +1,81 @@
 [package]
 name = "ndarray_cg"
-version = "0.2.0"
+version = "0.4.0"
 edition = "2021"
-authors = [ "Kostiantyn Mysnyk <wandalen@obox.systems>" ]
+rust-version = "1.75.0"
+authors = ["Kostiantyn Mysnyk <wandalen@obox.systems>"]
 license = "MIT"
-repository = "https://github.com/Wandalen/cg_tools"
+repository = "https://github.com/Wandalen/cgtools"
+homepage = "https://github.com/Wandalen/cgtools/tree/master/module/math/ndarray_cg"
+documentation = "https://docs.rs/ndarray_cg"
 readme = "readme.md"
-description = "Math for computer graphics based on `ndarray`. The approach used in ndarray for computer graphics math is highly flexible and performant, even though there are many specialized crates focused on game development and computer graphics."
-keywords = ["math", "cg"]
+description = "High-performance computer graphics mathematics library based on ndarray with vectors, matrices, and transformations"
+keywords = ["math", "computer-graphics", "ndarray", "linear-algebra", "vectors"]
+categories = ["mathematics", "graphics", "game-development", "science"]
+include = [
+    "src/**/*",
+    "tests/**/*",
+    "Cargo.toml",
+    "readme.md",
+    "license*",
+    "changelog*",
+]
 
 [lints]
-workspace = true
+# Custom lints for ndarray_cg (inherits most from workspace but allows mathematical conventions)
+
+[lints.rust]
+# Inherit workspace rust lints
+rust_2018_idioms = { level = "deny", priority = -1 }
+future_incompatible = "warn"
+missing_docs = "warn"
+unsafe-code = "warn"
+
+[lints.clippy]
+# Inherit key workspace clippy lints
+pedantic = { level = "warn", priority = -1 }
+undocumented_unsafe_blocks = "deny"
+
+# Allow specific lints for mathematical/ndarray code
+min_ident_chars = "allow"
+too_many_arguments = "allow"
+missing_panics_doc = "allow"
+missing_errors_doc = "allow"
+extra_unused_lifetimes = "allow"
+wrong_self_convention = "allow"
+manual_assert = "allow"
+uninlined_format_args = "allow"
+explicit_auto_deref = "allow"
+std_instead_of_core = "allow"
+must_use_candidate = "allow"
+default_trait_access = "allow"
+ptr_as_ptr = "allow"
+unnecessary_cast = "allow"
+assign_op_pattern = "allow"
+into_iter_without_iter = "allow"
+semicolon_if_nothing_returned = "allow"
+iter_skip_zero = "allow"
+write_with_newline = "allow"
+used_underscore_binding = "allow"
+expect_fun_call = "allow"
+explicit_iter_loop = "allow"
+doc_markdown = "allow"
+needless_pass_by_value = "allow"
+cast_possible_truncation = "allow"
+
+# Allow workspace exceptions
+single_call_fn = "allow"
+inline_always = "allow"
+module_name_repetitions = "allow"
+absolute_paths = "allow"
+pub_use = "allow"
+mod_module_files = "allow"
+self_named_module_files = "allow"
+allow_attributes = "allow"
+allow_attributes_without_reason = "allow"
+arbitrary_source_item_ordering = "allow"
+missing_docs_in_private_items = "allow"
+many_single_char_names = "allow"
 
 # [lints.rust]
 # # Encourages documentation for public items.
@@ -23,7 +88,7 @@ workspace = true
 enabled = [
   "dep:ndarray",
   "dep:num-traits",
-  "dep:bytemuck",
+  "dep:asbytes",
   "dep:mod_interface",
   "dep:mdmath_core",
   "dep:derive_tools",
@@ -38,10 +103,31 @@ full = [
 [dependencies]
 ndarray = { workspace = true, optional = true }
 num-traits = { workspace = true, optional = true }
-bytemuck = { workspace = true, optional = true }
+# bytemuck = { workspace = true, optional = true }
+asbytes = { workspace = true, optional = true }
 mod_interface = { workspace = true, optional = true }
 derive_tools = { workspace = true, optional = true }
-mdmath_core = { workspace = true, optional = true, features = [ "index", "float", "inner_product", "approx", "general" ] }
+mdmath_core = { workspace = true, optional = true, features = [ "index", "float", "arithmetics", "approx", "general" ] }
+# approx = { workspace = true }
 
 [dev-dependencies]
 test_tools = { workspace = true }
+
+# Metadata for crates.io
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+default-target = "x86_64-unknown-linux-gnu"
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+    "x86_64-apple-darwin",
+    "wasm32-unknown-unknown",
+]
+
+# Cargo.toml maintenance metadata
+[package.metadata.release]
+pre-release-replacements = [
+    { file = "readme.md", search = "ndarray_cg = \"[0-9.]+\"", replace = "ndarray_cg = \"{{version}}\"" },
+    { file = "changelog.md", search = "## Unreleased", replace = "## Unreleased\n\n## {{version}} - {{date}}" },
+]

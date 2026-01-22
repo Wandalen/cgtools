@@ -1,4 +1,7 @@
-//! Just draw a large point in the middle of the screen.
+//! Draws diamond figure that reflects cube map texture
+
+#![ allow( clippy::needless_range_loop ) ]
+#![ allow( clippy::needless_borrow ) ]
 
 use minwebgl as gl;
 use gl::
@@ -34,7 +37,7 @@ fn upload_cube_texture( gl : &GL, faces : &[ image::RgbaImage ], location: u32 )
   gl.active_texture( gl::TEXTURE0 + location );
   gl.bind_texture( gl::TEXTURE_CUBE_MAP, texture.as_ref() );
 
-  for i in 0..faces.len() 
+  for i in 0..faces.len()
   {
     let image = &faces[ i ];
     let ( width, height ) = image.dimensions();
@@ -71,7 +74,7 @@ async fn run() -> Result< (), gl::WebglError >
   let program = gl::ProgramFromSources::new( vertex_shader_src, fragment_shader_src ).compile_and_link( &gl )?;
   gl.use_program( Some( &program ) );
 
-  // Load textures 
+  // Load textures
   let env_map = load_cube_texture( "skybox" ).await.expect( "Failed to load environment map" );
   let cube_normal_map = load_cube_texture( "normal_cube" ).await.expect( "Failed to load cube normal map" );
 
@@ -142,29 +145,29 @@ async fn run() -> Result< (), gl::WebglError >
   let height = gl.drawing_buffer_height() as f32;
 
   // Camera setup
-  
-  let eye = glam::Vec3::new(  0.0, 3.0, 10.0 );
-  let up = glam::Vec3::Y;
+
+  let eye = gl::F32x3::new(  0.0, 3.0, 10.0 );
+  let up = gl::F32x3::Y;
 
   let aspect_ratio = width / height;
-  let perspective_matrix = glam::Mat4::perspective_rh_gl
+  let perspective_matrix = gl::math::mat3x3h::perspective_rh_gl
   (
-     70.0f32.to_radians(),  
-     aspect_ratio, 
-     0.1, 
+     70.0f32.to_radians(),
+     aspect_ratio,
+     0.1,
      1000.0
   );
 
-  let model_matrix = glam::Mat4::from_scale_rotation_translation
+  let model_matrix = gl::F32x4x4::from_scale_rotation_translation
   (
-    glam::Vec3::ONE, 
-    glam::Quat::from_rotation_y( 0.0 ), 
-    glam::Vec3::ZERO
+    gl::F32x3::splat( 1.0 ),
+    gl::QuatF32::from_angle_y( 0.0 ),
+    gl::F32x3::ZERO
   );
 
 
   // Update uniform values
-  gl::uniform::matrix_upload( &gl, projection_matrix_location, &perspective_matrix.to_cols_array()[ .. ], true ).unwrap();
+  gl::uniform::matrix_upload( &gl, projection_matrix_location, &perspective_matrix.to_array(), true ).unwrap();
 
   gl::uniform::upload( &gl, env_map_intensity_location.clone(), &0.7 ).unwrap();
   gl::uniform::upload( &gl, rainbow_delta_location.clone(), &0.01 ).unwrap();
@@ -190,17 +193,18 @@ async fn run() -> Result< (), gl::WebglError >
     move | t : f64 |
     {
       let time = t as f32 / 1000.0;
-      let rotation = glam::Mat3::from_rotation_y( time );
+      let rotation = gl::math::mat3x3::from_angle_y( time );
       let eye = rotation * eye;
 
-      let view_matrix = glam::Mat4::look_at_rh( eye, glam::Vec3::ZERO, up );
-      let inverse_model_matrix = model_matrix.inverse();
+
+      let view_matrix = gl::math::mat3x3h::look_at_rh( eye, gl::F32x3::ZERO, up );
+      let inverse_model_matrix = model_matrix.inverse().unwrap();
 
       gl::uniform::upload( &gl, camera_position_location.clone(), &eye.to_array()[ .. ] ).unwrap();
 
-      gl::uniform::matrix_upload( &gl, model_matrix_location.clone(), &model_matrix.to_cols_array()[ .. ], true ).unwrap();
-      gl::uniform::matrix_upload( &gl, inverse_model_matrix_location.clone(), &inverse_model_matrix.to_cols_array()[ .. ], true ).unwrap();
-      gl::uniform::matrix_upload( &gl, view_matrix_location.clone(), &view_matrix.to_cols_array()[ .. ], true ).unwrap();
+      gl::uniform::matrix_upload( &gl, model_matrix_location.clone(), &model_matrix.to_array(), true ).unwrap();
+      gl::uniform::matrix_upload( &gl, inverse_model_matrix_location.clone(), &inverse_model_matrix.to_array(), true ).unwrap();
+      gl::uniform::matrix_upload( &gl, view_matrix_location.clone(), &view_matrix.to_array(), true ).unwrap();
 
       // Draw points
       // Vertex and index buffers are already bound

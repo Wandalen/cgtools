@@ -8,8 +8,6 @@ use gl::
   GL,
 };
 
-use cgmath::{ EuclideanSpace, Rotation3 };
-
 async fn run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
@@ -73,38 +71,18 @@ async fn run() -> Result< (), gl::WebglError >
   let height = gl.drawing_buffer_height() as f32;
 
   // Camera setup
-  let eye = cgmath::Vector3::new( 0.0, 0.0, 10.0 );
-  let up = cgmath::Vector3::< f32 >::unit_y();
+  let eye = gl::F32x3::new( 0.0, 0.0, 10.0 );
+  let up = gl::F32x3::Y;
 
   let scale = 0.1;
   let aspect = width / height;
-  let perspective = cgmath::PerspectiveFov
-  {
-    fovy : cgmath::Deg( 70.0 ).into(),
-    aspect,
-    near : 0.1,
-    far : 1000.0
-  };
-  // let orhogonal = cgmath::Ortho
-  // {
-  //   left : -1.0 * aspect,
-  //   right : 1.0 * aspect,
-  //   bottom : -1.0,
-  //   top : 1.0,
-  //   near : 0.1,
-  //   far : 1000.0,
-  // };
-
-  let model_trans = cgmath::Decomposed
-  {
-    scale,
-    rot : cgmath::Basis3::from_angle_y::< cgmath::Rad< f32 > >( cgmath::Deg( 180.0 ).into() ),
-    disp : cgmath::Vector3::new( 0.0, 0.0, 0.0 ),
-  };
-
-  let model_matrix = cgmath::Matrix4::from( model_trans );
-  let _projection_matrix = cgmath::Matrix4::from( perspective );
-  // let projection_matrix = cgmath::Matrix4::from( orhogonal );
+  let projection_matrix = gl::math::mat3x3h::perspective_rh_gl( 70.0f32.to_radians(), aspect, 0.1, 1000.0 );
+  let model_matrix = gl::F32x4x4::from_scale_rotation_translation
+  (
+    gl::F32x3::splat( scale ) * 8.0,
+    gl::QuatF32::from_angle_y( 180.0f32.to_radians() ),
+    gl::F32x3::ZERO
+  );
 
   gl.enable( gl::DEPTH_TEST );
 
@@ -115,16 +93,13 @@ async fn run() -> Result< (), gl::WebglError >
     move | t : f64 |
     {
       let time = t as f32 / 1000.0;
-      let rotation = cgmath::Matrix3::from_angle_y( cgmath::Rad( time ) );
+      let rotation = gl::math::mat3x3::from_angle_y( time.to_radians() * 10.0 );
       let eye = rotation * eye;
 
-      let _view_matrix = cgmath::Matrix4::look_at_rh( cgmath::Point3::from_vec( eye ), cgmath::Point3::origin(), up );
+      let view_matrix = gl::math::mat3x3h::look_at_rh( eye, gl::F32x3::ZERO, up );
+      let projective_view_matrix = projection_matrix * view_matrix * model_matrix;
 
-      // let projective_view_matrix = projection_matrix * view_matrix * model_matrix;
-      let projective_view_matrix = model_matrix;
-      let projective_view_matrix = &< cgmath::Matrix4< f32 > as AsRef< [ f32; 16 ] > >::as_ref( &projective_view_matrix )[ .. ];
-
-      gl::uniform::matrix_upload( &gl, projective_view_location.clone(), projective_view_matrix.as_ref(), true ).unwrap();
+      gl::uniform::matrix_upload( &gl, projective_view_location.clone(), &projective_view_matrix.to_array(), true ).unwrap();
       // Draw points
       // Vertex and index buffers are already bound
       gl.draw_elements_with_i32( gl::TRIANGLES, indices_amount as i32, gl::UNSIGNED_INT, 0 );

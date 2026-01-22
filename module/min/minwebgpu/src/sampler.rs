@@ -3,11 +3,13 @@ mod private
 {
   use crate::*;
 
+  /// Creates a new `SamplerDescriptor` with default settings.
   pub fn desc< 'a >() -> SamplerDescriptor< 'a >
   {
     SamplerDescriptor::new()
   }
 
+  /// Creates a `GpuSampler` from a descriptor.
   pub fn create< T : Into< web_sys::GpuSamplerDescriptor > >
   ( 
     device : &web_sys::GpuDevice, 

@@ -1,0 +1,134 @@
+[package]
+name = "embroidery_tools"
+version = "0.2.0"
+edition = "2021"
+rust-version = "1.75.0"
+authors = ["Kostiantyn Mysnyk <wandalen@obox.systems>"]
+license = "MIT"
+repository = "https://github.com/Wandalen/cgtools"
+homepage = "https://github.com/Wandalen/cgtools/tree/master/module/helper/embroidery_tools"
+documentation = "https://docs.rs/embroidery_tools"
+description = "Tools for handling embroidery patterns, formats, and operations with PES/PEC file support"
+readme = "readme.md"
+keywords = ["embroidery", "patterns", "pes", "pec", "textile"]
+categories = ["parsing", "graphics", "data-structures", "multimedia"]
+include = [
+    "src/**/*",
+    "test_files/**/*",
+    "tests/**/*",
+    "Cargo.toml",
+    "readme.md",
+    "license*",
+    "changelog*",
+]
+
+[lints]
+# Custom lints for embroidery_tools (inherits most from workspace but allows some restrictive ones)
+
+[lints.rust]
+# Inherit workspace rust lints
+rust_2018_idioms = { level = "deny", priority = -1 }
+future_incompatible = "warn"
+missing_docs = "warn"
+unsafe-code = "warn"
+
+[lints.clippy]
+# Inherit key workspace clippy lints but allow restrictive ones
+pedantic = { level = "warn", priority = -1 }
+undocumented_unsafe_blocks = "deny"
+std_instead_of_core = "warn"
+
+# Allow restrictive lints for this specialized embroidery crate
+too_many_lines = "allow"
+missing_inline_in_public_items = "allow"
+implicit_return = "allow"
+min_ident_chars = "allow"
+else_if_without_else = "allow"
+wildcard_imports = "allow"
+exhaustive_enums = "allow"
+exhaustive_structs = "allow"
+std_instead_of_alloc = "allow"
+needless_continue = "allow"
+unreadable_literal = "allow"
+must_use_candidate = "allow"
+cast_lossless = "allow"
+redundant_closure_for_method_calls = "allow"
+missing_panics_doc = "allow"
+missing_errors_doc = "allow"
+doc_markdown = "allow"
+single_match_else = "allow"
+len_zero = "allow"
+cast_possible_truncation = "allow"
+type_complexity = "allow"
+redundant_closure = "allow"
+single_match = "allow"
+ignored_unit_patterns = "allow"
+unnecessary_semicolon = "allow"
+sliced_string_as_bytes = "allow"
+if_not_else = "allow"
+cast_sign_loss = "allow"
+needless_return = "allow"
+cast_precision_loss = "allow"
+range_plus_one = "allow"
+default_trait_access = "allow"
+too_many_arguments = "allow"
+
+# Allow other workspace exceptions
+single_call_fn = "allow"
+inline_always = "allow"
+module_name_repetitions = "allow"
+absolute_paths = "allow"
+pub_use = "allow"
+mod_module_files = "allow"
+self_named_module_files = "allow"
+allow_attributes = "allow"
+allow_attributes_without_reason = "allow"
+arbitrary_source_item_ordering = "allow"
+missing_docs_in_private_items = "allow"
+many_single_char_names = "allow"
+
+[features]
+default = ["enabled"]
+
+# Core embroidery file processing
+enabled = [
+    "dep:mod_interface",
+    "dep:byteorder",
+    "dep:itertools",
+    "dep:error_tools",
+]
+
+# Full feature set with random generation
+full = ["enabled", "random"]
+
+# Random pattern generation
+random = ["enabled", "dep:rand"]
+
+[dependencies]
+mod_interface = { workspace = true, optional = true }
+byteorder = { workspace = true, optional = true }
+itertools = { workspace = true, optional = true }
+error_tools = { workspace = true, optional = true }
+rand = { workspace = true, optional = true }
+
+[dev-dependencies]
+test_tools = { workspace = true }
+
+# Metadata for crates.io
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+default-target = "x86_64-unknown-linux-gnu"
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+    "x86_64-apple-darwin",
+    "wasm32-unknown-unknown",
+]
+
+# Cargo.toml maintenance metadata
+[package.metadata.release]
+pre-release-replacements = [
+    { file = "readme.md", search = "embroidery_tools = \"[0-9.]+\"", replace = "embroidery_tools = \"{{version}}\"" },
+    { file = "changelog.md", search = "## Unreleased", replace = "## Unreleased\n\n## {{version}} - {{date}}" },
+]

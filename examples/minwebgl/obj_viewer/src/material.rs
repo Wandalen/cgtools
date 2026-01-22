@@ -1,3 +1,5 @@
+#![ allow( clippy::needless_borrow ) ]
+
 use std::collections::HashSet;
 
 use minwebgl as gl;
@@ -15,8 +17,7 @@ pub enum TextureType
   Specular,
   Normal,
   Shininess,
-  Dissolve,
-  Other 
+  Dissolve
 }
 
 #[ derive( Clone ) ]

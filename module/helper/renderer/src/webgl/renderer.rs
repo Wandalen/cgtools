@@ -1,0 +1,1176 @@
+mod private
+{
+  use std::{ cell::RefCell, rc::Rc };
+  use rustc_hash::FxHashMap;
+  use minwebgl as gl;
+  use gl::{ GL, F32x3 };
+  use web_sys::WebGlTexture;
+
+  use crate::webgl::
+  {
+    material::pbr::
+    {
+      MAX_POINT_LIGHTS,
+      MAX_DIRECT_LIGHTS,
+      MAX_SPOT_LIGHTS
+    },
+    post_processing::
+    {
+      BlendPass,
+      Pass,
+      SwapFramebuffer,
+      UnrealBloomPass,
+      VS_TRIANGLE
+    },
+    program::{ SkyboxShader, CompositeShader },
+    LightType,
+    AlphaMode,
+    Camera,
+    Node,
+    MaterialUploadContext,
+    Object3D,
+    Primitive,
+    ShaderProgram,
+    Scene,
+    IBL,
+    Light
+  };
+
+  /// Manages WebGL2 framebuffers and associated renderbuffers/textures for a rendering
+  /// context, specifically designed for multisampling and post-processing effects.
+  ///
+  /// This struct handles the setup and management of two primary framebuffers:
+  /// - A **multisample framebuffer** for rendering with anti-aliasing.
+  /// - A **resolved framebuffer** for storing the anti-aliased result as textures,
+  ///   ready for further post-processing or display.
+  ///
+  /// It supports two color attachments: a 'main' color buffer and an 'emission' color buffer,
+  /// allowing for separate rendering of different visual components.
+  pub struct FramebufferContext
+  {
+    /// The width of the textures attached to the resolved framebuffer.
+    pub texture_width : u32,
+    /// The height of the textures attached to the resolved framebuffer.
+    pub texture_height : u32,
+    /// The WebGL framebuffer used for multisampled rendering. This framebuffer
+    /// renders into `multisample_main_renderbuffer` and `multisample_emission_renderbuffer`.
+    pub multisample_framebuffer : Option< gl::web_sys::WebGlFramebuffer >,
+    /// The WebGL framebuffer used to store the resolved (non-multisampled)
+    /// textures. This is where the results of the multisample framebuffer
+    /// are blitted to, making them ready for sampling.
+    pub resolved_framebuffer : Option< gl::web_sys::WebGlFramebuffer >,
+    /// The renderbuffer used for depth and stencil testing in the multisample framebuffer.
+    #[ allow( dead_code ) ]
+    pub multisample_depth_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
+    /// The renderbuffer that receives the main color output during multisampled rendering.
+    pub multisample_main_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
+    /// The renderbuffer that receives the emission color output during multisampled rendering.
+    pub multisample_emission_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer>,
+    /// The renderbuffer that accumulates color during blending pass.
+    pub multisample_transparent_accumulate_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer>,
+     /// The renderbuffer that caclulates total revealage during blending pass.
+    pub multisample_transparent_revealage_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer>,
+    /// The 2D texture that receives the resolved main color output after multisample resolution.
+    /// This texture can be sampled in shaders.
+    pub main_texture : Option< gl::web_sys::WebGlTexture >,
+    /// The 2D texture that receives the resolved emission color output after multisample resolution.
+    /// This texture can be sampled in shaders.
+    pub emission_texture : Option< gl::web_sys::WebGlTexture >,
+    /// The 2D texture that accumulates color during blending pass.
+    pub transparent_accumulate_texture : Option< gl::web_sys::WebGlTexture >,
+    /// The 2D texture that caclulates total revealage during blending pass.
+    pub transparent_revealage_texture : Option< gl::web_sys::WebGlTexture >,
+    #[ allow( dead_code ) ]
+    pub depth_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
+    /// Texture with equirectangular map
+    pub skybox_texture : Option< gl::web_sys::WebGlTexture >,
+  }
+
+  impl FramebufferContext
+  {
+    /// Creates a new `FramebufferContext` instance, initializing all necessary
+    /// WebGL2 framebuffers, renderbuffers, and textures.
+    ///
+    /// This constructor sets up:
+    /// - A multisampled framebuffer with a depth/stencil renderbuffer and two
+    ///   multisampled color renderbuffers (`RGBA16F` format).
+    /// - A resolved framebuffer with two 2D textures (`RGBA16F` format) to store
+    ///   the anti-aliased results.
+    ///
+    /// # Arguments
+    ///
+    /// * `gl` - A reference to the WebGl2RenderingContext.
+    /// * `width` - The desired width of the framebuffers and textures.
+    /// * `height` - The desired height of the framebuffers and textures.
+    /// * `samples` - The number of samples to use for multisample anti-aliasing (e.g., 4, 8).
+    ///
+    /// # Returns
+    ///
+    /// A new `FramebufferContext` instance.
+    pub fn new( gl : &gl::WebGl2RenderingContext, width : u32, height : u32, samples : i32 ) -> Self
+    {
+      // Create the core framebuffer objects.
+      let multisample_framebuffer = gl.create_framebuffer();
+      let resolved_framebuffer = gl.create_framebuffer();
+
+      // --- Setup Depth/Stencil Renderbuffer ---
+      // Create and bind a renderbuffer for depth and stencil information.
+      let multisample_depth_renderbuffer = gl.create_renderbuffer();
+      gl.bind_renderbuffer( gl::RENDERBUFFER, multisample_depth_renderbuffer.as_ref() );
+      // Allocate storage for the depth/stencil renderbuffer with multisampling.
+      gl.renderbuffer_storage_multisample
+      (
+        gl::RENDERBUFFER,
+        samples,
+        gl::DEPTH24_STENCIL8,
+        width as i32,
+        height as i32
+      );
+
+      // --- Setup Multisample Main Color Renderbuffer ---
+      // Create and bind a renderbuffer for the main color attachment,
+      // which will be multisampled.
+      let multisample_main_renderbuffer = gl.create_renderbuffer();
+      gl.bind_renderbuffer( gl::RENDERBUFFER, multisample_main_renderbuffer.as_ref() );
+      // Allocate storage for the main color renderbuffer with multisampling.
+      gl.renderbuffer_storage_multisample
+      (
+        gl::RENDERBUFFER,
+        samples,
+        gl::RGBA16F,
+        width as i32,
+        height as i32
+      );
+
+      // --- Setup Multisample Emission Color Renderbuffer ---
+      // Create and bind a renderbuffer for the emission color attachment,
+      // also multisampled.
+      let multisample_emission_renderbuffer = gl.create_renderbuffer();
+      gl.bind_renderbuffer( gl::RENDERBUFFER, multisample_emission_renderbuffer.as_ref() );
+      // Allocate storage for the emission color renderbuffer with multisampling.
+      gl.renderbuffer_storage_multisample
+      (
+        gl::RENDERBUFFER,
+        samples,
+        gl::RGBA16F,
+        width as i32,
+        height as i32
+      );
+
+      let multisample_transparent_accumulate_renderbuffer = gl.create_renderbuffer();
+      gl.bind_renderbuffer( gl::RENDERBUFFER, multisample_transparent_accumulate_renderbuffer.as_ref() );
+      // Allocate storage for the emission color renderbuffer with multisampling.
+      gl.renderbuffer_storage_multisample
+      (
+        gl::RENDERBUFFER,
+        samples,
+        gl::RGBA16F,
+        width as i32,
+        height as i32
+      );
+
+      let multisample_transparent_revealage_renderbuffer = gl.create_renderbuffer();
+      gl.bind_renderbuffer( gl::RENDERBUFFER, multisample_transparent_revealage_renderbuffer.as_ref() );
+      // Allocate storage for the emission color renderbuffer with multisampling.
+      gl.renderbuffer_storage_multisample
+      (
+        gl::RENDERBUFFER,
+        samples,
+        gl::R16F,
+        width as i32,
+        height as i32
+      );
+
+      gl.bind_renderbuffer( gl::RENDERBUFFER, None );
+
+      // --- Create Resolved Textures ---
+      // These textures will store the final, resolved (non-multisampled)
+      // color information after blitting.
+      let depth_renderbuffer = gl.create_renderbuffer();
+      let main_texture = gl.create_texture();
+      let emission_texture = gl.create_texture();
+      let transparent_accumulate_texture = gl.create_texture();
+      let transparent_revealage_texture = gl.create_texture();
+
+      gl.bind_renderbuffer( gl::RENDERBUFFER, depth_renderbuffer.as_ref() );
+      gl.renderbuffer_storage( gl::RENDERBUFFER, gl::DEPTH24_STENCIL8, width as i32, height as i32 );
+
+      // Configure the main texture.
+      gl.bind_texture( gl::TEXTURE_2D, main_texture.as_ref() );
+      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width as i32, height  as i32 );
+      gl::texture::d2::filter_linear( gl );
+      gl::texture::d2::wrap_clamp( gl );
+
+      // Configure the emission texture.
+      gl.bind_texture( gl::TEXTURE_2D, emission_texture.as_ref() );
+      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width  as i32, height  as i32 );
+      gl::texture::d2::filter_linear( gl );
+      gl::texture::d2::wrap_clamp( gl );
+
+      // Configure the transparent accumulate texture.
+      gl.bind_texture( gl::TEXTURE_2D, transparent_accumulate_texture.as_ref() );
+      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width as i32, height  as i32 );
+      gl::texture::d2::filter_linear( gl );
+      gl::texture::d2::wrap_clamp( gl );
+
+      // Configure the transparent revealage texture.
+      gl.bind_texture( gl::TEXTURE_2D, transparent_revealage_texture.as_ref() );
+      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::R16F, width  as i32, height  as i32 );
+      gl::texture::d2::filter_linear( gl );
+      gl::texture::d2::wrap_clamp( gl );
+
+
+      // --- Attach Renderbuffers to Multisample Framebuffer ---
+      // Bind the multisample framebuffer to configure its attachments.
+      gl.bind_framebuffer( gl::FRAMEBUFFER, multisample_framebuffer.as_ref() );
+      // Attach the depth/stencil renderbuffer.
+      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::DEPTH_STENCIL_ATTACHMENT, gl::RENDERBUFFER, multisample_depth_renderbuffer.as_ref() );
+      // Attach the main and emission color renderbuffers as color attachments.
+      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, multisample_main_renderbuffer.as_ref() );
+      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::RENDERBUFFER, multisample_emission_renderbuffer.as_ref() );
+      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT2, gl::RENDERBUFFER, multisample_transparent_accumulate_renderbuffer.as_ref() );
+      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT3, gl::RENDERBUFFER, multisample_transparent_revealage_renderbuffer.as_ref() );
+      // Specify which color attachments are active for drawing.
+      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
+
+      // --- Attach Textures to Resolved Framebuffer ---
+      // Bind the resolved framebuffer to configure its attachments.
+      gl.bind_framebuffer( gl::FRAMEBUFFER, resolved_framebuffer.as_ref() );
+      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::DEPTH_STENCIL_ATTACHMENT, gl::RENDERBUFFER, depth_renderbuffer.as_ref() );
+      // Attach the main and emission textures as color attachments.
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, main_texture.as_ref(), 0 );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, emission_texture.as_ref(), 0 );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT2, gl::TEXTURE_2D, transparent_accumulate_texture.as_ref(), 0 );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT3, gl::TEXTURE_2D, transparent_revealage_texture.as_ref(), 0 );
+      // Specify which color attachments are active for drawing (though for resolved,
+      // these will typically be written to via `blit_framebuffer`).
+      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
+
+      // Unbind all resources to clean up the global WebGL state.
+      gl.bind_texture( gl::TEXTURE_2D, None );
+      gl.bind_renderbuffer( gl::RENDERBUFFER, None );
+      gl.bind_framebuffer( gl::FRAMEBUFFER, None );
+
+      let texture_width = width;
+      let texture_height = height;
+
+      Self
+      {
+        texture_height,
+        texture_width,
+        resolved_framebuffer,
+        multisample_framebuffer,
+        multisample_depth_renderbuffer,
+        multisample_emission_renderbuffer,
+        multisample_main_renderbuffer,
+        multisample_transparent_accumulate_renderbuffer,
+        multisample_transparent_revealage_renderbuffer,
+        depth_renderbuffer,
+        main_texture,
+        emission_texture,
+        transparent_accumulate_texture,
+        transparent_revealage_texture,
+        skybox_texture : None
+      }
+    }
+
+    /// Configures both the multisample and resolved framebuffers to allow
+    /// drawing to both `COLOR_ATTACHMENT0` (main) and `COLOR_ATTACHMENT1` (emission).
+    ///
+    /// This is useful when you want to render both normal scene data and
+    /// emissive properties in a single pass.
+    ///
+    /// # Arguments
+    ///
+    /// * `gl` - A reference to the WebGl2RenderingContext.
+    pub fn enable_emission_texture( &self, gl : &gl::WebGl2RenderingContext )
+    {
+      // Enable both attachments for the multisample framebuffer.
+      gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
+      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
+
+      // Enable both attachments for the resolved framebuffer.
+      gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
+      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
+
+      gl.bind_framebuffer( gl::FRAMEBUFFER, None );
+    }
+
+    /// Configures both the multisample and resolved framebuffers to allow
+    /// drawing only to `COLOR_ATTACHMENT0` (main), effectively disabling
+    /// rendering to the emission texture.
+    ///
+    /// This can be used when the emission channel is not needed or to optimize
+    /// rendering passes.
+    ///
+    /// # Arguments
+    ///
+    /// * `gl` - A reference to the WebGl2RenderingContext.
+    pub fn disable_emission_texture( &self, gl : &gl::WebGl2RenderingContext )
+    {
+      // Disable emission attachment for the multisample framebuffer.
+      gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
+      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
+
+      // Disable emission attachment for the resolved framebuffer.
+      gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
+      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
+
+      gl.bind_framebuffer( gl::FRAMEBUFFER, None );
+    }
+
+    /// Resolves the multisampled framebuffer into the non-multisampled textures
+    /// of the resolved framebuffer using `gl.blit_framebuffer`.
+    ///
+    /// This operation performs the anti-aliasing process, taking the averaged
+    /// color values from the multisample renderbuffers and writing them into
+    /// the corresponding textures.
+    ///
+    /// # Arguments
+    ///
+    /// * `gl` - A reference to the WebGl2RenderingContext.
+    pub fn resolve( &self, gl : &gl::WebGl2RenderingContext, use_emission : bool )
+    {
+      self.bind_multisample( gl );
+      self.bind_resolved( gl );
+
+      // Ensure the multisample framebuffer is bound for reading and
+      // the resolved framebuffer for drawing.
+      gl.bind_framebuffer( gl::READ_FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
+      gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
+
+      gl.clear_bufferfi( gl::DEPTH_STENCIL, 0, 1.0, 0 );
+      gl.blit_framebuffer
+      (
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT,
+        gl::NEAREST
+      );
+
+      gl.read_buffer( gl::COLOR_ATTACHMENT0 );
+      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
+      // Clear the color buffer of the resolved framebuffer before blitting.
+      // This is good practice to ensure clean results, especially if partial updates
+      // are not intended.
+      //gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ 0.0, 0.0, 0.0, 1.0 ] );
+      // Blit the multisampled color buffer (COLOR_ATTACHMENT0) from the read framebuffer
+      // to the draw framebuffer. The `gl::LINEAR` filter ensures a smooth resolution.
+      gl.blit_framebuffer
+      (
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        gl::COLOR_BUFFER_BIT,
+        gl::LINEAR
+      );
+
+      if use_emission
+      {
+        gl.read_buffer( gl::COLOR_ATTACHMENT1 );
+        gl::drawbuffers::drawbuffers( gl, &[ 1 ] );
+        //gl.clear_bufferfv_with_f32_array( gl::COLOR, 1, &[ 0.0, 0.0, 0.0, 0.0 ] );
+        gl.blit_framebuffer
+        (
+          0, 0, self.texture_width as i32, self.texture_height as i32,
+          0, 0, self.texture_width as i32, self.texture_height as i32,
+          gl::COLOR_BUFFER_BIT,
+          gl::LINEAR
+        );
+      }
+
+      gl.read_buffer( gl::COLOR_ATTACHMENT2 );
+      gl::drawbuffers::drawbuffers( gl, &[ 2 ] );
+      //gl.clear_bufferfv_with_f32_array( gl::COLOR, 2, &[ 0.0, 0.0, 0.0, 1.0 ] );
+      gl.blit_framebuffer
+      (
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        gl::COLOR_BUFFER_BIT, gl::LINEAR
+      );
+
+      gl.read_buffer( gl::COLOR_ATTACHMENT3 );
+      gl::drawbuffers::drawbuffers( gl, &[ 3 ] );
+      //gl.clear_bufferfv_with_f32_array( gl::COLOR, 3, &[ 0.0, 0.0, 0.0, 1.0 ] );
+      gl.blit_framebuffer
+      (
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        gl::COLOR_BUFFER_BIT, gl::LINEAR
+      );
+
+      // Unbind framebuffers to reset global state.
+      gl.bind_framebuffer( gl::READ_FRAMEBUFFER, None );
+      gl.bind_framebuffer( gl::DRAW_FRAMEBUFFER, None );
+      self.unbind_multisample( gl );
+      self.unbind_resolved( gl );
+    }
+
+    /// Binds the `multisample_framebuffer` and attaches its renderbuffers.
+    ///
+    /// This function should be called before rendering operations that require
+    /// multisampling. It ensures that subsequent drawing commands write to
+    /// the multisampled color and depth renderbuffers.
+    ///
+    /// # Arguments
+    ///
+    /// * `gl` - A reference to the WebGl2RenderingContext.
+    pub fn bind_multisample( &self, gl : &gl::WebGl2RenderingContext )
+    {
+      gl.viewport( 0, 0, self.texture_width as i32, self.texture_height as i32 );
+      gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
+      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, self.multisample_main_renderbuffer.as_ref() );
+      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::RENDERBUFFER, self.multisample_emission_renderbuffer.as_ref() );
+      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT2, gl::RENDERBUFFER, self.multisample_transparent_accumulate_renderbuffer.as_ref() );
+      gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT3, gl::RENDERBUFFER, self.multisample_transparent_revealage_renderbuffer.as_ref() );
+    }
+
+    /// Binds the `resolved_framebuffer` and attaches its textures.
+    ///
+    /// This function should be called when you want to render directly into
+    /// the resolved textures (e.g., for post-processing that doesn't require
+    /// multisampling, or after a `resolve` operation).
+    ///
+    /// # Arguments
+    ///
+    /// * `gl` - A reference to the WebGl2RenderingContext.
+    pub fn bind_resolved( &self, gl : &gl::WebGl2RenderingContext )
+    {
+      gl.viewport( 0, 0, self.texture_width as i32, self.texture_height as i32 );
+      gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, self.main_texture.as_ref(), 0 );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, self.emission_texture.as_ref(), 0 );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT2, gl::TEXTURE_2D, self.transparent_accumulate_texture.as_ref(), 0 );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT3, gl::TEXTURE_2D, self.transparent_revealage_texture.as_ref(), 0 );
+    }
+
+    /// Unbinds the color renderbuffers from the `multisample_framebuffer`
+    /// and then unbinds the framebuffer itself.
+    ///
+    /// This function is useful for resetting the framebuffer state after
+    /// rendering to the multisample target, preventing accidental draws to it.
+    ///
+    /// # Arguments
+    ///
+    /// * `gl` - A reference to the WebGl2RenderingContext.
+    pub fn unbind_multisample( &self, gl : &gl::WebGl2RenderingContext )
+    {
+      // gl.bind_framebuffer( gl::FRAMEBUFFER, self.multisample_framebuffer.as_ref() );
+      // gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::RENDERBUFFER, None );
+      // gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::RENDERBUFFER, None );
+      gl.bind_framebuffer( gl::FRAMEBUFFER, None );
+    }
+
+    /// Unbinds the color textures from the `resolved_framebuffer` and then
+    /// unbinds the framebuffer itself.
+    ///
+    /// This function is useful for resetting the framebuffer state after
+    /// operations that write to the resolved textures, allowing them to be
+    /// used as input textures in subsequent rendering passes.
+    ///
+    /// # Arguments
+    ///
+    /// * `gl` - A reference to the WebGl2RenderingContext.
+    pub fn unbind_resolved( &self, gl : &gl::WebGl2RenderingContext )
+    {
+      //  gl.bind_framebuffer( gl::FRAMEBUFFER, self.resolved_framebuffer.as_ref() );
+      // gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, None, 0 );
+      // gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, None, 0 );
+      gl.bind_framebuffer( gl::FRAMEBUFFER, None );
+    }
+  }
+
+  /// Manages the rendering process, including program management, IBL setup, and drawing objects in the scene.
+  pub struct Renderer
+  {
+    /// A map of compiled WebGL programs, keyed by a combination of the material ID and vertex shader defines.
+    programs : FxHashMap< String, Box< dyn ShaderProgram > >,
+    /// Holds the precomputed textures used for Image-Based Lighting.
+    ibl : Option< IBL >,
+    /// A list of nodes with transparent primitives, sorted by distance to the camera for correct rendering order.
+    transparent_nodes : Vec< ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > > ) >,
+    /// If set to true, the renderer will add blur to the original image
+    use_emission : bool,
+    /// The **framebuffer context** used for multisampling and post-processing. This
+    /// manages the multisample framebuffer, resolved framebuffer, and their associated
+    /// renderbuffers and textures (main color and emission). It allows for anti-aliasing
+    /// and the separation of main scene rendering from emissive components.
+    framebuffer_ctx : FramebufferContext,
+    /// Bloom pass for the emissive texutre
+    bloom_effect : UnrealBloomPass,
+    /// Blend pass to combined the blurred emissive texture with the main image
+    blend_effect : BlendPass,
+    /// Swap buffer to control rendering of the effects
+    swap_buffer : SwapFramebuffer,
+    exposure : f32,
+    composite_shader : CompositeShader,
+    /// Clear color
+    clear_color : F32x3,
+    /// Shader for drawing background
+    skybox_shader : SkyboxShader
+  }
+
+  impl Renderer
+  {
+    /// Creates a new `Renderer` instance with default settings.
+    pub fn new( gl : &gl::WebGl2RenderingContext, width : u32, height : u32, samples : i32 ) -> Result< Self, gl::WebglError >
+    {
+      let framebuffer_ctx = FramebufferContext::new( gl, width, height, samples );
+      let use_emission = false;
+      let programs = FxHashMap::default();
+      let ibl = None;
+      let transparent_nodes = Vec::new();
+      let bloom_effect = UnrealBloomPass::new( gl, width, height, gl::RGBA16F )?;
+      let mut blend_effect = BlendPass::new( gl )?;
+      blend_effect.dst_factor = gl::ONE;
+      blend_effect.src_factor = gl::ONE;
+      blend_effect.blend_texture = framebuffer_ctx.main_texture.clone();
+      let swap_buffer = SwapFramebuffer::new( gl, width, height );
+      let exposure = 0.0;
+
+      let composite_program = gl::ProgramFromSources::new( VS_TRIANGLE, include_str!( "shaders/composite.frag" ) ).compile_and_link( gl )?;
+      let composite_shader = CompositeShader::new( gl, &composite_program );
+      let locations = composite_shader.locations();
+      composite_shader.bind( gl );
+      gl.uniform1i( locations.get( "transparentA" ).unwrap().clone().as_ref() , 0 );
+      gl.uniform1i( locations.get( "transparentB" ).unwrap().clone().as_ref() , 1 );
+
+      let skybox_program = gl::ProgramFromSources::new
+      (
+        include_str!( "shaders/skybox.vert" ),
+        include_str!( "shaders/skybox.frag" )
+      )
+      .compile_and_link( gl )?;
+      let skybox_shader = SkyboxShader::new( gl, &skybox_program );
+
+      Ok
+      (
+        Self
+        {
+          programs,
+          ibl,
+          transparent_nodes,
+          use_emission,
+          framebuffer_ctx,
+          blend_effect,
+          bloom_effect,
+          swap_buffer,
+          exposure,
+          composite_shader,
+          clear_color : F32x3::splat( 0.0 ),
+          skybox_shader
+        }
+      )
+    }
+
+    /// Sets the Image-Based Lighting (IBL) textures to be used for rendering.
+    ///
+    /// * `ibl`: The `IBL` struct containing the diffuse and specular environment maps and the BRDF integration texture.
+    pub fn set_ibl( &mut self, ibl : IBL )
+    {
+      self.ibl = Some( ibl );
+    }
+
+    /// Sets whether the renderer should use the emission texture for post-processing effects.
+    pub fn set_use_emission( &mut self, use_emission : bool )
+    {
+      self.use_emission = use_emission;
+    }
+
+    /// Sets clear color
+    pub fn set_clear_color( &mut self, color : F32x3 )
+    {
+      self.clear_color = color;
+    }
+
+    /// Returns the current exposure value.
+    pub fn get_exposure( &self ) -> f32
+    {
+      self.exposure
+    }
+
+    /// Sets a new exposure value.
+    pub fn set_skybox( &mut self, texture : Option< WebGlTexture > )
+    {
+      self.framebuffer_ctx.skybox_texture = texture;
+    }
+
+    /// Sets a new exposure value.
+    pub fn set_exposure( &mut self, exposure : f32 )
+    {
+      self.exposure = exposure;
+    }
+
+    /// Sets the radius of the bloom effect.
+    ///
+    /// This determines how far the light "bleeds" from bright areas. A larger radius
+    /// results in a more expansive and softer glow.
+    pub fn set_bloom_radius( &mut self, radius : f32 )
+    {
+      self.bloom_effect.set_bloom_radius( radius );
+    }
+
+    /// Gets the radius of the bloom effect.
+    pub fn get_bloom_radius( &self ) -> f32
+    {
+      self.bloom_effect.get_bloom_radius()
+    }
+
+    /// Sets the strength (intensity) of the bloom effect.
+    ///
+    /// This controls how bright or prominent the glow appears. A higher strength
+    /// makes the bloom more visible.
+    pub fn set_bloom_strength( &mut self, strength : f32  )
+    {
+      self.bloom_effect.set_bloom_strength( strength );
+    }
+
+    /// Gets the strength (intensity) of the bloom effect.
+    pub fn get_bloom_strength( &self ) -> f32
+    {
+      self.bloom_effect.get_bloom_strength()
+    }
+
+    /// Retrieves a clone of the main color texture from the internal framebuffer context.
+    pub fn get_main_texture( &self ) -> Option< gl::web_sys::WebGlTexture >
+    {
+      self.framebuffer_ctx.main_texture.clone()
+    }
+
+    /// Draw equirectangular skybox
+    pub fn draw_skybox
+    (
+      &self,
+      gl : &gl::WebGl2RenderingContext,
+      camera : &Camera,
+    )
+    {
+      self.skybox_shader.bind( gl );
+
+      let locations = self.skybox_shader.locations();
+
+      let equirect_map_loc = locations.get( "equirectMap" ).unwrap();
+      let inv_projection_loc = locations.get( "invProjection" ).unwrap();
+      let inv_view_loc = locations.get( "invView" ).unwrap();
+
+      gl.active_texture( gl::TEXTURE0 );
+      gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.skybox_texture.as_ref() );
+      gl.uniform1i( equirect_map_loc.as_ref(), 0_i32 );
+      gl::uniform::matrix_upload( gl, inv_projection_loc.clone(), &camera.get_projection_matrix().inverse().unwrap().to_array(), true ).unwrap();
+      gl::uniform::matrix_upload( gl, inv_view_loc.clone(), &camera.get_view_matrix().inverse().unwrap().to_array(), true ).unwrap();
+
+      gl.disable( gl::CULL_FACE );
+      gl.enable( gl::DEPTH_TEST );
+      gl.depth_mask( false );
+      gl.depth_func( GL::LEQUAL );
+      gl.draw_arrays( gl::TRIANGLES, 0, 3 );
+
+      gl.depth_mask( true );
+      gl.depth_func( GL::LESS );
+      gl.use_program( None );
+    }
+
+    /// Renders the scene using the provided camera.
+    ///
+    /// * `gl`: The `WebGl2RenderingContext` to use for rendering.
+    /// * `scene`: A mutable reference to the `Scene` to be rendered.
+    /// * `camera`: A reference to the `Camera` defining the viewpoint.
+    pub fn render
+    (
+      &mut self,
+      gl : &gl::WebGl2RenderingContext,
+      scene : &mut Scene,
+      camera : &Camera
+    ) -> Result< (), gl::WebglError >
+    {
+      scene.update_world_matrix();
+
+      gl.clear_depth( 1.0 );
+      gl.clear_stencil( 0 );
+      gl.disable( gl::BLEND );
+
+      if self.use_emission
+      {
+        self.framebuffer_ctx.enable_emission_texture( gl );
+      }
+      else
+      {
+        self.framebuffer_ctx.disable_emission_texture( gl );
+      }
+
+      self.framebuffer_ctx.bind_multisample( gl );
+      gl::drawbuffers::drawbuffers( gl, &[ 0, 1, 2, 3 ] );
+      let [ r, b, g ] = self.clear_color.0;
+      gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ r, b, g, 1.0 ] );
+      gl.clear_bufferfv_with_f32_array( gl::COLOR, 1, &[ 0.0, 0.0, 0.0, 0.0 ] );
+      gl.clear_bufferfv_with_f32_array( gl::COLOR, 2, &[ 0.0, 0.0, 0.0, 1.0 ] );
+      gl.clear_bufferfv_with_f32_array( gl::COLOR, 3, &[ 0.0, 0.0, 0.0, 1.0 ] );
+      gl.clear( gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT );
+      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
+
+      // Clear the list of transparent nodes before each render.
+      self.transparent_nodes.clear();
+
+      let mut lights = FxHashMap::< LightType, Vec< Light > >::default();
+
+      let mut collect_light_sources =
+      |
+        node : Rc< RefCell< Node > >
+      | -> Result< (), gl::WebglError >
+      {
+        if let Object3D::Light( light ) = &node.borrow().object
+        {
+          let type_ : LightType = light.into();
+
+          lights.entry( type_ ).or_default().push( light.clone() );
+        }
+
+        Ok( () )
+      };
+
+      scene.traverse( &mut collect_light_sources )?;
+
+      for program in self.programs.values()
+      {
+        let locations = program.locations();
+        program.bind( gl );
+        camera.upload( gl, locations );
+        bind_lights( gl, &program, &lights );
+        if let Some( exposure_loc ) = locations.get( "exposure" )
+        {
+          gl::uniform::upload( gl, exposure_loc.clone(), &self.exposure )?;
+        }
+      }
+
+      // Define a closure to handle the drawing of each node in the scene.
+      let mut draw_node =
+      |
+        node : Rc< RefCell< Node > >
+      | -> Result< (), gl::WebglError >
+      {
+        if !node.borrow().is_visible()
+        {
+          return Ok( () );
+        }
+
+        // If the node contains a mesh...
+        if let Object3D::Mesh( ref mesh ) = node.borrow().object
+        {
+          // Iterate over each primitive in the mesh.
+          for ( i, primitive_rc ) in mesh.borrow().primitives.iter().enumerate()
+          {
+            let node_ref = node.borrow();
+            let material_upload_context = MaterialUploadContext
+            {
+              node : &node_ref,
+              primitive_id : Some( i )
+            };
+            let primitive = primitive_rc.borrow();
+            let defines = primitive.material.borrow().get_defines_str();
+            // Generate a unique ID for the program based on the material ID and vertex shader defines.
+            let program_id = format!( "{}{}", primitive.material.borrow().get_id(), defines );
+
+            let program_cached = self.programs.contains_key( &program_id );
+
+            // Retrieve the program info if it already exists, otherwise compile and link a new program.
+            let shader_program =
+            if let Some( shader_program ) = self.programs.get( &program_id )
+            {
+              shader_program
+            }
+            else
+            {
+              let mut material = primitive.material.borrow_mut();
+              let ibl_define = if self.ibl.is_some() && material.get_ibl_base_texture_unit().is_some()
+              {
+                "#define USE_IBL\n"
+              }
+              else
+              {
+                ""
+              };
+
+              // Compile and link a new WebGL program from the vertex and fragment shaders with the appropriate defines.
+              let program = gl::ProgramFromSources::new
+              (
+                &format!( "#version 300 es\n{}\n{}", defines, material.get_vertex_shader() ),
+                &format!
+                (
+                  "#version 300 es\n{}\n{}\n{}",
+                  defines,
+                  ibl_define,
+                  material.get_fragment_shader()
+                )
+              ).compile_and_link( gl )?;
+              material.shader_mut().set_program( gl, &program );
+              let shader_program = material.shader();
+
+              // Configure and upload material properties and IBL textures for the new program.
+              let locations = shader_program.locations();
+              shader_program.bind( gl );
+              material.configure( gl );
+              material.upload_on_state_change( gl, &material_upload_context )?;
+              camera.upload( gl, locations );
+
+              if let Some( ref ibl ) = self.ibl
+              {
+                if let Some( ibl_base_texture_unit ) = material.get_ibl_base_texture_unit()
+                {
+                  ibl.bind( gl, ibl_base_texture_unit );
+                  gl.uniform1i( locations.get( "irradianceTexture" ).unwrap().clone().as_ref(), ibl_base_texture_unit as i32 );
+                  gl.uniform1i( locations.get( "prefilterEnvMap" ).unwrap().clone().as_ref(), ibl_base_texture_unit as i32 + 1 );
+                  gl.uniform1i( locations.get( "integrateBRDF" ).unwrap().clone().as_ref(), ibl_base_texture_unit as i32 + 2 );
+                }
+              }
+
+              // Store the new program info in the cache.
+              self.programs.insert( program_id.clone(), shader_program.dyn_clone() );
+              self.programs.get( &program_id ).unwrap()
+            };
+
+            let material = primitive.material.borrow();
+
+            // Handle transparent objects by adding them to a separate list for later rendering.
+            match material.get_alpha_mode()
+            {
+              AlphaMode::Blend | AlphaMode::Mask =>
+              {
+                self.transparent_nodes.push( ( node.clone(), primitive_rc.clone() ) );
+                continue; // Skip the immediate drawing of transparent objects.
+              },
+              _ => {}
+            }
+
+            enable_material_depth_properties( gl, &**material );
+            enable_material_face_properties( gl, &**material );
+            enable_material_color_mask( gl, &**material );
+
+            // Get the uniform locations for the current program.
+            let locations = shader_program.locations();
+
+            // Bind the program, upload camera and node matrices, bind the primitive, and draw it.
+            shader_program.bind( gl );
+
+            material.upload( gl, &material_upload_context )?;
+            if material.needs_update() && program_cached
+            {
+              material.upload_on_state_change( gl, &material_upload_context )?;
+            }
+
+            node.borrow().upload( gl, locations );
+            primitive.bind( gl );
+            primitive.draw( gl );
+          }
+        }
+
+        Ok( () )
+      };
+
+      // Traverse the scene and draw all opaque objects.
+      scene.traverse( &mut draw_node )?;
+
+      if self.framebuffer_ctx.skybox_texture.is_some()
+      {
+        self.draw_skybox( gl, camera );
+      }
+
+      gl::drawbuffers::drawbuffers( gl, &[ 2, 3 ] );
+      gl.enable( gl::BLEND );
+      gl.blend_equation( gl::FUNC_ADD );
+      gl.blend_func_separate( gl::ONE, gl::ONE, gl::ZERO, gl::ONE_MINUS_SRC_ALPHA );
+
+      gl.enable( gl::DEPTH_TEST );
+      gl.depth_mask( false );
+      gl.depth_func( gl::LESS );
+
+      let bind = | node : std::cell::Ref< '_, Node >, primitive : std::cell::Ref< '_, Primitive > | -> Result< (), gl::WebglError >
+      {
+        let primitive = primitive;
+        let material = primitive.material.borrow();
+
+        enable_material_face_properties( gl, &**material );
+        enable_material_color_mask( gl, &**material );
+
+        let shader_program = self.programs.get( &format!( "{}{}",  material.get_id(), material.get_defines_str() ) ).unwrap();
+
+        let locations = shader_program.locations();
+
+        shader_program.bind( gl );
+
+        node.upload( gl, locations );
+        primitive.bind( gl );
+
+       Ok( () )
+      };
+
+      // Render the transparent nodes.
+      for ( node, primitive ) in self.transparent_nodes.iter()
+      {
+        let primitive = primitive.borrow();
+        let node = node.borrow();
+        bind( node, std::cell::Ref::clone( &primitive ) )?;
+        primitive.draw( gl );
+      }
+
+      gl.disable( gl::CULL_FACE );
+      gl.depth_mask( true );
+
+      self.framebuffer_ctx.resolve( gl, self.use_emission );
+      self.framebuffer_ctx.unbind_multisample( gl );
+
+      // self.transparent_nodes.sort_by( | a, b |
+      // {
+      //   let dist1 = a.0.borrow().center().distance_squared( &camera.get_eye() );
+      //   let dist2 = b.0.borrow().center().distance_squared( &camera.get_eye() );
+
+      //   dist1.partial_cmp( &dist2 ).unwrap()
+      // });
+
+
+      // gl.enable( gl::BLEND );
+      // gl.depth_mask( false );
+      // gl.depth_func( gl::LEQUAL );
+      // gl.enable( gl::CULL_FACE );
+      // gl.blend_equation( gl::FUNC_ADD );
+      // gl.blend_func( gl::ONE, gl::ONE_MINUS_SRC_ALPHA );
+
+      // let bind = | node : &std::cell::Ref< '_, Node >, primitive : &std::cell::Ref< '_, Primitive > | -> Result< (), gl::WebglError >
+      // {
+      //   let primitive = primitive;
+      //   let material = primitive.material.borrow();
+      //   let geometry = primitive.geometry.borrow();
+      //   let vs_defines = geometry.get_defines();
+      //   let shader_program = self.programs.get( &format!( "{}{}",  material.id, vs_defines ) ).unwrap();
+
+      //   let locations = shader_program.locations();
+
+      //   shader_program.bind( gl );
+
+      //   node.upload( gl, locations );
+      //   primitive.bind( gl );
+
+      //  Ok( () )
+      // };
+
+      // // Render the transparent nodes.
+      // for ( node, primitive ) in self.transparent_nodes.iter()
+      // {
+      //   let primitive = primitive.borrow();
+      //   let node = node.borrow();
+      //   bind( &node, &primitive )?;
+
+      //   gl.cull_face( gl::FRONT );
+      //   primitive.draw( gl );
+
+      //   gl.cull_face( gl::BACK );
+      //   primitive.draw( gl );
+      // }
+
+
+      // gl.disable( gl::CULL_FACE );
+
+      // self.framebuffer_ctx.resolve( gl, self.use_emission );
+      // self.framebuffer_ctx.unbind_multisample( gl );
+
+      if self.use_emission
+      {
+        self.swap_buffer.reset();
+        self.swap_buffer.bind( gl );
+        self.swap_buffer.set_input( self.framebuffer_ctx.emission_texture.clone() );
+
+        self.bloom_effect.render( gl, self.swap_buffer.get_input(), self.swap_buffer.get_output() )?;
+        self.blend_effect.blend_texture = self.swap_buffer.get_output();
+        self.blend_effect.render( gl, None, self.framebuffer_ctx.main_texture.clone() )?;
+      }
+
+      self.composite_shader.bind( gl );
+      gl.bind_framebuffer( gl::FRAMEBUFFER, self.framebuffer_ctx.resolved_framebuffer.as_ref() );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, None, 0 );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, None, 0 );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT2, gl::TEXTURE_2D, None, 0 );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT3, gl::TEXTURE_2D, None, 0 );
+      gl.active_texture( gl::TEXTURE0 );
+      gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.transparent_accumulate_texture.as_ref() );
+      gl.active_texture( gl::TEXTURE1 );
+      gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.transparent_revealage_texture.as_ref() );
+
+
+      gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
+
+      gl.blend_func( gl::ONE, gl::ONE_MINUS_SRC_ALPHA );
+      gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, self.framebuffer_ctx.main_texture.as_ref(), 0 );
+      gl.draw_arrays( gl::TRIANGLES, 0, 3 );
+
+      Ok( () )
+    }
+  }
+
+  /// Configures face culling and front face order from material.
+  fn enable_material_face_properties( gl : &GL, material : &dyn crate::webgl::Material )
+  {
+    let cull_mode = material.get_cull_mode();
+    let front_face = material.get_front_face() as u32;
+
+    gl.front_face( front_face );
+
+    if let Some( cull_mode ) = cull_mode
+    {
+      gl.enable( gl::CULL_FACE );
+      gl.cull_face( cull_mode as u32 );
+    }
+    else
+    {
+      gl.disable( gl::CULL_FACE );
+    }
+  }
+
+  /// Configures depth testing, function, and write mask from material.
+  fn enable_material_depth_properties( gl : &GL, material : &dyn crate::webgl::Material )
+  {
+    let depth_func = material.get_depth_func() as u32;
+    let depth_test = material.is_depth_test_enabled();
+    let depth_write = material.is_depth_write_enabled();
+
+    gl.depth_func( depth_func );
+
+    if depth_test
+    {
+      gl.enable( gl::DEPTH_TEST );
+    }
+    else
+    {
+      gl.disable( gl::DEPTH_TEST );
+    }
+
+    gl.depth_mask( depth_write );
+  }
+
+  /// Sets RGBA color write mask from material.
+  fn enable_material_color_mask( gl : &GL, material : &dyn crate::webgl::Material )
+  {
+    let ( red, green, blue, alpha ) = material.get_color_write_mask();
+
+    gl.color_mask( red, green, blue, alpha );
+  }
+
+  fn bind_lights
+  (
+    gl : &GL,
+    program : &Box< dyn ShaderProgram >,
+    lights : &FxHashMap< LightType, Vec< Light > >
+  )
+  {
+    let locations = program.locations();
+
+    for ( type_, one_type_lights ) in lights
+    {
+      let max_count = match type_
+      {
+        LightType::Point => MAX_POINT_LIGHTS,
+        LightType::Direct => MAX_DIRECT_LIGHTS,
+        LightType::Spot => MAX_SPOT_LIGHTS
+      };
+
+      let Some( count_loc ) = locations.get( format!( "{}LightsCount", type_.to_string().to_lowercase() ).as_str() )
+      else
+      {
+        continue;
+      };
+      let _ = gl::uniform::upload( gl, count_loc.clone(), &( one_type_lights.len().min( max_count ) as i32 ) );
+    }
+
+    'i : for ( type_, one_type_lights ) in lights
+    {
+      for ( i, light ) in one_type_lights.iter().enumerate()
+      {
+        match type_
+        {
+          LightType::Point =>
+          {
+            if !locations.contains_key( "pointLights" ) || i > MAX_POINT_LIGHTS
+            {
+              continue 'i;
+            }
+
+            let Light::Point( light ) = light
+            else
+            {
+              continue;
+            };
+
+            let position_loc = gl.get_uniform_location( program.program(), format!( "pointLights[{i}].position" ).as_str() );
+            let color_loc = gl.get_uniform_location( program.program(), format!( "pointLights[{i}].color" ).as_str() );
+            let strength_loc = gl.get_uniform_location( program.program(), format!( "pointLights[{i}].strength" ).as_str() );
+            let range_loc = gl.get_uniform_location( program.program(), format!( "pointLights[{i}].range" ).as_str() );
+
+            let _ = gl::uniform::upload( gl, position_loc, light.position.as_slice() );
+            let _ = gl::uniform::upload( gl, color_loc, light.color.as_slice() );
+            let _ = gl::uniform::upload( gl, strength_loc, &light.strength );
+            let _ = gl::uniform::upload( gl, range_loc, &light.range );
+          },
+          LightType::Direct =>
+          {
+            if !locations.contains_key( "directLights" ) || i > MAX_DIRECT_LIGHTS
+            {
+              continue 'i;
+            }
+
+            let Light::Direct( light ) = light
+            else
+            {
+              continue;
+            };
+
+            let direction_loc = gl.get_uniform_location( program.program(), format!( "directLights[{i}].direction" ).as_str() );
+            let color_loc = gl.get_uniform_location( program.program(), format!( "directLights[{i}].color" ).as_str() );
+            let strength_loc = gl.get_uniform_location( program.program(), format!( "directLights[{i}].strength" ).as_str() );
+
+            let _ = gl::uniform::upload( gl, direction_loc, light.direction.as_slice() );
+            let _ = gl::uniform::upload( gl, color_loc, light.color.as_slice() );
+            let _ = gl::uniform::upload( gl, strength_loc, &light.strength );
+          },
+          LightType::Spot =>
+          {
+            if !locations.contains_key( "spotLights" ) || i > MAX_SPOT_LIGHTS
+            {
+              continue 'i;
+            }
+
+            let Light::Spot( light ) = light
+            else
+            {
+              continue;
+            };
+
+            let position_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].position" ).as_str() );
+            let direction_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].direction" ).as_str() );
+            let color_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].color" ).as_str() );
+            let strength_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].strength" ).as_str() );
+            let range_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].range" ).as_str() );
+            let inner_angle_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].innerConeAngle" ).as_str() );
+            let outer_angle_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].outerConeAngle" ).as_str() );
+            let use_lightmap_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].useLightMap" ).as_str() );
+
+            let _ = gl::uniform::upload( gl, position_loc, light.position.as_slice() );
+            let _ = gl::uniform::upload( gl, direction_loc, light.direction.as_slice() );
+            let _ = gl::uniform::upload( gl, color_loc, light.color.as_slice() );
+            let _ = gl::uniform::upload( gl, strength_loc, &light.strength );
+            let _ = gl::uniform::upload( gl, range_loc, &light.range );
+            let _ = gl::uniform::upload( gl, inner_angle_loc, &light.inner_cone_angle );
+            let _ = gl::uniform::upload( gl, outer_angle_loc, &light.outer_cone_angle );
+
+            let use_lightmap_int = light.use_light_map as i32;
+            let _ = gl::uniform::upload( gl, use_lightmap_loc, &use_lightmap_int );
+          }
+        }
+      }
+    }
+  }
+}
+
+crate::mod_interface!
+{
+  orphan use
+  {
+    Renderer
+  };
+}
