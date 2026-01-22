@@ -464,7 +464,7 @@ mod private
       delta_time : f64
     )
     {
-      // Decays self.movement_decay% every 100 milliseconds
+      // Decays self.movement_decay% every 10 milliseconds
       let mut decay_percentage = self.rotation.movement_decay * delta_time as f32 / 10.0;
       decay_percentage = decay_percentage.min( 1.0 );
 
