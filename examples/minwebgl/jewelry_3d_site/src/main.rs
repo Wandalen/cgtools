@@ -59,6 +59,8 @@ mod helpers;
 mod ui;
 mod debug;
 mod surface_material;
+mod gem_frag;
+mod gem_vert;
 
 use helpers::*;
 use configurator::*;

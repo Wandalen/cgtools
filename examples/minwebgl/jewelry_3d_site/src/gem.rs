@@ -5,6 +5,7 @@ use gl::{ GL, Former, WebGlProgram };
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
 use crate::cube_normal_map_generator::CubeNormalData;
+use crate::{gem_frag, gem_vert};
 
 // Gem shader
 impl_locations!
@@ -15,28 +16,23 @@ impl_locations!
   "viewMatrix",
   "projectionMatrix",
   "normalMatrix",
-  "restMatrix",
-  "inverseRestMatrix",
+  "d",
+  "l",
 
-  "envMap",
-  "cubeNormalMap",
+  "v",
+  "m",
 
-  "rayBounces",
-  "diamondColor",
+  "n",
+  "r",
 
-  "envMapIntensity",
-  "radius",
+  "s",
+  "w",
   "cameraPosition",
 
-  "n2",
-  "rainbowDelta",
-  "distanceAttenuationSpeed"
+  "a",
+  "c",
+  "e"
 );
-
-/// The source code for the gem vertex shader.
-const GEM_VERTEX_SHADER : &'static str = include_str!( "../shaders/gem.vert" );
-/// The source code for the gem fragment shader.
-const GEM_FRAGMENT_SHADER : &'static str = include_str!( "../shaders/gem.frag" );
 
 /// Represents the visual properties of a gem surface.
 #[ derive( Former, Debug ) ]
@@ -44,8 +40,6 @@ pub struct GemMaterial
 {
   /// A unique identifier for the material.
   pub id : Uuid,
-  /// Shader program info
-  program : GemShader,
   /// Ray bounces inside gem count
   pub ray_bounces : i32,
   /// Gem color
@@ -72,20 +66,11 @@ pub struct GemMaterial
 
 impl GemMaterial
 {
-  pub fn new( gl : &GL ) -> Self
+  pub fn new( _gl : &GL ) -> Self
   {
-    // Compile and link a new WebGL program from the vertex and fragment shaders with the appropriate defines.
-    let program = gl::ProgramFromSources::new
-    (
-      &format!( "#version 300 es\n{}", GEM_VERTEX_SHADER ),
-      &format!( "#version 300 es\n{}", GEM_FRAGMENT_SHADER )
-    ).compile_and_link( gl )
-    .unwrap();
-
     Self
     {
       id : Uuid::new_v4(),
-      program : GemShader::new( gl, &program ),
       ray_bounces : 5,
       color : gl::F32x3::from_array( [ 0.98, 0.95, 0.9 ] ),
       env_map_intensity : 1.0,
@@ -112,15 +97,11 @@ impl Material for GemMaterial
     self.needs_update
   }
 
-  fn shader( &self ) -> &dyn ShaderProgram
+  fn make_shader_program( &self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Box< dyn ShaderProgram >
   {
-    &self.program
+    GemShader::new( gl, program ).dyn_clone()
   }
 
-  fn shader_mut( &mut self ) -> &mut dyn ShaderProgram
-  {
-    &mut self.program
-  }
 
   fn type_name( &self ) -> &'static str
   {
@@ -129,36 +110,35 @@ impl Material for GemMaterial
 
   fn get_vertex_shader( &self ) -> String
   {
-    GEM_VERTEX_SHADER.into()
+    String::from_utf8_lossy( gem_vert::INPUT ).into()
   }
 
   fn get_fragment_shader( &self ) -> String
   {
-    GEM_FRAGMENT_SHADER.into()
+    String::from_utf8_lossy( gem_frag::INPUT ).into()
   }
 
   fn configure
   (
     &self,
     gl : &gl::WebGl2RenderingContext,
+    ctx : &MaterialUploadContext< '_ >
   )
   {
-    self.program.bind( gl );
-    let locations = self.program.locations();
-    gl.uniform1i( locations.get( "envMap" ).unwrap().clone().as_ref() , 0 );
-    gl.uniform1i( locations.get( "cubeNormalMap" ).unwrap().clone().as_ref() , 1 );
+    let locations = ctx.locations;
+    gl.uniform1i( locations.get( "v" ).unwrap().clone().as_ref() , 0 );
+    gl.uniform1i( locations.get( "m" ).unwrap().clone().as_ref() , 1 );
   }
 
   fn upload_on_state_change
   (
     &self,
     gl : &GL,
-    context : &MaterialUploadContext< '_ >
+    ctx : &MaterialUploadContext< '_ >
   )
   -> Result< (), gl::WebglError >
   {
-    self.program.bind( gl );
-    let locations = self.program.locations();
+    let locations = ctx.locations;
     let upload = | loc, value : f32 | -> Result< (), gl::WebglError >
     {
       gl::uniform::upload( gl, locations.get( loc ).unwrap().clone(), &value )?;
@@ -171,26 +151,26 @@ impl Material for GemMaterial
       Ok( () )
     };
 
-    gl::uniform::upload( gl, locations.get( "rayBounces" ).unwrap().clone(), &self.ray_bounces )?;
+    gl::uniform::upload( gl, locations.get( "n" ).unwrap().clone(), &self.ray_bounces )?;
 
-    let inv_world = context.node.get_world_matrix().inverse().unwrap();
+    let inv_world = ctx.node.get_world_matrix().inverse().unwrap();
 
-    let mut bb = context.node.bounding_box();
+    let mut bb = ctx.node.bounding_box();
 
     bb.apply_transform_mut( inv_world );
     let c = bb.center();
     
-    upload( "envMapIntensity", self.env_map_intensity )?;
-    upload( "radius", self.cube_normal_map_texture.max_distance )?;
-    upload( "n2", self.n2 )?;
-    upload( "rainbowDelta", self.rainbow_delta )?;
-    upload( "distanceAttenuationSpeed", self.distance_attenuation_speed )?;
-    upload_array( "diamondColor", self.color.0.as_slice() )?;
+    upload( "s", self.env_map_intensity )?;
+    upload( "w", self.cube_normal_map_texture.max_distance )?;
+    upload( "a", self.n2 )?;
+    upload( "c", self.rainbow_delta )?;
+    upload( "e", self.distance_attenuation_speed )?;
+    upload_array( "r", self.color.0.as_slice() )?;
 
     let rest_mat = gl::math::mat3x3h::translation( -c ) * inv_world;
 
-    gl::uniform::matrix_upload( gl, locations.get( "restMatrix" ).unwrap().clone(), rest_mat.raw_slice(), true )?;
-    gl::uniform::matrix_upload( gl, locations.get( "inverseRestMatrix" ).unwrap().clone(), rest_mat.inverse().unwrap().raw_slice(), true )?;
+    gl::uniform::matrix_upload( gl, locations.get( "d" ).unwrap().clone(), rest_mat.raw_slice(), true )?;
+    gl::uniform::matrix_upload( gl, locations.get( "l" ).unwrap().clone(), rest_mat.inverse().unwrap().raw_slice(), true )?;
 
     self.upload_textures( gl );
 
@@ -238,7 +218,6 @@ impl Clone for GemMaterial
       environment_texture : self.environment_texture.clone(),
       cube_normal_map_texture : self.cube_normal_map_texture.clone(),
       needs_update : self.needs_update,
-      program : self.program.clone(),
       n2 : self.n2,
       rainbow_delta : self.rainbow_delta,
       distance_attenuation_speed : self.distance_attenuation_speed
