@@ -133,7 +133,7 @@ fn handle_resize
 }
 
 /// Check changed fields of [`ui::UiState`] and updates depended [`Configutator`] features
-fn handle_ui_change( configurator : &mut Configurator )
+fn handle_ui_change( configurator : &mut Configurator, last_eye : &mut F32x3 )
 {
   if ui::is_changed()
   {
@@ -157,13 +157,18 @@ fn handle_ui_change( configurator : &mut Configurator )
         configurator.update_metal_color();
       }
 
+      let new_eye = F32x3::from_array( ui_state.eye );
+
       if ( ui_state.changed.contains( &"position".to_string() ) ||
-      ui_state.changed.contains( &"center".to_string() ) ) && !ui_state.changed.contains( &"state".to_string() )
+      ui_state.changed.contains( &"center".to_string() ) ) &&
+      !ui_state.changed.contains( &"state".to_string() ) &&
+      new_eye.distance_squared( &last_eye ) < 0.5
       {
         let controls = configurator.camera.get_controls();
         controls.borrow_mut().up = F32x3::from_array( [ 0.0, 1.0, 0.0 ] );
         controls.borrow_mut().center = F32x3::from_array( ui_state.center );
         controls.borrow_mut().eye = F32x3::from_array( ui_state.eye );
+        *last_eye = new_eye;
       }
 
       ui::clear_changed();
@@ -197,6 +202,8 @@ async fn run() -> Result< (), gl::WebglError >
 
   let is_resized = add_resize_callback();
 
+  let mut last_eye = F32x3::from_array( ui::get_ui_state().unwrap_or_default().eye );
+
   set_renderer_loaded();
 
   // Define the update and draw logic
@@ -215,7 +222,7 @@ async fn run() -> Result< (), gl::WebglError >
       configurator.camera.update( delta_time );
       configurator.animation_state.update( delta_time );
 
-      handle_ui_change( &mut configurator );
+      handle_ui_change( &mut configurator, &mut last_eye );
 
       let scene = &configurator.rings.rings[ configurator.rings.current_ring ];
       configurator.renderer.borrow_mut().render( &gl, &mut scene.borrow_mut(), &configurator.camera ).expect( "Failed to render" );
