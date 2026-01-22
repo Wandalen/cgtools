@@ -35,17 +35,68 @@ mod private
     /// 90 = -Z
     /// 180 = -X
     /// 270 = +Z
-    pub base_longitude : f32,
+    base_longitude : f32,
     /// Specifies the radius in degrees around the base_longitude. Should be in range [0, 180]
-    pub longitude_range : Option< f32 >,
-    /// The base latitude angle in degrees in range [-180, 180], from which the bounds are calculated. Has no effect when `latitude_range` is `None`.
-    pub base_latitude : f32,
+    longitude_range : Option< f32 >,
+    /// The base latitude angle in degrees in range [-90, 90], from which the bounds are calculated. Has no effect when `latitude_range` is `None`.
+    base_latitude : f32,
     /// Specifies the radius in degrees around the base_latitude. Should be in range [0, 180]. The rotation will be clamped at poles
-    pub latitude_range : Option< f32 >,
+    latitude_range : Option< f32 >,
     /// Accumulated speed based on mouse movement
     current_angular_speed : F32x2,
     /// Current angle of rotation for the camera
     current_rotation_angle : F32x2
+  }
+
+  impl CameraRotationState
+  {
+    /// Sets the base longitude. Clamps the value in range [0, 360] degress 
+    pub fn base_longitude_set( &mut self, angle : f32 )
+    {
+      self.base_longitude = angle.clamp( 0.0, 360.0 );
+    }
+
+    /// Return the base longitude
+    pub fn base_longitude_get( &self ) -> f32
+    {
+      self.base_longitude
+    }
+
+    /// Sets the longitude range. Clamps the value in range [0, 180] degrees
+    pub fn longitude_range_set( &mut self, angle : f32 )
+    {
+      self.longitude_range = Some( angle.clamp( 0.0, 180.0 ) );
+    }
+
+    /// Return the longitude range
+    pub fn longitude_range_get( &self ) -> Option< f32 >
+    {
+      self.longitude_range
+    }
+
+    /// Sets the base latitude. Clamps the value in range [-90, 90] degress 
+    pub fn base_latitude_set( &mut self, angle : f32 )
+    {
+      self.base_latitude = angle.clamp( -90.0, 90.0 );
+    }
+
+    /// Return the base latitude
+    pub fn base_latitude_get( &self,) -> f32
+    {
+      self.base_latitude
+    }
+
+    /// Sets the latitude range. Clamps the value in range [0, 180] degrees
+    pub fn latitude_range_set( &mut self, angle : f32 )
+    {
+      self.latitude_range = Some( angle.clamp( 0.0, 180.0 ) );
+    }
+
+    /// Return the latitude range
+    pub fn latitude_range_get( &self ) -> Option< f32 >
+    {
+      self.latitude_range
+    }
   }
 
   /// State of the camera that controls its zoom

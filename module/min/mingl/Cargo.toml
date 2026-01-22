@@ -97,7 +97,7 @@ web-sys = { workspace = true, optional = true, features = [
   'HtmlImageElement',
   'PointerEvent',
   'MouseEvent',
-  'WheelEvent'
+  'WheelEvent',
   'KeyboardEvent'
 ]}
 

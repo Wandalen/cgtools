@@ -137,9 +137,9 @@ fn handle_ui_change( configurator : &mut Configurator )
       ui_state.changed.contains( &"center".to_string() ) ) && !ui_state.changed.contains( &"state".to_string() )
       {
         let controls = configurator.camera.get_controls();
-        controls.borrow_mut().up = F32x3::from_array( [ 0.0, 1.0, 0.0 ] );
-        controls.borrow_mut().center = F32x3::from_array( ui_state.center );
-        controls.borrow_mut().eye = F32x3::from_array( ui_state.eye );
+        controls.borrow_mut().up = gl::F32x3::from_array( [ 0.0, 1.0, 0.0 ] );
+        controls.borrow_mut().center = gl::F32x3::from_array( ui_state.center );
+        controls.borrow_mut().eye = gl::F32x3::from_array( ui_state.eye );
       }
 
       ui::clear_changed();

@@ -735,7 +735,7 @@ fn setup_camera( canvas : &web_sys::HtmlCanvasElement ) -> Camera
   camera.get_controls().borrow_mut().pan.enabled = false;
   camera.get_controls().borrow_mut().rotation.movement_smoothing_enabled = true;
   camera.get_controls().borrow_mut().rotation.speed = 50.0;
-  camera.get_controls().borrow_mut().rotation.latitude_range = Some( 90.0 );
+  camera.get_controls().borrow_mut().rotation.latitude_range_set( 90.0 );
   camera.get_controls().borrow_mut().zoom.min_distance_set( 2.0 );
   camera.get_controls().borrow_mut().zoom.max_distance_set( 6.0 );
   camera.bind_controls( &canvas );

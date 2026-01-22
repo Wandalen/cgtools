@@ -5,7 +5,7 @@ use approx::assert_abs_diff_eq;
 #[ test ]
 fn test_rotation_disabled_prevents_rotation()
 {
-  let mut controls = the_module::camera_orbit_controls::CameraOrbitControls::default();
+  let mut controls = the_module::controls::camera_orbit_controls::CameraOrbitControls::default();
   controls.eye = F32x3::new( 1.0, 0.0, 0.0 );
   controls.up = F32x3::new( 0.0, 1.0, 0.0 );
   controls.center = F32x3::new( 0.0, 0.0, 0.0 );
@@ -25,7 +25,7 @@ fn test_rotation_disabled_prevents_rotation()
 #[ test ]
 fn test_zoom_disabled_prevents_zoom()
 {
-  let mut controls = the_module::camera_orbit_controls::CameraOrbitControls::default();
+  let mut controls = the_module::controls::camera_orbit_controls::CameraOrbitControls::default();
   controls.eye = F32x3::new( 1.0, 0.0, 0.0 );
   controls.up = F32x3::new( 0.0, 1.0, 0.0 );
   controls.center = F32x3::new( 0.0, 0.0, 0.0 );
@@ -45,7 +45,7 @@ fn test_zoom_disabled_prevents_zoom()
 #[ test ]
 fn test_pan_disabled_prevents_pan()
 {
-  let mut controls = the_module::camera_orbit_controls::CameraOrbitControls::default();
+  let mut controls = the_module::controls::camera_orbit_controls::CameraOrbitControls::default();
   controls.eye = F32x3::new( 1.0, 0.0, 0.0 );
   controls.up = F32x3::new( 0.0, 1.0, 0.0 );
   controls.center = F32x3::new( 0.0, 0.0, 0.0 );
@@ -65,7 +65,7 @@ fn test_pan_disabled_prevents_pan()
 #[ test ]
 fn test_rotation_longitude()
 {
-  let mut controls = the_module::camera_orbit_controls::CameraOrbitControls::default();
+  let mut controls = the_module::controls::camera_orbit_controls::CameraOrbitControls::default();
   controls.eye = F32x3::new( 1.0, 0.0, 0.0 );
   controls.up = F32x3::new( 0.0, 1.0, 0.0 );
   controls.center = F32x3::new( 0.0, 0.0, 0.0 );
@@ -97,7 +97,7 @@ fn test_rotation_longitude()
 #[ test ]
 fn test_rotation_longitude_with_non_origin_center()
 {
-  let mut controls = the_module::camera_orbit_controls::CameraOrbitControls::default();
+  let mut controls = the_module::controls::camera_orbit_controls::CameraOrbitControls::default();
   controls.eye = F32x3::new( 2.0, 0.0, 0.0 );
   controls.up = F32x3::new( 0.0, 1.0, 0.0 );
   controls.center = F32x3::new( 1.0, 0.0, 0.0 );
@@ -129,7 +129,7 @@ fn test_rotation_longitude_with_non_origin_center()
 #[ test ]
 fn test_rotation_latitude()
 {
-  let mut controls = the_module::camera_orbit_controls::CameraOrbitControls::default();
+  let mut controls = the_module::controls::camera_orbit_controls::CameraOrbitControls::default();
   controls.eye = F32x3::new( 1.0, 0.0, 0.0 );
   controls.up = F32x3::new( 0.0, 1.0, 0.0 );
   controls.center = F32x3::new( 0.0, 0.0, 0.0 );
@@ -161,7 +161,7 @@ fn test_rotation_latitude()
 #[ test ]
 fn test_rotation_latitude_with_non_origin_center()
 {
-  let mut controls = the_module::camera_orbit_controls::CameraOrbitControls::default();
+  let mut controls = the_module::controls::camera_orbit_controls::CameraOrbitControls::default();
   controls.eye = F32x3::new( 2.0, 0.0, 0.0 );
   controls.up = F32x3::new( 0.0, 1.0, 0.0 );
   controls.center = F32x3::new( 1.0, 0.0, 0.0 );
@@ -193,11 +193,11 @@ fn test_rotation_latitude_with_non_origin_center()
 #[ test ]
 fn test_longitude_range_clamps_correctly()
 {
-  let mut controls = the_module::camera_orbit_controls::CameraOrbitControls::default();
+  let mut controls = the_module::controls::camera_orbit_controls::CameraOrbitControls::default();
   controls.eye = F32x3::new( 1.0, 0.0, 0.0 );
   controls.up = F32x3::new( 0.0, 1.0, 0.0 );
   controls.center = F32x3::new( 0.0, 0.0, 0.0 );
-  controls.rotation.longitude_range = Some( 90.0 );
+  controls.rotation.longitude_range_set( 90.0 );
   controls.rotation.speed = 1.0;
 
   // Counter-clockwise
@@ -234,11 +234,11 @@ fn test_longitude_range_clamps_correctly()
 #[ test ]
 fn test_latitude_range_clamps_correctly()
 {
-  let mut controls = the_module::camera_orbit_controls::CameraOrbitControls::default();
+  let mut controls = the_module::controls::camera_orbit_controls::CameraOrbitControls::default();
   controls.eye = F32x3::new( 1.0, 0.0, 0.0 );
   controls.up = F32x3::new( 0.0, 1.0, 0.0 );
   controls.center = F32x3::new( 0.0, 0.0, 0.0 );
-  controls.rotation.latitude_range = Some( 45.0 );
+  controls.rotation.latitude_range_set( 45.0 );
   controls.rotation.speed = 1.0;
 
   // Counter-clockwise
@@ -275,7 +275,7 @@ fn test_latitude_range_clamps_correctly()
 #[ test ]
 fn test_zoom_min_distance_enforced()
 {
-  let mut controls = the_module::camera_orbit_controls::CameraOrbitControls::default();
+  let mut controls = the_module::controls::camera_orbit_controls::CameraOrbitControls::default();
   controls.eye = F32x3::new( 1.0, 0.0, 0.0 );
   controls.up = F32x3::new( 0.0, 1.0, 0.0 );
   controls.center = F32x3::new( 0.0, 0.0, 0.0 );
@@ -296,7 +296,7 @@ fn test_zoom_min_distance_enforced()
 #[ test ]
 fn test_zoom_max_distance_enforced()
 {
-  let mut controls = the_module::camera_orbit_controls::CameraOrbitControls::default();
+  let mut controls = the_module::controls::camera_orbit_controls::CameraOrbitControls::default();
   controls.eye = F32x3::new( 1.0, 0.0, 0.0 );
   controls.up = F32x3::new( 0.0, 1.0, 0.0 );
   controls.center = F32x3::new( 0.0, 0.0, 0.0 );
@@ -318,7 +318,7 @@ fn test_zoom_max_distance_enforced()
 #[ test ]
 fn test_zoom_invalid_bounds()
 {
-  let mut controls = the_module::camera_orbit_controls::CameraOrbitControls::default();
+  let mut controls = the_module::controls::camera_orbit_controls::CameraOrbitControls::default();
   controls.eye = F32x3::new( 1.0, 0.0, 0.0 );
   controls.up = F32x3::new( 0.0, 1.0, 0.0 );
   controls.center = F32x3::new( 0.0, 0.0, 0.0 );
@@ -344,7 +344,7 @@ fn test_zoom_invalid_bounds()
 #[ test ]
 fn test_zoom_with_non_origin_center()
 {
-  let mut controls = the_module::camera_orbit_controls::CameraOrbitControls::default();
+  let mut controls = the_module::controls::camera_orbit_controls::CameraOrbitControls::default();
   controls.eye = F32x3::new( 5.0, 0.0, 0.0 );
   controls.up = F32x3::new( 0.0, 1.0, 0.0 );
   controls.center = F32x3::new( 4.0, 0.0, 0.0 );
