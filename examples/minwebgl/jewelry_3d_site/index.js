@@ -80,9 +80,14 @@ function onWheel(e) {
     requestAnimationFrame
       (
         () => {
-          window.scrollTo(0, currentScroll)
           isTicking = false
           resized = false
+
+          if (skipScrollAnimation){
+            return
+          }
+
+          window.scrollTo(0, currentScroll)
         }
       )
   }
@@ -521,6 +526,7 @@ document.querySelector('.btn-customize')?.addEventListener
       document.body.style.cursor = "grab"
       sidebar.style.display = "none"
       headerContainer.style.display = "none"
+
       configAnimation()
     }
   )
@@ -641,6 +647,10 @@ configGem.addEventListener
       materialsMenu.classList.remove('show')
       ringsMenu.classList.remove('show')
 
+      gemMenu.style.zIndex = 1
+      materialsMenu.style.zIndex = 0
+      ringsMenu.style.zIndex = 0
+
       if (document.querySelector('.footer--menu li.active')) {
         document.querySelector('.footer--menu li.active')?.classList.remove('active')
       }
@@ -682,6 +692,10 @@ configMaterial.addEventListener
       materialsMenu.classList.add('show')
       gemMenu.classList.remove('show')
       ringsMenu.classList.remove('show')
+
+      materialsMenu.style.zIndex = 1
+      gemMenu.style.zIndex = 0
+      ringsMenu.style.zIndex = 0
 
       if (document.querySelector('.footer--menu li.active')) {
         document.querySelector('.footer--menu li.active')?.classList.remove('active')
@@ -797,6 +811,10 @@ configRing.addEventListener
       ringsMenu.classList.add('show')
       materialsMenu.classList.remove('show')
       gemMenu.classList.remove('show')
+
+      ringsMenu.style.zIndex = 1
+      materialsMenu.style.zIndex = 0
+      gemMenu.style.zIndex = 0
 
       if (document.querySelector('.footer--menu li.active')) {
         document.querySelector('.footer--menu li.active')?.classList.remove('active')
