@@ -35,6 +35,7 @@ export let uiState =
   state: "hero",
   position: [0.6373576, 1.1441559, -0.9127405],
   target: [0.55595696, 0.55741394, -1.0331136],
+  transitionAnimationEnabled: false,
   gemCustomColor: [1.0, 1.0, 1.0],
   gemMultiplier: 1.0,
   metalCustomColor: [0.753, 0.753, 0.753],
@@ -301,7 +302,11 @@ function setupScrollAnimation() {
       {
         0: -0.40259048, 1: 2.6242757, 2: -0.18104002,
         scrollTrigger: { trigger: ".cam-view-2", start: "top bottom", end: "top top", scrub: true, invalidateOnRefresh: true, immediateRender: false },
-        onUpdate: () => { !resized && (() => { resized = false; return true; })() && !skipScrollAnimation && !uiState.changed.includes("position") && uiState.changed.push("position") }
+        onUpdate: () => {
+          !resized &&
+          (() => { resized = false; return true; })() &&
+          !skipScrollAnimation && !uiState.changed.includes("position") && uiState.changed.push("position")
+        }
       }
     )
     .fromTo
@@ -311,7 +316,11 @@ function setupScrollAnimation() {
       {
         0: -0.23794234, 1: 0.49070162, 2: -0.32702705,
         scrollTrigger: { trigger: ".cam-view-2", start: "top bottom", end: "top top", scrub: true, invalidateOnRefresh: true, immediateRender: false },
-        onUpdate: () => { !resized && (() => { resized = false; return true; })() && !skipScrollAnimation && !uiState.changed.includes("target") && uiState.changed.push("target") }
+        onUpdate: () => {
+          !resized &&
+          (() => { resized = false; return true; })() &&
+          !skipScrollAnimation && !uiState.changed.includes("target") && uiState.changed.push("target")
+        }
       }
     )
     .addLabel("Brilliant")
@@ -352,7 +361,11 @@ function setupScrollAnimation() {
       {
         0: -0.39456308, 1: 2.431139, 2: 0.23367776,
         scrollTrigger: { trigger: ".cam-view-3", start: "top bottom", end: "top top", scrub: true, invalidateOnRefresh: true, immediateRender: false },
-        onUpdate: () => { !resized && (() => { resized = false; return true; })() && !skipScrollAnimation && !uiState.changed.includes("position") && uiState.changed.push("position") }
+        onUpdate: () => {
+          !resized &&
+          (() => { resized = false; return true; })() &&
+          !skipScrollAnimation && !uiState.changed.includes("position") && uiState.changed.push("position")
+        }
       }
     )
     .fromTo
@@ -362,7 +375,11 @@ function setupScrollAnimation() {
       {
         0: 0.2921338, 1: 0.9732934, 2: -0.18001612,
         scrollTrigger: { trigger: ".cam-view-3", start: "top bottom", end: "top top", scrub: true, invalidateOnRefresh: true, immediateRender: false },
-        onUpdate: () => { !resized && (() => { resized = false; return true; })() && !skipScrollAnimation && !uiState.changed.includes("target") && uiState.changed.push("target") }
+        onUpdate: () => {
+          !resized &&
+          (() => { resized = false; return true; })() &&
+          !skipScrollAnimation && !uiState.changed.includes("target") && uiState.changed.push("target")
+        }
       }
     )
     .addLabel("Choose")
@@ -393,6 +410,15 @@ function setupScrollAnimation() {
 }
 
 function onCompleteConfigAnimation() {
+  setTimeout
+  (
+    () =>
+    {
+      uiState.transitionAnimationEnabled = false;
+    },
+    100
+  );
+
   const canvas = document.querySelector('.canvas')
   const colorControls = document.querySelector('.color-controls--container')
 
@@ -424,6 +450,7 @@ function onCompleteConfigAnimation() {
 }
 
 function configAnimation() {
+  uiState.transitionAnimationEnabled = true;
   gsap.timeline()
     .fromTo
     (
@@ -475,7 +502,7 @@ function exitConfigAnimation() {
     },
       '-=1.2'
     )
-    .to('.footer--menu', { opacity: 0, y: '150%' }) // , '-=1.2'
+    .to('.footer--menu', { opacity: 0, y: '150%' })
     .to('.choose--content', { opacity: 1, x: '0%', duration: 0.5, ease: "power4.out" }, '-=1.2')
 }
 

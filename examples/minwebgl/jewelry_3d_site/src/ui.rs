@@ -18,6 +18,9 @@ pub struct UiState
   /// Camera eye
   #[ serde( rename = "position" ) ]
   pub eye : [ f32; 3 ],
+  /// Transition animation in process
+  #[ serde( rename = "transitionAnimationEnabled" ) ]
+  pub transition_animation_enabled : bool,
   /// Camera center
   #[ serde( rename = "target" ) ]
   pub center : [ f32; 3 ],

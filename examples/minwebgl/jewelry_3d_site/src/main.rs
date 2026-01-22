@@ -111,7 +111,8 @@ fn handle_resize
   configurator : &mut Configurator,
   swap_buffer : &mut SwapFramebuffer,
   canvas : &HtmlCanvasElement,
-  is_resized : &Rc< RefCell< bool > >
+  is_resized : &Rc< RefCell< bool > >,
+  last_eye : &mut F32x3
 )
 {
   if *is_resized.borrow()
@@ -126,6 +127,10 @@ fn handle_resize
       let aspect = canvas.width() as f32 / canvas.height() as f32;
       let perspective = gl::math::d2::mat3x3h::perspective_rh_gl( 40.0f32.to_radians(), aspect, 0.1, 1000.0 );
       configurator.camera.set_projection_matrix( perspective );
+      if let Some( ui_state ) = ui::get_ui_state()
+      {
+        *last_eye = F32x3::from_array( ui_state.eye );
+      }
 
       *is_resized.borrow_mut() = false;
     }
@@ -162,7 +167,7 @@ fn handle_ui_change( configurator : &mut Configurator, last_eye : &mut F32x3 )
       if ( ui_state.changed.contains( &"position".to_string() ) ||
       ui_state.changed.contains( &"center".to_string() ) ) &&
       !ui_state.changed.contains( &"state".to_string() ) &&
-      new_eye.distance_squared( &last_eye ) < 0.5
+      !( ui_state.transition_animation_enabled && new_eye.distance( &last_eye ) > 0.1 )
       {
         let controls = configurator.camera.get_controls();
         controls.borrow_mut().up = F32x3::from_array( [ 0.0, 1.0, 0.0 ] );
@@ -218,7 +223,7 @@ async fn run() -> Result< (), gl::WebglError >
       let delta_time = t - prev_time;
       prev_time = t;
       handle_camera_position( &configurator );
-      handle_resize( &gl, &mut configurator, &mut swap_buffer, &canvas, &is_resized );
+      handle_resize( &gl, &mut configurator, &mut swap_buffer, &canvas, &is_resized, &mut last_eye );
       configurator.camera.update( delta_time );
       configurator.animation_state.update( delta_time );
 
