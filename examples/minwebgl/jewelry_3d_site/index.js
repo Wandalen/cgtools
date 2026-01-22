@@ -451,6 +451,7 @@ function onCompleteConfigAnimation() {
 
 function configAnimation() {
   uiState.transitionAnimationEnabled = true;
+
   gsap.timeline()
     .fromTo
     (

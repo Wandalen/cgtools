@@ -167,7 +167,7 @@ fn handle_ui_change( configurator : &mut Configurator, last_eye : &mut F32x3 )
       if ( ui_state.changed.contains( &"position".to_string() ) ||
       ui_state.changed.contains( &"center".to_string() ) ) &&
       !ui_state.changed.contains( &"state".to_string() ) &&
-      !( ui_state.transition_animation_enabled && new_eye.distance( &last_eye ) > 0.1 )
+      !( ui_state.transition_animation_enabled && new_eye.distance( &last_eye ) > 0.75 )
       {
         let controls = configurator.camera.get_controls();
         controls.borrow_mut().up = F32x3::from_array( [ 0.0, 1.0, 0.0 ] );
