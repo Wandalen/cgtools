@@ -78,8 +78,8 @@ fn handle_camera_position( configurator : &Configurator )
     camera_controls.borrow_mut().eye /= distance / DISTANCE_RANGE.start;
   }
 
-  let Some( ringg ) = configurator.rings.get_ring() else { return; };
-  let current_scene = ringg.scene.clone();
+  let Some( ring ) = configurator.rings.get_ring() else { return; };
+  let current_scene = ring.scene.clone();
 
   let plane = current_scene.borrow().get_node( "Plane" ).unwrap();
   if camera_controls.borrow().eye.y() <= plane.borrow().get_translation().y() + 0.1 || configurator.ui_state.state == "hero"
