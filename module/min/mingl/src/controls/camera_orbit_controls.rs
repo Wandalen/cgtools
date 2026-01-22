@@ -26,6 +26,8 @@ mod private
     /// Sets whether `movement_decay` is applied or not
     pub movement_smoothing_enabled : bool,
     /// Specifies how many radians the camera rotates per pixel.
+    /// The speed field must be non-zero. Setting speed to 0.0 will result in
+    /// undefined camera behavior (NaN/Inf propagation).
     pub speed : f32,
     /// Determines how fast rotation is going to decrease after dragging is stopped.
     /// In range from 0.0 to 1.0
@@ -105,6 +107,8 @@ mod private
     /// Enables or disables zoom
     pub enabled : bool,
     /// A scaling factor to adjust the sensitivity of camera zooming.
+    /// The speed field must be non-zero. Setting speed to 0.0 will result in
+    /// undefined camera behavior (NaN/Inf propagation).
     pub speed : f32,
     /// The minimum distance from the camera view center
     min_distance : Option< f32 >,
