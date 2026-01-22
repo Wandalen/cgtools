@@ -25,7 +25,9 @@ mod private
     pub enabled : bool,
     /// Sets whether `movement_decay` is applied or not
     pub movement_smoothing_enabled : bool,
-    /// Specifies how many radians the camera rotates per pixel.
+    /// Scaling factor for rotation sensitivity in pixels per radian. Higher values make rotation slower.
+    /// Default: 500.0 means 500 pixels of drag equals 1 radian of rotation.
+    /// 
     /// The speed field must be non-zero. Setting speed to 0.0 will result in
     /// undefined camera behavior (NaN/Inf propagation).
     pub speed : f32,
