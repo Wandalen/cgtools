@@ -66,7 +66,7 @@ mod private
       self.movement_decay
     }
 
-    /// Sets the base longitude. Clamps the value in range [0, 360] degress 
+    /// Sets the base longitude. Clamps the value in range [0, 360] degrees 
     pub fn base_longitude_set( &mut self, angle : f32 )
     {
       self.base_longitude = angle.clamp( 0.0, 360.0 );
@@ -90,7 +90,7 @@ mod private
       self.longitude_range
     }
 
-    /// Sets the base latitude. Clamps the value in range [-90, 90] degress 
+    /// Sets the base latitude. Clamps the value in range [-90, 90] degrees 
     pub fn base_latitude_set( &mut self, angle : f32 )
     {
       self.base_latitude = angle.clamp( -90.0, 90.0 );
