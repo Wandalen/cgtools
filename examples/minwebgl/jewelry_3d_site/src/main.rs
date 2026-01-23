@@ -97,10 +97,10 @@ fn clamp_canvas_size( canvas : &HtmlCanvasElement )
 {
   let aspect = canvas.client_width() as f32 / canvas.client_height() as f32;
 
-  if canvas.width() > 1920 || canvas.height() > 1080
+  if canvas.width() > 3840 || canvas.height() > 2160
   {
-    canvas.set_width( ( 1080.0 * aspect ) as u32 );
-    canvas.set_height( 1080 );
+    canvas.set_width( ( 2160.0 * aspect ) as u32 );
+    canvas.set_height( 2160 );
   }
 }
 
