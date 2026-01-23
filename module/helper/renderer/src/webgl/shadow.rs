@@ -151,12 +151,12 @@ mod private
   {
     fn drop( &mut self )
     {
-      self.gl.delete_texture( self.depth_texture.as_ref() );
-      _ = self.depth_texture.take();
       self.gl.delete_framebuffer( self.framebuffer.as_ref() );
       _ = self.framebuffer.take();
+      self.gl.delete_texture( self.depth_texture.as_ref() );
+      _ = self.depth_texture.take();
     }
-}
+  }
 
   /// Bakes PCSS shadows into lightmap textures
   #[ derive( Debug ) ]
