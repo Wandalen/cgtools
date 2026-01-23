@@ -136,8 +136,8 @@ mod private
       self.output_texture.clone()
     }
 
-    /// Drops [`SwapFramebuffer`] WebGL resources
-    pub fn drop( &mut self, gl : &gl::GL )
+    /// Free [`SwapFramebuffer`] WebGL resources
+    pub fn free_gl_resources( &mut self, gl : &gl::GL )
     {
       gl.delete_framebuffer( self.framebuffer.as_ref() );
       // This textures can be part of another structs

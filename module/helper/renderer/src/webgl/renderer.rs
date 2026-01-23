@@ -478,8 +478,8 @@ mod private
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
     }
 
-    /// Drops [`FramebufferContext`] WebGL resources
-    pub fn drop( &mut self, gl : &GL )
+    /// Free [`FramebufferContext`] WebGL resources
+    pub fn free_gl_resources( &mut self, gl : &GL )
     {
       gl.delete_framebuffer( self.resolved_framebuffer.as_ref() );
       gl.delete_framebuffer( self.multisample_framebuffer.as_ref() );
@@ -583,9 +583,9 @@ mod private
     /// Resize [`Renderer`]
     pub fn resize( &mut self, gl : &gl::GL, width : u32, height : u32, samples : i32 ) -> Result< (), gl::WebglError >
     {
-      self.framebuffer_ctx.drop( gl );
-      self.bloom_effect.drop( gl );
-      self.swap_buffer.drop( gl );
+      self.framebuffer_ctx.free_gl_resources( gl );
+      self.bloom_effect.free_gl_resources( gl );
+      self.swap_buffer.free_gl_resources( gl );
 
       self.framebuffer_ctx = FramebufferContext::new( gl, width, height, samples );
       self.bloom_effect = UnrealBloomPass::new( gl, width, height, gl::RGBA16F )?;

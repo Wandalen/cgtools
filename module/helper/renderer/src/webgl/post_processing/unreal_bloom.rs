@@ -227,8 +227,8 @@ mod private
       self.bloom_strength
     }
 
-    /// Drops [`UnrealBloomPass`] WebGL resources
-    pub fn drop( &mut self, gl : &gl::GL )
+    /// Free [`UnrealBloomPass`] WebGL resources
+    pub fn free_gl_resources( &mut self, gl : &gl::GL )
     {
 
       for target in &self.horizontal_targets
