@@ -25,7 +25,7 @@ use renderer::webgl::
   material::PbrMaterial,
   shadow
 };
-use web_sys::WebGlFramebuffer;
+use web_sys::{ WebGlFramebuffer, WebGlTexture };
 use crate::
 {
   cube_normal_map_generator,
@@ -908,6 +908,7 @@ fn setup_gem_material
 struct GpuSync
 {
   fbo: Option< WebGlFramebuffer >,
+  tex : Option< WebGlTexture >,
   gl : GL,
 }
 
@@ -915,8 +916,8 @@ impl GpuSync
 {
   fn new( gl : &GL ) -> Self
   {
-    let tmp_tex = gl.create_texture();
-    gl.bind_texture( gl::TEXTURE_2D, tmp_tex.as_ref() );
+    let tex = gl.create_texture();
+    gl.bind_texture( gl::TEXTURE_2D, tex.as_ref() );
     gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA8, 1, 1 );
     gl::texture::d2::filter_nearest( &gl );
 
@@ -927,14 +928,14 @@ impl GpuSync
       gl::FRAMEBUFFER,
       gl::COLOR_ATTACHMENT0,
       gl::TEXTURE_2D,
-      tmp_tex.as_ref(),
+      tex.as_ref(),
       0,
     );
 
     gl.bind_framebuffer( GL::FRAMEBUFFER, None );
     assert_eq!( gl.check_framebuffer_status( gl::FRAMEBUFFER ), gl::FRAMEBUFFER_COMPLETE );
 
-    Self { fbo, gl : gl.clone() }
+    Self { fbo, tex, gl : gl.clone(), }
   }
 
   fn sync( &self )
@@ -952,5 +953,14 @@ impl GpuSync
       gl::UNSIGNED_BYTE,
       Some( &mut pixel ),
     ).unwrap();
+  }
+}
+
+impl Drop for GpuSync
+{
+  fn drop( &mut self )
+  {
+    self.gl.delete_framebuffer( self.fbo.as_ref() );
+    self.gl.delete_texture( self.tex.as_ref() );
   }
 }
