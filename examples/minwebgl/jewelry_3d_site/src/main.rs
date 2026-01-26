@@ -38,6 +38,14 @@
 #![ allow( clippy::field_reassign_with_default ) ]
 #![ allow( clippy::if_not_else ) ]
 
+mod cube_normal_map_generator;
+mod gem;
+mod configurator;
+mod helpers;
+mod ui;
+mod debug;
+mod surface_material;
+
 use std::{ cell::RefCell, rc::Rc };
 use minwebgl as gl;
 use gl::
@@ -51,15 +59,6 @@ use renderer::webgl::
   post_processing::{ self, Pass, SwapFramebuffer }
 };
 use std::ops::Range;
-
-mod cube_normal_map_generator;
-mod gem;
-mod configurator;
-mod helpers;
-mod ui;
-mod debug;
-mod surface_material;
-
 use helpers::*;
 use configurator::*;
 use crate::ui::set_renderer_loaded;
@@ -80,7 +79,9 @@ fn handle_camera_position( configurator : &Configurator )
     camera_controls.borrow_mut().eye /= distance / DISTANCE_RANGE.start;
   }
 
-  let current_scene = &configurator.rings.rings[ configurator.rings.current_ring ];
+  let Some( ring ) = configurator.rings.get_ring() else { return; };
+  let current_scene = ring.scene.clone();
+
   let plane = current_scene.borrow().get_node( "Plane" ).unwrap();
   if camera_controls.borrow().eye.y() <= plane.borrow().get_translation().y() + 0.1 || configurator.ui_state.state == "hero"
   {
@@ -146,19 +147,47 @@ fn handle_ui_change( configurator : &mut Configurator, last_eye : &mut F32x3 )
     {
       configurator.ui_state = ui_state.clone();
       let ring_changed = ui_state.changed.contains( &"ring".to_string() );
+      let gem_changed = ui_state.changed.contains( &"gem".to_string() );
+      let metal_changed = ui_state.changed.contains( &"metal".to_string() );
 
       if ring_changed
       {
         configurator.rings.current_ring = ui_state.ring as usize;
+
+        // When switching rings, load the ring's saved colors (unless user also changed color)
+        if !gem_changed
+        {
+          configurator.load_gem_from_ring();
+          ui::update_selection_highlight( "gem", &configurator.ui_state.gem );
+        }
+        if !metal_changed
+        {
+          configurator.load_metal_from_ring();
+          ui::update_selection_highlight( "metal", &configurator.ui_state.metal );
+        }
       }
 
-      if ui_state.changed.contains( &"gem".to_string() ) || ring_changed
+      if gem_changed
       {
+        // Save the new gem color to the current ring
+        configurator.save_gem_to_ring();
+        configurator.update_gem_color();
+      }
+      else if ring_changed
+      {
+        // Apply the loaded gem color for the new ring
         configurator.update_gem_color();
       }
 
-      if ui_state.changed.contains( &"metal".to_string() ) || ring_changed
+      if metal_changed
       {
+        // Save the new metal color to the current ring
+        configurator.save_metal_to_ring();
+        configurator.update_metal_color();
+      }
+      else if ring_changed
+      {
+        // Apply the loaded metal color for the new ring
         configurator.update_metal_color();
       }
 
@@ -229,7 +258,8 @@ async fn run() -> Result< (), gl::WebglError >
 
       handle_ui_change( &mut configurator, &mut last_eye );
 
-      let scene = &configurator.rings.rings[ configurator.rings.current_ring ];
+      let Some( ring ) = configurator.rings.get_ring() else { return true; };
+      let scene = &ring.scene;
       configurator.renderer.borrow_mut().render( &gl, &mut scene.borrow_mut(), &configurator.camera ).expect( "Failed to render" );
 
       swap_buffer.reset();

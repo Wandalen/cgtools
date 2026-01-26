@@ -24,7 +24,7 @@ mod private
   /// and it will cast the material to the specified type( another more specific material ).
   ///
   /// Will panic if cast is not possible
-  pub fn cast_unchecked_material_to_ref_mut< T : 'static >( material :  RefMut< '_, Box< dyn Material > > ) -> RefMut< '_, T >
+  pub fn cast_unchecked_material_to_ref_mut< T : 'static >( material : RefMut< '_, Box< dyn Material > > ) -> RefMut< '_, T >
   {
     RefMut::map
     (
@@ -48,4 +48,3 @@ crate::mod_interface!
     cast_unchecked_material_to_ref_mut
   };
 }
-

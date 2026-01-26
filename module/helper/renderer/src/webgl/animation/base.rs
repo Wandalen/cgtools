@@ -136,17 +136,6 @@ mod private
     }
   }
 
-  /// 3D transformation data including translation, rotation, and scale components.
-  pub struct Transform
-  {
-    /// Translation
-    pub translation : F64x3,
-    /// Rotation
-    pub rotation : QuatF64,
-    /// Scale
-    pub scale : F64x3,
-  }
-
   /// Contains data for animating [`crate::webgl::Mesh`]
   pub struct Animation
   {
@@ -224,8 +213,7 @@ crate::mod_interface!
   orphan use
   {
     AnimatableComposition,
-    Animation,
-    Transform
+    Animation
   };
 
   own use

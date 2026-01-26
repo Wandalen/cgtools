@@ -13,7 +13,7 @@ mod private
   use crate::Tween;
 
   /// Sequencer for managing multiple animations with sequencing and grouping.
-  #[ derive( Debug ) ]
+  // #[ derive( Debug ) ]
   pub struct Sequencer
   {
     /// Map of animation names to their animation behavior data
@@ -22,6 +22,18 @@ mod private
     time : f64,
     /// Sequencer state
     state : AnimationState,
+  }
+
+  impl std::fmt::Debug for Sequencer
+  {
+    fn fmt( &self, f : &mut std::fmt::Formatter< '_ > ) -> std::fmt::Result
+    {
+      f.debug_struct( "Sequencer" )
+      .field("players", &self.players.len() )
+      .field( "time", &self.time )
+      .field( "state", &self.state )
+      .finish()
+    }
   }
 
   impl Clone for Sequencer
@@ -59,7 +71,7 @@ mod private
     }
 
     /// Gets the current value of a named animation.
-    pub fn get_value< T >( &self, name : &str ) -> Option< &T >
+    pub fn value_get< T >( &self, name : &str ) -> Option< &T >
     where T : AnimatablePlayer + 'static
     {
       let player_box = self.players.get( name )?;
@@ -74,8 +86,8 @@ mod private
       .collect::< Vec< _ > >()
     }
 
-    /// Adds a [`AnimatablePlayer`] to the Sequencer.
-    pub fn add< T >( &mut self, name : &str, player : T )
+    /// Inserts a [`AnimatablePlayer`] to the Sequencer.
+    pub fn insert< T >( &mut self, name : &str, player : T )
     where T : AnimatablePlayer + 'static
     {
       self.players.insert( name.to_string().into(), Box::new( player ) );
@@ -179,6 +191,20 @@ mod private
       }
     }
 
+    /// Renames an player in the Sequencer.
+    pub fn rename_player( &mut self, current_name : &str, new_name : &str ) -> bool
+    {
+      if let Some( ( _, value ) ) = self.players.remove_entry( current_name.into() )
+      {
+        self.players.insert( new_name.into(), value );
+        true
+      }
+      else
+      {
+        false
+      }
+    }
+
     /// Removes an animation from the Sequencer.
     pub fn remove( &mut self, name : &str ) -> bool
     {
@@ -202,6 +228,43 @@ mod private
     {
       self.players.len()
     }
+
+    /// Progress of [`Sequencer`]
+    pub fn progress( &self ) -> f64
+    {
+      if self.state == AnimationState::Pending
+      {
+        0.0
+      }
+      else
+      {
+        ( ( self.time() - self.delay_get() ) / self.duration_get() ).clamp( 0.0, 1.0 )
+      }
+    }
+
+    /// Get max delay of [`Self::players`]
+    pub fn duration_get( &self ) -> f64
+    {
+      let mut max_duration = 0.0;
+      for ( _, p ) in &self.players
+      {
+        max_duration = p.duration_get().max( max_duration );
+      }
+
+      max_duration
+    }
+
+    /// Get smallest delay of [`Self::players`]
+    pub fn delay_get( &self ) -> f64
+    {
+      let mut min_delay = f64::MAX;
+      for ( _, p ) in &self.players
+      {
+        min_delay = p.delay_get().max( min_delay );
+      }
+
+      min_delay
+    }
   }
 
   impl Default for Sequencer
@@ -216,11 +279,11 @@ mod private
   #[ derive( Debug, error::typed::Error ) ]
   pub enum SequenceError
   {
-    /// Input tweens aren't sorted in time
-    #[ error( "Input tweens aren't sorted by delay" ) ]
+    /// Input players aren't sorted in time
+    #[ error( "Input players aren't sorted by delay" ) ]
     Unsorted,
-    /// Input tweens count isn't enough for animation
-    #[ error( "Input tweens count isn't enough for animation" ) ]
+    /// Input players count isn't enough for animation
+    #[ error( "Input players count isn't enough for animation" ) ]
     NotEnough
   }
 
@@ -229,7 +292,7 @@ mod private
   pub struct Sequence< T >
   {
     /// Sequence of [`AnimatablePlayer`]s of one type
-    tweens : Vec< T >,
+    players : Vec< T >,
     /// Current [`AnimatablePlayer`] index
     current : usize,
     /// Animation duration in seconds
@@ -248,31 +311,31 @@ mod private
     /// [`Sequence`] constructor
     #[ allow( clippy::missing_errors_doc ) ]
     #[ allow( clippy::missing_panics_doc ) ]
-    pub fn new( mut tweens : Vec< T > ) -> Result< Self, SequenceError >
+    pub fn new( mut players : Vec< T > ) -> Result< Self, SequenceError >
     {
-      if tweens.len() < 2
+      if players.len() < 2
       {
         return Err( SequenceError::NotEnough );
       }
 
       let last_delay = 0.0;
-      for tween in &mut tweens
+      for player in &mut players
       {
-        if last_delay > tween.delay_get()
+        if last_delay > player.delay_get()
         {
           return Err( SequenceError::Unsorted );
         }
       }
 
-      let delay = tweens.first().unwrap().delay_get();
-      let tween = tweens.last().unwrap();
-      let duration = tween.delay_get() + tween.duration_get() - delay;
+      let delay = players.first().unwrap().delay_get();
+      let player = players.last().unwrap();
+      let duration = player.delay_get() + player.duration_get() - delay;
 
       Ok
       (
         Self
         {
-          tweens,
+          players,
           current : 0,
           duration,
           elapsed : 0.0,
@@ -285,20 +348,25 @@ mod private
     /// Returns active [`AnimatablePlayer`] at current elapsed time
     pub fn current_get( &self ) -> Option< &T >
     {
-      self.tweens.get( self.current )
+      self.players.get( self.current )
     }
 
-    /// Returns active [`AnimatablePlayer`] index in tweens array
+    /// Returns active [`AnimatablePlayer`] index in players array
     pub fn current_id_get( &self ) -> usize
     {
       self.current
     }
 
-    /// Returns all sequence of players
-    pub fn players_get( &self ) -> Vec< T >
-    where T : Clone
+    /// Returns reference to all sequence of players
+    pub fn players( &self ) -> &[ T ]
     {
-      self.tweens.clone()
+      &self.players
+    }
+
+    /// Returns mutable reference to all sequence of players
+    pub fn players_mut( &mut self ) -> &mut Vec< T >
+    {
+      &mut self.players
     }
 
     /// Returns elapsed time
@@ -320,11 +388,11 @@ mod private
 
       self.elapsed += delta_time;
 
-      let index = self.tweens.binary_search_by
+      let index = self.players.binary_search_by
       (
-        | tween |
+        | player |
         {
-          tween.delay_get().partial_cmp( &self.elapsed ).expect( "Animation keyframes can't be NaN" )
+          player.delay_get().partial_cmp( &self.elapsed ).expect( "Animation keyframes can't be NaN" )
         }
       );
 
@@ -335,15 +403,15 @@ mod private
 
       let mut current_id = index;
 
-      if index >= self.tweens.len()
+      if index >= self.players.len()
       {
-        current_id = self.tweens.len().saturating_sub( 1 );
+        current_id = self.players.len().saturating_sub( 1 );
       }
 
       #[ allow( clippy::else_if_without_else ) ]
       if self.current == current_id
       {
-        let Some( current ) = self.tweens.get_mut( self.current )
+        let Some( current ) = self.players.get_mut( self.current )
         else
         {
           return;
@@ -354,7 +422,7 @@ mod private
       else if self.current < current_id
       {
         self.current = current_id;
-        let Some( current ) = self.tweens.get_mut( self.current )
+        let Some( current ) = self.players.get_mut( self.current )
         else
         {
           return;
@@ -362,7 +430,7 @@ mod private
         current.update( self.elapsed );
       }
 
-      let Some( current ) = self.tweens.get_mut( self.current )
+      let Some( current ) = self.players.get_mut( self.current )
       else
       {
         return;
@@ -375,8 +443,8 @@ mod private
           self.state = AnimationState::Running;
         },
         AnimationState::Running
-        if self.current >= self.tweens.len() - 1 &&
-        self.tweens.get( self.current ).map_or( true, AnimatablePlayer::is_completed ) =>
+        if self.current >= self.players.len() - 1 &&
+        self.players.get( self.current ).map_or( true, AnimatablePlayer::is_completed ) =>
         {
           self.state = AnimationState::Completed;
         },
@@ -396,7 +464,7 @@ mod private
         self.state = AnimationState::Paused;
       }
 
-      for tween in &mut self.tweens { tween.pause() }
+      for player in &mut self.players { player.pause() }
     }
 
     fn resume( &mut self )
@@ -406,7 +474,7 @@ mod private
         self.state = AnimationState::Running;
       }
 
-      for tween in &mut self.tweens { tween.resume() }
+      for player in &mut self.players { player.resume() }
     }
 
     fn reset( &mut self )
@@ -415,7 +483,7 @@ mod private
       self.state = AnimationState::Pending;
       self.elapsed = 0.0;
 
-      for tween in &mut self.tweens { tween.reset() }
+      for player in &mut self.players { player.reset() }
     }
 
     fn duration_get( &self ) -> f64
