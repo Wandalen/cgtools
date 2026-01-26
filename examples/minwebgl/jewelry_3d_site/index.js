@@ -59,6 +59,22 @@ export function clearChanged()
   uiState.changed.length = 0;
 }
 
+// Updates UI selection highlight for gem or metal
+// Called from Rust when switching rings to show the ring's saved colors
+export function updateSelectionHighlight( type, value )
+{
+  if ( type === "gem" )
+  {
+    document.querySelector( '.colors--list li.active' )?.classList.remove( 'active' );
+    document.querySelector( `.colors--list li.${value}` )?.classList.add( 'active' );
+  }
+  else if ( type === "metal" )
+  {
+    document.querySelector( '.materials--list li.active' )?.classList.remove( 'active' );
+    document.querySelector( `.materials--list li.${value}` )?.classList.add( 'active' );
+  }
+}
+
 export function enableDebugControls()
 {
   const colorControls = document.querySelector( '.color-controls--container' )
