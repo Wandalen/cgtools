@@ -53,7 +53,10 @@ Example | Description
 
 Example | Description
 --- | ---
+[Animation Amplitude Change](./minwebgl/animation_amplitude_change/readme.md) | Animation with dynamic amplitude changes
 [Animated Objects Surface Rendering](./minwebgl/animation_surface_rendering/readme.md) | Surface rendering with animated objects and easing functions
+[Morph Targets](./minwebgl/morph_targets/readme.md) | Mesh morphing and blending demonstration
+[Skeletal Animation](./minwebgl/skeletal_animation/readme.md) | Skeletal/bone-based character animation
 [Uniform Animation](./minwebgl/uniforms_animation/readme.md) | Animation using shader uniforms
 
 ### Graphics Techniques
@@ -67,7 +70,10 @@ Example | Description
 [Outline](./minwebgl/outline/readme.md) | Object outline rendering
 [Outlines Postprocessing](./minwebgl/renderer_with_outlines/readme.md) | Renderer with outline postprocessing effects
 [Object Picking](./minwebgl/object_picking/readme.md) | Interactive object picking/selection
+[PBR Lighting](./minwebgl/pbr_lighting/readme.md) | Advanced physically-based rendering lighting techniques
+[Postprocessing](./minwebgl/postprocessing/readme.md) | Postprocessing effects pipeline
 [Raycaster](./minwebgl/raycaster/readme.md) | Raycasting implementation with controls
+[Shadowmap](./minwebgl/shadowmap/readme.md) | Shadow mapping implementation
 [Video as Texture](./minwebgl/video_as_texture/readme.md) | Using video as texture source
 
 ### Image Processing
@@ -98,8 +104,10 @@ Example | Description
 
 Example | Description
 --- | ---
+[Character Control](./minwebgl/character_control/readme.md) | Character movement and control system
 [Hexagonal Grid](./minwebgl/hexagonal_grid/readme.md) | Hexagonal grid system implementation
 [Hexagonal Map](./minwebgl/hexagonal_map/readme.md) | Complete hexagonal map with triaxial coordinates
+[Space Partition](./minwebgl/space_partition/readme.md) | Spatial partitioning data structures for efficient collision detection
 [Tilemaps Rendering](./minwebgl/mapgen_tiles_rendering/readme.md) | Tile-based map rendering
 [Wave Function Collapse](./minwebgl/wfc/readme.md) | Procedural generation using wave function collapse algorithm
 
