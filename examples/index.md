@@ -107,7 +107,6 @@ Example | Description
 [Character Control](./minwebgl/character_control/readme.md) | Character movement and control system
 [Hexagonal Grid](./minwebgl/hexagonal_grid/readme.md) | Hexagonal grid system implementation
 [Hexagonal Map](./minwebgl/hexagonal_map/readme.md) | Complete hexagonal map with triaxial coordinates
-[Space Partition](./minwebgl/space_partition/readme.md) | Spatial partitioning data structures for efficient collision detection
 [Tilemaps Rendering](./minwebgl/mapgen_tiles_rendering/readme.md) | Tile-based map rendering
 [Wave Function Collapse](./minwebgl/wfc/readme.md) | Procedural generation using wave function collapse algorithm
 
@@ -121,6 +120,7 @@ Example | Description
 [Uniform UBO](./minwebgl/uniforms_ubo/readme.md) | Uniform Buffer Objects for efficient uniform handling
 [Minimize WASM](./minwebgl/minimize_wasm/readme.md) | WASM size optimization techniques
 [Derive Tools Issue](./minwebgl/derive_tools_issue/readme.md) | Debugging and optimization example
+[Space Partition](./minwebgl/space_partition/readme.md) | Spatial partitioning data structures for efficient collision detection
 
 ## WebGPU Examples
 
