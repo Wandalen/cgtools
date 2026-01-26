@@ -243,6 +243,28 @@ mod private
       bbox
     }
 
+    /// Gets [`Node`]s by `substring`
+    pub fn get_nodes_by_substring( &self, substring : &str ) -> Vec< Rc< RefCell< Node > > >
+    {
+      let mut nodes = vec![];
+      let _ = self.traverse
+      (
+        &mut | node : Rc< RefCell< Node > > |
+        {
+          if let Some( current_name ) = node.borrow().get_name()
+          {
+            if current_name.contains( substring )
+            {
+              nodes.push( node.clone() );
+            }
+          }
+          Ok( () )
+        }
+      );
+
+      nodes
+    }
+
     /// Gets node by `name`
     pub fn get_node( &self, name : &str ) -> Option< Rc< RefCell< Node > > >
     {

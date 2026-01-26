@@ -413,6 +413,8 @@ mod private
     gl : &gl::WebGl2RenderingContext
   ) -> Result< GLTF, gl::WebglError >
   {
+    gl.bind_vertex_array( None );
+
     let path = std::path::Path::new( gltf_path );
     let folder_path = path.parent().map_or( "", | p | p.to_str().expect( "Path is not UTF-8 encoded" ) );
     gl::debug!( "Folder: {}\nFile: {}", folder_path, gltf_path );

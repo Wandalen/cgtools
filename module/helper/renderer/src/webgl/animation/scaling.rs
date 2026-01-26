@@ -158,7 +158,7 @@ mod private
         return;
       };
 
-      let mut tweens = rotation.players_get();
+      let mut tweens = rotation.players().to_vec();
       let current = rotation.current_id_get();
 
       for i in 0..( ( current + 1 ).min( tweens.len() ) )
@@ -181,7 +181,7 @@ mod private
 
       tweens[ 0 ].start_value = tweens.last().unwrap().end_value;
 
-      let mut sequence = Sequence::new( tweens ).unwrap();
+      let mut sequence= Sequence::new( tweens ).unwrap();
       sequence.update( rotation.time() );
 
       if let Some( tween ) = sequence.current_get()
