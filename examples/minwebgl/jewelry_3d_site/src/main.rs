@@ -128,6 +128,7 @@ fn handle_resize
       let aspect = canvas.width() as f32 / canvas.height() as f32;
       let perspective = gl::math::d2::mat3x3h::perspective_rh_gl( 40.0f32.to_radians(), aspect, 0.1, 1000.0 );
       configurator.camera.set_projection_matrix( perspective );
+
       if let Some( ui_state ) = ui::get_ui_state()
       {
         *last_eye = F32x3::from_array( ui_state.eye );
