@@ -88,6 +88,15 @@ export function enableDebugControls()
   }
 }
 
+function isMobile()
+{
+  if ( navigator.userAgentData )
+  {
+    return navigator.userAgentData.mobile;
+  }
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i .test(navigator.userAgent);
+}
+
 function setupColorPickerListeners()
 {
   // Helper function to convert hex color to RGB array
@@ -204,8 +213,38 @@ function introAnimation()
   firstLoad = false
 
   gsap.timeline()
-  .fromTo( uiState.position, { 0 : 0.6373576, 1 : 1.1441559, 2 : -0.9127405 }, { 0 : 0.6858612, 1 : 2.7440538, 2 : -0.026622068, duration : 4, onUpdate: () => { !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) } }, '-=0.8')
-  .fromTo( uiState.target, { 0 : 0.55595696, 1 : 0.55741394, 2 : -1.0331136 }, { 0 : 0.36420232, 1 : 0.8480059, 2 : -0.36873266, duration : 4, onUpdate: () => { !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) } }, '-=4' )
+  .fromTo
+  (
+    uiState.position,
+    isMobile() ?
+    { 0 : 0.6373576, 1 : 1.1441559, 2 : -0.9127405 } :
+    { 0 : 0.6373576, 1 : 1.1441559, 2 : -0.9127405 },
+    {
+      ...(
+        isMobile() ?
+        { 0 : 0.6858612, 1 : 2.7440538, 2 : -0.026622068 } :
+        { 0 : 0.6858612, 1 : 2.7440538, 2 : -0.026622068 }
+      ),
+      duration : 4, onUpdate: () => { !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) }
+    },
+    '-=0.8'
+  )
+  .fromTo
+  (
+    uiState.target,
+    isMobile() ?
+    { 0 : 0.55595696, 1 : 0.55741394, 2 : -1.0331136 } :
+    { 0 : 0.55595696, 1 : 0.55741394, 2 : -1.0331136 },
+    {
+      ...(
+        isMobile() ?
+        { 0 : 0.36420232, 1 : 0.8480059, 2 : -0.36873266 } :
+        { 0 : 0.36420232, 1 : 0.8480059, 2 : -0.36873266 }
+      ),
+      duration : 4, onUpdate: () => { !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) }
+    },
+    '-=4'
+  )
   .fromTo( '.header--container', { opacity : 0, y : '-100%' }, {opacity : 1, y : '0%', ease : "power1.inOut", duration : 0.8 }) // , '-=1'
   .fromTo( '.hero--scroller', { opacity : 0, y : '150%' }, { opacity : 1, y : '0%', ease : "power4.inOut", duration : 1 }, '-=1' )
   .fromTo( '.hero--container', { opacity : 0, x : '100%' }, { opacity : 1, x : '0%', ease : "power4.inOut", duration : 1.8, onComplete : setupScrollAnimation }, '-=1' )
@@ -265,9 +304,15 @@ function setupScrollAnimation()
   .fromTo
   (
     uiState.position,
+    isMobile() ?
+    { 0 : 0.6858612, 1 : 2.7440538, 2 : -0.026622068 } :
     { 0 : 0.6858612, 1 : 2.7440538, 2 : -0.026622068 },
     {
-      0 : -0.40259048, 1 : 2.6242757, 2 : -0.18104002,
+      ...(
+        isMobile() ?
+        { 0 : -0.40259048, 1 : 2.6242757, 2 : -0.18104002 } :
+        { 0 : -0.40259048, 1 : 2.6242757, 2 : -0.18104002 }
+      ),
       scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : "top top", scrub : true, immediateRender : false },
       onUpdate: () => { !skipScrollAnimation && !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) }
     }
@@ -275,9 +320,15 @@ function setupScrollAnimation()
   .fromTo
   (
     uiState.target,
+    isMobile() ?
+    { 0 : 0.36420232, 1 : 0.8480059, 2 : -0.36873266 } :
     { 0 : 0.36420232, 1 : 0.8480059, 2 : -0.36873266 },
     {
-      0 : -0.23794234, 1 : 0.49070162, 2 : -0.32702705,
+      ...(
+        isMobile() ?
+        { 0 : -0.23794234, 1 : 0.49070162, 2 : -0.32702705 } :
+        { 0 : -0.23794234, 1 : 0.49070162, 2 : -0.32702705 }
+      ),
       scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : "top top", scrub : true, immediateRender : false },
       onUpdate: () => { !skipScrollAnimation && !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) }
     }
@@ -316,9 +367,15 @@ function setupScrollAnimation()
   .fromTo
   (
     uiState.position,
+    isMobile() ?
+    { 0 : -0.40259048, 1 : 2.6242757, 2 : -0.18104002 } :
     { 0 : -0.40259048, 1 : 2.6242757, 2 : -0.18104002 },
     {
-      0 : -0.39456308, 1 : 2.431139, 2 : 0.23367776,
+      ...(
+        isMobile() ?
+        { 0 : -0.39456308, 1 : 2.431139, 2 : 0.23367776 } :
+        { 0 : -0.39456308, 1 : 2.431139, 2 : 0.23367776 }
+      ),
       scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : "top top", scrub : true, immediateRender : false },
       onUpdate: () => { !skipScrollAnimation && !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) }
     }
@@ -326,9 +383,15 @@ function setupScrollAnimation()
   .fromTo
   (
     uiState.target,
+    isMobile() ?
+    { 0 : -0.23794234, 1 : 0.49070162, 2 : -0.32702705 } :
     { 0 : -0.23794234, 1 : 0.49070162, 2 : -0.32702705 },
     {
-      0 : 0.2921338, 1 : 0.9732934, 2 : -0.18001612,
+      ...(
+        isMobile() ?
+        { 0 : 0.2921338, 1 : 0.9732934, 2 : -0.18001612 } :
+        { 0 : 0.2921338, 1 : 0.9732934, 2 : -0.18001612 }
+      ),
       scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : "top top", scrub : true, immediateRender : false },
       onUpdate: () => { !skipScrollAnimation && !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) }
     }
@@ -399,9 +462,15 @@ function configAnimation()
   .fromTo
   (
     uiState.position,
+    isMobile() ?
+    { 0 : -0.39456308, 1 : 2.431139, 2 : 0.23367776 } :
     { 0 : -0.39456308, 1 : 2.431139, 2 : 0.23367776 },
     {
-      0 : -1.2621417, 1 : 4.005461, 2 : 1.2621417,
+      ...(
+        isMobile() ?
+        { 0 : -1.2621417, 1 : 4.005461, 2 : 1.2621417 } :
+        { 0 : -1.2621417, 1 : 4.005461, 2 : 1.2621417 }
+      ),
       duration : 2.5,
       onUpdate: () => { !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) }
     }
@@ -409,10 +478,16 @@ function configAnimation()
   .fromTo
   (
     uiState.target,
+    isMobile() ?
+    { 0 : 0.2921338, 1 : 0.9732934, 2 : -0.18001612 } :
     { 0 : 0.2921338, 1 : 0.9732934, 2 : -0.18001612 },
     {
-      0 : 0, 1 : 0.6, 2 : 0, duration : 2.5,
-      onUpdate: () => { !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) }
+      ...(
+        isMobile() ?
+        { 0 : 0, 1 : 0.6, 2 : 0 } :
+        { 0 : 0, 1 : 0.6, 2 : 0 }
+      ),
+      duration : 2.5, onUpdate: () => { !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) }
     },
     '-=2.5'
   )
@@ -433,8 +508,31 @@ function exitConfigAnimation()
   }
 
   gsap.timeline()
-  .to( uiState.position, { 0 : 0.6858612, 1 : 2.7440538, 2 : -0.026622068, duration : 1.2, ease : "power4.out", onUpdate: () => { !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) } } )
-  .to( uiState.target, { 0 : 0.36420232, 1 : 0.8480059, 2 : -0.36873266, duration : 1.2, ease : "power4.out", onUpdate: () => { !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) } }, '-=1.2' )
+  .to
+  (
+    uiState.position,
+    {
+      ...(
+        isMobile() ?
+        { 0 : 0.6858612, 1 : 2.7440538, 2 : -0.026622068 } :
+        { 0 : 0.6858612, 1 : 2.7440538, 2 : -0.026622068 }
+      ),
+      duration : 1.2, ease : "power4.out", onUpdate: () => { !uiState.changed.includes( "position" ) && uiState.changed.push( "position" ) }
+    }
+  )
+  .to
+  (
+    uiState.target,
+    {
+      ...(
+        isMobile() ?
+        { 0 : 0.36420232, 1 : 0.8480059, 2 : -0.36873266 } :
+        { 0 : 0.36420232, 1 : 0.8480059, 2 : -0.36873266 }
+      ),
+      duration : 1.2, ease : "power4.out", onUpdate: () => { !uiState.changed.includes( "target" ) && uiState.changed.push( "target" ) }
+    },
+    '-=1.2'
+  )
   .to( '.footer--menu', { opacity : 0, y : '150%' } ) // , '-=1.2'
   .to( '.choose--content', { opacity : 1, x : '0%', duration : 0.5, ease : "power4.out" }, '-=1.2' )
 
