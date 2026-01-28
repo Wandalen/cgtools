@@ -137,14 +137,12 @@ mod private
     }
 
     /// Free [`SwapFramebuffer`] WebGL resources
+    ///
+    /// Because [`SwapFramebuffer`] can use textures that are shared with other structs,
+    /// only the framebuffer is deleted here to avoid accidental deletion of shared textures.
     pub fn free_gl_resources( &mut self, gl : &gl::GL )
     {
       gl.delete_framebuffer( self.framebuffer.as_ref() );
-      // This textures can be part of another structs
-      // so it's dangerouns to drop these textures here:
-      // gl.delete_texture( self.input_texture.as_ref() );
-      // gl.delete_texture( self.output_texture.as_ref() );
-      // gl.delete_texture( self.original_output.as_ref() );
     }
   }
 
