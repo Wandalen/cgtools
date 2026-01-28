@@ -790,11 +790,6 @@ mod private
           for ( i, primitive_rc ) in mesh.borrow().primitives.iter().enumerate()
           {
             let node_ref = node.borrow();
-            let material_upload_context = MaterialUploadContext
-            {
-              node : &node_ref,
-              primitive_id : Some( i )
-            };
             let primitive = primitive_rc.borrow();
             let defines = primitive.material.borrow().get_defines_str();
             // Generate a unique ID for the program based on the material ID and vertex shader defines.
@@ -810,7 +805,7 @@ mod private
             }
             else
             {
-              let mut material = primitive.material.borrow_mut();
+              let material = primitive.material.borrow_mut();
               let ibl_define = if self.ibl.is_some() && material.get_ibl_base_texture_unit().is_some()
               {
                 "#define USE_IBL\n"
@@ -832,13 +827,18 @@ mod private
                   material.get_fragment_shader()
                 )
               ).compile_and_link( gl )?;
-              material.shader_mut().set_program( gl, &program );
-              let shader_program = material.shader();
+              let shader_program = material.make_shader_program( gl, &program );
 
               // Configure and upload material properties and IBL textures for the new program.
               let locations = shader_program.locations();
               shader_program.bind( gl );
-              material.configure( gl );
+              let material_upload_context = MaterialUploadContext
+              {
+                node : &node_ref,
+                primitive_id : Some( i ),
+                locations : shader_program.locations()
+              };
+              material.configure( gl, &material_upload_context );
               material.upload_on_state_change( gl, &material_upload_context )?;
               camera.upload( gl, locations );
 
@@ -880,7 +880,12 @@ mod private
 
             // Bind the program, upload camera and node matrices, bind the primitive, and draw it.
             shader_program.bind( gl );
-
+            let material_upload_context = MaterialUploadContext
+            {
+              node : &node_ref,
+              primitive_id : Some( i ),
+              locations : shader_program.locations()
+            };
             material.upload( gl, &material_upload_context )?;
             if material.needs_update() && program_cached
             {

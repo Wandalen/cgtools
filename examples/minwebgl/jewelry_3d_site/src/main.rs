@@ -45,40 +45,28 @@ mod helpers;
 mod ui;
 mod debug;
 mod surface_material;
+mod gem_frag;
+mod gem_vert;
 
 use std::{ cell::RefCell, rc::Rc };
 use minwebgl as gl;
 use gl::
 {
   GL,
-  F32x3,
   web_sys::HtmlCanvasElement
 };
 use renderer::webgl::
 {
   post_processing::{ self, Pass, SwapFramebuffer }
 };
-use std::ops::Range;
+
 use helpers::*;
 use configurator::*;
 use crate::ui::set_renderer_loaded;
 
-const DISTANCE_RANGE : Range< f32 > = 2.0..6.0;
-
-/// Changes floor visibility and limits camera position relatively to [`renderer::webgl::Camera`] state
 fn handle_camera_position( configurator : &Configurator )
 {
   let camera_controls = configurator.camera.get_controls();
-  let distance = camera_controls.borrow().eye.distance( &F32x3::default() );
-  if distance > DISTANCE_RANGE.end
-  {
-    camera_controls.borrow_mut().eye /= distance / DISTANCE_RANGE.end;
-  }
-  else if distance < DISTANCE_RANGE.start
-  {
-    camera_controls.borrow_mut().eye /= distance / DISTANCE_RANGE.start;
-  }
-
   let Some( ring ) = configurator.rings.get_ring() else { return; };
   let current_scene = ring.scene.clone();
 
