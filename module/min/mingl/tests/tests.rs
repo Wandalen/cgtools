@@ -23,4 +23,7 @@ mod tests
   /// Tests for bounding sphere calculations
   mod bounding_sphere;
 
+  /// Tests for camera orbit controls
+  #[ cfg( feature = "camera_orbit_controls" ) ]
+  mod camera_orbit_controls;
 }

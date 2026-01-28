@@ -1,10 +1,4 @@
 use std::{ cell::RefCell, rc::Rc };
-use renderer::webgl::
-{
-  shadow::{ ShadowBaker, ShadowMap },
-  Texture
-};
-
 use mingl::web::canvas;
 use minwebgl as gl;
 use gl::
@@ -14,9 +8,9 @@ use gl::
   F32x3,
   WebglError
 };
-use rustc_hash::FxHashMap;
 use renderer::webgl::
 {
+  AlphaMode,
   Camera,
   IBL,
   Material,
@@ -24,24 +18,35 @@ use renderer::webgl::
   Object3D,
   Renderer,
   Scene,
+  Texture,
   TextureInfo,
-  material::PbrMaterial
+  helpers,
+  loaders::gltf,
+  material::PbrMaterial,
+  shadow
 };
-use animation::{ AnimatablePlayer, Sequencer, Tween, easing::{ Linear, EasingBuilder } };
+use web_sys::{ WebGlFramebuffer, WebGlTexture };
 use crate::
 {
-  cube_normal_map_generator::
-  {
-    CubeNormalMapGenerator,
-    CubeNormalData
-  }, gem::GemMaterial, helpers::*, ui::{ UiState, clear_changed, get_ui_state },
+  cube_normal_map_generator,
+  gem::GemMaterial,
+  helpers::*,
+  ui,
   surface_material::SurfaceMaterial,
 };
+use shadow::{ ShadowBaker, ShadowMap };
+use cube_normal_map_generator::{ CubeNormalMapGenerator, CubeNormalData };
+use ui::{ UiState, clear_changed, get_ui_state };
+use animation::{ AnimatablePlayer, Sequencer, Tween, easing::{ Linear, EasingBuilder } };
+use gltf::GLTF;
+use rustc_hash::FxHashMap;
 
 /// Duration of color transition animation in milliseconds (MS)
 const TRANSITION_DURATION_MS : f64 = 1000.0;
 /// Default clear color used for background and floor color.
 const CLEAR_COLOR : F32x3 = F32x3::splat( 2.0 );
+
+const RINGS_NUMBER : usize = 5;
 
 /// High-level scene configurator responsible for:
 /// - Renderer and camera setup
@@ -50,9 +55,6 @@ const CLEAR_COLOR : F32x3 = F32x3::splat( 2.0 );
 /// - Color transition animations
 pub struct Configurator
 {
-  /// Generates cube normal maps for gem refraction/reflection
-  pub _cube_normal_map_generator : CubeNormalMapGenerator,
-
   /// Shared WebGL renderer instance
   pub renderer : Rc< RefCell< Renderer > >,
 
@@ -84,8 +86,8 @@ impl Configurator
   /// - Applies initial UI-driven material states
   pub async fn new( gl : &GL, canvas : &canvas::HtmlCanvasElement ) -> Result< Self, WebglError >
   {
-    let mut _cube_normal_map_generator = CubeNormalMapGenerator::new( gl )?;
-    _cube_normal_map_generator.set_texture_size( gl, 512, 512 );
+    let mut cube_normal_map_generator = CubeNormalMapGenerator::new( gl )?;
+    cube_normal_map_generator.set_texture_size( gl, 512, 512 );
 
     let ibl = renderer::webgl::loaders::ibl::load( gl, "environment_maps/studio", None ).await;
 
@@ -99,7 +101,7 @@ impl Configurator
     )
     .await;
 
-    let rings = setup_rings( gl, &env_map, &_cube_normal_map_generator ).await?;
+    let rings = setup_rings( gl, env_map, cube_normal_map_generator ).await?;
 
     let renderer = Renderer::new( gl, canvas.width(), canvas.height(), 4 )?;
     let renderer = Rc::new( RefCell::new( renderer ) );
@@ -112,7 +114,6 @@ impl Configurator
 
     let mut configurator = Configurator
     {
-      _cube_normal_map_generator,
       renderer,
       camera,
       ibl,
@@ -127,6 +128,42 @@ impl Configurator
     configurator.update_metal_color();
 
     Ok( configurator )
+  }
+
+  /// Saves current UI gem color to the current ring's context.
+  pub fn save_gem_to_ring( &mut self )
+  {
+    if let Some( colors ) = self.rings.ring_colors.get_mut( self.rings.current_ring )
+    {
+      colors.gem = self.ui_state.gem.clone();
+    }
+  }
+
+  /// Saves current UI metal color to the current ring's context.
+  pub fn save_metal_to_ring( &mut self )
+  {
+    if let Some( colors ) = self.rings.ring_colors.get_mut( self.rings.current_ring )
+    {
+      colors.metal = self.ui_state.metal.clone();
+    }
+  }
+
+  /// Loads gem color from the current ring's context into UI state.
+  pub fn load_gem_from_ring( &mut self )
+  {
+    if let Some( colors ) = self.rings.ring_colors.get( self.rings.current_ring )
+    {
+      self.ui_state.gem = colors.gem.clone();
+    }
+  }
+
+  /// Loads metal color from the current ring's context into UI state.
+  pub fn load_metal_from_ring( &mut self )
+  {
+    if let Some( colors ) = self.rings.ring_colors.get( self.rings.current_ring )
+    {
+      self.ui_state.metal = colors.metal.clone();
+    }
   }
 
   /// Updates gem material color based on current UI selection.
@@ -163,28 +200,6 @@ impl Configurator
         }
       },
       _ => ()
-    }
-  }
-
-  /// (Optional) Sets up a direct light source for all ring scenes.
-  /// Currently unused but kept for manual lighting experiments.
-  fn _setup_light( &self )
-  {
-    let light =
-    renderer::webgl::Light::Direct
-    (
-      renderer::webgl::DirectLight
-      {
-        direction : F32x3::from_spherical( 1.0, 30.0, 65.0 ),
-        color : F32x3::splat( 1.0 ),
-        strength : 40000.0
-      }
-    );
-    let light_node = Rc::new( RefCell::new( Node::new() ) );
-    light_node.borrow_mut().object = Object3D::Light( light );
-    for scene in &self.rings.rings
-    {
-      scene.borrow_mut().add( light_node.clone() );
     }
   }
 
@@ -233,16 +248,18 @@ impl Configurator
       tween
     };
 
-    let current_ring = self.rings.current_ring;
-    for ( _, gem ) in &self.rings.gems[ current_ring ]
+    let Some( ring ) = self.rings.get_ring() else
+    {
+      return;
+    };
+
+    for ( _, gem ) in &ring.gems
     {
       let Object3D::Mesh( mesh ) = &gem.borrow().object
       else
       {
         continue;
       };
-
-      mesh.borrow_mut().is_shadow_caster = true;
 
       for primitive in &mesh.borrow().primitives
       {
@@ -264,7 +281,7 @@ impl Configurator
               return;
             };
             let color = player.value_get();
-            let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< GemMaterial >( material.borrow_mut() );
+            let mut material = helpers::cast_unchecked_material_to_ref_mut::< GemMaterial >( material.borrow_mut() );
             material.color = color;
             material.needs_update = true;
           }
@@ -281,8 +298,9 @@ impl Configurator
     color : F32x3
   )
   {
-    let current_ring = self.rings.current_ring;
-    let gems = &self.rings.gems[ current_ring ];
+    let Some( ring ) = self.rings.get_ring() else { return; };
+
+    let gems = &ring.gems;
 
     let delay = self.animation_state.animations.time();
     let get_player = | old_color : F32x3 |
@@ -293,7 +311,7 @@ impl Configurator
       tween
     };
 
-    let _ = self.rings.rings[ current_ring ].borrow().traverse
+    let _ = ring.scene.borrow().traverse
     (
       &mut | node : Rc< RefCell< Node > > |
       {
@@ -310,8 +328,6 @@ impl Configurator
         {
           return Ok( () );
         };
-
-        mesh.borrow_mut().is_shadow_caster = true;
 
         for primitive in &mesh.borrow().primitives
         {
@@ -332,23 +348,14 @@ impl Configurator
               {
                 return;
               };
+
               let color = player.value_get();
-              let mut material = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
-              material.alpha_mode = renderer::webgl::AlphaMode::Opaque;
+              let mut material = helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
 
               for i in 0..3
               {
                 material.base_color_factor.0[ i ] = color.0[ i ];
               }
-              material.specular_factor = Some( 0.0 );
-              material.specular_color_factor = Some( F32x3::splat( 1.0 ) );
-              material.base_color_factor.0[ 3 ] = 1.0;
-              // Roughness 0.1 provides visually pleasing subtle surface variation
-              // (0.04 appeared too mirror-like for realistic jewelry rendering)
-              material.roughness_factor = 0.1;
-              // Metallic 0.9 prevents oversaturation while maintaining metal appearance
-              material.metallic_factor = 0.9;
-              material.needs_update = true;
             }
           );
         }
@@ -473,7 +480,7 @@ impl AnimationState
   {
     let name = material.borrow().get_id().to_string();
 
-    self.animations.add::< P >( &name, player );
+    self.animations.insert::< P >( &name, player );
     if self.animations.is_completed()
     {
       self.animations.resume();
@@ -483,17 +490,110 @@ impl AnimationState
   }
 }
 
+pub type RcScene = Rc< RefCell< Scene > >;
+pub type RcNode = Rc< RefCell< Node > >;
+pub type RcVec< T > = Rc< RefCell< Vec< T > > >;
+
+#[ derive( Clone ) ]
+pub struct Ring
+{
+  pub scene : RcScene,
+  gems : FxHashMap< String, RcNode >,
+}
+
+/// Per-ring color selection (stored separately from Ring for lazy loading support)
+#[ derive( Clone ) ]
+pub struct RingColors
+{
+  pub gem : String,
+  pub metal : String,
+}
+
+impl Default for RingColors
+{
+  fn default() -> Self
+  {
+    Self
+    {
+      gem : "white".to_string(),
+      metal : "silver".to_string(),
+    }
+  }
+}
+
 /// Container for all loaded ring scenes and their gem mappings.
 pub struct RingsInfo
 {
   /// One scene per ring variant
-  pub rings : Vec< Rc< RefCell< Scene > > >,
+  pub rings : RcVec< Option< Ring > >,
 
-  /// Per-ring map of gem node names to nodes
-  pub gems : Vec< FxHashMap< String, Rc< RefCell< Node > > > >,
+  /// Per-ring color selections (available even for unloaded rings)
+  pub ring_colors : Vec< RingColors >,
 
   /// Index of the currently selected ring
-  pub current_ring : usize
+  pub current_ring : usize,
+
+  loaded_rings : RefCell< Vec< usize > >,
+  ring_loader : Rc< dyn Fn( GLTF, usize ) + 'static >,
+  gl : GL
+}
+
+impl RingsInfo
+{
+  fn new< F >
+  (
+    gl : &GL,
+    rings : RcVec< Option< Ring > >,
+    ring_colors : Vec< RingColors >,
+    current_ring : usize,
+    ring_loader : F
+  ) -> Self
+  where
+    F : Fn( GLTF, usize ) + 'static
+  {
+    RingsInfo
+    {
+      rings,
+      ring_colors,
+      current_ring,
+      loaded_rings : RefCell::new( vec![] ),
+      ring_loader : Rc::new( ring_loader ),
+      gl : gl.clone(),
+    }
+  }
+
+  pub fn get_ring( &self ) -> Option< Ring >
+  {
+    match &self.rings.borrow()[ self.current_ring ]
+    {
+      Some( ring ) => Some( ring.clone() ),
+      None =>
+      {
+        if !self.loaded_rings.borrow().contains( &self.current_ring )
+        {
+          let gl = self.gl.clone();
+          let index = self.current_ring;
+          let loader = self.ring_loader.clone();
+
+          let future = async move
+          {
+            let window = gl::web_sys::window().unwrap();
+            let document = window.document().unwrap();
+
+            let gltf = gltf::load( &document, format!( "./gltf/{index}.glb" ).as_str(), &gl ).await.unwrap();
+
+            ( loader )( gltf, index );
+          };
+
+          self.loaded_rings.borrow_mut().push( self.current_ring );
+
+          gl::spawn_local( future );
+        }
+
+        None
+      },
+    }
+  }
 }
 
 /// Extracts the base color from a material, handling both
@@ -510,12 +610,12 @@ fn get_color( material : &Rc< RefCell< Box< dyn Material > > > ) -> F32x3
   {
     "PbrMaterial" =>
     {
-      let material = renderer::webgl::helpers::cast_unchecked_material_to_ref::< PbrMaterial >( material.borrow() );
+      let material = helpers::cast_unchecked_material_to_ref::< PbrMaterial >( material.borrow() );
       material.base_color_factor.truncate()
     },
     "GemMaterial" =>
     {
-      let material = renderer::webgl::helpers::cast_unchecked_material_to_ref::< GemMaterial >( material.borrow() );
+      let material = helpers::cast_unchecked_material_to_ref::< GemMaterial >( material.borrow() );
       material.color
     },
     _ => F32x3::splat( 1.0 )
@@ -534,18 +634,18 @@ fn remove_numbers( s : &str ) -> String
 async fn setup_rings
 (
   gl : &GL,
-  environment_texture : &Option< TextureInfo >,
-  cube_normal_map_generator : &CubeNormalMapGenerator
+  environment_texture : Option< TextureInfo >,
+  cube_normal_map_generator : CubeNormalMapGenerator
 )
 -> Result< RingsInfo, WebglError >
 {
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();
+  let gl = gl.clone();
 
-  let mut rings : Vec< Rc< RefCell< Scene > > > = vec![];
-  let mut gems : Vec< FxHashMap< String, Rc< RefCell< Node > > > > = vec![];
+  let rings : RcVec< Option< Ring > > = Rc::new( RefCell::new( vec![ None; RINGS_NUMBER ] ) );
 
-  let plane_gltf = renderer::webgl::loaders::gltf::load( &document, "gltf/plane.glb", &gl ).await?;
+  let plane_gltf = gltf::load( &document, "gltf/plane.glb", &gl ).await?;
   let plane_template = plane_gltf.scenes[ 0 ].borrow().get_node( "Plane" ).unwrap();
 
   let shadowmap_res = 2048;
@@ -565,70 +665,111 @@ async fn setup_rings
   let shadowmap = ShadowMap::new( &gl, shadowmap_res )?;
   let shadow_baker = ShadowBaker::new( &gl )?;
 
-  for i in 0..5
+  let ring_loader =
   {
-    let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/{i}.glb" ).as_str(), &gl ).await?;
+    let rings = rings.clone();
+    let gl = gl.clone();
+    let gpu_sync = GpuSync::new( &gl );
 
-    for node in &gltf.scenes[ 0 ].borrow().children
+    move | gltf : GLTF, index : usize |
     {
-      let mut node = node.borrow_mut();
-      node.normalize_scale();
-      node.compute_local_bounding_box();
-      let bb = node.local_bounding_box_hierarchical();
-      let t = mat3x3h::translation( [ 0.0, -bb.min.y(), 0.0 ] );
-      node.apply_matrix( t );
-    }
+      gltf.scenes[ 0 ].borrow().traverse
+      (
+        &mut | node |
+        {
+          let node = node.borrow();
+          let Object3D::Mesh( mesh ) = &node.object else { return Ok( () ); };
 
-    let plane_node = plane_template.borrow().clone_tree();
-    plane_node.borrow_mut().set_translation( F32x3::from_array( [ 0.0, 0.0, 0.0 ] ) );
-    plane_node.borrow_mut().set_scale( F32x3::from_array( [ 3.0, 1.0, 3.0 ] ) );
-    gltf.scenes[ 0 ].borrow_mut().add( plane_node.clone() );
+          for primitive in &mesh.borrow().primitives
+          {
+            let material = &primitive.borrow().material;
+            if material.borrow().type_name() != "PbrMaterial"
+            {
+              continue;
+            }
+            let mut material = helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
 
-    gltf.scenes[ 0 ].borrow_mut().update_world_matrix();
+            material.alpha_mode = AlphaMode::Opaque;
 
-    bake_plane_shadow(gl, lightmap_res, light, &shadowmap, &shadow_baker, &gltf, plane_node)?;
+            let color = F32x3::from_array( [ 1.2, 1.2, 1.2 ] ).to_homogenous();
+            material.base_color_factor = color;
+            material.specular_factor = Some( 0.0 );
+            material.specular_color_factor = Some( F32x3::splat( 1.0 ) );
+            // Roughness 0.1 provides visually pleasing subtle surface variation
+            // (0.04 appeared too mirror-like for realistic jewelry rendering)
+            material.roughness_factor = 0.1;
+            // Metallic 0.9 prevents oversaturation while maintaining metal appearance
+            material.metallic_factor = 0.9;
+            material.needs_update = true;
+          }
 
-    rings.push( gltf.scenes[ 0 ].clone() );
+          Ok( () )
+        }
+      ).unwrap();
 
-    let mut ring_gems = FxHashMap::default();
-    for substring in [ "gem", "diamond", "crystal" ]
-    {
-      let nodes = filter_nodes( &gltf.scenes[ 0 ], substring.to_string(), false );
-      ring_gems.extend( nodes );
-    }
-
-    let mut normal_maps = FxHashMap::< String, CubeNormalData >::default();
-    for ( name, gem ) in &ring_gems
-    {
-      let root_name = remove_numbers( name.as_str() );
-      let cube_normal_map_texture = if let Some( normal_map ) = normal_maps.get( &root_name )
+      for node in &gltf.scenes[ 0 ].borrow().children
       {
-        normal_map.clone()
+        let mut node = node.borrow_mut();
+        node.normalize_scale();
+        node.compute_local_bounding_box();
+        let bb = node.local_bounding_box_hierarchical();
+        let t = mat3x3h::translation( [ 0.0, -bb.min.y(), 0.0 ] );
+        node.apply_matrix( t );
       }
-      else
+
+      let plane_node = plane_template.borrow().clone_tree();
+      plane_node.borrow_mut().set_translation( F32x3::from_array( [ 0.0, 0.0, 0.0 ] ) );
+      plane_node.borrow_mut().set_scale( F32x3::from_array( [ 3.0, 1.0, 3.0 ] ) );
+      gltf.scenes[ 0 ].borrow_mut().add( plane_node.clone() );
+      gltf.scenes[ 0 ].borrow_mut().update_world_matrix();
+
+      bake_plane_shadow( &gl, lightmap_res, light, &shadowmap, &shadow_baker, &gltf, plane_node ).unwrap();
+
+      let mut ring_gems = FxHashMap::default();
+      for substring in [ "gem", "diamond", "crystal" ]
       {
-        let normal_map = cube_normal_map_generator.generate( gl, &gem )?;
-        normal_maps.insert( name.clone(), normal_map.clone() );
-        normal_map
+        let nodes = filter_nodes( &gltf.scenes[ 0 ], substring.to_string(), false );
+        ring_gems.extend( nodes );
+      }
+
+      let mut normal_maps = FxHashMap::< String, CubeNormalData >::default();
+      for ( name, gem ) in &ring_gems
+      {
+        let root_name = remove_numbers( name.as_str() );
+        let cube_normal_map_texture = if let Some( normal_map ) = normal_maps.get( &root_name )
+        {
+          normal_map.clone()
+        }
+        else
+        {
+          let normal_map = cube_normal_map_generator.generate( &gl, &gem ).unwrap();
+          normal_maps.insert( name.clone(), normal_map.clone() );
+          normal_map
+        };
+
+        setup_gem_material( &gl, &gem, &environment_texture, &cube_normal_map_texture );
+      }
+
+      let ring = Ring
+      {
+        scene : gltf.scenes[ 0 ].clone(),
+        gems : ring_gems,
       };
-      setup_gem_material( gl, &gem, environment_texture, &cube_normal_map_texture );
+
+      gpu_sync.sync();
+      rings.borrow_mut()[ index ] = Some( ring.clone() );
     }
+  };
 
-    gems.push( ring_gems );
-  }
-
-  let ui_state = get_ui_state().unwrap();
+  let current_ring = get_ui_state().map_or( 0, | inner | inner.ring ) as usize;
   clear_changed();
-  let current_ring = ui_state.ring as usize;
+
+  // Initialize color selections for all rings with defaults
+  let ring_colors : Vec< RingColors > = ( 0..RINGS_NUMBER ).map( | _ | RingColors::default() ).collect();
 
   Ok
   (
-    RingsInfo
-    {
-      rings,
-      gems,
-      current_ring
-    }
+    RingsInfo::new( &gl, rings, ring_colors, current_ring, ring_loader )
   )
 }
 
@@ -641,7 +782,7 @@ fn bake_plane_shadow
   light: renderer::webgl::shadow::Light,
   shadowmap: &ShadowMap,
   shadow_baker: &ShadowBaker,
-  gltf: &renderer::webgl::loaders::gltf::GLTF,
+  gltf: &gltf::GLTF,
   plane_node: Rc< RefCell< Node > >
 ) -> Result< (), WebglError >
 {
@@ -732,9 +873,12 @@ fn setup_camera( canvas : &web_sys::HtmlCanvasElement ) -> Camera
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
   camera.set_window_size( [ width, height ].into() );
-  camera.get_controls().borrow_mut().use_pan = false;
-  camera.get_controls().borrow_mut().use_rotation_easing = true;
-  camera.get_controls().borrow_mut().rotation_speed_scale = 50.0;
+  camera.get_controls().borrow_mut().pan.enabled = false;
+  camera.get_controls().borrow_mut().rotation.movement_smoothing_enabled = true;
+  camera.get_controls().borrow_mut().rotation.speed = 50.0;
+  camera.get_controls().borrow_mut().rotation.latitude_range_set( 90.0 );
+  camera.get_controls().borrow_mut().zoom.min_distance_set( 2.0 );
+  camera.get_controls().borrow_mut().zoom.max_distance_set( 6.0 );
   camera.bind_controls( &canvas );
 
   camera
@@ -761,5 +905,65 @@ fn setup_gem_material
       let material = &primitive.borrow().material;
       *material.borrow_mut() = gem_material.dyn_clone();
     }
+  }
+}
+
+struct GpuSync
+{
+  fbo: Option< WebGlFramebuffer >,
+  tex : Option< WebGlTexture >,
+  gl : GL,
+}
+
+impl GpuSync
+{
+  fn new( gl : &GL ) -> Self
+  {
+    let tex = gl.create_texture();
+    gl.bind_texture( gl::TEXTURE_2D, tex.as_ref() );
+    gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA8, 1, 1 );
+    gl::texture::d2::filter_nearest( &gl );
+
+    let fbo = gl.create_framebuffer();
+    gl.bind_framebuffer( gl::FRAMEBUFFER, fbo.as_ref() );
+    gl.framebuffer_texture_2d
+    (
+      gl::FRAMEBUFFER,
+      gl::COLOR_ATTACHMENT0,
+      gl::TEXTURE_2D,
+      tex.as_ref(),
+      0,
+    );
+
+    gl.bind_framebuffer( GL::FRAMEBUFFER, None );
+    assert_eq!( gl.check_framebuffer_status( gl::FRAMEBUFFER ), gl::FRAMEBUFFER_COMPLETE );
+
+    Self { fbo, tex, gl : gl.clone(), }
+  }
+
+  fn sync( &self )
+  {
+    let mut pixel = [ 1u8; 4 ];
+
+    self.gl.bind_framebuffer( GL::READ_FRAMEBUFFER, self.fbo.as_ref() );
+    self.gl.read_pixels_with_opt_u8_array
+    (
+      0,
+      0,
+      1,
+      1,
+      gl::RGBA,
+      gl::UNSIGNED_BYTE,
+      Some( &mut pixel ),
+    ).unwrap();
+  }
+}
+
+impl Drop for GpuSync
+{
+  fn drop( &mut self )
+  {
+    self.gl.delete_framebuffer( self.fbo.as_ref() );
+    self.gl.delete_texture( self.tex.as_ref() );
   }
 }

@@ -390,7 +390,7 @@ mod private
             {
               continue;
             };
-            sequencer.add( &format!( "{}{}", name, TRANSLATION_PREFIX ), sequence );
+            sequencer.insert( &format!( "{}{}", name, TRANSLATION_PREFIX ), sequence );
           },
           Property::Scale =>
           {
@@ -399,7 +399,7 @@ mod private
             {
               continue;
             };
-            sequencer.add( &format!( "{}{}", name, SCALE_PREFIX ), sequence );
+            sequencer.insert( &format!( "{}{}", name, SCALE_PREFIX ), sequence );
           }
           Property::Rotation =>
           {
@@ -408,7 +408,7 @@ mod private
             {
               continue;
             };
-            sequencer.add( &format!( "{}{}", name, ROTATION_PREFIX ), sequence );
+            sequencer.insert( &format!( "{}{}", name, ROTATION_PREFIX ), sequence );
           },
           Property::MorphTargetWeights =>
           {
@@ -435,7 +435,7 @@ mod private
             {
               continue;
             };
-            sequencer.add( &format!( "{}{}", name, MORPH_TARGET_PREFIX ), sequence );
+            sequencer.insert( &format!( "{}{}", name, MORPH_TARGET_PREFIX ), sequence );
           }
         };
       }
