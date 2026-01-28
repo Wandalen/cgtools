@@ -53,6 +53,7 @@ use minwebgl as gl;
 use gl::
 {
   GL,
+  F32x3,
   web_sys::HtmlCanvasElement
 };
 use renderer::webgl::
