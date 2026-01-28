@@ -873,9 +873,12 @@ fn setup_camera( canvas : &web_sys::HtmlCanvasElement ) -> Camera
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
   camera.set_window_size( [ width, height ].into() );
-  camera.get_controls().borrow_mut().use_pan = false;
-  camera.get_controls().borrow_mut().use_rotation_easing = true;
-  camera.get_controls().borrow_mut().rotation_speed_scale = 50.0;
+  camera.get_controls().borrow_mut().pan.enabled = false;
+  camera.get_controls().borrow_mut().rotation.movement_smoothing_enabled = true;
+  camera.get_controls().borrow_mut().rotation.speed = 50.0;
+  camera.get_controls().borrow_mut().rotation.latitude_range_set( 90.0 );
+  camera.get_controls().borrow_mut().zoom.min_distance_set( 2.0 );
+  camera.get_controls().borrow_mut().zoom.max_distance_set( 6.0 );
   camera.bind_controls( &canvas );
 
   camera
