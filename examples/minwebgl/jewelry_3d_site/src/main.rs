@@ -51,33 +51,19 @@ use minwebgl as gl;
 use gl::
 {
   GL,
-  F32x3,
   web_sys::HtmlCanvasElement
 };
 use renderer::webgl::
 {
   Renderer, post_processing::{ self, Pass, SwapFramebuffer }
 };
-use std::ops::Range;
+
 use helpers::*;
 use configurator::*;
 
-const DISTANCE_RANGE : Range< f32 > = 2.0..6.0;
-
-/// Changes floor visibility and limits camera position relatively to [`renderer::webgl::Camera`] state
 fn handle_camera_position( configurator : &Configurator )
 {
   let camera_controls = configurator.camera.get_controls();
-  let distance = camera_controls.borrow().eye.distance( &F32x3::default() );
-  if distance > DISTANCE_RANGE.end
-  {
-    camera_controls.borrow_mut().eye /= distance / DISTANCE_RANGE.end;
-  }
-  else if distance < DISTANCE_RANGE.start
-  {
-    camera_controls.borrow_mut().eye /= distance / DISTANCE_RANGE.start;
-  }
-
   let Some( ring ) = configurator.rings.get_ring() else { return; };
   let current_scene = ring.scene.clone();
 
@@ -181,9 +167,9 @@ fn handle_ui_change( configurator : &mut Configurator )
       ui_state.changed.contains( &"center".to_string() ) ) && !ui_state.changed.contains( &"state".to_string() )
       {
         let controls = configurator.camera.get_controls();
-        controls.borrow_mut().up = F32x3::from_array( [ 0.0, 1.0, 0.0 ] );
-        controls.borrow_mut().center = F32x3::from_array( ui_state.center );
-        controls.borrow_mut().eye = F32x3::from_array( ui_state.eye );
+        controls.borrow_mut().up = gl::F32x3::from_array( [ 0.0, 1.0, 0.0 ] );
+        controls.borrow_mut().center = gl::F32x3::from_array( ui_state.center );
+        controls.borrow_mut().eye = gl::F32x3::from_array( ui_state.eye );
       }
 
       ui::clear_changed();
