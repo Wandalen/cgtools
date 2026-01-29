@@ -377,6 +377,19 @@
         .hidden {
             display: none !important;
         }
+
+        /* Visually hidden for accessibility */
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border-width: 0;
+        }
     </style>
 </head>
 
@@ -389,10 +402,11 @@
 
     <div class="controls">
         <div class="search-box">
+            <label for="searchInput" class="visually-hidden">Search demos</label>
             <span class="search-icon">🔍</span>
-            <input type="text" id="searchInput" placeholder="Search demos...">
+            <input type="text" id="searchInput" placeholder="Search demos..." aria-label="Search demos">
         </div>
-        <div class="filter-buttons">
+        <div class="filter-buttons" role="group" aria-label="Filter by category">
             <button class="filter-btn active" data-filter="all">All</button>
             <button class="filter-btn" data-filter="math">Math</button>
             <button class="filter-btn" data-filter="webgl">WebGL</button>
@@ -402,7 +416,7 @@
     </div>
 
     <div class="stats">
-        <div class="stat-card">
+        <div class="stat-card" aria-live="polite" aria-atomic="true">
             <div class="stat-number" id="totalDemos">52</div>
             <div class="stat-label">Total Demos</div>
         </div>
@@ -428,18 +442,18 @@
                 <span class="category-badge">1 demo</span>
             </div>
             <div class="demo-grid">
-                <div class="demo-card" data-name="life">
+                <article class="demo-card" role="article" data-name="life">
                     <div class="demo-image">
-                        <img src="./math/life/showcase.png" alt="Game of life">
+                        <img src="./math/life/showcase.png" alt="Game of life" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Game of Life</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./math/life/readme.md" class="demo-link">View Details</a>
+                            <a href="./math/life/readme.md" class="demo-link" aria-label="View Game of Life demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
             </div>
         </section>
 
@@ -450,7 +464,7 @@
                 <span class="category-badge">47 demos</span>
             </div>
             <div class="demo-grid">
-                <div class="demo-card" data-name="2d line">
+                <article class="demo-card" role="article" data-name="2d line">
                     <div class="demo-image">
                         <span>No showcase yet</span>
                     </div>
@@ -458,157 +472,157 @@
                         <h3 class="demo-title">2D Line</h3>
                         <span class="demo-status incomplete">⚠ Incomplete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/2d_line/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/2d_line/readme.md" class="demo-link" aria-label="View 2D Line demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="3d line">
+                <article class="demo-card" role="article" data-name="3d line">
                     <div class="demo-image">
-                        <img src="./minwebgl/3d_line/showcase.gif" alt="3D line">
+                        <img src="./minwebgl/3d_line/showcase.gif" alt="3D line" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">3D Line</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/3d_line/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/3d_line/readme.md" class="demo-link" aria-label="View 3D Line demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="animation amplitude change">
+                <article class="demo-card" role="article" data-name="animation amplitude change">
                     <div class="demo-image">
-                        <img src="./minwebgl/animation_amplitude_change/showcase.gif" alt="Animation amplitude change">
+                        <img src="./minwebgl/animation_amplitude_change/showcase.gif" alt="Animation amplitude change" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Animation Amplitude Change</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/animation_amplitude_change/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/animation_amplitude_change/readme.md" class="demo-link" aria-label="View Animation Amplitude Change demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="animated objects surface rendering">
+                <article class="demo-card" role="article" data-name="animated objects surface rendering">
                     <div class="demo-image">
                         <img src="./minwebgl/animation_surface_rendering/showcase.png"
-                            alt="Animated objects surface rendering">
+                            alt="Animated objects surface rendering" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Animated Objects Surface Rendering</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/animation_surface_rendering/readme.md" class="demo-link">View
+                            <a href="./minwebgl/animation_surface_rendering/readme.md" class="demo-link" aria-label="View Animated Objects Surface Rendering demo">View
                                 Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="area light">
+                <article class="demo-card" role="article" data-name="area light">
                     <div class="demo-image">
-                        <img src="./minwebgl/area_light/showcase.png" alt="Area light">
+                        <img src="./minwebgl/area_light/showcase.png" alt="Area light" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Area Light</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/area_light/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/area_light/readme.md" class="demo-link" aria-label="View Area Light demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="attributes instanced">
+                <article class="demo-card" role="article" data-name="attributes instanced">
                     <div class="demo-image">
-                        <img src="./minwebgl/attributes_instanced/showcase.png" alt="Attributes instanced">
+                        <img src="./minwebgl/attributes_instanced/showcase.png" alt="Attributes instanced" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Attributes Instanced</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/attributes_instanced/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/attributes_instanced/readme.md" class="demo-link" aria-label="View Attributes Instanced demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="attributes matrix">
+                <article class="demo-card" role="article" data-name="attributes matrix">
                     <div class="demo-image">
-                        <img src="./minwebgl/attributes_matrix/showcase.gif" alt="Attributes matrix">
+                        <img src="./minwebgl/attributes_matrix/showcase.gif" alt="Attributes matrix" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Attributes Matrix</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/attributes_matrix/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/attributes_matrix/readme.md" class="demo-link" aria-label="View Attributes Matrix demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="attributes vao">
+                <article class="demo-card" role="article" data-name="attributes vao">
                     <div class="demo-image">
-                        <img src="./minwebgl/attributes_vao/showcase.png" alt="Attributes VAO">
+                        <img src="./minwebgl/attributes_vao/showcase.png" alt="Attributes VAO" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Attributes VAO</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/attributes_vao/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/attributes_vao/readme.md" class="demo-link" aria-label="View Attributes VAO demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="character control">
+                <article class="demo-card" role="article" data-name="character control">
                     <div class="demo-image">
-                        <img src="./minwebgl/character_control/showcase.gif" alt="Character control">
+                        <img src="./minwebgl/character_control/showcase.gif" alt="Character control" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Character Control</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/character_control/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/character_control/readme.md" class="demo-link" aria-label="View Character Control demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="color space conversions">
+                <article class="demo-card" role="article" data-name="color space conversions">
                     <div class="demo-image">
-                        <img src="./minwebgl/color_space_conversions/showcase.png" alt="Color space conversions">
+                        <img src="./minwebgl/color_space_conversions/showcase.png" alt="Color space conversions" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Color Space Conversions</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/color_space_conversions/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/color_space_conversions/readme.md" class="demo-link" aria-label="View Color Space Conversions demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="curve rendering on surface">
+                <article class="demo-card" role="article" data-name="curve rendering on surface">
                     <div class="demo-image">
-                        <img src="./minwebgl/curve_surface_rendering/showcase.png" alt="Curve rendering on surface">
+                        <img src="./minwebgl/curve_surface_rendering/showcase.png" alt="Curve rendering on surface" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Curve Rendering on Surface</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/curve_surface_rendering/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/curve_surface_rendering/readme.md" class="demo-link" aria-label="View Curve Rendering on Surface demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="deferred shading">
+                <article class="demo-card" role="article" data-name="deferred shading">
                     <div class="demo-image">
-                        <img src="./minwebgl/deferred_shading/showcase.png" alt="Deferred shading">
+                        <img src="./minwebgl/deferred_shading/showcase.png" alt="Deferred shading" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Deferred Shading</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/deferred_shading/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/deferred_shading/readme.md" class="demo-link" aria-label="View Deferred Shading demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="derive tools issue">
+                <article class="demo-card" role="article" data-name="derive tools issue">
                     <div class="demo-image">
                         <span>No showcase yet</span>
                     </div>
@@ -616,259 +630,259 @@
                         <h3 class="demo-title">Derive Tools Issue</h3>
                         <span class="demo-status incomplete">⚠ Incomplete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/derive_tools_issue/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/derive_tools_issue/readme.md" class="demo-link" aria-label="View Derive Tools Issue demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="diamond">
+                <article class="demo-card" role="article" data-name="diamond">
                     <div class="demo-image">
-                        <img src="./minwebgl/diamond/showcase.gif" alt="Diamond">
+                        <img src="./minwebgl/diamond/showcase.gif" alt="Diamond" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Diamond</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/diamond/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/diamond/readme.md" class="demo-link" aria-label="View Diamond demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="image filter">
+                <article class="demo-card" role="article" data-name="image filter">
                     <div class="demo-image">
-                        <img src="./minwebgl/filter/showcase.png" alt="Image filter">
+                        <img src="./minwebgl/filter/showcase.png" alt="Image filter" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Image Filter</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/filter/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/filter/readme.md" class="demo-link" aria-label="View Image Filter demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="image filters">
+                <article class="demo-card" role="article" data-name="image filters">
                     <div class="demo-image">
-                        <img src="./minwebgl/filters/showcase.gif" alt="Image filters">
+                        <span>No showcase yet</span>
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Image Filters</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/filters/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/filters/readme.md" class="demo-link" aria-label="View Image Filters demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="gltf viewer">
+                <article class="demo-card" role="article" data-name="gltf viewer">
                     <div class="demo-image">
-                        <img src="./minwebgl/gltf_viewer/showcase.jpg" alt="GLTF viewer">
+                        <img src="./minwebgl/gltf_viewer/showcase.jpg" alt="GLTF viewer" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">GLTF Viewer</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/gltf_viewer/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/gltf_viewer/readme.md" class="demo-link" aria-label="View GLTF Viewer demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="hexagonal grid">
+                <article class="demo-card" role="article" data-name="hexagonal grid">
                     <div class="demo-image">
-                        <img src="./minwebgl/hexagonal_grid/showcase.png" alt="Hexagonal grid">
+                        <img src="./minwebgl/hexagonal_grid/showcase.png" alt="Hexagonal grid" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Hexagonal Grid</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/hexagonal_grid/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/hexagonal_grid/readme.md" class="demo-link" aria-label="View Hexagonal Grid demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="hexagonal map">
+                <article class="demo-card" role="article" data-name="hexagonal map">
                     <div class="demo-image">
-                        <img src="./minwebgl/hexagonal_map/showcase.png" alt="Hexagonal map">
+                        <img src="./minwebgl/hexagonal_map/showcase.png" alt="Hexagonal map" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Hexagonal Map</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/hexagonal_map/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/hexagonal_map/readme.md" class="demo-link" aria-label="View Hexagonal Map demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="cube map">
+                <article class="demo-card" role="article" data-name="cube map">
                     <div class="demo-image">
-                        <img src="./minwebgl/make_cube_map/showcase.jpg" alt="Cube map">
+                        <img src="./minwebgl/make_cube_map/showcase.jpg" alt="Cube map" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Cube Map</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/make_cube_map/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/make_cube_map/readme.md" class="demo-link" aria-label="View Cube Map demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="tilemaps rendering">
+                <article class="demo-card" role="article" data-name="tilemaps rendering">
                     <div class="demo-image">
-                        <img src="./minwebgl/mapgen_tiles_rendering/showcase.png" alt="Tilemaps rendering">
+                        <img src="./minwebgl/mapgen_tiles_rendering/showcase.png" alt="Tilemaps rendering" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Tilemaps Rendering</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/mapgen_tiles_rendering/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/mapgen_tiles_rendering/readme.md" class="demo-link" aria-label="View Tilemaps Rendering demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="minimize wasm">
+                <article class="demo-card" role="article" data-name="minimize wasm">
                     <div class="demo-image">
-                        <img src="./minwebgl/minimize_wasm/showcase.gif" alt="Minimize wasm">
+                        <img src="./minwebgl/minimize_wasm/showcase.gif" alt="Minimize wasm" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Minimize WASM</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/minimize_wasm/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/minimize_wasm/readme.md" class="demo-link" aria-label="View Minimize WASM demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="morph targets">
+                <article class="demo-card" role="article" data-name="morph targets">
                     <div class="demo-image">
-                        <img src="./minwebgl/morph_targets/showcase.gif" alt="Morph targets">
+                        <img src="./minwebgl/morph_targets/showcase.gif" alt="Morph targets" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Morph Targets</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/morph_targets/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/morph_targets/readme.md" class="demo-link" aria-label="View Morph Targets demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="narrow outline">
+                <article class="demo-card" role="article" data-name="narrow outline">
                     <div class="demo-image">
-                        <img src="./minwebgl/narrow_outline/showcase.png" alt="Narrow outline">
+                        <img src="./minwebgl/narrow_outline/showcase.png" alt="Narrow outline" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Narrow Outline</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/narrow_outline/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/narrow_outline/readme.md" class="demo-link" aria-label="View Narrow Outline demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="obj loading">
+                <article class="demo-card" role="article" data-name="obj loading">
                     <div class="demo-image">
-                        <img src="./minwebgl/obj_load/showcase.gif" alt="OBJ loading">
+                        <img src="./minwebgl/obj_load/showcase.gif" alt="OBJ loading" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">OBJ Loading</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/obj_load/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/obj_load/readme.md" class="demo-link" aria-label="View OBJ Loading demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="obj viewer">
+                <article class="demo-card" role="article" data-name="obj viewer">
                     <div class="demo-image">
-                        <img src="./minwebgl/obj_viewer/showcase.png" alt="OBJ viewer">
+                        <img src="./minwebgl/obj_viewer/showcase.png" alt="OBJ viewer" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">OBJ Viewer</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/obj_viewer/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/obj_viewer/readme.md" class="demo-link" aria-label="View OBJ Viewer demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="object picking">
+                <article class="demo-card" role="article" data-name="object picking">
                     <div class="demo-image">
-                        <img src="./minwebgl/object_picking/showcase.gif" alt="Object picking">
+                        <img src="./minwebgl/object_picking/showcase.gif" alt="Object picking" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Object Picking</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/object_picking/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/object_picking/readme.md" class="demo-link" aria-label="View Object Picking demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="outline">
+                <article class="demo-card" role="article" data-name="outline">
                     <div class="demo-image">
-                        <img src="./minwebgl/outline/showcase.png" alt="Outline">
+                        <img src="./minwebgl/outline/showcase.png" alt="Outline" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Outline</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/outline/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/outline/readme.md" class="demo-link" aria-label="View Outline demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="pbr lighting">
+                <article class="demo-card" role="article" data-name="pbr lighting">
                     <div class="demo-image">
-                        <img src="./minwebgl/pbr_lighting/showcase.png" alt="PBR lighting">
+                        <img src="./minwebgl/pbr_lighting/showcase.png" alt="PBR lighting" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">PBR Lighting</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/pbr_lighting/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/pbr_lighting/readme.md" class="demo-link" aria-label="View PBR Lighting demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="postprocessing">
+                <article class="demo-card" role="article" data-name="postprocessing">
                     <div class="demo-image">
-                        <img src="./minwebgl/postprocessing/showcase.png" alt="Postprocessing">
+                        <img src="./minwebgl/postprocessing/showcase.png" alt="Postprocessing" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Postprocessing</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/postprocessing/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/postprocessing/readme.md" class="demo-link" aria-label="View Postprocessing demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="raycaster">
+                <article class="demo-card" role="article" data-name="raycaster">
                     <div class="demo-image">
-                        <img src="./minwebgl/raycaster/showcase.png" alt="Raycaster">
+                        <img src="./minwebgl/raycaster/showcase.png" alt="Raycaster" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Raycaster</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/raycaster/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/raycaster/readme.md" class="demo-link" aria-label="View Raycaster demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="outlines postprocessing">
+                <article class="demo-card" role="article" data-name="outlines postprocessing">
                     <div class="demo-image">
-                        <img src="./minwebgl/renderer_with_outlines/showcase.png" alt="Outlines postprocessing">
+                        <img src="./minwebgl/renderer_with_outlines/showcase.png" alt="Outlines postprocessing" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Outlines Postprocessing</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/renderer_with_outlines/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/renderer_with_outlines/readme.md" class="demo-link" aria-label="View Outlines Postprocessing demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="shadowmap">
+                <article class="demo-card" role="article" data-name="shadowmap">
                     <div class="demo-image">
                         <span>No showcase yet</span>
                     </div>
@@ -876,166 +890,166 @@
                         <h3 class="demo-title">Shadowmap</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/shadowmap/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/shadowmap/readme.md" class="demo-link" aria-label="View Shadowmap demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="simple pbr">
+                <article class="demo-card" role="article" data-name="simple pbr">
                     <div class="demo-image">
-                        <img src="./minwebgl/simple_pbr/showcase.gif" alt="Simple PBR">
+                        <img src="./minwebgl/simple_pbr/showcase.gif" alt="Simple PBR" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Simple PBR</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/simple_pbr/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/simple_pbr/readme.md" class="demo-link" aria-label="View Simple PBR demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="skeletal animation">
+                <article class="demo-card" role="article" data-name="skeletal animation">
                     <div class="demo-image">
-                        <img src="./minwebgl/skeletal_animation/showcase.gif" alt="Skeletal animation">
+                        <img src="./minwebgl/skeletal_animation/showcase.gif" alt="Skeletal animation" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Skeletal Animation</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/skeletal_animation/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/skeletal_animation/readme.md" class="demo-link" aria-label="View Skeletal Animation demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="space partition">
+                <article class="demo-card" role="article" data-name="space partition">
                     <div class="demo-image">
-                        <img src="./minwebgl/space_partition/showcase.jpg" alt="Space partition">
+                        <img src="./minwebgl/space_partition/showcase.jpg" alt="Space partition" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Space Partition</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/space_partition/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/space_partition/readme.md" class="demo-link" aria-label="View Space Partition demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="spinning cube">
+                <article class="demo-card" role="article" data-name="spinning cube">
                     <div class="demo-image">
-                        <img src="./minwebgl/spinning_cube_size_opt/showcase.gif" alt="Spinning cube">
+                        <img src="./minwebgl/spinning_cube_size_opt/showcase.gif" alt="Spinning cube" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Spinning Cube</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/spinning_cube_size_opt/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/spinning_cube_size_opt/readme.md" class="demo-link" aria-label="View Spinning Cube demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="sprite animation">
+                <article class="demo-card" role="article" data-name="sprite animation">
                     <div class="demo-image">
-                        <img src="./minwebgl/sprite_animation/showcase.gif" alt="Sprite animation">
+                        <img src="./minwebgl/sprite_animation/showcase.gif" alt="Sprite animation" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Sprite Animation</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/sprite_animation/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/sprite_animation/readme.md" class="demo-link" aria-label="View Sprite Animation demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="text msdf">
+                <article class="demo-card" role="article" data-name="text msdf">
                     <div class="demo-image">
-                        <img src="./minwebgl/text_msdf/showcase.jpg" alt="Text MSDF">
+                        <img src="./minwebgl/text_msdf/showcase.jpg" alt="Text MSDF" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Text MSDF</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/text_msdf/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/text_msdf/readme.md" class="demo-link" aria-label="View Text MSDF demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="text rendering">
+                <article class="demo-card" role="article" data-name="text rendering">
                     <div class="demo-image">
-                        <img src="./minwebgl/text_rendering/showcase.png" alt="Text rendering">
+                        <img src="./minwebgl/text_rendering/showcase.png" alt="Text rendering" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Text Rendering</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/text_rendering/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/text_rendering/readme.md" class="demo-link" aria-label="View Text Rendering demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="trivial">
+                <article class="demo-card" role="article" data-name="trivial">
                     <div class="demo-image">
-                        <img src="./minwebgl/trivial/showcase.png" alt="Trivial">
+                        <img src="./minwebgl/trivial/showcase.png" alt="Trivial" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Trivial</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/trivial/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/trivial/readme.md" class="demo-link" aria-label="View Trivial demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="uniform animation">
+                <article class="demo-card" role="article" data-name="uniform animation">
                     <div class="demo-image">
-                        <img src="./minwebgl/uniforms_animation/showcase.gif" alt="Uniform animation">
+                        <img src="./minwebgl/uniforms_animation/showcase.gif" alt="Uniform animation" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Uniform Animation</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/uniforms_animation/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/uniforms_animation/readme.md" class="demo-link" aria-label="View Uniform Animation demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="uniforms ubo">
+                <article class="demo-card" role="article" data-name="uniforms ubo">
                     <div class="demo-image">
-                        <img src="./minwebgl/uniforms_ubo/showcase.gif" alt="Uniforms UBO">
+                        <img src="./minwebgl/uniforms_ubo/showcase.gif" alt="Uniforms UBO" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Uniforms UBO</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/uniforms_ubo/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/uniforms_ubo/readme.md" class="demo-link" aria-label="View Uniforms UBO demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="video as texture">
+                <article class="demo-card" role="article" data-name="video as texture">
                     <div class="demo-image">
-                        <img src="./minwebgl/video_as_texture/showcase.gif" alt="Video as texture">
+                        <img src="./minwebgl/video_as_texture/showcase.gif" alt="Video as texture" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Video as Texture</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/video_as_texture/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/video_as_texture/readme.md" class="demo-link" aria-label="View Video as Texture demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="wave function collapse">
+                <article class="demo-card" role="article" data-name="wave function collapse">
                     <div class="demo-image">
-                        <img src="./minwebgl/wfc/showcase.png" alt="Wave function collapse">
+                        <img src="./minwebgl/wfc/showcase.png" alt="Wave function collapse" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Wave Function Collapse</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgl/wfc/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgl/wfc/readme.md" class="demo-link" aria-label="View Wave Function Collapse demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
             </div>
         </section>
 
@@ -1046,31 +1060,31 @@
                 <span class="category-badge">2 demos</span>
             </div>
             <div class="demo-grid">
-                <div class="demo-card" data-name="deferred rendering">
+                <article class="demo-card" role="article" data-name="deferred rendering">
                     <div class="demo-image">
-                        <img src="./minwebgpu/deffered_rendering/showcase.jpg" alt="Deferred rendering">
+                        <img src="./minwebgpu/deffered_rendering/showcase.jpg" alt="Deferred rendering" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Deferred Rendering</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgpu/deffered_rendering/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgpu/deffered_rendering/readme.md" class="demo-link" aria-label="View Deferred Rendering demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="hello triangle webgpu">
+                <article class="demo-card" role="article" data-name="hello triangle webgpu">
                     <div class="demo-image">
-                        <img src="./minwebgpu/hello_triangle/showcase.jpg" alt="Hello triangle">
+                        <img src="./minwebgpu/hello_triangle/showcase.jpg" alt="Hello triangle" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Hello Triangle</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwebgpu/hello_triangle/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwebgpu/hello_triangle/readme.md" class="demo-link" aria-label="View Hello Triangle demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
             </div>
         </section>
 
@@ -1081,31 +1095,31 @@
                 <span class="category-badge">2 demos</span>
             </div>
             <div class="demo-grid">
-                <div class="demo-card" data-name="grid renderer">
+                <article class="demo-card" role="article" data-name="grid renderer">
                     <div class="demo-image">
-                        <img src="./minwgpu/grid_render/showcase.png" alt="Grid renderer">
+                        <img src="./minwgpu/grid_render/showcase.png" alt="Grid renderer" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Grid Renderer</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwgpu/grid_render/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwgpu/grid_render/readme.md" class="demo-link" aria-label="View Grid Renderer demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="demo-card" data-name="hello triangle wgpu">
+                <article class="demo-card" role="article" data-name="hello triangle wgpu">
                     <div class="demo-image">
-                        <img src="./minwgpu/hello_triangle/showcase.png" alt="Hello triangle">
+                        <img src="./minwgpu/hello_triangle/showcase.png" alt="Hello triangle" loading="lazy" width="350" height="250">
                     </div>
                     <div class="demo-content">
                         <h3 class="demo-title">Hello Triangle</h3>
                         <span class="demo-status">✓ Complete</span>
                         <div class="demo-links">
-                            <a href="./minwgpu/hello_triangle/readme.md" class="demo-link">View Details</a>
+                            <a href="./minwgpu/hello_triangle/readme.md" class="demo-link" aria-label="View Hello Triangle demo">View Details</a>
                         </div>
                     </div>
-                </div>
+                </article>
             </div>
         </section>
 
@@ -1131,10 +1145,14 @@
         let currentFilter = 'all';
         let currentSearch = '';
 
-        // Search functionality
+        // Search functionality with debouncing
+        let searchTimeout;
         searchInput.addEventListener('input', (e) => {
-            currentSearch = e.target.value.toLowerCase();
-            filterDemos();
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                currentSearch = e.target.value.toLowerCase();
+                filterDemos();
+            }, 150);
         });
 
         // Filter buttons
