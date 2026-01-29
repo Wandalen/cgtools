@@ -477,6 +477,24 @@ mod private
       // gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, None, 0 );
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
     }
+
+    /// Free [`FramebufferContext`] WebGL resources
+    pub fn free_gl_resources( &mut self, gl : &GL )
+    {
+      gl.delete_framebuffer( self.resolved_framebuffer.as_ref() );
+      gl.delete_framebuffer( self.multisample_framebuffer.as_ref() );
+      gl.delete_renderbuffer( self.multisample_depth_renderbuffer.as_ref() );
+      gl.delete_renderbuffer( self.multisample_emission_renderbuffer.as_ref() );
+      gl.delete_renderbuffer( self.multisample_main_renderbuffer.as_ref() );
+      gl.delete_renderbuffer( self.multisample_transparent_accumulate_renderbuffer.as_ref() );
+      gl.delete_renderbuffer( self.multisample_transparent_revealage_renderbuffer.as_ref() );
+      gl.delete_renderbuffer( self.depth_renderbuffer.as_ref() );
+      gl.delete_texture( self.main_texture.as_ref() );
+      gl.delete_texture( self.emission_texture.as_ref() );
+      gl.delete_texture( self.transparent_accumulate_texture.as_ref() );
+      gl.delete_texture( self.transparent_revealage_texture.as_ref() );
+      gl.delete_texture( self.skybox_texture.as_ref() );
+    }
   }
 
   /// Manages the rendering process, including program management, IBL setup, and drawing objects in the scene.
@@ -560,6 +578,19 @@ mod private
           skybox_shader
         }
       )
+    }
+
+    /// Resize [`Renderer`]
+    pub fn resize( &mut self, gl : &gl::GL, width : u32, height : u32, samples : i32 ) -> Result< (), gl::WebglError >
+    {
+      self.framebuffer_ctx.free_gl_resources( gl );
+      self.bloom_effect.free_gl_resources( gl );
+      self.swap_buffer.free_gl_resources( gl );
+
+      self.framebuffer_ctx = FramebufferContext::new( gl, width, height, samples );
+      self.bloom_effect = UnrealBloomPass::new( gl, width, height, gl::RGBA16F )?;
+      self.swap_buffer = SwapFramebuffer::new( gl, width, height );
+      Ok( () )
     }
 
     /// Sets the Image-Based Lighting (IBL) textures to be used for rendering.
