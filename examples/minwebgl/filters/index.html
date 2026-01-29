@@ -81,7 +81,18 @@
   <input type="file" id="file-input" accept="image/*" />
   <button id="upload-btn" title="Upload image">📁</button>
   <!-- [TEMP] Remove background test button -->
-  <button id="bg-remove-btn" title="Remove background (test)">BG</button>
+  <button id="bg-remove-btn" title="Remove background (test)">
+    <svg class="bg-remove-icon" viewBox="0 0 24 24">
+      <!-- Background rectangle with diagonal line (crossed out) - drawn first (bottom layer) -->
+      <rect x="3" y="6" width="18" height="12" rx="1" stroke-dasharray="3 2" />
+      <line x1="3" y1="18" x2="21" y2="6" stroke-width="2" />
+      <!-- Person silhouette on top with solid background to cover the line -->
+      <circle cx="12" cy="10" r="2.5" fill="#2d3339" />
+      <path d="M8 18c0-2.5 1.8-4.5 4-4.5s4 2 4 4.5" fill="#2d3339" />
+      <circle cx="12" cy="10" r="2" fill="currentColor" />
+      <path d="M8.5 18c0-2.2 1.6-4 3.5-4s3.5 1.8 3.5 4" fill="currentColor" />
+    </svg>
+  </button>
   <button id="revert-btn" title="Revert to original image">
     <svg class="revert-icon" viewBox="0 0 24 24" style="transform: scaleX(-1);">
       <polyline points="23 4 23 10 17 10"></polyline>
