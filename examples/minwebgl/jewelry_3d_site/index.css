@@ -162,9 +162,6 @@ body {
   overflow-y: scroll;
   font-family: "Cardo", serif;
   scroll-behavior: smooth;
-  --bg-color-inner: "#FFFFFF";
-  --bg-color-outer: "#DDDDDD";
-  background: radial-gradient(circle, var(--bg-color-inner), var(--bg-color-outer));
 }
 
 body::-webkit-scrollbar {
