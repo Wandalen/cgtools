@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 
 <head>
@@ -42,7 +42,7 @@
 
 <body style="overflow-y: hidden; cursor: grab">
   <section class="header">
-    <div class="header--container" style="transform: translate(0px, 0%); opacity: 0.0;">
+    <div class="header--container" style="transform: translate(0px, 0%); opacity: 0">
       <h1 class="header--brand">Out of the Box Systems</h1>
     </div>
   </section>
@@ -66,7 +66,7 @@
             Empower your customers to explore, customize,<br />
             and visualize jewelry in real-time.
           </p>
-          <button tabindex="-1" class="button button-scroll">
+          <button class="button button-scroll">
             Start journey
             <svg width="46" height="46" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M23 42.2a19.2 19.2 0 1 0 0-38.4 19.2 19.2 0 0 0 0 38.4Z" stroke="#000000" stroke-linecap="round"
@@ -100,7 +100,10 @@
         <div class="brilliant--title">
           <h1>Amazing<br />gems</h1>
         </div>
-        <p>Give your clients the chance to enjoy the variety of sparkles in these stunning crystals.</p>
+        <p>
+          Give your clients the chance to enjoy the variety of sparkles in
+          these stunning crystals.
+        </p>
       </div>
     </div>
   </section>
@@ -112,11 +115,11 @@
         <div class="choose--text">
           <h1>Choose</h1>
           <p>
-            The interactive 3D configurator for design control directly in the client's hands, enabling real-time
-            personalization.
+            The interactive 3D configurator for design control directly in the
+            client's hands, enabling real-time personalization.
           </p>
         </div>
-        <button tabindex="-1" class="btn-customize">
+        <button class="btn-customize">
           Customize it
           <svg width="24" height="25" viewBox="0 0 24 25" fill="none" xmlns="http://www.w3.org/2000/svg">
             <g clip-path="url(#clip0_254_236)">
@@ -166,7 +169,7 @@
 
   <div class="exit--container" style="display: flex">
     <h3 class="customize--title">Jewel Shop</h3>
-    <button tabindex="-1" class="button--secondary button--exit">Exit</button>
+    <button class="button--secondary button--exit">Exit</button>
   </div>
 
   <div class="footer--container" style="display: flex">
@@ -201,8 +204,7 @@
           <img alt="Emerald crystal" width="40" loading="lazy" src="./static/images/jewelry_site/icons/green.png" />
         </li>
         <li class="turquoise">
-          <img alt="Turquoise crystal" width="40" loading="lazy"
-            src="./static/images/jewelry_site/icons/turquoise.png" />
+          <img alt="Turquoise crystal" width="40"            src="./static/images/jewelry_site/icons/turquoise.png" />
         </li>
         <li class="blue">
           <img alt="Blue crystal" width="40" loading="lazy" src="./static/images/jewelry_site/icons/blue.png" />
@@ -240,19 +242,19 @@
     <div class="rings--menu">
       <ul class="rings--list">
         <li class="ring0 active">
-          <img alt="0" width="40" loading="lazy" src="./static/images/jewelry_site/icons/0.png" />
+          <img alt="Ring model 0" width="40" loading="lazy" src="./static/images/jewelry_site/icons/0.png" />
         </li>
         <li class="ring1">
-          <img alt="1" width="40" loading="lazy" src="./static/images/jewelry_site/icons/1.png" />
+          <img alt="Ring model 1" width="40" loading="lazy" src="./static/images/jewelry_site/icons/1.png" />
         </li>
         <li class="ring2">
-          <img alt="2" width="40" loading="lazy" src="./static/images/jewelry_site/icons/2.png" />
+          <img alt="Ring model 2" width="40" loading="lazy" src="./static/images/jewelry_site/icons/2.png" />
         </li>
         <li class="ring3">
-          <img alt="3" width="40" loading="lazy" src="./static/images/jewelry_site/icons/3.png" />
+          <img alt="Ring model 3" width="40" loading="lazy" src="./static/images/jewelry_site/icons/3.png" />
         </li>
         <li class="ring4">
-          <img alt="4" width="40" loading="lazy" src="./static/images/jewelry_site/icons/4.png" />
+          <img alt="Ring model 4" width="40" loading="lazy" src="./static/images/jewelry_site/icons/4.png" />
         </li>
         <li class="close-rings">
           <svg width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -263,6 +265,7 @@
       </ul>
     </div>
   </div>
+  <canvas id="canvas" class="canvas"></canvas>
 </body>
 
 </html>
