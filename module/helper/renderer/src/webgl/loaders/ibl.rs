@@ -3,6 +3,7 @@ mod private
   use minwebgl as gl;
   use crate::webgl::IBL;
   use crate::webgl::loaders::hdr_texture;
+  use std::ops::Range;
 
   /// Asynchronously loads Image-Based Lighting (IBL) textures from a specified directory.
   ///
@@ -19,7 +20,7 @@ mod private
   /// # Returns
   ///
   /// An `IBL` struct containing the loaded WebGL textures.
-  pub async fn load( gl : &gl::WebGl2RenderingContext, path : &str ) -> IBL
+  pub async fn load( gl : &gl::WebGl2RenderingContext, path : &str, mip_range : Option< Range<u32> > ) -> IBL
   {
     // Asynchronously loads an HDR image and uploads it to a single mipmap level of a WebGL cube map texture.
     let load_cube = async | name, mip_level, texture : Option< &gl::web_sys::WebGlTexture > |
@@ -34,7 +35,6 @@ mod private
       let file_path = format!( "{}/{}.hdr", path, name );
       hdr_texture::load_to_mip_d2( gl, texture, mip_level, &file_path ).await;
     };
-    
     let diffuse_texture = gl.create_texture();
     let specular_1_texture = gl.create_texture();
     let specular_2_texture = gl.create_texture();
@@ -54,6 +54,20 @@ mod private
 
     gl.bind_texture( gl::TEXTURE_CUBE_MAP, specular_1_texture.as_ref() );
     gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
+    gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+
+    gl.bind_texture( gl::TEXTURE_2D, specular_2_texture.as_ref() );
+    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32 );
+    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+
+    gl.bind_texture( gl::TEXTURE_CUBE_MAP, diffuse_texture.as_ref() );
+    gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32 );
+    gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+    if let Some( mip_range ) = mip_range
+    {
+      gl.tex_parameteri(gl::TEXTURE_CUBE_MAP, gl::TEXTURE_BASE_LEVEL, mip_range.start as i32 );
+      gl.tex_parameteri(gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MAX_LEVEL, mip_range.end as i32 );
+    }
     gl.bind_texture( gl::TEXTURE_CUBE_MAP, None );
 
     IBL

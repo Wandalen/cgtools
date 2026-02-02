@@ -93,7 +93,6 @@ mod private
   }
 
   #[ cfg( target_arch = "wasm32" ) ]
-  #[ allow( wasm_c_abi ) ]
   mod imp
   {
     use super::Config;

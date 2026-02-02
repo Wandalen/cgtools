@@ -19,6 +19,7 @@
 #![ allow( clippy::unnecessary_wraps ) ]
 #![ allow( clippy::no_effect_underscore_binding ) ]
 #![ allow( clippy::struct_excessive_bools ) ]
+#![ allow( clippy::clone_on_copy ) ]
 
 use crate::ports::{ RenderContext, Renderer, RendererCapabilities, RenderError, PrimitiveRenderer };
 use crate::scene::Scene;
@@ -238,7 +239,7 @@ impl WebGPURenderer
     {
       return None;
     }
-    
+
     // GPU-based mouse picking implementation would go here
     // Using compute shaders to perform intersection tests
     return Some( 0 );
@@ -272,7 +273,7 @@ impl WebGPURenderer
 
     // WebGPU compute shader dispatch would go here
     // This would use minwebgpu to dispatch compute shaders
-    
+
     if let Some( ref mut device ) = self.device
     {
       device.stats.compute_passes += 1;
@@ -370,7 +371,7 @@ impl Renderer for WebGPURenderer
 
     self.render_context = Some( context.clone() );
     self.frame_active = true;
-    
+
     // Reset frame statistics
     self.reset_stats();
 
@@ -398,26 +399,28 @@ impl Renderer for WebGPURenderer
     {
       match command
       {
-        RenderCommand::Line( line_cmd ) => 
+        RenderCommand::Line( line_cmd ) =>
         {
           self.render_line( line_cmd )?;
         },
-        RenderCommand::Curve( curve_cmd ) => 
+        RenderCommand::Curve( curve_cmd ) =>
         {
           self.render_curve( curve_cmd )?;
         },
-        RenderCommand::Text( text_cmd ) => 
+        RenderCommand::Text( text_cmd ) =>
         {
           self.render_text( text_cmd )?;
         },
-        RenderCommand::Tilemap( tilemap_cmd ) => 
+        RenderCommand::Tilemap( tilemap_cmd ) =>
         {
           self.render_tilemap( tilemap_cmd )?;
         },
-        RenderCommand::ParticleEmitter( particle_cmd ) => 
+        RenderCommand::ParticleEmitter( particle_cmd ) =>
         {
           self.render_particle_emitter( particle_cmd )?;
         },
+        RenderCommand::Geometry2DCommand( _ ) => return Err( RenderError::UnsupportedCommand( "Geometry2DCommand".into() ) ),
+        RenderCommand::SpriteCommand( _ ) => return Err( RenderError::UnsupportedCommand( "SpriteCommand".into() ) ),
       }
     }
 
@@ -456,7 +459,7 @@ impl Renderer for WebGPURenderer
     // Generate comprehensive WebGPU statistics as JSON
     let default_stats = WebGPUStats::default();
     let stats = self.get_stats().unwrap_or( &default_stats );
-    
+
     let output = format!(
       r#"{{
   "backend": "WebGPU",
@@ -533,7 +536,7 @@ impl PrimitiveRenderer for WebGPURenderer
       line.start.x, line.start.y, 0.0, 1.0,
       line.end.x, line.end.y, 0.0, 1.0,
     ];
-    
+
     let colors = [
       line.style.color[ 0 ], line.style.color[ 1 ], line.style.color[ 2 ], line.style.color[ 3 ],
       line.style.color[ 0 ], line.style.color[ 1 ], line.style.color[ 2 ], line.style.color[ 3 ],
@@ -556,31 +559,31 @@ impl PrimitiveRenderer for WebGPURenderer
     {
       // Use GPU tessellation for high-quality curve rendering
       let tessellation_level = 32; // High tessellation for WebGPU
-      
+
       for i in 0..=tessellation_level
       {
         let t = i as f32 / tessellation_level as f32;
-        
+
         // Cubic Bezier evaluation
         let inv_t = 1.0 - t;
         let t2 = t * t;
         let t3 = t2 * t;
         let inv_t2 = inv_t * inv_t;
         let inv_t3 = inv_t2 * inv_t;
-        
-        let x = inv_t3 * curve.start.x + 3.0 * inv_t2 * t * curve.control1.x 
+
+        let x = inv_t3 * curve.start.x + 3.0 * inv_t2 * t * curve.control1.x
               + 3.0 * inv_t * t2 * curve.control2.x + t3 * curve.end.x;
-        let y = inv_t3 * curve.start.y + 3.0 * inv_t2 * t * curve.control1.y 
+        let y = inv_t3 * curve.start.y + 3.0 * inv_t2 * t * curve.control1.y
               + 3.0 * inv_t * t2 * curve.control2.y + t3 * curve.end.y;
-        
+
         if i > 0
         {
           let vertices = [ x, y, 0.0, 1.0 ];
-          let colors = [ 
-            curve.style.color[ 0 ], curve.style.color[ 1 ], 
-            curve.style.color[ 2 ], curve.style.color[ 3 ] 
+          let colors = [
+            curve.style.color[ 0 ], curve.style.color[ 1 ],
+            curve.style.color[ 2 ], curve.style.color[ 3 ]
           ];
-          
+
           self.add_to_compute_buffer( &vertices, &colors );
         }
       }
@@ -594,7 +597,7 @@ impl PrimitiveRenderer for WebGPURenderer
         end: curve.end,
         style: curve.style,
       };
-      
+
       return self.render_line( &line );
     }
 
@@ -622,21 +625,21 @@ impl PrimitiveRenderer for WebGPURenderer
       // Simplified character quad generation for GPU processing
       let char_width = text.font_style.size * 0.6; // Approximate character width
       let char_height = text.font_style.size;
-      
+
       let vertices = [
         text.position.x + x_offset, text.position.y, 0.0, 1.0,
         text.position.x + x_offset + char_width, text.position.y, 0.0, 1.0,
         text.position.x + x_offset, text.position.y + char_height, 0.0, 1.0,
         text.position.x + x_offset + char_width, text.position.y + char_height, 0.0, 1.0,
       ];
-      
+
       let colors = [
         text.font_style.color[ 0 ], text.font_style.color[ 1 ], text.font_style.color[ 2 ], text.font_style.color[ 3 ],
         text.font_style.color[ 0 ], text.font_style.color[ 1 ], text.font_style.color[ 2 ], text.font_style.color[ 3 ],
         text.font_style.color[ 0 ], text.font_style.color[ 1 ], text.font_style.color[ 2 ], text.font_style.color[ 3 ],
         text.font_style.color[ 0 ], text.font_style.color[ 1 ], text.font_style.color[ 2 ], text.font_style.color[ 3 ],
       ];
-      
+
       self.add_to_compute_buffer( &vertices, &colors );
       x_offset += char_width;
     }
@@ -695,7 +698,7 @@ impl PrimitiveRenderer for WebGPURenderer
         tex_u, tex_v, 1.0, 1.0,
         tex_u, tex_v, 1.0, 1.0,
       ]; // Pack texture coordinates as colors
-      
+
       self.add_to_compute_buffer( &vertices, &colors );
     }
 
@@ -730,7 +733,7 @@ impl PrimitiveRenderer for WebGPURenderer
       // Simulate particle position based on time and physics
       let time_offset = i as f32 / particles.emission_rate;
       let life_progress = time_offset / particles.particle_lifetime;
-      
+
       if life_progress > 1.0
       {
         continue;
@@ -739,10 +742,10 @@ impl PrimitiveRenderer for WebGPURenderer
       // Basic physics simulation (would be done in compute shader)
       let x = particles.position.x + particles.initial_velocity.x * time_offset;
       let y = particles.position.y + particles.initial_velocity.y * time_offset;
-      
+
       // Apply size variance based on particle age
       let size = particles.particle_size * ( 1.0 - life_progress );
-      
+
       // Generate particle quad
       let vertices = [
         x - size * 0.5, y - size * 0.5, 0.0, 1.0,
@@ -750,7 +753,7 @@ impl PrimitiveRenderer for WebGPURenderer
         x - size * 0.5, y + size * 0.5, 0.0, 1.0,
         x + size * 0.5, y + size * 0.5, 0.0, 1.0,
       ];
-      
+
       // Apply color variance and fade
       let alpha = particles.particle_color[ 3 ] * ( 1.0 - life_progress );
       let colors = [
@@ -759,7 +762,7 @@ impl PrimitiveRenderer for WebGPURenderer
         particles.particle_color[ 0 ], particles.particle_color[ 1 ], particles.particle_color[ 2 ], alpha,
         particles.particle_color[ 0 ], particles.particle_color[ 1 ], particles.particle_color[ 2 ], alpha,
       ];
-      
+
       self.add_to_compute_buffer( &vertices, &colors );
     }
 

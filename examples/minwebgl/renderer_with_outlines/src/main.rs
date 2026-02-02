@@ -24,11 +24,14 @@
 #![ allow( clippy::ignored_unit_patterns ) ]
 #![ allow( clippy::cast_sign_loss ) ]
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use mingl::F32x4;
-use minwebgl::
+use minwebgl as gl;
+
+use gl::
 {
-  self as gl,
+  texture::d2::upload_image_from_path,
+  GL,
   JsCast,
   web_sys::
   {
@@ -40,13 +43,18 @@ use minwebgl::
     wasm_bindgen::closure::Closure
   }
 };
-use rand::Rng;
 use renderer::webgl::
 {
   loaders::gltf::GLTF,
   geometry::AttributeInfo,
   Camera,
   Renderer,
+  TextureInfo,
+  Texture,
+  Sampler,
+  WrappingMode,
+  MagFilterMode,
+  MinFilterMode,
   post_processing::
   {
     self,
@@ -62,13 +70,53 @@ use renderer::webgl::
 use std::rc::Rc;
 use std::cell::RefCell;
 
-mod camera_controls;
+/// Creates a new `TextureInfo` struct with a texture loaded from a file.
+///
+/// This function calls `upload_texture` to load an image, sets up a default `Sampler`
+/// with linear filtering and repeat wrapping, and then combines them into a `TextureInfo`
+/// struct.
+///
+/// # Arguments
+///
+/// * `gl` - The WebGl2RenderingContext.
+/// * `image_path` - The path to the image file, relative to the `static/` directory.
+///
+/// # Returns
+///
+/// An `Option<TextureInfo>` containing the texture data, or `None` if creation fails.
+fn create_texture
+(
+  gl : &GL,
+  image_path : &str
+) -> Option< TextureInfo >
+{
+  let image_path = format!( "static/{image_path}" );
+  let texture_id = upload_image_from_path( gl, &image_path, true );
+
+  let sampler = Sampler::former()
+  .min_filter( MinFilterMode::Linear )
+  .mag_filter( MagFilterMode::Linear )
+  .wrap_s( WrappingMode::Repeat )
+  .wrap_t( WrappingMode::Repeat )
+  .end();
+
+  let texture = Texture::former()
+  .target( GL::TEXTURE_2D )
+  .source( texture_id )
+  .sampler( sampler )
+  .end();
+
+  let texture_info = TextureInfo
+  {
+    texture : Rc::new( RefCell::new( texture ) ),
+    uv_position : 0,
+  };
+
+  Some( texture_info )
+}
 
 fn generate_object_colors( object_count : u32 ) -> Vec< F32x4 >
 {
-  let mut rng = rand::rng();
-
-  let range = 0.2..1.0;
   let object_colors = ( 0..object_count )
   .map
   (
@@ -77,9 +125,9 @@ fn generate_object_colors( object_count : u32 ) -> Vec< F32x4 >
       F32x4::from_array
       (
         [
-          rng.random_range( range.clone() ),
-          rng.random_range( range.clone() ),
-          rng.random_range( range.clone() ),
+          1.0,
+          0.0,
+          0.0,
           1.0
         ]
       )
@@ -90,7 +138,7 @@ fn generate_object_colors( object_count : u32 ) -> Vec< F32x4 >
   object_colors
 }
 
-fn get_attributes( gltf : &GLTF ) -> Result< HashMap< Box< str >, AttributeInfo >, gl::WebglError >
+fn get_attributes( gltf : &GLTF ) -> Result< FxHashMap< Box< str >, AttributeInfo >, gl::WebglError >
 {
   for mesh in &gltf.meshes
   {
@@ -131,15 +179,40 @@ fn get_html_input_element_by_id( id : &str ) -> HtmlInputElement
   .unwrap()
 }
 
+/// Sets up the main 3D scene by loading a GLTF file and configuring objects.
+///
+/// # Arguments
+///
+/// * `gl` - The `WebGl2RenderingContext`.
+///
+/// # Returns
+///
+/// A `Result` containing the configured `GLTF` scene, or a `gl::WebglError` if loading fails.
+async fn setup_scene( gl : &GL ) -> Result< GLTF, gl::WebglError >
+{
+  let window = web_sys::window().expect( "Can't get window" );
+  let document =  window.document().expect( "Can't get document" );
+
+  let gltf_path = "2017_porsche_911_turbo_s_exclusive_series_991.2.glb";
+  let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
+
+  let car = gltf.scenes[ 0 ].borrow().children.get( 0 )
+  .expect( "Scene is empty" ).clone();
+  let scale = 10.0;
+
+  car.borrow_mut().set_scale( [ scale; 3 ] );
+  car.borrow_mut().update_local_matrix();
+
+  Ok( gltf )
+}
+
 async fn run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
-  let options = gl::context::ContexOptions::default().antialias( false );
+  let options = gl::context::ContextOptions::default().antialias( false );
 
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas_with( &canvas, options )?;
-  let window = gl::web_sys::window().unwrap();
-  let document = window.document().unwrap();
 
   let _ = gl.get_extension( "EXT_color_buffer_float" )
   .expect( "Failed to enable EXT_color_buffer_float extension" );
@@ -150,37 +223,25 @@ async fn run() -> Result< (), gl::WebglError >
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
 
-  let gltf_path = "old_rusty_car.glb";
-  let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
+  let gltf = setup_scene( &gl ).await.unwrap();
   let scenes = gltf.scenes.clone();
-  scenes[ 0 ].borrow_mut().update_world_matrix();
 
   let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
   gl::info!( "Scene boudnig box: {:?}", scene_bounding_box );
-  let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
-  let dist = scene_bounding_box.max.mag();
-  let exponent =
-  {
-    let bits = diagonal.to_bits();
-    let exponent_field = ( ( bits >> 23 ) & 0xFF ) as i32;
-    exponent_field - 127
-  };
-  gl::info!( "Exponent: {:?}", exponent );
 
   // Camera setup
-  let mut eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
-  eye *= dist;
+  let eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
   let center = scene_bounding_box.center();
 
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
-  let near = 0.1 * 10.0f32.powi( exponent ).min( 1.0 );
-  let far = near * 100.0f32.powi( exponent.abs() );
+  let near = 0.01;
+  let far = 1000000.0;
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
   camera.set_window_size( [ width, height ].into() );
-  camera_controls::setup_controls( &canvas, &camera.get_controls() );
+  camera.bind_controls( &canvas );
 
   let renderer = Rc::new
   (
@@ -189,6 +250,10 @@ async fn run() -> Result< (), gl::WebglError >
       Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?
     )
   );
+
+  renderer.borrow_mut().set_ibl( renderer::webgl::loaders::ibl::load( &gl, "environment_maps/pink_sunrise_4k/", None ).await );
+  let skybox = create_texture( &gl, "environment_maps/equirectangular_maps/pink_sunrise.jpg" ).unwrap();
+  renderer.borrow_mut().set_skybox( skybox.texture.borrow().source.clone() );
   let renderer1 = renderer.clone();
 
   let attributes = get_attributes( &gltf )?;
@@ -197,7 +262,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let get_buffer = | name | attributes.get( name ).unwrap().buffer.clone();
 
-  let attachments = HashMap::from(
+  let attachments = FxHashMap::from_iter(
     [
       ( GBufferAttachment::Position, vec![ get_buffer( "positions" ) ] ),
       ( GBufferAttachment::Albedo, vec![] ),

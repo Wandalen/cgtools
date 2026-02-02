@@ -1,9 +1,13 @@
 mod private
 {
   use minwebgl as gl;
-  use std::{ cell::RefCell, collections::HashMap, rc::Rc };
-  use mingl::CameraOrbitControls;
-
+  use std::{ cell::RefCell, rc::Rc };
+  use rustc_hash::FxHashMap;
+  use mingl::
+  {
+    CameraOrbitControls,
+    controls::camera_orbit_controls::bind_controls_to_input
+  };
 
   /// A struct representing a 3D camera with orbit controls.
   #[ allow( dead_code ) ]
@@ -48,15 +52,12 @@ mod private
         far
       );
 
-      let controls = CameraOrbitControls
-      {
-        eye : eye,
-        up : up,
-        center : look_at,
-        fov,
-        rotation_speed_scale : 200.0,
-        ..Default::default()
-      };
+      let mut controls = CameraOrbitControls::default();
+      controls.eye = eye;
+      controls.up = up;
+      controls.center = look_at;
+      controls.fov = fov;
+      controls.rotation.speed = 200.0;
 
       let controls = Rc::new( RefCell::new( controls ) );
 
@@ -71,16 +72,29 @@ mod private
       }
     }
 
+    /// Binds mouse and pointer events to the camera controls for interaction.
+    ///
+    /// # Arguments
+    /// * `canvas` - A reference to the HTML canvas element where the events will be bound.
+    pub fn bind_controls
+    (
+      &self,
+      canvas : &web_sys::HtmlCanvasElement
+    )
+    {
+      bind_controls_to_input( canvas, &self.controls );
+    }
+
     /// Uploads the camera's matrices and position to a WebGL2 shader program.
-    /// 
+    ///
     /// # Arguments
     /// * `gl` - The WebGL2 rendering context.
-    /// * `locations` - A `HashMap` containing the uniform locations for the shader program.
+    /// * `locations` - A `FxHashMap` containing the uniform locations for the shader program.
     pub fn upload
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      locations : &HashMap< String, Option< gl::WebGlUniformLocation > >
+      locations : &FxHashMap< String, Option< gl::WebGlUniformLocation > >
     )
     {
       let view_matrix = self.get_view_matrix().to_array();
@@ -112,6 +126,12 @@ mod private
         projection_matrix.to_array().as_slice(),
         true
       ).unwrap();
+    }
+
+    /// Updates the state of the camera controls
+    pub fn update( &mut self, delta_time : f64 )
+    {
+      self.controls.borrow_mut().update( delta_time );
     }
 
     /// Sets the window size for the camera controls.

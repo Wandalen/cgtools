@@ -33,20 +33,23 @@
 #![ allow( clippy::missing_panics_doc ) ]
 #![ allow( clippy::module_name_repetitions ) ]
 
-use mingl::{ AsBytes, CameraOrbitControls, VectorDataType };
-use minwebgl::{ self as gl, WebglError, JsCast };
+use mingl::
+{
+  AsBytes,
+  VectorDataType
+};
+use minwebgl as gl;
 use gl::
 {
+  WebglError,
   drawbuffers::drawbuffers,
   GL,
   web_sys::
   {
-    wasm_bindgen::closure::Closure,
     WebGl2RenderingContext,
     WebGlUniformLocation,
     WebGlTexture,
     WebGlFramebuffer,
-    HtmlCanvasElement,
     WebGlProgram,
     WebGlBuffer
   }
@@ -55,22 +58,22 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use renderer::webgl::
 {
+  AttributeInfo,
+  Geometry,
+  IndexInfo,
+  Material,
+  Mesh,
+  Primitive,
   camera::Camera,
-  loaders::gltf::{ load, GLTF },
+  loaders::gltf::{ GLTF, load },
+  material::PbrMaterial,
   node::{ Node, Object3D },
   program::
   {
-    NormalDepthOutlineObjectShader,
-    NormalDepthOutlineShader,
-    ProgramInfo
+    ProgramInfo,
+    ShaderProgram
   },
-  scene::Scene,
-  AttributeInfo,
-  IndexInfo,
-  Geometry,
-  Material,
-  Mesh,
-  Primitive
+  scene::Scene
 };
 use ndarray_cg::
 {
@@ -78,12 +81,62 @@ use ndarray_cg::
   F32x4,
   F32x3
 };
-use std::collections::HashMap;
-use csgrs::CSG;
+use rustc_hash::FxHashMap;
 use rand::Rng;
 use std::any::type_name_of_val;
+use csgrs::traits::CSG;
+use renderer::impl_locations;
+
+type Sketch = csgrs::sketch::Sketch<()>;
+type ProcedureMesh = csgrs::mesh::Mesh< () >;
 
 const MAX_OBJECT_COUNT : usize = 1024;
+
+// A public struct for an outline shader based on normal and depth buffers.
+//
+// This shader is used to render an object's outline by comparing the normal
+// and depth values of adjacent pixels.
+impl_locations!
+(
+  NormalDepthOutlineObjectShader,
+  "u_projection",
+  "u_view",
+  "u_model",
+  "u_normal_matrix",
+  "near",
+  "far"
+);
+
+// A public struct representing the final Normal/Depth outline shader.
+//
+// This shader uses the Normal and Depth buffers to create the final outline.
+impl_locations!
+(
+  NormalDepthOutlineShader,
+  "u_color_texture",
+  "u_depth_texture",
+  "u_norm_texture",
+  "u_projection",
+  "u_resolution",
+  "u_outline_thickness",
+  "u_background_color"
+);
+
+// A public struct for the base Normal/Depth outline shader.
+//
+// This is likely the first pass that generates the necessary data for the final
+// Normal/Depth outline.
+impl_locations!
+(
+  NormalDepthOutlineBaseShader,
+  "sourceTexture",
+  "positionTexture",
+  "normalTexture",
+  "objectColorTexture",
+  "projection",
+  "resolution",
+  "outlineThickness"
+);
 
 /// Binds a texture to a texture unit and uploads its location to a uniform.
 ///
@@ -185,154 +238,6 @@ fn upload_framebuffer(
   gl.viewport( 0, 0, size.0, size.1 );
 }
 
-/// Represents the different states of the camera's controls.
-enum CameraState
-{
-  /// The user is rotating the camera.
-  Rotate,
-  /// The user is panning the camera.
-  Pan,
-  /// The user is not interacting with the camera controls.
-  None
-}
-
-/// Sets up event listeners on the canvas for camera controls.
-///
-/// # Arguments
-///
-/// * `canvas` - The HTML canvas element to attach listeners to.
-/// * `camera` - A shared, mutable reference to the `CameraOrbitControls` to be manipulated.
-fn setup_controls
-(
-  canvas : &HtmlCanvasElement,
-  camera : &Rc< RefCell< CameraOrbitControls > >
-)
-{
-  let state =  Rc::new( RefCell::new( CameraState::None ) );
-  let prev_screen_pos = Rc::new( RefCell::new( [ 0.0, 0.0 ] ) );
-
-  // A closure for the `pointerdown` event, which sets the camera state.
-  let on_pointer_down : Closure< dyn Fn( _ ) > = Closure::new
-  (
-    {
-      let state = state.clone();
-      let prev_screen_pos = prev_screen_pos.clone();
-      move | e : gl::web_sys::PointerEvent |
-      {
-        *prev_screen_pos.borrow_mut() = [ e.screen_x() as f32, e.screen_y() as f32 ];
-        match e.button()
-        {
-          0 => *state.borrow_mut() = CameraState::Rotate,
-          2 => *state.borrow_mut() = CameraState::Pan,
-          _ => {}
-        }
-      }
-    }
-  );
-
-  // A closure for the `mousemove` event, which rotates or pans the camera based on the current state.
-  let on_mouse_move : Closure< dyn Fn( _ ) > = Closure::new
-  (
-    {
-      let state = state.clone();
-      let camera = camera.clone();
-      let prev_screen_pos = prev_screen_pos.clone();
-      move | e : gl::web_sys::MouseEvent |
-      {
-        let prev_pos = *prev_screen_pos.borrow_mut();
-        let new_pos = [ e.screen_x() as f32, e.screen_y() as f32 ];
-        let delta = [ new_pos[ 0 ] - prev_pos[ 0 ], new_pos[ 1 ] - prev_pos[ 1 ] ];
-        *prev_screen_pos.borrow_mut() = new_pos;
-        match *state.borrow_mut()
-        {
-          CameraState::Rotate =>
-          {
-            camera.borrow_mut().rotate( delta );
-          },
-          CameraState::Pan =>
-          {
-            camera.borrow_mut().pan( delta );
-          }
-          _ => {}
-        }
-      }
-    }
-  );
-
-  // A closure for the `wheel` event, which zooms the camera.
-  let on_wheel : Closure< dyn Fn( _ ) > = Closure::new
-  (
-    {
-      let state = state.clone();
-      let camera = camera.clone();
-      move | e : gl::web_sys::WheelEvent |
-      {
-        match *state.borrow_mut()
-        {
-          CameraState::None => {
-            let delta_y = e.delta_y() as f32;
-            camera.borrow_mut().zoom( delta_y );
-          },
-          _ => {}
-        }
-      }
-    }
-  );
-
-  // A closure for the `pointerup` event, which resets the camera state to `None`.
-  let on_pointer_up : Closure< dyn Fn() > = Closure::new
-  (
-    {
-      let state = state.clone();
-      move | |
-      {
-        *state.borrow_mut() = CameraState::None;
-      }
-    }
-  );
-
-  // A closure for the `pointerout` event, which resets the camera state to `None`.
-  let on_pointer_out : Closure< dyn Fn() > = Closure::new
-  (
-    {
-      let state = state.clone();
-      move | |
-      {
-        *state.borrow_mut() = CameraState::None;
-      }
-    }
-  );
-
-  // A closure for the `contextmenu` event, which prevents the default behavior.
-  let on_context_menu : Closure< dyn Fn( _ ) > = Closure::new
-  (
-    {
-      move | e : gl::web_sys::PointerEvent |
-      {
-        e.prevent_default();
-      }
-    }
-  );
-
-  canvas.set_oncontextmenu( Some( on_context_menu.as_ref().unchecked_ref() ) );
-  on_context_menu.forget();
-
-  canvas.set_onpointerdown( Some( on_pointer_down.as_ref().unchecked_ref() ) );
-  on_pointer_down.forget();
-
-  canvas.set_onmousemove( Some( on_mouse_move.as_ref().unchecked_ref() ) );
-  on_mouse_move.forget();
-
-  canvas.set_onwheel( Some( on_wheel.as_ref().unchecked_ref() ) );
-  on_wheel.forget();
-
-  canvas.set_onpointerup( Some( on_pointer_up.as_ref().unchecked_ref() ) );
-  on_pointer_up.forget();
-
-  canvas.set_onpointerout( Some( on_pointer_out.as_ref().unchecked_ref() ) );
-  on_pointer_out.forget();
-}
-
 /// Uploads raw byte data to a WebGL buffer.
 ///
 /// # Arguments
@@ -343,13 +248,13 @@ fn setup_controls
 /// * `offset` - The offset in bytes within the buffer to start uploading data.
 /// * `data` - The `Vec<u8>` containing the data to upload.
 pub fn upload_buffer_data
-( 
-  gl : &gl::WebGl2RenderingContext, 
-  buffer : &WebGlBuffer, 
-  target : u32, 
-  offset : u32, 
-  data : Vec< u8 > 
-) 
+(
+  gl : &gl::WebGl2RenderingContext,
+  buffer : &WebGlBuffer,
+  target : u32,
+  offset : u32,
+  data : Vec< u8 >
+)
 {
   let data = data.into_iter()
   .collect::< Vec< _ > >();
@@ -425,7 +330,7 @@ pub fn add_attributes
     {
       let primitive = primitive.borrow();
       let mut geometry = primitive.geometry.borrow_mut();
-      let _ = geometry.add_attribute( gl, "object_ids", object_id_info.clone(), false );
+      let _ = geometry.add_attribute( gl, "object_ids", object_id_info.clone() );
     }
   }
 
@@ -497,7 +402,7 @@ fn make_buffer_attribute_info
 /// * `vertex_offset` - A mutable reference to the current vertex offset, which is updated.
 pub fn add_primitive
 (
-  primitive : CSG< () >,
+  primitive : ProcedureMesh,
   positions: &mut Vec< [ f32; 3 ] >,
   normals: &mut Vec< [ f32; 3 ] >,
   object_ids: &mut Vec< f32 >,
@@ -566,15 +471,15 @@ pub fn add_primitive
 ///
 /// # Returns
 ///
-/// A `Vec<(CSG<()>, [f32; 9])>` where each tuple contains a primitive and an array of
+/// A `Vec<(ProcedureMesh, [f32; 9])>` where each tuple contains a primitive and an array of
 /// 9 floats representing its translation, rotation, and scale.
-fn get_primitives_and_transform() -> Vec< ( CSG< () >, [ f32; 9 ] ) >
+fn get_primitives_and_transform() -> Vec< ( ProcedureMesh, [ f32; 9 ] ) >
 {
-  let meshes: Vec< CSG< () > > = vec![
+  let meshes: Vec< ProcedureMesh > = vec![
     {
       // Cone is constructed using frustum with one radius near zero.
       // Parameters: radius1, radius2, height, segments
-      CSG::frustum( 1.0, 0.001, 2.0, 32, None )
+      ProcedureMesh::frustum( 1.0, 0.001, 2.0, 32, None )
     },
     {
       // Torus is constructed by revolving a 2D circle.
@@ -584,27 +489,28 @@ fn get_primitives_and_transform() -> Vec< ( CSG< () >, [ f32; 9 ] ) >
       let segments = 32; // Segments for the circle cross-section
       let revolve_segments = 64; // Segments for the revolution
 
-      let circle_2d = CSG::circle( minor_radius, segments, None );
+      let circle_2d = Sketch::circle( minor_radius, segments, None );
       // Translate the circle away from the origin to define the major radius.
       // The `rotate_extrude` revolves around the Y-axis.
       circle_2d
       .translate_vector( [ major_radius, 0.0, 0.0 ].into() )
-      .rotate_extrude( 360.0, revolve_segments )
+      .revolve( 360.0, revolve_segments )
+      .unwrap()
     },
     {
       // Direct cylinder primitive.
       // Parameters: radius, height, segments
-      CSG::cylinder( 1.0, 2.0, 32, None )
+      ProcedureMesh::cylinder( 1.0, 2.0, 32, None )
     },
     {
       // Direct sphere primitive.
       // Parameters: radius, segments, stacks
-      CSG::sphere( 1.0, 32, 16, None )
+      ProcedureMesh::sphere( 1.0, 32, 16, None )
     },
     {
       // Direct cube/cuboid primitive.
       // Parameters: width, length, height
-      CSG::cube( 1.0, None )
+      ProcedureMesh::cube( 1.0, None )
     },
     {
       // Capsule3d is constructed by unioning a cylinder with two hemispheres (spheres).
@@ -613,10 +519,10 @@ fn get_primitives_and_transform() -> Vec< ( CSG< () >, [ f32; 9 ] ) >
       let segments = 32;
       let stacks = 16;
 
-      let cylinder = CSG::cylinder( radius, height, segments, None );
-      let top_sphere = CSG::sphere( radius, segments, stacks, None )
+      let cylinder = ProcedureMesh::cylinder( radius, height, segments, None );
+      let top_sphere = ProcedureMesh::sphere( radius, segments, stacks, None )
       .translate_vector( [ 0.0, 0.0, height ].into() );
-      let bottom_sphere = CSG::sphere( radius, segments, stacks, None );
+      let bottom_sphere = ProcedureMesh::sphere( radius, segments, stacks, None );
 
       cylinder.union( &top_sphere )
       .union( &bottom_sphere )
@@ -659,7 +565,7 @@ fn get_primitives_and_transform() -> Vec< ( CSG< () >, [ f32; 9 ] ) >
       ( meshes[ i ].clone(), t )
     }
   )
-  .collect::< Vec<( CSG< () >, [ f32; 9 ] ) > >();
+  .collect::< Vec<( ProcedureMesh, [ f32; 9 ] ) > >();
 
   primitives
 }
@@ -686,7 +592,9 @@ fn primitives_csgrs_gltf
     images : Rc::new( RefCell::new( vec![] ) ),
     textures : vec![],
     materials : vec![],
-    meshes : vec![]
+    meshes : vec![],
+    animations : vec![],
+    lights : vec![]
   };
 
   gltf.scenes.push( Rc::new( RefCell::new( Scene::new() ) ) );
@@ -713,7 +621,7 @@ fn primitives_csgrs_gltf
 
   let primitives = get_primitives_and_transform();
 
-  let material = Rc::new( RefCell::new( Material::default() ) );
+  let material = Rc::new( RefCell::new( Box::new( PbrMaterial::new( gl ) ) as Box< dyn Material > ) );
   gltf.materials.push( material.clone() );
 
   let attribute_infos =
@@ -792,7 +700,7 @@ fn primitives_csgrs_gltf
 
     for ( name, info ) in &attribute_infos
     {
-      geometry.add_attribute( gl, *name, info.clone(), false ).unwrap();
+      geometry.add_attribute( gl, *name, info.clone() ).unwrap();
     }
 
     geometry.add_index( gl, index_info.clone() ).unwrap();
@@ -834,9 +742,9 @@ fn primitives_csgrs_gltf
 struct Programs
 {
   /// The shader program for the initial object rendering pass.
-  object : ProgramInfo< NormalDepthOutlineObjectShader >,
+  object : NormalDepthOutlineObjectShader,
   /// The shader program for the final outline pass.
-  outline : ProgramInfo< NormalDepthOutlineShader >,
+  outline : NormalDepthOutlineShader,
   /// The raw WebGL program for the outline shader.
   outline_program : WebGlProgram
 }
@@ -865,8 +773,8 @@ impl Programs
     let object_program = gl::ProgramFromSources::new( object_vs_src, object_fs_src ).compile_and_link( gl ).unwrap();
     let outline_program = gl::ProgramFromSources::new( fullscreen_vs_src, outline_fs_src ).compile_and_link( gl ).unwrap();
 
-    let object = ProgramInfo::< NormalDepthOutlineObjectShader >::new( gl, object_program );
-    let outline = ProgramInfo::< NormalDepthOutlineShader >::new( gl, outline_program.clone() );
+    let object = NormalDepthOutlineObjectShader::new( gl, &object_program );
+    let outline = NormalDepthOutlineShader::new( gl, &outline_program );
 
     Self
     {
@@ -885,11 +793,11 @@ struct Renderer
   /// The compiled and linked shader programs.
   programs : Programs,
   /// A hash map to store WebGL buffers by name.
-  buffers : HashMap< String, WebGlBuffer >,
+  buffers : FxHashMap< String, WebGlBuffer >,
   /// A hash map to store WebGL textures by name.
-  textures : HashMap< String, WebGlTexture >,
+  textures : FxHashMap< String, WebGlTexture >,
   /// A hash map to store WebGL framebuffers by name.
-  framebuffers : HashMap< String, WebGlFramebuffer >,
+  framebuffers : FxHashMap< String, WebGlFramebuffer >,
   /// The current viewport size ( width, height ).
   viewport : ( i32, i32 ),
   /// The main camera for the scene.
@@ -930,7 +838,7 @@ impl Renderer
       far
     );
 
-    setup_controls( &canvas, &camera.get_controls() );
+    camera.bind_controls( &canvas );
 
     let programs = Programs::new( &gl );
 
@@ -939,9 +847,9 @@ impl Renderer
     {
       gl,
       programs,
-      buffers : HashMap::new(),
-      textures : HashMap::new(),
-      framebuffers : HashMap::new(),
+      buffers : FxHashMap::default(),
+      textures : FxHashMap::default(),
+      framebuffers : FxHashMap::default(),
       viewport,
       camera,
       object_colors : vec![]
@@ -1024,7 +932,7 @@ impl Renderer
 
     let object_fb = self.framebuffers.get( "object_fb" ).unwrap();
 
-    let locations = self.programs.object.get_locations();
+    let locations = self.programs.object.locations();
 
     let u_projection_loc = locations.get( "u_projection" ).unwrap().clone().unwrap();
     let u_view_loc = locations.get( "u_view" ).unwrap().clone().unwrap();
@@ -1104,12 +1012,11 @@ impl Renderer
     let object_fb_norm = self.textures.get( "object_fb_norm" ).unwrap();
 
     self.programs.outline.bind( gl );
-    let locations = self.programs.outline.get_locations();
+    let locations = self.programs.outline.locations();
 
     let u_color_texture_loc = locations.get( "u_color_texture" ).unwrap().clone().unwrap();
     let u_depth_texture_loc = locations.get( "u_depth_texture" ).unwrap().clone().unwrap();
     let u_norm_texture_loc = locations.get( "u_norm_texture" ).unwrap().clone().unwrap();
-    //let u_projection_loc = locations.get( "u_projection" ).unwrap().clone().unwrap();
     let u_resolution_loc = locations.get( "u_resolution" ).unwrap().clone().unwrap();
     let u_outline_thickness_loc = locations.get( "u_outline_thickness" ).unwrap().clone().unwrap();
     let u_background_color_loc = locations.get( "u_background_color" ).unwrap().clone().unwrap();

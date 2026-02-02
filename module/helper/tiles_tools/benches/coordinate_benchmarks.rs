@@ -36,7 +36,7 @@ use tiles_tools::coordinates::
 {
   hexagonal::{ Coordinate as HexCoord, Axial, Pointy },
   square::{ Coordinate as SquareCoord, FourConnected, EightConnected },
-  // triangular::{ Coordinate as TriCoord, TwelveConnected },
+  triangular::{ Coordinate as TriCoord, FlatSided },
   isometric::{ Coordinate as IsoCoord, Diamond },
   conversion::{ Convert, ApproximateConvert },
   { Distance, Neighbors },
@@ -62,9 +62,9 @@ fn benchmark_distance_calculations( c : &mut Criterion )
   group.bench_function( "square_8_distance", |b| b.iter( || square8_coord1.distance( &square8_coord2 ) ) );
 
   // Triangular distance
-  // let tri_coord1 = TriCoord::< TwelveConnected >::new( 0, 0 );
-  // let tri_coord2 = TriCoord::< TwelveConnected >::new( 10, 15 );
-  // group.bench_function( "triangular_distance", |b| b.iter( || tri_coord1.distance( &tri_coord2 ) ) );
+  let tri_coord1 = TriCoord::< FlatSided >::new( 0, 0, 1 ).unwrap();
+  let tri_coord2 = TriCoord::< FlatSided >::new( 10, 15, -24 ).unwrap();
+  group.bench_function( "triangular_distance", |b| b.iter( || tri_coord1.distance( &tri_coord2 ) ) );
 
   // Isometric distance
   let iso_coord1 = IsoCoord::< Diamond >::new( 0, 0 );
@@ -90,9 +90,9 @@ fn benchmark_neighbor_calculations( c : &mut Criterion )
   let square8_coord = SquareCoord::< EightConnected >::new( 5, 8 );
   group.bench_function( "square_8_neighbors", |b| b.iter( || square8_coord.neighbors() ) );
 
-  // Triangular neighbors (12 neighbors)
-  // let tri_coord = TriCoord::< TwelveConnected >::new( 5, 8 );
-  // group.bench_function( "triangular_neighbors", |b| b.iter( || tri_coord.neighbors() ) );
+  // Triangular neighbors (3 neighbors)
+  let tri_coord = TriCoord::< FlatSided >::new( 5, 8, -12 ).unwrap();
+  group.bench_function( "triangular_neighbors", |b| b.iter( || tri_coord.neighbors() ) );
 
   // Isometric neighbors (4 neighbors)
   let iso_coord = IsoCoord::< Diamond >::new( 5, 8 );

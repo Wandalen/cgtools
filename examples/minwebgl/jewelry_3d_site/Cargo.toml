@@ -1,0 +1,42 @@
+[package]
+name = "jewelry_3d_site"
+version = "0.1.0"
+edition = "2021"
+authors = [
+  "Kostiantyn Mysnyk <wandalen@obox.systems>",
+  "Avramenko Yevhenii <yevhenii.av@obox.systems>",
+  "Bilan Vadym <vadym.b@obox.systems>",
+  "Oleksandr Zaharevskyi <oleksandr.z@obox.systems>",
+]
+
+[lints]
+workspace = true
+
+[dependencies]
+
+minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
+mingl = { workspace = true, features = [ "web", "camera_orbit_controls" ] }
+gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
+renderer = { workspace = true }
+zune-hdr = { workspace = true }
+serde = { workspace = true, features = [ "derive" ] }
+serde-wasm-bindgen = { workspace = true }
+uuid = { version = "1.12.1", features = ["v4", "js"] }
+rustc-hash = { workspace = true }
+former = { workspace = true }
+animation = { workspace = true }
+
+[dependencies.web-sys]
+workspace = true
+features = [
+  'MouseEvent',
+  'PointerEvent',
+  'WheelEvent',
+  'WebGlTexture',
+  'HtmlImageElement',
+  'Blob',
+  'BlobPropertyBag',
+  'Url',
+  'WebGlFramebuffer',
+  'WebGlRenderbuffer'
+]

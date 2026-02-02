@@ -36,6 +36,7 @@ enabled = [
     "dep:ndarray_cg",
     "dep:mod_interface",
     "dep:web-sys",
+    "minwebgl/math"
 ]
 
 # Full feature set with serialization
@@ -43,12 +44,14 @@ full = ["enabled", "serialization"]
 
 # Serialization support for line data
 serialization = ["enabled", "dep:serde"]
+distance = []
 
 [dependencies]
 minwebgl = { workspace = true, optional = true }
 ndarray_cg = { workspace = true, optional = true }
 mod_interface = { workspace = true, optional = true }
 serde = { workspace = true, features = [ "derive" ], optional = true }
+rustc-hash = { workspace = true }
 
 web-sys = { workspace = true, optional = true, features = [
   'WebGlActiveInfo',

@@ -1,55 +1,39 @@
-#[ allow( unused ) ]
+#![ allow( unused ) ]
+#![ allow( clippy::question_mark ) ]
+#![ allow( clippy::manual_map ) ]
+#![ allow( clippy::default_trait_access ) ]
+#![ allow( clippy::used_underscore_binding ) ]
+#![ allow( clippy::cast_lossless ) ]
+#![ allow( clippy::let_and_return ) ]
+#![ allow( clippy::too_many_lines ) ]
+
 mod private
 {
   use interpoli::
-  { 
-    Composition, 
-    Content, 
-    Draw, 
-    Geometry, 
-    Shape, 
-    Stroke, 
+  {
+    Composition,
+    Content,
+    Draw,
+    Geometry,
+    Shape,
+    Stroke,
     Brush,
     animated::Spline
   };
   use kurbo::Affine;
   use renderer::webgl::loaders::gltf::GLTF;
-  use std::collections::HashMap;
+  use rustc_hash::FxHashMap;
   use minwebgl::{ self as gl, F32x4, F32x4x4, GL };
-  use std::cell::RefCell;
+  use core::cell::RefCell;
   use std::rc::Rc;
-  use std::ops::Range;
-  use geometry_generation::{ PrimitiveData, primitives_data_to_gltf, path_to_points };
+  use crate::primitive_data::primitives_data_to_gltf;
 
   use renderer::webgl::
   {
     Scene,
     Node
   };
-
-  /// Defines the dynamic behavior of a primitive, including animation, repetition, and color.
-  #[ derive( Debug, Clone ) ]
-  pub struct Behavior
-  {
-    pub animated_transform : Option< interpoli::Transform >,
-    pub repeater : Option< interpoli::Repeater >,
-    pub brush : interpoli::Brush,
-    pub frames : Range< f64 >,
-  }
-
-  impl Default for Behavior
-  {
-    fn default() -> Self
-    {
-      Self
-      {
-        animated_transform : Default::default(),
-        repeater : Default::default(),
-        brush : interpoli::Brush::Fixed( peniko::Brush::default() ),
-        frames : 0.0..0.0
-      }
-    }
-  }
+  use crate::primitive_data::{ Behavior, PrimitiveData };
 
   /// Converts a Kurbo `Affine` transformation into a WebGL-compatible 4x4 matrix.
   pub fn affine_to_matrix( affine : Affine ) -> F32x4x4
@@ -57,15 +41,15 @@ mod private
     let [ a, b, c, d , e, f ] = affine.as_coeffs();
 
     let mut matrix = gl::math::mat4x4::identity();
-    
+
     {
       let matrix_mut : &mut [ f32 ] = matrix.as_raw_slice_mut();
-      let mut set_elem = 
-      | i : usize, j : usize, v : f32 | 
+      let mut set_elem =
+      | i : usize, j : usize, v : f32 |
       {
         matrix_mut[ i * 4 + j ] = v;
       };
-      
+
       set_elem( 0, 0, a as f32 );
       set_elem( 0, 1, b as f32 );
       set_elem( 1, 0, c as f32 );
@@ -86,36 +70,33 @@ mod private
       _ => None
     };
 
-    if let Some( color ) = color
+    let color = if let Some( color ) = color
     {
       let [ r, g, b, a ] = color.to_rgba8().to_u8_array();
-      F32x4::from_array
-      ( 
-        [ 
-          f32::from( r ), 
-          f32::from( g ), 
-          f32::from( b ), 
-          f32::from( a ) 
-        ] 
-      ) 
-      / 255.0
+      let color = F32x4::from_array
+      (
+        [ r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, a as f32 / 255.0 ]
+      );
+      color
     }
     else
     {
       F32x4::default()
-    }
+    };
+
+    color
   }
 
   /// Represents a complete animation, holding the GLTF scene data and animation behaviors.
   pub struct Animation
   {
     gltf : GLTF,
-    behaviors : HashMap< Box< str >, Behavior >,
+    behaviors : FxHashMap< Box< str >, Behavior >,
     _composition : Composition
   }
 
   impl Animation
-  { 
+  {
     /// Creates a new `Animation` instance from a composition and a WebGL context.
     pub fn new( gl : &GL, composition : impl Into< Composition > ) -> Self
     {
@@ -126,7 +107,7 @@ mod private
 
       let mut layers = composition.layers.clone();
 
-      let mut i = 0; 
+      let mut i = 0;
       while i < layers.len()
       {
         let layer = layers[ i ].clone();
@@ -139,27 +120,23 @@ mod private
         let mut layer_primitives = vec![];
 
         let mut brush = Brush::Fixed( interpoli::fixed::Brush::Solid( color::AlphaColor::from_rgba8( 0, 0, 0, 0 ) ) );
-        
+
         let mut stroke_width = 1.0;
 
-        let layer_base = 
-        (
-          PrimitiveData
+        let layer_base = PrimitiveData
+        {
+          name : Some( format!( "{i}" ).into_boxed_str() ),
+          attributes : None,
+          parent : layer.parent,
+          behavior : Behavior
           {
-            name : Some( format!( "{i}" ).into_boxed_str() ),
-            attributes : None,
-            parent : layer.parent,
-            transform : Default::default(),
-            color : Default::default() 
-          },
-          Behavior 
-          { 
-            animated_transform : Some( layer.transform.clone() ), 
+            animated_transform : Some( layer.transform.clone() ),
             repeater : None,
             brush : brush.clone(),
             frames : layer.frames.clone()
-          }
-        );
+          },
+          transform : Default::default(),
+        };
 
         layer_primitives.push( layer_base );
 
@@ -170,7 +147,7 @@ mod private
         {
           match shape
           {
-            Shape::Group( shapes, group_transform ) => 
+            Shape::Group( shapes, group_transform ) =>
             {
               let mut sublayer = layer.clone();
               sublayer.content = Content::Shape( shapes );
@@ -186,17 +163,23 @@ mod private
                 repeaters.push( ( layers.len() - 1, 0..0, repeater.clone() ) );
               }
             },
-            Shape::Geometry( geometry ) => 
+            Shape::Geometry( geometry ) =>
             {
-              let primitive = if let Geometry::Spline( interpoli::animated::Spline{ values, .. } ) = geometry
+              let primitive = if let Geometry::Spline
+              (
+                Spline
+                {
+                  values,
+                  ..
+                }
+              ) = geometry
               {
                 if let Some( path ) = values.first()
                 {
                   let contour = path.iter()
                   .map( | p | [ p.x as f32, p.y as f32 ] )
                   .collect::< Vec< _ > >();
-                  geometry_generation::primitive::curve_to_geometry( contour.as_slice(), stroke_width )
-                  .map( | p | ( p, Behavior::default() ) )
+                  crate::primitive::curve_to_geometry( contour.as_slice(), stroke_width )
                 }
                 else
                 {
@@ -207,13 +190,12 @@ mod private
               {
                 let mut path = vec![];
                 geometry.evaluate( 0.0, &mut path );
-                let contours = path_to_points( path );
-                geometry_generation::primitive::contours_to_fill_geometry( &[ contours ] )
-                .map( | p | ( p, Behavior::default() ) )
+                let contours = crate::primitive::path_to_points( path );
+                crate::primitive::contours_to_fill_geometry( &[ contours ] )
               };
               if let Some( mut primitive ) = primitive
               {
-                primitive.1 = Behavior
+                primitive.behavior = Behavior
                 {
                   animated_transform : None,
                   repeater : None,
@@ -224,21 +206,21 @@ mod private
               }
             },
             Shape::Draw
-            ( 
+            (
               Draw
               {
                 stroke,
-                brush : b,
+                brush : _brush,
                 ..
-              } 
-            ) => 
+              }
+            ) =>
             {
               if let Some( Stroke::Fixed( stroke ) ) = stroke
               {
                 stroke_width = stroke.width as f32;
               }
 
-              brush = b.clone();
+              brush = _brush.clone();
             },
             Shape::Repeater( repeater ) =>
             {
@@ -258,13 +240,13 @@ mod private
       {
         if primitive_ids.end == 0
         {
-          primitives[ layer ][ 0 ].1.repeater = Some( repeater );
+          primitives[ layer ][ 0 ].behavior.repeater = Some( repeater );
         }
         else
         {
           for primitive_id in primitive_ids
           {
-            primitives[ layer ][ primitive_id ].1.repeater = Some( repeater.clone() );
+            primitives[ layer ][ primitive_id ].behavior.repeater = Some( repeater.clone() );
           }
         }
       }
@@ -272,20 +254,20 @@ mod private
       let layer_iter = composition.layers.iter().enumerate()
       .zip( primitives.iter_mut() );
 
-      let mut last_element_id = 0; 
-      let mut parent_layer_to_primitive_id = HashMap::new();
+      let mut last_element_id = 0;
+      let mut parent_layer_to_primitive_id = FxHashMap::default();
       for ( ( i, layer ), primitives ) in layer_iter
       {
         parent_layer_to_primitive_id.insert( i, last_element_id );
         if layer.parent.is_some()
         {
-          primitives[ 0 ].0.parent = layer.parent;
+          primitives[ 0 ].parent = layer.parent;
         }
-        let layer_name = primitives[ 0 ].0.name.clone();
+        let layer_name = primitives[ 0 ].name.clone();
         for ( j, primitive ) in primitives.iter_mut().skip( 1 ).enumerate()
         {
-          primitive.0.parent = Some( last_element_id );
-          primitive.0.name = Some( format!( "{}_{j}", layer_name.clone().unwrap() ).into_boxed_str() );
+          primitive.parent = Some( last_element_id );
+          primitive.name = Some( format!( "{}_{j}", layer_name.clone().unwrap() ).into_boxed_str() );
         }
         last_element_id += primitives.len();
       }
@@ -296,7 +278,7 @@ mod private
       {
         if let Some( parent_id ) = layer.parent
         {
-          primitives[ 0 ].0.parent = parent_layer_to_primitive_id.get( &parent_id ).copied();
+          primitives[ 0 ].parent = parent_layer_to_primitive_id.get( &parent_id ).copied();
         }
       }
 
@@ -306,21 +288,22 @@ mod private
 
       let behaviors = primitives_data.iter()
       .filter_map
-      ( 
-        | p | 
+      (
+        | p |
         {
-          p.0.name.as_ref().map( | name | ( name.clone(), p.1.clone() ) )
+          if let Some( name ) = &p.name
+          {
+            Some( ( name.clone(), p.behavior.clone() ) )
+          }
+          else
+          {
+            None
+          }
         }
       )
-      .collect::< HashMap< _, _ > >();
+      .collect::< FxHashMap< _, _ > >();
 
-      let gltf = primitives_data_to_gltf
-      ( 
-        gl, 
-        primitives_data.into_iter()
-        .map( | ( p, _ ) | p )
-        .collect::< Vec< _ > >() 
-      );
+      let gltf = primitives_data_to_gltf( gl, primitives_data.as_slice() );
 
       Self
       {
@@ -335,17 +318,17 @@ mod private
     {
       let mut nodes_to_insert = vec![];
 
-      let mut update = 
-      | 
+      let mut update =
+      |
         node : Rc< RefCell< Node > >
       | -> Result< (), gl::WebglError >
       {
         let Some( node_name ) = node.borrow().get_name()
         else
         {
-          return Ok( () ); 
+          return Ok( () );
         };
-        
+
         if let Some( behaviour ) = self.behaviors.get( &node_name )
         {
           if let Some( animated_transform ) = &behaviour.animated_transform
@@ -386,7 +369,7 @@ mod private
           let matrix = node.borrow_mut().get_local_matrix();
 
           let mut ids_and_children = vec![];
-          
+
           for i in ( 0..repeater.copies ).rev()
           {
             let node_clone = node.borrow().clone_tree();
@@ -395,7 +378,7 @@ mod private
             node_clone.borrow_mut().set_local_matrix( matrix * transform );
             node_clone.borrow_mut().set_parent( Some( parent.clone() ) );
             ids_and_children.push( ( id + 1, node_clone.clone() ) );
-          } 
+          }
 
           nodes_to_insert.push( ( parent.clone(), ids_and_children ) );
         }
@@ -407,7 +390,7 @@ mod private
 
       for ( parent, ids_and_children ) in nodes_to_insert.into_iter().rev()
       {
-        for ( i, child ) in ids_and_children.into_iter().rev() 
+        for ( i, child ) in ids_and_children.into_iter().rev()
         {
           parent.borrow_mut().insert_child( i, child );
         }
@@ -417,15 +400,15 @@ mod private
     /// Filters and removes nodes from the scene that are outside of their defined frame range.
     fn filter_nodes( &self, scene : &mut Scene, frame : f64 )
     {
-      let mut nodes_to_remove = HashMap::new();
+      let mut nodes_to_remove = FxHashMap::default();
 
-      let mut get_nodes_to_remove = 
-      | 
+      let mut get_nodes_to_remove =
+      |
         node : Rc< RefCell< Node > >
       | -> Result< (), gl::WebglError >
       {
         let Some( name ) = node.borrow_mut().get_name()
-        else 
+        else
         {
           return Ok( () );
         };
@@ -446,14 +429,14 @@ mod private
       scene.children
       .retain
       (
-        | n | 
+        | n |
         {
           let Some( name ) = n.borrow().get_name()
           else
           {
             return false;
           };
-          !nodes_to_remove.contains_key( &name ) 
+          !nodes_to_remove.contains_key( &name )
         }
       );
 
@@ -477,13 +460,13 @@ mod private
           {
             continue;
           };
-          if nodes_to_remove.contains_key( &name ) 
+          if nodes_to_remove.contains_key( &name )
           {
             id_to_remove.push( i );
           }
         }
 
-        for i in id_to_remove.iter().rev() 
+        for i in id_to_remove.iter().rev()
         {
           if node.borrow().get_children().get( *i ).is_none()
           {
@@ -504,13 +487,13 @@ mod private
     {
       let mut colors = vec![];
 
-      let mut add_color = 
-      | 
+      let mut add_color =
+      |
         node : Rc< RefCell< Node > >
       | -> Result< (), gl::WebglError >
       {
         let Some( name ) = node.borrow_mut().get_name()
-        else 
+        else
         {
           return Ok( () );
         };
@@ -537,7 +520,11 @@ mod private
     /// Returns a new scene and a list of colors for a specific animation frame.
     pub fn frame( &self, frame : f64 ) -> Option< ( Scene, Vec< F32x4 > ) >
     {
-      let scene = self.gltf.scenes.first()?;
+      let Some( scene ) = self.gltf.scenes.first()
+      else
+      {
+        return None;
+      };
 
       let mut scene = scene.borrow().clone();
 
@@ -555,7 +542,7 @@ mod private
     {
       for scene in &self.gltf.scenes
       {
-        for child in scene.borrow().children.iter()
+        for child in &scene.borrow().children
         {
           child.borrow_mut().update_world_matrix( world_matrix, true );
         }

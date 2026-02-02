@@ -6,14 +6,14 @@
 #[ cfg( feature = "enabled" ) ]
 mod private
 {
-  
+
   // Allow certain clippy warnings for POD data structures
   #![ allow( clippy::exhaustive_structs ) ]
   #![ allow( clippy::needless_return ) ]
   #![ allow( clippy::cast_possible_truncation ) ]
   #![ allow( clippy::missing_inline_in_public_items ) ]
   #![ allow( clippy::implicit_return ) ]
-  
+
   use serde::{ Serialize, Deserialize };
 
   /// Defines stroke appearance for line-based primitives.
@@ -107,6 +107,102 @@ mod private
     pub y : f32,
   }
 
+  /// Represents a 2D transformation with position, rotation, and scale.
+  #[ derive( Debug, Clone, Copy, PartialEq, Serialize, Deserialize ) ]
+  pub struct Transform2D
+  {
+    /// The translation component, as `[x, y]`.
+    pub position : [ f32; 2 ],
+    /// The rotation component, in radians.
+    pub rotation : f32,
+    /// The scale component, as `[x, y]`.
+    pub scale : [ f32; 2 ]
+  }
+
+  impl Transform2D
+  {
+    /// Creates a new `Transform2D` from its components.
+    pub fn new< V1, V2 >( position : V2, rotation : V1, scale : V2 ) -> Self
+    where
+      V1 : Into< f32 >,
+      V2 : Into< [ f32; 2 ] >
+    {
+      Self
+      {
+        position : position.into(),
+        rotation : rotation.into(),
+        scale : scale.into()
+      }
+    }
+
+    /// Sets the position of the transform.
+    pub fn position_set< V2 >( &mut self, position : V2 )
+    where
+      V2 : Into< [ f32; 2 ] >
+    {
+      self.position = position.into();
+    }
+
+    /// Sets the rotation of the transform.
+    pub fn rotation_set< V1 >( &mut self, rotation : V1 )
+    where
+      V1 : Into< f32 >
+    {
+      self.rotation = rotation.into();
+    }
+
+    /// Sets the scale of the transform.
+    pub fn scale_set< V2 >( &mut self, scale : V2 )
+    where
+      V2 : Into< [ f32; 2 ] >
+    {
+      self.scale = scale.into();
+    }
+  }
+
+  impl Default for Transform2D
+  {
+    fn default() -> Self
+    {
+      Self { position : Default::default(), rotation : Default::default(), scale : [ 1.0; 2 ] }
+    }
+  }
+
+  /// Specifies the rendering mode for 2D geometry.
+  #[ non_exhaustive ]
+  #[ derive( Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize ) ]
+  pub enum GeometryMode
+  {
+    /// Renders the geometry as a series of filled triangles.
+    Triangles,
+    /// Renders the geometry as a series of lines.
+    Lines,
+  }
+
+  /// A command to render a piece of 2D geometry.
+  #[ derive( Debug, Clone, Copy, Serialize, Deserialize, PartialEq ) ]
+  pub struct Geometry2DCommand
+  {
+    /// The unique identifier of the geometry resource to be drawn.
+    pub id : u32,
+    /// The 2D transformation to apply to the geometry.
+    pub transform : Transform2D,
+    /// The solid color to apply to the geometry, as `[r, g, b]`.
+    pub color : [ f32; 3 ],
+    /// The mode (triangles or lines) to use for rendering.
+    pub mode : GeometryMode
+  }
+
+  /// A command to render a sprite.
+  #[ derive( Debug, Clone, Copy, Serialize, Deserialize, PartialEq ) ]
+  pub struct SpriteCommand
+  {
+    /// The unique identifier of the texture resource to be drawn.
+    pub id : u32,
+    /// The 2D transformation to apply to the sprite.
+    pub transform : Transform2D,
+  }
+
   /// Line rendering command (FR-B1).
   #[ derive( Debug, Clone, Copy, Serialize, Deserialize, PartialEq ) ]
   pub struct LineCommand
@@ -127,7 +223,7 @@ mod private
     pub start : Point2D,
     /// First control point.
     pub control1 : Point2D,
-    /// Second control point.  
+    /// Second control point.
     pub control2 : Point2D,
     /// Ending point of the curve.
     pub end : Point2D,
@@ -176,18 +272,18 @@ mod private
       D: serde::Deserializer< 'de >,
     {
       use serde::de::{ self, MapAccess, Visitor };
-      
+
       struct TextCommandVisitor;
-      
+
       impl< 'de > Visitor< 'de > for TextCommandVisitor
       {
         type Value = TextCommand;
-        
+
         fn expecting( &self, formatter: &mut core::fmt::Formatter< '_ > ) -> core::fmt::Result
         {
           formatter.write_str( "struct TextCommand" )
         }
-        
+
         fn visit_map< V >( self, mut map: V ) -> Result< TextCommand, V::Error >
         where
           V: MapAccess< 'de >,
@@ -197,10 +293,10 @@ mod private
           let mut text_len = None;
           let mut font_style = None;
           let mut anchor = None;
-          
-          while let Some( key ) = map.next_key()? 
+
+          while let Some( key ) = map.next_key()?
           {
-            match key 
+            match key
             {
               "position" => position = Some( map.next_value()? ),
               "text" => text_data = Some( map.next_value()? ),
@@ -210,21 +306,21 @@ mod private
               _ => { let _: serde::de::IgnoredAny = map.next_value()?; }
             }
           }
-          
+
           let position = position.ok_or_else( || de::Error::missing_field( "position" ) )?;
           let text_data = text_data.ok_or_else( || de::Error::missing_field( "text" ) )?;
           let text_len = text_len.ok_or_else( || de::Error::missing_field( "text_len" ) )?;
           let font_style = font_style.ok_or_else( || de::Error::missing_field( "font_style" ) )?;
           let anchor = anchor.ok_or_else( || de::Error::missing_field( "anchor" ) )?;
-          
+
           let mut text = [ 0u8; 64 ];
           let actual_len = text_data.len().min( 64 );
           text[ ..actual_len ].copy_from_slice( &text_data[ ..actual_len ] );
-          
+
           Ok( TextCommand { position, text, text_len, font_style, anchor } )
         }
       }
-      
+
       const FIELDS: &[ &str ] = &[ "position", "text", "text_len", "font_style", "anchor" ];
       deserializer.deserialize_struct( "TextCommand", FIELDS, TextCommandVisitor )
     }
@@ -280,18 +376,18 @@ mod private
       D: serde::Deserializer< 'de >,
     {
       use serde::de::{ self, MapAccess, Visitor };
-      
+
       struct TilemapCommandVisitor;
-      
+
       impl< 'de > Visitor< 'de > for TilemapCommandVisitor
       {
         type Value = TilemapCommand;
-        
+
         fn expecting( &self, formatter: &mut core::fmt::Formatter< '_ > ) -> core::fmt::Result
         {
           formatter.write_str( "struct TilemapCommand" )
         }
-        
+
         fn visit_map< V >( self, mut map: V ) -> Result< TilemapCommand, V::Error >
         where
           V: MapAccess< 'de >,
@@ -304,10 +400,10 @@ mod private
           let mut tileset_id = None;
           let mut tile_data_vec: Option< Vec< u16 > > = None;
           let mut tile_count = None;
-          
-          while let Some( key ) = map.next_key()? 
+
+          while let Some( key ) = map.next_key()?
           {
-            match key 
+            match key
             {
               "position" => position = Some( map.next_value()? ),
               "tile_width" => tile_width = Some( map.next_value()? ),
@@ -320,7 +416,7 @@ mod private
               _ => { let _: serde::de::IgnoredAny = map.next_value()?; }
             }
           }
-          
+
           let position = position.ok_or_else( || de::Error::missing_field( "position" ) )?;
           let tile_width = tile_width.ok_or_else( || de::Error::missing_field( "tile_width" ) )?;
           let tile_height = tile_height.ok_or_else( || de::Error::missing_field( "tile_height" ) )?;
@@ -329,15 +425,15 @@ mod private
           let tileset_id = tileset_id.ok_or_else( || de::Error::missing_field( "tileset_id" ) )?;
           let tile_data_vec = tile_data_vec.ok_or_else( || de::Error::missing_field( "tile_data" ) )?;
           let tile_count = tile_count.ok_or_else( || de::Error::missing_field( "tile_count" ) )?;
-          
+
           let mut tile_data = [ 0u16; 32 ];
           let actual_len = tile_data_vec.len().min( 32 );
           tile_data[ ..actual_len ].copy_from_slice( &tile_data_vec[ ..actual_len ] );
-          
+
           Ok( TilemapCommand { position, tile_width, tile_height, map_width, map_height, tileset_id, tile_data, tile_count } )
         }
       }
-      
+
       const FIELDS: &[ &str ] = &[ "position", "tile_width", "tile_height", "map_width", "map_height", "tileset_id", "tile_data", "tile_count" ];
       deserializer.deserialize_struct( "TilemapCommand", FIELDS, TilemapCommandVisitor )
     }
@@ -382,6 +478,10 @@ mod private
     Tilemap( TilemapCommand ),
     /// Particle emitter primitive.
     ParticleEmitter( ParticleEmitterCommand ),
+    /// 2D geometry primitive.
+    Geometry2DCommand( Geometry2DCommand ),
+    /// Sprite primitive.
+    SpriteCommand( SpriteCommand )
   }
 
   impl Default for StrokeStyle
@@ -443,7 +543,7 @@ mod private
       let mut text_bytes = [ 0u8; 64 ];
       let text_len = text.len().min( 63 );
       text_bytes[ ..text_len ].copy_from_slice( &text.as_bytes()[ ..text_len ] );
-      
+
       return Self
       {
         position,
@@ -473,7 +573,7 @@ mod private
     #[ allow( clippy::cast_possible_truncation ) ]
     pub fn new(
       position: Point2D,
-      tile_width: f32, 
+      tile_width: f32,
       tile_height: f32,
       map_width: u32,
       map_height: u32,
@@ -506,7 +606,6 @@ mod private
       return &self.tile_data[ ..self.tile_count as usize ]
     }
   }
-
 }
 
 #[ cfg( feature = "enabled" ) ]

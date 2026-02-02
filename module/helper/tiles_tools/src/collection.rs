@@ -3,6 +3,7 @@
 //! coordinate ranges and different hexagonal systems and orientations.
 
 use crate::coordinates::hexagonal::Coordinate;
+use ndarray_cg::nd::iter::IterMut;
 use ndarray_cg::{ Array2, I64x2, nd::iter::Iter };
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -57,6 +58,12 @@ impl< System, Orientation, T > Grid2D< System, Orientation, T >
   pub fn iter( &self ) -> Iter< '_, T, ndarray_cg::Dim< [ usize; 2 ] > >
   {
     self.data.iter()
+  }
+
+  /// Returns an iterator over the values in the grid.
+  pub fn iter_mut( &mut self ) -> IterMut< '_, T, ndarray_cg::Dim< [ usize; 2 ] > >
+  {
+    self.data.iter_mut()
   }
 
   /// Returns an iterator that yields each coordinate and a reference to its corresponding value.
@@ -154,11 +161,9 @@ impl< System, Orientation, T > Grid2D< System, Orientation, Option< T > >
   {
     let coord : Coordinate< System, Orientation > = coord.into();
     let i : usize = ( coord.r as i64 - self.min[ 1 ] )
-    .try_into()
-    .expect( "Coordinate out of bound" );
+    .try_into().ok()?;
     let j : usize = ( coord.q as i64 - self.min[ 0 ] )
-    .try_into()
-    .expect( "Coordinate out of bound" );
+    .try_into().ok()?;
     self.data.get( ( i, j ) ).and_then( | o | o.as_ref() )
   }
 
@@ -172,11 +177,9 @@ impl< System, Orientation, T > Grid2D< System, Orientation, Option< T > >
   {
     let coord : Coordinate< System, Orientation > = coord.into();
     let i : usize = ( coord.r as i64 - self.min[ 1 ] )
-    .try_into()
-    .expect( "Coordinate out of bound" );
+    .try_into().ok()?;
     let j : usize = ( coord.q as i64 - self.min[ 0 ] )
-    .try_into()
-    .expect( "Coordinate out of bound" );
+    .try_into().ok()?;
     self.data.get_mut( ( i, j ) ).and_then( | o | o.as_mut() )
   }
 }
@@ -253,5 +256,14 @@ where
     .field( "min", &self.min )
     .field( "_marker", &self._marker )
     .finish()
+  }
+}
+
+impl< System, Orientation, T > PartialEq for Grid2D< System, Orientation, T >
+where T : PartialEq
+{
+  fn eq( &self, other : &Self ) -> bool
+  {
+    self.data == other.data && self.min == other.min
   }
 }
