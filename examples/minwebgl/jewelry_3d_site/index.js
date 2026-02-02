@@ -438,10 +438,6 @@ function onCompleteConfigAnimation() {
   const canvas = document.querySelector('.canvas')
   const colorControls = document.querySelector('.color-controls--container')
 
-  camView1.style.display = "none"
-  camView2.style.display = "none"
-  camView3.style.display = "none"
-
   canvas.style.pointerEvents = "all";
   uiState.state = "configurator";
   uiState.changed.push("state");
@@ -468,6 +464,13 @@ function onCompleteConfigAnimation() {
 function configAnimation() {
   uiState.transitionAnimationEnabled = true;
 
+  // Disable all ScrollTrigger animations to prevent conflict with config entry animation
+  ScrollTrigger.getAll().forEach(st => st.disable())
+
+  camView1.style.display = "none"
+  camView2.style.display = "none"
+  camView3.style.display = "none"
+
   gsap.timeline()
     .fromTo
     (
@@ -491,7 +494,7 @@ function configAnimation() {
     )
     .to('.choose--content', { opacity: 0, x: '200%', duration: 1.5, ease: "power4.out", onComplete: onCompleteConfigAnimation }, '-=2.5')
     .to('.choose--text-bg', { opacity: 0, x: '200%', duration: 1.5, ease: "power4.out" }, '-=2.5')
-    .fromTo('.footer--menu', { opacity: 0, y: '150%' }, { opacity: 1, y: '0%', duration: 1.5 })
+    .fromTo('.footer--menu', { opacity: 0, y: '150%' }, { opacity: 1, y: '0%', duration: 1.5 }, '-=1.0')
 }
 
 // EXIT EVENT
@@ -504,12 +507,18 @@ function exitConfigAnimation() {
   }
   document.body.style.overflowY = "hidden"
 
+  // Disable all ScrollTrigger animations to prevent conflict with exit animation
+  ScrollTrigger.getAll().forEach(st => st.disable())
+
   gsap.timeline()
     .to(uiState.position, { 0: 0.6858612, 1: 2.7440538, 2: -0.026622068, duration: 1.2, ease: "power4.out", onUpdate: () => { !uiState.changed.includes("position") && uiState.changed.push("position") } })
     .to(uiState.target, {
       0: 0.36420232, 1: 0.8480059, 2: -0.36873266, duration: 1.2, ease: "power4.out",
       onUpdate: () => { window.scrollTo(0, 0); !uiState.changed.includes("target") && uiState.changed.push("target") },
       onComplete: () => {
+        // Re-enable ScrollTrigger animations after exit animation completes
+        ScrollTrigger.getAll().forEach(st => st.enable())
+
         if (!isFirefox) {
           window.addEventListener("wheel", onWheel, { passive: true });
         }
@@ -965,8 +974,12 @@ function setupConfigurator() {
   footerContainer.style.display = "none"
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  ScrollTrigger.normalizeScroll(true);
-  setupMainPage();
-  setupConfigurator();
-});
+document.addEventListener
+(
+  "DOMContentLoaded",
+  () => {
+    ScrollTrigger.normalizeScroll(true);
+    setupMainPage();
+    setupConfigurator();
+  }
+);
