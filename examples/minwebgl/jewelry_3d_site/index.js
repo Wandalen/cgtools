@@ -55,8 +55,6 @@ let scrolled = false
 let isRendererLoaded = false
 let resized = false
 
-ScrollTrigger.normalizeScroll(true);
-
 function getMaxScroll() {
   return document.documentElement.scrollHeight - window.innerHeight
 }
@@ -967,11 +965,8 @@ function setupConfigurator() {
   footerContainer.style.display = "none"
 }
 
-document.addEventListener
-  (
-    "DOMContentLoaded",
-    () => {
-      setupMainPage();
-      setupConfigurator();
-    }
-  );
+document.addEventListener('DOMContentLoaded', () => {
+  ScrollTrigger.normalizeScroll(true);
+  setupMainPage();
+  setupConfigurator();
+});
