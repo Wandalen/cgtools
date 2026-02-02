@@ -91,8 +91,12 @@ mod private
   #[ derive( Clone ) ]
   pub struct PrimitiveData
   {
+    /// Optional name of this primitive data.
+    pub name : Option< Box< str > >,
+    /// Parent of this primitive data.
+    pub parent : Option< usize >,
     /// Shared mesh attribute data.
-    pub attributes : Rc< RefCell< AttributesData > >,
+    pub attributes : Option< Rc< RefCell< AttributesData > > >,
     /// RGBA color values.
     pub color : F32x4,
     /// 3D transformation to apply to the primitive.
@@ -182,16 +186,22 @@ mod private
 
     for primitive_data in primitives_data
     {
+      let Some( attributes ) = &primitive_data.attributes
+      else
+      {
+        continue;
+      };
+
       let last_positions_count = positions.len() as u32;
-      positions.extend( primitive_data.attributes.borrow().positions.clone() );
-      let primitive_indices = primitive_data.attributes.borrow().indices.iter()
+      positions.extend( attributes.borrow().positions.clone() );
+      let primitive_indices = attributes.borrow().indices.iter()
       .map( | i | i + last_positions_count )
       .collect::< Vec< _ > >();
       let offset = indices.len() as u32 * 4;
       indices.extend( primitive_indices );
 
       index_info.offset = offset;
-      index_info.count = primitive_data.attributes.borrow().indices.len() as u32;
+      index_info.count = attributes.borrow().indices.len() as u32;
 
       let Ok( mut geometry ) = Geometry::new( gl ) else
       {
@@ -204,7 +214,7 @@ mod private
       }
 
       geometry.add_index( gl, index_info.clone() ).unwrap();
-      geometry.vertex_count = primitive_data.attributes.borrow().positions.len() as u32;
+      geometry.vertex_count = attributes.borrow().positions.len() as u32;
 
       let primitive = Primitive
       {
