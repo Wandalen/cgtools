@@ -48,6 +48,37 @@ mod private
     {
       Vector::< E, 4 >::new( self.x(), self.y(), self.z(), E::one() )
     }
+
+    /// Converts spherical coords to decart
+    pub fn from_spherical( radius : E, theta : E, phi : E ) -> Self
+    {
+      let phi = phi.to_radians();
+      let theta = theta.to_radians();
+      let cos_phi = phi.cos();
+
+      Self
+      (
+        [
+          radius * cos_phi * theta.sin(),
+          radius * phi.sin(),
+          radius * cos_phi * theta.cos(),
+        ]
+      )
+    }
+
+    /// Converts decart coords to spherical and returns ( radius, theta, phi )
+    pub fn to_spherical( self ) -> ( E, E, E )
+    {
+      let radius = self.mag();
+      let [ x, y, z ] = self.0;
+      let phi = y.atan2( ( x * x + z * z ).sqrt() );
+      let theta = x.atan2( z );
+
+      let phi = phi.to_degrees();
+      let theta = theta.to_degrees();
+
+      ( radius, theta, phi )
+    }
   }
 
 }

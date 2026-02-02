@@ -8,19 +8,22 @@ where
   A : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
   B : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
 {
-  let rdim = r.dim();
   let adim = a.dim();
   let bdim = b.dim();
 
-  // Check if dimensions are compatible for multiplication
   #[ cfg( debug_assertions ) ]
-  if adim[ 1 ] != bdim[ 0 ] || rdim[ 0 ] != adim[ 0 ] || rdim[ 1 ] != bdim[ 1 ]
   {
-    panic!
-    (
-      "Incompatible dimensions for matrix multiplication : a : {:?}, b : {:?}, r : {:?}",
-      adim, bdim, rdim
-    );
+    let rdim = r.dim();
+
+    // Check if dimensions are compatible for multiplication
+    if adim[ 1 ] != bdim[ 0 ] || rdim[ 0 ] != adim[ 0 ] || rdim[ 1 ] != bdim[ 1 ]
+    {
+      panic!
+      (
+        "Incompatible dimensions for matrix multiplication : a : {:?}, b : {:?}, r : {:?}",
+        adim, bdim, rdim
+      );
+    }
   }
 
   // println!( "a : {:?}, b : {:?}, r : {:?}", adim, bdim, rdim );
@@ -47,17 +50,19 @@ where
   A : Indexable< Index = Ix2 > + IndexingRef< Scalar = E >,
   B : VectorIter< E, ROWS >,
 {
-  let adim = a.dim();
-
-  // Check if dimensions are compatible for multiplication
   #[ cfg( debug_assertions ) ]
-  if adim[ 1 ] != ROWS 
   {
-    panic!
-    (
-      "Incompatible dimensions for matrix-vector multiplication : a : {:?}, b : {:?}, r : {:?}",
-      adim, ROWS, ROWS
-    );
+    let adim = a.dim();
+
+    // Check if dimensions are compatible for multiplication
+    if adim[ 1 ] != ROWS
+    {
+      panic!
+      (
+        "Incompatible dimensions for matrix-vector multiplication : a : {:?}, b : {:?}, r : {:?}",
+        adim, ROWS, ROWS
+      );
+    }
   }
 
   for ( row, e ) in r.vector_iter_mut().enumerate()

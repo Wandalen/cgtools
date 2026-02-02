@@ -15,6 +15,8 @@ pub struct Renderer
   program : Option< WebGlProgram >,
   framebuffer : Framebuffer,
   image_texture : Option< WebGlTexture >,
+  original_texture : Option< WebGlTexture >,
+  previous_texture : Option< WebGlTexture >,
   current_filter_source : String,
 }
 
@@ -34,6 +36,8 @@ impl Renderer
       program : None,
       framebuffer,
       image_texture,
+      original_texture : None,
+      previous_texture : None,
       current_filter_source : String::new(),
     }
   }
@@ -41,6 +45,32 @@ impl Renderer
   pub fn set_image_texture( &mut self, image_texture : Option< WebGlTexture > )
   {
     self.image_texture = image_texture;
+  }
+
+  pub fn set_original_texture( &mut self, original_texture : Option< WebGlTexture > )
+  {
+    self.original_texture = original_texture;
+  }
+
+  pub fn restore_original_texture( &mut self )
+  {
+    if let Some( original ) = &self.original_texture
+    {
+      self.image_texture = Some( original.clone() );
+    }
+  }
+
+  pub fn save_previous_texture( &mut self )
+  {
+    self.previous_texture = self.image_texture.clone();
+  }
+
+  pub fn restore_previous_texture( &mut self )
+  {
+    if let Some( previous ) = &self.previous_texture
+    {
+      self.image_texture = Some( previous.clone() );
+    }
   }
 
   pub fn update_framebuffer_size( &mut self, width : i32, height : i32 )

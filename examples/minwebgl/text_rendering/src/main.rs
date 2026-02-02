@@ -60,12 +60,12 @@ use renderer::webgl::
   Material,
   Primitive,
   Renderer,
-  Scene
+  Scene,
+  material::PbrMaterial
 };
 use std::rc::Rc;
 use std::any::type_name_of_val;
 
-mod camera_controls;
 mod text;
 
 fn make_buffer_attribute_info
@@ -154,7 +154,7 @@ struct AttributesData
 struct PrimitiveData
 {
   attributes : Rc< RefCell< AttributesData > >,
-  material : Rc< RefCell< Material > >,
+  material : Rc< RefCell< Box< dyn Material > > >,
   transform : Transform
 }
 
@@ -162,7 +162,7 @@ fn primitives_data_to_gltf
 (
   gl : &GL,
   primitives_data : Vec< PrimitiveData >,
-  materials : Vec< Rc< RefCell< Material > > >
+  materials : Vec< Rc< RefCell< Box< dyn Material > > > >
 ) -> GLTF
 {
   let mut scenes = vec![];
@@ -248,7 +248,7 @@ fn primitives_data_to_gltf
 
     for ( name, info ) in &attribute_infos
     {
-      geometry.add_attribute( gl, *name, info.clone(), false ).unwrap();
+      geometry.add_attribute( gl, *name, info.clone() ).unwrap();
     }
 
     geometry.add_index( gl, index_info.clone() ).unwrap();
@@ -284,14 +284,16 @@ fn primitives_data_to_gltf
     images : Rc::new( RefCell::new( vec![] ) ),
     textures : vec![],
     materials,
-    meshes
+    meshes,
+    animations : vec![],
+    lights : vec![]
   }
 }
 
 fn init_context() -> ( WebGl2RenderingContext, HtmlCanvasElement )
 {
   gl::browser::setup( Default::default() );
-  let options = gl::context::ContexOptions::default().antialias( false );
+  let options = gl::context::ContextOptions::default().antialias( false );
 
   let canvas = gl::canvas::make().unwrap();
   let gl = gl::context::from_canvas_with( &canvas, options ).unwrap();
@@ -319,7 +321,7 @@ fn init_camera( canvas : &HtmlCanvasElement ) -> Camera
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
   camera.set_window_size( [ width, height ].into() );
 
-  camera_controls::setup_controls( &canvas, &camera.get_controls() );
+  camera.bind_controls( &canvas );
 
   camera
 }
@@ -335,12 +337,12 @@ async fn run() -> Result< (), gl::WebglError >
     "Parisienne-Regular".to_string()
   ];
 
-  let fonts_ufo_3d = text::ufo::load_fonts_3d( font_names.as_slice() ).await;
-  let fonts_ttf_3d = text::ttf::load_fonts_3d( font_names.as_slice() ).await;
+  let fonts_ufo_3d = text::ufo::load_fonts_3d( &gl, font_names.as_slice() ).await;
+  let fonts_ttf_3d = text::ttf::load_fonts_3d( &gl, font_names.as_slice() ).await;
 
   let text = "CGTools".to_string();
 
-  let material = Rc::new( RefCell::new( Material::default() ) );
+  let material = Rc::new( RefCell::new( Box::new( PbrMaterial::new( &gl ) ) as Box< dyn Material > ) );
   let materials = vec![ material.clone() ];
 
   let mut primitives_data = vec![];

@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Interactive WebGL/WebGPU examples demonstrating CGTools capabilities">
+    <title>CGTools Examples - Interactive WebGL/WebGPU Demos</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-color: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary-color: #8b5cf6;
+            --accent-color: #ec4899;
+            --bg-color: #0f172a;
+            --bg-secondary: #1e293b;
+            --text-color: #f1f5f9;
+            --text-muted: #94a3b8;
+            --card-bg: #1e293b;
+            --card-hover: #334155;
+            --border-color: #334155;
+            --success-color: #10b981;
+            --shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+            --shadow-hover: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, var(--bg-color) 0%, #1a1a2e 100%);
+            color: var(--text-color);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        header {
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 1.25rem 2rem;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 50%, var(--accent-color) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin: 0;
+        }
+
+        /* Filter Controls */
+        .controls {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 250px;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 0.875rem 1rem 0.875rem 3rem;
+            background: var(--card-bg);
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            color: var(--text-color);
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+        }
+
+        .filter-buttons {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            padding: 0.75rem 1.5rem;
+            background: var(--card-bg);
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            color: var(--text-color);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+
+        .filter-btn:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-2px);
+        }
+
+        .filter-btn.active {
+            background: var(--primary-color);
+            border-color: var(--primary-color);
+            color: white;
+        }
+
+        /* Stats */
+        .stats {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem 2rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .stat-label {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+
+        /* Main Content */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .category-section {
+            margin-bottom: 4rem;
+        }
+
+        .category-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .category-header h2 {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .category-badge {
+            padding: 0.5rem 1rem;
+            background: var(--primary-color);
+            color: white;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        /* Demo Grid */
+        .demo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 2rem;
+        }
+
+        .demo-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .demo-card:hover {
+            transform: translateY(-8px);
+            box-shadow: var(--shadow-hover);
+            border-color: var(--primary-color);
+        }
+
+        .demo-image {
+            width: 100%;
+            height: 250px;
+            object-fit: cover;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        .demo-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .demo-content {
+            padding: 1.5rem;
+        }
+
+        .demo-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            color: var(--text-color);
+        }
+
+        .demo-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.75rem;
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success-color);
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+
+        .demo-status.incomplete {
+            background: rgba(236, 72, 153, 0.1);
+            color: var(--accent-color);
+        }
+
+        .demo-links {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+
+        .demo-link {
+            flex: 1;
+            padding: 0.75rem;
+            background: var(--primary-color);
+            color: white;
+            text-align: center;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.875rem;
+            transition: all 0.3s ease;
+        }
+
+        .demo-link:hover {
+            background: var(--primary-dark);
+            transform: scale(1.05);
+        }
+
+        .demo-link.secondary {
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+        }
+
+        .demo-link.secondary:hover {
+            background: var(--card-hover);
+        }
+
+        /* No Results */
+        .no-results {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-muted);
+        }
+
+        .no-results-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        /* Footer */
+        footer {
+            background: var(--card-bg);
+            border-top: 1px solid var(--border-color);
+            padding: 2rem;
+            text-align: center;
+            margin-top: 4rem;
+            color: var(--text-muted);
+        }
+
+        footer a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2rem;
+            }
+
+            .demo-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .controls {
+                flex-direction: column;
+            }
+
+            .search-box {
+                width: 100%;
+            }
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .demo-card {
+            animation: fadeIn 0.5s ease forwards;
+        }
+
+        /* Hidden class for filtering */
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1>CGTools Examples</h1>
+        </div>
+    </header>
+
+    <div class="controls">
+        <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="searchInput" placeholder="Search demos...">
+        </div>
+        <div class="filter-buttons">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="math">Math</button>
+            <button class="filter-btn" data-filter="webgl">WebGL</button>
+            <button class="filter-btn" data-filter="webgpu">WebGPU</button>
+            <button class="filter-btn" data-filter="wgpu">WGPU</button>
+        </div>
+    </div>
+
+    <div class="stats">
+        <div class="stat-card">
+            <div class="stat-number" id="totalDemos">42</div>
+            <div class="stat-label">Total Demos</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number" id="completedDemos">40</div>
+            <div class="stat-label">Completed</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">100%</div>
+            <div class="stat-label">Can Compile</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">95%</div>
+            <div class="stat-label">Has Images</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Math Examples -->
+        <section class="category-section" data-category="math">
+            <div class="category-header">
+                <h2>Math Examples</h2>
+                <span class="category-badge">1 demo</span>
+            </div>
+            <div class="demo-grid">
+                <div class="demo-card" data-name="life">
+                    <div class="demo-image">
+                        <img src="./math/life/showcase.png" alt="Game of life">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Game of Life</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./math/life/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- WebGL Examples -->
+        <section class="category-section" data-category="webgl">
+            <div class="category-header">
+                <h2>WebGL Examples</h2>
+                <span class="category-badge">37 demos</span>
+            </div>
+            <div class="demo-grid">
+                <div class="demo-card" data-name="2d line">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">2D Line</h3>
+                        <span class="demo-status incomplete">⚠ Incomplete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/2d_line/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="3d line">
+                    <div class="demo-image">
+                        <img src="./minwebgl/3d_line/showcase.gif" alt="3D line">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">3D Line</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/3d_line/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="animated objects surface rendering">
+                    <div class="demo-image">
+                        <img src="./minwebgl/animation_surface_rendering/showcase.png" alt="Animated objects surface rendering">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Animated Objects Surface Rendering</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/animation_surface_rendering/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="area light">
+                    <div class="demo-image">
+                        <img src="./minwebgl/area_light/showcase.png" alt="Area light">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Area Light</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/area_light/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="attributes instanced">
+                    <div class="demo-image">
+                        <img src="./minwebgl/attributes_instanced/showcase.png" alt="Attributes instanced">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Attributes Instanced</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/attributes_instanced/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="attributes matrix">
+                    <div class="demo-image">
+                        <img src="./minwebgl/attributes_matrix/showcase.gif" alt="Attributes matrix">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Attributes Matrix</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/attributes_matrix/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="attributes vao">
+                    <div class="demo-image">
+                        <img src="./minwebgl/attributes_vao/showcase.png" alt="Attributes VAO">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Attributes VAO</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/attributes_vao/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="color space conversions">
+                    <div class="demo-image">
+                        <img src="./minwebgl/color_space_conversions/showcase.png" alt="Color space conversions">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Color Space Conversions</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/color_space_conversions/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="curve rendering on surface">
+                    <div class="demo-image">
+                        <img src="./minwebgl/curve_surface_rendering/showcase.png" alt="Curve rendering on surface">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Curve Rendering on Surface</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/curve_surface_rendering/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="deferred shading">
+                    <div class="demo-image">
+                        <img src="./minwebgl/deferred_shading/showcase.png" alt="Deferred shading">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Deferred Shading</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/deferred_shading/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="derive tools issue">
+                    <div class="demo-image">
+                        <span>No showcase yet</span>
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Derive Tools Issue</h3>
+                        <span class="demo-status incomplete">⚠ Incomplete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/derive_tools_issue/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="diamond">
+                    <div class="demo-image">
+                        <img src="./minwebgl/diamond/showcase.gif" alt="Diamond">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Diamond</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/diamond/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="image filter">
+                    <div class="demo-image">
+                        <img src="./minwebgl/filter/showcase.png" alt="Image filter">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Image Filter</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/filter/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="image filters">
+                    <div class="demo-image">
+                        <img src="./minwebgl/filters/showcase.gif" alt="Image filters">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Image Filters</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/filters/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="gltf viewer">
+                    <div class="demo-image">
+                        <img src="./minwebgl/gltf_viewer/showcase.jpg" alt="GLTF viewer">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">GLTF Viewer</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/gltf_viewer/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="hexagonal grid">
+                    <div class="demo-image">
+                        <img src="./minwebgl/hexagonal_grid/showcase.png" alt="Hexagonal grid">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Hexagonal Grid</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/hexagonal_grid/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="hexagonal map">
+                    <div class="demo-image">
+                        <img src="./minwebgl/hexagonal_map/showcase.png" alt="Hexagonal map">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Hexagonal Map</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/hexagonal_map/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="cube map">
+                    <div class="demo-image">
+                        <img src="./minwebgl/make_cube_map/showcase.jpg" alt="Cube map">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Cube Map</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/make_cube_map/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="tilemaps rendering">
+                    <div class="demo-image">
+                        <img src="./minwebgl/mapgen_tiles_rendering/showcase.png" alt="Tilemaps rendering">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Tilemaps Rendering</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/mapgen_tiles_rendering/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="minimize wasm">
+                    <div class="demo-image">
+                        <img src="./minwebgl/minimize_wasm/showcase.gif" alt="Minimize wasm">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Minimize WASM</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/minimize_wasm/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="narrow outline">
+                    <div class="demo-image">
+                        <img src="./minwebgl/narrow_outline/showcase.png" alt="Narrow outline">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Narrow Outline</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/narrow_outline/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="obj loading">
+                    <div class="demo-image">
+                        <img src="./minwebgl/obj_load/showcase.gif" alt="OBJ loading">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">OBJ Loading</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/obj_load/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="obj viewer">
+                    <div class="demo-image">
+                        <img src="./minwebgl/obj_viewer/showcase.png" alt="OBJ viewer">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">OBJ Viewer</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/obj_viewer/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="object picking">
+                    <div class="demo-image">
+                        <img src="./minwebgl/object_picking/showcase.gif" alt="Object picking">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Object Picking</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/object_picking/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="outline">
+                    <div class="demo-image">
+                        <img src="./minwebgl/outline/showcase.png" alt="Outline">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Outline</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/outline/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="raycaster">
+                    <div class="demo-image">
+                        <img src="./minwebgl/raycaster/showcase.png" alt="Raycaster">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Raycaster</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/raycaster/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="outlines postprocessing">
+                    <div class="demo-image">
+                        <img src="./minwebgl/renderer_with_outlines/showcase.png" alt="Outlines postprocessing">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Outlines Postprocessing</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/renderer_with_outlines/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="simple pbr">
+                    <div class="demo-image">
+                        <img src="./minwebgl/simple_pbr/showcase.gif" alt="Simple PBR">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Simple PBR</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/simple_pbr/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="spinning cube">
+                    <div class="demo-image">
+                        <img src="./minwebgl/spinning_cube_size_opt/showcase.gif" alt="Spinning cube">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Spinning Cube</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/spinning_cube_size_opt/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="sprite animation">
+                    <div class="demo-image">
+                        <img src="./minwebgl/sprite_animation/showcase.gif" alt="Sprite animation">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Sprite Animation</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/sprite_animation/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="text msdf">
+                    <div class="demo-image">
+                        <img src="./minwebgl/text_msdf/showcase.jpg" alt="Text MSDF">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Text MSDF</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/text_msdf/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="text rendering">
+                    <div class="demo-image">
+                        <img src="./minwebgl/text_rendering/showcase.png" alt="Text rendering">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Text Rendering</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/text_rendering/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="trivial">
+                    <div class="demo-image">
+                        <img src="./minwebgl/trivial/showcase.png" alt="Trivial">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Trivial</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/trivial/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="uniform animation">
+                    <div class="demo-image">
+                        <img src="./minwebgl/uniforms_animation/showcase.gif" alt="Uniform animation">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Uniform Animation</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/uniforms_animation/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="uniforms ubo">
+                    <div class="demo-image">
+                        <img src="./minwebgl/uniforms_ubo/showcase.gif" alt="Uniforms UBO">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Uniforms UBO</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/uniforms_ubo/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="video as texture">
+                    <div class="demo-image">
+                        <img src="./minwebgl/video_as_texture/showcase.gif" alt="Video as texture">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Video as Texture</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/video_as_texture/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="wave function collapse">
+                    <div class="demo-image">
+                        <img src="./minwebgl/wfc/showcase.png" alt="Wave function collapse">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Wave Function Collapse</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgl/wfc/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- WebGPU Examples -->
+        <section class="category-section" data-category="webgpu">
+            <div class="category-header">
+                <h2>WebGPU Examples</h2>
+                <span class="category-badge">2 demos</span>
+            </div>
+            <div class="demo-grid">
+                <div class="demo-card" data-name="deferred rendering">
+                    <div class="demo-image">
+                        <img src="./minwebgpu/deffered_rendering/showcase.jpg" alt="Deferred rendering">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Deferred Rendering</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgpu/deffered_rendering/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="hello triangle webgpu">
+                    <div class="demo-image">
+                        <img src="./minwebgpu/hello_triangle/showcase.jpg" alt="Hello triangle">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Hello Triangle</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwebgpu/hello_triangle/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- WGPU Examples -->
+        <section class="category-section" data-category="wgpu">
+            <div class="category-header">
+                <h2>WGPU Examples</h2>
+                <span class="category-badge">2 demos</span>
+            </div>
+            <div class="demo-grid">
+                <div class="demo-card" data-name="grid renderer">
+                    <div class="demo-image">
+                        <img src="./minwgpu/grid_render/showcase.png" alt="Grid renderer">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Grid Renderer</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwgpu/grid_render/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="demo-card" data-name="hello triangle wgpu">
+                    <div class="demo-image">
+                        <img src="./minwgpu/hello_triangle/showcase.png" alt="Hello triangle">
+                    </div>
+                    <div class="demo-content">
+                        <h3 class="demo-title">Hello Triangle</h3>
+                        <span class="demo-status">✓ Complete</span>
+                        <div class="demo-links">
+                            <a href="./minwgpu/hello_triangle/readme.md" class="demo-link">View Details</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div class="no-results hidden" id="noResults">
+            <div class="no-results-icon">🔍</div>
+            <h3>No demos found</h3>
+            <p>Try adjusting your search or filter criteria</p>
+        </div>
+    </div>
+
+    <footer>
+        <p>CGTools Examples | <a href="./how_to_run.md">Setup Guide</a> | Built with WebGL, WebGPU & Rust</p>
+    </footer>
+
+    <script>
+        // Search and filter functionality
+        const searchInput = document.getElementById('searchInput');
+        const filterButtons = document.querySelectorAll('.filter-btn');
+        const demoCards = document.querySelectorAll('.demo-card');
+        const categorySections = document.querySelectorAll('.category-section');
+        const noResults = document.getElementById('noResults');
+
+        let currentFilter = 'all';
+        let currentSearch = '';
+
+        // Search functionality
+        searchInput.addEventListener('input', (e) => {
+            currentSearch = e.target.value.toLowerCase();
+            filterDemos();
+        });
+
+        // Filter buttons
+        filterButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                filterButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentFilter = btn.dataset.filter;
+                filterDemos();
+            });
+        });
+
+        function filterDemos() {
+            let visibleCount = 0;
+
+            // Hide all sections first
+            categorySections.forEach(section => {
+                section.classList.add('hidden');
+            });
+
+            demoCards.forEach(card => {
+                const demoName = card.dataset.name.toLowerCase();
+                const category = card.closest('.category-section').dataset.category;
+
+                const matchesSearch = demoName.includes(currentSearch);
+                const matchesFilter = currentFilter === 'all' || category === currentFilter;
+
+                if (matchesSearch && matchesFilter) {
+                    card.classList.remove('hidden');
+                    card.closest('.category-section').classList.remove('hidden');
+                    visibleCount++;
+                } else {
+                    card.classList.add('hidden');
+                }
+            });
+
+            // Show/hide no results message
+            if (visibleCount === 0) {
+                noResults.classList.remove('hidden');
+            } else {
+                noResults.classList.add('hidden');
+            }
+
+            // Update visible demo count
+            document.getElementById('totalDemos').textContent = visibleCount;
+        }
+
+        // Initialize
+        filterDemos();
+    </script>
+</body>
+</html>

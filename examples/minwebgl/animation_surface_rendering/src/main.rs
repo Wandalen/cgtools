@@ -1,57 +1,29 @@
 #![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ]
 
 #![ allow( clippy::implicit_return ) ]
-#![ allow( clippy::default_trait_access ) ]
-#![ allow( clippy::min_ident_chars ) ]
-#![ allow( clippy::std_instead_of_core ) ]
 #![ allow( clippy::cast_precision_loss ) ]
-#![ allow( clippy::needless_pass_by_value ) ]
-#![ allow( clippy::cast_possible_truncation ) ]
-#![ allow( clippy::assign_op_pattern ) ]
+#![ allow( clippy::doc_markdown ) ]
 #![ allow( clippy::semicolon_if_nothing_returned ) ]
-#![ allow( clippy::too_many_lines ) ]
-#![ allow( clippy::wildcard_imports ) ]
-#![ allow( clippy::needless_borrow ) ]
+#![ allow( clippy::cast_possible_truncation ) ]
 #![ allow( clippy::cast_possible_wrap ) ]
-#![ allow( clippy::redundant_field_names ) ]
-#![ allow( clippy::useless_format ) ]
-#![ allow( clippy::let_unit_value ) ]
-#![ allow( clippy::needless_return ) ]
-#![ allow( clippy::cast_sign_loss ) ]
-#![ allow( clippy::similar_names ) ]
-#![ allow( clippy::needless_continue ) ]
-#![ allow( clippy::else_if_without_else ) ]
-#![ allow( clippy::unreadable_literal ) ]
-#![ allow( clippy::explicit_iter_loop ) ]
-#![ allow( clippy::uninlined_format_args ) ]
-#![ allow( clippy::collapsible_if ) ]
-#![ allow( clippy::unused_async ) ]
-#![ allow( clippy::needless_borrows_for_generic_args ) ]
-#![ allow( clippy::manual_midpoint ) ]
+#![ allow( clippy::must_use_candidate ) ]
 #![ allow( clippy::needless_for_each ) ]
-#![ allow( clippy::clone_on_copy ) ]
-#![ allow( clippy::option_map_unit_fn ) ]
-#![ allow( clippy::no_effect_underscore_binding ) ]
+#![ allow( clippy::min_ident_chars ) ]
+#![ allow( clippy::unnecessary_wraps ) ]
 #![ allow( clippy::std_instead_of_alloc ) ]
-#![ allow( clippy::expect_fun_call ) ]
-#![ allow( clippy::assigning_clones ) ]
-#![ allow( clippy::from_over_into ) ]
+#![ allow( clippy::cast_lossless ) ]
+#![ allow( clippy::too_many_lines ) ]
 
-use std::cell::RefCell;
+use core::cell::RefCell;
 use minwebgl as gl;
 use gl::
 {
+  texture::d2::upload_image_from_path,
   F32x4,
   math::mat4x4::identity,
-  JsCast,
   GL,
   WebGl2RenderingContext,
-  web_sys::
-  {
-    HtmlCanvasElement,
-    wasm_bindgen::closure::Closure,
-    WebGlTexture
-  }
+  web_sys::HtmlCanvasElement
 };
 use renderer::webgl::
 {
@@ -71,65 +43,17 @@ use renderer::webgl::
   Texture,
   TextureInfo,
   Sampler,
-  Material,
+  material::PbrMaterial,
   Node
 };
 use std::rc::Rc;
 use canvas_renderer::renderer::CanvasRenderer;
-use geometry_generation::text;
+use primitive_generation::text;
 use ::mod_interface::mod_interface;
 
 mod animation;
 
 use crate::animation::{ model, Model, Shape, Layer, Transform, Color, fixed, ease, LINEAR, EASE_IN_OUT_BACK };
-
-/// Uploads an image from a URL to a WebGL texture.
-///
-/// This function creates a new `WebGlTexture` and asynchronously loads an image from the provided URL into it.
-/// It uses a `Closure` to handle the `onload` event of an `HtmlImageElement`, ensuring the texture is
-/// uploaded only after the image has finished loading.
-///
-/// # Arguments
-///
-/// * `gl` - The `WebGl2RenderingContext`.
-/// * `src` - A reference-counted string containing the URL of the image to load.
-///
-/// # Returns
-///
-/// A `WebGlTexture` object.
-fn upload_texture( gl : &WebGl2RenderingContext, src : Rc< String > ) -> WebGlTexture
-{
-  let window = web_sys::window().expect( "Can't get window" );
-  let document =  window.document().expect( "Can't get document" );
-
-  let texture = gl.create_texture().expect( "Failed to create a texture" );
-
-  let img_element = document.create_element( "img" )
-  .expect( "Can't create img" )
-  .dyn_into::< gl::web_sys::HtmlImageElement >()
-  .expect( "Can't convert to gl::web_sys::HtmlImageElement" );
-  img_element.style().set_property( "display", "none" ).expect( "Can't set property" );
-  let load_texture : Closure< dyn Fn() > = Closure::new
-  (
-    {
-      let gl = gl.clone();
-      let img = img_element.clone();
-      let texture = texture.clone();
-      move ||
-      {
-        gl::texture::d2::upload_no_flip( &gl, Some( &texture ), &img );
-        gl.generate_mipmap( gl::TEXTURE_2D );
-        img.remove();
-      }
-    }
-  );
-
-  img_element.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
-  img_element.set_src( &src );
-  load_texture.forget();
-
-  texture
-}
 
 /// Creates a new `TextureInfo` struct with a texture loaded from a file.
 ///
@@ -152,7 +76,7 @@ fn create_texture
 ) -> TextureInfo
 {
   let image_path = format!( "static/{image_path}" );
-  let texture_id = upload_texture( gl, Rc::new( image_path ) );
+  let texture_id = upload_image_from_path( gl, &image_path, false );
 
   let sampler = Sampler::former()
   .min_filter( MinFilterMode::Linear )
@@ -184,8 +108,8 @@ fn create_texture
 /// A tuple containing the `WebGl2RenderingContext` and the `HtmlCanvasElement`.
 fn init_context() -> ( WebGl2RenderingContext, HtmlCanvasElement )
 {
-  gl::browser::setup( Default::default() );
-  let options = gl::context::ContexOptions::default().antialias( false );
+  gl::browser::setup( gl::browser::Config::default() );
+  let options = gl::context::ContextOptions::default().antialias( false );
 
   let canvas = gl::canvas::make()
   .expect( "Can't create canvas" );
@@ -230,7 +154,7 @@ fn init_camera( canvas : &HtmlCanvasElement, scenes : &[ Rc< RefCell< Scene > > 
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
   let near = 0.1;
-  let far = 10000000.0;
+  let far = 10_000_000.0;
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
 
@@ -259,9 +183,11 @@ fn clone( gltf : &mut GLTF, node : &Rc< RefCell< Node > > ) -> Rc< RefCell< Node
   if let Object3D::Mesh( ref mesh ) = clone.borrow().object
   {
     let mesh = Rc::new( RefCell::new( mesh.borrow().clone() ) );
-    for p in mesh.borrow().primitives.iter()
+    for p in &mesh.borrow().primitives
     {
-      gltf.materials.push( p.borrow().material.clone() );
+      //let m = Rc::new( RefCell::new( p.borrow().material.borrow().dyn_clone() ) );
+      let m = p.borrow().material.clone();
+      gltf.materials.push( m );
     }
     gltf.meshes.push( mesh );
   }
@@ -282,14 +208,19 @@ fn clone( gltf : &mut GLTF, node : &Rc< RefCell< Node > > ) -> Rc< RefCell< Node
 fn set_texture
 (
   node : &Rc< RefCell< Node > >,
-  mut material_callback : impl FnMut( &mut Material )
+  mut material_callback : impl FnMut( &mut PbrMaterial )
 )
 {
   if let Object3D::Mesh( ref mesh ) = &node.borrow().object
   {
     for p in &mesh.borrow().primitives
     {
-      material_callback( &mut p.borrow().material.borrow_mut() );
+      let p = p.borrow();
+      let mut mat = renderer::webgl::helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >
+      (
+        p.material.borrow_mut()
+      );
+      material_callback( &mut mat );
     }
   }
 }
@@ -311,22 +242,23 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 {
   let window = web_sys::window().expect( "Can't get window" );
   let document =  window.document().expect( "Can't get document" );
-  let mut gltf = renderer::webgl::loaders::gltf::load( &document, "gltf/sphere.glb", &gl ).await?;
+  let mut gltf = renderer::webgl::loaders::gltf::load( &document, "gltf/sphere.glb", gl ).await?;
 
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 )
   .expect( "Scene is empty" ).clone();
-  let texture = create_texture( &gl, "textures/earth2.jpg" );
-  set_texture( &earth, | m | { m.base_color_texture = Some( texture.clone() ); } );
+  let texture = create_texture( gl, "textures/earth2.jpg" );
+  set_texture( &earth, | m | { m.base_color_texture.clone_from( &texture ); } );
+
   earth.borrow_mut().update_local_matrix();
 
   let clouds = clone( &mut gltf, &earth );
-  let texture = create_texture( &gl, "textures/clouds2.png" );
+  let texture = create_texture( gl, "textures/clouds2.png" );
   set_texture
-  ( 
+  (
     &clouds,
     | m |
     {
-      m.base_color_texture = Some( texture.clone() );
+      m.base_color_texture.clone_from( &texture );
       m.alpha_mode = renderer::webgl::AlphaMode::Blend;
     }
   );
@@ -337,18 +269,18 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   clouds.borrow_mut().update_local_matrix();
 
   let moon = clone( &mut gltf, &earth );
-  let texture = create_texture( &gl, "textures/moon2.jpg" );
-  set_texture( &moon, | m | { m.base_color_texture = Some( texture.clone() ); } );
+  let texture = create_texture( gl, "textures/moon2.jpg" );
+  set_texture( &moon, | m | { m.base_color_texture.clone_from( &texture ); } );
   let scale = 0.25;
-  let distance = 7.0;// 30.0 * 1.0;
+  let distance = 7.0;
   moon.borrow_mut().set_translation( [ distance, ( 1.0 - scale ), 0.0 ] );
   moon.borrow_mut().set_scale( [ scale; 3 ] );
   moon.borrow_mut().update_local_matrix();
 
   let environment = clone( &mut gltf, &earth );
-  let texture = create_texture( &gl, "environment_maps/equirectangular_maps/space3.png" );
-  set_texture( &environment, | m | { m.base_color_texture = Some( texture.clone() ); } );
-  let scale = 100000.0;
+  let texture = create_texture( gl, "environment_maps/equirectangular_maps/space3.png" );
+  set_texture( &environment, | m | { m.base_color_texture.clone_from( &texture ); } );
+  let scale = 100_000.0;
   environment.borrow_mut().set_translation( [ 0.0, 1.0 - scale, 0.0 ] );
   environment.borrow_mut().set_scale( [ scale; 3 ] );
   environment.borrow_mut().update_local_matrix();
@@ -381,27 +313,27 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
   let text = "CGTools".to_string();
 
   let mut primitives_data = vec![];
-  let mut transform = geometry_generation::Transform::default();
-  transform.translation.0[ 1 ] += ( font_names.len() as f32 + 1.0 ) / 2.0 + 0.5;
+  let mut transform = primitive_generation::Transform::default();
+  transform.translation.0[ 1 ] += f32::midpoint(font_names.len() as f32, 1.0) + 0.5;
   for font_name in font_names
   {
     transform.translation[ 1 ] -= 1.0;
     let mut text_mesh = text::ufo::text_to_countour_mesh
-    ( 
-      &text, 
-      fonts.get( font_name ).expect( "Can't find font" ), 
-      &transform, 
-      5.0 
+    (
+      &text,
+      fonts.get( font_name ).expect( "Can't find font" ),
+      &transform,
+      5.0
     );
     text_mesh.iter_mut()
-    .for_each( | p | p.color = colors[ 0 ].clone() );
+    .for_each( | p | p.color = colors[ 0 ] );
     primitives_data.extend( text_mesh );
   }
 
   let colors = primitives_data.iter()
   .map( | p | p.color )
   .collect::< Vec< _ > >();
-  let canvas_gltf = geometry_generation::primitives_data_to_gltf( &gl, primitives_data );
+  let canvas_gltf = primitive_generation::primitives_data_to_gltf( gl, primitives_data );
 
   ( canvas_gltf, colors )
 }
@@ -700,14 +632,14 @@ async fn run() -> Result< (), gl::WebglError >
   let ( gl, canvas ) = init_context();
 
   let mut gltf = setup_scene( &gl ).await?;
-  
+
   let ( canvas_gltf, _ ) = setup_canvas_scene( &gl ).await;
   canvas_gltf.scenes[ 0 ].borrow_mut().update_world_matrix();
   let animation = setup_animation( &gl, canvas.height() as usize, canvas.width() as usize );
   animation.set_world_matrix( identity() );
 
   let canvas_camera = init_camera( &canvas, &canvas_gltf.scenes );
-  //camera_controls::bind_controls_to_input( &canvas, &canvas_camera.get_controls() );
+  canvas_camera.bind_controls( &canvas );
   canvas_camera.get_controls().borrow_mut().window_size = [ ( canvas.width() * 4 ) as f32, ( canvas.height() * 4 ) as f32 ].into();
   canvas_camera.get_controls().borrow_mut().eye = [ 0.0, 0.0, 150.0 ].into();
   {
@@ -729,16 +661,12 @@ async fn run() -> Result< (), gl::WebglError >
     &canvas_sphere,
     | m |
     {
-      m.base_color_texture.as_mut()
-      .map
-      (
-        | t |
-        {
-          let texture = t.texture.borrow().clone();
-          t.texture = Rc::new( RefCell::new( texture ) );
-          t.texture.borrow_mut().source = Some( canvas_texture.clone() );
-        }
-      );
+      if let Some( t ) = m.base_color_texture.as_mut()
+      {
+        let texture = t.texture.borrow().clone();
+        t.texture = Rc::new( RefCell::new( texture ) );
+        t.texture.borrow_mut().source = Some( canvas_texture.clone() );
+      }
       m.alpha_mode = renderer::webgl::AlphaMode::Blend;
     }
   );
@@ -749,15 +677,15 @@ async fn run() -> Result< (), gl::WebglError >
 
   let scenes = gltf.scenes.clone();
   scenes[ 0 ].borrow_mut().update_world_matrix();
-  
+
   let camera = init_camera( &canvas, &scenes );
-  camera_controls::bind_controls_to_input( &canvas, &camera.get_controls() );
+  camera.bind_controls( &canvas );
   let eye = gl::math::mat3x3h::rot( 0.0, - 73.0_f32.to_radians(), - 15.0_f32.to_radians() )
   * F32x4::from_array( [ 0.0, 1.7, 1.7, 1.0 ] );
   camera.get_controls().borrow_mut().eye = [ eye.x(), eye.y(), eye.z() ].into();
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "environment_maps/gltf_viewer_ibl_unreal" ).await );
+  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "environment_maps/gltf_viewer_ibl_unreal", None ).await );
 
   let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
 
@@ -790,7 +718,7 @@ async fn run() -> Result< (), gl::WebglError >
 
       swap_buffer.set_output( t );
       swap_buffer.swap();
-    
+
       let _t = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
       .expect( "Failed to render to srgb pass" );
 
@@ -811,10 +739,10 @@ async fn run() -> Result< (), gl::WebglError >
 fn main()
 {
   gl::spawn_local
-  ( 
-    async move 
-    { 
+  (
+    async move
+    {
       run().await.expect( "Program finish work with errors" )
-    } 
+    }
   );
 }

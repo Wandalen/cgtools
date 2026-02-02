@@ -15,6 +15,10 @@ extern "C"
   pub fn new_gui() -> JsValue;
 
   #[ allow( unsafe_code ) ]
+  #[ wasm_bindgen( js_name = "addBoolean" ) ]
+  pub fn add_boolean( gui : &JsValue,  object : &JsValue, property : &str ) -> JsValue;
+
+  #[ allow( unsafe_code ) ]
   #[ wasm_bindgen( js_name = "addFolder" ) ]
   pub fn add_folder( gui : &JsValue, name : &str ) -> JsValue;
 
@@ -37,6 +41,10 @@ extern "C"
   #[ allow( unsafe_code ) ]
   #[ wasm_bindgen( js_name = "onChange" ) ]
   pub fn on_change_string( gui : &JsValue, callback : &Closure< dyn FnMut( String ) > ) -> JsValue;
+
+  #[ allow( unsafe_code ) ]
+  #[ wasm_bindgen( js_name = "onChange" ) ]
+  pub fn on_change_bool( gui : &JsValue, callback : &Closure< dyn FnMut( bool ) > ) -> JsValue;
 
   #[ allow( unsafe_code ) ]
   #[ wasm_bindgen( js_name = "setName" ) ]

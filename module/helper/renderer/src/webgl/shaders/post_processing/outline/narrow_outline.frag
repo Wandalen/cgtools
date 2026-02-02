@@ -6,7 +6,8 @@ precision mediump usampler2D;
 in vec2 vUv;
 out vec4 FragColor;
 
-const uint IDS[ 13 ] = uint[ 13 ](
+const uint IDS[ 13 ] = uint[ 13 ]
+(
   2u,
   6u,
   7u,
@@ -34,7 +35,7 @@ uniform vec2 resolution;
 
 uniform float outlineThickness;
 
-float outline_stencil() 
+float outline_stencil()
 {
   // Sample the color texture in a 3x3 kernel around the current fragment to perform edge detection.
   float pix[ 25 ];
@@ -42,8 +43,9 @@ float outline_stencil()
   {
     for( int x = 0; x < 5; x++ )
     {
-      vec4 objectColor = 
-      texture(
+      vec4 objectColor =
+      texture
+      (
         objectColorTexture,
         vUv + vec2( float( x - 2 ), float( y - 2 ) ) * outlineThickness / resolution
       );
@@ -86,7 +88,8 @@ vec4 outline_color()
     for( int x = 0; x < 5; x++ )
     {
       vec4 objectColor =
-      texture(
+      texture
+      (
         objectColorTexture,
         vUv + vec2( float( x - 2 ), float( y - 2 ) ) * outlineThickness / resolution
       );
@@ -100,7 +103,8 @@ vec4 outline_color()
   {
     for( int x = 0; x < 5; x++ )
     {
-      depths[ y * 5 + x ] = 1.0 - texture(
+      depths[ y * 5 + x ] = 1.0 - texture
+      (
         positionTexture,
         vUv + vec2( float( x - 2 ), float( y - 2 ) ) * outlineThickness / resolution
       ).w;

@@ -1,0 +1,686 @@
+const exploreView = document.querySelector( '.cam-view-3' )
+const sidebar = document.querySelector( '.side-bar' )
+const headerContainer = document.querySelector( '.header--container' )
+const camView1 = document.querySelector( '.cam-view-1' )
+const camView2 = document.querySelector( '.cam-view-2' )
+const camView3 = document.querySelector( '.cam-view-3' )
+const chooseImage = document.querySelector( '.choose--image' )
+
+const previewContainer = document.querySelector( '.preview--image' )
+const exitContainer = document.querySelector( '.exit--container' )
+const footerMenu = document.querySelector( '.footer--menu' )
+const configMaterial = document.querySelector( '.config--material' )
+const configGem = document.querySelector( '.config--gem' )
+const closeConfigMaterial = document.querySelector( '.close-materials' )
+const configRing = document.querySelector( '.config--ring' )
+const closeConfigGem = document.querySelector( '.close-gems' )
+const closeConfigRing = document.querySelector( '.close-rings' )
+const footerContainer = document.querySelector( '.footer--container' )
+const gemMenu = document.querySelector( '.gem--menu' )
+const materialsMenu = document.querySelector( '.materials--menu' )
+const ringsMenu = document.querySelector( '.rings--menu' )
+const nightModeButton = document.querySelector( '.night--mode' )
+const nightModeButton2 = document.querySelector( '.night--mode--2' )
+const previewImage = previewContainer.querySelector( "img" );
+
+const NIGHT_MODE_COLORS =
+{
+  innerLightColor : "#FFFFFF",
+  outerLightColor : "#DDDDDD",
+  innerDarkColor : "#777777",
+  outerDarkColor : "#000000"
+};
+const PREVIEW_TIMEOUT_MS = 2500;
+
+let firstLoad = true;
+let nightMode = false;
+
+let innerLightColor = NIGHT_MODE_COLORS.innerLightColor;
+let outerLightColor = NIGHT_MODE_COLORS.outerLightColor;
+let innerDarkColor = NIGHT_MODE_COLORS.innerDarkColor;
+let outerDarkColor = NIGHT_MODE_COLORS.outerDarkColor;
+
+// Configuration state
+const state =
+{
+  gem : "white",
+  metal : "silver",
+  ring : 1
+};
+
+// -- MAIN PAGE --
+
+async function replaceSVG( svgPath, selector )
+{
+  let svg = document.querySelector( selector );
+  if ( !svg ) return;
+
+  const response = await fetch( svgPath );
+  const svgText = await response.text();
+
+  const parser = new DOMParser();
+  const newSvgDoc = parser.parseFromString( svgText, 'image/svg+xml' );
+  const newSvg = newSvgDoc.documentElement;
+
+  if ( svg.hasAttribute( 'width' ) )
+  {
+    newSvg.setAttribute('width', svg.getAttribute( 'width' ) );
+  }
+  if ( svg.hasAttribute( 'height' ) )
+  {
+    newSvg.setAttribute( 'height', svg.getAttribute( 'height' ) );
+  }
+
+  svg.classList.forEach( cls => newSvg.classList.add( cls ) );
+
+  svg.outerHTML = newSvg.outerHTML;
+}
+
+function introAnimation()
+{
+  firstLoad = false
+
+  gsap.timeline()
+  .fromTo( '.header--container', { opacity : 0, y : '-100%' }, {opacity : 1, y : '0%', ease : "power1.inOut", duration : 0.8 }) // , '-=1'
+  .fromTo( '.hero--image', { opacity : 0, x : '-200%' }, {opacity : 1, x : '-72%', ease : "power1.inOut", duration : 1.8 }, '-=0.5' ) // , '-=1'
+  .fromTo( '.hero--scroller', { opacity : 0, y : '150%' }, { opacity : 1, y : '0%', ease : "power4.inOut", duration : 1 }, '-=1' )
+  .fromTo( '.hero--container', { opacity : 0, x : '100%' }, { opacity : 1, x : '0%', ease : "power4.inOut", duration : 1.8, onComplete : setupScrollAnimation }, '-=1' )
+  .fromTo( '.side-bar', { opacity : 0.0, x : '50%' }, { opacity : 1, x : '0%', ease : "power4.inOut", duration : 2 }, '-=1' )
+  .to( '.side-bar .unique', { opacity : 1, scale : 1.5, ease : "power4.inOut", duration : 2 }, '-=1' )
+}
+
+function setupScrollAnimation()
+{
+  document.body.style.overflowY = "scroll"
+
+  const tl = gsap.timeline( { default : { ease: 'none' } } )
+
+  // BRILLIANT
+  tl
+  .to
+  (
+    '.hero--scroller',
+    {
+      opacity : 0,
+      y : '150%',
+      scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : "top center", scrub : 1, scrub : true, immediateRender : false }
+    }
+  )
+  .to
+  (
+    '.hero--container',
+    {
+      opacity: 0, xPercent: '100', ease: "power4.out", scrollTrigger: { trigger: ".cam-view-2", start: "top bottom", end: "top top", scrub : true, immediateRender : false }
+    }
+  )
+  .to
+  (
+    '.brilliant--text-bg',
+    {
+      opacity : 0.1, ease : "power4.inOut", scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : 'top top', scrub : true, immediateRender : false }
+    }
+  )
+  .fromTo
+  (
+    '.brilliant--container',
+    { opacity : 0, x : '-110%' },
+    { opacity : 1, x : '0%', ease : "power4.inOut", scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : 'top top', scrub : true, immediateRender : false } }
+  )
+  .addLabel( "Brilliant" )
+  .to( '.side-bar .unique', { opacity : 1, scale : 1.5, ease : "power4.inOut", duration : 2, scrollTrigger : { trigger : ".cam-view-1", start : "top bottom", end : 'top top', scrub : true, immediateRender : false } } )
+  .to( '.side-bar .unique', { opacity : 0.5, scale : 1, ease : "power4.inOut", duration : 2, scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : 'top top', scrub : true, immediateRender : false } } )
+  .to( '.side-bar .brilliant', { opacity : 1, scale : 1.5, ease : "power4.inOut", duration : 2, scrollTrigger : { trigger : ".cam-view-2", start : "top bottom", end : 'top top', scrub : true, immediateRender : false } } )
+
+  // CHOOSE SECTION
+  .to
+  (
+    '.brilliant--container',
+    {
+      opacity : 0, x : '-110%', ease : "power4.inOut",
+      scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : 'top top', scrub : true, immediateRender : false }
+    }
+  )
+  .to
+  (
+    '.choose--text-bg',
+    {
+      opacity : 0.1, ease : "power4.inOut",
+      scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : 'top top', scrub : true, immediateRender : false }
+    }
+  )
+  .to
+  (
+    '.choose--image',
+    {
+      opacity : 1.0, ease : "power4.inOut",
+      scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : 'top top', scrub : true, immediateRender : false }
+    }
+  )
+  .fromTo
+  (
+    '.choose--content',
+    { opacity : 0, x : '200%', y : '130%' },
+    {
+      opacity : 1, x : '-75%', y : '0%', duration : 0.5, ease : "power4.inOut",
+      scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : "top top", scrub : true, immediateRender : false }
+    }
+  )
+  .addLabel( "Choose" )
+  .to
+  (
+    '.side-bar .brilliant',
+    {
+      opacity : 0.5, scale : 1, ease : "power4.inOut", duration : 2,
+      scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : 'top top', scrub : true, immediateRender : false }
+    }
+  )
+  .to
+  (
+    '.side-bar .choose',
+    {
+      opacity : 1, scale : 1.5, ease : "power4.inOut", duration : 2,
+      scrollTrigger : { trigger : ".cam-view-3", start : "top bottom", end : 'top top', scrub : true, immediateRender : false }
+    }
+  )
+  .to
+  (
+    '.side-bar .brilliant',
+    {
+      opacity : 0.5, scale : 1, ease : "power4.inOut", duration : 2,
+      scrollTrigger : { trigger : ".cam-view-1", start : "top bottom", end : 'top top', scrub : true, immediateRender : false }
+    }
+  )
+}
+
+function onCompleteConfigAnimation()
+{
+  camView1.style.display = "none"
+  camView2.style.display = "none"
+  camView3.style.display = "none"
+  nightModeButton.style.pointerEvents = "none";
+
+  previewContainer.style.display = "flex"
+  exitContainer.style.display = "flex"
+  exitContainer.style.pointerEvents = "all";
+  nightModeButton2.style.pointerEvents = "all";
+  gemMenu.style.display = "flex"
+  footerMenu.style.display = "flex"
+  materialsMenu.style.display = "flex"
+  ringsMenu.style.display = "flex"
+  configMaterial.style.display = "flex"
+  configGem.style.display = "flex"
+  closeConfigMaterial.style.display = "flex"
+  configRing.style.display = "flex"
+  closeConfigGem.style.display = "flex"
+  closeConfigRing.style.display = "flex"
+  footerContainer.style.display = "flex"
+}
+
+function configAnimation()
+{
+  nightMode = toggleNightMode( !nightMode )
+
+  gsap.timeline()
+  .to( '.choose--content', { opacity : 0, x : '200%', duration : 1.5, ease : "power4.out", onComplete : onCompleteConfigAnimation } ) // , '-=2.5'
+  .to( '.choose--text-bg', { opacity : 0, x : '200%', duration : 1.5, ease : "power4.out" }, '-=2.5' )
+  .to( '.choose--image', { opacity : 0, y : '100%', duration : 1.5, ease : "power4.out" }, '-=1.5' )
+  .fromTo( '.footer--menu', { opacity : 0, y : '150%' }, { opacity : 1, y : '0%', duration : 1.5 } )
+}
+
+// EXIT EVENT
+function exitConfigAnimation()
+{
+  gemMenu.classList.remove( 'show' )
+  materialsMenu.classList.remove( 'show' )
+  ringsMenu.classList.remove( 'show' )
+  if ( document.querySelector( '.footer--menu li.active' ) )
+  {
+    document.querySelector( '.footer--menu li.active' )?.classList.remove( 'active' )
+  }
+
+  nightMode = toggleNightMode( !nightMode )
+
+  gsap.timeline().to( '.footer--menu', { opacity : 0, y : '150%' } ) // , '-=1.2'
+  .to( '.choose--content', { opacity : 1, x : '0%', duration : 0.5, ease : "power4.out" }, '-=1.2' )
+  .fromTo( '.choose--image', { opacity : 0, y : '100%'}, { opacity : 1, y : '50%', duration : 0.5, ease : "power4.inOut" }, '-=1.2' )
+}
+
+// NIGHT MODE
+function toggleNightMode( _nightMode )
+{
+  if ( !_nightMode )
+  {
+    headerContainer.classList.add( 'night--mode--filter' )
+    camView1.classList.add( 'night--mode--filter' )
+    camView2.classList.add( 'night--mode--filter' )
+    camView3.classList.add( 'night--mode--filter' )
+    exitContainer.classList.add( 'night--mode--filter' )
+    sidebar.classList.add( 'night--mode--filter' )
+    footerMenu.classList.add( 'night--mode--filter' )
+    gsap.to
+    (
+      document.body,
+      {
+        duration: 0.75,
+        "--bg-color-inner" : innerDarkColor,
+        "--bg-color-outer" : outerDarkColor
+      }
+    );
+    _nightMode = true
+  }
+  else
+  {
+    headerContainer.classList.remove( 'night--mode--filter' )
+    camView1.classList.remove( 'night--mode--filter' )
+    camView2.classList.remove( 'night--mode--filter' )
+    camView3.classList.remove( 'night--mode--filter' )
+    footerMenu.classList.remove( 'night--mode--filter' )
+    exitContainer.classList.remove( 'night--mode--filter' )
+    sidebar.classList.remove( 'night--mode--filter' )
+    gsap.to
+    (
+      document.body,
+      {
+        duration: 0.75,
+        "--bg-color-inner" : innerLightColor,
+        "--bg-color-outer" : outerLightColor
+      }
+    );
+    _nightMode = false
+  }
+
+  return _nightMode
+}
+
+document.querySelector('.button-scroll')?.addEventListener
+(
+  'click',
+  () =>
+  {
+    const element = document.querySelector( '.cam-view-2' )
+    window.scrollTo( { top : element?.getBoundingClientRect().top, left : 0, behavior : 'smooth' } )
+  }
+)
+
+document.querySelector( '.brilliant' )?.addEventListener
+(
+  'click',
+  () =>
+  {
+    const element = document.querySelector( '.cam-view-2' )
+    window.scrollTo( { top : element?.getBoundingClientRect().top, left : 0, behavior : 'smooth' } )
+  }
+)
+
+document.querySelector('.hero--scroller')?.addEventListener
+(
+  'click',
+  () =>
+  {
+    const element = document.querySelector( '.cam-view-2' )
+    window.scrollTo( { top : element?.getBoundingClientRect().top, left : 0, behavior : 'smooth' } )
+  }
+)
+
+document.querySelector( '.btn-customize' )?.addEventListener
+(
+  'click',
+  () =>
+  {
+    outerLightColor = "#DDDDDD";
+    outerDarkColor = "#000000";
+
+    exploreView.style.pointerEvents = "none"
+    document.body.style.overflowY = "hidden"
+    document.body.style.cursor = "grab"
+    sidebar.style.display = "none"
+    headerContainer.style.display = "none"
+    configAnimation()
+  }
+)
+
+document.querySelector( '.button--exit' )?.addEventListener
+(
+  'click',
+  () =>
+  {
+    outerLightColor = innerLightColor
+    outerDarkColor = innerDarkColor
+
+    camView1.style.display = "flex"
+    camView2.style.display = "flex"
+    camView3.style.display = "flex"
+    headerContainer.style.display = "flex"
+    chooseImage.style.display = "flex"
+    nightModeButton.style.pointerEvents = "all";
+
+    previewContainer.style.display = "none"
+    exitContainer.style.display = "none"
+    exitContainer.style.pointerEvents = "none";
+    nightModeButton2.style.pointerEvents = "none";
+    gemMenu.style.display = "none"
+    footerMenu.style.display = "none"
+    materialsMenu.style.display = "none"
+    ringsMenu.style.display = "none"
+    configMaterial.style.display = "none"
+    configGem.style.display = "none"
+    closeConfigMaterial.style.display = "none"
+    configRing.style.display = "none"
+    closeConfigGem.style.display = "none"
+    closeConfigRing.style.display = "none"
+    footerContainer.style.display = "none"
+
+    exploreView.style.pointerEvents = "all"
+    document.body.style.overflowY = "auto"
+    document.body.style.cursor = "auto"
+    sidebar.style.display = "block"
+    exitConfigAnimation()
+  }
+)
+
+document.querySelector('.night--mode')?.addEventListener
+(
+  'click', () => { nightMode = toggleNightMode( nightMode ) }
+)
+
+document.querySelector('.night--mode--2')?.addEventListener
+(
+  'click', () => { nightMode = toggleNightMode( nightMode ) }
+)
+
+async function setupMainPage()
+{
+  replaceSVG( "./assets/icons/moon.svg", ".image--moon" )
+  replaceSVG( "./assets/icons/moon.svg", ".image--moon--2" )
+  replaceSVG( "./assets/icons/gem.svg", ".image--gem" )
+  replaceSVG( "./assets/icons/metal.svg", ".image--material" )
+  replaceSVG( "./assets/icons/ring.svg", ".image--ring" )
+
+  window.addEventListener
+  (
+    "load",
+    ( ev ) =>
+    {
+      if ( firstLoad )
+      {
+        introAnimation()
+      }
+    }
+  )
+
+  window.scrollTo(0,0)
+
+  outerLightColor = innerLightColor
+  outerDarkColor = innerDarkColor
+}
+
+// -- CONFIGURATOR --
+
+function updatePreview()
+{
+  const { metal, gem, ring } = state;
+  const imagePath = `./assets/jewelry/${metal}_${gem}_${ring}.png`;
+
+  previewImage.src = imagePath;
+  previewContainer.classList.add( "show" );
+
+  clearTimeout( previewContainer._hideTimer );
+  previewContainer._hideTimer = setTimeout
+  (
+    () =>
+    {
+      previewContainer.classList.remove( "show" );
+    },
+    PREVIEW_TIMEOUT_MS
+  );
+}
+
+function setActive( target, groupSelector )
+{
+  document.querySelectorAll( `${groupSelector} li.active` ).forEach
+  (
+    li => li.classList.remove( "active" )
+  );
+  target.classList.add( "active" );
+}
+
+function bindSelector( groupSelector, type, valueGetter )
+{
+  document.querySelectorAll( `${groupSelector} li` ).forEach
+  (
+    li =>
+    {
+      li.addEventListener
+      (
+        "click",
+        () =>
+        {
+          setActive( li, groupSelector );
+          state[ type ] = valueGetter( li );
+          updatePreview();
+        }
+      );
+    }
+  );
+}
+
+// GEM MENU
+configGem.addEventListener
+(
+  'click',
+  () =>
+  {
+    gemMenu.classList.add( 'show' )
+    materialsMenu.classList.remove( 'show' )
+    ringsMenu.classList.remove( 'show' )
+
+    if ( document.querySelector( '.footer--menu li.active' ) )
+    {
+      document.querySelector( '.footer--menu li.active' )?.classList.remove( 'active' )
+    }
+    configGem.parentElement?.classList.add( 'active' )
+  }
+)
+
+// DIAMOND COLORS
+document.querySelector('.ruby')?.addEventListener
+(
+  'click',
+  () =>
+  {
+    document.querySelector( '.colors--list li.active' )?.classList.remove( 'active' )
+    document.querySelector( '.ruby' )?.classList.add( 'active' )
+  }
+)
+document.querySelector( '.white' )?.addEventListener
+(
+  'click',
+  () =>
+  {
+    document.querySelector( '.colors--list li.active' )?.classList.remove( 'active' )
+    document.querySelector( '.white' )?.classList.add( 'active' )
+  }
+)
+document.querySelector( '.emerald' )?.addEventListener
+(
+  'click',
+  () =>
+  {
+    document.querySelector( '.colors--list li.active' )?.classList.remove( 'active' )
+    document.querySelector( '.emerald' )?.classList.add( 'active' )
+  }
+)
+
+// MATERIALS MENU
+configMaterial.addEventListener
+(
+  'click',
+  () =>
+  {
+    materialsMenu.classList.add( 'show' )
+    gemMenu.classList.remove( 'show' )
+    ringsMenu.classList.remove( 'show' )
+
+    if ( document.querySelector( '.footer--menu li.active' ) )
+    {
+      document.querySelector( '.footer--menu li.active' )?.classList.remove( 'active' )
+    }
+    configMaterial.parentElement?.classList.add( 'active' )
+  }
+)
+
+// MATERIALS COLOR
+document.querySelector( '.silver' )?.addEventListener
+(
+  'click',
+  () =>
+  {
+    document.querySelector( '.materials--list li.active' )?.classList.remove( 'active' )
+    document.querySelector( '.silver' )?.classList.add( 'active' )
+  }
+)
+document.querySelector( '.copper' )?.addEventListener
+(
+  'click',
+  () =>
+  {
+    document.querySelector( '.materials--list li.active' )?.classList.remove( 'active' )
+    document.querySelector('.copper')?.classList.add( 'active' )
+  }
+)
+
+document.querySelector( '.gold' )?.addEventListener
+(
+  'click',
+  () =>
+  {
+    document.querySelector( '.materials--list li.active' )?.classList.remove( 'active' )
+    document.querySelector( '.gold' )?.classList.add( 'active' )
+  }
+)
+
+// CHANGE RING
+configRing.addEventListener
+(
+  'click',
+  () =>
+  {
+    ringsMenu.classList.add( 'show' )
+    materialsMenu.classList.remove( 'show' )
+    gemMenu.classList.remove( 'show' )
+
+    if ( document.querySelector( '.footer--menu li.active' ) )
+    {
+      document.querySelector( '.footer--menu li.active' )?.classList.remove( 'active' )
+    }
+    configRing.parentElement?.classList.add('active')
+  }
+)
+
+// CLOSE GEM MENU
+closeConfigGem.addEventListener
+(
+  'click',
+  () =>
+  {
+    gemMenu.classList.remove( 'show' )
+
+    if ( document.querySelector( '.footer--menu li.active' ) )
+    {
+      document.querySelector( '.footer--menu li.active' )?.classList.remove( 'active' )
+    }
+  }
+)
+
+// CLOSE MATERIAL MENU
+closeConfigMaterial.addEventListener
+(
+  'click',
+  () =>
+  {
+    materialsMenu.classList.remove( 'show' )
+
+    if ( document.querySelector( '.footer--menu li.active' ) )
+    {
+      document.querySelector( '.footer--menu li.active' )?.classList.remove( 'active' )
+    }
+  }
+)
+
+// CLOSE RING MENU
+closeConfigRing.addEventListener
+(
+  'click',
+  () =>
+  {
+    ringsMenu.classList.remove( 'show' )
+
+    if ( document.querySelector( '.footer--menu li.active' ) )
+    {
+      document.querySelector( '.footer--menu li.active' )?.classList.remove( 'active' )
+    }
+  }
+)
+
+function setupConfigurator()
+{
+  bindSelector
+  (
+    ".colors--list", "gem",
+    li =>
+    {
+      if ( li.classList.contains( "ruby" ) ) return "red";
+      if ( li.classList.contains( "white" ) ) return "white";
+      if ( li.classList.contains( "emerald" ) ) return "green";
+      return state.gem;
+    }
+  );
+
+  bindSelector
+  (
+    ".materials--list", "metal",
+    li =>
+    {
+      if ( li.classList.contains( "silver" ) ) return "silver";
+      if ( li.classList.contains( "gold" ) ) return "gold";
+      if ( li.classList.contains( "copper" ) ) return "copper";
+      return state.metal;
+    }
+  );
+
+  bindSelector
+  (
+    ".rings--list", "ring",
+    li =>
+    {
+      if ( li.classList.contains( "ring1" ) ) return 1;
+      if ( li.classList.contains( "ring2" ) ) return 2;
+      if ( li.classList.contains( "ring3" ) ) return 3;
+      return state.ring;
+    }
+  );
+
+  previewContainer.style.display = "none"
+  exitContainer.style.display = "none"
+  gemMenu.style.display = "none"
+  footerMenu.style.display = "none"
+  materialsMenu.style.display = "none"
+  ringsMenu.style.display = "none"
+  configMaterial.style.display = "none"
+  configGem.style.display = "none"
+  closeConfigMaterial.style.display = "none"
+  configRing.style.display = "none"
+  closeConfigGem.style.display = "none"
+  closeConfigRing.style.display = "none"
+  footerContainer.style.display = "none"
+}
+
+document.addEventListener
+(
+  "DOMContentLoaded",
+  () =>
+  {
+    setupMainPage();
+    setupConfigurator();
+  }
+);

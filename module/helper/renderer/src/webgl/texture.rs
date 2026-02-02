@@ -10,6 +10,7 @@ mod private
   /// This struct encapsulates the necessary data and functionality for working with WebGL textures.
   /// It includes the texture's target, the actual WebGL texture object, and a sampler for controlling
   /// how the texture is sampled.
+  #[ non_exhaustive ]
   #[ derive( Former, Clone, Debug ) ]
   pub struct Texture
   {
@@ -44,19 +45,19 @@ mod private
     }
   }
 
-  impl Default for Texture 
+  impl Default for Texture
   {
-    fn default() -> Self 
+    fn default() -> Self
     {
       let target = gl::TEXTURE_2D;
-      
+
       Self
       {
         target,
         source : None,
         sampler : Default::default()
       }
-    }    
+    }
   }
 }
 

@@ -137,26 +137,21 @@ impl< System, Orientation > Coordinate< System, Orientation >
       r,
       _marker : PhantomData,
     }
-    }
-}
+  }
 
-impl< Orientation, Parity > Coordinate< Offset< Parity >, Orientation >
-{
-    /// Creates a new `Offset` coordinate.
-  pub const fn new( q : i32, r : i32 ) -> Self
-  {
-    Self::new_uncheked( q, r )
-    }
-}
-
-impl< Orientation > Coordinate< Axial, Orientation >
-{
-  /// Creates a new `Axial` coordinate.
+  /// Creates a new `Offset` coordinate.
   pub const fn new( q : i32, r : i32 ) -> Self
   {
     Self::new_uncheked( q, r )
   }
+}
 
+// impl< Orientation, Parity > Coordinate< Offset< Parity >, Orientation >
+// {
+// }
+
+impl< Orientation > Coordinate< Axial, Orientation >
+{
   /// Calculates the grid distance between two `Axial` coordinates.
   pub fn distance( &self, Self { q, r, .. } : Self ) -> i32
   {

@@ -1,0 +1,14 @@
+[package]
+name = "minwgpu"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+wgpu.workspace = true
+pollster.workspace = true
+mingl.workspace = true
+error_tools.workspace = true
+asbytes.workspace = true
+
+[lints]
+workspace = true

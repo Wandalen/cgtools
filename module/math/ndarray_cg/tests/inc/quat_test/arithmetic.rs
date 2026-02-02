@@ -1,4 +1,4 @@
-use ndarray_cg::approx::assert_abs_diff_eq;
+use ndarray_cg::{ F64x3, QuatF64, approx::assert_abs_diff_eq, relative_eq };
 
 use super::*;
 
@@ -134,4 +134,62 @@ fn test_from_euler_xyz()
   let q = QuatF64::from_euler_xyz( [ -23.0, 123.0, 0.53 ] );
   let exp = QuatF64::from( [ 0.0769801414111575, -0.5074489930731315, -0.7909288495020033, 0.3331683242489008 ] );
   assert_abs_diff_eq!( q, exp );
+}
+
+#[test]
+fn test_to_euler_xyz()
+{
+  use ndarray_cg::QuatF64;
+
+  let test_cases =
+  [
+    [ 1.0_f64.to_radians(), 2.0_f64.to_radians(), 3.0_f64.to_radians() ],
+    [ 0.0, 0.0, 0.0 ],
+    [ 0.01, 0.01, 0.01 ],
+    [ 0.0, 90.0_f64.to_radians(), 0.0 ],
+  ];
+
+  for input in test_cases
+  {
+    let q_in = QuatF64::from_euler_xyz( input ).normalize();
+
+    let result = q_in.to_euler_xyz();
+
+    assert_abs_diff_eq!
+    (
+      result,
+      F64x3::from_array( input ),
+      epsilon = 1e-1
+    );
+  }
+}
+
+#[ test ]
+fn test_to_euler_xyz_from_raw_quat()
+{
+  use ndarray_cg::QuatF64;
+
+  let test_cases =
+  [
+    ( [ 0.009, 0.017, 0.026, 0.999 ], [ 1.0_f64.to_radians(), 2.0_f64.to_radians(), 3.0_f64.to_radians() ] ),
+    ( [ 0.0, 0.0, 0.0, 1.0 ], [ 0.0, 0.0, 0.0 ] ),
+    ( [ 0.0, 0.0, 0.0, 1.0 ], [ 0.01_f64.to_radians(), 0.01_f64.to_radians(), 0.01_f64.to_radians() ] ),
+    ( [ 0.707, 0.0, 0.707, 0.0 ], [ 0.0, -90.0_f64.to_radians(), 0.0 ] ),
+  ];
+
+  for ( raw_quat, expected ) in test_cases
+  {
+    let q_in = QuatF64::from( raw_quat );
+
+    let result = q_in.to_euler_xyz();
+
+    println!("Expected: {:?}", [ expected[ 0 ].to_degrees(), expected[ 1 ].to_degrees(), expected[ 2 ].to_degrees() ]);
+
+    assert_abs_diff_eq!
+    (
+      result,
+      F64x3::from_array( expected ),
+      epsilon = 1e-1
+    );
+  }
 }

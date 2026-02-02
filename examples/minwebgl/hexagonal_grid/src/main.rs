@@ -1,6 +1,6 @@
 //! Hexagonal grid pathfinding example using `tiles_tools` and `minwebgl`.
 #![ allow( clippy::doc_markdown ) ]
-#![ allow( clippy::wildcard_imports ) ] 
+#![ allow( clippy::wildcard_imports ) ]
 #![ allow( clippy::implicit_return ) ]
 #![ allow( clippy::too_many_lines ) ]
 #![ allow( clippy::default_trait_access ) ]
@@ -46,7 +46,7 @@ fn main() -> Result< (), min::WebglError >
 fn draw_hexes() -> Result< (), minwebgl::WebglError >
 {
   min::browser::setup( Default::default() );
-  let o = min::context::ContexOptions::default()
+  let o = min::context::ContextOptions::default()
   .remove_dpr_scaling( true )
   .preserve_drawing_buffer( true );
   let context = min::context::retrieve_or_make_with( o )?;

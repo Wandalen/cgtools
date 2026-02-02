@@ -1,3 +1,6 @@
+#[ cfg( debug_assertions ) ]
+use std::mem::{ align_of_val, size_of_val };
+
 use super::*;
 
 // = 4
@@ -26,7 +29,7 @@ impl< E > ArrayRef< E, 4 > for ( E, E, E, E )
   #[ inline( always ) ]
   fn array_ref( &self ) -> &[ E ; 4 ]
   {
-    use std::mem::{ align_of_val, size_of_val, transmute };
+    use std::mem::transmute;
 
     // SAFETY: We are using `transmute` to convert a reference to a tuple `(E, E, E, E)`
     // into a reference to an array `[E; 4]`. This is safe because:
@@ -58,7 +61,7 @@ impl< E > ArrayMut< E, 4 > for ( E, E, E, E )
   #[ inline( always ) ]
   fn vector_mut( &mut self ) -> &mut [ E ; 4 ]
   {
-    use std::mem::{ align_of_val, size_of_val, transmute };
+    use std::mem::transmute;
 
     // Store layout information in temporary variables
     #[ cfg( debug_assertions ) ]

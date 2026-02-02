@@ -8,7 +8,7 @@ A comprehensive 3D rendering system built specifically for WebAssembly and WebGL
 
 ### 🎮 **Rendering Pipeline**
 - **Physically Based Rendering (PBR)** - Industry-standard material system
-- **Multi-Sample Anti-Aliasing (MSAA)** - Hardware-accelerated edge smoothing  
+- **Multi-Sample Anti-Aliasing (MSAA)** - Hardware-accelerated edge smoothing
 - **HDR Rendering** - High dynamic range color pipeline
 - **Post-Processing Stack** - Tone mapping, gamma correction, and effects
 
@@ -28,6 +28,8 @@ A comprehensive 3D rendering system built specifically for WebAssembly and WebGL
 - **Normal Mapping** - Detailed surface rendering without additional geometry
 - **Specular Extensions** - Advanced material properties via KHR_materials_specular
 - **Texture Streaming** - Efficient texture memory management
+- **Configurable Rendering Properties** - Per-material control of face culling, depth testing, and winding order
+
 
 ## 📦 Installation
 
@@ -50,22 +52,22 @@ async fn setup_renderer() -> Result<(), Box<dyn std::error::Error>> {
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();
   let canvas = gl::canvas::make()?;
-  
+
   // Disable antialiasing (renderer uses MSAA internally)
   let options = gl::context::ContexOptions::default().antialias(false);
   let gl = gl::context::from_canvas_with(&canvas, options)?;
-  
+
   // Enable HDR rendering
   gl.get_extension("EXT_color_buffer_float")
     .expect("HDR textures not supported");
-  
+
   // Create renderer with 4x MSAA
   let renderer = Renderer::new(&gl, canvas.width(), canvas.height(), 4);
-  
+
   // Load 3D scene
   let gltf = loaders::gltf::load(&document, "assets/model.gltf", &gl).await?;
   let scene = &gltf.scenes[0];
-  
+
   Ok(())
 }
 ```
@@ -85,31 +87,31 @@ async fn render_frame(
     gl, canvas.width(), canvas.height()
   )?;
   let to_srgb = ToSrgbPass::new(gl, true)?; // Render to screen
-  
+
   // Update scene transformations
   scene.update_world_matrix();
-  
+
   // Render scene to HDR buffer
   renderer.render(gl, scene, camera)?;
-  
+
   // Post-processing pipeline
   swap_buffer.reset();
   swap_buffer.bind(gl);
   swap_buffer.set_input(renderer.get_main_texture());
-  
+
   // 1. Tone mapping (HDR -> LDR)
   let tonemapped = tonemapping.render(
     gl,
     swap_buffer.get_input(),
     swap_buffer.get_output()
   )?;
-  
+
   swap_buffer.set_output(tonemapped);
   swap_buffer.swap();
-  
+
   // 2. Gamma correction (final output to screen)
   to_srgb.render(gl, swap_buffer.get_input(), swap_buffer.get_output())?;
-  
+
   Ok(())
 }
 ```
@@ -159,7 +161,7 @@ renderer = { workspace = true, features = ["webgl", "full"] }
 ## 🎯 Use Cases
 
 - **Game Development** - Real-time 3D games and interactive applications
-- **Product Visualization** - High-quality product renders and configurators  
+- **Product Visualization** - High-quality product renders and configurators
 - **Architectural Visualization** - Building and interior walkthroughs
 - **Scientific Visualization** - Data visualization and simulation rendering
 - **Art & Animation** - Creative tools and interactive art installations

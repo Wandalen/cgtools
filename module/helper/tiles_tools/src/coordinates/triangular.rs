@@ -13,7 +13,7 @@ pub struct FlatSided;
 
 /// Represents a coordinate in a tri-axial grid system, often used for triangular tiling.
 /// Each coordinate defines a unique triangle on the grid.
-#[ derive( serde::Serialize, serde::Deserialize ) ]
+#[ derive( serde::Serialize ) ]
 pub struct Coordinate< Orientation >
 {
   /// The 'a' component of the tri-axial coordinate.
@@ -23,7 +23,40 @@ pub struct Coordinate< Orientation >
   /// The 'c' component of the tri-axial coordinate.
   pub c : i32,
   #[ serde( skip ) ]
-  _marker : PhantomData< Orientation >
+  _marker : PhantomData< Orientation >,
+}
+
+// Helper type just for deserialization
+#[ derive( serde::Deserialize ) ]
+struct CoordinateHelper
+{
+  a : i32,
+  b : i32,
+  c : i32,
+}
+
+impl< 'de, Orientation > serde::Deserialize< 'de > for Coordinate< Orientation >
+{
+  fn deserialize< D >( deserializer : D ) -> Result< Self, D::Error >
+  where
+    D : serde::Deserializer< 'de >,
+  {
+    let helper = CoordinateHelper::deserialize( deserializer )?;
+
+    let sum = helper.a + helper.b + helper.c;
+    if sum != 1 && sum != 2
+    {
+      return Err
+      (
+        serde::de::Error::custom
+        (
+          format!( "Invalid coordinate: a + b + c must equal 1 or 2 (got {})", sum )
+        )
+      );
+    }
+
+    Ok( Coordinate::new_unchecked( helper.a, helper.b, helper.c ) )
+  }
 }
 
 impl< Orientation > Debug for Coordinate< Orientation >
@@ -37,6 +70,14 @@ impl< Orientation > Debug for Coordinate< Orientation >
     .field( "c", &self.c )
     .field( "_marker", &self._marker )
     .finish()
+  }
+}
+
+impl< Orientation > Default for Coordinate< Orientation >
+{
+  fn default() -> Self
+  {
+    Self { a : Default::default(), b : Default::default(), c : Default::default(), _marker : Default::default() }
   }
 }
 
@@ -63,7 +104,7 @@ impl< Orientation > Hash for Coordinate< Orientation >
 
 impl< Orientation > PartialEq for Coordinate< Orientation >
 {
-  fn eq(&self, other: &Self) -> bool
+  fn eq( &self, other : &Self ) -> bool
   {
     self.a == other.a && self.b == other.b && self.c == other.c
   }
@@ -74,11 +115,12 @@ impl< Orientation > Eq for Coordinate< Orientation > {}
 impl< Orientation > Coordinate< Orientation >
 {
   /// Creates a new `TriAxial` coordinate from its three components.
+  /// The sum of `a` `b` and `c` must equal `1` or `2`
   #[ inline ]
   #[ must_use ]
   pub fn new( a : i32, b : i32, c : i32 ) -> Option< Self >
   {
-    let sum = a + b + c;
+    let sum = a as i64 + b as i64 + c as i64;
     if ( 1..=2 ).contains( &sum )
     {
       Some( Self { a, b, c, _marker : PhantomData } )
@@ -116,10 +158,10 @@ impl< Orientation > Coordinate< Orientation >
   }
 
   #[ inline ]
-  pub const fn is_up_or_right( &self ) -> bool { self.a + self.b + self.c == 2 }
+  pub const fn is_up_or_right( &self ) -> bool { self.a as i64 + self.b as i64 + self.c as i64 == 2 }
 
   #[ inline ]
-  pub const fn is_down_or_left( &self ) -> bool { self.a + self.b + self.c == 1 }
+  pub const fn is_down_or_left( &self ) -> bool { self.a as i64 + self.b as i64 + self.c as i64 == 1 }
 }
 
 impl< HOrientation, TOrientation > ToDual< hexagonal::Coordinate< hexagonal::Axial, HOrientation > > for Coordinate< TOrientation >
@@ -220,9 +262,9 @@ impl Coordinate< FlatTopped >
   {
     Self::new_unchecked
     (
-      ( (  1.0 * x - SQRT_3 / 3.0 * y ) / edge_length ).ceil()  as i32,
-      ( (      SQRT_3 * 2.0 / 3.0 * y ) / edge_length ).floor() as i32 + 1,
-      ( ( -1.0 * x - SQRT_3 / 3.0 * y ) / edge_length ).ceil()  as i32,
+      ( (   x - SQRT_3 / 3.0 * y ) / edge_length ).ceil()  as i32,
+      ( (       SQRT_3 * 2.0 / 3.0 * y ) / edge_length ).floor() as i32 + 1,
+      ( ( - x - SQRT_3 / 3.0 * y ) / edge_length ).ceil()  as i32,
     )
   }
 
@@ -237,5 +279,41 @@ impl Coordinate< FlatTopped >
       (           0.5 * a as f32 +                                   -0.5 * c as f32 ) * edge_length,
       ( -SQRT_3 / 6.0 * a as f32 + SQRT_3 / 3.0 * b as f32 - SQRT_3 / 6.0 * c as f32 ) * edge_length
     ].into()
+  }
+}
+
+impl< Orientation > TryFrom< [ i32; 3 ] > for Coordinate< Orientation >
+{
+  type Error = String;
+
+  fn try_from( [ a, b, c ] : [ i32; 3 ] ) -> Result< Self, Self::Error >
+  {
+    Self::new( a, b, c ).ok_or( "Sum of coordinates must equal 1 or 2".into() )
+  }
+}
+
+impl< Orientation > TryFrom< ( i32, i32, i32 ) > for Coordinate< Orientation >
+{
+  type Error = String;
+
+  fn try_from( ( a, b, c ) : ( i32, i32, i32 ) ) -> Result< Self, Self::Error >
+  {
+    Self::new( a, b, c ).ok_or( "Sum of coordinates must equal 1 or 2".into() )
+  }
+}
+
+impl< Orientation > Into< [ i32; 3 ] > for Coordinate< Orientation >
+{
+  fn into( self ) -> [ i32; 3 ]
+  {
+    [ self.a, self.b, self.c ]
+  }
+}
+
+impl< Orientation > Into< ( i32, i32, i32 ) > for Coordinate< Orientation >
+{
+  fn into( self ) -> ( i32, i32, i32 )
+  {
+    ( self.a, self.b, self.c )
   }
 }

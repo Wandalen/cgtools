@@ -1,0 +1,14 @@
+[package]
+name = "grid_render"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+wgpu.workspace = true
+image.workspace = true
+minwgpu.workspace = true
+tiles_tools.workspace = true
+asbytes.workspace = true
+
+[lints]
+workspace = true

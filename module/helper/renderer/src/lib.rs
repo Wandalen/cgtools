@@ -28,6 +28,7 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::ptr_as_ptr)]
 #![allow(clippy::std_instead_of_core)]
+#![allow(clippy::std_instead_of_alloc)]
 #![allow(clippy::trivially_copy_pass_by_ref)]
 #![allow(clippy::explicit_iter_loop)]
 #![allow(clippy::needless_borrow)]

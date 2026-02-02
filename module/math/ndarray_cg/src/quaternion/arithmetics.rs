@@ -5,6 +5,12 @@ mod private
 {
   use crate::{ mat::DescriptorOrderColumnMajor, * };
 
+  #[ inline ]
+  fn wrap_pi< E : MatEl + NdFloat >( a : E ) -> E
+  {
+    a.sin().atan2( a.cos() )
+  }
+
   impl< E > Quat< E >
   where E : MatEl + NdFloat
   {
@@ -235,6 +241,45 @@ mod private
       q[ 3 ] = c1 * c2 * c3 - s1 * s2 * s3;
 
       q
+    }
+
+    /// Converts a quaternion to Euler angles in XYZ order (radians)
+    pub fn to_euler_xyz( &self ) -> Vector< E, 3 >
+    {
+      let q = self.normalize();
+
+      let x = q.x();
+      let y = q.y();
+      let z = q.z();
+      let w = q.w();
+
+      let two = E::one() + E::one();
+      let one = E::one();
+      let eps = E::from( 1e-6 ).unwrap();
+
+      // Pitch ( Y )
+      let sinp = two * ( w * y - z * x );
+      let sinp = sinp.max( - one ).min( one );
+      let pitch = sinp.asin();
+
+      // Gimbal lock handling
+      if ( sinp.abs() - one ).abs() < eps
+      {
+        // Collapse roll into yaw
+        let yaw = two * ( x * y + w * z ).atan2( one - two * ( y * y + z * z ) );
+        return [ E::zero(), pitch, wrap_pi( yaw ) ].into();
+      }
+
+      // Roll ( X )
+      let mut roll = ( two * ( w * x + y * z ) ).atan2( one - two * ( x * x + y * y ) );
+
+      // Yaw ( Z )
+      let mut yaw = ( two * ( w * z + x * y ) ).atan2( one - two * ( y * y + z * z ) );
+
+      roll = wrap_pi( roll );
+      yaw  = wrap_pi( yaw );
+
+      [ roll, pitch, yaw ].into()
     }
   }
 }

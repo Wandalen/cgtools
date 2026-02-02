@@ -1,0 +1,145 @@
+mod private
+{
+  use animation::
+  {
+    Tween,
+    Sequence,
+    Sequencer
+  };
+  use mingl as gl;
+  use gl::{ F64x3, QuatF64 };
+  use crate::webgl::animation::base::{ ROTATION_PREFIX, TRANSLATION_PREFIX };
+
+  /// Defines mirror plane
+  #[ derive( Clone, Copy, Debug ) ]
+  pub enum MirrorPlane
+  {
+    /// Mirror along XY plane
+    XY,
+    /// Mirror along YZ plane
+    YZ,
+    /// Mirror along XZ plane
+    XZ
+  }
+
+  /// Animation modifier that can mirror animations along plane ( XY, YZ, XZ )
+  #[ derive( Clone, Copy, Debug ) ]
+  pub struct Mirror;
+
+  impl Mirror
+  {
+    /// Mirror sequencer along plane ( XY, YZ, XZ )
+    pub fn along_plane( animation : &Sequencer, plane : MirrorPlane ) -> Sequencer
+    {
+      let mut animation = animation.clone();
+
+      match plane
+      {
+        MirrorPlane::XY =>
+        {
+          for key in animation.keys()
+          {
+            if key.ends_with( TRANSLATION_PREFIX )
+            {
+              if let Some( sequence ) = animation.get_mut::< Sequence< Tween< F64x3 > > >( &key )
+              {
+                for player in sequence.players_mut()
+                {
+                  player.start_value.0[ 2 ] = - player.start_value.z();
+                  player.end_value.0[ 2 ] = - player.end_value.z();
+                }
+              }
+            }
+            else if key.ends_with( ROTATION_PREFIX )
+            {
+              if let Some( sequence ) = animation.get_mut::< Sequence< Tween< QuatF64 > > >( &key )
+              {
+                for player in sequence.players_mut()
+                {
+                  player.start_value.0[ 0 ] = - player.start_value.x();
+                  player.start_value.0[ 1 ] = - player.start_value.y();
+                  player.end_value.0[ 0 ] = - player.end_value.x();
+                  player.end_value.0[ 1 ] = - player.end_value.y();
+                }
+              }
+            }
+          }
+        },
+        MirrorPlane::YZ =>
+        {
+          for key in animation.keys()
+          {
+            if key.ends_with( TRANSLATION_PREFIX )
+            {
+              if let Some( sequence ) = animation.get_mut::< Sequence< Tween< F64x3 > > >( &key )
+              {
+                for player in sequence.players_mut()
+                {
+                  player.start_value.0[ 0 ] = - player.start_value.x();
+                  player.end_value.0[ 0 ] = - player.end_value.x();
+                }
+              }
+            }
+            else if key.ends_with( ROTATION_PREFIX )
+            {
+              if let Some( sequence ) = animation.get_mut::< Sequence< Tween< QuatF64 > > >( &key )
+              {
+                for player in sequence.players_mut()
+                {
+                  player.start_value.0[ 1 ] = - player.start_value.y();
+                  player.start_value.0[ 2 ] = - player.start_value.z();
+                  player.end_value.0[ 1 ] = - player.end_value.y();
+                  player.end_value.0[ 2 ] = - player.end_value.z();
+
+                }
+              }
+            }
+          }
+        },
+        MirrorPlane::XZ =>
+        {
+          for key in animation.keys()
+          {
+            if key.ends_with( TRANSLATION_PREFIX )
+            {
+              if let Some( sequence ) = animation.get_mut::< Sequence< Tween< F64x3 > > >( &key )
+              {
+                for player in sequence.players_mut()
+                {
+                  player.start_value.0[ 1 ] = - player.start_value.y();
+                  player.end_value.0[ 1 ] = - player.end_value.y();
+                }
+              }
+            }
+            else if key.ends_with( ROTATION_PREFIX )
+            {
+              if let Some( sequence ) = animation.get_mut::< Sequence< Tween< QuatF64 > > >( &key )
+              {
+                for player in sequence.players_mut()
+                {
+                  player.start_value.0[ 0 ] = - player.start_value.x();
+                  player.start_value.0[ 2 ] = - player.start_value.z();
+                  player.end_value.0[ 0 ] = - player.end_value.x();
+                  player.end_value.0[ 2 ] = - player.end_value.z();
+                }
+              }
+            }
+          }
+        }
+      }
+
+      animation
+    }
+  }
+
+
+}
+
+crate::mod_interface!
+{
+  orphan use
+  {
+    Mirror,
+    MirrorPlane
+  };
+}

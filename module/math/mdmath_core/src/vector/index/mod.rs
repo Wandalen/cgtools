@@ -1,3 +1,6 @@
+#[ cfg( debug_assertions ) ]
+use std::mem::{ align_of_val, size_of_val };
+
 use crate::{ Collection, ConstLength, IntoArray, ArrayRef, ArrayMut, Ix };
 use ::ndarray::{ Ix0, Ix1, Ix2, Ix3 };
 
@@ -66,7 +69,7 @@ impl ArrayRef< usize, 1 > for Ix1
   #[ inline( always ) ]
   fn array_ref( &self ) -> &[ usize ; 1 ]
   {
-    use std::mem::{ align_of_val, size_of_val, transmute };
+    use std::mem::transmute;
 
     // SAFETY: We are using `transmute` to convert a reference to a tuple `([ usize; N ])`
     // into a reference to an array `[usize; N]`. This is safe because:
@@ -98,7 +101,7 @@ impl ArrayMut< usize, 1 > for Ix1
   #[ inline( always ) ]
   fn vector_mut( &mut self ) -> &mut [ usize ; 1 ]
   {
-    use std::mem::{ align_of_val, size_of_val, transmute };
+    use std::mem::transmute;
 
     // Store layout information in temporary variables
     #[ cfg( debug_assertions ) ]
@@ -154,7 +157,7 @@ impl ArrayRef< usize, 2 > for Ix2
   #[ inline( always ) ]
   fn array_ref( &self ) -> &[ usize ; 2 ]
   {
-    use std::mem::{ align_of_val, size_of_val, transmute };
+    use std::mem::transmute;
 
     // SAFETY: We are using `transmute` to convert a reference to a tuple `([ usize; N ])`
     // into a reference to an array `[usize; N]`. This is safe because:
@@ -186,7 +189,7 @@ impl ArrayMut< usize, 2 > for Ix2
   #[ inline( always ) ]
   fn vector_mut( &mut self ) -> &mut [ usize ; 2 ]
   {
-    use std::mem::{ align_of_val, size_of_val, transmute };
+    use std::mem::transmute;
 
     // Store layout information in temporary variables
     #[ cfg( debug_assertions ) ]
@@ -242,7 +245,7 @@ impl ArrayRef< usize, 3 > for Ix3
   #[ inline( always ) ]
   fn array_ref( &self ) -> &[ usize ; 3 ]
   {
-    use std::mem::{ align_of_val, size_of_val, transmute };
+    use std::mem::transmute;
 
     // SAFETY: We are using `transmute` to convert a reference to a tuple `([ usize; N ])`
     // into a reference to an array `[usize; N]`. This is safe because:
@@ -274,7 +277,7 @@ impl ArrayMut< usize, 3 > for Ix3
   #[ inline( always ) ]
   fn vector_mut( &mut self ) -> &mut [ usize ; 3 ]
   {
-    use std::mem::{ align_of_val, size_of_val, transmute };
+    use std::mem::transmute;
 
     // Store layout information in temporary variables
     #[ cfg( debug_assertions ) ]

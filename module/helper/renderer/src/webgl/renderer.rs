@@ -1,27 +1,39 @@
 mod private
 {
-  use std::{ cell::RefCell, collections::HashMap, rc::Rc };
+  use std::{ cell::RefCell, rc::Rc };
+  use rustc_hash::FxHashMap;
   use minwebgl as gl;
+  use gl::{ GL, F32x3 };
+  use web_sys::WebGlTexture;
 
   use crate::webgl::
-  { 
+  {
+    material::pbr::
+    {
+      MAX_POINT_LIGHTS,
+      MAX_DIRECT_LIGHTS,
+      MAX_SPOT_LIGHTS
+    },
     post_processing::
     {
-      BlendPass, 
-      Pass, 
-      SwapFramebuffer, 
-      UnrealBloomPass, 
+      BlendPass,
+      Pass,
+      SwapFramebuffer,
+      UnrealBloomPass,
       VS_TRIANGLE
-    }, 
-    program::{ self, CompositeShader }, 
-    AlphaMode, 
-    Camera, 
-    Node, 
-    Object3D, 
+    },
+    program::{ SkyboxShader, CompositeShader },
+    LightType,
+    AlphaMode,
+    Camera,
+    Node,
+    MaterialUploadContext,
+    Object3D,
     Primitive,
-    ProgramInfo, 
-    Scene, 
-    IBL
+    ShaderProgram,
+    Scene,
+    IBL,
+    Light
   };
 
   /// Manages WebGL2 framebuffers and associated renderbuffers/textures for a rendering
@@ -70,9 +82,11 @@ mod private
     pub transparent_revealage_texture : Option< gl::web_sys::WebGlTexture >,
     #[ allow( dead_code ) ]
     pub depth_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
+    /// Texture with equirectangular map
+    pub skybox_texture : Option< gl::web_sys::WebGlTexture >,
   }
 
-  impl FramebufferContext 
+  impl FramebufferContext
   {
     /// Creates a new `FramebufferContext` instance, initializing all necessary
     /// WebGL2 framebuffers, renderbuffers, and textures.
@@ -106,10 +120,10 @@ mod private
       // Allocate storage for the depth/stencil renderbuffer with multisampling.
       gl.renderbuffer_storage_multisample
       (
-        gl::RENDERBUFFER, 
-        samples, 
-        gl::DEPTH24_STENCIL8, 
-        width as i32, 
+        gl::RENDERBUFFER,
+        samples,
+        gl::DEPTH24_STENCIL8,
+        width as i32,
         height as i32
       );
 
@@ -121,10 +135,10 @@ mod private
       // Allocate storage for the main color renderbuffer with multisampling.
       gl.renderbuffer_storage_multisample
       (
-        gl::RENDERBUFFER, 
-        samples, 
-        gl::RGBA16F, 
-        width as i32, 
+        gl::RENDERBUFFER,
+        samples,
+        gl::RGBA16F,
+        width as i32,
         height as i32
       );
 
@@ -136,10 +150,10 @@ mod private
       // Allocate storage for the emission color renderbuffer with multisampling.
       gl.renderbuffer_storage_multisample
       (
-        gl::RENDERBUFFER, 
-        samples, 
-        gl::RGBA16F, 
-        width as i32, 
+        gl::RENDERBUFFER,
+        samples,
+        gl::RGBA16F,
+        width as i32,
         height as i32
       );
 
@@ -148,10 +162,10 @@ mod private
       // Allocate storage for the emission color renderbuffer with multisampling.
       gl.renderbuffer_storage_multisample
       (
-        gl::RENDERBUFFER, 
-        samples, 
-        gl::RGBA16F, 
-        width as i32, 
+        gl::RENDERBUFFER,
+        samples,
+        gl::RGBA16F,
+        width as i32,
         height as i32
       );
 
@@ -160,15 +174,14 @@ mod private
       // Allocate storage for the emission color renderbuffer with multisampling.
       gl.renderbuffer_storage_multisample
       (
-        gl::RENDERBUFFER, 
-        samples, 
-        gl::R16F, 
-        width as i32, 
+        gl::RENDERBUFFER,
+        samples,
+        gl::R16F,
+        width as i32,
         height as i32
       );
 
       gl.bind_renderbuffer( gl::RENDERBUFFER, None );
-      
 
       // --- Create Resolved Textures ---
       // These textures will store the final, resolved (non-multisampled)
@@ -187,20 +200,20 @@ mod private
       gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width as i32, height  as i32 );
       gl::texture::d2::filter_linear( gl );
       gl::texture::d2::wrap_clamp( gl );
-      
+
       // Configure the emission texture.
       gl.bind_texture( gl::TEXTURE_2D, emission_texture.as_ref() );
       gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width  as i32, height  as i32 );
       gl::texture::d2::filter_linear( gl );
       gl::texture::d2::wrap_clamp( gl );
 
-      // Configure the  texture.
+      // Configure the transparent accumulate texture.
       gl.bind_texture( gl::TEXTURE_2D, transparent_accumulate_texture.as_ref() );
       gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::RGBA16F, width as i32, height  as i32 );
       gl::texture::d2::filter_linear( gl );
       gl::texture::d2::wrap_clamp( gl );
-      
-      // Configure the  texture.
+
+      // Configure the transparent revealage texture.
       gl.bind_texture( gl::TEXTURE_2D, transparent_revealage_texture.as_ref() );
       gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::R16F, width  as i32, height  as i32 );
       gl::texture::d2::filter_linear( gl );
@@ -218,7 +231,7 @@ mod private
       gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT2, gl::RENDERBUFFER, multisample_transparent_accumulate_renderbuffer.as_ref() );
       gl.framebuffer_renderbuffer( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT3, gl::RENDERBUFFER, multisample_transparent_revealage_renderbuffer.as_ref() );
       // Specify which color attachments are active for drawing.
-      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] ); 
+      gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
 
       // --- Attach Textures to Resolved Framebuffer ---
       // Bind the resolved framebuffer to configure its attachments.
@@ -256,7 +269,8 @@ mod private
         main_texture,
         emission_texture,
         transparent_accumulate_texture,
-        transparent_revealage_texture
+        transparent_revealage_texture,
+        skybox_texture : None
       }
     }
 
@@ -328,9 +342,9 @@ mod private
       gl.clear_bufferfi( gl::DEPTH_STENCIL, 0, 1.0, 0 );
       gl.blit_framebuffer
       (
-        0, 0, self.texture_width as i32, self.texture_height as i32, 
-        0, 0, self.texture_width as i32, self.texture_height as i32, 
-        gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT, 
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT,
         gl::NEAREST
       );
 
@@ -344,9 +358,9 @@ mod private
       // to the draw framebuffer. The `gl::LINEAR` filter ensures a smooth resolution.
       gl.blit_framebuffer
       (
-        0, 0, self.texture_width as i32, self.texture_height as i32, 
-        0, 0, self.texture_width as i32, self.texture_height as i32, 
-        gl::COLOR_BUFFER_BIT, 
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        gl::COLOR_BUFFER_BIT,
         gl::LINEAR
       );
 
@@ -357,9 +371,9 @@ mod private
         //gl.clear_bufferfv_with_f32_array( gl::COLOR, 1, &[ 0.0, 0.0, 0.0, 0.0 ] );
         gl.blit_framebuffer
         (
-          0, 0, self.texture_width as i32, self.texture_height as i32, 
-          0, 0, self.texture_width as i32, self.texture_height as i32, 
-          gl::COLOR_BUFFER_BIT, 
+          0, 0, self.texture_width as i32, self.texture_height as i32,
+          0, 0, self.texture_width as i32, self.texture_height as i32,
+          gl::COLOR_BUFFER_BIT,
           gl::LINEAR
         );
       }
@@ -369,8 +383,8 @@ mod private
       //gl.clear_bufferfv_with_f32_array( gl::COLOR, 2, &[ 0.0, 0.0, 0.0, 1.0 ] );
       gl.blit_framebuffer
       (
-        0, 0, self.texture_width as i32, self.texture_height as i32, 
-        0, 0, self.texture_width as i32, self.texture_height as i32, 
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        0, 0, self.texture_width as i32, self.texture_height as i32,
         gl::COLOR_BUFFER_BIT, gl::LINEAR
       );
 
@@ -379,8 +393,8 @@ mod private
       //gl.clear_bufferfv_with_f32_array( gl::COLOR, 3, &[ 0.0, 0.0, 0.0, 1.0 ] );
       gl.blit_framebuffer
       (
-        0, 0, self.texture_width as i32, self.texture_height as i32, 
-        0, 0, self.texture_width as i32, self.texture_height as i32, 
+        0, 0, self.texture_width as i32, self.texture_height as i32,
+        0, 0, self.texture_width as i32, self.texture_height as i32,
         gl::COLOR_BUFFER_BIT, gl::LINEAR
       );
 
@@ -463,18 +477,31 @@ mod private
       // gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, None, 0 );
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
     }
-  }
 
-  /// The source code for the main vertex shader.
-  const MAIN_VERTEX_SHADER : &'static str = include_str!( "shaders/main.vert" );
-  /// The source code for the main fragment shader.
-  const MAIN_FRAGMENT_SHADER : &'static str = include_str!( "shaders/main.frag" );
+    /// Free [`FramebufferContext`] WebGL resources
+    pub fn free_gl_resources( &mut self, gl : &GL )
+    {
+      gl.delete_framebuffer( self.resolved_framebuffer.as_ref() );
+      gl.delete_framebuffer( self.multisample_framebuffer.as_ref() );
+      gl.delete_renderbuffer( self.multisample_depth_renderbuffer.as_ref() );
+      gl.delete_renderbuffer( self.multisample_emission_renderbuffer.as_ref() );
+      gl.delete_renderbuffer( self.multisample_main_renderbuffer.as_ref() );
+      gl.delete_renderbuffer( self.multisample_transparent_accumulate_renderbuffer.as_ref() );
+      gl.delete_renderbuffer( self.multisample_transparent_revealage_renderbuffer.as_ref() );
+      gl.delete_renderbuffer( self.depth_renderbuffer.as_ref() );
+      gl.delete_texture( self.main_texture.as_ref() );
+      gl.delete_texture( self.emission_texture.as_ref() );
+      gl.delete_texture( self.transparent_accumulate_texture.as_ref() );
+      gl.delete_texture( self.transparent_revealage_texture.as_ref() );
+      gl.delete_texture( self.skybox_texture.as_ref() );
+    }
+  }
 
   /// Manages the rendering process, including program management, IBL setup, and drawing objects in the scene.
   pub struct Renderer
   {
     /// A map of compiled WebGL programs, keyed by a combination of the material ID and vertex shader defines.
-    programs : HashMap< String, ProgramInfo< program::PBRShader > >,
+    programs : FxHashMap< String, Box< dyn ShaderProgram > >,
     /// Holds the precomputed textures used for Image-Based Lighting.
     ibl : Option< IBL >,
     /// A list of nodes with transparent primitives, sorted by distance to the camera for correct rendering order.
@@ -493,17 +520,21 @@ mod private
     /// Swap buffer to control rendering of the effects
     swap_buffer : SwapFramebuffer,
     exposure : f32,
-    composite_shader : ProgramInfo< CompositeShader >
+    composite_shader : CompositeShader,
+    /// Clear color
+    clear_color : F32x3,
+    /// Shader for drawing background
+    skybox_shader : SkyboxShader
   }
 
-  impl Renderer 
+  impl Renderer
   {
     /// Creates a new `Renderer` instance with default settings.
     pub fn new( gl : &gl::WebGl2RenderingContext, width : u32, height : u32, samples : i32 ) -> Result< Self, gl::WebglError >
     {
       let framebuffer_ctx = FramebufferContext::new( gl, width, height, samples );
       let use_emission = false;
-      let programs = HashMap::new();
+      let programs = FxHashMap::default();
       let ibl = None;
       let transparent_nodes = Vec::new();
       let bloom_effect = UnrealBloomPass::new( gl, width, height, gl::RGBA16F )?;
@@ -514,13 +545,21 @@ mod private
       let swap_buffer = SwapFramebuffer::new( gl, width, height );
       let exposure = 0.0;
 
-      let composite_program = gl::ProgramFromSources::new( VS_TRIANGLE, include_str!( "shaders/composite.frag" ) ).compile_and_link( gl )?; 
-      let composite_shader = ProgramInfo::< CompositeShader >::new( gl, composite_program );
-      let locations = composite_shader.get_locations();
+      let composite_program = gl::ProgramFromSources::new( VS_TRIANGLE, include_str!( "shaders/composite.frag" ) ).compile_and_link( gl )?;
+      let composite_shader = CompositeShader::new( gl, &composite_program );
+      let locations = composite_shader.locations();
       composite_shader.bind( gl );
       gl.uniform1i( locations.get( "transparentA" ).unwrap().clone().as_ref() , 0 );
       gl.uniform1i( locations.get( "transparentB" ).unwrap().clone().as_ref() , 1 );
-      
+
+      let skybox_program = gl::ProgramFromSources::new
+      (
+        include_str!( "shaders/skybox.vert" ),
+        include_str!( "shaders/skybox.frag" )
+      )
+      .compile_and_link( gl )?;
+      let skybox_shader = SkyboxShader::new( gl, &skybox_program );
+
       Ok
       (
         Self
@@ -534,10 +573,25 @@ mod private
           bloom_effect,
           swap_buffer,
           exposure,
-          composite_shader
+          composite_shader,
+          clear_color : F32x3::splat( 0.0 ),
+          skybox_shader
         }
       )
-    } 
+    }
+
+    /// Resize [`Renderer`]
+    pub fn resize( &mut self, gl : &gl::GL, width : u32, height : u32, samples : i32 ) -> Result< (), gl::WebglError >
+    {
+      self.framebuffer_ctx.free_gl_resources( gl );
+      self.bloom_effect.free_gl_resources( gl );
+      self.swap_buffer.free_gl_resources( gl );
+
+      self.framebuffer_ctx = FramebufferContext::new( gl, width, height, samples );
+      self.bloom_effect = UnrealBloomPass::new( gl, width, height, gl::RGBA16F )?;
+      self.swap_buffer = SwapFramebuffer::new( gl, width, height );
+      Ok( () )
+    }
 
     /// Sets the Image-Based Lighting (IBL) textures to be used for rendering.
     ///
@@ -553,6 +607,12 @@ mod private
       self.use_emission = use_emission;
     }
 
+    /// Sets clear color
+    pub fn set_clear_color( &mut self, color : F32x3 )
+    {
+      self.clear_color = color;
+    }
+
     /// Returns the current exposure value.
     pub fn get_exposure( &self ) -> f32
     {
@@ -560,10 +620,16 @@ mod private
     }
 
     /// Sets a new exposure value.
+    pub fn set_skybox( &mut self, texture : Option< WebGlTexture > )
+    {
+      self.framebuffer_ctx.skybox_texture = texture;
+    }
+
+    /// Sets a new exposure value.
     pub fn set_exposure( &mut self, exposure : f32 )
     {
       self.exposure = exposure;
-    } 
+    }
 
     /// Sets the radius of the bloom effect.
     ///
@@ -590,7 +656,7 @@ mod private
     }
 
     /// Gets the strength (intensity) of the bloom effect.
-    pub fn get_bloom_strength( &self  ) -> f32
+    pub fn get_bloom_strength( &self ) -> f32
     {
       self.bloom_effect.get_bloom_strength()
     }
@@ -601,87 +667,146 @@ mod private
       self.framebuffer_ctx.main_texture.clone()
     }
 
+    /// Draw equirectangular skybox
+    pub fn draw_skybox
+    (
+      &self,
+      gl : &gl::WebGl2RenderingContext,
+      camera : &Camera,
+    )
+    {
+      self.skybox_shader.bind( gl );
+
+      let locations = self.skybox_shader.locations();
+
+      let equirect_map_loc = locations.get( "equirectMap" ).unwrap();
+      let inv_projection_loc = locations.get( "invProjection" ).unwrap();
+      let inv_view_loc = locations.get( "invView" ).unwrap();
+
+      gl.active_texture( gl::TEXTURE0 );
+      gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.skybox_texture.as_ref() );
+      gl.uniform1i( equirect_map_loc.as_ref(), 0_i32 );
+      gl::uniform::matrix_upload( gl, inv_projection_loc.clone(), &camera.get_projection_matrix().inverse().unwrap().to_array(), true ).unwrap();
+      gl::uniform::matrix_upload( gl, inv_view_loc.clone(), &camera.get_view_matrix().inverse().unwrap().to_array(), true ).unwrap();
+
+      gl.disable( gl::CULL_FACE );
+      gl.enable( gl::DEPTH_TEST );
+      gl.depth_mask( false );
+      gl.depth_func( GL::LEQUAL );
+      gl.draw_arrays( gl::TRIANGLES, 0, 3 );
+
+      gl.depth_mask( true );
+      gl.depth_func( GL::LESS );
+      gl.use_program( None );
+    }
+
     /// Renders the scene using the provided camera.
     ///
     /// * `gl`: The `WebGl2RenderingContext` to use for rendering.
     /// * `scene`: A mutable reference to the `Scene` to be rendered.
     /// * `camera`: A reference to the `Camera` defining the viewpoint.
     pub fn render
-    ( 
-      &mut self, 
+    (
+      &mut self,
       gl : &gl::WebGl2RenderingContext,
-      scene : &mut Scene, 
-      camera : &Camera 
+      scene : &mut Scene,
+      camera : &Camera
     ) -> Result< (), gl::WebglError >
     {
       scene.update_world_matrix();
 
-      gl.enable( gl::DEPTH_TEST );
-      gl.disable( gl::CULL_FACE );
-      gl.disable( gl::BLEND );
-      gl.depth_mask( true );
       gl.clear_depth( 1.0 );
       gl.clear_stencil( 0 );
-      gl.front_face( gl::CCW );
+      gl.disable( gl::BLEND );
 
-      if self.use_emission 
+      if self.use_emission
       {
-        self.framebuffer_ctx.enable_emission_texture( gl );    
+        self.framebuffer_ctx.enable_emission_texture( gl );
       }
-      else 
+      else
       {
-        self.framebuffer_ctx.disable_emission_texture( gl );    
+        self.framebuffer_ctx.disable_emission_texture( gl );
       }
 
       self.framebuffer_ctx.bind_multisample( gl );
       gl::drawbuffers::drawbuffers( gl, &[ 0, 1, 2, 3 ] );
-      gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ 0.0, 0.0, 0.0, 1.0 ] );
+      let [ r, b, g ] = self.clear_color.0;
+      gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ r, b, g, 1.0 ] );
       gl.clear_bufferfv_with_f32_array( gl::COLOR, 1, &[ 0.0, 0.0, 0.0, 0.0 ] );
       gl.clear_bufferfv_with_f32_array( gl::COLOR, 2, &[ 0.0, 0.0, 0.0, 1.0 ] );
       gl.clear_bufferfv_with_f32_array( gl::COLOR, 3, &[ 0.0, 0.0, 0.0, 1.0 ] );
       gl.clear( gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT );
       gl::drawbuffers::drawbuffers( gl, &[ 0, 1 ] );
 
-
       // Clear the list of transparent nodes before each render.
       self.transparent_nodes.clear();
 
-      for program in self.programs.values()
-      {
-        let locations = program.get_locations();
-        program.bind( gl );
-        camera.upload( gl, locations );
-        gl::uniform::upload( gl, locations.get( "exposure" ).unwrap().clone(), &self.exposure )?;
-      }
+      let mut lights = FxHashMap::< LightType, Vec< Light > >::default();
 
-      // Define a closure to handle the drawing of each node in the scene.
-      let mut draw_node = 
-      | 
+      let mut collect_light_sources =
+      |
         node : Rc< RefCell< Node > >
       | -> Result< (), gl::WebglError >
       {
+        if let Object3D::Light( light ) = &node.borrow().object
+        {
+          let type_ : LightType = light.into();
+
+          lights.entry( type_ ).or_default().push( light.clone() );
+        }
+
+        Ok( () )
+      };
+
+      scene.traverse( &mut collect_light_sources )?;
+
+      for program in self.programs.values()
+      {
+        let locations = program.locations();
+        program.bind( gl );
+        camera.upload( gl, locations );
+        bind_lights( gl, &program, &lights );
+        if let Some( exposure_loc ) = locations.get( "exposure" )
+        {
+          gl::uniform::upload( gl, exposure_loc.clone(), &self.exposure )?;
+        }
+      }
+
+      // Define a closure to handle the drawing of each node in the scene.
+      let mut draw_node =
+      |
+        node : Rc< RefCell< Node > >
+      | -> Result< (), gl::WebglError >
+      {
+        if !node.borrow().is_visible()
+        {
+          return Ok( () );
+        }
+
         // If the node contains a mesh...
         if let Object3D::Mesh( ref mesh ) = node.borrow().object
         {
           // Iterate over each primitive in the mesh.
-          for primitive_rc in mesh.borrow().primitives.iter()
+          for ( i, primitive_rc ) in mesh.borrow().primitives.iter().enumerate()
           {
+            let node_ref = node.borrow();
             let primitive = primitive_rc.borrow();
-            let material = primitive.material.borrow();
-            let geometry = primitive.geometry.borrow();
-            let vs_defines = geometry.get_defines();
+            let defines = primitive.material.borrow().get_defines_str();
             // Generate a unique ID for the program based on the material ID and vertex shader defines.
-            let program_id = format!( "{}{}", material.id, vs_defines );
+            let program_id = format!( "{}{}", primitive.material.borrow().get_id(), defines );
+
+            let program_cached = self.programs.contains_key( &program_id );
 
             // Retrieve the program info if it already exists, otherwise compile and link a new program.
-            let program_info = 
-            if let Some( ref program_info ) = self.programs.get( &program_id )
+            let shader_program =
+            if let Some( shader_program ) = self.programs.get( &program_id )
             {
-             program_info 
+              shader_program
             }
             else
             {
-              let ibl_define = if self.ibl.is_some()
+              let material = primitive.material.borrow_mut();
+              let ibl_define = if self.ibl.is_some() && material.get_ibl_base_texture_unit().is_some()
               {
                 "#define USE_IBL\n"
               }
@@ -690,40 +815,53 @@ mod private
                 ""
               };
 
-
               // Compile and link a new WebGL program from the vertex and fragment shaders with the appropriate defines.
               let program = gl::ProgramFromSources::new
-              ( 
-                &format!( "#version 300 es\n{}\n{}", vs_defines, MAIN_VERTEX_SHADER ), 
+              (
+                &format!( "#version 300 es\n{}\n{}", defines, material.get_vertex_shader() ),
                 &format!
-                ( 
-                  "#version 300 es\n{}\n{}\n{}\n{}", 
-                  vs_defines, 
+                (
+                  "#version 300 es\n{}\n{}\n{}",
+                  defines,
                   ibl_define,
-                  material.get_defines(),
-                  MAIN_FRAGMENT_SHADER ) 
+                  material.get_fragment_shader()
+                )
               ).compile_and_link( gl )?;
-              let program_info = ProgramInfo::< program::PBRShader >::new( gl , program );
+              let shader_program = material.make_shader_program( gl, &program );
 
               // Configure and upload material properties and IBL textures for the new program.
-              let locations = program_info.get_locations();
-              program_info.bind( gl );
-              const IBL_BASE_ACTIVE_TEXTURE : u32 = 10;
-              material.configure( gl, locations, IBL_BASE_ACTIVE_TEXTURE );
-              material.upload( gl, locations )?;
-              camera.upload( gl, locations );
-              if let Some( ref ibl ) = self.ibl 
+              let locations = shader_program.locations();
+              shader_program.bind( gl );
+              let material_upload_context = MaterialUploadContext
               {
-                ibl.bind( gl, IBL_BASE_ACTIVE_TEXTURE );
+                node : &node_ref,
+                primitive_id : Some( i ),
+                locations : shader_program.locations()
+              };
+              material.configure( gl, &material_upload_context );
+              material.upload_on_state_change( gl, &material_upload_context )?;
+              camera.upload( gl, locations );
+
+              if let Some( ref ibl ) = self.ibl
+              {
+                if let Some( ibl_base_texture_unit ) = material.get_ibl_base_texture_unit()
+                {
+                  ibl.bind( gl, ibl_base_texture_unit );
+                  gl.uniform1i( locations.get( "irradianceTexture" ).unwrap().clone().as_ref(), ibl_base_texture_unit as i32 );
+                  gl.uniform1i( locations.get( "prefilterEnvMap" ).unwrap().clone().as_ref(), ibl_base_texture_unit as i32 + 1 );
+                  gl.uniform1i( locations.get( "integrateBRDF" ).unwrap().clone().as_ref(), ibl_base_texture_unit as i32 + 2 );
+                }
               }
 
               // Store the new program info in the cache.
-              self.programs.insert( program_id.clone(), program_info );
+              self.programs.insert( program_id.clone(), shader_program.dyn_clone() );
               self.programs.get( &program_id ).unwrap()
             };
 
+            let material = primitive.material.borrow();
+
             // Handle transparent objects by adding them to a separate list for later rendering.
-            match material.alpha_mode
+            match material.get_alpha_mode()
             {
               AlphaMode::Blend | AlphaMode::Mask =>
               {
@@ -733,17 +871,32 @@ mod private
               _ => {}
             }
 
+            enable_material_depth_properties( gl, &**material );
+            enable_material_face_properties( gl, &**material );
+            enable_material_color_mask( gl, &**material );
+
             // Get the uniform locations for the current program.
-            let locations = program_info.get_locations();
+            let locations = shader_program.locations();
 
             // Bind the program, upload camera and node matrices, bind the primitive, and draw it.
-            program_info.bind( gl );
+            shader_program.bind( gl );
+            let material_upload_context = MaterialUploadContext
+            {
+              node : &node_ref,
+              primitive_id : Some( i ),
+              locations : shader_program.locations()
+            };
+            material.upload( gl, &material_upload_context )?;
+            if material.needs_update() && program_cached
+            {
+              material.upload_on_state_change( gl, &material_upload_context )?;
+            }
 
             node.borrow().upload( gl, locations );
             primitive.bind( gl );
             primitive.draw( gl );
           }
-        } 
+        }
 
         Ok( () )
       };
@@ -751,27 +904,37 @@ mod private
       // Traverse the scene and draw all opaque objects.
       scene.traverse( &mut draw_node )?;
 
+      if self.framebuffer_ctx.skybox_texture.is_some()
+      {
+        self.draw_skybox( gl, camera );
+      }
+
       gl::drawbuffers::drawbuffers( gl, &[ 2, 3 ] );
       gl.enable( gl::BLEND );
-      gl.depth_mask( false );
       gl.blend_equation( gl::FUNC_ADD );
       gl.blend_func_separate( gl::ONE, gl::ONE, gl::ZERO, gl::ONE_MINUS_SRC_ALPHA );
+
+      gl.enable( gl::DEPTH_TEST );
+      gl.depth_mask( false );
+      gl.depth_func( gl::LESS );
 
       let bind = | node : std::cell::Ref< '_, Node >, primitive : std::cell::Ref< '_, Primitive > | -> Result< (), gl::WebglError >
       {
         let primitive = primitive;
         let material = primitive.material.borrow();
-        let geometry = primitive.geometry.borrow();
-        let vs_defines = geometry.get_defines();
-        let program_info = self.programs.get( &format!( "{}{}",  material.id, vs_defines ) ).unwrap();
 
-        let locations = program_info.get_locations();
+        enable_material_face_properties( gl, &**material );
+        enable_material_color_mask( gl, &**material );
 
-        program_info.bind( gl );
+        let shader_program = self.programs.get( &format!( "{}{}",  material.get_id(), material.get_defines_str() ) ).unwrap();
+
+        let locations = shader_program.locations();
+
+        shader_program.bind( gl );
 
         node.upload( gl, locations );
         primitive.bind( gl );
-       
+
        Ok( () )
       };
 
@@ -784,9 +947,11 @@ mod private
         primitive.draw( gl );
       }
 
+      gl.disable( gl::CULL_FACE );
+      gl.depth_mask( true );
+
       self.framebuffer_ctx.resolve( gl, self.use_emission );
       self.framebuffer_ctx.unbind_multisample( gl );
-
 
       // self.transparent_nodes.sort_by( | a, b |
       // {
@@ -810,15 +975,15 @@ mod private
       //   let material = primitive.material.borrow();
       //   let geometry = primitive.geometry.borrow();
       //   let vs_defines = geometry.get_defines();
-      //   let program_info = self.programs.get( &format!( "{}{}",  material.id, vs_defines ) ).unwrap();
+      //   let shader_program = self.programs.get( &format!( "{}{}",  material.id, vs_defines ) ).unwrap();
 
-      //   let locations = program_info.get_locations();
+      //   let locations = shader_program.locations();
 
-      //   program_info.bind( gl );
+      //   shader_program.bind( gl );
 
       //   node.upload( gl, locations );
       //   primitive.bind( gl );
-       
+
       //  Ok( () )
       // };
 
@@ -864,7 +1029,7 @@ mod private
       gl.active_texture( gl::TEXTURE1 );
       gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.transparent_revealage_texture.as_ref() );
 
-    
+
       gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 
       gl.blend_func( gl::ONE, gl::ONE_MINUS_SRC_ALPHA );
@@ -872,6 +1037,168 @@ mod private
       gl.draw_arrays( gl::TRIANGLES, 0, 3 );
 
       Ok( () )
+    }
+  }
+
+  /// Configures face culling and front face order from material.
+  fn enable_material_face_properties( gl : &GL, material : &dyn crate::webgl::Material )
+  {
+    let cull_mode = material.get_cull_mode();
+    let front_face = material.get_front_face() as u32;
+
+    gl.front_face( front_face );
+
+    if let Some( cull_mode ) = cull_mode
+    {
+      gl.enable( gl::CULL_FACE );
+      gl.cull_face( cull_mode as u32 );
+    }
+    else
+    {
+      gl.disable( gl::CULL_FACE );
+    }
+  }
+
+  /// Configures depth testing, function, and write mask from material.
+  fn enable_material_depth_properties( gl : &GL, material : &dyn crate::webgl::Material )
+  {
+    let depth_func = material.get_depth_func() as u32;
+    let depth_test = material.is_depth_test_enabled();
+    let depth_write = material.is_depth_write_enabled();
+
+    gl.depth_func( depth_func );
+
+    if depth_test
+    {
+      gl.enable( gl::DEPTH_TEST );
+    }
+    else
+    {
+      gl.disable( gl::DEPTH_TEST );
+    }
+
+    gl.depth_mask( depth_write );
+  }
+
+  /// Sets RGBA color write mask from material.
+  fn enable_material_color_mask( gl : &GL, material : &dyn crate::webgl::Material )
+  {
+    let ( red, green, blue, alpha ) = material.get_color_write_mask();
+
+    gl.color_mask( red, green, blue, alpha );
+  }
+
+  fn bind_lights
+  (
+    gl : &GL,
+    program : &Box< dyn ShaderProgram >,
+    lights : &FxHashMap< LightType, Vec< Light > >
+  )
+  {
+    let locations = program.locations();
+
+    for ( type_, one_type_lights ) in lights
+    {
+      let max_count = match type_
+      {
+        LightType::Point => MAX_POINT_LIGHTS,
+        LightType::Direct => MAX_DIRECT_LIGHTS,
+        LightType::Spot => MAX_SPOT_LIGHTS
+      };
+
+      let Some( count_loc ) = locations.get( format!( "{}LightsCount", type_.to_string().to_lowercase() ).as_str() )
+      else
+      {
+        continue;
+      };
+      let _ = gl::uniform::upload( gl, count_loc.clone(), &( one_type_lights.len().min( max_count ) as i32 ) );
+    }
+
+    'i : for ( type_, one_type_lights ) in lights
+    {
+      for ( i, light ) in one_type_lights.iter().enumerate()
+      {
+        match type_
+        {
+          LightType::Point =>
+          {
+            if !locations.contains_key( "pointLights" ) || i > MAX_POINT_LIGHTS
+            {
+              continue 'i;
+            }
+
+            let Light::Point( light ) = light
+            else
+            {
+              continue;
+            };
+
+            let position_loc = gl.get_uniform_location( program.program(), format!( "pointLights[{i}].position" ).as_str() );
+            let color_loc = gl.get_uniform_location( program.program(), format!( "pointLights[{i}].color" ).as_str() );
+            let strength_loc = gl.get_uniform_location( program.program(), format!( "pointLights[{i}].strength" ).as_str() );
+            let range_loc = gl.get_uniform_location( program.program(), format!( "pointLights[{i}].range" ).as_str() );
+
+            let _ = gl::uniform::upload( gl, position_loc, light.position.as_slice() );
+            let _ = gl::uniform::upload( gl, color_loc, light.color.as_slice() );
+            let _ = gl::uniform::upload( gl, strength_loc, &light.strength );
+            let _ = gl::uniform::upload( gl, range_loc, &light.range );
+          },
+          LightType::Direct =>
+          {
+            if !locations.contains_key( "directLights" ) || i > MAX_DIRECT_LIGHTS
+            {
+              continue 'i;
+            }
+
+            let Light::Direct( light ) = light
+            else
+            {
+              continue;
+            };
+
+            let direction_loc = gl.get_uniform_location( program.program(), format!( "directLights[{i}].direction" ).as_str() );
+            let color_loc = gl.get_uniform_location( program.program(), format!( "directLights[{i}].color" ).as_str() );
+            let strength_loc = gl.get_uniform_location( program.program(), format!( "directLights[{i}].strength" ).as_str() );
+
+            let _ = gl::uniform::upload( gl, direction_loc, light.direction.as_slice() );
+            let _ = gl::uniform::upload( gl, color_loc, light.color.as_slice() );
+            let _ = gl::uniform::upload( gl, strength_loc, &light.strength );
+          },
+          LightType::Spot =>
+          {
+            if !locations.contains_key( "spotLights" ) || i > MAX_SPOT_LIGHTS
+            {
+              continue 'i;
+            }
+
+            let Light::Spot( light ) = light
+            else
+            {
+              continue;
+            };
+
+            let position_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].position" ).as_str() );
+            let direction_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].direction" ).as_str() );
+            let color_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].color" ).as_str() );
+            let strength_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].strength" ).as_str() );
+            let range_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].range" ).as_str() );
+            let inner_angle_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].innerConeAngle" ).as_str() );
+            let outer_angle_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].outerConeAngle" ).as_str() );
+            let use_lightmap_loc = gl.get_uniform_location( program.program(), format!( "spotLights[{i}].useLightMap" ).as_str() );
+
+            let _ = gl::uniform::upload( gl, position_loc, light.position.as_slice() );
+            let _ = gl::uniform::upload( gl, direction_loc, light.direction.as_slice() );
+            let _ = gl::uniform::upload( gl, color_loc, light.color.as_slice() );
+            let _ = gl::uniform::upload( gl, strength_loc, &light.strength );
+            let _ = gl::uniform::upload( gl, range_loc, &light.range );
+            let _ = gl::uniform::upload( gl, inner_angle_loc, &light.inner_cone_angle );
+            let _ = gl::uniform::upload( gl, outer_angle_loc, &light.outer_cone_angle );
+
+            let use_lightmap_int = light.use_light_map as i32;
+            let _ = gl::uniform::upload( gl, use_lightmap_loc, &use_lightmap_int );
+          }
+        }
+      }
     }
   }
 }

@@ -10,7 +10,6 @@ crate::mod_interface!
 
   /// IBL textures loader
   layer ibl;
-  
   /// HDR textures loader
   layer hdr_texture;
 }
