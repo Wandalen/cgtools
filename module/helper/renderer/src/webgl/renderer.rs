@@ -477,6 +477,24 @@ mod private
       // gl.framebuffer_texture_2d( gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT1, gl::TEXTURE_2D, None, 0 );
       gl.bind_framebuffer( gl::FRAMEBUFFER, None );
     }
+
+    /// Free [`FramebufferContext`] WebGL resources
+    pub fn free_gl_resources( &mut self, gl : &GL )
+    {
+      gl.delete_framebuffer( self.resolved_framebuffer.as_ref() );
+      gl.delete_framebuffer( self.multisample_framebuffer.as_ref() );
+      gl.delete_renderbuffer( self.multisample_depth_renderbuffer.as_ref() );
+      gl.delete_renderbuffer( self.multisample_emission_renderbuffer.as_ref() );
+      gl.delete_renderbuffer( self.multisample_main_renderbuffer.as_ref() );
+      gl.delete_renderbuffer( self.multisample_transparent_accumulate_renderbuffer.as_ref() );
+      gl.delete_renderbuffer( self.multisample_transparent_revealage_renderbuffer.as_ref() );
+      gl.delete_renderbuffer( self.depth_renderbuffer.as_ref() );
+      gl.delete_texture( self.main_texture.as_ref() );
+      gl.delete_texture( self.emission_texture.as_ref() );
+      gl.delete_texture( self.transparent_accumulate_texture.as_ref() );
+      gl.delete_texture( self.transparent_revealage_texture.as_ref() );
+      gl.delete_texture( self.skybox_texture.as_ref() );
+    }
   }
 
   /// Manages the rendering process, including program management, IBL setup, and drawing objects in the scene.
@@ -560,6 +578,19 @@ mod private
           skybox_shader
         }
       )
+    }
+
+    /// Resize [`Renderer`]
+    pub fn resize( &mut self, gl : &gl::GL, width : u32, height : u32, samples : i32 ) -> Result< (), gl::WebglError >
+    {
+      self.framebuffer_ctx.free_gl_resources( gl );
+      self.bloom_effect.free_gl_resources( gl );
+      self.swap_buffer.free_gl_resources( gl );
+
+      self.framebuffer_ctx = FramebufferContext::new( gl, width, height, samples );
+      self.bloom_effect = UnrealBloomPass::new( gl, width, height, gl::RGBA16F )?;
+      self.swap_buffer = SwapFramebuffer::new( gl, width, height );
+      Ok( () )
     }
 
     /// Sets the Image-Based Lighting (IBL) textures to be used for rendering.
@@ -759,11 +790,6 @@ mod private
           for ( i, primitive_rc ) in mesh.borrow().primitives.iter().enumerate()
           {
             let node_ref = node.borrow();
-            let material_upload_context = MaterialUploadContext
-            {
-              node : &node_ref,
-              primitive_id : Some( i )
-            };
             let primitive = primitive_rc.borrow();
             let defines = primitive.material.borrow().get_defines_str();
             // Generate a unique ID for the program based on the material ID and vertex shader defines.
@@ -779,7 +805,7 @@ mod private
             }
             else
             {
-              let mut material = primitive.material.borrow_mut();
+              let material = primitive.material.borrow_mut();
               let ibl_define = if self.ibl.is_some() && material.get_ibl_base_texture_unit().is_some()
               {
                 "#define USE_IBL\n"
@@ -801,13 +827,18 @@ mod private
                   material.get_fragment_shader()
                 )
               ).compile_and_link( gl )?;
-              material.shader_mut().set_program( gl, &program );
-              let shader_program = material.shader();
+              let shader_program = material.make_shader_program( gl, &program );
 
               // Configure and upload material properties and IBL textures for the new program.
               let locations = shader_program.locations();
               shader_program.bind( gl );
-              material.configure( gl );
+              let material_upload_context = MaterialUploadContext
+              {
+                node : &node_ref,
+                primitive_id : Some( i ),
+                locations : shader_program.locations()
+              };
+              material.configure( gl, &material_upload_context );
               material.upload_on_state_change( gl, &material_upload_context )?;
               camera.upload( gl, locations );
 
@@ -849,7 +880,12 @@ mod private
 
             // Bind the program, upload camera and node matrices, bind the primitive, and draw it.
             shader_program.bind( gl );
-
+            let material_upload_context = MaterialUploadContext
+            {
+              node : &node_ref,
+              primitive_id : Some( i ),
+              locations : shader_program.locations()
+            };
             material.upload( gl, &material_upload_context )?;
             if material.needs_update() && program_cached
             {

@@ -45,6 +45,8 @@ mod helpers;
 mod ui;
 mod debug;
 mod surface_material;
+mod gem_frag;
+mod gem_vert;
 
 use std::{ cell::RefCell, rc::Rc };
 use minwebgl as gl;
@@ -56,28 +58,16 @@ use gl::
 };
 use renderer::webgl::
 {
-  Renderer, post_processing::{ self, Pass, SwapFramebuffer }
+  post_processing::{ self, Pass, SwapFramebuffer }
 };
-use std::ops::Range;
+
 use helpers::*;
 use configurator::*;
+use crate::ui::set_renderer_loaded;
 
-const DISTANCE_RANGE : Range< f32 > = 2.0..6.0;
-
-/// Changes floor visibility and limits camera position relatively to [`renderer::webgl::Camera`] state
 fn handle_camera_position( configurator : &Configurator )
 {
   let camera_controls = configurator.camera.get_controls();
-  let distance = camera_controls.borrow().eye.distance( &F32x3::default() );
-  if distance > DISTANCE_RANGE.end
-  {
-    camera_controls.borrow_mut().eye /= distance / DISTANCE_RANGE.end;
-  }
-  else if distance < DISTANCE_RANGE.start
-  {
-    camera_controls.borrow_mut().eye /= distance / DISTANCE_RANGE.start;
-  }
-
   let Some( ring ) = configurator.rings.get_ring() else { return; };
   let current_scene = ring.scene.clone();
 
@@ -92,6 +82,29 @@ fn handle_camera_position( configurator : &Configurator )
   }
 }
 
+/// Resizes canvas to window size with device pixel ratio applied for sharp rendering on high-DPI displays
+fn resize_canvas_with_dpr( canvas : &HtmlCanvasElement )
+{
+  let window = web_sys::window().unwrap();
+  let dpr = window.device_pixel_ratio();
+  let width = ( window.inner_width().unwrap().as_f64().unwrap() * dpr ) as u32;
+  let height = ( window.inner_height().unwrap().as_f64().unwrap() * dpr ) as u32;
+  canvas.set_width( width );
+  canvas.set_height( height );
+}
+
+/// Limits canvas size to prevent context loose if canvas is too big
+fn clamp_canvas_size( canvas : &HtmlCanvasElement )
+{
+  let aspect = canvas.client_width() as f32 / canvas.client_height() as f32;
+
+  if canvas.width() > 3840 || canvas.height() > 2160
+  {
+    canvas.set_width( ( 2160.0 * aspect ) as u32 );
+    canvas.set_height( 2160 );
+  }
+}
+
 /// Resets [`Renderer`] and updates [`renderer::webgl::Camera`] when [`HtmlCanvasElement`] is resized
 fn handle_resize
 (
@@ -99,19 +112,17 @@ fn handle_resize
   configurator : &mut Configurator,
   swap_buffer : &mut SwapFramebuffer,
   canvas : &HtmlCanvasElement,
-  is_resized : &Rc< RefCell< bool > >
+  is_resized : &Rc< RefCell< bool > >,
+  last_eye : &mut F32x3
 )
 {
   if *is_resized.borrow()
   {
-    if let Ok( r ) = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )
-    {
-      {
-        let mut renderer_mut = configurator.renderer.borrow_mut();
-        *renderer_mut = r;
-      }
-      configurator.setup_renderer();
+    resize_canvas_with_dpr( canvas );
+    clamp_canvas_size( canvas );
 
+    if configurator.renderer.borrow_mut().resize( gl, canvas.width(), canvas.height(), 4 ).is_ok()
+    {
       *swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
 
       configurator.camera.set_window_size( [ canvas.width() as f32, canvas.height() as f32 ].into() );
@@ -119,13 +130,18 @@ fn handle_resize
       let perspective = gl::math::d2::mat3x3h::perspective_rh_gl( 40.0f32.to_radians(), aspect, 0.1, 1000.0 );
       configurator.camera.set_projection_matrix( perspective );
 
+      if let Some( ui_state ) = ui::get_ui_state()
+      {
+        *last_eye = F32x3::from_array( ui_state.eye );
+      }
+
       *is_resized.borrow_mut() = false;
     }
   }
 }
 
 /// Check changed fields of [`ui::UiState`] and updates depended [`Configutator`] features
-fn handle_ui_change( configurator : &mut Configurator )
+fn handle_ui_change( configurator : &mut Configurator, last_eye : &mut F32x3 )
 {
   if ui::is_changed()
   {
@@ -177,13 +193,18 @@ fn handle_ui_change( configurator : &mut Configurator )
         configurator.update_metal_color();
       }
 
+      let new_eye = F32x3::from_array( ui_state.eye );
+
       if ( ui_state.changed.contains( &"position".to_string() ) ||
-      ui_state.changed.contains( &"center".to_string() ) ) && !ui_state.changed.contains( &"state".to_string() )
+      ui_state.changed.contains( &"center".to_string() ) ) &&
+      !ui_state.changed.contains( &"state".to_string() ) &&
+      !( ui_state.transition_animation_enabled && new_eye.distance( &last_eye ) > 0.75 )
       {
         let controls = configurator.camera.get_controls();
         controls.borrow_mut().up = F32x3::from_array( [ 0.0, 1.0, 0.0 ] );
         controls.borrow_mut().center = F32x3::from_array( ui_state.center );
         controls.borrow_mut().eye = F32x3::from_array( ui_state.eye );
+        *last_eye = new_eye;
       }
 
       ui::clear_changed();
@@ -197,8 +218,12 @@ async fn run() -> Result< (), gl::WebglError >
   gl::browser::setup( Default::default() );
   let options = gl::context::ContextOptions::default().antialias( false );
 
-  let canvas = gl::canvas::make()?;
+  let canvas = gl::canvas::retrieve()?;
+  resize_canvas_with_dpr( &canvas );
+
   let gl = gl::context::from_canvas_with( &canvas, options )?;
+
+  clamp_canvas_size( &canvas );
 
   let _ = gl.get_extension( "EXT_color_buffer_float" ).expect( "Failed to enable EXT_color_buffer_float extension" );
   let _ = gl.get_extension( "EXT_shader_image_load_store" ).expect( "Failed to enable EXT_shader_image_load_store  extension" );
@@ -215,6 +240,10 @@ async fn run() -> Result< (), gl::WebglError >
 
   let is_resized = add_resize_callback();
 
+  let mut last_eye = F32x3::from_array( ui::get_ui_state().unwrap_or_default().eye );
+
+  set_renderer_loaded();
+
   // Define the update and draw logic
   let update_and_draw =
   {
@@ -227,10 +256,11 @@ async fn run() -> Result< (), gl::WebglError >
       let delta_time = t - prev_time;
       prev_time = t;
       handle_camera_position( &configurator );
-      handle_resize( &gl, &mut configurator, &mut swap_buffer, &canvas, &is_resized );
+      handle_resize( &gl, &mut configurator, &mut swap_buffer, &canvas, &is_resized, &mut last_eye );
       configurator.camera.update( delta_time );
       configurator.animation_state.update( delta_time );
-      handle_ui_change( &mut configurator );
+
+      handle_ui_change( &mut configurator, &mut last_eye );
 
       let Some( ring ) = configurator.rings.get_ring() else { return true; };
       let scene = &ring.scene;

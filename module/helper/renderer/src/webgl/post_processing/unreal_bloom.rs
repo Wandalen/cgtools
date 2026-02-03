@@ -226,6 +226,28 @@ mod private
     {
       self.bloom_strength
     }
+
+    /// Free [`UnrealBloomPass`] WebGL resources
+    pub fn free_gl_resources( &mut self, gl : &gl::GL )
+    {
+
+      for target in &self.horizontal_targets
+      {
+        gl.delete_texture( target.as_ref() );
+      }
+
+      for target in &self.vertical_targets
+      {
+        gl.delete_texture( target.as_ref() );
+      }
+
+      for material in &self.blur_materials
+      {
+        gl.delete_program( Some( &material.0.program ) );
+      }
+
+      gl.delete_program( Some( &self.composite_material.0.program ) );
+    }
   }
 
   impl Pass for UnrealBloomPass

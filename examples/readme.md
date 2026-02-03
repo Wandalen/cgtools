@@ -63,3 +63,20 @@ More detailed setup and run instruction: [how_to_run.md](./how_to_run.md)
 | | |
 |:-------------------------:|:-------------------------:|
 |<img width="500px" src="./minwgpu/grid_render/showcase.png"><br>[Grid renderer](./minwgpu/grid_render/readme.md) |<img width="500px" src="./minwgpu/hello_triangle/showcase.png"><br>[Hello triangle](./minwgpu/hello_triangle/readme.md) |
+
+## Responsibility Table
+
+| File | Responsibility |
+|------|----------------|
+| demo_completeness.md | Documentation tracking completion status of examples |
+| demo_readme_example.md | Template for creating demo readme files |
+| demo_todo_categorized.md | Categorized todo list for examples |
+| example_requirements.md | Requirements documentation for examples |
+| how_to_run.md | Setup and execution instructions for examples |
+| index.html | Interactive HTML gallery with 50 example showcases |
+| index.md | Markdown-formatted examples list |
+| math/ | Math-based examples directory (1 demo) |
+| minwebgl/ | WebGL examples directory (45 demos) |
+| minwebgpu/ | WebGPU examples directory (2 demos) |
+| minwgpu/ | WGPU examples directory (2 demos) |
+| readme.md | Root documentation for examples directory |

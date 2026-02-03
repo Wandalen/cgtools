@@ -4,6 +4,7 @@ mod private
   use crate::webgl::{ Node, ShaderProgram, Texture };
   use std::{ cell::RefCell, fmt::Debug, rc::Rc };
   use rustc_hash::FxHasher;
+  use rustc_hash::FxHashMap;
 
   /// Represents the alpha blending mode of the material.
   #[ derive( Default, Clone, Copy, PartialEq, Eq, Debug ) ]
@@ -107,7 +108,10 @@ mod private
     /// current processed [`Node`]
     pub node : &'a Node,
     /// id of current processed primitive of inner mesh
-    pub primitive_id : Option< usize >
+    pub primitive_id : Option< usize >,
+    /// A hash map storing the locations of uniform variables in the program.
+    /// The keys are the names of the uniforms.
+    pub locations : &'a FxHashMap< String, Option< gl::WebGlUniformLocation > >,
   }
 
   /// A trait representin a generic material
@@ -147,10 +151,7 @@ mod private
     }
 
     /// Returns reference to [`ProgramInfo`] with shader locations and used [`ShaderProgram`]
-    fn shader( &self ) -> &dyn ShaderProgram;
-
-    /// Returns mutable reference to [`ProgramInfo`] with shader locations and used [`ShaderProgram`]
-    fn shader_mut( &mut self ) -> &mut dyn ShaderProgram;
+    fn make_shader_program( &self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Box< dyn ShaderProgram >;
 
     /// Returns the material type identifier (e.g., "PBR", "Unlit", "Custom").
     fn type_name( &self ) -> &'static str;
@@ -199,6 +200,7 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
+      ctx : &MaterialUploadContext< '_ >
     );
 
     /// Uploads the material properties to the GPU as uniforms. Use this when material state is changed.
@@ -209,7 +211,7 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      context : &MaterialUploadContext< '_ >
+      ctx : &MaterialUploadContext< '_ >
     )
     -> Result< (), gl::WebglError >;
 
@@ -221,7 +223,7 @@ mod private
     (
       &self,
       _gl : &gl::WebGl2RenderingContext,
-      _context : &MaterialUploadContext< '_ >
+      _ctx : &MaterialUploadContext< '_ >
     )
     -> Result< (), gl::WebglError >
     {
