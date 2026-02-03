@@ -1,4 +1,4 @@
-use std::{ cell::RefCell, rc::Rc };
+use std::{ cell::RefCell, rc::Rc, collections::HashSet };
 use mingl::web::canvas;
 use minwebgl as gl;
 use gl::
@@ -533,7 +533,7 @@ pub struct RingsInfo
   /// Index of the currently selected ring
   pub current_ring : usize,
 
-  loaded_rings : RefCell< Vec< usize > >,
+  loaded_rings : RefCell< HashSet< usize > >,
   ring_loader : Rc< dyn Fn( GLTF, usize ) + 'static >,
   gl : GL
 }
@@ -556,7 +556,7 @@ impl RingsInfo
       rings,
       ring_colors,
       current_ring,
-      loaded_rings : RefCell::new( vec![] ),
+      loaded_rings : RefCell::new( HashSet::new() ),
       ring_loader : Rc::new( ring_loader ),
       gl : gl.clone(),
     }
@@ -569,7 +569,8 @@ impl RingsInfo
       Some( ring ) => Some( ring.clone() ),
       None =>
       {
-        if !self.loaded_rings.borrow().contains( &self.current_ring )
+        // Use atomic insert to prevent race conditions on rapid ring switching
+        if self.loaded_rings.borrow_mut().insert( self.current_ring )
         {
           let gl = self.gl.clone();
           let index = self.current_ring;
@@ -580,12 +581,15 @@ impl RingsInfo
             let window = gl::web_sys::window().unwrap();
             let document = window.document().unwrap();
 
-            let gltf = gltf::load( &document, format!( "./gltf/{index}.glb" ).as_str(), &gl ).await.unwrap();
+            // Handle GLTF load failures gracefully to prevent WASM crashes on network errors
+            let Ok( gltf ) = gltf::load( &document, format!( "./gltf/{index}.glb" ).as_str(), &gl ).await
+            else
+            {
+              return;
+            };
 
             ( loader )( gltf, index );
           };
-
-          self.loaded_rings.borrow_mut().push( self.current_ring );
 
           gl::spawn_local( future );
         }
@@ -646,7 +650,7 @@ async fn setup_rings
   let rings : RcVec< Option< Ring > > = Rc::new( RefCell::new( vec![ None; RINGS_NUMBER ] ) );
 
   let plane_gltf = gltf::load( &document, "gltf/plane.glb", &gl ).await?;
-  let plane_template = plane_gltf.scenes[ 0 ].borrow().get_node( "Plane" ).unwrap();
+  let plane_template = plane_gltf.scenes[ 0 ].borrow().get_node( "Plane" );
 
   let shadowmap_res = 2048;
   let lightmap_res = 2048;
@@ -717,13 +721,18 @@ async fn setup_rings
         node.apply_matrix( t );
       }
 
-      let plane_node = plane_template.borrow().clone_tree();
-      plane_node.borrow_mut().set_translation( F32x3::from_array( [ 0.0, 0.0, 0.0 ] ) );
-      plane_node.borrow_mut().set_scale( F32x3::from_array( [ 3.0, 1.0, 3.0 ] ) );
-      gltf.scenes[ 0 ].borrow_mut().add( plane_node.clone() );
-      gltf.scenes[ 0 ].borrow_mut().update_world_matrix();
+      if let Some( plane_template ) = &plane_template
+      {
+        let plane_node = plane_template.borrow().clone_tree();
+        plane_node.borrow_mut().set_translation( F32x3::from_array( [ 0.0, 0.0, 0.0 ] ) );
+        plane_node.borrow_mut().set_scale( F32x3::from_array( [ 3.0, 1.0, 3.0 ] ) );
+        gltf.scenes[ 0 ].borrow_mut().add( plane_node.clone() );
+        gltf.scenes[ 0 ].borrow_mut().update_world_matrix();
 
-      bake_plane_shadow( &gl, lightmap_res, light, &shadowmap, &shadow_baker, &gltf, plane_node ).unwrap();
+        // Handle shadow baking errors gracefully (WebGL resource exhaustion, framebuffer failures)
+        // If shadow baking fails, continue without shadows rather than crashing
+        let _ = bake_plane_shadow( &gl, lightmap_res, light, &shadowmap, &shadow_baker, &gltf, plane_node );
+      }
 
       let mut ring_gems = FxHashMap::default();
       for substring in [ "gem", "diamond", "crystal" ]
