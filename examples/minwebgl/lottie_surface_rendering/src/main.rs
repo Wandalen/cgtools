@@ -37,7 +37,6 @@
 #![ allow( clippy::assigning_clones ) ]
 
 use std::cell::RefCell;
-use mingl::controls::camera_orbit_controls::bind_controls_to_input;
 use minwebgl as gl;
 use gl::
 {
@@ -268,22 +267,6 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   moon.borrow_mut().set_scale( [ scale; 3 ] );
   moon.borrow_mut().update_local_matrix();
 
-  let environment = clone( &mut gltf, &earth );
-  let texture = create_texture( &gl, "environment_maps/equirectangular_maps/space3.png" );
-  set_texture
-  (
-    &environment,
-    | m |
-    {
-      let mut m = cast_unchecked_material_to_ref_mut::< PbrMaterial >( m.borrow_mut() );
-      m.base_color_texture = Some( texture.clone() );
-    }
-  );
-  let scale = 100000.0;
-  environment.borrow_mut().set_translation( [ 0.0, 1.0 - scale, 0.0 ] );
-  environment.borrow_mut().set_scale( [ scale; 3 ] );
-  environment.borrow_mut().update_local_matrix();
-
   Ok( gltf )
 }
 
@@ -324,7 +307,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let ( s, _ ) = animation.frame( 0.0 ).expect( "Can't get scene at start frame" );
   let canvas_camera = init_camera( &canvas, &[ Rc::new( RefCell::new( s ) ) ] );
-  // bind_controls_to_input( &canvas, &canvas_camera.get_controls() );
+  canvas_camera.bind_controls(&canvas);
   canvas_camera.get_controls().borrow_mut().window_size = [ ( canvas.width() * 4 ) as f32, ( canvas.height() * 4 ) as f32 ].into();
   {
     let controls = canvas_camera.get_controls();
@@ -374,18 +357,22 @@ async fn run() -> Result< (), gl::WebglError >
   canvas_sphere.borrow_mut().set_translation( [ 0.0, 1.0 - scale, 0.0 ] );
   canvas_sphere.borrow_mut().set_scale( [ scale; 3 ] );
   canvas_sphere.borrow_mut().update_local_matrix();
+  gltf.scenes[ 0 ].borrow_mut().children.push( canvas_sphere.clone() );
 
   let scenes = gltf.scenes.clone();
   scenes[ 0 ].borrow_mut().update_world_matrix();
 
   let camera = init_camera( &canvas, &scenes );
-  bind_controls_to_input( &canvas, &camera.get_controls() );
+  camera.bind_controls(&canvas);
   let eye = gl::math::mat3x3h::rot( 0.0, - 73.0_f32.to_radians(), - 15.0_f32.to_radians() )
   * F32x4::from_array( [ 0.0, 1.7, 1.7, 1.0 ] );
   camera.get_controls().borrow_mut().eye = [ eye.x(), eye.y(), eye.z() ].into();
+  camera.get_controls().borrow_mut().center = [ 0.0, 1.0, 0.0 ].into();
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "environment_maps/gltf_viewer_ibl_unreal", None ).await );
+  let skybox = create_texture( &gl, "environment_maps/equirectangular_maps/space3.png" );
+  renderer.set_skybox( skybox.texture.borrow().source.clone() );
 
   let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
 

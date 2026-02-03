@@ -633,7 +633,6 @@ async fn run() -> Result< (), gl::WebglError >
   animation.set_world_matrix( identity() );
 
   let canvas_camera = init_camera( &canvas, &canvas_gltf.scenes );
-  // canvas_camera.bind_controls( &canvas );
   canvas_camera.get_controls().borrow_mut().window_size = [ ( canvas.width() * 4 ) as f32, ( canvas.height() * 4 ) as f32 ].into();
   canvas_camera.get_controls().borrow_mut().eye = [ 0.0, 0.0, 150.0 ].into();
   {
