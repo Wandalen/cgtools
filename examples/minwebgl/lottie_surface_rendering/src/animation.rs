@@ -525,7 +525,7 @@ impl Animation
         let Some( name ) = n.borrow().get_name()
         else
         {
-          return false;
+          return true;
         };
         !nodes_to_remove.contains_key( &name )
       }

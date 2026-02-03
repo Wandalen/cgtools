@@ -155,11 +155,9 @@ fn init_camera( canvas : &HtmlCanvasElement, scenes : &[ Rc< RefCell< Scene > > 
   let height = canvas.height() as f32;
 
   let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
-  let dist = scene_bounding_box.max.mag();
 
   // Camera setup
-  let mut eye = gl::math::F32x3::from( [ 0.0, 0.0, 1.0 ] );
-  eye *= dist;
+  let eye = gl::math::F32x3::from( [ 0.0, 0.0, 1.0 ] );
   let up = gl::math::F32x3::from( [ 0.0, 1.0, 0.0 ] );
 
   let center = scene_bounding_box.center();
@@ -167,7 +165,7 @@ fn init_camera( canvas : &HtmlCanvasElement, scenes : &[ Rc< RefCell< Scene > > 
   let aspect_ratio = width / height;
   let fov = 70.0f32.to_radians();
   let near = 0.1;
-  let far = 10000000.0;
+  let far = 1000.0;
 
   let mut camera = Camera::new( eye, up, center, aspect_ratio, fov, near, far );
 
@@ -307,24 +305,16 @@ async fn run() -> Result< (), gl::WebglError >
 
   let ( s, _ ) = animation.frame( 0.0 ).expect( "Can't get scene at start frame" );
   let canvas_camera = init_camera( &canvas, &[ Rc::new( RefCell::new( s ) ) ] );
-  canvas_camera.bind_controls(&canvas);
   canvas_camera.get_controls().borrow_mut().window_size = [ ( canvas.width() * 4 ) as f32, ( canvas.height() * 4 ) as f32 ].into();
   {
     let controls = canvas_camera.get_controls();
     let mut controls_ref = controls.borrow_mut();
     {
-      let center = controls_ref.center.as_mut();
-      center[ 1 ] -= 250.0;
-      center[ 0 ] -= 110.0;
-      center[ 1 ] += 175.0;
+      controls_ref.center = [ 7.671358, 105.80746, 61.174854 ].into();
+
     }
     {
-      let eye = controls_ref.eye.as_mut();
-      eye[ 0 ] += 125.0;
-      eye[ 1 ] -= 125.0;
-      eye[ 0 ] -= 110.0;
-      eye[ 1 ] += 175.0;
-      eye[ 2 ] += 300.0;
+      controls_ref.eye = [ -43.71087, -343.4742, 744.99524 ].into();
     }
   }
 
@@ -363,7 +353,7 @@ async fn run() -> Result< (), gl::WebglError >
   scenes[ 0 ].borrow_mut().update_world_matrix();
 
   let camera = init_camera( &canvas, &scenes );
-  camera.bind_controls(&canvas);
+  camera.bind_controls( &canvas );
   let eye = gl::math::mat3x3h::rot( 0.0, - 73.0_f32.to_radians(), - 15.0_f32.to_radians() )
   * F32x4::from_array( [ 0.0, 1.7, 1.7, 1.0 ] );
   camera.get_controls().borrow_mut().eye = [ eye.x(), eye.y(), eye.z() ].into();
