@@ -153,7 +153,8 @@ impl Material for GemMaterial
 
     gl::uniform::upload( gl, locations.get( "n" ).unwrap().clone(), &self.ray_bounces )?;
 
-    let inv_world = ctx.node.get_world_matrix().inverse().unwrap();
+    // Handle singular matrices (e.g., degenerate transforms with zero scale) with identity fallback
+    let inv_world = ctx.node.get_world_matrix().inverse().unwrap_or_else( || gl::math::mat4x4::identity() );
 
     let mut bb = ctx.node.bounding_box();
 
@@ -170,7 +171,9 @@ impl Material for GemMaterial
     let rest_mat = gl::math::mat3x3h::translation( -c ) * inv_world;
 
     gl::uniform::matrix_upload( gl, locations.get( "d" ).unwrap().clone(), rest_mat.raw_slice(), true )?;
-    gl::uniform::matrix_upload( gl, locations.get( "l" ).unwrap().clone(), rest_mat.inverse().unwrap().raw_slice(), true )?;
+    // Handle singular matrix with identity fallback to prevent panic on degenerate transforms
+    let rest_mat_inv = rest_mat.inverse().unwrap_or_else( || gl::math::mat4x4::identity() );
+    gl::uniform::matrix_upload( gl, locations.get( "l" ).unwrap().clone(), rest_mat_inv.raw_slice(), true )?;
 
     self.upload_textures( gl );
 

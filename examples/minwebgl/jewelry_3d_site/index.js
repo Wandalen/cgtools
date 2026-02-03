@@ -125,6 +125,12 @@ export function clearChanged() {
 // Called from Rust when switching rings to show the ring's saved colors
 export function updateSelectionHighlight( type, value )
 {
+  // Validate value to prevent CSS selector injection
+  if ( !/^[a-zA-Z0-9_-]+$/.test( value ) )
+  {
+    return;
+  }
+
   if ( type === "gem" )
   {
     document.querySelector( '.colors--list li.active' )?.classList.remove( 'active' );

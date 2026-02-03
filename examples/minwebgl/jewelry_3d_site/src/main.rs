@@ -71,7 +71,13 @@ fn handle_camera_position( configurator : &Configurator )
   let Some( ring ) = configurator.rings.get_ring() else { return; };
   let current_scene = ring.scene.clone();
 
-  let plane = current_scene.borrow().get_node( "Plane" ).unwrap();
+  // Handle missing Plane node gracefully (e.g., if renamed or removed from GLTF)
+  let Some( plane ) = current_scene.borrow().get_node( "Plane" )
+  else
+  {
+    return;
+  };
+
   if camera_controls.borrow().eye.y() <= plane.borrow().get_translation().y() + 0.1 || configurator.ui_state.state == "hero"
   {
     plane.borrow_mut().set_visibility( false, false );
@@ -87,8 +93,20 @@ fn resize_canvas_with_dpr( canvas : &HtmlCanvasElement )
 {
   let window = web_sys::window().unwrap();
   let dpr = window.device_pixel_ratio();
-  let width = ( window.inner_width().unwrap().as_f64().unwrap() * dpr ) as u32;
-  let height = ( window.inner_height().unwrap().as_f64().unwrap() * dpr ) as u32;
+
+  // Use fallback defaults for robustness if DOM API calls fail
+  let width = window.inner_width()
+    .ok()
+    .and_then( | v | v.as_f64() )
+    .map( | v | ( v * dpr ) as u32 )
+    .unwrap_or( 1920 );
+
+  let height = window.inner_height()
+    .ok()
+    .and_then( | v | v.as_f64() )
+    .map( | v | ( v * dpr ) as u32 )
+    .unwrap_or( 911 );
+
   canvas.set_width( width );
   canvas.set_height( height );
 }
@@ -148,9 +166,10 @@ fn handle_ui_change( configurator : &mut Configurator, last_eye : &mut F32x3 )
     if let Some( ui_state ) = ui::get_ui_state()
     {
       configurator.ui_state = ui_state.clone();
-      let ring_changed = ui_state.changed.contains( &"ring".to_string() );
-      let gem_changed = ui_state.changed.contains( &"gem".to_string() );
-      let metal_changed = ui_state.changed.contains( &"metal".to_string() );
+      // Avoid String allocations in hot path by using &str comparisons
+      let ring_changed = ui_state.changed.iter().any( | s | s == "ring" );
+      let gem_changed = ui_state.changed.iter().any( | s | s == "gem" );
+      let metal_changed = ui_state.changed.iter().any( | s | s == "metal" );
 
       if ring_changed
       {
@@ -195,9 +214,13 @@ fn handle_ui_change( configurator : &mut Configurator, last_eye : &mut F32x3 )
 
       let new_eye = F32x3::from_array( ui_state.eye );
 
-      if ( ui_state.changed.contains( &"position".to_string() ) ||
-      ui_state.changed.contains( &"center".to_string() ) ) &&
-      !ui_state.changed.contains( &"state".to_string() ) &&
+      // Avoid String allocations in hot path by using &str comparisons
+      let position_changed = ui_state.changed.iter().any( | s | s == "position" );
+      let center_changed = ui_state.changed.iter().any( | s | s == "center" );
+      let state_changed = ui_state.changed.iter().any( | s | s == "state" );
+
+      if ( position_changed || center_changed ) &&
+      !state_changed &&
       !( ui_state.transition_animation_enabled && new_eye.distance( &last_eye ) > 0.75 )
       {
         let controls = configurator.camera.get_controls();
