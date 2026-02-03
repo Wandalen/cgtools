@@ -280,14 +280,6 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   moon.borrow_mut().set_scale( [ scale; 3 ] );
   moon.borrow_mut().update_local_matrix();
 
-  let environment = clone( &mut gltf, &earth );
-  let texture = create_texture( gl, "environment_maps/equirectangular_maps/space3.png" );
-  set_texture( &environment, | m | { m.base_color_texture.clone_from( &texture ); } );
-  let scale = 100_000.0;
-  environment.borrow_mut().set_translation( [ 0.0, 1.0 - scale, 0.0 ] );
-  environment.borrow_mut().set_scale( [ scale; 3 ] );
-  environment.borrow_mut().update_local_matrix();
-
   Ok( gltf )
 }
 
@@ -641,7 +633,7 @@ async fn run() -> Result< (), gl::WebglError >
   animation.set_world_matrix( identity() );
 
   let canvas_camera = init_camera( &canvas, &canvas_gltf.scenes );
-  canvas_camera.bind_controls( &canvas );
+  // canvas_camera.bind_controls( &canvas );
   canvas_camera.get_controls().borrow_mut().window_size = [ ( canvas.width() * 4 ) as f32, ( canvas.height() * 4 ) as f32 ].into();
   canvas_camera.get_controls().borrow_mut().eye = [ 0.0, 0.0, 150.0 ].into();
   {
@@ -683,9 +675,13 @@ async fn run() -> Result< (), gl::WebglError >
   let eye = gl::math::mat3x3h::rot( 0.0, - 73.0_f32.to_radians(), - 15.0_f32.to_radians() )
   * F32x4::from_array([ 0.0, 1.7, 1.7, 1.0 ] );
   camera.get_controls().borrow_mut().eye = [ eye.x(), eye.y(), eye.z() ].into();
+  camera.get_controls().borrow_mut().center = [ 0.0, 1.0, 0.0 ].into();
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "environment_maps/gltf_viewer_ibl_unreal", None ).await );
+  let skybox = create_texture( &gl, "environment_maps/equirectangular_maps/space3.png" )
+  .expect( "Failed to load skybox texture" );
+  renderer.set_skybox( skybox.texture.borrow().source.clone() );
 
   let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
 

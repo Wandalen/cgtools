@@ -19,10 +19,10 @@ gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
 renderer = { workspace = true }
 canvas_renderer = { workspace = true }
 primitive_generation = { workspace = true, features = [ "font-processing" ] }
-kurbo = { workspace = true }
+kurbo = { version = "0.11.2" }
 zune-hdr = { workspace = true }
 interpoli = { workspace = true }
-peniko = { workspace = true }
+peniko = { version = "0.4.0" }
 color = { workspace = true }
 earcutr = { workspace = true }
 former = { workspace = true }
