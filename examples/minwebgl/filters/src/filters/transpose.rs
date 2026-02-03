@@ -1,4 +1,6 @@
 use super::*;
+use wasm_bindgen::JsCast;
+use web_sys::HtmlCanvasElement;
 
 pub struct Transpose;
 
@@ -13,15 +15,11 @@ impl Filter for Transpose
     out vec4 frag_color;
 
     uniform sampler2D u_image;
-    uniform float u_aspect;
 
     void main()
     {
-      vec2 tex_coord = vec2( ( 1.0 - v_tex_coord.y ) / u_aspect, 1.0 - v_tex_coord.x * u_aspect );
-      if ( tex_coord.x > 1.0 || tex_coord.y > 1.0 || tex_coord.x < 0.0 || tex_coord.y < 0.0 )
-      {
-        discard;
-      }
+      // Simple transpose: swap x and y coordinates
+      vec2 tex_coord = vec2( 1.0 - v_tex_coord.y, v_tex_coord.x );
       frag_color = texture( u_image, tex_coord );
     }
     ".to_string()
@@ -30,10 +28,24 @@ impl Filter for Transpose
   fn draw( &self, renderer : &impl FilterRenderer )
   {
     let gl = renderer.gl();
-    let aspect_location = gl.get_uniform_location( renderer.get_program(), "u_aspect" );
-    let aspect = gl.drawing_buffer_width() as f32 / gl.drawing_buffer_height() as f32;
-    gl.use_program( Some( &renderer.get_program() ) );
-    gl::uniform::upload( gl, aspect_location, &aspect ).unwrap();
+
+    // Swap canvas dimensions for transpose
+    if let Some( canvas ) = gl.canvas()
+    {
+      if let Ok( canvas ) = canvas.dyn_into::< HtmlCanvasElement >()
+      {
+        let width = canvas.width();
+        let height = canvas.height();
+        canvas.set_width( height );
+        canvas.set_height( width );
+      }
+    }
+
+    gl.use_program( Some( renderer.get_program() ) );
+
+    // Clear with transparent color before drawing transposed image
+    gl.clear_color( 0.0, 0.0, 0.0, 0.0 );
+    gl.clear( GL::COLOR_BUFFER_BIT );
 
     default_render_pass( renderer );
   }

@@ -43,7 +43,8 @@ impl Filter for Edge
           1.0, -8.0, 1.0,
           1.0,  1.0, 1.0
         );
-        frag_color = vec4( apply_3x3_kernel( EDGE_KERNEL ), 1.0 );
+        float alpha = texture( u_image, v_tex_coord ).a;
+        frag_color = vec4( apply_3x3_kernel( EDGE_KERNEL ), alpha );
       }
       ".to_string()
   }

@@ -44,7 +44,8 @@ impl Filter for Emboss
          0.0,  1.0, 2.0
       );
 
-      frag_color = vec4( apply_3x3_kernel( EMBOSS_KERNEL ), 1.0 );
+      float alpha = texture( u_image, v_tex_coord ).a;
+      frag_color = vec4( apply_3x3_kernel( EMBOSS_KERNEL ), alpha );
     }
     ".to_string()
   }
