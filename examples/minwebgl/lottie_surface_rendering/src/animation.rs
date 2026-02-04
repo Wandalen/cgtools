@@ -53,7 +53,7 @@ pub fn affine_to_matrix( affine : Affine ) -> F32x4x4
 {
   let [ a, b, c, d , e, f ] = affine.as_coeffs();
 
-  let mut matrix = F32x4x4::default();
+  let mut matrix = F32x4x4::identity();
 
   {
     let matrix_mut : &mut [ f32 ] = matrix.as_raw_slice_mut();
@@ -69,8 +69,6 @@ pub fn affine_to_matrix( affine : Affine ) -> F32x4x4
     set_elem( 1, 1, d as f32 );
     set_elem( 3, 0, e as f32 );
     set_elem( 3, 1, f as f32 );
-    set_elem( 3, 3, 1.0 );
-    set_elem( 2, 2, 1.0 );
   }
 
   matrix
