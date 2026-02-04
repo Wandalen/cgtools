@@ -164,8 +164,17 @@ fn clone( gltf : &mut GLTF, node : &Rc< RefCell< Node > > ) -> Rc< RefCell< Node
   clone
 }
 
-/// Sets the texture on a node's materials using a callback.
-fn set_texture
+/// Applies a material modification callback to all primitives of a `Node`.
+///
+/// This function iterates through all primitives of a given `Node` (if it's a `Mesh`),
+/// and applies a provided callback function to each primitive's material, allowing
+/// modification of textures, alpha modes, and other material properties.
+///
+/// # Arguments
+///
+/// * `node` - A reference to the `Rc<RefCell<Node>>` to modify.
+/// * `material_callback` - A closure that takes a material reference and modifies it.
+fn apply_function_to_node_materials
 (
   node : &Rc< RefCell< Node > >,
   mut material_callback : impl FnMut( Rc< RefCell< Box< dyn Material> > > )
@@ -190,7 +199,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 )
   .expect( "Scene is empty" ).clone();
   let texture = create_texture( &gl, "textures/earth2.jpg" );
-  set_texture
+  apply_function_to_node_materials
   (
     &earth,
     | m |
@@ -203,7 +212,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 
   let clouds = clone( &mut gltf, &earth );
   let texture = create_texture( &gl, "textures/clouds2.png" );
-  set_texture
+  apply_function_to_node_materials
   (
     &clouds,
     | m |
@@ -221,7 +230,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 
   let moon = clone( &mut gltf, &earth );
   let texture = create_texture( &gl, "textures/moon2.jpg" );
-  set_texture
+  apply_function_to_node_materials
   (
     &moon,
     | m |
@@ -295,7 +304,7 @@ async fn run() -> Result< (), gl::WebglError >
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 )
   .expect( "Scene is empty" ).clone();
   let canvas_sphere = clone( &mut gltf, &earth );
-  set_texture
+  apply_function_to_node_materials
   (
     &canvas_sphere,
     | m |

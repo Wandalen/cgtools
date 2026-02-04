@@ -199,16 +199,17 @@ fn clone( gltf : &mut GLTF, node : &Rc< RefCell< Node > > ) -> Rc< RefCell< Node
   clone
 }
 
-/// Sets the textures for a `Node` and its primitives using a material callback.
+/// Applies a material modification callback to all primitives of a `Node`.
 ///
 /// This function iterates through all primitives of a given `Node` (if it's a `Mesh`),
-/// and applies a provided callback function to each primitive's material.
+/// and applies a provided callback function to each primitive's material, allowing
+/// modification of textures, alpha modes, and other material properties.
 ///
 /// # Arguments
 ///
 /// * `node` - A reference to the `Rc<RefCell<Node>>` to modify.
-/// * `material_callback` - A closure that takes a mutable reference to a `Material` and modifies it.
-fn set_texture
+/// * `material_callback` - A closure that takes a material reference and modifies it.
+fn apply_function_to_node_materials
 (
   node : &Rc< RefCell< Node > >,
   mut material_callback : impl FnMut( &mut PbrMaterial )
@@ -250,13 +251,13 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 )
   .expect( "Scene is empty" ).clone();
   let texture = create_texture( gl, "textures/earth2.jpg" );
-  set_texture( &earth, | m | { m.base_color_texture.clone_from( &texture ); } );
+  apply_function_to_node_materials( &earth, | m | { m.base_color_texture.clone_from( &texture ); } );
 
   earth.borrow_mut().update_local_matrix();
 
   let clouds = clone( &mut gltf, &earth );
   let texture = create_texture( gl, "textures/clouds2.png" );
-  set_texture
+  apply_function_to_node_materials
   (
     &clouds,
     | m |
@@ -273,7 +274,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 
   let moon = clone( &mut gltf, &earth );
   let texture = create_texture( gl, "textures/moon2.jpg" );
-  set_texture( &moon, | m | { m.base_color_texture.clone_from( &texture ); } );
+  apply_function_to_node_materials( &moon, | m | { m.base_color_texture.clone_from( &texture ); } );
   let scale = 0.25;
   let distance = 7.0;
   moon.borrow_mut().set_translation( [ distance, ( 1.0 - scale ), 0.0 ] );
@@ -649,7 +650,7 @@ async fn run() -> Result< (), gl::WebglError >
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 )
   .expect( "Scene is empty" ).clone();
   let canvas_sphere = clone( &mut gltf, &earth );
-  set_texture
+  apply_function_to_node_materials
   (
     &canvas_sphere,
     | m |

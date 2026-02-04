@@ -174,7 +174,17 @@ fn clone( gltf : &mut GLTF, node : &Rc< RefCell< Node > > ) -> Rc< RefCell< Node
   clone
 }
 
-fn set_texture
+/// Applies a material modification callback to all primitives of a `Node`.
+///
+/// This function iterates through all primitives of a given `Node` (if it's a `Mesh`),
+/// and applies a provided callback function to each primitive's material, allowing
+/// modification of textures, alpha modes, and other material properties.
+///
+/// # Arguments
+///
+/// * `node` - A reference to the `Rc<RefCell<Node>>` to modify.
+/// * `material_callback` - A closure that takes a material reference and modifies it.
+fn apply_function_to_node_materials
 (
   node : &Rc< RefCell< Node > >,
   mut material_callback : impl FnMut( &mut PbrMaterial )
@@ -202,12 +212,12 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 ).unwrap().clone();
   let texture = create_texture( &gl, "textures/earth2.jpg" ).await;
-  set_texture( &earth, | m | { m.base_color_texture = texture.clone(); } );
+  apply_function_to_node_materials( &earth, | m | { m.base_color_texture = texture.clone(); } );
   earth.borrow_mut().update_local_matrix();
 
   let clouds = clone( &mut gltf, &earth );
   let texture = create_texture( &gl, "textures/clouds2.png" ).await;
-  set_texture( &clouds,
+  apply_function_to_node_materials( &clouds,
     | m |
     {
       m.base_color_texture = texture.clone();
@@ -222,7 +232,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 
   let moon = clone( &mut gltf, &earth );
   let texture = create_texture( &gl, "textures/moon2.jpg" ).await;
-  set_texture( &moon, | m | { m.base_color_texture = texture.clone(); } );
+  apply_function_to_node_materials( &moon, | m | { m.base_color_texture = texture.clone(); } );
   let scale = 0.25;
   let distance = 7.0;// 30.0 * 1.0;
   moon.borrow_mut().set_translation( [ distance, ( 1.0 - scale ), 0.0 ] );
@@ -289,7 +299,7 @@ async fn run() -> Result< (), gl::WebglError >
 
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 ).unwrap().clone();
   let canvas_sphere = clone( &mut gltf, &earth );
-  set_texture
+  apply_function_to_node_materials
   (
     &canvas_sphere,
     | m |
