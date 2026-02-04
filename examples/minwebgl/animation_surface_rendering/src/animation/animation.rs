@@ -542,10 +542,9 @@ mod private
     {
       for scene in &self.gltf.scenes
       {
-        for child in &scene.borrow().children
-        {
-          child.borrow_mut().update_world_matrix( world_matrix, true );
-        }
+        let old_local_matrix = scene.borrow().get_local_matrix();
+        scene.borrow_mut().set_local_matrix( world_matrix * old_local_matrix );
+        scene.borrow_mut().update_world_matrix();
       }
     }
   }

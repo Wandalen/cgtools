@@ -605,15 +605,14 @@ impl Animation
     Some( ( scene, colors ) )
   }
 
-  /// Sets the world matrix for all children of all scenes within the animation.
+  /// Sets the world matrix for all scenes within the GLTF data.
   pub fn set_world_matrix( &self, world_matrix : F32x4x4 )
   {
     for scene in &self.gltf.scenes
     {
-      for child in scene.borrow().children.iter()
-      {
-        child.borrow_mut().update_world_matrix( world_matrix, true );
-      }
+      let old_local_matrix = scene.borrow().get_local_matrix();
+      scene.borrow_mut().set_local_matrix( world_matrix * old_local_matrix );
+      scene.borrow_mut().update_world_matrix();
     }
   }
 }
