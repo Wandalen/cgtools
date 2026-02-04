@@ -289,13 +289,8 @@ async fn run() -> Result< (), gl::WebglError >
   {
     let controls = canvas_camera.get_controls();
     let mut controls_ref = controls.borrow_mut();
-    {
-      controls_ref.center = [ 7.671358, 105.80746, 61.174854 ].into();
-
-    }
-    {
-      controls_ref.eye = [ -43.71087, -343.4742, 744.99524 ].into();
-    }
+    controls_ref.center = [ 7.671358, 105.80746, 61.174854 ].into();
+    controls_ref.eye = [ -43.71087, -343.4742, 744.99524 ].into();
   }
 
   let canvas_renderer = CanvasRenderer::new( &gl, canvas.width() * 4, canvas.height() * 4 )?;
@@ -336,7 +331,7 @@ async fn run() -> Result< (), gl::WebglError >
   camera.bind_controls( &canvas );
   let eye = gl::math::mat3x3h::rot( 0.0, - 73.0_f32.to_radians(), - 15.0_f32.to_radians() )
   * F32x4::from_array( [ 0.0, 1.7, 1.7, 1.0 ] );
-  camera.get_controls().borrow_mut().eye = [ eye.x(), eye.y(), eye.z() ].into();
+  camera.get_controls().borrow_mut().eye = eye.truncate();
   camera.get_controls().borrow_mut().center = [ 0.0, 1.0, 0.0 ].into();
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
