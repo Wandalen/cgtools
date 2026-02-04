@@ -40,17 +40,12 @@ use std::cell::RefCell;
 use minwebgl as gl;
 use gl::
 {
+  texture::d2::upload_image_from_path,
   F32x4,
   math::mat4x4::identity,
-  JsCast,
   GL,
   WebGl2RenderingContext,
-  web_sys::
-  {
-    HtmlCanvasElement,
-    wasm_bindgen::closure::Closure,
-    WebGlTexture
-  }
+  web_sys::HtmlCanvasElement
 };
 use renderer::webgl::
 {
@@ -66,42 +61,6 @@ mod animation;
 
 use animation::load_animation;
 
-/// Uploads an image from a URL to a WebGL texture.
-fn upload_texture( gl : &WebGl2RenderingContext, src : Rc< String > ) -> WebGlTexture
-{
-  let window = web_sys::window().expect( "Can't get window" );
-  let document =  window.document().expect( "Can't get document" );
-
-  let texture = gl.create_texture().expect( "Failed to create a texture" );
-
-  let img_element = document.create_element( "img" )
-  .expect( "Can't create img" )
-  .dyn_into::< gl::web_sys::HtmlImageElement >()
-  .expect( "Can't convert to gl::web_sys::HtmlImageElement" );
-  img_element.style().set_property( "display", "none" )
-  .expect( "Can't set property" );
-  let load_texture : Closure< dyn Fn() > = Closure::new
-  (
-    {
-      let gl = gl.clone();
-      let img = img_element.clone();
-      let texture = texture.clone();
-      move ||
-      {
-        gl::texture::d2::upload_no_flip( &gl, Some( &texture ), &img );
-        gl.generate_mipmap( gl::TEXTURE_2D );
-        img.remove();
-      }
-    }
-  );
-
-  img_element.set_onload( Some( load_texture.as_ref().unchecked_ref() ) );
-  img_element.set_src( &src );
-  load_texture.forget();
-
-  texture
-}
-
 /// Creates a new texture from a given image path and returns its metadata.
 fn create_texture
 (
@@ -110,7 +69,7 @@ fn create_texture
 ) -> TextureInfo
 {
   let image_path = format!( "static/{image_path}" );
-  let texture_id = upload_texture( gl, Rc::new( image_path ) );
+  let texture_id = upload_image_from_path( gl, &image_path, false );
 
   let sampler = Sampler::former()
   .min_filter( MinFilterMode::Linear )
