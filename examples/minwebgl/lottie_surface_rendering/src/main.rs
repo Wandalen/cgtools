@@ -248,30 +248,6 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   Ok( gltf )
 }
 
-/// Calculates the mathematical modulo of two floating-point numbers.
-///
-/// This function ensures the result is always non-negative, which differs
-/// from the standard remainder operator (`%`) for negative dividends.
-///
-/// # Arguments
-///
-/// * `dividend` - The number to be divided.
-/// * `divisor` - The number to divide by.
-///
-/// # Returns
-///
-/// The non-negative remainder of the division.
-#[ must_use ]
-pub fn modulo( dividend : f64, divisor : f64 ) -> f64
-{
-  let mut result = dividend % divisor;
-  if result < 0.0
-  {
-    result += divisor.abs();
-  }
-  result
-}
-
 /// The main asynchronous function that sets up the scene, camera, and render loop.
 async fn run() -> Result< (), gl::WebglError >
 {
@@ -352,7 +328,12 @@ async fn run() -> Result< (), gl::WebglError >
       // If textures are of different size, gl.view_port needs to be called
       let time = t as f32 / 1000.0;
 
-      let frame = modulo( f64::from( time ) * 75.0, 125.0 );
+      // Scales time to speed or slowdown the animation
+      let speed = 75.0;
+      // Total duration of the lottie animation in milliseconds
+      let animation_duration = 125.0;
+      let frame = f64::from( time ) * speed % animation_duration;
+      // [`Animation::frame`] receives as input time moment from animation start in milliseconds
       if let Some( ( mut scene, colors ) ) = animation.frame( frame )
       {
         canvas_renderer.render( &gl, &mut scene, &canvas_camera, &colors )

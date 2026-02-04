@@ -518,6 +518,7 @@ mod private
     }
 
     /// Returns a new scene and a list of colors for a specific animation frame.
+    /// Receives as input time moment from animation start in milliseconds
     pub fn frame( &self, frame : f64 ) -> Option< ( Scene, Vec< F32x4 > ) >
     {
       let Some( scene ) = self.gltf.scenes.first()

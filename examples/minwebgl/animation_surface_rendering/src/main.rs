@@ -334,29 +334,6 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
   ( canvas_gltf, colors )
 }
 
-/// Calculates the mathematical modulo of two floating-point numbers.
-///
-/// This function ensures the result is always non-negative, which differs
-/// from the standard remainder operator (`%`) for negative dividends.
-///
-/// # Arguments
-///
-/// * `dividend` - The number to be divided.
-/// * `divisor` - The number to divide by.
-///
-/// # Returns
-///
-/// The non-negative remainder of the division.
-pub fn modulo( dividend : f64, divisor : f64 ) -> f64
-{
-  let mut result = dividend % divisor;
-  if result < 0.0
-  {
-    result += divisor.abs();
-  }
-  result
-}
-
 /// Sets up a complex 2D animation using the `animation` module.
 ///
 /// This function creates a hierarchical animation model with several layers,
@@ -696,7 +673,11 @@ async fn run() -> Result< (), gl::WebglError >
       // If textures are of different size, gl.view_port needs to be called
       let time = t as f32 / 1000.0;
 
-      if let Some( ( mut scene, colors ) ) = animation.frame( modulo( time as f64 * 1.0, 10.0 ) )
+      // Total duration of the lottie animation in milliseconds
+      let animation_duration = 10.0;
+      let frame = f64::from( time ) % animation_duration;
+      // [`Animation::frame`] receives as input time moment from animation start in milliseconds
+      if let Some( ( mut scene, colors ) ) = animation.frame( frame )
       {
         canvas_renderer.render( &gl, &mut scene, &canvas_camera, &colors ).expect( "Failed to render frame" );
       }
