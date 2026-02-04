@@ -576,7 +576,7 @@ impl Animation
       }
       else
       {
-        F32x4::from_array([ 0.0; 4 ] )
+        F32x4::from_array( [ 0.0; 4 ] )
       };
 
       colors.push( color );
