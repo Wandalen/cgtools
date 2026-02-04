@@ -35,7 +35,7 @@ mod private
     output_texture : Option< gl::web_sys::WebGlTexture >
   }
 
-  impl SwapFramebuffer 
+  impl SwapFramebuffer
   {
     /// Creates a new `SwapFramebuffer` instance, initializing its WebGL framebuffer,
     /// renderbuffer, and the primary output texture.
@@ -135,6 +135,15 @@ mod private
     {
       self.output_texture.clone()
     }
+
+    /// Free [`SwapFramebuffer`] WebGL resources
+    ///
+    /// Because [`SwapFramebuffer`] can use textures that are shared with other structs,
+    /// only the framebuffer is deleted here to avoid accidental deletion of shared textures.
+    pub fn free_gl_resources( &mut self, gl : &gl::GL )
+    {
+      gl.delete_framebuffer( self.framebuffer.as_ref() );
+    }
   }
 
 
@@ -145,7 +154,7 @@ mod private
     framebuffer : gl::web_sys::WebGlFramebuffer
   }
 
-  impl Composer 
+  impl Composer
   {
     /// Creates a new `Composer` instance.
     ///

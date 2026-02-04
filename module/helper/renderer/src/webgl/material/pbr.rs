@@ -86,8 +86,6 @@ mod private
   {
     /// A unique identifier for the material.
     pub id : uuid::Uuid,
-    /// Shader program info
-    program : PBRShader,
     /// The base color factor, multiplied with the base color texture. Defaults to white (1, 1, 1, 1).
     pub base_color_factor : gl::F32x4,
     /// Optional texture providing the base color.
@@ -148,33 +146,9 @@ mod private
   impl PbrMaterial
   {
     /// Creates new [`PbrMaterial`] with predefined optimal parameters
-    pub fn new( gl : &GL ) -> Self
+    pub fn new( _gl : &GL ) -> Self
     {
-      let ibl_define = "#define USE_IBL\n";
-
-      let mut defines = String::new();
-
-      defines.push_str( format!( "#define MAX_POINT_LIGHTS {MAX_POINT_LIGHTS}\n" ).as_str() );
-      defines.push_str( format!( "#define MAX_DIRECT_LIGHTS {MAX_DIRECT_LIGHTS}\n" ).as_str() );
-      defines.push_str( format!( "#define MAX_SPOT_LIGHTS {MAX_SPOT_LIGHTS}\n" ).as_str() );
-
-      // Compile and link a new WebGL program from the vertex and fragment shaders with the appropriate defines.
-      let program = gl::ProgramFromSources::new
-      (
-        &format!( "#version 300 es\n{}\n{}", defines, MAIN_VERTEX_SHADER ),
-        &format!
-        (
-          "#version 300 es\n{}\n{}\n{}",
-          defines,
-          ibl_define,
-          MAIN_FRAGMENT_SHADER
-        )
-      )
-      .compile_and_link( gl )
-      .unwrap();
-
       let id = uuid::Uuid::new_v4();
-      let program = PBRShader::new( gl, &program );
       let base_color_factor = gl::F32x4::from( [ 1.0, 1.0, 1.0, 1.0 ] );
 
       let base_color_texture = Default::default();
@@ -212,7 +186,6 @@ mod private
       return Self
       {
         id,
-        program,
         base_color_factor,
         base_color_texture,
         metallic_factor,
@@ -390,24 +363,19 @@ mod private
       }
     }
 
-    fn shader( &self ) -> &dyn ShaderProgram
+    fn make_shader_program( &self, minwebgl : &minwebgl::WebGl2RenderingContext, program : &minwebgl::WebGlProgram ) -> Box< dyn ShaderProgram > 
     {
-      &self.program
-    }
-
-    fn shader_mut( &mut self ) -> &mut dyn ShaderProgram
-    {
-      &mut self.program
+      PBRShader::new( minwebgl, program ).dyn_clone()
     }
 
     fn configure
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
+      ctx : &MaterialUploadContext< '_ >
     )
     {
-      self.program.bind( gl );
-      let locations = self.program.locations();
+      let locations = ctx.locations;
 
       // Assign a texture unit for each type of texture
       gl.uniform1i( locations.get( "metallicRoughnessTexture" ).unwrap().clone().as_ref() , 0 );
@@ -424,13 +392,13 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      context : &MaterialUploadContext< '_ >
+      ctx : &MaterialUploadContext< '_ >
     )
     -> Result< (), gl::WebglError >
     {
-      if let Some( current_primitive_id ) = context.primitive_id
+      if let Some( current_primitive_id ) = ctx.primitive_id
       {
-        if let Object3D::Mesh( mesh ) = &context.node.object
+        if let Object3D::Mesh( mesh ) = &ctx.node.object
         {
           let mut primitive_offset : u32 = 0;
           for ( i, primitive ) in mesh.borrow().primitives.iter().enumerate()
@@ -439,7 +407,7 @@ mod private
             primitive_offset += primitive.borrow().geometry.borrow().vertex_count;
           }
 
-          let locations = self.program.locations();
+          let locations = ctx.locations;
 
           if let Some( primitive_offset_loc ) = locations.get( "primitiveOffset" )
           {
@@ -455,11 +423,11 @@ mod private
     (
       &self,
       gl : &gl::WebGl2RenderingContext,
-      context : &MaterialUploadContext< '_ >
+      ctx : &MaterialUploadContext< '_ >
     )
     -> Result< (), gl::WebglError >
     {
-      let locations = self.program.locations();
+      let locations = ctx.locations;
 
       let upload = | loc, value : Option< f32 > | -> Result< (), gl::WebglError >
       {
@@ -478,8 +446,6 @@ mod private
         }
         Ok( () )
       };
-
-      let _ = self.upload( gl, context );
 
       upload( "specularFactor", self.specular_factor )?;
 
@@ -609,7 +575,6 @@ mod private
       PbrMaterial
       {
         id : uuid::Uuid::new_v4(),
-        program : self.program.clone(),
         base_color_factor : self.base_color_factor,
         base_color_texture : self.base_color_texture.clone(),
         metallic_factor : self.metallic_factor,
