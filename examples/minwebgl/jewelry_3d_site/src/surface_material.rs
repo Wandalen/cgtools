@@ -28,8 +28,6 @@ pub struct SurfaceMaterial
 {
   /// A unique identifier for the material.
   pub id : Uuid,
-  /// Shader program info
-  program : SurfaceShader,
   /// Surface RGB color
   pub color : F32x3,
   /// Surface texture
@@ -40,20 +38,11 @@ pub struct SurfaceMaterial
 
 impl SurfaceMaterial
 {
-  pub fn new( gl : &GL ) -> Self
+  pub fn new( _gl : &GL ) -> Self
   {
-    // Compile and link a new WebGL program from the vertex and fragment shaders with the appropriate defines.
-    let program = gl::ProgramFromSources::new
-    (
-      &format!( "#version 300 es\n{}", SURFACE_VERTEX_SHADER ),
-      &format!( "#version 300 es\n{}", SURFACE_FRAGMENT_SHADER )
-    ).compile_and_link( gl )
-    .unwrap();
-
     Self
     {
       id : Uuid::new_v4(),
-      program : SurfaceShader::new( gl, &program ),
       color : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
       texture : None,
       needs_update : true
@@ -73,14 +62,9 @@ impl Material for SurfaceMaterial
     self.needs_update
   }
 
-  fn shader( &self ) -> &dyn ShaderProgram
+  fn make_shader_program( &self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Box< dyn ShaderProgram >
   {
-    &self.program
-  }
-
-  fn shader_mut( &mut self ) -> &mut dyn ShaderProgram
-  {
-    &mut self.program
+    SurfaceShader::new( gl, program ).dyn_clone()
   }
 
   fn type_name( &self ) -> &'static str
@@ -102,10 +86,10 @@ impl Material for SurfaceMaterial
   (
     &self,
     gl : &gl::WebGl2RenderingContext,
+    ctx : &MaterialUploadContext< '_ >
   )
   {
-    self.program.bind( gl );
-    let locations = self.program.locations();
+    let locations = ctx.locations;
     gl.uniform1i( locations.get( "surfaceTexture" ).unwrap().clone().as_ref(), 0 );
   }
 
@@ -113,12 +97,11 @@ impl Material for SurfaceMaterial
   (
     &self,
     gl : &GL,
-    _context : &MaterialUploadContext< '_ >
+    ctx : &MaterialUploadContext< '_ >
   )
   -> Result< (), gl::WebglError >
   {
-    self.program.bind( gl );
-    let locations = self.program.locations();
+    let locations = ctx.locations;
     gl::uniform::upload( gl, locations.get( "surfaceColor" ).unwrap().clone(), self.color.0.as_slice() )?;
     self.upload_textures( gl );
     Ok( () )
@@ -157,8 +140,7 @@ impl Clone for SurfaceMaterial
       id : Uuid::new_v4(),
       color : self.color,
       texture : self.texture.clone(),
-      needs_update : self.needs_update,
-      program : self.program.clone()
+      needs_update : self.needs_update
     }
   }
 }

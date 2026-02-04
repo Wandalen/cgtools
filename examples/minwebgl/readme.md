@@ -76,21 +76,30 @@ Below is a list of all available examples, each demonstrating a unique WebGL con
 | `spinning_cube_size_opt` | A spinning cube demo that showcases effective techniques for reducing WASM bundle size. |
 | **Advanced Rendering & PBR** | |
 | `simple_pbr` | A minimal, shader-only example demonstrating the core principles of Physically-Based Rendering. |
+| `pbr_lighting` | Advanced PBR lighting techniques with multiple light types and realistic material responses. |
 | `area_light` | A PBR showcase with realistic, real-time rectangular area lights using Linearly Transformed Cosines (LTCs). |
 | `deferred_shading` | A high-performance deferred shading pipeline that supports hundreds of dynamic lights using light volumes. |
+| `shadowmap` | Shadow mapping implementation for realistic shadow rendering in 3D scenes. |
 | `diamond` | A specialized renderer for a diamond, simulating complex refraction and dispersion effects using cube maps. |
 | **Post-Processing & Effects** | |
 | `filter` | A simple example applying a single, interactive emboss filter to an image. |
 | `filters` | A comprehensive demo of various GPU-accelerated image filters applied in real-time. |
+| `postprocessing` | A complete postprocessing effects pipeline with multiple passes and effects. |
 | `outline` | Implements a real-time object outline using the multi-pass Jump Flooding Algorithm (JFA). |
 | `narrow_outline` | A post-processing example for rendering a crisp, narrow outline around 3D objects. |
+| `renderer_with_outlines` | A renderer with integrated outline postprocessing effects for enhanced object visibility. |
 | **Textures & Surfaces** | |
 | `video_as_texture` | Shows how to use an HTML5 video element as a dynamic, animated texture in a 3D scene. |
 | `make_cube_map` | Demonstrates the dynamic generation of cube maps by rendering a scene from six camera angles. |
 | `curve_surface_rendering` | Renders 2D curves and text generated from font files directly onto a 3D surface. |
 | `animation_surface_rendering` | Renders a complex 2D vector animation onto the surface of a 3D sphere. |
+| **Animations** | |
+| `skeletal_animation` | Shows skeletal/bone-based character animation with smooth interpolation. |
+| `animation_amplitude_change` | Demonstrates animation with dynamic amplitude changes and easing functions. |
+| `morph_targets` | Demonstrates mesh morphing and blending using morph targets (blend shapes). |
 | **Interaction & Tools** | |
 | `object_picking` | Demonstrates precise, GPU-based object selection in a 3D scene using a color-coded ID buffer. |
+| `character_control` | Character movement and control system with physics and input handling. |
 | `color_space_conversions` | An interactive tool to visualize real-time conversions between numerous color spaces. |
 | **Optimization** | |
 | `minimize_wasm` | A guide and example for optimizing the size of WebAssembly builds using `wee_alloc` and `wasm-opt`. |

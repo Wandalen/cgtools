@@ -6,14 +6,190 @@
 mod private
 {
   use crate::{ F32x3, F32x2, math };
-  use std::{ cell::RefCell, rc::Rc };
-  use wasm_bindgen::{ JsCast, prelude::Closure };
-  use crate::web::web_sys;
+
+  #[ cfg( feature = "web" ) ]
+  pub mod web_imports
+  {
+    pub use std::{ cell::RefCell, rc::Rc };
+    pub use wasm_bindgen::{ JsCast, prelude::Closure };
+    pub use crate::web::web_sys;
+  }
+
+  #[ cfg( feature = "web" ) ]
+  use web_imports::*;
+
+  /// State of the camera that controls its rotation
+  pub struct CameraRotationState
+  {
+    /// Enables or disables rotation
+    pub enabled : bool,
+    /// Sets whether `movement_decay` is applied or not
+    pub movement_smoothing_enabled : bool,
+    /// Scaling factor for rotation sensitivity in pixels per radian. Higher values make rotation slower.
+    /// Default: 500.0 means 500 pixels of drag equals 1 radian of rotation.
+    /// 
+    /// The speed field must be non-zero. Setting speed to 0.0 will result in
+    /// undefined camera behavior (NaN/Inf propagation).
+    pub speed : f32,
+    /// Determines how fast rotation is going to decrease after dragging is stopped.
+    /// In range from 0.0 to 1.0
+    movement_decay : f32,
+    /// The base longitude angle in degrees in range [0, 360], from which bound are calculated. Has no effect when `longitude_range` is `None`.
+    /// 0 degrees points in +X diraction and everything else is specified in counter-clockwise rotation around the Y axis:
+    /// 90 = -Z
+    /// 180 = -X
+    /// 270 = +Z
+    base_longitude : f32,
+    /// Specifies the radius in degrees around the base_longitude. Should be in range [0, 180]
+    longitude_range : Option< f32 >,
+    /// The base latitude angle in degrees in range [-90, 90], from which the bounds are calculated. Has no effect when `latitude_range` is `None`.
+    base_latitude : f32,
+    /// Specifies the radius in degrees around the base_latitude. Should be in range [0, 180]. The rotation will be clamped at poles
+    latitude_range : Option< f32 >,
+    /// Accumulated speed based on mouse movement
+    current_angular_speed : F32x2,
+    /// Current angle of rotation for the camera
+    current_rotation_angle : F32x2
+  }
+
+  impl CameraRotationState
+  {
+    /// Sets the movement_decay and clamps the value in range [0.0, 1.0]
+    pub fn movement_decay_set( &mut self, v : f32 )
+    {
+      self.movement_decay = v.clamp( 0.0, 1.0 );
+    }
+
+    /// Gets the movement_decay
+    pub fn movement_decay_get( &self ) -> f32
+    {
+      self.movement_decay
+    }
+
+    /// Sets the base longitude. Clamps the value in range [0, 360] degrees 
+    pub fn base_longitude_set( &mut self, angle : f32 )
+    {
+      self.base_longitude = angle.clamp( 0.0, 360.0 );
+    }
+
+    /// Return the base longitude
+    pub fn base_longitude_get( &self ) -> f32
+    {
+      self.base_longitude
+    }
+
+    /// Sets the longitude range. Clamps the value in range [0, 180] degrees
+    pub fn longitude_range_set( &mut self, angle : f32 )
+    {
+      self.longitude_range = Some( angle.clamp( 0.0, 180.0 ) );
+    }
+
+    /// Return the longitude range
+    pub fn longitude_range_get( &self ) -> Option< f32 >
+    {
+      self.longitude_range
+    }
+
+    /// Sets the base latitude. Clamps the value in range [-90, 90] degrees 
+    pub fn base_latitude_set( &mut self, angle : f32 )
+    {
+      self.base_latitude = angle.clamp( -90.0, 90.0 );
+    }
+
+    /// Return the base latitude
+    pub fn base_latitude_get( &self,) -> f32
+    {
+      self.base_latitude
+    }
+
+    /// Sets the latitude range. Clamps the value in range [0, 180] degrees
+    pub fn latitude_range_set( &mut self, angle : f32 )
+    {
+      self.latitude_range = Some( angle.clamp( 0.0, 180.0 ) );
+    }
+
+    /// Return the latitude range
+    pub fn latitude_range_get( &self ) -> Option< f32 >
+    {
+      self.latitude_range
+    }
+  }
+
+  /// State of the camera that controls its zoom
+  pub struct CameraZoomState
+  {
+    /// Enables or disables zoom
+    pub enabled : bool,
+    /// A scaling factor to adjust the sensitivity of camera zooming.
+    /// The speed field must be non-zero. Setting speed to 0.0 will result in
+    /// undefined camera behavior (NaN/Inf propagation).
+    pub speed : f32,
+    /// The minimum distance from the camera view center
+    min_distance : Option< f32 >,
+    /// The maximum distance from the camera view center
+    max_distance : Option< f32>
+  }
+
+  impl CameraZoomState
+  {
+    /// Sets the minimum zoom distance from the camera center
+    /// If d < 0.0 - clamp to 0.0
+    /// If d > max_distance - clamp to max_distance
+    pub fn min_distance_set( &mut self, mut d : f32 )
+    {
+      d = d.max( 0.0 );
+      if let Some( max_distance ) = self.max_distance
+      {
+        d = d.min( max_distance );
+      }
+      self.min_distance = Some( d );
+    }
+
+    /// Sets the maximum zoom distance from the camera center
+    /// If d < 0.0 - clamp to 0.0
+    /// If d < min_distance - clamp to min_distance
+    pub fn max_distance_set( &mut self, mut d : f32 )
+    {
+      d = d.max( 0.0 ); 
+      if let Some( min_distance ) = self.min_distance
+      {
+        d = d.max( min_distance );
+      }
+      self.max_distance = Some( d );
+    }
+
+    /// Get minimum zoom distance
+    pub fn min_distance_get( &self ) -> Option< f32 >
+    {
+      self.min_distance
+    }
+
+    /// Get maximum zoom distance
+    pub fn max_distance_get( &self ) -> Option< f32 >
+    {
+      self.max_distance
+    }
+  }
+
+  /// State of the camera that controls panning
+  pub struct CameraPanState
+  {
+    /// Enables or disables panning
+    pub enabled : bool
+  }
 
   /// Provides an orbit-style camera controller for 3D scenes.
   ///
   /// This camera rotates around a central `center` point, can pan across the view plane,
   /// and zoom in and out. It's suitable for inspecting 3D models or scenes.
+  /// 
+  /// # Example: Constrain camera to hemisphere view
+  /// ```rust,ignore
+  /// camera.rotation.base_longitude_set( 0.0 );
+  /// camera.rotation.longitude_range_set( 90.0 )
+  /// camera.zoom.min_distance_set(2.0);
+  /// camera.zoom.max_distance_set(10.0);
+  /// ```
   pub struct CameraOrbitControls
   {
     /// The position of the camera in 3D space.
@@ -24,23 +200,14 @@ mod private
     pub center : F32x3,
     /// The size of the rendering window or viewport, used for panning calculations.
     pub window_size : F32x2,
-    /// A scaling factor to adjust the sensitivity of camera rotation.
-    pub rotation_speed_scale : f32,
-    /// A scaling factor to adjust the sensitivity of camera zooming.
-    pub zoom_speed_scale : f32,
     /// The vertical field of view of the camera, in radians.
     pub fov : f32,
-    /// Enables or disables panning
-    pub use_pan : bool,
-    /// Sets whether to `rotation_decay` is applied or not
-    pub use_rotation_easing : bool,
-    /// Determines how fast rotation is going to decrease after dragging is stopped.
-    /// In range from 0.0 to 1.0
-    pub rotation_decay : f32,
-    /// Accumulated speed based on mouse movement
-    rotation_speed : F32x2,
-    /// Current angle of rotation for the camera
-    rotation_angle : F32x2
+    /// Properties to control camera's rotation
+    pub rotation : CameraRotationState,
+    /// Properties to control camera's zoom
+    pub zoom : CameraZoomState,
+    /// Properties that track camera's enabled functionality
+    pub pan : CameraPanState
   }
 
   impl CameraOrbitControls
@@ -82,37 +249,111 @@ mod private
     ///
     /// # Arguments
     /// * `screen_d` - The change in screen coordinates `[dx, dy]` from a mouse movement event.
+    /// 
+    /// # Preconditions
+    /// - `eye` must not equal `center` (direction vector must be non-zero)
+    /// - `up` must not be parallel to the view direction
+    /// Violating these conditions results in undefined behavior (NaN or panic).
     pub fn rotate
     (
       &mut self,
       screen_d : [ f32; 2 ]
     )
     {
-      let mut screen_d = F32x2::from( screen_d );
-      screen_d /= self.rotation_speed_scale;
-
-
-      if self.use_rotation_easing
+      if !self.rotation.enabled
       {
-        self.rotation_speed += screen_d;
+        return;
+      }
+
+      let mut screen_d = F32x2::from( screen_d );
+      screen_d /= self.rotation.speed;
+
+      if self.rotation.movement_smoothing_enabled
+      {
+        self.rotation.current_angular_speed += screen_d;
       }
       else
       {
-        self.rotation_angle = screen_d;
+        self.rotation.current_rotation_angle = screen_d;
         self.apply_rotation();
       }
     }
 
     fn apply_rotation( &mut self )
     {
-      let dir = ( self.center - self.eye ).normalize();
+      let dir = ( self.eye - self.center ).normalize();
       let x = dir.cross( self.up ).normalize();
 
-      // We rotate aroung the y axis based on the movement in x direction.
-      // And we rotate aroung the axix perpendicular to the current up and direction vectors
+      // We rotate around the y axis based on the movement in x direction.
+      // And we rotate around the axis perpendicular to the current up and direction vectors
       // based on the movement in y direction
-      let rot_y = math::mat3x3::from_angle_y( -self.rotation_angle.x() );
-      let rot_x = math::mat3x3::from_axis_angle( x, -self.rotation_angle.y());
+      let mut longitude_angle = self.rotation.current_rotation_angle.x();
+      let mut latitude_angle = self.rotation.current_rotation_angle.y();
+
+      if let Some( longitude_range ) = self.rotation.longitude_range
+      {
+        let angle_range = longitude_range.to_radians();
+        // Pivoting angle around which constraints are enforced
+        let mut base_angle = self.rotation.base_longitude.to_radians();
+        if base_angle > std::f32::consts::PI
+        {
+          base_angle -= 2.0 * std::f32::consts::PI;
+        }
+        let min_angle = base_angle - angle_range;
+        let max_angle = base_angle + angle_range;
+
+        let current_angle = ( -dir.z() ).atan2( dir.x() );
+        let mut new_angle = current_angle + longitude_angle;
+
+        if new_angle < min_angle || new_angle > max_angle
+        {
+          let delta_min_correction = min_angle - new_angle;
+          let delta_max_correction = new_angle - max_angle;
+
+          if delta_max_correction > delta_min_correction
+          {
+            new_angle -= delta_max_correction;
+          }
+          else
+          {
+            new_angle += delta_min_correction;
+          }
+        }
+        
+        longitude_angle = new_angle - current_angle;
+      }
+
+      if let Some( latitude_range ) = self.rotation.latitude_range
+      {
+        let angle_range = latitude_range.to_radians();
+        let base_angle = self.rotation.base_latitude.to_radians();
+        let min_angle = ( base_angle - angle_range ).max( -std::f32::consts::FRAC_PI_2 );
+        let max_angle = ( base_angle + angle_range ).min( std::f32::consts::FRAC_PI_2 );
+
+        let current_angle = dir.y().asin();
+        let mut new_angle = current_angle + latitude_angle;
+
+        if new_angle < min_angle || new_angle > max_angle
+        {
+          let delta_min_correction = min_angle - new_angle;
+          let delta_max_correction = new_angle - max_angle;
+
+          if delta_max_correction > delta_min_correction
+          {
+            new_angle -= delta_max_correction;
+          }
+          else 
+          {
+            new_angle += delta_min_correction;
+          }
+        }
+        
+        latitude_angle = new_angle - current_angle;
+      }
+      
+
+      let rot_x = math::mat3x3::from_axis_angle( x, latitude_angle );
+      let rot_y = math::mat3x3::from_angle_y( longitude_angle );
       // Combine two rotations
       let rot = rot_y * rot_x;
 
@@ -139,15 +380,10 @@ mod private
       screen_d : [ f32; 2 ]
     )
     {
-      if !self.use_pan
+      if !self.pan.enabled
       {
         return;
       }
-
-      // Convert to cgmath Vectors
-      // let up = cgmath::Vector3::from( self.up );
-      // let mut center_prev = cgmath::Vector3::from( self.center );
-      // let mut eye_prev = cgmath::Vector3::from( self.eye );
 
       // Here we get the x and y direction vectors based on camera's orientation and direction.
       // Both vectors line in the plane that the dir vector is perpendicular to.
@@ -183,11 +419,12 @@ mod private
       mut delta_y : f32
     )
     {
-      delta_y /= self.zoom_speed_scale;
+      if !self.zoom.enabled
+      {
+        return;
+      }
 
-      //Convert to cgmath Vectors
-      // let center = cgmath::Vector3::from( self.center );
-      // let mut eye_prev = cgmath::Vector3::from( self.eye );
+      delta_y /= self.zoom.speed;
 
       // If scroll is up (-) then zoom in
       // If scroll is down (+) then zoom out
@@ -196,6 +433,25 @@ mod private
       // We need the center to be at the origin before we can apply zoom
       let mut eye_new = self.eye - self.center;
       eye_new /= k;
+
+      let length = eye_new.mag();
+
+      if let Some( min_distance ) = self.zoom.min_distance
+      {
+        if length < min_distance
+        {
+          eye_new = eye_new.normalize() * min_distance;
+        }
+      }
+
+      if let Some( max_distance ) = self.zoom.max_distance
+      {
+        if length > max_distance
+        {
+          eye_new = eye_new.normalize() * max_distance;
+        }
+      }
+
       eye_new += self.center;
 
       self.eye = eye_new;
@@ -208,16 +464,15 @@ mod private
       delta_time : f64
     )
     {
-      // Decays self.rotation_decay% every 100 milliseconds
-      let mut decay_percentage = self.rotation_decay * delta_time as f32 / 10.0;
+      // Decays self.movement_decay% every 10 milliseconds
+      let mut decay_percentage = self.rotation.movement_decay * delta_time as f32 / 10.0;
       decay_percentage = decay_percentage.min( 1.0 );
-      // decay_percentage = self.rotation_decay;
 
-      if self.use_rotation_easing
+      if self.rotation.movement_smoothing_enabled
       {
-        self.rotation_angle = self.rotation_speed * delta_time as f32 / 1000.0;
+        self.rotation.current_rotation_angle = self.rotation.current_angular_speed * delta_time as f32 / 1000.0;
         self.apply_rotation();
-        self.rotation_speed *= 1.0 - decay_percentage;
+        self.rotation.current_angular_speed *= 1.0 - decay_percentage;
       }
     }
   }
@@ -233,19 +488,37 @@ mod private
         up : F32x3::from( [ 0.0, 1.0, 0.0 ] ),
         center : F32x3::from( [ 0.0, 0.0, 0.0 ] ),
         window_size : F32x2::from( [ 1000.0, 1000.0 ] ),
-        rotation_speed_scale : 500.0,
-        zoom_speed_scale : 1000.0,
         fov : 70f32.to_radians(),
-        use_pan : true,
-        rotation_speed : F32x2::default(),
-        rotation_angle : F32x2::default(),
-        use_rotation_easing : false,
-        rotation_decay : 0.05
+        zoom : CameraZoomState
+        {
+          enabled : true,
+          speed : 1000.0,
+          max_distance : None,
+          min_distance : None
+        },
+        rotation : CameraRotationState
+        {
+          enabled : true,
+          movement_smoothing_enabled : false,
+          speed : 500.0,
+          current_angular_speed : F32x2::default(),
+          current_rotation_angle : F32x2::default(),
+          movement_decay : 0.05,
+          base_latitude : 0.0,
+          base_longitude : 0.0,
+          latitude_range : None,
+          longitude_range : None
+        },
+        pan : CameraPanState
+        {
+          enabled : true
+        }
       }
     }
   }
 
   /// Represents the current state of the camera controls, based on user input.
+  #[ cfg( feature = "web" ) ]
   enum CameraState
   {
     /// The camera is not being manipulated.
@@ -268,6 +541,7 @@ mod private
   /// * `canvas` - A reference to the HTML canvas element where the events will be bound.
   /// * `camera` - A reference-counted, mutable reference to the `CameraOrbitControls`
   ///   instance that will be manipulated by the user input.
+  #[ cfg( feature = "web" ) ]
   pub fn bind_controls_to_input
   (
     canvas : &web_sys::HtmlCanvasElement,
@@ -305,7 +579,7 @@ mod private
         {
           let prev_pos = *prev_screen_pos.borrow_mut();
           let new_pos = [ e.screen_x() as f32, e.screen_y() as f32 ];
-          let delta = [ new_pos[ 0 ] - prev_pos[ 0 ], new_pos[ 1 ] - prev_pos[ 1 ] ];
+          let delta = [ prev_pos[ 0 ] - new_pos[ 0 ], new_pos[ 1 ] - prev_pos[ 1 ] ];
           *prev_screen_pos.borrow_mut() = new_pos;
           match *state.borrow_mut()
           {
@@ -394,6 +668,7 @@ mod private
 // This macro exposes the public interface of the module.
 crate::mod_interface!
 {
+  #[ cfg( feature = "web" ) ]
   own use
   {
     bind_controls_to_input

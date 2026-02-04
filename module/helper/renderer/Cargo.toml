@@ -51,7 +51,7 @@ animation = [ "dep:animation", "dep:clone_dyn_types" ]
 
 mod_interface = { workspace = true, optional = true }
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ], optional = true }
-mingl = { workspace = true, features = [ "camera_orbit_controls", "character_controls" ], optional = true }
+mingl = { workspace = true, features = [ "web", "camera_orbit_controls", "character_controls" ], optional = true }
 gltf = { workspace = true, features = [ "import", "extensions", "KHR_materials_specular", "KHR_lights_punctual", "utils" ], optional = true }
 animation = { workspace = true, optional = true }
 zune-hdr = { workspace = true, optional = true }
