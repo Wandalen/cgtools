@@ -143,6 +143,19 @@ fn init_camera( canvas : &HtmlCanvasElement, scenes : &[ Rc< RefCell< Scene > > 
   camera
 }
 
+/// Clones a `Node` and its entire subtree, adding the new nodes, meshes, and materials to the GLTF structure.
+///
+/// This function creates a deep clone of a node, including its children and any associated meshes.
+/// It registers all new components within the `GLTF` struct and adds the cloned node to the scene.
+///
+/// # Arguments
+///
+/// * `gltf` - A mutable reference to the `GLTF` struct.
+/// * `node` - A reference to the `Rc<RefCell<Node>>` to be cloned.
+///
+/// # Returns
+///
+/// A reference-counted, mutable reference to the newly cloned `Node`.
 fn clone( gltf : &mut GLTF, node : &Rc< RefCell< Node > > ) -> Rc< RefCell< Node > >
 {
   let clone = node.borrow().clone_tree();
