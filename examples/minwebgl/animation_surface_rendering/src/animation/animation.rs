@@ -368,7 +368,7 @@ mod private
 
           let matrix = node.borrow_mut().get_local_matrix();
 
-          let mut ids_and_children = vec![];
+          let mut ids_and_children = Vec::with_capacity( repeater.copies );
 
           for i in ( 0..repeater.copies ).rev()
           {

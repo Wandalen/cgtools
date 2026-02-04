@@ -180,17 +180,7 @@ impl Animation
       {
         match shape
         {
-          Shape::Draw
-          (
-            Draw
-            {
-              brush : b,
-              ..
-            }
-          ) =>
-          {
-            brush = b.clone();
-          },
+          Shape::Draw( Draw { brush : b, .. } ) => { brush = b.clone(); },
           _ => continue
         }
       }
@@ -245,14 +235,7 @@ impl Animation
           {
             let primitive = match geometry
             {
-              Geometry::Spline
-              (
-                Spline
-                {
-                  values,
-                  ..
-                }
-              ) =>
+              Geometry::Spline( Spline { values, .. } ) =>
               {
                 if let Some( path ) = values.first()
                 {
@@ -457,7 +440,7 @@ impl Animation
 
         let matrix = node.borrow_mut().get_local_matrix();
 
-        let mut ids_and_children = vec![];
+        let mut ids_and_children = Vec::with_capacity( repeater.copies );
 
         for i in ( 0..repeater.copies ).rev()
         {
