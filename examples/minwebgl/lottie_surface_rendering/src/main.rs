@@ -326,13 +326,13 @@ async fn run() -> Result< (), gl::WebglError >
     move | t : f64 |
     {
       // If textures are of different size, gl.view_port needs to be called
-      let time = t as f32 / 1000.0;
+      let time = t / 1000.0;
 
       // Scales time to speed or slowdown the animation
       let speed = 75.0;
       // Total duration of the lottie animation in milliseconds
       let animation_duration = 125.0;
-      let frame = f64::from( time ) * speed % animation_duration;
+      let frame = time * speed % animation_duration;
       // [`Animation::frame`] receives as input time moment from animation start in milliseconds
       if let Some( ( mut scene, colors ) ) = animation.frame( frame )
       {
