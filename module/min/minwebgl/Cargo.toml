@@ -88,6 +88,7 @@ js-sys = { workspace = true, optional = true }
 web-sys = { workspace = true, optional = true, features = [
   'HtmlCanvasElement',
   'Window',
+  'Navigator',
   'Document',
   'HtmlCollection',
   'CssStyleDeclaration',
