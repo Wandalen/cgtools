@@ -7,6 +7,18 @@
   <title>Jewel Shop</title>
   <meta name="keywords" content="HTML, CSS, JavaScript" />
 
+  <!-- Content Security Policy for XSS protection -->
+  <!-- Note: 'unsafe-inline' for scripts is needed for trunk-injected WASM loader -->
+  <!-- Main XSS protection comes from DOMPurify sanitizing SVG content -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' https://cdn.jsdelivr.net 'wasm-unsafe-eval' 'unsafe-inline';
+    style-src 'self' https://fonts.googleapis.com 'unsafe-inline';
+    font-src 'self' https://fonts.gstatic.com;
+    img-src 'self' data: blob:;
+    connect-src 'self' https://cdn.jsdelivr.net;
+  " />
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
@@ -27,9 +39,13 @@
   <script defer src="https://cdn.jsdelivr.net/npm/gsap@3/dist/ScrollTrigger.min.js"
     integrity="sha384-xNHNOfrykny9oFwnmpfNbkSc6isny38d1GZvTRVuFV0l9fTMIZKhULvomyQJSMRl"
     crossorigin="anonymous"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"
+    integrity="sha384-vdScihEZCfbPnBQf+lc7LgXUdJVYyhC3yWHUW5C5P5GpHRqVnaM6HJELJxT6IqwM"
+    crossorigin="anonymous"></script>
   <script defer data-trunk type="module" src="./index.js"
     integrity="8vW+5AWaXxL+5NYFXq1LjMzx0XcueRTnD2xy6yolMt7nmS4Y3zkVzrF4QxRzYE/o" crossorigin="anonymous"></script>
 
+  <link data-trunk rel="rust" data-bin="jewelry_3d_site" />
   <link data-trunk rel="copy-file" href="./index.css" data-target-path="" />
   <link data-trunk rel="copy-file" href="../../../assets/gltf/plane.glb" data-target-path="static/gltf" />
   <link data-trunk rel="copy-dir" href="../../../assets/gltf/jewelry/" data-target-path="static/gltf" />
@@ -146,7 +162,7 @@
     <div class="color-control">
       <label class="control-label">Gem Color</label>
       <div class="control-inputs">
-        <input type="color" id="gem-color-picker" value="#ffffff" />
+        <input type="color" id="gem-color-picker" value="#FFFFFF" />
         <div class="multiplier-control">
           <label for="gem-multiplier">Intensity</label>
           <input type="range" id="gem-multiplier" min="0.0" max="5" step="0.1" value="1.0" />
