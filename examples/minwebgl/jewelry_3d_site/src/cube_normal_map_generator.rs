@@ -23,6 +23,7 @@ use renderer::webgl::
 use renderer::impl_locations;
 use rustc_hash::FxHashMap;
 use web_sys::WebGlFramebuffer;
+use crate::uniform_utils::get_uniform_location;
 
 // CubeNormalMapGenerator shader program
 impl_locations!
@@ -60,7 +61,7 @@ fn gen_cube_texture( gl : &GL, width: i32, height: i32 ) -> Option< gl::web_sys:
 
   for i in 0..6
   {
-    gl. tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
+    if let Err( e ) = gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
     (
       gl::TEXTURE_CUBE_MAP_POSITIVE_X + i as u32,
       0,
@@ -71,7 +72,11 @@ fn gen_cube_texture( gl : &GL, width: i32, height: i32 ) -> Option< gl::web_sys:
       gl::RGBA,
       gl::FLOAT,
       None
-    ).expect( "Failed to upload data to texture" );
+    )
+    {
+      gl::log::error!( "Failed to upload cube texture face {}: {:?}", i, e );
+      return None;
+    }
   }
 
   gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
@@ -84,6 +89,7 @@ fn gen_cube_texture( gl : &GL, width: i32, height: i32 ) -> Option< gl::web_sys:
 }
 
 #[derive(Default, Clone, Debug)]
+#[non_exhaustive]
 pub struct CubeNormalData
 {
   pub texture : Option< TextureInfo >,
@@ -101,14 +107,18 @@ pub struct CubeNormalMapGenerator
   /// View matrices for each side of renderer cube map
   cube_camera : [ F32x4x4; 6 ],
   /// Cube map one side width
-  texture_width : u32,
+  pub texture_width : u32,
   /// Cube map one side height
-  texture_height : u32,
+  pub texture_height : u32,
 }
 
 impl CubeNormalMapGenerator
 {
   /// Creates new [`CubeNormalMapGenerator`]
+  ///
+  /// # Errors
+  /// Returns an error if shader compilation or framebuffer creation fails
+  #[ inline ]
   pub fn new( gl : &GL ) -> Result< Self, WebglError >
   {
     let vertex_shader_src = include_str!( "../shaders/gen_cube_map.vert" );
@@ -138,6 +148,7 @@ impl CubeNormalMapGenerator
   }
 
   /// Sets cube normal map resolution
+  #[ inline ]
   pub fn set_texture_size( &mut self, gl : &GL, width : u32, height : u32 )
   {
     self.texture_width = width;
@@ -148,6 +159,10 @@ impl CubeNormalMapGenerator
   }
 
   /// Generates cube normal maps only for [`Node`]'s that have [`Mesh`] as [`Node::object`]
+  ///
+  /// # Errors
+  /// Returns an error if texture or framebuffer operations fail
+  #[ inline ]
   pub fn generate( &self, gl : &GL, node : &Rc< RefCell< Node > > ) -> Result< CubeNormalData, gl::WebglError >
   {
     let Object3D::Mesh( mesh ) = &node.borrow().object
@@ -156,7 +171,16 @@ impl CubeNormalMapGenerator
       return Ok(CubeNormalData::default());
     };
 
-    let inv_world = node.borrow().get_world_matrix().inverse().unwrap();
+    // Handle singular matrix with identity fallback
+    let inv_world = node.borrow().get_world_matrix().inverse()
+    .unwrap_or_else
+    (
+      ||
+      {
+        gl::log::error!( "Warning: Singular world matrix, using identity" );
+        gl::math::mat4x4::identity()
+      }
+    );
 
     let mut bb = node.borrow().bounding_box();
 
@@ -174,19 +198,20 @@ impl CubeNormalMapGenerator
     );
 
     let locations = self.program.locations();
-    let projection_matrix_location = locations.get( "projectionMatrix" ).unwrap().clone();
-    let view_matrix_location = locations.get( "viewMatrix" ).unwrap();
-    let max_distance_location = locations.get( "maxDistance" ).unwrap().clone();
-    let offset_matrix_location = locations.get( "offsetMatrix" ).unwrap().clone();
+    let projection_matrix_location = get_uniform_location( locations, "projectionMatrix" )?;
+    let view_matrix_location = get_uniform_location( locations, "viewMatrix" )?;
+    let max_distance_location = get_uniform_location( locations, "maxDistance" )?;
+    let offset_matrix_location = get_uniform_location( locations, "offsetMatrix" )?;
 
     self.program.bind( gl );
 
     node.borrow().upload( gl, locations );
-    gl::uniform::matrix_upload( &gl, projection_matrix_location, &perspective_matrix.to_array(), true )?;
-    gl::uniform::matrix_upload( &gl, offset_matrix_location, &offset_matrix.to_array(), true )?;
-    gl::uniform::upload( &gl, max_distance_location, &max_distance )?;
+    gl::uniform::matrix_upload( &gl, Some( projection_matrix_location ), &perspective_matrix.to_array(), true )?;
+    gl::uniform::matrix_upload( &gl, Some( offset_matrix_location ), &offset_matrix.to_array(), true )?;
+    gl::uniform::upload( &gl, Some( max_distance_location ), &max_distance )?;
 
-    let cube_texture = gen_cube_texture( &gl, self.texture_width as i32, self.texture_height as i32 );
+    let cube_texture = gen_cube_texture( &gl, self.texture_width as i32, self.texture_height as i32 )
+    .ok_or( WebglError::Other( "Failed to create cube texture" ) )?;
 
     // Render to our cube texture using custom frame buffer
     // All the needed buffers were setup above
@@ -195,13 +220,13 @@ impl CubeNormalMapGenerator
     for i in 0..6
     {
       let view_matrix = &self.cube_camera[ i ].to_array();
-      gl::uniform::matrix_upload( &gl, view_matrix_location.clone(), view_matrix, true )?;
+      gl::uniform::matrix_upload( &gl, Some( view_matrix_location.clone() ), view_matrix, true )?;
       gl.framebuffer_texture_2d
       (
         gl::FRAMEBUFFER,
         gl::COLOR_ATTACHMENT0,
         gl::TEXTURE_CUBE_MAP_POSITIVE_X + i as u32,
-        cube_texture.as_ref(),
+        Some( &cube_texture ),
         0
       );
       gl.clear( gl::COLOR_BUFFER_BIT );
@@ -228,7 +253,7 @@ impl CubeNormalMapGenerator
 
     let texture = Texture::former()
     .target( GL::TEXTURE_CUBE_MAP )
-    .source( cube_texture.unwrap() )
+    .source( cube_texture )
     .sampler( sampler )
     .end();
 
@@ -243,7 +268,7 @@ impl CubeNormalMapGenerator
       CubeNormalData
       {
         texture :  Some( texture_info ),
-        max_distance : max_distance
+        max_distance
       }
     )
   }

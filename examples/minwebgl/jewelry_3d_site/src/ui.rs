@@ -1,3 +1,5 @@
+#![ allow( clippy::missing_inline_in_public_items ) ]
+
 use minwebgl as gl;
 use gl::wasm_bindgen::{ self, prelude::* };
 use serde::{ Serialize, Deserialize };
@@ -5,6 +7,7 @@ use serde::{ Serialize, Deserialize };
 /// Shared between JS and Rust ui state of configurator.
 /// Used to change gem, metal, ring type etc
 #[ derive( Debug, Clone, Default, Serialize, Deserialize ) ]
+#[ non_exhaustive ]
 pub struct UiState
 {
   /// Current used gem type
@@ -41,19 +44,24 @@ pub struct UiState
 }
 
 /// Retrieves UiState from JS
+#[ must_use ]
+#[ inline ]
 pub fn get_ui_state() -> Option< UiState >
 {
   serde_wasm_bindgen::from_value::< UiState >( _get_ui_state() ).ok()
 }
 
 /// Check if ui state is changed
+#[ must_use ]
+#[ inline ]
 pub fn is_changed() -> bool
 {
-  _is_changed().as_bool().unwrap()
+  _is_changed().as_bool().unwrap_or( false )
 }
 
 /// Check if debug mode is enabled ( on JS side )
 #[ wasm_bindgen ]
+#[ must_use ]
 pub fn is_debug_mode() -> bool
 {
   cfg!( debug_assertions )
