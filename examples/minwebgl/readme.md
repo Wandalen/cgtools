@@ -93,6 +93,7 @@ Below is a list of all available examples, each demonstrating a unique WebGL con
 | `make_cube_map` | Demonstrates the dynamic generation of cube maps by rendering a scene from six camera angles. |
 | `curve_surface_rendering` | Renders 2D curves and text generated from font files directly onto a 3D surface. |
 | `animation_surface_rendering` | Renders a complex 2D vector animation onto the surface of a 3D sphere. |
+| `lottie_surface_rendering` | Renders Lottie (vector) animations on 3D surfaces with proper scene hierarchy and animated transforms. |
 | **Animations** | |
 | `skeletal_animation` | Shows skeletal/bone-based character animation with smooth interpolation. |
 | `animation_amplitude_change` | Demonstrates animation with dynamic amplitude changes and easing functions. |

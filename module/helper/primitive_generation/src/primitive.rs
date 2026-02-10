@@ -15,6 +15,9 @@ mod private
     Transform
   };
 
+  #[ cfg( feature = "text" ) ]
+  use kurbo::PathEl;
+
   /// Converts a `&[ [ f32; 2 ] ]` into `GeometryData` representing its 2D outline
   /// as a series of rectangles, each with a specified `width`.
   ///
@@ -96,7 +99,9 @@ mod private
     Some(
       PrimitiveData
       {
-        attributes : Rc::new( RefCell::new( attributes ) ),
+        name : None,
+        parent : None,
+        attributes : Some( Rc::new( RefCell::new( attributes ) ) ),
         color : F32x4::default(),
         transform: Transform::default(),
       }
@@ -278,7 +283,9 @@ mod private
 
     let primitive_data = PrimitiveData
     {
-      attributes : Rc::new( RefCell::new( attributes ) ),
+      name : None,
+      parent : None,
+      attributes : Some( Rc::new( RefCell::new( attributes ) ) ),
       color : F32x4::default(),
       transform : Transform::default()
     };
@@ -318,11 +325,52 @@ mod private
     (
       PrimitiveData
       {
-        attributes : Rc::new( RefCell::new( attributes ) ),
+        name : None,
+        parent : None,
+        attributes : Some( Rc::new( RefCell::new( attributes ) ) ),
         color : F32x4::default(),
         transform : Transform::default(),
       }
     )
+  }
+
+  /// Converts a `Vec<PathEl>` into a flattened vector of 2D points.
+  ///
+  /// This function uses `kurbo::flatten` to convert a path with curves
+  /// into a series of straight line segments. The tolerance for flattening is
+  /// set to `0.25`.
+  ///
+  /// # Arguments
+  ///
+  /// * `path` - A `Vec<PathEl>` representing the path to flatten.
+  ///
+  /// # Returns
+  ///
+  /// A `Vec<[f32; 2]>` containing the flattened 2D points of the path.
+  #[ cfg( feature = "text" ) ]
+  pub fn path_to_points( path : Vec< PathEl > ) -> Vec< [ f32; 2 ] >
+  {
+    let mut points = vec![];
+
+    kurbo::flatten
+    (
+      kurbo::BezPath::from_vec( path ),
+      0.25,
+      | el |
+      {
+        let point = match el
+        {
+          PathEl::MoveTo( p ) | PathEl::LineTo( p ) =>
+          {
+            [ p.x as f32, p.y as f32 ]
+          },
+          _ => unreachable!( "kurbo::flatten can only return MoveTo and LineTo PathEls" )
+        };
+        points.push( point );
+      }
+    );
+
+    points
   }
 }
 
@@ -333,5 +381,11 @@ crate::mod_interface!
     curve_to_geometry,
     contours_to_fill_geometry,
     plane_to_geometry
+  };
+
+  #[ cfg( feature = "text" ) ]
+  orphan use
+  {
+    path_to_points
   };
 }

@@ -1,5 +1,5 @@
 [package]
-name = "animation_surface_rendering"
+name = "lottie_surface_rendering"
 version = "0.1.0"
 edition = "2021"
 authors = [
@@ -19,14 +19,12 @@ gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
 renderer = { workspace = true }
 canvas_renderer = { workspace = true }
 primitive_generation = { workspace = true, features = [ "font-processing" ] }
-kurbo = { version = "0.11.2" }
-zune-hdr = { workspace = true }
-interpoli = { workspace = true }
-peniko = { version = "0.4.0" }
+kurbo = { workspace = true }
+peniko = { workspace = true }
 color = { workspace = true }
 earcutr = { workspace = true }
 former = { workspace = true }
-rustc-hash = { workspace = true }
+velato = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true

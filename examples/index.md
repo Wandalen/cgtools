@@ -55,6 +55,7 @@ Example | Description
 --- | ---
 [Animation Amplitude Change](./minwebgl/animation_amplitude_change/readme.md) | Animation with dynamic amplitude changes
 [Animated Objects Surface Rendering](./minwebgl/animation_surface_rendering/readme.md) | Surface rendering with animated objects and easing functions
+[Lottie Surface Rendering](./minwebgl/lottie_surface_rendering/readme.md) | Renders Lottie animations on 3D surfaces with proper hierarchy and transforms
 [Morph Targets](./minwebgl/morph_targets/readme.md) | Mesh morphing and blending demonstration
 [Skeletal Animation](./minwebgl/skeletal_animation/readme.md) | Skeletal/bone-based character animation
 [Uniform Animation](./minwebgl/uniforms_animation/readme.md) | Animation using shader uniforms
