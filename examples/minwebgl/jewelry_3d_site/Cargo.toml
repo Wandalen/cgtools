@@ -12,6 +12,11 @@ authors = [
 [lints]
 workspace = true
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+name = "jewelry_3d_site_lib"
+path = "src/lib.rs"
+
 [dependencies]
 
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
@@ -25,6 +30,9 @@ uuid = { version = "1.12.1", features = ["v4", "js"] }
 rustc-hash = { workspace = true }
 former = { workspace = true }
 animation = { workspace = true }
+
+[dev-dependencies]
+wasm-bindgen-test = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true
