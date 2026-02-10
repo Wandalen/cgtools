@@ -189,7 +189,10 @@ function setupColorPickerListeners() {
       (
         'input',
         (e) => {
-          uiState.gemMultiplier = parseFloat(e.target.value);
+          const value = parseFloat( e.target.value );
+          // Validate parsed value to prevent NaN injection
+          if ( isNaN( value ) ) return;
+          uiState.gemMultiplier = value;
           gemMultiplierValue.textContent = uiState.gemMultiplier.toFixed(1);
           uiState.changed.push("gem");
         }
@@ -217,7 +220,10 @@ function setupColorPickerListeners() {
       (
         'input',
         (e) => {
-          uiState.metalMultiplier = parseFloat(e.target.value);
+          const value = parseFloat( e.target.value );
+          // Validate parsed value to prevent NaN injection
+          if ( isNaN( value ) ) return;
+          uiState.metalMultiplier = value;
           metalMultiplierValue.textContent = uiState.metalMultiplier.toFixed(1);
           uiState.changed.push("metal");
         }
@@ -233,8 +239,23 @@ async function replaceSVG(svgPath, selector) {
   const response = await fetch(svgPath);
   const svgText = await response.text();
 
+  // Sanitize SVG content to prevent XSS attacks
+  // DOMPurify.sanitize removes potentially malicious content like:
+  // - Event handlers (onload, onclick, etc.)
+  // - Embedded scripts
+  // - Data URIs with JavaScript
+  const cleanSvgText = DOMPurify.sanitize
+  (
+    svgText,
+    {
+      USE_PROFILES : { svg: true },
+      ADD_TAGS : [ 'use' ],  // Allow <use> tags for SVG references
+      ADD_ATTR : [ 'xlink:href' ]  // Allow xlink:href for SVG links
+    }
+  );
+
   const parser = new DOMParser();
-  const newSvgDoc = parser.parseFromString(svgText, 'image/svg+xml');
+  const newSvgDoc = parser.parseFromString( cleanSvgText, 'image/svg+xml' );
   const newSvg = newSvgDoc.documentElement;
 
   if (svg.hasAttribute('width')) {
@@ -279,6 +300,53 @@ function enableScrollAnimationOnUserScroll() {
   window.addEventListener("scroll", onScroll, { passive: true });
 }
 
+/**
+ * Configures the main page scroll-driven animation system using GSAP ScrollTrigger.
+ *
+ * This function orchestrates the entire scroll experience by creating a timeline that
+ * coordinates camera movements, UI transitions, and content reveals across three main
+ * sections: Hero, Brilliant, and Choose. Each section has distinct visual states triggered
+ * by scroll position.
+ *
+ * ## Animation Structure
+ * The function creates a single GSAP timeline with multiple scroll-triggered animations:
+ *
+ * **Hero Section (cam-view-1)**
+ * - Initial view showing the hero content and scroll indicator
+ * - Sidebar "unique" indicator highlighted
+ *
+ * **Brilliant Section (cam-view-2)**
+ * - Hero content fades out and slides right (opacity: 0, xPercent: 100)
+ * - Brilliant content slides in from left (x: -110% → 0%)
+ * - Camera position animates from Hero view to Brilliant view
+ * - Camera target animates to focus on brilliant-cut details
+ * - Sidebar "brilliant" indicator becomes active
+ *
+ * **Choose Section (cam-view-3)**
+ * - Brilliant content slides out left
+ * - Choose content slides in from right (x: 200% → 0%)
+ * - Camera position animates to Choose view
+ * - Camera target refocuses for ring selection view
+ * - Sidebar "choose" indicator becomes active
+ *
+ * ## Scroll Synchronization
+ * All animations use `scrub: true` to tightly couple animation progress with scroll position,
+ * creating smooth, deterministic transitions. The `invalidateOnRefresh: true` flag ensures
+ * animations recalculate on window resize.
+ *
+ * ## Camera State Management
+ * Camera position and target animations update `uiState.changed` array to trigger WebGL
+ * renderer updates. The `!skipScrollAnimation` guard prevents updates during programmatic
+ * scrolling or configuration mode transitions.
+ *
+ * ## Side Effects
+ * - Enables scroll animation on user interaction (wheel/scroll events)
+ * - Sets `document.body.style.overflowY = "scroll"` to enable scrolling
+ * - Stores timeline reference in `window.scrollAnimation` for external control
+ *
+ * @see enableScrollAnimationOnUserScroll - Activates scroll animation on user interaction
+ * @see configAnimation - Disables these scroll triggers when entering config mode
+ */
 function setupScrollAnimation() {
   enableScrollAnimationOnUserScroll();
   document.body.style.overflowY = "scroll"
@@ -467,6 +535,52 @@ function onCompleteConfigAnimation() {
   footerContainer.style.display = "flex"
 }
 
+/**
+ * Animates the transition from main page to configuration mode.
+ *
+ * This function orchestrates the visual transition when the user clicks "Choose Your Ring"
+ * to enter the configuration interface. It disables scroll-driven animations and plays a
+ * carefully choreographed camera movement and UI transition sequence.
+ *
+ * ## Animation Sequence (2.5 seconds total)
+ *
+ * **Camera Movement** (parallel, both 2.5s duration)
+ * - Position: Moves from Choose section view to overhead configurator view
+ *   - From: (-0.39456308, 2.431139, 0.23367776)
+ *   - To: (-1.2621417, 4.005461, 1.2621417)
+ * - Target: Refocuses camera from angled view to centered top-down view
+ *   - From: (0.2921338, 0.9732934, -0.18001612)
+ *   - To: (0, 0.6, 0)
+ *
+ * **UI Transitions** (parallel with camera)
+ * - Choose content slides out right (x: 0% → 200%, opacity: 1 → 0)
+ * - Choose background text slides out right
+ * - Footer menu slides up from bottom (y: 150% → 0%, opacity: 0 → 1)
+ *   Delayed by 1.5s (starts at -=1.0 mark)
+ *
+ * ## State Management
+ *
+ * **During Animation**
+ * - `uiState.transitionAnimationEnabled = true` - Signals active transition
+ * - All ScrollTrigger instances disabled to prevent conflicts
+ * - Camera view section markers hidden (cam-view-1/2/3)
+ * - Camera position/target updates pushed to `uiState.changed` array
+ *
+ * **After Animation (onCompleteConfigAnimation)**
+ * - `uiState.transitionAnimationEnabled = false` (after 100ms delay)
+ * - `uiState.state = "configurator"` - Activates configurator mode
+ * - Configuration UI elements made visible (footer menu, gem/material/ring selectors)
+ * - Canvas pointer events enabled for ring interaction
+ *
+ * ## Conflict Prevention
+ * ScrollTrigger animations are explicitly disabled to prevent them from interfering with
+ * the programmatic GSAP animation. This ensures smooth, deterministic camera movement
+ * without scroll-based overrides.
+ *
+ * @see onCompleteConfigAnimation - Callback that finalizes the transition
+ * @see exitConfigAnimation - Reverse animation returning to main page
+ * @see setupScrollAnimation - Creates the scroll triggers that are disabled here
+ */
 function configAnimation() {
   uiState.transitionAnimationEnabled = true;
 
