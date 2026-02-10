@@ -38,10 +38,11 @@
 #![ allow( clippy::field_reassign_with_default ) ]
 #![ allow( clippy::if_not_else ) ]
 
+mod uniform_utils;
 mod cube_normal_map_generator;
 mod gem;
 mod configurator;
-mod helpers;
+mod scene_utilities;
 mod ui;
 mod debug;
 mod surface_material;
@@ -61,7 +62,7 @@ use renderer::webgl::
   post_processing::{ self, Pass, SwapFramebuffer }
 };
 
-use helpers::*;
+use scene_utilities::*;
 use configurator::*;
 use crate::ui::set_renderer_loaded;
 
@@ -91,21 +92,23 @@ fn handle_camera_position( configurator : &Configurator )
 /// Resizes canvas to window size with device pixel ratio applied for sharp rendering on high-DPI displays
 fn resize_canvas_with_dpr( canvas : &HtmlCanvasElement )
 {
-  let window = web_sys::window().unwrap();
+  let Some( window ) = web_sys::window()
+  else
+  {
+    return;
+  };
   let dpr = window.device_pixel_ratio();
 
   // Use fallback defaults for robustness if DOM API calls fail
   let width = window.inner_width()
     .ok()
     .and_then( | v | v.as_f64() )
-    .map( | v | ( v * dpr ) as u32 )
-    .unwrap_or( 1920 );
+    .map_or( 1920, | v | ( v * dpr ) as u32 );
 
   let height = window.inner_height()
     .ok()
     .and_then( | v | v.as_f64() )
-    .map( | v | ( v * dpr ) as u32 )
-    .unwrap_or( 911 );
+    .map_or( 911, | v | ( v * dpr ) as u32 );
 
   canvas.set_width( width );
   canvas.set_height( height );
@@ -248,22 +251,39 @@ async fn run() -> Result< (), gl::WebglError >
 
   clamp_canvas_size( &canvas );
 
-  let _ = gl.get_extension( "EXT_color_buffer_float" ).expect( "Failed to enable EXT_color_buffer_float extension" );
-  let _ = gl.get_extension( "EXT_shader_image_load_store" ).expect( "Failed to enable EXT_shader_image_load_store  extension" );
+  let _ = gl.get_extension( "EXT_color_buffer_float" )
+  .map_err( | _ | gl::WebglError::Other( "Failed to enable EXT_color_buffer_float extension" ) )?;
+  let _ = gl.get_extension( "EXT_shader_image_load_store" )
+  .map_err( | _ | gl::WebglError::Other( "Failed to enable EXT_shader_image_load_store extension" ) )?;
 
   // Enable debug controls if in debug mode
   ui::enable_debug_controls_if_needed();
 
-  let mut configurator = Configurator::new( &gl, &canvas ).await.unwrap();
+  let mut configurator = Configurator::new( &gl, &canvas ).await?;
 
   let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
 
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
-  let is_resized = add_resize_callback();
+  let Some( is_resized ) = add_resize_callback()
+  else
+  {
+    return Err( gl::WebglError::Other( "Failed to add resize callback" ) );
+  };
 
-  let mut last_eye = F32x3::from_array( ui::get_ui_state().unwrap_or_default().eye );
+  let mut last_eye = F32x3::from_array
+  (
+    ui::get_ui_state().unwrap_or_else
+    (
+      ||
+      {
+        gl::log::warn!( "UI state not available, using default camera position" );
+        Default::default()
+      }
+    )
+    .eye
+  );
 
   set_renderer_loaded();
 
@@ -287,20 +307,30 @@ async fn run() -> Result< (), gl::WebglError >
 
       let Some( ring ) = configurator.rings.get_ring() else { return true; };
       let scene = &ring.scene;
-      configurator.renderer.borrow_mut().render( &gl, &mut scene.borrow_mut(), &configurator.camera ).expect( "Failed to render" );
+      let _ = configurator.renderer.borrow_mut().render( &gl, &mut scene.borrow_mut(), &configurator.camera );
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );
       swap_buffer.set_input( configurator.renderer.borrow().get_main_texture() );
 
-      let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
-      .expect( "Failed to render tonemapping pass" );
+      let t = match tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      {
+        Ok(texture) => texture,
+        Err(e) =>
+        {
+          gl::log::error!( "Tonemapping pass failed: {:?}, skipping frame", e );
+          return true;
+        }
+      };
 
       swap_buffer.set_output( t );
       swap_buffer.swap();
 
-      let _ = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
-      .expect( "Failed to render ToSrgbPass" );
+      if let Err( e ) = to_srgb.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
+      {
+        gl::log::error!( "ToSrgb pass failed: {:?}, skipping frame", e );
+        return true;
+      }
 
       true
     }
@@ -314,5 +344,14 @@ async fn run() -> Result< (), gl::WebglError >
 
 fn main()
 {
-  gl::spawn_local( async move { run().await.unwrap(); } );
+  gl::spawn_local
+  (
+    async move
+    {
+      if let Err( e ) = run().await
+      {
+        gl::log::error!( "Failed to initialize 3D jewelry configurator: {:?}", e );
+      }
+    }
+  );
 }
