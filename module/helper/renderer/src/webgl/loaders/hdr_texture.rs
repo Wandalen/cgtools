@@ -39,7 +39,11 @@ mod private
 
     let image_data : gl::js_sys::Object = gl::js_sys::Float32Array::from( data.as_slice() ).into();
 
-    gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 1 );
+    // Firefox deprecated UNPACK_FLIP_Y_WEBGL for non-DOM uploads, so skip it
+    if !gl::browser::is_firefox()
+    {
+      gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 1 );
+    }
     gl.bind_texture( gl::TEXTURE_CUBE_MAP, texture );
     for i in 0..6
     {
@@ -68,7 +72,11 @@ mod private
         ( width * width * 3 ) as u32 * i2
       ).expect( "Failed to allocate memory for a cube texture" );
     }
-    gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 0 );
+    // Firefox deprecated UNPACK_FLIP_Y_WEBGL for non-DOM uploads, so skip it
+    if !gl::browser::is_firefox()
+    {
+      gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 0 );
+    }
 
     gl::texture::cube::wrap_clamp( gl );
     gl::texture::cube::filter_linear( gl );
@@ -120,7 +128,11 @@ mod private
       0
     )
     .expect( "Failed to allocate memory for a cube texture" );
-    gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 0 );
+    // Firefox deprecated UNPACK_FLIP_Y_WEBGL for non-DOM uploads, so skip it
+    if !gl::browser::is_firefox()
+    {
+      gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 0 );
+    }
 
     gl::texture::d2::wrap_clamp( gl );
     gl::texture::d2::filter_linear( gl );
