@@ -1,9 +1,12 @@
+#![ allow( clippy::exhaustive_structs ) ]
+
 use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo, MaterialUploadContext };
 use renderer::impl_locations;
 use minwebgl as gl;
 use gl::{ GL, F32x3, Former, WebGlProgram };
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
+use crate::uniform_utils::get_uniform_location;
 
 // Surface shader locations
 impl_locations!
@@ -23,7 +26,9 @@ const SURFACE_VERTEX_SHADER : &'static str = include_str!( "../shaders/surface.v
 const SURFACE_FRAGMENT_SHADER : &'static str = include_str!( "../shaders/surface.frag" );
 
 /// Represents the visual properties of a surface.
+#[ allow( clippy::exhaustive_structs ) ]
 #[ derive( Former, Debug ) ]
+#[ non_exhaustive ]
 pub struct SurfaceMaterial
 {
   /// A unique identifier for the material.
@@ -38,6 +43,8 @@ pub struct SurfaceMaterial
 
 impl SurfaceMaterial
 {
+  #[ must_use ]
+  #[ inline ]
   pub fn new( _gl : &GL ) -> Self
   {
     Self
@@ -52,36 +59,43 @@ impl SurfaceMaterial
 
 impl Material for SurfaceMaterial
 {
+  #[ inline ]
   fn get_id( &self ) -> Uuid
   {
     self.id
   }
 
+  #[ inline ]
   fn needs_update( &self ) -> bool
   {
     self.needs_update
   }
 
+  #[ inline ]
   fn make_shader_program( &self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Box< dyn ShaderProgram >
   {
     SurfaceShader::new( gl, program ).dyn_clone()
   }
 
+  #[ inline ]
   fn type_name( &self ) -> &'static str
   {
     stringify!( SurfaceMaterial )
   }
 
+  #[ inline ]
   fn get_vertex_shader( &self ) -> String
   {
     SURFACE_VERTEX_SHADER.into()
   }
 
+  #[ inline ]
   fn get_fragment_shader( &self ) -> String
   {
     SURFACE_FRAGMENT_SHADER.into()
   }
 
+  #[ inline ]
   fn configure
   (
     &self,
@@ -90,9 +104,21 @@ impl Material for SurfaceMaterial
   )
   {
     let locations = ctx.locations;
-    gl.uniform1i( locations.get( "surfaceTexture" ).unwrap().clone().as_ref(), 0 );
+
+    let texture_loc = match get_uniform_location( locations, "surfaceTexture" ) 
+    {
+      Ok( loc ) => loc,
+      Err( e ) => 
+      {
+        gl::log::error!( "SurfaceMaterial::configure error: {}", e );
+        return;
+      }
+    };
+
+    gl.uniform1i( Some( &texture_loc ), 0 );
   }
 
+  #[ inline ]
   fn upload_on_state_change
   (
     &self,
@@ -102,11 +128,12 @@ impl Material for SurfaceMaterial
   -> Result< (), gl::WebglError >
   {
     let locations = ctx.locations;
-    gl::uniform::upload( gl, locations.get( "surfaceColor" ).unwrap().clone(), self.color.0.as_slice() )?;
+    gl::uniform::upload( gl, Some( get_uniform_location( locations, "surfaceColor" )? ), self.color.0.as_slice() )?;
     self.upload_textures( gl );
     Ok( () )
   }
 
+  #[ inline ]
   fn upload_textures( &self, gl : &GL )
   {
     gl.active_texture( gl::TEXTURE0 );
@@ -116,6 +143,7 @@ impl Material for SurfaceMaterial
     }
   }
 
+  #[ inline ]
   fn bind( &self, gl : &GL )
   {
     if let Some( ref t ) = self.texture
@@ -125,6 +153,7 @@ impl Material for SurfaceMaterial
     }
   }
 
+  #[ inline ]
   fn dyn_clone( &self ) -> Box< dyn Material >
   {
     Box::new( self.clone() )
@@ -133,6 +162,7 @@ impl Material for SurfaceMaterial
 
 impl Clone for SurfaceMaterial
 {
+  #[ inline ]
   fn clone( &self ) -> Self
   {
     SurfaceMaterial

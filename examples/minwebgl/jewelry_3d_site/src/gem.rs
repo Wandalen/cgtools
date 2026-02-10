@@ -1,3 +1,5 @@
+#![ allow( clippy::exhaustive_structs ) ]
+
 use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo, MaterialUploadContext };
 use renderer::impl_locations;
 use minwebgl as gl;
@@ -6,6 +8,7 @@ use rustc_hash::FxHashMap;
 use uuid::Uuid;
 use crate::cube_normal_map_generator::CubeNormalData;
 use crate::{gem_frag, gem_vert};
+use crate::uniform_utils::get_uniform_location;
 
 // Gem shader
 impl_locations!
@@ -35,7 +38,9 @@ impl_locations!
 );
 
 /// Represents the visual properties of a gem surface.
+#[ allow( clippy::exhaustive_structs ) ]
 #[ derive( Former, Debug ) ]
+#[ non_exhaustive ]
 pub struct GemMaterial
 {
   /// A unique identifier for the material.
@@ -66,6 +71,8 @@ pub struct GemMaterial
 
 impl GemMaterial
 {
+  #[ must_use ]
+  #[ inline ]
   pub fn new( _gl : &GL ) -> Self
   {
     Self
@@ -87,37 +94,43 @@ impl GemMaterial
 
 impl Material for GemMaterial
 {
+  #[ inline ]
   fn get_id( &self ) -> Uuid
   {
     self.id
   }
 
+  #[ inline ]
   fn needs_update( &self ) -> bool
   {
     self.needs_update
   }
 
+  #[ inline ]
   fn make_shader_program( &self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Box< dyn ShaderProgram >
   {
     GemShader::new( gl, program ).dyn_clone()
   }
 
-
+  #[ inline ]
   fn type_name( &self ) -> &'static str
   {
     stringify!( GemMaterial )
   }
 
+  #[ inline ]
   fn get_vertex_shader( &self ) -> String
   {
     String::from_utf8_lossy( gem_vert::INPUT ).into()
   }
 
+  #[ inline ]
   fn get_fragment_shader( &self ) -> String
   {
     String::from_utf8_lossy( gem_frag::INPUT ).into()
   }
 
+  #[ inline ]
   fn configure
   (
     &self,
@@ -126,10 +139,33 @@ impl Material for GemMaterial
   )
   {
     let locations = ctx.locations;
-    gl.uniform1i( locations.get( "v" ).unwrap().clone().as_ref() , 0 );
-    gl.uniform1i( locations.get( "m" ).unwrap().clone().as_ref() , 1 );
+
+    // Get uniform locations with error handling
+    let v_loc = match get_uniform_location( locations, "v" ) 
+    {
+      Ok( loc ) => loc,
+      Err( e ) => 
+      {
+        gl::log::error!( "GemMaterial::configure error: {}", e );
+        return;
+      }
+    };
+
+    let m_loc = match get_uniform_location( locations, "m" ) 
+    {
+      Ok( loc ) => loc,
+      Err( e ) => 
+      {
+        gl::log::error!( "GemMaterial::configure error: {}", e );
+        return;
+      }
+    };
+
+    gl.uniform1i( Some( &v_loc ), 0 );
+    gl.uniform1i( Some( &m_loc ), 1 );
   }
 
+  #[ inline ]
   fn upload_on_state_change
   (
     &self,
@@ -141,20 +177,22 @@ impl Material for GemMaterial
     let locations = ctx.locations;
     let upload = | loc, value : f32 | -> Result< (), gl::WebglError >
     {
-      gl::uniform::upload( gl, locations.get( loc ).unwrap().clone(), &value )?;
+      let uniform_loc = get_uniform_location( locations, loc )?;
+      gl::uniform::upload( gl, Some( uniform_loc ), &value )?;
       Ok( () )
     };
 
     let upload_array = | loc, value : &[ f32 ] | -> Result< (), gl::WebglError >
     {
-      gl::uniform::upload( gl, locations.get( loc ).unwrap().clone(), value )?;
+      let uniform_loc = get_uniform_location( locations, loc )?;
+      gl::uniform::upload( gl, Some( uniform_loc ), value )?;
       Ok( () )
     };
 
-    gl::uniform::upload( gl, locations.get( "n" ).unwrap().clone(), &self.ray_bounces )?;
+    gl::uniform::upload( gl, Some( get_uniform_location( locations, "n" )? ), &self.ray_bounces )?;
 
     // Handle singular matrices (e.g., degenerate transforms with zero scale) with identity fallback
-    let inv_world = ctx.node.get_world_matrix().inverse().unwrap_or_else( || gl::math::mat4x4::identity() );
+    let inv_world = ctx.node.get_world_matrix().inverse().unwrap_or_else( gl::math::mat4x4::identity );
 
     let mut bb = ctx.node.bounding_box();
 
@@ -170,22 +208,24 @@ impl Material for GemMaterial
 
     let rest_mat = gl::math::mat3x3h::translation( -c ) * inv_world;
 
-    gl::uniform::matrix_upload( gl, locations.get( "d" ).unwrap().clone(), rest_mat.raw_slice(), true )?;
+    gl::uniform::matrix_upload( gl, Some( get_uniform_location(locations, "d" )? ), rest_mat.raw_slice(), true )?;
     // Handle singular matrix with identity fallback to prevent panic on degenerate transforms
-    let rest_mat_inv = rest_mat.inverse().unwrap_or_else( || gl::math::mat4x4::identity() );
-    gl::uniform::matrix_upload( gl, locations.get( "l" ).unwrap().clone(), rest_mat_inv.raw_slice(), true )?;
+    let rest_mat_inv = rest_mat.inverse().unwrap_or_else( gl::math::mat4x4::identity );
+    gl::uniform::matrix_upload( gl, Some( get_uniform_location(locations, "l" )? ), rest_mat_inv.raw_slice(), true )?;
 
     self.upload_textures( gl );
 
     Ok( () )
   }
 
+  #[ inline ]
   fn upload_textures( &self, gl : &GL )
   {
     if let Some( ref t ) = self.environment_texture { t.upload( gl ); }
     if let Some( ref t ) = self.cube_normal_map_texture.texture { t.upload( gl ); }
   }
 
+  #[ inline ]
   fn bind( &self, gl : &GL )
   {
     let bind = | texture : &Option< TextureInfo >, i |
@@ -201,6 +241,7 @@ impl Material for GemMaterial
     bind( &self.cube_normal_map_texture.texture, 1 );
   }
 
+  #[ inline ]
   fn dyn_clone( &self ) -> Box< dyn Material >
   {
     Box::new( self.clone() )
@@ -209,6 +250,7 @@ impl Material for GemMaterial
 
 impl Clone for GemMaterial
 {
+  #[ inline ]
   fn clone( &self ) -> Self
   {
     GemMaterial
