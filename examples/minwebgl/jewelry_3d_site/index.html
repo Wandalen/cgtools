@@ -6,13 +6,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Jewel Shop</title>
   <meta name="keywords" content="HTML, CSS, JavaScript" />
+  <link rel="icon" type="image/png" href="./static/images/jewelry_site/icons/0.png" />
 
   <!-- Content Security Policy for XSS protection -->
   <!-- Note: 'unsafe-inline' for scripts is needed for trunk-injected WASM loader -->
   <!-- Main XSS protection comes from DOMPurify sanitizing SVG content -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    script-src 'self' https://cdn.jsdelivr.net 'wasm-unsafe-eval' 'unsafe-inline';
+    script-src 'self' https://cdn.jsdelivr.net https://static.cloudflareinsights.com 'wasm-unsafe-eval' 'unsafe-inline';
     style-src 'self' https://fonts.googleapis.com 'unsafe-inline';
     font-src 'self' https://fonts.gstatic.com;
     img-src 'self' data: blob:;
@@ -36,14 +37,10 @@
   <script defer src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"
     integrity="sha384-HOvlOYPIs/zjoIkWUGXkVmXsjr8GuZLV+Q+rcPwmJOVZVpvTSXQChiN4t9Euv9Vc"
     crossorigin="anonymous"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/gsap@3/dist/ScrollTrigger.min.js"
-    integrity="sha384-xNHNOfrykny9oFwnmpfNbkSc6isny38d1GZvTRVuFV0l9fTMIZKhULvomyQJSMRl"
-    crossorigin="anonymous"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"
     integrity="sha384-vdScihEZCfbPnBQf+lc7LgXUdJVYyhC3yWHUW5C5P5GpHRqVnaM6HJELJxT6IqwM"
     crossorigin="anonymous"></script>
-  <script defer data-trunk type="module" src="./index.js"
-    integrity="8vW+5AWaXxL+5NYFXq1LjMzx0XcueRTnD2xy6yolMt7nmS4Y3zkVzrF4QxRzYE/o" crossorigin="anonymous"></script>
+  <script defer data-trunk type="module" src="./index.js"></script>
 
   <link data-trunk rel="rust" data-bin="jewelry_3d_site" />
   <link data-trunk rel="copy-file" href="./index.css" data-target-path="" />
@@ -66,9 +63,9 @@
   <div class="side-bar" style="transform: translate(0%, -50%) translate(0%, 0px); opacity: 0">
     <nav class="navigation">
       <ul>
-        <li class="unique" style="transform: translate(0px, 0px); opacity: 0.5"></li>
-        <li class="brilliant" style="transform: translate(0px, 0px); opacity: 0.5"></li>
-        <li class="choose" style="transform: translate(0px, 0px); opacity: 0.5"></li>
+        <li class="unique" style="opacity: 0.5"></li>
+        <li class="brilliant" style="opacity: 0.5"></li>
+        <li class="choose" style="opacity: 0.5"></li>
       </ul>
     </nav>
   </div>
@@ -265,12 +262,6 @@
         </li>
         <li class="ring2">
           <img alt="Ring model 2" width="40" src="./static/images/jewelry_site/icons/2.png" />
-        </li>
-        <li class="ring3">
-          <img alt="Ring model 3" width="40" src="./static/images/jewelry_site/icons/3.png" />
-        </li>
-        <li class="ring4">
-          <img alt="Ring model 4" width="40" src="./static/images/jewelry_site/icons/4.png" />
         </li>
         <li class="close-rings">
           <svg width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg">
