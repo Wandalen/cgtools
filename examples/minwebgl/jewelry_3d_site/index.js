@@ -22,6 +22,18 @@ let colorControlsEnabled = false
 let firstLoad = true;
 let skipScrollAnimation = true;
 
+// Threshold-based scroll configuration
+const SCROLL_THRESHOLD = 100; // deltaY threshold to trigger section transition
+
+// Section indices
+const SECTION_HERO = 0;
+const SECTION_BRILLIANT = 1;
+const SECTION_CHOOSE = 2;
+
+let currentSection = SECTION_HERO;
+let isAnimating = false;
+let accumulatedDelta = 0;
+
 if (history.scrollRestoration) {
   history.scrollRestoration = 'manual';
 }
@@ -49,60 +61,327 @@ export let uiState =
     ]
 };
 
-let currentScroll = window.scrollY
-let isTicking = false
-let scrolled = false
 let isRendererLoaded = false
-let resized = false
 
-function getMaxScroll() {
-  return document.documentElement.scrollHeight - window.innerHeight
+/**
+ * Animates transition from Hero section to Brilliant section
+ */
+function animateHeroToBrilliant() {
+  if (isAnimating || currentSection === SECTION_BRILLIANT) return;
+  isAnimating = true;
+
+  const timeline = gsap.timeline({
+    onComplete: () => {
+      currentSection = SECTION_BRILLIANT;
+      isAnimating = false;
+      accumulatedDelta = 0;
+    }
+  });
+
+  // Hide hero content
+  timeline.to('.hero--scroller', { opacity: 0, y: '150%', duration: 0.8, ease: "power4.out" })
+  timeline.to('.hero--container', { opacity: 0, xPercent: 100, duration: 1.2, ease: "power4.out" }, '-=0.8')
+
+  // Show brilliant content
+  timeline.to('.brilliant--text-bg', { opacity: 0.1, duration: 1.2, ease: "power4.inOut" }, '-=1.2')
+  timeline.fromTo('.brilliant--container',
+    { opacity: 0, x: '-110%' },
+    { opacity: 1, x: '0%', duration: 1.2, ease: "power4.inOut" }, '-=1.2')
+
+  // Animate camera
+  timeline.to(uiState.position, {
+    0: -0.40259048, 1: 2.6242757, 2: -0.18104002,
+    duration: 1.2,
+    ease: "power4.inOut",
+    onUpdate: () => { !uiState.changed.includes("position") && uiState.changed.push("position") }
+  }, '-=1.2')
+
+  timeline.to(uiState.target, {
+    0: -0.23794234, 1: 0.49070162, 2: -0.32702705,
+    duration: 1.2,
+    ease: "power4.inOut",
+    onUpdate: () => { !uiState.changed.includes("target") && uiState.changed.push("target") }
+  }, '-=1.2')
+
+  // Update sidebar indicators
+  timeline.to('.side-bar .unique', { opacity: 0.5, scale: 1, duration: 0.8, ease: "power4.inOut" }, '-=1.2')
+  timeline.to('.side-bar .brilliant', { opacity: 1, scale: 1.5, duration: 0.8, ease: "power4.inOut" }, '-=0.8')
 }
 
-// Firefox uses async scroll, so we need to handle it differently
-const isFirefox = navigator.userAgent.includes("Firefox") &&
-  !navigator.userAgent.includes("Seamonkey");
+/**
+ * Animates transition from Brilliant section to Hero section
+ */
+function animateBrilliantToHero() {
+  if (isAnimating || currentSection === SECTION_HERO) return;
+  isAnimating = true;
+
+  const timeline = gsap.timeline({
+    onComplete: () => {
+      currentSection = SECTION_HERO;
+      isAnimating = false;
+      accumulatedDelta = 0;
+    }
+  });
+
+  // Hide brilliant content
+  timeline.to('.brilliant--container', { opacity: 0, x: '-110%', duration: 1.2, ease: "power4.inOut" })
+  timeline.to('.brilliant--text-bg', { opacity: 0, duration: 1.2, ease: "power4.inOut" }, '-=1.2')
+
+  // Animate camera first
+  timeline.to(uiState.position, {
+    0: 0.6858612, 1: 2.7440538, 2: -0.026622068,
+    duration: 1.2,
+    ease: "power4.inOut",
+    onUpdate: () => { !uiState.changed.includes("position") && uiState.changed.push("position") }
+  }, '-=1.2')
+
+  timeline.to(uiState.target, {
+    0: 0.36420232, 1: 0.8480059, 2: -0.36873266,
+    duration: 1.2,
+    ease: "power4.inOut",
+    onUpdate: () => { !uiState.changed.includes("target") && uiState.changed.push("target") }
+  }, '-=1.2')
+
+  // Show hero content AFTER camera movement (near the end)
+  timeline.to('.hero--container', { opacity: 1, xPercent: 0, duration: 0.8, ease: "power4.out" }, '-=0.5')
+  timeline.to('.hero--scroller', { opacity: 1, y: '0%', duration: 0.6, ease: "power4.inOut" }, '-=0.6')
+
+  // Update sidebar indicators
+  timeline.to('.side-bar .brilliant', { opacity: 0.5, scale: 1, duration: 0.8, ease: "power4.inOut" }, '-=1.2')
+  timeline.to('.side-bar .unique', { opacity: 1, scale: 1.5, duration: 0.8, ease: "power4.inOut" }, '-=0.8')
+}
+
+/**
+ * Animates transition from Brilliant section to Choose section
+ */
+function animateBrilliantToChoose() {
+  if (isAnimating || currentSection === SECTION_CHOOSE) return;
+  isAnimating = true;
+
+  const timeline = gsap.timeline({
+    onComplete: () => {
+      currentSection = SECTION_CHOOSE;
+      isAnimating = false;
+      accumulatedDelta = 0;
+    }
+  });
+
+  // Hide brilliant content
+  timeline.to('.brilliant--container', { opacity: 0, x: '-110%', duration: 1.2, ease: "power4.inOut" })
+  timeline.to('.brilliant--text-bg', { opacity: 0, duration: 1.2, ease: "power4.inOut" }, '-=1.2')
+
+  // Show choose content - animate from side (not diagonal)
+  timeline.fromTo('.choose--text-bg',
+    { opacity: 0, x: '200%' },
+    { opacity: 0.1, x: '0%', duration: 1.2, ease: "power4.inOut" }, '-=1.2')
+  timeline.fromTo('.choose--content',
+    { opacity: 0, x: '200%' },
+    { opacity: 1, x: '0%', duration: 1.2, ease: "power4.inOut" }, '-=1.2')
+
+  // Animate camera
+  timeline.to(uiState.position, {
+    0: -0.39456308, 1: 2.431139, 2: 0.23367776,
+    duration: 1.2,
+    ease: "power4.inOut",
+    onUpdate: () => { !uiState.changed.includes("position") && uiState.changed.push("position") }
+  }, '-=1.2')
+
+  timeline.to(uiState.target, {
+    0: 0.2921338, 1: 0.9732934, 2: -0.18001612,
+    duration: 1.2,
+    ease: "power4.inOut",
+    onUpdate: () => { !uiState.changed.includes("target") && uiState.changed.push("target") }
+  }, '-=1.2')
+
+  // Update sidebar indicators
+  timeline.to('.side-bar .brilliant', { opacity: 0.5, scale: 1, duration: 0.8, ease: "power4.inOut" }, '-=1.2')
+  timeline.to('.side-bar .choose', { opacity: 1, scale: 1.5, duration: 0.8, ease: "power4.inOut" }, '-=0.8')
+}
+
+/**
+ * Animates transition from Choose section to Brilliant section
+ */
+function animateChooseToBrilliant() {
+  if (isAnimating || currentSection === SECTION_BRILLIANT) return;
+  isAnimating = true;
+
+  const timeline = gsap.timeline({
+    onComplete: () => {
+      currentSection = SECTION_BRILLIANT;
+      isAnimating = false;
+      accumulatedDelta = 0;
+    }
+  });
+
+  // Hide choose content - move to side (not diagonal)
+  timeline.to('.choose--content', { opacity: 0, x: '200%', duration: 1.2, ease: "power4.inOut" })
+  timeline.to('.choose--text-bg', { opacity: 0, x: '200%', duration: 1.2, ease: "power4.inOut" }, '-=1.2')
+
+  // Show brilliant content
+  timeline.to('.brilliant--container', { opacity: 1, x: '0%', duration: 1.2, ease: "power4.inOut" }, '-=1.2')
+  timeline.to('.brilliant--text-bg', { opacity: 0.1, duration: 1.2, ease: "power4.inOut" }, '-=1.2')
+
+  // Animate camera
+  timeline.to(uiState.position, {
+    0: -0.40259048, 1: 2.6242757, 2: -0.18104002,
+    duration: 1.2,
+    ease: "power4.inOut",
+    onUpdate: () => { !uiState.changed.includes("position") && uiState.changed.push("position") }
+  }, '-=1.2')
+
+  timeline.to(uiState.target, {
+    0: -0.23794234, 1: 0.49070162, 2: -0.32702705,
+    duration: 1.2,
+    ease: "power4.inOut",
+    onUpdate: () => { !uiState.changed.includes("target") && uiState.changed.push("target") }
+  }, '-=1.2')
+
+  // Update sidebar indicators
+  timeline.to('.side-bar .choose', { opacity: 0.5, scale: 1, duration: 0.8, ease: "power4.inOut" }, '-=1.2')
+  timeline.to('.side-bar .brilliant', { opacity: 1, scale: 1.5, duration: 0.8, ease: "power4.inOut" }, '-=0.8')
+}
+
+/**
+ * Animates transition from Hero section to Choose section (direct)
+ */
+function animateHeroToChoose() {
+  if (isAnimating || currentSection === SECTION_CHOOSE) return;
+  isAnimating = true;
+
+  const timeline = gsap.timeline({
+    onComplete: () => {
+      currentSection = SECTION_CHOOSE;
+      isAnimating = false;
+      accumulatedDelta = 0;
+    }
+  });
+
+  // Hide hero content
+  timeline.to('.hero--scroller', { opacity: 0, y: '150%', duration: 0.8, ease: "power4.out" })
+  timeline.to('.hero--container', { opacity: 0, xPercent: 100, duration: 1.2, ease: "power4.out" }, '-=0.8')
+
+  // Show choose content - animate from side (not diagonal)
+  timeline.fromTo('.choose--text-bg',
+    { opacity: 0, x: '200%' },
+    { opacity: 0.1, x: '0%', duration: 1.2, ease: "power4.inOut" }, '-=1.2')
+  timeline.fromTo('.choose--content',
+    { opacity: 0, x: '200%' },
+    { opacity: 1, x: '0%', duration: 1.2, ease: "power4.inOut" }, '-=1.2')
+
+  // Animate camera
+  timeline.to(uiState.position, {
+    0: -0.39456308, 1: 2.431139, 2: 0.23367776,
+    duration: 1.2,
+    ease: "power4.inOut",
+    onUpdate: () => { !uiState.changed.includes("position") && uiState.changed.push("position") }
+  }, '-=1.2')
+
+  timeline.to(uiState.target, {
+    0: 0.2921338, 1: 0.9732934, 2: -0.18001612,
+    duration: 1.2,
+    ease: "power4.inOut",
+    onUpdate: () => { !uiState.changed.includes("target") && uiState.changed.push("target") }
+  }, '-=1.2')
+
+  // Update sidebar indicators
+  timeline.to('.side-bar .unique', { opacity: 0.5, scale: 1, duration: 0.8, ease: "power4.inOut" }, '-=1.2')
+  timeline.to('.side-bar .choose', { opacity: 1, scale: 1.5, duration: 0.8, ease: "power4.inOut" }, '-=0.8')
+}
+
+/**
+ * Animates transition from Choose section to Hero section (direct)
+ */
+function animateChooseToHero() {
+  if (isAnimating || currentSection === SECTION_HERO) return;
+  isAnimating = true;
+
+  const timeline = gsap.timeline({
+    onComplete: () => {
+      currentSection = SECTION_HERO;
+      isAnimating = false;
+      accumulatedDelta = 0;
+    }
+  });
+
+  // Hide choose content - move to side (not diagonal)
+  timeline.to('.choose--content', { opacity: 0, x: '200%', duration: 1.2, ease: "power4.inOut" })
+  timeline.to('.choose--text-bg', { opacity: 0, x: '200%', duration: 1.2, ease: "power4.inOut" }, '-=1.2')
+
+  // Animate camera
+  timeline.to(uiState.position, {
+    0: 0.6858612, 1: 2.7440538, 2: -0.026622068,
+    duration: 1.2,
+    ease: "power4.inOut",
+    onUpdate: () => { !uiState.changed.includes("position") && uiState.changed.push("position") }
+  }, '-=1.2')
+
+  timeline.to(uiState.target, {
+    0: 0.36420232, 1: 0.8480059, 2: -0.36873266,
+    duration: 1.2,
+    ease: "power4.inOut",
+    onUpdate: () => { !uiState.changed.includes("target") && uiState.changed.push("target") }
+  }, '-=1.2')
+
+  // Show hero content AFTER choose is hidden (near the end)
+  timeline.to('.hero--container', { opacity: 1, xPercent: 0, duration: 0.8, ease: "power4.out" }, '-=0.5')
+  timeline.to('.hero--scroller', { opacity: 1, y: '0%', duration: 0.6, ease: "power4.inOut" }, '-=0.6')
+
+  // Update sidebar indicators
+  timeline.to('.side-bar .choose', { opacity: 0.5, scale: 1, duration: 0.8, ease: "power4.inOut" }, '-=1.2')
+  timeline.to('.side-bar .unique', { opacity: 1, scale: 1.5, duration: 0.8, ease: "power4.inOut" }, '-=0.8')
+}
+
+/**
+ * Threshold-based wheel handler that triggers section transitions
+ */
+let lastWheelTime = 0;
+const WHEEL_THROTTLE_MS = 32; // ~30fps, prevents excessive event processing
 
 function onWheel(e) {
-  if (scrolled) {
-    scrolled = false
-    return
+  // Throttle wheel events to prevent performance issues from rapid scrolling
+  const now = Date.now();
+  if (now - lastWheelTime < WHEEL_THROTTLE_MS) {
+    return;
+  }
+  lastWheelTime = now;
+
+  if (skipScrollAnimation) {
+    return;
   }
 
-  currentScroll = window.scrollY + e.deltaY
-  currentScroll = Math.max(0, Math.min(currentScroll, getMaxScroll()))
-  resized = false
+  // Reset accumulated delta if animation is in progress to prevent stuttering
+  if (isAnimating) {
+    accumulatedDelta = 0;
+    return;
+  }
 
-  if (!isTicking) {
-    isTicking = true
+  // Accumulate delta until threshold is reached
+  accumulatedDelta += e.deltaY;
 
-    requestAnimationFrame
-      (
-        () => {
-          isTicking = false
-          resized = false
+  if (Math.abs(accumulatedDelta) >= SCROLL_THRESHOLD) {
+    const direction = accumulatedDelta > 0 ? 1 : -1; // 1 = down, -1 = up
 
-          if (skipScrollAnimation){
-            return
-          }
+    if (direction > 0) {
+      // Scrolling down
+      if (currentSection === SECTION_HERO) {
+        animateHeroToBrilliant();
+      } else if (currentSection === SECTION_BRILLIANT) {
+        animateBrilliantToChoose();
+      }
+    } else {
+      // Scrolling up
+      if (currentSection === SECTION_CHOOSE) {
+        animateChooseToBrilliant();
+      } else if (currentSection === SECTION_BRILLIANT) {
+        animateBrilliantToHero();
+      }
+    }
 
-          window.scrollTo(0, currentScroll)
-        }
-      )
+    // Reset accumulated delta after triggering animation
+    accumulatedDelta = 0;
   }
 }
 
-if (!isFirefox) {
-  window.addEventListener("scroll", () => {
-    scrolled = true
-  })
-}
-
-window.addEventListener("resize", () => {
-  if (window.scrollY == 0){
-    resized = true
-  }
-})
 
 export function setRendererLoaded()
 {
@@ -189,9 +468,9 @@ function setupColorPickerListeners() {
       (
         'input',
         (e) => {
-          const value = parseFloat( e.target.value );
+          const value = parseFloat(e.target.value);
           // Validate parsed value to prevent NaN injection
-          if ( isNaN( value ) ) return;
+          if (isNaN(value)) return;
           uiState.gemMultiplier = value;
           gemMultiplierValue.textContent = uiState.gemMultiplier.toFixed(1);
           uiState.changed.push("gem");
@@ -220,9 +499,9 @@ function setupColorPickerListeners() {
       (
         'input',
         (e) => {
-          const value = parseFloat( e.target.value );
+          const value = parseFloat(e.target.value);
           // Validate parsed value to prevent NaN injection
-          if ( isNaN( value ) ) return;
+          if (isNaN(value)) return;
           uiState.metalMultiplier = value;
           metalMultiplierValue.textContent = uiState.metalMultiplier.toFixed(1);
           uiState.changed.push("metal");
@@ -246,7 +525,7 @@ async function replaceSVG(svgPath, selector) {
   // - Data URIs with JavaScript
   const cleanSvgText = DOMPurify.sanitize
   (
-    svgText,
+    svgText, 
     {
       USE_PROFILES : { svg: true },
       ADD_TAGS : [ 'use' ],  // Allow <use> tags for SVG references
@@ -278,225 +557,70 @@ async function replaceSVG(svgPath, selector) {
 function introAnimation() {
   firstLoad = false
 
-  gsap.timeline()
+  gsap.timeline({
+    onComplete: () => {
+      setupScrollAnimation();
+      // Enable wheel navigation after intro animation
+      skipScrollAnimation = false;
+    }
+  })
     .fromTo(uiState.position, { 0: 0.6373576, 1: 1.1441559, 2: -0.9127405 }, { 0: 0.6858612, 1: 2.7440538, 2: -0.026622068, duration: 4, onUpdate: () => { !uiState.changed.includes("position") && uiState.changed.push("position") } }, '-=0.8')
     .fromTo(uiState.target, { 0: 0.55595696, 1: 0.55741394, 2: -1.0331136 }, { 0: 0.36420232, 1: 0.8480059, 2: -0.36873266, duration: 4, onUpdate: () => { !uiState.changed.includes("target") && uiState.changed.push("target") } }, '-=4')
     .fromTo('.header--container', { opacity: 0, y: '-100%' }, { opacity: 1, y: '0%', ease: "power1.inOut", duration: 0.8 }) // , '-=1'
     .fromTo('.hero--scroller', { opacity: 0, y: '150%' }, { opacity: 1, y: '0%', ease: "power4.inOut", duration: 1 }, '-=1')
-    .fromTo('.hero--container', { opacity: 0, x: '100%' }, { opacity: 1, x: '0%', ease: "power4.inOut", duration: 1.8, onComplete: setupScrollAnimation }, '-=1')
+    .fromTo('.hero--container', { opacity: 0, x: '100%' }, { opacity: 1, x: '0%', ease: "power4.inOut", duration: 1.8 }, '-=1')
     .fromTo('.side-bar', { opacity: 0.0, x: '50%' }, { opacity: 1, x: '0%', ease: "power4.inOut", duration: 2 }, '-=1')
-    .to('.side-bar .unique', { opacity: 1, scale: 1.5, ease: "power4.inOut", duration: 2 }, '-=1')
+    // Initialize all sidebar circles with clearProps to remove inline styles
+    .set('.side-bar .unique', { clearProps: "transform", opacity: 0.5, scale: 1 }, '-=2')
+    .set('.side-bar .brilliant', { clearProps: "transform", opacity: 0.5, scale: 1 }, '-=2')
+    .set('.side-bar .choose', { clearProps: "transform", opacity: 0.5, scale: 1 }, '-=2')
+    // Animate only the active circle (unique for Hero section)
+    .to('.side-bar .unique', { opacity: 1, scale: 1.5, ease: "power4.inOut", duration: 2 }, '-=2')
 }
 
 function enableScrollAnimationOnUserScroll() {
-  const onScroll = () => {
-    skipScrollAnimation = false;
-    window.removeEventListener("scroll", onScroll);
-  };
-
-  if (!isFirefox) {
-    window.addEventListener("wheel", onWheel, { passive: true });
-  }
-  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("wheel", onWheel, { passive: true });
 }
 
 /**
- * Configures the main page scroll-driven animation system using GSAP ScrollTrigger.
+ * Configures the main page threshold-based scroll navigation system.
  *
- * This function orchestrates the entire scroll experience by creating a timeline that
- * coordinates camera movements, UI transitions, and content reveals across three main
- * sections: Hero, Brilliant, and Choose. Each section has distinct visual states triggered
- * by scroll position.
+ * This function sets up the wheel event handler that enables section-by-section
+ * navigation without traditional scrolling. Instead of scroll position, wheel
+ * events accumulate until a threshold is reached, triggering smooth GSAP animations
+ * between sections.
  *
  * ## Animation Structure
- * The function creates a single GSAP timeline with multiple scroll-triggered animations:
+ * Three main sections managed by wheel-based navigation:
  *
- * **Hero Section (cam-view-1)**
- * - Initial view showing the hero content and scroll indicator
+ * **Hero Section**
+ * - Initial view showing hero content and scroll indicator
  * - Sidebar "unique" indicator highlighted
+ * - Camera at position [0.6858612, 2.7440538, -0.026622068]
  *
- * **Brilliant Section (cam-view-2)**
- * - Hero content fades out and slides right (opacity: 0, xPercent: 100)
- * - Brilliant content slides in from left (x: -110% → 0%)
- * - Camera position animates from Hero view to Brilliant view
- * - Camera target animates to focus on brilliant-cut details
- * - Sidebar "brilliant" indicator becomes active
+ * **Brilliant Section**
+ * - Brilliant content visible with text background
+ * - Sidebar "brilliant" indicator active
+ * - Camera at position [-0.40259048, 2.6242757, -0.18104002]
  *
- * **Choose Section (cam-view-3)**
- * - Brilliant content slides out left
- * - Choose content slides in from right (x: 200% → 0%)
- * - Camera position animates to Choose view
- * - Camera target refocuses for ring selection view
- * - Sidebar "choose" indicator becomes active
+ * **Choose Section**
+ * - Choose content with ring selection interface
+ * - Sidebar "choose" indicator active
+ * - Camera at position [-0.39456308, 2.431139, 0.23367776]
  *
- * ## Scroll Synchronization
- * All animations use `scrub: true` to tightly couple animation progress with scroll position,
- * creating smooth, deterministic transitions. The `invalidateOnRefresh: true` flag ensures
- * animations recalculate on window resize.
+ * ## Navigation Control
+ * - Wheel events accumulate deltaY until SCROLL_THRESHOLD is reached
+ * - Once threshold exceeded, appropriate section transition animation plays
+ * - isAnimating flag blocks further navigation during transitions
+ * - Section transitions use GSAP timelines
  *
- * ## Camera State Management
- * Camera position and target animations update `uiState.changed` array to trigger WebGL
- * renderer updates. The `!skipScrollAnimation` guard prevents updates during programmatic
- * scrolling or configuration mode transitions.
- *
- * ## Side Effects
- * - Enables scroll animation on user interaction (wheel/scroll events)
- * - Sets `document.body.style.overflowY = "scroll"` to enable scrolling
- * - Stores timeline reference in `window.scrollAnimation` for external control
- *
- * @see enableScrollAnimationOnUserScroll - Activates scroll animation on user interaction
- * @see configAnimation - Disables these scroll triggers when entering config mode
+ * @see animateHeroToBrilliant/animateBrilliantToHero/animateBrilliantToChoose/animateChooseToBrilliant - Section transition animations
+ * @see onWheel - Threshold detection and direction handling
  */
 function setupScrollAnimation() {
   enableScrollAnimationOnUserScroll();
-  document.body.style.overflowY = "scroll"
-
-  const scrollAnimation = gsap.timeline({ default: { ease: 'none' } })
-  window.scrollAnimation = scrollAnimation;
-
-  // BRILLIANT
-  scrollAnimation
-    .to
-    (
-      '.hero--scroller',
-      {
-        opacity: 0,
-        y: '150%',
-        scrollTrigger: { trigger: ".cam-view-2", start: "top bottom", end: "top center", scrub: 1, scrub: true, invalidateOnRefresh: true, immediateRender: false }
-      }
-    )
-    .to
-    (
-      '.hero--container',
-      {
-        opacity: 0, xPercent: '100', ease: "power4.out", scrollTrigger: { trigger: ".cam-view-2", start: "top bottom", end: "top top", scrub: true, invalidateOnRefresh: true, immediateRender: false }
-      }
-    )
-    .to
-    (
-      '.brilliant--text-bg',
-      {
-        opacity: 0.1, ease: "power4.inOut", scrollTrigger: { trigger: ".cam-view-2", start: "top bottom", end: 'top top', scrub: true, invalidateOnRefresh: true, immediateRender: false }
-      }
-    )
-    .fromTo
-    (
-      '.brilliant--container',
-      { opacity: 0, x: '-110%' },
-      { opacity: 1, x: '0%', ease: "power4.inOut", scrollTrigger: { trigger: ".cam-view-2", start: "top bottom", end: 'top top', scrub: true, invalidateOnRefresh: true, immediateRender: false } }
-    )
-    .fromTo
-    (
-      uiState.position,
-      { 0: 0.6858612, 1: 2.7440538, 2: -0.026622068 },
-      {
-        0: -0.40259048, 1: 2.6242757, 2: -0.18104002,
-        scrollTrigger: { trigger: ".cam-view-2", start: "top bottom", end: "top top", scrub: true, invalidateOnRefresh: true, immediateRender: false },
-        onUpdate: () => {
-          !resized &&
-          (() => { resized = false; return true; })() &&
-          !skipScrollAnimation && !uiState.changed.includes("position") && uiState.changed.push("position")
-        }
-      }
-    )
-    .fromTo
-    (
-      uiState.target,
-      { 0: 0.36420232, 1: 0.8480059, 2: -0.36873266 },
-      {
-        0: -0.23794234, 1: 0.49070162, 2: -0.32702705,
-        scrollTrigger: { trigger: ".cam-view-2", start: "top bottom", end: "top top", scrub: true, invalidateOnRefresh: true, immediateRender: false },
-        onUpdate: () => {
-          !resized &&
-          (() => { resized = false; return true; })() &&
-          !skipScrollAnimation && !uiState.changed.includes("target") && uiState.changed.push("target")
-        }
-      }
-    )
-    .addLabel("Brilliant")
-    .to('.side-bar .unique', { opacity: 1, scale: 1.5, ease: "power4.inOut", duration: 2, scrollTrigger: { trigger: ".cam-view-1", start: "top bottom", end: 'top top', scrub: true, invalidateOnRefresh: true, immediateRender: false } })
-    .to('.side-bar .unique', { opacity: 0.5, scale: 1, ease: "power4.inOut", duration: 2, scrollTrigger: { trigger: ".cam-view-2", start: "top bottom", end: 'top top', scrub: true, invalidateOnRefresh: true, immediateRender: false } })
-    .to('.side-bar .brilliant', { opacity: 1, scale: 1.5, ease: "power4.inOut", duration: 2, scrollTrigger: { trigger: ".cam-view-2", start: "top bottom", end: 'top top', scrub: true, invalidateOnRefresh: true, immediateRender: false } })
-
-    // CHOOSE SECTION
-    .to
-    (
-      '.brilliant--container',
-      {
-        opacity: 0, x: '-110%', ease: "power4.inOut",
-        scrollTrigger: { trigger: ".cam-view-3", start: "top bottom", end: 'top top', scrub: true, invalidateOnRefresh: true, immediateRender: false }
-      }
-    )
-    .to
-    (
-      '.choose--text-bg',
-      {
-        opacity: 0.1, x: '0%', ease: "power4.inOut",
-        scrollTrigger: { trigger: ".cam-view-3", start: "top bottom", end: 'top top', scrub: true, invalidateOnRefresh: true, immediateRender: false }
-      }
-    )
-    .fromTo
-    (
-      '.choose--content',
-      { opacity: 0, x: '200%', y: '130%' },
-      {
-        opacity: 1, x: '0%', y: '0%', duration: 0.5, ease: "power4.inOut",
-        scrollTrigger: { trigger: ".cam-view-3", start: "top bottom", end: "top top", scrub: true, invalidateOnRefresh: true, immediateRender: false }
-      }
-    )
-    .fromTo
-    (
-      uiState.position,
-      { 0: -0.40259048, 1: 2.6242757, 2: -0.18104002 },
-      {
-        0: -0.39456308, 1: 2.431139, 2: 0.23367776,
-        scrollTrigger: { trigger: ".cam-view-3", start: "top bottom", end: "top top", scrub: true, invalidateOnRefresh: true, immediateRender: false },
-        onUpdate: () => {
-          !resized &&
-          (() => { resized = false; return true; })() &&
-          !skipScrollAnimation && !uiState.changed.includes("position") && uiState.changed.push("position")
-        }
-      }
-    )
-    .fromTo
-    (
-      uiState.target,
-      { 0: -0.23794234, 1: 0.49070162, 2: -0.32702705 },
-      {
-        0: 0.2921338, 1: 0.9732934, 2: -0.18001612,
-        scrollTrigger: { trigger: ".cam-view-3", start: "top bottom", end: "top top", scrub: true, invalidateOnRefresh: true, immediateRender: false },
-        onUpdate: () => {
-          !resized &&
-          (() => { resized = false; return true; })() &&
-          !skipScrollAnimation && !uiState.changed.includes("target") && uiState.changed.push("target")
-        }
-      }
-    )
-    .addLabel("Choose")
-    .to
-    (
-      '.side-bar .brilliant',
-      {
-        opacity: 0.5, scale: 1, ease: "power4.inOut", duration: 2,
-        scrollTrigger: { trigger: ".cam-view-3", start: "top bottom", end: 'top top', scrub: true, invalidateOnRefresh: true, immediateRender: false }
-      }
-    )
-    .to
-    (
-      '.side-bar .choose',
-      {
-        opacity: 1, scale: 1.5, ease: "power4.inOut", duration: 2,
-        scrollTrigger: { trigger: ".cam-view-3", start: "top bottom", end: 'top top', scrub: true, invalidateOnRefresh: true, immediateRender: false }
-      }
-    )
-    .to
-    (
-      '.side-bar .brilliant',
-      {
-        opacity: 0.5, scale: 1, ease: "power4.inOut", duration: 2,
-        scrollTrigger: { trigger: ".cam-view-1", start: "top bottom", end: 'top top', scrub: true, invalidateOnRefresh: true, immediateRender: false }
-      }
-    )
+  // Prevent browser's default scroll behavior
+  document.body.style.overflow = "hidden"
 }
 
 function onCompleteConfigAnimation() {
@@ -512,14 +636,66 @@ function onCompleteConfigAnimation() {
   const canvas = document.querySelector('.canvas')
   const colorControls = document.querySelector('.color-controls--container')
 
+  camView3.style.display = "none"
+
   canvas.style.pointerEvents = "all";
   uiState.state = "configurator";
   uiState.changed.push("state");
 
-  if (colorControls && colorControlsEnabled) {
+  if ( colorControls && colorControlsEnabled ) 
+  {
     colorControls.style.display = "flex"
     colorControls.style.pointerEvents = "all";
   }
+}
+
+/**
+ * Animates the transition from main page to configuration mode.
+ *
+ * This function orchestrates the visual transition when the user clicks "Choose Your Ring"
+ * to enter the configuration interface. It plays a carefully choreographed camera movement
+ * and UI transition sequence.
+ *
+ * ## Animation Sequence (3.75 seconds total)
+ *
+ * **Camera Movement** (parallel, both 3.75s duration)
+ * - Position: Moves from Choose section view to overhead configurator view
+ *   - From: (-0.39456308, 2.431139, 0.23367776)
+ *   - To: (-1.2621417, 4.005461, 1.2621417)
+ * - Target: Refocuses camera from angled view to centered top-down view
+ *   - From: (0.2921338, 0.9732934, -0.18001612)
+ *   - To: (0, 0.6, 0)
+ *
+ * **UI Transitions** (parallel with camera)
+ * - Choose content slides out right (x: 0% → 200%, opacity: 1 → 0)
+ * - Choose background text slides out right
+ * - Footer menu slides up from bottom (y: 150% → 0%, opacity: 0 → 1)
+ *   Delayed by 2.25s (starts at -=1.5 mark)
+ *
+ * ## State Management
+ *
+ * **During Animation**
+ * - `uiState.transitionAnimationEnabled = true` - Signals active transition
+ * - `isAnimating = true` - Blocks wheel navigation
+ * - Camera view section markers hidden (cam-view-1/2/3)
+ * - Camera position/target updates pushed to `uiState.changed` array
+ *
+ * **After Animation (onCompleteConfigAnimation)**
+ * - `uiState.transitionAnimationEnabled = false` (after 100ms delay)
+ * - `uiState.state = "configurator"` - Activates configurator mode
+ * - Configuration UI elements made visible (footer menu, gem/material/ring selectors)
+ * - Canvas pointer events enabled for ring interaction
+ *
+ * @see onCompleteConfigAnimation - Callback that finalizes the transition
+ * @see exitConfigAnimation - Reverse animation returning to main page
+ */
+function configAnimation() {
+  uiState.transitionAnimationEnabled = true;
+  isAnimating = true;
+
+  camView1.style.display = "none"
+  camView2.style.display = "none"
+
   exitContainer.style.display = "flex"
   exitContainer.style.pointerEvents = "all";
   gemMenu.style.display = "flex"
@@ -533,72 +709,18 @@ function onCompleteConfigAnimation() {
   closeConfigGem.style.display = "flex"
   closeConfigRing.style.display = "flex"
   footerContainer.style.display = "flex"
-}
 
-/**
- * Animates the transition from main page to configuration mode.
- *
- * This function orchestrates the visual transition when the user clicks "Choose Your Ring"
- * to enter the configuration interface. It disables scroll-driven animations and plays a
- * carefully choreographed camera movement and UI transition sequence.
- *
- * ## Animation Sequence (2.5 seconds total)
- *
- * **Camera Movement** (parallel, both 2.5s duration)
- * - Position: Moves from Choose section view to overhead configurator view
- *   - From: (-0.39456308, 2.431139, 0.23367776)
- *   - To: (-1.2621417, 4.005461, 1.2621417)
- * - Target: Refocuses camera from angled view to centered top-down view
- *   - From: (0.2921338, 0.9732934, -0.18001612)
- *   - To: (0, 0.6, 0)
- *
- * **UI Transitions** (parallel with camera)
- * - Choose content slides out right (x: 0% → 200%, opacity: 1 → 0)
- * - Choose background text slides out right
- * - Footer menu slides up from bottom (y: 150% → 0%, opacity: 0 → 1)
- *   Delayed by 1.5s (starts at -=1.0 mark)
- *
- * ## State Management
- *
- * **During Animation**
- * - `uiState.transitionAnimationEnabled = true` - Signals active transition
- * - All ScrollTrigger instances disabled to prevent conflicts
- * - Camera view section markers hidden (cam-view-1/2/3)
- * - Camera position/target updates pushed to `uiState.changed` array
- *
- * **After Animation (onCompleteConfigAnimation)**
- * - `uiState.transitionAnimationEnabled = false` (after 100ms delay)
- * - `uiState.state = "configurator"` - Activates configurator mode
- * - Configuration UI elements made visible (footer menu, gem/material/ring selectors)
- * - Canvas pointer events enabled for ring interaction
- *
- * ## Conflict Prevention
- * ScrollTrigger animations are explicitly disabled to prevent them from interfering with
- * the programmatic GSAP animation. This ensures smooth, deterministic camera movement
- * without scroll-based overrides.
- *
- * @see onCompleteConfigAnimation - Callback that finalizes the transition
- * @see exitConfigAnimation - Reverse animation returning to main page
- * @see setupScrollAnimation - Creates the scroll triggers that are disabled here
- */
-function configAnimation() {
-  uiState.transitionAnimationEnabled = true;
-
-  // Disable all ScrollTrigger animations to prevent conflict with config entry animation
-  ScrollTrigger.getAll().forEach(st => st.disable())
-
-  camView1.style.display = "none"
-  camView2.style.display = "none"
-  camView3.style.display = "none"
-
-  gsap.timeline()
+  gsap.timeline({ onComplete: onCompleteConfigAnimation })
+    // Set initial hidden state for footer menu and exit container
+    .set('.footer--menu', { opacity: 0, y: '150%' })
+    .set('.exit--container', { opacity: 0, y: '-150%' })
     .fromTo
     (
       uiState.position,
       { 0: -0.39456308, 1: 2.431139, 2: 0.23367776 },
       {
         0: -1.2621417, 1: 4.005461, 2: 1.2621417,
-        duration: 2.5,
+        duration: 3.75,
         onUpdate: () => { !uiState.changed.includes("position") && uiState.changed.push("position") }
       }
     )
@@ -607,17 +729,23 @@ function configAnimation() {
       uiState.target,
       { 0: 0.2921338, 1: 0.9732934, 2: -0.18001612 },
       {
-        0: 0, 1: 0.6, 2: 0, duration: 2.5,
+        0: 0, 1: 0.6, 2: 0, duration: 3.75,
         onUpdate: () => { !uiState.changed.includes("target") && uiState.changed.push("target") }
       },
-      '-=2.5'
+      '-=3.75'
     )
-    .to('.choose--content', { opacity: 0, x: '200%', duration: 1.5, ease: "power4.out", onComplete: onCompleteConfigAnimation }, '-=2.5')
-    .to('.choose--text-bg', { opacity: 0, x: '200%', duration: 1.5, ease: "power4.out" }, '-=2.5')
-    .fromTo('.footer--menu', { opacity: 0, y: '150%' }, { opacity: 1, y: '0%', duration: 1.5 }, '-=1.0')
+    .fromTo('.choose--content', { opacity: 1, x: '0%', y: '0%' }, { opacity: 0, y: '-100%', duration: 2.25, ease: "power4.out" }, '-=3.75')
+    .fromTo('.choose--text-bg', { opacity: 0.1, x: '0%', y: '0%' }, { opacity: 0, y: '-100%', duration: 2.25, ease: "power4.out" }, '-=3.75')
+    .to('.footer--menu', { opacity: 1, y: '0%', duration: 2.25, ease: "power4.out" }, '-=1.5')
+    .to('.exit--container', { opacity: 1, y: '0%', duration: 2.25, ease: "power4.out" }, '-=2.25')
 }
 
-// EXIT EVENT
+/**
+ * Animates the transition from configuration mode back to main page.
+ *
+ * Returns to Hero section with camera animation and UI restoration.
+ * Resets section state and re-enables wheel navigation.
+ */
 function exitConfigAnimation() {
   gemMenu.classList.remove('show')
   materialsMenu.classList.remove('show')
@@ -625,77 +753,143 @@ function exitConfigAnimation() {
   if (document.querySelector('.footer--menu li.active')) {
     document.querySelector('.footer--menu li.active')?.classList.remove('active')
   }
-  document.body.style.overflowY = "hidden"
 
-  // Disable all ScrollTrigger animations to prevent conflict with exit animation
-  ScrollTrigger.getAll().forEach(st => st.disable())
+  isAnimating = true;
 
-  gsap.timeline()
+  // Hide exit container and footer menu immediately
+  exitContainer.style.display = "none"
+  exitContainer.style.pointerEvents = "none"
+  footerContainer.style.display = "none"
+
+  gsap.timeline({
+    onComplete: () => {
+      // Reset to Hero section and enable navigation
+      currentSection = SECTION_HERO;
+      isAnimating = false;
+      accumulatedDelta = 0;
+      skipScrollAnimation = false;
+      // Re-attach wheel event listener
+      window.addEventListener("wheel", onWheel, { passive: true });
+    }
+  })
     .to(uiState.position, { 0: 0.6858612, 1: 2.7440538, 2: -0.026622068, duration: 1.2, ease: "power4.out", onUpdate: () => { !uiState.changed.includes("position") && uiState.changed.push("position") } })
     .to(uiState.target, {
       0: 0.36420232, 1: 0.8480059, 2: -0.36873266, duration: 1.2, ease: "power4.out",
-      onUpdate: () => { window.scrollTo(0, 0); !uiState.changed.includes("target") && uiState.changed.push("target") },
-      onComplete: () => {
-        // Re-enable ScrollTrigger animations after exit animation completes
-        ScrollTrigger.getAll().forEach(st => st.enable())
-
-        if (!isFirefox) {
-          window.addEventListener("wheel", onWheel, { passive: true });
-        }
-        skipScrollAnimation = false
-        document.body.style.overflowY = "scroll"
-      }
+      onUpdate: () => { !uiState.changed.includes("target") && uiState.changed.push("target") }
     },
       '-=1.2'
     )
-    .to('.footer--menu', { opacity: 0, y: '150%' })
-    .to('.choose--content', { opacity: 1, x: '0%', duration: 0.5, ease: "power4.out" }, '-=1.2')
+    // Reset choose content position to initial state
+    .set('.choose--content', { opacity: 0, x: '0%', y: '0%' })
+    .set('.choose--text-bg', { opacity: 0, x: '0%', y: '0%' })
+    // Show hero content simultaneously with camera movement
+    .to('.hero--container', { opacity: 1, xPercent: 0, duration: 1.2, ease: "power4.out" }, '-=1.2')
+    .to('.hero--scroller', { opacity: 1, y: '0%', duration: 0.8, ease: "power4.inOut" }, '-=0.8')
+    // Update sidebar to Hero section - reset all dots and activate Hero
+    .to('.side-bar .brilliant', { opacity: 0.5, scale: 1, duration: 0.8, ease: "power4.inOut" }, '-=1.2')
+    .to('.side-bar .choose', { opacity: 0.5, scale: 1, duration: 0.8, ease: "power4.inOut" }, '-=1.2')
+    .to('.side-bar .unique', { opacity: 1, scale: 1.5, duration: 0.8, ease: "power4.inOut" }, '-=0.8')
 }
 
-document.querySelector('.button-scroll')?.addEventListener
-  (
-    'click',
-    () => {
-      const element = document.querySelector('.cam-view-2');
-      if (element) {
-        const top = element.getBoundingClientRect().top + window.scrollY;
-        window.scrollTo({ top, left: 0, behavior: 'smooth' });
-        skipScrollAnimation = false
+function setupNavigationListeners() {
+  // Navigate to Brilliant section via scroll down button
+  document.querySelector('.button-scroll')?.addEventListener
+    (
+      'click',
+      () => {
+        if (currentSection === SECTION_HERO && !isAnimating && !skipScrollAnimation) {
+          animateHeroToBrilliant();
+        }
       }
-    }
-  )
+    )
 
-document.querySelector('.brilliant')?.addEventListener
-  (
-    'click',
-    () => {
-      const element = document.querySelector('.cam-view-2')
-      window.scrollTo({ top: element?.getBoundingClientRect().top, left: 0, behavior: 'smooth' })
-    }
-  )
+  // Navigate to Hero section via sidebar (from any section)
+  document.querySelector('.unique')?.addEventListener
+    (
+      'click',
+      () => {
+        if ( skipScrollAnimation || isAnimating ) {
+          return;
+        }
 
-document.querySelector('.hero--scroller')?.addEventListener
-  (
-    'click',
-    () => {
-      const element = document.querySelector('.cam-view-2')
-      window.scrollTo({ top: element?.getBoundingClientRect().top, left: 0, behavior: 'smooth' })
-    }
-  )
+        if ( currentSection === SECTION_BRILLIANT )
+        {
+          animateBrilliantToHero();
+        }
+        else if ( currentSection === SECTION_CHOOSE )
+        {
+          animateChooseToHero();
+        }
+      }
+    )
+
+  // Navigate to Brilliant section via sidebar (from any section)
+  document.querySelector( '.brilliant' )?.addEventListener
+    (
+      'click',
+      () =>
+      {
+        if ( skipScrollAnimation || isAnimating ) {
+          return;
+        }
+
+        if (currentSection === SECTION_HERO )
+        {
+          animateHeroToBrilliant();
+        }
+        else if ( currentSection === SECTION_CHOOSE )
+        {
+          animateChooseToBrilliant();
+        }
+      }
+    )
+
+  // Navigate to Choose section via sidebar (from any section)
+  document.querySelector( '.choose' )?.addEventListener
+    (
+      'click',
+      () =>
+      {
+        if ( skipScrollAnimation || isAnimating ) {
+          return;
+        }
+
+        if ( currentSection === SECTION_HERO )
+        {
+          animateHeroToChoose();
+        }
+        else if ( currentSection === SECTION_BRILLIANT )
+        {
+          animateBrilliantToChoose();
+        }
+      }
+    )
+
+  // Navigate to Brilliant section via hero scroller
+  document.querySelector( '.hero--scroller' )?.addEventListener
+    (
+      'click',
+      () =>
+      {
+        if ( currentSection === SECTION_HERO && !isAnimating && !skipScrollAnimation )
+        {
+          animateHeroToBrilliant();
+        }
+      }
+    )
+}
 
 document.querySelector('.btn-customize')?.addEventListener
   (
     'click',
     () => {
-      skipScrollAnimation = true
-      if (!isFirefox) {
-        window.removeEventListener("wheel", onWheel, { passive: true })
-      }
+      skipScrollAnimation = true;
+      window.removeEventListener("wheel", onWheel, { passive: true });
 
       uiState.state = "configurator";
       uiState.changed.push("state");
       exploreView.style.pointerEvents = "none"
-      document.body.style.overflowY = "hidden"
+      document.body.style.overflow = "hidden"
       document.body.style.cursor = "grab"
       sidebar.style.display = "none"
       headerContainer.style.display = "none"
@@ -711,12 +905,22 @@ document.querySelector('.button--exit')?.addEventListener
       const canvas = document.querySelector('.canvas')
       const colorControls = document.querySelector('.color-controls--container')
 
+      // Reset all ring states to defaults
       uiState.gem = "white"
       uiState.metal = "silver"
       uiState.ring = 0
       uiState.changed.push("gem")
       uiState.changed.push("metal")
       uiState.changed.push("ring")
+      uiState.changed.push("reset")
+
+      // Reset active elements to default values
+      document.querySelector('.colors--list li.active')?.classList.remove('active')
+      document.querySelector('.colors--list li.white')?.classList.add('active')
+      document.querySelector('.materials--list li.active')?.classList.remove('active')
+      document.querySelector('.materials--list li.silver')?.classList.add('active')
+      document.querySelector('.rings--list li.active')?.classList.remove('active')
+      document.querySelector('.rings--list li.ring0')?.classList.add('active')
 
       camView1.style.display = "flex"
       camView2.style.display = "flex"
@@ -731,10 +935,8 @@ document.querySelector('.button--exit')?.addEventListener
         colorControls.style.display = "none"
         colorControls.style.pointerEvents = "none";
       }
-      exitContainer.style.display = "none"
-      exitContainer.style.pointerEvents = "none";
+      // exitContainer and footerContainer will be hidden after animation completes
       gemMenu.style.display = "none"
-      footerMenu.style.display = "none"
       materialsMenu.style.display = "none"
       ringsMenu.style.display = "none"
       configMaterial.style.display = "none"
@@ -743,10 +945,9 @@ document.querySelector('.button--exit')?.addEventListener
       configRing.style.display = "none"
       closeConfigGem.style.display = "none"
       closeConfigRing.style.display = "none"
-      footerContainer.style.display = "none"
 
       exploreView.style.pointerEvents = "all"
-      document.body.style.overflowY = "auto"
+      document.body.style.overflow = "hidden"
       document.body.style.cursor = "auto"
       sidebar.style.display = "block"
       exitConfigAnimation()
@@ -761,12 +962,10 @@ async function setupMainPage() {
   window.addEventListener
     (
       "load",
-      (ev) => {
+      () => {
         const start = () => {
           if (isRendererLoaded) {
-            window.scrollTo(0, 0)
-
-            if (firstLoad && scrollY == 0) {
+            if (firstLoad) {
               if (uiState.state == "hero") {
                 introAnimation()
               }
@@ -1073,8 +1272,6 @@ function setupConfigurator() {
         if (li.classList.contains("ring0")) return 0;
         if (li.classList.contains("ring1")) return 1;
         if (li.classList.contains("ring2")) return 2;
-        if (li.classList.contains("ring3")) return 3;
-        if (li.classList.contains("ring4")) return 4;
 
         return uiState.ring;
       }
@@ -1098,8 +1295,8 @@ document.addEventListener
 (
   "DOMContentLoaded",
   () => {
-    ScrollTrigger.normalizeScroll(true);
     setupMainPage();
     setupConfigurator();
+    setupNavigationListeners();
   }
 );
