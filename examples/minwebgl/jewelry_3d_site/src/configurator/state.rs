@@ -1,4 +1,4 @@
-use std::{ cell::RefCell, rc::Rc, collections::HashSet };
+use std::{ cell::{ RefCell, Cell }, rc::Rc, collections::HashSet };
 use minwebgl as gl;
 use gl::{ GL, F32x3 };
 use renderer::webgl::{ Node, Scene, Material, helpers, material::PbrMaterial, loaders::gltf };
@@ -56,7 +56,10 @@ pub struct RingsInfo
 
   loaded_rings : RefCell< HashSet< usize > >,
   ring_loader : Rc< dyn Fn( GLTF, usize ) + 'static >,
-  gl : GL
+  gl : GL,
+
+  /// Flag indicating if a ring is currently being loaded
+  is_loading : Rc< Cell< bool > >
 }
 
 impl RingsInfo
@@ -81,6 +84,7 @@ impl RingsInfo
       loaded_rings : RefCell::new( HashSet::new() ),
       ring_loader : Rc::new( ring_loader ),
       gl : gl.clone(),
+      is_loading : Rc::new( Cell::new( false ) ),
     }
   }
 
@@ -96,9 +100,13 @@ impl RingsInfo
     // Use atomic insert to prevent race conditions on rapid ring switching
     if self.loaded_rings.borrow_mut().insert( self.current_ring )
     {
+      // Set loading flag to true to keep rendering active during loading
+      self.is_loading.set( true );
+
       let gl = self.gl.clone();
       let index = self.current_ring;
       let loader = self.ring_loader.clone();
+      let is_loading = self.is_loading.clone();
 
       let future = async move
       {
@@ -106,12 +114,14 @@ impl RingsInfo
         else
         {
           gl::log::error!( "Failed to get window object" );
+          is_loading.set( false );
           return;
         };
         let Some( document ) = window.document()
         else
         {
           gl::log::error!( "Failed to get document object" );
+          is_loading.set( false );
           return;
         };
 
@@ -119,16 +129,39 @@ impl RingsInfo
         let Ok( gltf ) = gltf::load( &document, format!( "./gltf/{index}.glb" ).as_str(), &gl ).await
         else
         {
+          is_loading.set( false );
           return;
         };
 
         ( loader )( gltf, index );
+
+        // Clear loading flag after successful load
+        is_loading.set( false );
       };
 
       gl::spawn_local( future );
     }
 
     None
+  }
+
+  /// Resets all ring color selections to default values (white gem, silver metal)
+  #[ inline ]
+  pub fn reset_rings_colors( &mut self )
+  {
+    for ring_color in &mut self.ring_colors
+    {
+      ring_color.gem = "white".to_string();
+      ring_color.metal = "silver".to_string();
+    }
+  }
+
+  /// Returns true if a ring is currently being loaded
+  #[ must_use ]
+  #[ inline ]
+  pub fn is_loading( &self ) -> bool
+  {
+    self.is_loading.get()
   }
 }
 
