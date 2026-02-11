@@ -59,6 +59,7 @@ use gl::
 };
 use renderer::webgl::
 {
+  scene::Scene,
   post_processing::{ self, Pass, SwapFramebuffer }
 };
 
@@ -155,8 +156,6 @@ fn handle_resize
       {
         *last_eye = F32x3::from_array( ui_state.eye );
       }
-
-      *is_resized.borrow_mut() = false;
     }
   }
 }
@@ -173,21 +172,38 @@ fn handle_ui_change( configurator : &mut Configurator, last_eye : &mut F32x3 )
       let ring_changed = ui_state.changed.iter().any( | s | s == "ring" );
       let gem_changed = ui_state.changed.iter().any( | s | s == "gem" );
       let metal_changed = ui_state.changed.iter().any( | s | s == "metal" );
+      let reset_requested = ui_state.changed.iter().any( | s | s == "reset" );
+
+      if reset_requested
+      {
+        configurator.reset_rings();
+      }
 
       if ring_changed
       {
         configurator.rings.current_ring = ui_state.ring as usize;
 
-        // When switching rings, load the ring's saved colors (unless user also changed color)
+        // Save colors to the new ring and apply if it's already loaded
+        // If not loaded, colors will be applied after loading completes
         if !gem_changed
         {
-          configurator.load_gem_from_ring();
+          configurator.save_gem_to_ring();
           ui::update_selection_highlight( "gem", &configurator.ui_state.gem );
+          // Only apply if ring is already loaded (instant update without animation)
+          if configurator.rings.get_ring().is_some()
+          {
+            configurator.update_gem_color( false );
+          }
         }
         if !metal_changed
         {
-          configurator.load_metal_from_ring();
+          configurator.save_metal_to_ring();
           ui::update_selection_highlight( "metal", &configurator.ui_state.metal );
+          // Only apply if ring is already loaded (instant update without animation)
+          if configurator.rings.get_ring().is_some()
+          {
+            configurator.update_metal_color( false );
+          }
         }
       }
 
@@ -195,24 +211,14 @@ fn handle_ui_change( configurator : &mut Configurator, last_eye : &mut F32x3 )
       {
         // Save the new gem color to the current ring
         configurator.save_gem_to_ring();
-        configurator.update_gem_color();
-      }
-      else if ring_changed
-      {
-        // Apply the loaded gem color for the new ring
-        configurator.update_gem_color();
+        configurator.update_gem_color( true );
       }
 
       if metal_changed
       {
         // Save the new metal color to the current ring
         configurator.save_metal_to_ring();
-        configurator.update_metal_color();
-      }
-      else if ring_changed
-      {
-        // Apply the loaded metal color for the new ring
-        configurator.update_metal_color();
+        configurator.update_metal_color( true );
       }
 
       let new_eye = F32x3::from_array( ui_state.eye );
@@ -238,6 +244,33 @@ fn handle_ui_change( configurator : &mut Configurator, last_eye : &mut F32x3 )
   }
 }
 
+// Helper function to check if rendering is needed
+fn needs_render
+(
+  configurator : &Configurator,
+  is_resized : &Rc< RefCell< bool > >,
+  ui_changed : bool,
+  last_camera_eye : &mut F32x3,
+  last_camera_center : &mut F32x3
+) -> bool
+{
+  // Check if window was resized
+  let resize_needed = *is_resized.borrow();
+
+  // Check if animations are active
+  let animations_active = !configurator.animation_state.animations.keys().is_empty();
+
+  // Check if camera is moving
+  let current_eye = configurator.camera.get_controls().borrow().eye;
+  let current_center = configurator.camera.get_controls().borrow().center;
+  let camera_moved = current_eye != *last_camera_eye || current_center != *last_camera_center;
+  *last_camera_eye = current_eye;
+  *last_camera_center = current_center;
+
+  // Return true if any condition requires rendering
+  resize_needed || ui_changed || animations_active || camera_moved
+}
+
 /// Inits configurator and starts render loop
 async fn run() -> Result< (), gl::WebglError >
 {
@@ -260,6 +293,7 @@ async fn run() -> Result< (), gl::WebglError >
   ui::enable_debug_controls_if_needed();
 
   let mut configurator = Configurator::new( &gl, &canvas ).await?;
+  let mut empty_scene = Scene::new();
 
   let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
 
@@ -287,10 +321,14 @@ async fn run() -> Result< (), gl::WebglError >
 
   set_renderer_loaded();
 
-  // Define the update and draw logic
+  // Define the update and draw logic with on-demand rendering
   let update_and_draw =
   {
     let mut prev_time = 0.0;
+    let mut last_camera_eye = configurator.camera.get_controls().borrow().eye;
+    let mut last_camera_center = configurator.camera.get_controls().borrow().center;
+    let mut last_is_loading = false;
+
     move | t : f64 |
     {
       // If textures are of different size, gl.view_port needs to be called
@@ -298,16 +336,45 @@ async fn run() -> Result< (), gl::WebglError >
 
       let delta_time = t - prev_time;
       prev_time = t;
+
+      // Always update input and state
       handle_camera_position( &configurator );
       handle_resize( &gl, &mut configurator, &mut swap_buffer, &canvas, &is_resized, &mut last_eye );
+
       configurator.camera.update( delta_time );
       configurator.animation_state.update( delta_time );
 
+      // Check if UI changed
+      let ui_changed = ui::is_changed();
       handle_ui_change( &mut configurator, &mut last_eye );
 
-      let Some( ring ) = configurator.rings.get_ring() else { return true; };
-      let scene = &ring.scene;
-      let _ = configurator.renderer.borrow_mut().render( &gl, &mut scene.borrow_mut(), &configurator.camera );
+      // Check if a ring is being loaded
+      let ring_loading = configurator.rings.is_loading();
+
+      // If ring just finished loading, apply inherited colors
+      if last_is_loading && !ring_loading
+      {
+        configurator.update_gem_color( false );
+        configurator.update_metal_color( false );
+      }
+      last_is_loading = ring_loading;
+
+      // Check if rendering is needed
+      if ring_loading && !needs_render( &configurator, &is_resized, ui_changed, &mut last_camera_eye, &mut last_camera_center )
+      {
+        return true; // Continue loop but skip rendering to save GPU cycles
+      }
+
+      // Render when needed - if ring is loading, render empty scene
+      if let Some( ring ) = configurator.rings.get_ring()
+      {
+        let scene = &ring.scene;
+        let _ = configurator.renderer.borrow_mut().render( &gl, &mut scene.borrow_mut(), &configurator.camera );
+      }
+      else
+      {
+        let _ = configurator.renderer.borrow_mut().render( &gl, &mut empty_scene, &configurator.camera );
+      }
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );
@@ -331,6 +398,9 @@ async fn run() -> Result< (), gl::WebglError >
         gl::log::error!( "ToSrgb pass failed: {:?}, skipping frame", e );
         return true;
       }
+
+      // Reset resize flag after successful render
+      *is_resized.borrow_mut() = false;
 
       true
     }
