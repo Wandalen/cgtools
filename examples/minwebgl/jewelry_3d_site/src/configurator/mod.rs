@@ -60,7 +60,7 @@ pub const TRANSITION_DURATION_MS : f64 = 1000.0;
 /// Default clear color used for background and floor color.
 pub const CLEAR_COLOR : F32x3 = F32x3::splat( 2.0 );
 
-pub(crate) const RINGS_NUMBER : usize = 5;
+pub(crate) const RINGS_NUMBER : usize = 3;
 
 /// High-level scene configurator responsible for:
 /// - Renderer and camera setup
@@ -146,8 +146,8 @@ impl Configurator
     };
 
     configurator.setup_renderer();
-    configurator.update_gem_color();
-    configurator.update_metal_color();
+    configurator.update_gem_color( false );
+    configurator.update_metal_color( false );
 
     Ok( configurator )
   }
@@ -174,6 +174,7 @@ impl Configurator
 
   /// Loads gem color from the current ring's context into UI state.
   #[ inline ]
+  #[ allow( dead_code ) ]
   pub fn load_gem_from_ring( &mut self )
   {
     if let Some( colors ) = self.rings.ring_colors.get( self.rings.current_ring )
@@ -184,6 +185,7 @@ impl Configurator
 
   /// Loads metal color from the current ring's context into UI state.
   #[ inline ]
+  #[ allow( dead_code ) ]
   pub fn load_metal_from_ring( &mut self )
   {
     if let Some( colors ) = self.rings.ring_colors.get( self.rings.current_ring )
@@ -193,20 +195,29 @@ impl Configurator
   }
 
   /// Updates gem material color based on current UI selection.
-  /// Uses animated transitions when applicable.
+  /// Uses animated transitions when `animate` is true, instant update otherwise.
   #[ inline ]
-  pub fn update_gem_color( &mut self )
+  pub fn update_gem_color( &mut self, animate : bool )
   {
+    let apply_color = if animate
+    {
+      | s : &mut Self, color | s.set_gem_color_animated( color )
+    }
+    else
+    {
+      | s : &mut Self, color | s.set_gem_color( color )
+    };
+
     match self.ui_state.gem.as_str()
     {
-      "white" => self.set_gem_color( F32x3::from_array( [ 1.2, 1.2, 1.2 ] ) ),
-      "red" => self.set_gem_color( F32x3::from_array( [ 0.8, 0.05, 0.05 ] ) ),
-      "orange" => self.set_gem_color( F32x3::from_array( [ 1.0, 0.3, 0.05 ] ) * 2.0 ),
-      "yellow" => self.set_gem_color( F32x3::from_array( [ 1.7, 1.0, 0.15 ] ) ),
-      "green" => self.set_gem_color( F32x3::from_array( [ 0.1, 0.45, 0.15 ] ) ),
-      "turquoise" => self.set_gem_color( F32x3::from_array( [ 0.25, 0.83, 0.77 ] ) * 1.2 ),
-      "blue" => self.set_gem_color( F32x3::from_array( [ 0.1, 0.3, 1.0 ] ) * 1.2 ),
-      "pink" => self.set_gem_color( F32x3::from_array( [ 1.0, 0.41, 0.81 ] ) * 2.0 ),
+      "white" => apply_color( self, F32x3::from_array( [ 1.2, 1.2, 1.2 ] ) ),
+      "red" => apply_color( self, F32x3::from_array( [ 0.8, 0.05, 0.05 ] ) ),
+      "orange" => apply_color( self, F32x3::from_array( [ 1.0, 0.3, 0.05 ] ) * 2.0 ),
+      "yellow" => apply_color( self, F32x3::from_array( [ 1.7, 1.0, 0.15 ] ) ),
+      "green" => apply_color( self, F32x3::from_array( [ 0.1, 0.45, 0.15 ] ) ),
+      "turquoise" => apply_color( self, F32x3::from_array( [ 0.25, 0.83, 0.77 ] ) * 1.2 ),
+      "blue" => apply_color( self, F32x3::from_array( [ 0.1, 0.3, 1.0 ] ) * 1.2 ),
+      "pink" => apply_color( self, F32x3::from_array( [ 1.0, 0.41, 0.81 ] ) * 2.0 ),
       "custom" =>
       {
         #[ cfg( debug_assertions ) ]
@@ -222,7 +233,7 @@ impl Configurator
               ]
             );
             let final_color = base_color * self.ui_state.gem_multiplier;
-            self.set_gem_color( final_color );
+            apply_color( self, final_color );
           }
         }
       },
@@ -232,14 +243,24 @@ impl Configurator
 
   /// Updates metal (ring body) material color from UI state.
   /// Applies physically-based parameters suitable for jewelry.
+  /// Uses animated transitions when `animate` is true, instant update otherwise.
   #[ inline ]
-  pub fn update_metal_color( &mut self )
+  pub fn update_metal_color( &mut self, animate : bool )
   {
+    let apply_color = if animate
+    {
+      | s : &mut Self, color | s.set_metal_color_animated( color )
+    }
+    else
+    {
+      | s : &mut Self, color | s.set_metal_color( color )
+    };
+
     match self.ui_state.metal.as_str()
     {
-      "silver" => self.set_metal_color( F32x3::from_array( [ 0.753, 0.753, 0.753 ] ) * 1.2 ),
-      "copper" => self.set_metal_color( F32x3::from_array( [ 1.0, 0.4, 0.2 ] ) * 1.8 ),
-      "gold" => self.set_metal_color( F32x3::from_array( [ 1.0, 0.5, 0.1 ] ) * 2.0 ),
+      "silver" => apply_color( self, F32x3::from_array( [ 0.753, 0.753, 0.753 ] ) * 1.2 ),
+      "copper" => apply_color( self, F32x3::from_array( [ 1.0, 0.4, 0.2 ] ) * 1.8 ),
+      "gold" => apply_color( self, F32x3::from_array( [ 1.0, 0.5, 0.1 ] ) * 2.0 ),
       "custom" =>
       {
         #[ cfg( debug_assertions ) ]
@@ -255,7 +276,7 @@ impl Configurator
               ]
             );
             let final_color = base_color * self.ui_state.metal_multiplier;
-            self.set_metal_color( final_color );
+            apply_color( self, final_color );
           }
         }
       },
@@ -263,10 +284,79 @@ impl Configurator
     }
   }
 
+  /// Resets all loaded ring materials to default colors without creating animations.
+  /// This prevents unwanted color transitions when switching rings after reset.
+  /// Skips the current ring - it will be animated by update_gem_color/update_metal_color.
+  #[ inline ]
+  pub fn reset_rings( &mut self )
+  {
+    self.rings.reset_rings_colors();
+
+    let default_gem_color = F32x3::from_array( [ 1.2, 1.2, 1.2 ] ); // white
+    let default_metal_color = F32x3::from_array( [ 0.753, 0.753, 0.753 ] ) * 1.2; // silver
+
+    let current_ring_index = 0;
+    let rings = self.rings.rings.borrow();
+
+    for ( index, ring_option ) in rings.iter().enumerate()
+    {
+      if let Some( ring ) = ring_option
+      {
+        // Skip current ring - it will be animated by update_gem_color/update_metal_color
+        if index != current_ring_index
+        {
+          Self::set_gem_color_for_ring( ring, default_gem_color );
+          Self::set_metal_color_for_ring( ring, default_metal_color );
+        }
+      }
+    }
+  }
+
+  /// Sets gem color directly without animation for a specific ring
+  #[ inline ]
+  fn set_gem_color_for_ring( ring : &Ring, color : F32x3 )
+  {
+    for ( _, gem ) in &ring.gems
+    {
+      let Object3D::Mesh( mesh ) = &gem.borrow().object
+      else
+      {
+        continue;
+      };
+
+      for primitive in &mesh.borrow().primitives
+      {
+        let material = &primitive.borrow().material;
+
+        if material.borrow().type_name() != "GemMaterial"
+        {
+          continue;
+        }
+
+        let mut material = helpers::cast_unchecked_material_to_ref_mut::< GemMaterial >( material.borrow_mut() );
+        material.color = color;
+        material.needs_update = true;
+      }
+    }
+  }
+
+  /// Sets gem color directly without animation for the current ring
+  #[ inline ]
+  #[ allow( dead_code ) ]
+  pub fn set_gem_color( &mut self, color : F32x3 )
+  {
+    let Some( ring ) = self.rings.get_ring() else
+    {
+      return;
+    };
+
+    Self::set_gem_color_for_ring( &ring, color );
+  }
+
   /// Animates and applies a new gem color to all gem materials
   /// in the currently selected ring.
   #[ inline ]
-  pub fn set_gem_color( &mut self, color : F32x3 )
+  pub fn set_gem_color_animated( &mut self, color : F32x3 )
   {
     let delay = self.animation_state.animations.time();
     let get_player = | old_color : F32x3 |
@@ -319,10 +409,66 @@ impl Configurator
     }
   }
 
+  /// Sets metal color directly without animation for a specific ring
+  #[ inline ]
+  fn set_metal_color_for_ring( ring : &Ring, color : F32x3 )
+  {
+    let gems = &ring.gems;
+
+    let _ = ring.scene.borrow().traverse
+    (
+      &mut | node : Rc< RefCell< Node > > |
+      {
+        if let Some( name ) = node.borrow().get_name()
+        {
+          if gems.contains_key( &name.clone().into_string() )
+          {
+            return Ok( () );
+          }
+        }
+
+        let Object3D::Mesh( mesh ) = &node.borrow().object
+        else
+        {
+          return Ok( () );
+        };
+
+        for primitive in &mesh.borrow().primitives
+        {
+          let material = &primitive.borrow().material;
+
+          if material.borrow().type_name() != "PbrMaterial"
+          {
+            continue;
+          }
+
+          let mut material = helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
+
+          for i in 0..3
+          {
+            material.base_color_factor.0[ i ] = color.0[ i ];
+          }
+        }
+
+        Ok( () )
+      }
+    );
+  }
+
+  /// Sets metal color directly without animation for the current ring
+  #[ inline ]
+  #[ allow( dead_code ) ]
+  pub fn set_metal_color( &mut self, color : F32x3 )
+  {
+    let Some( ring ) = self.rings.get_ring() else { return; };
+
+    Self::set_metal_color_for_ring( &ring, color );
+  }
+
   /// Animates and applies a new metal color to all non-gem meshes
   /// in the current ring scene.
   #[ inline ]
-  pub fn set_metal_color
+  pub fn set_metal_color_animated
   (
     &mut self,
     color : F32x3
