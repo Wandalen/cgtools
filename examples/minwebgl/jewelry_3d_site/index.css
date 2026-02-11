@@ -24,6 +24,20 @@ html {
   font-size: 16px;
 }
 
+* {
+  caret-color: transparent;
+}
+
+button,
+a,
+[role="button"],
+.button,
+.btn-customize,
+.button--secondary,
+.button--exit {
+  cursor: pointer !important;
+}
+
 html,
 body,
 div,
@@ -138,6 +152,12 @@ body {
   overflow-y: scroll;
   font-family: "Cardo", serif;
   scroll-behavior: smooth;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  caret-color: transparent;
+  cursor: default;
 }
 
 body::-webkit-scrollbar {
@@ -294,7 +314,8 @@ table {
         margin: 0.5rem 0;
         text-indent: -62.4375rem;
         overflow: hidden;
-        pointer-events: none;
+        pointer-events: auto;
+        cursor: pointer;
         position: relative;
         opacity: 0.5;
         -webkit-transition: all 250ms ease-out;
@@ -396,6 +417,7 @@ table {
   right: 0;
   height: 100vh;
   opacity: 0;
+  pointer-events: auto;
   z-index: 2;
 
   @media (max-width: 37.5em) {
@@ -496,6 +518,7 @@ table {
       color: #000000;
       float: right;
       cursor: pointer;
+      pointer-events: auto;
       -webkit-transition: all 0.8s ease-in-out;
       -o-transition: all 0.8s ease-in-out;
       transition: all 0.8s ease-in-out;
@@ -601,12 +624,13 @@ table {
   flex-direction: column;
   position: absolute;
   text-align: center;
-  overflow: hidden;
+  overflow: visible;
   z-index: 2;
 
   .hero--scroller {
     opacity: 0;
     cursor: pointer;
+    pointer-events: auto;
 
     .hero--scroller--text {
       font-size: 0.75rem;
@@ -666,6 +690,7 @@ table {
   height: 100vh;
   opacity: 0;
   z-index: 2;
+  pointer-events: none;
 
   @media (max-width: 37.5em) {
     -webkit-box-orient: vertical;
@@ -789,7 +814,13 @@ table {
   -webkit-box-pack: start;
   -ms-flex-pack: start;
   justify-content: flex-start;
+  position: fixed;
+  top: 2em;
+  left: 0;
+  width: 100%;
   height: 100vh;
+  z-index: 2;
+  pointer-events: none;
 
   .choose--content {
     display: -webkit-box;
@@ -805,6 +836,7 @@ table {
     -webkit-box-align: center;
     -ms-flex-align: center;
     align-items: center;
+    pointer-events: auto;
 
     @media (max-width: 37.5em) {
       -webkit-box-pack: justify;
@@ -1102,12 +1134,15 @@ table {
   padding: 1.25rem 1.875rem;
   visibility: hidden;
   opacity: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 
 @media (max-width: 37.5rem) {
   .footer--container .gem--menu {
     width: 75%;
-    /* overflow-x: scroll; */
     bottom: 4.375rem;
     padding: 1.25rem 1.875rem;
   }
@@ -1190,12 +1225,15 @@ table {
   padding: 1.25rem 1.875rem;
   visibility: hidden;
   opacity: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 
 @media (max-width: 37.5rem) {
   .footer--container .materials--menu {
     width: 75%;
-    /* overflow-x: scroll; */
     bottom: 4.375rem;
     padding: 1.25rem 1.875rem;
   }
@@ -1284,12 +1322,15 @@ table {
   padding: 1.25rem 1.875rem;
   visibility: hidden;
   opacity: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 
 @media (max-width: 37.5rem) {
   .footer--container .rings--menu {
     width: 75%;
-    /* overflow-x: scroll; */
     bottom: 4.375rem;
     padding: 1.25rem 1.875rem;
   }
