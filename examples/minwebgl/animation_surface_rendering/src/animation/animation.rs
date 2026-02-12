@@ -23,7 +23,14 @@ mod private
   use kurbo::Affine;
   use renderer::webgl::loaders::gltf::GLTF;
   use rustc_hash::FxHashMap;
-  use minwebgl::{ self as gl, F32x4, F32x4x4, GL };
+  use minwebgl as gl;
+  use gl::
+  {
+    F32x4,
+    F32x4x4,
+    GL,
+    math::nd
+  };
   use core::cell::RefCell;
   use std::rc::Rc;
   use crate::primitive_data::primitives_data_to_gltf;
@@ -35,27 +42,20 @@ mod private
   };
   use crate::primitive_data::{ Behavior, PrimitiveData };
 
-  /// Converts a Kurbo `Affine` transformation into a WebGL-compatible 4x4 matrix.
+  /// Converts a 2D `Affine` transformation matrix to a 4x4 `F32x4x4` matrix, suitable for 3D rendering.
   pub fn affine_to_matrix( affine : Affine ) -> F32x4x4
   {
     let [ a, b, c, d , e, f ] = affine.as_coeffs();
 
-    let mut matrix = gl::math::mat4x4::identity();
+    let mut matrix = F32x4x4::identity();
 
     {
-      let matrix_mut : &mut [ f32 ] = matrix.as_raw_slice_mut();
-      let mut set_elem =
-      | i : usize, j : usize, v : f32 |
-      {
-        matrix_mut[ i * 4 + j ] = v;
-      };
-
-      set_elem( 0, 0, a as f32 );
-      set_elem( 0, 1, b as f32 );
-      set_elem( 1, 0, c as f32 );
-      set_elem( 1, 1, d as f32 );
-      set_elem( 3, 0, e as f32 );
-      set_elem( 3, 1, f as f32 );
+      *matrix.scalar_mut( nd::Ix2( 0, 0 ) ) = a as f32;
+      *matrix.scalar_mut( nd::Ix2( 1, 0 ) ) = b as f32;
+      *matrix.scalar_mut( nd::Ix2( 0, 1 ) ) = c as f32;
+      *matrix.scalar_mut( nd::Ix2( 1, 1 ) ) = d as f32;
+      *matrix.scalar_mut( nd::Ix2( 0, 3 ) ) = e as f32;
+      *matrix.scalar_mut( nd::Ix2( 1, 3 ) ) = f as f32;
     }
 
     matrix
@@ -368,7 +368,7 @@ mod private
 
           let matrix = node.borrow_mut().get_local_matrix();
 
-          let mut ids_and_children = vec![];
+          let mut ids_and_children = Vec::with_capacity( repeater.copies );
 
           for i in ( 0..repeater.copies ).rev()
           {
@@ -504,7 +504,7 @@ mod private
         }
         else
         {
-          F32x4::from_array([ 0.0; 4 ] )
+          F32x4::from_array( [ 0.0; 4 ] )
         };
 
         colors.push( color );
@@ -518,6 +518,7 @@ mod private
     }
 
     /// Returns a new scene and a list of colors for a specific animation frame.
+    /// Receives as input time moment from animation start in milliseconds
     pub fn frame( &self, frame : f64 ) -> Option< ( Scene, Vec< F32x4 > ) >
     {
       let Some( scene ) = self.gltf.scenes.first()
@@ -542,10 +543,9 @@ mod private
     {
       for scene in &self.gltf.scenes
       {
-        for child in &scene.borrow().children
-        {
-          child.borrow_mut().update_world_matrix( world_matrix, true );
-        }
+        let old_local_matrix = scene.borrow().get_local_matrix();
+        scene.borrow_mut().set_local_matrix( world_matrix * old_local_matrix );
+        scene.borrow_mut().update_world_matrix();
       }
     }
   }

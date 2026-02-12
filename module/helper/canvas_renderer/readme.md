@@ -48,7 +48,7 @@ use renderer::webgl::{ Camera, Node, Scene, Renderer, Texture, TextureInfo, mate
 use std::rc::Rc;
 use std::cell::RefCell;
 
-fn set_texture
+fn apply_function_to_node_materials
 (
   node : &Rc< RefCell< Node > >,
   mut material_callback : impl FnMut( &Rc< RefCell< Box< dyn Material > > > )

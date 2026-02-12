@@ -199,16 +199,17 @@ fn clone( gltf : &mut GLTF, node : &Rc< RefCell< Node > > ) -> Rc< RefCell< Node
   clone
 }
 
-/// Sets the textures for a `Node` and its primitives using a material callback.
+/// Applies a material modification callback to all primitives of a `Node`.
 ///
 /// This function iterates through all primitives of a given `Node` (if it's a `Mesh`),
-/// and applies a provided callback function to each primitive's material.
+/// and applies a provided callback function to each primitive's material, allowing
+/// modification of textures, alpha modes, and other material properties.
 ///
 /// # Arguments
 ///
 /// * `node` - A reference to the `Rc<RefCell<Node>>` to modify.
-/// * `material_callback` - A closure that takes a mutable reference to a `Material` and modifies it.
-fn set_texture
+/// * `material_callback` - A closure that takes a material reference and modifies it.
+fn apply_function_to_node_materials
 (
   node : &Rc< RefCell< Node > >,
   mut material_callback : impl FnMut( &mut PbrMaterial )
@@ -250,13 +251,13 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 )
   .expect( "Scene is empty" ).clone();
   let texture = create_texture( gl, "textures/earth2.jpg" );
-  set_texture( &earth, | m | { m.base_color_texture.clone_from( &texture ); } );
+  apply_function_to_node_materials( &earth, | m | { m.base_color_texture.clone_from( &texture ); } );
 
   earth.borrow_mut().update_local_matrix();
 
   let clouds = clone( &mut gltf, &earth );
   let texture = create_texture( gl, "textures/clouds2.png" );
-  set_texture
+  apply_function_to_node_materials
   (
     &clouds,
     | m |
@@ -273,20 +274,12 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 
   let moon = clone( &mut gltf, &earth );
   let texture = create_texture( gl, "textures/moon2.jpg" );
-  set_texture( &moon, | m | { m.base_color_texture.clone_from( &texture ); } );
+  apply_function_to_node_materials( &moon, | m | { m.base_color_texture.clone_from( &texture ); } );
   let scale = 0.25;
   let distance = 7.0;
   moon.borrow_mut().set_translation( [ distance, ( 1.0 - scale ), 0.0 ] );
   moon.borrow_mut().set_scale( [ scale; 3 ] );
   moon.borrow_mut().update_local_matrix();
-
-  let environment = clone( &mut gltf, &earth );
-  let texture = create_texture( gl, "environment_maps/equirectangular_maps/space3.png" );
-  set_texture( &environment, | m | { m.base_color_texture.clone_from( &texture ); } );
-  let scale = 100_000.0;
-  environment.borrow_mut().set_translation( [ 0.0, 1.0 - scale, 0.0 ] );
-  environment.borrow_mut().set_scale( [ scale; 3 ] );
-  environment.borrow_mut().update_local_matrix();
 
   Ok( gltf )
 }
@@ -339,29 +332,6 @@ async fn setup_canvas_scene( gl : &WebGl2RenderingContext ) -> ( GLTF, Vec< F32x
   let canvas_gltf = primitive_generation::primitives_data_to_gltf( gl, primitives_data );
 
   ( canvas_gltf, colors )
-}
-
-/// Calculates the mathematical modulo of two floating-point numbers.
-///
-/// This function ensures the result is always non-negative, which differs
-/// from the standard remainder operator (`%`) for negative dividends.
-///
-/// # Arguments
-///
-/// * `dividend` - The number to be divided.
-/// * `divisor` - The number to divide by.
-///
-/// # Returns
-///
-/// The non-negative remainder of the division.
-pub fn modulo( dividend : f64, divisor : f64 ) -> f64
-{
-  let mut result = dividend % divisor;
-  if result < 0.0
-  {
-    result += divisor.abs();
-  }
-  result
 }
 
 /// Sets up a complex 2D animation using the `animation` module.
@@ -641,7 +611,6 @@ async fn run() -> Result< (), gl::WebglError >
   animation.set_world_matrix( identity() );
 
   let canvas_camera = init_camera( &canvas, &canvas_gltf.scenes );
-  canvas_camera.bind_controls( &canvas );
   canvas_camera.get_controls().borrow_mut().window_size = [ ( canvas.width() * 4 ) as f32, ( canvas.height() * 4 ) as f32 ].into();
   canvas_camera.get_controls().borrow_mut().eye = [ 0.0, 0.0, 150.0 ].into();
   {
@@ -658,7 +627,7 @@ async fn run() -> Result< (), gl::WebglError >
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 )
   .expect( "Scene is empty" ).clone();
   let canvas_sphere = clone( &mut gltf, &earth );
-  set_texture
+  apply_function_to_node_materials
   (
     &canvas_sphere,
     | m |
@@ -683,9 +652,13 @@ async fn run() -> Result< (), gl::WebglError >
   let eye = gl::math::mat3x3h::rot( 0.0, - 73.0_f32.to_radians(), - 15.0_f32.to_radians() )
   * F32x4::from_array([ 0.0, 1.7, 1.7, 1.0 ] );
   camera.get_controls().borrow_mut().eye = [ eye.x(), eye.y(), eye.z() ].into();
+  camera.get_controls().borrow_mut().center = [ 0.0, 1.0, 0.0 ].into();
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
   renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "environment_maps/gltf_viewer_ibl_unreal", None ).await );
+  let skybox = create_texture( &gl, "environment_maps/equirectangular_maps/space3.png" )
+  .expect( "Failed to load skybox texture" );
+  renderer.set_skybox( skybox.texture.borrow().source.clone() );
 
   let mut swap_buffer = SwapFramebuffer::new( &gl, canvas.width(), canvas.height() );
 
@@ -700,7 +673,11 @@ async fn run() -> Result< (), gl::WebglError >
       // If textures are of different size, gl.view_port needs to be called
       let time = t as f32 / 1000.0;
 
-      if let Some( ( mut scene, colors ) ) = animation.frame( modulo( time as f64 * 1.0, 10.0 ) )
+      // Total duration of the lottie animation in milliseconds
+      let animation_duration = 10.0;
+      let frame = f64::from( time ) % animation_duration;
+      // [`Animation::frame`] receives as input time moment from animation start in milliseconds
+      if let Some( ( mut scene, colors ) ) = animation.frame( frame )
       {
         canvas_renderer.render( &gl, &mut scene, &canvas_camera, &colors ).expect( "Failed to render frame" );
       }
