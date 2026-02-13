@@ -3,6 +3,35 @@
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 #![ cfg_attr( not( doc ), doc = "Line drawing and manipulation utilities for 2D and 3D graphics" ) ]
 
+#![ allow( clippy::needless_borrow ) ]
+#![ allow( clippy::cast_precision_loss ) ]
+#![ allow( clippy::implicit_return ) ]
+#![ allow( clippy::missing_inline_in_public_items ) ]
+#![ allow( clippy::min_ident_chars ) ]
+#![ allow( clippy::similar_names ) ]
+#![ allow( clippy::missing_panics_doc ) ]
+#![ allow( clippy::missing_errors_doc ) ]
+#![ allow( clippy::must_use_candidate ) ]
+#![ allow( clippy::redundant_static_lifetimes ) ]
+#![ allow( clippy::cast_possible_truncation ) ]
+#![ allow( clippy::cast_possible_wrap ) ]
+#![ allow( clippy::cast_sign_loss ) ]
+#![ allow( clippy::field_reassign_with_default ) ]
+#![ allow( clippy::wildcard_imports ) ]
+#![ allow( clippy::range_plus_one ) ]
+#![ allow( clippy::std_instead_of_core ) ]
+#![ allow( clippy::map_flatten ) ]
+#![ allow( clippy::semicolon_if_nothing_returned ) ]
+#![ allow( clippy::exhaustive_enums ) ]
+#![ allow( clippy::exhaustive_structs ) ]
+#![ allow( clippy::len_zero ) ]
+#![ allow( clippy::redundant_closure ) ]
+#![ allow( clippy::redundant_closure_for_method_calls ) ]
+#![ allow( clippy::redundant_field_names ) ]
+#![ allow( clippy::collapsible_else_if ) ]
+#![ allow( clippy::too_many_lines ) ]
+#![ allow( clippy::match_wildcard_for_single_variants ) ]
+
 mod private
 {
   /// Return the types corresponding to the provided length
@@ -66,24 +95,24 @@ mod private
         /// Clears the points from the line without releasing the memory
         pub fn clear( &mut self )
         {
-          self.points.clear();
-          self.colors.clear();
+          self.geometry.points.clear();
+          self.geometry.colors.clear();
 
           #[ cfg( feature = "distance" ) ]
           {
-            self.distances.clear();
-            self.total_distance = 0.0;
+            self.geometry.distances.clear();
+            self.geometry.total_distance = 0.0;
           }
 
-          self.points_changed = true;
-          self.colors_changed = true;
+          self.change_state.points_changed = true;
+          self.change_state.colors_changed = true;
         }
 
         /// Sets whether the vertex color attribute will be used or not
         pub fn use_vertex_color( &mut self, value : bool )
         {
-          self.use_vertex_color = value;
-          self.defines_changed = true;
+          self.render_state.use_vertex_color = value;
+          self.change_state.defines_changed = true;
         }
 
         /// Adds a new point to the back of the list.
@@ -94,7 +123,7 @@ mod private
 
           #[ cfg( feature = "distance" ) ]
           {
-            let distance = if let Some( last ) = self.points.back().copied()
+            let distance = if let Some( last ) = self.geometry.points.back().copied()
             {
               if ( last - point ).mag2() <= std::$primitive_type::EPSILON 
               {
@@ -108,12 +137,12 @@ mod private
               0.0
             };
 
-            self.total_distance += distance;
-            self.distances.push_back( self.total_distance );
+            self.geometry.total_distance += distance;
+            self.geometry.distances.push_back( self.geometry.total_distance );
           }
 
-          self.points.push_back( point );
-          self.points_changed = true;
+          self.geometry.points.push_back( point );
+          self.change_state.points_changed = true;
         }
 
         /// Adds a new point to the front of the list.
@@ -122,9 +151,11 @@ mod private
           let mut iter = point.vector_iter();
           let point = splat_vector!( *iter.next().unwrap(), $primitive_type, $dimensions );
 
+          let geometry = &mut self.geometry;
+
           #[ cfg( feature = "distance" ) ]
           {
-            let distance = if let Some( last ) = self.points.front().copied()
+            let distance = if let Some( last ) = geometry.points.front().copied()
             {
               if ( last - point ).mag2() <= std::$primitive_type::EPSILON 
               {
@@ -138,17 +169,17 @@ mod private
               0.0
             };
 
-            for d in self.distances.iter_mut()
+            for d in geometry.distances.iter_mut()
             {
               *d += distance;
             }
 
-            self.total_distance += distance;
-            self.distances.push_front( 0.0 );
+            geometry.total_distance += distance;
+            geometry.distances.push_front( 0.0 );
           }
 
-          self.points.push_front( point );
-          self.points_changed = true;
+          geometry.points.push_front( point );
+          self.change_state.points_changed = true;
         }
 
         /// Adds a new point to the back of the list.
@@ -159,7 +190,7 @@ mod private
             self.point_add_back( &points[ i ] );
           }
 
-          self.points_changed = true;
+          self.change_state.points_changed = true;
         }
 
         /// Adds a new point to the front of the list.
@@ -170,7 +201,7 @@ mod private
             self.point_add_front( &points[ i ] );
           }
 
-          self.points_changed = true;
+          self.change_state.points_changed = true;
         }
 
         /// Adds the color to a list of colors. Each color belongs to a point with the same index;
@@ -179,8 +210,8 @@ mod private
           let mut iter = color.vector_iter();
           let color = splat_vector!( *iter.next().unwrap(), $primitive_type, 3 );
 
-          self.colors.push_front( color );
-          self.colors_changed = true;
+          self.geometry.colors.push_front( color );
+          self.change_state.colors_changed = true;
         }
 
         /// Adds the color to a list of colors. Each color belongs to a point with the same index;
@@ -189,22 +220,22 @@ mod private
           let mut iter = color.vector_iter();
           let color = splat_vector!( *iter.next().unwrap(), $primitive_type, 3 );
 
-          self.colors.push_back( color );
-          self.colors_changed = true;
+          self.geometry.colors.push_back( color );
+          self.change_state.colors_changed = true;
         }
 
         /// Retrieves the points at the specified position.
         /// Will panic if index is out of range
         pub fn point_get( &self, index : usize ) -> dim_to_vec!( $primitive_type, $dimensions )
         {
-          self.points[ index ]
+          self.geometry.points[ index ]
         }
 
         /// Sets the points at the specified position.
         /// Will panic if index is out of range
         pub fn point_set< P : gl::VectorIter< $primitive_type, $dimensions > >( &mut self, point : P, index : usize )
         {
-          if let Some( p ) = self.points.get_mut( index )
+          if let Some( p ) = self.geometry.points.get_mut( index )
           {
             let mut iter = point.vector_iter();
             let point = splat_vector!( *iter.next().unwrap(), $primitive_type, $dimensions );
@@ -213,7 +244,7 @@ mod private
             #[ cfg( feature = "distance" ) ]
             self.distances_update_from( index );
 
-            self.points_changed = true;
+            self.change_state.points_changed = true;
           }
         }
 
@@ -221,23 +252,23 @@ mod private
         /// Will panic if index is out of range
         pub fn color_set< C : gl::VectorIter< $primitive_type, 3 > >( &mut self, color : C, index : usize )
         {
-          if let Some( c ) = self.colors.get_mut( index )
+          if let Some( c ) = self.geometry.colors.get_mut( index )
           {
             let mut iter = color.vector_iter();
             let color = splat_vector!( *iter.next().unwrap(), $primitive_type, 3 );
 
             *c = color;
-            self.colors_changed = true;
+            self.change_state.colors_changed = true;
           }
         }
 
         /// Removes a point at the specified index
         pub fn point_remove( &mut self, index : usize ) -> Option< dim_to_vec!( $primitive_type, $dimensions ) >
         {
-          let point = self.points.remove( index );
+          let point = self.geometry.points.remove( index );
           #[ cfg( feature = "distance" ) ]
           self.distances_update_from( index );
-          self.points_changed = true;
+          self.change_state.points_changed = true;
 
           point
         }
@@ -245,8 +276,8 @@ mod private
         /// Removes a color an the color at the specified index
         pub fn color_remove( &mut self, index : usize ) -> Option< dim_to_vec!( $primitive_type, 3 ) >
         {
-          let color = self.colors.remove( index );
-          self.colors_changed = true;
+          let color = self.geometry.colors.remove( index );
+          self.change_state.colors_changed = true;
 
           color
         }
@@ -254,20 +285,21 @@ mod private
         /// Removes a points from the front
         pub fn point_remove_front( &mut self ) -> Option< dim_to_vec!( $primitive_type, $dimensions ) >
         {
+          let geometry = &mut self.geometry;
           #[ cfg( feature = "distance" ) ]
           {
-            if self.distances.len() > 1
+            if geometry.distances.len() > 1
             {
-              let delta_dist = self.distances[ 1 ];
-              for d in self.distances.iter_mut().skip( 1 )
+              let delta_dist = geometry.distances[ 1 ];
+              for d in geometry.distances.iter_mut().skip( 1 )
               {
                 *d -= delta_dist;
               }
             }
-            self.distances.pop_front();
+            geometry.distances.pop_front();
           }
-          let point = self.points.pop_front();
-          self.points_changed = true;
+          let point = geometry.points.pop_front();
+          self.change_state.points_changed = true;
 
           point
         }
@@ -275,8 +307,8 @@ mod private
         /// Removes a points from the front
         pub fn color_remove_front( &mut self ) -> Option< dim_to_vec!( $primitive_type, 3 ) >
         {
-          let color = self.colors.pop_front();
-          self.colors_changed = true;
+          let color = self.geometry.colors.pop_front();
+          self.change_state.colors_changed = true;
 
           color
         }
@@ -284,18 +316,19 @@ mod private
         /// Remove a point from the back
         pub fn point_remove_back( &mut self ) -> Option< dim_to_vec!( $primitive_type, $dimensions ) >
         {
+          let geometry = &mut self.geometry;
           #[ cfg( feature = "distance" ) ]
           {
-            if self.distances.len() > 0
+            if geometry.distances.len() > 0
             {
-              let delta_dist = self.distances.back().unwrap();
-              self.total_distance -= delta_dist;
-              self.distances.pop_back();
+              let delta_dist = geometry.distances.back().unwrap();
+              geometry.total_distance -= delta_dist;
+              geometry.distances.pop_back();
             }
           }
 
-          let point = self.points.pop_back();
-          self.points_changed = true;
+          let point = geometry.points.pop_back();
+          self.change_state.points_changed = true;
 
           point
         }
@@ -303,8 +336,8 @@ mod private
         /// Removes a points from the front
         pub fn color_remove_back( &mut self ) -> Option< dim_to_vec!( $primitive_type, 3 ) >
         {
-          let color = self.colors.pop_back();
-          self.colors_changed = true;
+          let color = self.geometry.colors.pop_back();
+          self.change_state.colors_changed = true;
 
           color
         }
@@ -316,7 +349,7 @@ mod private
           {
             self.point_remove_front();
           }
-          self.points_changed = true
+          self.change_state.points_changed = true
         }
 
         /// Remove the specified amount of colors from the front of the list
@@ -326,7 +359,7 @@ mod private
           {
             self.color_remove_front();
           }
-          self.colors_changed = true
+          self.change_state.colors_changed = true
         }
 
         /// Remove the specified amount of points from the back of the list
@@ -336,7 +369,7 @@ mod private
           {
             self.point_remove_back();
           }
-          self.points_changed = true
+          self.change_state.points_changed = true
         }
 
         /// Remove the specified amount of colors from the back of the list
@@ -346,96 +379,97 @@ mod private
           {
             self.color_remove_back();
           }
-          self.colors_changed = true
+          self.change_state.colors_changed = true
         }
 
         /// Retrieves a reference to the mesh.
         pub fn mesh_get( &self ) -> Result< &Mesh, gl::WebglError >
         {
-          self.mesh.as_ref().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )
+          self.render_state.mesh.as_ref().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )
         }  
 
         /// Retrieves a mutable reference to the mesh.
         pub fn mesh_get_mut( &mut self ) -> Result< &mut Mesh, gl::WebglError >
         {
-          self.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )
+          self.render_state.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )
         }  
 
         /// Retrieves a slice of the line's points.
         pub fn points_get( &mut self ) -> &[ dim_to_vec!( $primitive_type, $dimensions ) ]
         {
-          self.points.make_contiguous();
-          self.points.as_slices().0
+          self.geometry.points.make_contiguous();
+          self.geometry.points.as_slices().0
         }
 
         /// Retrieves a slice of the colors.
         pub fn colors_get( &mut self ) -> &[ dim_to_vec!( $primitive_type, 3 ) ]
         {
-          self.colors.make_contiguous();
-          self.colors.as_slices().0
+          self.geometry.colors.make_contiguous();
+          self.geometry.colors.as_slices().0
         }
 
         #[ cfg( feature = "distance" ) ]
         /// Retrieves a slice of the distances.
         pub fn distances_get( &mut self ) -> &[ $primitive_type ]
         {
-          self.distances.make_contiguous();
-          self.distances.as_slices().0
+          self.geometry.distances.make_contiguous();
+          self.geometry.distances.as_slices().0
         }
 
         /// Return the number of points that form this line
         pub fn num_points( &self ) -> usize
         {
-          self.points.len()
+          self.geometry.points.len()
         }
 
         #[ cfg( feature = "distance" ) ]
         /// Return the total lenth of the line
         pub fn total_distance_get( &self ) -> f32
         {
-          self.total_distance
+          self.geometry.total_distance
         }
 
         #[ cfg( feature = "distance" ) ]
         /// Recalculates the distance value for all points
         pub fn distances_update( &mut self )
         {
-          self.total_distance = 0.0;
-          self.distances.clear();
-          self.distances.push_back( 0.0 );
-          for ( i, p ) in self.points.iter().skip( 1 ).enumerate()
+          self.geometry.total_distance = 0.0;
+          self.geometry.distances.clear();
+          self.geometry.distances.push_back( 0.0 );
+          for ( i, p ) in self.geometry.points.iter().skip( 1 ).enumerate()
           {
-            let dist = ( *p - *self.points.get( i ).unwrap() ).mag();
-            self.total_distance += dist;
-            self.distances.push_back( self.total_distance );
+            let dist = ( *p - *self.geometry.points.get( i ).unwrap() ).mag();
+            self.geometry.total_distance += dist;
+            self.geometry.distances.push_back( self.geometry.total_distance );
           } 
         }
 
         #[ cfg( feature = "distance" ) ]
         fn distances_update_from( &mut self, index : usize )
         {
+          let geometry = &mut self.geometry;
           if index > 0
           {
-            if let ( Some( prev_point ), Some( set_point ) ) = ( self.points.get( index - 1 ), self.points.get( index ) )
+            if let ( Some( prev_point ), Some( set_point ) ) = ( geometry.points.get( index - 1 ), geometry.points.get( index ) )
             {
               let delta_dist = ( set_point - prev_point ).mag();
-              self.distances[ index ] = self.distances[ index - 1 ] + delta_dist;
+              geometry.distances[ index ] = geometry.distances[ index - 1 ] + delta_dist;
             }
 
           }
           else
           {
-            self.total_distance = 0.0;
-            self.distances[ 0 ] = 0.0;
+            geometry.total_distance = 0.0;
+            geometry.distances[ 0 ] = 0.0;
           }
 
-          for i in ( index + 1 )..self.points.len()
+          for i in ( index + 1 )..geometry.points.len()
           {
-            let delta_dist = ( self.points[ i - 1 ] - self.points[ i ] ).mag();
-            self.distances[ i ] = self.distances[ i - 1 ] + delta_dist;
+            let delta_dist = ( geometry.points[ i - 1 ] - geometry.points[ i ] ).mag();
+            geometry.distances[ i ] = geometry.distances[ i - 1 ] + delta_dist;
           }
 
-          self.total_distance = *self.distances.back().unwrap();
+          geometry.total_distance = *geometry.distances.back().unwrap();
         }
       }
     }

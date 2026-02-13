@@ -1,3 +1,11 @@
+
+#![ allow( dead_code ) ]
+#![ allow( clippy::large_enum_variant ) ]
+#![ allow( clippy::type_complexity ) ]
+#![ allow( clippy::cast_sign_loss ) ]
+#![ allow( clippy::used_underscore_binding ) ]
+#![ allow( clippy::default_trait_access ) ]
+
 mod private
 {
   use former::Former;
@@ -15,7 +23,7 @@ mod private
     Vec2
   };
   use crate::primitive::points_to_path;
-  use std::ops::Range;
+  use core::ops::Range;
 
   /// Creates a fixed `Value` that holds a single, constant value.
   ///
@@ -46,8 +54,8 @@ mod private
   ///
   /// A `Value::Animated` containing the animated data.
   pub fn animated< T : interpoli::Tween >
-  ( 
-    values : Vec< ( f64, [ Option< [ f64; 2 ] >; 2 ], bool, T ) > 
+  (
+    values : Vec< ( f64, [ Option< [ f64; 2 ] >; 2 ], bool, T ) >
   ) -> Value< T >
   {
     let _values = values.iter()
@@ -57,22 +65,22 @@ mod private
 
     let times = values.into_iter()
     .map
-    ( 
-      | ( frame, [ in_tangent, out_tangent ], hold, _ ) | 
+    (
+      | ( frame, [ in_tangent, out_tangent ], hold, _ ) |
       {
         interpoli::Time
         {
           frame,
-          in_tangent : in_tangent.map( | [ x1, y1 ] | EasingHandle{ x : x1, y : y1 } ), 
+          in_tangent : in_tangent.map( | [ x1, y1 ] | EasingHandle{ x : x1, y : y1 } ),
           out_tangent : out_tangent.map( | [ x2, y2 ] | EasingHandle{ x : x2, y : y2 } ),
           hold
         }
-      } 
+      }
     )
     .collect::< Vec< _ > >();
 
     Value::Animated
-    ( 
+    (
       interpoli::Animated
       {
         times,
@@ -108,9 +116,9 @@ mod private
   }
 
   /// Converts a `Transform` into an `interpoli::animated::Transform`.
-  impl Into< interpoli::animated::Transform > for Transform 
+  impl From< Transform > for interpoli::animated::Transform
   {
-    fn into( self ) -> interpoli::animated::Transform 
+    fn from( val: Transform ) -> Self
     {
       let Transform
       {
@@ -120,8 +128,8 @@ mod private
         scale,
         skew,
         skew_angle,
-      } 
-      = self;
+      }
+      = val;
 
       interpoli::animated::Transform
       {
@@ -139,7 +147,7 @@ mod private
   ///
   /// This struct controls the number of copies and their properties like offset, transform, and opacity.
   #[ derive( Debug, Clone, Former ) ]
-  pub struct Repeater 
+  pub struct Repeater
   {
     /// The number of copies to create.
     #[ former( default = 0.0 ) ]
@@ -168,28 +176,28 @@ mod private
   }
 
   /// Converts a `Repeater` into an `interpoli::animated::Repeater`.
-  impl Into< interpoli::animated::Repeater > for Repeater 
+  impl From< Repeater > for interpoli::animated::Repeater
   {
-    fn into( self ) -> interpoli::animated::Repeater 
+    fn from( val : Repeater ) -> Self
     {
       interpoli::animated::Repeater
       {
-        copies : Value::Fixed( self.copies ),
-        offset : self.offset.clone(),
-        anchor_point : self.anchor_point.clone(),
-        position : self.position.clone(),
-        rotation : self.rotation.clone(),
-        scale : self.scale.clone(),
-        start_opacity : self.start_opacity.clone(),
-        end_opacity : self.end_opacity.clone()
+        copies : Value::Fixed( val.copies ),
+        offset : val.offset.clone(),
+        anchor_point : val.anchor_point.clone(),
+        position : val.position.clone(),
+        rotation : val.rotation.clone(),
+        scale : val.scale.clone(),
+        start_opacity : val.start_opacity.clone(),
+        end_opacity : val.end_opacity.clone()
       }
     }
   }
-  
+
   /// Represents a color, which can be either fixed or animated.
   #[ allow( dead_code ) ]
   #[ derive( Debug, Clone ) ]
-  pub enum Color 
+  pub enum Color
   {
     /// A fixed color value as a 4-element f32 array (RGBA).
     Fixed( [ f32; 4 ] ),
@@ -234,7 +242,7 @@ mod private
       {
         let shape : interpoli::Shape = match shape
         {
-          Shape::Stroke( _stroke ) => 
+          Shape::Stroke( _stroke ) =>
           {
             stroke = _stroke;
 
@@ -243,11 +251,11 @@ mod private
               Color::Fixed( fixed ) =>
               {
                 interpoli::Brush::Fixed
-                ( 
+                (
                   peniko::Brush::Solid
-                  ( 
+                  (
                     color::AlphaColor::< color::Srgb >::new( fixed )
-                  ) 
+                  )
                 )
               },
               Color::Animated( ref animated ) =>
@@ -257,13 +265,13 @@ mod private
             };
 
             interpoli::Shape::Draw
-            ( 
+            (
               interpoli::Draw
-              { 
-                stroke : stroke.map( | v | Stroke::Fixed( kurbo::Stroke::new( v ) ) ), 
-                brush, 
-                opacity : interpoli::Value::Fixed( 1.0 ) 
-              } 
+              {
+                stroke : stroke.map( | v | Stroke::Fixed( kurbo::Stroke::new( v ) ) ),
+                brush,
+                opacity : interpoli::Value::Fixed( 1.0 )
+              }
             )
           },
           Shape::Color( _color ) =>
@@ -275,11 +283,11 @@ mod private
               Color::Fixed( fixed ) =>
               {
                 interpoli::Brush::Fixed
-                ( 
+                (
                   peniko::Brush::Solid
-                  ( 
+                  (
                     color::AlphaColor::< color::Srgb >::new( fixed )
-                  ) 
+                  )
                 )
               },
               Color::Animated( ref animated ) =>
@@ -289,44 +297,44 @@ mod private
             };
 
             interpoli::Shape::Draw
-            ( 
+            (
               interpoli::Draw
-              { 
-                stroke : stroke.map( | v | Stroke::Fixed( kurbo::Stroke::new( v ) ) ), 
-                brush, 
-                opacity : interpoli::Value::Fixed( 1.0 ) 
-              } 
+              {
+                stroke : stroke.map( | v | Stroke::Fixed( kurbo::Stroke::new( v ) ) ),
+                brush,
+                opacity : interpoli::Value::Fixed( 1.0 )
+              }
             )
           },
-          Shape::Geometry( contour ) => 
+          Shape::Geometry( contour ) =>
           {
             interpoli::Shape::Geometry
-            ( 
+            (
               interpoli::Geometry::Fixed( points_to_path( contour ) )
             )
           },
-          Shape::Spline { path, is_closed } => 
+          Shape::Spline { path, is_closed } =>
           {
             interpoli::Shape::Geometry
-            ( 
+            (
               interpoli::Geometry::Spline
-              ( 
+              (
                 interpoli::animated::Spline
                 {
                   is_closed,
                   times : vec![],
-                  values : 
+                  values :
                   vec!
-                  [ 
+                  [
                     path.into_iter()
                     .map( | p | kurbo::Point::new( p[ 0 ].into(), p[ 1 ].into() ) )
-                    .collect::< Vec< _ > >() 
+                    .collect::< Vec< _ > >()
                   ]
                 }
               )
             )
           },
-          Shape::Repeater( repeater ) => interpoli::Shape::Repeater( repeater.into() ),
+          Shape::Repeater( repeater ) => interpoli::Shape::Repeater( repeater ),
         };
 
         _shapes.push( shape );
@@ -335,7 +343,7 @@ mod private
       Content::Shape( _shapes )
     }
   }
-  
+
   /// Represents a single layer in a composition, with properties like parent, frame range, transform, and content.
   #[ derive( Debug, Clone, Former ) ]
   pub struct Layer
@@ -359,35 +367,35 @@ mod private
   }
 
   /// Converts a `Layer` into an `interpoli::Layer`.
-  impl Into< interpoli::Layer > for Layer 
+  impl From< Layer > for interpoli::Layer
   {
-    fn into( self ) -> interpoli::Layer 
+    fn from( val : Layer ) -> Self
     {
-      let parent = if self.parent == -1 
+      let parent = if val.parent == -1
       {
         None
       }
       else
-      { 
-        Some( self.parent as usize )
+      {
+        Some( val.parent as usize )
       };
 
-      interpoli::Layer 
+      interpoli::Layer
       {
         name : String::new(),
         parent,
-        transform : self.transform,
+        transform : val.transform,
         opacity : Value::Fixed( 1.0 ),
         width : 0.0,
         height : 0.0,
         blend_mode : None,
-        frames : self.frames.clone(),
+        frames : val.frames.clone(),
         stretch : 1.0,
-        start_frame : self.start_frame,
+        start_frame : val.start_frame,
         masks : vec![],
         is_mask : false,
         mask_layer : None,
-        content : Shape::into_content( self.content.clone() )
+        content : Shape::into_content( val.content.clone() )
       }
     }
   }
@@ -398,10 +406,10 @@ mod private
   {
     /// The width of the composition.
     #[ former( default = 1920_usize ) ]
-    pub width : usize, 
+    pub width : usize,
     /// The height of the composition.
     #[ former( default = 1080_usize ) ]
-    pub height : usize, 
+    pub height : usize,
     /// The frame range of the composition.
     #[ former( default = 0.0..0.0 ) ]
     pub frames : Range< f64 >,
@@ -412,20 +420,20 @@ mod private
   }
 
   /// Converts a `Model` into an `interpoli::Composition`.
-  impl Into< Composition > for Model 
+  impl From< Model > for Composition
   {
-    fn into( self ) -> Composition 
+    fn from( val : Model ) -> Self
     {
       Composition
       {
-        frames : self.frames.clone(),
+        frames : val.frames.clone(),
         frame_rate : 60.0,
-        width : self.width,
-        height : self.height,
+        width : val.width,
+        height : val.height,
         assets : Default::default(),
-        layers : self.layers.clone()
+        layers : val.layers.clone()
         .into_iter()
-        .map( | l | l.into() )
+        .map( minwebgl::Into::into )
         .collect::< Vec< interpoli::Layer > >()
       }
     }

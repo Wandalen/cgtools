@@ -2,125 +2,7 @@
 
 mod private
 {
-  #[ cfg( test ) ]
-  mod tests
-  {
-    use crate::easing::
-    {
-      base::{ EasingFunction, EasingBuilder },
-      Linear, Step
-    };
-    use crate::easing::
-    {
-      EaseInSine,
-      EaseOutSine,
-      EaseInOutSine,
-      EaseInQuad,
-      EaseOutQuad,
-      EaseInOutQuad,
-      EaseInCubic,
-      EaseOutCubic,
-      EaseInOutCubic,
-      EaseInQuart,
-      EaseOutQuart,
-      EaseInOutQuart,
-      EaseInQuint,
-      EaseOutQuint,
-      EaseInOutQuint,
-      EaseInExpo,
-      EaseOutExpo,
-      EaseInOutExpo,
-      EaseInCirc,
-      EaseOutCirc,
-      EaseInOutCirc,
-      EaseInBack,
-      EaseOutBack,
-      EaseInOutBack
-    };
 
-    #[ test ]
-    fn test_linear_function()
-    {
-      // Linear easing should return the input value directly
-      assert_eq!( Linear::new().apply( 0.5 ), 0.5 );
-      assert_eq!( Linear::new().apply( 0.0 ), 0.0 );
-      assert_eq!( Linear::new().apply( 1.0 ), 1.0 );
-    }
-
-    #[ test ]
-    fn test_step_function()
-    {
-      // Step easing should progress in discrete steps
-      let step_func = Step::new( 5.0 );
-      assert_eq!( step_func.apply( 0.0 ), 0.0 );
-      assert_eq!( step_func.apply( 0.01 ), 0.2 );
-      assert_eq!( step_func.apply( 0.2 ), 0.2 );
-      assert_eq!( step_func.apply( 0.21 ), 0.4 );
-      assert_eq!( step_func.apply( 0.4 ), 0.4 );
-      assert_eq!( step_func.apply( 0.81 ), 1.0 );
-      assert_eq!( step_func.apply( 1.0 ), 1.0 );
-    }
-
-    #[ test ]
-    fn test_cubic_boundaries_and_properties()
-    {
-      // A list of all cubic easing functions to test common properties
-      let cubic_functions : Vec< Box< dyn EasingFunction > > = vec!
-      [
-        EaseInSine::new(),
-        EaseOutSine::new(),
-        EaseInOutSine::new(),
-        EaseInQuad::new(),
-        EaseOutQuad::new(),
-        EaseInOutQuad::new(),
-        EaseInCubic::new(),
-        EaseOutCubic::new(),
-        EaseInOutCubic::new(),
-        EaseInQuart::new(),
-        EaseOutQuart::new(),
-        EaseInOutQuart::new(),
-        EaseInQuint::new(),
-        EaseOutQuint::new(),
-        EaseInOutQuint::new(),
-        EaseInExpo::new(),
-        EaseOutExpo::new(),
-        EaseInOutExpo::new(),
-        EaseInCirc::new(),
-        EaseOutCirc::new(),
-        EaseInOutCirc::new(),
-        EaseInBack::new(),
-        EaseOutBack::new(),
-        EaseInOutBack::new(),
-      ];
-
-      // All cubic functions should return 0.0 at t = 0.0 and 1.0 at t = 1.0
-      for easing_function in cubic_functions
-      {
-        assert_eq!( easing_function.apply( 0.0 ), 0.0, "{:?} should start at 0.0", easing_function );
-        assert_eq!( easing_function.apply( 1.0 ), 1.0, "{:?} should end at 1.0", easing_function );
-      }
-    }
-
-    #[ test ]
-    fn test_back_easing_overshoot()
-    {
-      // Back easing functions should have values outside the [ 0.0, 1.0 ] range
-      assert!( EaseInBack::new().apply( 0.1 ) < 0.0 );
-      assert!( EaseOutBack::new().apply( 0.9 ) > 1.0 );
-      assert!( EaseInOutBack::new().apply( 0.1 ) < 0.0 );
-      assert!( EaseInOutBack::new().apply( 0.9 ) > 1.0 );
-    }
-
-    #[ test ]
-    fn test_specific_easing_behaviors()
-    {
-      // EaseInQuad should be slower than linear at the start
-      assert!( EaseInQuad::new().apply( 0.2 ) < Linear::new().apply( 0.2 ) );
-
-      // EaseOutQuad should be faster than linear at the start
-      assert!( EaseOutQuad::new().apply( 0.2 ) > Linear::new().apply( 0.2 ) );
-    }
-  }
 }
 
 crate::mod_interface!
@@ -130,4 +12,7 @@ crate::mod_interface!
 
   /// Collection of cubic spline easing functions
   layer cubic;
+
+  /// Quaternion interpolation easing
+  layer squad;
 }

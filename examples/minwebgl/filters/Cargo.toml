@@ -14,9 +14,18 @@ minwebgl = { workspace = true }
 web-sys = { workspace = true, features = [
   'HtmlImageElement',
   'HtmlButtonElement',
+  'HtmlInputElement',
+  'HtmlAnchorElement',
   'WebGlFramebuffer',
   'WebGlTexture',
   'Location',
+  'File',
+  'FileList',
+  'FileReader',
+  'Blob',
+  'DragEvent',
+  'DataTransfer',
+  'Url',
 ] }
 
 [lints]

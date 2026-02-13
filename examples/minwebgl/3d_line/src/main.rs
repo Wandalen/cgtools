@@ -8,11 +8,13 @@
 #![ allow( clippy::cast_possible_truncation ) ]
 #![ allow( clippy::redundant_field_names ) ]
 #![ allow( clippy::std_instead_of_core ) ]
+#![ allow( clippy::too_many_lines ) ]
+#![ allow( clippy::needless_range_loop ) ]
 
 use mingl::
-{ 
-  CameraOrbitControls, 
-  camera_orbit_controls::bind_controls_to_input 
+{
+  CameraOrbitControls,
+  controls::camera_orbit_controls::bind_controls_to_input
 };
 use minwebgl as gl;
 use web_sys::js_sys;
@@ -130,15 +132,13 @@ fn run() -> Result< (), gl::WebglError >
   let near = 0.0001f32;
   let far = 100.0f32;
 
-  let camera = CameraOrbitControls
-  {
-    eye : eye,
-    up : up,
-    center : center,
-    window_size : [ width, height ].into(),
-    fov,
-    ..Default::default()
-  };
+  let mut camera = CameraOrbitControls::default();
+  camera.eye = eye;
+  camera.up = up;
+  camera.center = center;
+  camera.fov = fov;
+  camera.window_size = [ width, height ].into();
+
   let camera = Rc::new( RefCell::new( camera ) );
   bind_controls_to_input( &canvas, &camera );
 
@@ -490,14 +490,9 @@ fn run() -> Result< (), gl::WebglError >
   // Define the update and draw logic
   let update_and_draw =
   {
-    let mut last_time = 0.0;
     #[ allow( clippy::min_ident_chars ) ]
-    move | time_ms : f64 |
+    move | _ : f64 |
     {
-      #[ allow( clippy::cast_possible_truncation ) ]
-      let time = time_ms as f32 / 1000.0;
-      let _delta_time = last_time - time;
-
       gl.clear( gl::DEPTH_BUFFER_BIT | gl::COLOR_BUFFER_BIT );
 
       // simulation.simulate( *simulation_speed.borrow() );
@@ -533,8 +528,6 @@ fn run() -> Result< (), gl::WebglError >
       {
         lines.borrow_mut()[ i ].draw( &gl ).unwrap();
       }
-
-      last_time = time;
 
       return true
     }
