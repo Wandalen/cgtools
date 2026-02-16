@@ -21,6 +21,7 @@ macro_rules! setup_filter_with_sliders {
     let current_filter_clone = $current_filter.clone();
     let onclick : Closure< dyn Fn() > = Closure::new( move ||
     {
+      filter_renderer_clone.borrow_mut().restore_previous_texture();
       *current_filter_clone.borrow_mut() = String::from( $card_id );
       filter_renderer_clone.borrow_mut().save_previous_texture();
 
