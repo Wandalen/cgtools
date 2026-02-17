@@ -64,12 +64,12 @@ impl Default for JewelryConfig
   {
     Self
     {
-      gem_color : F32x3::from_array( [ 0.98, 0.95, 0.9 ] ), // ff ff ff
-      metal_color : F32x3::splat( 0.8 ), // 57 57 57
+      gem_color : F32x3::splat( 1.0 ), // ff ff ff
+      metal_color : F32x3::splat( 0.439 ), // 57 57 57
       clear_color : F32x3::splat( 1.0 ), // ff ff ff
-      exposure : 1.0, // 1.15
-      roughness : 0.05, // 0
-      metalness : 0.93, // 0.9
+      exposure : 1.15, // 1.15
+      roughness : 0.0, // 0
+      metalness : 0.92, // 0.9
     }
   }
 }
@@ -197,7 +197,7 @@ pub( crate ) fn add_ground_plane
   }
 }
 
-/// Finds gem nodes, generates cube normal maps with caching, and applies gem materials.
+/// Finds gem nodes, generates cube normal maps, and applies gem materials.
 pub( crate ) fn generate_gem_normal_maps_and_apply
 (
   gl : &GL,
@@ -211,29 +211,15 @@ pub( crate ) fn generate_gem_normal_maps_and_apply
 
   if let Some( generator ) = cube_normal_map_generator
   {
-    let mut normal_maps = FxHashMap::< String, CubeNormalData >::default();
-
     for ( name, gem ) in &gems
     {
-      let root_name = strip_trailing_digits( name );
-      let cube_normal_data = if let Some( cached ) = normal_maps.get( &root_name )
+      let cube_normal_data = match generator.generate( gl, gem )
       {
-        cached.clone()
-      }
-      else
-      {
-        match generator.generate( gl, gem )
+        Ok( data ) => data,
+        Err( err ) =>
         {
-          Ok( data ) =>
-          {
-            normal_maps.insert( root_name, data.clone() );
-            data
-          }
-          Err( err ) =>
-          {
-            log::error!( "Failed to generate cube normal map for {name}: {err}" );
-            CubeNormalData::default()
-          }
+          log::error!( "Failed to generate cube normal map for {name}: {err}" );
+          CubeNormalData::default()
         }
       };
 
@@ -459,10 +445,4 @@ pub( crate ) fn apply_plane_color( scene : &Rc< RefCell< Scene > >, clear_color 
       Ok( () )
     }
   );
-}
-
-/// Strips trailing ASCII digits from a string (e.g. "gem001" -> "gem").
-fn strip_trailing_digits( s : &str ) -> String
-{
-  s.trim_end_matches( | c : char | c.is_ascii_digit() ).to_string()
 }

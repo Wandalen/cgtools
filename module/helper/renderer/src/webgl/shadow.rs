@@ -27,7 +27,7 @@ mod private
 
       let depth_texture = gl.create_texture();
       gl.bind_texture( gl::TEXTURE_2D, depth_texture.as_ref() );
-      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::DEPTH_COMPONENT24, resolution, resolution );
+      gl.tex_storage_2d( gl::TEXTURE_2D, 1, gl::DEPTH_COMPONENT32F, resolution, resolution );
       gl::texture::d2::filter_nearest( gl );
       gl::texture::d2::wrap_clamp( gl );
 
