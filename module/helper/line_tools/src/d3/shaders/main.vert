@@ -51,7 +51,7 @@ out vec3 vViewB;
   flat out float vLineDistanceB;
 #endif
 
-void trimSegment( const in vec3 start, inout vec3 end )
+void trimSegment( const in vec3 start, inout vec3 end, const in float distanceStart, inout float distanceEnd )
 {
 
   // trim end segment so it terminates between the camera plane and the near plane
@@ -59,18 +59,20 @@ void trimSegment( const in vec3 start, inout vec3 end )
   // conservative estimate of the near plane
   float a = u_projection_matrix[ 2 ][ 2 ]; // 3nd entry in 3th column
   float b = u_projection_matrix[ 3 ][ 2 ]; // 3nd entry in 4th column
-  float nearEstimate = - 0.5 * b / a;
+  float nearEstimate = b / (a - 1.0);
 
   float alpha = ( nearEstimate - start.z ) / ( end.z - start.z );
 
   end = mix( start, end, alpha );
-
+  distanceEnd = mix( distanceStart, distanceEnd, alpha );
 }
 
 void main() 
 {
   vec3 viewA = ( u_view_matrix * u_world_matrix * vec4( inPointA, 1.0 ) ).xyz;
   vec3 viewB = ( u_view_matrix * u_world_matrix * vec4( inPointB, 1.0 ) ).xyz;
+  float newDistanceA = distanceA;
+  float newDistanceB = distanceB;
 
   bool perspective = ( u_projection_matrix[ 2 ][ 3 ] == - 1.0 ); // 4th entry in the 3rd column
 
@@ -78,11 +80,11 @@ void main()
   {
     if ( viewA.z < 0.0 && viewB.z >= 0.0 ) 
     {
-      trimSegment( viewA, viewB );
+      trimSegment( viewA, viewB, newDistanceA, newDistanceB );
     } 
     else if ( viewB.z < 0.0 && viewA.z >= 0.0 ) 
     {
-      trimSegment( viewB, viewA );
+      trimSegment( viewB, viewA, newDistanceB, newDistanceA );
     }
   }
 
@@ -152,9 +154,9 @@ void main()
   #endif
 
   #ifdef USE_DASH
-    vLineDistance = position.y < 0.5 ? distanceA : distanceB;
-    vLineDistanceA = distanceA;
-    vLineDistanceB = distanceB;
+    vLineDistance = position.y < 0.5 ? newDistanceA : newDistanceB;
+    vLineDistanceA = newDistanceA;
+    vLineDistanceB = newDistanceB;
   #endif
 
   vUv =  uv;
