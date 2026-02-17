@@ -1,4 +1,5 @@
 #version 300 es
+#extension GL_NV_shader_noperspective_interpolation : enable
 // Renders 3d line, supporting both screen space and world space units.
 // Allows for anti-aliasing with alpha-to-coverage enabled.
 // Has an optional color attribute for the points of the line.
@@ -33,8 +34,15 @@ out vec3 vViewPos;
 out vec3 vViewA;
 out vec3 vViewB;
 
+
 #ifdef USE_VERTEX_COLORS
   out vec3 vColor;
+#endif
+
+#if !defined( USE_WORLD_UNITS ) && defined( USE_DASH )
+  flat out vec2 vScreenA;
+  flat out vec2 vScreenB;
+  noperspective out vec2 vScreenPos;
 #endif
 
 #ifdef USE_DASH
@@ -96,16 +104,13 @@ void main()
 
     // Protrude vertices to create an illusion of 3d shape in view space
     viewPos += position.x < 0.0 ? up * halfWith : -up * halfWith;
+    viewPos += position.y < 0.5 ? -halfWith * viewAB : halfWith * viewAB;
+    viewPos += right * halfWith;
+    if( position.y < 0.0 || position.y > 1.0 )
+    {
+      viewPos += 2.0 * -right * halfWith;
+    }
 
-    //#ifndef USE_DASH
-      viewPos += position.y < 0.5 ? -halfWith * viewAB : halfWith * viewAB;
-      viewPos += right * halfWith;
-      if( position.y < 0.0 || position.y > 1.0 )
-      {
-        viewPos += 2.0 * -right * halfWith;
-      }
-    //#endif
-    
     clip = u_projection_matrix * vec4( viewPos, 1.0 );
     vec3 ndcShift = position.y < 0.5 ? clipA.xyz / clipA.w : clipB.xyz / clipB.w;
     clip.z = ndcShift.z * clip.w;
@@ -136,6 +141,13 @@ void main()
     clip = ( position.y < 0.5 ) ? clipA : clipB;
     
     clip.xy = clip.w * ( 2.0 * p / u_resolution - 1.0 );
+
+
+    #ifdef USE_DASH
+      vScreenA = screenA;
+      vScreenB = screenB;
+      vScreenPos = p;
+    #endif
 
   #endif
 

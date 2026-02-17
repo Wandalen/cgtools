@@ -110,6 +110,8 @@ fn run() -> Result< (), gl::WebglError >
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas( &canvas )?;
 
+  gl.get_extension("NV_shader_noperspective_interpolation");
+
   fastrand::seed( js_sys::Date::now() as u64 );
 
   #[ allow( clippy::cast_precision_loss ) ]
