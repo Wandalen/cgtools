@@ -42,6 +42,8 @@ out vec3 vViewB;
 #if !defined( USE_WORLD_UNITS ) && defined( USE_DASH )
   flat out vec2 vScreenA;
   flat out vec2 vScreenB;
+  flat out float vClipWA;
+  flat out float vClipWB;
   noperspective out vec2 vScreenPos;
 #endif
 
@@ -148,6 +150,8 @@ void main()
     #ifdef USE_DASH
       vScreenA = screenA;
       vScreenB = screenB;
+      vClipWA = clipA.w;
+      vClipWB = clipB.w;
       vScreenPos = p;
     #endif
 

@@ -31,6 +31,8 @@ uniform float u_width;
 #if !defined( USE_WORLD_UNITS ) && defined( USE_DASH )
   flat in vec2 vScreenA;
   flat in vec2 vScreenB;
+  flat in float vClipWA;
+  flat in float vClipWB;
   noperspective in vec2 vScreenPos;
 #endif
 
@@ -287,8 +289,16 @@ vec2 closestLineToLine( vec3 p1, vec3 p2, vec3 p3, vec3 p4 )
 
       if( distanceB <= vLineDistanceA + 1e-6 || distanceA >= vLineDistanceB - 1e-6 ) { return MAX_FLOAT; }
 
-      vec3 lineStart = vec3(mix( vScreenA, vScreenB, clamp( ( distanceA - vLineDistanceA ) / ( vLineDistanceB - vLineDistanceA ), 0.0, 1.0 ) ), 0.0);
-      vec3 lineEnd = vec3(mix( vScreenA, vScreenB, clamp( ( distanceB - vLineDistanceA ) / ( vLineDistanceB - vLineDistanceA ), 0.0, 1.0 ) ), 0.0);
+      // Map world-space parameters to perspective-correct screen-space parameters.
+      // Under perspective projection, screen position is not linear in world-space parameter t.
+      // The correct screen parameter is: s = t * wB / ((1-t)*wA + t*wB),
+      // where wA, wB are clip-space w values of the endpoints.
+      float tA = clamp( ( distanceA - vLineDistanceA ) / ( vLineDistanceB - vLineDistanceA ), 0.0, 1.0 );
+      float tB = clamp( ( distanceB - vLineDistanceA ) / ( vLineDistanceB - vLineDistanceA ), 0.0, 1.0 );
+      float sA = tA * vClipWB / ( ( 1.0 - tA ) * vClipWA + tA * vClipWB );
+      float sB = tB * vClipWB / ( ( 1.0 - tB ) * vClipWA + tB * vClipWB );
+      vec3 lineStart = vec3( mix( vScreenA, vScreenB, sA ), 0.0 );
+      vec3 lineEnd = vec3( mix( vScreenA, vScreenB, sB ), 0.0 );
 
       vec3 rayStart = vec3(vScreenPos, -1.0);
       vec3 rayEnd = vec3(vScreenPos, 1.0);
