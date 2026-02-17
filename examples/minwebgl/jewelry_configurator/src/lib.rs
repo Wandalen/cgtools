@@ -24,11 +24,11 @@ use renderer::webgl::
   Renderer,
   Scene,
   TextureInfo,
-  loaders::gltf,
-  loaders::ibl,
+  loaders::{ gltf, ibl },
   post_processing,
-  shadow::{ ShadowMap, ShadowBaker },
+  shadow::{ ShadowBaker, ShadowMap },
 };
+use gltf::GLTF;
 use post_processing::{ Pass, SwapFramebuffer, ToneMappingPass, ToneMappingAces, ToSrgbPass };
 use rustc_hash::FxHashMap;
 use wasm_bindgen::prelude::*;
@@ -217,12 +217,12 @@ impl JewelryRenderer
       Err( err ) => { log::error!( "{err}" ); return; }
     };
 
-    self.process_jewelry_gltf( path, gltf );
+    self.process_jewelry_gltf( path, &gltf );
   }
 
   /// Processes a loaded GLTF jewelry model: configures materials, normalizes
   /// transforms, adds ground plane with shadow, and sets up gem materials.
-  fn process_jewelry_gltf( &mut self, key : &str, gltf : gltf::GLTF )
+  fn process_jewelry_gltf( &mut self, key : &str, gltf : &GLTF )
   {
     let scene = &gltf.scenes[ 0 ];
 

@@ -385,9 +385,9 @@ fn create_shadow_texture( gl : &GL, res : u32, mip_levels : i32 ) -> Option< gl:
 {
   let texture = gl.create_texture();
   gl.bind_texture( gl::TEXTURE_2D, texture.as_ref() );
-  gl.tex_storage_2d( gl::TEXTURE_2D, mip_levels, gl::R8, res as i32, res as i32 );
-  gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
-  gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
+  gl.tex_storage_2d( gl::TEXTURE_2D, mip_levels, gl::R8, res.cast_signed(), res .cast_signed() );
+  gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR.cast_signed() );
+  gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR.cast_signed() );
   gl::texture::d2::wrap_clamp( gl );
   texture
 }
