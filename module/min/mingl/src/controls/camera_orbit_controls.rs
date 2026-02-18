@@ -27,7 +27,7 @@ mod private
     pub movement_smoothing_enabled : bool,
     /// Scaling factor for rotation sensitivity in pixels per radian. Higher values make rotation slower.
     /// Default: 500.0 means 500 pixels of drag equals 1 radian of rotation.
-    /// 
+    ///
     /// The speed field must be non-zero. Setting speed to 0.0 will result in
     /// undefined camera behavior (NaN/Inf propagation).
     pub speed : f32,
@@ -66,7 +66,7 @@ mod private
       self.movement_decay
     }
 
-    /// Sets the base longitude. Clamps the value in range [0, 360] degrees 
+    /// Sets the base longitude. Clamps the value in range [0, 360] degrees
     pub fn base_longitude_set( &mut self, angle : f32 )
     {
       self.base_longitude = angle.clamp( 0.0, 360.0 );
@@ -90,7 +90,7 @@ mod private
       self.longitude_range
     }
 
-    /// Sets the base latitude. Clamps the value in range [-90, 90] degrees 
+    /// Sets the base latitude. Clamps the value in range [-90, 90] degrees
     pub fn base_latitude_set( &mut self, angle : f32 )
     {
       self.base_latitude = angle.clamp( -90.0, 90.0 );
@@ -150,7 +150,7 @@ mod private
     /// If d < min_distance - clamp to min_distance
     pub fn max_distance_set( &mut self, mut d : f32 )
     {
-      d = d.max( 0.0 ); 
+      d = d.max( 0.0 );
       if let Some( min_distance ) = self.min_distance
       {
         d = d.max( min_distance );
@@ -182,7 +182,7 @@ mod private
   ///
   /// This camera rotates around a central `center` point, can pan across the view plane,
   /// and zoom in and out. It's suitable for inspecting 3D models or scenes.
-  /// 
+  ///
   /// # Example: Constrain camera to hemisphere view
   /// ```rust,ignore
   /// camera.rotation.base_longitude_set( 0.0 );
@@ -249,7 +249,7 @@ mod private
     ///
     /// # Arguments
     /// * `screen_d` - The change in screen coordinates `[dx, dy]` from a mouse movement event.
-    /// 
+    ///
     /// # Preconditions
     /// - `eye` must not equal `center` (direction vector must be non-zero)
     /// - `up` must not be parallel to the view direction
@@ -319,7 +319,7 @@ mod private
             new_angle += delta_min_correction;
           }
         }
-        
+
         longitude_angle = new_angle - current_angle;
       }
 
@@ -342,15 +342,15 @@ mod private
           {
             new_angle -= delta_max_correction;
           }
-          else 
+          else
           {
             new_angle += delta_min_correction;
           }
         }
-        
+
         latitude_angle = new_angle - current_angle;
       }
-      
+
 
       let rot_x = math::mat3x3::from_axis_angle( x, latitude_angle );
       let rot_y = math::mat3x3::from_angle_y( longitude_angle );
@@ -519,6 +519,7 @@ mod private
 
   /// Represents the current state of the camera controls, based on user input.
   #[ cfg( feature = "web" ) ]
+  #[ derive( Clone ) ]
   enum CameraState
   {
     /// The camera is not being manipulated.
@@ -527,6 +528,8 @@ mod private
     Rotate,
     /// The user is panning the camera.
     Pan,
+    /// The user is performing a two-finger pinch gesture.
+    Pinch,
   }
 
   /// Binds mouse and pointer events to the camera controls for interaction.
@@ -548,47 +551,104 @@ mod private
     camera : &Rc< RefCell< CameraOrbitControls > >
   )
   {
-    let state =  Rc::new( RefCell::new( CameraState::None ) );
-    let prev_screen_pos = Rc::new( RefCell::new( [ 0.0, 0.0 ] ) );
+    use std::collections::HashMap;
+
+    let state = Rc::new( RefCell::new( CameraState::None ) );
+    let prev_screen_pos = Rc::new( RefCell::new( [ 0.0f32, 0.0f32 ] ) );
+    let active_pointers : Rc< RefCell< HashMap< i32, [ f32; 2 ] > > > =
+      Rc::new( RefCell::new( HashMap::new() ) );
+
+    // Prevent the browser from handling touch gestures (pinch-to-zoom, scroll) on the canvas.
+    let _ = canvas.style().set_property( "touch-action", "none" );
 
     let on_pointer_down : Closure< dyn Fn( _ ) > = Closure::new
     (
       {
         let state = state.clone();
         let prev_screen_pos = prev_screen_pos.clone();
+        let active_pointers = active_pointers.clone();
+        let canvas = canvas.clone();
         move | e : web_sys::PointerEvent |
         {
-          *prev_screen_pos.borrow_mut() = [ e.screen_x() as f32, e.screen_y() as f32 ];
-          match e.button()
+          let pos = [ e.screen_x() as f32, e.screen_y() as f32 ];
+          active_pointers.borrow_mut().insert( e.pointer_id(), pos );
+          let count = active_pointers.borrow().len();
+          match count
           {
-            0 => *state.borrow_mut() = CameraState::Rotate,
-            2 => *state.borrow_mut() = CameraState::Pan,
-            _ => {}
+            1 =>
+            {
+              *prev_screen_pos.borrow_mut() = pos;
+              match e.button()
+              {
+                0 => *state.borrow_mut() = CameraState::Rotate,
+                2 => *state.borrow_mut() = CameraState::Pan,
+                _ => {}
+              }
+            }
+            _ => { *state.borrow_mut() = CameraState::Pinch; }
           }
+          // Keep receiving pointermove even when the finger moves outside the canvas.
+          let _ = canvas.set_pointer_capture( e.pointer_id() );
         }
       }
     );
 
-    let on_mouse_move : Closure< dyn Fn( _ ) > = Closure::new
+    let on_pointer_move : Closure< dyn Fn( _ ) > = Closure::new
     (
       {
         let state = state.clone();
         let camera = camera.clone();
         let prev_screen_pos = prev_screen_pos.clone();
-        move | e : web_sys::MouseEvent |
+        let active_pointers = active_pointers.clone();
+        move | e : web_sys::PointerEvent |
         {
-          let prev_pos = *prev_screen_pos.borrow_mut();
+          let pointer_id = e.pointer_id();
           let new_pos = [ e.screen_x() as f32, e.screen_y() as f32 ];
-          let delta = [ prev_pos[ 0 ] - new_pos[ 0 ], new_pos[ 1 ] - prev_pos[ 1 ] ];
-          *prev_screen_pos.borrow_mut() = new_pos;
-          match *state.borrow_mut()
+          let current_state = state.borrow().clone();
+          match current_state
           {
+            CameraState::Pinch =>
+            {
+              let mut pointers = active_pointers.borrow_mut();
+              if let Some( &old_pos ) = pointers.get( &pointer_id )
+              {
+                let other_pos = pointers
+                  .iter()
+                  .find( |( &id, _ )| id != pointer_id )
+                  .map( |( _, &pos )| pos );
+                if let Some( other ) = other_pos
+                {
+                  let old_dist =
+                  {
+                    let dx = old_pos[ 0 ] - other[ 0 ];
+                    let dy = old_pos[ 1 ] - other[ 1 ];
+                    ( dx * dx + dy * dy ).sqrt()
+                  };
+                  let new_dist =
+                  {
+                    let dx = new_pos[ 0 ] - other[ 0 ];
+                    let dy = new_pos[ 1 ] - other[ 1 ];
+                    ( dx * dx + dy * dy ).sqrt()
+                  };
+                  camera.borrow_mut().zoom( old_dist - new_dist );
+                }
+              }
+              pointers.insert( pointer_id, new_pos );
+            }
             CameraState::Rotate =>
             {
+              let prev_pos = *prev_screen_pos.borrow();
+              let delta = [ prev_pos[ 0 ] - new_pos[ 0 ], new_pos[ 1 ] - prev_pos[ 1 ] ];
+              *prev_screen_pos.borrow_mut() = new_pos;
+              active_pointers.borrow_mut().insert( pointer_id, new_pos );
               camera.borrow_mut().rotate( delta );
-            },
+            }
             CameraState::Pan =>
             {
+              let prev_pos = *prev_screen_pos.borrow();
+              let delta = [ prev_pos[ 0 ] - new_pos[ 0 ], new_pos[ 1 ] - prev_pos[ 1 ] ];
+              *prev_screen_pos.borrow_mut() = new_pos;
+              active_pointers.borrow_mut().insert( pointer_id, new_pos );
               camera.borrow_mut().pan( delta );
             }
             CameraState::None => {}
@@ -604,7 +664,7 @@ mod private
         let camera = camera.clone();
         move | e : web_sys::WheelEvent |
         {
-          if let CameraState::None = *state.borrow_mut()
+          if let CameraState::None = *state.borrow()
           {
             let delta_y = e.delta_y() as f32;
             camera.borrow_mut().zoom( delta_y );
@@ -613,24 +673,59 @@ mod private
       }
     );
 
-    let on_pointer_up : Closure< dyn Fn() > = Closure::new
+    let on_pointer_up : Closure< dyn Fn( _ ) > = Closure::new
     (
       {
         let state = state.clone();
-        move | |
+        let active_pointers = active_pointers.clone();
+        let prev_screen_pos = prev_screen_pos.clone();
+        move | e : web_sys::PointerEvent |
         {
-          *state.borrow_mut() = CameraState::None;
+          active_pointers.borrow_mut().remove( &e.pointer_id() );
+          let count = active_pointers.borrow().len();
+          match count
+          {
+            0 => *state.borrow_mut() = CameraState::None,
+            1 =>
+            {
+              // One finger remains: resume rotation from its current position.
+              let remaining = active_pointers.borrow().values().next().copied();
+              if let Some( pos ) = remaining
+              {
+                *prev_screen_pos.borrow_mut() = pos;
+              }
+              *state.borrow_mut() = CameraState::Rotate;
+            }
+            _ => {}
+          }
         }
       }
     );
 
-    let on_pointer_out : Closure< dyn Fn() > = Closure::new
+    let on_pointer_out : Closure< dyn Fn( _ ) > = Closure::new
     (
       {
         let state = state.clone();
-        move | |
+        let active_pointers = active_pointers.clone();
+        let prev_screen_pos = prev_screen_pos.clone();
+        move | e : web_sys::PointerEvent |
         {
-          *state.borrow_mut() = CameraState::None;
+          active_pointers.borrow_mut().remove( &e.pointer_id() );
+          let count = active_pointers.borrow().len();
+          match count
+          {
+            0 => *state.borrow_mut() = CameraState::None,
+            1 =>
+            {
+              let remaining = active_pointers.borrow().values().next().copied();
+              if let Some( pos ) = remaining
+              {
+                *prev_screen_pos.borrow_mut() = pos;
+              }
+              *state.borrow_mut() = CameraState::Rotate;
+            }
+            _ => {}
+          }
         }
       }
     );
@@ -651,8 +746,8 @@ mod private
     let _ = canvas.add_event_listener_with_callback( "pointerdown", on_pointer_down.as_ref().unchecked_ref() );
     on_pointer_down.forget();
 
-    let _ = canvas.add_event_listener_with_callback( "mousemove", on_mouse_move.as_ref().unchecked_ref() );
-    on_mouse_move.forget();
+    let _ = canvas.add_event_listener_with_callback( "pointermove", on_pointer_move.as_ref().unchecked_ref() );
+    on_pointer_move.forget();
 
     let _ = canvas.add_event_listener_with_callback( "wheel", on_wheel.as_ref().unchecked_ref() );
     on_wheel.forget();
