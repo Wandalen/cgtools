@@ -18,6 +18,9 @@ pub struct UiState
   /// Camera eye
   #[ serde( rename = "position" ) ]
   pub eye : [ f32; 3 ],
+  /// Transition animation in process
+  #[ serde( rename = "transitionAnimationEnabled" ) ]
+  pub transition_animation_enabled : bool,
   /// Camera center
   #[ serde( rename = "target" ) ]
   pub center : [ f32; 3 ],
@@ -59,6 +62,11 @@ pub fn is_debug_mode() -> bool
 #[ wasm_bindgen( module = "/index.js" ) ]
 extern "C"
 {
+  /// Signal that renderer is loaded
+  #[ allow( unsafe_code ) ]
+  #[ wasm_bindgen( js_name = "setRendererLoaded" ) ]
+  pub fn set_renderer_loaded();
+
   /// Retrieves UiState from JS
   #[ allow( unsafe_code ) ]
   #[ wasm_bindgen( js_name = "getUiState" ) ]
