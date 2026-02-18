@@ -57,25 +57,23 @@
     <!-- <span class="sd-label">SAVE</span> -->
   </button>
 
-  <!-- Bottom Controls Bar -->
+  <!-- Bottom Controls Bar with Apply/Cancel flanking the sliders -->
   <div class="bottom-controls" id="bottom-controls">
+    <button id="cancel-btn" title="Cancel filter">
+      <svg class="cancel-icon" viewBox="0 0 24 24">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    </button>
     <div class="controls-container" id="controls-container">
       <!-- Dynamic controls will be inserted here -->
     </div>
+    <button id="apply-btn" title="Apply filter">
+      <svg class="apply-icon" viewBox="0 0 24 24">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+    </button>
   </div>
-
-  <!-- Apply and Cancel buttons - outside the panel -->
-  <button id="cancel-btn" title="Cancel filter">
-    <svg class="cancel-icon" viewBox="0 0 24 24">
-      <line x1="18" y1="6" x2="6" y2="18"></line>
-      <line x1="6" y1="6" x2="18" y2="18"></line>
-    </svg>
-  </button>
-  <button id="apply-btn" title="Apply filter">
-    <svg class="apply-icon" viewBox="0 0 24 24">
-      <polyline points="20 6 9 17 4 12"></polyline>
-    </svg>
-  </button>
 
   <!-- Bottom Right Buttons -->
   <input type="file" id="file-input" accept="image/*" />
