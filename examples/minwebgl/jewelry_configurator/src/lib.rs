@@ -91,6 +91,8 @@ pub struct JewelryConfig
   roughness : f32,
   /// Metal metalness.
   metalness : f32,
+  /// Bloom post-process strength (0 = disabled).
+  bloom_strength : f32,
 }
 
 #[ wasm_bindgen ]
@@ -160,6 +162,15 @@ impl JewelryConfig
   /// Sets metal metalness.
   #[ wasm_bindgen( setter ) ]
   pub fn set_metalness( &mut self, v : f32 ) { self.metalness = v; }
+
+  /// Bloom post-process strength (0 = disabled).
+  #[ must_use ]
+  #[ wasm_bindgen( getter ) ]
+  pub fn bloom_strength( &self ) -> f32 { self.bloom_strength }
+
+  /// Sets bloom strength.
+  #[ wasm_bindgen( setter ) ]
+  pub fn set_bloom_strength( &mut self, v : f32 ) { self.bloom_strength = v; }
 }
 
 impl JewelryConfig
@@ -180,10 +191,11 @@ impl Default for JewelryConfig
     {
       gem_color   : [ 1.0, 1.0, 1.0 ],
       metal_color : [ 0.85, 0.85, 0.854 ],
-      clear_color : 2.7,
-      exposure    : 1.0,
-      roughness   : 0.01,
-      metalness   : 0.93,
+      clear_color    : 2.7,
+      exposure       : 1.0,
+      roughness      : 0.01,
+      metalness      : 0.93,
+      bloom_strength : 2.0,
     }
   }
 }
@@ -225,9 +237,10 @@ impl JewelryRenderer
 {
   /// Creates and fully initialises a jewelry renderer.
   /// Loads IBL at `ibl_path` and (if non-empty) a gem HDR environment at `gem_env_path`.
-  pub async fn new( canvas : &HtmlCanvasElement, ibl_path : &str, gem_env_path : &str ) -> Self
+  /// Set `preserve_drawing_buffer` to `true` to allow reading the canvas pixels (e.g. for screenshots).
+  pub async fn new( canvas : &HtmlCanvasElement, ibl_path : &str, gem_env_path : &str, preserve_drawing_buffer : bool ) -> Self
   {
-    let gl = create_gl( canvas );
+    let gl = create_gl( canvas, preserve_drawing_buffer );
     let config = JewelryConfig::default();
     let pipeline = create_pipeline( &gl, canvas, &config );
     let ( resize_observer, resize_closure ) = setup_resize_observer( canvas, &gl, &pipeline );
@@ -268,7 +281,7 @@ impl JewelryRenderer
     pipeline.renderer.set_ibl( ibl_data );
     pipeline.renderer.set_skybox( None );
     pipeline.renderer.set_use_emission( true );
-    pipeline.renderer.set_bloom_strength( 2.0 );
+    pipeline.renderer.set_bloom_strength( self.config.bloom_strength() );
     pipeline.renderer.set_bloom_radius( 0.1 );
   }
 
@@ -421,6 +434,7 @@ impl JewelryRenderer
       let mut pipeline = self.pipeline.borrow_mut();
       pipeline.renderer.set_clear_color( F32x3::splat( self.config.clear_color() ) );
       pipeline.renderer.set_exposure( self.config.exposure() );
+      pipeline.renderer.set_bloom_strength( self.config.bloom_strength() );
     }
 
     for item in self.loaded_gltfs.values()
@@ -437,7 +451,7 @@ impl JewelryRenderer
 ///
 /// # Panics
 /// Panics if the WebGL2 context cannot be created.
-fn create_gl( canvas : &HtmlCanvasElement ) -> GL
+fn create_gl( canvas : &HtmlCanvasElement, preserve_drawing_buffer : bool ) -> GL
 {
   let options = ContextOptions
   {
@@ -446,6 +460,7 @@ fn create_gl( canvas : &HtmlCanvasElement ) -> GL
     depth : false,
     stencil : false,
     power_preference : PowerPreference::HighPerformance,
+    preserve_drawing_buffer,
     ..Default::default()
   };
 
@@ -545,8 +560,9 @@ fn setup_resize_observer
 
 /// Creates and fully initialises a `JewelryRenderer`. JavaScript entry point.
 /// Loads IBL at `ibl_path` and (if non-empty) a gem HDR environment at `gem_env_path`.
+/// Set `preserve_drawing_buffer` to `true` to allow reading canvas pixels (e.g. for screenshots).
 #[ wasm_bindgen ]
-pub async fn create( canvas : HtmlCanvasElement, ibl_path : String, gem_env_path : String ) -> JewelryRenderer
+pub async fn create( canvas : HtmlCanvasElement, ibl_path : String, gem_env_path : String, preserve_drawing_buffer : bool ) -> JewelryRenderer
 {
-  JewelryRenderer::new( &canvas, &ibl_path, &gem_env_path ).await
+  JewelryRenderer::new( &canvas, &ibl_path, &gem_env_path, preserve_drawing_buffer ).await
 }

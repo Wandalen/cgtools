@@ -105,11 +105,31 @@
       border-width: 3px;
       transform: scale(1.1);
     }
+
+    #btn-screenshot {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      z-index: 10;
+      padding: 8px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      border: 1px solid rgba(255,255,255,0.4);
+      background: rgba(0,0,0,0.45);
+      color: #fff;
+      border-radius: 4px;
+      backdrop-filter: blur(4px);
+    }
+
+    #btn-screenshot:hover {
+      background: rgba(0,0,0,0.65);
+    }
   </style>
 </head>
 
 <body>
   <canvas id="canvas"></canvas>
+  <button id="btn-screenshot" title="Download PNG with transparent background (S)">Save PNG</button>
 
   <div id="buttons">
     <button id="btn-0">Model 0</button>
@@ -145,6 +165,55 @@
         container.appendChild(btn);
       });
     }
+
+    async function downloadScreenshot() {
+      const params = window.jewelryParams;
+      if (!params) return;
+
+      // Temporarily disable bloom and wait two frames so the renderer picks it up
+      const savedBloom = params.bloom_strength;
+      params.bloom_strength = 0;
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+      const canvas = document.getElementById('canvas');
+
+      // Capture into a 2D canvas for pixel manipulation
+      const offscreen = document.createElement('canvas');
+      offscreen.width  = canvas.width;
+      offscreen.height = canvas.height;
+      const ctx = offscreen.getContext('2d');
+      ctx.drawImage(canvas, 0, 0);
+
+      const imageData = ctx.getImageData(0, 0, offscreen.width, offscreen.height);
+      const data = imageData.data;
+
+      // Sample background color from the top-left corner (always background)
+      const bgR = data[0], bgG = data[1], bgB = data[2];
+
+      // Replace pixels close to the background color with transparent
+      const tolerance = 20;
+      for (let i = 0; i < data.length; i += 4) {
+        const dr = Math.abs(data[i]     - bgR);
+        const dg = Math.abs(data[i + 1] - bgG);
+        const db = Math.abs(data[i + 2] - bgB);
+        if (dr + dg + db < tolerance * 3) data[i + 3] = 0;
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+
+      // Restore bloom
+      params.bloom_strength = savedBloom;
+
+      const link = document.createElement('a');
+      link.download = `jewelry_${Date.now()}.png`;
+      link.href = offscreen.toDataURL('image/png');
+      link.click();
+    }
+
+    document.getElementById('btn-screenshot').onclick = downloadScreenshot;
+    document.addEventListener('keydown', e => {
+      if ((e.key === 's' || e.key === 'S') && !e.ctrlKey && !e.metaKey) downloadScreenshot();
+    });
 
     (function poll() {
       if (window.colorsJson) {
