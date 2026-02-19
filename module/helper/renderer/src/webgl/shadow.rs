@@ -248,7 +248,7 @@ mod private
       let is_ortho = light.is_orthographic() as i32;
       self.program.uniform_upload( "u_is_orthographic", &is_ortho );
 
-      let light_size = light.light_size();
+      let light_size = light.size();
       self.program.uniform_upload( "u_light_size", &light_size );
 
       let ( near, far ) = light.near_far_planes();
@@ -297,7 +297,7 @@ mod private
     position        : gl::F32x3,
     direction       : gl::F32x3,
     projection      : gl::F32x4x4,
-    light_size      : f32,
+    size            : f32,
     view_projection : Option< gl::F32x4x4 >,
   }
 
@@ -309,7 +309,7 @@ mod private
       position : gl::F32x3,
       direction : gl::F32x3,
       projection : gl::F32x4x4,
-      light_size : f32
+      size : f32
     ) -> Self
     {
       Self
@@ -317,15 +317,15 @@ mod private
         position,
         direction : direction.normalize(),
         projection,
-        light_size,
+        size,
         view_projection : None,
       }
     }
 
     /// Returns light size (controls shadow softness)
-    pub fn light_size( &self ) -> f32
+    pub fn size( &self ) -> f32
     {
-      self.light_size
+      self.size
     }
 
     /// Extracts near and far planes from projection matrix
