@@ -673,7 +673,9 @@ mod private
       }
     );
 
-    let on_pointer_up : Closure< dyn Fn( _ ) > = Closure::new
+    // Shared handler for pointerup, pointerout, and pointercancel.
+    // All three remove the pointer and transition state identically.
+    let on_pointer_release : Closure< dyn Fn( _ ) > = Closure::new
     (
       {
         let state = state.clone();
@@ -689,34 +691,6 @@ mod private
             1 =>
             {
               // One finger remains: resume rotation from its current position.
-              let remaining = active_pointers.borrow().values().next().copied();
-              if let Some( pos ) = remaining
-              {
-                *prev_screen_pos.borrow_mut() = pos;
-              }
-              *state.borrow_mut() = CameraState::Rotate;
-            }
-            _ => {}
-          }
-        }
-      }
-    );
-
-    let on_pointer_out : Closure< dyn Fn( _ ) > = Closure::new
-    (
-      {
-        let state = state.clone();
-        let active_pointers = active_pointers.clone();
-        let prev_screen_pos = prev_screen_pos.clone();
-        move | e : web_sys::PointerEvent |
-        {
-          active_pointers.borrow_mut().remove( &e.pointer_id() );
-          let count = active_pointers.borrow().len();
-          match count
-          {
-            0 => *state.borrow_mut() = CameraState::None,
-            1 =>
-            {
               let remaining = active_pointers.borrow().values().next().copied();
               if let Some( pos ) = remaining
               {
@@ -752,11 +726,11 @@ mod private
     let _ = canvas.add_event_listener_with_callback( "wheel", on_wheel.as_ref().unchecked_ref() );
     on_wheel.forget();
 
-    let _ = canvas.add_event_listener_with_callback( "pointerup", on_pointer_up.as_ref().unchecked_ref() );
-    on_pointer_up.forget();
-
-    let _ = canvas.add_event_listener_with_callback( "pointerout", on_pointer_out.as_ref().unchecked_ref() );
-    on_pointer_out.forget();
+    let release_cb = on_pointer_release.as_ref().unchecked_ref();
+    let _ = canvas.add_event_listener_with_callback( "pointerup", release_cb );
+    let _ = canvas.add_event_listener_with_callback( "pointerout", release_cb );
+    let _ = canvas.add_event_listener_with_callback( "pointercancel", release_cb );
+    on_pointer_release.forget();
   }
 }
 
