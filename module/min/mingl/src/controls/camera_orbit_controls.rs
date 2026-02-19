@@ -10,7 +10,7 @@ mod private
   #[ cfg( feature = "web" ) ]
   pub mod web_imports
   {
-    pub use std::{ cell::RefCell, rc::Rc };
+    pub use std::{ cell::RefCell, rc::Rc, collections::HashMap };
     pub use wasm_bindgen::{ JsCast, prelude::Closure };
     pub use crate::web::web_sys;
   }
@@ -551,8 +551,6 @@ mod private
     camera : &Rc< RefCell< CameraOrbitControls > >
   )
   {
-    use std::collections::HashMap;
-
     let state = Rc::new( RefCell::new( CameraState::None ) );
     let prev_screen_pos = Rc::new( RefCell::new( [ 0.0f32, 0.0f32 ] ) );
     let active_pointers : Rc< RefCell< HashMap< i32, [ f32; 2 ] > > > =
