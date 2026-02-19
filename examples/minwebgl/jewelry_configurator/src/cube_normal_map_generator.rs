@@ -65,7 +65,7 @@ fn gen_cube_texture( gl : &GL, width : i32, height : i32 ) -> Option< gl::web_sy
     (
       gl::TEXTURE_CUBE_MAP_POSITIVE_X + i as u32,
       0,
-      gl::RGBA16F as i32,
+      gl::RGBA16F.cast_signed(),
       width,
       height,
       0,
@@ -74,16 +74,16 @@ fn gen_cube_texture( gl : &GL, width : i32, height : i32 ) -> Option< gl::web_sy
       None
     )
     {
-      gl::log::error!( "Failed to upload cube texture face {}: {:?}", i, e );
+      gl::log::error!( "Failed to upload cube texture face {i}: {e:?}" );
       return None;
     }
   }
 
-  gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32 );
-  gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32 );
-  gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as i32 );
-  gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32 );
-  gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_R, gl::CLAMP_TO_EDGE as i32 );
+  gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MAG_FILTER, gl::LINEAR.cast_signed() );
+  gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_MIN_FILTER, gl::LINEAR.cast_signed() );
+  gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE.cast_signed() );
+  gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE.cast_signed() );
+  gl.tex_parameteri( gl::TEXTURE_CUBE_MAP, gl::TEXTURE_WRAP_R, gl::CLAMP_TO_EDGE.cast_signed() );
 
   texture
 }
@@ -118,7 +118,7 @@ impl CubeNormalMapGenerator
   {
     let vertex_shader_src = include_str!( "../shaders/gen_cube_map.vert" );
     let fragment_shader_src = include_str!( "../shaders/gen_cube_map.frag" );
-    let program = gl::ProgramFromSources::new( vertex_shader_src, fragment_shader_src ).compile_and_link( &gl )?;
+    let program = gl::ProgramFromSources::new( vertex_shader_src, fragment_shader_src ).compile_and_link( gl )?;
     let program = CubeNormalMapGeneratorShader::new( gl, &program );
 
     let framebuffer = gl.create_framebuffer().ok_or( WebglError::FailedToAllocateResource( "Framebuffer" ) )?;
@@ -143,12 +143,13 @@ impl CubeNormalMapGenerator
   }
 
   /// Sets cube normal map resolution
+  #[ allow( dead_code ) ]
   pub fn set_texture_size( &mut self, gl : &GL, width : u32, height : u32 )
   {
     self.texture_width = width;
     self.texture_height = height;
     gl.bind_framebuffer( gl::FRAMEBUFFER, Some( &self.framebuffer ) );
-    gl.viewport( 0, 0, self.texture_width as i32, self.texture_height as i32 );
+    gl.viewport( 0, 0, self.texture_width.cast_signed(), self.texture_height.cast_signed() );
     gl.bind_framebuffer( gl::FRAMEBUFFER , None );
   }
 
@@ -196,20 +197,20 @@ impl CubeNormalMapGenerator
     self.program.bind( gl );
 
     node.borrow().upload( gl, locations );
-    gl::uniform::matrix_upload( &gl, Some( projection_matrix_location ), &perspective_matrix.to_array(), true )?;
-    gl::uniform::matrix_upload( &gl, Some( offset_matrix_location ), &offset_matrix.to_array(), true )?;
-    gl::uniform::upload( &gl, Some( max_distance_location ), &max_distance )?;
+    gl::uniform::matrix_upload( gl, Some( projection_matrix_location ), &perspective_matrix.to_array(), true )?;
+    gl::uniform::matrix_upload( gl, Some( offset_matrix_location ), &offset_matrix.to_array(), true )?;
+    gl::uniform::upload( gl, Some( max_distance_location ), &max_distance )?;
 
-    let cube_texture = gen_cube_texture( &gl, self.texture_width as i32, self.texture_height as i32 )
+    let cube_texture = gen_cube_texture( gl, self.texture_width.cast_signed(), self.texture_height.cast_signed() )
     .ok_or( WebglError::Other( "Failed to create cube texture" ) )?;
 
     // Render to our cube texture using custom frame buffer
     gl.bind_framebuffer( gl::FRAMEBUFFER , Some( &self.framebuffer ) );
-    gl.viewport( 0, 0, self.texture_width as i32, self.texture_height as i32 );
+    gl.viewport( 0, 0, self.texture_width.cast_signed(), self.texture_height.cast_signed() );
     for i in 0..6
     {
       let view_matrix = &self.cube_camera[ i ].to_array();
-      gl::uniform::matrix_upload( &gl, Some( view_matrix_location.clone() ), view_matrix, true )?;
+      gl::uniform::matrix_upload( gl, Some( view_matrix_location.clone() ), view_matrix, true )?;
       gl.framebuffer_texture_2d
       (
         gl::FRAMEBUFFER,

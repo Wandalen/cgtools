@@ -1,4 +1,4 @@
-use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo, MaterialUploadContext };
+use renderer::webgl::{ ShaderProgram, material::{ Material, TextureInfo, CullMode }, program::ProgramInfo, MaterialUploadContext };
 use renderer::impl_locations;
 use minwebgl as gl;
 use gl::{ GL, WebGlProgram };
@@ -134,7 +134,7 @@ impl Material for GemMaterial
       Ok( loc ) => loc,
       Err( e ) =>
       {
-        gl::log::error!( "GemMaterial::configure error: {}", e );
+        gl::log::error!( "GemMaterial::configure error: {e}" );
         return;
       }
     };
@@ -144,7 +144,7 @@ impl Material for GemMaterial
       Ok( loc ) => loc,
       Err( e ) =>
       {
-        gl::log::error!( "GemMaterial::configure error: {}", e );
+        gl::log::error!( "GemMaterial::configure error: {e}" );
         return;
       }
     };
@@ -239,7 +239,7 @@ impl Clone for GemMaterial
     {
       id : Uuid::new_v4(),
       ray_bounces : self.ray_bounces,
-      color : self.color.clone(),
+      color : self.color,
       env_map_intensity : self.env_map_intensity,
       radius : self.radius,
       environment_texture : self.environment_texture.clone(),
