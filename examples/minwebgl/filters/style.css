@@ -110,7 +110,7 @@
    transform: translateY(-1px) scale(1.02);
  }
 
- /* [TEMP] Remove background test button */
+ /* Remove background button */
  #bg-remove-btn {
    position: fixed;
    top: 20px;
@@ -776,7 +776,7 @@
   z-index: 2;
 }
 
-/* [TEMP] Background removal loading overlay */
+/* Background removal loading overlay */
 #bg-loading-overlay {
   position: fixed;
   top: 0;
@@ -816,7 +816,7 @@
   }
 }
 
-/* [TEMP] Background removal button icon */
+/* Background removal button icon */
 .bg-remove-icon {
   width: 40px;
   height: 40px;
