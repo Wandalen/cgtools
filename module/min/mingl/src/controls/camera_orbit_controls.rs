@@ -558,7 +558,8 @@ mod private
   )
   {
     let state = Rc::new( RefCell::new( CameraState::None ) );
-    let prev_screen_pos = Rc::new( RefCell::new( [ 0.0f32, 0.0f32 ] ) );
+    let prev_screen_pos = Rc::new( RefCell::new( [ 0.0, 0.0 ] ) );
+    // pointer_id → last known screen position
     let active_pointers : Rc< RefCell< HashMap< i32, [ f32; 2 ] > > > =
       Rc::new( RefCell::new( HashMap::new() ) );
 
@@ -589,7 +590,12 @@ mod private
                 _ => {}
               }
             }
-            _ => { *state.borrow_mut() = CameraState::Pinch; }
+            _ =>
+            {
+              // 3+ fingers: enters Pinch, but the "other" anchor is chosen by
+              // non-deterministic HashMap iteration order, so zoom may be jittery.
+              *state.borrow_mut() = CameraState::Pinch;
+            }
           }
           // Keep receiving pointermove even when the finger moves outside the canvas.
           let _ = canvas.set_pointer_capture( e.pointer_id() );
