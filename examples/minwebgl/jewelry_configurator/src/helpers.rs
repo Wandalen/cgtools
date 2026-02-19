@@ -63,7 +63,7 @@ pub fn setup_camera( canvas : &HtmlCanvasElement ) -> Camera
 
   let eye = F32x3::from( [ 2.0, 2.0, 2.0 ] );
   let up = F32x3::from( [ 0.0, 1.0, 0.0 ] );
-  let center = F32x3::from( [ 0.0, 0.7, 0.0 ] );
+  let center = F32x3::from( [ 0.0, 0.9, 0.0 ] );
 
   let aspect_ratio = width / height;
 
