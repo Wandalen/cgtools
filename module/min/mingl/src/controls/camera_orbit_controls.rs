@@ -532,12 +532,18 @@ mod private
     Pinch,
   }
 
-  /// Binds mouse and pointer events to the camera controls for interaction.
+  /// Binds pointer events to the camera controls for interaction.
   ///
-  /// This function sets up event listeners on an `HtmlCanvasElement` to handle
-  /// camera rotation, panning, and zooming. Left-click (pointer button 0) is used
-  /// for rotation, right-click (pointer button 2) for panning, and the mouse wheel
-  /// is used for zooming. It also prevents the default context menu from appearing on right-click.
+  /// Sets up event listeners on an `HtmlCanvasElement` to handle camera rotation,
+  /// panning, and zooming via both mouse and touch input:
+  ///
+  /// - **Mouse**: left-click drag → rotate; right-click drag → pan; scroll wheel → zoom.
+  /// - **Touch**: one-finger drag → rotate; two-finger pinch → zoom.
+  ///   Pan is not available via touch (`PointerEvent.button` is always `0` for touch contacts).
+  ///
+  /// Also sets `touch-action: none` on the canvas (modifies inline style) so the browser
+  /// does not intercept touch gestures before they reach the application, and prevents
+  /// the default context menu on right-click.
   ///
   /// # Arguments
   ///
