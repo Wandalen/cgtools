@@ -347,7 +347,6 @@ fn run() -> Result< (), gl::WebglError >
             utils::show_canvas();
 
             renderer_for_handler.borrow_mut().update_framebuffer_size( img.width() as i32, img.height() as i32 );
-            renderer_for_handler.borrow_mut().set_original_texture( texture.clone() );
             renderer_for_handler.borrow_mut().set_image_texture( texture );
             renderer_for_handler.borrow_mut().apply_filter( &filters::original::Original );
 
