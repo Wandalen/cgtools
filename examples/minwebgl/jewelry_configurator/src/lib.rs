@@ -485,7 +485,7 @@ fn create_pipeline( gl : &GL, canvas : &HtmlCanvasElement, config : &JewelryConf
   let width = canvas.width();
   let height = canvas.height();
 
-  let mut renderer = match Renderer::new( gl, width, height, 2 )
+  let mut renderer = match Renderer::new( gl, width, height, 4 )
   {
     Ok( renderer ) => renderer,
     Err( err ) => { log::error!( "{err}" ); panic!() }
@@ -536,7 +536,7 @@ fn setup_resize_observer
 
       let mut pipeline = pipeline.borrow_mut();
 
-      if pipeline.renderer.resize( &gl, width, height, 2 ).is_ok()
+      if pipeline.renderer.resize( &gl, width, height, 4 ).is_ok()
       {
         pipeline.swap_buffer = SwapFramebuffer::new( &gl, width, height );
 
