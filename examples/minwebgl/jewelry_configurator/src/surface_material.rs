@@ -1,4 +1,4 @@
-use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo, MaterialUploadContext };
+use renderer::webgl::{ ShaderProgram, material::{ Material, TextureInfo, CullMode }, program::ProgramInfo, MaterialUploadContext };
 use renderer::impl_locations;
 use minwebgl as gl;
 use gl::{ GL, F32x3, WebGlProgram };
@@ -96,7 +96,7 @@ impl Material for SurfaceMaterial
       Ok( loc ) => loc,
       Err( e ) =>
       {
-        gl::log::error!( "SurfaceMaterial::configure error: {}", e );
+        gl::log::error!( "SurfaceMaterial::configure error: {e}" );
         return;
       }
     };

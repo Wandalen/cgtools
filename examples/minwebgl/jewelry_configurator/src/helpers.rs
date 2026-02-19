@@ -34,47 +34,14 @@ use crate::cube_normal_map_generator::{ CubeNormalMapGenerator, CubeNormalData }
 use crate::gem_material::GemMaterial;
 use crate::surface_material::SurfaceMaterial;
 use gl::canvas::HtmlCanvasElement;
+use super::JewelryConfig;
 
-pub( crate ) const CAMERA_FOV : f32 = 0.7853982; // 45.0f32.to_radians()
-pub( crate ) const CAMERA_NEAR : f32 = 0.1;
-pub( crate ) const CAMERA_FAR : f32 = 100.0;
-pub( crate ) const SHADOW_RESOLUTION : u32 = 2048;
+pub const CAMERA_FOV : f32 = core::f32::consts::FRAC_PI_4;
+pub const CAMERA_NEAR : f32 = 0.1;
+pub const CAMERA_FAR : f32 = 100.0;
+pub const SHADOW_RESOLUTION : u32 = 2048;
 
-/// Global configuration applied to all jewelry items.
-#[ derive( Clone, Copy ) ]
-pub struct JewelryConfig
-{
-  /// Gem (diamond) RGB color.
-  pub gem_color : F32x3,
-  /// Metal base RGB color.
-  pub metal_color : F32x3,
-  /// Background clear RGB color.
-  pub clear_color : F32x3,
-  /// Renderer exposure.
-  pub exposure : f32,
-  /// Metal roughness.
-  pub roughness : f32,
-  /// Metal metalness.
-  pub metalness : f32,
-}
-
-impl Default for JewelryConfig
-{
-  fn default() -> Self
-  {
-    Self
-    {
-      gem_color : F32x3::splat( 1.0 ), // ff ff ff
-      metal_color : F32x3::splat( 0.439 ), // 57 57 57
-      clear_color : F32x3::splat( 1.0 ), // ff ff ff
-      exposure : 1.15, // 1.15
-      roughness : 0.0, // 0
-      metalness : 0.92, // 0.9
-    }
-  }
-}
-
-/// Helper function to get uniform location from a HashMap with error handling.
+/// Helper function to get uniform location from a `HashMap` with error handling.
 #[ inline ]
 pub fn get_uniform_location< S : std::hash::BuildHasher >
 (
@@ -89,14 +56,14 @@ pub fn get_uniform_location< S : std::hash::BuildHasher >
 }
 
 /// Initializes a perspective camera with orbit controls configured for jewelry inspection.
-pub( crate ) fn setup_camera( canvas : &HtmlCanvasElement ) -> Camera
+pub fn setup_camera( canvas : &HtmlCanvasElement ) -> Camera
 {
   let width = canvas.width() as f32;
   let height = canvas.height() as f32;
 
   let eye = F32x3::from( [ 2.0, 2.0, 2.0 ] );
   let up = F32x3::from( [ 0.0, 1.0, 0.0 ] );
-  let center = F32x3::from( [ 0.0, 0.5, 0.0 ] );
+  let center = F32x3::from( [ 0.0, 0.7, 0.0 ] );
 
   let aspect_ratio = width / height;
 
@@ -114,7 +81,7 @@ pub( crate ) fn setup_camera( canvas : &HtmlCanvasElement ) -> Camera
 }
 
 /// Traverses scene and configures PBR materials for metal parts.
-pub( crate ) fn configure_metal_materials( scene : &Rc< RefCell< Scene > >, config : &JewelryConfig )
+pub fn configure_metal_materials( scene : &Rc< RefCell< Scene > >, config : &JewelryConfig )
 {
   if let Err( err ) = scene.borrow().traverse
   (
@@ -133,7 +100,7 @@ pub( crate ) fn configure_metal_materials( scene : &Rc< RefCell< Scene > >, conf
 
         let mut material = helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
 
-        material.base_color_factor = config.metal_color.to_homogenous();
+        material.base_color_factor = F32x3::from( config.metal_color ).to_homogenous();
         material.specular_factor = None;
         material.specular_color_factor = None;
         material.base_color_texture = None;
@@ -157,7 +124,7 @@ pub( crate ) fn configure_metal_materials( scene : &Rc< RefCell< Scene > >, conf
 }
 
 /// Normalizes scale of scene children and positions them on the ground plane.
-pub( crate ) fn normalize_scene_transform( scene : &Rc< RefCell< Scene > > )
+pub fn normalize_scene_transform( scene : &Rc< RefCell< Scene > > )
 {
   for node in &scene.borrow().children
   {
@@ -165,13 +132,13 @@ pub( crate ) fn normalize_scene_transform( scene : &Rc< RefCell< Scene > > )
     node.normalize_scale();
     node.compute_local_bounding_box();
     let bb = node.local_bounding_box_hierarchical();
-    let t = mat3x3h::translation( [ 0.0, -bb.min.y(), 0.0 ] );
+    let t = mat3x3h::translation( [ 0.0, -bb.min.y() + 0.01, 0.0 ] ); // + 0.01 against z-fighting
     node.apply_matrix( t );
   }
 }
 
 /// Clones the plane template, adds it to the scene, and bakes a shadow onto it.
-pub( crate ) fn add_ground_plane
+pub fn add_ground_plane
 (
   gl : &GL,
   gltf : &gltf::GLTF,
@@ -179,7 +146,7 @@ pub( crate ) fn add_ground_plane
   plane_template : &Option< Rc< RefCell< Node > > >,
   shadow_map : &Option< ShadowMap >,
   shadow_baker : &Option< ShadowBaker >,
-  clear_color : F32x3,
+  clear_color : f32,
 )
 {
   let Some( plane_template ) = plane_template else { return; };
@@ -198,7 +165,7 @@ pub( crate ) fn add_ground_plane
 }
 
 /// Finds gem nodes, generates cube normal maps, and applies gem materials.
-pub( crate ) fn generate_gem_normal_maps_and_apply
+pub fn generate_gem_normal_maps_and_apply
 (
   gl : &GL,
   scene : &Rc< RefCell< Scene > >,
@@ -256,7 +223,7 @@ fn find_gem_nodes( scene : &Rc< RefCell< Scene > > ) -> FxHashMap< String, Rc< R
 }
 
 /// Creates an empty 2D texture with linear filtering, then loads HDR data into it.
-pub( crate ) async fn create_environment_texture( gl : &GL, hdr_path : &str ) -> Option< TextureInfo >
+pub async fn create_environment_texture( gl : &GL, hdr_path : &str ) -> Option< TextureInfo >
 {
   let texture = gl.create_texture()?;
 
@@ -316,7 +283,7 @@ fn bake_plane_shadow
   plane_node : &Rc< RefCell< Node > >,
   shadow_map : &Option< ShadowMap >,
   shadow_baker : &Option< ShadowBaker >,
-  clear_color : F32x3,
+  clear_color : f32,
 ) -> Result< (), gl::WebglError >
 {
   let shadow_map = shadow_map.as_ref().ok_or( gl::WebglError::Other( "ShadowMap not initialized" ) )?;
@@ -393,14 +360,14 @@ fn create_shadow_texture( gl : &GL, res : u32, mip_levels : i32 ) -> Option< gl:
 }
 
 /// Applies `SurfaceMaterial` to the ground plane node.
-fn setup_plane_material( gl : &GL, plane_node : &Rc< RefCell< Node > >, shadow_texture : Option< TextureInfo >, clear_color : F32x3 )
+fn setup_plane_material( gl : &GL, plane_node : &Rc< RefCell< Node > >, shadow_texture : Option< TextureInfo >, clear_color : f32 )
 {
   let Object3D::Mesh( mesh ) = &plane_node.borrow().object else { return; };
   let primitives = &mesh.borrow().primitives;
   let Some( primitive ) = primitives.first() else { return; };
 
   let mut surface_material = SurfaceMaterial::new( gl );
-  surface_material.color = clear_color;
+  surface_material.color = F32x3::splat( clear_color );
   surface_material.texture = shadow_texture;
   surface_material.needs_update = true;
   let material : Rc< RefCell< Box< dyn Material > > > = Rc::new( RefCell::new( Box::new( surface_material ) ) );
@@ -408,7 +375,7 @@ fn setup_plane_material( gl : &GL, plane_node : &Rc< RefCell< Node > >, shadow_t
 }
 
 /// Updates gem color on all gem nodes in the map.
-pub( crate ) fn apply_gem_color( gems : &FxHashMap< String, Rc< RefCell< Node > > >, gem_color : F32x3 )
+pub fn apply_gem_color( gems : &FxHashMap< String, Rc< RefCell< Node > > >, gem_color : F32x3 )
 {
   for gem in gems.values()
   {
@@ -426,8 +393,9 @@ pub( crate ) fn apply_gem_color( gems : &FxHashMap< String, Rc< RefCell< Node > 
 }
 
 /// Updates surface material color on plane nodes in the scene.
-pub( crate ) fn apply_plane_color( scene : &Rc< RefCell< Scene > >, clear_color : F32x3 )
+pub fn apply_plane_color( scene : &Rc< RefCell< Scene > >, clear_color : f32 )
 {
+  let color = F32x3::splat( clear_color );
   let _ = scene.borrow().traverse
   (
     &mut | node : Rc< RefCell< Node > > |
@@ -439,7 +407,7 @@ pub( crate ) fn apply_plane_color( scene : &Rc< RefCell< Scene > >, clear_color 
         let material = &primitive.borrow().material;
         if material.borrow().type_name() != "SurfaceMaterial" { continue; }
         let mut mat = helpers::cast_unchecked_material_to_ref_mut::< SurfaceMaterial >( material.borrow_mut() );
-        mat.color = clear_color;
+        mat.color = color;
         mat.needs_update = true;
       }
       Ok( () )

@@ -1,10 +1,23 @@
-//! Jewelry configurator
+//! Jewelry configurator — WebGL renderer library.
+//!
+//! Provides [`JewelryRenderer`] for loading GLTF jewelry models and rendering them
+//! with physically-based materials, image-based lighting, gem ray-tracing, soft shadows,
+//! and tonemapping post-processing.
+//!
+//! Also exposes [`JewelryConfig`] for controlling gem color, metal color, exposure,
+//! roughness, and metalness — usable from both Rust and JavaScript via wasm-bindgen.
+
+#![ allow( clippy::cast_precision_loss ) ]
+#![ allow( clippy::cast_possible_truncation ) ]
+#![ allow( clippy::cast_sign_loss ) ]
+#![ allow( clippy::min_ident_chars ) ]
+#![ allow( clippy::unsafe_derive_deserialize ) ]
+#![ allow( clippy::missing_inline_in_public_items ) ]
 
 mod gem_material;
 mod cube_normal_map_generator;
 mod surface_material;
-/// Scene processing helpers and configuration.
-pub mod helpers;
+mod helpers;
 
 use minwebgl as gl;
 use gl::
@@ -33,12 +46,13 @@ use post_processing::{ Pass, SwapFramebuffer, ToneMappingPass, ToneMappingAces, 
 use rustc_hash::FxHashMap;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::closure::Closure;
-use std::{ cell::RefCell, rc::Rc };
+use serde::{ Serialize, Deserialize };
+use std::rc::Rc;
+use core::cell::RefCell;
 use web_sys::ResizeObserver;
 use cube_normal_map_generator::CubeNormalMapGenerator;
 use helpers::
 {
-  JewelryConfig,
   CAMERA_FOV,
   CAMERA_NEAR,
   CAMERA_FAR,
@@ -52,6 +66,127 @@ use helpers::
   apply_gem_color,
   apply_plane_color,
 };
+
+/// Temporary brightness scale applied to gem color before uploading to the shader.
+/// The gem rendering pipeline currently loses intensity somewhere, so we compensate here.
+/// TODO: remove once the root cause in the pipeline is identified and fixed.
+const GEM_COLOR_SHADER_SCALE : f32 = 1.7;
+
+/// Global configuration applied to all jewelry items.
+/// JS-compatible: all fields are accessible via getter/setter properties,
+/// color arrays are exposed as JS arrays through `gem_color` / `metal_color` properties.
+#[ wasm_bindgen ]
+#[ derive( Clone, Copy, PartialEq, Serialize, Deserialize ) ]
+pub struct JewelryConfig
+{
+  /// Gem (diamond) RGB color (0–1 range).
+  gem_color : [ f32; 3 ],
+  /// Metal base RGB color.
+  metal_color : [ f32; 3 ],
+  /// Background clear color (single value, applied as RGB splat).
+  clear_color : f32,
+  /// Renderer exposure.
+  exposure : f32,
+  /// Metal roughness.
+  roughness : f32,
+  /// Metal metalness.
+  metalness : f32,
+}
+
+#[ wasm_bindgen ]
+impl JewelryConfig
+{
+  /// Creates a config with default values.
+  #[ must_use ]
+  #[ wasm_bindgen( constructor ) ]
+  pub fn new() -> Self { Self::default() }
+
+  /// Gem color as a JS array (0–1 per channel).
+  #[ must_use ]
+  #[ wasm_bindgen( getter ) ]
+  pub fn gem_color( &self ) -> Vec< f32 > { self.gem_color.to_vec() }
+
+  /// Sets gem color from a JS array (0–1 per channel).
+  #[ wasm_bindgen( setter ) ]
+  pub fn set_gem_color( &mut self, v : &[ f32 ] )
+  {
+    if v.len() >= 3 { self.gem_color = [ v[ 0 ], v[ 1 ], v[ 2 ] ]; }
+  }
+
+  /// Metal color as a JS array (0–1 per channel).
+  #[ must_use ]
+  #[ wasm_bindgen( getter ) ]
+  pub fn metal_color( &self ) -> Vec< f32 > { self.metal_color.to_vec() }
+
+  /// Sets metal color from a JS array (0–1 per channel).
+  #[ wasm_bindgen( setter ) ]
+  pub fn set_metal_color( &mut self, v : &[ f32 ] )
+  {
+    if v.len() >= 3 { self.metal_color = [ v[ 0 ], v[ 1 ], v[ 2 ] ]; }
+  }
+
+  /// Background clear color (single value, applied as RGB splat).
+  #[ must_use ]
+  #[ wasm_bindgen( getter ) ]
+  pub fn clear_color( &self ) -> f32 { self.clear_color }
+
+  /// Sets background clear color.
+  #[ wasm_bindgen( setter ) ]
+  pub fn set_clear_color( &mut self, v : f32 ) { self.clear_color = v; }
+
+  /// Renderer exposure.
+  #[ must_use ]
+  #[ wasm_bindgen( getter ) ]
+  pub fn exposure( &self ) -> f32 { self.exposure }
+
+  /// Sets renderer exposure.
+  #[ wasm_bindgen( setter ) ]
+  pub fn set_exposure( &mut self, v : f32 ) { self.exposure = v; }
+
+  /// Metal roughness.
+  #[ must_use ]
+  #[ wasm_bindgen( getter ) ]
+  pub fn roughness( &self ) -> f32 { self.roughness }
+
+  /// Sets metal roughness.
+  #[ wasm_bindgen( setter ) ]
+  pub fn set_roughness( &mut self, v : f32 ) { self.roughness = v; }
+
+  /// Metal metalness.
+  #[ must_use ]
+  #[ wasm_bindgen( getter ) ]
+  pub fn metalness( &self ) -> f32 { self.metalness }
+
+  /// Sets metal metalness.
+  #[ wasm_bindgen( setter ) ]
+  pub fn set_metalness( &mut self, v : f32 ) { self.metalness = v; }
+}
+
+impl JewelryConfig
+{
+  /// Returns gem color pre-scaled for the shader. See [`GEM_COLOR_SHADER_SCALE`].
+  fn gem_color_for_shader( &self ) -> F32x3
+  {
+    F32x3::from( self.gem_color ) * GEM_COLOR_SHADER_SCALE
+  }
+}
+
+impl Default for JewelryConfig
+{
+
+  fn default() -> Self
+  {
+    Self
+    {
+      gem_color   : [ 1.0, 1.0, 1.0 ],
+      metal_color : [ 0.85, 0.85, 0.854 ],
+      clear_color : 2.7,
+      exposure    : 1.0,
+      roughness   : 0.01,
+      metalness   : 0.93,
+    }
+  }
+}
 
 /// GPU resources that need to be updated on resize.
 struct RenderPipeline
@@ -73,7 +208,6 @@ struct JewelryItem
 #[ wasm_bindgen ]
 pub struct JewelryRenderer
 {
-  canvas : HtmlCanvasElement,
   gl : GL,
   config : JewelryConfig,
   pipeline : Rc< RefCell< RenderPipeline > >,
@@ -87,62 +221,19 @@ pub struct JewelryRenderer
   _resize_closure : Closure< dyn FnMut( js_sys::Array ) >,
 }
 
-#[ wasm_bindgen ]
 impl JewelryRenderer
 {
-  /// Create a new jewelry renderer instance.
-  #[ wasm_bindgen( constructor ) ]
-  pub fn new( canvas : &HtmlCanvasElement ) -> Self
+  /// Creates and fully initialises a jewelry renderer.
+  /// Loads IBL at `ibl_path` and (if non-empty) a gem HDR environment at `gem_env_path`.
+  pub async fn new( canvas : &HtmlCanvasElement, ibl_path : &str, gem_env_path : &str ) -> Self
   {
-    let width = canvas.width();
-    let height = canvas.height();
-
-    let options = ContextOptions
-    {
-      alpha : false,
-      antialias : false,
-      depth : false,
-      stencil : false,
-      power_preference : PowerPreference::HighPerformance,
-      ..Default::default()
-    };
-
-    let gl = match gl::context::from_canvas_with( canvas, options )
-    {
-      Ok( gl ) => gl,
-      Err( err ) => { log::error!( "{err}" ); panic!() }
-    };
-
-    _ = gl.get_extension( "EXT_color_buffer_float" );
-    _ = gl.get_extension( "EXT_color_buffer_half_float" );
-
+    let gl = create_gl( canvas );
     let config = JewelryConfig::default();
-
-    let mut renderer = match Renderer::new( &gl, width, height, 2 )
-    {
-      Ok( renderer ) => renderer,
-      Err( err ) => { log::error!( "{err}" ); panic!() }
-    };
-    renderer.set_clear_color( config.clear_color );
-    renderer.set_exposure( config.exposure );
-
-    let camera = setup_camera( canvas );
-
-    let swap_buffer = SwapFramebuffer::new( &gl, width, height );
-
-    let tonemapping = ToneMappingPass::< ToneMappingAces >::new( &gl )
-    .expect( "Failed to create tonemapping pass" );
-
-    let to_srgb = ToSrgbPass::new( &gl, true )
-    .expect( "Failed to create sRGB pass" );
-
-    let pipeline = Rc::new( RefCell::new( RenderPipeline { renderer, swap_buffer, camera, tonemapping, to_srgb } ) );
-
+    let pipeline = create_pipeline( &gl, canvas, &config );
     let ( resize_observer, resize_closure ) = setup_resize_observer( canvas, &gl, &pipeline );
 
-    Self
+    let mut this = Self
     {
-      canvas : canvas.clone(),
       config,
       pipeline,
       gl,
@@ -154,51 +245,58 @@ impl JewelryRenderer
       shadow_baker : None,
       _resize_observer : resize_observer,
       _resize_closure : resize_closure,
-    }
-  }
+    };
 
-  /// Loads IBL environment maps, gem environment texture, and configures renderer settings.
-  /// Must be called after construction and before rendering.
-  /// `gem_env_path` is the path to the HDR environment map for gem reflections (empty string to skip).
-  pub async fn init( &mut self, ibl_path : &str, gem_env_path : &str )
-  {
-    let ibl_data = ibl::load( &self.gl, ibl_path, None ).await;
+    this.load_ibl( ibl_path ).await;
 
-    {
-      let mut pipeline = self.pipeline.borrow_mut();
-      pipeline.renderer.set_ibl( ibl_data );
-      pipeline.renderer.set_skybox( None );
-      pipeline.renderer.set_use_emission( true );
-      pipeline.renderer.set_bloom_strength( 2.0 );
-      pipeline.renderer.set_bloom_radius( 0.1 );
-    }
-
-    // Load gem environment texture if path provided
     if !gem_env_path.is_empty()
     {
-      self.environment_texture = create_environment_texture( &self.gl, gem_env_path ).await;
+      this.environment_texture = create_environment_texture( &this.gl, gem_env_path ).await;
     }
 
-    // Create cube normal map generator
+    this.init_gpu_resources();
+    this.load_plane_template().await;
+
+    this
+  }
+
+  /// Loads IBL data and applies initial renderer settings.
+  async fn load_ibl( &mut self, ibl_path : &str )
+  {
+    let ibl_data = ibl::load( &self.gl, ibl_path, None ).await;
+    let mut pipeline = self.pipeline.borrow_mut();
+    pipeline.renderer.set_ibl( ibl_data );
+    pipeline.renderer.set_skybox( None );
+    pipeline.renderer.set_use_emission( true );
+    pipeline.renderer.set_bloom_strength( 2.0 );
+    pipeline.renderer.set_bloom_radius( 0.1 );
+  }
+
+  /// Creates GPU resources: cube normal map generator, shadow map, and shadow baker.
+  fn init_gpu_resources( &mut self )
+  {
     match CubeNormalMapGenerator::new( &self.gl )
     {
       Ok( generator ) => self.cube_normal_map_generator = Some( generator ),
       Err( err ) => log::error!( "Failed to create CubeNormalMapGenerator: {err}" ),
     }
 
-    // Create shadow resources
     match ShadowMap::new( &self.gl, SHADOW_RESOLUTION )
     {
       Ok( sm ) => self.shadow_map = Some( sm ),
       Err( err ) => log::error!( "Failed to create ShadowMap: {err}" ),
     }
+
     match ShadowBaker::new( &self.gl )
     {
       Ok( sb ) => self.shadow_baker = Some( sb ),
       Err( err ) => log::error!( "Failed to create ShadowBaker: {err}" ),
     }
+  }
 
-    // Load plane template
+  /// Loads the ground plane GLB and stores the `Plane` node as a reusable template.
+  async fn load_plane_template( &mut self )
+  {
     let document = web_sys::window().expect( "Should have a window" ).document().expect( "Should have a document" );
     match gltf::load( &document, "gltf/plane.glb", &self.gl ).await
     {
@@ -206,24 +304,35 @@ impl JewelryRenderer
       Err( err ) => log::error!( "Failed to load plane: {err}" ),
     }
   }
+}
 
+#[ wasm_bindgen ]
+impl JewelryRenderer
+{
   /// Loads a GLTF jewelry model from a URL, then processes it.
-  pub async fn load_jewelry_gltf( &mut self, path : &str )
+  /// Returns `true` on success, `false` if loading failed.
+  pub async fn load_jewelry_gltf( &mut self, path : &str ) -> bool
   {
     let document = web_sys::window().expect( "Should have a window" ).document().expect( "Should have a document" );
     let gltf = match gltf::load( &document, path, &self.gl ).await
     {
       Ok( gltf ) => gltf,
-      Err( err ) => { log::error!( "{err}" ); return; }
+      Err( err ) => { log::error!( "{err}" ); return false; }
     };
 
     self.process_jewelry_gltf( path, &gltf );
+    true
   }
 
   /// Processes a loaded GLTF jewelry model: configures materials, normalizes
   /// transforms, adds ground plane with shadow, and sets up gem materials.
   fn process_jewelry_gltf( &mut self, key : &str, gltf : &GLTF )
   {
+    if gltf.scenes.is_empty()
+    {
+      log::error!( "GLTF '{key}' contains no scenes" );
+      return;
+    }
     let scene = &gltf.scenes[ 0 ];
 
     configure_metal_materials( scene, &self.config );
@@ -231,12 +340,12 @@ impl JewelryRenderer
     add_ground_plane
     (
       &self.gl,
-      &gltf,
+      gltf,
       scene,
       &self.plane_template,
       &self.shadow_map,
       &self.shadow_baker,
-      self.config.clear_color
+      self.config.clear_color()
     );
 
     scene.borrow_mut().update_world_matrix();
@@ -247,7 +356,7 @@ impl JewelryRenderer
       scene,
       &self.cube_normal_map_generator,
       &self.environment_texture,
-      self.config.gem_color,
+      self.config.gem_color_for_shader(),
     );
 
     self.loaded_gltfs.insert( key.into(), JewelryItem { scene : scene.clone(), gems } );
@@ -256,7 +365,12 @@ impl JewelryRenderer
   /// Renders a loaded jewelry scene with post-processing (tonemapping + sRGB conversion).
   pub fn render_jewelry( &mut self, name : &str, delta_time : f64 )
   {
-    let Some( jewelry ) = self.loaded_gltfs.get( name ) else { return; };
+    let Some( jewelry ) = self.loaded_gltfs.get( name )
+    else
+    {
+      log::warn!( "render_jewelry: '{name}' is not loaded" );
+      return;
+    };
     let mut scene = jewelry.scene.borrow_mut();
 
     let mut pipeline = self.pipeline.borrow_mut();
@@ -290,67 +404,92 @@ impl JewelryRenderer
     }
   }
 
-  /// Sets gem (diamond) color and re-applies to all loaded items.
-  pub fn set_gem_color( &mut self, r : f32, g : f32, b : f32 )
+  /// Returns a copy of the current configuration.
+  #[ must_use ]
+  pub fn config( &self ) -> JewelryConfig { self.config }
+
+  /// Replaces the entire config and re-applies to the renderer and all loaded scenes.
+  pub fn update_config( &mut self, config : JewelryConfig )
   {
-    self.config.gem_color = F32x3::from_array( [ r, g, b ] );
+    self.config = config;
     self.apply_config();
   }
 
-  /// Sets metal color and re-applies to all loaded items.
-  pub fn set_metal_color( &mut self, r : f32, g : f32, b : f32 )
-  {
-    self.config.metal_color = F32x3::from_array( [ r, g, b ] );
-    self.apply_config();
-  }
-
-  /// Sets background clear color and re-applies to all loaded items.
-  pub fn set_clear_color( &mut self, r : f32, g : f32, b : f32 )
-  {
-    self.config.clear_color = F32x3::from_array( [ r, g, b ] );
-    self.apply_config();
-  }
-
-  /// Sets exposure and re-applies.
-  pub fn set_exposure( &mut self, exposure : f32 )
-  {
-    self.config.exposure = exposure;
-    self.apply_config();
-  }
-
-  /// Sets metal roughness and re-applies to all loaded items.
-  pub fn set_roughness( &mut self, roughness : f32 )
-  {
-    self.config.roughness = roughness;
-    self.apply_config();
-  }
-
-  /// Sets metal metalness and re-applies to all loaded items.
-  pub fn set_metalness( &mut self, metalness : f32 )
-  {
-    self.config.metalness = metalness;
-    self.apply_config();
-  }
-
-  /// Re-applies the current config to the renderer and all loaded items.
   fn apply_config( &mut self )
   {
     {
       let mut pipeline = self.pipeline.borrow_mut();
-      pipeline.renderer.set_clear_color( self.config.clear_color );
-      pipeline.renderer.set_exposure( self.config.exposure );
+      pipeline.renderer.set_clear_color( F32x3::splat( self.config.clear_color() ) );
+      pipeline.renderer.set_exposure( self.config.exposure() );
     }
 
     for item in self.loaded_gltfs.values()
     {
       configure_metal_materials( &item.scene, &self.config );
-      apply_gem_color( &item.gems, self.config.gem_color );
-      apply_plane_color( &item.scene, self.config.clear_color );
+      apply_gem_color( &item.gems, self.config.gem_color_for_shader() );
+      apply_plane_color( &item.scene, self.config.clear_color() );
     }
   }
 }
 
 /// Sets up a `ResizeObserver` on the canvas that updates renderer, swap buffer and camera.
+/// Creates a WebGL2 context from the canvas with high-performance settings and enables float texture extensions.
+///
+/// # Panics
+/// Panics if the WebGL2 context cannot be created.
+fn create_gl( canvas : &HtmlCanvasElement ) -> GL
+{
+  let options = ContextOptions
+  {
+    alpha : false,
+    antialias : false,
+    depth : false,
+    stencil : false,
+    power_preference : PowerPreference::HighPerformance,
+    ..Default::default()
+  };
+
+  let gl = match gl::context::from_canvas_with( canvas, options )
+  {
+    Ok( gl ) => gl,
+    Err( err ) => { log::error!( "{err}" ); panic!() }
+  };
+
+  _ = gl.get_extension( "EXT_color_buffer_float" );
+  _ = gl.get_extension( "EXT_color_buffer_half_float" );
+
+  gl
+}
+
+/// Builds the rendering pipeline: renderer, camera, swap buffer, tonemapping and sRGB passes.
+///
+/// # Panics
+/// Panics if the renderer or post-processing passes cannot be created.
+fn create_pipeline( gl : &GL, canvas : &HtmlCanvasElement, config : &JewelryConfig ) -> Rc< RefCell< RenderPipeline > >
+{
+  let width = canvas.width();
+  let height = canvas.height();
+
+  let mut renderer = match Renderer::new( gl, width, height, 2 )
+  {
+    Ok( renderer ) => renderer,
+    Err( err ) => { log::error!( "{err}" ); panic!() }
+  };
+  renderer.set_clear_color( F32x3::splat( config.clear_color() ) );
+  renderer.set_exposure( config.exposure() );
+
+  let camera = setup_camera( canvas );
+  let swap_buffer = SwapFramebuffer::new( gl, width, height );
+
+  let tonemapping = ToneMappingPass::< ToneMappingAces >::new( gl )
+  .expect( "Failed to create tonemapping pass" );
+
+  let to_srgb = ToSrgbPass::new( gl, true )
+  .expect( "Failed to create sRGB pass" );
+
+  Rc::new( RefCell::new( RenderPipeline { renderer, swap_buffer, camera, tonemapping, to_srgb } ) )
+}
+
 fn setup_resize_observer
 (
   canvas : &HtmlCanvasElement,
@@ -402,4 +541,12 @@ fn setup_resize_observer
   observer.observe( canvas );
 
   ( observer, closure )
+}
+
+/// Creates and fully initialises a `JewelryRenderer`. JavaScript entry point.
+/// Loads IBL at `ibl_path` and (if non-empty) a gem HDR environment at `gem_env_path`.
+#[ wasm_bindgen ]
+pub async fn create( canvas : HtmlCanvasElement, ibl_path : String, gem_env_path : String ) -> JewelryRenderer
+{
+  JewelryRenderer::new( &canvas, &ibl_path, &gem_env_path ).await
 }
