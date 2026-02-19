@@ -1,7 +1,7 @@
 {
   "metal" :
   [
-    { "name" : "silver",     "rgb" : [ 217, 217, 218 ] },
+    { "name" : "silver",     "rgb" : [ 194, 194, 195 ] },
     { "name" : "gold",       "rgb" : [ 251, 138,  45 ] },
     { "name" : "rose_gold",  "rgb" : [ 186, 107,  54 ] }
   ],
