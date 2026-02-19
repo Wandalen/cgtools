@@ -78,9 +78,9 @@ impl Renderer
 
   pub fn restore_previous_texture( &mut self )
   {
-    if let Some( previous ) = &self.previous_texture
+    if let Some( previous ) = self.previous_texture.take()
     {
-      self.image_texture = Some( previous.clone() );
+      self.image_texture = Some( previous );
     }
     // Restore canvas dimensions
     if let Some( ( w, h ) ) = self.previous_canvas_size.take()
