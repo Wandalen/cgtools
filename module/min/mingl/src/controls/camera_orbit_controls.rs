@@ -603,14 +603,27 @@ mod private
           let pointer_id = e.pointer_id();
           let new_pos = [ e.screen_x() as f32, e.screen_y() as f32 ];
           let current_state = state.borrow().clone();
+
+          // Snapshot the moved pointer's previous position before updating;
+          // the Pinch arm needs it to compute the old inter-finger distance.
+          let old_pos = active_pointers.borrow().get( &pointer_id ).copied();
+
+          // Compute movement delta from the single-pointer reference position.
+          let prev_pos = *prev_screen_pos.borrow();
+          let delta = [ prev_pos[ 0 ] - new_pos[ 0 ], new_pos[ 1 ] - prev_pos[ 1 ] ];
+
+          // Update tracking state for all active states.
+          *prev_screen_pos.borrow_mut() = new_pos;
+          active_pointers.borrow_mut().insert( pointer_id, new_pos );
+
           match current_state
           {
             CameraState::Pinch =>
             {
-              let mut pointers = active_pointers.borrow_mut();
-              if let Some( &old_pos ) = pointers.get( &pointer_id )
+              if let Some( old ) = old_pos
               {
-                let other_pos = pointers
+                let other_pos = active_pointers
+                  .borrow()
                   .iter()
                   .find( |( &id, _ )| id != pointer_id )
                   .map( |( _, &pos )| pos );
@@ -618,8 +631,8 @@ mod private
                 {
                   let old_dist =
                   {
-                    let dx = old_pos[ 0 ] - other[ 0 ];
-                    let dy = old_pos[ 1 ] - other[ 1 ];
+                    let dx = old[ 0 ] - other[ 0 ];
+                    let dy = old[ 1 ] - other[ 1 ];
                     ( dx * dx + dy * dy ).sqrt()
                   };
                   let new_dist =
@@ -631,24 +644,9 @@ mod private
                   camera.borrow_mut().zoom( old_dist - new_dist );
                 }
               }
-              pointers.insert( pointer_id, new_pos );
             }
-            CameraState::Rotate =>
-            {
-              let prev_pos = *prev_screen_pos.borrow();
-              let delta = [ prev_pos[ 0 ] - new_pos[ 0 ], new_pos[ 1 ] - prev_pos[ 1 ] ];
-              *prev_screen_pos.borrow_mut() = new_pos;
-              active_pointers.borrow_mut().insert( pointer_id, new_pos );
-              camera.borrow_mut().rotate( delta );
-            }
-            CameraState::Pan =>
-            {
-              let prev_pos = *prev_screen_pos.borrow();
-              let delta = [ prev_pos[ 0 ] - new_pos[ 0 ], new_pos[ 1 ] - prev_pos[ 1 ] ];
-              *prev_screen_pos.borrow_mut() = new_pos;
-              active_pointers.borrow_mut().insert( pointer_id, new_pos );
-              camera.borrow_mut().pan( delta );
-            }
+            CameraState::Rotate => camera.borrow_mut().rotate( delta ),
+            CameraState::Pan => camera.borrow_mut().pan( delta ),
             CameraState::None => {}
           }
         }
