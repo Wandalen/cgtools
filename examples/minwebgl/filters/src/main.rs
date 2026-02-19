@@ -250,14 +250,22 @@ fn run() -> Result< (), gl::WebglError >
   revert_btn.set_onclick( Some( onclick_revert.as_ref().unchecked_ref() ) );
   onclick_revert.forget();
 
-  // [TEMP] Setup remove background test button
+  // Setup remove background button
   let bg_btn = utils::get_element_by_id_unchecked::< web_sys::HtmlElement >( "bg-remove-btn" );
   let gl_bg = gl.clone();
   let filter_renderer_bg = filter_renderer.clone();
+  let is_processing = Rc::new( RefCell::new( false ) );
   let onclick_bg : Closure< dyn Fn() > = Closure::new( move ||
   {
+    if *is_processing.borrow()
+    {
+      return;
+    }
+    *is_processing.borrow_mut() = true;
+
     let gl_inner = gl_bg.clone();
     let renderer_inner = filter_renderer_bg.clone();
+    let is_processing_inner = is_processing.clone();
     wasm_bindgen_futures::spawn_local( async move
     {
       gl_inner.flush();
@@ -282,6 +290,7 @@ fn run() -> Result< (), gl::WebglError >
         Err( e ) =>
         {
           gl::warn!( "Failed to get canvas blob: {:?}", e );
+          *is_processing_inner.borrow_mut() = false;
           return;
         }
       };
@@ -289,6 +298,7 @@ fn run() -> Result< (), gl::WebglError >
       if blob_js.is_null() || blob_js.is_undefined()
       {
         gl::warn!( "Canvas blob is null" );
+        *is_processing_inner.borrow_mut() = false;
         return;
       }
 
@@ -302,6 +312,7 @@ fn run() -> Result< (), gl::WebglError >
           // Load result as image and update canvas
           let gl_for_handler = gl_inner.clone();
           let renderer_for_handler = renderer_inner.clone();
+          let is_processing_handler = is_processing_inner.clone();
           let handler : Box< dyn Fn( &HtmlImageElement ) > = Box::new( move | img |
           {
             let texture = gl_for_handler.create_texture();
@@ -340,6 +351,7 @@ fn run() -> Result< (), gl::WebglError >
             renderer_for_handler.borrow_mut().set_image_texture( texture );
             renderer_for_handler.borrow_mut().apply_filter( &filters::original::Original );
 
+            *is_processing_handler.borrow_mut() = false;
             gl::info!( "Background removed successfully!" );
           });
           utils::load_image_from_blob( &processed_blob, handler );
@@ -347,6 +359,7 @@ fn run() -> Result< (), gl::WebglError >
         None =>
         {
           gl::warn!( "Background removal failed" );
+          *is_processing_inner.borrow_mut() = false;
         }
       }
     });
