@@ -200,6 +200,105 @@ impl Default for JewelryConfig
   }
 }
 
+/// Configurable orbit path for the hero camera animation.
+/// JS-compatible: all fields are accessible via getter/setter properties.
+#[ wasm_bindgen ]
+#[ derive( Clone, Copy ) ]
+pub struct CameraPathConfig
+{
+  /// Orbit start azimuth (degrees).
+  angle_start : f32,
+  /// Orbit end azimuth (degrees).
+  angle_end : f32,
+  /// Distance from target.
+  radius : f32,
+  /// Camera Y at t=0.
+  height_start : f32,
+  /// Camera Y at t=1.
+  height_end : f32,
+  /// Look-at Y coordinate (X and Z = 0, ring is centered).
+  target_y : f32,
+}
+
+#[ wasm_bindgen ]
+impl CameraPathConfig
+{
+  /// Creates a config with default values.
+  #[ must_use ]
+  #[ wasm_bindgen( constructor ) ]
+  pub fn new() -> Self { Self::default() }
+
+  /// Orbit start azimuth (degrees).
+  #[ must_use ]
+  #[ wasm_bindgen( getter ) ]
+  pub fn angle_start( &self ) -> f32 { self.angle_start }
+
+  /// Sets orbit start azimuth (degrees).
+  #[ wasm_bindgen( setter ) ]
+  pub fn set_angle_start( &mut self, v : f32 ) { self.angle_start = v; }
+
+  /// Orbit end azimuth (degrees).
+  #[ must_use ]
+  #[ wasm_bindgen( getter ) ]
+  pub fn angle_end( &self ) -> f32 { self.angle_end }
+
+  /// Sets orbit end azimuth (degrees).
+  #[ wasm_bindgen( setter ) ]
+  pub fn set_angle_end( &mut self, v : f32 ) { self.angle_end = v; }
+
+  /// Distance from target.
+  #[ must_use ]
+  #[ wasm_bindgen( getter ) ]
+  pub fn radius( &self ) -> f32 { self.radius }
+
+  /// Sets distance from target.
+  #[ wasm_bindgen( setter ) ]
+  pub fn set_radius( &mut self, v : f32 ) { self.radius = v; }
+
+  /// Camera Y at t=0.
+  #[ must_use ]
+  #[ wasm_bindgen( getter ) ]
+  pub fn height_start( &self ) -> f32 { self.height_start }
+
+  /// Sets camera Y at t=0.
+  #[ wasm_bindgen( setter ) ]
+  pub fn set_height_start( &mut self, v : f32 ) { self.height_start = v; }
+
+  /// Camera Y at t=1.
+  #[ must_use ]
+  #[ wasm_bindgen( getter ) ]
+  pub fn height_end( &self ) -> f32 { self.height_end }
+
+  /// Sets camera Y at t=1.
+  #[ wasm_bindgen( setter ) ]
+  pub fn set_height_end( &mut self, v : f32 ) { self.height_end = v; }
+
+  /// Look-at Y coordinate.
+  #[ must_use ]
+  #[ wasm_bindgen( getter ) ]
+  pub fn target_y( &self ) -> f32 { self.target_y }
+
+  /// Sets look-at Y coordinate.
+  #[ wasm_bindgen( setter ) ]
+  pub fn set_target_y( &mut self, v : f32 ) { self.target_y = v; }
+}
+
+impl Default for CameraPathConfig
+{
+  fn default() -> Self
+  {
+    Self
+    {
+      angle_start : 45.0,
+      angle_end : 315.0,
+      radius : 3.0,
+      height_start : 2.0,
+      height_end : 2.5,
+      target_y : 0.9,
+    }
+  }
+}
+
 /// GPU resources that need to be updated on resize.
 struct RenderPipeline
 {
@@ -229,6 +328,8 @@ pub struct JewelryRenderer
   plane_template : Option< Rc< RefCell< Node > > >,
   shadow_map : Option< ShadowMap >,
   shadow_baker : Option< ShadowBaker >,
+  camera_path : CameraPathConfig,
+  camera_locked : bool,
   _resize_observer : ResizeObserver,
   _resize_closure : Closure< dyn FnMut( js_sys::Array ) >,
 }
@@ -256,6 +357,8 @@ impl JewelryRenderer
       plane_template : None,
       shadow_map : None,
       shadow_baker : None,
+      camera_path : CameraPathConfig::default(),
+      camera_locked : false,
       _resize_observer : resize_observer,
       _resize_closure : resize_closure,
     };
@@ -316,6 +419,19 @@ impl JewelryRenderer
       Ok( plane_gltf ) => self.plane_template = plane_gltf.scenes[ 0 ].borrow().get_node( "Plane" ),
       Err( err ) => log::error!( "Failed to load plane: {err}" ),
     }
+  }
+
+  /// Internal helper: set camera eye and center, disable orbit controls.
+  fn set_camera_internal( &mut self, eye : F32x3, center : F32x3 )
+  {
+    let pipeline = self.pipeline.borrow_mut();
+    let controls = pipeline.camera.get_controls();
+    let mut controls = controls.borrow_mut();
+    controls.eye = eye;
+    controls.center = center;
+    controls.rotation.enabled = false;
+    controls.zoom.enabled = false;
+    self.camera_locked = true;
   }
 }
 
@@ -443,6 +559,45 @@ impl JewelryRenderer
       apply_gem_color( &item.gems, self.config.gem_color_for_shader() );
       apply_plane_color( &item.scene, self.config.clear_color() );
     }
+  }
+
+  /// Configure the camera orbit path. Call once at setup.
+  pub fn set_camera_path( &mut self, config : CameraPathConfig )
+  {
+    self.camera_path = config;
+  }
+
+  /// Apply camera position from orbit progress. `t=0` → start, `t=1` → end.
+  /// Disables user orbit controls while active.
+  pub fn set_camera_animation( &mut self, t : f32 )
+  {
+    let t = t.clamp( 0.0, 1.0 );
+    let path = &self.camera_path;
+
+    let theta = ( path.angle_start + ( path.angle_end - path.angle_start ) * t ).to_radians();
+    let height = path.height_start + ( path.height_end - path.height_start ) * t;
+
+    let eye = F32x3::from( [ path.radius * theta.cos(), height, path.radius * theta.sin() ] );
+    let center = F32x3::from( [ 0.0, path.target_y, 0.0 ] );
+
+    self.set_camera_internal( eye, center );
+  }
+
+  /// Set camera eye and center directly from individual coordinates. Disables user orbit controls.
+  pub fn set_camera( &mut self, eye_x : f32, eye_y : f32, eye_z : f32, center_x : f32, center_y : f32, center_z : f32 )
+  {
+    self.set_camera_internal( F32x3::from( [ eye_x, eye_y, eye_z ] ), F32x3::from( [ center_x, center_y, center_z ] ) );
+  }
+
+  /// Re-enable user orbit controls from the current camera position.
+  pub fn release_camera( &mut self )
+  {
+    let pipeline = self.pipeline.borrow_mut();
+    let controls = pipeline.camera.get_controls();
+    let mut controls = controls.borrow_mut();
+    controls.rotation.enabled = true;
+    controls.zoom.enabled = true;
+    self.camera_locked = false;
   }
 }
 

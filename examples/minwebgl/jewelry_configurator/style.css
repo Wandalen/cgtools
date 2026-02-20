@@ -1,0 +1,189 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+  overflow-y: hidden;
+}
+
+#canvas {
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+}
+
+/* Scroll sections — invisible, just provide scroll height for ScrollTrigger */
+.scroll-container {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.cam-view {
+  height: 100vh;
+}
+
+/* UI overlay — fixed on top of canvas */
+.ui-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.ui-overlay * {
+  pointer-events: auto;
+}
+
+#buttons {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+}
+
+#buttons button {
+  padding: 8px 20px;
+  font-size: 14px;
+  cursor: pointer;
+  border: 1px solid #888;
+  background: #fff;
+  border-radius: 4px;
+}
+
+#buttons button.active {
+  background: #333;
+  color: #fff;
+  border-color: #333;
+}
+
+.color-panel {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+#metal-panel {
+  left: 16px;
+}
+
+#gem-panel {
+  right: 16px;
+}
+
+.panel-label {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.color-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  transition: transform 0.12s, border-color 0.12s;
+}
+
+.color-btn:hover {
+  transform: scale(1.18);
+}
+
+.color-btn.active {
+  border-color: #fff;
+  border-width: 3px;
+  transform: scale(1.1);
+}
+
+#btn-screenshot {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  border-radius: 4px;
+  backdrop-filter: blur(4px);
+}
+
+#btn-screenshot:hover {
+  background: rgba(0, 0, 0, 0.65);
+}
+
+/* Configurator controls — hidden during scroll animation, shown after "Customize" */
+.configurator-ui {
+  display: none;
+}
+
+.configurator-ui.active {
+  display: block;
+}
+
+#btn-customize {
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 32px;
+  font-size: 16px;
+  cursor: pointer;
+  border: none;
+  background: #333;
+  color: #fff;
+  border-radius: 6px;
+  letter-spacing: 0.05em;
+  transition: background 0.2s;
+}
+
+#btn-customize:hover {
+  background: #555;
+}
+
+/* Scroll indicator */
+.scroll-hint {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}

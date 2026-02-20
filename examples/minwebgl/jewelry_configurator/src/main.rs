@@ -3,6 +3,7 @@
 //! Sets up the canvas, builds the lil-gui control panel from [`JewelryConfig`],
 //! exposes `window.jewelryParams` / `window.colorsJson` / `window.jewelryGui` for the
 //! HTML color-swatch buttons, loads the default model, and drives the render loop.
+
 #![ allow( clippy::cast_sign_loss ) ]
 #![ allow( clippy::cast_possible_truncation ) ]
 #![ allow( clippy::std_instead_of_alloc ) ]
@@ -15,7 +16,7 @@ use web_sys::js_sys;
 use std::rc::Rc;
 use core::cell::RefCell;
 use wasm_bindgen::prelude::*;
-use jewelry_configurator::{ JewelryRenderer, JewelryConfig };
+use jewelry_configurator::{ JewelryRenderer, JewelryConfig, CameraPathConfig };
 
 const MODELS : &[ &str ] = &[ "gltf/0.glb", "gltf/1.glb", "gltf/2.glb" ];
 const COLORS_JSON : &str = include_str!( "../colors.json" );
@@ -61,6 +62,8 @@ async fn run()
   renderer.load_jewelry_gltf( MODELS[ default_index ] ).await;
 
   let renderer = Rc::new( RefCell::new( renderer ) );
+
+  expose_renderer_to_js( &window, &renderer );
 
   // Track which model is active and which are already loaded
   let active_model : Rc< RefCell< usize > > = Rc::new( RefCell::new( default_index ) );
@@ -149,4 +152,88 @@ fn setup_buttons
     buttons[ i ].set_onclick( Some( closure.as_ref().unchecked_ref() ) );
     closure.forget();
   }
+}
+
+/// Exposes camera animation helpers on `window.renderer` so they can be called from the
+/// browser console or from external JS (e.g. GSAP scroll triggers).
+///
+/// Exposed methods:
+///   `window.renderer.set_camera_animation(t)`
+///   `window.renderer.set_camera_path(config)` — config: `{ angle_start, angle_end, radius, height_start, height_end, target_y }`
+///   `window.renderer.set_camera(ex, ey, ez, cx, cy, cz)`
+///   `window.renderer.release_camera()`
+fn expose_renderer_to_js( window : &web_sys::Window, renderer : &Rc< RefCell< JewelryRenderer > > )
+{
+  let obj = js_sys::Object::new();
+
+  // set_camera_animation(t)
+  {
+    let r = renderer.clone();
+    let cb = Closure::< dyn FnMut( f32 ) >::new( move | t : f32 |
+    {
+      r.borrow_mut().set_camera_animation( t );
+    });
+    js_sys::Reflect::set( &obj, &"set_camera_animation".into(), cb.as_ref() ).ok();
+    cb.forget();
+  }
+
+  // release_camera()
+  {
+    let r = renderer.clone();
+    let cb = Closure::< dyn FnMut() >::new( move ||
+    {
+      r.borrow_mut().release_camera();
+    });
+    js_sys::Reflect::set( &obj, &"release_camera".into(), cb.as_ref() ).ok();
+    cb.forget();
+  }
+
+  // set_camera(eye_x, eye_y, eye_z, center_x, center_y, center_z)
+  {
+    let r = renderer.clone();
+    let cb = Closure::< dyn FnMut( f32, f32, f32, f32, f32, f32 ) >::new( move | ex, ey, ez, cx, cy, cz |
+    {
+      r.borrow_mut().set_camera( ex, ey, ez, cx, cy, cz );
+    });
+    js_sys::Reflect::set( &obj, &"set_camera".into(), cb.as_ref() ).ok();
+    cb.forget();
+  }
+
+  // set_camera_path({ angle_start, angle_end, radius, height_start, height_end, target_y })
+  {
+    let r = renderer.clone();
+    let cb = Closure::< dyn FnMut( JsValue ) >::new( move | val : JsValue |
+    {
+      let mut path = CameraPathConfig::new();
+      if let Some( v ) = js_sys::Reflect::get( &val, &"angle_start".into() ).ok().and_then( | v | v.as_f64() )
+      {
+        path.set_angle_start( v as f32 );
+      }
+      if let Some( v ) = js_sys::Reflect::get( &val, &"angle_end".into() ).ok().and_then( | v | v.as_f64() )
+      {
+        path.set_angle_end( v as f32 );
+      }
+      if let Some( v ) = js_sys::Reflect::get( &val, &"radius".into() ).ok().and_then( | v | v.as_f64() )
+      {
+        path.set_radius( v as f32 );
+      }
+      if let Some( v ) = js_sys::Reflect::get( &val, &"height_start".into() ).ok().and_then( | v | v.as_f64() )
+      {
+        path.set_height_start( v as f32 );
+      }
+      if let Some( v ) = js_sys::Reflect::get( &val, &"height_end".into() ).ok().and_then( | v | v.as_f64() )
+      {
+        path.set_height_end( v as f32 );
+      }
+      if let Some( v ) = js_sys::Reflect::get( &val, &"target_y".into() ).ok().and_then( | v | v.as_f64() )
+      {
+        path.set_target_y( v as f32 );
+      }
+      r.borrow_mut().set_camera_path( path );
+    });
+    js_sys::Reflect::set( &obj, &"set_camera_path".into(), cb.as_ref() ).ok();
+    cb.forget();
+  }
+
+  js_sys::Reflect::set( window.as_ref(), &"renderer".into(), &obj ).ok();
 }
