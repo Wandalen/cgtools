@@ -27,6 +27,8 @@ web-sys = { workspace = true, features = [
   'DataTransfer',
   'Url',
 ] }
+wasm-bindgen-futures.workspace = true
+js-sys.workspace = true
 
 [lints]
 workspace = true
