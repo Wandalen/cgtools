@@ -424,6 +424,10 @@ fn apply_events_to_state( state : &mut State, events : &[ Event ] )
       EventType::PointerCancel( pointer_id ) =>
       {
         state.active_pointers.retain( | ( id, _ ) | *id != *pointer_id );
+        if state.active_pointers.is_empty()
+        {
+          state.mouse_buttons.fill( false );
+        }
       }
     }
   }
