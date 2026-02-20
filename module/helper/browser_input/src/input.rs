@@ -42,6 +42,10 @@ pub enum EventType
   PointerMove( i32, I32x2 ),
   /// A mouse wheel scroll event, containing the scroll delta on each axis.
   Wheel( F64x3 ),
+  /// A pointer contact was cancelled by the browser (e.g. interrupted by a system gesture or
+  /// the pointer leaving the screen). Only the pointer id is reliable; position and button
+  /// data from the underlying event are not guaranteed to be valid.
+  PointerCancel( i32 ),
 }
 
 /// Represents a single, complete input event, including its type and any active modifier keys.
@@ -190,14 +194,12 @@ impl Input
     let pointercancel_callback =
     {
       let event_queue = event_queue.clone();
-      let get_coords = get_coords.clone();
       move | event : PointerEvent |
       {
-        // Treat a cancelled contact the same as a release so active_pointers stays consistent.
+        // The Pointer Events spec does not guarantee valid coordinates or button data
+        // for pointercancel; only the pointer_id is reliable.
         let pointer_id = event.pointer_id();
-        let pos = ( *get_coords )( &event );
-        let button = MouseButton::from_button( event.button() );
-        let event_type = EventType::PointerButton( pointer_id, pos, button, Action::Release );
+        let event_type = EventType::PointerCancel( pointer_id );
         let alt = event.alt_key();
         let ctrl = event.ctrl_key();
         let shift = event.shift_key();
@@ -343,6 +345,11 @@ impl Input
   }
 
   /// Returns the last recorded pointer position (position of the most recently moved pointer).
+  ///
+  /// # Note
+  /// On touch screens with multiple simultaneous contacts this value is non-deterministic —
+  /// it reflects whichever finger sent the last `PointerMove` event. For multi-touch
+  /// tracking use [`Input::active_pointers`] instead.
   pub fn pointer_position( &self ) -> I32x2
   {
     self.state.pointer_position
@@ -367,49 +374,58 @@ impl Input
   /// Processes all pending events in the queue and updates the internal input state.
   pub fn update_state( &mut self )
   {
-    for Event { event_type, .. } in self.event_queue.borrow().as_slice()
-    {
-      match event_type
-      {
-        EventType::KeyboardKey( keyboard_key, action ) =>
-        {
-          self.state.keyboard_keys[ *keyboard_key as usize ] = *action == Action::Press
-        }
-        EventType::PointerButton( pointer_id, pos, mouse_button, action ) =>
-        {
-          self.state.mouse_buttons[ *mouse_button as usize ] = *action == Action::Press;
-          match action
-          {
-            Action::Press =>
-            {
-              if !self.state.active_pointers.iter().any( | ( id, _ ) | *id == *pointer_id )
-              {
-                self.state.active_pointers.push( ( *pointer_id, *pos ) );
-              }
-            }
-            Action::Release =>
-            {
-              self.state.active_pointers.retain( | ( id, _ ) | *id != *pointer_id );
-            }
-          }
-        }
-        EventType::PointerMove( pointer_id, pos ) =>
-        {
-          self.state.pointer_position = *pos;
-          if let Some( entry ) = self.state.active_pointers.iter_mut().find( | ( id, _ ) | *id == *pointer_id )
-          {
-            entry.1 = *pos;
-          }
-        }
-        EventType::Wheel( delta ) => self.state.scroll += *delta,
-      }
-    }
+    apply_events_to_state( &mut self.state, &self.event_queue.borrow() );
   }
 
   /// Clears all events from the event queue.
   pub fn clear_events( &mut self )
   {
     self.event_queue.borrow_mut().clear();
+  }
+}
+
+fn apply_events_to_state( state : &mut State, events : &[ Event ] )
+{
+  for Event { event_type, .. } in events
+  {
+    match event_type
+    {
+      EventType::KeyboardKey( keyboard_key, action ) =>
+      {
+        state.keyboard_keys[ *keyboard_key as usize ] = *action == Action::Press
+      }
+      EventType::PointerButton( pointer_id, pos, mouse_button, action ) =>
+      {
+        state.mouse_buttons[ *mouse_button as usize ] = *action == Action::Press;
+        match action
+        {
+          Action::Press =>
+          {
+            if !state.active_pointers.iter().any( | ( id, _ ) | *id == *pointer_id )
+            {
+              state.active_pointers.push( ( *pointer_id, *pos ) );
+            }
+          }
+          Action::Release =>
+          {
+            state.active_pointers.retain( | ( id, _ ) | *id != *pointer_id );
+          }
+        }
+      }
+      EventType::PointerMove( pointer_id, pos ) =>
+      {
+        state.pointer_position = *pos;
+        if let Some( entry ) = state.active_pointers.iter_mut().find( | ( id, _ ) | *id == *pointer_id )
+        {
+          entry.1 = *pos;
+        }
+      }
+      EventType::Wheel( delta ) => state.scroll += *delta,
+      EventType::PointerCancel( pointer_id ) =>
+      {
+        state.active_pointers.retain( | ( id, _ ) | *id != *pointer_id );
+      }
+    }
   }
 }
 
@@ -457,5 +473,110 @@ impl Drop for Input
       "wheel",
       self.wheel_closure.as_ref().unchecked_ref()
     );
+  }
+}
+
+#[ cfg( test ) ]
+mod tests
+{
+  use super::*;
+
+  fn ev( event_type : EventType ) -> Event
+  {
+    Event { event_type, alt : false, ctrl : false, shift : false }
+  }
+
+  fn p( x : i32, y : i32 ) -> I32x2
+  {
+    I32x2::from_array( [ x, y ] )
+  }
+
+  fn press( id : i32, x : i32, y : i32 ) -> Event
+  {
+    ev( EventType::PointerButton( id, p( x, y ), MouseButton::Main, Action::Press ) )
+  }
+
+  fn release( id : i32, x : i32, y : i32 ) -> Event
+  {
+    ev( EventType::PointerButton( id, p( x, y ), MouseButton::Main, Action::Release ) )
+  }
+
+  fn move_to( id : i32, x : i32, y : i32 ) -> Event
+  {
+    ev( EventType::PointerMove( id, p( x, y ) ) )
+  }
+
+  fn cancel( id : i32 ) -> Event
+  {
+    ev( EventType::PointerCancel( id ) )
+  }
+
+  #[ test ]
+  fn press_adds_one_entry()
+  {
+    let mut state = State::new();
+    apply_events_to_state( &mut state, &[ press( 1, 10, 20 ) ] );
+    assert_eq!( state.active_pointers, [ ( 1, p( 10, 20 ) ) ] );
+  }
+
+  #[ test ]
+  fn two_presses_add_two_entries()
+  {
+    let mut state = State::new();
+    apply_events_to_state( &mut state, &[ press( 1, 10, 20 ), press( 2, 30, 40 ) ] );
+    assert_eq!( state.active_pointers.len(), 2 );
+    assert!( state.active_pointers.contains( &( 1, p( 10, 20 ) ) ) );
+    assert!( state.active_pointers.contains( &( 2, p( 30, 40 ) ) ) );
+  }
+
+  #[ test ]
+  fn move_updates_position()
+  {
+    let mut state = State::new();
+    apply_events_to_state( &mut state, &[ press( 1, 10, 20 ), move_to( 1, 50, 60 ) ] );
+    assert_eq!( state.active_pointers, [ ( 1, p( 50, 60 ) ) ] );
+  }
+
+  #[ test ]
+  fn release_removes_entry()
+  {
+    let mut state = State::new();
+    apply_events_to_state( &mut state, &[ press( 1, 10, 20 ), press( 2, 30, 40 ), release( 1, 10, 20 ) ] );
+    assert_eq!( state.active_pointers, [ ( 2, p( 30, 40 ) ) ] );
+  }
+
+  #[ test ]
+  fn cancel_removes_entry()
+  {
+    let mut state = State::new();
+    apply_events_to_state( &mut state, &[ press( 1, 10, 20 ), press( 2, 30, 40 ), cancel( 2 ) ] );
+    assert_eq!( state.active_pointers, [ ( 1, p( 10, 20 ) ) ] );
+  }
+
+  #[ test ]
+  fn duplicate_press_is_idempotent()
+  {
+    let mut state = State::new();
+    apply_events_to_state( &mut state, &[ press( 1, 10, 20 ), press( 1, 15, 25 ) ] );
+    // Guard fires: second press for the same id does not add a duplicate entry.
+    assert_eq!( state.active_pointers, [ ( 1, p( 10, 20 ) ) ] );
+  }
+
+  #[ test ]
+  fn full_sequence_ends_empty()
+  {
+    let mut state = State::new();
+    apply_events_to_state
+    (
+      &mut state,
+      &
+      [
+        press( 1, 10, 20 ),
+        press( 2, 30, 40 ),
+        release( 1, 10, 20 ),
+        cancel( 2 ),
+      ]
+    );
+    assert!( state.active_pointers.is_empty() );
   }
 }
