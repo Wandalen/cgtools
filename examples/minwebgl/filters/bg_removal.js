@@ -1,4 +1,4 @@
-// [TEMP] Show/hide loading overlay
+// Show/hide loading overlay
 function showLoading() {
   let overlay = document.getElementById("bg-loading-overlay");
   if (!overlay) {
@@ -17,9 +17,9 @@ function hideLoading() {
   }
 }
 
-// [TEMP] Worker code as string for inline creation
+// Worker code as string for inline creation
 const workerCode = `
-import { removeBackground } from "https://esm.sh/@imgly/background-removal";
+import { removeBackground } from "https://esm.sh/@imgly/background-removal@1.4.5";
 
 self.onmessage = async (e) => {
   const { blob } = e.data;
@@ -33,13 +33,14 @@ self.onmessage = async (e) => {
 };
 `;
 
-// [TEMP] Lazy-init worker
+// Lazy-init worker
 let worker = null;
 function getWorker() {
   if (!worker) {
     const blob = new Blob([workerCode], { type: "application/javascript" });
     const url = URL.createObjectURL(blob);
     worker = new Worker(url, { type: "module" });
+    URL.revokeObjectURL(url);
   }
   return worker;
 }
