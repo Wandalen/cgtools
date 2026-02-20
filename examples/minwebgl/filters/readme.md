@@ -14,6 +14,7 @@ A comprehensive collection of image filters and post-processing effects implemen
 - **Drag & Drop**: Drop any image onto the canvas area to load it
 - **Upload Button** (📁): Click to open file browser and select an image
 - **Revert Button** (↻): Return to the original unfiltered image at any time
+- **Remove Background Button** *(experimental)*: Removes the image background using AI-powered segmentation via `@imgly/background-removal`, running in a Web Worker to keep the UI responsive. The result is loaded back into the canvas as a new image with a transparent background.
 
 ### Zoom & Pan Controls
 Navigate and inspect filtered images with intuitive zoom and pan controls:

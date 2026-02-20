@@ -50,6 +50,13 @@ pub fn make_closure_with_filter_tracking
   let filter_name = filter_name.to_string();
   Closure::new( Box::new( move ||
   {
+    // Skip if this filter is already active
+    if *current_filter.borrow() == filter_name
+    {
+      return;
+    }
+    // Restore previous state if switching from another unapplied filter
+    filter_renderer.borrow_mut().restore_previous_texture();
     *current_filter.borrow_mut() = filter_name.clone();
     filter_renderer.borrow_mut().save_previous_texture();
     controls::clear_controls();
