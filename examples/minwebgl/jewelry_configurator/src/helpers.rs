@@ -36,7 +36,7 @@ use crate::surface_material::SurfaceMaterial;
 use gl::canvas::HtmlCanvasElement;
 use super::JewelryConfig;
 
-pub const CAMERA_FOV : f32 = core::f32::consts::FRAC_PI_4;
+pub const CAMERA_FOV : f32 = 0.6981317; // 40 degrees in radians, matches jewelry_3d_site
 pub const CAMERA_NEAR : f32 = 0.1;
 pub const CAMERA_FAR : f32 = 100.0;
 pub const SHADOW_RESOLUTION : u32 = 2048;

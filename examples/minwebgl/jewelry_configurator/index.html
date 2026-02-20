@@ -6,225 +6,55 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Jewelry Configurator</title>
   <link data-trunk rel="rust" data-bin="jewelry_configurator_app" />
+  <link data-trunk rel="css" href="style.css" />
   <script data-trunk type="module" src="gui.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
   <link data-trunk rel="copy-dir" href="../../../assets/gltf/jewelry/" data-target-path="static/gltf" />
   <link data-trunk rel="copy-file" href="../../../assets/gltf/plane.glb" data-target-path="static/gltf" />
   <link data-trunk rel="copy-dir" href="../../../assets/environment_maps/studio3/"
     data-target-path="static/environment_maps/studio3" />
   <link data-trunk rel="copy-dir" href="../../../assets/environment_maps/studio4/"
     data-target-path="static/environment_maps/studio" />
-  <style>
-    body,
-    html {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      box-sizing: border-box;
-    }
-
-    #canvas {
-      display: block;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      box-sizing: border-box;
-    }
-
-    #buttons {
-      position: fixed;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      gap: 10px;
-      z-index: 10;
-    }
-
-    #buttons button {
-      padding: 8px 20px;
-      font-size: 14px;
-      cursor: pointer;
-      border: 1px solid #888;
-      background: #fff;
-      border-radius: 4px;
-    }
-
-    #buttons button.active {
-      background: #333;
-      color: #fff;
-      border-color: #333;
-    }
-
-    .color-panel {
-      position: fixed;
-      top: 50%;
-      transform: translateY(-50%);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 10px;
-      z-index: 10;
-    }
-
-    #metal-panel {
-      left: 16px;
-    }
-
-    #gem-panel {
-      right: 16px;
-    }
-
-    .panel-label {
-      font-size: 10px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.7);
-      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
-    }
-
-    .color-btn {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      border: 2px solid rgba(255, 255, 255, 0.35);
-      cursor: pointer;
-      padding: 0;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
-      transition: transform 0.12s, border-color 0.12s;
-    }
-
-    .color-btn:hover {
-      transform: scale(1.18);
-    }
-
-    .color-btn.active {
-      border-color: #fff;
-      border-width: 3px;
-      transform: scale(1.1);
-    }
-
-    #btn-screenshot {
-      position: fixed;
-      top: 16px;
-      left: 16px;
-      z-index: 10;
-      padding: 8px 14px;
-      font-size: 13px;
-      cursor: pointer;
-      border: 1px solid rgba(255,255,255,0.4);
-      background: rgba(0,0,0,0.45);
-      color: #fff;
-      border-radius: 4px;
-      backdrop-filter: blur(4px);
-    }
-
-    #btn-screenshot:hover {
-      background: rgba(0,0,0,0.65);
-    }
-  </style>
 </head>
 
 <body>
   <canvas id="canvas"></canvas>
-  <button id="btn-screenshot" title="Download PNG with transparent background (S)">Save PNG</button>
 
-  <div id="buttons">
-    <button id="btn-0">Model 0</button>
-    <button id="btn-1" class="active">Model 1</button>
-    <button id="btn-2">Model 2</button>
+  <!-- Scroll sections (invisible, provide scroll height for ScrollTrigger) -->
+  <div class="scroll-container">
+    <div class="cam-view cam-view-1"></div>
+    <div class="cam-view cam-view-2"></div>
+    <div class="cam-view cam-view-3"></div>
   </div>
 
-  <div id="metal-panel" class="color-panel">
-    <span class="panel-label">Metal</span>
+  <!-- UI overlay -->
+  <div class="ui-overlay">
+    <button id="btn-screenshot" title="Download PNG with transparent background (S)">Save PNG</button>
+
+    <div class="scroll-hint" id="scroll-hint">Scroll to explore</div>
+
+    <button id="btn-customize">Customize</button>
+
+    <!-- Configurator controls — shown after "Customize" click -->
+    <div class="configurator-ui" id="configurator-ui">
+      <div id="buttons">
+        <button id="btn-0">Model 0</button>
+        <button id="btn-1" class="active">Model 1</button>
+        <button id="btn-2">Model 2</button>
+      </div>
+
+      <div id="metal-panel" class="color-panel">
+        <span class="panel-label">Metal</span>
+      </div>
+
+      <div id="gem-panel" class="color-panel">
+        <span class="panel-label">Gem</span>
+      </div>
+    </div>
   </div>
 
-  <div id="gem-panel" class="color-panel">
-    <span class="panel-label">Gem</span>
-  </div>
-
-  <script type="module">
-    function makeButtons(container, colors, propName) {
-      colors.forEach((color, i) => {
-        const [r, g, b] = color.rgb;
-        const btn = document.createElement('button');
-        btn.className = 'color-btn' + (i === 0 ? ' active' : '');
-        btn.style.backgroundColor = `rgb(${r},${g},${b})`;
-        btn.title = color.name;
-        btn.onclick = () => {
-          container.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          const arr = window.jewelryParams[propName];
-          arr[0] = r / 255;
-          arr[1] = g / 255;
-          arr[2] = b / 255;
-          window.jewelryGui?.controllersRecursive().forEach(c => c.updateDisplay());
-        };
-        container.appendChild(btn);
-      });
-    }
-
-    async function downloadScreenshot() {
-      const params = window.jewelryParams;
-      if (!params) return;
-
-      // Temporarily disable bloom and wait two frames so the renderer picks it up
-      const savedBloom = params.bloom_strength;
-      params.bloom_strength = 0;
-      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-      const canvas = document.getElementById('canvas');
-
-      // Capture into a 2D canvas for pixel manipulation
-      const offscreen = document.createElement('canvas');
-      offscreen.width  = canvas.width;
-      offscreen.height = canvas.height;
-      const ctx = offscreen.getContext('2d');
-      ctx.drawImage(canvas, 0, 0);
-
-      const imageData = ctx.getImageData(0, 0, offscreen.width, offscreen.height);
-      const data = imageData.data;
-
-      // Sample background color from the top-left corner (always background)
-      const bgR = data[0], bgG = data[1], bgB = data[2];
-
-      // Replace pixels close to the background color with transparent
-      const tolerance = 20;
-      for (let i = 0; i < data.length; i += 4) {
-        const dr = Math.abs(data[i]     - bgR);
-        const dg = Math.abs(data[i + 1] - bgG);
-        const db = Math.abs(data[i + 2] - bgB);
-        if (dr + dg + db < tolerance * 3) data[i + 3] = 0;
-      }
-
-      ctx.putImageData(imageData, 0, 0);
-
-      // Restore bloom
-      params.bloom_strength = savedBloom;
-
-      const link = document.createElement('a');
-      link.download = `jewelry_${Date.now()}.png`;
-      link.href = offscreen.toDataURL('image/png');
-      link.click();
-    }
-
-    document.getElementById('btn-screenshot').onclick = downloadScreenshot;
-    document.addEventListener('keydown', e => {
-      if ((e.key === 's' || e.key === 'S') && !e.ctrlKey && !e.metaKey) downloadScreenshot();
-    });
-
-    (function poll() {
-      if (window.colorsJson) {
-        const { metal, gem } = JSON.parse(window.colorsJson);
-        makeButtons(document.getElementById('metal-panel'), metal, 'metal_color');
-        makeButtons(document.getElementById('gem-panel'), gem, 'gem_color');
-      } else {
-        requestAnimationFrame(poll);
-      }
-    })();
-  </script>
+  <script defer data-trunk src="animation.js"></script>
 </body>
 
 </html>
