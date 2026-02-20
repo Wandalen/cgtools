@@ -1,6 +1,7 @@
 mod private
 {
   use minwebgl as gl;
+  use crate::*;
 
   /// Represents a complete WebGL shader program and its drawing configuration.
   #[ derive( Clone, Debug, Default ) ]
@@ -23,45 +24,48 @@ mod private
     /// The number of vertices to draw.
     pub vertex_count : u32,
     /// The WebGL buffer for indices. `None` for non-indexed drawing.
-    pub index_buffer : Option< gl::WebGlBuffer >
+    pub index_buffer : Option< gl::WebGlBuffer >,
+    /// Uniforms belonging to this program
+    pub uniforms : UniformStorage
   }
 
-  impl Program 
+  impl Program
   {
     /// Deletes the vertex shader from the WebGL context and sets the internal handle to `None`.
-    pub fn delete_vertex_shader( &mut self, gl : &gl::WebGl2RenderingContext )
+    pub fn vertex_shader_delete( &mut self, gl : &gl::WebGl2RenderingContext )
     {
       gl.delete_shader( self.vertex_shader.as_ref() );
       self.vertex_shader = None;
     }
 
     /// Deletes the fragment shader from the WebGL context and sets the internal handle to `None`.
-    pub fn delete_fragment_shader( &mut self, gl : &gl::WebGl2RenderingContext )
+    pub fn fragment_shader_delete( &mut self, gl : &gl::WebGl2RenderingContext )
     {
       gl.delete_shader( self.fragment_shader.as_ref() );
       self.fragment_shader = None;
     }
 
     /// Deletes the main shader program from the WebGL context and sets the internal handle to `None`.
-    pub fn delete_program( &mut self, gl : &gl::WebGl2RenderingContext )
+    pub fn program_delete( &mut self, gl : &gl::WebGl2RenderingContext )
     {
       gl.delete_program( self.program.as_ref() );
       self.program = None;
     }
 
     /// Deletes the Vertex Array Object from the WebGL context and sets the internal handle to `None`.
-    pub fn delete_vao( &mut self, gl : &gl::WebGl2RenderingContext )
+    pub fn vao_delete( &mut self, gl : &gl::WebGl2RenderingContext )
     {
       gl.delete_vertex_array( self.vao.as_ref() );
       self.vao = None;
     }
 
     /// Copies all active uniform values from this program to another program.
-    pub fn copy_uniforms_to( &self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Result< (), gl::WebglError >
+    pub fn uniforms_copy_to_gl( &self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Result< (), gl::WebglError >
     {
       if let Some( own_program ) = self.program.as_ref()
       {
         let active_uniforms_count = gl.get_program_parameter( &own_program, gl::ACTIVE_UNIFORMS ).as_f64().unwrap() as u32;
+
         for i in 0..active_uniforms_count
         {
           let active_uniform = gl.get_active_uniform( own_program, i ).unwrap();
@@ -75,19 +79,19 @@ mod private
           match active_uniform.type_()
           {
             // Scalars
-            gl::FLOAT 
+            gl::FLOAT
             =>  gl::uniform::upload( gl, location, &( value.as_f64().unwrap() as f32 )  )?,
-            gl::INT 
+            gl::INT
             =>  gl::uniform::upload( gl, location, &( value.as_f64().unwrap() as i32 )  )?,
-            gl::UNSIGNED_INT 
+            gl::UNSIGNED_INT
             =>  gl::uniform::upload( gl, location, &( value.as_f64().unwrap() as u32 )  )?,
 
             // Vectors
-            gl::FLOAT_VEC2 | gl::FLOAT_VEC3 | gl::FLOAT_VEC4 
-            => gl::uniform::upload( gl, location, gl::js_sys::Float32Array::from( value ).to_vec().as_slice() )?,
-            gl::INT_VEC2 | gl::INT_VEC3 | gl::INT_VEC4 
+            gl::FLOAT_VEC2 | gl::FLOAT_VEC3 | gl::FLOAT_VEC4
+            => { gl::uniform::upload( gl, location, gl::js_sys::Float32Array::from( value ).to_vec().as_slice() )? },
+            gl::INT_VEC2 | gl::INT_VEC3 | gl::INT_VEC4
             => gl::uniform::upload( gl, location, gl::js_sys::Int32Array::from( value ).to_vec().as_slice() )?,
-            gl::UNSIGNED_INT_VEC2 | gl::UNSIGNED_INT_VEC3 | gl::UNSIGNED_INT_VEC4 
+            gl::UNSIGNED_INT_VEC2 | gl::UNSIGNED_INT_VEC3 | gl::UNSIGNED_INT_VEC4
             => gl::uniform::upload( gl, location, gl::js_sys::Uint32Array::from( value ).to_vec().as_slice() )?,
 
             // Matrices
@@ -102,20 +106,29 @@ mod private
       Ok( () )
     }
 
-    /// Uploads a uniform value to the current program.
-    pub fn upload< D >( &self, gl : &gl::WebGl2RenderingContext, name : &str, data : &D  ) -> Result< (), gl::WebglError >
-    where 
-      D : gl::UniformUpload + ?Sized
+    /// Copies uniforms from the current program to the other
+    pub fn uniforms_copy_to( &self, gl : &gl::WebGl2RenderingContext, program : &mut Self ) -> Result< (), gl::WebglError >
     {
-      gl.use_program( self.program.as_ref() );
-      gl::uniform::upload( gl, gl.get_uniform_location( self.program.as_ref().expect( "Cannot upload, because the program is not set" ), name ), data )?;
+      self.uniforms.copy_to( &mut program.uniforms );
+      program.all_uniforms_upload( gl )?;
+      Ok( () )
+    }
+
+    /// Uploads a uniform value to the current program.
+    pub fn upload< D : Into< Uniform > + Copy >( &mut self, gl : &gl::WebGl2RenderingContext, name : &str, data : &D  ) -> Result< (), gl::WebglError >
+    {
+      self.uniforms.uniform_set( name, data.into() );
+      if let Some( program ) = self.program.as_ref()
+      {
+        self.uniforms.upload( gl, program, name, true )?;
+      }
 
       Ok( () )
     }
 
     /// Uploads a uniform matrix to the current program.
     pub fn upload_matrix< D >( &self, gl : &gl::WebGl2RenderingContext, name : &str, data : &D  ) -> Result< (), gl::WebglError >
-    where 
+    where
       D : gl::UniformMatrixUpload + ?Sized
     {
       gl.use_program( self.program.as_ref() );
@@ -123,7 +136,7 @@ mod private
 
       Ok( () )
     }
-    
+
     /// Binds the program, VAO, and index buffer to the WebGL context.
     pub fn bind( &self, gl : &gl::WebGl2RenderingContext )
     {
@@ -143,30 +156,53 @@ mod private
         {
           gl.draw_elements_instanced_with_i32( self.draw_mode, index_count as i32, gl::UNSIGNED_INT, 0, instance_count as i32 );
         }
-        else 
+        else
         {
           gl.draw_elements_with_i32( self.draw_mode, index_count as i32, gl::UNSIGNED_INT, 0 );
         }
       }
-      else 
+      else
       {
         if let Some( instance_count ) = self.instance_count
         {
           gl.draw_arrays_instanced( self.draw_mode, 0, self.vertex_count as i32, instance_count as i32 );
         }
-        else 
+        else
         {
           gl.draw_arrays( self.draw_mode, 0, self.vertex_count as i32 );
         }
       }
     }
+
+    /// Clear saved uniforms locations
+    pub fn uniform_locations_clear( &mut self )
+    {
+      self.uniforms.clear_locations();
+    }
+
+    /// Clear saved uniforms
+    pub fn uniforms_clear( &mut self )
+    {
+      self.uniforms.clear_uniforms();
+    }
+
+    /// Upload the current set of uniform to the program
+    pub fn all_uniforms_upload( &mut self, gl : &gl::WebGl2RenderingContext ) -> Result< (), gl::WebglError >
+    {
+      if let Some( program ) = self.program.as_ref()
+      {
+        self.uniforms.all_upload( gl, program, true )?;
+      }
+
+      Ok( () )
+    }
   }
-    
+
 }
 
 crate::mod_interface!
 {
-  orphan use 
+  orphan use
   {
     Program
   };

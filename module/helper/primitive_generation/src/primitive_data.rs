@@ -31,16 +31,7 @@ mod private
   use std::rc::Rc;
   use renderer::webgl::
   {
-    Node,
-    Object3D,
-    Scene,
-    Material,
-    Mesh,
-    Primitive,
-    loaders::gltf::GLTF,
-    Geometry,
-    IndexInfo,
-    AttributeInfo
+    AttributeInfo, Geometry, IndexInfo, Material, Mesh, Node, Object3D, Primitive, Scene, loaders::gltf::GLTF, material::PbrMaterial
   };
 
   /// 3D transformation data including translation, rotation, and scale components.
@@ -100,8 +91,12 @@ mod private
   #[ derive( Clone ) ]
   pub struct PrimitiveData
   {
+    /// Optional name of this primitive data.
+    pub name : Option< Box< str > >,
+    /// Parent of this primitive data.
+    pub parent : Option< usize >,
     /// Shared mesh attribute data.
-    pub attributes : Rc< RefCell< AttributesData > >,
+    pub attributes : Option< Rc< RefCell< AttributesData > > >,
     /// RGBA color values.
     pub color : F32x4,
     /// 3D transformation to apply to the primitive.
@@ -150,7 +145,7 @@ mod private
     let mut gl_buffers = vec![];
     let mut meshes = vec![];
 
-    let material = Rc::new( RefCell::new( Material::default() ) );
+    let material : Rc< RefCell< Box< dyn Material > > > = Rc::new( RefCell::new( Box::new( PbrMaterial::new( &gl ) ) ) );
     let materials = vec![ material.clone() ];
 
     scenes.push( Rc::new( RefCell::new( Scene::new() ) ) );
@@ -189,48 +184,87 @@ mod private
     let mut positions = vec![];
     let mut indices = vec![];
 
-    for primitive_data in primitives_data
+    // Create nodes for all primitives, even those without attributes (parent nodes)
+    for primitive_data in &primitives_data
     {
-      let last_positions_count = positions.len() as u32;
-      positions.extend( primitive_data.attributes.borrow().positions.clone() );
-      let primitive_indices = primitive_data.attributes.borrow().indices.iter()
-      .map( | i | i + last_positions_count )
-      .collect::< Vec< _ > >();
-      let offset = indices.len() as u32 * 4;
-      indices.extend( primitive_indices );
+      let node = Rc::new( RefCell::new( Node::new() ) );
 
-      index_info.offset = offset;
-      index_info.count = primitive_data.attributes.borrow().indices.len() as u32;
-
-      let Ok( mut geometry ) = Geometry::new( gl ) else
+      // Assign name from primitive_data
+      if let Some( name ) = &primitive_data.name
       {
-        panic!( "Can't create new Geometry struct" );
-      };
-
-      for ( name, info ) in &attribute_infos
-      {
-        geometry.add_attribute( gl, *name, info.clone(), false ).unwrap();
+        node.borrow_mut().set_name( name.clone() );
       }
 
-      geometry.add_index( gl, index_info.clone() ).unwrap();
-      geometry.vertex_count = primitive_data.attributes.borrow().positions.len() as u32;
-
-      let primitive = Primitive
+      // Only create geometry/mesh if attributes exist
+      if let Some( attributes ) = &primitive_data.attributes
       {
-        geometry : Rc::new( RefCell::new( geometry ) ),
-        material : material.clone()
-      };
+        let last_positions_count = positions.len() as u32;
+        positions.extend( attributes.borrow().positions.clone() );
+        let primitive_indices = attributes.borrow().indices.iter()
+        .map( | i | i + last_positions_count )
+        .collect::< Vec< _ > >();
+        let offset = indices.len() as u32 * 4;
+        indices.extend( primitive_indices );
 
-      let mesh = Rc::new( RefCell::new( Mesh::new() ) );
-      mesh.borrow_mut().add_primitive( Rc::new( RefCell::new( primitive ) ) );
+        index_info.offset = offset;
+        index_info.count = attributes.borrow().indices.len() as u32;
 
-      let node = Rc::new( RefCell::new( Node::new() ) );
-      node.borrow_mut().object = Object3D::Mesh( mesh.clone() );
+        let Ok( mut geometry ) = Geometry::new( gl ) else
+        {
+          panic!( "Can't create new Geometry struct" );
+        };
+
+        for ( name, info ) in &attribute_infos
+        {
+          geometry.add_attribute( gl, *name, info.clone() ).unwrap();
+        }
+
+        geometry.add_index( gl, index_info.clone() ).unwrap();
+        geometry.vertex_count = attributes.borrow().positions.len() as u32;
+
+        let primitive = Primitive
+        {
+          geometry : Rc::new( RefCell::new( geometry ) ),
+          material : material.clone()
+        };
+
+        let mesh = Rc::new( RefCell::new( Mesh::new() ) );
+        mesh.borrow_mut().add_primitive( Rc::new( RefCell::new( primitive ) ) );
+
+        node.borrow_mut().object = Object3D::Mesh( mesh.clone() );
+        meshes.push( mesh );
+      }
+
+      // Set transform for all nodes (with or without geometry)
       primitive_data.transform.set_node_transform( node.clone() );
 
       nodes.push( node.clone() );
-      meshes.push( mesh );
-      scenes[ 0 ].borrow_mut().children.push( node );
+    }
+
+    // Set up parent-child relationships
+    for ( i, node ) in nodes.iter().enumerate()
+    {
+      let primitive_data = &primitives_data[ i ];
+
+      if let Some( parent_index ) = primitive_data.parent
+      {
+        // Get parent node and add this node as its child
+        if let Some( parent_node ) = nodes.get( parent_index )
+        {
+          parent_node.borrow_mut().add_child( node.clone() );
+          node.borrow_mut().set_parent( Some( parent_node.clone() ) );
+        }
+        else
+        {
+          // Parent index is out of bounds, add to scene root
+          scenes[ 0 ].borrow_mut().children.push( node.clone() );
+        }
+      }
+      else
+      {
+        // No parent specified, add as top-level child of scene
+        scenes[ 0 ].borrow_mut().children.push( node.clone() );
+      }
     }
 
     gl::buffer::upload( &gl, &position_buffer, &positions, GL::STATIC_DRAW );
@@ -245,7 +279,8 @@ mod private
       textures : vec![],
       materials,
       meshes,
-      animations : vec![]
+      animations : vec![],
+      lights : vec![]
     }
   }
 }

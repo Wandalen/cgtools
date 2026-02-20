@@ -34,3 +34,5 @@ Cargo.lock
 -*
 rustc-ice-*.txt
 .mastermind
+.claude
+CLAUDE.md

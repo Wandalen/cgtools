@@ -25,9 +25,12 @@ mod private
   /// Set of easing functions and related stuff.
   layer easing;
 
+  /// Set of animation traits
+  layer traits;
+
   /// Tweening system for smooth entity movement in tile-based games.
   layer interpolation;
 
-  /// Tools for managing [`AnimatableValue`] playback in every time moment 
+  /// Tools for managing [`AnimatablePlayer`] playback in every time moment
   layer sequencer;
 }

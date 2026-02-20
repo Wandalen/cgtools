@@ -5,7 +5,8 @@ precision highp float;
 in vec2 v_tex_coord;
 out vec4 FragColor;
 
-const uint IDS[ 13 ] = uint[ 13 ](
+const uint IDS[ 13 ] = uint[ 13 ]
+(
   2u,
   6u,
   7u,
@@ -34,7 +35,7 @@ uniform vec2 u_resolution;
 uniform float u_outline_thickness;
 uniform vec4 u_background_color;
 
-float outline_stencil_normal() 
+float outline_stencil_normal()
 {
   // Sample the color texture in a 3x3 kernel around the current fragment to perform edge detection.
   float pix[ 25 ];
@@ -42,11 +43,13 @@ float outline_stencil_normal()
   {
     for( int x = 0; x < 5; x++ )
     {
-      pix[ y * 5 + x ] = length( 
-        texture(
+      pix[ y * 5 + x ] = length
+      (
+        texture
+        (
           u_norm_texture,
           v_tex_coord + vec2( float( x - 2 ), float( y - 2 ) ) * u_outline_thickness / u_resolution
-        ) 
+        )
       );
     }
   }
@@ -74,7 +77,7 @@ float outline_stencil_normal()
   return outline;
 }
 
-float outline_stencil_depth() 
+float outline_stencil_depth()
 {
   // Sample the color texture in a 3x3 kernel around the current fragment to perform edge detection.
   float pix[ 25 ];
@@ -82,11 +85,13 @@ float outline_stencil_depth()
   {
     for( int x = 0; x < 5; x++ )
     {
-      pix[ y * 5 + x ] = length( 
-        texture(
+      pix[ y * 5 + x ] = length
+      (
+        texture
+        (
           u_depth_texture,
           v_tex_coord + vec2( float( x - 2 ), float( y - 2 ) ) * u_outline_thickness / u_resolution
-        ) 
+        )
       );
     }
   }
@@ -114,7 +119,7 @@ float outline_stencil_depth()
   return outline;
 }
 
-float outline_stencil_color() 
+float outline_stencil_color()
 {
   float depth = 1.0 - texture( u_depth_texture, v_tex_coord ).x;
 
@@ -124,7 +129,8 @@ float outline_stencil_color()
   {
     for( int x = 0; x < 5; x++ )
     {
-      pix[ y * 5 + x ] = texture(
+      pix[ y * 5 + x ] = texture
+      (
         u_color_texture,
         v_tex_coord + vec2( float( x - 2 ), float( y - 2 ) ) * u_outline_thickness / u_resolution
       ).r;
@@ -164,7 +170,8 @@ vec4 outline_color()
   {
     for( int x = 0; x < 5; x++ )
     {
-      colors[ y * 5 + x ] = texture(
+      colors[ y * 5 + x ] = texture
+      (
         u_color_texture,
         v_tex_coord + vec2( float( x - 2 ), float( y - 2 ) ) * u_outline_thickness / u_resolution
       );
@@ -176,7 +183,8 @@ vec4 outline_color()
   {
     for( int x = 0; x < 5; x++ )
     {
-      depths[ y * 5 + x ] = 1.0 - texture(
+      depths[ y * 5 + x ] = 1.0 - texture
+      (
         u_depth_texture,
         v_tex_coord + vec2( float( x - 2 ), float( y - 2 ) ) * u_outline_thickness / u_resolution
       ).r;

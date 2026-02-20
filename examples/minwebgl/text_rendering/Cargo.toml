@@ -2,10 +2,10 @@
 name = "text_rendering"
 version = "0.1.0"
 edition = "2021"
-authors = [ 
+authors = [
   "Kostiantyn Mysnyk <wandalen@obox.systems>",
   "Avramenko Yevhenii <yevhenii.av@obox.systems>",
-  "Bilan Vadym <vadym.b@obox.systems>" 
+  "Bilan Vadym <vadym.b@obox.systems>"
 ]
 
 [lints]
@@ -15,14 +15,14 @@ workspace = true
 minwebgl = { workspace = true, features = [ "future", "math", "diagnostics" ] }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 gltf = { workspace = true, features = [ "import", "KHR_materials_specular" ] }
-renderer = { workspace = true }
+renderer = { workspace = true, features = [ "animation" ] }
 csgrs = { workspace = true, features = [ "truetype-text" ] }
 parry3d = { workspace = true }
 norad = { workspace = true }
-parley = { workspace = true }
 kurbo = { workspace = true }
 earcutr = { workspace = true }
 quick-xml = { workspace = true }
+rustc-hash = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true

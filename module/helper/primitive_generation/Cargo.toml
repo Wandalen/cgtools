@@ -37,6 +37,7 @@ enabled = [
     "dep:mingl",
     "dep:renderer",
     "dep:web-sys",
+    "dep:rustc-hash"
 ]
 
 # Full feature set with all geometry types
@@ -72,6 +73,7 @@ norad = { workspace = true, features = [ "kurbo" ], optional = true }
 quick-xml = { workspace = true, optional = true }
 earcutr = { workspace = true, optional = true }
 interpoli = { workspace = true, optional = true }
+rustc-hash = { workspace = true, optional = true }
 
 [dependencies.web-sys]
 workspace = true

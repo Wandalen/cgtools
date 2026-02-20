@@ -76,6 +76,15 @@ mod private
       bounding_box
     }
 
+    /// Mutably computes the bounding box for a set of 3D vertices.
+    ///
+    /// # Arguments
+    /// * `positions` - A slice of `f32` where vertices are laid out sequentially as `[x, y, z, x, y, z, ...]`.
+    pub fn compute_mut( &mut self, positions : &[ f32 ] )
+    {
+      *self = Self::compute( positions );
+    }
+
     /// Computes the bounding box for a set of 2D vertices, with z-component as 0.
     ///
     /// # Arguments
@@ -246,6 +255,19 @@ mod private
       bs.radius = bs.radius.sqrt();
 
       bs
+    }
+
+    /// Mutably computes a bounding sphere for a set of 3D vertices.
+    ///
+    /// This method uses the center of the provided `bounding_box` and finds the
+    /// maximum squared distance to any vertex to determine the radius.
+    ///
+    /// # Arguments
+    /// * `positions` - A slice of `f32` where vertices are laid out as `[x, y, z, x, y, z, ...]`.
+    /// * `bounding_box` - A pre-computed `BoundingBox` for the same set of vertices.
+    pub fn compute_mut( &mut self, positions : &[ f32 ], bounding_box : &BoundingBox )
+    {
+      *self = Self::compute( positions, bounding_box );
     }
   }
 }

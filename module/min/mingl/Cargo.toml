@@ -39,6 +39,7 @@ full = [
 
 math = [ "dep:ndarray_cg" ]
 camera_orbit_controls = []
+character_controls = []
 
 diagnostics = [
   "model_obj"
@@ -93,11 +94,17 @@ web-sys = { workspace = true, optional = true, features = [
   'Location',
   'DomTokenList',
   'HtmlVideoElement',
-  'HtmlImageElement'
+  'HtmlImageElement',
+  'Element',
+  'PointerEvent',
+  'MouseEvent',
+  'WheelEvent',
+  'KeyboardEvent'
 ]}
 
 [dev-dependencies]
 test_tools = { workspace = true }
+approx = { workspace = true }
 
 # Metadata for crates.io
 [package.metadata.docs.rs]

@@ -14,6 +14,8 @@ This example introduces fundamental 3D graphics concepts including model-view-pr
 
 * [Instanced Line Rendering Part I]
 * [Instanced Line Rendering Part II: Alpha blending]
+* [Three.js line example]
 
 [Instanced Line Rendering Part I]: https://wwwtyro.net/2019/11/18/instanced-lines.html
 [Instanced Line Rendering Part II: Alpha blending]: https://wwwtyro.net/2021/10/01/instanced-lines-part-2.html
+[Three.js line example]: https://threejs.org/examples/?q=Line#webgl_lines_fat_raycasting

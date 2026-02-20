@@ -19,6 +19,9 @@ crate::mod_interface!
   /// Scene related functionality
   layer scene;
 
+  /// Light related functionality
+  layer light;
+
   /// Animation related functionality
   #[ cfg( feature = "animation" ) ]
   layer animation;
@@ -55,5 +58,10 @@ crate::mod_interface!
 
   /// File loaders
   layer loaders;
-}
 
+  /// Useful functions
+  layer helpers;
+
+  /// Shadows related functionality
+  layer shadow;
+}

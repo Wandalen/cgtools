@@ -128,10 +128,10 @@ Self : RawSlice< Scalar = E >
     rs[ 10 ] = s[ 8 ];
     rs[ 11 ] = E::zero();
 
-    rs[ 11 ] = E::zero();
     rs[ 12 ] = E::zero();
     rs[ 13 ] = E::zero();
-    rs[ 14 ] = E::one();
+    rs[ 14 ] = E::zero();
+    rs[ 15 ] = E::one();
 
     mat
   }
@@ -206,6 +206,20 @@ Self : RawSliceMut< Scalar = E >
         xz + wy, yz - wx, E::one() - ( xx + yy )
       ]
     )
+  }
+}
+
+impl< E, Descriptor > Mat< 3, 3, E, Descriptor >
+where
+E : MatEl + nd::NdFloat,
+Descriptor : mat::Descriptor,
+Self : RawSliceMut< Scalar = E >
+{
+  /// Creates a 3x3 identity matrix.
+  pub fn identity() -> Self
+  {
+    let mat = Self::default();
+    mat.raw_set( identity().to_array() )
   }
 }
 

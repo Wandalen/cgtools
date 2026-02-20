@@ -13,13 +13,14 @@ workspace = true
 [dependencies]
 minwebgl = { workspace = true, features = [ "future" ] }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
-renderer = { workspace = true }
+renderer = { workspace = true, features = [ "animation" ] }
 ndarray_cg = { workspace = true }
 gltf = { workspace = true }
 rand = { workspace = true }
 getrandom = { workspace = true, features = [ "wasm_js" ] }
 csgrs = { workspace = true }
 parry3d = { workspace = true }
+rustc-hash = { workspace = true }
 
 [dependencies.web-sys]
 workspace = true

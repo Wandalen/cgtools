@@ -15,12 +15,16 @@ crate::mod_interface!
   layer composer;
   /// Tomapping post-processing
   layer tonemapping;
+  /// Color grading post-processing
+  layer color_grading;
   /// Convert to srgb
   layer to_srgb;
   /// Blend post-processing
   layer blend;
   /// Creates an outline
   layer outline;
+  /// Converts shadow texture to colored base color
+  layer shadow_to_color;
 
   own use
   {

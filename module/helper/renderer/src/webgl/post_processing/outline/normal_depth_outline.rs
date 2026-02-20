@@ -3,14 +3,33 @@ mod private
 {
   use minwebgl as gl;
   use gl::GL;
-  use crate::webgl::{ post_processing::{ Pass, VS_TRIANGLE }, program::NormalDepthOutlineBaseShader, ProgramInfo };
+  use gl::web_sys::WebGlProgram;
+  use rustc_hash::FxHashMap;
+  use crate::webgl::{ ShaderProgram, post_processing::{ Pass, VS_TRIANGLE }, ProgramInfo };
+  use crate::webgl::impl_locations;
+
+  // A public struct for the base Normal/Depth outline shader.
+  //
+  // This is likely the first pass that generates the necessary data for the final
+  // Normal/Depth outline.
+  impl_locations!
+  (
+    NormalDepthOutlineBaseShader,
+    "sourceTexture",
+    "positionTexture",
+    "normalTexture",
+    "objectColorTexture",
+    "projection",
+    "resolution",
+    "outlineThickness"
+  );
 
   /// A struct representing a rendering pass for creating outlines based on normal and depth information.
   pub struct NormalDepthOutlinePass
   {
     /// Holds the WebGL program and its uniform/attribute locations. The `NormalDepthOutlineBaseShader`
     /// type parameter ensures that the correct shader is used.
-    program_info : ProgramInfo< NormalDepthOutlineBaseShader >,
+    shader_program : NormalDepthOutlineBaseShader,
     /// The texture containing per-pixel position data, typically from a G-Buffer. This is
     /// used to calculate depth differences between pixels.
     position_texture : Option< gl::web_sys::WebGlTexture >,
@@ -28,26 +47,26 @@ mod private
     height : u32
   }
 
-  impl NormalDepthOutlinePass 
+  impl NormalDepthOutlinePass
   {
     /// Creates a new `NormalDepthOutlinePass` instance.
-    pub fn new( 
-      gl : &gl::WebGl2RenderingContext, 
+    pub fn new(
+      gl : &gl::WebGl2RenderingContext,
       position_texture : Option< gl::web_sys::WebGlTexture >,
       normal_texture : Option< gl::web_sys::WebGlTexture >,
       object_color_texture : Option< gl::web_sys::WebGlTexture >,
       outline_thickness : f32,
-      width : u32, 
-      height : u32 
+      width : u32,
+      height : u32
     ) -> Result< Self, gl::WebglError >
     {
       let fs_shader = include_str!( "../../shaders/post_processing/outline/normal_depth_outline.frag" );
       let program = gl::ProgramFromSources::new( VS_TRIANGLE, fs_shader ).compile_and_link( gl )?;
-      let program_info = ProgramInfo::< NormalDepthOutlineBaseShader >::new( gl, program.clone() );
+      let shader_program = NormalDepthOutlineBaseShader::new( gl, &program );
 
       {
-        program_info.bind( gl );
-        let locations = program_info.get_locations();
+        shader_program.bind( gl );
+        let locations = shader_program.locations();
 
         let source_texture_loc = locations.get( "sourceTexture" ).unwrap().clone();
         let position_texture_loc = locations.get( "positionTexture" ).unwrap().clone();
@@ -63,7 +82,7 @@ mod private
 
       let pass = Self
       {
-        program_info,
+        shader_program,
         position_texture,
         normal_texture,
         object_color_texture,
@@ -73,7 +92,7 @@ mod private
       };
 
       Ok( pass )
-    }    
+    }
 
     /// Sets the thickness of the outline.
     pub fn set_outline_thickness( &mut self, new_value : f32 )
@@ -84,22 +103,22 @@ mod private
 
   impl Pass for NormalDepthOutlinePass
   {
-    fn renders_to_input( &self ) -> bool 
+    fn renders_to_input( &self ) -> bool
     {
       false
     }
-    
+
     fn render
     (
       &self,
       gl : &minwebgl::WebGl2RenderingContext,
       input_texture : Option< minwebgl::web_sys::WebGlTexture >,
       output_texture : Option< minwebgl::web_sys::WebGlTexture >
-    ) -> Result< Option< minwebgl::web_sys::WebGlTexture >, minwebgl::WebglError > 
+    ) -> Result< Option< minwebgl::web_sys::WebGlTexture >, minwebgl::WebglError >
     {
-      self.program_info.bind( gl );
+      self.shader_program.bind( gl );
 
-      let locations = self.program_info.get_locations();
+      let locations = self.shader_program.locations();
 
       let resolution_loc = locations.get( "resolution" ).unwrap().clone();
       let outline_thickness_loc = locations.get( "outlineThickness" ).unwrap().clone();
@@ -109,16 +128,16 @@ mod private
 
       gl.framebuffer_texture_2d
       (
-        gl::FRAMEBUFFER, 
-        gl::COLOR_ATTACHMENT0, 
-        gl::TEXTURE_2D, 
-        output_texture.as_ref(), 
+        gl::FRAMEBUFFER,
+        gl::COLOR_ATTACHMENT0,
+        gl::TEXTURE_2D,
+        output_texture.as_ref(),
         0
-      );  
+      );
 
       gl.active_texture( gl::TEXTURE0 );
       gl.bind_texture( gl::TEXTURE_2D, input_texture.as_ref() );
-      
+
       gl.active_texture( gl::TEXTURE1 );
       gl.bind_texture( gl::TEXTURE_2D, self.position_texture.as_ref() );
 

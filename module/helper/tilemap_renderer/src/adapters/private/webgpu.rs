@@ -19,6 +19,7 @@
 #![ allow( clippy::unnecessary_wraps ) ]
 #![ allow( clippy::no_effect_underscore_binding ) ]
 #![ allow( clippy::struct_excessive_bools ) ]
+#![ allow( clippy::clone_on_copy ) ]
 
 use crate::ports::{ RenderContext, Renderer, RendererCapabilities, RenderError, PrimitiveRenderer };
 use crate::scene::Scene;

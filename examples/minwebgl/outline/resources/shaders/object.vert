@@ -1,6 +1,10 @@
 #version 300 es
 // Input vertex position attribute.
 layout ( location = 0 ) in vec3 position;
+// Input vertex normal attribute.
+layout ( location = 1 ) in vec3 normal;
+
+out vec3 vNormal;
 
 // Uniform transformation matrices: Projection, View, and Model.
 // These are uploaded from the Rust application code.
@@ -13,4 +17,5 @@ void main()
   // Transform the input vertex position from model space to clip space
   // by applying the model, view, and projection matrices in order.
   gl_Position = u_projection * u_view * u_model * vec4( position, 1.0 );
+  vNormal = normalize( normal );
 }

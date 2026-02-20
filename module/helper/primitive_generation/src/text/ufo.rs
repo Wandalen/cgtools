@@ -1,4 +1,4 @@
-//! This module provides functionality for loading UFO 
+//! This module provides functionality for loading UFO
 //! fonts and converting text into a 3D mesh representation.
 
 #![ allow( clippy::needless_continue ) ]
@@ -15,7 +15,8 @@ mod private
 {
   use std::rc::Rc;
   use std::cell::RefCell;
-  use std::{collections::HashMap, str::FromStr};
+  use rustc_hash::FxHashMap;
+  use std::str::FromStr;
   use kurbo::flatten;
   use mingl::geometry::BoundingBox;
   use norad::{ PointType, ContourPoint, Contour };
@@ -23,11 +24,11 @@ mod private
   use gl::{ F32x3, F32x4 };
   use quick_xml::{ Reader, events::Event };
   use crate::
-  { 
+  {
     AttributesData,
-    PrimitiveData, 
+    PrimitiveData,
     Transform,
-    contours_to_fill_geometry 
+    contours_to_fill_geometry
   };
 
   /// Represents a single character glyph, including its contours and a generated 3D body.
@@ -51,14 +52,14 @@ mod private
     {
       let mut contours = contours.into_iter()
       .map
-      ( 
-        | v | 
+      (
+        | v |
         v.into_iter()
         .map
-        ( 
-          | [ a, b ] | [ a as f32, b as f32 ] 
+        (
+          | [ a, b ] | [ a as f32, b as f32 ]
         )
-        .collect::< Vec< _ > >() 
+        .collect::< Vec< _ > >()
       )
       .collect::< Vec< _ > >();
 
@@ -89,7 +90,7 @@ mod private
         min : [ ( x1 + offsetx ) as f32, ( y1 + offsety ) as f32, 0.0 ].into(),
         max : [ ( x2 + offsetx ) as f32, ( y2 + offsety ) as f32, 0.0 ].into()
       };
-      
+
       Self
       {
         _character : character,
@@ -101,7 +102,7 @@ mod private
 
     /// Scales the glyph's contours and bounding box by a given factor.
     fn scale( &mut self, scale : f32)
-    { 
+    {
       let [ x1, y1 ] = [ self.bounding_box.left(), self.bounding_box.down() ];
       let [ x2, y2 ] = [ self.bounding_box.right(), self.bounding_box.up() ];
 
@@ -129,14 +130,14 @@ mod private
       let mut contour_points = vec![];
       let mut typ = PointType::Move;
 
-      loop 
+      loop
       {
         let event = reader.read_event();
         match event
-        { 
-          Ok( Event::Empty( e ) ) if e.starts_with( b"point" ) => 
+        {
+          Ok( Event::Empty( e ) ) if e.starts_with( b"point" ) =>
           {
-            let element = e.clone(); 
+            let element = e.clone();
 
             let mut x = None;
             let mut y = None;
@@ -145,13 +146,13 @@ mod private
             for attr in element.attributes()
             {
               let Ok( attr ) = attr
-              else 
+              else
               {
                 continue;
               };
 
               let Ok( value ) = String::from_utf8( attr.value.to_vec() )
-              else 
+              else
               {
                 continue;
               };
@@ -160,7 +161,7 @@ mod private
               {
                 b"x" => x = value.parse::< f64 >().ok(),
                 b"y" => y = value.parse::< f64 >().ok(),
-                b"typ" => 
+                b"typ" =>
                 {
                   let Ok( t ) = PointType::from_str( &value )
                   else
@@ -184,14 +185,14 @@ mod private
               (
                 x.unwrap(),
                 y.unwrap(),
-                typ,
+                typ.clone(),
                 smooth,
                 None,
                 None
               )
             )
           },
-          Ok( Event::End( e ) ) if e.starts_with( b"contour" ) => 
+          Ok( Event::End( e ) ) if e.starts_with( b"contour" ) =>
           {
             typ = PointType::Move;
             let mut contour = Contour::default();
@@ -209,31 +210,31 @@ mod private
       for contour in _contours
       {
         let mut path = vec![];
-        let Ok( bez_path ) = contour.to_kurbo() 
+        let Ok( bez_path ) = contour.to_kurbo()
         else
         {
           return None;
         };
 
         flatten
-        ( 
-          bez_path.elements().iter().cloned(), 
-          0.25, 
-          | p | path.push( p ) 
+        (
+          bez_path.elements().iter().cloned(),
+          0.25,
+          | p | path.push( p )
         );
 
         let mut contour = vec![];
 
         path.iter()
         .for_each
-        ( 
+        (
           | p |
           {
             match p
             {
               kurbo::PathEl::MoveTo( point ) |
               kurbo::PathEl::LineTo( point ) => contour.push( [ point.x, point.y ] ),
-              kurbo::PathEl::ClosePath => 
+              kurbo::PathEl::ClosePath =>
               {
                 contours.push( contour.clone() );
                 contour.clear();
@@ -263,7 +264,7 @@ mod private
   pub struct Font
   {
     /// A map of characters to their corresponding glyphs.
-    glyphs : HashMap< char, Glyph >,
+    glyphs : FxHashMap< char, Glyph >,
     /// The maximum bounding box of glyph in the font.
     max_size : BoundingBox
   }
@@ -273,10 +274,10 @@ mod private
     /// Asynchronously loads a new `Font` from a UFO directory path.
     async fn new( path : &str ) -> Self
     {
-      let mut glyphs = HashMap::< char, Glyph >::new();
+      let mut glyphs = FxHashMap::< char, Glyph >::default();
       let glyphs_path = path.to_string() + "/glyphs";
 
-      for c in b'a'..=b'z' 
+      for c in b'a'..=b'z'
       {
         let glyph_path = format!( "{}/{}.glif", glyphs_path, c as char );
         let glif_bytes = gl::file::load( &glyph_path ).await
@@ -287,7 +288,7 @@ mod private
         }
       }
 
-      for c in b'A'..=b'Z' 
+      for c in b'A'..=b'Z'
       {
         let glyph_path = format!( "{}/{}_.glif", glyphs_path, c as char );
         let glif_bytes = gl::file::load( &glyph_path ).await
@@ -298,7 +299,7 @@ mod private
         }
       }
 
-      for ( c, name ) in 
+      for ( c, name ) in
       [
         ( '0', "zero" ),
         ( '1', "one" ),
@@ -344,8 +345,8 @@ mod private
         glyph.scale( scale / max_y );
       }
 
-      let mut min = F32x3::MAX; 
-      let mut max = F32x3::MIN; 
+      let mut min = F32x3::MAX;
+      let mut max = F32x3::MIN;
       for ( _, glyph ) in &glyphs
       {
         if min > glyph.bounding_box.min
@@ -366,10 +367,10 @@ mod private
       Self
       {
         glyphs,
-        max_size : BoundingBox 
-        { 
-          min, 
-          max   
+        max_size : BoundingBox
+        {
+          min,
+          max
         }
       }
     }
@@ -408,7 +409,7 @@ mod private
     }
 
     let body_bounding_box = BoundingBox::compute2d
-    ( 
+    (
       contours.get( body_id ).unwrap()
       .iter()
       .flatten()
@@ -427,12 +428,12 @@ mod private
       }
 
       let bounding_box = BoundingBox::compute2d
-      ( 
+      (
         contour
         .iter()
         .flatten()
         .cloned()
-        .collect::< Vec< _ > >() 
+        .collect::< Vec< _ > >()
         .as_slice()
       );
 
@@ -465,36 +466,36 @@ mod private
       let mut flat_positions: Vec< f64 > = Vec::new();
       let mut hole_indices: Vec< usize > = Vec::new();
 
-      if let Some( outer_contour ) = contours.get( 0 ) 
+      if let Some( outer_contour ) = contours.get( 0 )
       {
-        if outer_contour.is_empty() 
+        if outer_contour.is_empty()
         {
           return None;
         }
-        for &[ x, y ] in outer_contour 
+        for &[ x, y ] in outer_contour
         {
           flat_positions.push( x as f64 );
           flat_positions.push( y as f64 );
         }
-      } 
-      else 
+      }
+      else
       {
         return None;
       }
 
       // Process holes (remaining contours)
       // Their winding order must be opposite to the outer (e.g., CW for holes)
-      for i in 1..contours.len() 
+      for i in 1..contours.len()
       {
         let hole_contour = &contours[ i ];
-        if hole_contour.is_empty() 
+        if hole_contour.is_empty()
         {
           continue;
         }
 
         hole_indices.push( flat_positions.len() / 2 );
 
-        for &[ x, y ] in hole_contour 
+        for &[ x, y ] in hole_contour
         {
           flat_positions.push( x as f64 );
           flat_positions.push( y as f64 );
@@ -502,7 +503,7 @@ mod private
       }
 
       // Perform triangulation
-      let Ok( body_indices ) = earcutr::earcut( &flat_positions, &hole_indices, 2 ) 
+      let Ok( body_indices ) = earcutr::earcut( &flat_positions, &hole_indices, 2 )
       else
       {
         continue;
@@ -512,53 +513,55 @@ mod private
       .map( | i | i as u32 )
       .collect::< Vec< _ > >();
 
-      let body_positions = flat_positions.chunks( 2 )          
+      let body_positions = flat_positions.chunks( 2 )
       .map( | c | [ c[ 0 ] as f32, c[ 1 ] as f32, 0.0 ] )
       .collect::< Vec< _ > >();
 
       let positions_count = positions.len();
       positions.extend( body_positions );
       indices.extend
-      ( 
+      (
         body_indices.iter()
-        .map( | i | i + positions_count as u32 ) 
+        .map( | i | i + positions_count as u32 )
       );
     }
 
     let attributes = AttributesData
     {
-      positions, 
-      indices, 
+      positions,
+      indices,
     };
 
-    let primitive_data = PrimitiveData 
-    { 
-      attributes : Rc::new( RefCell::new( attributes ) ),
+    let primitive_data = PrimitiveData
+    {
+      name : None,
+      parent : None,
+      attributes : Some( Rc::new( RefCell::new( attributes ) ) ),
       color : F32x4::default(),
-      transform : Transform::default()   
+      transform : Transform::default()
     };
 
     Some( primitive_data )
   }
 
   /// Asynchronously loads multiple fonts from a list of font names.
-  pub async fn load_fonts( font_names : &[ &str ] ) -> HashMap< String, Font >
+  pub async fn load_fonts( font_names : &[ &str ] ) -> FxHashMap< String, Font >
   {
-    let mut fonts = HashMap::< String, Font >::new();
+    let mut fonts = FxHashMap::< String, Font >::default();
 
     for font_name in font_names
     {
       let font_path = format!( "fonts/ufo/{}.ufo", font_name );
       fonts.insert( font_name.to_string(), Font::new( &font_path ).await );
     }
-    
+
     fonts
   }
 
   /// Converts text string into a collection of filled mesh primitives using the specified font.
   pub fn text_to_mesh( text : &str, font : &Font, transform : &Transform ) -> Vec< PrimitiveData >
   {
-    let mut mesh = vec![]; 
+    let mut mesh = vec![];
 
     let start_transform = transform.clone();
     let mut transform = start_transform.clone();
@@ -572,7 +575,7 @@ mod private
       let Some( glyph ) = font.glyphs.get( &char )
       else
       {
-        transform.translation[ 0 ] -= halfx / 2.0; 
+        transform.translation[ 0 ] -= halfx / 2.0;
         continue;
       };
 
@@ -589,10 +592,10 @@ mod private
 
     for char in text.chars()
     {
-      let Some( glyph ) = font.glyphs.get( &char ).cloned() 
+      let Some( glyph ) = font.glyphs.get( &char ).cloned()
       else
       {
-        transform.translation[ 0 ] += halfx; 
+        transform.translation[ 0 ] += halfx;
         continue;
       };
 
@@ -620,14 +623,14 @@ mod private
   }
 
   /// Converts text string into outlined contour meshes with specified line width.
-  pub fn text_to_countour_mesh( 
-    text : &str, 
-    font : &Font, 
-    transform : &Transform, 
-    width : f32 
+  pub fn text_to_countour_mesh(
+    text : &str,
+    font : &Font,
+    transform : &Transform,
+    width : f32
   ) -> Vec< PrimitiveData >
   {
-    let mut mesh = vec![]; 
+    let mut mesh = vec![];
 
     let start_transform = transform.clone();
     let mut transform = start_transform.clone();
@@ -641,7 +644,7 @@ mod private
       let Some( glyph ) = font.glyphs.get( &char )
       else
       {
-        transform.translation[ 0 ] -= halfx / 2.0; 
+        transform.translation[ 0 ] -= halfx / 2.0;
         continue;
       };
 
@@ -658,10 +661,10 @@ mod private
 
     for char in text.chars()
     {
-      let Some( glyph ) = font.glyphs.get( &char ).cloned() 
+      let Some( glyph ) = font.glyphs.get( &char ).cloned()
       else
       {
-        transform.translation[ 0 ] += halfx; 
+        transform.translation[ 0 ] += halfx;
         continue;
       };
 
@@ -678,7 +681,7 @@ mod private
       {
         glyph_x
       };
-      
+
       for curve in glyph.contours
       {
         let Some( mut geometry ) = crate::primitive::curve_to_geometry( &curve, width )
@@ -706,7 +709,7 @@ mod private
   #[ derive( Clone ) ]
   pub struct Glyph;
 
-  /// Stub implementation of Font when text feature is disabled  
+  /// Stub implementation of Font when text feature is disabled
   #[ derive( Clone ) ]
   pub struct Font;
 
@@ -738,11 +741,11 @@ mod private
   }
 
   /// Stub implementation - always returns empty vec when text feature is disabled
-  pub fn text_to_countour_mesh( 
-    _text : &str, 
-    _font : &Font, 
-    _transform : &crate::Transform, 
-    _width : f32 
+  pub fn text_to_countour_mesh(
+    _text : &str,
+    _font : &Font,
+    _transform : &crate::Transform,
+    _width : f32
   ) -> Vec< PrimitiveData >
   {
     Vec::new()

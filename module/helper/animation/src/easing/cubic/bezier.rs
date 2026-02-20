@@ -1,6 +1,6 @@
 mod private
 {
-  use std::marker::PhantomData;
+  use core::marker::PhantomData;
 
 use crate::{impl_easing_function, Animatable};
   use crate::easing::
@@ -15,7 +15,7 @@ use crate::{impl_easing_function, Animatable};
   /// Represents a cubic Bezier curve easing function.
   ///
   /// The curve is defined by two control points: `in_tangent` and `out_tangent`.
-  #[ derive( Debug ) ]
+  #[ derive( Debug, Clone ) ]
   pub struct CubicBezier< A >
   where A : Animatable
   {
@@ -31,7 +31,7 @@ use crate::{impl_easing_function, Animatable};
     /// Calculates the x-coordinate of the Bezier curve at a given time `t`.
     ///
     /// This is part of the inverse function used to solve for `t`.
-    fn get_x( &self, time : f64 ) -> f64
+    fn x_get( &self, time : f64 ) -> f64
     {
       let one_minus_t = 1.0 - time;
       3.0 * one_minus_t.powi( 2 ) * time * self.in_tangent[ 0 ]
@@ -42,7 +42,7 @@ use crate::{impl_easing_function, Animatable};
     /// Calculates the y-coordinate of the Bezier curve at a given time `t`.
     ///
     /// This represents the final easing value.
-    fn get_y( &self, time : f64 ) -> f64
+    fn y_get( &self, time : f64 ) -> f64
     {
       let one_minus_t = 1.0 - time;
       3.0 * one_minus_t.powi( 2 ) * time * self.in_tangent[ 1 ]
@@ -101,11 +101,11 @@ use crate::{impl_easing_function, Animatable};
         {
           break;
         }
-        let x_val = self.get_x( bezier_t ) - time;
+        let x_val = self.x_get( bezier_t ) - time;
         bezier_t -= x_val / slope;
       }
 
-      let time = self.get_y( bezier_t );
+      let time = self.y_get( bezier_t );
 
       start.interpolate( &end, time )
     }
