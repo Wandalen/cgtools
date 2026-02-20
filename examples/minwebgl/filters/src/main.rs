@@ -38,6 +38,7 @@ mod renderer;
 mod controls;
 mod zoom_pan;
 mod sidebar_toggle;
+mod bg_removal_bindgen;
 
 use ui_setup::*;
 use renderer::Renderer;
@@ -234,6 +235,73 @@ fn run() -> Result< (), gl::WebglError >
   });
   revert_btn.set_onclick( Some( onclick_revert.as_ref().unchecked_ref() ) );
   onclick_revert.forget();
+
+  // [TEMP] Setup remove background test button
+  let bg_btn = utils::get_element_by_id_unchecked::< web_sys::HtmlElement >( "bg-remove-btn" );
+  let gl_bg = gl.clone();
+  let onclick_bg : Closure< dyn Fn() > = Closure::new( move ||
+  {
+    let gl_inner = gl_bg.clone();
+    wasm_bindgen_futures::spawn_local( async move
+    {
+      gl_inner.flush();
+      gl_inner.finish();
+
+      let canvas = utils::get_element_by_id_unchecked::< HtmlCanvasElement >( "canvas" );
+
+      // Convert canvas to blob via Promise
+      let promise = js_sys::Promise::new( &mut | resolve, _reject |
+      {
+        let cb : Closure< dyn FnMut( JsValue ) > = Closure::once( move | blob : JsValue |
+        {
+          gl::info!("resolve");
+          let _ = resolve.call1( &JsValue::NULL, &blob );
+        });
+        let _ = canvas.to_blob( cb.as_ref().unchecked_ref() );
+        cb.forget();
+      });
+
+      let blob_js = match wasm_bindgen_futures::JsFuture::from( promise ).await
+      {
+        Ok( v ) => v,
+        Err( e ) =>
+        {
+          gl::warn!( "Failed to get canvas blob: {:?}", e );
+          return;
+        }
+      };
+
+      if blob_js.is_null() || blob_js.is_undefined()
+      {
+        gl::warn!( "Canvas blob is null" );
+        return;
+      }
+
+      let blob : web_sys::Blob = blob_js.unchecked_into();
+      gl::info!( "Removing background..." );
+
+      match bg_removal_bindgen::process_image( blob ).await
+      {
+        Some( processed_blob ) =>
+        {
+          let url = web_sys::Url::create_object_url_with_blob( &processed_blob ).unwrap();
+          let document = web_sys::window().unwrap().document().unwrap();
+          let link = document.create_element( "a" ).unwrap().dyn_into::< web_sys::HtmlAnchorElement >().unwrap();
+          link.set_href( &url );
+          link.set_download( "bg-removed.png" );
+          link.click();
+          let _ = web_sys::Url::revoke_object_url( &url );
+          gl::info!( "Background removed and downloaded!" );
+        }
+        None =>
+        {
+          gl::warn!( "Background removal failed" );
+        }
+      }
+    });
+  });
+  bg_btn.set_onclick( Some( onclick_bg.as_ref().unchecked_ref() ) );
+  onclick_bg.forget();
 
   Ok( () )
 }

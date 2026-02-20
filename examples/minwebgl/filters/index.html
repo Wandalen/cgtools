@@ -5,12 +5,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Filters</title>
-  <link data-trunk rel="copy-dir" href="../../../assets/filters_demo/" data-target-path="static" />
   <link data-trunk rel="copy-dir" href="assets/thumbnails/" data-target-path="assets/thumbnails" />
   <link data-trunk rel="css" href="style.css">
   <script data-trunk type="module" src="controls.js"></script>
   <script data-trunk type="module" src="zoom_pan.js"></script>
   <script data-trunk type="module" src="sidebar_toggle.js"></script>
+  <script data-trunk type="module" src="bg_removal.js"></script>
 </head>
 
 <body>
@@ -80,6 +80,8 @@
   <!-- Bottom Right Buttons -->
   <input type="file" id="file-input" accept="image/*" />
   <button id="upload-btn" title="Upload image">📁</button>
+  <!-- [TEMP] Remove background test button -->
+  <button id="bg-remove-btn" title="Remove background (test)">BG</button>
   <button id="revert-btn" title="Revert to original image">
     <svg class="revert-icon" viewBox="0 0 24 24" style="transform: scaleX(-1);">
       <polyline points="23 4 23 10 17 10"></polyline>
