@@ -66,9 +66,11 @@ fn main()
 fn run() -> Result< (), gl::WebglError >
 {
   // Create GL context with preserveDrawingBuffer enabled for saving
+  // and premultiplied_alpha disabled for correct transparency handling
   let context_options = gl::context::ContextOptions
   {
     preserve_drawing_buffer : true,
+    premultiplied_alpha : false,
     ..Default::default()
   };
   let gl = gl::context::retrieve_or_make_with( context_options ).expect( "Can't retrieve GL context" );

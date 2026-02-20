@@ -100,7 +100,8 @@ impl Filter for Oil
           }}
         }}
 
-        frag_color = vec4( rt[ r ] / rh[ r ], gt[ g ] / gh[ g ], bt[ b ] / bh[ b ], 1.0 );
+        float alpha = texture( u_image, v_tex_coord ).a;
+        frag_color = vec4( rt[ r ] / rh[ r ], gt[ g ] / gh[ g ], bt[ b ] / bh[ b ], alpha );
       }}
       ",
       self.levels
