@@ -10,6 +10,8 @@ pub struct Framebuffer
 {
   framebuffer : WebGlFramebuffer,
   color_attachment : WebGlTexture,
+  width : i32,
+  height : i32,
 }
 
 impl Framebuffer
@@ -28,7 +30,17 @@ impl Framebuffer
     gl.framebuffer_texture_2d( GL::FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::TEXTURE_2D, Some( &texture ), 0 );
     gl.bind_framebuffer( gl::FRAMEBUFFER, None );
 
-    Some( Self { framebuffer, color_attachment : texture } )
+    Some( Self { framebuffer, color_attachment : texture, width, height } )
+  }
+
+  pub fn width( &self ) -> i32
+  {
+    self.width
+  }
+
+  pub fn height( &self ) -> i32
+  {
+    self.height
   }
 
   pub fn color_attachment( &self ) -> &WebGlTexture
