@@ -123,6 +123,21 @@ impl Renderer
     }
 
     filter.draw( self );
+
+    // If a filter changed the canvas dimensions (e.g. Transpose), sync the framebuffer so
+    // subsequent filters that use it (e.g. blur two-pass) see the correct size.
+    if let Some( canvas ) = self.gl.canvas()
+    {
+      if let Ok( canvas ) = canvas.dyn_into::< web_sys::HtmlCanvasElement >()
+      {
+        let w = canvas.width() as i32;
+        let h = canvas.height() as i32;
+        if w != self.framebuffer.width() || h != self.framebuffer.height()
+        {
+          self.update_framebuffer_size( w, h );
+        }
+      }
+    }
   }
 
   fn create_program( gl : &GL, filter_source : &str ) -> WebGlProgram
