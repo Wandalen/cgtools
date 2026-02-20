@@ -18,6 +18,7 @@ pub fn setup_channels_filter
   let current_filter_clone = current_filter.clone();
   let onclick : Closure< dyn Fn() > = Closure::new( move ||
   {
+    filter_renderer_clone.borrow_mut().restore_previous_texture();
     *current_filter_clone.borrow_mut() = String::from( "channels" );
     filter_renderer_clone.borrow_mut().save_previous_texture();
 
@@ -71,6 +72,7 @@ pub fn setup_flip_filter
   let current_filter_clone = current_filter.clone();
   let onclick : Closure< dyn Fn() > = Closure::new( move ||
   {
+    filter_renderer_clone.borrow_mut().restore_previous_texture();
     *current_filter_clone.borrow_mut() = String::from( "flip" );
     filter_renderer_clone.borrow_mut().save_previous_texture();
 

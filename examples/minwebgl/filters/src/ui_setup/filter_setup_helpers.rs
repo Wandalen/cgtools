@@ -27,6 +27,7 @@ blur::Blur< T > : Filter
 
   let onclick : Closure< dyn Fn() > = Closure::new( move ||
   {
+    filter_renderer_clone.borrow_mut().restore_previous_texture();
     *current_filter_clone.borrow_mut() = card_id_str.clone();
     filter_renderer_clone.borrow_mut().save_previous_texture();
 
@@ -77,6 +78,7 @@ resize::Resize< T > : Filter
 
   let onclick : Closure< dyn Fn() > = Closure::new( move ||
   {
+    filter_renderer_clone.borrow_mut().restore_previous_texture();
     *current_filter_clone.borrow_mut() = card_id_str.clone();
     filter_renderer_clone.borrow_mut().save_previous_texture();
 
@@ -130,6 +132,7 @@ brightness_contrast::BrightnessContrast< T > : Filter
 
   let onclick : Closure< dyn Fn() > = Closure::new( move ||
   {
+    filter_renderer_clone.borrow_mut().restore_previous_texture();
     *current_filter_clone.borrow_mut() = card_id_str.clone();
     filter_renderer_clone.borrow_mut().save_previous_texture();
 

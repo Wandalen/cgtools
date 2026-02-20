@@ -78,7 +78,7 @@ fn run() -> Result< (), gl::WebglError >
   let filter_renderer = Renderer::new( &gl, None );
   let filter_renderer = Rc::new( RefCell::new( filter_renderer ) );
 
-  let _current_filter = setup_ui( &filter_renderer );
+  let current_filter = setup_ui( &filter_renderer );
 
   // Setup zoom and pan controls
   zoom_pan::setup_zoom_pan();
@@ -169,6 +169,7 @@ fn run() -> Result< (), gl::WebglError >
   let apply_btn = utils::get_element_by_id_unchecked::< web_sys::HtmlElement >( "apply-btn" );
   let filter_renderer_apply = filter_renderer.clone();
   let gl_apply = gl.clone();
+  let current_filter_apply = current_filter.clone();
   let onclick_apply : Closure< dyn Fn() > = Closure::new( move ||
   {
     // Capture current canvas content and create a texture from it
@@ -189,6 +190,12 @@ fn run() -> Result< (), gl::WebglError >
           // Re-render with original filter to show the applied result
           filter_renderer_apply.borrow_mut().apply_filter( &filters::original::Original );
 
+          // Clear previous state so restore won't undo the apply
+          filter_renderer_apply.borrow_mut().clear_previous_state();
+
+          // Reset current filter so it can be re-applied
+          *current_filter_apply.borrow_mut() = String::from( "none" );
+
           // Hide controls bar
           ui_setup::hide_controls_bar();
 
@@ -207,10 +214,15 @@ fn run() -> Result< (), gl::WebglError >
   // Setup cancel button - restore previous texture and hide buttons
   let cancel_btn = utils::get_element_by_id_unchecked::< web_sys::HtmlElement >( "cancel-btn" );
   let filter_renderer_cancel = filter_renderer.clone();
+  let current_filter_cancel = current_filter.clone();
   let onclick_cancel : Closure< dyn Fn() > = Closure::new( move ||
   {
-    // Restore previous texture
+    // Reset current filter so it can be re-applied
+    *current_filter_cancel.borrow_mut() = String::from( "none" );
+
+    // Restore previous texture and canvas size
     filter_renderer_cancel.borrow_mut().restore_previous_texture();
+    filter_renderer_cancel.borrow_mut().clear_previous_state();
     filter_renderer_cancel.borrow_mut().apply_filter( &filters::original::Original );
 
     // Hide controls bar
