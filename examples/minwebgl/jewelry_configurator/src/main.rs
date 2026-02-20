@@ -54,7 +54,7 @@ async fn run()
   lil_gui::add( &gui, &params_obj, "metalness", Some( 0.0 ), Some( 1.0 ), Some( 0.01 ) );
 
   // Renderer setup
-  let mut renderer = JewelryRenderer::new( &canvas, "environment_maps/studio", "environment_maps/studio3/env-gem-4.hdr", false ).await;
+  let mut renderer = JewelryRenderer::new( &canvas, "environment_maps/studio", "environment_maps/studio3/env-gem-4.hdr", true ).await;
 
   // Load the default model
   let default_index = 1_usize;
