@@ -79,15 +79,14 @@ impl Filter for Blur< Box >
 
     void main()
     {
-      float alpha = texture( u_image, v_tex_coord ).a;
-      vec3 sum = vec3( 0.0 );
+      vec4 sum = vec4( 0.0 );
       for ( int i = 0; i < u_box_size; i++ )
       {
         vec2 tc = v_tex_coord + u_direction * float( i - u_box_size / 2 ) * u_texel_size;
-        sum += texture( u_image, tc ).rgb;
+        sum += texture( u_image, tc );
       }
 
-      frag_color = vec4( sum / float( u_box_size ), alpha );
+      frag_color = sum / float( u_box_size );
     }
     ".to_string()
   }
@@ -128,18 +127,17 @@ impl Filter for Blur< Gaussian >
 
     void main()
     {
-      float alpha = texture( u_image, v_tex_coord ).a;
-      vec3 sum = vec3( 0.0 );
+      vec4 sum = vec4( 0.0 );
 
       int kernel_size = u_sigma * 6 + 1;
       int half_size = kernel_size / 2;
       for ( int i = -half_size; i <= half_size; i++ )
       {
         vec2 tc = v_tex_coord + u_direction * float( i ) * u_texel_size;
-        sum += gaussian_kernel( i, float( u_sigma ) ) * texture( u_image, tc ).rgb;
+        sum += gaussian_kernel( i, float( u_sigma ) ) * texture( u_image, tc );
       }
 
-      frag_color = vec4( sum, alpha );
+      frag_color = sum;
     }
     ".to_string()
   }
@@ -173,15 +171,14 @@ impl Filter for Blur< Stack >
 
     void main()
     {
-      float alpha = texture( u_image, v_tex_coord ).a;
-      vec3 sum = vec3( 0.0 );
+      vec4 sum = vec4( 0.0 );
       for ( int i = -u_radius; i <= u_radius; i++ )
       {
         vec2 tc = v_tex_coord + u_direction * float( i ) * u_texel_size;
-        sum += texture( u_image, tc ).rgb;
+        sum += texture( u_image, tc );
       }
 
-      frag_color = vec4( sum / float( ( u_radius * 2 ) + 1 ), alpha );
+      frag_color = sum / float( ( u_radius * 2 ) + 1 );
     }
     ".to_string()
   }
