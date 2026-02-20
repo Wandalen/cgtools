@@ -1,4 +1,4 @@
-//! Renders GLTF files using postprocess effects.
+//! Renders skeletal animation from GLTF files.
 #![ doc( html_root_url = "https://docs.rs/gltf_viewer/latest/skeletal_animation/" ) ]
 #![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
 #![ cfg_attr( not( doc ), doc = "Renders skeleton animation from GLTF files" ) ]
@@ -28,6 +28,7 @@ use renderer::webgl::
   Camera,
   Renderer
 };
+use animation::Sequencer;
 
 mod lil_gui;
 mod gui_setup;
@@ -35,7 +36,7 @@ mod gui_setup;
 async fn run() -> Result< (), gl::WebglError >
 {
   gl::browser::setup( Default::default() );
-  let options = gl::context::ContexOptions::default().antialias( false );
+  let options = gl::context::ContextOptions::default().antialias( false );
 
   let canvas = gl::canvas::make()?;
   let gl = gl::context::from_canvas_with( &canvas, options )?;
@@ -82,7 +83,7 @@ async fn run() -> Result< (), gl::WebglError >
   camera.bind_controls( &canvas );
 
   let mut renderer = Renderer::new( &gl, canvas.width(), canvas.height(), 4 )?;
-  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "envMap" ).await );
+  renderer.set_ibl( renderer::webgl::loaders::ibl::load( &gl, "envMap", None ).await );
 
   let renderer = Rc::new( RefCell::new( renderer ) );
 
@@ -98,7 +99,7 @@ async fn run() -> Result< (), gl::WebglError >
     node.borrow_mut().set_scale( scale );
   }
 
-  camera.get_controls().borrow_mut().eye = F32x3::from_array( [-5.341171e-6, -0.015823878, 0.007656166] );
+  camera.get_controls().borrow_mut().eye = F32x3::from_array( [-5.341_171e-6, -0.015_823_878, 0.007_656_166] );
 
   let last_time = Rc::new( RefCell::new( 0.0 ) );
 
@@ -119,12 +120,14 @@ async fn run() -> Result< (), gl::WebglError >
         let delta_time = time - *last_time.borrow();
         *last_time.borrow_mut() = time;
 
-        if current_animation.borrow().sequencer.borrow().is_completed()
+        if current_animation.borrow().inner_get::< Sequencer >().unwrap().is_completed()
         {
-          current_animation.borrow().sequencer.borrow_mut().reset();
+          current_animation.borrow_mut().inner_get_mut::< Sequencer >()
+          .unwrap()
+          .reset();
         }
 
-        current_animation.borrow().update( delta_time );
+        current_animation.borrow_mut().update( delta_time );
         current_animation.borrow().set();
       }
 

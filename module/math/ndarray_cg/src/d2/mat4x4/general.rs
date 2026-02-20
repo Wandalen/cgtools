@@ -174,14 +174,15 @@ Self : ScalarMut< Scalar = E > +
        IndexingMut< Scalar = E, Index = Ix2 >
 {
   /// Creates a transformation matrix from scale, rotation and translation
-  pub fn from_scale_rotation_translation< Vec, Q >
+  pub fn from_scale_rotation_translation< S, Q, T >
   (
-    scale : Vec,
+    scale : S,
     rotation : Q,
-    translation : Vec
+    translation : T
   ) -> Self
   where
-    Vec : VectorIter< E, 3 >,
+    S : VectorIter< E, 3 >,
+    T : VectorIter< E, 3 >,
     Q : Into< Quat< E > >
   {
     let rot = rotation.into().to_matrix();
@@ -291,6 +292,20 @@ IndexingRef< Scalar = E, Index = Ix2 >
     let rotation = Quat::< E >::from( rot_mat );
 
     Some( ( translation, rotation, scale ) )
+  }
+}
+
+impl< E, Descriptor > Mat< 4, 4, E, Descriptor >
+where
+E : MatEl + nd::NdFloat,
+Descriptor : mat::Descriptor,
+Self : RawSliceMut< Scalar = E >
+{
+  /// Creates a 4x4 identity matrix.
+  pub fn identity() -> Self
+  {
+    let mat = Self::default();
+    mat.raw_set( identity().to_array() )
   }
 }
 

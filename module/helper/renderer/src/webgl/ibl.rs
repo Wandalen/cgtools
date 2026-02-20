@@ -7,7 +7,7 @@ mod private
   /// According to:
   /// - https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
   /// - https://learnopengl.com/PBR/IBL/Diffuse-irradiance
-  #[ derive( Default ) ]
+  #[ derive( Default, Clone ) ]
   pub struct IBL
   {
     /// The diffuse irradiance cubemap texture.
@@ -15,17 +15,17 @@ mod private
     /// The prefiltered specular environment map (cubemap) texture.
     pub specular_1_texture : Option< gl::web_sys::WebGlTexture >,
     /// The 2D lookup texture containing the BRDF (Bidirectional Reflectance Distribution Function) integration result.
-    pub specular_2_texture : Option< gl::web_sys::WebGlTexture >, 
+    pub specular_2_texture : Option< gl::web_sys::WebGlTexture >,
   }
 
-  impl IBL 
+  impl IBL
   {
     /// Creates a new `IBL` instance with default (empty) texture options.
     pub fn new() -> Self
     {
       Self::default()
     }
-    
+
     /// Binds the IBL textures to specific texture units.
     ///
     /// * `gl`: The `WebGl2RenderingContext`.
@@ -41,7 +41,7 @@ mod private
 
       gl.active_texture( gl::TEXTURE0 + base_active_texture + 2 );
       gl.bind_texture( gl::TEXTURE_2D, self.specular_2_texture.as_ref() );
-    }    
+    }
   }
 }
 

@@ -19,7 +19,7 @@ web-sys = { workspace = true, features = [
   "WebGlFramebuffer",
   "WebGlRenderbuffer",
   "WebGlTexture",
-  "HtmlInputElement",
-  "Event",
 ] }
 renderer = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde-wasm-bindgen = { workspace = true }

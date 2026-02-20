@@ -8,7 +8,7 @@
 use std::
 {
   collections::{ HashMap, HashSet },
-  rc::Rc, 
+  rc::Rc,
   cell::RefCell,
   sync::{ Arc, Mutex }
 };
@@ -16,9 +16,9 @@ use std::
 use material::{ GLMaterial, TextureType };
 use mesh::GLMesh;
 use mingl::
-{ 
-  CameraOrbitControls, 
-  camera_orbit_controls::bind_controls_to_input 
+{
+  CameraOrbitControls,
+  controls::camera_orbit_controls::bind_controls_to_input
 };
 use minwebgl::{ self as gl, JsCast };
 use web_sys::wasm_bindgen::prelude::Closure;
@@ -50,15 +50,13 @@ async fn run() -> Result< (), gl::WebglError >
     10000.0
   );
 
-  let camera = CameraOrbitControls
-  {
-    eye,
-    up,
-    center,
-    window_size : [ width, height ].into(),
-    fov,
-    ..Default::default()
-  };
+  let mut camera = CameraOrbitControls::default();
+  camera.eye = eye;
+  camera.up = up;
+  camera.center = center;
+  camera.fov = fov;
+  camera.window_size = [ width, height ].into();
+
   let camera = Rc::new( RefCell::new( camera ) );
 
   bind_controls_to_input( &canvas, &camera );

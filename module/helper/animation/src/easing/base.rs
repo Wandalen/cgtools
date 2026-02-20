@@ -1,6 +1,6 @@
 mod private
 {
-    use std::marker::PhantomData;
+    use core::marker::PhantomData;
 
     use crate::Animatable;
 
@@ -10,10 +10,10 @@ mod private
   /// An easing function takes a value `t` between 0.0 and 1.0 and
   /// transforms it to a new value, usually for animation purposes.
   ///
-  pub trait EasingFunction : core::fmt::Debug
+  pub trait EasingFunction : core::fmt::Debug + clone_dyn_types::CloneDyn
   {
     /// Type that can be interpolated by [`EasingFunction`]
-    type AnimatableType;
+    type AnimatableType : Clone;
     /// Applies the easing function to a given value `t`.
     ///
     /// The input `t` should be a value in the range [ 0.0, 1.0 ].
@@ -70,7 +70,7 @@ mod private
   ///
   /// The value returned is the same as the input `t`.
   #[ non_exhaustive ]
-  #[ derive( Debug ) ]
+  #[ derive( Debug, Clone ) ]
   pub struct Linear< A >( PhantomData< A > ) where A : Animatable;
 
   impl< A > EasingFunction for Linear< A >
@@ -97,10 +97,10 @@ mod private
   ///
   /// The output value progresses in discrete steps instead of a smooth gradient.
   #[ non_exhaustive ]
-  #[ derive( Debug ) ]
+  #[ derive( Debug, Clone ) ]
   pub struct Step< A >
   where
-    A : Animatable,
+    A : Animatable
   {
     steps : f64,
     _marker : PhantomData< A >
@@ -123,7 +123,7 @@ mod private
 
   impl< A > EasingFunction for Step< A >
   where
-    A : Animatable,
+    A : Animatable
   {
     type AnimatableType = A;
 
