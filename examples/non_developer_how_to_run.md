@@ -36,8 +36,8 @@ Once the download is finished, unzip the contents of the archive into a convenie
 ## 4. Install trunk
 
 The next thing we need is `trunk`. There is an installation guide on the [official site](https://trunkrs.dev/),
-but it suggests building `trunk` from sources, which may be tricky on some platforms,
-so I recommend a different approach.
+but it suggests installing via `cargo install trunk`, which compiles trunk from source and can take a long time.
+To save time, I recommend downloading a prebuilt binary instead.
 
 Go to the [GitHub releases page](https://github.com/trunk-rs/trunk/releases)
 and download the appropriate version for your system.
@@ -67,8 +67,10 @@ trunk --version
 If everything is set up properly, you should see something like:
 
 ```text
-trunk 0.21.14
+trunk 0.X.Y
 ```
+
+The exact version number will differ — that's fine as long as the command succeeds.
 
 ---
 
