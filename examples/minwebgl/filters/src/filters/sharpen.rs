@@ -49,7 +49,8 @@ impl Filter for Sharpen
           -u_sharpen_factor /  8.0,  u_sharpen_factor * 0.75 + 1.0, -u_sharpen_factor /  8.0,
           -u_sharpen_factor / 16.0, -u_sharpen_factor / 8.0,        -u_sharpen_factor / 16.0
         );
-        frag_color = vec4( apply_3x3_kernel( sharpen_kernel ), 1.0 );
+        float alpha = texture( u_image, v_tex_coord ).a;
+        frag_color = vec4( apply_3x3_kernel( sharpen_kernel ), alpha );
       }
       ".to_string()
     }
