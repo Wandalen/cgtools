@@ -250,7 +250,7 @@ fn run() -> Result< (), gl::WebglError >
   revert_btn.set_onclick( Some( onclick_revert.as_ref().unchecked_ref() ) );
   onclick_revert.forget();
 
-  // Setup remove background button
+  // Setup remove background button (bg removal)
   let bg_btn = utils::get_element_by_id_unchecked::< web_sys::HtmlElement >( "bg-remove-btn" );
   let gl_bg = gl.clone();
   let filter_renderer_bg = filter_renderer.clone();
