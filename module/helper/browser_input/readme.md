@@ -21,6 +21,7 @@ browser_input = { workspace = true }
 ```
 
 ```rust
+use minwebgl as gl;
 use browser_input::{ Input, CLIENT };
 use gl::JsCast as _;
 
@@ -97,6 +98,8 @@ pub enum EventType
   KeyboardKey( KeyboardKey, Action ),
   // (delta_x, delta_y, delta_z)
   Wheel( F64x3 ),
+  // pointer_id only — coordinates are unreliable for cancel events
+  PointerCancel( i32 ),
 }
 ```
 
@@ -107,8 +110,9 @@ pub enum EventType
 ```rust
 input.is_key_down( KeyboardKey::KeyW )          // -> bool
 input.is_button_down( MouseButton::Main )        // -> bool
-input.pointer_position()                         // -> I32x2  (last moved pointer)
+input.pointer_position()                         // -> I32x2   (last moved pointer; non-deterministic with multiple touches)
 input.active_pointers()                          // -> &[(i32, I32x2)]
+input.scroll()                                   // -> &F64x3  (accumulated wheel delta since last clear_events)
 ```
 
 ### Mouse buttons
