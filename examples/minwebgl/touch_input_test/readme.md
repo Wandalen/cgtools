@@ -4,7 +4,7 @@
 
 A minimal test example for verifying touch and pointer input on mobile devices using the `browser_input` module. Not intended as a showcase — exists purely for manual testing of the touch API.
 
-**[How to run](../how_to_run.md)**
+**[How to run](../../how_to_run.md)**
 
 ## Controls
 
