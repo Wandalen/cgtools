@@ -350,7 +350,7 @@ fn pathfind_demo
   // update obstacles and start position
   for browser_input::Event { event_type, .. } in input.event_queue().as_slice()
   {
-    if let browser_input::EventType::MouseButton( button, browser_input::Action::Press ) = event_type
+    if let browser_input::EventType::PointerButton( _, _, button, browser_input::Action::Press ) = event_type
     {
       if *button == mouse::MouseButton::Main
       && obstacles.contains_key( &selected_hex_coord )
