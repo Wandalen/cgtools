@@ -44,6 +44,9 @@ web-sys = { workspace = true, features = [
   "PointerEvent",
   "WheelEvent",
   "HtmlInputElement",
+  "Element",
+  "HtmlElement",
+  "CssStyleDeclaration",
 ], optional = true }
 strum = { workspace = true, features = ["derive"], optional = true }
 
