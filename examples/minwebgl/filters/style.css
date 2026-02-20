@@ -189,6 +189,8 @@
    z-index: 10000;
    transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
    display: flex;
+   align-items: center;
+   gap: 12px;
    justify-content: center;
  }
 
@@ -197,15 +199,16 @@
  }
 
  .controls-container {
-   display: inline-flex;
+   display: flex;
    align-items: center;
    justify-content: center;
    gap: 12px 16px;
    flex-wrap: wrap;
-   
+   max-width: min(620px, calc(100vw - 160px));
+
    padding: 10px 20px;
    background: transparent;
-   
+
    border-radius: 10px;
    
    
@@ -324,43 +327,22 @@
    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
  }
 
- /* Apply and Cancel buttons - positioned outside panel */
+ /* Apply and Cancel buttons - flex items inside .bottom-controls */
  #apply-btn,
  #cancel-btn {
-   position: fixed;
-   bottom: 20px;
    width: 44px;
-  height: 44px;
-  padding: 0;
+   height: 44px;
+   padding: 0;
+   flex-shrink: 0;
    border: 1px solid rgba(255, 255, 255, 0.1);
    border-radius: 8px;
    cursor: pointer;
-   
-   
    transition: all 0.2s ease-in-out;
    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.4);
-   
-   z-index: 10001;
-   transform: translateY(100%);
-   opacity: 0;
-   pointer-events: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
- }
-
- .bottom-controls.visible ~ #apply-btn,
- .bottom-controls.visible ~ #cancel-btn {
-   transform: translateY(0);
-   opacity: 0.5;
-   pointer-events: auto;
- }
-
- #apply-btn {
-  left: calc(50% + 300px);
- 
+   display: flex;
+   align-items: center;
+   justify-content: center;
    background: linear-gradient(135deg, rgba(50, 55, 65, 0.9) 0%, rgba(40, 45, 55, 0.9) 100%);
-   
  }
 
  #apply-btn:hover {
@@ -371,12 +353,6 @@
 
  #apply-btn:active {
    transform: translateY(0);
- }
-
- #cancel-btn {
-   left: calc(50% - 350px);
-   background: linear-gradient(135deg, rgba(50, 55, 65, 0.9) 0%, rgba(40, 45, 55, 0.9) 100%);
-   
  }
 
  #cancel-btn:hover {
@@ -786,11 +762,7 @@
 
 
 
-/* Hover opacity for apply and cancel buttons */
-.bottom-controls.visible ~ #apply-btn:hover,
-.bottom-controls.visible ~ #cancel-btn:hover {
-  opacity: 1 !important;
-}
+/* Hover opacity for apply and cancel buttons is inherited from .bottom-controls:hover */
 
 /* Revert button icon */
 .revert-icon {
