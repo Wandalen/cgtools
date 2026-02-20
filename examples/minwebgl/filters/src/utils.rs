@@ -252,7 +252,7 @@ pub fn canvas_to_texture( canvas_id : &str, gl : &minwebgl::GL ) -> Option< web_
   Some( texture )
 }
 
-/// [TEMP] Load image from a Blob object (for bg removal result)
+/// Load image from a Blob object (for bg removal result)
 pub fn load_image_from_blob( blob : &Blob, on_load_callback : Box< dyn Fn( &HtmlImageElement ) > )
 {
   use std::rc::Rc;
