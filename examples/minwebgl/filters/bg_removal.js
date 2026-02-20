@@ -1,5 +1,3 @@
-import { removeBackground } from "https://esm.sh/@imgly/background-removal";
-
 // [TEMP] Show/hide loading overlay
 function showLoading() {
   let overlay = document.getElementById("bg-loading-overlay");
@@ -19,17 +17,54 @@ function hideLoading() {
   }
 }
 
-export async function removeBg(imageInput) {
-  showLoading();
+// [TEMP] Worker code as string for inline creation
+const workerCode = `
+import { removeBackground } from "https://esm.sh/@imgly/background-removal";
+
+self.onmessage = async (e) => {
+  const { blob } = e.data;
   try {
-    const blob = await removeBackground(imageInput);
-    hideLoading();
-    return blob;
-  } catch (e) {
-    console.error("JS removeBG wrapper error:", e);
-    hideLoading();
-    return null;
+    const resultBlob = await removeBackground(blob);
+    self.postMessage({ success: true, blob: resultBlob });
+  } catch (error) {
+    console.error("Worker: background removal error:", error);
+    self.postMessage({ success: false, error: error.message });
   }
+};
+`;
+
+// [TEMP] Lazy-init worker
+let worker = null;
+function getWorker() {
+  if (!worker) {
+    const blob = new Blob([workerCode], { type: "application/javascript" });
+    const url = URL.createObjectURL(blob);
+    worker = new Worker(url, { type: "module" });
+  }
+  return worker;
+}
+
+export function removeBg(imageInput) {
+  showLoading();
+
+  return new Promise((resolve) => {
+    const w = getWorker();
+
+    const handler = (e) => {
+      w.removeEventListener("message", handler);
+      hideLoading();
+
+      if (e.data.success) {
+        resolve(e.data.blob);
+      } else {
+        console.error("Background removal failed:", e.data.error);
+        resolve(null);
+      }
+    };
+
+    w.addEventListener("message", handler);
+    w.postMessage({ blob: imageInput });
+  });
 }
 
 // Hugginface transformers approach
