@@ -1,4 +1,40 @@
-// import { removeBackground } from "https://esm.sh/@imgly/background-removal";
+import { removeBackground } from "https://esm.sh/@imgly/background-removal";
+
+// [TEMP] Show/hide loading overlay
+function showLoading() {
+  let overlay = document.getElementById("bg-loading-overlay");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = "bg-loading-overlay";
+    overlay.innerHTML = `<div class="bg-loading-text">Removing background...</div>`;
+    document.body.appendChild(overlay);
+  }
+  overlay.classList.add("visible");
+}
+
+function hideLoading() {
+  const overlay = document.getElementById("bg-loading-overlay");
+  if (overlay) {
+    overlay.classList.remove("visible");
+  }
+}
+
+export async function removeBg(imageInput) {
+  showLoading();
+  try {
+    const blob = await removeBackground(imageInput);
+    hideLoading();
+    return blob;
+  } catch (e) {
+    console.error("JS removeBG wrapper error:", e);
+    hideLoading();
+    return null;
+  }
+}
+
+// Hugginface transformers approach
+
+/*
 import {
   pipeline,
   RawImage,
@@ -19,14 +55,6 @@ export async function removeBg(imageInput) {
 
   const originalImage = await RawImage.fromBlob(imageInput);
   return await applyMask(originalImage, maskRawImage);
-
-  // try {
-  //   const blob = await removeBackground(imageBlob);
-  //   return blob;
-  // } catch (e) {
-  //   console.error("JS removeBG wrapper error:", e);
-  //   return null;
-  // }
 }
 
 function applyMask(image, maskRawImage) {
@@ -54,35 +82,6 @@ function applyMask(image, maskRawImage) {
 
   ctx.putImageData(originalImageData, 0, 0);
 
-  return new Promise((resolve) => {
-    canvas.toBlob((blob) => {
-      resolve(blob);
-    }, "image/png");
-  });
-}
-
-/*
-function applyMask(image, mask) {
-
-  const canvas = document.createElement("canvas");
-  // У RawImage размеры могут называться width/height
-  canvas.width = image.width;
-  canvas.height = image.height;
-  const ctx = canvas.getContext("2d");
-
-  // A. Рисуем оригинальную картинку
-  // RawImage.toCanvas() создает временный канвас с картинкой
-  ctx.drawImage(image.toCanvas(), 0, 0);
-
-  // B. Включаем режим "Маскирования"
-  // 'destination-in' означает: "Оставь от картинки только то,
-  // что пересекается со следующим нарисованным изображением"
-  ctx.globalCompositeOperation = "destination-in";
-
-  // C. Рисуем маску
-  ctx.drawImage(mask.toCanvas(), 0, 0, image.width, image.height);
-
-  // D. Возвращаем Blob (PNG с прозрачностью)
   return new Promise((resolve) => {
     canvas.toBlob((blob) => {
       resolve(blob);
