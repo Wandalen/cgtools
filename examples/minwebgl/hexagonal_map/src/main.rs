@@ -206,7 +206,7 @@ async fn run() -> Result< (), gl::WebglError >
     {
       for Event { event_type, .. } in input.event_queue().iter()
       {
-        if let EventType::MouseButton( MouseButton::Main, Action::Press ) = event_type
+        if let EventType::PointerButton( _, _, MouseButton::Main, Action::Press ) = event_type
         {
           if river_point1_add.is_none()
           {
@@ -223,7 +223,7 @@ async fn run() -> Result< (), gl::WebglError >
             }
           }
         }
-        if let EventType::MouseButton( MouseButton::Secondary, Action::Press ) = event_type
+        if let EventType::PointerButton( _, _, MouseButton::Secondary, Action::Press ) = event_type
         {
           if river_point1_remove.is_none()
           {
