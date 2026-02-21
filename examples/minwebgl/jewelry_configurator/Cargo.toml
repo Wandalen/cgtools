@@ -1,0 +1,30 @@
+[package]
+name = "jewelry_configurator"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "jewelry_configurator_app"
+path = "src/main.rs"
+
+[dependencies]
+wasm-bindgen = { workspace = true }
+minwebgl = { workspace = true }
+renderer = { workspace = true }
+rustc-hash = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
+js-sys = { workspace = true }
+web-sys = { workspace = true, features = [
+  "ResizeObserver",
+  "ResizeObserverEntry",
+  "DomRectReadOnly",
+] }
+uuid = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde-wasm-bindgen = { workspace = true }
+
+[lints]
+workspace = true
