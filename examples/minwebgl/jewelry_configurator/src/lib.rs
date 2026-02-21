@@ -194,7 +194,7 @@ impl Default for JewelryConfig
       clear_color    : 2.7,
       exposure       : 1.0,
       roughness      : 0.01,
-      metalness      : 0.93,
+      metalness      : 0.95,
       bloom_strength : 2.0,
     }
   }
