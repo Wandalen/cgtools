@@ -381,6 +381,7 @@ impl Input
   pub fn clear_events( &mut self )
   {
     self.event_queue.borrow_mut().clear();
+    self.state.scroll = Default::default();
   }
 }
 
