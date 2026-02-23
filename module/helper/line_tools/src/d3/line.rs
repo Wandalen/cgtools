@@ -84,12 +84,21 @@ mod private
     }
   }
 
+  /// Dash pattern for a 3D line, uploaded as the `u_dash_pattern` shader uniform.
+  ///
+  /// Each variant defines a repeating on/off pattern with a different number of segments.
+  /// Values represent segment lengths within one pattern.
+  /// Defaults to `V1(0.5)`.
   #[ derive( Debug, Clone, Copy ) ]
   pub enum DashPattern
   {
+    /// Single-segment pattern with one dash length.
     V1( f32 ),
+    /// Two-segment pattern (e.g. dash, gap).
     V2( [ f32; 2 ] ),
+    /// Three-segment pattern (e.g. dash, gap, dash).
     V3( [ f32; 3 ] ),
+    /// Four-segment pattern (e.g. dash, gap, dash, gap).
     V4( [ f32; 4 ] )
   }
 
@@ -291,6 +300,7 @@ mod private
     }
 
     #[ cfg( feature = "distance" ) ]
+    /// Sets the dash pattern for the line
     pub fn dash_pattern_set( &mut self, value : DashPattern )
     {
       if std::mem::discriminant( &self.render_state.dash_pattern ) != std::mem::discriminant( &value )
