@@ -359,7 +359,6 @@ mod private
           {
             self.point_remove_front();
           }
-          self.change_state.points_changed = true
         }
 
         /// Remove the specified amount of colors from the front of the list
@@ -369,7 +368,6 @@ mod private
           {
             self.color_remove_front();
           }
-          self.change_state.colors_changed = true
         }
 
         /// Remove the specified amount of points from the back of the list
@@ -379,7 +377,6 @@ mod private
           {
             self.point_remove_back();
           }
-          self.change_state.points_changed = true
         }
 
         /// Remove the specified amount of colors from the back of the list
@@ -389,7 +386,6 @@ mod private
           {
             self.color_remove_back();
           }
-          self.change_state.colors_changed = true
         }
 
         /// Retrieves a reference to the mesh.
