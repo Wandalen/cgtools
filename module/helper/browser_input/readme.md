@@ -109,7 +109,7 @@ pub enum EventType
 
 ```rust
 input.is_key_down( KeyboardKey::KeyW )          // -> bool
-input.is_button_down( MouseButton::Main )        // -> bool
+input.is_button_down( MouseButton::Main )        // -> bool  (tracks last press/release; not reference-counted across multiple touches)
 input.pointer_position()                         // -> I32x2   (last moved pointer; non-deterministic with multiple touches)
 input.active_pointers()                          // -> &[(i32, I32x2)]
 input.scroll()                                   // -> &F64x3  (accumulated wheel delta since last clear_events)
