@@ -95,6 +95,7 @@ web-sys = { workspace = true, optional = true, features = [
   'DomTokenList',
   'HtmlVideoElement',
   'HtmlImageElement',
+  'Element',
   'PointerEvent',
   'MouseEvent',
   'WheelEvent',

@@ -3,6 +3,7 @@ use filters::*;
 use framebuffer::Framebuffer;
 use minwebgl as gl;
 use gl::GL;
+use wasm_bindgen::JsCast;
 use web_sys::
 {
   WebGlProgram,
@@ -17,6 +18,7 @@ pub struct Renderer
   image_texture : Option< WebGlTexture >,
   original_texture : Option< WebGlTexture >,
   previous_texture : Option< WebGlTexture >,
+  previous_canvas_size : Option< ( u32, u32 ) >,
   current_filter_source : String,
 }
 
@@ -38,6 +40,7 @@ impl Renderer
       image_texture,
       original_texture : None,
       previous_texture : None,
+      previous_canvas_size : None,
       current_filter_source : String::new(),
     }
   }
@@ -63,14 +66,40 @@ impl Renderer
   pub fn save_previous_texture( &mut self )
   {
     self.previous_texture = self.image_texture.clone();
+    // Save current canvas dimensions so they can be restored on cancel
+    if let Some( canvas ) = self.gl.canvas()
+    {
+      if let Ok( canvas ) = canvas.dyn_into::< web_sys::HtmlCanvasElement >()
+      {
+        self.previous_canvas_size = Some( ( canvas.width(), canvas.height() ) );
+      }
+    }
   }
 
   pub fn restore_previous_texture( &mut self )
   {
-    if let Some( previous ) = &self.previous_texture
+    if let Some( previous ) = self.previous_texture.take()
     {
-      self.image_texture = Some( previous.clone() );
+      self.image_texture = Some( previous );
     }
+    // Restore canvas dimensions
+    if let Some( ( w, h ) ) = self.previous_canvas_size.take()
+    {
+      if let Some( canvas ) = self.gl.canvas()
+      {
+        if let Ok( canvas ) = canvas.dyn_into::< web_sys::HtmlCanvasElement >()
+        {
+          canvas.set_width( w );
+          canvas.set_height( h );
+        }
+      }
+    }
+  }
+
+  pub fn clear_previous_state( &mut self )
+  {
+    self.previous_texture = None;
+    self.previous_canvas_size = None;
   }
 
   pub fn update_framebuffer_size( &mut self, width : i32, height : i32 )
@@ -94,6 +123,21 @@ impl Renderer
     }
 
     filter.draw( self );
+
+    // If a filter changed the canvas dimensions (e.g. Transpose), sync the framebuffer so
+    // subsequent filters that use it (e.g. blur two-pass) see the correct size.
+    if let Some( canvas ) = self.gl.canvas()
+    {
+      if let Ok( canvas ) = canvas.dyn_into::< web_sys::HtmlCanvasElement >()
+      {
+        let w = canvas.width() as i32;
+        let h = canvas.height() as i32;
+        if w != self.framebuffer.width() || h != self.framebuffer.height()
+        {
+          self.update_framebuffer_size( w, h );
+        }
+      }
+    }
   }
 
   fn create_program( gl : &GL, filter_source : &str ) -> WebGlProgram
