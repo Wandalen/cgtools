@@ -147,7 +147,7 @@ fn run() -> Result< (), gl::WebglError >
 
   let screen_width = 5.0;
   let world_width = 0.01;
-  let num_bodies = 20;
+  let num_bodies = 2;
 
   let settings = Settings
   {
@@ -201,10 +201,21 @@ fn run() -> Result< (), gl::WebglError >
     lines.push( line );
   }
 
-  lines[ 0 ].point_add_back( &[ 0.0, 0.0, 0.0 ] );
-  lines[ 0 ].point_add_back( &[ 1.0, 0.0, 0.0 ] );
-  lines[ 0 ].point_add_back( &[ 1.0, 1.0, 0.0 ] );
-  lines[ 0 ].point_add_back( &[ 1.0, 1.0, 1.0 ] );
+  // lines[ 0 ].point_add_back( &[ 0.0, 0.0, 0.0 ] );
+  // lines[ 0 ].point_add_back( &[ 0.02, 0.1, 0.0 ] );
+  // lines[ 0 ].point_add_back( &[ 0.04, 0.0, 0.0 ] );
+  // lines[ 0 ].point_add_back( &[ 0.06, 0.1, 0.0 ] );
+  // lines[ 0 ].point_add_back( &[ 0.08, 0.0, 0.0 ] );
+  // lines[ 0 ].point_add_back( &[ 0.1, 0.1, 0.0 ] );
+  // lines[ 0 ].point_add_back( &[ 0.12, 0.0, 0.0 ] );
+  // lines[ 0 ].point_add_back( &[ 0.14, 0.1, 0.0 ] );
+  // lines[ 0 ].point_add_back( &[ 0.2, 0.0, 0.0 ] );
+  // lines[ 0 ].point_add_back( &[ 0.3, 0.1, 0.0 ] );
+  // lines[ 0 ].point_add_back( &[ 0.4, 0.0, 0.0 ] );
+  // lines[ 0 ].point_add_back( &[ 1.0, 0.0, 0.0 ] );
+  // lines[ 0 ].point_add_back( &[ 1.0, 1.0, 0.0 ] );
+  // lines[ 0 ].point_add_back( &[ 1.0, 1.0, 1.0 ] );
+  // lines[ 0 ].points_remove_front(5);
  
   let lines = Rc::new( RefCell::new( lines ) );
 
@@ -495,25 +506,30 @@ fn run() -> Result< (), gl::WebglError >
     {
       gl.clear( gl::DEPTH_BUFFER_BIT | gl::COLOR_BUFFER_BIT );
 
-      // simulation.simulate( *simulation_speed.borrow() );
+      if *simulation_speed.borrow() > 0.0
+      {
+        simulation.simulate( *simulation_speed.borrow() );
       
-      // for i in 0..num_bodies
-      // {
-      //   let pos = simulation.bodies[ i ].position;
-      //   let color = base_colors[ i ] * ( pos.mag() * 4.0 ).powf( 2.0 ).min( 1.0 );
-      //   lines.borrow_mut()[ i ].point_add_back( &pos );
-      //   lines.borrow_mut()[ i ].color_add_back( color );
+        for i in 0..num_bodies
+        {
+          let pos = simulation.bodies[ i ].position;
+          let color = base_colors[ i ] * ( pos.mag() * 4.0 ).powf( 2.0 ).min( 1.0 );
+          lines.borrow_mut()[ i ].point_add_back( &pos );
+          lines.borrow_mut()[ i ].color_add_back( color );
 
-      //   let num_points = lines.borrow()[ i ].num_points();
+          let num_points = lines.borrow()[ i ].num_points();
 
-      //   let max_point = *trail_length.borrow() as usize;
+          let max_point = *trail_length.borrow() as usize;
 
-      //   if num_points > max_point
-      //   {
-      //     lines.borrow_mut()[ i ].points_remove_front( num_points - max_point );
-      //     lines.borrow_mut()[ i ].colors_remove_front( num_points - max_point );
-      //   }
-      // }
+          if num_points > max_point
+          {
+            lines.borrow_mut()[ i ].points_remove_front( num_points - max_point );
+            lines.borrow_mut()[ i ].colors_remove_front( num_points - max_point );
+
+            //lines.borrow_mut()[ i ].distances_update();
+          }
+        }
+      }
       
 
       for i in 0..num_bodies

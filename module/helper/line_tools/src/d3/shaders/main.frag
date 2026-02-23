@@ -1,5 +1,4 @@
 #version 300 es
-#extension GL_NV_shader_noperspective_interpolation : enable
 // Renders 3d line, supporting both screen space and world space units.
 // Allows for anti-aliasing with alpha-to-coverage enabled.
 // Has an optional color attribute for the points of the line.
@@ -401,8 +400,6 @@ void main()
   #ifdef USE_VERTEX_COLORS
     col = vColor;
   #endif
-
-  col = vec3( 0.0 );
 
   frag_color = vec4( col, alpha );
 }

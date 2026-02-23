@@ -267,7 +267,17 @@ mod private
         {
           let point = self.geometry.points.remove( index );
           #[ cfg( feature = "distance" ) ]
-          self.distances_update_from( index );
+          {
+            self.geometry.distances.remove( index );
+            if !self.geometry.distances.is_empty()
+            {
+              self.distances_update_from( index.min( self.geometry.distances.len() - 1 ) );
+            }
+            else
+            {
+              self.geometry.total_distance = 0.0;
+            }
+          }
           self.change_state.points_changed = true;
 
           point
@@ -297,6 +307,7 @@ mod private
               }
             }
             geometry.distances.pop_front();
+            geometry.total_distance = geometry.distances.back().copied().unwrap_or( 0.0 );
           }
           let point = geometry.points.pop_front();
           self.change_state.points_changed = true;
@@ -321,9 +332,8 @@ mod private
           {
             if geometry.distances.len() > 0
             {
-              let delta_dist = geometry.distances.back().unwrap();
-              geometry.total_distance -= delta_dist;
               geometry.distances.pop_back();
+              geometry.total_distance = geometry.distances.back().copied().unwrap_or( 0.0 );
             }
           }
 

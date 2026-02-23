@@ -1,5 +1,4 @@
 #version 300 es
-#extension GL_NV_shader_noperspective_interpolation : enable
 // Renders 3d line, supporting both screen space and world space units.
 // Allows for anti-aliasing with alpha-to-coverage enabled.
 // Has an optional color attribute for the points of the line.
@@ -52,9 +51,8 @@ out vec3 vViewB;
   flat out float vLineDistanceB;
 #endif
 
-void trimSegment( const in vec3 start, inout vec3 end, const in float distanceStart, inout float distanceEnd )
+float trimSegment( const in vec3 start, const in vec3 end )
 {
-
   // trim end segment so it terminates between the camera plane and the near plane
 
   // conservative estimate of the near plane
@@ -63,17 +61,18 @@ void trimSegment( const in vec3 start, inout vec3 end, const in float distanceSt
   float nearEstimate = b / (a - 1.0);
 
   float alpha = ( nearEstimate - start.z ) / ( end.z - start.z );
-
-  end = mix( start, end, alpha );
-  distanceEnd = mix( distanceStart, distanceEnd, alpha );
+  return alpha;
 }
 
 void main() 
 {
   vec3 viewA = ( u_view_matrix * u_world_matrix * vec4( inPointA, 1.0 ) ).xyz;
   vec3 viewB = ( u_view_matrix * u_world_matrix * vec4( inPointB, 1.0 ) ).xyz;
-  float newDistanceA = distanceA;
-  float newDistanceB = distanceB;
+
+  #ifdef USE_DASH
+    float newDistanceA = distanceA;
+    float newDistanceB = distanceB;
+  #endif
 
   bool perspective = ( u_projection_matrix[ 2 ][ 3 ] == - 1.0 ); // 4th entry in the 3rd column
 
@@ -81,11 +80,21 @@ void main()
   {
     if ( viewA.z < 0.0 && viewB.z >= 0.0 ) 
     {
-      trimSegment( viewA, viewB, newDistanceA, newDistanceB );
+      float alpha = trimSegment( viewA, viewB );
+      viewB = mix( viewA, viewB, alpha );
+
+      #ifdef USE_DASH
+        newDistanceB = mix( newDistanceA, newDistanceB, alpha );
+      #endif
     } 
     else if ( viewB.z < 0.0 && viewA.z >= 0.0 ) 
     {
-      trimSegment( viewB, viewA, newDistanceB, newDistanceA );
+      float alpha = trimSegment( viewB, viewA );
+      viewA = mix( viewB, viewA, alpha );
+
+      #ifdef USE_DASH
+        newDistanceA = mix( newDistanceB, newDistanceA, alpha );
+      #endif
     }
   }
 
