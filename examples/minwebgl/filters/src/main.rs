@@ -38,6 +38,7 @@ mod renderer;
 mod controls;
 mod zoom_pan;
 mod sidebar_toggle;
+mod bg_removal_bindgen;
 
 use ui_setup::*;
 use renderer::Renderer;
@@ -65,9 +66,11 @@ fn main()
 fn run() -> Result< (), gl::WebglError >
 {
   // Create GL context with preserveDrawingBuffer enabled for saving
+  // and premultiplied_alpha disabled for correct transparency handling
   let context_options = gl::context::ContextOptions
   {
     preserve_drawing_buffer : true,
+    premultiplied_alpha : false,
     ..Default::default()
   };
   let gl = gl::context::retrieve_or_make_with( context_options ).expect( "Can't retrieve GL context" );
@@ -75,7 +78,7 @@ fn run() -> Result< (), gl::WebglError >
   let filter_renderer = Renderer::new( &gl, None );
   let filter_renderer = Rc::new( RefCell::new( filter_renderer ) );
 
-  let _current_filter = setup_ui( &filter_renderer );
+  let current_filter = setup_ui( &filter_renderer );
 
   // Setup zoom and pan controls
   zoom_pan::setup_zoom_pan();
@@ -166,6 +169,7 @@ fn run() -> Result< (), gl::WebglError >
   let apply_btn = utils::get_element_by_id_unchecked::< web_sys::HtmlElement >( "apply-btn" );
   let filter_renderer_apply = filter_renderer.clone();
   let gl_apply = gl.clone();
+  let current_filter_apply = current_filter.clone();
   let onclick_apply : Closure< dyn Fn() > = Closure::new( move ||
   {
     // Capture current canvas content and create a texture from it
@@ -186,6 +190,12 @@ fn run() -> Result< (), gl::WebglError >
           // Re-render with original filter to show the applied result
           filter_renderer_apply.borrow_mut().apply_filter( &filters::original::Original );
 
+          // Clear previous state so restore won't undo the apply
+          filter_renderer_apply.borrow_mut().clear_previous_state();
+
+          // Reset current filter so it can be re-applied
+          *current_filter_apply.borrow_mut() = String::from( "none" );
+
           // Hide controls bar
           ui_setup::hide_controls_bar();
 
@@ -204,10 +214,15 @@ fn run() -> Result< (), gl::WebglError >
   // Setup cancel button - restore previous texture and hide buttons
   let cancel_btn = utils::get_element_by_id_unchecked::< web_sys::HtmlElement >( "cancel-btn" );
   let filter_renderer_cancel = filter_renderer.clone();
+  let current_filter_cancel = current_filter.clone();
   let onclick_cancel : Closure< dyn Fn() > = Closure::new( move ||
   {
-    // Restore previous texture
+    // Reset current filter so it can be re-applied
+    *current_filter_cancel.borrow_mut() = String::from( "none" );
+
+    // Restore previous texture and canvas size
     filter_renderer_cancel.borrow_mut().restore_previous_texture();
+    filter_renderer_cancel.borrow_mut().clear_previous_state();
     filter_renderer_cancel.borrow_mut().apply_filter( &filters::original::Original );
 
     // Hide controls bar
@@ -234,6 +249,122 @@ fn run() -> Result< (), gl::WebglError >
   });
   revert_btn.set_onclick( Some( onclick_revert.as_ref().unchecked_ref() ) );
   onclick_revert.forget();
+
+  // Setup remove background button (bg removal)
+  let bg_btn = utils::get_element_by_id_unchecked::< web_sys::HtmlElement >( "bg-remove-btn" );
+  let gl_bg = gl.clone();
+  let filter_renderer_bg = filter_renderer.clone();
+  let is_processing = Rc::new( RefCell::new( false ) );
+  let onclick_bg : Closure< dyn Fn() > = Closure::new( move ||
+  {
+    if *is_processing.borrow()
+    {
+      return;
+    }
+    *is_processing.borrow_mut() = true;
+
+    let gl_inner = gl_bg.clone();
+    let renderer_inner = filter_renderer_bg.clone();
+    let is_processing_inner = is_processing.clone();
+    wasm_bindgen_futures::spawn_local( async move
+    {
+      gl_inner.flush();
+      gl_inner.finish();
+
+      let canvas = utils::get_element_by_id_unchecked::< HtmlCanvasElement >( "canvas" );
+
+      // Convert canvas to blob via Promise
+      let promise = js_sys::Promise::new( &mut | resolve, _reject |
+      {
+        let cb : Closure< dyn FnMut( JsValue ) > = Closure::once( move | blob : JsValue |
+        {
+          let _ = resolve.call1( &JsValue::NULL, &blob );
+        });
+        let _ = canvas.to_blob( cb.as_ref().unchecked_ref() );
+        cb.forget();
+      });
+
+      let blob_js = match wasm_bindgen_futures::JsFuture::from( promise ).await
+      {
+        Ok( v ) => v,
+        Err( e ) =>
+        {
+          gl::warn!( "Failed to get canvas blob: {:?}", e );
+          *is_processing_inner.borrow_mut() = false;
+          return;
+        }
+      };
+
+      if blob_js.is_null() || blob_js.is_undefined()
+      {
+        gl::warn!( "Canvas blob is null" );
+        *is_processing_inner.borrow_mut() = false;
+        return;
+      }
+
+      let blob : web_sys::Blob = blob_js.unchecked_into();
+      gl::info!( "Removing background..." );
+
+      match bg_removal_bindgen::process_image( blob ).await
+      {
+        Some( processed_blob ) =>
+        {
+          // Load result as image and update canvas
+          let gl_for_handler = gl_inner.clone();
+          let renderer_for_handler = renderer_inner.clone();
+          let is_processing_handler = is_processing_inner.clone();
+          let handler : Box< dyn Fn( &HtmlImageElement ) > = Box::new( move | img |
+          {
+            let texture = gl_for_handler.create_texture();
+            gl_for_handler.bind_texture( GL::TEXTURE_2D, texture.as_ref() );
+            gl_for_handler.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_S, GL::CLAMP_TO_EDGE as i32 );
+            gl_for_handler.tex_parameteri( GL::TEXTURE_2D, GL::TEXTURE_WRAP_T, GL::CLAMP_TO_EDGE as i32 );
+
+            gl_for_handler.pixel_storei( GL::UNPACK_FLIP_Y_WEBGL, 1 );
+            let res = gl_for_handler.tex_image_2d_with_u32_and_u32_and_html_image_element
+            (
+              GL::TEXTURE_2D,
+              0,
+              GL::RGBA as i32,
+              GL::RGBA,
+              GL::UNSIGNED_BYTE,
+              &img,
+            );
+            gl_for_handler.pixel_storei( GL::UNPACK_FLIP_Y_WEBGL, 0 );
+
+            if res.is_err()
+            {
+              gl::warn!( "{res:?}" );
+              return;
+            }
+
+            gl_for_handler.generate_mipmap( GL::TEXTURE_2D );
+
+            let canvas = gl_for_handler.canvas().expect( "Canvas should exist" ).dyn_into::< HtmlCanvasElement >().unwrap();
+            canvas.set_width( img.width() );
+            canvas.set_height( img.height() );
+
+            utils::show_canvas();
+
+            renderer_for_handler.borrow_mut().update_framebuffer_size( img.width() as i32, img.height() as i32 );
+            renderer_for_handler.borrow_mut().set_image_texture( texture );
+            renderer_for_handler.borrow_mut().apply_filter( &filters::original::Original );
+
+            *is_processing_handler.borrow_mut() = false;
+            gl::info!( "Background removed successfully!" );
+          });
+          utils::load_image_from_blob( &processed_blob, handler );
+        }
+        None =>
+        {
+          gl::warn!( "Background removal failed" );
+          *is_processing_inner.borrow_mut() = false;
+        }
+      }
+    });
+  });
+  bg_btn.set_onclick( Some( onclick_bg.as_ref().unchecked_ref() ) );
+  onclick_bg.forget();
 
   Ok( () )
 }
