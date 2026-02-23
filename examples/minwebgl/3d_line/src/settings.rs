@@ -1,3 +1,9 @@
+//! Runtime settings and lil-gui bindings for the 3D line demo.
+//!
+//! [`Settings`] is serialized to a JS object via `serde_wasm_bindgen` so that
+//! lil-gui can read and mutate it in the browser. Each GUI control is wired to
+//! a closure that pushes the new value into the line meshes immediately.
+
 use serde::{ Deserialize, Serialize };
 use minwebgl as gl;
 use gl::wasm_bindgen::prelude::*;
@@ -9,38 +15,54 @@ use std::
 };
 use line_tools::d3::{ Line, DashPattern };
 
-
+/// Mirrors the lil-gui panel state.
+///
+/// Field names are renamed via `serde` to match the labels displayed in the UI.
 #[ derive( Default, Serialize, Deserialize ) ]
 pub struct Settings
 {
+  /// Line width when using world-space units.
   #[ serde( rename = "World width" ) ]
   pub world_width : f32,
+  /// Line width when using screen-space (pixel) units.
   #[ serde( rename = "Screen width" ) ]
   pub screen_width : f32,
+  /// Whether to use alpha-to-coverage for smoother line edges.
   #[ serde( rename = "Alpha to coverage" ) ]
   pub alpha_to_coverage : bool,
+  /// If `true`, line width is measured in world units; otherwise in screen pixels.
   #[ serde( rename = "World units" ) ]
   pub world_units : bool,
+  /// Enable dashed line rendering.
   #[ serde( rename = "Dashes" ) ]
   pub dashes : bool,
+  /// Maximum number of points per trail line.
   #[ serde( rename = "Trail length" ) ]
   pub trail_length : f32,
+  /// Speed multiplier passed to the N-body simulation each frame.
   #[ serde( rename = "Simulation speed" ) ]
   pub simulation_speed : f32,
+  /// Which [`DashPattern`] variant to use (`"V1"` through `"V4"`).
   #[ serde( rename = "Dash Version" ) ]
   pub dash_version : String,
+  /// Phase offset applied to the dash pattern along the line.
   #[ serde( rename = "Dash offset" ) ]
   pub dash_offset : f32,
+  /// Length of the first dash segment.
   #[ serde( rename = "Dash size 1" ) ]
   pub dash_size1 : f32,
+  /// Length of the first gap segment.
   #[ serde( rename = "Dash gap 1" ) ]
   pub dash_gap1 : f32,
+  /// Length of the second dash segment (used by V3 and V4).
   #[ serde( rename = "Dash size 2" ) ]
   pub dash_size2 : f32,
+  /// Length of the second gap segment (used by V4).
   #[ serde( rename = "Dash gap 2" ) ]
   pub dash_gap2 : f32
 }
 
+/// Returns the default settings used at startup.
 pub fn init() -> Settings
 {
   let screen_width = 5.0;
@@ -66,13 +88,17 @@ pub fn init() -> Settings
   settings
 }
 
+/// Builds the lil-gui panel and wires every control to a closure that updates the line meshes.
+///
+/// Returns the JS settings object so the render loop can read live values each frame.
 pub fn bind_to_ui
 (
   gl : &gl::WebGl2RenderingContext,
   settings : &Settings,
-  lines : Rc< RefCell< Vec< Line > > > 
+  lines : Rc< RefCell< Vec< Line > > >
 ) -> JsValue
 {
+  // Serialize the Rust settings into a JS object that lil-gui can bind to.
   let object = serde_wasm_bindgen::to_value( settings ).unwrap();
   let gui = lil_gui::new_gui();
 
@@ -211,7 +237,8 @@ pub fn bind_to_ui
   lil_gui::on_change_bool( &prop, &callback );
   callback.forget();
 
-  // Change the maximum amount of points a line can have
+  // Trail length and simulation speed are read each frame from the JS object,
+  // so they only need a slider — no onChange callback required.
   let _ = lil_gui::add_slider( &gui, &object, "Trail length", 2.0, 500.0, 1.0 );
   let _ = lil_gui::add_slider( &gui, &object, "Simulation speed", 0.0, 0.001, 0.00001 );
 
@@ -326,6 +353,10 @@ pub fn bind_to_ui
   object
 }
 
+/// Constructs a [`DashPattern`] from the current settings and applies it to every line.
+///
+/// The variant is chosen by `settings.dash_version` (`"V1"` .. `"V4"`), and the
+/// segment lengths come from `dash_size1`, `dash_gap1`, `dash_size2`, `dash_gap2`.
 pub fn upload_dash_pattern( lines : Rc< RefCell< Vec< Line > > >, settings : &Settings )
 {
   let mut lines = lines.borrow_mut();
