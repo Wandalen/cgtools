@@ -44,7 +44,8 @@ impl Filter for Enrich
            0.0, -2.0,  0.0
         );
 
-        frag_color = vec4( apply_3x3_kernel( ENRICH_KERNEL ) / 10.0 - 0.15625, 1.0 );
+        float alpha = texture( u_image, v_tex_coord ).a;
+        frag_color = vec4( apply_3x3_kernel( ENRICH_KERNEL ) / 10.0 - 0.15625, alpha );
       }
       ".to_string()
   }
