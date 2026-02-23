@@ -33,7 +33,6 @@ uniform float u_width;
   flat in vec2 vScreenB;
   flat in float vClipWA;
   flat in float vClipWB;
-  noperspective in vec2 vScreenPos;
 #endif
 
 in vec2 vUv;
@@ -300,8 +299,8 @@ vec2 closestLineToLine( vec3 p1, vec3 p2, vec3 p3, vec3 p4 )
       vec3 lineStart = vec3( mix( vScreenA, vScreenB, sA ), 0.0 );
       vec3 lineEnd = vec3( mix( vScreenA, vScreenB, sB ), 0.0 );
 
-      vec3 rayStart = vec3(vScreenPos, -1.0);
-      vec3 rayEnd = vec3(vScreenPos, 1.0);
+      vec3 rayStart = vec3(gl_FragCoord.xy, -1.0);
+      vec3 rayEnd = vec3(gl_FragCoord.xy, 1.0);
       vec3 lineDir = lineEnd - lineStart;
       vec2 params = closestLineToLine( lineStart, lineEnd, rayStart, rayEnd );
 
