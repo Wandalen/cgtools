@@ -107,25 +107,25 @@ mod private
     /// Get reference to group nodes
     pub fn group_get( &self, group : &str ) -> Option< Vec< Box< str > > >
     {
-      self.scaled_nodes.get( group.into() ).map( | ( n, _ ) | n ).cloned()
+      self.scaled_nodes.get( group ).map( | ( n, _ ) | n ).cloned()
     }
 
     /// Get mutable reference to group nodes
     pub fn group_get_mut( &mut self, group : &str ) -> Option< &mut Vec< Box< str > > >
     {
-      self.scaled_nodes.get_mut( group.into() ).map( | ( n, _ ) | n )
+      self.scaled_nodes.get_mut( group ).map( | ( n, _ ) | n )
     }
 
     /// Get reference to group scale
     pub fn scale_get( &self, group : &str ) -> Option< &F64x4 >
     {
-      self.scaled_nodes.get( group.into() ).map( | ( _, s ) | s )
+      self.scaled_nodes.get( group ).map( | ( _, s ) | s )
     }
 
     /// Get mutable reference to group scale
     pub fn scale_get_mut( &mut self, group : &str ) -> Option< &mut F64x4 >
     {
-      self.scaled_nodes.get_mut( group.into() ).map( | ( _, s ) | s )
+      self.scaled_nodes.get_mut( group ).map( | ( _, s ) | s )
     }
 
     /// Clear scaled_nodes
