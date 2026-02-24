@@ -92,9 +92,9 @@ uniform float roughnessFactor; // Default: 1
 uniform vec4 baseColorFactor; // Default: [1, 1, 1, 1]
 
 #ifdef USE_IBL
-  uniform samplerCube irradianceTexture;
-  uniform samplerCube prefilterEnvMap;
-  uniform sampler2D integrateBRDF;
+  uniform highp samplerCube irradianceTexture;
+  uniform highp samplerCube prefilterEnvMap;
+  uniform highp sampler2D integrateBRDF;
   uniform vec2 mipmapDistanceRange;
 #endif
 #ifdef USE_KHR_materials_specular
