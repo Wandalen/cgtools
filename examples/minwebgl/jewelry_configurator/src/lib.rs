@@ -17,7 +17,7 @@
 mod gem_material;
 mod cube_normal_map_generator;
 mod surface_material;
-mod helpers;
+mod scene_setup;
 
 use minwebgl as gl;
 use gl::
@@ -51,7 +51,7 @@ use std::rc::Rc;
 use core::cell::RefCell;
 use web_sys::ResizeObserver;
 use cube_normal_map_generator::CubeNormalMapGenerator;
-use helpers::
+use scene_setup::
 {
   CAMERA_FOV,
   CAMERA_NEAR,
@@ -66,6 +66,22 @@ use helpers::
   apply_gem_color,
   apply_plane_color,
 };
+
+use std::collections::HashMap;
+
+/// Gets a uniform location from a `HashMap` with error handling.
+#[ inline ]
+pub( crate ) fn get_uniform_location< S : std::hash::BuildHasher >
+(
+  locations : &HashMap< String, Option< web_sys::WebGlUniformLocation >, S >,
+  name : &str
+)
+-> Result< web_sys::WebGlUniformLocation, gl::WebglError >
+{
+  locations.get( name )
+  .and_then( std::clone::Clone::clone )
+  .ok_or( gl::WebglError::Other( "Shader uniform not found" ) )
+}
 
 /// Temporary brightness scale applied to gem color before uploading to the shader.
 /// The gem rendering pipeline currently loses intensity somewhere, so we compensate here.
@@ -190,7 +206,7 @@ impl Default for JewelryConfig
     Self
     {
       gem_color   : [ 1.0, 1.0, 1.0 ],
-      metal_color : [ 0.85, 0.85, 0.854 ],
+      metal_color : [ 0.761, 0.761, 0.765 ],
       clear_color    : 2.7,
       exposure       : 1.0,
       roughness      : 0.01,
@@ -339,11 +355,11 @@ impl JewelryRenderer
   /// Creates and fully initialises a jewelry renderer.
   /// Loads IBL at `ibl_path` and (if non-empty) a gem HDR environment at `gem_env_path`.
   /// Set `preserve_drawing_buffer` to `true` to allow reading the canvas pixels (e.g. for screenshots).
-  pub async fn new( canvas : &HtmlCanvasElement, ibl_path : &str, gem_env_path : &str, preserve_drawing_buffer : bool ) -> Self
+  pub async fn new( canvas : &HtmlCanvasElement, ibl_path : &str, gem_env_path : &str, preserve_drawing_buffer : bool ) -> Result< Self, String >
   {
-    let gl = create_gl( canvas, preserve_drawing_buffer );
+    let gl = create_gl( canvas, preserve_drawing_buffer )?;
     let config = JewelryConfig::default();
-    let pipeline = create_pipeline( &gl, canvas, &config );
+    let pipeline = create_pipeline( &gl, canvas, &config )?;
     let ( resize_observer, resize_closure ) = setup_resize_observer( canvas, &gl, &pipeline );
 
     let mut this = Self
@@ -373,7 +389,7 @@ impl JewelryRenderer
     this.init_gpu_resources();
     this.load_plane_template().await;
 
-    this
+    Ok( this )
   }
 
   /// Loads IBL data and applies initial renderer settings.
@@ -601,12 +617,8 @@ impl JewelryRenderer
   }
 }
 
-/// Sets up a `ResizeObserver` on the canvas that updates renderer, swap buffer and camera.
 /// Creates a WebGL2 context from the canvas with high-performance settings and enables float texture extensions.
-///
-/// # Panics
-/// Panics if the WebGL2 context cannot be created.
-fn create_gl( canvas : &HtmlCanvasElement, preserve_drawing_buffer : bool ) -> GL
+fn create_gl( canvas : &HtmlCanvasElement, preserve_drawing_buffer : bool ) -> Result< GL, String >
 {
   let options = ContextOptions
   {
@@ -619,45 +631,31 @@ fn create_gl( canvas : &HtmlCanvasElement, preserve_drawing_buffer : bool ) -> G
     ..Default::default()
   };
 
-  let gl = match gl::context::from_canvas_with( canvas, options )
-  {
-    Ok( gl ) => gl,
-    Err( err ) => { log::error!( "{err}" ); panic!() }
-  };
+  let gl = gl::context::from_canvas_with( canvas, options ).map_err( | e | format!( "WebGL2 context creation failed: {e}" ) )?;
 
   _ = gl.get_extension( "EXT_color_buffer_float" );
   _ = gl.get_extension( "EXT_color_buffer_half_float" );
 
-  gl
+  Ok( gl )
 }
 
 /// Builds the rendering pipeline: renderer, camera, swap buffer, tonemapping and sRGB passes.
-///
-/// # Panics
-/// Panics if the renderer or post-processing passes cannot be created.
-fn create_pipeline( gl : &GL, canvas : &HtmlCanvasElement, config : &JewelryConfig ) -> Rc< RefCell< RenderPipeline > >
+fn create_pipeline( gl : &GL, canvas : &HtmlCanvasElement, config : &JewelryConfig ) -> Result< Rc< RefCell< RenderPipeline > >, String >
 {
   let width = canvas.width();
   let height = canvas.height();
 
-  let mut renderer = match Renderer::new( gl, width, height, 4 )
-  {
-    Ok( renderer ) => renderer,
-    Err( err ) => { log::error!( "{err}" ); panic!() }
-  };
+  let mut renderer = Renderer::new( gl, width, height, 4 ).map_err( | e | format!( "Renderer creation failed: {e}" ) )?;
   renderer.set_clear_color( F32x3::splat( config.clear_color() ) );
   renderer.set_exposure( config.exposure() );
 
   let camera = setup_camera( canvas );
   let swap_buffer = SwapFramebuffer::new( gl, width, height );
 
-  let tonemapping = ToneMappingPass::< ToneMappingAces >::new( gl )
-  .expect( "Failed to create tonemapping pass" );
+  let tonemapping = ToneMappingPass::< ToneMappingAces >::new( gl ).map_err( | e | format!( "Tonemapping pass creation failed: {e}" ) )?;
+  let to_srgb = ToSrgbPass::new( gl, true ).map_err( | e | format!( "sRGB pass creation failed: {e}" ) )?;
 
-  let to_srgb = ToSrgbPass::new( gl, true )
-  .expect( "Failed to create sRGB pass" );
-
-  Rc::new( RefCell::new( RenderPipeline { renderer, swap_buffer, camera, tonemapping, to_srgb } ) )
+  Ok( Rc::new( RefCell::new( RenderPipeline { renderer, swap_buffer, camera, tonemapping, to_srgb } ) ) )
 }
 
 fn setup_resize_observer
@@ -716,8 +714,17 @@ fn setup_resize_observer
 /// Creates and fully initialises a `JewelryRenderer`. JavaScript entry point.
 /// Loads IBL at `ibl_path` and (if non-empty) a gem HDR environment at `gem_env_path`.
 /// Set `preserve_drawing_buffer` to `true` to allow reading canvas pixels (e.g. for screenshots).
+/// Returns `null` if initialization fails.
 #[ wasm_bindgen ]
-pub async fn create( canvas : HtmlCanvasElement, ibl_path : String, gem_env_path : String, preserve_drawing_buffer : bool ) -> JewelryRenderer
+pub async fn create( canvas : HtmlCanvasElement, ibl_path : String, gem_env_path : String, preserve_drawing_buffer : bool ) -> Option< JewelryRenderer >
 {
-  JewelryRenderer::new( &canvas, &ibl_path, &gem_env_path, preserve_drawing_buffer ).await
+  match JewelryRenderer::new( &canvas, &ibl_path, &gem_env_path, preserve_drawing_buffer ).await
+  {
+    Ok( renderer ) => Some( renderer ),
+    Err( err ) =>
+    {
+      log::error!( "Failed to create JewelryRenderer: {err}" );
+      None
+    }
+  }
 }

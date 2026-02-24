@@ -1,7 +1,7 @@
 // Generated with Shader Minifier 1.5.1 (https://github.com/laurentlb/Shader_Minifier/)
-precision mediump float;
-uniform sampler2D v;
-uniform samplerCube m;
+precision highp float;
+uniform highp sampler2D v;
+uniform highp samplerCube m;
 uniform mat4x4 worldMatrix,viewMatrix,inverseWorldMatrix,d,l;
 uniform int n;
 uniform vec3 r;

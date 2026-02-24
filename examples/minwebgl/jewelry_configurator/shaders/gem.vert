@@ -1,5 +1,5 @@
 // Generated with Shader Minifier 1.5.1 (https://github.com/laurentlb/Shader_Minifier/)
-precision mediump float;
+precision highp float;
 layout(location=0)in vec3 V;
 layout(location=1)in vec3 B;
 layout(location=2)in vec2 z;

@@ -5,7 +5,7 @@ use gl::{ GL, WebGlProgram };
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
 use crate::cube_normal_map_generator::CubeNormalData;
-use crate::helpers::get_uniform_location;
+use crate::get_uniform_location;
 
 // Gem shader
 impl_locations!

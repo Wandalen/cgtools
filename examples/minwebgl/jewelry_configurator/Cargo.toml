@@ -28,3 +28,7 @@ serde-wasm-bindgen = { workspace = true }
 
 [lints]
 workspace = true
+
+[profile.release]
+opt-level = 's'
+lto = true

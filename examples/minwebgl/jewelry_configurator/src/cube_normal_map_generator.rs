@@ -23,7 +23,7 @@ use renderer::webgl::
 use renderer::impl_locations;
 use rustc_hash::FxHashMap;
 use web_sys::WebGlFramebuffer;
-use crate::helpers::get_uniform_location;
+use crate::get_uniform_location;
 
 // CubeNormalMapGenerator shader program
 impl_locations!
@@ -99,6 +99,7 @@ pub struct CubeNormalData
 /// generating realistic reflections inside gem geometry
 pub struct CubeNormalMapGenerator
 {
+  gl : GL,
   /// Generator shader program info
   program : CubeNormalMapGeneratorShader,
   /// Framebuffer used for rendering cube maps
@@ -133,6 +134,7 @@ impl CubeNormalMapGenerator
     (
       Self
       {
+        gl : gl.clone(),
         program,
         framebuffer,
         cube_camera,
@@ -261,5 +263,13 @@ impl CubeNormalMapGenerator
         max_distance
       }
     )
+  }
+}
+
+impl Drop for CubeNormalMapGenerator
+{
+  fn drop( &mut self )
+  {
+    self.gl.delete_framebuffer( Some( &self.framebuffer ) );
   }
 }

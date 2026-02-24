@@ -4,7 +4,7 @@ use minwebgl as gl;
 use gl::{ GL, F32x3, WebGlProgram };
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
-use crate::helpers::get_uniform_location;
+use crate::get_uniform_location;
 
 // Surface shader locations
 impl_locations!
