@@ -29,7 +29,6 @@ use renderer::webgl::
 };
 use rustc_hash::FxHashMap;
 use std::{ cell::RefCell, rc::Rc };
-use std::collections::HashMap;
 use crate::cube_normal_map_generator::{ CubeNormalMapGenerator, CubeNormalData };
 use crate::gem_material::GemMaterial;
 use crate::surface_material::SurfaceMaterial;
@@ -40,20 +39,6 @@ pub const CAMERA_FOV : f32 = 0.6981317; // 40 degrees in radians, matches jewelr
 pub const CAMERA_NEAR : f32 = 0.1;
 pub const CAMERA_FAR : f32 = 100.0;
 pub const SHADOW_RESOLUTION : u32 = 2048;
-
-/// Helper function to get uniform location from a `HashMap` with error handling.
-#[ inline ]
-pub fn get_uniform_location< S : std::hash::BuildHasher >
-(
-  locations : &HashMap< String, Option< web_sys::WebGlUniformLocation >, S >,
-  name : &str
-)
--> Result< web_sys::WebGlUniformLocation, gl::WebglError >
-{
-  locations.get( name )
-  .and_then( std::clone::Clone::clone )
-  .ok_or( gl::WebglError::Other( "Shader uniform not found" ) )
-}
 
 /// Initializes a perspective camera with orbit controls configured for jewelry inspection.
 pub fn setup_camera( canvas : &HtmlCanvasElement ) -> Camera
