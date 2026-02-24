@@ -5,13 +5,13 @@ in vec3 v_world_pos;
 in vec3 v_normal;
 in vec4 v_light_space_pos;
 
-uniform vec3      u_light_dir;
-uniform vec3      u_light_position;
-uniform bool      u_is_orthographic;
-uniform float     u_light_size;
-uniform float     u_near;
-uniform float     u_far;
-uniform sampler2D u_shadow_map;
+uniform vec3            u_light_dir;
+uniform vec3            u_light_position;
+uniform bool            u_is_orthographic;
+uniform float           u_light_size;
+uniform float           u_near;
+uniform float           u_far;
+uniform highp sampler2D u_shadow_map;
 
 out float frag_color;
 
