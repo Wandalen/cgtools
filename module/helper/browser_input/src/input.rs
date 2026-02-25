@@ -116,6 +116,7 @@ pub struct State
 
 impl State
 {
+  /// Creates a new `State` with all inputs in their default unpressed/zero state.
   pub fn new() -> Self
   {
     Self
@@ -423,6 +424,7 @@ impl Input
   }
 }
 
+/// Applies a slice of events to the given state, updating it accordingly.
 pub fn apply_events_to_state( state : &mut State, events : &[ Event ] )
 {
   for Event { event_type, .. } in events
