@@ -141,7 +141,7 @@ async fn run() -> Result< (), gl::WebglError >
       let coord = gl::F64x2::new( e.client_x() as f64, e.client_y() as f64 ) * dpr;
       I32x2::from_array( [ coord.x() as i32, coord.y() as i32 ] )
     },
-  );
+  ).expect( "Failed to initialize input" );
 
   let water_color = [ 0.1, 0.2, 0.4 ];
 

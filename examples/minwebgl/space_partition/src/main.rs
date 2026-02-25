@@ -109,7 +109,7 @@ fn run() -> Result< (), gl::WebglError >
   (
     Some( canvas.clone().dyn_into().unwrap() ),
     browser_input::CLIENT,
-  );
+  ).expect( "Failed to initialize input" );
 
   let settings = Settings
   {
