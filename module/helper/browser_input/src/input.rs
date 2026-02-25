@@ -12,10 +12,40 @@ use web_sys::
   PointerEvent,
   WheelEvent,
 };
-use std::{ cell::{ Ref, RefCell }, rc::Rc };
+use std::{ cell::{ Ref, RefCell }, rc::Rc, fmt };
 use strum::EnumCount as _;
 use crate::keyboard::KeyboardKey;
 use crate::mouse::MouseButton;
+
+/// Error type for browser input initialization failures.
+#[ derive( Debug ) ]
+pub enum BrowserInputError
+{
+  /// Failed to access the browser's window object.
+  WindowNotAvailable,
+  /// Failed to access the document object.
+  DocumentNotAvailable,
+  /// Failed to cast document to EventTarget.
+  DocumentCastFailed,
+  /// Failed to add an event listener.
+  AddEventListenerFailed( String ),
+}
+
+impl fmt::Display for BrowserInputError
+{
+  fn fmt( &self, f : &mut fmt::Formatter< '_ > ) -> fmt::Result
+  {
+    match self
+    {
+      Self::WindowNotAvailable => write!( f, "Browser window object not available" ),
+      Self::DocumentNotAvailable => write!( f, "Document object not available" ),
+      Self::DocumentCastFailed => write!( f, "Failed to cast document to EventTarget" ),
+      Self::AddEventListenerFailed( event ) => write!( f, "Failed to add event listener for '{}'", event ),
+    }
+  }
+}
+
+impl std::error::Error for BrowserInputError {}
 
 /// Maximum number of simultaneous active pointers to prevent unbounded memory growth.
 /// 32 pointers is far more than any realistic multi-touch scenario (typically 10 fingers max).
@@ -150,11 +180,14 @@ impl Input
   /// # Arguments
   /// * `pointer_event_target` - An optional `EventTarget` for pointer events. If `None`, the document is used.
   /// * `get_coords` - A function that specifies how to extract coordinates from a `PointerEvent`.
+  ///
+  /// # Errors
+  /// Returns `BrowserInputError` if browser APIs are unavailable or event listener registration fails.
   pub fn new< F >
   (
     pointer_event_target : Option< EventTarget >,
     get_coords : F,
-  ) -> Self
+  ) -> Result< Self, BrowserInputError >
   where
     F : Fn( &PointerEvent ) -> I32x2 + 'static
   {
@@ -275,20 +308,21 @@ impl Input
       state : State::new(),
     };
 
-    let document = web_sys::window().unwrap().document().unwrap();
+    let window = web_sys::window().ok_or( BrowserInputError::WindowNotAvailable )?;
+    let document = window.document().ok_or( BrowserInputError::DocumentNotAvailable )?;
 
     document.add_event_listener_with_callback
     (
       "keydown",
       input.keyboard_closure.as_ref().unchecked_ref()
-    ).unwrap();
+    ).map_err( | _ | BrowserInputError::AddEventListenerFailed( "keydown".to_string() ) )?;
     document.add_event_listener_with_callback
     (
       "keyup",
       input.keyboard_closure.as_ref().unchecked_ref()
-    ).unwrap();
+    ).map_err( | _ | BrowserInputError::AddEventListenerFailed( "keyup".to_string() ) )?;
 
-    let document = document.dyn_into().unwrap();
+    let document = document.dyn_into().map_err( | _ | BrowserInputError::DocumentCastFailed )?;
     let pointer_event_target = input.pointer_event_target.as_ref().unwrap_or( &document );
 
     // Prevent the browser from consuming touch gestures (scroll, pinch-zoom) on the target
@@ -305,29 +339,29 @@ impl Input
     (
       "pointerdown",
       input.pointerbutton_closure.as_ref().unchecked_ref()
-    ).unwrap();
+    ).map_err( | _ | BrowserInputError::AddEventListenerFailed( "pointerdown".to_string() ) )?;
     pointer_event_target.add_event_listener_with_callback
     (
       "pointerup",
       input.pointerbutton_closure.as_ref().unchecked_ref()
-    ).unwrap();
+    ).map_err( | _ | BrowserInputError::AddEventListenerFailed( "pointerup".to_string() ) )?;
     pointer_event_target.add_event_listener_with_callback
     (
       "pointercancel",
       input.pointercancel_closure.as_ref().unchecked_ref()
-    ).unwrap();
+    ).map_err( | _ | BrowserInputError::AddEventListenerFailed( "pointercancel".to_string() ) )?;
     pointer_event_target.add_event_listener_with_callback
     (
       "pointermove",
       input.pointermove_closure.as_ref().unchecked_ref()
-    ).unwrap();
+    ).map_err( | _ | BrowserInputError::AddEventListenerFailed( "pointermove".to_string() ) )?;
     pointer_event_target.add_event_listener_with_callback
     (
       "wheel",
       input.wheel_closure.as_ref().unchecked_ref()
-    ).unwrap();
+    ).map_err( | _ | BrowserInputError::AddEventListenerFailed( "wheel".to_string() ) )?;
 
-    input
+    Ok( input )
   }
 
   /// Returns an immutable reference to the event queue.
@@ -446,7 +480,8 @@ impl Drop for Input
   /// Cleans up by removing all attached event listeners from the DOM when the `Input` handler is dropped.
   fn drop( &mut self )
   {
-    let document = web_sys::window().unwrap().document().unwrap();
+    let Some( window ) = web_sys::window() else { return };
+    let Some( document ) = window.document() else { return };
     _ = document.remove_event_listener_with_callback
     (
       "keydown",
@@ -458,7 +493,7 @@ impl Drop for Input
       self.keyboard_closure.as_ref().unchecked_ref()
     );
 
-    let document = document.dyn_into().unwrap();
+    let Ok( document ) = document.dyn_into() else { return };
     let pointer_event_target = self.pointer_event_target.as_ref().unwrap_or( &document );
     _ = pointer_event_target.remove_event_listener_with_callback
     (

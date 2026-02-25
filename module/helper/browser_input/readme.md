@@ -26,7 +26,7 @@ use browser_input::{ Input, CLIENT };
 use gl::JsCast as _;
 
 // Attach to a canvas element; coordinates are relative to the viewport.
-let mut input = Input::new( Some( canvas.dyn_into().unwrap() ), CLIENT );
+let mut input = Input::new( Some( canvas.dyn_into().unwrap() ), CLIENT )?;
 
 // Inside the RAF loop:
 input.update_state();
