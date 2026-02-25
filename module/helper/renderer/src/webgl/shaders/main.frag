@@ -92,9 +92,15 @@ uniform float roughnessFactor; // Default: 1
 uniform vec4 baseColorFactor; // Default: [1, 1, 1, 1]
 
 #ifdef USE_IBL
-  uniform highp samplerCube irradianceTexture;
-  uniform highp samplerCube prefilterEnvMap;
-  uniform highp sampler2D integrateBRDF;
+  #ifdef GL_FRAGMENT_PRECISION_HIGH
+    uniform highp samplerCube irradianceTexture;
+    uniform highp samplerCube prefilterEnvMap;
+    uniform highp sampler2D integrateBRDF;
+  #else
+    uniform mediump samplerCube irradianceTexture;
+    uniform mediump samplerCube prefilterEnvMap;
+    uniform mediump sampler2D integrateBRDF;
+  #endif
   uniform vec2 mipmapDistanceRange;
 #endif
 #ifdef USE_KHR_materials_specular

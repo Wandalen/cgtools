@@ -11,7 +11,11 @@ uniform bool            u_is_orthographic;
 uniform float           u_light_size;
 uniform float           u_near;
 uniform float           u_far;
-uniform highp sampler2D u_shadow_map;
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+  uniform highp sampler2D u_shadow_map;
+#else
+  uniform mediump sampler2D u_shadow_map;
+#endif
 
 out float frag_color;
 
