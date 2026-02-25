@@ -451,6 +451,13 @@ float ditherNoise( vec2 fragCoord )
 }
 
 #ifdef USE_IBL
+
+  float remapClamped( float value, float inMin, float inMax, float outMin, float outMax )
+  {
+    float t = clamp( ( value - inMin ) / ( inMax - inMin ), 0.0, 1.0 );
+    return mix( outMin, outMax, t );
+  }
+
   void sampleEnvIrradiance( const in vec3 N, const in vec3 V, float viewDistance, const in PhysicalMaterial material, inout ReflectedLight reflectedLight )
   {
     float alpha = pow2( material.roughness );
@@ -500,6 +507,7 @@ float ditherNoise( vec2 fragCoord )
     reflectedLight.indirectDiffuse += diffuseBRDF;
     reflectedLight.indirectSpecular += specularBRDF;
   }
+
 #endif
 
 float alpha_weight( float a )
