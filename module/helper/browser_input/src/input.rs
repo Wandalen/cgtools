@@ -17,6 +17,10 @@ use strum::EnumCount as _;
 use crate::keyboard::KeyboardKey;
 use crate::mouse::MouseButton;
 
+/// Maximum number of simultaneous active pointers to prevent unbounded memory growth.
+/// 32 pointers is far more than any realistic multi-touch scenario (typically 10 fingers max).
+const MAX_ACTIVE_POINTERS : usize = 32;
+
 /// Represents the state of a button or key press.
 #[ derive( Debug, Clone, Copy, PartialEq, Eq ) ]
 pub enum Action
@@ -404,7 +408,10 @@ pub fn apply_events_to_state( state : &mut State, events : &[ Event ] )
           {
             if !state.active_pointers.iter().any( | ( id, _ ) | *id == *pointer_id )
             {
-              state.active_pointers.push( ( *pointer_id, *pos ) );
+              if state.active_pointers.len() < MAX_ACTIVE_POINTERS
+              {
+                state.active_pointers.push( ( *pointer_id, *pos ) );
+              }
             }
           }
           Action::Release =>
