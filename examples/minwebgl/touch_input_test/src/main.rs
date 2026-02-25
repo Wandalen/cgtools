@@ -49,7 +49,7 @@ fn run() -> Result< (), gl::WebglError >
   (
     Some( canvas.clone().dyn_into().unwrap() ),
     CLIENT,
-  );
+  ).expect( "Failed to initialize input" );
 
   // Mutable state captured by move into the closure
   let mut offset = [ 0.0_f32, 0.0 ];
