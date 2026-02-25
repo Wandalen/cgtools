@@ -469,12 +469,29 @@ mod private
 
     // Creates an <img> html elements, and sets its src property to 'src' parameter
     // When the image is loaded, creates a texture and adds it to the 'images' array
-    let upload_texture = | src : Rc< String > | {
+    let upload_texture = | src : Rc< str > |
+    {
       let texture = gl.create_texture().expect( "Failed to create a texture" );
+      gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
+      gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
+      (
+        gl::TEXTURE_2D,
+        0,
+        gl::RGBA8 as i32,
+        1,
+        1,
+        0,
+        gl::RGBA,
+        gl::UNSIGNED_BYTE,
+        Some( &[ 255, 255, 255, 255 ] )
+      ).expect( "Failed to upload data to texture" );
+      gl::texture::d2::filter_linear( gl );
+
       images.borrow_mut().push( texture.clone() );
 
       let img_element = document.create_element( "img" ).unwrap().dyn_into::< gl::web_sys::HtmlImageElement >().unwrap();
       img_element.style().set_property( "display", "none" ).unwrap();
+
       let load_texture : Closure< dyn Fn() > = Closure::new
       (
         {
@@ -520,13 +537,14 @@ mod private
       {
         gltf::image::Source::Uri { uri, mime_type: _ } =>
         {
-          upload_texture( Rc::new( format!( "static/{}/{}", folder_path, uri ) ) );
+          upload_texture( format!( "static/{}/{}", folder_path, uri ).into() );
         },
         gltf::image::Source::View { view, mime_type } =>
         {
           let buffer = buffers[ view.buffer().index() ].clone();
           let buffer = gl::js_sys::Uint8Array::new_with_byte_offset_and_length( &buffer.buffer(), view.offset() as u32, view.length() as u32 );
-          let blob = {
+          let blob =
+          {
             let options = gl::web_sys::BlobPropertyBag::new();
             options.set_type( mime_type );
 
@@ -537,7 +555,7 @@ mod private
           }.expect( "Failed to create a Blob" );
 
           let url = gl::web_sys::Url::create_object_url_with_blob( &blob ).expect( "Failed to create object url" );
-          upload_texture( Rc::new( url ) );
+          upload_texture( url.into() );
         }
       }
     }
@@ -997,15 +1015,19 @@ mod private
     for gltf_scene in gltf_file.scenes()
     {
       let mut scene = Scene::default();
+      let mut node_counter = 0;
       for gltf_node in gltf_scene.nodes()
       {
+        node_counter += 1;
         scene.add( nodes[ gltf_node.index() ].clone() );
       }
       scene.update_world_matrix();
-      scenes.push(  Rc::new( RefCell::new( scene ) ) );
+      scenes.push( Rc::new( RefCell::new( scene ) ) );
+      gl::info!( "{node_counter}" );
     }
 
     gl.bind_vertex_array( None );
+    gl.flush();
 
     Ok
     (

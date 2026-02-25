@@ -140,7 +140,9 @@ mod private
     /// Returns answer need use IBL for current material instance or not
     pub need_use_ibl : bool,
     /// Signal for updating material uniforms
-    pub needs_update : bool
+    pub needs_update : bool,
+    /// Cached hash of the base shader source. Computed once on first access.
+    shader_hash_cache : std::cell::Cell< Option< u64 > >
   }
 
   impl PbrMaterial
@@ -209,7 +211,8 @@ mod private
         vertex_defines,
         fragment_defines,
         need_use_ibl,
-        needs_update : true
+        needs_update : true,
+        shader_hash_cache : std::cell::Cell::new( None )
       };
     }
 
@@ -552,6 +555,19 @@ mod private
       MAIN_VERTEX_SHADER.into()
     }
 
+    fn base_shader_hash( &self ) -> u64
+    {
+      if let Some( h ) = self.shader_hash_cache.get() { return h; }
+      use std::hash::{ Hash, Hasher };
+      let mut hasher = rustc_hash::FxHasher::default();
+      MAIN_VERTEX_SHADER.hash( &mut hasher );
+      MAIN_FRAGMENT_SHADER.hash( &mut hasher );
+      self.get_defines_str().hash( &mut hasher );
+      let h = hasher.finish();
+      self.shader_hash_cache.set( Some( h ) );
+      h
+    }
+
     fn dyn_clone( &self ) -> Box< dyn Material >
     {
       Box::new( self.clone() )
@@ -598,7 +614,8 @@ mod private
         vertex_defines : self.vertex_defines.clone(),
         fragment_defines : self.fragment_defines.clone(),
         need_use_ibl : self.need_use_ibl,
-        needs_update : self.needs_update
+        needs_update : self.needs_update,
+        shader_hash_cache : std::cell::Cell::new( None )
       }
     }
   }

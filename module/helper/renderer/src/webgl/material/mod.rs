@@ -3,6 +3,7 @@ mod private
   use minwebgl as gl;
   use crate::webgl::{ Node, ShaderProgram, Texture };
   use std::{ cell::RefCell, fmt::Debug, rc::Rc };
+  use std::hash::{ Hash, Hasher };
   use rustc_hash::FxHasher;
   use rustc_hash::FxHashMap;
 
@@ -184,13 +185,18 @@ mod private
     /// Used for shader caching and variant management.
     fn get_shader_hash( &self ) -> u64
     {
-      use std::hash::{ Hash, Hasher };
-
       let mut hasher = FxHasher::default();
       self.get_vertex_shader().hash( &mut hasher );
       self.get_fragment_shader().hash( &mut hasher );
       self.get_defines_str().hash( &mut hasher );
       hasher.finish()
+    }
+
+    /// Returns a cached hash of the base shader source (without IBL).
+    /// Override in concrete types to avoid recomputing on every frame.
+    fn base_shader_hash( &self ) -> u64
+    {
+      self.get_shader_hash()
     }
 
     /// Configures the position of the uniform texture samplers in the shader program.
