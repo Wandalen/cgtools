@@ -128,6 +128,8 @@ mod private
     pub alpha_mode : AlphaMode,
     /// Determines wheter to draw both or one side of the primitive
     pub double_sided : bool,
+    /// Face culling mode. `None` means culling is disabled.
+    pub cull_mode : Option< CullMode >,
 
     /// Range of distances in which environment map's mipmap switching is applied
     pub mipmap_distance_range : std::ops::Range< f32 >,
@@ -183,6 +185,7 @@ mod private
       let alpha_mode = AlphaMode::default();
       let alpha_cutoff = 0.5;
       let double_sided = false;
+      let cull_mode = None;
 
       let mipmap_distance_range = 0.0..200.0;
 
@@ -212,6 +215,7 @@ mod private
         alpha_mode,
         alpha_cutoff,
         double_sided,
+        cull_mode,
         mipmap_distance_range,
         light_map,
         vertex_defines,
@@ -563,6 +567,11 @@ mod private
       self.alpha_mode
     }
 
+    fn get_cull_mode( &self ) -> Option< CullMode >
+    {
+      self.cull_mode
+    }
+
     fn type_name( &self ) -> &'static str
     {
       stringify!( PbrMaterial )
@@ -594,6 +603,7 @@ mod private
         alpha_cutoff : self.alpha_cutoff,
         alpha_mode : self.alpha_mode,
         double_sided : self.double_sided,
+        cull_mode : self.cull_mode,
         mipmap_distance_range : self.mipmap_distance_range.clone(),
         light_map : self.light_map.clone(),
         vertex_defines : self.vertex_defines.clone(),
