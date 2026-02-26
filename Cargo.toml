@@ -308,7 +308,7 @@ version = "0.25.6"
 version = "1.47.1"
 
 [workspace.dependencies.gltf]
-version = "1.4"
+version = "1.4.1"
 
 [workspace.dependencies.csgrs]
 version = "0.20.1"

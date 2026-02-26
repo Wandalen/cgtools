@@ -103,17 +103,7 @@ impl Material for SurfaceMaterial
   {
     let locations = ctx.locations;
     gl::uniform::upload( gl, locations.get( "surfaceColor" ).unwrap().clone(), self.color.0.as_slice() )?;
-    self.upload_textures( gl );
     Ok( () )
-  }
-
-  fn upload_textures( &self, gl : &GL )
-  {
-    gl.active_texture( gl::TEXTURE0 );
-    if let Some( ref t ) = self.texture
-    {
-      t.upload( gl );
-    }
   }
 
   fn bind( &self, gl : &GL )
@@ -121,6 +111,7 @@ impl Material for SurfaceMaterial
     if let Some( ref t ) = self.texture
     {
       gl.active_texture( gl::TEXTURE0 );
+      t.upload( gl );
       t.bind( gl );
     }
   }

@@ -3,6 +3,7 @@ mod private
   use minwebgl as gl;
   use crate::webgl::{ Node, ShaderProgram, Texture };
   use std::{ cell::RefCell, fmt::Debug, rc::Rc };
+  use std::hash::{ Hash, Hasher };
   use rustc_hash::FxHasher;
   use rustc_hash::FxHashMap;
 
@@ -126,8 +127,18 @@ mod private
       None
     }
 
-    /// Signal for updating material uniforms
+    /// Returns `true` if the material's uniform data has changed and needs
+    /// to be re-uploaded to the GPU via [`upload_on_state_change`].
     fn needs_update( &self ) -> bool;
+
+    /// Called by the renderer after [`upload_on_state_change`] to clear the dirty flag.
+    /// Implementations should use interior mutability (e.g. `Cell<bool>`) to reset
+    /// the flag from a shared reference.
+    ///
+    /// Default implementation does nothing, which causes [`upload_on_state_change`]
+    /// to be called every frame. Override this together with [`needs_update`]
+    /// to enable incremental updates.
+    fn clear_needs_update( &self ) {}
 
     /// Returns the base texture unit for IBL textures.
     ///
@@ -184,8 +195,6 @@ mod private
     /// Used for shader caching and variant management.
     fn get_shader_hash( &self ) -> u64
     {
-      use std::hash::{ Hash, Hasher };
-
       let mut hasher = FxHasher::default();
       self.get_vertex_shader().hash( &mut hasher );
       self.get_fragment_shader().hash( &mut hasher );
@@ -230,12 +239,15 @@ mod private
       Ok( () )
     }
 
-    /// Uploads the texture data of all used textures to the GPU.
-    fn upload_textures( &self, gl : &gl::WebGl2RenderingContext );
-
-    /// Binds all used textures to their respective texture units.
+    /// Activates and binds all material textures to their assigned texture units,
+    /// and uploads sampler parameters (filtering, wrapping).
     ///
-    /// * `gl`: The `WebGl2RenderingContext`.
+    /// Each texture must be bound to the same unit that was assigned in [`configure`].
+    /// Implementations **must** call `gl.active_texture( gl::TEXTURE0 + unit )` before
+    /// binding each texture to ensure correct unit targeting.
+    ///
+    /// The renderer may bind additional textures (e.g. IBL) to higher units after
+    /// this call, so implementations should only use the units they configured.
     fn bind( &self, gl : &gl::WebGl2RenderingContext );
 
     /// Dyn safe clone method

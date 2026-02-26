@@ -497,15 +497,22 @@ mod private
     }
   }
 
+
   /// Manages the rendering process, including program management, IBL setup, and drawing objects in the scene.
   pub struct Renderer
   {
-    /// A map of compiled WebGL programs, keyed by a combination of the material ID and vertex shader defines.
-    programs : FxHashMap< String, Box< dyn ShaderProgram > >,
+    /// Full shader source → program UUID
+    shader_source_registry : FxHashMap< Box< str >, uuid::Uuid >,
+    /// Program UUID → compiled ShaderProgram
+    compiled_programs : FxHashMap< uuid::Uuid, Box< dyn ShaderProgram > >,
+    /// Material UUID → program UUID
+    material_program_map : FxHashMap< uuid::Uuid, uuid::Uuid >,
+    /// (node, primitive, primitive_index, program_uuid)
+    transparent_nodes : Vec< ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > >, usize, uuid::Uuid ) >,
+    opaque_nodes : Vec< ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > >, usize, uuid::Uuid ) >,
+
     /// Holds the precomputed textures used for Image-Based Lighting.
     ibl : Option< IBL >,
-    /// A list of nodes with transparent primitives, sorted by distance to the camera for correct rendering order.
-    transparent_nodes : Vec< ( Rc< RefCell< Node > >, Rc< RefCell< Primitive > > ) >,
     /// If set to true, the renderer will add blur to the original image
     use_emission : bool,
     /// The **framebuffer context** used for multisampling and post-processing. This
@@ -534,9 +541,7 @@ mod private
     {
       let framebuffer_ctx = FramebufferContext::new( gl, width, height, samples );
       let use_emission = false;
-      let programs = FxHashMap::default();
       let ibl = None;
-      let transparent_nodes = Vec::new();
       let bloom_effect = UnrealBloomPass::new( gl, width, height, gl::RGBA16F )?;
       let mut blend_effect = BlendPass::new( gl )?;
       blend_effect.dst_factor = gl::ONE;
@@ -564,9 +569,12 @@ mod private
       (
         Self
         {
-          programs,
+          shader_source_registry : FxHashMap::default(),
+          compiled_programs : FxHashMap::default(),
+          material_program_map : FxHashMap::default(),
           ibl,
-          transparent_nodes,
+          transparent_nodes : vec![],
+          opaque_nodes : vec![],
           use_emission,
           framebuffer_ctx,
           blend_effect,
@@ -740,97 +748,57 @@ mod private
 
       // Clear the list of transparent nodes before each render.
       self.transparent_nodes.clear();
-
+      self.opaque_nodes.clear();
       let mut lights = FxHashMap::< LightType, Vec< Light > >::default();
 
-      let mut collect_light_sources =
-      |
-        node : Rc< RefCell< Node > >
-      | -> Result< (), gl::WebglError >
-      {
-        if let Object3D::Light( light ) = &node.borrow().object
-        {
-          let type_ : LightType = light.into();
-
-          lights.entry( type_ ).or_default().push( light.clone() );
-        }
-
-        Ok( () )
-      };
-
-      scene.traverse( &mut collect_light_sources )?;
-
-      for program in self.programs.values()
-      {
-        let locations = program.locations();
-        program.bind( gl );
-        camera.upload( gl, locations );
-        bind_lights( gl, &program, &lights );
-        if let Some( exposure_loc ) = locations.get( "exposure" )
-        {
-          gl::uniform::upload( gl, exposure_loc.clone(), &self.exposure )?;
-        }
-      }
-
-      // Define a closure to handle the drawing of each node in the scene.
-      let mut draw_node =
-      |
-        node : Rc< RefCell< Node > >
-      | -> Result< (), gl::WebglError >
+      let mut collect_nodes = | node : Rc< RefCell< Node > > | -> Result< (), gl::WebglError >
       {
         if !node.borrow().is_visible()
         {
           return Ok( () );
         }
 
-        // If the node contains a mesh...
-        if let Object3D::Mesh( ref mesh ) = node.borrow().object
+        if let Object3D::Light( light ) = &node.borrow().object
         {
-          // Iterate over each primitive in the mesh.
-          for ( i, primitive_rc ) in mesh.borrow().primitives.iter().enumerate()
+          let r#type : LightType = light.into();
+          lights.entry( r#type ).or_default().push( light.clone() );
+        }
+
+        let Object3D::Mesh( ref mesh ) = node.borrow().object else { return Ok( () ); };
+
+        let mesh = mesh.borrow();
+        for ( i, primitive_rc ) in mesh.primitives.iter().enumerate()
+        {
+          let primitive = primitive_rc.borrow();
+          let material = primitive.material.borrow();
+          let material_id = material.get_id();
+          let use_ibl = self.ibl.is_some() && material.get_ibl_base_texture_unit().is_some();
+
+          let program_uuid = if let Some( &prog_id ) = self.material_program_map.get( &material_id )
           {
-            let node_ref = node.borrow();
-            let primitive = primitive_rc.borrow();
-            let defines = primitive.material.borrow().get_defines_str();
-            // Generate a unique ID for the program based on the material ID and vertex shader defines.
-            let program_id = format!( "{}{}", primitive.material.borrow().get_id(), defines );
+            prog_id
+          }
+          else
+          {
+            // Build full shader source
+            let defines = material.get_defines_str();
+            let ibl_define = if use_ibl { "#define USE_IBL\n" } else { "" };
+            let vs_src = format!( "#version 300 es\n{}\n{}", defines, material.get_vertex_shader() );
+            let fs_src = format!( "#version 300 es\n{}\n{}\n{}", defines, ibl_define, material.get_fragment_shader() );
+            let src : Box< str > = format!( "{vs_src}{fs_src}" ).into_boxed_str();
 
-            let program_cached = self.programs.contains_key( &program_id );
-
-            // Retrieve the program info if it already exists, otherwise compile and link a new program.
-            let shader_program =
-            if let Some( shader_program ) = self.programs.get( &program_id )
+            let prog_id = if let Some( &existing_id ) = self.shader_source_registry.get( &src )
             {
-              shader_program
+              existing_id
             }
             else
             {
-              let material = primitive.material.borrow_mut();
-              let ibl_define = if self.ibl.is_some() && material.get_ibl_base_texture_unit().is_some()
-              {
-                "#define USE_IBL\n"
-              }
-              else
-              {
-                ""
-              };
-
-              // Compile and link a new WebGL program from the vertex and fragment shaders with the appropriate defines.
-              let program = gl::ProgramFromSources::new
-              (
-                &format!( "#version 300 es\n{}\n{}", defines, material.get_vertex_shader() ),
-                &format!
-                (
-                  "#version 300 es\n{}\n{}\n{}",
-                  defines,
-                  ibl_define,
-                  material.get_fragment_shader()
-                )
-              ).compile_and_link( gl )?;
+              let program = gl::ProgramFromSources::new( &vs_src, &fs_src ).compile_and_link( gl )?;
               let shader_program = material.make_shader_program( gl, &program );
+              let new_id = uuid::Uuid::new_v4();
 
-              // Configure and upload material properties and IBL textures for the new program.
-              let locations = shader_program.locations();
+              // Configure texture unit assignments once
+              let node_ref = node.borrow();
               shader_program.bind( gl );
               let material_upload_context = MaterialUploadContext
               {
@@ -839,13 +807,14 @@ mod private
                 locations : shader_program.locations()
               };
               material.configure( gl, &material_upload_context );
-              material.upload_on_state_change( gl, &material_upload_context )?;
-              camera.upload( gl, locations );
 
+              // Set IBL uniforms once
               if let Some( ref ibl ) = self.ibl
               {
                 if let Some( ibl_base_texture_unit ) = material.get_ibl_base_texture_unit()
                 {
+                  let locations = shader_program.locations();
+
                   ibl.bind( gl, ibl_base_texture_unit );
                   gl.uniform1i( locations.get( "irradianceTexture" ).unwrap().clone().as_ref(), ibl_base_texture_unit as i32 );
                   gl.uniform1i( locations.get( "prefilterEnvMap" ).unwrap().clone().as_ref(), ibl_base_texture_unit as i32 + 1 );
@@ -853,62 +822,104 @@ mod private
                 }
               }
 
-              // Store the new program info in the cache.
-              self.programs.insert( program_id.clone(), shader_program.dyn_clone() );
-              self.programs.get( &program_id ).unwrap()
+              self.shader_source_registry.insert( src, new_id );
+              self.compiled_programs.insert( new_id, shader_program );
+              new_id
             };
 
-            let material = primitive.material.borrow();
+            self.material_program_map.insert( material_id, prog_id );
+            prog_id
+          };
 
-            // Handle transparent objects by adding them to a separate list for later rendering.
-            match material.get_alpha_mode()
-            {
-              AlphaMode::Blend | AlphaMode::Mask =>
-              {
-                self.transparent_nodes.push( ( node.clone(), primitive_rc.clone() ) );
-                continue; // Skip the immediate drawing of transparent objects.
-              },
-              _ => {}
-            }
-
-            enable_material_depth_properties( gl, &**material );
-            enable_material_face_properties( gl, &**material );
-            enable_material_color_mask( gl, &**material );
-
-            // Get the uniform locations for the current program.
-            let locations = shader_program.locations();
-
-            // Bind the program, upload camera and node matrices, bind the primitive, and draw it.
-            shader_program.bind( gl );
-            let material_upload_context = MaterialUploadContext
-            {
-              node : &node_ref,
-              primitive_id : Some( i ),
-              locations : shader_program.locations()
-            };
-            material.upload( gl, &material_upload_context )?;
-            if material.needs_update() && program_cached
-            {
-              material.upload_on_state_change( gl, &material_upload_context )?;
-            }
-
-            node.borrow().upload( gl, locations );
-            primitive.bind( gl );
-            primitive.draw( gl );
+          // Separate transparent objects for later rendering.
+          match material.get_alpha_mode()
+          {
+            AlphaMode::Blend | AlphaMode::Mask
+            => self.transparent_nodes.push( ( node.clone(), primitive_rc.clone(), i, program_uuid ) ),
+            _ => self.opaque_nodes.push( ( node.clone(), primitive_rc.clone(), i, program_uuid ) ),
           }
         }
 
         Ok( () )
       };
 
-      // Traverse the scene and draw all opaque objects.
-      scene.traverse( &mut draw_node )?;
+      scene.traverse( &mut collect_nodes )?;
+
+      // Phase 2: Per-frame per-program uploads (camera, lights, exposure)
+      for program in self.compiled_programs.values()
+      {
+        let locations = program.locations();
+        program.bind( gl );
+        camera.upload( gl, locations );
+        bind_lights( gl, program, &lights );
+        if let Some( exposure_loc ) = locations.get( "exposure" )
+        {
+          gl::uniform::upload( gl, exposure_loc.clone(), &self.exposure )?;
+        }
+      }
+
+      // Phase 3: Draw opaque primitives sorted by program to minimize state switches
+      self.opaque_nodes.sort_by_key( | ( _, _, _, pid ) | *pid );
+
+      let mut current_program_id : Option< uuid::Uuid > = None;
+      let mut last_material_id : Option< uuid::Uuid > = None;
+      for ( node_rc, primitive_rc, prim_idx, program_id ) in self.opaque_nodes.iter()
+      {
+        let node_ref = node_rc.borrow();
+        let primitive = primitive_rc.borrow();
+        let material = primitive.material.borrow();
+        let shader_program = self.compiled_programs.get( program_id ).unwrap();
+
+        if current_program_id != Some( *program_id )
+        {
+          shader_program.bind( gl );
+          current_program_id = Some( *program_id );
+          last_material_id = None;
+        }
+
+        enable_material_depth_properties( gl, &**material );
+        enable_material_face_properties( gl, &**material );
+        enable_material_color_mask( gl, &**material );
+
+        let material_upload_context = MaterialUploadContext
+        {
+          node : &node_ref,
+          primitive_id : Some( *prim_idx ),
+          locations : shader_program.locations()
+        };
+
+        // Upload material uniforms on state change or when switching materials within same program
+        if material.needs_update() || last_material_id != Some( material.get_id() )
+        {
+          material.upload_on_state_change( gl, &material_upload_context )?;
+          material.clear_needs_update();
+        }
+        material.upload( gl, &material_upload_context )?;
+        material.bind( gl );
+
+        // Rebind IBL textures after material.bind() to ensure IBL units are not overwritten
+        if let Some( ref ibl ) = self.ibl
+        {
+          if let Some( ibl_base_texture_unit ) = material.get_ibl_base_texture_unit()
+          {
+            ibl.bind( gl, ibl_base_texture_unit );
+          }
+        }
+
+        last_material_id = Some( material.get_id() );
+
+        let locations = shader_program.locations();
+        node_ref.upload( gl, locations );
+        primitive.bind( gl );
+        primitive.draw( gl );
+      }
 
       if self.framebuffer_ctx.skybox_texture.is_some()
       {
         self.draw_skybox( gl, camera );
       }
 
+      // Transparent pass
       gl::drawbuffers::drawbuffers( gl, &[ 2, 3 ] );
       gl.enable( gl::BLEND );
       gl.blend_equation( gl::FUNC_ADD );
@@ -917,33 +928,59 @@ mod private
       gl.enable( gl::DEPTH_TEST );
       gl.depth_mask( false );
       gl.depth_func( gl::LESS );
+      // Culling should be disabled as we need both sides of transparent object
+      gl.disable( gl::CULL_FACE );
 
-      let bind = | node : std::cell::Ref< '_, Node >, primitive : std::cell::Ref< '_, Primitive > | -> Result< (), gl::WebglError >
+      // Sort transparent nodes by program to minimize state switches
+      self.transparent_nodes.sort_by_key( | ( _, _, _, pid ) | *pid );
+
+      let mut current_program_id : Option< uuid::Uuid > = None;
+      let mut last_material_id : Option< uuid::Uuid > = None;
+      for ( node_rc, primitive_rc, prim_idx, program_id ) in self.transparent_nodes.iter()
       {
-        let primitive = primitive;
+        let node_ref = node_rc.borrow();
+        let primitive = primitive_rc.borrow();
         let material = primitive.material.borrow();
+        let shader_program = self.compiled_programs.get( program_id ).unwrap();
 
-        enable_material_face_properties( gl, &**material );
+        if current_program_id != Some( *program_id )
+        {
+          shader_program.bind( gl );
+          current_program_id = Some( *program_id );
+          last_material_id = None;
+        }
+
         enable_material_color_mask( gl, &**material );
 
-        let shader_program = self.programs.get( &format!( "{}{}",  material.get_id(), material.get_defines_str() ) ).unwrap();
+        let material_upload_context = MaterialUploadContext
+        {
+          node : &node_ref,
+          primitive_id : Some( *prim_idx ),
+          locations : shader_program.locations()
+        };
+
+        if material.needs_update() || last_material_id != Some( material.get_id() )
+        {
+          material.upload_on_state_change( gl, &material_upload_context )?;
+          material.clear_needs_update();
+        }
+        material.upload( gl, &material_upload_context )?;
+        material.bind( gl );
+
+        // Rebind IBL textures after material.bind() to ensure IBL units are not overwritten
+        if let Some( ref ibl ) = self.ibl
+        {
+          if let Some( ibl_base_texture_unit ) = material.get_ibl_base_texture_unit()
+          {
+            ibl.bind( gl, ibl_base_texture_unit );
+          }
+        }
+
+        last_material_id = Some( material.get_id() );
 
         let locations = shader_program.locations();
-
-        shader_program.bind( gl );
-
-        node.upload( gl, locations );
+        node_ref.upload( gl, locations );
         primitive.bind( gl );
-
-       Ok( () )
-      };
-
-      // Render the transparent nodes.
-      for ( node, primitive ) in self.transparent_nodes.iter()
-      {
-        let primitive = primitive.borrow();
-        let node = node.borrow();
-        bind( node, std::cell::Ref::clone( &primitive ) )?;
         primitive.draw( gl );
       }
 
@@ -952,60 +989,6 @@ mod private
 
       self.framebuffer_ctx.resolve( gl, self.use_emission );
       self.framebuffer_ctx.unbind_multisample( gl );
-
-      // self.transparent_nodes.sort_by( | a, b |
-      // {
-      //   let dist1 = a.0.borrow().center().distance_squared( &camera.get_eye() );
-      //   let dist2 = b.0.borrow().center().distance_squared( &camera.get_eye() );
-
-      //   dist1.partial_cmp( &dist2 ).unwrap()
-      // });
-
-
-      // gl.enable( gl::BLEND );
-      // gl.depth_mask( false );
-      // gl.depth_func( gl::LEQUAL );
-      // gl.enable( gl::CULL_FACE );
-      // gl.blend_equation( gl::FUNC_ADD );
-      // gl.blend_func( gl::ONE, gl::ONE_MINUS_SRC_ALPHA );
-
-      // let bind = | node : &std::cell::Ref< '_, Node >, primitive : &std::cell::Ref< '_, Primitive > | -> Result< (), gl::WebglError >
-      // {
-      //   let primitive = primitive;
-      //   let material = primitive.material.borrow();
-      //   let geometry = primitive.geometry.borrow();
-      //   let vs_defines = geometry.get_defines();
-      //   let shader_program = self.programs.get( &format!( "{}{}",  material.id, vs_defines ) ).unwrap();
-
-      //   let locations = shader_program.locations();
-
-      //   shader_program.bind( gl );
-
-      //   node.upload( gl, locations );
-      //   primitive.bind( gl );
-
-      //  Ok( () )
-      // };
-
-      // // Render the transparent nodes.
-      // for ( node, primitive ) in self.transparent_nodes.iter()
-      // {
-      //   let primitive = primitive.borrow();
-      //   let node = node.borrow();
-      //   bind( &node, &primitive )?;
-
-      //   gl.cull_face( gl::FRONT );
-      //   primitive.draw( gl );
-
-      //   gl.cull_face( gl::BACK );
-      //   primitive.draw( gl );
-      // }
-
-
-      // gl.disable( gl::CULL_FACE );
-
-      // self.framebuffer_ctx.resolve( gl, self.use_emission );
-      // self.framebuffer_ctx.unbind_multisample( gl );
 
       if self.use_emission
       {
@@ -1028,7 +1011,6 @@ mod private
       gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.transparent_accumulate_texture.as_ref() );
       gl.active_texture( gl::TEXTURE1 );
       gl.bind_texture( gl::TEXTURE_2D, self.framebuffer_ctx.transparent_revealage_texture.as_ref() );
-
 
       gl::drawbuffers::drawbuffers( gl, &[ 0 ] );
 

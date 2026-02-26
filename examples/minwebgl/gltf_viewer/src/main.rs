@@ -42,23 +42,23 @@ async fn run() -> Result< (), gl::WebglError >
   let height = canvas.height() as f32;
 
   let gltf_path = "dodge-challenger/gltf/scene.gltf";
-  //let gltf_path = "gambeson.glb";
-  //let gltf_path = "old_rusty_car.glb";
-  //let gltf_path = "sponza.glb";
-  //let gltf_path = "nissan_titan_2017_transparent.glb";
-  //let gltf_path = "transparent_cubes_oit_rendering_test_model.glb";
-  //let gltf_path = "model.glb";
-  //let gltf_path = "untitled.glb";
-  //let gltf_path = "av-8b_harrier_ii.glb";
-  //let gltf_path = "dae_crib_-_tommys_garage.glb";
-  //let gltf_path = "low_poly_kids_playground.glb";
-  //let gltf_path = "watchman_of_doom_2.0_special.glb";
+  // let gltf_path = "gambeson.glb";
+  // let gltf_path = "old_rusty_car.glb";
+  // let gltf_path = "sponza.glb";
+  // let gltf_path = "nissan_titan_2017_transparent.glb";
+  // let gltf_path = "transparent_cubes_oit_rendering_test_model.glb";
+  // let gltf_path = "model.glb";
+  // let gltf_path = "untitled.glb";
+  // let gltf_path = "av-8b_harrier_ii.glb";
+  // let gltf_path = "dae_crib_-_tommys_garage.glb";
+  // let gltf_path = "low_poly_kids_playground.glb";
+  // let gltf_path = "watchman_of_doom_2.0_special.glb";
+
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
   let scenes = gltf.scenes;
-  scenes[ 0 ].borrow_mut().update_world_matrix();
+  // scenes[ 0 ].borrow_mut().update_world_matrix();
 
   let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
-  gl::info!( "Scene boudnig box: {:?}", scene_bounding_box );
   let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
   let dist = scene_bounding_box.max.mag();
   let exponent =
@@ -67,7 +67,6 @@ async fn run() -> Result< (), gl::WebglError >
     let exponent_field = ( ( bits >> 23 ) & 0xFF ) as i32;
     exponent_field - 127
   };
-  gl::info!( "Exponent: {:?}", exponent );
 
   // Camera setup
   let mut eye = gl::math::F32x3::from( [ 0.0, 1.0, 1.0 ] );
@@ -99,7 +98,6 @@ async fn run() -> Result< (), gl::WebglError >
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
 
   gui_setup::setup( renderer.clone() );
-
   // Define the update and draw logic
   let update_and_draw =
   {
@@ -108,8 +106,7 @@ async fn run() -> Result< (), gl::WebglError >
       // If textures are of different size, gl.view_port needs to be called
       let _time = t as f32 / 1000.0;
 
-      renderer.borrow_mut().render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera )
-      .expect( "Failed to render" );
+      renderer.borrow_mut().render( &gl, &mut scenes[ 0 ].borrow_mut(), &camera ).expect( "Failed to render" );
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );
