@@ -1023,7 +1023,6 @@ mod private
       }
       scene.update_world_matrix();
       scenes.push( Rc::new( RefCell::new( scene ) ) );
-      gl::info!( "{node_counter}" );
     }
 
     gl.bind_vertex_array( None );
