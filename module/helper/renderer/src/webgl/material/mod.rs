@@ -192,13 +192,6 @@ mod private
       hasher.finish()
     }
 
-    /// Returns a cached hash of the base shader source (without IBL).
-    /// Override in concrete types to avoid recomputing on every frame.
-    fn base_shader_hash( &self ) -> u64
-    {
-      self.get_shader_hash()
-    }
-
     /// Configures the position of the uniform texture samplers in the shader program.
     ///
     /// * `gl`: The `WebGl2RenderingContext`.
