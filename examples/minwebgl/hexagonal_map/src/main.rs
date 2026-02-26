@@ -141,7 +141,7 @@ async fn run() -> Result< (), gl::WebglError >
       let coord = gl::F64x2::new( e.client_x() as f64, e.client_y() as f64 ) * dpr;
       I32x2::from_array( [ coord.x() as i32, coord.y() as i32 ] )
     },
-  );
+  ).expect( "Failed to initialize input" );
 
   let water_color = [ 0.1, 0.2, 0.4 ];
 
@@ -206,7 +206,7 @@ async fn run() -> Result< (), gl::WebglError >
     {
       for Event { event_type, .. } in input.event_queue().iter()
       {
-        if let EventType::MouseButton( MouseButton::Main, Action::Press ) = event_type
+        if let EventType::PointerButton( _, _, MouseButton::Main, Action::Press ) = event_type
         {
           if river_point1_add.is_none()
           {
@@ -223,7 +223,7 @@ async fn run() -> Result< (), gl::WebglError >
             }
           }
         }
-        if let EventType::MouseButton( MouseButton::Secondary, Action::Press ) = event_type
+        if let EventType::PointerButton( _, _, MouseButton::Secondary, Action::Press ) = event_type
         {
           if river_point1_remove.is_none()
           {

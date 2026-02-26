@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+- **BREAKING**: Renamed `shadow::Light::light_size()` to `shadow::Light::size()`
+- Upgraded shadow depth format from `DEPTH_COMPONENT24` to `DEPTH_COMPONENT32F`
+
+### Added
+- `cull_mode` field to `PbrMaterial` for fine-grained face culling control
+- `Drop` implementation for `SwapFramebuffer` to prevent GPU memory leaks
+- GSAA (Geometric Specular Anti-Aliasing) for improved specular highlights
+- Reflection-space LOD bias for reduced IBL aliasing
+- Dither noise (IGN) for HDR banding reduction
+- Firefly suppression via selective Reinhard tonemapping
+- `highp` precision qualifiers for IBL and shadow map samplers
+
 ## [0.1.0] - 2024-08-08
 
 ### Added
