@@ -873,16 +873,6 @@ mod private
         if current_program_id != Some( *program_id )
         {
           shader_program.bind( gl );
-
-          // Re-bind IBL textures when switching programs
-          if let Some( ref ibl ) = self.ibl
-          {
-            if let Some( ibl_base_texture_unit ) = material.get_ibl_base_texture_unit()
-            {
-              ibl.bind( gl, ibl_base_texture_unit );
-            }
-          }
-
           current_program_id = Some( *program_id );
           last_material_id = None;
         }
@@ -901,10 +891,20 @@ mod private
         // Upload material uniforms on state change or when switching materials within same program
         if material.needs_update() || last_material_id != Some( material.get_id() )
         {
+          material.upload_on_state_change( gl, &material_upload_context )?;
+          material.clear_needs_update();
         }
-        material.upload_on_state_change( gl, &material_upload_context )?;
         material.upload( gl, &material_upload_context )?;
         material.bind( gl );
+
+        // Rebind IBL textures after material.bind() to ensure IBL units are not overwritten
+        if let Some( ref ibl ) = self.ibl
+        {
+          if let Some( ibl_base_texture_unit ) = material.get_ibl_base_texture_unit()
+          {
+            ibl.bind( gl, ibl_base_texture_unit );
+          }
+        }
 
         last_material_id = Some( material.get_id() );
 
@@ -945,15 +945,6 @@ mod private
         if current_program_id != Some( *program_id )
         {
           shader_program.bind( gl );
-
-          if let Some( ref ibl ) = self.ibl
-          {
-            if let Some( ibl_base_texture_unit ) = material.get_ibl_base_texture_unit()
-            {
-              ibl.bind( gl, ibl_base_texture_unit );
-            }
-          }
-
           current_program_id = Some( *program_id );
           last_material_id = None;
         }
@@ -970,10 +961,20 @@ mod private
 
         if material.needs_update() || last_material_id != Some( material.get_id() )
         {
+          material.upload_on_state_change( gl, &material_upload_context )?;
+          material.clear_needs_update();
         }
-        material.upload_on_state_change( gl, &material_upload_context )?;
         material.upload( gl, &material_upload_context )?;
         material.bind( gl );
+
+        // Rebind IBL textures after material.bind() to ensure IBL units are not overwritten
+        if let Some( ref ibl ) = self.ibl
+        {
+          if let Some( ibl_base_texture_unit ) = material.get_ibl_base_texture_unit()
+          {
+            ibl.bind( gl, ibl_base_texture_unit );
+          }
+        }
 
         last_material_id = Some( material.get_id() );
 

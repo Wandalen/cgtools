@@ -172,24 +172,17 @@ impl Material for GemMaterial
     gl::uniform::matrix_upload( gl, locations.get( "d" ).unwrap().clone(), rest_mat.raw_slice(), true )?;
     gl::uniform::matrix_upload( gl, locations.get( "l" ).unwrap().clone(), rest_mat.inverse().unwrap().raw_slice(), true )?;
 
-    self.upload_textures( gl );
-
     Ok( () )
-  }
-
-  fn upload_textures( &self, gl : &GL )
-  {
-    if let Some( ref t ) = self.environment_texture { t.upload( gl ); }
-    if let Some( ref t ) = self.cube_normal_map_texture.texture { t.upload( gl ); }
   }
 
   fn bind( &self, gl : &GL )
   {
-    let bind = | texture : &Option< TextureInfo >, i |
+    let bind = | texture : &Option< TextureInfo >, unit : u32 |
     {
       if let Some( ref t ) = texture
       {
-        gl.active_texture( gl::TEXTURE0 + i );
+        gl.active_texture( gl::TEXTURE0 + unit );
+        t.upload( gl );
         t.bind( gl );
       }
     };
