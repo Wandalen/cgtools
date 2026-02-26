@@ -153,7 +153,7 @@ impl Material for GemMaterial
     gl.uniform1i( Some( &m_loc ), 1 );
   }
 
-  fn upload_on_state_change
+ fn upload_on_state_change
   (
     &self,
     gl : &GL,
@@ -164,22 +164,19 @@ impl Material for GemMaterial
     let locations = ctx.locations;
     let upload = | loc, value : f32 | -> Result< (), gl::WebglError >
     {
-      let uniform_loc = get_uniform_location( locations, loc )?;
-      gl::uniform::upload( gl, Some( uniform_loc ), &value )?;
+      gl::uniform::upload( gl, locations.get( loc ).unwrap().clone(), &value )?;
       Ok( () )
     };
 
     let upload_array = | loc, value : &[ f32 ] | -> Result< (), gl::WebglError >
     {
-      let uniform_loc = get_uniform_location( locations, loc )?;
-      gl::uniform::upload( gl, Some( uniform_loc ), value )?;
+      gl::uniform::upload( gl, locations.get( loc ).unwrap().clone(), value )?;
       Ok( () )
     };
 
-    gl::uniform::upload( gl, Some( get_uniform_location( locations, "n" )? ), &self.ray_bounces )?;
+    gl::uniform::upload( gl, locations.get( "n" ).unwrap().clone(), &self.ray_bounces )?;
 
-    // Handle singular matrices with identity fallback
-    let inv_world = ctx.node.get_world_matrix().inverse().unwrap_or_else( gl::math::mat4x4::identity );
+    let inv_world = ctx.node.get_world_matrix().inverse().unwrap();
 
     let mut bb = ctx.node.bounding_box();
 
@@ -195,28 +192,20 @@ impl Material for GemMaterial
 
     let rest_mat = gl::math::mat3x3h::translation( -c ) * inv_world;
 
-    gl::uniform::matrix_upload( gl, Some( get_uniform_location( locations, "d" )? ), rest_mat.raw_slice(), true )?;
-    let rest_mat_inv = rest_mat.inverse().unwrap_or_else( gl::math::mat4x4::identity );
-    gl::uniform::matrix_upload( gl, Some( get_uniform_location( locations, "l" )? ), rest_mat_inv.raw_slice(), true )?;
-
-    self.upload_textures( gl );
+    gl::uniform::matrix_upload( gl, locations.get( "d" ).unwrap().clone(), rest_mat.raw_slice(), true )?;
+    gl::uniform::matrix_upload( gl, locations.get( "l" ).unwrap().clone(), rest_mat.inverse().unwrap().raw_slice(), true )?;
 
     Ok( () )
   }
 
-  fn upload_textures( &self, gl : &GL )
-  {
-    if let Some( ref t ) = self.environment_texture { t.upload( gl ); }
-    if let Some( ref t ) = self.cube_normal_map_texture.texture { t.upload( gl ); }
-  }
-
   fn bind( &self, gl : &GL )
   {
-    let bind = | texture : &Option< TextureInfo >, i |
+    let bind = | texture : &Option< TextureInfo >, unit : u32 |
     {
       if let Some( t ) = texture
       {
-        gl.active_texture( gl::TEXTURE0 + i );
+        gl.active_texture( gl::TEXTURE0 + unit );
+        t.upload( gl );
         t.bind( gl );
       }
     };

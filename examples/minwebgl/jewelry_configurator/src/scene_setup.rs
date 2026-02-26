@@ -97,7 +97,7 @@ pub fn configure_metal_materials( scene : &Rc< RefCell< Scene > >, config : &Jew
         material.alpha_mode = AlphaMode::Opaque;
         material.roughness_factor = config.roughness;
         material.metallic_factor = config.metalness;
-        material.needs_update = true;
+        material.set_needs_update();
       }
 
       Ok( () )
