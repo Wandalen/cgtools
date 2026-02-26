@@ -1,11 +1,11 @@
-use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo, MaterialUploadContext };
+use renderer::webgl::{ ShaderProgram, material::{ Material, TextureInfo, CullMode }, program::ProgramInfo, MaterialUploadContext };
 use renderer::impl_locations;
 use minwebgl as gl;
-use gl::{ GL, Former, WebGlProgram };
+use gl::{ GL, WebGlProgram };
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
 use crate::cube_normal_map_generator::CubeNormalData;
-use crate::{gem_frag, gem_vert};
+use crate::get_uniform_location;
 
 // Gem shader
 impl_locations!
@@ -35,7 +35,7 @@ impl_locations!
 );
 
 /// Represents the visual properties of a gem surface.
-#[ derive( Former, Debug ) ]
+#[ derive( Debug ) ]
 pub struct GemMaterial
 {
   /// A unique identifier for the material.
@@ -57,8 +57,6 @@ pub struct GemMaterial
   /// Refraction index of the diamond
   pub n2 : f32,
   /// Refractive index delta difference for red and blue color relative to n2
-  /// r = n2 + rainbow_delta
-  /// b = n2 - rainbow_delta
   pub rainbow_delta : f32,
   /// How fast light is absorbed inside of the medium
   pub distance_attenuation_speed : f32
@@ -87,6 +85,11 @@ impl GemMaterial
 
 impl Material for GemMaterial
 {
+  fn get_cull_mode( &self ) -> Option< CullMode >
+  {
+    Some( CullMode::Back )
+  }
+
   fn get_id( &self ) -> Uuid
   {
     self.id
@@ -102,7 +105,6 @@ impl Material for GemMaterial
     GemShader::new( gl, program ).dyn_clone()
   }
 
-
   fn type_name( &self ) -> &'static str
   {
     stringify!( GemMaterial )
@@ -110,12 +112,12 @@ impl Material for GemMaterial
 
   fn get_vertex_shader( &self ) -> String
   {
-    String::from_utf8_lossy( gem_vert::INPUT ).into()
+    include_str!( "../shaders/gem.vert" ).into()
   }
 
   fn get_fragment_shader( &self ) -> String
   {
-    String::from_utf8_lossy( gem_frag::INPUT ).into()
+    include_str!( "../shaders/gem.frag" ).into()
   }
 
   fn configure
@@ -126,11 +128,32 @@ impl Material for GemMaterial
   )
   {
     let locations = ctx.locations;
-    gl.uniform1i( locations.get( "v" ).unwrap().clone().as_ref() , 0 );
-    gl.uniform1i( locations.get( "m" ).unwrap().clone().as_ref() , 1 );
+
+    let v_loc = match get_uniform_location( locations, "v" )
+    {
+      Ok( loc ) => loc,
+      Err( e ) =>
+      {
+        gl::log::error!( "GemMaterial::configure error: {e}" );
+        return;
+      }
+    };
+
+    let m_loc = match get_uniform_location( locations, "m" )
+    {
+      Ok( loc ) => loc,
+      Err( e ) =>
+      {
+        gl::log::error!( "GemMaterial::configure error: {e}" );
+        return;
+      }
+    };
+
+    gl.uniform1i( Some( &v_loc ), 0 );
+    gl.uniform1i( Some( &m_loc ), 1 );
   }
 
-  fn upload_on_state_change
+ fn upload_on_state_change
   (
     &self,
     gl : &GL,
@@ -159,7 +182,7 @@ impl Material for GemMaterial
 
     bb.apply_transform_mut( inv_world );
     let c = bb.center();
-    
+
     upload( "s", self.env_map_intensity )?;
     upload( "w", self.cube_normal_map_texture.max_distance )?;
     upload( "a", self.n2 )?;
@@ -179,7 +202,7 @@ impl Material for GemMaterial
   {
     let bind = | texture : &Option< TextureInfo >, unit : u32 |
     {
-      if let Some( ref t ) = texture
+      if let Some( t ) = texture
       {
         gl.active_texture( gl::TEXTURE0 + unit );
         t.upload( gl );
@@ -205,7 +228,7 @@ impl Clone for GemMaterial
     {
       id : Uuid::new_v4(),
       ray_bounces : self.ray_bounces,
-      color : self.color.clone(),
+      color : self.color,
       env_map_intensity : self.env_map_intensity,
       radius : self.radius,
       environment_texture : self.environment_texture.clone(),
