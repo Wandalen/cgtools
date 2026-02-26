@@ -928,6 +928,7 @@ mod private
       gl.enable( gl::DEPTH_TEST );
       gl.depth_mask( false );
       gl.depth_func( gl::LESS );
+      // Culling should be disabled as we need both sides of transparent object
       gl.disable( gl::CULL_FACE );
 
       // Sort transparent nodes by program to minimize state switches
@@ -949,7 +950,6 @@ mod private
           last_material_id = None;
         }
 
-        // enable_material_face_properties( gl, &**material );
         enable_material_color_mask( gl, &**material );
 
         let material_upload_context = MaterialUploadContext
