@@ -1015,10 +1015,8 @@ mod private
     for gltf_scene in gltf_file.scenes()
     {
       let mut scene = Scene::default();
-      let mut node_counter = 0;
       for gltf_node in gltf_scene.nodes()
       {
-        node_counter += 1;
         scene.add( nodes[ gltf_node.index() ].clone() );
       }
       scene.update_world_matrix();
