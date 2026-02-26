@@ -55,7 +55,7 @@ fn draw_hexes() -> Result< (), minwebgl::WebglError >
   let dpr = web_sys::window().unwrap().device_pixel_ratio() as f32;
   let canvas_size = ( canvas.width() as f32, canvas.height() as f32 ).into_vector() / dpr;
 
-  let mut input = Input::new( Some( canvas.clone().dyn_into().unwrap() ), browser_input::CLIENT );
+  let mut input = Input::new( Some( canvas.clone().dyn_into().unwrap() ), browser_input::CLIENT ).expect( "Failed to initialize input" );
 
   // inclusize grid bounds
   let region =
@@ -350,7 +350,7 @@ fn pathfind_demo
   // update obstacles and start position
   for browser_input::Event { event_type, .. } in input.event_queue().as_slice()
   {
-    if let browser_input::EventType::MouseButton( button, browser_input::Action::Press ) = event_type
+    if let browser_input::EventType::PointerButton( _, _, button, browser_input::Action::Press ) = event_type
     {
       if *button == mouse::MouseButton::Main
       && obstacles.contains_key( &selected_hex_coord )

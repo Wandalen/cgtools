@@ -92,9 +92,15 @@ uniform float roughnessFactor; // Default: 1
 uniform vec4 baseColorFactor; // Default: [1, 1, 1, 1]
 
 #ifdef USE_IBL
-  uniform highp samplerCube irradianceTexture;
-  uniform highp samplerCube prefilterEnvMap;
-  uniform highp sampler2D integrateBRDF;
+  #ifdef GL_FRAGMENT_PRECISION_HIGH
+    uniform highp samplerCube irradianceTexture;
+    uniform highp samplerCube prefilterEnvMap;
+    uniform highp sampler2D integrateBRDF;
+  #else
+    uniform mediump samplerCube irradianceTexture;
+    uniform mediump samplerCube prefilterEnvMap;
+    uniform mediump sampler2D integrateBRDF;
+  #endif
   uniform vec2 mipmapDistanceRange;
 #endif
 #ifdef USE_KHR_materials_specular
@@ -451,6 +457,13 @@ float ditherNoise( vec2 fragCoord )
 }
 
 #ifdef USE_IBL
+
+  float remapClamped( float value, float inMin, float inMax, float outMin, float outMax )
+  {
+    float t = clamp( ( value - inMin ) / ( inMax - inMin ), 0.0, 1.0 );
+    return mix( outMin, outMax, t );
+  }
+
   void sampleEnvIrradiance( const in vec3 N, const in vec3 V, float viewDistance, const in PhysicalMaterial material, inout ReflectedLight reflectedLight )
   {
     float alpha = pow2( material.roughness );
@@ -500,6 +513,7 @@ float ditherNoise( vec2 fragCoord )
     reflectedLight.indirectDiffuse += diffuseBRDF;
     reflectedLight.indirectSpecular += specularBRDF;
   }
+
 #endif
 
 float alpha_weight( float a )
