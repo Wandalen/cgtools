@@ -501,8 +501,9 @@ mod private
   /// Manages the rendering process, including program management, IBL setup, and drawing objects in the scene.
   pub struct Renderer
   {
-    /// Full shader source → program UUID
-    shader_source_registry : FxHashMap< Box< str >, uuid::Uuid >,
+    /// (TypeId, defines) → program UUID.
+    /// Materials of the same concrete type with the same defines produce identical shaders.
+    shader_source_registry : FxHashMap< ( std::any::TypeId, String ), uuid::Uuid >,
     /// Program UUID → compiled ShaderProgram
     compiled_programs : FxHashMap< uuid::Uuid, Box< dyn ShaderProgram > >,
     /// Material UUID → program UUID
@@ -771,6 +772,7 @@ mod private
         {
           let primitive = primitive_rc.borrow();
           let material = primitive.material.borrow();
+
           let material_id = material.get_id();
           let use_ibl = self.ibl.is_some() && material.get_ibl_base_texture_unit().is_some();
 
@@ -780,19 +782,21 @@ mod private
           }
           else
           {
-            // Build full shader source
+            // Build cache key from TypeId + defines (materials of the same concrete type
+            // with the same defines always produce identical shader source)
             let defines = material.get_defines_str();
             let ibl_define = if use_ibl { "#define USE_IBL\n" } else { "" };
-            let vs_src = format!( "#version 300 es\n{}\n{}", defines, material.get_vertex_shader() );
-            let fs_src = format!( "#version 300 es\n{}\n{}\n{}", defines, ibl_define, material.get_fragment_shader() );
-            let src : Box< str > = format!( "{vs_src}{fs_src}" ).into_boxed_str();
+            let full_defines = format!( "{}{}", defines, ibl_define );
+            let cache_key = ( ( **material ).type_id(), full_defines.clone() );
 
-            let prog_id = if let Some( &existing_id ) = self.shader_source_registry.get( &src )
+            let prog_id = if let Some( &existing_id ) = self.shader_source_registry.get( &cache_key )
             {
               existing_id
             }
             else
             {
+              let vs_src = format!( "#version 300 es\n{}\n{}", defines, material.get_vertex_shader() );
+              let fs_src = format!( "#version 300 es\n{}\n{}\n{}", defines, ibl_define, material.get_fragment_shader() );
               let program = gl::ProgramFromSources::new( &vs_src, &fs_src ).compile_and_link( gl )?;
               let shader_program = material.make_shader_program( gl, &program );
               let new_id = uuid::Uuid::new_v4();
@@ -822,7 +826,7 @@ mod private
                 }
               }
 
-              self.shader_source_registry.insert( src, new_id );
+              self.shader_source_registry.insert( cache_key, new_id );
               self.compiled_programs.insert( new_id, shader_program );
               new_id
             };
