@@ -16,6 +16,11 @@ layout( location = 3 ) in vec3 inPointB;
   layout( location = 5 ) in vec3 colorB;
 #endif
 
+#ifdef USE_DASH
+  layout( location = 6 ) in float distanceA;
+  layout( location = 7 ) in float distanceB;
+#endif
+
 uniform mat4 u_world_matrix;
 uniform mat4 u_view_matrix;
 uniform mat4 u_projection_matrix;
@@ -27,24 +32,36 @@ out vec2 vUv;
 out vec3 vViewPos;
 out vec3 vViewA;
 out vec3 vViewB;
+
+
 #ifdef USE_VERTEX_COLORS
   out vec3 vColor;
 #endif
 
-void trimSegment( const in vec3 start, inout vec3 end )
-{
+#if !defined( USE_WORLD_UNITS ) && defined( USE_DASH )
+  flat out vec2 vScreenA;
+  flat out vec2 vScreenB;
+  flat out float vClipWA;
+  flat out float vClipWB;
+#endif
 
+#ifdef USE_DASH
+  out float vLineDistance;
+  flat out float vLineDistanceA;
+  flat out float vLineDistanceB;
+#endif
+
+float trimSegment( const in vec3 start, const in vec3 end )
+{
   // trim end segment so it terminates between the camera plane and the near plane
 
   // conservative estimate of the near plane
   float a = u_projection_matrix[ 2 ][ 2 ]; // 3nd entry in 3th column
   float b = u_projection_matrix[ 3 ][ 2 ]; // 3nd entry in 4th column
-  float nearEstimate = - 0.5 * b / a;
+  float nearEstimate = b / (a - 1.0);
 
   float alpha = ( nearEstimate - start.z ) / ( end.z - start.z );
-
-  end = mix( start, end, alpha );
-
+  return alpha;
 }
 
 void main() 
@@ -52,17 +69,32 @@ void main()
   vec3 viewA = ( u_view_matrix * u_world_matrix * vec4( inPointA, 1.0 ) ).xyz;
   vec3 viewB = ( u_view_matrix * u_world_matrix * vec4( inPointB, 1.0 ) ).xyz;
 
+  #ifdef USE_DASH
+    float newDistanceA = distanceA;
+    float newDistanceB = distanceB;
+  #endif
+
   bool perspective = ( u_projection_matrix[ 2 ][ 3 ] == - 1.0 ); // 4th entry in the 3rd column
 
   if ( perspective ) 
   {
     if ( viewA.z < 0.0 && viewB.z >= 0.0 ) 
     {
-      trimSegment( viewA, viewB );
+      float alpha = trimSegment( viewA, viewB );
+      viewB = mix( viewA, viewB, alpha );
+
+      #ifdef USE_DASH
+        newDistanceB = mix( newDistanceA, newDistanceB, alpha );
+      #endif
     } 
     else if ( viewB.z < 0.0 && viewA.z >= 0.0 ) 
     {
-      trimSegment( viewB, viewA );
+      float alpha = trimSegment( viewB, viewA );
+      viewA = mix( viewB, viewA, alpha );
+
+      #ifdef USE_DASH
+        newDistanceA = mix( newDistanceB, newDistanceA, alpha );
+      #endif
     }
   }
 
@@ -90,7 +122,7 @@ void main()
     {
       viewPos += 2.0 * -right * halfWith;
     }
-    
+
     clip = u_projection_matrix * vec4( viewPos, 1.0 );
     vec3 ndcShift = position.y < 0.5 ? clipA.xyz / clipA.w : clipB.xyz / clipB.w;
     clip.z = ndcShift.z * clip.w;
@@ -122,6 +154,20 @@ void main()
     
     clip.xy = clip.w * ( 2.0 * p / u_resolution - 1.0 );
 
+
+    #ifdef USE_DASH
+      vScreenA = screenA;
+      vScreenB = screenB;
+      vClipWA = clipA.w;
+      vClipWB = clipB.w;
+    #endif
+
+  #endif
+
+  #ifdef USE_DASH
+    vLineDistance = position.y < 0.5 ? newDistanceA : newDistanceB;
+    vLineDistanceA = newDistanceA;
+    vLineDistanceB = newDistanceB;
   #endif
 
   vUv =  uv;

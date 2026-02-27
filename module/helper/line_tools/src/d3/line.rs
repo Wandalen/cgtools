@@ -34,7 +34,13 @@ mod private
     /// A flag to set where to use width in world units, or screen space units
     pub use_world_units : bool,
     /// Fragment shader source
-    pub fragment_shader : String
+    pub fragment_shader : String,
+    /// Specifies the pattern of the dash, if `use_dash`` is `true``
+    #[ cfg( feature = "distance" ) ]
+    pub dash_pattern : DashPattern,
+    #[ cfg( feature = "distance" ) ]
+    /// A flag to set whether to use dashed line or not
+    pub use_dash : bool,
   }
 
   impl LineRenderState
@@ -59,10 +65,51 @@ mod private
         s += "#define USE_WORLD_UNITS\n";
       }
 
+      #[ cfg( feature = "distance" ) ]
+      if self.use_dash
+      {
+        s += "#define USE_DASH\n";
+        
+        match self.dash_pattern
+        {
+          DashPattern::V1( _ ) => s += "#define USE_DASH_V1\n",
+          DashPattern::V2( _ ) => s += "#define USE_DASH_V2\n",
+          DashPattern::V3( _ ) => s += "#define USE_DASH_V3\n",
+          DashPattern::V4( _ ) => s += "#define USE_DASH_V4\n",
+        }
+
+      }
+
       s
     }
   }
 
+  /// Dash pattern for a 3D line, uploaded as the `u_dash_pattern` shader uniform.
+  ///
+  /// Each variant defines a repeating on/off pattern with a different number of segments.
+  /// Values represent segment lengths within one pattern.
+  /// Defaults to `V1(0.5)`.
+  #[ derive( Debug, Clone, Copy ) ]
+  pub enum DashPattern
+  {
+    /// Single-segment pattern with one dash length.
+    V1( f32 ),
+    /// Two-segment pattern (e.g. dash, gap).
+    V2( [ f32; 2 ] ),
+    /// Three-segment pattern (e.g. dash, gap, dash).
+    V3( [ f32; 3 ] ),
+    /// Four-segment pattern (e.g. dash, gap, dash, gap).
+    V4( [ f32; 4 ] )
+  }
+
+  impl Default for DashPattern
+  {
+    fn default() -> Self 
+    {
+      Self::V1( 0.5 )   
+    }
+  }
+    
   /// Tracks the state change of the line
   #[ derive( Debug, Clone, Default ) ]
   pub struct LineChangeState
@@ -107,6 +154,7 @@ mod private
       let index_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to index_buffer" ) )?;
       let uv_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to uv_buffer" ) )?;
       let color_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to color_buffer" ) )?;
+      let distances_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to distance_buffer" ) )?;
 
       gl::buffer::upload( gl, &position_buffer, &vertices.iter().copied().flatten().collect::< Vec< f32 > >(), gl::STATIC_DRAW );
       gl::buffer::upload( gl, &uv_buffer, &uvs.iter().copied().flatten().collect::< Vec< f32 > >(), gl::STATIC_DRAW );
@@ -124,6 +172,13 @@ mod private
       {
         gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 0 ).divisor( 1 ).attribute_pointer( gl, 4, &color_buffer )?;
         gl::BufferDescriptor::new::< [ f32; 3 ] >().stride( 3 ).offset( 3 ).divisor( 1 ).attribute_pointer( gl, 5, &color_buffer )?;
+      }
+
+      #[ cfg( feature = "distance" ) ]
+      if self.render_state.use_dash
+      {
+        gl::BufferDescriptor::new::< [ f32; 1 ] >().stride( 1 ).offset( 0 ).divisor( 1 ).attribute_pointer( gl, 6, &distances_buffer )?;
+        gl::BufferDescriptor::new::< [ f32; 1 ] >().stride( 1 ).offset( 1 ).divisor( 1 ).attribute_pointer( gl, 7, &distances_buffer )?;
       }
 
       let program = Program
@@ -147,6 +202,7 @@ mod private
       mesh.buffer_add( "points", points_buffer );
       mesh.buffer_add( "uv", uv_buffer );
       mesh.buffer_add( "colors", color_buffer );
+      mesh.buffer_add( "distances", distances_buffer );
 
       self.render_state.mesh = Some( mesh );
 
@@ -191,6 +247,18 @@ mod private
         b_program.vertex_shader = Some( vertex_shader );
 
         b_program.uniform_locations_clear();
+
+        if self.render_state.use_dash
+        {
+          match self.render_state.dash_pattern
+          {
+            DashPattern::V1( v ) => b_program.upload( gl, "u_dash_pattern", &v )?,
+            DashPattern::V2( v ) => b_program.upload( gl, "u_dash_pattern", &v )?,
+            DashPattern::V3( v ) => b_program.upload( gl, "u_dash_pattern", &v )?,
+            DashPattern::V4( v ) => b_program.upload( gl, "u_dash_pattern", &v )?,
+          }
+        }
+
         b_program.all_uniforms_upload( gl )?;
 
         self.change_state.defines_changed = false;
@@ -203,6 +271,13 @@ mod private
         
         let points : Vec< f32 > = self.geometry.points.iter().flat_map( | p | p.to_array() ).collect();
         gl::buffer::upload( &gl, &points_buffer, &points, gl::STATIC_DRAW );
+
+        #[ cfg( feature = "distance" ) ]
+        {
+          let distances_buffer = mesh.buffer_get( "distances" );
+          let distances : Vec< f32 > = self.geometry.distances.iter().copied().collect();
+          gl::buffer::upload( &gl, &distances_buffer, &distances, gl::STATIC_DRAW );
+        }
 
         let b_program = mesh.program_get_mut( "body" );
         b_program.instance_count = Some( ( self.geometry.points.len() as f32 - 1.0 ).max( 0.0 ) as u32 );
@@ -224,6 +299,25 @@ mod private
       Ok( () )
     }
 
+    #[ cfg( feature = "distance" ) ]
+    /// Sets the dash pattern for the line
+    pub fn dash_pattern_set( &mut self, value : DashPattern )
+    {
+      if std::mem::discriminant( &self.render_state.dash_pattern ) != std::mem::discriminant( &value )
+      {
+        self.change_state.defines_changed = true;
+      }
+      self.render_state.dash_pattern = value;
+    }
+
+    #[ cfg( feature = "distance" ) ]
+    /// Sets whether the world units for the line width will be used
+    pub fn use_dash( &mut self, value : bool )
+    {
+      self.render_state.use_dash = value;
+      self.change_state.defines_changed = true;
+    }
+
     /// Sets whether the alpha to coverage will be used or not
     pub fn use_alpha_to_coverage( &mut self, value : bool )
     {
@@ -243,7 +337,20 @@ mod private
     {
       self.mesh_update( gl )?;
 
-      let mesh = self.render_state.mesh.as_ref().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
+      let mesh = self.render_state.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
+
+      if self.render_state.use_dash
+      {
+        let b_program = mesh.program_get_mut( "body" );
+        match self.render_state.dash_pattern
+        {
+          DashPattern::V1( v ) => b_program.upload( gl, "u_dash_pattern", &v )?,
+          DashPattern::V2( v ) => b_program.upload( gl, "u_dash_pattern", &v )?,
+          DashPattern::V3( v ) => b_program.upload( gl, "u_dash_pattern", &v )?,
+          DashPattern::V4( v ) => b_program.upload( gl, "u_dash_pattern", &v )?,
+        }
+      }
+
       mesh.draw( gl, "body" );
 
       Ok( () )
@@ -261,6 +368,7 @@ crate::mod_interface!
 
   orphan use
   {
-    Line
+    Line,
+    DashPattern
   };
 }

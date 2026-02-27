@@ -6,8 +6,33 @@ precision highp float;
 
 // #include <defines>
 
+const float MAX_FLOAT = 3.402823466e+38;
+
 uniform vec3 u_color;
 uniform float u_width;
+
+#ifdef USE_DASH
+  uniform float u_dash_offset;
+  #ifdef USE_DASH_V1
+    uniform float u_dash_pattern;
+  #endif
+  #ifdef USE_DASH_V2
+    uniform vec2 u_dash_pattern;
+  #endif
+  #ifdef USE_DASH_V3
+    uniform vec3 u_dash_pattern;
+  #endif
+  #ifdef USE_DASH_V4
+    uniform vec4 u_dash_pattern;
+  #endif
+#endif
+
+#if !defined( USE_WORLD_UNITS ) && defined( USE_DASH )
+  flat in vec2 vScreenA;
+  flat in vec2 vScreenB;
+  flat in float vClipWA;
+  flat in float vClipWB;
+#endif
 
 in vec2 vUv;
 in vec3 vViewPos;
@@ -17,6 +42,13 @@ in vec3 vViewB;
 #ifdef USE_VERTEX_COLORS
   in vec3 vColor;
 #endif
+
+#ifdef USE_DASH
+  in float vLineDistance;
+  flat in float vLineDistanceA;
+  flat in float vLineDistanceB;
+#endif
+
 
 out vec4 frag_color;
 
@@ -50,49 +82,318 @@ vec2 closestLineToLine( vec3 p1, vec3 p2, vec3 p3, vec3 p4 )
 
 }
 
-void main()
-{
-  float alpha = 1.0;
-  vec3 col = u_color; 
+ #ifdef USE_DASH
+  float getDistanceToDash( vec3 rayEnd, float i )
+  {
+    #if !defined( USE_DASH_V3 ) && !defined( USE_DASH_V4 )
+      #ifdef USE_DASH_V1
+        float dashSize = u_dash_pattern;
+        float dashGap = u_dash_pattern;
+      #endif 
+      
+      #ifdef USE_DASH_V2
+        float dashSize = u_dash_pattern.x;
+        float dashGap = u_dash_pattern.y;
+      #endif 
 
-  #ifdef USE_WORLD_UNITS
-    vec3 rayEnd = normalize( vViewPos.xyz ) * 1e5;
-    vec3 lineDir = vViewB - vViewA;
+      float totalSegmentSize = dashSize + dashGap;  
 
-    vec2 params = closestLineToLine( vViewA, vViewB, vec3( 0.0, 0.0, 0.0 ), rayEnd );
+      float dashCoverage = mod( vLineDistance + u_dash_offset, totalSegmentSize );
 
-    vec3 p1 = vViewA + lineDir * params.x;
+      float distanceA = vLineDistance - dashCoverage;
+      float distanceB = distanceA + dashSize;
+
+      distanceA += i * ( totalSegmentSize );
+      distanceB += i * ( totalSegmentSize );
+    #elif defined( USE_DASH_V3 )
+      float dashSize1 = u_dash_pattern.x;
+      float dashGap1 = u_dash_pattern.y;
+      float dashSize2 = u_dash_pattern.z;
+
+      float totalSegmentSize = dashSize1 + dashGap1 + dashSize2;  
+
+      float dashCoverage = mod( vLineDistance + u_dash_offset, totalSegmentSize );
+
+      float distanceA = 0.0;
+      float distanceB = 0.0;
+
+      if( int( floor( ( vLineDistance + u_dash_offset ) / totalSegmentSize ) ) % 2 == 0 )
+      {
+        float k = floor( dashCoverage / ( dashSize1 + dashGap1 ) );
+        distanceA = vLineDistance - dashCoverage + mix( 0.0, dashSize1 + dashGap1, k );
+        distanceB = distanceA + mix( dashSize1, dashSize2, k );
+
+        distanceA += i * mix
+        ( 
+          mix( dashSize2 + dashGap1, dashSize1 + dashGap1, step( 0.0, i ) ), 
+          mix( dashSize1 + dashGap1, dashSize2 + dashSize1, step( 0.0, i ) ), 
+          k 
+        ); 
+
+        distanceB += i * mix
+        ( 
+          mix( dashSize1 + dashSize2, dashSize2 + dashGap1, step( 0.0, i ) ), 
+          mix( dashSize2 + dashGap1, dashSize1 + dashGap1, step( 0.0, i ) ), 
+          k 
+        );
+      }
+      else
+      {
+        distanceA = vLineDistance - dashCoverage + dashSize1;
+        distanceB = distanceA + dashGap1;
+
+        distanceA += i * mix( dashSize1 + dashSize2, dashGap1 + dashSize2, step( 0.0, i ) );
+        distanceB += i * mix( dashSize1 + dashGap1, dashSize2 + dashSize1, step( 0.0, i ) );
+      }
+
+    #elif defined( USE_DASH_V4 )
+      float dashSize1 = u_dash_pattern.x;
+      float dashGap1 = u_dash_pattern.y;
+      float dashSize2 = u_dash_pattern.z;
+      float dashGap2 = u_dash_pattern.w;
+
+      float totalSegmentSize = dashSize1 + dashGap1 + dashSize2 + dashGap2;  
+
+      float dashCoverage = mod( vLineDistance + u_dash_offset, totalSegmentSize );
+      float k = min( floor( dashCoverage / ( dashSize1 + dashGap1 ) ), 1.0 );
+
+      float distanceA = mix( vLineDistance - dashCoverage, vLineDistance - dashCoverage + dashSize1 + dashGap1, k );
+      float distanceB = distanceA + mix( dashSize1, dashSize2, k );
+
+      distanceA += i * mix
+      ( 
+        mix( dashSize2 + dashGap2, dashSize1 + dashGap1, step( 0.0, i ) ), 
+        mix( dashSize1 + dashGap1, dashSize2 + dashGap2, step( 0.0, i ) ), 
+        k 
+      ); 
+
+      distanceB += i * mix
+      ( 
+        mix( dashSize1 + dashGap2, dashSize2 + dashGap1, step( 0.0, i ) ), 
+        mix( dashSize2 + dashGap1, dashSize1 + dashGap2, step( 0.0, i ) ), 
+        k 
+      ); 
+    #endif
+
+    if( distanceB <= vLineDistanceA + 1e-6 || distanceA >= vLineDistanceB - 1e-6 ) { return MAX_FLOAT; }
+
+    vec3 lineStart = mix( vViewA, vViewB, clamp( ( distanceA - vLineDistanceA ) / ( vLineDistanceB - vLineDistanceA ), 0.0, 1.0 ) );
+    vec3 lineEnd = mix( vViewA, vViewB, clamp( ( distanceB - vLineDistanceA ) / ( vLineDistanceB - vLineDistanceA ), 0.0, 1.0 ) );
+
+    vec3 lineDir = lineEnd - lineStart;
+    vec2 params = closestLineToLine( lineStart, lineEnd, vec3( 0.0, 0.0, 0.0 ), rayEnd );
+
+    vec3 p1 = lineStart + lineDir * params.x;
     vec3 p2 = rayEnd * params.y;
     vec3 delta = p1 - p2;
     float len = length( delta );
     float norm = len / u_width;
+    return norm;
+  }
 
-    #ifdef USE_ALPHA_TO_COVERAGE
-      float dnorm = fwidth( norm );
-      alpha = 1.0 - smoothstep( 0.5 - dnorm, 0.5 + dnorm, norm );
+  
+  #ifndef USE_WORLD_UNITS
+    float getDistanceToDashScreenVersion( float i )
+    {
+      #if !defined( USE_DASH_V3 ) && !defined( USE_DASH_V4 )
+        #ifdef USE_DASH_V1
+          float dashSize = u_dash_pattern;
+          float dashGap = u_dash_pattern;
+        #endif 
+        
+        #ifdef USE_DASH_V2
+          float dashSize = u_dash_pattern.x;
+          float dashGap = u_dash_pattern.y;
+        #endif 
+
+        float totalSegmentSize = dashSize + dashGap;  
+
+        float dashCoverage = mod( vLineDistance + u_dash_offset, totalSegmentSize );
+
+        float distanceA = vLineDistance - dashCoverage;
+        float distanceB = distanceA + dashSize;
+
+        distanceA += i * ( totalSegmentSize );
+        distanceB += i * ( totalSegmentSize );
+      #elif defined( USE_DASH_V3 )
+        float dashSize1 = u_dash_pattern.x;
+        float dashGap1 = u_dash_pattern.y;
+        float dashSize2 = u_dash_pattern.z;
+
+        float totalSegmentSize = dashSize1 + dashGap1 + dashSize2;  
+
+        float dashCoverage = mod( vLineDistance + u_dash_offset, totalSegmentSize );
+
+        float distanceA = 0.0;
+        float distanceB = 0.0;
+
+        if( int( floor( ( vLineDistance + u_dash_offset ) / totalSegmentSize ) ) % 2 == 0 )
+        {
+          float k = floor( dashCoverage / ( dashSize1 + dashGap1 ) );
+          distanceA = vLineDistance - dashCoverage + mix( 0.0, dashSize1 + dashGap1, k );
+          distanceB = distanceA + mix( dashSize1, dashSize2, k );
+
+          distanceA += i * mix
+          ( 
+            mix( dashSize2 + dashGap1, dashSize1 + dashGap1, step( 0.0, i ) ), 
+            mix( dashSize1 + dashGap1, dashSize2 + dashSize1, step( 0.0, i ) ), 
+            k 
+          ); 
+
+          distanceB += i * mix
+          ( 
+            mix( dashSize1 + dashSize2, dashSize2 + dashGap1, step( 0.0, i ) ), 
+            mix( dashSize2 + dashGap1, dashSize1 + dashGap1, step( 0.0, i ) ), 
+            k 
+          );
+        }
+        else
+        {
+          distanceA = vLineDistance - dashCoverage + dashSize1;
+          distanceB = distanceA + dashGap1;
+
+          distanceA += i * mix( dashSize1 + dashSize2, dashGap1 + dashSize2, step( 0.0, i ) );
+          distanceB += i * mix( dashSize1 + dashGap1, dashSize2 + dashSize1, step( 0.0, i ) );
+        }
+
+      #elif defined( USE_DASH_V4 )
+        float dashSize1 = u_dash_pattern.x;
+        float dashGap1 = u_dash_pattern.y;
+        float dashSize2 = u_dash_pattern.z;
+        float dashGap2 = u_dash_pattern.w;
+
+        float totalSegmentSize = dashSize1 + dashGap1 + dashSize2 + dashGap2;  
+
+        float dashCoverage = mod( vLineDistance + u_dash_offset, totalSegmentSize );
+        float k = min( floor( dashCoverage / ( dashSize1 + dashGap1 ) ), 1.0 );
+
+        float distanceA = mix( vLineDistance - dashCoverage, vLineDistance - dashCoverage + dashSize1 + dashGap1, k );
+        float distanceB = distanceA + mix( dashSize1, dashSize2, k );
+
+        distanceA += i * mix
+        ( 
+          mix( dashSize2 + dashGap2, dashSize1 + dashGap1, step( 0.0, i ) ), 
+          mix( dashSize1 + dashGap1, dashSize2 + dashGap2, step( 0.0, i ) ), 
+          k 
+        ); 
+
+        distanceB += i * mix
+        ( 
+          mix( dashSize1 + dashGap2, dashSize2 + dashGap1, step( 0.0, i ) ), 
+          mix( dashSize2 + dashGap1, dashSize1 + dashGap2, step( 0.0, i ) ), 
+          k 
+        ); 
+      #endif
+
+      if( distanceB <= vLineDistanceA + 1e-6 || distanceA >= vLineDistanceB - 1e-6 ) { return MAX_FLOAT; }
+
+      // Map world-space parameters to perspective-correct screen-space parameters.
+      // Under perspective projection, screen position is not linear in world-space parameter t.
+      // The correct screen parameter is: s = t * wB / ((1-t)*wA + t*wB),
+      // where wA, wB are clip-space w values of the endpoints.
+      float tA = clamp( ( distanceA - vLineDistanceA ) / ( vLineDistanceB - vLineDistanceA ), 0.0, 1.0 );
+      float tB = clamp( ( distanceB - vLineDistanceA ) / ( vLineDistanceB - vLineDistanceA ), 0.0, 1.0 );
+      float sA = tA * vClipWB / ( ( 1.0 - tA ) * vClipWA + tA * vClipWB );
+      float sB = tB * vClipWB / ( ( 1.0 - tB ) * vClipWA + tB * vClipWB );
+      vec3 lineStart = vec3( mix( vScreenA, vScreenB, sA ), 0.0 );
+      vec3 lineEnd = vec3( mix( vScreenA, vScreenB, sB ), 0.0 );
+
+      vec3 rayStart = vec3(gl_FragCoord.xy, -1.0);
+      vec3 rayEnd = vec3(gl_FragCoord.xy, 1.0);
+      vec3 lineDir = lineEnd - lineStart;
+      vec2 params = closestLineToLine( lineStart, lineEnd, rayStart, rayEnd );
+
+      vec3 p1 = lineStart + lineDir * params.x;
+      vec3 p2 = rayStart + (rayEnd -rayStart) * params.y;
+      vec3 delta = p1 - p2;
+      float len = length( delta );
+      float norm = len / u_width;
+      return norm;
+    }
+  #endif
+ #endif
+
+void main()
+{
+  float alpha = 1.0;
+  vec3 col = u_color;
+
+  #ifdef USE_WORLD_UNITS
+    #ifdef USE_DASH
+      vec3 rayEnd = normalize( vViewPos ) * 1e5;
+      
+      float norm1 = getDistanceToDash( rayEnd, -1.0 );
+      float norm2 = getDistanceToDash( rayEnd, 0.0 );
+      float norm3 = getDistanceToDash( rayEnd, 1.0 );
+
+      float norm = min( min( norm1, norm2 ), norm3 );
+      //float norm = norm2;
+      if( norm == MAX_FLOAT ) { discard; }
+
+
+      #ifdef USE_ALPHA_TO_COVERAGE
+        float dnorm = fwidth( norm );
+        alpha = 1.0 - smoothstep( 0.5 - dnorm, 0.5 + dnorm, norm );
+      #else
+        if ( norm > 0.5 ) { discard; }
+      #endif
     #else
-      if ( norm > 0.5 ) { discard; }
+      vec3 rayEnd = normalize( vViewPos ) * 1e5;
+      vec3 lineDir = vViewB - vViewA;
+
+      vec2 params = closestLineToLine( vViewA, vViewB, vec3( 0.0, 0.0, 0.0 ), rayEnd );
+
+      vec3 p1 = vViewA + lineDir * params.x;
+      vec3 p2 = rayEnd * params.y;
+      vec3 delta = p1 - p2;
+      float len = length( delta );
+      float norm = len / u_width;
+
+
+      #ifdef USE_ALPHA_TO_COVERAGE
+        float dnorm = fwidth( norm );
+        alpha = 1.0 - smoothstep( 0.5 - dnorm, 0.5 + dnorm, norm );
+      #else
+        if ( norm > 0.5 ) { discard; }
+      #endif
     #endif
   #else // Screen space units
-    #ifdef USE_ALPHA_TO_COVERAGE
-      float a = vUv.x;
-      float b = ( vUv.y > 0.0 ) ? vUv.y - 1.0 : vUv.y + 1.0;
-      float len2 = a * a + b * b;
-      float dlen = fwidth( len2 );
+    #ifdef USE_DASH
+      float norm1 = getDistanceToDashScreenVersion( -1.0 );
+      float norm2 = getDistanceToDashScreenVersion( 0.0 );
+      float norm3 = getDistanceToDashScreenVersion( 1.0 );
 
-      if ( abs( vUv.y ) > 1.0 ) 
-      {
-        alpha = 1.0 - smoothstep( 1.0 - dlen, 1.0 + dlen, len2 );
-      }
+      float norm = min( min( norm1, norm2 ), norm3 );
+
+      if( norm == MAX_FLOAT ) { discard; }
+
+      #ifdef USE_ALPHA_TO_COVERAGE
+        float dnorm = fwidth( norm );
+        alpha = 1.0 - smoothstep( 1.0 - dnorm, 1.0 + dnorm, norm );
+      #else
+        if ( norm > 1.0 ) { discard; }
+      #endif
     #else
-      if( abs( vUv.y ) > 1.0 )
-      {
+      #ifdef USE_ALPHA_TO_COVERAGE
         float a = vUv.x;
         float b = ( vUv.y > 0.0 ) ? vUv.y - 1.0 : vUv.y + 1.0;
         float len2 = a * a + b * b;
+        float dlen = fwidth( len2 );
 
-        if ( len2 > 1.0 ) discard;
-      }
+        if ( abs( vUv.y ) > 1.0 ) 
+        {
+          alpha = 1.0 - smoothstep( 1.0 - dlen, 1.0 + dlen, len2 );
+        }
+      #else
+        if( abs( vUv.y ) > 1.0 )
+        {
+          float a = vUv.x;
+          float b = ( vUv.y > 0.0 ) ? vUv.y - 1.0 : vUv.y + 1.0;
+          float len2 = a * a + b * b;
+
+          if ( len2 > 1.0 ) discard;
+        }
+      #endif
     #endif
   #endif
 
