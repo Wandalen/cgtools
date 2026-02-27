@@ -614,6 +614,7 @@ mod private
         {
           let pointer_id = e.pointer_id();
           let new_pos = [ e.screen_x() as f32, e.screen_y() as f32 ];
+          
           let current_state = state.borrow().clone();
 
           // Snapshot the moved pointer's previous position before updating;
@@ -622,7 +623,7 @@ mod private
 
           // Compute movement delta from the single-pointer reference position.
           let prev_pos = *prev_screen_pos.borrow();
-          let delta = [ prev_pos[ 0 ] - new_pos[ 0 ], new_pos[ 1 ] - prev_pos[ 1 ] ];
+          let mut delta = [ new_pos[ 0 ] - prev_pos[ 0 ], new_pos[ 1 ] - prev_pos[ 1 ] ];
 
           // Update tracking state for all active states.
           *prev_screen_pos.borrow_mut() = new_pos;
@@ -657,7 +658,11 @@ mod private
                 }
               }
             }
-            CameraState::Rotate => camera.borrow_mut().rotate( delta ),
+            CameraState::Rotate => 
+            {
+              delta[ 0 ] = -delta[ 0 ];
+              camera.borrow_mut().rotate( delta )
+            },
             CameraState::Pan => camera.borrow_mut().pan( delta ),
             CameraState::None => {}
           }
