@@ -74,6 +74,10 @@ async fn run() -> Result< (), gl::WebglError >
   camera.set_window_size( [ width as f32, height as f32 ].into() );
   camera.bind_controls( &canvas );
 
+  gl::info!( "{:?}", gl.get_extension( "OES_texture_float" ) );
+  gl::info!( "{:?}", gl.get_extension( "OES_texture_float_linear" ) );
+  gl::info!( "{:?}", gl.get_extension( "EXT_color_buffer_float" ) );
+
   let mut renderer = renderer::webgl::Renderer::new( &gl, width as u32, height as u32, 4 )?;
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;

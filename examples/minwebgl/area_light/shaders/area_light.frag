@@ -1,5 +1,5 @@
 #version 300 es
-precision mediump float;
+precision highp float;
 
 out vec4 frag_color;
 
@@ -16,8 +16,8 @@ uniform sampler2D u_base_color;
 uniform sampler2D u_arm; // ao, roughness, metalness
 
 uniform vec3 u_view_position;
-uniform sampler2D u_LTC1; // for inverse M
-uniform sampler2D u_LTC2; // GGX norm, fresnel, 0(unused), sphere
+uniform highp sampler2D u_LTC1; // for inverse M
+uniform highp sampler2D u_LTC2; // GGX norm, fresnel, 0(unused), sphere
 
 const float LUT_SIZE  = 64.0;
 const float LUT_SCALE = ( LUT_SIZE - 1.0 ) / LUT_SIZE;

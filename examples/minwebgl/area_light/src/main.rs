@@ -71,11 +71,11 @@ async fn run() -> Result< (), gl::WebglError >
   let canvas = gl.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
   canvas.set_width( width as u32 );
   canvas.set_height( height as u32 );
+  gl::info!( "{:?}", gl.get_extension( "OES_texture_float" ) );
+  gl::info!( "{:?}", gl.get_extension( "OES_texture_float_linear" ) );
   gl.enable( gl::DEPTH_TEST );
   gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
   gl.viewport( 0, 0, width, height );
-  gl.get_extension( "EXT_color_buffer_float" ).unwrap().unwrap();
-  gl.get_extension( "OES_texture_float_linear" ).unwrap().unwrap();
 
   let vertex_src = include_str!( "../shaders/light_body.vert" );
   let fragment_src = include_str!( "../shaders/light_body.frag" );
@@ -123,6 +123,11 @@ async fn run() -> Result< (), gl::WebglError >
   camera.set_window_size( [ width as f32, height as f32 ].into() );
   camera.bind_controls( &canvas );
 
+  gl.active_texture( gl::TEXTURE2 );
+  gl.bind_texture( gl::TEXTURE_2D, ltc1.as_ref() );
+  gl.active_texture( gl::TEXTURE3 );
+  gl.bind_texture( gl::TEXTURE_2D, ltc2.as_ref() );
+
   let update = move | _time |
   {
     let view = camera.get_view_matrix();
@@ -155,11 +160,6 @@ async fn run() -> Result< (), gl::WebglError >
     );
 
     gl.clear( gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT );
-
-    gl.active_texture( gl::TEXTURE2 );
-    gl.bind_texture( gl::TEXTURE_2D, ltc1.as_ref() );
-    gl.active_texture( gl::TEXTURE3 );
-    gl.bind_texture( gl::TEXTURE_2D, ltc2.as_ref() );
 
     area_light_shader.activate();
     area_light_shader.uniform_upload( "u_points", light.vertices().as_slice() );
@@ -232,7 +232,7 @@ fn load_table( gl : &GL, table : &[ u8 ] ) -> Option< WebGlTexture >
   let array = Float32Array::from( table );
   let texture = gl.create_texture();
   gl.bind_texture( gl::TEXTURE_2D, texture.as_ref() );
-  gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_array_buffer_view_and_src_offset
+  gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_array_buffer_view
   (
     gl::TEXTURE_2D,
     0,
@@ -242,8 +242,7 @@ fn load_table( gl : &GL, table : &[ u8 ] ) -> Option< WebGlTexture >
     0,
     gl::RGBA,
     gl::FLOAT,
-    &array,
-    0
+    Some( &array )
   ).expect( "Failed to load data" );
   gl::texture::d2::filter_linear( gl );
   gl::texture::d2::wrap_clamp( gl );

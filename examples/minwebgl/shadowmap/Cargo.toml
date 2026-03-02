@@ -4,8 +4,12 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-minwebgl = { workspace = true, features = [ "math" ] }
-web-sys = { workspace = true, features = [ "WebGlFramebuffer", "WebGlRenderbuffer", "WebGlTexture" ] }
+minwebgl = { workspace = true, features = ["math"] }
+web-sys = { workspace = true, features = [
+  "WebGlFramebuffer",
+  "WebGlRenderbuffer",
+  "WebGlTexture",
+] }
 renderer.workspace = true
 
 [lints]
