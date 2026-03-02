@@ -660,6 +660,7 @@ mod private
             }
             CameraState::Rotate => 
             {
+              // Pitfall: Screen deltas must match rotate() expectations (positive=right/down)
               delta[ 0 ] = -delta[ 0 ];
               camera.borrow_mut().rotate( delta )
             },
