@@ -56,7 +56,6 @@ async fn run() -> Result< (), gl::WebglError >
 
   let gltf = renderer::webgl::loaders::gltf::load( &document, gltf_path, &gl ).await?;
   let scenes = gltf.scenes;
-  // scenes[ 0 ].borrow_mut().update_world_matrix();
 
   let scene_bounding_box = scenes[ 0 ].borrow().bounding_box();
   let diagonal = ( scene_bounding_box.max - scene_bounding_box.min ).mag();
