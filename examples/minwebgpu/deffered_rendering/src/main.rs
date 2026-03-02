@@ -125,7 +125,7 @@ async fn run() -> Result< (), gl::WebGPUError >
   // Create needed state
   let model_state = ModelState::new( &device ).await?;
   let mut uniform_state = UniformState::new( &device )?;
-  let light_state = LightState::new( &device, presentation_format )?;
+  let light_state = LightState::new( &device )?;
   let light_vis_state = LightVisualizationState::new( &device, presentation_format )?;
 
   // First entry - uniform paramters like view_matrix, time
@@ -275,20 +275,6 @@ async fn run() -> Result< (), gl::WebGPUError >
   .bind_group( &color_transfer_bind_group_layout )
   .create( &device );
 
-  let render_pipeline = gl::render_pipeline::create
-  (
-    &device,
-    &gl::render_pipeline::desc( gl::VertexState::new( &render_shader ) )
-    .layout( &render_pipeline_layout )
-    .fragment
-    (
-      gl::FragmentState::new( &render_shader )
-      .target( gl::ColorTargetState::new().format( presentation_format ) )
-    )
-    .primitive( gl::PrimitiveState::new().triangle_strip() )
-    .to_web()
-  )?;
-
   let light_shading_shader_module = gl::shader::create( &device, include_str!( "../shaders/light_shading.wgsl" ) );
 
   let light_shading_render_pipeline = gl::render_pipeline::desc
@@ -326,6 +312,7 @@ async fn run() -> Result< (), gl::WebGPUError >
     gl::DepthStencilState::new()
     .disable_depth_write()
     .format( gl::GpuTextureFormat::Depth24plusStencil8 )
+    .depth_compare( gl::GpuCompareFunction::GreaterEqual )
   )
   .create( &device )?;
 
@@ -465,7 +452,9 @@ async fn run() -> Result< (), gl::WebGPUError >
         render_pass.set_bind_group( 1, Some( &gbuffer_bind_group ) );
         render_pass.set_vertex_buffer( 0, Some( &light_state.mesh_position_buffer ) );
         render_pass.set_vertex_buffer( 1, Some( &light_state.buffer ) );
-        render_pass.draw_with_instance_count( light_state.num_vertices, light_state.num_instances );
+        render_pass.set_index_buffer( &light_state.mesh_index_buffer, gl::GpuIndexFormat::Uint32 );
+        //render_pass.draw_with_instance_count( light_state.num_vertices, light_state.num_instances );
+        render_pass.draw_indexed_with_instance_count( light_state.num_indices, light_state.num_instances );
         render_pass.end();
       }
 

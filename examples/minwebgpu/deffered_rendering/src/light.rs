@@ -1,6 +1,6 @@
 use minwebgpu::{self as gl, web_sys, WebGPUError};
 use rand::Rng;
-pub const NUM_LIGHTS : usize = 1;
+pub const NUM_LIGHTS : usize = 2500;
 
 #[ repr( C ) ]
 #[derive( Default, Clone, Copy, gl::mem::Pod, gl::mem::Zeroable ) ]
@@ -39,35 +39,24 @@ pub struct LightState
 {
   pub buffer : gl::web_sys::GpuBuffer,
   pub mesh_position_buffer : gl::web_sys::GpuBuffer,
+  pub mesh_index_buffer : gl::web_sys::GpuBuffer,
   pub num_vertices : u32,
-  pub num_instances : u32
+  pub num_instances : u32,
+  pub num_indices : u32
 }
 
 impl LightState
 {
-  pub fn new( device : &web_sys::GpuDevice, format : gl::GpuTextureFormat ) -> Result< Self, WebGPUError >
+  pub fn new( device : &web_sys::GpuDevice ) -> Result< Self, WebGPUError >
   {
     let lights = generate_lights();
     let lights_raw = lights.iter().map( | l | l.as_raw() ).collect::< Vec< LightRaw > >();
 
     let num_instances = NUM_LIGHTS as u32;
 
-    use csgrs::mesh::Mesh;
-    let sphere_mesh : Mesh< () > = csgrs::mesh::Mesh::sphere( 1.0, 10, 10, None ).triangulate();
-    //.subdivide_triangles( 1.try_into().expect("not zero") );
-    let sphere_vertices : Vec< f64 > = sphere_mesh.vertices().into_iter().flat_map( | v | [ v.pos.x, v.pos.y, v.pos.z ] ).collect();
-
-    for i in 0..sphere_vertices.len() / 3
-    {
-      gl::info!( 
-        "{:?} | {:?} | {:?}", 
-        sphere_vertices[ i * 3  + 0 ],
-        sphere_vertices[ i * 3  + 1 ],
-        sphere_vertices[ i * 3  + 2 ]
-      )
-    }
-
+    let ( sphere_vertices, sphere_indices ) = build_sphere_mesh();
     let num_vertices = ( sphere_vertices.len() / 3 ) as u32;
+    let num_indices = sphere_indices.len() as u32;
 
     let buffer = gl::BufferInitDescriptor::new
     (
@@ -81,14 +70,23 @@ impl LightState
       gl::BufferUsage::VERTEX
     ).create( device )?;
 
+    let mesh_index_buffer = gl::BufferInitDescriptor::new
+    (
+      &sphere_indices,
+      gl::BufferUsage::INDEX
+    ).create( device )?;
+
+
     Ok
     (
       LightState
       {
         buffer,
         mesh_position_buffer,
+        mesh_index_buffer,
         num_vertices,
-        num_instances
+        num_instances,
+        num_indices
       }
     )
   }
@@ -208,7 +206,8 @@ fn generate_lights() -> Vec< Light >
   let mut lights = Vec::new();
   for _i in 0..NUM_LIGHTS
   {
-    let power = rng.random::< f32 >() * 2.0 + 1.0;
+    let power = rng.random::< f32 >();// * 2.0 + 1.0;
+    let power = ( 1.0 - power ) * 0.2 + power * 1.0;
     let color = gl::F32x3::from( [ rng.random(), rng.random(), rng.random() ] );
     let direction = if rng.random::< f32 >() < 0.5 { -1.0 } else { 1.0 };
 
@@ -219,7 +218,7 @@ fn generate_lights() -> Vec< Light >
       rng.random::< f32 >() * 2.0
     ]) - gl::F32x3::from( [ 1.0, 0.0, 1.0 ] ) ;
 
-    position = position * gl::F32x3::from( [ 40.0, 5.0, 40.0 ] );
+    position = position * gl::F32x3::from( [ 100.0, 5.0, 100.0 ] );
 
     let light = Light
     {
@@ -233,4 +232,53 @@ fn generate_lights() -> Vec< Light >
   }
 
   lights
+}
+
+
+struct Vertex 
+{
+  position : [ f32; 3 ],
+  normal : [ f32; 3 ],
+}
+
+fn build_sphere_mesh() -> ( Vec< f32 >, Vec< u32 > ) {
+    let sphere: csgrs::mesh::Mesh< () > = csgrs::mesh::Mesh::sphere( 1.0, 32, 16, None );
+    let triangulated = sphere.triangulate();
+
+    let mut vertices = Vec::new();
+    let mut indices = Vec::new();
+
+    for poly in &triangulated.polygons 
+    {
+      let verts = &poly.vertices;
+      if verts.len() < 3 
+      {
+          continue;
+      }
+      let base = vertices.len() as u32;
+      for v in verts 
+      {
+        let p = v.pos;
+        let n = v.normal;
+        vertices.push
+        (
+          Vertex 
+          {
+            position: [ p.x as f32, p.y as f32, p.z as f32 ],
+            normal: [ n.x as f32, n.y as f32, n.z as f32 ],
+          }
+        );
+      }
+      // Fan triangulation (polygons should already be triangles after triangulate())
+      for i in 1..( verts.len() as u32 - 1 ) 
+      {
+        indices.push( base );
+        indices.push( base + i );
+        indices.push( base + i + 1 );
+      }
+    }
+
+    let vertices = vertices.into_iter().flat_map( | v | v.position ).collect();
+
+    (vertices, indices)
 }

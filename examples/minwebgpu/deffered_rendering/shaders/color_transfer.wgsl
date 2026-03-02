@@ -20,5 +20,5 @@ fn fs_main( @builtin( position ) coords : vec4f ) -> @location( 0 ) vec4f
   let uv = vec2< u32 >( floor( coords.xy ) );
   let color = textureLoad( color_accum_texture, uv, 0 );
 
-  return vec4f( color.xyz, 1.0 );
+  return vec4f( tanh( pow( color.xyz, vec3( 1.0 ) ) ), 1.0 );
 }
