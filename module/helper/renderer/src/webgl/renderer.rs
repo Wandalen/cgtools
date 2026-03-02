@@ -776,6 +776,12 @@ mod private
           let material_id = material.get_id();
           let use_ibl = self.ibl.is_some() && material.get_ibl_base_texture_unit().is_some();
 
+          // If material's defines changed, drop the old mapping so we re-evaluate
+          if material.needs_recompile()
+          {
+            self.material_program_map.remove( &material_id );
+          }
+
           let program_uuid = if let Some( &prog_id ) = self.material_program_map.get( &material_id )
           {
             prog_id
@@ -832,6 +838,7 @@ mod private
             };
 
             self.material_program_map.insert( material_id, prog_id );
+            material.set_compiled();
             prog_id
           };
 

@@ -1,12 +1,13 @@
 mod private
 {
-  use crate::webgl::{Object3D, material::*};
+  use crate::webgl::{ Object3D, material::* };
   use minwebgl as gl;
   use gl::{ GL, WebGlProgram };
   use mingl::Former;
   use rustc_hash::FxHashMap;
   use crate::webgl::{ MaterialUploadContext, program::{ ShaderProgram, ProgramInfo } };
   use crate::webgl::program::impl_locations;
+  use std::cell::Cell;
 
   /// The source code for the main vertex shader.
   const MAIN_VERTEX_SHADER : &'static str = include_str!( "../shaders/main.vert" );
@@ -143,7 +144,15 @@ mod private
     pub need_use_ibl : bool,
     /// Signal for updating material uniforms.
     /// Use `set_needs_update(true)` after changing material properties.
-    needs_update : std::cell::Cell< bool >
+    needs_update : Cell< bool >,
+    /// Signal that shader defines have changed and program needs recompilation.
+    needs_recompile : Cell< bool >,
+    /// Cached combined defines string
+    cached_defines_str : String,
+    /// Cached vertex defines string
+    cached_vertex_defines_str : String,
+    /// Cached fragment defines string
+    cached_fragment_defines_str : String,
   }
 
   impl PbrMaterial
@@ -194,7 +203,7 @@ mod private
 
       let need_use_ibl = true;
 
-      return Self
+      let mut mat = Self
       {
         id,
         base_color_factor,
@@ -221,20 +230,64 @@ mod private
         vertex_defines,
         fragment_defines,
         need_use_ibl,
-        needs_update : std::cell::Cell::new( true )
+        needs_update : Cell::new( true ),
+        needs_recompile : Cell::new( true ),
+        cached_defines_str : String::new(),
+        cached_vertex_defines_str : String::new(),
+        cached_fragment_defines_str : String::new(),
       };
+      mat.rebuild_defines_cache();
+      mat
+    }
+
+    /// Rebuilds all cached defines strings from current state.
+    fn rebuild_defines_cache( &mut self )
+    {
+      let local_defines = self.get_local_defines();
+
+      // Combined defines
+      let mut combined = local_defines.clone();
+      for ( name, value ) in self.vertex_defines.iter()
+      {
+        combined.push_str( &format!( "#define {} {}\n", name, value ) );
+      }
+      for ( name, value ) in self.fragment_defines.iter()
+      {
+        combined.push_str( &format!( "#define {} {}\n", name, value ) );
+      }
+      self.cached_defines_str = combined;
+
+      // Vertex defines
+      let mut vertex = String::new();
+      for ( name, value ) in self.vertex_defines.iter()
+      {
+        vertex.push_str( &format!( "#define {} {}\n", name, value ) );
+      }
+      self.cached_vertex_defines_str = vertex;
+
+      // Fragment defines
+      let mut fragment = local_defines;
+      for ( name, value ) in self.fragment_defines.iter()
+      {
+        fragment.push_str( &format!( "#define {} {}\n", name, value ) );
+      }
+      self.cached_fragment_defines_str = fragment;
     }
 
     /// Added the specified name and value is #define directive to the material
     pub fn add_vertex_define< A : Into< Box< str > >, B : Into< String > >( &mut self, name : A, value : B )
     {
       self.vertex_defines.insert( name.into(), value.into() );
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
     }
 
     /// Added the specified name and value is #define directive to the material
     pub fn add_fragment_define< A : Into< Box< str > >, B : Into< String > >( &mut self, name : A, value : B )
     {
       self.fragment_defines.insert( name.into(), value.into() );
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
     }
 
     /// Added the specified name and value is #define directive to the material
@@ -242,8 +295,10 @@ mod private
     {
       let name = name.into();
       let value = value.into();
-      self.add_vertex_define( name.clone(), value.clone() );
-      self.add_fragment_define( name, value );
+      self.vertex_defines.insert( name.clone(), value.clone() );
+      self.fragment_defines.insert( name, value );
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
     }
 
     /// Generates `#define` directives to be inserted into the fragment shader based on the material's properties.
@@ -380,7 +435,7 @@ mod private
       }
     }
 
-    fn make_shader_program( &self, minwebgl : &minwebgl::WebGl2RenderingContext, program : &minwebgl::WebGlProgram ) -> Box< dyn ShaderProgram > 
+    fn make_shader_program( &self, minwebgl : &minwebgl::WebGl2RenderingContext, program : &minwebgl::WebGlProgram ) -> Box< dyn ShaderProgram >
     {
       PBRShader::new( minwebgl, program ).dyn_clone()
     }
@@ -506,45 +561,29 @@ mod private
       bind( &self.light_map, 7 );
     }
 
-    fn get_defines_str( &self ) -> String
+    fn get_defines_str( &self ) -> &str
     {
-      let mut result = self.get_local_defines();
-
-      for ( name, value ) in self.vertex_defines.iter()
-      {
-        result.push_str( &format!( "#define {} {}\n", name, value ) );
-      }
-
-      for ( name, value ) in self.fragment_defines.iter()
-      {
-        result.push_str( &format!( "#define {} {}\n", name, value ) );
-      }
-
-      result
+      &self.cached_defines_str
     }
 
-    fn get_vertex_defines_str( &self ) -> String
+    fn get_vertex_defines_str( &self ) -> &str
     {
-      let mut result = String::new();
-
-      for ( name, value ) in self.vertex_defines.iter()
-      {
-        result.push_str( &format!( "#define {} {}\n", name, value ) );
-      }
-
-      result
+      &self.cached_vertex_defines_str
     }
 
-    fn get_fragment_defines_str( &self ) -> String
+    fn get_fragment_defines_str( &self ) -> &str
     {
-      let mut result = self.get_local_defines();
+      &self.cached_fragment_defines_str
+    }
 
-      for ( name, value ) in self.fragment_defines.iter()
-      {
-        result.push_str( &format!( "#define {} {}\n", name, value ) );
-      }
+    fn needs_recompile( &self ) -> bool
+    {
+      self.needs_recompile.get()
+    }
 
-      result
+    fn set_compiled( &self )
+    {
+      self.needs_recompile.set( false );
     }
 
     fn get_fragment_shader( &self ) -> String
@@ -609,7 +648,11 @@ mod private
         vertex_defines : self.vertex_defines.clone(),
         fragment_defines : self.fragment_defines.clone(),
         need_use_ibl : self.need_use_ibl,
-        needs_update : std::cell::Cell::new( true )
+        needs_update : Cell::new( true ),
+        needs_recompile : Cell::new( true ),
+        cached_defines_str : self.cached_defines_str.clone(),
+        cached_vertex_defines_str : self.cached_vertex_defines_str.clone(),
+        cached_fragment_defines_str : self.cached_fragment_defines_str.clone(),
       }
     }
   }

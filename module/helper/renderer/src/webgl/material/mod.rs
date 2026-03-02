@@ -2,10 +2,8 @@ mod private
 {
   use minwebgl as gl;
   use crate::webgl::{ Node, ShaderProgram, Texture };
-  use std::{ cell::RefCell, fmt::Debug, rc::Rc };
-  use std::hash::{ Hash, Hasher };
-  use rustc_hash::FxHasher;
-  use rustc_hash::FxHashMap;
+  use std::{ cell::RefCell, fmt::Debug, hash::{ Hash, Hasher }, rc::Rc };
+  use rustc_hash::{ FxHashMap, FxHasher };
 
   /// Represents the alpha blending mode of the material.
   #[ derive( Default, Clone, Copy, PartialEq, Eq, Debug ) ]
@@ -174,21 +172,21 @@ mod private
     fn get_fragment_shader( &self ) -> String;
 
     /// Return a string containing combined version of the vertex and fragment defines
-    fn get_defines_str( &self ) -> String
+    fn get_defines_str( &self ) -> &str
     {
-      String::new()
+      ""
     }
 
     /// Returns a string containing vertex shader related defines
-    fn get_vertex_defines_str( &self ) -> String
+    fn get_vertex_defines_str( &self ) -> &str
     {
-      String::new()
+      ""
     }
 
     /// Returns a string containing fragment shader related defines
-    fn get_fragment_defines_str( &self ) -> String
+    fn get_fragment_defines_str( &self ) -> &str
     {
-      String::new()
+      ""
     }
 
     /// Returns a hash representing the current shader configuration.
@@ -301,6 +299,16 @@ mod private
     {
       matches!( self.get_alpha_mode(), AlphaMode::Blend )
     }
+
+    /// Returns `true` if the shader defines have changed and the shader
+    /// program needs to be recompiled.
+    fn needs_recompile( &self ) -> bool
+    {
+      false
+    }
+
+    /// Called by the renderer after recompilation to clear the recompile flag.
+    fn set_compiled( &self ) {}
   }
 
 }
