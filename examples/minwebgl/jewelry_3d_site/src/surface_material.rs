@@ -57,7 +57,7 @@ impl Material for SurfaceMaterial
     self.id
   }
 
-  fn needs_update( &self ) -> bool
+  fn get_needs_update( &self ) -> bool
   {
     self.needs_update
   }

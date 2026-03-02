@@ -900,10 +900,10 @@ mod private
         };
 
         // Upload material uniforms on state change or when switching materials within same program
-        if material.needs_update() || last_material_id != Some( material.get_id() )
+        if material.get_needs_update() || last_material_id != Some( material.get_id() )
         {
           material.upload_on_state_change( gl, &material_upload_context )?;
-          material.clear_needs_update();
+          material.set_needs_update( false );
         }
         material.upload( gl, &material_upload_context )?;
         material.bind( gl );
@@ -970,10 +970,10 @@ mod private
           locations : shader_program.locations()
         };
 
-        if material.needs_update() || last_material_id != Some( material.get_id() )
+        if material.get_needs_update() || last_material_id != Some( material.get_id() )
         {
           material.upload_on_state_change( gl, &material_upload_context )?;
-          material.clear_needs_update();
+          material.set_needs_update( false );
         }
         material.upload( gl, &material_upload_context )?;
         material.bind( gl );

@@ -92,7 +92,7 @@ impl Material for GemMaterial
     self.id
   }
 
-  fn needs_update( &self ) -> bool
+  fn get_needs_update( &self ) -> bool
   {
     self.needs_update
   }
@@ -159,7 +159,7 @@ impl Material for GemMaterial
 
     bb.apply_transform_mut( inv_world );
     let c = bb.center();
-    
+
     upload( "s", self.env_map_intensity )?;
     upload( "w", self.cube_normal_map_texture.max_distance )?;
     upload( "a", self.n2 )?;

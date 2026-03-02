@@ -157,13 +157,6 @@ mod private
 
   impl PbrMaterial
   {
-    /// Marks the material as needing a uniform re-upload on the next frame.
-    /// Call this after changing any material property (e.g. `base_color_factor`, `metallic_factor`).
-    pub fn set_needs_update( &self )
-    {
-      self.needs_update.set( true );
-    }
-
     /// Creates new [`PbrMaterial`] with predefined optimal parameters
     pub fn new( _gl : &GL ) -> Self
     {
@@ -413,14 +406,14 @@ mod private
       self.id
     }
 
-    fn needs_update( &self ) -> bool
+    fn get_needs_update( &self ) -> bool
     {
       self.needs_update.get()
     }
 
-    fn clear_needs_update( &self )
+    fn set_needs_update( &self, value : bool )
     {
-      self.needs_update.set( false );
+      self.needs_update.set( value );
     }
 
     fn get_ibl_base_texture_unit( &self ) -> Option< u32 >

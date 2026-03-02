@@ -700,7 +700,7 @@ async fn setup_rings
             material.roughness_factor = 0.1;
             // Metallic 0.9 prevents oversaturation while maintaining metal appearance
             material.metallic_factor = 0.9;
-            material.set_needs_update();
+            material.set_needs_update( true );
           }
 
           Ok( () )

@@ -127,16 +127,11 @@ mod private
 
     /// Returns `true` if the material's uniform data has changed and needs
     /// to be re-uploaded to the GPU via [`upload_on_state_change`].
-    fn needs_update( &self ) -> bool;
+    fn get_needs_update( &self ) -> bool;
 
-    /// Called by the renderer after [`upload_on_state_change`] to clear the dirty flag.
-    /// Implementations should use interior mutability (e.g. `Cell<bool>`) to reset
-    /// the flag from a shared reference.
-    ///
-    /// Default implementation does nothing, which causes [`upload_on_state_change`]
-    /// to be called every frame. Override this together with [`needs_update`]
-    /// to enable incremental updates.
-    fn clear_needs_update( &self ) {}
+    /// Sets or clears the dirty flag for material uniforms.
+    /// Implementations should use interior mutability (e.g. `Cell<bool>`).
+    fn set_needs_update( &self, _value : bool ) {}
 
     /// Returns the base texture unit for IBL textures.
     ///
