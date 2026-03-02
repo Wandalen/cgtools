@@ -17,6 +17,7 @@ tobj =  { workspace = true }
 bytemuck = { workspace = true, features = [ "derive" ] }
 rand = { workspace = true }
 getrandom = { workspace = true, features = [ "wasm_js" ] }
+csgrs = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.minwebgpu]
 workspace = true

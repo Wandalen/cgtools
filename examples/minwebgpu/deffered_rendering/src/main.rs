@@ -56,7 +56,13 @@ fn create_textures
 
 #[cfg(target_arch = "wasm32")]
 async fn run() -> Result< (), gl::WebGPUError >
-{
+{ 
+  use csgrs::mesh::Mesh;
+
+  let sphere_mesh : Mesh< () > = csgrs::mesh::Mesh::sphere( 1.0, 10, 10, None );
+  let sphere_vertices : Vec< f64 > = sphere_mesh.vertices().into_iter().flat_map( | v | [ v.pos.x, v.pos.y, v.pos.z ] ).collect();
+
+
   gl::browser::setup( Default::default() );
   let canvas = gl::canvas::retrieve_or_make()?;
   //let canvas = gl::canvas::make()?;
@@ -64,6 +70,19 @@ async fn run() -> Result< (), gl::WebGPUError >
   let adapter = gl::context::request_adapter().await;
   let device = gl::context::request_device( &adapter ).await;
   let queue = device.queue();
+
+  for i in 0..(sphere_vertices.len() / 3)
+  {
+    gl::info!(
+      "0 : {:?}\n1 : {:?}\n2 : {:?}", 
+      sphere_vertices[i * 3 + 0],
+      sphere_vertices[i * 3 + 1],
+      sphere_vertices[i * 3 + 2]
+    );
+  }
+
+  panic!("haha");
+
 
   let presentation_format = gl::context::preferred_format();
   gl::context::configure( &device, &context, presentation_format )?;
@@ -170,6 +189,22 @@ async fn run() -> Result< (), gl::WebGPUError >
     .depth_stencil( gl::DepthStencilState::new() )
     .to_web()
   )?;
+
+  // // Pipeline that will render to the gbuffer textures.
+  // let light_pass_render_pipeline = gl::render_pipeline::create
+  // (
+  //   &device,
+  //   &gl::render_pipeline::desc
+  //   (
+  //     gl::VertexState::new( &gbuffer_shader )
+  //     .buffer( &pos_vertex_layout )
+  //   )
+  //   .layout( &gbuffer_pipeline_layout )
+  //   .fragment( fragment_state.clone() )
+  //   .primitive( gl::PrimitiveState::new().cull_back() )
+  //   .depth_stencil( gl::DepthStencilState::new() )
+  //   .to_web()
+  // )?;
 
   // Pipeline that will render a plane.
   // We reuse the fragment state from gbuffer pipeline because they are the same.
