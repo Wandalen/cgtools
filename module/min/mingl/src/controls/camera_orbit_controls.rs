@@ -614,7 +614,7 @@ mod private
         {
           let pointer_id = e.pointer_id();
           let new_pos = [ e.screen_x() as f32, e.screen_y() as f32 ];
-          
+
           let current_state = state.borrow().clone();
 
           // Snapshot the moved pointer's previous position before updating;
@@ -658,7 +658,7 @@ mod private
                 }
               }
             }
-            CameraState::Rotate => 
+            CameraState::Rotate =>
             {
               // Root cause: Inconsistent delta sign (prev-new for X, new-prev for Y) inverted pan X-axis direction
               // Pitfall: pan() internally negates X via `- x * dx`; rotate() needs explicit negation for opposite convention
