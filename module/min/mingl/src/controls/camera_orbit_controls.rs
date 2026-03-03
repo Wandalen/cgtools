@@ -660,7 +660,8 @@ mod private
             }
             CameraState::Rotate => 
             {
-              // Pitfall: Screen deltas must match rotate() expectations (positive=right/down)
+              // Root cause: Inconsistent delta sign (prev-new for X, new-prev for Y) inverted pan X-axis direction
+              // Pitfall: pan() internally negates X via `- x * dx`; rotate() needs explicit negation for opposite convention
               delta[ 0 ] = -delta[ 0 ];
               camera.borrow_mut().rotate( delta )
             },

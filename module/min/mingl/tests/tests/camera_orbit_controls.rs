@@ -42,6 +42,23 @@ fn test_zoom_disabled_prevents_zoom()
   assert_abs_diff_eq!( exp_center, controls.center );
 }
 
+/// ## Root Cause
+/// Mouse delta used inconsistent sign convention: `prev - new` for X, `new - prev` 
+/// for Y. The `pan()` method expects standard `new - prev` (positive = right/down).
+///
+/// ## Why Not Caught  
+/// No pan tests existed. Only rotation/zoom were tested.
+///
+/// ## Fix Applied
+/// Standardized delta to `new - prev` for both axes. Moved X negation to 
+/// rotation-only code path.
+///
+/// ## Prevention
+/// Comprehensive pan tests now cover all movement directions and orientations.
+///
+/// ## Pitfall
+/// Screen-space deltas must match method coordinate expectations. Document 
+/// expected delta sign convention in method docs.
 #[ test ]
 fn test_pan_disabled_prevents_pan()
 {
