@@ -556,5 +556,3 @@ fn test_pan_horizontal_direction_depends_on_camera_orientation()
   assert_abs_diff_eq!( exp_center, controls.center );
   assert_abs_diff_eq!( exp_up, controls.up );
 }
-
-
