@@ -71,8 +71,12 @@ async fn run() -> Result< (), gl::WebglError >
   let canvas = gl.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
   canvas.set_width( width as u32 );
   canvas.set_height( height as u32 );
-  gl::info!( "{:?}", gl.get_extension( "OES_texture_float" ) );
-  gl::info!( "{:?}", gl.get_extension( "OES_texture_float_linear" ) );
+  // OES_texture_float_linear is required for linear filtering on RGBA32F LTC lookup tables.
+  // Without it, float textures with GL_LINEAR are incomplete and sample as all zeros.
+  // EXT_color_buffer_float is not needed here — this example renders to the default framebuffer only.
+  gl.get_extension( "OES_texture_float_linear" )
+  .expect( "Failed to query OES_texture_float_linear" )
+  .expect( "OES_texture_float_linear is required for linear filtering on float textures" );
   gl.enable( gl::DEPTH_TEST );
   gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
   gl.viewport( 0, 0, width, height );
