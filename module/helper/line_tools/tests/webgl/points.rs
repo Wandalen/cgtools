@@ -166,8 +166,8 @@ fn test_point_remove_front()
   line.point_add_back( &[ 1.0, 1.0, 0.0 ] );
   line.point_add_back( &[ 1.0, 1.0, 1.0 ] );
 
-  let p0 = line.point_remove_front();
-  let p1 = line.point_remove_front();
+  let p0 = line.point_remove_front( true );
+  let p1 = line.point_remove_front( true );
 
   let expected = 
   [
@@ -209,7 +209,7 @@ fn test_points_remove_front()
   line.point_add_back( &[ 1.0, 1.0, 0.0 ] );
   line.point_add_back( &[ 1.0, 1.0, 1.0 ] );
 
-  line.points_remove_front( 2 );
+  line.points_remove_front( 2, true );
 
   let expected = 
   [

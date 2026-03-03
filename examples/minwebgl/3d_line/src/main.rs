@@ -159,7 +159,7 @@ fn run() -> Result< (), gl::WebglError >
 
           if num_points > max_point
           {
-            lines.borrow_mut()[ i ].points_remove_front( num_points - max_point );
+            lines.borrow_mut()[ i ].points_remove_front( num_points - max_point, false );
             lines.borrow_mut()[ i ].colors_remove_front( num_points - max_point );
           }
         }
