@@ -238,33 +238,26 @@ mod private
     {
       let local_defines = self.get_local_defines();
 
-      // Combined defines
-      let mut combined = local_defines.clone();
+      // Build vertex and fragment defines once
+      let mut vertex_defines = String::new();
       for ( name, value ) in self.vertex_defines.iter()
       {
-        combined.push_str( &format!( "#define {} {}\n", name, value ) );
+        vertex_defines.push_str( &format!( "#define {} {}\n", name, value ) );
       }
+
+      let mut fragment_defines = local_defines;
       for ( name, value ) in self.fragment_defines.iter()
       {
-        combined.push_str( &format!( "#define {} {}\n", name, value ) );
+        fragment_defines.push_str( &format!( "#define {} {}\n", name, value ) );
       }
+
+      // Combined = vertex + fragment defines
+      let mut combined = vertex_defines.clone();
+      combined.push_str( &fragment_defines );
+
       self.cached_defines_str = combined;
-
-      // Vertex defines
-      let mut vertex = String::new();
-      for ( name, value ) in self.vertex_defines.iter()
-      {
-        vertex.push_str( &format!( "#define {} {}\n", name, value ) );
-      }
-      self.cached_vertex_defines_str = vertex;
-
-      // Fragment defines
-      let mut fragment = local_defines;
-      for ( name, value ) in self.fragment_defines.iter()
-      {
-        fragment.push_str( &format!( "#define {} {}\n", name, value ) );
-      }
-      self.cached_fragment_defines_str = fragment;
+      self.cached_vertex_defines_str = vertex_defines;
+      self.cached_fragment_defines_str = fragment_defines;
     }
 
     /// Added the specified name and value is #define directive to the material
