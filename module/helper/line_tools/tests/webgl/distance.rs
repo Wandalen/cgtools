@@ -696,6 +696,25 @@ fn test_distance_remove_front_and_back_then_rebuild()
   assert_eq!( 3.0, line.total_distance_get() );
 }
 
+/// Tests that removing last point correctly updates total distance.
+///
+/// # Bug History
+///
+/// ## Root Cause
+/// `point_remove_back()` subtracted the cumulative distance from itself,
+/// resulting in total_distance = 0 instead of the new total.
+///
+/// ## Why Not Caught
+/// Original tests didn't verify total_distance after removal operations.
+///
+/// ## Fix Applied
+/// Now correctly sets total_distance to the new last element in distances array.
+///
+/// ## Prevention
+/// This test verifies total_distance equals the last cumulative distance after removal.
+///
+/// ## Pitfall
+/// Cumulative distance arrays store running totals [0, d1, d1+d2], not deltas.
 #[ test ]
 fn test_distance_remove_back_total_distance_stays_consistent()
 {

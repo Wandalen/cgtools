@@ -339,6 +339,12 @@ mod private
             if geometry.distances.len() > 0
             {
               geometry.distances.pop_back();
+              // ## Root Cause
+              // `point_remove_back()` subtracted the cumulative distance from itself,
+              // resulting in total_distance = 0 instead of the new total.
+              // 
+              // ## Pitfall
+              // Cumulative distance arrays store running totals [0, d1, d1+d2], not deltas.
               geometry.total_distance = geometry.distances.back().copied().unwrap_or( 0.0 );
             }
           }
