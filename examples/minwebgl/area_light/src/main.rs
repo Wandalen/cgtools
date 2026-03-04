@@ -236,7 +236,7 @@ fn load_table( gl : &GL, table : &[ u8 ] ) -> Option< WebGlTexture >
   let array = Float32Array::from( table );
   let texture = gl.create_texture();
   gl.bind_texture( gl::TEXTURE_2D, texture.as_ref() );
-  gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_array_buffer_view
+  gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_array_buffer_view_and_src_offset
   (
     gl::TEXTURE_2D,
     0,
@@ -246,7 +246,8 @@ fn load_table( gl : &GL, table : &[ u8 ] ) -> Option< WebGlTexture >
     0,
     gl::RGBA,
     gl::FLOAT,
-    Some( &array )
+    &array,
+    0
   ).expect( "Failed to load data" );
   gl::texture::d2::filter_linear( gl );
   gl::texture::d2::wrap_clamp( gl );
