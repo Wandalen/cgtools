@@ -1,5 +1,5 @@
 #version 300 es
-precision mediump float;
+precision highp float;
 
 out vec4 frag_color;
 
@@ -16,8 +16,8 @@ uniform sampler2D u_base_color;
 uniform sampler2D u_arm; // ao, roughness, metalness
 
 uniform vec3 u_view_position;
-uniform sampler2D u_LTC1; // for inverse M
-uniform sampler2D u_LTC2; // GGX norm, fresnel, 0(unused), sphere
+uniform highp sampler2D u_LTC1; // for inverse M
+uniform highp sampler2D u_LTC2; // GGX norm, fresnel, 0(unused), sphere
 
 const float LUT_SIZE  = 64.0;
 const float LUT_SCALE = ( LUT_SIZE - 1.0 ) / LUT_SIZE;
@@ -145,7 +145,7 @@ void main()
   // Correctly combine the results for the final shading
   // t2 contains the amplitude and an average Fresnel term.
   // We combine this with our material's F0.
-  vec3 specular_color = t2.x * f_schlick( 1.0, F0 ) + t2.y;
+  vec3 specular_color = t2.x * F0 + ( 1.0 - F0 ) * t2.y;
 
   vec3 result = ( diffuse + ambient ) * kd + specular * specular_color;
   result *= ao;
