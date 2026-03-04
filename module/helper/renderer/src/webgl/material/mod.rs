@@ -2,9 +2,8 @@ mod private
 {
   use minwebgl as gl;
   use crate::webgl::{ Node, ShaderProgram, Texture };
-  use std::{ cell::RefCell, fmt::Debug, rc::Rc };
-  use rustc_hash::FxHasher;
-  use rustc_hash::FxHashMap;
+  use std::{ cell::RefCell, fmt::Debug, hash::{ Hash, Hasher }, rc::Rc };
+  use rustc_hash::{ FxHashMap, FxHasher };
 
   /// Represents the alpha blending mode of the material.
   #[ derive( Default, Clone, Copy, PartialEq, Eq, Debug ) ]
@@ -126,8 +125,13 @@ mod private
       None
     }
 
-    /// Signal for updating material uniforms
-    fn needs_update( &self ) -> bool;
+    /// Returns `true` if the material's uniform data has changed and needs
+    /// to be re-uploaded to the GPU via [`upload_on_state_change`].
+    fn get_needs_update( &self ) -> bool;
+
+    /// Sets or clears the dirty flag for material uniforms.
+    /// Implementations should use interior mutability (e.g. `Cell<bool>`).
+    fn set_needs_update( &self, _value : bool ) {}
 
     /// Returns the base texture unit for IBL textures.
     ///
@@ -163,29 +167,27 @@ mod private
     fn get_fragment_shader( &self ) -> String;
 
     /// Return a string containing combined version of the vertex and fragment defines
-    fn get_defines_str( &self ) -> String
+    fn get_defines_str( &self ) -> &str
     {
-      String::new()
+      ""
     }
 
     /// Returns a string containing vertex shader related defines
-    fn get_vertex_defines_str( &self ) -> String
+    fn get_vertex_defines_str( &self ) -> &str
     {
-      String::new()
+      ""
     }
 
     /// Returns a string containing fragment shader related defines
-    fn get_fragment_defines_str( &self ) -> String
+    fn get_fragment_defines_str( &self ) -> &str
     {
-      String::new()
+      ""
     }
 
     /// Returns a hash representing the current shader configuration.
     /// Used for shader caching and variant management.
     fn get_shader_hash( &self ) -> u64
     {
-      use std::hash::{ Hash, Hasher };
-
       let mut hasher = FxHasher::default();
       self.get_vertex_shader().hash( &mut hasher );
       self.get_fragment_shader().hash( &mut hasher );
@@ -230,12 +232,15 @@ mod private
       Ok( () )
     }
 
-    /// Uploads the texture data of all used textures to the GPU.
-    fn upload_textures( &self, gl : &gl::WebGl2RenderingContext );
-
-    /// Binds all used textures to their respective texture units.
+    /// Activates and binds all material textures to their assigned texture units,
+    /// and uploads sampler parameters (filtering, wrapping).
     ///
-    /// * `gl`: The `WebGl2RenderingContext`.
+    /// Each texture must be bound to the same unit that was assigned in [`configure`].
+    /// Implementations **must** call `gl.active_texture( gl::TEXTURE0 + unit )` before
+    /// binding each texture to ensure correct unit targeting.
+    ///
+    /// The renderer may bind additional textures (e.g. IBL) to higher units after
+    /// this call, so implementations should only use the units they configured.
     fn bind( &self, gl : &gl::WebGl2RenderingContext );
 
     /// Dyn safe clone method
@@ -289,6 +294,16 @@ mod private
     {
       matches!( self.get_alpha_mode(), AlphaMode::Blend )
     }
+
+    /// Returns `true` if the shader defines have changed and the shader
+    /// program needs to be recompiled.
+    fn needs_recompile( &self ) -> bool
+    {
+      false
+    }
+
+    /// Called by the renderer after recompilation to clear the recompile flag.
+    fn set_compiled( &self ) {}
   }
 
 }
