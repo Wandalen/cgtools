@@ -141,7 +141,7 @@ mod private
     pub fragment_defines : FxHashMap< Box< str >, String >,
 
     /// Returns answer need use IBL for current material instance or not
-    pub need_use_ibl : bool,
+    need_use_ibl : bool,
     /// Signal for updating material uniforms.
     /// Use `set_needs_update(true)` after changing material properties.
     needs_update : Cell< bool >,
@@ -158,7 +158,7 @@ mod private
   impl PbrMaterial
   {
     /// Creates new [`PbrMaterial`] with predefined optimal parameters
-    pub fn new( _gl : &GL ) -> Self
+    pub fn new( _ : &GL ) -> Self
     {
       let id = uuid::Uuid::new_v4();
       let base_color_factor = gl::F32x4::from( [ 1.0, 1.0, 1.0, 1.0 ] );
@@ -231,6 +231,23 @@ mod private
       };
       mat.rebuild_defines_cache();
       mat
+    }
+
+    /// Enables or disables Image-Based Lighting (IBL) for this material.
+    /// If the value changes, the shader program will be marked for recompilation.
+    pub fn set_need_use_ibl( &mut self, value : bool )
+    {
+      if value != self.need_use_ibl
+      {
+        self.needs_recompile.set( true );
+      }
+      self.need_use_ibl = value;
+    }
+
+    /// Returns whether Image-Based Lighting (IBL) is enabled for this material.
+    pub fn need_use_ibl( &self ) -> bool
+    {
+      self.need_use_ibl
     }
 
     /// Rebuilds all cached defines strings from current state.
