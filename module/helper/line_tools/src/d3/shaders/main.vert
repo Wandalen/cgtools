@@ -58,7 +58,7 @@ float trimSegment( const in vec3 start, const in vec3 end )
   // conservative estimate of the near plane
   float a = u_projection_matrix[ 2 ][ 2 ]; // 3nd entry in 3th column
   float b = u_projection_matrix[ 3 ][ 2 ]; // 3nd entry in 4th column
-  float nearEstimate = b / (1.0 - a);
+  float nearEstimate = b / ( 1.0 - a );
 
   float alpha = ( nearEstimate - start.z ) / ( end.z - start.z );
   alpha = clamp( alpha, 0.0, 1.0 );
@@ -81,20 +81,20 @@ void main()
   {
     if ( viewA.z < 0.0 && viewB.z >= 0.0 ) 
     {
-      float alpha = trimSegment( viewA, viewB );
-      viewB = mix( viewA, viewB, alpha );
+      float alpha = trimSegment( viewB, viewA );
+      viewB = mix( viewB, viewA, alpha );
 
       #ifdef USE_DASH
-        newDistanceB = mix( newDistanceA, newDistanceB, alpha );
+        newDistanceB = mix( newDistanceB, newDistanceA, alpha );
       #endif
     } 
     else if ( viewB.z < 0.0 && viewA.z >= 0.0 ) 
     {
-      float alpha = trimSegment( viewB, viewA );
-      viewA = mix( viewB, viewA, alpha );
+      float alpha = trimSegment( viewA, viewB );
+      viewA = mix( viewA, viewB, alpha );
 
       #ifdef USE_DASH
-        newDistanceA = mix( newDistanceB, newDistanceA, alpha );
+        newDistanceA = mix( newDistanceA, newDistanceB, alpha );
       #endif
     }
   }
@@ -125,8 +125,6 @@ void main()
     }
 
     clip = u_projection_matrix * vec4( viewPos, 1.0 );
-    vec3 ndcShift = position.y < 0.5 ? clipA.xyz / clipA.w : clipB.xyz / clipB.w;
-    clip.z = ndcShift.z * clip.w;
 
     vViewPos = viewPos;
   #else // Screen space units
