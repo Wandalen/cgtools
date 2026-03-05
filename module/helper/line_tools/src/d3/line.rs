@@ -154,6 +154,7 @@ mod private
       let index_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to index_buffer" ) )?;
       let uv_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to uv_buffer" ) )?;
       let color_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to color_buffer" ) )?;
+      #[ cfg( feature = "distance" ) ]
       let distances_buffer = gl.create_buffer().ok_or( gl::WebglError::Other( "Failed to distance_buffer" ) )?;
 
       gl::buffer::upload( gl, &position_buffer, &vertices.iter().copied().flatten().collect::< Vec< f32 > >(), gl::STATIC_DRAW );
@@ -202,6 +203,7 @@ mod private
       mesh.buffer_add( "points", points_buffer );
       mesh.buffer_add( "uv", uv_buffer );
       mesh.buffer_add( "colors", color_buffer );
+      #[ cfg( feature = "distance" ) ]
       mesh.buffer_add( "distances", distances_buffer );
 
       self.render_state.mesh = Some( mesh );
@@ -248,6 +250,7 @@ mod private
 
         b_program.uniform_locations_clear();
 
+        #[ cfg( feature = "distance" ) ]
         if self.render_state.use_dash
         {
           match self.render_state.dash_pattern
@@ -339,6 +342,7 @@ mod private
 
       let mesh = self.render_state.mesh.as_mut().ok_or( gl::WebglError::Other( "Mesh has not been created yet" ) )?;
 
+      #[ cfg( feature = "distance" ) ]
       if self.render_state.use_dash
       {
         let b_program = mesh.program_get_mut( "body" );

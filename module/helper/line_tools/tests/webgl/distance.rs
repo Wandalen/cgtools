@@ -352,7 +352,7 @@ fn test_distance_point_remove_front()
   line.point_add_front( &[ 1.0, 1.0, 0.0 ] );
   line.point_add_front( &[ 1.0, 1.0, 1.0 ] );
 
-  line.point_remove_front( true );
+  line.point_remove_front();
 
   let expected = 
   [
@@ -363,7 +363,7 @@ fn test_distance_point_remove_front()
 
   assert_eq!( expected, line.distances_get() );
 
-  line.point_remove_front( true );
+  line.point_remove_front();
 
   let expected =
   [
@@ -515,16 +515,16 @@ fn test_distance_remove_front_all_one_by_one()
   line.point_add_back( &[ 1.0, 1.0, 0.0 ] );
   line.point_add_back( &[ 1.0, 1.0, 1.0 ] );
 
-  line.point_remove_front( true );
+  line.point_remove_front();
   assert_eq!( [ 0.0, 1.0, 2.0 ], line.distances_get() );
 
-  line.point_remove_front( true );
+  line.point_remove_front();
   assert_eq!( [ 0.0, 1.0 ], line.distances_get() );
 
-  line.point_remove_front( true );
+  line.point_remove_front();
   assert_eq!( [ 0.0 ], line.distances_get() );
 
-  line.point_remove_front( true );
+  line.point_remove_front();
   assert_eq!( 0, line.distances_get().len() );
 }
 
@@ -538,8 +538,8 @@ fn test_distance_remove_front_then_add_front()
   line.point_add_back( &[ 3.0, 0.0, 0.0 ] );
 
   // Remove two from front
-  line.point_remove_front( true );
-  line.point_remove_front( true );
+  line.point_remove_front();
+  line.point_remove_front();
   assert_eq!( [ 0.0, 1.0 ], line.distances_get() );
 
   // Add two new points to front
@@ -557,7 +557,7 @@ fn test_distance_remove_front_then_add_back()
   line.point_add_back( &[ 1.0, 0.0, 0.0 ] );
   line.point_add_back( &[ 2.0, 0.0, 0.0 ] );
 
-  line.point_remove_front( true );
+  line.point_remove_front();
   // Line is now: (1,0,0) -> (2,0,0), distances [0, 1]
   assert_eq!( [ 0.0, 1.0 ], line.distances_get() );
 
@@ -579,11 +579,11 @@ fn test_distance_remove_front_non_unit_segments()
 
   assert_eq!( [ 0.0, 5.0, 17.0, 18.0 ], line.distances_get() );
 
-  line.point_remove_front( true );
+  line.point_remove_front();
   // Remaining: (3,4,0) -> (3,4,12) -> (3,5,12)
   assert_eq!( [ 0.0, 12.0, 13.0 ], line.distances_get() );
 
-  line.point_remove_front( true );
+  line.point_remove_front();
   // Remaining: (3,4,12) -> (3,5,12)
   assert_eq!( [ 0.0, 1.0 ], line.distances_get() );
 }
@@ -598,7 +598,7 @@ fn test_distance_points_remove_front_batch()
   line.point_add_back( &[ 3.0, 0.0, 0.0 ] );
   line.point_add_back( &[ 4.0, 0.0, 0.0 ] );
 
-  line.points_remove_front( 3, true );
+  line.points_remove_front( 3 );
 
   // Remaining: (3,0,0) -> (4,0,0)
   assert_eq!( [ 0.0, 1.0 ], line.distances_get() );
@@ -612,7 +612,7 @@ fn test_distance_points_remove_front_all()
   line.point_add_back( &[ 1.0, 0.0, 0.0 ] );
   line.point_add_back( &[ 2.0, 0.0, 0.0 ] );
 
-  line.points_remove_front( 3, true );
+  line.points_remove_front( 3 );
 
   assert_eq!( 0, line.distances_get().len() );
 }
@@ -624,7 +624,7 @@ fn test_distance_points_remove_front_more_than_length()
   line.point_add_back( &[ 0.0, 0.0, 0.0 ] );
   line.point_add_back( &[ 1.0, 0.0, 0.0 ] );
 
-  line.points_remove_front( 5, true );
+  line.points_remove_front( 5 );
 
   assert_eq!( 0, line.distances_get().len() );
 }
@@ -641,7 +641,7 @@ fn test_distance_remove_front_and_back_alternating()
   line.point_add_back( &[ 3.0, 0.0, 0.0 ] );
   line.point_add_back( &[ 4.0, 0.0, 0.0 ] );
 
-  line.point_remove_front( true );
+  line.point_remove_front();
   // (1,0,0) -> (2,0,0) -> (3,0,0) -> (4,0,0)
   assert_eq!( [ 0.0, 1.0, 2.0, 3.0 ], line.distances_get() );
 
@@ -649,7 +649,7 @@ fn test_distance_remove_front_and_back_alternating()
   // (1,0,0) -> (2,0,0) -> (3,0,0)
   assert_eq!( [ 0.0, 1.0, 2.0 ], line.distances_get() );
 
-  line.point_remove_front( true );
+  line.point_remove_front();
   // (2,0,0) -> (3,0,0)
   assert_eq!( [ 0.0, 1.0 ], line.distances_get() );
 
@@ -666,7 +666,7 @@ fn test_distance_remove_front_and_back_to_empty()
   line.point_add_back( &[ 0.0, 0.0, 0.0 ] );
   line.point_add_back( &[ 1.0, 0.0, 0.0 ] );
 
-  line.point_remove_front( true );
+  line.point_remove_front();
   line.point_remove_back();
 
   assert_eq!( 0, line.distances_get().len() );
@@ -682,7 +682,7 @@ fn test_distance_remove_front_and_back_then_rebuild()
   line.point_add_back( &[ 3.0, 0.0, 0.0 ] );
 
   // Shrink from both ends
-  line.point_remove_front( true );
+  line.point_remove_front();
   line.point_remove_back();
   // Remaining: (1,0,0) -> (2,0,0)
   assert_eq!( [ 0.0, 1.0 ], line.distances_get() );
@@ -752,13 +752,13 @@ fn test_distance_remove_front_total_distance_stays_consistent()
   line.point_add_back( &[ 3.0, 4.0, 0.0 ] );
   line.point_add_back( &[ 3.0, 4.0, 12.0 ] );
 
-  line.point_remove_front( true );
+  line.point_remove_front();
   // (3,0,0) -> (3,4,0) -> (3,4,12): 4 + 12 = 16
   assert_eq!( [ 0.0, 4.0, 16.0 ], line.distances_get() );
   let last = *line.distances_get().last().unwrap();
   assert_eq!( last, line.total_distance_get() );
 
-  line.point_remove_front( true );
+  line.point_remove_front();
   // (3,4,0) -> (3,4,12): 12
   assert_eq!( [ 0.0, 12.0 ], line.distances_get() );
   let last = *line.distances_get().last().unwrap();
@@ -781,7 +781,7 @@ fn test_distance_batch_remove_back_then_batch_remove_front()
   assert_eq!( [ 0.0, 1.0, 2.0, 3.0 ], line.distances_get() );
   assert_eq!( 3.0, line.total_distance_get() );
 
-  line.points_remove_front( 2, true );
+  line.points_remove_front( 2 );
   // (2) -> (3)
   assert_eq!( [ 0.0, 1.0 ], line.distances_get() );
   assert_eq!( 1.0, line.total_distance_get() );
@@ -807,7 +807,7 @@ fn test_distance_remove_front_single_point_line()
   let mut line = d3::Line::default();
   line.point_add_back( &[ 5.0, 5.0, 5.0 ] );
 
-  line.point_remove_front( true );
+  line.point_remove_front();
   assert_eq!( 0, line.distances_get().len() );
 }
 
@@ -822,7 +822,7 @@ fn test_distance_remove_front_no_update_preserves_distances()
   line.point_add_back( &[ 2.0, 0.0, 0.0 ] );
   line.point_add_back( &[ 3.0, 0.0, 0.0 ] );
 
-  line.point_remove_front( false );
+  line.point_remove_front_no_distance_update();
 
   // Distances are NOT recalculated, front entry is just removed
   // Remaining distances keep their original values: [1.0, 2.0, 3.0]
@@ -839,13 +839,13 @@ fn test_distance_remove_front_no_update_multiple()
   line.point_add_back( &[ 3.0, 0.0, 0.0 ] );
   line.point_add_back( &[ 4.0, 0.0, 0.0 ] );
 
-  line.point_remove_front( false );
+  line.point_remove_front_no_distance_update();
   assert_eq!( [ 1.0, 2.0, 3.0, 4.0 ], line.distances_get() );
 
-  line.point_remove_front( false );
+  line.point_remove_front_no_distance_update();
   assert_eq!( [ 2.0, 3.0, 4.0 ], line.distances_get() );
 
-  line.point_remove_front( false );
+  line.point_remove_front_no_distance_update();
   assert_eq!( [ 3.0, 4.0 ], line.distances_get() );
 }
 
@@ -860,7 +860,7 @@ fn test_distance_remove_front_no_update_total_distance_unchanged()
 
   assert_eq!( 19.0, line.total_distance_get() );
 
-  line.point_remove_front( false );
+  line.point_remove_front_no_distance_update();
   // total_distance is NOT updated
   assert_eq!( 19.0, line.total_distance_get() );
   // But the effective distance is back - front = 19.0 - 3.0 = 16.0
@@ -873,7 +873,7 @@ fn test_distance_remove_front_no_update_single_point()
   let mut line = d3::Line::default();
   line.point_add_back( &[ 5.0, 5.0, 5.0 ] );
 
-  line.point_remove_front( false );
+  line.point_remove_front_no_distance_update();
   assert_eq!( 0, line.distances_get().len() );
 }
 
@@ -884,7 +884,7 @@ fn test_distance_remove_front_no_update_two_points()
   line.point_add_back( &[ 0.0, 0.0, 0.0 ] );
   line.point_add_back( &[ 3.0, 4.0, 0.0 ] );
 
-  line.point_remove_front( false );
+  line.point_remove_front_no_distance_update();
   // Only one point left, distance entry is [5.0]
   assert_eq!( [ 5.0 ], line.distances_get() );
 }
@@ -899,7 +899,7 @@ fn test_distance_points_remove_front_batch_no_update()
   line.point_add_back( &[ 3.0, 0.0, 0.0 ] );
   line.point_add_back( &[ 4.0, 0.0, 0.0 ] );
 
-  line.points_remove_front( 3, false );
+  line.points_remove_front_no_distance_update( 3 );
 
   // Remaining distances are [3.0, 4.0] (not recalculated)
   assert_eq!( [ 3.0, 4.0 ], line.distances_get() );
@@ -918,11 +918,11 @@ fn test_distance_remove_front_no_update_then_update()
   line.point_add_back( &[ 4.0, 0.0, 0.0 ] );
 
   // First remove without update
-  line.point_remove_front( false );
+  line.point_remove_front_no_distance_update();
   assert_eq!( [ 1.0, 2.0, 3.0, 4.0 ], line.distances_get() );
 
   // Then remove with update — should recalculate from current front
-  line.point_remove_front( true );
+  line.point_remove_front();
   assert_eq!( [ 0.0, 1.0, 2.0 ], line.distances_get() );
   assert_eq!( 2.0, line.total_distance_get() );
 }
@@ -938,12 +938,12 @@ fn test_distance_remove_front_update_then_no_update()
   line.point_add_back( &[ 4.0, 0.0, 0.0 ] );
 
   // First remove with update
-  line.point_remove_front( true );
+  line.point_remove_front();
   assert_eq!( [ 0.0, 1.0, 2.0, 3.0 ], line.distances_get() );
   assert_eq!( 3.0, line.total_distance_get() );
 
   // Then remove without update — distances stay as they are
-  line.point_remove_front( false );
+  line.point_remove_front_no_distance_update();
   assert_eq!( [ 1.0, 2.0, 3.0 ], line.distances_get() );
   // total_distance is NOT updated
   assert_eq!( 3.0, line.total_distance_get() );
@@ -961,15 +961,15 @@ fn test_distance_remove_front_alternating_update_modes()
   line.point_add_back( &[ 5.0, 0.0, 0.0 ] );
 
   // no update: just pop front distance
-  line.point_remove_front( false );
+  line.point_remove_front_no_distance_update();
   assert_eq!( [ 1.0, 2.0, 3.0, 4.0, 5.0 ], line.distances_get() );
 
   // no update again
-  line.point_remove_front( false );
+  line.point_remove_front_no_distance_update();
   assert_eq!( [ 2.0, 3.0, 4.0, 5.0 ], line.distances_get() );
 
   // update: recalculate by subtracting the front value
-  line.point_remove_front( true );
+  line.point_remove_front();
   assert_eq!( [ 0.0, 1.0, 2.0 ], line.distances_get() );
   assert_eq!( 2.0, line.total_distance_get() );
 }
@@ -983,7 +983,7 @@ fn test_distance_remove_front_no_update_then_remove_back()
   line.point_add_back( &[ 2.0, 0.0, 0.0 ] );
   line.point_add_back( &[ 3.0, 0.0, 0.0 ] );
 
-  line.point_remove_front( false );
+  line.point_remove_front_no_distance_update();
   assert_eq!( [ 1.0, 2.0, 3.0 ], line.distances_get() );
 
   line.point_remove_back();
@@ -1003,11 +1003,11 @@ fn test_distance_batch_remove_front_no_update_then_batch_update()
   line.point_add_back( &[ 5.0, 0.0, 0.0 ] );
 
   // Remove 2 without updating
-  line.points_remove_front( 2, false );
+  line.points_remove_front_no_distance_update( 2 );
   assert_eq!( [ 2.0, 3.0, 4.0, 5.0 ], line.distances_get() );
 
   // Remove 1 with update — should recalculate
-  line.points_remove_front( 1, true );
+  line.points_remove_front( 1 );
   assert_eq!( [ 0.0, 1.0, 2.0 ], line.distances_get() );
   assert_eq!( 2.0, line.total_distance_get() );
 }
