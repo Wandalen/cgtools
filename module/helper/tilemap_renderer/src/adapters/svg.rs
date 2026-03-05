@@ -20,8 +20,7 @@ use crate::types::*;
 /// ```
 pub struct SvgBackend
 {
-  width : u32,
-  height : u32,
+  config : RenderConfig,
   /// `<defs>` section built from assets.
   defs : String,
   /// Body built from commands.
@@ -36,14 +35,13 @@ pub struct SvgBackend
 
 impl SvgBackend
 {
-  /// Creates a new SVG backend with the given viewport dimensions.
+  /// Creates a new SVG backend from render config.
   #[ must_use ]
-  pub fn new( width : u32, height : u32 ) -> Self
+  pub fn new( config : RenderConfig ) -> Self
   {
     Self
     {
-      width,
-      height,
+      config,
       defs : String::new(),
       body : String::new(),
       path_data : String::new(),
@@ -80,7 +78,8 @@ impl SvgBackend
     {
       FillRef::None => "none".to_string(),
       FillRef::Solid( color ) => Self::color_to_svg( color ),
-      FillRef::Asset( id ) => format!( "url(#asset_{})", id.0 ),
+      FillRef::Gradient( id ) => format!( "url(#grad_{})", id.inner() ),
+      FillRef::Pattern( id ) => format!( "url(#pat_{})", id.inner() ),
     }
   }
 
@@ -187,11 +186,11 @@ impl SvgBackend
     ( h, v )
   }
 
-  fn clip_attr( clip : &Option< ResourceId > ) -> String
+  fn clip_attr( clip : &Option< ResourceId< asset::ClipMask > > ) -> String
   {
     match clip
     {
-      Some( id ) => format!( " clip-path=\"url(#clip_{})\"", id.0 ),
+      Some( id ) => format!( " clip-path=\"url(#clip_{})\"", id.inner() ),
       None => String::new(),
     }
   }
@@ -239,7 +238,7 @@ impl SvgBackend
         "<text font-size=\"{}\" fill=\"{}\" text-anchor=\"{}\" dominant-baseline=\"{}\"{}>
           <textPath href=\"#path_{}\">{}</textPath></text>",
         style.size, fill, anchor, baseline, clip,
-        path_id.0, self.text_buf,
+        path_id.inner(), self.text_buf,
       );
     }
     else
@@ -276,16 +275,16 @@ impl Backend for SvgBackend
         {
           let _ = write!(
             self.defs,
-            "<linearGradient id=\"asset_{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\">{}</linearGradient>",
-            grad.id.0, start[ 0 ], start[ 1 ], end[ 0 ], end[ 1 ], stops,
+            "<linearGradient id=\"grad_{}\" x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\">{}</linearGradient>",
+            grad.id.inner(), start[ 0 ], start[ 1 ], end[ 0 ], end[ 1 ], stops,
           );
         }
         GradientKind::Radial { center, radius, focal } =>
         {
           let _ = write!(
             self.defs,
-            "<radialGradient id=\"asset_{}\" cx=\"{}\" cy=\"{}\" r=\"{}\" fx=\"{}\" fy=\"{}\">{}</radialGradient>",
-            grad.id.0, center[ 0 ], center[ 1 ], radius, focal[ 0 ], focal[ 1 ], stops,
+            "<radialGradient id=\"grad_{}\" cx=\"{}\" cy=\"{}\" r=\"{}\" fx=\"{}\" fy=\"{}\">{}</radialGradient>",
+            grad.id.inner(), center[ 0 ], center[ 1 ], radius, focal[ 0 ], focal[ 1 ], stops,
           );
         }
       }
@@ -296,8 +295,8 @@ impl Backend for SvgBackend
     {
       let _ = write!(
         self.defs,
-        "<pattern id=\"asset_{}\" width=\"{}\" height=\"{}\" patternUnits=\"userSpaceOnUse\"><use href=\"#asset_{}\"/></pattern>",
-        pat.id.0, pat.width, pat.height, pat.content.0,
+        "<pattern id=\"pat_{}\" width=\"{}\" height=\"{}\" patternUnits=\"userSpaceOnUse\"><use href=\"#img_{}\"/></pattern>",
+        pat.id.inner(), pat.width, pat.height, pat.content.inner(),
       );
     }
 
@@ -320,7 +319,7 @@ impl Backend for SvgBackend
           PathSegment::Close => { d.push_str( "Z " ); }
         }
       }
-      let _ = write!( self.defs, "<clipPath id=\"clip_{}\"><path d=\"{}\"/></clipPath>", clip.id.0, d.trim() );
+      let _ = write!( self.defs, "<clipPath id=\"clip_{}\"><path d=\"{}\"/></clipPath>", clip.id.inner(), d.trim() );
     }
 
     // Named paths (for textPath)
@@ -342,7 +341,7 @@ impl Backend for SvgBackend
           PathSegment::Close => { d.push_str( "Z " ); }
         }
       }
-      let _ = write!( self.defs, "<path id=\"path_{}\" d=\"{}\"/>", path.id.0, d.trim() );
+      let _ = write!( self.defs, "<path id=\"path_{}\" d=\"{}\"/>", path.id.inner(), d.trim() );
     }
 
     // TODO: images, sprites (base64 encode + <symbol>)
@@ -413,6 +412,11 @@ impl Backend for SvgBackend
           // TODO: <use href="#geom_N" transform="..."/>
         }
         RenderCommand::EndInstancedMesh( _ ) => {}
+        RenderCommand::BeginInstancedSprite( _ ) => { /* TODO */ }
+        RenderCommand::SpriteInstance( _ ) => { /* TODO */ }
+        RenderCommand::EndInstancedSprite( _ ) => {}
+        RenderCommand::BeginRecordBatch( _ ) => { /* TODO: start collecting instances */ }
+        RenderCommand::EndRecordBatch( _ ) => { /* TODO: finalize stored batch */ }
 
         // Grouping
         RenderCommand::BeginGroup( bg ) =>
@@ -438,11 +442,24 @@ impl Backend for SvgBackend
     Ok( () )
   }
 
+  fn resize( &mut self, width : u32, height : u32 )
+  {
+    self.config.width = width;
+    self.config.height = height;
+  }
+
   fn output( &self ) -> Result< Output, RenderError >
   {
+    let w = self.config.width;
+    let h = self.config.height;
+    let shape_rendering = match self.config.antialias
+    {
+      Antialias::None => " shape-rendering=\"crispEdges\"",
+      Antialias::Default => "",
+      Antialias::High => " shape-rendering=\"geometricPrecision\"",
+    };
     let mut doc = format!(
-      "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\" xmlns=\"http://www.w3.org/2000/svg\">",
-      self.width, self.height, self.width, self.height,
+      "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\" xmlns=\"http://www.w3.org/2000/svg\"{shape_rendering}>",
     );
     if !self.defs.is_empty()
     {

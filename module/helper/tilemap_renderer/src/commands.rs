@@ -5,6 +5,7 @@
 //! state implicitly through ordering.
 
 use crate::types::*;
+use crate::types::asset;
 
 // ============================================================================
 // Clear
@@ -37,7 +38,7 @@ pub struct BeginPath
   pub stroke_join : LineJoin,
   pub stroke_dash : DashStyle,
   pub blend : BlendMode,
-  pub clip : Option< ResourceId >,
+  pub clip : Option< ResourceId< asset::ClipMask > >,
 }
 
 /// SVG: `M x y`.
@@ -94,14 +95,14 @@ pub struct EndPath;
 #[ derive( Debug, Clone, Copy ) ]
 pub struct BeginText
 {
-  pub font : ResourceId,
+  pub font : ResourceId< asset::Font >,
   pub size : f32,
   pub color : [ f32; 4 ],
   pub anchor : TextAnchor,
   pub position : [ f32; 2 ],
   /// If Some, text follows a path from Assets. SVG: `<textPath>`.
-  pub along_path : Option< ResourceId >,
-  pub clip : Option< ResourceId >,
+  pub along_path : Option< ResourceId< asset::Path > >,
+  pub clip : Option< ResourceId< asset::ClipMask > >,
 }
 
 /// Single character. POD.
@@ -123,11 +124,15 @@ pub struct EndText;
 pub struct Mesh
 {
   pub transform : Transform,
-  pub geometry : ResourceId,
+  pub geometry : ResourceId< asset::Geometry >,
   pub fill : FillRef,
+  /// Optional texture mapped via UV coordinates from GeometryAsset.
+  /// GPU: binds texture, fragment shader samples using interpolated UVs.
+  /// SVG: approximated as `<pattern>` fill over bounding box (no true UV mapping).
+  pub texture : Option< ResourceId< asset::Image > >,
   pub topology : Topology,
   pub blend : BlendMode,
-  pub clip : Option< ResourceId >,
+  pub clip : Option< ResourceId< asset::ClipMask > >,
 }
 
 /// Renders a sprite (sub-region of an image / sprite sheet).
@@ -138,11 +143,11 @@ pub struct Sprite
 {
   pub transform : Transform,
   /// References a SpriteAsset (which knows its sheet + region).
-  pub sprite : ResourceId,
+  pub sprite : ResourceId< asset::Sprite >,
   /// Tint color multiplied with texture color. White `[1,1,1,1]` = no tint.
   pub tint : [ f32; 4 ],
   pub blend : BlendMode,
-  pub clip : Option< ResourceId >,
+  pub clip : Option< ResourceId< asset::ClipMask > >,
 }
 
 // ============================================================================
@@ -155,10 +160,10 @@ pub struct Sprite
 #[ derive( Debug, Clone, Copy ) ]
 pub struct BeginInstancedMesh
 {
-  pub geometry : ResourceId,
+  pub geometry : ResourceId< asset::Geometry >,
   pub fill : FillRef,
   pub topology : Topology,
-  pub clip : Option< ResourceId >,
+  pub clip : Option< ResourceId< asset::ClipMask > >,
 }
 
 /// One instance transform. POD.
@@ -171,6 +176,57 @@ pub struct Instance
 /// Ends instanced mesh sequence.
 #[ derive( Debug, Clone, Copy ) ]
 pub struct EndInstancedMesh;
+
+/// Batched sprite rendering — many sprites from the same sheet in one batch.
+/// Each SpriteInstance can reference a different region (SpriteAsset) within the sheet.
+/// SVG: one `<symbol>` per unique sprite + `<use>` per instance.
+/// GPU: single draw call — one texture bind, per-instance UV + transform in instance buffer.
+#[ derive( Debug, Clone, Copy ) ]
+pub struct BeginInstancedSprite
+{
+  /// The sprite sheet image. All SpriteInstances must reference sprites from this sheet.
+  pub sheet : ResourceId< asset::Image >,
+  pub blend : BlendMode,
+  pub clip : Option< ResourceId< asset::ClipMask > >,
+}
+
+/// One sprite instance within a batch. POD.
+#[ derive( Debug, Clone, Copy ) ]
+pub struct SpriteInstance
+{
+  pub transform : Transform,
+  /// References a SpriteAsset defining the region within the sheet.
+  pub sprite : ResourceId< asset::Sprite >,
+  /// Tint color. White `[1,1,1,1]` = no tint.
+  pub tint : [ f32; 4 ],
+}
+
+/// Ends instanced sprite batch.
+#[ derive( Debug, Clone, Copy ) ]
+pub struct EndInstancedSprite;
+
+// ============================================================================
+// Batch recording (persistent instance buffer)
+// ============================================================================
+
+/// Begins recording a persistent batch.
+/// SpriteInstance commands between Begin/End are stored in the backend
+/// under the given ResourceId<Batch>, not drawn immediately.
+///
+/// GPU: allocates instance buffer, fills with subsequent SpriteInstance data.
+/// SVG: stores instance list keyed by batch id.
+#[ derive( Debug, Clone, Copy ) ]
+pub struct BeginRecordBatch
+{
+  pub batch : ResourceId< Batch >,
+  pub sheet : ResourceId< asset::Image >,
+  pub blend : BlendMode,
+  pub clip : Option< ResourceId< asset::ClipMask > >,
+}
+
+/// Ends batch recording. The batch is now ready to be drawn via `BatchBackend::draw_batch`.
+#[ derive( Debug, Clone, Copy ) ]
+pub struct EndRecordBatch;
 
 // ============================================================================
 // Effects
@@ -202,7 +258,7 @@ pub enum Effect
 pub struct BeginGroup
 {
   pub transform : Transform,
-  pub clip : Option< ResourceId >,
+  pub clip : Option< ResourceId< asset::ClipMask > >,
   pub effect : Option< Effect >,
 }
 
@@ -244,6 +300,14 @@ pub enum RenderCommand
   BeginInstancedMesh( BeginInstancedMesh ),
   Instance( Instance ),
   EndInstancedMesh( EndInstancedMesh ),
+  BeginInstancedSprite( BeginInstancedSprite ),
+  SpriteInstance( SpriteInstance ),
+  EndInstancedSprite( EndInstancedSprite ),
+
+  // Batch recording
+  BeginRecordBatch( BeginRecordBatch ),
+  // SpriteInstance commands go here — reused from instancing
+  EndRecordBatch( EndRecordBatch ),
 
   // Grouping
   BeginGroup( BeginGroup ),

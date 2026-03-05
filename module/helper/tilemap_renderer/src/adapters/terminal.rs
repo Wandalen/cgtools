@@ -6,11 +6,13 @@
 use crate::assets::Assets;
 use crate::backend::*;
 use crate::commands::*;
+use crate::types::RenderConfig;
 
 /// Terminal renderer backend.
 ///
 /// ```ignore
-/// let mut term = TerminalBackend::new( 120, 40 );
+/// let config = RenderConfig { width: 120, height: 40, ..Default::default() };
+/// let mut term = TerminalBackend::new( config );
 /// term.load_assets( &assets )?;
 /// term.submit( &commands )?;
 /// let Output::String( text ) = term.output()? else { unreachable!() };
@@ -36,10 +38,12 @@ pub struct TerminalBackend
 
 impl TerminalBackend
 {
-  /// Creates a new terminal backend with the given character dimensions.
+  /// Creates a new terminal backend from render config.
   #[ must_use ]
-  pub fn new( width : usize, height : usize ) -> Self
+  pub fn new( config : RenderConfig ) -> Self
   {
+    let width = config.width as usize;
+    let height = config.height as usize;
     Self
     {
       width,
@@ -199,12 +203,25 @@ impl Backend for TerminalBackend
         RenderCommand::BeginInstancedMesh( _ ) => {}
         RenderCommand::Instance( _ ) => {}
         RenderCommand::EndInstancedMesh( _ ) => {}
+        RenderCommand::BeginInstancedSprite( _ ) => {}
+        RenderCommand::SpriteInstance( _ ) => {}
+        RenderCommand::EndInstancedSprite( _ ) => {}
+        RenderCommand::BeginRecordBatch( _ ) => {}
+        RenderCommand::EndRecordBatch( _ ) => {}
         RenderCommand::BeginGroup( _ ) => {}
         RenderCommand::EndGroup( _ ) => {}
       }
     }
 
     Ok( () )
+  }
+
+  fn resize( &mut self, width : u32, height : u32 )
+  {
+    self.width = width as usize;
+    self.height = height as usize;
+    self.buffer = vec![ ' '; self.width * self.height ];
+    self.colors = vec![ None; self.width * self.height ];
   }
 
   fn output( &self ) -> Result< Output, RenderError >

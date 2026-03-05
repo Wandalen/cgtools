@@ -2,10 +2,10 @@
 //!
 //! Assets CAN allocate (Vec, PathBuf, etc.) unlike commands.
 //! They are loaded once via `Backend::load_assets()` and referenced
-//! from commands by `ResourceId`.
+//! from commands by `ResourceId<T>`.
 
 use std::path::PathBuf;
-use crate::types::*;
+use crate::types::{ ResourceId, SamplerFilter, asset };
 
 // ============================================================================
 // Asset container
@@ -32,13 +32,13 @@ pub struct Assets
 
 pub struct FontAsset
 {
-  pub id : ResourceId,
+  pub id : ResourceId< asset::Font >,
   pub source : PathBuf,
 }
 
 pub struct ImageAsset
 {
-  pub id : ResourceId,
+  pub id : ResourceId< asset::Image >,
   pub source : Source,
   /// Sampling filter for this image.
   /// SVG: `image-rendering: pixelated` (Nearest) vs `auto` (Linear).
@@ -51,17 +51,24 @@ pub struct ImageAsset
 /// GPU: UV coordinates mapped to the sub-rectangle within the texture atlas.
 pub struct SpriteAsset
 {
-  pub id : ResourceId,
+  pub id : ResourceId< asset::Sprite >,
   /// The source image (sprite sheet) this sprite is cut from.
-  pub sheet : ResourceId,
+  pub sheet : ResourceId< asset::Image >,
   /// Region within the sheet: `[x, y, width, height]` in pixels.
   pub region : [ f32; 4 ],
 }
 
 pub struct GeometryAsset
 {
-  pub id : ResourceId,
-  pub source : Source,
+  pub id : ResourceId< asset::Geometry >,
+  /// Vertex positions (flat: [x0, y0, x1, y1, ...]).
+  pub positions : Source,
+  /// Optional UV coordinates (flat: [u0, v0, u1, v1, ...]).
+  /// GPU: used for texture mapping in fragment shader.
+  /// SVG: ignored — SVG uses pattern fill which tiles by bounding box.
+  pub uvs : Option< Source >,
+  /// Optional vertex indices for indexed drawing.
+  pub indices : Option< Source >,
   pub data_type : DataType,
 }
 
@@ -70,7 +77,7 @@ pub struct GeometryAsset
 /// GPU: uploaded as a 1D texture or evaluated analytically in shader.
 pub struct GradientAsset
 {
-  pub id : ResourceId,
+  pub id : ResourceId< asset::Gradient >,
   pub kind : GradientKind,
   pub stops : Vec< GradientStop >,
 }
@@ -105,9 +112,9 @@ pub enum GradientKind
 /// GPU: texture with `AddressMode::Repeat` sampler.
 pub struct PatternAsset
 {
-  pub id : ResourceId,
-  /// The image or geometry to tile.
-  pub content : ResourceId,
+  pub id : ResourceId< asset::Pattern >,
+  /// The image to tile.
+  pub content : ResourceId< asset::Image >,
   pub width : f32,
   pub height : f32,
 }
@@ -117,14 +124,14 @@ pub struct PatternAsset
 /// GPU: draw clip shape into stencil buffer, enable stencil test for content.
 pub struct ClipMaskAsset
 {
-  pub id : ResourceId,
+  pub id : ResourceId< asset::ClipMask >,
   pub segments : Vec< PathSegment >,
 }
 
 /// Stored path (e.g. for text-on-path references).
 pub struct PathAsset
 {
-  pub id : ResourceId,
+  pub id : ResourceId< asset::Path >,
   pub segments : Vec< PathSegment >,
 }
 
