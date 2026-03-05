@@ -1,8 +1,7 @@
 //! Core types used across the rendering engine.
 //! All types here are POD (Copy, Clone, no allocations).
 
-use core::marker::PhantomData;
-use core::fmt::Debug;
+use core::{ fmt::Debug, marker::PhantomData };
 
 /// Type-safe handle to a resource. The phantom type `T` prevents mixing up
 /// different resource kinds at compile time.
