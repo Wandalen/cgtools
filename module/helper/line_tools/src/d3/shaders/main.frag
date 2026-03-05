@@ -85,6 +85,8 @@ vec2 closestLineToLine( vec3 p1, vec3 p2, vec3 p3, vec3 p4 )
  #ifdef USE_DASH
   float getDistanceToDash( vec3 rayEnd, float i )
   {
+    if( abs( vLineDistanceB - vLineDistanceA ) < 1e-6 ) { return MAX_FLOAT; }
+
     #if !defined( USE_DASH_V3 ) && !defined( USE_DASH_V4 )
       #ifdef USE_DASH_V1
         float dashSize = u_dash_pattern;
@@ -195,6 +197,8 @@ vec2 closestLineToLine( vec3 p1, vec3 p2, vec3 p3, vec3 p4 )
   #ifndef USE_WORLD_UNITS
     float getDistanceToDashScreenVersion( float i )
     {
+      if( abs( vLineDistanceB - vLineDistanceA ) < 1e-6 ) { return MAX_FLOAT; }
+      
       #if !defined( USE_DASH_V3 ) && !defined( USE_DASH_V4 )
         #ifdef USE_DASH_V1
           float dashSize = u_dash_pattern;
