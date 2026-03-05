@@ -58,9 +58,10 @@ float trimSegment( const in vec3 start, const in vec3 end )
   // conservative estimate of the near plane
   float a = u_projection_matrix[ 2 ][ 2 ]; // 3nd entry in 3th column
   float b = u_projection_matrix[ 3 ][ 2 ]; // 3nd entry in 4th column
-  float nearEstimate = b / (a - 1.0);
+  float nearEstimate = b / (1.0 - a);
 
   float alpha = ( nearEstimate - start.z ) / ( end.z - start.z );
+  alpha = clamp( alpha, 0.0, 1.0 );
   return alpha;
 }
 
