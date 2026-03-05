@@ -119,7 +119,7 @@ vec2 closestLineToLine( vec3 p1, vec3 p2, vec3 p3, vec3 p4 )
 
       if( int( floor( ( vLineDistance + u_dash_offset ) / totalSegmentSize ) ) % 2 == 0 )
       {
-        float k = floor( dashCoverage / ( dashSize1 + dashGap1 ) );
+        float k = min( floor( dashCoverage / ( dashSize1 + dashGap1 ) ), 1.0 );
         distanceA = vLineDistance - dashCoverage + mix( 0.0, dashSize1 + dashGap1, k );
         distanceB = distanceA + mix( dashSize1, dashSize2, k );
 
@@ -229,7 +229,7 @@ vec2 closestLineToLine( vec3 p1, vec3 p2, vec3 p3, vec3 p4 )
 
         if( int( floor( ( vLineDistance + u_dash_offset ) / totalSegmentSize ) ) % 2 == 0 )
         {
-          float k = floor( dashCoverage / ( dashSize1 + dashGap1 ) );
+          float k = min( floor( dashCoverage / ( dashSize1 + dashGap1 ) ), 1.0 );
           distanceA = vLineDistance - dashCoverage + mix( 0.0, dashSize1 + dashGap1, k );
           distanceB = distanceA + mix( dashSize1, dashSize2, k );
 
