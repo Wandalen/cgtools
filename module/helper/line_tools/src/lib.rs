@@ -267,7 +267,17 @@ mod private
         {
           let point = self.geometry.points.remove( index );
           #[ cfg( feature = "distance" ) ]
-          self.distances_update_from( index );
+          {
+            self.geometry.distances.remove( index );
+            if !self.geometry.distances.is_empty()
+            {
+              self.distances_update_from( index.min( self.geometry.distances.len() - 1 ) );
+            }
+            else
+            {
+              self.geometry.total_distance = 0.0;
+            }
+          }
           self.change_state.points_changed = true;
 
           point
@@ -282,22 +292,36 @@ mod private
           color
         }
 
-        /// Removes a points from the front
+        /// Removes a points from the front. Distance is recalculated.
         pub fn point_remove_front( &mut self ) -> Option< dim_to_vec!( $primitive_type, $dimensions ) >
         {
           let geometry = &mut self.geometry;
           #[ cfg( feature = "distance" ) ]
           {
-            if geometry.distances.len() > 1
-            {
-              let delta_dist = geometry.distances[ 1 ];
-              for d in geometry.distances.iter_mut().skip( 1 )
-              {
-                *d -= delta_dist;
-              }
-            }
             geometry.distances.pop_front();
+            if geometry.distances.len() > 0
+              {
+                let delta_dist = geometry.distances[ 0 ];
+                for d in geometry.distances.iter_mut()
+                {
+                  *d -= delta_dist;
+                }
+              }
+            geometry.total_distance = geometry.distances.back().copied().unwrap_or( 0.0 );
           }
+          let point = geometry.points.pop_front();
+          self.change_state.points_changed = true;
+
+          point
+        }
+
+        /// Removes a points from the front.
+        /// Distance is not updated. The real length of the line is `geometry.back() - geometry.front()`
+        #[ cfg( feature = "distance" ) ]
+        pub fn point_remove_front_no_distance_update( &mut self ) -> Option< dim_to_vec!( $primitive_type, $dimensions ) >
+        {
+          let geometry = &mut self.geometry;
+          geometry.distances.pop_front();
           let point = geometry.points.pop_front();
           self.change_state.points_changed = true;
 
@@ -321,9 +345,14 @@ mod private
           {
             if geometry.distances.len() > 0
             {
-              let delta_dist = geometry.distances.back().unwrap();
-              geometry.total_distance -= delta_dist;
               geometry.distances.pop_back();
+              // ## Root Cause
+              // `point_remove_back()` subtracted the cumulative distance from itself,
+              // resulting in total_distance = 0 instead of the new total.
+              // 
+              // ## Pitfall
+              // Cumulative distance arrays store running totals [0, d1, d1+d2], not deltas.
+              geometry.total_distance = geometry.distances.back().copied().unwrap_or( 0.0 );
             }
           }
 
@@ -349,7 +378,19 @@ mod private
           {
             self.point_remove_front();
           }
-          self.change_state.points_changed = true
+        }
+
+        
+        /// Remove the specified amount of points from the front of the list.
+        /// 
+        /// Distance is not updated. So the real length of the line is `geometry.back() - geometry.front()`
+        #[ cfg( feature = "distance" ) ]
+        pub fn points_remove_front_no_distance_update( &mut self, amount : usize )
+        {
+          for _ in 0..amount
+          {
+            self.point_remove_front_no_distance_update();
+          }
         }
 
         /// Remove the specified amount of colors from the front of the list
@@ -359,7 +400,6 @@ mod private
           {
             self.color_remove_front();
           }
-          self.change_state.colors_changed = true
         }
 
         /// Remove the specified amount of points from the back of the list
@@ -369,7 +409,6 @@ mod private
           {
             self.point_remove_back();
           }
-          self.change_state.points_changed = true
         }
 
         /// Remove the specified amount of colors from the back of the list
@@ -379,7 +418,6 @@ mod private
           {
             self.color_remove_back();
           }
-          self.change_state.colors_changed = true
         }
 
         /// Retrieves a reference to the mesh.
