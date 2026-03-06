@@ -170,12 +170,13 @@ impl MeshRenderer
   }
 
   /// Draw a single mesh.
-  fn draw( &self, gl : &gl::GL, geom : &GpuGeometry, transform : &[ f32; 9 ], color : &[ f32; 4 ], topology : u32, viewport : &[ f32; 2 ] )
+  fn draw( &self, gl : &gl::GL, geom : &GpuGeometry, transform : &[ f32; 9 ], color : &[ f32; 4 ], topology : u32, viewport : &[ f32; 2 ], use_texture : bool )
   {
     self.program.activate();
     self.program.uniform_upload( "u_transform", transform );
     self.program.uniform_upload( "u_color", color );
     self.program.uniform_upload( "u_viewport", viewport );
+    self.program.uniform_upload( "u_use_texture", &( use_texture as i32 ) );
 
     gl.bind_vertex_array( Some( &geom.vao ) );
 
@@ -300,16 +301,18 @@ impl WebGlBackend
       let color = match m.fill { FillRef::Solid( c ) => c, _ => [ 1.0, 1.0, 1.0, 1.0 ] };
       self.apply_blend( &m.blend );
 
+      let mut use_texture = false;
       if let Some( tex_id ) = m.texture
       {
         if let Some( gpu_tex ) = res.texture( tex_id )
         {
           self.gl.active_texture( gl::TEXTURE0 );
           self.gl.bind_texture( gl::TEXTURE_2D, Some( &gpu_tex.texture ) );
+          use_texture = true;
         }
       }
 
-      self.mesh.draw( &self.gl, geom, &mat, &color, topology_to_gl( &m.topology ), viewport );
+      self.mesh.draw( &self.gl, geom, &mat, &color, topology_to_gl( &m.topology ), viewport, use_texture );
     }
   }
 

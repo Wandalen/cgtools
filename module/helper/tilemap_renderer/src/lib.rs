@@ -22,5 +22,6 @@ pub mod backend;
 (
   feature = "adapter-svg",
   feature = "adapter-terminal",
+  feature = "adapter-webgl",
 ) ) ]
 pub mod adapters;
