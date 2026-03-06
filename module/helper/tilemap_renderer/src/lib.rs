@@ -1,55 +1,27 @@
 //! Agnostic 2D rendering engine.
-#![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
+//!
+//! Backend-agnostic scene definition with POD commands.
+//! Define commands once, render to any backend (SVG, GPU, terminal).
+//!
+//! ```ignore
+//! use tilemap_renderer::{ commands::*, types::*, assets::*, backend::* };
+//! use tilemap_renderer::adapters::SvgBackend;
+//!
+//! let mut svg = SvgBackend::new( 800, 600 );
+//! svg.load_assets( &assets )?;
+//! svg.submit( &commands )?;
+//! let Output::String( doc ) = svg.output()? else { unreachable!() };
+//! ```
 
-// Prevent "unused" warnings when features are disabled
-#![ cfg_attr( not( feature = "std" ), allow( unused ) ) ]
-
-// Module declarations - using ultra-granular feature gating
-#[ cfg( any( feature = "scene-container", feature = "scene-methods" ) ) ]
-pub mod scene;
-
-#[ cfg( any(
-  feature = "command-line",
-  feature = "command-curve",
-  feature = "command-text",
-  feature = "command-tilemap",
-  feature = "command-particle",
-  feature = "commands"
-) ) ]
+pub mod types;
 pub mod commands;
+pub mod assets;
+pub mod backend;
 
-#[ cfg( any(
-  feature = "traits-renderer",
-  feature = "traits-primitive",
-  feature = "traits-async",
-  feature = "ports"
-) ) ]
-pub mod ports;
-
-#[ cfg( any(
-  feature = "adapter-svg-basic",
+#[ cfg( any
+(
   feature = "adapter-svg",
-  feature = "adapter-svg-browser",
-  feature = "adapter-webgl",
-  feature = "adapter-webgpu",
-  feature = "adapter-terminal-basic",
   feature = "adapter-terminal",
-  feature = "adapter-wgpu"
+  feature = "adapter-webgl",
 ) ) ]
 pub mod adapters;
-
-#[ cfg( any(
-  feature = "query-basic",
-  feature = "query-by-type",
-  feature = "query-predicate",
-  feature = "query"
-) ) ]
-pub mod query;
-
-#[ cfg( any(
-  feature = "cli-basic",
-  feature = "cli-commands",
-  feature = "cli-repl",
-  feature = "cli"
-) ) ]
-pub mod cli;

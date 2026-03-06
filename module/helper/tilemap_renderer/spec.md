@@ -7,15 +7,16 @@
 ### **Table of Contents**
 
 **Part I: Public Contract (The Rendering API)**
-1.  [Project Goal](#1-project-goal)
-2.  [Problem Solved](#2-problem-solved)
-3.  [Ubiquitous Language (Vocabulary)](#3-ubiquitous-language-vocabulary)
-4.  [Deliverables](#4-deliverables)
-5.  [Success Metrics](#5-success-metrics)
-6.  [Vision & Scope](#6-vision--scope)
-7.  [System Actors](#7-system-actors)
-8.  [Functional Requirements: Scene Definition](#8-functional-requirements-scene-definition)
-9.  [Functional Requirements: CLI](#9-functional-requirements-cli)
+
+1. [Project Goal](#1-project-goal)
+2. [Problem Solved](#2-problem-solved)
+3. [Ubiquitous Language (Vocabulary)](#3-ubiquitous-language-vocabulary)
+4. [Deliverables](#4-deliverables)
+5. [Success Metrics](#5-success-metrics)
+6. [Vision & Scope](#6-vision--scope)
+7. [System Actors](#7-system-actors)
+8. [Functional Requirements: Scene Definition](#8-functional-requirements-scene-definition)
+9. [Functional Requirements: CLI](#9-functional-requirements-cli)
 10. [Non-Functional Requirements](#10-non-functional-requirements)
 
 **Part II: Internal Design (Backend Implementation)**
@@ -30,6 +31,7 @@
 17. [Open Questions](#17-open-questions)
 
 **Appendix: Addendum**
+
 - [Developer Implementation Notes](#appendix-addendum)
 
 ---
@@ -37,12 +39,15 @@
 **Part I: Public Contract (The Rendering API)**
 
 ### 1. Project Goal
+
 To create a high-performance, backend-agnostic 2D rendering engine for Rust, designed for maximum flexibility. The engine will decouple scene definition from the rendering implementation, allowing a single scene to be rendered across multiple backends.
 
 ### 2. Problem Solved
+
 Developers are often locked into a single rendering backend, making it difficult to reuse rendering logic across different platforms or for different purposes. This project solves that by providing a clean abstraction layer, allowing a developer to define a scene once and render it anywhere.
 
 ### 3. Ubiquitous Language (Vocabulary)
+
 | Term | Definition |
 | :--- | :--- |
 | **Port** | An interface (a Rust `trait`) that defines a set of rendering capabilities. |
@@ -52,20 +57,22 @@ Developers are often locked into a single rendering backend, making it difficult
 | **Render Command** | A lightweight, POD `struct` that describes a single primitive to be drawn. |
 
 ### 4. Deliverables
-1.  **Published Core Crate (`agnostic_renderer`):** The primary library with the public API and `Port` traits, with comprehensive feature gating for minimal dependencies.
-2.  **Published Backend Adapter Crates:** Individual crates for each backend:
+
+1. **Published Core Crate (`agnostic_renderer`):** The primary library with the public API and `Port` traits, with comprehensive feature gating for minimal dependencies.
+2. **Published Backend Adapter Crates:** Individual crates for each backend:
     - `renderer_adapter_svg` - Static SVG file generation
     - `renderer_adapter_svg_browser` - Interactive SVG with JavaScript
     - `renderer_adapter_webgl` - Hardware-accelerated WebGL rendering
     - `renderer_adapter_webgpu` - Next-generation WebGPU rendering
     - `renderer_adapter_terminal` - ASCII art terminal output
-3.  **Integrated CLI Tool (`are`):** The interactive command-line tool built with `unilang`, included in the main crate via feature gating.
-4.  **Source Code Repository:** A Git monorepo containing all crates with comprehensive feature flags.
-5.  **Comprehensive API Documentation:** Publicly hosted `cargo doc` documentation.
-6.  **Usage Examples & Gallery:** Examples showing the same scene rendered with different backends.
-7.  **Feature Flag Documentation:** Complete guide for selecting minimal dependencies via cargo features.
+3. **Integrated CLI Tool (`are`):** The interactive command-line tool built with `unilang`, included in the main crate via feature gating.
+4. **Source Code Repository:** A Git monorepo containing all crates with comprehensive feature flags.
+5. **Comprehensive API Documentation:** Publicly hosted `cargo doc` documentation.
+6. **Usage Examples & Gallery:** Examples showing the same scene rendered with different backends.
+7. **Feature Flag Documentation:** Complete guide for selecting minimal dependencies via cargo features.
 
 ### 5. Success Metrics
+
 | Category | Metric | Target |
 | :--- | :--- | :--- |
 | **Adoption** | Downloads on `crates.io` | Achieve 500 downloads within 6 months of the 1.0 release. |
@@ -73,23 +80,28 @@ Developers are often locked into a single rendering backend, making it difficult
 | **Usability** | Time to Proficiency | A new developer can create a basic 'hello world' adapter in under 4 hours. |
 
 ### 6. Vision & Scope
+
 #### 6.1. Vision
+
 To provide the Rust ecosystem with a uniquely flexible and decoupled 2D rendering engine, enabling developers to "write once, render anywhere."
 
 #### 6.2. In Scope (for Version 1.0)
--   A command-based scene definition API.
--   Core primitives: `Line`, `Curve`, `Text`, `Tilemap`, `ParticleEmitter`.
--   A "Ports and Adapters" architecture.
--   Backend adapters for `wgpu`, `webgl`, `svg`, and `terminal`.
--   A `unilang`-based CLI for interactive editing and headless rendering.
+
+- A command-based scene definition API.
+- Core primitives: `Line`, `Curve`, `Text`, `Tilemap`, `ParticleEmitter`.
+- A "Ports and Adapters" architecture.
+- Backend adapters for `wgpu`, `webgl`, `svg`, and `terminal`.
+- A `unilang`-based CLI for interactive editing and headless rendering.
 
 #### 6.3. Out of Scope (for Version 1.0)
--   3D Rendering.
--   A full game engine (physics, audio, etc.).
--   Advanced rendering features like a shader pipeline or post-processing.
--   A GUI system.
+
+- 3D Rendering.
+- A full game engine (physics, audio, etc.).
+- Advanced rendering features like a shader pipeline or post-processing.
+- A GUI system.
 
 ### 7. System Actors
+
 | Actor | Category | Description |
 | :--- | :--- | :--- |
 | **Application Developer** | Human | The primary user of the library who writes code to generate `RenderCommands`. |
@@ -98,7 +110,9 @@ To provide the Rust ecosystem with a uniquely flexible and decoupled 2D renderin
 | **`unilang` Interpreter**| External System | The language interpreter that powers the `are` CLI tool. |
 
 ### 8. Functional Requirements: Scene Definition
+
 #### 8.1. FR-A: Scene & Command Queue
+
 - **FR-A1:** Must provide a `Scene` object as a container for a frame.
 - **FR-A2:** `Scene` must be composed of an ordered list of `RenderCommand`s.
 - **FR-A3:** `Scene` must have a method to add commands (e.g., `scene.add(...)`).
@@ -107,6 +121,7 @@ To provide the Rust ecosystem with a uniquely flexible and decoupled 2D renderin
 - **FR-A6:** `Scene` must be queryable (e.g., `scene.query_by_type<T>()`).
 
 #### 8.2. FR-B: Core Rendering Primitives
+
 - **FR-B1:** Must provide a `LineCommand` with `StrokeStyle`.
 - **FR-B2:** Must provide a `CurveCommand` for Bezier curves.
 - **FR-B3:** Must provide a `TextCommand` with `FontStyle` and `TextAnchor`.
@@ -114,6 +129,7 @@ To provide the Rust ecosystem with a uniquely flexible and decoupled 2D renderin
 - **FR-B5:** Must provide a `ParticleEmitterCommand`.
 
 ### 9. Functional Requirements: CLI
+
 - **FR-C1:** Must be built using the `unilang` crate for command parsing and registration.
 - **FR-C2:** All CLI commands must start with a dot prefix (e.g., `.scene.new`, `.help`).
 - **FR-C3:** Must provide commands for scene management (`.scene.new`, `.scene.add`, `.scene.list`).
@@ -131,6 +147,7 @@ To provide the Rust ecosystem with a uniquely flexible and decoupled 2D renderin
 ### 9.1. Functional Requirements: Backend Adapters
 
 #### 9.1.1. FR-D: Core Backend Interface
+
 - **FR-D1:** All backends must implement the `Renderer` trait completely.
 - **FR-D2:** All backends must implement the `PrimitiveRenderer` trait for command dispatching.
 - **FR-D3:** All backends must provide accurate capability reporting via `RendererCapabilities`.
@@ -138,6 +155,7 @@ To provide the Rust ecosystem with a uniquely flexible and decoupled 2D renderin
 - **FR-D5:** All backends must support the complete rendering lifecycle (initialize, begin_frame, render_scene, end_frame, output, cleanup).
 
 #### 9.1.2. FR-E: SVG File Backend (`renderer_adapter_svg`)
+
 - **FR-E1:** Must generate valid SVG 1.1 documents with proper XML structure.
 - **FR-E2:** Must support all core primitives: lines, curves, and text.
 - **FR-E3:** Must convert RGBA colors to appropriate SVG color formats (rgb/rgba).
@@ -147,6 +165,7 @@ To provide the Rust ecosystem with a uniquely flexible and decoupled 2D renderin
 - **FR-E7:** Must produce output suitable for web browsers, vector graphics editors, and print.
 
 #### 9.1.3. FR-F: Interactive SVG Browser Backend (`renderer_adapter_svg_browser`)
+
 - **FR-F1:** Must generate SVG with embedded JavaScript for interactivity.
 - **FR-F2:** Must support mouse event handling (click, hover, drag) on rendered primitives.
 - **FR-F3:** Must provide callback mechanisms for user interaction events.
@@ -156,6 +175,7 @@ To provide the Rust ecosystem with a uniquely flexible and decoupled 2D renderin
 - **FR-F7:** Must work in all modern web browsers without additional dependencies.
 
 #### 9.1.4. FR-G: WebGL Backend (`renderer_adapter_webgl`)
+
 - **FR-G1:** Must use the `minwebgl` crate for WebGL abstraction.
 - **FR-G2:** Must support hardware-accelerated rendering in web browsers via WebAssembly.
 - **FR-G3:** Must implement efficient batching for optimal GPU performance.
@@ -166,6 +186,7 @@ To provide the Rust ecosystem with a uniquely flexible and decoupled 2D renderin
 - **FR-G8:** Must support interactive features like mouse picking and hover effects.
 
 #### 9.1.5. FR-H: WebGPU Backend (`renderer_adapter_webgpu`)
+
 - **FR-H1:** Must use the `minwebgpu` crate for WebGPU abstraction.
 - **FR-H2:** Must support next-generation GPU features for superior performance.
 - **FR-H3:** Must work in both web browsers (via WebAssembly) and native applications.
@@ -176,6 +197,7 @@ To provide the Rust ecosystem with a uniquely flexible and decoupled 2D renderin
 - **FR-H8:** Must support advanced features like instanced rendering for performance.
 
 #### 9.1.6. FR-I: Terminal Backend (`renderer_adapter_terminal`)
+
 - **FR-I1:** Must render scenes as ASCII art suitable for terminal display.
 - **FR-I2:** Must support configurable output dimensions matching terminal size.
 - **FR-I3:** Must use appropriate Unicode characters for line drawing when available.
@@ -185,6 +207,7 @@ To provide the Rust ecosystem with a uniquely flexible and decoupled 2D renderin
 - **FR-I7:** Must support export to text files for documentation purposes.
 
 ### 10. Non-Functional Requirements
+
 - **NFR-1:** **Performance:** Process 10,000 commands in under 16ms.
 - **NFR-2:** **Performance:** Architecture must be designed for parallelism.
 - **NFR-3:** **API Usability:** Core crate must have no dependency on any specific graphics backend.
@@ -197,15 +220,18 @@ To provide the Rust ecosystem with a uniquely flexible and decoupled 2D renderin
 - **NFR-10:** **Feature Gating:** All functionality must be behind appropriate cargo features for granular dependency control.
 
 ### 11. Ultra-Granular Feature Flag Architecture
+
 The crate must implement maximum feature granularity to ensure ultra-lightweight builds and precise dependency control:
 
 #### 11.1. Minimal Core Features
+
 - **`default = []`** - Ultra-minimal build with zero dependencies, only basic type definitions
 - **`std`** - Standard library support (without this, uses `no_std` + `alloc`)
 - **`alloc`** - Allocation support for `no_std` environments
 - **`enabled`** - Master switch enabling basic functionality (depends on `std` or `alloc`)
 
 #### 11.2. Data Structure Features (Ultra-Granular)
+
 - **`types-basic`** - Only `Point2D` and basic geometric types (zero dependencies)
 - **`types-color`** - Color types and RGBA support
 - **`types-style`** - `StrokeStyle`, `FontStyle`, line caps/joins
@@ -216,8 +242,9 @@ The crate must implement maximum feature granularity to ensure ultra-lightweight
 - **`scene-statistics`** - Scene statistics and analysis
 
 #### 11.3. Command Features (Per-Primitive Granularity)
+
 - **`command-line`** - `LineCommand` primitive only
-- **`command-curve`** - `CurveCommand` primitive only  
+- **`command-curve`** - `CurveCommand` primitive only
 - **`command-text`** - `TextCommand` primitive only
 - **`command-tilemap`** - `TilemapCommand` primitive only
 - **`command-particle`** - `ParticleEmitterCommand` primitive only
@@ -225,6 +252,7 @@ The crate must implement maximum feature granularity to ensure ultra-lightweight
 - **`commands`** - Convenience feature for all command types
 
 #### 11.4. Query Features (Micro-Granular)
+
 - **`query-basic`** - Basic scene traversal and filtering
 - **`query-by-type`** - Type-based filtering (`query_lines()`, `query_text()`, etc.)
 - **`query-predicate`** - Predicate-based filtering (`query_where`)
@@ -233,6 +261,7 @@ The crate must implement maximum feature granularity to ensure ultra-lightweight
 - **`query`** - Convenience feature for all query capabilities
 
 #### 11.5. Port/Trait Features (Interface Granularity)
+
 - **`traits-basic`** - Basic trait definitions only (zero dependencies)
 - **`traits-renderer`** - `Renderer` trait definition
 - **`traits-primitive`** - `PrimitiveRenderer` trait definition
@@ -243,6 +272,7 @@ The crate must implement maximum feature granularity to ensure ultra-lightweight
 - **`ports`** - Convenience feature for all port traits
 
 #### 11.6. Backend Adapter Features (Maximum Granularity)
+
 - **`adapter-svg-basic`** - Core SVG generation without advanced features
 - **`adapter-svg-colors`** - SVG color conversion and styling
 - **`adapter-svg-fonts`** - SVG font family resolution
@@ -257,7 +287,7 @@ The crate must implement maximum feature granularity to ensure ultra-lightweight
 - **`adapter-webgl-buffers`** - Vertex buffer management
 - **`adapter-webgl-textures`** - Texture handling
 - **`adapter-webgl`** - Complete WebGL backend
-- **`adapter-webgpu-device`** - WebGPU device and queue management  
+- **`adapter-webgpu-device`** - WebGPU device and queue management
 - **`adapter-webgpu-compute`** - Compute shader support
 - **`adapter-webgpu-pipeline`** - Render pipeline management
 - **`adapter-webgpu`** - Complete WebGPU backend
@@ -267,6 +297,7 @@ The crate must implement maximum feature granularity to ensure ultra-lightweight
 - **`adapter-terminal`** - Complete terminal backend
 
 #### 11.7. Serialization Features (Selective Support)
+
 - **`serde-basic`** - Basic serialization for core types
 - **`serde-commands`** - Serialization for command types
 - **`serde-scene`** - Scene serialization support
@@ -276,6 +307,7 @@ The crate must implement maximum feature granularity to ensure ultra-lightweight
 - **`serde`** - Convenience feature for all serialization
 
 #### 11.8. Platform Features (Target-Specific)
+
 - **`wasm-basic`** - Basic WebAssembly compatibility
 - **`wasm-bindgen`** - wasm-bindgen integration
 - **`wasm-web`** - Web API bindings and browser support
@@ -284,6 +316,7 @@ The crate must implement maximum feature granularity to ensure ultra-lightweight
 - **`native-simd`** - SIMD optimizations for native targets
 
 #### 11.9. Performance Features (Optional Optimizations)
+
 - **`parallel-basic`** - Basic parallel processing
 - **`parallel-rayon`** - Rayon-based parallelism
 - **`parallel-tokio`** - Tokio async parallelism
@@ -293,6 +326,7 @@ The crate must implement maximum feature granularity to ensure ultra-lightweight
 - **`gpu-compute`** - GPU compute shader utilization
 
 #### 11.10. Development and Debug Features
+
 - **`debug-basic`** - Basic debug information
 - **`debug-scene`** - Scene debugging and visualization
 - **`debug-performance`** - Performance profiling hooks
@@ -302,8 +336,9 @@ The crate must implement maximum feature granularity to ensure ultra-lightweight
 - **`metrics-collection`** - Runtime metrics collection
 
 #### 11.11. Convenience Feature Bundles
+
 - **`minimal`** - `["std", "types-basic", "traits-basic"]` (< 50KB)
-- **`core`** - `["minimal", "scene-container", "command-enum"]` (< 100KB) 
+- **`core`** - `["minimal", "scene-container", "command-enum"]` (< 100KB)
 - **`standard`** - `["core", "scene-methods", "commands", "query-basic"]` (< 200KB)
 - **`adapters-static`** - `["standard", "adapter-svg", "adapter-terminal"]`
 - **`adapters-web`** - `["standard", "adapter-svg-browser", "adapter-webgl", "adapter-webgpu"]`
@@ -312,9 +347,10 @@ The crate must implement maximum feature granularity to ensure ultra-lightweight
 - **`full`** - All features enabled
 
 #### 11.12. Enhanced Feature Flag Requirements
+
 - **FR-J1:** Default build must compile in under 5 seconds with zero runtime dependencies
 - **FR-J2:** Minimal build must be under 50KB compiled size
-- **FR-J3:** Core build must be under 100KB compiled size  
+- **FR-J3:** Core build must be under 100KB compiled size
 - **FR-J4:** Each feature must add less than 20KB to build size
 - **FR-J5:** No_std support must work with `alloc` feature only
 - **FR-J6:** Feature combinations must not create circular dependencies
@@ -328,28 +364,34 @@ The crate must implement maximum feature granularity to ensure ultra-lightweight
 **Part II: Internal Design (Backend Implementation)**
 
 ### 11. System Architecture (Ports & Adapters)
+
 It is strongly recommended to use a Ports and Adapters architecture. The `agnostic_renderer` crate contains the core logic and `Port` traits. Separate `Adapter` crates implement these traits using specific backend technologies, ensuring the core is decoupled from implementation details.
 
 ### 12. External Dependencies Analysis
+
 The choice of libraries for backend adapters involves trade-offs.
+
 - **SVG:** The `svg` crate is a strong candidate due to its builder pattern API, which maps well to the `RenderCommand` model.
 - **Terminal:** `crossterm` is a good choice for its raw terminal manipulation capabilities, while `ratatui` could be used for more structured TUI output if needed. The simpler `crossterm` is likely sufficient.
 
 ### 13. Core Rendering Ports (Traits)
+
 - A primary `Renderer` trait should define the rendering lifecycle (`begin_frame`, `render_scene`, `end_frame`).
 - The `render_scene` method will dispatch commands to a `PrimitiveRenderer` trait.
 - The `Renderer` trait should include methods for runtime capability discovery (e.g., `supports_textures()`).
 
 ### 14. Required Backend Adapters
+
 The rendering engine must support multiple backend adapters to enable "write once, render anywhere" capability:
 
-1.  **`renderer_adapter_svg`:** For generating static vector graphics files with perfect scalability.
-2.  **`renderer_adapter_svg_browser`:** For interactive SVG rendering in web browsers with event handling.
-3.  **`renderer_adapter_webgl`:** For hardware-accelerated web browser rendering via WebAssembly using `minwebgl`.
-4.  **`renderer_adapter_webgpu`:** For next-generation GPU rendering in browsers and native apps using `minwebgpu`.
-5.  **`renderer_adapter_terminal`:** For headless rendering and rapid prototyping in terminal environments.
+1. **`renderer_adapter_svg`:** For generating static vector graphics files with perfect scalability.
+2. **`renderer_adapter_svg_browser`:** For interactive SVG rendering in web browsers with event handling.
+3. **`renderer_adapter_webgl`:** For hardware-accelerated web browser rendering via WebAssembly using `minwebgl`.
+4. **`renderer_adapter_webgpu`:** For next-generation GPU rendering in browsers and native apps using `minwebgpu`.
+5. **`renderer_adapter_terminal`:** For headless rendering and rapid prototyping in terminal environments.
 
 ### 15. Architectural & Flow Diagrams
+
 *(Diagrams from Section 13 of the interactive session are considered part of the spec. Key diagrams include the C4 Container, Ports & Adapters Architecture, and Deployment Diagram.)*
 
 ---
@@ -357,13 +399,15 @@ The rendering engine must support multiple backend adapters to enable "write onc
 **Part III: Project & Process Governance**
 
 ### 16. Core Principles of Development
-1.  **Single Source of Truth:** The Git monorepo is absolute.
-2.  **Documentation-First Development:** Spec changes are reviewed and merged before code.
-3.  **Review-Driven Change Control:** All changes must go through a Pull Request.
-4.  **Radical Transparency:** All decisions are captured in writing.
-5.  **File Naming Conventions:** All files must use `snake_case`.
+
+1. **Single Source of Truth:** The Git monorepo is absolute.
+2. **Documentation-First Development:** Spec changes are reviewed and merged before code.
+3. **Review-Driven Change Control:** All changes must go through a Pull Request.
+4. **Radical Transparency:** All decisions are captured in writing.
+5. **File Naming Conventions:** All files must use `snake_case`.
 
 ### 17. Open Questions
+
 | ID | Question | Status |
 | :--- | :--- | :--- |
 | **Q1** | Optimal strategy for backend-agnostic asset loading (fonts, textures). | Open |
@@ -375,9 +419,11 @@ The rendering engine must support multiple backend adapters to enable "write onc
 ### Appendix: Addendum
 
 #### Purpose
+
 This document is intended to be completed by the **Developer** during the implementation phase to capture the final, as-built details of the **Internal Design**.
 
 #### Conformance Checklist
+
 *This checklist is the definitive list of acceptance criteria. Before final delivery, each item must be verified as complete and marked with `✅`.*
 
 | Status | Requirement ID | Requirement Summary |
@@ -454,16 +500,21 @@ This document is intended to be completed by the **Developer** during the implem
 | ❌ | **FR-J10** | Breaking feature combinations must be prevented at compile time. |
 
 #### Finalized Internal Design Decisions
+
 - *To be completed by the developer.*
 
 #### Finalized Internal Data Models
+
 - *To be completed by the developer.*
 
 #### Environment Variables
+
 - *To be completed by the developer.*
 
 #### Finalized Library & Tool Versions
+
 - *To be completed by the developer.*
 
 #### Deployment Checklist
+
 - *To be completed by the developer.*
