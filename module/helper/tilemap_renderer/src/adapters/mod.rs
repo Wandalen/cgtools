@@ -10,8 +10,7 @@ mod terminal;
 #[ cfg( feature = "adapter-terminal" ) ]
 pub use terminal::TerminalBackend;
 
-// Future adapters:
-// #[ cfg( feature = "adapter-webgl" ) ]
-// mod webgl;
-// #[ cfg( feature = "adapter-wgpu" ) ]
-// mod wgpu_backend;
+#[ cfg( feature = "adapter-webgl" ) ]
+mod webgl;
+#[ cfg( feature = "adapter-webgl" ) ]
+pub use webgl::WebGlBackend;

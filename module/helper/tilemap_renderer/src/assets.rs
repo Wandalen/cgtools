@@ -5,6 +5,7 @@
 //! from commands by `ResourceId<T>`.
 
 use std::path::PathBuf;
+use nohash_hasher::IntSet;
 use crate::types::{ ResourceId, SamplerFilter, asset };
 
 // ============================================================================
@@ -27,6 +28,78 @@ pub struct Assets
 }
 
 // ============================================================================
+// Validation
+// ============================================================================
+
+/// Error found during asset validation.
+#[ derive( Debug ) ]
+pub enum ValidationError
+{
+  /// Two assets of the same type share the same ResourceId.
+  DuplicateId { kind : &'static str, index : u32 },
+}
+
+impl core::fmt::Display for ValidationError
+{
+  fn fmt( &self, f : &mut core::fmt::Formatter< '_ > ) -> core::fmt::Result
+  {
+    match self
+    {
+      Self::DuplicateId { kind, index } =>
+        write!( f, "duplicate {} id: {}", kind, index ),
+    }
+  }
+}
+
+impl Assets
+{
+  /// Validates that no two assets of the same type share a ResourceId.
+  /// Returns all errors found (does not stop at first).
+  pub fn validate( &self ) -> Vec< ValidationError >
+  {
+    let mut errors = Vec::new();
+
+    fn check_dups< T >( items : &[ impl HasId< T > ], kind : &'static str, errors : &mut Vec< ValidationError > )
+    {
+      let mut seen = IntSet::default();
+      for item in items
+      {
+        if !seen.insert( item.resource_id().inner() )
+        {
+          errors.push( ValidationError::DuplicateId { kind, index : item.resource_id().inner() } );
+        }
+      }
+    }
+
+    check_dups::< asset::Font >( &self.fonts, "font", &mut errors );
+    check_dups::< asset::Image >( &self.images, "image", &mut errors );
+    check_dups::< asset::Sprite >( &self.sprites, "sprite", &mut errors );
+    check_dups::< asset::Geometry >( &self.geometries, "geometry", &mut errors );
+    check_dups::< asset::Gradient >( &self.gradients, "gradient", &mut errors );
+    check_dups::< asset::Pattern >( &self.patterns, "pattern", &mut errors );
+    check_dups::< asset::ClipMask >( &self.clip_masks, "clip_mask", &mut errors );
+    check_dups::< asset::Path >( &self.paths, "path", &mut errors );
+
+    errors
+  }
+}
+
+/// Helper trait to extract ResourceId from asset structs.
+trait HasId< T >
+{
+  fn resource_id( &self ) -> ResourceId< T >;
+}
+
+impl HasId< asset::Font > for FontAsset { fn resource_id( &self ) -> ResourceId< asset::Font > { self.id } }
+impl HasId< asset::Image > for ImageAsset { fn resource_id( &self ) -> ResourceId< asset::Image > { self.id } }
+impl HasId< asset::Sprite > for SpriteAsset { fn resource_id( &self ) -> ResourceId< asset::Sprite > { self.id } }
+impl HasId< asset::Geometry > for GeometryAsset { fn resource_id( &self ) -> ResourceId< asset::Geometry > { self.id } }
+impl HasId< asset::Gradient > for GradientAsset { fn resource_id( &self ) -> ResourceId< asset::Gradient > { self.id } }
+impl HasId< asset::Pattern > for PatternAsset { fn resource_id( &self ) -> ResourceId< asset::Pattern > { self.id } }
+impl HasId< asset::ClipMask > for ClipMaskAsset { fn resource_id( &self ) -> ResourceId< asset::ClipMask > { self.id } }
+impl HasId< asset::Path > for PathAsset { fn resource_id( &self ) -> ResourceId< asset::Path > { self.id } }
+
+// ============================================================================
 // Individual asset types
 // ============================================================================
 
@@ -39,7 +112,7 @@ pub struct FontAsset
 pub struct ImageAsset
 {
   pub id : ResourceId< asset::Image >,
-  pub source : Source,
+  pub source : ImageSource,
   /// Sampling filter for this image.
   /// SVG: `image-rendering: pixelated` (Nearest) vs `auto` (Linear).
   /// GPU: sampler mag/min filter.
@@ -151,6 +224,38 @@ pub enum PathSegment
 // Supporting types
 // ============================================================================
 
+/// Image data source.
+pub enum ImageSource
+{
+  /// Path to image file — backend decodes (PNG, JPEG, etc.).
+  Path( PathBuf ),
+  /// Encoded image in memory (PNG, JPEG, etc.) — backend decodes.
+  Encoded( Vec< u8 > ),
+  /// Raw pixel data — ready to upload directly.
+  Bitmap
+  {
+    bytes : Vec< u8 >,
+    width : u32,
+    height : u32,
+    format : PixelFormat,
+  },
+}
+
+/// Pixel format for raw bitmap data.
+#[ derive( Debug, Clone, Copy ) ]
+pub enum PixelFormat
+{
+  /// 4 bytes per pixel: red, green, blue, alpha.
+  Rgba8,
+  /// 3 bytes per pixel: red, green, blue.
+  Rgb8,
+  /// 1 byte per pixel: grayscale.
+  Gray8,
+  /// 2 bytes per pixel: grayscale + alpha.
+  GrayAlpha8,
+}
+
+/// Generic data source for geometry buffers.
 pub enum Source
 {
   Path( PathBuf ),

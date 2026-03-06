@@ -350,6 +350,9 @@ version = "0.3.3"
 [workspace.dependencies.rustc-hash]
 version = "2.1.1"
 
+[workspace.dependencies.nohash-hasher]
+version = "0.2.0"
+
 [workspace.dependencies.rayon]
 version = "1.10"
 

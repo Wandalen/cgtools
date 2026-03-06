@@ -402,21 +402,15 @@ impl Backend for SvgBackend
           // TODO: <use href="#sprite_N" transform="..." />
         }
 
-        // Instancing
-        RenderCommand::BeginInstancedMesh( _bim ) =>
-        {
-          // TODO: store shared style
-        }
-        RenderCommand::Instance( _inst ) =>
-        {
-          // TODO: <use href="#geom_N" transform="..."/>
-        }
-        RenderCommand::EndInstancedMesh( _ ) => {}
-        RenderCommand::BeginInstancedSprite( _ ) => { /* TODO */ }
-        RenderCommand::SpriteInstance( _ ) => { /* TODO */ }
-        RenderCommand::EndInstancedSprite( _ ) => {}
-        RenderCommand::BeginRecordBatch( _ ) => { /* TODO: start collecting instances */ }
-        RenderCommand::EndRecordBatch( _ ) => { /* TODO: finalize stored batch */ }
+        // Sprite batch recording
+        RenderCommand::BeginRecordSpriteBatch( _ ) => { /* TODO: start collecting sprite instances */ }
+        RenderCommand::SpriteInstance( _ ) => { /* TODO: store sprite instance */ }
+        RenderCommand::EndRecordSpriteBatch( _ ) => { /* TODO: finalize sprite batch */ }
+
+        // Mesh batch recording
+        RenderCommand::BeginRecordMeshBatch( _ ) => { /* TODO: start collecting mesh instances */ }
+        RenderCommand::MeshInstance( _ ) => { /* TODO: store mesh instance */ }
+        RenderCommand::EndRecordMeshBatch( _ ) => { /* TODO: finalize mesh batch */ }
 
         // Grouping
         RenderCommand::BeginGroup( bg ) =>
@@ -478,7 +472,7 @@ impl Backend for SvgBackend
       text : true,
       meshes : true,
       sprites : true,
-      instancing : true,
+      batches : true,
       gradients : true,
       patterns : true,
       clip_masks : true,

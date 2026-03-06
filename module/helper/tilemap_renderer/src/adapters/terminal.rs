@@ -200,14 +200,12 @@ impl Backend for TerminalBackend
         // Unsupported in terminal
         RenderCommand::Mesh( _ ) => {}
         RenderCommand::Sprite( _ ) => {}
-        RenderCommand::BeginInstancedMesh( _ ) => {}
-        RenderCommand::Instance( _ ) => {}
-        RenderCommand::EndInstancedMesh( _ ) => {}
-        RenderCommand::BeginInstancedSprite( _ ) => {}
+        RenderCommand::BeginRecordSpriteBatch( _ ) => {}
         RenderCommand::SpriteInstance( _ ) => {}
-        RenderCommand::EndInstancedSprite( _ ) => {}
-        RenderCommand::BeginRecordBatch( _ ) => {}
-        RenderCommand::EndRecordBatch( _ ) => {}
+        RenderCommand::EndRecordSpriteBatch( _ ) => {}
+        RenderCommand::BeginRecordMeshBatch( _ ) => {}
+        RenderCommand::MeshInstance( _ ) => {}
+        RenderCommand::EndRecordMeshBatch( _ ) => {}
         RenderCommand::BeginGroup( _ ) => {}
         RenderCommand::EndGroup( _ ) => {}
       }
@@ -258,7 +256,7 @@ impl Backend for TerminalBackend
       text : true,
       meshes : false,
       sprites : false,
-      instancing : false,
+      batches : false,
       gradients : false,
       patterns : false,
       clip_masks : false,

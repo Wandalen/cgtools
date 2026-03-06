@@ -4,7 +4,7 @@
 //! Usage is uniform through the `Backend` trait.
 
 use crate::types::{ ResourceId, Batch };
-use crate::commands::{ RenderCommand, SpriteInstance };
+use crate::commands::{ RenderCommand, SpriteInstance, MeshInstance };
 use crate::assets::Assets;
 
 // ============================================================================
@@ -75,7 +75,7 @@ pub struct Capabilities
   pub text : bool,
   pub meshes : bool,
   pub sprites : bool,
-  pub instancing : bool,
+  pub batches : bool,
   pub gradients : bool,
   pub patterns : bool,
   pub clip_masks : bool,
@@ -139,38 +139,39 @@ pub trait Backend
 
 /// Extension trait for backends that support persistent batches.
 ///
-/// A batch is a pre-recorded instance buffer that lives on the backend.
-/// It is created via streaming commands (BeginRecordBatch..EndRecordBatch),
+/// Batches are pre-recorded instance buffers that live on the backend.
+/// Created via streaming commands (`BeginRecordSpriteBatch`/`BeginRecordMeshBatch`),
 /// then drawn and updated via methods on this trait.
 ///
-/// GPU: instance buffer lives on GPU, `update_instance` does a sub-buffer write.
-/// SVG (browser/DOM): each instance is a `<use>` element, updates modify DOM attributes.
+/// GPU: instance buffer on GPU, updates via `buffer_sub_data`.
+/// SVG (browser/DOM): `<use>` elements, updates modify DOM attributes.
 ///
 /// ```ignore
 /// // Record once — via command stream
-/// commands.push( BeginRecordBatch( BeginRecordBatch { batch: TILEMAP_BATCH, sheet: tileset, ... } ) );
-/// commands.push( SpriteInstance( SpriteInstance { transform: ..., sprite: grass, tint: WHITE } ) );
-/// commands.push( SpriteInstance( SpriteInstance { transform: ..., sprite: water, tint: WHITE } ) );
-/// commands.push( EndRecordBatch( EndRecordBatch ) );
-/// gpu.submit( &commands )?;
+/// commands.push( BeginRecordSpriteBatch { batch: TILES, sheet: tileset, .. }.into() );
+/// commands.push( SpriteInstance { transform: .., sprite: grass, tint: WHITE }.into() );
+/// commands.push( EndRecordSpriteBatch.into() );
+/// backend.submit( &commands )?;
 ///
-/// // Every frame — draw without re-upload
-/// gpu.draw_batch( TILEMAP_BATCH )?;
+/// // Draw every frame (no re-upload)
+/// backend.draw_batch( TILES )?;
 ///
-/// // Update one tile that changed
-/// gpu.update_instance( TILEMAP_BATCH, 42, &new_sprite_instance )?;
+/// // Update one tile
+/// backend.update_sprite_instance( TILES, 42, &new_instance )?;
 /// ```
 pub trait BatchBackend : Backend
 {
-  /// Draw a previously recorded batch.
-  /// GPU: single instanced draw call using the stored buffer.
-  /// SVG: emits `<use>` elements from stored data.
+  /// Draw a previously recorded batch (sprite or mesh).
+  /// GPU: single instanced draw call.
   fn draw_batch( &mut self, batch : ResourceId< Batch > ) -> Result< (), RenderError >;
 
-  /// Update a single instance within a batch by index.
-  /// GPU: sub-buffer write (cheap, no full re-upload).
-  /// SVG (browser): update DOM attributes on the corresponding `<use>` element.
-  fn update_instance( &mut self, batch : ResourceId< Batch >, index : u32, instance : &SpriteInstance ) -> Result< (), RenderError >;
+  /// Update a single sprite instance within a sprite batch.
+  /// GPU: sub-buffer write at `index * SPRITE_INSTANCE_STRIDE`.
+  fn update_sprite_instance( &mut self, batch : ResourceId< Batch >, index : u32, instance : &SpriteInstance ) -> Result< (), RenderError >;
+
+  /// Update a single mesh instance within a mesh batch.
+  /// GPU: sub-buffer write at `index * MESH_INSTANCE_STRIDE`.
+  fn update_mesh_instance( &mut self, batch : ResourceId< Batch >, index : u32, instance : &MeshInstance ) -> Result< (), RenderError >;
 
   /// Delete a batch and free its resources.
   fn delete_batch( &mut self, batch : ResourceId< Batch > ) -> Result< (), RenderError >;

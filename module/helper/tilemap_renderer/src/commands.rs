@@ -114,7 +114,7 @@ pub struct Char( pub char );
 pub struct EndText;
 
 // ============================================================================
-// Mesh & Sprite
+// Mesh & Sprite (single draw)
 // ============================================================================
 
 /// Mesh with geometry from Assets.
@@ -151,40 +151,33 @@ pub struct Sprite
 }
 
 // ============================================================================
-// Instancing (streaming)
+// Batch recording (persistent instance buffers)
 // ============================================================================
 
-/// Instanced mesh — one geometry, many transforms.
-/// SVG: `<defs>` + `<use>` per instance.
-/// GPU: instanced draw call.
+/// Begins recording a persistent sprite batch.
+/// `SpriteInstance` commands between Begin/End are stored in the backend
+/// under the given `ResourceId<Batch>`, not drawn immediately.
+///
+/// GPU: allocates instance buffer, fills with subsequent SpriteInstance data.
+/// SVG: stores instance list keyed by batch id.
+///
+/// ```ignore
+/// // Record
+/// cmd( BeginRecordSpriteBatch { batch: TILES, sheet: tileset, .. } );
+/// cmd( SpriteInstance { transform: .., sprite: grass, tint: WHITE } );
+/// cmd( EndRecordSpriteBatch );
+///
+/// // Draw every frame
+/// backend.draw_batch( TILES )?;
+///
+/// // Update one tile
+/// backend.update_sprite_instance( TILES, 42, &new_instance )?;
+/// ```
 #[ derive( Debug, Clone, Copy ) ]
-pub struct BeginInstancedMesh
+pub struct BeginRecordSpriteBatch
 {
-  pub geometry : ResourceId< asset::Geometry >,
-  pub fill : FillRef,
-  pub topology : Topology,
-  pub clip : Option< ResourceId< asset::ClipMask > >,
-}
-
-/// One instance transform. POD.
-#[ derive( Debug, Clone, Copy ) ]
-pub struct Instance
-{
-  pub transform : Transform,
-}
-
-/// Ends instanced mesh sequence.
-#[ derive( Debug, Clone, Copy ) ]
-pub struct EndInstancedMesh;
-
-/// Batched sprite rendering — many sprites from the same sheet in one batch.
-/// Each SpriteInstance can reference a different region (SpriteAsset) within the sheet.
-/// SVG: one `<symbol>` per unique sprite + `<use>` per instance.
-/// GPU: single draw call — one texture bind, per-instance UV + transform in instance buffer.
-#[ derive( Debug, Clone, Copy ) ]
-pub struct BeginInstancedSprite
-{
-  /// The sprite sheet image. All SpriteInstances must reference sprites from this sheet.
+  pub batch : ResourceId< Batch >,
+  /// The sprite sheet image. All instances must reference sprites from this sheet.
   pub sheet : ResourceId< asset::Image >,
   pub blend : BlendMode,
   pub clip : Option< ResourceId< asset::ClipMask > >,
@@ -201,32 +194,46 @@ pub struct SpriteInstance
   pub tint : [ f32; 4 ],
 }
 
-/// Ends instanced sprite batch.
+/// Ends sprite batch recording.
 #[ derive( Debug, Clone, Copy ) ]
-pub struct EndInstancedSprite;
+pub struct EndRecordSpriteBatch;
 
-// ============================================================================
-// Batch recording (persistent instance buffer)
-// ============================================================================
-
-/// Begins recording a persistent batch.
-/// SpriteInstance commands between Begin/End are stored in the backend
-/// under the given ResourceId<Batch>, not drawn immediately.
+/// Begins recording a persistent mesh batch.
+/// `MeshInstance` commands between Begin/End are stored in the backend.
 ///
-/// GPU: allocates instance buffer, fills with subsequent SpriteInstance data.
-/// SVG: stores instance list keyed by batch id.
+/// GPU: allocates instance buffer with per-instance transforms.
+/// SVG: `<defs>` + `<use>` per instance.
+///
+/// ```ignore
+/// cmd( BeginRecordMeshBatch { batch: TREES, geometry: tree, fill: green, .. } );
+/// cmd( MeshInstance { transform: .. } );
+/// cmd( MeshInstance { transform: .. } );
+/// cmd( EndRecordMeshBatch );
+///
+/// backend.draw_batch( TREES )?;
+/// ```
 #[ derive( Debug, Clone, Copy ) ]
-pub struct BeginRecordBatch
+pub struct BeginRecordMeshBatch
 {
   pub batch : ResourceId< Batch >,
-  pub sheet : ResourceId< asset::Image >,
+  pub geometry : ResourceId< asset::Geometry >,
+  pub fill : FillRef,
+  pub texture : Option< ResourceId< asset::Image > >,
+  pub topology : Topology,
   pub blend : BlendMode,
   pub clip : Option< ResourceId< asset::ClipMask > >,
 }
 
-/// Ends batch recording. The batch is now ready to be drawn via `BatchBackend::draw_batch`.
+/// One mesh instance within a batch. POD.
 #[ derive( Debug, Clone, Copy ) ]
-pub struct EndRecordBatch;
+pub struct MeshInstance
+{
+  pub transform : Transform,
+}
+
+/// Ends mesh batch recording.
+#[ derive( Debug, Clone, Copy ) ]
+pub struct EndRecordMeshBatch;
 
 // ============================================================================
 // Effects
@@ -292,22 +299,19 @@ pub enum RenderCommand
   Char( Char ),
   EndText( EndText ),
 
-  // Mesh & Sprite
+  // Single draw
   Mesh( Mesh ),
   Sprite( Sprite ),
 
-  // Instancing
-  BeginInstancedMesh( BeginInstancedMesh ),
-  Instance( Instance ),
-  EndInstancedMesh( EndInstancedMesh ),
-  BeginInstancedSprite( BeginInstancedSprite ),
+  // Sprite batch
+  BeginRecordSpriteBatch( BeginRecordSpriteBatch ),
   SpriteInstance( SpriteInstance ),
-  EndInstancedSprite( EndInstancedSprite ),
+  EndRecordSpriteBatch( EndRecordSpriteBatch ),
 
-  // Batch recording
-  BeginRecordBatch( BeginRecordBatch ),
-  // SpriteInstance commands go here — reused from instancing
-  EndRecordBatch( EndRecordBatch ),
+  // Mesh batch
+  BeginRecordMeshBatch( BeginRecordMeshBatch ),
+  MeshInstance( MeshInstance ),
+  EndRecordMeshBatch( EndRecordMeshBatch ),
 
   // Grouping
   BeginGroup( BeginGroup ),

@@ -14,17 +14,16 @@ workspace = true
 default = []
 adapter-svg = []
 adapter-terminal = []
-# Stubs for downstream crates — not yet implemented
-adapter-webgl = []
-adapter-wgpu = []
+adapter-webgl = [ "dep:minwebgl", "dep:web-sys", "dep:js-sys", "dep:bytemuck" ]
 # CLI stub — not yet reimplemented
 cli = []
 
 [dependencies]
-# Future backend dependencies (will be added when backends are implemented)
-# minwebgl = { workspace = true, optional = true }
+nohash-hasher = { workspace = true }
+minwebgl = { workspace = true, optional = true }
+web-sys = { workspace = true, optional = true }
+js-sys = { workspace = true, optional = true }
 # wgpu = { workspace = true, optional = true }
-# web-sys = { workspace = true, optional = true }
-# bytemuck = { workspace = true, optional = true }
+bytemuck = { workspace = true, optional = true }
 
 [dev-dependencies]

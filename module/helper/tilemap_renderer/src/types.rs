@@ -39,6 +39,7 @@ impl< T > Copy for ResourceId< T > {}
 impl< T > PartialEq for ResourceId< T > { fn eq( &self, other : &Self ) -> bool { self.index == other.index } }
 impl< T > Eq for ResourceId< T > {}
 impl< T > core::hash::Hash for ResourceId< T > { fn hash< H : core::hash::Hasher >( &self, state : &mut H ) { self.index.hash( state ); } }
+impl< T > nohash_hasher::IsEnabled for ResourceId< T > {}
 
 /// Marker type for batch resources.
 #[ derive( Debug, Clone, Copy ) ]
