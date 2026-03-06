@@ -206,6 +206,12 @@ impl Backend for TerminalBackend
         RenderCommand::BeginRecordMeshBatch( _ ) => {}
         RenderCommand::MeshInstance( _ ) => {}
         RenderCommand::EndRecordMeshBatch( _ ) => {}
+        RenderCommand::DrawBatch( _ ) => {}
+        RenderCommand::BeginUpdateBatch( _ ) => {}
+        RenderCommand::SetSpriteInstance( _ ) => {}
+        RenderCommand::SetMeshInstance( _ ) => {}
+        RenderCommand::EndUpdateBatch( _ ) => {}
+        RenderCommand::DeleteBatch( _ ) => {}
         RenderCommand::BeginGroup( _ ) => {}
         RenderCommand::EndGroup( _ ) => {}
       }

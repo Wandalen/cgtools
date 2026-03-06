@@ -129,6 +129,31 @@ impl Default for Transform
   }
 }
 
+impl Transform
+{
+  /// Column-major 3x3 affine matrix.
+  pub fn to_mat3( &self ) -> [ f32; 9 ]
+  {
+    let cos_r = self.rotation.cos();
+    let sin_r = self.rotation.sin();
+    let sx = self.scale[ 0 ];
+    let sy = self.scale[ 1 ];
+    let skx = self.skew[ 0 ].tan();
+    let sky = self.skew[ 1 ].tan();
+
+    let m00 = ( cos_r + sin_r * sky ) * sx;
+    let m10 = ( sin_r - cos_r * sky ) * sx;
+    let m01 = ( cos_r * skx - sin_r ) * sy;
+    let m11 = ( sin_r * skx + cos_r ) * sy;
+
+    [
+      m00,                 m10,                 0.0,
+      m01,                 m11,                 0.0,
+      self.position[ 0 ],  self.position[ 1 ],  1.0,
+    ]
+  }
+}
+
 // ============================================================================
 // Style types
 // ============================================================================

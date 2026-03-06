@@ -412,6 +412,14 @@ impl Backend for SvgBackend
         RenderCommand::MeshInstance( _ ) => { /* TODO: store mesh instance */ }
         RenderCommand::EndRecordMeshBatch( _ ) => { /* TODO: finalize mesh batch */ }
 
+        // Batch draw / update / delete
+        RenderCommand::DrawBatch( _ ) => { /* TODO: emit <use> elements for batch */ }
+        RenderCommand::BeginUpdateBatch( _ ) => {}
+        RenderCommand::SetSpriteInstance( _ ) => { /* TODO: update stored instance */ }
+        RenderCommand::SetMeshInstance( _ ) => { /* TODO: update stored instance */ }
+        RenderCommand::EndUpdateBatch( _ ) => {}
+        RenderCommand::DeleteBatch( _ ) => { /* TODO: remove batch data */ }
+
         // Grouping
         RenderCommand::BeginGroup( bg ) =>
         {

@@ -3,8 +3,7 @@
 //! Creation is backend-specific (each has its own `new()`).
 //! Usage is uniform through the `Backend` trait.
 
-use crate::types::{ ResourceId, Batch };
-use crate::commands::{ RenderCommand, SpriteInstance, MeshInstance };
+use crate::commands::RenderCommand;
 use crate::assets::Assets;
 
 // ============================================================================
@@ -133,46 +132,3 @@ pub trait Backend
   fn capabilities( &self ) -> Capabilities;
 }
 
-// ============================================================================
-// Batch extension trait — persistent instance buffer
-// ============================================================================
-
-/// Extension trait for backends that support persistent batches.
-///
-/// Batches are pre-recorded instance buffers that live on the backend.
-/// Created via streaming commands (`BeginRecordSpriteBatch`/`BeginRecordMeshBatch`),
-/// then drawn and updated via methods on this trait.
-///
-/// GPU: instance buffer on GPU, updates via `buffer_sub_data`.
-/// SVG (browser/DOM): `<use>` elements, updates modify DOM attributes.
-///
-/// ```ignore
-/// // Record once — via command stream
-/// commands.push( BeginRecordSpriteBatch { batch: TILES, sheet: tileset, .. }.into() );
-/// commands.push( SpriteInstance { transform: .., sprite: grass, tint: WHITE }.into() );
-/// commands.push( EndRecordSpriteBatch.into() );
-/// backend.submit( &commands )?;
-///
-/// // Draw every frame (no re-upload)
-/// backend.draw_batch( TILES )?;
-///
-/// // Update one tile
-/// backend.update_sprite_instance( TILES, 42, &new_instance )?;
-/// ```
-pub trait BatchBackend : Backend
-{
-  /// Draw a previously recorded batch (sprite or mesh).
-  /// GPU: single instanced draw call.
-  fn draw_batch( &mut self, batch : ResourceId< Batch > ) -> Result< (), RenderError >;
-
-  /// Update a single sprite instance within a sprite batch.
-  /// GPU: sub-buffer write at `index * SPRITE_INSTANCE_STRIDE`.
-  fn update_sprite_instance( &mut self, batch : ResourceId< Batch >, index : u32, instance : &SpriteInstance ) -> Result< (), RenderError >;
-
-  /// Update a single mesh instance within a mesh batch.
-  /// GPU: sub-buffer write at `index * MESH_INSTANCE_STRIDE`.
-  fn update_mesh_instance( &mut self, batch : ResourceId< Batch >, index : u32, instance : &MeshInstance ) -> Result< (), RenderError >;
-
-  /// Delete a batch and free its resources.
-  fn delete_batch( &mut self, batch : ResourceId< Batch > ) -> Result< (), RenderError >;
-}

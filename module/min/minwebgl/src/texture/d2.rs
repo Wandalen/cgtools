@@ -52,7 +52,6 @@ pub fn upload_image_from_path( gl : &GL, src : &str, flip : bool ) -> WebGlTextu
           crate::texture::d2::upload_no_flip( &gl, Some( &texture ), &img );
         }
 
-        crate::texture::d2::filter_linear( &gl );
         img.remove();
       }
     }

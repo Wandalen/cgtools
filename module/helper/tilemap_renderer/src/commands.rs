@@ -168,10 +168,12 @@ pub struct Sprite
 /// cmd( EndRecordSpriteBatch );
 ///
 /// // Draw every frame
-/// backend.draw_batch( TILES )?;
+/// cmd( DrawBatch { batch: TILES } );
 ///
-/// // Update one tile
-/// backend.update_sprite_instance( TILES, 42, &new_instance )?;
+/// // Update tiles
+/// cmd( BeginUpdateBatch { batch: TILES } );
+/// cmd( SetSpriteInstance { index: 42, transform: .., sprite: water, tint: WHITE } );
+/// cmd( EndUpdateBatch );
 /// ```
 #[ derive( Debug, Clone, Copy ) ]
 pub struct BeginRecordSpriteBatch
@@ -210,7 +212,7 @@ pub struct EndRecordSpriteBatch;
 /// cmd( MeshInstance { transform: .. } );
 /// cmd( EndRecordMeshBatch );
 ///
-/// backend.draw_batch( TREES )?;
+/// cmd( DrawBatch { batch: TREES } );
 /// ```
 #[ derive( Debug, Clone, Copy ) ]
 pub struct BeginRecordMeshBatch
@@ -234,6 +236,63 @@ pub struct MeshInstance
 /// Ends mesh batch recording.
 #[ derive( Debug, Clone, Copy ) ]
 pub struct EndRecordMeshBatch;
+
+// ============================================================================
+// Batch draw / update / delete
+// ============================================================================
+
+/// Draws a previously recorded batch (sprite or mesh).
+/// GPU: single instanced draw call.
+#[ derive( Debug, Clone, Copy ) ]
+pub struct DrawBatch
+{
+  pub batch : ResourceId< Batch >,
+}
+
+/// Begins streaming updates to an existing batch.
+/// `SetSpriteInstance` / `SetMeshInstance` commands between Begin/End
+/// modify instances at the given indices without re-recording.
+///
+/// ```ignore
+/// cmd( BeginUpdateBatch { batch: TILES } );
+/// cmd( SetSpriteInstance { index: 42, transform: .., sprite: grass, tint: WHITE } );
+/// cmd( SetSpriteInstance { index: 99, transform: .., sprite: water, tint: WHITE } );
+/// cmd( EndUpdateBatch );
+/// ```
+#[ derive( Debug, Clone, Copy ) ]
+pub struct BeginUpdateBatch
+{
+  pub batch : ResourceId< Batch >,
+}
+
+/// Update a sprite instance at `index` within the bound batch.
+#[ derive( Debug, Clone, Copy ) ]
+pub struct SetSpriteInstance
+{
+  pub index : u32,
+  pub transform : Transform,
+  pub sprite : ResourceId< asset::Sprite >,
+  pub tint : [ f32; 4 ],
+}
+
+/// Update a mesh instance at `index` within the bound batch.
+#[ derive( Debug, Clone, Copy ) ]
+pub struct SetMeshInstance
+{
+  pub index : u32,
+  pub transform : Transform,
+}
+
+/// Ends batch update, flushes pending writes.
+#[ derive( Debug, Clone, Copy ) ]
+pub struct EndUpdateBatch;
+
+/// Deletes a batch and frees its resources.
+#[ derive( Debug, Clone, Copy ) ]
+pub struct DeleteBatch
+{
+  pub batch : ResourceId< Batch >,
+}
 
 // ============================================================================
 // Effects
@@ -312,6 +371,14 @@ pub enum RenderCommand
   BeginRecordMeshBatch( BeginRecordMeshBatch ),
   MeshInstance( MeshInstance ),
   EndRecordMeshBatch( EndRecordMeshBatch ),
+
+  // Batch draw / update / delete
+  DrawBatch( DrawBatch ),
+  BeginUpdateBatch( BeginUpdateBatch ),
+  SetSpriteInstance( SetSpriteInstance ),
+  SetMeshInstance( SetMeshInstance ),
+  EndUpdateBatch( EndUpdateBatch ),
+  DeleteBatch( DeleteBatch ),
 
   // Grouping
   BeginGroup( BeginGroup ),

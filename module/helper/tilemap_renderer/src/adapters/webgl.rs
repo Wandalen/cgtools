@@ -26,8 +26,6 @@ struct GpuResources
 struct GpuTexture
 {
   texture : web_sys::WebGlTexture,
-  width : u32,
-  height : u32,
   filter : SamplerFilter,
 }
 
@@ -309,84 +307,25 @@ impl WebGlBackend
     // TODO: glyph atlas → draw quads with sprite renderer
     self.text_cursor = [ 0.0, 0.0 ];
   }
-}
 
-// ============================================================================
-// Shared utilities
-// ============================================================================
+  // ---- Asset loading ----
 
-/// Builds a column-major 3x3 affine matrix from Transform.
-fn transform_to_mat3( t : &Transform ) -> [ f32; 9 ]
-{
-  let cos_r = t.rotation.cos();
-  let sin_r = t.rotation.sin();
-  let sx = t.scale[ 0 ];
-  let sy = t.scale[ 1 ];
-  let skx = t.skew[ 0 ].tan();
-  let sky = t.skew[ 1 ].tan();
-
-  let m00 = ( cos_r + sin_r * sky ) * sx;
-  let m10 = ( sin_r - cos_r * sky ) * sx;
-  let m01 = ( cos_r * skx - sin_r ) * sy;
-  let m11 = ( sin_r * skx + cos_r ) * sy;
-
-  [
-    m00,                m10,                0.0,
-    m01,                m11,                0.0,
-    t.position[ 0 ],   t.position[ 1 ],    1.0,
-  ]
-}
-
-fn topology_to_gl( t : &Topology ) -> u32
-{
-  match t
-  {
-    Topology::TriangleList => gl::GL::TRIANGLES,
-    Topology::TriangleStrip => gl::GL::TRIANGLE_STRIP,
-    Topology::LineList => gl::GL::LINES,
-    Topology::LineStrip => gl::GL::LINE_STRIP,
-  }
-}
-
-fn apply_texture_filter( gl : &gl::GL, filter : &SamplerFilter )
-{
-  let f = match filter
-  {
-    SamplerFilter::Nearest => gl::GL::NEAREST as i32,
-    SamplerFilter::Linear => gl::GL::LINEAR as i32,
-  };
-  gl.tex_parameteri( gl::GL::TEXTURE_2D, gl::GL::TEXTURE_MIN_FILTER, f );
-  gl.tex_parameteri( gl::GL::TEXTURE_2D, gl::GL::TEXTURE_MAG_FILTER, f );
-}
-
-// ============================================================================
-// Backend trait impl
-// ============================================================================
-
-impl Backend for WebGlBackend
-{
-  fn load_assets( &mut self, assets : &Assets ) -> Result< (), RenderError >
+  fn load_images( &mut self, images : &[ crate::assets::ImageAsset ] ) -> Result< (), RenderError >
   {
     let gl = &self.gl;
-    let map_err = | e : gl::WebglError | RenderError::BackendError( format!( "{e:?}" ) );
-
-    // ---- Images → GPU textures ----
     self.resources.textures.clear();
 
-    for img in &assets.images
+    for img in images
     {
-      let texture = gl.create_texture()
-        .ok_or_else( || RenderError::BackendError( "failed to create texture".into() ) )?;
-
-      gl.bind_texture( gl::GL::TEXTURE_2D, Some( &texture ) );
-      apply_texture_filter( gl, &img.filter );
-      gl.tex_parameteri( gl::GL::TEXTURE_2D, gl::GL::TEXTURE_WRAP_S, gl::GL::CLAMP_TO_EDGE as i32 );
-      gl.tex_parameteri( gl::GL::TEXTURE_2D, gl::GL::TEXTURE_WRAP_T, gl::GL::CLAMP_TO_EDGE as i32 );
-
-      let ( w, h ) = match &img.source
+      let texture = match &img.source
       {
         crate::assets::ImageSource::Bitmap { bytes, width, height, format } =>
         {
+          let texture = gl.create_texture()
+          .ok_or_else( || RenderError::BackendError( "failed to create texture".into() ) )?;
+
+          gl.bind_texture( gl::GL::TEXTURE_2D, Some( &texture ) );
+
           let gl_fmt = match format
           {
             crate::assets::PixelFormat::Rgba8 => gl::GL::RGBA,
@@ -394,25 +333,43 @@ impl Backend for WebGlBackend
             crate::assets::PixelFormat::Gray8 => gl::GL::LUMINANCE,
             crate::assets::PixelFormat::GrayAlpha8 => gl::GL::LUMINANCE_ALPHA,
           };
+
           let _ = gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
           (
             gl::GL::TEXTURE_2D, 0, gl_fmt as i32,
             *width as i32, *height as i32, 0,
             gl_fmt, gl::GL::UNSIGNED_BYTE, Some( bytes ),
           );
-          ( *width, *height )
+
+          texture
         }
-        crate::assets::ImageSource::Encoded( _bytes ) => ( 0, 0 ), // TODO: decode
-        crate::assets::ImageSource::Path( _path ) => ( 0, 0 ),     // N/A in wasm
+        crate::assets::ImageSource::Encoded( _ ) => { todo!() } // TODO: decode
+        crate::assets::ImageSource::Path( path ) =>
+        {
+          let path = path.as_path().to_str()
+            .ok_or_else( || RenderError::BackendError( "non-UTF-8 image path".into() ) )?;
+          let texture = gl::texture::d2::upload_image_from_path( gl, path, true );
+          gl.bind_texture( gl::GL::TEXTURE_2D, Some( &texture ) );
+          texture
+        }
       };
 
-      self.resources.store_texture( img.id, GpuTexture { texture, width : w, height : h, filter : img.filter } );
+      apply_texture_filter( gl, &img.filter );
+      gl::texture::d2::wrap_clamp( gl );
+
+      self.resources.store_texture( img.id, GpuTexture { texture, filter : img.filter } );
     }
 
-    // ---- Geometry → VAOs ----
+    Ok( () )
+  }
+
+  fn load_geometries( &mut self, geometries : &[ crate::assets::GeometryAsset ] ) -> Result< (), RenderError >
+  {
+    let gl = &self.gl;
+    let map_err = | e : gl::WebglError | RenderError::BackendError( format!( "{e:?}" ) );
     self.resources.geometries.clear();
 
-    for geom in &assets.geometries
+    for geom in geometries
     {
       let vao = gl::vao::create( gl ).map_err( map_err )?;
       gl.bind_vertex_array( Some( &vao ) );
@@ -451,8 +408,45 @@ impl Backend for WebGlBackend
       self.resources.store_geometry( geom.id, GpuGeometry { vao, vertex_count, index_count } );
     }
 
-    // TODO: gradients, patterns, clip masks, fonts
+    Ok( () )
+  }
+}
 
+// ============================================================================
+// Shared utilities
+// ============================================================================
+
+fn topology_to_gl( t : &Topology ) -> u32
+{
+  match t
+  {
+    Topology::TriangleList => gl::GL::TRIANGLES,
+    Topology::TriangleStrip => gl::GL::TRIANGLE_STRIP,
+    Topology::LineList => gl::GL::LINES,
+    Topology::LineStrip => gl::GL::LINE_STRIP,
+  }
+}
+
+fn apply_texture_filter( gl : &gl::GL, filter : &SamplerFilter )
+{
+  let f = match filter
+  {
+    SamplerFilter::Nearest => gl::texture::d2::filter_nearest( gl ),
+    SamplerFilter::Linear => gl::texture::d2::filter_linear( gl ),
+  };
+}
+
+// ============================================================================
+// Backend trait impl
+// ============================================================================
+
+impl Backend for WebGlBackend
+{
+  fn load_assets( &mut self, assets : &Assets ) -> Result< (), RenderError >
+  {
+    self.load_images( &assets.images )?;
+    self.load_geometries( &assets.geometries )?;
+    // TODO: gradients, patterns, clip masks, fonts
     Ok( () )
   }
 
@@ -509,7 +503,7 @@ impl Backend for WebGlBackend
         {
           if let Some( geom ) = self.resources.geometry( m.geometry )
           {
-            let mat = transform_to_mat3( &m.transform );
+            let mat = m.transform.to_mat3();
             let color = match m.fill { FillRef::Solid( c ) => c, _ => [ 1.0, 1.0, 1.0, 1.0 ] };
             self.apply_blend( &m.blend );
 
@@ -529,7 +523,7 @@ impl Backend for WebGlBackend
         // ---- Sprite ----
         RenderCommand::Sprite( s ) =>
         {
-          let mat = transform_to_mat3( &s.transform );
+          let mat = s.transform.to_mat3();
           self.apply_blend( &s.blend );
           // TODO: look up SpriteAsset → sheet texture + region → uv_rect
           let uv_rect = [ 0.0, 0.0, 1.0, 1.0 ]; // placeholder: full texture
@@ -544,7 +538,7 @@ impl Backend for WebGlBackend
         }
         RenderCommand::SpriteInstance( si ) =>
         {
-          let mat = transform_to_mat3( &si.transform );
+          let mat = si.transform.to_mat3();
           self.instance_buffer_data.extend_from_slice( &mat );
           self.instance_buffer_data.extend_from_slice( &si.tint );
           self.instance_buffer_data.push( si.sprite.inner() as f32 );
@@ -566,7 +560,7 @@ impl Backend for WebGlBackend
         }
         RenderCommand::MeshInstance( mi ) =>
         {
-          let mat = transform_to_mat3( &mi.transform );
+          let mat = mi.transform.to_mat3();
           self.instance_buffer_data.extend_from_slice( &mat );
         }
         RenderCommand::EndRecordMeshBatch( _ ) =>
@@ -575,6 +569,47 @@ impl Backend for WebGlBackend
           {
             // TODO: create GPU buffer, store as GpuBatch::Mesh
             self.instance_buffer_data.clear();
+          }
+        }
+
+        // ---- Batch draw / update / delete ----
+        RenderCommand::DrawBatch( db ) =>
+        {
+          if let Some( gpu_batch ) = self.resources.batch( db.batch )
+          {
+            match gpu_batch
+            {
+              GpuBatch::Sprite { .. } => self.sprite.draw_batch( &self.gl, gpu_batch ),
+              GpuBatch::Mesh { .. } => self.mesh.draw_batch( &self.gl, gpu_batch ),
+            }
+          }
+        }
+        RenderCommand::BeginUpdateBatch( bub ) =>
+        {
+          self.recording_batch = Some( bub.batch );
+        }
+        RenderCommand::SetSpriteInstance( si ) =>
+        {
+          let _ = si; // TODO: gl.buffer_sub_data — offset = si.index * SPRITE_INSTANCE_STRIDE
+        }
+        RenderCommand::SetMeshInstance( mi ) =>
+        {
+          let _ = mi; // TODO: gl.buffer_sub_data — offset = mi.index * MESH_INSTANCE_STRIDE
+        }
+        RenderCommand::EndUpdateBatch( _ ) =>
+        {
+          self.recording_batch = None;
+        }
+        RenderCommand::DeleteBatch( db ) =>
+        {
+          if let Some( b ) = self.resources.batches.remove( &db.batch )
+          {
+            let buf = match &b
+            {
+              GpuBatch::Sprite { instance_buffer, .. } => instance_buffer,
+              GpuBatch::Mesh { instance_buffer, .. } => instance_buffer,
+            };
+            self.gl.delete_buffer( Some( buf ) );
           }
         }
 
@@ -619,58 +654,3 @@ impl Backend for WebGlBackend
   }
 }
 
-// ============================================================================
-// BatchBackend trait impl
-// ============================================================================
-
-impl BatchBackend for WebGlBackend
-{
-  fn draw_batch( &mut self, batch : ResourceId< Batch > ) -> Result< (), RenderError >
-  {
-    let gpu_batch = self.resources.batch( batch ).ok_or( RenderError::MissingAsset( batch.inner() ) )?;
-
-    match gpu_batch
-    {
-      GpuBatch::Sprite { .. } => self.sprite.draw_batch( &self.gl, gpu_batch ),
-      GpuBatch::Mesh { .. } => self.mesh.draw_batch( &self.gl, gpu_batch ),
-    }
-
-    Ok( () )
-  }
-
-  fn update_sprite_instance( &mut self, batch : ResourceId< Batch >, index : u32, instance : &SpriteInstance ) -> Result< (), RenderError >
-  {
-    let _gpu_batch = self.resources.batch( batch )
-      .ok_or( RenderError::MissingAsset( batch.inner() ) )?;
-
-    let _ = ( index, instance );
-    // TODO: gl.buffer_sub_data — offset = index * SPRITE_INSTANCE_STRIDE
-
-    Ok( () )
-  }
-
-  fn update_mesh_instance( &mut self, batch : ResourceId< Batch >, index : u32, instance : &MeshInstance ) -> Result< (), RenderError >
-  {
-    let _gpu_batch = self.resources.batch( batch )
-      .ok_or( RenderError::MissingAsset( batch.inner() ) )?;
-
-    let _ = ( index, instance );
-    // TODO: gl.buffer_sub_data — offset = index * MESH_INSTANCE_STRIDE
-
-    Ok( () )
-  }
-
-  fn delete_batch( &mut self, batch : ResourceId< Batch > ) -> Result< (), RenderError >
-  {
-    if let Some( b ) = self.resources.batches.remove( &batch )
-    {
-      let buf = match &b
-      {
-        GpuBatch::Sprite { instance_buffer, .. } => instance_buffer,
-        GpuBatch::Mesh { instance_buffer, .. } => instance_buffer,
-      };
-      self.gl.delete_buffer( Some( buf ) );
-    }
-    Ok( () )
-  }
-}
