@@ -4,6 +4,8 @@
 //! Uses `minwebgl` for GL calls. Quad vertices are generated in
 //! the vertex shader via `gl_VertexID` — no quad VAO needed.
 
+use std::rc::Rc;
+use std::cell::RefCell;
 use minwebgl as gl;
 use nohash_hasher::IntMap;
 use crate::assets::Assets;
@@ -21,39 +23,6 @@ struct GpuResources
   textures : IntMap< ResourceId< asset::Image >, GpuTexture >,
   geometries : IntMap< ResourceId< asset::Geometry >, GpuGeometry >,
   batches : IntMap< ResourceId< Batch >, GpuBatch >,
-}
-
-struct GpuTexture
-{
-  texture : web_sys::WebGlTexture,
-  filter : SamplerFilter,
-}
-
-struct GpuGeometry
-{
-  vao : web_sys::WebGlVertexArrayObject,
-  vertex_count : u32,
-  index_count : Option< u32 >,
-}
-
-/// Persistent batch — sprite or mesh.
-enum GpuBatch
-{
-  Sprite
-  {
-    instance_buffer : web_sys::WebGlBuffer,
-    sheet : web_sys::WebGlTexture,
-    instance_count : u32,
-    blend : BlendMode,
-  },
-  Mesh
-  {
-    instance_buffer : web_sys::WebGlBuffer,
-    geometry : web_sys::WebGlVertexArrayObject,
-    topology : u32,
-    instance_count : u32,
-    blend : BlendMode,
-  },
 }
 
 impl GpuResources
@@ -99,6 +68,39 @@ impl GpuResources
   }
 }
 
+struct GpuTexture
+{
+  texture : web_sys::WebGlTexture,
+  filter : SamplerFilter,
+}
+
+struct GpuGeometry
+{
+  vao : web_sys::WebGlVertexArrayObject,
+  vertex_count : u32,
+  index_count : Option< u32 >,
+}
+
+/// Persistent batch — sprite or mesh.
+enum GpuBatch
+{
+  Sprite
+  {
+    instance_buffer : web_sys::WebGlBuffer,
+    sheet : web_sys::WebGlTexture,
+    instance_count : u32,
+    blend : BlendMode,
+  },
+  Mesh
+  {
+    instance_buffer : web_sys::WebGlBuffer,
+    geometry : web_sys::WebGlVertexArrayObject,
+    topology : u32,
+    instance_count : u32,
+    blend : BlendMode,
+  },
+}
+
 // ============================================================================
 // Sprite renderer
 // ============================================================================
@@ -131,7 +133,7 @@ impl SpriteRenderer
     self.program.uniform_upload( "u_uv_rect", uv_rect );
     self.program.uniform_upload( "u_tint", tint );
     self.program.uniform_upload( "u_viewport", viewport );
-    gl.draw_arrays( gl::GL::TRIANGLE_STRIP, 0, 4 );
+    gl.draw_arrays( gl::TRIANGLE_STRIP, 0, 4 );
   }
 
   /// Draw an instanced sprite batch.
@@ -179,7 +181,7 @@ impl MeshRenderer
 
     if let Some( count ) = geom.index_count
     {
-      gl.draw_elements_with_i32( topology, count as i32, gl::GL::UNSIGNED_SHORT, 0 );
+      gl.draw_elements_with_i32( topology, count as i32, gl::UNSIGNED_SHORT, 0 );
     }
     else
     {
@@ -216,17 +218,11 @@ pub struct WebGlBackend
 {
   config : RenderConfig,
   gl : gl::GL,
-  resources : GpuResources,
+  resources : Rc< RefCell< GpuResources > >,
   sprite : SpriteRenderer,
   mesh : MeshRenderer,
 
-  // -- streaming state --
-  path_active : bool,
-  path_vertices : Vec< f32 >,
-  path_style : Option< BeginPath >,
-  text_active : bool,
-  text_cursor : [ f32; 2 ],
-  text_style : Option< BeginText >,
+  // -- batch recording state --
   instance_buffer_data : Vec< f32 >,
   recording_batch : Option< ResourceId< Batch > >,
 }
@@ -246,27 +242,21 @@ impl WebGlBackend
 
     // Initial GL state
     gl.viewport( 0, 0, config.width as i32, config.height as i32 );
-    gl.enable( gl::GL::BLEND );
-    gl.blend_func( gl::GL::SRC_ALPHA, gl::GL::ONE_MINUS_SRC_ALPHA );
+    gl.enable( gl::BLEND );
+    gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA );
 
     if !matches!( config.antialias, Antialias::None )
     {
-      gl.enable( gl::GL::SAMPLE_COVERAGE );
+      gl.enable( gl::SAMPLE_COVERAGE );
     }
 
     Ok( Self
     {
       config,
       gl,
-      resources : GpuResources::new(),
+      resources : Rc::new( RefCell::new( GpuResources::new() ) ),
       sprite,
       mesh,
-      path_active : false,
-      path_vertices : Vec::new(),
-      path_style : None,
-      text_active : false,
-      text_cursor : [ 0.0, 0.0 ],
-      text_style : None,
       instance_buffer_data : Vec::new(),
       recording_batch : None,
     })
@@ -284,28 +274,132 @@ impl WebGlBackend
     let gl = &self.gl;
     match blend
     {
-      BlendMode::Normal => gl.blend_func( gl::GL::SRC_ALPHA, gl::GL::ONE_MINUS_SRC_ALPHA ),
-      BlendMode::Add => gl.blend_func( gl::GL::SRC_ALPHA, gl::GL::ONE ),
-      BlendMode::Multiply => gl.blend_func( gl::GL::DST_COLOR, gl::GL::ONE_MINUS_SRC_ALPHA ),
-      BlendMode::Screen => gl.blend_func( gl::GL::ONE, gl::GL::ONE_MINUS_SRC_COLOR ),
-      BlendMode::Overlay => gl.blend_func( gl::GL::SRC_ALPHA, gl::GL::ONE_MINUS_SRC_ALPHA ),
+      BlendMode::Normal => gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA ),
+      BlendMode::Add => gl.blend_func( gl::SRC_ALPHA, gl::ONE ),
+      BlendMode::Multiply => gl.blend_func( gl::DST_COLOR, gl::ONE_MINUS_SRC_ALPHA ),
+      BlendMode::Screen => gl.blend_func( gl::ONE, gl::ONE_MINUS_SRC_COLOR ),
+      BlendMode::Overlay => gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA ),
     }
   }
 
-  // ---- Flush ----
+  // ---- Command handlers ----
 
-  fn flush_path( &mut self )
+  fn cmd_clear( &self, c : &Clear )
   {
-    let Some( _style ) = self.path_style.take() else { return };
-    // TODO: tessellate → draw with mesh renderer
-    self.path_vertices.clear();
+    let [ r, g, b, a ] = c.color;
+    self.gl.clear_color( r, g, b, a );
+    self.gl.clear( gl::COLOR_BUFFER_BIT );
   }
 
-  fn flush_text( &mut self )
+  fn cmd_mesh( &self, m : &Mesh, viewport : &[ f32; 2 ] )
   {
-    let Some( _style ) = self.text_style.take() else { return };
-    // TODO: glyph atlas → draw quads with sprite renderer
-    self.text_cursor = [ 0.0, 0.0 ];
+    let res = self.resources.borrow();
+    if let Some( geom ) = res.geometry( m.geometry )
+    {
+      let mat = m.transform.to_mat3();
+      let color = match m.fill { FillRef::Solid( c ) => c, _ => [ 1.0, 1.0, 1.0, 1.0 ] };
+      self.apply_blend( &m.blend );
+
+      if let Some( tex_id ) = m.texture
+      {
+        if let Some( gpu_tex ) = res.texture( tex_id )
+        {
+          self.gl.active_texture( gl::TEXTURE0 );
+          self.gl.bind_texture( gl::TEXTURE_2D, Some( &gpu_tex.texture ) );
+        }
+      }
+
+      self.mesh.draw( &self.gl, geom, &mat, &color, topology_to_gl( &m.topology ), viewport );
+    }
+  }
+
+  fn cmd_sprite( &self, s : &Sprite, viewport : &[ f32; 2 ] )
+  {
+    let mat = s.transform.to_mat3();
+    self.apply_blend( &s.blend );
+    // TODO: look up SpriteAsset → sheet texture + region → uv_rect
+    let uv_rect = [ 0.0, 0.0, 1.0, 1.0 ]; // placeholder: full texture
+    self.sprite.draw( &self.gl, &mat, &uv_rect, &s.tint, viewport );
+  }
+
+  fn cmd_begin_record_sprite_batch( &mut self, brb : &BeginRecordSpriteBatch )
+  {
+    self.recording_batch = Some( brb.batch );
+    self.instance_buffer_data.clear();
+  }
+
+  fn cmd_sprite_instance( &mut self, si : &SpriteInstance )
+  {
+    let mat = si.transform.to_mat3();
+    self.instance_buffer_data.extend_from_slice( &mat );
+    self.instance_buffer_data.extend_from_slice( &si.tint );
+    self.instance_buffer_data.push( si.sprite.inner() as f32 );
+  }
+
+  fn cmd_end_record_sprite_batch( &mut self )
+  {
+    if let Some( _batch_id ) = self.recording_batch.take()
+    {
+      // TODO: create GPU buffer, store as GpuBatch::Sprite
+      self.instance_buffer_data.clear();
+    }
+  }
+
+  fn cmd_begin_record_mesh_batch( &mut self, brb : &BeginRecordMeshBatch )
+  {
+    self.recording_batch = Some( brb.batch );
+    self.instance_buffer_data.clear();
+  }
+
+  fn cmd_mesh_instance( &mut self, mi : &MeshInstance )
+  {
+    let mat = mi.transform.to_mat3();
+    self.instance_buffer_data.extend_from_slice( &mat );
+  }
+
+  fn cmd_end_record_mesh_batch( &mut self )
+  {
+    if let Some( _batch_id ) = self.recording_batch.take()
+    {
+      // TODO: create GPU buffer, store as GpuBatch::Mesh
+      self.instance_buffer_data.clear();
+    }
+  }
+
+  fn cmd_draw_batch( &self, db : &DrawBatch )
+  {
+    let res = self.resources.borrow();
+    if let Some( gpu_batch ) = res.batch( db.batch )
+    {
+      match gpu_batch
+      {
+        GpuBatch::Sprite { .. } => self.sprite.draw_batch( &self.gl, gpu_batch ),
+        GpuBatch::Mesh { .. } => self.mesh.draw_batch( &self.gl, gpu_batch ),
+      }
+    }
+  }
+
+  fn cmd_begin_update_batch( &mut self, bub : &BeginUpdateBatch )
+  {
+    self.recording_batch = Some( bub.batch );
+  }
+
+  fn cmd_end_update_batch( &mut self )
+  {
+    self.recording_batch = None;
+  }
+
+  fn cmd_delete_batch( &mut self, db : &DeleteBatch )
+  {
+    if let Some( b ) = self.resources.borrow_mut().batches.remove( &db.batch )
+    {
+      let buf = match &b
+      {
+        GpuBatch::Sprite { instance_buffer, .. } => instance_buffer,
+        GpuBatch::Mesh { instance_buffer, .. } => instance_buffer,
+      };
+      self.gl.delete_buffer( Some( buf ) );
+    }
   }
 
   // ---- Asset loading ----
@@ -313,7 +407,7 @@ impl WebGlBackend
   fn load_images( &mut self, images : &[ crate::assets::ImageAsset ] ) -> Result< (), RenderError >
   {
     let gl = &self.gl;
-    self.resources.textures.clear();
+    self.resources.borrow_mut().textures.clear();
 
     for img in images
     {
@@ -324,32 +418,32 @@ impl WebGlBackend
           let texture = gl.create_texture()
           .ok_or_else( || RenderError::BackendError( "failed to create texture".into() ) )?;
 
-          gl.bind_texture( gl::GL::TEXTURE_2D, Some( &texture ) );
+          gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
 
           let gl_fmt = match format
           {
-            crate::assets::PixelFormat::Rgba8 => gl::GL::RGBA,
-            crate::assets::PixelFormat::Rgb8 => gl::GL::RGB,
-            crate::assets::PixelFormat::Gray8 => gl::GL::LUMINANCE,
-            crate::assets::PixelFormat::GrayAlpha8 => gl::GL::LUMINANCE_ALPHA,
+            crate::assets::PixelFormat::Rgba8 => gl::RGBA,
+            crate::assets::PixelFormat::Rgb8 => gl::RGB,
+            crate::assets::PixelFormat::Gray8 => gl::LUMINANCE,
+            crate::assets::PixelFormat::GrayAlpha8 => gl::LUMINANCE_ALPHA,
           };
 
           let _ = gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
           (
-            gl::GL::TEXTURE_2D, 0, gl_fmt as i32,
+            gl::TEXTURE_2D, 0, gl_fmt as i32,
             *width as i32, *height as i32, 0,
-            gl_fmt, gl::GL::UNSIGNED_BYTE, Some( bytes ),
+            gl_fmt, gl::UNSIGNED_BYTE, Some( bytes ),
           );
 
           texture
         }
-        crate::assets::ImageSource::Encoded( _ ) => { todo!() } // TODO: decode
+        crate::assets::ImageSource::Encoded( _ ) => { continue; } // TODO: decode
         crate::assets::ImageSource::Path( path ) =>
         {
           let path = path.as_path().to_str()
             .ok_or_else( || RenderError::BackendError( "non-UTF-8 image path".into() ) )?;
           let texture = gl::texture::d2::upload_image_from_path( gl, path, true );
-          gl.bind_texture( gl::GL::TEXTURE_2D, Some( &texture ) );
+          gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
           texture
         }
       };
@@ -357,7 +451,7 @@ impl WebGlBackend
       apply_texture_filter( gl, &img.filter );
       gl::texture::d2::wrap_clamp( gl );
 
-      self.resources.store_texture( img.id, GpuTexture { texture, filter : img.filter } );
+      self.resources.borrow_mut().store_texture( img.id, GpuTexture { texture, filter : img.filter } );
     }
 
     Ok( () )
@@ -367,73 +461,126 @@ impl WebGlBackend
   {
     let gl = &self.gl;
     let map_err = | e : gl::WebglError | RenderError::BackendError( format!( "{e:?}" ) );
-    self.resources.geometries.clear();
+    self.resources.borrow_mut().geometries.clear();
 
     for geom in geometries
     {
-      let vao = gl::vao::create( gl ).map_err( map_err )?;
-      gl.bind_vertex_array( Some( &vao ) );
+      let has_path =
+        matches!( geom.positions, crate::assets::Source::Path( _ ) )
+        || matches!( geom.uvs, Some( crate::assets::Source::Path( _ ) ) )
+        || matches!( geom.indices, Some( crate::assets::Source::Path( _ ) ) );
 
-      if let crate::assets::Source::Bytes( ref bytes ) = geom.positions
+      if has_path
       {
-        let buffer = gl::buffer::create( gl ).map_err( map_err )?;
-        gl::buffer::upload( gl, &buffer, bytes, gl::GL::STATIC_DRAW );
-        gl.enable_vertex_attrib_array( 0 );
-        gl.vertex_attrib_pointer_with_i32( 0, 2, gl::GL::FLOAT, false, 0, 0 );
-      }
+        // Create empty VAO and register geometry immediately so the id is available.
+        // The spawn_local future will fetch data and populate the VAO later.
+        let vao = gl::vao::create( gl ).map_err( map_err )?;
+        self.resources.borrow_mut().store_geometry( geom.id, GpuGeometry { vao : vao.clone(), vertex_count : 0, index_count : None } );
 
-      if let Some( crate::assets::Source::Bytes( ref bytes ) ) = geom.uvs
+        let gl_clone = gl.clone();
+        let resources = Rc::clone( &self.resources );
+        let id = geom.id;
+
+        let positions_source = source_to_loadable( &geom.positions );
+        let uvs_source = geom.uvs.as_ref().map( source_to_loadable );
+        let indices_source = geom.indices.as_ref().map( source_to_loadable );
+
+        gl::spawn_local( async move
+        {
+          let gl = &gl_clone;
+
+          let positions = resolve_loadable( positions_source ).await;
+          let uvs = match uvs_source { Some( s ) => Some( resolve_loadable( s ).await ), None => None };
+          let indices = match indices_source { Some( s ) => Some( resolve_loadable( s ).await ), None => None };
+
+          gl.bind_vertex_array( Some( &vao ) );
+
+          // Positions (attrib 0)
+          if let Some( ref bytes ) = positions
+          {
+            if let Ok( buffer ) = gl::buffer::create( gl )
+            {
+              gl::buffer::upload( gl, &buffer, bytes, gl::STATIC_DRAW );
+              gl.enable_vertex_attrib_array( 0 );
+              gl.vertex_attrib_pointer_with_i32( 0, 2, gl::FLOAT, false, 0, 0 );
+            }
+          }
+
+          // UVs (attrib 1)
+          if let Some( Some( ref bytes ) ) = uvs
+          {
+            if let Ok( buffer ) = gl::buffer::create( gl )
+            {
+              gl::buffer::upload( gl, &buffer, bytes, gl::STATIC_DRAW );
+              gl.enable_vertex_attrib_array( 1 );
+              gl.vertex_attrib_pointer_with_i32( 1, 2, gl::FLOAT, false, 0, 0 );
+            }
+          }
+
+          // Indices
+          let mut index_count = None;
+          if let Some( Some( ref bytes ) ) = indices
+          {
+            if let Ok( buffer ) = gl::buffer::create( gl )
+            {
+              gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, Some( &buffer ) );
+              let u8_array = gl::js_sys::Uint8Array::from( bytes.as_slice() );
+              gl.buffer_data_with_array_buffer_view( gl::ELEMENT_ARRAY_BUFFER, &u8_array, gl::STATIC_DRAW );
+              index_count = Some( ( bytes.len() / 2 ) as u32 );
+            }
+          }
+
+          gl.bind_vertex_array( None );
+
+          let vertex_count = positions.as_ref().map_or( 0, | b | ( b.len() / 8 ) as u32 );
+
+          // Update the existing entry with actual vertex/index counts.
+          resources.borrow_mut().store_geometry( id, GpuGeometry { vao, vertex_count, index_count } );
+        });
+      }
+      else
       {
-        let buffer = gl::buffer::create( gl ).map_err( map_err )?;
-        gl::buffer::upload( gl, &buffer, bytes, gl::GL::STATIC_DRAW );
-        gl.enable_vertex_attrib_array( 1 );
-        gl.vertex_attrib_pointer_with_i32( 1, 2, gl::GL::FLOAT, false, 0, 0 );
+        // Synchronous path — all data is already in memory.
+        let vao = gl::vao::create( gl ).map_err( map_err )?;
+        gl.bind_vertex_array( Some( &vao ) );
+
+        if let crate::assets::Source::Bytes( ref bytes ) = geom.positions
+        {
+          let buffer = gl::buffer::create( gl ).map_err( map_err )?;
+          gl::buffer::upload( gl, &buffer, bytes, gl::STATIC_DRAW );
+          gl.enable_vertex_attrib_array( 0 );
+          gl.vertex_attrib_pointer_with_i32( 0, 2, gl::FLOAT, false, 0, 0 );
+        }
+
+        if let Some( crate::assets::Source::Bytes( ref bytes ) ) = geom.uvs
+        {
+          let buffer = gl::buffer::create( gl ).map_err( map_err )?;
+          gl::buffer::upload( gl, &buffer, bytes, gl::STATIC_DRAW );
+          gl.enable_vertex_attrib_array( 1 );
+          gl.vertex_attrib_pointer_with_i32( 1, 2, gl::FLOAT, false, 0, 0 );
+        }
+
+        let mut index_count = None;
+        if let Some( crate::assets::Source::Bytes( ref bytes ) ) = geom.indices
+        {
+          let buffer = gl::buffer::create( gl ).map_err( map_err )?;
+          gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, Some( &buffer ) );
+          let u8_array = js_sys::Uint8Array::from( bytes.as_slice() );
+          gl.buffer_data_with_array_buffer_view( gl::ELEMENT_ARRAY_BUFFER, &u8_array, gl::STATIC_DRAW );
+          index_count = Some( ( bytes.len() / 2 ) as u32 );
+        }
+
+        gl.bind_vertex_array( None );
+
+        let vertex_count = if let crate::assets::Source::Bytes( ref bytes ) = geom.positions
+        { ( bytes.len() / 8 ) as u32 } else { 0 };
+
+        self.resources.borrow_mut().store_geometry( geom.id, GpuGeometry { vao, vertex_count, index_count } );
       }
-
-      let mut index_count = None;
-      if let Some( crate::assets::Source::Bytes( ref bytes ) ) = geom.indices
-      {
-        let buffer = gl::buffer::create( gl ).map_err( map_err )?;
-        gl.bind_buffer( gl::GL::ELEMENT_ARRAY_BUFFER, Some( &buffer ) );
-        let u8_array = js_sys::Uint8Array::from( bytes.as_slice() );
-        gl.buffer_data_with_array_buffer_view( gl::GL::ELEMENT_ARRAY_BUFFER, &u8_array, gl::GL::STATIC_DRAW );
-        index_count = Some( ( bytes.len() / 2 ) as u32 );
-      }
-
-      gl.bind_vertex_array( None );
-
-      let vertex_count = if let crate::assets::Source::Bytes( ref bytes ) = geom.positions
-      { ( bytes.len() / 8 ) as u32 } else { 0 };
-
-      self.resources.store_geometry( geom.id, GpuGeometry { vao, vertex_count, index_count } );
     }
 
     Ok( () )
   }
-}
-
-// ============================================================================
-// Shared utilities
-// ============================================================================
-
-fn topology_to_gl( t : &Topology ) -> u32
-{
-  match t
-  {
-    Topology::TriangleList => gl::GL::TRIANGLES,
-    Topology::TriangleStrip => gl::GL::TRIANGLE_STRIP,
-    Topology::LineList => gl::GL::LINES,
-    Topology::LineStrip => gl::GL::LINE_STRIP,
-  }
-}
-
-fn apply_texture_filter( gl : &gl::GL, filter : &SamplerFilter )
-{
-  let f = match filter
-  {
-    SamplerFilter::Nearest => gl::texture::d2::filter_nearest( gl ),
-    SamplerFilter::Linear => gl::texture::d2::filter_linear( gl ),
-  };
 }
 
 // ============================================================================
@@ -458,164 +605,48 @@ impl Backend for WebGlBackend
     {
       match cmd
       {
-        RenderCommand::Clear( c ) =>
-        {
-          let [ r, g, b, a ] = c.color;
-          self.gl.clear_color( r, g, b, a );
-          self.gl.clear( gl::GL::COLOR_BUFFER_BIT );
-        }
+        RenderCommand::Clear( c ) => self.cmd_clear( c ),
 
-        // ---- Path streaming ----
-        RenderCommand::BeginPath( bp ) =>
-        {
-          self.path_active = true;
-          self.path_vertices.clear();
-          self.path_style = Some( *bp );
-        }
-        RenderCommand::MoveTo( m ) => { self.path_vertices.extend_from_slice( &[ m.0, m.1 ] ); }
-        RenderCommand::LineTo( l ) => { self.path_vertices.extend_from_slice( &[ l.0, l.1 ] ); }
-        RenderCommand::QuadTo( q ) => { self.path_vertices.extend_from_slice( &[ q.x, q.y ] ); } // TODO: flatten
-        RenderCommand::CubicTo( c ) => { self.path_vertices.extend_from_slice( &[ c.x, c.y ] ); } // TODO: flatten
-        RenderCommand::ArcTo( a ) => { self.path_vertices.extend_from_slice( &[ a.x, a.y ] ); } // TODO: decompose
-        RenderCommand::ClosePath( _ ) => {} // TODO: close subpath
-        RenderCommand::EndPath( _ ) =>
-        {
-          self.path_active = false;
-          self.flush_path();
-        }
+        // Mesh & sprite
+        RenderCommand::Mesh( m ) => self.cmd_mesh( m, &viewport ),
+        RenderCommand::Sprite( s ) => self.cmd_sprite( s, &viewport ),
 
-        // ---- Text streaming ----
-        RenderCommand::BeginText( bt ) =>
-        {
-          self.text_active = true;
-          self.text_cursor = bt.position;
-          self.text_style = Some( *bt );
-        }
-        RenderCommand::Char( _ch ) => {} // TODO: glyph lookup + cursor advance
-        RenderCommand::EndText( _ ) =>
-        {
-          self.text_active = false;
-          self.flush_text();
-        }
+        // Sprite batch recording
+        RenderCommand::BeginRecordSpriteBatch( brb ) => self.cmd_begin_record_sprite_batch( brb ),
+        RenderCommand::SpriteInstance( si ) => self.cmd_sprite_instance( si ),
+        RenderCommand::EndRecordSpriteBatch( _ ) => self.cmd_end_record_sprite_batch(),
 
-        // ---- Mesh ----
-        RenderCommand::Mesh( m ) =>
-        {
-          if let Some( geom ) = self.resources.geometry( m.geometry )
-          {
-            let mat = m.transform.to_mat3();
-            let color = match m.fill { FillRef::Solid( c ) => c, _ => [ 1.0, 1.0, 1.0, 1.0 ] };
-            self.apply_blend( &m.blend );
+        // Mesh batch recording
+        RenderCommand::BeginRecordMeshBatch( brb ) => self.cmd_begin_record_mesh_batch( brb ),
+        RenderCommand::MeshInstance( mi ) => self.cmd_mesh_instance( mi ),
+        RenderCommand::EndRecordMeshBatch( _ ) => self.cmd_end_record_mesh_batch(),
 
-            if let Some( tex_id ) = m.texture
-            {
-              if let Some( gpu_tex ) = self.resources.texture( tex_id )
-              {
-                self.gl.active_texture( gl::GL::TEXTURE0 );
-                self.gl.bind_texture( gl::GL::TEXTURE_2D, Some( &gpu_tex.texture ) );
-              }
-            }
+        // Batch draw / update / delete
+        RenderCommand::DrawBatch( db ) => self.cmd_draw_batch( db ),
+        RenderCommand::BeginUpdateBatch( bub ) => self.cmd_begin_update_batch( bub ),
+        RenderCommand::SetSpriteInstance( _ ) => {} // TODO
+        RenderCommand::SetMeshInstance( _ ) => {} // TODO
+        RenderCommand::EndUpdateBatch( _ ) => self.cmd_end_update_batch(),
+        RenderCommand::DeleteBatch( db ) => self.cmd_delete_batch( db ),
 
-            self.mesh.draw( &self.gl, geom, &mat, &color, topology_to_gl( &m.topology ), &viewport );
-          }
-        }
+        // Path — skip (TODO)
+        RenderCommand::BeginPath( _ )
+        | RenderCommand::MoveTo( _ )
+        | RenderCommand::LineTo( _ )
+        | RenderCommand::QuadTo( _ )
+        | RenderCommand::CubicTo( _ )
+        | RenderCommand::ArcTo( _ )
+        | RenderCommand::ClosePath( _ )
+        | RenderCommand::EndPath( _ ) => {}
 
-        // ---- Sprite ----
-        RenderCommand::Sprite( s ) =>
-        {
-          let mat = s.transform.to_mat3();
-          self.apply_blend( &s.blend );
-          // TODO: look up SpriteAsset → sheet texture + region → uv_rect
-          let uv_rect = [ 0.0, 0.0, 1.0, 1.0 ]; // placeholder: full texture
-          self.sprite.draw( &self.gl, &mat, &uv_rect, &s.tint, &viewport );
-        }
+        // Text — skip (TODO)
+        RenderCommand::BeginText( _ )
+        | RenderCommand::Char( _ )
+        | RenderCommand::EndText( _ ) => {}
 
-        // ---- Sprite batch recording ----
-        RenderCommand::BeginRecordSpriteBatch( brb ) =>
-        {
-          self.recording_batch = Some( brb.batch );
-          self.instance_buffer_data.clear();
-        }
-        RenderCommand::SpriteInstance( si ) =>
-        {
-          let mat = si.transform.to_mat3();
-          self.instance_buffer_data.extend_from_slice( &mat );
-          self.instance_buffer_data.extend_from_slice( &si.tint );
-          self.instance_buffer_data.push( si.sprite.inner() as f32 );
-        }
-        RenderCommand::EndRecordSpriteBatch( _ ) =>
-        {
-          if let Some( _batch_id ) = self.recording_batch.take()
-          {
-            // TODO: create GPU buffer, store as GpuBatch::Sprite
-            self.instance_buffer_data.clear();
-          }
-        }
-
-        // ---- Mesh batch recording ----
-        RenderCommand::BeginRecordMeshBatch( brb ) =>
-        {
-          self.recording_batch = Some( brb.batch );
-          self.instance_buffer_data.clear();
-        }
-        RenderCommand::MeshInstance( mi ) =>
-        {
-          let mat = mi.transform.to_mat3();
-          self.instance_buffer_data.extend_from_slice( &mat );
-        }
-        RenderCommand::EndRecordMeshBatch( _ ) =>
-        {
-          if let Some( _batch_id ) = self.recording_batch.take()
-          {
-            // TODO: create GPU buffer, store as GpuBatch::Mesh
-            self.instance_buffer_data.clear();
-          }
-        }
-
-        // ---- Batch draw / update / delete ----
-        RenderCommand::DrawBatch( db ) =>
-        {
-          if let Some( gpu_batch ) = self.resources.batch( db.batch )
-          {
-            match gpu_batch
-            {
-              GpuBatch::Sprite { .. } => self.sprite.draw_batch( &self.gl, gpu_batch ),
-              GpuBatch::Mesh { .. } => self.mesh.draw_batch( &self.gl, gpu_batch ),
-            }
-          }
-        }
-        RenderCommand::BeginUpdateBatch( bub ) =>
-        {
-          self.recording_batch = Some( bub.batch );
-        }
-        RenderCommand::SetSpriteInstance( si ) =>
-        {
-          let _ = si; // TODO: gl.buffer_sub_data — offset = si.index * SPRITE_INSTANCE_STRIDE
-        }
-        RenderCommand::SetMeshInstance( mi ) =>
-        {
-          let _ = mi; // TODO: gl.buffer_sub_data — offset = mi.index * MESH_INSTANCE_STRIDE
-        }
-        RenderCommand::EndUpdateBatch( _ ) =>
-        {
-          self.recording_batch = None;
-        }
-        RenderCommand::DeleteBatch( db ) =>
-        {
-          if let Some( b ) = self.resources.batches.remove( &db.batch )
-          {
-            let buf = match &b
-            {
-              GpuBatch::Sprite { instance_buffer, .. } => instance_buffer,
-              GpuBatch::Mesh { instance_buffer, .. } => instance_buffer,
-            };
-            self.gl.delete_buffer( Some( buf ) );
-          }
-        }
-
-        // ---- Grouping ----
-        RenderCommand::BeginGroup( _ ) => {} // TODO: transform stack, stencil, FBO
-        RenderCommand::EndGroup( _ ) => {}   // TODO: pop state
+        // Grouping — skip (TODO)
+        RenderCommand::BeginGroup( _ )
+        | RenderCommand::EndGroup( _ ) => {}
       }
     }
 
@@ -654,3 +685,52 @@ impl Backend for WebGlBackend
   }
 }
 
+// ============================================================================
+// Shared utilities
+// ============================================================================
+
+/// Data source that can be sent into a `spawn_local` future.
+/// Clones the bytes (for `Bytes`) or the path string (for `Path`).
+enum Loadable
+{
+  Ready( Vec< u8 > ),
+  Fetch( String ),
+}
+
+fn source_to_loadable( source : &crate::assets::Source ) -> Loadable
+{
+  match source
+  {
+    crate::assets::Source::Bytes( bytes ) => Loadable::Ready( bytes.clone() ),
+    crate::assets::Source::Path( path ) => Loadable::Fetch( path.to_string_lossy().into_owned() ),
+  }
+}
+
+async fn resolve_loadable( loadable : Loadable ) -> Option< Vec< u8 > >
+{
+  match loadable
+  {
+    Loadable::Ready( bytes ) => Some( bytes ),
+    Loadable::Fetch( path ) => gl::file::load( &path ).await.ok(),
+  }
+}
+
+fn apply_texture_filter( gl : &gl::GL, filter : &SamplerFilter )
+{
+  let f = match filter
+  {
+    SamplerFilter::Nearest => gl::texture::d2::filter_nearest( gl ),
+    SamplerFilter::Linear => gl::texture::d2::filter_linear( gl ),
+  };
+}
+
+fn topology_to_gl( t : &Topology ) -> u32
+{
+  match t
+  {
+    Topology::TriangleList => gl::TRIANGLES,
+    Topology::TriangleStrip => gl::TRIANGLE_STRIP,
+    Topology::LineList => gl::LINES,
+    Topology::LineStrip => gl::LINE_STRIP,
+  }
+}
