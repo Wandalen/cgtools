@@ -257,6 +257,9 @@ struct GpuSprite
 struct GpuGeometry
 {
   vao : web_sys::WebGlVertexArrayObject,
+  position_buffer : Option< web_sys::WebGlBuffer >,
+  uv_buffer : Option< web_sys::WebGlBuffer >,
+  index_buffer : Option< web_sys::WebGlBuffer >,
   vertex_count : u32,
   index_count : Option< u32 >,
 }
@@ -265,16 +268,13 @@ struct GpuGeometry
 
 /// Per-instance data for sprite batches (17 floats = 68 bytes).
 #[ repr( C ) ]
-#[ derive( Clone, Copy ) ]
+#[ derive( Clone, Copy, bytemuck::Zeroable, bytemuck::Pod ) ]
 struct SpriteInstanceData
 {
   transform : [ f32; 9 ],
   region : [ f32; 4 ],
   tint : [ f32; 4 ],
 }
-
-unsafe impl bytemuck::Zeroable for SpriteInstanceData {}
-unsafe impl bytemuck::Pod for SpriteInstanceData {}
 
 impl gl::AsBytes for SpriteInstanceData
 {
@@ -284,14 +284,11 @@ impl gl::AsBytes for SpriteInstanceData
 
 /// Per-instance data for mesh batches (9 floats = 36 bytes).
 #[ repr( C ) ]
-#[ derive( Clone, Copy ) ]
+#[ derive( Clone, Copy, bytemuck::Zeroable, bytemuck::Pod ) ]
 struct MeshInstanceData
 {
   transform : [ f32; 9 ],
 }
-
-unsafe impl bytemuck::Zeroable for MeshInstanceData {}
-unsafe impl bytemuck::Pod for MeshInstanceData {}
 
 impl gl::AsBytes for MeshInstanceData
 {
@@ -311,6 +308,7 @@ enum GpuBatch
   Mesh
   {
     instances : ArrayBuffer< MeshInstanceData >,
+    vao : web_sys::WebGlVertexArrayObject,
     params : MeshBatchParams,
   },
 }
@@ -338,6 +336,51 @@ fn setup_sprite_batch_vao( gl : &gl::GL, vao : &web_sys::WebGlVertexArrayObject,
   gl.enable_vertex_attrib_array( 4 );
   gl.vertex_attrib_pointer_with_i32( 4, 4, gl::FLOAT, false, stride, 52 );
   gl.vertex_attrib_divisor( 4, 1 );
+}
+
+/// Sets up a mesh batch VAO with geometry attribs (0–1) and instance attribs (2–4).
+fn setup_mesh_batch_vao
+(
+  gl : &gl::GL,
+  vao : &web_sys::WebGlVertexArrayObject,
+  geom : &GpuGeometry,
+  instance_buffer : &web_sys::WebGlBuffer,
+)
+{
+  gl.bind_vertex_array( Some( vao ) );
+
+  // Geometry: positions (attrib 0)
+  if let Some( ref buf ) = geom.position_buffer
+  {
+    gl.bind_buffer( gl::ARRAY_BUFFER, Some( buf ) );
+    gl.enable_vertex_attrib_array( 0 );
+    gl.vertex_attrib_pointer_with_i32( 0, 2, gl::FLOAT, false, 0, 0 );
+  }
+
+  // Geometry: UVs (attrib 1)
+  if let Some( ref buf ) = geom.uv_buffer
+  {
+    gl.bind_buffer( gl::ARRAY_BUFFER, Some( buf ) );
+    gl.enable_vertex_attrib_array( 1 );
+    gl.vertex_attrib_pointer_with_i32( 1, 2, gl::FLOAT, false, 0, 0 );
+  }
+
+  // Geometry: indices
+  if let Some( ref buf ) = geom.index_buffer
+  {
+    gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, Some( buf ) );
+  }
+
+  // Instance: transform 3 × vec3 at locations 2, 3, 4
+  gl.bind_buffer( gl::ARRAY_BUFFER, Some( instance_buffer ) );
+  let stride = std::mem::size_of::< MeshInstanceData >() as i32;
+  for i in 0..3_u32
+  {
+    let loc = i + 2;
+    gl.enable_vertex_attrib_array( loc );
+    gl.vertex_attrib_pointer_with_i32( loc, 3, gl::FLOAT, false, stride, ( i * 12 ) as i32 );
+    gl.vertex_attrib_divisor( loc, 1 );
+  }
 }
 
 // ============================================================================
@@ -469,10 +512,10 @@ impl MeshRenderer
     }
   }
 
-  /// Draw an instanced mesh batch.
+  /// Draw an instanced mesh batch. VAO is already configured via `setup_mesh_batch_vao`.
   fn draw_batch( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, viewport : &[ f32; 2 ] )
   {
-    let GpuBatch::Mesh { instances, params } = batch else { return };
+    let GpuBatch::Mesh { instances, vao, params } = batch else { return };
     if instances.is_empty() { return; }
 
     let Some( geom ) = resources.geometry( params.geometry ) else { return };
@@ -497,19 +540,7 @@ impl MeshRenderer
     let parent_mat = params.transform.to_mat3();
     self.batch_program.uniform_matrix_upload( "u_parent", &parent_mat, true );
 
-    // Bind geometry VAO and add instance attribs temporarily
-    gl.bind_vertex_array( Some( &geom.vao ) );
-    gl.bind_buffer( gl::ARRAY_BUFFER, Some( instances.buffer() ) );
-
-    let stride = std::mem::size_of::< MeshInstanceData >() as i32;
-
-    for i in 0..3_u32
-    {
-      let loc = i + 2;
-      gl.enable_vertex_attrib_array( loc );
-      gl.vertex_attrib_pointer_with_i32( loc, 3, gl::FLOAT, false, stride, ( i * 12 ) as i32 );
-      gl.vertex_attrib_divisor( loc, 1 );
-    }
+    gl.bind_vertex_array( Some( vao ) );
 
     if let Some( count ) = geom.index_count
     {
@@ -671,10 +702,19 @@ impl WebGlBackend
 
   fn cmd_create_mesh_batch( &mut self, cmd : &CreateMeshBatch )
   {
-    let Ok( instances ) = ArrayBuffer::< MeshInstanceData >::new( &self.gl, 16 ) else { return };
+    let gl = &self.gl;
+    let Ok( instances ) = ArrayBuffer::< MeshInstanceData >::new( gl, 16 ) else { return };
+    let Ok( vao ) = gl::vao::create( gl ) else { return };
+    let res = self.resources.borrow();
+    if let Some( geom ) = res.geometry( cmd.params.geometry )
+    {
+      setup_mesh_batch_vao( gl, &vao, geom, instances.buffer() );
+    }
+    drop( res );
     self.resources.borrow_mut().store_batch( cmd.batch, GpuBatch::Mesh
     {
       instances,
+      vao,
       params : cmd.params,
     });
   }
@@ -695,14 +735,9 @@ impl WebGlBackend
       region,
       tint : si.tint,
     };
-    if let Some( GpuBatch::Sprite { instances, vao, .. } ) = res.batch_mut( batch_id )
+    if let Some( GpuBatch::Sprite { instances, .. } ) = res.batch_mut( batch_id )
     {
-      let old_cap = instances.capacity();
       let _ = instances.push( &data );
-      if instances.capacity() != old_cap
-      {
-        setup_sprite_batch_vao( &self.gl, vao, instances.buffer() );
-      }
     }
   }
 
@@ -781,7 +816,27 @@ impl WebGlBackend
 
   fn cmd_unbind_batch( &mut self )
   {
-    self.recording_batch = None;
+    if let Some( batch_id ) = self.recording_batch.take()
+    {
+      let res = self.resources.borrow();
+      if let Some( batch ) = res.batch( batch_id )
+      {
+        match batch
+        {
+          GpuBatch::Sprite { instances, vao, .. } =>
+          {
+            setup_sprite_batch_vao( &self.gl, vao, instances.buffer() );
+          }
+          GpuBatch::Mesh { instances, vao, params } =>
+          {
+            if let Some( geom ) = res.geometry( params.geometry )
+            {
+              setup_mesh_batch_vao( &self.gl, vao, geom, instances.buffer() );
+            }
+          }
+        }
+      }
+    }
   }
 
   fn cmd_draw_batch( &self, db : &DrawBatch, viewport : &[ f32; 2 ] )
@@ -901,7 +956,11 @@ impl WebGlBackend
         // Create empty VAO and register geometry immediately so the id is available.
         // The spawn_local future will fetch data and populate the VAO later.
         let vao = gl::vao::create( gl ).map_err( map_err )?;
-        self.resources.borrow_mut().store_geometry( geom.id, GpuGeometry { vao : vao.clone(), vertex_count : 0, index_count : None } );
+        self.resources.borrow_mut().store_geometry( geom.id, GpuGeometry
+        {
+          vao : vao.clone(), position_buffer : None, uv_buffer : None, index_buffer : None,
+          vertex_count : 0, index_count : None,
+        });
 
         let gl_clone = gl.clone();
         let resources = Rc::clone( &self.resources );
@@ -922,6 +981,7 @@ impl WebGlBackend
           gl.bind_vertex_array( Some( &vao ) );
 
           // Positions (attrib 0)
+          let mut position_buffer = None;
           if let Some( ref bytes ) = positions
           {
             if let Ok( buffer ) = gl::buffer::create( gl )
@@ -929,10 +989,12 @@ impl WebGlBackend
               gl::buffer::upload( gl, &buffer, bytes, gl::STATIC_DRAW );
               gl.enable_vertex_attrib_array( 0 );
               gl.vertex_attrib_pointer_with_i32( 0, 2, gl::FLOAT, false, 0, 0 );
+              position_buffer = Some( buffer );
             }
           }
 
           // UVs (attrib 1)
+          let mut uv_buffer = None;
           if let Some( Some( ref bytes ) ) = uvs
           {
             if let Ok( buffer ) = gl::buffer::create( gl )
@@ -940,10 +1002,12 @@ impl WebGlBackend
               gl::buffer::upload( gl, &buffer, bytes, gl::STATIC_DRAW );
               gl.enable_vertex_attrib_array( 1 );
               gl.vertex_attrib_pointer_with_i32( 1, 2, gl::FLOAT, false, 0, 0 );
+              uv_buffer = Some( buffer );
             }
           }
 
           // Indices
+          let mut index_buffer = None;
           let mut index_count = None;
           if let Some( Some( ref bytes ) ) = indices
           {
@@ -953,6 +1017,7 @@ impl WebGlBackend
               let u8_array = gl::js_sys::Uint8Array::from( bytes.as_slice() );
               gl.buffer_data_with_array_buffer_view( gl::ELEMENT_ARRAY_BUFFER, &u8_array, gl::STATIC_DRAW );
               index_count = Some( ( bytes.len() / 2 ) as u32 );
+              index_buffer = Some( buffer );
             }
           }
 
@@ -960,8 +1025,10 @@ impl WebGlBackend
 
           let vertex_count = positions.as_ref().map_or( 0, | b | ( b.len() / 8 ) as u32 );
 
-          // Update the existing entry with actual vertex/index counts.
-          resources.borrow_mut().store_geometry( id, GpuGeometry { vao, vertex_count, index_count } );
+          resources.borrow_mut().store_geometry( id, GpuGeometry
+          {
+            vao, position_buffer, uv_buffer, index_buffer, vertex_count, index_count,
+          });
         });
       }
       else
@@ -970,22 +1037,27 @@ impl WebGlBackend
         let vao = gl::vao::create( gl ).map_err( map_err )?;
         gl.bind_vertex_array( Some( &vao ) );
 
+        let mut position_buffer = None;
         if let crate::assets::Source::Bytes( ref bytes ) = geom.positions
         {
           let buffer = gl::buffer::create( gl ).map_err( map_err )?;
           gl::buffer::upload( gl, &buffer, bytes, gl::STATIC_DRAW );
           gl.enable_vertex_attrib_array( 0 );
           gl.vertex_attrib_pointer_with_i32( 0, 2, gl::FLOAT, false, 0, 0 );
+          position_buffer = Some( buffer );
         }
 
+        let mut uv_buffer = None;
         if let Some( crate::assets::Source::Bytes( ref bytes ) ) = geom.uvs
         {
           let buffer = gl::buffer::create( gl ).map_err( map_err )?;
           gl::buffer::upload( gl, &buffer, bytes, gl::STATIC_DRAW );
           gl.enable_vertex_attrib_array( 1 );
           gl.vertex_attrib_pointer_with_i32( 1, 2, gl::FLOAT, false, 0, 0 );
+          uv_buffer = Some( buffer );
         }
 
+        let mut index_buffer = None;
         let mut index_count = None;
         if let Some( crate::assets::Source::Bytes( ref bytes ) ) = geom.indices
         {
@@ -994,6 +1066,7 @@ impl WebGlBackend
           let u8_array = js_sys::Uint8Array::from( bytes.as_slice() );
           gl.buffer_data_with_array_buffer_view( gl::ELEMENT_ARRAY_BUFFER, &u8_array, gl::STATIC_DRAW );
           index_count = Some( ( bytes.len() / 2 ) as u32 );
+          index_buffer = Some( buffer );
         }
 
         gl.bind_vertex_array( None );
@@ -1001,7 +1074,10 @@ impl WebGlBackend
         let vertex_count = if let crate::assets::Source::Bytes( ref bytes ) = geom.positions
         { ( bytes.len() / 8 ) as u32 } else { 0 };
 
-        self.resources.borrow_mut().store_geometry( geom.id, GpuGeometry { vao, vertex_count, index_count } );
+        self.resources.borrow_mut().store_geometry( geom.id, GpuGeometry
+        {
+          vao, position_buffer, uv_buffer, index_buffer, vertex_count, index_count,
+        });
       }
     }
 
