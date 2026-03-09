@@ -360,7 +360,8 @@ mod private
       Ok( () )
     }
 
-    fn get_defines( &self ) -> String
+    /// Returns the shader defines string based on the current render state flags
+    pub fn get_defines( &self ) -> String
     {
       self.render_state.get_defines()
     }
