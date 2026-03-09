@@ -484,7 +484,7 @@ async fn run() -> Result< (), gl::WebglError >
       let dy = p2.y() - p1.y();
       let angle = dy.atan2( dx );
 
-      let tr = make_transform( center.into(), angle, [ length, river_width ], cam, zoom, w, h );
+      let tr = make_transform( center.into(), -angle, [ length, river_width ], cam, zoom, w, h );
       render_commands.push( commands::RenderCommand::Mesh( commands::Mesh
       {
         transform : tr,

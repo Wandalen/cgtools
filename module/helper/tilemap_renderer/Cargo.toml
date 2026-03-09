@@ -14,7 +14,7 @@ workspace = true
 default = []
 adapter-svg = []
 adapter-terminal = []
-adapter-webgl = [ "dep:minwebgl", "dep:web-sys", "dep:js-sys", "dep:bytemuck" ]
+adapter-webgl = [ "dep:minwebgl", "dep:web-sys", "dep:js-sys", "dep:wasm-bindgen", "dep:bytemuck" ]
 # CLI stub — not yet reimplemented
 cli = []
 
@@ -23,6 +23,7 @@ nohash-hasher = { workspace = true }
 minwebgl = { workspace = true, optional = true }
 web-sys = { workspace = true, optional = true }
 js-sys = { workspace = true, optional = true }
+wasm-bindgen = { workspace = true, optional = true }
 # wgpu = { workspace = true, optional = true }
 bytemuck = { workspace = true, optional = true }
 

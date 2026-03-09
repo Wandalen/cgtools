@@ -5,7 +5,9 @@
 //! the vertex shader via `gl_VertexID` — no quad VAO needed.
 
 use std::rc::Rc;
-use std::cell::RefCell;
+use std::cell::{ Cell, RefCell };
+use web_sys::HtmlImageElement;
+use wasm_bindgen::prelude::*;
 use minwebgl as gl;
 use nohash_hasher::IntMap;
 use crate::assets::Assets;
@@ -21,6 +23,7 @@ use crate::types::*;
 struct GpuResources
 {
   textures : IntMap< ResourceId< asset::Image >, GpuTexture >,
+  sprites : IntMap< ResourceId< asset::Sprite >, GpuSprite >,
   geometries : IntMap< ResourceId< asset::Geometry >, GpuGeometry >,
   batches : IntMap< ResourceId< Batch >, GpuBatch >,
 }
@@ -32,6 +35,7 @@ impl GpuResources
     Self
     {
       textures : IntMap::default(),
+      sprites : IntMap::default(),
       geometries : IntMap::default(),
       batches : IntMap::default(),
     }
@@ -40,6 +44,11 @@ impl GpuResources
   fn texture( &self, id : ResourceId< asset::Image > ) -> Option< &GpuTexture >
   {
     self.textures.get( &id )
+  }
+
+  fn sprite( &self, id : ResourceId< asset::Sprite > ) -> Option< &GpuSprite >
+  {
+    self.sprites.get( &id )
   }
 
   fn geometry( &self, id : ResourceId< asset::Geometry > ) -> Option< &GpuGeometry >
@@ -57,6 +66,11 @@ impl GpuResources
     self.textures.insert( id, tex );
   }
 
+  fn store_sprite( &mut self, id : ResourceId< asset::Sprite >, sprite : GpuSprite )
+  {
+    self.sprites.insert( id, sprite );
+  }
+
   fn store_geometry( &mut self, id : ResourceId< asset::Geometry >, geom : GpuGeometry )
   {
     self.geometries.insert( id, geom );
@@ -71,7 +85,19 @@ impl GpuResources
 struct GpuTexture
 {
   texture : web_sys::WebGlTexture,
-  filter : SamplerFilter,
+  width : Cell< u32 >,
+  height : Cell< u32 >,
+  _filter : SamplerFilter,
+}
+
+/// Sprite lookup data: sheet reference + pixel region.
+/// UV rect and size are computed at draw time from the sheet's dimensions.
+struct GpuSprite
+{
+  /// Sheet texture to bind.
+  sheet : ResourceId< asset::Image >,
+  /// Region within the sheet: `[x, y, w, h]` in pixels.
+  region : [ f32; 4 ],
 }
 
 struct GpuGeometry
@@ -126,11 +152,12 @@ impl SpriteRenderer
   }
 
   /// Draw a single sprite as a textured quad (triangle strip, 4 vertices from gl_VertexID).
-  fn draw( &self, gl : &gl::GL, transform : &[ f32; 9 ], uv_rect : &[ f32; 4 ], tint : &[ f32; 4 ], viewport : &[ f32; 2 ] )
+  fn draw( &self, gl : &gl::GL, transform : &[ f32; 9 ], uv_rect : &[ f32; 4 ], sprite_size : &[ f32; 2 ], tint : &[ f32; 4 ], viewport : &[ f32; 2 ] )
   {
     self.program.activate();
-    self.program.uniform_upload( "u_transform", transform );
+    self.program.uniform_matrix_upload( "u_transform", transform.as_slice(), true );
     self.program.uniform_upload( "u_uv_rect", uv_rect );
+    self.program.uniform_upload( "u_sprite_size", sprite_size );
     self.program.uniform_upload( "u_tint", tint );
     self.program.uniform_upload( "u_viewport", viewport );
     gl.draw_arrays( gl::TRIANGLE_STRIP, 0, 4 );
@@ -170,10 +197,20 @@ impl MeshRenderer
   }
 
   /// Draw a single mesh.
-  fn draw( &self, gl : &gl::GL, geom : &GpuGeometry, transform : &[ f32; 9 ], color : &[ f32; 4 ], topology : u32, viewport : &[ f32; 2 ], use_texture : bool )
+  fn draw
+  (
+    &self,
+    gl : &gl::GL,
+    geom : &GpuGeometry,
+    transform : &[ f32; 9 ],
+    color : &[ f32; 4 ],
+    topology : u32,
+    viewport : &[ f32; 2 ],
+    use_texture : bool
+  )
   {
     self.program.activate();
-    self.program.uniform_upload( "u_transform", transform );
+    self.program.uniform_matrix_upload( "u_transform", transform.as_slice(), true );
     self.program.uniform_upload( "u_color", color );
     self.program.uniform_upload( "u_viewport", viewport );
     self.program.uniform_upload( "u_use_texture", &( use_texture as i32 ) );
@@ -302,14 +339,11 @@ impl WebGlBackend
       self.apply_blend( &m.blend );
 
       let mut use_texture = false;
-      if let Some( tex_id ) = m.texture
+      if let Some( tex_id ) = m.texture && let Some( gpu_tex ) = res.texture( tex_id )
       {
-        if let Some( gpu_tex ) = res.texture( tex_id )
-        {
-          self.gl.active_texture( gl::TEXTURE0 );
-          self.gl.bind_texture( gl::TEXTURE_2D, Some( &gpu_tex.texture ) );
-          use_texture = true;
-        }
+        self.gl.active_texture( gl::TEXTURE0 );
+        self.gl.bind_texture( gl::TEXTURE_2D, Some( &gpu_tex.texture ) );
+        use_texture = true;
       }
 
       self.mesh.draw( &self.gl, geom, &mat, &color, topology_to_gl( &m.topology ), viewport, use_texture );
@@ -318,11 +352,26 @@ impl WebGlBackend
 
   fn cmd_sprite( &self, s : &Sprite, viewport : &[ f32; 2 ] )
   {
+    let res = self.resources.borrow();
+    let Some( gpu_sprite ) = res.sprite( s.sprite ) else { return };
+    let Some( gpu_tex ) = res.texture( gpu_sprite.sheet ) else { return };
+
+    let tw = gpu_tex.width.get();
+    let th = gpu_tex.height.get();
+    if tw == 0 || th == 0 { return; } // image not loaded yet
+
+    self.gl.active_texture( gl::TEXTURE0 );
+    self.gl.bind_texture( gl::TEXTURE_2D, Some( &gpu_tex.texture ) );
+
+    let [ rx, ry, rw, rh ] = gpu_sprite.region;
+    let tw = tw as f32;
+    let th = th as f32;
+    let uv_rect = [ rx / tw, ry / th, rw / tw, rh / th ];
+    let sprite_size = [ rw, rh ];
+
     let mat = s.transform.to_mat3();
     self.apply_blend( &s.blend );
-    // TODO: look up SpriteAsset → sheet texture + region → uv_rect
-    let uv_rect = [ 0.0, 0.0, 1.0, 1.0 ]; // placeholder: full texture
-    self.sprite.draw( &self.gl, &mat, &uv_rect, &s.tint, viewport );
+    self.sprite.draw( &self.gl, &mat, &uv_rect, &sprite_size, &s.tint, viewport );
   }
 
   fn cmd_begin_record_sprite_batch( &mut self, brb : &BeginRecordSpriteBatch )
@@ -414,14 +463,14 @@ impl WebGlBackend
 
     for img in images
     {
-      let texture = match &img.source
+      let ( texture, w, h ) = match &img.source
       {
         crate::assets::ImageSource::Bitmap { bytes, width, height, format } =>
         {
-          let texture = gl.create_texture()
+          let tex = gl.create_texture()
           .ok_or_else( || RenderError::BackendError( "failed to create texture".into() ) )?;
 
-          gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
+          gl.bind_texture( gl::TEXTURE_2D, Some( &tex ) );
 
           let gl_fmt = match format
           {
@@ -438,26 +487,46 @@ impl WebGlBackend
             gl_fmt, gl::UNSIGNED_BYTE, Some( bytes ),
           );
 
-          texture
+          ( tex, *width, *height )
         }
         crate::assets::ImageSource::Encoded( _ ) => { continue; } // TODO: decode
         crate::assets::ImageSource::Path( path ) =>
         {
           let path = path.as_path().to_str()
             .ok_or_else( || RenderError::BackendError( "non-UTF-8 image path".into() ) )?;
-          let texture = gl::texture::d2::upload_image_from_path( gl, path, true );
-          gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
-          texture
+          let tex = upload_image_from_path( gl, path, img.id, &self.resources );
+          gl.bind_texture( gl::TEXTURE_2D, Some( &tex ) );
+          ( tex, 0, 0 )
         }
       };
 
       apply_texture_filter( gl, &img.filter );
       gl::texture::d2::wrap_clamp( gl );
 
-      self.resources.borrow_mut().store_texture( img.id, GpuTexture { texture, filter : img.filter } );
+      self.resources.borrow_mut().store_texture( img.id, GpuTexture
+      {
+        texture,
+        width : Cell::new( w ),
+        height : Cell::new( h ),
+        _filter : img.filter,
+      });
     }
 
     Ok( () )
+  }
+
+  fn load_sprites( &mut self, sprites : &[ crate::assets::SpriteAsset ] )
+  {
+    self.resources.borrow_mut().sprites.clear();
+
+    for spr in sprites
+    {
+      self.resources.borrow_mut().store_sprite( spr.id, GpuSprite
+      {
+        sheet : spr.sheet,
+        region : spr.region,
+      });
+    }
   }
 
   fn load_geometries( &mut self, geometries : &[ crate::assets::GeometryAsset ] ) -> Result< (), RenderError >
@@ -595,6 +664,7 @@ impl Backend for WebGlBackend
   fn load_assets( &mut self, assets : &Assets ) -> Result< (), RenderError >
   {
     self.load_images( &assets.images )?;
+    self.load_sprites( &assets.sprites );
     self.load_geometries( &assets.geometries )?;
     // TODO: gradients, patterns, clip masks, fonts
     Ok( () )
@@ -683,7 +753,7 @@ impl Backend for WebGlBackend
       effects : true,
       blend_modes : true,
       text_on_path : false,
-      max_texture_size : 4096,
+      max_texture_size : 8192,
     }
   }
 }
@@ -718,9 +788,56 @@ async fn resolve_loadable( loadable : Loadable ) -> Option< Vec< u8 > >
   }
 }
 
+/// Like `gl::texture::d2::upload_image_from_path`, but updates
+/// `GpuTexture.width` / `height` cells once the image loads.
+fn upload_image_from_path
+(
+  gl : &gl::GL,
+  src : &str,
+  id : ResourceId< asset::Image >,
+  resources : &Rc< RefCell< GpuResources > >,
+) -> web_sys::WebGlTexture
+{
+  let document = web_sys::window().expect( "no window" ).document().expect( "no document" );
+
+  let texture = gl.create_texture().expect( "failed to create texture" );
+
+  let img : HtmlImageElement = document.create_element( "img" )
+    .expect( "can't create img" )
+    .dyn_into()
+    .expect( "not an HtmlImageElement" );
+  img.style().set_property( "display", "none" ).expect( "can't hide img" );
+
+  let on_load : Closure< dyn Fn() > = Closure::new(
+  {
+    let gl = gl.clone();
+    let img = img.clone();
+    let texture = texture.clone();
+    let resources = Rc::clone( resources );
+    move ||
+    {
+      gl::texture::d2::upload( &gl, Some( &texture ), &img );
+
+      if let Some( gpu_tex ) = resources.borrow().texture( id )
+      {
+        gpu_tex.width.set( img.natural_width() );
+        gpu_tex.height.set( img.natural_height() );
+      }
+
+      img.remove();
+    }
+  });
+
+  img.set_onload( Some( on_load.as_ref().unchecked_ref() ) );
+  img.set_src( src );
+  on_load.forget();
+
+  texture
+}
+
 fn apply_texture_filter( gl : &gl::GL, filter : &SamplerFilter )
 {
-  let f = match filter
+  match filter
   {
     SamplerFilter::Nearest => gl::texture::d2::filter_nearest( gl ),
     SamplerFilter::Linear => gl::texture::d2::filter_linear( gl ),
