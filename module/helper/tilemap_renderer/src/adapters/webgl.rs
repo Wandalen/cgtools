@@ -6,6 +6,7 @@
 
 use std::rc::Rc;
 use std::cell::{ Cell, RefCell };
+use std::marker::PhantomData;
 use web_sys::HtmlImageElement;
 use wasm_bindgen::prelude::*;
 use minwebgl as gl;
@@ -14,6 +15,154 @@ use crate::assets::Assets;
 use crate::backend::*;
 use crate::commands::*;
 use crate::types::*;
+
+// ============================================================================
+// ArrayBuffer — GPU-side Vec<T>
+// ============================================================================
+
+/// GPU array buffer with `Vec`-like semantics.
+///
+/// Stores elements of type `T` in a WebGL `ARRAY_BUFFER`.
+/// Tracks length and capacity; grows by 2× when full using
+/// `copy_buffer_sub_data` (GPU-to-GPU, no CPU readback).
+pub struct ArrayBuffer< T >
+{
+  gl : gl::GL,
+  buffer : web_sys::WebGlBuffer,
+  len : u32,
+  capacity : u32,
+  _marker : PhantomData< T >,
+}
+
+impl< T : gl::AsBytes > ArrayBuffer< T >
+{
+  /// Creates a new GPU array buffer with the given initial capacity (in elements).
+  pub fn new( gl : &gl::GL, capacity : u32 ) -> Result< Self, gl::WebglError >
+  {
+    let buffer = gl::buffer::create( gl )?;
+    let byte_size = capacity * Self::stride();
+    gl.bind_buffer( gl::ARRAY_BUFFER, Some( &buffer ) );
+    gl.buffer_data_with_i32( gl::ARRAY_BUFFER, byte_size as i32, gl::DYNAMIC_DRAW );
+    gl.bind_buffer( gl::ARRAY_BUFFER, None );
+    Ok( Self { gl : gl.clone(), buffer, len : 0, capacity, _marker : PhantomData } )
+  }
+
+  /// Byte size of one element.
+  fn stride() -> u32
+  {
+    std::mem::size_of::< T >() as u32
+  }
+
+  /// Number of elements currently stored.
+  pub fn len( &self ) -> u32 { self.len }
+
+  /// Whether the buffer is empty.
+  pub fn is_empty( &self ) -> bool { self.len == 0 }
+
+  /// Current capacity in elements.
+  pub fn capacity( &self ) -> u32 { self.capacity }
+
+  /// Returns a reference to the underlying `WebGlBuffer`.
+  pub fn buffer( &self ) -> &web_sys::WebGlBuffer { &self.buffer }
+
+  /// Appends an element at the end, growing if necessary.
+  pub fn push( &mut self, value : &T ) -> Result< (), gl::WebglError >
+  {
+    if self.len >= self.capacity
+    {
+      self.grow()?;
+    }
+    let offset = self.len * Self::stride();
+    self.gl.bind_buffer( gl::ARRAY_BUFFER, Some( &self.buffer ) );
+    self.gl.buffer_sub_data_with_i32_and_u8_array( gl::ARRAY_BUFFER, offset as i32, value.as_bytes() );
+    self.gl.bind_buffer( gl::ARRAY_BUFFER, None );
+    self.len += 1;
+    Ok( () )
+  }
+
+  /// Updates the element at `index` in-place.
+  ///
+  /// # Panics
+  /// Panics if `index >= len`.
+  pub fn set( &self, index : u32, value : &T )
+  {
+    assert!( index < self.len, "ArrayBuffer::set index out of bounds" );
+    let offset = index * Self::stride();
+    self.gl.bind_buffer( gl::ARRAY_BUFFER, Some( &self.buffer ) );
+    self.gl.buffer_sub_data_with_i32_and_u8_array( gl::ARRAY_BUFFER, offset as i32, value.as_bytes() );
+    self.gl.bind_buffer( gl::ARRAY_BUFFER, None );
+  }
+
+  /// Removes the element at `index` by swapping with the last element.
+  /// Returns the new length.
+  pub fn swap_remove( &mut self, index : u32 ) -> u32
+  {
+    assert!( index < self.len, "ArrayBuffer::swap_remove index out of bounds" );
+    self.len -= 1;
+    if index < self.len
+    {
+      let stride = Self::stride() as i32;
+      let src_offset = self.len as i32 * stride;
+      let dst_offset = index as i32 * stride;
+
+      self.gl.bind_buffer( gl::COPY_READ_BUFFER, Some( &self.buffer ) );
+      self.gl.bind_buffer( gl::COPY_WRITE_BUFFER, Some( &self.buffer ) );
+      self.gl.copy_buffer_sub_data_with_i32_and_i32_and_i32
+      (
+        gl::COPY_READ_BUFFER,
+        gl::COPY_WRITE_BUFFER,
+        src_offset,
+        dst_offset,
+        stride,
+      );
+      self.gl.bind_buffer( gl::COPY_READ_BUFFER, None );
+      self.gl.bind_buffer( gl::COPY_WRITE_BUFFER, None );
+    }
+    self.len
+  }
+
+  /// Doubles the capacity, copying old data GPU-to-GPU.
+  fn grow( &mut self ) -> Result< (), gl::WebglError >
+  {
+    let new_capacity = if self.capacity == 0 { 4 } else { self.capacity * 2 };
+    let new_byte_size = new_capacity * Self::stride();
+
+    let new_buffer = gl::buffer::create( &self.gl )?;
+    self.gl.bind_buffer( gl::ARRAY_BUFFER, Some( &new_buffer ) );
+    self.gl.buffer_data_with_i32( gl::ARRAY_BUFFER, new_byte_size as i32, gl::DYNAMIC_DRAW );
+    self.gl.bind_buffer( gl::ARRAY_BUFFER, None );
+
+    if self.len > 0
+    {
+      let copy_bytes = self.len * Self::stride();
+      self.gl.bind_buffer( gl::COPY_READ_BUFFER, Some( &self.buffer ) );
+      self.gl.bind_buffer( gl::COPY_WRITE_BUFFER, Some( &new_buffer ) );
+      self.gl.copy_buffer_sub_data_with_i32_and_i32_and_i32
+      (
+        gl::COPY_READ_BUFFER,
+        gl::COPY_WRITE_BUFFER,
+        0,
+        0,
+        copy_bytes as i32,
+      );
+      self.gl.bind_buffer( gl::COPY_READ_BUFFER, None );
+      self.gl.bind_buffer( gl::COPY_WRITE_BUFFER, None );
+    }
+
+    self.gl.delete_buffer( Some( &self.buffer ) );
+    self.buffer = new_buffer;
+    self.capacity = new_capacity;
+    Ok( () )
+  }
+}
+
+impl< T > Drop for ArrayBuffer< T >
+{
+  fn drop( &mut self )
+  {
+    self.gl.delete_buffer( Some( &self.buffer ) );
+  }
+}
 
 // ============================================================================
 // GPU resource handles
@@ -59,6 +208,11 @@ impl GpuResources
   fn batch( &self, id : ResourceId< Batch > ) -> Option< &GpuBatch >
   {
     self.batches.get( &id )
+  }
+
+  fn batch_mut( &mut self, id : ResourceId< Batch > ) -> Option< &mut GpuBatch >
+  {
+    self.batches.get_mut( &id )
   }
 
   fn store_texture( &mut self, id : ResourceId< asset::Image >, tex : GpuTexture )
@@ -107,24 +261,83 @@ struct GpuGeometry
   index_count : Option< u32 >,
 }
 
+// ---- Instance data for batches ----
+
+/// Per-instance data for sprite batches (17 floats = 68 bytes).
+#[ repr( C ) ]
+#[ derive( Clone, Copy ) ]
+struct SpriteInstanceData
+{
+  transform : [ f32; 9 ],
+  region : [ f32; 4 ],
+  tint : [ f32; 4 ],
+}
+
+unsafe impl bytemuck::Zeroable for SpriteInstanceData {}
+unsafe impl bytemuck::Pod for SpriteInstanceData {}
+
+impl gl::AsBytes for SpriteInstanceData
+{
+  fn as_bytes( &self ) -> &[ u8 ] { bytemuck::bytes_of( self ) }
+  fn len( &self ) -> usize { 1 }
+}
+
+/// Per-instance data for mesh batches (9 floats = 36 bytes).
+#[ repr( C ) ]
+#[ derive( Clone, Copy ) ]
+struct MeshInstanceData
+{
+  transform : [ f32; 9 ],
+}
+
+unsafe impl bytemuck::Zeroable for MeshInstanceData {}
+unsafe impl bytemuck::Pod for MeshInstanceData {}
+
+impl gl::AsBytes for MeshInstanceData
+{
+  fn as_bytes( &self ) -> &[ u8 ] { bytemuck::bytes_of( self ) }
+  fn len( &self ) -> usize { 1 }
+}
+
 /// Persistent batch — sprite or mesh.
 enum GpuBatch
 {
   Sprite
   {
-    instance_buffer : web_sys::WebGlBuffer,
-    sheet : web_sys::WebGlTexture,
-    instance_count : u32,
-    blend : BlendMode,
+    instances : ArrayBuffer< SpriteInstanceData >,
+    vao : web_sys::WebGlVertexArrayObject,
+    params : SpriteBatchParams,
   },
   Mesh
   {
-    instance_buffer : web_sys::WebGlBuffer,
-    geometry : web_sys::WebGlVertexArrayObject,
-    topology : u32,
-    instance_count : u32,
-    blend : BlendMode,
+    instances : ArrayBuffer< MeshInstanceData >,
+    params : MeshBatchParams,
   },
+}
+
+/// Binds instance attrib pointers for a sprite batch VAO.
+fn setup_sprite_batch_vao( gl : &gl::GL, vao : &web_sys::WebGlVertexArrayObject, buffer : &web_sys::WebGlBuffer )
+{
+  gl.bind_vertex_array( Some( vao ) );
+  gl.bind_buffer( gl::ARRAY_BUFFER, Some( buffer ) );
+
+  let stride = std::mem::size_of::< SpriteInstanceData >() as i32;
+
+  // transform: 3 × vec3 at locations 0, 1, 2
+  for i in 0..3_u32
+  {
+    gl.enable_vertex_attrib_array( i );
+    gl.vertex_attrib_pointer_with_i32( i, 3, gl::FLOAT, false, stride, ( i * 12 ) as i32 );
+    gl.vertex_attrib_divisor( i, 1 );
+  }
+  // region: vec4 at location 3, offset 36
+  gl.enable_vertex_attrib_array( 3 );
+  gl.vertex_attrib_pointer_with_i32( 3, 4, gl::FLOAT, false, stride, 36 );
+  gl.vertex_attrib_divisor( 3, 1 );
+  // tint: vec4 at location 4, offset 52
+  gl.enable_vertex_attrib_array( 4 );
+  gl.vertex_attrib_pointer_with_i32( 4, 4, gl::FLOAT, false, stride, 52 );
+  gl.vertex_attrib_divisor( 4, 1 );
 }
 
 // ============================================================================
@@ -136,6 +349,7 @@ enum GpuBatch
 struct SpriteRenderer
 {
   program : gl::Program,
+  batch_program : gl::Program,
 }
 
 impl SpriteRenderer
@@ -148,7 +362,13 @@ impl SpriteRenderer
       include_str!( "shaders/sprite.vert" ),
       include_str!( "shaders/sprite.frag" ),
     )?;
-    Ok( Self { program } )
+    let batch_program = gl::Program::new
+    (
+      gl.clone(),
+      include_str!( "shaders/sprite_batch.vert" ),
+      include_str!( "shaders/sprite_batch.frag" ),
+    )?;
+    Ok( Self { program, batch_program } )
   }
 
   /// Draw a single sprite as a textured quad (triangle strip, 4 vertices from gl_VertexID).
@@ -164,12 +384,27 @@ impl SpriteRenderer
   }
 
   /// Draw an instanced sprite batch.
-  fn draw_batch( &self, _gl : &gl::GL, _batch : &GpuBatch )
+  fn draw_batch( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, viewport : &[ f32; 2 ] )
   {
-    // TODO:
-    // 1. Bind sheet texture
-    // 2. Bind instance buffer, set per-instance attribs with divisor
-    // 3. gl.draw_arrays_instanced( TRIANGLE_STRIP, 0, 4, instance_count )
+    let GpuBatch::Sprite { instances, vao, params } = batch else { return; };
+    if instances.is_empty() { return; }
+
+    let Some( gpu_tex ) = resources.texture( params.sheet ) else { return; };
+    let tw = gpu_tex.width.get();
+    let th = gpu_tex.height.get();
+    if tw == 0 || th == 0 { return; }
+
+    gl.active_texture( gl::TEXTURE0 );
+    gl.bind_texture( gl::TEXTURE_2D, Some( &gpu_tex.texture ) );
+
+    self.batch_program.activate();
+    self.batch_program.uniform_upload( "u_viewport", viewport );
+    self.batch_program.uniform_upload( "u_tex_size", &[ tw as f32, th as f32 ] );
+    let parent_mat = params.transform.to_mat3();
+    self.batch_program.uniform_matrix_upload( "u_parent", &parent_mat, true );
+
+    gl.bind_vertex_array( Some( vao ) );
+    gl.draw_arrays_instanced( gl::TRIANGLE_STRIP, 0, 4, instances.len() as i32 );
   }
 }
 
@@ -181,6 +416,7 @@ impl SpriteRenderer
 struct MeshRenderer
 {
   program : gl::Program,
+  batch_program : gl::Program,
 }
 
 impl MeshRenderer
@@ -193,7 +429,13 @@ impl MeshRenderer
       include_str!( "shaders/mesh.vert" ),
       include_str!( "shaders/mesh.frag" ),
     )?;
-    Ok( Self { program } )
+    let batch_program = gl::Program::new
+    (
+      gl.clone(),
+      include_str!( "shaders/mesh_batch.vert" ),
+      include_str!( "shaders/mesh.frag" ),
+    )?;
+    Ok( Self { program, batch_program } )
   }
 
   /// Draw a single mesh.
@@ -225,17 +467,58 @@ impl MeshRenderer
     {
       gl.draw_arrays( topology, 0, geom.vertex_count as i32 );
     }
-
-    gl.bind_vertex_array( None );
   }
 
   /// Draw an instanced mesh batch.
-  fn draw_batch( &self, _gl : &gl::GL, _batch : &GpuBatch )
+  fn draw_batch( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, viewport : &[ f32; 2 ] )
   {
-    // TODO:
-    // 1. Bind geometry VAO
-    // 2. Bind instance buffer, set per-instance attribs with divisor
-    // 3. gl.draw_arrays_instanced / draw_elements_instanced
+    let GpuBatch::Mesh { instances, params } = batch else { return };
+    if instances.is_empty() { return; }
+
+    let Some( geom ) = resources.geometry( params.geometry ) else { return };
+    let color = match params.fill { FillRef::Solid( c ) => c, _ => [ 1.0, 1.0, 1.0, 1.0 ] };
+    let topology = topology_to_gl( &params.topology );
+
+    let mut use_texture = false;
+    if let Some( tex_id ) = params.texture
+    {
+      if let Some( gpu_tex ) = resources.texture( tex_id )
+      {
+        gl.active_texture( gl::TEXTURE0 );
+        gl.bind_texture( gl::TEXTURE_2D, Some( &gpu_tex.texture ) );
+        use_texture = true;
+      }
+    }
+
+    self.batch_program.activate();
+    self.batch_program.uniform_upload( "u_viewport", viewport );
+    self.batch_program.uniform_upload( "u_color", &color );
+    self.batch_program.uniform_upload( "u_use_texture", &( use_texture as i32 ) );
+    let parent_mat = params.transform.to_mat3();
+    self.batch_program.uniform_matrix_upload( "u_parent", &parent_mat, true );
+
+    // Bind geometry VAO and add instance attribs temporarily
+    gl.bind_vertex_array( Some( &geom.vao ) );
+    gl.bind_buffer( gl::ARRAY_BUFFER, Some( instances.buffer() ) );
+
+    let stride = std::mem::size_of::< MeshInstanceData >() as i32;
+
+    for i in 0..3_u32
+    {
+      let loc = i + 2;
+      gl.enable_vertex_attrib_array( loc );
+      gl.vertex_attrib_pointer_with_i32( loc, 3, gl::FLOAT, false, stride, ( i * 12 ) as i32 );
+      gl.vertex_attrib_divisor( loc, 1 );
+    }
+
+    if let Some( count ) = geom.index_count
+    {
+      gl.draw_elements_instanced_with_i32( topology, count as i32, gl::UNSIGNED_SHORT, 0, instances.len() as i32 );
+    }
+    else
+    {
+      gl.draw_arrays_instanced( topology, 0, geom.vertex_count as i32, instances.len() as i32 );
+    }
   }
 }
 
@@ -260,8 +543,7 @@ pub struct WebGlBackend
   sprite : SpriteRenderer,
   mesh : MeshRenderer,
 
-  // -- batch recording state --
-  instance_buffer_data : Vec< f32 >,
+  // -- batch editing state --
   recording_batch : Option< ResourceId< Batch > >,
 }
 
@@ -295,7 +577,6 @@ impl WebGlBackend
       resources : Rc::new( RefCell::new( GpuResources::new() ) ),
       sprite,
       mesh,
-      instance_buffer_data : Vec::new(),
       recording_batch : None,
     })
   }
@@ -374,84 +655,157 @@ impl WebGlBackend
     self.sprite.draw( &self.gl, &mat, &uv_rect, &sprite_size, &s.tint, viewport );
   }
 
-  fn cmd_begin_record_sprite_batch( &mut self, brb : &BeginRecordSpriteBatch )
+  fn cmd_create_sprite_batch( &mut self, cmd : &CreateSpriteBatch )
   {
-    self.recording_batch = Some( brb.batch );
-    self.instance_buffer_data.clear();
-  }
-
-  fn cmd_sprite_instance( &mut self, si : &SpriteInstance )
-  {
-    let mat = si.transform.to_mat3();
-    self.instance_buffer_data.extend_from_slice( &mat );
-    self.instance_buffer_data.extend_from_slice( &si.tint );
-    self.instance_buffer_data.push( si.sprite.inner() as f32 );
-  }
-
-  fn cmd_end_record_sprite_batch( &mut self )
-  {
-    if let Some( _batch_id ) = self.recording_batch.take()
+    let gl = &self.gl;
+    let Ok( instances ) = ArrayBuffer::< SpriteInstanceData >::new( gl, 16 ) else { return };
+    let Ok( vao ) = gl::vao::create( gl ) else { return };
+    setup_sprite_batch_vao( gl, &vao, instances.buffer() );
+    self.resources.borrow_mut().store_batch( cmd.batch, GpuBatch::Sprite
     {
-      // TODO: create GPU buffer, store as GpuBatch::Sprite
-      self.instance_buffer_data.clear();
-    }
+      instances,
+      vao,
+      params : cmd.params,
+    });
   }
 
-  fn cmd_begin_record_mesh_batch( &mut self, brb : &BeginRecordMeshBatch )
+  fn cmd_create_mesh_batch( &mut self, cmd : &CreateMeshBatch )
   {
-    self.recording_batch = Some( brb.batch );
-    self.instance_buffer_data.clear();
-  }
-
-  fn cmd_mesh_instance( &mut self, mi : &MeshInstance )
-  {
-    let mat = mi.transform.to_mat3();
-    self.instance_buffer_data.extend_from_slice( &mat );
-  }
-
-  fn cmd_end_record_mesh_batch( &mut self )
-  {
-    if let Some( _batch_id ) = self.recording_batch.take()
+    let Ok( instances ) = ArrayBuffer::< MeshInstanceData >::new( &self.gl, 16 ) else { return };
+    self.resources.borrow_mut().store_batch( cmd.batch, GpuBatch::Mesh
     {
-      // TODO: create GPU buffer, store as GpuBatch::Mesh
-      self.instance_buffer_data.clear();
-    }
+      instances,
+      params : cmd.params,
+    });
   }
 
-  fn cmd_draw_batch( &self, db : &DrawBatch )
+  fn cmd_bind_batch( &mut self, cmd : &BindBatch )
   {
-    let res = self.resources.borrow();
-    if let Some( gpu_batch ) = res.batch( db.batch )
+    self.recording_batch = Some( cmd.batch );
+  }
+
+  fn cmd_add_sprite_instance( &mut self, si : &AddSpriteInstance )
+  {
+    let Some( batch_id ) = self.recording_batch else { return };
+    let mut res = self.resources.borrow_mut();
+    let Some( region ) = res.sprite( si.sprite ).map( | s | s.region ) else { return };
+    let data = SpriteInstanceData
     {
-      match gpu_batch
+      transform : si.transform.to_mat3(),
+      region,
+      tint : si.tint,
+    };
+    if let Some( GpuBatch::Sprite { instances, vao, .. } ) = res.batch_mut( batch_id )
+    {
+      let old_cap = instances.capacity();
+      let _ = instances.push( &data );
+      if instances.capacity() != old_cap
       {
-        GpuBatch::Sprite { .. } => self.sprite.draw_batch( &self.gl, gpu_batch ),
-        GpuBatch::Mesh { .. } => self.mesh.draw_batch( &self.gl, gpu_batch ),
+        setup_sprite_batch_vao( &self.gl, vao, instances.buffer() );
       }
     }
   }
 
-  fn cmd_begin_update_batch( &mut self, bub : &BeginUpdateBatch )
+  fn cmd_add_mesh_instance( &mut self, mi : &AddMeshInstance )
   {
-    self.recording_batch = Some( bub.batch );
+    let Some( batch_id ) = self.recording_batch else { return };
+    let data = MeshInstanceData { transform : mi.transform.to_mat3() };
+    let mut res = self.resources.borrow_mut();
+    if let Some( GpuBatch::Mesh { instances, .. } ) = res.batch_mut( batch_id )
+    {
+      let _ = instances.push( &data );
+    }
   }
 
-  fn cmd_end_update_batch( &mut self )
+  fn cmd_set_sprite_instance( &mut self, si : &SetSpriteInstance )
+  {
+    let Some( batch_id ) = self.recording_batch else { return };
+    let mut res = self.resources.borrow_mut();
+    let Some( region ) = res.sprite( si.sprite ).map( | s | s.region ) else { return };
+    let data = SpriteInstanceData
+    {
+      transform : si.transform.to_mat3(),
+      region,
+      tint : si.tint,
+    };
+    if let Some( GpuBatch::Sprite { instances, .. } ) = res.batch_mut( batch_id )
+    {
+      instances.set( si.index, &data );
+    }
+  }
+
+  fn cmd_set_mesh_instance( &mut self, mi : &SetMeshInstance )
+  {
+    let Some( batch_id ) = self.recording_batch else { return };
+    let data = MeshInstanceData { transform : mi.transform.to_mat3() };
+    let mut res = self.resources.borrow_mut();
+    if let Some( GpuBatch::Mesh { instances, .. } ) = res.batch_mut( batch_id )
+    {
+      instances.set( mi.index, &data );
+    }
+  }
+
+  fn cmd_remove_instance( &mut self, ri : &RemoveInstance )
+  {
+    let Some( batch_id ) = self.recording_batch else { return };
+    let mut res = self.resources.borrow_mut();
+    if let Some( batch ) = res.batch_mut( batch_id )
+    {
+      match batch
+      {
+        GpuBatch::Sprite { instances, .. } => { instances.swap_remove( ri.index ); },
+        GpuBatch::Mesh { instances, .. } => { instances.swap_remove( ri.index ); },
+      }
+    }
+  }
+
+  fn cmd_set_sprite_batch_params( &mut self, cmd : &SetSpriteBatchParams )
+  {
+    let Some( batch_id ) = self.recording_batch else { return };
+    let mut res = self.resources.borrow_mut();
+    if let Some( GpuBatch::Sprite { params, .. } ) = res.batch_mut( batch_id )
+    {
+      *params = cmd.params;
+    }
+  }
+
+  fn cmd_set_mesh_batch_params( &mut self, cmd : &SetMeshBatchParams )
+  {
+    let Some( batch_id ) = self.recording_batch else { return };
+    let mut res = self.resources.borrow_mut();
+    if let Some( GpuBatch::Mesh { params, .. } ) = res.batch_mut( batch_id )
+    {
+      *params = cmd.params;
+    }
+  }
+
+  fn cmd_unbind_batch( &mut self )
   {
     self.recording_batch = None;
   }
 
+  fn cmd_draw_batch( &self, db : &DrawBatch, viewport : &[ f32; 2 ] )
+  {
+    let res = self.resources.borrow();
+    if let Some( gpu_batch ) = res.batch( db.batch )
+    {
+      self.apply_blend( match gpu_batch
+      {
+        GpuBatch::Sprite { params, .. } => &params.blend,
+        GpuBatch::Mesh { params, .. } => &params.blend,
+      });
+      match gpu_batch
+      {
+        GpuBatch::Sprite { .. } => self.sprite.draw_batch( &self.gl, gpu_batch, &res, viewport ),
+        GpuBatch::Mesh { .. } => self.mesh.draw_batch( &self.gl, gpu_batch, &res, viewport ),
+      }
+    }
+  }
+
   fn cmd_delete_batch( &mut self, db : &DeleteBatch )
   {
-    if let Some( b ) = self.resources.borrow_mut().batches.remove( &db.batch )
-    {
-      let buf = match &b
-      {
-        GpuBatch::Sprite { instance_buffer, .. } => instance_buffer,
-        GpuBatch::Mesh { instance_buffer, .. } => instance_buffer,
-      };
-      self.gl.delete_buffer( Some( buf ) );
-    }
+    // ArrayBuffer::drop handles GPU buffer cleanup
+    self.resources.borrow_mut().batches.remove( &db.batch );
   }
 
   // ---- Asset loading ----
@@ -684,22 +1038,19 @@ impl Backend for WebGlBackend
         RenderCommand::Mesh( m ) => self.cmd_mesh( m, &viewport ),
         RenderCommand::Sprite( s ) => self.cmd_sprite( s, &viewport ),
 
-        // Sprite batch recording
-        RenderCommand::BeginRecordSpriteBatch( brb ) => self.cmd_begin_record_sprite_batch( brb ),
-        RenderCommand::SpriteInstance( si ) => self.cmd_sprite_instance( si ),
-        RenderCommand::EndRecordSpriteBatch( _ ) => self.cmd_end_record_sprite_batch(),
-
-        // Mesh batch recording
-        RenderCommand::BeginRecordMeshBatch( brb ) => self.cmd_begin_record_mesh_batch( brb ),
-        RenderCommand::MeshInstance( mi ) => self.cmd_mesh_instance( mi ),
-        RenderCommand::EndRecordMeshBatch( _ ) => self.cmd_end_record_mesh_batch(),
-
-        // Batch draw / update / delete
-        RenderCommand::DrawBatch( db ) => self.cmd_draw_batch( db ),
-        RenderCommand::BeginUpdateBatch( bub ) => self.cmd_begin_update_batch( bub ),
-        RenderCommand::SetSpriteInstance( _ ) => {} // TODO
-        RenderCommand::SetMeshInstance( _ ) => {} // TODO
-        RenderCommand::EndUpdateBatch( _ ) => self.cmd_end_update_batch(),
+        // Batch lifecycle
+        RenderCommand::CreateSpriteBatch( c ) => self.cmd_create_sprite_batch( c ),
+        RenderCommand::CreateMeshBatch( c ) => self.cmd_create_mesh_batch( c ),
+        RenderCommand::BindBatch( b ) => self.cmd_bind_batch( b ),
+        RenderCommand::AddSpriteInstance( si ) => self.cmd_add_sprite_instance( si ),
+        RenderCommand::AddMeshInstance( mi ) => self.cmd_add_mesh_instance( mi ),
+        RenderCommand::SetSpriteInstance( si ) => self.cmd_set_sprite_instance( si ),
+        RenderCommand::SetMeshInstance( mi ) => self.cmd_set_mesh_instance( mi ),
+        RenderCommand::RemoveInstance( ri ) => self.cmd_remove_instance( ri ),
+        RenderCommand::SetSpriteBatchParams( sp ) => self.cmd_set_sprite_batch_params( sp ),
+        RenderCommand::SetMeshBatchParams( mp ) => self.cmd_set_mesh_batch_params( mp ),
+        RenderCommand::UnbindBatch( _ ) => self.cmd_unbind_batch(),
+        RenderCommand::DrawBatch( db ) => self.cmd_draw_batch( db, &viewport ),
         RenderCommand::DeleteBatch( db ) => self.cmd_delete_batch( db ),
 
         // Path — skip (TODO)

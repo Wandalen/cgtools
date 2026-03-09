@@ -83,7 +83,7 @@ impl Default for RenderConfig
 /// Antialiasing mode.
 /// SVG: maps to `shape-rendering` CSS property.
 /// GPU: maps to MSAA sample count.
-#[ derive( Debug, Clone, Copy, Default ) ]
+#[ derive( Debug, Clone, Copy, Default, PartialEq, Eq ) ]
 pub enum Antialias
 {
   /// No antialiasing. SVG: `crispEdges`. GPU: MSAA 1x. Good for pixel art.
@@ -210,7 +210,7 @@ pub enum TextAnchor
   BottomRight,
 }
 
-#[ derive( Debug, Clone, Copy, Default ) ]
+#[ derive( Debug, Clone, Copy, Default, PartialEq, Eq ) ]
 pub enum Topology
 {
   #[ default ]

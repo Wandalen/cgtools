@@ -200,17 +200,18 @@ impl Backend for TerminalBackend
         // Unsupported in terminal
         RenderCommand::Mesh( _ ) => {}
         RenderCommand::Sprite( _ ) => {}
-        RenderCommand::BeginRecordSpriteBatch( _ ) => {}
-        RenderCommand::SpriteInstance( _ ) => {}
-        RenderCommand::EndRecordSpriteBatch( _ ) => {}
-        RenderCommand::BeginRecordMeshBatch( _ ) => {}
-        RenderCommand::MeshInstance( _ ) => {}
-        RenderCommand::EndRecordMeshBatch( _ ) => {}
-        RenderCommand::DrawBatch( _ ) => {}
-        RenderCommand::BeginUpdateBatch( _ ) => {}
+        RenderCommand::CreateSpriteBatch( _ ) => {}
+        RenderCommand::CreateMeshBatch( _ ) => {}
+        RenderCommand::BindBatch( _ ) => {}
+        RenderCommand::AddSpriteInstance( _ ) => {}
+        RenderCommand::AddMeshInstance( _ ) => {}
         RenderCommand::SetSpriteInstance( _ ) => {}
         RenderCommand::SetMeshInstance( _ ) => {}
-        RenderCommand::EndUpdateBatch( _ ) => {}
+        RenderCommand::RemoveInstance( _ ) => {}
+        RenderCommand::SetSpriteBatchParams( _ ) => {}
+        RenderCommand::SetMeshBatchParams( _ ) => {}
+        RenderCommand::UnbindBatch( _ ) => {}
+        RenderCommand::DrawBatch( _ ) => {}
         RenderCommand::DeleteBatch( _ ) => {}
         RenderCommand::BeginGroup( _ ) => {}
         RenderCommand::EndGroup( _ ) => {}
