@@ -18,7 +18,7 @@ use line_tools::d3::{ Line, DashPattern };
 /// Mirrors the lil-gui panel state.
 ///
 /// Field names are renamed via `serde` to match the labels displayed in the UI.
-#[ derive( Default, Serialize, Deserialize ) ]
+#[ derive( Default, Serialize, Deserialize, Clone ) ]
 pub struct Settings
 {
   /// Line width when using world-space units.
@@ -94,12 +94,12 @@ pub fn init() -> Settings
 pub fn bind_to_ui
 (
   gl : &gl::WebGl2RenderingContext,
-  settings : &Settings,
+  settings : Rc< RefCell< Settings > >,
   lines : Rc< RefCell< Vec< Line > > >
 ) -> JsValue
 {
   // Serialize the Rust settings into a JS object that lil-gui can bind to.
-  let object = serde_wasm_bindgen::to_value( settings ).unwrap();
+  let object = serde_wasm_bindgen::to_value( &settings.borrow().clone() ).unwrap();
   let gui = lil_gui::new_gui();
 
   // Line width in world coordinates
@@ -239,8 +239,33 @@ pub fn bind_to_ui
 
   // Trail length and simulation speed are read each frame from the JS object,
   // so they only need a slider — no onChange callback required.
-  let _ = lil_gui::add_slider( &gui, &object, "Trail length", 2.0, 500.0, 1.0 );
-  let _ = lil_gui::add_slider( &gui, &object, "Simulation speed", 0.0, 0.001, 0.00001 );
+  let prop = lil_gui::add_slider( &gui, &object, "Trail length", 2.0, 500.0, 1.0 );
+  let callback = Closure::new
+  (
+    {
+      let settings_real = settings.clone();
+      move | value : f32 |
+      {
+        settings_real.borrow_mut().trail_length = value;
+      }
+    }
+  );
+  lil_gui::on_change( &prop, &callback );
+  callback.forget();
+
+  let prop = lil_gui::add_slider( &gui, &object, "Simulation speed", 0.0, 0.001, 0.00001 );
+  let callback = Closure::new
+  (
+    {
+      let settings_real = settings.clone();
+      move | value : f32 |
+      {
+        settings_real.borrow_mut().simulation_speed = value;
+      }
+    }
+  );
+  lil_gui::on_change( &prop, &callback );
+  callback.forget();
 
   let gui = lil_gui::add_folder( &gui, "Dash settings" );
 

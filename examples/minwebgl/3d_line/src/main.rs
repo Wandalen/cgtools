@@ -78,7 +78,8 @@ fn run() -> Result< (), gl::WebglError >
   let world_matrix = gl::math::mat4x4::identity();
   let projection_matrix = gl::math::mat3x3h::perspective_rh_gl( fov, aspect_ratio, near, far );
 
-  let settings = settings::init();
+  // The funtion settings::bind_to_ui only updated the simulation_speed and trail_length for this variable.
+  let settings = Rc::new( RefCell::new( settings::init() ) );
   let num_bodies = 20;
 
   let mut simulation = Simulation::new( num_bodies );
@@ -86,7 +87,7 @@ fn run() -> Result< (), gl::WebglError >
   let mut base_colors = Vec::with_capacity( num_bodies );
 
   // Pick line width depending on the unit mode (world-space vs screen-space).
-  let line_width = if settings.world_units { settings.world_width } else { settings.screen_width };
+  let line_width = if settings.borrow().world_units { settings.borrow().world_width } else { settings.borrow().screen_width };
 
   // Create one line mesh per body, each with a random base color.
   for _ in 0..num_bodies
@@ -97,9 +98,9 @@ fn run() -> Result< (), gl::WebglError >
 
     let mut line = line_tools::d3::Line::default();
     line.use_vertex_color( true );
-    line.use_alpha_to_coverage( settings.alpha_to_coverage );
-    line.use_world_units( settings.world_units );
-    line.use_dash( settings.dashes );
+    line.use_alpha_to_coverage( settings.borrow().alpha_to_coverage );
+    line.use_world_units( settings.borrow().world_units );
+    line.use_dash( settings.borrow().dashes );
     line.mesh_create( &gl, None )?;
 
     // Upload initial uniforms shared by every line.
@@ -109,23 +110,23 @@ fn run() -> Result< (), gl::WebglError >
     mesh.upload( &gl, "u_resolution", &gl::F32x2::from( [ width as f32, height as f32 ] ) )?;
     mesh.upload( &gl, "u_projection_matrix", &projection_matrix )?;
     mesh.upload( &gl, "u_world_matrix", &world_matrix ).unwrap();
-    mesh.upload( &gl, "u_dash_offset", &settings.dash_offset ).unwrap();
+    mesh.upload( &gl, "u_dash_offset", &settings.borrow().dash_offset ).unwrap();
 
     lines.push( line );
   }
  
   // Wrap lines in Rc<RefCell> so they can be shared with the GUI callbacks and render loop.
   let lines = Rc::new( RefCell::new( lines ) );
-  settings::upload_dash_pattern( lines.clone(), &settings );
+  settings::upload_dash_pattern( lines.clone(), &settings.borrow() );
   // Build the lil-gui panel and get a JsValue handle to the settings object
   // so the render loop can read live UI values each frame.
-  let settings_jsvalue = settings::bind_to_ui( &gl, &settings, lines.clone() );
+  let _ = settings::bind_to_ui( &gl, settings.clone(), lines.clone() );
 
 
   gl.enable( gl::DEPTH_TEST );
   gl.depth_func( gl::LEQUAL );
 
-  if settings.alpha_to_coverage
+  if settings.borrow().alpha_to_coverage
   {
     gl.enable( gl::SAMPLE_ALPHA_TO_COVERAGE );
   }
@@ -138,12 +139,10 @@ fn run() -> Result< (), gl::WebglError >
     {
       gl.clear( gl::DEPTH_BUFFER_BIT | gl::COLOR_BUFFER_BIT );
 
-      let settings : settings::Settings = serde_wasm_bindgen::from_value( settings_jsvalue.clone() ).unwrap();
-
       // Advance the N-body simulation and append each body's new position to its trail line.
-      if settings.simulation_speed > 0.0
+      if settings.borrow().simulation_speed > 0.0
       {
-        simulation.simulate( settings.simulation_speed );
+        simulation.simulate( settings.borrow().simulation_speed );
 
         for i in 0..num_bodies
         {
@@ -155,7 +154,7 @@ fn run() -> Result< (), gl::WebglError >
 
           // Trim the trail to the maximum allowed length so it doesn't grow indefinitely.
           let num_points = lines.borrow()[ i ].num_points();
-          let max_point = settings.trail_length as usize;
+          let max_point = settings.borrow().trail_length as usize;
 
           if num_points > max_point
           {
@@ -165,7 +164,6 @@ fn run() -> Result< (), gl::WebglError >
         }
       }
       
-
       // Upload the latest view matrix from the orbit camera.
       for i in 0..num_bodies
       {
