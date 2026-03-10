@@ -88,7 +88,7 @@ fn make_transform
   let world_y = world_pos[ 1 ] + camera[ 1 ];
 
   let screen_pos_x = ( world_x * as_x + 1.0 ) * width / 2.0;
-  let screen_pos_y = ( 1.0 - world_y * as_y ) * height / 2.0;
+  let screen_pos_y = ( world_y * as_y + 1.0 ) * height / 2.0;
 
   let screen_scale_x = obj_scale[ 0 ] * as_x * width / 2.0;
   let screen_scale_y = obj_scale[ 1 ] * as_y * height / 2.0;
@@ -97,7 +97,7 @@ fn make_transform
   {
     position : [ screen_pos_x, screen_pos_y ],
     rotation,
-    scale : [ screen_scale_x, -screen_scale_y ],
+    scale : [ screen_scale_x, screen_scale_y ],
     ..Default::default()
   }
 }
@@ -157,12 +157,12 @@ async fn run() -> Result< (), gl::WebglError >
   ];
   let rect_uvs : &[ f32 ] = &
   [
-    0.0, 1.0,
-    1.0, 0.0,
     0.0, 0.0,
-    0.0, 1.0,
     1.0, 1.0,
+    0.0, 1.0,
+    0.0, 0.0,
     1.0, 0.0,
+    1.0, 1.0,
   ];
 
   // ---- Config ----
@@ -282,6 +282,9 @@ async fn run() -> Result< (), gl::WebglError >
   {
     input.update_state();
 
+    let w = canvas.width() as f32;
+    let h = canvas.height() as f32;
+
     let mut loaded_map = loaded_map.borrow_mut();
     if let Some( map_json ) = loaded_map.as_ref()
     {
@@ -309,9 +312,8 @@ async fn run() -> Result< (), gl::WebglError >
     }
 
     let pointer_pos = input.pointer_position();
-    let pointer_pos = screen_to_world( pointer_pos, inv_canvas_size, aspect, zoom );
-    let mut pixel = pointer_pos - camera_pos;
-    pixel[ 1 ] = -pixel[ 1 ];
+    let pointer_pos = screen_to_world( pointer_pos, inv_canvas_size, aspect, zoom, h );
+    let pixel = pointer_pos - camera_pos;
     let pixel : Pixel = pixel.into();
     let hexagon_coord : Coord = pixel.into();
     let tri_point = TriAxial::from_point( pixel.x(), pixel.y() );
@@ -367,7 +369,8 @@ async fn run() -> Result< (), gl::WebglError >
           last_pointer_pos,
           inv_canvas_size,
           aspect,
-          zoom
+          zoom,
+          h,
         );
         let movement = pointer_pos - last_pointer_pos;
         camera_pos += movement;
@@ -406,8 +409,6 @@ async fn run() -> Result< (), gl::WebglError >
 
     // ---- Build render commands ----
 
-    let w = canvas.width() as f32;
-    let h = canvas.height() as f32;
     let cam = [ camera_pos[ 0 ], camera_pos[ 1 ] ];
 
     let mut render_commands = vec!
@@ -417,8 +418,7 @@ async fn run() -> Result< (), gl::WebglError >
 
     for hex in map.borrow().tiles.values()
     {
-      let mut position : Pixel = hex.coord.into();
-      position.data[ 1 ] = -position.data[ 1 ];
+      let position : Pixel = hex.coord.into();
 
       // Filled hexagon
       let [ r, g, b ] = game_config.player_colors[ hex.owner_index.0 as usize ];
@@ -474,17 +474,15 @@ async fn run() -> Result< (), gl::WebglError >
     let river_width = 0.1;
     for [ p1, p2 ] in &map.borrow().rivers
     {
-      let mut p1 : F32x2 = p1.to_point().into();
-      p1[ 1 ] = -p1[ 1 ];
-      let mut p2 : F32x2 = p2.to_point().into();
-      p2[ 1 ] = -p2[ 1 ];
+      let p1 : F32x2 = p1.to_point().into();
+      let p2 : F32x2 = p2.to_point().into();
       let center = ( p1 + p2 ) / 2.0;
       let length = p1.distance( &p2 ) / 2.0;
       let dx = p2.x() - p1.x();
       let dy = p2.y() - p1.y();
       let angle = dy.atan2( dx );
 
-      let tr = make_transform( center.into(), -angle, [ length, river_width ], cam, zoom, w, h );
+      let tr = make_transform( center.into(), angle, [ length, river_width ], cam, zoom, w, h );
       render_commands.push( commands::RenderCommand::Mesh( commands::Mesh
       {
         transform : tr,
@@ -511,12 +509,12 @@ fn screen_to_world
   screen : I32x2,
   inv_canvas_size : F32x2,
   aspect : F32x2,
-  zoom : f32
+  zoom : f32,
+  canvas_height : f32,
 ) -> F32x2
 {
   let Vector ( [ x, y ] ) = screen;
-  let screenf32 = F32x2::new( x as f32, y as f32 );
-  let mut world = ( screenf32 * inv_canvas_size - 0.5 ) * 2.0 / ( zoom * aspect );
-  world[ 1 ] = -world[ 1 ];
-  world
+  // Flip browser Y (top-down) to renderer Y (bottom-up)
+  let screenf32 = F32x2::new( x as f32, canvas_height - y as f32 );
+  ( screenf32 * inv_canvas_size - 0.5 ) * 2.0 / ( zoom * aspect )
 }

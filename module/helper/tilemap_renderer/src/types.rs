@@ -1,5 +1,15 @@
 //! Core types used across the rendering engine.
 //! All types here are POD (Copy, Clone, no allocations).
+//!
+//! ## Coordinate system
+//!
+//! The renderer uses a **Y-up** coordinate system:
+//! - `(0, 0)` is the bottom-left corner of the viewport.
+//! - `(width, height)` is the top-right corner.
+//! - Positive rotation is counter-clockwise.
+//!
+//! Backend adapters that target Y-down surfaces (e.g. SVG, Canvas2D)
+//! flip the Y axis internally.
 
 use core::{ fmt::Debug, marker::PhantomData };
 

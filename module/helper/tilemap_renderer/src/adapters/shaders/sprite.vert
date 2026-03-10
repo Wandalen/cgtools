@@ -22,9 +22,8 @@ void main()
   // Scale unit quad to sprite's natural pixel size, then apply transform
   vec3 world = u_transform * vec3( a_position * u_sprite_size, 1.0 );
 
-  // Convert to clip space: pixel coords → -1..1
+  // Convert to clip space: pixel coords → -1..1 (Y-up)
   vec2 ndc = ( world.xy / u_viewport ) * 2.0 - 1.0;
-  ndc.y = -ndc.y; // flip Y (screen coords: top-left origin)
 
   v_pos = world.xy;
   gl_Position = vec4( ndc, 0.0, 1.0 );

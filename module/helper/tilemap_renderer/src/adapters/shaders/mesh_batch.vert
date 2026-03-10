@@ -24,7 +24,6 @@ void main()
   vec3 world = u_parent * inst * vec3( a_position, 1.0 );
 
   vec2 ndc = ( world.xy / u_viewport ) * 2.0 - 1.0;
-  ndc.y = -ndc.y;
 
   v_pos = world.xy;
   gl_Position = vec4( ndc, 0.0, 1.0 );
