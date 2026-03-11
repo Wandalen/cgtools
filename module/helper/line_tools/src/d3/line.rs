@@ -371,12 +371,14 @@ mod private
       self.render_state.get_defines()
     }
 
+    #[ cfg( feature = "distance" ) ]
     /// Set the dash offset
     pub fn dash_offset_set( &mut self, value : f32 )
     {
       self.render_state.dash_offset = value;
     }
 
+    #[ cfg( feature = "distance" ) ]
     /// Get the dash offset
     pub fn dash_offset_get( &self ) -> f32
     {

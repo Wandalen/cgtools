@@ -240,3 +240,13 @@ fn test_dash_pattern_copy()
     _ => panic!( "Both should be V4" ),
   }
 }
+
+#[ test ]
+fn test_dash_offset_get_and_set()
+{
+  let mut line = d3::Line::default();
+  assert_eq!( line.dash_offset_get(), 0.0 );
+
+  line.dash_offset_set( 5.0 );
+  assert_eq!( line.dash_offset_get(), 5.0 );
+}
