@@ -296,6 +296,12 @@ impl gl::AsBytes for MeshInstanceData
   fn len( &self ) -> usize { 1 }
 }
 
+// Compile-time layout assertions — GPU attrib setup depends on these exact sizes.
+const _ : () = assert!( std::mem::size_of::< SpriteInstanceData >() == 68 ); // 17 floats × 4
+const _ : () = assert!( std::mem::size_of::< MeshInstanceData >() == 36 ); // 9 floats × 4
+const _ : () = assert!( std::mem::align_of::< SpriteInstanceData >() == 4 ); // f32 alignment
+const _ : () = assert!( std::mem::align_of::< MeshInstanceData >() == 4 );
+
 /// Persistent batch — sprite or mesh.
 enum GpuBatch
 {

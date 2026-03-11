@@ -23,18 +23,21 @@ use core::{ fmt::Debug, marker::PhantomData };
 /// ```
 pub struct ResourceId< T >
 {
+  /// Index into the resource storage.
   index : u32,
   _marker : PhantomData< T >,
 }
 
 impl< T > ResourceId< T >
 {
+  /// Creates a new resource handle from a raw index.
   #[ inline ]
   pub const fn new( index : u32 ) -> Self
   {
     Self { index, _marker : PhantomData }
   }
 
+  /// Returns the raw index value.
   #[ inline ]
   pub fn inner( &self ) -> u32
   {
@@ -64,7 +67,9 @@ pub struct Batch;
 #[ derive( Debug, Clone, Copy ) ]
 pub struct RenderConfig
 {
+  /// Viewport width in pixels.
   pub width : u32,
+  /// Viewport height in pixels.
   pub height : u32,
   /// Antialiasing quality.
   /// SVG: `shape-rendering` attribute.
@@ -113,8 +118,11 @@ pub enum Antialias
 #[ derive( Debug, Clone, Copy ) ]
 pub struct Transform
 {
+  /// Translation offset `[ x, y ]`.
   pub position : [ f32; 2 ],
+  /// Rotation angle in radians (counter-clockwise).
   pub rotation : f32,
+  /// Scale factors `[ sx, sy ]`.
   pub scale : [ f32; 2 ],
   /// Skew in radians. SVG: `skewX()` / `skewY()`. GPU: added to affine matrix.
   pub skew : [ f32; 2 ],
@@ -168,21 +176,29 @@ impl Transform
 // Style types
 // ============================================================================
 
+/// Line cap style for stroke endpoints.
 #[ derive( Debug, Clone, Copy, Default ) ]
 pub enum LineCap
 {
+  /// Flat cap flush with the endpoint.
   #[ default ]
   Butt,
+  /// Semicircular cap extending past the endpoint.
   Round,
+  /// Rectangular cap extending past the endpoint.
   Square,
 }
 
+/// Line join style for stroke corners.
 #[ derive( Debug, Clone, Copy, Default ) ]
 pub enum LineJoin
 {
+  /// Sharp corner join.
   #[ default ]
   Miter,
+  /// Rounded corner join.
   Round,
+  /// Beveled (flat) corner join.
   Bevel,
 }
 
@@ -194,6 +210,7 @@ pub struct DashStyle
 {
   /// Dash-gap pairs, zero-terminated. e.g. `[5.0, 3.0, 0.0, ...]` = "5 3".
   pub pattern : [ f32; 8 ],
+  /// Starting offset into the dash pattern.
   pub offset : f32,
 }
 
@@ -205,28 +222,43 @@ impl Default for DashStyle
   }
 }
 
+/// Anchor point for text placement.
 #[ derive( Debug, Clone, Copy, Default ) ]
 pub enum TextAnchor
 {
+  /// Top-left corner.
   #[ default ]
   TopLeft,
+  /// Top edge, horizontally centered.
   TopCenter,
+  /// Top-right corner.
   TopRight,
+  /// Left edge, vertically centered.
   CenterLeft,
+  /// Dead center.
   Center,
+  /// Right edge, vertically centered.
   CenterRight,
+  /// Bottom-left corner.
   BottomLeft,
+  /// Bottom edge, horizontally centered.
   BottomCenter,
+  /// Bottom-right corner.
   BottomRight,
 }
 
+/// Primitive topology for vertex data.
 #[ derive( Debug, Clone, Copy, Default, PartialEq, Eq ) ]
 pub enum Topology
 {
+  /// Independent triangles (every 3 vertices).
   #[ default ]
   TriangleList,
+  /// Connected triangle strip.
   TriangleStrip,
+  /// Independent line segments (every 2 vertices).
   LineList,
+  /// Connected line strip.
   LineStrip,
 }
 
@@ -297,13 +329,120 @@ pub mod asset
 #[ derive( Debug, Clone, Copy ) ]
 pub enum FillRef
 {
+  /// No fill.
   None,
+  /// Solid RGBA color.
   Solid( [ f32; 4 ] ),
+  /// Reference to a gradient asset.
   Gradient( ResourceId< asset::Gradient > ),
+  /// Reference to a pattern asset.
   Pattern( ResourceId< asset::Pattern > ),
 }
 
 impl Default for FillRef
 {
   fn default() -> Self { FillRef::None }
+}
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+#[ cfg( test ) ]
+mod tests
+{
+  use super::*;
+
+  #[ test ]
+  fn resource_id_type_safety()
+  {
+    let a : ResourceId< asset::Image > = ResourceId::new( 5 );
+    let b : ResourceId< asset::Image > = ResourceId::new( 5 );
+    let c : ResourceId< asset::Image > = ResourceId::new( 7 );
+    assert_eq!( a, b );
+    assert_ne!( a, c );
+    assert_eq!( a.inner(), 5 );
+  }
+
+  #[ test ]
+  fn resource_id_debug()
+  {
+    let id : ResourceId< asset::Sprite > = ResourceId::new( 42 );
+    assert_eq!( format!( "{:?}", id ), "ResourceId(42)" );
+  }
+
+  #[ test ]
+  fn transform_default_is_identity()
+  {
+    let t = Transform::default();
+    assert_eq!( t.position, [ 0.0, 0.0 ] );
+    assert_eq!( t.rotation, 0.0 );
+    assert_eq!( t.scale, [ 1.0, 1.0 ] );
+    assert_eq!( t.skew, [ 0.0, 0.0 ] );
+    assert_eq!( t.depth, 0.0 );
+  }
+
+  #[ test ]
+  fn to_mat3_identity()
+  {
+    let t = Transform::default();
+    let m = t.to_mat3();
+    let expected =
+    [
+      1.0, 0.0, 0.0,
+      0.0, 1.0, 0.0,
+      0.0, 0.0, 1.0,
+    ];
+    for ( a, b ) in m.iter().zip( expected.iter() )
+    {
+      assert!( ( a - b ).abs() < 1e-6, "expected {} got {}", b, a );
+    }
+  }
+
+  #[ test ]
+  fn to_mat3_translation()
+  {
+    let t = Transform { position : [ 10.0, 20.0 ], ..Default::default() };
+    let m = t.to_mat3();
+    // Column-major: translation is in last column (indices 6, 7)
+    assert!( ( m[ 6 ] - 10.0 ).abs() < 1e-6 );
+    assert!( ( m[ 7 ] - 20.0 ).abs() < 1e-6 );
+    // Rotation/scale part should be identity
+    assert!( ( m[ 0 ] - 1.0 ).abs() < 1e-6 );
+    assert!( ( m[ 4 ] - 1.0 ).abs() < 1e-6 );
+  }
+
+  #[ test ]
+  fn to_mat3_scale()
+  {
+    let t = Transform { scale : [ 2.0, 3.0 ], ..Default::default() };
+    let m = t.to_mat3();
+    assert!( ( m[ 0 ] - 2.0 ).abs() < 1e-6 );
+    assert!( ( m[ 4 ] - 3.0 ).abs() < 1e-6 );
+    assert!( ( m[ 1 ] ).abs() < 1e-6 );
+    assert!( ( m[ 3 ] ).abs() < 1e-6 );
+  }
+
+  #[ test ]
+  fn to_mat3_rotation_90()
+  {
+    let t = Transform { rotation : core::f32::consts::FRAC_PI_2, ..Default::default() };
+    let m = t.to_mat3();
+    // 90° CCW: cos=0, sin=1
+    // m00=cos=0, m10=sin=1, m01=-sin=-1, m11=cos=0
+    assert!( m[ 0 ].abs() < 1e-6, "m00={}", m[ 0 ] );
+    assert!( ( m[ 1 ] - 1.0 ).abs() < 1e-6, "m10={}", m[ 1 ] );
+    assert!( ( m[ 3 ] + 1.0 ).abs() < 1e-6, "m01={}", m[ 3 ] );
+    assert!( m[ 4 ].abs() < 1e-6, "m11={}", m[ 4 ] );
+  }
+
+  #[ test ]
+  fn render_config_default()
+  {
+    let c = RenderConfig::default();
+    assert_eq!( c.width, 800 );
+    assert_eq!( c.height, 600 );
+    assert_eq!( c.antialias, Antialias::Default );
+    assert_eq!( c.background, [ 0.0, 0.0, 0.0, 1.0 ] );
+  }
 }

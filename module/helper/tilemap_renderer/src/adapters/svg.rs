@@ -135,6 +135,7 @@ pub struct SvgBackend
   text_buf : String,
   text_style : Option< BeginText >,
   group_depth : u32,
+  filter_counter : u32,
   resources : SvgResources,
   /// Currently bound batch for recording instances.
   recording_batch : Option< ResourceId< Batch > >,
@@ -159,6 +160,7 @@ impl SvgBackend
       text_buf : String::new(),
       text_style : None,
       group_depth : 0,
+      filter_counter : 0,
       resources : SvgResources::new(),
       recording_batch : None,
       viewport_offset : [ 0.0, 0.0 ],
@@ -213,25 +215,62 @@ impl SvgBackend
     Self::transform_to_svg_static( t, self.config.width, self.config.height, self.viewport_offset, self.viewport_scale )
   }
 
-  fn transform_to_svg_static( t : &Transform, width : u32, height : u32, offset : [ f32; 2 ], zoom : f32 ) -> String
+  fn transform_to_svg_static( t : &Transform, _width : u32, height : u32, offset : [ f32; 2 ], zoom : f32 ) -> String
   {
     let mut parts = Vec::new();
 
-    // Apply global transformations
+    // Apply viewport offset
     let mut pos = t.position;
     pos[ 0 ] += offset[ 0 ];
     pos[ 1 ] += offset[ 1 ];
 
-    // Flip Y and center
-    pos[ 1 ] = -pos[ 1 ];
-    pos[ 0 ] += width as f32 / 2.0;
-    pos[ 1 ] += height as f32 / 2.0;
+    // Y-up (0,0 = bottom-left) → SVG Y-down (0,0 = top-left)
+    pos[ 1 ] = height as f32 - pos[ 1 ];
 
-    parts.push( format!( "scale({})", zoom ) );
+    if zoom != 1.0
+    {
+      parts.push( format!( "scale({})", zoom ) );
+    }
 
     if pos[ 0 ] != 0.0 || pos[ 1 ] != 0.0
     {
       parts.push( format!( "translate({},{})", pos[ 0 ], pos[ 1 ] ) );
+    }
+    if t.rotation != 0.0
+    {
+      // CCW in Y-up → CW in SVG Y-down
+      parts.push( format!( "rotate({})", ( -t.rotation ).to_degrees() ) );
+    }
+    // Always emit scale: Y-up → SVG Y-down requires negating scale Y
+    parts.push( format!( "scale({},{})", t.scale[ 0 ], -t.scale[ 1 ] ) );
+    if t.skew[ 0 ] != 0.0
+    {
+      parts.push( format!( "skewX({})", ( -t.skew[ 0 ] ).to_degrees() ) );
+    }
+    if t.skew[ 1 ] != 0.0
+    {
+      parts.push( format!( "skewY({})", ( -t.skew[ 1 ] ).to_degrees() ) );
+    }
+
+    if parts.is_empty()
+    {
+      String::new()
+    }
+    else
+    {
+      format!( " transform=\"{}\"", parts.join( " " ) )
+    }
+  }
+
+  /// Emits a raw local transform — no viewport Y-flip.
+  /// Used for instances inside an already Y-flipped `<g>` parent group.
+  fn transform_to_svg_local( t : &Transform ) -> String
+  {
+    let mut parts = Vec::new();
+
+    if t.position[ 0 ] != 0.0 || t.position[ 1 ] != 0.0
+    {
+      parts.push( format!( "translate({},{})", t.position[ 0 ], t.position[ 1 ] ) );
     }
     if t.rotation != 0.0
     {
@@ -340,6 +379,72 @@ impl SvgBackend
       Some( id ) => format!( " clip-path=\"url(#clip_{})\"", id.inner() ),
       None => String::new(),
     }
+  }
+
+  fn tint_filter_attr( &mut self, tint : &[ f32; 4 ] ) -> String
+  {
+    Self::tint_filter_attr_split( tint, &mut self.content, &mut self.filter_counter )
+  }
+
+  fn tint_filter_attr_split( tint : &[ f32; 4 ], content : &mut SvgContentManager, counter : &mut u32 ) -> String
+  {
+    let is_white =
+      ( tint[ 0 ] - 1.0 ).abs() < f32::EPSILON
+      && ( tint[ 1 ] - 1.0 ).abs() < f32::EPSILON
+      && ( tint[ 2 ] - 1.0 ).abs() < f32::EPSILON
+      && ( tint[ 3 ] - 1.0 ).abs() < f32::EPSILON;
+
+    if is_white
+    {
+      return String::new();
+    }
+
+    let id = *counter;
+    *counter += 1;
+
+    let filter_def = format!
+    (
+      "<filter id=\"tint_{}\"><feColorMatrix type=\"matrix\" values=\"{} 0 0 0 0 0 {} 0 0 0 0 0 {} 0 0 0 0 0 {} 0\"/></filter>",
+      id, tint[ 0 ], tint[ 1 ], tint[ 2 ], tint[ 3 ]
+    );
+    content.push_def( &filter_def );
+
+    format!( " filter=\"url(#tint_{})\"", id )
+  }
+
+  /// Returns a fill string: `url(#mesh_tex_N)` for textured meshes, or the regular fill.
+  /// Generates a `<pattern>` def for the texture if needed.
+  fn texture_or_fill( &mut self, texture : Option< ResourceId< asset::Image > >, fill : &FillRef ) -> String
+  {
+    Self::texture_or_fill_split( texture, fill, &self.resources, &mut self.content )
+  }
+
+  fn texture_or_fill_split
+  (
+    texture : Option< ResourceId< asset::Image > >,
+    fill : &FillRef,
+    resources : &SvgResources,
+    content : &mut SvgContentManager,
+  ) -> String
+  {
+    if let Some( img_id ) = texture
+    {
+      if let Some( img ) = resources.image( img_id )
+      {
+        if img.width > 0 && img.height > 0
+        {
+          let pat_id = format!( "mesh_tex_{}", img_id.inner() );
+          let pat_def = format!
+          (
+            "<pattern id=\"{}\" width=\"{}\" height=\"{}\" patternUnits=\"userSpaceOnUse\"><use href=\"#img_{}\" width=\"{}\" height=\"{}\"/></pattern>",
+            pat_id, img.width, img.height, img_id.inner(), img.width, img.height
+          );
+          content.push_def( &pat_def );
+          return format!( "url(#{})", pat_id );
+        }
+      }
+    }
+    Self::fill_to_svg( fill )
   }
 
   fn segment_to_svg( seg : &PathSegment ) -> String
@@ -554,11 +659,11 @@ impl SvgBackend
           };
           let img_def = format!
           (
-            "<symbol id=\"img_{}\" viewBox=\"-{} -{} {} {}\"><image href=\"data:{};base64,{}\" x=\"-{}\" y=\"-{}\" width=\"{}\" height=\"{}\"/></symbol>",
+            "<symbol id=\"img_{}\" viewBox=\"0 0 {} {}\"><image href=\"data:{};base64,{}\" width=\"{}\" height=\"{}\"/></symbol>",
             img.id.inner(),
-            width / 2, height / 2, width, height,
+            width, height,
             mime, encoded,
-            width / 2, height / 2, width, height
+            width, height
           );
           self.content.push_def( &img_def );
           self.resources.store_image( img.id, SvgImage { width : *width, height : *height } );
@@ -588,11 +693,11 @@ impl SvgBackend
       {
         let img_def = format!
         (
-          "<symbol id=\"sprite_{}\" viewBox=\"{} {} {} {}\"><use href=\"#img_{}\" x=\"-{}\" y=\"-{}\" width=\"{}\" height=\"{}\"/></symbol>",
+          "<symbol id=\"sprite_{}\" viewBox=\"{} {} {} {}\"><use href=\"#img_{}\" width=\"{}\" height=\"{}\"/></symbol>",
           sprite.id.inner(),
           sprite.region[ 0 ], sprite.region[ 1 ], sprite.region[ 2 ], sprite.region[ 3 ],
           sprite.sheet.inner(),
-          sheet.width as f32 / 2.0, sheet.height as f32 / 2.0, sheet.width, sheet.height
+          sheet.width, sheet.height
         );
         self.content.push_def( &img_def );
       }
@@ -772,20 +877,23 @@ impl SvgBackend
   fn cmd_mesh( &mut self, m : &Mesh )
   {
     let packed_key : u64 = ( m.geometry.inner() as u64 ) << 8 | ( m.topology as u8 as u64 );
-    if let Some( def_id ) = self.resources.mesh_defs.get( &packed_key )
+    let def_id = match self.resources.mesh_defs.get( &packed_key )
     {
-      let transform = self.transform_to_svg( &m.transform );
-      let fill = Self::fill_to_svg( &m.fill );
-      let clip = Self::clip_attr( &m.clip );
-      let blend = Self::blend_to_svg( &m.blend );
+      Some( id ) => id.clone(),
+      None => return,
+    };
 
-      let mesh = format!
-      (
-        "<use href=\"#{}\" fill=\"{}\"{}{} style=\"mix-blend-mode:{}\"/>",
-        def_id, fill, transform, clip, blend
-      );
-      self.content.push_body( &mesh );
-    }
+    let transform = self.transform_to_svg( &m.transform );
+    let fill = self.texture_or_fill( m.texture, &m.fill );
+    let clip = Self::clip_attr( &m.clip );
+    let blend = Self::blend_to_svg( &m.blend );
+
+    let mesh = format!
+    (
+      "<use href=\"#{}\" fill=\"{}\"{}{} style=\"mix-blend-mode:{}\"/>",
+      def_id, fill, transform, clip, blend
+    );
+    self.content.push_body( &mesh );
   }
 
   fn cmd_sprite( &mut self, s : &Sprite )
@@ -793,7 +901,8 @@ impl SvgBackend
     let transform = self.transform_to_svg( &s.transform );
     let clip = Self::clip_attr( &s.clip );
     let blend = Self::blend_to_svg( &s.blend );
-    let sprite = format!( "<use href=\"#sprite_{}\"{}{} style=\"mix-blend-mode:{}\"/>", s.sprite.inner(), transform, clip, blend );
+    let tint = self.tint_filter_attr( &s.tint );
+    let sprite = format!( "<use href=\"#sprite_{}\"{}{}{} style=\"mix-blend-mode:{}\"/>", s.sprite.inner(), transform, clip, tint, blend );
     self.content.push_body( &sprite );
   }
 
@@ -910,15 +1019,14 @@ impl SvgBackend
 
   fn cmd_draw_batch( &mut self, db : &DrawBatch )
   {
-    // Extract necessary parameters to avoid borrowing self while using self.resources and self.content
     let width = self.config.width;
     let height = self.config.height;
     let offset = self.viewport_offset;
     let zoom = self.viewport_scale;
 
-    // Split borrow to allow simultaneous access to resources and content
     let resources = &self.resources;
     let content = &mut self.content;
+    let filter_counter = &mut self.filter_counter;
 
     match resources.batch( db.batch )
     {
@@ -928,16 +1036,19 @@ impl SvgBackend
         let clip = Self::clip_attr( &params.clip );
         let blend = Self::blend_to_svg( &params.blend );
 
+        content.push_body( &format!( "<g{}{}>", parent_transform, clip ) );
         for inst in instances
         {
-          let inst_transform = Self::transform_to_svg_static( &inst.transform, width, height, offset, zoom );
+          let inst_transform = Self::transform_to_svg_local( &inst.transform );
+          let tint = Self::tint_filter_attr_split( &inst.tint, content, filter_counter );
           let sprite = format!
           (
-            "<use href=\"#sprite_{}\"{}{}{} style=\"mix-blend-mode:{}\"/>",
-            inst.sprite.inner(), inst_transform, parent_transform, clip, blend
+            "<use href=\"#sprite_{}\"{}{} style=\"mix-blend-mode:{}\"/>",
+            inst.sprite.inner(), inst_transform, tint, blend
           );
           content.push_body( &sprite );
         }
+        content.push_body( "</g>" );
       }
       Some( SvgBatch::Mesh { instances, params } ) =>
       {
@@ -947,18 +1058,20 @@ impl SvgBackend
           let parent_transform = Self::transform_to_svg_static( &params.transform, width, height, offset, zoom );
           let clip = Self::clip_attr( &params.clip );
           let blend = Self::blend_to_svg( &params.blend );
-          let fill = Self::fill_to_svg( &params.fill );
+          let fill = Self::texture_or_fill_split( params.texture, &params.fill, resources, content );
 
+          content.push_body( &format!( "<g{}{}>", parent_transform, clip ) );
           for inst in instances
           {
-            let inst_transform = Self::transform_to_svg_static( &inst.transform, width, height, offset, zoom );
-            let sprite = format!
+            let inst_transform = Self::transform_to_svg_local( &inst.transform );
+            let mesh = format!
             (
-              "<use href=\"#{}\" fill=\"{}\"{}{}{} style=\"mix-blend-mode:{}\"/>",
-              def_id, fill, inst_transform, parent_transform, clip, blend
+              "<use href=\"#{}\" fill=\"{}\"{} style=\"mix-blend-mode:{}\"/>",
+              def_id, fill, inst_transform, blend
             );
-            content.push_body( &sprite );
+            content.push_body( &mesh );
           }
+          content.push_body( "</g>" );
         }
       }
       None => {}
@@ -974,8 +1087,45 @@ impl SvgBackend
   {
     let transform = self.transform_to_svg( &bg.transform );
     let clip = Self::clip_attr( &bg.clip );
-    let opacity = match &bg.effect { Some( Effect::Opacity( a ) ) => format!( " opacity=\"{}\"", a ), _ => String::new() };
-    let group = format!( "<g{}{}{}>", transform, clip, opacity );
+
+    let effect_attr = match &bg.effect
+    {
+      Some( Effect::Opacity( a ) ) => format!( " opacity=\"{}\"", a ),
+      Some( Effect::Blur { radius } ) =>
+      {
+        let fid = self.filter_counter;
+        self.filter_counter += 1;
+        let def = format!( "<filter id=\"fx_{}\"><feGaussianBlur stdDeviation=\"{}\"/></filter>", fid, radius );
+        self.content.push_def( &def );
+        format!( " filter=\"url(#fx_{})\"", fid )
+      }
+      Some( Effect::DropShadow { dx, dy, blur, color } ) =>
+      {
+        let fid = self.filter_counter;
+        self.filter_counter += 1;
+        let c = Self::color_to_svg( color );
+        // Negate dy: Y-up shadow direction → SVG Y-down
+        let def = format!
+        (
+          "<filter id=\"fx_{}\"><feDropShadow dx=\"{}\" dy=\"{}\" stdDeviation=\"{}\" flood-color=\"{}\"/></filter>",
+          fid, dx, -dy, blur, c
+        );
+        self.content.push_def( &def );
+        format!( " filter=\"url(#fx_{})\"", fid )
+      }
+      Some( Effect::ColorMatrix( values ) ) =>
+      {
+        let fid = self.filter_counter;
+        self.filter_counter += 1;
+        let vals : String = values.iter().map( | v | v.to_string() ).collect::< Vec< _ > >().join( " " );
+        let def = format!( "<filter id=\"fx_{}\"><feColorMatrix type=\"matrix\" values=\"{}\"/></filter>", fid, vals );
+        self.content.push_def( &def );
+        format!( " filter=\"url(#fx_{})\"", fid )
+      }
+      None => String::new(),
+    };
+
+    let group = format!( "<g{}{}{}>", transform, clip, effect_attr );
     self.content.push_body( &group );
     self.group_depth += 1;
   }
@@ -1206,5 +1356,783 @@ impl SvgContentManager
   pub fn buffer( &self ) -> &str
   {
     &self.buffer
+  }
+}
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+#[ cfg( test ) ]
+mod tests
+{
+  use super::*;
+  use crate::backend::{ Backend, Output };
+
+  // -- helpers --
+
+  fn svg800x600() -> SvgBackend
+  {
+    SvgBackend::new( RenderConfig { width : 800, height : 600, ..Default::default() } )
+  }
+
+  fn empty_assets() -> Assets
+  {
+    Assets
+    {
+      fonts : vec![],
+      images : vec![],
+      sprites : vec![],
+      geometries : vec![],
+      gradients : vec![],
+      patterns : vec![],
+      clip_masks : vec![],
+      paths : vec![],
+    }
+  }
+
+  fn render( svg : &SvgBackend ) -> String
+  {
+    match svg.output().unwrap()
+    {
+      Output::String( s ) => s,
+      _ => panic!( "expected string output" ),
+    }
+  }
+
+  fn body( svg : &SvgBackend ) -> String
+  {
+    let full = render( svg );
+    // Extract between <!--framebegin--> and <!--frameend-->
+    let start = full.find( "<!--framebegin-->" ).unwrap() + "<!--framebegin-->".len();
+    let end = full.find( "<!--frameend-->" ).unwrap();
+    full[ start..end ].to_string()
+  }
+
+  fn defs( svg : &SvgBackend ) -> String
+  {
+    let full = render( svg );
+    let start = full.find( "<defs>" ).unwrap() + "<defs>".len();
+    let end = full.find( "</defs>" ).unwrap();
+    full[ start..end ].to_string()
+  }
+
+  // -- clear --
+
+  #[ test ]
+  fn clear_emits_rect()
+  {
+    let mut svg = svg800x600();
+    svg.load_assets( &empty_assets() ).unwrap();
+    svg.submit( &[ RenderCommand::Clear( Clear { color : [ 1.0, 0.0, 0.0, 1.0 ] } ) ] ).unwrap();
+    let b = body( &svg );
+    assert!( b.contains( "fill=\"rgb(255,0,0)\"" ), "body: {}", b );
+    assert!( b.contains( "width=\"100%\"" ) );
+  }
+
+  // -- transform Y-up --
+
+  #[ test ]
+  fn transform_y_up_bottom_left_origin()
+  {
+    // Position (0,0) in Y-up should map to SVG (0, height=600)
+    let s = SvgBackend::transform_to_svg_static(
+      &Transform { position : [ 0.0, 0.0 ], ..Default::default() },
+      800, 600, [ 0.0, 0.0 ], 1.0,
+    );
+    assert!( s.contains( "translate(0,600)" ), "got: {}", s );
+  }
+
+  #[ test ]
+  fn transform_y_up_top_right()
+  {
+    // Position (800,600) should map to SVG (800, 0)
+    let s = SvgBackend::transform_to_svg_static(
+      &Transform { position : [ 800.0, 600.0 ], ..Default::default() },
+      800, 600, [ 0.0, 0.0 ], 1.0,
+    );
+    assert!( s.contains( "translate(800,0)" ), "got: {}", s );
+  }
+
+  #[ test ]
+  fn transform_y_up_center()
+  {
+    // Position (400,300) should map to SVG (400, 300)
+    let s = SvgBackend::transform_to_svg_static(
+      &Transform { position : [ 400.0, 300.0 ], ..Default::default() },
+      800, 600, [ 0.0, 0.0 ], 1.0,
+    );
+    assert!( s.contains( "translate(400,300)" ), "got: {}", s );
+  }
+
+  #[ test ]
+  fn transform_rotation_negated()
+  {
+    let angle = core::f32::consts::FRAC_PI_4; // 45° CCW in Y-up
+    let s = SvgBackend::transform_to_svg_static(
+      &Transform { rotation : angle, ..Default::default() },
+      800, 600, [ 0.0, 0.0 ], 1.0,
+    );
+    // Should emit negative degrees in SVG
+    assert!( s.contains( "rotate(-45" ), "got: {}", s );
+  }
+
+  #[ test ]
+  fn transform_scale_y_negated()
+  {
+    let s = SvgBackend::transform_to_svg_static(
+      &Transform { scale : [ 2.0, 3.0 ], ..Default::default() },
+      800, 600, [ 0.0, 0.0 ], 1.0,
+    );
+    // scale Y should be negated: 3.0 → -3.0
+    assert!( s.contains( "scale(2,-3)" ), "got: {}", s );
+  }
+
+  #[ test ]
+  fn transform_identity_scale_emits_y_flip()
+  {
+    // Default scale (1,1) should still emit scale(1,-1) for Y-flip
+    let s = SvgBackend::transform_to_svg_static(
+      &Transform::default(),
+      800, 600, [ 0.0, 0.0 ], 1.0,
+    );
+    assert!( s.contains( "scale(1,-1)" ), "got: {}", s );
+  }
+
+  #[ test ]
+  fn transform_zoom()
+  {
+    let s = SvgBackend::transform_to_svg_static(
+      &Transform::default(),
+      800, 600, [ 0.0, 0.0 ], 2.0,
+    );
+    assert!( s.contains( "scale(2)" ), "got: {}", s );
+  }
+
+  #[ test ]
+  fn transform_no_zoom_when_1()
+  {
+    let s = SvgBackend::transform_to_svg_static(
+      &Transform::default(),
+      800, 600, [ 0.0, 0.0 ], 1.0,
+    );
+    // Should not contain scale(1) for zoom — only scale(1,-1) for Y-flip
+    assert!( !s.contains( "scale(1) " ), "got: {}", s );
+  }
+
+  #[ test ]
+  fn transform_viewport_offset()
+  {
+    // Offset (10, 20): position becomes (10, 20), then Y-flip → (10, 600-20=580)
+    let s = SvgBackend::transform_to_svg_static(
+      &Transform::default(),
+      800, 600, [ 10.0, 20.0 ], 1.0,
+    );
+    assert!( s.contains( "translate(10,580)" ), "got: {}", s );
+  }
+
+  #[ test ]
+  fn transform_skew_negated()
+  {
+    let angle = core::f32::consts::FRAC_PI_6; // 30°
+    let s = SvgBackend::transform_to_svg_static(
+      &Transform { skew : [ angle, 0.0 ], ..Default::default() },
+      800, 600, [ 0.0, 0.0 ], 1.0,
+    );
+    assert!( s.contains( "skewX(-30" ), "got: {}", s );
+  }
+
+  // -- local transform (for batch instances inside Y-flipped group) --
+
+  #[ test ]
+  fn local_transform_no_y_flip()
+  {
+    let s = SvgBackend::transform_to_svg_local( &Transform
+    {
+      position : [ 10.0, 20.0 ],
+      rotation : 0.5,
+      scale : [ 2.0, 3.0 ],
+      ..Default::default()
+    });
+    // Position is raw, no Y-flip
+    assert!( s.contains( "translate(10,20)" ), "got: {}", s );
+    // Rotation is raw (positive), not negated
+    let deg = 0.5_f32.to_degrees();
+    assert!( s.contains( &format!( "rotate({})", deg ) ), "got: {}", s );
+    // Scale is raw, no Y negation
+    assert!( s.contains( "scale(2,3)" ), "got: {}", s );
+  }
+
+  // -- path --
+
+  #[ test ]
+  fn path_emits_svg_path()
+  {
+    let mut svg = svg800x600();
+    svg.load_assets( &empty_assets() ).unwrap();
+    svg.submit( &[
+      RenderCommand::BeginPath( BeginPath
+      {
+        transform : Transform::default(),
+        fill : FillRef::Solid( [ 0.0, 0.0, 1.0, 1.0 ] ),
+        stroke_color : [ 1.0, 1.0, 1.0, 1.0 ],
+        stroke_width : 2.0,
+        stroke_cap : LineCap::Round,
+        stroke_join : LineJoin::Round,
+        stroke_dash : DashStyle::default(),
+        blend : BlendMode::Normal,
+        clip : None,
+      }),
+      RenderCommand::MoveTo( MoveTo( 10.0, 20.0 ) ),
+      RenderCommand::LineTo( LineTo( 100.0, 200.0 ) ),
+      RenderCommand::ClosePath( ClosePath ),
+      RenderCommand::EndPath( EndPath ),
+    ]).unwrap();
+
+    let b = body( &svg );
+    assert!( b.contains( "<path" ), "body: {}", b );
+    assert!( b.contains( "M 10 20" ), "body: {}", b );
+    assert!( b.contains( "L 100 200" ), "body: {}", b );
+    assert!( b.contains( "Z" ), "body: {}", b );
+    assert!( b.contains( "fill=\"rgb(0,0,255)\"" ), "body: {}", b );
+    assert!( b.contains( "stroke-linecap=\"round\"" ), "body: {}", b );
+    assert!( b.contains( "stroke-linejoin=\"round\"" ), "body: {}", b );
+  }
+
+  // -- image loading viewBox --
+
+  #[ test ]
+  fn image_viewbox_origin_zero()
+  {
+    let mut svg = svg800x600();
+    let assets = Assets
+    {
+      images : vec![ ImageAsset
+      {
+        id : ResourceId::new( 0 ),
+        source : ImageSource::Bitmap { bytes : vec![ 0u8; 4 ], width : 64, height : 32, format : PixelFormat::Rgba8 },
+        filter : SamplerFilter::Linear,
+      }],
+      ..empty_assets()
+    };
+    svg.load_assets( &assets ).unwrap();
+
+    let d = defs( &svg );
+    // Should use "0 0 w h" viewBox, not center-origin
+    assert!( d.contains( "viewBox=\"0 0 64 32\"" ), "defs: {}", d );
+    // Should not have negative offsets
+    assert!( !d.contains( "x=\"-" ), "defs: {}", d );
+    assert!( !d.contains( "y=\"-" ), "defs: {}", d );
+  }
+
+  // -- sprite tint --
+
+  #[ test ]
+  fn sprite_white_tint_no_filter()
+  {
+    let mut svg = svg800x600();
+    let assets = Assets
+    {
+      images : vec![ ImageAsset
+      {
+        id : ResourceId::new( 0 ),
+        source : ImageSource::Bitmap { bytes : vec![ 0u8; 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
+        filter : SamplerFilter::Linear,
+      }],
+      sprites : vec![ SpriteAsset
+      {
+        id : ResourceId::new( 0 ),
+        sheet : ResourceId::new( 0 ),
+        region : [ 0.0, 0.0, 16.0, 16.0 ],
+      }],
+      ..empty_assets()
+    };
+    svg.load_assets( &assets ).unwrap();
+    svg.submit( &[
+      RenderCommand::Sprite( Sprite
+      {
+        transform : Transform::default(),
+        sprite : ResourceId::new( 0 ),
+        tint : [ 1.0, 1.0, 1.0, 1.0 ],
+        blend : BlendMode::Normal,
+        clip : None,
+      }),
+    ]).unwrap();
+
+    let b = body( &svg );
+    assert!( !b.contains( "filter=" ), "white tint should not create filter, body: {}", b );
+  }
+
+  #[ test ]
+  fn sprite_colored_tint_creates_filter()
+  {
+    let mut svg = svg800x600();
+    let assets = Assets
+    {
+      images : vec![ ImageAsset
+      {
+        id : ResourceId::new( 0 ),
+        source : ImageSource::Bitmap { bytes : vec![ 0u8; 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
+        filter : SamplerFilter::Linear,
+      }],
+      sprites : vec![ SpriteAsset
+      {
+        id : ResourceId::new( 0 ),
+        sheet : ResourceId::new( 0 ),
+        region : [ 0.0, 0.0, 16.0, 16.0 ],
+      }],
+      ..empty_assets()
+    };
+    svg.load_assets( &assets ).unwrap();
+    svg.submit( &[
+      RenderCommand::Sprite( Sprite
+      {
+        transform : Transform::default(),
+        sprite : ResourceId::new( 0 ),
+        tint : [ 1.0, 0.0, 0.0, 1.0 ],
+        blend : BlendMode::Normal,
+        clip : None,
+      }),
+    ]).unwrap();
+
+    let b = body( &svg );
+    let d = defs( &svg );
+    assert!( b.contains( "filter=\"url(#tint_0)\"" ), "body: {}", b );
+    assert!( d.contains( "<filter id=\"tint_0\">" ), "defs: {}", d );
+    assert!( d.contains( "feColorMatrix" ), "defs: {}", d );
+  }
+
+  // -- batch lifecycle --
+
+  #[ test ]
+  fn sprite_batch_create_draw()
+  {
+    let mut svg = svg800x600();
+    let assets = Assets
+    {
+      images : vec![ ImageAsset
+      {
+        id : ResourceId::new( 0 ),
+        source : ImageSource::Bitmap { bytes : vec![ 0u8; 4 ], width : 32, height : 32, format : PixelFormat::Rgba8 },
+        filter : SamplerFilter::Linear,
+      }],
+      sprites : vec![ SpriteAsset
+      {
+        id : ResourceId::new( 0 ),
+        sheet : ResourceId::new( 0 ),
+        region : [ 0.0, 0.0, 32.0, 32.0 ],
+      }],
+      ..empty_assets()
+    };
+    svg.load_assets( &assets ).unwrap();
+
+    let batch_id : ResourceId< Batch > = ResourceId::new( 0 );
+    svg.submit( &[
+      RenderCommand::CreateSpriteBatch( CreateSpriteBatch
+      {
+        batch : batch_id,
+        params : SpriteBatchParams
+        {
+          transform : Transform::default(),
+          sheet : ResourceId::new( 0 ),
+          blend : BlendMode::Normal,
+          clip : None,
+        },
+      }),
+      RenderCommand::BindBatch( BindBatch { batch : batch_id } ),
+      RenderCommand::AddSpriteInstance( AddSpriteInstance
+      {
+        transform : Transform { position : [ 10.0, 20.0 ], ..Default::default() },
+        sprite : ResourceId::new( 0 ),
+        tint : [ 1.0, 1.0, 1.0, 1.0 ],
+      }),
+      RenderCommand::AddSpriteInstance( AddSpriteInstance
+      {
+        transform : Transform { position : [ 50.0, 60.0 ], ..Default::default() },
+        sprite : ResourceId::new( 0 ),
+        tint : [ 1.0, 1.0, 1.0, 1.0 ],
+      }),
+      RenderCommand::UnbindBatch( UnbindBatch ),
+      RenderCommand::DrawBatch( DrawBatch { batch : batch_id } ),
+    ]).unwrap();
+
+    let b = body( &svg );
+    // Should have a group wrapper
+    assert!( b.contains( "<g" ), "body: {}", b );
+    assert!( b.contains( "</g>" ), "body: {}", b );
+    // Should have two sprite instances with local transforms
+    assert_eq!( b.matches( "#sprite_0" ).count(), 2, "body: {}", b );
+    // Local transforms should use raw positions (no Y-flip)
+    assert!( b.contains( "translate(10,20)" ), "body: {}", b );
+    assert!( b.contains( "translate(50,60)" ), "body: {}", b );
+  }
+
+  // -- mesh batch --
+
+  #[ test ]
+  fn mesh_batch_create_draw()
+  {
+    let mut svg = svg800x600();
+    let positions : &[ f32 ] = &[ 0.0, 0.0, 100.0, 0.0, 50.0, 100.0 ];
+    let assets = Assets
+    {
+      geometries : vec![ GeometryAsset
+      {
+        id : ResourceId::new( 0 ),
+        positions : Source::Bytes( bytemuck::cast_slice( positions ).to_vec() ),
+        uvs : None,
+        indices : None,
+        data_type : DataType::U16,
+      }],
+      ..empty_assets()
+    };
+    svg.load_assets( &assets ).unwrap();
+
+    let batch_id : ResourceId< Batch > = ResourceId::new( 0 );
+    svg.submit( &[
+      RenderCommand::CreateMeshBatch( CreateMeshBatch
+      {
+        batch : batch_id,
+        params : MeshBatchParams
+        {
+          transform : Transform::default(),
+          geometry : ResourceId::new( 0 ),
+          fill : FillRef::Solid( [ 0.0, 1.0, 0.0, 1.0 ] ),
+          texture : None,
+          topology : Topology::TriangleList,
+          blend : BlendMode::Normal,
+          clip : None,
+        },
+      }),
+      RenderCommand::BindBatch( BindBatch { batch : batch_id } ),
+      RenderCommand::AddMeshInstance( AddMeshInstance
+      {
+        transform : Transform { position : [ 5.0, 10.0 ], ..Default::default() },
+      }),
+      RenderCommand::UnbindBatch( UnbindBatch ),
+      RenderCommand::DrawBatch( DrawBatch { batch : batch_id } ),
+    ]).unwrap();
+
+    let b = body( &svg );
+    assert!( b.contains( "<g" ), "body: {}", b );
+    assert!( b.contains( "fill=\"rgb(0,255,0)\"" ), "body: {}", b );
+    assert!( b.contains( "translate(5,10)" ), "body: {}", b );
+  }
+
+  // -- batch instance update and remove --
+
+  #[ test ]
+  fn batch_set_and_remove_instance()
+  {
+    let mut svg = svg800x600();
+    svg.load_assets( &empty_assets() ).unwrap();
+
+    let batch_id : ResourceId< Batch > = ResourceId::new( 0 );
+    // First submit: create batch with 2 instances
+    svg.submit( &[
+      RenderCommand::CreateSpriteBatch( CreateSpriteBatch
+      {
+        batch : batch_id,
+        params : SpriteBatchParams
+        {
+          transform : Transform::default(),
+          sheet : ResourceId::new( 0 ),
+          blend : BlendMode::Normal,
+          clip : None,
+        },
+      }),
+      RenderCommand::BindBatch( BindBatch { batch : batch_id } ),
+      RenderCommand::AddSpriteInstance( AddSpriteInstance
+      {
+        transform : Transform { position : [ 1.0, 2.0 ], ..Default::default() },
+        sprite : ResourceId::new( 0 ),
+        tint : [ 1.0, 1.0, 1.0, 1.0 ],
+      }),
+      RenderCommand::AddSpriteInstance( AddSpriteInstance
+      {
+        transform : Transform { position : [ 3.0, 4.0 ], ..Default::default() },
+        sprite : ResourceId::new( 0 ),
+        tint : [ 1.0, 1.0, 1.0, 1.0 ],
+      }),
+      RenderCommand::UnbindBatch( UnbindBatch ),
+    ]).unwrap();
+
+    // Second submit: remove first instance, draw
+    svg.submit( &[
+      RenderCommand::BindBatch( BindBatch { batch : batch_id } ),
+      RenderCommand::RemoveInstance( RemoveInstance { index : 0 } ),
+      RenderCommand::UnbindBatch( UnbindBatch ),
+      RenderCommand::DrawBatch( DrawBatch { batch : batch_id } ),
+    ]).unwrap();
+
+    let b = body( &svg );
+    // Should have only 1 instance (the one at 3,4)
+    assert_eq!( b.matches( "#sprite_0" ).count(), 1, "body: {}", b );
+    assert!( b.contains( "translate(3,4)" ), "body: {}", b );
+    assert!( !b.contains( "translate(1,2)" ), "body: {}", b );
+  }
+
+  // -- delete batch --
+
+  #[ test ]
+  fn delete_batch()
+  {
+    let mut svg = svg800x600();
+    svg.load_assets( &empty_assets() ).unwrap();
+
+    let batch_id : ResourceId< Batch > = ResourceId::new( 0 );
+    svg.submit( &[
+      RenderCommand::CreateSpriteBatch( CreateSpriteBatch
+      {
+        batch : batch_id,
+        params : SpriteBatchParams
+        {
+          transform : Transform::default(),
+          sheet : ResourceId::new( 0 ),
+          blend : BlendMode::Normal,
+          clip : None,
+        },
+      }),
+      RenderCommand::DeleteBatch( DeleteBatch { batch : batch_id } ),
+      RenderCommand::DrawBatch( DrawBatch { batch : batch_id } ),
+    ]).unwrap();
+
+    let b = body( &svg );
+    // Draw after delete should produce nothing
+    assert!( !b.contains( "<g" ), "body: {}", b );
+  }
+
+  // -- effects --
+
+  #[ test ]
+  fn effect_blur()
+  {
+    let mut svg = svg800x600();
+    svg.load_assets( &empty_assets() ).unwrap();
+    svg.submit( &[
+      RenderCommand::BeginGroup( BeginGroup
+      {
+        transform : Transform::default(),
+        clip : None,
+        effect : Some( Effect::Blur { radius : 5.0 } ),
+      }),
+      RenderCommand::EndGroup( EndGroup ),
+    ]).unwrap();
+
+    let b = body( &svg );
+    let d = defs( &svg );
+    assert!( b.contains( "filter=\"url(#fx_0)\"" ), "body: {}", b );
+    assert!( d.contains( "feGaussianBlur" ), "defs: {}", d );
+    assert!( d.contains( "stdDeviation=\"5\"" ), "defs: {}", d );
+  }
+
+  #[ test ]
+  fn effect_drop_shadow_y_flipped()
+  {
+    let mut svg = svg800x600();
+    svg.load_assets( &empty_assets() ).unwrap();
+    svg.submit( &[
+      RenderCommand::BeginGroup( BeginGroup
+      {
+        transform : Transform::default(),
+        clip : None,
+        effect : Some( Effect::DropShadow { dx : 2.0, dy : 3.0, blur : 4.0, color : [ 0.0, 0.0, 0.0, 0.5 ] } ),
+      }),
+      RenderCommand::EndGroup( EndGroup ),
+    ]).unwrap();
+
+    let d = defs( &svg );
+    assert!( d.contains( "feDropShadow" ), "defs: {}", d );
+    assert!( d.contains( "dx=\"2\"" ), "defs: {}", d );
+    // dy should be negated: 3.0 → -3.0
+    assert!( d.contains( "dy=\"-3\"" ), "defs: {}", d );
+  }
+
+  #[ test ]
+  fn effect_color_matrix()
+  {
+    let mut svg = svg800x600();
+    svg.load_assets( &empty_assets() ).unwrap();
+    let mut values = [ 0.0f32; 20 ];
+    values[ 0 ] = 1.0; // r->r
+    values[ 6 ] = 1.0; // g->g
+    values[ 12 ] = 1.0; // b->b
+    values[ 18 ] = 1.0; // a->a
+    svg.submit( &[
+      RenderCommand::BeginGroup( BeginGroup
+      {
+        transform : Transform::default(),
+        clip : None,
+        effect : Some( Effect::ColorMatrix( values ) ),
+      }),
+      RenderCommand::EndGroup( EndGroup ),
+    ]).unwrap();
+
+    let d = defs( &svg );
+    assert!( d.contains( "feColorMatrix" ), "defs: {}", d );
+    assert!( d.contains( "type=\"matrix\"" ), "defs: {}", d );
+  }
+
+  #[ test ]
+  fn effect_opacity()
+  {
+    let mut svg = svg800x600();
+    svg.load_assets( &empty_assets() ).unwrap();
+    svg.submit( &[
+      RenderCommand::BeginGroup( BeginGroup
+      {
+        transform : Transform::default(),
+        clip : None,
+        effect : Some( Effect::Opacity( 0.5 ) ),
+      }),
+      RenderCommand::EndGroup( EndGroup ),
+    ]).unwrap();
+
+    let b = body( &svg );
+    assert!( b.contains( "opacity=\"0.5\"" ), "body: {}", b );
+  }
+
+  // -- groups --
+
+  #[ test ]
+  fn nested_groups()
+  {
+    let mut svg = svg800x600();
+    svg.load_assets( &empty_assets() ).unwrap();
+    svg.submit( &[
+      RenderCommand::BeginGroup( BeginGroup { transform : Transform::default(), clip : None, effect : None } ),
+      RenderCommand::BeginGroup( BeginGroup { transform : Transform::default(), clip : None, effect : None } ),
+      RenderCommand::EndGroup( EndGroup ),
+      RenderCommand::EndGroup( EndGroup ),
+    ]).unwrap();
+
+    let b = body( &svg );
+    assert_eq!( b.matches( "<g" ).count(), 2 );
+    assert_eq!( b.matches( "</g>" ).count(), 2 );
+  }
+
+  // -- geometry mesh --
+
+  #[ test ]
+  fn mesh_triangle_list()
+  {
+    let mut svg = svg800x600();
+    let positions : &[ f32 ] = &[ 0.0, 0.0, 100.0, 0.0, 50.0, 100.0 ];
+    let assets = Assets
+    {
+      geometries : vec![ GeometryAsset
+      {
+        id : ResourceId::new( 0 ),
+        positions : Source::Bytes( bytemuck::cast_slice( positions ).to_vec() ),
+        uvs : None,
+        indices : None,
+        data_type : DataType::U16,
+      }],
+      ..empty_assets()
+    };
+    svg.load_assets( &assets ).unwrap();
+
+    svg.submit( &[
+      RenderCommand::Mesh( Mesh
+      {
+        transform : Transform::default(),
+        geometry : ResourceId::new( 0 ),
+        fill : FillRef::Solid( [ 1.0, 0.0, 0.0, 1.0 ] ),
+        texture : None,
+        topology : Topology::TriangleList,
+        blend : BlendMode::Normal,
+        clip : None,
+      }),
+    ]).unwrap();
+
+    let b = body( &svg );
+    let d = defs( &svg );
+    assert!( d.contains( "<polygon" ), "defs: {}", d );
+    assert!( b.contains( "fill=\"rgb(255,0,0)\"" ), "body: {}", b );
+  }
+
+  // -- resize --
+
+  #[ test ]
+  fn resize_updates_viewbox()
+  {
+    let mut svg = svg800x600();
+    svg.resize( 1024, 768 );
+    let full = render( &svg );
+    assert!( full.contains( "width=\"1024\"" ), "full: {}", full );
+    assert!( full.contains( "height=\"768\"" ), "full: {}", full );
+    assert!( full.contains( "viewBox=\"0 0 1024 768\"" ), "full: {}", full );
+  }
+
+  // -- capabilities --
+
+  #[ test ]
+  fn capabilities_all_true()
+  {
+    let svg = svg800x600();
+    let caps = svg.capabilities();
+    assert!( caps.paths );
+    assert!( caps.text );
+    assert!( caps.meshes );
+    assert!( caps.sprites );
+    assert!( caps.batches );
+    assert!( caps.gradients );
+    assert!( caps.patterns );
+    assert!( caps.clip_masks );
+    assert!( caps.effects );
+    assert!( caps.blend_modes );
+    assert!( caps.text_on_path );
+    assert_eq!( caps.max_texture_size, 0 );
+  }
+
+  // -- blend modes --
+
+  #[ test ]
+  fn blend_mode_multiply()
+  {
+    let mut svg = svg800x600();
+    svg.load_assets( &empty_assets() ).unwrap();
+    svg.submit( &[
+      RenderCommand::BeginPath( BeginPath
+      {
+        transform : Transform::default(),
+        fill : FillRef::Solid( [ 1.0, 1.0, 1.0, 1.0 ] ),
+        stroke_color : [ 0.0, 0.0, 0.0, 0.0 ],
+        stroke_width : 0.0,
+        stroke_cap : LineCap::Butt,
+        stroke_join : LineJoin::Miter,
+        stroke_dash : DashStyle::default(),
+        blend : BlendMode::Multiply,
+        clip : None,
+      }),
+      RenderCommand::MoveTo( MoveTo( 0.0, 0.0 ) ),
+      RenderCommand::EndPath( EndPath ),
+    ]).unwrap();
+
+    let b = body( &svg );
+    assert!( b.contains( "mix-blend-mode:multiply" ), "body: {}", b );
+  }
+
+  // -- content manager --
+
+  #[ test ]
+  fn content_manager_push_clear_cycle()
+  {
+    let mut cm = SvgContentManager::new( 100, 100, "" );
+    cm.push_def( "<test-def/>" );
+    cm.push_body( "<test-body/>" );
+
+    let buf = cm.buffer();
+    assert!( buf.contains( "<test-def/>" ) );
+    assert!( buf.contains( "<test-body/>" ) );
+
+    cm.clear_body();
+    let buf = cm.buffer();
+    assert!( buf.contains( "<test-def/>" ) );
+    assert!( !buf.contains( "<test-body/>" ) );
+
+    cm.clear_defs();
+    let buf = cm.buffer();
+    assert!( !buf.contains( "<test-def/>" ) );
   }
 }

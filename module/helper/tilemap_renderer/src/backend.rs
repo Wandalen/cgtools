@@ -55,8 +55,11 @@ pub enum Output
 /// Raw pixel data.
 pub struct Bitmap
 {
+  /// Raw pixel bytes.
   pub bytes : Vec< u8 >,
+  /// Image width in pixels.
   pub width : u32,
+  /// Image height in pixels.
   pub height : u32,
   /// Bytes per pixel (3 = RGB, 4 = RGBA).
   pub channels : u8,
@@ -70,16 +73,27 @@ pub struct Bitmap
 #[ derive( Debug, Clone, Copy ) ]
 pub struct Capabilities
 {
+  /// Supports path drawing.
   pub paths : bool,
+  /// Supports text rendering.
   pub text : bool,
+  /// Supports mesh/geometry rendering.
   pub meshes : bool,
+  /// Supports sprite rendering.
   pub sprites : bool,
+  /// Supports batched draw calls.
   pub batches : bool,
+  /// Supports gradient fills.
   pub gradients : bool,
+  /// Supports tiling patterns.
   pub patterns : bool,
+  /// Supports clip masks.
   pub clip_masks : bool,
+  /// Supports visual effects.
   pub effects : bool,
+  /// Supports blend modes.
   pub blend_modes : bool,
+  /// Supports text on a path.
   pub text_on_path : bool,
   /// Maximum texture/image dimension. 0 = unlimited (e.g. SVG).
   pub max_texture_size : u32,
