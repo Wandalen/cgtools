@@ -299,7 +299,7 @@ pub fn bind_to_ui
         let mut lines = lines.borrow_mut();
         for i in 0..lines.len()
         {
-          lines[ i ].mesh_get_mut().unwrap().upload( &gl, "u_dash_offset", &value ).unwrap();
+          lines[ i ].dash_offset_set( value );
         }
       }
     }

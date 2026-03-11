@@ -41,6 +41,9 @@ mod private
     #[ cfg( feature = "distance" ) ]
     /// A flag to set whether to use dashed line or not
     pub use_dash : bool,
+    #[ cfg( feature = "distance" ) ]
+    /// Offset to the beginning of the dash pattern
+    pub dash_offset : f32,
   }
 
   impl LineRenderState
@@ -353,6 +356,8 @@ mod private
           DashPattern::V3( v ) => b_program.upload( gl, "u_dash_pattern", &v )?,
           DashPattern::V4( v ) => b_program.upload( gl, "u_dash_pattern", &v )?,
         }
+
+        b_program.upload( gl, "u_dash_offset", &self.render_state.dash_offset )?;
       }
 
       mesh.draw( gl, "body" );
@@ -364,6 +369,18 @@ mod private
     pub fn get_defines( &self ) -> String
     {
       self.render_state.get_defines()
+    }
+
+    /// Set the dash offset
+    pub fn dash_offset_set( &mut self, value : f32 )
+    {
+      self.render_state.dash_offset = value;
+    }
+
+    /// Get the dash offset
+    pub fn dash_offset_get( &self ) -> f32
+    {
+      self.render_state.dash_offset
     }
   }
 }
