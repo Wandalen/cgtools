@@ -314,7 +314,7 @@ mod private
     }
 
     #[ cfg( feature = "distance" ) ]
-    /// Sets whether the world units for the line width will be used
+    /// Sets whether dashed rendering is enabled for this line.
     pub fn use_dash( &mut self, value : bool )
     {
       self.render_state.use_dash = value;
