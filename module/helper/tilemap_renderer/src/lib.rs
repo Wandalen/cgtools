@@ -1,13 +1,23 @@
 //! Agnostic 2D rendering engine.
 //!
-//! Backend-agnostic scene definition with POD commands.
-//! Define commands once, render to any backend (SVG, GPU, terminal).
+//! Backend-agnostic rendering with POD commands and Y-up coordinate system.
+//! Define commands once, render to any backend (SVG, WebGL, terminal).
+//!
+//! ## Coordinate system
+//!
+//! All backends use a **Y-up** convention:
+//! - `(0, 0)` is the **bottom-left** corner
+//! - Positive Y points **up**
+//! - Positive rotation is **counter-clockwise**
+//!
+//! ## Usage
 //!
 //! ```ignore
 //! use tilemap_renderer::{ commands::*, types::*, assets::*, backend::* };
 //! use tilemap_renderer::adapters::SvgBackend;
 //!
-//! let mut svg = SvgBackend::new( 800, 600 );
+//! let config = RenderConfig { width : 800, height : 600, ..Default::default() };
+//! let mut svg = SvgBackend::new( config );
 //! svg.load_assets( &assets )?;
 //! svg.submit( &commands )?;
 //! let Output::String( doc ) = svg.output()? else { unreachable!() };
