@@ -697,7 +697,8 @@ fn test_distance_remove_front_and_back_then_rebuild()
 }
 
 /// Tests that removing last point correctly updates total distance.
-///
+/// 
+/// test_kind: bug_reproducer(issue-001)
 /// # Bug History
 ///
 /// ## Root Cause
