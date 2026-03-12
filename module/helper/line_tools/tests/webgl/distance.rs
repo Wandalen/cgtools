@@ -343,7 +343,25 @@ fn test_distance_point_remove_back()
   assert_eq!( expected, line.distances_get() );
 }
 
+
+/// # Bug History
+///
+/// ## Root Cause
+/// `point_remove_front()` did not update the total_distance
+///
+/// ## Why Not Caught
+/// Original tests didn't verify total_distance after removal operations.
+///
+/// ## Fix Applied
+/// Now correctly sets total_distance to the new last element in distances array.
+///
+/// ## Prevention
+/// This test verifies total_distance equals the last cumulative distance after removal.
+///
+/// ## Pitfall
+/// Total distance needs to be updated when the distance array is changed.
 #[ test ]
+#[bug_reproducer(issue-002)]
 fn test_distance_point_remove_front()
 {
   let mut line = d3::Line::default();
@@ -698,7 +716,6 @@ fn test_distance_remove_front_and_back_then_rebuild()
 
 /// Tests that removing last point correctly updates total distance.
 /// 
-/// test_kind: bug_reproducer(issue-001)
 /// # Bug History
 ///
 /// ## Root Cause
@@ -717,6 +734,7 @@ fn test_distance_remove_front_and_back_then_rebuild()
 /// ## Pitfall
 /// Cumulative distance arrays store running totals [0, d1, d1+d2], not deltas.
 #[ test ]
+#[bug_reproducer(issue-001)]
 fn test_distance_remove_back_total_distance_stays_consistent()
 {
   let mut line = d3::Line::default();

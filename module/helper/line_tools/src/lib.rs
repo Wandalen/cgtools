@@ -300,13 +300,18 @@ mod private
           {
             geometry.distances.pop_front();
             if geometry.distances.len() > 0
+            {
+              let delta_dist = geometry.distances[ 0 ];
+              for d in geometry.distances.iter_mut()
               {
-                let delta_dist = geometry.distances[ 0 ];
-                for d in geometry.distances.iter_mut()
-                {
-                  *d -= delta_dist;
-                }
+                *d -= delta_dist;
               }
+            }
+            // Fix(issue-002)
+            // Root Cause
+            // `point_remove_front()` did not update the total_distance
+            // Pitfall
+            // Total distance needs to be updated when the distance array is changed.
             geometry.total_distance = geometry.distances.back().copied().unwrap_or( 0.0 );
           }
           let point = geometry.points.pop_front();
