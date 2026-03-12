@@ -268,6 +268,11 @@ mod private
           let point = self.geometry.points.remove( index );
           #[ cfg( feature = "distance" ) ]
           {
+            // Fix(issue-003)
+            // Root Cause
+            // `point_remove()` did not remove a distance value from the array
+            // Pitfall
+            // `distance` should be a one to one mapping with `points`.
             self.geometry.distances.remove( index );
             if !self.geometry.distances.is_empty()
             {

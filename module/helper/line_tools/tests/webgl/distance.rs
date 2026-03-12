@@ -85,6 +85,24 @@ fn test_distance_clear_and_rebuild()
   assert_eq!( 5.0, line.total_distance_get() );
 }
 
+/// # Bug History
+///
+/// ## Root Cause
+/// `point_remove()` did not remove a distance value from the array
+///
+/// ## Why Not Caught
+/// Original tests didn't verify that the distance value was removed after removal operations.
+///
+/// ## Fix Applied
+/// Now correctly first removes the distance from the array and then updates the distances.
+///
+/// ## Prevention
+/// This test verifies distances are set properly.
+///
+/// ## Pitfall
+/// `distance` should be a one to one mapping with `points`.
+/// 
+/// bug_reproducer(issue-003)
 #[ test ]
 fn test_distance_point_remove_by_index()
 {
@@ -360,8 +378,9 @@ fn test_distance_point_remove_back()
 ///
 /// ## Pitfall
 /// Total distance needs to be updated when the distance array is changed.
+/// 
+/// bug_reproducer(issue-002)
 #[ test ]
-#[bug_reproducer(issue-002)]
 fn test_distance_point_remove_front()
 {
   let mut line = d3::Line::default();
@@ -733,8 +752,9 @@ fn test_distance_remove_front_and_back_then_rebuild()
 ///
 /// ## Pitfall
 /// Cumulative distance arrays store running totals [0, d1, d1+d2], not deltas.
+/// 
+/// bug_reproducer(issue-001)
 #[ test ]
-#[bug_reproducer(issue-001)]
 fn test_distance_remove_back_total_distance_stays_consistent()
 {
   let mut line = d3::Line::default();
