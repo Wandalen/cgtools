@@ -719,7 +719,7 @@ fn test_distance_remove_front_and_back_then_rebuild()
 /// # Bug History
 ///
 /// ## Root Cause
-/// `point_remove_back()` subtracted the cumulative distance from itself,
+/// `point_remove_front()` subtracted the cumulative distance from itself,
 /// resulting in total_distance = 0 instead of the new total.
 ///
 /// ## Why Not Caught
