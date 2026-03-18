@@ -92,11 +92,6 @@ vec3 to_linear( vec3 v ) { return pow( v, vec3( 2.2 ) ); }
 
 vec3 to_srgb( vec3 v ) { return pow( v, vec3( 1.0 / 2.2 ) ); }
 
-vec3 f_schlick( float cos_theta, vec3 F0 )
-{
-  return F0 + ( 1.0 - F0 ) * pow( 1.0 - cos_theta, 5.0 );
-}
-
 void main()
 {
   float ambient = 0.02;
