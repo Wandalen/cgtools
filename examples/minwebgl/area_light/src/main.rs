@@ -72,7 +72,7 @@ async fn run() -> Result< (), gl::WebglError >
   canvas.set_width( width as u32 );
   canvas.set_height( height as u32 );
   // OES_texture_float_linear is required for linear filtering on RGBA32F LTC lookup tables.
-  // Without it, float textures with GL_LINEAR are incomplete and sample as all zeros.
+  // Without it, float textures with GL_LINEAR are incomplete and sample as (0, 0, 0, 1) — opaque black.
   // EXT_color_buffer_float is not needed here — this example renders to the default framebuffer only.
   gl.get_extension( "OES_texture_float_linear" )
   .expect( "Failed to query OES_texture_float_linear" )
