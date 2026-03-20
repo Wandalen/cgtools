@@ -773,8 +773,8 @@ mod private
           let primitive = primitive_rc.borrow();
           let material = primitive.material.borrow();
 
-          let material_id = material.get_id();
-          let use_ibl = self.ibl.is_some() && material.get_ibl_base_texture_unit().is_some();
+          let material_id = material.id();
+          let use_ibl = self.ibl.is_some() && material.ibl_base_texture_unit().is_some();
 
           // If material's defines changed, drop the old mapping and clean up orphaned programs
           if material.needs_recompile()
@@ -799,7 +799,7 @@ mod private
           {
             // Build cache key from TypeId + defines (materials of the same concrete type
             // with the same defines always produce identical shader source)
-            let defines = material.get_defines_str();
+            let defines = material.defines_str();
             let ibl_define = if use_ibl { "#define USE_IBL\n" } else { "" };
             let full_defines = format!( "{}{}", defines, ibl_define );
             let cache_key = ( ( **material ).type_id(), full_defines.clone() );
@@ -810,8 +810,8 @@ mod private
             }
             else
             {
-              let vs_src = format!( "#version 300 es\n{}\n{}", defines, material.get_vertex_shader() );
-              let fs_src = format!( "#version 300 es\n{}\n{}\n{}", defines, ibl_define, material.get_fragment_shader() );
+              let vs_src = format!( "#version 300 es\n{}\n{}", defines, material.vertex_shader() );
+              let fs_src = format!( "#version 300 es\n{}\n{}\n{}", defines, ibl_define, material.fragment_shader() );
               let program = gl::ProgramFromSources::new( &vs_src, &fs_src ).compile_and_link( gl )?;
               let shader_program = material.make_shader_program( gl, &program );
               let new_id = uuid::Uuid::new_v4();
@@ -830,7 +830,7 @@ mod private
               // Set IBL uniforms once
               if let Some( ref ibl ) = self.ibl
               {
-                if let Some( ibl_base_texture_unit ) = material.get_ibl_base_texture_unit()
+                if let Some( ibl_base_texture_unit ) = material.ibl_base_texture_unit()
                 {
                   let locations = shader_program.locations();
 
@@ -852,7 +852,7 @@ mod private
           };
 
           // Separate transparent objects for later rendering.
-          match material.get_alpha_mode()
+          match material.alpha_mode()
           {
             AlphaMode::Blend | AlphaMode::Mask
             => self.transparent_nodes.push( ( node.clone(), primitive_rc.clone(), i, program_uuid ) ),
@@ -918,7 +918,7 @@ mod private
         };
 
         // Upload material uniforms on state change or when switching materials within same program
-        if material.get_needs_update() || last_material_id != Some( material.get_id() )
+        if material.needs_update() || last_material_id != Some( material.id() )
         {
           material.upload_on_state_change( gl, &material_upload_context )?;
           material.set_needs_update( false );
@@ -929,13 +929,13 @@ mod private
         // Rebind IBL textures after material.bind() to ensure IBL units are not overwritten
         if let Some( ref ibl ) = self.ibl
         {
-          if let Some( ibl_base_texture_unit ) = material.get_ibl_base_texture_unit()
+          if let Some( ibl_base_texture_unit ) = material.ibl_base_texture_unit()
           {
             ibl.bind( gl, ibl_base_texture_unit );
           }
         }
 
-        last_material_id = Some( material.get_id() );
+        last_material_id = Some( material.id() );
 
         let locations = shader_program.locations();
         node_ref.upload( gl, locations );
@@ -988,7 +988,7 @@ mod private
           locations : shader_program.locations()
         };
 
-        if material.get_needs_update() || last_material_id != Some( material.get_id() )
+        if material.needs_update() || last_material_id != Some( material.id() )
         {
           material.upload_on_state_change( gl, &material_upload_context )?;
           material.set_needs_update( false );
@@ -999,13 +999,13 @@ mod private
         // Rebind IBL textures after material.bind() to ensure IBL units are not overwritten
         if let Some( ref ibl ) = self.ibl
         {
-          if let Some( ibl_base_texture_unit ) = material.get_ibl_base_texture_unit()
+          if let Some( ibl_base_texture_unit ) = material.ibl_base_texture_unit()
           {
             ibl.bind( gl, ibl_base_texture_unit );
           }
         }
 
-        last_material_id = Some( material.get_id() );
+        last_material_id = Some( material.id() );
 
         let locations = shader_program.locations();
         node_ref.upload( gl, locations );
@@ -1054,8 +1054,8 @@ mod private
   /// Configures face culling and front face order from material.
   fn enable_material_face_properties( gl : &GL, material : &dyn crate::webgl::Material )
   {
-    let cull_mode = material.get_cull_mode();
-    let front_face = material.get_front_face() as u32;
+    let cull_mode = material.cull_mode();
+    let front_face = material.front_face() as u32;
 
     gl.front_face( front_face );
 
@@ -1073,7 +1073,7 @@ mod private
   /// Configures depth testing, function, and write mask from material.
   fn enable_material_depth_properties( gl : &GL, material : &dyn crate::webgl::Material )
   {
-    let depth_func = material.get_depth_func() as u32;
+    let depth_func = material.depth_func() as u32;
     let depth_test = material.is_depth_test_enabled();
     let depth_write = material.is_depth_write_enabled();
 
@@ -1094,7 +1094,7 @@ mod private
   /// Sets RGBA color write mask from material.
   fn enable_material_color_mask( gl : &GL, material : &dyn crate::webgl::Material )
   {
-    let ( red, green, blue, alpha ) = material.get_color_write_mask();
+    let ( red, green, blue, alpha ) = material.color_write_mask();
 
     gl.color_mask( red, green, blue, alpha );
   }

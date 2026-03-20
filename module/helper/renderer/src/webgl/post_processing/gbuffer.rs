@@ -410,7 +410,7 @@ mod private
 
             if self.attachment_buffers.contains_key( &GBufferAttachment::PbrInfo )
             {
-              let material_id = &material.get_id().to_fields_le().0;
+              let material_id = &material.id().to_fields_le().0;
               gl::uniform::upload( &gl, material_id_loc.as_ref().cloned(), material_id ).unwrap();
             }
 

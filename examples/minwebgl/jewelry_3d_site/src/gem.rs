@@ -87,12 +87,12 @@ impl GemMaterial
 
 impl Material for GemMaterial
 {
-  fn get_id( &self ) -> Uuid
+  fn id( &self ) -> Uuid
   {
     self.id
   }
 
-  fn get_needs_update( &self ) -> bool
+  fn needs_update( &self ) -> bool
   {
     self.needs_update.get()
   }
@@ -113,12 +113,12 @@ impl Material for GemMaterial
     stringify!( GemMaterial )
   }
 
-  fn get_vertex_shader( &self ) -> String
+  fn vertex_shader( &self ) -> String
   {
     String::from_utf8_lossy( gem_vert::INPUT ).into()
   }
 
-  fn get_fragment_shader( &self ) -> String
+  fn fragment_shader( &self ) -> String
   {
     String::from_utf8_lossy( gem_frag::INPUT ).into()
   }

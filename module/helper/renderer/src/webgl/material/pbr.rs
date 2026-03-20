@@ -411,12 +411,12 @@ mod private
 
   impl Material for PbrMaterial
   {
-    fn get_id( &self ) -> uuid::Uuid
+    fn id( &self ) -> uuid::Uuid
     {
       self.id
     }
 
-    fn get_needs_update( &self ) -> bool
+    fn needs_update( &self ) -> bool
     {
       self.needs_update.get()
     }
@@ -426,7 +426,7 @@ mod private
       self.needs_update.set( value );
     }
 
-    fn get_ibl_base_texture_unit( &self ) -> Option< u32 >
+    fn ibl_base_texture_unit( &self ) -> Option< u32 >
     {
       if self.need_use_ibl
       {
@@ -564,17 +564,17 @@ mod private
       bind( &self.light_map, 7 );
     }
 
-    fn get_defines_str( &self ) -> &str
+    fn defines_str( &self ) -> &str
     {
       &self.cached_defines_str
     }
 
-    fn get_vertex_defines_str( &self ) -> &str
+    fn vertex_defines_str( &self ) -> &str
     {
       &self.cached_vertex_defines_str
     }
 
-    fn get_fragment_defines_str( &self ) -> &str
+    fn fragment_defines_str( &self ) -> &str
     {
       &self.cached_fragment_defines_str
     }
@@ -589,12 +589,12 @@ mod private
       self.needs_recompile.set( false );
     }
 
-    fn get_fragment_shader( &self ) -> String
+    fn fragment_shader( &self ) -> String
     {
       MAIN_FRAGMENT_SHADER.into()
     }
 
-    fn get_vertex_shader( &self ) -> String
+    fn vertex_shader( &self ) -> String
     {
       MAIN_VERTEX_SHADER.into()
     }
@@ -604,12 +604,12 @@ mod private
       Box::new( self.clone() )
     }
 
-    fn get_alpha_mode( &self ) -> AlphaMode
+    fn alpha_mode( &self ) -> AlphaMode
     {
       self.alpha_mode
     }
 
-    fn get_cull_mode( &self ) -> Option< CullMode >
+    fn cull_mode( &self ) -> Option< CullMode >
     {
       self.cull_mode
     }

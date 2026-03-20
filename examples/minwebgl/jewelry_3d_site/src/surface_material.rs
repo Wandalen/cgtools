@@ -52,12 +52,12 @@ impl SurfaceMaterial
 
 impl Material for SurfaceMaterial
 {
-  fn get_id( &self ) -> Uuid
+  fn id( &self ) -> Uuid
   {
     self.id
   }
 
-  fn get_needs_update( &self ) -> bool
+  fn needs_update( &self ) -> bool
   {
     self.needs_update.get()
   }
@@ -77,12 +77,12 @@ impl Material for SurfaceMaterial
     stringify!( SurfaceMaterial )
   }
 
-  fn get_vertex_shader( &self ) -> String
+  fn vertex_shader( &self ) -> String
   {
     SURFACE_VERTEX_SHADER.into()
   }
 
-  fn get_fragment_shader( &self ) -> String
+  fn fragment_shader( &self ) -> String
   {
     SURFACE_FRAGMENT_SHADER.into()
   }

@@ -117,17 +117,17 @@ mod private
   pub trait Material : std::any::Any + Debug
   {
     /// Returns the unique identifier of the material.
-    fn get_id( &self ) -> uuid::Uuid;
+    fn id( &self ) -> uuid::Uuid;
 
     /// Returns a human-readable name for the material (for debugging/editor).
-    fn get_name( &self ) -> Option< &str >
+    fn name( &self ) -> Option< &str >
     {
       None
     }
 
     /// Returns `true` if the material's uniform data has changed and needs
     /// to be re-uploaded to the GPU via [`upload_on_state_change`].
-    fn get_needs_update( &self ) -> bool;
+    fn needs_update( &self ) -> bool;
 
     /// Sets or clears the dirty flag for material uniforms.
     /// Implementations should use interior mutability (e.g. `Cell<bool>`).
@@ -149,7 +149,7 @@ mod private
     /// IBL will use 3 consequtive texture units based on what is returned by this function,
     /// for example, if this function returns `Some(4)`, then it will use texture units `4`, `5`, and `6`
     /// for the aforementioned texture uniforms.
-    fn get_ibl_base_texture_unit( &self ) -> Option< u32 >
+    fn ibl_base_texture_unit( &self ) -> Option< u32 >
     {
       None
     }
@@ -161,37 +161,37 @@ mod private
     fn type_name( &self ) -> &'static str;
 
     /// Returns the vertex shader of the material
-    fn get_vertex_shader( &self ) -> String;
+    fn vertex_shader( &self ) -> String;
 
     /// Return the fragment shader of the material
-    fn get_fragment_shader( &self ) -> String;
+    fn fragment_shader( &self ) -> String;
 
     /// Return a string containing combined version of the vertex and fragment defines
-    fn get_defines_str( &self ) -> &str
+    fn defines_str( &self ) -> &str
     {
       ""
     }
 
     /// Returns a string containing vertex shader related defines
-    fn get_vertex_defines_str( &self ) -> &str
+    fn vertex_defines_str( &self ) -> &str
     {
       ""
     }
 
     /// Returns a string containing fragment shader related defines
-    fn get_fragment_defines_str( &self ) -> &str
+    fn fragment_defines_str( &self ) -> &str
     {
       ""
     }
 
     /// Returns a hash representing the current shader configuration.
     /// Used for shader caching and variant management.
-    fn get_shader_hash( &self ) -> u64
+    fn shader_hash( &self ) -> u64
     {
       let mut hasher = FxHasher::default();
-      self.get_vertex_shader().hash( &mut hasher );
-      self.get_fragment_shader().hash( &mut hasher );
-      self.get_defines_str().hash( &mut hasher );
+      self.vertex_shader().hash( &mut hasher );
+      self.fragment_shader().hash( &mut hasher );
+      self.defines_str().hash( &mut hasher );
       hasher.finish()
     }
 
@@ -247,19 +247,19 @@ mod private
     fn dyn_clone( &self ) -> Box< dyn Material >;
 
     /// Returns an alpha mode for the current materials
-    fn get_alpha_mode( &self ) -> AlphaMode
+    fn alpha_mode( &self ) -> AlphaMode
     {
       AlphaMode::Opaque
     }
 
     /// Returns the face culling mode.
-    fn get_cull_mode( &self ) -> Option< CullMode >
+    fn cull_mode( &self ) -> Option< CullMode >
     {
       None
     }
 
     /// Returns the front face order
-    fn get_front_face( &self ) -> FrontFace
+    fn front_face( &self ) -> FrontFace
     {
       FrontFace::default()
     }
@@ -277,13 +277,13 @@ mod private
     }
 
     /// Returns the depth comparison function.
-    fn get_depth_func( &self ) -> DepthFunc
+    fn depth_func( &self ) -> DepthFunc
     {
       DepthFunc::default()
     }
 
     /// Returns the color write mask (R, G, B, A).
-    fn get_color_write_mask( &self ) -> ( bool, bool, bool, bool )
+    fn color_write_mask( &self ) -> ( bool, bool, bool, bool )
     {
       ( true, true, true, true )
     }
@@ -292,7 +292,7 @@ mod private
     /// in the transparency pass.
     fn is_transparent( &self ) -> bool
     {
-      matches!( self.get_alpha_mode(), AlphaMode::Blend )
+      matches!( self.alpha_mode(), AlphaMode::Blend )
     }
 
     /// Returns `true` if the shader defines have changed and the shader

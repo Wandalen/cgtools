@@ -478,7 +478,7 @@ impl AnimationState
   )
   where P : AnimatablePlayer + 'static
   {
-    let name = material.borrow().get_id().to_string();
+    let name = material.borrow().id().to_string();
 
     self.animations.insert::< P >( &name, player );
     if self.animations.is_completed()
