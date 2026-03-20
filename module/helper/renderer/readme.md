@@ -174,8 +174,8 @@ The renderer supports the KHR_materials_specular extension for advanced material
 When implementing the `Material` trait for custom materials:
 - **`bind()`** must call `gl.active_texture(gl::TEXTURE0 + unit)` before each texture bind — this is the only method that should touch texture state.
 - **`configure()`** sets up texture sampler uniform locations once at program creation time.
-- **`upload_on_state_change()`** uploads uniform values; use `needs_update()` / `clear_needs_update()` with `Cell<bool>` to avoid redundant uploads.
-- IBL textures occupy units starting from `get_ibl_base_texture_unit()` (3 consecutive units). Custom materials should avoid those units.
+- **`upload_on_state_change()`** uploads uniform values; use `needs_update()` / `set_needs_update(false)` with `Cell<bool>` to avoid redundant uploads.
+- IBL textures occupy units starting from `ibl_base_texture_unit()` (3 consecutive units). Custom materials should avoid those units.
 
 ### Performance Optimization
 - **Shader program caching** - Materials with identical shader source share a single compiled GPU program
