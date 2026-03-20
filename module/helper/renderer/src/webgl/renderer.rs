@@ -1,7 +1,7 @@
 mod private
 {
   use std::{ cell::RefCell, rc::Rc };
-  use rustc_hash::FxHashMap;
+  use rustc_hash::{ FxHashMap, FxHashSet };
   use minwebgl as gl;
   use gl::{ GL, F32x3 };
   use web_sys::WebGlTexture;
@@ -776,10 +776,19 @@ mod private
           let material_id = material.get_id();
           let use_ibl = self.ibl.is_some() && material.get_ibl_base_texture_unit().is_some();
 
-          // If material's defines changed, drop the old mapping so we re-evaluate
+          // If material's defines changed, drop the old mapping and clean up orphaned programs
           if material.needs_recompile()
           {
-            self.material_program_map.remove( &material_id );
+            if let Some( old_prog_id ) = self.material_program_map.remove( &material_id )
+            {
+              // Check if any other material still references this program
+              let still_used = self.material_program_map.values().any( | id | *id == old_prog_id );
+              if !still_used
+              {
+                self.compiled_programs.remove( &old_prog_id );
+                self.shader_source_registry.retain( | _, id | *id != old_prog_id );
+              }
+            }
           }
 
           let program_uuid = if let Some( &prog_id ) = self.material_program_map.get( &material_id )
@@ -856,16 +865,25 @@ mod private
 
       scene.traverse( &mut collect_nodes )?;
 
-      // Phase 2: Per-frame per-program uploads (camera, lights, exposure)
-      for program in self.compiled_programs.values()
+      // Phase 2: Per-frame per-program uploads (camera, lights, exposure) — only active programs
+      let mut active_program_ids : rustc_hash::FxHashSet< uuid::Uuid > = rustc_hash::FxHashSet::default();
+      for ( _, _, _, pid ) in self.opaque_nodes.iter().chain( self.transparent_nodes.iter() )
       {
-        let locations = program.locations();
-        program.bind( gl );
-        camera.upload( gl, locations );
-        bind_lights( gl, program, &lights );
-        if let Some( exposure_loc ) = locations.get( "exposure" )
+        active_program_ids.insert( *pid );
+      }
+
+      for prog_id in &active_program_ids
+      {
+        if let Some( program ) = self.compiled_programs.get( prog_id )
         {
-          gl::uniform::upload( gl, exposure_loc.clone(), &self.exposure )?;
+          let locations = program.locations();
+          program.bind( gl );
+          camera.upload( gl, locations );
+          bind_lights( gl, program, &lights );
+          if let Some( exposure_loc ) = locations.get( "exposure" )
+          {
+            gl::uniform::upload( gl, exposure_loc.clone(), &self.exposure )?;
+          }
         }
       }
 
