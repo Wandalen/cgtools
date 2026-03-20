@@ -53,7 +53,7 @@ pub struct GemMaterial
   /// Cube normal map texture
   pub cube_normal_map_texture : CubeNormalData,
   /// Signal for updating material uniforms
-  pub needs_update : bool,
+  pub needs_update : std::cell::Cell< bool >,
   /// Refraction index of the diamond
   pub n2 : f32,
   /// Refractive index delta difference for red and blue color relative to n2
@@ -77,7 +77,7 @@ impl GemMaterial
       radius : 1000.0,
       environment_texture : None,
       cube_normal_map_texture : CubeNormalData::default(),
-      needs_update : true,
+      needs_update : std::cell::Cell::new( true ),
       n2 : 2.62,
       rainbow_delta : 0.02,
       distance_attenuation_speed : 0.1
@@ -94,7 +94,12 @@ impl Material for GemMaterial
 
   fn get_needs_update( &self ) -> bool
   {
-    self.needs_update
+    self.needs_update.get()
+  }
+
+  fn set_needs_update( &self, value : bool )
+  {
+    self.needs_update.set( value );
   }
 
   fn make_shader_program( &self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Box< dyn ShaderProgram >
@@ -210,7 +215,7 @@ impl Clone for GemMaterial
       radius : self.radius,
       environment_texture : self.environment_texture.clone(),
       cube_normal_map_texture : self.cube_normal_map_texture.clone(),
-      needs_update : self.needs_update,
+      needs_update : std::cell::Cell::new( self.needs_update.get() ),
       n2 : self.n2,
       rainbow_delta : self.rainbow_delta,
       distance_attenuation_speed : self.distance_attenuation_speed

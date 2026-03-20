@@ -33,7 +33,7 @@ pub struct SurfaceMaterial
   /// Surface texture
   pub texture : Option< TextureInfo >,
   /// Signal for updating material uniforms
-  pub needs_update : bool
+  pub needs_update : std::cell::Cell< bool >
 }
 
 impl SurfaceMaterial
@@ -45,7 +45,7 @@ impl SurfaceMaterial
       id : Uuid::new_v4(),
       color : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
       texture : None,
-      needs_update : true
+      needs_update : std::cell::Cell::new( true )
     }
   }
 }
@@ -59,7 +59,12 @@ impl Material for SurfaceMaterial
 
   fn get_needs_update( &self ) -> bool
   {
-    self.needs_update
+    self.needs_update.get()
+  }
+
+  fn set_needs_update( &self, value : bool )
+  {
+    self.needs_update.set( value );
   }
 
   fn make_shader_program( &self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Box< dyn ShaderProgram >
@@ -131,7 +136,7 @@ impl Clone for SurfaceMaterial
       id : Uuid::new_v4(),
       color : self.color,
       texture : self.texture.clone(),
-      needs_update : self.needs_update
+      needs_update : std::cell::Cell::new( self.needs_update.get() )
     }
   }
 }
