@@ -40,11 +40,11 @@ enabled = [
 ]
 
 # Full feature set with serialization
-full = ["enabled", "serialization"]
+full = ["enabled", "serialization", "distance"]
 
 # Serialization support for line data
 serialization = ["enabled", "dep:serde"]
-distance = []
+distance = ["enabled"]
 
 [dependencies]
 minwebgl = { workspace = true, optional = true }
