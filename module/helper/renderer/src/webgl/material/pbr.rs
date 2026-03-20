@@ -256,7 +256,7 @@ mod private
       let local_defines = self.get_local_defines();
 
       // Build vertex and fragment defines once
-      let mut vertex_defines = String::new();
+      let mut vertex_defines = local_defines.clone();
       for ( name, value ) in self.vertex_defines.iter()
       {
         vertex_defines.push_str( &format!( "#define {} {}\n", name, value ) );
