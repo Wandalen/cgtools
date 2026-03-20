@@ -303,7 +303,7 @@ mod private
     }
 
     /// Called by the renderer after recompilation to clear the recompile flag.
-    fn set_compiled( &self ) {}
+    fn clear_recompile_flag( &self ) {}
   }
 
 }

@@ -584,7 +584,7 @@ mod private
       self.needs_recompile.get()
     }
 
-    fn set_compiled( &self )
+    fn clear_recompile_flag( &self )
     {
       self.needs_recompile.set( false );
     }

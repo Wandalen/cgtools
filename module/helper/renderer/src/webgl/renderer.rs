@@ -847,7 +847,7 @@ mod private
             };
 
             self.material_program_map.insert( material_id, prog_id );
-            material.set_compiled();
+            material.clear_recompile_flag();
             prog_id
           };
 
