@@ -865,7 +865,23 @@ mod private
 
       scene.traverse( &mut collect_nodes )?;
 
-      // Phase 2: Per-frame per-program uploads (camera, lights, exposure) — only active programs
+      self.upload_per_program_uniforms( gl, camera, &lights )?;
+      self.draw_opaque( gl, camera )?;
+      self.draw_transparent( gl )?;
+      self.composite( gl )?;
+
+      Ok( () )
+    }
+
+    /// Phase 2: Uploads camera, lights, and exposure uniforms to each active program.
+    fn upload_per_program_uniforms
+    (
+      &self,
+      gl : &GL,
+      camera : &Camera,
+      lights : &FxHashMap< LightType, Vec< Light > >
+    ) -> Result< (), gl::WebglError >
+    {
       let mut active_program_ids : FxHashSet< uuid::Uuid > = FxHashSet::default();
       for ( _, _, _, pid ) in self.opaque_nodes.iter().chain( self.transparent_nodes.iter() )
       {
@@ -879,7 +895,7 @@ mod private
           let locations = program.locations();
           program.bind( gl );
           camera.upload( gl, locations );
-          bind_lights( gl, program, &lights );
+          bind_lights( gl, program, lights );
           if let Some( exposure_loc ) = locations.get( "exposure" )
           {
             gl::uniform::upload( gl, exposure_loc.clone(), &self.exposure )?;
@@ -887,7 +903,17 @@ mod private
         }
       }
 
-      // Phase 3: Draw opaque primitives sorted by program to minimize state switches
+      Ok( () )
+    }
+
+    /// Phase 3a: Draws opaque primitives sorted by program, with per-material depth/face state.
+    fn draw_opaque
+    (
+      &mut self,
+      gl : &GL,
+      camera : &Camera
+    ) -> Result< (), gl::WebglError >
+    {
       self.opaque_nodes.sort_by_key( | ( _, _, _, pid ) | *pid );
 
       let mut current_program_id : Option< uuid::Uuid > = None;
@@ -948,12 +974,23 @@ mod private
         self.draw_skybox( gl, camera );
       }
 
-      // Transparent pass (WBOIT)
-      // This pass uses fixed depth/face state required by Weighted Blended OIT:
-      // - depth test enabled with LESS, but depth writes disabled
-      // - face culling disabled (both sides needed for transparent geometry)
-      // Materials with custom depth_func() or front_face() are not supported
-      // in this pass — those properties are only applied in the opaque pass.
+      Ok( () )
+    }
+
+    /// Phase 3b: Draws transparent primitives using WBOIT.
+    ///
+    /// This pass uses fixed depth/face state required by Weighted Blended OIT:
+    /// - depth test enabled with LESS, but depth writes disabled
+    /// - face culling disabled (both sides needed for transparent geometry)
+    ///
+    /// Materials with custom `depth_func()` or `front_face()` are not supported
+    /// in this pass — those properties are only applied in the opaque pass.
+    fn draw_transparent
+    (
+      &mut self,
+      gl : &GL
+    ) -> Result< (), gl::WebglError >
+    {
       gl::drawbuffers::drawbuffers( gl, &[ 2, 3 ] );
       gl.enable( gl::BLEND );
       gl.blend_equation( gl::FUNC_ADD );
@@ -964,7 +1001,6 @@ mod private
       gl.depth_func( gl::LESS );
       gl.disable( gl::CULL_FACE );
 
-      // Sort transparent nodes by program to minimize state switches
       self.transparent_nodes.sort_by_key( | ( _, _, _, pid ) | *pid );
 
       let mut current_program_id : Option< uuid::Uuid > = None;
@@ -1020,6 +1056,16 @@ mod private
       gl.disable( gl::CULL_FACE );
       gl.depth_mask( true );
 
+      Ok( () )
+    }
+
+    /// Resolves multisampled framebuffer, applies bloom, and composites transparency.
+    fn composite
+    (
+      &mut self,
+      gl : &GL
+    ) -> Result< (), gl::WebglError >
+    {
       self.framebuffer_ctx.resolve( gl, self.use_emission );
       self.framebuffer_ctx.unbind_multisample( gl );
 
