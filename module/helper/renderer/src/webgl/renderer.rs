@@ -739,8 +739,8 @@ mod private
 
       self.framebuffer_ctx.bind_multisample( gl );
       gl::drawbuffers::drawbuffers( gl, &[ 0, 1, 2, 3 ] );
-      let [ r, b, g ] = self.clear_color.0;
-      gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ r, b, g, 1.0 ] );
+      let [ r, g, b ] = self.clear_color.0;
+      gl.clear_bufferfv_with_f32_array( gl::COLOR, 0, &[ r, g, b, 1.0 ] );
       gl.clear_bufferfv_with_f32_array( gl::COLOR, 1, &[ 0.0, 0.0, 0.0, 0.0 ] );
       gl.clear_bufferfv_with_f32_array( gl::COLOR, 2, &[ 0.0, 0.0, 0.0, 1.0 ] );
       gl.clear_bufferfv_with_f32_array( gl::COLOR, 3, &[ 0.0, 0.0, 0.0, 1.0 ] );
