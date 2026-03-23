@@ -515,6 +515,7 @@ mod private
             //gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 0 );
 
             gl.generate_mipmap( gl::TEXTURE_2D );
+            gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
 
             gl::web_sys::Url::revoke_object_url( &src ).unwrap();
 
