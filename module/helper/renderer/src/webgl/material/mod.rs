@@ -160,10 +160,18 @@ mod private
     /// Returns the material type identifier (e.g., "PBR", "Unlit", "Custom").
     fn type_name( &self ) -> &'static str;
 
-    /// Returns the vertex shader of the material
+    /// Returns the vertex shader source code.
+    ///
+    /// **Must be deterministic across all instances of a given concrete type with the same
+    /// `defines_str()`**. The renderer compiles one program per `(TypeId, defines_str)` pair
+    /// and shares it across all matching instances.
     fn vertex_shader( &self ) -> String;
 
-    /// Return the fragment shader of the material
+    /// Returns the fragment shader source code.
+    ///
+    /// **Must be deterministic across all instances of a given concrete type with the same
+    /// `defines_str()`**. The renderer compiles one program per `(TypeId, defines_str)` pair
+    /// and shares it across all matching instances.
     fn fragment_shader( &self ) -> String;
 
     /// Return a string containing combined version of the vertex and fragment defines
