@@ -866,7 +866,7 @@ mod private
       scene.traverse( &mut collect_nodes )?;
 
       // Phase 2: Per-frame per-program uploads (camera, lights, exposure) — only active programs
-      let mut active_program_ids : rustc_hash::FxHashSet< uuid::Uuid > = rustc_hash::FxHashSet::default();
+      let mut active_program_ids : FxHashSet< uuid::Uuid > = FxHashSet::default();
       for ( _, _, _, pid ) in self.opaque_nodes.iter().chain( self.transparent_nodes.iter() )
       {
         active_program_ids.insert( *pid );
