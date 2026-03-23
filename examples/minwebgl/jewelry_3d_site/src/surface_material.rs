@@ -33,7 +33,7 @@ pub struct SurfaceMaterial
   /// Surface texture
   pub texture : Option< TextureInfo >,
   /// Signal for updating material uniforms
-  pub needs_update : std::cell::Cell< bool >
+  needs_update : std::cell::Cell< bool >
 }
 
 impl SurfaceMaterial

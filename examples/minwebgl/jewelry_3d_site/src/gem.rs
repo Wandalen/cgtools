@@ -53,7 +53,7 @@ pub struct GemMaterial
   /// Cube normal map texture
   pub cube_normal_map_texture : CubeNormalData,
   /// Signal for updating material uniforms
-  pub needs_update : std::cell::Cell< bool >,
+  needs_update : std::cell::Cell< bool >,
   /// Refraction index of the diamond
   pub n2 : f32,
   /// Refractive index delta difference for red and blue color relative to n2

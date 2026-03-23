@@ -283,7 +283,7 @@ impl Configurator
             let color = player.value_get();
             let mut material = helpers::cast_unchecked_material_to_ref_mut::< GemMaterial >( material.borrow_mut() );
             material.color = color;
-            material.needs_update.set( true );
+            material.set_needs_update( true );
           }
         );
       }
@@ -832,7 +832,7 @@ fn bake_plane_shadow
     let mut surface_material = SurfaceMaterial::new( &gl );
     surface_material.color = CLEAR_COLOR;
     surface_material.texture = Some( texture_info.clone() );
-    surface_material.needs_update.set( false );
+    surface_material.set_needs_update( false );
     let surface_material_boxed : Rc< RefCell< Box< dyn Material > > > = Rc::new( RefCell::new( Box::new( surface_material ) ) );
     primitive.borrow_mut().material = surface_material_boxed;
   }
