@@ -130,8 +130,8 @@ mod private
     fn needs_update( &self ) -> bool;
 
     /// Sets or clears the dirty flag for material uniforms.
-    /// Implementations should use interior mutability (e.g. `Cell<bool>`).
-    fn set_needs_update( &self, _value : bool ) {}
+    /// Implementations must use interior mutability (e.g. `Cell<bool>`).
+    fn set_needs_update( &self, value : bool );
 
     /// Returns the base texture unit for IBL textures.
     ///
