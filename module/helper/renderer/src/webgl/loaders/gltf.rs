@@ -859,7 +859,7 @@ mod private
           let material = Rc::new( RefCell::new( gltf_material.borrow().dyn_clone() ) );
           let mut m = helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
 
-          for ( name, value ) in dummy_material.get_vertex_defines()
+          for ( name, value ) in dummy_material.vertex_defines()
           {
             m.add_vertex_define( name.clone(), value );
           }

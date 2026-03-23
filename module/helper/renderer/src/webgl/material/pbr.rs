@@ -253,7 +253,7 @@ mod private
     /// Rebuilds all cached defines strings from current state.
     fn rebuild_defines_cache( &mut self )
     {
-      let local_defines = self.get_local_defines();
+      let local_defines = self.local_defines();
 
       // Build vertex and fragment defines once
       let mut vertex_defines = local_defines.clone();
@@ -305,7 +305,7 @@ mod private
     }
 
     /// Generates `#define` directives to be inserted into the fragment shader based on the material's properties.
-    fn get_local_defines( &self ) -> String
+    fn local_defines( &self ) -> String
     {
       let use_base_color_texture = self.base_color_texture.is_some();
       let use_metallic_roughness_texture = self.metallic_roughness_texture.is_some();
@@ -397,13 +397,13 @@ mod private
     }
 
     /// Returns an immutable reference to the local vertex defines map
-    pub fn get_vertex_defines( &self ) -> &FxHashMap< Box< str >, String >
+    pub fn vertex_defines( &self ) -> &FxHashMap< Box< str >, String >
     {
       &self.vertex_defines
     }
 
     /// Returns an immutable reference to the local fragment defines map
-    pub fn get_fragment_defines( &self ) -> &FxHashMap< Box< str >, String >
+    pub fn fragment_defines( &self ) -> &FxHashMap< Box< str >, String >
     {
       &self.fragment_defines
     }
