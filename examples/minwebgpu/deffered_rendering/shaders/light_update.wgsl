@@ -37,7 +37,7 @@ fn update_light( @builtin( global_invocation_id ) id : vec3u )
 
   var light = lights[ id.x ];
   
-  let rotation = rot( uniforms.elapsed_time * 20.0 * light.direction / max( length( light.position), 0.000001 ) );
+  let rotation = rot( uniforms.elapsed_time * 20.0 * light.direction / max( length( light.position ), 0.000001 ) );
   light.position = rotation * light.position;
   lights[ id.x ] = light;
 }

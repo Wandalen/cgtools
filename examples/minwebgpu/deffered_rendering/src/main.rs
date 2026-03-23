@@ -56,7 +56,10 @@ fn create_textures
 
 #[cfg(target_arch = "wasm32")]
 async fn run() -> Result< (), gl::WebGPUError >
-{
+{ 
+
+
+
   gl::browser::setup( Default::default() );
   let canvas = gl::canvas::retrieve_or_make()?;
   //let canvas = gl::canvas::make()?;
@@ -64,6 +67,8 @@ async fn run() -> Result< (), gl::WebGPUError >
   let adapter = gl::context::request_adapter().await;
   let device = gl::context::request_device( &adapter ).await;
   let queue = device.queue();
+
+
 
   let presentation_format = gl::context::preferred_format();
   gl::context::configure( &device, &context, presentation_format )?;
@@ -75,6 +80,7 @@ async fn run() -> Result< (), gl::WebGPUError >
   let big_plane_shader = gl::ShaderModule::new( include_str!( "../shaders/big_plane.wgsl" ) ).create( &device );
   let gbuffer_shader = gl::ShaderModule::new( include_str!( "../shaders/gbuffer.wgsl" ) ).create( &device );
   let render_shader = gl::ShaderModule::new( include_str!( "../shaders/render.wgsl" ) ).create( &device );
+  let color_transfer_shader = gl::ShaderModule::new( include_str!( "../shaders/color_transfer.wgsl" ) ).create( &device );
 
   let [ pos_vertex_layout, normal_vertex_layout, uv_vertex_layout ] = ModelState::vertex_layout();
   let model_instance_layout = ModelState::instance_layout();
@@ -86,11 +92,29 @@ async fn run() -> Result< (), gl::WebGPUError >
     .size( [ width, height, 1 ] )
     .render_attachment()
     .texture_binding()
-    .format( gl::GpuTextureFormat::Depth24plus )
+    .format( gl::GpuTextureFormat::Depth24plusStencil8 )
     .into()
   )?;
 
-  let depth_view = depth_texture.create_view().unwrap();
+  let color_accum_texture = gl::texture::create
+  (
+    &device, 
+    &gl::texture::desc()
+    .size( [ width, height, 1 ] )
+    .render_attachment()
+    .texture_binding()
+    .format( gl::GpuTextureFormat::Rgba16float )
+    .into()
+  )?;
+
+  let color_accum_texture_view = color_accum_texture.create_view().unwrap();
+
+  let depth_view_descriptor = gl::web_sys::GpuTextureViewDescriptor::new();
+  depth_view_descriptor.set_aspect( gl::web_sys::GpuTextureAspect::DepthOnly );
+
+  //let depth_view = depth_texture.create_view().unwrap();
+  let depth_view = depth_texture.create_view_with_descriptor( &depth_view_descriptor ).unwrap();
+  let depth_view_with_stencil = depth_texture.create_view().unwrap();
   let ( pos_view, albedo_view, normal_view ) =
   (
     pos_tex.create_view().unwrap(),
@@ -141,6 +165,16 @@ async fn run() -> Result< (), gl::WebGPUError >
     .to_web()
   )?;
 
+  let color_transfer_bind_group_layout = gl::layout::bind_group::create
+  (
+    &device,
+    &gl::layout::bind_group::desc()
+    .fragment()
+    .auto_bindings()
+    .entry_from_ty( gl::binding_type::texture_type().sample_unfilterable_float() )
+    .to_web()
+  )?;
+
   // Create pipeline layout for the gbuffer render pipeline
   let gbuffer_pipeline_layout = gl::layout::pipeline::desc()
   .bind_group( &uniform_bind_group_layout )
@@ -167,9 +201,29 @@ async fn run() -> Result< (), gl::WebGPUError >
     .layout( &gbuffer_pipeline_layout )
     .fragment( fragment_state.clone() )
     .primitive( gl::PrimitiveState::new().cull_back() )
-    .depth_stencil( gl::DepthStencilState::new() )
+    .depth_stencil
+    ( 
+      gl::DepthStencilState::new()
+      .format( gl::GpuTextureFormat::Depth24plusStencil8 )
+    )
     .to_web()
   )?;
+
+  // // Pipeline that will render to the gbuffer textures.
+  // let light_pass_render_pipeline = gl::render_pipeline::create
+  // (
+  //   &device,
+  //   &gl::render_pipeline::desc
+  //   (
+  //     gl::VertexState::new( &gbuffer_shader )
+  //     .buffer( &pos_vertex_layout )
+  //   )
+  //   .layout( &gbuffer_pipeline_layout )
+  //   .fragment( fragment_state.clone() )
+  //   .primitive( gl::PrimitiveState::new().cull_back() )
+  //   .depth_stencil( gl::DepthStencilState::new() )
+  //   .to_web()
+  // )?;
 
   // Pipeline that will render a plane.
   // We reuse the fragment state from gbuffer pipeline because they are the same.
@@ -180,7 +234,11 @@ async fn run() -> Result< (), gl::WebGPUError >
     .layout( &gbuffer_pipeline_layout )
     .fragment( fragment_state.clone() )
     .primitive( gl::PrimitiveState::new() )
-    .depth_stencil( gl::DepthStencilState::new() )
+    .depth_stencil
+    ( 
+      gl::DepthStencilState::new()
+      .format( gl::GpuTextureFormat::Depth24plusStencil8 ) 
+    )
     .to_web()
   )?;
 
@@ -195,6 +253,15 @@ async fn run() -> Result< (), gl::WebGPUError >
     .entry_from_resource( &depth_view )
     .to_web()
   );
+
+  let color_transfer_bind_group = gl::bind_group::create
+  (
+    &device,
+    &gl::bind_group::desc( &color_transfer_bind_group_layout )
+    .auto_bindings()
+    .entry_from_resource( &color_accum_texture_view )
+    .to_web()
+  );
   ////////////////
 
   // The main render pipeline. It will do the lighting calculations based on
@@ -204,19 +271,64 @@ async fn run() -> Result< (), gl::WebGPUError >
   .bind_group( &gbuffer_bind_group_layout )
   .create( &device );
 
-  let render_pipeline = gl::render_pipeline::create
+  let color_transfer_pipeline_layout = gl::layout::pipeline::desc()
+  .bind_group( &color_transfer_bind_group_layout )
+  .create( &device );
+
+  let light_shading_shader_module = gl::shader::create( &device, include_str!( "../shaders/light_shading.wgsl" ) );
+
+  let light_shading_render_pipeline = gl::render_pipeline::desc
   (
-    &device,
-    &gl::render_pipeline::desc( gl::VertexState::new( &render_shader ) )
-    .layout( &render_pipeline_layout )
-    .fragment
-    (
-      gl::FragmentState::new( &render_shader )
-      .target( gl::ColorTargetState::new().format( presentation_format ) )
+    LightState::light_shading_vertex_state( &light_shading_shader_module )
+  )
+  .layout( &render_pipeline_layout )
+  .fragment
+  (
+    gl::FragmentState::new( &light_shading_shader_module )
+    .target
+    ( 
+      gl::ColorTargetState::new()
+      .format( gl::GpuTextureFormat::Rgba16float )
+      .blend
+      ( 
+        gl::BlendState::new().color
+        ( 
+          gl::BlendComponent::new()
+          .operation( gl::GpuBlendOperation::Add )
+          .src_factor( gl::GpuBlendFactor::One )
+          .dst_factor( gl::GpuBlendFactor::One )
+        )
+      )
     )
-    .primitive( gl::PrimitiveState::new().triangle_strip() )
-    .to_web()
-  )?;
+  )
+  .primitive
+  ( 
+    gl::PrimitiveState::new()
+    .triangles()
+    .cull_front()
+  )
+  .depth_stencil
+  ( 
+    gl::DepthStencilState::new()
+    .disable_depth_write()
+    .format( gl::GpuTextureFormat::Depth24plusStencil8 )
+    .depth_compare( gl::GpuCompareFunction::GreaterEqual )
+  )
+  .create( &device )?;
+
+  let color_transfer_render_pipeline = gl::render_pipeline::desc
+  (
+    gl::VertexState::new( &color_transfer_shader )
+  )
+  .layout( &color_transfer_pipeline_layout )
+  .fragment
+  (
+    gl::FragmentState::new( &color_transfer_shader )
+    .target( gl::ColorTargetState::new().format( presentation_format ) )
+  )
+  .primitive( gl::PrimitiveState::new().triangle_strip() )
+  .create( &device )?;
+
 
   // We create a compute pipeline to update lights
   // Sicne there is only one `compute` function in the shader,
@@ -295,7 +407,7 @@ async fn run() -> Result< (), gl::WebGPUError >
           .color_attachment( gl::ColorAttachment::new( &albedo_view ))
           .color_attachment( gl::ColorAttachment::new( &pos_view ))
           .color_attachment( gl::ColorAttachment::new( &normal_view ))
-          .depth_stencil_attachment( gl::DepthStencilAttachment::new( &depth_view ) )
+          .depth_stencil_attachment( gl::DepthStencilAttachment::new( &depth_view_with_stencil ).stencil_read_only( true ) )
           .into()
         ).unwrap();
 
@@ -322,14 +434,44 @@ async fn run() -> Result< (), gl::WebGPUError >
           &gl::RenderPassDescriptor::new()
           .color_attachment
           (
+            gl::ColorAttachment::new( &color_accum_texture_view )
+          )
+          .depth_stencil_attachment
+          (
+            gl::DepthStencilAttachment::new( &depth_view_with_stencil )
+            .depth_load_op( gl::GpuLoadOp::Load )
+            .depth_store_op( gl::GpuStoreOp::Discard )
+            .stencil_read_only( true )
+            .depth_read_only( true ) 
+          )
+          .into()
+        ).unwrap();
+
+        render_pass.set_pipeline( &light_shading_render_pipeline );
+        render_pass.set_bind_group( 0, Some( &uniform_bind_group ) );
+        render_pass.set_bind_group( 1, Some( &gbuffer_bind_group ) );
+        render_pass.set_vertex_buffer( 0, Some( &light_state.mesh_position_buffer ) );
+        render_pass.set_vertex_buffer( 1, Some( &light_state.buffer ) );
+        render_pass.set_index_buffer( &light_state.mesh_index_buffer, gl::GpuIndexFormat::Uint32 );
+        //render_pass.draw_with_instance_count( light_state.num_vertices, light_state.num_instances );
+        render_pass.draw_indexed_with_instance_count( light_state.num_indices, light_state.num_instances );
+        render_pass.end();
+      }
+
+      // Main color transfer pass
+      {
+        let render_pass = encoder.begin_render_pass
+        (
+          &gl::RenderPassDescriptor::new()
+          .color_attachment
+          (
             gl::ColorAttachment::new( &canvas_view )
           )
           .into()
         ).unwrap();
 
-        render_pass.set_pipeline( &render_pipeline );
-        render_pass.set_bind_group( 0, Some( &uniform_bind_group ) );
-        render_pass.set_bind_group( 1, Some( &gbuffer_bind_group ) );
+        render_pass.set_pipeline( &color_transfer_render_pipeline );
+        render_pass.set_bind_group( 0, Some( &color_transfer_bind_group ) );
         render_pass.draw( 4 );
         render_pass.end();
       }
@@ -346,8 +488,9 @@ async fn run() -> Result< (), gl::WebGPUError >
           )
           .depth_stencil_attachment
           (
-            gl::DepthStencilAttachment::new( &depth_view )
+            gl::DepthStencilAttachment::new( &depth_view_with_stencil )
             .depth_load_op( gl::GpuLoadOp::Load )
+            .stencil_read_only( true )
           )
           .into()
         ).unwrap();
