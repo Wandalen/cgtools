@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING**: Renamed all `get_`-prefixed `Material` trait methods: `get_id` → `id`, `get_name` → `name`, `get_needs_update` → `needs_update`, `get_ibl_base_texture_unit` → `ibl_base_texture_unit`, `get_vertex_shader` → `vertex_shader`, `get_fragment_shader` → `fragment_shader`, `get_defines_str` → `defines_str`, `get_vertex_defines_str` → `vertex_defines_str`, `get_fragment_defines_str` → `fragment_defines_str`, `get_shader_hash` → `shader_hash`, `get_alpha_mode` → `alpha_mode`, `get_cull_mode` → `cull_mode`, `get_front_face` → `front_face`, `get_depth_func` → `depth_func`, `get_color_write_mask` → `color_write_mask`
 - **BREAKING**: Renamed `Material::set_compiled()` to `Material::clear_recompile_flag()`
 - **BREAKING**: `Material::set_needs_update()` is now a required method (no default no-op implementation)
+- **BREAKING**: Renamed `PbrMaterial::get_vertex_defines()` → `vertex_defines()`, `get_fragment_defines()` → `fragment_defines()`
 - Upgraded shadow depth format from `DEPTH_COMPONENT24` to `DEPTH_COMPONENT32F`
 
 ### Added
