@@ -948,7 +948,12 @@ mod private
         self.draw_skybox( gl, camera );
       }
 
-      // Transparent pass
+      // Transparent pass (WBOIT)
+      // This pass uses fixed depth/face state required by Weighted Blended OIT:
+      // - depth test enabled with LESS, but depth writes disabled
+      // - face culling disabled (both sides needed for transparent geometry)
+      // Materials with custom depth_func() or front_face() are not supported
+      // in this pass — those properties are only applied in the opaque pass.
       gl::drawbuffers::drawbuffers( gl, &[ 2, 3 ] );
       gl.enable( gl::BLEND );
       gl.blend_equation( gl::FUNC_ADD );
@@ -957,7 +962,6 @@ mod private
       gl.enable( gl::DEPTH_TEST );
       gl.depth_mask( false );
       gl.depth_func( gl::LESS );
-      // Culling should be disabled as we need both sides of transparent object
       gl.disable( gl::CULL_FACE );
 
       // Sort transparent nodes by program to minimize state switches
