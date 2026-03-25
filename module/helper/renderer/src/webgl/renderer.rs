@@ -761,8 +761,8 @@ mod private
 
         if let Object3D::Light( light ) = &node.borrow().object
         {
-          let r#type : LightType = light.into();
-          lights.entry( r#type ).or_default().push( light.clone() );
+          let type_ : LightType = light.into();
+          lights.entry( type_ ).or_default().push( light.clone() );
         }
 
         let Object3D::Mesh( ref mesh ) = node.borrow().object else { return Ok( () ); };
@@ -798,7 +798,9 @@ mod private
           else
           {
             // Build cache key from TypeId + defines (materials of the same concrete type
-            // with the same defines always produce identical shader source)
+            // with the same defines always produce identical shader source).
+            // ibl_define is included in the cache key because it changes the fragment shader,
+            // but intentionally omitted from the vertex shader — IBL is fragment-only.
             let defines = material.defines_str();
             let ibl_define = if use_ibl { "#define USE_IBL\n" } else { "" };
             let full_defines = format!( "{}{}", defines, ibl_define );
