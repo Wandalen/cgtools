@@ -238,10 +238,19 @@ impl GpuResources
 
 struct GpuTexture
 {
+  gl : gl::GL,
   texture : web_sys::WebGlTexture,
   width : Cell< u32 >,
   height : Cell< u32 >,
   _filter : SamplerFilter,
+}
+
+impl Drop for GpuTexture
+{
+  fn drop( &mut self )
+  {
+    self.gl.delete_texture( Some( &self.texture ) );
+  }
 }
 
 /// Sprite lookup data: sheet reference + pixel region.
@@ -256,12 +265,24 @@ struct GpuSprite
 
 struct GpuGeometry
 {
+  gl : gl::GL,
   vao : web_sys::WebGlVertexArrayObject,
   position_buffer : Option< web_sys::WebGlBuffer >,
   uv_buffer : Option< web_sys::WebGlBuffer >,
   index_buffer : Option< web_sys::WebGlBuffer >,
   vertex_count : u32,
   index_count : Option< u32 >,
+}
+
+impl Drop for GpuGeometry
+{
+  fn drop( &mut self )
+  {
+    self.gl.delete_vertex_array( Some( &self.vao ) );
+    if let Some( ref buf ) = self.position_buffer { self.gl.delete_buffer( Some( buf ) ); }
+    if let Some( ref buf ) = self.uv_buffer { self.gl.delete_buffer( Some( buf ) ); }
+    if let Some( ref buf ) = self.index_buffer { self.gl.delete_buffer( Some( buf ) ); }
+  }
 }
 
 // ---- Instance data for batches ----
@@ -920,6 +941,7 @@ impl WebGlBackend
 
       self.resources.borrow_mut().store_texture( img.id, GpuTexture
       {
+        gl : gl.clone(),
         texture,
         width : Cell::new( w ),
         height : Cell::new( h ),
@@ -964,7 +986,7 @@ impl WebGlBackend
         let vao = gl::vao::create( gl ).map_err( map_err )?;
         self.resources.borrow_mut().store_geometry( geom.id, GpuGeometry
         {
-          vao : vao.clone(), position_buffer : None, uv_buffer : None, index_buffer : None,
+          gl : gl.clone(), vao : vao.clone(), position_buffer : None, uv_buffer : None, index_buffer : None,
           vertex_count : 0, index_count : None,
         });
 
@@ -1033,7 +1055,7 @@ impl WebGlBackend
 
           resources.borrow_mut().store_geometry( id, GpuGeometry
           {
-            vao, position_buffer, uv_buffer, index_buffer, vertex_count, index_count,
+            gl : gl.clone(), vao, position_buffer, uv_buffer, index_buffer, vertex_count, index_count,
           });
         });
       }
@@ -1082,7 +1104,7 @@ impl WebGlBackend
 
         self.resources.borrow_mut().store_geometry( geom.id, GpuGeometry
         {
-          vao, position_buffer, uv_buffer, index_buffer, vertex_count, index_count,
+          gl : gl.clone(), vao, position_buffer, uv_buffer, index_buffer, vertex_count, index_count,
         });
       }
     }
