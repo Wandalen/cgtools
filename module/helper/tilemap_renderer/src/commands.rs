@@ -509,7 +509,6 @@ pub enum RenderCommand
 mod tests
 {
   use super::*;
-  use crate::types::*;
 
   /// All command types must be Copy — this is a core design invariant.
   /// If any type loses Copy, this test fails at compile time.

@@ -377,7 +377,7 @@ pub enum DataType
 mod tests
 {
   use super::*;
-  use crate::types::{ ResourceId, asset };
+  use crate::types::ResourceId;
 
   fn empty_assets() -> Assets
   {
