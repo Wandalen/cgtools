@@ -923,7 +923,11 @@ mod private
         let node_ref = node_rc.borrow();
         let primitive = primitive_rc.borrow();
         let material = primitive.material.borrow();
-        let shader_program = self.compiled_programs.get( program_id ).unwrap();
+        let Some( shader_program ) = self.compiled_programs.get( program_id ) else
+        {
+          gl::warn!( "compiled_programs missing {:?} — skipping draw call", program_id );
+          continue;
+        };
 
         if current_program_id != Some( *program_id )
         {
@@ -1010,7 +1014,11 @@ mod private
         let node_ref = node_rc.borrow();
         let primitive = primitive_rc.borrow();
         let material = primitive.material.borrow();
-        let shader_program = self.compiled_programs.get( program_id ).unwrap();
+        let Some( shader_program ) = self.compiled_programs.get( program_id ) else
+        {
+          gl::warn!( "compiled_programs missing {:?} — skipping draw call", program_id );
+          continue;
+        };
 
         if current_program_id != Some( *program_id )
         {
