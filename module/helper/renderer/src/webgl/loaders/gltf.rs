@@ -477,7 +477,8 @@ mod private
       (
         gl::TEXTURE_2D,
         0,
-        gl::RGBA8 as i32,
+        // Both RGBA and RGBA8 are valid internalformat values for texImage2D in WebGL2
+        gl::RGBA as i32,
         1,
         1,
         0,
