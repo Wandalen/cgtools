@@ -363,6 +363,8 @@ fn setup_sprite_batch_vao( gl : &gl::GL, vao : &web_sys::WebGlVertexArrayObject,
   gl.enable_vertex_attrib_array( 4 );
   gl.vertex_attrib_pointer_with_i32( 4, 4, gl::FLOAT, false, stride, 52 );
   gl.vertex_attrib_divisor( 4, 1 );
+
+  gl.bind_vertex_array( None );
 }
 
 /// Sets up a mesh batch VAO with geometry attribs (0–1) and instance attribs (2–4).
@@ -408,6 +410,8 @@ fn setup_mesh_batch_vao
     gl.vertex_attrib_pointer_with_i32( loc, 3, gl::FLOAT, false, stride, ( i * 12 ) as i32 );
     gl.vertex_attrib_divisor( loc, 1 );
   }
+
+  gl.bind_vertex_array( None );
 }
 
 // ============================================================================
@@ -444,6 +448,8 @@ impl SpriteRenderer
   /// Draw a single sprite as a textured quad (triangle strip, 4 vertices from gl_VertexID).
   fn draw( &self, gl : &gl::GL, transform : &[ f32; 9 ], uv_rect : &[ f32; 4 ], sprite_size : &[ f32; 2 ], tint : &[ f32; 4 ], viewport : &[ f32; 2 ] )
   {
+    // Unbind any VAO to prevent stale attribute state from interfering
+    gl.bind_vertex_array( None );
     self.program.activate();
     self.program.uniform_matrix_upload( "u_transform", transform.as_slice(), true );
     self.program.uniform_upload( "u_uv_rect", uv_rect );
