@@ -21,7 +21,7 @@ The crate follows **Ports & Adapters** (hexagonal) architecture:
 
 All rendering commands are **POD** (`Copy`, `Clone`) — no allocations, no lifetimes. Commands form a flat sequential stream processed by backends.
 
-```
+```text
 tilemap_renderer/
 ├── types.rs        # Transform, ResourceId, RenderConfig, enums
 ├── commands.rs     # Clear, Path, Text, Mesh, Sprite, Batch, Group
