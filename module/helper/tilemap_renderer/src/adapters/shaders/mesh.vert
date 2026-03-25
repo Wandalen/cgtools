@@ -8,7 +8,6 @@ uniform mat3 u_transform;
 uniform vec2 u_viewport;
 
 out vec2 v_uv;
-out vec2 v_pos;
 
 void main()
 {
@@ -18,6 +17,5 @@ void main()
 
   vec2 ndc = ( world.xy / u_viewport ) * 2.0 - 1.0;
 
-  v_pos = world.xy;
   gl_Position = vec4( ndc, 0.0, 1.0 );
 }

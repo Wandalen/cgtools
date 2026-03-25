@@ -2,7 +2,6 @@
 precision highp float;
 
 in vec2 v_uv;
-in vec2 v_pos;
 
 uniform vec4 u_color;         // solid fill color
 uniform sampler2D u_texture;  // optional texture

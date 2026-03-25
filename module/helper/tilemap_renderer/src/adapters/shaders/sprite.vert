@@ -12,7 +12,6 @@ uniform vec4 u_uv_rect;     // sprite region: x, y, w, h in UV space
 uniform vec2 u_sprite_size;  // natural size of sprite region in pixels
 
 out vec2 v_uv;
-out vec2 v_pos;
 
 void main()
 {
@@ -25,6 +24,5 @@ void main()
   // Convert to clip space: pixel coords → -1..1 (Y-up)
   vec2 ndc = ( world.xy / u_viewport ) * 2.0 - 1.0;
 
-  v_pos = world.xy;
   gl_Position = vec4( ndc, 0.0, 1.0 );
 }

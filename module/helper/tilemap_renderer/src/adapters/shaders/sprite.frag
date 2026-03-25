@@ -2,7 +2,6 @@
 precision highp float;
 
 in vec2 v_uv;
-in vec2 v_pos;
 
 uniform sampler2D u_texture;
 uniform vec4 u_tint; // multiply with texture color
