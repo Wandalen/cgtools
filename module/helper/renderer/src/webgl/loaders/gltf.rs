@@ -701,7 +701,9 @@ mod private
       materials.push( Rc::new( RefCell::new( Box::new( material ) ) ) );
     }
 
-    materials.push( Rc::new( RefCell::new( Box::new( PbrMaterial::new( &gl ) ) ) ) );
+    let fallback = PbrMaterial::new( &gl );
+    material_variation_map.insert( fallback.id(), Vec::new() );
+    materials.push( Rc::new( RefCell::new( Box::new( fallback ) ) ) );
 
     gl::debug!( "PbrMaterials: {}",materials.len() );
     let make_attibute_info = | acc : &gltf::Accessor< '_ >, slot |
