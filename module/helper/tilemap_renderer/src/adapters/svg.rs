@@ -765,6 +765,7 @@ impl SvgBackend
       {
         let idx = geom.indices.as_ref().map( | v | v.as_slice() );
         let count = idx.map_or( geom.positions.len() / 2, | v | v.len() );
+        if count < 3 { return String::new(); }
         for i in 0..( count - 2 )
         {
           let mut pts = String::new();
