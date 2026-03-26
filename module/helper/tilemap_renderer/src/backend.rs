@@ -7,7 +7,7 @@ mod private
 {
   use crate::commands::RenderCommand;
   use crate::assets::Assets;
-  use thiserror::Error;
+  use error_tools::Error;
 
   // ============================================================================
   // Error type
@@ -18,15 +18,25 @@ mod private
   pub enum RenderError
   {
     /// A command references a resource not present in Assets.
-    #[ error( "missing asset: {0}" ) ]
     MissingAsset( u32 ),
     /// Backend does not support this command.
-    #[ error( "unsupported: {0}" ) ]
     Unsupported( &'static str ),
     /// Backend-specific error.
-    #[ error( "backend error: {0}" ) ]
     BackendError( String ),
   }
+
+impl core::fmt::Display for RenderError
+{
+  fn fmt( &self, f : &mut core::fmt::Formatter< '_ > ) -> core::fmt::Result
+  {
+    match self
+    {
+      RenderError::MissingAsset( idx ) => write!( f, "missing asset: {}", idx ),
+      RenderError::Unsupported( what ) => write!( f, "unsupported: {}", what ),
+      RenderError::BackendError( msg ) => write!( f, "backend error: {}", msg ),
+    }
+  }
+}
 
   // ============================================================================
   // Output type
