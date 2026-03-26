@@ -1007,6 +1007,10 @@ mod private
       gl.depth_func( gl::LESS );
       gl.disable( gl::CULL_FACE );
 
+      // Sort by program UUID only to minimize state switches. Depth sorting is
+      // intentionally omitted: this renderer uses exclusively WBOIT (Weighted
+      // Blended Order-Independent Transparency), which composites correctly
+      // regardless of draw order. There is no standard alpha blending path.
       self.transparent_nodes.sort_by_key( | ( _, _, _, pid ) | *pid );
 
       let mut current_program_id : Option< uuid::Uuid > = None;
