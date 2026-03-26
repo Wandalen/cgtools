@@ -80,6 +80,7 @@ mod private
     "exposure"
   );
 
+  // TODO: make textures private and cause define rebuild on change
   /// Represents the visual properties of a surface.
   #[ derive( Former, Debug ) ]
   pub struct PbrMaterial
@@ -367,7 +368,7 @@ mod private
       }
     }
 
-    fn make_shader_program( &self, minwebgl : &minwebgl::WebGl2RenderingContext, program : &minwebgl::WebGlProgram ) -> Box< dyn ShaderProgram > 
+    fn make_shader_program( &self, minwebgl : &minwebgl::WebGl2RenderingContext, program : &minwebgl::WebGlProgram ) -> Box< dyn ShaderProgram >
     {
       PBRShader::new( minwebgl, program ).dyn_clone()
     }
