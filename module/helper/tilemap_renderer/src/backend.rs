@@ -31,6 +31,7 @@ pub enum RenderError
 // ============================================================================
 
 /// The result of rendering.
+#[ derive( Debug ) ]
 pub enum Output
 {
   /// SVG string, terminal text, or other string-based output.
@@ -42,6 +43,7 @@ pub enum Output
 }
 
 /// Raw pixel data.
+#[ derive( Debug ) ]
 pub struct Bitmap
 {
   /// Raw pixel bytes.
