@@ -23,15 +23,22 @@
 //! let Output::String( doc ) = svg.output()? else { unreachable!() };
 //! ```
 
-pub mod types;
-pub mod commands;
-pub mod assets;
-pub mod backend;
+mod private {}
 
-#[ cfg( any
-(
-  feature = "adapter-svg",
-  feature = "adapter-terminal",
-  feature = "adapter-webgl",
-) ) ]
-pub mod adapters;
+mod_interface::mod_interface!
+{
+
+  layer types;
+  layer commands;
+  layer assets;
+  layer backend;
+
+  #[ cfg( any
+  (
+    feature = "adapter-svg",
+    feature = "adapter-terminal",
+    feature = "adapter-webgl",
+  ) ) ]
+  layer adapters;
+
+}
