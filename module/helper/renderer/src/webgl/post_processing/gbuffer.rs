@@ -399,7 +399,7 @@ mod private
             if self.attachment_buffers.contains_key( &GBufferAttachment::Albedo )
             && self.attachment_buffers.contains_key( &GBufferAttachment::PbrInfo )
             {
-              let albedo_texture = material.base_color_texture.as_ref()
+              let albedo_texture = material.base_color_texture()
               .map( | t | t.texture.borrow().source.clone() ).flatten();
 
               if let Some( albedo_texture ) = albedo_texture

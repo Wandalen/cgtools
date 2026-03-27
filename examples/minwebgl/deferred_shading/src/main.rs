@@ -97,7 +97,7 @@ fn render_geometry_pass
     {
       let primitive = primitive.borrow();
       let material = renderer::webgl::helpers::cast_unchecked_material_to_ref::< PbrMaterial >( primitive.material.borrow() );
-      let Some( base_color ) = material.base_color_texture.as_ref() else
+      let Some( base_color ) = material.base_color_texture() else
       {
         continue;
       };

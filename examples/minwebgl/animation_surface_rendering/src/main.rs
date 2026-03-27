@@ -251,7 +251,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 )
   .expect( "Scene is empty" ).clone();
   let texture = create_texture( gl, "textures/earth2.jpg" );
-  apply_function_to_node_materials( &earth, | m | { m.base_color_texture.clone_from( &texture ); } );
+  apply_function_to_node_materials( &earth, | m | { m.set_base_color_texture( texture.clone() ); } );
 
   earth.borrow_mut().update_local_matrix();
 
@@ -262,8 +262,8 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
     &clouds,
     | m |
     {
-      m.base_color_texture.clone_from( &texture );
-      m.alpha_mode = renderer::webgl::AlphaMode::Blend;
+      m.set_base_color_texture( texture.clone() );
+      m.set_alpha_mode( renderer::webgl::AlphaMode::Blend );
     }
   );
   let scale = 1.005;
@@ -274,7 +274,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 
   let moon = clone( &mut gltf, &earth );
   let texture = create_texture( gl, "textures/moon2.jpg" );
-  apply_function_to_node_materials( &moon, | m | { m.base_color_texture.clone_from( &texture ); } );
+  apply_function_to_node_materials( &moon, | m | { m.set_base_color_texture( texture.clone() ); } );
   let scale = 0.25;
   let distance = 7.0;
   moon.borrow_mut().set_translation( [ distance, ( 1.0 - scale ), 0.0 ] );
@@ -632,13 +632,11 @@ async fn run() -> Result< (), gl::WebglError >
     &canvas_sphere,
     | m |
     {
-      if let Some( t ) = m.base_color_texture.as_mut()
+      if let Some( t ) = m.base_color_texture()
       {
-        let texture = t.texture.borrow().clone();
-        t.texture = Rc::new( RefCell::new( texture ) );
         t.texture.borrow_mut().source = Some( canvas_texture.clone() );
       }
-      m.alpha_mode = renderer::webgl::AlphaMode::Blend;
+      m.set_alpha_mode( renderer::webgl::AlphaMode::Blend );
     }
   );
   let scale = 1.01;
