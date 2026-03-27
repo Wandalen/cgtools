@@ -469,12 +469,30 @@ mod private
 
     // Creates an <img> html elements, and sets its src property to 'src' parameter
     // When the image is loaded, creates a texture and adds it to the 'images' array
-    let upload_texture = | src : Rc< String > | {
+    let upload_texture = | src : Rc< str > |
+    {
       let texture = gl.create_texture().expect( "Failed to create a texture" );
+      gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
+      gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
+      (
+        gl::TEXTURE_2D,
+        0,
+        // Both RGBA and RGBA8 are valid internalformat values for texImage2D in WebGL2
+        gl::RGBA as i32,
+        1,
+        1,
+        0,
+        gl::RGBA,
+        gl::UNSIGNED_BYTE,
+        Some( &[ 255, 255, 255, 255 ] )
+      ).expect( "Failed to upload data to texture" );
+      gl::texture::d2::filter_linear( gl );
+
       images.borrow_mut().push( texture.clone() );
 
       let img_element = document.create_element( "img" ).unwrap().dyn_into::< gl::web_sys::HtmlImageElement >().unwrap();
       img_element.style().set_property( "display", "none" ).unwrap();
+
       let load_texture : Closure< dyn Fn() > = Closure::new
       (
         {
@@ -498,6 +516,7 @@ mod private
             //gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 0 );
 
             gl.generate_mipmap( gl::TEXTURE_2D );
+            gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
 
             gl::web_sys::Url::revoke_object_url( &src ).unwrap();
 
@@ -520,13 +539,14 @@ mod private
       {
         gltf::image::Source::Uri { uri, mime_type: _ } =>
         {
-          upload_texture( Rc::new( format!( "static/{}/{}", folder_path, uri ) ) );
+          upload_texture( format!( "static/{}/{}", folder_path, uri ).into() );
         },
         gltf::image::Source::View { view, mime_type } =>
         {
           let buffer = buffers[ view.buffer().index() ].clone();
           let buffer = gl::js_sys::Uint8Array::new_with_byte_offset_and_length( &buffer.buffer(), view.offset() as u32, view.length() as u32 );
-          let blob = {
+          let blob =
+          {
             let options = gl::web_sys::BlobPropertyBag::new();
             options.set_type( mime_type );
 
@@ -537,7 +557,7 @@ mod private
           }.expect( "Failed to create a Blob" );
 
           let url = gl::web_sys::Url::create_object_url_with_blob( &blob ).expect( "Failed to create object url" );
-          upload_texture( Rc::new( url ) );
+          upload_texture( url.into() );
         }
       }
     }
@@ -677,11 +697,13 @@ mod private
         });
       }
 
-      material_variation_map.insert( material.get_id(), Vec::new() );
+      material_variation_map.insert( material.id(), Vec::new() );
       materials.push( Rc::new( RefCell::new( Box::new( material ) ) ) );
     }
 
-    materials.push( Rc::new( RefCell::new( Box::new( PbrMaterial::new( &gl ) ) ) ) );
+    let fallback = PbrMaterial::new( &gl );
+    material_variation_map.insert( fallback.id(), Vec::new() );
+    materials.push( Rc::new( RefCell::new( Box::new( fallback ) ) ) );
 
     gl::debug!( "PbrMaterials: {}",materials.len() );
     let make_attibute_info = | acc : &gltf::Accessor< '_ >, slot |
@@ -824,12 +846,12 @@ mod private
 
         // Amongst different materials with the same uuid, find the one that has the same vertex defines
         let new_material = if let Some( material ) = material_variation_map
-        .get( &gltf_material.borrow().get_id() )
+        .get( &gltf_material.borrow().id() )
         .map
         (
           | m |
           m.iter()
-          .find( | m | m.borrow().get_vertex_defines_str() == dummy_material.get_vertex_defines_str() )
+          .find( | m | m.borrow().vertex_defines_str() == dummy_material.vertex_defines_str() )
         )
         .flatten()
         {
@@ -840,7 +862,7 @@ mod private
           let material = Rc::new( RefCell::new( gltf_material.borrow().dyn_clone() ) );
           let mut m = helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
 
-          for ( name, value ) in dummy_material.get_vertex_defines()
+          for ( name, value ) in dummy_material.vertex_defines()
           {
             m.add_vertex_define( name.clone(), value );
           }
@@ -1002,10 +1024,11 @@ mod private
         scene.add( nodes[ gltf_node.index() ].clone() );
       }
       scene.update_world_matrix();
-      scenes.push(  Rc::new( RefCell::new( scene ) ) );
+      scenes.push( Rc::new( RefCell::new( scene ) ) );
     }
 
     gl.bind_vertex_array( None );
+    gl.flush();
 
     Ok
     (

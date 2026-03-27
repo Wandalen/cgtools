@@ -53,7 +53,7 @@ pub struct GemMaterial
   /// Cube normal map texture
   pub cube_normal_map_texture : CubeNormalData,
   /// Signal for updating material uniforms
-  pub needs_update : bool,
+  needs_update : std::cell::Cell< bool >,
   /// Refraction index of the diamond
   pub n2 : f32,
   /// Refractive index delta difference for red and blue color relative to n2
@@ -77,7 +77,7 @@ impl GemMaterial
       radius : 1000.0,
       environment_texture : None,
       cube_normal_map_texture : CubeNormalData::default(),
-      needs_update : true,
+      needs_update : std::cell::Cell::new( true ),
       n2 : 2.62,
       rainbow_delta : 0.02,
       distance_attenuation_speed : 0.1
@@ -87,14 +87,19 @@ impl GemMaterial
 
 impl Material for GemMaterial
 {
-  fn get_id( &self ) -> Uuid
+  fn id( &self ) -> Uuid
   {
     self.id
   }
 
   fn needs_update( &self ) -> bool
   {
-    self.needs_update
+    self.needs_update.get()
+  }
+
+  fn set_needs_update( &self, value : bool )
+  {
+    self.needs_update.set( value );
   }
 
   fn make_shader_program( &self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Box< dyn ShaderProgram >
@@ -108,12 +113,12 @@ impl Material for GemMaterial
     stringify!( GemMaterial )
   }
 
-  fn get_vertex_shader( &self ) -> String
+  fn vertex_shader( &self ) -> String
   {
     String::from_utf8_lossy( gem_vert::INPUT ).into()
   }
 
-  fn get_fragment_shader( &self ) -> String
+  fn fragment_shader( &self ) -> String
   {
     String::from_utf8_lossy( gem_frag::INPUT ).into()
   }
@@ -159,7 +164,7 @@ impl Material for GemMaterial
 
     bb.apply_transform_mut( inv_world );
     let c = bb.center();
-    
+
     upload( "s", self.env_map_intensity )?;
     upload( "w", self.cube_normal_map_texture.max_distance )?;
     upload( "a", self.n2 )?;
@@ -172,24 +177,17 @@ impl Material for GemMaterial
     gl::uniform::matrix_upload( gl, locations.get( "d" ).unwrap().clone(), rest_mat.raw_slice(), true )?;
     gl::uniform::matrix_upload( gl, locations.get( "l" ).unwrap().clone(), rest_mat.inverse().unwrap().raw_slice(), true )?;
 
-    self.upload_textures( gl );
-
     Ok( () )
-  }
-
-  fn upload_textures( &self, gl : &GL )
-  {
-    if let Some( ref t ) = self.environment_texture { t.upload( gl ); }
-    if let Some( ref t ) = self.cube_normal_map_texture.texture { t.upload( gl ); }
   }
 
   fn bind( &self, gl : &GL )
   {
-    let bind = | texture : &Option< TextureInfo >, i |
+    let bind = | texture : &Option< TextureInfo >, unit : u32 |
     {
       if let Some( ref t ) = texture
       {
-        gl.active_texture( gl::TEXTURE0 + i );
+        gl.active_texture( gl::TEXTURE0 + unit );
+        t.upload( gl );
         t.bind( gl );
       }
     };
@@ -217,7 +215,7 @@ impl Clone for GemMaterial
       radius : self.radius,
       environment_texture : self.environment_texture.clone(),
       cube_normal_map_texture : self.cube_normal_map_texture.clone(),
-      needs_update : self.needs_update,
+      needs_update : std::cell::Cell::new( self.needs_update.get() ),
       n2 : self.n2,
       rainbow_delta : self.rainbow_delta,
       distance_attenuation_speed : self.distance_attenuation_speed
