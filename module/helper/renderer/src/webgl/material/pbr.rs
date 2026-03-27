@@ -91,43 +91,43 @@ mod private
     /// The base color factor, multiplied with the base color texture. Defaults to white (1, 1, 1, 1).
     pub base_color_factor : gl::F32x4,
     /// Optional texture providing the base color.
-    pub base_color_texture : Option< TextureInfo >,
+    base_color_texture : Option< TextureInfo >,
     /// Scaling factor for the metallic component.
     pub metallic_factor : f32,
     /// Scaling factor for the roughness component.
     pub roughness_factor : f32,
     /// Optional texture providing the metallic and roughness values. Metalness is sampled from the B channel and roughness from the G channel.
-    pub metallic_roughness_texture : Option< TextureInfo >,
+    metallic_roughness_texture : Option< TextureInfo >,
 
     /// Scaling factor applied to each normal vector of the normal texture.
     pub normal_scale : f32,
     /// Optional texture containing normal vectors.
-    pub normal_texture : Option< TextureInfo >,
+    normal_texture : Option< TextureInfo >,
 
     /// Scalar multiplier applied to the AO values sampled from the occlusion texture.
     pub occlusion_strength : f32,
     /// Optional texture providing ambient occlusion values.
-    pub occlusion_texture : Option< TextureInfo >,
+    occlusion_texture : Option< TextureInfo >,
 
     /// Optional texture providing the emission color of the material.
-    pub emissive_texture : Option< TextureInfo >,
+    emissive_texture : Option< TextureInfo >,
     /// Scaling factor for the emission intensity
     pub emissive_factor : gl::F32x3,
 
     /// Optional scaling factor for the specular intensity. (KHR_materials_specular extension)
-    pub specular_factor : Option< f32 >,
+    specular_factor : Option< f32 >,
     /// Optional texture providing the specular intensity. (KHR_materials_specular extension)
-    pub specular_texture : Option< TextureInfo >,
+    specular_texture : Option< TextureInfo >,
     /// Optional color factor for the specular highlight. (KHR_materials_specular extension)
-    pub specular_color_factor : Option< gl::F32x3 >,
+    specular_color_factor : Option< gl::F32x3 >,
     /// Optional texture providing the specular color. (KHR_materials_specular extension)
-    pub specular_color_texture : Option< TextureInfo >,
+    specular_color_texture : Option< TextureInfo >,
     /// Optional lightmap texture containing pre-baked lighting (shadows)
-    pub light_map : Option< TextureInfo >,
+    light_map : Option< TextureInfo >,
     /// Alpha cutoff value for mask mode. Fragments with alpha below this value are discarded.
     pub alpha_cutoff : f32,
     /// The alpha blending mode for the material. Defaults to `Opaque`.
-    pub alpha_mode : AlphaMode,
+    alpha_mode : AlphaMode,
     /// Determines wheter to draw both or one side of the primitive
     pub double_sided : bool,
     /// Face culling mode. `None` means culling is disabled.
@@ -249,6 +249,160 @@ mod private
     pub fn need_use_ibl( &self ) -> bool
     {
       self.need_use_ibl
+    }
+
+    /// Sets the base color texture.
+    pub fn set_base_color_texture( &mut self, value : Option< TextureInfo > )
+    {
+      self.base_color_texture = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the base color texture.
+    pub fn base_color_texture( &self ) -> Option< &TextureInfo >
+    {
+      self.base_color_texture.as_ref()
+    }
+
+    /// Sets the metallic roughness texture.
+    pub fn set_metallic_roughness_texture( &mut self, value : Option< TextureInfo > )
+    {
+      self.metallic_roughness_texture = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the metallic roughness texture.
+    pub fn metallic_roughness_texture( &self ) -> Option< &TextureInfo >
+    {
+      self.metallic_roughness_texture.as_ref()
+    }
+
+    /// Sets the normal texture.
+    pub fn set_normal_texture( &mut self, value : Option< TextureInfo > )
+    {
+      self.normal_texture = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the normal texture.
+    pub fn normal_texture( &self ) -> Option< &TextureInfo >
+    {
+      self.normal_texture.as_ref()
+    }
+
+    /// Sets the occlusion texture.
+    pub fn set_occlusion_texture( &mut self, value : Option< TextureInfo > )
+    {
+      self.occlusion_texture = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the occlusion texture.
+    pub fn occlusion_texture( &self ) -> Option< &TextureInfo >
+    {
+      self.occlusion_texture.as_ref()
+    }
+
+    /// Sets the emissive texture.
+    pub fn set_emissive_texture( &mut self, value : Option< TextureInfo > )
+    {
+      self.emissive_texture = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the emissive texture.
+    pub fn emissive_texture( &self ) -> Option< &TextureInfo >
+    {
+      self.emissive_texture.as_ref()
+    }
+
+    /// Sets the specular texture.
+    pub fn set_specular_texture( &mut self, value : Option< TextureInfo > )
+    {
+      self.specular_texture = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the specular texture.
+    pub fn specular_texture( &self ) -> Option< &TextureInfo >
+    {
+      self.specular_texture.as_ref()
+    }
+
+    /// Sets the specular color texture.
+    pub fn set_specular_color_texture( &mut self, value : Option< TextureInfo > )
+    {
+      self.specular_color_texture = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the specular color texture.
+    pub fn specular_color_texture( &self ) -> Option< &TextureInfo >
+    {
+      self.specular_color_texture.as_ref()
+    }
+
+    /// Sets the light map texture.
+    pub fn set_light_map( &mut self, value : Option< TextureInfo > )
+    {
+      self.light_map = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the light map texture.
+    pub fn light_map( &self ) -> Option< &TextureInfo >
+    {
+      self.light_map.as_ref()
+    }
+
+    /// Sets the alpha mode.
+    pub fn set_alpha_mode( &mut self, value : AlphaMode )
+    {
+      self.alpha_mode = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the alpha mode.
+    pub fn alpha_mode( &self ) -> AlphaMode
+    {
+      self.alpha_mode
+    }
+
+    /// Sets the specular factor.
+    pub fn set_specular_factor( &mut self, value : Option< f32 > )
+    {
+      self.specular_factor = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the specular factor.
+    pub fn specular_factor( &self ) -> Option< f32 >
+    {
+      self.specular_factor
+    }
+
+    /// Sets the specular color factor.
+    pub fn set_specular_color_factor( &mut self, value : Option< gl::F32x3 > )
+    {
+      self.specular_color_factor = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the specular color factor.
+    pub fn specular_color_factor( &self ) -> Option< gl::F32x3 >
+    {
+      self.specular_color_factor
     }
 
     /// Rebuilds all cached defines strings from current state.

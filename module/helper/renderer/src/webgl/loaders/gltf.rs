@@ -651,50 +651,50 @@ mod private
       let pbr = gltf_m.pbr_metallic_roughness();
 
       let mut material = PbrMaterial::new( &gl );
-      material.alpha_mode = match gltf_m.alpha_mode()
+      material.set_alpha_mode( match gltf_m.alpha_mode()
       {
         gltf::material::AlphaMode::Blend => AlphaMode::Blend,
         gltf::material::AlphaMode::Mask => AlphaMode::Mask,
         gltf::material::AlphaMode::Opaque => AlphaMode::Opaque
-      };
+      });
       if let Some( value ) = gltf_m.alpha_cutoff() { material.alpha_cutoff = value; }
       material.base_color_factor = gl::F32x4::from( pbr.base_color_factor() );
       material.roughness_factor =  pbr.roughness_factor();
       material.metallic_factor = pbr.metallic_factor();
-      material.base_color_texture = make_texture_info( pbr.base_color_texture() );
-      material.metallic_roughness_texture = make_texture_info( pbr.metallic_roughness_texture() );
-      material.emissive_texture = make_texture_info( gltf_m.emissive_texture() );
+      material.set_base_color_texture( make_texture_info( pbr.base_color_texture() ) );
+      material.set_metallic_roughness_texture( make_texture_info( pbr.metallic_roughness_texture() ) );
+      material.set_emissive_texture( make_texture_info( gltf_m.emissive_texture() ) );
       material.emissive_factor = gl::F32x3::from( gltf_m.emissive_factor() );
 
       // KHR_materials_specular
       if let Some( s ) = gltf_m.specular()
       {
-        material.specular_factor = Some( s.specular_factor() );
-        material.specular_color_factor = Some( gl::F32x3::from( s.specular_color_factor() ) );
+        material.set_specular_factor( Some( s.specular_factor() ) );
+        material.set_specular_color_factor( Some( gl::F32x3::from( s.specular_color_factor() ) ) );
         // Specular texture
-        material.specular_texture = make_texture_info( s.specular_texture() );
+        material.set_specular_texture( make_texture_info( s.specular_texture() ) );
         // Specular color texture
-        material.specular_color_texture = make_texture_info( s.specular_color_texture() );
+        material.set_specular_color_texture( make_texture_info( s.specular_color_texture() ) );
       }
 
       if let Some( n ) = gltf_m.normal_texture()
       {
         material.normal_scale = n.scale();
-        material.normal_texture = Some( TextureInfo
+        material.set_normal_texture( Some( TextureInfo
         {
           uv_position : n.tex_coord(),
           texture : textures[ n.texture().index() ].clone()
-        });
+        }));
       }
 
       if let Some( o ) = gltf_m.occlusion_texture()
       {
         material.occlusion_strength = o.strength();
-        material.occlusion_texture = Some( TextureInfo
+        material.set_occlusion_texture( Some( TextureInfo
         {
           uv_position : o.tex_coord(),
           texture : textures[ o.texture().index() ].clone()
-        });
+        }));
       }
 
       material_variation_map.insert( material.id(), Vec::new() );

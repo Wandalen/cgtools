@@ -689,12 +689,12 @@ async fn setup_rings
             }
             let mut material = helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
 
-            material.alpha_mode = AlphaMode::Opaque;
+            material.set_alpha_mode( AlphaMode::Opaque );
 
             let color = F32x3::from_array( [ 1.2, 1.2, 1.2 ] ).to_homogenous();
             material.base_color_factor = color;
-            material.specular_factor = Some( 0.0 );
-            material.specular_color_factor = Some( F32x3::splat( 1.0 ) );
+            material.set_specular_factor( Some( 0.0 ) );
+            material.set_specular_color_factor( Some( F32x3::splat( 1.0 ) ) );
             // Roughness 0.1 provides visually pleasing subtle surface variation
             // (0.04 appeared too mirror-like for realistic jewelry rendering)
             material.roughness_factor = 0.1;
