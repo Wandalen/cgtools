@@ -410,15 +410,20 @@ mod private
     {
       let local_defines = self.local_defines();
 
-      // Build vertex and fragment defines once
+      // Build vertex and fragment defines once.
+      // Sort entries to ensure deterministic output regardless of FxHashMap iteration order.
       let mut vertex_defines = local_defines.clone();
-      for ( name, value ) in self.vertex_defines.iter()
+      let mut vertex_entries : Vec< _ > = self.vertex_defines.iter().collect();
+      vertex_entries.sort_by_key( |( k, _ )| k.as_ref() );
+      for ( name, value ) in vertex_entries
       {
         vertex_defines.push_str( &format!( "#define {} {}\n", name, value ) );
       }
 
       let mut fragment_defines = local_defines;
-      for ( name, value ) in self.fragment_defines.iter()
+      let mut fragment_entries : Vec< _ > = self.fragment_defines.iter().collect();
+      fragment_entries.sort_by_key( |( k, _ )| k.as_ref() );
+      for ( name, value ) in fragment_entries
       {
         fragment_defines.push_str( &format!( "#define {} {}\n", name, value ) );
       }
