@@ -30,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed IBL texture corruption where `upload_textures()` could overwrite IBL texture units because `active_texture` was not reset after `ibl.bind()`.
 - Fixed `light_map` texture not being bound in `PbrMaterial::bind()` (was missing from the bind list).
 - Fixed texture unit state leak in custom materials (`GemMaterial`, `SurfaceMaterial`) — `upload()` is now called inside `bind()` with explicit `active_texture()` per unit.
+- Fixed `AlphaMode::Mask` materials incorrectly routed to WBOIT transparent pass. Mask uses binary alpha cutoff and needs depth writes, which WBOIT disables. Now routed to opaque pass.
+- Fixed off-by-one in light upload bounds check (`i > MAX_*_LIGHTS` → `i >= MAX_*_LIGHTS`). Index 8 is out of bounds for shader arrays declared as `lights[8]`.
+- Fixed non-deterministic shader cache keys caused by `FxHashMap` iteration order in `rebuild_defines_cache()`. Entries are now sorted alphabetically before building the defines string.
+- **BREAKING**: `PbrMaterial` texture fields (`base_color_texture`, `metallic_roughness_texture`, `normal_texture`, `occlusion_texture`, `emissive_texture`, `specular_texture`, `specular_color_texture`, `light_map`) are now private. Use setter methods (e.g. `set_base_color_texture()`) which automatically call `rebuild_defines_cache()`.
 
 ### Removed
 
