@@ -1,10 +1,15 @@
 //! Backend adapter implementations.
 
-#[ cfg( feature = "adapter-svg" ) ]
-mod svg;
+mod private {}
 
-#[ cfg( feature = "adapter-terminal" ) ]
-mod terminal;
+mod_interface::mod_interface!
+{
+  #[ cfg( feature = "adapter-svg" ) ]
+  layer svg;
 
-#[ cfg( feature = "adapter-webgl" ) ]
-mod webgl;
+  #[ cfg( feature = "adapter-terminal" ) ]
+  layer terminal;
+
+  #[ cfg( feature = "adapter-webgl" ) ]
+  layer webgl;
+}
