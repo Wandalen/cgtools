@@ -1197,7 +1197,7 @@ mod private
         {
           LightType::Point =>
           {
-            if !locations.contains_key( "pointLights" ) || i > MAX_POINT_LIGHTS
+            if !locations.contains_key( "pointLights" ) || i >= MAX_POINT_LIGHTS
             {
               continue 'i;
             }
@@ -1220,7 +1220,7 @@ mod private
           },
           LightType::Direct =>
           {
-            if !locations.contains_key( "directLights" ) || i > MAX_DIRECT_LIGHTS
+            if !locations.contains_key( "directLights" ) || i >= MAX_DIRECT_LIGHTS
             {
               continue 'i;
             }
@@ -1241,7 +1241,7 @@ mod private
           },
           LightType::Spot =>
           {
-            if !locations.contains_key( "spotLights" ) || i > MAX_SPOT_LIGHTS
+            if !locations.contains_key( "spotLights" ) || i >= MAX_SPOT_LIGHTS
             {
               continue 'i;
             }
