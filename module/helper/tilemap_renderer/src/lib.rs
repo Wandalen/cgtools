@@ -1,3 +1,8 @@
+#![ allow( clippy::exhaustive_structs ) ]
+#![ allow( clippy::exhaustive_enums ) ]
+#![ allow( clippy::wildcard_imports ) ]
+#![ allow( clippy::min_ident_chars ) ]
+
 //! Agnostic 2D rendering engine.
 //!
 //! Backend-agnostic rendering with POD commands and Y-up coordinate system.
@@ -27,7 +32,6 @@ mod private {}
 
 mod_interface::mod_interface!
 {
-
   layer types;
   layer commands;
   layer assets;
@@ -40,5 +44,4 @@ mod_interface::mod_interface!
     feature = "adapter-webgl",
   ) ) ]
   layer adapters;
-
 }

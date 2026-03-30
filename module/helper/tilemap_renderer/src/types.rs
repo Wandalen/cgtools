@@ -8,7 +8,7 @@
 //! - `(width, height)` is the top-right corner.
 //! - Positive rotation is counter-clockwise.
 //!
-//! Backend adapters that target Y-down surfaces (e.g. SVG, Canvas2D)
+//! Backend adapters that target Y-down surfaces (e.g. SVG, `Canvas2D`)
 //! flip the Y axis internally.
 
 mod private
@@ -34,6 +34,7 @@ mod private
   {
     /// Creates a new resource handle from a raw index.
     #[ inline ]
+    #[ must_use ]
     pub const fn new( index : u32 ) -> Self
     {
       Self { index, _marker : PhantomData }
@@ -41,6 +42,7 @@ mod private
 
     /// Returns the raw index value.
     #[ inline ]
+    #[ must_use ]
     pub fn inner( &self ) -> u32
     {
       self.index
@@ -48,12 +50,34 @@ mod private
   }
 
   // Manual trait impls because derive doesn't work well with PhantomData generics.
-  impl< T > Debug for ResourceId< T > { fn fmt( &self, f : &mut core::fmt::Formatter< '_ > ) -> core::fmt::Result { write!( f, "ResourceId({})", self.index ) } }
-  impl< T > Clone for ResourceId< T > { fn clone( &self ) -> Self { *self } }
+  impl< T > Debug for ResourceId< T >
+  {
+    #[ inline ]
+    fn fmt( &self, f : &mut core::fmt::Formatter< '_ > ) -> core::fmt::Result { write!( f, "ResourceId({})", self.index ) }
+  }
+
+  impl< T > Clone for ResourceId< T >
+  {
+    #[ inline ]
+    fn clone( &self ) -> Self { *self }
+  }
+
   impl< T > Copy for ResourceId< T > {}
-  impl< T > PartialEq for ResourceId< T > { fn eq( &self, other : &Self ) -> bool { self.index == other.index } }
+
+  impl< T > PartialEq for ResourceId< T >
+  {
+    #[ inline ]
+    fn eq( &self, other : &Self ) -> bool { self.index == other.index }
+  }
+
   impl< T > Eq for ResourceId< T > {}
-  impl< T > core::hash::Hash for ResourceId< T > { fn hash< H : core::hash::Hasher >( &self, state : &mut H ) { self.index.hash( state ); } }
+
+  impl< T > core::hash::Hash for ResourceId< T >
+  {
+    #[ inline ]
+    fn hash< H : core::hash::Hasher >( &self, state : &mut H ) { self.index.hash( state ); }
+  }
+
   impl< T > nohash_hasher::IsEnabled for ResourceId< T > {}
 
   /// Marker type for batch resources.
@@ -85,6 +109,7 @@ mod private
 
   impl Default for RenderConfig
   {
+    #[ inline ]
     fn default() -> Self
     {
       Self
@@ -136,6 +161,7 @@ mod private
 
   impl Default for Transform
   {
+    #[ inline ]
     fn default() -> Self
     {
       Self
@@ -152,6 +178,8 @@ mod private
   impl Transform
   {
     /// Column-major 3x3 affine matrix.
+    #[ inline ]
+    #[ must_use ]
     pub fn to_mat3( &self ) -> [ f32; 9 ]
     {
       let cos_r = self.rotation.cos();
@@ -218,6 +246,7 @@ mod private
 
   impl Default for DashStyle
   {
+    #[ inline ]
     fn default() -> Self
     {
       Self { pattern : [ 0.0; 8 ], offset : 0.0 }
@@ -343,6 +372,7 @@ mod private
 
   impl Default for FillRef
   {
+    #[ inline ]
     fn default() -> Self { FillRef::None }
   }
 

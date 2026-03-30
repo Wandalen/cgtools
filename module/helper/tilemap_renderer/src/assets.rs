@@ -1,6 +1,6 @@
 //! Asset definitions — resources loaded before rendering.
 //!
-//! Assets CAN allocate (Vec, PathBuf, etc.) unlike commands.
+//! Assets CAN allocate (`Vec`, `PathBuf`, etc.) unlike commands.
 //! They are loaded once via `Backend::load_assets()` and referenced
 //! from commands by `ResourceId<T>`.
 
@@ -16,6 +16,7 @@ mod private
 
   /// Collection of all resources needed for rendering.
   /// Loaded into a backend once before submitting commands.
+  #[ derive( Debug ) ]
   pub struct Assets
   {
     /// Loaded font assets.
@@ -44,7 +45,7 @@ mod private
   #[ derive( Debug ) ]
   pub enum ValidationError
   {
-    /// Two assets of the same type share the same ResourceId.
+    /// Two assets of the same type share the same [`ResourceId`].
     DuplicateId
     {
       /// Asset type name.
@@ -56,24 +57,24 @@ mod private
 
   impl core::fmt::Display for ValidationError
   {
+    #[ inline ]
     fn fmt( &self, f : &mut core::fmt::Formatter< '_ > ) -> core::fmt::Result
     {
       match self
       {
-        Self::DuplicateId { kind, index } =>
-          write!( f, "duplicate {} id: {}", kind, index ),
+        Self::DuplicateId { kind, index } => write!( f, "duplicate {kind} id: {index}" ),
       }
     }
   }
 
   impl Assets
   {
-    /// Validates that no two assets of the same type share a ResourceId.
+    /// Validates that no two assets of the same type share a [`ResourceId`].
     /// Returns all errors found (does not stop at first).
+    #[ inline ]
+    #[ must_use ]
     pub fn validate( &self ) -> Vec< ValidationError >
     {
-      let mut errors = Vec::new();
-
       fn check_dups< T >( items : &[ impl HasId< T > ], kind : &'static str, errors : &mut Vec< ValidationError > )
       {
         let mut seen = IntSet::default();
@@ -85,6 +86,8 @@ mod private
           }
         }
       }
+
+      let mut errors = Vec::new();
 
       check_dups::< asset::Font >( &self.fonts, "font", &mut errors );
       check_dups::< asset::Image >( &self.images, "image", &mut errors );
@@ -99,26 +102,66 @@ mod private
     }
   }
 
-  /// Helper trait to extract ResourceId from asset structs.
+  /// Helper trait to extract [`ResourceId`] from asset structs.
   trait HasId< T >
   {
     fn resource_id( &self ) -> ResourceId< T >;
   }
 
-  impl HasId< asset::Font > for FontAsset { fn resource_id( &self ) -> ResourceId< asset::Font > { self.id } }
-  impl HasId< asset::Image > for ImageAsset { fn resource_id( &self ) -> ResourceId< asset::Image > { self.id } }
-  impl HasId< asset::Sprite > for SpriteAsset { fn resource_id( &self ) -> ResourceId< asset::Sprite > { self.id } }
-  impl HasId< asset::Geometry > for GeometryAsset { fn resource_id( &self ) -> ResourceId< asset::Geometry > { self.id } }
-  impl HasId< asset::Gradient > for GradientAsset { fn resource_id( &self ) -> ResourceId< asset::Gradient > { self.id } }
-  impl HasId< asset::Pattern > for PatternAsset { fn resource_id( &self ) -> ResourceId< asset::Pattern > { self.id } }
-  impl HasId< asset::ClipMask > for ClipMaskAsset { fn resource_id( &self ) -> ResourceId< asset::ClipMask > { self.id } }
-  impl HasId< asset::Path > for PathAsset { fn resource_id( &self ) -> ResourceId< asset::Path > { self.id } }
+  impl HasId< asset::Font > for FontAsset
+  {
+    #[ inline ]
+    fn resource_id( &self ) -> ResourceId< asset::Font > { self.id }
+  }
+
+  impl HasId< asset::Image > for ImageAsset
+  {
+    #[ inline ]
+    fn resource_id( &self ) -> ResourceId< asset::Image > { self.id }
+  }
+
+  impl HasId< asset::Sprite > for SpriteAsset
+  {
+    #[ inline ]
+    fn resource_id( &self ) -> ResourceId< asset::Sprite > { self.id }
+  }
+
+  impl HasId< asset::Geometry > for GeometryAsset
+  {
+    #[ inline ]
+    fn resource_id( &self ) -> ResourceId< asset::Geometry > { self.id }
+  }
+
+  impl HasId< asset::Gradient > for GradientAsset
+  {
+    #[ inline ]
+    fn resource_id( &self ) -> ResourceId< asset::Gradient > { self.id }
+  }
+
+  impl HasId< asset::Pattern > for PatternAsset
+  {
+    #[ inline ]
+    fn resource_id( &self ) -> ResourceId< asset::Pattern > { self.id }
+  }
+
+  impl HasId< asset::ClipMask > for ClipMaskAsset
+  {
+    #[ inline ]
+    fn resource_id( &self ) -> ResourceId< asset::ClipMask > { self.id }
+  }
+
+  impl HasId< asset::Path > for PathAsset
+  {
+    #[ inline ]
+    fn resource_id( &self ) -> ResourceId< asset::Path > { self.id }
+  }
 
   // ============================================================================
   // Individual asset types
   // ============================================================================
 
   /// A font loaded from a file path.
+  #[ derive( Debug ) ]
   pub struct FontAsset
   {
     /// Unique resource identifier.
@@ -128,6 +171,7 @@ mod private
   }
 
   /// An image asset with source and sampling configuration.
+  #[ derive( Debug ) ]
   pub struct ImageAsset
   {
     /// Unique resource identifier.
@@ -143,6 +187,7 @@ mod private
   /// A rectangular region within a loaded image (sprite sheet support).
   /// SVG: `<symbol viewBox="x y w h"><use href="#sheet" .../></symbol>`.
   /// GPU: UV coordinates mapped to the sub-rectangle within the texture atlas.
+  #[ derive( Debug ) ]
   pub struct SpriteAsset
   {
     /// Unique resource identifier.
@@ -154,6 +199,7 @@ mod private
   }
 
   /// Mesh geometry with positions, UVs, and indices.
+  #[ derive( Debug ) ]
   pub struct GeometryAsset
   {
     /// Unique resource identifier.
@@ -173,6 +219,7 @@ mod private
   /// Gradient definition.
   /// SVG: `<linearGradient>` / `<radialGradient>` in `<defs>`.
   /// GPU: uploaded as a 1D texture or evaluated analytically in shader.
+  #[ derive( Debug ) ]
   pub struct GradientAsset
   {
     /// Unique resource identifier.
@@ -220,6 +267,7 @@ mod private
   /// A repeating tile pattern.
   /// SVG: `<pattern>` in `<defs>` containing an `<image>` or shape.
   /// GPU: texture with `AddressMode::Repeat` sampler.
+  #[ derive( Debug ) ]
   pub struct PatternAsset
   {
     /// Unique resource identifier.
@@ -235,6 +283,7 @@ mod private
   /// A clip mask — a shape that limits rendering to its interior.
   /// SVG: `<clipPath>` in `<defs>`, elements use `clip-path="url(#...)"`.
   /// GPU: draw clip shape into stencil buffer, enable stencil test for content.
+  #[ derive( Debug ) ]
   pub struct ClipMaskAsset
   {
     /// Unique resource identifier.
@@ -244,6 +293,7 @@ mod private
   }
 
   /// Stored path (e.g. for text-on-path references).
+  #[ derive( Debug ) ]
   pub struct PathAsset
   {
     /// Unique resource identifier.
@@ -315,6 +365,7 @@ mod private
   // ============================================================================
 
   /// Image data source.
+  #[ derive( Debug ) ]
   pub enum ImageSource
   {
     /// Path to image file — backend decodes (PNG, JPEG, etc.).
@@ -350,6 +401,7 @@ mod private
   }
 
   /// Generic data source for geometry buffers.
+  #[ derive( Debug ) ]
   pub enum Source
   {
     /// File path to load data from.
@@ -359,6 +411,7 @@ mod private
   }
 
   /// Primitive data type for geometry buffers.
+  #[ derive( Debug ) ]
   pub enum DataType
   {
     /// Unsigned 8-bit integer.

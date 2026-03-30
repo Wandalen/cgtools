@@ -159,7 +159,7 @@ mod private
   // Mesh & Sprite (single draw)
   // ============================================================================
 
-  /// Mesh with geometry from Assets.
+  /// Mesh with geometry from `Assets`.
   /// SVG: `<polygon>` or `<path>` depending on topology.
   /// GPU: vertex buffer + topology draw call.
   #[ derive( Debug, Clone, Copy ) ]
@@ -171,7 +171,7 @@ mod private
     pub geometry : ResourceId< asset::Geometry >,
     /// Fill style.
     pub fill : FillRef,
-    /// Optional texture mapped via UV coordinates from GeometryAsset.
+    /// Optional texture mapped via UV coordinates from `GeometryAsset`.
     /// GPU: binds texture, fragment shader samples using interpolated UVs.
     /// SVG: approximated as `<pattern>` fill over bounding box (no true UV mapping).
     pub texture : Option< ResourceId< asset::Image > >,
@@ -191,7 +191,7 @@ mod private
   {
     /// Transform applied to the sprite.
     pub transform : Transform,
-    /// References a SpriteAsset (which knows its sheet + region).
+    /// References a `SpriteAsset` (which knows its sheet + region).
     pub sprite : ResourceId< asset::Sprite >,
     /// Tint color multiplied with texture color. White `[1,1,1,1]` = no tint.
     pub tint : [ f32; 4 ],

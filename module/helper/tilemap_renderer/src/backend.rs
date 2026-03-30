@@ -15,6 +15,7 @@ mod private
 
   /// Errors that can occur during rendering.
   #[ derive( Debug, Error ) ]
+  #[ non_exhaustive ]
   pub enum RenderError
   {
     /// A command references a resource not present in Assets.
@@ -25,18 +26,19 @@ mod private
     BackendError( String ),
   }
 
-impl core::fmt::Display for RenderError
-{
-  fn fmt( &self, f : &mut core::fmt::Formatter< '_ > ) -> core::fmt::Result
+  impl core::fmt::Display for RenderError
   {
-    match self
+    #[ inline ]
+    fn fmt( &self, f : &mut core::fmt::Formatter< '_ > ) -> core::fmt::Result
     {
-      RenderError::MissingAsset( idx ) => write!( f, "missing asset: {}", idx ),
-      RenderError::Unsupported( what ) => write!( f, "unsupported: {}", what ),
-      RenderError::BackendError( msg ) => write!( f, "backend error: {}", msg ),
+      match self
+      {
+        RenderError::MissingAsset( idx ) => write!( f, "missing asset: {idx}" ),
+        RenderError::Unsupported( what ) => write!( f, "unsupported: {what}" ),
+        RenderError::BackendError( msg ) => write!( f, "backend error: {msg}" ),
+      }
     }
   }
-}
 
   // ============================================================================
   // Output type
@@ -44,6 +46,7 @@ impl core::fmt::Display for RenderError
 
   /// The result of rendering.
   #[ derive( Debug ) ]
+  #[ non_exhaustive ]
   pub enum Output
   {
     /// SVG string, terminal text, or other string-based output.
@@ -74,6 +77,8 @@ impl core::fmt::Display for RenderError
 
   /// What a backend supports. Caller can check before submitting commands.
   #[ derive( Debug, Clone, Copy ) ]
+  #[ allow( clippy::struct_excessive_bools ) ]
+  #[ non_exhaustive ]
   pub struct Capabilities
   {
     /// Supports path drawing.
@@ -129,14 +134,30 @@ impl core::fmt::Display for RenderError
     ///
     /// - SVG: generates `<defs>` (symbols, gradients, patterns, clipPaths)
     /// - GPU: uploads textures, creates samplers, builds vertex buffers
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RenderError::MissingAsset`] if a referenced resource cannot be resolved,
+    /// or [`RenderError::BackendError`] if asset upload fails.
     fn load_assets( &mut self, assets : &Assets ) -> Result< (), RenderError >;
 
     /// Process a command queue. This is the main render call.
     /// Backend iterates commands sequentially, maintaining internal state
     /// for streaming commands (BeginPath..EndPath, etc.).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RenderError::MissingAsset`] if a command references an unloaded resource,
+    /// [`RenderError::Unsupported`] if the backend cannot handle a command type,
+    /// or [`RenderError::BackendError`] on a backend-specific failure.
     fn submit( &mut self, commands : &[ RenderCommand ] ) -> Result< (), RenderError >;
 
     /// Retrieve the rendered output.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RenderError::BackendError`] if the output cannot be retrieved
+    /// (e.g. GPU readback failure).
     fn output( &self ) -> Result< Output, RenderError >;
 
     /// Resize the output surface.

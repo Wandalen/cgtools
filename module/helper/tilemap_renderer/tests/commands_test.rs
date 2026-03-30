@@ -1,3 +1,5 @@
+//! Commands tests
+
 use tilemap_renderer::types::*;
 use tilemap_renderer::commands::*;
 
@@ -46,8 +48,8 @@ fn render_command_size_reasonable()
 {
   // RenderCommand is an enum — should fit in a cache-friendly size.
   // If this grows unexpectedly large, investigate.
-  let size = std::mem::size_of::< RenderCommand >();
-  assert!( size <= 256, "RenderCommand is {} bytes, expected <= 256", size );
+  let size = core::mem::size_of::< RenderCommand >();
+  assert!( size <= 256, "RenderCommand is {size} bytes, expected <= 256" );
 }
 
 #[ test ]

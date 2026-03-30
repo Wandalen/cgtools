@@ -1,3 +1,7 @@
+#![ allow( clippy::min_ident_chars ) ]
+
+//! Assets tests
+
 use tilemap_renderer::types::*;
 use tilemap_renderer::assets::*;
 
@@ -52,7 +56,7 @@ fn validate_duplicate_image_ids()
   assert_eq!( errors.len(), 1 );
   let msg = format!( "{}", errors[ 0 ] );
   assert!( msg.contains( "image" ) );
-  assert!( msg.contains( "5" ) );
+  assert!( msg.contains( '5' ) );
 }
 
 #[ test ]

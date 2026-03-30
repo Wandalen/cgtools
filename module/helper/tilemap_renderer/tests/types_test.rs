@@ -1,3 +1,8 @@
+#![ allow( clippy::min_ident_chars ) ]
+#![ allow( clippy::float_cmp ) ]
+
+//! Types tests
+
 use tilemap_renderer::types::*;
 
 #[ test ]
@@ -15,7 +20,7 @@ fn resource_id_type_safety()
 fn resource_id_debug()
 {
   let id : ResourceId< asset::Sprite > = ResourceId::new( 42 );
-  assert_eq!( format!( "{:?}", id ), "ResourceId(42)" );
+  assert_eq!( format!( "{id:?}" ), "ResourceId(42)" );
 }
 
 #[ test ]
@@ -42,7 +47,7 @@ fn to_mat3_identity()
   ];
   for ( a, b ) in m.iter().zip( expected.iter() )
   {
-    assert!( ( a - b ).abs() < 1e-6, "expected {} got {}", b, a );
+    assert!( ( a - b ).abs() < 1e-6, "expected {b} got {a}" );
   }
 }
 
