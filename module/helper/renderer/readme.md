@@ -97,7 +97,7 @@ async fn render_frame(
   // Post-processing pipeline
   swap_buffer.reset();
   swap_buffer.bind(gl);
-  swap_buffer.set_input(renderer.get_main_texture());
+  swap_buffer.set_input(renderer.main_texture());
 
   // 1. Tone mapping (HDR -> LDR)
   let tonemapped = tonemapping.render(
@@ -122,7 +122,7 @@ async fn render_frame(
 
 | Component | Purpose | Key Methods |
 |-----------|---------|-------------|
-| `Renderer` | Main rendering engine | `new()`, `render()`, `get_main_texture()` |
+| `Renderer` | Main rendering engine | `new()`, `render()`, `main_texture()` |
 | `SwapFramebuffer` | Post-processing helper | `bind()`, `set_input()`, `swap()` |
 | `Scene` | 3D scene container | `update_world_matrix()` |
 | `Camera` | Viewport and projection | Position, rotation, projection matrices |

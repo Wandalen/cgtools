@@ -313,7 +313,7 @@ mod private
       drawbuffers( gl, &self.color_attachments );
     }
 
-    pub fn get_texture( &self, attachment : GBufferAttachment ) -> Option< WebGlTexture >
+    pub fn texture( &self, attachment : GBufferAttachment ) -> Option< WebGlTexture >
     {
       self.textures.get( &attachment.define_const() ).clone().cloned()
     }

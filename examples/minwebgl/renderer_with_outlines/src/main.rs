@@ -508,7 +508,7 @@ async fn run() -> Result< (), gl::WebglError >
 
       sw2.borrow_mut().reset();
       sw2.borrow_mut().bind( &gl2.borrow() );
-      sw2.borrow_mut().set_input( renderer1.borrow().get_main_texture() );
+      sw2.borrow_mut().set_input( renderer1.borrow().main_texture() );
 
       if let Some( t ) = select_texture( &select_value.borrow() )
       {

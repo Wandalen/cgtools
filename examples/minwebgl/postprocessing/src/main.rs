@@ -111,7 +111,7 @@ async fn run() -> Result< (), gl::WebglError >
 
     swap_buffer.reset();
     swap_buffer.bind( &gl );
-    swap_buffer.set_input( renderer.borrow().get_main_texture() );
+    swap_buffer.set_input( renderer.borrow().main_texture() );
 
     // Post-processing pipeline - order matters for correct visual output:
 

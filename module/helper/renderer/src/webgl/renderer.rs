@@ -623,7 +623,7 @@ mod private
     }
 
     /// Returns the current exposure value.
-    pub fn get_exposure( &self ) -> f32
+    pub fn exposure( &self ) -> f32
     {
       self.exposure
     }
@@ -650,9 +650,9 @@ mod private
     }
 
     /// Gets the radius of the bloom effect.
-    pub fn get_bloom_radius( &self ) -> f32
+    pub fn bloom_radius( &self ) -> f32
     {
-      self.bloom_effect.get_bloom_radius()
+      self.bloom_effect.bloom_radius()
     }
 
     /// Sets the strength (intensity) of the bloom effect.
@@ -665,13 +665,13 @@ mod private
     }
 
     /// Gets the strength (intensity) of the bloom effect.
-    pub fn get_bloom_strength( &self ) -> f32
+    pub fn bloom_strength( &self ) -> f32
     {
-      self.bloom_effect.get_bloom_strength()
+      self.bloom_effect.bloom_strength()
     }
 
     /// Retrieves a clone of the main color texture from the internal framebuffer context.
-    pub fn get_main_texture( &self ) -> Option< gl::web_sys::WebGlTexture >
+    pub fn main_texture( &self ) -> Option< gl::web_sys::WebGlTexture >
     {
       self.framebuffer_ctx.main_texture.clone()
     }
