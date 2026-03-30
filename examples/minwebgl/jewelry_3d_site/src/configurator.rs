@@ -356,6 +356,7 @@ impl Configurator
               {
                 material.base_color_factor.0[ i ] = color.0[ i ];
               }
+              material.set_needs_update( true );
             }
           );
         }
