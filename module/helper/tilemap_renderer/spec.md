@@ -209,13 +209,13 @@ pub trait Backend {
 ### 9. Non-Functional Requirements
 
 - **NFR-1:** Performance: 10,000 commands < 16ms (not yet benchmarked)
-- **NFR-2:** ✅ Zero graphics dependencies in core (only `nohash-hasher`, `base64`)
+- **NFR-2:** ✅ Zero graphics dependencies in core (only `nohash-hasher`, `error_tools`, `mod_interface`; `base64` is optional behind `adapter-svg` feature)
 - **NFR-3:** ✅ Feature-gated adapters for minimal builds
 - **NFR-4:** ✅ Y-up coordinate system consistent across all backends
 - **NFR-5:** ✅ 100% documentation coverage (zero warnings)
 - **NFR-6:** ✅ All command types are POD (Copy, Clone)
-- **NFR-7:** ✅ Test suite: 51 tests (types, commands, assets, SVG backend)
-- **NFR-8:** ✅ Compile-time layout assertions for GPU data structures
+- **NFR-7:** ✅ Test suite: 21 tests (types, commands, assets); adapter tests deferred to adapter PRs
+- **NFR-8:** ❌ Compile-time layout assertions for GPU data structures (deferred to WebGL/wgpu adapter PRs)
 - **NFR-9:** ❌ Visual regression testing
 - **NFR-10:** ❌ CI with feature matrix
 
