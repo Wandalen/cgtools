@@ -856,7 +856,7 @@ mod private
           // Separate transparent objects for later rendering.
           match material.alpha_mode()
           {
-            AlphaMode::Blend | AlphaMode::Mask
+            AlphaMode::Blend
             => self.transparent_nodes.push( ( node.clone(), primitive_rc.clone(), i, program_uuid ) ),
             _ => self.opaque_nodes.push( ( node.clone(), primitive_rc.clone(), i, program_uuid ) ),
           }
