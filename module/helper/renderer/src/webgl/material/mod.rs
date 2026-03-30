@@ -2,8 +2,8 @@ mod private
 {
   use minwebgl as gl;
   use crate::webgl::{ Node, ShaderProgram, Texture };
-  use std::{ cell::RefCell, fmt::Debug, hash::{ Hash, Hasher }, rc::Rc };
-  use rustc_hash::{ FxHashMap, FxHasher };
+  use std::{ cell::RefCell, fmt::Debug, rc::Rc };
+  use rustc_hash::FxHashMap;
 
   /// Represents the alpha blending mode of the material.
   #[ derive( Default, Clone, Copy, PartialEq, Eq, Debug ) ]
@@ -190,17 +190,6 @@ mod private
     fn fragment_defines_str( &self ) -> &str
     {
       ""
-    }
-
-    /// Returns a hash representing the current shader configuration.
-    /// Used for shader caching and variant management.
-    fn shader_hash( &self ) -> u64
-    {
-      let mut hasher = FxHasher::default();
-      self.vertex_shader().hash( &mut hasher );
-      self.fragment_shader().hash( &mut hasher );
-      self.defines_str().hash( &mut hasher );
-      hasher.finish()
     }
 
     /// Configures the position of the uniform texture samplers in the shader program.
