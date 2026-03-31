@@ -42,7 +42,7 @@ mod private
   // ============================================================================
 
   /// Error found during asset validation.
-  #[ derive( Debug ) ]
+  #[ derive( Debug, error_tools::Error ) ]
   pub enum ValidationError
   {
     /// Two assets of the same type share the same [`ResourceId`].
