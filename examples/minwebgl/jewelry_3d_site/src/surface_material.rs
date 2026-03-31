@@ -136,7 +136,7 @@ impl Clone for SurfaceMaterial
       id : Uuid::new_v4(),
       color : self.color,
       texture : self.texture.clone(),
-      needs_update : std::cell::Cell::new( self.needs_update.get() )
+      needs_update : std::cell::Cell::new( true )
     }
   }
 }

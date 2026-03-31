@@ -215,7 +215,7 @@ impl Clone for GemMaterial
       radius : self.radius,
       environment_texture : self.environment_texture.clone(),
       cube_normal_map_texture : self.cube_normal_map_texture.clone(),
-      needs_update : std::cell::Cell::new( self.needs_update.get() ),
+      needs_update : std::cell::Cell::new( true ),
       n2 : self.n2,
       rainbow_delta : self.rainbow_delta,
       distance_attenuation_speed : self.distance_attenuation_speed
