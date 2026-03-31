@@ -131,7 +131,7 @@ pub trait Backend {
 #### 7.1. SVG (`adapter-svg`)
 
 - Generates SVG 1.1 documents with `<defs>` and body sections
-- `SvgContentManager` for efficient string buffer management
+- String buffer management for efficient SVG generation
 - Y-up → SVG Y-down conversion in `transform_to_svg_static`
 - Effects via SVG `<filter>` elements (feGaussianBlur, feDropShadow, feColorMatrix)
 - Sprite tint via feColorMatrix filter
@@ -178,22 +178,22 @@ pub trait Backend {
 
 #### FR-D: SVG Backend
 
-- **FR-D1:** ✅ Generates valid SVG 1.1 documents
-- **FR-D2:** ✅ Supports all rendering primitives
-- **FR-D3:** ✅ Converts RGBA colors to SVG format
-- **FR-D4:** ✅ Supports all stroke styles (caps, joins, dash)
-- **FR-D5:** ✅ Supports all text anchoring modes
-- **FR-D6:** ✅ Effects: blur, drop shadow, color matrix, opacity
-- **FR-D7:** ✅ Sprite tint via feColorMatrix
-- **FR-D8:** ✅ Mesh texture via pattern fill
-- **FR-D9:** ✅ Batch drawing with correct transform composition
+- **FR-D1:** ⏳ Generates valid SVG 1.1 documents (deferred to adapter-svg PR)
+- **FR-D2:** ⏳ Supports all rendering primitives (deferred to adapter-svg PR)
+- **FR-D3:** ⏳ Converts RGBA colors to SVG format (deferred to adapter-svg PR)
+- **FR-D4:** ⏳ Supports all stroke styles (caps, joins, dash) (deferred to adapter-svg PR)
+- **FR-D5:** ⏳ Supports all text anchoring modes (deferred to adapter-svg PR)
+- **FR-D6:** ⏳ Effects: blur, drop shadow, color matrix, opacity (deferred to adapter-svg PR)
+- **FR-D7:** ⏳ Sprite tint via feColorMatrix (deferred to adapter-svg PR)
+- **FR-D8:** ⏳ Mesh texture via pattern fill (deferred to adapter-svg PR)
+- **FR-D9:** ⏳ Batch drawing with correct transform composition (deferred to adapter-svg PR)
 
 #### FR-E: WebGL Backend
 
-- **FR-E1:** ✅ Uses `minwebgl` crate
-- **FR-E2:** ✅ Hardware-accelerated WASM rendering
-- **FR-E3:** ✅ Instanced batching for sprites and meshes
-- **FR-E4:** ✅ Per-batch VAO management
+- **FR-E1:** ⏳ Uses `minwebgl` crate (deferred to adapter-webgl PR)
+- **FR-E2:** ⏳ Hardware-accelerated WASM rendering (deferred to adapter-webgl PR)
+- **FR-E3:** ⏳ Instanced batching for sprites and meshes (deferred to adapter-webgl PR)
+- **FR-E4:** ⏳ Per-batch VAO management (deferred to adapter-webgl PR)
 - **FR-E5:** ❌ Path rendering (tessellation/GPU curves)
 - **FR-E6:** ❌ Text rendering
 - **FR-E7:** ❌ WebGL context loss handling
@@ -201,9 +201,9 @@ pub trait Backend {
 
 #### FR-F: Terminal Backend
 
-- **FR-F1:** ✅ ASCII/Unicode line rendering
-- **FR-F2:** ✅ Configurable dimensions
-- **FR-F3:** ✅ ANSI color support
+- **FR-F1:** ⏳ ASCII/Unicode line rendering (deferred to adapter-terminal PR)
+- **FR-F2:** ⏳ Configurable dimensions (deferred to adapter-terminal PR)
+- **FR-F3:** ⏳ ANSI color support (deferred to adapter-terminal PR)
 - **FR-F4:** ❌ Sprite/mesh/batch support
 
 ### 9. Non-Functional Requirements
@@ -235,9 +235,9 @@ pub trait Backend {
 | ✅ | FR-C1 | Backend trait |
 | ✅ | FR-C2 | Capabilities |
 | ✅ | FR-C3 | RenderError |
-| ✅ | FR-D1–D9 | SVG backend complete |
-| ⚠️ | FR-E1–E4 | WebGL backend partial (sprites, meshes, batches work; paths, text, effects missing) |
-| ⚠️ | FR-F1–F3 | Terminal backend partial (lines, colors work; sprites, meshes missing) |
+| ⏳ | FR-D1–D9 | SVG backend — deferred to adapter-svg PR |
+| ⏳ | FR-E1–E4 | WebGL backend — deferred to adapter-webgl PR |
+| ⏳ | FR-F1–F3 | Terminal backend — deferred to adapter-terminal PR |
 | ✅ | NFR-2 | Zero core graphics deps |
 | ✅ | NFR-4 | Y-up coordinate system |
 | ✅ | NFR-5 | 100% doc coverage |
