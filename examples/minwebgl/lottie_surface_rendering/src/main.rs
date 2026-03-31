@@ -205,7 +205,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
     | m |
     {
       let mut m = cast_unchecked_material_to_ref_mut::< PbrMaterial >( m.borrow_mut() );
-      m.base_color_texture = Some( texture.clone() );
+      m.set_base_color_texture( Some( texture.clone() ) );
     }
   );
   earth.borrow_mut().update_local_matrix();
@@ -218,8 +218,8 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
     | m |
     {
       let mut m = cast_unchecked_material_to_ref_mut::< PbrMaterial >( m.borrow_mut() );
-      m.base_color_texture = Some( texture.clone() );
-      m.alpha_mode = renderer::webgl::AlphaMode::Blend;
+      m.set_base_color_texture( Some( texture.clone() ) );
+      m.set_alpha_mode( renderer::webgl::AlphaMode::Blend );
     }
   );
   let scale = 1.005;
@@ -236,7 +236,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
     | m |
     {
       let mut m = cast_unchecked_material_to_ref_mut::< PbrMaterial >( m.borrow_mut() );
-      m.base_color_texture = Some( texture.clone() );
+      m.set_base_color_texture( Some( texture.clone() ) );
     }
   );
   let scale = 0.25;
@@ -281,17 +281,15 @@ async fn run() -> Result< (), gl::WebglError >
     | m |
     {
       let mut m = cast_unchecked_material_to_ref_mut::< PbrMaterial >( m.borrow_mut() );
-      m.base_color_texture.as_mut()
+      m.base_color_texture().as_ref()
       .map
       (
         | t |
         {
-          let texture = t.texture.borrow().clone();
-          t.texture = Rc::new( RefCell::new( texture ) );
           t.texture.borrow_mut().source = Some( canvas_texture.clone() );
         }
       );
-      m.alpha_mode = renderer::webgl::AlphaMode::Blend;
+      m.set_alpha_mode( renderer::webgl::AlphaMode::Blend );
     }
   );
   let scale = 1.01;
