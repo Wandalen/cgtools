@@ -68,7 +68,7 @@ mod private
     pub multisample_emission_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer>,
     /// The renderbuffer that accumulates color during blending pass.
     pub multisample_transparent_accumulate_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer>,
-     /// The renderbuffer that caclulates total revealage during blending pass.
+     /// The renderbuffer that calculates total revealage during blending pass.
     pub multisample_transparent_revealage_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer>,
     /// The 2D texture that receives the resolved main color output after multisample resolution.
     /// This texture can be sampled in shaders.
@@ -78,7 +78,7 @@ mod private
     pub emission_texture : Option< gl::web_sys::WebGlTexture >,
     /// The 2D texture that accumulates color during blending pass.
     pub transparent_accumulate_texture : Option< gl::web_sys::WebGlTexture >,
-    /// The 2D texture that caclulates total revealage during blending pass.
+    /// The 2D texture that calculates total revealage during blending pass.
     pub transparent_revealage_texture : Option< gl::web_sys::WebGlTexture >,
     #[ allow( dead_code ) ]
     pub depth_renderbuffer : Option< gl::web_sys::WebGlRenderbuffer >,
@@ -1166,7 +1166,7 @@ mod private
   fn bind_lights
   (
     gl : &GL,
-    program : &Box< dyn ShaderProgram >,
+    program : &dyn ShaderProgram,
     lights : &FxHashMap< LightType, Vec< Light > >
   )
   {
