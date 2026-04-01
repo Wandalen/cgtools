@@ -133,13 +133,13 @@ impl State
 /// A function to get pointer coordinates relative to the client area (the viewport).
 pub static CLIENT : fn( &PointerEvent ) -> I32x2 = | event |
 {
-  I32x2::from_array( [ event.client_x() as i32, event.client_y() as i32] )
+  I32x2::from_array( [ event.client_x() as i32, event.client_y() as i32 ] )
 };
 
 /// A function to get pointer coordinates relative to the entire page, including scrolled-out areas.
 pub static PAGE : fn( &PointerEvent ) -> I32x2 = | event |
 {
-  I32x2::from_array( [ event.page_x() as i32, event.page_y() as i32] )
+  I32x2::from_array( [ event.page_x() as i32, event.page_y() as i32 ] )
 };
 
 /// A function to get pointer coordinates relative to the user's screen.
