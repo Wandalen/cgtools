@@ -81,7 +81,6 @@ mod private
     "exposure"
   );
 
-  // TODO: make textures private and cause define rebuild on change
   /// Represents the visual properties of a surface.
   #[ derive( Former, Debug ) ]
   pub struct PbrMaterial
@@ -137,9 +136,9 @@ mod private
     pub mipmap_distance_range : std::ops::Range< f32 >,
 
     /// Hash map of defines in (value, name) format
-    pub vertex_defines : FxHashMap< Box< str >, String >,
+    vertex_defines : FxHashMap< Box< str >, String >,
     /// Hash map of defines in (value, name) format
-    pub fragment_defines : FxHashMap< Box< str >, String >,
+    fragment_defines : FxHashMap< Box< str >, String >,
 
     /// Returns answer need use IBL for current material instance or not
     need_use_ibl : bool,
