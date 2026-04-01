@@ -632,10 +632,10 @@ async fn run() -> Result< (), gl::WebglError >
     &canvas_sphere,
     | m |
     {
-      if let Some( t ) = m.base_color_texture()
-      {
-        t.texture.borrow_mut().source = Some( canvas_texture.clone() );
-      }
+      let uv_position = m.base_color_texture().map( | t | t.uv_position ).unwrap_or( 0 );
+      let texture = Texture::former().source( canvas_texture.clone() ).form();
+      let texture_info = TextureInfo { texture : Rc::new( RefCell::new( texture ) ), uv_position };
+      m.set_base_color_texture( Some( texture_info ) );
       m.set_alpha_mode( renderer::webgl::AlphaMode::Blend );
     }
   );
