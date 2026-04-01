@@ -76,7 +76,7 @@ mod private
   // ============================================================================
 
   /// What a backend supports. Caller can check before submitting commands.
-  #[ derive( Debug, Clone, Copy ) ]
+  #[ derive( Debug, Clone, Copy, Default ) ]
   #[ allow( clippy::struct_excessive_bools ) ]
   #[ non_exhaustive ]
   pub struct Capabilities
