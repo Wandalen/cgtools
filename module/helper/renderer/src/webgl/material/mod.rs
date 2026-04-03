@@ -194,6 +194,9 @@ mod private
 
     /// Configures the position of the uniform texture samplers in the shader program.
     ///
+    /// Called once per compiled shader program, not per material instance. Implementations
+    /// must produce identical results for any material with the same `(TypeId, defines_str)` pair.
+    ///
     /// * `gl`: The `WebGl2RenderingContext`.
     fn configure
     (
