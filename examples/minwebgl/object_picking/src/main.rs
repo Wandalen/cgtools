@@ -113,8 +113,8 @@ async fn run() -> Result< (), gl::WebglError >
       let rect = canvas.get_bounding_client_rect();
       let canvas_x = rect.left() as i32;
       let canvas_y = rect.top() as i32;
-      let x = e.client_x();
-      let y = e.client_y();
+      let x = e.client_x() as i32;
+      let y = e.client_y() as i32;
 
       let x = x - canvas_x;
       let y = y - canvas_y;
