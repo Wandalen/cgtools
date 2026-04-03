@@ -628,7 +628,7 @@ mod private
       self.exposure
     }
 
-    /// Sets a new exposure value.
+    /// Sets the skybox cube map texture.
     pub fn set_skybox( &mut self, texture : Option< WebGlTexture > )
     {
       self.framebuffer_ctx.skybox_texture = texture;
