@@ -1,12 +1,13 @@
 mod private
 {
-  use crate::webgl::{Object3D, material::*};
+  use crate::webgl::{ Object3D, material::* };
   use minwebgl as gl;
   use gl::{ GL, WebGlProgram };
   use mingl::Former;
   use rustc_hash::FxHashMap;
   use crate::webgl::{ MaterialUploadContext, program::{ ShaderProgram, ProgramInfo } };
   use crate::webgl::program::impl_locations;
+  use std::cell::Cell;
 
   /// The source code for the main vertex shader.
   const MAIN_VERTEX_SHADER : &'static str = include_str!( "../shaders/main.vert" );
@@ -89,43 +90,43 @@ mod private
     /// The base color factor, multiplied with the base color texture. Defaults to white (1, 1, 1, 1).
     pub base_color_factor : gl::F32x4,
     /// Optional texture providing the base color.
-    pub base_color_texture : Option< TextureInfo >,
+    base_color_texture : Option< TextureInfo >,
     /// Scaling factor for the metallic component.
     pub metallic_factor : f32,
     /// Scaling factor for the roughness component.
     pub roughness_factor : f32,
     /// Optional texture providing the metallic and roughness values. Metalness is sampled from the B channel and roughness from the G channel.
-    pub metallic_roughness_texture : Option< TextureInfo >,
+    metallic_roughness_texture : Option< TextureInfo >,
 
     /// Scaling factor applied to each normal vector of the normal texture.
     pub normal_scale : f32,
     /// Optional texture containing normal vectors.
-    pub normal_texture : Option< TextureInfo >,
+    normal_texture : Option< TextureInfo >,
 
     /// Scalar multiplier applied to the AO values sampled from the occlusion texture.
     pub occlusion_strength : f32,
     /// Optional texture providing ambient occlusion values.
-    pub occlusion_texture : Option< TextureInfo >,
+    occlusion_texture : Option< TextureInfo >,
 
     /// Optional texture providing the emission color of the material.
-    pub emissive_texture : Option< TextureInfo >,
+    emissive_texture : Option< TextureInfo >,
     /// Scaling factor for the emission intensity
     pub emissive_factor : gl::F32x3,
 
     /// Optional scaling factor for the specular intensity. (KHR_materials_specular extension)
-    pub specular_factor : Option< f32 >,
+    specular_factor : Option< f32 >,
     /// Optional texture providing the specular intensity. (KHR_materials_specular extension)
-    pub specular_texture : Option< TextureInfo >,
+    specular_texture : Option< TextureInfo >,
     /// Optional color factor for the specular highlight. (KHR_materials_specular extension)
-    pub specular_color_factor : Option< gl::F32x3 >,
+    specular_color_factor : Option< gl::F32x3 >,
     /// Optional texture providing the specular color. (KHR_materials_specular extension)
-    pub specular_color_texture : Option< TextureInfo >,
+    specular_color_texture : Option< TextureInfo >,
     /// Optional lightmap texture containing pre-baked lighting (shadows)
-    pub light_map : Option< TextureInfo >,
+    light_map : Option< TextureInfo >,
     /// Alpha cutoff value for mask mode. Fragments with alpha below this value are discarded.
     pub alpha_cutoff : f32,
     /// The alpha blending mode for the material. Defaults to `Opaque`.
-    pub alpha_mode : AlphaMode,
+    alpha_mode : AlphaMode,
     /// Determines wheter to draw both or one side of the primitive
     pub double_sided : bool,
     /// Face culling mode. `None` means culling is disabled.
@@ -135,20 +136,29 @@ mod private
     pub mipmap_distance_range : std::ops::Range< f32 >,
 
     /// Hash map of defines in (value, name) format
-    pub vertex_defines : FxHashMap< Box< str >, String >,
+    vertex_defines : FxHashMap< Box< str >, String >,
     /// Hash map of defines in (value, name) format
-    pub fragment_defines : FxHashMap< Box< str >, String >,
+    fragment_defines : FxHashMap< Box< str >, String >,
 
     /// Returns answer need use IBL for current material instance or not
-    pub need_use_ibl : bool,
-    /// Signal for updating material uniforms
-    pub needs_update : bool
+    need_use_ibl : bool,
+    /// Signal for updating material uniforms.
+    /// Use `set_needs_update(true)` after changing material properties.
+    needs_update : Cell< bool >,
+    /// Signal that shader defines have changed and program needs recompilation.
+    needs_recompile : Cell< bool >,
+    /// Cached combined defines string
+    cached_defines_str : String,
+    /// Cached vertex defines string
+    cached_vertex_defines_str : String,
+    /// Cached fragment defines string
+    cached_fragment_defines_str : String,
   }
 
   impl PbrMaterial
   {
     /// Creates new [`PbrMaterial`] with predefined optimal parameters
-    pub fn new( _gl : &GL ) -> Self
+    pub fn new( _ : &GL ) -> Self
     {
       let id = uuid::Uuid::new_v4();
       let base_color_factor = gl::F32x4::from( [ 1.0, 1.0, 1.0, 1.0 ] );
@@ -186,7 +196,7 @@ mod private
 
       let need_use_ibl = true;
 
-      return Self
+      let mut mat = Self
       {
         id,
         base_color_factor,
@@ -213,20 +223,233 @@ mod private
         vertex_defines,
         fragment_defines,
         need_use_ibl,
-        needs_update : true
+        needs_update : Cell::new( true ),
+        needs_recompile : Cell::new( true ),
+        cached_defines_str : String::new(),
+        cached_vertex_defines_str : String::new(),
+        cached_fragment_defines_str : String::new(),
       };
+      mat.rebuild_defines_cache();
+      mat
+    }
+
+    /// Enables or disables Image-Based Lighting (IBL) for this material.
+    /// If the value changes, the shader program will be marked for recompilation.
+    pub fn set_need_use_ibl( &mut self, value : bool )
+    {
+      if value != self.need_use_ibl
+      {
+        self.needs_recompile.set( true );
+      }
+      self.need_use_ibl = value;
+    }
+
+    /// Returns whether Image-Based Lighting (IBL) is enabled for this material.
+    pub fn need_use_ibl( &self ) -> bool
+    {
+      self.need_use_ibl
+    }
+
+    /// Sets the base color texture.
+    pub fn set_base_color_texture( &mut self, value : Option< TextureInfo > )
+    {
+      self.base_color_texture = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the base color texture.
+    pub fn base_color_texture( &self ) -> Option< &TextureInfo >
+    {
+      self.base_color_texture.as_ref()
+    }
+
+    /// Sets the metallic roughness texture.
+    pub fn set_metallic_roughness_texture( &mut self, value : Option< TextureInfo > )
+    {
+      self.metallic_roughness_texture = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the metallic roughness texture.
+    pub fn metallic_roughness_texture( &self ) -> Option< &TextureInfo >
+    {
+      self.metallic_roughness_texture.as_ref()
+    }
+
+    /// Sets the normal texture.
+    pub fn set_normal_texture( &mut self, value : Option< TextureInfo > )
+    {
+      self.normal_texture = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the normal texture.
+    pub fn normal_texture( &self ) -> Option< &TextureInfo >
+    {
+      self.normal_texture.as_ref()
+    }
+
+    /// Sets the occlusion texture.
+    pub fn set_occlusion_texture( &mut self, value : Option< TextureInfo > )
+    {
+      self.occlusion_texture = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the occlusion texture.
+    pub fn occlusion_texture( &self ) -> Option< &TextureInfo >
+    {
+      self.occlusion_texture.as_ref()
+    }
+
+    /// Sets the emissive texture.
+    pub fn set_emissive_texture( &mut self, value : Option< TextureInfo > )
+    {
+      self.emissive_texture = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the emissive texture.
+    pub fn emissive_texture( &self ) -> Option< &TextureInfo >
+    {
+      self.emissive_texture.as_ref()
+    }
+
+    /// Sets the specular texture.
+    pub fn set_specular_texture( &mut self, value : Option< TextureInfo > )
+    {
+      self.specular_texture = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the specular texture.
+    pub fn specular_texture( &self ) -> Option< &TextureInfo >
+    {
+      self.specular_texture.as_ref()
+    }
+
+    /// Sets the specular color texture.
+    pub fn set_specular_color_texture( &mut self, value : Option< TextureInfo > )
+    {
+      self.specular_color_texture = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the specular color texture.
+    pub fn specular_color_texture( &self ) -> Option< &TextureInfo >
+    {
+      self.specular_color_texture.as_ref()
+    }
+
+    /// Sets the light map texture.
+    pub fn set_light_map( &mut self, value : Option< TextureInfo > )
+    {
+      self.light_map = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the light map texture.
+    pub fn light_map( &self ) -> Option< &TextureInfo >
+    {
+      self.light_map.as_ref()
+    }
+
+    /// Sets the alpha mode.
+    pub fn set_alpha_mode( &mut self, value : AlphaMode )
+    {
+      self.alpha_mode = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the alpha mode.
+    pub fn alpha_mode( &self ) -> AlphaMode
+    {
+      self.alpha_mode
+    }
+
+    /// Sets the specular factor.
+    pub fn set_specular_factor( &mut self, value : Option< f32 > )
+    {
+      self.specular_factor = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the specular factor.
+    pub fn specular_factor( &self ) -> Option< f32 >
+    {
+      self.specular_factor
+    }
+
+    /// Sets the specular color factor.
+    pub fn set_specular_color_factor( &mut self, value : Option< gl::F32x3 > )
+    {
+      self.specular_color_factor = value;
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
+    }
+
+    /// Returns the specular color factor.
+    pub fn specular_color_factor( &self ) -> Option< gl::F32x3 >
+    {
+      self.specular_color_factor
+    }
+
+    /// Rebuilds all cached defines strings from current state.
+    fn rebuild_defines_cache( &mut self )
+    {
+      let local_defines = self.local_defines();
+
+      // Build vertex and fragment defines once.
+      // Sort entries to ensure deterministic output regardless of FxHashMap iteration order.
+      let mut vertex_defines = local_defines.clone();
+      let mut vertex_entries : Vec< _ > = self.vertex_defines.iter().collect();
+      vertex_entries.sort_by_key( |( k, _ )| *k );
+      for ( name, value ) in vertex_entries
+      {
+        vertex_defines.push_str( &format!( "#define {} {}\n", name, value ) );
+      }
+
+      let mut fragment_defines = local_defines;
+      let mut fragment_entries : Vec< _ > = self.fragment_defines.iter().collect();
+      fragment_entries.sort_by_key( |( k, _ )| *k );
+      for ( name, value ) in fragment_entries
+      {
+        fragment_defines.push_str( &format!( "#define {} {}\n", name, value ) );
+      }
+
+      // Combined = vertex + fragment defines
+      let mut combined = vertex_defines.clone();
+      combined.push_str( &fragment_defines );
+
+      self.cached_defines_str = combined;
+      self.cached_vertex_defines_str = vertex_defines;
+      self.cached_fragment_defines_str = fragment_defines;
     }
 
     /// Added the specified name and value is #define directive to the material
     pub fn add_vertex_define< A : Into< Box< str > >, B : Into< String > >( &mut self, name : A, value : B )
     {
       self.vertex_defines.insert( name.into(), value.into() );
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
     }
 
     /// Added the specified name and value is #define directive to the material
     pub fn add_fragment_define< A : Into< Box< str > >, B : Into< String > >( &mut self, name : A, value : B )
     {
       self.fragment_defines.insert( name.into(), value.into() );
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
     }
 
     /// Added the specified name and value is #define directive to the material
@@ -234,12 +457,14 @@ mod private
     {
       let name = name.into();
       let value = value.into();
-      self.add_vertex_define( name.clone(), value.clone() );
-      self.add_fragment_define( name, value );
+      self.vertex_defines.insert( name.clone(), value.clone() );
+      self.fragment_defines.insert( name, value );
+      self.rebuild_defines_cache();
+      self.needs_recompile.set( true );
     }
 
     /// Generates `#define` directives to be inserted into the fragment shader based on the material's properties.
-    fn get_local_defines( &self ) -> String
+    fn local_defines( &self ) -> String
     {
       let use_base_color_texture = self.base_color_texture.is_some();
       let use_metallic_roughness_texture = self.metallic_roughness_texture.is_some();
@@ -331,13 +556,13 @@ mod private
     }
 
     /// Returns an immutable reference to the local vertex defines map
-    pub fn get_vertex_defines( &self ) -> &FxHashMap< Box< str >, String >
+    pub fn vertex_defines( &self ) -> &FxHashMap< Box< str >, String >
     {
       &self.vertex_defines
     }
 
     /// Returns an immutable reference to the local fragment defines map
-    pub fn get_fragment_defines( &self ) -> &FxHashMap< Box< str >, String >
+    pub fn fragment_defines( &self ) -> &FxHashMap< Box< str >, String >
     {
       &self.fragment_defines
     }
@@ -345,17 +570,22 @@ mod private
 
   impl Material for PbrMaterial
   {
-    fn get_id( &self ) -> uuid::Uuid
+    fn id( &self ) -> uuid::Uuid
     {
       self.id
     }
 
     fn needs_update( &self ) -> bool
     {
-      self.needs_update
+      self.needs_update.get()
     }
 
-    fn get_ibl_base_texture_unit( &self ) -> Option< u32 >
+    fn set_needs_update( &self, value : bool )
+    {
+      self.needs_update.set( value );
+    }
+
+    fn ibl_base_texture_unit( &self ) -> Option< u32 >
     {
       if self.need_use_ibl
       {
@@ -367,7 +597,7 @@ mod private
       }
     }
 
-    fn make_shader_program( &self, minwebgl : &minwebgl::WebGl2RenderingContext, program : &minwebgl::WebGlProgram ) -> Box< dyn ShaderProgram > 
+    fn make_shader_program( &self, minwebgl : &minwebgl::WebGl2RenderingContext, program : &minwebgl::WebGlProgram ) -> Box< dyn ShaderProgram >
     {
       PBRShader::new( minwebgl, program ).dyn_clone()
     }
@@ -468,30 +698,17 @@ mod private
 
       upload_array( "specularColorFactor", self.specular_color_factor.as_ref().map( | v | v.as_slice() ) )?;
 
-      self.upload_textures( gl );
-
       Ok( () )
-    }
-
-    fn upload_textures( &self, gl : &gl::WebGl2RenderingContext )
-    {
-      if let Some( ref t ) = self.metallic_roughness_texture { t.upload( gl ); }
-      if let Some( ref t ) = self.base_color_texture { t.upload( gl ); }
-      if let Some( ref t ) = self.normal_texture { t.upload( gl ); }
-      if let Some( ref t ) = self.occlusion_texture { t.upload( gl ); }
-      if let Some( ref t ) = self.emissive_texture { t.upload( gl ); }
-      if let Some( ref t ) = self.specular_texture { t.upload( gl ); }
-      if let Some( ref t ) = self.specular_color_texture { t.upload( gl ); }
-      if let Some( ref t ) = self.light_map { t.upload( gl ); }
     }
 
     fn bind( &self, gl : &gl::WebGl2RenderingContext )
     {
-      let bind = | texture : &Option< TextureInfo >, i |
+      let bind = | texture : &Option< TextureInfo >, unit : u32 |
       {
         if let Some( ref t ) = texture
         {
-          gl.active_texture( gl::TEXTURE0 + i );
+          gl.active_texture( gl::TEXTURE0 + unit );
+          t.upload( gl );
           t.bind( gl );
         }
       };
@@ -503,55 +720,40 @@ mod private
       bind( &self.emissive_texture, 4 );
       bind( &self.specular_texture, 5 );
       bind( &self.specular_color_texture, 6 );
+      bind( &self.light_map, 7 );
     }
 
-    fn get_defines_str( &self ) -> String
+    fn defines_str( &self ) -> &str
     {
-      let mut result = self.get_local_defines();
-
-      for ( name, value ) in self.vertex_defines.iter()
-      {
-        result.push_str( &format!( "#define {} {}\n", name, value ) );
-      }
-
-      for ( name, value ) in self.fragment_defines.iter()
-      {
-        result.push_str( &format!( "#define {} {}\n", name, value ) );
-      }
-
-      result
+      &self.cached_defines_str
     }
 
-    fn get_vertex_defines_str( &self ) -> String
+    fn vertex_defines_str( &self ) -> &str
     {
-      let mut result = String::new();
-
-      for ( name, value ) in self.vertex_defines.iter()
-      {
-        result.push_str( &format!( "#define {} {}\n", name, value ) );
-      }
-
-      result
+      &self.cached_vertex_defines_str
     }
 
-    fn get_fragment_defines_str( &self ) -> String
+    fn fragment_defines_str( &self ) -> &str
     {
-      let mut result = self.get_local_defines();
-
-      for ( name, value ) in self.fragment_defines.iter()
-      {
-        result.push_str( &format!( "#define {} {}\n", name, value ) );
-      }
-
-      result
+      &self.cached_fragment_defines_str
     }
 
-    fn get_fragment_shader( &self ) -> String
+    fn needs_recompile( &self ) -> bool
+    {
+      self.needs_recompile.get()
+    }
+
+    fn clear_recompile_flag( &self )
+    {
+      self.needs_recompile.set( false );
+    }
+
+    fn fragment_shader( &self ) -> String
     {
       MAIN_FRAGMENT_SHADER.into()
     }
 
-    fn get_vertex_shader( &self ) -> String
+    fn vertex_shader( &self ) -> String
     {
       MAIN_VERTEX_SHADER.into()
     }
@@ -561,12 +763,12 @@ mod private
       Box::new( self.clone() )
     }
 
-    fn get_alpha_mode( &self ) -> AlphaMode
+    fn alpha_mode( &self ) -> AlphaMode
     {
       self.alpha_mode
     }
 
-    fn get_cull_mode( &self ) -> Option< CullMode >
+    fn cull_mode( &self ) -> Option< CullMode >
     {
       self.cull_mode
     }
@@ -608,7 +810,11 @@ mod private
         vertex_defines : self.vertex_defines.clone(),
         fragment_defines : self.fragment_defines.clone(),
         need_use_ibl : self.need_use_ibl,
-        needs_update : self.needs_update
+        needs_update : Cell::new( true ),
+        needs_recompile : Cell::new( true ),
+        cached_defines_str : self.cached_defines_str.clone(),
+        cached_vertex_defines_str : self.cached_vertex_defines_str.clone(),
+        cached_fragment_defines_str : self.cached_fragment_defines_str.clone(),
       }
     }
   }

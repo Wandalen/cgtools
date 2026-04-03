@@ -210,7 +210,7 @@ mod private
     }
 
     /// Returns the current bloom radius.
-    pub fn get_bloom_radius( &self ) -> f32
+    pub fn bloom_radius( &self ) -> f32
     {
       self.bloom_radius
     }
@@ -222,7 +222,7 @@ mod private
     }
 
     /// Returns the current bloom strength.
-    pub fn get_bloom_strength( &self ) -> f32
+    pub fn bloom_strength( &self ) -> f32
     {
       self.bloom_strength
     }

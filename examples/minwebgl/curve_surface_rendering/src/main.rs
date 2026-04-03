@@ -212,7 +212,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 
   let earth = gltf.scenes[ 0 ].borrow().children.get( 1 ).unwrap().clone();
   let texture = create_texture( &gl, "textures/earth2.jpg" ).await;
-  apply_function_to_node_materials( &earth, | m | { m.base_color_texture = texture.clone(); } );
+  apply_function_to_node_materials( &earth, | m | { m.set_base_color_texture( texture.clone() ); } );
   earth.borrow_mut().update_local_matrix();
 
   let clouds = clone( &mut gltf, &earth );
@@ -220,8 +220,8 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
   apply_function_to_node_materials( &clouds,
     | m |
     {
-      m.base_color_texture = texture.clone();
-      m.alpha_mode = renderer::webgl::AlphaMode::Blend;
+      m.set_base_color_texture( texture.clone() );
+      m.set_alpha_mode( renderer::webgl::AlphaMode::Blend );
     }
   );
   let scale = 1.005;
@@ -232,7 +232,7 @@ async fn setup_scene( gl : &WebGl2RenderingContext ) -> Result< GLTF, gl::WebglE
 
   let moon = clone( &mut gltf, &earth );
   let texture = create_texture( &gl, "textures/moon2.jpg" ).await;
-  apply_function_to_node_materials( &moon, | m | { m.base_color_texture = texture.clone(); } );
+  apply_function_to_node_materials( &moon, | m | { m.set_base_color_texture( texture.clone() ); } );
   let scale = 0.25;
   let distance = 7.0;// 30.0 * 1.0;
   moon.borrow_mut().set_translation( [ distance, ( 1.0 - scale ), 0.0 ] );
@@ -304,17 +304,11 @@ async fn run() -> Result< (), gl::WebglError >
     &canvas_sphere,
     | m |
     {
-      m.base_color_texture.as_mut()
-      .map
-      (
-        | t |
-        {
-          let texture = t.texture.borrow().clone();
-          t.texture = Rc::new( RefCell::new( texture ) );
-          t.texture.borrow_mut().source = Some( canvas_texture.clone() );
-        }
-      );
-      m.alpha_mode = renderer::webgl::AlphaMode::Blend;
+      let uv_position = m.base_color_texture().map( | t | t.uv_position ).unwrap_or( 0 );
+      let texture = Texture::former().source( canvas_texture.clone() ).form();
+      let texture_info = TextureInfo { texture : Rc::new( RefCell::new( texture ) ), uv_position };
+      m.set_base_color_texture( Some( texture_info ) );
+      m.set_alpha_mode( renderer::webgl::AlphaMode::Blend );
     }
   );
   let scale = 1.01;
@@ -358,7 +352,7 @@ async fn run() -> Result< (), gl::WebglError >
 
       swap_buffer.reset();
       swap_buffer.bind( &gl );
-      swap_buffer.set_input( renderer.get_main_texture() );
+      swap_buffer.set_input( renderer.main_texture() );
       //swap_buffer.set_input( Some( canvas_renderer.get_texture() ) );
 
       let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
