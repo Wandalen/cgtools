@@ -74,6 +74,11 @@ async fn run() -> Result< (), gl::WebglError >
   camera.set_window_size( [ width as f32, height as f32 ].into() );
   camera.bind_controls( &canvas );
 
+  // EXT_color_buffer_float is required for rendering to float framebuffer attachments (RGBA16F/RGBA32F).
+  gl.get_extension( "EXT_color_buffer_float" )
+  .expect( "Failed to query EXT_color_buffer_float" )
+  .expect( "EXT_color_buffer_float is required for float framebuffer attachments" );
+
   let mut renderer = renderer::webgl::Renderer::new( &gl, width as u32, height as u32, 4 )?;
   let tonemapping = post_processing::ToneMappingPass::< post_processing::ToneMappingAces >::new( &gl )?;
   let to_srgb = post_processing::ToSrgbPass::new( &gl, true )?;
