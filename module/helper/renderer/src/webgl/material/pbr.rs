@@ -141,12 +141,20 @@ mod private
 
     /// Returns answer need use IBL for current material instance or not
     pub need_use_ibl : bool,
-    /// Signal for updating material uniforms
-    pub needs_update : bool
+    /// Signal for updating material uniforms.
+    /// Use `set_needs_update(true)` after changing material properties.
+    needs_update : std::cell::Cell< bool >
   }
 
   impl PbrMaterial
   {
+    /// Marks the material as needing a uniform re-upload on the next frame.
+    /// Call this after changing any material property (e.g. `base_color_factor`, `metallic_factor`).
+    pub fn set_needs_update( &self )
+    {
+      self.needs_update.set( true );
+    }
+
     /// Creates new [`PbrMaterial`] with predefined optimal parameters
     pub fn new( _gl : &GL ) -> Self
     {
@@ -213,7 +221,7 @@ mod private
         vertex_defines,
         fragment_defines,
         need_use_ibl,
-        needs_update : true
+        needs_update : std::cell::Cell::new( true )
       };
     }
 
@@ -352,7 +360,12 @@ mod private
 
     fn needs_update( &self ) -> bool
     {
-      self.needs_update
+      self.needs_update.get()
+    }
+
+    fn clear_needs_update( &self )
+    {
+      self.needs_update.set( false );
     }
 
     fn get_ibl_base_texture_unit( &self ) -> Option< u32 >
@@ -468,30 +481,17 @@ mod private
 
       upload_array( "specularColorFactor", self.specular_color_factor.as_ref().map( | v | v.as_slice() ) )?;
 
-      self.upload_textures( gl );
-
       Ok( () )
-    }
-
-    fn upload_textures( &self, gl : &gl::WebGl2RenderingContext )
-    {
-      if let Some( ref t ) = self.metallic_roughness_texture { t.upload( gl ); }
-      if let Some( ref t ) = self.base_color_texture { t.upload( gl ); }
-      if let Some( ref t ) = self.normal_texture { t.upload( gl ); }
-      if let Some( ref t ) = self.occlusion_texture { t.upload( gl ); }
-      if let Some( ref t ) = self.emissive_texture { t.upload( gl ); }
-      if let Some( ref t ) = self.specular_texture { t.upload( gl ); }
-      if let Some( ref t ) = self.specular_color_texture { t.upload( gl ); }
-      if let Some( ref t ) = self.light_map { t.upload( gl ); }
     }
 
     fn bind( &self, gl : &gl::WebGl2RenderingContext )
     {
-      let bind = | texture : &Option< TextureInfo >, i |
+      let bind = | texture : &Option< TextureInfo >, unit : u32 |
       {
         if let Some( ref t ) = texture
         {
-          gl.active_texture( gl::TEXTURE0 + i );
+          gl.active_texture( gl::TEXTURE0 + unit );
+          t.upload( gl );
           t.bind( gl );
         }
       };
@@ -503,6 +503,7 @@ mod private
       bind( &self.emissive_texture, 4 );
       bind( &self.specular_texture, 5 );
       bind( &self.specular_color_texture, 6 );
+      bind( &self.light_map, 7 );
     }
 
     fn get_defines_str( &self ) -> String
@@ -608,7 +609,7 @@ mod private
         vertex_defines : self.vertex_defines.clone(),
         fragment_defines : self.fragment_defines.clone(),
         need_use_ibl : self.need_use_ibl,
-        needs_update : self.needs_update
+        needs_update : std::cell::Cell::new( true )
       }
     }
   }

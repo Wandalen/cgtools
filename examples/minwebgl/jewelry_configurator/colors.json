@@ -1,0 +1,16 @@
+{
+  "metal" :
+  [
+    { "name" : "silver",     "rgb" : [ 194, 194, 195 ] },
+    { "name" : "gold",       "rgb" : [ 251, 138,  45 ] },
+    { "name" : "rose_gold",  "rgb" : [ 186, 107,  54 ] }
+  ],
+  "gem" :
+  [
+    { "name" : "diamond",    "rgb" : [ 255, 255, 255 ] },
+    { "name" : "ruby",       "rgb" : [ 137,  11,  11 ] },
+    { "name" : "emerald",    "rgb" : [   2, 135,  19 ] },
+    { "name" : "blue_topaz", "rgb" : [   3, 126, 212 ] },
+    { "name" : "amber",      "rgb" : [ 255,  77,   0 ] }
+  ]
+}

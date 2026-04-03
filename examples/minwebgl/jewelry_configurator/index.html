@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jewelry Configurator</title>
+  <link data-trunk rel="rust" data-bin="jewelry_configurator_app" />
+  <link data-trunk rel="css" href="style.css" />
+  <script data-trunk type="module" src="gui.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+  <link data-trunk rel="copy-dir" href="../../../assets/gltf/jewelry/" data-target-path="static/gltf" />
+  <link data-trunk rel="copy-file" href="../../../assets/gltf/plane.glb" data-target-path="static/gltf" />
+  <link data-trunk rel="copy-dir" href="../../../assets/environment_maps/studio3/"
+    data-target-path="static/environment_maps/studio3" />
+  <link data-trunk rel="copy-dir" href="../../../assets/environment_maps/studio4/"
+    data-target-path="static/environment_maps/studio" />
+</head>
+
+<body>
+  <canvas id="canvas"></canvas>
+
+  <!-- Scroll sections (invisible, provide scroll height for ScrollTrigger) -->
+  <div class="scroll-container">
+    <div class="cam-view cam-view-1"></div>
+    <div class="cam-view cam-view-2"></div>
+    <div class="cam-view cam-view-3"></div>
+  </div>
+
+  <!-- UI overlay -->
+  <div class="ui-overlay">
+    <button id="btn-screenshot" title="Download PNG with transparent background (S)">Save PNG</button>
+
+    <div class="scroll-hint" id="scroll-hint">Scroll to explore</div>
+
+    <button id="btn-customize">Customize</button>
+
+    <!-- Configurator controls — shown after "Customize" click -->
+    <div class="configurator-ui" id="configurator-ui">
+      <div id="buttons">
+        <button id="btn-0">Model 0</button>
+        <button id="btn-1" class="active">Model 1</button>
+        <button id="btn-2">Model 2</button>
+      </div>
+
+      <div id="metal-panel" class="color-panel">
+        <span class="panel-label">Metal</span>
+      </div>
+
+      <div id="gem-panel" class="color-panel">
+        <span class="panel-label">Gem</span>
+      </div>
+    </div>
+  </div>
+
+  <script defer data-trunk src="animation.js"></script>
+</body>
+
+</html>

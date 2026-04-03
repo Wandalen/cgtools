@@ -1,9 +1,10 @@
-use renderer::webgl::{ ShaderProgram, material::*, program::ProgramInfo, MaterialUploadContext };
+use renderer::webgl::{ ShaderProgram, material::{ Material, TextureInfo, CullMode }, program::ProgramInfo, MaterialUploadContext };
 use renderer::impl_locations;
 use minwebgl as gl;
-use gl::{ GL, F32x3, Former, WebGlProgram };
+use gl::{ GL, F32x3, WebGlProgram };
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
+use crate::get_uniform_location;
 
 // Surface shader locations
 impl_locations!
@@ -17,20 +18,15 @@ impl_locations!
   "surfaceTexture"
 );
 
-/// The source code for the surface vertex shader.
-const SURFACE_VERTEX_SHADER : &'static str = include_str!( "../shaders/surface.vert" );
-/// The source code for the surface fragment shader.
-const SURFACE_FRAGMENT_SHADER : &'static str = include_str!( "../shaders/surface.frag" );
-
-/// Represents the visual properties of a surface.
-#[ derive( Former, Debug ) ]
+/// Represents the visual properties of a ground surface.
+#[ derive( Debug ) ]
 pub struct SurfaceMaterial
 {
   /// A unique identifier for the material.
   pub id : Uuid,
   /// Surface RGB color
   pub color : F32x3,
-  /// Surface texture
+  /// Surface texture (shadow map)
   pub texture : Option< TextureInfo >,
   /// Signal for updating material uniforms
   pub needs_update : bool
@@ -52,6 +48,11 @@ impl SurfaceMaterial
 
 impl Material for SurfaceMaterial
 {
+  fn get_cull_mode( &self ) -> Option< CullMode >
+  {
+    Some( CullMode::Back )
+  }
+
   fn get_id( &self ) -> Uuid
   {
     self.id
@@ -74,12 +75,12 @@ impl Material for SurfaceMaterial
 
   fn get_vertex_shader( &self ) -> String
   {
-    SURFACE_VERTEX_SHADER.into()
+    include_str!( "../shaders/surface.vert" ).into()
   }
 
   fn get_fragment_shader( &self ) -> String
   {
-    SURFACE_FRAGMENT_SHADER.into()
+    include_str!( "../shaders/surface.frag" ).into()
   }
 
   fn configure
@@ -90,7 +91,16 @@ impl Material for SurfaceMaterial
   )
   {
     let locations = ctx.locations;
-    gl.uniform1i( locations.get( "surfaceTexture" ).unwrap().clone().as_ref(), 0 );
+    let loc = match get_uniform_location( locations, "surfaceTexture" )
+    {
+      Ok( loc ) => loc,
+      Err( e ) =>
+      {
+        gl::log::error!( "SurfaceMaterial::configure error: {e}" );
+        return;
+      }
+    };
+    gl.uniform1i( Some( &loc ), 0 );
   }
 
   fn upload_on_state_change
