@@ -428,7 +428,7 @@ async fn run() -> Result< (), gl::WebglError >
   let forward = F32x3::from_array( character_controls.borrow().forward().map( | v | v as f32 ) );
   camera.get_controls().borrow_mut().eye = initial_center - forward * character_controls.borrow().zoom as f32;
 
-  let input = Rc::new( RefCell::new( browser_input::Input::new( Some( canvas.clone().dyn_into().unwrap() ), browser_input::CLIENT ) ) );
+  let input = Rc::new( RefCell::new( browser_input::Input::new( Some( canvas.clone().dyn_into().unwrap() ), browser_input::CLIENT ).expect( "Failed to initialize input" ) ) );
   let mut graph = setup_graph( gltf.animations.clone(), &input );
 
   // Define the update and draw logic

@@ -71,11 +71,15 @@ async fn run() -> Result< (), gl::WebglError >
   let canvas = gl.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
   canvas.set_width( width as u32 );
   canvas.set_height( height as u32 );
+  // OES_texture_float_linear is required for linear filtering on RGBA32F LTC lookup tables.
+  // Without it, float textures with GL_LINEAR are incomplete and sample as (0, 0, 0, 1) — opaque black.
+  // EXT_color_buffer_float is not needed here — this example renders to the default framebuffer only.
+  gl.get_extension( "OES_texture_float_linear" )
+  .expect( "Failed to query OES_texture_float_linear" )
+  .expect( "OES_texture_float_linear is required for linear filtering on float textures" );
   gl.enable( gl::DEPTH_TEST );
   gl.clear_color( 0.0, 0.0, 0.0, 1.0 );
   gl.viewport( 0, 0, width, height );
-  gl.get_extension( "EXT_color_buffer_float" ).unwrap().unwrap();
-  gl.get_extension( "OES_texture_float_linear" ).unwrap().unwrap();
 
   let vertex_src = include_str!( "../shaders/light_body.vert" );
   let fragment_src = include_str!( "../shaders/light_body.frag" );
@@ -123,6 +127,11 @@ async fn run() -> Result< (), gl::WebglError >
   camera.set_window_size( [ width as f32, height as f32 ].into() );
   camera.bind_controls( &canvas );
 
+  gl.active_texture( gl::TEXTURE2 );
+  gl.bind_texture( gl::TEXTURE_2D, ltc1.as_ref() );
+  gl.active_texture( gl::TEXTURE3 );
+  gl.bind_texture( gl::TEXTURE_2D, ltc2.as_ref() );
+
   let update = move | _time |
   {
     let view = camera.get_view_matrix();
@@ -155,11 +164,6 @@ async fn run() -> Result< (), gl::WebglError >
     );
 
     gl.clear( gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT );
-
-    gl.active_texture( gl::TEXTURE2 );
-    gl.bind_texture( gl::TEXTURE_2D, ltc1.as_ref() );
-    gl.active_texture( gl::TEXTURE3 );
-    gl.bind_texture( gl::TEXTURE_2D, ltc2.as_ref() );
 
     area_light_shader.activate();
     area_light_shader.uniform_upload( "u_points", light.vertices().as_slice() );

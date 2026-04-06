@@ -6,3 +6,6 @@ mod node;
 
 /// Scene related tests
 mod scene;
+
+/// PBR material tests
+mod pbr_material;

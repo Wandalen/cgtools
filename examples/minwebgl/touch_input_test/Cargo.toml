@@ -1,0 +1,11 @@
+[package]
+name = "minwebgl_touch_input_test"
+version = "0.1.0"
+edition = "2024"
+
+[lints]
+workspace = true
+
+[dependencies]
+minwebgl = { workspace = true, features = [ "math" ] }
+browser_input = { workspace = true }

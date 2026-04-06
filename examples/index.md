@@ -110,6 +110,7 @@ Example | Description
 [Hexagonal Map](./minwebgl/hexagonal_map/readme.md) | Complete hexagonal map with triaxial coordinates
 [Tilemaps Rendering](./minwebgl/mapgen_tiles_rendering/readme.md) | Tile-based map rendering
 [Wave Function Collapse](./minwebgl/wfc/readme.md) | Procedural generation using wave function collapse algorithm
+[Touch Input Test](./minwebgl/touch_input_test/readme.md) | Manual testing aid for touch, swipe, and pinch-zoom input on mobile
 
 ### Optimization
 

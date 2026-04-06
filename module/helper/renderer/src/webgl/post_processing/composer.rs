@@ -149,6 +149,11 @@ mod private
     }
   }
 
+  /// Cleans up GPU resources owned exclusively by this struct.
+  ///
+  /// Only `original_output` texture is deleted because it is a clone created
+  /// in `new()` and owned by this struct. `input_texture` and `output_texture`
+  /// are externally managed after swapping and must not be deleted here.
   impl Drop for SwapFramebuffer
   {
     fn drop( &mut self )
