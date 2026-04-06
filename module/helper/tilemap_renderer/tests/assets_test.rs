@@ -2,23 +2,11 @@
 
 //! Assets tests
 
+mod helpers;
+use helpers::empty_assets;
+
 use tilemap_renderer::types::*;
 use tilemap_renderer::assets::*;
-
-fn empty_assets() -> Assets
-{
-  Assets
-  {
-    fonts : vec![],
-    images : vec![],
-    sprites : vec![],
-    geometries : vec![],
-    gradients : vec![],
-    patterns : vec![],
-    clip_masks : vec![],
-    paths : vec![],
-  }
-}
 
 #[ test ]
 fn validate_empty_assets()

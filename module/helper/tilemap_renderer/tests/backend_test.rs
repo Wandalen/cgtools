@@ -5,6 +5,9 @@
 //! - `RenderError` variants format correctly,
 //! - `Capabilities::default()` returns the zero state.
 
+mod helpers;
+use helpers::empty_assets;
+
 use tilemap_renderer::assets::Assets;
 use tilemap_renderer::backend::{ Backend, Capabilities, Output, RenderError };
 use tilemap_renderer::commands::RenderCommand;
@@ -51,25 +54,6 @@ impl Backend for TestBackend
   fn capabilities( &self ) -> Capabilities
   {
     Capabilities::default()
-  }
-}
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-fn empty_assets() -> Assets
-{
-  Assets
-  {
-    fonts : vec![],
-    images : vec![],
-    sprites : vec![],
-    geometries : vec![],
-    gradients : vec![],
-    patterns : vec![],
-    clip_masks : vec![],
-    paths : vec![],
   }
 }
 
