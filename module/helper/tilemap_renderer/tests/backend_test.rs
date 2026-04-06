@@ -9,7 +9,7 @@ mod helpers;
 use helpers::empty_assets;
 
 use tilemap_renderer::assets::Assets;
-use tilemap_renderer::backend::{ Backend, Capabilities, Output, RenderError };
+use tilemap_renderer::backend::{ Backend, Bitmap, Capabilities, Output, RenderError };
 use tilemap_renderer::commands::RenderCommand;
 
 // ============================================================================
@@ -63,6 +63,33 @@ impl Backend for TestBackend
   }
 }
 
+// Returns Output::Bitmap from output().
+struct BitmapBackend;
+
+impl Backend for BitmapBackend
+{
+  fn load_assets( &mut self, _assets : &Assets ) -> Result< (), RenderError > { Ok( () ) }
+  fn submit( &mut self, _commands : &[ RenderCommand ] ) -> Result< (), RenderError > { Ok( () ) }
+  fn output( &self ) -> Result< Output, RenderError >
+  {
+    Ok( Output::Bitmap( Bitmap { bytes : vec![ 255u8; 4 ], width : 1, height : 1, channels : 4 } ) )
+  }
+  fn resize( &mut self, _width : u32, _height : u32 ) {}
+  fn capabilities( &self ) -> Capabilities { Capabilities::default() }
+}
+
+// Returns Output::Presented from output().
+struct PresentedBackend;
+
+impl Backend for PresentedBackend
+{
+  fn load_assets( &mut self, _assets : &Assets ) -> Result< (), RenderError > { Ok( () ) }
+  fn submit( &mut self, _commands : &[ RenderCommand ] ) -> Result< (), RenderError > { Ok( () ) }
+  fn output( &self ) -> Result< Output, RenderError > { Ok( Output::Presented ) }
+  fn resize( &mut self, _width : u32, _height : u32 ) {}
+  fn capabilities( &self ) -> Capabilities { Capabilities::default() }
+}
+
 // ============================================================================
 // Tests
 // ============================================================================
@@ -109,6 +136,32 @@ fn output_returns_string()
   {
     Output::String( s ) => assert_eq!( s, "test" ),
     other => panic!( "unexpected output: {other:?}" ),
+  }
+}
+
+#[ test ]
+fn output_returns_bitmap()
+{
+  match BitmapBackend.output().unwrap()
+  {
+    Output::Bitmap( bmp ) =>
+    {
+      assert_eq!( bmp.width, 1 );
+      assert_eq!( bmp.height, 1 );
+      assert_eq!( bmp.channels, 4 );
+      assert_eq!( bmp.bytes.len(), 4 );
+    }
+    other => panic!( "expected Bitmap, got {other:?}" ),
+  }
+}
+
+#[ test ]
+fn output_returns_presented()
+{
+  match PresentedBackend.output().unwrap()
+  {
+    Output::Presented => {}
+    other => panic!( "expected Presented, got {other:?}" ),
   }
 }
 
