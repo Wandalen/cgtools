@@ -63,6 +63,73 @@ impl Backend for TestBackend
   }
 }
 
+// Always returns errors — used for negative-path tests.
+struct ErrorBackend
+{
+  load_error : Option< RenderError >,
+  submit_error : Option< RenderError >,
+  output_error : Option< RenderError >,
+}
+
+impl ErrorBackend
+{
+  fn load_missing( id : u32 ) -> Self
+  {
+    Self { load_error : Some( RenderError::MissingAsset( id ) ), submit_error : None, output_error : None }
+  }
+
+  fn load_backend_error( msg : &'static str ) -> Self
+  {
+    Self { load_error : Some( RenderError::BackendError( msg.into() ) ), submit_error : None, output_error : None }
+  }
+
+  fn submit_unsupported( what : &'static str ) -> Self
+  {
+    Self { load_error : None, submit_error : Some( RenderError::Unsupported( what ) ), output_error : None }
+  }
+
+  fn submit_missing( id : u32 ) -> Self
+  {
+    Self { load_error : None, submit_error : Some( RenderError::MissingAsset( id ) ), output_error : None }
+  }
+
+  fn output_backend_error( msg : &'static str ) -> Self
+  {
+    Self { load_error : None, submit_error : None, output_error : Some( RenderError::BackendError( msg.into() ) ) }
+  }
+}
+
+impl Backend for ErrorBackend
+{
+  fn load_assets( &mut self, _assets : &Assets ) -> Result< (), RenderError >
+  {
+    if let Some( e ) = self.load_error.take() { return Err( e ); }
+    Ok( () )
+  }
+
+  fn submit( &mut self, _commands : &[ RenderCommand ] ) -> Result< (), RenderError >
+  {
+    if let Some( e ) = self.submit_error.take() { return Err( e ); }
+    Ok( () )
+  }
+
+  fn output( &self ) -> Result< Output, RenderError >
+  {
+    // output takes &self so we cannot take from an Option; store as a cell-style flag via a copy.
+    match &self.output_error
+    {
+      Some( RenderError::BackendError( msg ) ) => Err( RenderError::BackendError( msg.clone() ) ),
+      Some( RenderError::MissingAsset( id ) ) => Err( RenderError::MissingAsset( *id ) ),
+      Some( RenderError::Unsupported( s ) ) => Err( RenderError::Unsupported( s ) ),
+      None => Ok( Output::Presented ),
+      _ => Ok( Output::Presented ),
+    }
+  }
+
+  fn resize( &mut self, _width : u32, _height : u32 ) {}
+  fn capabilities( &self ) -> Capabilities { Capabilities::default() }
+}
+
 // Returns Output::Bitmap from output().
 struct BitmapBackend;
 
@@ -199,6 +266,46 @@ fn resize_stores_dimensions()
   b.resize( 800, 600 );
   assert_eq!( b.width, 800 );
   assert_eq!( b.height, 600 );
+}
+
+#[ test ]
+fn load_assets_returns_missing_asset_error()
+{
+  let mut b = ErrorBackend::load_missing( 7 );
+  let err = b.load_assets( &empty_assets() ).unwrap_err();
+  assert!( matches!( err, RenderError::MissingAsset( 7 ) ) );
+}
+
+#[ test ]
+fn load_assets_returns_backend_error()
+{
+  let mut b = ErrorBackend::load_backend_error( "disk full" );
+  let err = b.load_assets( &empty_assets() ).unwrap_err();
+  assert!( matches!( err, RenderError::BackendError( _ ) ) );
+}
+
+#[ test ]
+fn submit_returns_unsupported_error()
+{
+  let mut b = ErrorBackend::submit_unsupported( "gradients" );
+  let err = b.submit( &[] ).unwrap_err();
+  assert!( matches!( err, RenderError::Unsupported( "gradients" ) ) );
+}
+
+#[ test ]
+fn submit_returns_missing_asset_error()
+{
+  let mut b = ErrorBackend::submit_missing( 99 );
+  let err = b.submit( &[] ).unwrap_err();
+  assert!( matches!( err, RenderError::MissingAsset( 99 ) ) );
+}
+
+#[ test ]
+fn output_returns_backend_error()
+{
+  let b = ErrorBackend::output_backend_error( "gpu lost" );
+  let err = b.output().unwrap_err();
+  assert!( matches!( err, RenderError::BackendError( _ ) ) );
 }
 
 #[ test ]
