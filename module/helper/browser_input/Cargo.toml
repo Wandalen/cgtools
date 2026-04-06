@@ -1,6 +1,6 @@
 [package]
 name = "browser_input"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.75.0"
 authors = ["Kostiantyn Mysnyk <wandalen@obox.systems>"]
@@ -13,12 +13,12 @@ readme = "readme.md"
 keywords = ["webassembly", "input", "browser", "wasm", "gamedev"]
 categories = ["web-programming", "game-development", "gui", "api-bindings"]
 include = [
-    "src/**/*",
-    "tests/**/*",
-    "Cargo.toml",
-    "readme.md",
-    "license*",
-    "changelog*",
+  "src/**/*",
+  "tests/**/*",
+  "Cargo.toml",
+  "readme.md",
+  "license*",
+  "changelog*",
 ]
 
 [lints]
@@ -28,11 +28,7 @@ workspace = true
 default = ["enabled"]
 
 # Core input handling functionality
-enabled = [
-    "dep:minwebgl",
-    "dep:web-sys",
-    "dep:strum",
-]
+enabled = ["dep:minwebgl", "dep:web-sys", "dep:strum"]
 
 # Full feature set
 full = ["enabled"]
@@ -43,7 +39,9 @@ web-sys = { workspace = true, features = [
   "KeyboardEvent",
   "PointerEvent",
   "WheelEvent",
-  "HtmlInputElement",
+  "Element",
+  "HtmlElement",
+  "CssStyleDeclaration",
 ], optional = true }
 strum = { workspace = true, features = ["derive"], optional = true }
 
@@ -56,15 +54,15 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 default-target = "wasm32-unknown-unknown"
 targets = [
-    "wasm32-unknown-unknown",
-    "x86_64-unknown-linux-gnu",
-    "x86_64-pc-windows-msvc",
-    "x86_64-apple-darwin",
+  "wasm32-unknown-unknown",
+  "x86_64-unknown-linux-gnu",
+  "x86_64-pc-windows-msvc",
+  "x86_64-apple-darwin",
 ]
 
 # Cargo.toml maintenance metadata
 [package.metadata.release]
 pre-release-replacements = [
-    { file = "readme.md", search = "browser_input = \"[0-9.]+\"", replace = "browser_input = \"{{version}}\"" },
-    { file = "changelog.md", search = "## Unreleased", replace = "## Unreleased\n\n## {{version}} - {{date}}" },
+  { file = "readme.md", search = "browser_input = \"[0-9.]+\"", replace = "browser_input = \"{{version}}\"" },
+  { file = "changelog.md", search = "## Unreleased", replace = "## Unreleased\n\n## {{version}} - {{date}}" },
 ]
