@@ -20,13 +20,15 @@ struct TestBackend
 {
   assets_loaded : bool,
   last_command_count : usize,
+  width : u32,
+  height : u32,
 }
 
 impl TestBackend
 {
   fn new() -> Self
   {
-    Self { assets_loaded : false, last_command_count : 0 }
+    Self { assets_loaded : false, last_command_count : 0, width : 0, height : 0 }
   }
 }
 
@@ -49,7 +51,11 @@ impl Backend for TestBackend
     Ok( Output::String( "test".to_string() ) )
   }
 
-  fn resize( &mut self, _width : u32, _height : u32 ) {}
+  fn resize( &mut self, width : u32, height : u32 )
+  {
+    self.width = width;
+    self.height = height;
+  }
 
   fn capabilities( &self ) -> Capabilities
   {
@@ -131,6 +137,15 @@ fn render_error_backend_error_display()
   let s = format!( "{e}" );
   assert!( s.contains( "backend error" ), "got: {s}" );
   assert!( s.contains( "gpu lost" ), "got: {s}" );
+}
+
+#[ test ]
+fn resize_stores_dimensions()
+{
+  let mut b = TestBackend::new();
+  b.resize( 800, 600 );
+  assert_eq!( b.width, 800 );
+  assert_eq!( b.height, 600 );
 }
 
 #[ test ]
