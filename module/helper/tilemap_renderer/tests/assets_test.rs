@@ -1,5 +1,3 @@
-#![ allow( clippy::min_ident_chars ) ]
-
 //! Assets tests
 
 mod helpers;
@@ -11,14 +9,14 @@ use tilemap_renderer::assets::*;
 #[ test ]
 fn assets_validate_empty()
 {
-  let a = empty_assets();
-  assert!( a.validate().is_empty() );
+  let assets =empty_assets();
+  assert!( assets.validate().is_empty() );
 }
 
 #[ test ]
 fn assets_validate_no_duplicates()
 {
-  let a = Assets
+  let assets =Assets
   {
     images : vec![
       ImageAsset { id : ResourceId::new( 0 ), source : ImageSource::Encoded( vec![] ), filter : SamplerFilter::Linear },
@@ -26,13 +24,13 @@ fn assets_validate_no_duplicates()
     ],
     ..empty_assets()
   };
-  assert!( a.validate().is_empty() );
+  assert!( assets.validate().is_empty() );
 }
 
 #[ test ]
 fn assets_validate_duplicate_image_ids()
 {
-  let a = Assets
+  let assets =Assets
   {
     images : vec![
       ImageAsset { id : ResourceId::new( 5 ), source : ImageSource::Encoded( vec![] ), filter : SamplerFilter::Linear },
@@ -40,7 +38,7 @@ fn assets_validate_duplicate_image_ids()
     ],
     ..empty_assets()
   };
-  let errors = a.validate();
+  let errors = assets.validate();
   assert_eq!( errors.len(), 1 );
   let msg = format!( "{}", errors[ 0 ] );
   assert!( msg.contains( "image" ) );
@@ -50,7 +48,7 @@ fn assets_validate_duplicate_image_ids()
 #[ test ]
 fn assets_validate_duplicate_geometry_ids()
 {
-  let a = Assets
+  let assets =Assets
   {
     geometries : vec![
       GeometryAsset { id : ResourceId::new( 0 ), positions : Source::Bytes( vec![] ), uvs : None, indices : None, data_type : DataType::U16 },
@@ -58,14 +56,14 @@ fn assets_validate_duplicate_geometry_ids()
     ],
     ..empty_assets()
   };
-  let errors = a.validate();
+  let errors = assets.validate();
   assert_eq!( errors.len(), 1 );
 }
 
 #[ test ]
 fn assets_validate_cross_type_ids_ok()
 {
-  let a = Assets
+  let assets =Assets
   {
     images : vec![
       ImageAsset { id : ResourceId::new( 0 ), source : ImageSource::Encoded( vec![] ), filter : SamplerFilter::Linear },
@@ -75,13 +73,13 @@ fn assets_validate_cross_type_ids_ok()
     ],
     ..empty_assets()
   };
-  assert!( a.validate().is_empty() );
+  assert!( assets.validate().is_empty() );
 }
 
 #[ test ]
 fn assets_validate_multiple_duplicate_types()
 {
-  let a = Assets
+  let assets =Assets
   {
     images : vec![
       ImageAsset { id : ResourceId::new( 0 ), source : ImageSource::Encoded( vec![] ), filter : SamplerFilter::Linear },
@@ -93,7 +91,7 @@ fn assets_validate_multiple_duplicate_types()
     ],
     ..empty_assets()
   };
-  let errors = a.validate();
+  let errors = assets.validate();
   assert_eq!( errors.len(), 2 );
 }
 
@@ -101,7 +99,7 @@ fn assets_validate_multiple_duplicate_types()
 fn assets_validate_gradient_duplicates()
 {
   let stop = GradientStop { offset : 0.0, color : [ 1.0, 1.0, 1.0, 1.0 ] };
-  let a = Assets
+  let assets =Assets
   {
     gradients : vec![
       GradientAsset { id : ResourceId::new( 0 ), kind : GradientKind::Linear { start : [ 0.0, 0.0 ], end : [ 1.0, 1.0 ] }, stops : vec![ stop ] },
@@ -109,13 +107,13 @@ fn assets_validate_gradient_duplicates()
     ],
     ..empty_assets()
   };
-  assert_eq!( a.validate().len(), 1 );
+  assert_eq!( assets.validate().len(), 1 );
 }
 
 #[ test ]
 fn assets_validate_clip_mask_duplicates()
 {
-  let a = Assets
+  let assets =Assets
   {
     clip_masks : vec![
       ClipMaskAsset { id : ResourceId::new( 0 ), segments : vec![] },
@@ -123,13 +121,13 @@ fn assets_validate_clip_mask_duplicates()
     ],
     ..empty_assets()
   };
-  assert_eq!( a.validate().len(), 1 );
+  assert_eq!( assets.validate().len(), 1 );
 }
 
 #[ test ]
 fn assets_validate_path_duplicates()
 {
-  let a = Assets
+  let assets =Assets
   {
     paths : vec![
       PathAsset { id : ResourceId::new( 3 ), segments : vec![] },
@@ -137,5 +135,5 @@ fn assets_validate_path_duplicates()
     ],
     ..empty_assets()
   };
-  assert_eq!( a.validate().len(), 1 );
+  assert_eq!( assets.validate().len(), 1 );
 }
