@@ -709,7 +709,6 @@ mod private
         {
           gl.active_texture( gl::TEXTURE0 + unit );
           t.upload( gl );
-          t.bind( gl );
         }
       };
 

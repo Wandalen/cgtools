@@ -117,7 +117,6 @@ impl Material for SurfaceMaterial
     {
       gl.active_texture( gl::TEXTURE0 );
       t.upload( gl );
-      t.bind( gl );
     }
   }
 
