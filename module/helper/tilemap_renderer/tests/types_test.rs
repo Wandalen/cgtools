@@ -1,4 +1,9 @@
-//! Types tests
+//! Types tests.
+//!
+//! Covers:
+//! - `Transform` identity state, translation matrix slots, scale diagonal, 90-degree rotation
+//! - `ResourceId` type-safe equality and debug formatting
+//! - `RenderConfig` default field values (width, height, antialias, background color)
 
 use tilemap_renderer::types::*;
 

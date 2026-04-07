@@ -1,4 +1,10 @@
-//! Commands tests
+//! Commands tests.
+//!
+//! Covers:
+//! - `Copy` invariant for every command struct and `RenderCommand` enum (compile-time check)
+//! - `RenderCommand` enum size constraint (must fit within 256 bytes for cache efficiency)
+//! - Command stream construction: path, group, and clear commands in a `Vec`
+//! - `SpriteBatchParams` and `MeshBatchParams` struct construction and resource-id round-trip
 
 use tilemap_renderer::types::*;
 use tilemap_renderer::commands::*;
