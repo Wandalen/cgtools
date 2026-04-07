@@ -897,7 +897,7 @@ mod private
           let locations = program.locations();
           program.bind( gl );
           camera.upload( gl, locations );
-          bind_lights( gl, program, lights );
+          bind_lights( gl, &**program, lights );
           if let Some( exposure_loc ) = locations.get( "exposure" )
           {
             gl::uniform::upload( gl, exposure_loc.clone(), &self.exposure )?;
