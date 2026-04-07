@@ -201,7 +201,7 @@ impl Backend for PresentedBackend
 // ============================================================================
 
 #[ test ]
-fn load_assets_valid()
+fn backend_load_assets_valid()
 {
   let mut b = TestBackend::new();
   let assets = empty_assets();
@@ -210,14 +210,14 @@ fn load_assets_valid()
 }
 
 #[ test ]
-fn load_assets_empty()
+fn backend_load_assets_empty()
 {
   let mut b = TestBackend::new();
   assert!( b.load_assets( &empty_assets() ).is_ok() );
 }
 
 #[ test ]
-fn submit_empty_slice()
+fn backend_submit_empty_slice()
 {
   let mut b = TestBackend::new();
   assert!( b.submit( &[] ).is_ok() );
@@ -225,7 +225,7 @@ fn submit_empty_slice()
 }
 
 #[ test ]
-fn submit_clear_command()
+fn backend_submit_clear()
 {
   use tilemap_renderer::commands::Clear;
   let mut b = TestBackend::new();
@@ -235,7 +235,7 @@ fn submit_clear_command()
 }
 
 #[ test ]
-fn output_returns_string()
+fn backend_output_returns_string()
 {
   let b = TestBackend::new();
   match b.output().unwrap()
@@ -246,7 +246,7 @@ fn output_returns_string()
 }
 
 #[ test ]
-fn output_returns_bitmap()
+fn backend_output_returns_bitmap()
 {
   match BitmapBackend.output().unwrap()
   {
@@ -262,7 +262,7 @@ fn output_returns_bitmap()
 }
 
 #[ test ]
-fn output_returns_presented()
+fn backend_output_returns_presented()
 {
   match PresentedBackend.output().unwrap()
   {
@@ -299,7 +299,7 @@ fn render_error_backend_error_display()
 }
 
 #[ test ]
-fn resize_stores_dimensions()
+fn backend_resize_stores_dimensions()
 {
   let mut b = TestBackend::new();
   b.resize( 800, 600 );
@@ -308,7 +308,7 @@ fn resize_stores_dimensions()
 }
 
 #[ test ]
-fn load_assets_returns_missing_asset_error()
+fn backend_load_assets_missing_asset_error()
 {
   let mut b = ErrorBackend::load_missing( 7 );
   let err = b.load_assets( &empty_assets() ).unwrap_err();
@@ -316,7 +316,7 @@ fn load_assets_returns_missing_asset_error()
 }
 
 #[ test ]
-fn load_assets_returns_backend_error()
+fn backend_load_assets_backend_error()
 {
   let mut b = ErrorBackend::load_backend_error( "disk full" );
   let err = b.load_assets( &empty_assets() ).unwrap_err();
@@ -324,7 +324,7 @@ fn load_assets_returns_backend_error()
 }
 
 #[ test ]
-fn submit_returns_unsupported_error()
+fn backend_submit_unsupported()
 {
   let mut b = ErrorBackend::submit_unsupported( "gradients" );
   let err = b.submit( &[] ).unwrap_err();
@@ -332,7 +332,7 @@ fn submit_returns_unsupported_error()
 }
 
 #[ test ]
-fn submit_returns_missing_asset_error()
+fn backend_submit_missing_asset()
 {
   let mut b = ErrorBackend::submit_missing( 99 );
   let err = b.submit( &[] ).unwrap_err();
@@ -340,7 +340,7 @@ fn submit_returns_missing_asset_error()
 }
 
 #[ test ]
-fn output_returns_backend_error()
+fn backend_output_backend_error()
 {
   let b = ErrorBackend::output_backend_error( "gpu lost" );
   let err = b.output().unwrap_err();
@@ -348,7 +348,7 @@ fn output_returns_backend_error()
 }
 
 #[ test ]
-fn capabilities_default_all_false()
+fn backend_capabilities_default_all_false()
 {
   let c = Capabilities::default();
   assert!( !c.paths );

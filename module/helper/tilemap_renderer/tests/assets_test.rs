@@ -9,14 +9,14 @@ use tilemap_renderer::types::*;
 use tilemap_renderer::assets::*;
 
 #[ test ]
-fn validate_empty_assets()
+fn assets_validate_empty()
 {
   let a = empty_assets();
   assert!( a.validate().is_empty() );
 }
 
 #[ test ]
-fn validate_no_duplicates()
+fn assets_validate_no_duplicates()
 {
   let a = Assets
   {
@@ -30,7 +30,7 @@ fn validate_no_duplicates()
 }
 
 #[ test ]
-fn validate_duplicate_image_ids()
+fn assets_validate_duplicate_image_ids()
 {
   let a = Assets
   {
@@ -48,7 +48,7 @@ fn validate_duplicate_image_ids()
 }
 
 #[ test ]
-fn validate_duplicate_geometry_ids()
+fn assets_validate_duplicate_geometry_ids()
 {
   let a = Assets
   {
@@ -63,7 +63,7 @@ fn validate_duplicate_geometry_ids()
 }
 
 #[ test ]
-fn validate_duplicates_across_types_ok()
+fn assets_validate_cross_type_ids_ok()
 {
   let a = Assets
   {
@@ -79,7 +79,7 @@ fn validate_duplicates_across_types_ok()
 }
 
 #[ test ]
-fn validate_multiple_duplicate_types()
+fn assets_validate_multiple_duplicate_types()
 {
   let a = Assets
   {
@@ -98,7 +98,7 @@ fn validate_multiple_duplicate_types()
 }
 
 #[ test ]
-fn validate_gradient_duplicates()
+fn assets_validate_gradient_duplicates()
 {
   let stop = GradientStop { offset : 0.0, color : [ 1.0, 1.0, 1.0, 1.0 ] };
   let a = Assets
@@ -113,7 +113,7 @@ fn validate_gradient_duplicates()
 }
 
 #[ test ]
-fn validate_clip_mask_duplicates()
+fn assets_validate_clip_mask_duplicates()
 {
   let a = Assets
   {
@@ -127,7 +127,7 @@ fn validate_clip_mask_duplicates()
 }
 
 #[ test ]
-fn validate_path_duplicates()
+fn assets_validate_path_duplicates()
 {
   let a = Assets
   {
