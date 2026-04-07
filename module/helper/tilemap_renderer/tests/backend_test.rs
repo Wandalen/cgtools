@@ -126,8 +126,14 @@ impl Backend for ErrorBackend
     }
   }
 
-  fn resize( &mut self, _width : u32, _height : u32 ) {}
-  fn capabilities( &self ) -> Capabilities { Capabilities::default() }
+  fn resize( &mut self, _width : u32, _height : u32 )
+  {
+  }
+
+  fn capabilities( &self ) -> Capabilities
+  {
+    Capabilities::default()
+  }
 }
 
 // Returns Output::Bitmap from output().
@@ -135,14 +141,29 @@ struct BitmapBackend;
 
 impl Backend for BitmapBackend
 {
-  fn load_assets( &mut self, _assets : &Assets ) -> Result< (), RenderError > { Ok( () ) }
-  fn submit( &mut self, _commands : &[ RenderCommand ] ) -> Result< (), RenderError > { Ok( () ) }
+  fn load_assets( &mut self, _assets : &Assets ) -> Result< (), RenderError >
+  {
+    Ok( () )
+  }
+
+  fn submit( &mut self, _commands : &[ RenderCommand ] ) -> Result< (), RenderError >
+  {
+    Ok( () )
+  }
+
   fn output( &self ) -> Result< Output, RenderError >
   {
     Ok( Output::Bitmap( Bitmap { bytes : vec![ 255u8; 4 ], width : 1, height : 1, channels : 4 } ) )
   }
-  fn resize( &mut self, _width : u32, _height : u32 ) {}
-  fn capabilities( &self ) -> Capabilities { Capabilities::default() }
+
+  fn resize( &mut self, _width : u32, _height : u32 )
+  {
+  }
+
+  fn capabilities( &self ) -> Capabilities
+  {
+    Capabilities::default()
+  }
 }
 
 // Returns Output::Presented from output().
@@ -150,11 +171,29 @@ struct PresentedBackend;
 
 impl Backend for PresentedBackend
 {
-  fn load_assets( &mut self, _assets : &Assets ) -> Result< (), RenderError > { Ok( () ) }
-  fn submit( &mut self, _commands : &[ RenderCommand ] ) -> Result< (), RenderError > { Ok( () ) }
-  fn output( &self ) -> Result< Output, RenderError > { Ok( Output::Presented ) }
-  fn resize( &mut self, _width : u32, _height : u32 ) {}
-  fn capabilities( &self ) -> Capabilities { Capabilities::default() }
+  fn load_assets( &mut self, _assets : &Assets ) -> Result< (), RenderError >
+  {
+    Ok( () )
+  }
+
+  fn submit( &mut self, _commands : &[ RenderCommand ] ) -> Result< (), RenderError >
+  {
+    Ok( () )
+  }
+
+  fn output( &self ) -> Result< Output, RenderError >
+  {
+    Ok( Output::Presented )
+  }
+
+  fn resize( &mut self, _width : u32, _height : u32 )
+  {
+  }
+
+  fn capabilities( &self ) -> Capabilities
+  {
+    Capabilities::default()
+  }
 }
 
 // ============================================================================
