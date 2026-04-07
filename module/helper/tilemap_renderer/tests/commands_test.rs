@@ -7,6 +7,9 @@ use tilemap_renderer::commands::*;
 /// If any type loses Copy, this test fails at compile time.
 fn assert_copy< T : Copy >() {}
 
+/// Verifies at compile time that every command struct and the `RenderCommand`
+/// enum implement `Copy`. Losing `Copy` on any command type breaks the
+/// zero-allocation command-stream contract.
 #[ test ]
 fn all_commands_are_copy()
 {
@@ -43,6 +46,8 @@ fn all_commands_are_copy()
   assert_copy::< RenderCommand >();
 }
 
+/// Verifies that `RenderCommand` fits within 256 bytes. The enum must remain
+/// cache-friendly; unexpected growth here signals a layout regression.
 #[ test ]
 fn render_command_size_reasonable()
 {
@@ -52,6 +57,8 @@ fn render_command_size_reasonable()
   assert!( size <= 256, "RenderCommand is {size} bytes, expected <= 256" );
 }
 
+/// Verifies that a representative command stream can be built as a `Vec`
+/// covering path, group, and clear commands without type errors or panics.
 #[ test ]
 fn command_stream_construction()
 {
@@ -85,6 +92,8 @@ fn command_stream_construction()
   assert_eq!( cmds.len(), 8 );
 }
 
+/// Verifies that `SpriteBatchParams` and `MeshBatchParams` can be
+/// constructed with default field values and that resource ids round-trip.
 #[ test ]
 fn batch_params_defaults()
 {

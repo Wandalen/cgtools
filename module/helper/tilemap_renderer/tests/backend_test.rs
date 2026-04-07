@@ -200,6 +200,9 @@ impl Backend for PresentedBackend
 // Tests
 // ============================================================================
 
+/// Verifies that `load_assets` succeeds on a valid empty asset set and
+/// sets the internal `assets_loaded` flag, confirming the call reaches
+/// the backend implementation.
 #[ test ]
 fn backend_load_assets_valid()
 {
@@ -209,6 +212,8 @@ fn backend_load_assets_valid()
   assert!( b.assets_loaded );
 }
 
+/// Verifies that `load_assets` accepts an empty `Assets` struct without error.
+/// Empty asset sets are a common initial state and must not be rejected.
 #[ test ]
 fn backend_load_assets_empty()
 {
@@ -216,6 +221,8 @@ fn backend_load_assets_empty()
   assert!( b.load_assets( &empty_assets() ).is_ok() );
 }
 
+/// Verifies that `submit` with an empty command slice returns `Ok` and
+/// records zero commands — backends must handle the no-op frame case.
 #[ test ]
 fn backend_submit_empty_slice()
 {
@@ -224,6 +231,8 @@ fn backend_submit_empty_slice()
   assert_eq!( b.last_command_count, 0 );
 }
 
+/// Verifies that a single `Clear` command is accepted by `submit` and
+/// that the backend records the correct command count.
 #[ test ]
 fn backend_submit_clear()
 {
@@ -234,6 +243,8 @@ fn backend_submit_clear()
   assert_eq!( b.last_command_count, 1 );
 }
 
+/// Verifies that `output` can return `Output::String` and that the
+/// string payload is correctly propagated from the backend.
 #[ test ]
 fn backend_output_returns_string()
 {
@@ -245,6 +256,8 @@ fn backend_output_returns_string()
   }
 }
 
+/// Verifies that `output` can return `Output::Bitmap` with correct
+/// width, height, channel count, and byte buffer length.
 #[ test ]
 fn backend_output_returns_bitmap()
 {
@@ -261,6 +274,8 @@ fn backend_output_returns_bitmap()
   }
 }
 
+/// Verifies that `output` can return `Output::Presented`, covering
+/// the GPU-presented swap-chain path.
 #[ test ]
 fn backend_output_returns_presented()
 {
@@ -271,6 +286,8 @@ fn backend_output_returns_presented()
   }
 }
 
+/// Verifies that `RenderError::MissingAsset` formats to a string that
+/// contains both the word "missing asset" and the asset id.
 #[ test ]
 fn render_error_missing_asset_display()
 {
@@ -280,6 +297,8 @@ fn render_error_missing_asset_display()
   assert!( s.contains( "42" ), "got: {s}" );
 }
 
+/// Verifies that `RenderError::Unsupported` formats to a string that
+/// contains "unsupported" and the feature name.
 #[ test ]
 fn render_error_unsupported_display()
 {
@@ -289,6 +308,8 @@ fn render_error_unsupported_display()
   assert!( s.contains( "gradients" ), "got: {s}" );
 }
 
+/// Verifies that `RenderError::BackendError` formats to a string that
+/// contains "backend error" and the inner message.
 #[ test ]
 fn render_error_backend_error_display()
 {
@@ -298,6 +319,8 @@ fn render_error_backend_error_display()
   assert!( s.contains( "gpu lost" ), "got: {s}" );
 }
 
+/// Verifies that `resize` stores the given dimensions and that they
+/// can be read back from the backend's internal state.
 #[ test ]
 fn backend_resize_stores_dimensions()
 {
@@ -307,6 +330,8 @@ fn backend_resize_stores_dimensions()
   assert_eq!( b.height, 600 );
 }
 
+/// Verifies that `load_assets` propagates `RenderError::MissingAsset`
+/// when the backend signals a missing asset during load.
 #[ test ]
 fn backend_load_assets_missing_asset_error()
 {
@@ -315,6 +340,8 @@ fn backend_load_assets_missing_asset_error()
   assert!( matches!( err, RenderError::MissingAsset( 7 ) ) );
 }
 
+/// Verifies that `load_assets` propagates `RenderError::BackendError`
+/// when the backend encounters a generic failure during asset load.
 #[ test ]
 fn backend_load_assets_backend_error()
 {
@@ -323,6 +350,8 @@ fn backend_load_assets_backend_error()
   assert!( matches!( err, RenderError::BackendError( _ ) ) );
 }
 
+/// Verifies that `submit` propagates `RenderError::Unsupported` when
+/// the backend rejects an unsupported feature in the command stream.
 #[ test ]
 fn backend_submit_unsupported()
 {
@@ -331,6 +360,8 @@ fn backend_submit_unsupported()
   assert!( matches!( err, RenderError::Unsupported( "gradients" ) ) );
 }
 
+/// Verifies that `submit` propagates `RenderError::MissingAsset` when
+/// the backend cannot resolve an asset referenced in a command.
 #[ test ]
 fn backend_submit_missing_asset()
 {
@@ -339,6 +370,8 @@ fn backend_submit_missing_asset()
   assert!( matches!( err, RenderError::MissingAsset( 99 ) ) );
 }
 
+/// Verifies that `output` propagates `RenderError::BackendError` when
+/// the backend fails to produce a frame.
 #[ test ]
 fn backend_output_backend_error()
 {
@@ -347,6 +380,9 @@ fn backend_output_backend_error()
   assert!( matches!( err, RenderError::BackendError( _ ) ) );
 }
 
+/// Verifies that `Capabilities::default()` returns all boolean fields
+/// as `false` and `max_texture_size` as `0`, representing a backend
+/// that advertises no optional feature support.
 #[ test ]
 fn backend_capabilities_default_all_false()
 {

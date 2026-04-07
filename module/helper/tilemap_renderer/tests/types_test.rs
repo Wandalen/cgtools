@@ -2,6 +2,8 @@
 
 use tilemap_renderer::types::*;
 
+/// Verifies that two `ResourceId<Image>` values with the same inner id compare
+/// equal, and that a different id compares unequal — type-safe id equality.
 #[ test ]
 fn resource_id_type_safety()
 {
@@ -13,6 +15,8 @@ fn resource_id_type_safety()
   assert_eq!( id_a.inner(), 5 );
 }
 
+/// Verifies that `ResourceId` formats as `"ResourceId(N)"` so that
+/// debug output is readable in test failure messages.
 #[ test ]
 fn resource_id_debug()
 {
@@ -20,6 +24,8 @@ fn resource_id_debug()
   assert_eq!( format!( "{id:?}" ), "ResourceId(42)" );
 }
 
+/// Verifies that `Transform::default()` is the identity transform:
+/// zero position, zero rotation, unit scale, zero skew, zero depth.
 #[ test ]
 fn transform_default_is_identity()
 {
@@ -34,6 +40,8 @@ fn transform_default_is_identity()
   assert!( transform.depth.abs() < 1e-6 );
 }
 
+/// Verifies that the identity `Transform` produces a 3×3 identity matrix
+/// from `to_mat3()`, element-by-element within float tolerance.
 #[ test ]
 fn to_mat3_identity()
 {
@@ -51,6 +59,8 @@ fn to_mat3_identity()
   }
 }
 
+/// Verifies that a translation-only `Transform` places the translation
+/// vector in the correct matrix slots (column-major: indices 6 and 7).
 #[ test ]
 fn to_mat3_translation()
 {
@@ -62,6 +72,8 @@ fn to_mat3_translation()
   assert!( ( mat[ 4 ] - 1.0 ).abs() < 1e-6 );
 }
 
+/// Verifies that a scale-only `Transform` places the scale factors on
+/// the matrix diagonal and zeroes the off-diagonal elements.
 #[ test ]
 fn to_mat3_scale()
 {
@@ -73,6 +85,8 @@ fn to_mat3_scale()
   assert!( ( mat[ 3 ] ).abs() < 1e-6 );
 }
 
+/// Verifies that a 90-degree rotation produces the expected sine/cosine
+/// values in the rotation slots of the matrix (indices 0, 1, 3, 4).
 #[ test ]
 fn to_mat3_rotation_90()
 {
@@ -84,6 +98,8 @@ fn to_mat3_rotation_90()
   assert!( mat[ 4 ].abs() < 1e-6, "m11={}", mat[ 4 ] );
 }
 
+/// Verifies that `RenderConfig::default()` produces the expected
+/// width (800), height (600), antialias mode, and background color.
 #[ test ]
 fn render_config_default()
 {
