@@ -234,7 +234,7 @@ version = "0.4.27"
 version = "0.2.100"
 
 [workspace.dependencies.js-sys]
-version = "0.3.77"
+version = "0.3.94"
 features = []
 
 [workspace.dependencies.web-sys]
