@@ -122,7 +122,7 @@ impl Backend for ErrorBackend
       Some( RenderError::MissingAsset( id ) ) => Err( RenderError::MissingAsset( *id ) ),
       Some( RenderError::Unsupported( s ) ) => Err( RenderError::Unsupported( s ) ),
       None => Ok( Output::Presented ),
-      _ => Ok( Output::Presented ),
+      _ => unreachable!( "add arm for new RenderError variant" ),
     }
   }
 
