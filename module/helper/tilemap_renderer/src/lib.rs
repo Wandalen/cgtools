@@ -30,6 +30,7 @@
 
 mod private {}
 
+#[ cfg( feature = "enabled" ) ]
 mod_interface::mod_interface!
 {
   layer types;

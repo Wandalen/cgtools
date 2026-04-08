@@ -11,7 +11,7 @@ repository = "https://github.com/Wandalen/cgtools"
 workspace = true
 
 [features]
-enabled = ["dep:error_tools", "dep:mod_interface"]
+enabled = ["dep:error_tools", "dep:mod_interface", "dep:nohash-hasher"]
 default = ["enabled"]
 full = ["enabled", "adapter-svg", "adapter-terminal", "adapter-webgl", "cli"]
 adapter-svg = ["enabled", "dep:base64"]
@@ -22,7 +22,6 @@ adapter-webgl = [
   "dep:web-sys",
   "dep:js-sys",
   "dep:wasm-bindgen",
-  "dep:nohash-hasher",
 ]
 # CLI stub — not yet reimplemented
 cli = ["enabled"]
