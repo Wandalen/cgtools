@@ -1,8 +1,8 @@
 # agnostic 2d render engine - development roadmap
 
-**Project:** Agnostic 2D Render Engine
-**Version:** 0.2
-**Status:** Active Development
+- **Project:** Agnostic 2D Render Engine
+- **Version:** 0.2
+- **Status:** Active Development
 
 ## current state
 
