@@ -1,7 +1,7 @@
 # spec
 
 - **Name:** Agnostic 2D Render Engine
-- **Version:** 0.2
+- **Version:** 0.2.0
 - **Date:** 2026-03-11
 
 ### table of contents
