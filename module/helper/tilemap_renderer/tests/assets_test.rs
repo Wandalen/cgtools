@@ -1,4 +1,13 @@
-//! Assets tests
+//! Assets validation tests.
+//!
+//! Coverage matrix:
+//! - **Empty baseline** — an all-empty `Assets` struct passes validation with zero errors
+//! - **No false positives** — two distinct ids in the same list produce no errors
+//! - **Duplicate detection per type** — image, geometry, sprite, gradient, clip mask, path
+//!   each produce exactly one error when two entries share the same id
+//! - **Cross-type id scoping** — the same id in two different asset types is not a duplicate
+//! - **Multiple simultaneous errors** — duplicate ids in two independent lists each
+//!   produce their own error, all reported in a single `validate()` call
 
 mod helpers;
 use helpers::empty_assets;
