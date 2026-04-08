@@ -812,8 +812,8 @@ mod private
             }
             else
             {
-              let vs_src = format!( "#version 300 es\n{}\n{}", defines, material.vertex_shader() );
-              let fs_src = format!( "#version 300 es\n{}\n{}\n{}", defines, ibl_define, material.fragment_shader() );
+              let vs_src = format!( "#version 300 es\n{}\n{}", material.vertex_defines_str(), material.vertex_shader() );
+              let fs_src = format!( "#version 300 es\n{}\n{}\n{}", material.fragment_defines_str(), ibl_define, material.fragment_shader() );
               let program = gl::ProgramFromSources::new( &vs_src, &fs_src ).compile_and_link( gl )?;
               let shader_program = material.make_shader_program( gl, &program );
               let new_id = uuid::Uuid::new_v4();
