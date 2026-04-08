@@ -6,7 +6,7 @@
 
 ## current state
 
-The core library and two backend adapters (SVG, WebGL2) are functional. The engine uses a flat command stream architecture with POD commands and a `Backend` trait.
+The core library is functional. The engine uses a flat command stream architecture with POD commands and a `Backend` trait. Backend adapters are stub implementations deferred to follow-up PRs.
 
 ### completed
 
@@ -14,10 +14,13 @@ The core library and two backend adapters (SVG, WebGL2) are functional. The engi
 - **Command system** — all POD commands: Clear, Path (moveto/lineto/quad/cubic/arc/close), Text, Mesh, Sprite, Batch lifecycle, Groups with effects
 - **Asset system** — images (bitmap/encoded/path), sprites, geometries, gradients, patterns, clip masks, paths, validation
 - **Backend trait** — `load_assets`, `submit`, `output`, `resize`, `capabilities`
-- **SVG adapter** — full SVG 1.1 generation with Y-up transform, effects (blur/drop-shadow/color-matrix/opacity), tint via feColorMatrix, mesh texture via pattern fill, batch rendering with `<g>` composition
-- **WebGL2 adapter** — hardware-accelerated rendering with instanced sprite/mesh batches, `ArrayBuffer<T>` GPU buffer, per-batch VAO, GLSL shaders for single and instanced draws
-- **Terminal adapter** — ASCII/Unicode rendering with Bresenham line drawing
-- **Test suite** — 51 tests covering types, commands, assets validation, and SVG backend
+- **Test suite** — 38 tests covering types, commands, assets validation, and backend trait
+
+### deferred to follow-up PRs
+
+- **SVG adapter** — stub only (`adapter-svg` feature gate exists; implementation pending)
+- **WebGL2 adapter** — stub only (`adapter-webgl` feature gate exists; implementation pending)
+- **Terminal adapter** — stub only (`adapter-terminal` feature gate exists; implementation pending)
 
 ### project structure
 
