@@ -103,6 +103,8 @@ arbitrary_source_item_ordering = "allow"
 missing_docs_in_private_items = "allow"
 # Allows many single char names in mathematical contexts
 many_single_char_names = "allow"
+# Allows structs with many bool fields (e.g. Capabilities in tilemap_renderer)
+struct-excessive-bools = "allow"
 
 # = helpers
 
