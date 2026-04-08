@@ -1,5 +1,6 @@
 # Cargo configuration for cgtools workspace
 
+# Enable WebGPU unstable APIs for web-sys
 [build]
 rustflags = ["--cfg", "web_sys_unstable_apis"]
 rustdocflags = ["--cfg", "web_sys_unstable_apis"]
