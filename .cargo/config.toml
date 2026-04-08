@@ -3,7 +3,12 @@
 # Enable WebGPU unstable APIs for web-sys
 [build]
 rustflags = ["--cfg", "web_sys_unstable_apis"]
-rustdocflags = ["--cfg", "web_sys_unstable_apis"]
+rustdocflags = [
+  "--cfg",
+  "web_sys_unstable_apis",
+  "--cfg",
+  "getrandom_backend=\"wasm_js\"",
+]
 
 # WebAssembly specific configuration
 [target.wasm32-unknown-unknown]
@@ -13,4 +18,9 @@ rustflags = [
   "--cfg",
   "getrandom_backend=\"wasm_js\"",
 ]
-rustdocflags = ["--cfg", "web_sys_unstable_apis"]
+rustdocflags = [
+  "--cfg",
+  "web_sys_unstable_apis",
+  "--cfg",
+  "getrandom_backend=\"wasm_js\"",
+]
