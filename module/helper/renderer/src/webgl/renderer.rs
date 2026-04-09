@@ -837,9 +837,9 @@ mod private
                   let locations = shader_program.locations();
 
                   ibl.bind( gl, ibl_base_texture_unit );
-                  gl.uniform1i( locations.get( "irradianceTexture" ).unwrap().clone().as_ref(), ibl_base_texture_unit as i32 );
-                  gl.uniform1i( locations.get( "prefilterEnvMap" ).unwrap().clone().as_ref(), ibl_base_texture_unit as i32 + 1 );
-                  gl.uniform1i( locations.get( "integrateBRDF" ).unwrap().clone().as_ref(), ibl_base_texture_unit as i32 + 2 );
+                  gl.uniform1i( locations.get( "irradianceTexture" ).expect( "IBL contract violated: material returned Some(ibl_base_texture_unit) but shader is missing 'irradianceTexture' uniform — see Material::ibl_base_texture_unit() docs in material/mod.rs" ).clone().as_ref(), ibl_base_texture_unit as i32 );
+                  gl.uniform1i( locations.get( "prefilterEnvMap" ).expect( "IBL contract violated: material returned Some(ibl_base_texture_unit) but shader is missing 'prefilterEnvMap' uniform — see Material::ibl_base_texture_unit() docs in material/mod.rs" ).clone().as_ref(), ibl_base_texture_unit as i32 + 1 );
+                  gl.uniform1i( locations.get( "integrateBRDF" ).expect( "IBL contract violated: material returned Some(ibl_base_texture_unit) but shader is missing 'integrateBRDF' uniform — see Material::ibl_base_texture_unit() docs in material/mod.rs" ).clone().as_ref(), ibl_base_texture_unit as i32 + 2 );
                 }
               }
 
