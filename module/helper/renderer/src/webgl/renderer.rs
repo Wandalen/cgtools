@@ -812,6 +812,11 @@ mod private
             }
             else
             {
+              // Fix: use per-stage defines rather than the combined defines_str() for both stages.
+              // Root cause: using defines_str() (which concatenates vertex + fragment defines) for both
+              //   shader stages caused fragment-only defines to appear in the vertex shader and vice versa.
+              // Pitfall: defines_str() remains correct as the cache key (it covers all variants) — only
+              //   the per-stage compilation calls must use the stage-specific accessors.
               let vs_src = format!( "#version 300 es\n{}\n{}", material.vertex_defines_str(), material.vertex_shader() );
               let fs_src = format!( "#version 300 es\n{}\n{}\n{}", material.fragment_defines_str(), ibl_define, material.fragment_shader() );
               let program = gl::ProgramFromSources::new( &vs_src, &fs_src ).compile_and_link( gl )?;
@@ -916,6 +921,11 @@ mod private
       camera : &Camera
     ) -> Result< (), gl::WebglError >
     {
+      // Fix: sort by program UUID to produce a deterministic draw order and minimize GPU state switches.
+      // Root cause: without sorting, iteration order over the node set was non-deterministic (HashMap),
+      //   causing visible flickering and unnecessary program rebinds between frames.
+      // Pitfall: sort key must be the compiled program UUID (pid), not the material TypeId — two materials
+      //   with different TypeIds may share the same compiled program and would otherwise be split apart.
       self.opaque_nodes.sort_by_key( | ( _, _, _, pid ) | *pid );
 
       let mut current_program_id : Option< uuid::Uuid > = None;
@@ -1007,10 +1017,12 @@ mod private
       gl.depth_func( gl::LESS );
       gl.disable( gl::CULL_FACE );
 
-      // Sort by program UUID only to minimize state switches. Depth sorting is
-      // intentionally omitted: this renderer uses exclusively WBOIT (Weighted
-      // Blended Order-Independent Transparency), which composites correctly
-      // regardless of draw order. There is no standard alpha blending path.
+      // Fix: sort by program UUID to produce a deterministic draw order and minimize GPU state switches.
+      // Root cause: without sorting, iteration order over the node set was non-deterministic (HashMap),
+      //   causing unnecessary program rebinds between frames.
+      // Pitfall: depth sorting is intentionally omitted — this renderer uses exclusively WBOIT (Weighted
+      //   Blended Order-Independent Transparency), which composites correctly regardless of draw order.
+      //   There is no standard alpha blending path that would require back-to-front ordering.
       self.transparent_nodes.sort_by_key( | ( _, _, _, pid ) | *pid );
 
       let mut current_program_id : Option< uuid::Uuid > = None;
