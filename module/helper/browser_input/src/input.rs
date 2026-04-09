@@ -133,19 +133,19 @@ impl State
 /// A function to get pointer coordinates relative to the client area (the viewport).
 pub static CLIENT : fn( &PointerEvent ) -> I32x2 = | event |
 {
-  I32x2::from_array( [ event.client_x(), event.client_y() ] )
+  I32x2::from_array( [ event.client_x() as i32, event.client_y() as i32 ] )
 };
 
 /// A function to get pointer coordinates relative to the entire page, including scrolled-out areas.
 pub static PAGE : fn( &PointerEvent ) -> I32x2 = | event |
 {
-  I32x2::from_array( [ event.page_x(), event.page_y() ] )
+  I32x2::from_array( [ event.page_x() as i32, event.page_y() as i32 ] )
 };
 
 /// A function to get pointer coordinates relative to the user's screen.
 pub static SCREEN : fn( &PointerEvent ) -> I32x2 = | event |
 {
-  I32x2::from_array( [ event.screen_x(), event.screen_y() ] )
+  I32x2::from_array( [ event.screen_x() as i32, event.screen_y() as i32 ] )
 };
 
 /// The main input handler struct, responsible for setting up and managing browser event listeners.
