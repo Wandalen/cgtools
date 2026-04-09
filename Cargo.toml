@@ -231,14 +231,14 @@ version = "0.2.0"
 version = "0.4.27"
 
 [workspace.dependencies.wasm-bindgen]
-version = "0.2.100"
+version = "0.2.117"
 
 [workspace.dependencies.js-sys]
-version = "0.3.77"
+version = "0.3.94"
 features = []
 
 [workspace.dependencies.web-sys]
-version = "0.3.77"
+version = "0.3.94"
 features = []
 
 [workspace.dependencies.bytemuck]
@@ -255,7 +255,7 @@ version = "0.5.1"
 version = "0.2.19"
 
 [workspace.dependencies.wasm-bindgen-futures]
-version = "0.4.50"
+version = "0.4.67"
 
 [workspace.dependencies.wasm-bindgen-test]
 version = "0.3"

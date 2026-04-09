@@ -575,6 +575,7 @@ mod private
         let canvas = canvas.clone();
         move | e : web_sys::PointerEvent |
         {
+          // screen_x/y return f64 since web-sys 0.3.94 (unstable API); direct f64→f32 is intentional
           let pos = [ e.screen_x() as f32, e.screen_y() as f32 ];
           active_pointers.borrow_mut().insert( e.pointer_id(), pos );
           let count = active_pointers.borrow().len();
@@ -613,6 +614,7 @@ mod private
         move | e : web_sys::PointerEvent |
         {
           let pointer_id = e.pointer_id();
+          // screen_x/y return f64 since web-sys 0.3.94 (unstable API); direct f64→f32 is intentional
           let new_pos = [ e.screen_x() as f32, e.screen_y() as f32 ];
           let current_state = state.borrow().clone();
 
