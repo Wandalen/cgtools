@@ -103,6 +103,18 @@ fn to_mat3_rotation_90()
   assert!( mat[ 4 ].abs() < 1e-6, "m11={}", mat[ 4 ] );
 }
 
+/// Verifies the Y-up CCW invariant: a 90° CCW rotation maps world direction (1, 0) to (0, 1).
+/// In column-major layout this means m[1] = +sin = +1 and m[3] = -sin = -1.
+/// This is the contract every adapter must preserve.
+#[ test ]
+fn to_mat3_ccw_positive_rotation()
+{
+  let t = Transform { rotation : core::f32::consts::FRAC_PI_2, ..Default::default() };
+  let m = t.to_mat3();
+  assert!( ( m[ 1 ] - 1.0 ).abs() < 1e-6, "sin(π/2) should be +1 for CCW, got {}", m[ 1 ] );
+  assert!( ( m[ 3 ] + 1.0 ).abs() < 1e-6, "-sin(π/2) should be -1 for CCW, got {}", m[ 3 ] );
+}
+
 /// Verifies that `RenderConfig::default()` produces the expected
 /// width (800), height (600), antialias mode, and background color.
 #[ test ]
