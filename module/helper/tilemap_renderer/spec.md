@@ -214,7 +214,7 @@ pub trait Backend {
 - **NFR-4:** ✅ Y-up coordinate system consistent across all backends
 - **NFR-5:** ✅ 100% documentation coverage (zero warnings)
 - **NFR-6:** ✅ All command types are POD (Copy, Clone)
-- **NFR-7:** ✅ Test suite: 21 tests (types, commands, assets); adapter tests deferred to adapter PRs
+- **NFR-7:** ✅ Test suite: 39 tests (types, commands, assets, backend trait); adapter tests deferred to adapter PRs
 - **NFR-8:** ❌ Compile-time layout assertions for GPU data structures (deferred to WebGL/wgpu adapter PRs)
 - **NFR-9:** ❌ Visual regression testing
 - **NFR-10:** ❌ CI with feature matrix

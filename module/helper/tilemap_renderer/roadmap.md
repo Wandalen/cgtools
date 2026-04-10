@@ -14,7 +14,7 @@ The core library is functional. The engine uses a flat command stream architectu
 - **Command system** — all POD commands: Clear, Path (moveto/lineto/quad/cubic/arc/close), Text, Mesh, Sprite, Batch lifecycle, Groups with effects
 - **Asset system** — images (bitmap/encoded/path), sprites, geometries, gradients, patterns, clip masks, paths, validation
 - **Backend trait** — `load_assets`, `submit`, `output`, `resize`, `capabilities`
-- **Test suite** — 38 tests covering types, commands, assets validation, and backend trait
+- **Test suite** — 39 tests covering types, commands, assets validation, and backend trait
 
 ### deferred to follow-up PRs
 
