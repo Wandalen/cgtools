@@ -103,7 +103,7 @@ mod private
     /// Terminal: ignored.
     pub antialias : Antialias,
     /// Default background color (RGBA, 0.0–1.0).
-    /// Used by `Clear` command if no explicit color given.
+    /// Used as the canvas background when no `Clear` command is issued.
     pub background : [ f32; 4 ],
   }
 
