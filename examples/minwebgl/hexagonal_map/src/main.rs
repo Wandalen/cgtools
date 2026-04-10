@@ -41,18 +41,66 @@ mod core_game;
 use minwebgl as gl;
 use browser_input::{ keyboard::KeyboardKey, mouse::MouseButton, Action, Event, EventType };
 use gl::{ JsCast as _, I32x2, F32x2, Vector };
-use tilemap_renderer::{ adapters::WebGLTileRenderer, commands };
-use commands::Transform2D;
-use std::{ cell, rc::Rc, str::FromStr };
-use cell::{ Cell, RefCell };
+use tilemap_renderer::
+{
+  adapters::WebGlBackend,
+  backend::Backend,
+  types::*,
+  commands,
+  assets,
+};
+use std::{ cell::RefCell, rc::Rc, str::FromStr, path::PathBuf };
 use tiles_tools::coordinates::pixel::Pixel;
 use web_sys::HtmlCanvasElement;
 use rustc_hash::FxHashMap;
-use core_game::{ Coord };
+use core_game::Coord;
 use triaxial::TriAxial;
 use helper::*;
 
-type TexSize =  Rc< Cell< [ u32; 2 ] > >;
+fn f32_to_bytes( data : &[ f32 ] ) -> Vec< u8 >
+{
+  data.iter().flat_map( | f | f.to_le_bytes() ).collect()
+}
+
+/// Builds a Transform that maps from local vertex space to screen pixels,
+/// matching the old renderer's camera/zoom/aspect behavior.
+fn make_transform
+(
+  world_pos : [ f32; 2 ],
+  rotation : f32,
+  obj_scale : [ f32; 2 ],
+  camera : [ f32; 2 ],
+  zoom : f32,
+  width : f32,
+  height : f32,
+) -> Transform
+{
+  let ( as_x, as_y ) = if width > height
+  {
+    ( zoom, zoom * width / height )
+  }
+  else
+  {
+    ( zoom * height / width, zoom )
+  };
+
+  let world_x = world_pos[ 0 ] + camera[ 0 ];
+  let world_y = world_pos[ 1 ] + camera[ 1 ];
+
+  let screen_pos_x = ( world_x * as_x + 1.0 ) * width / 2.0;
+  let screen_pos_y = ( world_y * as_y + 1.0 ) * height / 2.0;
+
+  let screen_scale_x = obj_scale[ 0 ] * as_x * width / 2.0;
+  let screen_scale_y = obj_scale[ 1 ] * as_y * height / 2.0;
+
+  Transform
+  {
+    position : [ screen_pos_x, screen_pos_y ],
+    rotation,
+    scale : [ screen_scale_x, screen_scale_y ],
+    ..Default::default()
+  }
+}
 
 fn main()
 {
@@ -70,27 +118,35 @@ async fn run() -> Result< (), gl::WebglError >
   let gl = gl::context::retrieve_or_make().unwrap();
 
   let canvas = gl.canvas().unwrap().dyn_into::< HtmlCanvasElement >().unwrap();
-  let width = ( fwidth * dpr ) as i32;
-  let height = ( fheight * dpr ) as i32;
-  canvas.set_width( width as u32 );
-  canvas.set_height( height as u32 );
+  let width = ( fwidth * dpr ) as u32;
+  let height = ( fheight * dpr ) as u32;
+  canvas.set_width( width );
+  canvas.set_height( height );
   browser_input::prevent_rightclick( canvas.clone().dyn_into().unwrap() );
 
-  let default = tilemap_renderer::ports::RenderContext::new
-  (
-    0,
-    0,
-    [ 0.0; 4 ],
-    true,
-    tilemap_renderer::commands::Point2D { x : 0.0, y : 0.0  },
-    0.0
-  );
-  let mut renderer = WebGLTileRenderer::new( &gl, default ).unwrap();
+  // ---- Backend setup ----
 
-  let hexagon_id = 0;
-  let outline_id = 1;
-  let rectangle_id = 2;
-  let rectangle : &[ f32 ] = &
+  let config = RenderConfig
+  {
+    width,
+    height,
+    ..Default::default()
+  };
+  let mut backend = WebGlBackend::new( config, gl.clone() )
+  .expect( "backend error" );
+
+  // ---- Geometry IDs ----
+
+  let hexagon_id : ResourceId< asset::Geometry > = ResourceId::new( 0 );
+  let outline_id : ResourceId< asset::Geometry > = ResourceId::new( 1 );
+  let rectangle_id : ResourceId< asset::Geometry > = ResourceId::new( 2 );
+
+  // ---- Geometry data ----
+
+  let hexagon_mesh = tiles_tools::geometry::hexagon_triangles();
+  let outline_mesh = tiles_tools::geometry::hexagon_lines();
+
+  let rect_positions : &[ f32 ] = &
   [
     -1.0, -1.0,
      1.0,  1.0,
@@ -99,35 +155,95 @@ async fn run() -> Result< (), gl::WebglError >
      1.0, -1.0,
      1.0,  1.0,
   ];
-  let hexagon_mesh = tiles_tools::geometry::hexagon_triangles();
-  let outline_mesh = tiles_tools::geometry::hexagon_lines();
-  renderer.geometry2d_load( &hexagon_mesh, hexagon_id ).unwrap();
-  renderer.geometry2d_load( &outline_mesh, outline_id ).unwrap();
-  renderer.geometry2d_load( rectangle, rectangle_id ).unwrap();
+  let rect_uvs : &[ f32 ] = &
+  [
+    0.0, 0.0,
+    1.0, 1.0,
+    0.0, 1.0,
+    0.0, 0.0,
+    1.0, 0.0,
+    1.0, 1.0,
+  ];
 
-  let config = include_str!( "../config.json" );
-  let config = serde_json::from_str::< core_game::Config >( config ).unwrap();
+  // ---- Config ----
 
-  let mut textures = FxHashMap::< String, ( u32, TexSize ) >::default();
-  for object in &config.object_props
+  let game_config = include_str!( "../config.json" );
+  let game_config = serde_json::from_str::< core_game::Config >( game_config ).unwrap();
+
+  // ---- Texture loading ----
+
+  let mut textures = FxHashMap::< String, ResourceId< asset::Image > >::default();
+  let mut image_assets = Vec::new();
+
+  for object in &game_config.object_props
   {
     let Some( sprite ) = &object.sprite else { continue; };
     if textures.contains_key( &sprite.source ) { continue; }
     let id = textures.len() as u32;
-    let size = renderer
-    .texture_load_from_src( &document, &sprite.source, id )
-    .expect( "Failed to load textures" );
-    textures.insert( sprite.source.clone(), ( id, size ) );
+    let res_id : ResourceId< asset::Image > = ResourceId::new( id );
+
+    textures.insert( sprite.source.clone(), res_id );
+
+    image_assets.push( assets::ImageAsset
+    {
+      id : res_id,
+      source : assets::ImageSource::Path( PathBuf::from( &sprite.source ) ),
+      filter : SamplerFilter::Linear,
+    });
   }
 
-  let map = Rc::new( RefCell::new( core_game::Map::default() ) );
-  let loaded_map : Rc< RefCell < Option< String > > > = Default::default();
+  // ---- Load assets ----
 
-  // Setup select elements
+  let all_assets = assets::Assets
+  {
+    fonts : vec![],
+    images : image_assets,
+    sprites : vec![],
+    geometries : vec!
+    [
+      assets::GeometryAsset
+      {
+        id : hexagon_id,
+        positions : assets::Source::Bytes( f32_to_bytes( &hexagon_mesh ) ),
+        uvs : None,
+        indices : None,
+        data_type : assets::DataType::F32,
+      },
+      assets::GeometryAsset
+      {
+        id : outline_id,
+        positions : assets::Source::Bytes( f32_to_bytes( &outline_mesh ) ),
+        uvs : None,
+        indices : None,
+        data_type : assets::DataType::F32,
+      },
+      assets::GeometryAsset
+      {
+        id : rectangle_id,
+        positions : assets::Source::Bytes( f32_to_bytes( rect_positions ) ),
+        uvs : Some( assets::Source::Bytes( f32_to_bytes( rect_uvs ) ) ),
+        indices : None,
+        data_type : assets::DataType::F32,
+      },
+    ],
+    gradients : vec![],
+    patterns : vec![],
+    clip_masks : vec![],
+    paths : vec![],
+  };
+
+  backend.load_assets( &all_assets )
+  .expect( "backend error" );
+
+  // ---- Game state ----
+
+  let map = Rc::new( RefCell::new( core_game::Map::default() ) );
+  let loaded_map : Rc< RefCell< Option< String > > > = Default::default();
+
   let mode_select_variants = [ EditMode::EditTiles, EditMode::EditRivers ].map( | v | v.as_ref().to_string() );
   let mode_select = setup_select( &document, "edit-mode", mode_select_variants.iter() );
-  let tile_select = setup_select( &document, "tile", config.object_props.iter().map( | p | &p.name ) );
-  let player_list = config.player_colors.iter().enumerate().map( | ( i, _ ) |  i.to_string() ).collect::< Vec< _ > >();
+  let tile_select = setup_select( &document, "tile", game_config.object_props.iter().map( | p | &p.name ) );
+  let player_list = game_config.player_colors.iter().enumerate().map( | ( i, _ ) | i.to_string() ).collect::< Vec< _ > >();
   let player_select = setup_select( &document, "player", player_list.iter() );
 
   setup_download_button( &document, map.clone() );
@@ -145,8 +261,8 @@ async fn run() -> Result< (), gl::WebglError >
 
   let water_color = [ 0.1, 0.2, 0.4 ];
 
-  let mut zoom = 0.1;
-  let zoom_factor = 0.75;
+  let mut zoom = 0.1_f32;
+  let zoom_factor = 0.75_f32;
   let inv_canvas_size = F32x2::new( 1.0 / width as f32, 1.0 / height as f32 );
   let aspect = if width > height
   {
@@ -165,6 +281,9 @@ async fn run() -> Result< (), gl::WebglError >
   let update = move | _ |
   {
     input.update_state();
+
+    let w = canvas.width() as f32;
+    let h = canvas.height() as f32;
 
     let mut loaded_map = loaded_map.borrow_mut();
     if let Some( map_json ) = loaded_map.as_ref()
@@ -193,9 +312,8 @@ async fn run() -> Result< (), gl::WebglError >
     }
 
     let pointer_pos = input.pointer_position();
-    let pointer_pos = screen_to_world( pointer_pos, inv_canvas_size, aspect, zoom );
-    let mut pixel = pointer_pos - camera_pos;
-    pixel[ 1 ] = -pixel[ 1 ];
+    let pointer_pos = screen_to_world( pointer_pos, inv_canvas_size, aspect, zoom, h );
+    let pixel = pointer_pos - camera_pos;
     let pixel : Pixel = pixel.into();
     let hexagon_coord : Coord = pixel.into();
     let tri_point = TriAxial::from_point( pixel.x(), pixel.y() );
@@ -251,7 +369,8 @@ async fn run() -> Result< (), gl::WebglError >
           last_pointer_pos,
           inv_canvas_size,
           aspect,
-          zoom
+          zoom,
+          h,
         );
         let movement = pointer_pos - last_pointer_pos;
         camera_pos += movement;
@@ -264,7 +383,7 @@ async fn run() -> Result< (), gl::WebglError >
       let selected_value = tile_select.value();
       let object_index = core_game::ObjectIndex
       (
-        config.object_props.iter().position( | p | p.name == selected_value ).unwrap() as u32
+        game_config.object_props.iter().position( | p | p.name == selected_value ).unwrap() as u32
       );
       let owner_index = core_game::PlayerIndex( player_select.value().parse().unwrap() );
 
@@ -273,7 +392,7 @@ async fn run() -> Result< (), gl::WebglError >
         let tile = core_game::Tile
         {
           object_index : Some( object_index ),
-          terrain_index: Default::default(),
+          terrain_index : Default::default(),
           owner_index,
           coord : hexagon_coord,
         };
@@ -288,98 +407,95 @@ async fn run() -> Result< (), gl::WebglError >
     last_pointer_pos = Some( input.pointer_position() );
     input.clear_events();
 
-    let width = canvas.width();
-    let height = canvas.height();
-    let ctx = tilemap_renderer::ports::RenderContext::new
-    (
-      width,
-      height,
-      [ 0.1, 0.2, 0.3, 1.0 ],
-      true,
-      tilemap_renderer::commands::Point2D { x : camera_pos[ 0 ], y : camera_pos[ 1 ]  },
-      zoom
-    );
-    renderer.context_set( ctx );
+    // ---- Build render commands ----
 
-    let mut commands = vec![];
+    let cam = [ camera_pos[ 0 ], camera_pos[ 1 ] ];
+
+    let mut render_commands = vec!
+    [
+      commands::RenderCommand::Clear( commands::Clear { color : [ 0.1, 0.2, 0.3, 1.0 ] } ),
+    ];
 
     for hex in map.borrow().tiles.values()
     {
-      let mut position : Pixel = hex.coord.into();
-      position.data[ 1 ] = -position.data[ 1 ];
-      let tr = Transform2D::new( position.data, 0.0, [ 1.0, 1.0 ] );
-      let [ r, g, b ] = config.player_colors[ hex.owner_index.0 as usize ];
-      let color = [ f32::from( r ) / 255.0, f32::from( g ) / 255.0, f32::from( b ) / 255.0 ];
-      let command = commands::Geometry2DCommand
-      {
-        id : hexagon_id,
-        transform : tr,
-        color,
-        mode : commands::GeometryMode::Triangles,
-      };
-      commands.push( commands::RenderCommand::Geometry2DCommand( command ) );
+      let position : Pixel = hex.coord.into();
 
-      let color = [ 0.0_f32; 3 ];
-      let command = commands::Geometry2DCommand
+      // Filled hexagon
+      let [ r, g, b ] = game_config.player_colors[ hex.owner_index.0 as usize ];
+      let color = [ f32::from( r ) / 255.0, f32::from( g ) / 255.0, f32::from( b ) / 255.0, 1.0 ];
+      let tr = make_transform( position.data, 0.0, [ 1.0, 1.0 ], cam, zoom, w, h );
+      render_commands.push( commands::RenderCommand::Mesh( commands::Mesh
       {
-        id : outline_id,
         transform : tr,
-        color,
-        mode : commands::GeometryMode::Lines,
-      };
-      commands.push( commands::RenderCommand::Geometry2DCommand( command ) );
+        geometry : hexagon_id,
+        fill : FillRef::Solid( color ),
+        texture : None,
+        topology : Topology::TriangleList,
+        blend : BlendMode::Normal,
+        clip : None,
+      }));
 
+      // Outline
+      let tr = make_transform( position.data, 0.0, [ 1.0, 1.0 ], cam, zoom, w, h );
+      render_commands.push( commands::RenderCommand::Mesh( commands::Mesh
+      {
+        transform : tr,
+        geometry : outline_id,
+        fill : FillRef::Solid( [ 0.0, 0.0, 0.0, 1.0 ] ),
+        texture : None,
+        topology : Topology::LineList,
+        blend : BlendMode::Normal,
+        clip : None,
+      }));
+
+      // Sprite (textured rectangle)
       let Some( object_index ) = hex.object_index else { continue; };
-
-      let object = &config.object_props[ object_index.0 as usize ];
-
+      let object = &game_config.object_props[ object_index.0 as usize ];
       let Some( sprite ) = &object.sprite else { continue; };
+      let Some( tex_res_id ) = textures.get( &sprite.source ) else { continue; };
 
-      let ( id, size ) = &textures[ &sprite.source ];
       let scale = sprite.scale;
-      let scale =
-      [
-        scale * 0.5 * size.get()[ 0 ] as f32,
-        scale * 0.5 * size.get()[ 1 ] as f32
-      ];
+      let obj_scale = [ scale, scale ];
 
-      let mut position : Pixel = hex.coord.into();
-      position.data[ 1 ] = -position.data[ 1 ];
-      let tr = Transform2D::new( position.data, 0.0, scale );
-      let c = commands::SpriteCommand
+      let tr = make_transform( position.data, 0.0, obj_scale, cam, zoom, w, h );
+      render_commands.push( commands::RenderCommand::Mesh( commands::Mesh
       {
-        id : *id,
         transform : tr,
-      };
-      commands.push( commands::RenderCommand::SpriteCommand( c ) );
+        geometry : rectangle_id,
+        fill : FillRef::Solid( [ 1.0, 1.0, 1.0, 1.0 ] ),
+        texture : Some( *tex_res_id ),
+        topology : Topology::TriangleList,
+        blend : BlendMode::Normal,
+        clip : None,
+      }));
     }
 
+    // Rivers
     let river_width = 0.1;
     for [ p1, p2 ] in &map.borrow().rivers
     {
-      let mut p1 : F32x2 = p1.to_point().into();
-      p1[ 1 ] = -p1[ 1 ];
-      let mut p2 : F32x2 = p2.to_point().into();
-      p2[ 1 ] = -p2[ 1 ];
+      let p1 : F32x2 = p1.to_point().into();
+      let p2 : F32x2 = p2.to_point().into();
       let center = ( p1 + p2 ) / 2.0;
       let length = p1.distance( &p2 ) / 2.0;
       let dx = p2.x() - p1.x();
       let dy = p2.y() - p1.y();
       let angle = dy.atan2( dx );
 
-      let tr = Transform2D::new( center, angle, [ length, river_width ].into() );
-      let color = water_color;
-      let command = commands::Geometry2DCommand
+      let tr = make_transform( center.into(), angle, [ length, river_width ], cam, zoom, w, h );
+      render_commands.push( commands::RenderCommand::Mesh( commands::Mesh
       {
-        id : rectangle_id,
         transform : tr,
-        color,
-        mode : commands::GeometryMode::Triangles,
-      };
-      commands.push( commands::RenderCommand::Geometry2DCommand( command ) );
+        geometry : rectangle_id,
+        fill : FillRef::Solid( [ water_color[ 0 ], water_color[ 1 ], water_color[ 2 ], 1.0 ] ),
+        texture : None,
+        topology : Topology::TriangleList,
+        blend : BlendMode::Normal,
+        clip : None,
+      }));
     }
 
-    renderer.commands_execute( &commands );
+    let _ = backend.submit( &render_commands );
 
     true
   };
@@ -393,12 +509,12 @@ fn screen_to_world
   screen : I32x2,
   inv_canvas_size : F32x2,
   aspect : F32x2,
-  zoom : f32
+  zoom : f32,
+  canvas_height : f32,
 ) -> F32x2
 {
   let Vector ( [ x, y ] ) = screen;
-  let screenf32 = F32x2::new( x as f32, y as f32 );
-  let mut world = ( screenf32 * inv_canvas_size - 0.5 ) * 2.0 / ( zoom * aspect );
-  world[ 1 ] = -world[ 1 ];
-  world
+  // Flip browser Y (top-down) to renderer Y (bottom-up)
+  let screenf32 = F32x2::new( x as f32, canvas_height - y as f32 );
+  ( screenf32 * inv_canvas_size - 0.5 ) * 2.0 / ( zoom * aspect )
 }

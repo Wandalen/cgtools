@@ -111,14 +111,14 @@ async fn run() -> Result< (), gl::WebglError >
     {
       // calculate click position
       let rect = canvas.get_bounding_client_rect();
-      let canvas_x = rect.left() as i32;
-      let canvas_y = rect.top() as i32;
+      let canvas_x = rect.left();
+      let canvas_y = rect.top();
       let x = e.client_x();
       let y = e.client_y();
 
       let x = x - canvas_x;
       let y = y - canvas_y;
-      let y = height - y;
+      let y = height as f64 - y;
 
       let pos = [ x, y ];
 
@@ -127,8 +127,8 @@ async fn run() -> Result< (), gl::WebglError >
       gl.read_buffer( GL::COLOR_ATTACHMENT0 );
       gl.read_pixels_with_array_buffer_view_and_dst_offset
       (
-        pos[ 0 ],
-        pos[ 1 ],
+        pos[ 0 ] as i32,
+        pos[ 1 ] as i32,
         1,
         1,
         GL::RED_INTEGER,
