@@ -1,7 +1,7 @@
-#![ allow( clippy::exhaustive_structs ) ]
-#![ allow( clippy::exhaustive_enums ) ]
-#![ allow( clippy::wildcard_imports ) ]
-#![ allow( clippy::min_ident_chars ) ]
+#![ allow( clippy::exhaustive_structs ) ] // POD command types are intentionally open; #[non_exhaustive] conflicts with Copy
+#![ allow( clippy::exhaustive_enums ) ]   // Small, stable enums meant to be matched exhaustively by adapter authors
+#![ allow( clippy::wildcard_imports ) ]   // mod_interface! generates glob re-exports; no per-item scope is available inside a proc-macro expansion
+#![ allow( clippy::min_ident_chars ) ]    // Short names like x, y, m are idiomatic in math/graphics contexts throughout this crate
 
 //! Agnostic 2D rendering engine.
 //!
