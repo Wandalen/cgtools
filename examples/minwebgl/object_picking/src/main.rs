@@ -116,9 +116,9 @@ async fn run() -> Result< (), gl::WebglError >
       let x = e.client_x();
       let y = e.client_y();
 
-      let x = x - canvas_x;
-      let y = y - canvas_y;
-      let y = height as f64 - y;
+      let x = x as i32 - canvas_x;
+      let y = y as i32 - canvas_y;
+      let y = height - y;
 
       let pos = [ x, y ];
 

@@ -183,8 +183,8 @@ async fn run() -> Result< (), gl::WebglError >
         let material = primitive.material.borrow();
         let material = helpers::cast_unchecked_material_to_ref::< PbrMaterial >( material );
 
-        let base_color = material.base_color_texture.as_ref().unwrap();
-        let metallic_roughness = material.metallic_roughness_texture.as_ref().unwrap();
+        let base_color = material.base_color_texture().unwrap();
+        let metallic_roughness = material.metallic_roughness_texture().unwrap();
         gl.active_texture( gl::TEXTURE0 );
         base_color.bind( &gl );
         gl.active_texture( gl::TEXTURE1 );

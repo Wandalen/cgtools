@@ -313,8 +313,8 @@ async fn run() -> Result< (), gl::WebglError >
       NarrowOutlinePass::new
       (
         &gl,
-        gbuffer.borrow().get_texture( GBufferAttachment::Position ),
-        gbuffer.borrow().get_texture( GBufferAttachment::ObjectColor ),
+        gbuffer.borrow().texture( GBufferAttachment::Position ),
+        gbuffer.borrow().texture( GBufferAttachment::ObjectColor ),
         *outline_thickness.borrow(),
         canvas.width(),
         canvas.height()
@@ -329,9 +329,9 @@ async fn run() -> Result< (), gl::WebglError >
       NormalDepthOutlinePass::new
       (
         &gl,
-        gbuffer.borrow().get_texture( GBufferAttachment::Position ),
-        gbuffer.borrow().get_texture( GBufferAttachment::Normal ),
-        gbuffer.borrow().get_texture( GBufferAttachment::ObjectColor ),
+        gbuffer.borrow().texture( GBufferAttachment::Position ),
+        gbuffer.borrow().texture( GBufferAttachment::Normal ),
+        gbuffer.borrow().texture( GBufferAttachment::ObjectColor ),
         *outline_thickness.borrow(),
         canvas.width(),
         canvas.height()
@@ -347,7 +347,7 @@ async fn run() -> Result< (), gl::WebglError >
       (
         &gl,
         gbuffer.borrow()
-        .get_texture( GBufferAttachment::ObjectColor ).unwrap(),
+        .texture( GBufferAttachment::ObjectColor ).unwrap(),
         *outline_thickness.borrow(),
         canvas.width(),
         canvas.height()
@@ -367,10 +367,10 @@ async fn run() -> Result< (), gl::WebglError >
 
     match select_value
     {
-      "position" => gbuffer_rc.borrow().get_texture( GBufferAttachment::Position ),
-      "normal" => gbuffer_rc.borrow().get_texture( GBufferAttachment::Normal ),
-      "albedo" => gbuffer_rc.borrow().get_texture( GBufferAttachment::Albedo ),
-      "object_color" => gbuffer_rc.borrow().get_texture( GBufferAttachment::ObjectColor ),
+      "position" => gbuffer_rc.borrow().texture( GBufferAttachment::Position ),
+      "normal" => gbuffer_rc.borrow().texture( GBufferAttachment::Normal ),
+      "albedo" => gbuffer_rc.borrow().texture( GBufferAttachment::Albedo ),
+      "object_color" => gbuffer_rc.borrow().texture( GBufferAttachment::ObjectColor ),
       "narrow_outline" =>
       {
         let narrow_outline_1 = narrow_outline.clone();
@@ -508,7 +508,7 @@ async fn run() -> Result< (), gl::WebglError >
 
       sw2.borrow_mut().reset();
       sw2.borrow_mut().bind( &gl2.borrow() );
-      sw2.borrow_mut().set_input( renderer1.borrow().get_main_texture() );
+      sw2.borrow_mut().set_input( renderer1.borrow().main_texture() );
 
       if let Some( t ) = select_texture( &select_value.borrow() )
       {

@@ -283,7 +283,7 @@ impl Configurator
             let color = player.value_get();
             let mut material = helpers::cast_unchecked_material_to_ref_mut::< GemMaterial >( material.borrow_mut() );
             material.color = color;
-            material.needs_update = true;
+            material.set_needs_update( true );
           }
         );
       }
@@ -356,6 +356,7 @@ impl Configurator
               {
                 material.base_color_factor.0[ i ] = color.0[ i ];
               }
+              material.set_needs_update( true );
             }
           );
         }
@@ -478,7 +479,7 @@ impl AnimationState
   )
   where P : AnimatablePlayer + 'static
   {
-    let name = material.borrow().get_id().to_string();
+    let name = material.borrow().id().to_string();
 
     self.animations.insert::< P >( &name, player );
     if self.animations.is_completed()
@@ -689,18 +690,18 @@ async fn setup_rings
             }
             let mut material = helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
 
-            material.alpha_mode = AlphaMode::Opaque;
+            material.set_alpha_mode( AlphaMode::Opaque );
 
             let color = F32x3::from_array( [ 1.2, 1.2, 1.2 ] ).to_homogenous();
             material.base_color_factor = color;
-            material.specular_factor = Some( 0.0 );
-            material.specular_color_factor = Some( F32x3::splat( 1.0 ) );
+            material.set_specular_factor( Some( 0.0 ) );
+            material.set_specular_color_factor( Some( F32x3::splat( 1.0 ) ) );
             // Roughness 0.1 provides visually pleasing subtle surface variation
             // (0.04 appeared too mirror-like for realistic jewelry rendering)
             material.roughness_factor = 0.1;
             // Metallic 0.9 prevents oversaturation while maintaining metal appearance
             material.metallic_factor = 0.9;
-            material.needs_update = true;
+            material.set_needs_update( true );
           }
 
           Ok( () )
@@ -832,7 +833,7 @@ fn bake_plane_shadow
     let mut surface_material = SurfaceMaterial::new( &gl );
     surface_material.color = CLEAR_COLOR;
     surface_material.texture = Some( texture_info.clone() );
-    surface_material.needs_update = false;
+    surface_material.set_needs_update( false );
     let surface_material_boxed : Rc< RefCell< Box< dyn Material > > > = Rc::new( RefCell::new( Box::new( surface_material ) ) );
     primitive.borrow_mut().material = surface_material_boxed;
   }

@@ -469,12 +469,30 @@ mod private
 
     // Creates an <img> html elements, and sets its src property to 'src' parameter
     // When the image is loaded, creates a texture and adds it to the 'images' array
-    let upload_texture = | src : Rc< String > | {
+    let upload_texture = | src : Rc< str > |
+    {
       let texture = gl.create_texture().expect( "Failed to create a texture" );
+      gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
+      gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
+      (
+        gl::TEXTURE_2D,
+        0,
+        // Both RGBA and RGBA8 are valid internalformat values for texImage2D in WebGL2
+        gl::RGBA as i32,
+        1,
+        1,
+        0,
+        gl::RGBA,
+        gl::UNSIGNED_BYTE,
+        Some( &[ 255, 255, 255, 255 ] )
+      ).expect( "Failed to upload data to texture" );
+      gl::texture::d2::filter_linear( gl );
+
       images.borrow_mut().push( texture.clone() );
 
       let img_element = document.create_element( "img" ).unwrap().dyn_into::< gl::web_sys::HtmlImageElement >().unwrap();
       img_element.style().set_property( "display", "none" ).unwrap();
+
       let load_texture : Closure< dyn Fn() > = Closure::new
       (
         {
@@ -498,6 +516,7 @@ mod private
             //gl.pixel_storei( gl::UNPACK_FLIP_Y_WEBGL, 0 );
 
             gl.generate_mipmap( gl::TEXTURE_2D );
+            gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as i32 );
 
             gl::web_sys::Url::revoke_object_url( &src ).unwrap();
 
@@ -520,13 +539,14 @@ mod private
       {
         gltf::image::Source::Uri { uri, mime_type: _ } =>
         {
-          upload_texture( Rc::new( format!( "static/{}/{}", folder_path, uri ) ) );
+          upload_texture( format!( "static/{}/{}", folder_path, uri ).into() );
         },
         gltf::image::Source::View { view, mime_type } =>
         {
           let buffer = buffers[ view.buffer().index() ].clone();
           let buffer = gl::js_sys::Uint8Array::new_with_byte_offset_and_length( &buffer.buffer(), view.offset() as u32, view.length() as u32 );
-          let blob = {
+          let blob =
+          {
             let options = gl::web_sys::BlobPropertyBag::new();
             options.set_type( mime_type );
 
@@ -537,7 +557,7 @@ mod private
           }.expect( "Failed to create a Blob" );
 
           let url = gl::web_sys::Url::create_object_url_with_blob( &blob ).expect( "Failed to create object url" );
-          upload_texture( Rc::new( url ) );
+          upload_texture( url.into() );
         }
       }
     }
@@ -631,57 +651,59 @@ mod private
       let pbr = gltf_m.pbr_metallic_roughness();
 
       let mut material = PbrMaterial::new( &gl );
-      material.alpha_mode = match gltf_m.alpha_mode()
+      material.set_alpha_mode( match gltf_m.alpha_mode()
       {
         gltf::material::AlphaMode::Blend => AlphaMode::Blend,
         gltf::material::AlphaMode::Mask => AlphaMode::Mask,
         gltf::material::AlphaMode::Opaque => AlphaMode::Opaque
-      };
+      });
       if let Some( value ) = gltf_m.alpha_cutoff() { material.alpha_cutoff = value; }
       material.base_color_factor = gl::F32x4::from( pbr.base_color_factor() );
       material.roughness_factor =  pbr.roughness_factor();
       material.metallic_factor = pbr.metallic_factor();
-      material.base_color_texture = make_texture_info( pbr.base_color_texture() );
-      material.metallic_roughness_texture = make_texture_info( pbr.metallic_roughness_texture() );
-      material.emissive_texture = make_texture_info( gltf_m.emissive_texture() );
+      material.set_base_color_texture( make_texture_info( pbr.base_color_texture() ) );
+      material.set_metallic_roughness_texture( make_texture_info( pbr.metallic_roughness_texture() ) );
+      material.set_emissive_texture( make_texture_info( gltf_m.emissive_texture() ) );
       material.emissive_factor = gl::F32x3::from( gltf_m.emissive_factor() );
 
       // KHR_materials_specular
       if let Some( s ) = gltf_m.specular()
       {
-        material.specular_factor = Some( s.specular_factor() );
-        material.specular_color_factor = Some( gl::F32x3::from( s.specular_color_factor() ) );
+        material.set_specular_factor( Some( s.specular_factor() ) );
+        material.set_specular_color_factor( Some( gl::F32x3::from( s.specular_color_factor() ) ) );
         // Specular texture
-        material.specular_texture = make_texture_info( s.specular_texture() );
+        material.set_specular_texture( make_texture_info( s.specular_texture() ) );
         // Specular color texture
-        material.specular_color_texture = make_texture_info( s.specular_color_texture() );
+        material.set_specular_color_texture( make_texture_info( s.specular_color_texture() ) );
       }
 
       if let Some( n ) = gltf_m.normal_texture()
       {
         material.normal_scale = n.scale();
-        material.normal_texture = Some( TextureInfo
+        material.set_normal_texture( Some( TextureInfo
         {
           uv_position : n.tex_coord(),
           texture : textures[ n.texture().index() ].clone()
-        });
+        }));
       }
 
       if let Some( o ) = gltf_m.occlusion_texture()
       {
         material.occlusion_strength = o.strength();
-        material.occlusion_texture = Some( TextureInfo
+        material.set_occlusion_texture( Some( TextureInfo
         {
           uv_position : o.tex_coord(),
           texture : textures[ o.texture().index() ].clone()
-        });
+        }));
       }
 
-      material_variation_map.insert( material.get_id(), Vec::new() );
+      material_variation_map.insert( material.id(), Vec::new() );
       materials.push( Rc::new( RefCell::new( Box::new( material ) ) ) );
     }
 
-    materials.push( Rc::new( RefCell::new( Box::new( PbrMaterial::new( &gl ) ) ) ) );
+    let fallback = PbrMaterial::new( &gl );
+    material_variation_map.insert( fallback.id(), Vec::new() );
+    materials.push( Rc::new( RefCell::new( Box::new( fallback ) ) ) );
 
     gl::debug!( "PbrMaterials: {}",materials.len() );
     let make_attibute_info = | acc : &gltf::Accessor< '_ >, slot |
@@ -824,12 +846,12 @@ mod private
 
         // Amongst different materials with the same uuid, find the one that has the same vertex defines
         let new_material = if let Some( material ) = material_variation_map
-        .get( &gltf_material.borrow().get_id() )
+        .get( &gltf_material.borrow().id() )
         .map
         (
           | m |
           m.iter()
-          .find( | m | m.borrow().get_vertex_defines_str() == dummy_material.get_vertex_defines_str() )
+          .find( | m | m.borrow().vertex_defines_str() == dummy_material.vertex_defines_str() )
         )
         .flatten()
         {
@@ -840,7 +862,7 @@ mod private
           let material = Rc::new( RefCell::new( gltf_material.borrow().dyn_clone() ) );
           let mut m = helpers::cast_unchecked_material_to_ref_mut::< PbrMaterial >( material.borrow_mut() );
 
-          for ( name, value ) in dummy_material.get_vertex_defines()
+          for ( name, value ) in dummy_material.vertex_defines()
           {
             m.add_vertex_define( name.clone(), value );
           }
@@ -1002,10 +1024,11 @@ mod private
         scene.add( nodes[ gltf_node.index() ].clone() );
       }
       scene.update_world_matrix();
-      scenes.push(  Rc::new( RefCell::new( scene ) ) );
+      scenes.push( Rc::new( RefCell::new( scene ) ) );
     }
 
     gl.bind_vertex_array( None );
+    gl.flush();
 
     Ok
     (

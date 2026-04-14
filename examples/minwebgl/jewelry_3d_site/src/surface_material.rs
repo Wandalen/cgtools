@@ -33,7 +33,7 @@ pub struct SurfaceMaterial
   /// Surface texture
   pub texture : Option< TextureInfo >,
   /// Signal for updating material uniforms
-  pub needs_update : bool
+  needs_update : std::cell::Cell< bool >
 }
 
 impl SurfaceMaterial
@@ -45,21 +45,26 @@ impl SurfaceMaterial
       id : Uuid::new_v4(),
       color : F32x3::from_array( [ 1.0, 1.0, 1.0 ] ),
       texture : None,
-      needs_update : true
+      needs_update : std::cell::Cell::new( true )
     }
   }
 }
 
 impl Material for SurfaceMaterial
 {
-  fn get_id( &self ) -> Uuid
+  fn id( &self ) -> Uuid
   {
     self.id
   }
 
   fn needs_update( &self ) -> bool
   {
-    self.needs_update
+    self.needs_update.get()
+  }
+
+  fn set_needs_update( &self, value : bool )
+  {
+    self.needs_update.set( value );
   }
 
   fn make_shader_program( &self, gl : &gl::WebGl2RenderingContext, program : &gl::WebGlProgram ) -> Box< dyn ShaderProgram >
@@ -72,12 +77,12 @@ impl Material for SurfaceMaterial
     stringify!( SurfaceMaterial )
   }
 
-  fn get_vertex_shader( &self ) -> String
+  fn vertex_shader( &self ) -> String
   {
     SURFACE_VERTEX_SHADER.into()
   }
 
-  fn get_fragment_shader( &self ) -> String
+  fn fragment_shader( &self ) -> String
   {
     SURFACE_FRAGMENT_SHADER.into()
   }
@@ -103,17 +108,7 @@ impl Material for SurfaceMaterial
   {
     let locations = ctx.locations;
     gl::uniform::upload( gl, locations.get( "surfaceColor" ).unwrap().clone(), self.color.0.as_slice() )?;
-    self.upload_textures( gl );
     Ok( () )
-  }
-
-  fn upload_textures( &self, gl : &GL )
-  {
-    gl.active_texture( gl::TEXTURE0 );
-    if let Some( ref t ) = self.texture
-    {
-      t.upload( gl );
-    }
   }
 
   fn bind( &self, gl : &GL )
@@ -121,7 +116,7 @@ impl Material for SurfaceMaterial
     if let Some( ref t ) = self.texture
     {
       gl.active_texture( gl::TEXTURE0 );
-      t.bind( gl );
+      t.upload( gl );
     }
   }
 
@@ -140,7 +135,7 @@ impl Clone for SurfaceMaterial
       id : Uuid::new_v4(),
       color : self.color,
       texture : self.texture.clone(),
-      needs_update : self.needs_update
+      needs_update : std::cell::Cell::new( true )
     }
   }
 }

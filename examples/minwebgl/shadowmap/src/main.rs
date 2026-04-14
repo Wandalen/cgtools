@@ -189,7 +189,7 @@ async fn run() -> Result< (), gl::WebglError >
     let primitive_borrow = primitive.borrow_mut();
     let material_ref = primitive_borrow.material.borrow_mut();
     let mut pbr_material = cast_unchecked_material_to_ref_mut::< PbrMaterial >( material_ref );
-    pbr_material.base_color_texture = Some( texture_info );
+    pbr_material.set_base_color_texture( Some( texture_info ) );
   }
 
   let update = move | _ |
@@ -198,7 +198,7 @@ async fn run() -> Result< (), gl::WebglError >
 
     swap_buffer.reset();
     swap_buffer.bind( &gl );
-    swap_buffer.set_input( renderer.get_main_texture() );
+    swap_buffer.set_input( renderer.main_texture() );
 
     let t = tonemapping.render( &gl, swap_buffer.get_input(), swap_buffer.get_output() )
     .expect( "Failed to render tonemapping pass" );
