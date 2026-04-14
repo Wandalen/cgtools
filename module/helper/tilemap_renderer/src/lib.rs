@@ -1,55 +1,50 @@
+#![ allow( clippy::exhaustive_structs ) ] // POD command types are intentionally open; #[non_exhaustive] conflicts with Copy
+#![ allow( clippy::exhaustive_enums ) ]   // Small, stable enums meant to be matched exhaustively by adapter authors
+#![ allow( clippy::wildcard_imports ) ]   // mod_interface! generates glob re-exports; no per-item scope is available inside a proc-macro expansion
+#![ allow( clippy::min_ident_chars ) ]    // Short names like x, y, m are idiomatic in math/graphics contexts throughout this crate
+
 //! Agnostic 2D rendering engine.
-#![ cfg_attr( doc, doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "readme.md" ) ) ) ]
+//!
+//! Backend-agnostic rendering with POD commands and Y-up coordinate system.
+//! Define commands once, render to any backend (SVG, WebGL, terminal).
+//!
+//! ## Coordinate system
+//!
+//! All backends use a **Y-up** convention:
+//! - `(0, 0)` is the **bottom-left** corner
+//! - Positive Y points **up**
+//! - Positive rotation is **counter-clockwise**
+//!
+//! ## Usage
+//!
+//! ```ignore
+//! use tilemap_renderer::{ commands::*, types::*, assets::*, backend::* };
+//! use tilemap_renderer::adapters::SvgBackend;
+//!
+//! // Note: SvgBackend, WebGlBackend, and TerminalBackend are stubs —
+//! // implementations arrive in follow-up PRs.
+//! let config = RenderConfig { width : 800, height : 600, ..Default::default() };
+//! let mut svg = SvgBackend::new( config );
+//! svg.load_assets( &assets )?;
+//! svg.submit( &commands )?;
+//! let Output::String( doc ) = svg.output()? else { unreachable!() };
+//! ```
 
-// Prevent "unused" warnings when features are disabled
-#![ cfg_attr( not( feature = "std" ), allow( unused ) ) ]
+mod private {}
 
-// Module declarations - using ultra-granular feature gating
-#[ cfg( any( feature = "scene-container", feature = "scene-methods" ) ) ]
-pub mod scene;
+#[ cfg( feature = "enabled" ) ]
+mod_interface::mod_interface!
+{
+  layer types;
+  layer commands;
+  layer assets;
+  layer backend;
 
-#[ cfg( any(
-  feature = "command-line",
-  feature = "command-curve",
-  feature = "command-text",
-  feature = "command-tilemap",
-  feature = "command-particle",
-  feature = "commands"
-) ) ]
-pub mod commands;
-
-#[ cfg( any(
-  feature = "traits-renderer",
-  feature = "traits-primitive",
-  feature = "traits-async",
-  feature = "ports"
-) ) ]
-pub mod ports;
-
-#[ cfg( any(
-  feature = "adapter-svg-basic",
-  feature = "adapter-svg",
-  feature = "adapter-svg-browser",
-  feature = "adapter-webgl",
-  feature = "adapter-webgpu",
-  feature = "adapter-terminal-basic",
-  feature = "adapter-terminal",
-  feature = "adapter-wgpu"
-) ) ]
-pub mod adapters;
-
-#[ cfg( any(
-  feature = "query-basic",
-  feature = "query-by-type",
-  feature = "query-predicate",
-  feature = "query"
-) ) ]
-pub mod query;
-
-#[ cfg( any(
-  feature = "cli-basic",
-  feature = "cli-commands",
-  feature = "cli-repl",
-  feature = "cli"
-) ) ]
-pub mod cli;
+  #[ cfg( any
+  (
+    feature = "adapter-svg",
+    feature = "adapter-terminal",
+    feature = "adapter-webgl",
+  ) ) ]
+  layer adapters;
+}
