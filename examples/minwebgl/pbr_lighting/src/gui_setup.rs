@@ -133,9 +133,9 @@ pub fn setup
   .collect::< Vec< _ > >();
 
   let mut settings = Settings::default();
-  settings.bloom_radius = renderer.borrow().get_bloom_radius();
-  settings.bloom_strength = renderer.borrow().get_bloom_strength();
-  settings.exposure = renderer.borrow().get_exposure();
+  settings.bloom_radius = renderer.borrow().bloom_radius();
+  settings.bloom_strength = renderer.borrow().bloom_strength();
+  settings.exposure = renderer.borrow().exposure();
 
   match light
   {
