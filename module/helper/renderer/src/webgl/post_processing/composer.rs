@@ -22,6 +22,8 @@ mod private
   /// rendering, where the output of one pass becomes the input for the next.
   pub struct SwapFramebuffer
   {
+    /// WebGL context reference for resource cleanup on drop.
+    gl : gl::GL,
     /// The WebGL framebuffer used for rendering. It has a single color attachment.
     framebuffer : Option< gl::web_sys::WebGlFramebuffer >,
     /// A clone of the initial `output_texture` created upon instantiation.
@@ -73,6 +75,7 @@ mod private
 
       Self
       {
+        gl : gl.clone(),
         framebuffer,
         input_texture,
         output_texture,
@@ -143,6 +146,20 @@ mod private
     pub fn free_gl_resources( &mut self, gl : &gl::GL )
     {
       gl.delete_framebuffer( self.framebuffer.as_ref() );
+    }
+  }
+
+  /// Cleans up GPU resources owned exclusively by this struct.
+  ///
+  /// Only `original_output` texture is deleted because it is a clone created
+  /// in `new()` and owned by this struct. `input_texture` and `output_texture`
+  /// are externally managed after swapping and must not be deleted here.
+  impl Drop for SwapFramebuffer
+  {
+    fn drop( &mut self )
+    {
+      self.gl.delete_framebuffer( self.framebuffer.as_ref() );
+      self.gl.delete_texture( self.original_output.as_ref() );
     }
   }
 

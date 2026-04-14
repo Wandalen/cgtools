@@ -76,7 +76,7 @@ fn run() -> Result< (), gl::WebglError >
   (
     Some( canvas.clone().dyn_into().unwrap() ),
     browser_input::SCREEN,
-  );
+  ).expect( "Failed to initialize input" );
 
   let line = Rc::new( RefCell::new( line ) );
 

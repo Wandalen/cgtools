@@ -92,9 +92,15 @@ uniform float roughnessFactor; // Default: 1
 uniform vec4 baseColorFactor; // Default: [1, 1, 1, 1]
 
 #ifdef USE_IBL
-  uniform samplerCube irradianceTexture;
-  uniform samplerCube prefilterEnvMap;
-  uniform sampler2D integrateBRDF;
+  #ifdef GL_FRAGMENT_PRECISION_HIGH
+    uniform highp samplerCube irradianceTexture;
+    uniform highp samplerCube prefilterEnvMap;
+    uniform highp sampler2D integrateBRDF;
+  #else
+    uniform mediump samplerCube irradianceTexture;
+    uniform mediump samplerCube prefilterEnvMap;
+    uniform mediump sampler2D integrateBRDF;
+  #endif
   uniform vec2 mipmapDistanceRange;
 #endif
 #ifdef USE_KHR_materials_specular
@@ -441,29 +447,64 @@ void computeLights
   }
 }
 
+// Screen-space dither noise (Interleaved Gradient Noise, Jimenez 2014).
+// Returns a value in [0, 1) that is well-distributed across pixels and
+// has low visible pattern — ideal for breaking up color banding from
+// limited-precision HDR textures (RGBE / RGB16F).
+float ditherNoise( vec2 fragCoord )
+{
+  return fract( 52.9829189 * fract( 0.06711056 * fragCoord.x + 0.00583715 * fragCoord.y ) );
+}
+
 #ifdef USE_IBL
+
   float remapClamped( float value, float inMin, float inMax, float outMin, float outMax )
   {
-      float t = clamp( ( value - inMin ) / ( inMax - inMin ), 0.0, 1.0 );
-      return mix( outMin, outMax, t );
+    float t = clamp( ( value - inMin ) / ( inMax - inMin ), 0.0, 1.0 );
+    return mix( outMin, outMax, t );
   }
 
   void sampleEnvIrradiance( const in vec3 N, const in vec3 V, float viewDistance, const in PhysicalMaterial material, inout ReflectedLight reflectedLight )
   {
     float alpha = pow2( material.roughness );
-    float dotNV = clamp( dot( N, V ), 0.0, 1.0 );
+    float dotNV = clamp( dot( N, V ), 0.01, 1.0 );
 
     const float MAX_LOD = 9.0;
 
     vec3 Fs = F_Schlick( material.f0, material.f90, dotNV );
     vec3 R = reflect( -V, N );
 
-    vec2 d = mipmapDistanceRange;
-    float lod = remapClamped( viewDistance, d.x, d.y, 0.0, MAX_LOD );
-    lod = material.roughness * MAX_LOD;
+    // Base LOD from material roughness, with a floor of 1.0 to avoid sampling
+    // raw mip 0 where individual hot texels (studio lights) are unfiltered.
+    float lod = max( material.roughness * MAX_LOD, 1.0 );
 
-    vec3 diffuse = texture( irradianceTexture, N ).xyz * pow( 2.0, exposure );
+    // Reflection-space LOD bias: measure how much R varies across the pixel.
+    // Where the reflection direction is unstable (sharp geometry edges, grazing
+    // angles), we select a blurrier mip to suppress specular aliasing.
+    vec3 dRdx = dFdx( R );
+    vec3 dRdy = dFdy( R );
+    float reflVariance = dot( dRdx, dRdx ) + dot( dRdy, dRdy );
+    lod = max( lod, 0.5 * log2( max( reflVariance, 1e-6 ) ) + 4.0 );
+    lod = min( lod, MAX_LOD );
+
+    // Dither: ±0.5 LSB of 10-bit mantissa (half-float precision in [0.5..1] range)
+    float dither = ( ditherNoise( gl_FragCoord.xy ) - 0.5 ) / 512.0;
+
+    vec3 diffuse = texture( irradianceTexture, N ).xyz * pow( 2.0, exposure ) + dither;
     vec3 prefilter = textureLod( prefilterEnvMap, R, lod ).xyz * pow( 2.0, exposure );
+
+    // Soft firefly suppression: values below the threshold pass unchanged,
+    // values above are smoothly compressed (Reinhard on excess).
+    float prefilterLum = dot( prefilter, vec3( 0.2126, 0.7152, 0.0722 ) );
+    float fireflyThreshold = 2.0;
+    if( prefilterLum > fireflyThreshold )
+    {
+      float excess = prefilterLum - fireflyThreshold;
+      float compressed = fireflyThreshold + excess / ( 1.0 + excess );
+      prefilter *= compressed / prefilterLum;
+    }
+
+    prefilter += dither;
     vec2 envBrdf = texture( integrateBRDF, vec2( dotNV, material.roughness ) ).xy;
 
     vec3 diffuseBRDF = diffuse * material.diffuseColor;
@@ -472,6 +513,7 @@ void computeLights
     reflectedLight.indirectDiffuse += diffuseBRDF;
     reflectedLight.indirectSpecular += specularBRDF;
   }
+
 #endif
 
 float alpha_weight( float a )
@@ -599,6 +641,14 @@ void main()
 
   float faceDirection = gl_FrontFacing ? 1.0 : -1.0;
   normal *= faceDirection;
+
+  // Geometric Specular Anti-Aliasing (Tokuyoshi & Kaplanyan 2019)
+  // Increases roughness where screen-space normal derivatives are large (geometry edges),
+  // which selects blurrier environment map mip levels and prevents specular aliasing.
+  vec3 dNdx = dFdx( normal );
+  vec3 dNdy = dFdy( normal );
+  float geometricVariance = dot( dNdx, dNdx ) + dot( dNdy, dNdy );
+  material.roughness = sqrt( clamp( material.roughness * material.roughness + 0.5 * geometricVariance, 0.0, 1.0 ) );
 
   vec3 color = vec3( 0.0 );
   vec3 viewDir = normalize( cameraPosition - vWorldPos );
