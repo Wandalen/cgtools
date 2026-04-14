@@ -254,7 +254,7 @@ async fn run() -> Result< (), gl::WebglError >
     Some( canvas.clone().dyn_into().unwrap() ),
     move | e |
     {
-      let coord = gl::F64x2::new( e.client_x() as f64, e.client_y() as f64 ) * dpr;
+      let coord = gl::F64x2::new( e.client_x(), e.client_y() ) * dpr;
       I32x2::from_array( [ coord.x() as i32, coord.y() as i32 ] )
     },
   ).expect( "Failed to initialize input" );
