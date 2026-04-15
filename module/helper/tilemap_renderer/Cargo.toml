@@ -16,6 +16,7 @@ default = ["enabled"]
 full = ["enabled", "adapter-svg", "adapter-terminal", "adapter-webgl", "cli"]
 adapter-svg = ["enabled", "dep:base64"]
 adapter-terminal = ["enabled"]
+# Requires wasm32-unknown-unknown target.
 adapter-webgl = [
   "enabled",
   "dep:minwebgl",
