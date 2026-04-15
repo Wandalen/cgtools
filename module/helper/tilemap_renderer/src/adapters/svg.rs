@@ -728,6 +728,10 @@ mod private
     {
       for geom in geometries
       {
+        // TODO: Source::Path geometries are silently skipped for now.
+        // Future: load via std::fs on native or fetch() on wasm32, then re-invoke
+        // store_geometry. Until then callers must resolve paths to Source::Bytes
+        // before calling load_assets.
         if let Source::Bytes( bytes ) = &geom.positions
         {
           let positions : &[ f32 ] = bytemuck::cast_slice( bytes );
