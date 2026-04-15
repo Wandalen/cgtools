@@ -22,6 +22,7 @@ adapter-webgl = [
   "dep:web-sys",
   "dep:js-sys",
   "dep:wasm-bindgen",
+  "dep:bytemuck"
 ]
 # CLI stub — not yet reimplemented
 cli = ["enabled"]
@@ -35,5 +36,6 @@ wasm-bindgen = { workspace = true, optional = true }
 base64 = { workspace = true, optional = true }
 error_tools = { workspace = true, optional = true }
 mod_interface = { workspace = true, optional = true }
+bytemuck = { workspace = true, optional = true }
 
 [dev-dependencies]
