@@ -374,6 +374,29 @@ mod private
       ( h, v )
     }
 
+    /// Encodes raw pixel bytes into a PNG file in memory.
+    /// Returns `None` if the dimensions don't match the byte count.
+    fn bitmap_to_png( bytes : &[ u8 ], width : u32, height : u32, format : &PixelFormat ) -> Option< Vec< u8 > >
+    {
+      use image::DynamicImage;
+
+      let dynamic = match format
+      {
+        PixelFormat::Rgba8 =>
+          DynamicImage::ImageRgba8( image::RgbaImage::from_raw( width, height, bytes.to_vec() )? ),
+        PixelFormat::Rgb8 =>
+          DynamicImage::ImageRgb8( image::RgbImage::from_raw( width, height, bytes.to_vec() )? ),
+        PixelFormat::Gray8 =>
+          DynamicImage::ImageLuma8( image::GrayImage::from_raw( width, height, bytes.to_vec() )? ),
+        PixelFormat::GrayAlpha8 =>
+          DynamicImage::ImageLumaA8( image::GrayAlphaImage::from_raw( width, height, bytes.to_vec() )? ),
+      };
+
+      let mut png = Vec::new();
+      dynamic.write_to( &mut std::io::Cursor::new( &mut png ), image::ImageFormat::Png ).ok()?;
+      Some( png )
+    }
+
     fn clip_attr( clip : &Option< ResourceId< asset::ClipMask > > ) -> String
     {
       match clip
@@ -653,22 +676,17 @@ mod private
         {
           ImageSource::Bitmap { bytes, width, height, format } =>
           {
-            let encoded = base64::prelude::BASE64_STANDARD.encode( bytes );
-            let mime = match format
+            if let Some( png ) = Self::bitmap_to_png( bytes, *width, *height, format )
             {
-              PixelFormat::Rgba8 | PixelFormat::Rgb8 => "image/png",
-              _ => "image/png",
-            };
-            let img_def = format!
-            (
-              "<symbol id=\"img_{}\" viewBox=\"0 0 {} {}\"><image href=\"data:{};base64,{}\" width=\"{}\" height=\"{}\"/></symbol>",
-              img.id.inner(),
-              width, height,
-              mime, encoded,
-              width, height
-            );
-            self.content.push_def( &img_def );
-            self.resources.store_image( img.id, SvgImage { width : *width, height : *height } );
+              let encoded = base64::prelude::BASE64_STANDARD.encode( &png );
+              let img_def = format!
+              (
+                "<symbol id=\"img_{}\" viewBox=\"0 0 {} {}\"><image href=\"data:image/png;base64,{}\" width=\"{}\" height=\"{}\"/></symbol>",
+                img.id.inner(), width, height, encoded, width, height
+              );
+              self.content.push_def( &img_def );
+              self.resources.store_image( img.id, SvgImage { width : *width, height : *height } );
+            }
           }
           ImageSource::Encoded( bytes ) =>
           {
@@ -1613,7 +1631,7 @@ mod private
         images : vec![ ImageAsset
         {
           id : ResourceId::new( 0 ),
-          source : ImageSource::Bitmap { bytes : vec![ 0u8; 4 ], width : 64, height : 32, format : PixelFormat::Rgba8 },
+          source : ImageSource::Bitmap { bytes : vec![ 0u8; 64 * 32 * 4 ], width : 64, height : 32, format : PixelFormat::Rgba8 },
           filter : SamplerFilter::Linear,
         }],
         ..empty_assets()
