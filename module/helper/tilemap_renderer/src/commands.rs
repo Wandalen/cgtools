@@ -220,6 +220,8 @@ mod private
   /// // Update later
   /// cmd( BindBatch { batch: TILES } );
   /// cmd( SetSpriteInstance { index: 42, transform: .., sprite: water, tint: WHITE } );
+  /// // RemoveInstance uses swap-remove: the last instance moves into slot 5.
+  /// // Update your entity→index map accordingly.
   /// cmd( RemoveInstance { index: 5 } );
   /// cmd( UnbindBatch );
   /// ```
@@ -329,11 +331,26 @@ mod private
     pub transform : Transform,
   }
 
-  /// Removes an instance at `index` from the bound batch.
+  /// Removes an instance at `index` from the bound batch using **swap-remove**.
+  ///
+  /// The last instance is moved into slot `index` to fill the gap.
+  /// If you maintain an external mapping of entity → instance index, you must
+  /// update it after removal: the entity that previously occupied the last slot
+  /// now lives at `index`.
+  ///
+  /// If `index` is already the last element no swap occurs — it is simply dropped.
+  ///
+  /// # Example
+  /// ```ignore
+  /// // Before: [A, B, C, D]  (len = 4)
+  /// cmd( RemoveInstance { index: 1 } ); // remove B
+  /// // After:  [A, D, C]     (len = 3) — D moved from index 3 to index 1
+  /// // → update your map: entity_D.index = 1
+  /// ```
   #[ derive( Debug, Clone, Copy ) ]
   pub struct RemoveInstance
   {
-    /// Instance index to remove.
+    /// Index of the instance to remove.
     pub index : u32,
   }
 
