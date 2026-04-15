@@ -43,7 +43,7 @@ use browser_input::{ keyboard::KeyboardKey, mouse::MouseButton, Action, Event, E
 use gl::{ JsCast as _, I32x2, F32x2, Vector };
 use tilemap_renderer::
 {
-  adapters::WebGlBackend,
+  adapters::webgl::WebGlBackend,
   backend::Backend,
   types::*,
   commands,
