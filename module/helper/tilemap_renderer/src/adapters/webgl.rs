@@ -1065,6 +1065,26 @@ mod private
             {
               gl : gl.clone(), vao, position_buffer, uv_buffer, index_buffer, vertex_count, index_count,
             });
+
+            // Re-setup any mesh batch VAOs that reference this geometry.
+            // Batches created before async load completed only have instance attribs;
+            // now that geometry buffers are available, add geometry attribs too.
+            {
+              let res = resources.borrow();
+              if let Some( geom ) = res.geometry( id )
+              {
+                for batch in res.batches.values()
+                {
+                  if let GpuBatch::Mesh { vao, params, instances, .. } = batch
+                  {
+                    if params.geometry == id
+                    {
+                      setup_mesh_batch_vao( gl, vao, geom, instances.buffer() );
+                    }
+                  }
+                }
+              }
+            }
           });
         }
         else
