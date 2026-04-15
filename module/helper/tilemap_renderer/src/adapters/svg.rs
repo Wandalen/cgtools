@@ -173,14 +173,28 @@ mod private
     /// Returns the current viewport offset `[x, y]`.
     pub fn viewport_offset( &self ) -> [ f32; 2 ] { self.viewport_offset }
 
-    /// Sets the viewport offset `[x, y]` applied to all rendered elements.
-    pub fn set_viewport_offset( &mut self, offset : [ f32; 2 ] ) { self.viewport_offset = offset; }
+    /// Sets the viewport offset `[x, y]`.
+    ///
+    /// Immediately updates the top-level `<g transform>` wrapper so all already-rendered
+    /// elements reflect the new position without re-submission.
+    pub fn set_viewport_offset( &mut self, offset : [ f32; 2 ] )
+    {
+      self.viewport_offset = offset;
+      self.content.update_viewport_transform( self.viewport_offset, self.viewport_scale );
+    }
 
     /// Returns the current viewport scale (zoom factor).
     pub fn viewport_scale( &self ) -> f32 { self.viewport_scale }
 
-    /// Sets the viewport scale (zoom factor) applied to all rendered elements.
-    pub fn set_viewport_scale( &mut self, scale : f32 ) { self.viewport_scale = scale; }
+    /// Sets the viewport scale (zoom factor).
+    ///
+    /// Immediately updates the top-level `<g transform>` wrapper so all already-rendered
+    /// elements reflect the new zoom without re-submission.
+    pub fn set_viewport_scale( &mut self, scale : f32 )
+    {
+      self.viewport_scale = scale;
+      self.content.update_viewport_transform( self.viewport_offset, self.viewport_scale );
+    }
 
     fn shape_rendering_attr( antialias : &Antialias ) -> &'static str
     {
@@ -226,29 +240,25 @@ mod private
 
     fn transform_to_svg( &self, t : &Transform ) -> String
     {
-      Self::transform_to_svg_static( t, self.config.width, self.config.height, self.viewport_offset, self.viewport_scale )
+      Self::transform_to_svg_static( t, self.config.height )
     }
 
-    fn transform_to_svg_static( t : &Transform, _width : u32, height : u32, offset : [ f32; 2 ], zoom : f32 ) -> String
+    /// Converts a world-space [`Transform`] to an SVG `transform` attribute string.
+    ///
+    /// Handles the Y-up → Y-down coordinate flip only. Viewport pan/zoom is applied
+    /// by the top-level `<g>` wrapper managed by [`SvgContentManager`], so it must
+    /// **not** be baked into individual element transforms.
+    fn transform_to_svg_static( t : &Transform, height : u32 ) -> String
     {
       let mut parts = Vec::new();
 
-      // Apply viewport offset
-      let mut pos = t.position;
-      pos[ 0 ] += offset[ 0 ];
-      pos[ 1 ] += offset[ 1 ];
-
       // Y-up (0,0 = bottom-left) → SVG Y-down (0,0 = top-left)
-      pos[ 1 ] = height as f32 - pos[ 1 ];
+      let pos_x = t.position[ 0 ];
+      let pos_y = height as f32 - t.position[ 1 ];
 
-      if zoom != 1.0
+      if pos_x != 0.0 || pos_y != 0.0
       {
-        parts.push( format!( "scale({})", zoom ) );
-      }
-
-      if pos[ 0 ] != 0.0 || pos[ 1 ] != 0.0
-      {
-        parts.push( format!( "translate({},{})", pos[ 0 ], pos[ 1 ] ) );
+        parts.push( format!( "translate({},{})", pos_x, pos_y ) );
       }
       if t.rotation != 0.0
       {
@@ -1054,10 +1064,7 @@ mod private
 
     fn cmd_draw_batch( &mut self, db : &DrawBatch )
     {
-      let width = self.config.width;
       let height = self.config.height;
-      let offset = self.viewport_offset;
-      let zoom = self.viewport_scale;
 
       // Lazy-generate the mesh <symbol> def before splitting borrows.
       if let Some( SvgBatch::Mesh { params, .. } ) = self.resources.batch( db.batch )
@@ -1078,7 +1085,7 @@ mod private
       {
         Some( SvgBatch::Sprite { instances, params } ) =>
         {
-          let parent_transform = Self::transform_to_svg_static( &params.transform, width, height, offset, zoom );
+          let parent_transform = Self::transform_to_svg_static( &params.transform, height );
           let clip = Self::clip_attr( &params.clip );
           let blend = Self::blend_to_svg( &params.blend );
 
@@ -1101,7 +1108,7 @@ mod private
           let packed_key : u64 = ( params.geometry.inner() as u64 ) << 8 | ( params.topology as u8 as u64 );
           if let Some( def_id ) = resources.mesh_defs.get( &packed_key )
           {
-            let parent_transform = Self::transform_to_svg_static( &params.transform, width, height, offset, zoom );
+            let parent_transform = Self::transform_to_svg_static( &params.transform, height );
             let clip = Self::clip_attr( &params.clip );
             let blend = Self::blend_to_svg( &params.blend );
             let fill = Self::texture_or_fill_split( params.texture, &params.fill, resources, content );
@@ -1294,11 +1301,29 @@ mod private
     defs_start : usize,
     defs_end : usize,
     body_start : usize,
+    /// Byte offset of the viewport transform value inside the `<g transform="...">` tag.
+    vp_transform_start : usize,
+    /// Byte length of the current viewport transform value.
+    vp_transform_len : usize,
+    /// Byte offset where body elements begin (just after the opening `<g ...>`).
+    elements_start : usize,
     body_end : usize,
   }
 
   impl SvgContentManager
   {
+    const BODY_OPEN   : &'static str = "<!--framebegin-->";
+    const VP_PREFIX   : &'static str = "<g transform=\"";
+    const VP_SUFFIX   : &'static str = "\">";
+    const BODY_CLOSE  : &'static str = "</g><!--frameend-->\n";
+    const DEFS_OPEN   : &'static str = "<defs>";
+    const DEFS_CLOSE  : &'static str = "</defs>\n";
+
+    fn initial_vp_transform( offset : [ f32; 2 ], scale : f32 ) -> String
+    {
+      format!( "scale({scale}) translate({},{})", offset[ 0 ], -offset[ 1 ] )
+    }
+
     /// Creates a newly formatted SVG buffer layout empty with `<defs>` and `body` sections.
     pub fn new( width : u32, height : u32, shape_rendering : &str ) -> Self
     {
@@ -1311,13 +1336,20 @@ mod private
       buffer.push_str( &header );
 
       let defs_start = buffer.len();
-      buffer.push_str( "<defs>" );
-      buffer.push_str( "</defs>\n" );
+      buffer.push_str( Self::DEFS_OPEN );
+      buffer.push_str( Self::DEFS_CLOSE );
       let defs_end = buffer.len();
 
       let body_start = buffer.len();
-      buffer.push_str( "<!--framebegin-->" );
-      buffer.push_str( "<!--frameend-->\n" );
+      buffer.push_str( Self::BODY_OPEN );
+      buffer.push_str( Self::VP_PREFIX );
+      let vp_transform_start = buffer.len();
+      let initial = Self::initial_vp_transform( [ 0.0, 0.0 ], 1.0 );
+      let vp_transform_len = initial.len();
+      buffer.push_str( &initial );
+      buffer.push_str( Self::VP_SUFFIX );
+      let elements_start = buffer.len();
+      buffer.push_str( Self::BODY_CLOSE );
       let body_end = buffer.len();
 
       buffer.push_str( "</svg>\n" );
@@ -1328,11 +1360,14 @@ mod private
         defs_start,
         defs_end,
         body_start,
+        vp_transform_start,
+        vp_transform_len,
+        elements_start,
         body_end,
       }
     }
 
-    /// Updates the SVG header attributes dynamically like changing width/height bounds
+    /// Updates the SVG header attributes dynamically like changing width/height bounds.
     pub fn update_header( &mut self, width : u32, height : u32, shape_rendering : &str )
     {
       let header = format!
@@ -1345,60 +1380,85 @@ mod private
       #[ allow( clippy::cast_sign_loss ) ]
       if diff != 0
       {
-        self.defs_start = ( self.defs_start as isize + diff ) as usize;
-        self.defs_end = ( self.defs_end as isize + diff ) as usize;
-        self.body_start = ( self.body_start as isize + diff ) as usize;
-        self.body_end = ( self.body_end as isize + diff ) as usize;
+        self.defs_start          = ( self.defs_start          as isize + diff ) as usize;
+        self.defs_end            = ( self.defs_end            as isize + diff ) as usize;
+        self.body_start          = ( self.body_start          as isize + diff ) as usize;
+        self.vp_transform_start  = ( self.vp_transform_start  as isize + diff ) as usize;
+        self.elements_start      = ( self.elements_start      as isize + diff ) as usize;
+        self.body_end            = ( self.body_end            as isize + diff ) as usize;
       }
     }
 
-    /// Clears the `<defs>` content scope entirely
+    /// Updates the viewport pan/zoom transform on the top-level `<g>` wrapper.
+    ///
+    /// This modifies the single `transform` attribute in-place so all previously
+    /// rendered elements immediately reflect the new viewport without re-submission.
+    pub fn update_viewport_transform( &mut self, offset : [ f32; 2 ], scale : f32 )
+    {
+      let new_transform = Self::initial_vp_transform( offset, scale );
+      let old_end = self.vp_transform_start + self.vp_transform_len;
+
+      self.buffer.replace_range( self.vp_transform_start..old_end, &new_transform );
+
+      #[ allow( clippy::cast_sign_loss ) ]
+      {
+        let diff = new_transform.len() as isize - self.vp_transform_len as isize;
+        self.vp_transform_len = new_transform.len();
+        self.elements_start = ( self.elements_start as isize + diff ) as usize;
+        self.body_end       = ( self.body_end       as isize + diff ) as usize;
+      }
+    }
+
+    /// Clears the `<defs>` content scope entirely.
     pub fn clear_defs( &mut self )
     {
-      let inner_start = self.defs_start + "<defs>".len();
-      let inner_end = self.defs_end - "</defs>\n".len();
+      let inner_start = self.defs_start + Self::DEFS_OPEN.len();
+      let inner_end   = self.defs_end   - Self::DEFS_CLOSE.len();
 
       self.buffer.replace_range( inner_start..inner_end, "" );
       let removed = inner_end - inner_start;
 
-      self.defs_end -= removed;
-      self.body_start -= removed;
-      self.body_end -= removed;
+      self.defs_end           -= removed;
+      self.body_start         -= removed;
+      self.vp_transform_start -= removed;
+      self.elements_start     -= removed;
+      self.body_end           -= removed;
     }
 
-    /// Inlines element into the definitions section
+    /// Inlines element into the definitions section.
     pub fn push_def( &mut self, def : &str )
     {
-      let insert_at = self.defs_end - "</defs>\n".len();
+      let insert_at = self.defs_end - Self::DEFS_CLOSE.len();
       self.buffer.insert_str( insert_at, def );
 
       let added = def.len();
-      self.defs_end += added;
-      self.body_start += added;
-      self.body_end += added;
+      self.defs_end           += added;
+      self.body_start         += added;
+      self.vp_transform_start += added;
+      self.elements_start     += added;
+      self.body_end           += added;
     }
 
-    /// Clears only the dynamic render paths payload
+    /// Clears only the dynamic render paths payload.
     pub fn clear_body( &mut self )
     {
-      let inner_start = self.body_start + "<!--framebegin-->".len();
-      let inner_end = self.body_end - "<!--frameend-->\n".len();
+      let inner_end = self.body_end - Self::BODY_CLOSE.len();
 
-      self.buffer.replace_range( inner_start..inner_end, "" );
-      let removed = inner_end - inner_start;
+      self.buffer.replace_range( self.elements_start..inner_end, "" );
+      let removed = inner_end - self.elements_start;
 
       self.body_end -= removed;
     }
 
-    /// Pushes SVG command sequence nodes inside the frame block
+    /// Pushes SVG command sequence nodes inside the viewport wrapper.
     pub fn push_body( &mut self, content : &str )
     {
-      let insert_at = self.body_end - "<!--frameend-->\n".len();
+      let insert_at = self.body_end - Self::BODY_CLOSE.len();
       self.buffer.insert_str( insert_at, content );
       self.body_end += content.len();
     }
 
-    /// Reference handle access to underlying payload SVG
+    /// Reference handle access to underlying payload SVG.
     pub fn buffer( &self ) -> &str
     {
       &self.buffer
@@ -1449,10 +1509,15 @@ mod private
     fn body( svg : &SvgBackend ) -> String
     {
       let full = render( svg );
-      // Extract between <!--framebegin--> and <!--frameend-->
-      let start = full.find( "<!--framebegin-->" ).unwrap() + "<!--framebegin-->".len();
-      let end = full.find( "<!--frameend-->" ).unwrap();
-      full[ start..end ].to_string()
+      // The frame body is wrapped in a viewport <g transform="...">...</g>.
+      // Return the inner content so tests don't need to know about the wrapper.
+      let frame_start = full.find( "<!--framebegin-->" ).unwrap() + "<!--framebegin-->".len();
+      let frame_end   = full.find( "<!--frameend-->" ).unwrap();
+      let frame = &full[ frame_start..frame_end ];
+      // Strip the opening <g ...> tag and trailing </g>
+      let inner_start = frame.find( '>' ).map( | i | i + 1 ).unwrap_or( 0 );
+      let inner_end   = frame.rfind( "</" ).unwrap_or( frame.len() );
+      frame[ inner_start..inner_end ].to_string()
     }
 
     fn defs( svg : &SvgBackend ) -> String
@@ -1484,7 +1549,7 @@ mod private
       // Position (0,0) in Y-up should map to SVG (0, height=600)
       let s = SvgBackend::transform_to_svg_static(
         &Transform { position : [ 0.0, 0.0 ], ..Default::default() },
-        800, 600, [ 0.0, 0.0 ], 1.0,
+        600,
       );
       assert!( s.contains( "translate(0,600)" ), "got: {}", s );
     }
@@ -1495,7 +1560,7 @@ mod private
       // Position (800,600) should map to SVG (800, 0)
       let s = SvgBackend::transform_to_svg_static(
         &Transform { position : [ 800.0, 600.0 ], ..Default::default() },
-        800, 600, [ 0.0, 0.0 ], 1.0,
+        600,
       );
       assert!( s.contains( "translate(800,0)" ), "got: {}", s );
     }
@@ -1506,7 +1571,7 @@ mod private
       // Position (400,300) should map to SVG (400, 300)
       let s = SvgBackend::transform_to_svg_static(
         &Transform { position : [ 400.0, 300.0 ], ..Default::default() },
-        800, 600, [ 0.0, 0.0 ], 1.0,
+        600,
       );
       assert!( s.contains( "translate(400,300)" ), "got: {}", s );
     }
@@ -1517,7 +1582,7 @@ mod private
       let angle = core::f32::consts::FRAC_PI_4; // 45° CCW in Y-up
       let s = SvgBackend::transform_to_svg_static(
         &Transform { rotation : angle, ..Default::default() },
-        800, 600, [ 0.0, 0.0 ], 1.0,
+        600,
       );
       // Should emit negative degrees in SVG
       assert!( s.contains( "rotate(-45" ), "got: {}", s );
@@ -1528,7 +1593,7 @@ mod private
     {
       let s = SvgBackend::transform_to_svg_static(
         &Transform { scale : [ 2.0, 3.0 ], ..Default::default() },
-        800, 600, [ 0.0, 0.0 ], 1.0,
+        600,
       );
       // scale Y should be negated: 3.0 → -3.0
       assert!( s.contains( "scale(2,-3)" ), "got: {}", s );
@@ -1540,41 +1605,44 @@ mod private
       // Default scale (1,1) should still emit scale(1,-1) for Y-flip
       let s = SvgBackend::transform_to_svg_static(
         &Transform::default(),
-        800, 600, [ 0.0, 0.0 ], 1.0,
+        600,
       );
       assert!( s.contains( "scale(1,-1)" ), "got: {}", s );
     }
 
+    /// Zoom is now applied via the viewport `<g>` wrapper, not per-element.
+    /// Verify that set_viewport_scale updates the wrapper transform.
     #[ test ]
-    fn transform_zoom()
+    fn viewport_zoom_updates_wrapper()
     {
-      let s = SvgBackend::transform_to_svg_static(
-        &Transform::default(),
-        800, 600, [ 0.0, 0.0 ], 2.0,
-      );
-      assert!( s.contains( "scale(2)" ), "got: {}", s );
+      let mut svg = svg800x600();
+      svg.set_viewport_scale( 2.0 );
+      let full = svg.content.buffer().to_string();
+      assert!( full.contains( "scale(2)" ), "wrapper: {}", full );
     }
 
+    /// Verify that zoom=1.0 does NOT inject scale(1) noise into per-element transforms.
     #[ test ]
-    fn transform_no_zoom_when_1()
+    fn transform_no_zoom_in_per_element_transform()
     {
       let s = SvgBackend::transform_to_svg_static(
         &Transform::default(),
-        800, 600, [ 0.0, 0.0 ], 1.0,
+        600,
       );
-      // Should not contain scale(1) for zoom — only scale(1,-1) for Y-flip
+      // Only scale(1,-1) for Y-flip should be present; no zoom prefix
       assert!( !s.contains( "scale(1) " ), "got: {}", s );
     }
 
+    /// Viewport offset is now applied via the `<g>` wrapper, not per-element.
+    /// set_viewport_offset should update the wrapper transform attribute.
     #[ test ]
-    fn transform_viewport_offset()
+    fn viewport_offset_updates_wrapper()
     {
-      // Offset (10, 20): position becomes (10, 20), then Y-flip → (10, 600-20=580)
-      let s = SvgBackend::transform_to_svg_static(
-        &Transform::default(),
-        800, 600, [ 10.0, 20.0 ], 1.0,
-      );
-      assert!( s.contains( "translate(10,580)" ), "got: {}", s );
+      let mut svg = svg800x600();
+      svg.set_viewport_offset( [ 10.0, 20.0 ] );
+      let full = svg.content.buffer().to_string();
+      // In the wrapper: offset Y is negated (Y-up → SVG Y-down flip)
+      assert!( full.contains( "translate(10,-20)" ), "wrapper: {}", full );
     }
 
     #[ test ]
@@ -1583,7 +1651,7 @@ mod private
       let angle = core::f32::consts::FRAC_PI_6; // 30°
       let s = SvgBackend::transform_to_svg_static(
         &Transform { skew : [ angle, 0.0 ], ..Default::default() },
-        800, 600, [ 0.0, 0.0 ], 1.0,
+        600,
       );
       assert!( s.contains( "skewX(-30" ), "got: {}", s );
     }
