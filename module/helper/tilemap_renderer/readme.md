@@ -35,11 +35,11 @@ tilemap_renderer/
 
 ## features
 
-| Feature | Description |
-|---------|-------------|
-| `adapter-svg` | SVG backend — generates SVG 1.1 documents |
-| `adapter-webgl` | WebGL2 backend — instanced rendering, GPU batches (wasm32) |
-| `adapter-terminal` | Terminal backend — ASCII art output |
+| Feature | Status | Description |
+|---------|--------|-------------|
+| `adapter-svg` | complete | SVG backend — generates SVG 1.1 documents |
+| `adapter-webgl` | stub | WebGL2 backend — instanced rendering, GPU batches (wasm32) |
+| `adapter-terminal` | stub | Terminal backend — ASCII art output |
 
 Default: no features enabled (core only, zero backend dependencies).
 
@@ -80,12 +80,15 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 |---------|-----|-------|----------|
 | Paths | yes | — | yes |
 | Text | yes | — | yes |
-| Sprites | yes | yes | — |
-| Meshes | yes | yes | — |
-| Batches | yes | yes | — |
+| Sprites | yes | stub | — |
+| Meshes | yes | stub | — |
+| Batches | yes | stub | — |
 | Gradients | yes | — | — |
 | Effects | yes | — | — |
-| Blend modes | yes | yes | — |
+| Blend modes | yes | stub | — |
+| Viewport pan/zoom | yes | stub | — |
+
+WebGL and Terminal adapters are stubs — entries marked `stub` are planned but not yet implemented.
 
 ## license
 

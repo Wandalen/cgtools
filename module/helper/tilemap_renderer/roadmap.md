@@ -6,7 +6,7 @@
 
 ## current state
 
-The core library is functional. The engine uses a flat command stream architecture with POD commands and a `Backend` trait. Backend adapters are stub implementations deferred to follow-up PRs.
+The core library and SVG adapter are functional. The engine uses a flat command stream architecture with POD commands and a `Backend` trait.
 
 ### completed
 
@@ -14,11 +14,11 @@ The core library is functional. The engine uses a flat command stream architectu
 - **Command system** — all POD commands: Clear, Path (moveto/lineto/quad/cubic/arc/close), Text, Mesh, Sprite, Batch lifecycle, Groups with effects
 - **Asset system** — images (bitmap/encoded/path), sprites, geometries, gradients, patterns, clip masks, paths, validation
 - **Backend trait** — `load_assets`, `submit`, `output`, `resize`, `capabilities`
-- **Test suite** — 39 tests covering types, commands, assets validation, and backend trait
+- **SVG adapter** — full implementation: paths, text, sprites, meshes, batches, groups, effects, gradients, patterns, blend modes, bitmap PNG encoding, viewport pan/zoom wrapper
+- **Test suite** — 69 tests covering types, commands, assets, backend trait, and SVG adapter
 
 ### deferred to follow-up PRs
 
-- **SVG adapter** — stub only (`adapter-svg` feature gate exists; implementation pending)
 - **WebGL2 adapter** — stub only (`adapter-webgl` feature gate exists; implementation pending)
 - **Terminal adapter** — stub only (`adapter-terminal` feature gate exists; implementation pending)
 
@@ -57,7 +57,8 @@ tilemap_renderer/           # Single crate with feature-gated adapters
 ### svg adapter gaps
 
 - Font loading and rendering (currently no font resolution)
-- Image flip for Y-up (SVG images are Y-down natively)
+- `Source::Path` geometries silently skipped — no file loader; callers must supply `Source::Bytes` (future: `std::fs` on native, `fetch()` on wasm32)
+- Image Y-flip: SVG `<image>` elements are Y-down natively; sprites rendered from them may appear flipped
 
 ### terminal adapter gaps
 
@@ -88,3 +89,6 @@ tilemap_renderer/           # Single crate with feature-gated adapters
 | `Backend` trait (not `Renderer`/`PrimitiveRenderer`) | Single trait with `submit(&[RenderCommand])` is simpler than per-command dispatch |
 | Instanced batches in WebGL | Essential for tilemap performance (thousands of sprites) |
 | SVG uses `<g>` for batch parent transform | Natural SVG composition, avoids double Y-flip on instances |
+| SVG viewport in top-level `<g transform>` | Single `replace_range` updates pan/zoom without re-submitting commands |
+| Mesh `<symbol>` defs generated lazily | Only topologies actually used appear in `<defs>`, keeping output lean |
+| Bitmap images encoded to PNG via `image` crate | Browsers require real PNG format inside `data:image/png` URIs, not raw bytes |

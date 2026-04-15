@@ -130,13 +130,17 @@ pub trait Backend {
 
 #### 7.1. SVG (`adapter-svg`)
 
-- Generates SVG 1.1 documents with `<defs>` and body sections
-- String buffer management for efficient SVG generation
-- Y-up → SVG Y-down conversion in `transform_to_svg_static`
-- Effects via SVG `<filter>` elements (feGaussianBlur, feDropShadow, feColorMatrix)
+- Generates SVG 1.1 documents with `<defs>` and body sections via `SvgContentManager`
+- `SvgContentManager` tracks byte offsets for `<defs>`, body elements, and the viewport `<g>` transform so inserts/clears are O(1) splice operations on a contiguous `String`
+- Viewport pan/zoom factored into a single top-level `<g transform="scale(s) translate(ox,-oy)">` wrapper — `set_viewport_offset`/`set_viewport_scale` update it in-place via `replace_range` without re-submitting commands
+- Y-up → SVG Y-down conversion per element: position Y flipped by `height - y`, rotation negated, scale Y negated
+- Effects via SVG `<filter>` elements (feGaussianBlur, feDropShadow, feColorMatrix, opacity)
 - Sprite tint via feColorMatrix filter
+- Mesh `<symbol>` defs generated lazily on first use of a (geometry, topology) pair
 - Mesh texture approximated via `<pattern>` fill
-- Batch drawing with `<g>` wrapper for parent transform, raw local transforms for instances
+- Batch drawing: parent transform in `<g>` wrapper, raw local transforms for instances
+- Bitmap images encoded to PNG via the `image` crate and inlined as `data:image/png;base64` URIs
+- `Source::Path` geometries are silently skipped — no file loader; callers must supply `Source::Bytes`
 
 #### 7.2. WebGL2 (`adapter-webgl`)
 
@@ -178,15 +182,15 @@ pub trait Backend {
 
 #### FR-D: SVG Backend
 
-- **FR-D1:** ⏳ Generates valid SVG 1.1 documents (deferred to adapter-svg PR)
-- **FR-D2:** ⏳ Supports all rendering primitives (deferred to adapter-svg PR)
-- **FR-D3:** ⏳ Converts RGBA colors to SVG format (deferred to adapter-svg PR)
-- **FR-D4:** ⏳ Supports all stroke styles (caps, joins, dash) (deferred to adapter-svg PR)
-- **FR-D5:** ⏳ Supports all text anchoring modes (deferred to adapter-svg PR)
-- **FR-D6:** ⏳ Effects: blur, drop shadow, color matrix, opacity (deferred to adapter-svg PR)
-- **FR-D7:** ⏳ Sprite tint via feColorMatrix (deferred to adapter-svg PR)
-- **FR-D8:** ⏳ Mesh texture via pattern fill (deferred to adapter-svg PR)
-- **FR-D9:** ⏳ Batch drawing with correct transform composition (deferred to adapter-svg PR)
+- **FR-D1:** ✅ Generates valid SVG 1.1 documents
+- **FR-D2:** ✅ Supports all rendering primitives (path, text, sprite, mesh, batch, group)
+- **FR-D3:** ✅ Converts RGBA colors to SVG `rgb()` format
+- **FR-D4:** ✅ Supports all stroke styles (caps, joins, dash)
+- **FR-D5:** ✅ Supports all text anchoring modes
+- **FR-D6:** ✅ Effects: blur, drop shadow, color matrix, opacity
+- **FR-D7:** ✅ Sprite tint via feColorMatrix
+- **FR-D8:** ✅ Mesh texture via pattern fill
+- **FR-D9:** ✅ Batch drawing with correct transform composition
 
 #### FR-E: WebGL Backend
 
@@ -214,7 +218,7 @@ pub trait Backend {
 - **NFR-4:** ✅ Y-up coordinate system consistent across all backends
 - **NFR-5:** ✅ 100% documentation coverage (zero warnings)
 - **NFR-6:** ✅ All command types are POD (Copy, Clone)
-- **NFR-7:** ✅ Test suite: 39 tests (types, commands, assets, backend trait); adapter tests deferred to adapter PRs
+- **NFR-7:** ✅ Test suite: 69 tests (core: 9, SVG adapter: 60); WebGL/terminal adapter tests deferred
 - **NFR-8:** ❌ Compile-time layout assertions for GPU data structures (deferred to WebGL/wgpu adapter PRs)
 - **NFR-9:** ❌ Visual regression testing
 - **NFR-10:** ❌ CI with feature matrix
@@ -235,7 +239,7 @@ pub trait Backend {
 | ✅ | FR-C1 | Backend trait |
 | ✅ | FR-C2 | Capabilities |
 | ✅ | FR-C3 | RenderError |
-| ⏳ | FR-D1–D9 | SVG backend — deferred to adapter-svg PR |
+| ✅ | FR-D1–D9 | SVG backend — fully implemented |
 | ⏳ | FR-E1–E4 | WebGL backend — deferred to adapter-webgl PR |
 | ⏳ | FR-F1–F3 | Terminal backend — deferred to adapter-terminal PR |
 | ✅ | NFR-2 | Zero core graphics deps |
