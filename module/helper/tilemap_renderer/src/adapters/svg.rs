@@ -142,9 +142,9 @@ mod private
     /// Currently bound batch for recording instances.
     recording_batch : Option< ResourceId< Batch > >,
     /// Offset applied to all visual elements in the SVG.
-    pub viewport_offset : [ f32; 2 ],
+    viewport_offset : [ f32; 2 ],
     /// Scale applied to all visual elements in the SVG.
-    pub viewport_scale : f32,
+    viewport_scale : f32,
   }
 
   impl SvgBackend
@@ -169,6 +169,18 @@ mod private
         viewport_scale : 1.0,
       }
     }
+
+    /// Returns the current viewport offset `[x, y]`.
+    pub fn viewport_offset( &self ) -> [ f32; 2 ] { self.viewport_offset }
+
+    /// Sets the viewport offset `[x, y]` applied to all rendered elements.
+    pub fn set_viewport_offset( &mut self, offset : [ f32; 2 ] ) { self.viewport_offset = offset; }
+
+    /// Returns the current viewport scale (zoom factor).
+    pub fn viewport_scale( &self ) -> f32 { self.viewport_scale }
+
+    /// Sets the viewport scale (zoom factor) applied to all rendered elements.
+    pub fn set_viewport_scale( &mut self, scale : f32 ) { self.viewport_scale = scale; }
 
     fn shape_rendering_attr( antialias : &Antialias ) -> &'static str
     {
