@@ -982,11 +982,11 @@ mod private
         {
           Some( SvgBatch::Sprite { instances, .. } ) =>
           {
-            if ( ri.index as usize ) < instances.len() { instances.remove( ri.index as usize ); }
+            if ( ri.index as usize ) < instances.len() { instances.swap_remove( ri.index as usize ); }
           }
           Some( SvgBatch::Mesh { instances, .. } ) =>
           {
-            if ( ri.index as usize ) < instances.len() { instances.remove( ri.index as usize ); }
+            if ( ri.index as usize ) < instances.len() { instances.swap_remove( ri.index as usize ); }
           }
           None => {}
         }
