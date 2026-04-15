@@ -1205,15 +1205,15 @@ mod private
     {
       Capabilities
       {
-        paths : true,
-        text : true,
+        paths : false,       // TODO: tessellation / GPU curves
+        text : false,        // TODO: glyph atlas / SDF fonts
         meshes : true,
         sprites : true,
         batches : true,
-        gradients : true,
-        patterns : true,
-        clip_masks : true,
-        effects : true,
+        gradients : false,   // TODO: not yet loaded or rendered
+        patterns : false,    // TODO: not yet loaded or rendered
+        clip_masks : false,  // TODO: not yet loaded or rendered
+        effects : false,     // TODO: requires FBO post-processing
         blend_modes : true,
         text_on_path : false,
         max_texture_size : 8192,
