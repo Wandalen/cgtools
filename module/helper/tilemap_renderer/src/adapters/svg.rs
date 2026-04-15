@@ -743,12 +743,6 @@ mod private
           else { None };
 
           self.resources.store_geometry( geom.id, SvgGeometry { positions : positions.to_vec(), indices } );
-
-          // Pre-generate all topologies for this geometry upfront
-          for topology in [ Topology::TriangleList, Topology::TriangleStrip, Topology::LineList, Topology::LineStrip ]
-          {
-            self.generate_mesh_def( geom.id, topology );
-          }
         }
       }
     }
@@ -901,7 +895,11 @@ mod private
       let def_id = match self.resources.mesh_defs.get( &packed_key )
       {
         Some( id ) => id.clone(),
-        None => return,
+        None => match self.generate_mesh_def( m.geometry, m.topology )
+        {
+          Some( id ) => id,
+          None => return,
+        },
       };
 
       let transform = self.transform_to_svg( &m.transform );
@@ -1044,6 +1042,17 @@ mod private
       let height = self.config.height;
       let offset = self.viewport_offset;
       let zoom = self.viewport_scale;
+
+      // Lazy-generate the mesh <symbol> def before splitting borrows.
+      if let Some( SvgBatch::Mesh { params, .. } ) = self.resources.batch( db.batch )
+      {
+        let packed_key : u64 = ( params.geometry.inner() as u64 ) << 8 | ( params.topology as u8 as u64 );
+        if !self.resources.mesh_defs.contains_key( &packed_key )
+        {
+          let ( geom_id, topology ) = ( params.geometry, params.topology );
+          self.generate_mesh_def( geom_id, topology );
+        }
+      }
 
       let resources = &self.resources;
       let content = &mut self.content;
