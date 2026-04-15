@@ -6,7 +6,7 @@
 
 ## current state
 
-The core library is functional. The engine uses a flat command stream architecture with POD commands and a `Backend` trait. Backend adapters are stub implementations deferred to follow-up PRs.
+The core library is functional and the WebGL2 adapter is partially implemented. The engine uses a flat command stream architecture with POD commands and a `Backend` trait.
 
 ### completed
 
@@ -15,11 +15,19 @@ The core library is functional. The engine uses a flat command stream architectu
 - **Asset system** — images (bitmap/encoded/path), sprites, geometries, gradients, patterns, clip masks, paths, validation
 - **Backend trait** — `load_assets`, `submit`, `output`, `resize`, `capabilities`
 - **Test suite** — 39 tests covering types, commands, assets validation, and backend trait
+- **WebGL2 adapter (partial)** — hardware-accelerated sprites, meshes, and instanced batches on wasm32:
+  - `ArrayBuffer<T>` — GPU-side Vec with 2× grow via `copy_buffer_sub_data` (no CPU readback)
+  - `SpriteInstanceData` (68B) and `MeshInstanceData` (36B) with compile-time layout assertions
+  - Single-draw: `Clear`, `Mesh` (with texture + topology), `Sprite` (with tint)
+  - Batch lifecycle: `Create`, `Bind`, `Add/Set/Remove` instances, `Draw`, `Delete` — for both sprite and mesh batches
+  - Per-batch VAO setup at create/unbind time; bind-only at draw time
+  - Asset loading: images (Bitmap sync + Path async via `spawn_local`), sprites, geometries (sync + async path)
+  - All blend modes: Normal, Add, Multiply, Screen, Overlay
+  - Shaders: `sprite.vert/frag`, `sprite_batch.vert/frag`, `mesh.vert/frag`, `mesh_batch.vert`
 
 ### deferred to follow-up PRs
 
 - **SVG adapter** — stub only (`adapter-svg` feature gate exists; implementation pending)
-- **WebGL2 adapter** — stub only (`adapter-webgl` feature gate exists; implementation pending)
 - **Terminal adapter** — stub only (`adapter-terminal` feature gate exists; implementation pending)
 
 ### project structure
@@ -48,11 +56,14 @@ tilemap_renderer/           # Single crate with feature-gated adapters
 
 ### webgl adapter gaps
 
-- Path rendering (tessellation or GPU-based curves)
-- Text rendering (glyph atlas or SDF fonts)
-- Gradient/pattern fill support
+- Path rendering (tessellation or GPU-based curves) — path commands are currently silent no-ops
+- Text rendering (glyph atlas or SDF fonts) — text commands are currently silent no-ops
+- Group commands (`BeginGroup`/`EndGroup`) — currently ignored
+- `ImageSource::Encoded` decoding — skipped with TODO
+- Gradient/pattern/clip-mask asset loading — not loaded into GPU resources
 - Effects (blur, drop shadow — requires FBO post-processing)
-- WebGL context loss handling
+- WebGL context loss handling (`webglcontextlost` / `webglcontextrestored` events)
+- `capabilities()` reports `paths/text/gradients/patterns/clip_masks/effects: true` — should be corrected to `false` once the corresponding features are verified absent
 
 ### svg adapter gaps
 
