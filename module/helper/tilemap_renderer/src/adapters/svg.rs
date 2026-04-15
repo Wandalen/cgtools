@@ -454,7 +454,7 @@ mod private
         "<filter id=\"tint_{}\"><feColorMatrix type=\"matrix\" values=\"{} 0 0 0 0 0 {} 0 0 0 0 0 {} 0 0 0 0 0 {} 0\"/></filter>",
         id, tint[ 0 ], tint[ 1 ], tint[ 2 ], tint[ 3 ]
       );
-      content.push_def( &filter_def );
+      content.push_frame_def( &filter_def );
 
       format!( " filter=\"url(#tint_{})\"", id )
     }
@@ -486,7 +486,7 @@ mod private
               "<pattern id=\"{}\" width=\"{}\" height=\"{}\" patternUnits=\"userSpaceOnUse\"><use href=\"#img_{}\" width=\"{}\" height=\"{}\"/></pattern>",
               pat_id, img.width, img.height, img_id.inner(), img.width, img.height
             );
-            content.push_def( &pat_def );
+            content.push_frame_def( &pat_def );
             return format!( "url(#{})", pat_id );
           }
         }
@@ -637,7 +637,7 @@ mod private
           }
         }
         let _ = write!( grad_def, "</{}>", grad_type );
-        self.content.push_def( &grad_def );
+        self.content.push_asset_def( &grad_def );
       }
     }
 
@@ -650,7 +650,7 @@ mod private
           "<pattern id=\"pat_{}\" width=\"{}\" height=\"{}\" patternUnits=\"userSpaceOnUse\"><use href=\"#img_{}\"/></pattern>",
           pat.id.inner(), pat.width, pat.height, pat.content.inner(),
         );
-        self.content.push_def( &pat_def );
+        self.content.push_asset_def( &pat_def );
       }
     }
 
@@ -668,7 +668,7 @@ mod private
           "<clipPath id=\"clip_{}\"><path d=\"{}\"/></clipPath>",
           mask.id.inner(), d.trim()
         );
-        self.content.push_def( &clip_def );
+        self.content.push_asset_def( &clip_def );
       }
     }
 
@@ -686,7 +686,7 @@ mod private
           "<path id=\"path_{}\" d=\"{}\"/>",
           path.id.inner(), d.trim()
         );
-        self.content.push_def( &path_def );
+        self.content.push_asset_def( &path_def );
       }
     }
 
@@ -706,7 +706,7 @@ mod private
                 "<symbol id=\"img_{}\" viewBox=\"0 0 {} {}\"><image href=\"data:image/png;base64,{}\" width=\"{}\" height=\"{}\"/></symbol>",
                 img.id.inner(), width, height, encoded, width, height
               );
-              self.content.push_def( &img_def );
+              self.content.push_asset_def( &img_def );
               self.resources.store_image( img.id, SvgImage { width : *width, height : *height } );
             }
           }
@@ -714,13 +714,13 @@ mod private
           {
             let encoded = base64::prelude::BASE64_STANDARD.encode( bytes );
             let img_def = format!( "<symbol id=\"img_{}\"><image href=\"data:image/png;base64,{}\"/></symbol>", img.id.inner(), encoded );
-            self.content.push_def( &img_def );
+            self.content.push_asset_def( &img_def );
             self.resources.store_image( img.id, SvgImage { width : 0, height : 0 } );
           }
           ImageSource::Path( path ) =>
           {
             let img_def = format!( "<symbol id=\"img_{}\"><image href=\"{}\"/></symbol>", img.id.inner(), path.display() );
-            self.content.push_def( &img_def );
+            self.content.push_asset_def( &img_def );
             self.resources.store_image( img.id, SvgImage { width : 0, height : 0 } );
           }
         }
@@ -741,7 +741,7 @@ mod private
             sprite.sheet.inner(),
             sheet.width, sheet.height
           );
-          self.content.push_def( &img_def );
+          self.content.push_asset_def( &img_def );
         }
       }
     }
@@ -805,7 +805,7 @@ mod private
         {
           let idx = geom.indices.as_ref().map( | v | v.as_slice() );
           let count = idx.map_or( geom.positions.len() / 2, | v | v.len() );
-          if count < 3 { return Some( String::new() ); }
+          if count < 3 { return None; }
           for i in 0..( count - 2 )
           {
             let mut pts = String::new();
@@ -845,7 +845,7 @@ mod private
       }
 
       def_content.push_str( "</symbol>" );
-      self.content.push_def( &def_content );
+      self.content.push_frame_def( &def_content );
       self.resources.mesh_defs.insert( packed_key, def_id.clone() );
 
       Some( def_id )
@@ -1149,7 +1149,7 @@ mod private
           let fid = self.filter_counter;
           self.filter_counter += 1;
           let def = format!( "<filter id=\"fx_{}\"><feGaussianBlur stdDeviation=\"{}\"/></filter>", fid, radius );
-          self.content.push_def( &def );
+          self.content.push_frame_def( &def );
           format!( " filter=\"url(#fx_{})\"", fid )
         }
         Some( Effect::DropShadow { dx, dy, blur, color } ) =>
@@ -1163,7 +1163,7 @@ mod private
             "<filter id=\"fx_{}\"><feDropShadow dx=\"{}\" dy=\"{}\" stdDeviation=\"{}\" flood-color=\"{}\"/></filter>",
             fid, dx, -dy, blur, c
           );
-          self.content.push_def( &def );
+          self.content.push_frame_def( &def );
           format!( " filter=\"url(#fx_{})\"", fid )
         }
         Some( Effect::ColorMatrix( values ) ) =>
@@ -1172,7 +1172,7 @@ mod private
           self.filter_counter += 1;
           let vals : String = values.iter().map( | v | v.to_string() ).collect::< Vec< _ > >().join( " " );
           let def = format!( "<filter id=\"fx_{}\"><feColorMatrix type=\"matrix\" values=\"{}\"/></filter>", fid, vals );
-          self.content.push_def( &def );
+          self.content.push_frame_def( &def );
           format!( " filter=\"url(#fx_{})\"", fid )
         }
         None => String::new(),
@@ -1214,7 +1214,10 @@ mod private
 
     fn submit( &mut self, commands : &[ RenderCommand ] ) -> Result< (), RenderError >
     {
+      self.content.clear_frame_defs();
       self.content.clear_body();
+      self.resources.mesh_defs.clear();
+      self.filter_counter = 0;
       self.group_depth = 0;
       self.recording_batch = None;
 
@@ -1300,6 +1303,11 @@ mod private
     buffer : String,
     defs_start : usize,
     defs_end : usize,
+    /// Byte offset of the first frame-time def inside `<defs>`.
+    /// Asset defs (from `load_assets`) live before this point;
+    /// frame defs (from `submit`: filters, tints, mesh symbols, mesh-tex patterns) live after.
+    /// Cleared at the start of each `submit()` so defs never accumulate across frames.
+    frame_defs_start : usize,
     body_start : usize,
     /// Byte offset of the viewport transform value inside the `<g transform="...">` tag.
     vp_transform_start : usize,
@@ -1337,6 +1345,7 @@ mod private
 
       let defs_start = buffer.len();
       buffer.push_str( Self::DEFS_OPEN );
+      let frame_defs_start = buffer.len(); // right after "<defs>" — no asset defs yet
       buffer.push_str( Self::DEFS_CLOSE );
       let defs_end = buffer.len();
 
@@ -1359,6 +1368,7 @@ mod private
         buffer,
         defs_start,
         defs_end,
+        frame_defs_start,
         body_start,
         vp_transform_start,
         vp_transform_len,
@@ -1382,6 +1392,7 @@ mod private
       {
         self.defs_start          = ( self.defs_start          as isize + diff ) as usize;
         self.defs_end            = ( self.defs_end            as isize + diff ) as usize;
+        self.frame_defs_start    = ( self.frame_defs_start    as isize + diff ) as usize;
         self.body_start          = ( self.body_start          as isize + diff ) as usize;
         self.vp_transform_start  = ( self.vp_transform_start  as isize + diff ) as usize;
         self.elements_start      = ( self.elements_start      as isize + diff ) as usize;
@@ -1409,7 +1420,7 @@ mod private
       }
     }
 
-    /// Clears the `<defs>` content scope entirely.
+    /// Clears the `<defs>` content scope entirely (both asset and frame defs).
     pub fn clear_defs( &mut self )
     {
       let inner_start = self.defs_start + Self::DEFS_OPEN.len();
@@ -1419,14 +1430,35 @@ mod private
       let removed = inner_end - inner_start;
 
       self.defs_end           -= removed;
+      self.frame_defs_start    = self.defs_start + Self::DEFS_OPEN.len();
       self.body_start         -= removed;
       self.vp_transform_start -= removed;
       self.elements_start     -= removed;
       self.body_end           -= removed;
     }
 
-    /// Inlines element into the definitions section.
-    pub fn push_def( &mut self, def : &str )
+    /// Inlines an asset-time def (from `load_assets`) into the definitions section.
+    ///
+    /// Advances `frame_defs_start` so that the asset/frame boundary stays accurate.
+    pub fn push_asset_def( &mut self, def : &str )
+    {
+      let insert_at = self.defs_end - Self::DEFS_CLOSE.len();
+      self.buffer.insert_str( insert_at, def );
+
+      let added = def.len();
+      self.defs_end           += added;
+      self.frame_defs_start   += added;
+      self.body_start         += added;
+      self.vp_transform_start += added;
+      self.elements_start     += added;
+      self.body_end           += added;
+    }
+
+    /// Inlines a frame-time def (from `submit`) into the definitions section.
+    ///
+    /// Does **not** advance `frame_defs_start` — these defs are cleared by
+    /// [`clear_frame_defs`] at the start of each `submit()`.
+    pub fn push_frame_def( &mut self, def : &str )
     {
       let insert_at = self.defs_end - Self::DEFS_CLOSE.len();
       self.buffer.insert_str( insert_at, def );
@@ -1437,6 +1469,24 @@ mod private
       self.vp_transform_start += added;
       self.elements_start     += added;
       self.body_end           += added;
+    }
+
+    /// Clears all frame-time defs added since the last `load_assets` call.
+    ///
+    /// Called at the start of each `submit()` together with `clear_body`.
+    pub fn clear_frame_defs( &mut self )
+    {
+      let inner_end = self.defs_end - Self::DEFS_CLOSE.len();
+      if inner_end <= self.frame_defs_start { return; }
+
+      self.buffer.replace_range( self.frame_defs_start..inner_end, "" );
+      let removed = inner_end - self.frame_defs_start;
+
+      self.defs_end           -= removed;
+      self.body_start         -= removed;
+      self.vp_transform_start -= removed;
+      self.elements_start     -= removed;
+      self.body_end           -= removed;
     }
 
     /// Clears only the dynamic render paths payload.
@@ -2233,7 +2283,7 @@ mod private
     fn content_manager_push_clear_cycle()
     {
       let mut cm = SvgContentManager::new( 100, 100, "" );
-      cm.push_def( "<test-def/>" );
+      cm.push_asset_def( "<test-def/>" );
       cm.push_body( "<test-body/>" );
 
       let buf = cm.buffer();
