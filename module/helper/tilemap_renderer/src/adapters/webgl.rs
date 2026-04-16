@@ -379,16 +379,30 @@ mod private
   {
     Sprite
     {
+      gl : gl::GL,
       instances : ArrayBuffer< SpriteInstanceData >,
       vao : web_sys::WebGlVertexArrayObject,
       params : SpriteBatchParams,
     },
     Mesh
     {
+      gl : gl::GL,
       instances : ArrayBuffer< MeshInstanceData >,
       vao : web_sys::WebGlVertexArrayObject,
       params : MeshBatchParams,
     },
+  }
+
+  impl Drop for GpuBatch
+  {
+    fn drop( &mut self )
+    {
+      match self
+      {
+        Self::Sprite { gl, vao, .. } | Self::Mesh { gl, vao, .. } =>
+          gl.delete_vertex_array( Some( vao ) ),
+      }
+    }
   }
 
   /// Binds instance attrib pointers for a sprite batch VAO.
@@ -513,7 +527,7 @@ mod private
     /// Draw an instanced sprite batch.
     fn draw_batch( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, viewport : &[ f32; 2 ] )
     {
-      let GpuBatch::Sprite { instances, vao, params } = batch else { return; };
+      let GpuBatch::Sprite { instances, vao, params, .. } = batch else { return; };
       if instances.is_empty() { return; }
 
       let Some( gpu_tex ) = resources.texture( params.sheet ) else { return; };
@@ -599,7 +613,7 @@ mod private
     /// Draw an instanced mesh batch. VAO is already configured via `setup_mesh_batch_vao`.
     fn draw_batch( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, viewport : &[ f32; 2 ] )
     {
-      let GpuBatch::Mesh { instances, vao, params } = batch else { return };
+      let GpuBatch::Mesh { instances, vao, params, .. } = batch else { return };
       if instances.is_empty() { return; }
 
       let Some( geom ) = resources.geometry( params.geometry ) else { return };
@@ -794,6 +808,7 @@ mod private
       setup_sprite_batch_vao( gl, &vao, instances.buffer() );
       self.resources.borrow_mut().store_batch( cmd.batch, GpuBatch::Sprite
       {
+        gl : self.gl.clone(),
         instances,
         vao,
         params : cmd.params,
@@ -815,6 +830,7 @@ mod private
       drop( res );
       self.resources.borrow_mut().store_batch( cmd.batch, GpuBatch::Mesh
       {
+        gl : self.gl.clone(),
         instances,
         vao,
         params : cmd.params,
@@ -969,7 +985,7 @@ mod private
             {
               setup_sprite_batch_vao( &self.gl, vao, instances.buffer() );
             }
-            GpuBatch::Mesh { instances, vao, params } =>
+            GpuBatch::Mesh { instances, vao, params, .. } =>
             {
               if let Some( geom ) = res.geometry( params.geometry )
               {
@@ -1281,6 +1297,10 @@ mod private
   {
     fn load_assets( &mut self, assets : &Assets ) -> Result< (), RenderError >
     {
+      // Reset all GPU state: textures, sprites, geometries, and batches.
+      // GpuBatch::drop calls delete_vertex_array; ArrayBuffer::drop calls delete_buffer.
+      // Safe to call multiple times (e.g. level transitions).
+      self.resources.borrow_mut().batches.clear();
       self.load_images( &assets.images )?;
       self.load_sprites( &assets.sprites );
       self.load_geometries( &assets.geometries )?;
