@@ -315,7 +315,18 @@ mod private
     /// Source over (alpha blending).
     #[ default ]
     Normal,
-    /// SVG: `multiply`. GPU: src * dst.
+    /// SVG: `multiply`.
+    ///
+    /// **Current GPU approximation:** `blend_func(DST_COLOR, ONE_MINUS_SRC_ALPHA)`,
+    /// which computes `src_color * dst_color + dst_color * (1 − src_alpha)`.
+    /// This equals pure `src * dst` only when `src_alpha = 1`; for semi-transparent
+    /// sprites the multiply effect weakens with alpha, which is a known limitation.
+    ///
+    /// **TODO (requires FBO):** Replace with the Photoshop-accurate formula
+    /// `dst * (src * src_alpha + (1 − src_alpha))`. This cannot be expressed as a
+    /// single `blend_func` call with straight alpha — it needs a custom shader that
+    /// reads the destination color from a bound FBO texture and computes the blend
+    /// in the fragment shader, or a two-pass approach (blit dst to FBO, sample in shader).
     Multiply,
     /// SVG: `screen`. GPU: 1 - (1-src)*(1-dst).
     Screen,

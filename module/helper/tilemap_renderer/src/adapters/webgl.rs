@@ -707,6 +707,8 @@ mod private
       match blend
       {
         BlendMode::Add => gl.blend_func( gl::SRC_ALPHA, gl::ONE ),
+        // Approximation: equals src*dst only when src_alpha=1.
+        // TODO(FBO): replace with Photoshop-accurate formula — see BlendMode::Multiply doc.
         BlendMode::Multiply => gl.blend_func( gl::DST_COLOR, gl::ONE_MINUS_SRC_ALPHA ),
         BlendMode::Screen => gl.blend_func( gl::ONE, gl::ONE_MINUS_SRC_COLOR ),
         // TODO: true Overlay (Multiply where dst<0.5, Screen where dst>0.5) cannot be
