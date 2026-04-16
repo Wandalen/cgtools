@@ -10,7 +10,6 @@
 #![ allow( clippy::too_many_arguments ) ]             // GPU draw / setup functions inherently take many parameters
 #![ allow( clippy::too_many_lines ) ]                 // Large match blocks in adapter implementations are expected
 #![ allow( clippy::std_instead_of_alloc ) ]           // wasm32+std: alloc crate is not separately linked; std::rc/std::collections are correct here
-#![ allow( clippy::match_same_arms ) ]                // Unimplemented placeholder arms (Path/Text/Group) are intentionally separate for readability
 
 //! Agnostic 2D rendering engine.
 //!

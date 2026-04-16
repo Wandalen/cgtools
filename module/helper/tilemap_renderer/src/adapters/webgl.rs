@@ -1310,6 +1310,9 @@ mod private
 
       for cmd in commands
       {
+        // Unimplemented placeholder arms (Path/Text/Group) all map to {} and are
+        // intentionally kept separate for readability and future expansion.
+        #[ allow( clippy::match_same_arms ) ]
         match cmd
         {
           RenderCommand::Clear( c ) => self.cmd_clear( c ),
