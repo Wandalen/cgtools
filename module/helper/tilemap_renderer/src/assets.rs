@@ -372,8 +372,17 @@ mod private
   pub enum ImageSource
   {
     /// Path to image file — backend decodes (PNG, JPEG, etc.).
+    ///
+    /// WebGL backend: the image is fetched and uploaded asynchronously via an
+    /// `HtmlImageElement`. If loading fails (file not found, CORS, decode error),
+    /// the error is logged to `console.error` and the texture remains empty;
+    /// it cannot be propagated back through `load_assets` because the failure
+    /// happens after that call returns.
     Path( PathBuf ),
     /// Encoded image in memory (PNG, JPEG, etc.) — backend decodes.
+    ///
+    /// **Not yet implemented in the WebGL backend** — this variant is silently
+    /// skipped during `load_assets`. Use `Bitmap` (pre-decoded) or `Path` instead.
     Encoded( Vec< u8 > ),
     /// Raw pixel data — ready to upload directly.
     Bitmap
@@ -414,16 +423,20 @@ mod private
   }
 
   /// Primitive data type for geometry buffers.
+  ///
+  /// When used as [`GeometryAsset::data_type`] (index buffer element type),
+  /// only `U8`, `U16`, and `U32` are valid. `F32` is rejected by the WebGL
+  /// backend with `RenderError::BackendError` during `load_assets`.
   #[ derive( Debug ) ]
   pub enum DataType
   {
-    /// Unsigned 8-bit integer.
+    /// Unsigned 8-bit integer. Valid as an index type (`UNSIGNED_BYTE`).
     U8,
-    /// Unsigned 16-bit integer.
+    /// Unsigned 16-bit integer. Valid as an index type (`UNSIGNED_SHORT`).
     U16,
-    /// Unsigned 32-bit integer.
+    /// Unsigned 32-bit integer. Valid as an index type (`UNSIGNED_INT`).
     U32,
-    /// 32-bit floating point.
+    /// 32-bit floating point. Valid for position/UV buffers; **not** valid as an index type.
     F32,
   }
 

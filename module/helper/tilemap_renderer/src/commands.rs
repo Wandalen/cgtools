@@ -305,6 +305,11 @@ mod private
   }
 
   /// Appends a new sprite instance to the bound batch.
+  ///
+  /// # Errors
+  ///
+  /// If the internal GPU buffer needs to grow and the allocation fails,
+  /// `submit` returns `RenderError::BackendError`.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct AddSpriteInstance
   {
@@ -317,6 +322,11 @@ mod private
   }
 
   /// Appends a new mesh instance to the bound batch.
+  ///
+  /// # Errors
+  ///
+  /// If the internal GPU buffer needs to grow and the allocation fails,
+  /// `submit` returns `RenderError::BackendError`.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct AddMeshInstance
   {
@@ -325,6 +335,13 @@ mod private
   }
 
   /// Updates a sprite instance at `index` within the bound batch.
+  ///
+  /// # Errors
+  ///
+  /// If `index >= batch.len()`, `submit` returns `RenderError::BackendError`.
+  /// Stale indices are easy to introduce after `RemoveInstance` (swap-remove
+  /// shifts the last element into the removed slot) — always update your
+  /// entity→index map after every removal.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct SetSpriteInstance
   {
@@ -339,6 +356,11 @@ mod private
   }
 
   /// Updates a mesh instance at `index` within the bound batch.
+  ///
+  /// # Errors
+  ///
+  /// If `index >= batch.len()`, `submit` returns `RenderError::BackendError`.
+  /// See `SetSpriteInstance` for notes on stale indices after swap-remove.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct SetMeshInstance
   {
@@ -356,6 +378,10 @@ mod private
   /// now lives at `index`.
   ///
   /// If `index` is already the last element no swap occurs — it is simply dropped.
+  ///
+  /// # Errors
+  ///
+  /// If `index >= batch.len()`, `submit` returns `RenderError::BackendError`.
   ///
   /// # Example
   /// ```ignore
