@@ -302,7 +302,7 @@ mod private
       {
         parts.push( format!( "rotate({})", t.rotation.to_degrees() ) );
       }
-      if t.scale[ 0 ] != 1.0 || t.scale[ 1 ] != 1.0
+      if ( t.scale[ 0 ] - 1.0 ).abs() > f32::EPSILON || ( t.scale[ 1 ] - 1.0 ).abs() > f32::EPSILON
       {
         parts.push( format!( "scale({},{})", t.scale[ 0 ], t.scale[ 1 ] ) );
       }
@@ -433,7 +433,7 @@ mod private
       Some( ( w, h ) )
     }
 
-    fn clip_attr( clip : &Option< ResourceId< asset::ClipMask > > ) -> String
+    fn clip_attr( clip : Option< &ResourceId< asset::ClipMask > > ) -> String
     {
       match clip
       {
@@ -536,7 +536,7 @@ mod private
       let fill = Self::fill_to_svg( &style.fill );
       let stroke = Self::color_to_svg( &style.stroke_color );
       let transform = self.transform_to_svg( &style.transform );
-      let clip = Self::clip_attr( &style.clip );
+      let clip = Self::clip_attr( style.clip.as_ref() );
       let dash = Self::dash_to_svg( &style.stroke_dash );
       let blend = Self::blend_to_svg( &style.blend );
 
@@ -568,10 +568,9 @@ mod private
 
       let fill = Self::color_to_svg( &style.color );
       let ( anchor, baseline ) = Self::anchor_to_svg( &style.anchor );
-      let clip = Self::clip_attr( &style.clip );
+      let clip = Self::clip_attr( style.clip.as_ref() );
 
-      let mut t = Transform::default();
-      t.position = style.position;
+      let t = Transform { position : style.position, ..Default::default() };
       let transform = self.transform_to_svg( &t );
 
       if let Some( path_id ) = style.along_path
@@ -603,19 +602,11 @@ mod private
     {
       for grad in gradients
       {
-        let stops : String = grad
-        .stops
-        .iter()
-        .map( | s |
+        let stops = grad.stops.iter().fold( String::new(), | mut acc, s |
         {
-          format!
-          (
-            "<stop offset=\"{}\" stop-color=\"{}\"/>",
-            s.offset,
-            Self::color_to_svg( &s.color )
-          )
-        })
-        .collect();
+          let _ = write!( acc, "<stop offset=\"{}\" stop-color=\"{}\"/>", s.offset, Self::color_to_svg( &s.color ) );
+          acc
+        });
 
         let grad_type = match &grad.kind
         {
@@ -944,7 +935,7 @@ mod private
 
       let transform = self.transform_to_svg( &m.transform );
       let fill = self.texture_or_fill( m.texture, &m.fill );
-      let clip = Self::clip_attr( &m.clip );
+      let clip = Self::clip_attr( m.clip.as_ref() );
       let blend = Self::blend_to_svg( &m.blend );
 
       let mesh = format!
@@ -957,7 +948,7 @@ mod private
     fn cmd_sprite( &mut self, s : &Sprite )
     {
       let transform = self.transform_to_svg( &s.transform );
-      let clip = Self::clip_attr( &s.clip );
+      let clip = Self::clip_attr( s.clip.as_ref() );
       let blend = Self::blend_to_svg( &s.blend );
       let tint = self.tint_filter_attr( &s.tint );
       let sprite = format!( "<use href=\"#sprite_{}\"{}{}{} style=\"mix-blend-mode:{}\"/>", s.sprite.inner(), transform, clip, tint, blend );
@@ -1083,7 +1074,7 @@ mod private
         Some( SvgBatch::Sprite { instances, params } ) =>
         {
           let parent_transform = Self::transform_to_svg_static( &params.transform, height );
-          let clip = Self::clip_attr( &params.clip );
+          let clip = Self::clip_attr( params.clip.as_ref() );
           let blend = Self::blend_to_svg( &params.blend );
 
           content.push_body( &format!( "<g{parent_transform}{clip}>" ) );
@@ -1106,7 +1097,7 @@ mod private
           if let Some( def_id ) = resources.mesh_defs.get( &packed_key )
           {
             let parent_transform = Self::transform_to_svg_static( &params.transform, height );
-            let clip = Self::clip_attr( &params.clip );
+            let clip = Self::clip_attr( params.clip.as_ref() );
             let blend = Self::blend_to_svg( &params.blend );
             let fill = Self::texture_or_fill_split( params.texture, &params.fill, resources, content );
 
@@ -1135,7 +1126,7 @@ mod private
     fn cmd_begin_group( &mut self, bg : &BeginGroup )
     {
       let transform = self.transform_to_svg( &bg.transform );
-      let clip = Self::clip_attr( &bg.clip );
+      let clip = Self::clip_attr( bg.clip.as_ref() );
 
       let effect_attr = match &bg.effect
       {
