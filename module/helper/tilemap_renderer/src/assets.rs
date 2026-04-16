@@ -369,6 +369,12 @@ mod private
   pub enum ImageSource
   {
     /// Path to image file — backend decodes (PNG, JPEG, etc.).
+    ///
+    /// **SVG backend limitation:** image dimensions cannot be determined at
+    /// `load_assets` time (no file I/O is performed). Any sprite whose sheet
+    /// uses this source will have a zero-sized `<use>` element and will be
+    /// invisible. Use [`ImageSource::Bitmap`] (pre-decoded pixels with known
+    /// dimensions) if you need sprites from a sheet loaded this way.
     Path( PathBuf ),
     /// Encoded image in memory — backend decodes.
     ///

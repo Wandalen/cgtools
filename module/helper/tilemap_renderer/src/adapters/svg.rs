@@ -421,6 +421,18 @@ mod private
       Some( png )
     }
 
+    /// Extracts width and height from a PNG byte buffer by reading the IHDR chunk.
+    /// Returns `None` if the buffer is too short or does not start with the PNG signature.
+    fn png_dimensions( bytes : &[ u8 ] ) -> Option< ( u32, u32 ) >
+    {
+      // PNG layout: 8-byte signature + 4-byte chunk length + 4-byte "IHDR" + 4-byte width + 4-byte height
+      const SIG : &[ u8 ] = &[ 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a ];
+      if bytes.len() < 24 || !bytes.starts_with( SIG ) { return None; }
+      let w = u32::from_be_bytes( bytes[ 16..20 ].try_into().ok()? );
+      let h = u32::from_be_bytes( bytes[ 20..24 ].try_into().ok()? );
+      Some( ( w, h ) )
+    }
+
     fn clip_attr( clip : &Option< ResourceId< asset::ClipMask > > ) -> String
     {
       match clip
@@ -710,10 +722,14 @@ mod private
           }
           ImageSource::Encoded( bytes ) =>
           {
+            // Extract dimensions from PNG IHDR so that sprites using this sheet
+            // render correctly. Non-PNG data will have width=0,height=0 and
+            // any sprite referencing it will be invisible (see ImageSource::Encoded docs).
+            let ( w, h ) = Self::png_dimensions( bytes ).unwrap_or( ( 0, 0 ) );
             let encoded = base64::prelude::BASE64_STANDARD.encode( bytes );
             let img_def = format!( "<symbol id=\"img_{}\"><image href=\"data:image/png;base64,{}\"/></symbol>", img.id.inner(), encoded );
             self.content.push_asset_def( &img_def );
-            self.resources.store_image( img.id, SvgImage { width : 0, height : 0 } );
+            self.resources.store_image( img.id, SvgImage { width : w, height : h } );
           }
           ImageSource::Path( path ) =>
           {
@@ -2364,6 +2380,56 @@ mod private
       cm.clear_defs();
       let buf = cm.buffer();
       assert!( !buf.contains( "<test-def/>" ) );
+    }
+
+    // -- png_dimensions --
+
+    /// Verifies that `png_dimensions` extracts correct width/height from valid PNG bytes.
+    #[ test ]
+    fn png_dimensions_valid()
+    {
+      // Generate a real 3×5 PNG via bitmap_to_png, then extract dimensions from its header.
+      let bytes = vec![ 0u8; 3 * 5 * 4 ];
+      let png = SvgBackend::bitmap_to_png( &bytes, 3, 5, &PixelFormat::Rgba8 ).unwrap();
+      assert_eq!( SvgBackend::png_dimensions( &png ), Some( ( 3, 5 ) ) );
+    }
+
+    /// Verifies that a short / non-PNG buffer returns None.
+    #[ test ]
+    fn png_dimensions_invalid()
+    {
+      assert_eq!( SvgBackend::png_dimensions( &[] ), None );
+      assert_eq!( SvgBackend::png_dimensions( &[ 0u8; 24 ] ), None ); // no PNG signature
+    }
+
+    /// Verifies that load_assets extracts PNG dimensions from ImageSource::Encoded
+    /// so that a sprite symbol uses the correct sheet size.
+    #[ test ]
+    fn image_encoded_png_stores_dimensions()
+    {
+      let png = SvgBackend::bitmap_to_png( &vec![ 0u8; 8 * 4 * 4 ], 8, 4, &PixelFormat::Rgba8 ).unwrap();
+      let mut svg = svg800x600();
+      let assets = Assets
+      {
+        images : vec![ ImageAsset
+        {
+          id : ResourceId::new( 0 ),
+          source : ImageSource::Encoded( png ),
+          filter : SamplerFilter::Linear,
+        }],
+        sprites : vec![ SpriteAsset
+        {
+          id : ResourceId::new( 0 ),
+          sheet : ResourceId::new( 0 ),
+          region : [ 0.0, 0.0, 4.0, 4.0 ],
+        }],
+        ..empty_assets()
+      };
+      svg.load_assets( &assets ).unwrap();
+      let d = defs( &svg );
+      // The sprite symbol's <use> must reference width="8" height="4" (the sheet size)
+      assert!( d.contains( "width=\"8\"" ), "defs: {d}" );
+      assert!( d.contains( "height=\"4\"" ), "defs: {d}" );
     }
 
     // -- bitmap_to_png --
