@@ -7,8 +7,8 @@
 mod private
 {
   use std::rc::Rc;
-  use std::cell::{ Cell, RefCell };
-  use std::marker::PhantomData;
+  use core::cell::{ Cell, RefCell };
+  use core::marker::PhantomData;
   use web_sys::HtmlImageElement;
   use wasm_bindgen::prelude::*;
   use minwebgl as gl;
@@ -39,6 +39,9 @@ mod private
   impl< T : gl::AsBytes > ArrayBuffer< T >
   {
     /// Creates a new GPU array buffer with the given initial capacity (in elements).
+    ///
+    /// # Errors
+    /// Returns `WebglError` if the underlying GPU buffer cannot be created.
     pub fn new( gl : &gl::GL, capacity : u32 ) -> Result< Self, gl::WebglError >
     {
       let buffer = gl::buffer::create( gl )?;
@@ -52,22 +55,29 @@ mod private
     /// Byte size of one element.
     fn stride() -> u32
     {
-      std::mem::size_of::< T >() as u32
+      core::mem::size_of::< T >() as u32
     }
 
     /// Number of elements currently stored.
+    #[ must_use ]
     pub fn len( &self ) -> u32 { self.len }
 
     /// Whether the buffer is empty.
+    #[ must_use ]
     pub fn is_empty( &self ) -> bool { self.len == 0 }
 
     /// Current capacity in elements.
+    #[ must_use ]
     pub fn capacity( &self ) -> u32 { self.capacity }
 
     /// Returns a reference to the underlying `WebGlBuffer`.
+    #[ must_use ]
     pub fn buffer( &self ) -> &web_sys::WebGlBuffer { &self.buffer }
 
     /// Appends an element at the end, growing if necessary.
+    ///
+    /// # Errors
+    /// Returns `WebglError` if the GPU buffer needs to grow and allocation fails.
     pub fn push( &mut self, value : &T ) -> Result< (), gl::WebglError >
     {
       if self.len >= self.capacity
@@ -97,6 +107,9 @@ mod private
 
     /// Removes the element at `index` by swapping with the last element.
     /// Returns the new length.
+    ///
+    /// # Panics
+    /// Panics if `index >= len`.
     pub fn swap_remove( &mut self, index : u32 ) -> u32
     {
       assert!( index < self.len, "ArrayBuffer::swap_remove index out of bounds" );
@@ -322,10 +335,10 @@ mod private
   }
 
   // Compile-time layout assertions — GPU attrib setup depends on these exact sizes.
-  const _ : () = assert!( std::mem::size_of::< SpriteInstanceData >() == 68 ); // 17 floats × 4
-  const _ : () = assert!( std::mem::size_of::< MeshInstanceData >() == 36 ); // 9 floats × 4
-  const _ : () = assert!( std::mem::align_of::< SpriteInstanceData >() == 4 ); // f32 alignment
-  const _ : () = assert!( std::mem::align_of::< MeshInstanceData >() == 4 );
+  const _ : () = assert!( core::mem::size_of::< SpriteInstanceData >() == 68 ); // 17 floats × 4
+  const _ : () = assert!( core::mem::size_of::< MeshInstanceData >() == 36 ); // 9 floats × 4
+  const _ : () = assert!( core::mem::align_of::< SpriteInstanceData >() == 4 ); // f32 alignment
+  const _ : () = assert!( core::mem::align_of::< MeshInstanceData >() == 4 );
 
   /// Persistent batch — sprite or mesh.
   enum GpuBatch
@@ -350,7 +363,7 @@ mod private
     gl.bind_vertex_array( Some( vao ) );
     gl.bind_buffer( gl::ARRAY_BUFFER, Some( buffer ) );
 
-    let stride = std::mem::size_of::< SpriteInstanceData >() as i32;
+    let stride = core::mem::size_of::< SpriteInstanceData >() as i32;
 
     // transform: 3 × vec3 at locations 0, 1, 2
     for i in 0..3_u32
@@ -406,7 +419,7 @@ mod private
 
     // Instance: transform 3 × vec3 at locations 2, 3, 4
     gl.bind_buffer( gl::ARRAY_BUFFER, Some( instance_buffer ) );
-    let stride = std::mem::size_of::< MeshInstanceData >() as i32;
+    let stride = core::mem::size_of::< MeshInstanceData >() as i32;
     for i in 0..3_u32
     {
       let loc = i + 2;
@@ -449,7 +462,7 @@ mod private
       Ok( Self { program, batch_program } )
     }
 
-    /// Draw a single sprite as a textured quad (triangle strip, 4 vertices from gl_VertexID).
+    /// Draw a single sprite as a textured quad (triangle strip, 4 vertices from `gl_VertexID`).
     fn draw( &self, gl : &gl::GL, transform : &[ f32; 9 ], uv_rect : &[ f32; 4 ], sprite_size : &[ f32; 2 ], tint : &[ f32; 4 ], viewport : &[ f32; 2 ] )
     {
       // Unbind any VAO to prevent stale attribute state from interfering
@@ -535,7 +548,7 @@ mod private
       self.program.uniform_matrix_upload( "u_transform", transform.as_slice(), true );
       self.program.uniform_upload( "u_color", color );
       self.program.uniform_upload( "u_viewport", viewport );
-      self.program.uniform_upload( "u_use_texture", &( use_texture as i32 ) );
+      self.program.uniform_upload( "u_use_texture", &i32::from( use_texture ) );
 
       gl.bind_vertex_array( Some( &geom.vao ) );
 
@@ -561,19 +574,17 @@ mod private
 
       let mut use_texture = false;
       if let Some( tex_id ) = params.texture
+        && let Some( gpu_tex ) = resources.texture( tex_id )
       {
-        if let Some( gpu_tex ) = resources.texture( tex_id )
-        {
-          gl.active_texture( gl::TEXTURE0 );
-          gl.bind_texture( gl::TEXTURE_2D, Some( &gpu_tex.texture ) );
-          use_texture = true;
-        }
+        gl.active_texture( gl::TEXTURE0 );
+        gl.bind_texture( gl::TEXTURE_2D, Some( &gpu_tex.texture ) );
+        use_texture = true;
       }
 
       self.batch_program.activate();
       self.batch_program.uniform_upload( "u_viewport", viewport );
       self.batch_program.uniform_upload( "u_color", &color );
-      self.batch_program.uniform_upload( "u_use_texture", &( use_texture as i32 ) );
+      self.batch_program.uniform_upload( "u_use_texture", &i32::from( use_texture ) );
       let parent_mat = params.transform.to_mat3();
       self.batch_program.uniform_matrix_upload( "u_parent", &parent_mat, true );
 
@@ -661,15 +672,14 @@ mod private
       let gl = &self.gl;
       match blend
       {
-        BlendMode::Normal => gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA ),
         BlendMode::Add => gl.blend_func( gl::SRC_ALPHA, gl::ONE ),
         BlendMode::Multiply => gl.blend_func( gl::DST_COLOR, gl::ONE_MINUS_SRC_ALPHA ),
         BlendMode::Screen => gl.blend_func( gl::ONE, gl::ONE_MINUS_SRC_COLOR ),
         // TODO: true Overlay (Multiply where dst<0.5, Screen where dst>0.5) cannot be
         // expressed as a single blend_func call — it requires a custom shader or a
         // separate FBO read-back pass, neither of which is implemented yet.
-        // Falls back to Normal so rendering is at least visible.
-        BlendMode::Overlay => gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA ),
+        // Overlay falls back to Normal so rendering is at least visible.
+        BlendMode::Normal | BlendMode::Overlay => gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA ),
       }
     }
 
@@ -1097,42 +1107,36 @@ mod private
             // Positions (attrib 0)
             let mut position_buffer = None;
             if let Some( ref bytes ) = positions
+              && let Ok( buffer ) = gl::buffer::create( gl )
             {
-              if let Ok( buffer ) = gl::buffer::create( gl )
-              {
-                gl::buffer::upload( gl, &buffer, bytes, gl::STATIC_DRAW );
-                gl.enable_vertex_attrib_array( 0 );
-                gl.vertex_attrib_pointer_with_i32( 0, 2, gl::FLOAT, false, 0, 0 );
-                position_buffer = Some( buffer );
-              }
+              gl::buffer::upload( gl, &buffer, bytes, gl::STATIC_DRAW );
+              gl.enable_vertex_attrib_array( 0 );
+              gl.vertex_attrib_pointer_with_i32( 0, 2, gl::FLOAT, false, 0, 0 );
+              position_buffer = Some( buffer );
             }
 
             // UVs (attrib 1)
             let mut uv_buffer = None;
             if let Some( Some( ref bytes ) ) = uvs
+              && let Ok( buffer ) = gl::buffer::create( gl )
             {
-              if let Ok( buffer ) = gl::buffer::create( gl )
-              {
-                gl::buffer::upload( gl, &buffer, bytes, gl::STATIC_DRAW );
-                gl.enable_vertex_attrib_array( 1 );
-                gl.vertex_attrib_pointer_with_i32( 1, 2, gl::FLOAT, false, 0, 0 );
-                uv_buffer = Some( buffer );
-              }
+              gl::buffer::upload( gl, &buffer, bytes, gl::STATIC_DRAW );
+              gl.enable_vertex_attrib_array( 1 );
+              gl.vertex_attrib_pointer_with_i32( 1, 2, gl::FLOAT, false, 0, 0 );
+              uv_buffer = Some( buffer );
             }
 
             // Indices
             let mut index_buffer = None;
             let mut index_count = None;
             if let Some( Some( ref bytes ) ) = indices
+              && let Ok( buffer ) = gl::buffer::create( gl )
             {
-              if let Ok( buffer ) = gl::buffer::create( gl )
-              {
-                gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, Some( &buffer ) );
-                let u8_array = gl::js_sys::Uint8Array::from( bytes.as_slice() );
-                gl.buffer_data_with_array_buffer_view( gl::ELEMENT_ARRAY_BUFFER, &u8_array, gl::STATIC_DRAW );
-                index_count = Some( ( ( bytes.len() as u32 ) / idx_stride, idx_gl_type ) );
-                index_buffer = Some( buffer );
-              }
+              gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, Some( &buffer ) );
+              let u8_array = gl::js_sys::Uint8Array::from( bytes.as_slice() );
+              gl.buffer_data_with_array_buffer_view( gl::ELEMENT_ARRAY_BUFFER, &u8_array, gl::STATIC_DRAW );
+              index_count = Some( ( ( bytes.len() as u32 ) / idx_stride, idx_gl_type ) );
+              index_buffer = Some( buffer );
             }
 
             gl.bind_vertex_array( None );
@@ -1154,11 +1158,9 @@ mod private
                 for batch in res.batches.values()
                 {
                   if let GpuBatch::Mesh { vao, params, instances, .. } = batch
+                    && params.geometry == id
                   {
-                    if params.geometry == id
-                    {
-                      setup_mesh_batch_vao( gl, vao, geom, instances.buffer() );
-                    }
+                    setup_mesh_batch_vao( gl, vao, geom, instances.buffer() );
                   }
                 }
               }
@@ -1394,7 +1396,7 @@ mod private
     {
       web_sys::console::error_1
       (
-        &format!( "tilemap_renderer: failed to load image from path {:?}", src_for_err ).into()
+        &format!( "tilemap_renderer: failed to load image from path {src_for_err:?}" ).into()
       );
     });
 
@@ -1431,7 +1433,7 @@ mod private
     {
       SamplerFilter::Nearest => gl::texture::d2::filter_nearest( gl ),
       SamplerFilter::Linear => gl::texture::d2::filter_linear( gl ),
-    };
+    }
   }
 
   fn topology_to_gl( t : &Topology ) -> u32
