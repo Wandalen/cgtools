@@ -5,6 +5,20 @@ workspace-wide codestyle rulebook within this crate.
 
 ---
 
+## Test placement
+
+**Rule:** Tests that exercise the **public API** live in `tests/` as integration tests.
+Tests that exercise **private helpers** (e.g. internal `fn` items, free functions inside
+`mod private`) live in a `#[cfg(test)] mod tests { ... }` block inside the source file.
+
+**Rationale:** Rust integration tests (`tests/`) are separate crates and cannot access
+private items. Making an internal helper `pub` solely to move its tests out of the source
+file is the wrong trade-off — it pollutes the public API and removes the encapsulation the
+`pub`/`fn` distinction provides. Unit tests inline in `src/` are the standard Rust idiom
+for this case.
+
+---
+
 ## `#![allow]` and `#[allow]` attributes in source files
 
 **Rule:** File-level `#![allow(...)]` and item-level `#[allow(...)]` attributes are

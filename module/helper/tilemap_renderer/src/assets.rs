@@ -370,7 +370,15 @@ mod private
   {
     /// Path to image file — backend decodes (PNG, JPEG, etc.).
     Path( PathBuf ),
-    /// Encoded image in memory (PNG, JPEG, etc.) — backend decodes.
+    /// Encoded image in memory — backend decodes.
+    ///
+    /// **SVG backend limitation:** always emits a `data:image/png;base64,…` URI
+    /// regardless of the actual byte format. Passing non-PNG bytes (e.g. JPEG)
+    /// will produce a URI the browser cannot decode. Prefer [`ImageSource::Bitmap`]
+    /// (pre-decoded RGBA/RGB pixels) or [`ImageSource::Path`].
+    ///
+    /// **WebGL backend:** this variant is silently skipped during `load_assets`.
+    /// Use `Bitmap` (pre-decoded) or `Path` instead.
     Encoded( Vec< u8 > ),
     /// Raw pixel data — ready to upload directly.
     Bitmap

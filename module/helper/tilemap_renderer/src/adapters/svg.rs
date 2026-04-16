@@ -2195,6 +2195,92 @@ mod private
       assert!( b.contains( "fill=\"rgb(255,0,0)\"" ), "body: {b}" );
     }
 
+    fn mesh_svg( topology : Topology, positions : &[ f32 ] ) -> ( String, String )
+    {
+      let mut svg = svg800x600();
+      let assets = Assets
+      {
+        geometries : vec![ GeometryAsset
+        {
+          id : ResourceId::new( 0 ),
+          positions : Source::Bytes( bytemuck::cast_slice( positions ).to_vec() ),
+          uvs : None,
+          indices : None,
+          data_type : DataType::U16,
+        }],
+        ..empty_assets()
+      };
+      svg.load_assets( &assets ).unwrap();
+      svg.submit( &[
+        RenderCommand::Mesh( Mesh
+        {
+          transform : Transform::default(),
+          geometry : ResourceId::new( 0 ),
+          fill : FillRef::Solid( [ 1.0, 1.0, 1.0, 1.0 ] ),
+          texture : None,
+          topology,
+          blend : BlendMode::Normal,
+          clip : None,
+        }),
+      ]).unwrap();
+      ( body( &svg ), defs( &svg ) )
+    }
+
+    /// TriangleStrip with 4 vertices produces 2 triangles (n − 2 = 2 polygons).
+    #[ test ]
+    fn mesh_triangle_strip_polygon_count()
+    {
+      let positions : &[ f32 ] = &[ 0.0, 0.0, 100.0, 0.0, 0.0, 100.0, 100.0, 100.0 ];
+      let ( _b, d ) = mesh_svg( Topology::TriangleStrip, positions );
+      assert_eq!( d.matches( "<polygon" ).count(), 2, "defs: {d}" );
+    }
+
+    /// TriangleStrip with exactly 3 vertices produces exactly 1 triangle.
+    #[ test ]
+    fn mesh_triangle_strip_min_count()
+    {
+      let positions : &[ f32 ] = &[ 0.0, 0.0, 100.0, 0.0, 50.0, 100.0 ];
+      let ( _b, d ) = mesh_svg( Topology::TriangleStrip, positions );
+      assert_eq!( d.matches( "<polygon" ).count(), 1, "defs: {d}" );
+    }
+
+    /// TriangleStrip with fewer than 3 vertices produces no geometry — degenerate input is silently skipped.
+    #[ test ]
+    fn mesh_triangle_strip_degenerate_no_output()
+    {
+      let positions : &[ f32 ] = &[ 0.0, 0.0, 100.0, 0.0 ]; // 2 vertices
+      let ( b, _d ) = mesh_svg( Topology::TriangleStrip, positions );
+      // No <use> in body — the mesh def was not created
+      assert!( !b.contains( "<use" ), "body: {b}" );
+    }
+
+    /// LineList with 4 vertices (2 pairs) produces 2 `<polyline>` elements.
+    #[ test ]
+    fn mesh_line_list_even()
+    {
+      let positions : &[ f32 ] = &[ 0.0, 0.0, 100.0, 100.0, 200.0, 0.0, 300.0, 100.0 ];
+      let ( _b, d ) = mesh_svg( Topology::LineList, positions );
+      assert_eq!( d.matches( "<polyline" ).count(), 2, "defs: {d}" );
+    }
+
+    /// LineList with 3 vertices (odd) emits only 1 `<polyline>` — the trailing vertex is ignored.
+    #[ test ]
+    fn mesh_line_list_odd_vertex_count()
+    {
+      let positions : &[ f32 ] = &[ 0.0, 0.0, 100.0, 100.0, 200.0, 0.0 ];
+      let ( _b, d ) = mesh_svg( Topology::LineList, positions );
+      assert_eq!( d.matches( "<polyline" ).count(), 1, "defs: {d}" );
+    }
+
+    /// LineStrip with 4 vertices produces a single `<polyline>` with all points.
+    #[ test ]
+    fn mesh_line_strip_single_polyline()
+    {
+      let positions : &[ f32 ] = &[ 0.0, 0.0, 100.0, 0.0, 100.0, 100.0, 0.0, 100.0 ];
+      let ( _b, d ) = mesh_svg( Topology::LineStrip, positions );
+      assert_eq!( d.matches( "<polyline" ).count(), 1, "defs: {d}" );
+    }
+
     // -- resize --
 
     #[ test ]
@@ -2278,6 +2364,307 @@ mod private
       cm.clear_defs();
       let buf = cm.buffer();
       assert!( !buf.contains( "<test-def/>" ) );
+    }
+
+    // -- bitmap_to_png --
+
+    const PNG_MAGIC : &[ u8 ] = &[ 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a ];
+
+    /// Verifies that a 1×1 Rgba8 pixel buffer produces valid PNG output
+    /// (starts with the PNG magic bytes).
+    #[ test ]
+    fn bitmap_to_png_rgba8_valid()
+    {
+      let png = SvgBackend::bitmap_to_png( &[ 255, 0, 128, 255 ], 1, 1, &PixelFormat::Rgba8 );
+      let bytes = png.expect( "expected Some for valid 1x1 Rgba8" );
+      assert!( bytes.starts_with( PNG_MAGIC ), "not PNG: {:?}", &bytes[ ..8.min( bytes.len() ) ] );
+    }
+
+    /// Verifies that a 1×1 Rgb8 pixel buffer encodes successfully.
+    #[ test ]
+    fn bitmap_to_png_rgb8_valid()
+    {
+      let png = SvgBackend::bitmap_to_png( &[ 255, 0, 128 ], 1, 1, &PixelFormat::Rgb8 );
+      assert!( png.is_some(), "expected Some for valid 1x1 Rgb8" );
+    }
+
+    /// Verifies that a 1×1 Gray8 pixel buffer encodes successfully.
+    #[ test ]
+    fn bitmap_to_png_gray8_valid()
+    {
+      let png = SvgBackend::bitmap_to_png( &[ 128 ], 1, 1, &PixelFormat::Gray8 );
+      assert!( png.is_some(), "expected Some for valid 1x1 Gray8" );
+    }
+
+    /// Verifies that a 1×1 GrayAlpha8 pixel buffer encodes successfully.
+    #[ test ]
+    fn bitmap_to_png_gray_alpha8_valid()
+    {
+      let png = SvgBackend::bitmap_to_png( &[ 128, 255 ], 1, 1, &PixelFormat::GrayAlpha8 );
+      assert!( png.is_some(), "expected Some for valid 1x1 GrayAlpha8" );
+    }
+
+    /// Verifies that mismatched dimensions (too few bytes for the declared size) return None.
+    #[ test ]
+    fn bitmap_to_png_dimension_mismatch_returns_none()
+    {
+      // 2×2 Rgba8 needs 16 bytes; supplying only 4 must return None
+      let png = SvgBackend::bitmap_to_png( &[ 255, 0, 0, 255 ], 2, 2, &PixelFormat::Rgba8 );
+      assert!( png.is_none(), "expected None for undersized buffer" );
+    }
+
+    /// End-to-end: load a 2×2 Rgba8 Bitmap image asset and verify that `<defs>`
+    /// contains a `data:image/png;base64,` URI — the full encode path ran.
+    #[ test ]
+    fn image_bitmap_emits_png_data_uri()
+    {
+      let mut svg = svg800x600();
+      let assets = Assets
+      {
+        images : vec![ ImageAsset
+        {
+          id : ResourceId::new( 0 ),
+          source : ImageSource::Bitmap
+          {
+            bytes : vec![ 255u8; 2 * 2 * 4 ],
+            width : 2,
+            height : 2,
+            format : PixelFormat::Rgba8,
+          },
+          filter : SamplerFilter::Linear,
+        }],
+        ..empty_assets()
+      };
+      svg.load_assets( &assets ).unwrap();
+      let d = defs( &svg );
+      assert!( d.contains( "data:image/png;base64," ), "defs: {d}" );
+    }
+
+    /// When the byte buffer is too small for the declared dimensions,
+    /// bitmap_to_png returns None and no image def is emitted.
+    #[ test ]
+    fn image_bitmap_bad_dimensions_emits_nothing()
+    {
+      let mut svg = svg800x600();
+      let assets = Assets
+      {
+        images : vec![ ImageAsset
+        {
+          id : ResourceId::new( 0 ),
+          source : ImageSource::Bitmap
+          {
+            bytes : vec![ 255u8; 4 ], // too small for 4×4
+            width : 4,
+            height : 4,
+            format : PixelFormat::Rgba8,
+          },
+          filter : SamplerFilter::Linear,
+        }],
+        ..empty_assets()
+      };
+      svg.load_assets( &assets ).unwrap();
+      let d = defs( &svg );
+      assert!( !d.contains( "data:image/png;base64," ), "expected no image def, defs: {d}" );
+    }
+
+    // -- text rendering --
+
+    fn begin_text_cmd( anchor : TextAnchor, position : [ f32; 2 ] ) -> RenderCommand
+    {
+      RenderCommand::BeginText( BeginText
+      {
+        font : ResourceId::new( 0 ),
+        size : 16.0,
+        color : [ 1.0, 1.0, 1.0, 1.0 ],
+        anchor,
+        position,
+        along_path : None,
+        clip : None,
+      })
+    }
+
+    /// Verifies that BeginText / Char / EndText produces a `<text>` element
+    /// containing the submitted characters.
+    #[ test ]
+    fn text_basic_flow_emits_text_element()
+    {
+      let mut svg = svg800x600();
+      svg.load_assets( &empty_assets() ).unwrap();
+      svg.submit( &[
+        begin_text_cmd( TextAnchor::TopLeft, [ 10.0, 20.0 ] ),
+        RenderCommand::Char( Char( 'H' ) ),
+        RenderCommand::Char( Char( 'i' ) ),
+        RenderCommand::EndText( EndText ),
+      ]).unwrap();
+
+      let b = body( &svg );
+      assert!( b.contains( "<text" ), "body: {b}" );
+      assert!( b.contains( "Hi" ), "body: {b}" );
+    }
+
+    /// Verifies that EndText without BeginText is silently ignored (no panic, no output).
+    #[ test ]
+    fn text_end_without_begin_is_noop()
+    {
+      let mut svg = svg800x600();
+      svg.load_assets( &empty_assets() ).unwrap();
+      svg.submit( &[ RenderCommand::EndText( EndText ) ] ).unwrap();
+      assert!( !body( &svg ).contains( "<text" ) );
+    }
+
+    /// Verifies font-size is emitted in the `<text>` element.
+    #[ test ]
+    fn text_emits_font_size()
+    {
+      let mut svg = svg800x600();
+      svg.load_assets( &empty_assets() ).unwrap();
+      svg.submit( &[
+        RenderCommand::BeginText( BeginText
+        {
+          font : ResourceId::new( 0 ),
+          size : 24.0,
+          color : [ 0.0, 0.0, 0.0, 1.0 ],
+          anchor : TextAnchor::Center,
+          position : [ 0.0, 0.0 ],
+          along_path : None,
+          clip : None,
+        }),
+        RenderCommand::Char( Char( 'A' ) ),
+        RenderCommand::EndText( EndText ),
+      ]).unwrap();
+
+      let b = body( &svg );
+      assert!( b.contains( "font-size=\"24\"" ), "body: {b}" );
+    }
+
+    // anchor_to_svg — 9 variants (private method, must stay inline)
+
+    #[ test ]
+    fn anchor_top_left()
+    {
+      let ( h, v ) = SvgBackend::anchor_to_svg( &TextAnchor::TopLeft );
+      assert_eq!( h, "start" );
+      assert_eq!( v, "hanging" );
+    }
+
+    #[ test ]
+    fn anchor_top_center()
+    {
+      let ( h, v ) = SvgBackend::anchor_to_svg( &TextAnchor::TopCenter );
+      assert_eq!( h, "middle" );
+      assert_eq!( v, "hanging" );
+    }
+
+    #[ test ]
+    fn anchor_top_right()
+    {
+      let ( h, v ) = SvgBackend::anchor_to_svg( &TextAnchor::TopRight );
+      assert_eq!( h, "end" );
+      assert_eq!( v, "hanging" );
+    }
+
+    #[ test ]
+    fn anchor_center_left()
+    {
+      let ( h, v ) = SvgBackend::anchor_to_svg( &TextAnchor::CenterLeft );
+      assert_eq!( h, "start" );
+      assert_eq!( v, "central" );
+    }
+
+    #[ test ]
+    fn anchor_center()
+    {
+      let ( h, v ) = SvgBackend::anchor_to_svg( &TextAnchor::Center );
+      assert_eq!( h, "middle" );
+      assert_eq!( v, "central" );
+    }
+
+    #[ test ]
+    fn anchor_center_right()
+    {
+      let ( h, v ) = SvgBackend::anchor_to_svg( &TextAnchor::CenterRight );
+      assert_eq!( h, "end" );
+      assert_eq!( v, "central" );
+    }
+
+    #[ test ]
+    fn anchor_bottom_left()
+    {
+      let ( h, v ) = SvgBackend::anchor_to_svg( &TextAnchor::BottomLeft );
+      assert_eq!( h, "start" );
+      assert_eq!( v, "baseline" );
+    }
+
+    #[ test ]
+    fn anchor_bottom_center()
+    {
+      let ( h, v ) = SvgBackend::anchor_to_svg( &TextAnchor::BottomCenter );
+      assert_eq!( h, "middle" );
+      assert_eq!( v, "baseline" );
+    }
+
+    #[ test ]
+    fn anchor_bottom_right()
+    {
+      let ( h, v ) = SvgBackend::anchor_to_svg( &TextAnchor::BottomRight );
+      assert_eq!( h, "end" );
+      assert_eq!( v, "baseline" );
+    }
+
+    /// Verifies that anchor attributes from BeginText are written into the `<text>` element.
+    #[ test ]
+    fn text_anchor_attrs_in_output()
+    {
+      let mut svg = svg800x600();
+      svg.load_assets( &empty_assets() ).unwrap();
+      svg.submit( &[
+        begin_text_cmd( TextAnchor::BottomRight, [ 0.0, 0.0 ] ),
+        RenderCommand::Char( Char( 'X' ) ),
+        RenderCommand::EndText( EndText ),
+      ]).unwrap();
+
+      let b = body( &svg );
+      assert!( b.contains( "text-anchor=\"end\"" ), "body: {b}" );
+      assert!( b.contains( "dominant-baseline=\"baseline\"" ), "body: {b}" );
+    }
+
+    /// Verifies that text with `along_path` produces a `<textPath href="#path_N">` element.
+    #[ test ]
+    fn text_along_path_emits_text_path()
+    {
+      use crate::assets::{ PathAsset, PathSegment };
+
+      let mut svg = svg800x600();
+      let assets = Assets
+      {
+        paths : vec![ PathAsset
+        {
+          id : ResourceId::new( 3 ),
+          segments : vec![ PathSegment::MoveTo( 0.0, 0.0 ), PathSegment::LineTo( 200.0, 0.0 ) ],
+        }],
+        ..empty_assets()
+      };
+      svg.load_assets( &assets ).unwrap();
+      svg.submit( &[
+        RenderCommand::BeginText( BeginText
+        {
+          font : ResourceId::new( 0 ),
+          size : 12.0,
+          color : [ 0.0, 0.0, 0.0, 1.0 ],
+          anchor : TextAnchor::Center,
+          position : [ 0.0, 0.0 ],
+          along_path : Some( ResourceId::new( 3 ) ),
+          clip : None,
+        }),
+        RenderCommand::Char( Char( 'A' ) ),
+        RenderCommand::Char( Char( 'B' ) ),
+        RenderCommand::EndText( EndText ),
+      ]).unwrap();
+
+      let b = body( &svg );
+      assert!( b.contains( "<textPath" ), "body: {b}" );
+      assert!( b.contains( "href=\"#path_3\"" ), "body: {b}" );
+      assert!( b.contains( "AB" ), "body: {b}" );
     }
   }
 }
