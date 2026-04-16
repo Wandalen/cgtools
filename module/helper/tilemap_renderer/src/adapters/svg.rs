@@ -2211,8 +2211,8 @@ mod private
 
       let b = body( &svg );
       let d = defs( &svg );
-      assert!( d.contains( "<polygon" ), "defs: {}", d );
-      assert!( b.contains( "fill=\"rgb(255,0,0)\"" ), "body: {}", b );
+      assert!( d.contains( "<polygon" ), "defs: {d}" );
+      assert!( b.contains( "fill=\"rgb(255,0,0)\"" ), "body: {b}" );
     }
 
     // -- resize --
@@ -2223,9 +2223,9 @@ mod private
       let mut svg = svg800x600();
       svg.resize( 1024, 768 );
       let full = render( &svg );
-      assert!( full.contains( "width=\"1024\"" ), "full: {}", full );
-      assert!( full.contains( "height=\"768\"" ), "full: {}", full );
-      assert!( full.contains( "viewBox=\"0 0 1024 768\"" ), "full: {}", full );
+      assert!( full.contains( "width=\"1024\"" ), "full: {full}" );
+      assert!( full.contains( "height=\"768\"" ), "full: {full}" );
+      assert!( full.contains( "viewBox=\"0 0 1024 768\"" ), "full: {full}" );
     }
 
     // -- capabilities --
@@ -2274,7 +2274,7 @@ mod private
       ]).unwrap();
 
       let b = body( &svg );
-      assert!( b.contains( "mix-blend-mode:multiply" ), "body: {}", b );
+      assert!( b.contains( "mix-blend-mode:multiply" ), "body: {b}" );
     }
 
     // -- content manager --
