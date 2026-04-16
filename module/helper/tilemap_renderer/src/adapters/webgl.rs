@@ -655,6 +655,7 @@ mod private
     resources : Rc< RefCell< GpuResources > >,
     sprite : SpriteRenderer,
     mesh : MeshRenderer,
+    max_texture_size : u32,
 
     // -- batch editing state --
     recording_batch : Option< ResourceId< Batch > >,
@@ -678,10 +679,15 @@ mod private
       gl.enable( gl::BLEND );
       gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA );
 
-      if !matches!( config.antialias, Antialias::None )
-      {
-        gl.enable( gl::SAMPLE_COVERAGE );
-      }
+      // Query the actual hardware limit; fall back to the WebGL2 guaranteed minimum.
+      // get_parameter returns a JsValue; as_f64() is the idiomatic way to extract it.
+      // u32::try_from(i64) rejects negatives; the i64 intermediate avoids cast_sign_loss.
+      let max_texture_size : u32 = gl
+        .get_parameter( gl::MAX_TEXTURE_SIZE )
+        .ok()
+        .and_then( | v | v.as_f64() )
+        .and_then( | v | u32::try_from( v as i64 ).ok() )
+        .unwrap_or( 2048 );
 
       Ok( Self
       {
@@ -690,6 +696,7 @@ mod private
         resources : Rc::new( RefCell::new( GpuResources::new() ) ),
         sprite,
         mesh,
+        max_texture_size,
         recording_batch : None,
       })
     }
@@ -1356,7 +1363,7 @@ mod private
         effects : false,     // TODO: requires FBO post-processing
         blend_modes : true,  // Normal/Add/Multiply/Screen work; Overlay falls back to Normal (needs custom shader)
         text_on_path : false,
-        max_texture_size : 8192,
+        max_texture_size : self.max_texture_size,
       }
     }
   }
