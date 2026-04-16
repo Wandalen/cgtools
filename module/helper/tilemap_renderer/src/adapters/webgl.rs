@@ -952,12 +952,20 @@ mod private
               crate::assets::PixelFormat::GrayAlpha8 => gl::LUMINANCE_ALPHA,
             };
 
-            let _ = gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
+            gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
             (
               gl::TEXTURE_2D, 0, gl_fmt as i32,
               *width as i32, *height as i32, 0,
               gl_fmt, gl::UNSIGNED_BYTE, Some( bytes ),
-            );
+            )
+            .map_err( | e | RenderError::BackendError
+            (
+              format!
+              (
+                "tex_image_2d failed for image {:?}: {:?}",
+                img.id, e
+              )
+            ))?;
 
             ( tex, *width, *height )
           }
@@ -1339,9 +1347,20 @@ mod private
       }
     });
 
+    let src_for_err = src.to_owned();
+    let on_error : Closure< dyn Fn() > = Closure::new( move ||
+    {
+      web_sys::console::error_1
+      (
+        &format!( "tilemap_renderer: failed to load image from path {:?}", src_for_err ).into()
+      );
+    });
+
     img.set_onload( Some( on_load.as_ref().unchecked_ref() ) );
+    img.set_onerror( Some( on_error.as_ref().unchecked_ref() ) );
     img.set_src( src );
     on_load.forget();
+    on_error.forget();
 
     texture
   }
