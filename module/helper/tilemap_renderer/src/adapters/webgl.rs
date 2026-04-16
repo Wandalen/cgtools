@@ -46,13 +46,17 @@ mod private
     /// Creates a new GPU array buffer with the given initial capacity (in elements).
     ///
     /// # Errors
-    /// Returns `WebglError` if the underlying GPU buffer cannot be created.
+    /// Returns `WebglError` if the underlying GPU buffer cannot be created or if
+    /// `capacity * stride` overflows `i32` (WebGL buffer size limit).
     pub fn new( gl : &gl::GL, capacity : u32 ) -> Result< Self, gl::WebglError >
     {
       let buffer = gl::buffer::create( gl )?;
-      let byte_size = capacity * Self::stride();
+      let byte_size = capacity
+        .checked_mul( Self::stride() )
+        .and_then( | n | i32::try_from( n ).ok() )
+        .ok_or( gl::WebglError::FailedToAllocateResource( "Buffer" ) )?;
       gl.bind_buffer( gl::ARRAY_BUFFER, Some( &buffer ) );
-      gl.buffer_data_with_i32( gl::ARRAY_BUFFER, byte_size as i32, gl::DYNAMIC_DRAW );
+      gl.buffer_data_with_i32( gl::ARRAY_BUFFER, byte_size, gl::DYNAMIC_DRAW );
       gl.bind_buffer( gl::ARRAY_BUFFER, None );
 
       let scratch = gl::buffer::create( gl )?;
@@ -164,12 +168,16 @@ mod private
     /// Doubles the capacity, copying old data GPU-to-GPU.
     fn grow( &mut self ) -> Result< (), gl::WebglError >
     {
-      let new_capacity = if self.capacity == 0 { 4 } else { self.capacity * 2 };
-      let new_byte_size = new_capacity * Self::stride();
+      // saturating_mul avoids wrapping; the byte_size check below catches any overflow.
+      let new_capacity = self.capacity.saturating_mul( 2 ).max( 4 );
+      let new_byte_size = new_capacity
+        .checked_mul( Self::stride() )
+        .and_then( | n | i32::try_from( n ).ok() )
+        .ok_or( gl::WebglError::FailedToAllocateResource( "Buffer" ) )?;
 
       let new_buffer = gl::buffer::create( &self.gl )?;
       self.gl.bind_buffer( gl::ARRAY_BUFFER, Some( &new_buffer ) );
-      self.gl.buffer_data_with_i32( gl::ARRAY_BUFFER, new_byte_size as i32, gl::DYNAMIC_DRAW );
+      self.gl.buffer_data_with_i32( gl::ARRAY_BUFFER, new_byte_size, gl::DYNAMIC_DRAW );
       self.gl.bind_buffer( gl::ARRAY_BUFFER, None );
 
       if self.len > 0
