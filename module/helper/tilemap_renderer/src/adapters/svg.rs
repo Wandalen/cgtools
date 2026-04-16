@@ -210,6 +210,8 @@ mod private
 
     fn color_to_svg( color : &[ f32; 4 ] ) -> String
     {
+      // f32-to-u8 `as` cast saturates: values < 0.0 clamp to 0, values > 1.0 clamp to 255.
+      // No explicit range check is needed; out-of-range input saturates silently.
       #[ allow( clippy::cast_possible_truncation, clippy::cast_sign_loss ) ]
       let ( r, g, b, a ) =
       (
@@ -766,9 +768,10 @@ mod private
           {
             match geom.data_type
             {
+              DataType::U8  => Some( ibytes.iter().map( | &i | u32::from( i ) ).collect() ),
               DataType::U16 => Some( bytemuck::cast_slice::< _, u16 >( ibytes ).iter().map( | &i | u32::from( i ) ).collect() ),
               DataType::U32 => Some( bytemuck::cast_slice::< _, u32 >( ibytes ).to_vec() ),
-              _ => None,
+              DataType::F32 => None, // F32 is not a valid index type; documented in DataType::F32 doc
             }
           }
           else { None };
@@ -796,14 +799,15 @@ mod private
           for i in ( 0..count ).step_by( 3 )
           {
             let mut pts = String::new();
+            let mut valid = true;
             for j in 0..3
             {
               let v_idx = idx.map_or( i + j, | v | v[ i + j ] as usize );
-              let x = geom.positions[ v_idx * 2 ];
-              let y = geom.positions[ v_idx * 2 + 1 ];
+              let Some( &x ) = geom.positions.get( v_idx * 2 )     else { valid = false; break; };
+              let Some( &y ) = geom.positions.get( v_idx * 2 + 1 ) else { valid = false; break; };
               let _ = write!( pts, "{x},{y} " );
             }
-            let _ = write!( def_content, "<polygon points=\"{}\"/>", pts.trim() );
+            if valid { let _ = write!( def_content, "<polygon points=\"{}\"/>", pts.trim() ); }
           }
         }
         Topology::TriangleStrip =>
@@ -814,14 +818,15 @@ mod private
           for i in 0..( count - 2 )
           {
             let mut pts = String::new();
+            let mut valid = true;
             for j in 0..3
             {
               let v_idx = idx.map_or( i + j, | v | v[ i + j ] as usize );
-              let x = geom.positions[ v_idx * 2 ];
-              let y = geom.positions[ v_idx * 2 + 1 ];
+              let Some( &x ) = geom.positions.get( v_idx * 2 )     else { valid = false; break; };
+              let Some( &y ) = geom.positions.get( v_idx * 2 + 1 ) else { valid = false; break; };
               let _ = write!( pts, "{x},{y} " );
             }
-            let _ = write!( def_content, "<polygon points=\"{}\"/>", pts.trim() );
+            if valid { let _ = write!( def_content, "<polygon points=\"{}\"/>", pts.trim() ); }
           }
         }
         Topology::LineList | Topology::LineStrip =>
@@ -832,8 +837,8 @@ mod private
           for i in 0..count
           {
             let v_idx = idx.map_or( i, | v | v[ i ] as usize );
-            let x = geom.positions[ v_idx * 2 ];
-            let y = geom.positions[ v_idx * 2 + 1 ];
+            let Some( &x ) = geom.positions.get( v_idx * 2 )     else { continue; };
+            let Some( &y ) = geom.positions.get( v_idx * 2 + 1 ) else { continue; };
             let _ = write!( pts, "{x},{y} " );
 
             if topology == Topology::LineList && ( i + 1 ) % 2 == 0
@@ -2200,6 +2205,85 @@ mod private
       let d = defs( &svg );
       assert!( d.contains( "<polygon" ), "defs: {d}" );
       assert!( b.contains( "fill=\"rgb(255,0,0)\"" ), "body: {b}" );
+    }
+
+    /// Verifies that DataType::U8 index buffers are correctly loaded and used
+    /// so geometry with U8 indices renders polygons rather than being silently dropped.
+    #[ test ]
+    fn geometry_u8_indices_loaded()
+    {
+      let mut svg = svg800x600();
+      let positions : &[ f32 ] = &[ 0.0, 0.0, 100.0, 0.0, 50.0, 100.0 ];
+      let indices_u8 : &[ u8 ] = &[ 0, 1, 2 ];
+      let assets = Assets
+      {
+        geometries : vec![ GeometryAsset
+        {
+          id : ResourceId::new( 0 ),
+          positions : Source::Bytes( bytemuck::cast_slice( positions ).to_vec() ),
+          uvs : None,
+          indices : Some( Source::Bytes( indices_u8.to_vec() ) ),
+          data_type : DataType::U8,
+        }],
+        ..empty_assets()
+      };
+      svg.load_assets( &assets ).unwrap();
+      svg.submit( &[
+        RenderCommand::Mesh( Mesh
+        {
+          transform : Transform::default(),
+          geometry : ResourceId::new( 0 ),
+          fill : FillRef::Solid( [ 1.0, 0.0, 0.0, 1.0 ] ),
+          texture : None,
+          topology : Topology::TriangleList,
+          blend : BlendMode::Normal,
+          clip : None,
+        }),
+      ]).unwrap();
+
+      let d = defs( &svg );
+      assert!( d.contains( "<polygon" ), "U8 indices not used — polygon missing from defs: {d}" );
+    }
+
+    /// Verifies that out-of-bounds indices in geometry do not cause a panic.
+    /// The out-of-range polygon is silently skipped; valid polygons still render.
+    #[ test ]
+    fn geometry_oob_index_no_panic()
+    {
+      let mut svg = svg800x600();
+      let positions : &[ f32 ] = &[ 0.0, 0.0, 100.0, 0.0, 50.0, 100.0 ]; // 3 vertices
+      // Triangle 0: valid (0,1,2). Triangle 1: index 99 is out of bounds.
+      let indices : Vec< u32 > = vec![ 0, 1, 2, 0, 1, 99 ];
+      let assets = Assets
+      {
+        geometries : vec![ GeometryAsset
+        {
+          id : ResourceId::new( 0 ),
+          positions : Source::Bytes( bytemuck::cast_slice( positions ).to_vec() ),
+          uvs : None,
+          indices : Some( Source::Bytes( bytemuck::cast_slice( &indices ).to_vec() ) ),
+          data_type : DataType::U32,
+        }],
+        ..empty_assets()
+      };
+      svg.load_assets( &assets ).unwrap();
+      // Must not panic
+      svg.submit( &[
+        RenderCommand::Mesh( Mesh
+        {
+          transform : Transform::default(),
+          geometry : ResourceId::new( 0 ),
+          fill : FillRef::Solid( [ 1.0, 0.0, 0.0, 1.0 ] ),
+          texture : None,
+          topology : Topology::TriangleList,
+          blend : BlendMode::Normal,
+          clip : None,
+        }),
+      ]).unwrap();
+
+      let d = defs( &svg );
+      // The valid first triangle should still appear
+      assert!( d.contains( "<polygon" ), "valid polygon missing from defs: {d}" );
     }
 
     fn mesh_svg( topology : Topology, positions : &[ f32 ] ) -> ( String, String )
