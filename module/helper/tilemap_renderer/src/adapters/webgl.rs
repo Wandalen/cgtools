@@ -758,9 +758,17 @@ mod private
       });
     }
 
-    fn cmd_bind_batch( &mut self, cmd : &BindBatch )
+    fn cmd_bind_batch( &mut self, cmd : &BindBatch ) -> Result< (), RenderError >
     {
+      if let Some( current ) = self.recording_batch
+      {
+        return Err( RenderError::BackendError
+        (
+          format!( "BindBatch({:?}): batch {:?} is already bound; call UnbindBatch first", cmd.batch, current )
+        ));
+      }
       self.recording_batch = Some( cmd.batch );
+      Ok( () )
     }
 
     fn cmd_add_sprite_instance( &mut self, si : &AddSpriteInstance ) -> Result< (), RenderError >
@@ -880,8 +888,15 @@ mod private
       }
     }
 
-    fn cmd_draw_batch( &self, db : &DrawBatch, viewport : &[ f32; 2 ] )
+    fn cmd_draw_batch( &self, db : &DrawBatch, viewport : &[ f32; 2 ] ) -> Result< (), RenderError >
     {
+      if self.recording_batch == Some( db.batch )
+      {
+        return Err( RenderError::BackendError
+        (
+          format!( "DrawBatch({:?}): batch is still bound; call UnbindBatch before drawing", db.batch )
+        ));
+      }
       let res = self.resources.borrow();
       if let Some( gpu_batch ) = res.batch( db.batch )
       {
@@ -896,11 +911,18 @@ mod private
           GpuBatch::Mesh { .. } => self.mesh.draw_batch( &self.gl, gpu_batch, &res, viewport ),
         }
       }
+      Ok( () )
     }
 
     fn cmd_delete_batch( &mut self, db : &DeleteBatch )
     {
-      // ArrayBuffer::drop handles GPU buffer cleanup
+      // If the batch being deleted is currently bound, clear the recording slot so
+      // subsequent instance commands do not silently target a dangling id.
+      if self.recording_batch == Some( db.batch )
+      {
+        self.recording_batch = None;
+      }
+      // ArrayBuffer::drop handles GPU buffer cleanup.
       self.resources.borrow_mut().batches.remove( &db.batch );
     }
 
@@ -1179,7 +1201,7 @@ mod private
           // Batch lifecycle
           RenderCommand::CreateSpriteBatch( c ) => self.cmd_create_sprite_batch( c ),
           RenderCommand::CreateMeshBatch( c ) => self.cmd_create_mesh_batch( c ),
-          RenderCommand::BindBatch( b ) => self.cmd_bind_batch( b ),
+          RenderCommand::BindBatch( b ) => self.cmd_bind_batch( b )?,
           RenderCommand::AddSpriteInstance( si ) => self.cmd_add_sprite_instance( si )?,
           RenderCommand::AddMeshInstance( mi ) => self.cmd_add_mesh_instance( mi )?,
           RenderCommand::SetSpriteInstance( si ) => self.cmd_set_sprite_instance( si ),
@@ -1188,7 +1210,7 @@ mod private
           RenderCommand::SetSpriteBatchParams( sp ) => self.cmd_set_sprite_batch_params( sp ),
           RenderCommand::SetMeshBatchParams( mp ) => self.cmd_set_mesh_batch_params( mp ),
           RenderCommand::UnbindBatch( _ ) => self.cmd_unbind_batch(),
-          RenderCommand::DrawBatch( db ) => self.cmd_draw_batch( db, &viewport ),
+          RenderCommand::DrawBatch( db ) => self.cmd_draw_batch( db, &viewport )?,
           RenderCommand::DeleteBatch( db ) => self.cmd_delete_batch( db ),
 
           // Path — skip (TODO)

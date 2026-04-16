@@ -279,7 +279,24 @@ mod private
   }
 
   /// Binds a batch for editing. All subsequent instance commands
+  /// (`AddSpriteInstance`, `SetSpriteInstance`, `RemoveInstance`, etc.)
   /// apply to this batch until `UnbindBatch`.
+  ///
+  /// # Invariants
+  ///
+  /// - Only **one** batch can be bound at a time. Issuing `BindBatch` while
+  ///   another batch is already bound is a protocol error; the WebGL backend
+  ///   returns `RenderError::BackendError`.
+  /// - Always pair every `BindBatch` with a matching `UnbindBatch` before
+  ///   issuing `DrawBatch` or a second `BindBatch`.
+  ///
+  /// **Correct lifecycle:**
+  /// ```ignore
+  /// BindBatch(id)
+  /// Add/Set/RemoveInstance …
+  /// UnbindBatch          // commits VAO state; safe to draw after this
+  /// DrawBatch(id)
+  /// ```
   #[ derive( Debug, Clone, Copy ) ]
   pub struct BindBatch
   {
@@ -370,12 +387,31 @@ mod private
     pub params : MeshBatchParams,
   }
 
-  /// Unbinds the batch and applies all pending changes.
+  /// Unbinds the current batch and commits all pending instance changes.
+  ///
+  /// In the WebGL backend, `UnbindBatch` re-configures the batch's VAO with
+  /// the current instance buffer. This step is **required** if any `AddInstance`
+  /// calls caused the internal buffer to grow (reallocate), because a grow
+  /// replaces the underlying `WebGlBuffer` and invalidates the previous VAO
+  /// attribute pointers.
+  ///
+  /// Calling `UnbindBatch` when no batch is bound is a no-op.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct UnbindBatch;
 
   /// Draws a previously created batch (sprite or mesh).
   /// GPU: single instanced draw call.
+  ///
+  /// # Invariants
+  ///
+  /// The batch must **not** be bound at the time of this command. Calling
+  /// `DrawBatch` while the batch is still bound (i.e. without a preceding
+  /// `UnbindBatch`) is a protocol error; the WebGL backend returns
+  /// `RenderError::BackendError`.
+  ///
+  /// This restriction exists because `UnbindBatch` is responsible for
+  /// refreshing the VAO when the instance buffer grew during recording.
+  /// Drawing with a stale VAO produces undefined GPU behavior.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct DrawBatch
   {
@@ -383,7 +419,13 @@ mod private
     pub batch : ResourceId< Batch >,
   }
 
-  /// Deletes a batch and frees its resources.
+  /// Deletes a batch and frees its GPU resources.
+  ///
+  /// If the batch is currently bound when this command is processed, the
+  /// WebGL backend implicitly clears the binding (equivalent to `UnbindBatch`
+  /// without a VAO refresh, since the batch is about to be destroyed).
+  /// Subsequent instance commands that would have targeted this batch become
+  /// no-ops.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct DeleteBatch
   {
