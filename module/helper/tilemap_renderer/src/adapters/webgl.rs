@@ -81,10 +81,6 @@ mod private
     #[ must_use ]
     pub fn is_empty( &self ) -> bool { self.len == 0 }
 
-    /// Current capacity in elements.
-    #[ must_use ]
-    pub fn capacity( &self ) -> u32 { self.capacity }
-
     /// Returns a reference to the underlying `WebGlBuffer`.
     #[ must_use ]
     pub fn buffer( &self ) -> &web_sys::WebGlBuffer { &self.buffer }
@@ -1522,6 +1518,5 @@ mod private
 
 mod_interface::mod_interface!
 {
-  own use ArrayBuffer;
   own use WebGlBackend;
 }
