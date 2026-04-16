@@ -665,6 +665,11 @@ mod private
   {
     /// Creates a new WebGL backend.
     ///
+    /// **Antialiasing note:** MSAA in WebGL2 is controlled by the `antialias` attribute
+    /// passed to `getContext("webgl2", { antialias: true })` at context creation time,
+    /// not by `RenderConfig::antialias`. That field is only meaningful for the SVG adapter.
+    /// Pass the desired AA setting when creating the WebGL2 context before calling this.
+    ///
     /// # Errors
     /// Returns error if shader compilation fails.
     pub fn new( config : RenderConfig, gl : gl::GL ) -> Result< Self, RenderError >
