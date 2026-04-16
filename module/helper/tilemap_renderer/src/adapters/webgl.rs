@@ -26,11 +26,16 @@ mod private
   ///
   /// Stores elements of type `T` in a WebGL `ARRAY_BUFFER`.
   /// Tracks length and capacity; grows by 2× when full using
-  /// `copy_buffer_sub_data` (GPU-to-GPU, no CPU readback).
+  /// `copy_buffer_sub_data` (GPU-to-GPU copy into a freshly allocated buffer).
+  /// `swap_remove` uses a persistent one-element scratch buffer as an intermediary
+  /// to avoid the WebGL2 spec violation of binding the same buffer to both
+  /// `COPY_READ_BUFFER` and `COPY_WRITE_BUFFER` simultaneously.
   pub struct ArrayBuffer< T >
   {
     gl : gl::GL,
     buffer : web_sys::WebGlBuffer,
+    /// One-element scratch buffer used by `swap_remove` as a GPU-side intermediary.
+    scratch : web_sys::WebGlBuffer,
     len : u32,
     capacity : u32,
     _marker : PhantomData< T >,
@@ -49,7 +54,13 @@ mod private
       gl.bind_buffer( gl::ARRAY_BUFFER, Some( &buffer ) );
       gl.buffer_data_with_i32( gl::ARRAY_BUFFER, byte_size as i32, gl::DYNAMIC_DRAW );
       gl.bind_buffer( gl::ARRAY_BUFFER, None );
-      Ok( Self { gl : gl.clone(), buffer, len : 0, capacity, _marker : PhantomData } )
+
+      let scratch = gl::buffer::create( gl )?;
+      gl.bind_buffer( gl::ARRAY_BUFFER, Some( &scratch ) );
+      gl.buffer_data_with_i32( gl::ARRAY_BUFFER, Self::stride() as i32, gl::DYNAMIC_DRAW );
+      gl.bind_buffer( gl::ARRAY_BUFFER, None );
+
+      Ok( Self { gl : gl.clone(), buffer, scratch, len : 0, capacity, _marker : PhantomData } )
     }
 
     /// Byte size of one element.
@@ -120,13 +131,27 @@ mod private
         let src_offset = self.len as i32 * stride;
         let dst_offset = index as i32 * stride;
 
+        // Binding the same buffer to both COPY_READ_BUFFER and COPY_WRITE_BUFFER is a
+        // WebGL2 spec violation (INVALID_OPERATION). Use a persistent one-element scratch
+        // buffer as an intermediary: last → scratch → removed slot. Both copies use
+        // distinct buffer objects, so the spec is satisfied and the copies are GPU-only.
         self.gl.bind_buffer( gl::COPY_READ_BUFFER, Some( &self.buffer ) );
-        self.gl.bind_buffer( gl::COPY_WRITE_BUFFER, Some( &self.buffer ) );
+        self.gl.bind_buffer( gl::COPY_WRITE_BUFFER, Some( &self.scratch ) );
         self.gl.copy_buffer_sub_data_with_i32_and_i32_and_i32
         (
           gl::COPY_READ_BUFFER,
           gl::COPY_WRITE_BUFFER,
           src_offset,
+          0,
+          stride,
+        );
+        self.gl.bind_buffer( gl::COPY_READ_BUFFER, Some( &self.scratch ) );
+        self.gl.bind_buffer( gl::COPY_WRITE_BUFFER, Some( &self.buffer ) );
+        self.gl.copy_buffer_sub_data_with_i32_and_i32_and_i32
+        (
+          gl::COPY_READ_BUFFER,
+          gl::COPY_WRITE_BUFFER,
+          0,
           dst_offset,
           stride,
         );
@@ -176,6 +201,7 @@ mod private
     fn drop( &mut self )
     {
       self.gl.delete_buffer( Some( &self.buffer ) );
+      self.gl.delete_buffer( Some( &self.scratch ) );
     }
   }
 
