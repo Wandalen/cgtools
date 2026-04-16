@@ -330,6 +330,14 @@ mod private
   }
 
   /// Removes an instance at `index` from the bound batch.
+  ///
+  /// **Swap-remove semantics:** the last instance is moved into the removed slot
+  /// to keep the list compact. After this command, all indices above `index` that
+  /// previously pointed to specific instances are now invalid — the former last
+  /// instance is at position `index`, and the total count decreases by one.
+  ///
+  /// To remove multiple instances, process them in **descending index order** so
+  /// that earlier removals do not shift the indices you still need.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct RemoveInstance
   {
