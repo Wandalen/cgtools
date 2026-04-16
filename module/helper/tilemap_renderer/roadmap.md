@@ -22,7 +22,7 @@ The core library is functional and the WebGL2 adapter is partially implemented. 
   - Batch lifecycle: `Create`, `Bind`, `Add/Set/Remove` instances, `Draw`, `Delete` — for both sprite and mesh batches
   - Per-batch VAO setup at create/unbind time; bind-only at draw time
   - Asset loading: images (Bitmap sync + Path async via `spawn_local`), sprites, geometries (sync + async path)
-  - All blend modes: Normal, Add, Multiply, Screen, Overlay
+  - Blend modes: Normal, Add, Multiply, Screen (hardware-accelerated); Overlay falls back to Normal (see gaps)
   - Shaders: `sprite.vert/frag`, `sprite_batch.vert/frag`, `mesh.vert/frag`, `mesh_batch.vert`
 
 ### deferred to follow-up PRs
@@ -62,6 +62,7 @@ tilemap_renderer/           # Single crate with feature-gated adapters
 - `ImageSource::Encoded` decoding — skipped with TODO
 - Gradient/pattern/clip-mask asset loading — not loaded into GPU resources
 - Effects (blur, drop shadow — requires FBO post-processing)
+- `BlendMode::Overlay` — Photoshop-style (Multiply where dst<0.5, Screen where dst>0.5) cannot be expressed as a single `blend_func` call; currently falls back to Normal; requires a custom shader or separate FBO read-back pass
 - WebGL context loss handling (`webglcontextlost` / `webglcontextrestored` events)
 - `capabilities()` reports `paths/text/gradients/patterns/clip_masks/effects: true` — should be corrected to `false` once the corresponding features are verified absent
 

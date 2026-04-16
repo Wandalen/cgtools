@@ -319,7 +319,13 @@ mod private
     Multiply,
     /// SVG: `screen`. GPU: 1 - (1-src)*(1-dst).
     Screen,
-    /// SVG: `overlay`.
+    /// SVG: `overlay`. Photoshop-style: Multiply when dst < 0.5, Screen when dst > 0.5.
+    ///
+    /// **Not expressible as a single `blend_func` call.** Correct implementation requires
+    /// a custom shader or a separate FBO pass. Until that is implemented, adapters that
+    /// cannot support this mode must fall back to `Normal` and should document that
+    /// limitation; this variant exists so that callers can express intent without
+    /// requiring a capabilities check up-front.
     Overlay,
     /// Additive blending. GPU: src + dst.
     Add,

@@ -198,6 +198,7 @@ pub trait Backend {
 - **FR-E6:** ❌ Text rendering (glyph atlas / SDF fonts)
 - **FR-E7:** ❌ WebGL context loss handling
 - **FR-E8:** ❌ Effects (blur, shadow — requires FBO post-processing)
+- **FR-E9:** ⚠️ Blend modes — Normal/Add/Multiply/Screen hardware-accelerated; `Overlay` falls back to Normal (requires custom shader or FBO read-back)
 
 #### FR-F: Terminal Backend
 
@@ -238,6 +239,7 @@ pub trait Backend {
 | ⏳ | FR-D1–D9 | SVG backend — deferred to adapter-svg PR |
 | ⚠️ | FR-E1–E4 | WebGL backend partial (sprites, meshes, batches work; paths, text, effects missing) |
 | ❌ | FR-E5–E8 | WebGL: paths, text, context loss, effects — not implemented |
+| ⚠️ | FR-E9 | WebGL blend modes partial — Overlay falls back to Normal |
 | ⏳ | FR-F1–F3 | Terminal backend — deferred to adapter-terminal PR |
 | ✅ | NFR-2 | Zero core graphics deps |
 | ✅ | NFR-4 | Y-up coordinate system |

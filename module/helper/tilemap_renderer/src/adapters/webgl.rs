@@ -663,6 +663,10 @@ mod private
         BlendMode::Add => gl.blend_func( gl::SRC_ALPHA, gl::ONE ),
         BlendMode::Multiply => gl.blend_func( gl::DST_COLOR, gl::ONE_MINUS_SRC_ALPHA ),
         BlendMode::Screen => gl.blend_func( gl::ONE, gl::ONE_MINUS_SRC_COLOR ),
+        // TODO: true Overlay (Multiply where dst<0.5, Screen where dst>0.5) cannot be
+        // expressed as a single blend_func call — it requires a custom shader or a
+        // separate FBO read-back pass, neither of which is implemented yet.
+        // Falls back to Normal so rendering is at least visible.
         BlendMode::Overlay => gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA ),
       }
     }
@@ -1234,7 +1238,7 @@ mod private
         patterns : false,    // TODO: not yet loaded or rendered
         clip_masks : false,  // TODO: not yet loaded or rendered
         effects : false,     // TODO: requires FBO post-processing
-        blend_modes : true,
+        blend_modes : true,  // Normal/Add/Multiply/Screen work; Overlay falls back to Normal (needs custom shader)
         text_on_path : false,
         max_texture_size : 8192,
       }

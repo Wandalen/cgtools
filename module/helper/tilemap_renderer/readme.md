@@ -85,11 +85,15 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 | Batches | yes | yes | — |
 | Gradients | yes | — | — |
 | Effects | yes | — | — |
-| Blend modes | yes | yes | — |
+| Blend modes | yes | partial¹ | — |
 
 > **SVG** and **Terminal** adapters are currently stub implementations (deferred to follow-up PRs).
 > **WebGL** adapter is partially implemented: sprites, meshes, and instanced batches work;
 > paths, text, groups, gradients, patterns, and effects are not yet rendered.
+>
+> ¹ WebGL blend modes: Normal, Add, Multiply, Screen are hardware-accelerated.
+> `BlendMode::Overlay` (Photoshop-style) cannot be expressed as a single `blend_func` call
+> and currently falls back to Normal; a custom shader or FBO pass is required.
 
 ## license
 
