@@ -801,11 +801,11 @@ mod private
       Ok( () )
     }
 
-    fn cmd_set_sprite_instance( &mut self, si : &SetSpriteInstance )
+    fn cmd_set_sprite_instance( &mut self, si : &SetSpriteInstance ) -> Result< (), RenderError >
     {
-      let Some( batch_id ) = self.recording_batch else { return };
+      let Some( batch_id ) = self.recording_batch else { return Ok( () ) };
       let mut res = self.resources.borrow_mut();
-      let Some( region ) = res.sprite( si.sprite ).map( | s | s.region ) else { return };
+      let Some( region ) = res.sprite( si.sprite ).map( | s | s.region ) else { return Ok( () ) };
       let data = SpriteInstanceData
       {
         transform : si.transform.to_mat3(),
@@ -814,33 +814,62 @@ mod private
       };
       if let Some( GpuBatch::Sprite { instances, .. } ) = res.batch_mut( batch_id )
       {
+        if si.index >= instances.len()
+        {
+          return Err( RenderError::BackendError
+          (
+            format!( "SetSpriteInstance: index {} out of bounds (len {})", si.index, instances.len() )
+          ));
+        }
         instances.set( si.index, &data );
       }
+      Ok( () )
     }
 
-    fn cmd_set_mesh_instance( &mut self, mi : &SetMeshInstance )
+    fn cmd_set_mesh_instance( &mut self, mi : &SetMeshInstance ) -> Result< (), RenderError >
     {
-      let Some( batch_id ) = self.recording_batch else { return };
+      let Some( batch_id ) = self.recording_batch else { return Ok( () ) };
       let data = MeshInstanceData { transform : mi.transform.to_mat3() };
       let mut res = self.resources.borrow_mut();
       if let Some( GpuBatch::Mesh { instances, .. } ) = res.batch_mut( batch_id )
       {
+        if mi.index >= instances.len()
+        {
+          return Err( RenderError::BackendError
+          (
+            format!( "SetMeshInstance: index {} out of bounds (len {})", mi.index, instances.len() )
+          ));
+        }
         instances.set( mi.index, &data );
       }
+      Ok( () )
     }
 
-    fn cmd_remove_instance( &mut self, ri : &RemoveInstance )
+    fn cmd_remove_instance( &mut self, ri : &RemoveInstance ) -> Result< (), RenderError >
     {
-      let Some( batch_id ) = self.recording_batch else { return };
+      let Some( batch_id ) = self.recording_batch else { return Ok( () ) };
       let mut res = self.resources.borrow_mut();
       if let Some( batch ) = res.batch_mut( batch_id )
       {
+        let len = match batch
+        {
+          GpuBatch::Sprite { instances, .. } => instances.len(),
+          GpuBatch::Mesh { instances, .. } => instances.len(),
+        };
+        if ri.index >= len
+        {
+          return Err( RenderError::BackendError
+          (
+            format!( "RemoveInstance: index {} out of bounds (len {})", ri.index, len )
+          ));
+        }
         match batch
         {
           GpuBatch::Sprite { instances, .. } => { instances.swap_remove( ri.index ); },
           GpuBatch::Mesh { instances, .. } => { instances.swap_remove( ri.index ); },
         }
       }
+      Ok( () )
     }
 
     fn cmd_set_sprite_batch_params( &mut self, cmd : &SetSpriteBatchParams )
@@ -1212,9 +1241,9 @@ mod private
           RenderCommand::BindBatch( b ) => self.cmd_bind_batch( b )?,
           RenderCommand::AddSpriteInstance( si ) => self.cmd_add_sprite_instance( si )?,
           RenderCommand::AddMeshInstance( mi ) => self.cmd_add_mesh_instance( mi )?,
-          RenderCommand::SetSpriteInstance( si ) => self.cmd_set_sprite_instance( si ),
-          RenderCommand::SetMeshInstance( mi ) => self.cmd_set_mesh_instance( mi ),
-          RenderCommand::RemoveInstance( ri ) => self.cmd_remove_instance( ri ),
+          RenderCommand::SetSpriteInstance( si ) => self.cmd_set_sprite_instance( si )?,
+          RenderCommand::SetMeshInstance( mi ) => self.cmd_set_mesh_instance( mi )?,
+          RenderCommand::RemoveInstance( ri ) => self.cmd_remove_instance( ri )?,
           RenderCommand::SetSpriteBatchParams( sp ) => self.cmd_set_sprite_batch_params( sp ),
           RenderCommand::SetMeshBatchParams( mp ) => self.cmd_set_mesh_batch_params( mp ),
           RenderCommand::UnbindBatch( _ ) => self.cmd_unbind_batch(),
