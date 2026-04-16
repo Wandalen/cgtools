@@ -45,8 +45,11 @@ mod private
   {
     /// Creates a new GPU array buffer with the given initial capacity (in elements).
     ///
+    /// Allocates two GPU buffers: the main data buffer (`capacity * stride` bytes)
+    /// and a one-element scratch buffer (`stride` bytes) used by `swap_remove`.
+    ///
     /// # Errors
-    /// Returns `WebglError` if the underlying GPU buffer cannot be created or if
+    /// Returns `WebglError` if any GPU buffer cannot be created, or if
     /// `capacity * stride` overflows `i32` (WebGL buffer size limit).
     pub fn new( gl : &gl::GL, capacity : u32 ) -> Result< Self, gl::WebglError >
     {
@@ -1101,6 +1104,9 @@ mod private
       Ok( () )
     }
 
+    // Returns () unlike load_images/load_geometries because sprite loading is
+    // infallible — it only stores sub-regions of already-loaded textures (no GPU
+    // upload, no allocation that can fail).
     fn load_sprites( &mut self, sprites : &[ crate::assets::SpriteAsset ] )
     {
       self.resources.borrow_mut().sprites.clear();
