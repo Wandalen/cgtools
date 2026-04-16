@@ -64,7 +64,6 @@ tilemap_renderer/           # Single crate with feature-gated adapters
 - Effects (blur, drop shadow — requires FBO post-processing)
 - `BlendMode::Overlay` — Photoshop-style (Multiply where dst<0.5, Screen where dst>0.5) cannot be expressed as a single `blend_func` call; currently falls back to Normal; requires a custom shader or separate FBO read-back pass
 - WebGL context loss handling (`webglcontextlost` / `webglcontextrestored` events)
-- `capabilities()` reports `paths/text/gradients/patterns/clip_masks/effects: true` — should be corrected to `false` once the corresponding features are verified absent
 
 ### svg adapter gaps
 
