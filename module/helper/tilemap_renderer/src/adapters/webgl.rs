@@ -773,11 +773,12 @@ mod private
       self.sprite.draw( &self.gl, &mat, &uv_rect, &sprite_size, &s.tint, viewport );
     }
 
-    fn cmd_create_sprite_batch( &mut self, cmd : &CreateSpriteBatch )
+    fn cmd_create_sprite_batch( &mut self, cmd : &CreateSpriteBatch ) -> Result< (), RenderError >
     {
+      let map_err = | e : gl::WebglError | RenderError::BackendError( format!( "{e:?}" ) );
       let gl = &self.gl;
-      let Ok( instances ) = ArrayBuffer::< SpriteInstanceData >::new( gl, 16 ) else { return };
-      let Ok( vao ) = gl::vao::create( gl ) else { return };
+      let instances = ArrayBuffer::< SpriteInstanceData >::new( gl, 16 ).map_err( map_err )?;
+      let vao = gl::vao::create( gl ).map_err( map_err )?;
       setup_sprite_batch_vao( gl, &vao, instances.buffer() );
       self.resources.borrow_mut().store_batch( cmd.batch, GpuBatch::Sprite
       {
@@ -785,13 +786,15 @@ mod private
         vao,
         params : cmd.params,
       });
+      Ok( () )
     }
 
-    fn cmd_create_mesh_batch( &mut self, cmd : &CreateMeshBatch )
+    fn cmd_create_mesh_batch( &mut self, cmd : &CreateMeshBatch ) -> Result< (), RenderError >
     {
+      let map_err = | e : gl::WebglError | RenderError::BackendError( format!( "{e:?}" ) );
       let gl = &self.gl;
-      let Ok( instances ) = ArrayBuffer::< MeshInstanceData >::new( gl, 16 ) else { return };
-      let Ok( vao ) = gl::vao::create( gl ) else { return };
+      let instances = ArrayBuffer::< MeshInstanceData >::new( gl, 16 ).map_err( map_err )?;
+      let vao = gl::vao::create( gl ).map_err( map_err )?;
       let res = self.resources.borrow();
       if let Some( geom ) = res.geometry( cmd.params.geometry )
       {
@@ -804,6 +807,7 @@ mod private
         vao,
         params : cmd.params,
       });
+      Ok( () )
     }
 
     fn cmd_bind_batch( &mut self, cmd : &BindBatch ) -> Result< (), RenderError >
@@ -1287,8 +1291,8 @@ mod private
           RenderCommand::Sprite( s ) => self.cmd_sprite( s, &viewport ),
 
           // Batch lifecycle
-          RenderCommand::CreateSpriteBatch( c ) => self.cmd_create_sprite_batch( c ),
-          RenderCommand::CreateMeshBatch( c ) => self.cmd_create_mesh_batch( c ),
+          RenderCommand::CreateSpriteBatch( c ) => self.cmd_create_sprite_batch( c )?,
+          RenderCommand::CreateMeshBatch( c ) => self.cmd_create_mesh_batch( c )?,
           RenderCommand::BindBatch( b ) => self.cmd_bind_batch( b )?,
           RenderCommand::AddSpriteInstance( si ) => self.cmd_add_sprite_instance( si )?,
           RenderCommand::AddMeshInstance( mi ) => self.cmd_add_mesh_instance( mi )?,
