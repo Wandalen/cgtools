@@ -763,11 +763,11 @@ mod private
       self.recording_batch = Some( cmd.batch );
     }
 
-    fn cmd_add_sprite_instance( &mut self, si : &AddSpriteInstance )
+    fn cmd_add_sprite_instance( &mut self, si : &AddSpriteInstance ) -> Result< (), RenderError >
     {
-      let Some( batch_id ) = self.recording_batch else { return };
+      let Some( batch_id ) = self.recording_batch else { return Ok( () ) };
       let mut res = self.resources.borrow_mut();
-      let Some( region ) = res.sprite( si.sprite ).map( | s | s.region ) else { return };
+      let Some( region ) = res.sprite( si.sprite ).map( | s | s.region ) else { return Ok( () ) };
       let data = SpriteInstanceData
       {
         transform : si.transform.to_mat3(),
@@ -776,19 +776,21 @@ mod private
       };
       if let Some( GpuBatch::Sprite { instances, .. } ) = res.batch_mut( batch_id )
       {
-        let _ = instances.push( &data );
+        instances.push( &data ).map_err( | e | RenderError::BackendError( e.to_string() ) )?;
       }
+      Ok( () )
     }
 
-    fn cmd_add_mesh_instance( &mut self, mi : &AddMeshInstance )
+    fn cmd_add_mesh_instance( &mut self, mi : &AddMeshInstance ) -> Result< (), RenderError >
     {
-      let Some( batch_id ) = self.recording_batch else { return };
+      let Some( batch_id ) = self.recording_batch else { return Ok( () ) };
       let data = MeshInstanceData { transform : mi.transform.to_mat3() };
       let mut res = self.resources.borrow_mut();
       if let Some( GpuBatch::Mesh { instances, .. } ) = res.batch_mut( batch_id )
       {
-        let _ = instances.push( &data );
+        instances.push( &data ).map_err( | e | RenderError::BackendError( e.to_string() ) )?;
       }
+      Ok( () )
     }
 
     fn cmd_set_sprite_instance( &mut self, si : &SetSpriteInstance )
@@ -1178,8 +1180,8 @@ mod private
           RenderCommand::CreateSpriteBatch( c ) => self.cmd_create_sprite_batch( c ),
           RenderCommand::CreateMeshBatch( c ) => self.cmd_create_mesh_batch( c ),
           RenderCommand::BindBatch( b ) => self.cmd_bind_batch( b ),
-          RenderCommand::AddSpriteInstance( si ) => self.cmd_add_sprite_instance( si ),
-          RenderCommand::AddMeshInstance( mi ) => self.cmd_add_mesh_instance( mi ),
+          RenderCommand::AddSpriteInstance( si ) => self.cmd_add_sprite_instance( si )?,
+          RenderCommand::AddMeshInstance( mi ) => self.cmd_add_mesh_instance( mi )?,
           RenderCommand::SetSpriteInstance( si ) => self.cmd_set_sprite_instance( si ),
           RenderCommand::SetMeshInstance( mi ) => self.cmd_set_mesh_instance( mi ),
           RenderCommand::RemoveInstance( ri ) => self.cmd_remove_instance( ri ),
