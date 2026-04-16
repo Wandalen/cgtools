@@ -1471,6 +1471,13 @@ mod private
     img.set_onload( Some( on_load.as_ref().unchecked_ref() ) );
     img.set_onerror( Some( on_error.as_ref().unchecked_ref() ) );
     img.set_src( src );
+    // SAFETY: the browser holds a reference to each closure via the img element's
+    // onload/onerror handlers. Dropping the Closure here would invalidate the JS
+    // function pointer and cause a use-after-free when the browser fires the event.
+    // forget() intentionally leaks the closure so it remains alive for the callback.
+    // This is a known one-time-per-image leak (two closures × ~3 captures each).
+    // TODO: replace with Closure::once once the image loading is refactored, which
+    //       would allow the browser to drop the closure automatically after one call.
     on_load.forget();
     on_error.forget();
 
