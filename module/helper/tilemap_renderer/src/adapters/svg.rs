@@ -27,7 +27,7 @@ mod private
     geometries : IntMap< ResourceId< asset::Geometry >, SvgGeometry >,
     /// Map of created batches.
     batches : IntMap< ResourceId< Batch >, SvgBatch >,
-    /// Map of generated mesh definitions ( packed geom_id + topology ) -> symbol_id
+    /// Map of generated mesh definitions ( packed `geom_id` + topology ) -> `symbol_id`
     mesh_defs : IntMap< u64, String >,
   }
 
@@ -155,7 +155,7 @@ mod private
     {
       Self
       {
-        config : config.clone(),
+        config,
         content : SvgContentManager::new( config.width, config.height, Self::shape_rendering_attr( &config.antialias ) ),
         path_data : String::new(),
         path_style : None,
@@ -171,6 +171,7 @@ mod private
     }
 
     /// Returns the current viewport offset `[x, y]`.
+    #[must_use]
     pub fn viewport_offset( &self ) -> [ f32; 2 ] { self.viewport_offset }
 
     /// Sets the viewport offset `[x, y]`.
@@ -184,6 +185,7 @@ mod private
     }
 
     /// Returns the current viewport scale (zoom factor).
+    #[must_use]
     pub fn viewport_scale( &self ) -> f32 { self.viewport_scale }
 
     /// Sets the viewport scale (zoom factor).
@@ -258,7 +260,7 @@ mod private
 
       if pos_x != 0.0 || pos_y != 0.0
       {
-        parts.push( format!( "translate({},{})", pos_x, pos_y ) );
+        parts.push( format!( "translate({pos_x},{pos_y})" ) );
       }
       if t.rotation != 0.0
       {
@@ -361,7 +363,7 @@ mod private
       .pattern
       .iter()
       .take_while( | &&v | v > 0.0 )
-      .map( | v | v.to_string() )
+      .map( std::string::ToString::to_string )
       .collect();
 
       if values.is_empty()
@@ -456,7 +458,7 @@ mod private
       );
       content.push_frame_def( &filter_def );
 
-      format!( " filter=\"url(#tint_{})\"", id )
+      format!( " filter=\"url(#tint_{id})\"" )
     }
 
     /// Returns a fill string: `url(#mesh_tex_N)` for textured meshes, or the regular fill.
@@ -475,10 +477,8 @@ mod private
     ) -> String
     {
       if let Some( img_id ) = texture
-      {
-        if let Some( img ) = resources.image( img_id )
-        {
-          if img.width > 0 && img.height > 0
+        && let Some( img ) = resources.image( img_id )
+          && img.width > 0 && img.height > 0
           {
             let pat_id = format!( "mesh_tex_{}", img_id.inner() );
             let pat_def = format!
@@ -487,10 +487,8 @@ mod private
               pat_id, img.width, img.height, img_id.inner(), img.width, img.height
             );
             content.push_frame_def( &pat_def );
-            return format!( "url(#{})", pat_id );
+            return format!( "url(#{pat_id})" );
           }
-        }
-      }
       Self::fill_to_svg( fill )
     }
 
@@ -507,8 +505,8 @@ mod private
           format!
           (
             "A {rx} {ry} {rotation} {} {} {x} {y}",
-            if *large_arc { 1 } else { 0 },
-            if *sweep { 1 } else { 0 }
+            i32::from( *large_arc ),
+            i32::from( *sweep )
           )
         }
         PathSegment::Close => "Z".to_string(),
@@ -636,7 +634,7 @@ mod private
             );
           }
         }
-        let _ = write!( grad_def, "</{}>", grad_type );
+        let _ = write!( grad_def, "</{grad_type}>" );
         self.content.push_asset_def( &grad_def );
       }
     }
@@ -761,7 +759,7 @@ mod private
           {
             match geom.data_type
             {
-              DataType::U16 => Some( bytemuck::cast_slice::< _, u16 >( ibytes ).iter().map( | &i | i as u32 ).collect() ),
+              DataType::U16 => Some( bytemuck::cast_slice::< _, u16 >( ibytes ).iter().map( | &i | u32::from( i ) ).collect() ),
               DataType::U32 => Some( bytemuck::cast_slice::< _, u32 >( ibytes ).to_vec() ),
               _ => None,
             }
@@ -775,19 +773,19 @@ mod private
 
     fn generate_mesh_def( &mut self, geom_id : ResourceId< asset::Geometry >, topology : Topology ) -> Option< String >
     {
-      let id_u64 : u64 = geom_id.inner() as u64;
-      let packed_key : u64 = ( id_u64 << 8 ) | ( topology as u8 as u64 );
+      let id_u64 : u64 = u64::from( geom_id.inner() );
+      let packed_key : u64 = ( id_u64 << 8 ) | u64::from( topology as u8 );
 
       let geom = self.resources.geometry( geom_id )?;
       let def_id = format!( "mesh_{}_{:?}", geom_id.inner(), topology );
-      let mut def_content = format!( "<symbol id=\"{}\" overflow=\"visible\">", def_id );
+      let mut def_content = format!( "<symbol id=\"{def_id}\" overflow=\"visible\">" );
 
       match topology
       {
         Topology::TriangleList =>
         {
-          let idx = geom.indices.as_ref().map( | v | v.as_slice() );
-          let count = idx.map_or( geom.positions.len() / 2, | v | v.len() );
+          let idx = geom.indices.as_deref();
+          let count = idx.map_or( geom.positions.len() / 2, < [ u32 ] >::len );
           for i in ( 0..count ).step_by( 3 )
           {
             let mut pts = String::new();
@@ -796,15 +794,15 @@ mod private
               let v_idx = idx.map_or( i + j, | v | v[ i + j ] as usize );
               let x = geom.positions[ v_idx * 2 ];
               let y = geom.positions[ v_idx * 2 + 1 ];
-              let _ = write!( pts, "{},{} ", x, y );
+              let _ = write!( pts, "{x},{y} " );
             }
             let _ = write!( def_content, "<polygon points=\"{}\"/>", pts.trim() );
           }
         }
         Topology::TriangleStrip =>
         {
-          let idx = geom.indices.as_ref().map( | v | v.as_slice() );
-          let count = idx.map_or( geom.positions.len() / 2, | v | v.len() );
+          let idx = geom.indices.as_deref();
+          let count = idx.map_or( geom.positions.len() / 2, <[u32]>::len );
           if count < 3 { return None; }
           for i in 0..( count - 2 )
           {
@@ -814,7 +812,7 @@ mod private
               let v_idx = idx.map_or( i + j, | v | v[ i + j ] as usize );
               let x = geom.positions[ v_idx * 2 ];
               let y = geom.positions[ v_idx * 2 + 1 ];
-              let _ = write!( pts, "{},{} ", x, y );
+              let _ = write!( pts, "{x},{y} " );
             }
             let _ = write!( def_content, "<polygon points=\"{}\"/>", pts.trim() );
           }
@@ -822,14 +820,14 @@ mod private
         Topology::LineList | Topology::LineStrip =>
         {
           let mut pts = String::new();
-          let idx = geom.indices.as_ref().map( | v | v.as_slice() );
-          let count = idx.map_or( geom.positions.len() / 2, | v | v.len() );
+          let idx = geom.indices.as_deref();
+          let count = idx.map_or( geom.positions.len() / 2, <[u32]>::len );
           for i in 0..count
           {
             let v_idx = idx.map_or( i, | v | v[ i ] as usize );
             let x = geom.positions[ v_idx * 2 ];
             let y = geom.positions[ v_idx * 2 + 1 ];
-            let _ = write!( pts, "{},{} ", x, y );
+            let _ = write!( pts, "{x},{y} " );
 
             if topology == Topology::LineList && ( i + 1 ) % 2 == 0
             {
@@ -886,7 +884,7 @@ mod private
 
     fn cmd_arc_to( &mut self, a : &ArcTo )
     {
-      let _ = write!( self.path_data, "A {} {} {} {} {} {} {} ", a.rx, a.ry, a.rotation, a.large_arc as u8, a.sweep as u8, a.x, a.y );
+      let _ = write!( self.path_data, "A {} {} {} {} {} {} {} ", a.rx, a.ry, a.rotation, u8::from(a.large_arc), u8::from(a.sweep), a.x, a.y );
     }
 
     fn cmd_close_path( &mut self )
@@ -917,7 +915,7 @@ mod private
 
     fn cmd_mesh( &mut self, m : &Mesh )
     {
-      let packed_key : u64 = ( m.geometry.inner() as u64 ) << 8 | ( m.topology as u8 as u64 );
+      let packed_key : u64 = u64::from(m.geometry.inner()) << 8 | u64::from(m.topology as u8);
       let def_id = match self.resources.mesh_defs.get( &packed_key )
       {
         Some( id ) => id.clone(),
@@ -935,8 +933,7 @@ mod private
 
       let mesh = format!
       (
-        "<use href=\"#{}\" fill=\"{}\"{}{} style=\"mix-blend-mode:{}\"/>",
-        def_id, fill, transform, clip, blend
+        "<use href=\"#{def_id}\" fill=\"{fill}\"{transform}{clip} style=\"mix-blend-mode:{blend}\"/>"
       );
       self.content.push_body( &mesh );
     }
@@ -969,51 +966,39 @@ mod private
     fn cmd_add_sprite_instance( &mut self, si : &AddSpriteInstance )
     {
       if let Some( batch_id ) = self.recording_batch
-      {
-        if let Some( SvgBatch::Sprite { instances, .. } ) = self.resources.batches.get_mut( &batch_id )
+        && let Some( SvgBatch::Sprite { instances, .. } ) = self.resources.batches.get_mut( &batch_id )
         {
           instances.push( *si );
         }
-      }
     }
 
     fn cmd_add_mesh_instance( &mut self, mi : &AddMeshInstance )
     {
       if let Some( batch_id ) = self.recording_batch
-      {
-        if let Some( SvgBatch::Mesh { instances, .. } ) = self.resources.batches.get_mut( &batch_id )
+        && let Some( SvgBatch::Mesh { instances, .. } ) = self.resources.batches.get_mut( &batch_id )
         {
           instances.push( *mi );
         }
-      }
     }
 
     fn cmd_set_sprite_instance( &mut self, si : &SetSpriteInstance )
     {
       if let Some( batch_id ) = self.recording_batch
-      {
-        if let Some( SvgBatch::Sprite { instances, .. } ) = self.resources.batches.get_mut( &batch_id )
-        {
-          if ( si.index as usize ) < instances.len()
+        && let Some( SvgBatch::Sprite { instances, .. } ) = self.resources.batches.get_mut( &batch_id )
+          && ( si.index as usize ) < instances.len()
           {
             instances[ si.index as usize ] = AddSpriteInstance { transform : si.transform, sprite : si.sprite, tint : si.tint };
           }
-        }
-      }
     }
 
     fn cmd_set_mesh_instance( &mut self, mi : &SetMeshInstance )
     {
       if let Some( batch_id ) = self.recording_batch
-      {
-        if let Some( SvgBatch::Mesh { instances, .. } ) = self.resources.batches.get_mut( &batch_id )
-        {
-          if ( mi.index as usize ) < instances.len()
+        && let Some( SvgBatch::Mesh { instances, .. } ) = self.resources.batches.get_mut( &batch_id )
+          && ( mi.index as usize ) < instances.len()
           {
             instances[ mi.index as usize ] = AddMeshInstance { transform : mi.transform };
           }
-        }
-      }
     }
 
     fn cmd_remove_instance( &mut self, ri : &RemoveInstance )
@@ -1038,23 +1023,19 @@ mod private
     fn cmd_set_sprite_batch_params( &mut self, sp : &SetSpriteBatchParams )
     {
       if let Some( batch_id ) = self.recording_batch
-      {
-        if let Some( SvgBatch::Sprite { params, .. } ) = self.resources.batches.get_mut( &batch_id )
+        && let Some( SvgBatch::Sprite { params, .. } ) = self.resources.batches.get_mut( &batch_id )
         {
           *params = sp.params;
         }
-      }
     }
 
     fn cmd_set_mesh_batch_params( &mut self, mp : &SetMeshBatchParams )
     {
       if let Some( batch_id ) = self.recording_batch
-      {
-        if let Some( SvgBatch::Mesh { params, .. } ) = self.resources.batches.get_mut( &batch_id )
+        && let Some( SvgBatch::Mesh { params, .. } ) = self.resources.batches.get_mut( &batch_id )
         {
           *params = mp.params;
         }
-      }
     }
 
     fn cmd_unbind_batch( &mut self )
@@ -1069,7 +1050,7 @@ mod private
       // Lazy-generate the mesh <symbol> def before splitting borrows.
       if let Some( SvgBatch::Mesh { params, .. } ) = self.resources.batch( db.batch )
       {
-        let packed_key : u64 = ( params.geometry.inner() as u64 ) << 8 | ( params.topology as u8 as u64 );
+        let packed_key : u64 = u64::from(params.geometry.inner()) << 8 | u64::from(params.topology as u8);
         if !self.resources.mesh_defs.contains_key( &packed_key )
         {
           let ( geom_id, topology ) = ( params.geometry, params.topology );
@@ -1089,7 +1070,7 @@ mod private
           let clip = Self::clip_attr( &params.clip );
           let blend = Self::blend_to_svg( &params.blend );
 
-          content.push_body( &format!( "<g{}{}>", parent_transform, clip ) );
+          content.push_body( &format!( "<g{parent_transform}{clip}>" ) );
           for inst in instances
           {
             let inst_transform = Self::transform_to_svg_local( &inst.transform );
@@ -1105,7 +1086,7 @@ mod private
         }
         Some( SvgBatch::Mesh { instances, params } ) =>
         {
-          let packed_key : u64 = ( params.geometry.inner() as u64 ) << 8 | ( params.topology as u8 as u64 );
+          let packed_key : u64 = u64::from(params.geometry.inner()) << 8 | u64::from(params.topology as u8);
           if let Some( def_id ) = resources.mesh_defs.get( &packed_key )
           {
             let parent_transform = Self::transform_to_svg_static( &params.transform, height );
@@ -1113,14 +1094,13 @@ mod private
             let blend = Self::blend_to_svg( &params.blend );
             let fill = Self::texture_or_fill_split( params.texture, &params.fill, resources, content );
 
-            content.push_body( &format!( "<g{}{}>", parent_transform, clip ) );
+            content.push_body( &format!( "<g{parent_transform}{clip}>" ) );
             for inst in instances
             {
               let inst_transform = Self::transform_to_svg_local( &inst.transform );
               let mesh = format!
               (
-                "<use href=\"#{}\" fill=\"{}\"{} style=\"mix-blend-mode:{}\"/>",
-                def_id, fill, inst_transform, blend
+                "<use href=\"#{def_id}\" fill=\"{fill}\"{inst_transform} style=\"mix-blend-mode:{blend}\"/>"
               );
               content.push_body( &mesh );
             }
@@ -1143,14 +1123,14 @@ mod private
 
       let effect_attr = match &bg.effect
       {
-        Some( Effect::Opacity( a ) ) => format!( " opacity=\"{}\"", a ),
+        Some( Effect::Opacity( a ) ) => format!( " opacity=\"{a}\"" ),
         Some( Effect::Blur { radius } ) =>
         {
           let fid = self.filter_counter;
           self.filter_counter += 1;
-          let def = format!( "<filter id=\"fx_{}\"><feGaussianBlur stdDeviation=\"{}\"/></filter>", fid, radius );
+          let def = format!( "<filter id=\"fx_{fid}\"><feGaussianBlur stdDeviation=\"{radius}\"/></filter>" );
           self.content.push_frame_def( &def );
-          format!( " filter=\"url(#fx_{})\"", fid )
+          format!( " filter=\"url(#fx_{fid})\"" )
         }
         Some( Effect::DropShadow { dx, dy, blur, color } ) =>
         {
@@ -1164,21 +1144,21 @@ mod private
             fid, dx, -dy, blur, c
           );
           self.content.push_frame_def( &def );
-          format!( " filter=\"url(#fx_{})\"", fid )
+          format!( " filter=\"url(#fx_{fid})\"" )
         }
         Some( Effect::ColorMatrix( values ) ) =>
         {
           let fid = self.filter_counter;
           self.filter_counter += 1;
-          let vals : String = values.iter().map( | v | v.to_string() ).collect::< Vec< _ > >().join( " " );
-          let def = format!( "<filter id=\"fx_{}\"><feColorMatrix type=\"matrix\" values=\"{}\"/></filter>", fid, vals );
+          let vals : String = values.iter().map( std::string::ToString::to_string ).collect::< Vec< _ > >().join( " " );
+          let def = format!( "<filter id=\"fx_{fid}\"><feColorMatrix type=\"matrix\" values=\"{vals}\"/></filter>" );
           self.content.push_frame_def( &def );
-          format!( " filter=\"url(#fx_{})\"", fid )
+          format!( " filter=\"url(#fx_{fid})\"" )
         }
         None => String::new(),
       };
 
-      let group = format!( "<g{}{}{}>", transform, clip, effect_attr );
+      let group = format!( "<g{transform}{clip}{effect_attr}>" );
       self.content.push_body( &group );
       self.group_depth += 1;
     }
@@ -1565,7 +1545,7 @@ mod private
       let frame_end   = full.find( "<!--frameend-->" ).unwrap();
       let frame = &full[ frame_start..frame_end ];
       // Strip the opening <g ...> tag and trailing </g>
-      let inner_start = frame.find( '>' ).map( | i | i + 1 ).unwrap_or( 0 );
+      let inner_start = frame.find( '>' ).map_or( 0, | i | i + 1 );
       let inner_end   = frame.rfind( "</" ).unwrap_or( frame.len() );
       frame[ inner_start..inner_end ].to_string()
     }
@@ -1587,7 +1567,7 @@ mod private
       svg.load_assets( &empty_assets() ).unwrap();
       svg.submit( &[ RenderCommand::Clear( Clear { color : [ 1.0, 0.0, 0.0, 1.0 ] } ) ] ).unwrap();
       let b = body( &svg );
-      assert!( b.contains( "fill=\"rgb(255,0,0)\"" ), "body: {}", b );
+      assert!( b.contains( "fill=\"rgb(255,0,0)\"" ), "body: {b}" );
       assert!( b.contains( "width=\"100%\"" ) );
     }
 
@@ -1601,7 +1581,7 @@ mod private
         &Transform { position : [ 0.0, 0.0 ], ..Default::default() },
         600,
       );
-      assert!( s.contains( "translate(0,600)" ), "got: {}", s );
+      assert!( s.contains( "translate(0,600)" ), "got: {s}" );
     }
 
     #[ test ]
@@ -1612,7 +1592,7 @@ mod private
         &Transform { position : [ 800.0, 600.0 ], ..Default::default() },
         600,
       );
-      assert!( s.contains( "translate(800,0)" ), "got: {}", s );
+      assert!( s.contains( "translate(800,0)" ), "got: {s}" );
     }
 
     #[ test ]
@@ -1623,7 +1603,7 @@ mod private
         &Transform { position : [ 400.0, 300.0 ], ..Default::default() },
         600,
       );
-      assert!( s.contains( "translate(400,300)" ), "got: {}", s );
+      assert!( s.contains( "translate(400,300)" ), "got: {s}" );
     }
 
     #[ test ]
@@ -1635,7 +1615,7 @@ mod private
         600,
       );
       // Should emit negative degrees in SVG
-      assert!( s.contains( "rotate(-45" ), "got: {}", s );
+      assert!( s.contains( "rotate(-45" ), "got: {s}" );
     }
 
     #[ test ]
@@ -1646,7 +1626,7 @@ mod private
         600,
       );
       // scale Y should be negated: 3.0 → -3.0
-      assert!( s.contains( "scale(2,-3)" ), "got: {}", s );
+      assert!( s.contains( "scale(2,-3)" ), "got: {s}" );
     }
 
     #[ test ]
@@ -1657,18 +1637,18 @@ mod private
         &Transform::default(),
         600,
       );
-      assert!( s.contains( "scale(1,-1)" ), "got: {}", s );
+      assert!( s.contains( "scale(1,-1)" ), "got: {s}" );
     }
 
     /// Zoom is now applied via the viewport `<g>` wrapper, not per-element.
-    /// Verify that set_viewport_scale updates the wrapper transform.
+    /// Verify that `set_viewport_scale` updates the wrapper transform.
     #[ test ]
     fn viewport_zoom_updates_wrapper()
     {
       let mut svg = svg800x600();
       svg.set_viewport_scale( 2.0 );
       let full = svg.content.buffer().to_string();
-      assert!( full.contains( "scale(2)" ), "wrapper: {}", full );
+      assert!( full.contains( "scale(2)" ), "wrapper: {full}" );
     }
 
     /// Verify that zoom=1.0 does NOT inject scale(1) noise into per-element transforms.
@@ -1680,11 +1660,11 @@ mod private
         600,
       );
       // Only scale(1,-1) for Y-flip should be present; no zoom prefix
-      assert!( !s.contains( "scale(1) " ), "got: {}", s );
+      assert!( !s.contains( "scale(1) " ), "got: {s}" );
     }
 
     /// Viewport offset is now applied via the `<g>` wrapper, not per-element.
-    /// set_viewport_offset should update the wrapper transform attribute.
+    /// `set_viewport_offset` should update the wrapper transform attribute.
     #[ test ]
     fn viewport_offset_updates_wrapper()
     {
@@ -1692,7 +1672,7 @@ mod private
       svg.set_viewport_offset( [ 10.0, 20.0 ] );
       let full = svg.content.buffer().to_string();
       // In the wrapper: offset Y is negated (Y-up → SVG Y-down flip)
-      assert!( full.contains( "translate(10,-20)" ), "wrapper: {}", full );
+      assert!( full.contains( "translate(10,-20)" ), "wrapper: {full}" );
     }
 
     #[ test ]
@@ -1703,7 +1683,7 @@ mod private
         &Transform { skew : [ angle, 0.0 ], ..Default::default() },
         600,
       );
-      assert!( s.contains( "skewX(-30" ), "got: {}", s );
+      assert!( s.contains( "skewX(-30" ), "got: {s}" );
     }
 
     // -- local transform (for batch instances inside Y-flipped group) --
@@ -1719,12 +1699,12 @@ mod private
         ..Default::default()
       });
       // Position is raw, no Y-flip
-      assert!( s.contains( "translate(10,20)" ), "got: {}", s );
+      assert!( s.contains( "translate(10,20)" ), "got: {s}" );
       // Rotation is raw (positive), not negated
       let deg = 0.5_f32.to_degrees();
-      assert!( s.contains( &format!( "rotate({})", deg ) ), "got: {}", s );
+      assert!( s.contains( &format!( "rotate({deg})" ) ), "got: {s}" );
       // Scale is raw, no Y negation
-      assert!( s.contains( "scale(2,3)" ), "got: {}", s );
+      assert!( s.contains( "scale(2,3)" ), "got: {s}" );
     }
 
     // -- path --
@@ -1754,13 +1734,13 @@ mod private
       ]).unwrap();
 
       let b = body( &svg );
-      assert!( b.contains( "<path" ), "body: {}", b );
-      assert!( b.contains( "M 10 20" ), "body: {}", b );
-      assert!( b.contains( "L 100 200" ), "body: {}", b );
-      assert!( b.contains( "Z" ), "body: {}", b );
-      assert!( b.contains( "fill=\"rgb(0,0,255)\"" ), "body: {}", b );
-      assert!( b.contains( "stroke-linecap=\"round\"" ), "body: {}", b );
-      assert!( b.contains( "stroke-linejoin=\"round\"" ), "body: {}", b );
+      assert!( b.contains( "<path" ), "body: {b}" );
+      assert!( b.contains( "M 10 20" ), "body: {b}" );
+      assert!( b.contains( "L 100 200" ), "body: {b}" );
+      assert!( b.contains( 'Z' ), "body: {b}" );
+      assert!( b.contains( "fill=\"rgb(0,0,255)\"" ), "body: {b}" );
+      assert!( b.contains( "stroke-linecap=\"round\"" ), "body: {b}" );
+      assert!( b.contains( "stroke-linejoin=\"round\"" ), "body: {b}" );
     }
 
     // -- image loading viewBox --
@@ -1783,10 +1763,10 @@ mod private
 
       let d = defs( &svg );
       // Should use "0 0 w h" viewBox, not center-origin
-      assert!( d.contains( "viewBox=\"0 0 64 32\"" ), "defs: {}", d );
+      assert!( d.contains( "viewBox=\"0 0 64 32\"" ), "defs: {d}" );
       // Should not have negative offsets
-      assert!( !d.contains( "x=\"-" ), "defs: {}", d );
-      assert!( !d.contains( "y=\"-" ), "defs: {}", d );
+      assert!( !d.contains( "x=\"-" ), "defs: {d}" );
+      assert!( !d.contains( "y=\"-" ), "defs: {d}" );
     }
 
     // -- sprite tint --
@@ -1824,7 +1804,7 @@ mod private
       ]).unwrap();
 
       let b = body( &svg );
-      assert!( !b.contains( "filter=" ), "white tint should not create filter, body: {}", b );
+      assert!( !b.contains( "filter=" ), "white tint should not create filter, body: {b}" );
     }
 
     #[ test ]
@@ -1861,9 +1841,9 @@ mod private
 
       let b = body( &svg );
       let d = defs( &svg );
-      assert!( b.contains( "filter=\"url(#tint_0)\"" ), "body: {}", b );
-      assert!( d.contains( "<filter id=\"tint_0\">" ), "defs: {}", d );
-      assert!( d.contains( "feColorMatrix" ), "defs: {}", d );
+      assert!( b.contains( "filter=\"url(#tint_0)\"" ), "body: {b}" );
+      assert!( d.contains( "<filter id=\"tint_0\">" ), "defs: {d}" );
+      assert!( d.contains( "feColorMatrix" ), "defs: {d}" );
     }
 
     // -- batch lifecycle --
@@ -1922,13 +1902,13 @@ mod private
 
       let b = body( &svg );
       // Should have a group wrapper
-      assert!( b.contains( "<g" ), "body: {}", b );
-      assert!( b.contains( "</g>" ), "body: {}", b );
+      assert!( b.contains( "<g" ), "body: {b}" );
+      assert!( b.contains( "</g>" ), "body: {b}" );
       // Should have two sprite instances with local transforms
-      assert_eq!( b.matches( "#sprite_0" ).count(), 2, "body: {}", b );
+      assert_eq!( b.matches( "#sprite_0" ).count(), 2, "body: {b}" );
       // Local transforms should use raw positions (no Y-flip)
-      assert!( b.contains( "translate(10,20)" ), "body: {}", b );
-      assert!( b.contains( "translate(50,60)" ), "body: {}", b );
+      assert!( b.contains( "translate(10,20)" ), "body: {b}" );
+      assert!( b.contains( "translate(50,60)" ), "body: {b}" );
     }
 
     // -- mesh batch --
@@ -1978,9 +1958,9 @@ mod private
       ]).unwrap();
 
       let b = body( &svg );
-      assert!( b.contains( "<g" ), "body: {}", b );
-      assert!( b.contains( "fill=\"rgb(0,255,0)\"" ), "body: {}", b );
-      assert!( b.contains( "translate(5,10)" ), "body: {}", b );
+      assert!( b.contains( "<g" ), "body: {b}" );
+      assert!( b.contains( "fill=\"rgb(0,255,0)\"" ), "body: {b}" );
+      assert!( b.contains( "translate(5,10)" ), "body: {b}" );
     }
 
     // -- batch instance update and remove --
@@ -2031,9 +2011,9 @@ mod private
 
       let b = body( &svg );
       // Should have only 1 instance (the one at 3,4)
-      assert_eq!( b.matches( "#sprite_0" ).count(), 1, "body: {}", b );
-      assert!( b.contains( "translate(3,4)" ), "body: {}", b );
-      assert!( !b.contains( "translate(1,2)" ), "body: {}", b );
+      assert_eq!( b.matches( "#sprite_0" ).count(), 1, "body: {b}" );
+      assert!( b.contains( "translate(3,4)" ), "body: {b}" );
+      assert!( !b.contains( "translate(1,2)" ), "body: {b}" );
     }
 
     // -- delete batch --
@@ -2063,7 +2043,7 @@ mod private
 
       let b = body( &svg );
       // Draw after delete should produce nothing
-      assert!( !b.contains( "<g" ), "body: {}", b );
+      assert!( !b.contains( "<g" ), "body: {b}" );
     }
 
     // -- effects --
@@ -2085,9 +2065,9 @@ mod private
 
       let b = body( &svg );
       let d = defs( &svg );
-      assert!( b.contains( "filter=\"url(#fx_0)\"" ), "body: {}", b );
-      assert!( d.contains( "feGaussianBlur" ), "defs: {}", d );
-      assert!( d.contains( "stdDeviation=\"5\"" ), "defs: {}", d );
+      assert!( b.contains( "filter=\"url(#fx_0)\"" ), "body: {b}" );
+      assert!( d.contains( "feGaussianBlur" ), "defs: {d}" );
+      assert!( d.contains( "stdDeviation=\"5\"" ), "defs: {d}" );
     }
 
     #[ test ]
@@ -2106,10 +2086,10 @@ mod private
       ]).unwrap();
 
       let d = defs( &svg );
-      assert!( d.contains( "feDropShadow" ), "defs: {}", d );
-      assert!( d.contains( "dx=\"2\"" ), "defs: {}", d );
+      assert!( d.contains( "feDropShadow" ), "defs: {d}" );
+      assert!( d.contains( "dx=\"2\"" ), "defs: {d}" );
       // dy should be negated: 3.0 → -3.0
-      assert!( d.contains( "dy=\"-3\"" ), "defs: {}", d );
+      assert!( d.contains( "dy=\"-3\"" ), "defs: {d}" );
     }
 
     #[ test ]
@@ -2133,8 +2113,8 @@ mod private
       ]).unwrap();
 
       let d = defs( &svg );
-      assert!( d.contains( "feColorMatrix" ), "defs: {}", d );
-      assert!( d.contains( "type=\"matrix\"" ), "defs: {}", d );
+      assert!( d.contains( "feColorMatrix" ), "defs: {d}" );
+      assert!( d.contains( "type=\"matrix\"" ), "defs: {d}" );
     }
 
     #[ test ]
@@ -2153,7 +2133,7 @@ mod private
       ]).unwrap();
 
       let b = body( &svg );
-      assert!( b.contains( "opacity=\"0.5\"" ), "body: {}", b );
+      assert!( b.contains( "opacity=\"0.5\"" ), "body: {b}" );
     }
 
     // -- groups --
