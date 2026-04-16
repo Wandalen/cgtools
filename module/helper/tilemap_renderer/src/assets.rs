@@ -212,7 +212,10 @@ mod private
     pub uvs : Option< Source >,
     /// Optional vertex indices for indexed drawing.
     pub indices : Option< Source >,
-    /// Primitive data type for index/position buffers.
+    /// Element type of the index buffer. Must be `U8`, `U16`, or `U32`.
+    /// `F32` is not a valid index type and will be rejected by the WebGL backend at load time.
+    ///
+    /// Ignored when `indices` is `None`.
     pub data_type : DataType,
   }
 

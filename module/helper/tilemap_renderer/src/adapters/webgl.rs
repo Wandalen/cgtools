@@ -273,7 +273,9 @@ mod private
     uv_buffer : Option< web_sys::WebGlBuffer >,
     index_buffer : Option< web_sys::WebGlBuffer >,
     vertex_count : u32,
-    index_count : Option< u32 >,
+    /// Number of indices and the GL type constant (`UNSIGNED_BYTE` / `UNSIGNED_SHORT` / `UNSIGNED_INT`).
+    /// `None` if the geometry has no index buffer (draw with `drawArrays`).
+    index_count : Option< ( u32, u32 ) >,
   }
 
   impl Drop for GpuGeometry
@@ -537,9 +539,9 @@ mod private
 
       gl.bind_vertex_array( Some( &geom.vao ) );
 
-      if let Some( count ) = geom.index_count
+      if let Some( ( count, gl_type ) ) = geom.index_count
       {
-        gl.draw_elements_with_i32( topology, count as i32, gl::UNSIGNED_SHORT, 0 );
+        gl.draw_elements_with_i32( topology, count as i32, gl_type, 0 );
       }
       else
       {
@@ -577,9 +579,9 @@ mod private
 
       gl.bind_vertex_array( Some( vao ) );
 
-      if let Some( count ) = geom.index_count
+      if let Some( ( count, gl_type ) ) = geom.index_count
       {
-        gl.draw_elements_instanced_with_i32( topology, count as i32, gl::UNSIGNED_SHORT, 0, instances.len() as i32 );
+        gl.draw_elements_instanced_with_i32( topology, count as i32, gl_type, 0, instances.len() as i32 );
       }
       else
       {
@@ -1047,6 +1049,17 @@ mod private
 
       for geom in geometries
       {
+        // Validate index format early so both sync and async paths can use it.
+        // geom.indices == None is fine (non-indexed draw); geom.data_type only matters when indices are present.
+        let ( idx_stride, idx_gl_type ) = if geom.indices.is_some()
+        {
+          index_format( &geom.data_type )?
+        }
+        else
+        {
+          ( 0, 0 ) // unused when there are no indices
+        };
+
         let has_path =
           matches!( geom.positions, crate::assets::Source::Path( _ ) )
           || matches!( geom.uvs, Some( crate::assets::Source::Path( _ ) ) )
@@ -1117,7 +1130,7 @@ mod private
                 gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, Some( &buffer ) );
                 let u8_array = gl::js_sys::Uint8Array::from( bytes.as_slice() );
                 gl.buffer_data_with_array_buffer_view( gl::ELEMENT_ARRAY_BUFFER, &u8_array, gl::STATIC_DRAW );
-                index_count = Some( ( bytes.len() / 2 ) as u32 );
+                index_count = Some( ( ( bytes.len() as u32 ) / idx_stride, idx_gl_type ) );
                 index_buffer = Some( buffer );
               }
             }
@@ -1186,7 +1199,7 @@ mod private
             gl.bind_buffer( gl::ELEMENT_ARRAY_BUFFER, Some( &buffer ) );
             let u8_array = js_sys::Uint8Array::from( bytes.as_slice() );
             gl.buffer_data_with_array_buffer_view( gl::ELEMENT_ARRAY_BUFFER, &u8_array, gl::STATIC_DRAW );
-            index_count = Some( ( bytes.len() / 2 ) as u32 );
+            index_count = Some( ( ( bytes.len() as u32 ) / idx_stride, idx_gl_type ) );
             index_buffer = Some( buffer );
           }
 
@@ -1392,6 +1405,24 @@ mod private
     on_error.forget();
 
     texture
+  }
+
+  /// Maps a `DataType` to `(bytes_per_index, gl_type_constant)` for `drawElements`.
+  ///
+  /// Returns `Err` for `F32`, which is not a valid WebGL index type.
+  fn index_format( dt : &crate::assets::DataType ) -> Result< ( u32, u32 ), RenderError >
+  {
+    use crate::assets::DataType;
+    match dt
+    {
+      DataType::U8  => Ok( ( 1, gl::UNSIGNED_BYTE ) ),
+      DataType::U16 => Ok( ( 2, gl::UNSIGNED_SHORT ) ),
+      DataType::U32 => Ok( ( 4, gl::UNSIGNED_INT ) ),
+      DataType::F32 => Err( RenderError::BackendError
+      (
+        "GeometryAsset.data_type: F32 is not a valid index format; use U8, U16, or U32".into()
+      )),
+    }
   }
 
   fn apply_texture_filter( gl : &gl::GL, filter : &SamplerFilter )
