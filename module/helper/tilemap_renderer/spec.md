@@ -139,7 +139,9 @@ pub trait Backend {
 - Mesh `<symbol>` defs generated lazily on first use of a (geometry, topology) pair
 - Mesh texture approximated via `<pattern>` fill
 - Batch drawing: parent transform in `<g>` wrapper, raw local transforms for instances
-- Bitmap images encoded to PNG via the `image` crate and inlined as `data:image/png;base64` URIs
+- Bitmap images encoded to PNG via the `image` crate and inlined as `data:image/png;base64` URIs; PNG dimensions extracted from IHDR for correct sprite sheet sizing
+- `ImageSource::Encoded` always emits `image/png` MIME type regardless of actual format; PNG bytes have their dimensions detected automatically, non-PNG bytes produce a broken URI
+- `ImageSource::Path` stores zero dimensions — sprites using a Path-sourced sheet will be invisible; use `ImageSource::Bitmap` when sprites require a known sheet size
 - `Source::Path` geometries are silently skipped — no file loader; callers must supply `Source::Bytes`
 
 #### 7.2. WebGL2 (`adapter-webgl`)
@@ -213,12 +215,12 @@ pub trait Backend {
 ### 9. Non-Functional Requirements
 
 - **NFR-1:** Performance: 10,000 commands < 16ms (not yet benchmarked)
-- **NFR-2:** ✅ Zero graphics dependencies in core (only `nohash-hasher`, `error_tools`, `mod_interface`; `base64` is optional behind `adapter-svg` feature)
+- **NFR-2:** ✅ Zero graphics dependencies in core (only `nohash-hasher`, `error_tools`, `mod_interface`; `base64`, `bytemuck`, `image` are optional behind `adapter-svg` feature)
 - **NFR-3:** ✅ Feature-gated adapters for minimal builds
 - **NFR-4:** ✅ Y-up coordinate system consistent across all backends
 - **NFR-5:** ✅ 100% documentation coverage (zero warnings)
 - **NFR-6:** ✅ All command types are POD (Copy, Clone)
-- **NFR-7:** ✅ Test suite: 69 tests (core: 9, SVG adapter: 60); WebGL/terminal adapter tests deferred
+- **NFR-7:** ✅ Test suite: 99 tests (core: 39, SVG adapter: 60); WebGL/terminal adapter tests deferred
 - **NFR-8:** ❌ Compile-time layout assertions for GPU data structures (deferred to WebGL/wgpu adapter PRs)
 - **NFR-9:** ❌ Visual regression testing
 - **NFR-10:** ❌ CI with feature matrix
