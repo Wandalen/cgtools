@@ -129,10 +129,16 @@ mod private
   pub trait Backend
   {
     /// Upload / prepare assets for this backend.
-    /// Called once (or when assets change).
+    /// Safe to call multiple times (e.g. on level transitions).
     ///
-    /// - SVG: generates `<defs>` (symbols, gradients, patterns, clipPaths)
-    /// - GPU: uploads textures, creates samplers, builds vertex buffers
+    /// **Each call replaces all previously loaded assets.** Backends must
+    /// clear and reload all GPU/SVG state — including any active batches.
+    /// After `load_assets` returns, all [`ResourceId`]s from the previous
+    /// call are invalid; any batches created before this call are destroyed.
+    ///
+    /// - SVG: regenerates `<defs>` (symbols, gradients, patterns, clipPaths)
+    /// - GPU (WebGL): re-uploads textures, rebuilds vertex buffers, clears all batches
+    ///   (VAOs and instance buffers are released via `GpuBatch::drop`)
     ///
     /// # Errors
     ///
