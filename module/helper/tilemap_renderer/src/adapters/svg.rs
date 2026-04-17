@@ -2580,6 +2580,32 @@ mod private
       assert_eq!( SvgBackend::detect_image_mime( &[ 0, 0, 0, 0 ] ), "image/png" );
     }
 
+    /// Verifies that an ImageSource::Path containing XML-special characters
+    /// cannot break out of the href attribute and inject event handlers like
+    /// onload="alert(1)". Filenames with double-quotes are legal on Linux.
+    #[ test ]
+    fn image_path_escapes_attribute_injection()
+    {
+      let mut svg = svg800x600();
+      let malicious = r#"foo" onload="alert(1)"#;
+      let assets = Assets
+      {
+        images : vec![ ImageAsset
+        {
+          id : ResourceId::new( 0 ),
+          source : ImageSource::Path( std::path::PathBuf::from( malicious ) ),
+          filter : SamplerFilter::Linear,
+        }],
+        ..empty_assets()
+      };
+      svg.load_assets( &assets ).unwrap();
+      let d = defs( &svg );
+      // Raw unescaped injection must not appear.
+      assert!( !d.contains( r#"onload="alert(1)""# ), "event handler leaked: {d}" );
+      // Escaped form must appear.
+      assert!( d.contains( "&quot;" ), "expected escaped quote in href: {d}" );
+    }
+
     /// Verifies that a sprite referencing an ImageSource::Path sheet
     /// (which has unknown dimensions) is skipped and a diagnostic HTML
     /// comment is emitted instead of producing an invisible sprite symbol.
