@@ -1,3 +1,5 @@
+#![ allow( clippy::min_ident_chars ) ] // Short names like x, y, m are idiomatic in math/graphics contexts throughout this crate
+
 //! Backend trait contract tests.
 //!
 //! A minimal `TestBackend` implementation verifies that:

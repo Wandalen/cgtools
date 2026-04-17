@@ -14,7 +14,7 @@ workspace = true
 enabled = ["dep:error_tools", "dep:mod_interface", "dep:nohash-hasher"]
 default = ["enabled"]
 full = ["enabled", "adapter-svg", "adapter-terminal", "adapter-webgl", "cli"]
-adapter-svg = ["enabled", "dep:base64"]
+adapter-svg = ["enabled", "dep:base64", "dep:bytemuck", "dep:image"]
 adapter-terminal = ["enabled"]
 adapter-webgl = [
   "enabled",
@@ -35,5 +35,7 @@ wasm-bindgen = { workspace = true, optional = true }
 base64 = { workspace = true, optional = true }
 error_tools = { workspace = true, optional = true }
 mod_interface = { workspace = true, optional = true }
+bytemuck = { workspace = true, optional = true }
+image = { workspace = true, optional = true }
 
 [dev-dependencies]
