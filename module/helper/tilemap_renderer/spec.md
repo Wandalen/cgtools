@@ -140,9 +140,12 @@ pub trait Backend {
 - Mesh texture approximated via `<pattern>` fill
 - Batch drawing: parent transform in `<g>` wrapper, raw local transforms for instances
 - Bitmap images encoded to PNG via the `image` crate and inlined as `data:image/png;base64` URIs; PNG dimensions extracted from IHDR for correct sprite sheet sizing
-- `ImageSource::Encoded` always emits `image/png` MIME type regardless of actual format; PNG bytes have their dimensions detected automatically, non-PNG bytes produce a broken URI
-- `ImageSource::Path` stores zero dimensions — sprites using a Path-sourced sheet will be invisible; use `ImageSource::Bitmap` when sprites require a known sheet size
+- `ImageSource::Encoded` — MIME type auto-detected from magic bytes (PNG, JPEG, GIF, WebP, SVG; fallback PNG); dimensions extracted via `image::ImageReader::with_guessed_format` for any format the `image` crate recognizes
+- `ImageSource::Path` — dimensions unknown at load-assets time (no file I/O is performed). Sprites referencing a Path-sourced sheet are **skipped** with a stderr warning and a diagnostic HTML comment in the SVG output. Use `ImageSource::Bitmap` or `Encoded` when sprites require sheet dimensions
 - `Source::Path` geometries are silently skipped — no file loader; callers must supply `Source::Bytes`
+- XML-special characters in Char-stream text content and in `ImageSource::Path` href values are escaped (`&`, `<`, `>`, `"`, `'` → named entities) to prevent SVG injection / XSS via `<script>` or inline event handlers
+- Arc rotation values are emitted in **degrees** (per SVG 1.1 A-path spec); `ArcTo::rotation` is stored in radians and converted at emission time
+- `TriangleStrip` mesh emission alternates vertex order on odd-indexed triangles (OpenGL/D3D convention) so the SVG polygon sequence preserves consistent CCW winding
 
 #### 7.2. WebGL2 (`adapter-webgl`)
 
@@ -220,10 +223,11 @@ pub trait Backend {
 - **NFR-4:** ✅ Y-up coordinate system consistent across all backends
 - **NFR-5:** ✅ 100% documentation coverage (zero warnings)
 - **NFR-6:** ✅ All command types are POD (Copy, Clone)
-- **NFR-7:** ✅ Test suite: 99 tests (core: 39, SVG adapter: 60); WebGL/terminal adapter tests deferred
+- **NFR-7:** ✅ Test suite: 107 tests (core: 39, SVG adapter: 68); WebGL/terminal adapter tests deferred
 - **NFR-8:** ❌ Compile-time layout assertions for GPU data structures (deferred to WebGL/wgpu adapter PRs)
 - **NFR-9:** ❌ Visual regression testing
 - **NFR-10:** ❌ CI with feature matrix
+- **NFR-11:** ✅ SVG output is injection-safe: all caller-controlled strings flowing into text PCDATA or XML attributes (Char stream, `ImageSource::Path`) are entity-escaped
 
 ### 10. Conformance Checklist
 
@@ -248,6 +252,7 @@ pub trait Backend {
 | ✅ | NFR-4 | Y-up coordinate system |
 | ✅ | NFR-5 | 100% doc coverage |
 | ✅ | NFR-7 | Test suite |
+| ✅ | NFR-11 | SVG injection-safe output (XML escape for text + attributes) |
 | ❌ | NFR-1 | Performance benchmarks |
 | ❌ | NFR-9 | Visual regression tests |
 | ❌ | NFR-10 | CI feature matrix |
