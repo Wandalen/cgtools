@@ -516,9 +516,10 @@ mod private
         PathSegment::CubicTo { c1x, c1y, c2x, c2y, x, y } => format!( "C {c1x} {c1y} {c2x} {c2y} {x} {y}" ),
         PathSegment::ArcTo { rx, ry, rotation, large_arc, sweep, x, y } =>
         {
+          let rotation_deg = rotation.to_degrees();
           format!
           (
-            "A {rx} {ry} {rotation} {} {} {x} {y}",
+            "A {rx} {ry} {rotation_deg} {} {} {x} {y}",
             i32::from( *large_arc ),
             i32::from( *sweep )
           )
@@ -896,7 +897,7 @@ mod private
 
     fn cmd_arc_to( &mut self, a : &ArcTo )
     {
-      let _ = write!( self.path_data, "A {} {} {} {} {} {} {} ", a.rx, a.ry, a.rotation, u8::from(a.large_arc), u8::from(a.sweep), a.x, a.y );
+      let _ = write!( self.path_data, "A {} {} {} {} {} {} {} ", a.rx, a.ry, a.rotation.to_degrees(), u8::from(a.large_arc), u8::from(a.sweep), a.x, a.y );
     }
 
     fn cmd_close_path( &mut self )
