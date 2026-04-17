@@ -425,6 +425,19 @@ mod private
 
     /// Extracts width and height from a PNG byte buffer by reading the IHDR chunk.
     /// Returns `None` if the buffer is too short or does not start with the PNG signature.
+    /// Extracts (width, height) from an encoded image buffer using the `image`
+    /// crate's format guesser. Supports any format the crate can decode the
+    /// dimensions of — PNG, JPEG, GIF, WebP, BMP, TIFF, etc. Returns `None`
+    /// when the format is unrecognized or the header is malformed.
+    fn image_dimensions( bytes : &[ u8 ] ) -> Option< ( u32, u32 ) >
+    {
+      image::ImageReader::new( std::io::Cursor::new( bytes ) )
+        .with_guessed_format()
+        .ok()?
+        .into_dimensions()
+        .ok()
+    }
+
     /// Detects the MIME type of an encoded image by inspecting its magic bytes.
     /// Falls back to `image/png` when the signature is unknown, which matches
     /// the prior behavior for well-formed PNG inputs.
@@ -729,10 +742,10 @@ mod private
           }
           ImageSource::Encoded( bytes ) =>
           {
-            // Extract dimensions from PNG IHDR so that sprites using this sheet
-            // render correctly. Non-PNG data will have width=0,height=0 and
-            // any sprite referencing it will be invisible (see ImageSource::Encoded docs).
-            let ( w, h ) = Self::png_dimensions( bytes ).unwrap_or( ( 0, 0 ) );
+            // Decode dimensions for any format the `image` crate recognizes (PNG,
+            // JPEG, GIF, WebP, ...) so that sprites using this sheet can render
+            // with correct viewBox/use sizing.
+            let ( w, h ) = Self::image_dimensions( bytes ).unwrap_or( ( 0, 0 ) );
             let mime = Self::detect_image_mime( bytes );
             let encoded = base64::prelude::BASE64_STANDARD.encode( bytes );
             let img_def = format!( "<symbol id=\"img_{}\"><image href=\"data:{mime};base64,{encoded}\"/></symbol>", img.id.inner() );
@@ -755,6 +768,25 @@ mod private
       {
         if let Some( sheet ) = self.resources.image( sprite.sheet )
         {
+          // Zero-dim sheets come from ImageSource::Path (no file I/O performed
+          // at load-assets time) or from Encoded bytes we couldn't decode.
+          // Emit a warning to stderr and an HTML comment in the SVG so the
+          // failure is visible rather than silent.
+          if sheet.width == 0 || sheet.height == 0
+          {
+            eprintln!
+            (
+              "[tilemap_renderer:svg] warning: sprite {} references image {} with unknown dimensions — sprite will be invisible. Use ImageSource::Bitmap or Encoded with a decodable format.",
+              sprite.id.inner(), sprite.sheet.inner()
+            );
+            let comment = format!
+            (
+              "<!-- sprite_{} skipped: image_{} has unknown dimensions (ImageSource::Path cannot extract without I/O) -->",
+              sprite.id.inner(), sprite.sheet.inner()
+            );
+            self.content.push_asset_def( &comment );
+            continue;
+          }
           let img_def = format!
           (
             "<symbol id=\"sprite_{}\" viewBox=\"{} {} {} {}\"><use href=\"#img_{}\" width=\"{}\" height=\"{}\"/></symbol>",
@@ -2521,6 +2553,37 @@ mod private
       assert_eq!( SvgBackend::detect_image_mime( &webp ), "image/webp" );
       // Unknown falls back to PNG
       assert_eq!( SvgBackend::detect_image_mime( &[ 0, 0, 0, 0 ] ), "image/png" );
+    }
+
+    /// Verifies that a sprite referencing an ImageSource::Path sheet
+    /// (which has unknown dimensions) is skipped and a diagnostic HTML
+    /// comment is emitted instead of producing an invisible sprite symbol.
+    #[ test ]
+    fn sprite_on_path_sheet_is_skipped_with_comment()
+    {
+      let mut svg = svg800x600();
+      let assets = Assets
+      {
+        images : vec![ ImageAsset
+        {
+          id : ResourceId::new( 0 ),
+          source : ImageSource::Path( "does_not_matter.png".into() ),
+          filter : SamplerFilter::Linear,
+        }],
+        sprites : vec![ SpriteAsset
+        {
+          id : ResourceId::new( 7 ),
+          sheet : ResourceId::new( 0 ),
+          region : [ 0.0, 0.0, 4.0, 4.0 ],
+        }],
+        ..empty_assets()
+      };
+      svg.load_assets( &assets ).unwrap();
+      let d = defs( &svg );
+      // No sprite_7 symbol was emitted.
+      assert!( !d.contains( "id=\"sprite_7\"" ), "sprite should be skipped: {d}" );
+      // A diagnostic comment was emitted instead.
+      assert!( d.contains( "sprite_7 skipped" ), "diagnostic comment missing: {d}" );
     }
 
     /// Verifies that JPEG-encoded bytes produce a `data:image/jpeg` URI.

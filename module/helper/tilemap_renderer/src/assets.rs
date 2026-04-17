@@ -371,18 +371,20 @@ mod private
     /// Path to image file — backend decodes (PNG, JPEG, etc.).
     ///
     /// **SVG backend limitation:** image dimensions cannot be determined at
-    /// `load_assets` time (no file I/O is performed). Any sprite whose sheet
-    /// uses this source will have a zero-sized `<use>` element and will be
-    /// invisible. Use [`ImageSource::Bitmap`] (pre-decoded pixels with known
-    /// dimensions) if you need sprites from a sheet loaded this way.
+    /// `load_assets` time (no file I/O is performed). Sprites referencing a
+    /// sheet loaded this way are skipped with a stderr warning and an HTML
+    /// comment in the SVG output instead of producing an invisible element.
+    /// Use [`ImageSource::Bitmap`] or [`ImageSource::Encoded`] (from which the
+    /// backend can decode dimensions in-memory) when sprite regions are needed.
     Path( PathBuf ),
     /// Encoded image in memory — backend decodes.
     ///
     /// **SVG backend:** MIME type is auto-detected from magic bytes
     /// (PNG, JPEG, GIF, WebP, SVG). Unknown signatures fall back to `image/png`.
-    /// Sheet dimensions are only extracted for PNG (via IHDR); sprites referencing
-    /// non-PNG encoded sheets will have zero-sized `<use>` — prefer
-    /// [`ImageSource::Bitmap`] when sprite regions are needed.
+    /// Dimensions are extracted via the `image` crate for any format it
+    /// recognizes (PNG, JPEG, GIF, WebP, BMP, TIFF, ...). If dimension
+    /// extraction fails, any sprite referencing this sheet is skipped with a
+    /// warning — see [`ImageSource::Path`] for the reporting behavior.
     ///
     /// **WebGL backend:** this variant is silently skipped during `load_assets`.
     /// Use `Bitmap` (pre-decoded) or `Path` instead.
