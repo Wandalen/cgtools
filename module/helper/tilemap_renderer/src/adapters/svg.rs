@@ -820,7 +820,10 @@ mod private
           {
             let mut pts = String::new();
             let mut valid = true;
-            for j in 0..3
+            // Alternate winding on odd triangles to preserve consistent CCW order,
+            // matching standard triangle-strip semantics (OpenGL/D3D).
+            let order : [ usize; 3 ] = if i % 2 == 0 { [ 0, 1, 2 ] } else { [ 1, 0, 2 ] };
+            for j in order
             {
               let v_idx = idx.map_or( i + j, | v | v[ i + j ] as usize );
               let Some( &x ) = geom.positions.get( v_idx * 2 )     else { valid = false; break; };
@@ -2334,6 +2337,24 @@ mod private
       let positions : &[ f32 ] = &[ 0.0, 0.0, 100.0, 0.0, 50.0, 100.0 ];
       let ( _b, d ) = mesh_svg( Topology::TriangleStrip, positions );
       assert_eq!( d.matches( "<polygon" ).count(), 1, "defs: {d}" );
+    }
+
+    /// TriangleStrip alternates winding on odd triangles — for strip v0..v3,
+    /// triangle 0 is (v0,v1,v2) and triangle 1 is (v2,v1,v3), preserving CCW order
+    /// (swapping the first two would flip winding; the second triangle in a raw
+    /// strip is (v1,v2,v3) which has opposite winding from (v0,v1,v2)).
+    #[ test ]
+    fn mesh_triangle_strip_alternates_winding()
+    {
+      // Four distinct vertices so we can identify the emitted order.
+      let positions : &[ f32 ] = &[ 0.0, 0.0, 10.0, 0.0, 0.0, 10.0, 10.0, 10.0 ];
+      let ( _b, d ) = mesh_svg( Topology::TriangleStrip, positions );
+      // First triangle: v0,v1,v2 => "0,0 10,0 0,10"
+      assert!( d.contains( "points=\"0,0 10,0 0,10\"" ), "first tri wrong: {d}" );
+      // Second triangle: order swapped to v2,v1,v3 => "0,10 10,0 10,10"
+      assert!( d.contains( "points=\"0,10 10,0 10,10\"" ), "second tri winding not alternated: {d}" );
+      // Raw (un-alternated) order would have been v1,v2,v3 => "10,0 0,10 10,10" — ensure it's absent.
+      assert!( !d.contains( "points=\"10,0 0,10 10,10\"" ), "strip emitted raw order: {d}" );
     }
 
     /// TriangleStrip with fewer than 3 vertices produces no geometry — degenerate input is silently skipped.
