@@ -425,6 +425,19 @@ mod private
 
     /// Extracts width and height from a PNG byte buffer by reading the IHDR chunk.
     /// Returns `None` if the buffer is too short or does not start with the PNG signature.
+    /// Detects the MIME type of an encoded image by inspecting its magic bytes.
+    /// Falls back to `image/png` when the signature is unknown, which matches
+    /// the prior behavior for well-formed PNG inputs.
+    fn detect_image_mime( bytes : &[ u8 ] ) -> &'static str
+    {
+      if bytes.starts_with( &[ 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a ] ) { return "image/png"; }
+      if bytes.starts_with( &[ 0xff, 0xd8, 0xff ] ) { return "image/jpeg"; }
+      if bytes.starts_with( b"GIF87a" ) || bytes.starts_with( b"GIF89a" ) { return "image/gif"; }
+      if bytes.len() >= 12 && bytes.starts_with( b"RIFF" ) && &bytes[ 8..12 ] == b"WEBP" { return "image/webp"; }
+      if bytes.starts_with( b"<svg" ) || bytes.starts_with( b"<?xml" ) { return "image/svg+xml"; }
+      "image/png"
+    }
+
     fn png_dimensions( bytes : &[ u8 ] ) -> Option< ( u32, u32 ) >
     {
       // PNG layout: 8-byte signature + 4-byte chunk length + 4-byte "IHDR" + 4-byte width + 4-byte height
@@ -720,8 +733,9 @@ mod private
             // render correctly. Non-PNG data will have width=0,height=0 and
             // any sprite referencing it will be invisible (see ImageSource::Encoded docs).
             let ( w, h ) = Self::png_dimensions( bytes ).unwrap_or( ( 0, 0 ) );
+            let mime = Self::detect_image_mime( bytes );
             let encoded = base64::prelude::BASE64_STANDARD.encode( bytes );
-            let img_def = format!( "<symbol id=\"img_{}\"><image href=\"data:image/png;base64,{}\"/></symbol>", img.id.inner(), encoded );
+            let img_def = format!( "<symbol id=\"img_{}\"><image href=\"data:{mime};base64,{encoded}\"/></symbol>", img.id.inner() );
             self.content.push_asset_def( &img_def );
             self.resources.store_image( img.id, SvgImage { width : w, height : h } );
           }
@@ -2489,6 +2503,46 @@ mod private
       let bytes = vec![ 0u8; 3 * 5 * 4 ];
       let png = SvgBackend::bitmap_to_png( &bytes, 3, 5, &PixelFormat::Rgba8 ).unwrap();
       assert_eq!( SvgBackend::png_dimensions( &png ), Some( ( 3, 5 ) ) );
+    }
+
+    /// Verifies MIME type detection from magic bytes.
+    #[ test ]
+    fn detect_image_mime_by_magic()
+    {
+      // PNG
+      assert_eq!( SvgBackend::detect_image_mime( &[ 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0 ] ), "image/png" );
+      // JPEG
+      assert_eq!( SvgBackend::detect_image_mime( &[ 0xff, 0xd8, 0xff, 0xe0 ] ), "image/jpeg" );
+      // GIF
+      assert_eq!( SvgBackend::detect_image_mime( b"GIF89a..." ), "image/gif" );
+      // WebP
+      let mut webp = Vec::from( *b"RIFF\0\0\0\0WEBP" );
+      webp.push( 0 );
+      assert_eq!( SvgBackend::detect_image_mime( &webp ), "image/webp" );
+      // Unknown falls back to PNG
+      assert_eq!( SvgBackend::detect_image_mime( &[ 0, 0, 0, 0 ] ), "image/png" );
+    }
+
+    /// Verifies that JPEG-encoded bytes produce a `data:image/jpeg` URI.
+    #[ test ]
+    fn image_encoded_jpeg_emits_jpeg_mime()
+    {
+      let jpeg_bytes : Vec< u8 > = vec![ 0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46 ];
+      let mut svg = svg800x600();
+      let assets = Assets
+      {
+        images : vec![ ImageAsset
+        {
+          id : ResourceId::new( 0 ),
+          source : ImageSource::Encoded( jpeg_bytes ),
+          filter : SamplerFilter::Linear,
+        }],
+        ..empty_assets()
+      };
+      svg.load_assets( &assets ).unwrap();
+      let d = defs( &svg );
+      assert!( d.contains( "data:image/jpeg;base64," ), "defs: {d}" );
+      assert!( !d.contains( "data:image/png;base64," ), "should not emit PNG mime: {d}" );
     }
 
     /// Verifies that a short / non-PNG buffer returns None.

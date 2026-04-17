@@ -378,10 +378,11 @@ mod private
     Path( PathBuf ),
     /// Encoded image in memory — backend decodes.
     ///
-    /// **SVG backend limitation:** always emits a `data:image/png;base64,…` URI
-    /// regardless of the actual byte format. Passing non-PNG bytes (e.g. JPEG)
-    /// will produce a URI the browser cannot decode. Prefer [`ImageSource::Bitmap`]
-    /// (pre-decoded RGBA/RGB pixels) or [`ImageSource::Path`].
+    /// **SVG backend:** MIME type is auto-detected from magic bytes
+    /// (PNG, JPEG, GIF, WebP, SVG). Unknown signatures fall back to `image/png`.
+    /// Sheet dimensions are only extracted for PNG (via IHDR); sprites referencing
+    /// non-PNG encoded sheets will have zero-sized `<use>` — prefer
+    /// [`ImageSource::Bitmap`] when sprite regions are needed.
     ///
     /// **WebGL backend:** this variant is silently skipped during `load_assets`.
     /// Use `Bitmap` (pre-decoded) or `Path` instead.
