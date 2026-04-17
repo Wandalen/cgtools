@@ -189,6 +189,7 @@ async fn run() -> Result< (), gl::WebglError >
       id : res_id,
       source : assets::ImageSource::Path( PathBuf::from( &sprite.source ) ),
       filter : SamplerFilter::Linear,
+      mipmap : MipmapMode::Off,
     });
   }
 

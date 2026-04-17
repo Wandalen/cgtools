@@ -8,7 +8,7 @@ mod private
 {
   use std::path::PathBuf;
   use nohash_hasher::IntSet;
-  use crate::types::{ ResourceId, SamplerFilter, asset };
+  use crate::types::{ ResourceId, SamplerFilter, MipmapMode, asset };
 
   // ============================================================================
   // Asset container
@@ -182,6 +182,9 @@ mod private
     /// SVG: `image-rendering: pixelated` (Nearest) vs `auto` (Linear).
     /// GPU: sampler mag/min filter.
     pub filter : SamplerFilter,
+    /// Mipmap generation and between-level interpolation. GPU backends honor this
+    /// and call `generateMipmap` at load time; SVG backends ignore it. Defaults to `Off`.
+    pub mipmap : MipmapMode,
   }
 
   /// A rectangular region within a loaded image (sprite sheet support).

@@ -291,6 +291,7 @@ mod private
     width : Cell< u32 >,
     height : Cell< u32 >,
     _filter : SamplerFilter,
+    _mipmap : MipmapMode,
   }
 
   impl Drop for GpuTexture
@@ -1096,14 +1097,28 @@ mod private
           {
             let path = path.as_path().to_str()
               .ok_or_else( || RenderError::BackendError( "non-UTF-8 image path".into() ) )?;
-            let tex = upload_image_from_path( gl, path, img.id, &self.resources );
+            // Async path: sampler state (filter, wrap, mipmap chain) is applied inside
+            // the on_load callback after the image bytes are actually uploaded, so the
+            // texture is guaranteed to be complete (esp. for mipmap modes, which leave
+            // the texture incomplete until generate_mipmap runs).
+            let tex = upload_image_from_path( gl, path, img.id, &self.resources, img.filter, img.mipmap );
             gl.bind_texture( gl::TEXTURE_2D, Some( &tex ) );
             ( tex, 0, 0 )
           }
         };
 
-        apply_texture_filter( gl, &img.filter );
-        gl::texture::d2::wrap_clamp( gl );
+        // Sync bitmap path: level 0 is already uploaded; apply sampler state and
+        // generate the mip chain right away so the texture is immediately usable.
+        // (The async Path branch does all of this inside on_load.)
+        if matches!( img.source, crate::assets::ImageSource::Bitmap { .. } )
+        {
+          apply_texture_filter( gl, &img.filter, &img.mipmap );
+          gl::texture::d2::wrap_clamp( gl );
+          if !matches!( img.mipmap, MipmapMode::Off )
+          {
+            gl.generate_mipmap( gl::TEXTURE_2D );
+          }
+        }
 
         self.resources.borrow_mut().store_texture( img.id, GpuTexture
         {
@@ -1112,6 +1127,7 @@ mod private
           width : Cell::new( w ),
           height : Cell::new( h ),
           _filter : img.filter,
+          _mipmap : img.mipmap,
         });
       }
 
@@ -1453,6 +1469,8 @@ mod private
     src : &str,
     id : ResourceId< asset::Image >,
     resources : &Rc< RefCell< GpuResources > >,
+    filter : SamplerFilter,
+    mipmap : MipmapMode,
   ) -> web_sys::WebGlTexture
   {
     let document = web_sys::window().expect( "no window" ).document().expect( "no document" );
@@ -1474,6 +1492,20 @@ mod private
       move ||
       {
         gl::texture::d2::upload( &gl, Some( &texture ), &img );
+
+        // Bind and apply all sampler state now that level 0 is populated. Binding
+        // explicitly because upload() may leave a different texture bound, and
+        // tex_parameteri / generate_mipmap act on whatever is bound to TEXTURE_2D.
+        // Applying filter here (not only at texture creation) ensures the correct
+        // mag/min filters are installed on the texture object regardless of any
+        // intervening bind changes — belt-and-suspenders for the async path.
+        gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
+        apply_texture_filter( &gl, &filter, &mipmap );
+        gl::texture::d2::wrap_clamp( &gl );
+        if !matches!( mipmap, MipmapMode::Off )
+        {
+          gl.generate_mipmap( gl::TEXTURE_2D );
+        }
 
         if let Some( gpu_tex ) = resources.borrow().texture( id )
         {
@@ -1528,13 +1560,29 @@ mod private
     }
   }
 
-  fn apply_texture_filter( gl : &gl::GL, filter : &SamplerFilter )
+  /// Sets mag/min filter on the currently bound TEXTURE_2D based on `filter` and `mipmap`.
+  /// Caller is responsible for calling `generate_mipmap` separately when `mipmap != Off`
+  /// (after the level-0 upload completes — on the async path that's inside the on_load callback).
+  fn apply_texture_filter( gl : &gl::GL, filter : &SamplerFilter, mipmap : &MipmapMode )
   {
-    match filter
+    // mag_filter ignores mipmaps — magnification samples only level 0.
+    let mag = match filter
     {
-      SamplerFilter::Nearest => gl::texture::d2::filter_nearest( gl ),
-      SamplerFilter::Linear => gl::texture::d2::filter_linear( gl ),
-    }
+      SamplerFilter::Nearest => gl::NEAREST,
+      SamplerFilter::Linear => gl::LINEAR,
+    };
+    // min_filter combines within-level interpolation with between-level interpolation.
+    let min = match ( filter, mipmap )
+    {
+      ( SamplerFilter::Nearest, MipmapMode::Off )     => gl::NEAREST,
+      ( SamplerFilter::Linear,  MipmapMode::Off )     => gl::LINEAR,
+      ( SamplerFilter::Nearest, MipmapMode::Nearest ) => gl::NEAREST_MIPMAP_NEAREST,
+      ( SamplerFilter::Linear,  MipmapMode::Nearest ) => gl::LINEAR_MIPMAP_NEAREST,
+      ( SamplerFilter::Nearest, MipmapMode::Linear )  => gl::NEAREST_MIPMAP_LINEAR,
+      ( SamplerFilter::Linear,  MipmapMode::Linear )  => gl::LINEAR_MIPMAP_LINEAR,
+    };
+    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, mag as i32 );
+    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, min as i32 );
   }
 
   fn topology_to_gl( t : &Topology ) -> u32
