@@ -19,7 +19,8 @@ void main()
 {
   v_uv = a_uv;
 
-  mat3 inst = transpose( mat3( i_transform_0, i_transform_1, i_transform_2 ) );
+  // Instance transform: each i_transform_N is a column of the column-major matrix from Transform::to_mat3().
+  mat3 inst = mat3( i_transform_0, i_transform_1, i_transform_2 );
   vec3 world = u_parent * inst * vec3( a_position, 1.0 );
 
   vec2 ndc = ( world.xy / u_viewport ) * 2.0 - 1.0;

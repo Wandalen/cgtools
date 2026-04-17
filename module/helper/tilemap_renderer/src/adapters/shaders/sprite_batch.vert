@@ -24,8 +24,8 @@ void main()
   v_uv = ( i_region.xy + quad * i_region.zw ) / u_tex_size;
   v_tint = i_tint;
 
-  // Instance transform (row-major in buffer, transpose to column-major)
-  mat3 inst = transpose( mat3( i_transform_0, i_transform_1, i_transform_2 ) );
+  // Instance transform: each i_transform_N is a column of the column-major matrix from Transform::to_mat3().
+  mat3 inst = mat3( i_transform_0, i_transform_1, i_transform_2 );
 
   // Scale quad to sprite pixel size, apply instance then parent transform
   vec3 world = u_parent * inst * vec3( quad * i_region.zw, 1.0 );
