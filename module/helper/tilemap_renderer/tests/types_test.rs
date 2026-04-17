@@ -1,3 +1,4 @@
+#![ allow( clippy::min_ident_chars ) ]
 //! Types tests.
 //!
 //! Covers:

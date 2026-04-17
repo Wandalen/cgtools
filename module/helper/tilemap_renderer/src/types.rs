@@ -295,7 +295,8 @@ mod private
 
   /// Texture sampling filter.
   /// SVG: `image-rendering` CSS property.
-  /// GPU: `mag_filter` / `min_filter` on the texture sampler.
+  /// GPU: `mag_filter` on the sampler, and the within-level component of `min_filter`
+  /// when combined with [`MipmapMode`].
   #[ derive( Debug, Clone, Copy, Default ) ]
   pub enum SamplerFilter
   {
@@ -303,6 +304,27 @@ mod private
     Nearest,
     /// Bilinear interpolation: smooth scaling.
     #[ default ]
+    Linear,
+  }
+
+  /// Mipmap generation and between-level interpolation.
+  ///
+  /// GPU-only hint: SVG and other non-GPU backends ignore this. On GPU backends,
+  /// `Nearest`/`Linear` cause mipmap chains to be generated at load time and
+  /// select the between-level component of `min_filter`:
+  /// - `filter = Linear`, `mipmap = Linear` → trilinear filtering (`LINEAR_MIPMAP_LINEAR`).
+  /// - `filter = Linear`, `mipmap = Nearest` → bilinear within level, pick nearest level.
+  /// - `filter = Nearest`, `mipmap = *` → nearest within level, chosen mip behavior.
+  /// `mag_filter` is always derived from [`SamplerFilter`] alone (magnification cannot use mips).
+  #[ derive( Debug, Clone, Copy, Default ) ]
+  pub enum MipmapMode
+  {
+    /// No mipmaps. `min_filter` uses `SamplerFilter` directly.
+    #[ default ]
+    Off,
+    /// Generate mipmaps; pick the nearest mip level without blending between levels.
+    Nearest,
+    /// Generate mipmaps; linearly blend between the two nearest mip levels.
     Linear,
   }
 
@@ -315,11 +337,28 @@ mod private
     /// Source over (alpha blending).
     #[ default ]
     Normal,
-    /// SVG: `multiply`. GPU: src * dst.
+    /// SVG: `multiply`.
+    ///
+    /// **Current GPU approximation:** `blend_func(DST_COLOR, ONE_MINUS_SRC_ALPHA)`,
+    /// which computes `src_color * dst_color + dst_color * (1 − src_alpha)`.
+    /// This equals pure `src * dst` only when `src_alpha = 1`; for semi-transparent
+    /// sprites the multiply effect weakens with alpha, which is a known limitation.
+    ///
+    /// **TODO (requires FBO):** Replace with the Photoshop-accurate formula
+    /// `dst * (src * src_alpha + (1 − src_alpha))`. This cannot be expressed as a
+    /// single `blend_func` call with straight alpha — it needs a custom shader that
+    /// reads the destination color from a bound FBO texture and computes the blend
+    /// in the fragment shader, or a two-pass approach (blit dst to FBO, sample in shader).
     Multiply,
     /// SVG: `screen`. GPU: 1 - (1-src)*(1-dst).
     Screen,
-    /// SVG: `overlay`.
+    /// SVG: `overlay`. Photoshop-style: Multiply when dst < 0.5, Screen when dst > 0.5.
+    ///
+    /// **Not expressible as a single `blend_func` call.** Correct implementation requires
+    /// a custom shader or a separate FBO pass. Until that is implemented, adapters that
+    /// cannot support this mode must fall back to `Normal` and should document that
+    /// limitation; this variant exists so that callers can express intent without
+    /// requiring a capabilities check up-front.
     Overlay,
     /// Additive blending. GPU: src + dst.
     Add,
@@ -391,6 +430,7 @@ mod_interface::mod_interface!
   own use TextAnchor;
   own use Topology;
   own use SamplerFilter;
+  own use MipmapMode;
   own use BlendMode;
   own use FillRef;
   own use asset;

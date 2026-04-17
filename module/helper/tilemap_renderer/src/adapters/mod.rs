@@ -10,6 +10,6 @@ mod_interface::mod_interface!
   #[ cfg( feature = "adapter-terminal" ) ]
   layer terminal;
 
-  #[ cfg( all( feature = "adapter-webgl", target_arch = "wasm32" ) ) ]
+  #[ cfg( all( feature = "adapter-webgl" ) ) ]
   layer webgl;
 }

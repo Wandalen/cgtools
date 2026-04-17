@@ -190,14 +190,15 @@ pub trait Backend {
 
 #### FR-E: WebGL Backend
 
-- **FR-E1:** ⏳ Uses `minwebgl` crate (deferred to adapter-webgl PR)
-- **FR-E2:** ⏳ Hardware-accelerated WASM rendering (deferred to adapter-webgl PR)
-- **FR-E3:** ⏳ Instanced batching for sprites and meshes (deferred to adapter-webgl PR)
-- **FR-E4:** ⏳ Per-batch VAO management (deferred to adapter-webgl PR)
+- **FR-E1:** ✅ Uses `minwebgl` crate
+- **FR-E2:** ✅ Hardware-accelerated WASM rendering (sprites, meshes, batches)
+- **FR-E3:** ✅ Instanced batching for sprites and meshes
+- **FR-E4:** ✅ Per-batch VAO management (setup at create/unbind, bind-only at draw)
 - **FR-E5:** ❌ Path rendering (tessellation/GPU curves)
-- **FR-E6:** ❌ Text rendering
+- **FR-E6:** ❌ Text rendering (glyph atlas / SDF fonts)
 - **FR-E7:** ❌ WebGL context loss handling
-- **FR-E8:** ❌ Effects (blur, shadow — requires FBO)
+- **FR-E8:** ❌ Effects (blur, shadow — requires FBO post-processing)
+- **FR-E9:** ⚠️ Blend modes — Normal/Add/Multiply/Screen hardware-accelerated; `Overlay` falls back to Normal (requires custom shader or FBO read-back)
 
 #### FR-F: Terminal Backend
 
@@ -215,7 +216,7 @@ pub trait Backend {
 - **NFR-5:** ✅ 100% documentation coverage (zero warnings)
 - **NFR-6:** ✅ All command types are POD (Copy, Clone)
 - **NFR-7:** ✅ Test suite: 39 tests (types, commands, assets, backend trait); adapter tests deferred to adapter PRs
-- **NFR-8:** ❌ Compile-time layout assertions for GPU data structures (deferred to WebGL/wgpu adapter PRs)
+- **NFR-8:** ✅ Compile-time layout assertions for GPU data structures (`SpriteInstanceData` 68B, `MeshInstanceData` 36B)
 - **NFR-9:** ❌ Visual regression testing
 - **NFR-10:** ❌ CI with feature matrix
 
@@ -236,12 +237,15 @@ pub trait Backend {
 | ✅ | FR-C2 | Capabilities |
 | ✅ | FR-C3 | RenderError |
 | ⏳ | FR-D1–D9 | SVG backend — deferred to adapter-svg PR |
-| ⏳ | FR-E1–E4 | WebGL backend — deferred to adapter-webgl PR |
+| ⚠️ | FR-E1–E4 | WebGL backend partial (sprites, meshes, batches work; paths, text, effects missing) |
+| ❌ | FR-E5–E8 | WebGL: paths, text, context loss, effects — not implemented |
+| ⚠️ | FR-E9 | WebGL blend modes partial — Overlay falls back to Normal |
 | ⏳ | FR-F1–F3 | Terminal backend — deferred to adapter-terminal PR |
 | ✅ | NFR-2 | Zero core graphics deps |
 | ✅ | NFR-4 | Y-up coordinate system |
 | ✅ | NFR-5 | 100% doc coverage |
 | ✅ | NFR-7 | Test suite |
+| ✅ | NFR-8 | Compile-time layout assertions for GPU structs |
 | ❌ | NFR-1 | Performance benchmarks |
 | ❌ | NFR-9 | Visual regression tests |
 | ❌ | NFR-10 | CI feature matrix |

@@ -16,12 +16,14 @@ default = ["enabled"]
 full = ["enabled", "adapter-svg", "adapter-terminal", "adapter-webgl", "cli"]
 adapter-svg = ["enabled", "dep:base64"]
 adapter-terminal = ["enabled"]
+# Requires wasm32-unknown-unknown target.
 adapter-webgl = [
   "enabled",
   "dep:minwebgl",
   "dep:web-sys",
   "dep:js-sys",
   "dep:wasm-bindgen",
+  "dep:bytemuck"
 ]
 # CLI stub — not yet reimplemented
 cli = ["enabled"]
@@ -35,5 +37,6 @@ wasm-bindgen = { workspace = true, optional = true }
 base64 = { workspace = true, optional = true }
 error_tools = { workspace = true, optional = true }
 mod_interface = { workspace = true, optional = true }
+bytemuck = { workspace = true, optional = true }
 
 [dev-dependencies]
