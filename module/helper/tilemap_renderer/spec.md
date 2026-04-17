@@ -146,6 +146,7 @@ pub trait Backend {
 - XML-special characters in Char-stream text content are escaped (`&`, `<`, `>`, `"`, `'` → named entities) to prevent SVG injection / XSS via `<script>` or inline event handlers
 - `ImageSource::Path` href values are percent-encoded (RFC 3986): every byte outside the unreserved set and `/` becomes `%XX`, and Windows backslashes are normalized to forward slashes. This yields a valid URI reference for browsers and simultaneously neutralizes attribute-injection payloads (`"`, `<`, `>`, `&` are percent-encoded rather than entity-escaped)
 - Arc rotation values are emitted in **degrees** (per SVG 1.1 A-path spec); `ArcTo::rotation` is stored in radians and converted at emission time
+- Colors are emitted as SVG 1.1 `rgb(r,g,b)` with a separate `fill-opacity` / `stroke-opacity` / `stop-opacity` / `flood-opacity` attribute for alpha; the CSS Color Level 4 `rgba()` notation is **not** used (Inkscape / strict SVG 1.1 parsers may reject it). Fully opaque colors (alpha = 1.0) omit the opacity attribute entirely
 - `TriangleStrip` mesh emission alternates vertex order on odd-indexed triangles (OpenGL/D3D convention) so the SVG polygon sequence preserves consistent CCW winding
 
 #### 7.2. WebGL2 (`adapter-webgl`)
