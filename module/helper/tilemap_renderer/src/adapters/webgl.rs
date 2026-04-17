@@ -1303,6 +1303,9 @@ mod private
       // GpuBatch::drop calls delete_vertex_array; ArrayBuffer::drop calls delete_buffer.
       // Safe to call multiple times (e.g. level transitions).
       self.resources.borrow_mut().batches.clear();
+      // Clear the stale recording batch ID: the referenced batch no longer exists,
+      // so leaving it set would make cmd_bind_batch reject any new bind on the next frame.
+      self.recording_batch = None;
       self.load_images( &assets.images )?;
       self.load_sprites( &assets.sprites );
       self.load_geometries( &assets.geometries )?;
