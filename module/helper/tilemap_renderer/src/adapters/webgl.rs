@@ -695,7 +695,12 @@ mod private
       // Initial GL state
       gl.viewport( 0, 0, config.width as i32, config.height as i32 );
       gl.enable( gl::BLEND );
-      gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA );
+      // Use separate factors for the alpha channel so the framebuffer alpha follows
+      // the Porter-Duff "over" rule: a = src_a + dst_a * (1 - src_a). Using the same
+      // SRC_ALPHA factor on alpha would yield src_a^2 + dst_a*(1-src_a), corrupting
+      // alpha when the canvas is composited against a transparent page or read via
+      // readPixels.
+      gl.blend_func_separate( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA );
 
       // Query the actual hardware limit; fall back to the WebGL2 guaranteed minimum.
       // get_parameter returns a JsValue; as_f64() is the idiomatic way to extract it.
@@ -729,18 +734,27 @@ mod private
     fn apply_blend( &self, blend : &BlendMode )
     {
       let gl = &self.gl;
+      // Alpha factors are always (ONE, ONE_MINUS_SRC_ALPHA) so the framebuffer alpha
+      // follows Porter-Duff "over": a = src_a + dst_a * (1 - src_a). Using the RGB
+      // factors on the alpha channel would produce wrong framebuffer alpha (e.g.
+      // src_a^2 under Normal) and break readPixels / compositing onto a transparent
+      // canvas background.
       match blend
       {
-        BlendMode::Add => gl.blend_func( gl::SRC_ALPHA, gl::ONE ),
+        // Color: src + dst. Alpha: standard over.
+        BlendMode::Add => gl.blend_func_separate( gl::SRC_ALPHA, gl::ONE, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
         // Approximation: equals src*dst only when src_alpha=1.
         // TODO(FBO): replace with Photoshop-accurate formula — see BlendMode::Multiply doc.
-        BlendMode::Multiply => gl.blend_func( gl::DST_COLOR, gl::ONE_MINUS_SRC_ALPHA ),
-        BlendMode::Screen => gl.blend_func( gl::ONE, gl::ONE_MINUS_SRC_COLOR ),
+        // Color: src*dst + dst*(1-src_a). Alpha: standard over.
+        BlendMode::Multiply => gl.blend_func_separate( gl::DST_COLOR, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
+        // Color: src + dst*(1-src). Alpha: standard over.
+        BlendMode::Screen => gl.blend_func_separate( gl::ONE, gl::ONE_MINUS_SRC_COLOR, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
         // TODO: true Overlay (Multiply where dst<0.5, Screen where dst>0.5) cannot be
         // expressed as a single blend_func call — it requires a custom shader or a
         // separate FBO read-back pass, neither of which is implemented yet.
         // Overlay falls back to Normal so rendering is at least visible.
-        BlendMode::Normal | BlendMode::Overlay => gl.blend_func( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA ),
+        // Color: src*src_a + dst*(1-src_a). Alpha: standard over.
+        BlendMode::Normal | BlendMode::Overlay => gl.blend_func_separate( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
       }
     }
 
