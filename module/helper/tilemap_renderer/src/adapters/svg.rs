@@ -602,13 +602,17 @@ mod private
       let t = Transform { position : style.position, ..Default::default() };
       let transform = self.transform_to_svg( &t );
 
+      // Escape XML special chars so a character stream like '<','s','c','r','i','p','t','>'
+      // cannot close the <text> element and inject arbitrary SVG markup or <script>.
+      let escaped = Self::escape_xml_text( &self.text_buf );
+
       if let Some( path_id ) = style.along_path
       {
         let text = format!
         (
           "<text font-size=\"{}\" fill=\"{}\" text-anchor=\"{}\" dominant-baseline=\"{}\"{}{}>\n          <textPath href=\"#path_{}\">{}</textPath></text>",
           style.size, fill, anchor, baseline, transform, clip,
-          path_id.inner(), self.text_buf,
+          path_id.inner(), escaped,
         );
         self.content.push_body( &text );
       }
@@ -618,11 +622,31 @@ mod private
         (
           "<text font-size=\"{}\" fill=\"{}\" text-anchor=\"{}\" dominant-baseline=\"{}\"{}{}>\n          {}</text>",
           style.size, fill, anchor, baseline, transform, clip,
-          self.text_buf,
+          escaped,
         );
         self.content.push_body( &text );
       }
       self.text_buf.clear();
+    }
+
+    /// Escapes the five XML predefined entities so that arbitrary character
+    /// content can safely be inserted as PCDATA or attribute values.
+    fn escape_xml_text( s : &str ) -> String
+    {
+      let mut out = String::with_capacity( s.len() );
+      for c in s.chars()
+      {
+        match c
+        {
+          '&'  => out.push_str( "&amp;"  ),
+          '<'  => out.push_str( "&lt;"   ),
+          '>'  => out.push_str( "&gt;"   ),
+          '"'  => out.push_str( "&quot;" ),
+          '\'' => out.push_str( "&apos;" ),
+          _    => out.push( c ),
+        }
+      }
+      out
     }
 
     // ---- Asset loaders ----
@@ -754,7 +778,8 @@ mod private
           }
           ImageSource::Path( path ) =>
           {
-            let img_def = format!( "<symbol id=\"img_{}\"><image href=\"{}\"/></symbol>", img.id.inner(), path.display() );
+            let href = Self::escape_xml_text( &path.display().to_string() );
+            let img_def = format!( "<symbol id=\"img_{}\"><image href=\"{}\"/></symbol>", img.id.inner(), href );
             self.content.push_asset_def( &img_def );
             self.resources.store_image( img.id, SvgImage { width : 0, height : 0 } );
           }
@@ -2780,6 +2805,27 @@ mod private
       let b = body( &svg );
       assert!( b.contains( "<text" ), "body: {b}" );
       assert!( b.contains( "Hi" ), "body: {b}" );
+    }
+
+    /// Verifies that XML-special characters in the Char stream are escaped
+    /// so they cannot break out of the <text> element and inject markup.
+    #[ test ]
+    fn text_escapes_xml_special_characters()
+    {
+      let mut svg = svg800x600();
+      svg.load_assets( &empty_assets() ).unwrap();
+      let injection = "</text><script>x</script>";
+      let mut cmds : Vec< RenderCommand > = vec![ begin_text_cmd( TextAnchor::TopLeft, [ 0.0, 0.0 ] ) ];
+      cmds.extend( injection.chars().map( | c | RenderCommand::Char( Char( c ) ) ) );
+      cmds.push( RenderCommand::EndText( EndText ) );
+      svg.submit( &cmds ).unwrap();
+
+      let b = body( &svg );
+      // The raw injection must NOT appear — the </text> and <script> tags must be escaped.
+      assert!( !b.contains( "</text><script>" ), "injection not escaped: {b}" );
+      assert!( !b.contains( "<script>" ), "script tag leaked: {b}" );
+      // The escaped form must be present.
+      assert!( b.contains( "&lt;/text&gt;&lt;script&gt;" ), "expected escaped form: {b}" );
     }
 
     /// Verifies that EndText without BeginText is silently ignored (no panic, no output).
