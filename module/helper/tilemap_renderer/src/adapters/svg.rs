@@ -629,6 +629,43 @@ mod private
       self.text_buf.clear();
     }
 
+    /// Converts a filesystem path to a URI reference suitable for an SVG/HTML
+    /// `href` attribute. Normalizes Windows backslashes to forward slashes and
+    /// percent-encodes every byte outside the RFC 3986 unreserved set and the
+    /// path-safe separator `/`. This simultaneously:
+    ///
+    /// - yields a valid URI reference (browsers require e.g. space → `%20`)
+    /// - neutralizes attribute-injection payloads (quote, `<`, `>`, `&` are
+    ///   encoded and cannot close the attribute or inject markup)
+    fn path_to_href( s : &str ) -> String
+    {
+      let mut out = String::with_capacity( s.len() );
+      for byte in s.bytes()
+      {
+        let c = byte as char;
+        let safe = matches!
+        (
+          c,
+          'A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '_' | '.' | '~' | '/'
+        );
+        if safe
+        {
+          out.push( c );
+        }
+        else if c == '\\'
+        {
+          // Normalize Windows path separators to URI forward slash.
+          out.push( '/' );
+        }
+        else
+        {
+          // Percent-encode as hex (uppercase per RFC 3986).
+          out.push_str( &format!( "%{byte:02X}" ) );
+        }
+      }
+      out
+    }
+
     /// Escapes the five XML predefined entities so that arbitrary character
     /// content can safely be inserted as PCDATA or attribute values.
     fn escape_xml_text( s : &str ) -> String
@@ -778,7 +815,7 @@ mod private
           }
           ImageSource::Path( path ) =>
           {
-            let href = Self::escape_xml_text( &path.display().to_string() );
+            let href = Self::path_to_href( &path.display().to_string() );
             let img_def = format!( "<symbol id=\"img_{}\"><image href=\"{}\"/></symbol>", img.id.inner(), href );
             self.content.push_asset_def( &img_def );
             self.resources.store_image( img.id, SvgImage { width : 0, height : 0 } );
@@ -2602,8 +2639,21 @@ mod private
       let d = defs( &svg );
       // Raw unescaped injection must not appear.
       assert!( !d.contains( r#"onload="alert(1)""# ), "event handler leaked: {d}" );
-      // Escaped form must appear.
-      assert!( d.contains( "&quot;" ), "expected escaped quote in href: {d}" );
+      // Percent-encoded form must appear (quote => %22).
+      assert!( d.contains( "%22" ), "expected percent-encoded quote in href: {d}" );
+    }
+
+    /// Verifies that path_to_href produces a valid URI reference:
+    /// spaces become %20 and Windows backslashes become forward slashes.
+    #[ test ]
+    fn image_path_produces_valid_uri_reference()
+    {
+      assert_eq!( SvgBackend::path_to_href( "images/tile set/floor.png" ), "images/tile%20set/floor.png" );
+      assert_eq!( SvgBackend::path_to_href( r"images\tiles\floor.png" ), "images/tiles/floor.png" );
+      assert_eq!( SvgBackend::path_to_href( "safe-name_1.2.png" ), "safe-name_1.2.png" );
+      // All URI-reserved and XML-unsafe characters are percent-encoded.
+      let e = SvgBackend::path_to_href( "a\"b<c>d&e#f?g%h" );
+      assert!( !e.contains( '"' ) && !e.contains( '<' ) && !e.contains( '>' ) && !e.contains( '&' ), "unsafe char leaked: {e}" );
     }
 
     /// Verifies that a sprite referencing an ImageSource::Path sheet

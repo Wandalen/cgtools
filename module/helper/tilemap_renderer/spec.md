@@ -143,7 +143,8 @@ pub trait Backend {
 - `ImageSource::Encoded` — MIME type auto-detected from magic bytes (PNG, JPEG, GIF, WebP, SVG; fallback PNG); dimensions extracted via `image::ImageReader::with_guessed_format` for any format the `image` crate recognizes
 - `ImageSource::Path` — dimensions unknown at load-assets time (no file I/O is performed). Sprites referencing a Path-sourced sheet are **skipped** with a stderr warning and a diagnostic HTML comment in the SVG output. Use `ImageSource::Bitmap` or `Encoded` when sprites require sheet dimensions
 - `Source::Path` geometries are silently skipped — no file loader; callers must supply `Source::Bytes`
-- XML-special characters in Char-stream text content and in `ImageSource::Path` href values are escaped (`&`, `<`, `>`, `"`, `'` → named entities) to prevent SVG injection / XSS via `<script>` or inline event handlers
+- XML-special characters in Char-stream text content are escaped (`&`, `<`, `>`, `"`, `'` → named entities) to prevent SVG injection / XSS via `<script>` or inline event handlers
+- `ImageSource::Path` href values are percent-encoded (RFC 3986): every byte outside the unreserved set and `/` becomes `%XX`, and Windows backslashes are normalized to forward slashes. This yields a valid URI reference for browsers and simultaneously neutralizes attribute-injection payloads (`"`, `<`, `>`, `&` are percent-encoded rather than entity-escaped)
 - Arc rotation values are emitted in **degrees** (per SVG 1.1 A-path spec); `ArcTo::rotation` is stored in radians and converted at emission time
 - `TriangleStrip` mesh emission alternates vertex order on odd-indexed triangles (OpenGL/D3D convention) so the SVG polygon sequence preserves consistent CCW winding
 
