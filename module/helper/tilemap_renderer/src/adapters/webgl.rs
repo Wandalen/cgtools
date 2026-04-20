@@ -1353,6 +1353,13 @@ mod private
       // Bump the generation counter so any in-flight `spawn_local` futures from
       // a previous cycle notice they are stale and bail out before overwriting
       // entries belonging to this new cycle.
+      //
+      // ORDER MATTERS: batches must be cleared BEFORE geometries / textures (which
+      // are cleared inside `load_images` / `load_geometries` below). A mesh batch's
+      // VAO holds attrib pointers into the geometry's position / uv / index buffers;
+      // if the geometry was dropped first, those buffers would be deleted while
+      // still referenced by live batch VAOs. Dropping batches first ensures each
+      // batch VAO is gone before any buffer it referenced is freed.
       {
         let mut res = self.resources.borrow_mut();
         res.generation = res.generation.wrapping_add( 1 );
