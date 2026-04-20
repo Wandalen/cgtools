@@ -1177,12 +1177,14 @@ mod private
 
         if has_path
         {
-          // Create empty VAO and register geometry immediately so the id is available.
-          // The spawn_local future will fetch data and populate the VAO later.
-          let vao = gl::vao::create( gl ).map_err( map_err )?;
+          // Register a placeholder geometry immediately so the id is available.
+          // The placeholder owns its own VAO (never shared): when `store_geometry`
+          // later replaces it, its `Drop` deletes *this* VAO, not the populated one.
+          // The spawn_local future creates a separate VAO for the populated entry.
+          let placeholder_vao = gl::vao::create( gl ).map_err( map_err )?;
           self.resources.borrow_mut().store_geometry( geom.id, GpuGeometry
           {
-            gl : gl.clone(), vao : vao.clone(), position_buffer : None, uv_buffer : None, index_buffer : None,
+            gl : gl.clone(), vao : placeholder_vao, position_buffer : None, uv_buffer : None, index_buffer : None,
             vertex_count : 0, index_count : None,
           });
 
@@ -1201,6 +1203,10 @@ mod private
             let positions = resolve_loadable( positions_source ).await;
             let uvs = match uvs_source { Some( s ) => Some( resolve_loadable( s ).await ), None => None };
             let indices = match indices_source { Some( s ) => Some( resolve_loadable( s ).await ), None => None };
+
+            // Create a fresh VAO for the populated entry — distinct from the placeholder's,
+            // so placeholder drop can't delete the GPU object this entry depends on.
+            let Ok( vao ) = gl::vao::create( gl ) else { return };
 
             gl.bind_vertex_array( Some( &vao ) );
 
