@@ -481,12 +481,25 @@ mod private
       }
     }
 
-    fn tint_filter_attr( &mut self, tint : &[ f32; 4 ] ) -> String
+    /// Returns the current filter id and bumps the counter.
+    /// Errors on `u32::MAX` overflow — would otherwise produce duplicate filter
+    /// IDs (wrapping) or panic (debug). The limit is effectively unreachable
+    /// (~4B filters in one `submit`), but a clean error beats silent invalid XML.
+    fn bump_filter_counter( counter : &mut u32 ) -> Result< u32, RenderError >
+    {
+      let id = *counter;
+      *counter = counter.checked_add( 1 ).ok_or_else( ||
+        RenderError::BackendError( "svg: filter_counter exhausted (u32::MAX filters in one frame)".to_string() )
+      )?;
+      Ok( id )
+    }
+
+    fn tint_filter_attr( &mut self, tint : &[ f32; 4 ] ) -> Result< String, RenderError >
     {
       Self::tint_filter_attr_split( tint, &mut self.content, &mut self.filter_counter )
     }
 
-    fn tint_filter_attr_split( tint : &[ f32; 4 ], content : &mut SvgContentManager, counter : &mut u32 ) -> String
+    fn tint_filter_attr_split( tint : &[ f32; 4 ], content : &mut SvgContentManager, counter : &mut u32 ) -> Result< String, RenderError >
     {
       let is_white =
         ( tint[ 0 ] - 1.0 ).abs() < f32::EPSILON
@@ -496,11 +509,10 @@ mod private
 
       if is_white
       {
-        return String::new();
+        return Ok( String::new() );
       }
 
-      let id = *counter;
-      *counter += 1;
+      let id = Self::bump_filter_counter( counter )?;
 
       let filter_def = format!
       (
@@ -509,7 +521,7 @@ mod private
       );
       content.push_frame_def( &filter_def );
 
-      format!( " filter=\"url(#tint_{id})\"" )
+      Ok( format!( " filter=\"url(#tint_{id})\"" ) )
     }
 
     /// Returns a fill string: `url(#mesh_tex_N)` for textured meshes, or the regular fill.
@@ -1099,14 +1111,15 @@ mod private
       self.content.push_body( &mesh );
     }
 
-    fn cmd_sprite( &mut self, s : &Sprite )
+    fn cmd_sprite( &mut self, s : &Sprite ) -> Result< (), RenderError >
     {
       let transform = self.transform_to_svg( &s.transform );
       let clip = Self::clip_attr( s.clip.as_ref() );
       let blend = Self::blend_to_svg( &s.blend );
-      let tint = self.tint_filter_attr( &s.tint );
+      let tint = self.tint_filter_attr( &s.tint )?;
       let sprite = format!( "<use href=\"#sprite_{}\"{}{}{} style=\"mix-blend-mode:{}\"/>", s.sprite.inner(), transform, clip, tint, blend );
       self.content.push_body( &sprite );
+      Ok( () )
     }
 
     fn cmd_create_sprite_batch( &mut self, cb : &CreateSpriteBatch )
@@ -1204,7 +1217,7 @@ mod private
       self.recording_batch = None;
     }
 
-    fn cmd_draw_batch( &mut self, db : &DrawBatch )
+    fn cmd_draw_batch( &mut self, db : &DrawBatch ) -> Result< (), RenderError >
     {
       let height = self.config.height;
 
@@ -1235,7 +1248,7 @@ mod private
           for inst in instances
           {
             let inst_transform = Self::transform_to_svg_local( &inst.transform );
-            let tint = Self::tint_filter_attr_split( &inst.tint, content, filter_counter );
+            let tint = Self::tint_filter_attr_split( &inst.tint, content, filter_counter )?;
             let sprite = format!
             (
               "<use href=\"#sprite_{}\"{}{} style=\"mix-blend-mode:{}\"/>",
@@ -1270,6 +1283,7 @@ mod private
         }
         None => {}
       }
+      Ok( () )
     }
 
     fn cmd_delete_batch( &mut self, db : &DeleteBatch )
@@ -1277,7 +1291,7 @@ mod private
       self.resources.batches.remove( &db.batch );
     }
 
-    fn cmd_begin_group( &mut self, bg : &BeginGroup )
+    fn cmd_begin_group( &mut self, bg : &BeginGroup ) -> Result< (), RenderError >
     {
       let transform = self.transform_to_svg( &bg.transform );
       let clip = Self::clip_attr( bg.clip.as_ref() );
@@ -1287,16 +1301,14 @@ mod private
         Some( Effect::Opacity( a ) ) => format!( " opacity=\"{a}\"" ),
         Some( Effect::Blur { radius } ) =>
         {
-          let fid = self.filter_counter;
-          self.filter_counter += 1;
+          let fid = Self::bump_filter_counter( &mut self.filter_counter )?;
           let def = format!( "<filter id=\"fx_{fid}\"><feGaussianBlur stdDeviation=\"{radius}\"/></filter>" );
           self.content.push_frame_def( &def );
           format!( " filter=\"url(#fx_{fid})\"" )
         }
         Some( Effect::DropShadow { dx, dy, blur, color } ) =>
         {
-          let fid = self.filter_counter;
-          self.filter_counter += 1;
+          let fid = Self::bump_filter_counter( &mut self.filter_counter )?;
           let c = Self::color_to_svg( color );
           let flood_opacity = Self::opacity_attr( "flood-opacity", color );
           // Negate dy: Y-up shadow direction → SVG Y-down
@@ -1310,8 +1322,7 @@ mod private
         }
         Some( Effect::ColorMatrix( values ) ) =>
         {
-          let fid = self.filter_counter;
-          self.filter_counter += 1;
+          let fid = Self::bump_filter_counter( &mut self.filter_counter )?;
           let vals : String = values.iter().map( std::string::ToString::to_string ).collect::< Vec< _ > >().join( " " );
           let def = format!( "<filter id=\"fx_{fid}\"><feColorMatrix type=\"matrix\" values=\"{vals}\"/></filter>" );
           self.content.push_frame_def( &def );
@@ -1323,6 +1334,7 @@ mod private
       let group = format!( "<g{transform}{clip}{effect_attr}>" );
       self.content.push_body( &group );
       self.group_depth += 1;
+      Ok( () )
     }
 
     fn cmd_end_group( &mut self )
@@ -1385,7 +1397,7 @@ mod private
           RenderCommand::Char( ch ) => self.cmd_char( ch ),
           RenderCommand::EndText( _ ) => self.cmd_end_text(),
           RenderCommand::Mesh( m ) => self.cmd_mesh( m ),
-          RenderCommand::Sprite( s ) => self.cmd_sprite( s ),
+          RenderCommand::Sprite( s ) => self.cmd_sprite( s )?,
           RenderCommand::CreateSpriteBatch( cb ) => self.cmd_create_sprite_batch( cb ),
           RenderCommand::CreateMeshBatch( cb ) => self.cmd_create_mesh_batch( cb ),
           RenderCommand::BindBatch( bb ) => self.cmd_bind_batch( bb ),
@@ -1397,9 +1409,9 @@ mod private
           RenderCommand::SetSpriteBatchParams( sp ) => self.cmd_set_sprite_batch_params( sp ),
           RenderCommand::SetMeshBatchParams( mp ) => self.cmd_set_mesh_batch_params( mp ),
           RenderCommand::UnbindBatch( _ ) => self.cmd_unbind_batch(),
-          RenderCommand::DrawBatch( db ) => self.cmd_draw_batch( db ),
+          RenderCommand::DrawBatch( db ) => self.cmd_draw_batch( db )?,
           RenderCommand::DeleteBatch( db ) => self.cmd_delete_batch( db ),
-          RenderCommand::BeginGroup( bg ) => self.cmd_begin_group( bg ),
+          RenderCommand::BeginGroup( bg ) => self.cmd_begin_group( bg )?,
           RenderCommand::EndGroup( _ ) => self.cmd_end_group(),
         }
       }
@@ -2011,6 +2023,42 @@ mod private
       assert!( b.contains( "filter=\"url(#tint_0)\"" ), "body: {b}" );
       assert!( d.contains( "<filter id=\"tint_0\">" ), "defs: {d}" );
       assert!( d.contains( "feColorMatrix" ), "defs: {d}" );
+    }
+
+    #[ test ]
+    fn two_tinted_sprites_get_distinct_filter_ids()
+    {
+      let mut svg = svg800x600();
+      let assets = Assets
+      {
+        images : vec![ ImageAsset
+        {
+          id : ResourceId::new( 0 ),
+          source : ImageSource::Bitmap { bytes : vec![ 0u8; 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
+          filter : SamplerFilter::Linear,
+        }],
+        sprites : vec![ SpriteAsset
+        {
+          id : ResourceId::new( 0 ),
+          sheet : ResourceId::new( 0 ),
+          region : [ 0.0, 0.0, 16.0, 16.0 ],
+        }],
+        ..empty_assets()
+      };
+      svg.load_assets( &assets ).unwrap();
+      let s = Sprite
+      {
+        transform : Transform::default(),
+        sprite : ResourceId::new( 0 ),
+        tint : [ 1.0, 0.0, 0.0, 1.0 ],
+        blend : BlendMode::Normal,
+        clip : None,
+      };
+      svg.submit( &[ RenderCommand::Sprite( s ), RenderCommand::Sprite( Sprite { tint : [ 0.0, 1.0, 0.0, 1.0 ], ..s } ) ]).unwrap();
+
+      let b = body( &svg );
+      assert!( b.contains( "url(#tint_0)" ), "body: {b}" );
+      assert!( b.contains( "url(#tint_1)" ), "body: {b}" );
     }
 
     // -- batch lifecycle --
