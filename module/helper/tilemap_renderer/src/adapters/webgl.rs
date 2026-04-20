@@ -1772,9 +1772,24 @@ mod private
     // onload/onerror handlers. Dropping the Closure here would invalidate the JS
     // function pointer and cause a use-after-free when the browser fires the event.
     // forget() intentionally leaks the closure so it remains alive for the callback.
-    // This is a known one-time-per-image leak (two closures × ~3 captures each).
-    // TODO: replace with Closure::once once the image loading is refactored, which
-    //       would allow the browser to drop the closure automatically after one call.
+    //
+    // Leak accounting: two closures leak per path-based image per `load_assets`
+    // call (on_load + on_error). Only one of them ever fires, and neither is ever
+    // freed — both persist for the lifetime of the WebGL context. The on_load
+    // closure additionally captures `Rc<RefCell<GpuResources>>`, so its leak
+    // keeps `GpuResources` alive even after the owning `WebGlBackend` is dropped;
+    // every GPU texture / VAO / buffer inside then survives until page close.
+    // on_error only captures a `String` path, so it leaks memory but does not
+    // extend `GpuResources` lifetime.
+    //
+    // For long-lived single-backend apps the drift is small (~KB per image per
+    // reload); for test harnesses or multi-instance hosts that create and drop
+    // `WebGlBackend` it becomes a real resource leak.
+    //
+    // qqq : replace forget() with Closure::once / once_into_js so the browser
+    //       frees each closure after its single invocation. Blocked on refactor
+    //       of the load_assets flow — the current shape expects stable Fn-style
+    //       handlers across retries, which Closure::once cannot provide.
     on_load.forget();
     on_error.forget();
 
