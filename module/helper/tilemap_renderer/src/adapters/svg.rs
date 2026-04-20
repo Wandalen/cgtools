@@ -837,7 +837,15 @@ mod private
             let ( w, h ) = Self::image_dimensions( bytes ).unwrap_or( ( 0, 0 ) );
             let mime = Self::detect_image_mime( bytes );
             let encoded = base64::prelude::BASE64_STANDARD.encode( bytes );
-            let img_def = format!( "<symbol id=\"img_{}\"><image href=\"data:{mime};base64,{encoded}\"/></symbol>", img.id.inner() );
+            // Per SVG 1.1 §11.5, `<image>` without width/height renders at 0×0.
+            // Emit viewBox + explicit dimensions so `<use>` references resolve.
+            // If dimensions could not be decoded (w == 0 || h == 0), fall through
+            // with zero dims: `load_sprites` emits a diagnostic for that case.
+            let img_def = format!
+            (
+              "<symbol id=\"img_{}\" viewBox=\"0 0 {} {}\"><image href=\"data:{mime};base64,{encoded}\" width=\"{}\" height=\"{}\"/></symbol>",
+              img.id.inner(), w, h, w, h
+            );
             self.content.push_asset_def( &img_def );
             self.resources.store_image( img.id, SvgImage { width : w, height : h } );
           }
