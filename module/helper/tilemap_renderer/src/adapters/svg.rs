@@ -1007,13 +1007,13 @@ mod private
 
             if topology == Topology::LineList && ( i + 1 ) % 2 == 0
             {
-              let _ = write!( def_content, "<polyline points=\"{}\" fill=\"none\" stroke=\"currentColor\"/>", pts.trim() );
+              let _ = write!( def_content, "<polyline points=\"{}\" fill=\"none\"/>", pts.trim() );
               pts.clear();
             }
           }
           if !pts.is_empty() && topology == Topology::LineStrip
           {
-            let _ = write!( def_content, "<polyline points=\"{}\" fill=\"none\" stroke=\"currentColor\"/>", pts.trim() );
+            let _ = write!( def_content, "<polyline points=\"{}\" fill=\"none\"/>", pts.trim() );
           }
         }
       }
@@ -1108,9 +1108,14 @@ mod private
       let clip = Self::clip_attr( m.clip.as_ref() );
       let blend = Self::blend_to_svg( &m.blend );
 
+      // Cache mesh <symbol> defs across calls with different colors, so the
+      // caller's color must cascade via the <use>. `stroke=fill` drives line
+      // meshes (polylines in the symbol inherit this stroke); fill drives
+      // polygon meshes. The 1px same-color stroke on polygons is a benign
+      // side effect.
       let mesh = format!
       (
-        "<use href=\"#{def_id}\" fill=\"{fill}\"{transform}{clip} style=\"mix-blend-mode:{blend}\"/>"
+        "<use href=\"#{def_id}\" fill=\"{fill}\" stroke=\"{fill}\"{transform}{clip} style=\"mix-blend-mode:{blend}\"/>"
       );
       self.content.push_body( &mesh );
     }
@@ -1278,7 +1283,7 @@ mod private
               let inst_transform = Self::transform_to_svg_local( &inst.transform );
               let mesh = format!
               (
-                "<use href=\"#{def_id}\" fill=\"{fill}\"{inst_transform} style=\"mix-blend-mode:{blend}\"/>"
+                "<use href=\"#{def_id}\" fill=\"{fill}\" stroke=\"{fill}\"{inst_transform} style=\"mix-blend-mode:{blend}\"/>"
               );
               content.push_body( &mesh );
             }
@@ -2629,6 +2634,19 @@ mod private
       let positions : &[ f32 ] = &[ 0.0, 0.0, 100.0, 0.0, 100.0, 100.0, 0.0, 100.0 ];
       let ( _b, d ) = mesh_svg( Topology::LineStrip, positions );
       assert_eq!( d.matches( "<polyline" ).count(), 1, "defs: {d}" );
+    }
+
+    /// Line meshes inherit stroke color from the <use>, not from
+    /// `currentColor` (which would resolve to black regardless of fill).
+    #[ test ]
+    fn mesh_line_stroke_cascades_from_use()
+    {
+      let positions : &[ f32 ] = &[ 0.0, 0.0, 100.0, 0.0 ];
+      let ( b, d ) = mesh_svg( Topology::LineList, positions );
+      // Polyline in the symbol does NOT set stroke (it would block cascade).
+      assert!( !d.contains( "stroke=\"currentColor\"" ), "defs: {d}" );
+      // <use> in the body carries stroke equal to fill so it cascades.
+      assert!( b.contains( "stroke=\"rgb(255,255,255)\"" ), "body: {b}" );
     }
 
     // -- resize --
