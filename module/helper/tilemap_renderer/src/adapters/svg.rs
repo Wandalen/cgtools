@@ -1311,11 +1311,26 @@ mod private
           let fid = Self::bump_filter_counter( &mut self.filter_counter )?;
           let c = Self::color_to_svg( color );
           let flood_opacity = Self::opacity_attr( "flood-opacity", color );
-          // Negate dy: Y-up shadow direction → SVG Y-down
+          // `feDropShadow` is an SVG 2 primitive. We emit an equivalent SVG 1.1
+          // filter chain so output validates against strict 1.1 tooling:
+          //   SourceAlpha -> Gaussian blur -> offset -> color via flood+composite(in)
+          //   -> merge under SourceGraphic.
+          // Negate dy: Y-up shadow direction → SVG Y-down.
           let def = format!
           (
-            "<filter id=\"fx_{}\"><feDropShadow dx=\"{}\" dy=\"{}\" stdDeviation=\"{}\" flood-color=\"{}\"{}/></filter>",
-            fid, dx, -dy, blur, c, flood_opacity
+            "<filter id=\"fx_{}\">\
+              <feGaussianBlur in=\"SourceAlpha\" stdDeviation=\"{}\" result=\"fx_{}_blur\"/>\
+              <feOffset in=\"fx_{}_blur\" dx=\"{}\" dy=\"{}\" result=\"fx_{}_offset\"/>\
+              <feFlood flood-color=\"{}\"{}/>\
+              <feComposite in2=\"fx_{}_offset\" operator=\"in\" result=\"fx_{}_shadow\"/>\
+              <feMerge><feMergeNode in=\"fx_{}_shadow\"/><feMergeNode in=\"SourceGraphic\"/></feMerge>\
+            </filter>",
+            fid,
+            blur, fid,
+            fid, dx, -dy, fid,
+            c, flood_opacity,
+            fid, fid,
+            fid,
           );
           self.content.push_frame_def( &def );
           format!( " filter=\"url(#fx_{fid})\"" )
@@ -2301,10 +2316,18 @@ mod private
       ]).unwrap();
 
       let d = defs( &svg );
-      assert!( d.contains( "feDropShadow" ), "defs: {d}" );
+      // SVG 1.1 composite drop shadow: blur -> offset -> flood+composite -> merge
+      assert!( !d.contains( "feDropShadow" ), "feDropShadow is SVG 2, should be lowered: {d}" );
+      assert!( d.contains( "feGaussianBlur" ), "defs: {d}" );
+      assert!( d.contains( "stdDeviation=\"4\"" ), "defs: {d}" );
+      assert!( d.contains( "<feOffset" ), "defs: {d}" );
       assert!( d.contains( "dx=\"2\"" ), "defs: {d}" );
       // dy should be negated: 3.0 → -3.0
       assert!( d.contains( "dy=\"-3\"" ), "defs: {d}" );
+      assert!( d.contains( "<feFlood" ), "defs: {d}" );
+      assert!( d.contains( "<feComposite" ), "defs: {d}" );
+      assert!( d.contains( "operator=\"in\"" ), "defs: {d}" );
+      assert!( d.contains( "<feMerge>" ), "defs: {d}" );
     }
 
     #[ test ]
