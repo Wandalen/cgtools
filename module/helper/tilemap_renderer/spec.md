@@ -229,7 +229,7 @@ pub trait Backend {
 - **NFR-8:** ❌ Compile-time layout assertions for GPU data structures (deferred to WebGL/wgpu adapter PRs)
 - **NFR-9:** ❌ Visual regression testing
 - **NFR-10:** ❌ CI with feature matrix
-- **NFR-11:** ✅ SVG output is injection-safe: all caller-controlled strings flowing into text PCDATA or XML attributes (Char stream, `ImageSource::Path`) are entity-escaped
+- **NFR-11:** ✅ SVG output is injection-safe for text and attribute contexts: all caller-controlled strings flowing into text PCDATA or XML attributes (Char stream, `ImageSource::Path`) are entity-escaped. **Scope limitation:** this guarantee does **not** cover the contents of embedded SVG images supplied via `ImageSource::Encoded` with SVG bytes — those are base64-embedded as-is inside a `data:image/svg+xml` `<image>`, and browsers may execute scripts/event handlers inside them in some rendering contexts. Callers supplying SVG image bytes are responsible for trusting or sanitizing their source.
 
 ### 10. Conformance Checklist
 
@@ -254,7 +254,7 @@ pub trait Backend {
 | ✅ | NFR-4 | Y-up coordinate system |
 | ✅ | NFR-5 | 100% doc coverage |
 | ✅ | NFR-7 | Test suite |
-| ✅ | NFR-11 | SVG injection-safe output (XML escape for text + attributes) |
+| ✅ | NFR-11 | SVG injection-safe output (text + attributes only; embedded SVG image bytes are caller-trusted) |
 | ❌ | NFR-1 | Performance benchmarks |
 | ❌ | NFR-9 | Visual regression tests |
 | ❌ | NFR-10 | CI feature matrix |

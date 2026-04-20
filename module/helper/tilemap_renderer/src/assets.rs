@@ -386,6 +386,16 @@ mod private
     /// extraction fails, any sprite referencing this sheet is skipped with a
     /// warning — see [`ImageSource::Path`] for the reporting behavior.
     ///
+    /// **Security — embedded SVG bytes:** bytes starting with `<svg`/`<?xml`
+    /// are emitted as `data:image/svg+xml;base64,...` inside an `<image>`
+    /// element. Browsers treat these as full SVG documents; `<script>` and
+    /// `javascript:` event handlers inside the supplied bytes may execute in
+    /// some rendering contexts (local file, `<foreignObject>`, certain iframe
+    /// embeddings). The backend's injection-safety guarantees cover text and
+    /// attribute escaping — they do **not** sanitize the contents of an
+    /// embedded SVG document. Callers passing SVG bytes are responsible for
+    /// trusting or sanitizing their source.
+    ///
     /// **WebGL backend:** this variant is silently skipped during `load_assets`.
     /// Use `Bitmap` (pre-decoded) or `Path` instead.
     Encoded( Vec< u8 > ),
