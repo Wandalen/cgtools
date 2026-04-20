@@ -223,6 +223,10 @@ mod private
     sprites : IntMap< ResourceId< asset::Sprite >, GpuSprite >,
     geometries : IntMap< ResourceId< asset::Geometry >, GpuGeometry >,
     batches : IntMap< ResourceId< Batch >, GpuBatch >,
+    /// Incremented on every `load_assets` call. In-flight `spawn_local` futures
+    /// from a previous cycle capture the old value and bail out on resolve,
+    /// so stale async data cannot overwrite freshly-loaded entries.
+    generation : u32,
   }
 
   impl GpuResources
@@ -235,6 +239,7 @@ mod private
         sprites : IntMap::default(),
         geometries : IntMap::default(),
         batches : IntMap::default(),
+        generation : 0,
       }
     }
 
@@ -1101,7 +1106,8 @@ mod private
             // the on_load callback after the image bytes are actually uploaded, so the
             // texture is guaranteed to be complete (esp. for mipmap modes, which leave
             // the texture incomplete until generate_mipmap runs).
-            let tex = upload_image_from_path( gl, path, img.id, &self.resources, img.filter, img.mipmap );
+            let generation = self.resources.borrow().generation;
+            let tex = upload_image_from_path( gl, path, img.id, &self.resources, img.filter, img.mipmap, generation );
             gl.bind_texture( gl::TEXTURE_2D, Some( &tex ) );
             ( tex, 0, 0 )
           }
@@ -1191,6 +1197,7 @@ mod private
           let gl_clone = gl.clone();
           let resources = Rc::clone( &self.resources );
           let id = geom.id;
+          let generation = self.resources.borrow().generation;
 
           let positions_source = source_to_loadable( &geom.positions );
           let uvs_source = geom.uvs.as_ref().map( source_to_loadable );
@@ -1203,6 +1210,10 @@ mod private
             let positions = resolve_loadable( positions_source ).await;
             let uvs = match uvs_source { Some( s ) => Some( resolve_loadable( s ).await ), None => None };
             let indices = match indices_source { Some( s ) => Some( resolve_loadable( s ).await ), None => None };
+
+            // Bail out if `load_assets` ran again while we were fetching — this future
+            // belongs to a previous cycle and must not overwrite fresh entries.
+            if resources.borrow().generation != generation { return; }
 
             // Create a fresh VAO for the populated entry — distinct from the placeholder's,
             // so placeholder drop can't delete the GPU object this entry depends on.
@@ -1338,7 +1349,15 @@ mod private
       // Reset all GPU state: textures, sprites, geometries, and batches.
       // GpuBatch::drop calls delete_vertex_array; ArrayBuffer::drop calls delete_buffer.
       // Safe to call multiple times (e.g. level transitions).
-      self.resources.borrow_mut().batches.clear();
+      //
+      // Bump the generation counter so any in-flight `spawn_local` futures from
+      // a previous cycle notice they are stale and bail out before overwriting
+      // entries belonging to this new cycle.
+      {
+        let mut res = self.resources.borrow_mut();
+        res.generation = res.generation.wrapping_add( 1 );
+        res.batches.clear();
+      }
       // Clear the stale recording batch ID: the referenced batch no longer exists,
       // so leaving it set would make cmd_bind_batch reject any new bind on the next frame.
       self.recording_batch = None;
@@ -1477,6 +1496,7 @@ mod private
     resources : &Rc< RefCell< GpuResources > >,
     filter : SamplerFilter,
     mipmap : MipmapMode,
+    generation : u32,
   ) -> web_sys::WebGlTexture
   {
     let document = web_sys::window().expect( "no window" ).document().expect( "no document" );
@@ -1497,6 +1517,15 @@ mod private
       let resources = Rc::clone( resources );
       move ||
       {
+        // Bail out if `load_assets` ran again before the image finished loading —
+        // this closure belongs to a previous cycle and must not touch the fresh
+        // texture that now occupies this id.
+        if resources.borrow().generation != generation
+        {
+          img.remove();
+          return;
+        }
+
         gl::texture::d2::upload( &gl, Some( &texture ), &img );
 
         // Bind and apply all sampler state now that level 0 is populated. Binding
