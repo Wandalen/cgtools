@@ -1088,19 +1088,62 @@ mod private
 
             gl.bind_texture( gl::TEXTURE_2D, Some( &tex ) );
 
-            let gl_fmt = match format
+            // Pick a WebGL2 format + upload bytes. Gray8 and GrayAlpha8 are
+            // expanded to RGBA8 on the CPU before upload because:
+            //
+            //   1. WebGL1's LUMINANCE / LUMINANCE_ALPHA replicated the stored
+            //      channels across RGB on sample. On WebGL2 they are legacy
+            //      unsized formats backed by R8 / RG8 and sample as
+            //      (L, 0, 0, 1) / (L, 0, 0, A) — grayscale images render red.
+            //
+            //   2. The obvious native GL ES 3.0 fix — R8 / RG8 + TEXTURE_SWIZZLE_*
+            //      — is explicitly *removed* from WebGL2 (spec §6.19):
+            //      TEXTURE_SWIZZLE_R/G/B/A are not valid `texParameteri` names
+            //      and produce INVALID_ENUM.
+            //
+            // CPU expansion costs 4× memory for Gray8 / 2× for GrayAlpha8 at
+            // upload time, which is acceptable for the grayscale images typical
+            // in tilemap content (masks, icons, height fields) and is portable
+            // across WebGL2 implementations without special GL state.
+            let ( gl_fmt, unpack_alignment, bytes_owned ) : ( u32, i32, Option< Vec< u8 > > ) = match format
             {
-              crate::assets::PixelFormat::Rgba8 => gl::RGBA,
-              crate::assets::PixelFormat::Rgb8 => gl::RGB,
-              crate::assets::PixelFormat::Gray8 => gl::LUMINANCE,
-              crate::assets::PixelFormat::GrayAlpha8 => gl::LUMINANCE_ALPHA,
+              crate::assets::PixelFormat::Rgba8 => ( gl::RGBA, 4, None ),
+              // RGB rows are 3*width bytes — may not be 4-aligned, so relax the
+              // UNPACK stride to match. Restored below.
+              crate::assets::PixelFormat::Rgb8  => ( gl::RGB, 1, None ),
+              crate::assets::PixelFormat::Gray8 =>
+              {
+                let mut rgba = Vec::with_capacity( bytes.len() * 4 );
+                for &l in bytes
+                {
+                  rgba.extend_from_slice( &[ l, l, l, 0xFF ] );
+                }
+                ( gl::RGBA, 4, Some( rgba ) )
+              }
+              crate::assets::PixelFormat::GrayAlpha8 =>
+              {
+                let mut rgba = Vec::with_capacity( bytes.len() * 2 );
+                for pair in bytes.chunks_exact( 2 )
+                {
+                  let ( l, a ) = ( pair[ 0 ], pair[ 1 ] );
+                  rgba.extend_from_slice( &[ l, l, l, a ] );
+                }
+                ( gl::RGBA, 4, Some( rgba ) )
+              }
             };
+
+            // Relax UNPACK_ALIGNMENT only when the per-row byte count may not be
+            // a multiple of 4 (RGB8 at odd widths). Default 4 is correct for
+            // RGBA8 and for the CPU-expanded grayscale paths above.
+            if unpack_alignment != 4 { gl.pixel_storei( gl::UNPACK_ALIGNMENT, unpack_alignment ); }
+
+            let upload_bytes : &[ u8 ] = bytes_owned.as_deref().unwrap_or( bytes );
 
             gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
             (
               gl::TEXTURE_2D, 0, gl_fmt as i32,
               *width as i32, *height as i32, 0,
-              gl_fmt, gl::UNSIGNED_BYTE, Some( bytes ),
+              gl_fmt, gl::UNSIGNED_BYTE, Some( upload_bytes ),
             )
             .map_err( | e | RenderError::BackendError
             (
@@ -1110,6 +1153,9 @@ mod private
                 img.id, e
               )
             ))?;
+
+            // Restore default so later uploads aren't surprised by residual state.
+            if unpack_alignment != 4 { gl.pixel_storei( gl::UNPACK_ALIGNMENT, 4 ); }
 
             ( tex, *width, *height )
           }
