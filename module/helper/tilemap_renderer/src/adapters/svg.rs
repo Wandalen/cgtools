@@ -744,7 +744,11 @@ mod private
           GradientKind::Radial { .. } => "radialGradient",
         };
 
-        let mut grad_def = format!( "<{} id=\"grad_{}\"", grad_type, grad.id.inner() );
+        // `gradientUnits="userSpaceOnUse"` makes coordinates world-space (pixels),
+        // matching the crate's Transform / Path API. SVG's default of
+        // `objectBoundingBox` would reinterpret them as 0..1 fractions of the
+        // element's bounding box and collapse typical pixel-space inputs.
+        let mut grad_def = format!( "<{} id=\"grad_{}\" gradientUnits=\"userSpaceOnUse\"", grad_type, grad.id.inner() );
 
         match &grad.kind
         {

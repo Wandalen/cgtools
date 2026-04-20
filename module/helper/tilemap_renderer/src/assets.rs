@@ -242,24 +242,28 @@ mod private
 
   /// Shape of a gradient (linear or radial).
   #[ derive( Debug, Clone, Copy ) ]
+  /// Gradient geometry.
+  ///
+  /// All coordinates are in **world / user space** (the same coordinate system
+  /// as [`Transform`] and path commands), not 0..1 bounding-box fractions.
   pub enum GradientKind
   {
     /// Linear gradient between two points.
     Linear
     {
-      /// Start point [x, y].
+      /// Start point [x, y] in world/user space.
       start : [ f32; 2 ],
-      /// End point [x, y].
+      /// End point [x, y] in world/user space.
       end : [ f32; 2 ],
     },
     /// Radial gradient from center outward.
     Radial
     {
-      /// Center point [x, y].
+      /// Center point [x, y] in world/user space.
       center : [ f32; 2 ],
-      /// Outer radius.
+      /// Outer radius in world/user space.
       radius : f32,
-      /// Focal point, can equal center.
+      /// Focal point in world/user space, can equal center.
       focal : [ f32; 2 ],
     },
   }
