@@ -781,6 +781,24 @@ mod private
     }
 
     // ---- Command handlers ----
+    //
+    // Contract for batch-targeting commands (cmd_add_*_instance, cmd_set_*_instance,
+    // cmd_set_*_batch_params, cmd_remove_instance, cmd_draw_batch):
+    //
+    // - `recording_batch == None` (no active BindBatch, or called after UnbindBatch):
+    //   silently return Ok(()). Mid-frame state transitions can legitimately leave
+    //   this slot empty; making every add/set/remove a hard error would require the
+    //   caller to mirror the bind-state machine.
+    //
+    // - Referenced id not found in the resource map (batch / sprite / geometry):
+    //   emit a console.warn and return Ok(()). Async asset loading can legitimately
+    //   leave an id unresolved for a short window, and we prefer a visible
+    //   diagnostic over a hard error that would tear down the whole submit().
+    //
+    // - Referenced batch exists but has the WRONG variant (Sprite-targeting command
+    //   hits a Mesh batch or vice versa): return Err. Batch variant is assigned at
+    //   CreateSpriteBatch / CreateMeshBatch time — synchronous and never racy — so a
+    //   mismatch is a genuine caller bug that should surface immediately.
 
     fn cmd_clear( &self, c : &Clear )
     {
@@ -890,16 +908,36 @@ mod private
     {
       let Some( batch_id ) = self.recording_batch else { return Ok( () ) };
       let mut res = self.resources.borrow_mut();
-      let Some( region ) = res.sprite( si.sprite ).map( | s | s.region ) else { return Ok( () ) };
+      let Some( region ) = res.sprite( si.sprite ).map( | s | s.region )
+      else
+      {
+        web_sys::console::warn_1
+        (
+          &format!( "AddSpriteInstance: sprite {:?} not found (dropped)", si.sprite ).into()
+        );
+        return Ok( () );
+      };
       let data = SpriteInstanceData
       {
         transform : si.transform.to_mat3(),
         region,
         tint : si.tint,
       };
-      if let Some( GpuBatch::Sprite { instances, .. } ) = res.batch_mut( batch_id )
+      match res.batch_mut( batch_id )
       {
-        instances.push( &data ).map_err( | e | RenderError::BackendError( e.to_string() ) )?;
+        Some( GpuBatch::Sprite { instances, .. } ) =>
+          instances.push( &data ).map_err( | e | RenderError::BackendError( e.to_string() ) )?,
+        Some( GpuBatch::Mesh { .. } ) => return Err( RenderError::BackendError
+        (
+          format!( "AddSpriteInstance: batch {:?} is a Mesh batch; sprite instances require a Sprite batch", batch_id )
+        )),
+        None =>
+        {
+          web_sys::console::warn_1
+          (
+            &format!( "AddSpriteInstance: batch {:?} not found (dropped)", batch_id ).into()
+          );
+        }
       }
       Ok( () )
     }
@@ -909,9 +947,21 @@ mod private
       let Some( batch_id ) = self.recording_batch else { return Ok( () ) };
       let data = MeshInstanceData { transform : mi.transform.to_mat3() };
       let mut res = self.resources.borrow_mut();
-      if let Some( GpuBatch::Mesh { instances, .. } ) = res.batch_mut( batch_id )
+      match res.batch_mut( batch_id )
       {
-        instances.push( &data ).map_err( | e | RenderError::BackendError( e.to_string() ) )?;
+        Some( GpuBatch::Mesh { instances, .. } ) =>
+          instances.push( &data ).map_err( | e | RenderError::BackendError( e.to_string() ) )?,
+        Some( GpuBatch::Sprite { .. } ) => return Err( RenderError::BackendError
+        (
+          format!( "AddMeshInstance: batch {:?} is a Sprite batch; mesh instances require a Mesh batch", batch_id )
+        )),
+        None =>
+        {
+          web_sys::console::warn_1
+          (
+            &format!( "AddMeshInstance: batch {:?} not found (dropped)", batch_id ).into()
+          );
+        }
       }
       Ok( () )
     }
@@ -920,23 +970,45 @@ mod private
     {
       let Some( batch_id ) = self.recording_batch else { return Ok( () ) };
       let mut res = self.resources.borrow_mut();
-      let Some( region ) = res.sprite( si.sprite ).map( | s | s.region ) else { return Ok( () ) };
+      let Some( region ) = res.sprite( si.sprite ).map( | s | s.region )
+      else
+      {
+        web_sys::console::warn_1
+        (
+          &format!( "SetSpriteInstance: sprite {:?} not found (dropped)", si.sprite ).into()
+        );
+        return Ok( () );
+      };
       let data = SpriteInstanceData
       {
         transform : si.transform.to_mat3(),
         region,
         tint : si.tint,
       };
-      if let Some( GpuBatch::Sprite { instances, .. } ) = res.batch_mut( batch_id )
+      match res.batch_mut( batch_id )
       {
-        if si.index >= instances.len()
+        Some( GpuBatch::Sprite { instances, .. } ) =>
         {
-          return Err( RenderError::BackendError
-          (
-            format!( "SetSpriteInstance: index {} out of bounds (len {})", si.index, instances.len() )
-          ));
+          if si.index >= instances.len()
+          {
+            return Err( RenderError::BackendError
+            (
+              format!( "SetSpriteInstance: index {} out of bounds (len {})", si.index, instances.len() )
+            ));
+          }
+          instances.set( si.index, &data );
         }
-        instances.set( si.index, &data );
+        Some( GpuBatch::Mesh { .. } ) => return Err( RenderError::BackendError
+        (
+          format!( "SetSpriteInstance: batch {:?} is a Mesh batch; sprite instances require a Sprite batch", batch_id )
+        )),
+        None =>
+        {
+          web_sys::console::warn_1
+          (
+            &format!( "SetSpriteInstance: batch {:?} not found (dropped)", batch_id ).into()
+          );
+        }
       }
       Ok( () )
     }
@@ -946,16 +1018,30 @@ mod private
       let Some( batch_id ) = self.recording_batch else { return Ok( () ) };
       let data = MeshInstanceData { transform : mi.transform.to_mat3() };
       let mut res = self.resources.borrow_mut();
-      if let Some( GpuBatch::Mesh { instances, .. } ) = res.batch_mut( batch_id )
+      match res.batch_mut( batch_id )
       {
-        if mi.index >= instances.len()
+        Some( GpuBatch::Mesh { instances, .. } ) =>
         {
-          return Err( RenderError::BackendError
-          (
-            format!( "SetMeshInstance: index {} out of bounds (len {})", mi.index, instances.len() )
-          ));
+          if mi.index >= instances.len()
+          {
+            return Err( RenderError::BackendError
+            (
+              format!( "SetMeshInstance: index {} out of bounds (len {})", mi.index, instances.len() )
+            ));
+          }
+          instances.set( mi.index, &data );
         }
-        instances.set( mi.index, &data );
+        Some( GpuBatch::Sprite { .. } ) => return Err( RenderError::BackendError
+        (
+          format!( "SetMeshInstance: batch {:?} is a Sprite batch; mesh instances require a Mesh batch", batch_id )
+        )),
+        None =>
+        {
+          web_sys::console::warn_1
+          (
+            &format!( "SetMeshInstance: batch {:?} not found (dropped)", batch_id ).into()
+          );
+        }
       }
       Ok( () )
     }
@@ -964,47 +1050,80 @@ mod private
     {
       let Some( batch_id ) = self.recording_batch else { return Ok( () ) };
       let mut res = self.resources.borrow_mut();
-      if let Some( batch ) = res.batch_mut( batch_id )
+      let Some( batch ) = res.batch_mut( batch_id )
+      else
       {
-        let len = match batch
+        web_sys::console::warn_1
+        (
+          &format!( "RemoveInstance: batch {:?} not found (dropped)", batch_id ).into()
+        );
+        return Ok( () );
+      };
+      // RemoveInstance is polymorphic — it doesn't care whether the batch is
+      // Sprite or Mesh, only that the index is in-bounds — so no type-mismatch
+      // branch here.
+      let len = match batch
+      {
+        GpuBatch::Sprite { instances, .. } => instances.len(),
+        GpuBatch::Mesh { instances, .. } => instances.len(),
+      };
+      if ri.index >= len
+      {
+        return Err( RenderError::BackendError
+        (
+          format!( "RemoveInstance: index {} out of bounds (len {})", ri.index, len )
+        ));
+      }
+      match batch
+      {
+        GpuBatch::Sprite { instances, .. } => { instances.swap_remove( ri.index ); },
+        GpuBatch::Mesh { instances, .. } => { instances.swap_remove( ri.index ); },
+      }
+      Ok( () )
+    }
+
+    fn cmd_set_sprite_batch_params( &mut self, cmd : &SetSpriteBatchParams ) -> Result< (), RenderError >
+    {
+      let Some( batch_id ) = self.recording_batch else { return Ok( () ) };
+      let mut res = self.resources.borrow_mut();
+      match res.batch_mut( batch_id )
+      {
+        Some( GpuBatch::Sprite { params, .. } ) => { *params = cmd.params; }
+        Some( GpuBatch::Mesh { .. } ) => return Err( RenderError::BackendError
+        (
+          format!( "SetSpriteBatchParams: batch {:?} is a Mesh batch", batch_id )
+        )),
+        None =>
         {
-          GpuBatch::Sprite { instances, .. } => instances.len(),
-          GpuBatch::Mesh { instances, .. } => instances.len(),
-        };
-        if ri.index >= len
-        {
-          return Err( RenderError::BackendError
+          web_sys::console::warn_1
           (
-            format!( "RemoveInstance: index {} out of bounds (len {})", ri.index, len )
-          ));
-        }
-        match batch
-        {
-          GpuBatch::Sprite { instances, .. } => { instances.swap_remove( ri.index ); },
-          GpuBatch::Mesh { instances, .. } => { instances.swap_remove( ri.index ); },
+            &format!( "SetSpriteBatchParams: batch {:?} not found (dropped)", batch_id ).into()
+          );
         }
       }
       Ok( () )
     }
 
-    fn cmd_set_sprite_batch_params( &mut self, cmd : &SetSpriteBatchParams )
+    fn cmd_set_mesh_batch_params( &mut self, cmd : &SetMeshBatchParams ) -> Result< (), RenderError >
     {
-      let Some( batch_id ) = self.recording_batch else { return };
+      let Some( batch_id ) = self.recording_batch else { return Ok( () ) };
       let mut res = self.resources.borrow_mut();
-      if let Some( GpuBatch::Sprite { params, .. } ) = res.batch_mut( batch_id )
+      match res.batch_mut( batch_id )
       {
-        *params = cmd.params;
+        Some( GpuBatch::Mesh { params, .. } ) => { *params = cmd.params; }
+        Some( GpuBatch::Sprite { .. } ) => return Err( RenderError::BackendError
+        (
+          format!( "SetMeshBatchParams: batch {:?} is a Sprite batch", batch_id )
+        )),
+        None =>
+        {
+          web_sys::console::warn_1
+          (
+            &format!( "SetMeshBatchParams: batch {:?} not found (dropped)", batch_id ).into()
+          );
+        }
       }
-    }
-
-    fn cmd_set_mesh_batch_params( &mut self, cmd : &SetMeshBatchParams )
-    {
-      let Some( batch_id ) = self.recording_batch else { return };
-      let mut res = self.resources.borrow_mut();
-      if let Some( GpuBatch::Mesh { params, .. } ) = res.batch_mut( batch_id )
-      {
-        *params = cmd.params;
-      }
+      Ok( () )
     }
 
     fn cmd_unbind_batch( &mut self )
@@ -1042,18 +1161,24 @@ mod private
         ));
       }
       let res = self.resources.borrow();
-      if let Some( gpu_batch ) = res.batch( db.batch )
+      let Some( gpu_batch ) = res.batch( db.batch )
+      else
       {
-        self.apply_blend( match gpu_batch
-        {
-          GpuBatch::Sprite { params, .. } => &params.blend,
-          GpuBatch::Mesh { params, .. } => &params.blend,
-        });
-        match gpu_batch
-        {
-          GpuBatch::Sprite { .. } => self.sprite.draw_batch( &self.gl, gpu_batch, &res, viewport ),
-          GpuBatch::Mesh { .. } => self.mesh.draw_batch( &self.gl, gpu_batch, &res, viewport ),
-        }
+        web_sys::console::warn_1
+        (
+          &format!( "DrawBatch: batch {:?} not found (dropped)", db.batch ).into()
+        );
+        return Ok( () );
+      };
+      self.apply_blend( match gpu_batch
+      {
+        GpuBatch::Sprite { params, .. } => &params.blend,
+        GpuBatch::Mesh { params, .. } => &params.blend,
+      });
+      match gpu_batch
+      {
+        GpuBatch::Sprite { .. } => self.sprite.draw_batch( &self.gl, gpu_batch, &res, viewport ),
+        GpuBatch::Mesh { .. } => self.mesh.draw_batch( &self.gl, gpu_batch, &res, viewport ),
       }
       Ok( () )
     }
@@ -1463,8 +1588,8 @@ mod private
           RenderCommand::SetSpriteInstance( si ) => self.cmd_set_sprite_instance( si )?,
           RenderCommand::SetMeshInstance( mi ) => self.cmd_set_mesh_instance( mi )?,
           RenderCommand::RemoveInstance( ri ) => self.cmd_remove_instance( ri )?,
-          RenderCommand::SetSpriteBatchParams( sp ) => self.cmd_set_sprite_batch_params( sp ),
-          RenderCommand::SetMeshBatchParams( mp ) => self.cmd_set_mesh_batch_params( mp ),
+          RenderCommand::SetSpriteBatchParams( sp ) => self.cmd_set_sprite_batch_params( sp )?,
+          RenderCommand::SetMeshBatchParams( mp ) => self.cmd_set_mesh_batch_params( mp )?,
           RenderCommand::UnbindBatch( _ ) => self.cmd_unbind_batch(),
           RenderCommand::DrawBatch( db ) => self.cmd_draw_batch( db, &viewport )?,
           RenderCommand::DeleteBatch( db ) => self.cmd_delete_batch( db ),
