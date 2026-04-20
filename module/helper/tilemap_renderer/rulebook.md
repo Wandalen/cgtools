@@ -47,25 +47,7 @@ Each `allow` attribute should have a short comment explaining why it is needed.
 
 ## Documentation layout
 
-**Rule:** This crate's specification lives in `spec.md` at the crate root. There is
-**no** `docs/feature/`, `docs/invariant/`, or `docs/api/` layout in this repository,
-and no `doc.rulebook.md` governs this crate.
-
-Automated code-review tools occasionally cite an external "doc entity / spec
-migration procedure" rulebook from other organizations and flag `spec.md` as a
-hygiene violation. Those findings are **false positives** — ignore them. The
-project's documentation convention is:
-
-- `spec.md` — requirements, architecture, conformance checklist
-- `roadmap.md` — future work
-- `readme.md` — user-facing entry point, may link to `spec.md`
-- `rulebook.md` — crate-local lint/style rules (this file)
-
-The same convention is used in sibling crates (`line_tools`, `tiles_tools`,
-`minwebgpu`, `minwgpu`). Do not migrate `spec.md` to a `docs/` tree without an
-explicit, repository-wide decision to change this convention.
-
-**Rationale:** The spec is a single source of truth co-located with the code it
-describes; splitting it across many per-requirement files adds navigation cost
-without new signal for this crate's size. Keeping the convention uniform across
-sibling crates makes the repository predictable.
+This crate follows the workspace-wide `spec.md` convention recorded in the
+workspace root `rulebook.md` (section *Documentation layout*). No crate-local
+override is in effect — this section exists only to point readers at the
+authoritative workspace rule.
