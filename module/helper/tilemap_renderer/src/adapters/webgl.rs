@@ -551,6 +551,11 @@ mod private
 
       gl.bind_vertex_array( Some( vao ) );
       gl.draw_arrays_instanced( gl::TRIANGLE_STRIP, 0, 4, instances.len() as i32 );
+      // Unbind the batch VAO so subsequent GL state setup (e.g. a later
+      // vertex_attrib_pointer call during batch construction) cannot
+      // accidentally mutate this batch's attribute layout. Matches the
+      // single-draw path which also leaves VAO 0 bound.
+      gl.bind_vertex_array( None );
     }
   }
 
@@ -651,6 +656,11 @@ mod private
       {
         gl.draw_arrays_instanced( topology, 0, geom.vertex_count as i32, instances.len() as i32 );
       }
+      // Unbind the batch VAO so subsequent GL state setup (e.g. a later
+      // vertex_attrib_pointer call during batch construction) cannot
+      // accidentally mutate this batch's attribute layout. Matches the
+      // single-draw path which also leaves VAO 0 bound.
+      gl.bind_vertex_array( None );
     }
   }
 
