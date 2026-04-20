@@ -190,7 +190,7 @@ pub trait Backend {
 #### FR-D: SVG Backend
 
 - **FR-D1:** ✅ Generates valid SVG 1.1 documents
-- **FR-D2:** ✅ Supports all rendering primitives (path, text, sprite, mesh, batch, group)
+- **FR-D2:** 🟡 Supports all rendering primitives (path, text, sprite, mesh, batch, group). **Known gap:** font assets (`Assets.fonts`) are ignored — `load_assets` does not emit `@font-face`/`<font-face>` definitions and `<text>` elements carry no `font-family`, so all text renders in the SVG viewer's default font. Text *rendering* works; font *selection* is not implemented.
 - **FR-D3:** ✅ Converts RGBA colors to SVG `rgb()` format
 - **FR-D4:** ✅ Supports all stroke styles (caps, joins, dash)
 - **FR-D5:** ✅ Supports all text anchoring modes
@@ -247,7 +247,7 @@ pub trait Backend {
 | ✅ | FR-C1 | Backend trait |
 | ✅ | FR-C2 | Capabilities |
 | ✅ | FR-C3 | RenderError |
-| ✅ | FR-D1–D9 | SVG backend — fully implemented |
+| 🟡 | FR-D1–D9 | SVG backend — implemented; font assets ignored (see FR-D2 note) |
 | ⏳ | FR-E1–E4 | WebGL backend — deferred to adapter-webgl PR |
 | ⏳ | FR-F1–F3 | Terminal backend — deferred to adapter-terminal PR |
 | ✅ | NFR-2 | Zero core graphics deps |

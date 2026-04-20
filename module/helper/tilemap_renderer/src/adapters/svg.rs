@@ -126,6 +126,15 @@ mod private
   /// svg.submit( &commands )?;
   /// let Output::String( doc ) = svg.output()? else { unreachable!() };
   /// ```
+  ///
+  /// # Known limitations
+  ///
+  /// - **Font assets are currently ignored.** `Assets.fonts` is accepted by
+  ///   `load_assets` but no `@font-face`/`<font-face>` definitions are emitted,
+  ///   and `<text>` elements carry no `font-family`. All text renders in the
+  ///   SVG viewer's default font regardless of the fonts supplied.
+  ///   `Capabilities::text` stays `true` because text *rendering* works —
+  ///   only font *selection* is unimplemented.
   pub struct SvgBackend
   {
     config : RenderConfig,
@@ -1457,6 +1466,9 @@ mod private
 
     fn capabilities( &self ) -> Capabilities
     {
+      // Note: `text: true` reflects that text rendering works, but font assets
+      // (`Assets.fonts`) are currently ignored — all text renders in the SVG
+      // viewer's default font. See `SvgBackend` type docs, NFR-12 in spec.md.
       Capabilities
       {
         paths : true,
