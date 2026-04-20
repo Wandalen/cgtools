@@ -1327,8 +1327,13 @@ mod private
 
     fn cmd_end_group( &mut self )
     {
-      self.content.push_body( "</g>" );
-      self.group_depth = self.group_depth.saturating_sub( 1 );
+      // Guard against unmatched EndGroup: emitting `</g>` at depth 0
+      // would produce malformed XML that some parsers reject.
+      if self.group_depth > 0
+      {
+        self.content.push_body( "</g>" );
+        self.group_depth -= 1;
+      }
     }
   }
 
@@ -2315,6 +2320,17 @@ mod private
       let b = body( &svg );
       assert_eq!( b.matches( "<g" ).count(), 2 );
       assert_eq!( b.matches( "</g>" ).count(), 2 );
+    }
+
+    #[ test ]
+    fn unmatched_end_group_does_not_emit_closing_tag()
+    {
+      let mut svg = svg800x600();
+      svg.load_assets( &empty_assets() ).unwrap();
+      svg.submit( &[ RenderCommand::EndGroup( EndGroup ) ]).unwrap();
+
+      let b = body( &svg );
+      assert_eq!( b.matches( "</g>" ).count(), 0, "unmatched EndGroup should not emit </g>: {b}" );
     }
 
     // -- geometry mesh --
