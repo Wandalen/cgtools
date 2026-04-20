@@ -766,8 +766,8 @@ mod private
       {
         let pat_def = format!
         (
-          "<pattern id=\"pat_{}\" width=\"{}\" height=\"{}\" patternUnits=\"userSpaceOnUse\"><use href=\"#img_{}\"/></pattern>",
-          pat.id.inner(), pat.width, pat.height, pat.content.inner(),
+          "<pattern id=\"pat_{}\" width=\"{}\" height=\"{}\" patternUnits=\"userSpaceOnUse\"><use href=\"#img_{}\" width=\"{}\" height=\"{}\"/></pattern>",
+          pat.id.inner(), pat.width, pat.height, pat.content.inner(), pat.width, pat.height,
         );
         self.content.push_asset_def( &pat_def );
       }
