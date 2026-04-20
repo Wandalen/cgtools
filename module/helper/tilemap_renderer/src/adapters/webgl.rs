@@ -749,18 +749,34 @@ mod private
       {
         // Color: src + dst. Alpha: standard over.
         BlendMode::Add => gl.blend_func_separate( gl::SRC_ALPHA, gl::ONE, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
-        // Approximation: equals src*dst only when src_alpha=1.
+        // Approximation: diverges from Photoshop Multiply when src_alpha < 1 — the
+        // DST_COLOR factor multiplies dst by raw src.rgb (not src.rgb*src_a), so
+        // partially transparent sources darken the destination more than the
+        // reference formula prescribes. Exact only when src_alpha = 1.
         // TODO(FBO): replace with Photoshop-accurate formula — see BlendMode::Multiply doc.
         // Color: src*dst + dst*(1-src_a). Alpha: standard over.
         BlendMode::Multiply => gl.blend_func_separate( gl::DST_COLOR, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
+        // Same class of approximation as Multiply: the ONE / ONE_MINUS_SRC_COLOR
+        // factors use raw src.rgb, so a partially transparent source still
+        // contributes its full (unmultiplied) color. Exact only when src_alpha = 1
+        // or when the source is premultiplied.
         // Color: src + dst*(1-src). Alpha: standard over.
         BlendMode::Screen => gl.blend_func_separate( gl::ONE, gl::ONE_MINUS_SRC_COLOR, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
         // TODO: true Overlay (Multiply where dst<0.5, Screen where dst>0.5) cannot be
         // expressed as a single blend_func call — it requires a custom shader or a
         // separate FBO read-back pass, neither of which is implemented yet.
-        // Overlay falls back to Normal so rendering is at least visible.
+        // Overlay falls back to Normal so rendering is at least visible; the
+        // console.warn below makes the silent substitution observable.
+        BlendMode::Overlay =>
+        {
+          web_sys::console::warn_1
+          (
+            &"BlendMode::Overlay is not supported in WebGL2 without an FBO pass; falling back to Normal".into()
+          );
+          gl.blend_func_separate( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA );
+        }
         // Color: src*src_a + dst*(1-src_a). Alpha: standard over.
-        BlendMode::Normal | BlendMode::Overlay => gl.blend_func_separate( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
+        BlendMode::Normal => gl.blend_func_separate( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
       }
     }
 
