@@ -1640,9 +1640,15 @@ mod private
           RenderCommand::DrawBatch( db ) => self.cmd_draw_batch( db, &viewport )?,
           RenderCommand::DeleteBatch( db ) => self.cmd_delete_batch( db ),
 
-          // Path — skip (TODO)
-          RenderCommand::BeginPath( _ )
-          | RenderCommand::MoveTo( _ )
+          // Path — skip (TODO). Warn on the opener only (not MoveTo/LineTo/etc.)
+          // so a 1000-segment path produces one message, not 1000. `capabilities()`
+          // already advertises `paths: false`; this is a DX nudge for callers who
+          // submitted anyway.
+          RenderCommand::BeginPath( _ ) => web_sys::console::warn_1
+          (
+            &"WebGlBackend: path commands are not implemented; BeginPath..EndPath will be ignored (see capabilities().paths)".into()
+          ),
+          RenderCommand::MoveTo( _ )
           | RenderCommand::LineTo( _ )
           | RenderCommand::QuadTo( _ )
           | RenderCommand::CubicTo( _ )
@@ -1650,14 +1656,20 @@ mod private
           | RenderCommand::ClosePath( _ )
           | RenderCommand::EndPath( _ ) => {}
 
-          // Text — skip (TODO)
-          RenderCommand::BeginText( _ )
-          | RenderCommand::Char( _ )
+          // Text — skip (TODO). See note above re: opener-only warning.
+          RenderCommand::BeginText( _ ) => web_sys::console::warn_1
+          (
+            &"WebGlBackend: text commands are not implemented; BeginText..EndText will be ignored (see capabilities().text)".into()
+          ),
+          RenderCommand::Char( _ )
           | RenderCommand::EndText( _ ) => {}
 
-          // Grouping — skip (TODO)
-          RenderCommand::BeginGroup( _ )
-          | RenderCommand::EndGroup( _ ) => {}
+          // Grouping — skip (TODO).
+          RenderCommand::BeginGroup( _ ) => web_sys::console::warn_1
+          (
+            &"WebGlBackend: group commands are not implemented; BeginGroup..EndGroup will be ignored (see capabilities().effects)".into()
+          ),
+          RenderCommand::EndGroup( _ ) => {}
         }
       }
 
