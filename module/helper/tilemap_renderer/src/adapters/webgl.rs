@@ -618,6 +618,10 @@ mod private
       {
         gl.draw_arrays( topology, 0, geom.vertex_count as i32 );
       }
+      // Unbind the geometry VAO so a subsequent `vertex_attrib_pointer` call
+      // (e.g. during `setup_mesh_batch_vao` for another batch) cannot silently
+      // mutate this geometry's attribute layout.
+      gl.bind_vertex_array( None );
     }
 
     /// Draw an instanced mesh batch. VAO is already configured via `setup_mesh_batch_vao`.
@@ -658,8 +662,9 @@ mod private
       }
       // Unbind the batch VAO so subsequent GL state setup (e.g. a later
       // vertex_attrib_pointer call during batch construction) cannot
-      // accidentally mutate this batch's attribute layout. Matches the
-      // single-draw path which also leaves VAO 0 bound.
+      // accidentally mutate this batch's attribute layout. The single-draw
+      // path (`MeshRenderer::draw`) likewise unbinds on exit, so both mesh
+      // draw paths leave VAO 0 bound.
       gl.bind_vertex_array( None );
     }
   }
