@@ -484,7 +484,7 @@ mod private
     // Legacy PNG-only IHDR reader. Production code uses `image_dimensions` for
     // all formats; retained for its unit tests which exercise the hand-rolled
     // path as a sanity check on the `image` crate's behavior for PNG inputs.
-    #[ allow( dead_code ) ]
+    #[ cfg( test ) ]
     fn png_dimensions( bytes : &[ u8 ] ) -> Option< ( u32, u32 ) >
     {
       // PNG layout: 8-byte signature + 4-byte chunk length + 4-byte "IHDR" + 4-byte width + 4-byte height
