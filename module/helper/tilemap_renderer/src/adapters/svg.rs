@@ -2019,6 +2019,84 @@ mod private
       assert!( !d.contains( "y=\"-" ), "defs: {d}" );
     }
 
+    // -- gradients --
+
+    #[ test ]
+    fn linear_gradient_emits_userspace_coords_and_stops()
+    {
+      let mut svg = svg800x600();
+      let assets = Assets
+      {
+        gradients : vec![ GradientAsset
+        {
+          id : ResourceId::new( 0 ),
+          kind : GradientKind::Linear { start : [ 10.0, 20.0 ], end : [ 100.0, 200.0 ] },
+          stops : vec!
+          [
+            GradientStop { offset : 0.0, color : [ 1.0, 0.0, 0.0, 1.0 ] },
+            GradientStop { offset : 1.0, color : [ 0.0, 0.0, 1.0, 0.5 ] },
+          ],
+        }],
+        ..empty_assets()
+      };
+      svg.load_assets( &assets ).unwrap();
+
+      let d = defs( &svg );
+      assert!( d.contains( "<linearGradient id=\"grad_0\"" ), "defs: {d}" );
+      // Regression guard for the userSpaceOnUse fix (commit ab4699e3) —
+      // without this, SVG reinterprets pixel coords as 0..1 bbox fractions.
+      assert!( d.contains( "gradientUnits=\"userSpaceOnUse\"" ), "defs: {d}" );
+      assert!
+      (
+        d.contains( "x1=\"10\"" ) && d.contains( "y1=\"20\"" )
+          && d.contains( "x2=\"100\"" ) && d.contains( "y2=\"200\"" ),
+        "defs: {d}"
+      );
+      assert!( d.contains( "offset=\"0\"" ) && d.contains( "offset=\"1\"" ), "defs: {d}" );
+      assert!( d.contains( "stop-color=\"rgb(255,0,0)\"" ), "defs: {d}" );
+      assert!( d.contains( "stop-color=\"rgb(0,0,255)\"" ), "defs: {d}" );
+      // Alpha != 1 should emit stop-opacity on that stop.
+      assert!( d.contains( "stop-opacity=" ), "defs: {d}" );
+      assert!( d.contains( "</linearGradient>" ), "defs: {d}" );
+    }
+
+    #[ test ]
+    fn radial_gradient_emits_center_radius_focal()
+    {
+      let mut svg = svg800x600();
+      let assets = Assets
+      {
+        gradients : vec![ GradientAsset
+        {
+          id : ResourceId::new( 7 ),
+          kind : GradientKind::Radial
+          {
+            center : [ 50.0, 60.0 ],
+            radius : 40.0,
+            focal  : [ 55.0, 65.0 ],
+          },
+          stops : vec!
+          [
+            GradientStop { offset : 0.0, color : [ 1.0, 1.0, 1.0, 1.0 ] },
+            GradientStop { offset : 1.0, color : [ 0.0, 0.0, 0.0, 1.0 ] },
+          ],
+        }],
+        ..empty_assets()
+      };
+      svg.load_assets( &assets ).unwrap();
+
+      let d = defs( &svg );
+      assert!( d.contains( "<radialGradient id=\"grad_7\"" ), "defs: {d}" );
+      assert!( d.contains( "gradientUnits=\"userSpaceOnUse\"" ), "defs: {d}" );
+      assert!
+      (
+        d.contains( "cx=\"50\"" ) && d.contains( "cy=\"60\"" ) && d.contains( "r=\"40\"" )
+          && d.contains( "fx=\"55\"" ) && d.contains( "fy=\"65\"" ),
+        "defs: {d}"
+      );
+      assert!( d.contains( "</radialGradient>" ), "defs: {d}" );
+    }
+
     // -- sprite tint --
 
     #[ test ]
