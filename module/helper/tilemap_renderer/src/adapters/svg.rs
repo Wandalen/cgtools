@@ -2097,6 +2097,41 @@ mod private
       assert!( d.contains( "</radialGradient>" ), "defs: {d}" );
     }
 
+    // -- patterns --
+
+    #[ test ]
+    fn pattern_emits_userspace_tile_size_and_image_ref()
+    {
+      let mut svg = svg800x600();
+      let assets = Assets
+      {
+        images : vec![ ImageAsset
+        {
+          id : ResourceId::new( 3 ),
+          source : ImageSource::Bitmap { bytes : vec![ 0u8; 32 * 32 * 4 ], width : 32, height : 32, format : PixelFormat::Rgba8 },
+          filter : SamplerFilter::Linear,
+        }],
+        patterns : vec![ PatternAsset
+        {
+          id : ResourceId::new( 9 ),
+          content : ResourceId::new( 3 ),
+          width : 32.0,
+          height : 16.0,
+        }],
+        ..empty_assets()
+      };
+      svg.load_assets( &assets ).unwrap();
+
+      let d = defs( &svg );
+      assert!( d.contains( "<pattern id=\"pat_9\"" ), "defs: {d}" );
+      assert!( d.contains( "width=\"32\"" ) && d.contains( "height=\"16\"" ), "defs: {d}" );
+      // userSpaceOnUse keeps the tile at its declared pixel size rather than
+      // scaling to a 0..1 fraction of the filled element's bbox.
+      assert!( d.contains( "patternUnits=\"userSpaceOnUse\"" ), "defs: {d}" );
+      assert!( d.contains( "href=\"#img_3\"" ), "defs: {d}" );
+      assert!( d.contains( "</pattern>" ), "defs: {d}" );
+    }
+
     // -- sprite tint --
 
     #[ test ]
