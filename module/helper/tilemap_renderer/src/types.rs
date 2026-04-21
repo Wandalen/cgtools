@@ -354,7 +354,7 @@ mod private
     /// This equals pure `src * dst` only when `src_alpha = 1`; for semi-transparent
     /// sprites the multiply effect weakens with alpha, which is a known limitation.
     ///
-    /// **TODO (requires FBO):** Replace with the Photoshop-accurate formula
+    /// **qqq (requires FBO):** Replace with the Photoshop-accurate formula
     /// `dst * (src * src_alpha + (1 − src_alpha))`. This cannot be expressed as a
     /// single `blend_func` call with straight alpha — it needs a custom shader that
     /// reads the destination color from a bound FBO texture and computes the blend

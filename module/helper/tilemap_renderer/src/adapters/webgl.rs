@@ -796,7 +796,7 @@ mod private
         // DST_COLOR factor multiplies dst by raw src.rgb (not src.rgb*src_a), so
         // partially transparent sources darken the destination more than the
         // reference formula prescribes. Exact only when src_alpha = 1.
-        // TODO(FBO): replace with Photoshop-accurate formula — see BlendMode::Multiply doc.
+        // qqq(FBO): replace with Photoshop-accurate formula — see BlendMode::Multiply doc.
         // Color: src*dst + dst*(1-src_a). Alpha: standard over.
         BlendMode::Multiply => gl.blend_func_separate( gl::DST_COLOR, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
         // Same class of approximation as Multiply: the ONE / ONE_MINUS_SRC_COLOR
@@ -805,7 +805,7 @@ mod private
         // or when the source is premultiplied.
         // Color: src + dst*(1-src). Alpha: standard over.
         BlendMode::Screen => gl.blend_func_separate( gl::ONE, gl::ONE_MINUS_SRC_COLOR, gl::ONE, gl::ONE_MINUS_SRC_ALPHA ),
-        // TODO: true Overlay (Multiply where dst<0.5, Screen where dst>0.5) cannot be
+        // qqq: true Overlay (Multiply where dst<0.5, Screen where dst>0.5) cannot be
         // expressed as a single blend_func call — it requires a custom shader or a
         // separate FBO read-back pass, neither of which is implemented yet.
         // Overlay falls back to Normal so rendering is at least visible; the
@@ -1330,7 +1330,7 @@ mod private
 
             ( tex, *width, *height )
           }
-          crate::assets::ImageSource::Encoded( _ ) => { continue; } // TODO: decode
+          crate::assets::ImageSource::Encoded( _ ) => { continue; } // qqq: decode
           crate::assets::ImageSource::Path( path ) =>
           {
             let path = path.as_path().to_str()
@@ -1604,7 +1604,7 @@ mod private
       self.load_images( &assets.images )?;
       self.load_sprites( &assets.sprites );
       self.load_geometries( &assets.geometries )?;
-      // TODO: gradients, patterns, clip masks, fonts
+      // qqq: gradients, patterns, clip masks, fonts
       Ok( () )
     }
 
@@ -1640,7 +1640,7 @@ mod private
           RenderCommand::DrawBatch( db ) => self.cmd_draw_batch( db, &viewport )?,
           RenderCommand::DeleteBatch( db ) => self.cmd_delete_batch( db ),
 
-          // Path — skip (TODO). Warn on the opener only (not MoveTo/LineTo/etc.)
+          // Path — skip (qqq). Warn on the opener only (not MoveTo/LineTo/etc.)
           // so a 1000-segment path produces one message, not 1000. `capabilities()`
           // already advertises `paths: false`; this is a DX nudge for callers who
           // submitted anyway.
@@ -1656,7 +1656,7 @@ mod private
           | RenderCommand::ClosePath( _ )
           | RenderCommand::EndPath( _ ) => {}
 
-          // Text — skip (TODO). See note above re: opener-only warning.
+          // Text — skip (qqq). See note above re: opener-only warning.
           RenderCommand::BeginText( _ ) => web_sys::console::warn_1
           (
             &"WebGlBackend: text commands are not implemented; BeginText..EndText will be ignored (see capabilities().text)".into()
@@ -1664,7 +1664,7 @@ mod private
           RenderCommand::Char( _ )
           | RenderCommand::EndText( _ ) => {}
 
-          // Grouping — skip (TODO).
+          // Grouping — skip (qqq).
           RenderCommand::BeginGroup( _ ) => web_sys::console::warn_1
           (
             &"WebGlBackend: group commands are not implemented; BeginGroup..EndGroup will be ignored (see capabilities().effects)".into()
@@ -1692,15 +1692,15 @@ mod private
     {
       Capabilities
       {
-        paths : false,       // TODO: tessellation / GPU curves
-        text : false,        // TODO: glyph atlas / SDF fonts
+        paths : false,       // qqq: tessellation / GPU curves
+        text : false,        // qqq: glyph atlas / SDF fonts
         meshes : true,
         sprites : true,
         batches : true,
-        gradients : false,   // TODO: not yet loaded or rendered
-        patterns : false,    // TODO: not yet loaded or rendered
-        clip_masks : false,  // TODO: not yet loaded or rendered
-        effects : false,     // TODO: requires FBO post-processing
+        gradients : false,   // qqq: not yet loaded or rendered
+        patterns : false,    // qqq: not yet loaded or rendered
+        clip_masks : false,  // qqq: not yet loaded or rendered
+        effects : false,     // qqq: requires FBO post-processing
         // `blend_modes` means "all variants correct"; Overlay silently falls back
         // to Normal in `apply_blend` (needs FBO / custom shader), so this is false.
         // Callers needing per-mode info should check `supported_blend_modes`.
