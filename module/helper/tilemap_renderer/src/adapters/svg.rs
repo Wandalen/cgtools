@@ -1440,6 +1440,13 @@ mod private
       self.filter_counter = 0;
       self.group_depth = 0;
       self.recording_batch = None;
+      // An unmatched BeginPath / BeginText in the previous frame would
+      // otherwise leak path / text accumulators into this one and the
+      // next EndPath / EndText would flush stale content into the body.
+      self.path_style = None;
+      self.path_data.clear();
+      self.text_style = None;
+      self.text_buf.clear();
 
       for cmd in commands
       {
