@@ -848,10 +848,24 @@ mod private
       }
     }
 
+    /// CSS `image-rendering` fragment for a `SamplerFilter`. Empty string
+    /// for `Linear` (browser default is smooth interpolation); pixelated
+    /// style for `Nearest`. Prefix is a leading space so it slots into the
+    /// `<image ...>` attribute list directly.
+    fn filter_to_svg( filter : SamplerFilter ) -> &'static str
+    {
+      match filter
+      {
+        SamplerFilter::Linear => "",
+        SamplerFilter::Nearest => " style=\"image-rendering:pixelated\"",
+      }
+    }
+
     fn load_images( &mut self, images : &[ ImageAsset ] )
     {
       for img in images
       {
+        let filter = Self::filter_to_svg( img.filter );
         match &img.source
         {
           ImageSource::Bitmap { bytes, width, height, format } =>
@@ -861,8 +875,8 @@ mod private
               let encoded = base64::prelude::BASE64_STANDARD.encode( &png );
               let img_def = format!
               (
-                "<symbol id=\"img_{}\" viewBox=\"0 0 {} {}\"><image href=\"data:image/png;base64,{}\" width=\"{}\" height=\"{}\"/></symbol>",
-                img.id.inner(), width, height, encoded, width, height
+                "<symbol id=\"img_{}\" viewBox=\"0 0 {} {}\"><image href=\"data:image/png;base64,{}\" width=\"{}\" height=\"{}\"{}/></symbol>",
+                img.id.inner(), width, height, encoded, width, height, filter
               );
               self.content.push_asset_def( &img_def );
               self.resources.store_image( img.id, SvgImage { width : *width, height : *height } );
@@ -882,8 +896,8 @@ mod private
             // with zero dims: `load_sprites` emits a diagnostic for that case.
             let img_def = format!
             (
-              "<symbol id=\"img_{}\" viewBox=\"0 0 {} {}\"><image href=\"data:{mime};base64,{encoded}\" width=\"{}\" height=\"{}\"/></symbol>",
-              img.id.inner(), w, h, w, h
+              "<symbol id=\"img_{}\" viewBox=\"0 0 {} {}\"><image href=\"data:{mime};base64,{encoded}\" width=\"{}\" height=\"{}\"{}/></symbol>",
+              img.id.inner(), w, h, w, h, filter
             );
             self.content.push_asset_def( &img_def );
             self.resources.store_image( img.id, SvgImage { width : w, height : h } );
@@ -891,7 +905,7 @@ mod private
           ImageSource::Path( path ) =>
           {
             let href = Self::path_to_href( &path.display().to_string() );
-            let img_def = format!( "<symbol id=\"img_{}\"><image href=\"{}\"/></symbol>", img.id.inner(), href );
+            let img_def = format!( "<symbol id=\"img_{}\"><image href=\"{}\"{}/></symbol>", img.id.inner(), href, filter );
             self.content.push_asset_def( &img_def );
             self.resources.store_image( img.id, SvgImage { width : 0, height : 0 } );
           }
