@@ -1993,6 +1993,44 @@ mod private
       assert!( b.contains( "stroke-linejoin=\"round\"" ), "body: {b}" );
     }
 
+    #[ test ]
+    fn path_emits_quad_cubic_arc()
+    {
+      let mut svg = svg800x600();
+      svg.load_assets( &empty_assets() ).unwrap();
+      svg.submit( &[
+        RenderCommand::BeginPath( BeginPath
+        {
+          transform : Transform::default(),
+          fill : FillRef::Solid( [ 0.0, 0.0, 0.0, 1.0 ] ),
+          stroke_color : [ 0.0, 0.0, 0.0, 1.0 ],
+          stroke_width : 1.0,
+          stroke_cap : LineCap::Butt,
+          stroke_join : LineJoin::Miter,
+          stroke_dash : DashStyle::default(),
+          blend : BlendMode::Normal,
+          clip : None,
+        }),
+        RenderCommand::MoveTo( MoveTo( 0.0, 0.0 ) ),
+        RenderCommand::QuadTo( QuadTo { cx : 10.0, cy : 20.0, x : 30.0, y : 40.0 } ),
+        RenderCommand::CubicTo( CubicTo { c1x : 50.0, c1y : 60.0, c2x : 70.0, c2y : 80.0, x : 90.0, y : 100.0 } ),
+        // rotation is radians in the command; SVG A takes degrees —
+        // FRAC_PI_2 (~1.5708 rad) should serialize as 90.
+        RenderCommand::ArcTo( ArcTo
+        {
+          rx : 5.0, ry : 6.0, rotation : core::f32::consts::FRAC_PI_2,
+          large_arc : true, sweep : false, x : 110.0, y : 120.0,
+        }),
+        RenderCommand::EndPath( EndPath ),
+      ]).unwrap();
+
+      let b = body( &svg );
+      assert!( b.contains( "Q 10 20 30 40" ), "body: {b}" );
+      assert!( b.contains( "C 50 60 70 80 90 100" ), "body: {b}" );
+      // Arc flags serialize as 1 / 0 integers.
+      assert!( b.contains( "A 5 6 90 1 0 110 120" ), "body: {b}" );
+    }
+
     // -- image loading viewBox --
 
     #[ test ]
