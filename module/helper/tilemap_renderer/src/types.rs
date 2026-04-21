@@ -155,13 +155,17 @@ mod private
     pub skew : [ f32; 2 ],
     /// Draw order. Higher values are drawn on top. Default 0.0.
     ///
-    /// qqq: depth sorting is not yet implemented in any backend. Currently
-    /// draw order is determined solely by command submission order: the
-    /// WebGL vertex shaders hardcode `gl_Position.z = 0.0` and never enable
-    /// `DEPTH_TEST`; the SVG backend emits elements in submission order
-    /// without sorting. Callers must pre-sort their commands if they need
-    /// ordering to match `depth`. Future work: honor this field via a depth
-    /// buffer (GPU) and a stable sort (SVG).
+    /// WebGL: honored via the depth buffer (`LEQUAL`, higher depth → on top).
+    /// Valid range is `[-1, 1]`; values outside get clipped. Equal-depth
+    /// draws fall back to submission order. **Only reliable for fully opaque
+    /// draws** — alpha-blended content whose farther pixels arrive after
+    /// nearer ones will z-fail instead of blending, so the caller must
+    /// submit translucent draws back-to-front (same convention as a
+    /// painter's algorithm renderer).
+    ///
+    /// qqq: SVG and terminal backends still emit in submission order and
+    /// ignore this field. Callers targeting those backends must pre-sort.
+    /// Future work: stable sort by `depth` in the SVG adapter.
     pub depth : f32,
   }
 

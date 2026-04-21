@@ -6,6 +6,7 @@ layout( location = 1 ) in vec2 a_uv; // optional, zero if no UVs
 
 uniform mat3 u_transform;
 uniform vec2 u_viewport;
+uniform float u_depth;       // NDC z; higher Transform::depth → drawn on top
 
 out vec2 v_uv;
 
@@ -17,5 +18,6 @@ void main()
 
   vec2 ndc = ( world.xy / u_viewport ) * 2.0 - 1.0;
 
-  gl_Position = vec4( ndc, 0.0, 1.0 );
+  // Negate so higher user depth → smaller clip-space z → wins LEQUAL depth test.
+  gl_Position = vec4( ndc, -u_depth, 1.0 );
 }

@@ -9,9 +9,11 @@ layout( location = 1 ) in vec2 a_uv;
 layout( location = 2 ) in vec3 i_transform_0;
 layout( location = 3 ) in vec3 i_transform_1;
 layout( location = 4 ) in vec3 i_transform_2;
+layout( location = 5 ) in float i_depth;
 
 uniform vec2 u_viewport;
 uniform mat3 u_parent; // batch parent transform
+uniform float u_parent_depth;
 
 out vec2 v_uv;
 
@@ -25,5 +27,6 @@ void main()
 
   vec2 ndc = ( world.xy / u_viewport ) * 2.0 - 1.0;
 
-  gl_Position = vec4( ndc, 0.0, 1.0 );
+  // Negate so higher user depth → smaller clip-space z → wins LEQUAL depth test.
+  gl_Position = vec4( ndc, -( u_parent_depth + i_depth ), 1.0 );
 }

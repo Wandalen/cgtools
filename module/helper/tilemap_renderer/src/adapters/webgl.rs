@@ -343,7 +343,7 @@ mod private
 
   // ---- Instance data for batches ----
 
-  /// Per-instance data for sprite batches (17 floats = 68 bytes).
+  /// Per-instance data for sprite batches (18 floats = 72 bytes).
   #[ repr( C ) ]
   #[ derive( Clone, Copy, bytemuck::Zeroable, bytemuck::Pod ) ]
   struct SpriteInstanceData
@@ -351,6 +351,7 @@ mod private
     transform : [ f32; 9 ],
     region : [ f32; 4 ],
     tint : [ f32; 4 ],
+    depth : f32,
   }
 
   impl gl::AsBytes for SpriteInstanceData
@@ -359,12 +360,13 @@ mod private
     fn len( &self ) -> usize { 1 }
   }
 
-  /// Per-instance data for mesh batches (9 floats = 36 bytes).
+  /// Per-instance data for mesh batches (10 floats = 40 bytes).
   #[ repr( C ) ]
   #[ derive( Clone, Copy, bytemuck::Zeroable, bytemuck::Pod ) ]
   struct MeshInstanceData
   {
     transform : [ f32; 9 ],
+    depth : f32,
   }
 
   impl gl::AsBytes for MeshInstanceData
@@ -374,8 +376,8 @@ mod private
   }
 
   // Compile-time layout assertions — GPU attrib setup depends on these exact sizes.
-  const _ : () = assert!( core::mem::size_of::< SpriteInstanceData >() == 68 ); // 17 floats × 4
-  const _ : () = assert!( core::mem::size_of::< MeshInstanceData >() == 36 ); // 9 floats × 4
+  const _ : () = assert!( core::mem::size_of::< SpriteInstanceData >() == 72 ); // 18 floats × 4
+  const _ : () = assert!( core::mem::size_of::< MeshInstanceData >() == 40 ); // 10 floats × 4
   const _ : () = assert!( core::mem::align_of::< SpriteInstanceData >() == 4 ); // f32 alignment
   const _ : () = assert!( core::mem::align_of::< MeshInstanceData >() == 4 );
 
@@ -433,11 +435,15 @@ mod private
     gl.enable_vertex_attrib_array( 4 );
     gl.vertex_attrib_pointer_with_i32( 4, 4, gl::FLOAT, false, stride, 52 );
     gl.vertex_attrib_divisor( 4, 1 );
+    // depth: float at location 5, offset 68
+    gl.enable_vertex_attrib_array( 5 );
+    gl.vertex_attrib_pointer_with_i32( 5, 1, gl::FLOAT, false, stride, 68 );
+    gl.vertex_attrib_divisor( 5, 1 );
 
     gl.bind_vertex_array( None );
   }
 
-  /// Sets up a mesh batch VAO with geometry attribs (0–1) and instance attribs (2–4).
+  /// Sets up a mesh batch VAO with geometry attribs (0–1) and instance attribs (2–5).
   fn setup_mesh_batch_vao
   (
     gl : &gl::GL,
@@ -480,6 +486,10 @@ mod private
       gl.vertex_attrib_pointer_with_i32( loc, 3, gl::FLOAT, false, stride, ( i * 12 ) as i32 );
       gl.vertex_attrib_divisor( loc, 1 );
     }
+    // depth: float at location 5, offset 36
+    gl.enable_vertex_attrib_array( 5 );
+    gl.vertex_attrib_pointer_with_i32( 5, 1, gl::FLOAT, false, stride, 36 );
+    gl.vertex_attrib_divisor( 5, 1 );
 
     gl.bind_vertex_array( None );
   }
@@ -516,7 +526,7 @@ mod private
     }
 
     /// Draw a single sprite as a textured quad (triangle strip, 4 vertices from `gl_VertexID`).
-    fn draw( &self, gl : &gl::GL, transform : &[ f32; 9 ], uv_rect : &[ f32; 4 ], sprite_size : &[ f32; 2 ], tint : &[ f32; 4 ], viewport : &[ f32; 2 ] )
+    fn draw( &self, gl : &gl::GL, transform : &[ f32; 9 ], uv_rect : &[ f32; 4 ], sprite_size : &[ f32; 2 ], tint : &[ f32; 4 ], viewport : &[ f32; 2 ], depth : f32 )
     {
       // Unbind any VAO to prevent stale attribute state from interfering
       gl.bind_vertex_array( None );
@@ -526,6 +536,7 @@ mod private
       self.program.uniform_upload( "u_sprite_size", sprite_size );
       self.program.uniform_upload( "u_tint", tint );
       self.program.uniform_upload( "u_viewport", viewport );
+      self.program.uniform_upload( "u_depth", &depth );
       gl.draw_arrays( gl::TRIANGLE_STRIP, 0, 4 );
     }
 
@@ -548,6 +559,7 @@ mod private
       self.batch_program.uniform_upload( "u_tex_size", &[ tw as f32, th as f32 ] );
       let parent_mat = params.transform.to_mat3();
       self.batch_program.uniform_matrix_upload( "u_parent", &parent_mat, true );
+      self.batch_program.uniform_upload( "u_parent_depth", &params.transform.depth );
 
       gl.bind_vertex_array( Some( vao ) );
       gl.draw_arrays_instanced( gl::TRIANGLE_STRIP, 0, 4, instances.len() as i32 );
@@ -599,7 +611,8 @@ mod private
       color : &[ f32; 4 ],
       topology : u32,
       viewport : &[ f32; 2 ],
-      use_texture : bool
+      use_texture : bool,
+      depth : f32,
     )
     {
       self.program.activate();
@@ -607,6 +620,7 @@ mod private
       self.program.uniform_upload( "u_color", color );
       self.program.uniform_upload( "u_viewport", viewport );
       self.program.uniform_upload( "u_use_texture", &i32::from( use_texture ) );
+      self.program.uniform_upload( "u_depth", &depth );
 
       gl.bind_vertex_array( Some( &geom.vao ) );
 
@@ -649,6 +663,7 @@ mod private
       self.batch_program.uniform_upload( "u_use_texture", &i32::from( use_texture ) );
       let parent_mat = params.transform.to_mat3();
       self.batch_program.uniform_matrix_upload( "u_parent", &parent_mat, true );
+      self.batch_program.uniform_upload( "u_parent_depth", &params.transform.depth );
 
       gl.bind_vertex_array( Some( vao ) );
 
@@ -704,6 +719,13 @@ mod private
     /// not by `RenderConfig::antialias`. That field is only meaningful for the SVG adapter.
     /// Pass the desired AA setting when creating the WebGL2 context before calling this.
     ///
+    /// **Depth buffer note:** `DEPTH_TEST` is enabled here so `Transform::depth` takes
+    /// effect (higher → drawn on top). A depth attachment is required; `getContext`
+    /// provides one by default (`depth: true` is the WebGL default). If the context
+    /// was created with `depth: false`, depth testing is silently a no-op. Depth is
+    /// only reliable for fully opaque draws — see `Transform::depth` for the
+    /// transparency caveat.
+    ///
     /// # Errors
     /// Returns error if shader compilation fails.
     pub fn new( config : RenderConfig, gl : gl::GL ) -> Result< Self, RenderError >
@@ -722,6 +744,12 @@ mod private
       // alpha when the canvas is composited against a transparent page or read via
       // readPixels.
       gl.blend_func_separate( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA );
+
+      // LEQUAL (not LESS) so equal-depth draws fall back to submission order rather
+      // than rejecting the second one — keeps the default (all depth = 0) case
+      // rendering identically to the pre-depth implementation.
+      gl.enable( gl::DEPTH_TEST );
+      gl.depth_func( gl::LEQUAL );
 
       // Query the actual hardware limit; fall back to the WebGL2 guaranteed minimum.
       // get_parameter returns a JsValue; as_f64() is the idiomatic way to extract it.
@@ -819,7 +847,8 @@ mod private
     {
       let [ r, g, b, a ] = c.color;
       self.gl.clear_color( r, g, b, a );
-      self.gl.clear( gl::COLOR_BUFFER_BIT );
+      self.gl.clear_depth( 1.0 );
+      self.gl.clear( gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT );
     }
 
     fn cmd_mesh( &self, m : &Mesh, viewport : &[ f32; 2 ] )
@@ -839,7 +868,7 @@ mod private
           use_texture = true;
         }
 
-        self.mesh.draw( &self.gl, geom, &mat, &color, topology_to_gl( &m.topology ), viewport, use_texture );
+        self.mesh.draw( &self.gl, geom, &mat, &color, topology_to_gl( &m.topology ), viewport, use_texture, m.transform.depth );
       }
     }
 
@@ -864,7 +893,7 @@ mod private
 
       let mat = s.transform.to_mat3();
       self.apply_blend( &s.blend );
-      self.sprite.draw( &self.gl, &mat, &uv_rect, &sprite_size, &s.tint, viewport );
+      self.sprite.draw( &self.gl, &mat, &uv_rect, &sprite_size, &s.tint, viewport, s.transform.depth );
     }
 
     fn cmd_create_sprite_batch( &mut self, cmd : &CreateSpriteBatch ) -> Result< (), RenderError >
@@ -937,6 +966,7 @@ mod private
         transform : si.transform.to_mat3(),
         region,
         tint : si.tint,
+        depth : si.transform.depth,
       };
       match res.batch_mut( batch_id )
       {
@@ -960,7 +990,7 @@ mod private
     fn cmd_add_mesh_instance( &mut self, mi : &AddMeshInstance ) -> Result< (), RenderError >
     {
       let Some( batch_id ) = self.recording_batch else { return Ok( () ) };
-      let data = MeshInstanceData { transform : mi.transform.to_mat3() };
+      let data = MeshInstanceData { transform : mi.transform.to_mat3(), depth : mi.transform.depth };
       let mut res = self.resources.borrow_mut();
       match res.batch_mut( batch_id )
       {
@@ -999,6 +1029,7 @@ mod private
         transform : si.transform.to_mat3(),
         region,
         tint : si.tint,
+        depth : si.transform.depth,
       };
       match res.batch_mut( batch_id )
       {
@@ -1031,7 +1062,7 @@ mod private
     fn cmd_set_mesh_instance( &mut self, mi : &SetMeshInstance ) -> Result< (), RenderError >
     {
       let Some( batch_id ) = self.recording_batch else { return Ok( () ) };
-      let data = MeshInstanceData { transform : mi.transform.to_mat3() };
+      let data = MeshInstanceData { transform : mi.transform.to_mat3(), depth : mi.transform.depth };
       let mut res = self.resources.borrow_mut();
       match res.batch_mut( batch_id )
       {
