@@ -2132,6 +2132,40 @@ mod private
       assert!( d.contains( "</pattern>" ), "defs: {d}" );
     }
 
+    // -- clip masks --
+
+    #[ test ]
+    fn clip_mask_emits_clipPath_with_path_segments()
+    {
+      let mut svg = svg800x600();
+      let assets = Assets
+      {
+        clip_masks : vec![ ClipMaskAsset
+        {
+          id : ResourceId::new( 4 ),
+          segments : vec!
+          [
+            PathSegment::MoveTo( 10.0, 20.0 ),
+            PathSegment::LineTo( 30.0, 20.0 ),
+            PathSegment::LineTo( 30.0, 40.0 ),
+            PathSegment::Close,
+          ],
+        }],
+        ..empty_assets()
+      };
+      svg.load_assets( &assets ).unwrap();
+
+      let d = defs( &svg );
+      assert!( d.contains( "<clipPath id=\"clip_4\">" ), "defs: {d}" );
+      // Segments should be joined into one d= attribute in emission order.
+      assert!
+      (
+        d.contains( "d=\"M 10 20 L 30 20 L 30 40 Z\"" ),
+        "defs: {d}"
+      );
+      assert!( d.contains( "</clipPath>" ), "defs: {d}" );
+    }
+
     // -- sprite tint --
 
     #[ test ]
