@@ -7,6 +7,7 @@ mod private
 {
   use crate::commands::RenderCommand;
   use crate::assets::Assets;
+  use crate::types::BlendMode;
   use error_tools::Error;
 
   // ============================================================================
@@ -98,8 +99,15 @@ mod private
     pub clip_masks : bool,
     /// Supports visual effects.
     pub effects : bool,
-    /// Supports blend modes.
+    /// Supports **all** [`BlendMode`] variants correctly. `false` means at least
+    /// one variant falls back / is unsupported — check [`Self::supported_blend_modes`]
+    /// for the precise set before submitting a specific mode.
     pub blend_modes : bool,
+    /// The exact set of [`BlendMode`] variants that render correctly on this
+    /// backend. Variants not listed here either fall back silently (e.g. WebGL
+    /// Overlay → Normal) or are fully unsupported. Empty slice means no
+    /// blending at all (e.g. terminal backend).
+    pub supported_blend_modes : &'static [ BlendMode ],
     /// Supports text on a path.
     pub text_on_path : bool,
     /// Maximum texture/image dimension. 0 = unlimited (e.g. SVG).

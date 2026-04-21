@@ -1689,7 +1689,11 @@ mod private
         patterns : false,    // TODO: not yet loaded or rendered
         clip_masks : false,  // TODO: not yet loaded or rendered
         effects : false,     // TODO: requires FBO post-processing
-        blend_modes : true,  // Normal/Add/Multiply/Screen work; Overlay falls back to Normal (needs custom shader)
+        // `blend_modes` means "all variants correct"; Overlay silently falls back
+        // to Normal in `apply_blend` (needs FBO / custom shader), so this is false.
+        // Callers needing per-mode info should check `supported_blend_modes`.
+        blend_modes : false,
+        supported_blend_modes : &[ BlendMode::Normal, BlendMode::Add, BlendMode::Multiply, BlendMode::Screen ],
         text_on_path : false,
         max_texture_size : self.max_texture_size,
       }
