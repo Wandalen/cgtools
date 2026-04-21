@@ -93,7 +93,15 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 >
 > ¹ WebGL blend modes: Normal, Add, Multiply, Screen are hardware-accelerated.
 > `BlendMode::Overlay` (Photoshop-style) cannot be expressed as a single `blend_func` call
-> and currently falls back to Normal; a custom shader or FBO pass is required.
+> and currently falls back to Normal; a custom shader or FBO pass is required. Because
+> not all variants render correctly, `Capabilities::blend_modes` is `false` on this
+> backend; query `Capabilities::supported_blend_modes: &'static [BlendMode]` for the
+> precise set (`[Normal, Add, Multiply, Screen]`).
+>
+> **Depth (WebGL):** `Transform::depth` is honored via the depth buffer (`LEQUAL`, higher
+> values drawn on top, NDC range `[-1, 1]`). Correct only for fully opaque draws — submit
+> translucent content back-to-front as you would for a painter's-algorithm renderer. SVG
+> and terminal adapters still emit in submission order and ignore `depth`.
 
 ## license
 

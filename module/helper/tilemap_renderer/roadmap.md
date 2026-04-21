@@ -17,12 +17,13 @@ The core library is functional and the WebGL2 adapter is partially implemented. 
 - **Test suite** — 39 tests covering types, commands, assets validation, and backend trait
 - **WebGL2 adapter (partial)** — hardware-accelerated sprites, meshes, and instanced batches on wasm32:
   - `ArrayBuffer<T>` — GPU-side Vec with 2× grow via `copy_buffer_sub_data` (no CPU readback)
-  - `SpriteInstanceData` (68B) and `MeshInstanceData` (36B) with compile-time layout assertions
+  - `SpriteInstanceData` (72B) and `MeshInstanceData` (40B) with compile-time layout assertions
   - Single-draw: `Clear`, `Mesh` (with texture + topology), `Sprite` (with tint)
   - Batch lifecycle: `Create`, `Bind`, `Add/Set/Remove` instances, `Draw`, `Delete` — for both sprite and mesh batches
   - Per-batch VAO setup at create/unbind time; bind-only at draw time
   - Asset loading: images (Bitmap sync + Path async via `spawn_local`), sprites, geometries (sync + async path)
-  - Blend modes: Normal, Add, Multiply, Screen (hardware-accelerated); Overlay falls back to Normal (see gaps)
+  - `Transform::depth` — honored via depth buffer (`DEPTH_TEST`, `LEQUAL`, NDC range `[-1, 1]`); reliable for fully opaque draws (translucent must be back-to-front)
+  - Blend modes: Normal, Add, Multiply, Screen (hardware-accelerated); Overlay falls back to Normal. `Capabilities::supported_blend_modes` advertises the correct set; `blend_modes: bool` means "all variants correct" and is `false` until Overlay is implemented
   - Shaders: `sprite.vert/frag`, `sprite_batch.vert/frag`, `mesh.vert/frag`, `mesh_batch.vert`
 
 ### deferred to follow-up PRs

@@ -142,7 +142,8 @@ pub trait Backend {
 
 - Hardware-accelerated via `minwebgl` crate (wasm32 target)
 - `ArrayBuffer<T>` — GPU-side Vec with dynamic grow (copy_buffer_sub_data)
-- Instanced rendering: `SpriteInstanceData` (68B), `MeshInstanceData` (36B)
+- Instanced rendering: `SpriteInstanceData` (72B), `MeshInstanceData` (40B) — each carries a per-instance `depth` float
+- Depth buffer enabled (`DEPTH_TEST`, `LEQUAL`); `Transform::depth` honored for fully opaque draws
 - Per-batch VAO with attrib setup at create/unbind time, just bind at draw time
 - Shaders: sprite.vert/frag, sprite_batch.vert, mesh.vert/frag, mesh_batch.vert
 - Quad vertices generated in vertex shader via `gl_VertexID`
@@ -173,7 +174,7 @@ pub trait Backend {
 #### FR-C: Backend Interface
 
 - **FR-C1:** ✅ `Backend` trait with load_assets/submit/output/resize/capabilities
-- **FR-C2:** ✅ `Capabilities` struct for runtime feature discovery
+- **FR-C2:** ✅ `Capabilities` struct for runtime feature discovery (coarse `bool` flags plus `supported_blend_modes: &'static [BlendMode]` for per-variant queries)
 - **FR-C3:** ✅ `RenderError` for graceful error handling
 
 #### FR-D: SVG Backend
@@ -198,7 +199,8 @@ pub trait Backend {
 - **FR-E6:** ❌ Text rendering (glyph atlas / SDF fonts)
 - **FR-E7:** ❌ WebGL context loss handling
 - **FR-E8:** ❌ Effects (blur, shadow — requires FBO post-processing)
-- **FR-E9:** ⚠️ Blend modes — Normal/Add/Multiply/Screen hardware-accelerated; `Overlay` falls back to Normal (requires custom shader or FBO read-back)
+- **FR-E9:** ⚠️ Blend modes — Normal/Add/Multiply/Screen hardware-accelerated; `Overlay` falls back to Normal (requires custom shader or FBO read-back). `Capabilities::blend_modes` is `false` (not all variants correct); `Capabilities::supported_blend_modes` advertises the precise set
+- **FR-E10:** ⚠️ `Transform::depth` — honored via depth buffer (`DEPTH_TEST`, `LEQUAL`, higher = on top, NDC range `[-1, 1]`). Reliable only for fully opaque draws; translucent content must still be submitted back-to-front
 
 #### FR-F: Terminal Backend
 
@@ -216,7 +218,7 @@ pub trait Backend {
 - **NFR-5:** ✅ 100% documentation coverage (zero warnings)
 - **NFR-6:** ✅ All command types are POD (Copy, Clone)
 - **NFR-7:** ✅ Test suite: 39 tests (types, commands, assets, backend trait); adapter tests deferred to adapter PRs
-- **NFR-8:** ✅ Compile-time layout assertions for GPU data structures (`SpriteInstanceData` 68B, `MeshInstanceData` 36B)
+- **NFR-8:** ✅ Compile-time layout assertions for GPU data structures (`SpriteInstanceData` 72B, `MeshInstanceData` 40B)
 - **NFR-9:** ❌ Visual regression testing
 - **NFR-10:** ❌ CI with feature matrix
 
@@ -239,7 +241,8 @@ pub trait Backend {
 | ⏳ | FR-D1–D9 | SVG backend — deferred to adapter-svg PR |
 | ⚠️ | FR-E1–E4 | WebGL backend partial (sprites, meshes, batches work; paths, text, effects missing) |
 | ❌ | FR-E5–E8 | WebGL: paths, text, context loss, effects — not implemented |
-| ⚠️ | FR-E9 | WebGL blend modes partial — Overlay falls back to Normal |
+| ⚠️ | FR-E9 | WebGL blend modes partial — Overlay falls back to Normal; `supported_blend_modes` lists the correct set |
+| ⚠️ | FR-E10 | WebGL depth honored for opaque draws only (translucent must be back-to-front) |
 | ⏳ | FR-F1–F3 | Terminal backend — deferred to adapter-terminal PR |
 | ✅ | NFR-2 | Zero core graphics deps |
 | ✅ | NFR-4 | Y-up coordinate system |
