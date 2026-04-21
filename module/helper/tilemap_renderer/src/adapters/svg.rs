@@ -1,9 +1,15 @@
 //! SVG backend adapter.
 //!
-//! Generates an SVG document using SVG 1.1 structure plus CSS Compositing
-//! and Blending Level 1 for blend modes (supported in all modern browsers).
-//! `mix-blend-mode` is only emitted for non-normal modes; normal blending
-//! is the SVG default and needs no style attribute.
+//! Generates an SVG document using SVG 1.1 structure with some SVG 2
+//! attribute conventions (bare `href=` on `<use>`, `<image>`, and
+//! `<textPath>` — the `xlink:` namespace is not declared) plus CSS
+//! Compositing and Blending Level 1 for blend modes. All modern
+//! browsers accept this mix; strict SVG 1.1 validators (Inkscape
+//! pre-1.0, Apache Batik) will flag the bare `href=`. A full migration
+//! to SVG 2 is planned as a separate change.
+//!
+//! `mix-blend-mode` is only emitted for non-normal modes; normal
+//! blending is the SVG default and needs no style attribute.
 //! Supports all features: paths, text, sprites, gradients, patterns,
 //! clip masks, effects, blend modes, and text-on-path.
 
