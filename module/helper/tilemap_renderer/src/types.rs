@@ -154,8 +154,14 @@ mod private
     /// Skew in radians. SVG: `skewX()` / `skewY()`. GPU: added to affine matrix.
     pub skew : [ f32; 2 ],
     /// Draw order. Higher values are drawn on top. Default 0.0.
-    /// SVG: backend sorts elements by depth before emitting.
-    /// GPU: depth buffer or painter's algorithm sort.
+    ///
+    /// qqq: depth sorting is not yet implemented in any backend. Currently
+    /// draw order is determined solely by command submission order: the
+    /// WebGL vertex shaders hardcode `gl_Position.z = 0.0` and never enable
+    /// `DEPTH_TEST`; the SVG backend emits elements in submission order
+    /// without sorting. Callers must pre-sort their commands if they need
+    /// ordering to match `depth`. Future work: honor this field via a depth
+    /// buffer (GPU) and a stable sort (SVG).
     pub depth : f32,
   }
 
