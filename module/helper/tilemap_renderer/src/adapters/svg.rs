@@ -189,7 +189,7 @@ mod private
     }
 
     /// Returns the current viewport offset `[x, y]`.
-    #[must_use]
+    #[ must_use ]
     pub fn viewport_offset( &self ) -> [ f32; 2 ] { self.viewport_offset }
 
     /// Sets the viewport offset `[x, y]`.
@@ -203,7 +203,7 @@ mod private
     }
 
     /// Returns the current viewport scale (zoom factor).
-    #[must_use]
+    #[ must_use ]
     pub fn viewport_scale( &self ) -> f32 { self.viewport_scale }
 
     /// Sets the viewport scale (zoom factor).
