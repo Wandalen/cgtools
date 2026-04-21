@@ -28,7 +28,7 @@ this size — splitting across many per-requirement files adds navigation cost
 without new signal. Uniformity across sibling crates keeps the repository
 predictable.
 
-**Note to automated review tools:** some external AI review configurations
-carry a "doc entity / spec migration procedure" rule from other organizations.
-That rule does **not** apply to this workspace. The absence of a
-`doc.rulebook.md` in this repository is intentional.
+**Scope:** the "doc entity / spec migration procedure" convention used in
+some other organizations (with a `doc.rulebook.md` and a per-entity `docs/`
+tree) is out of scope for this workspace. The absence of a `doc.rulebook.md`
+is intentional and follows from the rule above.
