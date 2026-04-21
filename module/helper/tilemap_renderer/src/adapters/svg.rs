@@ -1,6 +1,9 @@
 //! SVG backend adapter.
 //!
-//! Generates a complete SVG 1.1 document from render commands.
+//! Generates an SVG document using SVG 1.1 structure plus CSS Compositing
+//! and Blending Level 1 for blend modes (supported in all modern browsers).
+//! `mix-blend-mode` is only emitted for non-normal modes; normal blending
+//! is the SVG default and needs no style attribute.
 //! Supports all features: paths, text, sprites, gradients, patterns,
 //! clip masks, effects, blend modes, and text-on-path.
 
@@ -343,15 +346,20 @@ mod private
       }
     }
 
+    /// Blend-mode attribute fragment. Returns an empty string for
+    /// `BlendMode::Normal` because normal is the SVG default; emitting a
+    /// `style="mix-blend-mode:normal"` on every element would add no
+    /// information and pollute output. Non-normal modes produce the full
+    /// ` style="mix-blend-mode:X"` fragment, including the leading space.
     fn blend_to_svg( blend : &BlendMode ) -> &'static str
     {
       match blend
       {
-        BlendMode::Normal => "normal",
-        BlendMode::Multiply => "multiply",
-        BlendMode::Screen => "screen",
-        BlendMode::Overlay => "overlay",
-        BlendMode::Add => "lighter",
+        BlendMode::Normal => "",
+        BlendMode::Multiply => " style=\"mix-blend-mode:multiply\"",
+        BlendMode::Screen => " style=\"mix-blend-mode:screen\"",
+        BlendMode::Overlay => " style=\"mix-blend-mode:overlay\"",
+        BlendMode::Add => " style=\"mix-blend-mode:lighter\"",
       }
     }
 
@@ -610,7 +618,7 @@ mod private
 
       let path = format!
       (
-        "<path d=\"{}\" fill=\"{}\"{} stroke=\"{}\"{} stroke-width=\"{}\" stroke-linecap=\"{}\" stroke-linejoin=\"{}\"{}{}{} style=\"mix-blend-mode:{}\"/>",
+        "<path d=\"{}\" fill=\"{}\"{} stroke=\"{}\"{} stroke-width=\"{}\" stroke-linecap=\"{}\" stroke-linejoin=\"{}\"{}{}{}{}/>",
         self.path_data.trim(),
         fill,
         fill_opacity,
@@ -1124,7 +1132,7 @@ mod private
       // side effect.
       let mesh = format!
       (
-        "<use href=\"#{def_id}\" fill=\"{fill}\" stroke=\"{fill}\"{transform}{clip} style=\"mix-blend-mode:{blend}\"/>"
+        "<use href=\"#{def_id}\" fill=\"{fill}\" stroke=\"{fill}\"{transform}{clip}{blend}/>"
       );
       self.content.push_body( &mesh );
     }
@@ -1135,7 +1143,7 @@ mod private
       let clip = Self::clip_attr( s.clip.as_ref() );
       let blend = Self::blend_to_svg( &s.blend );
       let tint = self.tint_filter_attr( &s.tint )?;
-      let sprite = format!( "<use href=\"#sprite_{}\"{}{}{} style=\"mix-blend-mode:{}\"/>", s.sprite.inner(), transform, clip, tint, blend );
+      let sprite = format!( "<use href=\"#sprite_{}\"{}{}{}{}/>", s.sprite.inner(), transform, clip, tint, blend );
       self.content.push_body( &sprite );
       Ok( () )
     }
@@ -1269,7 +1277,7 @@ mod private
             let tint = Self::tint_filter_attr_split( &inst.tint, content, filter_counter )?;
             let sprite = format!
             (
-              "<use href=\"#sprite_{}\"{}{} style=\"mix-blend-mode:{}\"/>",
+              "<use href=\"#sprite_{}\"{}{}{}/>",
               inst.sprite.inner(), inst_transform, tint, blend
             );
             content.push_body( &sprite );
@@ -1292,7 +1300,7 @@ mod private
               let inst_transform = Self::transform_to_svg_local( &inst.transform );
               let mesh = format!
               (
-                "<use href=\"#{def_id}\" fill=\"{fill}\" stroke=\"{fill}\"{inst_transform} style=\"mix-blend-mode:{blend}\"/>"
+                "<use href=\"#{def_id}\" fill=\"{fill}\" stroke=\"{fill}\"{inst_transform}{blend}/>"
               );
               content.push_body( &mesh );
             }
