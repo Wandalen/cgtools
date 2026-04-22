@@ -111,8 +111,9 @@ mod private
       gl.draw_arrays_instanced( gl::TRIANGLE_STRIP, 0, 4, instances.len() as i32 );
       // Unbind the batch VAO so subsequent GL state setup (e.g. a later
       // vertex_attrib_pointer call during batch construction) cannot
-      // accidentally mutate this batch's attribute layout. Matches the
-      // single-draw path which also leaves VAO 0 bound.
+      // accidentally mutate this batch's attribute layout. The single-draw
+      // path (`SpriteRenderer::draw`) likewise unbinds on exit, so both
+      // sprite draw paths leave VAO 0 bound.
       gl.bind_vertex_array( None );
     }
   }
