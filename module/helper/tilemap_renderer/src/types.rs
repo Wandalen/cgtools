@@ -113,6 +113,10 @@ mod private
     /// (e.g. `max_depth = 1000.0` allows `Transform::depth` in `[-1000, 1000]`)
     /// at the cost of proportionally coarser depth buffer precision.
     ///
+    /// Must be `> 0.0`. Zero produces a shader divide-by-zero and nothing
+    /// renders; a negative value inverts the depth ordering. Neither case is
+    /// defended against at runtime.
+    ///
     /// Default `1.0` — backwards-compatible with the original `[-1, 1]` contract.
     /// Ignored by SVG and terminal backends.
     pub max_depth : f32,

@@ -220,11 +220,14 @@ mod private
   {
     /// Row-major 3×3 affine transform as 9 f32s (column-major layout on GPU).
     pub transform : [ f32; 9 ],
-    /// Sub-rect in the source atlas: `[ u_min, v_min, u_max, v_max ]`.
+    /// Sub-rect in the source sheet: `[ x, y, w, h ]` in pixels. The shader
+    /// divides by `u_tex_size` to produce the sampled UV.
     pub region : [ f32; 4 ],
     /// Per-instance tint multiplied into the sampled texel (premultiplied RGBA).
     pub tint : [ f32; 4 ],
-    /// Depth value in `[0, 1]` used by the depth test.
+    /// Raw `Transform::depth` value; the shader maps it into clip-space `z`
+    /// by dividing by `RenderConfig::max_depth`. See `Transform::depth` for
+    /// the valid range.
     pub depth : f32,
   }
 
@@ -241,7 +244,9 @@ mod private
   {
     /// Row-major 3×3 affine transform as 9 f32s (column-major layout on GPU).
     pub transform : [ f32; 9 ],
-    /// Depth value in `[0, 1]` used by the depth test.
+    /// Raw `Transform::depth` value; the shader maps it into clip-space `z`
+    /// by dividing by `RenderConfig::max_depth`. See `Transform::depth` for
+    /// the valid range.
     pub depth : f32,
     /// Per-instance tint, multiplied into the fragment color alongside
     /// `MeshBatchParams::fill` (and any sampled texture).

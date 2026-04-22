@@ -4,7 +4,7 @@
 //! Covers:
 //! - `Transform` identity state, translation matrix slots, scale diagonal, 90-degree rotation
 //! - `ResourceId` type-safe equality and debug formatting
-//! - `RenderConfig` default field values (width, height, antialias, background color, max_depth)
+//! - `RenderConfig` default field values (width, height, antialias, background color, `max_depth`)
 
 use tilemap_renderer::types::*;
 

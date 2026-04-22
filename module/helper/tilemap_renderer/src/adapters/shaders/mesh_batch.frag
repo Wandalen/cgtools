@@ -13,9 +13,8 @@ out vec4 frag_color;
 void main()
 {
   // Per-instance tint (v_tint) modulates the batch-level fill and any sampled
-  // texture. With tint = (1, 1, 1, 1) the output matches the single-draw mesh
-  // path, so existing calls stay visually identical after the tint field is
-  // added.
+  // texture. Passing tint = (1, 1, 1, 1) yields the same output as the
+  // single-draw path (mesh.frag), which has no per-instance tint.
   if ( u_use_texture )
   {
     vec4 tex = texture( u_texture, v_uv );
