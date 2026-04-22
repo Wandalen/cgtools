@@ -4,8 +4,8 @@ precision highp float;
 // Uniforms
 uniform mat3 u_transform;    // model transform (column-major 3x3)
 uniform vec2 u_viewport;     // viewport size in pixels
-uniform vec4 u_uv_rect;      // sprite region: x, y, w, h in UV space (0..1)
-uniform vec2 u_sprite_size;  // natural size of sprite region in pixels
+uniform vec4 u_region;       // sprite region: x, y, w, h in pixels (same convention as sprite_batch.vert)
+uniform vec2 u_tex_size;     // sheet dimensions in pixels
 uniform float u_depth;       // Transform::depth; range [-u_max_depth, u_max_depth]
 uniform float u_max_depth;   // RenderConfig::max_depth; defines the usable depth range
 
@@ -16,17 +16,11 @@ void main()
   // Generate unit quad from gl_VertexID (triangle strip: 0,1,2,3)
   vec2 quad = vec2( float( gl_VertexID & 1 ), float( ( gl_VertexID >> 1 ) & 1 ) );
 
-  // Map quad corner to sprite sub-region UV.
-  // `u_uv_rect` is already in normalized UV space `[0..1]` — the Rust upload
-  // path divides the pixel region by the sheet's dimensions before calling
-  // `uniform_upload`. Contrast with `sprite_batch.vert`, which receives the
-  // region in pixels per-instance and divides by `u_tex_size` in the shader
-  // so per-instance data stays independent of the (possibly async-loaded)
-  // sheet's dimensions.
-  v_uv = u_uv_rect.xy + quad * u_uv_rect.zw;
+  // Compute UV from pixel region and sheet size (matches sprite_batch.vert).
+  v_uv = ( u_region.xy + quad * u_region.zw ) / u_tex_size;
 
-  // Scale unit quad to sprite's natural pixel size, then apply transform
-  vec3 world = u_transform * vec3( quad * u_sprite_size, 1.0 );
+  // Scale unit quad to sprite's pixel size (region.zw), then apply transform.
+  vec3 world = u_transform * vec3( quad * u_region.zw, 1.0 );
 
   // Convert to clip space: pixel coords → -1..1 (Y-up)
   vec2 ndc = ( world.xy / u_viewport ) * 2.0 - 1.0;

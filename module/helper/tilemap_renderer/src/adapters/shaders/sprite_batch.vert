@@ -25,11 +25,9 @@ void main()
 
   // Compute UV from pixel region and sheet size.
   // `i_region` carries the sprite rect in pixels; normalization happens here
-  // rather than in Rust so per-instance data stays independent of the sheet's
-  // dimensions — a sheet loaded asynchronously can resolve its dimensions
-  // after instances have already been uploaded without requiring the
-  // instance buffer to be rewritten. Contrast with `sprite.vert`, which
-  // receives an already-normalized `[0..1]` rect from the Rust upload path.
+  // rather than in Rust so per-instance data stays independent of the
+  // (possibly async-loaded) sheet's dimensions. `sprite.vert` uses the same
+  // convention for a consistent single-draw / batch UV pipeline.
   v_uv = ( i_region.xy + quad * i_region.zw ) / u_tex_size;
   v_tint = i_tint;
 
