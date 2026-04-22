@@ -256,7 +256,10 @@ mod private
     pub transform : Transform,
     /// Geometry resource.
     pub geometry : ResourceId< asset::Geometry >,
-    /// Fill style.
+    /// Batch-level fill style. The final fragment color is
+    /// `fill * instance.tint` (times the sampled texel when `texture` is set),
+    /// so per-instance `AddMeshInstance::tint` / `SetMeshInstance::tint`
+    /// modulate this batch-wide color independently.
     pub fill : FillRef,
     /// Optional texture.
     pub texture : Option< ResourceId< asset::Image > >,
@@ -342,6 +345,10 @@ mod private
   {
     /// Instance transform.
     pub transform : Transform,
+    /// Per-instance tint multiplied into the fragment color alongside
+    /// `MeshBatchParams::fill` (and any sampled texture). Use `[1.0; 4]`
+    /// when no per-instance coloring is needed.
+    pub tint : [ f32; 4 ],
   }
 
   /// Updates a sprite instance at `index` within the bound batch.
@@ -378,6 +385,10 @@ mod private
     pub index : u32,
     /// Updated transform.
     pub transform : Transform,
+    /// Per-instance tint multiplied into the fragment color alongside
+    /// `MeshBatchParams::fill` (and any sampled texture). Use `[1.0; 4]`
+    /// when no per-instance coloring is needed.
+    pub tint : [ f32; 4 ],
   }
 
   /// Removes an instance at `index` from the bound batch using **swap-remove**.

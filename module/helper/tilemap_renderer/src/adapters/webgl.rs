@@ -142,7 +142,7 @@ mod private
       (
         gl.clone(),
         include_str!( "shaders/mesh_batch.vert" ),
-        include_str!( "shaders/mesh.frag" ),
+        include_str!( "shaders/mesh_batch.frag" ),
       )?;
       Ok( Self { program, batch_program } )
     }
@@ -498,7 +498,7 @@ mod private
     fn cmd_add_mesh_instance( &mut self, mi : &AddMeshInstance ) -> Result< (), RenderError >
     {
       let Some( batch_id ) = self.recording_batch else { return Ok( () ) };
-      let data = MeshInstanceData { transform : mi.transform.to_mat3(), depth : mi.transform.depth };
+      let data = MeshInstanceData { transform : mi.transform.to_mat3(), depth : mi.transform.depth, tint : mi.tint };
       let mut res = self.resources.borrow_mut();
       match res.batch_mut( batch_id )
       {
@@ -570,7 +570,7 @@ mod private
     fn cmd_set_mesh_instance( &mut self, mi : &SetMeshInstance ) -> Result< (), RenderError >
     {
       let Some( batch_id ) = self.recording_batch else { return Ok( () ) };
-      let data = MeshInstanceData { transform : mi.transform.to_mat3(), depth : mi.transform.depth };
+      let data = MeshInstanceData { transform : mi.transform.to_mat3(), depth : mi.transform.depth, tint : mi.tint };
       let mut res = self.resources.borrow_mut();
       match res.batch_mut( batch_id )
       {

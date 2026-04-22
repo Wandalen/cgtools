@@ -233,7 +233,7 @@ mod private
     fn len( &self ) -> usize { 1 }
   }
 
-  /// Per-instance data for mesh batches (10 floats = 40 bytes).
+  /// Per-instance data for mesh batches (14 floats = 56 bytes).
   #[ repr( C ) ]
   #[ derive( Clone, Copy, bytemuck::Zeroable, bytemuck::Pod ) ]
   pub struct MeshInstanceData
@@ -242,6 +242,9 @@ mod private
     pub transform : [ f32; 9 ],
     /// Depth value in `[0, 1]` used by the depth test.
     pub depth : f32,
+    /// Per-instance tint, multiplied into the fragment color alongside
+    /// `MeshBatchParams::fill` (and any sampled texture).
+    pub tint : [ f32; 4 ],
   }
 
   impl gl::AsBytes for MeshInstanceData
@@ -252,7 +255,7 @@ mod private
 
   // Compile-time layout assertions — GPU attrib setup depends on these exact sizes.
   const _ : () = assert!( core::mem::size_of::< SpriteInstanceData >() == 72 ); // 18 floats × 4
-  const _ : () = assert!( core::mem::size_of::< MeshInstanceData >() == 40 ); // 10 floats × 4
+  const _ : () = assert!( core::mem::size_of::< MeshInstanceData >() == 56 ); // 14 floats × 4
   const _ : () = assert!( core::mem::align_of::< SpriteInstanceData >() == 4 ); // f32 alignment
   const _ : () = assert!( core::mem::align_of::< MeshInstanceData >() == 4 );
 
@@ -544,6 +547,10 @@ mod private
     gl.enable_vertex_attrib_array( 5 );
     gl.vertex_attrib_pointer_with_i32( 5, 1, gl::FLOAT, false, stride, 36 );
     gl.vertex_attrib_divisor( 5, 1 );
+    // tint: vec4 at location 6, offset 40
+    gl.enable_vertex_attrib_array( 6 );
+    gl.vertex_attrib_pointer_with_i32( 6, 4, gl::FLOAT, false, stride, 40 );
+    gl.vertex_attrib_divisor( 6, 1 );
 
     gl.bind_vertex_array( None );
   }

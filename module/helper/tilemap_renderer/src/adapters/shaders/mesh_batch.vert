@@ -10,6 +10,7 @@ layout( location = 2 ) in vec3 i_transform_0;
 layout( location = 3 ) in vec3 i_transform_1;
 layout( location = 4 ) in vec3 i_transform_2;
 layout( location = 5 ) in float i_depth;
+layout( location = 6 ) in vec4 i_tint;
 
 uniform vec2 u_viewport;
 uniform mat3 u_parent; // batch parent transform
@@ -17,10 +18,12 @@ uniform float u_parent_depth;
 uniform float u_max_depth; // RenderConfig::max_depth; defines the usable depth range
 
 out vec2 v_uv;
+out vec4 v_tint;
 
 void main()
 {
   v_uv = a_uv;
+  v_tint = i_tint;
 
   // Instance transform: each i_transform_N is a column of the column-major matrix from Transform::to_mat3().
   mat3 inst = mat3( i_transform_0, i_transform_1, i_transform_2 );

@@ -150,8 +150,8 @@ pub trait Backend {
 - `ArrayBuffer<T>` — GPU-side Vec with dynamic grow (copy_buffer_sub_data); uses a persistent
   scratch buffer to avoid the WebGL2 spec violation of binding the same buffer to both
   `COPY_READ_BUFFER` and `COPY_WRITE_BUFFER` in `swap_remove`
-- Instanced rendering: `SpriteInstanceData` (72B), `MeshInstanceData` (40B) — each carries a
-  per-instance `depth` float (compile-time layout assertions enforce the sizes)
+- Instanced rendering: `SpriteInstanceData` (72B), `MeshInstanceData` (56B) — each carries
+  per-instance `depth` and `tint` (compile-time layout assertions enforce the sizes)
 - Depth buffer enabled (`DEPTH_TEST`, `LEQUAL`); `Transform::depth` honored for fully opaque
   draws. Range `[-RenderConfig::max_depth, max_depth]` per field (default `1.0`); the shader
   divides by `u_max_depth` so out-of-range depths are clipped by the GPU rather than silently
@@ -160,7 +160,7 @@ pub trait Backend {
 - Async image loading uses `Closure::once_into_js` for one-shot `onload` / `onerror` handlers,
   so the browser drops the Rust closures (and their captured `Rc<RefCell<GpuResources>>`)
   after the event — a `WebGlBackend` drop actually releases its GPU resources
-- Shaders: sprite.vert/frag, sprite_batch.vert, mesh.vert/frag, mesh_batch.vert
+- Shaders: sprite.vert/frag, sprite_batch.vert/frag, mesh.vert/frag, mesh_batch.vert/frag
 - Quad vertices generated in vertex shader via `gl_VertexID`
 
 #### 7.3. Terminal (`adapter-terminal`)
@@ -233,7 +233,7 @@ pub trait Backend {
 - **NFR-5:** ✅ 100% documentation coverage (zero warnings)
 - **NFR-6:** ✅ All command types are POD (Copy, Clone)
 - **NFR-7:** ✅ Test suite: 39 tests (types, commands, assets, backend trait); adapter tests deferred to adapter PRs
-- **NFR-8:** ✅ Compile-time layout assertions for GPU data structures (`SpriteInstanceData` 72B, `MeshInstanceData` 40B)
+- **NFR-8:** ✅ Compile-time layout assertions for GPU data structures (`SpriteInstanceData` 72B, `MeshInstanceData` 56B)
 - **NFR-9:** ❌ Visual regression testing
 - **NFR-10:** ❌ CI with feature matrix
 
@@ -263,7 +263,7 @@ pub trait Backend {
 | ✅ | NFR-4 | Y-up coordinate system |
 | ✅ | NFR-5 | 100% doc coverage |
 | ✅ | NFR-7 | Test suite |
-| ✅ | NFR-8 | Compile-time layout assertions for GPU structs |
+| ✅ | NFR-8 | Compile-time layout assertions for GPU structs (SpriteInstanceData 72B, MeshInstanceData 56B) |
 | ❌ | NFR-1 | Performance benchmarks |
 | ❌ | NFR-9 | Visual regression tests |
 | ❌ | NFR-10 | CI feature matrix |
