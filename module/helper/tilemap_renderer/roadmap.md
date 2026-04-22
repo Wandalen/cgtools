@@ -10,19 +10,24 @@ The core library is functional and the WebGL2 adapter is partially implemented. 
 
 ### completed
 
-- **Core types** — `Transform`, `ResourceId<T>`, `RenderConfig`, blend modes, topology, coordinate system (Y-up)
+- **Core types** — `Transform`, `ResourceId<T>`, `RenderConfig` (incl. configurable `max_depth`), blend modes, topology, coordinate system (Y-up)
 - **Command system** — all POD commands: Clear, Path (moveto/lineto/quad/cubic/arc/close), Text, Mesh, Sprite, Batch lifecycle, Groups with effects
 - **Asset system** — images (bitmap/encoded/path), sprites, geometries, gradients, patterns, clip masks, paths, validation
 - **Backend trait** — `load_assets`, `submit`, `output`, `resize`, `capabilities`
 - **Test suite** — 39 tests covering types, commands, assets validation, and backend trait
 - **WebGL2 adapter (partial)** — hardware-accelerated sprites, meshes, and instanced batches on wasm32:
-  - `ArrayBuffer<T>` — GPU-side Vec with 2× grow via `copy_buffer_sub_data` (no CPU readback)
+  - Split across `adapters/webgl.rs` (backend + renderers + async image loader) and
+    `adapters/webgl/webgl_helpers.rs` (self-contained helpers wired via `mod_interface::layer`)
+    to stay under the per-file size budget
+  - `ArrayBuffer<T>` — GPU-side Vec with 2× grow via `copy_buffer_sub_data` (no CPU readback);
+    `swap_remove` uses a persistent scratch buffer to avoid binding the same buffer to both
+    `COPY_READ_BUFFER` and `COPY_WRITE_BUFFER` (WebGL2 spec violation)
   - `SpriteInstanceData` (72B) and `MeshInstanceData` (40B) with compile-time layout assertions
   - Single-draw: `Clear`, `Mesh` (with texture + topology), `Sprite` (with tint)
   - Batch lifecycle: `Create`, `Bind`, `Add/Set/Remove` instances, `Draw`, `Delete` — for both sprite and mesh batches
   - Per-batch VAO setup at create/unbind time; bind-only at draw time
-  - Asset loading: images (Bitmap sync + Path async via `spawn_local`), sprites, geometries (sync + async path)
-  - `Transform::depth` — honored via depth buffer (`DEPTH_TEST`, `LEQUAL`, NDC range `[-1, 1]`); reliable for fully opaque draws (translucent must be back-to-front)
+  - Asset loading: images (Bitmap sync + Path async via `spawn_local`), sprites, geometries (sync + async path); async handlers use `Closure::once_into_js` so the browser drops the Rust closures (and captured `Rc<RefCell<GpuResources>>`) after `onload` / `onerror` fires, letting `WebGlBackend` drop actually free GPU resources
+  - `Transform::depth` — honored via depth buffer (`DEPTH_TEST`, `LEQUAL`). Per-field range `[-RenderConfig::max_depth, max_depth]` (default `1.0`); shader divides by `u_max_depth`, GPU clips out-of-range values. Batch sum `parent_depth + instance_depth` is subject to the same range. Reliable for fully opaque draws (translucent must be back-to-front)
   - Blend modes: Normal, Add, Multiply, Screen (hardware-accelerated); Overlay falls back to Normal. `Capabilities::supported_blend_modes` advertises the correct set; `blend_modes: bool` means "all variants correct" and is `false` until Overlay is implemented
   - Shaders: `sprite.vert/frag`, `sprite_batch.vert/frag`, `mesh.vert/frag`, `mesh_batch.vert`
 
@@ -44,7 +49,9 @@ tilemap_renderer/           # Single crate with feature-gated adapters
 │   └── adapters/
 │       ├── mod.rs          # Feature-gated re-exports
 │       ├── svg.rs          # SVG 1.1 backend
-│       ├── webgl.rs        # WebGL2 backend (wasm32)
+│       ├── webgl.rs        # WebGL2 backend entry point (WebGlBackend + renderers)
+│       ├── webgl/          # WebGL submodule layer
+│       │   └── webgl_helpers.rs  # ArrayBuffer, GPU handles, GL mappers, batch types
 │       ├── terminal.rs     # Terminal backend
 │       └── shaders/        # GLSL shaders for WebGL
 ├── Cargo.toml

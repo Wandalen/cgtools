@@ -2,7 +2,7 @@
 
 - **Name:** Agnostic 2D Render Engine
 - **Version:** 0.2.0
-- **Date:** 2026-03-11
+- **Date:** 2026-04-22
 
 ### table of contents
 
@@ -79,7 +79,7 @@ All backends use **Y-up**:
 - `Transform` — position `[f32; 2]`, rotation `f32`, scale `[f32; 2]`, skew `[f32; 2]`, depth `f32`
 - `Transform::to_mat3()` — column-major 3×3 affine matrix
 - `ResourceId<T>` — phantom-typed u32 handle, nohash for IntMap/IntSet
-- `RenderConfig` — width, height, antialias, background
+- `RenderConfig` — width, height, antialias, background, max_depth
 - Enums: `BlendMode`, `LineCap`, `LineJoin`, `TextAnchor`, `Topology`, `SamplerFilter`, `Antialias`
 - `FillRef` — None, Solid, Gradient, Pattern
 - `DashStyle` — stroke dash pattern with offset
@@ -141,10 +141,25 @@ pub trait Backend {
 #### 7.2. WebGL2 (`adapter-webgl`)
 
 - Hardware-accelerated via `minwebgl` crate (wasm32 target)
-- `ArrayBuffer<T>` — GPU-side Vec with dynamic grow (copy_buffer_sub_data)
-- Instanced rendering: `SpriteInstanceData` (72B), `MeshInstanceData` (40B) — each carries a per-instance `depth` float
-- Depth buffer enabled (`DEPTH_TEST`, `LEQUAL`); `Transform::depth` honored for fully opaque draws
+- Split across two files to stay under the per-file size budget:
+  - `adapters/webgl.rs` — `WebGlBackend`, `SpriteRenderer`, `MeshRenderer`, async image loader
+  - `adapters/webgl/webgl_helpers.rs` (submodule via `mod_interface::layer`) — self-contained helpers:
+    `ArrayBuffer<T>`, `SpriteInstanceData` / `MeshInstanceData`, `GpuResources` / `GpuTexture` /
+    `GpuSprite` / `GpuGeometry` / `GpuBatch`, VAO setup, async `Loadable`, GL mapping helpers
+    (`index_format`, `apply_texture_filter`, `apply_blend`, `topology_to_gl`)
+- `ArrayBuffer<T>` — GPU-side Vec with dynamic grow (copy_buffer_sub_data); uses a persistent
+  scratch buffer to avoid the WebGL2 spec violation of binding the same buffer to both
+  `COPY_READ_BUFFER` and `COPY_WRITE_BUFFER` in `swap_remove`
+- Instanced rendering: `SpriteInstanceData` (72B), `MeshInstanceData` (40B) — each carries a
+  per-instance `depth` float (compile-time layout assertions enforce the sizes)
+- Depth buffer enabled (`DEPTH_TEST`, `LEQUAL`); `Transform::depth` honored for fully opaque
+  draws. Range `[-RenderConfig::max_depth, max_depth]` per field (default `1.0`); the shader
+  divides by `u_max_depth` so out-of-range depths are clipped by the GPU rather than silently
+  saturated
 - Per-batch VAO with attrib setup at create/unbind time, just bind at draw time
+- Async image loading uses `Closure::once_into_js` for one-shot `onload` / `onerror` handlers,
+  so the browser drops the Rust closures (and their captured `Rc<RefCell<GpuResources>>`)
+  after the event — a `WebGlBackend` drop actually releases its GPU resources
 - Shaders: sprite.vert/frag, sprite_batch.vert, mesh.vert/frag, mesh_batch.vert
 - Quad vertices generated in vertex shader via `gl_VertexID`
 
@@ -200,7 +215,7 @@ pub trait Backend {
 - **FR-E7:** ❌ WebGL context loss handling
 - **FR-E8:** ❌ Effects (blur, shadow — requires FBO post-processing)
 - **FR-E9:** ⚠️ Blend modes — Normal/Add/Multiply/Screen hardware-accelerated; `Overlay` falls back to Normal (requires custom shader or FBO read-back). `Capabilities::blend_modes` is `false` (not all variants correct); `Capabilities::supported_blend_modes` advertises the precise set
-- **FR-E10:** ⚠️ `Transform::depth` — honored via depth buffer (`DEPTH_TEST`, `LEQUAL`, higher = on top, NDC range `[-1, 1]`). Reliable only for fully opaque draws; translucent content must still be submitted back-to-front
+- **FR-E10:** ⚠️ `Transform::depth` — honored via depth buffer (`DEPTH_TEST`, `LEQUAL`, higher = on top). Per-field range is `[-RenderConfig::max_depth, max_depth]` (default `1.0`); the shader divides by `max_depth` and the GPU clips values outside the range. For batches the **sum** `parent_depth + instance_depth` must satisfy the same constraint. Reliable only for fully opaque draws; translucent content must still be submitted back-to-front
 
 #### FR-F: Terminal Backend
 
@@ -242,7 +257,7 @@ pub trait Backend {
 | ⚠️ | FR-E1–E4 | WebGL backend partial (sprites, meshes, batches work; paths, text, effects missing) |
 | ❌ | FR-E5–E8 | WebGL: paths, text, context loss, effects — not implemented |
 | ⚠️ | FR-E9 | WebGL blend modes partial — Overlay falls back to Normal; `supported_blend_modes` lists the correct set |
-| ⚠️ | FR-E10 | WebGL depth honored for opaque draws only (translucent must be back-to-front) |
+| ⚠️ | FR-E10 | WebGL depth honored for opaque draws only (range `[-max_depth, max_depth]`, out-of-range values clipped by the GPU; translucent must be back-to-front) |
 | ⏳ | FR-F1–F3 | Terminal backend — deferred to adapter-terminal PR |
 | ✅ | NFR-2 | Zero core graphics deps |
 | ✅ | NFR-4 | Y-up coordinate system |

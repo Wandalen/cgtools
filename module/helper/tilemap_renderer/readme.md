@@ -30,6 +30,8 @@ tilemap_renderer/
 └── adapters/
     ├── svg.rs      # SVG 1.1 document generation
     ├── webgl.rs    # WebGL2 hardware-accelerated rendering (wasm32)
+    ├── webgl/
+    │   └── webgl_helpers.rs  # Self-contained WebGL types (ArrayBuffer, GPU handles, GL mappers)
     └── terminal.rs # ASCII/Unicode terminal output
 ```
 
@@ -99,9 +101,13 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 > precise set (`[Normal, Add, Multiply, Screen]`).
 >
 > **Depth (WebGL):** `Transform::depth` is honored via the depth buffer (`LEQUAL`, higher
-> values drawn on top, NDC range `[-1, 1]`). Correct only for fully opaque draws — submit
-> translucent content back-to-front as you would for a painter's-algorithm renderer. SVG
-> and terminal adapters still emit in submission order and ignore `depth`.
+> values drawn on top). Valid range is `[-RenderConfig::max_depth, RenderConfig::max_depth]`
+> (default `1.0`, backwards-compatible); the shader divides by `max_depth` and lets the
+> GPU clip values outside the range. In batches the **sum** `parent_depth + instance_depth`
+> must stay within the range — out-of-range sums are clipped. Correct only for fully
+> opaque draws — submit translucent content back-to-front as you would for a
+> painter's-algorithm renderer. SVG and terminal adapters still emit in submission order
+> and ignore `depth` / `max_depth`.
 
 ## license
 
