@@ -401,4 +401,5 @@ fn backend_capabilities_default_all_false()
   assert!( !c.blend_modes );
   assert!( !c.text_on_path );
   assert_eq!( c.max_texture_size, 0 );
+  assert!( c.supported_blend_modes.is_empty() );
 }
