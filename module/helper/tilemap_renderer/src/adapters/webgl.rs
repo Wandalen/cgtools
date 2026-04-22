@@ -1259,7 +1259,15 @@ mod private
       .expect( "not an HtmlImageElement" );
     img.style().set_property( "display", "none" ).expect( "can't hide img" );
 
-    let on_load : Closure< dyn Fn() > = Closure::new(
+    // The browser fires `load` XOR `error` exactly once for a given `set_src`
+    // call — there is no retry path here — so FnOnce handlers are the right
+    // shape. `Closure::once_into_js` takes ownership of the Rust closure,
+    // returns a JsValue that we hand to the img element, and arranges for the
+    // captured state (notably the `Rc<RefCell<GpuResources>>` clone in
+    // `on_load`) to be freed after the single invocation, or via finalizer if
+    // the event never fires and the JS function is GC'd. This is what lets a
+    // `WebGlBackend` drop actually release its GPU resources.
+    let on_load = Closure::once_into_js(
     {
       let gl = gl.clone();
       let img = img.clone();
@@ -1303,41 +1311,32 @@ mod private
     });
 
     let src_for_err = src.to_owned();
-    let on_error : Closure< dyn Fn() > = Closure::new( move ||
+    let on_error = Closure::once_into_js(
     {
-      web_sys::console::error_1
-      (
-        &format!( "tilemap_renderer: failed to load image from path {src_for_err:?}" ).into()
-      );
+      let img = img.clone();
+      move ||
+      {
+        web_sys::console::error_1
+        (
+          &format!( "tilemap_renderer: failed to load image from path {src_for_err:?}" ).into()
+        );
+        // Remove the element so the other (never-fired) handler becomes unreachable
+        // and can be GC'd, rather than sitting on a detached img for the lifetime
+        // of the document.
+        img.remove();
+      }
     });
 
-    img.set_onload( Some( on_load.as_ref().unchecked_ref() ) );
-    img.set_onerror( Some( on_error.as_ref().unchecked_ref() ) );
+    img.set_onload( Some( on_load.unchecked_ref() ) );
+    img.set_onerror( Some( on_error.unchecked_ref() ) );
     img.set_src( src );
-    // SAFETY: the browser holds a reference to each closure via the img element's
-    // onload/onerror handlers. Dropping the Closure here would invalidate the JS
-    // function pointer and cause a use-after-free when the browser fires the event.
-    // forget() intentionally leaks the closure so it remains alive for the callback.
-    //
-    // Leak accounting: two closures leak per path-based image per `load_assets`
-    // call (on_load + on_error). Only one of them ever fires, and neither is ever
-    // freed — both persist for the lifetime of the WebGL context. The on_load
-    // closure additionally captures `Rc<RefCell<GpuResources>>`, so its leak
-    // keeps `GpuResources` alive even after the owning `WebGlBackend` is dropped;
-    // every GPU texture / VAO / buffer inside then survives until page close.
-    // on_error only captures a `String` path, so it leaks memory but does not
-    // extend `GpuResources` lifetime.
-    //
-    // For long-lived single-backend apps the drift is small (~KB per image per
-    // reload); for test harnesses or multi-instance hosts that create and drop
-    // `WebGlBackend` it becomes a real resource leak.
-    //
-    // qqq : replace forget() with Closure::once / once_into_js so the browser
-    //       frees each closure after its single invocation. Blocked on refactor
-    //       of the load_assets flow — the current shape expects stable Fn-style
-    //       handlers across retries, which Closure::once cannot provide.
-    on_load.forget();
-    on_error.forget();
+    // `on_load` / `on_error` are `JsValue`s produced by `Closure::once_into_js`.
+    // The img element now holds JS-side references to both functions via its
+    // `onload` / `onerror` properties, so dropping the local JsValue bindings
+    // here does not free the functions. When either event fires, its Rust
+    // closure is dropped (releasing its captures, including the cloned Rc for
+    // `on_load`); the other handler — plus the img itself — becomes GC-eligible
+    // once the fired handler calls `img.remove()` above.
 
     texture
   }
