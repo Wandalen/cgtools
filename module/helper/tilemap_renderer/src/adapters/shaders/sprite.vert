@@ -26,7 +26,9 @@ void main()
   vec2 ndc = ( world.xy / u_viewport ) * 2.0 - 1.0;
 
   // Negate so higher user depth → smaller clip-space z → wins LEQUAL depth test.
-  // Divide by u_max_depth to map [-max_depth, max_depth] → [-1, 1], and clamp
-  // defensively so out-of-contract values saturate rather than being clipped.
-  gl_Position = vec4( ndc, clamp( -u_depth / u_max_depth, -1.0, 1.0 ), 1.0 );
+  // Divide by u_max_depth to map [-max_depth, max_depth] → [-1, 1].
+  // Out-of-contract depths fall outside [-1, 1] and are clipped by the GPU —
+  // that visible failure is preferable to a clamp that would silently collapse
+  // ordering among overflow values.
+  gl_Position = vec4( ndc, -u_depth / u_max_depth, 1.0 );
 }

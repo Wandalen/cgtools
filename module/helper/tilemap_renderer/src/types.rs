@@ -170,19 +170,19 @@ mod private
     /// WebGL: honored via the depth buffer (`LEQUAL`, higher depth → on top).
     /// Valid range is `[-max_depth, max_depth]` (configured by
     /// `RenderConfig::max_depth`, default `1.0`); the shader divides by
-    /// `max_depth` and clamps the result to the clip-space `z` range, so
-    /// out-of-contract values saturate instead of being silently discarded.
-    /// Equal-depth draws fall back to submission order. **Only reliable for
-    /// fully opaque draws** — alpha-blended content whose farther pixels
-    /// arrive after nearer ones will z-fail instead of blending, so the
-    /// caller must submit translucent draws back-to-front (same convention
-    /// as a painter's algorithm renderer).
+    /// `max_depth` so the in-contract value maps into clip-space `[-1, 1]`.
+    /// Values outside this range produce clip-space `z` beyond `[-1, 1]` and
+    /// are clipped by the GPU — the draw disappears. Equal-depth draws fall
+    /// back to submission order. **Only reliable for fully opaque draws** —
+    /// alpha-blended content whose farther pixels arrive after nearer ones
+    /// will z-fail instead of blending, so the caller must submit translucent
+    /// draws back-to-front (same convention as a painter's algorithm renderer).
     ///
     /// In batch draws (`SpriteBatchParams` / `MeshBatchParams`) the GPU sees
     /// `parent_transform.depth + instance_transform.depth`, so the **sum**
-    /// must stay in `[-max_depth, max_depth]` for correct ordering. Saturated
-    /// instances collapse to the same clip `z` and fall back to submission
-    /// order among themselves.
+    /// — not each field individually — must stay in `[-max_depth, max_depth]`.
+    /// An out-of-range sum clips the instance the same way a single-draw
+    /// overflow does.
     ///
     /// qqq: SVG and terminal backends still emit in submission order and
     /// ignore this field. Callers targeting those backends must pre-sort.

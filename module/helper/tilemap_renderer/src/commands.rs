@@ -231,10 +231,9 @@ mod private
     /// Parent transform applied to all instances.
     ///
     /// The effective depth for each instance is `transform.depth +
-    /// instance_transform.depth`. Keep the sum in `[-max_depth, max_depth]`
-    /// (see `RenderConfig::max_depth`) for correct ordering — the WebGL
-    /// backend clamps out-of-range sums to avoid silent clipping, but
-    /// clamped instances lose their relative ordering.
+    /// instance_transform.depth`. The **sum** must stay in
+    /// `[-max_depth, max_depth]` (see `RenderConfig::max_depth`); the GPU
+    /// clips instances whose sum falls outside that range.
     pub transform : Transform,
     /// The sprite sheet image. All instances must reference sprites from this sheet.
     pub sheet : ResourceId< asset::Image >,
@@ -251,10 +250,9 @@ mod private
     /// Parent transform applied to all instances.
     ///
     /// The effective depth for each instance is `transform.depth +
-    /// instance_transform.depth`. Keep the sum in `[-max_depth, max_depth]`
-    /// (see `RenderConfig::max_depth`) for correct ordering — the WebGL
-    /// backend clamps out-of-range sums to avoid silent clipping, but
-    /// clamped instances lose their relative ordering.
+    /// instance_transform.depth`. The **sum** must stay in
+    /// `[-max_depth, max_depth]` (see `RenderConfig::max_depth`); the GPU
+    /// clips instances whose sum falls outside that range.
     pub transform : Transform,
     /// Geometry resource.
     pub geometry : ResourceId< asset::Geometry >,

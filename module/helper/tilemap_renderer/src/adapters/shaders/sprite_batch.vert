@@ -37,11 +37,10 @@ void main()
 
   // Negate so higher user depth → smaller clip-space z → wins LEQUAL depth test.
   // Each of `u_parent_depth` / `i_depth` is individually in
-  // [-u_max_depth, u_max_depth] by contract, but their sum can reach
-  // [-2*u_max_depth, 2*u_max_depth]; divide by u_max_depth and clamp to the
-  // clip-space z range so out-of-contract sums saturate rather than being
-  // silently clipped. Callers should still keep the sum in
-  // [-u_max_depth, u_max_depth] for correct ordering (see Transform::depth
-  // and SpriteBatchParams docs).
-  gl_Position = vec4( ndc, clamp( -( u_parent_depth + i_depth ) / u_max_depth, -1.0, 1.0 ), 1.0 );
+  // [-u_max_depth, u_max_depth] by contract; their sum is the caller's
+  // responsibility to keep within the same range. Divide by u_max_depth so the
+  // in-contract sum maps into clip-space [-1, 1]. Out-of-contract sums are
+  // clipped by the GPU — the caller will see geometry disappear, which is
+  // easier to diagnose than the silent z-fighting a clamp would introduce.
+  gl_Position = vec4( ndc, -( u_parent_depth + i_depth ) / u_max_depth, 1.0 );
 }
