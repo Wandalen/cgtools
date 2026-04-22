@@ -325,6 +325,7 @@ mod private
   /// - `filter = Linear`, `mipmap = Linear` → trilinear filtering (`LINEAR_MIPMAP_LINEAR`).
   /// - `filter = Linear`, `mipmap = Nearest` → bilinear within level, pick nearest level.
   /// - `filter = Nearest`, `mipmap = *` → nearest within level, chosen mip behavior.
+  ///
   /// `mag_filter` is always derived from [`SamplerFilter`] alone (magnification cannot use mips).
   #[ derive( Debug, Clone, Copy, Default ) ]
   pub enum MipmapMode

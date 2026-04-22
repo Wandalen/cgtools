@@ -478,13 +478,13 @@ mod private
           instances.push( &data ).map_err( | e | RenderError::BackendError( e.to_string() ) )?,
         Some( GpuBatch::Mesh { .. } ) => return Err( RenderError::BackendError
         (
-          format!( "AddSpriteInstance: batch {:?} is a Mesh batch; sprite instances require a Sprite batch", batch_id )
+          format!( "AddSpriteInstance: batch {batch_id:?} is a Mesh batch; sprite instances require a Sprite batch" )
         )),
         None =>
         {
           web_sys::console::warn_1
           (
-            &format!( "AddSpriteInstance: batch {:?} not found (dropped)", batch_id ).into()
+            &format!( "AddSpriteInstance: batch {batch_id:?} not found (dropped)" ).into()
           );
         }
       }
@@ -502,13 +502,13 @@ mod private
           instances.push( &data ).map_err( | e | RenderError::BackendError( e.to_string() ) )?,
         Some( GpuBatch::Sprite { .. } ) => return Err( RenderError::BackendError
         (
-          format!( "AddMeshInstance: batch {:?} is a Sprite batch; mesh instances require a Mesh batch", batch_id )
+          format!( "AddMeshInstance: batch {batch_id:?} is a Sprite batch; mesh instances require a Mesh batch" )
         )),
         None =>
         {
           web_sys::console::warn_1
           (
-            &format!( "AddMeshInstance: batch {:?} not found (dropped)", batch_id ).into()
+            &format!( "AddMeshInstance: batch {batch_id:?} not found (dropped)" ).into()
           );
         }
       }
@@ -550,13 +550,13 @@ mod private
         }
         Some( GpuBatch::Mesh { .. } ) => return Err( RenderError::BackendError
         (
-          format!( "SetSpriteInstance: batch {:?} is a Mesh batch; sprite instances require a Sprite batch", batch_id )
+          format!( "SetSpriteInstance: batch {batch_id:?} is a Mesh batch; sprite instances require a Sprite batch" )
         )),
         None =>
         {
           web_sys::console::warn_1
           (
-            &format!( "SetSpriteInstance: batch {:?} not found (dropped)", batch_id ).into()
+            &format!( "SetSpriteInstance: batch {batch_id:?} not found (dropped)" ).into()
           );
         }
       }
@@ -583,13 +583,13 @@ mod private
         }
         Some( GpuBatch::Sprite { .. } ) => return Err( RenderError::BackendError
         (
-          format!( "SetMeshInstance: batch {:?} is a Sprite batch; mesh instances require a Mesh batch", batch_id )
+          format!( "SetMeshInstance: batch {batch_id:?} is a Sprite batch; mesh instances require a Mesh batch" )
         )),
         None =>
         {
           web_sys::console::warn_1
           (
-            &format!( "SetMeshInstance: batch {:?} not found (dropped)", batch_id ).into()
+            &format!( "SetMeshInstance: batch {batch_id:?} not found (dropped)" ).into()
           );
         }
       }
@@ -605,7 +605,7 @@ mod private
       {
         web_sys::console::warn_1
         (
-          &format!( "RemoveInstance: batch {:?} not found (dropped)", batch_id ).into()
+          &format!( "RemoveInstance: batch {batch_id:?} not found (dropped)" ).into()
         );
         return Ok( () );
       };
@@ -641,13 +641,13 @@ mod private
         Some( GpuBatch::Sprite { params, .. } ) => { *params = cmd.params; }
         Some( GpuBatch::Mesh { .. } ) => return Err( RenderError::BackendError
         (
-          format!( "SetSpriteBatchParams: batch {:?} is a Mesh batch", batch_id )
+          format!( "SetSpriteBatchParams: batch {batch_id:?} is a Mesh batch" )
         )),
         None =>
         {
           web_sys::console::warn_1
           (
-            &format!( "SetSpriteBatchParams: batch {:?} not found (dropped)", batch_id ).into()
+            &format!( "SetSpriteBatchParams: batch {batch_id:?} not found (dropped)" ).into()
           );
         }
       }
@@ -663,13 +663,13 @@ mod private
         Some( GpuBatch::Mesh { params, .. } ) => { *params = cmd.params; }
         Some( GpuBatch::Sprite { .. } ) => return Err( RenderError::BackendError
         (
-          format!( "SetMeshBatchParams: batch {:?} is a Sprite batch", batch_id )
+          format!( "SetMeshBatchParams: batch {batch_id:?} is a Sprite batch" )
         )),
         None =>
         {
           web_sys::console::warn_1
           (
-            &format!( "SetMeshBatchParams: batch {:?} not found (dropped)", batch_id ).into()
+            &format!( "SetMeshBatchParams: batch {batch_id:?} not found (dropped)" ).into()
           );
         }
       }
