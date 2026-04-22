@@ -105,6 +105,17 @@ mod private
     /// Default background color (RGBA, 0.0–1.0).
     /// Used as the canvas background when no `Clear` command is issued.
     pub background : [ f32; 4 ],
+    /// Maximum magnitude of `Transform::depth` for GPU backends.
+    ///
+    /// Defines the usable per-field depth range as `[-max_depth, max_depth]`.
+    /// The shader divides the depth value by this before writing clip-space
+    /// `z`, so a larger value lets callers think in larger depth numbers
+    /// (e.g. `max_depth = 1000.0` allows `Transform::depth` in `[-1000, 1000]`)
+    /// at the cost of proportionally coarser depth buffer precision.
+    ///
+    /// Default `1.0` — backwards-compatible with the original `[-1, 1]` contract.
+    /// Ignored by SVG and terminal backends.
+    pub max_depth : f32,
   }
 
   impl Default for RenderConfig
@@ -118,6 +129,7 @@ mod private
         height : 600,
         antialias : Antialias::Default,
         background : [ 0.0, 0.0, 0.0, 1.0 ],
+        max_depth : 1.0,
       }
     }
   }
@@ -156,12 +168,21 @@ mod private
     /// Draw order. Higher values are drawn on top. Default 0.0.
     ///
     /// WebGL: honored via the depth buffer (`LEQUAL`, higher depth → on top).
-    /// Valid range is `[-1, 1]`; values outside get clipped. Equal-depth
-    /// draws fall back to submission order. **Only reliable for fully opaque
-    /// draws** — alpha-blended content whose farther pixels arrive after
-    /// nearer ones will z-fail instead of blending, so the caller must
-    /// submit translucent draws back-to-front (same convention as a
-    /// painter's algorithm renderer).
+    /// Valid range is `[-max_depth, max_depth]` (configured by
+    /// `RenderConfig::max_depth`, default `1.0`); the shader divides by
+    /// `max_depth` and clamps the result to the clip-space `z` range, so
+    /// out-of-contract values saturate instead of being silently discarded.
+    /// Equal-depth draws fall back to submission order. **Only reliable for
+    /// fully opaque draws** — alpha-blended content whose farther pixels
+    /// arrive after nearer ones will z-fail instead of blending, so the
+    /// caller must submit translucent draws back-to-front (same convention
+    /// as a painter's algorithm renderer).
+    ///
+    /// In batch draws (`SpriteBatchParams` / `MeshBatchParams`) the GPU sees
+    /// `parent_transform.depth + instance_transform.depth`, so the **sum**
+    /// must stay in `[-max_depth, max_depth]` for correct ordering. Saturated
+    /// instances collapse to the same clip `z` and fall back to submission
+    /// order among themselves.
     ///
     /// qqq: SVG and terminal backends still emit in submission order and
     /// ignore this field. Callers targeting those backends must pre-sort.

@@ -6,7 +6,8 @@ layout( location = 1 ) in vec2 a_uv; // optional, zero if no UVs
 
 uniform mat3 u_transform;
 uniform vec2 u_viewport;
-uniform float u_depth;       // NDC z; higher Transform::depth → drawn on top
+uniform float u_depth;       // Transform::depth; range [-u_max_depth, u_max_depth]
+uniform float u_max_depth;   // RenderConfig::max_depth; defines the usable depth range
 
 out vec2 v_uv;
 
@@ -19,5 +20,7 @@ void main()
   vec2 ndc = ( world.xy / u_viewport ) * 2.0 - 1.0;
 
   // Negate so higher user depth → smaller clip-space z → wins LEQUAL depth test.
-  gl_Position = vec4( ndc, -u_depth, 1.0 );
+  // Divide by u_max_depth to map [-max_depth, max_depth] → [-1, 1], and clamp
+  // defensively so out-of-contract values saturate rather than being clipped.
+  gl_Position = vec4( ndc, clamp( -u_depth / u_max_depth, -1.0, 1.0 ), 1.0 );
 }

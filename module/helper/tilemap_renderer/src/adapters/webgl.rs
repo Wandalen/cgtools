@@ -67,7 +67,7 @@ mod private
     }
 
     /// Draw a single sprite as a textured quad (triangle strip, 4 vertices from `gl_VertexID`).
-    fn draw( &self, gl : &gl::GL, transform : &[ f32; 9 ], uv_rect : &[ f32; 4 ], sprite_size : &[ f32; 2 ], tint : &[ f32; 4 ], viewport : &[ f32; 2 ], depth : f32 )
+    fn draw( &self, gl : &gl::GL, transform : &[ f32; 9 ], uv_rect : &[ f32; 4 ], sprite_size : &[ f32; 2 ], tint : &[ f32; 4 ], viewport : &[ f32; 2 ], depth : f32, max_depth : f32 )
     {
       // Unbind any VAO to prevent stale attribute state from interfering
       gl.bind_vertex_array( None );
@@ -78,11 +78,12 @@ mod private
       self.program.uniform_upload( "u_tint", tint );
       self.program.uniform_upload( "u_viewport", viewport );
       self.program.uniform_upload( "u_depth", &depth );
+      self.program.uniform_upload( "u_max_depth", &max_depth );
       gl.draw_arrays( gl::TRIANGLE_STRIP, 0, 4 );
     }
 
     /// Draw an instanced sprite batch.
-    fn draw_batch( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, viewport : &[ f32; 2 ] )
+    fn draw_batch( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, viewport : &[ f32; 2 ], max_depth : f32 )
     {
       let GpuBatch::Sprite { instances, vao, params, .. } = batch else { return; };
       if instances.is_empty() { return; }
@@ -101,6 +102,7 @@ mod private
       let parent_mat = params.transform.to_mat3();
       self.batch_program.uniform_matrix_upload( "u_parent", &parent_mat, true );
       self.batch_program.uniform_upload( "u_parent_depth", &params.transform.depth );
+      self.batch_program.uniform_upload( "u_max_depth", &max_depth );
 
       gl.bind_vertex_array( Some( vao ) );
       gl.draw_arrays_instanced( gl::TRIANGLE_STRIP, 0, 4, instances.len() as i32 );
@@ -154,6 +156,7 @@ mod private
       viewport : &[ f32; 2 ],
       use_texture : bool,
       depth : f32,
+      max_depth : f32,
     )
     {
       self.program.activate();
@@ -162,6 +165,7 @@ mod private
       self.program.uniform_upload( "u_viewport", viewport );
       self.program.uniform_upload( "u_use_texture", &i32::from( use_texture ) );
       self.program.uniform_upload( "u_depth", &depth );
+      self.program.uniform_upload( "u_max_depth", &max_depth );
 
       gl.bind_vertex_array( Some( &geom.vao ) );
 
@@ -180,7 +184,7 @@ mod private
     }
 
     /// Draw an instanced mesh batch. VAO is already configured via `setup_mesh_batch_vao`.
-    fn draw_batch( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, viewport : &[ f32; 2 ] )
+    fn draw_batch( &self, gl : &gl::GL, batch : &GpuBatch, resources : &GpuResources, viewport : &[ f32; 2 ], max_depth : f32 )
     {
       let GpuBatch::Mesh { instances, vao, params, .. } = batch else { return };
       if instances.is_empty() { return; }
@@ -205,6 +209,7 @@ mod private
       let parent_mat = params.transform.to_mat3();
       self.batch_program.uniform_matrix_upload( "u_parent", &parent_mat, true );
       self.batch_program.uniform_upload( "u_parent_depth", &params.transform.depth );
+      self.batch_program.uniform_upload( "u_max_depth", &max_depth );
 
       gl.bind_vertex_array( Some( vao ) );
 
@@ -364,7 +369,7 @@ mod private
           use_texture = true;
         }
 
-        self.mesh.draw( &self.gl, geom, &mat, &color, topology_to_gl( &m.topology ), viewport, use_texture, m.transform.depth );
+        self.mesh.draw( &self.gl, geom, &mat, &color, topology_to_gl( &m.topology ), viewport, use_texture, m.transform.depth, self.config.max_depth );
       }
     }
 
@@ -389,7 +394,7 @@ mod private
 
       let mat = s.transform.to_mat3();
       apply_blend( &self.gl, &s.blend );
-      self.sprite.draw( &self.gl, &mat, &uv_rect, &sprite_size, &s.tint, viewport, s.transform.depth );
+      self.sprite.draw( &self.gl, &mat, &uv_rect, &sprite_size, &s.tint, viewport, s.transform.depth, self.config.max_depth );
     }
 
     fn cmd_create_sprite_batch( &mut self, cmd : &CreateSpriteBatch ) -> Result< (), RenderError >
@@ -735,8 +740,8 @@ mod private
       });
       match gpu_batch
       {
-        GpuBatch::Sprite { .. } => self.sprite.draw_batch( &self.gl, gpu_batch, &res, viewport ),
-        GpuBatch::Mesh { .. } => self.mesh.draw_batch( &self.gl, gpu_batch, &res, viewport ),
+        GpuBatch::Sprite { .. } => self.sprite.draw_batch( &self.gl, gpu_batch, &res, viewport, self.config.max_depth ),
+        GpuBatch::Mesh { .. } => self.mesh.draw_batch( &self.gl, gpu_batch, &res, viewport, self.config.max_depth ),
       }
       Ok( () )
     }
