@@ -8,6 +8,7 @@ mod private
 {
   use core::cell::Cell;
   use core::marker::PhantomData;
+  use core::sync::atomic::{ AtomicBool, Ordering };
   use minwebgl as gl;
   use nohash_hasher::IntMap;
   use crate::backend::RenderError;
@@ -669,14 +670,20 @@ mod private
       // qqq: true Overlay (Multiply where dst<0.5, Screen where dst>0.5) cannot be
       // expressed as a single blend_func call — it requires a custom shader or a
       // separate FBO read-back pass, neither of which is implemented yet.
-      // Overlay falls back to Normal so rendering is at least visible; the
-      // console.warn below makes the silent substitution observable.
+      // Overlay falls back to Normal so rendering is at least visible; the warn
+      // below is emitted at most once per process because the limitation is
+      // static (not a per-draw condition) — calling it every frame from a
+      // submit() loop would flood the console without adding information.
       BlendMode::Overlay =>
       {
-        web_sys::console::warn_1
-        (
-          &"BlendMode::Overlay is not supported in WebGL2 without an FBO pass; falling back to Normal".into()
-        );
+        static OVERLAY_WARNED : AtomicBool = AtomicBool::new( false );
+        if !OVERLAY_WARNED.swap( true, Ordering::Relaxed )
+        {
+          web_sys::console::warn_1
+          (
+            &"BlendMode::Overlay is not supported in WebGL2 without an FBO pass; falling back to Normal".into()
+          );
+        }
         gl.blend_func_separate( gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA, gl::ONE, gl::ONE_MINUS_SRC_ALPHA );
       }
       // Color: src*src_a + dst*(1-src_a). Alpha: standard over.
