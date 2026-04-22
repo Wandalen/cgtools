@@ -23,7 +23,13 @@ void main()
   // Generate unit quad from gl_VertexID (triangle strip: 0,1,2,3)
   vec2 quad = vec2( float( gl_VertexID & 1 ), float( ( gl_VertexID >> 1 ) & 1 ) );
 
-  // Compute UV from pixel region and sheet size
+  // Compute UV from pixel region and sheet size.
+  // `i_region` carries the sprite rect in pixels; normalization happens here
+  // rather than in Rust so per-instance data stays independent of the sheet's
+  // dimensions — a sheet loaded asynchronously can resolve its dimensions
+  // after instances have already been uploaded without requiring the
+  // instance buffer to be rewritten. Contrast with `sprite.vert`, which
+  // receives an already-normalized `[0..1]` rect from the Rust upload path.
   v_uv = ( i_region.xy + quad * i_region.zw ) / u_tex_size;
   v_tint = i_tint;
 

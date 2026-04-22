@@ -16,7 +16,13 @@ void main()
   // Generate unit quad from gl_VertexID (triangle strip: 0,1,2,3)
   vec2 quad = vec2( float( gl_VertexID & 1 ), float( ( gl_VertexID >> 1 ) & 1 ) );
 
-  // Map quad corner to sprite sub-region UV
+  // Map quad corner to sprite sub-region UV.
+  // `u_uv_rect` is already in normalized UV space `[0..1]` — the Rust upload
+  // path divides the pixel region by the sheet's dimensions before calling
+  // `uniform_upload`. Contrast with `sprite_batch.vert`, which receives the
+  // region in pixels per-instance and divides by `u_tex_size` in the shader
+  // so per-instance data stays independent of the (possibly async-loaded)
+  // sheet's dimensions.
   v_uv = u_uv_rect.xy + quad * u_uv_rect.zw;
 
   // Scale unit quad to sprite's natural pixel size, then apply transform
