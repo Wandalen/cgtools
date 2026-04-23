@@ -1,9 +1,10 @@
+#![ allow( clippy::min_ident_chars ) ]
 //! Types tests.
 //!
 //! Covers:
 //! - `Transform` identity state, translation matrix slots, scale diagonal, 90-degree rotation
 //! - `ResourceId` type-safe equality and debug formatting
-//! - `RenderConfig` default field values (width, height, antialias, background color)
+//! - `RenderConfig` default field values (width, height, antialias, background color, `max_depth`)
 
 use tilemap_renderer::types::*;
 
@@ -128,4 +129,5 @@ fn render_config_default()
   assert!( config.background[ 1 ].abs() < 1e-6 );
   assert!( config.background[ 2 ].abs() < 1e-6 );
   assert!( ( config.background[ 3 ] - 1.0 ).abs() < 1e-6 );
+  assert!( ( config.max_depth - 1.0 ).abs() < 1e-6 );
 }
