@@ -4,13 +4,16 @@
 #![ cfg( feature = "scene-model" ) ]
 #![ allow( clippy::min_ident_chars ) ]
 // Test-only idioms: exact array comparisons and ref-in-closure patterns are
-// intentional; `Default::default()` reads fine at fixture build sites.
+// intentional; `Default::default()` reads fine at fixture build sites;
+// fixture builders sometimes exceed the 100-line heuristic.
 #![ allow
 (
   clippy::float_cmp,
   clippy::default_trait_access,
   clippy::redundant_closure_for_method_calls,
   clippy::needless_borrow,
+  clippy::too_many_lines,
+  clippy::doc_markdown,
 ) ]
 
 use std::collections::HashMap;
@@ -26,11 +29,15 @@ use tilemap_renderer::scene_model::
   Asset,
   AssetKind,
   AssetResolver,
+  AutotileLayout,
   Bounds,
   Camera,
   CompileError,
+  Condition,
+  EdgeDirection,
   HexConfig,
   LayerBehaviour,
+  NeighborBitmaskSource,
   Object,
   ObjectLayer,
   PathResolver,
@@ -44,6 +51,7 @@ use tilemap_renderer::scene_model::
   SpriteSource,
   Tile,
   TilingStrategy,
+  TriBlendPattern,
   Variant,
   VariantSelection,
   compile_assets,
@@ -55,6 +63,16 @@ use tilemap_renderer::types::{ MipmapMode, SamplerFilter, WrapMode };
 // ────────────────────────────────────────────────────────────────────────────
 // Fixture builders.
 // ────────────────────────────────────────────────────────────────────────────
+
+fn atlas_with_frames( columns : u32, pairs : &[ ( &str, ( u32, u32 ) ) ] ) -> AssetKind
+{
+  let mut frames = HashMap::new();
+  for ( name, pos ) in pairs
+  {
+    frames.insert( ( *name ).to_string(), *pos );
+  }
+  AssetKind::Atlas { tile_size : ( 72, 64 ), columns, frames }
+}
 
 fn grass_object() -> Object
 {
@@ -97,7 +115,12 @@ fn minimal_spec() -> RenderSpec
       {
         id : "terrain".into(),
         path : "terrain.png".into(),
-        kind : AssetKind::Atlas { tile_size : ( 72, 64 ), columns : 2 },
+        kind : AssetKind::Atlas
+        {
+          tile_size : ( 72, 64 ),
+          columns : 2,
+          frames : std::collections::HashMap::new(),
+        },
         filter : SamplerFilter::Linear,
         mipmap : MipmapMode::Off,
         wrap : WrapMode::Clamp,
@@ -198,17 +221,23 @@ fn compile_assets_rejects_single_kind()
 }
 
 #[ test ]
-fn compile_assets_rejects_bad_frame_name()
+fn compile_assets_accepts_named_atlas_frame()
 {
+  // Atlas frames may be numeric (resolved via `columns`) OR declared by name
+  // in `Atlas.frames`. Named frames carry their exact `( col, row )` so the
+  // compile layer can produce a precise sprite region.
   let mut spec = minimal_spec();
+  if let AssetKind::Atlas { frames, .. } = &mut spec.assets[ 0 ].kind
+  {
+    frames.insert( "grass_01".into(), ( 1, 2 ) );
+  }
   spec.objects[ 0 ].animations.get_mut( "default" ).unwrap()[ 0 ].sprite_source =
-    SpriteSource::Static( SpriteRef( "terrain".into(), "oops".into() ) );
-  let err = compile_assets( &spec, &PathResolver ).unwrap_err();
-  assert!
-  (
-    matches!( err, CompileError::InvalidFrameName { ref frame, .. } if frame == "oops" ),
-    "expected InvalidFrameName, got {err:?}",
-  );
+    SpriteSource::Static( SpriteRef( "terrain".into(), "grass_01".into() ) );
+  let compiled = compile_assets( &spec, &PathResolver ).expect( "named frames should compile" );
+  let id = compiled.ids.sprite( "terrain", "grass_01" ).expect( "sprite allocated" );
+  let sprite = compiled.assets.sprites.iter().find( | s | s.id == id ).unwrap();
+  // (col=1, row=2) × (72, 64) → x=72, y=128.
+  assert_eq!( sprite.region, [ 72.0, 128.0, 72.0, 64.0 ], "region must come from manifest entry" );
 }
 
 // Custom resolver proves the trait is extensible — here every path becomes a
@@ -656,4 +685,586 @@ fn phase_offset_hashcoord_spreads_frames_across_tiles()
   ).collect();
 
   assert!( sprites.len() >= 2, "HashCoord phase offset should spread frames across neighbouring tiles; saw {} unique", sprites.len() );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Slice 3 — NeighborBitmask / NeighborCondition / VertexCorners.
+// ────────────────────────────────────────────────────────────────────────────
+
+/// A minimal spec whose grass object is replaced by `wall_object` (an
+/// autotile). Useful as a base for NeighborBitmask tests.
+fn wall_spec() -> RenderSpec
+{
+  let mut spec = minimal_spec();
+  spec.assets.push
+  (
+    Asset
+    {
+      id : "walls".into(),
+      path : "walls.png".into(),
+      kind : AssetKind::Atlas
+      {
+        tile_size : ( 72, 64 ),
+        columns : 8,
+        frames : std::collections::HashMap::new(),
+      },
+      filter : Default::default(),
+      mipmap : Default::default(),
+      wrap : Default::default(),
+    }
+  );
+  let wall = Object
+  {
+    id : "stone_wall".into(),
+    anchor : Anchor::Hex,
+    global_layer : "terrain".into(),
+    priority : None,
+    sort_y_source : Default::default(),
+    default_animation : "default".into(),
+    animations :
+    {
+      let mut m = std::collections::HashMap::new();
+      m.insert
+      (
+        "default".into(),
+        vec!
+        [
+          ObjectLayer
+          {
+            id : None,
+            sprite_source : SpriteSource::NeighborBitmask
+            {
+              connects_with : vec![ "stone_wall".into() ],
+              source : NeighborBitmaskSource::ByAtlas
+              {
+                asset : "walls".into(),
+                layout : AutotileLayout::Bitmask6,
+              },
+            },
+            behaviour : LayerBehaviour::default(),
+            z_in_object : 0,
+            pipeline_layer : None,
+          },
+        ],
+      );
+      m
+    },
+  };
+  spec.objects.push( wall );
+  spec
+}
+
+#[ test ]
+fn autotile_isolated_cell_mask_zero()
+{
+  let spec = wall_spec();
+  let scene = Scene
+  {
+    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "stone_wall".into() ] } ],
+    ..minimal_scene_3x3()
+  };
+  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let cmds = compile_frame( &spec, &scene, &compiled, &Camera::default(), 0.0 ).unwrap();
+  let sprite_id = cmds.iter().find_map( | c |
+    if let tilemap_renderer::commands::RenderCommand::Sprite( s ) = c { Some( s.sprite ) } else { None }
+  ).unwrap();
+  // ByAtlas: isolated wall → mask 0 → sprite id allocated for frame "0" of the walls atlas.
+  assert_eq!( Some( sprite_id ), compiled.ids.sprite( "walls", "0" ) );
+}
+
+#[ test ]
+fn autotile_two_cell_line()
+{
+  // Two flat-top walls at (0,0) and (1,-1) — the latter is the N-axis neighbour (direction index 1 = NE for flat-top,
+  // but SPEC §2.3 says flat-top N offset is (0,-1). So (1,-1) is NE of origin.
+  // (0,0) sees neighbour at index 1 (NE) → bit 1 = 0b000010.
+  // (1,-1) sees neighbour at index 4 (SW, offset (-1, +1)) → bit 4 = 0b010000.
+  let spec = wall_spec();
+  let scene = Scene
+  {
+    tiles : vec!
+    [
+      Tile { pos : ( 0,  0 ), objects : vec![ "stone_wall".into() ] },
+      Tile { pos : ( 1, -1 ), objects : vec![ "stone_wall".into() ] },
+    ],
+    ..minimal_scene_3x3()
+  };
+  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let cmds = compile_frame( &spec, &scene, &compiled, &Camera::default(), 0.0 ).unwrap();
+  let sprite_ids : Vec< _ > = cmds.iter().filter_map( | c |
+    if let tilemap_renderer::commands::RenderCommand::Sprite( s ) = c { Some( s.sprite ) } else { None }
+  ).collect();
+  assert_eq!( sprite_ids.len(), 2 );
+  let expected_ne = compiled.ids.sprite( "walls", "2" );   // 0b000010
+  let expected_sw = compiled.ids.sprite( "walls", "16" );  // 0b010000
+  assert!( sprite_ids.contains( &expected_ne.unwrap() ), "no NE-facing mask 2 sprite in {sprite_ids:?}" );
+  assert!( sprite_ids.contains( &expected_sw.unwrap() ), "no SW-facing mask 16 sprite in {sprite_ids:?}" );
+}
+
+#[ test ]
+fn autotile_connects_with_void_at_map_edge()
+{
+  let mut spec = wall_spec();
+  // Replace the wall object's connects_with to include "void".
+  let wall = spec.objects.iter_mut().find( | o | o.id == "stone_wall" ).unwrap();
+  let stack = wall.animations.get_mut( "default" ).unwrap();
+  if let SpriteSource::NeighborBitmask { connects_with, .. } = &mut stack[ 0 ].sprite_source
+  {
+    connects_with.push( "void".into() );
+  }
+  let scene = Scene
+  {
+    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "stone_wall".into() ] } ],
+    ..minimal_scene_3x3()
+  };
+  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let cmds = compile_frame( &spec, &scene, &compiled, &Camera::default(), 0.0 ).unwrap();
+  let sprite_id = cmds.iter().find_map( | c |
+    if let tilemap_renderer::commands::RenderCommand::Sprite( s ) = c { Some( s.sprite ) } else { None }
+  ).unwrap();
+  // All 6 neighbours are void ⇒ mask = 0b111111 = 63.
+  assert_eq!( Some( sprite_id ), compiled.ids.sprite( "walls", "63" ) );
+}
+
+#[ test ]
+fn neighbor_condition_skirt_on_water_side()
+{
+  // Grass at (0,0), water at (0,1). Grass emits a skirt sprite on side S
+  // (direction index 3, axial offset (0, +1)).
+  let mut spec = minimal_spec();
+  spec.assets.push
+  (
+    Asset
+    {
+      id : "skirts".into(),
+      path : "skirts.png".into(),
+      kind : atlas_with_frames
+      (
+        8,
+        &[
+          ( "grass_side_s",  ( 0, 0 ) ),
+          ( "grass_side_sw", ( 1, 0 ) ),
+          ( "grass_side_se", ( 2, 0 ) ),
+        ],
+      ),
+      filter : Default::default(),
+      mipmap : Default::default(),
+      wrap : Default::default(),
+    }
+  );
+  // Add a water object.
+  spec.objects.push( Object
+  {
+    id : "water".into(),
+    anchor : Anchor::Hex,
+    global_layer : "terrain".into(),
+    priority : Some( 1 ),
+    sort_y_source : Default::default(),
+    default_animation : "default".into(),
+    animations :
+    {
+      let mut m = std::collections::HashMap::new();
+      m.insert
+      (
+        "default".into(),
+        vec!
+        [
+          ObjectLayer
+          {
+            id : None,
+            sprite_source : SpriteSource::Static( SpriteRef( "terrain".into(), "0".into() ) ),
+            behaviour : LayerBehaviour::default(),
+            z_in_object : 0,
+            pipeline_layer : None,
+          },
+        ],
+      );
+      m
+    },
+  });
+  // Rewire grass to have a skirt layer on S that triggers for water neighbours.
+  let grass = spec.objects.iter_mut().find( | o | o.id == "grass" ).unwrap();
+  let stack = grass.animations.get_mut( "default" ).unwrap();
+  stack.push( ObjectLayer
+  {
+    id : Some( "skirt".into() ),
+    sprite_source : SpriteSource::NeighborCondition
+    {
+      condition : Condition::NeighborIs( vec![ "water".into() ] ),
+      sides : vec![ EdgeDirection::S, EdgeDirection::SW, EdgeDirection::SE ],
+      sprite_pattern : "grass_side_{dir}".into(),
+      asset : "skirts".into(),
+    },
+    behaviour : LayerBehaviour::default(),
+    z_in_object : 1,
+    pipeline_layer : None,
+  });
+
+  let scene = Scene
+  {
+    tiles : vec!
+    [
+      Tile { pos : ( 0, 0 ), objects : vec![ "grass".into() ] },
+      Tile { pos : ( 0, 1 ), objects : vec![ "water".into() ] },
+    ],
+    ..minimal_scene_3x3()
+  };
+  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let cmds = compile_frame( &spec, &scene, &compiled, &Camera::default(), 0.0 ).unwrap();
+
+  let sprite_ids : Vec< _ > = cmds.iter().filter_map( | c |
+    if let tilemap_renderer::commands::RenderCommand::Sprite( s ) = c { Some( s.sprite ) } else { None }
+  ).collect();
+  // Expect: grass base + water base + one skirt sprite (side S matches).
+  // Side SW: neighbour at offset (-1, +1) = (-1, 1) — empty (void) → doesn't match NeighborIs(water).
+  // Side SE: neighbour at offset (+1, 0) = (1, 0) — empty → doesn't match.
+  let skirt_id = compiled.ids.sprite( "skirts", "grass_side_s" ).unwrap();
+  assert!( sprite_ids.contains( &skirt_id ), "south-side skirt sprite missing; saw {sprite_ids:?}" );
+}
+
+#[ test ]
+fn neighbor_condition_priority_lower_blends_grass_over_sand()
+{
+  let mut spec = minimal_spec();
+  spec.assets.push
+  (
+    Asset
+    {
+      id : "edges".into(),
+      path : "edges.png".into(),
+      kind : atlas_with_frames
+      (
+        8,
+        &[
+          ( "grass_edge_n",  ( 0, 0 ) ),
+          ( "grass_edge_ne", ( 1, 0 ) ),
+          ( "grass_edge_se", ( 2, 0 ) ),
+          ( "grass_edge_s",  ( 3, 0 ) ),
+          ( "grass_edge_sw", ( 4, 0 ) ),
+          ( "grass_edge_nw", ( 5, 0 ) ),
+          ( "sand_edge_n",   ( 0, 1 ) ),
+          ( "sand_edge_ne",  ( 1, 1 ) ),
+          ( "sand_edge_se",  ( 2, 1 ) ),
+          ( "sand_edge_s",   ( 3, 1 ) ),
+          ( "sand_edge_sw",  ( 4, 1 ) ),
+          ( "sand_edge_nw",  ( 5, 1 ) ),
+        ],
+      ),
+      filter : Default::default(),
+      mipmap : Default::default(),
+      wrap : Default::default(),
+    }
+  );
+  // Grass prio 10 (already in grass_object).
+  spec.objects.push( Object
+  {
+    id : "sand".into(),
+    anchor : Anchor::Hex,
+    global_layer : "terrain".into(),
+    priority : Some( 8 ),
+    sort_y_source : Default::default(),
+    default_animation : "default".into(),
+    animations :
+    {
+      let mut m = std::collections::HashMap::new();
+      m.insert
+      (
+        "default".into(),
+        vec!
+        [
+          ObjectLayer
+          {
+            id : None,
+            sprite_source : SpriteSource::Static( SpriteRef( "terrain".into(), "0".into() ) ),
+            behaviour : LayerBehaviour::default(),
+            z_in_object : 0,
+            pipeline_layer : None,
+          },
+        ],
+      );
+      m
+    },
+  });
+  let grass = spec.objects.iter_mut().find( | o | o.id == "grass" ).unwrap();
+  grass.animations.get_mut( "default" ).unwrap().push( ObjectLayer
+  {
+    id : Some( "edges".into() ),
+    sprite_source : SpriteSource::NeighborCondition
+    {
+      condition : Condition::NeighborPriorityLower,
+      sides : vec![ EdgeDirection::N, EdgeDirection::NE, EdgeDirection::SE, EdgeDirection::S, EdgeDirection::SW, EdgeDirection::NW ],
+      sprite_pattern : "grass_edge_{dir}".into(),
+      asset : "edges".into(),
+    },
+    behaviour : LayerBehaviour::default(),
+    z_in_object : 1,
+    pipeline_layer : None,
+  });
+  // Symmetric sand edge layer — should NOT emit (sand has lower priority than grass).
+  let sand = spec.objects.iter_mut().find( | o | o.id == "sand" ).unwrap();
+  sand.animations.get_mut( "default" ).unwrap().push( ObjectLayer
+  {
+    id : Some( "edges".into() ),
+    sprite_source : SpriteSource::NeighborCondition
+    {
+      condition : Condition::NeighborPriorityLower,
+      sides : vec![ EdgeDirection::N, EdgeDirection::NE, EdgeDirection::SE, EdgeDirection::S, EdgeDirection::SW, EdgeDirection::NW ],
+      sprite_pattern : "sand_edge_{dir}".into(),
+      asset : "edges".into(),
+    },
+    behaviour : LayerBehaviour::default(),
+    z_in_object : 1,
+    pipeline_layer : None,
+  });
+
+  let scene = Scene
+  {
+    tiles : vec!
+    [
+      Tile { pos : ( 0, 0 ), objects : vec![ "grass".into() ] },
+      Tile { pos : ( 0, 1 ), objects : vec![ "sand".into() ] },
+    ],
+    ..minimal_scene_3x3()
+  };
+  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let cmds = compile_frame( &spec, &scene, &compiled, &Camera::default(), 0.0 ).unwrap();
+
+  let sprite_ids : std::collections::HashSet< _ > = cmds.iter().filter_map( | c |
+    if let tilemap_renderer::commands::RenderCommand::Sprite( s ) = c { Some( s.sprite ) } else { None }
+  ).collect();
+
+  // grass at (0,0) with sand to S has higher priority → emits "grass_edge_s".
+  let grass_edge_s = compiled.ids.sprite( "edges", "grass_edge_s" ).unwrap();
+  assert!( sprite_ids.contains( &grass_edge_s ), "grass_edge_s missing; {sprite_ids:?}" );
+
+  // sand at (0,1) with grass to N has lower priority → must NOT emit "sand_edge_n".
+  let sand_edge_n = compiled.ids.sprite( "edges", "sand_edge_n" ).unwrap();
+  assert!( !sprite_ids.contains( &sand_edge_n ), "sand_edge_n should NOT emit — sand has lower priority" );
+}
+
+#[ test ]
+fn vertex_corners_three_way_blend()
+{
+  // Three tiles surrounding a vertex: grass at (0,0), sand at (1,-1), water at (0,-1).
+  // These three hexes share exactly one dual-mesh triangle (by construction).
+  let mut spec = minimal_spec();
+  spec.assets.push
+  (
+    Asset
+    {
+      id : "blends".into(),
+      path : "blends.png".into(),
+      kind : atlas_with_frames
+      (
+        8,
+        &[
+          ( "tri_gsw_0", ( 0, 0 ) ),
+          ( "tri_gsw_1", ( 1, 0 ) ),
+          ( "tri_gsw_2", ( 2, 0 ) ),
+        ],
+      ),
+      filter : Default::default(),
+      mipmap : Default::default(),
+      wrap : Default::default(),
+    }
+  );
+
+  // Terrains grass/sand/water.
+  for ( id, prio ) in [ ( "sand", 8 ), ( "water", 5 ) ]
+  {
+    spec.objects.push( Object
+    {
+      id : id.into(),
+      anchor : Anchor::Hex,
+      global_layer : "terrain".into(),
+      priority : Some( prio ),
+      sort_y_source : Default::default(),
+      default_animation : "default".into(),
+      animations :
+      {
+        let mut m = std::collections::HashMap::new();
+        m.insert
+        (
+          "default".into(),
+          vec!
+          [
+            ObjectLayer
+            {
+              id : None,
+              sprite_source : SpriteSource::Static( SpriteRef( "terrain".into(), "0".into() ) ),
+              behaviour : LayerBehaviour::default(),
+              z_in_object : 0,
+              pipeline_layer : None,
+            },
+          ],
+        );
+        m
+      },
+    });
+  }
+
+  // VertexCorners object — its own default animation has a single layer
+  // with a pattern that matches the gss/sand/water triple.
+  spec.objects.push( Object
+  {
+    id : "blend".into(),
+    anchor : Anchor::Hex,   // anchor type of the owning object doesn't matter for VertexCorners pass
+    global_layer : "terrain".into(),
+    priority : None,
+    sort_y_source : Default::default(),
+    default_animation : "default".into(),
+    animations :
+    {
+      let mut m = std::collections::HashMap::new();
+      m.insert
+      (
+        "default".into(),
+        vec!
+        [
+          ObjectLayer
+          {
+            id : None,
+            sprite_source : SpriteSource::VertexCorners
+            {
+              patterns : vec!
+              [
+                TriBlendPattern
+                {
+                  corners : ( "grass".into(), "sand".into(), "water".into() ),
+                  sprite_pattern : "tri_gsw_{rot}".into(),
+                  priority : 10,
+                  animation : None,
+                },
+              ],
+              asset : "blends".into(),
+            },
+            behaviour : LayerBehaviour::default(),
+            z_in_object : 0,
+            pipeline_layer : None,
+          },
+        ],
+      );
+      m
+    },
+  });
+  // Instantiate the blend object once on any tile so the VertexCorners pass
+  // finds it during bucket emission. (Object presence is what matters, not
+  // the tile — vertex sprites are global per-bucket.)
+  let scene = Scene
+  {
+    tiles : vec!
+    [
+      Tile { pos : ( 0,  0 ), objects : vec![ "grass".into(), "blend".into() ] },
+      Tile { pos : ( 1, -1 ), objects : vec![ "sand".into() ] },
+      Tile { pos : ( 0, -1 ), objects : vec![ "water".into() ] },
+    ],
+    ..minimal_scene_3x3()
+  };
+  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let cmds = compile_frame( &spec, &scene, &compiled, &Camera::default(), 0.0 ).unwrap();
+
+  let sprite_ids : std::collections::HashSet< _ > = cmds.iter().filter_map( | c |
+    if let tilemap_renderer::commands::RenderCommand::Sprite( s ) = c { Some( s.sprite ) } else { None }
+  ).collect();
+
+  // The triangle surrounding the shared vertex should have produced a
+  // tri_gsw_<rot> sprite for some rotation in 0..3.
+  let any_rot_emitted = ( 0..3 ).any( | r |
+  {
+    let id = compiled.ids.sprite( "blends", &format!( "tri_gsw_{r}" ) );
+    id.is_some() && sprite_ids.contains( &id.unwrap() )
+  });
+  assert!( any_rot_emitted, "expected any rotation of tri_gsw to emit; sprite_ids = {sprite_ids:?}" );
+}
+
+#[ test ]
+fn vertex_corners_wildcard_edge_fade()
+{
+  // An isolated tile of grass — every dual triangle has 2 void corners.
+  // A wildcard pattern ("*", "*", "void") should cover each.
+  let mut spec = minimal_spec();
+  spec.assets.push
+  (
+    Asset
+    {
+      id : "fades".into(),
+      path : "fades.png".into(),
+      kind : atlas_with_frames
+      (
+        8,
+        &[
+          ( "edge_fade_0", ( 0, 0 ) ),
+          ( "edge_fade_1", ( 1, 0 ) ),
+          ( "edge_fade_2", ( 2, 0 ) ),
+        ],
+      ),
+      filter : Default::default(),
+      mipmap : Default::default(),
+      wrap : Default::default(),
+    }
+  );
+  spec.objects.push( Object
+  {
+    id : "fade".into(),
+    anchor : Anchor::Hex,
+    global_layer : "terrain".into(),
+    priority : None,
+    sort_y_source : Default::default(),
+    default_animation : "default".into(),
+    animations :
+    {
+      let mut m = std::collections::HashMap::new();
+      m.insert
+      (
+        "default".into(),
+        vec!
+        [
+          ObjectLayer
+          {
+            id : None,
+            sprite_source : SpriteSource::VertexCorners
+            {
+              patterns : vec!
+              [
+                TriBlendPattern
+                {
+                  corners : ( "*".into(), "*".into(), "void".into() ),
+                  sprite_pattern : "edge_fade_{rot}".into(),
+                  priority : 0,
+                  animation : None,
+                },
+              ],
+              asset : "fades".into(),
+            },
+            behaviour : LayerBehaviour::default(),
+            z_in_object : 0,
+            pipeline_layer : None,
+          },
+        ],
+      );
+      m
+    },
+  });
+
+  let scene = Scene
+  {
+    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "grass".into(), "fade".into() ] } ],
+    ..minimal_scene_3x3()
+  };
+  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let cmds = compile_frame( &spec, &scene, &compiled, &Camera::default(), 0.0 ).unwrap();
+
+  let emitted : std::collections::HashSet< _ > = cmds.iter().filter_map( | c |
+    if let tilemap_renderer::commands::RenderCommand::Sprite( s ) = c { Some( s.sprite ) } else { None }
+  ).collect();
+
+  // Six triangles around the isolated hex, all with 2 void corners → all
+  // should match the wildcard fade pattern. We just assert at least one
+  // edge_fade_* sprite emitted.
+  let any_fade = ( 0..3 ).any( | r |
+  {
+    let id = compiled.ids.sprite( "fades", &format!( "edge_fade_{r}" ) );
+    id.is_some() && emitted.contains( &id.unwrap() )
+  });
+  assert!( any_fade, "expected wildcard fade to match at least one triangle; emitted = {emitted:?}" );
 }

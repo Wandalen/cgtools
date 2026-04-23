@@ -32,11 +32,14 @@
 pub mod animation;
 pub mod assets;
 pub mod camera;
+pub mod conditions;
 pub mod coords;
 pub mod error;
 pub mod frame;
 pub mod ids;
+pub mod neighbors;
 pub mod resolver;
+pub mod vertex;
 
 pub use animation::resolve_animation_frame;
 pub use assets::{ CompiledAssets, compile_assets };

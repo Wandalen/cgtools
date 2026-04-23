@@ -7,6 +7,7 @@
 mod private
 {
   use serde::{ Deserialize, Serialize };
+  use std::collections::HashMap;
   use crate::types::{ MipmapMode, SamplerFilter, WrapMode };
 
   // ============================================================================
@@ -68,14 +69,29 @@ mod private
   {
     /// One image, one sprite — `SpriteRef` frame name is the asset id itself.
     Single,
-    /// Grid atlas with fixed tile size, keyed by frame name (lookup tables live
-    /// outside this spec — typically next to the image, or embedded as JSON).
+    /// Grid atlas. Every sprite is a `tile_size` rectangle placed at some
+    /// `( col, row )` in the grid.
+    ///
+    /// Frame names come from two sources:
+    /// - **Numeric indices** (`"0"`, `"1"`, `"63"`) — resolved automatically
+    ///   via `columns` using `col = idx % columns`, `row = idx / columns`.
+    ///   Great for autotile atlases where frames are authored in mask order.
+    /// - **Named frames** — declared in `frames` with their explicit
+    ///   `( col, row )` cell. Use these for semantic names like
+    ///   `"grass_edge_n"`, `"tri_gsw_0"`, etc.
+    ///
+    /// Named and numeric frames coexist: a lookup first checks `frames`, then
+    /// falls back to numeric parsing. If neither resolves, compilation fails
+    /// with a clear error (no silent placeholder regions).
     Atlas
     {
       /// Size of one tile in pixels, `( width, height )`.
       tile_size : ( u32, u32 ),
-      /// Number of columns in the atlas grid.
+      /// Number of columns in the atlas grid — used by numeric-index lookups.
       columns : u32,
+      /// Named-frame manifest: `"name" -> ( col, row )`. Empty by default.
+      #[ serde( default ) ]
+      frames : HashMap< String, ( u32, u32 ) >,
     },
     /// Horizontal / vertical / grid sprite sheet for sequential animation frames.
     SpriteSheet

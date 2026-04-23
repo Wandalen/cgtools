@@ -14,9 +14,10 @@ mod private
   use crate::assets::{ Assets, ImageAsset, SpriteAsset };
   use crate::scene_model::compile::error::CompileError;
   use crate::scene_model::compile::ids::IdMap;
+  use crate::scene_model::compile::neighbors::dir_name;
   use crate::scene_model::compile::resolver::AssetResolver;
   use crate::scene_model::resource::{ AnimationTiming, AssetKind, SpriteRef };
-  use crate::scene_model::source::{ SpriteSource, Variant };
+  use crate::scene_model::source::{ NeighborBitmaskSource, SpriteSource, Variant };
   use crate::scene_model::spec::RenderSpec;
 
   /// Output of [`compile_assets`]: backend-ready assets plus the id map.
@@ -133,9 +134,61 @@ mod private
       // Animation: the frames live on the referenced resource (`spec.animations`),
       // which we pre-expanded in pass 2 above. Nothing to do here.
       SpriteSource::Animation( _ ) => Ok( () ),
-      // External / composite sources — no static SpriteRefs to pre-allocate.
-      // Composite sources are rejected in frame compilation until their
-      // respective slices land; External is populated by game code at runtime.
+      SpriteSource::NeighborBitmask { source, .. } =>
+      {
+        match source
+        {
+          NeighborBitmaskSource::ByMapping { mapping, fallback } =>
+          {
+            for value in mapping.values()
+            {
+              collect_sprite_refs( value, spec, ids, sprites )?;
+            }
+            collect_sprite_refs( fallback, spec, ids, sprites )?;
+          },
+          NeighborBitmaskSource::ByAtlas { asset, layout : _ } =>
+          {
+            // Layout is `Bitmask6` in 0.2.0 — 64 entries indexed by mask.
+            // Allocate a SpriteAsset for every mask value so frame-time
+            // lookup is a straight `ids.sprite(asset, &mask.to_string())`.
+            for mask in 0_u32..64
+            {
+              let name = mask.to_string();
+              let sprite_ref = SpriteRef( asset.clone(), name );
+              ensure_sprite_allocated( &sprite_ref, spec, ids, sprites )?;
+            }
+          },
+        }
+        Ok( () )
+      },
+      SpriteSource::NeighborCondition { sides, sprite_pattern, asset, .. } =>
+      {
+        // Substitute `{dir}` for each declared side to pre-allocate sprites.
+        for dir in sides
+        {
+          let frame_name = sprite_pattern.replace( "{dir}", dir_name( *dir ) );
+          let sprite_ref = SpriteRef( asset.clone(), frame_name );
+          ensure_sprite_allocated( &sprite_ref, spec, ids, sprites )?;
+        }
+        Ok( () )
+      },
+      SpriteSource::VertexCorners { patterns, asset } =>
+      {
+        // Each pattern has a `{rot}` placeholder in 0..3; allocate all three
+        // rotations so the frame pass has a guaranteed lookup per triangle.
+        for pattern in patterns
+        {
+          for rot in 0_u32..3
+          {
+            let frame_name = pattern.sprite_pattern.replace( "{rot}", &rot.to_string() );
+            let sprite_ref = SpriteRef( asset.clone(), frame_name );
+            ensure_sprite_allocated( &sprite_ref, spec, ids, sprites )?;
+          }
+        }
+        Ok( () )
+      },
+      // External / EdgeConnectedBitmask — not supported in this slice;
+      // their sprites (if any) will be pre-allocated when they land.
       _ => Ok( () ),
     }
   }
@@ -220,8 +273,17 @@ mod private
     Ok( () )
   }
 
-  /// Compute the pixel region `[x, y, w, h]` for a `(asset, frame_name)` pair
-  /// under the asset's declared layout.
+  /// Compute the pixel region `[ x, y, w, h ]` for a `( asset, frame_name )`
+  /// pair under the asset's declared layout.
+  ///
+  /// For `AssetKind::Atlas`, frames resolve in this order:
+  /// 1. Named frame in `Atlas.frames` manifest → its explicit `( col, row )`.
+  /// 2. Numeric string → `( idx % columns, idx / columns )` via grid layout.
+  /// 3. Otherwise → [`CompileError::InvalidFrameName`].
+  ///
+  /// Named and numeric frames freely coexist: atlases authored with a mix of
+  /// semantic names for terrain sides / triangle blends and raw indices for
+  /// autotile masks all work without separate mechanisms.
   fn frame_region
   (
     asset_id : &str,
@@ -231,28 +293,38 @@ mod private
   {
     match kind
     {
-      AssetKind::Atlas { tile_size, columns } =>
+      AssetKind::Atlas { tile_size, columns, frames } =>
       {
-        let idx = frame_name.parse::< u32 >().map_err( | _ | CompileError::InvalidFrameName
+        let tw = tile_size.0 as f32;
+        let th = tile_size.1 as f32;
+
+        if let Some( &( col, row ) ) = frames.get( frame_name )
+        {
+          return Ok( [ col as f32 * tw, row as f32 * th, tw, th ] );
+        }
+
+        if let Ok( idx ) = frame_name.parse::< u32 >()
+        {
+          let cols = *columns;
+          if cols == 0
+          {
+            return Err( CompileError::OutOfRange
+            {
+              owner : asset_id.to_owned(),
+              index : idx,
+              max : 0,
+            });
+          }
+          let col = idx % cols;
+          let row = idx / cols;
+          return Ok( [ col as f32 * tw, row as f32 * th, tw, th ] );
+        }
+
+        Err( CompileError::InvalidFrameName
         {
           asset : asset_id.to_owned(),
           frame : frame_name.to_owned(),
-        })?;
-        let cols = *columns;
-        if cols == 0
-        {
-          return Err( CompileError::OutOfRange
-          {
-            owner : asset_id.to_owned(),
-            index : idx,
-            max : 0,
-          });
-        }
-        let col = idx % cols;
-        let row = idx / cols;
-        let tw = tile_size.0 as f32;
-        let th = tile_size.1 as f32;
-        Ok( [ col as f32 * tw, row as f32 * th, tw, th ] )
+        })
       },
       AssetKind::Single =>
         Err( CompileError::UnsupportedAssetKind

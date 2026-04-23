@@ -231,7 +231,12 @@ fn variant_of_animations_round_trip()
 #[ test ]
 fn asset_kind_atlas_round_trip()
 {
-  let kind = AssetKind::Atlas { tile_size : ( 64, 64 ), columns : 4 };
+  let kind = AssetKind::Atlas
+  {
+    tile_size : ( 64, 64 ),
+    columns : 4,
+    frames : std::collections::HashMap::new(),
+  };
   let s = ron::to_string( &kind ).unwrap();
   let back : AssetKind = ron::from_str( &s ).unwrap();
   assert!( matches!( back, AssetKind::Atlas { columns : 4, .. } ) );
