@@ -695,6 +695,7 @@ mod private
     ///   encoded and cannot close the attribute or inject markup)
     fn path_to_href( s : &str ) -> String
     {
+      use core::fmt::Write as _;
       let mut out = String::with_capacity( s.len() );
       for byte in s.bytes()
       {
@@ -716,7 +717,8 @@ mod private
         else
         {
           // Percent-encode as hex (uppercase per RFC 3986).
-          out.push_str( &format!( "%{byte:02X}" ) );
+          // Writing into a String never fails; the Result is discarded.
+          let _ = write!( out, "%{byte:02X}" );
         }
       }
       out
@@ -2182,7 +2184,7 @@ mod private
     // -- clip masks --
 
     #[ test ]
-    fn clip_mask_emits_clipPath_with_path_segments()
+    fn clip_mask_emits_clip_path_with_path_segments()
     {
       let mut svg = svg800x600();
       let assets = Assets
@@ -2699,7 +2701,7 @@ mod private
       assert!( b.contains( "fill=\"rgb(255,0,0)\"" ), "body: {b}" );
     }
 
-    /// Verifies that DataType::U8 index buffers are correctly loaded and used
+    /// Verifies that `DataType::U8` index buffers are correctly loaded and used
     /// so geometry with U8 indices renders polygons rather than being silently dropped.
     #[ test ]
     fn geometry_u8_indices_loaded()
@@ -2809,7 +2811,7 @@ mod private
       ( body( &svg ), defs( &svg ) )
     }
 
-    /// TriangleStrip with 4 vertices produces 2 triangles (n − 2 = 2 polygons).
+    /// `TriangleStrip` with 4 vertices produces 2 triangles (n − 2 = 2 polygons).
     #[ test ]
     fn mesh_triangle_strip_polygon_count()
     {
@@ -2818,7 +2820,7 @@ mod private
       assert_eq!( d.matches( "<polygon" ).count(), 2, "defs: {d}" );
     }
 
-    /// TriangleStrip with exactly 3 vertices produces exactly 1 triangle.
+    /// `TriangleStrip` with exactly 3 vertices produces exactly 1 triangle.
     #[ test ]
     fn mesh_triangle_strip_min_count()
     {
@@ -2827,7 +2829,7 @@ mod private
       assert_eq!( d.matches( "<polygon" ).count(), 1, "defs: {d}" );
     }
 
-    /// TriangleStrip alternates winding on odd triangles — for strip v0..v3,
+    /// `TriangleStrip` alternates winding on odd triangles — for strip v0..v3,
     /// triangle 0 is (v0,v1,v2) and triangle 1 is (v2,v1,v3), preserving CCW order
     /// (swapping the first two would flip winding; the second triangle in a raw
     /// strip is (v1,v2,v3) which has opposite winding from (v0,v1,v2)).
@@ -2845,7 +2847,7 @@ mod private
       assert!( !d.contains( "points=\"10,0 0,10 10,10\"" ), "strip emitted raw order: {d}" );
     }
 
-    /// TriangleStrip with fewer than 3 vertices produces no geometry — degenerate input is silently skipped.
+    /// `TriangleStrip` with fewer than 3 vertices produces no geometry — degenerate input is silently skipped.
     #[ test ]
     fn mesh_triangle_strip_degenerate_no_output()
     {
@@ -2855,7 +2857,7 @@ mod private
       assert!( !b.contains( "<use" ), "body: {b}" );
     }
 
-    /// LineList with 4 vertices (2 pairs) produces 2 `<polyline>` elements.
+    /// `LineList` with 4 vertices (2 pairs) produces 2 `<polyline>` elements.
     #[ test ]
     fn mesh_line_list_even()
     {
@@ -2864,7 +2866,7 @@ mod private
       assert_eq!( d.matches( "<polyline" ).count(), 2, "defs: {d}" );
     }
 
-    /// LineList with 3 vertices (odd) emits only 1 `<polyline>` — the trailing vertex is ignored.
+    /// `LineList` with 3 vertices (odd) emits only 1 `<polyline>` — the trailing vertex is ignored.
     #[ test ]
     fn mesh_line_list_odd_vertex_count()
     {
@@ -2873,7 +2875,7 @@ mod private
       assert_eq!( d.matches( "<polyline" ).count(), 1, "defs: {d}" );
     }
 
-    /// LineStrip with 4 vertices produces a single `<polyline>` with all points.
+    /// `LineStrip` with 4 vertices produces a single `<polyline>` with all points.
     #[ test ]
     fn mesh_line_strip_single_polyline()
     {
@@ -3010,7 +3012,7 @@ mod private
       assert_eq!( SvgBackend::detect_image_mime( &[ 0, 0, 0, 0 ] ), "image/png" );
     }
 
-    /// Verifies that an ImageSource::Path containing XML-special characters
+    /// Verifies that an `ImageSource::Path` containing XML-special characters
     /// cannot break out of the href attribute and inject event handlers like
     /// onload="alert(1)". Filenames with double-quotes are legal on Linux.
     #[ test ]
@@ -3037,7 +3039,7 @@ mod private
       assert!( d.contains( "%22" ), "expected percent-encoded quote in href: {d}" );
     }
 
-    /// Verifies that path_to_href produces a valid URI reference:
+    /// Verifies that `path_to_href` produces a valid URI reference:
     /// spaces become %20 and Windows backslashes become forward slashes.
     #[ test ]
     fn image_path_produces_valid_uri_reference()
@@ -3050,7 +3052,7 @@ mod private
       assert!( !e.contains( '"' ) && !e.contains( '<' ) && !e.contains( '>' ) && !e.contains( '&' ), "unsafe char leaked: {e}" );
     }
 
-    /// Verifies that a sprite referencing an ImageSource::Path sheet
+    /// Verifies that a sprite referencing an `ImageSource::Path` sheet
     /// (which has unknown dimensions) is skipped and a diagnostic HTML
     /// comment is emitted instead of producing an invisible sprite symbol.
     #[ test ]
@@ -3113,12 +3115,12 @@ mod private
       assert_eq!( SvgBackend::png_dimensions( &[ 0u8; 24 ] ), None ); // no PNG signature
     }
 
-    /// Verifies that load_assets extracts PNG dimensions from ImageSource::Encoded
+    /// Verifies that `load_assets` extracts PNG dimensions from `ImageSource::Encoded`
     /// so that a sprite symbol uses the correct sheet size.
     #[ test ]
     fn image_encoded_png_stores_dimensions()
     {
-      let png = SvgBackend::bitmap_to_png( &vec![ 0u8; 8 * 4 * 4 ], 8, 4, &PixelFormat::Rgba8 ).unwrap();
+      let png = SvgBackend::bitmap_to_png( &[ 0u8; 8 * 4 * 4 ], 8, 4, &PixelFormat::Rgba8 ).unwrap();
       let mut svg = svg800x600();
       let assets = Assets
       {
@@ -3174,7 +3176,7 @@ mod private
       assert!( png.is_some(), "expected Some for valid 1x1 Gray8" );
     }
 
-    /// Verifies that a 1×1 GrayAlpha8 pixel buffer encodes successfully.
+    /// Verifies that a 1×1 `GrayAlpha8` pixel buffer encodes successfully.
     #[ test ]
     fn bitmap_to_png_gray_alpha8_valid()
     {
@@ -3220,7 +3222,7 @@ mod private
     }
 
     /// When the byte buffer is too small for the declared dimensions,
-    /// bitmap_to_png returns None and no image def is emitted.
+    /// `bitmap_to_png` returns None and no image def is emitted.
     #[ test ]
     fn image_bitmap_bad_dimensions_emits_nothing()
     {
@@ -3263,7 +3265,7 @@ mod private
       })
     }
 
-    /// Verifies that BeginText / Char / EndText produces a `<text>` element
+    /// Verifies that `BeginText` / `Char` / `EndText` produces a `<text>` element
     /// containing the submitted characters.
     #[ test ]
     fn text_basic_flow_emits_text_element()
@@ -3330,7 +3332,7 @@ mod private
       assert!( b.contains( "&lt;/text&gt;&lt;script&gt;" ), "expected escaped form: {b}" );
     }
 
-    /// Verifies that EndText without BeginText is silently ignored (no panic, no output).
+    /// Verifies that `EndText` without `BeginText` is silently ignored (no panic, no output).
     #[ test ]
     fn text_end_without_begin_is_noop()
     {
@@ -3439,7 +3441,7 @@ mod private
       assert_eq!( v, "baseline" );
     }
 
-    /// Verifies that anchor attributes from BeginText are written into the `<text>` element.
+    /// Verifies that anchor attributes from `BeginText` are written into the `<text>` element.
     #[ test ]
     fn text_anchor_attrs_in_output()
     {
