@@ -8,7 +8,7 @@ mod private
 {
   use std::path::PathBuf;
   use nohash_hasher::IntSet;
-  use crate::types::{ ResourceId, SamplerFilter, MipmapMode, asset };
+  use crate::types::{ ResourceId, SamplerFilter, MipmapMode, WrapMode, asset };
 
   // ============================================================================
   // Asset container
@@ -185,6 +185,10 @@ mod private
     /// Mipmap generation and between-level interpolation. GPU backends honor this
     /// and call `generateMipmap` at load time; SVG backends ignore it. Defaults to `Off`.
     pub mipmap : MipmapMode,
+    /// Texture wrap mode for UVs outside `[0, 1]`. GPU backends honor this via
+    /// `TEXTURE_WRAP_S`/`TEXTURE_WRAP_T`; SVG backends currently ignore it and
+    /// always behave as `Clamp` (see `adapters/svg.rs` comment in `load_images`).
+    pub wrap : WrapMode,
   }
 
   /// A rectangular region within a loaded image (sprite sheet support).

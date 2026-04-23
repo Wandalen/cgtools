@@ -13,7 +13,7 @@ mod private
   use nohash_hasher::IntMap;
   use crate::backend::RenderError;
   use crate::commands::{ SpriteBatchParams, MeshBatchParams };
-  use crate::types::{ asset, Batch, BlendMode, ResourceId, SamplerFilter, MipmapMode, Topology };
+  use crate::types::{ asset, Batch, BlendMode, ResourceId, SamplerFilter, MipmapMode, Topology, WrapMode };
 
   // ============================================================================
   // ArrayBuffer — GPU-side Vec<T>
@@ -370,6 +370,8 @@ mod private
     pub filter : SamplerFilter,
     /// Mipmap mode recorded at creation time; kept for parity with future re-applies.
     pub mipmap : MipmapMode,
+    /// Wrap mode recorded at creation time; kept for parity with future re-applies.
+    pub wrap : WrapMode,
   }
 
   impl Drop for GpuTexture
@@ -646,6 +648,22 @@ mod private
     gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, min as i32 );
   }
 
+  /// Sets `TEXTURE_WRAP_S` and `TEXTURE_WRAP_T` on the currently bound `TEXTURE_2D`
+  /// from the scene-model `WrapMode`. Always applies the same mode to both axes —
+  /// there's no two-axis variant in the current format; a per-axis extension can
+  /// split this into two params without breaking callers.
+  pub fn apply_texture_wrap( gl : &gl::GL, wrap : WrapMode )
+  {
+    let mode = match wrap
+    {
+      WrapMode::Clamp  => gl::CLAMP_TO_EDGE,
+      WrapMode::Repeat => gl::REPEAT,
+      WrapMode::Mirror => gl::MIRRORED_REPEAT,
+    };
+    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, mode as i32 );
+    gl.tex_parameteri( gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, mode as i32 );
+  }
+
   /// Programs the GL blend function for a given `BlendMode`.
   ///
   /// Alpha factors are always `(ONE, ONE_MINUS_SRC_ALPHA)` so the framebuffer
@@ -728,5 +746,6 @@ mod_interface::mod_interface!
   own use resolve_loadable;
   own use index_format;
   own use apply_texture_filter;
+  own use apply_texture_wrap;
   own use topology_to_gl;
 }

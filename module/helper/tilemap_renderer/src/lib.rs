@@ -57,3 +57,10 @@ mod_interface::mod_interface!
   ) ) ]
   layer adapters;
 }
+
+// Scene-model: declarative compositional scene format (SPEC.md in scene_model/).
+// Kept as a plain `pub mod` rather than a `mod_interface!` layer so its types
+// live under `tilemap_renderer::scene_model::*` instead of flattening into the
+// crate root (avoids clashes with existing `BlendMode`, `TextAnchor`, etc.).
+#[ cfg( feature = "scene-model" ) ]
+pub mod scene_model;

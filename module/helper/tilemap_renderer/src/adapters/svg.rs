@@ -865,6 +865,22 @@ mod private
 
     fn load_images( &mut self, images : &[ ImageAsset ] )
     {
+      // NOTE: `ImageAsset.wrap` (WrapMode::Clamp / Repeat / Mirror) is intentionally
+      // ignored in the SVG backend for now.
+      //
+      // SVG has no native wrap-mode on `<image>` — the element draws its bitmap
+      // exactly once at the given size and clamps outside. Repeat / Mirror can
+      // in principle be approximated via `<pattern>` defs filled into a larger
+      // `<rect>`, which is what the format's `PatternAsset` path already does
+      // (see `load_patterns` below). However, applying that per-image wrapping
+      // to every sprite draw call would change the command-emission pipeline in
+      // ways that are out of scope for the feature that introduced
+      // `WrapMode` — so for now all SVG output behaves as `Clamp` regardless of
+      // the asset's declared wrap mode. GPU backends honour the field fully
+      // (see `adapters/webgl.rs` → `apply_texture_wrap`).
+      //
+      // If / when a backend implements `Repeat` / `Mirror` here, adjust this
+      // comment and update SPEC §4.1's note about SVG graceful degradation.
       for img in images
       {
         let filter = Self::filter_to_svg( img.filter );
@@ -2054,6 +2070,7 @@ mod private
           source : ImageSource::Bitmap { bytes : vec![ 0u8; 64 * 32 * 4 ], width : 64, height : 32, format : PixelFormat::Rgba8 },
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
+          wrap : WrapMode::Clamp,
         }],
         ..empty_assets()
       };
@@ -2159,6 +2176,7 @@ mod private
           source : ImageSource::Bitmap { bytes : vec![ 0u8; 32 * 32 * 4 ], width : 32, height : 32, format : PixelFormat::Rgba8 },
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
+          wrap : WrapMode::Clamp,
         }],
         patterns : vec![ PatternAsset
         {
@@ -2229,6 +2247,7 @@ mod private
           source : ImageSource::Bitmap { bytes : vec![ 0u8; 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
+          wrap : WrapMode::Clamp,
         }],
         sprites : vec![ SpriteAsset
         {
@@ -2266,6 +2285,7 @@ mod private
           source : ImageSource::Bitmap { bytes : vec![ 0u8; 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
+          wrap : WrapMode::Clamp,
         }],
         sprites : vec![ SpriteAsset
         {
@@ -2306,6 +2326,7 @@ mod private
           source : ImageSource::Bitmap { bytes : vec![ 0u8; 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
+          wrap : WrapMode::Clamp,
         }],
         sprites : vec![ SpriteAsset
         {
@@ -2345,6 +2366,7 @@ mod private
           source : ImageSource::Bitmap { bytes : vec![ 0u8; 4 ], width : 32, height : 32, format : PixelFormat::Rgba8 },
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
+          wrap : WrapMode::Clamp,
         }],
         sprites : vec![ SpriteAsset
         {
@@ -3028,6 +3050,7 @@ mod private
           source : ImageSource::Path( std::path::PathBuf::from( malicious ) ),
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
+          wrap : WrapMode::Clamp,
         }],
         ..empty_assets()
       };
@@ -3067,6 +3090,7 @@ mod private
           source : ImageSource::Path( "does_not_matter.png".into() ),
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
+          wrap : WrapMode::Clamp,
         }],
         sprites : vec![ SpriteAsset
         {
@@ -3098,6 +3122,7 @@ mod private
           source : ImageSource::Encoded( jpeg_bytes ),
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
+          wrap : WrapMode::Clamp,
         }],
         ..empty_assets()
       };
@@ -3130,6 +3155,7 @@ mod private
           source : ImageSource::Encoded( png ),
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
+          wrap : WrapMode::Clamp,
         }],
         sprites : vec![ SpriteAsset
         {
@@ -3213,6 +3239,7 @@ mod private
           },
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
+          wrap : WrapMode::Clamp,
         }],
         ..empty_assets()
       };
@@ -3241,6 +3268,7 @@ mod private
           },
           filter : SamplerFilter::Linear,
           mipmap : MipmapMode::Off,
+          wrap : WrapMode::Clamp,
         }],
         ..empty_assets()
       };

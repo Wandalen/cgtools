@@ -28,6 +28,7 @@ mod private
     resolve_loadable,
     index_format,
     apply_texture_filter,
+    apply_texture_wrap,
     topology_to_gl,
   };
   use crate::assets::Assets;
@@ -857,7 +858,7 @@ mod private
             // texture is guaranteed to be complete (esp. for mipmap modes, which leave
             // the texture incomplete until generate_mipmap runs).
             let generation = self.resources.borrow().generation;
-            let tex = upload_image_from_path( gl, path, img.id, &self.resources, img.filter, img.mipmap, generation );
+            let tex = upload_image_from_path( gl, path, img.id, &self.resources, img.filter, img.mipmap, img.wrap, generation );
             gl.bind_texture( gl::TEXTURE_2D, Some( &tex ) );
             ( tex, 0, 0 )
           }
@@ -869,7 +870,7 @@ mod private
         if matches!( img.source, crate::assets::ImageSource::Bitmap { .. } )
         {
           apply_texture_filter( gl, &img.filter, &img.mipmap );
-          gl::texture::d2::wrap_clamp( gl );
+          apply_texture_wrap( gl, img.wrap );
           if !matches!( img.mipmap, MipmapMode::Off )
           {
             gl.generate_mipmap( gl::TEXTURE_2D );
@@ -884,6 +885,7 @@ mod private
           height : Cell::new( h ),
           filter : img.filter,
           mipmap : img.mipmap,
+          wrap : img.wrap,
         });
       }
 
@@ -1251,6 +1253,7 @@ mod private
     resources : &Rc< RefCell< GpuResources > >,
     filter : SamplerFilter,
     mipmap : MipmapMode,
+    wrap : WrapMode,
     generation : u32,
   ) -> web_sys::WebGlTexture
   {
@@ -1299,7 +1302,7 @@ mod private
         // intervening bind changes — belt-and-suspenders for the async path.
         gl.bind_texture( gl::TEXTURE_2D, Some( &texture ) );
         apply_texture_filter( &gl, &filter, &mipmap );
-        gl::texture::d2::wrap_clamp( &gl );
+        apply_texture_wrap( &gl, wrap );
         if !matches!( mipmap, MipmapMode::Off )
         {
           gl.generate_mipmap( gl::TEXTURE_2D );
