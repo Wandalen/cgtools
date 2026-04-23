@@ -400,6 +400,9 @@ mod private
   ///
   /// If `index` is already the last element no swap occurs — it is simply dropped.
   ///
+  /// To remove multiple instances in one pass, process them in **descending
+  /// index order** so earlier removals do not shift the indices you still need.
+  ///
   /// # Errors
   ///
   /// If `index >= batch.len()`, `submit` returns `RenderError::BackendError`.

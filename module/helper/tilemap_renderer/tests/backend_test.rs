@@ -1,5 +1,6 @@
-#![ allow( clippy::min_ident_chars ) ]
+#![ allow( clippy::min_ident_chars ) ] // Short names like x, y, m are idiomatic in math/graphics contexts throughout this crate
 #![ allow( clippy::struct_field_names ) ]   // ErrorBackend fields named *_error intentionally mirror the trait methods
+
 //! Backend trait contract tests.
 //!
 //! A minimal `TestBackend` implementation verifies that:

@@ -1,4 +1,6 @@
-#![ allow( clippy::min_ident_chars ) ]
+#![ allow( clippy::min_ident_chars ) ] // Short names like x, y, m are idiomatic in math/graphics contexts throughout this crate
+
+
 //! Types tests.
 //!
 //! Covers:

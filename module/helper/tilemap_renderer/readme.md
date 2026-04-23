@@ -39,7 +39,7 @@ tilemap_renderer/
 
 | Feature | Status | Description |
 |---------|--------|-------------|
-| `adapter-svg` | stub | SVG backend — generates SVG 1.1 documents |
+| `adapter-svg` | complete | SVG backend — generates SVG 1.1 documents |
 | `adapter-webgl` | partial | WebGL2 backend — sprites, meshes, instanced batches (wasm32); paths/text/effects pending |
 | `adapter-terminal` | stub | Terminal backend — ASCII art output |
 
@@ -82,14 +82,15 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 |---------|-----|-------|----------|
 | Paths | yes | — | yes |
 | Text | yes | — | yes |
-| Sprites | yes | yes | — |
-| Meshes | yes | yes | — |
-| Batches | yes | yes | — |
+| Sprites | yes | stub | — |
+| Meshes | yes | stub | — |
+| Batches | yes | stub | — |
 | Gradients | yes | — | — |
 | Effects | yes | — | — |
 | Blend modes | yes | partial¹ | — |
+| Viewport pan/zoom | yes | partial | — |
 
-> **SVG** and **Terminal** adapters are currently stub implementations (deferred to follow-up PRs).
+> **Terminal** adapter is currently a stub implementation (deferred to a follow-up PR).
 > **WebGL** adapter is partially implemented: sprites, meshes, and instanced batches work;
 > paths, text, groups, gradients, patterns, and effects are not yet rendered.
 >

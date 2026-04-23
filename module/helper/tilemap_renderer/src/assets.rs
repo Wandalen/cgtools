@@ -248,24 +248,28 @@ mod private
 
   /// Shape of a gradient (linear or radial).
   #[ derive( Debug, Clone, Copy ) ]
+  /// Gradient geometry.
+  ///
+  /// All coordinates are in **world / user space** (the same coordinate system
+  /// as [`Transform`] and path commands), not 0..1 bounding-box fractions.
   pub enum GradientKind
   {
     /// Linear gradient between two points.
     Linear
     {
-      /// Start point [x, y].
+      /// Start point [x, y] in world/user space.
       start : [ f32; 2 ],
-      /// End point [x, y].
+      /// End point [x, y] in world/user space.
       end : [ f32; 2 ],
     },
     /// Radial gradient from center outward.
     Radial
     {
-      /// Center point [x, y].
+      /// Center point [x, y] in world/user space.
       center : [ f32; 2 ],
-      /// Outer radius.
+      /// Outer radius in world/user space.
       radius : f32,
-      /// Focal point, can equal center.
+      /// Focal point in world/user space, can equal center.
       focal : [ f32; 2 ],
     },
   }
@@ -376,16 +380,41 @@ mod private
   {
     /// Path to image file — backend decodes (PNG, JPEG, etc.).
     ///
-    /// WebGL backend: the image is fetched and uploaded asynchronously via an
-    /// `HtmlImageElement`. If loading fails (file not found, CORS, decode error),
-    /// the error is logged to `console.error` and the texture remains empty;
-    /// it cannot be propagated back through `load_assets` because the failure
-    /// happens after that call returns.
-    Path( PathBuf ),
-    /// Encoded image in memory (PNG, JPEG, etc.) — backend decodes.
+    /// **SVG backend limitation:** image dimensions cannot be determined at
+    /// `load_assets` time (no file I/O is performed). Sprites referencing a
+    /// sheet loaded this way are skipped with a stderr warning and an HTML
+    /// comment in the SVG output instead of producing an invisible element.
+    /// Use [`ImageSource::Bitmap`] or [`ImageSource::Encoded`] (from which the
+    /// backend can decode dimensions in-memory) when sprite regions are needed.
     ///
-    /// **Not yet implemented in the WebGL backend** — this variant is silently
-    /// skipped during `load_assets`. Use `Bitmap` (pre-decoded) or `Path` instead.
+    /// **WebGL backend:** the image is fetched and uploaded asynchronously via
+    /// an `HtmlImageElement`. If loading fails (file not found, CORS, decode
+    /// error), the error is logged to `console.error` and the texture remains
+    /// empty; it cannot be propagated back through `load_assets` because the
+    /// failure happens after that call returns.
+    Path( PathBuf ),
+    /// Encoded image in memory — backend decodes.
+    ///
+    /// **SVG backend:** MIME type is auto-detected from magic bytes
+    /// (PNG, JPEG, GIF, WebP, SVG). Unknown signatures fall back to `image/png`.
+    /// Dimensions are extracted via the `image` crate for any format it
+    /// recognizes (PNG, JPEG, GIF, WebP, BMP, TIFF, ...). If dimension
+    /// extraction fails, any sprite referencing this sheet is skipped with a
+    /// warning — see [`ImageSource::Path`] for the reporting behavior.
+    ///
+    /// **Security — embedded SVG bytes:** bytes starting with `<svg`/`<?xml`
+    /// are emitted as `data:image/svg+xml;base64,...` inside an `<image>`
+    /// element. Browsers treat these as full SVG documents; `<script>` and
+    /// `javascript:` event handlers inside the supplied bytes may execute in
+    /// some rendering contexts (local file, `<foreignObject>`, certain iframe
+    /// embeddings). The backend's injection-safety guarantees cover text and
+    /// attribute escaping — they do **not** sanitize the contents of an
+    /// embedded SVG document. Callers passing SVG bytes are responsible for
+    /// trusting or sanitizing their source.
+    ///
+    /// **WebGL backend:** not yet implemented — this variant is silently
+    /// skipped during `load_assets`. Use `Bitmap` (pre-decoded) or `Path`
+    /// instead.
     Encoded( Vec< u8 > ),
     /// Raw pixel data — ready to upload directly.
     Bitmap
