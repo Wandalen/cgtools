@@ -2,7 +2,7 @@
 
 - **Name:** Agnostic 2D Render Engine
 - **Version:** 0.2.0
-- **Date:** 2026-03-11
+- **Date:** 2026-04-22
 
 ### table of contents
 
@@ -79,7 +79,7 @@ All backends use **Y-up**:
 - `Transform` — position `[f32; 2]`, rotation `f32`, scale `[f32; 2]`, skew `[f32; 2]`, depth `f32`
 - `Transform::to_mat3()` — column-major 3×3 affine matrix
 - `ResourceId<T>` — phantom-typed u32 handle, nohash for IntMap/IntSet
-- `RenderConfig` — width, height, antialias, background
+- `RenderConfig` — width, height, antialias, background, max_depth
 - Enums: `BlendMode`, `LineCap`, `LineJoin`, `TextAnchor`, `Topology`, `SamplerFilter`, `Antialias`
 - `FillRef` — None, Solid, Gradient, Pattern
 - `DashStyle` — stroke dash pattern with offset
@@ -152,10 +152,26 @@ pub trait Backend {
 #### 7.2. WebGL2 (`adapter-webgl`)
 
 - Hardware-accelerated via `minwebgl` crate (wasm32 target)
-- `ArrayBuffer<T>` — GPU-side Vec with dynamic grow (copy_buffer_sub_data)
-- Instanced rendering: `SpriteInstanceData` (68B), `MeshInstanceData` (36B)
+- Split across two files to stay under the per-file size budget:
+  - `adapters/webgl.rs` — `WebGlBackend`, `SpriteRenderer`, `MeshRenderer`, async image loader
+  - `adapters/webgl/webgl_helpers.rs` (submodule via `mod_interface::layer`) — self-contained helpers:
+    `ArrayBuffer<T>`, `SpriteInstanceData` / `MeshInstanceData`, `GpuResources` / `GpuTexture` /
+    `GpuSprite` / `GpuGeometry` / `GpuBatch`, VAO setup, async `Loadable`, GL mapping helpers
+    (`index_format`, `apply_texture_filter`, `apply_blend`, `topology_to_gl`)
+- `ArrayBuffer<T>` — GPU-side Vec with dynamic grow (copy_buffer_sub_data); uses a persistent
+  scratch buffer to avoid the WebGL2 spec violation of binding the same buffer to both
+  `COPY_READ_BUFFER` and `COPY_WRITE_BUFFER` in `swap_remove`
+- Instanced rendering: `SpriteInstanceData` (72B), `MeshInstanceData` (56B) — each carries
+  per-instance `depth` and `tint` (compile-time layout assertions enforce the sizes)
+- Depth buffer enabled (`DEPTH_TEST`, `LEQUAL`); `Transform::depth` honored for fully opaque
+  draws. Range `[-RenderConfig::max_depth, max_depth]` per field (default `1.0`); the shader
+  divides by `u_max_depth` so out-of-range depths are clipped by the GPU rather than silently
+  saturated
 - Per-batch VAO with attrib setup at create/unbind time, just bind at draw time
-- Shaders: sprite.vert/frag, sprite_batch.vert, mesh.vert/frag, mesh_batch.vert
+- Async image loading uses `Closure::once_into_js` for one-shot `onload` / `onerror` handlers,
+  so the browser drops the Rust closures (and their captured `Rc<RefCell<GpuResources>>`)
+  after the event — a `WebGlBackend` drop actually releases its GPU resources
+- Shaders: sprite.vert/frag, sprite_batch.vert/frag, mesh.vert/frag, mesh_batch.vert/frag
 - Quad vertices generated in vertex shader via `gl_VertexID`
 
 #### 7.3. Terminal (`adapter-terminal`)
@@ -184,7 +200,7 @@ pub trait Backend {
 #### FR-C: Backend Interface
 
 - **FR-C1:** ✅ `Backend` trait with load_assets/submit/output/resize/capabilities
-- **FR-C2:** ✅ `Capabilities` struct for runtime feature discovery
+- **FR-C2:** ✅ `Capabilities` struct for runtime feature discovery (coarse `bool` flags plus `supported_blend_modes: &'static [BlendMode]` for per-variant queries)
 - **FR-C3:** ✅ `RenderError` for graceful error handling
 
 #### FR-D: SVG Backend
@@ -201,14 +217,16 @@ pub trait Backend {
 
 #### FR-E: WebGL Backend
 
-- **FR-E1:** ⏳ Uses `minwebgl` crate (deferred to adapter-webgl PR)
-- **FR-E2:** ⏳ Hardware-accelerated WASM rendering (deferred to adapter-webgl PR)
-- **FR-E3:** ⏳ Instanced batching for sprites and meshes (deferred to adapter-webgl PR)
-- **FR-E4:** ⏳ Per-batch VAO management (deferred to adapter-webgl PR)
+- **FR-E1:** ✅ Uses `minwebgl` crate
+- **FR-E2:** ✅ Hardware-accelerated WASM rendering (sprites, meshes, batches)
+- **FR-E3:** ✅ Instanced batching for sprites and meshes
+- **FR-E4:** ✅ Per-batch VAO management (setup at create/unbind, bind-only at draw)
 - **FR-E5:** ❌ Path rendering (tessellation/GPU curves)
-- **FR-E6:** ❌ Text rendering
+- **FR-E6:** ❌ Text rendering (glyph atlas / SDF fonts)
 - **FR-E7:** ❌ WebGL context loss handling
-- **FR-E8:** ❌ Effects (blur, shadow — requires FBO)
+- **FR-E8:** ❌ Effects (blur, shadow — requires FBO post-processing)
+- **FR-E9:** ⚠️ Blend modes — Normal/Add/Multiply/Screen hardware-accelerated; `Overlay` falls back to Normal (requires custom shader or FBO read-back). `Capabilities::blend_modes` is `false` (not all variants correct); `Capabilities::supported_blend_modes` advertises the precise set
+- **FR-E10:** ⚠️ `Transform::depth` — honored via depth buffer (`DEPTH_TEST`, `LEQUAL`, higher = on top). Per-field range is `[-RenderConfig::max_depth, max_depth]` (default `1.0`); the shader divides by `max_depth` and the GPU clips values outside the range. For batches the **sum** `parent_depth + instance_depth` must satisfy the same constraint. Reliable only for fully opaque draws; translucent content must still be submitted back-to-front
 
 #### FR-F: Terminal Backend
 
@@ -225,8 +243,8 @@ pub trait Backend {
 - **NFR-4:** ✅ Y-up coordinate system consistent across all backends
 - **NFR-5:** ✅ 100% documentation coverage (zero warnings)
 - **NFR-6:** ✅ All command types are POD (Copy, Clone)
-- **NFR-7:** ✅ Test suite: 107 tests (core: 39, SVG adapter: 68); WebGL/terminal adapter tests deferred
-- **NFR-8:** ❌ Compile-time layout assertions for GPU data structures (deferred to WebGL/wgpu adapter PRs)
+- **NFR-7:** ✅ Test suite: core + SVG adapter covered; WebGL/terminal adapter tests deferred
+- **NFR-8:** ✅ Compile-time layout assertions for GPU data structures (`SpriteInstanceData` 72B, `MeshInstanceData` 56B)
 - **NFR-9:** ❌ Visual regression testing
 - **NFR-10:** ❌ CI with feature matrix
 - **NFR-11:** ✅ SVG output is injection-safe for text and attribute contexts: all caller-controlled strings flowing into text PCDATA or XML attributes (Char stream, `ImageSource::Path`) are entity-escaped. **Scope limitation:** this guarantee does **not** cover the contents of embedded SVG images supplied via `ImageSource::Encoded` with SVG bytes — those are base64-embedded as-is inside a `data:image/svg+xml` `<image>`, and browsers may execute scripts/event handlers inside them in some rendering contexts. Callers supplying SVG image bytes are responsible for trusting or sanitizing their source.
@@ -248,12 +266,16 @@ pub trait Backend {
 | ✅ | FR-C2 | Capabilities |
 | ✅ | FR-C3 | RenderError |
 | 🟡 | FR-D1–D9 | SVG backend — implemented; font assets ignored (see FR-D2 note) |
-| ⏳ | FR-E1–E4 | WebGL backend — deferred to adapter-webgl PR |
+| ⚠️ | FR-E1–E4 | WebGL backend partial (sprites, meshes, batches work; paths, text, effects missing) |
+| ❌ | FR-E5–E8 | WebGL: paths, text, context loss, effects — not implemented |
+| ⚠️ | FR-E9 | WebGL blend modes partial — Overlay falls back to Normal; `supported_blend_modes` lists the correct set |
+| ⚠️ | FR-E10 | WebGL depth honored for opaque draws only (range `[-max_depth, max_depth]`, out-of-range values clipped by the GPU; translucent must be back-to-front) |
 | ⏳ | FR-F1–F3 | Terminal backend — deferred to adapter-terminal PR |
 | ✅ | NFR-2 | Zero core graphics deps |
 | ✅ | NFR-4 | Y-up coordinate system |
 | ✅ | NFR-5 | 100% doc coverage |
 | ✅ | NFR-7 | Test suite |
+| ✅ | NFR-8 | Compile-time layout assertions for GPU structs (SpriteInstanceData 72B, MeshInstanceData 56B) |
 | ✅ | NFR-11 | SVG injection-safe output (text + attributes only; embedded SVG image bytes are caller-trusted) |
 | ❌ | NFR-1 | Performance benchmarks |
 | ❌ | NFR-9 | Visual regression tests |

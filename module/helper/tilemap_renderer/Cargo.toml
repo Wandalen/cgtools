@@ -16,12 +16,14 @@ default = ["enabled"]
 full = ["enabled", "adapter-svg", "adapter-terminal", "adapter-webgl", "cli"]
 adapter-svg = ["enabled", "dep:base64", "dep:bytemuck", "dep:image"]
 adapter-terminal = ["enabled"]
+# Requires wasm32-unknown-unknown target.
 adapter-webgl = [
   "enabled",
   "dep:minwebgl",
   "dep:web-sys",
   "dep:js-sys",
   "dep:wasm-bindgen",
+  "dep:bytemuck"
 ]
 # CLI stub — not yet reimplemented
 cli = ["enabled"]

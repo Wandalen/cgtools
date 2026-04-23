@@ -1,4 +1,5 @@
 #![ allow( clippy::min_ident_chars ) ] // Short names like x, y, m are idiomatic in math/graphics contexts throughout this crate
+#![ allow( clippy::struct_field_names ) ]   // ErrorBackend fields named *_error intentionally mirror the trait methods
 
 //! Backend trait contract tests.
 //!
@@ -401,4 +402,5 @@ fn backend_capabilities_default_all_false()
   assert!( !c.blend_modes );
   assert!( !c.text_on_path );
   assert_eq!( c.max_texture_size, 0 );
+  assert!( c.supported_blend_modes.is_empty() );
 }

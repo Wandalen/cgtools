@@ -220,6 +220,8 @@ mod private
   /// // Update later
   /// cmd( BindBatch { batch: TILES } );
   /// cmd( SetSpriteInstance { index: 42, transform: .., sprite: water, tint: WHITE } );
+  /// // RemoveInstance uses swap-remove: the last instance moves into slot 5.
+  /// // Update your entity→index map accordingly.
   /// cmd( RemoveInstance { index: 5 } );
   /// cmd( UnbindBatch );
   /// ```
@@ -227,6 +229,11 @@ mod private
   pub struct SpriteBatchParams
   {
     /// Parent transform applied to all instances.
+    ///
+    /// The effective depth for each instance is `transform.depth +
+    /// instance_transform.depth`. The **sum** must stay in
+    /// `[-max_depth, max_depth]` (see `RenderConfig::max_depth`); the GPU
+    /// clips instances whose sum falls outside that range.
     pub transform : Transform,
     /// The sprite sheet image. All instances must reference sprites from this sheet.
     pub sheet : ResourceId< asset::Image >,
@@ -241,10 +248,18 @@ mod private
   pub struct MeshBatchParams
   {
     /// Parent transform applied to all instances.
+    ///
+    /// The effective depth for each instance is `transform.depth +
+    /// instance_transform.depth`. The **sum** must stay in
+    /// `[-max_depth, max_depth]` (see `RenderConfig::max_depth`); the GPU
+    /// clips instances whose sum falls outside that range.
     pub transform : Transform,
     /// Geometry resource.
     pub geometry : ResourceId< asset::Geometry >,
-    /// Fill style.
+    /// Batch-level fill style. The final fragment color is
+    /// `fill * instance.tint` (times the sampled texel when `texture` is set),
+    /// so per-instance `AddMeshInstance::tint` / `SetMeshInstance::tint`
+    /// modulate this batch-wide color independently.
     pub fill : FillRef,
     /// Optional texture.
     pub texture : Option< ResourceId< asset::Image > >,
@@ -277,7 +292,24 @@ mod private
   }
 
   /// Binds a batch for editing. All subsequent instance commands
+  /// (`AddSpriteInstance`, `SetSpriteInstance`, `RemoveInstance`, etc.)
   /// apply to this batch until `UnbindBatch`.
+  ///
+  /// # Invariants
+  ///
+  /// - Only **one** batch can be bound at a time. Issuing `BindBatch` while
+  ///   another batch is already bound is a protocol error; the WebGL backend
+  ///   returns `RenderError::BackendError`.
+  /// - Always pair every `BindBatch` with a matching `UnbindBatch` before
+  ///   issuing `DrawBatch` or a second `BindBatch`.
+  ///
+  /// **Correct lifecycle:**
+  /// ```ignore
+  /// BindBatch(id)
+  /// Add/Set/RemoveInstance …
+  /// UnbindBatch          // commits VAO state; safe to draw after this
+  /// DrawBatch(id)
+  /// ```
   #[ derive( Debug, Clone, Copy ) ]
   pub struct BindBatch
   {
@@ -286,6 +318,11 @@ mod private
   }
 
   /// Appends a new sprite instance to the bound batch.
+  ///
+  /// # Errors
+  ///
+  /// If the internal GPU buffer needs to grow and the allocation fails,
+  /// `submit` returns `RenderError::BackendError`.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct AddSpriteInstance
   {
@@ -298,14 +335,30 @@ mod private
   }
 
   /// Appends a new mesh instance to the bound batch.
+  ///
+  /// # Errors
+  ///
+  /// If the internal GPU buffer needs to grow and the allocation fails,
+  /// `submit` returns `RenderError::BackendError`.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct AddMeshInstance
   {
     /// Instance transform.
     pub transform : Transform,
+    /// Per-instance tint multiplied into the fragment color alongside
+    /// `MeshBatchParams::fill` (and any sampled texture). Use `[1.0; 4]`
+    /// when no per-instance coloring is needed.
+    pub tint : [ f32; 4 ],
   }
 
   /// Updates a sprite instance at `index` within the bound batch.
+  ///
+  /// # Errors
+  ///
+  /// If `index >= batch.len()`, `submit` returns `RenderError::BackendError`.
+  /// Stale indices are easy to introduce after `RemoveInstance` (swap-remove
+  /// shifts the last element into the removed slot) — always update your
+  /// entity→index map after every removal.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct SetSpriteInstance
   {
@@ -320,6 +373,11 @@ mod private
   }
 
   /// Updates a mesh instance at `index` within the bound batch.
+  ///
+  /// # Errors
+  ///
+  /// If `index >= batch.len()`, `submit` returns `RenderError::BackendError`.
+  /// See `SetSpriteInstance` for notes on stale indices after swap-remove.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct SetMeshInstance
   {
@@ -327,21 +385,39 @@ mod private
     pub index : u32,
     /// Updated transform.
     pub transform : Transform,
+    /// Per-instance tint multiplied into the fragment color alongside
+    /// `MeshBatchParams::fill` (and any sampled texture). Use `[1.0; 4]`
+    /// when no per-instance coloring is needed.
+    pub tint : [ f32; 4 ],
   }
 
-  /// Removes an instance at `index` from the bound batch.
+  /// Removes an instance at `index` from the bound batch using **swap-remove**.
   ///
-  /// **Swap-remove semantics:** the last instance is moved into the removed slot
-  /// to keep the list compact. After this command, all indices above `index` that
-  /// previously pointed to specific instances are now invalid — the former last
-  /// instance is at position `index`, and the total count decreases by one.
+  /// The last instance is moved into slot `index` to fill the gap.
+  /// If you maintain an external mapping of entity → instance index, you must
+  /// update it after removal: the entity that previously occupied the last slot
+  /// now lives at `index`.
   ///
-  /// To remove multiple instances, process them in **descending index order** so
-  /// that earlier removals do not shift the indices you still need.
+  /// If `index` is already the last element no swap occurs — it is simply dropped.
+  ///
+  /// To remove multiple instances in one pass, process them in **descending
+  /// index order** so earlier removals do not shift the indices you still need.
+  ///
+  /// # Errors
+  ///
+  /// If `index >= batch.len()`, `submit` returns `RenderError::BackendError`.
+  ///
+  /// # Example
+  /// ```ignore
+  /// // Before: [A, B, C, D]  (len = 4)
+  /// cmd( RemoveInstance { index: 1 } ); // remove B
+  /// // After:  [A, D, C]     (len = 3) — D moved from index 3 to index 1
+  /// // → update your map: entity_D.index = 1
+  /// ```
   #[ derive( Debug, Clone, Copy ) ]
   pub struct RemoveInstance
   {
-    /// Instance index to remove.
+    /// Index of the instance to remove.
     pub index : u32,
   }
 
@@ -361,12 +437,31 @@ mod private
     pub params : MeshBatchParams,
   }
 
-  /// Unbinds the batch and applies all pending changes.
+  /// Unbinds the current batch and commits all pending instance changes.
+  ///
+  /// In the WebGL backend, `UnbindBatch` re-configures the batch's VAO with
+  /// the current instance buffer. This step is **required** if any `AddInstance`
+  /// calls caused the internal buffer to grow (reallocate), because a grow
+  /// replaces the underlying `WebGlBuffer` and invalidates the previous VAO
+  /// attribute pointers.
+  ///
+  /// Calling `UnbindBatch` when no batch is bound is a no-op.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct UnbindBatch;
 
   /// Draws a previously created batch (sprite or mesh).
   /// GPU: single instanced draw call.
+  ///
+  /// # Invariants
+  ///
+  /// The batch must **not** be bound at the time of this command. Calling
+  /// `DrawBatch` while the batch is still bound (i.e. without a preceding
+  /// `UnbindBatch`) is a protocol error; the WebGL backend returns
+  /// `RenderError::BackendError`.
+  ///
+  /// This restriction exists because `UnbindBatch` is responsible for
+  /// refreshing the VAO when the instance buffer grew during recording.
+  /// Drawing with a stale VAO produces undefined GPU behavior.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct DrawBatch
   {
@@ -374,7 +469,13 @@ mod private
     pub batch : ResourceId< Batch >,
   }
 
-  /// Deletes a batch and frees its resources.
+  /// Deletes a batch and frees its GPU resources.
+  ///
+  /// If the batch is currently bound when this command is processed, the
+  /// WebGL backend implicitly clears the binding (equivalent to `UnbindBatch`
+  /// without a VAO refresh, since the batch is about to be destroyed).
+  /// Subsequent instance commands that would have targeted this batch become
+  /// no-ops.
   #[ derive( Debug, Clone, Copy ) ]
   pub struct DeleteBatch
   {

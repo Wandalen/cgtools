@@ -1217,7 +1217,7 @@ mod private
         && let Some( SvgBatch::Mesh { instances, .. } ) = self.resources.batches.get_mut( &batch_id )
           && ( mi.index as usize ) < instances.len()
           {
-            instances[ mi.index as usize ] = AddMeshInstance { transform : mi.transform };
+            instances[ mi.index as usize ] = AddMeshInstance { transform : mi.transform, tint : mi.tint };
           }
     }
 
@@ -1518,6 +1518,13 @@ mod private
         blend_modes : true,
         text_on_path : true,
         max_texture_size : 0,
+        supported_blend_modes : &[
+          BlendMode::Normal,
+          BlendMode::Multiply,
+          BlendMode::Screen,
+          BlendMode::Overlay,
+          BlendMode::Add,
+        ],
       }
     }
   }
@@ -2044,6 +2051,7 @@ mod private
           id : ResourceId::new( 0 ),
           source : ImageSource::Bitmap { bytes : vec![ 0u8; 64 * 32 * 4 ], width : 64, height : 32, format : PixelFormat::Rgba8 },
           filter : SamplerFilter::Linear,
+          mipmap : MipmapMode::Off,
         }],
         ..empty_assets()
       };
@@ -2148,6 +2156,7 @@ mod private
           id : ResourceId::new( 3 ),
           source : ImageSource::Bitmap { bytes : vec![ 0u8; 32 * 32 * 4 ], width : 32, height : 32, format : PixelFormat::Rgba8 },
           filter : SamplerFilter::Linear,
+          mipmap : MipmapMode::Off,
         }],
         patterns : vec![ PatternAsset
         {
@@ -2217,6 +2226,7 @@ mod private
           id : ResourceId::new( 0 ),
           source : ImageSource::Bitmap { bytes : vec![ 0u8; 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
           filter : SamplerFilter::Linear,
+          mipmap : MipmapMode::Off,
         }],
         sprites : vec![ SpriteAsset
         {
@@ -2253,6 +2263,7 @@ mod private
           id : ResourceId::new( 0 ),
           source : ImageSource::Bitmap { bytes : vec![ 0u8; 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
           filter : SamplerFilter::Linear,
+          mipmap : MipmapMode::Off,
         }],
         sprites : vec![ SpriteAsset
         {
@@ -2292,6 +2303,7 @@ mod private
           id : ResourceId::new( 0 ),
           source : ImageSource::Bitmap { bytes : vec![ 0u8; 4 ], width : 16, height : 16, format : PixelFormat::Rgba8 },
           filter : SamplerFilter::Linear,
+          mipmap : MipmapMode::Off,
         }],
         sprites : vec![ SpriteAsset
         {
@@ -2330,6 +2342,7 @@ mod private
           id : ResourceId::new( 0 ),
           source : ImageSource::Bitmap { bytes : vec![ 0u8; 4 ], width : 32, height : 32, format : PixelFormat::Rgba8 },
           filter : SamplerFilter::Linear,
+          mipmap : MipmapMode::Off,
         }],
         sprites : vec![ SpriteAsset
         {
@@ -2423,6 +2436,7 @@ mod private
         RenderCommand::AddMeshInstance( AddMeshInstance
         {
           transform : Transform { position : [ 5.0, 10.0 ], ..Default::default() },
+          tint : [ 1.0, 1.0, 1.0, 1.0 ],
         }),
         RenderCommand::UnbindBatch( UnbindBatch ),
         RenderCommand::DrawBatch( DrawBatch { batch : batch_id } ),
@@ -3011,6 +3025,7 @@ mod private
           id : ResourceId::new( 0 ),
           source : ImageSource::Path( std::path::PathBuf::from( malicious ) ),
           filter : SamplerFilter::Linear,
+          mipmap : MipmapMode::Off,
         }],
         ..empty_assets()
       };
@@ -3049,6 +3064,7 @@ mod private
           id : ResourceId::new( 0 ),
           source : ImageSource::Path( "does_not_matter.png".into() ),
           filter : SamplerFilter::Linear,
+          mipmap : MipmapMode::Off,
         }],
         sprites : vec![ SpriteAsset
         {
@@ -3079,6 +3095,7 @@ mod private
           id : ResourceId::new( 0 ),
           source : ImageSource::Encoded( jpeg_bytes ),
           filter : SamplerFilter::Linear,
+          mipmap : MipmapMode::Off,
         }],
         ..empty_assets()
       };
@@ -3110,6 +3127,7 @@ mod private
           id : ResourceId::new( 0 ),
           source : ImageSource::Encoded( png ),
           filter : SamplerFilter::Linear,
+          mipmap : MipmapMode::Off,
         }],
         sprites : vec![ SpriteAsset
         {
@@ -3192,6 +3210,7 @@ mod private
             format : PixelFormat::Rgba8,
           },
           filter : SamplerFilter::Linear,
+          mipmap : MipmapMode::Off,
         }],
         ..empty_assets()
       };
@@ -3219,6 +3238,7 @@ mod private
             format : PixelFormat::Rgba8,
           },
           filter : SamplerFilter::Linear,
+          mipmap : MipmapMode::Off,
         }],
         ..empty_assets()
       };

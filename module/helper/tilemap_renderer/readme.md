@@ -30,6 +30,8 @@ tilemap_renderer/
 └── adapters/
     ├── svg.rs      # SVG 1.1 document generation
     ├── webgl.rs    # WebGL2 hardware-accelerated rendering (wasm32)
+    ├── webgl/
+    │   └── webgl_helpers.rs  # Self-contained WebGL types (ArrayBuffer, GPU handles, GL mappers)
     └── terminal.rs # ASCII/Unicode terminal output
 ```
 
@@ -38,7 +40,7 @@ tilemap_renderer/
 | Feature | Status | Description |
 |---------|--------|-------------|
 | `adapter-svg` | complete | SVG backend — generates SVG 1.1 documents |
-| `adapter-webgl` | stub | WebGL2 backend — instanced rendering, GPU batches (wasm32) |
+| `adapter-webgl` | partial | WebGL2 backend — sprites, meshes, instanced batches (wasm32); paths/text/effects pending |
 | `adapter-terminal` | stub | Terminal backend — ASCII art output |
 
 Default: no features enabled (core only, zero backend dependencies).
@@ -85,10 +87,28 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 | Batches | yes | stub | — |
 | Gradients | yes | — | — |
 | Effects | yes | — | — |
-| Blend modes | yes | stub | — |
-| Viewport pan/zoom | yes | stub | — |
+| Blend modes | yes | partial¹ | — |
+| Viewport pan/zoom | yes | partial | — |
 
-WebGL and Terminal adapters are stubs — entries marked `stub` are planned but not yet implemented.
+> **Terminal** adapter is currently a stub implementation (deferred to a follow-up PR).
+> **WebGL** adapter is partially implemented: sprites, meshes, and instanced batches work;
+> paths, text, groups, gradients, patterns, and effects are not yet rendered.
+>
+> ¹ WebGL blend modes: Normal, Add, Multiply, Screen are hardware-accelerated.
+> `BlendMode::Overlay` (Photoshop-style) cannot be expressed as a single `blend_func` call
+> and currently falls back to Normal; a custom shader or FBO pass is required. Because
+> not all variants render correctly, `Capabilities::blend_modes` is `false` on this
+> backend; query `Capabilities::supported_blend_modes: &'static [BlendMode]` for the
+> precise set (`[Normal, Add, Multiply, Screen]`).
+>
+> **Depth (WebGL):** `Transform::depth` is honored via the depth buffer (`LEQUAL`, higher
+> values drawn on top). Valid range is `[-RenderConfig::max_depth, RenderConfig::max_depth]`
+> (default `1.0`, backwards-compatible); the shader divides by `max_depth` and lets the
+> GPU clip values outside the range. In batches the **sum** `parent_depth + instance_depth`
+> must stay within the range — out-of-range sums are clipped. Correct only for fully
+> opaque draws — submit translucent content back-to-front as you would for a
+> painter's-algorithm renderer. SVG and terminal adapters still emit in submission order
+> and ignore `depth` / `max_depth`.
 
 ## license
 

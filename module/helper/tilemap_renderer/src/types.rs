@@ -105,6 +105,21 @@ mod private
     /// Default background color (RGBA, 0.0–1.0).
     /// Used as the canvas background when no `Clear` command is issued.
     pub background : [ f32; 4 ],
+    /// Maximum magnitude of `Transform::depth` for GPU backends.
+    ///
+    /// Defines the usable per-field depth range as `[-max_depth, max_depth]`.
+    /// The shader divides the depth value by this before writing clip-space
+    /// `z`, so a larger value lets callers think in larger depth numbers
+    /// (e.g. `max_depth = 1000.0` allows `Transform::depth` in `[-1000, 1000]`)
+    /// at the cost of proportionally coarser depth buffer precision.
+    ///
+    /// Must be `> 0.0`. Zero produces a shader divide-by-zero and nothing
+    /// renders; a negative value inverts the depth ordering. Neither case is
+    /// defended against at runtime.
+    ///
+    /// Default `1.0` — backwards-compatible with the original `[-1, 1]` contract.
+    /// Ignored by SVG and terminal backends.
+    pub max_depth : f32,
   }
 
   impl Default for RenderConfig
@@ -118,6 +133,7 @@ mod private
         height : 600,
         antialias : Antialias::Default,
         background : [ 0.0, 0.0, 0.0, 1.0 ],
+        max_depth : 1.0,
       }
     }
   }
@@ -154,8 +170,27 @@ mod private
     /// Skew in radians. SVG: `skewX()` / `skewY()`. GPU: added to affine matrix.
     pub skew : [ f32; 2 ],
     /// Draw order. Higher values are drawn on top. Default 0.0.
-    /// SVG: backend sorts elements by depth before emitting.
-    /// GPU: depth buffer or painter's algorithm sort.
+    ///
+    /// WebGL: honored via the depth buffer (`LEQUAL`, higher depth → on top).
+    /// Valid range is `[-max_depth, max_depth]` (configured by
+    /// `RenderConfig::max_depth`, default `1.0`); the shader divides by
+    /// `max_depth` so the in-contract value maps into clip-space `[-1, 1]`.
+    /// Values outside this range produce clip-space `z` beyond `[-1, 1]` and
+    /// are clipped by the GPU — the draw disappears. Equal-depth draws fall
+    /// back to submission order. **Only reliable for fully opaque draws** —
+    /// alpha-blended content whose farther pixels arrive after nearer ones
+    /// will z-fail instead of blending, so the caller must submit translucent
+    /// draws back-to-front (same convention as a painter's algorithm renderer).
+    ///
+    /// In batch draws (`SpriteBatchParams` / `MeshBatchParams`) the GPU sees
+    /// `parent_transform.depth + instance_transform.depth`, so the **sum**
+    /// — not each field individually — must stay in `[-max_depth, max_depth]`.
+    /// An out-of-range sum clips the instance the same way a single-draw
+    /// overflow does.
+    ///
+    /// qqq: SVG and terminal backends still emit in submission order and
+    /// ignore this field. Callers targeting those backends must pre-sort.
+    /// Future work: stable sort by `depth` in the SVG adapter.
     pub depth : f32,
   }
 
@@ -295,7 +330,8 @@ mod private
 
   /// Texture sampling filter.
   /// SVG: `image-rendering` CSS property.
-  /// GPU: `mag_filter` / `min_filter` on the texture sampler.
+  /// GPU: `mag_filter` on the sampler, and the within-level component of `min_filter`
+  /// when combined with [`MipmapMode`].
   #[ derive( Debug, Clone, Copy, Default ) ]
   pub enum SamplerFilter
   {
@@ -303,6 +339,28 @@ mod private
     Nearest,
     /// Bilinear interpolation: smooth scaling.
     #[ default ]
+    Linear,
+  }
+
+  /// Mipmap generation and between-level interpolation.
+  ///
+  /// GPU-only hint: SVG and other non-GPU backends ignore this. On GPU backends,
+  /// `Nearest`/`Linear` cause mipmap chains to be generated at load time and
+  /// select the between-level component of `min_filter`:
+  /// - `filter = Linear`, `mipmap = Linear` → trilinear filtering (`LINEAR_MIPMAP_LINEAR`).
+  /// - `filter = Linear`, `mipmap = Nearest` → bilinear within level, pick nearest level.
+  /// - `filter = Nearest`, `mipmap = *` → nearest within level, chosen mip behavior.
+  ///
+  /// `mag_filter` is always derived from [`SamplerFilter`] alone (magnification cannot use mips).
+  #[ derive( Debug, Clone, Copy, Default ) ]
+  pub enum MipmapMode
+  {
+    /// No mipmaps. `min_filter` uses `SamplerFilter` directly.
+    #[ default ]
+    Off,
+    /// Generate mipmaps; pick the nearest mip level without blending between levels.
+    Nearest,
+    /// Generate mipmaps; linearly blend between the two nearest mip levels.
     Linear,
   }
 
@@ -315,11 +373,28 @@ mod private
     /// Source over (alpha blending).
     #[ default ]
     Normal,
-    /// SVG: `multiply`. GPU: src * dst.
+    /// SVG: `multiply`.
+    ///
+    /// **Current GPU approximation:** `blend_func(DST_COLOR, ONE_MINUS_SRC_ALPHA)`,
+    /// which computes `src_color * dst_color + dst_color * (1 − src_alpha)`.
+    /// This equals pure `src * dst` only when `src_alpha = 1`; for semi-transparent
+    /// sprites the multiply effect weakens with alpha, which is a known limitation.
+    ///
+    /// **qqq (requires FBO):** Replace with the Photoshop-accurate formula
+    /// `dst * (src * src_alpha + (1 − src_alpha))`. This cannot be expressed as a
+    /// single `blend_func` call with straight alpha — it needs a custom shader that
+    /// reads the destination color from a bound FBO texture and computes the blend
+    /// in the fragment shader, or a two-pass approach (blit dst to FBO, sample in shader).
     Multiply,
     /// SVG: `screen`. GPU: 1 - (1-src)*(1-dst).
     Screen,
-    /// SVG: `overlay`.
+    /// SVG: `overlay`. Photoshop-style: Multiply when dst < 0.5, Screen when dst > 0.5.
+    ///
+    /// **Not expressible as a single `blend_func` call.** Correct implementation requires
+    /// a custom shader or a separate FBO pass. Until that is implemented, adapters that
+    /// cannot support this mode must fall back to `Normal` and should document that
+    /// limitation; this variant exists so that callers can express intent without
+    /// requiring a capabilities check up-front.
     Overlay,
     /// Additive blending. GPU: src + dst.
     Add,
@@ -391,6 +466,7 @@ mod_interface::mod_interface!
   own use TextAnchor;
   own use Topology;
   own use SamplerFilter;
+  own use MipmapMode;
   own use BlendMode;
   own use FillRef;
   own use asset;
