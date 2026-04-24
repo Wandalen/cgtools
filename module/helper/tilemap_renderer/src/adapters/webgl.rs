@@ -1151,6 +1151,12 @@ mod private
           // Mesh & sprite
           RenderCommand::Mesh( m ) => self.cmd_mesh( m, &viewport ),
           RenderCommand::Sprite( s ) => self.cmd_sprite( s, &viewport ),
+          // ScreenSpaceSprite uses the same draw path as Sprite — the compile
+          // layer already emits coordinates in screen-space (no camera
+          // project), so the adapter does not need to branch further. The
+          // distinction matters only to callers that post-process the command
+          // stream.
+          RenderCommand::ScreenSpaceSprite( s ) => self.cmd_sprite( s, &viewport ),
 
           // Batch lifecycle
           RenderCommand::CreateSpriteBatch( c ) => self.cmd_create_sprite_batch( c )?,

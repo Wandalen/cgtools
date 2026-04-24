@@ -1484,6 +1484,9 @@ mod private
           RenderCommand::EndText( _ ) => self.cmd_end_text(),
           RenderCommand::Mesh( m ) => self.cmd_mesh( m ),
           RenderCommand::Sprite( s ) => self.cmd_sprite( s )?,
+          // TODO: SVG adapter does not yet emit ScreenSpaceSprite (Viewport-
+          // anchored overlays). Skip for now; WebGL adapter renders it.
+          RenderCommand::ScreenSpaceSprite( _ ) => {},
           RenderCommand::CreateSpriteBatch( cb ) => self.cmd_create_sprite_batch( cb ),
           RenderCommand::CreateMeshBatch( cb ) => self.cmd_create_mesh_batch( cb ),
           RenderCommand::BindBatch( bb ) => self.cmd_bind_batch( bb ),

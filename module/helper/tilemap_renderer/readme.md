@@ -110,6 +110,69 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 > painter's-algorithm renderer. SVG and terminal adapters still emit in submission order
 > and ignore `depth` / `max_depth`.
 
+## known issues / TODO
+
+### `HexConfig::grid_stride` — consider a bounding-box helper
+
+The field is now named `grid_stride` and documented as the pixel spacing
+between centres of adjacent cells (see `scene_model::pipeline::HexConfig`).
+For equilateral hex sprites this coincides with the sprite's bounding
+box; for stylised sprites (e.g. the Slay atlas used by
+`examples/minwebgl/slay_map/`) the two diverge and callers must tune
+`grid_stride` empirically.
+
+Possible ergonomics follow-up: add a helper `HexConfig::from_hex_size( w, h )`
+that computes the equilateral-hex stride for authors who *do* have a
+bounding box (`(w * 0.75, h)` for flat-top, `(w, h * 0.75)` for pointy-top).
+Not urgent — the rename alone removes the worst confusion.
+
+Also worth exposing an explicit **stride override** for pixel-art hexes
+that aren't perfectly equilateral — artists frequently tune the visual
+hex shape away from exact `sqrt(3)/2` ratios.
+
+### `ScreenSpaceSprite` — SVG / terminal adapter coverage
+
+Slice 4 added [`crate::commands::RenderCommand::ScreenSpaceSprite`] for
+`Anchor::Viewport` rendering. Only the WebGL adapter implements it end-to-
+end; SVG silently skips the variant and terminal does nothing at all.
+Follow-up: wire SVG to emit an un-transformed sprite (its `cmd_sprite` is
+already screen-space pixels, so routing should be one line).
+
+### `ViewportTiled::Repeat{2D|X|Y}` — tiled viewport modes
+
+The tiled viewport variants are declared on `SpriteSource::ViewportTiled`
+but currently rejected at compile time with `CompileError::UnsupportedSource`.
+They need a `Mesh` command with `wrap=Repeat` UVs (or an emitted loop of
+screen-space sprites for SVG). Deferred until a real game demo asks for
+tiling backdrops.
+
+### WebGL texture upload Y-flip asymmetry
+
+The two image-upload paths in `adapters::webgl` flip differently:
+
+- **`ImageSource::Path`** (async, via `HtmlImageElement`) — uploads through
+  `minwebgl::texture::d2::upload`, which sets `UNPACK_FLIP_Y_WEBGL=1`. Images
+  are stored vertically flipped in texture memory.
+- **`ImageSource::Bitmap`** (sync, raw bytes) — uploads via
+  `tex_image_2d_with_..._opt_u8_array` without touching `pixel_storei`, so
+  `UNPACK_FLIP_Y_WEBGL` stays at its default `0`. Images are stored
+  un-flipped.
+
+The sprite shaders (`sprite.vert` / `sprite_batch.vert`) compensate for the
+Path-path flip: `v_uv.y = 1 - ( region.y + ( 1 - quad.y ) * region.h ) / tex.y`.
+This gives correct rendering for Path-loaded sprites but means the **same
+image loaded via `Bitmap` renders upside-down** through sprite commands. The
+`mesh.vert` shader passes `a_uv` through unchanged, so meshes "work" for both
+upload paths only when callers author UVs in GL (Y-up) convention — which
+matches the flipped Path upload but mismatches the un-flipped Bitmap upload.
+
+**Fix**: pick one convention and enforce it in the upload path (simplest:
+also set `UNPACK_FLIP_Y_WEBGL=1` in the sync `Bitmap` branch in
+`webgl.rs`). If we instead drop the flip everywhere, every existing example
+authoring UVs in GL convention (e.g. `examples/minwebgl/hexagonal_map`)
+needs its UVs re-authored in image convention, and the sprite shader's
+outer `1 - ...` can be removed.
+
 ## license
 
 Licensed under MIT license.

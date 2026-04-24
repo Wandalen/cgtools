@@ -27,12 +27,12 @@ adapter-webgl = [
 ]
 # CLI stub — not yet reimplemented
 cli = ["enabled"]
-# Declarative scene-model format (see src/scene_model/ and scene_model/SPEC.md)
+# Enables serde derives on the sampler types (`SamplerFilter`, `MipmapMode`,
+# `WrapMode`) so they can round-trip through the `tilemap_scene` declarative
+# format. Kept under the historical `scene-model` name for compatibility.
 scene-model = [
   "enabled",
   "dep:serde",
-  "dep:ron",
-  "dep:tiles_tools",
 ]
 
 [dependencies]
@@ -47,7 +47,5 @@ mod_interface = { workspace = true, optional = true }
 bytemuck = { workspace = true, optional = true }
 image = { workspace = true, optional = true }
 serde = { workspace = true, features = [ "derive" ], optional = true }
-ron = { version = "0.8", optional = true }
-tiles_tools = { workspace = true, features = [ "serialization" ], optional = true }
 
 [dev-dependencies]
