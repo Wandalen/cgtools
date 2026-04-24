@@ -88,19 +88,23 @@ HexPointyTop : [NE, E, SE, SW, W, NW]
 
 ### 2.4 Pixel conversion
 
-Given hex size `(w, h)` (full bounding box in pixels):
+The pipeline carries a `grid_stride: (u32, u32)` on [`HexConfig`] — the
+**pixel spacing between centres of adjacent cells** along the primary
+axes. For equilateral hex sprites this coincides with the sprite's
+bounding box; for stylised pixel-art hexes (non-equilateral) the stride
+is tuned empirically so that adjacent cells tile seamlessly.
 
-```
-HexFlatTop:
-    x = q * w * 0.75
-    y = r * h + (q & 1) * h * 0.5
+Conversion from axial `(q, r)` to a world-pixel centre goes through
+`tiles_tools::coordinates::pixel::Pixel`, scaled by `grid_stride`. The
+world-pixel output is **Y-up** (origin bottom-left); `tiles_tools`'
+native Y-down convention is flipped once inside
+[`crate::compile::coords`]. See the module for the exact formulas — they
+split the conversion into `tiles_tools`' unit-scale output (`1.5 * q`,
+`sqrt(3)/2 * q + sqrt(3) * r` etc.) times a per-axis compensating
+factor that makes the unit-size output span exactly `grid_stride`.
 
-HexPointyTop:
-    x = q * w + (r & 1) * w * 0.5
-    y = r * h * 0.75
-```
-
-Screen coordinates assume y-down.
+Downstream, the camera projects world-pixel coordinates onto the
+viewport (still Y-up) — see [`crate::compile::camera::Camera::project`].
 
 ## 3. Anchors
 
@@ -188,9 +192,9 @@ Asset(
         },
     ),
     // or:
-    // kind: Single,
-    // kind: SpriteSheet(frame_count: 8, layout: Horizontal),
-    // kind: SpriteSheet(frame_count: 16, layout: Grid(columns: 4)),
+    // kind: Single( size: ( 256, 256 ) ),   // whole-image-one-sprite
+    // kind: SpriteSheet( frame_count: 8, layout: Horizontal ),
+    // kind: SpriteSheet( frame_count: 16, layout: Grid( columns: 4 ) ),
 
     // Optional texture sampling parameters. All three default to the first
     // value listed below. They are asset-wide — every sprite drawn from this
@@ -216,7 +220,7 @@ If neither resolves, compilation fails with an explicit error pointing at the mi
 - `filter = Nearest` is standard for pixel art; `Linear` for everything else.
 - `mipmap` matters only on GPU backends and only for assets drawn at widely varying scales (parallax mountains, zoomed-out overworld). Enabling costs a small upload at load time.
 - `wrap = Repeat` lets a single draw call cover an arbitrarily large area with a tileable texture — tileable sky backgrounds, long edge-anchored rivers, multi-hex seamless floors. `Mirror` is the same with per-period reflection, which hides seams in some textures cheaply.
-- Non-GPU backends (SVG) ignore `mipmap` entirely and approximate `wrap` with multiple draw calls where feasible; unsupported modes fall back to `Clamp`-equivalent behaviour with a warning (see §12.2). Backend support for `wrap` lands with the rendering phase — until then, all backends treat every asset as `Clamp` regardless of the spec value.
+- The WebGL adapter wires `wrap` through to the GL sampler (`CLAMP_TO_EDGE` / `REPEAT` / `MIRRORED_REPEAT`). Non-GPU backends (SVG, terminal) ignore `mipmap` entirely and approximate `wrap` with multiple draw calls where feasible; unsupported modes fall back to `Clamp`-equivalent behaviour with a warning (see §12.2).
 
 ### 4.2 Tint
 
@@ -254,7 +258,7 @@ Animation(
     // ],
 
     mode: Loop | PingPong | OneShot,
-    phase_offset: None | HashCoord | Fixed(0.3),
+    phase_offset: None | HashCoord | Fixed(0.3) | Linear( per_q: 0.25, per_r: 0.0 ),
 )
 ```
 
@@ -488,7 +492,14 @@ sprite_source: ViewportTiled(
 
 Applicable to `Viewport` anchor only. Inner `content` is another sprite source (typically `Static` or `Animation`).
 
-**Implementation status (Slice 4):** `Center`, `Stretch`, `Fit` are supported end-to-end (WebGL adapter). `Repeat2D` / `RepeatX` / `RepeatY` are declared but rejected at compile time with `CompileError::UnsupportedSource` — they need a `Mesh` command with texture-wrap UVs and land in a later slice. SVG / terminal adapters skip `ScreenSpaceSprite` commands silently for now.
+**Tiling semantics.** Non-tiled modes (`Center`, `Stretch`, `Fit`) emit
+one `ScreenSpaceSprite` per viewport instance. Tiled modes emit a grid
+of `ScreenSpaceSprite`s covering the viewport at native pixel size
+scaled by the active camera zoom — so one texture pixel matches one
+world-pixel-through-camera, keeping backgrounds visually coherent with
+zoomed foreground sprites. `anchor_point` is honoured for non-tiled
+modes and for `RepeatX` / `RepeatY` (the non-repeating axis pins to the
+anchor).
 
 ### 5.8 `External`
 
@@ -631,6 +642,10 @@ t_local = t_global + phase_offset
 - `None` — zero.
 - `Fixed(seconds)` — constant.
 - `HashCoord` — `(hash_coord(q, r, salt) / u32::MAX) * animation_period`, where `salt = hash_str(animation.id)`. Requires a grid-anchored anchor.
+- `Linear { per_q, per_r }` — `phase = q * per_q + r * per_r` seconds.
+  Use for travelling-wave effects where each column / row lags the
+  previous by a fixed amount (e.g. `per_q = 1.0 / fps` shifts by one
+  frame per step to the right). Requires a grid-anchored anchor.
 
 ### 7.2 Frame selection
 
@@ -656,8 +671,9 @@ Use `phase_offset: HashCoord` on grid-anchored animations (water, trees, torches
 
 ```ron
 pipeline: RenderPipeline(
-    tiling: HexFlatTop,
-    grid_stride: (72, 64),
+    // Grid geometry — tiling strategy + per-axis pixel spacing between
+    // adjacent cell centres (see §2.4).
+    hex: ( tiling: HexFlatTop, grid_stride: ( 72, 64 ) ),
 
     viewport_size: (1280, 720),   // optional; derived from window if absent
     clear_color: Some((0.05, 0.07, 0.12, 1.0)),  // optional linear RGBA; None = transparent
@@ -665,14 +681,14 @@ pipeline: RenderPipeline(
     // Bottom-to-top list of z-buckets. Objects reference these by name via
     // `global_layer: "background"`.
     layers: [
-        Layer(id: "background",     sort: None,  tint_mask: None),
-        Layer(id: "terrain",        sort: None,  tint_mask: None),
-        Layer(id: "terrain_edges",  sort: None,  tint_mask: None),  // Wesnoth-style overlaps
-        Layer(id: "terrain_fx",     sort: None,  tint_mask: None),  // dual-mesh blends, skirts, autotile overlays
-        Layer(id: "units",          sort: YAsc,  tint_mask: None),
-        Layer(id: "world_fx",       sort: None,  tint_mask: None),
-        Layer(id: "weather_fg",     sort: None,  tint_mask: None),
-        Layer(id: "ui",             sort: None,  tint_mask: None),
+        PipelineLayer(id: "background",    sort: None,       tint_mask: None),
+        PipelineLayer(id: "terrain",       sort: None,       tint_mask: None),
+        PipelineLayer(id: "terrain_edges", sort: None,       tint_mask: None),  // Wesnoth-style overlaps
+        PipelineLayer(id: "terrain_fx",    sort: None,       tint_mask: None),  // dual-mesh blends, skirts, autotile overlays
+        PipelineLayer(id: "units",         sort: YDescXAsc,  tint_mask: None),  // painter's order for Y-up world
+        PipelineLayer(id: "world_fx",      sort: None,       tint_mask: None),
+        PipelineLayer(id: "weather_fg",    sort: None,       tint_mask: None),
+        PipelineLayer(id: "ui",            sort: None,       tint_mask: None),
     ],
 
     global_tint: Some(TintRef("dusk")),
@@ -685,9 +701,19 @@ Layer ids are user-chosen. The above is an example, not a requirement. The rende
 
 ### 8.2 Sort modes
 
+Single-axis modes:
+
 - `None` — draw in the order object instances were spawned (deterministic for static scenes).
+- `XAsc` / `XDesc` — sort by screen X.
 - `YAsc` — sort by screen Y ascending (objects further down the screen draw later and appear in front).
 - `YDesc` — reverse.
+
+Lexicographic modes — primary sort key first, secondary key as a tiebreaker:
+
+- `XAscYDesc` — left-to-right, then top-to-bottom (common for isometric stacks).
+- `XAscYAsc` — left-to-right, then bottom-to-top.
+- `YDescXAsc` — top-to-bottom painter's order (top-of-screen first, bottom-of-screen last), X asc tiebreaker. Use for zigzag hex coasts where a tile lower on screen must paint over a tile higher up regardless of column.
+- `YAscXAsc` — bottom-to-top, X asc tiebreaker.
 
 For `Multihex`, the Y used is `sort_y_source` (anchor Y by default, bottom-of-shape Y if configured on the object).
 
@@ -851,7 +877,11 @@ Scene(
 
     // Optional runtime knobs read by the renderer on load.
     // Games can change them at runtime via API calls.
-    initial_global_tint: "dusk",
+    initial_global_tint: Some( "dusk" ),
+
+    // Optional 64-bit seed for `Variant::Random`. Same seed + same coord →
+    // same chosen variant across frames and runs. Defaults to 0.
+    seed: Some( 0xDEADBEEF_CAFEBABE ),
 )
 ```
 
