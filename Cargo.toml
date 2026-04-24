@@ -32,6 +32,7 @@ members = [
   "module/helper/tilemap_renderer",
   "module/helper/tiles_tools",
   "module/helper/behaviour_tree",
+  "module/helper/tilemap_scene",
   # "module/helper/vectorizer", # TODO: Fix feature gate issues
 
   # Math modules
@@ -147,6 +148,10 @@ path = "module/helper/line_tools"
 [workspace.dependencies.tilemap_renderer]
 version = "0.2.0"
 path = "module/helper/tilemap_renderer"
+
+[workspace.dependencies.tilemap_scene]
+version = "0.1.0"
+path = "module/helper/tilemap_scene"
 
 [workspace.dependencies.behaviour_tree]
 version = "0.1.0"
@@ -412,3 +417,6 @@ version = "0.12"
 
 [workspace.dependencies.base64]
 version = "0.22.1"
+
+[workspace.dependencies.ron]
+version = "0.12.1"
