@@ -333,6 +333,7 @@ mod private
   /// GPU: `mag_filter` on the sampler, and the within-level component of `min_filter`
   /// when combined with [`MipmapMode`].
   #[ derive( Debug, Clone, Copy, Default ) ]
+  #[ cfg_attr( feature = "scene-model", derive( serde::Serialize, serde::Deserialize ) ) ]
   pub enum SamplerFilter
   {
     /// Nearest-neighbor: sharp pixels, no interpolation. Ideal for pixel art.
@@ -353,6 +354,7 @@ mod private
   ///
   /// `mag_filter` is always derived from [`SamplerFilter`] alone (magnification cannot use mips).
   #[ derive( Debug, Clone, Copy, Default ) ]
+  #[ cfg_attr( feature = "scene-model", derive( serde::Serialize, serde::Deserialize ) ) ]
   pub enum MipmapMode
   {
     /// No mipmaps. `min_filter` uses `SamplerFilter` directly.
@@ -362,6 +364,27 @@ mod private
     Nearest,
     /// Generate mipmaps; linearly blend between the two nearest mip levels.
     Linear,
+  }
+
+  /// Texture wrap mode — how the sampler behaves when UVs go outside `[ 0, 1 ]`.
+  ///
+  /// Relevant when a sprite is drawn with UVs larger than its native range
+  /// (tileable backgrounds, long edge segments, repeating bridge decks).
+  ///
+  /// SVG: ignored (SVG always clamps). GPU: maps to WebGL `TEXTURE_WRAP_S`/
+  /// `TEXTURE_WRAP_T` and equivalents in other backends. Adapter implementations
+  /// still need to honour this; 0.2.0 backends treat unknown modes as `Clamp`.
+  #[ derive( Debug, Clone, Copy, Default ) ]
+  #[ cfg_attr( feature = "scene-model", derive( serde::Serialize, serde::Deserialize ) ) ]
+  pub enum WrapMode
+  {
+    /// Clamp to the edge pixel — the default, matches `GL_CLAMP_TO_EDGE`.
+    #[ default ]
+    Clamp,
+    /// Repeat the texture — `GL_REPEAT`. Tileable seamless textures.
+    Repeat,
+    /// Mirror-repeat across each period — `GL_MIRRORED_REPEAT`.
+    Mirror,
   }
 
   /// Blend mode for compositing.
@@ -467,6 +490,7 @@ mod_interface::mod_interface!
   own use Topology;
   own use SamplerFilter;
   own use MipmapMode;
+  own use WrapMode;
   own use BlendMode;
   own use FillRef;
   own use asset;

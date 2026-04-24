@@ -578,6 +578,13 @@ mod private
     Mesh( Mesh ),
     /// Draw a sprite.
     Sprite( Sprite ),
+    /// Draw a sprite in **screen-space** — backends MUST NOT apply the
+    /// camera's world transform. `Transform.position` is already in screen
+    /// pixels with the top-left corner of the canvas at `(0, 0)` and the
+    /// bottom-right at `(viewport_width, viewport_height)`. Payload shape is
+    /// identical to [`Sprite`]; the bypass-camera contract is the sole
+    /// semantic difference. Used by `scene_model::Anchor::Viewport`.
+    ScreenSpaceSprite( Sprite ),
 
     /// Create a sprite batch.
     CreateSpriteBatch( CreateSpriteBatch ),
