@@ -12,7 +12,7 @@ license = "MIT"
 workspace = true
 
 [dependencies]
-line_tools = { workspace = true }
+line_tools = { workspace = true, features = [ "distance" ] }
 minwebgl = { workspace = true, features = [ "math" ] }
 mingl = { workspace = true, features = [ "camera_orbit_controls" ] }
 serde = { workspace = true, features = [ "derive" ] }
