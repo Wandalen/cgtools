@@ -43,7 +43,7 @@ mod private
         return id;
       }
       let id = ResourceId::new( self.next_image );
-      self.next_image = self.next_image.wrapping_add( 1 );
+      self.next_image = self.next_image.checked_add( 1 ).expect( "exceeded u32::MAX image resource ids" );
       self.images.insert( asset_id.to_owned(), id );
       id
     }
@@ -63,7 +63,7 @@ mod private
         return id;
       }
       let id = ResourceId::new( self.next_sprite );
-      self.next_sprite = self.next_sprite.wrapping_add( 1 );
+      self.next_sprite = self.next_sprite.checked_add( 1 ).expect( "exceeded u32::MAX sprite resource ids" );
       self.sprites.insert( key, id );
       id
     }
