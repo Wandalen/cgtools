@@ -121,7 +121,7 @@ mod private
   #[ non_exhaustive ]
   pub enum VariantSelection
   {
-    /// Detrministic hash of the instance's grid coordinate (default).
+    /// Deterministic hash of the instance's grid coordinate (default).
     #[ default ]
     HashCoord,
     /// Random at scene load, fixed for the lifetime of the scene.

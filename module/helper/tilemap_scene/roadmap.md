@@ -99,6 +99,15 @@ game use-case demands one.
     at load. Implementing means square-grid neighbour offsets (4 or 8),
     square-grid dual-mesh (4 corners per vertex), square pixel conversion.
     Scope inflation — only do if a square-grid game is actually planned.
+11. **`HexConfig::from_hex_size` bounding-box helper.** `HexConfig::grid_stride`
+    is the pixel spacing between adjacent-cell centres. For equilateral hex
+    sprites this equals the sprite bounding box; for stylised sprites (e.g. the
+    Slay atlas) the two diverge and callers must tune `grid_stride` empirically.
+    A helper `HexConfig::from_hex_size(w, h)` that computes the equilateral-hex
+    stride (`(w * 0.75, h)` for flat-top, `(w, h * 0.75)` for pointy-top) would
+    remove the friction for authors who have a bounding box. Also consider an
+    explicit **stride override** field for pixel-art hexes tuned away from exact
+    `sqrt(3)/2` ratios. Low urgency.
 
 ## Slice 5 — stateful `Renderer` + runtime mutation API
 

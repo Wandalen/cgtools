@@ -112,39 +112,14 @@ let Output::String( doc ) = svg.output()? else { unreachable!() };
 
 ## known issues / TODO
 
-### `HexConfig::grid_stride` — consider a bounding-box helper
-
-The field is now named `grid_stride` and documented as the pixel spacing
-between centres of adjacent cells (see `scene_model::pipeline::HexConfig`).
-For equilateral hex sprites this coincides with the sprite's bounding
-box; for stylised sprites (e.g. the Slay atlas used by
-`examples/minwebgl/slay_map/`) the two diverge and callers must tune
-`grid_stride` empirically.
-
-Possible ergonomics follow-up: add a helper `HexConfig::from_hex_size( w, h )`
-that computes the equilateral-hex stride for authors who *do* have a
-bounding box (`(w * 0.75, h)` for flat-top, `(w, h * 0.75)` for pointy-top).
-Not urgent — the rename alone removes the worst confusion.
-
-Also worth exposing an explicit **stride override** for pixel-art hexes
-that aren't perfectly equilateral — artists frequently tune the visual
-hex shape away from exact `sqrt(3)/2` ratios.
-
 ### `ScreenSpaceSprite` — SVG / terminal adapter coverage
 
-Slice 4 added [`crate::commands::RenderCommand::ScreenSpaceSprite`] for
-`Anchor::Viewport` rendering. Only the WebGL adapter implements it end-to-
-end; SVG silently skips the variant and terminal does nothing at all.
+[`crate::commands::RenderCommand::ScreenSpaceSprite`] renders a sprite in
+screen-space coordinates, bypassing world-to-screen projection. Only the
+WebGL adapter implements this command end-to-end; SVG silently skips the
+variant and terminal does nothing at all.
 Follow-up: wire SVG to emit an un-transformed sprite (its `cmd_sprite` is
 already screen-space pixels, so routing should be one line).
-
-### `ViewportTiled::Repeat{2D|X|Y}` — tiled viewport modes
-
-The tiled viewport variants are declared on `SpriteSource::ViewportTiled`
-but currently rejected at compile time with `CompileError::UnsupportedSource`.
-They need a `Mesh` command with `wrap=Repeat` UVs (or an emitted loop of
-screen-space sprites for SVG). Deferred until a real game demo asks for
-tiling backdrops.
 
 ### WebGL texture upload Y-flip asymmetry
 

@@ -1,5 +1,5 @@
 //! Integration tests for the Slice-1 compile layer
-//! (`scene_model::compile::compile_assets` + `compile_frame`).
+//! (`tilemap_scene::compile::compile_assets` + `compile_frame`).
 
 
 #![ allow( clippy::min_ident_chars ) ]

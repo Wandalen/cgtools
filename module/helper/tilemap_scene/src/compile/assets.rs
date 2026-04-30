@@ -102,14 +102,10 @@ mod private
     {
       let Some( asset ) = spec.assets.iter().find( | a | a.id == *asset_id ) else { continue };
       if let AssetKind::Atlas { frame_rects, .. } = &asset.kind
+        && let Some( frame ) = frame_rects.get( frame_name )
+        && let Some( ( ax, ay ) ) = frame.anchor
       {
-        if let Some( frame ) = frame_rects.get( frame_name )
-        {
-          if let Some( ( ax, ay ) ) = frame.anchor
-          {
-            sprite_anchors.insert( *sprite_id, [ ax as f32, ay as f32 ] );
-          }
-        }
+        sprite_anchors.insert( *sprite_id, [ ax as f32, ay as f32 ] );
       }
     }
 
@@ -155,9 +151,6 @@ mod private
         }
         Ok( () )
       },
-      // Animation: the frames live on the referenced resource (`spec.animations`),
-      // which we pre-expanded in pass 2 above. Nothing to do here.
-      SpriteSource::Animation( _ ) => Ok( () ),
       SpriteSource::NeighborBitmask { source, .. } =>
       {
         match source
@@ -239,7 +232,8 @@ mod private
       {
         collect_sprite_refs( content, spec, ids, sprites )
       },
-      // External — populated at runtime; nothing to pre-allocate.
+      // Animation: frames live on `spec.animations`, pre-expanded in pass 2.
+      // External: populated at runtime; nothing to pre-allocate here.
       _ => Ok( () ),
     }
   }

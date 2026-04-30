@@ -56,7 +56,7 @@ mod private
   fn enumerate< HO, TO >( tiles : &[ Tile ] ) -> Vec< TriangleContext >
   where
     HexCoordinate< Axial, HO > : ToDual< TriCoordinate< TO > >,
-    TriCoordinate< TO > : ToDual< HexCoordinate< Axial, HO > > + std::hash::Hash + Eq + Clone,
+    TriCoordinate< TO > : ToDual< HexCoordinate< Axial, HO > > + core::hash::Hash + Eq + Clone,
   {
     let mut seen : HashSet< TriCoordinate< TO > > = HashSet::default();
     let mut out = Vec::new();
@@ -66,7 +66,7 @@ mod private
       let hex : HexCoordinate< Axial, HO > = HexCoordinate::< Axial, HO >::new( tile.pos.0, tile.pos.1 );
       for tri in hex.dual()
       {
-        if !seen.insert( tri.clone() ) { continue; }
+        if !seen.insert( tri ) { continue; }
         let hex_corners = tri.dual();
         let mut corners = [ ( 0_i32, 0_i32 ); 3 ];
         for ( i, corner ) in hex_corners.iter().enumerate().take( 3 )
@@ -83,6 +83,7 @@ mod private
   /// using [`tile_terrain_id`] for each corner. Corners outside the scene
   /// resolve to [`VOID_ID`].
   #[ must_use ]
+  #[ allow( clippy::implicit_hasher ) ]
   pub fn resolve_corners
   (
     tri : &TriangleContext,
@@ -105,6 +106,7 @@ mod private
   /// and a `rotation` u8 in `0..3` capturing which original slot landed in
   /// slot 0 of the canonical form (for `{rot}` sprite substitution).
   #[ must_use ]
+  #[ allow( clippy::needless_pass_by_value ) ]
   pub fn canonicalize( raw : [ String; 3 ] ) -> ( [ String; 3 ], u8 )
   {
     // Pair each value with its original index, sort, then record the

@@ -144,7 +144,7 @@ mod private
     /// Pixel rectangle `[ x, y, w, h ]` in the atlas image.
     pub rect : [ u32; 4 ],
     /// Optional pixel-anchor inside the rect (0..w, 0..h). When present,
-    /// overrides the object-level `pivot`; `scene_model::compile` places
+    /// overrides the object-level `pivot`; `tilemap_scene::compile` places
     /// this anchor pixel exactly on the scene position (hex centre etc.).
     #[ serde( default ) ]
     pub anchor : Option< ( u32, u32 ) >,

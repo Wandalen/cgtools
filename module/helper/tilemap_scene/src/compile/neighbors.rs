@@ -132,6 +132,7 @@ mod private
   /// object whose id is in `connects_with`. Off-map / empty neighbours
   /// contribute bit 1 only when `"void"` is in `connects_with` (SPEC §15.1).
   #[ must_use ]
+  #[ allow( clippy::implicit_hasher ) ]
   pub fn compute_neighbor_bitmask
   (
     pos : ( i32, i32 ),
@@ -181,6 +182,7 @@ mod private
   ///
   /// Off-map neighbours produce `NeighborState { object_ids: &[], max_priority: None }`.
   #[ must_use ]
+  #[ allow( clippy::implicit_hasher ) ]
   pub fn neighbor_state_at< 'a >
   (
     pos : ( i32, i32 ),
@@ -226,11 +228,9 @@ mod private
     for object_id in &tile.objects
     {
       if let Some( obj ) = find_object( spec, object_id )
+        && obj.priority.is_some()
       {
-        if obj.priority.is_some()
-        {
-          return Some( object_id.as_str() );
-        }
+        return Some( object_id.as_str() );
       }
     }
     None

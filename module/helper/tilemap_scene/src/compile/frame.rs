@@ -1,9 +1,9 @@
 //! `compile_frame` — scene-model `Scene` → per-frame `RenderCommand` stream.
 //!
 //! Supported through Slice 3: hex-anchored objects with Static / Animation /
-//! Variant / NeighborBitmask / NeighborCondition sources, plus per-bucket
-//! dual-mesh VertexCorners triangle emission. Edge / Multihex / Viewport /
-//! FreePos anchors and EdgeConnectedBitmask / ViewportTiled / External
+//! Variant / `NeighborBitmask` / `NeighborCondition` sources, plus per-bucket
+//! dual-mesh `VertexCorners` triangle emission. Edge / Multihex / Viewport /
+//! `FreePos` anchors and `EdgeConnectedBitmask` / `ViewportTiled` / External
 //! sources remain rejected until later slices.
 
 mod private
@@ -50,7 +50,7 @@ mod private
   use crate::scene::{ EdgeInstance, Scene, Tile };
   use crate::source::{ NeighborBitmaskSource, SpriteSource, VariantSelection, ViewportTiling };
   use crate::spec::RenderSpec;
-  use tilemap_renderer::types::{ BlendMode, FillRef as _FillRef, Transform };
+  use tilemap_renderer::types::{ BlendMode, Transform };
   use rustc_hash::FxHashMap as HashMap;
 
   /// Compile one frame of the scene into a `RenderCommand` stream.
@@ -122,7 +122,7 @@ mod private
     let edge_lookup = build_edge_lookup( &scene.edges, spec.pipeline.hex.tiling );
     // Fold the 64-bit scene seed down to the 32-bit salt that `hash_coord`
     // expects. XOR halves keeps both halves contributing.
-    let scene_seed = scene.seed.map( | s | ( s as u32 ) ^ ( ( s >> 32 ) as u32 ) ).unwrap_or( 0 );
+    let scene_seed = scene.seed.map_or( 0, | s | ( s as u32 ) ^ ( ( s >> 32 ) as u32 ) );
     let global_tint = resolve_global_tint( spec )?;
     let ctx = FrameContext
     {
@@ -241,10 +241,6 @@ mod private
     Ok( commands )
   }
 
-  /// Build a single [`Sprite`] draw call for a tile's layer. Returns a tuple
-  /// `( world_x, world_y, sprite )` so the caller can apply `SortMode` without
-  /// re-computing the position. The returned Sprite already has its final
-  /// projected transform.
   /// Bundled per-frame context threaded into helper functions.
   ///
   /// Previously each helper took 6–10 individual parameters; consolidating
@@ -313,7 +309,6 @@ mod private
     let ( sx, sy ) = apply_pivot( sx, sy, ctx.camera.zoom, object.pivot, sprite_id, ctx.compiled );
 
     let transform = make_transform( sx, sy, ctx.camera.zoom );
-    let _ = _FillRef::default;
 
     Ok( vec!
     [
@@ -410,7 +405,8 @@ mod private
   }
 
   /// Emit one sprite per matching side for a `NeighborCondition` layer.
-  #[ allow( clippy::too_many_arguments ) ]   // still split across `condition` / `sides` / `sprite_pattern` / `asset` — all from the layer
+  #[ allow( clippy::too_many_arguments ) ]
+  #[ allow( clippy::similar_names ) ]   // raw_sx / raw_sy are a coordinate pair
   fn emit_neighbor_condition
   (
     object : &Object,
@@ -849,8 +845,7 @@ mod private
 
         let region = ctx.compiled.assets.sprites.iter()
           .find( | s | s.id == sprite_id )
-          .map( | s | ( s.region[ 2 ], s.region[ 3 ] ) )
-          .unwrap_or( ( 1.0, 1.0 ) );
+          .map_or( ( 1.0, 1.0 ), | s | ( s.region[ 2 ], s.region[ 3 ] ) );
 
         // Non-repeating modes: one sprite, transform from viewport_transform.
         // Repeating modes: one sprite per tiled_positions() entry, each at
@@ -1150,17 +1145,17 @@ mod private
     {
       6 => Some(
       [
-        hex_byte( 0 )? as f32 / 255.0,
-        hex_byte( 2 )? as f32 / 255.0,
-        hex_byte( 4 )? as f32 / 255.0,
+        f32::from( hex_byte( 0 )? ) / 255.0,
+        f32::from( hex_byte( 2 )? ) / 255.0,
+        f32::from( hex_byte( 4 )? ) / 255.0,
         1.0,
       ]),
       8 => Some(
       [
-        hex_byte( 0 )? as f32 / 255.0,
-        hex_byte( 2 )? as f32 / 255.0,
-        hex_byte( 4 )? as f32 / 255.0,
-        hex_byte( 6 )? as f32 / 255.0,
+        f32::from( hex_byte( 0 )? ) / 255.0,
+        f32::from( hex_byte( 2 )? ) / 255.0,
+        f32::from( hex_byte( 4 )? ) / 255.0,
+        f32::from( hex_byte( 6 )? ) / 255.0,
       ]),
       _ => None,
     }

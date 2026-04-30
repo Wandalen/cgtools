@@ -111,13 +111,12 @@ mod private
     {
       TilingStrategy::HexFlatTop => match dir
       {
-        EdgeDirection::N  => 0.0,
         EdgeDirection::NE => PI / 3.0,
         EdgeDirection::SE => 2.0 * PI / 3.0,
         EdgeDirection::S  => PI,
         EdgeDirection::SW => 4.0 * PI / 3.0,
         EdgeDirection::NW => 5.0 * PI / 3.0,
-        EdgeDirection::E | EdgeDirection::W => 0.0,
+        EdgeDirection::N | EdgeDirection::E | EdgeDirection::W => 0.0,
       },
       TilingStrategy::HexPointyTop => match dir
       {
@@ -137,11 +136,11 @@ mod private
   /// The canonicalisation guarantees deduping when the user supplied both
   /// sides of the same edge — last write wins.
   #[ must_use ]
-  pub fn edge_lookup< 'a >
+  pub fn edge_lookup
   (
-    edges : &'a [ EdgeInstance ],
+    edges : &[ EdgeInstance ],
     tiling : TilingStrategy,
-  ) -> HashMap< CanonicalEdge, &'a EdgeInstance >
+  ) -> HashMap< CanonicalEdge, &EdgeInstance >
   {
     let mut map = HashMap::default();
     for e in edges
@@ -172,6 +171,8 @@ mod private
   /// the canonical hex toward the neighbour hex, "start" is the
   /// CCW-rotation (the vertex on the CCW side), "end" is the CW-rotation.
   #[ must_use ]
+  #[ allow( clippy::implicit_hasher ) ]
+  #[ allow( clippy::similar_names ) ]
   pub fn compute_edge_connected_bitmask
   (
     canon : CanonicalEdge,
