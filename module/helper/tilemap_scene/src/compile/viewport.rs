@@ -71,11 +71,13 @@ mod private
   }
 
   /// Enumerate screen-space positions for each tile in a `Repeat*` viewport
-  /// layout.
+  /// layout. Coordinates follow the Y-up convention (`(0, 0)` = viewport's
+  /// bottom-left); see [`anchor_position`].
   ///
-  /// Origin is the viewport's top-left; tiles are emitted in row-major
-  /// order at native pixel size. For `RepeatX` only the x-axis repeats;
-  /// the y-axis is pinned to the anchor point (same for `RepeatY`).
+  /// Tiles are emitted in row-major order at native pixel size, starting at
+  /// the bottom-left of the viewport and growing upward and rightward. For
+  /// `RepeatX` only the x-axis repeats; the y-axis is pinned to the anchor
+  /// point (same for `RepeatY`).
   ///
   /// Returns an empty `Vec` for non-repeating modes — callers use
   /// [`viewport_transform`] directly in that case.
@@ -127,9 +129,14 @@ mod private
     }
   }
 
-  /// Pixel position of a sprite whose natural size is `sprite_size` when
-  /// anchored inside a `viewport_size` viewport. Top-left convention —
-  /// screen `(0, 0)` is the top-left of the viewport.
+  /// Pixel position (sprite's bottom-left corner) inside a `viewport_size`
+  /// viewport for the given anchor.
+  ///
+  /// **Y-up convention** — `(0, 0)` is the viewport's **bottom-left**, matching
+  /// the renderer-wide Y-up coordinate system documented in
+  /// `tilemap_renderer/src/lib.rs:22`. To anchor a sprite at the top of the
+  /// viewport, its bottom-left corner sits at `y = vh - sh`; at the bottom,
+  /// `y = 0`.
   #[ must_use ]
   pub fn anchor_position
   (
@@ -142,15 +149,15 @@ mod private
     let ( vw, vh ) = viewport_size;
     match anchor
     {
-      ViewportAnchorPoint::TopLeft      => ( 0.0,          0.0 ),
-      ViewportAnchorPoint::TopCenter    => ( ( vw - sw ) * 0.5, 0.0 ),
-      ViewportAnchorPoint::TopRight     => ( vw - sw,     0.0 ),
+      ViewportAnchorPoint::TopLeft      => ( 0.0,          vh - sh ),
+      ViewportAnchorPoint::TopCenter    => ( ( vw - sw ) * 0.5, vh - sh ),
+      ViewportAnchorPoint::TopRight     => ( vw - sw,     vh - sh ),
       ViewportAnchorPoint::CenterLeft   => ( 0.0,          ( vh - sh ) * 0.5 ),
       ViewportAnchorPoint::Center       => ( ( vw - sw ) * 0.5, ( vh - sh ) * 0.5 ),
       ViewportAnchorPoint::CenterRight  => ( vw - sw,     ( vh - sh ) * 0.5 ),
-      ViewportAnchorPoint::BottomLeft   => ( 0.0,          vh - sh ),
-      ViewportAnchorPoint::BottomCenter => ( ( vw - sw ) * 0.5, vh - sh ),
-      ViewportAnchorPoint::BottomRight  => ( vw - sw,     vh - sh ),
+      ViewportAnchorPoint::BottomLeft   => ( 0.0,          0.0 ),
+      ViewportAnchorPoint::BottomCenter => ( ( vw - sw ) * 0.5, 0.0 ),
+      ViewportAnchorPoint::BottomRight  => ( vw - sw,     0.0 ),
     }
   }
 
@@ -189,21 +196,24 @@ mod tests
   }
 
   #[ test ]
-  fn center_topleft_is_origin()
+  fn center_topleft_anchors_at_top_in_y_up()
   {
+    // Y-up: TopLeft places sprite's bottom-left corner at y = vh - sh, so its
+    // top edge sits at the viewport's top edge.
     let t = viewport_transform(
       ViewportTiling::Center,
       ViewportAnchorPoint::TopLeft,
       ( 100.0, 50.0 ),
       ( 800, 600 ),
     ).unwrap();
-    assert_eq!( t.position, [ 0.0, 0.0 ] );
+    assert_eq!( t.position, [ 0.0, 550.0 ] ); // x=0, y=600-50
     assert_eq!( t.scale, [ 1.0, 1.0 ] );
   }
 
   #[ test ]
   fn center_bottomcenter_positions_sprite()
   {
+    // Y-up: BottomCenter places sprite's bottom-left corner at y = 0.
     let t = viewport_transform(
       ViewportTiling::Center,
       ViewportAnchorPoint::BottomCenter,
@@ -211,7 +221,7 @@ mod tests
       ( 800, 600 ),
     ).unwrap();
     assert!( ( t.position[ 0 ] - 350.0 ).abs() < 1e-5 ); // (800 - 100) / 2
-    assert!( ( t.position[ 1 ] - 550.0 ).abs() < 1e-5 ); // 600 - 50
+    assert!( ( t.position[ 1 ] - 0.0 ).abs() < 1e-5 );   // bottom of viewport
   }
 
   #[ test ]
@@ -242,10 +252,10 @@ mod tests
       ( 800, 600 ),
     );
     assert_eq!( positions.len(), 9 ); // ceil(800/100) + 1 = 9
-    // All tiles pinned at y = viewport_h - sprite_h = 550.
+    // Y-up: BottomLeft pins sprites at y = 0 (viewport's bottom edge).
     for ( _, y ) in &positions
     {
-      assert!( ( y - 550.0 ).abs() < 1e-5 );
+      assert!( ( y - 0.0 ).abs() < 1e-5 );
     }
   }
 

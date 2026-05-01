@@ -1675,7 +1675,9 @@ fn viewport_center_emits_screen_space_sprite()
   let commands = compile_frame( &spec, &scene, &compiled, &Camera::default(), 0.0 ).unwrap();
   let screen = screen_space_commands( &commands );
   assert_eq!( screen.len(), 1 );
-  assert_eq!( screen[ 0 ].transform.position, [ 0.0, 0.0 ] );
+  // Y-up: TopLeft on a 72x64 sprite in an 800x600 viewport places the
+  // sprite's bottom-left corner at y = 600 - 64 = 536.
+  assert_eq!( screen[ 0 ].transform.position, [ 0.0, 536.0 ] );
   assert_eq!( screen[ 0 ].transform.scale, [ 1.0, 1.0 ] );
 }
 
