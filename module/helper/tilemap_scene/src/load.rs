@@ -32,11 +32,18 @@ mod private
 
     /// Loads, parses, and validates a render spec from a file on disk.
     ///
+    /// ⚠ Validation is currently a skeleton — see [`Validate`] — so today
+    /// `LoadError::Validation` cannot fire and a successful return is *not*
+    /// proof that the spec satisfies SPEC §16. The wiring stays in place so
+    /// that call sites pick up enforcement automatically as individual rules
+    /// land.
+    ///
     /// # Errors
     ///
     /// - [`LoadError::Io`] if the file cannot be read.
     /// - [`LoadError::Ron`] if parsing fails.
-    /// - [`LoadError::Validation`] if the parsed spec violates SPEC §16 rules.
+    /// - [`LoadError::Validation`] once SPEC §16 rules are enforced (no-op
+    ///   today; see note above).
     #[ inline ]
     pub fn load( path : impl AsRef< Path > ) -> Result< Self, LoadError >
     {
@@ -66,9 +73,13 @@ mod private
 
     /// Loads, parses, and validates a scene from a file on disk.
     ///
+    /// ⚠ Same skeleton-validation caveat as [`RenderSpec::load`]: the
+    /// validation pass currently always succeeds.
+    ///
     /// # Errors
     ///
-    /// Same as [`RenderSpec::load`], plus scene-specific validation failures.
+    /// Same as [`RenderSpec::load`], plus scene-specific validation failures
+    /// once SPEC §16 rules are enforced.
     #[ inline ]
     pub fn load( path : impl AsRef< Path > ) -> Result< Self, LoadError >
     {

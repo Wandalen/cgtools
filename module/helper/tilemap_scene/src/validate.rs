@@ -17,6 +17,15 @@ mod private
 
   /// Trait implemented by types that validate their own content against the
   /// SPEC §16 rule set.
+  ///
+  /// ⚠ **Skeleton — not yet enforcing.** No rule from SPEC §16 is implemented
+  /// yet. Every `validate()` call currently returns `Ok(())` regardless of
+  /// the input. The trait is wired through [`crate::load`] so call sites do
+  /// not need to change once individual rules begin to land. Until then
+  /// callers MUST NOT treat a successful `validate()` as evidence that the
+  /// spec or scene is well-formed; the open rules are listed inline as
+  /// `// TODO SPEC §16` markers in each impl, and `roadmap.md` tracks the
+  /// implementation order.
   pub trait Validate
   {
     /// Runs all validation rules, collecting every violation found.
@@ -25,11 +34,17 @@ mod private
     ///
     /// Returns `Err` with one [`ValidationError`] per violation when any
     /// rule fails. Returns `Ok(())` when all rules pass.
+    ///
+    /// ⚠ See trait-level note: no rule is enforced yet, so this always
+    /// returns `Ok(())` for now.
     fn validate( &self ) -> Result< (), Vec< ValidationError > >;
   }
 
   impl Validate for RenderSpec
   {
+    /// ⚠ **Stub — always `Ok(())`.** None of the SPEC §16 rules listed below
+    /// are implemented yet; see the trait-level documentation. The TODO
+    /// comments enumerate the rules in the order they are scheduled to land.
     fn validate( &self ) -> Result< (), Vec< ValidationError > >
     {
       #[ allow( unused_mut ) ]   // populated as rules land
@@ -54,6 +69,10 @@ mod private
 
   impl Validate for Scene
   {
+    /// ⚠ **Stub — always `Ok(())`.** Scene-internal SPEC §16 rules are not
+    /// yet enforced; see the trait-level documentation. Cross-file checks
+    /// (Scene → RenderSpec) will live in a separate pass with access to
+    /// both files.
     fn validate( &self ) -> Result< (), Vec< ValidationError > >
     {
       #[ allow( unused_mut ) ]
