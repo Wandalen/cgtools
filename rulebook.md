@@ -103,22 +103,3 @@ Preferred suppression order (narrowest scope first):
 
 Each `allow` attribute should have a short comment explaining why it is
 needed.
-
----
-
-## External rulebooks
-
-The following external company-wide rulebooks are sometimes cited by
-external review tooling. They are **not** part of this workspace and are
-explicitly out of scope:
-
-- `doc.rulebook.md` — the "doc entity / spec migration procedure" with a
-  per-entity `docs/feature/`, `docs/invariant/`, `docs/api/` tree. Replaced
-  by this rulebook's *Documentation layout* section. The absence of
-  `doc.rulebook.md` is intentional.
-- `test_organization.rulebook.md` — the "no inline `#[cfg(test)]` in `src/`"
-  rule and the 1,500-line / 750–1,000-line test file size limits. Replaced
-  by this rulebook's *Test placement* and *Test file size* sections.
-
-When review feedback cites either document, treat the workspace rulebook
-above as authoritative and reply with a pointer to it.
