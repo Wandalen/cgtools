@@ -15,6 +15,7 @@ use tilemap_scene::
   MaskTint,
   RenderSpec,
   Scene,
+  SpriteRef,
   SpriteSource,
   TilingStrategy,
   TintBehaviour,
@@ -305,4 +306,25 @@ fn blend_mode_default_is_normal()
     },
     _ => panic!( "expected Static" ),
   }
+}
+
+#[ test ]
+fn sprite_ref_ron_accepts_bare_tuple()
+{
+  // The on-wire RON form is a 2-tuple — preserved across the named-fields
+  // refactor via #[serde(from = "(String, String)")] on SpriteRef.
+  let r : SpriteRef = ron::from_str( r#"( "atlas", "grass_01" )"# ).unwrap();
+  assert_eq!( r.asset, "atlas" );
+  assert_eq!( r.frame, "grass_01" );
+  // Round-trip back through RON should also give a tuple.
+  let s = ron::to_string( &r ).unwrap();
+  assert_eq!( s, r#"("atlas","grass_01")"# );
+
+  // The prefixed form `SpriteRef("a", "b")` is NOT supported because
+  // #[serde(from = ...)] erases SpriteRef from the deserializer's view,
+  // so RON only sees a `(String, String)` target. Asserted negatively here
+  // to catch silent re-introduction.
+  let prefixed : Result< SpriteRef, _ > =
+    ron::from_str( r#"SpriteRef( "atlas", "grass_01" )"# );
+  assert!( prefixed.is_err(), "prefixed form unexpectedly parsed: {prefixed:?}" );
 }

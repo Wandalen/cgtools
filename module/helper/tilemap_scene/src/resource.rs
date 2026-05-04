@@ -17,10 +17,37 @@ mod private
 
   /// Reference to a specific frame within a declared [`Asset`].
   ///
-  /// The first field is the asset id, the second is a frame name or index
-  /// resolved against the asset's layout (`Single` / `Atlas` / `SpriteSheet`).
+  /// `asset` is the asset id; `frame` is the frame name or index resolved
+  /// against the asset's layout (`Single` / `Atlas` / `SpriteSheet`).
+  ///
+  /// Wire format note: serde serializes / deserializes this as a 2-tuple
+  /// `( asset, frame )` so existing RON specs that author this type as
+  /// `Static( ( "atlas", "frame_name" ) )` continue to round-trip without
+  /// migration. Rust call sites use the named fields explicitly.
   #[ derive( Debug, Clone, Serialize, Deserialize ) ]
-  pub struct SpriteRef( pub String, pub String );
+  #[ serde( from = "( String, String )", into = "( String, String )" ) ]
+  pub struct SpriteRef
+  {
+    /// Asset id this reference resolves against.
+    pub asset : String,
+    /// Frame name or index within the asset.
+    pub frame : String,
+  }
+
+  impl From< ( String, String ) > for SpriteRef
+  {
+    #[ inline ]
+    fn from( ( asset, frame ) : ( String, String ) ) -> Self
+    {
+      Self { asset, frame }
+    }
+  }
+
+  impl From< SpriteRef > for ( String, String )
+  {
+    #[ inline ]
+    fn from( s : SpriteRef ) -> Self { ( s.asset, s.frame ) }
+  }
 
   /// Reference to a declared [`Tint`] by id.
   #[ derive( Debug, Clone, Serialize, Deserialize ) ]

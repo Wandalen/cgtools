@@ -95,7 +95,7 @@ fn grass_object() -> Object
       ObjectLayer
       {
         id : Some( "base".into() ),
-        sprite_source : SpriteSource::Static( SpriteRef( "terrain".into(), "0".into() ) ),
+        sprite_source : SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "0".into() } ),
         behaviour : LayerBehaviour::default(),
         z_in_object : 0,
         pipeline_layer : None,
@@ -206,7 +206,7 @@ fn compile_assets_atlas_region_indexing()
       ObjectLayer
       {
         id : None,
-        sprite_source : SpriteSource::Static( SpriteRef( "terrain".into(), "3".into() ) ),
+        sprite_source : SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "3".into() } ),
         behaviour : LayerBehaviour::default(),
         z_in_object : 0,
         pipeline_layer : None,
@@ -229,7 +229,7 @@ fn compile_assets_single_kind_region_matches_size()
   spec.assets[ 0 ].kind = AssetKind::Single { size : ( 256, 128 ) };
   // Point the grass object's sprite source at the single-image asset.
   spec.objects[ 0 ].states.get_mut( "default" ).unwrap()[ 0 ].sprite_source
-    = SpriteSource::Static( SpriteRef( "terrain".into(), "terrain".into() ) );
+    = SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "terrain".into() } );
 
   let compiled = compile_assets( &spec, &PathResolver ).expect( "Single should resolve" );
   assert_eq!( compiled.assets.sprites.len(), 1 );
@@ -248,7 +248,7 @@ fn compile_assets_accepts_named_atlas_frame()
     frames.insert( "grass_01".into(), ( 1, 2 ) );
   }
   spec.objects[ 0 ].states.get_mut( "default" ).unwrap()[ 0 ].sprite_source =
-    SpriteSource::Static( SpriteRef( "terrain".into(), "grass_01".into() ) );
+    SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "grass_01".into() } );
   let compiled = compile_assets( &spec, &PathResolver ).expect( "named frames should compile" );
   let id = compiled.ids.sprite( "terrain", "grass_01" ).expect( "sprite allocated" );
   let sprite = compiled.assets.sprites.iter().find( | s | s.id == id ).unwrap();
@@ -508,12 +508,12 @@ fn variant_hashcoord_picks_deterministically()
       [
         Variant
         {
-          sprite : Box::new( SpriteSource::Static( SpriteRef( "terrain".into(), "0".into() ) ) ),
+          sprite : Box::new( SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "0".into() } ) ),
           weight : 1,
         },
         Variant
         {
-          sprite : Box::new( SpriteSource::Static( SpriteRef( "terrain".into(), "1".into() ) ) ),
+          sprite : Box::new( SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "1".into() } ) ),
           weight : 1,
         },
       ],
@@ -554,12 +554,12 @@ fn variant_fixed_always_picks_that_index()
       [
         Variant
         {
-          sprite : Box::new( SpriteSource::Static( SpriteRef( "terrain".into(), "0".into() ) ) ),
+          sprite : Box::new( SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "0".into() } ) ),
           weight : 1,
         },
         Variant
         {
-          sprite : Box::new( SpriteSource::Static( SpriteRef( "terrain".into(), "1".into() ) ) ),
+          sprite : Box::new( SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "1".into() } ) ),
           weight : 1,
         },
       ],
@@ -596,12 +596,12 @@ fn variant_random_deterministic_across_frames()
       [
         Variant
         {
-          sprite : Box::new( SpriteSource::Static( SpriteRef( "terrain".into(), "0".into() ) ) ),
+          sprite : Box::new( SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "0".into() } ) ),
           weight : 1,
         },
         Variant
         {
-          sprite : Box::new( SpriteSource::Static( SpriteRef( "terrain".into(), "3".into() ) ) ),
+          sprite : Box::new( SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "3".into() } ) ),
           weight : 1,
         },
       ],
@@ -650,10 +650,10 @@ fn animation_frame_advances_with_time()
       {
         frames : vec!
         [
-          SpriteRef( "terrain".into(), "0".into() ),
-          SpriteRef( "terrain".into(), "1".into() ),
-          SpriteRef( "terrain".into(), "2".into() ),
-          SpriteRef( "terrain".into(), "3".into() ),
+          SpriteRef { asset : "terrain".into(), frame : "0".into() },
+          SpriteRef { asset : "terrain".into(), frame : "1".into() },
+          SpriteRef { asset : "terrain".into(), frame : "2".into() },
+          SpriteRef { asset : "terrain".into(), frame : "3".into() },
         ],
         fps : 10.0,
       },
@@ -700,10 +700,10 @@ fn phase_offset_hashcoord_spreads_frames_across_tiles()
       {
         frames : vec!
         [
-          SpriteRef( "terrain".into(), "0".into() ),
-          SpriteRef( "terrain".into(), "1".into() ),
-          SpriteRef( "terrain".into(), "2".into() ),
-          SpriteRef( "terrain".into(), "3".into() ),
+          SpriteRef { asset : "terrain".into(), frame : "0".into() },
+          SpriteRef { asset : "terrain".into(), frame : "1".into() },
+          SpriteRef { asset : "terrain".into(), frame : "2".into() },
+          SpriteRef { asset : "terrain".into(), frame : "3".into() },
         ],
         fps : 4.0,
       },
@@ -918,7 +918,7 @@ fn neighbor_condition_skirt_on_water_side()
           ObjectLayer
           {
             id : None,
-            sprite_source : SpriteSource::Static( SpriteRef( "terrain".into(), "0".into() ) ),
+            sprite_source : SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "0".into() } ),
             behaviour : LayerBehaviour::default(),
             z_in_object : 0,
             pipeline_layer : None,
@@ -1022,7 +1022,7 @@ fn neighbor_condition_priority_lower_blends_grass_over_sand()
           ObjectLayer
           {
             id : None,
-            sprite_source : SpriteSource::Static( SpriteRef( "terrain".into(), "0".into() ) ),
+            sprite_source : SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "0".into() } ),
             behaviour : LayerBehaviour::default(),
             z_in_object : 0,
             pipeline_layer : None,
@@ -1139,7 +1139,7 @@ fn vertex_corners_three_way_blend()
             ObjectLayer
             {
               id : None,
-              sprite_source : SpriteSource::Static( SpriteRef( "terrain".into(), "0".into() ) ),
+              sprite_source : SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "0".into() } ),
               behaviour : LayerBehaviour::default(),
               z_in_object : 0,
               pipeline_layer : None,
@@ -1381,7 +1381,7 @@ fn edge_instance_emits_single_sprite()
   (
     "river",
     Anchor::Edge,
-    SpriteRef( "terrain".into(), "0".into() ),
+    SpriteRef { asset : "terrain".into(), frame : "0".into() },
   ));
   let scene = Scene
   {
@@ -1419,7 +1419,7 @@ fn edge_rotation_matches_direction()
   (
     "river",
     Anchor::Edge,
-    SpriteRef( "terrain".into(), "0".into() ),
+    SpriteRef { asset : "terrain".into(), frame : "0".into() },
   ));
 
   // Canonicalisation picks the lex-smaller hex and flips the direction as
@@ -1534,7 +1534,7 @@ fn free_pos_emits_at_instance_position()
   (
     "bullet",
     Anchor::FreePos,
-    SpriteRef( "terrain".into(), "0".into() ),
+    SpriteRef { asset : "terrain".into(), frame : "0".into() },
   ));
   let scene = Scene
   {
@@ -1640,7 +1640,7 @@ fn viewport_center_emits_screen_space_sprite()
         id : None,
         sprite_source : SpriteSource::ViewportTiled
         {
-          content : Box::new( SpriteSource::Static( SpriteRef( "terrain".into(), "0".into() ) ) ),
+          content : Box::new( SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "0".into() } ) ),
           tiling : ViewportTiling::Center,
           anchor_point : ViewportAnchorPoint::TopLeft,
         },
@@ -1696,7 +1696,7 @@ fn viewport_stretch_scales_to_viewport()
         id : None,
         sprite_source : SpriteSource::ViewportTiled
         {
-          content : Box::new( SpriteSource::Static( SpriteRef( "terrain".into(), "0".into() ) ) ),
+          content : Box::new( SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "0".into() } ) ),
           tiling : ViewportTiling::Stretch,
           anchor_point : ViewportAnchorPoint::Center,
         },
@@ -1752,7 +1752,7 @@ fn viewport_repeat2d_tiles_to_cover_viewport()
         id : None,
         sprite_source : SpriteSource::ViewportTiled
         {
-          content : Box::new( SpriteSource::Static( SpriteRef( "terrain".into(), "0".into() ) ) ),
+          content : Box::new( SpriteSource::Static( SpriteRef { asset : "terrain".into(), frame : "0".into() } ) ),
           tiling : ViewportTiling::Repeat2D,
           anchor_point : ViewportAnchorPoint::TopLeft,
         },

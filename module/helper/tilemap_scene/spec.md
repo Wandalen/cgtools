@@ -206,7 +206,7 @@ Asset(
 )
 ```
 
-`SpriteRef(asset_id, frame_name_or_index)` resolves to an asset and a frame within it.
+`SpriteRef { asset, frame }` resolves to an asset and a frame within it. In RON the type is authored as a 2-tuple `( asset_id, frame_name_or_index )` for brevity (e.g. `Static(("atlas", "grass_01"))`).
 
 For `Atlas` assets, frame lookup tries two paths in order:
 
@@ -297,7 +297,7 @@ Concretely: where a composite source stores a "sprite per mask" or "sprite per v
 ### 5.1 `Static`
 
 ```ron
-sprite_source: Static(SpriteRef("atlas", "grass_01"))
+sprite_source: Static(("atlas", "grass_01"))
 ```
 
 Fixed sprite. No selection logic.
@@ -307,8 +307,8 @@ Fixed sprite. No selection logic.
 ```ron
 sprite_source: Variant(
     variants: [
-        (sprite: Static(SpriteRef("atlas", "grass_01")),      weight: 5),
-        (sprite: Static(SpriteRef("atlas", "grass_flowers")), weight: 2),
+        (sprite: Static(("atlas", "grass_01")),      weight: 5),
+        (sprite: Static(("atlas", "grass_flowers")), weight: 2),
         (sprite: Animation(AnimationRef("rare_sparkle")),     weight: 1),
     ],
     selection: HashCoord | Random | Fixed(0),
@@ -337,18 +337,18 @@ sprite_source: NeighborBitmask(
     source: ByMapping(
         mapping: {
             // Each value is a leaf source — Static, Animation, or Variant.
-            0b000000: Static(SpriteRef("autotiles_atlas", "wall_single")),
+            0b000000: Static(("autotiles_atlas", "wall_single")),
             0b000001: Variant(
                 variants: [
-                    (sprite: Static(SpriteRef("autotiles_atlas", "wall_cap_n_a")), weight: 3),
-                    (sprite: Static(SpriteRef("autotiles_atlas", "wall_cap_n_b")), weight: 1),
+                    (sprite: Static(("autotiles_atlas", "wall_cap_n_a")), weight: 3),
+                    (sprite: Static(("autotiles_atlas", "wall_cap_n_b")), weight: 1),
                 ],
                 selection: HashCoord,
             ),
             0b101010: Animation(AnimationRef("wall_magic_hum")),
             // ...
         },
-        fallback: Static(SpriteRef("autotiles_atlas", "wall_default")),
+        fallback: Static(("autotiles_atlas", "wall_default")),
     ),
 
     // Alternative: atlas laid out by bitmask index.
@@ -418,8 +418,8 @@ Object(
                 id: "base",
                 sprite_source: Variant(
                     variants: [
-                        (sprite: Static(SpriteRef("terrain_atlas", "grass_01")),      weight: 5),
-                        (sprite: Static(SpriteRef("terrain_atlas", "grass_flowers")), weight: 2),
+                        (sprite: Static(("terrain_atlas", "grass_01")),      weight: 5),
+                        (sprite: Static(("terrain_atlas", "grass_flowers")), weight: 2),
                     ],
                     selection: HashCoord,
                 ),
@@ -484,7 +484,7 @@ Background / foreground textures in screen space.
 
 ```ron
 sprite_source: ViewportTiled(
-    content: Static(SpriteRef("bg", "sky_dusk")),   // or Animation(...)
+    content: Static(("bg", "sky_dusk")),   // or Animation(...)
     tiling: Stretch | Fit | Center | Repeat2D | RepeatX | RepeatY,
     anchor_point: TopLeft | TopCenter | Center | BottomCenter | BottomRight | ...,
 )

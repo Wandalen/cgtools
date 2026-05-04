@@ -295,11 +295,11 @@ mod private
 
     let sprite_ref = resolve_sprite_source( &layer.sprite_source, object, tile.pos, ctx )?;
 
-    let sprite_id = ctx.compiled.ids.sprite( &sprite_ref.0, &sprite_ref.1 )
+    let sprite_id = ctx.compiled.ids.sprite( &sprite_ref.asset, &sprite_ref.frame )
       .ok_or_else( || CompileError::UnresolvedRef
       {
         kind : "sprite",
-        id : format!( "{}:{}", sprite_ref.0, sprite_ref.1 ),
+        id : format!( "{}:{}", sprite_ref.asset, sprite_ref.frame ),
         context : format!( "object {:?} layer", object.id ),
       })?;
 
@@ -598,11 +598,11 @@ mod private
         if effective != bucket_id { continue; }
 
         let sprite_ref = resolve_edge_sprite_source( &layer.sprite_source, object, canon, ctx )?;
-        let sprite_id = ctx.compiled.ids.sprite( &sprite_ref.0, &sprite_ref.1 )
+        let sprite_id = ctx.compiled.ids.sprite( &sprite_ref.asset, &sprite_ref.frame )
           .ok_or_else( || CompileError::UnresolvedRef
           {
             kind : "sprite",
-            id : format!( "{}:{}", sprite_ref.0, sprite_ref.1 ),
+            id : format!( "{}:{}", sprite_ref.asset, sprite_ref.frame ),
             context : format!( "object {:?} edge layer", object.id ),
           })?;
 
@@ -673,7 +673,7 @@ mod private
           },
           NeighborBitmaskSource::ByAtlas { asset, layout : _ } =>
           {
-            Ok( SpriteRef( asset.clone(), mask.to_string() ) )
+            Ok( SpriteRef { asset : asset.clone(), frame : mask.to_string() } )
           },
         }
       },
@@ -761,11 +761,11 @@ mod private
         }
 
         let sprite_ref = resolve_sprite_source( &layer.sprite_source, object, ( 0, 0 ), ctx )?;
-        let sprite_id = ctx.compiled.ids.sprite( &sprite_ref.0, &sprite_ref.1 )
+        let sprite_id = ctx.compiled.ids.sprite( &sprite_ref.asset, &sprite_ref.frame )
           .ok_or_else( || CompileError::UnresolvedRef
           {
             kind : "sprite",
-            id : format!( "{}:{}", sprite_ref.0, sprite_ref.1 ),
+            id : format!( "{}:{}", sprite_ref.asset, sprite_ref.frame ),
             context : format!( "object {:?} free layer", object.id ),
           })?;
 
@@ -835,11 +835,11 @@ mod private
         // (0,0) is a placeholder — animation phase_offset on viewport
         // objects isn't meaningful.
         let sprite_ref = resolve_sprite_source( content, object, ( 0, 0 ), ctx )?;
-        let sprite_id = ctx.compiled.ids.sprite( &sprite_ref.0, &sprite_ref.1 )
+        let sprite_id = ctx.compiled.ids.sprite( &sprite_ref.asset, &sprite_ref.frame )
           .ok_or_else( || CompileError::UnresolvedRef
           {
             kind : "sprite",
-            id : format!( "{}:{}", sprite_ref.0, sprite_ref.1 ),
+            id : format!( "{}:{}", sprite_ref.asset, sprite_ref.frame ),
             context : format!( "object {:?} viewport layer", object.id ),
           })?;
 
@@ -1013,7 +1013,7 @@ mod private
           },
           NeighborBitmaskSource::ByAtlas { asset, layout : _ } =>
           {
-            Ok( SpriteRef( asset.clone(), mask.to_string() ) )
+            Ok( SpriteRef { asset : asset.clone(), frame : mask.to_string() } )
           },
         }
       },

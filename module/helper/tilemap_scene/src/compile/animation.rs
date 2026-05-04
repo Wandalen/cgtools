@@ -76,7 +76,7 @@ mod private
         }
         let idx = pick_frame_index( local_t, *fps, *count as usize, anim.mode );
         let frame_name = ( *start_frame + idx as u32 ).to_string();
-        Ok( SpriteRef( asset.clone(), frame_name ) )
+        Ok( SpriteRef { asset : asset.clone(), frame : frame_name } )
       },
       AnimationTiming::Irregular { frames } =>
       {
@@ -224,7 +224,7 @@ mod tests
       id : id.into(),
       timing : AnimationTiming::Regular
       {
-        frames : frames.iter().map( | f | SpriteRef( "a".into(), ( *f ).into() ) ).collect(),
+        frames : frames.iter().map( | f | SpriteRef { asset : "a".into(), frame : ( *f ).into() } ).collect(),
         fps,
       },
       mode,
@@ -236,7 +236,7 @@ mod tests
   fn regular_loop_wraps()
   {
     let a = regular( "w", &[ "0", "1", "2" ], 10.0, AnimationMode::Loop );
-    let pick = | t | resolve_animation_frame( &a, t, ( 0, 0 ) ).unwrap().1;
+    let pick = | t | resolve_animation_frame( &a, t, ( 0, 0 ) ).unwrap().frame;
     assert_eq!( pick( 0.0 ), "0" );
     assert_eq!( pick( 0.1 ), "1" );
     assert_eq!( pick( 0.25 ), "2" );
@@ -247,7 +247,7 @@ mod tests
   fn one_shot_clamps()
   {
     let a = regular( "w", &[ "a", "b", "c" ], 10.0, AnimationMode::OneShot );
-    let pick = | t | resolve_animation_frame( &a, t, ( 0, 0 ) ).unwrap().1;
+    let pick = | t | resolve_animation_frame( &a, t, ( 0, 0 ) ).unwrap().frame;
     assert_eq!( pick( 0.0 ), "a" );
     assert_eq!( pick( 100.0 ), "c", "past end → stuck on last frame" );
   }
@@ -256,7 +256,7 @@ mod tests
   fn pingpong_reflects()
   {
     let a = regular( "w", &[ "a", "b", "c" ], 10.0, AnimationMode::PingPong );
-    let pick = | t | resolve_animation_frame( &a, t, ( 0, 0 ) ).unwrap().1;
+    let pick = | t | resolve_animation_frame( &a, t, ( 0, 0 ) ).unwrap().frame;
     // Period = 2 * (3 - 1) = 4 ticks. Sequence: a b c b | a b c b | ...
     assert_eq!( pick( 0.00 ), "a" );
     assert_eq!( pick( 0.10 ), "b" );
@@ -272,12 +272,12 @@ mod tests
     a.phase_offset = PhaseOffset::HashCoord;
     // Two neighbouring tiles, same global time — their local times should
     // differ (practically always) and so can their frames.
-    let f_00 = resolve_animation_frame( &a, 0.0, ( 0, 0 ) ).unwrap().1;
-    let f_10 = resolve_animation_frame( &a, 0.0, ( 1, 0 ) ).unwrap().1;
+    let f_00 = resolve_animation_frame( &a, 0.0, ( 0, 0 ) ).unwrap().frame;
+    let f_10 = resolve_animation_frame( &a, 0.0, ( 1, 0 ) ).unwrap().frame;
     // We can't assert inequality rigorously (hash could collide) but we can
     // sample many coords and check that at least SOME produce different frames.
     let samples : Vec< String > =
-      ( 0..16 ).map( | q | resolve_animation_frame( &a, 0.0, ( q, 0 ) ).unwrap().1 ).collect();
+      ( 0..16 ).map( | q | resolve_animation_frame( &a, 0.0, ( q, 0 ) ).unwrap().frame ).collect();
     let unique_count = samples.iter().collect::< std::collections::HashSet< _ > >().len();
     assert!
     (
@@ -292,7 +292,7 @@ mod tests
     let mut a = regular( "w", &[ "0", "1", "2" ], 10.0, AnimationMode::Loop );
     a.phase_offset = PhaseOffset::Fixed( 0.1 );
     // At global t=0, with phase=0.1s, we're 1 frame in.
-    let frame = resolve_animation_frame( &a, 0.0, ( 0, 0 ) ).unwrap().1;
+    let frame = resolve_animation_frame( &a, 0.0, ( 0, 0 ) ).unwrap().frame;
     assert_eq!( frame, "1" );
   }
 
@@ -308,17 +308,17 @@ mod tests
         [
           crate::resource::TimedFrame
           {
-            sprite : SpriteRef( "a".into(), "wind_up".into() ),
+            sprite : SpriteRef { asset : "a".into(), frame : "wind_up".into() },
             duration_ms : 100,
           },
           crate::resource::TimedFrame
           {
-            sprite : SpriteRef( "a".into(), "impact".into() ),
+            sprite : SpriteRef { asset : "a".into(), frame : "impact".into() },
             duration_ms : 300,    // held
           },
           crate::resource::TimedFrame
           {
-            sprite : SpriteRef( "a".into(), "recover".into() ),
+            sprite : SpriteRef { asset : "a".into(), frame : "recover".into() },
             duration_ms : 100,
           },
         ],
@@ -326,7 +326,7 @@ mod tests
       mode : AnimationMode::OneShot,
       phase_offset : PhaseOffset::None,
     };
-    let pick = | t | resolve_animation_frame( &a, t, ( 0, 0 ) ).unwrap().1;
+    let pick = | t | resolve_animation_frame( &a, t, ( 0, 0 ) ).unwrap().frame;
     assert_eq!( pick( 0.0  ), "wind_up" );
     assert_eq!( pick( 0.05 ), "wind_up" );
     assert_eq!( pick( 0.15 ), "impact" );

@@ -171,7 +171,7 @@ mod private
             for mask in 0_u32..64
             {
               let name = mask.to_string();
-              let sprite_ref = SpriteRef( asset.clone(), name );
+              let sprite_ref = SpriteRef { asset : asset.clone(), frame : name };
               ensure_sprite_allocated( &sprite_ref, spec, ids, sprites )?;
             }
           },
@@ -184,7 +184,7 @@ mod private
         for dir in sides
         {
           let frame_name = sprite_pattern.replace( "{dir}", dir_name( *dir ) );
-          let sprite_ref = SpriteRef( asset.clone(), frame_name );
+          let sprite_ref = SpriteRef { asset : asset.clone(), frame : frame_name };
           ensure_sprite_allocated( &sprite_ref, spec, ids, sprites )?;
         }
         Ok( () )
@@ -198,7 +198,7 @@ mod private
           for rot in 0_u32..3
           {
             let frame_name = pattern.sprite_pattern.replace( "{rot}", &rot.to_string() );
-            let sprite_ref = SpriteRef( asset.clone(), frame_name );
+            let sprite_ref = SpriteRef { asset : asset.clone(), frame : frame_name };
             ensure_sprite_allocated( &sprite_ref, spec, ids, sprites )?;
           }
         }
@@ -221,7 +221,7 @@ mod private
             // `EdgeConnectedLayout::EdgeHex` uses a 4-bit mask — 16 entries.
             for mask in 0_u32..16
             {
-              let sprite_ref = SpriteRef( asset.clone(), mask.to_string() );
+              let sprite_ref = SpriteRef { asset : asset.clone(), frame : mask.to_string() };
               ensure_sprite_allocated( &sprite_ref, spec, ids, sprites )?;
             }
           },
@@ -269,7 +269,7 @@ mod private
         for i in 0..*count
         {
           let frame_name = ( *start_frame + i ).to_string();
-          let sprite_ref = SpriteRef( asset.clone(), frame_name );
+          let sprite_ref = SpriteRef { asset : asset.clone(), frame : frame_name };
           ensure_sprite_allocated( &sprite_ref, spec, ids, sprites )?;
         }
       },
@@ -287,7 +287,7 @@ mod private
     sprites : &mut Vec< SpriteAsset >,
   ) -> Result< (), CompileError >
   {
-    let SpriteRef( asset_id, frame_name ) = sprite_ref;
+    let SpriteRef { asset : asset_id, frame : frame_name } = sprite_ref;
 
     if ids.sprite( asset_id, frame_name ).is_some()
     {
