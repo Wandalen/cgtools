@@ -16,13 +16,19 @@ mod private
   /// Deterministic allocator for asset and sprite resource ids.
   ///
   /// Ids start at 0 and increase in the order in which they are requested.
+  ///
+  /// The two map fields are `pub(crate)` so the asset compile pass can
+  /// iterate them in `compile/assets.rs`. External callers go through
+  /// [`Self::alloc_image`] / [`Self::alloc_sprite`] / [`Self::image`] /
+  /// [`Self::sprite`] so the next-id counters remain consistent with the
+  /// recorded entries.
   #[ derive( Debug, Default ) ]
   pub struct IdMap
   {
     /// Asset string id → image resource id.
-    pub images : HashMap< String, ResourceId< asset::Image > >,
+    pub( crate ) images : HashMap< String, ResourceId< asset::Image > >,
     /// `( asset_id, frame_name )` → sprite resource id.
-    pub sprites : HashMap< ( String, String ), ResourceId< asset::Sprite > >,
+    pub( crate ) sprites : HashMap< ( String, String ), ResourceId< asset::Sprite > >,
     next_image : u32,
     next_sprite : u32,
   }
