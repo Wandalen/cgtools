@@ -195,7 +195,7 @@ Move `compile_frame`'s per-pass logic into methods on `Renderer`:
 - House style: `mod private { ... }` + `mod_interface::mod_interface!` per
   file; `exposed use X;` for items that bubble up to the parent scope via
   `layer X;` in the parent.
-- Test rulebook at `module/helper/tilemap_renderer/rulebook.md` applies.
+- Workspace rulebook at repo-root `rulebook.md` applies — see *Test placement* and *Test file size* sections.
 - The `slay_map` demo (untracked) in `examples/minwebgl/` exercises most
   shipped features — useful as a smoke test when iterating on the
   compile layer.
