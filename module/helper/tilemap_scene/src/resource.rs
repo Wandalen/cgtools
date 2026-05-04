@@ -8,6 +8,7 @@ mod private
 {
   use serde::{ Deserialize, Serialize };
   use rustc_hash::FxHashMap as HashMap;
+  pub use tilemap_renderer::types::BlendMode;
   use tilemap_renderer::types::{ MipmapMode, SamplerFilter, WrapMode };
 
   // ============================================================================
@@ -190,24 +191,6 @@ mod private
 
   #[ inline ]
   fn default_blend_mode() -> BlendMode { BlendMode::Multiply }
-
-  /// Compositing modes for tint / layer composition. See SPEC §6.2.
-  #[ derive( Debug, Clone, Copy, Default, Serialize, Deserialize ) ]
-  #[ non_exhaustive ]
-  pub enum BlendMode
-  {
-    /// Standard alpha-over compositing. The default.
-    #[ default ]
-    Normal,
-    /// Multiplicative compositing: `dst = src * dst`.
-    Multiply,
-    /// Inverse multiply: `dst = 1 - ( 1 - src ) * ( 1 - dst )`.
-    Screen,
-    /// Additive compositing: `dst = src + dst` (clamped).
-    Add,
-    /// Combined multiply / screen per channel.
-    Overlay,
-  }
 
   // ============================================================================
   // Animations

@@ -391,6 +391,7 @@ mod private
   /// SVG: `mix-blend-mode` CSS property.
   /// GPU: blend state on the pipeline.
   #[ derive( Debug, Clone, Copy, Default ) ]
+  #[ cfg_attr( feature = "scene-model", derive( serde::Serialize, serde::Deserialize ) ) ]
   pub enum BlendMode
   {
     /// Source over (alpha blending).
