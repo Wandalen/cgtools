@@ -117,14 +117,28 @@ mod private
   }
 
   /// How a [`SpriteSource::Variant`] picks one of its entries per instance.
+  ///
+  /// Both [`Self::HashCoord`] and [`Self::Random`] are deterministic
+  /// `hash_coord( q, r, salt )`-driven picks: the same `(coord, salt,
+  /// variant-list)` always produces the same index. The only difference is
+  /// the salt — `HashCoord` uses a fixed `0`, `Random` uses the scene's
+  /// configured `scene_seed`. Neither is "random" in the runtime-RNG sense;
+  /// the name `Random` is preserved for spec compatibility.
   #[ derive( Debug, Clone, Copy, Serialize, Deserialize, Default ) ]
   #[ non_exhaustive ]
   pub enum VariantSelection
   {
-    /// Deterministic hash of the instance's grid coordinate (default).
+    /// Deterministic hash of the instance's grid coordinate, salt fixed at
+    /// `0` (default). Same coord + same variant list → same pick across all
+    /// scenes that use this source.
     #[ default ]
     HashCoord,
-    /// Random at scene load, fixed for the lifetime of the scene.
+    /// Deterministic hash of the instance's grid coordinate, salted by
+    /// `Scene.seed`. Same coord + same seed + same variant list → same pick
+    /// across frames and runs. A non-zero `Scene.seed` produces different
+    /// spatial patterns than [`Self::HashCoord`] without changing the rule;
+    /// editing the seed is the supported way to reroll a scene's variant
+    /// layout.
     Random,
     /// Force a specific entry index.
     Fixed( usize ),

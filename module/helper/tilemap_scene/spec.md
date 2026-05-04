@@ -317,7 +317,7 @@ sprite_source: Variant(
 
 Variant entries each wrap a **sub-source**, usually `Static` or `Animation`. The outer source picks one entry per object instance; the inner source runs every frame.
 
-`HashCoord` is the default and requires the anchor to have a grid coordinate. `Random` resolves at scene load using the scene seed. `Fixed(i)` forces a specific variant.
+`HashCoord` is the default and requires the anchor to have a grid coordinate. `Random` is the same deterministic hash-of-coordinate pick salted by `Scene.seed` instead of `0`, so the layout reshuffles when the seed changes but stays stable across runs and frames; "random" here is by-design naming, not runtime entropy. `Fixed(i)` forces a specific variant.
 
 ### 5.3 `Animation`
 
