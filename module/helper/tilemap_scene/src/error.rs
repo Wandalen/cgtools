@@ -3,6 +3,7 @@
 mod private
 {
   use core::fmt;
+  use error_tools::Error;
 
   /// Error returned by [`crate::spec::RenderSpec::load`] /
   /// [`crate::scene::Scene::load`] and their `from_ron_str`
@@ -10,7 +11,12 @@ mod private
   ///
   /// Wraps I/O, RON parsing, and post-parse validation failures under a single
   /// type so callers can handle them uniformly.
-  #[ derive( Debug ) ]
+  ///
+  /// Uses `#[derive(error_tools::Error)]` for the `core::error::Error` impl
+  /// with a manual `Display` — the Validation arm formats a `Vec<...>`
+  /// across multiple lines, which the derive's single-expression formatter
+  /// can't express cleanly.
+  #[ derive( Debug, Error ) ]
   #[ non_exhaustive ]
   pub enum LoadError
   {
@@ -22,6 +28,10 @@ mod private
     Validation( Vec< ValidationError > ),
   }
 
+  // LoadError keeps a manual Display because the Validation arm is multi-line
+  // (formats the inner Vec) — `error_tools::Error` / thiserror would force a
+  // single-expression formatter for each variant. The other two variants
+  // forward to their inner source. ValidationError below uses the derive.
   impl fmt::Display for LoadError
   {
     #[ inline ]
@@ -44,20 +54,6 @@ mod private
     }
   }
 
-  impl core::error::Error for LoadError
-  {
-    #[ inline ]
-    fn source( &self ) -> Option< &( dyn core::error::Error + 'static ) >
-    {
-      match self
-      {
-        Self::Io( e ) => Some( e ),
-        Self::Ron( e ) => Some( e ),
-        Self::Validation( _ ) => None,
-      }
-    }
-  }
-
   impl From< std::io::Error > for LoadError
   {
     #[ inline ]
@@ -75,7 +71,10 @@ mod private
   /// Validation collects all violations and reports them together (SPEC §16);
   /// it does not stop at the first. This enum enumerates the distinct shapes a
   /// violation can take.
-  #[ derive( Debug, Clone ) ]
+  ///
+  /// Uses `#[derive(error_tools::Error)]` with a manual `Display` matching
+  /// the workspace pattern (see `tilemap_renderer/src/backend.rs`).
+  #[ derive( Debug, Clone, Error ) ]
   #[ non_exhaustive ]
   pub enum ValidationError
   {
@@ -165,8 +164,6 @@ mod private
       }
     }
   }
-
-  impl core::error::Error for ValidationError {}
 }
 
 mod_interface::mod_interface!

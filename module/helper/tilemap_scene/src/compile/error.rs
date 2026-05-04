@@ -3,13 +3,18 @@
 mod private
 {
   use core::fmt;
+  use error_tools::Error;
 
   /// Every way compilation can fail.
   ///
   /// Variants split by root cause so callers can react programmatically —
   /// e.g. an editor GUI can highlight "unsupported source" differently from
   /// "unresolved asset reference".
-  #[ derive( Debug, Clone ) ]
+  ///
+  /// Uses `#[derive(error_tools::Error)]` for the `core::error::Error` impl
+  /// (which lights up the `?`-operator and `Error::source` chain). Display
+  /// is intentionally manual — see the impl below.
+  #[ derive( Debug, Clone, Error ) ]
   #[ non_exhaustive ]
   pub enum CompileError
   {
@@ -50,8 +55,10 @@ mod private
     {
       /// Owning object id.
       object : String,
-      /// Source kind encountered.
-      source : &'static str,
+      /// Source kind encountered. Named `source_kind` (not `source`) so
+      /// `error_tools::Error` / thiserror does not auto-treat this `&str`
+      /// as the error chain's source.
+      source_kind : &'static str,
     },
     /// An asset declares a kind not supported by the current slice.
     ///
@@ -103,8 +110,8 @@ mod private
           write!( f, "unresolved {kind} reference {id:?} in {context}" ),
         Self::UnsupportedAnchor { object, anchor } =>
           write!( f, "object {object:?} uses anchor {anchor} which is not supported in this slice" ),
-        Self::UnsupportedSource { object, source } =>
-          write!( f, "object {object:?} uses sprite source {source} which is not supported in this slice" ),
+        Self::UnsupportedSource { object, source_kind } =>
+          write!( f, "object {object:?} uses sprite source {source_kind} which is not supported in this slice" ),
         Self::UnsupportedAssetKind { asset, kind } =>
           write!( f, "asset {asset:?} uses kind {kind} which is not supported in this slice" ),
         Self::InvalidFrameName { asset, frame } =>
@@ -116,8 +123,6 @@ mod private
       }
     }
   }
-
-  impl core::error::Error for CompileError {}
 }
 
 mod_interface::mod_interface!

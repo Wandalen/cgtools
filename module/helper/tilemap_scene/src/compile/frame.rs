@@ -93,7 +93,7 @@ mod private
       return Err( CompileError::UnsupportedSource
       {
         object : scene.entities[ 0 ].object.clone(),
-        source : "Entity (entities go through animations / runtime mutation — post-Slice-1)",
+        source_kind : "Entity (entities go through animations / runtime mutation — post-Slice-1)",
       });
     }
 
@@ -706,7 +706,7 @@ mod private
       other => Err( CompileError::UnsupportedSource
       {
         object : object.id.clone(),
-        source : source_name( other ),
+        source_kind : source_name( other ),
       }),
     }
   }
@@ -754,7 +754,7 @@ mod private
             return Err( CompileError::UnsupportedSource
             {
               object : object.id.clone(),
-              source : source_name( &layer.sprite_source ),
+              source_kind : source_name( &layer.sprite_source ),
             });
           },
           _ => {},
@@ -827,7 +827,7 @@ mod private
           return Err( CompileError::UnsupportedSource
           {
             object : object.id.clone(),
-            source : "Viewport-anchored layer must use ViewportTiled",
+            source_kind : "Viewport-anchored layer must use ViewportTiled",
           });
         };
 
@@ -893,7 +893,7 @@ mod private
             return Err( CompileError::UnsupportedSource
             {
               object : object.id.clone(),
-              source : "ViewportTiled (unsupported tiling)",
+              source_kind : "ViewportTiled (unsupported tiling)",
             });
           };
           commands.push( RenderCommand::ScreenSpaceSprite( Sprite
@@ -1020,7 +1020,7 @@ mod private
       other => Err( CompileError::UnsupportedSource
       {
         object : object.id.clone(),
-        source : source_name( other ),
+        source_kind : source_name( other ),
       }),
     }
   }
