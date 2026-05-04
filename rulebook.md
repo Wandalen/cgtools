@@ -5,12 +5,6 @@ for repository-level lint and style rules; every crate in the workspace
 follows the rules below unless an explicit, well-justified crate-local
 override is recorded under the crate's own roof.
 
-These rules also take precedence over any external rulebook referenced by
-review tooling (in particular the company-wide `doc.rulebook.md` and
-`test_organization.rulebook.md`) — those are not part of this workspace
-and are explicitly out of scope, see the *External rulebooks* section at
-the bottom.
-
 ---
 
 ## Documentation layout
