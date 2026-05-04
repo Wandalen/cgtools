@@ -135,8 +135,129 @@ fn parses_minimal_spec()
 fn validates_minimal_spec()
 {
   let spec = RenderSpec::from_ron_str( MINIMAL_SPEC ).expect( "spec must parse" );
-  // Validation is a skeleton today — should pass trivially.
-  spec.validate().expect( "skeleton validation returns Ok" );
+  // MINIMAL_SPEC declares assets "terrain" / "knight_sheet" and pipeline
+  // layers "terrain" / "units"; every reference resolves, so validate()
+  // succeeds.
+  spec.validate().expect( "minimal spec validates clean" );
+}
+
+#[ test ]
+fn validate_rejects_unknown_pipeline_layer()
+{
+  // Object.global_layer points at a layer id that does not appear in
+  // pipeline.layers.
+  let spec : RenderSpec = ron::from_str( r#"
+    RenderSpec(
+        version: "0.2.0",
+        assets: [
+            Asset( id: "terrain", path: "t.png", kind: Atlas( tile_size: ( 72, 64 ), columns: 8 ) ),
+        ],
+        objects: [
+            Object(
+                id: "grass",
+                anchor: Hex,
+                global_layer: "ghost",
+                states: { "default": [ ( sprite_source: Static( ( "terrain", "0" ) ) ) ] },
+            ),
+        ],
+        pipeline: (
+            hex: ( tiling: HexFlatTop, grid_stride: ( 72, 64 ) ),
+            layers: [ ( id: "terrain" ) ],
+        ),
+    )
+  "# ).expect( "spec parses" );
+  let errs = spec.validate().expect_err( "ghost layer must be flagged" );
+  assert!
+  (
+    errs.iter().any( | e | matches!
+    (
+      e,
+      tilemap_scene::ValidationError::UnresolvedRef { kind, id, .. }
+        if *kind == "pipeline layer" && id == "ghost"
+    )),
+    "expected UnresolvedRef for pipeline layer 'ghost', got {errs:?}",
+  );
+}
+
+#[ test ]
+fn validate_rejects_unknown_asset_in_sprite_source()
+{
+  // Static sprite references asset "absent" which is not declared.
+  let spec : RenderSpec = ron::from_str( r#"
+    RenderSpec(
+        version: "0.2.0",
+        assets: [
+            Asset( id: "terrain", path: "t.png", kind: Atlas( tile_size: ( 72, 64 ), columns: 8 ) ),
+        ],
+        objects: [
+            Object(
+                id: "grass",
+                anchor: Hex,
+                global_layer: "terrain",
+                states: { "default": [ ( sprite_source: Static( ( "absent", "0" ) ) ) ] },
+            ),
+        ],
+        pipeline: (
+            hex: ( tiling: HexFlatTop, grid_stride: ( 72, 64 ) ),
+            layers: [ ( id: "terrain" ) ],
+        ),
+    )
+  "# ).expect( "spec parses" );
+  let errs = spec.validate().expect_err( "absent asset must be flagged" );
+  assert!
+  (
+    errs.iter().any( | e | matches!
+    (
+      e,
+      tilemap_scene::ValidationError::UnresolvedRef { kind, id, .. }
+        if *kind == "asset" && id == "absent"
+    )),
+    "expected UnresolvedRef for asset 'absent', got {errs:?}",
+  );
+}
+
+#[ test ]
+fn validate_rejects_unknown_asset_in_animation()
+{
+  // FromSheet animation refers to a missing asset id.
+  let spec : RenderSpec = ron::from_str( r#"
+    RenderSpec(
+        version: "0.2.0",
+        assets: [
+            Asset( id: "terrain", path: "t.png", kind: Atlas( tile_size: ( 72, 64 ), columns: 8 ) ),
+        ],
+        animations: [
+            Animation(
+                id: "ghost",
+                timing: FromSheet( asset: "ghost_sheet", start_frame: 0, count: 4, fps: 8.0 ),
+                mode: Loop,
+            ),
+        ],
+        objects: [
+            Object(
+                id: "grass",
+                anchor: Hex,
+                global_layer: "terrain",
+                states: { "default": [ ( sprite_source: Static( ( "terrain", "0" ) ) ) ] },
+            ),
+        ],
+        pipeline: (
+            hex: ( tiling: HexFlatTop, grid_stride: ( 72, 64 ) ),
+            layers: [ ( id: "terrain" ) ],
+        ),
+    )
+  "# ).expect( "spec parses" );
+  let errs = spec.validate().expect_err( "missing animation asset must be flagged" );
+  assert!
+  (
+    errs.iter().any( | e | matches!
+    (
+      e,
+      tilemap_scene::ValidationError::UnresolvedRef { kind, id, .. }
+        if *kind == "asset" && id == "ghost_sheet"
+    )),
+    "expected UnresolvedRef for animation asset 'ghost_sheet', got {errs:?}",
+  );
 }
 
 // ────────────────────────────────────────────────────────────────────────────

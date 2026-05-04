@@ -32,18 +32,18 @@ mod private
 
     /// Loads, parses, and validates a render spec from a file on disk.
     ///
-    /// ⚠ Validation is currently a skeleton — see [`Validate`] — so today
-    /// `LoadError::Validation` cannot fire and a successful return is *not*
-    /// proof that the spec satisfies SPEC §16. The wiring stays in place so
-    /// that call sites pick up enforcement automatically as individual rules
-    /// land.
+    /// Validation enforces a partial subset of SPEC §16 — see [`Validate`]
+    /// for the per-type list of rules currently checked. Rules not yet
+    /// implemented stay as `// TODO SPEC §16` markers in
+    /// `tilemap_scene/src/validate.rs`; a successful load proves only the
+    /// implemented rules pass.
     ///
     /// # Errors
     ///
     /// - [`LoadError::Io`] if the file cannot be read.
     /// - [`LoadError::Ron`] if parsing fails.
-    /// - [`LoadError::Validation`] once SPEC §16 rules are enforced (no-op
-    ///   today; see note above).
+    /// - [`LoadError::Validation`] when one or more enforced SPEC §16 rules
+    ///   reject the spec (see [`Validate`] for the current rule set).
     #[ inline ]
     pub fn load( path : impl AsRef< Path > ) -> Result< Self, LoadError >
     {
@@ -73,13 +73,14 @@ mod private
 
     /// Loads, parses, and validates a scene from a file on disk.
     ///
-    /// ⚠ Same skeleton-validation caveat as [`RenderSpec::load`]: the
-    /// validation pass currently always succeeds.
+    /// Scene-internal validation is not yet implemented (see [`Validate`]
+    /// for the trait-level note); cross-file Scene → RenderSpec checks run
+    /// in a separate pass.
     ///
     /// # Errors
     ///
     /// Same as [`RenderSpec::load`], plus scene-specific validation failures
-    /// once SPEC §16 rules are enforced.
+    /// once Scene-side SPEC §16 rules are enforced.
     #[ inline ]
     pub fn load( path : impl AsRef< Path > ) -> Result< Self, LoadError >
     {
