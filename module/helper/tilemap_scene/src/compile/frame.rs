@@ -284,7 +284,7 @@ mod private
     // it produces N sprites, not one.
     if let SpriteSource::NeighborCondition { condition, sides, sprite_pattern, asset } = &layer.sprite_source
     {
-      return emit_neighbor_condition( object, tile, condition, sides, sprite_pattern, asset, ctx );
+      return emit_neighbor_condition( object, tile, condition, sides, sprite_pattern, asset, layer.behaviour.blend, ctx );
     }
 
     // `VertexCorners` is not emitted per tile.
@@ -319,7 +319,7 @@ mod private
           transform,
           sprite : sprite_id,
           tint : ctx.global_tint,
-          blend : BlendMode::default(),
+          blend : layer.behaviour.blend,
           clip : None,
         },
       ),
@@ -415,6 +415,7 @@ mod private
     sides : &[ crate::anchor::EdgeDirection ],
     sprite_pattern : &str,
     asset : &str,
+    blend : BlendMode,
     ctx : &FrameContext< '_ >,
   ) -> Result< Vec< ( f32, f32, Sprite ) >, CompileError >
   {
@@ -459,7 +460,7 @@ mod private
           transform,
           sprite : sprite_id,
           tint : ctx.global_tint,
-          blend : BlendMode::default(),
+          blend,
           clip : None,
         },
       ));
@@ -550,7 +551,7 @@ mod private
             transform,
             sprite : sprite_id,
             tint : ctx.global_tint,
-            blend : BlendMode::default(),
+            blend : layer.behaviour.blend,
             clip : None,
           },
         ));
@@ -635,7 +636,7 @@ mod private
             transform,
             sprite : sprite_id,
             tint : ctx.global_tint,
-            blend : BlendMode::default(),
+            blend : layer.behaviour.blend,
             clip : None,
           },
         ));
@@ -782,7 +783,7 @@ mod private
             transform,
             sprite : sprite_id,
             tint : ctx.global_tint,
-            blend : BlendMode::default(),
+            blend : layer.behaviour.blend,
             clip : None,
           },
         ));
@@ -880,7 +881,7 @@ mod private
               transform,
               sprite : sprite_id,
               tint : ctx.global_tint,
-              blend : BlendMode::default(),
+              blend : layer.behaviour.blend,
               clip : None,
             }));
           }
@@ -901,7 +902,7 @@ mod private
             transform,
             sprite : sprite_id,
             tint : ctx.global_tint,
-            blend : BlendMode::default(),
+            blend : layer.behaviour.blend,
             clip : None,
           }));
         }

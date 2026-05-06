@@ -108,20 +108,9 @@ game use-case demands one.
     remove the friction for authors who have a bounding box. Also consider an
     explicit **stride override** field for pixel-art hexes tuned away from exact
     `sqrt(3)/2` ratios. Low urgency.
-12. **🐛 BlendMode propagation in compile/frame.rs.** *Known bug, not a feature
-    gap.* Every `RenderCommand::{Sprite, ScreenSpaceSprite, Mesh}` emitted by
-    `compile_frame` is constructed with `blend : BlendMode::default()` (== `Normal`),
-    so the user-authored `Tint.mode` and `LayerBehaviour.blend` values
-    deserialized from `render_spec.ron` are silently dropped on the floor.
-    Surfaced when `tilemap_scene` switched to re-exporting
-    `tilemap_renderer::types::BlendMode` (review finding DESIGN-3, commit
-    `76d39f3e`) — the type unification made the two codepaths visibly the
-    same enum. Fix is small: thread the layer's `blend` through the per-pass
-    builders in `compile/frame.rs` (~7 construction sites grep'd as
-    `blend : BlendMode::default()`) and have the layer-behaviour resolution
-    return its `BlendMode` alongside the tint. Add an integration test that
-    deserializes a spec with a non-Normal `LayerBehaviour.blend` and asserts
-    the emitted command carries the same value.
+12. ~~**🐛 BlendMode propagation in compile/frame.rs.**~~ *Fixed.* All 7 construction
+    sites in `compile/frame.rs` now use `layer.behaviour.blend` instead of
+    `BlendMode::default()`.
 
 ## Slice 5 — stateful `Renderer` + runtime mutation API
 
