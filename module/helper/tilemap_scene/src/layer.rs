@@ -42,7 +42,7 @@ mod private
   ///
   /// All fields are optional; defaults reduce to "draw the sampled sprite
   /// unmodified with normal alpha compositing".
-  #[ derive( Debug, Clone, Default, Serialize, Deserialize ) ]
+  #[ derive( Debug, Clone, Serialize, Deserialize ) ]
   pub struct LayerBehaviour
   {
     /// Colour-tinting strategy. SPEC §6.1.
@@ -64,6 +64,22 @@ mod private
     /// Autonomous texture scroll in world-pixels-per-second — Viewport anchor only.
     #[ serde( default ) ]
     pub scroll_velocity : Option< ( f32, f32 ) >,
+  }
+
+  impl Default for LayerBehaviour
+  {
+    fn default() -> Self
+    {
+      Self
+      {
+        tint : TintBehaviour::default(),
+        blend : BlendMode::Normal,
+        alpha : 1.0,
+        effects : Vec::new(),
+        parallax : None,
+        scroll_velocity : None,
+      }
+    }
   }
 
   #[ inline ]

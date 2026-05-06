@@ -49,7 +49,7 @@ the `examples/minwebgl/slay_map` WebGL demo.
 - RON + serde loader (`RenderSpec::load`, `Scene::load`) with validation hooks
 - `ScreenSpaceSprite` command (implemented end-to-end in the WebGL adapter; SVG stubs)
 
-**Test baseline:** 80 passing — 35 unit (hash, ids, camera, coords, animation, neighbors, conditions, vertex, edges, viewport), 35 integration compile (anchor × source coverage), 10 integration serde round-trip.
+**Test baseline:** 84 passing — 35 unit (hash, ids, camera, coords, animation, neighbors, conditions, vertex, edges, viewport), 35 integration compile (anchor × source coverage), 14 integration serde/validation round-trip.
 
 ## Polish items — pick-by-need, no fixed slice
 
@@ -111,6 +111,11 @@ game use-case demands one.
 12. ~~**🐛 BlendMode propagation in compile/frame.rs.**~~ *Fixed.* All 7 construction
     sites in `compile/frame.rs` now use `layer.behaviour.blend` instead of
     `BlendMode::default()`.
+13. ~~**🐛 LayerBehaviour.alpha not propagated in compile/frame.rs.**~~ *Fixed.*
+    All 7 emit sites now apply `layer.behaviour.alpha` to the sprite's tint alpha
+    channel via the `tinted()` helper. Also fixed: `LayerBehaviour::default()` now
+    returns `alpha: 1.0` (was `0.0` via `f32::default()`, inconsistent with the
+    serde default).
 
 ## Slice 5 — stateful `Renderer` + runtime mutation API
 

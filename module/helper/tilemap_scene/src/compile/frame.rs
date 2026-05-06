@@ -42,7 +42,7 @@ mod private
     resolve_corners,
   };
   use crate::hash::hash_coord;
-  use crate::layer::ObjectLayer;
+  use crate::layer::{ LayerBehaviour, ObjectLayer };
   use crate::object::Object;
   use crate::pipeline::{ SortMode, TilingStrategy };
   use crate::resource::SpriteRef;
@@ -284,7 +284,7 @@ mod private
     // it produces N sprites, not one.
     if let SpriteSource::NeighborCondition { condition, sides, sprite_pattern, asset } = &layer.sprite_source
     {
-      return emit_neighbor_condition( object, tile, condition, sides, sprite_pattern, asset, layer.behaviour.blend, ctx );
+      return emit_neighbor_condition( object, tile, condition, sides, sprite_pattern, asset, &layer.behaviour, ctx );
     }
 
     // `VertexCorners` is not emitted per tile.
@@ -318,7 +318,7 @@ mod private
         {
           transform,
           sprite : sprite_id,
-          tint : ctx.global_tint,
+          tint : tinted( ctx.global_tint, layer.behaviour.alpha ),
           blend : layer.behaviour.blend,
           clip : None,
         },
@@ -336,6 +336,13 @@ mod private
       skew : [ 0.0, 0.0 ],
       depth : 0.0,
     }
+  }
+
+  /// Multiply the alpha channel of a tint by a per-layer alpha factor.
+  #[ inline ]
+  fn tinted( [ r, g, b, a ] : [ f32; 4 ], alpha : f32 ) -> [ f32; 4 ]
+  {
+    [ r, g, b, a * alpha ]
   }
 
   /// Shift the projected scene-anchor point so the sprite's anchor pixel
@@ -415,7 +422,7 @@ mod private
     sides : &[ crate::anchor::EdgeDirection ],
     sprite_pattern : &str,
     asset : &str,
-    blend : BlendMode,
+    behaviour : &LayerBehaviour,
     ctx : &FrameContext< '_ >,
   ) -> Result< Vec< ( f32, f32, Sprite ) >, CompileError >
   {
@@ -459,8 +466,8 @@ mod private
         {
           transform,
           sprite : sprite_id,
-          tint : ctx.global_tint,
-          blend,
+          tint : tinted( ctx.global_tint, behaviour.alpha ),
+          blend : behaviour.blend,
           clip : None,
         },
       ));
@@ -550,7 +557,7 @@ mod private
           {
             transform,
             sprite : sprite_id,
-            tint : ctx.global_tint,
+            tint : tinted( ctx.global_tint, layer.behaviour.alpha ),
             blend : layer.behaviour.blend,
             clip : None,
           },
@@ -635,7 +642,7 @@ mod private
           {
             transform,
             sprite : sprite_id,
-            tint : ctx.global_tint,
+            tint : tinted( ctx.global_tint, layer.behaviour.alpha ),
             blend : layer.behaviour.blend,
             clip : None,
           },
@@ -782,7 +789,7 @@ mod private
           {
             transform,
             sprite : sprite_id,
-            tint : ctx.global_tint,
+            tint : tinted( ctx.global_tint, layer.behaviour.alpha ),
             blend : layer.behaviour.blend,
             clip : None,
           },
@@ -880,7 +887,7 @@ mod private
             {
               transform,
               sprite : sprite_id,
-              tint : ctx.global_tint,
+              tint : tinted( ctx.global_tint, layer.behaviour.alpha ),
               blend : layer.behaviour.blend,
               clip : None,
             }));
@@ -901,7 +908,7 @@ mod private
           {
             transform,
             sprite : sprite_id,
-            tint : ctx.global_tint,
+            tint : tinted( ctx.global_tint, layer.behaviour.alpha ),
             blend : layer.behaviour.blend,
             clip : None,
           }));
