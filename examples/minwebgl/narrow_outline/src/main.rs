@@ -1059,7 +1059,7 @@ async fn run() -> Result< (), gl::WebglError >
   let window = gl::web_sys::window().unwrap();
   let document = window.document().unwrap();
 
-  let gltf_path = "bike.glb";
+  let gltf_path = "static/bike.glb";
   let mut gltf = load( &document, gltf_path, &renderer.gl ).await?;
   let _ = add_attributes( &renderer.gl, &mut gltf );
 

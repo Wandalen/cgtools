@@ -89,7 +89,7 @@ impl Configurator
     let mut cube_normal_map_generator = CubeNormalMapGenerator::new( gl )?;
     cube_normal_map_generator.set_texture_size( gl, 512, 512 );
 
-    let ibl = renderer::webgl::loaders::ibl::load( gl, "environment_maps/studio", None ).await;
+    let ibl = renderer::webgl::loaders::ibl::load( gl, "static/environment_maps/studio", None ).await;
 
     let env_map = create_empty_texture( &gl ).await;
     renderer::webgl::loaders::hdr_texture::load_to_mip_d2
@@ -581,7 +581,7 @@ impl RingsInfo
             let window = gl::web_sys::window().unwrap();
             let document = window.document().unwrap();
 
-            let gltf = gltf::load( &document, format!( "./gltf/{index}.glb" ).as_str(), &gl ).await.unwrap();
+            let gltf = gltf::load( &document, format!( "static/gltf/{index}.glb" ).as_str(), &gl ).await.unwrap();
 
             ( loader )( gltf, index );
           };
@@ -646,7 +646,7 @@ async fn setup_rings
 
   let rings : RcVec< Option< Ring > > = Rc::new( RefCell::new( vec![ None; RINGS_NUMBER ] ) );
 
-  let plane_gltf = gltf::load( &document, "gltf/plane.glb", &gl ).await?;
+  let plane_gltf = gltf::load( &document, "static/gltf/plane.glb", &gl ).await?;
   let plane_template = plane_gltf.scenes[ 0 ].borrow().get_node( "Plane" ).unwrap();
 
   let shadowmap_res = 2048;

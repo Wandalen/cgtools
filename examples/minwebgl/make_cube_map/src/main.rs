@@ -114,7 +114,7 @@ async fn run() -> Result< (), gl::WebglError >
   gl.use_program( Some( &program ) );
 
   // Load model
-  let obj_buffer = gl::file::load( "diamond.glb" ).await.expect( "Failed to load the model" );
+  let obj_buffer = gl::file::load( "static/diamond.glb" ).await.expect( "Failed to load the model" );
   let ( document, buffers, _ ) = gltf::import_slice( &obj_buffer[ .. ] ).expect( "Failed to parse the glb file" );
 
   let positions : Vec< [ f32; 3 ] >;

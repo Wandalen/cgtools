@@ -152,7 +152,7 @@ pub async fn debug_run() -> Result< (), gl::WebglError >
   let document = window.document().unwrap();
 
   let model_id = 0;
-  let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "./gltf/{model_id}.glb" ).as_str(), &gl ).await?;
+  let gltf = renderer::webgl::loaders::gltf::load( &document, format!( "static/gltf/{model_id}.glb" ).as_str(), &gl ).await?;
   let gem = gltf.scenes[ 0 ].borrow().get_node( "Diamond_Cushion_Square" ).unwrap();
 
   let camera = setup_camera( &canvas );
