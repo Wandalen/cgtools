@@ -99,7 +99,8 @@ web-sys = { workspace = true, optional = true, features = [
   'PointerEvent',
   'MouseEvent',
   'WheelEvent',
-  'KeyboardEvent'
+  'KeyboardEvent',
+  'console',
 ]}
 
 [dev-dependencies]

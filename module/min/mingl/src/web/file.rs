@@ -4,6 +4,29 @@ mod private
   use wasm_bindgen::JsCast;
   use crate::web::*;
 
+  /// Resolves `file_name` against `origin` according to `load`'s contract.
+  ///
+  /// * Absolute URLs (`http://`, `https://`, `//`) pass through unchanged.
+  /// * Origin-absolute paths (leading `/`) are appended to the origin as-is.
+  /// * Anything else is treated as origin-relative and joined with a single `/`.
+  fn resolve_url( origin : &str, file_name : &str ) -> String
+  {
+    if file_name.starts_with( "http://" )
+    || file_name.starts_with( "https://" )
+    || file_name.starts_with( "//" )
+    {
+      file_name.to_string()
+    }
+    else if file_name.starts_with( '/' )
+    {
+      format!( "{}{}", origin, file_name )
+    }
+    else
+    {
+      format!( "{}/{}", origin, file_name )
+    }
+  }
+
   // qqq : implement typed errors
   /// Asynchronously fetches a file over HTTP using the browser's `fetch` API.
   ///
@@ -17,6 +40,8 @@ mod private
   /// so they pass arguments like `"static/foo.obj"`. Other deployments are free to
   /// pass full URLs or different folder prefixes.
   ///
+  /// An empty `file_name` resolves to `{origin}/` and is almost certainly a caller bug.
+  ///
   /// # Arguments
   /// * `file_name` - URL or origin-relative path of the file to fetch.
   ///
@@ -24,9 +49,17 @@ mod private
   /// A `Result` which is either a `Vec<u8>` containing the file's byte data on success,
   /// or a `JsValue` containing a JavaScript error on failure.
   ///
+  /// # Errors
+  /// Returns the `JsValue` that the underlying `fetch` or `Response::array_buffer`
+  /// promise rejected with — typically a `TypeError` for network / CORS failures or
+  /// a `DOMException` for aborted reads. HTTP error status codes (4xx, 5xx) do
+  /// **not** produce an `Err` here; `fetch` resolves successfully and the caller
+  /// receives the response body as `Ok`.
+  ///
   /// # Panics
-  /// This function will panic if it cannot access the browser's `window` object,
-  /// if the URL is malformed, or if the fetch request promise is rejected.
+  /// Panics if the browser `window` object is unavailable, if the constructed URL
+  /// is rejected by `Request::new_with_str_and_init`, or if the initial `fetch`
+  /// promise itself rejects (as opposed to resolving with an error response).
   pub async fn load( file_name : &str ) -> Result< Vec< u8 >, JsValue >
   {
 
@@ -35,24 +68,8 @@ mod private
     opts.set_mode( web_sys::RequestMode::Cors );
 
     let window = web_sys::window().unwrap();
-    let url = if file_name.starts_with( "http://" )
-           || file_name.starts_with( "https://" )
-           || file_name.starts_with( "//" )
-    {
-      file_name.to_string()
-    }
-    else
-    {
-      let origin = window.location().origin().unwrap();
-      if file_name.starts_with( '/' )
-      {
-        format!( "{}{}", origin, file_name )
-      }
-      else
-      {
-        format!( "{}/{}", origin, file_name )
-      }
-    };
+    let origin = window.location().origin().unwrap();
+    let url = resolve_url( &origin, file_name );
 
     let request = web_sys::Request::new_with_str_and_init( &url, &opts ).expect( "Invalid url" );
 
@@ -66,6 +83,72 @@ mod private
     uint8_array.copy_to( &mut data[ .. ] );
 
     Ok( data )
+  }
+
+  #[ cfg( test ) ]
+  mod tests
+  {
+    use super::resolve_url;
+
+    #[ test ]
+    fn passes_https_url_through()
+    {
+      assert_eq!
+      (
+        resolve_url( "https://app.example.com", "https://cdn.example.com/foo.glb" ),
+        "https://cdn.example.com/foo.glb"
+      );
+    }
+
+    #[ test ]
+    fn passes_http_url_through()
+    {
+      assert_eq!
+      (
+        resolve_url( "https://app.example.com", "http://legacy.example.com/foo.glb" ),
+        "http://legacy.example.com/foo.glb"
+      );
+    }
+
+    #[ test ]
+    fn passes_protocol_relative_url_through()
+    {
+      assert_eq!
+      (
+        resolve_url( "https://app.example.com", "//cdn.example.com/foo.glb" ),
+        "//cdn.example.com/foo.glb"
+      );
+    }
+
+    #[ test ]
+    fn joins_origin_absolute_path_without_extra_slash()
+    {
+      assert_eq!
+      (
+        resolve_url( "https://app.example.com", "/assets/foo.glb" ),
+        "https://app.example.com/assets/foo.glb"
+      );
+    }
+
+    #[ test ]
+    fn joins_origin_relative_path_with_slash()
+    {
+      assert_eq!
+      (
+        resolve_url( "https://app.example.com", "static/foo.glb" ),
+        "https://app.example.com/static/foo.glb"
+      );
+    }
+
+    #[ test ]
+    fn joins_bare_filename_with_slash()
+    {
+      assert_eq!
+      (
+        resolve_url( "https://app.example.com", "foo.glb" ),
+        "https://app.example.com/foo.glb"
+      );
+    }
   }
 
 }
