@@ -539,7 +539,7 @@ mod private
       {
         gltf::image::Source::Uri { uri, mime_type: _ } =>
         {
-          upload_texture( format!( "static/{}/{}", folder_path, uri ).into() );
+          upload_texture( format!( "{}/{}", folder_path, uri ).into() );
         },
         gltf::image::Source::View { view, mime_type } =>
         {
