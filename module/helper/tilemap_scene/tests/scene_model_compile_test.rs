@@ -1838,3 +1838,31 @@ fn global_tint_none_is_identity()
   let sprites = sprite_commands( &commands );
   assert_eq!( sprites[ 0 ].tint, [ 1.0, 1.0, 1.0, 1.0 ] );
 }
+
+#[ test ]
+fn layer_behaviour_blend_reaches_sprite_command()
+{
+  // Regression for commit 6119a0d1: every Sprite emit site in compile/frame.rs
+  // previously hardcoded BlendMode::default() (Normal), silently dropping
+  // user-authored values on `LayerBehaviour.blend`. A non-default blend mode
+  // on a Hex-anchored layer must reach the emitted RenderCommand::Sprite.
+  let mut spec = minimal_spec();
+  let stack = spec.objects[ 0 ].states.get_mut( "default" ).expect( "default state" );
+  stack[ 0 ].behaviour.blend = BlendMode::Add;
+
+  let scene = Scene
+  {
+    tiles : vec![ Tile { pos : ( 0, 0 ), objects : vec![ "grass".into() ] } ],
+    ..minimal_scene_3x3()
+  };
+
+  let compiled = compile_assets( &spec, &PathResolver ).expect( "assets" );
+  let commands = compile_frame( &spec, &scene, &compiled, &Camera::default(), 0.0 ).unwrap();
+  let sprites = sprite_commands( &commands );
+  assert_eq!( sprites.len(), 1 );
+  assert!
+  (
+    matches!( sprites[ 0 ].blend, BlendMode::Add ),
+    "expected BlendMode::Add to propagate from LayerBehaviour, got {:?}", sprites[ 0 ].blend,
+  );
+}
