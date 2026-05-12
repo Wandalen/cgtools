@@ -5,14 +5,20 @@ mod private
   use crate::web::*;
 
   // qqq : implement typed errors
-  // qqq : documentation, please
-  /// Asynchronously loads a file from the `/static/` directory of the web server.
+  /// Asynchronously fetches a file over HTTP using the browser's `fetch` API.
   ///
-  /// This function uses the browser's `fetch` API to request a file. It constructs the URL
-  /// by combining the window's origin with the provided file name inside a `/static/` path.
+  /// The argument is used verbatim as a URL or path; no folder prefix is added.
+  /// Three forms are accepted:
+  /// * Absolute URL (`http://...`, `https://...`, or protocol-relative `//...`) — fetched as-is.
+  /// * Origin-absolute path (`/assets/foo.png`) — joined to the window origin.
+  /// * Origin-relative path (`static/foo.png`, `foo.png`) — joined to the window origin with `/`.
+  ///
+  /// Trunk-built examples in this repo expose assets under `static/` by default,
+  /// so they pass arguments like `"static/foo.obj"`. Other deployments are free to
+  /// pass full URLs or different folder prefixes.
   ///
   /// # Arguments
-  /// * `file_name` - The name of the file to load from the `/static/` directory.
+  /// * `file_name` - URL or origin-relative path of the file to fetch.
   ///
   /// # Returns
   /// A `Result` which is either a `Vec<u8>` containing the file's byte data on success,
@@ -29,8 +35,24 @@ mod private
     opts.set_mode( web_sys::RequestMode::Cors );
 
     let window = web_sys::window().unwrap();
-    let origin = window.location().origin().unwrap();
-    let url = format!( "{}/static/{}", origin, file_name );
+    let url = if file_name.starts_with( "http://" )
+           || file_name.starts_with( "https://" )
+           || file_name.starts_with( "//" )
+    {
+      file_name.to_string()
+    }
+    else
+    {
+      let origin = window.location().origin().unwrap();
+      if file_name.starts_with( '/' )
+      {
+        format!( "{}{}", origin, file_name )
+      }
+      else
+      {
+        format!( "{}/{}", origin, file_name )
+      }
+    };
 
     let request = web_sys::Request::new_with_str_and_init( &url, &opts ).expect( "Invalid url" );
 
